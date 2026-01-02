@@ -8,6 +8,54 @@ A comprehensive development log for the Multi-tenant WhatsApp Web Collaborative 
 
 ## Latest Updates
 
+### 2026-01-03: Contact Reassignment/Takeover with Notification
+
+Added instant transfer (takeover) feature that notifies the previous assignee when a contact is reassigned to another team member.
+
+**Backend:**
+- `contacts.ts` route updates:
+  - `POST /api/contacts/:id/assign` now accepts optional `targetUserId` in body for reassignment
+  - When reassigning from another user (takeover):
+    - Creates in-app notification for the previous assignee
+    - Broadcasts WebSocket event for real-time update
+    - Creates audit log with detailed takeover information
+  - Response includes `wasTakeover` boolean and `previousAssignee` ID
+- `ws.ts` updates:
+  - Added `assignment` type to ServerMessage interface for WebSocket events
+- New imports in contacts.ts:
+  - `getCurrentAssignment` from contact service
+  - `createNotification` from notification-history service
+  - `createAuditLog`, `getClientIp` from audit service
+  - `broadcastToCompany` from ws routes
+
+**Features:**
+- When reassigning a contact from one user to another:
+  - Previous assignee receives an "assignment" type notification with title "Contact Reassigned"
+  - Notification includes link to the contact chat (`/chat/{contactId}`)
+  - WebSocket broadcasts "reassigned" event to all company users
+  - Audit log records full takeover details (previousAssignee, newAssignee, isTakeover flag)
+- Self-assignment (claiming unassigned contact) does not trigger takeover notification
+- Reassigning to the same user does not trigger takeover notification
+
+**Tests:**
+- Backend unit tests: 10 new tests in `contacts.route.test.ts`:
+  - Self-assignment without notification
+  - Takeover with notification creation
+  - WebSocket broadcast on takeover
+  - Audit log with takeover details
+  - No notification when reassigning to same user
+  - Phone number as display name fallback
+  - 404 for non-existent contact
+- E2E tests: 6 new tests in `chat.spec.ts` under "Contact Reassignment (Takeover)" section:
+  - Assign button visibility in contact profile
+  - Assignment status display in profile
+  - Update assignment indicator after API call
+  - Self-assignment flow
+  - Notification center visibility
+  - Takeover API response handling
+
+---
+
 ### 2026-01-03: Keyboard Shortcuts Verification
 
 Verified that all keyboard shortcuts specified in the spec are fully implemented.

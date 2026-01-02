@@ -59,6 +59,7 @@ interface ServerMessage {
     | "receipt"
     | "status"
     | "contact"
+    | "assignment"
     | "error"
     | "pong"
     | "send_ack";

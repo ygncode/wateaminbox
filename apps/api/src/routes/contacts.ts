@@ -7,6 +7,14 @@ import {
   importContacts,
   generateImportTemplate,
 } from "../services/import.service.js";
+import {
+  assignContactToUser,
+  unassignContact,
+  getCurrentAssignment,
+} from "../services/contact.service.js";
+import { createNotification } from "../services/notification-history.service.js";
+import { createAuditLog, getClientIp } from "../services/audit.service.js";
+import { broadcastToCompany } from "./ws.js";
 
 export const contactRoutes = new Hono();
 
@@ -379,23 +387,54 @@ contactRoutes.patch("/:id", async (c) => {
 });
 
 /**
- * POST /contacts/:id/assign - Assign contact to current user
+ * POST /contacts/:id/assign - Assign contact to a user (or self)
+ * Body: { targetUserId?: string } - If not provided, assigns to current user
+ *
+ * When reassigning from another user (takeover):
+ * - Creates notification for previous assignee
+ * - Broadcasts WebSocket event for real-time update
+ * - Logs to audit trail
  */
 contactRoutes.post("/:id/assign", async (c) => {
   const tenantDb = c.get("tenantDb");
   const user = c.get("user");
+  const company = c.get("company");
   const contactId = c.req.param("id");
+
+  // Parse optional body for targetUserId
+  let targetUserId = user.id;
+  try {
+    const body = await c.req.json();
+    if (body.targetUserId) {
+      targetUserId = body.targetUserId;
+    }
+  } catch {
+    // No body or invalid JSON - default to self-assignment
+  }
 
   // Check if contact exists
   const contact = await tenantDb
     .selectFrom("contacts")
-    .select(["id"])
+    .select(["id", "custom_name", "push_name", "phone_number", "jid"])
     .where("id", "=", contactId)
     .executeTakeFirst();
 
   if (!contact) {
     return c.json({ error: "Contact not found" }, 404);
   }
+
+  // Get contact display name
+  const contactDisplayName =
+    contact.custom_name ||
+    contact.push_name ||
+    contact.phone_number ||
+    contact.jid?.split("@")[0] ||
+    "Unknown Contact";
+
+  // Get current assignment before updating
+  const previousAssignment = await getCurrentAssignment(tenantDb, contactId);
+  const previousAssigneeId = previousAssignment?.assigned_to;
+  const isTakeover = previousAssigneeId && previousAssigneeId !== targetUserId;
 
   // Unassign previous assignment
   await tenantDb
@@ -410,11 +449,74 @@ contactRoutes.post("/:id/assign", async (c) => {
     .insertInto("contact_assignments")
     .values({
       contact_id: contactId,
-      assigned_to: user.id,
+      assigned_to: targetUserId,
       assigned_by: user.id,
     })
     .returning(["id", "assigned_to", "assigned_by", "assigned_at"])
     .executeTakeFirst();
+
+  // If this is a takeover (reassigning from another user), create notification
+  if (isTakeover && previousAssigneeId) {
+    // Create in-app notification for previous assignee
+    await createNotification(company.id, {
+      userId: previousAssigneeId,
+      notificationType: "assignment",
+      title: "Contact Reassigned",
+      message: `"${contactDisplayName}" has been reassigned to another team member`,
+      actionUrl: `/chat/${contactId}`,
+      metadata: {
+        contactId,
+        contactName: contactDisplayName,
+        reassignedBy: user.id,
+        newAssignee: targetUserId,
+      },
+    });
+
+    // Broadcast WebSocket event for real-time update
+    broadcastToCompany(company.id, {
+      type: "contact",
+      payload: {
+        event: "reassigned",
+        contactId,
+        contactName: contactDisplayName,
+        previousAssignee: previousAssigneeId,
+        newAssignee: targetUserId,
+        reassignedBy: user.id,
+      },
+      timestamp: new Date().toISOString(),
+    });
+
+    // Create audit log
+    await createAuditLog({
+      companyId: company.id,
+      userId: user.id,
+      action: "contact.assigned",
+      entityType: "contact",
+      entityId: contactId,
+      details: {
+        previousAssignee: previousAssigneeId,
+        newAssignee: targetUserId,
+        isTakeover: true,
+        contactName: contactDisplayName,
+      },
+      ipAddress: getClientIp(c.req.raw.headers),
+    });
+  } else {
+    // Regular assignment (not a takeover)
+    await createAuditLog({
+      companyId: company.id,
+      userId: user.id,
+      action: "contact.assigned",
+      entityType: "contact",
+      entityId: contactId,
+      details: {
+        assignee: targetUserId,
+        isTakeover: false,
+        contactName: contactDisplayName,
+      },
+      ipAddress: getClientIp(c.req.raw.headers),
+    });
+  }
 
   return c.json({
     success: true,
@@ -424,6 +526,8 @@ contactRoutes.post("/:id/assign", async (c) => {
       assignedBy: assignment?.assigned_by,
       assignedAt: assignment?.assigned_at,
     },
+    wasTakeover: !!isTakeover,
+    previousAssignee: previousAssigneeId || null,
   });
 });
 

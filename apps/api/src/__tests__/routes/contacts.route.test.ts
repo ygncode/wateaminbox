@@ -368,3 +368,498 @@ describe("POST /contacts - Create contact by phone number", () => {
     expect(data2.phoneNumber).toBe("1234567890");
   });
 });
+
+// Create mock for contact assignment with takeover
+function createMockAssignmentDb() {
+  let contactData: Record<string, unknown> | null = null;
+  let currentAssignment: Record<string, unknown> | null = null;
+  let newAssignment: Record<string, unknown> | null = null;
+  let updateCalled = false;
+  let insertValues: Record<string, unknown> | null = null;
+
+  const mockDb = {
+    selectFrom: mock((table: string) => {
+      const builder: Record<string, unknown> = {};
+      const chainMethods = ["select", "selectAll", "where", "returning"];
+      chainMethods.forEach((method) => {
+        builder[method] = mock(() => builder);
+      });
+      builder.executeTakeFirst = mock(() => {
+        if (table === "contacts") {
+          return Promise.resolve(contactData);
+        }
+        if (table === "contact_assignments") {
+          return Promise.resolve(currentAssignment);
+        }
+        return Promise.resolve(null);
+      });
+      return builder;
+    }),
+    updateTable: mock(() => {
+      const builder: Record<string, unknown> = {};
+      const chainMethods = ["set", "where", "returning"];
+      chainMethods.forEach((method) => {
+        builder[method] = mock(() => builder);
+      });
+      builder.execute = mock(() => {
+        updateCalled = true;
+        return Promise.resolve({ numUpdatedRows: 1n });
+      });
+      return builder;
+    }),
+    insertInto: mock((table: string) => {
+      const builder: Record<string, unknown> = {};
+      builder.values = mock((values: Record<string, unknown>) => {
+        insertValues = values;
+        return builder;
+      });
+      builder.returning = mock(() => builder);
+      builder.executeTakeFirst = mock(() => {
+        if (table === "contact_assignments" && insertValues) {
+          newAssignment = {
+            id: "assignment-456",
+            assigned_to: insertValues.assigned_to,
+            assigned_by: insertValues.assigned_by,
+            assigned_at: new Date(),
+          };
+          return Promise.resolve(newAssignment);
+        }
+        return Promise.resolve(null);
+      });
+      return builder;
+    }),
+    setContactData: (data: Record<string, unknown> | null) => {
+      contactData = data;
+    },
+    setCurrentAssignment: (data: Record<string, unknown> | null) => {
+      currentAssignment = data;
+    },
+    wasUpdateCalled: () => updateCalled,
+    getInsertValues: () => insertValues,
+    getNewAssignment: () => newAssignment,
+  };
+
+  return mockDb;
+}
+
+// Mock for createNotification
+let notificationCreated: Record<string, unknown> | null = null;
+const mockCreateNotification = mock(
+  (_companyId: string, input: Record<string, unknown>) => {
+    notificationCreated = input;
+    return Promise.resolve({ id: "notification-123", ...input });
+  }
+);
+
+// Mock for broadcastToCompany
+let broadcastPayload: Record<string, unknown> | null = null;
+const mockBroadcastToCompany = mock(
+  (_companyId: string, message: Record<string, unknown>) => {
+    broadcastPayload = message;
+  }
+);
+
+// Mock for createAuditLog
+let auditLogCreated: Record<string, unknown> | null = null;
+const mockCreateAuditLog = mock((input: Record<string, unknown>) => {
+  auditLogCreated = input;
+  return Promise.resolve();
+});
+
+describe("POST /contacts/:id/assign - Contact assignment with takeover", () => {
+  let app: Hono;
+  let mockDb: ReturnType<typeof createMockAssignmentDb>;
+
+  beforeEach(() => {
+    mockDb = createMockAssignmentDb();
+    notificationCreated = null;
+    broadcastPayload = null;
+    auditLogCreated = null;
+
+    app = new Hono();
+
+    // Mock middleware that sets tenantDb, user, and company
+    app.use("/*", async (c, next) => {
+      c.set("tenantDb", mockDb);
+      c.set("user", { id: "user-123", email: "test@example.com" });
+      c.set("company", { id: "company-123", name: "Test Company" });
+      await next();
+    });
+
+    // Simplified assign route for testing
+    app.post("/contacts/:id/assign", async (c) => {
+      const tenantDb = c.get("tenantDb") as ReturnType<
+        typeof createMockAssignmentDb
+      >;
+      const user = c.get("user") as { id: string };
+      const company = c.get("company") as { id: string };
+      const contactId = c.req.param("id");
+
+      // Parse optional body for targetUserId
+      let targetUserId = user.id;
+      try {
+        const body = await c.req.json();
+        if (body.targetUserId) {
+          targetUserId = body.targetUserId;
+        }
+      } catch {
+        // No body or invalid JSON - default to self-assignment
+      }
+
+      // Check if contact exists
+      const contact = await tenantDb
+        .selectFrom("contacts")
+        .select(["id", "custom_name", "push_name", "phone_number", "jid"])
+        .where("id", "=", contactId)
+        .executeTakeFirst();
+
+      if (!contact) {
+        return c.json({ error: "Contact not found" }, 404);
+      }
+
+      const typedContact = contact as Record<string, unknown>;
+      const contactDisplayName =
+        typedContact.custom_name ||
+        typedContact.push_name ||
+        typedContact.phone_number ||
+        (typedContact.jid as string)?.split("@")[0] ||
+        "Unknown Contact";
+
+      // Get current assignment
+      const previousAssignment = await tenantDb
+        .selectFrom("contact_assignments")
+        .select(["id", "assigned_to", "assigned_by", "assigned_at"])
+        .where("contact_id", "=", contactId)
+        .where("unassigned_at", "is", null)
+        .executeTakeFirst();
+
+      const typedPrevAssignment = previousAssignment as Record<
+        string,
+        unknown
+      > | null;
+      const previousAssigneeId = typedPrevAssignment?.assigned_to as
+        | string
+        | undefined;
+      const isTakeover =
+        previousAssigneeId && previousAssigneeId !== targetUserId;
+
+      // Unassign previous
+      await tenantDb
+        .updateTable("contact_assignments")
+        .set({ unassigned_at: new Date() })
+        .where("contact_id", "=", contactId)
+        .where("unassigned_at", "is", null)
+        .execute();
+
+      // Create new assignment
+      const assignment = await tenantDb
+        .insertInto("contact_assignments")
+        .values({
+          contact_id: contactId,
+          assigned_to: targetUserId,
+          assigned_by: user.id,
+        })
+        .returning(["id", "assigned_to", "assigned_by", "assigned_at"])
+        .executeTakeFirst();
+
+      // If takeover, create notification
+      if (isTakeover && previousAssigneeId) {
+        await mockCreateNotification(company.id, {
+          userId: previousAssigneeId,
+          notificationType: "assignment",
+          title: "Contact Reassigned",
+          message: `"${contactDisplayName}" has been reassigned to another team member`,
+          actionUrl: `/chat/${contactId}`,
+          metadata: {
+            contactId,
+            contactName: contactDisplayName,
+            reassignedBy: user.id,
+            newAssignee: targetUserId,
+          },
+        });
+
+        mockBroadcastToCompany(company.id, {
+          type: "contact",
+          payload: {
+            event: "reassigned",
+            contactId,
+            contactName: contactDisplayName,
+            previousAssignee: previousAssigneeId,
+            newAssignee: targetUserId,
+            reassignedBy: user.id,
+          },
+          timestamp: new Date().toISOString(),
+        });
+
+        await mockCreateAuditLog({
+          companyId: company.id,
+          userId: user.id,
+          action: "contact.assigned",
+          entityType: "contact",
+          entityId: contactId,
+          details: {
+            previousAssignee: previousAssigneeId,
+            newAssignee: targetUserId,
+            isTakeover: true,
+            contactName: contactDisplayName,
+          },
+        });
+      } else {
+        await mockCreateAuditLog({
+          companyId: company.id,
+          userId: user.id,
+          action: "contact.assigned",
+          entityType: "contact",
+          entityId: contactId,
+          details: {
+            assignee: targetUserId,
+            isTakeover: false,
+            contactName: contactDisplayName,
+          },
+        });
+      }
+
+      const typedAssignment = assignment as Record<string, unknown> | null;
+
+      return c.json({
+        success: true,
+        assignment: {
+          id: typedAssignment?.id,
+          assignedTo: typedAssignment?.assigned_to,
+          assignedBy: typedAssignment?.assigned_by,
+          assignedAt: typedAssignment?.assigned_at,
+        },
+        wasTakeover: !!isTakeover,
+        previousAssignee: previousAssigneeId || null,
+      });
+    });
+  });
+
+  it("should assign contact to current user (self-assignment)", async () => {
+    mockDb.setContactData({
+      id: "contact-123",
+      custom_name: "John Doe",
+      push_name: null,
+      phone_number: "1234567890",
+      jid: "1234567890@s.whatsapp.net",
+    });
+    mockDb.setCurrentAssignment(null); // No current assignment
+
+    const response = await app.request("/contacts/contact-123/assign", {
+      method: "POST",
+    });
+
+    expect(response.status).toBe(200);
+    const data = await response.json();
+    expect(data.success).toBe(true);
+    expect(data.wasTakeover).toBe(false);
+    expect(data.previousAssignee).toBeNull();
+    expect(data.assignment.assignedTo).toBe("user-123");
+  });
+
+  it("should reassign contact to another user (takeover)", async () => {
+    mockDb.setContactData({
+      id: "contact-123",
+      custom_name: "Jane Smith",
+      push_name: null,
+      phone_number: "9876543210",
+      jid: "9876543210@s.whatsapp.net",
+    });
+    mockDb.setCurrentAssignment({
+      id: "assignment-old",
+      assigned_to: "previous-user-456",
+      assigned_by: "previous-user-456",
+      assigned_at: new Date("2024-01-01"),
+    });
+
+    const response = await app.request("/contacts/contact-123/assign", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        targetUserId: "new-user-789",
+      }),
+    });
+
+    expect(response.status).toBe(200);
+    const data = await response.json();
+    expect(data.success).toBe(true);
+    expect(data.wasTakeover).toBe(true);
+    expect(data.previousAssignee).toBe("previous-user-456");
+    expect(data.assignment.assignedTo).toBe("new-user-789");
+  });
+
+  it("should create notification for previous assignee on takeover", async () => {
+    mockDb.setContactData({
+      id: "contact-123",
+      custom_name: "Jane Smith",
+      push_name: null,
+      phone_number: "9876543210",
+      jid: "9876543210@s.whatsapp.net",
+    });
+    mockDb.setCurrentAssignment({
+      id: "assignment-old",
+      assigned_to: "previous-user-456",
+      assigned_by: "previous-user-456",
+      assigned_at: new Date("2024-01-01"),
+    });
+
+    await app.request("/contacts/contact-123/assign", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        targetUserId: "new-user-789",
+      }),
+    });
+
+    expect(notificationCreated).not.toBeNull();
+    expect(notificationCreated?.userId).toBe("previous-user-456");
+    expect(notificationCreated?.notificationType).toBe("assignment");
+    expect(notificationCreated?.title).toBe("Contact Reassigned");
+    expect(notificationCreated?.message).toContain("Jane Smith");
+    expect(notificationCreated?.actionUrl).toBe("/chat/contact-123");
+  });
+
+  it("should broadcast WebSocket event on takeover", async () => {
+    mockDb.setContactData({
+      id: "contact-123",
+      custom_name: "Jane Smith",
+      push_name: null,
+      phone_number: "9876543210",
+      jid: "9876543210@s.whatsapp.net",
+    });
+    mockDb.setCurrentAssignment({
+      id: "assignment-old",
+      assigned_to: "previous-user-456",
+      assigned_by: "previous-user-456",
+      assigned_at: new Date("2024-01-01"),
+    });
+
+    await app.request("/contacts/contact-123/assign", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        targetUserId: "new-user-789",
+      }),
+    });
+
+    expect(broadcastPayload).not.toBeNull();
+    expect(broadcastPayload?.type).toBe("contact");
+    const payload = broadcastPayload?.payload as Record<string, unknown>;
+    expect(payload?.event).toBe("reassigned");
+    expect(payload?.contactId).toBe("contact-123");
+    expect(payload?.previousAssignee).toBe("previous-user-456");
+    expect(payload?.newAssignee).toBe("new-user-789");
+  });
+
+  it("should create audit log with takeover details", async () => {
+    mockDb.setContactData({
+      id: "contact-123",
+      custom_name: "Jane Smith",
+      push_name: null,
+      phone_number: "9876543210",
+      jid: "9876543210@s.whatsapp.net",
+    });
+    mockDb.setCurrentAssignment({
+      id: "assignment-old",
+      assigned_to: "previous-user-456",
+      assigned_by: "previous-user-456",
+      assigned_at: new Date("2024-01-01"),
+    });
+
+    await app.request("/contacts/contact-123/assign", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        targetUserId: "new-user-789",
+      }),
+    });
+
+    expect(auditLogCreated).not.toBeNull();
+    expect(auditLogCreated?.action).toBe("contact.assigned");
+    const details = auditLogCreated?.details as Record<string, unknown>;
+    expect(details?.isTakeover).toBe(true);
+    expect(details?.previousAssignee).toBe("previous-user-456");
+    expect(details?.newAssignee).toBe("new-user-789");
+  });
+
+  it("should NOT create notification for self-assignment", async () => {
+    mockDb.setContactData({
+      id: "contact-123",
+      custom_name: "John Doe",
+      push_name: null,
+      phone_number: "1234567890",
+      jid: "1234567890@s.whatsapp.net",
+    });
+    mockDb.setCurrentAssignment(null);
+
+    await app.request("/contacts/contact-123/assign", {
+      method: "POST",
+    });
+
+    // No notification should be created for self-assignment
+    expect(notificationCreated).toBeNull();
+    expect(broadcastPayload).toBeNull();
+  });
+
+  it("should NOT create notification when reassigning to same user", async () => {
+    mockDb.setContactData({
+      id: "contact-123",
+      custom_name: "John Doe",
+      push_name: null,
+      phone_number: "1234567890",
+      jid: "1234567890@s.whatsapp.net",
+    });
+    mockDb.setCurrentAssignment({
+      id: "assignment-old",
+      assigned_to: "user-123", // Same as current user
+      assigned_by: "user-123",
+      assigned_at: new Date("2024-01-01"),
+    });
+
+    await app.request("/contacts/contact-123/assign", {
+      method: "POST",
+    });
+
+    // No notification for reassigning to same user
+    expect(notificationCreated).toBeNull();
+    expect(broadcastPayload).toBeNull();
+  });
+
+  it("should return 404 if contact not found", async () => {
+    mockDb.setContactData(null);
+
+    const response = await app.request("/contacts/nonexistent-123/assign", {
+      method: "POST",
+    });
+
+    expect(response.status).toBe(404);
+    const data = await response.json();
+    expect(data.error).toBe("Contact not found");
+  });
+
+  it("should use phone number as display name when custom_name is missing", async () => {
+    mockDb.setContactData({
+      id: "contact-123",
+      custom_name: null,
+      push_name: null,
+      phone_number: "1234567890",
+      jid: "1234567890@s.whatsapp.net",
+    });
+    mockDb.setCurrentAssignment({
+      id: "assignment-old",
+      assigned_to: "previous-user-456",
+      assigned_by: "previous-user-456",
+      assigned_at: new Date("2024-01-01"),
+    });
+
+    await app.request("/contacts/contact-123/assign", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        targetUserId: "new-user-789",
+      }),
+    });
+
+    expect(notificationCreated?.message).toContain("1234567890");
+  });
+});

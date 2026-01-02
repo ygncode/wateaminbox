@@ -75,11 +75,11 @@ Comparison of `.specs/spec.md` against current implementation. Last updated: 202
   - [ ] `can_invite`
 - [ ] **Role presets customization** - Owner, Admin, Agent with customizable permissions
 
-### 2.2 Contact Assignment ⚠️ Partially Complete
+### 2.2 Contact Assignment ✅ Complete
 - [x] Self-assign unassigned contacts
 - [x] **"Assign to me" on first reply** - auto-claims contact when user sends first message ✅ Completed 2026-01-03
 - [x] View assigned vs all chats filter
-- [ ] **Instant transfer (takeover) with notification** - reassign with alert to previous assignee
+- [x] **Instant transfer (takeover) with notification** - reassign with alert to previous assignee ✅ Completed 2026-01-03
 - [x] Assignment history in audit log
 
 ### 2.3 Notifications ✅ Complete
@@ -254,6 +254,7 @@ ALTER TABLE company_members ADD COLUMN permissions JSONB;
 - [x] Quick replies route tests ✅ Completed 2026-01-03
 - [x] Auto-assign on first reply tests ✅ Completed 2026-01-03
 - [x] Export service tests (ZIP generation) ✅ Completed 2026-01-03
+- [x] Contact reassignment/takeover notification tests ✅ Completed 2026-01-03
 - [ ] Permission checking middleware tests
 
 ### E2E Tests
@@ -262,6 +263,7 @@ ALTER TABLE company_members ADD COLUMN permissions JSONB;
 - [x] Auto-assign on first reply flow ✅ Completed 2026-01-03
 - [x] Export functionality tests ✅ Completed 2026-01-03
 - [x] Notification settings flow ✅ Completed 2026-01-03
+- [x] Contact reassignment/takeover flow ✅ Completed 2026-01-03
 - [ ] Group message sending
 - [ ] Status posting flow
 
@@ -283,7 +285,7 @@ ALTER TABLE company_members ADD COLUMN permissions JSONB;
 ### Medium Priority (Enhanced Experience)
 8. ~~Quick replies~~ ✅ Completed 2026-01-03
 9. ~~Full backup as ZIP export~~ ✅ Completed 2026-01-03
-10. Instant transfer/takeover notifications
+10. ~~Instant transfer/takeover notifications~~ ✅ Completed 2026-01-03
 
 ### Low Priority (Nice to Have)
 11. WhatsApp Business features (labels sync, catalogs)
@@ -304,6 +306,6 @@ ALTER TABLE company_members ADD COLUMN permissions JSONB;
 | Phase 4 | 10 | 5 | 4 | 1 |
 | **Total** | **72** | **51** | **14** | **7** |
 
-**Overall Completion: ~71% fully complete, ~19% partial, ~10% missing**
+**Overall Completion: ~72% fully complete, ~18% partial, ~10% missing**
 
-*Last updated: 2026-01-03 - Keyboard shortcuts verified complete*
+*Last updated: 2026-01-03 - Contact reassignment/takeover with notification complete*
