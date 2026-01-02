@@ -15,6 +15,7 @@ import { groupRoutes } from "./groups.js";
 import { statusRoutes } from "./status.js";
 import { searchRoutes } from "./search.js";
 import { notificationRoutes } from "./notifications.js";
+import { quickReplyRoutes } from "./quick-replies.js";
 
 export const routes = new Hono();
 
@@ -63,6 +64,9 @@ routes.route("/search", searchRoutes);
 
 // Notification routes
 routes.route("/notifications", notificationRoutes);
+
+// Quick reply routes
+routes.route("/quick-replies", quickReplyRoutes);
 
 // WebSocket routes
 routes.route("/ws", wsRoutes);

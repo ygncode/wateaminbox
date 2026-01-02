@@ -26,6 +26,7 @@ export type {
   AuditLogsTable,
   NotificationPreferencesTable,
   NotificationHistoryTable,
+  QuickRepliesTable,
   WhatsAppConnectionStatus,
   MessageType,
   MessageStatus,

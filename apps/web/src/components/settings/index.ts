@@ -10,3 +10,5 @@ export {
 } from "./KeyboardShortcutsModal";
 
 export { NotificationSettings } from "./NotificationSettings";
+
+export { QuickRepliesManager } from "./QuickRepliesManager";

@@ -437,3 +437,29 @@ export function createMockNotificationHistory(overrides: Partial<MockNotificatio
     ...overrides,
   };
 }
+
+export interface MockQuickReply {
+  id: string;
+  shortcut: string;
+  title: string;
+  content: string;
+  created_by: string;
+  created_at: Date;
+  updated_at: Date;
+}
+
+/**
+ * Helper to create mock quick reply data
+ */
+export function createMockQuickReply(overrides: Partial<MockQuickReply> = {}): MockQuickReply {
+  return {
+    id: "quick-reply-123",
+    shortcut: "greeting",
+    title: "Greeting Message",
+    content: "Hello! Thank you for contacting us. How can I help you today?",
+    created_by: "user-123",
+    created_at: new Date(),
+    updated_at: new Date(),
+    ...overrides,
+  };
+}

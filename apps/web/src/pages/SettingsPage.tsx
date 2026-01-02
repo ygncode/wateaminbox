@@ -6,6 +6,7 @@ import {
   LanguageSwitcher,
   KeyboardShortcutsModal,
   NotificationSettings,
+  QuickRepliesManager,
 } from "../components/settings";
 import { WhatsAppConnectionPanel } from "../components/whatsapp";
 import { ContactImport } from "../components/contacts";
@@ -23,6 +24,7 @@ import {
   LogOut,
   ChevronRight,
   User,
+  Zap,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 
@@ -117,6 +119,16 @@ export function SettingsPage() {
                   iconColor="text-amber-600"
                 >
                   <NotificationSettings />
+                </SettingsCard>
+
+                {/* Quick Replies */}
+                <SettingsCard
+                  icon={<Zap className="h-5 w-5" />}
+                  title={t("settings.quickReplies", "Quick Replies")}
+                  iconBg="bg-cyan-100"
+                  iconColor="text-cyan-600"
+                >
+                  <QuickRepliesManager />
                 </SettingsCard>
 
                 {/* Contact Import */}

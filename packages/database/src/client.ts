@@ -108,6 +108,7 @@ export interface TenantDatabase {
   audit_logs: AuditLogsTable;
   notification_preferences: NotificationPreferencesTable;
   notification_history: NotificationHistoryTable;
+  quick_replies: QuickRepliesTable;
 }
 
 export interface WhatsAppConnectionsTable {
@@ -265,6 +266,16 @@ export interface NotificationHistoryTable {
   is_read: Generated<boolean>;
   read_at: Date | null;
   created_at: Generated<Date>;
+}
+
+export interface QuickRepliesTable {
+  id: Generated<string>;
+  shortcut: string;
+  title: string;
+  content: string;
+  created_by: string;
+  created_at: Generated<Date>;
+  updated_at: Generated<Date>;
 }
 
 // ============================================================================
