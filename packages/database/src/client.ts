@@ -87,6 +87,7 @@ export interface UserSessionsTable {
 
 export type WhatsAppConnectionStatus = "connected" | "disconnected" | "banned" | "pending";
 export type MessageType = "text" | "image" | "video" | "audio" | "document" | "sticker" | "location" | "contact" | "reaction";
+export type MessageStatus = "pending" | "sent" | "delivered" | "read" | "failed";
 
 /**
  * Tenant database interface for tenant-specific tables
@@ -183,6 +184,7 @@ export interface TenantMessagesTable {
   deleted_by_sender: Generated<boolean>;
   deleted_at: Date | null;
   sent_by_user_id: string | null;
+  status: Generated<MessageStatus>;
   timestamp: Date;
   created_at: Generated<Date>;
   search_vector: unknown | null;

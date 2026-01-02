@@ -88,6 +88,7 @@ messageRoutes.get("/", async (c) => {
       deletedBySender: msg.deleted_by_sender,
       deletedAt: msg.deleted_at,
       sentByUserId: msg.sent_by_user_id,
+      status: msg.status || "sent",
       timestamp: msg.timestamp,
       createdAt: msg.created_at,
     })),
@@ -145,6 +146,7 @@ messageRoutes.post("/", async (c) => {
       content,
       media_url: mediaUrl || null,
       sent_by_user_id: user.id,
+      status: "pending",
       timestamp: new Date(),
     })
     .execute();
@@ -328,6 +330,7 @@ messageRoutes.post("/:id/forward", async (c) => {
       media_url: originalMessage.media_url,
       is_forwarded: true,
       sent_by_user_id: user.id,
+      status: "pending",
       timestamp: new Date(),
     })
     .execute();

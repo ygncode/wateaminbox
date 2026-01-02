@@ -8,6 +8,36 @@ A comprehensive development log for the Multi-tenant WhatsApp Web Collaborative 
 
 ## Latest Updates
 
+### 2026-01-02: Read Receipts Display (Message Status)
+
+Added visual read receipts (delivery status indicators) for messages.
+
+**Database:**
+- New migration `003_add_message_status.ts` adding `message_status` enum type
+- Added `status` column to messages table (`pending`, `sent`, `delivered`, `read`, `failed`)
+- Updated `setup_tenant_schema()` function to include status column for new tenants
+
+**Backend:**
+- `message-handler.ts`: Receipt events now persist status to database
+- `conversations.ts`: API returns `status` field with proper frontend mapping
+- `messages.ts`: Send message creates with `pending` status, forward with `pending` status
+- Updated `MockMessage` interface and `createMockMessage` helper in test mocks
+
+**Frontend:**
+- `MessageBubble.tsx`: Already had status icon rendering (lines 69-129)
+  - Pending: gray clock circle
+  - Sent: single gray checkmark
+  - Delivered: double gray checkmarks
+  - Read: double blue checkmarks
+  - Failed: red error icon
+- Status icons only shown on sent messages (not received)
+
+**Tests:**
+- Backend unit tests: 8 tests in `messages.route.test.ts` covering status in responses
+- E2E tests: 5 tests in `chat.spec.ts` for Message Status (Read Receipts)
+
+---
+
 ### 2026-01-02: Add Contact by Phone Number
 
 Added the ability to manually create contacts by phone number.

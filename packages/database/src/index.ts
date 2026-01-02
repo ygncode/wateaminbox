@@ -27,4 +27,5 @@ export type {
   NotificationPreferencesTable,
   WhatsAppConnectionStatus,
   MessageType,
+  MessageStatus,
 } from "./client";

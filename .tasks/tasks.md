@@ -52,7 +52,7 @@ Comparison of `.specs/spec.md` against current implementation. Last updated: 202
 - [x] Message reactions
 - [x] Star messages
 - [x] View deleted messages (marked as deleted)
-- [ ] **Read receipts display** - not showing read/delivered status in UI
+- [x] **Read receipts display** - status icons (pending/sent/delivered/read) in MessageBubble
 - [ ] **Message search within conversation** - only global search exists
 
 ### 1.7 Dashboard ✅ Complete
@@ -224,9 +224,8 @@ conversation_states (
 -- Add to company_members table
 ALTER TABLE company_members ADD COLUMN permissions JSONB;
 
--- Add to messages table (for read receipts)
-ALTER TABLE messages ADD COLUMN delivered_at TIMESTAMP;
-ALTER TABLE messages ADD COLUMN read_at TIMESTAMP;
+-- ✅ COMPLETED: messages.status column added via migration 003_add_message_status.ts
+-- Uses message_status enum: 'pending', 'sent', 'delivered', 'read', 'failed'
 ```
 
 ---
@@ -254,8 +253,8 @@ ALTER TABLE messages ADD COLUMN read_at TIMESTAMP;
 ### High Priority (Core Functionality Gaps)
 1. Feature-based permissions system
 2. "Assign to me" on first reply
-3. Add contacts by phone number
-4. Read receipts display
+3. ~~Add contacts by phone number~~ ✅ Completed 2026-01-02
+4. ~~Read receipts display~~ ✅ Completed 2026-01-02
 5. Notification preferences API
 
 ### Medium Priority (Enhanced Experience)
@@ -278,10 +277,10 @@ ALTER TABLE messages ADD COLUMN read_at TIMESTAMP;
 
 | Phase | Total Features | Completed | Partial | Missing |
 |-------|---------------|-----------|---------|---------|
-| Phase 1 | 28 | 24 | 4 | 0 |
+| Phase 1 | 28 | 25 | 3 | 0 |
 | Phase 2 | 16 | 7 | 5 | 4 |
 | Phase 3 | 18 | 10 | 4 | 4 |
 | Phase 4 | 10 | 4 | 5 | 1 |
-| **Total** | **72** | **45** | **18** | **9** |
+| **Total** | **72** | **46** | **17** | **9** |
 
-**Overall Completion: ~63% fully complete, ~25% partial, ~12% missing**
+**Overall Completion: ~64% fully complete, ~24% partial, ~12% missing**

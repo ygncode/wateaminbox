@@ -64,14 +64,21 @@ conversationRoutes.get("/:id/messages", async (c) => {
   const formattedMessages = messages.map((msg) => ({
     id: msg.id,
     messageId: msg.message_id,
+    conversationId: msg.contact_id,
     contactId: msg.contact_id,
-    fromMe: msg.from_me,
+    senderId: msg.sent_by_user_id || msg.sender_jid || "",
+    senderType: msg.from_me ? "user" : "contact",
     senderJid: msg.sender_jid,
-    type: msg.message_type,
-    content: msg.content,
+    messageType: msg.message_type,
+    content: msg.content || "",
     mediaUrl: msg.media_url,
-    mediaMimeType: msg.media_mime_type,
-    mediaSize: msg.media_size,
+    metadata: msg.media_url
+      ? {
+          mediaUrl: msg.media_url,
+          mimeType: msg.media_mime_type,
+          fileSize: msg.media_size,
+        }
+      : undefined,
     quotedMessage: msg.quoted_message_id
       ? quotedMessages.get(msg.quoted_message_id) || null
       : null,
@@ -80,9 +87,10 @@ conversationRoutes.get("/:id/messages", async (c) => {
     isDeleted: msg.deleted_by_sender || !!msg.deleted_at,
     deletedAt: msg.deleted_at,
     sentByUserId: msg.sent_by_user_id,
+    status: msg.status || (msg.from_me ? "sent" : "delivered"),
     timestamp: msg.timestamp,
     createdAt: msg.created_at,
-    status: msg.from_me ? "sent" : undefined,
+    updatedAt: msg.created_at,
   }));
 
   return c.json({

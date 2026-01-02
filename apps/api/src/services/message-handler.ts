@@ -259,6 +259,7 @@ async function handleMessageEvent(event: MessageEvent): Promise<void> {
         is_forwarded: false,
         is_starred: false,
         deleted_by_sender: false,
+        status: payload.fromMe ? "sent" : "delivered",
         timestamp: new Date(payload.timestamp),
         created_at: new Date(),
       })
@@ -297,14 +298,17 @@ async function handleReceiptEvent(event: ReceiptEvent): Promise<void> {
 
     // Update message status in database
     // Note: We store the WhatsApp message ID in message_id column
-    await tenantDb
+    const result = await tenantDb
       .updateTable("messages")
       .set({
-        // Status is not stored directly, but we could add a status column
-        // For now, we just broadcast the receipt to clients
+        status: payload.status as "sent" | "delivered" | "read",
       })
       .where("message_id", "=", payload.messageId)
-      .execute();
+      .executeTakeFirst();
+
+    console.log(
+      `[MessageHandler] Updated message status to ${payload.status} for message ${payload.messageId} (rows affected: ${result.numUpdatedRows})`,
+    );
 
     // Broadcast to WebSocket clients
     broadcastToCompany(companyId, {
