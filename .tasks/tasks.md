@@ -137,10 +137,10 @@ Comparison of `.specs/spec.md` against current implementation. Last updated: 202
 - [x] Meilisearch integration
 - [x] Typo-tolerant search (via Meilisearch)
 
-### 3.7 Export ⚠️ Partially Complete
-- [ ] **Full backup as ZIP (messages + media)** - download entire chat history with attachments
+### 3.7 Export ✅ Complete
+- [x] **Full backup as ZIP (messages + media)** - download entire chat history with attachments ✅ Completed 2026-01-03
 - [x] Per-contact export
-- [ ] **Date range export** - export messages within specific date range
+- [x] **Date range export** - export messages within specific date range ✅ Completed 2026-01-03
 
 ---
 
@@ -189,13 +189,18 @@ PATCH  /api/quick-replies/:id           - Update quick reply ✅
 DELETE /api/quick-replies/:id           - Delete quick reply ✅
 ```
 
+### Export API ✅ Completed 2026-01-03
+```
+GET    /api/export/full                 - Full backup export as ZIP ✅
+GET    /api/export/contacts             - Export contacts (CSV/JSON) ✅
+GET    /api/export/messages             - Export messages with date range filter ✅
+```
+
 ### Additional Missing Endpoints
 ```
 POST   /api/status                      - Post a new WhatsApp status update
 DELETE /api/status/:id                  - Delete posted status
 POST   /api/contacts/manual             - Create contact by phone number
-POST   /api/export/full                 - Full backup export as ZIP
-GET    /api/export/messages             - Export with date range filter
 ```
 
 ---
@@ -247,14 +252,14 @@ ALTER TABLE company_members ADD COLUMN permissions JSONB;
 - [x] Notification preferences service tests ✅ Completed 2026-01-03
 - [x] Quick replies route tests ✅ Completed 2026-01-03
 - [x] Auto-assign on first reply tests ✅ Completed 2026-01-03
-- [ ] Export service tests (ZIP generation)
+- [x] Export service tests (ZIP generation) ✅ Completed 2026-01-03
 - [ ] Permission checking middleware tests
 
 ### E2E Tests
 - [ ] Contact creation by phone number flow
 - [x] Quick replies management flow ✅ Completed 2026-01-03
 - [x] Auto-assign on first reply flow ✅ Completed 2026-01-03
-- [ ] Export functionality tests
+- [x] Export functionality tests ✅ Completed 2026-01-03
 - [x] Notification settings flow ✅ Completed 2026-01-03
 - [ ] Group message sending
 - [ ] Status posting flow
@@ -274,7 +279,7 @@ ALTER TABLE company_members ADD COLUMN permissions JSONB;
 
 ### Medium Priority (Enhanced Experience)
 8. ~~Quick replies~~ ✅ Completed 2026-01-03
-9. Full backup as ZIP export
+9. ~~Full backup as ZIP export~~ ✅ Completed 2026-01-03
 10. Instant transfer/takeover notifications
 
 ### Low Priority (Nice to Have)
@@ -292,8 +297,8 @@ ALTER TABLE company_members ADD COLUMN permissions JSONB;
 |-------|---------------|-----------|---------|---------|
 | Phase 1 | 28 | 26 | 2 | 0 |
 | Phase 2 | 16 | 8 | 5 | 3 |
-| Phase 3 | 18 | 11 | 4 | 3 |
+| Phase 3 | 18 | 12 | 3 | 3 |
 | Phase 4 | 10 | 4 | 5 | 1 |
-| **Total** | **72** | **49** | **16** | **7** |
+| **Total** | **72** | **50** | **15** | **7** |
 
-**Overall Completion: ~68% fully complete, ~22% partial, ~10% missing**
+**Overall Completion: ~69% fully complete, ~21% partial, ~10% missing**

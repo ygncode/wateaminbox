@@ -8,6 +8,48 @@ A comprehensive development log for the Multi-tenant WhatsApp Web Collaborative 
 
 ## Latest Updates
 
+### 2026-01-03: Full Backup ZIP Export
+
+Added full backup export functionality that creates a ZIP file containing all contacts and messages with optional date range filtering.
+
+**Backend:**
+- `export.service.ts`: New `exportFullBackup()` function that:
+  - Creates ZIP archive using fflate library
+  - Includes contacts.json and contacts.csv
+  - Includes messages.json and messages.csv
+  - Includes backup-summary.json with export stats
+  - Includes README.txt with documentation
+  - Supports date range filtering (startDate, endDate)
+  - Calculates message date range and totals
+- `export.ts` route updates:
+  - `GET /api/export/full` - Full backup as ZIP with optional date range
+  - Query params: `startDate`, `endDate` (ISO date strings)
+  - Returns application/zip with Content-Disposition header
+
+**Frontend:**
+- `useExport.ts`: New `useFullBackupExport()` hook for downloading backup
+- `ExportDialog.tsx` updates:
+  - New "full-backup" type with ZIP icon
+  - Shows backup contents info (contacts, messages, summary, README)
+  - Date range selector with presets (7/30/90 days, All time)
+  - "Creating Backup..." loading state
+- `Dashboard.tsx`: Added "Full Backup" button with Archive icon
+
+**Dependencies:**
+- Added `fflate` package for ZIP compression
+
+**Tests:**
+- Backend unit tests: 10 new tests for `exportFullBackup`:
+  - ZIP file creation with all required files
+  - Date filter application
+  - Stats inclusion in backup
+  - Empty data handling
+  - README content verification
+  - Date filter info in README
+- E2E tests: DashboardPage POM and basic export test structure
+
+---
+
 ### 2026-01-03: Auto-assign on First Reply
 
 Added automatic contact assignment when a user sends their first message to an unassigned contact.
