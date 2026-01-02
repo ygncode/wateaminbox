@@ -87,8 +87,8 @@ Comparison of `.specs/spec.md` against current implementation. Last updated: 202
 - [x] Customizable sound choice (client-side)
 - [x] Quiet hours configuration (client-side)
 - [x] Mute specific contacts (client-side)
-- [ ] **API routes for notification preferences** - `/api/notifications/preferences` GET/PATCH
-- [ ] **Server-side notification preferences sync** - persist to database, not just localStorage
+- [x] **API routes for notification preferences** - `/api/notifications/preferences` GET/PATCH ✅ Completed 2026-01-03
+- [x] **Server-side notification preferences sync** - persist to database via API ✅ Completed 2026-01-03
 - [ ] **In-app notification center** - dropdown/panel showing recent notifications
 
 ### 2.4 Audit Logging ✅ Complete
@@ -171,10 +171,12 @@ Comparison of `.specs/spec.md` against current implementation. Last updated: 202
 
 ## API Routes Missing
 
-### Notifications API
+### Notifications API ✅ Completed 2026-01-03
 ```
-GET    /api/notifications/preferences   - Get user's notification preferences
-PATCH  /api/notifications/preferences   - Update notification preferences
+GET    /api/notifications/preferences   - Get user's notification preferences ✅
+PATCH  /api/notifications/preferences   - Update notification preferences ✅
+POST   /api/notifications/mute          - Mute a contact ✅
+POST   /api/notifications/unmute        - Unmute a contact ✅
 ```
 
 ### Additional Missing Endpoints
@@ -233,7 +235,7 @@ ALTER TABLE company_members ADD COLUMN permissions JSONB;
 ## Testing Tasks
 
 ### Backend Unit Tests
-- [ ] Notification preferences service tests
+- [x] Notification preferences service tests ✅ Completed 2026-01-03
 - [ ] Quick replies service tests
 - [ ] Export service tests (ZIP generation)
 - [ ] Permission checking middleware tests
@@ -242,7 +244,7 @@ ALTER TABLE company_members ADD COLUMN permissions JSONB;
 - [ ] Contact creation by phone number flow
 - [ ] Quick replies usage flow
 - [ ] Export functionality tests
-- [ ] Notification settings flow
+- [x] Notification settings flow ✅ Completed 2026-01-03
 - [ ] Group message sending
 - [ ] Status posting flow
 
@@ -255,7 +257,7 @@ ALTER TABLE company_members ADD COLUMN permissions JSONB;
 2. "Assign to me" on first reply
 3. ~~Add contacts by phone number~~ ✅ Completed 2026-01-02
 4. ~~Read receipts display~~ ✅ Completed 2026-01-02
-5. Notification preferences API
+5. ~~Notification preferences API~~ ✅ Completed 2026-01-03
 
 ### Medium Priority (Enhanced Experience)
 6. In-app notification center

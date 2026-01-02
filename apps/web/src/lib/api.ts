@@ -798,5 +798,77 @@ export async function getSlaBreaches(
   return fetchWithAuth(`/analytics/sla-breaches${query}`);
 }
 
+// =====================
+// Notification Preferences API
+// =====================
+
+export type SoundChoice = "default" | "chime" | "bell" | "pop" | "none";
+
+export interface NotificationPreferencesResponse {
+  id: string;
+  userId: string;
+  soundEnabled: boolean;
+  soundChoice: SoundChoice;
+  quietHoursStart: string | null;
+  quietHoursEnd: string | null;
+  mutedContacts: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface UpdateNotificationPreferencesInput {
+  soundEnabled?: boolean;
+  soundChoice?: SoundChoice;
+  quietHoursStart?: string | null;
+  quietHoursEnd?: string | null;
+  mutedContacts?: string[];
+}
+
+export async function getNotificationPreferences(): Promise<NotificationPreferencesResponse> {
+  const response = await fetchWithAuth<{ data: NotificationPreferencesResponse }>(
+    "/notifications/preferences"
+  );
+  return response.data;
+}
+
+export async function updateNotificationPreferences(
+  input: UpdateNotificationPreferencesInput
+): Promise<NotificationPreferencesResponse> {
+  const response = await fetchWithAuth<{ data: NotificationPreferencesResponse }>(
+    "/notifications/preferences",
+    {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    }
+  );
+  return response.data;
+}
+
+export async function muteContactApi(
+  contactJid: string
+): Promise<{ mutedContacts: string[] }> {
+  const response = await fetchWithAuth<{ data: { mutedContacts: string[] } }>(
+    "/notifications/mute",
+    {
+      method: "POST",
+      body: JSON.stringify({ contactJid }),
+    }
+  );
+  return response.data;
+}
+
+export async function unmuteContactApi(
+  contactJid: string
+): Promise<{ mutedContacts: string[] }> {
+  const response = await fetchWithAuth<{ data: { mutedContacts: string[] } }>(
+    "/notifications/unmute",
+    {
+      method: "POST",
+      body: JSON.stringify({ contactJid }),
+    }
+  );
+  return response.data;
+}
+
 // Initialize auth on module load
 initializeAuth();

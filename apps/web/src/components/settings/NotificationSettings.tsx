@@ -7,7 +7,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui";
-import { Bell, BellOff, Volume2, VolumeX, Moon, TestTube2 } from "lucide-react";
+import { Bell, BellOff, Volume2, VolumeX, Moon, TestTube2, Loader2, Cloud, CloudOff } from "lucide-react";
 import { NOTIFICATION_SOUNDS } from "@/lib/notifications";
 
 export function NotificationSettings() {
@@ -15,6 +15,8 @@ export function NotificationSettings() {
     settings,
     permission,
     isSupported,
+    isLoading,
+    isSyncing,
     updateSettings,
     requestPermission,
     testNotification,
@@ -45,6 +47,20 @@ export function NotificationSettings() {
 
   return (
     <div className="space-y-6">
+      {/* Sync status indicator */}
+      {isLoading && (
+        <div className="flex items-center gap-2 text-sm text-gray-500">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          <span>Loading preferences...</span>
+        </div>
+      )}
+      {isSyncing && (
+        <div className="flex items-center gap-2 text-sm text-blue-500">
+          <Cloud className="h-4 w-4" />
+          <span>Syncing...</span>
+        </div>
+      )}
+
       {/* Permission banner */}
       {permission === "denied" && (
         <div className="rounded-lg border border-orange-200 bg-orange-50 p-4">

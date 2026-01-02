@@ -375,3 +375,33 @@ export interface MockMessage {
   created_at: Date;
   search_vector: unknown | null;
 }
+
+export interface MockNotificationPreferences {
+  id: string;
+  user_id: string;
+  sound_enabled: boolean;
+  sound_choice: string;
+  quiet_hours_start: string | null;
+  quiet_hours_end: string | null;
+  muted_contacts: string[] | null;
+  created_at: Date;
+  updated_at: Date;
+}
+
+/**
+ * Helper to create mock notification preferences data
+ */
+export function createMockNotificationPreferences(overrides: Partial<MockNotificationPreferences> = {}): MockNotificationPreferences {
+  return {
+    id: "notification-pref-123",
+    user_id: "user-123",
+    sound_enabled: true,
+    sound_choice: "default",
+    quiet_hours_start: null,
+    quiet_hours_end: null,
+    muted_contacts: [],
+    created_at: new Date(),
+    updated_at: new Date(),
+    ...overrides,
+  };
+}

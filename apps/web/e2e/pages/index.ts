@@ -4,3 +4,4 @@ export { RegisterPage } from "./register.page";
 export { ForgotPasswordPage } from "./forgot-password.page";
 export { ChatPage } from "./chat.page";
 export { HomePage } from "./home.page";
+export { SettingsPage } from "./settings.page";

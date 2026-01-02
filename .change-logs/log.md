@@ -2,11 +2,44 @@
 
 A comprehensive development log for the Multi-tenant WhatsApp Web Collaborative Business Messaging Platform.
 
-**Last Updated:** 2026-01-02
+**Last Updated:** 2026-01-03
 
 ---
 
 ## Latest Updates
+
+### 2026-01-03: Notification Preferences API
+
+Added server-side persistence for notification preferences with full API support.
+
+**Backend:**
+- `notification-preferences.service.ts`: Service with `getNotificationPreferences()`, `updateNotificationPreferences()`, `muteContact()`, `unmuteContact()`
+- `notifications.ts` routes: API endpoints for notification preferences
+  - `GET /api/notifications/preferences` - Get user's preferences (creates defaults if none)
+  - `PATCH /api/notifications/preferences` - Update preferences (partial updates)
+  - `POST /api/notifications/mute` - Mute a contact
+  - `POST /api/notifications/unmute` - Unmute a contact
+- Database: Uses existing `notification_preferences` table in tenant schema
+
+**Frontend:**
+- Updated `useNotifications` hook to sync with API via TanStack Query
+- `getNotificationPreferences`, `updateNotificationPreferences`, `muteContactApi`, `unmuteContactApi` API functions
+- Hybrid approach: local localStorage for responsiveness + API sync for persistence
+- Loading and syncing indicators in `NotificationSettings` component
+
+**Tests:**
+- Backend unit tests: 13 tests in `notifications.route.test.ts`
+- E2E tests: `settings.spec.ts` with mock API responses
+- Settings Page Object Model: `settings.page.ts`
+
+**Features:**
+- Sound enabled/disabled
+- Sound choice (default, chime, bell, pop, none)
+- Quiet hours (start/end times)
+- Muted contacts list
+- Auto-creates default preferences on first access
+
+---
 
 ### 2026-01-02: Read Receipts Display (Message Status)
 

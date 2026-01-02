@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   getNotificationSettings,
   saveNotificationSettings,
@@ -8,11 +9,17 @@ import {
   isNotificationSupported,
   showMessageNotification,
   sendTestNotification,
-  muteContact,
-  unmuteContact,
-  isContactMuted,
   type NotificationSettings,
 } from "../lib/notifications";
+import {
+  getNotificationPreferences,
+  updateNotificationPreferences,
+  muteContactApi,
+  unmuteContactApi,
+  getAccessToken,
+  type NotificationPreferencesResponse,
+  type UpdateNotificationPreferencesInput,
+} from "../lib/api";
 import { useWebSocketContext } from "../contexts/WebSocketProvider";
 import type { NewMessagePayload } from "../lib/websocket";
 
@@ -21,6 +28,8 @@ export interface UseNotificationsReturn {
   settings: NotificationSettings;
   permission: NotificationPermission;
   isSupported: boolean;
+  isLoading: boolean;
+  isSyncing: boolean;
 
   // Actions
   updateSettings: (updates: Partial<NotificationSettings>) => void;
@@ -31,8 +40,59 @@ export interface UseNotificationsReturn {
   isContactMuted: (jid: string) => boolean;
 }
 
+/**
+ * Maps API response to local NotificationSettings format
+ */
+function mapApiToLocal(prefs: NotificationPreferencesResponse): Partial<NotificationSettings> {
+  return {
+    soundEnabled: prefs.soundEnabled,
+    soundChoice: prefs.soundChoice,
+    quietHoursEnabled: !!(prefs.quietHoursStart && prefs.quietHoursEnd),
+    quietHoursStart: prefs.quietHoursStart || "22:00",
+    quietHoursEnd: prefs.quietHoursEnd || "07:00",
+    mutedContacts: prefs.mutedContacts,
+  };
+}
+
+/**
+ * Maps local settings to API update input format
+ */
+function mapLocalToApi(updates: Partial<NotificationSettings>): UpdateNotificationPreferencesInput {
+  const apiInput: UpdateNotificationPreferencesInput = {};
+
+  if (updates.soundEnabled !== undefined) {
+    apiInput.soundEnabled = updates.soundEnabled;
+  }
+  if (updates.soundChoice !== undefined) {
+    apiInput.soundChoice = updates.soundChoice as "default" | "chime" | "bell" | "pop" | "none";
+  }
+  if (updates.quietHoursEnabled !== undefined) {
+    if (updates.quietHoursEnabled) {
+      // Set quiet hours if enabled
+      apiInput.quietHoursStart = updates.quietHoursStart || "22:00";
+      apiInput.quietHoursEnd = updates.quietHoursEnd || "07:00";
+    } else {
+      // Clear quiet hours if disabled
+      apiInput.quietHoursStart = null;
+      apiInput.quietHoursEnd = null;
+    }
+  }
+  if (updates.quietHoursStart !== undefined) {
+    apiInput.quietHoursStart = updates.quietHoursStart;
+  }
+  if (updates.quietHoursEnd !== undefined) {
+    apiInput.quietHoursEnd = updates.quietHoursEnd;
+  }
+  if (updates.mutedContacts !== undefined) {
+    apiInput.mutedContacts = updates.mutedContacts;
+  }
+
+  return apiInput;
+}
+
 export function useNotifications(): UseNotificationsReturn {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { subscribe, isConnected } = useWebSocketContext();
 
   const [settings, setSettings] = useState<NotificationSettings>(
@@ -42,13 +102,67 @@ export function useNotifications(): UseNotificationsReturn {
     getNotificationPermission(),
   );
 
-  // Update settings
+  const isAuthenticated = !!getAccessToken();
+
+  // Fetch preferences from API (only when authenticated)
+  const { data: apiPreferences, isLoading } = useQuery({
+    queryKey: ["notificationPreferences"],
+    queryFn: getNotificationPreferences,
+    enabled: isAuthenticated,
+    staleTime: 60_000, // 1 minute
+    retry: 1,
+  });
+
+  // Sync API preferences to local state when fetched
+  useEffect(() => {
+    if (apiPreferences) {
+      const apiSettings = mapApiToLocal(apiPreferences);
+      const merged = saveNotificationSettings(apiSettings);
+      setSettings(merged);
+    }
+  }, [apiPreferences]);
+
+  // Mutation for updating preferences on server
+  const updateMutation = useMutation({
+    mutationFn: (input: UpdateNotificationPreferencesInput) =>
+      updateNotificationPreferences(input),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["notificationPreferences"] });
+    },
+  });
+
+  // Mutation for muting a contact
+  const muteMutation = useMutation({
+    mutationFn: muteContactApi,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["notificationPreferences"] });
+    },
+  });
+
+  // Mutation for unmuting a contact
+  const unmuteMutation = useMutation({
+    mutationFn: unmuteContactApi,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["notificationPreferences"] });
+    },
+  });
+
+  // Update settings - saves locally and syncs to API
   const updateSettings = useCallback(
     (updates: Partial<NotificationSettings>) => {
+      // Update local storage immediately for responsiveness
       const updated = saveNotificationSettings(updates);
       setSettings(updated);
+
+      // Sync to API if authenticated
+      if (isAuthenticated) {
+        const apiInput = mapLocalToApi(updates);
+        if (Object.keys(apiInput).length > 0) {
+          updateMutation.mutate(apiInput);
+        }
+      }
     },
-    [],
+    [isAuthenticated, updateMutation],
   );
 
   // Request permission
@@ -63,20 +177,52 @@ export function useNotifications(): UseNotificationsReturn {
     return sendTestNotification();
   }, []);
 
-  // Mute/unmute handlers
-  const handleMuteContact = useCallback((jid: string) => {
-    muteContact(jid);
-    setSettings(getNotificationSettings());
-  }, []);
+  // Mute contact - updates locally and syncs to API
+  const handleMuteContact = useCallback(
+    (jid: string) => {
+      // Update local immediately
+      const current = getNotificationSettings();
+      if (!current.mutedContacts.includes(jid)) {
+        const updated = saveNotificationSettings({
+          mutedContacts: [...current.mutedContacts, jid],
+        });
+        setSettings(updated);
+      }
 
-  const handleUnmuteContact = useCallback((jid: string) => {
-    unmuteContact(jid);
-    setSettings(getNotificationSettings());
-  }, []);
+      // Sync to API if authenticated
+      if (isAuthenticated) {
+        muteMutation.mutate(jid);
+      }
+    },
+    [isAuthenticated, muteMutation],
+  );
 
-  const handleIsContactMuted = useCallback((jid: string) => {
-    return isContactMuted(jid);
-  }, []);
+  // Unmute contact - updates locally and syncs to API
+  const handleUnmuteContact = useCallback(
+    (jid: string) => {
+      // Update local immediately
+      const current = getNotificationSettings();
+      if (current.mutedContacts.includes(jid)) {
+        const updated = saveNotificationSettings({
+          mutedContacts: current.mutedContacts.filter((id) => id !== jid),
+        });
+        setSettings(updated);
+      }
+
+      // Sync to API if authenticated
+      if (isAuthenticated) {
+        unmuteMutation.mutate(jid);
+      }
+    },
+    [isAuthenticated, unmuteMutation],
+  );
+
+  const handleIsContactMuted = useCallback(
+    (jid: string) => {
+      return settings.mutedContacts.includes(jid);
+    },
+    [settings.mutedContacts],
+  );
 
   // Subscribe to incoming messages for notifications
   useEffect(() => {
@@ -119,6 +265,8 @@ export function useNotifications(): UseNotificationsReturn {
     settings,
     permission,
     isSupported: isNotificationSupported(),
+    isLoading,
+    isSyncing: updateMutation.isPending || muteMutation.isPending || unmuteMutation.isPending,
     updateSettings,
     requestPermission,
     testNotification,
