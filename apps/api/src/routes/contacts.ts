@@ -238,6 +238,106 @@ contactRoutes.get("/:id", async (c) => {
 });
 
 /**
+ * POST /contacts - Create a new contact manually by phone number
+ */
+contactRoutes.post("/", async (c) => {
+  const tenantDb = c.get("tenantDb");
+  const body = await c.req.json();
+
+  const { phoneNumber, customName, notesShared } = body;
+
+  if (!phoneNumber) {
+    return c.json({ error: "phoneNumber is required" }, 400);
+  }
+
+  // Normalize phone number
+  let cleanedPhone = phoneNumber.replace(/[^\d+]/g, "");
+  if (cleanedPhone.startsWith("+")) {
+    cleanedPhone = cleanedPhone.substring(1);
+  }
+  if (cleanedPhone.startsWith("00")) {
+    cleanedPhone = cleanedPhone.substring(2);
+  }
+
+  // Validate phone number length
+  if (cleanedPhone.length < 6 || cleanedPhone.length > 15) {
+    return c.json(
+      { error: "Invalid phone number. Must be between 6 and 15 digits." },
+      400,
+    );
+  }
+
+  const jid = `${cleanedPhone}@s.whatsapp.net`;
+
+  // Check if contact already exists
+  const existingContact = await tenantDb
+    .selectFrom("contacts")
+    .select(["id", "jid", "phone_number", "custom_name", "push_name"])
+    .where((eb) =>
+      eb.or([eb("jid", "=", jid), eb("phone_number", "=", cleanedPhone)]),
+    )
+    .executeTakeFirst();
+
+  if (existingContact) {
+    return c.json(
+      {
+        error: "Contact already exists",
+        existingContact: {
+          id: existingContact.id,
+          phoneNumber: existingContact.phone_number,
+          displayName:
+            existingContact.custom_name ||
+            existingContact.push_name ||
+            existingContact.phone_number,
+        },
+      },
+      409,
+    );
+  }
+
+  // Create the contact
+  const newContact = await tenantDb
+    .insertInto("contacts")
+    .values({
+      jid,
+      phone_number: cleanedPhone,
+      custom_name: customName || null,
+      notes_shared: notesShared || null,
+      is_group: false,
+    })
+    .returning([
+      "id",
+      "jid",
+      "phone_number",
+      "custom_name",
+      "notes_shared",
+      "is_group",
+      "created_at",
+      "updated_at",
+    ])
+    .executeTakeFirst();
+
+  if (!newContact) {
+    return c.json({ error: "Failed to create contact" }, 500);
+  }
+
+  return c.json(
+    {
+      id: newContact.id,
+      jid: newContact.jid,
+      phoneNumber: newContact.phone_number,
+      customName: newContact.custom_name,
+      displayName: newContact.custom_name || newContact.phone_number,
+      notesShared: newContact.notes_shared,
+      isGroup: newContact.is_group,
+      createdAt: newContact.created_at,
+      updatedAt: newContact.updated_at,
+    },
+    201,
+  );
+});
+
+/**
  * PATCH /contacts/:id - Update a contact
  */
 contactRoutes.patch("/:id", async (c) => {

@@ -38,6 +38,7 @@ cd services/whatsapp && go run main.go
 ## Architecture
 
 ### Monorepo Structure
+
 - `apps/api` - Hono + Bun backend API (port 3001)
 - `apps/web` - React + Vite frontend (port 5173)
 - `apps/marketing` - Astro marketing site (port 4321)
@@ -48,14 +49,17 @@ cd services/whatsapp && go run main.go
 - `services/whatsapp` - Go WhatsApp client using whatsmeow (one process per account)
 
 ### Multi-Tenancy
+
 Schema-per-tenant isolation in PostgreSQL. Each company gets `tenant_{company_id}` schema. Public schema holds cross-tenant data (users, companies, invitations).
 
 ### Communication Flow
+
 ```
 Browser <--WebSocket/REST--> Hono API <--NATS JetStream--> Go Services <--whatsmeow--> WhatsApp
 ```
 
 ### Key Middleware Chain (API)
+
 1. CORS (allows X-Company-ID header)
 2. Logger
 3. Auth middleware (JWT validation)
@@ -63,19 +67,20 @@ Browser <--WebSocket/REST--> Hono API <--NATS JetStream--> Go Services <--whatsm
 
 ## Tech Stack
 
-| Layer | Technology |
-|-------|------------|
-| Frontend | React 18, Vite, TanStack Query, Zustand, Tailwind v4, shadcn/ui |
-| Backend | Hono, Bun, Kysely, PostgreSQL 16 |
-| Go Services | Go 1.24, whatsmeow, NATS |
-| Search | Meilisearch |
-| Queue | NATS JetStream |
-| Storage | Cloudflare R2 (MinIO for dev) |
-| Email | Resend |
+| Layer       | Technology                                                      |
+| ----------- | --------------------------------------------------------------- |
+| Frontend    | React 18, Vite, TanStack Query, Zustand, Tailwind v4, shadcn/ui |
+| Backend     | Hono, Bun, Kysely, PostgreSQL 16                                |
+| Go Services | Go 1.24, whatsmeow, NATS                                        |
+| Search      | Meilisearch                                                     |
+| Queue       | NATS JetStream                                                  |
+| Storage     | Cloudflare R2 (MinIO for dev)                                   |
+| Email       | Resend                                                          |
 
 ## Database
 
 Migrations in `/packages/database/src/migrations/`. After schema changes:
+
 ```bash
 bun run db:migrate
 bun run db:generate
@@ -84,9 +89,11 @@ bun run db:generate
 ## Testing
 
 ### Backend (Bun test runner)
+
 Tests in `apps/api/src/__tests__/`. Uses `mock.module()` for mocking - paths must be relative to test file (e.g., `../../services/tenant.service.js`).
 
 ### E2E (Playwright)
+
 Tests in `apps/web/e2e/tests/`. Page Object Model pattern in `e2e/pages/`. Auth fixtures in `e2e/fixtures/`.
 
 ## Environment Setup
@@ -100,6 +107,7 @@ Tests in `apps/web/e2e/tests/`. Page Object Model pattern in `e2e/pages/`. Auth 
 ## API Routes
 
 All prefixed with `/api`:
+
 - `/auth` - Authentication (login, register, refresh)
 - `/companies` - Company management
 - `/contacts` - Contact CRUD
@@ -124,7 +132,3 @@ Biome handles linting and formatting. Single quotes, no semicolons, 2-space inde
 ## Go Services
 
 Located in `/services/`. Each has its own `go.mod`. Use `golangci-lint` for linting (config in `.golangci.yml`).
-
-## Implementation Status
-
-See `change-logs/` for phase-by-phase implementation tracking. Currently on Phase 7 (Testing).
