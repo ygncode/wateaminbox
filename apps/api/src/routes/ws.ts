@@ -60,6 +60,7 @@ interface ServerMessage {
     | "status"
     | "contact"
     | "assignment"
+    | "conversation"
     | "error"
     | "pong"
     | "send_ack";

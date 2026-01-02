@@ -70,6 +70,28 @@ export interface NewContactsTrend {
 }
 
 /**
+ * Resolution statistics
+ */
+export interface ResolutionStats {
+  totalConversations: number;
+  openConversations: number;
+  pendingConversations: number;
+  resolvedConversations: number;
+  resolutionRate: number;
+  averageResolutionTimeMinutes: number | null;
+}
+
+/**
+ * Resolution trend over time
+ */
+export interface ResolutionTrend {
+  date: string;
+  resolved: number;
+  total: number;
+  rate: number;
+}
+
+/**
  * Hook to fetch dashboard overview stats
  */
 export function useDashboardStats(companyId: string | null) {
@@ -245,4 +267,62 @@ export function formatNumber(num: number): string {
 export function formatDate(dateStr: string): string {
   const date = new Date(dateStr);
   return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
+/**
+ * Hook to fetch resolution statistics
+ */
+export function useResolutionStats(
+  companyId: string | null,
+  startDate?: string,
+  endDate?: string,
+) {
+  const params = new URLSearchParams();
+  if (startDate) params.set("startDate", startDate);
+  if (endDate) params.set("endDate", endDate);
+  const queryString = params.toString();
+
+  return useQuery({
+    queryKey: ["analytics", "resolution", companyId, startDate, endDate],
+    queryFn: async () => {
+      if (!companyId) throw new Error("No company ID provided");
+      const url = `/conversations/stats/resolution${queryString ? `?${queryString}` : ""}`;
+      const response = await api.get<{
+        data: ResolutionStats;
+        meta: { startDate: string | null; endDate: string | null };
+      }>(url);
+      return response;
+    },
+    enabled: !!companyId,
+    staleTime: 60_000, // 1 minute
+  });
+}
+
+/**
+ * Hook to fetch resolution trend over time
+ */
+export function useResolutionTrend(
+  companyId: string | null,
+  startDate?: string,
+  endDate?: string,
+) {
+  const params = new URLSearchParams();
+  if (startDate) params.set("startDate", startDate);
+  if (endDate) params.set("endDate", endDate);
+  const queryString = params.toString();
+
+  return useQuery({
+    queryKey: ["analytics", "resolution-trend", companyId, startDate, endDate],
+    queryFn: async () => {
+      if (!companyId) throw new Error("No company ID provided");
+      const url = `/conversations/stats/resolution-trend${queryString ? `?${queryString}` : ""}`;
+      const response = await api.get<{
+        data: ResolutionTrend[];
+        meta: { startDate: string; endDate: string };
+      }>(url);
+      return response;
+    },
+    enabled: !!companyId,
+    staleTime: 300_000, // 5 minutes
+  });
 }

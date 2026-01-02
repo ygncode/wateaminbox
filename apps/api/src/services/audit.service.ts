@@ -20,7 +20,9 @@ export type AuditAction =
   | "message.deleted"
   | "tag.created"
   | "tag.deleted"
-  | "company.updated";
+  | "company.updated"
+  | "conversation.resolved"
+  | "conversation.reopened";
 
 /**
  * Audit log entry

@@ -494,3 +494,35 @@ export function createMockStatusUpdate(overrides: Partial<MockStatusUpdate> = {}
     ...overrides,
   };
 }
+
+export interface MockConversationState {
+  id: string;
+  contact_id: string;
+  status: "open" | "pending" | "resolved";
+  resolved_at: Date | null;
+  resolved_by: string | null;
+  reopened_at: Date | null;
+  reopened_by: string | null;
+  resolution_notes: string | null;
+  created_at: Date;
+  updated_at: Date;
+}
+
+/**
+ * Helper to create mock conversation state data
+ */
+export function createMockConversationState(overrides: Partial<MockConversationState> = {}): MockConversationState {
+  return {
+    id: "conv-state-123",
+    contact_id: "contact-123",
+    status: "open" as const,
+    resolved_at: null,
+    resolved_by: null,
+    reopened_at: null,
+    reopened_by: null,
+    resolution_notes: null,
+    created_at: new Date(),
+    updated_at: new Date(),
+    ...overrides,
+  };
+}

@@ -27,8 +27,10 @@ export type {
   NotificationPreferencesTable,
   NotificationHistoryTable,
   QuickRepliesTable,
+  ConversationStatesTable,
   WhatsAppConnectionStatus,
   MessageType,
   MessageStatus,
   NotificationType,
+  ConversationStatus,
 } from "./client";

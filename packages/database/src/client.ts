@@ -89,6 +89,7 @@ export type WhatsAppConnectionStatus = "connected" | "disconnected" | "banned" |
 export type MessageType = "text" | "image" | "video" | "audio" | "document" | "sticker" | "location" | "contact" | "reaction";
 export type MessageStatus = "pending" | "sent" | "delivered" | "read" | "failed";
 export type NotificationType = "message" | "mention" | "assignment" | "team" | "system";
+export type ConversationStatus = "open" | "pending" | "resolved";
 
 /**
  * Tenant database interface for tenant-specific tables
@@ -109,6 +110,7 @@ export interface TenantDatabase {
   notification_preferences: NotificationPreferencesTable;
   notification_history: NotificationHistoryTable;
   quick_replies: QuickRepliesTable;
+  conversation_states: ConversationStatesTable;
 }
 
 export interface WhatsAppConnectionsTable {
@@ -274,6 +276,19 @@ export interface QuickRepliesTable {
   title: string;
   content: string;
   created_by: string;
+  created_at: Generated<Date>;
+  updated_at: Generated<Date>;
+}
+
+export interface ConversationStatesTable {
+  id: Generated<string>;
+  contact_id: string;
+  status: Generated<ConversationStatus>;
+  resolved_at: Date | null;
+  resolved_by: string | null;
+  reopened_at: Date | null;
+  reopened_by: string | null;
+  resolution_notes: string | null;
   created_at: Generated<Date>;
   updated_at: Generated<Date>;
 }

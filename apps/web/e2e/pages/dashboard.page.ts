@@ -28,6 +28,14 @@ export class DashboardPage extends BasePage {
   readonly newContactsChartBars: Locator;
   readonly newContactsChartSummary: Locator;
 
+  // Resolution Rate section
+  readonly resolutionRateSection: Locator;
+  readonly resolutionRateTitle: Locator;
+  readonly resolutionOpenCard: Locator;
+  readonly resolutionPendingCard: Locator;
+  readonly resolutionResolvedCard: Locator;
+  readonly resolutionRateCard: Locator;
+
   // Export dialog
   readonly exportDialog: Locator;
   readonly exportDialogTitle: Locator;
@@ -62,6 +70,14 @@ export class DashboardPage extends BasePage {
     this.newContactsChartTitle = this.newContactsChart.getByRole("heading", { name: "New Contacts" });
     this.newContactsChartBars = this.newContactsChart.locator(".bg-purple-400, .bg-gray-100");
     this.newContactsChartSummary = this.newContactsChart.locator(".text-xs.text-gray-500");
+
+    // Resolution Rate section
+    this.resolutionRateSection = page.locator(".bg-white.rounded-lg").filter({ hasText: "Resolution Rate" });
+    this.resolutionRateTitle = this.resolutionRateSection.getByRole("heading", { name: "Resolution Rate" });
+    this.resolutionOpenCard = this.resolutionRateSection.locator(".bg-gray-50").filter({ hasText: "Open" });
+    this.resolutionPendingCard = this.resolutionRateSection.locator(".bg-gray-50").filter({ hasText: "Pending" });
+    this.resolutionResolvedCard = this.resolutionRateSection.locator(".bg-gray-50").filter({ hasText: "Resolved" });
+    this.resolutionRateCard = this.resolutionRateSection.locator(".bg-gray-50").filter({ hasText: /Resolution Rate|%/ });
 
     // Export dialog
     this.exportDialog = page.getByRole("dialog");

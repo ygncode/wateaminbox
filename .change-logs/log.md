@@ -8,6 +8,80 @@ A comprehensive development log for the Multi-tenant WhatsApp Web Collaborative 
 
 ## Latest Updates
 
+### 2026-01-03: Resolution Rate Tracking
+
+Implemented a comprehensive resolution rate tracking system that allows teams to track conversation states (open, pending, resolved) and view resolution analytics on the dashboard.
+
+**Database Migration (`006_add_conversation_states.ts`):**
+- Created `conversation_status` enum type: `'open' | 'pending' | 'resolved'`
+- Created `conversation_states` table with columns:
+  - `id`, `contact_id` (unique), `status`
+  - `resolved_at`, `resolved_by`, `reopened_at`, `reopened_by`
+  - `resolution_notes`, `created_at`, `updated_at`
+- Added table to tenant schema template function
+- Created indexes on `contact_id`, `status`, and `resolved_at`
+- Applied to existing tenant schemas
+
+**Backend Service (`conversation-state.service.ts`):**
+- `getConversationState()` - Get current state for a contact
+- `getOrCreateConversationState()` - Ensure state exists, create if not
+- `resolveConversation()` - Mark conversation as resolved with optional notes
+- `reopenConversation()` - Reopen a resolved conversation
+- `setConversationPending()` - Set conversation to pending status
+- `getResolutionStats()` - Get aggregated statistics (open/pending/resolved counts, rate)
+- `getResolutionTrend()` - Get resolution trend over time period
+
+**API Routes (in `conversations.ts`):**
+- `GET /api/conversations/:id/state` - Get conversation state for a contact
+- `POST /api/conversations/:id/resolve` - Mark as resolved (with optional notes)
+- `POST /api/conversations/:id/reopen` - Reopen a resolved conversation
+- `POST /api/conversations/:id/pending` - Set to pending status
+- `GET /api/conversations/stats/resolution` - Get resolution statistics
+- `GET /api/conversations/stats/resolution-trend` - Get resolution trend over time
+
+**Frontend Hooks:**
+- `useConversationState.ts`:
+  - `useConversationState(contactId)` - Get conversation state
+  - `useResolveConversation()` - Mutation to resolve
+  - `useReopenConversation()` - Mutation to reopen
+  - `useSetConversationPending()` - Mutation to set pending
+- Updated `useAnalytics.ts`:
+  - Added `ResolutionStats` and `ResolutionTrend` interfaces
+  - Added `useResolutionStats()` hook
+  - Added `useResolutionTrend()` hook
+
+**Dashboard UI (`Dashboard.tsx`):**
+- Added Resolution Rate section with 4 stat cards:
+  - Open conversations (blue icon)
+  - Pending conversations (yellow icon)
+  - Resolved conversations (green icon)
+  - Resolution rate percentage (purple icon)
+- Placed after bottom row, before Response Time Analytics
+
+**Dashboard Page Object (`dashboard.page.ts`):**
+- Added locators for resolution rate section elements
+- `resolutionRateSection`, `resolutionRateTitle`
+- `resolutionOpenCard`, `resolutionPendingCard`, `resolutionResolvedCard`, `resolutionRateCard`
+
+**Tests:**
+- 7 backend unit tests in `conversations.route.test.ts`:
+  - Get conversation state (default and existing)
+  - Resolve conversation (success and 404)
+  - Reopen conversation
+  - Set conversation pending
+  - Get resolution statistics
+- 14 Chromium E2E tests in `dashboard.spec.ts`:
+  - Resolution rate locators defined
+  - API response structure validation
+  - Section documentation tests
+
+**Database Types (`client.ts`):**
+- Added `ConversationStatus` type
+- Added `ConversationStatesTable` interface
+- Updated `TenantDatabase` to include `conversation_states`
+
+---
+
 ### 2026-01-03: Feature-Based Permissions System
 
 Implemented a granular permission system that complements the existing role-based access control. This allows fine-grained control over what team members can do within the application.

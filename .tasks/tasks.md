@@ -123,7 +123,7 @@ Comparison of `.specs/spec.md` against current implementation. Last updated: 202
 - [ ] **Customer engagement metrics** - track engagement scores
 - [x] Active chats count
 - [x] **New contacts trend** - chart showing new contacts over time ✅ Completed 2026-01-03
-- [ ] **Resolution rate tracking** - track conversations marked as resolved
+- [x] **Resolution rate tracking** - track conversations marked as resolved ✅ Completed 2026-01-03
 
 ### 3.5 Contact Organization ✅ Complete
 - [x] Custom tags/labels
@@ -227,15 +227,18 @@ quick_replies (
 )
 ```
 
-### Tables to Add
+### Tables Added (Completed)
 ```sql
--- Conversation resolution tracking
+-- ✅ COMPLETED: Conversation resolution tracking (migration 006_add_conversation_states.ts)
 conversation_states (
   id UUID PRIMARY KEY,
   contact_id UUID REFERENCES contacts,
   status ENUM('open', 'resolved', 'pending'),
   resolved_by UUID,
   resolved_at TIMESTAMP,
+  reopened_by UUID,
+  reopened_at TIMESTAMP,
+  resolution_notes TEXT,
   created_at TIMESTAMP,
   updated_at TIMESTAMP
 )
@@ -297,7 +300,7 @@ ALTER TABLE company_members ADD COLUMN permissions JSONB;
 11. WhatsApp Business features (labels sync, catalogs)
 12. ~~Post status updates~~ ✅ Completed 2026-01-03
 13. Group admin actions
-14. Resolution rate tracking
+14. ~~Resolution rate tracking~~ ✅ Completed 2026-01-03
 15. Blog/docs content
 
 ---
@@ -308,10 +311,10 @@ ALTER TABLE company_members ADD COLUMN permissions JSONB;
 |-------|---------------|-----------|---------|---------|
 | Phase 1 | 28 | 26 | 2 | 0 |
 | Phase 2 | 16 | 15 | 0 | 1 |
-| Phase 3 | 18 | 14 | 2 | 2 |
+| Phase 3 | 18 | 15 | 2 | 1 |
 | Phase 4 | 10 | 5 | 4 | 1 |
-| **Total** | **72** | **60** | **8** | **4** |
+| **Total** | **72** | **61** | **8** | **3** |
 
-**Overall Completion: ~83% fully complete, ~11% partial, ~6% missing**
+**Overall Completion: ~85% fully complete, ~11% partial, ~4% missing**
 
-*Last updated: 2026-01-03 - Feature-based permissions system complete*
+*Last updated: 2026-01-03 - Resolution rate tracking complete*

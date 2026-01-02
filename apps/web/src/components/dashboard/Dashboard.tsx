@@ -7,6 +7,7 @@ import {
   useMessageTypeStats,
   useHourlyStats,
   useNewContactsTrend,
+  useResolutionStats,
   formatNumber,
   formatDate,
 } from "@/hooks/useAnalytics";
@@ -32,6 +33,9 @@ import {
   Download,
   Archive,
   UserPlus,
+  CheckCircle,
+  CircleDot,
+  Target,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -78,6 +82,8 @@ export function Dashboard({ companyId, isAdmin = false }: DashboardProps) {
   );
   const { data: contactsTrendData, isLoading: isLoadingContactsTrend } =
     useNewContactsTrend(companyId, startDate, endDate);
+  const { data: resolutionData, isLoading: isLoadingResolution } =
+    useResolutionStats(companyId, startDate, endDate);
 
   return (
     <ScrollArea className="h-full">
@@ -340,6 +346,52 @@ export function Dashboard({ companyId, isAdmin = false }: DashboardProps) {
           )}
         </div>
 
+        {/* Resolution Rate Analytics */}
+        <div className="bg-white rounded-lg border border-gray-200 p-6">
+          <div className="flex items-center gap-2 mb-4">
+            <Target className="h-5 w-5 text-gray-500" />
+            <h3 className="font-semibold text-gray-900">Resolution Rate</h3>
+          </div>
+          {isLoadingResolution ? (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <Skeleton className="h-20 w-full" />
+              <Skeleton className="h-20 w-full" />
+              <Skeleton className="h-20 w-full" />
+              <Skeleton className="h-20 w-full" />
+            </div>
+          ) : resolutionData?.data ? (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <ResolutionStatCard
+                icon={<CircleDot className="h-5 w-5" />}
+                label="Open"
+                value={resolutionData.data.openConversations}
+                color="blue"
+              />
+              <ResolutionStatCard
+                icon={<Clock className="h-5 w-5" />}
+                label="Pending"
+                value={resolutionData.data.pendingConversations}
+                color="yellow"
+              />
+              <ResolutionStatCard
+                icon={<CheckCircle className="h-5 w-5" />}
+                label="Resolved"
+                value={resolutionData.data.resolvedConversations}
+                color="green"
+              />
+              <ResolutionStatCard
+                icon={<Target className="h-5 w-5" />}
+                label="Resolution Rate"
+                value={resolutionData.data.resolutionRate}
+                suffix="%"
+                color="purple"
+              />
+            </div>
+          ) : (
+            <p className="text-gray-500 text-center py-4">No resolution data available</p>
+          )}
+        </div>
+
         {/* Response Time Analytics */}
         <div className="bg-white rounded-lg border border-gray-200 p-6">
           <ResponseTimeAnalytics isAdmin={isAdmin} slaThreshold={60} />
@@ -578,6 +630,50 @@ function NewContactsChart({
           );
         })}
       </div>
+    </div>
+  );
+}
+
+/**
+ * Resolution stat card component
+ */
+function ResolutionStatCard({
+  icon,
+  label,
+  value,
+  suffix,
+  color,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: number;
+  suffix?: string;
+  color: "blue" | "yellow" | "green" | "purple";
+}) {
+  const colorClasses = {
+    blue: "text-blue-600 bg-blue-50",
+    yellow: "text-yellow-600 bg-yellow-50",
+    green: "text-green-600 bg-green-50",
+    purple: "text-purple-600 bg-purple-50",
+  };
+
+  return (
+    <div className="bg-gray-50 rounded-lg p-4">
+      <div className="flex items-center gap-2 mb-2">
+        <div
+          className={cn(
+            "w-8 h-8 rounded-full flex items-center justify-center",
+            colorClasses[color],
+          )}
+        >
+          {icon}
+        </div>
+        <span className="text-sm text-gray-600">{label}</span>
+      </div>
+      <p className="text-2xl font-semibold text-gray-900">
+        {formatNumber(value)}
+        {suffix}
+      </p>
     </div>
   );
 }
