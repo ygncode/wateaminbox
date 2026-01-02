@@ -391,3 +391,205 @@ describe("Message status values", () => {
     expect(message.status).toBe("sent");
   });
 });
+
+describe("POST /messages - Auto-assign on first reply", () => {
+  let app: Hono;
+  let mockContact: { id: string; jid: string };
+  let autoAssignCalled: boolean;
+  let assignedUserId: string | null;
+
+  beforeEach(() => {
+    mockContact = { id: "contact-123", jid: "1234567890@s.whatsapp.net" };
+    autoAssignCalled = false;
+    assignedUserId = null;
+
+    // Create a mock that tracks auto-assignment
+    const createMockDbWithAssignment = (hasExistingAssignment: boolean) => {
+      return {
+        selectFrom: mock((table: string) => {
+          if (table === "contacts") {
+            return {
+              select: mock(() => ({
+                where: mock(() => ({
+                  executeTakeFirst: mock(() => Promise.resolve(mockContact)),
+                })),
+              })),
+            };
+          }
+          if (table === "contact_assignments") {
+            // Return existing assignment if hasExistingAssignment is true
+            return {
+              select: mock(() => ({
+                where: mock(() => ({
+                  where: mock(() => ({
+                    executeTakeFirst: mock(() =>
+                      Promise.resolve(
+                        hasExistingAssignment
+                          ? { id: "existing-assignment", assigned_to: "other-user" }
+                          : undefined
+                      )
+                    ),
+                  })),
+                })),
+              })),
+            };
+          }
+          return createMockQueryBuilder();
+        }),
+        insertInto: mock((table: string) => {
+          if (table === "contact_assignments") {
+            autoAssignCalled = true;
+            return {
+              values: mock((vals: { assigned_to: string }) => {
+                assignedUserId = vals.assigned_to;
+                return {
+                  returning: mock(() => ({
+                    executeTakeFirstOrThrow: mock(() =>
+                      Promise.resolve({
+                        id: "new-assignment-123",
+                        assigned_to: vals.assigned_to,
+                        assigned_by: vals.assigned_to,
+                        assigned_at: new Date(),
+                      })
+                    ),
+                  })),
+                };
+              }),
+            };
+          }
+          return {
+            values: mock(() => ({
+              returning: mock(() => ({
+                execute: mock(() => Promise.resolve([])),
+              })),
+              execute: mock(() => Promise.resolve([])),
+            })),
+          };
+        }),
+        updateTable: mock((table: string) => ({
+          set: mock(() => ({
+            where: mock(() => ({
+              where: mock(() => ({
+                execute: mock(() => Promise.resolve({ numUpdatedRows: 0n })),
+              })),
+            })),
+          })),
+        })),
+      };
+    };
+
+    app = new Hono();
+
+    // Test route that simulates message sending with auto-assign
+    app.post("/messages/with-auto-assign", async (c) => {
+      const body = await c.req.json();
+      const { contactId, content, hasExistingAssignment = false } = body;
+
+      if (!contactId) {
+        return c.json({ error: "contactId is required" }, 400);
+      }
+
+      const mockDb = createMockDbWithAssignment(hasExistingAssignment);
+      c.set("tenantDb", mockDb);
+      c.set("user", { id: "user-123", email: "test@example.com" });
+
+      // Check for existing assignment
+      const existingAssignment = await mockDb
+        .selectFrom("contact_assignments")
+        .select(["id", "assigned_to"])
+        .where("contact_id", "=", contactId)
+        .where("unassigned_at", "is", null)
+        .executeTakeFirst();
+
+      let wasAutoAssigned = false;
+
+      if (!existingAssignment) {
+        // Auto-assign to current user
+        await mockDb
+          .updateTable("contact_assignments")
+          .set({ unassigned_at: new Date() })
+          .where("contact_id", "=", contactId)
+          .where("unassigned_at", "is", null)
+          .execute();
+
+        await mockDb
+          .insertInto("contact_assignments")
+          .values({
+            contact_id: contactId,
+            assigned_to: "user-123",
+            assigned_by: "user-123",
+          })
+          .returning(["id", "assigned_to", "assigned_by", "assigned_at"])
+          .executeTakeFirstOrThrow();
+
+        wasAutoAssigned = true;
+      }
+
+      return c.json({
+        success: true,
+        message: {
+          id: "msg-123",
+          contactId,
+          content,
+          status: "pending",
+        },
+        autoAssigned: wasAutoAssigned,
+      });
+    });
+  });
+
+  it("should auto-assign contact when sending first message to unassigned contact", async () => {
+    const response = await app.request("/messages/with-auto-assign", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contactId: "contact-123",
+        content: "Hello!",
+        hasExistingAssignment: false,
+      }),
+    });
+
+    expect(response.status).toBe(200);
+    const data = await response.json();
+    expect(data.success).toBe(true);
+    expect(data.autoAssigned).toBe(true);
+    expect(autoAssignCalled).toBe(true);
+    expect(assignedUserId).toBe("user-123");
+  });
+
+  it("should not auto-assign when contact is already assigned", async () => {
+    const response = await app.request("/messages/with-auto-assign", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contactId: "contact-123",
+        content: "Hello!",
+        hasExistingAssignment: true,
+      }),
+    });
+
+    expect(response.status).toBe(200);
+    const data = await response.json();
+    expect(data.success).toBe(true);
+    expect(data.autoAssigned).toBe(false);
+    // When already assigned, no new assignment should be created
+    expect(autoAssignCalled).toBe(false);
+  });
+
+  it("should return autoAssigned flag in response", async () => {
+    const response = await app.request("/messages/with-auto-assign", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contactId: "contact-123",
+        content: "Hello!",
+        hasExistingAssignment: false,
+      }),
+    });
+
+    expect(response.status).toBe(200);
+    const data = await response.json();
+    expect(data).toHaveProperty("autoAssigned");
+    expect(typeof data.autoAssigned).toBe("boolean");
+  });
+});

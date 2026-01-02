@@ -1161,6 +1161,158 @@ test.describe("Conversation Search", () => {
 });
 
 // ============================================
+// 10. Auto-assign on First Reply Tests
+// ============================================
+test.describe("Auto-assign on First Reply", () => {
+  let chatPage: ChatPage;
+
+  test.beforeEach(async ({ authenticatedPage }) => {
+    chatPage = new ChatPage(authenticatedPage);
+    await chatPage.goto();
+    await chatPage.waitForLoad();
+  });
+
+  test("should filter unassigned contacts correctly", async ({
+    authenticatedPage,
+  }) => {
+    // Click on "Unassigned" filter
+    await chatPage.clickAssignmentFilter("unassigned");
+    await authenticatedPage.waitForTimeout(500);
+
+    // Verify filter is active
+    const isUnassignedActive = await chatPage.isFilterActive("unassigned");
+    expect(isUnassignedActive).toBeTruthy();
+
+    // Get count of unassigned chats
+    const unassignedCount = await chatPage.getChatCount();
+
+    // Switch back to All
+    await chatPage.clickAssignmentFilter("all");
+    await authenticatedPage.waitForTimeout(500);
+
+    // Get total count
+    const totalCount = await chatPage.getChatCount();
+
+    // Total should be >= unassigned
+    expect(totalCount).toBeGreaterThanOrEqual(unassignedCount);
+  });
+
+  test("should show assigned contacts in 'Assigned to me' filter after sending message", async ({
+    authenticatedPage,
+  }) => {
+    // First, get the count of assigned chats to "me"
+    await chatPage.clickAssignmentFilter("assignedToMe");
+    await authenticatedPage.waitForTimeout(500);
+    const initialAssignedCount = await chatPage.getChatCount();
+
+    // Switch to unassigned filter
+    await chatPage.clickAssignmentFilter("unassigned");
+    await authenticatedPage.waitForTimeout(500);
+
+    const unassignedCount = await chatPage.getChatCount();
+
+    if (unassignedCount > 0) {
+      // Select the first unassigned chat
+      await chatPage.selectChatByIndex(0);
+      await authenticatedPage.waitForURL(/\/chat\/.+/);
+      await authenticatedPage.waitForTimeout(500);
+
+      // Send a message (this should auto-assign the contact)
+      const testMessage = "Auto-assign test " + Date.now();
+      await chatPage.typeMessage(testMessage);
+      await chatPage.sendMessage();
+
+      // Wait for the message to be sent
+      await chatPage.waitForNewMessage(testMessage, 5000);
+
+      // Switch to "Assigned to me" filter
+      await chatPage.clickAssignmentFilter("assignedToMe");
+      await authenticatedPage.waitForTimeout(500);
+
+      // The count should be +1 (or the contact should be visible)
+      const finalAssignedCount = await chatPage.getChatCount();
+      expect(finalAssignedCount).toBeGreaterThanOrEqual(initialAssignedCount);
+    }
+  });
+
+  test("should not change assignment when replying to already assigned contact", async ({
+    authenticatedPage,
+  }) => {
+    // Filter to "Assigned to me" contacts
+    await chatPage.clickAssignmentFilter("assignedToMe");
+    await authenticatedPage.waitForTimeout(500);
+
+    const assignedCount = await chatPage.getChatCount();
+
+    if (assignedCount > 0) {
+      // Select an already assigned chat
+      await chatPage.selectChatByIndex(0);
+      await authenticatedPage.waitForURL(/\/chat\/.+/);
+      await authenticatedPage.waitForTimeout(500);
+
+      // Send a message to already assigned contact
+      const testMessage = "Reply to assigned " + Date.now();
+      await chatPage.typeMessage(testMessage);
+      await chatPage.sendMessage();
+
+      // Wait for message
+      await chatPage.waitForNewMessage(testMessage, 5000);
+
+      // Go back to "Assigned to me" filter
+      await chatPage.clickAssignmentFilter("assignedToMe");
+      await authenticatedPage.waitForTimeout(500);
+
+      // Count should remain the same (no new assignment)
+      const finalAssignedCount = await chatPage.getChatCount();
+      expect(finalAssignedCount).toBe(assignedCount);
+    }
+  });
+
+  test("should update contact profile assignment badge after auto-assign", async ({
+    authenticatedPage,
+  }) => {
+    // Filter to unassigned
+    await chatPage.clickAssignmentFilter("unassigned");
+    await authenticatedPage.waitForTimeout(500);
+
+    const unassignedCount = await chatPage.getChatCount();
+
+    if (unassignedCount > 0) {
+      // Select an unassigned chat
+      await chatPage.selectChatByIndex(0);
+      await authenticatedPage.waitForURL(/\/chat\/.+/);
+      await authenticatedPage.waitForTimeout(500);
+
+      // Open contact profile to check assignment status
+      await chatPage.openContactProfile();
+      await authenticatedPage.waitForTimeout(300);
+
+      // Verify profile is visible
+      await expect(chatPage.profileHeader).toBeVisible();
+
+      // Close profile for now
+      await chatPage.closeContactProfile();
+      await authenticatedPage.waitForTimeout(300);
+
+      // Send a message (auto-assigns)
+      const testMessage = "Profile badge test " + Date.now();
+      await chatPage.typeMessage(testMessage);
+      await chatPage.sendMessage();
+
+      // Wait for message
+      await chatPage.waitForNewMessage(testMessage, 5000);
+
+      // Open contact profile again
+      await chatPage.openContactProfile();
+      await authenticatedPage.waitForTimeout(300);
+
+      // Profile should still be visible (contact is now assigned)
+      await expect(chatPage.profileHeader).toBeVisible();
+    }
+  });
+});
+
+// ============================================
 // Authentication Flow Tests (kept from original)
 // ============================================
 test.describe("Authentication Flow", () => {

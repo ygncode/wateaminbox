@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { authMiddleware } from "../middleware/auth.js";
 import { tenantMiddleware } from "../middleware/tenant.js";
 import { publishSendMessage } from "../lib/nats.js";
+import { ensureContactAssignment } from "../services/contact.service.js";
 
 export const messageRoutes = new Hono();
 
@@ -130,6 +131,9 @@ messageRoutes.post("/", async (c) => {
     return c.json({ error: "Contact not found or has no JID" }, 404);
   }
 
+  // Auto-assign contact to the user if unassigned ("Assign to me on first reply")
+  const wasAutoAssigned = await ensureContactAssignment(tenantDb, contactId, user.id);
+
   // Create a pending message in database
   const messageId = crypto.randomUUID();
   const waMessageId = `pending_${messageId}`;
@@ -174,6 +178,7 @@ messageRoutes.post("/", async (c) => {
       timestamp: new Date().toISOString(),
       status: "pending",
     },
+    autoAssigned: wasAutoAssigned,
   });
 });
 
@@ -313,6 +318,9 @@ messageRoutes.post("/:id/forward", async (c) => {
     return c.json({ error: "Target contact not found or has no JID" }, 404);
   }
 
+  // Auto-assign target contact to the user if unassigned ("Assign to me on first reply")
+  const wasAutoAssigned = await ensureContactAssignment(tenantDb, targetContactId, user.id);
+
   // Create forwarded message
   const newMessageId = crypto.randomUUID();
   const waMessageId = `pending_${newMessageId}`;
@@ -352,6 +360,7 @@ messageRoutes.post("/:id/forward", async (c) => {
       contactId: targetContactId,
       isForwarded: true,
     },
+    autoAssigned: wasAutoAssigned,
   });
 });
 
