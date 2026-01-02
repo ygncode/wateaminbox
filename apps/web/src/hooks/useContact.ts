@@ -282,3 +282,45 @@ export function useAssignmentHistory(contactId: string | null) {
     staleTime: 30_000, // 30 seconds
   });
 }
+
+/**
+ * Input for creating a new contact
+ */
+export interface CreateContactInput {
+  phoneNumber: string;
+  customName?: string;
+  notesShared?: string;
+}
+
+/**
+ * Response from creating a contact
+ */
+export interface CreateContactResponse {
+  id: string;
+  jid: string;
+  phoneNumber: string;
+  customName: string | null;
+  displayName: string;
+  notesShared: string | null;
+  isGroup: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * Hook to create a new contact by phone number
+ */
+export function useCreateContact() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (input: CreateContactInput) => {
+      const response = await api.post<CreateContactResponse>("/contacts", input);
+      return response;
+    },
+    onSuccess: () => {
+      // Invalidate contacts list to show the new contact
+      queryClient.invalidateQueries({ queryKey: ["contacts"] });
+    },
+  });
+}

@@ -22,6 +22,15 @@ export class ChatPage {
   readonly filterAll: Locator;
   readonly filterAssignedToMe: Locator;
   readonly filterUnassigned: Locator;
+  readonly addContactButton: Locator;
+
+  // Add Contact Dialog
+  readonly addContactDialog: Locator;
+  readonly addContactPhoneInput: Locator;
+  readonly addContactNameInput: Locator;
+  readonly addContactNotesInput: Locator;
+  readonly addContactSubmitButton: Locator;
+  readonly addContactCancelButton: Locator;
 
   // Message Area
   readonly messageHeader: Locator;
@@ -68,6 +77,15 @@ export class ChatPage {
     this.filterAll = page.getByRole("button", { name: "All", exact: true });
     this.filterAssignedToMe = page.getByRole("button", { name: "Assigned to me" });
     this.filterUnassigned = page.getByRole("button", { name: "Unassigned" });
+    this.addContactButton = page.getByTestId("add-contact-button");
+
+    // Add Contact Dialog Locators
+    this.addContactDialog = page.getByRole("dialog");
+    this.addContactPhoneInput = page.getByTestId("add-contact-phone");
+    this.addContactNameInput = page.getByTestId("add-contact-name");
+    this.addContactNotesInput = page.getByTestId("add-contact-notes");
+    this.addContactSubmitButton = page.getByTestId("add-contact-submit");
+    this.addContactCancelButton = page.getByRole("button", { name: "Cancel" });
 
     // Message Area Locators
     this.messageHeader = page.locator("header").filter({ has: page.locator("h2") });
@@ -370,5 +388,89 @@ export class ChatPage {
     const classes = await button.getAttribute("class");
     // Active filter has the teal-green background
     return classes?.includes("bg-whatsapp-teal-green") ?? false;
+  }
+
+  // ============================================
+  // Add Contact Dialog Methods
+  // ============================================
+
+  /**
+   * Open the add contact dialog
+   */
+  async openAddContactDialog() {
+    await this.addContactButton.click();
+    await this.addContactDialog.waitFor({ state: "visible" });
+  }
+
+  /**
+   * Fill the add contact form
+   */
+  async fillAddContactForm(data: {
+    phoneNumber: string;
+    name?: string;
+    notes?: string;
+  }) {
+    await this.addContactPhoneInput.fill(data.phoneNumber);
+    if (data.name) {
+      await this.addContactNameInput.fill(data.name);
+    }
+    if (data.notes) {
+      await this.addContactNotesInput.fill(data.notes);
+    }
+  }
+
+  /**
+   * Submit the add contact form
+   */
+  async submitAddContactForm() {
+    await this.addContactSubmitButton.click();
+  }
+
+  /**
+   * Cancel the add contact dialog
+   */
+  async cancelAddContactDialog() {
+    await this.addContactCancelButton.click();
+  }
+
+  /**
+   * Add a new contact with the provided data
+   */
+  async addContact(data: {
+    phoneNumber: string;
+    name?: string;
+    notes?: string;
+  }) {
+    await this.openAddContactDialog();
+    await this.fillAddContactForm(data);
+    await this.submitAddContactForm();
+  }
+
+  /**
+   * Check if the add contact dialog is visible
+   */
+  async isAddContactDialogVisible(): Promise<boolean> {
+    return this.addContactDialog.isVisible();
+  }
+
+  /**
+   * Get the error message from the add contact dialog
+   */
+  async getAddContactError(): Promise<string | null> {
+    const errorAlert = this.addContactDialog.locator(".bg-red-50");
+    if (await errorAlert.isVisible()) {
+      return errorAlert.textContent();
+    }
+    return null;
+  }
+
+  /**
+   * Wait for the success state in the add contact dialog
+   */
+  async waitForAddContactSuccess() {
+    await this.addContactDialog.getByText("Contact Created!").waitFor({
+      state: "visible",
+      timeout: 5000,
+    });
   }
 }

@@ -1,9 +1,11 @@
 import { useState, useCallback, useMemo, useRef } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
+import { UserPlus } from "lucide-react";
 import { useChats, type AssignmentFilter } from "../../hooks/useChats";
 import type { ChatListProps } from "../../types/chat";
 import { ChatListSearch } from "./ChatListSearch";
 import { ChatListItem, ChatListItemSkeleton } from "./ChatListItem";
+import { AddContactDialog } from "../contacts/AddContactDialog";
 
 // Fixed height for chat list items for virtualization
 const CHAT_ITEM_HEIGHT = 72;
@@ -20,6 +22,7 @@ export function ChatList({
   const [searchQuery, setSearchQuery] = useState("");
   const [assignmentFilter, setAssignmentFilter] =
     useState<AssignmentFilter>("all");
+  const [isAddContactOpen, setIsAddContactOpen] = useState(false);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   const {
@@ -108,7 +111,23 @@ export function ChatList({
         >
           Unassigned
         </button>
+        {/* Add Contact Button */}
+        <button
+          type="button"
+          onClick={() => setIsAddContactOpen(true)}
+          className="ml-auto p-1.5 text-whatsapp-teal-green hover:bg-whatsapp-teal-green/10 rounded-full transition-colors"
+          title="Add new contact"
+          data-testid="add-contact-button"
+        >
+          <UserPlus className="h-4 w-4" />
+        </button>
       </div>
+
+      {/* Add Contact Dialog */}
+      <AddContactDialog
+        open={isAddContactOpen}
+        onOpenChange={setIsAddContactOpen}
+      />
 
       {/* Chat List */}
       <div

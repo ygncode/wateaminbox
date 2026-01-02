@@ -34,10 +34,10 @@ Comparison of `.specs/spec.md` against current implementation. Last updated: 202
 - [x] Clear error states when disconnected
 - [x] Ban detection with guidance
 
-### 1.5 Contact Management ⚠️ Partially Complete
+### 1.5 Contact Management ✅ Complete
 - [x] Import contacts on-demand
 - [x] View contact list with search
-- [ ] **Add new contacts by phone number** - UI for manual contact creation
+- [x] Add new contacts by phone number - `POST /api/contacts` + `AddContactDialog` component
 - [x] Contact profile with WhatsApp info
 - [x] Custom contact name
 - [x] Shared team notes

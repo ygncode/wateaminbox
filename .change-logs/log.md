@@ -6,6 +6,32 @@ A comprehensive development log for the Multi-tenant WhatsApp Web Collaborative 
 
 ---
 
+## Latest Updates
+
+### 2026-01-02: Add Contact by Phone Number
+
+Added the ability to manually create contacts by phone number.
+
+**Backend:**
+- `POST /api/contacts` endpoint for creating contacts manually
+- Phone number normalization (strips +, 00 prefix, non-digits)
+- Validation: 6-15 digit phone numbers
+- Duplicate detection by JID or phone number (returns 409 Conflict)
+- Returns created contact with JID format for WhatsApp
+
+**Frontend:**
+- `AddContactDialog` component in `apps/web/src/components/contacts/`
+- `useCreateContact` hook for mutation
+- Form validation with real-time feedback
+- Success state with auto-navigation to new contact
+- Add button in ChatList filter bar
+
+**Tests:**
+- Backend unit tests: 7 tests for contact creation (`contacts.route.test.ts`)
+- E2E tests: 9 tests for Add Contact dialog flow
+
+---
+
 ## Project Overview
 
 Multi-tenant WhatsApp Web platform enabling businesses to manage WhatsApp communications with team collaboration, contact assignment, and audit logging.
