@@ -1,6 +1,6 @@
 # Missing Features & Tasks
 
-Comparison of `.specs/spec.md` against current implementation. Last updated: 2026-01-02
+Comparison of `.specs/spec.md` against current implementation. Last updated: 2026-01-03
 
 ---
 
@@ -82,14 +82,14 @@ Comparison of `.specs/spec.md` against current implementation. Last updated: 202
 - [ ] **Instant transfer (takeover) with notification** - reassign with alert to previous assignee
 - [x] Assignment history in audit log
 
-### 2.3 Notifications ⚠️ Partially Complete
+### 2.3 Notifications ✅ Complete
 - [x] Browser notifications with sound (client-side)
 - [x] Customizable sound choice (client-side)
 - [x] Quiet hours configuration (client-side)
 - [x] Mute specific contacts (client-side)
 - [x] **API routes for notification preferences** - `/api/notifications/preferences` GET/PATCH ✅ Completed 2026-01-03
 - [x] **Server-side notification preferences sync** - persist to database via API ✅ Completed 2026-01-03
-- [ ] **In-app notification center** - dropdown/panel showing recent notifications
+- [x] **In-app notification center** - dropdown/panel showing recent notifications ✅ Completed 2026-01-03
 
 ### 2.4 Audit Logging ✅ Complete
 - [x] Action-level logging
@@ -258,9 +258,9 @@ ALTER TABLE company_members ADD COLUMN permissions JSONB;
 3. ~~Add contacts by phone number~~ ✅ Completed 2026-01-02
 4. ~~Read receipts display~~ ✅ Completed 2026-01-02
 5. ~~Notification preferences API~~ ✅ Completed 2026-01-03
+6. ~~In-app notification center~~ ✅ Completed 2026-01-03
 
 ### Medium Priority (Enhanced Experience)
-6. In-app notification center
 7. Message search within conversation
 8. Quick replies
 9. Full backup as ZIP export

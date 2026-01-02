@@ -8,6 +8,53 @@ A comprehensive development log for the Multi-tenant WhatsApp Web Collaborative 
 
 ## Latest Updates
 
+### 2026-01-03: In-App Notification Center
+
+Added a complete in-app notification center with bell icon, popover panel, and backend infrastructure.
+
+**Database:**
+- New migration `004_add_notification_history.ts` adding `notification_type` enum and `notification_history` table
+- Table stores: user_id, notification_type (message/mention/assignment/team/system), title, message, action_url, metadata, is_read, read_at
+
+**Backend:**
+- `notification-history.service.ts`: Full CRUD service with:
+  - `createNotification()` - Create new notification
+  - `getNotifications()` - List notifications with pagination and unread filter
+  - `getNotificationById()` - Get single notification
+  - `markNotificationAsRead()` - Mark as read
+  - `markAllNotificationsAsRead()` - Mark all as read
+  - `deleteNotification()` - Delete notification
+  - `getUnreadCount()` - Get unread count
+- Extended `notifications.ts` routes with notification history endpoints:
+  - `GET /api/notifications` - List notifications (paginated)
+  - `GET /api/notifications/count` - Get unread count
+  - `GET /api/notifications/:id` - Get single notification
+  - `POST /api/notifications` - Create notification
+  - `PATCH /api/notifications/:id/read` - Mark as read
+  - `POST /api/notifications/read-all` - Mark all as read
+  - `DELETE /api/notifications/:id` - Delete notification
+
+**Frontend:**
+- `NotificationCenter.tsx`: Bell icon component with:
+  - Unread badge counter
+  - Popover panel with notification list
+  - Type-specific icons (message, mention, assignment, team, system)
+  - Mark as read on click
+  - Delete notification
+  - Mark all as read
+  - Empty state display
+  - Relative time formatting
+- `useNotificationCenter.ts`: React hook for notification state with TanStack Query
+- `popover.tsx`: New Radix UI Popover component
+- Integrated into `ChatSidebar.tsx` header next to Settings
+
+**Tests:**
+- Backend unit tests: 10 tests in `notification-history.route.test.ts`
+- E2E test scaffolding in `notifications.spec.ts`
+- Added `createMockNotificationHistory` helper in test mocks
+
+---
+
 ### 2026-01-03: Notification Preferences API
 
 Added server-side persistence for notification preferences with full API support.
