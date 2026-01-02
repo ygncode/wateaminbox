@@ -100,7 +100,14 @@ Some unit tests have mocking issues with Bun's `mock.module()`:
 - External package mocking (`@whatsapp-web/database`)
 - Service-to-service mocking requires specific path handling
 
-**Current Stats:** 195/242 tests passing (80%)
+**Current Stats:** 208/242 tests passing (86%)
+
+### Mock Fixes Applied
+
+- [x] Fixed `company.service.test.ts` resendInvitation test
+  - Updated mock chain to properly support `updateTable.set.where.returning.executeTakeFirstOrThrow` sequence
+- [x] Fixed `export.service.test.ts` sql template mock
+  - Added `sql.raw` method to mock for proper Kysely sql template support
 
 ---
 
