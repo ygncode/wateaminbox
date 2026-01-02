@@ -1,0 +1,515 @@
+import { Hono } from "hono";
+import { createBunWebSocket } from "hono/bun";
+import type { ServerWebSocket } from "bun";
+import { verifyAccessToken } from "../lib/jwt.js";
+import { getUserById } from "../services/auth.service.js";
+import { getMemberRole } from "../services/company.service.js";
+import {
+  subscribeToCompanyEvents,
+  publishSendMessage,
+  type WhatsAppEvent,
+  type QREvent,
+  type ConnectionEvent,
+  type MessageEvent,
+  type ReceiptEvent,
+} from "../lib/nats.js";
+import type { Subscription } from "nats";
+
+// WebSocket data interface
+interface WSData {
+  userId: string;
+  companyId: string;
+  authenticated: boolean;
+  natsSubscription?: Subscription;
+  events?: {
+    onOpen?: unknown;
+    onClose?: unknown;
+    onMessage?: unknown;
+    onError?: unknown;
+  };
+}
+
+// Client message types
+interface ClientMessage {
+  type: "auth" | "ping" | "send_message";
+  payload?: unknown;
+}
+
+interface AuthPayload {
+  token: string;
+  companyId: string;
+}
+
+interface SendMessagePayload {
+  jid: string;
+  content: string;
+  messageType: "text" | "image" | "video" | "audio" | "document";
+  mediaUrl?: string;
+}
+
+// Server message types
+interface ServerMessage {
+  type:
+    | "auth_success"
+    | "auth_error"
+    | "qr"
+    | "connected"
+    | "disconnected"
+    | "message"
+    | "receipt"
+    | "status"
+    | "contact"
+    | "error"
+    | "pong"
+    | "send_ack";
+  payload?: unknown;
+  timestamp: string;
+}
+
+// Connection tracking
+const connections = new Map<string, Set<ServerWebSocket<WSData>>>();
+
+/**
+ * Adds a WebSocket connection to the tracking map
+ */
+function addConnection(companyId: string, ws: ServerWebSocket<WSData>): void {
+  if (!connections.has(companyId)) {
+    connections.set(companyId, new Set());
+  }
+  connections.get(companyId)!.add(ws);
+}
+
+/**
+ * Removes a WebSocket connection from the tracking map
+ */
+function removeConnection(
+  companyId: string,
+  ws: ServerWebSocket<WSData>,
+): void {
+  const companyConnections = connections.get(companyId);
+  if (companyConnections) {
+    companyConnections.delete(ws);
+    if (companyConnections.size === 0) {
+      connections.delete(companyId);
+    }
+  }
+}
+
+/**
+ * Broadcasts a message to all connections for a company
+ */
+export function broadcastToCompany(
+  companyId: string,
+  message: ServerMessage,
+): void {
+  const companyConnections = connections.get(companyId);
+  if (companyConnections) {
+    const payload = JSON.stringify(message);
+    for (const ws of companyConnections) {
+      if (ws.readyState === 1) {
+        // OPEN
+        ws.send(payload);
+      }
+    }
+  }
+}
+
+/**
+ * Sends a message to a specific WebSocket
+ */
+function sendMessage(
+  ws: ServerWebSocket<WSData>,
+  message: ServerMessage,
+): void {
+  if (ws.readyState === 1) {
+    ws.send(JSON.stringify(message));
+  }
+}
+
+/**
+ * Handles NATS events and forwards them to WebSocket clients
+ */
+async function handleNatsEvent(event: WhatsAppEvent): Promise<void> {
+  const companyId = event.companyId;
+
+  switch (event.type) {
+    case "qr": {
+      const qrEvent = event as QREvent;
+      broadcastToCompany(companyId, {
+        type: "qr",
+        payload: {
+          qrCode: qrEvent.payload.qrCode,
+          expiresAt: qrEvent.payload.expiresAt,
+        },
+        timestamp: event.timestamp,
+      });
+      break;
+    }
+
+    case "connected": {
+      const connEvent = event as ConnectionEvent;
+      broadcastToCompany(companyId, {
+        type: "connected",
+        payload: {
+          phoneNumber: connEvent.payload.phoneNumber,
+          jid: connEvent.payload.jid,
+        },
+        timestamp: event.timestamp,
+      });
+      break;
+    }
+
+    case "disconnected": {
+      const disconnEvent = event as ConnectionEvent;
+      broadcastToCompany(companyId, {
+        type: "disconnected",
+        payload: {
+          reason: disconnEvent.payload.reason,
+        },
+        timestamp: event.timestamp,
+      });
+      break;
+    }
+
+    case "message": {
+      const msgEvent = event as MessageEvent;
+      broadcastToCompany(companyId, {
+        type: "message",
+        payload: msgEvent.payload,
+        timestamp: event.timestamp,
+      });
+      break;
+    }
+
+    case "receipt": {
+      const rcptEvent = event as ReceiptEvent;
+      broadcastToCompany(companyId, {
+        type: "receipt",
+        payload: rcptEvent.payload,
+        timestamp: event.timestamp,
+      });
+      break;
+    }
+
+    default:
+      console.warn(`[WS] Unknown event type: ${event.type}`);
+  }
+}
+
+/**
+ * Authenticates a WebSocket connection
+ */
+async function authenticateConnection(
+  ws: ServerWebSocket<WSData>,
+  token: string,
+  companyId: string,
+): Promise<boolean> {
+  try {
+    // Validate UUID format for company ID
+    const uuidRegex =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(companyId)) {
+      sendMessage(ws, {
+        type: "auth_error",
+        payload: { message: "Invalid company ID format" },
+        timestamp: new Date().toISOString(),
+      });
+      return false;
+    }
+
+    // Verify JWT token
+    const payload = await verifyAccessToken(token);
+    if (!payload) {
+      sendMessage(ws, {
+        type: "auth_error",
+        payload: { message: "Invalid or expired token" },
+        timestamp: new Date().toISOString(),
+      });
+      return false;
+    }
+
+    // Verify user exists
+    const user = await getUserById(payload.userId);
+    if (!user) {
+      sendMessage(ws, {
+        type: "auth_error",
+        payload: { message: "User not found" },
+        timestamp: new Date().toISOString(),
+      });
+      return false;
+    }
+
+    // Verify user is member of company
+    const role = await getMemberRole(companyId, user.id);
+    if (!role) {
+      sendMessage(ws, {
+        type: "auth_error",
+        payload: { message: "You are not a member of this company" },
+        timestamp: new Date().toISOString(),
+      });
+      return false;
+    }
+
+    // Update WebSocket data
+    ws.data.userId = user.id;
+    ws.data.companyId = companyId;
+    ws.data.authenticated = true;
+
+    // Add to company connections
+    addConnection(companyId, ws);
+
+    // Subscribe to NATS events for this company
+    const subscription = await subscribeToCompanyEvents(
+      companyId,
+      handleNatsEvent,
+    );
+    ws.data.natsSubscription = subscription;
+
+    sendMessage(ws, {
+      type: "auth_success",
+      payload: {
+        userId: user.id,
+        companyId,
+        message: "Successfully authenticated",
+      },
+      timestamp: new Date().toISOString(),
+    });
+
+    console.log(
+      `[WS] Client authenticated: user=${user.id}, company=${companyId}`,
+    );
+    return true;
+  } catch (error) {
+    console.error("[WS] Authentication error:", error);
+    sendMessage(ws, {
+      type: "auth_error",
+      payload: { message: "Authentication failed" },
+      timestamp: new Date().toISOString(),
+    });
+    return false;
+  }
+}
+
+/**
+ * Handles client messages
+ */
+async function handleClientMessage(
+  ws: ServerWebSocket<WSData>,
+  message: string,
+): Promise<void> {
+  let parsed: ClientMessage;
+
+  try {
+    parsed = JSON.parse(message);
+  } catch {
+    sendMessage(ws, {
+      type: "error",
+      payload: { message: "Invalid JSON" },
+      timestamp: new Date().toISOString(),
+    });
+    return;
+  }
+
+  switch (parsed.type) {
+    case "auth": {
+      const authPayload = parsed.payload as AuthPayload;
+      if (!authPayload?.token || !authPayload?.companyId) {
+        sendMessage(ws, {
+          type: "auth_error",
+          payload: { message: "Missing token or companyId" },
+          timestamp: new Date().toISOString(),
+        });
+        return;
+      }
+      await authenticateConnection(
+        ws,
+        authPayload.token,
+        authPayload.companyId,
+      );
+      break;
+    }
+
+    case "ping":
+      sendMessage(ws, {
+        type: "pong",
+        timestamp: new Date().toISOString(),
+      });
+      break;
+
+    case "send_message": {
+      if (!ws.data.authenticated) {
+        sendMessage(ws, {
+          type: "error",
+          payload: { message: "Not authenticated" },
+          timestamp: new Date().toISOString(),
+        });
+        return;
+      }
+
+      const sendPayload = parsed.payload as SendMessagePayload;
+      if (!sendPayload?.jid || !sendPayload?.content) {
+        sendMessage(ws, {
+          type: "error",
+          payload: { message: "Missing jid or content" },
+          timestamp: new Date().toISOString(),
+        });
+        return;
+      }
+
+      try {
+        await publishSendMessage(
+          ws.data.companyId,
+          sendPayload.jid,
+          sendPayload.content,
+          sendPayload.messageType || "text",
+          ws.data.userId,
+          sendPayload.mediaUrl,
+        );
+
+        sendMessage(ws, {
+          type: "send_ack",
+          payload: {
+            jid: sendPayload.jid,
+            status: "queued",
+          },
+          timestamp: new Date().toISOString(),
+        });
+      } catch (error) {
+        console.error("[WS] Failed to send message:", error);
+        sendMessage(ws, {
+          type: "error",
+          payload: { message: "Failed to send message" },
+          timestamp: new Date().toISOString(),
+        });
+      }
+      break;
+    }
+
+    default:
+      sendMessage(ws, {
+        type: "error",
+        payload: { message: `Unknown message type: ${parsed.type}` },
+        timestamp: new Date().toISOString(),
+      });
+  }
+}
+
+// Create Bun WebSocket handler
+const { upgradeWebSocket, websocket: honoWebsocket } = createBunWebSocket<WSData>();
+
+// Wrap the websocket handler with null checks to prevent crashes
+export const websocket = {
+  ...honoWebsocket,
+  close(ws: ServerWebSocket<WSData>, code?: number, reason?: string) {
+    // Guard against undefined data.events (happens when connection closes before full setup)
+    if (ws.data?.events?.onClose) {
+      honoWebsocket.close(ws, code, reason);
+    } else {
+      console.log("[WS] Connection closed before initialization");
+    }
+  },
+  message(ws: ServerWebSocket<WSData>, message: string | Buffer) {
+    // Guard against undefined data.events
+    if (ws.data?.events?.onMessage) {
+      honoWebsocket.message(ws, message);
+    } else {
+      console.log("[WS] Message received before initialization");
+    }
+  },
+};
+
+// WebSocket route
+export const wsRoutes = new Hono();
+
+wsRoutes.get(
+  "/",
+  upgradeWebSocket((c) => {
+    // Extract token and company from query params for initial auth
+    const token = c.req.query("token");
+    const company = c.req.query("company");
+
+    return {
+      onOpen: async (_event, ws) => {
+        const rawWs = ws.raw as unknown as ServerWebSocket<WSData>;
+        rawWs.data = {
+          userId: "",
+          companyId: "",
+          authenticated: false,
+        };
+
+        console.log("[WS] Client connected");
+
+        // If token and company provided in query, auto-authenticate
+        if (token && company) {
+          await authenticateConnection(rawWs, token, company);
+        } else {
+          // Send auth required message
+          sendMessage(rawWs, {
+            type: "error",
+            payload: {
+              message:
+                "Authentication required. Send auth message with token and companyId.",
+            },
+            timestamp: new Date().toISOString(),
+          });
+        }
+      },
+
+      onMessage: async (event, ws) => {
+        const rawWs = ws.raw as unknown as ServerWebSocket<WSData>;
+        const message =
+          typeof event.data === "string" ? event.data : event.data.toString();
+
+        await handleClientMessage(rawWs, message);
+      },
+
+      onClose: (_event, ws) => {
+        const rawWs = ws.raw as unknown as ServerWebSocket<WSData>;
+        console.log("[WS] Client disconnected");
+
+        // Clean up NATS subscription
+        if (rawWs.data.natsSubscription) {
+          rawWs.data.natsSubscription.unsubscribe();
+        }
+
+        // Remove from connections
+        if (rawWs.data.companyId) {
+          removeConnection(rawWs.data.companyId, rawWs);
+        }
+      },
+
+      onError: (error, ws) => {
+        console.error("[WS] WebSocket error:", error);
+        const rawWs = ws.raw as unknown as ServerWebSocket<WSData>;
+
+        // Clean up NATS subscription
+        if (rawWs.data.natsSubscription) {
+          rawWs.data.natsSubscription.unsubscribe();
+        }
+
+        // Remove from connections
+        if (rawWs.data.companyId) {
+          removeConnection(rawWs.data.companyId, rawWs);
+        }
+      },
+    };
+  }),
+);
+
+/**
+ * Gets the number of active connections for a company
+ */
+export function getConnectionCount(companyId: string): number {
+  return connections.get(companyId)?.size || 0;
+}
+
+/**
+ * Gets total number of active WebSocket connections
+ */
+export function getTotalConnectionCount(): number {
+  let total = 0;
+  for (const conns of connections.values()) {
+    total += conns.size;
+  }
+  return total;
+}

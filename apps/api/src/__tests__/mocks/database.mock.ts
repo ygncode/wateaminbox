@@ -1,0 +1,375 @@
+/**
+ * Mock database utilities for testing services
+ *
+ * These mocks simulate Kysely database operations without actual database connections.
+ */
+
+import { mock } from "bun:test";
+
+/**
+ * Creates a mock query builder that chains method calls
+ */
+export function createMockQueryBuilder(returnValue: unknown = undefined) {
+  const mockBuilder: Record<string, unknown> = {};
+
+  const chainMethods = [
+    "selectFrom",
+    "insertInto",
+    "updateTable",
+    "deleteFrom",
+    "select",
+    "selectAll",
+    "where",
+    "values",
+    "set",
+    "returning",
+    "innerJoin",
+    "leftJoin",
+    "orderBy",
+    "limit",
+    "offset",
+    "groupBy",
+    "having",
+    "$if",
+  ];
+
+  const terminalMethods = {
+    execute: mock(() => Promise.resolve(Array.isArray(returnValue) ? returnValue : [])),
+    executeTakeFirst: mock(() => Promise.resolve(returnValue)),
+    executeTakeFirstOrThrow: mock(() => {
+      if (returnValue === undefined) {
+        throw new Error("no result");
+      }
+      return Promise.resolve(returnValue);
+    }),
+  };
+
+  // Setup chainable methods
+  chainMethods.forEach((method) => {
+    mockBuilder[method] = mock(() => mockBuilder);
+  });
+
+  // Setup terminal methods
+  Object.entries(terminalMethods).forEach(([method, fn]) => {
+    mockBuilder[method] = fn;
+  });
+
+  return mockBuilder;
+}
+
+/**
+ * Creates a mock database instance
+ */
+export function createMockDb(queryResults: Record<string, unknown> = {}) {
+  const defaultResult = undefined;
+
+  return {
+    selectFrom: mock((table: string) => createMockQueryBuilder(queryResults[table] ?? defaultResult)),
+    insertInto: mock((table: string) => createMockQueryBuilder(queryResults[`insert_${table}`] ?? defaultResult)),
+    updateTable: mock((table: string) => createMockQueryBuilder(queryResults[`update_${table}`] ?? defaultResult)),
+    deleteFrom: mock((table: string) => createMockQueryBuilder(queryResults[`delete_${table}`] ?? defaultResult)),
+    transaction: mock(() => ({
+      execute: mock((callback: (trx: unknown) => Promise<unknown>) => {
+        const trxDb = createMockDb(queryResults);
+        return callback(trxDb);
+      }),
+    })),
+    withSchema: mock(() => createMockDb(queryResults)),
+    destroy: mock(() => Promise.resolve()),
+  };
+}
+
+/**
+ * Creates a mock result with numUpdatedRows property
+ */
+export function createUpdateResult(numUpdatedRows: number | bigint) {
+  return { numUpdatedRows: BigInt(numUpdatedRows) };
+}
+
+/**
+ * Creates a mock result with numDeletedRows property
+ */
+export function createDeleteResult(numDeletedRows: number | bigint) {
+  return { numDeletedRows: BigInt(numDeletedRows) };
+}
+
+/**
+ * Helper to create mock user data
+ */
+export function createMockUser(overrides: Partial<MockUser> = {}): MockUser {
+  return {
+    id: "user-123",
+    email: "test@example.com",
+    password_hash: "$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/X4.VTtYVX7.lB2mKu", // "Password123"
+    email_verified_at: null,
+    created_at: new Date(),
+    updated_at: new Date(),
+    ...overrides,
+  };
+}
+
+/**
+ * Helper to create mock session data
+ */
+export function createMockSession(overrides: Partial<MockSession> = {}): MockSession {
+  return {
+    id: "session-123",
+    user_id: "user-123",
+    device_name: "Chrome on MacOS",
+    device_type: "desktop",
+    ip_address: "127.0.0.1",
+    user_agent: "Mozilla/5.0",
+    refresh_token: "refresh-token-abc",
+    last_active_at: new Date(),
+    created_at: new Date(),
+    expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+    ...overrides,
+  };
+}
+
+/**
+ * Helper to create mock company data
+ */
+export function createMockCompany(overrides: Partial<MockCompany> = {}): MockCompany {
+  return {
+    id: "company-123",
+    name: "Test Company",
+    schema_name: "tenant_company_123",
+    status: "active" as const,
+    created_at: new Date(),
+    updated_at: new Date(),
+    ...overrides,
+  };
+}
+
+/**
+ * Helper to create mock company member data
+ */
+export function createMockCompanyMember(overrides: Partial<MockCompanyMember> = {}): MockCompanyMember {
+  return {
+    id: "member-123",
+    user_id: "user-123",
+    company_id: "company-123",
+    role: "member" as const,
+    permissions: {},
+    invited_by: null,
+    joined_at: new Date(),
+    ...overrides,
+  };
+}
+
+/**
+ * Helper to create mock invitation data
+ */
+export function createMockInvitation(overrides: Partial<MockInvitation> = {}): MockInvitation {
+  return {
+    id: "invitation-123",
+    company_id: "company-123",
+    email: "invited@example.com",
+    token: "invite-token-abc",
+    invited_by: "user-123",
+    expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+    accepted_at: null,
+    created_at: new Date(),
+    ...overrides,
+  };
+}
+
+/**
+ * Helper to create mock audit log data
+ */
+export function createMockAuditLog(overrides: Partial<MockAuditLog> = {}): MockAuditLog {
+  return {
+    id: "audit-123",
+    user_id: "user-123",
+    action: "user.login",
+    entity_type: null,
+    entity_id: null,
+    details: null,
+    ip_address: "127.0.0.1",
+    created_at: new Date(),
+    ...overrides,
+  };
+}
+
+/**
+ * Helper to create mock WhatsApp connection data
+ */
+export function createMockWhatsAppConnection(overrides: Partial<MockWhatsAppConnection> = {}): MockWhatsAppConnection {
+  return {
+    id: "connection-123",
+    phone_number: "+1234567890",
+    jid: "1234567890@s.whatsapp.net",
+    status: "connected" as const,
+    connected_by: "user-123",
+    connected_at: new Date(),
+    last_sync_at: new Date(),
+    session_data: null,
+    created_at: new Date(),
+    updated_at: new Date(),
+    ...overrides,
+  };
+}
+
+/**
+ * Helper to create mock contact data
+ */
+export function createMockContact(overrides: Partial<MockContact> = {}): MockContact {
+  return {
+    id: "contact-123",
+    whatsapp_connection_id: "connection-123",
+    jid: "9876543210@s.whatsapp.net",
+    phone_number: "+9876543210",
+    push_name: "John Doe",
+    custom_name: null,
+    notes_shared: null,
+    is_group: false,
+    profile_picture_url: null,
+    created_at: new Date(),
+    updated_at: new Date(),
+    ...overrides,
+  };
+}
+
+/**
+ * Helper to create mock message data
+ */
+export function createMockMessage(overrides: Partial<MockMessage> = {}): MockMessage {
+  return {
+    id: "message-123",
+    whatsapp_connection_id: "connection-123",
+    contact_id: "contact-123",
+    message_id: "wa-msg-123",
+    from_me: false,
+    sender_jid: "9876543210@s.whatsapp.net",
+    message_type: "text" as const,
+    content: "Hello, world!",
+    media_url: null,
+    media_mime_type: null,
+    media_size: null,
+    quoted_message_id: null,
+    is_forwarded: false,
+    is_starred: false,
+    deleted_by_sender: false,
+    deleted_at: null,
+    sent_by_user_id: null,
+    timestamp: new Date(),
+    created_at: new Date(),
+    search_vector: null,
+    ...overrides,
+  };
+}
+
+// Type definitions for mock data
+export interface MockUser {
+  id: string;
+  email: string;
+  password_hash: string;
+  email_verified_at: Date | null;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface MockSession {
+  id: string;
+  user_id: string;
+  device_name: string | null;
+  device_type: string | null;
+  ip_address: string | null;
+  user_agent: string | null;
+  refresh_token: string;
+  last_active_at: Date;
+  created_at: Date;
+  expires_at: Date;
+}
+
+export interface MockCompany {
+  id: string;
+  name: string;
+  schema_name: string;
+  status: "active" | "suspended" | "deleted";
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface MockCompanyMember {
+  id: string;
+  user_id: string;
+  company_id: string;
+  role: "owner" | "admin" | "member";
+  permissions: Record<string, unknown>;
+  invited_by: string | null;
+  joined_at: Date;
+}
+
+export interface MockInvitation {
+  id: string;
+  company_id: string;
+  email: string;
+  token: string;
+  invited_by: string;
+  expires_at: Date;
+  accepted_at: Date | null;
+  created_at: Date;
+}
+
+export interface MockAuditLog {
+  id: string;
+  user_id: string | null;
+  action: string;
+  entity_type: string | null;
+  entity_id: string | null;
+  details: Record<string, unknown> | null;
+  ip_address: string | null;
+  created_at: Date;
+}
+
+export interface MockWhatsAppConnection {
+  id: string;
+  phone_number: string | null;
+  jid: string | null;
+  status: "connected" | "disconnected" | "banned" | "pending";
+  connected_by: string | null;
+  connected_at: Date | null;
+  last_sync_at: Date | null;
+  session_data: Buffer | null;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface MockContact {
+  id: string;
+  whatsapp_connection_id: string | null;
+  jid: string | null;
+  phone_number: string | null;
+  push_name: string | null;
+  custom_name: string | null;
+  notes_shared: string | null;
+  is_group: boolean;
+  profile_picture_url: string | null;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface MockMessage {
+  id: string;
+  whatsapp_connection_id: string | null;
+  contact_id: string | null;
+  message_id: string | null;
+  from_me: boolean;
+  sender_jid: string | null;
+  message_type: "text" | "image" | "video" | "audio" | "document" | "sticker" | "location" | "contact" | "reaction";
+  content: string | null;
+  media_url: string | null;
+  media_mime_type: string | null;
+  media_size: number | null;
+  quoted_message_id: string | null;
+  is_forwarded: boolean;
+  is_starred: boolean;
+  deleted_by_sender: boolean;
+  deleted_at: Date | null;
+  sent_by_user_id: string | null;
+  timestamp: Date;
+  created_at: Date;
+  search_vector: unknown | null;
+}

@@ -1,0 +1,30 @@
+export { db, createDatabase, createTenantDatabase, getTenantSchemaName } from "./client";
+export type {
+  Database,
+  TenantDatabase,
+  // Public schema types
+  CompaniesTable,
+  UsersTable,
+  CompanyMembersTable,
+  InvitationsTable,
+  CompanyStatsTable,
+  UserSessionsTable,
+  CompanyStatus,
+  MemberRole,
+  // Tenant schema types
+  WhatsAppConnectionsTable,
+  ContactsTable,
+  TagsTable,
+  ContactTagsTable,
+  ContactAssignmentsTable,
+  ContactNotesPrivateTable,
+  TenantMessagesTable,
+  MessageReactionsTable,
+  GroupsTable,
+  GroupParticipantsTable,
+  StatusUpdatesTable,
+  AuditLogsTable,
+  NotificationPreferencesTable,
+  WhatsAppConnectionStatus,
+  MessageType,
+} from "./client";

@@ -1,0 +1,374 @@
+import { Page, Locator } from "@playwright/test";
+
+/**
+ * Page Object Model for the Chat Page
+ * Provides comprehensive locators and methods for testing chat functionality
+ */
+export class ChatPage {
+  readonly page: Page;
+
+  // Chat List Sidebar
+  readonly chatListHeader: Locator;
+  readonly menuButton: Locator;
+  readonly logoutButton: Locator;
+  readonly userInfoSection: Locator;
+  readonly chatList: Locator;
+  readonly newChatButton: Locator;
+  readonly searchInput: Locator;
+  readonly welcomeMessage: Locator;
+  readonly chatListNav: Locator;
+
+  // Assignment Filter Buttons
+  readonly filterAll: Locator;
+  readonly filterAssignedToMe: Locator;
+  readonly filterUnassigned: Locator;
+
+  // Message Area
+  readonly messageHeader: Locator;
+  readonly messageThread: Locator;
+  readonly messageComposer: Locator;
+  readonly messageInput: Locator;
+  readonly sendButton: Locator;
+  readonly attachButton: Locator;
+
+  // Reply Preview
+  readonly replyPreview: Locator;
+  readonly cancelReplyButton: Locator;
+
+  // Context Menu
+  readonly contextMenu: Locator;
+  readonly contextMenuReply: Locator;
+  readonly contextMenuForward: Locator;
+  readonly contextMenuStar: Locator;
+  readonly contextMenuDelete: Locator;
+
+  // Contact Profile Panel
+  readonly profilePanel: Locator;
+  readonly profileHeader: Locator;
+  readonly profileCloseButton: Locator;
+  readonly profileAvatar: Locator;
+  readonly profileName: Locator;
+  readonly profilePhoneNumber: Locator;
+
+  constructor(page: Page) {
+    this.page = page;
+
+    // Chat List Sidebar Locators
+    this.chatListHeader = page.getByRole("heading", { name: "Chats" });
+    this.menuButton = page.getByRole("button", { name: "Menu" });
+    this.logoutButton = page.getByRole("button", { name: /log out/i });
+    this.userInfoSection = page.locator(".border-b.border-gray-100");
+    this.chatList = page.getByRole("listbox", { name: /conversations/i });
+    this.newChatButton = page.getByRole("button", { name: "New chat" });
+    this.searchInput = page.getByPlaceholder(/search/i);
+    this.welcomeMessage = page.getByText(/select a conversation/i);
+    this.chatListNav = page.getByRole("navigation", { name: "Chat list" });
+
+    // Assignment Filter Buttons
+    this.filterAll = page.getByRole("button", { name: "All", exact: true });
+    this.filterAssignedToMe = page.getByRole("button", { name: "Assigned to me" });
+    this.filterUnassigned = page.getByRole("button", { name: "Unassigned" });
+
+    // Message Area Locators
+    this.messageHeader = page.locator("header").filter({ has: page.locator("h2") });
+    this.messageThread = page.locator('[class*="bg-\\[\\#e5ddd5\\]"]');
+    this.messageComposer = page.locator(".safe-area-bottom").filter({ has: page.locator("textarea") });
+    this.messageInput = page.getByPlaceholder(/type a message/i);
+    this.sendButton = page.getByRole("button", { name: /send/i });
+    this.attachButton = page.getByRole("button", { name: "Attach file" });
+
+    // Reply Preview Locators
+    this.replyPreview = page.locator(".border-l-4.border-whatsapp-green");
+    this.cancelReplyButton = page.getByRole("button", { name: "Cancel reply" });
+
+    // Context Menu Locators
+    this.contextMenu = page.locator(".shadow-lg.py-1");
+    this.contextMenuReply = this.contextMenu.getByRole("button", { name: "Reply" });
+    this.contextMenuForward = this.contextMenu.getByRole("button", { name: "Forward" });
+    this.contextMenuStar = this.contextMenu.getByRole("button", { name: /star|unstar/i });
+    this.contextMenuDelete = this.contextMenu.getByRole("button", { name: "Delete" });
+
+    // Contact Profile Panel Locators
+    this.profilePanel = page.locator("aside");
+    this.profileHeader = page.getByText("Contact Info");
+    this.profileCloseButton = page.getByRole("button", { name: /close/i });
+    this.profileAvatar = page.locator(".h-32.w-32");
+    this.profileName = page.locator(".text-xl.font-semibold");
+    this.profilePhoneNumber = page.locator("text=Phone").locator("..");
+  }
+
+  /**
+   * Navigate to the chat page
+   */
+  async goto() {
+    await this.page.goto("/chat");
+  }
+
+  /**
+   * Navigate to a specific chat by contact ID
+   */
+  async gotoChat(contactId: string) {
+    await this.page.goto(`/chat/${contactId}`);
+  }
+
+  /**
+   * Wait for the chat page to be fully loaded
+   */
+  async waitForLoad() {
+    await this.chatListHeader.waitFor({ state: "visible" });
+  }
+
+  /**
+   * Wait for the page network activity to settle
+   */
+  async waitForPageLoad() {
+    await this.page.waitForLoadState("networkidle");
+  }
+
+  /**
+   * Open the user menu dropdown
+   */
+  async openMenu() {
+    await this.menuButton.click();
+    await this.logoutButton.waitFor({ state: "visible" });
+  }
+
+  /**
+   * Logout from the application
+   */
+  async logout() {
+    await this.openMenu();
+    await this.logoutButton.click();
+  }
+
+  /**
+   * Wait for redirect to login page after logout
+   */
+  async waitForLogoutRedirect() {
+    await this.page.waitForURL(/\/login/);
+  }
+
+  /**
+   * Search for chats
+   */
+  async searchChats(query: string) {
+    await this.searchInput.fill(query);
+    // Wait for debounce
+    await this.page.waitForTimeout(300);
+  }
+
+  /**
+   * Clear the search input
+   */
+  async clearSearch() {
+    const clearButton = this.page.getByRole("button", { name: "Clear search" });
+    if (await clearButton.isVisible()) {
+      await clearButton.click();
+    } else {
+      await this.searchInput.clear();
+    }
+  }
+
+  /**
+   * Click on a chat item by contact name
+   */
+  async selectChatByName(contactName: string) {
+    const chatItem = this.chatList.getByRole("option").filter({ hasText: contactName });
+    await chatItem.click();
+  }
+
+  /**
+   * Click on a chat item by index (0-based)
+   */
+  async selectChatByIndex(index: number) {
+    const chatItems = this.chatList.getByRole("option");
+    await chatItems.nth(index).click();
+  }
+
+  /**
+   * Get the number of visible chat items
+   */
+  async getChatCount(): Promise<number> {
+    const chatItems = this.chatList.getByRole("option");
+    return chatItems.count();
+  }
+
+  /**
+   * Click an assignment filter button
+   */
+  async clickAssignmentFilter(filter: "all" | "assignedToMe" | "unassigned") {
+    switch (filter) {
+      case "all":
+        await this.filterAll.click();
+        break;
+      case "assignedToMe":
+        await this.filterAssignedToMe.click();
+        break;
+      case "unassigned":
+        await this.filterUnassigned.click();
+        break;
+    }
+    // Wait for filter to apply
+    await this.page.waitForTimeout(300);
+  }
+
+  /**
+   * Type a message in the composer
+   */
+  async typeMessage(message: string) {
+    await this.messageInput.fill(message);
+  }
+
+  /**
+   * Send a message by clicking the send button
+   */
+  async sendMessage() {
+    await this.sendButton.click();
+  }
+
+  /**
+   * Send a message by pressing Enter
+   */
+  async sendMessageWithEnter() {
+    await this.messageInput.press("Enter");
+  }
+
+  /**
+   * Type and send a message
+   */
+  async typeAndSendMessage(message: string) {
+    await this.typeMessage(message);
+    await this.sendMessage();
+  }
+
+  /**
+   * Get all message bubbles in the thread
+   */
+  getMessageBubbles(): Locator {
+    return this.page.locator(".rounded-lg.shadow-sm");
+  }
+
+  /**
+   * Get the last message bubble
+   */
+  getLastMessageBubble(): Locator {
+    return this.getMessageBubbles().last();
+  }
+
+  /**
+   * Right-click on a message to open context menu
+   */
+  async openMessageContextMenu(messageLocator: Locator) {
+    await messageLocator.click({ button: "right" });
+    await this.contextMenu.waitFor({ state: "visible" });
+  }
+
+  /**
+   * Click reply in the context menu
+   */
+  async clickReply() {
+    await this.contextMenuReply.click();
+  }
+
+  /**
+   * Cancel the current reply
+   */
+  async cancelReply() {
+    await this.cancelReplyButton.click();
+  }
+
+  /**
+   * Open the contact profile panel by clicking on the header
+   */
+  async openContactProfile() {
+    // Click on the contact info button in the header (avatar + name area)
+    const headerButton = this.messageHeader.locator("button").first();
+    await headerButton.click();
+    // Wait for profile panel to open
+    await this.profileHeader.waitFor({ state: "visible", timeout: 5000 });
+  }
+
+  /**
+   * Close the contact profile panel
+   */
+  async closeContactProfile() {
+    await this.profileCloseButton.click();
+  }
+
+  /**
+   * Get the currently displayed contact name from the header
+   */
+  async getContactNameFromHeader(): Promise<string | null> {
+    const nameElement = this.messageHeader.locator("h2");
+    return nameElement.textContent();
+  }
+
+  /**
+   * Check if a message with specific text exists in the thread
+   */
+  async hasMessageWithText(text: string): Promise<boolean> {
+    const message = this.page.getByText(text);
+    return message.isVisible();
+  }
+
+  /**
+   * Wait for a new message to appear in the thread
+   */
+  async waitForNewMessage(messageText: string, timeout: number = 5000) {
+    await this.page.getByText(messageText).waitFor({
+      state: "visible",
+      timeout
+    });
+  }
+
+  /**
+   * Check if the message composer is visible
+   */
+  async isComposerVisible(): Promise<boolean> {
+    return this.messageInput.isVisible();
+  }
+
+  /**
+   * Check if the message thread is visible
+   */
+  async isMessageThreadVisible(): Promise<boolean> {
+    // Check for the WhatsApp-style background
+    const thread = this.page.locator('[class*="bg-\\[\\#e5ddd5\\]"]');
+    return thread.isVisible();
+  }
+
+  /**
+   * Check if reply preview is visible
+   */
+  async isReplyPreviewVisible(): Promise<boolean> {
+    return this.replyPreview.isVisible();
+  }
+
+  /**
+   * Get the current URL
+   */
+  getUrl(): string {
+    return this.page.url();
+  }
+
+  /**
+   * Check if a specific filter button is active (has the active class)
+   */
+  async isFilterActive(filter: "all" | "assignedToMe" | "unassigned"): Promise<boolean> {
+    let button: Locator;
+    switch (filter) {
+      case "all":
+        button = this.filterAll;
+        break;
+      case "assignedToMe":
+        button = this.filterAssignedToMe;
+        break;
+      case "unassigned":
+        button = this.filterUnassigned;
+        break;
+    }
+    const classes = await button.getAttribute("class");
+    // Active filter has the teal-green background
+    return classes?.includes("bg-whatsapp-teal-green") ?? false;
+  }
+}

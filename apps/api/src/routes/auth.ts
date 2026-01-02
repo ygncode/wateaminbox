@@ -1,0 +1,506 @@
+import { Hono } from "hono";
+import { z } from "zod";
+import {
+  register,
+  login,
+  verifyEmail,
+  forgotPassword,
+  resetPassword,
+  refreshSession,
+  revokeSession,
+  revokeAllSessions,
+  getUserSessions,
+  AuthError,
+} from "../services/auth.service.js";
+import { validatePasswordStrength } from "../lib/password.js";
+import { authMiddleware } from "../middleware/auth.js";
+
+export const authRoutes = new Hono();
+
+// Validation schemas
+const registerSchema = z.object({
+  email: z.string().email("Invalid email address"),
+  password: z
+    .string()
+    .min(8, "Password must be at least 8 characters")
+    .max(128, "Password must be at most 128 characters"),
+});
+
+const loginSchema = z.object({
+  email: z.string().email("Invalid email address"),
+  password: z.string().min(1, "Password is required"),
+  deviceInfo: z
+    .object({
+      deviceName: z.string().optional(),
+      deviceType: z.string().optional(),
+    })
+    .optional(),
+});
+
+const verifyEmailSchema = z.object({
+  token: z.string().min(1, "Token is required"),
+});
+
+const forgotPasswordSchema = z.object({
+  email: z.string().email("Invalid email address"),
+});
+
+const resetPasswordSchema = z.object({
+  email: z.string().email("Invalid email address"),
+  token: z.string().min(1, "Token is required"),
+  password: z
+    .string()
+    .min(8, "Password must be at least 8 characters")
+    .max(128, "Password must be at most 128 characters"),
+});
+
+const refreshTokenSchema = z.object({
+  refreshToken: z.string().min(1, "Refresh token is required"),
+});
+
+/**
+ * Helper to extract device info from request
+ */
+function getDeviceInfo(c: {
+  req: {
+    header: (name: string) => string | undefined;
+  };
+}): { ipAddress?: string; userAgent?: string } {
+  return {
+    ipAddress:
+      c.req.header("x-forwarded-for") || c.req.header("x-real-ip") || undefined,
+    userAgent: c.req.header("user-agent") || undefined,
+  };
+}
+
+/**
+ * POST /auth/register
+ * Register a new user with email and password
+ */
+authRoutes.post("/register", async (c) => {
+  try {
+    const body = await c.req.json();
+    const result = registerSchema.safeParse(body);
+
+    if (!result.success) {
+      return c.json(
+        {
+          error: "Validation Error",
+          details: result.error.errors.map((e) => ({
+            field: e.path.join("."),
+            message: e.message,
+          })),
+        },
+        400,
+      );
+    }
+
+    // Additional password strength validation
+    const passwordCheck = validatePasswordStrength(result.data.password);
+    if (!passwordCheck.isValid) {
+      return c.json(
+        {
+          error: "Validation Error",
+          details: [{ field: "password", message: passwordCheck.message }],
+        },
+        400,
+      );
+    }
+
+    const { user } = await register(result.data.email, result.data.password);
+
+    return c.json(
+      {
+        message:
+          "Registration successful. Please check your email to verify your account.",
+        user: {
+          id: user.id,
+          email: user.email,
+          emailVerified: !!user.emailVerifiedAt,
+          createdAt: user.createdAt,
+        },
+      },
+      201,
+    );
+  } catch (error) {
+    if (error instanceof AuthError) {
+      return c.json(
+        { error: error.code, message: error.message },
+        error.statusCode as 400 | 401 | 403 | 404 | 409,
+      );
+    }
+    console.error("Registration error:", error);
+    return c.json({ error: "Internal Server Error" }, 500);
+  }
+});
+
+/**
+ * POST /auth/login
+ * Login with email and password
+ */
+authRoutes.post("/login", async (c) => {
+  try {
+    const body = await c.req.json();
+    const result = loginSchema.safeParse(body);
+
+    if (!result.success) {
+      return c.json(
+        {
+          error: "Validation Error",
+          details: result.error.errors.map((e) => ({
+            field: e.path.join("."),
+            message: e.message,
+          })),
+        },
+        400,
+      );
+    }
+
+    const deviceInfo = {
+      ...result.data.deviceInfo,
+      ...getDeviceInfo(c),
+    };
+
+    const { user, tokens, session } = await login(
+      result.data.email,
+      result.data.password,
+      deviceInfo,
+    );
+
+    return c.json({
+      message: "Login successful",
+      user: {
+        id: user.id,
+        email: user.email,
+        emailVerified: !!user.emailVerifiedAt,
+      },
+      tokens: {
+        accessToken: tokens.accessToken,
+        refreshToken: tokens.refreshToken,
+      },
+      session: {
+        id: session.id,
+        expiresAt: session.expiresAt,
+      },
+    });
+  } catch (error) {
+    if (error instanceof AuthError) {
+      return c.json(
+        { error: error.code, message: error.message },
+        error.statusCode as 400 | 401 | 403 | 404 | 409,
+      );
+    }
+    console.error("Login error:", error);
+    return c.json({ error: "Internal Server Error" }, 500);
+  }
+});
+
+/**
+ * POST /auth/logout
+ * Logout the current session
+ */
+authRoutes.post("/logout", authMiddleware, async (c) => {
+  try {
+    const user = c.get("user");
+    const session = c.get("session");
+
+    await revokeSession(session.id, user.id);
+
+    return c.json({ message: "Logged out successfully" });
+  } catch (error) {
+    if (error instanceof AuthError) {
+      return c.json(
+        { error: error.code, message: error.message },
+        error.statusCode as 400 | 401 | 403 | 404 | 409,
+      );
+    }
+    console.error("Logout error:", error);
+    return c.json({ error: "Internal Server Error" }, 500);
+  }
+});
+
+/**
+ * POST /auth/verify-email
+ * Verify email with token
+ */
+authRoutes.post("/verify-email", authMiddleware, async (c) => {
+  try {
+    const body = await c.req.json();
+    const result = verifyEmailSchema.safeParse(body);
+
+    if (!result.success) {
+      return c.json(
+        {
+          error: "Validation Error",
+          details: result.error.errors.map((e) => ({
+            field: e.path.join("."),
+            message: e.message,
+          })),
+        },
+        400,
+      );
+    }
+
+    const user = c.get("user");
+    const updatedUser = await verifyEmail(user.id, result.data.token);
+
+    return c.json({
+      message: "Email verified successfully",
+      user: {
+        id: updatedUser.id,
+        email: updatedUser.email,
+        emailVerified: !!updatedUser.emailVerifiedAt,
+      },
+    });
+  } catch (error) {
+    if (error instanceof AuthError) {
+      return c.json(
+        { error: error.code, message: error.message },
+        error.statusCode as 400 | 401 | 403 | 404 | 409,
+      );
+    }
+    console.error("Email verification error:", error);
+    return c.json({ error: "Internal Server Error" }, 500);
+  }
+});
+
+/**
+ * POST /auth/forgot-password
+ * Request a password reset email
+ */
+authRoutes.post("/forgot-password", async (c) => {
+  try {
+    const body = await c.req.json();
+    const result = forgotPasswordSchema.safeParse(body);
+
+    if (!result.success) {
+      return c.json(
+        {
+          error: "Validation Error",
+          details: result.error.errors.map((e) => ({
+            field: e.path.join("."),
+            message: e.message,
+          })),
+        },
+        400,
+      );
+    }
+
+    await forgotPassword(result.data.email);
+
+    // Always return success to prevent email enumeration
+    return c.json({
+      message:
+        "If an account exists with this email, you will receive a password reset link.",
+    });
+  } catch (error) {
+    console.error("Forgot password error:", error);
+    // Always return success to prevent email enumeration
+    return c.json({
+      message:
+        "If an account exists with this email, you will receive a password reset link.",
+    });
+  }
+});
+
+/**
+ * POST /auth/reset-password
+ * Reset password with token
+ */
+authRoutes.post("/reset-password", async (c) => {
+  try {
+    const body = await c.req.json();
+    const result = resetPasswordSchema.safeParse(body);
+
+    if (!result.success) {
+      return c.json(
+        {
+          error: "Validation Error",
+          details: result.error.errors.map((e) => ({
+            field: e.path.join("."),
+            message: e.message,
+          })),
+        },
+        400,
+      );
+    }
+
+    // Additional password strength validation
+    const passwordCheck = validatePasswordStrength(result.data.password);
+    if (!passwordCheck.isValid) {
+      return c.json(
+        {
+          error: "Validation Error",
+          details: [{ field: "password", message: passwordCheck.message }],
+        },
+        400,
+      );
+    }
+
+    await resetPassword(
+      result.data.email,
+      result.data.token,
+      result.data.password,
+    );
+
+    return c.json({ message: "Password reset successfully" });
+  } catch (error) {
+    if (error instanceof AuthError) {
+      return c.json(
+        { error: error.code, message: error.message },
+        error.statusCode as 400 | 401 | 403 | 404 | 409,
+      );
+    }
+    console.error("Reset password error:", error);
+    return c.json({ error: "Internal Server Error" }, 500);
+  }
+});
+
+/**
+ * POST /auth/refresh
+ * Refresh access token using refresh token
+ */
+authRoutes.post("/refresh", async (c) => {
+  try {
+    const body = await c.req.json();
+    const result = refreshTokenSchema.safeParse(body);
+
+    if (!result.success) {
+      return c.json(
+        {
+          error: "Validation Error",
+          details: result.error.errors.map((e) => ({
+            field: e.path.join("."),
+            message: e.message,
+          })),
+        },
+        400,
+      );
+    }
+
+    const { tokens } = await refreshSession(result.data.refreshToken);
+
+    return c.json({
+      message: "Token refreshed successfully",
+      tokens: {
+        accessToken: tokens.accessToken,
+        refreshToken: tokens.refreshToken,
+      },
+    });
+  } catch (error) {
+    if (error instanceof AuthError) {
+      return c.json(
+        { error: error.code, message: error.message },
+        error.statusCode as 400 | 401 | 403 | 404 | 409,
+      );
+    }
+    console.error("Token refresh error:", error);
+    return c.json({ error: "Internal Server Error" }, 500);
+  }
+});
+
+/**
+ * GET /auth/sessions
+ * List all active sessions for the current user
+ */
+authRoutes.get("/sessions", authMiddleware, async (c) => {
+  try {
+    const user = c.get("user");
+    const currentSession = c.get("session");
+    const sessions = await getUserSessions(user.id);
+
+    return c.json({
+      sessions: sessions.map((session) => ({
+        id: session.id,
+        deviceName: session.deviceName,
+        deviceType: session.deviceType,
+        ipAddress: session.ipAddress,
+        userAgent: session.userAgent,
+        lastActiveAt: session.lastActiveAt,
+        createdAt: session.createdAt,
+        expiresAt: session.expiresAt,
+        isCurrent: session.id === currentSession.id,
+      })),
+    });
+  } catch (error) {
+    console.error("Get sessions error:", error);
+    return c.json({ error: "Internal Server Error" }, 500);
+  }
+});
+
+/**
+ * DELETE /auth/sessions/:id
+ * Delete a specific session
+ */
+authRoutes.delete("/sessions/:id", authMiddleware, async (c) => {
+  try {
+    const sessionId = c.req.param("id");
+    const user = c.get("user");
+    const currentSession = c.get("session");
+
+    if (sessionId === currentSession.id) {
+      return c.json(
+        {
+          error: "Bad Request",
+          message: "Cannot delete current session. Use /auth/logout instead.",
+        },
+        400,
+      );
+    }
+
+    await revokeSession(sessionId, user.id);
+
+    return c.json({ message: "Session deleted successfully" });
+  } catch (error) {
+    if (error instanceof AuthError) {
+      return c.json(
+        { error: error.code, message: error.message },
+        error.statusCode as 400 | 401 | 403 | 404 | 409,
+      );
+    }
+    console.error("Delete session error:", error);
+    return c.json({ error: "Internal Server Error" }, 500);
+  }
+});
+
+/**
+ * DELETE /auth/sessions
+ * Logout all sessions except the current one
+ */
+authRoutes.delete("/sessions", authMiddleware, async (c) => {
+  try {
+    const user = c.get("user");
+    const currentSession = c.get("session");
+
+    const { count } = await revokeAllSessions(user.id, currentSession.id);
+
+    return c.json({
+      message: `Successfully logged out of ${count} other session(s)`,
+      count,
+    });
+  } catch (error) {
+    console.error("Delete all sessions error:", error);
+    return c.json({ error: "Internal Server Error" }, 500);
+  }
+});
+
+/**
+ * GET /auth/me
+ * Get current user information
+ */
+authRoutes.get("/me", authMiddleware, async (c) => {
+  try {
+    const user = c.get("user");
+
+    return c.json({
+      user: {
+        id: user.id,
+        email: user.email,
+        emailVerified: !!user.emailVerifiedAt,
+      },
+    });
+  } catch (error) {
+    console.error("Get user error:", error);
+    return c.json({ error: "Internal Server Error" }, 500);
+  }
+});

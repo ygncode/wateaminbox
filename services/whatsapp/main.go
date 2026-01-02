@@ -1,0 +1,163 @@
+package main
+
+import (
+	"context"
+	"log"
+	"os"
+	"os/signal"
+	"syscall"
+
+	"github.com/ygncode-lab/whatsapp-web/services/whatsapp/internal/client"
+	"github.com/ygncode-lab/whatsapp-web/services/whatsapp/internal/handler"
+	natsClient "github.com/ygncode-lab/whatsapp-web/services/whatsapp/internal/nats"
+	"github.com/ygncode-lab/whatsapp-web/services/whatsapp/internal/storage"
+)
+
+func main() {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Get worker configuration from environment
+	workerID := getEnv("WORKER_ID", "default")
+	companyID := getEnv("COMPANY_ID", "")
+	tenantSchema := getEnv("TENANT_SCHEMA", "")
+	databaseURL := getEnv("DATABASE_URL", "")
+	natsURL := getEnv("NATS_URL", "nats://localhost:4222")
+	dataDir := getEnv("DATA_DIR", "./data")
+	logLevel := getEnv("LOG_LEVEL", "info")
+
+	// Storage configuration (S3-compatible - works with MinIO and Cloudflare R2)
+	storageEndpoint := getEnv("STORAGE_ENDPOINT", "http://localhost:9000")
+	storageAccessKey := getEnv("STORAGE_ACCESS_KEY", "minioadmin")
+	storageSecretKey := getEnv("STORAGE_SECRET_KEY", "minioadmin")
+	storageBucket := getEnv("STORAGE_BUCKET", "whatsapp-media")
+	storageRegion := getEnv("STORAGE_REGION", "us-east-1")
+	storagePublicURL := getEnv("STORAGE_PUBLIC_URL", "")
+
+	// Validate required configuration
+	if companyID == "" {
+		log.Fatal("COMPANY_ID environment variable is required")
+	}
+
+	log.Printf("Starting WhatsApp worker: %s for company: %s", workerID, companyID)
+	if tenantSchema != "" {
+		log.Printf("Tenant schema: %s", tenantSchema)
+	}
+	if databaseURL != "" {
+		log.Printf("Database URL configured")
+	}
+
+	// Initialize storage client
+	var storageClient *storage.Client
+	if storageEndpoint != "" {
+		var err error
+		storageClient, err = storage.New(storage.Config{
+			Endpoint:        storageEndpoint,
+			AccessKeyID:     storageAccessKey,
+			SecretAccessKey: storageSecretKey,
+			Bucket:          storageBucket,
+			Region:          storageRegion,
+			PublicURL:       storagePublicURL,
+			UsePathStyle:    true, // Required for MinIO
+		})
+		if err != nil {
+			log.Printf("Warning: Failed to initialize storage client: %v", err)
+			log.Println("Media files will not be persisted")
+		} else {
+			// Ensure bucket exists
+			if err := storageClient.EnsureBucketExists(ctx); err != nil {
+				log.Printf("Warning: Failed to ensure bucket exists: %v", err)
+			} else {
+				log.Printf("Storage client connected to %s, bucket: %s", storageEndpoint, storageBucket)
+			}
+		}
+	}
+
+	// Initialize NATS publisher
+	publisher, err := natsClient.NewPublisher(natsClient.PublisherConfig{
+		NATSURL:   natsURL,
+		CompanyID: companyID,
+	})
+	if err != nil {
+		log.Fatalf("Failed to initialize NATS publisher: %v", err)
+	}
+	defer publisher.Close()
+	log.Printf("NATS publisher connected to %s", natsURL)
+
+	// Initialize WhatsApp client
+	waClient, err := client.New(ctx, client.Config{
+		WorkerID:  workerID,
+		CompanyID: companyID,
+		DataDir:   dataDir,
+		LogLevel:  logLevel,
+	})
+	if err != nil {
+		log.Fatalf("Failed to initialize WhatsApp client: %v", err)
+	}
+	defer waClient.Disconnect()
+
+	// Set up QR code callback to publish to NATS
+	waClient.SetQRCallback(func(qrCode string) {
+		if err := publisher.PublishQRCode(qrCode); err != nil {
+			log.Printf("Failed to publish QR code: %v", err)
+		}
+	})
+
+	// Set up status callback to publish to NATS
+	waClient.SetStatusCallback(func(status, reason string) {
+		if err := publisher.PublishConnectionStatus(status, reason); err != nil {
+			log.Printf("Failed to publish status: %v", err)
+		}
+	})
+
+	// Initialize message handler with NATS publisher and storage
+	msgHandler := handler.New(handler.Config{
+		WorkerID:  workerID,
+		CompanyID: companyID,
+		NATSUrl:   natsURL,
+		Client:    waClient,
+		Publisher: publisher,
+		Storage:   storageClient,
+	})
+
+	// Register event handlers
+	waClient.RegisterEventHandler(msgHandler.HandleEvent)
+
+	// Initialize NATS subscriber for send commands
+	subscriber, err := natsClient.NewSubscriber(natsClient.SubscriberConfig{
+		NATSURL:   natsURL,
+		CompanyID: companyID,
+		Sender:    waClient,
+	})
+	if err != nil {
+		log.Fatalf("Failed to initialize NATS subscriber: %v", err)
+	}
+	defer subscriber.Stop()
+
+	// Start the subscriber
+	if err := subscriber.Start(); err != nil {
+		log.Fatalf("Failed to start NATS subscriber: %v", err)
+	}
+	log.Printf("NATS subscriber listening for send commands")
+
+	// Connect to WhatsApp
+	if err := waClient.Connect(ctx); err != nil {
+		log.Fatalf("Failed to connect to WhatsApp: %v", err)
+	}
+
+	log.Printf("WhatsApp worker %s is running for company %s", workerID, companyID)
+
+	// Wait for shutdown signal
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
+	<-sigCh
+
+	log.Println("Shutting down WhatsApp worker...")
+}
+
+func getEnv(key, defaultValue string) string {
+	if value := os.Getenv(key); value != "" {
+		return value
+	}
+	return defaultValue
+}

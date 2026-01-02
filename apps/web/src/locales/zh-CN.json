@@ -1,0 +1,33 @@
+{
+  "common": {
+    "save": "保存",
+    "cancel": "取消",
+    "delete": "删除",
+    "edit": "编辑",
+    "search": "搜索",
+    "loading": "加载中...",
+    "error": "发生错误"
+  },
+  "auth": {
+    "login": "登录",
+    "logout": "退出登录",
+    "register": "注册",
+    "email": "邮箱",
+    "password": "密码",
+    "forgotPassword": "忘记密码？"
+  },
+  "chat": {
+    "newMessage": "新消息",
+    "sendMessage": "发送消息",
+    "typing": "正在输入...",
+    "online": "在线",
+    "offline": "离线",
+    "searchPlaceholder": "搜索或开始新聊天"
+  },
+  "settings": {
+    "language": "语言",
+    "notifications": "通知",
+    "theme": "主题",
+    "title": "设置"
+  }
+}

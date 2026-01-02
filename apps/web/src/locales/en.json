@@ -1,0 +1,33 @@
+{
+  "common": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "search": "Search",
+    "loading": "Loading...",
+    "error": "An error occurred"
+  },
+  "auth": {
+    "login": "Login",
+    "logout": "Logout",
+    "register": "Register",
+    "email": "Email",
+    "password": "Password",
+    "forgotPassword": "Forgot Password?"
+  },
+  "chat": {
+    "newMessage": "New Message",
+    "sendMessage": "Send Message",
+    "typing": "typing...",
+    "online": "Online",
+    "offline": "Offline",
+    "searchPlaceholder": "Search or start new chat"
+  },
+  "settings": {
+    "language": "Language",
+    "notifications": "Notifications",
+    "theme": "Theme",
+    "title": "Settings"
+  }
+}

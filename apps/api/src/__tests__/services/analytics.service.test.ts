@@ -1,0 +1,557 @@
+/**
+ * Unit tests for analytics.service.ts
+ *
+ * Tests analytics functionality including:
+ * - Dashboard statistics
+ * - Message statistics over time
+ * - Contact statistics
+ * - Team activity statistics
+ * - Message type distribution
+ * - Hourly message statistics
+ */
+
+import { describe, it, expect, mock, beforeEach } from "bun:test";
+
+// Mock query builder
+let mockQueryBuilder: Record<string, unknown>;
+
+function resetMockQueryBuilder(returnValue: unknown = undefined) {
+  mockQueryBuilder = {
+    selectFrom: mock(() => mockQueryBuilder),
+    select: mock(() => mockQueryBuilder),
+    selectAll: mock(() => mockQueryBuilder),
+    where: mock(() => mockQueryBuilder),
+    innerJoin: mock(() => mockQueryBuilder),
+    leftJoin: mock(() => mockQueryBuilder),
+    orderBy: mock(() => mockQueryBuilder),
+    groupBy: mock(() => mockQueryBuilder),
+    limit: mock(() => mockQueryBuilder),
+    offset: mock(() => mockQueryBuilder),
+    distinct: mock(() => mockQueryBuilder),
+    filterWhere: mock(() => mockQueryBuilder),
+    execute: mock(() => Promise.resolve(Array.isArray(returnValue) ? returnValue : [])),
+    executeTakeFirst: mock(() => Promise.resolve(returnValue)),
+  };
+}
+
+// Mock tenant database
+const mockTenantDb = {
+  selectFrom: mock(() => mockQueryBuilder),
+};
+
+// Mock getTenantConnection
+const mockGetTenantConnection = mock((_companyId: string) => mockTenantDb);
+
+mock.module("../../services/tenant.service.js", () => ({
+  getTenantConnection: mockGetTenantConnection,
+}));
+
+// Mock main database for company stats
+const mockDb = {
+  selectFrom: mock(() => mockQueryBuilder),
+};
+
+mock.module("@whatsapp-web/database", () => ({
+  db: mockDb,
+}));
+
+// Import the service after mocking
+import {
+  getDashboardStats,
+  getMessageStats,
+  getContactStats,
+  getTeamActivityStats,
+  getMessageTypeStats,
+  getHourlyMessageStats,
+} from "../../services/analytics.service";
+
+describe("AnalyticsService", () => {
+  beforeEach(() => {
+    resetMockQueryBuilder();
+    mockGetTenantConnection.mockClear();
+    mockTenantDb.selectFrom = mock(() => mockQueryBuilder);
+    mockDb.selectFrom = mock(() => mockQueryBuilder);
+  });
+
+  describe("getDashboardStats", () => {
+    it("should return dashboard statistics", async () => {
+      // Arrange
+      const mockCompanyStats = {
+        total_messages: 1000,
+        total_contacts: 500,
+        active_users: 10,
+      };
+
+      const mockTodayMessages = {
+        sent: 50,
+        received: 100,
+      };
+
+      const mockUnreadCount = {
+        count: 25,
+      };
+
+      // Setup main db for company stats
+      let mainDbCallCount = 0;
+      mockDb.selectFrom = mock(() => {
+        mainDbCallCount++;
+        resetMockQueryBuilder(mockCompanyStats);
+        return mockQueryBuilder;
+      });
+
+      // Setup tenant db for message counts
+      let tenantDbCallCount = 0;
+      mockTenantDb.selectFrom = mock(() => {
+        tenantDbCallCount++;
+        if (tenantDbCallCount === 1) {
+          resetMockQueryBuilder(mockTodayMessages);
+          return mockQueryBuilder;
+        }
+        resetMockQueryBuilder(mockUnreadCount);
+        return mockQueryBuilder;
+      });
+
+      // Act
+      const result = await getDashboardStats("company-123");
+
+      // Assert
+      expect(result).toBeDefined();
+      expect(result.totalMessages).toBe(1000);
+      expect(result.totalContacts).toBe(500);
+      expect(result.activeUsers).toBe(10);
+      expect(typeof result.messagesSentToday).toBe("number");
+      expect(typeof result.messagesReceivedToday).toBe("number");
+      expect(typeof result.unreadConversations).toBe("number");
+    });
+
+    it("should handle missing company stats gracefully", async () => {
+      // Arrange
+      resetMockQueryBuilder(undefined);
+      mockDb.selectFrom = mock(() => mockQueryBuilder);
+      mockTenantDb.selectFrom = mock(() => mockQueryBuilder);
+
+      // Act
+      const result = await getDashboardStats("company-123");
+
+      // Assert
+      expect(result.totalMessages).toBe(0);
+      expect(result.totalContacts).toBe(0);
+      expect(result.activeUsers).toBe(0);
+    });
+  });
+
+  describe("getMessageStats", () => {
+    it("should return message statistics over date range", async () => {
+      // Arrange
+      const mockStats = [
+        { date: "2024-01-01", sent: 10, received: 20 },
+        { date: "2024-01-02", sent: 15, received: 25 },
+        { date: "2024-01-03", sent: 20, received: 30 },
+      ];
+
+      resetMockQueryBuilder(mockStats);
+      mockQueryBuilder.execute = mock(() => Promise.resolve(mockStats));
+      mockTenantDb.selectFrom = mock(() => mockQueryBuilder);
+
+      const startDate = new Date("2024-01-01");
+      const endDate = new Date("2024-01-31");
+
+      // Act
+      const result = await getMessageStats("company-123", startDate, endDate);
+
+      // Assert
+      expect(Array.isArray(result)).toBe(true);
+      expect(result.length).toBe(3);
+      expect(result[0].date).toBe("2024-01-01");
+      expect(result[0].sent).toBe(10);
+      expect(result[0].received).toBe(20);
+    });
+
+    it("should return empty array when no messages in range", async () => {
+      // Arrange
+      resetMockQueryBuilder([]);
+      mockQueryBuilder.execute = mock(() => Promise.resolve([]));
+      mockTenantDb.selectFrom = mock(() => mockQueryBuilder);
+
+      const startDate = new Date("2024-01-01");
+      const endDate = new Date("2024-01-31");
+
+      // Act
+      const result = await getMessageStats("company-123", startDate, endDate);
+
+      // Assert
+      expect(result).toEqual([]);
+    });
+  });
+
+  describe("getContactStats", () => {
+    it("should return contact statistics", async () => {
+      // Arrange
+      const totalResult = { count: 100 };
+      const customNameResult = { count: 30 };
+      const withTagsResult = { count: 50 };
+      const assignedResult = { count: 40 };
+
+      let callCount = 0;
+      mockTenantDb.selectFrom = mock(() => {
+        callCount++;
+        switch (callCount) {
+          case 1:
+            resetMockQueryBuilder(totalResult);
+            break;
+          case 2:
+            resetMockQueryBuilder(customNameResult);
+            break;
+          case 3:
+            resetMockQueryBuilder(withTagsResult);
+            break;
+          case 4:
+            resetMockQueryBuilder(assignedResult);
+            break;
+          default:
+            resetMockQueryBuilder(undefined);
+        }
+        return mockQueryBuilder;
+      });
+
+      // Act
+      const result = await getContactStats("company-123");
+
+      // Assert
+      expect(result).toBeDefined();
+      expect(result.total).toBe(100);
+      expect(result.withCustomName).toBe(30);
+      expect(result.withTags).toBe(50);
+      expect(result.assigned).toBe(40);
+      expect(result.unassigned).toBe(60); // total - assigned
+    });
+
+    it("should handle zero counts", async () => {
+      // Arrange
+      resetMockQueryBuilder({ count: 0 });
+      mockTenantDb.selectFrom = mock(() => mockQueryBuilder);
+
+      // Act
+      const result = await getContactStats("company-123");
+
+      // Assert
+      expect(result.total).toBe(0);
+      expect(result.unassigned).toBe(0);
+    });
+  });
+
+  describe("getTeamActivityStats", () => {
+    it("should return team activity statistics for all members", async () => {
+      // Arrange
+      const mockMembers = [
+        { user_id: "user-1", email: "user1@example.com" },
+        { user_id: "user-2", email: "user2@example.com" },
+      ];
+
+      // Setup main db for members query
+      mockDb.selectFrom = mock(() => {
+        resetMockQueryBuilder(mockMembers);
+        mockQueryBuilder.execute = mock(() => Promise.resolve(mockMembers));
+        return mockQueryBuilder;
+      });
+
+      // Setup tenant db for stats queries
+      const mockMessageCount = { count: 50 };
+      const mockContactCount = { count: 10 };
+      const mockLastMessage = { timestamp: new Date() };
+
+      let tenantCallCount = 0;
+      mockTenantDb.selectFrom = mock(() => {
+        tenantCallCount++;
+        switch (tenantCallCount % 3) {
+          case 1:
+            resetMockQueryBuilder(mockMessageCount);
+            break;
+          case 2:
+            resetMockQueryBuilder(mockContactCount);
+            break;
+          case 0:
+            resetMockQueryBuilder(mockLastMessage);
+            break;
+        }
+        return mockQueryBuilder;
+      });
+
+      // Act
+      const result = await getTeamActivityStats("company-123");
+
+      // Assert
+      expect(Array.isArray(result)).toBe(true);
+      expect(result.length).toBe(2);
+      result.forEach((stat) => {
+        expect(stat.userId).toBeDefined();
+        expect(stat.email).toBeDefined();
+        expect(typeof stat.messagesSent).toBe("number");
+        expect(typeof stat.contactsAssigned).toBe("number");
+      });
+    });
+
+    it("should sort by messages sent descending", async () => {
+      // Arrange
+      const mockMembers = [
+        { user_id: "user-1", email: "user1@example.com" },
+        { user_id: "user-2", email: "user2@example.com" },
+      ];
+
+      mockDb.selectFrom = mock(() => {
+        resetMockQueryBuilder(mockMembers);
+        mockQueryBuilder.execute = mock(() => Promise.resolve(mockMembers));
+        return mockQueryBuilder;
+      });
+
+      // User 2 has more messages
+      let tenantCallCount = 0;
+      mockTenantDb.selectFrom = mock(() => {
+        tenantCallCount++;
+        const isUser2 = tenantCallCount > 3;
+        switch (tenantCallCount % 3) {
+          case 1:
+            resetMockQueryBuilder({ count: isUser2 ? 100 : 50 });
+            break;
+          case 2:
+            resetMockQueryBuilder({ count: 10 });
+            break;
+          case 0:
+            resetMockQueryBuilder({ timestamp: new Date() });
+            break;
+        }
+        return mockQueryBuilder;
+      });
+
+      // Act
+      const result = await getTeamActivityStats("company-123");
+
+      // Assert
+      if (result.length >= 2) {
+        expect(result[0].messagesSent).toBeGreaterThanOrEqual(result[1].messagesSent);
+      }
+    });
+
+    it("should handle null last activity", async () => {
+      // Arrange
+      const mockMembers = [{ user_id: "user-1", email: "user1@example.com" }];
+
+      mockDb.selectFrom = mock(() => {
+        resetMockQueryBuilder(mockMembers);
+        mockQueryBuilder.execute = mock(() => Promise.resolve(mockMembers));
+        return mockQueryBuilder;
+      });
+
+      mockTenantDb.selectFrom = mock(() => {
+        resetMockQueryBuilder(undefined);
+        return mockQueryBuilder;
+      });
+
+      // Act
+      const result = await getTeamActivityStats("company-123");
+
+      // Assert
+      expect(result[0].lastActive).toBeNull();
+    });
+  });
+
+  describe("getMessageTypeStats", () => {
+    it("should return message type distribution", async () => {
+      // Arrange
+      const mockStats = [
+        { message_type: "text", count: 1000 },
+        { message_type: "image", count: 200 },
+        { message_type: "video", count: 50 },
+        { message_type: "audio", count: 30 },
+      ];
+
+      resetMockQueryBuilder(mockStats);
+      mockQueryBuilder.execute = mock(() => Promise.resolve(mockStats));
+      mockTenantDb.selectFrom = mock(() => mockQueryBuilder);
+
+      // Act
+      const result = await getMessageTypeStats("company-123");
+
+      // Assert
+      expect(Array.isArray(result)).toBe(true);
+      expect(result.length).toBe(4);
+      expect(result[0].type).toBe("text");
+      expect(result[0].count).toBe(1000);
+    });
+
+    it("should filter by date range when provided", async () => {
+      // Arrange
+      const mockStats = [{ message_type: "text", count: 500 }];
+
+      resetMockQueryBuilder(mockStats);
+      mockQueryBuilder.execute = mock(() => Promise.resolve(mockStats));
+      mockTenantDb.selectFrom = mock(() => mockQueryBuilder);
+
+      const startDate = new Date("2024-01-01");
+      const endDate = new Date("2024-01-31");
+
+      // Act
+      const result = await getMessageTypeStats("company-123", startDate, endDate);
+
+      // Assert
+      expect(result.length).toBe(1);
+      expect(mockQueryBuilder.where).toHaveBeenCalled();
+    });
+
+    it("should return empty array when no messages", async () => {
+      // Arrange
+      resetMockQueryBuilder([]);
+      mockQueryBuilder.execute = mock(() => Promise.resolve([]));
+      mockTenantDb.selectFrom = mock(() => mockQueryBuilder);
+
+      // Act
+      const result = await getMessageTypeStats("company-123");
+
+      // Assert
+      expect(result).toEqual([]);
+    });
+  });
+
+  describe("getHourlyMessageStats", () => {
+    it("should return message counts for all 24 hours", async () => {
+      // Arrange
+      const mockStats = [
+        { hour: 9, count: 100 },
+        { hour: 10, count: 150 },
+        { hour: 14, count: 200 },
+      ];
+
+      resetMockQueryBuilder(mockStats);
+      mockQueryBuilder.execute = mock(() => Promise.resolve(mockStats));
+      mockTenantDb.selectFrom = mock(() => mockQueryBuilder);
+
+      // Act
+      const result = await getHourlyMessageStats("company-123");
+
+      // Assert
+      expect(result.length).toBe(24);
+      // Check that all hours are present
+      for (let hour = 0; hour < 24; hour++) {
+        const hourStat = result.find((s) => s.hour === hour);
+        expect(hourStat).toBeDefined();
+      }
+    });
+
+    it("should fill in missing hours with zero count", async () => {
+      // Arrange
+      const mockStats = [{ hour: 12, count: 100 }];
+
+      resetMockQueryBuilder(mockStats);
+      mockQueryBuilder.execute = mock(() => Promise.resolve(mockStats));
+      mockTenantDb.selectFrom = mock(() => mockQueryBuilder);
+
+      // Act
+      const result = await getHourlyMessageStats("company-123");
+
+      // Assert
+      expect(result[0].hour).toBe(0);
+      expect(result[0].count).toBe(0); // Missing hour filled with 0
+      expect(result[12].hour).toBe(12);
+      expect(result[12].count).toBe(100);
+    });
+
+    it("should use default 30 day period", async () => {
+      // Arrange
+      resetMockQueryBuilder([]);
+      mockQueryBuilder.execute = mock(() => Promise.resolve([]));
+      mockTenantDb.selectFrom = mock(() => mockQueryBuilder);
+
+      // Act
+      await getHourlyMessageStats("company-123");
+
+      // Assert
+      expect(mockQueryBuilder.where).toHaveBeenCalled();
+    });
+
+    it("should accept custom day period", async () => {
+      // Arrange
+      resetMockQueryBuilder([]);
+      mockQueryBuilder.execute = mock(() => Promise.resolve([]));
+      mockTenantDb.selectFrom = mock(() => mockQueryBuilder);
+
+      // Act
+      const result = await getHourlyMessageStats("company-123", 7);
+
+      // Assert
+      expect(result.length).toBe(24);
+    });
+
+    it("should return ordered hours from 0 to 23", async () => {
+      // Arrange
+      resetMockQueryBuilder([]);
+      mockQueryBuilder.execute = mock(() => Promise.resolve([]));
+      mockTenantDb.selectFrom = mock(() => mockQueryBuilder);
+
+      // Act
+      const result = await getHourlyMessageStats("company-123");
+
+      // Assert
+      for (let i = 0; i < 24; i++) {
+        expect(result[i].hour).toBe(i);
+      }
+    });
+  });
+
+  describe("Type definitions", () => {
+    it("DashboardStats should have correct structure", async () => {
+      // Arrange
+      resetMockQueryBuilder({
+        total_messages: 0,
+        total_contacts: 0,
+        active_users: 0,
+      });
+      mockDb.selectFrom = mock(() => mockQueryBuilder);
+      mockTenantDb.selectFrom = mock(() => mockQueryBuilder);
+
+      // Act
+      const result = await getDashboardStats("company-123");
+
+      // Assert
+      expect("totalMessages" in result).toBe(true);
+      expect("totalContacts" in result).toBe(true);
+      expect("activeUsers" in result).toBe(true);
+      expect("messagesSentToday" in result).toBe(true);
+      expect("messagesReceivedToday" in result).toBe(true);
+      expect("unreadConversations" in result).toBe(true);
+    });
+
+    it("MessageStats should have correct structure", async () => {
+      // Arrange
+      const mockStats = [{ date: "2024-01-01", sent: 10, received: 20 }];
+      resetMockQueryBuilder(mockStats);
+      mockQueryBuilder.execute = mock(() => Promise.resolve(mockStats));
+      mockTenantDb.selectFrom = mock(() => mockQueryBuilder);
+
+      // Act
+      const result = await getMessageStats("company-123", new Date(), new Date());
+
+      // Assert
+      if (result.length > 0) {
+        expect("date" in result[0]).toBe(true);
+        expect("sent" in result[0]).toBe(true);
+        expect("received" in result[0]).toBe(true);
+      }
+    });
+
+    it("ContactStats should have correct structure", async () => {
+      // Arrange
+      resetMockQueryBuilder({ count: 0 });
+      mockTenantDb.selectFrom = mock(() => mockQueryBuilder);
+
+      // Act
+      const result = await getContactStats("company-123");
+
+      // Assert
+      expect("total" in result).toBe(true);
+      expect("withCustomName" in result).toBe(true);
+      expect("withTags" in result).toBe(true);
+      expect("assigned" in result).toBe(true);
+      expect("unassigned" in result).toBe(true);
+    });
+  });
+});
