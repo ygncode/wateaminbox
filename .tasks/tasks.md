@@ -111,8 +111,8 @@ Comparison of `.specs/spec.md` against current implementation. Last updated: 202
 - [ ] **Post status updates** - API and UI for posting text/image status
 - [x] Status expiration handling
 
-### 3.3 WhatsApp Business Features ❌ Not Implemented
-- [ ] **Quick replies** - predefined message templates for fast responses
+### 3.3 WhatsApp Business Features ⚠️ Partially Complete
+- [x] **Quick replies** - predefined message templates for fast responses ✅ Completed 2026-01-03
 - [ ] **Labels sync with custom tags** - sync WhatsApp Business labels
 - [ ] **Catalogs** - view/manage product catalogs (if Business account)
 
@@ -179,14 +179,20 @@ POST   /api/notifications/mute          - Mute a contact ✅
 POST   /api/notifications/unmute        - Unmute a contact ✅
 ```
 
+### Quick Replies API ✅ Completed 2026-01-03
+```
+GET    /api/quick-replies               - List quick reply templates ✅
+GET    /api/quick-replies/:id           - Get quick reply by ID ✅
+GET    /api/quick-replies/search/:shortcut - Search by shortcut ✅
+POST   /api/quick-replies               - Create quick reply template ✅
+PATCH  /api/quick-replies/:id           - Update quick reply ✅
+DELETE /api/quick-replies/:id           - Delete quick reply ✅
+```
+
 ### Additional Missing Endpoints
 ```
 POST   /api/status                      - Post a new WhatsApp status update
 DELETE /api/status/:id                  - Delete posted status
-GET    /api/quick-replies               - List quick reply templates
-POST   /api/quick-replies               - Create quick reply template
-PATCH  /api/quick-replies/:id           - Update quick reply
-DELETE /api/quick-replies/:id           - Delete quick reply
 POST   /api/contacts/manual             - Create contact by phone number
 POST   /api/export/full                 - Full backup export as ZIP
 GET    /api/export/messages             - Export with date range filter
@@ -196,9 +202,9 @@ GET    /api/export/messages             - Export with date range filter
 
 ## Database Schema Missing
 
-### Tables to Add
+### Tables Added
 ```sql
--- Quick replies for fast responses
+-- ✅ COMPLETED: Quick replies for fast responses (migration 005_add_quick_replies.ts)
 quick_replies (
   id UUID PRIMARY KEY,
   shortcut VARCHAR(50),
@@ -208,7 +214,10 @@ quick_replies (
   created_at TIMESTAMP,
   updated_at TIMESTAMP
 )
+```
 
+### Tables to Add
+```sql
 -- Conversation resolution tracking
 conversation_states (
   id UUID PRIMARY KEY,
@@ -236,13 +245,13 @@ ALTER TABLE company_members ADD COLUMN permissions JSONB;
 
 ### Backend Unit Tests
 - [x] Notification preferences service tests ✅ Completed 2026-01-03
-- [ ] Quick replies service tests
+- [x] Quick replies route tests ✅ Completed 2026-01-03
 - [ ] Export service tests (ZIP generation)
 - [ ] Permission checking middleware tests
 
 ### E2E Tests
 - [ ] Contact creation by phone number flow
-- [ ] Quick replies usage flow
+- [x] Quick replies management flow ✅ Completed 2026-01-03
 - [ ] Export functionality tests
 - [x] Notification settings flow ✅ Completed 2026-01-03
 - [ ] Group message sending
@@ -262,7 +271,7 @@ ALTER TABLE company_members ADD COLUMN permissions JSONB;
 7. ~~Message search within conversation~~ ✅ Completed 2026-01-03
 
 ### Medium Priority (Enhanced Experience)
-8. Quick replies
+8. ~~Quick replies~~ ✅ Completed 2026-01-03
 9. Full backup as ZIP export
 10. Instant transfer/takeover notifications
 
@@ -281,8 +290,8 @@ ALTER TABLE company_members ADD COLUMN permissions JSONB;
 |-------|---------------|-----------|---------|---------|
 | Phase 1 | 28 | 26 | 2 | 0 |
 | Phase 2 | 16 | 7 | 5 | 4 |
-| Phase 3 | 18 | 10 | 4 | 4 |
+| Phase 3 | 18 | 11 | 4 | 3 |
 | Phase 4 | 10 | 4 | 5 | 1 |
-| **Total** | **72** | **47** | **16** | **9** |
+| **Total** | **72** | **48** | **16** | **8** |
 
-**Overall Completion: ~65% fully complete, ~22% partial, ~12% missing**
+**Overall Completion: ~67% fully complete, ~22% partial, ~11% missing**

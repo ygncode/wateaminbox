@@ -8,6 +8,57 @@ A comprehensive development log for the Multi-tenant WhatsApp Web Collaborative 
 
 ## Latest Updates
 
+### 2026-01-03: Quick Replies Feature
+
+Added quick replies feature for fast message responses - predefined message templates that can be quickly inserted when messaging.
+
+**Database:**
+- New migration `005_add_quick_replies.ts` adding `quick_replies` table to tenant schemas
+- Table stores: id, shortcut (unique identifier), title, content, created_by, created_at, updated_at
+- Indexes on shortcut and created_by columns
+
+**Backend:**
+- `quick-replies.service.ts`: Full CRUD service with:
+  - `getQuickReplies()` - List all quick replies with search and pagination
+  - `getQuickReplyById()` - Get single quick reply
+  - `getQuickReplyByShortcut()` - Find by shortcut for autocomplete
+  - `createQuickReply()` - Create new quick reply with duplicate check
+  - `updateQuickReply()` - Update existing quick reply
+  - `deleteQuickReply()` - Delete quick reply
+- New `quick-replies.ts` routes:
+  - `GET /api/quick-replies` - List quick replies (with search, pagination)
+  - `GET /api/quick-replies/:id` - Get quick reply by ID
+  - `GET /api/quick-replies/search/:shortcut` - Search by shortcut
+  - `POST /api/quick-replies` - Create quick reply
+  - `PATCH /api/quick-replies/:id` - Update quick reply
+  - `DELETE /api/quick-replies/:id` - Delete quick reply
+
+**Frontend:**
+- `QuickRepliesManager.tsx`: Full management UI component with:
+  - Search bar to filter quick replies
+  - Add New button to create quick replies
+  - List of quick replies with shortcut badges
+  - Edit and Delete actions on hover
+  - Create/Edit dialog with validation
+  - Delete confirmation dialog
+  - Empty state display
+- `useQuickReplies.ts`: React hook with TanStack Query for state management
+- `api.ts`: Added Quick Replies API functions
+- Integrated into Settings page with cyan Zap icon
+
+**Validation:**
+- Shortcut: 1-50 chars, alphanumeric/underscore/hyphen only
+- Title: 1-255 chars
+- Content: Required, no length limit
+- Duplicate shortcut check on create/update
+
+**Tests:**
+- Backend unit tests: 15 tests in `quick-replies.route.test.ts` covering CRUD operations
+- E2E tests: 4 tests in `quick-replies.spec.ts` for UI flows
+- Added `createMockQuickReply` helper in test mocks
+
+---
+
 ### 2026-01-03: Message Search Within Conversation
 
 Added in-conversation message search with navigation and highlighting.
