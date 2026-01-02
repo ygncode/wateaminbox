@@ -6,6 +6,7 @@ import {
   useTeamActivityStats,
   useMessageTypeStats,
   useHourlyStats,
+  useNewContactsTrend,
   formatNumber,
   formatDate,
 } from "@/hooks/useAnalytics";
@@ -30,6 +31,7 @@ import {
   BarChart3,
   Download,
   Archive,
+  UserPlus,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -74,6 +76,8 @@ export function Dashboard({ companyId, isAdmin = false }: DashboardProps) {
   const { data: teamStats, isLoading: isLoadingTeam } = useTeamActivityStats(
     isAdmin ? companyId : null,
   );
+  const { data: contactsTrendData, isLoading: isLoadingContactsTrend } =
+    useNewContactsTrend(companyId, startDate, endDate);
 
   return (
     <ScrollArea className="h-full">
@@ -185,7 +189,7 @@ export function Dashboard({ companyId, isAdmin = false }: DashboardProps) {
         </div>
 
         {/* Charts Row */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Message Trend */}
           <div className="bg-white rounded-lg border border-gray-200 p-6">
             <div className="flex items-center gap-2 mb-4">
@@ -196,6 +200,19 @@ export function Dashboard({ companyId, isAdmin = false }: DashboardProps) {
               <Skeleton className="h-48 w-full" />
             ) : (
               <MessageChart data={messageData?.data || []} />
+            )}
+          </div>
+
+          {/* New Contacts Trend */}
+          <div className="bg-white rounded-lg border border-gray-200 p-6">
+            <div className="flex items-center gap-2 mb-4">
+              <UserPlus className="h-5 w-5 text-gray-500" />
+              <h3 className="font-semibold text-gray-900">New Contacts</h3>
+            </div>
+            {isLoadingContactsTrend ? (
+              <Skeleton className="h-48 w-full" />
+            ) : (
+              <NewContactsChart data={contactsTrendData?.data || []} />
             )}
           </div>
 
@@ -493,6 +510,74 @@ function HourlyChart({ data }: { data: { hour: number; count: number }[] }) {
           </div>
         );
       })}
+    </div>
+  );
+}
+
+/**
+ * New contacts trend chart with bar and cumulative line
+ */
+function NewContactsChart({
+  data,
+}: {
+  data: { date: string; count: number; cumulativeTotal: number }[];
+}) {
+  if (data.length === 0) {
+    return <p className="text-gray-500 text-center py-8">No data available</p>;
+  }
+
+  // Get last 14 days for display
+  const displayData = data.slice(-14);
+  const maxCount = Math.max(...displayData.map((d) => d.count));
+  const totalNew = displayData.reduce((sum, d) => sum + d.count, 0);
+  const latestCumulative = displayData[displayData.length - 1]?.cumulativeTotal || 0;
+
+  return (
+    <div className="h-48">
+      {/* Summary stats */}
+      <div className="flex justify-between text-xs text-gray-500 mb-2">
+        <span>
+          <span className="font-medium text-purple-600">+{totalNew}</span> new
+        </span>
+        <span>
+          Total: <span className="font-medium text-gray-700">{formatNumber(latestCumulative)}</span>
+        </span>
+      </div>
+
+      {/* Bar chart */}
+      <div className="flex items-end gap-1 h-36">
+        {displayData.map((day, i) => {
+          const height = maxCount > 0 ? (day.count / maxCount) * 100 : 0;
+
+          return (
+            <div
+              key={i}
+              className="flex-1 flex flex-col items-center"
+              title={`${formatDate(day.date)}: ${day.count} new (Total: ${day.cumulativeTotal})`}
+            >
+              <div
+                className="w-full flex items-end"
+                style={{ height: "120px" }}
+              >
+                <div
+                  className={cn(
+                    "w-full rounded-t transition-all",
+                    day.count > 0
+                      ? "bg-purple-400 hover:bg-purple-500"
+                      : "bg-gray-100",
+                  )}
+                  style={{ height: `${Math.max(height, day.count > 0 ? 5 : 0)}%` }}
+                />
+              </div>
+              {i === 0 || i === displayData.length - 1 ? (
+                <span className="text-[10px] text-gray-400 mt-1">
+                  {formatDate(day.date)}
+                </span>
+              ) : null}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }

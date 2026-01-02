@@ -228,6 +228,36 @@ analyticsRoutes.get("/response-time/team", async (c) => {
 });
 
 /**
+ * GET /analytics/contacts/trend - Get new contacts trend over time
+ * Query params: startDate, endDate
+ */
+analyticsRoutes.get("/contacts/trend", async (c) => {
+  const companyId = c.get("companyId");
+  const startDateStr = c.req.query("startDate");
+  const endDateStr = c.req.query("endDate");
+
+  // Default to last 30 days
+  const endDate = endDateStr ? new Date(endDateStr) : new Date();
+  const startDate = startDateStr
+    ? new Date(startDateStr)
+    : new Date(endDate.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+  const trend = await analyticsService.getNewContactsTrend(
+    companyId,
+    startDate,
+    endDate,
+  );
+
+  return c.json({
+    data: trend,
+    meta: {
+      startDate: startDate.toISOString(),
+      endDate: endDate.toISOString(),
+    },
+  });
+});
+
+/**
  * GET /analytics/sla-breaches - Get conversations that exceeded SLA
  * Query params: startDate, endDate, slaThreshold (minutes, default 60), limit (default 50)
  */

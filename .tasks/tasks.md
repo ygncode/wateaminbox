@@ -122,7 +122,7 @@ Comparison of `.specs/spec.md` against current implementation. Last updated: 202
 - [x] SLA tracking
 - [ ] **Customer engagement metrics** - track engagement scores
 - [x] Active chats count
-- [ ] **New contacts trend** - chart showing new contacts over time
+- [x] **New contacts trend** - chart showing new contacts over time ✅ Completed 2026-01-03
 - [ ] **Resolution rate tracking** - track conversations marked as resolved
 
 ### 3.5 Contact Organization ✅ Complete
@@ -307,10 +307,10 @@ ALTER TABLE company_members ADD COLUMN permissions JSONB;
 |-------|---------------|-----------|---------|---------|
 | Phase 1 | 28 | 26 | 2 | 0 |
 | Phase 2 | 16 | 8 | 5 | 3 |
-| Phase 3 | 18 | 13 | 2 | 3 |
+| Phase 3 | 18 | 14 | 2 | 2 |
 | Phase 4 | 10 | 5 | 4 | 1 |
-| **Total** | **72** | **52** | **13** | **7** |
+| **Total** | **72** | **53** | **13** | **6** |
 
-**Overall Completion: ~73% fully complete, ~18% partial, ~9% missing**
+**Overall Completion: ~74% fully complete, ~18% partial, ~8% missing**
 
-*Last updated: 2026-01-03 - Post status updates feature complete*
+*Last updated: 2026-01-03 - New contacts trend feature complete*

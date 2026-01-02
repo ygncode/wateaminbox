@@ -545,6 +545,77 @@ export async function getTeamResponseTimeStats(
 }
 
 /**
+ * New contacts trend over time
+ */
+export interface NewContactsTrend {
+  date: string;
+  count: number;
+  cumulativeTotal: number;
+}
+
+/**
+ * Get new contacts trend over a date range
+ * Shows daily new contact counts and cumulative total
+ */
+export async function getNewContactsTrend(
+  companyId: string,
+  startDate: Date,
+  endDate: Date,
+): Promise<NewContactsTrend[]> {
+  const tenantDb = getTenantConnection(companyId);
+
+  // Get daily new contact counts
+  const dailyCounts = await tenantDb
+    .selectFrom("contacts")
+    .select((eb) => [
+      sql<string>`DATE(created_at)`.as("date"),
+      eb.fn.countAll().as("count"),
+    ])
+    .where("is_group", "=", false)
+    .where("created_at", ">=", startDate)
+    .where("created_at", "<=", endDate)
+    .groupBy(sql`DATE(created_at)`)
+    .orderBy("date", "asc")
+    .execute();
+
+  // Get total contacts before start date for cumulative calculation
+  const previousTotal = await tenantDb
+    .selectFrom("contacts")
+    .select((eb) => eb.fn.countAll().as("count"))
+    .where("is_group", "=", false)
+    .where("created_at", "<", startDate)
+    .executeTakeFirst();
+
+  const baseTotal = Number(previousTotal?.count || 0);
+
+  // Fill in all days in the range and calculate cumulative totals
+  const result: NewContactsTrend[] = [];
+  let cumulativeTotal = baseTotal;
+  const currentDate = new Date(startDate);
+  currentDate.setHours(0, 0, 0, 0);
+
+  const endDateNormalized = new Date(endDate);
+  endDateNormalized.setHours(23, 59, 59, 999);
+
+  while (currentDate <= endDateNormalized) {
+    const dateStr = currentDate.toISOString().split("T")[0];
+    const found = dailyCounts.find((d) => String(d.date) === dateStr);
+    const count = found ? Number(found.count) : 0;
+    cumulativeTotal += count;
+
+    result.push({
+      date: dateStr,
+      count,
+      cumulativeTotal,
+    });
+
+    currentDate.setDate(currentDate.getDate() + 1);
+  }
+
+  return result;
+}
+
+/**
  * Get conversations that exceeded SLA threshold
  */
 export async function getSlaBreaches(

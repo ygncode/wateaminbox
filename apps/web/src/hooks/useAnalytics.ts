@@ -61,6 +61,15 @@ export interface HourlyStats {
 }
 
 /**
+ * New contacts trend over time
+ */
+export interface NewContactsTrend {
+  date: string;
+  count: number;
+  cumulativeTotal: number;
+}
+
+/**
  * Hook to fetch dashboard overview stats
  */
 export function useDashboardStats(companyId: string | null) {
@@ -182,6 +191,35 @@ export function useHourlyStats(companyId: string | null, days: number = 30) {
         `/analytics/hourly?days=${days}`,
       );
       return response.data;
+    },
+    enabled: !!companyId,
+    staleTime: 300_000, // 5 minutes
+  });
+}
+
+/**
+ * Hook to fetch new contacts trend over time
+ */
+export function useNewContactsTrend(
+  companyId: string | null,
+  startDate?: string,
+  endDate?: string,
+) {
+  const params = new URLSearchParams();
+  if (startDate) params.set("startDate", startDate);
+  if (endDate) params.set("endDate", endDate);
+  const queryString = params.toString();
+
+  return useQuery({
+    queryKey: ["analytics", "contacts-trend", companyId, startDate, endDate],
+    queryFn: async () => {
+      if (!companyId) throw new Error("No company ID provided");
+      const url = `/analytics/contacts/trend${queryString ? `?${queryString}` : ""}`;
+      const response = await api.get<{
+        data: NewContactsTrend[];
+        meta: { startDate: string; endDate: string };
+      }>(url);
+      return response;
     },
     enabled: !!companyId,
     staleTime: 300_000, // 5 minutes

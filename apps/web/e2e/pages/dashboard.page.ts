@@ -20,6 +20,14 @@ export class DashboardPage extends BasePage {
   readonly dateRange30d: Locator;
   readonly dateRange90d: Locator;
 
+  // Charts
+  readonly messageTrendChart: Locator;
+  readonly newContactsChart: Locator;
+  readonly hourlyActivityChart: Locator;
+  readonly newContactsChartTitle: Locator;
+  readonly newContactsChartBars: Locator;
+  readonly newContactsChartSummary: Locator;
+
   // Export dialog
   readonly exportDialog: Locator;
   readonly exportDialogTitle: Locator;
@@ -46,6 +54,14 @@ export class DashboardPage extends BasePage {
     this.dateRange7d = page.getByRole("button", { name: "7 Days" });
     this.dateRange30d = page.getByRole("button", { name: "30 Days" });
     this.dateRange90d = page.getByRole("button", { name: "90 Days" });
+
+    // Charts - find by heading text within parent containers
+    this.messageTrendChart = page.locator(".bg-white.rounded-lg").filter({ hasText: "Message Trend" });
+    this.newContactsChart = page.locator(".bg-white.rounded-lg").filter({ hasText: "New Contacts" });
+    this.hourlyActivityChart = page.locator(".bg-white.rounded-lg").filter({ hasText: "Hourly Activity" });
+    this.newContactsChartTitle = this.newContactsChart.getByRole("heading", { name: "New Contacts" });
+    this.newContactsChartBars = this.newContactsChart.locator(".bg-purple-400, .bg-gray-100");
+    this.newContactsChartSummary = this.newContactsChart.locator(".text-xs.text-gray-500");
 
     // Export dialog
     this.exportDialog = page.getByRole("dialog");

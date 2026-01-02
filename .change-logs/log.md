@@ -8,6 +8,60 @@ A comprehensive development log for the Multi-tenant WhatsApp Web Collaborative 
 
 ## Latest Updates
 
+### 2026-01-03: New Contacts Trend Analytics
+
+Added a new analytics chart showing new contacts over time with cumulative totals.
+
+**Backend API:**
+- `GET /api/analytics/contacts/trend` - Get new contacts trend over a date range
+  - Query params: `startDate`, `endDate` (ISO strings, optional)
+  - Returns daily new contact counts and running cumulative totals
+  - Fills in missing days with zero counts
+  - Excludes groups from count (individual contacts only)
+  - Response: `{ data: [{ date, count, cumulativeTotal }], meta: { startDate, endDate } }`
+
+**Backend Service:**
+- Added `getNewContactsTrend()` function to `analytics.service.ts`
+- Added `NewContactsTrend` interface for type safety
+- Groups contacts by `DATE(created_at)` for daily counts
+- Calculates cumulative totals starting from contacts before date range
+- Efficiently handles date ranges with sparse data
+
+**Frontend Components:**
+- `NewContactsChart` component in `Dashboard.tsx`:
+  - Purple bar chart (bg-purple-400) for days with new contacts
+  - Gray bars (bg-gray-100) for days with zero new contacts
+  - Summary header showing "+X new" and "Total: Y"
+  - Date labels at start and end of chart
+  - Tooltip on hover showing date, count, and cumulative total
+- Dashboard grid updated from 2 to 3 columns for charts row
+- Charts now include: Message Trend, **New Contacts**, Hourly Activity
+
+**Frontend Hook:**
+- `useNewContactsTrend(companyId, startDate?, endDate?)` - Fetch contacts trend data
+- Added `NewContactsTrend` interface to `useAnalytics.ts`
+- 5-minute stale time for caching
+
+**Dashboard Page Object (E2E):**
+- Added `newContactsChart`, `newContactsChartTitle`, `newContactsChartBars`, `newContactsChartSummary` locators
+
+**Tests:**
+- 7 unit tests for `getNewContactsTrend()` in `analytics.service.test.ts`:
+  - Returns trend over date range
+  - Calculates cumulative totals correctly
+  - Fills missing days with zero counts
+  - Handles empty date range
+  - Handles no previous contacts
+  - Excludes groups from count
+  - Returns correct data structure
+- 8 E2E tests in `dashboard.spec.ts`:
+  - DashboardPage Object Model validation
+  - Chart locators verification
+  - API response structure tests
+  - Component documentation tests
+
+---
+
 ### 2026-01-03: Post Status Updates Feature
 
 Implemented the ability to post WhatsApp status updates (text, image, video) from the web interface.

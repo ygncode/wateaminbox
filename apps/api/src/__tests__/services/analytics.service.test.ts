@@ -63,6 +63,7 @@ import {
   getTeamActivityStats,
   getMessageTypeStats,
   getHourlyMessageStats,
+  getNewContactsTrend,
 } from "../../services/analytics.service";
 
 describe("AnalyticsService", () => {
@@ -552,6 +553,201 @@ describe("AnalyticsService", () => {
       expect("withTags" in result).toBe(true);
       expect("assigned" in result).toBe(true);
       expect("unassigned" in result).toBe(true);
+    });
+  });
+
+  describe("getNewContactsTrend", () => {
+    it("should return new contacts trend over date range", async () => {
+      // Arrange
+      const mockDailyCounts = [
+        { date: "2024-01-02", count: 5 },
+        { date: "2024-01-04", count: 3 },
+      ];
+
+      const mockPreviousTotal = { count: 100 };
+
+      let callCount = 0;
+      mockTenantDb.selectFrom = mock(() => {
+        callCount++;
+        if (callCount === 1) {
+          resetMockQueryBuilder(mockDailyCounts);
+          mockQueryBuilder.execute = mock(() => Promise.resolve(mockDailyCounts));
+          return mockQueryBuilder;
+        }
+        resetMockQueryBuilder(mockPreviousTotal);
+        return mockQueryBuilder;
+      });
+
+      const startDate = new Date("2024-01-01");
+      const endDate = new Date("2024-01-05");
+
+      // Act
+      const result = await getNewContactsTrend("company-123", startDate, endDate);
+
+      // Assert
+      expect(Array.isArray(result)).toBe(true);
+      expect(result.length).toBe(5); // 5 days in range
+      expect(result[0].date).toBe("2024-01-01");
+      expect(result[0].count).toBe(0); // No contacts on day 1
+      expect(result[0].cumulativeTotal).toBe(100); // Previous total
+    });
+
+    it("should calculate cumulative totals correctly", async () => {
+      // Arrange
+      const mockDailyCounts = [
+        { date: "2024-01-01", count: 5 },
+        { date: "2024-01-02", count: 3 },
+        { date: "2024-01-03", count: 2 },
+      ];
+
+      const mockPreviousTotal = { count: 10 };
+
+      let callCount = 0;
+      mockTenantDb.selectFrom = mock(() => {
+        callCount++;
+        if (callCount === 1) {
+          resetMockQueryBuilder(mockDailyCounts);
+          mockQueryBuilder.execute = mock(() => Promise.resolve(mockDailyCounts));
+          return mockQueryBuilder;
+        }
+        resetMockQueryBuilder(mockPreviousTotal);
+        return mockQueryBuilder;
+      });
+
+      const startDate = new Date("2024-01-01");
+      const endDate = new Date("2024-01-03");
+
+      // Act
+      const result = await getNewContactsTrend("company-123", startDate, endDate);
+
+      // Assert
+      expect(result[0].cumulativeTotal).toBe(15); // 10 + 5
+      expect(result[1].cumulativeTotal).toBe(18); // 10 + 5 + 3
+      expect(result[2].cumulativeTotal).toBe(20); // 10 + 5 + 3 + 2
+    });
+
+    it("should fill in missing days with zero counts", async () => {
+      // Arrange
+      const mockDailyCounts = [{ date: "2024-01-02", count: 5 }];
+
+      const mockPreviousTotal = { count: 0 };
+
+      let callCount = 0;
+      mockTenantDb.selectFrom = mock(() => {
+        callCount++;
+        if (callCount === 1) {
+          resetMockQueryBuilder(mockDailyCounts);
+          mockQueryBuilder.execute = mock(() => Promise.resolve(mockDailyCounts));
+          return mockQueryBuilder;
+        }
+        resetMockQueryBuilder(mockPreviousTotal);
+        return mockQueryBuilder;
+      });
+
+      const startDate = new Date("2024-01-01");
+      const endDate = new Date("2024-01-03");
+
+      // Act
+      const result = await getNewContactsTrend("company-123", startDate, endDate);
+
+      // Assert
+      expect(result[0].date).toBe("2024-01-01");
+      expect(result[0].count).toBe(0); // No contacts on Jan 1
+      expect(result[1].date).toBe("2024-01-02");
+      expect(result[1].count).toBe(5); // 5 contacts on Jan 2
+      expect(result[2].date).toBe("2024-01-03");
+      expect(result[2].count).toBe(0); // No contacts on Jan 3
+    });
+
+    it("should return empty array for empty date range", async () => {
+      // Arrange
+      resetMockQueryBuilder([]);
+      mockQueryBuilder.execute = mock(() => Promise.resolve([]));
+      mockTenantDb.selectFrom = mock(() => mockQueryBuilder);
+
+      // Use a start date after end date (will result in 0 iterations)
+      const startDate = new Date("2024-01-05");
+      const endDate = new Date("2024-01-01");
+
+      // Act
+      const result = await getNewContactsTrend("company-123", startDate, endDate);
+
+      // Assert
+      expect(result).toEqual([]);
+    });
+
+    it("should handle no previous contacts", async () => {
+      // Arrange
+      const mockDailyCounts = [{ date: "2024-01-01", count: 10 }];
+      const mockPreviousTotal = { count: 0 };
+
+      let callCount = 0;
+      mockTenantDb.selectFrom = mock(() => {
+        callCount++;
+        if (callCount === 1) {
+          resetMockQueryBuilder(mockDailyCounts);
+          mockQueryBuilder.execute = mock(() => Promise.resolve(mockDailyCounts));
+          return mockQueryBuilder;
+        }
+        resetMockQueryBuilder(mockPreviousTotal);
+        return mockQueryBuilder;
+      });
+
+      const startDate = new Date("2024-01-01");
+      const endDate = new Date("2024-01-01");
+
+      // Act
+      const result = await getNewContactsTrend("company-123", startDate, endDate);
+
+      // Assert
+      expect(result.length).toBe(1);
+      expect(result[0].cumulativeTotal).toBe(10); // 0 previous + 10 new
+    });
+
+    it("should exclude groups from count", async () => {
+      // Arrange - the mock setup will track that is_group = false filter is applied
+      resetMockQueryBuilder([]);
+      mockQueryBuilder.execute = mock(() => Promise.resolve([]));
+      mockTenantDb.selectFrom = mock(() => mockQueryBuilder);
+
+      const startDate = new Date("2024-01-01");
+      const endDate = new Date("2024-01-01");
+
+      // Act
+      await getNewContactsTrend("company-123", startDate, endDate);
+
+      // Assert - verify where was called (for is_group = false filter)
+      expect(mockQueryBuilder.where).toHaveBeenCalled();
+    });
+
+    it("NewContactsTrend should have correct structure", async () => {
+      // Arrange
+      const mockDailyCounts = [{ date: "2024-01-01", count: 1 }];
+      const mockPreviousTotal = { count: 5 };
+
+      let callCount = 0;
+      mockTenantDb.selectFrom = mock(() => {
+        callCount++;
+        if (callCount === 1) {
+          resetMockQueryBuilder(mockDailyCounts);
+          mockQueryBuilder.execute = mock(() => Promise.resolve(mockDailyCounts));
+          return mockQueryBuilder;
+        }
+        resetMockQueryBuilder(mockPreviousTotal);
+        return mockQueryBuilder;
+      });
+
+      const startDate = new Date("2024-01-01");
+      const endDate = new Date("2024-01-01");
+
+      // Act
+      const result = await getNewContactsTrend("company-123", startDate, endDate);
+
+      // Assert
+      expect(result.length).toBeGreaterThan(0);
+      expect("date" in result[0]).toBe(true);
+      expect("count" in result[0]).toBe(true);
+      expect("cumulativeTotal" in result[0]).toBe(true);
     });
   });
 });
