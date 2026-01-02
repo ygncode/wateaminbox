@@ -102,7 +102,7 @@ Comparison of `.specs/spec.md` against current implementation. Last updated: 202
 
 ### 3.1 Group Chats ⚠️ Partially Complete
 - [x] View group conversations
-- [ ] **Send messages to groups** - verify implementation
+- [x] **Send messages to groups** - verified implementation ✅ Completed 2026-01-03
 - [x] Group participant list
 - [ ] **Group admin actions** - promote/demote admin, remove participant, change group settings
 
@@ -264,7 +264,7 @@ ALTER TABLE company_members ADD COLUMN permissions JSONB;
 - [x] Export functionality tests ✅ Completed 2026-01-03
 - [x] Notification settings flow ✅ Completed 2026-01-03
 - [x] Contact reassignment/takeover flow ✅ Completed 2026-01-03
-- [ ] Group message sending
+- [x] Group message sending ✅ Completed 2026-01-03
 - [ ] Status posting flow
 
 **Note:** E2E tests requiring authenticated state need proper API mocking setup. The current `authenticatedPage` fixture uses mock tokens that don't work with real API. Full API interception is needed for reliable E2E testing.
@@ -308,4 +308,4 @@ ALTER TABLE company_members ADD COLUMN permissions JSONB;
 
 **Overall Completion: ~72% fully complete, ~18% partial, ~10% missing**
 
-*Last updated: 2026-01-03 - Contact reassignment/takeover with notification complete*
+*Last updated: 2026-01-03 - Group message sending verification complete*

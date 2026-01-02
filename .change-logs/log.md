@@ -8,6 +8,51 @@ A comprehensive development log for the Multi-tenant WhatsApp Web Collaborative 
 
 ## Latest Updates
 
+### 2026-01-03: Group Message Sending Verification
+
+Verified and documented the group messaging implementation. Sending messages to groups works via the same `/api/messages` endpoint as individual chats - the backend detects groups based on JID format (`@g.us`).
+
+**Implementation Verified:**
+- Groups are stored in `contacts` table with `is_group = true`
+- Group JIDs use `@g.us` suffix (e.g., `123456789@g.us`)
+- Individual contacts use `@s.whatsapp.net` suffix
+- `POST /api/messages` endpoint works for both groups and individuals
+- Group messages include `senderJid` field to identify message author
+- `fromMe` flag distinguishes own messages from other members
+
+**API Endpoints:**
+- `GET /api/groups` - List all groups with metadata
+- `GET /api/groups/:id` - Get group details with participant list
+- `PATCH /api/groups/:id` - Update group custom name
+- `POST /api/messages` - Send message (works for both groups and individuals)
+- `GET /api/messages?contactId=X` - Get messages (works for both)
+
+**Frontend:**
+- `ChatSidebar` has "Groups" tab to filter group conversations
+- `GroupList` component displays groups with participant count
+- Same `MessageThread` component used for both group and individual chats
+- Messages show sender info for group conversations
+
+**Tests:**
+- Backend unit tests: 16 new tests in `groups.route.test.ts`:
+  - Group list retrieval with pagination
+  - Group details with participant list
+  - Admin status for participants
+  - Group tags
+  - Update group custom name
+  - Send message to group using group JID
+  - Publish message with group JID format
+  - Group messages with different sender JIDs
+  - Group JID detection (@g.us format)
+- E2E tests: 5 new tests in `groups.spec.ts`:
+  - Group JID format verification
+  - Group messages with different senders
+  - Own messages identified by fromMe flag
+  - Same API format for groups and individuals
+  - Documentation test for group messaging architecture
+
+---
+
 ### 2026-01-03: Contact Reassignment/Takeover with Notification
 
 Added instant transfer (takeover) feature that notifies the previous assignee when a contact is reassigned to another team member.
