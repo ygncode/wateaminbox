@@ -5,3 +5,4 @@ export { ForgotPasswordPage } from "./forgot-password.page";
 export { ChatPage } from "./chat.page";
 export { HomePage } from "./home.page";
 export { SettingsPage } from "./settings.page";
+export { DashboardPage } from "./dashboard.page";

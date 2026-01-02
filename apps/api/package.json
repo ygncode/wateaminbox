@@ -17,6 +17,7 @@
     "@whatsapp-web/database": "workspace:*",
     "@whatsapp-web/shared": "workspace:*",
     "bcrypt": "^5.1.1",
+    "fflate": "^0.8.2",
     "hono": "^4.6.0",
     "jose": "^5.2.0",
     "meilisearch": "^0.54.0",

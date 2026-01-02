@@ -219,3 +219,47 @@ export function useBulkExport() {
     },
   });
 }
+
+/**
+ * Full backup export filters
+ */
+export interface FullBackupFilters {
+  startDate?: string;
+  endDate?: string;
+}
+
+/**
+ * Hook for full backup export as ZIP
+ */
+export function useFullBackupExport() {
+  return useMutation({
+    mutationFn: async (filters: FullBackupFilters = {}) => {
+      const params = new URLSearchParams();
+      if (filters.startDate) params.set("startDate", filters.startDate);
+      if (filters.endDate) params.set("endDate", filters.endDate);
+
+      const token = getAccessToken();
+      const companyId = localStorage.getItem("selectedCompanyId");
+
+      const response = await fetch(
+        `${API_BASE_URL}/export/full?${params}`,
+        {
+          headers: {
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            ...(companyId ? { "X-Company-ID": companyId } : {}),
+          },
+          credentials: "include",
+        },
+      );
+
+      if (!response.ok) {
+        throw new Error("Full backup export failed");
+      }
+
+      const blob = await response.blob();
+      const filename = `whatsapp-backup-${new Date().toISOString().split("T")[0]}.zip`;
+      downloadBlob(blob, filename);
+      return { success: true };
+    },
+  });
+}

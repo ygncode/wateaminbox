@@ -120,6 +120,34 @@ exportRoutes.get("/conversation/:contactId", async (c) => {
 });
 
 /**
+ * GET /export/full - Full backup as ZIP file
+ * Query params: startDate, endDate
+ */
+exportRoutes.get("/full", async (c) => {
+  const companyId = c.get("companyId");
+  const startDateStr = c.req.query("startDate");
+  const endDateStr = c.req.query("endDate");
+
+  try {
+    const zipData = await exportService.exportFullBackup(companyId, {
+      startDate: startDateStr ? new Date(startDateStr) : undefined,
+      endDate: endDateStr ? new Date(endDateStr) : undefined,
+    });
+
+    const filename = `whatsapp-backup-${new Date().toISOString().split("T")[0]}.zip`;
+
+    c.header("Content-Type", "application/zip");
+    c.header("Content-Disposition", `attachment; filename="${filename}"`);
+    c.header("Content-Length", String(zipData.length));
+
+    return c.body(zipData);
+  } catch (error) {
+    console.error("Full backup export error:", error);
+    return c.json({ error: "Failed to create backup" }, 500);
+  }
+});
+
+/**
  * POST /export/bulk - Bulk export with custom filters
  * Body: { type: 'contacts' | 'messages', format: 'csv' | 'json', filters: {...} }
  */

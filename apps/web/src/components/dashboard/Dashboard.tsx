@@ -29,6 +29,7 @@ import {
   TrendingUp,
   BarChart3,
   Download,
+  Archive,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -42,9 +43,9 @@ export interface DashboardProps {
  */
 export function Dashboard({ companyId, isAdmin = false }: DashboardProps) {
   const [dateRange, setDateRange] = useState<"7d" | "30d" | "90d">("30d");
-  const [exportType, setExportType] = useState<"contacts" | "messages" | null>(
-    null,
-  );
+  const [exportType, setExportType] = useState<
+    "contacts" | "messages" | "full-backup" | null
+  >(null);
 
   const getDates = () => {
     const end = new Date();
@@ -82,6 +83,15 @@ export function Dashboard({ companyId, isAdmin = false }: DashboardProps) {
           <h1 className="text-2xl font-semibold text-gray-900">Dashboard</h1>
           <div className="flex gap-2">
             {/* Export Buttons */}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setExportType("full-backup")}
+              className="gap-1"
+            >
+              <Archive className="h-4 w-4" />
+              Full Backup
+            </Button>
             <Button
               variant="outline"
               size="sm"

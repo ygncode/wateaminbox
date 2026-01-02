@@ -14,11 +14,12 @@ import {
   SelectValue,
   Checkbox,
 } from "@/components/ui";
-import { Download, FileSpreadsheet, FileJson, Loader2 } from "lucide-react";
+import { Download, FileSpreadsheet, FileJson, Loader2, Archive } from "lucide-react";
 import {
   useExportContacts,
   useExportMessages,
   useExportConversation,
+  useFullBackupExport,
   ExportFormat,
 } from "@/hooks/useExport";
 import { useTags } from "@/hooks/useContact";
@@ -26,7 +27,7 @@ import { useTags } from "@/hooks/useContact";
 export interface ExportDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  type: "contacts" | "messages" | "conversation";
+  type: "contacts" | "messages" | "conversation" | "full-backup";
   contactId?: string;
   contactName?: string;
 }
@@ -49,11 +50,13 @@ export function ExportDialog({
   const exportContacts = useExportContacts();
   const exportMessages = useExportMessages();
   const exportConversation = useExportConversation();
+  const fullBackupExport = useFullBackupExport();
 
   const isLoading =
     exportContacts.isPending ||
     exportMessages.isPending ||
-    exportConversation.isPending;
+    exportConversation.isPending ||
+    fullBackupExport.isPending;
 
   const getDateRange = () => {
     if (dateRange === "all") return {};
@@ -90,6 +93,9 @@ export function ExportDialog({
           format,
           ...dates,
         });
+      } else if (type === "full-backup") {
+        const dates = getDateRange();
+        await fullBackupExport.mutateAsync(dates);
       }
       onOpenChange(false);
     } catch {
@@ -110,45 +116,69 @@ export function ExportDialog({
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Download className="h-5 w-5" />
-            Export{" "}
-            {type === "contacts"
-              ? "Contacts"
-              : type === "messages"
-                ? "Messages"
-                : `Conversation${contactName ? ` with ${contactName}` : ""}`}
+            {type === "full-backup" ? (
+              <Archive className="h-5 w-5" />
+            ) : (
+              <Download className="h-5 w-5" />
+            )}
+            {type === "full-backup"
+              ? "Full Backup"
+              : `Export ${
+                  type === "contacts"
+                    ? "Contacts"
+                    : type === "messages"
+                      ? "Messages"
+                      : `Conversation${contactName ? ` with ${contactName}` : ""}`
+                }`}
           </DialogTitle>
           <DialogDescription>
-            Choose your export format and filters
+            {type === "full-backup"
+              ? "Download a complete backup of all your data as a ZIP file"
+              : "Choose your export format and filters"}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-4">
-          {/* Format selection */}
-          <div className="space-y-2">
-            <Label>Format</Label>
-            <div className="flex gap-2">
-              <Button
-                variant={format === "csv" ? "default" : "outline"}
-                className="flex-1"
-                onClick={() => setFormat("csv")}
-              >
-                <FileSpreadsheet className="h-4 w-4 mr-2" />
-                CSV
-              </Button>
-              <Button
-                variant={format === "json" ? "default" : "outline"}
-                className="flex-1"
-                onClick={() => setFormat("json")}
-              >
-                <FileJson className="h-4 w-4 mr-2" />
-                JSON
-              </Button>
+          {/* Full backup info */}
+          {type === "full-backup" && (
+            <div className="rounded-lg bg-muted p-4 text-sm">
+              <p className="font-medium mb-2">Your backup will include:</p>
+              <ul className="list-disc list-inside space-y-1 text-muted-foreground">
+                <li>All contacts (JSON and CSV)</li>
+                <li>All messages (JSON and CSV)</li>
+                <li>Backup summary with statistics</li>
+                <li>README file with documentation</li>
+              </ul>
             </div>
-          </div>
+          )}
 
-          {/* Date range for messages/conversations */}
-          {(type === "messages" || type === "conversation") && (
+          {/* Format selection - only for non-full-backup */}
+          {type !== "full-backup" && (
+            <div className="space-y-2">
+              <Label>Format</Label>
+              <div className="flex gap-2">
+                <Button
+                  variant={format === "csv" ? "default" : "outline"}
+                  className="flex-1"
+                  onClick={() => setFormat("csv")}
+                >
+                  <FileSpreadsheet className="h-4 w-4 mr-2" />
+                  CSV
+                </Button>
+                <Button
+                  variant={format === "json" ? "default" : "outline"}
+                  className="flex-1"
+                  onClick={() => setFormat("json")}
+                >
+                  <FileJson className="h-4 w-4 mr-2" />
+                  JSON
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Date range for messages/conversations/full-backup */}
+          {(type === "messages" || type === "conversation" || type === "full-backup") && (
             <div className="space-y-2">
               <Label>Date Range</Label>
               <Select
@@ -229,12 +259,16 @@ export function ExportDialog({
             {isLoading ? (
               <>
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Exporting...
+                {type === "full-backup" ? "Creating Backup..." : "Exporting..."}
               </>
             ) : (
               <>
-                <Download className="h-4 w-4 mr-2" />
-                Export
+                {type === "full-backup" ? (
+                  <Archive className="h-4 w-4 mr-2" />
+                ) : (
+                  <Download className="h-4 w-4 mr-2" />
+                )}
+                {type === "full-backup" ? "Download Backup" : "Export"}
               </>
             )}
           </Button>

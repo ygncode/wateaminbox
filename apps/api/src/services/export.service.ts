@@ -1,5 +1,6 @@
 import { sql } from "kysely";
 import { getTenantConnection } from "./tenant.service.js";
+import * as fflate from "fflate";
 
 /**
  * Export format types
@@ -307,4 +308,152 @@ export function toCSV(
   );
 
   return [header, ...rows].join("\n");
+}
+
+/**
+ * Full backup export data
+ */
+export interface FullBackupExport {
+  exportedAt: string;
+  contacts: ContactExport[];
+  messages: MessageExport[];
+  stats: {
+    totalContacts: number;
+    totalMessages: number;
+    dateRange: {
+      start: string | null;
+      end: string | null;
+    };
+  };
+}
+
+/**
+ * Export full backup as ZIP file
+ * Includes all contacts, messages, and a README
+ */
+export async function exportFullBackup(
+  companyId: string,
+  options: {
+    startDate?: Date;
+    endDate?: Date;
+    includeMedia?: boolean;
+  } = {},
+): Promise<Uint8Array> {
+  // Get all contacts
+  const contacts = await exportContacts(companyId);
+
+  // Get all messages with date filters
+  const messages = await exportMessages(companyId, {
+    startDate: options.startDate,
+    endDate: options.endDate,
+  });
+
+  // Calculate stats
+  const messageTimestamps = messages
+    .map((m) => new Date(m.timestamp).getTime())
+    .filter((t) => !isNaN(t));
+
+  const stats = {
+    totalContacts: contacts.length,
+    totalMessages: messages.length,
+    dateRange: {
+      start: messageTimestamps.length > 0
+        ? new Date(Math.min(...messageTimestamps)).toISOString()
+        : null,
+      end: messageTimestamps.length > 0
+        ? new Date(Math.max(...messageTimestamps)).toISOString()
+        : null,
+    },
+  };
+
+  // Create full backup data
+  const backupData: FullBackupExport = {
+    exportedAt: new Date().toISOString(),
+    contacts,
+    messages,
+    stats,
+  };
+
+  // Create README content
+  const readme = generateBackupReadme(stats, options);
+
+  // Create ZIP file using fflate
+  const encoder = new TextEncoder();
+
+  const files: Record<string, Uint8Array> = {
+    "README.txt": encoder.encode(readme),
+    "contacts.json": encoder.encode(JSON.stringify(contacts, null, 2)),
+    "contacts.csv": encoder.encode(toCSV(contacts as unknown as Record<string, unknown>[])),
+    "messages.json": encoder.encode(JSON.stringify(messages, null, 2)),
+    "messages.csv": encoder.encode(toCSV(messages as unknown as Record<string, unknown>[])),
+    "backup-summary.json": encoder.encode(JSON.stringify(backupData, null, 2)),
+  };
+
+  // Create ZIP synchronously
+  const zipData = fflate.zipSync(files, {
+    level: 6, // Compression level (0-9)
+  });
+
+  return zipData;
+}
+
+/**
+ * Generate README content for backup
+ */
+function generateBackupReadme(
+  stats: FullBackupExport["stats"],
+  options: { startDate?: Date; endDate?: Date; includeMedia?: boolean },
+): string {
+  const dateStr = new Date().toISOString().split("T")[0];
+  const timeStr = new Date().toISOString().split("T")[1].split(".")[0];
+
+  let content = `WhatsApp Web Backup
+===================
+
+Export Date: ${dateStr} ${timeStr} UTC
+
+Backup Contents
+---------------
+- contacts.json    : All contacts in JSON format
+- contacts.csv     : All contacts in CSV format
+- messages.json    : All messages in JSON format
+- messages.csv     : All messages in CSV format
+- backup-summary.json : Complete backup with metadata
+
+Statistics
+----------
+- Total Contacts: ${stats.totalContacts}
+- Total Messages: ${stats.totalMessages}
+`;
+
+  if (stats.dateRange.start && stats.dateRange.end) {
+    content += `- Message Date Range: ${stats.dateRange.start.split("T")[0]} to ${stats.dateRange.end.split("T")[0]}
+`;
+  }
+
+  if (options.startDate || options.endDate) {
+    content += `
+Filters Applied
+---------------
+`;
+    if (options.startDate) {
+      content += `- Start Date: ${options.startDate.toISOString().split("T")[0]}
+`;
+    }
+    if (options.endDate) {
+      content += `- End Date: ${options.endDate.toISOString().split("T")[0]}
+`;
+    }
+  }
+
+  content += `
+File Formats
+------------
+JSON files can be opened with any text editor or JSON viewer.
+CSV files can be opened with Excel, Google Sheets, or any spreadsheet software.
+
+For more information, visit your WhatsApp Web dashboard.
+`;
+
+  return content;
 }

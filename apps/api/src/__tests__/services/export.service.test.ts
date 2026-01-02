@@ -66,11 +66,24 @@ mock.module("kysely", () => ({
   sql: mockSql,
 }));
 
+// Mock fflate
+const mockZipSync = mock((files: Record<string, Uint8Array>) => {
+  // Return a simple Uint8Array that encodes the file names for testing
+  const encoder = new TextEncoder();
+  const fileNames = Object.keys(files).join(",");
+  return encoder.encode(`mock-zip:${fileNames}`);
+});
+
+mock.module("fflate", () => ({
+  zipSync: mockZipSync,
+}));
+
 // Import the service after mocking
 import {
   exportContacts,
   exportMessages,
   exportConversation,
+  exportFullBackup,
   toCSV,
   type ContactExport,
   type MessageExport,
@@ -787,6 +800,202 @@ describe("ExportService", () => {
         expect("sent_by_user" in result[0]).toBe(true);
         expect("has_media" in result[0]).toBe(true);
       }
+    });
+  });
+
+  describe("exportFullBackup", () => {
+    beforeEach(() => {
+      mockZipSync.mockClear();
+    });
+
+    it("should create a ZIP file with all required files", async () => {
+      // Arrange
+      const mockContacts = [
+        {
+          whatsapp_id: "123@s.whatsapp.net",
+          phone_number: "+1234567890",
+          push_name: "John",
+          custom_name: null,
+          shared_notes: null,
+          tags: null,
+          assigned_to: null,
+          created_at: new Date("2024-01-01"),
+          last_message_at: new Date("2024-01-15"),
+        },
+      ];
+
+      const mockMessages = [
+        {
+          message_id: "msg-1",
+          contact_whatsapp_id: "123@s.whatsapp.net",
+          contact_name: "John",
+          from_me: true,
+          message_type: "text",
+          text_content: "Hello",
+          timestamp: new Date("2024-01-15"),
+          sent_by_user: "user-123",
+          media_url: null,
+        },
+      ];
+
+      let sqlCallCount = 0;
+      mockSql.mockImplementation(() => ({
+        execute: mock(() => {
+          sqlCallCount++;
+          if (sqlCallCount === 1) {
+            return Promise.resolve({ rows: mockContacts });
+          }
+          return Promise.resolve({ rows: mockMessages });
+        }),
+      }));
+
+      // Act
+      const result = await exportFullBackup("company-123");
+
+      // Assert
+      expect(result).toBeInstanceOf(Uint8Array);
+      expect(mockZipSync).toHaveBeenCalled();
+
+      // Check that required files are included
+      const decoder = new TextDecoder();
+      const zipContent = decoder.decode(result);
+      expect(zipContent).toContain("README.txt");
+      expect(zipContent).toContain("contacts.json");
+      expect(zipContent).toContain("contacts.csv");
+      expect(zipContent).toContain("messages.json");
+      expect(zipContent).toContain("messages.csv");
+      expect(zipContent).toContain("backup-summary.json");
+    });
+
+    it("should apply date filters to messages", async () => {
+      // Arrange
+      mockSql.mockImplementation(() => ({
+        execute: mock(() => Promise.resolve({ rows: [] })),
+      }));
+
+      // Act
+      await exportFullBackup("company-123", {
+        startDate: new Date("2024-01-01"),
+        endDate: new Date("2024-01-31"),
+      });
+
+      // Assert
+      expect(mockSql).toHaveBeenCalled();
+      expect(mockZipSync).toHaveBeenCalled();
+    });
+
+    it("should include correct stats in backup", async () => {
+      // Arrange
+      const mockContacts = [
+        { whatsapp_id: "1", phone_number: null, push_name: null, custom_name: null, shared_notes: null, tags: null, assigned_to: null, created_at: new Date(), last_message_at: null },
+        { whatsapp_id: "2", phone_number: null, push_name: null, custom_name: null, shared_notes: null, tags: null, assigned_to: null, created_at: new Date(), last_message_at: null },
+      ];
+
+      const mockMessages = [
+        { message_id: "m1", contact_whatsapp_id: "1", contact_name: null, from_me: true, message_type: "text", text_content: "Hi", timestamp: new Date("2024-01-01"), sent_by_user: null, media_url: null },
+        { message_id: "m2", contact_whatsapp_id: "1", contact_name: null, from_me: false, message_type: "text", text_content: "Hello", timestamp: new Date("2024-01-15"), sent_by_user: null, media_url: null },
+      ];
+
+      let sqlCallCount = 0;
+      mockSql.mockImplementation(() => ({
+        execute: mock(() => {
+          sqlCallCount++;
+          if (sqlCallCount === 1) {
+            return Promise.resolve({ rows: mockContacts });
+          }
+          return Promise.resolve({ rows: mockMessages });
+        }),
+      }));
+
+      // Act
+      await exportFullBackup("company-123");
+
+      // Assert
+      expect(mockZipSync).toHaveBeenCalled();
+      const zipCall = mockZipSync.mock.calls[0];
+      const files = zipCall[0] as Record<string, Uint8Array>;
+
+      // Check backup-summary.json content
+      const decoder = new TextDecoder();
+      const summaryContent = decoder.decode(files["backup-summary.json"]);
+      const summary = JSON.parse(summaryContent);
+
+      expect(summary.stats.totalContacts).toBe(2);
+      expect(summary.stats.totalMessages).toBe(2);
+      expect(summary.exportedAt).toBeDefined();
+    });
+
+    it("should handle empty data gracefully", async () => {
+      // Arrange
+      mockSql.mockImplementation(() => ({
+        execute: mock(() => Promise.resolve({ rows: [] })),
+      }));
+
+      // Act
+      const result = await exportFullBackup("company-123");
+
+      // Assert
+      expect(result).toBeInstanceOf(Uint8Array);
+      expect(mockZipSync).toHaveBeenCalled();
+
+      const zipCall = mockZipSync.mock.calls[0];
+      const files = zipCall[0] as Record<string, Uint8Array>;
+
+      const decoder = new TextDecoder();
+      const summaryContent = decoder.decode(files["backup-summary.json"]);
+      const summary = JSON.parse(summaryContent);
+
+      expect(summary.stats.totalContacts).toBe(0);
+      expect(summary.stats.totalMessages).toBe(0);
+      expect(summary.stats.dateRange.start).toBeNull();
+      expect(summary.stats.dateRange.end).toBeNull();
+    });
+
+    it("should include README with proper content", async () => {
+      // Arrange
+      mockSql.mockImplementation(() => ({
+        execute: mock(() => Promise.resolve({ rows: [] })),
+      }));
+
+      // Act
+      await exportFullBackup("company-123");
+
+      // Assert
+      const zipCall = mockZipSync.mock.calls[0];
+      const files = zipCall[0] as Record<string, Uint8Array>;
+
+      const decoder = new TextDecoder();
+      const readmeContent = decoder.decode(files["README.txt"]);
+
+      expect(readmeContent).toContain("WhatsApp Web Backup");
+      expect(readmeContent).toContain("Backup Contents");
+      expect(readmeContent).toContain("contacts.json");
+      expect(readmeContent).toContain("messages.json");
+      expect(readmeContent).toContain("Statistics");
+    });
+
+    it("should include date filter info in README when filters applied", async () => {
+      // Arrange
+      mockSql.mockImplementation(() => ({
+        execute: mock(() => Promise.resolve({ rows: [] })),
+      }));
+
+      // Act
+      await exportFullBackup("company-123", {
+        startDate: new Date("2024-01-01"),
+        endDate: new Date("2024-01-31"),
+      });
+
+      // Assert
+      const zipCall = mockZipSync.mock.calls[0];
+      const files = zipCall[0] as Record<string, Uint8Array>;
+
+      const decoder = new TextDecoder();
+      const readmeContent = decoder.decode(files["README.txt"]);
+
+      expect(readmeContent).toContain("Filters Applied");
+      expect(readmeContent).toContain("Start Date: 2024-01-01");
+      expect(readmeContent).toContain("End Date: 2024-01-31");
     });
   });
 });
