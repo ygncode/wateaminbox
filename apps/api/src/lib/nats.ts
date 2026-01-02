@@ -25,7 +25,7 @@ export const NATS_SUBJECTS = {
 
 // Message types for NATS communication (snake_case to match Go orchestrator)
 export interface NatsCommand {
-  type: "spawn" | "kill" | "send";
+  type: "spawn" | "kill" | "send" | "post_status";
   company_id: string;
   timestamp?: string;
 }
@@ -58,6 +58,16 @@ export interface SendMessageCommand extends NatsCommand {
   content: string;
   message_type: MessageType;
   media_url?: string;
+  user_id: string;
+}
+
+export type StatusType = "text" | "image" | "video";
+
+export interface PostStatusCommand extends NatsCommand {
+  type: "post_status";
+  status_type: StatusType;
+  content?: string; // Text content or caption
+  media_url?: string; // URL of uploaded media
   user_id: string;
 }
 
@@ -292,6 +302,29 @@ export async function publishSendMessage(
     jid,
     content,
     message_type: messageType,
+    media_url: mediaUrl,
+    user_id: userId,
+  };
+  // Publish to company-specific subject so worker can filter
+  const subject = `${NATS_SUBJECTS.WHATSAPP_COMMANDS}.${companyId}`;
+  await publishCommand(subject, command);
+}
+
+/**
+ * Publishes a post status command to company-specific subject
+ */
+export async function publishPostStatus(
+  companyId: string,
+  statusType: StatusType,
+  userId: string,
+  content?: string,
+  mediaUrl?: string,
+): Promise<void> {
+  const command: PostStatusCommand = {
+    type: "post_status",
+    company_id: companyId,
+    status_type: statusType,
+    content,
     media_url: mediaUrl,
     user_id: userId,
   };

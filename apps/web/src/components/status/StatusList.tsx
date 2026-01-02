@@ -1,11 +1,14 @@
+import { useState } from "react";
 import {
   useStatusUpdates,
   useStatusStats,
+  useMyStatus,
   type ContactStatus,
 } from "@/hooks/useStatus";
 import { Avatar, AvatarFallback, Skeleton } from "@/components/ui";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Circle, Eye, Clock } from "lucide-react";
+import { Circle, Eye, Clock, Plus } from "lucide-react";
+import { PostStatusDialog } from "./PostStatusDialog";
 
 export interface StatusListProps {
   onStatusSelect: (jid: string) => void;
@@ -19,28 +22,56 @@ export interface StatusListProps {
 export function StatusList({ onStatusSelect, selectedJid }: StatusListProps) {
   const { data: statuses, isLoading, isError } = useStatusUpdates();
   const { data: stats } = useStatusStats();
+  const { data: myStatus } = useMyStatus();
+  const [postDialogOpen, setPostDialogOpen] = useState(false);
+
+  const myStatusCount = myStatus?.count || 0;
 
   return (
     <div className="flex flex-col h-full bg-white border-r border-gray-200">
+      {/* Post Status Dialog */}
+      <PostStatusDialog open={postDialogOpen} onOpenChange={setPostDialogOpen} />
+
       {/* My Status */}
-      <div className="px-4 py-3 border-b border-gray-200 bg-white">
+      <button
+        type="button"
+        onClick={() => setPostDialogOpen(true)}
+        className="w-full px-4 py-3 border-b border-gray-200 bg-white hover:bg-gray-50 transition-colors text-left"
+        data-testid="my-status-button"
+      >
         <div className="flex items-center gap-3">
           <div className="relative">
-            <Avatar className="h-12 w-12 border-2 border-whatsapp-teal-green">
-              <AvatarFallback className="bg-whatsapp-teal-green text-white">
+            <Avatar
+              className={`h-12 w-12 border-2 ${
+                myStatusCount > 0
+                  ? "border-whatsapp-teal-green"
+                  : "border-gray-300 border-dashed"
+              }`}
+            >
+              <AvatarFallback
+                className={
+                  myStatusCount > 0
+                    ? "bg-whatsapp-teal-green text-white"
+                    : "bg-gray-100 text-gray-500"
+                }
+              >
                 ME
               </AvatarFallback>
             </Avatar>
             <div className="absolute bottom-0 right-0 w-5 h-5 bg-whatsapp-teal-green rounded-full border-2 border-white flex items-center justify-center">
-              <span className="text-white text-xs font-bold">+</span>
+              <Plus className="h-3 w-3 text-white" />
             </div>
           </div>
           <div>
             <p className="font-medium text-gray-900">My status</p>
-            <p className="text-sm text-gray-500">Tap to add status update</p>
+            <p className="text-sm text-gray-500">
+              {myStatusCount > 0
+                ? `${myStatusCount} active update${myStatusCount > 1 ? "s" : ""}`
+                : "Tap to add status update"}
+            </p>
           </div>
         </div>
-      </div>
+      </button>
 
       {/* Recent Updates Header */}
       {statuses && statuses.length > 0 && (

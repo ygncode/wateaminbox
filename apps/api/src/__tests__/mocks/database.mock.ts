@@ -463,3 +463,34 @@ export function createMockQuickReply(overrides: Partial<MockQuickReply> = {}): M
     ...overrides,
   };
 }
+
+export interface MockStatusUpdate {
+  id: string;
+  whatsapp_connection_id: string | null;
+  status_id: string | null;
+  from_jid: string | null;
+  media_type: string | null;
+  media_url: string | null;
+  caption: string | null;
+  timestamp: Date;
+  expires_at: Date;
+}
+
+/**
+ * Helper to create mock status update data
+ */
+export function createMockStatusUpdate(overrides: Partial<MockStatusUpdate> = {}): MockStatusUpdate {
+  const now = new Date();
+  return {
+    id: "status-123",
+    whatsapp_connection_id: "connection-123",
+    status_id: "wa-status-123",
+    from_jid: "1234567890@s.whatsapp.net",
+    media_type: null,
+    media_url: null,
+    caption: "Hello from my status!",
+    timestamp: now,
+    expires_at: new Date(now.getTime() + 24 * 60 * 60 * 1000), // 24 hours from now
+    ...overrides,
+  };
+}
