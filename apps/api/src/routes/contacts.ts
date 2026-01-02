@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { authMiddleware } from "../middleware/auth.js";
-import { tenantMiddleware } from "../middleware/tenant.js";
+import { tenantMiddleware, requirePermission } from "../middleware/tenant.js";
+import { PERMISSIONS } from "../services/permission.service.js";
 import {
   parseCSV,
   mapToContactRow,
@@ -394,11 +395,15 @@ contactRoutes.patch("/:id", async (c) => {
  * - Creates notification for previous assignee
  * - Broadcasts WebSocket event for real-time update
  * - Logs to audit trail
+ *
+ * Permission: can_assign_contacts is required to assign to another user
+ * Self-assignment (claiming unassigned contacts) is allowed for all members
  */
 contactRoutes.post("/:id/assign", async (c) => {
   const tenantDb = c.get("tenantDb");
   const user = c.get("user");
-  const company = c.get("company");
+  const companyId = c.get("companyId");
+  const permissions = c.get("companyPermissions");
   const contactId = c.req.param("id");
 
   // Parse optional body for targetUserId
@@ -410,6 +415,14 @@ contactRoutes.post("/:id/assign", async (c) => {
     }
   } catch {
     // No body or invalid JSON - default to self-assignment
+  }
+
+  // Check permission: can_assign_contacts required to assign to someone else
+  if (targetUserId !== user.id && !permissions?.can_assign_contacts) {
+    return c.json(
+      { error: "Permission denied: can_assign_contacts is required to assign contacts to other users" },
+      403
+    );
   }
 
   // Check if contact exists
@@ -458,7 +471,7 @@ contactRoutes.post("/:id/assign", async (c) => {
   // If this is a takeover (reassigning from another user), create notification
   if (isTakeover && previousAssigneeId) {
     // Create in-app notification for previous assignee
-    await createNotification(company.id, {
+    await createNotification(companyId, {
       userId: previousAssigneeId,
       notificationType: "assignment",
       title: "Contact Reassigned",
@@ -473,7 +486,7 @@ contactRoutes.post("/:id/assign", async (c) => {
     });
 
     // Broadcast WebSocket event for real-time update
-    broadcastToCompany(company.id, {
+    broadcastToCompany(companyId, {
       type: "contact",
       payload: {
         event: "reassigned",
@@ -488,7 +501,7 @@ contactRoutes.post("/:id/assign", async (c) => {
 
     // Create audit log
     await createAuditLog({
-      companyId: company.id,
+      companyId,
       userId: user.id,
       action: "contact.assigned",
       entityType: "contact",
@@ -504,7 +517,7 @@ contactRoutes.post("/:id/assign", async (c) => {
   } else {
     // Regular assignment (not a takeover)
     await createAuditLog({
-      companyId: company.id,
+      companyId,
       userId: user.id,
       action: "contact.assigned",
       entityType: "contact",
@@ -533,20 +546,25 @@ contactRoutes.post("/:id/assign", async (c) => {
 
 /**
  * DELETE /contacts/:id/assign - Unassign contact
+ * Requires can_assign_contacts permission
  */
-contactRoutes.delete("/:id/assign", async (c) => {
-  const tenantDb = c.get("tenantDb");
-  const contactId = c.req.param("id");
+contactRoutes.delete(
+  "/:id/assign",
+  requirePermission(PERMISSIONS.CAN_ASSIGN_CONTACTS),
+  async (c) => {
+    const tenantDb = c.get("tenantDb");
+    const contactId = c.req.param("id");
 
-  await tenantDb
-    .updateTable("contact_assignments")
-    .set({ unassigned_at: new Date() })
-    .where("contact_id", "=", contactId)
-    .where("unassigned_at", "is", null)
-    .execute();
+    await tenantDb
+      .updateTable("contact_assignments")
+      .set({ unassigned_at: new Date() })
+      .where("contact_id", "=", contactId)
+      .where("unassigned_at", "is", null)
+      .execute();
 
-  return c.json({ success: true });
-});
+    return c.json({ success: true });
+  }
+);
 
 /**
  * GET /contacts/:id/notes/private - Get private notes for a contact

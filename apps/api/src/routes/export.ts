@@ -1,13 +1,15 @@
 import { Hono } from "hono";
 import { authMiddleware } from "../middleware/auth.js";
-import { tenantMiddleware } from "../middleware/tenant.js";
+import { tenantMiddleware, requirePermission } from "../middleware/tenant.js";
+import { PERMISSIONS } from "../services/permission.service.js";
 import * as exportService from "../services/export.service.js";
 
 export const exportRoutes = new Hono();
 
-// All export routes require authentication and tenant context
+// All export routes require authentication, tenant context, and can_export permission
 exportRoutes.use("/*", authMiddleware);
 exportRoutes.use("/*", tenantMiddleware());
+exportRoutes.use("/*", requirePermission(PERMISSIONS.CAN_EXPORT));
 
 /**
  * GET /export/contacts - Export contacts

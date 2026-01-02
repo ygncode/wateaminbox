@@ -5,6 +5,11 @@ import {
   TenantDatabase,
 } from "../services/tenant.service.js";
 import { getMemberRole } from "../services/company.service.js";
+import {
+  getMemberWithPermissions,
+  type MemberPermissions,
+  type Permission,
+} from "../services/permission.service.js";
 import type { Kysely } from "kysely";
 
 // Extend Hono context types for tenant-specific variables
@@ -13,6 +18,7 @@ declare module "hono" {
   interface ContextVariableMap {
     companyId: string;
     companyRole: "owner" | "admin" | "member";
+    companyPermissions: MemberPermissions;
     tenantDb: Kysely<TenantDatabase>;
   }
 }
@@ -111,13 +117,15 @@ export function tenantMiddleware(options: TenantContextOptions = {}) {
       });
     }
 
-    // Check if user is a member of this company and get their role
-    const role = await getMemberRole(companyId, user.id);
-    if (!role) {
+    // Check if user is a member of this company and get their role + permissions
+    const memberData = await getMemberWithPermissions(companyId, user.id);
+    if (!memberData) {
       throw new HTTPException(403, {
         message: "You are not a member of this company",
       });
     }
+
+    const { role, permissions } = memberData;
 
     // Check role hierarchy if required
     if (opts.requiredRole) {
@@ -137,6 +145,7 @@ export function tenantMiddleware(options: TenantContextOptions = {}) {
     // Set context variables
     c.set("companyId", companyId);
     c.set("companyRole", role);
+    c.set("companyPermissions", permissions);
     c.set("tenantDb", getTenantConnection(companyId));
 
     await next();
@@ -197,6 +206,66 @@ export function requireOwner() {
     if (role !== "owner") {
       throw new HTTPException(403, {
         message: "Owner privileges required",
+      });
+    }
+    await next();
+  };
+}
+
+/**
+ * Helper to require a specific permission
+ * Use this after tenantMiddleware to check feature-based permissions
+ */
+export function requirePermission(permission: Permission) {
+  return async (c: Context, next: Next) => {
+    const permissions = c.get("companyPermissions");
+    if (!permissions || !permissions[permission]) {
+      throw new HTTPException(403, {
+        message: `Permission denied: ${permission} is required`,
+      });
+    }
+    await next();
+  };
+}
+
+/**
+ * Helper to require all of the specified permissions
+ */
+export function requireAllPermissions(requiredPermissions: Permission[]) {
+  return async (c: Context, next: Next) => {
+    const permissions = c.get("companyPermissions");
+    if (!permissions) {
+      throw new HTTPException(403, {
+        message: "Permission denied: no permissions found",
+      });
+    }
+
+    const missing = requiredPermissions.filter((p) => !permissions[p]);
+    if (missing.length > 0) {
+      throw new HTTPException(403, {
+        message: `Permission denied: missing ${missing.join(", ")}`,
+      });
+    }
+    await next();
+  };
+}
+
+/**
+ * Helper to require any of the specified permissions
+ */
+export function requireAnyPermission(requiredPermissions: Permission[]) {
+  return async (c: Context, next: Next) => {
+    const permissions = c.get("companyPermissions");
+    if (!permissions) {
+      throw new HTTPException(403, {
+        message: "Permission denied: no permissions found",
+      });
+    }
+
+    const hasAny = requiredPermissions.some((p) => permissions[p]);
+    if (!hasAny) {
+      throw new HTTPException(403, {
+        message: `Permission denied: requires one of ${requiredPermissions.join(", ")}`,
       });
     }
     await next();

@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { authMiddleware } from "../middleware/auth.js";
-import { tenantMiddleware } from "../middleware/tenant.js";
+import { tenantMiddleware, requirePermission } from "../middleware/tenant.js";
+import { PERMISSIONS } from "../services/permission.service.js";
 import { publishSendMessage } from "../lib/nats.js";
 import { ensureContactAssignment } from "../services/contact.service.js";
 
@@ -103,8 +104,9 @@ messageRoutes.get("/", async (c) => {
 
 /**
  * POST /messages - Send a new message
+ * Requires can_send_messages permission
  */
-messageRoutes.post("/", async (c) => {
+messageRoutes.post("/", requirePermission(PERMISSIONS.CAN_SEND_MESSAGES), async (c) => {
   const tenantDb = c.get("tenantDb");
   const user = c.get("user");
   const companyId = c.get("companyId");
@@ -282,8 +284,9 @@ messageRoutes.delete("/:id/reaction", async (c) => {
 
 /**
  * POST /messages/:id/forward - Forward a message to another contact
+ * Requires can_send_messages permission
  */
-messageRoutes.post("/:id/forward", async (c) => {
+messageRoutes.post("/:id/forward", requirePermission(PERMISSIONS.CAN_SEND_MESSAGES), async (c) => {
   const tenantDb = c.get("tenantDb");
   const user = c.get("user");
   const companyId = c.get("companyId");
