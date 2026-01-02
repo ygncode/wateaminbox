@@ -106,9 +106,9 @@ Comparison of `.specs/spec.md` against current implementation. Last updated: 202
 - [x] Group participant list
 - [ ] **Group admin actions** - promote/demote admin, remove participant, change group settings
 
-### 3.2 WhatsApp Status ⚠️ Partially Complete
+### 3.2 WhatsApp Status ✅ Complete
 - [x] View contact status updates
-- [ ] **Post status updates** - API and UI for posting text/image status
+- [x] **Post status updates** - API and UI for posting text/image/video status ✅ Completed 2026-01-03
 - [x] Status expiration handling
 
 ### 3.3 WhatsApp Business Features ⚠️ Partially Complete
@@ -197,10 +197,15 @@ GET    /api/export/contacts             - Export contacts (CSV/JSON) ✅
 GET    /api/export/messages             - Export messages with date range filter ✅
 ```
 
+### Status API ✅ Completed 2026-01-03
+```
+POST   /api/status                      - Post a new WhatsApp status update ✅
+DELETE /api/status/:id                  - Delete posted status ✅
+GET    /api/status/my                   - Get user's own active statuses ✅
+```
+
 ### Additional Missing Endpoints
 ```
-POST   /api/status                      - Post a new WhatsApp status update
-DELETE /api/status/:id                  - Delete posted status
 POST   /api/contacts/manual             - Create contact by phone number
 ```
 
@@ -265,7 +270,7 @@ ALTER TABLE company_members ADD COLUMN permissions JSONB;
 - [x] Notification settings flow ✅ Completed 2026-01-03
 - [x] Contact reassignment/takeover flow ✅ Completed 2026-01-03
 - [x] Group message sending ✅ Completed 2026-01-03
-- [ ] Status posting flow
+- [x] Status posting flow ✅ Completed 2026-01-03
 
 **Note:** E2E tests requiring authenticated state need proper API mocking setup. The current `authenticatedPage` fixture uses mock tokens that don't work with real API. Full API interception is needed for reliable E2E testing.
 
@@ -289,7 +294,7 @@ ALTER TABLE company_members ADD COLUMN permissions JSONB;
 
 ### Low Priority (Nice to Have)
 11. WhatsApp Business features (labels sync, catalogs)
-12. Post status updates
+12. ~~Post status updates~~ ✅ Completed 2026-01-03
 13. Group admin actions
 14. Resolution rate tracking
 15. Blog/docs content
@@ -302,10 +307,10 @@ ALTER TABLE company_members ADD COLUMN permissions JSONB;
 |-------|---------------|-----------|---------|---------|
 | Phase 1 | 28 | 26 | 2 | 0 |
 | Phase 2 | 16 | 8 | 5 | 3 |
-| Phase 3 | 18 | 12 | 3 | 3 |
+| Phase 3 | 18 | 13 | 2 | 3 |
 | Phase 4 | 10 | 5 | 4 | 1 |
-| **Total** | **72** | **51** | **14** | **7** |
+| **Total** | **72** | **52** | **13** | **7** |
 
-**Overall Completion: ~72% fully complete, ~18% partial, ~10% missing**
+**Overall Completion: ~73% fully complete, ~18% partial, ~9% missing**
 
-*Last updated: 2026-01-03 - Group message sending verification complete*
+*Last updated: 2026-01-03 - Post status updates feature complete*

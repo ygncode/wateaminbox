@@ -8,6 +8,72 @@ A comprehensive development log for the Multi-tenant WhatsApp Web Collaborative 
 
 ## Latest Updates
 
+### 2026-01-03: Post Status Updates Feature
+
+Implemented the ability to post WhatsApp status updates (text, image, video) from the web interface.
+
+**Backend API:**
+- `POST /api/status` - Post a new status update
+  - Accepts `type` (text/image/video), `content` (text or caption), `mediaUrl` (for image/video)
+  - Validates WhatsApp connection is active
+  - Creates status record in database
+  - Publishes NATS command for WhatsApp worker to post the status
+  - Returns 24-hour expiration timestamp
+- `DELETE /api/status/:id` - Delete own status
+  - Validates ownership before deletion
+  - Only allows deleting own statuses (by JID or "me")
+- `GET /api/status/my` - Get user's own active statuses
+  - Returns non-expired statuses posted by the connected account
+  - Includes count for UI display
+
+**NATS Integration:**
+- Added `post_status` command type to NATS
+- `publishPostStatus()` function publishes to company-specific subject
+- `PostStatusCommand` interface for type safety
+
+**Frontend Components:**
+- `PostStatusDialog` component (`apps/web/src/components/status/PostStatusDialog.tsx`):
+  - Status type selector (Text, Image, Video buttons)
+  - Text input with character counter (700 max)
+  - Media URL input for image/video with caption
+  - Success state with confirmation message
+  - Validation before submission
+- Updated `StatusList` component:
+  - "My status" section now clickable to open dialog
+  - Shows active status count (e.g., "2 active updates")
+  - Visual indicator for having active statuses
+  - Plus icon button to add new status
+
+**React Hooks:**
+- `usePostStatus()` - Mutation hook for posting status
+- `useDeleteStatus()` - Mutation hook for deleting status
+- `useMyStatus()` - Query hook for fetching own statuses
+- Added `my` key to `statusKeys` for query invalidation
+
+**Tests:**
+- Backend unit tests: 18 tests in `status.route.test.ts`:
+  - GET /status returns empty list, grouped by contact, filters expired
+  - GET /status/:jid returns 404 or contact statuses
+  - GET /status/stats/overview returns statistics
+  - GET /status/my returns empty when not connected, returns statuses when connected
+  - POST /status validates type, content, mediaUrl requirements
+  - POST /status returns 400 when WhatsApp not connected
+  - POST /status successfully posts text/image/video statuses
+  - DELETE /status/:id returns 404 or successfully deletes
+- E2E tests: 7 tests in `status.spec.ts`:
+  - My Status button opens dialog
+  - Text type selected by default
+  - Successfully post text status
+  - Switch between status types
+  - Validation for empty content
+  - Display active status count
+
+**Mock Data:**
+- Added `MockStatusUpdate` interface to database mocks
+- Added `createMockStatusUpdate()` helper function
+
+---
+
 ### 2026-01-03: Group Message Sending Verification
 
 Verified and documented the group messaging implementation. Sending messages to groups works via the same `/api/messages` endpoint as individual chats - the backend detects groups based on JID format (`@g.us`).
