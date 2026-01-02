@@ -8,6 +8,82 @@ A comprehensive development log for the Multi-tenant WhatsApp Web Collaborative 
 
 ## Latest Updates
 
+### 2026-01-03: Feature-Based Permissions System
+
+Implemented a granular permission system that complements the existing role-based access control. This allows fine-grained control over what team members can do within the application.
+
+**Permissions Implemented:**
+- `can_view_all_chats` - View all conversations (owner/admin only)
+- `can_send_messages` - Send messages to contacts (all roles)
+- `can_assign_contacts` - Assign contacts to other team members (owner/admin only)
+- `can_manage_team` - Manage team members, roles, and permissions (owner only)
+- `can_invite` - Invite new members to the company (owner/admin only)
+- `can_export` - Export contacts, messages, and reports (owner/admin only)
+- `can_delete` - Delete contacts and messages (owner/admin only)
+
+**Role Presets:**
+- **Owner**: All 7 permissions enabled
+- **Admin**: 6 permissions (all except `can_manage_team`)
+- **Member**: 1 permission (`can_send_messages` only)
+
+**Backend Service (`permission.service.ts`):**
+- `PERMISSIONS` constant with all permission keys
+- `ROLE_PRESETS` with default permissions for each role
+- `getEffectivePermissions()` - Merge role defaults with custom permissions
+- `getMemberWithPermissions()` - Fetch member data with computed permissions
+- `hasFeaturePermission()` - Check single permission
+- `hasAllPermissions()` / `hasAnyPermission()` - Check multiple permissions
+- `updateMemberPermissions()` - Owner can customize member permissions
+- `resetMemberPermissions()` - Reset to role defaults
+- `getPermissionDescriptions()` - Get permission metadata for UI
+
+**Middleware Helpers (`tenant.ts`):**
+- `requirePermission(permission)` - Require specific permission
+- `requireAllPermissions(permissions[])` - Require all of the specified permissions
+- `requireAnyPermission(permissions[])` - Require any of the specified permissions
+- Updated `tenantMiddleware` to set `companyPermissions` in context
+
+**API Routes Updated:**
+- `POST /api/companies/:id/invitations` - Now uses `can_invite` permission
+- `GET /api/companies/:id/invitations` - Now uses `can_invite` permission
+- `DELETE /api/companies/:id/invitations/:id` - Now uses `can_invite` permission
+- `POST /api/messages` - Now uses `can_send_messages` permission
+- `POST /api/messages/:id/forward` - Now uses `can_send_messages` permission
+- `POST /api/contacts/:id/assign` - Self-assignment allowed, assigning to others requires `can_assign_contacts`
+- `DELETE /api/contacts/:id/assign` - Now uses `can_assign_contacts` permission
+- All `/api/export/*` routes - Now use `can_export` permission
+
+**New Permission Management Endpoints:**
+- `GET /api/companies/:id/permissions` - List available permissions and role presets
+- `GET /api/companies/:id/members/:userId/permissions` - Get member's effective permissions
+- `PATCH /api/companies/:id/members/:userId/permissions` - Update member's custom permissions (owner only)
+- `POST /api/companies/:id/members/:userId/permissions/reset` - Reset to role defaults (owner only)
+
+**Frontend Hook (`usePermissions.ts`):**
+- `usePermissions()` - Get role and all permission checks
+- Returns: `role`, `permissions`, `hasPermission()`, `hasAnyPermission()`, `hasAllPermissions()`
+- Convenience booleans: `isOwner`, `isAdmin`, `canViewAllChats`, `canSendMessages`, etc.
+- `useHasPermission(permission)` - Check single permission
+
+**Frontend Component (`PermissionGuard.tsx`):**
+- Conditional rendering based on permissions
+- Props: `permission`, `allOf`, `anyOf`, `requireOwner`, `requireAdmin`, `fallback`
+- `withPermission()` HOC for wrapping components
+
+**Tests:**
+- 24 backend unit tests in `permission.service.test.ts`:
+  - Permission constant verification
+  - Role presets validation
+  - Effective permissions calculation
+  - Permission checking functions
+  - Permission update/reset operations
+- 23 E2E tests in `permissions.spec.ts`:
+  - Role presets verification (owner/admin/member)
+  - Permission hierarchy validation
+  - Permission category verification
+
+---
+
 ### 2026-01-03: New Contacts Trend Analytics
 
 Added a new analytics chart showing new contacts over time with cumulative totals.
