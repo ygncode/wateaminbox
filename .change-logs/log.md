@@ -8,6 +8,32 @@ A comprehensive development log for the Multi-tenant WhatsApp Web Collaborative 
 
 ## Latest Updates
 
+### 2026-01-03: Keyboard Shortcuts Verification
+
+Verified that all keyboard shortcuts specified in the spec are fully implemented.
+
+**Implemented Shortcuts (verified in `useKeyboardShortcuts.ts` and `KeyboardShortcutsContext.tsx`):**
+- `Ctrl/Cmd+N` - New chat (focuses search input)
+- `Ctrl/Cmd+F` - Open global search panel
+- `Escape` - Close modal/panel
+- `Enter` - Send message (in `MessageComposer.tsx`)
+- `Shift+Enter` - New line in message
+- `Arrow Up/Down` - Navigate chat list
+- `Ctrl/Cmd+/` - Show keyboard shortcuts help modal
+
+**Features:**
+- Platform-aware modifier key handling (Cmd on Mac, Ctrl on Windows/Linux)
+- KeyboardShortcutsProvider context for global shortcuts
+- KeyboardShortcutsModal for displaying available shortcuts
+- Support for custom action registration via `useRegisterShortcutAction` hook
+- Input field detection to prevent shortcut interference when typing
+
+**Updated Tasks:**
+- Marked keyboard shortcuts section as complete in `tasks.md`
+- Added note about E2E test infrastructure needs for authenticated tests
+
+---
+
 ### 2026-01-03: Full Backup ZIP Export
 
 Added full backup export functionality that creates a ZIP file containing all contacts and messages with optional date range filtering.

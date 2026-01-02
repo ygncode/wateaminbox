@@ -152,15 +152,16 @@ Comparison of `.specs/spec.md` against current implementation. Last updated: 202
 - [x] Simplified Chinese (简体中文)
 - [ ] **Expand translation coverage** - only basic strings translated, need full coverage
 
-### 4.2 Keyboard Shortcuts ⚠️ Needs Verification
-- [ ] **Verify all shortcuts implemented:**
-  - [ ] `Ctrl+N` - New chat
-  - [ ] `Ctrl+F` - Search
-  - [ ] `Escape` - Close modal/panel
-  - [ ] `Enter` - Send message
-  - [ ] `Shift+Enter` - New line
-  - [ ] Arrow keys - Navigate chats
-  - [ ] Full keyboard navigation
+### 4.2 Keyboard Shortcuts ✅ Complete
+- [x] **All shortcuts verified implemented (2026-01-03):**
+  - [x] `Ctrl/Cmd+N` - New chat (focuses search input)
+  - [x] `Ctrl/Cmd+F` - Open global search panel
+  - [x] `Escape` - Close modal/panel
+  - [x] `Enter` - Send message
+  - [x] `Shift+Enter` - New line in message
+  - [x] `Arrow Up/Down` - Navigate chat list
+  - [x] `Ctrl/Cmd+/` - Show keyboard shortcuts help modal
+  - [x] Full keyboard navigation via KeyboardShortcutsContext
 
 ### 4.3 Mobile Responsiveness ✅ Complete
 - [x] Fully responsive design
@@ -256,13 +257,15 @@ ALTER TABLE company_members ADD COLUMN permissions JSONB;
 - [ ] Permission checking middleware tests
 
 ### E2E Tests
-- [ ] Contact creation by phone number flow
+- [ ] Contact creation by phone number flow *(requires E2E auth fixture improvements - mocking infrastructure needed)*
 - [x] Quick replies management flow ✅ Completed 2026-01-03
 - [x] Auto-assign on first reply flow ✅ Completed 2026-01-03
 - [x] Export functionality tests ✅ Completed 2026-01-03
 - [x] Notification settings flow ✅ Completed 2026-01-03
 - [ ] Group message sending
 - [ ] Status posting flow
+
+**Note:** E2E tests requiring authenticated state need proper API mocking setup. The current `authenticatedPage` fixture uses mock tokens that don't work with real API. Full API interception is needed for reliable E2E testing.
 
 ---
 
@@ -298,7 +301,9 @@ ALTER TABLE company_members ADD COLUMN permissions JSONB;
 | Phase 1 | 28 | 26 | 2 | 0 |
 | Phase 2 | 16 | 8 | 5 | 3 |
 | Phase 3 | 18 | 12 | 3 | 3 |
-| Phase 4 | 10 | 4 | 5 | 1 |
-| **Total** | **72** | **50** | **15** | **7** |
+| Phase 4 | 10 | 5 | 4 | 1 |
+| **Total** | **72** | **51** | **14** | **7** |
 
-**Overall Completion: ~69% fully complete, ~21% partial, ~10% missing**
+**Overall Completion: ~71% fully complete, ~19% partial, ~10% missing**
+
+*Last updated: 2026-01-03 - Keyboard shortcuts verified complete*
