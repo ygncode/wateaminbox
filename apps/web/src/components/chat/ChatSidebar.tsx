@@ -1,6 +1,7 @@
 import { useState, useCallback } from "react";
 import { ChatList } from "./ChatList";
 import { GroupList } from "../groups/GroupList";
+import { NotificationCenter } from "../notifications/NotificationCenter";
 import { MessageSquare, Users, Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Link } from "react-router-dom";
@@ -48,14 +49,17 @@ export function ChatSidebar({
             label="Groups"
           />
         </nav>
-        {/* Settings */}
-        <Link
-          to="/settings"
-          className="p-2.5 mr-2 text-gray-500 hover:text-gray-700 hover:bg-gray-200 rounded-full transition-colors"
-          title="Settings"
-        >
-          <Settings className="h-5 w-5" />
-        </Link>
+        {/* Notifications & Settings */}
+        <div className="flex items-center gap-1 mr-2">
+          <NotificationCenter />
+          <Link
+            to="/settings"
+            className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-200 rounded-full transition-colors"
+            title="Settings"
+          >
+            <Settings className="h-5 w-5" />
+          </Link>
+        </div>
       </div>
 
       {/* View Content */}

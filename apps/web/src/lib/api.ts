@@ -870,5 +870,118 @@ export async function unmuteContactApi(
   return response.data;
 }
 
+// =====================
+// Notification History API (In-App Notification Center)
+// =====================
+
+export type NotificationType = "message" | "mention" | "assignment" | "team" | "system";
+
+export interface InAppNotification {
+  id: string;
+  userId: string;
+  notificationType: NotificationType;
+  title: string;
+  message: string | null;
+  actionUrl: string | null;
+  metadata: Record<string, unknown> | null;
+  isRead: boolean;
+  readAt: string | null;
+  createdAt: string;
+}
+
+export interface NotificationListParams {
+  limit?: number;
+  offset?: number;
+  unreadOnly?: boolean;
+}
+
+export interface NotificationListResponse {
+  data: InAppNotification[];
+  meta: {
+    total: number;
+    unreadCount: number;
+    limit: number;
+    offset: number;
+  };
+}
+
+export interface CreateNotificationInput {
+  notificationType: NotificationType;
+  title: string;
+  message?: string;
+  actionUrl?: string;
+  metadata?: Record<string, unknown>;
+}
+
+export async function getNotifications(
+  params: NotificationListParams = {}
+): Promise<NotificationListResponse> {
+  const query = buildQueryString(params as Record<string, unknown>);
+  return fetchWithAuth<NotificationListResponse>(`/notifications${query}`);
+}
+
+export async function getNotificationById(
+  notificationId: string
+): Promise<InAppNotification> {
+  const response = await fetchWithAuth<{ data: InAppNotification }>(
+    `/notifications/${notificationId}`
+  );
+  return response.data;
+}
+
+export async function getUnreadNotificationCount(): Promise<number> {
+  const response = await fetchWithAuth<{ data: { unreadCount: number } }>(
+    "/notifications/count"
+  );
+  return response.data.unreadCount;
+}
+
+export async function createNotification(
+  input: CreateNotificationInput
+): Promise<InAppNotification> {
+  const response = await fetchWithAuth<{ data: InAppNotification }>(
+    "/notifications",
+    {
+      method: "POST",
+      body: JSON.stringify(input),
+    }
+  );
+  return response.data;
+}
+
+export async function markNotificationAsRead(
+  notificationId: string
+): Promise<InAppNotification> {
+  const response = await fetchWithAuth<{ data: InAppNotification }>(
+    `/notifications/${notificationId}/read`,
+    {
+      method: "PATCH",
+    }
+  );
+  return response.data;
+}
+
+export async function markAllNotificationsAsRead(): Promise<number> {
+  const response = await fetchWithAuth<{ data: { markedAsRead: number } }>(
+    "/notifications/read-all",
+    {
+      method: "POST",
+    }
+  );
+  return response.data.markedAsRead;
+}
+
+export async function deleteNotification(
+  notificationId: string
+): Promise<boolean> {
+  const response = await fetchWithAuth<{ data: { deleted: boolean } }>(
+    `/notifications/${notificationId}`,
+    {
+      method: "DELETE",
+    }
+  );
+  return response.data.deleted;
+}
+
 // Initialize auth on module load
 initializeAuth();

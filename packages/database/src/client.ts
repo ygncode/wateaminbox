@@ -88,6 +88,7 @@ export interface UserSessionsTable {
 export type WhatsAppConnectionStatus = "connected" | "disconnected" | "banned" | "pending";
 export type MessageType = "text" | "image" | "video" | "audio" | "document" | "sticker" | "location" | "contact" | "reaction";
 export type MessageStatus = "pending" | "sent" | "delivered" | "read" | "failed";
+export type NotificationType = "message" | "mention" | "assignment" | "team" | "system";
 
 /**
  * Tenant database interface for tenant-specific tables
@@ -106,6 +107,7 @@ export interface TenantDatabase {
   status_updates: StatusUpdatesTable;
   audit_logs: AuditLogsTable;
   notification_preferences: NotificationPreferencesTable;
+  notification_history: NotificationHistoryTable;
 }
 
 export interface WhatsAppConnectionsTable {
@@ -250,6 +252,19 @@ export interface NotificationPreferencesTable {
   muted_contacts: string[] | null;
   created_at: Generated<Date>;
   updated_at: Generated<Date>;
+}
+
+export interface NotificationHistoryTable {
+  id: Generated<string>;
+  user_id: string;
+  notification_type: NotificationType;
+  title: string;
+  message: string | null;
+  action_url: string | null;
+  metadata: Record<string, unknown> | null;
+  is_read: Generated<boolean>;
+  read_at: Date | null;
+  created_at: Generated<Date>;
 }
 
 // ============================================================================

@@ -35,3 +35,4 @@ export {
   SelectSeparator,
 } from "./select";
 export { Checkbox } from "./checkbox";
+export { Popover, PopoverTrigger, PopoverContent, PopoverAnchor } from "./popover";

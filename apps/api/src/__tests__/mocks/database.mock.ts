@@ -405,3 +405,35 @@ export function createMockNotificationPreferences(overrides: Partial<MockNotific
     ...overrides,
   };
 }
+
+export interface MockNotificationHistory {
+  id: string;
+  user_id: string;
+  notification_type: "message" | "mention" | "assignment" | "team" | "system";
+  title: string;
+  message: string | null;
+  action_url: string | null;
+  metadata: Record<string, unknown> | null;
+  is_read: boolean;
+  read_at: Date | null;
+  created_at: Date;
+}
+
+/**
+ * Helper to create mock notification history data
+ */
+export function createMockNotificationHistory(overrides: Partial<MockNotificationHistory> = {}): MockNotificationHistory {
+  return {
+    id: "notification-123",
+    user_id: "user-123",
+    notification_type: "message" as const,
+    title: "New message from John",
+    message: "Hello, how are you?",
+    action_url: "/chat/contact-123",
+    metadata: null,
+    is_read: false,
+    read_at: null,
+    created_at: new Date(),
+    ...overrides,
+  };
+}

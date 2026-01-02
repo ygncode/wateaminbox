@@ -4,6 +4,7 @@ import { zValidator } from "@hono/zod-validator";
 import { authMiddleware } from "../middleware/auth.js";
 import { tenantMiddleware } from "../middleware/tenant.js";
 import * as notificationPreferencesService from "../services/notification-preferences.service.js";
+import * as notificationHistoryService from "../services/notification-history.service.js";
 
 export const notificationRoutes = new Hono();
 
@@ -24,6 +25,28 @@ const updatePreferencesSchema = z.object({
 
 const muteContactSchema = z.object({
   contactJid: z.string().min(1),
+});
+
+const notificationTypeSchema = z.enum([
+  "message",
+  "mention",
+  "assignment",
+  "team",
+  "system",
+]);
+
+const listNotificationsQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(100).optional().default(20),
+  offset: z.coerce.number().int().min(0).optional().default(0),
+  unreadOnly: z.coerce.boolean().optional().default(false),
+});
+
+const createNotificationSchema = z.object({
+  notificationType: notificationTypeSchema,
+  title: z.string().min(1).max(255),
+  message: z.string().optional(),
+  actionUrl: z.string().url().optional(),
+  metadata: z.record(z.unknown()).optional(),
 });
 
 /**
@@ -137,3 +160,177 @@ notificationRoutes.post(
     });
   },
 );
+
+// ============================================================================
+// Notification History Routes (In-App Notification Center)
+// ============================================================================
+
+/**
+ * GET /notifications - List notifications for the current user
+ */
+notificationRoutes.get(
+  "/",
+  zValidator("query", listNotificationsQuerySchema),
+  async (c) => {
+    const user = c.get("user");
+    const companyId = c.get("companyId");
+    const { limit, offset, unreadOnly } = c.req.valid("query");
+
+    const result = await notificationHistoryService.getNotifications(
+      companyId,
+      {
+        userId: user.id,
+        limit,
+        offset,
+        unreadOnly,
+      },
+    );
+
+    return c.json({
+      data: result.notifications,
+      meta: {
+        total: result.total,
+        unreadCount: result.unreadCount,
+        limit,
+        offset,
+      },
+    });
+  },
+);
+
+/**
+ * GET /notifications/count - Get unread notification count
+ */
+notificationRoutes.get("/count", async (c) => {
+  const user = c.get("user");
+  const companyId = c.get("companyId");
+
+  const unreadCount = await notificationHistoryService.getUnreadCount(
+    companyId,
+    user.id,
+  );
+
+  return c.json({
+    data: {
+      unreadCount,
+    },
+  });
+});
+
+/**
+ * GET /notifications/:id - Get a single notification
+ */
+notificationRoutes.get("/:id", async (c) => {
+  const user = c.get("user");
+  const companyId = c.get("companyId");
+  const notificationId = c.req.param("id");
+
+  const notification = await notificationHistoryService.getNotificationById(
+    companyId,
+    notificationId,
+    user.id,
+  );
+
+  if (!notification) {
+    return c.json({ error: "Notification not found" }, 404);
+  }
+
+  return c.json({
+    data: notification,
+  });
+});
+
+/**
+ * POST /notifications - Create a notification (for system/internal use)
+ */
+notificationRoutes.post(
+  "/",
+  zValidator("json", createNotificationSchema),
+  async (c) => {
+    const user = c.get("user");
+    const companyId = c.get("companyId");
+    const input = c.req.valid("json");
+
+    const notification = await notificationHistoryService.createNotification(
+      companyId,
+      {
+        userId: user.id,
+        ...input,
+      },
+    );
+
+    return c.json(
+      {
+        data: notification,
+      },
+      201,
+    );
+  },
+);
+
+/**
+ * PATCH /notifications/:id/read - Mark a notification as read
+ */
+notificationRoutes.patch("/:id/read", async (c) => {
+  const user = c.get("user");
+  const companyId = c.get("companyId");
+  const notificationId = c.req.param("id");
+
+  const notification = await notificationHistoryService.markNotificationAsRead(
+    companyId,
+    notificationId,
+    user.id,
+  );
+
+  if (!notification) {
+    return c.json({ error: "Notification not found" }, 404);
+  }
+
+  return c.json({
+    data: notification,
+  });
+});
+
+/**
+ * POST /notifications/read-all - Mark all notifications as read
+ */
+notificationRoutes.post("/read-all", async (c) => {
+  const user = c.get("user");
+  const companyId = c.get("companyId");
+
+  const count = await notificationHistoryService.markAllNotificationsAsRead(
+    companyId,
+    user.id,
+  );
+
+  return c.json({
+    data: {
+      markedAsRead: count,
+    },
+  });
+});
+
+/**
+ * DELETE /notifications/:id - Delete a notification
+ */
+notificationRoutes.delete("/:id", async (c) => {
+  const user = c.get("user");
+  const companyId = c.get("companyId");
+  const notificationId = c.req.param("id");
+
+  const deleted = await notificationHistoryService.deleteNotification(
+    companyId,
+    notificationId,
+    user.id,
+  );
+
+  if (!deleted) {
+    return c.json({ error: "Notification not found" }, 404);
+  }
+
+  return c.json({
+    data: {
+      deleted: true,
+    },
+  });
+});
