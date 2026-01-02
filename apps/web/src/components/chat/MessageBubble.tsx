@@ -8,6 +8,8 @@ interface MessageBubbleProps {
   onForward?: (message: Message) => void;
   onDelete?: (message: Message) => void;
   onStar?: (message: Message) => void;
+  /** Highlight this message (e.g., from search) */
+  isHighlighted?: boolean;
 }
 
 export const MessageBubble = memo(function MessageBubble({
@@ -17,6 +19,7 @@ export const MessageBubble = memo(function MessageBubble({
   onForward,
   onDelete,
   onStar,
+  isHighlighted = false,
 }: MessageBubbleProps) {
   const [showContextMenu, setShowContextMenu] = useState(false);
   const [contextMenuPosition, setContextMenuPosition] = useState({
@@ -280,12 +283,13 @@ export const MessageBubble = memo(function MessageBubble({
     >
       <div
         ref={bubbleRef}
-        className={`relative max-w-[70%] px-3 py-2 rounded-lg shadow-sm ${
+        className={`relative max-w-[70%] px-3 py-2 rounded-lg shadow-sm transition-all duration-300 ${
           isOwn
             ? "bg-whatsapp-green text-white rounded-br-none"
             : "bg-white text-gray-900 rounded-bl-none"
-        }`}
+        } ${isHighlighted ? "ring-2 ring-yellow-400 ring-offset-2 bg-yellow-50/20" : ""}`}
         onContextMenu={handleContextMenu}
+        data-message-id={message.id}
       >
         {/* Forwarded indicator */}
         {message.isForwarded && !message.isDeleted && (

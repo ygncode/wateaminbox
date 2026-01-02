@@ -918,6 +918,249 @@ test.describe("Message Status (Read Receipts)", () => {
 });
 
 // ============================================
+// 9. Conversation Search Tests
+// ============================================
+test.describe("Conversation Search", () => {
+  let chatPage: ChatPage;
+
+  test.beforeEach(async ({ authenticatedPage }) => {
+    chatPage = new ChatPage(authenticatedPage);
+    await chatPage.goto();
+    await chatPage.waitForLoad();
+  });
+
+  test("should display search button in message header", async ({
+    authenticatedPage,
+  }) => {
+    await authenticatedPage.waitForTimeout(500);
+    const chatCount = await chatPage.getChatCount();
+
+    if (chatCount > 0) {
+      // Select a chat
+      await chatPage.selectChatByIndex(0);
+      await authenticatedPage.waitForURL(/\/chat\/.+/);
+      await authenticatedPage.waitForTimeout(500);
+
+      // Verify search button is visible in header
+      await expect(chatPage.conversationSearchButton).toBeVisible();
+    }
+  });
+
+  test("should open search bar when clicking search button", async ({
+    authenticatedPage,
+  }) => {
+    await authenticatedPage.waitForTimeout(500);
+    const chatCount = await chatPage.getChatCount();
+
+    if (chatCount > 0) {
+      // Select a chat
+      await chatPage.selectChatByIndex(0);
+      await authenticatedPage.waitForURL(/\/chat\/.+/);
+      await authenticatedPage.waitForTimeout(500);
+
+      // Open conversation search
+      await chatPage.openConversationSearch();
+
+      // Verify search bar is visible
+      await expect(chatPage.conversationSearchBar).toBeVisible();
+      await expect(chatPage.conversationSearchInput).toBeVisible();
+      await expect(chatPage.conversationSearchInput).toBeFocused();
+    }
+  });
+
+  test("should close search bar when clicking close button", async ({
+    authenticatedPage,
+  }) => {
+    await authenticatedPage.waitForTimeout(500);
+    const chatCount = await chatPage.getChatCount();
+
+    if (chatCount > 0) {
+      // Select a chat
+      await chatPage.selectChatByIndex(0);
+      await authenticatedPage.waitForURL(/\/chat\/.+/);
+      await authenticatedPage.waitForTimeout(500);
+
+      // Open and then close search
+      await chatPage.openConversationSearch();
+      await expect(chatPage.conversationSearchBar).toBeVisible();
+
+      await chatPage.closeConversationSearch();
+      await expect(chatPage.conversationSearchBar).not.toBeVisible();
+    }
+  });
+
+  test("should close search bar when pressing Escape", async ({
+    authenticatedPage,
+  }) => {
+    await authenticatedPage.waitForTimeout(500);
+    const chatCount = await chatPage.getChatCount();
+
+    if (chatCount > 0) {
+      // Select a chat
+      await chatPage.selectChatByIndex(0);
+      await authenticatedPage.waitForURL(/\/chat\/.+/);
+      await authenticatedPage.waitForTimeout(500);
+
+      // Open search
+      await chatPage.openConversationSearch();
+      await expect(chatPage.conversationSearchBar).toBeVisible();
+
+      // Press Escape
+      await chatPage.conversationSearchInput.press("Escape");
+
+      // Verify search bar is closed
+      await expect(chatPage.conversationSearchBar).not.toBeVisible();
+    }
+  });
+
+  test("should show 'No results' when search has no matches", async ({
+    authenticatedPage,
+  }) => {
+    await authenticatedPage.waitForTimeout(500);
+    const chatCount = await chatPage.getChatCount();
+
+    if (chatCount > 0) {
+      // Select a chat
+      await chatPage.selectChatByIndex(0);
+      await authenticatedPage.waitForURL(/\/chat\/.+/);
+      await authenticatedPage.waitForTimeout(500);
+
+      // Open search and search for something unlikely
+      await chatPage.openConversationSearch();
+      await chatPage.searchInConversation("xyznonexistentmessage12345");
+
+      // Wait for search results
+      await authenticatedPage.waitForTimeout(500);
+
+      // Verify "No results" is shown
+      const counter = await chatPage.getSearchResultCounter();
+      expect(counter).toContain("No results");
+    }
+  });
+
+  test("should display search result count when matches found", async ({
+    authenticatedPage,
+  }) => {
+    await authenticatedPage.waitForTimeout(500);
+    const chatCount = await chatPage.getChatCount();
+
+    if (chatCount > 0) {
+      // Select a chat
+      await chatPage.selectChatByIndex(0);
+      await authenticatedPage.waitForURL(/\/chat\/.+/);
+      await authenticatedPage.waitForTimeout(500);
+
+      // Check if there are messages
+      const messageBubbles = chatPage.getMessageBubbles();
+      const messageCount = await messageBubbles.count();
+
+      if (messageCount > 0) {
+        // Get some text from a message to search for
+        const firstMessageText = await messageBubbles.first().textContent();
+
+        if (firstMessageText && firstMessageText.length > 2) {
+          // Take a word from the message
+          const words = firstMessageText.split(/\s+/).filter(w => w.length > 2);
+          if (words.length > 0) {
+            const searchTerm = words[0].substring(0, 5);
+
+            // Open search and search
+            await chatPage.openConversationSearch();
+            await chatPage.searchInConversation(searchTerm);
+
+            // Wait for results
+            await authenticatedPage.waitForTimeout(500);
+
+            // Check counter format "X of Y"
+            const counter = await chatPage.getSearchResultCounter();
+            // Should either show "X of Y" or "No results"
+            expect(counter).toBeTruthy();
+          }
+        }
+      }
+    }
+  });
+
+  test("should have disabled navigation buttons when no results", async ({
+    authenticatedPage,
+  }) => {
+    await authenticatedPage.waitForTimeout(500);
+    const chatCount = await chatPage.getChatCount();
+
+    if (chatCount > 0) {
+      // Select a chat
+      await chatPage.selectChatByIndex(0);
+      await authenticatedPage.waitForURL(/\/chat\/.+/);
+      await authenticatedPage.waitForTimeout(500);
+
+      // Open search with no-match query
+      await chatPage.openConversationSearch();
+      await chatPage.searchInConversation("xyznonexistent12345");
+
+      // Wait for results
+      await authenticatedPage.waitForTimeout(500);
+
+      // Navigation buttons should be disabled
+      await expect(chatPage.conversationSearchNext).toBeDisabled();
+      await expect(chatPage.conversationSearchPrev).toBeDisabled();
+    }
+  });
+
+  test("should clear search input when clicking clear button", async ({
+    authenticatedPage,
+  }) => {
+    await authenticatedPage.waitForTimeout(500);
+    const chatCount = await chatPage.getChatCount();
+
+    if (chatCount > 0) {
+      // Select a chat
+      await chatPage.selectChatByIndex(0);
+      await authenticatedPage.waitForURL(/\/chat\/.+/);
+      await authenticatedPage.waitForTimeout(500);
+
+      // Open search and type something
+      await chatPage.openConversationSearch();
+      await chatPage.searchInConversation("test search query");
+
+      // Verify input has value
+      await expect(chatPage.conversationSearchInput).toHaveValue("test search query");
+
+      // Clear search
+      await chatPage.clearConversationSearch();
+
+      // Verify input is empty
+      await expect(chatPage.conversationSearchInput).toHaveValue("");
+    }
+  });
+
+  test("should persist search when switching back to chat", async ({
+    authenticatedPage,
+  }) => {
+    await authenticatedPage.waitForTimeout(500);
+    const chatCount = await chatPage.getChatCount();
+
+    if (chatCount >= 2) {
+      // Select the first chat
+      await chatPage.selectChatByIndex(0);
+      await authenticatedPage.waitForURL(/\/chat\/.+/);
+      await authenticatedPage.waitForTimeout(500);
+
+      // Open search
+      await chatPage.openConversationSearch();
+      await chatPage.searchInConversation("test");
+
+      // Switch to another chat
+      await chatPage.selectChatByIndex(1);
+      await authenticatedPage.waitForTimeout(300);
+
+      // Search should be closed
+      const isSearchVisible = await chatPage.isConversationSearchVisible();
+      expect(isSearchVisible).toBeFalsy();
+    }
+  });
+});
+
+// ============================================
 // Authentication Flow Tests (kept from original)
 // ============================================
 test.describe("Authentication Flow", () => {

@@ -9,6 +9,7 @@ import { MessageThread } from "../components/chat/MessageThread";
 import { MessageComposer } from "../components/chat/MessageComposer";
 import { MessageHeader } from "../components/chat/MessageHeader";
 import { ContactProfile } from "../components/chat/ContactProfile";
+import { ConversationSearch } from "../components/chat/ConversationSearch";
 import { useContact, type ContactDetail } from "../hooks/useContact";
 import { useSendMessage } from "../hooks/useMessages";
 import type { Message, Contact } from "@whatsapp-web/shared";
@@ -32,6 +33,8 @@ export function ChatPage() {
     string | undefined
   >(contactId);
   const [isProfileOpen, setIsProfileOpen] = React.useState(false);
+  const [isSearchOpen, setIsSearchOpen] = React.useState(false);
+  const [highlightedMessageId, setHighlightedMessageId] = React.useState<string | null>(null);
   const [replyToMessage, setReplyToMessage] = React.useState<Message | null>(
     null,
   );
@@ -54,6 +57,8 @@ export function ChatPage() {
     (chatId: string | null) => {
       setSelectedChatId(chatId || undefined);
       setIsProfileOpen(false);
+      setIsSearchOpen(false);
+      setHighlightedMessageId(null);
       if (chatId) {
         navigate(`/chat/${chatId}`);
       } else {
@@ -69,6 +74,19 @@ export function ChatPage() {
 
   const handleCloseProfile = React.useCallback(() => {
     setIsProfileOpen(false);
+  }, []);
+
+  const handleOpenSearch = React.useCallback(() => {
+    setIsSearchOpen(true);
+  }, []);
+
+  const handleCloseSearch = React.useCallback(() => {
+    setIsSearchOpen(false);
+    setHighlightedMessageId(null);
+  }, []);
+
+  const handleNavigateToMessage = React.useCallback((messageId: string) => {
+    setHighlightedMessageId(messageId);
   }, []);
 
   const handleReplyToMessage = React.useCallback((message: Message) => {
@@ -119,12 +137,21 @@ export function ChatPage() {
           <MessageHeader
             contact={selectedContact}
             onOpenProfile={handleOpenProfile}
+            onSearch={handleOpenSearch}
           />
+          {isSearchOpen && (
+            <ConversationSearch
+              contactId={selectedChatId}
+              onClose={handleCloseSearch}
+              onNavigateToMessage={handleNavigateToMessage}
+            />
+          )}
           <div className="flex-1 overflow-hidden">
             <MessageThread
               conversationId={selectedChatId}
               currentUserId={user?.id || ""}
               onReplyToMessage={handleReplyToMessage}
+              highlightedMessageId={highlightedMessageId}
             />
           </div>
           <MessageComposer

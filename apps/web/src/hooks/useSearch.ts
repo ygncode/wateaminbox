@@ -149,6 +149,59 @@ export function useMessageSearch(
 }
 
 /**
+ * Hook for searching messages within a specific conversation
+ */
+export function useConversationSearch(
+  query: string,
+  contactId: string | undefined,
+  enabled: boolean = true,
+) {
+  return useQuery<
+    {
+      query: string;
+      data: MessageSearchResult[];
+      pagination: {
+        total: number;
+        limit: number;
+        offset: number;
+        hasMore: boolean;
+      };
+    },
+    Error
+  >({
+    queryKey: searchKeys.messages(query, { contactId }),
+    queryFn: async () => {
+      const token = getAccessToken();
+      if (!token) {
+        throw new Error("Not authenticated");
+      }
+
+      const params = new URLSearchParams();
+      params.set("q", query);
+      params.set("limit", "50");
+      if (contactId) params.set("contactId", contactId);
+
+      const response = await fetch(
+        `${API_BASE_URL}/search/messages?${params}`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+          credentials: "include",
+        },
+      );
+
+      if (!response.ok) {
+        throw new Error("Search failed");
+      }
+
+      return response.json();
+    },
+    enabled: enabled && query.trim().length >= 2 && !!contactId,
+    staleTime: 1000 * 30,
+    gcTime: 1000 * 60 * 5,
+  });
+}
+
+/**
  * Hook for contact search
  */
 export function useContactSearch(

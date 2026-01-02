@@ -11,6 +11,8 @@ interface MessageThreadProps {
   onForwardMessage?: (message: Message) => void;
   onDeleteMessage?: (message: Message) => void;
   onStarMessage?: (message: Message) => void;
+  /** ID of message to highlight and scroll to */
+  highlightedMessageId?: string | null;
 }
 
 // Estimated row heights for virtualization
@@ -24,6 +26,7 @@ export function MessageThread({
   onForwardMessage,
   onDeleteMessage,
   onStarMessage,
+  highlightedMessageId,
 }: MessageThreadProps) {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [isAtBottom, setIsAtBottom] = useState(true);
@@ -137,6 +140,21 @@ export function MessageThread({
   useEffect(() => {
     isInitialScrollDone.current = false;
   }, [conversationId]);
+
+  // Scroll to highlighted message when it changes
+  useEffect(() => {
+    if (highlightedMessageId && items.length > 0) {
+      const messageIndex = items.findIndex(
+        (item) => item.type === "message" && item.id === highlightedMessageId
+      );
+      if (messageIndex !== -1) {
+        virtualizer.scrollToIndex(messageIndex, {
+          align: "center",
+          behavior: "smooth",
+        });
+      }
+    }
+  }, [highlightedMessageId, items, virtualizer]);
 
   // Scroll to bottom button click
   const scrollToBottom = useCallback(() => {
@@ -338,6 +356,7 @@ export function MessageThread({
                   onForward={onForwardMessage}
                   onDelete={onDeleteMessage}
                   onStar={onStarMessage}
+                  isHighlighted={highlightedMessageId === item.message.id}
                 />
               </div>
             );

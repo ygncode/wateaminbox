@@ -59,6 +59,15 @@ export class ChatPage {
   readonly profileName: Locator;
   readonly profilePhoneNumber: Locator;
 
+  // Conversation Search
+  readonly conversationSearchButton: Locator;
+  readonly conversationSearchBar: Locator;
+  readonly conversationSearchInput: Locator;
+  readonly conversationSearchClose: Locator;
+  readonly conversationSearchNext: Locator;
+  readonly conversationSearchPrev: Locator;
+  readonly conversationSearchCounter: Locator;
+
   constructor(page: Page) {
     this.page = page;
 
@@ -113,6 +122,15 @@ export class ChatPage {
     this.profileAvatar = page.locator(".h-32.w-32");
     this.profileName = page.locator(".text-xl.font-semibold");
     this.profilePhoneNumber = page.locator("text=Phone").locator("..");
+
+    // Conversation Search Locators
+    this.conversationSearchButton = page.getByRole("button", { name: /search/i }).first();
+    this.conversationSearchBar = page.locator(".bg-gray-100.border-b");
+    this.conversationSearchInput = page.getByPlaceholder(/search in conversation/i);
+    this.conversationSearchClose = page.getByLabel("Close search");
+    this.conversationSearchNext = page.getByLabel("Next result");
+    this.conversationSearchPrev = page.getByLabel("Previous result");
+    this.conversationSearchCounter = this.conversationSearchBar.locator(".text-sm.text-gray-500");
   }
 
   /**
@@ -472,5 +490,86 @@ export class ChatPage {
       state: "visible",
       timeout: 5000,
     });
+  }
+
+  // ============================================
+  // Conversation Search Methods
+  // ============================================
+
+  /**
+   * Open the conversation search bar
+   */
+  async openConversationSearch() {
+    await this.conversationSearchButton.click();
+    await this.conversationSearchBar.waitFor({ state: "visible" });
+  }
+
+  /**
+   * Close the conversation search bar
+   */
+  async closeConversationSearch() {
+    await this.conversationSearchClose.click();
+    await this.conversationSearchBar.waitFor({ state: "hidden" });
+  }
+
+  /**
+   * Search for messages within the current conversation
+   */
+  async searchInConversation(query: string) {
+    await this.conversationSearchInput.fill(query);
+    // Wait for debounce
+    await this.page.waitForTimeout(400);
+  }
+
+  /**
+   * Clear the conversation search input
+   */
+  async clearConversationSearch() {
+    const clearButton = this.conversationSearchBar.getByLabel("Clear search");
+    if (await clearButton.isVisible()) {
+      await clearButton.click();
+    } else {
+      await this.conversationSearchInput.clear();
+    }
+  }
+
+  /**
+   * Navigate to the next search result
+   */
+  async nextSearchResult() {
+    await this.conversationSearchNext.click();
+  }
+
+  /**
+   * Navigate to the previous search result
+   */
+  async prevSearchResult() {
+    await this.conversationSearchPrev.click();
+  }
+
+  /**
+   * Get the search result counter text (e.g., "1 of 5")
+   */
+  async getSearchResultCounter(): Promise<string | null> {
+    return this.conversationSearchCounter.textContent();
+  }
+
+  /**
+   * Check if the conversation search bar is visible
+   */
+  async isConversationSearchVisible(): Promise<boolean> {
+    return this.conversationSearchBar.isVisible();
+  }
+
+  /**
+   * Check if a message is highlighted (from search)
+   */
+  async isMessageHighlighted(messageId: string): Promise<boolean> {
+    const message = this.page.locator(`[data-message-id="${messageId}"]`);
+    if (await message.isVisible()) {
+      const classes = await message.getAttribute("class");
+      return classes?.includes("ring-yellow-400") ?? false;
+    }
+    return false;
   }
 }
