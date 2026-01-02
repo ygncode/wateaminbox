@@ -43,7 +43,7 @@ Comparison of `.specs/spec.md` against current implementation. Last updated: 202
 - [x] Shared team notes
 - [x] Private personal notes
 
-### 1.6 Messaging (1:1 Chats) ⚠️ Partially Complete
+### 1.6 Messaging (1:1 Chats) ✅ Complete
 - [x] Real-time message receiving
 - [x] Send text messages
 - [x] Send/receive media (images, videos, audio, documents)
@@ -53,7 +53,7 @@ Comparison of `.specs/spec.md` against current implementation. Last updated: 202
 - [x] Star messages
 - [x] View deleted messages (marked as deleted)
 - [x] **Read receipts display** - status icons (pending/sent/delivered/read) in MessageBubble
-- [ ] **Message search within conversation** - only global search exists
+- [x] **Message search within conversation** - ConversationSearch component ✅ Completed 2026-01-03
 
 ### 1.7 Dashboard ✅ Complete
 - [x] Message counts (sent, received, today, this week)
@@ -259,9 +259,9 @@ ALTER TABLE company_members ADD COLUMN permissions JSONB;
 4. ~~Read receipts display~~ ✅ Completed 2026-01-02
 5. ~~Notification preferences API~~ ✅ Completed 2026-01-03
 6. ~~In-app notification center~~ ✅ Completed 2026-01-03
+7. ~~Message search within conversation~~ ✅ Completed 2026-01-03
 
 ### Medium Priority (Enhanced Experience)
-7. Message search within conversation
 8. Quick replies
 9. Full backup as ZIP export
 10. Instant transfer/takeover notifications
@@ -279,10 +279,10 @@ ALTER TABLE company_members ADD COLUMN permissions JSONB;
 
 | Phase | Total Features | Completed | Partial | Missing |
 |-------|---------------|-----------|---------|---------|
-| Phase 1 | 28 | 25 | 3 | 0 |
+| Phase 1 | 28 | 26 | 2 | 0 |
 | Phase 2 | 16 | 7 | 5 | 4 |
 | Phase 3 | 18 | 10 | 4 | 4 |
 | Phase 4 | 10 | 4 | 5 | 1 |
-| **Total** | **72** | **46** | **17** | **9** |
+| **Total** | **72** | **47** | **16** | **9** |
 
-**Overall Completion: ~64% fully complete, ~24% partial, ~12% missing**
+**Overall Completion: ~65% fully complete, ~22% partial, ~12% missing**

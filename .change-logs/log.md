@@ -8,6 +8,43 @@ A comprehensive development log for the Multi-tenant WhatsApp Web Collaborative 
 
 ## Latest Updates
 
+### 2026-01-03: Message Search Within Conversation
+
+Added in-conversation message search with navigation and highlighting.
+
+**Frontend:**
+- `ConversationSearch.tsx`: New search bar component with:
+  - Search input with debounced queries (300ms)
+  - Results counter showing "X of Y" or "No results"
+  - Previous/Next navigation buttons
+  - Keyboard shortcuts (Enter, Shift+Enter, Arrow keys, Escape)
+  - Loading indicator during search
+  - Clear search button
+- `useConversationSearch` hook: Wraps `useMessageSearch` with `contactId` filter
+- `MessageThread.tsx`: Added `highlightedMessageId` prop with scroll-to-message via virtualizer
+- `MessageBubble.tsx`: Added `isHighlighted` prop with yellow ring visual highlight
+- `ChatPage.tsx`: Integrated search toggle state, search open/close handlers
+
+**E2E Tests:**
+- 9 new tests in `chat.spec.ts` covering:
+  - Search button visibility in header
+  - Search bar open/close via button and Escape key
+  - "No results" display for non-matching queries
+  - Result count display
+  - Disabled navigation when no results
+  - Clear search functionality
+  - Search close on chat switch
+- `chat.page.ts`: Added conversation search locators and methods
+
+**User Experience:**
+- Click search icon in message header to open search bar
+- Type at least 2 characters to search
+- Use Up/Down arrows or buttons to navigate results
+- Matching messages scroll into view with yellow highlight ring
+- Press Escape to close search
+
+---
+
 ### 2026-01-03: In-App Notification Center
 
 Added a complete in-app notification center with bell icon, popover panel, and backend infrastructure.
