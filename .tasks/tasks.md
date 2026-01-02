@@ -77,7 +77,7 @@ Comparison of `.specs/spec.md` against current implementation. Last updated: 202
 
 ### 2.2 Contact Assignment ⚠️ Partially Complete
 - [x] Self-assign unassigned contacts
-- [ ] **"Assign to me" on first reply** - auto-claims contact when user sends first message
+- [x] **"Assign to me" on first reply** - auto-claims contact when user sends first message ✅ Completed 2026-01-03
 - [x] View assigned vs all chats filter
 - [ ] **Instant transfer (takeover) with notification** - reassign with alert to previous assignee
 - [x] Assignment history in audit log
@@ -246,12 +246,14 @@ ALTER TABLE company_members ADD COLUMN permissions JSONB;
 ### Backend Unit Tests
 - [x] Notification preferences service tests ✅ Completed 2026-01-03
 - [x] Quick replies route tests ✅ Completed 2026-01-03
+- [x] Auto-assign on first reply tests ✅ Completed 2026-01-03
 - [ ] Export service tests (ZIP generation)
 - [ ] Permission checking middleware tests
 
 ### E2E Tests
 - [ ] Contact creation by phone number flow
 - [x] Quick replies management flow ✅ Completed 2026-01-03
+- [x] Auto-assign on first reply flow ✅ Completed 2026-01-03
 - [ ] Export functionality tests
 - [x] Notification settings flow ✅ Completed 2026-01-03
 - [ ] Group message sending
@@ -263,7 +265,7 @@ ALTER TABLE company_members ADD COLUMN permissions JSONB;
 
 ### High Priority (Core Functionality Gaps)
 1. Feature-based permissions system
-2. "Assign to me" on first reply
+2. ~~"Assign to me" on first reply~~ ✅ Completed 2026-01-03
 3. ~~Add contacts by phone number~~ ✅ Completed 2026-01-02
 4. ~~Read receipts display~~ ✅ Completed 2026-01-02
 5. ~~Notification preferences API~~ ✅ Completed 2026-01-03
@@ -289,9 +291,9 @@ ALTER TABLE company_members ADD COLUMN permissions JSONB;
 | Phase | Total Features | Completed | Partial | Missing |
 |-------|---------------|-----------|---------|---------|
 | Phase 1 | 28 | 26 | 2 | 0 |
-| Phase 2 | 16 | 7 | 5 | 4 |
+| Phase 2 | 16 | 8 | 5 | 3 |
 | Phase 3 | 18 | 11 | 4 | 3 |
 | Phase 4 | 10 | 4 | 5 | 1 |
-| **Total** | **72** | **48** | **16** | **8** |
+| **Total** | **72** | **49** | **16** | **7** |
 
-**Overall Completion: ~67% fully complete, ~22% partial, ~11% missing**
+**Overall Completion: ~68% fully complete, ~22% partial, ~10% missing**

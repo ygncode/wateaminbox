@@ -8,6 +8,40 @@ A comprehensive development log for the Multi-tenant WhatsApp Web Collaborative 
 
 ## Latest Updates
 
+### 2026-01-03: Auto-assign on First Reply
+
+Added automatic contact assignment when a user sends their first message to an unassigned contact.
+
+**Backend:**
+- `contact.service.ts`: New service file with contact assignment functions:
+  - `assignContactToUser()` - Assigns contact to a user
+  - `getCurrentAssignment()` - Gets current assignment for a contact
+  - `unassignContact()` - Unassigns a contact
+  - `ensureContactAssignment()` - Auto-assigns if contact is unassigned (used for first reply)
+- `messages.ts` route updates:
+  - `POST /messages` - Now calls `ensureContactAssignment()` before sending
+  - `POST /messages/:id/forward` - Also auto-assigns target contact on forward
+  - Response includes `autoAssigned: boolean` flag
+
+**Features:**
+- When user sends message to unassigned contact, contact is automatically assigned to that user
+- Works for both direct messages and forwarded messages
+- Does not reassign if contact is already assigned to someone
+- API response indicates if auto-assignment occurred
+
+**Tests:**
+- Backend unit tests: 3 new tests in `messages.route.test.ts`:
+  - Auto-assign when sending to unassigned contact
+  - No change when contact is already assigned
+  - Response includes autoAssigned flag
+- E2E tests: 4 new tests in `chat.spec.ts`:
+  - Filter unassigned contacts correctly
+  - Contact moves to "Assigned to me" after sending message
+  - No duplicate assignment when replying to already assigned contact
+  - Profile badge updates after auto-assign
+
+---
+
 ### 2026-01-03: Quick Replies Feature
 
 Added quick replies feature for fast message responses - predefined message templates that can be quickly inserted when messaging.
