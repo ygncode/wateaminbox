@@ -35,14 +35,25 @@ const mockTenantDb = {
   selectFrom: mock(() => mockQueryBuilder),
 };
 
-// Mock sql template
-const mockSql = mock((strings: TemplateStringsArray, ..._values: unknown[]) => ({
-  execute: mock(() =>
-    Promise.resolve({
-      rows: [],
-    })
-  ),
-}));
+// Mock sql template with sql.raw support
+const createMockSql = () => {
+  const mockSqlFn = mock((_strings: TemplateStringsArray, ..._values: unknown[]) => ({
+    execute: mock(() =>
+      Promise.resolve({
+        rows: [],
+      })
+    ),
+  }));
+
+  // Add sql.raw method
+  (mockSqlFn as unknown as { raw: typeof mock }).raw = mock((value: string) => ({
+    __raw: value,
+  }));
+
+  return mockSqlFn;
+};
+
+const mockSql = createMockSql();
 
 // Mock getTenantConnection
 const mockGetTenantConnection = mock((_companyId: string) => mockTenantDb);

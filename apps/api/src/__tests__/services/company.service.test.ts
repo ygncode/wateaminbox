@@ -718,10 +718,15 @@ describe("CompanyService", () => {
         token: "new-token",
         expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
       });
-      mockDb.updateTable = mock(() => ({
-        ...mockQueryBuilder,
-        executeTakeFirstOrThrow: mock(() => Promise.resolve(updatedInvitation)),
-      }));
+
+      // Create a proper chainable mock for updateTable
+      const updateMockBuilder: Record<string, unknown> = {};
+      updateMockBuilder.set = mock(() => updateMockBuilder);
+      updateMockBuilder.where = mock(() => updateMockBuilder);
+      updateMockBuilder.returning = mock(() => updateMockBuilder);
+      updateMockBuilder.executeTakeFirstOrThrow = mock(() => Promise.resolve(updatedInvitation));
+
+      mockDb.updateTable = mock(() => updateMockBuilder);
 
       // Act
       const result = await resendInvitation("company-123", "invitation-123", "user-123");
