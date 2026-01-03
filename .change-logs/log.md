@@ -8,6 +8,119 @@ A comprehensive development log for the Multi-tenant WhatsApp Web Collaborative 
 
 ## Latest Updates
 
+### 2026-01-03: WhatsApp Business Labels Sync
+
+Implemented bidirectional sync between WhatsApp Business labels and custom tags. Users can now sync labels from WhatsApp, link them to custom tags, and manage the relationship through a new Settings UI.
+
+**Database Migration (`007_add_whatsapp_labels.ts`):**
+- Added `whatsapp_labels` table to tenant schemas:
+  - `label_id` - WhatsApp's label identifier
+  - `name` - Label name
+  - `color` - Color code (predefined or custom)
+  - `predefined_id` - WhatsApp predefined color ID (0-19)
+  - `synced_tag_id` - Reference to linked custom tag
+  - `last_synced_at` - Last sync timestamp
+- Extended `tags` table with:
+  - `whatsapp_label_id` - Link to WhatsApp label
+  - `synced_at` - Sync timestamp
+
+**Backend Service (`label-sync.service.ts`):**
+- `getWhatsAppLabels()` - List all synced WhatsApp labels
+- `getWhatsAppLabelByLabelId()` - Get specific label by ID
+- `syncLabelsFromWhatsApp()` - Process labels from Go service
+- `linkTagToLabel()` - Create bidirectional link between tag and label
+- `unlinkTagFromLabel()` - Remove tag-label link
+- `autoCreateTagsFromLabels()` - Auto-generate tags from unlinked labels
+- `getTagsWithLabelStatus()` - Get tags with their sync status
+- `getLabelSyncStatus()` - Get summary of sync status
+- `WHATSAPP_LABEL_COLORS` - Mapping of 20 predefined WhatsApp label colors
+
+**API Routes (`labels.ts`):**
+- `GET /api/labels` - List all WhatsApp labels
+- `GET /api/labels/status` - Get sync status summary
+- `GET /api/labels/:labelId` - Get specific label
+- `POST /api/labels/sync` - Trigger sync from WhatsApp (sends NATS command)
+- `POST /api/labels/:labelId/link` - Link tag to label
+- `DELETE /api/labels/:labelId/link` - Unlink tag from label
+- `POST /api/labels/auto-create` - Auto-create tags from unlinked labels
+- `GET /api/labels/tags/with-status` - Get tags with label sync status
+- `POST /api/labels/:labelId/apply/:contactId` - Apply label to contact in WhatsApp
+- `DELETE /api/labels/:labelId/apply/:contactId` - Remove label from contact
+
+**NATS Commands (`nats.ts`):**
+- Added new command types: `sync_labels`, `apply_label`, `remove_label`
+- Added `LabelsEvent` type for label sync responses
+- `publishSyncLabels()` - Request label fetch from Go service
+- `publishApplyLabel()` - Apply label to contact in WhatsApp
+- `publishRemoveLabel()` - Remove label from contact in WhatsApp
+
+**Frontend API (`api.ts`):**
+- Added types: `WhatsAppLabel`, `LabelSyncStatus`, `TagWithLabelStatus`
+- `getWhatsAppLabels()`, `getLabelSyncStatus()`, `getWhatsAppLabel()`
+- `triggerLabelSync()`, `linkTagToLabel()`, `unlinkTagFromLabel()`
+- `autoCreateTagsFromLabels()`, `getTagsWithLabelStatus()`
+- `applyLabelToContact()`, `removeLabelFromContact()`
+
+**Frontend Hooks (`useLabels.ts`):**
+- Query keys for labels: `labels.list`, `labels.status`, `labels.tagsWithStatus`
+- `useWhatsAppLabels()` - Fetch labels with 1-minute stale time
+- `useLabelSyncStatus()` - Fetch sync status with 30-second stale time
+- `useTagsWithLabelStatus()` - Fetch tags with sync info
+- `useTriggerLabelSync()` - Mutation for syncing labels
+- `useLinkTagToLabel()`, `useUnlinkTagFromLabel()` - Link management
+- `useAutoCreateTagsFromLabels()` - Auto-create tags mutation
+- `useApplyLabelToContact()`, `useRemoveLabelFromContact()` - Apply/remove labels
+- `useLabels()` - Combined hook for complete label management
+
+**Frontend UI (`LabelSyncManager.tsx`):**
+- Stats summary cards: Total labels, Linked, Unlinked, Custom tags
+- "Sync from WhatsApp" button with loading state
+- "Auto-create Tags" button for bulk tag creation
+- Labels list with color indicators and sync status
+- Link/Unlink buttons per label with dialogs
+- Link Tag dialog with tag selector dropdown
+- Last sync time display with relative formatting (just now, X min ago, etc.)
+- Empty state with guidance for new users
+
+**Settings Integration (`SettingsPage.tsx`):**
+- Added WhatsApp Labels section with Tag icon (indigo theme)
+- Positioned after Quick Replies in left column
+
+**Tests:**
+- 13 backend unit tests in `label-sync.service.test.ts`:
+  - getWhatsAppLabels: empty array, ordered by name
+  - getWhatsAppLabelByLabelId: null for missing, returns when exists
+  - syncLabelsFromWhatsApp: add new labels, handle updates
+  - linkTagToLabel: successful linking
+  - unlinkTagFromLabel: successful unlinking
+  - autoCreateTagsFromLabels: create from unlinked, link existing
+  - getLabelSyncStatus: correct counts, null lastSyncAt
+  - WHATSAPP_LABEL_COLORS: predefined color mappings
+- 5 E2E test scenarios in `label-sync.spec.ts`:
+  - Display empty state with sync button
+  - Display list of labels with linked/unlinked status
+  - Trigger sync from WhatsApp
+  - Display stats summary cards
+  - Open link tag dialog
+
+**Files Changed:**
+- `packages/database/src/migrations/007_add_whatsapp_labels.ts` - New migration
+- `packages/database/src/client.ts` - Added WhatsAppLabelsTable, extended TagsTable
+- `apps/api/src/services/label-sync.service.ts` - New service (~350 lines)
+- `apps/api/src/routes/labels.ts` - New routes (~260 lines)
+- `apps/api/src/routes/index.ts` - Route registration
+- `apps/api/src/lib/nats.ts` - Label command types and publishers
+- `apps/api/src/__tests__/services/label-sync.service.test.ts` - Unit tests
+- `apps/api/src/__tests__/mocks/database.mock.ts` - Added mock helpers
+- `apps/web/src/lib/api.ts` - Label API functions
+- `apps/web/src/hooks/useLabels.ts` - React Query hooks
+- `apps/web/src/components/settings/LabelSyncManager.tsx` - UI component
+- `apps/web/src/components/settings/index.ts` - Export
+- `apps/web/src/pages/SettingsPage.tsx` - Settings integration
+- `apps/web/e2e/tests/label-sync.spec.ts` - E2E tests
+
+---
+
 ### 2026-01-03: Customer Engagement Metrics
 
 Implemented comprehensive customer engagement metrics feature that tracks various engagement indicators based on message activity and displays them on the dashboard.
