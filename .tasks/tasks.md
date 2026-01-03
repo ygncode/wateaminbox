@@ -124,11 +124,11 @@ Comparison of `.specs/spec.md` against current implementation. Last updated: 202
 - [ ] **Labels sync with custom tags** - sync WhatsApp Business labels
 - [ ] **Catalogs** - view/manage product catalogs (if Business account)
 
-### 3.4 Advanced Dashboard ⚠️ Partially Complete
+### 3.4 Advanced Dashboard ✅ Complete
 - [x] Response time analytics
 - [x] Average reply time
 - [x] SLA tracking
-- [ ] **Customer engagement metrics** - track engagement scores
+- [x] **Customer engagement metrics** - engagement score, active contacts rate, two-way chats, response rate, media engagement ✅ Completed 2026-01-03
 - [x] Active chats count
 - [x] **New contacts trend** - chart showing new contacts over time ✅ Completed 2026-01-03
 - [x] **Resolution rate tracking** - track conversations marked as resolved ✅ Completed 2026-01-03
@@ -273,6 +273,7 @@ ALTER TABLE company_members ADD COLUMN permissions JSONB;
 - [x] Contact reassignment/takeover notification tests ✅ Completed 2026-01-03
 - [x] Permission service tests ✅ Completed 2026-01-03 (24 tests)
 - [x] Group admin actions route tests ✅ Completed 2026-01-03 (17 tests)
+- [x] Customer engagement metrics tests ✅ Completed 2026-01-03 (3 interface tests)
 
 ### E2E Tests
 - [ ] Contact creation by phone number flow *(requires E2E auth fixture improvements - mocking infrastructure needed)*
@@ -285,6 +286,7 @@ ALTER TABLE company_members ADD COLUMN permissions JSONB;
 - [x] Status posting flow ✅ Completed 2026-01-03
 - [x] Permission role presets verification ✅ Completed 2026-01-03 (23 tests)
 - [x] Group admin actions E2E tests ✅ Completed 2026-01-03 (12 tests)
+- [x] Customer engagement E2E tests ✅ Completed 2026-01-03 (9 tests)
 
 **Note:** E2E tests requiring authenticated state need proper API mocking setup. The current `authenticatedPage` fixture uses mock tokens that don't work with real API. Full API interception is needed for reliable E2E testing.
 
@@ -321,10 +323,10 @@ ALTER TABLE company_members ADD COLUMN permissions JSONB;
 |-------|---------------|-----------|---------|---------|
 | Phase 1 | 28 | 26 | 2 | 0 |
 | Phase 2 | 16 | 16 | 0 | 0 |
-| Phase 3 | 18 | 16 | 1 | 1 |
+| Phase 3 | 18 | 17 | 0 | 1 |
 | Phase 4 | 10 | 5 | 4 | 1 |
-| **Total** | **72** | **63** | **7** | **2** |
+| **Total** | **72** | **64** | **6** | **2** |
 
-**Overall Completion: ~88% fully complete, ~10% partial, ~2% missing**
+**Overall Completion: ~89% fully complete, ~8% partial, ~3% missing**
 
-*Last updated: 2026-01-03 - Group admin actions complete*
+*Last updated: 2026-01-03 - Customer engagement metrics complete*

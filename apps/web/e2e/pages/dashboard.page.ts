@@ -36,6 +36,17 @@ export class DashboardPage extends BasePage {
   readonly resolutionResolvedCard: Locator;
   readonly resolutionRateCard: Locator;
 
+  // Customer Engagement section
+  readonly engagementSection: Locator;
+  readonly engagementTitle: Locator;
+  readonly engagementScoreCircle: Locator;
+  readonly engagementActiveContactsCard: Locator;
+  readonly engagementTwoWayCard: Locator;
+  readonly engagementResponseRateCard: Locator;
+  readonly engagementMediaCard: Locator;
+  readonly engagementTrendChart: Locator;
+  readonly engagementAdditionalStats: Locator;
+
   // Export dialog
   readonly exportDialog: Locator;
   readonly exportDialogTitle: Locator;
@@ -78,6 +89,17 @@ export class DashboardPage extends BasePage {
     this.resolutionPendingCard = this.resolutionRateSection.locator(".bg-gray-50").filter({ hasText: "Pending" });
     this.resolutionResolvedCard = this.resolutionRateSection.locator(".bg-gray-50").filter({ hasText: "Resolved" });
     this.resolutionRateCard = this.resolutionRateSection.locator(".bg-gray-50").filter({ hasText: /Resolution Rate|%/ });
+
+    // Customer Engagement section
+    this.engagementSection = page.locator(".bg-white.rounded-lg").filter({ hasText: "Customer Engagement" });
+    this.engagementTitle = this.engagementSection.getByRole("heading", { name: "Customer Engagement" });
+    this.engagementScoreCircle = this.engagementSection.locator(".bg-gradient-to-r.from-indigo-50");
+    this.engagementActiveContactsCard = this.engagementSection.locator(".bg-gray-50").filter({ hasText: "Active Contacts" });
+    this.engagementTwoWayCard = this.engagementSection.locator(".bg-gray-50").filter({ hasText: "Two-Way Chats" });
+    this.engagementResponseRateCard = this.engagementSection.locator(".bg-gray-50").filter({ hasText: "Response Rate" });
+    this.engagementMediaCard = this.engagementSection.locator(".bg-gray-50").filter({ hasText: "Media Engagement" });
+    this.engagementTrendChart = this.engagementSection.locator(".h-40, .h-32");
+    this.engagementAdditionalStats = this.engagementSection.locator(".grid-cols-3");
 
     // Export dialog
     this.exportDialog = page.getByRole("dialog");

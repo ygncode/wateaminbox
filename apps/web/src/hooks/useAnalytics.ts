@@ -92,6 +92,36 @@ export interface ResolutionTrend {
 }
 
 /**
+ * Customer engagement metrics
+ */
+export interface EngagementMetrics {
+  engagementScore: number;
+  averageMessagesPerContact: number;
+  activeContactsRate: number;
+  activeContacts: number;
+  totalContacts: number;
+  twoWayConversationRate: number;
+  twoWayConversations: number;
+  mediaEngagementRate: number;
+  conversationsWithMedia: number;
+  responseRate: number;
+  messagesSent: number;
+  messagesReceived: number;
+}
+
+/**
+ * Engagement trend over time
+ */
+export interface EngagementTrend {
+  date: string;
+  engagementScore: number;
+  activeContacts: number;
+  messagesSent: number;
+  messagesReceived: number;
+  responseRate: number;
+}
+
+/**
  * Hook to fetch dashboard overview stats
  */
 export function useDashboardStats(companyId: string | null) {
@@ -318,6 +348,64 @@ export function useResolutionTrend(
       const url = `/conversations/stats/resolution-trend${queryString ? `?${queryString}` : ""}`;
       const response = await api.get<{
         data: ResolutionTrend[];
+        meta: { startDate: string; endDate: string };
+      }>(url);
+      return response;
+    },
+    enabled: !!companyId,
+    staleTime: 300_000, // 5 minutes
+  });
+}
+
+/**
+ * Hook to fetch customer engagement metrics
+ */
+export function useEngagementMetrics(
+  companyId: string | null,
+  startDate?: string,
+  endDate?: string,
+) {
+  const params = new URLSearchParams();
+  if (startDate) params.set("startDate", startDate);
+  if (endDate) params.set("endDate", endDate);
+  const queryString = params.toString();
+
+  return useQuery({
+    queryKey: ["analytics", "engagement", companyId, startDate, endDate],
+    queryFn: async () => {
+      if (!companyId) throw new Error("No company ID provided");
+      const url = `/analytics/engagement${queryString ? `?${queryString}` : ""}`;
+      const response = await api.get<{
+        data: EngagementMetrics;
+        meta: { startDate: string; endDate: string };
+      }>(url);
+      return response;
+    },
+    enabled: !!companyId,
+    staleTime: 300_000, // 5 minutes
+  });
+}
+
+/**
+ * Hook to fetch engagement trend over time
+ */
+export function useEngagementTrend(
+  companyId: string | null,
+  startDate?: string,
+  endDate?: string,
+) {
+  const params = new URLSearchParams();
+  if (startDate) params.set("startDate", startDate);
+  if (endDate) params.set("endDate", endDate);
+  const queryString = params.toString();
+
+  return useQuery({
+    queryKey: ["analytics", "engagement-trend", companyId, startDate, endDate],
+    queryFn: async () => {
+      if (!companyId) throw new Error("No company ID provided");
+      const url = `/analytics/engagement/trend${queryString ? `?${queryString}` : ""}`;
+      const response = await api.get<{
+        data: EngagementTrend[];
         meta: { startDate: string; endDate: string };
       }>(url);
       return response;

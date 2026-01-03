@@ -8,6 +8,82 @@ A comprehensive development log for the Multi-tenant WhatsApp Web Collaborative 
 
 ## Latest Updates
 
+### 2026-01-03: Customer Engagement Metrics
+
+Implemented comprehensive customer engagement metrics feature that tracks various engagement indicators based on message activity and displays them on the dashboard.
+
+**Backend Service (`analytics.service.ts`):**
+- `getEngagementMetrics()` - Calculate engagement metrics for a date range:
+  - **Engagement Score (0-100)**: Weighted average of key metrics
+    - Active contacts rate (25%)
+    - Two-way conversation rate (25%)
+    - Response rate (30%)
+    - Media engagement rate (20%)
+  - **Active Contacts Rate**: % of contacts with activity in period
+  - **Two-Way Conversation Rate**: % of contacts with bi-directional communication
+  - **Response Rate**: % of inbound messages that received a reply within 24 hours
+  - **Media Engagement Rate**: % of conversations including media
+  - Average messages per contact, total sent/received counts
+- `getEngagementTrend()` - Daily engagement trend data:
+  - Returns daily engagement scores, active contacts, message counts
+  - Fills missing days with zero values
+  - Calculates response rate per day
+
+**API Routes (`analytics.ts`):**
+- `GET /api/analytics/engagement` - Get engagement metrics
+  - Query params: `startDate`, `endDate` (defaults to last 30 days)
+  - Returns: engagement score, rates, counts, and metadata
+- `GET /api/analytics/engagement/trend` - Get engagement trend over time
+  - Query params: `startDate`, `endDate` (defaults to last 30 days)
+  - Returns: daily engagement data points
+
+**Frontend Hooks (`useAnalytics.ts`):**
+- `useEngagementMetrics(companyId, startDate?, endDate?)` - Fetch engagement metrics
+- `useEngagementTrend(companyId, startDate?, endDate?)` - Fetch engagement trend
+- Added `EngagementMetrics` and `EngagementTrend` interfaces
+
+**Dashboard UI (`Dashboard.tsx`):**
+- New "Customer Engagement" section with:
+  - Engagement Score circle (0-100) with gradient background
+  - 4 metric cards: Active Contacts, Two-Way Chats, Response Rate, Media Engagement
+  - Additional stats row: Avg messages per contact, Messages sent, Messages received
+  - Engagement Trend chart (last 14 days) with color-coded bars:
+    - Green (70+): High engagement
+    - Yellow (40-69): Medium engagement
+    - Red (<40): Low engagement
+- New components: `EngagementStatCard`, `EngagementTrendChart`
+
+**Dashboard Page Object (`dashboard.page.ts`):**
+- Added locators for engagement section elements
+- `engagementSection`, `engagementTitle`, `engagementScoreCircle`
+- `engagementActiveContactsCard`, `engagementTwoWayCard`, `engagementResponseRateCard`, `engagementMediaCard`
+- `engagementTrendChart`, `engagementAdditionalStats`
+
+**Tests:**
+- 3 backend unit tests in `analytics.service.test.ts`:
+  - EngagementMetrics interface structure verification
+  - EngagementTrend interface structure verification
+  - Engagement score calculation formula validation
+- 9 E2E tests in `dashboard.spec.ts`:
+  - DashboardPage engagement locators defined
+  - API response structure verification for engagement metrics
+  - API response structure verification for engagement trend
+  - Engagement section stat cards documentation
+  - Engagement score calculation weights validation
+  - Trend chart color coding documentation
+  - Dashboard section inclusion verification
+
+**Files Changed:**
+- `apps/api/src/services/analytics.service.ts` - +200 lines (engagement functions)
+- `apps/api/src/routes/analytics.ts` - +50 lines (engagement routes)
+- `apps/web/src/hooks/useAnalytics.ts` - +60 lines (engagement hooks)
+- `apps/web/src/components/dashboard/Dashboard.tsx` - +150 lines (engagement UI)
+- `apps/web/e2e/pages/dashboard.page.ts` - +15 lines (engagement locators)
+- `apps/web/e2e/tests/dashboard.spec.ts` - +100 lines (engagement tests)
+- `apps/api/src/__tests__/services/analytics.service.test.ts` - +40 lines (engagement tests)
+
+---
+
 ### 2026-01-03: Group Admin Actions (Tests & Toast Notifications)
 
 Added comprehensive unit tests for group admin actions and integrated sonner toast library for action notifications.

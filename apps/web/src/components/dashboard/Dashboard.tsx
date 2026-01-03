@@ -8,6 +8,8 @@ import {
   useHourlyStats,
   useNewContactsTrend,
   useResolutionStats,
+  useEngagementMetrics,
+  useEngagementTrend,
   formatNumber,
   formatDate,
 } from "@/hooks/useAnalytics";
@@ -36,6 +38,11 @@ import {
   CheckCircle,
   CircleDot,
   Target,
+  Zap,
+  ArrowRightLeft,
+  Image,
+  Activity,
+  Reply,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -84,6 +91,10 @@ export function Dashboard({ companyId, isAdmin = false }: DashboardProps) {
     useNewContactsTrend(companyId, startDate, endDate);
   const { data: resolutionData, isLoading: isLoadingResolution } =
     useResolutionStats(companyId, startDate, endDate);
+  const { data: engagementData, isLoading: isLoadingEngagement } =
+    useEngagementMetrics(companyId, startDate, endDate);
+  const { data: engagementTrendData, isLoading: isLoadingEngagementTrend } =
+    useEngagementTrend(companyId, startDate, endDate);
 
   return (
     <ScrollArea className="h-full">
@@ -392,6 +403,117 @@ export function Dashboard({ companyId, isAdmin = false }: DashboardProps) {
           )}
         </div>
 
+        {/* Customer Engagement Analytics */}
+        <div className="bg-white rounded-lg border border-gray-200 p-6">
+          <div className="flex items-center gap-2 mb-4">
+            <Zap className="h-5 w-5 text-gray-500" />
+            <h3 className="font-semibold text-gray-900">Customer Engagement</h3>
+          </div>
+          {isLoadingEngagement ? (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <Skeleton className="h-24 w-full" />
+                <Skeleton className="h-24 w-full" />
+                <Skeleton className="h-24 w-full" />
+                <Skeleton className="h-24 w-full" />
+              </div>
+              <Skeleton className="h-48 w-full" />
+            </div>
+          ) : engagementData?.data ? (
+            <div className="space-y-6">
+              {/* Engagement Score Highlight */}
+              <div className="flex items-center gap-4 p-4 bg-gradient-to-r from-indigo-50 to-purple-50 rounded-lg">
+                <div className="relative">
+                  <div className="w-20 h-20 rounded-full bg-white flex items-center justify-center shadow-sm">
+                    <span className="text-2xl font-bold text-indigo-600">
+                      {engagementData.data.engagementScore}
+                    </span>
+                  </div>
+                  <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 text-xs text-gray-500">
+                    /100
+                  </div>
+                </div>
+                <div>
+                  <h4 className="font-semibold text-gray-900">Engagement Score</h4>
+                  <p className="text-sm text-gray-500">
+                    Based on activity, response rate, and interaction patterns
+                  </p>
+                </div>
+              </div>
+
+              {/* Key Metrics */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <EngagementStatCard
+                  icon={<Activity className="h-5 w-5" />}
+                  label="Active Contacts"
+                  value={engagementData.data.activeContactsRate}
+                  suffix="%"
+                  detail={`${engagementData.data.activeContacts} of ${engagementData.data.totalContacts}`}
+                  color="blue"
+                />
+                <EngagementStatCard
+                  icon={<ArrowRightLeft className="h-5 w-5" />}
+                  label="Two-Way Chats"
+                  value={engagementData.data.twoWayConversationRate}
+                  suffix="%"
+                  detail={`${engagementData.data.twoWayConversations} conversations`}
+                  color="green"
+                />
+                <EngagementStatCard
+                  icon={<Reply className="h-5 w-5" />}
+                  label="Response Rate"
+                  value={engagementData.data.responseRate}
+                  suffix="%"
+                  detail={`${formatNumber(engagementData.data.messagesReceived)} inbound`}
+                  color="purple"
+                />
+                <EngagementStatCard
+                  icon={<Image className="h-5 w-5" />}
+                  label="Media Engagement"
+                  value={engagementData.data.mediaEngagementRate}
+                  suffix="%"
+                  detail={`${engagementData.data.conversationsWithMedia} with media`}
+                  color="orange"
+                />
+              </div>
+
+              {/* Additional Stats */}
+              <div className="grid grid-cols-3 gap-4 pt-2 border-t border-gray-100">
+                <div className="text-center">
+                  <p className="text-2xl font-semibold text-gray-900">
+                    {engagementData.data.averageMessagesPerContact}
+                  </p>
+                  <p className="text-xs text-gray-500">Avg. messages per contact</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-2xl font-semibold text-green-600">
+                    {formatNumber(engagementData.data.messagesSent)}
+                  </p>
+                  <p className="text-xs text-gray-500">Messages sent</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-2xl font-semibold text-blue-600">
+                    {formatNumber(engagementData.data.messagesReceived)}
+                  </p>
+                  <p className="text-xs text-gray-500">Messages received</p>
+                </div>
+              </div>
+
+              {/* Engagement Trend Chart */}
+              {!isLoadingEngagementTrend && engagementTrendData?.data && (
+                <div className="pt-4 border-t border-gray-100">
+                  <h4 className="text-sm font-medium text-gray-700 mb-3">
+                    Engagement Trend (Last 14 Days)
+                  </h4>
+                  <EngagementTrendChart data={engagementTrendData.data} />
+                </div>
+              )}
+            </div>
+          ) : (
+            <p className="text-gray-500 text-center py-4">No engagement data available</p>
+          )}
+        </div>
+
         {/* Response Time Analytics */}
         <div className="bg-white rounded-lg border border-gray-200 p-6">
           <ResponseTimeAnalytics isAdmin={isAdmin} slaThreshold={60} />
@@ -674,6 +796,134 @@ function ResolutionStatCard({
         {formatNumber(value)}
         {suffix}
       </p>
+    </div>
+  );
+}
+
+/**
+ * Engagement stat card component
+ */
+function EngagementStatCard({
+  icon,
+  label,
+  value,
+  suffix,
+  detail,
+  color,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: number;
+  suffix?: string;
+  detail?: string;
+  color: "blue" | "green" | "purple" | "orange";
+}) {
+  const colorClasses = {
+    blue: "text-blue-600 bg-blue-50",
+    green: "text-green-600 bg-green-50",
+    purple: "text-purple-600 bg-purple-50",
+    orange: "text-orange-600 bg-orange-50",
+  };
+
+  return (
+    <div className="bg-gray-50 rounded-lg p-4">
+      <div className="flex items-center gap-2 mb-2">
+        <div
+          className={cn(
+            "w-8 h-8 rounded-full flex items-center justify-center",
+            colorClasses[color],
+          )}
+        >
+          {icon}
+        </div>
+        <span className="text-sm text-gray-600">{label}</span>
+      </div>
+      <p className="text-2xl font-semibold text-gray-900">
+        {value}
+        {suffix}
+      </p>
+      {detail && (
+        <p className="text-xs text-gray-500 mt-1">{detail}</p>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Engagement trend chart
+ */
+function EngagementTrendChart({
+  data,
+}: {
+  data: {
+    date: string;
+    engagementScore: number;
+    activeContacts: number;
+    messagesSent: number;
+    messagesReceived: number;
+    responseRate: number;
+  }[];
+}) {
+  if (data.length === 0) {
+    return <p className="text-gray-500 text-center py-4">No trend data available</p>;
+  }
+
+  // Show last 14 days
+  const displayData = data.slice(-14);
+  const maxScore = Math.max(...displayData.map((d) => d.engagementScore), 1);
+
+  return (
+    <div className="h-40">
+      <div className="flex items-end gap-1 h-32">
+        {displayData.map((day, i) => {
+          const height = maxScore > 0 ? (day.engagementScore / maxScore) * 100 : 0;
+          const scoreColor =
+            day.engagementScore >= 70
+              ? "bg-green-400 hover:bg-green-500"
+              : day.engagementScore >= 40
+                ? "bg-yellow-400 hover:bg-yellow-500"
+                : day.engagementScore > 0
+                  ? "bg-red-400 hover:bg-red-500"
+                  : "bg-gray-100";
+
+          return (
+            <div
+              key={i}
+              className="flex-1 flex flex-col items-center"
+              title={`${formatDate(day.date)}: Score ${day.engagementScore}, ${day.activeContacts} active, ${day.responseRate}% response rate`}
+            >
+              <div
+                className="w-full flex items-end"
+                style={{ height: "100px" }}
+              >
+                <div
+                  className={cn(
+                    "w-full rounded-t transition-all",
+                    scoreColor,
+                  )}
+                  style={{ height: `${Math.max(height, day.engagementScore > 0 ? 5 : 0)}%` }}
+                />
+              </div>
+              {i === 0 || i === displayData.length - 1 ? (
+                <span className="text-[10px] text-gray-400 mt-1">
+                  {formatDate(day.date)}
+                </span>
+              ) : null}
+            </div>
+          );
+        })}
+      </div>
+      <div className="flex justify-center gap-4 mt-2 text-xs text-gray-500">
+        <span className="flex items-center gap-1">
+          <span className="w-3 h-3 rounded bg-green-400"></span> High (70+)
+        </span>
+        <span className="flex items-center gap-1">
+          <span className="w-3 h-3 rounded bg-yellow-400"></span> Medium (40-69)
+        </span>
+        <span className="flex items-center gap-1">
+          <span className="w-3 h-3 rounded bg-red-400"></span> Low (&lt;40)
+        </span>
+      </div>
     </div>
   );
 }
