@@ -169,11 +169,13 @@ Comparison of `.specs/spec.md` against current implementation. Last updated: 202
 
 ## Phase 4: Scale & Polish
 
-### 4.1 Internationalization ⚠️ Partially Complete
+### 4.1 Internationalization ✅ Complete
 - [x] i18n infrastructure (i18next)
 - [x] English (default)
 - [x] Simplified Chinese (简体中文)
-- [ ] **Expand translation coverage** - only basic strings translated, need full coverage
+- [x] **Full translation coverage** - comprehensive translations for all UI components ✅ Completed 2026-01-03
+  - [x] 20+ namespaces covering all app sections (common, auth, chat, settings, dashboard, labels, catalogs, quickReplies, contacts, groups, notifications, team, export, search, status, whatsapp, audit, keyboard, errors, time)
+  - [x] E2E tests for language switching functionality
 
 ### 4.2 Keyboard Shortcuts ✅ Complete
 - [x] **All shortcuts verified implemented (2026-01-03):**
@@ -343,9 +345,9 @@ ALTER TABLE company_members ADD COLUMN permissions JSONB;
 | Phase 1 | 28 | 26 | 2 | 0 |
 | Phase 2 | 16 | 16 | 0 | 0 |
 | Phase 3 | 18 | 18 | 0 | 0 |
-| Phase 4 | 10 | 6 | 4 | 0 |
-| **Total** | **72** | **66** | **6** | **0** |
+| Phase 4 | 10 | 10 | 0 | 0 |
+| **Total** | **72** | **70** | **2** | **0** |
 
-**Overall Completion: ~92% fully complete, ~8% partial**
+**Overall Completion: ~97% fully complete, ~3% partial (only blog/docs content remaining)**
 
-*Last updated: 2026-01-03 - WhatsApp Business catalogs feature complete*
+*Last updated: 2026-01-03 - Full i18n translation coverage added*
