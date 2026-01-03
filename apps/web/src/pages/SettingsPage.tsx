@@ -7,6 +7,7 @@ import {
   KeyboardShortcutsModal,
   NotificationSettings,
   QuickRepliesManager,
+  LabelSyncManager,
 } from "../components/settings";
 import { WhatsAppConnectionPanel } from "../components/whatsapp";
 import { ContactImport } from "../components/contacts";
@@ -25,6 +26,7 @@ import {
   ChevronRight,
   User,
   Zap,
+  Tag,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 
@@ -129,6 +131,16 @@ export function SettingsPage() {
                   iconColor="text-cyan-600"
                 >
                   <QuickRepliesManager />
+                </SettingsCard>
+
+                {/* WhatsApp Labels Sync */}
+                <SettingsCard
+                  icon={<Tag className="h-5 w-5" />}
+                  title={t("settings.labelSync", "WhatsApp Labels")}
+                  iconBg="bg-indigo-100"
+                  iconColor="text-indigo-600"
+                >
+                  <LabelSyncManager />
                 </SettingsCard>
 
                 {/* Contact Import */}

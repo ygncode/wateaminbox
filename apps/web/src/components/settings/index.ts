@@ -12,3 +12,5 @@ export {
 export { NotificationSettings } from "./NotificationSettings";
 
 export { QuickRepliesManager } from "./QuickRepliesManager";
+
+export { LabelSyncManager } from "./LabelSyncManager";

@@ -526,3 +526,60 @@ export function createMockConversationState(overrides: Partial<MockConversationS
     ...overrides,
   };
 }
+
+export interface MockWhatsAppLabel {
+  id: string;
+  label_id: string;
+  name: string;
+  color: string | null;
+  predefined_id: number | null;
+  synced_tag_id: string | null;
+  last_synced_at: Date;
+  created_at: Date;
+  updated_at: Date;
+}
+
+/**
+ * Helper to create mock WhatsApp label data
+ */
+export function createMockWhatsAppLabel(overrides: Partial<MockWhatsAppLabel> = {}): MockWhatsAppLabel {
+  const now = new Date();
+  return {
+    id: "wa-label-123",
+    label_id: "label-123",
+    name: "Important",
+    color: "#ef4444",
+    predefined_id: 7,
+    synced_tag_id: null,
+    last_synced_at: now,
+    created_at: now,
+    updated_at: now,
+    ...overrides,
+  };
+}
+
+export interface MockTag {
+  id: string;
+  name: string;
+  color: string | null;
+  whatsapp_label_id: string | null;
+  synced_at: Date | null;
+  created_by: string | null;
+  created_at: Date;
+}
+
+/**
+ * Helper to create mock tag data
+ */
+export function createMockTag(overrides: Partial<MockTag> = {}): MockTag {
+  return {
+    id: "tag-123",
+    name: "VIP",
+    color: "#3b82f6",
+    whatsapp_label_id: null,
+    synced_at: null,
+    created_by: "user-123",
+    created_at: new Date(),
+    ...overrides,
+  };
+}

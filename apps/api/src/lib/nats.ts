@@ -25,7 +25,7 @@ export const NATS_SUBJECTS = {
 
 // Message types for NATS communication (snake_case to match Go orchestrator)
 export interface NatsCommand {
-  type: "spawn" | "kill" | "send" | "post_status";
+  type: "spawn" | "kill" | "send" | "post_status" | "group_promote_admin" | "group_demote_admin" | "group_remove_participant" | "group_update_settings" | "sync_labels" | "apply_label" | "remove_label";
   company_id: string;
   timestamp?: string;
 }
@@ -71,6 +71,56 @@ export interface PostStatusCommand extends NatsCommand {
   user_id: string;
 }
 
+// Group admin action commands
+export interface GroupPromoteAdminCommand extends NatsCommand {
+  type: "group_promote_admin";
+  group_jid: string;
+  participant_jid: string;
+  user_id: string;
+}
+
+export interface GroupDemoteAdminCommand extends NatsCommand {
+  type: "group_demote_admin";
+  group_jid: string;
+  participant_jid: string;
+  user_id: string;
+}
+
+export interface GroupRemoveParticipantCommand extends NatsCommand {
+  type: "group_remove_participant";
+  group_jid: string;
+  participant_jid: string;
+  user_id: string;
+}
+
+export interface GroupUpdateSettingsCommand extends NatsCommand {
+  type: "group_update_settings";
+  group_jid: string;
+  name?: string;
+  description?: string;
+  user_id: string;
+}
+
+// Label sync commands
+export interface SyncLabelsCommand extends NatsCommand {
+  type: "sync_labels";
+  user_id: string;
+}
+
+export interface ApplyLabelCommand extends NatsCommand {
+  type: "apply_label";
+  label_id: string;
+  contact_jid: string;
+  user_id: string;
+}
+
+export interface RemoveLabelCommand extends NatsCommand {
+  type: "remove_label";
+  label_id: string;
+  contact_jid: string;
+  user_id: string;
+}
+
 export interface WhatsAppEvent {
   type:
     | "qr"
@@ -80,10 +130,23 @@ export interface WhatsAppEvent {
     | "receipt"
     | "status"
     | "contact"
+    | "labels"
     | "error";
   companyId: string;
   payload: unknown;
   timestamp: string;
+}
+
+export interface LabelsEvent extends WhatsAppEvent {
+  type: "labels";
+  payload: {
+    labels: Array<{
+      labelId: string;
+      name: string;
+      color: string | null;
+      predefinedId: number | null;
+    }>;
+  };
 }
 
 export interface QREvent extends WhatsAppEvent {
@@ -329,6 +392,144 @@ export async function publishPostStatus(
     user_id: userId,
   };
   // Publish to company-specific subject so worker can filter
+  const subject = `${NATS_SUBJECTS.WHATSAPP_COMMANDS}.${companyId}`;
+  await publishCommand(subject, command);
+}
+
+/**
+ * Publishes a group promote admin command
+ */
+export async function publishGroupPromoteAdmin(
+  companyId: string,
+  groupJid: string,
+  participantJid: string,
+  userId: string,
+): Promise<void> {
+  const command: GroupPromoteAdminCommand = {
+    type: "group_promote_admin",
+    company_id: companyId,
+    group_jid: groupJid,
+    participant_jid: participantJid,
+    user_id: userId,
+  };
+  const subject = `${NATS_SUBJECTS.WHATSAPP_COMMANDS}.${companyId}`;
+  await publishCommand(subject, command);
+}
+
+/**
+ * Publishes a group demote admin command
+ */
+export async function publishGroupDemoteAdmin(
+  companyId: string,
+  groupJid: string,
+  participantJid: string,
+  userId: string,
+): Promise<void> {
+  const command: GroupDemoteAdminCommand = {
+    type: "group_demote_admin",
+    company_id: companyId,
+    group_jid: groupJid,
+    participant_jid: participantJid,
+    user_id: userId,
+  };
+  const subject = `${NATS_SUBJECTS.WHATSAPP_COMMANDS}.${companyId}`;
+  await publishCommand(subject, command);
+}
+
+/**
+ * Publishes a group remove participant command
+ */
+export async function publishGroupRemoveParticipant(
+  companyId: string,
+  groupJid: string,
+  participantJid: string,
+  userId: string,
+): Promise<void> {
+  const command: GroupRemoveParticipantCommand = {
+    type: "group_remove_participant",
+    company_id: companyId,
+    group_jid: groupJid,
+    participant_jid: participantJid,
+    user_id: userId,
+  };
+  const subject = `${NATS_SUBJECTS.WHATSAPP_COMMANDS}.${companyId}`;
+  await publishCommand(subject, command);
+}
+
+/**
+ * Publishes a group update settings command
+ */
+export async function publishGroupUpdateSettings(
+  companyId: string,
+  groupJid: string,
+  userId: string,
+  name?: string,
+  description?: string,
+): Promise<void> {
+  const command: GroupUpdateSettingsCommand = {
+    type: "group_update_settings",
+    company_id: companyId,
+    group_jid: groupJid,
+    user_id: userId,
+    name,
+    description,
+  };
+  const subject = `${NATS_SUBJECTS.WHATSAPP_COMMANDS}.${companyId}`;
+  await publishCommand(subject, command);
+}
+
+/**
+ * Publishes a sync labels command to fetch labels from WhatsApp
+ */
+export async function publishSyncLabels(
+  companyId: string,
+  userId: string,
+): Promise<void> {
+  const command: SyncLabelsCommand = {
+    type: "sync_labels",
+    company_id: companyId,
+    user_id: userId,
+  };
+  const subject = `${NATS_SUBJECTS.WHATSAPP_COMMANDS}.${companyId}`;
+  await publishCommand(subject, command);
+}
+
+/**
+ * Publishes an apply label command to add a label to a contact in WhatsApp
+ */
+export async function publishApplyLabel(
+  companyId: string,
+  labelId: string,
+  contactJid: string,
+  userId: string,
+): Promise<void> {
+  const command: ApplyLabelCommand = {
+    type: "apply_label",
+    company_id: companyId,
+    label_id: labelId,
+    contact_jid: contactJid,
+    user_id: userId,
+  };
+  const subject = `${NATS_SUBJECTS.WHATSAPP_COMMANDS}.${companyId}`;
+  await publishCommand(subject, command);
+}
+
+/**
+ * Publishes a remove label command to remove a label from a contact in WhatsApp
+ */
+export async function publishRemoveLabel(
+  companyId: string,
+  labelId: string,
+  contactJid: string,
+  userId: string,
+): Promise<void> {
+  const command: RemoveLabelCommand = {
+    type: "remove_label",
+    company_id: companyId,
+    label_id: labelId,
+    contact_jid: contactJid,
+    user_id: userId,
+  };
   const subject = `${NATS_SUBJECTS.WHATSAPP_COMMANDS}.${companyId}`;
   await publishCommand(subject, command);
 }

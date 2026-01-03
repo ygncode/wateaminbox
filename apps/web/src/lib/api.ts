@@ -1097,5 +1097,176 @@ export async function deleteQuickReply(
   return response.data.deleted;
 }
 
+// =====================
+// WhatsApp Labels API
+// =====================
+
+export interface WhatsAppLabel {
+  id: string;
+  labelId: string;
+  name: string;
+  color: string | null;
+  predefinedId: number | null;
+  syncedTagId: string | null;
+  lastSyncedAt: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface LabelSyncStatus {
+  totalLabels: number;
+  linkedLabels: number;
+  unlinkedLabels: number;
+  totalTags: number;
+  linkedTags: number;
+  lastSyncAt: string | null;
+}
+
+export interface TagWithLabelStatus {
+  id: string;
+  name: string;
+  color: string | null;
+  createdBy: string | null;
+  createdAt: string;
+  whatsappLabelId: string | null;
+  syncedAt: string | null;
+  linkedLabel: {
+    labelId: string;
+    name: string;
+    color: string | null;
+  } | null;
+}
+
+export interface LabelListResponse {
+  data: WhatsAppLabel[];
+}
+
+export interface TagsWithStatusResponse {
+  data: TagWithLabelStatus[];
+}
+
+export interface SyncLabelsResponse {
+  message: string;
+  status: string;
+}
+
+export interface LinkTagResponse {
+  success: boolean;
+  message: string;
+}
+
+export interface AutoCreateTagsResponse {
+  success: boolean;
+  message: string;
+  created: number;
+  linked: number;
+}
+
+/**
+ * Get all WhatsApp labels
+ */
+export async function getWhatsAppLabels(): Promise<WhatsAppLabel[]> {
+  const response = await fetchWithAuth<LabelListResponse>("/labels");
+  return response.data;
+}
+
+/**
+ * Get label sync status summary
+ */
+export async function getLabelSyncStatus(): Promise<LabelSyncStatus> {
+  return fetchWithAuth<LabelSyncStatus>("/labels/status");
+}
+
+/**
+ * Get a specific WhatsApp label
+ */
+export async function getWhatsAppLabel(
+  labelId: string
+): Promise<WhatsAppLabel> {
+  return fetchWithAuth<WhatsAppLabel>(`/labels/${labelId}`);
+}
+
+/**
+ * Trigger a sync of labels from WhatsApp
+ */
+export async function triggerLabelSync(): Promise<SyncLabelsResponse> {
+  return fetchWithAuth<SyncLabelsResponse>("/labels/sync", {
+    method: "POST",
+  });
+}
+
+/**
+ * Link a tag to a WhatsApp label
+ */
+export async function linkTagToLabel(
+  labelId: string,
+  tagId: string
+): Promise<LinkTagResponse> {
+  return fetchWithAuth<LinkTagResponse>(`/labels/${labelId}/link`, {
+    method: "POST",
+    body: JSON.stringify({ tagId }),
+  });
+}
+
+/**
+ * Unlink a tag from a WhatsApp label
+ */
+export async function unlinkTagFromLabel(
+  labelId: string
+): Promise<LinkTagResponse> {
+  return fetchWithAuth<LinkTagResponse>(`/labels/${labelId}/link`, {
+    method: "DELETE",
+  });
+}
+
+/**
+ * Auto-create tags from unlinked WhatsApp labels
+ */
+export async function autoCreateTagsFromLabels(): Promise<AutoCreateTagsResponse> {
+  return fetchWithAuth<AutoCreateTagsResponse>("/labels/auto-create", {
+    method: "POST",
+  });
+}
+
+/**
+ * Get all tags with their WhatsApp label sync status
+ */
+export async function getTagsWithLabelStatus(): Promise<TagWithLabelStatus[]> {
+  const response = await fetchWithAuth<TagsWithStatusResponse>(
+    "/labels/tags/with-status"
+  );
+  return response.data;
+}
+
+/**
+ * Apply a WhatsApp label to a contact
+ */
+export async function applyLabelToContact(
+  labelId: string,
+  contactId: string
+): Promise<LinkTagResponse> {
+  return fetchWithAuth<LinkTagResponse>(
+    `/labels/${labelId}/apply/${contactId}`,
+    {
+      method: "POST",
+    }
+  );
+}
+
+/**
+ * Remove a WhatsApp label from a contact
+ */
+export async function removeLabelFromContact(
+  labelId: string,
+  contactId: string
+): Promise<LinkTagResponse> {
+  return fetchWithAuth<LinkTagResponse>(
+    `/labels/${labelId}/apply/${contactId}`,
+    {
+      method: "DELETE",
+    }
+  );
+}
+
 // Initialize auth on module load
 initializeAuth();

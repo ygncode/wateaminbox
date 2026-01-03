@@ -98,6 +98,7 @@ export interface TenantDatabase {
   whatsapp_connections: WhatsAppConnectionsTable;
   contacts: ContactsTable;
   tags: TagsTable;
+  whatsapp_labels: WhatsAppLabelsTable;
   contact_tags: ContactTagsTable;
   contact_assignments: ContactAssignmentsTable;
   contact_notes_private: ContactNotesPrivateTable;
@@ -144,8 +145,22 @@ export interface TagsTable {
   id: Generated<string>;
   name: string;
   color: string | null;
+  whatsapp_label_id: string | null;
+  synced_at: Date | null;
   created_by: string | null;
   created_at: Generated<Date>;
+}
+
+export interface WhatsAppLabelsTable {
+  id: Generated<string>;
+  label_id: string;
+  name: string;
+  color: string | null;
+  predefined_id: number | null;
+  synced_tag_id: string | null;
+  last_synced_at: Generated<Date>;
+  created_at: Generated<Date>;
+  updated_at: Generated<Date>;
 }
 
 export interface ContactTagsTable {
