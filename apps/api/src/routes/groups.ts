@@ -1,6 +1,13 @@
 import { Hono } from "hono";
 import { authMiddleware } from "../middleware/auth.js";
 import { tenantMiddleware } from "../middleware/tenant.js";
+import {
+  publishGroupPromoteAdmin,
+  publishGroupDemoteAdmin,
+  publishGroupRemoveParticipant,
+  publishGroupUpdateSettings,
+} from "../lib/nats.js";
+import { createAuditLog, getClientIp } from "../services/audit.service.js";
 
 export const groupRoutes = new Hono();
 
@@ -188,5 +195,469 @@ groupRoutes.patch("/:id", async (c) => {
     id: updated.id,
     customName: updated.custom_name,
     updatedAt: updated.updated_at,
+  });
+});
+
+/**
+ * Helper function to check if current user is a group admin
+ */
+async function isUserGroupAdmin(
+  tenantDb: ReturnType<typeof import("../middleware/tenant.js").getTenantDb>,
+  groupId: string,
+  userJid: string | null,
+): Promise<boolean> {
+  if (!userJid) return false;
+
+  // Get the group from contacts to get the actual group table entry
+  const contact = await tenantDb
+    .selectFrom("contacts")
+    .select(["id", "jid"])
+    .where("id", "=", groupId)
+    .where("is_group", "=", true)
+    .executeTakeFirst();
+
+  if (!contact) return false;
+
+  // Get group ID from groups table
+  const group = await tenantDb
+    .selectFrom("groups")
+    .select(["id"])
+    .where("contact_id", "=", groupId)
+    .executeTakeFirst();
+
+  if (!group) return false;
+
+  // Check if user is admin in this group
+  const participant = await tenantDb
+    .selectFrom("group_participants")
+    .select(["is_admin"])
+    .where("group_id", "=", group.id)
+    .where("participant_jid", "=", userJid)
+    .executeTakeFirst();
+
+  return participant?.is_admin ?? false;
+}
+
+/**
+ * Helper function to get the WhatsApp JID of the current connection
+ */
+async function getConnectionJid(
+  tenantDb: ReturnType<typeof import("../middleware/tenant.js").getTenantDb>,
+): Promise<string | null> {
+  const connection = await tenantDb
+    .selectFrom("whatsapp_connections")
+    .select(["jid"])
+    .where("status", "=", "connected")
+    .executeTakeFirst();
+
+  return connection?.jid ?? null;
+}
+
+/**
+ * POST /groups/:id/participants/:participantJid/promote - Promote participant to admin
+ */
+groupRoutes.post("/:id/participants/:participantJid/promote", async (c) => {
+  const tenantDb = c.get("tenantDb");
+  const companyId = c.get("companyId");
+  const userId = c.get("userId");
+  const contactId = c.req.param("id");
+  const participantJid = c.req.param("participantJid");
+
+  // Get group contact
+  const contact = await tenantDb
+    .selectFrom("contacts")
+    .select(["id", "jid"])
+    .where("id", "=", contactId)
+    .where("is_group", "=", true)
+    .executeTakeFirst();
+
+  if (!contact || !contact.jid) {
+    return c.json({ error: "Group not found" }, 404);
+  }
+
+  // Get group details
+  const group = await tenantDb
+    .selectFrom("groups")
+    .select(["id", "name"])
+    .where("contact_id", "=", contactId)
+    .executeTakeFirst();
+
+  if (!group) {
+    return c.json({ error: "Group details not found" }, 404);
+  }
+
+  // Check if current user is admin
+  const connectionJid = await getConnectionJid(tenantDb);
+  const isAdmin = await isUserGroupAdmin(tenantDb, contactId, connectionJid);
+
+  if (!isAdmin) {
+    return c.json({ error: "Only group admins can promote participants" }, 403);
+  }
+
+  // Check if participant exists in group
+  const participant = await tenantDb
+    .selectFrom("group_participants")
+    .select(["id", "is_admin"])
+    .where("group_id", "=", group.id)
+    .where("participant_jid", "=", participantJid)
+    .executeTakeFirst();
+
+  if (!participant) {
+    return c.json({ error: "Participant not found in group" }, 404);
+  }
+
+  if (participant.is_admin) {
+    return c.json({ error: "Participant is already an admin" }, 400);
+  }
+
+  // Update local database
+  await tenantDb
+    .updateTable("group_participants")
+    .set({ is_admin: true })
+    .where("id", "=", participant.id)
+    .execute();
+
+  // Publish NATS command to WhatsApp service
+  await publishGroupPromoteAdmin(companyId, contact.jid, participantJid, userId);
+
+  // Create audit log
+  await createAuditLog(tenantDb, {
+    userId,
+    action: "group_participant_promoted",
+    entityType: "group",
+    entityId: contactId,
+    details: {
+      groupJid: contact.jid,
+      groupName: group.name,
+      participantJid,
+    },
+    ipAddress: getClientIp(c),
+  });
+
+  return c.json({
+    success: true,
+    message: "Participant promoted to admin",
+    participantJid,
+  });
+});
+
+/**
+ * POST /groups/:id/participants/:participantJid/demote - Demote admin to regular participant
+ */
+groupRoutes.post("/:id/participants/:participantJid/demote", async (c) => {
+  const tenantDb = c.get("tenantDb");
+  const companyId = c.get("companyId");
+  const userId = c.get("userId");
+  const contactId = c.req.param("id");
+  const participantJid = c.req.param("participantJid");
+
+  // Get group contact
+  const contact = await tenantDb
+    .selectFrom("contacts")
+    .select(["id", "jid"])
+    .where("id", "=", contactId)
+    .where("is_group", "=", true)
+    .executeTakeFirst();
+
+  if (!contact || !contact.jid) {
+    return c.json({ error: "Group not found" }, 404);
+  }
+
+  // Get group details
+  const group = await tenantDb
+    .selectFrom("groups")
+    .select(["id", "name"])
+    .where("contact_id", "=", contactId)
+    .executeTakeFirst();
+
+  if (!group) {
+    return c.json({ error: "Group details not found" }, 404);
+  }
+
+  // Check if current user is admin
+  const connectionJid = await getConnectionJid(tenantDb);
+  const isAdmin = await isUserGroupAdmin(tenantDb, contactId, connectionJid);
+
+  if (!isAdmin) {
+    return c.json({ error: "Only group admins can demote participants" }, 403);
+  }
+
+  // Check if participant exists and is admin
+  const participant = await tenantDb
+    .selectFrom("group_participants")
+    .select(["id", "is_admin"])
+    .where("group_id", "=", group.id)
+    .where("participant_jid", "=", participantJid)
+    .executeTakeFirst();
+
+  if (!participant) {
+    return c.json({ error: "Participant not found in group" }, 404);
+  }
+
+  if (!participant.is_admin) {
+    return c.json({ error: "Participant is not an admin" }, 400);
+  }
+
+  // Update local database
+  await tenantDb
+    .updateTable("group_participants")
+    .set({ is_admin: false })
+    .where("id", "=", participant.id)
+    .execute();
+
+  // Publish NATS command to WhatsApp service
+  await publishGroupDemoteAdmin(companyId, contact.jid, participantJid, userId);
+
+  // Create audit log
+  await createAuditLog(tenantDb, {
+    userId,
+    action: "group_participant_demoted",
+    entityType: "group",
+    entityId: contactId,
+    details: {
+      groupJid: contact.jid,
+      groupName: group.name,
+      participantJid,
+    },
+    ipAddress: getClientIp(c),
+  });
+
+  return c.json({
+    success: true,
+    message: "Admin demoted to regular participant",
+    participantJid,
+  });
+});
+
+/**
+ * DELETE /groups/:id/participants/:participantJid - Remove participant from group
+ */
+groupRoutes.delete("/:id/participants/:participantJid", async (c) => {
+  const tenantDb = c.get("tenantDb");
+  const companyId = c.get("companyId");
+  const userId = c.get("userId");
+  const contactId = c.req.param("id");
+  const participantJid = c.req.param("participantJid");
+
+  // Get group contact
+  const contact = await tenantDb
+    .selectFrom("contacts")
+    .select(["id", "jid"])
+    .where("id", "=", contactId)
+    .where("is_group", "=", true)
+    .executeTakeFirst();
+
+  if (!contact || !contact.jid) {
+    return c.json({ error: "Group not found" }, 404);
+  }
+
+  // Get group details
+  const group = await tenantDb
+    .selectFrom("groups")
+    .select(["id", "name", "participant_count"])
+    .where("contact_id", "=", contactId)
+    .executeTakeFirst();
+
+  if (!group) {
+    return c.json({ error: "Group details not found" }, 404);
+  }
+
+  // Check if current user is admin
+  const connectionJid = await getConnectionJid(tenantDb);
+  const isAdmin = await isUserGroupAdmin(tenantDb, contactId, connectionJid);
+
+  if (!isAdmin) {
+    return c.json({ error: "Only group admins can remove participants" }, 403);
+  }
+
+  // Check if participant exists
+  const participant = await tenantDb
+    .selectFrom("group_participants")
+    .select(["id"])
+    .where("group_id", "=", group.id)
+    .where("participant_jid", "=", participantJid)
+    .executeTakeFirst();
+
+  if (!participant) {
+    return c.json({ error: "Participant not found in group" }, 404);
+  }
+
+  // Cannot remove yourself
+  if (participantJid === connectionJid) {
+    return c.json({ error: "Cannot remove yourself from the group" }, 400);
+  }
+
+  // Remove from local database
+  await tenantDb
+    .deleteFrom("group_participants")
+    .where("id", "=", participant.id)
+    .execute();
+
+  // Update participant count
+  await tenantDb
+    .updateTable("groups")
+    .set({ participant_count: Math.max(0, (group.participant_count || 1) - 1) })
+    .where("id", "=", group.id)
+    .execute();
+
+  // Publish NATS command to WhatsApp service
+  await publishGroupRemoveParticipant(companyId, contact.jid, participantJid, userId);
+
+  // Create audit log
+  await createAuditLog(tenantDb, {
+    userId,
+    action: "group_participant_removed",
+    entityType: "group",
+    entityId: contactId,
+    details: {
+      groupJid: contact.jid,
+      groupName: group.name,
+      participantJid,
+    },
+    ipAddress: getClientIp(c),
+  });
+
+  return c.json({
+    success: true,
+    message: "Participant removed from group",
+    participantJid,
+  });
+});
+
+/**
+ * PATCH /groups/:id/settings - Update group settings (name, description)
+ */
+groupRoutes.patch("/:id/settings", async (c) => {
+  const tenantDb = c.get("tenantDb");
+  const companyId = c.get("companyId");
+  const userId = c.get("userId");
+  const contactId = c.req.param("id");
+  const body = await c.req.json();
+
+  const { name, description } = body;
+
+  // Validate input
+  if (!name && description === undefined) {
+    return c.json({ error: "At least one of name or description is required" }, 400);
+  }
+
+  // Get group contact
+  const contact = await tenantDb
+    .selectFrom("contacts")
+    .select(["id", "jid"])
+    .where("id", "=", contactId)
+    .where("is_group", "=", true)
+    .executeTakeFirst();
+
+  if (!contact || !contact.jid) {
+    return c.json({ error: "Group not found" }, 404);
+  }
+
+  // Get group details
+  const group = await tenantDb
+    .selectFrom("groups")
+    .select(["id", "name", "description"])
+    .where("contact_id", "=", contactId)
+    .executeTakeFirst();
+
+  if (!group) {
+    return c.json({ error: "Group details not found" }, 404);
+  }
+
+  // Check if current user is admin
+  const connectionJid = await getConnectionJid(tenantDb);
+  const isAdmin = await isUserGroupAdmin(tenantDb, contactId, connectionJid);
+
+  if (!isAdmin) {
+    return c.json({ error: "Only group admins can update group settings" }, 403);
+  }
+
+  // Build update object
+  const updates: { name?: string; description?: string } = {};
+  if (name !== undefined) {
+    updates.name = name;
+  }
+  if (description !== undefined) {
+    updates.description = description;
+  }
+
+  // Update local database
+  if (Object.keys(updates).length > 0) {
+    await tenantDb
+      .updateTable("groups")
+      .set(updates)
+      .where("id", "=", group.id)
+      .execute();
+  }
+
+  // Publish NATS command to WhatsApp service
+  await publishGroupUpdateSettings(
+    companyId,
+    contact.jid,
+    userId,
+    name,
+    description,
+  );
+
+  // Create audit log
+  await createAuditLog(tenantDb, {
+    userId,
+    action: "group_settings_updated",
+    entityType: "group",
+    entityId: contactId,
+    details: {
+      groupJid: contact.jid,
+      previousName: group.name,
+      previousDescription: group.description,
+      newName: name,
+      newDescription: description,
+    },
+    ipAddress: getClientIp(c),
+  });
+
+  return c.json({
+    success: true,
+    message: "Group settings updated",
+    name: name ?? group.name,
+    description: description ?? group.description,
+  });
+});
+
+/**
+ * GET /groups/:id/admin-status - Check if current user is admin of this group
+ */
+groupRoutes.get("/:id/admin-status", async (c) => {
+  const tenantDb = c.get("tenantDb");
+  const contactId = c.req.param("id");
+
+  // Check if group exists
+  const contact = await tenantDb
+    .selectFrom("contacts")
+    .select(["id", "jid"])
+    .where("id", "=", contactId)
+    .where("is_group", "=", true)
+    .executeTakeFirst();
+
+  if (!contact) {
+    return c.json({ error: "Group not found" }, 404);
+  }
+
+  // Get connection JID
+  const connectionJid = await getConnectionJid(tenantDb);
+
+  if (!connectionJid) {
+    return c.json({
+      isAdmin: false,
+      connectionJid: null,
+      reason: "No active WhatsApp connection",
+    });
+  }
+
+  // Check admin status
+  const isAdmin = await isUserGroupAdmin(tenantDb, contactId, connectionJid);
+
+  return c.json({
+    isAdmin,
+    connectionJid,
   });
 });

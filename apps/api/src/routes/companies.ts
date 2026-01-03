@@ -315,9 +315,19 @@ companyRoutes.get(
     const companyId = c.get("companyId");
 
     const invitations = await companyService.getPendingInvitations(companyId);
+    // Transform snake_case to camelCase for frontend
+    const transformedInvitations = invitations.map((inv) => ({
+      id: inv.id,
+      companyId: inv.company_id,
+      email: inv.email,
+      token: inv.token,
+      invitedBy: inv.invited_by,
+      expiresAt: inv.expires_at,
+      createdAt: inv.created_at,
+    }));
     return c.json({
       success: true,
-      data: invitations,
+      data: transformedInvitations,
     });
   },
 );

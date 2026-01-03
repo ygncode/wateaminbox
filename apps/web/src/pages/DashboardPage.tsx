@@ -3,15 +3,28 @@ import { AppLayout } from "../components/layout/app-layout";
 import { Dashboard } from "../components/dashboard/Dashboard";
 import { useAuth } from "../contexts/auth-context";
 import { ArrowLeft, LayoutDashboard } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 
 /**
  * Dashboard page
  * Shows analytics and statistics for the company
  */
+interface LocationState {
+  from?: string;
+}
+
 export function DashboardPage() {
   const { t } = useTranslation();
   const { currentCompanyId, companies } = useAuth();
+  const location = useLocation();
+  const locationState = location.state as LocationState | null;
+
+  // Determine back navigation based on where user came from
+  const backTo = locationState?.from === "settings" ? "/settings" : "/chat";
+  const backLabel =
+    locationState?.from === "settings"
+      ? t("common.backToSettings", "Back to Settings")
+      : t("common.backToChat", "Back to Chat");
 
   const companyId = currentCompanyId || companies?.[0]?.id;
   const currentCompany = companies?.find((c) => c.id === companyId);
@@ -21,24 +34,42 @@ export function DashboardPage() {
   return (
     <AppLayout>
       <div className="flex h-full w-full flex-col bg-gray-50">
-        {/* Navigation header */}
-        <div className="flex items-center gap-4 border-b border-gray-200 bg-white px-4 py-3">
-          <Link
-            to="/chat"
-            className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900 transition-colors"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            {t("common.backToChat", "Back to Chat")}
-          </Link>
-        </div>
+        {/* Unified Dashboard Header */}
+        <header className="relative bg-white border-b border-gray-200">
+          {/* Subtle accent line */}
+          <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-[#25D366] via-[#128C7E] to-[#075E54]" />
 
-        {/* Page header */}
-        <div className="flex items-center gap-3 border-b border-gray-200 bg-white px-6 py-4">
-          <LayoutDashboard className="h-6 w-6 text-gray-700" />
-          <h1 className="text-xl font-semibold text-gray-900">
-            {t("dashboard.title", "Dashboard")}
-          </h1>
-        </div>
+          <div className="flex items-center justify-between px-6 py-4">
+            {/* Left: Back navigation */}
+            <Link
+              to={backTo}
+              className="group flex items-center gap-2 text-sm text-gray-500 hover:text-gray-900 transition-all duration-200"
+            >
+              <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-gray-100 group-hover:bg-[#25D366]/10 transition-colors">
+                <ArrowLeft className="h-4 w-4 group-hover:text-[#25D366] transition-colors" />
+              </span>
+              <span className="hidden sm:inline font-medium">{backLabel}</span>
+            </Link>
+
+            {/* Center: Title with icon */}
+            <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-3">
+              <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-br from-[#25D366] to-[#128C7E] shadow-sm">
+                <LayoutDashboard className="h-5 w-5 text-white" />
+              </div>
+              <div className="hidden sm:block">
+                <h1 className="text-lg font-semibold text-gray-900 tracking-tight">
+                  {t("dashboard.title", "Dashboard")}
+                </h1>
+                <p className="text-xs text-gray-500 -mt-0.5">
+                  {t("dashboard.subtitle", "Analytics & Insights")}
+                </p>
+              </div>
+            </div>
+
+            {/* Right: Placeholder for future actions (keeps layout balanced) */}
+            <div className="w-8 sm:w-24" />
+          </div>
+        </header>
 
         {/* Dashboard content */}
         <div className="flex-1 overflow-auto">

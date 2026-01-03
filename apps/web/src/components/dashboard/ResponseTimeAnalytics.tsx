@@ -37,11 +37,13 @@ function getSlaBg(rate: number): string {
 }
 
 interface ResponseTimeAnalyticsProps {
+  companyId: string;
   isAdmin?: boolean;
   slaThreshold?: number;
 }
 
 export function ResponseTimeAnalytics({
+  companyId,
   isAdmin = false,
   slaThreshold = 60,
 }: ResponseTimeAnalyticsProps) {
@@ -67,44 +69,50 @@ export function ResponseTimeAnalytics({
   const { data: statsData, isLoading: statsLoading } = useQuery({
     queryKey: [
       "responseTimeStats",
+      companyId,
       dateRange.start,
       dateRange.end,
       slaThreshold,
     ],
     queryFn: () =>
       getResponseTimeStats(dateRange.start, dateRange.end, slaThreshold),
+    enabled: !!companyId,
     staleTime: 5 * 60 * 1000,
   });
 
   const { data: trendData, isLoading: trendLoading } = useQuery({
     queryKey: [
       "responseTimeTrend",
+      companyId,
       dateRange.start,
       dateRange.end,
       slaThreshold,
     ],
     queryFn: () =>
       getResponseTimeTrend(dateRange.start, dateRange.end, slaThreshold),
+    enabled: !!companyId,
     staleTime: 5 * 60 * 1000,
   });
 
   const { data: teamData } = useQuery({
     queryKey: [
       "teamResponseTime",
+      companyId,
       dateRange.start,
       dateRange.end,
       slaThreshold,
     ],
     queryFn: () =>
       getTeamResponseTimeStats(dateRange.start, dateRange.end, slaThreshold),
-    enabled: isAdmin,
+    enabled: !!companyId && isAdmin,
     staleTime: 5 * 60 * 1000,
   });
 
   const { data: breachData } = useQuery({
-    queryKey: ["slaBreaches", dateRange.start, dateRange.end, slaThreshold],
+    queryKey: ["slaBreaches", companyId, dateRange.start, dateRange.end, slaThreshold],
     queryFn: () =>
       getSlaBreaches(dateRange.start, dateRange.end, slaThreshold, 10),
+    enabled: !!companyId,
     staleTime: 5 * 60 * 1000,
   });
 

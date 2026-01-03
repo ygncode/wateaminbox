@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, useRef } from "react";
+import { useState, useCallback, useMemo, useRef, memo } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { UserPlus } from "lucide-react";
 import { useChats, type AssignmentFilter } from "../../hooks/useChats";
@@ -14,7 +14,7 @@ const CHAT_ITEM_HEIGHT = 72;
  * Main chat list sidebar component
  * Displays searchable list of chats with last message preview
  */
-export function ChatList({
+export const ChatList = memo(function ChatList({
   selectedChatId,
   onChatSelect,
   className = "",
@@ -52,13 +52,19 @@ export function ChatList({
     return chats?.filter((chat) => !chat.isArchived) ?? [];
   }, [chats]);
 
+  // Memoize getItemKey to prevent unnecessary re-renders
+  const getItemKey = useCallback(
+    (index: number) => visibleChats[index]?.id || index.toString(),
+    [visibleChats]
+  );
+
   // Virtualizer for chat list
   const virtualizer = useVirtualizer({
     count: visibleChats.length,
     getScrollElement: () => scrollContainerRef.current,
     estimateSize: () => CHAT_ITEM_HEIGHT,
     overscan: 5,
-    getItemKey: (index) => visibleChats[index]?.id || index.toString(),
+    getItemKey,
   });
 
   return (
@@ -253,6 +259,6 @@ export function ChatList({
       </div>
     </div>
   );
-}
+});
 
 export default ChatList;

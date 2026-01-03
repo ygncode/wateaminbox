@@ -2,7 +2,11 @@ import { useAuth } from "../contexts/auth-context";
 import { AppLayout } from "../components/layout/app-layout";
 import { TeamManagement } from "../components/team";
 import { ArrowLeft } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
+
+interface LocationState {
+  from?: string;
+}
 
 /**
  * Team Management page
@@ -10,6 +14,13 @@ import { Link } from "react-router-dom";
  */
 export function TeamPage() {
   const { user, currentCompanyId, companies } = useAuth();
+  const location = useLocation();
+  const locationState = location.state as LocationState | null;
+
+  // Determine back navigation based on where user came from
+  const backTo = locationState?.from === "settings" ? "/settings" : "/chat";
+  const backLabel =
+    locationState?.from === "settings" ? "Back to Settings" : "Back to Chat";
 
   // Find the current company to get the user's role
   const currentCompany = companies.find((c) => c.id === currentCompanyId);
@@ -31,11 +42,11 @@ export function TeamPage() {
         {/* Navigation header */}
         <div className="flex items-center gap-4 border-b border-gray-200 px-4 py-3">
           <Link
-            to="/chat"
+            to={backTo}
             className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900 transition-colors"
           >
             <ArrowLeft className="h-4 w-4" />
-            Back to Chat
+            {backLabel}
           </Link>
         </div>
 

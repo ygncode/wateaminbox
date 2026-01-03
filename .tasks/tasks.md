@@ -7,6 +7,7 @@ Comparison of `.specs/spec.md` against current implementation. Last updated: 202
 ## Phase 1: MVP (Core Flow)
 
 ### 1.1 Marketing Site (Astro) ✅ Complete
+
 - [x] Landing page with feature overview
 - [x] Pricing page (placeholder)
 - [x] **Blog content** - 6 full-length posts covering product updates, guides, security, and more ✅ Completed 2026-01-03
@@ -14,6 +15,7 @@ Comparison of `.specs/spec.md` against current implementation. Last updated: 202
 - [x] Changelog section
 
 ### 1.2 Authentication ✅ Complete
+
 - [x] Email + password registration
 - [x] Email verification (via Resend)
 - [x] Login with email/password
@@ -23,11 +25,13 @@ Comparison of `.specs/spec.md` against current implementation. Last updated: 202
 - [x] "Log out all devices" functionality
 
 ### 1.3 Company Setup ✅ Complete
+
 - [x] Create new company on registration
 - [x] Join company via invite link/code
 - [x] Company profile settings
 
 ### 1.4 WhatsApp Connection ✅ Complete
+
 - [x] QR code scanning for connection
 - [x] Connection status display
 - [x] Reconnection handling
@@ -35,6 +39,7 @@ Comparison of `.specs/spec.md` against current implementation. Last updated: 202
 - [x] Ban detection with guidance
 
 ### 1.5 Contact Management ✅ Complete
+
 - [x] Import contacts on-demand
 - [x] View contact list with search
 - [x] Add new contacts by phone number - `POST /api/contacts` + `AddContactDialog` component
@@ -44,6 +49,7 @@ Comparison of `.specs/spec.md` against current implementation. Last updated: 202
 - [x] Private personal notes
 
 ### 1.6 Messaging (1:1 Chats) ✅ Complete
+
 - [x] Real-time message receiving
 - [x] Send text messages
 - [x] Send/receive media (images, videos, audio, documents)
@@ -56,6 +62,7 @@ Comparison of `.specs/spec.md` against current implementation. Last updated: 202
 - [x] **Message search within conversation** - ConversationSearch component ✅ Completed 2026-01-03
 
 ### 1.7 Dashboard ✅ Complete
+
 - [x] Message counts (sent, received, today, this week)
 - [x] Time-range filters
 
@@ -64,6 +71,7 @@ Comparison of `.specs/spec.md` against current implementation. Last updated: 202
 ## Phase 2: Team Collaboration
 
 ### 2.1 Team Management ✅ Complete
+
 - [x] Invite team members via email
 - [x] **Feature-based permissions** - granular permissions system ✅ Completed 2026-01-03
   - [x] `can_view_all_chats` - owner/admin only
@@ -76,6 +84,7 @@ Comparison of `.specs/spec.md` against current implementation. Last updated: 202
 - [x] **Role presets** - Owner (all), Admin (most), Member (send only) with permission middleware
 
 ### 2.2 Contact Assignment ✅ Complete
+
 - [x] Self-assign unassigned contacts
 - [x] **"Assign to me" on first reply** - auto-claims contact when user sends first message ✅ Completed 2026-01-03
 - [x] View assigned vs all chats filter
@@ -83,6 +92,7 @@ Comparison of `.specs/spec.md` against current implementation. Last updated: 202
 - [x] Assignment history in audit log
 
 ### 2.3 Notifications ✅ Complete
+
 - [x] Browser notifications with sound (client-side)
 - [x] Customizable sound choice (client-side)
 - [x] Quiet hours configuration (client-side)
@@ -92,6 +102,7 @@ Comparison of `.specs/spec.md` against current implementation. Last updated: 202
 - [x] **In-app notification center** - dropdown/panel showing recent notifications ✅ Completed 2026-01-03
 
 ### 2.4 Audit Logging ✅ Complete
+
 - [x] Action-level logging
 - [x] Audit log viewer for managers
 - [x] Export audit logs
@@ -101,6 +112,7 @@ Comparison of `.specs/spec.md` against current implementation. Last updated: 202
 ## Phase 3: Advanced Features
 
 ### 3.1 Group Chats ✅ Complete
+
 - [x] View group conversations
 - [x] **Send messages to groups** - verified implementation ✅ Completed 2026-01-03
 - [x] Group participant list
@@ -115,11 +127,13 @@ Comparison of `.specs/spec.md` against current implementation. Last updated: 202
   - [x] UI: GroupInfoPanel with admin actions menu per participant
 
 ### 3.2 WhatsApp Status ✅ Complete
+
 - [x] View contact status updates
 - [x] **Post status updates** - API and UI for posting text/image/video status ✅ Completed 2026-01-03
 - [x] Status expiration handling
 
 ### 3.3 WhatsApp Business Features ✅ Complete
+
 - [x] **Quick replies** - predefined message templates for fast responses ✅ Completed 2026-01-03
 - [x] **Labels sync with custom tags** - sync WhatsApp Business labels with custom tags ✅ Completed 2026-01-03
   - [x] Database migration for whatsapp_labels table and sync fields
@@ -140,6 +154,7 @@ Comparison of `.specs/spec.md` against current implementation. Last updated: 202
   - [x] Product visibility management
 
 ### 3.4 Advanced Dashboard ✅ Complete
+
 - [x] Response time analytics
 - [x] Average reply time
 - [x] SLA tracking
@@ -149,18 +164,21 @@ Comparison of `.specs/spec.md` against current implementation. Last updated: 202
 - [x] **Resolution rate tracking** - track conversations marked as resolved ✅ Completed 2026-01-03
 
 ### 3.5 Contact Organization ✅ Complete
+
 - [x] Custom tags/labels
 - [x] Bulk import contacts (CSV)
 - [x] Contact fields: name, notes, tags
 - [x] Filter by tags
 
 ### 3.6 Search ✅ Complete
+
 - [x] Full-text search across all messages
 - [x] Filters: date range, contact, media type
 - [x] Meilisearch integration
 - [x] Typo-tolerant search (via Meilisearch)
 
 ### 3.7 Export ✅ Complete
+
 - [x] **Full backup as ZIP (messages + media)** - download entire chat history with attachments ✅ Completed 2026-01-03
 - [x] Per-contact export
 - [x] **Date range export** - export messages within specific date range ✅ Completed 2026-01-03
@@ -170,6 +188,7 @@ Comparison of `.specs/spec.md` against current implementation. Last updated: 202
 ## Phase 4: Scale & Polish
 
 ### 4.1 Internationalization ✅ Complete
+
 - [x] i18n infrastructure (i18next)
 - [x] English (default)
 - [x] Simplified Chinese (简体中文)
@@ -178,6 +197,7 @@ Comparison of `.specs/spec.md` against current implementation. Last updated: 202
   - [x] E2E tests for language switching functionality
 
 ### 4.2 Keyboard Shortcuts ✅ Complete
+
 - [x] **All shortcuts verified implemented (2026-01-03):**
   - [x] `Ctrl/Cmd+N` - New chat (focuses search input)
   - [x] `Ctrl/Cmd+F` - Open global search panel
@@ -189,6 +209,7 @@ Comparison of `.specs/spec.md` against current implementation. Last updated: 202
   - [x] Full keyboard navigation via KeyboardShortcutsContext
 
 ### 4.3 Mobile Responsiveness ✅ Complete
+
 - [x] Fully responsive design
 - [x] Touch-friendly interactions
 - [x] Mobile-optimized chat interface
@@ -198,6 +219,7 @@ Comparison of `.specs/spec.md` against current implementation. Last updated: 202
 ## API Routes Missing
 
 ### Notifications API ✅ Completed 2026-01-03
+
 ```
 GET    /api/notifications/preferences   - Get user's notification preferences ✅
 PATCH  /api/notifications/preferences   - Update notification preferences ✅
@@ -206,6 +228,7 @@ POST   /api/notifications/unmute        - Unmute a contact ✅
 ```
 
 ### Quick Replies API ✅ Completed 2026-01-03
+
 ```
 GET    /api/quick-replies               - List quick reply templates ✅
 GET    /api/quick-replies/:id           - Get quick reply by ID ✅
@@ -216,6 +239,7 @@ DELETE /api/quick-replies/:id           - Delete quick reply ✅
 ```
 
 ### Export API ✅ Completed 2026-01-03
+
 ```
 GET    /api/export/full                 - Full backup export as ZIP ✅
 GET    /api/export/contacts             - Export contacts (CSV/JSON) ✅
@@ -223,6 +247,7 @@ GET    /api/export/messages             - Export messages with date range filter
 ```
 
 ### Status API ✅ Completed 2026-01-03
+
 ```
 POST   /api/status                      - Post a new WhatsApp status update ✅
 DELETE /api/status/:id                  - Delete posted status ✅
@@ -230,6 +255,7 @@ GET    /api/status/my                   - Get user's own active statuses ✅
 ```
 
 ### Additional Missing Endpoints
+
 ```
 POST   /api/contacts/manual             - Create contact by phone number
 ```
@@ -239,6 +265,7 @@ POST   /api/contacts/manual             - Create contact by phone number
 ## Database Schema Missing
 
 ### Tables Added
+
 ```sql
 -- ✅ COMPLETED: Quick replies for fast responses (migration 005_add_quick_replies.ts)
 quick_replies (
@@ -253,6 +280,7 @@ quick_replies (
 ```
 
 ### Tables Added (Completed)
+
 ```sql
 -- ✅ COMPLETED: Conversation resolution tracking (migration 006_add_conversation_states.ts)
 conversation_states (
@@ -270,6 +298,7 @@ conversation_states (
 ```
 
 ### Columns to Add
+
 ```sql
 -- Add to company_members table
 ALTER TABLE company_members ADD COLUMN permissions JSONB;
@@ -283,6 +312,7 @@ ALTER TABLE company_members ADD COLUMN permissions JSONB;
 ## Testing Tasks
 
 ### Backend Unit Tests
+
 - [x] Notification preferences service tests ✅ Completed 2026-01-03
 - [x] Quick replies route tests ✅ Completed 2026-01-03
 - [x] Auto-assign on first reply tests ✅ Completed 2026-01-03
@@ -295,6 +325,7 @@ ALTER TABLE company_members ADD COLUMN permissions JSONB;
 - [x] Catalog routes tests ✅ Completed 2026-01-03 (16 tests)
 
 ### E2E Tests
+
 - [x] Contact creation by phone number flow ✅ Completed 2026-01-03 (15 tests with API mocking)
 - [x] Quick replies management flow ✅ Completed 2026-01-03
 - [x] Auto-assign on first reply flow ✅ Completed 2026-01-03
@@ -316,6 +347,7 @@ ALTER TABLE company_members ADD COLUMN permissions JSONB;
 ## Priority Ranking
 
 ### High Priority (Core Functionality Gaps)
+
 1. ~~Feature-based permissions system~~ ✅ Completed 2026-01-03
 2. ~~"Assign to me" on first reply~~ ✅ Completed 2026-01-03
 3. ~~Add contacts by phone number~~ ✅ Completed 2026-01-02
@@ -325,11 +357,13 @@ ALTER TABLE company_members ADD COLUMN permissions JSONB;
 7. ~~Message search within conversation~~ ✅ Completed 2026-01-03
 
 ### Medium Priority (Enhanced Experience)
+
 8. ~~Quick replies~~ ✅ Completed 2026-01-03
 9. ~~Full backup as ZIP export~~ ✅ Completed 2026-01-03
 10. ~~Instant transfer/takeover notifications~~ ✅ Completed 2026-01-03
 
 ### Low Priority (Nice to Have)
+
 11. ~~WhatsApp Business features (labels sync)~~ ✅ Completed 2026-01-03
 12. ~~Post status updates~~ ✅ Completed 2026-01-03
 13. ~~Group admin actions~~ ✅ Completed 2026-01-03
@@ -340,14 +374,14 @@ ALTER TABLE company_members ADD COLUMN permissions JSONB;
 
 ## Summary
 
-| Phase | Total Features | Completed | Partial | Missing |
-|-------|---------------|-----------|---------|---------|
-| Phase 1 | 28 | 28 | 0 | 0 |
-| Phase 2 | 16 | 16 | 0 | 0 |
-| Phase 3 | 18 | 18 | 0 | 0 |
-| Phase 4 | 10 | 10 | 0 | 0 |
-| **Total** | **72** | **72** | **0** | **0** |
+| Phase     | Total Features | Completed | Partial | Missing |
+| --------- | -------------- | --------- | ------- | ------- |
+| Phase 1   | 28             | 28        | 0       | 0       |
+| Phase 2   | 16             | 16        | 0       | 0       |
+| Phase 3   | 18             | 18        | 0       | 0       |
+| Phase 4   | 10             | 10        | 0       | 0       |
+| **Total** | **72**         | **72**    | **0**   | **0**   |
 
 **Overall Completion: 100% complete**
 
-*Last updated: 2026-01-03 - Blog content with 6 full-length posts added*
+_Last updated: 2026-01-03 - Blog content with 6 full-length posts added_

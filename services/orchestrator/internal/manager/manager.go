@@ -146,12 +146,14 @@ func (m *Manager) SpawnWorker(ctx context.Context, companyID, tenantSchema, data
 	cmd := exec.CommandContext(workerCtx, m.config.WhatsAppBinaryPath)
 
 	// Set environment variables
+	// DATA_DIR is company-specific to isolate WhatsApp sessions per tenant
 	cmd.Env = append(os.Environ(),
 		fmt.Sprintf("WORKER_ID=%s", companyID),
 		fmt.Sprintf("COMPANY_ID=%s", companyID),
 		fmt.Sprintf("NATS_URL=%s", m.config.DefaultNATSURL),
 		fmt.Sprintf("DATABASE_URL=%s", databaseURL),
 		fmt.Sprintf("TENANT_SCHEMA=%s", tenantSchema),
+		fmt.Sprintf("DATA_DIR=./data/%s", companyID),
 	)
 
 	// Redirect stdout and stderr

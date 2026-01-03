@@ -13,10 +13,25 @@ import {
   Button,
   Input,
   Skeleton,
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  Textarea,
 } from "@/components/ui";
 import {
   useGroup,
   useUpdateGroup,
+  useGroupAdminStatus,
+  usePromoteParticipant,
+  useDemoteParticipant,
+  useRemoveParticipant,
+  useUpdateGroupSettings,
   type GroupDetail,
   type GroupParticipant,
 } from "@/hooks/useGroups";
@@ -30,6 +45,11 @@ import {
   User,
   FileText,
   Calendar,
+  MoreVertical,
+  ShieldPlus,
+  ShieldMinus,
+  UserMinus,
+  Settings,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -49,6 +69,10 @@ export function GroupInfoPanel({
   onClose,
 }: GroupInfoPanelProps) {
   const { data: group, isLoading, error } = useGroup(groupId);
+  const { data: adminStatus } = useGroupAdminStatus(groupId);
+
+  const isAdmin = adminStatus?.isAdmin ?? false;
+  const connectionJid = adminStatus?.connectionJid;
 
   if (!groupId) return null;
 
@@ -65,10 +89,13 @@ export function GroupInfoPanel({
         ) : group ? (
           <>
             {/* Profile Header */}
-            <GroupHeader group={group} />
+            <GroupHeader group={group} isAdmin={isAdmin} />
 
             {/* Custom Name Section */}
             <EditableNameSection group={group} />
+
+            {/* Group Settings Section (Admin only) */}
+            {isAdmin && <GroupSettingsSection group={group} />}
 
             {/* Description Section */}
             {group.description && <DescriptionSection group={group} />}
@@ -78,8 +105,11 @@ export function GroupInfoPanel({
 
             {/* Participants Section */}
             <ParticipantsSection
+              groupId={group.id}
               participants={group.participants}
               participantCount={group.participantCount}
+              isAdmin={isAdmin}
+              connectionJid={connectionJid}
             />
 
             {/* Tags Section */}
@@ -112,7 +142,7 @@ function GroupInfoPanelSkeleton() {
 /**
  * Group header with avatar and display name
  */
-function GroupHeader({ group }: { group: GroupDetail }) {
+function GroupHeader({ group, isAdmin }: { group: GroupDetail; isAdmin: boolean }) {
   const initials = group.displayName
     .split(" ")
     .map((n) => n[0])
@@ -142,6 +172,15 @@ function GroupHeader({ group }: { group: GroupDetail }) {
           <Users className="inline h-4 w-4 mr-1" />
           {group.participantCount} participants
         </p>
+        {isAdmin && (
+          <Badge
+            variant="secondary"
+            className="bg-amber-100 text-amber-700 text-xs flex items-center gap-1 mt-2"
+          >
+            <Shield className="h-3 w-3" />
+            You are Admin
+          </Badge>
+        )}
       </div>
     </div>
   );
@@ -226,6 +265,99 @@ function EditableNameSection({ group }: { group: GroupDetail }) {
 }
 
 /**
+ * Group settings section for admins
+ */
+function GroupSettingsSection({ group }: { group: GroupDetail }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [name, setName] = useState(group.name || "");
+  const [description, setDescription] = useState(group.description || "");
+  const updateSettings = useUpdateGroupSettings();
+
+  useEffect(() => {
+    setName(group.name || "");
+    setDescription(group.description || "");
+  }, [group.name, group.description]);
+
+  const handleSave = async () => {
+    await updateSettings.mutateAsync({
+      groupId: group.id,
+      name: name.trim() || undefined,
+      description: description.trim() || undefined,
+    });
+    setIsOpen(false);
+  };
+
+  const handleCancel = () => {
+    setName(group.name || "");
+    setDescription(group.description || "");
+    setIsOpen(false);
+  };
+
+  return (
+    <>
+      <RightPanelSection title="Group Settings">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setIsOpen(true)}
+          className="w-full flex items-center gap-2"
+        >
+          <Settings className="h-4 w-4" />
+          Edit Group Settings
+        </Button>
+        <p className="mt-1 text-xs text-gray-500">
+          Change group name and description on WhatsApp
+        </p>
+      </RightPanelSection>
+
+      <Dialog open={isOpen} onOpenChange={setIsOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Group Settings</DialogTitle>
+            <DialogDescription>
+              Update the group name and description. These changes will be
+              reflected on WhatsApp for all members.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Group Name</label>
+              <Input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Enter group name"
+                maxLength={100}
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Description</label>
+              <Textarea
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Enter group description"
+                rows={4}
+                maxLength={512}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={handleCancel}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSave}
+              disabled={updateSettings.isPending}
+            >
+              {updateSettings.isPending ? "Saving..." : "Save Changes"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
+/**
  * Group description section
  */
 function DescriptionSection({ group }: { group: GroupDetail }) {
@@ -279,11 +411,17 @@ function GroupInfoSection({ group }: { group: GroupDetail }) {
  * Participants section with admin badges
  */
 function ParticipantsSection({
+  groupId,
   participants,
   participantCount,
+  isAdmin,
+  connectionJid,
 }: {
+  groupId: string;
   participants: GroupParticipant[];
   participantCount: number;
+  isAdmin: boolean;
+  connectionJid: string | null | undefined;
 }) {
   const [showAll, setShowAll] = useState(false);
   const displayLimit = 10;
@@ -303,7 +441,13 @@ function ParticipantsSection({
     <RightPanelSection title={`${participantCount} Participants`}>
       <div className="space-y-2">
         {sortedParticipants.map((participant) => (
-          <ParticipantItem key={participant.jid} participant={participant} />
+          <ParticipantItem
+            key={participant.jid}
+            groupId={groupId}
+            participant={participant}
+            isAdmin={isAdmin}
+            isSelf={participant.jid === connectionJid}
+          />
         ))}
 
         {hasMore && !showAll && (
@@ -329,47 +473,174 @@ function ParticipantsSection({
 }
 
 /**
- * Individual participant item
+ * Individual participant item with admin actions
  */
-function ParticipantItem({ participant }: { participant: GroupParticipant }) {
+function ParticipantItem({
+  groupId,
+  participant,
+  isAdmin,
+  isSelf,
+}: {
+  groupId: string;
+  participant: GroupParticipant;
+  isAdmin: boolean;
+  isSelf: boolean;
+}) {
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [confirmRemove, setConfirmRemove] = useState(false);
+
+  const promoteParticipant = usePromoteParticipant();
+  const demoteParticipant = useDemoteParticipant();
+  const removeParticipant = useRemoveParticipant();
+
   // Extract phone number from JID
   const phoneNumber = participant.jid.split("@")[0];
   const displayName = formatPhoneNumber(phoneNumber);
 
+  const handlePromote = async () => {
+    await promoteParticipant.mutateAsync({
+      groupId,
+      participantJid: participant.jid,
+    });
+    setIsMenuOpen(false);
+  };
+
+  const handleDemote = async () => {
+    await demoteParticipant.mutateAsync({
+      groupId,
+      participantJid: participant.jid,
+    });
+    setIsMenuOpen(false);
+  };
+
+  const handleRemove = async () => {
+    await removeParticipant.mutateAsync({
+      groupId,
+      participantJid: participant.jid,
+    });
+    setConfirmRemove(false);
+    setIsMenuOpen(false);
+  };
+
+  const isPending =
+    promoteParticipant.isPending ||
+    demoteParticipant.isPending ||
+    removeParticipant.isPending;
+
   return (
-    <div className="flex items-center gap-3 py-2">
-      <Avatar className="h-10 w-10">
-        <AvatarFallback className="bg-gray-200 text-gray-600 text-sm">
-          <User className="h-5 w-5" />
-        </AvatarFallback>
-      </Avatar>
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
-          <p className="text-sm font-medium text-gray-900 truncate">
-            {displayName}
-          </p>
-          {participant.isAdmin && (
-            <Badge
-              variant="secondary"
-              className="bg-amber-100 text-amber-700 text-xs flex items-center gap-1"
-            >
-              <Shield className="h-3 w-3" />
-              Admin
-            </Badge>
+    <>
+      <div className="flex items-center gap-3 py-2 group">
+        <Avatar className="h-10 w-10">
+          <AvatarFallback className="bg-gray-200 text-gray-600 text-sm">
+            <User className="h-5 w-5" />
+          </AvatarFallback>
+        </Avatar>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <p className="text-sm font-medium text-gray-900 truncate">
+              {displayName}
+              {isSelf && (
+                <span className="text-gray-500 ml-1">(You)</span>
+              )}
+            </p>
+            {participant.isAdmin && (
+              <Badge
+                variant="secondary"
+                className="bg-amber-100 text-amber-700 text-xs flex items-center gap-1"
+              >
+                <Shield className="h-3 w-3" />
+                Admin
+              </Badge>
+            )}
+          </div>
+          {participant.joinedAt && (
+            <p className="text-xs text-gray-500">
+              Joined{" "}
+              {new Date(participant.joinedAt).toLocaleDateString(undefined, {
+                month: "short",
+                day: "numeric",
+                year: "numeric",
+              })}
+            </p>
           )}
         </div>
-        {participant.joinedAt && (
-          <p className="text-xs text-gray-500">
-            Joined{" "}
-            {new Date(participant.joinedAt).toLocaleDateString(undefined, {
-              month: "short",
-              day: "numeric",
-              year: "numeric",
-            })}
-          </p>
+
+        {/* Admin actions menu */}
+        {isAdmin && !isSelf && (
+          <Popover open={isMenuOpen} onOpenChange={setIsMenuOpen}>
+            <PopoverTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
+                data-testid={`participant-menu-${participant.jid}`}
+              >
+                <MoreVertical className="h-4 w-4 text-gray-500" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-48 p-1" align="end">
+              <div className="flex flex-col">
+                {participant.isAdmin ? (
+                  <button
+                    onClick={handleDemote}
+                    disabled={isPending}
+                    className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-md disabled:opacity-50"
+                  >
+                    <ShieldMinus className="h-4 w-4 text-amber-600" />
+                    Remove as Admin
+                  </button>
+                ) : (
+                  <button
+                    onClick={handlePromote}
+                    disabled={isPending}
+                    className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-md disabled:opacity-50"
+                  >
+                    <ShieldPlus className="h-4 w-4 text-green-600" />
+                    Make Admin
+                  </button>
+                )}
+                <button
+                  onClick={() => {
+                    setConfirmRemove(true);
+                    setIsMenuOpen(false);
+                  }}
+                  disabled={isPending}
+                  className="flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-md disabled:opacity-50"
+                >
+                  <UserMinus className="h-4 w-4" />
+                  Remove from Group
+                </button>
+              </div>
+            </PopoverContent>
+          </Popover>
         )}
       </div>
-    </div>
+
+      {/* Remove confirmation dialog */}
+      <Dialog open={confirmRemove} onOpenChange={setConfirmRemove}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Remove Participant</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to remove {displayName} from this group?
+              This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirmRemove(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleRemove}
+              disabled={removeParticipant.isPending}
+            >
+              {removeParticipant.isPending ? "Removing..." : "Remove"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 

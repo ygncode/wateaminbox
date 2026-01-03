@@ -9,6 +9,7 @@ A multi-tenant collaborative WhatsApp Web client that enables businesses to mana
 ## Tech Stack
 
 ### Frontend (React App)
+
 - **Runtime**: Bun
 - **Build Tool**: Vite
 - **Framework**: React
@@ -21,11 +22,13 @@ A multi-tenant collaborative WhatsApp Web client that enables businesses to mana
 - **Code Quality**: Biome (linter + formatter)
 
 ### Marketing Site
+
 - **Framework**: Astro
 - **Content**: Landing page, pricing, blog, documentation, changelog
 - **Styling**: Tailwind CSS
 
 ### Backend (API Server)
+
 - **Runtime**: Bun
 - **Framework**: Hono
 - **Database**: PostgreSQL (schema-per-tenant)
@@ -36,6 +39,7 @@ A multi-tenant collaborative WhatsApp Web client that enables businesses to mana
 - **Code Quality**: Biome
 
 ### WhatsApp Service (Go)
+
 - **Library**: whatsmeow (custom Go service)
 - **Architecture**: Process-per-account (isolated)
 - **Orchestrator**: Dedicated Go service managing WhatsApp processes
@@ -43,21 +47,25 @@ A multi-tenant collaborative WhatsApp Web client that enables businesses to mana
 - **Code Quality**: golangci-lint
 
 ### Message Queue
+
 - **Technology**: NATS JetStream
 - **Purpose**: Communication between Go services and Hono backend
 - **Features**: Persistence, replay, delivery guarantees
 
 ### Media Storage
+
 - **Production**: Cloudflare R2
 - **Development**: Local filesystem (R2-compatible interface)
 - **Strategy**: Download and store all media on receive
 
 ### Infrastructure
+
 - **Containers**: Docker Compose for local development
 - **Database**: PostgreSQL (change port if existing port in use)
 - **Observability**: Abstract logging interface (provider-agnostic)
 
 ### Repository Structure
+
 - **Type**: Monorepo (frontend, backend, Go services)
 - **Tool**: Turborepo or similar for task orchestration
 
@@ -361,6 +369,7 @@ notification_preferences (
 ### Phase 1: MVP (Core Flow)
 
 #### 1.1 Marketing Site (Astro)
+
 - Landing page with feature overview
 - Pricing page (placeholder for future monetization)
 - Blog section (empty initially)
@@ -368,6 +377,7 @@ notification_preferences (
 - Changelog section
 
 #### 1.2 Authentication
+
 - Email + password registration
 - Email verification (via Resend)
 - Login with email/password
@@ -377,11 +387,13 @@ notification_preferences (
 - "Log out all devices" functionality
 
 #### 1.3 Company Setup
+
 - Create new company on registration
 - Join company via invite link/code
 - Company profile settings
 
 #### 1.4 WhatsApp Connection
+
 - QR code scanning for connection
 - Connection status display
 - Reconnection handling
@@ -389,6 +401,7 @@ notification_preferences (
 - Ban detection with guidance
 
 #### 1.5 Contact Management
+
 - Import contacts on-demand (lazy loading)
 - View contact list with search
 - Add new contacts by phone number
@@ -398,6 +411,7 @@ notification_preferences (
 - Private personal notes
 
 #### 1.6 Messaging (1:1 Chats)
+
 - Real-time message receiving
 - Send text messages
 - Send/receive media (images, videos, audio, documents)
@@ -410,12 +424,14 @@ notification_preferences (
 - Message search within conversation
 
 #### 1.7 Dashboard
+
 - Message counts (sent, received, today, this week)
 - Time-range filters
 
 ### Phase 2: Team Collaboration
 
 #### 2.1 Team Management
+
 - Invite team members via email
 - Feature-based permissions:
   - `can_view_all_chats`
@@ -428,6 +444,7 @@ notification_preferences (
 - Role presets: Owner, Admin, Agent (customizable)
 
 #### 2.2 Contact Assignment
+
 - Self-assign unassigned contacts
 - "Assign to me" on first reply (claims contact)
 - View assigned vs all chats filter
@@ -435,6 +452,7 @@ notification_preferences (
 - Assignment history in audit log
 
 #### 2.3 Notifications
+
 - Browser notifications with sound
 - Customizable sound choice
 - Quiet hours configuration
@@ -442,6 +460,7 @@ notification_preferences (
 - In-app notification center
 
 #### 2.4 Audit Logging
+
 - Action-level logging:
   - Message sent
   - Contact assigned/unassigned
@@ -454,22 +473,26 @@ notification_preferences (
 ### Phase 3: Advanced Features
 
 #### 3.1 Group Chats
+
 - View group conversations
 - Send messages to groups
 - Group participant list
 - Group admin actions (if admin)
 
 #### 3.2 WhatsApp Status
+
 - View contact status updates
 - Post status updates
 - Status expiration handling
 
 #### 3.3 WhatsApp Business Features
+
 - Quick replies
 - Labels (synced with custom tags)
 - Catalogs (if Business account)
 
 #### 3.4 Advanced Dashboard
+
 - Response time analytics
 - Average reply time
 - SLA tracking
@@ -479,18 +502,21 @@ notification_preferences (
 - Resolution rate (if tracked)
 
 #### 3.5 Contact Organization
+
 - Custom tags/labels (Lead, VIP, Support, etc.)
 - Bulk import contacts (CSV/Excel)
 - Contact fields: name, notes, tags
 - Filter by tags
 
 #### 3.6 Search
+
 - Full-text search across all messages
 - Filters: date range, contact, media type
 - Meilisearch integration
 - Typo-tolerant search
 
 #### 3.7 Export
+
 - Full backup as ZIP (messages + media)
 - Per-contact export
 - Date range export
@@ -498,11 +524,13 @@ notification_preferences (
 ### Phase 4: Scale & Polish
 
 #### 4.1 Internationalization
+
 - Full i18n infrastructure
 - English (default)
 - Simplified Chinese (简体中文)
 
 #### 4.2 Keyboard Shortcuts
+
 - `Ctrl+N` - New chat
 - `Ctrl+F` - Search
 - `Escape` - Close modal/panel
@@ -512,6 +540,7 @@ notification_preferences (
 - Full keyboard navigation
 
 #### 4.3 Mobile Responsiveness
+
 - Fully responsive design
 - Touch-friendly interactions
 - Mobile-optimized chat interface
@@ -523,6 +552,7 @@ notification_preferences (
 ### REST Endpoints (Hono)
 
 #### Authentication
+
 ```
 POST   /api/auth/register
 POST   /api/auth/login
@@ -536,6 +566,7 @@ DELETE /api/auth/sessions (logout all)
 ```
 
 #### Company
+
 ```
 POST   /api/companies
 GET    /api/companies/:id
@@ -547,6 +578,7 @@ POST   /api/invitations/:token/accept
 ```
 
 #### WhatsApp Connection
+
 ```
 GET    /api/whatsapp/status
 POST   /api/whatsapp/connect
@@ -555,6 +587,7 @@ POST   /api/whatsapp/disconnect
 ```
 
 #### Contacts
+
 ```
 GET    /api/contacts
 GET    /api/contacts/:id
@@ -566,6 +599,7 @@ DELETE /api/contacts/:id/assign
 ```
 
 #### Messages
+
 ```
 GET    /api/messages
 POST   /api/messages
@@ -577,22 +611,26 @@ POST   /api/messages/:id/forward
 ```
 
 #### Search
+
 ```
 GET    /api/search?q=&filters=
 ```
 
 #### Notifications
+
 ```
 GET    /api/notifications/preferences
 PATCH  /api/notifications/preferences
 ```
 
 #### Audit
+
 ```
 GET    /api/audit-logs
 ```
 
 #### Dashboard
+
 ```
 GET    /api/dashboard/stats
 GET    /api/dashboard/analytics
@@ -601,6 +639,7 @@ GET    /api/dashboard/analytics
 ### WebSocket Events (Hono)
 
 #### Client → Server
+
 ```
 subscribe:company:{companyId}
 message:send
@@ -610,6 +649,7 @@ contact:assign
 ```
 
 #### Server → Client
+
 ```
 message:new
 message:update
@@ -644,23 +684,27 @@ whatsapp.{companyId}.media.download
 ## Security Considerations
 
 ### Authentication & Authorization
+
 - JWT tokens with short expiry (15 min) + refresh tokens
 - Device-based session tracking
 - Permission checks on every API call
 - Rate limiting on authentication endpoints
 
 ### Data Protection
+
 - Tenant isolation via database schemas
 - Encryption at rest for sensitive data (session keys)
 - No cross-tenant data leakage
 - Audit logging for compliance
 
 ### WhatsApp-Specific
+
 - Message rate limiting (mirror WhatsApp limits)
 - Ban detection and user notification
 - Session data encryption in database
 
 ### Input Validation
+
 - Validate all user inputs
 - Sanitize message content
 - File type validation for uploads
@@ -670,18 +714,21 @@ whatsapp.{companyId}.media.download
 ## Testing Strategy
 
 ### Backend (TDD)
+
 - Unit tests for all business logic
 - Integration tests with test database
 - Contract tests for Go ↔ Hono communication via NATS
 - Mock WhatsApp service for development
 
 ### Frontend (E2E)
+
 - Playwright for user flow testing
 - Mock backend for UI tests
 - Smoke tests with real sandbox (optional)
 - Visual regression testing (optional)
 
 ### Development Mode
+
 - Mock WhatsApp service simulating:
   - Incoming messages
   - Typing indicators
@@ -694,12 +741,14 @@ whatsapp.{companyId}.media.download
 ## Error Handling
 
 ### Connection States
+
 - **Connected**: Normal operation
 - **Disconnected**: Clear error banner, block sending
 - **Reconnecting**: Show status, queue disabled
 - **Banned**: Notification with guidance, preserve data
 
 ### User Feedback
+
 - Toast notifications for actions
 - Inline validation errors
 - Connection status indicator
@@ -710,22 +759,26 @@ whatsapp.{companyId}.media.download
 ## Performance Considerations
 
 ### Database
+
 - Indexes on frequently queried columns
 - Pagination for message lists
 - Lazy loading of message history
 - Materialized views for dashboard stats
 
 ### Real-time
+
 - Efficient WebSocket connection management
 - Message batching for bulk updates
 - Optimistic UI updates
 
 ### Media
+
 - Thumbnail generation
 - Progressive image loading
 - Lazy media download
 
 ### Search
+
 - Meilisearch for fast full-text search
 - Background indexing of new messages
 - Debounced search input
@@ -735,6 +788,7 @@ whatsapp.{companyId}.media.download
 ## Deployment
 
 ### Local Development
+
 ```yaml
 # docker-compose.yml services
 - PostgreSQL (port configurable, avoid conflicts)
@@ -744,6 +798,7 @@ whatsapp.{companyId}.media.download
 ```
 
 ### Production Considerations
+
 - Stateless Hono replicas behind load balancer
 - Single Go orchestrator (initially)
 - Orchestrator auto-reconnects all accounts on startup
@@ -754,6 +809,7 @@ whatsapp.{companyId}.media.download
 ## Development Phases (Tasks)
 
 ### Phase 1: Foundation
+
 1. Project setup (monorepo, tooling, linting)
 2. Docker Compose configuration
 3. Database schema + migrations
@@ -761,6 +817,7 @@ whatsapp.{companyId}.media.download
 5. Company/tenant setup
 
 ### Phase 2: WhatsApp Core
+
 1. Go orchestrator service
 2. WhatsApp process management
 3. NATS integration
@@ -768,6 +825,7 @@ whatsapp.{companyId}.media.download
 5. Basic message send/receive
 
 ### Phase 3: Chat UI
+
 1. Chat list component
 2. Message thread component
 3. Message input with media
@@ -775,12 +833,14 @@ whatsapp.{companyId}.media.download
 5. Contact management UI
 
 ### Phase 4: Team Features
+
 1. Team invitation system
 2. Permission system
 3. Contact assignment
 4. Audit logging
 
 ### Phase 5: Advanced
+
 1. Full-text search with Meilisearch
 2. Dashboard analytics
 3. Export functionality
@@ -788,6 +848,7 @@ whatsapp.{companyId}.media.download
 5. WhatsApp Status
 
 ### Phase 6: Polish
+
 1. i18n (English + Chinese)
 2. Keyboard shortcuts
 3. Mobile responsiveness

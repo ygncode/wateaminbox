@@ -133,7 +133,10 @@ func (c *Client) Connect(ctx context.Context) error {
 // connectWithQR starts the QR code pairing flow.
 func (c *Client) connectWithQR(ctx context.Context) error {
 	// Get QR channel
-	qrChan, _ := c.client.GetQRChannel(ctx)
+	qrChan, err := c.client.GetQRChannel(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get QR channel: %w", err)
+	}
 
 	// Connect to WhatsApp
 	if err := c.client.Connect(); err != nil {
@@ -252,16 +255,37 @@ func (c *Client) RegisterEventHandler(handler func(interface{})) {
 }
 
 // SendMessage sends a text message.
-func (c *Client) SendMessage(ctx context.Context, jid string, text string) error {
+func (c *Client) SendMessage(ctx context.Context, jid string, text string, replyTo string, replyToSender string) error {
 	// Parse JID
 	recipient, err := types.ParseJID(jid)
 	if err != nil {
 		return fmt.Errorf("invalid JID %s: %w", jid, err)
 	}
 
-	// Create message
-	msg := &waE2E.Message{
-		Conversation: proto.String(text),
+	var msg *waE2E.Message
+
+	// If replying to a message, use ExtendedTextMessage with ContextInfo
+	if replyTo != "" {
+		// Use provided sender JID, or fall back to recipient JID
+		participant := replyToSender
+		if participant == "" {
+			participant = jid
+		}
+		log.Printf("Sending reply message: stanzaId=%s, participant=%s", replyTo, participant)
+		msg = &waE2E.Message{
+			ExtendedTextMessage: &waE2E.ExtendedTextMessage{
+				Text: proto.String(text),
+				ContextInfo: &waE2E.ContextInfo{
+					StanzaID:    proto.String(replyTo),
+					Participant: proto.String(participant),
+				},
+			},
+		}
+	} else {
+		// Simple text message
+		msg = &waE2E.Message{
+			Conversation: proto.String(text),
+		}
 	}
 
 	// Send message
@@ -275,24 +299,30 @@ func (c *Client) SendMessage(ctx context.Context, jid string, text string) error
 }
 
 // SendMediaMessage sends a media message (image, document, video, audio).
-func (c *Client) SendMediaMessage(ctx context.Context, jid string, mediaType string, data []byte, caption string, fileName string, mimeType string) error {
+func (c *Client) SendMediaMessage(ctx context.Context, jid string, mediaType string, data []byte, caption string, fileName string, mimeType string, replyTo string, replyToSender string) error {
 	// Parse JID
 	recipient, err := types.ParseJID(jid)
 	if err != nil {
 		return fmt.Errorf("invalid JID %s: %w", jid, err)
 	}
 
+	// Use provided sender JID, or fall back to recipient JID
+	participant := replyToSender
+	if participant == "" {
+		participant = jid
+	}
+
 	var msg *waE2E.Message
 
 	switch mediaType {
 	case "image":
-		msg, err = c.createImageMessage(ctx, data, caption, mimeType)
+		msg, err = c.createImageMessage(ctx, data, caption, mimeType, participant, replyTo)
 	case "document":
-		msg, err = c.createDocumentMessage(ctx, data, caption, fileName, mimeType)
+		msg, err = c.createDocumentMessage(ctx, data, caption, fileName, mimeType, participant, replyTo)
 	case "video":
-		msg, err = c.createVideoMessage(ctx, data, caption, mimeType)
+		msg, err = c.createVideoMessage(ctx, data, caption, mimeType, participant, replyTo)
 	case "audio":
-		msg, err = c.createAudioMessage(ctx, data, mimeType)
+		msg, err = c.createAudioMessage(ctx, data, mimeType, participant, replyTo)
 	default:
 		return fmt.Errorf("unsupported media type: %s", mediaType)
 	}
@@ -312,7 +342,7 @@ func (c *Client) SendMediaMessage(ctx context.Context, jid string, mediaType str
 }
 
 // createImageMessage creates an image message.
-func (c *Client) createImageMessage(ctx context.Context, data []byte, caption string, mimeType string) (*waE2E.Message, error) {
+func (c *Client) createImageMessage(ctx context.Context, data []byte, caption string, mimeType string, jid string, replyTo string) (*waE2E.Message, error) {
 	if mimeType == "" {
 		mimeType = "image/jpeg"
 	}
@@ -323,24 +353,30 @@ func (c *Client) createImageMessage(ctx context.Context, data []byte, caption st
 		return nil, fmt.Errorf("failed to upload image: %w", err)
 	}
 
-	msg := &waE2E.Message{
-		ImageMessage: &waE2E.ImageMessage{
-			URL:           proto.String(uploaded.URL),
-			DirectPath:    proto.String(uploaded.DirectPath),
-			MediaKey:      uploaded.MediaKey,
-			Mimetype:      proto.String(mimeType),
-			FileEncSHA256: uploaded.FileEncSHA256,
-			FileSHA256:    uploaded.FileSHA256,
-			FileLength:    proto.Uint64(uint64(len(data))),
-			Caption:       proto.String(caption),
-		},
+	imageMsg := &waE2E.ImageMessage{
+		URL:           proto.String(uploaded.URL),
+		DirectPath:    proto.String(uploaded.DirectPath),
+		MediaKey:      uploaded.MediaKey,
+		Mimetype:      proto.String(mimeType),
+		FileEncSHA256: uploaded.FileEncSHA256,
+		FileSHA256:    uploaded.FileSHA256,
+		FileLength:    proto.Uint64(uint64(len(data))),
+		Caption:       proto.String(caption),
 	}
 
-	return msg, nil
+	// Add reply context if provided
+	if replyTo != "" {
+		imageMsg.ContextInfo = &waE2E.ContextInfo{
+			StanzaID:    proto.String(replyTo),
+			Participant: proto.String(jid),
+		}
+	}
+
+	return &waE2E.Message{ImageMessage: imageMsg}, nil
 }
 
 // createDocumentMessage creates a document message.
-func (c *Client) createDocumentMessage(ctx context.Context, data []byte, caption string, fileName string, mimeType string) (*waE2E.Message, error) {
+func (c *Client) createDocumentMessage(ctx context.Context, data []byte, caption string, fileName string, mimeType string, jid string, replyTo string) (*waE2E.Message, error) {
 	if mimeType == "" {
 		mimeType = "application/octet-stream"
 	}
@@ -354,25 +390,31 @@ func (c *Client) createDocumentMessage(ctx context.Context, data []byte, caption
 		return nil, fmt.Errorf("failed to upload document: %w", err)
 	}
 
-	msg := &waE2E.Message{
-		DocumentMessage: &waE2E.DocumentMessage{
-			URL:           proto.String(uploaded.URL),
-			DirectPath:    proto.String(uploaded.DirectPath),
-			MediaKey:      uploaded.MediaKey,
-			Mimetype:      proto.String(mimeType),
-			FileEncSHA256: uploaded.FileEncSHA256,
-			FileSHA256:    uploaded.FileSHA256,
-			FileLength:    proto.Uint64(uint64(len(data))),
-			FileName:      proto.String(fileName),
-			Caption:       proto.String(caption),
-		},
+	docMsg := &waE2E.DocumentMessage{
+		URL:           proto.String(uploaded.URL),
+		DirectPath:    proto.String(uploaded.DirectPath),
+		MediaKey:      uploaded.MediaKey,
+		Mimetype:      proto.String(mimeType),
+		FileEncSHA256: uploaded.FileEncSHA256,
+		FileSHA256:    uploaded.FileSHA256,
+		FileLength:    proto.Uint64(uint64(len(data))),
+		FileName:      proto.String(fileName),
+		Caption:       proto.String(caption),
 	}
 
-	return msg, nil
+	// Add reply context if provided
+	if replyTo != "" {
+		docMsg.ContextInfo = &waE2E.ContextInfo{
+			StanzaID:    proto.String(replyTo),
+			Participant: proto.String(jid),
+		}
+	}
+
+	return &waE2E.Message{DocumentMessage: docMsg}, nil
 }
 
 // createVideoMessage creates a video message.
-func (c *Client) createVideoMessage(ctx context.Context, data []byte, caption string, mimeType string) (*waE2E.Message, error) {
+func (c *Client) createVideoMessage(ctx context.Context, data []byte, caption string, mimeType string, jid string, replyTo string) (*waE2E.Message, error) {
 	if mimeType == "" {
 		mimeType = "video/mp4"
 	}
@@ -383,24 +425,30 @@ func (c *Client) createVideoMessage(ctx context.Context, data []byte, caption st
 		return nil, fmt.Errorf("failed to upload video: %w", err)
 	}
 
-	msg := &waE2E.Message{
-		VideoMessage: &waE2E.VideoMessage{
-			URL:           proto.String(uploaded.URL),
-			DirectPath:    proto.String(uploaded.DirectPath),
-			MediaKey:      uploaded.MediaKey,
-			Mimetype:      proto.String(mimeType),
-			FileEncSHA256: uploaded.FileEncSHA256,
-			FileSHA256:    uploaded.FileSHA256,
-			FileLength:    proto.Uint64(uint64(len(data))),
-			Caption:       proto.String(caption),
-		},
+	videoMsg := &waE2E.VideoMessage{
+		URL:           proto.String(uploaded.URL),
+		DirectPath:    proto.String(uploaded.DirectPath),
+		MediaKey:      uploaded.MediaKey,
+		Mimetype:      proto.String(mimeType),
+		FileEncSHA256: uploaded.FileEncSHA256,
+		FileSHA256:    uploaded.FileSHA256,
+		FileLength:    proto.Uint64(uint64(len(data))),
+		Caption:       proto.String(caption),
 	}
 
-	return msg, nil
+	// Add reply context if provided
+	if replyTo != "" {
+		videoMsg.ContextInfo = &waE2E.ContextInfo{
+			StanzaID:    proto.String(replyTo),
+			Participant: proto.String(jid),
+		}
+	}
+
+	return &waE2E.Message{VideoMessage: videoMsg}, nil
 }
 
 // createAudioMessage creates an audio message.
-func (c *Client) createAudioMessage(ctx context.Context, data []byte, mimeType string) (*waE2E.Message, error) {
+func (c *Client) createAudioMessage(ctx context.Context, data []byte, mimeType string, jid string, replyTo string) (*waE2E.Message, error) {
 	if mimeType == "" {
 		mimeType = "audio/ogg; codecs=opus"
 	}
@@ -411,20 +459,26 @@ func (c *Client) createAudioMessage(ctx context.Context, data []byte, mimeType s
 		return nil, fmt.Errorf("failed to upload audio: %w", err)
 	}
 
-	msg := &waE2E.Message{
-		AudioMessage: &waE2E.AudioMessage{
-			URL:           proto.String(uploaded.URL),
-			DirectPath:    proto.String(uploaded.DirectPath),
-			MediaKey:      uploaded.MediaKey,
-			Mimetype:      proto.String(mimeType),
-			FileEncSHA256: uploaded.FileEncSHA256,
-			FileSHA256:    uploaded.FileSHA256,
-			FileLength:    proto.Uint64(uint64(len(data))),
-			PTT:           proto.Bool(true), // Push-to-talk (voice note)
-		},
+	audioMsg := &waE2E.AudioMessage{
+		URL:           proto.String(uploaded.URL),
+		DirectPath:    proto.String(uploaded.DirectPath),
+		MediaKey:      uploaded.MediaKey,
+		Mimetype:      proto.String(mimeType),
+		FileEncSHA256: uploaded.FileEncSHA256,
+		FileSHA256:    uploaded.FileSHA256,
+		FileLength:    proto.Uint64(uint64(len(data))),
+		PTT:           proto.Bool(true), // Push-to-talk (voice note)
 	}
 
-	return msg, nil
+	// Add reply context if provided
+	if replyTo != "" {
+		audioMsg.ContextInfo = &waE2E.ContextInfo{
+			StanzaID:    proto.String(replyTo),
+			Participant: proto.String(jid),
+		}
+	}
+
+	return &waE2E.Message{AudioMessage: audioMsg}, nil
 }
 
 // GetQRCode returns the QR code for device pairing (deprecated, use Connect with callback).

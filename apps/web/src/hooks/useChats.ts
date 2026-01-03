@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { fetchMockChats, searchMockChats } from "../lib/mock-data";
 import { getAccessToken, getCompanyId } from "../lib/api";
@@ -65,12 +66,19 @@ export function useChats(
   includeGroups: boolean = true,
   assignmentFilter: AssignmentFilter = "all",
 ) {
+  // Memoize the query key to prevent unnecessary re-renders
+  const queryKey = useMemo(
+    () =>
+      chatKeys.list({
+        search: searchQuery,
+        includeGroups,
+        assignmentFilter,
+      }),
+    [searchQuery, includeGroups, assignmentFilter],
+  );
+
   return useQuery<Chat[], Error>({
-    queryKey: chatKeys.list({
-      search: searchQuery,
-      includeGroups,
-      assignmentFilter,
-    }),
+    queryKey,
     queryFn: async () => {
       const token = getAccessToken();
       if (!token) {

@@ -228,6 +228,7 @@ export function SettingsPage() {
                   <div className="divide-y divide-gray-100">
                     <QuickLink
                       to="/dashboard"
+                      state={{ from: "settings" }}
                       icon={<LayoutDashboard className="h-5 w-5" />}
                       iconBg="bg-emerald-100"
                       iconColor="text-emerald-600"
@@ -239,6 +240,7 @@ export function SettingsPage() {
                     />
                     <QuickLink
                       to="/team"
+                      state={{ from: "settings" }}
                       icon={<Users className="h-5 w-5" />}
                       iconBg="bg-blue-100"
                       iconColor="text-blue-600"
@@ -337,6 +339,7 @@ interface QuickLinkProps {
   iconColor: string;
   title: string;
   description: string;
+  state?: Record<string, unknown>;
 }
 
 function QuickLink({
@@ -346,10 +349,12 @@ function QuickLink({
   iconColor,
   title,
   description,
+  state,
 }: QuickLinkProps) {
   return (
     <Link
       to={to}
+      state={state}
       className="flex items-center gap-4 px-5 py-4 hover:bg-gray-50 transition-colors group"
     >
       <div className={`p-2.5 rounded-lg ${iconBg}`}>

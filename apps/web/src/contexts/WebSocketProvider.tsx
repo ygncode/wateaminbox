@@ -6,6 +6,7 @@ import {
   useRef,
   type ReactNode,
 } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   WebSocketClient,
   getWebSocketClient,
@@ -21,6 +22,8 @@ import {
 import { getAccessToken, getCompanyId } from "../lib/api";
 import { useWebSocketStore } from "../stores/websocket-store";
 import { useChatStore, type TypingIndicator } from "../stores/chat-store";
+import { infiniteMessageKeys } from "../hooks/useInfiniteMessages";
+import type { PaginatedMessages } from "@whatsapp-web/shared";
 
 // Context value type
 interface WebSocketContextValue {
@@ -67,6 +70,11 @@ export function WebSocketProvider({
     new Map(),
   );
   const isInitializedRef = useRef(false);
+
+  // TanStack Query client for cache updates
+  const queryClient = useQueryClient();
+  const queryClientRef = useRef(queryClient);
+  queryClientRef.current = queryClient;
 
   // WebSocket store
   const status = useWebSocketStore((state) => state.status);
@@ -219,6 +227,24 @@ export function WebSocketProvider({
     [send],
   );
 
+  // Store callbacks in refs to avoid dependency changes triggering reconnects
+  const addMessageRef = useRef(addMessage);
+  const updateMessageStatusRef = useRef(updateMessageStatus);
+  const addTypingIndicatorRef = useRef(addTypingIndicator);
+  const removeTypingIndicatorRef = useRef(removeTypingIndicator);
+  const setTypingTimeoutRef = useRef(setTypingTimeout);
+  const clearTypingTimeoutRef = useRef(clearTypingTimeout);
+
+  // Update refs when callbacks change
+  useEffect(() => {
+    addMessageRef.current = addMessage;
+    updateMessageStatusRef.current = updateMessageStatus;
+    addTypingIndicatorRef.current = addTypingIndicator;
+    removeTypingIndicatorRef.current = removeTypingIndicator;
+    setTypingTimeoutRef.current = setTypingTimeout;
+    clearTypingTimeoutRef.current = clearTypingTimeout;
+  });
+
   // Set up event handlers and auto-connect
   useEffect(() => {
     if (isInitializedRef.current) return;
@@ -230,7 +256,37 @@ export function WebSocketProvider({
     const unsubNewMessage = client.on<NewMessagePayload>(
       "message:new",
       (payload) => {
-        addMessage(payload.conversationId, payload.message);
+        // Update Zustand store (for legacy compatibility)
+        addMessageRef.current(payload.conversationId, payload.message);
+
+        // Update TanStack Query cache for real-time message updates
+        const queryKey = infiniteMessageKeys.list(payload.conversationId);
+        queryClientRef.current.setQueryData<{
+          pages: PaginatedMessages[];
+          pageParams: (string | undefined)[];
+        }>(queryKey, (oldData) => {
+          if (!oldData) return oldData;
+
+          // Check if message already exists to avoid duplicates
+          const messageExists = oldData.pages.some((page) =>
+            page.messages.some((msg) => msg.id === payload.message.id)
+          );
+          if (messageExists) return oldData;
+
+          // Add the new message to the first page (most recent)
+          const newPages = [...oldData.pages];
+          if (newPages.length > 0) {
+            newPages[0] = {
+              ...newPages[0],
+              messages: [payload.message, ...newPages[0].messages],
+            };
+          }
+
+          return {
+            ...oldData,
+            pages: newPages,
+          };
+        });
       },
     );
 
@@ -238,7 +294,7 @@ export function WebSocketProvider({
     const unsubMessageStatus = client.on<MessageStatusPayload>(
       "message:status",
       (payload) => {
-        updateMessageStatus(
+        updateMessageStatusRef.current(
           payload.conversationId,
           payload.messageId,
           payload.status,
@@ -256,8 +312,8 @@ export function WebSocketProvider({
           userName: payload.userName,
           startedAt: new Date(),
         };
-        addTypingIndicator(indicator);
-        setTypingTimeout(payload.conversationId, payload.userId);
+        addTypingIndicatorRef.current(indicator);
+        setTypingTimeoutRef.current(payload.conversationId, payload.userId);
       },
     );
 
@@ -265,8 +321,8 @@ export function WebSocketProvider({
     const unsubTypingStop = client.on<TypingPayload>(
       "typing:stop",
       (payload) => {
-        removeTypingIndicator(payload.conversationId, payload.userId);
-        clearTypingTimeout(payload.conversationId, payload.userId);
+        removeTypingIndicatorRef.current(payload.conversationId, payload.userId);
+        clearTypingTimeoutRef.current(payload.conversationId, payload.userId);
       },
     );
 
@@ -302,18 +358,7 @@ export function WebSocketProvider({
       resetWsStore();
       isInitializedRef.current = false;
     };
-  }, [
-    autoConnect,
-    connect,
-    initializeClient,
-    addMessage,
-    updateMessageStatus,
-    addTypingIndicator,
-    removeTypingIndicator,
-    setTypingTimeout,
-    clearTypingTimeout,
-    resetWsStore,
-  ]);
+  }, [autoConnect, connect, initializeClient, resetWsStore]);
 
   // Context value
   const contextValue: WebSocketContextValue = {

@@ -51,11 +51,9 @@ export function MobileLayoutProvider({
 
   // Sync with external chat selection
   useEffect(() => {
-    if (initialChatId !== selectedChatId) {
-      setSelectedChatIdState(initialChatId);
-      if (initialChatId) {
-        setCurrentView("message-thread");
-      }
+    setSelectedChatIdState(initialChatId);
+    if (initialChatId) {
+      setCurrentView("message-thread");
     }
   }, [initialChatId]);
 

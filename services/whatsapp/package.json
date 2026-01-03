@@ -1,0 +1,9 @@
+{
+  "name": "@whatsapp-web/whatsapp",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "build": "go build -o whatsapp-worker main.go",
+    "clean": "rm -f whatsapp-worker"
+  }
+}

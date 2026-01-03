@@ -401,6 +401,12 @@ export async function publishKillCommand(
 
 /**
  * Publishes a send message command to company-specific subject
+ * The command format must match what the Go WhatsApp worker expects:
+ * - to: JID of recipient
+ * - type: message type (text, image, etc.)
+ * - content: message content
+ * - reply_to: optional message ID to reply to
+ * - reply_to_sender: JID of the sender of the quoted message
  */
 export async function publishSendMessage(
   companyId: string,
@@ -409,19 +415,27 @@ export async function publishSendMessage(
   messageType: MessageType,
   userId: string,
   mediaUrl?: string,
+  replyTo?: string,
+  replyToSender?: string,
 ): Promise<void> {
-  const command: SendMessageCommand = {
-    type: "send",
-    company_id: companyId,
-    jid,
+  // Format command to match Go worker's SendMessageCommand struct
+  const sendCommand = {
+    message_id: crypto.randomUUID(),
+    to: jid,
+    type: messageType, // Go worker expects "text", "image", etc. directly
     content,
-    message_type: messageType,
     media_url: mediaUrl,
     user_id: userId,
+    reply_to: replyTo,
+    reply_to_sender: replyToSender,
   };
-  // Publish to company-specific subject so worker can filter
+
+  // Publish directly to JetStream (not through publishCommand which adds NatsCommand envelope)
+  const js = await getJetStreamClient();
   const subject = `${NATS_SUBJECTS.WHATSAPP_COMMANDS}.${companyId}`;
-  await publishCommand(subject, command);
+  const data = jc.encode(sendCommand);
+  await js.publish(subject, data);
+  console.log(`[NATS] Published send message to ${subject}: to=${jid}, type=${messageType}, reply_to=${replyTo || 'none'}, reply_to_sender=${replyToSender || 'none'}`);
 }
 
 /**

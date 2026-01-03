@@ -38,6 +38,7 @@
         "tailwindcss": "^3.4.0",
       },
       "devDependencies": {
+        "@playwright/test": "^1.48.0",
         "eslint": "^8.57.0",
         "prettier": "^3.2.0",
         "prettier-plugin-astro": "^0.13.0",
@@ -128,6 +129,14 @@
         "react": "^18.0.0",
         "react-dom": "^18.0.0",
       },
+    },
+    "services/orchestrator": {
+      "name": "@whatsapp-web/orchestrator",
+      "version": "1.0.0",
+    },
+    "services/whatsapp": {
+      "name": "@whatsapp-web/whatsapp",
+      "version": "1.0.0",
     },
   },
   "packages": {
@@ -577,11 +586,15 @@
 
     "@whatsapp-web/marketing": ["@whatsapp-web/marketing@workspace:apps/marketing"],
 
+    "@whatsapp-web/orchestrator": ["@whatsapp-web/orchestrator@workspace:services/orchestrator"],
+
     "@whatsapp-web/shared": ["@whatsapp-web/shared@workspace:packages/shared"],
 
     "@whatsapp-web/ui": ["@whatsapp-web/ui@workspace:packages/ui"],
 
     "@whatsapp-web/web": ["@whatsapp-web/web@workspace:apps/web"],
+
+    "@whatsapp-web/whatsapp": ["@whatsapp-web/whatsapp@workspace:services/whatsapp"],
 
     "abbrev": ["abbrev@1.1.1", "", {}, "sha512-nne9/IiQ/hzIhY6pdDnbBtz7DjPTKrY00P/zvPSm5pOFkl6xuGrGnXn/VtTNNfNtAfZ9/1RtehkszU9qcTii0Q=="],
 

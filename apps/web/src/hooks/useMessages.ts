@@ -35,6 +35,7 @@ interface SendMessageInput {
   content: string;
   messageType?: "text" | "image" | "video" | "audio" | "document";
   mediaUrl?: string;
+  replyToMessageId?: string;
 }
 
 export function useSendMessage() {
@@ -49,10 +50,61 @@ export function useSendMessage() {
         queryKey: infiniteMessageKeys.list(newMessage.contactId),
       });
 
-      return { contactId: newMessage.contactId };
+      // Create an optimistic message
+      const now = new Date();
+      const optimisticMessage: Message = {
+        id: `optimistic-${Date.now()}`,
+        conversationId: newMessage.contactId,
+        senderId: "current-user",
+        senderType: "user",
+        messageType: newMessage.messageType || "text",
+        content: newMessage.content,
+        metadata: newMessage.mediaUrl ? { mediaUrl: newMessage.mediaUrl } : undefined,
+        replyToMessageId: newMessage.replyToMessageId,
+        isStarred: false,
+        isDeleted: false,
+        status: "pending",
+        createdAt: now,
+        updatedAt: now,
+      };
+
+      // Optimistically add the message to the cache
+      const queryKey = infiniteMessageKeys.list(newMessage.contactId);
+      const previousData = queryClient.getQueryData(queryKey);
+
+      queryClient.setQueryData<{
+        pages: { messages: Message[]; hasMore: boolean; nextCursor: string | null }[];
+        pageParams: (string | undefined)[];
+      }>(queryKey, (oldData) => {
+        if (!oldData) return oldData;
+
+        const newPages = [...oldData.pages];
+        if (newPages.length > 0) {
+          newPages[0] = {
+            ...newPages[0],
+            messages: [optimisticMessage, ...newPages[0].messages],
+          };
+        }
+
+        return {
+          ...oldData,
+          pages: newPages,
+        };
+      });
+
+      return { contactId: newMessage.contactId, previousData, optimisticId: optimisticMessage.id };
+    },
+    onError: (_error, variables, context) => {
+      // Rollback on error
+      if (context?.previousData) {
+        queryClient.setQueryData(
+          infiniteMessageKeys.list(variables.contactId),
+          context.previousData
+        );
+      }
     },
     onSettled: (_data, _error, variables) => {
-      // Refetch infinite messages after mutation
+      // Refetch infinite messages after mutation to get the real message
       queryClient.invalidateQueries({
         queryKey: infiniteMessageKeys.list(variables.contactId),
       });

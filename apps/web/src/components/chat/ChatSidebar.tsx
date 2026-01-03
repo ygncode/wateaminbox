@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, memo } from "react";
 import { ChatList } from "./ChatList";
 import { GroupList } from "../groups/GroupList";
 import { NotificationCenter } from "../notifications/NotificationCenter";
@@ -17,7 +17,7 @@ export interface ChatSidebarProps {
 /**
  * Chat sidebar with tabs for Chats and Groups views
  */
-export function ChatSidebar({
+export const ChatSidebar = memo(function ChatSidebar({
   selectedChatId,
   onChatSelect,
   className,
@@ -79,7 +79,7 @@ export function ChatSidebar({
       </div>
     </div>
   );
-}
+});
 
 interface TabButtonProps {
   isActive: boolean;
@@ -88,7 +88,7 @@ interface TabButtonProps {
   label: string;
 }
 
-function TabButton({ isActive, onClick, icon, label }: TabButtonProps) {
+const TabButton = memo(function TabButton({ isActive, onClick, icon, label }: TabButtonProps) {
   return (
     <button
       type="button"
@@ -107,6 +107,6 @@ function TabButton({ isActive, onClick, icon, label }: TabButtonProps) {
       <span className="hidden sm:inline">{label}</span>
     </button>
   );
-}
+});
 
 export default ChatSidebar;

@@ -56,6 +56,8 @@ interface ServerMessage {
     | "connected"
     | "disconnected"
     | "message"
+    | "message:new"
+    | "message:status"
     | "receipt"
     | "status"
     | "contact"
@@ -174,22 +176,15 @@ async function handleNatsEvent(event: WhatsAppEvent): Promise<void> {
     }
 
     case "message": {
-      const msgEvent = event as MessageEvent;
-      broadcastToCompany(companyId, {
-        type: "message",
-        payload: msgEvent.payload,
-        timestamp: event.timestamp,
-      });
+      // Message events are handled by message-handler.ts which stores to DB
+      // and broadcasts with the correct format including contact UUID.
+      // Skip handling here to avoid duplicate broadcasts.
       break;
     }
 
     case "receipt": {
-      const rcptEvent = event as ReceiptEvent;
-      broadcastToCompany(companyId, {
-        type: "receipt",
-        payload: rcptEvent.payload,
-        timestamp: event.timestamp,
-      });
+      // Receipt events are handled by message-handler.ts which updates DB
+      // and broadcasts. Skip handling here to avoid duplicate broadcasts.
       break;
     }
 

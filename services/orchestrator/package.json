@@ -1,0 +1,10 @@
+{
+  "name": "@whatsapp-web/orchestrator",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "build": "go build -o orchestrator main.go",
+    "dev": "WHATSAPP_BINARY_PATH=$(cd ../whatsapp && pwd)/whatsapp-worker go run main.go",
+    "clean": "rm -f orchestrator"
+  }
+}

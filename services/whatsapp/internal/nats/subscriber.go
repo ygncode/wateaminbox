@@ -23,21 +23,22 @@ const (
 
 // SendMessageCommand represents a command to send a message.
 type SendMessageCommand struct {
-	MessageID   string `json:"message_id"`
-	To          string `json:"to"`           // JID of the recipient
-	Type        string `json:"type"`         // "text", "image", "document", "video", "audio"
-	Content     string `json:"content"`      // Text content or media URL
-	Caption     string `json:"caption"`      // Caption for media messages
-	FileName    string `json:"file_name"`    // File name for documents
-	MimeType    string `json:"mime_type"`    // MIME type for media
-	MediaData   []byte `json:"media_data"`   // Base64 decoded media data
-	ReplyTo     string `json:"reply_to"`     // Message ID to reply to
+	MessageID     string `json:"message_id"`
+	To            string `json:"to"`              // JID of the recipient
+	Type          string `json:"type"`            // "text", "image", "document", "video", "audio"
+	Content       string `json:"content"`         // Text content or media URL
+	Caption       string `json:"caption"`         // Caption for media messages
+	FileName      string `json:"file_name"`       // File name for documents
+	MimeType      string `json:"mime_type"`       // MIME type for media
+	MediaData     []byte `json:"media_data"`      // Base64 decoded media data
+	ReplyTo       string `json:"reply_to"`        // Message ID to reply to
+	ReplyToSender string `json:"reply_to_sender"` // JID of the sender of the quoted message
 }
 
 // MessageSender is the interface for sending WhatsApp messages.
 type MessageSender interface {
-	SendMessage(ctx context.Context, jid string, text string) error
-	SendMediaMessage(ctx context.Context, jid string, mediaType string, data []byte, caption string, fileName string, mimeType string) error
+	SendMessage(ctx context.Context, jid string, text string, replyTo string, replyToSender string) error
+	SendMediaMessage(ctx context.Context, jid string, mediaType string, data []byte, caption string, fileName string, mimeType string, replyTo string, replyToSender string) error
 }
 
 // Subscriber handles subscribing to NATS command subjects.
@@ -171,7 +172,7 @@ func (s *Subscriber) handleSendCommand(msg *nats.Msg) {
 		return
 	}
 
-	log.Printf("Processing send command: type=%s, to=%s", cmd.Type, cmd.To)
+	log.Printf("Processing send command: type=%s, to=%s, reply_to=%s, reply_to_sender=%s", cmd.Type, cmd.To, cmd.ReplyTo, cmd.ReplyToSender)
 
 	var err error
 	ctx, cancel := context.WithTimeout(s.ctx, 30*time.Second)
@@ -179,9 +180,9 @@ func (s *Subscriber) handleSendCommand(msg *nats.Msg) {
 
 	switch cmd.Type {
 	case "text":
-		err = s.sender.SendMessage(ctx, cmd.To, cmd.Content)
+		err = s.sender.SendMessage(ctx, cmd.To, cmd.Content, cmd.ReplyTo, cmd.ReplyToSender)
 	case "image", "video", "audio", "document":
-		err = s.sender.SendMediaMessage(ctx, cmd.To, cmd.Type, cmd.MediaData, cmd.Caption, cmd.FileName, cmd.MimeType)
+		err = s.sender.SendMediaMessage(ctx, cmd.To, cmd.Type, cmd.MediaData, cmd.Caption, cmd.FileName, cmd.MimeType, cmd.ReplyTo, cmd.ReplyToSender)
 	default:
 		log.Printf("Unknown message type: %s", cmd.Type)
 		msg.Nak()

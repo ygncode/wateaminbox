@@ -58,6 +58,10 @@ export function useWhatsAppConnection(): WhatsAppConnection {
   const isConnectingRef = useRef(false);
   // Track if we've already triggered auto-connect for pending status
   const hasTriggeredAutoConnectRef = useRef(false);
+  // Track timeout for waiting_qr state
+  const waitingQrTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
 
   // Query for initial status
   const {
@@ -178,6 +182,32 @@ export function useWhatsAppConnection(): WhatsAppConnection {
       }
     }
   }, [status, wsConnected, connectMutation]);
+
+  // Timeout for waiting_qr state - if QR code doesn't arrive in 30 seconds, show error
+  useEffect(() => {
+    // Clear any existing timeout
+    if (waitingQrTimeoutRef.current) {
+      clearTimeout(waitingQrTimeoutRef.current);
+      waitingQrTimeoutRef.current = null;
+    }
+
+    if (connectionState === "waiting_qr") {
+      waitingQrTimeoutRef.current = setTimeout(() => {
+        setError(
+          "QR code generation timed out. Please check that all services are running and try again.",
+        );
+        setConnectionState("error");
+        isConnectingRef.current = false;
+      }, 30000); // 30 second timeout
+    }
+
+    return () => {
+      if (waitingQrTimeoutRef.current) {
+        clearTimeout(waitingQrTimeoutRef.current);
+        waitingQrTimeoutRef.current = null;
+      }
+    };
+  }, [connectionState]);
 
   // QR code expiry timeout
   useEffect(() => {

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, memo, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Popover,
@@ -20,6 +20,7 @@ import {
   Info,
   Trash2,
   X,
+  Sparkles,
 } from 'lucide-react'
 import { useNotificationCenter } from '@/hooks/useNotificationCenter'
 import type { InAppNotification, NotificationType } from '@/lib/api'
@@ -46,22 +47,46 @@ function getNotificationIcon(type: NotificationType) {
 }
 
 /**
- * Returns the color for a notification type
+ * Returns the color scheme for a notification type
  */
-function getNotificationColor(type: NotificationType) {
+function getNotificationColors(type: NotificationType) {
   switch (type) {
     case 'message':
-      return 'bg-blue-100 text-blue-600'
+      return {
+        bg: 'bg-sky-50',
+        icon: 'bg-sky-100 text-sky-600',
+        accent: 'border-l-sky-400',
+      }
     case 'mention':
-      return 'bg-purple-100 text-purple-600'
+      return {
+        bg: 'bg-violet-50',
+        icon: 'bg-violet-100 text-violet-600',
+        accent: 'border-l-violet-400',
+      }
     case 'assignment':
-      return 'bg-green-100 text-green-600'
+      return {
+        bg: 'bg-emerald-50',
+        icon: 'bg-emerald-100 text-emerald-600',
+        accent: 'border-l-emerald-400',
+      }
     case 'team':
-      return 'bg-orange-100 text-orange-600'
+      return {
+        bg: 'bg-amber-50',
+        icon: 'bg-amber-100 text-amber-600',
+        accent: 'border-l-amber-400',
+      }
     case 'system':
-      return 'bg-gray-100 text-gray-600'
+      return {
+        bg: 'bg-slate-50',
+        icon: 'bg-slate-100 text-slate-600',
+        accent: 'border-l-slate-400',
+      }
     default:
-      return 'bg-gray-100 text-gray-600'
+      return {
+        bg: 'bg-gray-50',
+        icon: 'bg-gray-100 text-gray-500',
+        accent: 'border-l-gray-300',
+      }
   }
 }
 
@@ -86,85 +111,104 @@ function formatNotificationTime(dateString: string): string {
 }
 
 /**
- * Single notification item component
+ * Single notification item component with refined styling
  */
 function NotificationItem({
   notification,
   onMarkAsRead,
   onDelete,
   onClick,
+  index,
 }: {
   notification: InAppNotification
   onMarkAsRead: (id: string) => void
   onDelete: (id: string) => void
   onClick: (notification: InAppNotification) => void
+  index: number
 }) {
+  const colors = getNotificationColors(notification.notificationType)
+
   return (
     <div
       className={cn(
-        'group relative flex items-start gap-3 p-3 hover:bg-gray-50 cursor-pointer transition-colors',
-        !notification.isRead && 'bg-blue-50/50'
+        'group relative flex items-start gap-3 p-3.5 cursor-pointer transition-all duration-200',
+        'border-l-2 hover:bg-gray-50/80',
+        !notification.isRead ? colors.accent : 'border-l-transparent',
+        !notification.isRead && 'bg-white',
       )}
       onClick={() => onClick(notification)}
       data-testid="notification-item"
+      style={{
+        animationDelay: `${index * 50}ms`,
+      }}
     >
-      {/* Icon */}
+      {/* Type Icon */}
       <div
         className={cn(
-          'flex h-8 w-8 shrink-0 items-center justify-center rounded-full',
-          getNotificationColor(notification.notificationType)
+          'flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-transform duration-200 group-hover:scale-105',
+          colors.icon
         )}
       >
         {getNotificationIcon(notification.notificationType)}
       </div>
 
       {/* Content */}
-      <div className="flex-1 min-w-0">
-        <p className={cn('text-sm font-medium text-gray-900', !notification.isRead && 'font-semibold')}>
+      <div className="flex-1 min-w-0 pr-6">
+        <p
+          className={cn(
+            'text-sm text-gray-800 leading-snug',
+            !notification.isRead ? 'font-semibold' : 'font-medium'
+          )}
+        >
           {notification.title}
         </p>
         {notification.message && (
-          <p className="text-sm text-gray-500 truncate">{notification.message}</p>
+          <p className="text-sm text-gray-500 truncate mt-0.5 leading-snug">
+            {notification.message}
+          </p>
         )}
-        <p className="text-xs text-gray-400 mt-1">
+        <p className="text-xs text-gray-400 mt-1.5 font-medium">
           {formatNotificationTime(notification.createdAt)}
         </p>
       </div>
 
-      {/* Unread indicator */}
+      {/* Unread indicator dot */}
       {!notification.isRead && (
-        <div className="absolute right-3 top-3">
-          <div className="h-2 w-2 rounded-full bg-blue-500" />
+        <div className="absolute right-3 top-4">
+          <span className="relative flex h-2.5 w-2.5">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-whatsapp-green opacity-75" />
+            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-whatsapp-green" />
+          </span>
         </div>
       )}
 
-      {/* Actions (shown on hover) */}
-      <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+      {/* Actions overlay on hover */}
+      <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-all duration-200 translate-x-2 group-hover:translate-x-0">
         {!notification.isRead && (
           <Button
             variant="ghost"
             size="sm"
-            className="h-7 w-7 p-0"
+            className="h-7 w-7 p-0 rounded-full hover:bg-whatsapp-green/10 hover:text-whatsapp-dark-green"
             onClick={(e) => {
               e.stopPropagation()
               onMarkAsRead(notification.id)
             }}
             title="Mark as read"
           >
-            <Check className="h-3 w-3" />
+            <Check className="h-3.5 w-3.5" />
           </Button>
         )}
         <Button
           variant="ghost"
           size="sm"
-          className="h-7 w-7 p-0 text-red-500 hover:text-red-600"
+          className="h-7 w-7 p-0 rounded-full hover:bg-red-50 text-gray-400 hover:text-red-500"
           onClick={(e) => {
             e.stopPropagation()
             onDelete(notification.id)
           }}
           title="Delete"
         >
-          <Trash2 className="h-3 w-3" />
+          <Trash2 className="h-3.5 w-3.5" />
         </Button>
       </div>
     </div>
@@ -172,30 +216,44 @@ function NotificationItem({
 }
 
 /**
- * Empty state component
+ * Refined empty state with subtle animation
  */
 function EmptyState() {
   return (
-    <div className="flex flex-col items-center justify-center py-8 text-center">
-      <Bell className="h-10 w-10 text-gray-300 mb-3" />
-      <p className="text-sm font-medium text-gray-500">No notifications</p>
-      <p className="text-xs text-gray-400 mt-1">You're all caught up!</p>
+    <div className="flex flex-col items-center justify-center py-12 px-6">
+      <div className="relative mb-4">
+        {/* Background glow */}
+        <div className="absolute inset-0 bg-whatsapp-green/10 rounded-full blur-xl scale-150" />
+        {/* Icon container */}
+        <div className="relative flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-gray-50 to-gray-100 ring-1 ring-gray-200/50">
+          <Bell className="h-7 w-7 text-gray-300" />
+          <Sparkles className="absolute -top-1 -right-1 h-4 w-4 text-whatsapp-green animate-pulse" />
+        </div>
+      </div>
+      <p className="text-sm font-semibold text-gray-700 mb-1">All caught up!</p>
+      <p className="text-xs text-gray-400 text-center max-w-[180px]">
+        No new notifications. We'll let you know when something arrives.
+      </p>
     </div>
   )
 }
 
 /**
- * Loading skeleton
+ * Loading skeleton with staggered animation
  */
 function LoadingSkeleton() {
   return (
-    <div className="space-y-1">
+    <div className="space-y-1 p-2">
       {[1, 2, 3].map((i) => (
-        <div key={i} className="flex items-start gap-3 p-3">
-          <Skeleton className="h-8 w-8 rounded-full" />
-          <div className="flex-1 space-y-2">
-            <Skeleton className="h-4 w-3/4" />
-            <Skeleton className="h-3 w-1/2" />
+        <div
+          key={i}
+          className="flex items-start gap-3 p-3 animate-pulse"
+          style={{ animationDelay: `${i * 100}ms` }}
+        >
+          <Skeleton className="h-9 w-9 rounded-full" />
+          <div className="flex-1 space-y-2 py-0.5">
+            <Skeleton className="h-4 w-4/5 rounded" />
+            <Skeleton className="h-3 w-3/5 rounded" />
           </div>
         </div>
       ))}
@@ -204,9 +262,9 @@ function LoadingSkeleton() {
 }
 
 /**
- * Main NotificationCenter component
+ * Main NotificationCenter component - Elevated dropdown design
  */
-export function NotificationCenter() {
+export const NotificationCenter = memo(function NotificationCenter() {
   const [isOpen, setIsOpen] = useState(false)
   const navigate = useNavigate()
 
@@ -220,18 +278,16 @@ export function NotificationCenter() {
     isMarkingAllAsRead,
   } = useNotificationCenter()
 
-  const handleNotificationClick = (notification: InAppNotification) => {
-    // Mark as read
+  const handleNotificationClick = useCallback((notification: InAppNotification) => {
     if (!notification.isRead) {
       markAsRead(notification.id)
     }
 
-    // Navigate if there's an action URL
     if (notification.actionUrl) {
       setIsOpen(false)
       navigate(notification.actionUrl)
     }
-  }
+  }, [markAsRead, navigate])
 
   return (
     <Popover open={isOpen} onOpenChange={setIsOpen}>
@@ -239,70 +295,97 @@ export function NotificationCenter() {
         <Button
           variant="ghost"
           size="sm"
-          className="relative h-9 w-9 p-0"
+          className={cn(
+            'relative h-9 w-9 p-0 rounded-full transition-all duration-200',
+            'hover:bg-whatsapp-green/10 hover:text-whatsapp-dark-green',
+            isOpen && 'bg-whatsapp-green/10 text-whatsapp-dark-green'
+          )}
           aria-label="Notifications"
           data-testid="notification-bell"
         >
-          <Bell className="h-5 w-5" />
+          <Bell className={cn('h-5 w-5 transition-transform', isOpen && 'scale-110')} />
           {unreadCount > 0 && (
-            <Badge
-              variant="destructive"
-              className="absolute -top-1 -right-1 h-5 min-w-5 px-1 text-xs"
-              data-testid="notification-badge"
-            >
-              {unreadCount > 99 ? '99+' : unreadCount}
-            </Badge>
+            <span className="absolute -top-0.5 -right-0.5 flex h-5 min-w-5 items-center justify-center">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-50" />
+              <Badge
+                variant="destructive"
+                className="relative h-5 min-w-5 px-1.5 text-[10px] font-bold rounded-full border-2 border-white shadow-sm"
+                data-testid="notification-badge"
+              >
+                {unreadCount > 99 ? '99+' : unreadCount}
+              </Badge>
+            </span>
           )}
         </Button>
       </PopoverTrigger>
 
       <PopoverContent
-        className="w-80 p-0"
+        className={cn(
+          'w-[360px] p-0 overflow-hidden',
+          'bg-white/95 backdrop-blur-xl',
+          'border border-gray-200/80',
+          'shadow-xl shadow-gray-900/10',
+          'rounded-xl',
+        )}
         align="end"
+        sideOffset={8}
         data-testid="notification-popover"
       >
-        {/* Header */}
-        <div className="flex items-center justify-between border-b px-4 py-3">
-          <h3 className="font-semibold text-gray-900">Notifications</h3>
-          <div className="flex items-center gap-2">
-            {unreadCount > 0 && (
+        {/* Header with gradient accent */}
+        <div className="relative border-b border-gray-100">
+          {/* Subtle gradient line at top */}
+          <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-whatsapp-green via-whatsapp-dark-green to-whatsapp-teal-green" />
+
+          <div className="flex items-center justify-between px-4 py-3">
+            <div className="flex items-center gap-2">
+              <h3 className="text-base font-semibold text-gray-900">Notifications</h3>
+              {unreadCount > 0 && (
+                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-whatsapp-green/10 text-whatsapp-dark-green">
+                  {unreadCount} new
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-1">
+              {unreadCount > 0 && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 px-2.5 text-xs font-medium text-gray-600 hover:text-whatsapp-dark-green hover:bg-whatsapp-green/10 rounded-lg"
+                  onClick={markAllAsRead}
+                  disabled={isMarkingAllAsRead}
+                >
+                  <CheckCheck className="h-3.5 w-3.5 mr-1.5" />
+                  Mark all read
+                </Button>
+              )}
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-7 text-xs"
-                onClick={markAllAsRead}
-                disabled={isMarkingAllAsRead}
+                className="h-8 w-8 p-0 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100"
+                onClick={() => setIsOpen(false)}
               >
-                <CheckCheck className="h-3 w-3 mr-1" />
-                Mark all read
+                <X className="h-4 w-4" />
               </Button>
-            )}
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-7 w-7 p-0"
-              onClick={() => setIsOpen(false)}
-            >
-              <X className="h-4 w-4" />
-            </Button>
+            </div>
           </div>
         </div>
 
         {/* Content */}
-        <ScrollArea className="max-h-96">
+        <ScrollArea className="max-h-[400px]">
           {isLoading ? (
             <LoadingSkeleton />
           ) : notifications.length === 0 ? (
             <EmptyState />
           ) : (
-            <div className="divide-y divide-gray-100">
-              {notifications.map((notification) => (
+            <div className="py-1">
+              {notifications.map((notification, index) => (
                 <NotificationItem
                   key={notification.id}
                   notification={notification}
                   onMarkAsRead={markAsRead}
                   onDelete={deleteNotification}
                   onClick={handleNotificationClick}
+                  index={index}
                 />
               ))}
             </div>
@@ -311,11 +394,11 @@ export function NotificationCenter() {
 
         {/* Footer */}
         {notifications.length > 0 && (
-          <div className="border-t px-4 py-2">
+          <div className="border-t border-gray-100 bg-gray-50/50">
             <Button
               variant="ghost"
               size="sm"
-              className="w-full text-xs"
+              className="w-full h-10 text-xs font-medium text-gray-600 hover:text-whatsapp-dark-green hover:bg-transparent rounded-none"
               onClick={() => {
                 setIsOpen(false)
                 navigate('/notifications')
@@ -328,6 +411,6 @@ export function NotificationCenter() {
       </PopoverContent>
     </Popover>
   )
-}
+})
 
 export default NotificationCenter

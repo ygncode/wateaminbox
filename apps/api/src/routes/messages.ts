@@ -112,7 +112,7 @@ messageRoutes.post("/", requirePermission(PERMISSIONS.CAN_SEND_MESSAGES), async 
   const companyId = c.get("companyId");
   const body = await c.req.json();
 
-  const { contactId, content, messageType = "text", mediaUrl } = body;
+  const { contactId, content, messageType = "text", mediaUrl, replyToMessageId } = body;
 
   if (!contactId) {
     return c.json({ error: "contactId is required" }, 400);
@@ -136,6 +136,32 @@ messageRoutes.post("/", requirePermission(PERMISSIONS.CAN_SEND_MESSAGES), async 
   // Auto-assign contact to the user if unassigned ("Assign to me on first reply")
   const wasAutoAssigned = await ensureContactAssignment(tenantDb, contactId, user.id);
 
+  // Look up the WhatsApp message ID and sender for reply-to if provided
+  let quotedWaMessageId: string | undefined;
+  let quotedSenderJid: string | undefined;
+  if (replyToMessageId) {
+    const quotedMessage = await tenantDb
+      .selectFrom("messages")
+      .select(["message_id", "sender_jid", "from_me"])
+      .where("id", "=", replyToMessageId)
+      .executeTakeFirst();
+    quotedWaMessageId = quotedMessage?.message_id || undefined;
+
+    // For reply context, we need the sender's JID
+    if (quotedMessage?.from_me) {
+      // If replying to our own message, get our JID from the connection
+      const connection = await tenantDb
+        .selectFrom("whatsapp_connections")
+        .select(["jid"])
+        .where("status", "=", "connected")
+        .executeTakeFirst();
+      quotedSenderJid = connection?.jid || undefined;
+    } else {
+      // If replying to their message, use their sender_jid
+      quotedSenderJid = quotedMessage?.sender_jid || contact.jid;
+    }
+  }
+
   // Create a pending message in database
   const messageId = crypto.randomUUID();
   const waMessageId = `pending_${messageId}`;
@@ -151,6 +177,7 @@ messageRoutes.post("/", requirePermission(PERMISSIONS.CAN_SEND_MESSAGES), async 
       message_type: messageType,
       content,
       media_url: mediaUrl || null,
+      quoted_message_id: quotedWaMessageId || null,
       sent_by_user_id: user.id,
       status: "pending",
       timestamp: new Date(),
@@ -165,6 +192,8 @@ messageRoutes.post("/", requirePermission(PERMISSIONS.CAN_SEND_MESSAGES), async 
     messageType,
     user.id,
     mediaUrl,
+    quotedWaMessageId,
+    quotedSenderJid,
   );
 
   return c.json({
@@ -177,6 +206,7 @@ messageRoutes.post("/", requirePermission(PERMISSIONS.CAN_SEND_MESSAGES), async 
       messageType,
       content,
       mediaUrl,
+      replyToMessageId: replyToMessageId || null,
       timestamp: new Date().toISOString(),
       status: "pending",
     },

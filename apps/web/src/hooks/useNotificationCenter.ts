@@ -9,10 +9,15 @@ import {
   type NotificationListParams,
 } from '@/lib/api'
 
+// Stable empty params object to prevent query key instability
+const EMPTY_PARAMS: NotificationListParams = {}
+
 /**
  * Hook for managing in-app notification center
  */
-export function useNotificationCenter(params: NotificationListParams = {}) {
+export function useNotificationCenter(params?: NotificationListParams) {
+  // Use stable empty params when none provided
+  const effectiveParams = params ?? EMPTY_PARAMS
   const queryClient = useQueryClient()
 
   // Fetch notifications list
@@ -22,8 +27,8 @@ export function useNotificationCenter(params: NotificationListParams = {}) {
     error: notificationsError,
     refetch: refetchNotifications,
   } = useQuery({
-    queryKey: ['notifications', params],
-    queryFn: () => getNotifications(params),
+    queryKey: ['notifications', effectiveParams],
+    queryFn: () => getNotifications(effectiveParams),
     staleTime: 30 * 1000, // 30 seconds
     refetchInterval: 60 * 1000, // Refetch every minute
   })
@@ -46,7 +51,7 @@ export function useNotificationCenter(params: NotificationListParams = {}) {
     onSuccess: (updatedNotification) => {
       // Update the notifications list
       queryClient.setQueryData(
-        ['notifications', params],
+        ['notifications', effectiveParams],
         (old: { data: InAppNotification[]; meta: unknown } | undefined) => {
           if (!old) return old
           return {
@@ -70,7 +75,7 @@ export function useNotificationCenter(params: NotificationListParams = {}) {
     onSuccess: () => {
       // Update the notifications list - mark all as read
       queryClient.setQueryData(
-        ['notifications', params],
+        ['notifications', effectiveParams],
         (old: { data: InAppNotification[]; meta: unknown } | undefined) => {
           if (!old) return old
           return {
@@ -94,7 +99,7 @@ export function useNotificationCenter(params: NotificationListParams = {}) {
     onSuccess: (_, notificationId) => {
       // Remove from the notifications list
       queryClient.setQueryData(
-        ['notifications', params],
+        ['notifications', effectiveParams],
         (old: { data: InAppNotification[]; meta: unknown } | undefined) => {
           if (!old) return old
           const notification = old.data.find((n) => n.id === notificationId)

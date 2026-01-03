@@ -73,26 +73,46 @@ export function Dashboard({ companyId, isAdmin = false }: DashboardProps) {
 
   const { data: dashboardStats, isLoading: isLoadingDashboard } =
     useDashboardStats(companyId);
-  const { data: messageData, isLoading: isLoadingMessages } = useMessageStats(
-    companyId,
-    startDate,
-    endDate,
-  );
-  const { data: contactStats, isLoading: isLoadingContacts } =
-    useContactStats(companyId);
-  const { data: messageTypes, isLoading: isLoadingTypes } =
-    useMessageTypeStats(companyId);
-  const { data: hourlyStats, isLoading: isLoadingHourly } =
-    useHourlyStats(companyId);
-  const { data: teamStats, isLoading: isLoadingTeam } = useTeamActivityStats(
-    isAdmin ? companyId : null,
-  );
-  const { data: contactsTrendData, isLoading: isLoadingContactsTrend } =
-    useNewContactsTrend(companyId, startDate, endDate);
-  const { data: resolutionData, isLoading: isLoadingResolution } =
-    useResolutionStats(companyId, startDate, endDate);
-  const { data: engagementData, isLoading: isLoadingEngagement } =
-    useEngagementMetrics(companyId, startDate, endDate);
+  const {
+    data: messageData,
+    isLoading: isLoadingMessages,
+    isError: isMessagesError,
+  } = useMessageStats(companyId, startDate, endDate);
+  const {
+    data: contactStats,
+    isLoading: isLoadingContacts,
+    isError: isContactsError,
+  } = useContactStats(companyId);
+  const {
+    data: messageTypes,
+    isLoading: isLoadingTypes,
+    isError: isTypesError,
+  } = useMessageTypeStats(companyId);
+  const {
+    data: hourlyStats,
+    isLoading: isLoadingHourly,
+    isError: isHourlyError,
+  } = useHourlyStats(companyId);
+  const {
+    data: teamStats,
+    isLoading: isLoadingTeam,
+    isError: isTeamError,
+  } = useTeamActivityStats(isAdmin ? companyId : null);
+  const {
+    data: contactsTrendData,
+    isLoading: isLoadingContactsTrend,
+    isError: isContactsTrendError,
+  } = useNewContactsTrend(companyId, startDate, endDate);
+  const {
+    data: resolutionData,
+    isLoading: isLoadingResolution,
+    isError: isResolutionError,
+  } = useResolutionStats(companyId, startDate, endDate);
+  const {
+    data: engagementData,
+    isLoading: isLoadingEngagement,
+    isError: isEngagementError,
+  } = useEngagementMetrics(companyId, startDate, endDate);
   const { data: engagementTrendData, isLoading: isLoadingEngagementTrend } =
     useEngagementTrend(companyId, startDate, endDate);
 
@@ -215,6 +235,8 @@ export function Dashboard({ companyId, isAdmin = false }: DashboardProps) {
             </div>
             {isLoadingMessages ? (
               <Skeleton className="h-48 w-full" />
+            ) : isMessagesError ? (
+              <p className="text-red-500 text-center py-8">Failed to load data</p>
             ) : (
               <MessageChart data={messageData?.data || []} />
             )}
@@ -228,6 +250,8 @@ export function Dashboard({ companyId, isAdmin = false }: DashboardProps) {
             </div>
             {isLoadingContactsTrend ? (
               <Skeleton className="h-48 w-full" />
+            ) : isContactsTrendError ? (
+              <p className="text-red-500 text-center py-8">Failed to load data</p>
             ) : (
               <NewContactsChart data={contactsTrendData?.data || []} />
             )}
@@ -241,6 +265,8 @@ export function Dashboard({ companyId, isAdmin = false }: DashboardProps) {
             </div>
             {isLoadingHourly ? (
               <Skeleton className="h-48 w-full" />
+            ) : isHourlyError ? (
+              <p className="text-red-500 text-center py-8">Failed to load data</p>
             ) : (
               <HourlyChart data={hourlyStats || []} />
             )}
@@ -261,6 +287,8 @@ export function Dashboard({ companyId, isAdmin = false }: DashboardProps) {
                 <Skeleton className="h-6 w-full" />
                 <Skeleton className="h-6 w-full" />
               </div>
+            ) : isContactsError ? (
+              <p className="text-red-500 text-center py-4">Failed to load data</p>
             ) : contactStats ? (
               <div className="space-y-3">
                 <StatRow
@@ -284,7 +312,9 @@ export function Dashboard({ companyId, isAdmin = false }: DashboardProps) {
                   total={contactStats.total}
                 />
               </div>
-            ) : null}
+            ) : (
+              <p className="text-gray-500 text-center py-4">No data available</p>
+            )}
           </div>
 
           {/* Message Types */}
@@ -298,9 +328,11 @@ export function Dashboard({ companyId, isAdmin = false }: DashboardProps) {
                 <Skeleton className="h-6 w-full" />
                 <Skeleton className="h-6 w-full" />
               </div>
-            ) : (
+            ) : isTypesError ? (
+              <p className="text-red-500 text-center py-4">Failed to load data</p>
+            ) : messageTypes && messageTypes.length > 0 ? (
               <div className="space-y-2">
-                {messageTypes?.slice(0, 5).map((type) => (
+                {messageTypes.slice(0, 5).map((type) => (
                   <div
                     key={type.type}
                     className="flex items-center justify-between"
@@ -314,6 +346,8 @@ export function Dashboard({ companyId, isAdmin = false }: DashboardProps) {
                   </div>
                 ))}
               </div>
+            ) : (
+              <p className="text-gray-500 text-center py-4">No data available</p>
             )}
           </div>
 
@@ -329,9 +363,11 @@ export function Dashboard({ companyId, isAdmin = false }: DashboardProps) {
                   <Skeleton className="h-10 w-full" />
                   <Skeleton className="h-10 w-full" />
                 </div>
-              ) : (
+              ) : isTeamError ? (
+                <p className="text-red-500 text-center py-4">Failed to load data</p>
+              ) : teamStats && teamStats.length > 0 ? (
                 <div className="space-y-3">
-                  {teamStats?.slice(0, 5).map((member) => (
+                  {teamStats.slice(0, 5).map((member) => (
                     <div
                       key={member.userId}
                       className="flex items-center justify-between"
@@ -352,6 +388,8 @@ export function Dashboard({ companyId, isAdmin = false }: DashboardProps) {
                     </div>
                   ))}
                 </div>
+              ) : (
+                <p className="text-gray-500 text-center py-4">No team activity</p>
               )}
             </div>
           )}
@@ -370,6 +408,8 @@ export function Dashboard({ companyId, isAdmin = false }: DashboardProps) {
               <Skeleton className="h-20 w-full" />
               <Skeleton className="h-20 w-full" />
             </div>
+          ) : isResolutionError ? (
+            <p className="text-red-500 text-center py-4">Failed to load resolution data</p>
           ) : resolutionData?.data ? (
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <ResolutionStatCard
@@ -419,6 +459,8 @@ export function Dashboard({ companyId, isAdmin = false }: DashboardProps) {
               </div>
               <Skeleton className="h-48 w-full" />
             </div>
+          ) : isEngagementError ? (
+            <p className="text-red-500 text-center py-4">Failed to load engagement data</p>
           ) : engagementData?.data ? (
             <div className="space-y-6">
               {/* Engagement Score Highlight */}
@@ -516,7 +558,7 @@ export function Dashboard({ companyId, isAdmin = false }: DashboardProps) {
 
         {/* Response Time Analytics */}
         <div className="bg-white rounded-lg border border-gray-200 p-6">
-          <ResponseTimeAnalytics isAdmin={isAdmin} slaThreshold={60} />
+          <ResponseTimeAnalytics companyId={companyId} isAdmin={isAdmin} slaThreshold={60} />
         </div>
       </div>
     </ScrollArea>

@@ -98,13 +98,14 @@ export function ChatPage() {
   }, []);
 
   const handleSendMessage = React.useCallback(
-    (content: string, _replyToMessageId?: string) => {
+    (content: string, replyToMessageId?: string) => {
       if (!selectedChatId) return;
 
       sendMessage.mutate({
         contactId: selectedChatId,
         content,
         messageType: "text",
+        replyToMessageId,
       });
       setReplyToMessage(null);
     },
@@ -146,7 +147,7 @@ export function ChatPage() {
               onNavigateToMessage={handleNavigateToMessage}
             />
           )}
-          <div className="flex-1 overflow-hidden">
+          <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
             <MessageThread
               conversationId={selectedChatId}
               currentUserId={user?.id || ""}

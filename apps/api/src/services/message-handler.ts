@@ -269,12 +269,29 @@ async function handleMessageEvent(event: MessageEvent): Promise<void> {
       `[MessageHandler] Stored message ${messageId} for company ${companyId}`,
     );
 
-    // Broadcast to WebSocket clients
+    // Broadcast to WebSocket clients with proper format for frontend
+    // Frontend expects { message: Message, conversationId: string }
     broadcastToCompany(companyId, {
-      type: "message",
+      type: "message:new",
       payload: {
-        id: messageId,
-        ...payload,
+        message: {
+          id: messageId,
+          conversationId: contact.id,
+          senderId: payload.from,
+          senderType: payload.fromMe ? "user" : "contact",
+          content: payload.content || "",
+          messageType: payload.messageType || "text",
+          status: payload.fromMe ? "sent" : "delivered",
+          whatsappMessageId: payload.messageId,
+          metadata: payload.mediaUrl ? { mediaUrl: payload.mediaUrl } : undefined,
+          replyToMessageId: payload.quotedMessageId,
+          isForwarded: false,
+          isDeleted: false,
+          isStarred: false,
+          createdAt: payload.timestamp,
+          updatedAt: payload.timestamp,
+        },
+        conversationId: contact.id,
       },
       timestamp: event.timestamp,
     });

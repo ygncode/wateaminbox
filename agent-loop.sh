@@ -16,8 +16,10 @@ while true; do
     If there are no new task left, return 'true', else return 'false'.\n"
     TASKS_LEFT=$?
     if [ "$TASKS_LEFT" = "true" ]; then
+        echo "No tasks left. Generating new tasks..."
         claude --dangerously-skip-permissions -p "check .specs/spec.md and our codebase. And see what we are missing and create tasks.md inside /Users/setkyar/ygncode-lab/whatsapp-web/.tasks"
-        break
+        
+        echo "New tasks generated. Continuing agent loop..."
     else
         sleep 2
     fi

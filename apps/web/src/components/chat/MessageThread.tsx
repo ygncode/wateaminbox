@@ -1,4 +1,4 @@
-import { useRef, useEffect, useCallback, useState } from "react";
+import { useRef, useEffect, useCallback, useState, useMemo } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import type { Message } from "@whatsapp-web/shared";
 import { useInfiniteMessages } from "../../hooks/useInfiniteMessages";
@@ -45,11 +45,11 @@ export function MessageThread({
 
   const messages = data?.messages || [];
 
-  // Group messages by date and flatten into virtual items
-  const virtualItems = useCallback(() => {
+  // Group messages by date and flatten into virtual items - memoized to prevent re-renders
+  const items = useMemo(() => {
     if (messages.length === 0) return [];
 
-    const items: Array<
+    const result: Array<
       | { type: "date"; date: string; id: string }
       | { type: "message"; message: Message; id: string }
     > = [];
@@ -61,36 +61,45 @@ export function MessageThread({
 
       if (messageDate !== currentDate) {
         currentDate = messageDate;
-        items.push({
+        result.push({
           type: "date",
           date: messageDate,
           id: `date-${messageDate}`,
         });
       }
 
-      items.push({
+      result.push({
         type: "message",
         message,
         id: message.id,
       });
     });
 
-    return items;
+    return result;
   }, [messages]);
 
-  const items = virtualItems();
+  // Memoize virtualizer callbacks to prevent re-renders
+  const estimateSize = useCallback(
+    (index: number) => {
+      const item = items[index];
+      if (item?.type === "date") return DATE_SEPARATOR_HEIGHT;
+      return ESTIMATED_MESSAGE_HEIGHT;
+    },
+    [items]
+  );
+
+  const getItemKey = useCallback(
+    (index: number) => items[index]?.id || index.toString(),
+    [items]
+  );
 
   // Virtualizer setup
   const virtualizer = useVirtualizer({
     count: items.length,
     getScrollElement: () => scrollContainerRef.current,
-    estimateSize: (index) => {
-      const item = items[index];
-      if (item?.type === "date") return DATE_SEPARATOR_HEIGHT;
-      return ESTIMATED_MESSAGE_HEIGHT;
-    },
+    estimateSize,
     overscan: 10,
-    getItemKey: (index) => items[index]?.id || index.toString(),
+    getItemKey,
   });
 
   // Handle scroll to detect when we're near the top (for loading more)
@@ -141,20 +150,28 @@ export function MessageThread({
     isInitialScrollDone.current = false;
   }, [conversationId]);
 
+  // Store virtualizer in a ref to avoid dependency issues
+  const virtualizerRef = useRef(virtualizer);
+  virtualizerRef.current = virtualizer;
+
+  // Store items in a ref for the effect
+  const itemsRef = useRef(items);
+  itemsRef.current = items;
+
   // Scroll to highlighted message when it changes
   useEffect(() => {
-    if (highlightedMessageId && items.length > 0) {
-      const messageIndex = items.findIndex(
+    if (highlightedMessageId && itemsRef.current.length > 0) {
+      const messageIndex = itemsRef.current.findIndex(
         (item) => item.type === "message" && item.id === highlightedMessageId
       );
       if (messageIndex !== -1) {
-        virtualizer.scrollToIndex(messageIndex, {
+        virtualizerRef.current.scrollToIndex(messageIndex, {
           align: "center",
           behavior: "smooth",
         });
       }
     }
-  }, [highlightedMessageId, items, virtualizer]);
+  }, [highlightedMessageId]);
 
   // Scroll to bottom button click
   const scrollToBottom = useCallback(() => {
@@ -269,7 +286,7 @@ export function MessageThread({
   }
 
   return (
-    <div className="flex-1 relative flex flex-col bg-[#e5ddd5]">
+    <div className="flex-1 relative flex flex-col min-h-0 bg-[#e5ddd5]">
       {/* WhatsApp-style background pattern */}
       <div
         className="absolute inset-0 opacity-5"
@@ -281,7 +298,7 @@ export function MessageThread({
       {/* Virtualized message list */}
       <div
         ref={scrollContainerRef}
-        className="flex-1 overflow-y-auto px-4 py-2 relative z-10"
+        className="flex-1 min-h-0 overflow-y-auto px-4 py-2 relative z-10"
         onScroll={handleScroll}
       >
         {/* Loading more indicator */}
