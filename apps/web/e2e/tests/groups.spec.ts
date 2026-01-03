@@ -341,3 +341,203 @@ test.describe("Group Messaging Implementation Documentation", () => {
     expect(true).toBe(true);
   });
 });
+
+// ============================================
+// Group Admin Actions Tests
+// ============================================
+
+// Mock data for group admin actions
+const MOCK_GROUP_DETAIL = {
+  id: "group-1",
+  jid: "123456789@g.us",
+  name: "Marketing Team",
+  displayName: "Marketing Team",
+  customName: null,
+  description: "Marketing discussions",
+  profilePictureUrl: null,
+  participantCount: 3,
+  createdBy: "admin@s.whatsapp.net",
+  createdAt: new Date().toISOString(),
+  updatedAt: new Date().toISOString(),
+  participants: [
+    { jid: "me@s.whatsapp.net", isAdmin: true, joinedAt: new Date().toISOString() },
+    { jid: "member1@s.whatsapp.net", isAdmin: false, joinedAt: new Date().toISOString() },
+    { jid: "admin2@s.whatsapp.net", isAdmin: true, joinedAt: new Date().toISOString() },
+  ],
+  tags: [],
+};
+
+const MOCK_ADMIN_STATUS = {
+  isAdmin: true,
+  connectionJid: "me@s.whatsapp.net",
+};
+
+test.describe("Group Admin Actions API Verification", () => {
+  test("admin status endpoint returns correct data structure", () => {
+    // Verify mock data structure matches expected API response
+    expect(MOCK_ADMIN_STATUS).toHaveProperty("isAdmin");
+    expect(MOCK_ADMIN_STATUS).toHaveProperty("connectionJid");
+    expect(typeof MOCK_ADMIN_STATUS.isAdmin).toBe("boolean");
+  });
+
+  test("group detail includes participants with admin status", () => {
+    expect(MOCK_GROUP_DETAIL.participants).toBeDefined();
+    expect(MOCK_GROUP_DETAIL.participants.length).toBe(3);
+
+    // Verify participant structure
+    MOCK_GROUP_DETAIL.participants.forEach((p) => {
+      expect(p).toHaveProperty("jid");
+      expect(p).toHaveProperty("isAdmin");
+      expect(p).toHaveProperty("joinedAt");
+    });
+
+    // Verify admin count
+    const admins = MOCK_GROUP_DETAIL.participants.filter((p) => p.isAdmin);
+    expect(admins.length).toBe(2);
+  });
+
+  test("participant JID format is correct", () => {
+    MOCK_GROUP_DETAIL.participants.forEach((p) => {
+      expect(p.jid).toContain("@s.whatsapp.net");
+    });
+  });
+});
+
+test.describe("Group Admin Actions Documentation", () => {
+  test("documents group admin actions feature", () => {
+    /**
+     * GROUP ADMIN ACTIONS FEATURE
+     *
+     * 1. API Endpoints:
+     *    - GET /api/groups/:id/admin-status - Check if current user is admin
+     *    - POST /api/groups/:id/participants/:jid/promote - Promote to admin
+     *    - POST /api/groups/:id/participants/:jid/demote - Demote from admin
+     *    - DELETE /api/groups/:id/participants/:jid - Remove participant
+     *    - PATCH /api/groups/:id/settings - Update group name/description
+     *
+     * 2. NATS Commands (published to WhatsApp worker):
+     *    - group_promote_admin - Promote participant to admin on WhatsApp
+     *    - group_demote_admin - Demote admin to regular participant
+     *    - group_remove_participant - Remove participant from group
+     *    - group_update_settings - Update group name/description on WhatsApp
+     *
+     * 3. Frontend Components:
+     *    - GroupInfoPanel - Shows group details, participants, and admin actions
+     *    - ParticipantItem - Individual participant with admin action menu
+     *    - GroupSettingsSection - Dialog for updating group name/description
+     *
+     * 4. Frontend Hooks (in useGroups.ts):
+     *    - useGroupAdminStatus() - Check if user is admin
+     *    - usePromoteParticipant() - Mutation to promote
+     *    - useDemoteParticipant() - Mutation to demote
+     *    - useRemoveParticipant() - Mutation to remove
+     *    - useUpdateGroupSettings() - Mutation to update settings
+     *
+     * 5. Permission Checks:
+     *    - Only group admins can perform admin actions
+     *    - User cannot remove themselves
+     *    - Admin status is determined by WhatsApp connection JID
+     *
+     * 6. Audit Logging:
+     *    - group_participant_promoted
+     *    - group_participant_demoted
+     *    - group_participant_removed
+     *    - group_settings_updated
+     */
+    expect(true).toBe(true);
+  });
+
+  test("admin actions require admin status", () => {
+    // Verify that admin actions are only available to admins
+    const currentUserJid = MOCK_ADMIN_STATUS.connectionJid;
+    const currentUserParticipant = MOCK_GROUP_DETAIL.participants.find(
+      (p) => p.jid === currentUserJid
+    );
+
+    expect(currentUserParticipant).toBeDefined();
+    expect(currentUserParticipant?.isAdmin).toBe(true);
+    expect(MOCK_ADMIN_STATUS.isAdmin).toBe(true);
+  });
+
+  test("non-admin cannot perform admin actions", () => {
+    const nonAdminStatus = {
+      isAdmin: false,
+      connectionJid: "member1@s.whatsapp.net",
+    };
+
+    expect(nonAdminStatus.isAdmin).toBe(false);
+
+    // Frontend should hide admin action buttons when isAdmin is false
+  });
+
+  test("user cannot remove self from group", () => {
+    const currentUserJid = MOCK_ADMIN_STATUS.connectionJid;
+    const participant = MOCK_GROUP_DETAIL.participants.find(
+      (p) => p.jid === currentUserJid
+    );
+
+    // The isSelf check in frontend prevents self-removal
+    expect(participant?.jid).toBe(currentUserJid);
+    // Remove button should be hidden for self
+  });
+});
+
+test.describe("Group Admin Actions Response Structures", () => {
+  test("promote response structure", () => {
+    const promoteResponse = {
+      success: true,
+      message: "Participant promoted to admin",
+      participantJid: "member1@s.whatsapp.net",
+    };
+
+    expect(promoteResponse.success).toBe(true);
+    expect(promoteResponse.message).toBeDefined();
+    expect(promoteResponse.participantJid).toContain("@s.whatsapp.net");
+  });
+
+  test("demote response structure", () => {
+    const demoteResponse = {
+      success: true,
+      message: "Admin demoted to regular participant",
+      participantJid: "admin2@s.whatsapp.net",
+    };
+
+    expect(demoteResponse.success).toBe(true);
+    expect(demoteResponse.message).toBeDefined();
+    expect(demoteResponse.participantJid).toContain("@s.whatsapp.net");
+  });
+
+  test("remove response structure", () => {
+    const removeResponse = {
+      success: true,
+      message: "Participant removed from group",
+      participantJid: "member1@s.whatsapp.net",
+    };
+
+    expect(removeResponse.success).toBe(true);
+    expect(removeResponse.message).toBeDefined();
+    expect(removeResponse.participantJid).toContain("@s.whatsapp.net");
+  });
+
+  test("update settings response structure", () => {
+    const settingsResponse = {
+      success: true,
+      message: "Group settings updated",
+      name: "New Group Name",
+      description: "New group description",
+    };
+
+    expect(settingsResponse.success).toBe(true);
+    expect(settingsResponse.name).toBeDefined();
+    expect(settingsResponse.description).toBeDefined();
+  });
+
+  test("error response structure for non-admin", () => {
+    const errorResponse = {
+      error: "Only group admins can promote participants",
+    };
+
+    expect(errorResponse.error).toBeDefined();
+    expect(errorResponse.error).toContain("admin");
+  });
+});

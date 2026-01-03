@@ -1,4 +1,5 @@
 import { Routes, Route, Navigate } from "react-router-dom";
+import { Toaster } from "sonner";
 import { KeyboardShortcutsModal } from "./components/settings";
 import { ProtectedRoute } from "./components/auth";
 import {
@@ -99,6 +100,8 @@ function App() {
       </Routes>
       {/* Global keyboard shortcuts modal */}
       <KeyboardShortcutsModal />
+      {/* Toast notifications */}
+      <Toaster position="top-right" richColors />
     </>
   );
 }

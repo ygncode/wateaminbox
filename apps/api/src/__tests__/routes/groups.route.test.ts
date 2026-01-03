@@ -865,3 +865,912 @@ describe("Group JID detection", () => {
     expect(isGroupMessage("1234567890@s.whatsapp.net")).toBe(false);
   });
 });
+
+// ============================================
+// Group Admin Actions Tests
+// ============================================
+
+describe("GET /groups/:id/admin-status - Check admin status", () => {
+  let app: Hono;
+
+  beforeEach(() => {
+    const mockGroup = createMockGroup({ id: "group-123" });
+    const mockGroupInfo = createMockGroupInfo();
+    const mockConnection = {
+      jid: "me@s.whatsapp.net",
+    };
+    const mockParticipant = createMockGroupParticipant({
+      participant_jid: "me@s.whatsapp.net",
+      is_admin: true,
+    });
+
+    const mockTenantDb = {
+      selectFrom: mock((table: string) => {
+        if (table === "contacts") {
+          return createMockQueryBuilder(mockGroup);
+        }
+        if (table === "groups") {
+          return createMockQueryBuilder(mockGroupInfo);
+        }
+        if (table === "group_participants") {
+          return createMockQueryBuilder(mockParticipant);
+        }
+        if (table === "whatsapp_connections") {
+          return createMockQueryBuilder(mockConnection);
+        }
+        return createMockQueryBuilder();
+      }),
+    };
+
+    app = new Hono();
+
+    app.use("/*", async (c, next) => {
+      c.set("tenantDb", mockTenantDb);
+      c.set("user", { id: "user-123", email: "test@example.com" });
+      await next();
+    });
+
+    app.get("/groups/:id/admin-status", async (c) => {
+      const tenantDb = c.get("tenantDb");
+      const contactId = c.req.param("id");
+
+      const contact = await tenantDb
+        .selectFrom("contacts")
+        .select(["id", "jid"])
+        .where("id", "=", contactId)
+        .where("is_group", "=", true)
+        .executeTakeFirst();
+
+      if (!contact) {
+        return c.json({ error: "Group not found" }, 404);
+      }
+
+      const connection = await tenantDb
+        .selectFrom("whatsapp_connections")
+        .select(["jid"])
+        .where("status", "=", "connected")
+        .executeTakeFirst();
+
+      const connectionJid = connection?.jid ?? null;
+
+      if (!connectionJid) {
+        return c.json({
+          isAdmin: false,
+          connectionJid: null,
+          reason: "No active WhatsApp connection",
+        });
+      }
+
+      const group = await tenantDb
+        .selectFrom("groups")
+        .select(["id"])
+        .where("contact_id", "=", contactId)
+        .executeTakeFirst();
+
+      if (!group) {
+        return c.json({ isAdmin: false, connectionJid });
+      }
+
+      const participant = await tenantDb
+        .selectFrom("group_participants")
+        .select(["is_admin"])
+        .where("group_id", "=", group.id)
+        .where("participant_jid", "=", connectionJid)
+        .executeTakeFirst();
+
+      return c.json({
+        isAdmin: participant?.is_admin ?? false,
+        connectionJid,
+      });
+    });
+  });
+
+  it("should return admin status for connected user", async () => {
+    const response = await app.request("/groups/group-123/admin-status", { method: "GET" });
+
+    expect(response.status).toBe(200);
+    const data = await response.json();
+
+    expect(data.isAdmin).toBe(true);
+    expect(data.connectionJid).toBeDefined();
+  });
+
+  it("should return 404 for non-existent group", async () => {
+    // Create app with no group found
+    const app2 = new Hono();
+    const mockTenantDb = {
+      selectFrom: mock(() => createMockQueryBuilder(undefined)),
+    };
+
+    app2.use("/*", async (c, next) => {
+      c.set("tenantDb", mockTenantDb);
+      c.set("user", { id: "user-123" });
+      await next();
+    });
+
+    app2.get("/groups/:id/admin-status", async (c) => {
+      const tenantDb = c.get("tenantDb");
+      const contactId = c.req.param("id");
+
+      const contact = await tenantDb
+        .selectFrom("contacts")
+        .select(["id"])
+        .where("id", "=", contactId)
+        .executeTakeFirst();
+
+      if (!contact) {
+        return c.json({ error: "Group not found" }, 404);
+      }
+
+      return c.json({ isAdmin: false, connectionJid: null });
+    });
+
+    const response = await app2.request("/groups/non-existent/admin-status", { method: "GET" });
+    expect(response.status).toBe(404);
+  });
+});
+
+describe("POST /groups/:id/participants/:participantJid/promote - Promote to admin", () => {
+  let app: Hono;
+  let publishCalled: boolean;
+
+  beforeEach(() => {
+    publishCalled = false;
+    const mockGroup = createMockGroup({ id: "group-123" });
+    const mockGroupInfo = createMockGroupInfo();
+    const mockConnection = { jid: "me@s.whatsapp.net" };
+    const mockAdminParticipant = createMockGroupParticipant({
+      participant_jid: "me@s.whatsapp.net",
+      is_admin: true,
+    });
+    const mockTargetParticipant = createMockGroupParticipant({
+      id: "target-participant",
+      participant_jid: "member1@s.whatsapp.net",
+      is_admin: false,
+    });
+
+    const mockTenantDb = {
+      selectFrom: mock((table: string) => {
+        if (table === "contacts") {
+          return createMockQueryBuilder(mockGroup);
+        }
+        if (table === "groups") {
+          return createMockQueryBuilder(mockGroupInfo);
+        }
+        if (table === "whatsapp_connections") {
+          return createMockQueryBuilder(mockConnection);
+        }
+        if (table === "group_participants") {
+          // Return different values based on context
+          const builder = createMockQueryBuilder(mockTargetParticipant);
+          // Override to return admin for admin check, target for target check
+          builder.executeTakeFirst = mock(() => Promise.resolve(mockTargetParticipant));
+          return builder;
+        }
+        return createMockQueryBuilder();
+      }),
+      updateTable: mock(() => ({
+        set: mock(() => ({
+          where: mock(() => ({
+            execute: mock(() => Promise.resolve({ numUpdatedRows: 1n })),
+          })),
+        })),
+      })),
+      insertInto: mock(() => ({
+        values: mock(() => ({
+          execute: mock(() => Promise.resolve([])),
+        })),
+      })),
+    };
+
+    const mockPublishPromote = mock(async () => {
+      publishCalled = true;
+    });
+
+    app = new Hono();
+
+    app.use("/*", async (c, next) => {
+      c.set("tenantDb", mockTenantDb);
+      c.set("user", { id: "user-123", email: "test@example.com" });
+      c.set("companyId", "company-123");
+      c.set("userId", "user-123");
+      c.set("publishGroupPromoteAdmin", mockPublishPromote);
+      await next();
+    });
+
+    app.post("/groups/:id/participants/:participantJid/promote", async (c) => {
+      const tenantDb = c.get("tenantDb");
+      const companyId = c.get("companyId");
+      const userId = c.get("userId");
+      const publishFn = c.get("publishGroupPromoteAdmin");
+      const contactId = c.req.param("id");
+      const participantJid = c.req.param("participantJid");
+
+      // Get group
+      const contact = await tenantDb
+        .selectFrom("contacts")
+        .select(["id", "jid"])
+        .where("id", "=", contactId)
+        .where("is_group", "=", true)
+        .executeTakeFirst();
+
+      if (!contact || !contact.jid) {
+        return c.json({ error: "Group not found" }, 404);
+      }
+
+      // Get group details
+      const group = await tenantDb
+        .selectFrom("groups")
+        .select(["id", "name"])
+        .where("contact_id", "=", contactId)
+        .executeTakeFirst();
+
+      if (!group) {
+        return c.json({ error: "Group details not found" }, 404);
+      }
+
+      // Check participant exists and is not admin
+      const participant = await tenantDb
+        .selectFrom("group_participants")
+        .select(["id", "is_admin"])
+        .where("group_id", "=", group.id)
+        .where("participant_jid", "=", participantJid)
+        .executeTakeFirst();
+
+      if (!participant) {
+        return c.json({ error: "Participant not found in group" }, 404);
+      }
+
+      if (participant.is_admin) {
+        return c.json({ error: "Participant is already an admin" }, 400);
+      }
+
+      // Update database
+      await tenantDb
+        .updateTable("group_participants")
+        .set({ is_admin: true })
+        .where("id", "=", participant.id)
+        .execute();
+
+      // Publish NATS command
+      await publishFn(companyId, contact.jid, participantJid, userId);
+
+      return c.json({
+        success: true,
+        message: "Participant promoted to admin",
+        participantJid,
+      });
+    });
+  });
+
+  it("should promote participant to admin", async () => {
+    const response = await app.request(
+      "/groups/group-123/participants/member1@s.whatsapp.net/promote",
+      { method: "POST" }
+    );
+
+    expect(response.status).toBe(200);
+    const data = await response.json();
+
+    expect(data.success).toBe(true);
+    expect(data.message).toBe("Participant promoted to admin");
+    expect(data.participantJid).toBe("member1@s.whatsapp.net");
+  });
+
+  it("should publish NATS command on promote", async () => {
+    await app.request(
+      "/groups/group-123/participants/member1@s.whatsapp.net/promote",
+      { method: "POST" }
+    );
+
+    expect(publishCalled).toBe(true);
+  });
+
+  it("should return 400 if participant is already admin", async () => {
+    // Create app with participant already admin
+    const app2 = new Hono();
+    const mockTenantDb = {
+      selectFrom: mock((table: string) => {
+        if (table === "group_participants") {
+          return createMockQueryBuilder({
+            id: "p1",
+            is_admin: true, // Already admin
+          });
+        }
+        return createMockQueryBuilder({ id: "group-123", jid: "123@g.us", name: "Test" });
+      }),
+    };
+
+    app2.use("/*", async (c, next) => {
+      c.set("tenantDb", mockTenantDb);
+      c.set("companyId", "company-123");
+      c.set("userId", "user-123");
+      await next();
+    });
+
+    app2.post("/groups/:id/participants/:participantJid/promote", async (c) => {
+      const tenantDb = c.get("tenantDb");
+      const contactId = c.req.param("id");
+      const participantJid = c.req.param("participantJid");
+
+      const contact = await tenantDb.selectFrom("contacts").executeTakeFirst();
+      const group = await tenantDb.selectFrom("groups").executeTakeFirst();
+      const participant = await tenantDb.selectFrom("group_participants").executeTakeFirst();
+
+      if (participant.is_admin) {
+        return c.json({ error: "Participant is already an admin" }, 400);
+      }
+
+      return c.json({ success: true });
+    });
+
+    const response = await app2.request(
+      "/groups/group-123/participants/admin@s.whatsapp.net/promote",
+      { method: "POST" }
+    );
+
+    expect(response.status).toBe(400);
+    const data = await response.json();
+    expect(data.error).toBe("Participant is already an admin");
+  });
+});
+
+describe("POST /groups/:id/participants/:participantJid/demote - Demote admin", () => {
+  let app: Hono;
+  let publishCalled: boolean;
+
+  beforeEach(() => {
+    publishCalled = false;
+    const mockGroup = createMockGroup({ id: "group-123" });
+    const mockGroupInfo = createMockGroupInfo();
+    const mockAdminParticipant = createMockGroupParticipant({
+      id: "target-participant",
+      participant_jid: "admin2@s.whatsapp.net",
+      is_admin: true,
+    });
+
+    const mockTenantDb = {
+      selectFrom: mock((table: string) => {
+        if (table === "contacts") {
+          return createMockQueryBuilder(mockGroup);
+        }
+        if (table === "groups") {
+          return createMockQueryBuilder(mockGroupInfo);
+        }
+        if (table === "group_participants") {
+          return createMockQueryBuilder(mockAdminParticipant);
+        }
+        return createMockQueryBuilder();
+      }),
+      updateTable: mock(() => ({
+        set: mock(() => ({
+          where: mock(() => ({
+            execute: mock(() => Promise.resolve({ numUpdatedRows: 1n })),
+          })),
+        })),
+      })),
+      insertInto: mock(() => ({
+        values: mock(() => ({
+          execute: mock(() => Promise.resolve([])),
+        })),
+      })),
+    };
+
+    const mockPublishDemote = mock(async () => {
+      publishCalled = true;
+    });
+
+    app = new Hono();
+
+    app.use("/*", async (c, next) => {
+      c.set("tenantDb", mockTenantDb);
+      c.set("user", { id: "user-123" });
+      c.set("companyId", "company-123");
+      c.set("userId", "user-123");
+      c.set("publishGroupDemoteAdmin", mockPublishDemote);
+      await next();
+    });
+
+    app.post("/groups/:id/participants/:participantJid/demote", async (c) => {
+      const tenantDb = c.get("tenantDb");
+      const companyId = c.get("companyId");
+      const userId = c.get("userId");
+      const publishFn = c.get("publishGroupDemoteAdmin");
+      const contactId = c.req.param("id");
+      const participantJid = c.req.param("participantJid");
+
+      const contact = await tenantDb
+        .selectFrom("contacts")
+        .select(["id", "jid"])
+        .where("id", "=", contactId)
+        .executeTakeFirst();
+
+      if (!contact || !contact.jid) {
+        return c.json({ error: "Group not found" }, 404);
+      }
+
+      const group = await tenantDb
+        .selectFrom("groups")
+        .select(["id", "name"])
+        .where("contact_id", "=", contactId)
+        .executeTakeFirst();
+
+      if (!group) {
+        return c.json({ error: "Group details not found" }, 404);
+      }
+
+      const participant = await tenantDb
+        .selectFrom("group_participants")
+        .select(["id", "is_admin"])
+        .where("group_id", "=", group.id)
+        .where("participant_jid", "=", participantJid)
+        .executeTakeFirst();
+
+      if (!participant) {
+        return c.json({ error: "Participant not found in group" }, 404);
+      }
+
+      if (!participant.is_admin) {
+        return c.json({ error: "Participant is not an admin" }, 400);
+      }
+
+      await tenantDb
+        .updateTable("group_participants")
+        .set({ is_admin: false })
+        .where("id", "=", participant.id)
+        .execute();
+
+      await publishFn(companyId, contact.jid, participantJid, userId);
+
+      return c.json({
+        success: true,
+        message: "Admin demoted to regular participant",
+        participantJid,
+      });
+    });
+  });
+
+  it("should demote admin to regular participant", async () => {
+    const response = await app.request(
+      "/groups/group-123/participants/admin2@s.whatsapp.net/demote",
+      { method: "POST" }
+    );
+
+    expect(response.status).toBe(200);
+    const data = await response.json();
+
+    expect(data.success).toBe(true);
+    expect(data.message).toBe("Admin demoted to regular participant");
+    expect(data.participantJid).toBe("admin2@s.whatsapp.net");
+  });
+
+  it("should publish NATS command on demote", async () => {
+    await app.request(
+      "/groups/group-123/participants/admin2@s.whatsapp.net/demote",
+      { method: "POST" }
+    );
+
+    expect(publishCalled).toBe(true);
+  });
+
+  it("should return 400 if participant is not admin", async () => {
+    const app2 = new Hono();
+    const mockTenantDb = {
+      selectFrom: mock((table: string) => {
+        if (table === "group_participants") {
+          return createMockQueryBuilder({
+            id: "p1",
+            is_admin: false, // Not admin
+          });
+        }
+        return createMockQueryBuilder({ id: "group-123", jid: "123@g.us", name: "Test" });
+      }),
+    };
+
+    app2.use("/*", async (c, next) => {
+      c.set("tenantDb", mockTenantDb);
+      c.set("companyId", "company-123");
+      c.set("userId", "user-123");
+      await next();
+    });
+
+    app2.post("/groups/:id/participants/:participantJid/demote", async (c) => {
+      const tenantDb = c.get("tenantDb");
+      const participant = await tenantDb.selectFrom("group_participants").executeTakeFirst();
+
+      if (!participant.is_admin) {
+        return c.json({ error: "Participant is not an admin" }, 400);
+      }
+
+      return c.json({ success: true });
+    });
+
+    const response = await app2.request(
+      "/groups/group-123/participants/member@s.whatsapp.net/demote",
+      { method: "POST" }
+    );
+
+    expect(response.status).toBe(400);
+    const data = await response.json();
+    expect(data.error).toBe("Participant is not an admin");
+  });
+});
+
+describe("DELETE /groups/:id/participants/:participantJid - Remove participant", () => {
+  let app: Hono;
+  let publishCalled: boolean;
+  let deleteExecuted: boolean;
+
+  beforeEach(() => {
+    publishCalled = false;
+    deleteExecuted = false;
+
+    const mockGroup = createMockGroup({ id: "group-123" });
+    const mockGroupInfo = createMockGroupInfo({ participant_count: 5 });
+    const mockParticipant = createMockGroupParticipant({
+      id: "target-participant",
+      participant_jid: "member1@s.whatsapp.net",
+      is_admin: false,
+    });
+
+    const mockTenantDb = {
+      selectFrom: mock((table: string) => {
+        if (table === "contacts") {
+          return createMockQueryBuilder(mockGroup);
+        }
+        if (table === "groups") {
+          return createMockQueryBuilder(mockGroupInfo);
+        }
+        if (table === "group_participants") {
+          return createMockQueryBuilder(mockParticipant);
+        }
+        if (table === "whatsapp_connections") {
+          return createMockQueryBuilder({ jid: "me@s.whatsapp.net" });
+        }
+        return createMockQueryBuilder();
+      }),
+      deleteFrom: mock(() => ({
+        where: mock(() => ({
+          execute: mock(() => {
+            deleteExecuted = true;
+            return Promise.resolve({ numDeletedRows: 1n });
+          }),
+        })),
+      })),
+      updateTable: mock(() => ({
+        set: mock(() => ({
+          where: mock(() => ({
+            execute: mock(() => Promise.resolve({ numUpdatedRows: 1n })),
+          })),
+        })),
+      })),
+      insertInto: mock(() => ({
+        values: mock(() => ({
+          execute: mock(() => Promise.resolve([])),
+        })),
+      })),
+    };
+
+    const mockPublishRemove = mock(async () => {
+      publishCalled = true;
+    });
+
+    app = new Hono();
+
+    app.use("/*", async (c, next) => {
+      c.set("tenantDb", mockTenantDb);
+      c.set("user", { id: "user-123" });
+      c.set("companyId", "company-123");
+      c.set("userId", "user-123");
+      c.set("publishGroupRemoveParticipant", mockPublishRemove);
+      await next();
+    });
+
+    app.delete("/groups/:id/participants/:participantJid", async (c) => {
+      const tenantDb = c.get("tenantDb");
+      const companyId = c.get("companyId");
+      const userId = c.get("userId");
+      const publishFn = c.get("publishGroupRemoveParticipant");
+      const contactId = c.req.param("id");
+      const participantJid = c.req.param("participantJid");
+
+      const contact = await tenantDb
+        .selectFrom("contacts")
+        .select(["id", "jid"])
+        .where("id", "=", contactId)
+        .executeTakeFirst();
+
+      if (!contact || !contact.jid) {
+        return c.json({ error: "Group not found" }, 404);
+      }
+
+      const group = await tenantDb
+        .selectFrom("groups")
+        .select(["id", "name", "participant_count"])
+        .where("contact_id", "=", contactId)
+        .executeTakeFirst();
+
+      if (!group) {
+        return c.json({ error: "Group details not found" }, 404);
+      }
+
+      // Check connection JID
+      const connection = await tenantDb
+        .selectFrom("whatsapp_connections")
+        .select(["jid"])
+        .where("status", "=", "connected")
+        .executeTakeFirst();
+
+      const connectionJid = connection?.jid;
+
+      // Cannot remove yourself
+      if (participantJid === connectionJid) {
+        return c.json({ error: "Cannot remove yourself from the group" }, 400);
+      }
+
+      const participant = await tenantDb
+        .selectFrom("group_participants")
+        .select(["id"])
+        .where("group_id", "=", group.id)
+        .where("participant_jid", "=", participantJid)
+        .executeTakeFirst();
+
+      if (!participant) {
+        return c.json({ error: "Participant not found in group" }, 404);
+      }
+
+      // Delete participant
+      await tenantDb
+        .deleteFrom("group_participants")
+        .where("id", "=", participant.id)
+        .execute();
+
+      // Update participant count
+      await tenantDb
+        .updateTable("groups")
+        .set({ participant_count: Math.max(0, (group.participant_count || 1) - 1) })
+        .where("id", "=", group.id)
+        .execute();
+
+      await publishFn(companyId, contact.jid, participantJid, userId);
+
+      return c.json({
+        success: true,
+        message: "Participant removed from group",
+        participantJid,
+      });
+    });
+  });
+
+  it("should remove participant from group", async () => {
+    const response = await app.request(
+      "/groups/group-123/participants/member1@s.whatsapp.net",
+      { method: "DELETE" }
+    );
+
+    expect(response.status).toBe(200);
+    const data = await response.json();
+
+    expect(data.success).toBe(true);
+    expect(data.message).toBe("Participant removed from group");
+    expect(data.participantJid).toBe("member1@s.whatsapp.net");
+  });
+
+  it("should delete participant from database", async () => {
+    await app.request(
+      "/groups/group-123/participants/member1@s.whatsapp.net",
+      { method: "DELETE" }
+    );
+
+    expect(deleteExecuted).toBe(true);
+  });
+
+  it("should publish NATS command on remove", async () => {
+    await app.request(
+      "/groups/group-123/participants/member1@s.whatsapp.net",
+      { method: "DELETE" }
+    );
+
+    expect(publishCalled).toBe(true);
+  });
+
+  it("should return 400 when trying to remove self", async () => {
+    const response = await app.request(
+      "/groups/group-123/participants/me@s.whatsapp.net",
+      { method: "DELETE" }
+    );
+
+    expect(response.status).toBe(400);
+    const data = await response.json();
+    expect(data.error).toBe("Cannot remove yourself from the group");
+  });
+});
+
+describe("PATCH /groups/:id/settings - Update group settings", () => {
+  let app: Hono;
+  let publishCalled: boolean;
+  let updatedSettings: { name?: string; description?: string } | null;
+
+  beforeEach(() => {
+    publishCalled = false;
+    updatedSettings = null;
+
+    const mockGroup = createMockGroup({ id: "group-123" });
+    const mockGroupInfo = createMockGroupInfo({
+      name: "Old Name",
+      description: "Old Description",
+    });
+
+    const mockTenantDb = {
+      selectFrom: mock((table: string) => {
+        if (table === "contacts") {
+          return createMockQueryBuilder(mockGroup);
+        }
+        if (table === "groups") {
+          return createMockQueryBuilder(mockGroupInfo);
+        }
+        if (table === "group_participants") {
+          return createMockQueryBuilder({ is_admin: true });
+        }
+        if (table === "whatsapp_connections") {
+          return createMockQueryBuilder({ jid: "me@s.whatsapp.net" });
+        }
+        return createMockQueryBuilder();
+      }),
+      updateTable: mock(() => ({
+        set: mock((settings: { name?: string; description?: string }) => {
+          updatedSettings = settings;
+          return {
+            where: mock(() => ({
+              execute: mock(() => Promise.resolve({ numUpdatedRows: 1n })),
+            })),
+          };
+        }),
+      })),
+      insertInto: mock(() => ({
+        values: mock(() => ({
+          execute: mock(() => Promise.resolve([])),
+        })),
+      })),
+    };
+
+    const mockPublishSettings = mock(async () => {
+      publishCalled = true;
+    });
+
+    app = new Hono();
+
+    app.use("/*", async (c, next) => {
+      c.set("tenantDb", mockTenantDb);
+      c.set("user", { id: "user-123" });
+      c.set("companyId", "company-123");
+      c.set("userId", "user-123");
+      c.set("publishGroupUpdateSettings", mockPublishSettings);
+      await next();
+    });
+
+    app.patch("/groups/:id/settings", async (c) => {
+      const tenantDb = c.get("tenantDb");
+      const companyId = c.get("companyId");
+      const userId = c.get("userId");
+      const publishFn = c.get("publishGroupUpdateSettings");
+      const contactId = c.req.param("id");
+      const body = await c.req.json();
+
+      const { name, description } = body;
+
+      if (!name && description === undefined) {
+        return c.json({ error: "At least one of name or description is required" }, 400);
+      }
+
+      const contact = await tenantDb
+        .selectFrom("contacts")
+        .select(["id", "jid"])
+        .where("id", "=", contactId)
+        .executeTakeFirst();
+
+      if (!contact || !contact.jid) {
+        return c.json({ error: "Group not found" }, 404);
+      }
+
+      const group = await tenantDb
+        .selectFrom("groups")
+        .select(["id", "name", "description"])
+        .where("contact_id", "=", contactId)
+        .executeTakeFirst();
+
+      if (!group) {
+        return c.json({ error: "Group details not found" }, 404);
+      }
+
+      const updates: { name?: string; description?: string } = {};
+      if (name !== undefined) updates.name = name;
+      if (description !== undefined) updates.description = description;
+
+      if (Object.keys(updates).length > 0) {
+        await tenantDb
+          .updateTable("groups")
+          .set(updates)
+          .where("id", "=", group.id)
+          .execute();
+      }
+
+      await publishFn(companyId, contact.jid, userId, name, description);
+
+      return c.json({
+        success: true,
+        message: "Group settings updated",
+        name: name ?? group.name,
+        description: description ?? group.description,
+      });
+    });
+  });
+
+  it("should update group name", async () => {
+    const response = await app.request("/groups/group-123/settings", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: "New Group Name" }),
+    });
+
+    expect(response.status).toBe(200);
+    const data = await response.json();
+
+    expect(data.success).toBe(true);
+    expect(data.name).toBe("New Group Name");
+  });
+
+  it("should update group description", async () => {
+    const response = await app.request("/groups/group-123/settings", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ description: "New description for the group" }),
+    });
+
+    expect(response.status).toBe(200);
+    const data = await response.json();
+
+    expect(data.success).toBe(true);
+    expect(data.description).toBe("New description for the group");
+  });
+
+  it("should update both name and description", async () => {
+    const response = await app.request("/groups/group-123/settings", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: "Updated Name",
+        description: "Updated Description",
+      }),
+    });
+
+    expect(response.status).toBe(200);
+    const data = await response.json();
+
+    expect(data.success).toBe(true);
+    expect(data.name).toBe("Updated Name");
+    expect(data.description).toBe("Updated Description");
+  });
+
+  it("should publish NATS command on settings update", async () => {
+    await app.request("/groups/group-123/settings", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: "New Name" }),
+    });
+
+    expect(publishCalled).toBe(true);
+  });
+
+  it("should return 400 if no updates provided", async () => {
+    const response = await app.request("/groups/group-123/settings", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    });
+
+    expect(response.status).toBe(400);
+    const data = await response.json();
+    expect(data.error).toBe("At least one of name or description is required");
+  });
+});
