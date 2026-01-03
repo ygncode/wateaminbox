@@ -8,6 +8,59 @@ A comprehensive development log for the Multi-tenant WhatsApp Web Collaborative 
 
 ## Latest Updates
 
+### 2026-01-03: Group Admin Actions (Tests & Toast Notifications)
+
+Added comprehensive unit tests for group admin actions and integrated sonner toast library for action notifications.
+
+**Backend Unit Tests (`groups.route.test.ts`):**
+Added 17 new tests covering all group admin actions:
+- `GET /groups/:id/admin-status` - Check if current user is admin
+  - Returns admin status for connected user
+  - Returns 404 for non-existent group
+- `POST /groups/:id/participants/:participantJid/promote` - Promote to admin
+  - Promotes participant to admin
+  - Publishes NATS command on promote
+  - Returns 400 if participant is already admin
+- `POST /groups/:id/participants/:participantJid/demote` - Demote from admin
+  - Demotes admin to regular participant
+  - Publishes NATS command on demote
+  - Returns 400 if participant is not admin
+- `DELETE /groups/:id/participants/:participantJid` - Remove participant
+  - Removes participant from group
+  - Deletes participant from database
+  - Publishes NATS command on remove
+  - Returns 400 when trying to remove self
+- `PATCH /groups/:id/settings` - Update group settings
+  - Updates group name
+  - Updates group description
+  - Updates both name and description
+  - Publishes NATS command on settings update
+  - Returns 400 if no updates provided
+
+**E2E Tests (`groups.spec.ts`):**
+Added 12 tests for group admin actions:
+- API response structure verification for admin status
+- Group detail participant structure with admin status
+- Participant JID format verification
+- Feature documentation tests
+- Admin action permission checks
+- Self-removal prevention logic
+- Response structure tests for promote/demote/remove/settings
+
+**Toast Notifications:**
+- Installed `sonner` v2.0.7 toast library
+- Added `Toaster` component to `App.tsx` for global toast display
+- Toast notifications show for admin action success/error states
+
+**Files Changed:**
+- `apps/api/src/__tests__/routes/groups.route.test.ts` - +909 lines (17 new tests)
+- `apps/web/e2e/tests/groups.spec.ts` - +200 lines (12 new tests)
+- `apps/web/package.json` - Added sonner dependency
+- `apps/web/src/App.tsx` - Added Toaster component import and placement
+- `bun.lock` - Updated with sonner dependency
+
+---
+
 ### 2026-01-03: Resolution Rate Tracking
 
 Implemented a comprehensive resolution rate tracking system that allows teams to track conversation states (open, pending, resolved) and view resolution analytics on the dashboard.

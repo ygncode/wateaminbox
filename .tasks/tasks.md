@@ -100,11 +100,19 @@ Comparison of `.specs/spec.md` against current implementation. Last updated: 202
 
 ## Phase 3: Advanced Features
 
-### 3.1 Group Chats ⚠️ Partially Complete
+### 3.1 Group Chats ✅ Complete
 - [x] View group conversations
 - [x] **Send messages to groups** - verified implementation ✅ Completed 2026-01-03
 - [x] Group participant list
-- [ ] **Group admin actions** - promote/demote admin, remove participant, change group settings
+- [x] **Group admin actions** - promote/demote admin, remove participant, change group settings ✅ Completed 2026-01-03
+  - [x] `GET /groups/:id/admin-status` - check if user is admin
+  - [x] `POST /groups/:id/participants/:jid/promote` - promote to admin
+  - [x] `POST /groups/:id/participants/:jid/demote` - demote from admin
+  - [x] `DELETE /groups/:id/participants/:jid` - remove participant
+  - [x] `PATCH /groups/:id/settings` - update group name/description
+  - [x] NATS commands: group_promote_admin, group_demote_admin, group_remove_participant, group_update_settings
+  - [x] Frontend hooks: useGroupAdminStatus, usePromoteParticipant, useDemoteParticipant, useRemoveParticipant, useUpdateGroupSettings
+  - [x] UI: GroupInfoPanel with admin actions menu per participant
 
 ### 3.2 WhatsApp Status ✅ Complete
 - [x] View contact status updates
@@ -264,6 +272,7 @@ ALTER TABLE company_members ADD COLUMN permissions JSONB;
 - [x] Export service tests (ZIP generation) ✅ Completed 2026-01-03
 - [x] Contact reassignment/takeover notification tests ✅ Completed 2026-01-03
 - [x] Permission service tests ✅ Completed 2026-01-03 (24 tests)
+- [x] Group admin actions route tests ✅ Completed 2026-01-03 (17 tests)
 
 ### E2E Tests
 - [ ] Contact creation by phone number flow *(requires E2E auth fixture improvements - mocking infrastructure needed)*
@@ -275,6 +284,7 @@ ALTER TABLE company_members ADD COLUMN permissions JSONB;
 - [x] Group message sending ✅ Completed 2026-01-03
 - [x] Status posting flow ✅ Completed 2026-01-03
 - [x] Permission role presets verification ✅ Completed 2026-01-03 (23 tests)
+- [x] Group admin actions E2E tests ✅ Completed 2026-01-03 (12 tests)
 
 **Note:** E2E tests requiring authenticated state need proper API mocking setup. The current `authenticatedPage` fixture uses mock tokens that don't work with real API. Full API interception is needed for reliable E2E testing.
 
@@ -299,7 +309,7 @@ ALTER TABLE company_members ADD COLUMN permissions JSONB;
 ### Low Priority (Nice to Have)
 11. WhatsApp Business features (labels sync, catalogs)
 12. ~~Post status updates~~ ✅ Completed 2026-01-03
-13. Group admin actions
+13. ~~Group admin actions~~ ✅ Completed 2026-01-03
 14. ~~Resolution rate tracking~~ ✅ Completed 2026-01-03
 15. Blog/docs content
 
@@ -310,11 +320,11 @@ ALTER TABLE company_members ADD COLUMN permissions JSONB;
 | Phase | Total Features | Completed | Partial | Missing |
 |-------|---------------|-----------|---------|---------|
 | Phase 1 | 28 | 26 | 2 | 0 |
-| Phase 2 | 16 | 15 | 0 | 1 |
-| Phase 3 | 18 | 15 | 2 | 1 |
+| Phase 2 | 16 | 16 | 0 | 0 |
+| Phase 3 | 18 | 16 | 1 | 1 |
 | Phase 4 | 10 | 5 | 4 | 1 |
-| **Total** | **72** | **61** | **8** | **3** |
+| **Total** | **72** | **63** | **7** | **2** |
 
-**Overall Completion: ~85% fully complete, ~11% partial, ~4% missing**
+**Overall Completion: ~88% fully complete, ~10% partial, ~2% missing**
 
-*Last updated: 2026-01-03 - Resolution rate tracking complete*
+*Last updated: 2026-01-03 - Group admin actions complete*
