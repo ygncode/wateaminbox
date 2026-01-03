@@ -8,6 +8,52 @@ A comprehensive development log for the Multi-tenant WhatsApp Web Collaborative 
 
 ## Latest Updates
 
+### 2026-01-03: E2E Tests for Add Contact by Phone Number
+
+Added comprehensive E2E test suite for the Add Contact feature with full API mocking infrastructure. This establishes a reusable pattern for E2E tests that require authenticated state without depending on a real backend.
+
+**New Test File (`e2e/tests/add-contact.spec.ts`):**
+- 15 tests covering Add Contact functionality
+- Full API mocking via `setupApiMocks()` helper function
+- Mock responses for all required endpoints (/auth/me, /companies, /contacts, etc.)
+- Response format matches actual API structure (`{ success, data }`)
+
+**Test Coverage:**
+| Test Suite | Tests | Description |
+|------------|-------|-------------|
+| Add Contact by Phone Number | 10 | Dialog display, form validation, creation flow |
+| Phone Number Format Validation | 2 | Documentation for supported formats |
+| Add Contact API Verification | 2 | API request/response documentation |
+
+**Key Tests:**
+- `should display add contact button in chat list`
+- `should open add contact dialog when clicking button`
+- `should close dialog when clicking cancel`
+- `should have submit button disabled when phone is empty`
+- `should enable submit button when phone is entered`
+- `should show validation error for short phone number`
+- `should create contact with valid phone number`
+- `should clear form when dialog is reopened`
+- `should accept phone number with country code`
+- `documents duplicate contact error handling`
+
+**API Mocking Pattern:**
+```typescript
+async function setupApiMocks(page) {
+  await page.route("**/api/auth/me", route => route.fulfill({...}));
+  await page.route("**/api/companies", route => route.fulfill({...}));
+  await page.route("**/api/contacts", async (route, request) => {
+    if (request.method() === "POST") { /* handle creation */ }
+    else { /* handle list */ }
+  });
+  // ... additional endpoints
+}
+```
+
+This pattern can be reused for other E2E tests requiring authenticated state.
+
+---
+
 ### 2026-01-03: Full Internationalization (i18n) Translation Coverage
 
 Expanded translation coverage from 23 basic keys to comprehensive translations covering all UI components. Both English and Chinese (Simplified) translations now include 300+ strings across 20 namespaces.

@@ -295,7 +295,7 @@ ALTER TABLE company_members ADD COLUMN permissions JSONB;
 - [x] Catalog routes tests ✅ Completed 2026-01-03 (16 tests)
 
 ### E2E Tests
-- [ ] Contact creation by phone number flow *(requires E2E auth fixture improvements - mocking infrastructure needed)*
+- [x] Contact creation by phone number flow ✅ Completed 2026-01-03 (15 tests with API mocking)
 - [x] Quick replies management flow ✅ Completed 2026-01-03
 - [x] Auto-assign on first reply flow ✅ Completed 2026-01-03
 - [x] Export functionality tests ✅ Completed 2026-01-03
@@ -309,7 +309,7 @@ ALTER TABLE company_members ADD COLUMN permissions JSONB;
 - [x] Label sync E2E tests scaffolding ✅ Completed 2026-01-03 (5 test scenarios)
 - [x] Catalog management E2E tests ✅ Completed 2026-01-03 (4 test scenarios)
 
-**Note:** E2E tests requiring authenticated state need proper API mocking setup. The current `authenticatedPage` fixture uses mock tokens that don't work with real API. Full API interception is needed for reliable E2E testing.
+**Note:** E2E tests requiring authenticated state use comprehensive API mocking (see `add-contact.spec.ts` for pattern). The `setupApiMocks()` helper intercepts all API calls and returns mock data, enabling reliable testing without real backend.
 
 ---
 
