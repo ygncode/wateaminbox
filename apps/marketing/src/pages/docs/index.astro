@@ -11,22 +11,28 @@ import Layout from '../../layouts/Layout.astro';
           <h2 class="font-semibold text-gray-900">Documentation</h2>
           <ul class="mt-4 space-y-2">
             <li>
-              <a href="#" class="text-primary-600">Getting Started</a>
+              <a href="#getting-started" class="text-primary-600">Getting Started</a>
             </li>
             <li>
-              <a href="#" class="text-gray-600 hover:text-gray-900">Installation</a>
+              <a href="#installation" class="text-gray-600 hover:text-gray-900">Installation</a>
             </li>
             <li>
-              <a href="#" class="text-gray-600 hover:text-gray-900">Configuration</a>
+              <a href="#configuration" class="text-gray-600 hover:text-gray-900">Configuration</a>
             </li>
             <li>
-              <a href="#" class="text-gray-600 hover:text-gray-900">API Reference</a>
+              <a href="#connecting-whatsapp" class="text-gray-600 hover:text-gray-900">Connecting WhatsApp</a>
             </li>
             <li>
-              <a href="#" class="text-gray-600 hover:text-gray-900">Examples</a>
+              <a href="#team-management" class="text-gray-600 hover:text-gray-900">Team Management</a>
             </li>
             <li>
-              <a href="#" class="text-gray-600 hover:text-gray-900">FAQ</a>
+              <a href="#features" class="text-gray-600 hover:text-gray-900">Features</a>
+            </li>
+            <li>
+              <a href="#api-reference" class="text-gray-600 hover:text-gray-900">API Reference</a>
+            </li>
+            <li>
+              <a href="#faq" class="text-gray-600 hover:text-gray-900">FAQ</a>
             </li>
           </ul>
         </nav>
@@ -36,42 +42,664 @@ import Layout from '../../layouts/Layout.astro';
       <main class="lg:col-span-3">
         <h1 class="text-4xl font-bold tracking-tight text-gray-900">Documentation</h1>
         <p class="mt-4 text-lg text-gray-600">
-          Welcome to the WhatsApp Web documentation. Learn how to get started and make the most of our platform.
+          Welcome to the WhatsApp Web documentation. Learn how to set up, configure, and make the most of our collaborative business messaging platform.
         </p>
 
-        <section class="mt-12">
+        <!-- Getting Started -->
+        <section id="getting-started" class="mt-12 scroll-mt-24">
           <h2 class="text-2xl font-bold text-gray-900">Getting Started</h2>
           <p class="mt-4 text-gray-600">
-            Follow these steps to get up and running with WhatsApp Web.
+            WhatsApp Web is a multi-tenant collaborative platform that enables businesses to manage WhatsApp communications with team collaboration, contact assignment, and comprehensive audit logging.
           </p>
 
           <div class="mt-6 rounded-lg bg-gray-50 p-6">
             <h3 class="font-semibold text-gray-900">Step 1: Create an Account</h3>
             <p class="mt-2 text-gray-600">
-              Sign up for a free account to get started.
+              Sign up for a free account at the registration page. You'll need to provide your email address and create a secure password. A verification email will be sent to confirm your account.
             </p>
           </div>
 
           <div class="mt-4 rounded-lg bg-gray-50 p-6">
-            <h3 class="font-semibold text-gray-900">Step 2: Connect Your Device</h3>
+            <h3 class="font-semibold text-gray-900">Step 2: Create or Join a Company</h3>
             <p class="mt-2 text-gray-600">
-              Link your mobile device by scanning the QR code.
+              After verifying your email, you can either create a new company or join an existing one via an invitation link. Each company gets its own isolated workspace with separate data and team members.
             </p>
           </div>
 
           <div class="mt-4 rounded-lg bg-gray-50 p-6">
-            <h3 class="font-semibold text-gray-900">Step 3: Start Messaging</h3>
+            <h3 class="font-semibold text-gray-900">Step 3: Connect Your WhatsApp</h3>
             <p class="mt-2 text-gray-600">
-              You're all set! Start sending and receiving messages.
+              Navigate to the Settings page and scan the QR code with your WhatsApp mobile app. This links your WhatsApp account to the platform, enabling message sync.
+            </p>
+          </div>
+
+          <div class="mt-4 rounded-lg bg-gray-50 p-6">
+            <h3 class="font-semibold text-gray-900">Step 4: Start Collaborating</h3>
+            <p class="mt-2 text-gray-600">
+              Invite team members, assign contacts, and begin managing your WhatsApp communications collaboratively. All actions are logged for audit compliance.
             </p>
           </div>
         </section>
 
-        <section class="mt-12">
+        <!-- Installation -->
+        <section id="installation" class="mt-16 scroll-mt-24">
+          <h2 class="text-2xl font-bold text-gray-900">Installation</h2>
+          <p class="mt-4 text-gray-600">
+            Follow these steps to set up WhatsApp Web for local development or self-hosted deployment.
+          </p>
+
+          <div class="mt-6">
+            <h3 class="text-lg font-semibold text-gray-900">Prerequisites</h3>
+            <ul class="mt-4 list-disc pl-6 text-gray-600 space-y-2">
+              <li><strong>Bun</strong> - JavaScript runtime (v1.0 or higher)</li>
+              <li><strong>Go</strong> - Go programming language (v1.24 or higher)</li>
+              <li><strong>Docker</strong> - For running PostgreSQL, NATS, and other services</li>
+              <li><strong>Git</strong> - For cloning the repository</li>
+            </ul>
+          </div>
+
+          <div class="mt-8">
+            <h3 class="text-lg font-semibold text-gray-900">Quick Start</h3>
+            <div class="mt-4 rounded-lg bg-gray-900 p-4 overflow-x-auto">
+              <pre class="text-sm text-gray-100"><code># Clone the repository
+git clone https://github.com/your-org/whatsapp-web.git
+cd whatsapp-web
+
+# Install dependencies
+bun install
+
+# Start Docker services (PostgreSQL, NATS, Meilisearch, MinIO)
+docker-compose up -d
+
+# Copy environment files
+cp .env.example .env
+
+# Run database migrations
+bun run db:migrate
+
+# Start all development servers
+bun run dev</code></pre>
+            </div>
+          </div>
+
+          <div class="mt-8">
+            <h3 class="text-lg font-semibold text-gray-900">Services Started</h3>
+            <div class="mt-4 overflow-x-auto">
+              <table class="min-w-full divide-y divide-gray-300">
+                <thead>
+                  <tr>
+                    <th class="py-3 pl-0 pr-3 text-left text-sm font-semibold text-gray-900">Service</th>
+                    <th class="px-3 py-3 text-left text-sm font-semibold text-gray-900">Port</th>
+                    <th class="px-3 py-3 text-left text-sm font-semibold text-gray-900">Description</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-200">
+                  <tr>
+                    <td class="py-3 pl-0 pr-3 text-sm text-gray-900">Web App</td>
+                    <td class="px-3 py-3 text-sm text-gray-600">5173</td>
+                    <td class="px-3 py-3 text-sm text-gray-600">React frontend (Vite)</td>
+                  </tr>
+                  <tr>
+                    <td class="py-3 pl-0 pr-3 text-sm text-gray-900">API Server</td>
+                    <td class="px-3 py-3 text-sm text-gray-600">3001</td>
+                    <td class="px-3 py-3 text-sm text-gray-600">Hono backend</td>
+                  </tr>
+                  <tr>
+                    <td class="py-3 pl-0 pr-3 text-sm text-gray-900">Marketing Site</td>
+                    <td class="px-3 py-3 text-sm text-gray-600">4321</td>
+                    <td class="px-3 py-3 text-sm text-gray-600">Astro static site</td>
+                  </tr>
+                  <tr>
+                    <td class="py-3 pl-0 pr-3 text-sm text-gray-900">PostgreSQL</td>
+                    <td class="px-3 py-3 text-sm text-gray-600">5433</td>
+                    <td class="px-3 py-3 text-sm text-gray-600">Database</td>
+                  </tr>
+                  <tr>
+                    <td class="py-3 pl-0 pr-3 text-sm text-gray-900">NATS</td>
+                    <td class="px-3 py-3 text-sm text-gray-600">4222</td>
+                    <td class="px-3 py-3 text-sm text-gray-600">Message queue</td>
+                  </tr>
+                  <tr>
+                    <td class="py-3 pl-0 pr-3 text-sm text-gray-900">Meilisearch</td>
+                    <td class="px-3 py-3 text-sm text-gray-600">7700</td>
+                    <td class="px-3 py-3 text-sm text-gray-600">Full-text search</td>
+                  </tr>
+                  <tr>
+                    <td class="py-3 pl-0 pr-3 text-sm text-gray-900">MinIO</td>
+                    <td class="px-3 py-3 text-sm text-gray-600">9000</td>
+                    <td class="px-3 py-3 text-sm text-gray-600">Media storage (S3-compatible)</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- Configuration -->
+        <section id="configuration" class="mt-16 scroll-mt-24">
+          <h2 class="text-2xl font-bold text-gray-900">Configuration</h2>
+          <p class="mt-4 text-gray-600">
+            Configure the platform using environment variables. Copy <code class="bg-gray-100 px-1 py-0.5 rounded">.env.example</code> to <code class="bg-gray-100 px-1 py-0.5 rounded">.env</code> and customize as needed.
+          </p>
+
+          <div class="mt-8">
+            <h3 class="text-lg font-semibold text-gray-900">Web App Configuration</h3>
+            <div class="mt-4 rounded-lg bg-gray-900 p-4 overflow-x-auto">
+              <pre class="text-sm text-gray-100"><code># apps/web/.env
+VITE_API_URL=http://localhost:3001/api
+VITE_WS_URL=ws://localhost:3001/ws</code></pre>
+            </div>
+          </div>
+
+          <div class="mt-8">
+            <h3 class="text-lg font-semibold text-gray-900">API Server Configuration</h3>
+            <div class="mt-4 rounded-lg bg-gray-900 p-4 overflow-x-auto">
+              <pre class="text-sm text-gray-100"><code># apps/api/.env
+
+# Database
+DATABASE_URL=postgresql://postgres:postgres@localhost:5433/whatsapp_web
+
+# Authentication
+JWT_SECRET=your-secure-secret-key-change-in-production
+JWT_EXPIRES_IN=15m
+REFRESH_TOKEN_EXPIRES_IN=7d
+
+# NATS Message Queue
+NATS_URL=nats://localhost:4222
+
+# Meilisearch (optional, falls back to PostgreSQL FTS)
+MEILISEARCH_URL=http://localhost:7700
+MEILISEARCH_API_KEY=your-meilisearch-key
+
+# Email (Resend)
+RESEND_API_KEY=re_your_api_key
+FROM_EMAIL=noreply@yourdomain.com
+
+# Storage (MinIO/R2)
+STORAGE_ENDPOINT=http://localhost:9000
+STORAGE_ACCESS_KEY=minioadmin
+STORAGE_SECRET_KEY=minioadmin
+STORAGE_BUCKET=whatsapp-media</code></pre>
+            </div>
+          </div>
+
+          <div class="mt-8">
+            <h3 class="text-lg font-semibold text-gray-900">Production Considerations</h3>
+            <ul class="mt-4 list-disc pl-6 text-gray-600 space-y-2">
+              <li>Use strong, unique values for <code class="bg-gray-100 px-1 py-0.5 rounded">JWT_SECRET</code></li>
+              <li>Configure proper SSL/TLS certificates for HTTPS</li>
+              <li>Use Cloudflare R2 or AWS S3 for production media storage</li>
+              <li>Set up proper database backups and monitoring</li>
+              <li>Configure rate limiting and security headers</li>
+            </ul>
+          </div>
+        </section>
+
+        <!-- Connecting WhatsApp -->
+        <section id="connecting-whatsapp" class="mt-16 scroll-mt-24">
+          <h2 class="text-2xl font-bold text-gray-900">Connecting WhatsApp</h2>
+          <p class="mt-4 text-gray-600">
+            Connect your WhatsApp account to start sending and receiving messages through the platform.
+          </p>
+
+          <div class="mt-6 rounded-lg bg-gray-50 p-6">
+            <h3 class="font-semibold text-gray-900">QR Code Connection</h3>
+            <ol class="mt-4 list-decimal pl-6 text-gray-600 space-y-3">
+              <li>Navigate to <strong>Settings</strong> in the web application</li>
+              <li>Click on <strong>Connect WhatsApp</strong> to display the QR code</li>
+              <li>Open WhatsApp on your mobile device</li>
+              <li>Go to <strong>Settings &gt; Linked Devices &gt; Link a Device</strong></li>
+              <li>Scan the QR code displayed on screen</li>
+              <li>Wait for the connection to be established (usually 5-10 seconds)</li>
+            </ol>
+          </div>
+
+          <div class="mt-6 rounded-lg bg-yellow-50 border border-yellow-200 p-6">
+            <h3 class="font-semibold text-yellow-800">Important Notes</h3>
+            <ul class="mt-2 list-disc pl-6 text-yellow-700 space-y-2">
+              <li>Keep your phone connected to the internet for reliable message sync</li>
+              <li>The QR code expires after 60 seconds - refresh if needed</li>
+              <li>Only one WhatsApp account can be connected per company</li>
+              <li>WhatsApp Business accounts are fully supported with additional features</li>
+            </ul>
+          </div>
+
+          <div class="mt-6 rounded-lg bg-gray-50 p-6">
+            <h3 class="font-semibold text-gray-900">Connection Status</h3>
+            <p class="mt-2 text-gray-600">
+              The connection status is displayed in the header. Possible states:
+            </p>
+            <ul class="mt-4 space-y-2">
+              <li class="flex items-center gap-2">
+                <span class="h-3 w-3 rounded-full bg-green-500"></span>
+                <span class="text-gray-600"><strong>Connected</strong> - Messages are syncing normally</span>
+              </li>
+              <li class="flex items-center gap-2">
+                <span class="h-3 w-3 rounded-full bg-yellow-500"></span>
+                <span class="text-gray-600"><strong>Reconnecting</strong> - Attempting to restore connection</span>
+              </li>
+              <li class="flex items-center gap-2">
+                <span class="h-3 w-3 rounded-full bg-red-500"></span>
+                <span class="text-gray-600"><strong>Disconnected</strong> - Connection lost, scan QR code again</span>
+              </li>
+            </ul>
+          </div>
+        </section>
+
+        <!-- Team Management -->
+        <section id="team-management" class="mt-16 scroll-mt-24">
+          <h2 class="text-2xl font-bold text-gray-900">Team Management</h2>
+          <p class="mt-4 text-gray-600">
+            Invite team members and manage roles and permissions for collaborative messaging.
+          </p>
+
+          <div class="mt-6">
+            <h3 class="text-lg font-semibold text-gray-900">Roles & Permissions</h3>
+            <div class="mt-4 overflow-x-auto">
+              <table class="min-w-full divide-y divide-gray-300">
+                <thead>
+                  <tr>
+                    <th class="py-3 pl-0 pr-3 text-left text-sm font-semibold text-gray-900">Permission</th>
+                    <th class="px-3 py-3 text-center text-sm font-semibold text-gray-900">Owner</th>
+                    <th class="px-3 py-3 text-center text-sm font-semibold text-gray-900">Admin</th>
+                    <th class="px-3 py-3 text-center text-sm font-semibold text-gray-900">Member</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-200">
+                  <tr>
+                    <td class="py-3 pl-0 pr-3 text-sm text-gray-900">View all chats</td>
+                    <td class="px-3 py-3 text-center text-green-600">&#10003;</td>
+                    <td class="px-3 py-3 text-center text-green-600">&#10003;</td>
+                    <td class="px-3 py-3 text-center text-gray-400">-</td>
+                  </tr>
+                  <tr>
+                    <td class="py-3 pl-0 pr-3 text-sm text-gray-900">Send messages</td>
+                    <td class="px-3 py-3 text-center text-green-600">&#10003;</td>
+                    <td class="px-3 py-3 text-center text-green-600">&#10003;</td>
+                    <td class="px-3 py-3 text-center text-green-600">&#10003;</td>
+                  </tr>
+                  <tr>
+                    <td class="py-3 pl-0 pr-3 text-sm text-gray-900">Assign contacts</td>
+                    <td class="px-3 py-3 text-center text-green-600">&#10003;</td>
+                    <td class="px-3 py-3 text-center text-green-600">&#10003;</td>
+                    <td class="px-3 py-3 text-center text-gray-400">-</td>
+                  </tr>
+                  <tr>
+                    <td class="py-3 pl-0 pr-3 text-sm text-gray-900">Manage team</td>
+                    <td class="px-3 py-3 text-center text-green-600">&#10003;</td>
+                    <td class="px-3 py-3 text-center text-gray-400">-</td>
+                    <td class="px-3 py-3 text-center text-gray-400">-</td>
+                  </tr>
+                  <tr>
+                    <td class="py-3 pl-0 pr-3 text-sm text-gray-900">Invite members</td>
+                    <td class="px-3 py-3 text-center text-green-600">&#10003;</td>
+                    <td class="px-3 py-3 text-center text-green-600">&#10003;</td>
+                    <td class="px-3 py-3 text-center text-gray-400">-</td>
+                  </tr>
+                  <tr>
+                    <td class="py-3 pl-0 pr-3 text-sm text-gray-900">Export data</td>
+                    <td class="px-3 py-3 text-center text-green-600">&#10003;</td>
+                    <td class="px-3 py-3 text-center text-green-600">&#10003;</td>
+                    <td class="px-3 py-3 text-center text-gray-400">-</td>
+                  </tr>
+                  <tr>
+                    <td class="py-3 pl-0 pr-3 text-sm text-gray-900">Delete messages</td>
+                    <td class="px-3 py-3 text-center text-green-600">&#10003;</td>
+                    <td class="px-3 py-3 text-center text-green-600">&#10003;</td>
+                    <td class="px-3 py-3 text-center text-gray-400">-</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="mt-8">
+            <h3 class="text-lg font-semibold text-gray-900">Inviting Team Members</h3>
+            <ol class="mt-4 list-decimal pl-6 text-gray-600 space-y-2">
+              <li>Navigate to <strong>Team</strong> in the sidebar</li>
+              <li>Click <strong>Invite Member</strong></li>
+              <li>Enter the email address and select a role (Admin or Member)</li>
+              <li>The invitee will receive an email with a 7-day valid invitation link</li>
+              <li>Once accepted, they'll have access based on their assigned role</li>
+            </ol>
+          </div>
+
+          <div class="mt-8">
+            <h3 class="text-lg font-semibold text-gray-900">Contact Assignment</h3>
+            <p class="mt-2 text-gray-600">
+              Contacts can be assigned to specific team members for ownership and accountability:
+            </p>
+            <ul class="mt-4 list-disc pl-6 text-gray-600 space-y-2">
+              <li><strong>Self-assign:</strong> Click "Assign to me" on any unassigned contact</li>
+              <li><strong>Auto-assign:</strong> Sending the first message to a contact automatically assigns them to you</li>
+              <li><strong>Transfer:</strong> Admins can reassign contacts between team members (previous assignee is notified)</li>
+              <li><strong>Filter:</strong> Use the chat filter to view "Assigned to me" or "Unassigned" contacts</li>
+            </ul>
+          </div>
+        </section>
+
+        <!-- Features -->
+        <section id="features" class="mt-16 scroll-mt-24">
+          <h2 class="text-2xl font-bold text-gray-900">Features</h2>
+          <p class="mt-4 text-gray-600">
+            Explore the key features of WhatsApp Web for business messaging.
+          </p>
+
+          <div class="mt-8 grid gap-6 sm:grid-cols-2">
+            <div class="rounded-lg border border-gray-200 p-6">
+              <h3 class="font-semibold text-gray-900">Messaging</h3>
+              <ul class="mt-4 list-disc pl-6 text-gray-600 space-y-1 text-sm">
+                <li>Send text, images, videos, audio, documents</li>
+                <li>Reply to specific messages</li>
+                <li>Forward messages between chats</li>
+                <li>Message reactions</li>
+                <li>Star important messages</li>
+                <li>Read receipts with status indicators</li>
+                <li>Search within conversations</li>
+              </ul>
+            </div>
+
+            <div class="rounded-lg border border-gray-200 p-6">
+              <h3 class="font-semibold text-gray-900">Contacts</h3>
+              <ul class="mt-4 list-disc pl-6 text-gray-600 space-y-1 text-sm">
+                <li>Add contacts manually by phone number</li>
+                <li>Bulk import from CSV</li>
+                <li>Custom contact names</li>
+                <li>Shared team notes</li>
+                <li>Private personal notes</li>
+                <li>Tags and labels for organization</li>
+                <li>Assignment and transfer</li>
+              </ul>
+            </div>
+
+            <div class="rounded-lg border border-gray-200 p-6">
+              <h3 class="font-semibold text-gray-900">Groups</h3>
+              <ul class="mt-4 list-disc pl-6 text-gray-600 space-y-1 text-sm">
+                <li>View and send messages to groups</li>
+                <li>Participant list with roles</li>
+                <li>Admin actions (promote, demote, remove)</li>
+                <li>Update group name and description</li>
+                <li>Group-specific tags</li>
+              </ul>
+            </div>
+
+            <div class="rounded-lg border border-gray-200 p-6">
+              <h3 class="font-semibold text-gray-900">WhatsApp Status</h3>
+              <ul class="mt-4 list-disc pl-6 text-gray-600 space-y-1 text-sm">
+                <li>View contact status updates</li>
+                <li>Post text, image, or video status</li>
+                <li>24-hour expiration tracking</li>
+                <li>Full-screen status viewer</li>
+              </ul>
+            </div>
+
+            <div class="rounded-lg border border-gray-200 p-6">
+              <h3 class="font-semibold text-gray-900">Business Features</h3>
+              <ul class="mt-4 list-disc pl-6 text-gray-600 space-y-1 text-sm">
+                <li>Quick replies for fast responses</li>
+                <li>Sync WhatsApp Business labels</li>
+                <li>Product catalog management</li>
+                <li>Custom tags linked to labels</li>
+              </ul>
+            </div>
+
+            <div class="rounded-lg border border-gray-200 p-6">
+              <h3 class="font-semibold text-gray-900">Analytics</h3>
+              <ul class="mt-4 list-disc pl-6 text-gray-600 space-y-1 text-sm">
+                <li>Message counts and trends</li>
+                <li>Response time analytics</li>
+                <li>Customer engagement metrics</li>
+                <li>New contacts trend</li>
+                <li>Resolution rate tracking</li>
+                <li>Team activity reports</li>
+              </ul>
+            </div>
+
+            <div class="rounded-lg border border-gray-200 p-6">
+              <h3 class="font-semibold text-gray-900">Search & Export</h3>
+              <ul class="mt-4 list-disc pl-6 text-gray-600 space-y-1 text-sm">
+                <li>Full-text search across messages</li>
+                <li>Filter by date, contact, media type</li>
+                <li>Typo-tolerant search</li>
+                <li>Export contacts (CSV/JSON)</li>
+                <li>Export messages by date range</li>
+                <li>Full backup as ZIP</li>
+              </ul>
+            </div>
+
+            <div class="rounded-lg border border-gray-200 p-6">
+              <h3 class="font-semibold text-gray-900">Audit & Compliance</h3>
+              <ul class="mt-4 list-disc pl-6 text-gray-600 space-y-1 text-sm">
+                <li>Comprehensive action logging</li>
+                <li>Message sent/received tracking</li>
+                <li>Assignment history</li>
+                <li>Team member activity</li>
+                <li>Export audit logs</li>
+                <li>17 tracked action types</li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="mt-8">
+            <h3 class="text-lg font-semibold text-gray-900">Keyboard Shortcuts</h3>
+            <div class="mt-4 overflow-x-auto">
+              <table class="min-w-full divide-y divide-gray-300">
+                <thead>
+                  <tr>
+                    <th class="py-3 pl-0 pr-3 text-left text-sm font-semibold text-gray-900">Shortcut</th>
+                    <th class="px-3 py-3 text-left text-sm font-semibold text-gray-900">Action</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-200">
+                  <tr>
+                    <td class="py-3 pl-0 pr-3 text-sm"><code class="bg-gray-100 px-2 py-1 rounded">Ctrl/Cmd + N</code></td>
+                    <td class="px-3 py-3 text-sm text-gray-600">New chat (focus search)</td>
+                  </tr>
+                  <tr>
+                    <td class="py-3 pl-0 pr-3 text-sm"><code class="bg-gray-100 px-2 py-1 rounded">Ctrl/Cmd + F</code></td>
+                    <td class="px-3 py-3 text-sm text-gray-600">Open global search</td>
+                  </tr>
+                  <tr>
+                    <td class="py-3 pl-0 pr-3 text-sm"><code class="bg-gray-100 px-2 py-1 rounded">Escape</code></td>
+                    <td class="px-3 py-3 text-sm text-gray-600">Close modal/panel</td>
+                  </tr>
+                  <tr>
+                    <td class="py-3 pl-0 pr-3 text-sm"><code class="bg-gray-100 px-2 py-1 rounded">Enter</code></td>
+                    <td class="px-3 py-3 text-sm text-gray-600">Send message</td>
+                  </tr>
+                  <tr>
+                    <td class="py-3 pl-0 pr-3 text-sm"><code class="bg-gray-100 px-2 py-1 rounded">Shift + Enter</code></td>
+                    <td class="px-3 py-3 text-sm text-gray-600">New line in message</td>
+                  </tr>
+                  <tr>
+                    <td class="py-3 pl-0 pr-3 text-sm"><code class="bg-gray-100 px-2 py-1 rounded">Arrow Up/Down</code></td>
+                    <td class="px-3 py-3 text-sm text-gray-600">Navigate chat list</td>
+                  </tr>
+                  <tr>
+                    <td class="py-3 pl-0 pr-3 text-sm"><code class="bg-gray-100 px-2 py-1 rounded">Ctrl/Cmd + /</code></td>
+                    <td class="px-3 py-3 text-sm text-gray-600">Show shortcuts help</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- API Reference -->
+        <section id="api-reference" class="mt-16 scroll-mt-24">
+          <h2 class="text-2xl font-bold text-gray-900">API Reference</h2>
+          <p class="mt-4 text-gray-600">
+            The WhatsApp Web API uses REST endpoints with JSON responses. All authenticated routes require a JWT token in the Authorization header.
+          </p>
+
+          <div class="mt-6 rounded-lg bg-gray-50 p-6">
+            <h3 class="font-semibold text-gray-900">Authentication</h3>
+            <div class="mt-4 rounded-lg bg-gray-900 p-4 overflow-x-auto">
+              <pre class="text-sm text-gray-100"><code># Include in request headers
+Authorization: Bearer &lt;your-jwt-token&gt;
+X-Company-ID: &lt;company-uuid&gt;</code></pre>
+            </div>
+          </div>
+
+          <div class="mt-8">
+            <h3 class="text-lg font-semibold text-gray-900">Core Endpoints</h3>
+            <div class="mt-4 space-y-4">
+              <div class="rounded-lg border border-gray-200 p-4">
+                <div class="flex items-center gap-2">
+                  <span class="rounded bg-green-100 px-2 py-1 text-xs font-medium text-green-700">POST</span>
+                  <code class="text-sm">/api/auth/register</code>
+                </div>
+                <p class="mt-2 text-sm text-gray-600">Register a new user account</p>
+              </div>
+
+              <div class="rounded-lg border border-gray-200 p-4">
+                <div class="flex items-center gap-2">
+                  <span class="rounded bg-green-100 px-2 py-1 text-xs font-medium text-green-700">POST</span>
+                  <code class="text-sm">/api/auth/login</code>
+                </div>
+                <p class="mt-2 text-sm text-gray-600">Login and receive JWT tokens</p>
+              </div>
+
+              <div class="rounded-lg border border-gray-200 p-4">
+                <div class="flex items-center gap-2">
+                  <span class="rounded bg-blue-100 px-2 py-1 text-xs font-medium text-blue-700">GET</span>
+                  <code class="text-sm">/api/contacts</code>
+                </div>
+                <p class="mt-2 text-sm text-gray-600">List contacts with pagination and filters</p>
+              </div>
+
+              <div class="rounded-lg border border-gray-200 p-4">
+                <div class="flex items-center gap-2">
+                  <span class="rounded bg-green-100 px-2 py-1 text-xs font-medium text-green-700">POST</span>
+                  <code class="text-sm">/api/messages</code>
+                </div>
+                <p class="mt-2 text-sm text-gray-600">Send a message to a contact</p>
+              </div>
+
+              <div class="rounded-lg border border-gray-200 p-4">
+                <div class="flex items-center gap-2">
+                  <span class="rounded bg-blue-100 px-2 py-1 text-xs font-medium text-blue-700">GET</span>
+                  <code class="text-sm">/api/messages?contactId=&lt;id&gt;</code>
+                </div>
+                <p class="mt-2 text-sm text-gray-600">Get messages for a contact</p>
+              </div>
+
+              <div class="rounded-lg border border-gray-200 p-4">
+                <div class="flex items-center gap-2">
+                  <span class="rounded bg-blue-100 px-2 py-1 text-xs font-medium text-blue-700">GET</span>
+                  <code class="text-sm">/api/search?q=&lt;query&gt;</code>
+                </div>
+                <p class="mt-2 text-sm text-gray-600">Full-text search across messages</p>
+              </div>
+
+              <div class="rounded-lg border border-gray-200 p-4">
+                <div class="flex items-center gap-2">
+                  <span class="rounded bg-blue-100 px-2 py-1 text-xs font-medium text-blue-700">GET</span>
+                  <code class="text-sm">/api/whatsapp/status</code>
+                </div>
+                <p class="mt-2 text-sm text-gray-600">Get WhatsApp connection status</p>
+              </div>
+
+              <div class="rounded-lg border border-gray-200 p-4">
+                <div class="flex items-center gap-2">
+                  <span class="rounded bg-blue-100 px-2 py-1 text-xs font-medium text-blue-700">GET</span>
+                  <code class="text-sm">/api/export/full</code>
+                </div>
+                <p class="mt-2 text-sm text-gray-600">Download full backup as ZIP</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="mt-8">
+            <h3 class="text-lg font-semibold text-gray-900">WebSocket Events</h3>
+            <p class="mt-2 text-gray-600">Connect to <code class="bg-gray-100 px-1 py-0.5 rounded">/ws</code> for real-time updates:</p>
+            <ul class="mt-4 list-disc pl-6 text-gray-600 space-y-2">
+              <li><code class="bg-gray-100 px-1 py-0.5 rounded">message:new</code> - New message received</li>
+              <li><code class="bg-gray-100 px-1 py-0.5 rounded">message:status</code> - Message delivery status update</li>
+              <li><code class="bg-gray-100 px-1 py-0.5 rounded">contact:update</code> - Contact information changed</li>
+              <li><code class="bg-gray-100 px-1 py-0.5 rounded">whatsapp:status</code> - Connection status changed</li>
+              <li><code class="bg-gray-100 px-1 py-0.5 rounded">notification</code> - In-app notification</li>
+            </ul>
+          </div>
+        </section>
+
+        <!-- FAQ -->
+        <section id="faq" class="mt-16 scroll-mt-24">
+          <h2 class="text-2xl font-bold text-gray-900">Frequently Asked Questions</h2>
+
+          <div class="mt-8 space-y-6">
+            <div class="rounded-lg border border-gray-200 p-6">
+              <h3 class="font-semibold text-gray-900">How many team members can I add?</h3>
+              <p class="mt-2 text-gray-600">
+                There's no limit on team members. Invite as many as your organization needs. Each member can have customized permissions based on their role.
+              </p>
+            </div>
+
+            <div class="rounded-lg border border-gray-200 p-6">
+              <h3 class="font-semibold text-gray-900">Can I use WhatsApp Business?</h3>
+              <p class="mt-2 text-gray-600">
+                Yes! WhatsApp Business accounts are fully supported and unlock additional features like labels sync and product catalogs.
+              </p>
+            </div>
+
+            <div class="rounded-lg border border-gray-200 p-6">
+              <h3 class="font-semibold text-gray-900">What happens if I disconnect?</h3>
+              <p class="mt-2 text-gray-600">
+                The platform automatically attempts to reconnect. If disconnected for too long, you'll need to scan the QR code again. Your message history is preserved.
+              </p>
+            </div>
+
+            <div class="rounded-lg border border-gray-200 p-6">
+              <h3 class="font-semibold text-gray-900">Is my data secure?</h3>
+              <p class="mt-2 text-gray-600">
+                Yes. Each company has isolated data in separate database schemas. Session data is encrypted, and all API calls require authentication. We support audit logging for compliance.
+              </p>
+            </div>
+
+            <div class="rounded-lg border border-gray-200 p-6">
+              <h3 class="font-semibold text-gray-900">Can I export my data?</h3>
+              <p class="mt-2 text-gray-600">
+                Yes. You can export contacts (CSV/JSON), messages by date range, or download a full backup as a ZIP file including all data and media.
+              </p>
+            </div>
+
+            <div class="rounded-lg border border-gray-200 p-6">
+              <h3 class="font-semibold text-gray-900">What languages are supported?</h3>
+              <p class="mt-2 text-gray-600">
+                The platform supports English and Simplified Chinese (简体中文). You can switch languages from the settings page.
+              </p>
+            </div>
+
+            <div class="rounded-lg border border-gray-200 p-6">
+              <h3 class="font-semibold text-gray-900">How do I self-host?</h3>
+              <p class="mt-2 text-gray-600">
+                Follow the Installation section above. You'll need Docker for services, Bun for the Node.js runtime, and Go for the WhatsApp service. All configuration is done via environment variables.
+              </p>
+            </div>
+
+            <div class="rounded-lg border border-gray-200 p-6">
+              <h3 class="font-semibold text-gray-900">Is there rate limiting?</h3>
+              <p class="mt-2 text-gray-600">
+                The platform mirrors WhatsApp's rate limits to prevent account restrictions. Bulk messaging should be paced appropriately. The dashboard shows your current usage.
+              </p>
+            </div>
+          </div>
+        </section>
+
+        <!-- Need Help -->
+        <section class="mt-16">
           <h2 class="text-2xl font-bold text-gray-900">Need Help?</h2>
           <p class="mt-4 text-gray-600">
-            If you have any questions, check out our <a href="#" class="text-primary-600 hover:underline">FAQ</a> or <a href="#" class="text-primary-600 hover:underline">contact support</a>.
+            If you have questions not covered here, please check the <a href="#faq" class="text-primary-600 hover:underline">FAQ</a> section or reach out to our support team.
           </p>
+          <div class="mt-6 flex gap-4">
+            <a href="mailto:support@whatsapp-web.com" class="inline-flex items-center rounded-md bg-primary-600 px-4 py-2 text-sm font-semibold text-white hover:bg-primary-500">
+              Contact Support
+            </a>
+            <a href="https://github.com/your-org/whatsapp-web/issues" class="inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50">
+              Report an Issue
+            </a>
+          </div>
         </section>
       </main>
     </div>

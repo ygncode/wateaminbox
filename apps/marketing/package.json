@@ -7,7 +7,9 @@
     "build": "astro build",
     "preview": "astro preview",
     "lint": "eslint src --ext .astro,.ts,.tsx,.js,.jsx",
-    "format": "prettier --write \"src/**/*.{astro,ts,tsx,js,jsx,css,md}\""
+    "format": "prettier --write \"src/**/*.{astro,ts,tsx,js,jsx,css,md}\"",
+    "test": "playwright test",
+    "test:ui": "playwright test --ui"
   },
   "dependencies": {
     "astro": "^5.0.0",
@@ -15,6 +17,7 @@
     "tailwindcss": "^3.4.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.48.0",
     "eslint": "^8.57.0",
     "prettier": "^3.2.0",
     "prettier-plugin-astro": "^0.13.0"

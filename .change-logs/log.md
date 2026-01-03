@@ -8,6 +8,59 @@ A comprehensive development log for the Multi-tenant WhatsApp Web Collaborative 
 
 ## Latest Updates
 
+### 2026-01-03: Marketing Site Documentation Content
+
+Added comprehensive documentation to the marketing site with a complete setup guide covering all aspects of the platform. The documentation page now includes 8 major sections with detailed instructions, code examples, tables, and FAQ.
+
+**Documentation Sections:**
+
+| Section | Description |
+|---------|-------------|
+| Getting Started | 4-step onboarding guide (account, company, WhatsApp, collaboration) |
+| Installation | Prerequisites, quick start commands, services table |
+| Configuration | Environment variables for web app and API server |
+| Connecting WhatsApp | QR code flow, important notes, connection status indicators |
+| Team Management | Roles & permissions table, inviting members, contact assignment |
+| Features | 8 feature cards covering all platform capabilities |
+| API Reference | Authentication headers, core endpoints, WebSocket events |
+| FAQ | 8 frequently asked questions with detailed answers |
+
+**Files Changed:**
+- `apps/marketing/src/pages/docs/index.astro` - Expanded from ~80 lines to ~700 lines
+- `apps/marketing/playwright.config.ts` - New Playwright configuration for marketing site
+- `apps/marketing/e2e/tests/docs.spec.ts` - 40+ E2E tests for documentation page
+- `apps/marketing/package.json` - Added Playwright dependency and test scripts
+
+**E2E Tests (`docs.spec.ts`):**
+- Page structure verification (title, sidebar, navigation links)
+- Getting Started section (4 setup steps)
+- Installation section (prerequisites, quick start, services table)
+- Configuration section (web app, API server, production considerations)
+- Connecting WhatsApp section (QR code steps, important notes, status indicators)
+- Team Management section (roles table, inviting members, contact assignment)
+- Features section (feature cards grid, keyboard shortcuts table)
+- API Reference section (authentication, endpoints, WebSocket events)
+- FAQ section (8 FAQ items)
+- Navigation (sidebar link scrolling)
+- Responsive design (sidebar visibility on mobile/desktop)
+- Need Help section (contact support, report issue buttons)
+
+**Key Content Highlights:**
+- Code blocks with syntax highlighting for installation commands
+- Tables for services ports, roles/permissions, keyboard shortcuts
+- Color-coded connection status indicators
+- Feature cards with comprehensive bullet lists
+- API endpoint documentation with HTTP method badges
+- Production deployment considerations
+
+**Screenshots Captured:**
+- `docs-01-getting-started.png` - Documentation header and getting started
+- `docs-02-installation.png` - Installation section with prerequisites
+- `docs-03-faq.png` - FAQ section
+- `docs-04-full-page.png` - Full page screenshot
+
+---
+
 ### 2026-01-03: E2E Tests for Add Contact by Phone Number
 
 Added comprehensive E2E test suite for the Add Contact feature with full API mocking infrastructure. This establishes a reusable pattern for E2E tests that require authenticated state without depending on a real backend.
