@@ -119,7 +119,7 @@ Comparison of `.specs/spec.md` against current implementation. Last updated: 202
 - [x] **Post status updates** - API and UI for posting text/image/video status ✅ Completed 2026-01-03
 - [x] Status expiration handling
 
-### 3.3 WhatsApp Business Features ⚠️ Partially Complete
+### 3.3 WhatsApp Business Features ✅ Complete
 - [x] **Quick replies** - predefined message templates for fast responses ✅ Completed 2026-01-03
 - [x] **Labels sync with custom tags** - sync WhatsApp Business labels with custom tags ✅ Completed 2026-01-03
   - [x] Database migration for whatsapp_labels table and sync fields
@@ -129,7 +129,15 @@ Comparison of `.specs/spec.md` against current implementation. Last updated: 202
   - [x] Frontend hooks (useLabels, useLabelSyncStatus, etc.)
   - [x] LabelSyncManager UI component in Settings
   - [x] Auto-create tags from WhatsApp labels
-- [ ] **Catalogs** - view/manage product catalogs (if Business account)
+- [x] **Catalogs** - view/manage product catalogs (if Business account) ✅ Completed 2026-01-03
+  - [x] Database migration for whatsapp_catalogs and catalog_products tables
+  - [x] Catalog sync service with full CRUD operations
+  - [x] REST API routes for catalog management (`/api/catalogs`)
+  - [x] NATS commands for sync operations (sync_catalogs, sync_catalog_products)
+  - [x] Frontend hooks (useCatalogs, useCatalogSyncStatus, etc.)
+  - [x] CatalogManager UI component in Settings
+  - [x] Archive/restore catalog functionality
+  - [x] Product visibility management
 
 ### 3.4 Advanced Dashboard ✅ Complete
 - [x] Response time analytics
@@ -282,6 +290,7 @@ ALTER TABLE company_members ADD COLUMN permissions JSONB;
 - [x] Group admin actions route tests ✅ Completed 2026-01-03 (17 tests)
 - [x] Customer engagement metrics tests ✅ Completed 2026-01-03 (3 interface tests)
 - [x] Label sync service tests ✅ Completed 2026-01-03 (13 tests)
+- [x] Catalog routes tests ✅ Completed 2026-01-03 (16 tests)
 
 ### E2E Tests
 - [ ] Contact creation by phone number flow *(requires E2E auth fixture improvements - mocking infrastructure needed)*
@@ -296,6 +305,7 @@ ALTER TABLE company_members ADD COLUMN permissions JSONB;
 - [x] Group admin actions E2E tests ✅ Completed 2026-01-03 (12 tests)
 - [x] Customer engagement E2E tests ✅ Completed 2026-01-03 (9 tests)
 - [x] Label sync E2E tests scaffolding ✅ Completed 2026-01-03 (5 test scenarios)
+- [x] Catalog management E2E tests ✅ Completed 2026-01-03 (4 test scenarios)
 
 **Note:** E2E tests requiring authenticated state need proper API mocking setup. The current `authenticatedPage` fixture uses mock tokens that don't work with real API. Full API interception is needed for reliable E2E testing.
 
@@ -333,9 +343,9 @@ ALTER TABLE company_members ADD COLUMN permissions JSONB;
 | Phase 1 | 28 | 26 | 2 | 0 |
 | Phase 2 | 16 | 16 | 0 | 0 |
 | Phase 3 | 18 | 18 | 0 | 0 |
-| Phase 4 | 10 | 5 | 4 | 1 |
-| **Total** | **72** | **65** | **6** | **1** |
+| Phase 4 | 10 | 6 | 4 | 0 |
+| **Total** | **72** | **66** | **6** | **0** |
 
-**Overall Completion: ~90% fully complete, ~8% partial, ~1% missing**
+**Overall Completion: ~92% fully complete, ~8% partial**
 
-*Last updated: 2026-01-03 - WhatsApp Business labels sync complete*
+*Last updated: 2026-01-03 - WhatsApp Business catalogs feature complete*

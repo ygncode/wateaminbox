@@ -90,6 +90,8 @@ export type MessageType = "text" | "image" | "video" | "audio" | "document" | "s
 export type MessageStatus = "pending" | "sent" | "delivered" | "read" | "failed";
 export type NotificationType = "message" | "mention" | "assignment" | "team" | "system";
 export type ConversationStatus = "open" | "pending" | "resolved";
+export type CatalogStatus = "active" | "inactive" | "archived";
+export type ProductVisibility = "visible" | "hidden";
 
 /**
  * Tenant database interface for tenant-specific tables
@@ -99,6 +101,8 @@ export interface TenantDatabase {
   contacts: ContactsTable;
   tags: TagsTable;
   whatsapp_labels: WhatsAppLabelsTable;
+  whatsapp_catalogs: WhatsAppCatalogsTable;
+  catalog_products: CatalogProductsTable;
   contact_tags: ContactTagsTable;
   contact_assignments: ContactAssignmentsTable;
   contact_notes_private: ContactNotesPrivateTable;
@@ -159,6 +163,40 @@ export interface WhatsAppLabelsTable {
   predefined_id: number | null;
   synced_tag_id: string | null;
   last_synced_at: Generated<Date>;
+  created_at: Generated<Date>;
+  updated_at: Generated<Date>;
+}
+
+export interface WhatsAppCatalogsTable {
+  id: Generated<string>;
+  catalog_id: string;
+  name: string;
+  description: string | null;
+  currency: Generated<string>;
+  status: Generated<CatalogStatus>;
+  business_jid: string | null;
+  header_image_url: string | null;
+  product_count: Generated<number>;
+  last_synced_at: Generated<Date>;
+  created_at: Generated<Date>;
+  updated_at: Generated<Date>;
+}
+
+export interface CatalogProductsTable {
+  id: Generated<string>;
+  product_id: string;
+  catalog_id: string;
+  name: string;
+  description: string | null;
+  price: number | null;
+  currency: Generated<string>;
+  image_urls: string[] | null;
+  sku: string | null;
+  category: string | null;
+  availability: Generated<string>;
+  visibility: Generated<ProductVisibility>;
+  url: string | null;
+  retailer_id: string | null;
   created_at: Generated<Date>;
   updated_at: Generated<Date>;
 }

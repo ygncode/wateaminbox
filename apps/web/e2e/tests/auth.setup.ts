@@ -25,7 +25,7 @@ setup("authenticate", async ({ page }) => {
       name: "Test User",
     };
 
-    localStorage.setItem("access_token", mockToken.accessToken);
+    localStorage.setItem("auth_token", mockToken.accessToken);
     localStorage.setItem("refresh_token", mockToken.refreshToken);
     localStorage.setItem("company_id", "test-company-id");
     localStorage.setItem("user", JSON.stringify(mockUser));

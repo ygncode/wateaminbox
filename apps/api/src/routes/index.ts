@@ -17,6 +17,7 @@ import { searchRoutes } from "./search.js";
 import { notificationRoutes } from "./notifications.js";
 import { quickReplyRoutes } from "./quick-replies.js";
 import { labelRoutes } from "./labels.js";
+import { catalogRoutes } from "./catalogs.js";
 
 export const routes = new Hono();
 
@@ -71,6 +72,9 @@ routes.route("/quick-replies", quickReplyRoutes);
 
 // Label sync routes
 routes.route("/labels", labelRoutes);
+
+// Catalog routes
+routes.route("/catalogs", catalogRoutes);
 
 // WebSocket routes
 routes.route("/ws", wsRoutes);

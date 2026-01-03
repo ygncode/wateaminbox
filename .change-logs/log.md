@@ -8,6 +8,124 @@ A comprehensive development log for the Multi-tenant WhatsApp Web Collaborative 
 
 ## Latest Updates
 
+### 2026-01-03: WhatsApp Business Catalogs
+
+Implemented comprehensive WhatsApp Business product catalog management. Users can sync catalogs from WhatsApp Business accounts, view catalog details, manage products, and archive/restore catalogs through a new Settings UI.
+
+**Database Migration (`008_add_whatsapp_catalogs.ts`):**
+- Added `catalog_status` enum: `'active' | 'archived'`
+- Added `product_visibility` enum: `'visible' | 'hidden' | 'staging'`
+- Created `whatsapp_catalogs` table:
+  - `catalog_id` - WhatsApp's catalog identifier
+  - `name`, `description` - Catalog metadata
+  - `currency` - Default currency for products
+  - `status` - Active or archived
+  - `business_jid` - Associated WhatsApp Business account
+  - `header_image_url` - Catalog banner image
+  - `product_count` - Number of products
+  - `last_synced_at` - Last sync timestamp
+- Created `catalog_products` table:
+  - `product_id`, `catalog_id` - Product identification
+  - `name`, `description` - Product info
+  - `price`, `currency` - Pricing
+  - `image_urls` - Product images (JSON array)
+  - `sku`, `category` - Product categorization
+  - `availability`, `visibility` - Stock and display status
+  - `url`, `retailer_id` - External references
+
+**Backend Service (`catalog-sync.service.ts`):**
+- `getWhatsAppCatalogs()` - List all synced catalogs
+- `getWhatsAppCatalogByCatalogId()` - Get specific catalog
+- `getCatalogProducts()` - Get products for a catalog
+- `getProductByProductId()` - Get specific product
+- `syncCatalogsFromWhatsApp()` - Process catalogs from Go service
+- `syncCatalogProductsFromWhatsApp()` - Process products for a catalog
+- `getCatalogSyncStatus()` - Get summary stats (total/active/products)
+- `archiveCatalog()` / `restoreCatalog()` - Catalog lifecycle management
+- `updateProductVisibility()` - Control product display status
+
+**API Routes (`catalogs.ts`):**
+- `GET /api/catalogs` - List all catalogs
+- `GET /api/catalogs/status` - Get sync status summary
+- `GET /api/catalogs/:catalogId` - Get specific catalog
+- `GET /api/catalogs/:catalogId/products` - Get products in catalog
+- `POST /api/catalogs/sync` - Trigger sync from WhatsApp (sends NATS command)
+- `POST /api/catalogs/:catalogId/sync-products` - Sync products for catalog
+- `POST /api/catalogs/:catalogId/archive` - Archive catalog
+- `POST /api/catalogs/:catalogId/restore` - Restore archived catalog
+- `PATCH /api/catalogs/:catalogId/products/:productId/visibility` - Update product visibility
+
+**NATS Commands (`nats.ts`):**
+- Added command types: `sync_catalogs`, `sync_catalog_products`
+- Added `CatalogsEvent`, `CatalogProductsEvent` types for sync responses
+- `publishSyncCatalogs()` - Request catalog fetch from Go service
+- `publishSyncCatalogProducts()` - Request product fetch for catalog
+
+**Frontend API (`api.ts`):**
+- Added types: `WhatsAppCatalog`, `CatalogProduct`, `CatalogSyncStatus`, `ProductVisibility`
+- `getWhatsAppCatalogs()`, `getCatalogSyncStatus()`, `getWhatsAppCatalog()`
+- `getCatalogProducts()`, `triggerCatalogSync()`, `triggerCatalogProductsSync()`
+- `archiveCatalog()`, `restoreCatalog()`, `updateProductVisibility()`
+
+**Frontend Hooks (`useCatalogs.ts`):**
+- Query keys: `catalogs.list`, `catalogs.status`, `catalogs.detail`, `catalogs.products`
+- `useWhatsAppCatalogs()` - Fetch catalogs with 1-minute stale time
+- `useCatalogSyncStatus()` - Fetch sync status with 30-second stale time
+- `useWhatsAppCatalog(catalogId)` - Fetch single catalog
+- `useCatalogProducts(catalogId)` - Fetch products for catalog
+- `useTriggerCatalogSync()` - Mutation for syncing catalogs
+- `useTriggerCatalogProductsSync()` - Mutation for syncing products
+- `useArchiveCatalog()`, `useRestoreCatalog()` - Archive/restore mutations
+- `useUpdateProductVisibility()` - Update product visibility mutation
+- `useCatalogs()` - Combined hook for complete catalog management
+
+**Frontend UI (`CatalogManager.tsx`):**
+- Stats summary cards: Total Catalogs, Active, Total Products
+- "Sync from WhatsApp" button with loading state
+- Catalogs list with status badges (Active/Archived)
+- Product count per catalog
+- Archive/Restore actions per catalog
+- Last sync time display with relative formatting
+- Empty state with guidance for new users
+
+**Settings Integration (`SettingsPage.tsx`):**
+- Added Product Catalogs section with ShoppingBag icon (emerald theme)
+- Positioned after WhatsApp Labels in left column
+
+**Tests:**
+- 16 backend unit tests in `catalogs.route.test.ts`:
+  - GET /catalogs: returns empty array, returns catalogs list
+  - GET /catalogs/status: returns status summary
+  - GET /catalogs/:catalogId: returns 404 for missing, returns catalog
+  - GET /catalogs/:catalogId/products: returns products
+  - POST /catalogs/sync: triggers sync, publishes NATS command
+  - POST /catalogs/:catalogId/sync-products: triggers product sync
+  - POST /catalogs/:catalogId/archive: archives catalog
+  - POST /catalogs/:catalogId/restore: restores catalog
+  - PATCH visibility: updates product visibility
+- 4 E2E test scenarios in `catalogs.spec.ts`:
+  - Display empty state with sync button
+  - Display list of catalogs with status badges
+  - Trigger catalog sync
+  - Display stats summary cards
+
+**Files Changed:**
+- `packages/database/src/migrations/008_add_whatsapp_catalogs.ts` - New migration
+- `packages/database/src/client.ts` - Added CatalogStatus, ProductVisibility types
+- `apps/api/src/services/catalog-sync.service.ts` - New service (~530 lines)
+- `apps/api/src/routes/catalogs.ts` - New routes (~300 lines)
+- `apps/api/src/routes/index.ts` - Route registration
+- `apps/api/src/lib/nats.ts` - Catalog command types and publishers
+- `apps/api/src/__tests__/routes/catalogs.route.test.ts` - Unit tests
+- `apps/web/src/lib/api.ts` - Catalog API functions
+- `apps/web/src/hooks/useCatalogs.ts` - React Query hooks
+- `apps/web/src/components/settings/CatalogManager.tsx` - UI component
+- `apps/web/src/components/settings/index.ts` - Export
+- `apps/web/src/pages/SettingsPage.tsx` - Settings integration
+- `apps/web/e2e/tests/catalogs.spec.ts` - E2E tests
+
+---
+
 ### 2026-01-03: WhatsApp Business Labels Sync
 
 Implemented bidirectional sync between WhatsApp Business labels and custom tags. Users can now sync labels from WhatsApp, link them to custom tags, and manage the relationship through a new Settings UI.

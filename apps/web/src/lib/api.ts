@@ -1268,5 +1268,180 @@ export async function removeLabelFromContact(
   );
 }
 
+// =====================
+// WhatsApp Catalogs API
+// =====================
+
+export type CatalogStatus = "active" | "inactive" | "archived";
+export type ProductVisibility = "visible" | "hidden";
+
+export interface WhatsAppCatalog {
+  id: string;
+  catalogId: string;
+  name: string;
+  description: string | null;
+  currency: string;
+  status: CatalogStatus;
+  businessJid: string | null;
+  headerImageUrl: string | null;
+  productCount: number;
+  lastSyncedAt: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CatalogProduct {
+  id: string;
+  productId: string;
+  catalogId: string;
+  name: string;
+  description: string | null;
+  price: number | null;
+  currency: string;
+  imageUrls: string[] | null;
+  sku: string | null;
+  category: string | null;
+  availability: string;
+  visibility: ProductVisibility;
+  url: string | null;
+  retailerId: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CatalogSyncStatus {
+  totalCatalogs: number;
+  activeCatalogs: number;
+  totalProducts: number;
+  lastSyncAt: string | null;
+}
+
+export interface CatalogListResponse {
+  data: WhatsAppCatalog[];
+}
+
+export interface CatalogProductsResponse {
+  data: CatalogProduct[];
+  meta: {
+    catalogId: string;
+    catalogName: string;
+    totalProducts: number;
+  };
+}
+
+export interface SyncCatalogsResponse {
+  message: string;
+  status: string;
+  catalogId?: string;
+}
+
+export interface CatalogActionResponse {
+  success: boolean;
+  message: string;
+}
+
+/**
+ * Get all WhatsApp Business catalogs
+ */
+export async function getWhatsAppCatalogs(): Promise<WhatsAppCatalog[]> {
+  const response = await fetchWithAuth<CatalogListResponse>("/catalogs");
+  return response.data;
+}
+
+/**
+ * Get catalog sync status summary
+ */
+export async function getCatalogSyncStatus(): Promise<CatalogSyncStatus> {
+  return fetchWithAuth<CatalogSyncStatus>("/catalogs/status");
+}
+
+/**
+ * Get a specific catalog by ID
+ */
+export async function getWhatsAppCatalog(
+  catalogId: string
+): Promise<WhatsAppCatalog> {
+  return fetchWithAuth<WhatsAppCatalog>(`/catalogs/${catalogId}`);
+}
+
+/**
+ * Get products for a specific catalog
+ */
+export async function getCatalogProducts(
+  catalogId: string
+): Promise<CatalogProductsResponse> {
+  return fetchWithAuth<CatalogProductsResponse>(
+    `/catalogs/${catalogId}/products`
+  );
+}
+
+/**
+ * Trigger a sync of catalogs from WhatsApp Business
+ */
+export async function triggerCatalogSync(): Promise<SyncCatalogsResponse> {
+  return fetchWithAuth<SyncCatalogsResponse>("/catalogs/sync", {
+    method: "POST",
+  });
+}
+
+/**
+ * Trigger a sync of products for a specific catalog
+ */
+export async function triggerCatalogProductsSync(
+  catalogId: string
+): Promise<SyncCatalogsResponse> {
+  return fetchWithAuth<SyncCatalogsResponse>(
+    `/catalogs/${catalogId}/sync-products`,
+    {
+      method: "POST",
+    }
+  );
+}
+
+/**
+ * Archive a catalog
+ */
+export async function archiveCatalog(
+  catalogId: string
+): Promise<CatalogActionResponse> {
+  return fetchWithAuth<CatalogActionResponse>(
+    `/catalogs/${catalogId}/archive`,
+    {
+      method: "POST",
+    }
+  );
+}
+
+/**
+ * Restore an archived catalog
+ */
+export async function restoreCatalog(
+  catalogId: string
+): Promise<CatalogActionResponse> {
+  return fetchWithAuth<CatalogActionResponse>(
+    `/catalogs/${catalogId}/restore`,
+    {
+      method: "POST",
+    }
+  );
+}
+
+/**
+ * Update product visibility
+ */
+export async function updateProductVisibility(
+  catalogId: string,
+  productId: string,
+  visibility: ProductVisibility
+): Promise<CatalogActionResponse> {
+  return fetchWithAuth<CatalogActionResponse>(
+    `/catalogs/${catalogId}/products/${productId}/visibility`,
+    {
+      method: "PATCH",
+      body: JSON.stringify({ visibility }),
+    }
+  );
+}
+
 // Initialize auth on module load
 initializeAuth();

@@ -8,6 +8,7 @@ import {
   NotificationSettings,
   QuickRepliesManager,
   LabelSyncManager,
+  CatalogManager,
 } from "../components/settings";
 import { WhatsAppConnectionPanel } from "../components/whatsapp";
 import { ContactImport } from "../components/contacts";
@@ -27,6 +28,7 @@ import {
   User,
   Zap,
   Tag,
+  ShoppingBag,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 
@@ -141,6 +143,16 @@ export function SettingsPage() {
                   iconColor="text-indigo-600"
                 >
                   <LabelSyncManager />
+                </SettingsCard>
+
+                {/* WhatsApp Catalogs */}
+                <SettingsCard
+                  icon={<ShoppingBag className="h-5 w-5" />}
+                  title={t("settings.catalogs", "Product Catalogs")}
+                  iconBg="bg-orange-100"
+                  iconColor="text-orange-600"
+                >
+                  <CatalogManager />
                 </SettingsCard>
 
                 {/* Contact Import */}

@@ -25,7 +25,7 @@ export const NATS_SUBJECTS = {
 
 // Message types for NATS communication (snake_case to match Go orchestrator)
 export interface NatsCommand {
-  type: "spawn" | "kill" | "send" | "post_status" | "group_promote_admin" | "group_demote_admin" | "group_remove_participant" | "group_update_settings" | "sync_labels" | "apply_label" | "remove_label";
+  type: "spawn" | "kill" | "send" | "post_status" | "group_promote_admin" | "group_demote_admin" | "group_remove_participant" | "group_update_settings" | "sync_labels" | "apply_label" | "remove_label" | "sync_catalogs" | "sync_catalog_products";
   company_id: string;
   timestamp?: string;
 }
@@ -121,6 +121,18 @@ export interface RemoveLabelCommand extends NatsCommand {
   user_id: string;
 }
 
+// Catalog sync commands
+export interface SyncCatalogsCommand extends NatsCommand {
+  type: "sync_catalogs";
+  user_id: string;
+}
+
+export interface SyncCatalogProductsCommand extends NatsCommand {
+  type: "sync_catalog_products";
+  catalog_id: string;
+  user_id: string;
+}
+
 export interface WhatsAppEvent {
   type:
     | "qr"
@@ -131,6 +143,8 @@ export interface WhatsAppEvent {
     | "status"
     | "contact"
     | "labels"
+    | "catalogs"
+    | "catalog_products"
     | "error";
   companyId: string;
   payload: unknown;
@@ -145,6 +159,43 @@ export interface LabelsEvent extends WhatsAppEvent {
       name: string;
       color: string | null;
       predefinedId: number | null;
+    }>;
+  };
+}
+
+export interface CatalogsEvent extends WhatsAppEvent {
+  type: "catalogs";
+  payload: {
+    catalogs: Array<{
+      catalogId: string;
+      name: string;
+      description?: string;
+      currency?: string;
+      status?: string;
+      businessJid?: string;
+      headerImageUrl?: string;
+      productCount?: number;
+    }>;
+  };
+}
+
+export interface CatalogProductsEvent extends WhatsAppEvent {
+  type: "catalog_products";
+  payload: {
+    catalogId: string;
+    products: Array<{
+      productId: string;
+      name: string;
+      description?: string;
+      price?: number;
+      currency?: string;
+      imageUrls?: string[];
+      sku?: string;
+      category?: string;
+      availability?: string;
+      visibility?: string;
+      url?: string;
+      retailerId?: string;
     }>;
   };
 }
@@ -617,4 +668,38 @@ export async function request<T>(
   const nc = await getNatsConnection();
   const msg = await nc.request(subject, jc.encode(data), { timeout });
   return jc.decode(msg.data) as T;
+}
+
+/**
+ * Publishes a sync catalogs command to fetch catalogs from WhatsApp Business
+ */
+export async function publishSyncCatalogs(
+  companyId: string,
+  userId: string,
+): Promise<void> {
+  const command: SyncCatalogsCommand = {
+    type: "sync_catalogs",
+    company_id: companyId,
+    user_id: userId,
+  };
+  const subject = `${NATS_SUBJECTS.WHATSAPP_COMMANDS}.${companyId}`;
+  await publishCommand(subject, command);
+}
+
+/**
+ * Publishes a sync catalog products command to fetch products for a specific catalog
+ */
+export async function publishSyncCatalogProducts(
+  companyId: string,
+  catalogId: string,
+  userId: string,
+): Promise<void> {
+  const command: SyncCatalogProductsCommand = {
+    type: "sync_catalog_products",
+    company_id: companyId,
+    catalog_id: catalogId,
+    user_id: userId,
+  };
+  const subject = `${NATS_SUBJECTS.WHATSAPP_COMMANDS}.${companyId}`;
+  await publishCommand(subject, command);
 }
