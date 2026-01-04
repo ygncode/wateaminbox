@@ -10,6 +10,7 @@
 #   --max-cycles N    Stop after N improvement cycles (default: unlimited)
 #   --dry-run         Print commands without executing
 #   --focus "area"    Override default focus area
+#   --resume          Resume from saved state in .loop/state.json
 #
 # Tools:
 #   gyolo - Gemini yolo (identifies improvements, reviews)
@@ -35,11 +36,15 @@ MAX_CYCLES=-1         # -1 = unlimited
 DRY_RUN=false
 FOCUS_AREA=""         # Empty = auto-detect each cycle
 FOCUS_HISTORY_FILE="$LOOP_DIR/focus-history.md"
+STATE_FILE="$LOOP_DIR/state.json"
+RESUME_MODE=false
 
 # Track state
 CURRENT_CYCLE=0
 PREVIOUS_BRANCH="main"
 CYCLE_LETTERS=({a..z})
+RESUME_PHASE=0
+RESUME_SLUG=""
 
 # Parse arguments
 while [[ "$#" -gt 0 ]]; do
@@ -56,9 +61,13 @@ while [[ "$#" -gt 0 ]]; do
             FOCUS_AREA="$2"
             shift 2
         ;;
+        --resume)
+            RESUME_MODE=true
+            shift
+        ;;
         *)
             echo "Unknown option: $1"
-            echo "Usage: $0 [--max-cycles N] [--dry-run] [--focus \"area\"]"
+            echo "Usage: $0 [--max-cycles N] [--dry-run] [--focus \"area\"] [--resume]"
             exit 1
         ;;
     esac
@@ -138,6 +147,50 @@ run_gemini() {
 init_loop_dir() {
     mkdir -p "$LOOP_DIR"
     log_info "Loop directory: $LOOP_DIR"
+}
+
+# Save state to JSON file
+save_state() {
+    local cycle=$1
+    local letter=$2
+    local slug=$3
+    local phase=$4
+    local phase_name=$5
+    local prev_branch=$6
+
+    cat > "$STATE_FILE" << EOF
+{
+  "current_cycle": ${cycle},
+  "cycle_letter": "${letter}",
+  "slug": "${slug}",
+  "phase": ${phase},
+  "phase_name": "${phase_name}",
+  "previous_branch": "${prev_branch}",
+  "last_updated": "$(date -Iseconds)"
+}
+EOF
+    log_info "State saved: cycle=${letter}, phase=${phase} (${phase_name}), slug=${slug}"
+}
+
+# Load state from JSON file
+load_state() {
+    if [ ! -f "$STATE_FILE" ]; then
+        log_error "No state file found at $STATE_FILE"
+        exit 1
+    fi
+
+    # Parse JSON (simple parsing without jq dependency)
+    CURRENT_CYCLE=$(grep '"current_cycle"' "$STATE_FILE" | grep -o '[0-9]*')
+    RESUME_SLUG=$(grep '"slug"' "$STATE_FILE" | cut -d'"' -f4)
+    RESUME_PHASE=$(grep '"phase"' "$STATE_FILE" | grep -o '[0-9]*' | head -1)
+    PREVIOUS_BRANCH=$(grep '"previous_branch"' "$STATE_FILE" | cut -d'"' -f4)
+
+    local cycle_letter
+    cycle_letter=$(grep '"cycle_letter"' "$STATE_FILE" | cut -d'"' -f4)
+    local phase_name
+    phase_name=$(grep '"phase_name"' "$STATE_FILE" | cut -d'"' -f4)
+
+    log_success "State loaded: cycle=${cycle_letter}, phase=${RESUME_PHASE} (${phase_name}), slug=${RESUME_SLUG}"
 }
 
 # Get cycle letter (a, b, c, ...)
@@ -762,6 +815,124 @@ EOF
 }
 
 # =============================================================================
+# Run a single improvement cycle (handles resume from any phase)
+# =============================================================================
+run_cycle() {
+    local cycle_letter=$1
+    local start_phase=${2:-0}
+    local resume_slug=${3:-""}
+
+    echo ""
+    log_info "=============================================="
+    log_info "IMPROVEMENT CYCLE: $cycle_letter (starting from phase $start_phase)"
+    log_info "=============================================="
+    echo ""
+
+    local slug="$resume_slug"
+    local current_focus=""
+
+    # Phase 0: Determine focus
+    if [ $start_phase -le 0 ]; then
+        if [ -n "$FOCUS_AREA" ]; then
+            current_focus="$FOCUS_AREA"
+            log_info "Using specified focus: $current_focus"
+        else
+            log_agent "CYOLO" "Determining focus area..."
+            current_focus=$(phase_determine_focus "$cycle_letter")
+        fi
+        save_state "$CURRENT_CYCLE" "$cycle_letter" "" 0 "focus" "$PREVIOUS_BRANCH"
+    fi
+
+    # Phase 1: Identify improvements
+    if [ $start_phase -le 1 ]; then
+        if [ -z "$current_focus" ]; then
+            # Load focus from file if resuming
+            local focus_file="$LOOP_DIR/focus-${cycle_letter}.md"
+            if [ -f "$focus_file" ]; then
+                current_focus=$(grep -E "^focus:" "$focus_file" | head -1 | cut -d: -f2 | tr -d ' ')
+            fi
+            current_focus=${current_focus:-"general"}
+        fi
+
+        log_agent "GYOLO" "Identifying improvements in: $current_focus"
+        slug=$(phase_identify_improvements "$cycle_letter" "$current_focus")
+        if [ -z "$slug" ]; then
+            log_error "Failed to identify improvements. Stopping."
+            return 1
+        fi
+        log_success "Improvement identified: $slug"
+        save_state "$CURRENT_CYCLE" "$cycle_letter" "$slug" 1 "requirements" "$PREVIOUS_BRANCH"
+    fi
+
+    # Use resume_slug if we're resuming from a later phase
+    if [ -n "$resume_slug" ] && [ -z "$slug" ]; then
+        slug="$resume_slug"
+    fi
+
+    # Phase 2: Create specifications
+    if [ $start_phase -le 2 ]; then
+        log_agent "CYOLO" "Creating specifications..."
+        phase_create_specs "$cycle_letter" "$slug"
+        save_state "$CURRENT_CYCLE" "$cycle_letter" "$slug" 2 "specs" "$PREVIOUS_BRANCH"
+    fi
+
+    # Phase 3: Create tasks
+    if [ $start_phase -le 3 ]; then
+        log_agent "CYOLO" "Breaking down into tasks..."
+        phase_create_tasks "$cycle_letter" "$slug"
+        save_state "$CURRENT_CYCLE" "$cycle_letter" "$slug" 3 "tasks" "$PREVIOUS_BRANCH"
+    fi
+
+    # Phase 4: Execute tasks
+    if [ $start_phase -le 4 ]; then
+        log_agent "ZYOLO" "Implementing tasks..."
+        phase_execute_tasks "$slug"
+        save_state "$CURRENT_CYCLE" "$cycle_letter" "$slug" 4 "execute" "$PREVIOUS_BRANCH"
+    fi
+
+    # Phase 5 & 6: Review loop
+    if [ $start_phase -le 5 ]; then
+        local review_iterations=0
+        local max_review_iterations=3
+
+        while [ $review_iterations -lt $max_review_iterations ]; do
+            ((review_iterations++))
+            log_agent "GYOLO" "Reviewing changes (iteration $review_iterations)..."
+            save_state "$CURRENT_CYCLE" "$cycle_letter" "$slug" 5 "review" "$PREVIOUS_BRANCH"
+
+            if phase_review_changes "$slug"; then
+                log_success "Changes approved!"
+                break
+            else
+                log_warn "Review requested changes..."
+                log_agent "ZYOLO" "Addressing feedback..."
+                save_state "$CURRENT_CYCLE" "$cycle_letter" "$slug" 6 "feedback" "$PREVIOUS_BRANCH"
+                phase_handle_review_feedback "$slug"
+            fi
+        done
+    fi
+
+    # Phase 7: Create branch and PR
+    if [ $start_phase -le 7 ]; then
+        log_agent "CYOLO" "Creating branch and PR..."
+        save_state "$CURRENT_CYCLE" "$cycle_letter" "$slug" 7 "pr" "$PREVIOUS_BRANCH"
+        local new_branch
+        new_branch=$(phase_create_pr "$slug" "$PREVIOUS_BRANCH")
+        PREVIOUS_BRANCH="$new_branch"
+
+        log_success "=============================================="
+        log_success "CYCLE $cycle_letter COMPLETED: $slug"
+        log_success "Branch: $new_branch"
+        log_success "=============================================="
+
+        # Clear state after successful completion
+        rm -f "$STATE_FILE"
+    fi
+
+    return 0
+}
+
+# =============================================================================
 # Main Loop
 # =============================================================================
 main() {
@@ -773,15 +944,31 @@ main() {
     fi
     log_info "Max cycles: $( [ $MAX_CYCLES -eq -1 ] && echo 'unlimited' || echo $MAX_CYCLES )"
     log_info "Cooldown: ${COOLDOWN_SECONDS}s between cycles"
+    if [ "$RESUME_MODE" = true ]; then
+        log_info "Mode: RESUME from saved state"
+    fi
     echo ""
 
     init_loop_dir
 
-    log_info "Checking out main branch..."
-    run_cmd git checkout main
-    run_cmd git pull origin main
+    # Handle resume mode
+    if [ "$RESUME_MODE" = true ]; then
+        load_state
+        log_info "Resuming cycle from phase $RESUME_PHASE..."
 
-    PREVIOUS_BRANCH="main"
+        local cycle_letter
+        cycle_letter=$(get_cycle_letter $CURRENT_CYCLE)
+
+        run_cycle "$cycle_letter" "$RESUME_PHASE" "$RESUME_SLUG"
+
+        # After resume, continue to next cycle
+        ((CURRENT_CYCLE++))
+    else
+        log_info "Checking out main branch..."
+        run_cmd git checkout main
+        run_cmd git pull origin main
+        PREVIOUS_BRANCH="main"
+    fi
 
     while true; do
         if [ $MAX_CYCLES -ne -1 ] && [ $CURRENT_CYCLE -ge $MAX_CYCLES ]; then
@@ -793,65 +980,7 @@ main() {
         cycle_letter=$(get_cycle_letter $CURRENT_CYCLE)
         ((CURRENT_CYCLE++))
 
-        echo ""
-        log_info "=============================================="
-        log_info "IMPROVEMENT CYCLE: $cycle_letter (${CURRENT_CYCLE})"
-        log_info "=============================================="
-        echo ""
-
-        local current_focus=""
-        if [ -n "$FOCUS_AREA" ]; then
-            current_focus="$FOCUS_AREA"
-            log_info "Using specified focus: $current_focus"
-        else
-            log_agent "CYOLO" "Determining focus area..."
-            current_focus=$(phase_determine_focus "$cycle_letter")
-        fi
-
-        log_agent "GYOLO" "Identifying improvements in: $current_focus"
-        local slug
-        slug=$(phase_identify_improvements "$cycle_letter" "$current_focus")
-        if [ -z "$slug" ]; then
-            log_error "Failed to identify improvements. Stopping."
-            break
-        fi
-        log_success "Improvement identified: $slug"
-
-        log_agent "CYOLO" "Creating specifications..."
-        phase_create_specs "$cycle_letter" "$slug"
-
-        log_agent "CYOLO" "Breaking down into tasks..."
-        phase_create_tasks "$cycle_letter" "$slug"
-
-        log_agent "ZYOLO" "Implementing tasks..."
-        phase_execute_tasks "$slug"
-
-        local review_iterations=0
-        local max_review_iterations=3
-
-        while [ $review_iterations -lt $max_review_iterations ]; do
-            ((review_iterations++))
-            log_agent "GYOLO" "Reviewing changes (iteration $review_iterations)..."
-
-            if phase_review_changes "$slug"; then
-                log_success "Changes approved!"
-                break
-            else
-                log_warn "Review requested changes..."
-                log_agent "ZYOLO" "Addressing feedback..."
-                phase_handle_review_feedback "$slug"
-            fi
-        done
-
-        log_agent "CYOLO" "Creating branch and PR..."
-        local new_branch
-        new_branch=$(phase_create_pr "$slug" "$PREVIOUS_BRANCH")
-        PREVIOUS_BRANCH="$new_branch"
-
-        log_success "=============================================="
-        log_success "CYCLE $cycle_letter COMPLETED: $slug"
-        log_success "Branch: $new_branch"
-        log_success "=============================================="
+        run_cycle "$cycle_letter" 0 ""
 
         if [ $MAX_CYCLES -eq -1 ] || [ $CURRENT_CYCLE -lt $MAX_CYCLES ]; then
             log_info "Cooling down for ${COOLDOWN_SECONDS}s before next cycle..."
