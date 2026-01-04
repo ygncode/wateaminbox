@@ -30,7 +30,7 @@ type StreamConfig struct {
 func DefaultCommandsStreamConfig() StreamConfig {
 	return StreamConfig{
 		Name:        StreamCommands,
-		Subjects:    []string{"WHATSAPP.commands", "WHATSAPP.commands.*"},
+		Subjects:    []string{"WHATSAPP.commands", "WHATSAPP.commands.>"},
 		Description: "Orchestrator commands for managing WhatsApp workers (spawn, kill, status)",
 		MaxAge:      24 * time.Hour,
 		MaxMsgs:     100000,

@@ -1,79 +1,83 @@
-import type { Kysely } from "kysely"
-import type { TenantDatabase, CatalogStatus, ProductVisibility } from "@whatsapp-web/database"
+import type { Kysely } from "kysely";
+import type { TenantDatabase } from "@whatsapp-web/database";
+
+// Types defined locally to avoid import issues
+export type CatalogStatus = "active" | "inactive" | "archived";
+export type ProductVisibility = "visible" | "hidden";
 
 export interface WhatsAppCatalog {
-  catalogId: string
-  name: string
-  description?: string
-  currency?: string
-  status?: CatalogStatus
-  businessJid?: string
-  headerImageUrl?: string
-  productCount?: number
+  catalogId: string;
+  name: string;
+  description?: string;
+  currency?: string;
+  status?: CatalogStatus;
+  businessJid?: string;
+  headerImageUrl?: string;
+  productCount?: number;
 }
 
 export interface WhatsAppProduct {
-  productId: string
-  catalogId: string
-  name: string
-  description?: string
-  price?: number
-  currency?: string
-  imageUrls?: string[]
-  sku?: string
-  category?: string
-  availability?: string
-  visibility?: ProductVisibility
-  url?: string
-  retailerId?: string
+  productId: string;
+  catalogId: string;
+  name: string;
+  description?: string;
+  price?: number;
+  currency?: string;
+  imageUrls?: string[];
+  sku?: string;
+  category?: string;
+  availability?: string;
+  visibility?: ProductVisibility;
+  url?: string;
+  retailerId?: string;
 }
 
 export interface SyncedCatalog {
-  id: string
-  catalogId: string
-  name: string
-  description: string | null
-  currency: string
-  status: CatalogStatus
-  businessJid: string | null
-  headerImageUrl: string | null
-  productCount: number
-  lastSyncedAt: Date
-  createdAt: Date
-  updatedAt: Date
+  id: string;
+  catalogId: string;
+  name: string;
+  description: string | null;
+  currency: string;
+  status: CatalogStatus;
+  businessJid: string | null;
+  headerImageUrl: string | null;
+  productCount: number;
+  lastSyncedAt: Date;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 export interface SyncedProduct {
-  id: string
-  productId: string
-  catalogId: string
-  name: string
-  description: string | null
-  price: number | null
-  currency: string
-  imageUrls: string[] | null
-  sku: string | null
-  category: string | null
-  availability: string
-  visibility: ProductVisibility
-  url: string | null
-  retailerId: string | null
-  createdAt: Date
-  updatedAt: Date
+  id: string;
+  productId: string;
+  catalogId: string;
+  name: string;
+  description: string | null;
+  price: number | null;
+  currency: string;
+  imageUrls: string[] | null;
+  sku: string | null;
+  category: string | null;
+  availability: string;
+  visibility: ProductVisibility;
+  url: string | null;
+  retailerId: string | null;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 export interface CatalogSyncResult {
-  added: number
-  updated: number
-  removed: number
-  total: number
+  added: number;
+  updated: number;
+  removed: number;
+  total: number;
 }
 
 export interface ProductSyncResult {
-  added: number
-  updated: number
-  removed: number
-  total: number
+  added: number;
+  updated: number;
+  removed: number;
+  total: number;
 }
 
 /**
@@ -86,7 +90,7 @@ export async function getWhatsAppCatalogs(
     .selectFrom("whatsapp_catalogs")
     .selectAll()
     .orderBy("name", "asc")
-    .execute()
+    .execute();
 
   return catalogs.map((catalog) => ({
     id: catalog.id,
@@ -101,7 +105,7 @@ export async function getWhatsAppCatalogs(
     lastSyncedAt: catalog.last_synced_at,
     createdAt: catalog.created_at,
     updatedAt: catalog.updated_at,
-  }))
+  }));
 }
 
 /**
@@ -115,9 +119,9 @@ export async function getWhatsAppCatalogByCatalogId(
     .selectFrom("whatsapp_catalogs")
     .selectAll()
     .where("catalog_id", "=", catalogId)
-    .executeTakeFirst()
+    .executeTakeFirst();
 
-  if (!catalog) return null
+  if (!catalog) return null;
 
   return {
     id: catalog.id,
@@ -132,7 +136,7 @@ export async function getWhatsAppCatalogByCatalogId(
     lastSyncedAt: catalog.last_synced_at,
     createdAt: catalog.created_at,
     updatedAt: catalog.updated_at,
-  }
+  };
 }
 
 /**
@@ -147,7 +151,7 @@ export async function getCatalogProducts(
     .selectAll()
     .where("catalog_id", "=", catalogId)
     .orderBy("name", "asc")
-    .execute()
+    .execute();
 
   return products.map((product) => ({
     id: product.id,
@@ -166,7 +170,7 @@ export async function getCatalogProducts(
     retailerId: product.retailer_id,
     createdAt: product.created_at,
     updatedAt: product.updated_at,
-  }))
+  }));
 }
 
 /**
@@ -182,9 +186,9 @@ export async function getProductByProductId(
     .selectAll()
     .where("product_id", "=", productId)
     .where("catalog_id", "=", catalogId)
-    .executeTakeFirst()
+    .executeTakeFirst();
 
-  if (!product) return null
+  if (!product) return null;
 
   return {
     id: product.id,
@@ -203,7 +207,7 @@ export async function getProductByProductId(
     retailerId: product.retailer_id,
     createdAt: product.created_at,
     updatedAt: product.updated_at,
-  }
+  };
 }
 
 /**
@@ -214,21 +218,21 @@ export async function syncCatalogsFromWhatsApp(
   tenantDb: Kysely<TenantDatabase>,
   catalogs: WhatsAppCatalog[],
 ): Promise<CatalogSyncResult> {
-  let added = 0
-  let updated = 0
+  let added = 0;
+  let updated = 0;
 
   // Get existing catalogs
   const existingCatalogs = await tenantDb
     .selectFrom("whatsapp_catalogs")
     .select(["id", "catalog_id", "name", "description"])
-    .execute()
+    .execute();
 
-  const existingMap = new Map(existingCatalogs.map((c) => [c.catalog_id, c]))
-  const incomingCatalogIds = new Set(catalogs.map((c) => c.catalogId))
+  const existingMap = new Map(existingCatalogs.map((c) => [c.catalog_id, c]));
+  const incomingCatalogIds = new Set(catalogs.map((c) => c.catalogId));
 
   // Process incoming catalogs
   for (const catalog of catalogs) {
-    const existing = existingMap.get(catalog.catalogId)
+    const existing = existingMap.get(catalog.catalogId);
 
     if (existing) {
       // Update existing catalog
@@ -246,8 +250,8 @@ export async function syncCatalogsFromWhatsApp(
           updated_at: new Date(),
         })
         .where("catalog_id", "=", catalog.catalogId)
-        .execute()
-      updated++
+        .execute();
+      updated++;
     } else {
       // Insert new catalog
       await tenantDb
@@ -263,28 +267,30 @@ export async function syncCatalogsFromWhatsApp(
           product_count: catalog.productCount ?? 0,
           last_synced_at: new Date(),
         })
-        .execute()
-      added++
+        .execute();
+      added++;
     }
   }
 
   // Remove catalogs that no longer exist in WhatsApp
-  const toRemove = existingCatalogs.filter((c) => !incomingCatalogIds.has(c.catalog_id))
-  let removed = 0
+  const toRemove = existingCatalogs.filter(
+    (c) => !incomingCatalogIds.has(c.catalog_id),
+  );
+  let removed = 0;
 
   for (const catalog of toRemove) {
     // Delete products first
     await tenantDb
       .deleteFrom("catalog_products")
       .where("catalog_id", "=", catalog.catalog_id)
-      .execute()
+      .execute();
 
     // Then delete catalog
     await tenantDb
       .deleteFrom("whatsapp_catalogs")
       .where("catalog_id", "=", catalog.catalog_id)
-      .execute()
-    removed++
+      .execute();
+    removed++;
   }
 
   return {
@@ -292,7 +298,7 @@ export async function syncCatalogsFromWhatsApp(
     updated,
     removed,
     total: catalogs.length,
-  }
+  };
 }
 
 /**
@@ -303,22 +309,22 @@ export async function syncCatalogProductsFromWhatsApp(
   catalogId: string,
   products: WhatsAppProduct[],
 ): Promise<ProductSyncResult> {
-  let added = 0
-  let updated = 0
+  let added = 0;
+  let updated = 0;
 
   // Get existing products for this catalog
   const existingProducts = await tenantDb
     .selectFrom("catalog_products")
     .select(["id", "product_id", "name"])
     .where("catalog_id", "=", catalogId)
-    .execute()
+    .execute();
 
-  const existingMap = new Map(existingProducts.map((p) => [p.product_id, p]))
-  const incomingProductIds = new Set(products.map((p) => p.productId))
+  const existingMap = new Map(existingProducts.map((p) => [p.product_id, p]));
+  const incomingProductIds = new Set(products.map((p) => p.productId));
 
   // Process incoming products
   for (const product of products) {
-    const existing = existingMap.get(product.productId)
+    const existing = existingMap.get(product.productId);
 
     if (existing) {
       // Update existing product
@@ -340,8 +346,8 @@ export async function syncCatalogProductsFromWhatsApp(
         })
         .where("product_id", "=", product.productId)
         .where("catalog_id", "=", catalogId)
-        .execute()
-      updated++
+        .execute();
+      updated++;
     } else {
       // Insert new product
       await tenantDb
@@ -361,22 +367,24 @@ export async function syncCatalogProductsFromWhatsApp(
           url: product.url ?? null,
           retailer_id: product.retailerId ?? null,
         })
-        .execute()
-      added++
+        .execute();
+      added++;
     }
   }
 
   // Remove products that no longer exist
-  const toRemove = existingProducts.filter((p) => !incomingProductIds.has(p.product_id))
-  let removed = 0
+  const toRemove = existingProducts.filter(
+    (p) => !incomingProductIds.has(p.product_id),
+  );
+  let removed = 0;
 
   for (const product of toRemove) {
     await tenantDb
       .deleteFrom("catalog_products")
       .where("product_id", "=", product.product_id)
       .where("catalog_id", "=", catalogId)
-      .execute()
-    removed++
+      .execute();
+    removed++;
   }
 
   // Update product count in catalog
@@ -388,14 +396,14 @@ export async function syncCatalogProductsFromWhatsApp(
       updated_at: new Date(),
     })
     .where("catalog_id", "=", catalogId)
-    .execute()
+    .execute();
 
   return {
     added,
     updated,
     removed,
     total: products.length,
-  }
+  };
 }
 
 /**
@@ -404,10 +412,10 @@ export async function syncCatalogProductsFromWhatsApp(
 export async function getCatalogSyncStatus(
   tenantDb: Kysely<TenantDatabase>,
 ): Promise<{
-  totalCatalogs: number
-  activeCatalogs: number
-  totalProducts: number
-  lastSyncAt: Date | null
+  totalCatalogs: number;
+  activeCatalogs: number;
+  totalProducts: number;
+  lastSyncAt: Date | null;
 }> {
   const [catalogsResult, activeCatalogsResult, productsResult, lastSyncResult] =
     await Promise.all([
@@ -429,14 +437,14 @@ export async function getCatalogSyncStatus(
         .select(["last_synced_at"])
         .orderBy("last_synced_at", "desc")
         .executeTakeFirst(),
-    ])
+    ]);
 
   return {
     totalCatalogs: Number(catalogsResult?.count ?? 0),
     activeCatalogs: Number(activeCatalogsResult?.count ?? 0),
     totalProducts: Number(productsResult?.count ?? 0),
     lastSyncAt: lastSyncResult?.last_synced_at ?? null,
-  }
+  };
 }
 
 /**
@@ -450,10 +458,10 @@ export async function archiveCatalog(
     .selectFrom("whatsapp_catalogs")
     .select(["id"])
     .where("catalog_id", "=", catalogId)
-    .executeTakeFirst()
+    .executeTakeFirst();
 
   if (!catalog) {
-    return { success: false, error: "Catalog not found" }
+    return { success: false, error: "Catalog not found" };
   }
 
   await tenantDb
@@ -463,9 +471,9 @@ export async function archiveCatalog(
       updated_at: new Date(),
     })
     .where("catalog_id", "=", catalogId)
-    .execute()
+    .execute();
 
-  return { success: true }
+  return { success: true };
 }
 
 /**
@@ -479,14 +487,14 @@ export async function restoreCatalog(
     .selectFrom("whatsapp_catalogs")
     .select(["id", "status"])
     .where("catalog_id", "=", catalogId)
-    .executeTakeFirst()
+    .executeTakeFirst();
 
   if (!catalog) {
-    return { success: false, error: "Catalog not found" }
+    return { success: false, error: "Catalog not found" };
   }
 
   if (catalog.status !== "archived") {
-    return { success: false, error: "Catalog is not archived" }
+    return { success: false, error: "Catalog is not archived" };
   }
 
   await tenantDb
@@ -496,9 +504,9 @@ export async function restoreCatalog(
       updated_at: new Date(),
     })
     .where("catalog_id", "=", catalogId)
-    .execute()
+    .execute();
 
-  return { success: true }
+  return { success: true };
 }
 
 /**
@@ -515,10 +523,10 @@ export async function updateProductVisibility(
     .select(["id"])
     .where("product_id", "=", productId)
     .where("catalog_id", "=", catalogId)
-    .executeTakeFirst()
+    .executeTakeFirst();
 
   if (!product) {
-    return { success: false, error: "Product not found" }
+    return { success: false, error: "Product not found" };
   }
 
   await tenantDb
@@ -529,7 +537,7 @@ export async function updateProductVisibility(
     })
     .where("product_id", "=", productId)
     .where("catalog_id", "=", catalogId)
-    .execute()
+    .execute();
 
-  return { success: true }
+  return { success: true };
 }

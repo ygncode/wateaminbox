@@ -318,7 +318,12 @@ groupRoutes.post("/:id/participants/:participantJid/promote", async (c) => {
     .execute();
 
   // Publish NATS command to WhatsApp service
-  await publishGroupPromoteAdmin(companyId, contact.jid, participantJid, userId);
+  await publishGroupPromoteAdmin(
+    companyId,
+    contact.jid,
+    participantJid,
+    userId,
+  );
 
   // Create audit log
   await createAuditLog(tenantDb, {
@@ -501,7 +506,12 @@ groupRoutes.delete("/:id/participants/:participantJid", async (c) => {
     .execute();
 
   // Publish NATS command to WhatsApp service
-  await publishGroupRemoveParticipant(companyId, contact.jid, participantJid, userId);
+  await publishGroupRemoveParticipant(
+    companyId,
+    contact.jid,
+    participantJid,
+    userId,
+  );
 
   // Create audit log
   await createAuditLog(tenantDb, {
@@ -538,7 +548,10 @@ groupRoutes.patch("/:id/settings", async (c) => {
 
   // Validate input
   if (!name && description === undefined) {
-    return c.json({ error: "At least one of name or description is required" }, 400);
+    return c.json(
+      { error: "At least one of name or description is required" },
+      400,
+    );
   }
 
   // Get group contact
@@ -569,7 +582,10 @@ groupRoutes.patch("/:id/settings", async (c) => {
   const isAdmin = await isUserGroupAdmin(tenantDb, contactId, connectionJid);
 
   if (!isAdmin) {
-    return c.json({ error: "Only group admins can update group settings" }, 403);
+    return c.json(
+      { error: "Only group admins can update group settings" },
+      403,
+    );
   }
 
   // Build update object

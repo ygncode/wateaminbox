@@ -8,7 +8,7 @@ export async function assignContactToUser(
   tenantDb: Kysely<TenantDatabase>,
   contactId: string,
   userId: string,
-  assignedByUserId: string
+  assignedByUserId: string,
 ): Promise<{
   id: string;
   assignedTo: string;
@@ -47,7 +47,7 @@ export async function assignContactToUser(
  */
 export async function getCurrentAssignment(
   tenantDb: Kysely<TenantDatabase>,
-  contactId: string
+  contactId: string,
 ) {
   return await tenantDb
     .selectFrom("contact_assignments")
@@ -62,7 +62,7 @@ export async function getCurrentAssignment(
  */
 export async function unassignContact(
   tenantDb: Kysely<TenantDatabase>,
-  contactId: string
+  contactId: string,
 ): Promise<void> {
   await tenantDb
     .updateTable("contact_assignments")
@@ -79,7 +79,7 @@ export async function unassignContact(
 export async function ensureContactAssignment(
   tenantDb: Kysely<TenantDatabase>,
   contactId: string,
-  userId: string
+  userId: string,
 ): Promise<boolean> {
   const currentAssignment = await getCurrentAssignment(tenantDb, contactId);
 

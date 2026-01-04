@@ -173,7 +173,8 @@ conversationRoutes.post("/:id/resolve", async (c) => {
     entityId: contactId,
     details: {
       contactId,
-      contactName: contact.custom_name || contact.push_name || contact.phone_number,
+      contactName:
+        contact.custom_name || contact.push_name || contact.phone_number,
       notes,
     },
     ipAddress: getClientIp(c.req.raw.headers),
@@ -228,7 +229,8 @@ conversationRoutes.post("/:id/reopen", async (c) => {
     entityId: contactId,
     details: {
       contactId,
-      contactName: contact.custom_name || contact.push_name || contact.phone_number,
+      contactName:
+        contact.custom_name || contact.push_name || contact.phone_number,
     },
     ipAddress: getClientIp(c.req.raw.headers),
   });

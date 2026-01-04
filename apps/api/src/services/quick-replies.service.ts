@@ -159,7 +159,9 @@ export async function createQuickReply(
   // Check for duplicate shortcut
   const existing = await getQuickReplyByShortcut(companyId, input.shortcut);
   if (existing) {
-    throw new Error(`Quick reply with shortcut "${input.shortcut}" already exists`);
+    throw new Error(
+      `Quick reply with shortcut "${input.shortcut}" already exists`,
+    );
   }
 
   const row = await tenantDb
@@ -198,9 +200,14 @@ export async function updateQuickReply(
 
   // Check for duplicate shortcut if shortcut is being changed
   if (input.shortcut && input.shortcut !== existing.shortcut) {
-    const duplicateShortcut = await getQuickReplyByShortcut(companyId, input.shortcut);
+    const duplicateShortcut = await getQuickReplyByShortcut(
+      companyId,
+      input.shortcut,
+    );
     if (duplicateShortcut) {
-      throw new Error(`Quick reply with shortcut "${input.shortcut}" already exists`);
+      throw new Error(
+        `Quick reply with shortcut "${input.shortcut}" already exists`,
+      );
     }
   }
 

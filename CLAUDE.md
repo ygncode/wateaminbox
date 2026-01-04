@@ -132,3 +132,27 @@ Biome handles linting and formatting. Single quotes, no semicolons, 2-space inde
 ## Go Services
 
 Located in `/services/`. Each has its own `go.mod`. Use `golangci-lint` for linting (config in `.golangci.yml`).
+
+## Codebase Exploration
+
+When you need to explore or understand the codebase, use the `check-code-base` skill instead of manually searching through files.
+
+## Database Schema Fixes
+
+When fixing database schema issues (missing columns, wrong types, etc.):
+
+**DO NOT** do quick fixes like:
+
+- Running `ALTER TABLE` directly on the database
+- Updating functions via `psql` commands
+- Patches that work "now" but don't persist in version control
+
+**DO** fix properly:
+
+1. Find the root cause in migration files
+2. Update the migration file at the source
+3. Check if later migrations overwrite earlier ones (e.g., `setup_tenant_schema` function)
+4. Ensure fresh database setups work correctly
+5. Test with `bun run db:migrate` on a clean database
+
+**Common pitfall**: The `setup_tenant_schema` function is defined in multiple migrations. Later migrations may overwrite earlier ones, losing columns added in between. Always check the final state of the function.

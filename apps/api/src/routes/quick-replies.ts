@@ -52,20 +52,35 @@ quickReplyRoutes.get("/", zValidator("query", listQuerySchema), async (c) => {
   const companyId = c.get("companyId");
   const { search, limit, offset } = c.req.valid("query");
 
-  const result = await quickRepliesService.getQuickReplies(companyId, {
-    search,
-    limit,
-    offset,
-  });
-
-  return c.json({
-    data: result.quickReplies,
-    meta: {
-      total: result.total,
+  try {
+    const result = await quickRepliesService.getQuickReplies(companyId, {
+      search,
       limit,
       offset,
-    },
-  });
+    });
+
+    return c.json({
+      data: result.quickReplies,
+      meta: {
+        total: result.total,
+        limit,
+        offset,
+      },
+    });
+  } catch (error) {
+    // Handle missing table or database errors gracefully
+    if (error instanceof Error && error.message.includes("does not exist")) {
+      return c.json({
+        data: [],
+        meta: {
+          total: 0,
+          limit,
+          offset,
+        },
+      });
+    }
+    throw error;
+  }
 });
 
 /**

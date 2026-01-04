@@ -128,7 +128,8 @@ searchRoutes.get("/contacts", async (c) => {
 searchRoutes.get("/status", async (c) => {
   const companyId = c.get("companyId");
 
-  const meilisearchAvailable = await meilisearchService.isMeilisearchAvailable();
+  const meilisearchAvailable =
+    await meilisearchService.isMeilisearchAvailable();
   const indexStats = meilisearchAvailable
     ? await meilisearchService.getIndexStats(companyId)
     : null;
@@ -155,7 +156,8 @@ searchRoutes.post("/reindex", async (c) => {
     return c.json({ error: "Insufficient permissions" }, 403);
   }
 
-  const meilisearchAvailable = await meilisearchService.isMeilisearchAvailable();
+  const meilisearchAvailable =
+    await meilisearchService.isMeilisearchAvailable();
   if (!meilisearchAvailable) {
     return c.json({ error: "Meilisearch is not available" }, 503);
   }
@@ -214,17 +216,19 @@ searchRoutes.post("/reindex", async (c) => {
     ])
     .execute();
 
-  const contactDocuments: meilisearchService.ContactDocument[] = contacts.map((c) => ({
-    id: c.id,
-    companyId,
-    jid: c.jid,
-    phoneNumber: c.phone_number,
-    pushName: c.push_name,
-    customName: c.custom_name,
-    displayName: c.custom_name || c.push_name || c.phone_number || "Unknown",
-    isGroup: c.is_group,
-    notesShared: c.notes_shared,
-  }));
+  const contactDocuments: meilisearchService.ContactDocument[] = contacts.map(
+    (c) => ({
+      id: c.id,
+      companyId,
+      jid: c.jid,
+      phoneNumber: c.phone_number,
+      pushName: c.push_name,
+      customName: c.custom_name,
+      displayName: c.custom_name || c.push_name || c.phone_number || "Unknown",
+      isGroup: c.is_group,
+      notesShared: c.notes_shared,
+    }),
+  );
 
   await meilisearchService.indexContacts(companyId, contactDocuments);
 

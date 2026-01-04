@@ -12,13 +12,14 @@ import (
 
 const (
 	// Subject for sending messages (matches orchestrator's WHATSAPP_COMMANDS stream)
-	SubjectSend = "WHATSAPP.commands.%s"
+	// Format: WHATSAPP.commands.{companyId}.{connectionId}
+	SubjectSend = "WHATSAPP.commands.%s.%s"
 
 	// Stream name for commands
 	CommandsStreamName = "WHATSAPP_COMMANDS"
 
-	// Consumer name for message sending
-	ConsumerSend = "whatsapp-send-%s"
+	// Consumer name for message sending (includes connectionId for uniqueness)
+	ConsumerSend = "whatsapp-send-%s-%s"
 )
 
 // SendMessageCommand represents a command to send a message.
@@ -43,20 +44,22 @@ type MessageSender interface {
 
 // Subscriber handles subscribing to NATS command subjects.
 type Subscriber struct {
-	nc          *nats.Conn
-	js          nats.JetStreamContext
-	companyID   string
-	sender      MessageSender
-	sub         *nats.Subscription
-	ctx         context.Context
-	cancel      context.CancelFunc
+	nc           *nats.Conn
+	js           nats.JetStreamContext
+	companyID    string
+	connectionID string
+	sender       MessageSender
+	sub          *nats.Subscription
+	ctx          context.Context
+	cancel       context.CancelFunc
 }
 
 // SubscriberConfig holds configuration for the subscriber.
 type SubscriberConfig struct {
-	NATSURL   string
-	CompanyID string
-	Sender    MessageSender
+	NATSURL      string
+	CompanyID    string
+	ConnectionID string
+	Sender       MessageSender
 }
 
 // NewSubscriber creates a new NATS subscriber.
@@ -89,19 +92,20 @@ func NewSubscriber(cfg SubscriberConfig) (*Subscriber, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	return &Subscriber{
-		nc:        nc,
-		js:        js,
-		companyID: cfg.CompanyID,
-		sender:    cfg.Sender,
-		ctx:       ctx,
-		cancel:    cancel,
+		nc:           nc,
+		js:           js,
+		companyID:    cfg.CompanyID,
+		connectionID: cfg.ConnectionID,
+		sender:       cfg.Sender,
+		ctx:          ctx,
+		cancel:       cancel,
 	}, nil
 }
 
 // Start begins listening for send commands.
 func (s *Subscriber) Start() error {
-	subject := fmt.Sprintf(SubjectSend, s.companyID)
-	consumerName := fmt.Sprintf(ConsumerSend, s.companyID)
+	subject := fmt.Sprintf(SubjectSend, s.companyID, s.connectionID)
+	consumerName := fmt.Sprintf(ConsumerSend, s.companyID, s.connectionID)
 
 	// Ensure the consumer exists
 	_, err := s.js.ConsumerInfo(CommandsStreamName, consumerName)
@@ -141,6 +145,12 @@ func (s *Subscriber) Start() error {
 
 // processMessages continuously fetches and processes messages.
 func (s *Subscriber) processMessages() {
+	// Add small delay to ensure consumer is ready
+	time.Sleep(100 * time.Millisecond)
+
+	consecutiveErrors := 0
+	maxConsecutiveErrors := 5
+
 	for {
 		select {
 		case <-s.ctx.Done():
@@ -150,17 +160,55 @@ func (s *Subscriber) processMessages() {
 			// Fetch messages with a timeout
 			msgs, err := s.sub.Fetch(10, nats.MaxWait(5*time.Second))
 			if err != nil {
-				if err != nats.ErrTimeout {
-					log.Printf("Error fetching messages: %v", err)
+				if err == nats.ErrTimeout {
+					consecutiveErrors = 0 // Reset on timeout (normal)
+					continue
+				}
+
+				consecutiveErrors++
+				log.Printf("Error fetching messages (%d/%d): %v", consecutiveErrors, maxConsecutiveErrors, err)
+
+				// If we get too many consecutive errors, try to recreate subscription
+				if consecutiveErrors >= maxConsecutiveErrors {
+					log.Println("Too many consecutive errors, attempting to recreate subscription...")
+					if err := s.recreateSubscription(); err != nil {
+						log.Printf("Failed to recreate subscription: %v", err)
+						time.Sleep(5 * time.Second)
+					} else {
+						consecutiveErrors = 0
+						log.Println("Subscription recreated successfully")
+					}
+				} else {
+					time.Sleep(time.Duration(consecutiveErrors) * time.Second)
 				}
 				continue
 			}
 
+			consecutiveErrors = 0 // Reset on success
 			for _, msg := range msgs {
 				s.handleSendCommand(msg)
 			}
 		}
 	}
+}
+
+// recreateSubscription attempts to recreate the NATS subscription
+func (s *Subscriber) recreateSubscription() error {
+	subject := fmt.Sprintf(SubjectSend, s.companyID, s.connectionID)
+	consumerName := fmt.Sprintf(ConsumerSend, s.companyID, s.connectionID)
+
+	// Try to unsubscribe first
+	if s.sub != nil {
+		s.sub.Unsubscribe()
+	}
+
+	// Recreate the subscription
+	sub, err := s.js.PullSubscribe(subject, consumerName)
+	if err != nil {
+		return fmt.Errorf("failed to recreate subscription: %w", err)
+	}
+	s.sub = sub
+	return nil
 }
 
 // handleSendCommand processes a send message command.

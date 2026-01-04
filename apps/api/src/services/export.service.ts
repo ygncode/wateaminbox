@@ -357,12 +357,14 @@ export async function exportFullBackup(
     totalContacts: contacts.length,
     totalMessages: messages.length,
     dateRange: {
-      start: messageTimestamps.length > 0
-        ? new Date(Math.min(...messageTimestamps)).toISOString()
-        : null,
-      end: messageTimestamps.length > 0
-        ? new Date(Math.max(...messageTimestamps)).toISOString()
-        : null,
+      start:
+        messageTimestamps.length > 0
+          ? new Date(Math.min(...messageTimestamps)).toISOString()
+          : null,
+      end:
+        messageTimestamps.length > 0
+          ? new Date(Math.max(...messageTimestamps)).toISOString()
+          : null,
     },
   };
 
@@ -383,9 +385,13 @@ export async function exportFullBackup(
   const files: Record<string, Uint8Array> = {
     "README.txt": encoder.encode(readme),
     "contacts.json": encoder.encode(JSON.stringify(contacts, null, 2)),
-    "contacts.csv": encoder.encode(toCSV(contacts as unknown as Record<string, unknown>[])),
+    "contacts.csv": encoder.encode(
+      toCSV(contacts as unknown as Record<string, unknown>[]),
+    ),
     "messages.json": encoder.encode(JSON.stringify(messages, null, 2)),
-    "messages.csv": encoder.encode(toCSV(messages as unknown as Record<string, unknown>[])),
+    "messages.csv": encoder.encode(
+      toCSV(messages as unknown as Record<string, unknown>[]),
+    ),
     "backup-summary.json": encoder.encode(JSON.stringify(backupData, null, 2)),
   };
 

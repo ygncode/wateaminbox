@@ -20,10 +20,10 @@ func main() {
 	// Get worker configuration from environment
 	workerID := getEnv("WORKER_ID", "default")
 	companyID := getEnv("COMPANY_ID", "")
+	connectionID := getEnv("CONNECTION_ID", "")
 	tenantSchema := getEnv("TENANT_SCHEMA", "")
 	databaseURL := getEnv("DATABASE_URL", "")
 	natsURL := getEnv("NATS_URL", "nats://localhost:4222")
-	dataDir := getEnv("DATA_DIR", "./data")
 	logLevel := getEnv("LOG_LEVEL", "info")
 
 	// Storage configuration (S3-compatible - works with MinIO and Cloudflare R2)
@@ -38,14 +38,18 @@ func main() {
 	if companyID == "" {
 		log.Fatal("COMPANY_ID environment variable is required")
 	}
+	if connectionID == "" {
+		log.Fatal("CONNECTION_ID environment variable is required")
+	}
+	if databaseURL == "" {
+		log.Fatal("DATABASE_URL environment variable is required")
+	}
 
-	log.Printf("Starting WhatsApp worker: %s for company: %s", workerID, companyID)
+	log.Printf("Starting WhatsApp worker: %s for company: %s, connection: %s", workerID, companyID, connectionID)
 	if tenantSchema != "" {
 		log.Printf("Tenant schema: %s", tenantSchema)
 	}
-	if databaseURL != "" {
-		log.Printf("Database URL configured")
-	}
+	log.Printf("Database URL configured")
 
 	// Initialize storage client
 	var storageClient *storage.Client
@@ -75,8 +79,9 @@ func main() {
 
 	// Initialize NATS publisher
 	publisher, err := natsClient.NewPublisher(natsClient.PublisherConfig{
-		NATSURL:   natsURL,
-		CompanyID: companyID,
+		NATSURL:      natsURL,
+		CompanyID:    companyID,
+		ConnectionID: connectionID,
 	})
 	if err != nil {
 		log.Fatalf("Failed to initialize NATS publisher: %v", err)
@@ -86,10 +91,11 @@ func main() {
 
 	// Initialize WhatsApp client
 	waClient, err := client.New(ctx, client.Config{
-		WorkerID:  workerID,
-		CompanyID: companyID,
-		DataDir:   dataDir,
-		LogLevel:  logLevel,
+		WorkerID:     workerID,
+		CompanyID:    companyID,
+		ConnectionID: connectionID,
+		DatabaseURL:  databaseURL,
+		LogLevel:     logLevel,
 	})
 	if err != nil {
 		log.Fatalf("Failed to initialize WhatsApp client: %v", err)
@@ -125,9 +131,10 @@ func main() {
 
 	// Initialize NATS subscriber for send commands
 	subscriber, err := natsClient.NewSubscriber(natsClient.SubscriberConfig{
-		NATSURL:   natsURL,
-		CompanyID: companyID,
-		Sender:    waClient,
+		NATSURL:      natsURL,
+		CompanyID:    companyID,
+		ConnectionID: connectionID,
+		Sender:       waClient,
 	})
 	if err != nil {
 		log.Fatalf("Failed to initialize NATS subscriber: %v", err)
@@ -145,7 +152,7 @@ func main() {
 		log.Fatalf("Failed to connect to WhatsApp: %v", err)
 	}
 
-	log.Printf("WhatsApp worker %s is running for company %s", workerID, companyID)
+	log.Printf("WhatsApp worker %s is running for company %s, connection %s", workerID, companyID, connectionID)
 
 	// Wait for shutdown signal
 	sigCh := make(chan os.Signal, 1)

@@ -420,8 +420,11 @@ contactRoutes.post("/:id/assign", async (c) => {
   // Check permission: can_assign_contacts required to assign to someone else
   if (targetUserId !== user.id && !permissions?.can_assign_contacts) {
     return c.json(
-      { error: "Permission denied: can_assign_contacts is required to assign contacts to other users" },
-      403
+      {
+        error:
+          "Permission denied: can_assign_contacts is required to assign contacts to other users",
+      },
+      403,
     );
   }
 
@@ -563,7 +566,7 @@ contactRoutes.delete(
       .execute();
 
     return c.json({ success: true });
-  }
+  },
 );
 
 /**
@@ -798,7 +801,10 @@ contactRoutes.get("/import/template", async (c) => {
   const csv = generateImportTemplate();
 
   c.header("Content-Type", "text/csv");
-  c.header("Content-Disposition", 'attachment; filename="contact-import-template.csv"');
+  c.header(
+    "Content-Disposition",
+    'attachment; filename="contact-import-template.csv"',
+  );
   return c.body(csv);
 });
 
@@ -866,7 +872,9 @@ contactRoutes.post("/import", async (c) => {
 
   if (contactRows.length === 0) {
     return c.json(
-      { error: "No valid contacts found. Ensure CSV has a phone_number column." },
+      {
+        error: "No valid contacts found. Ensure CSV has a phone_number column.",
+      },
       400,
     );
   }

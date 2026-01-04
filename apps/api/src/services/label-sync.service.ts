@@ -2,7 +2,10 @@ import type { Kysely } from "kysely";
 import type { TenantDatabase } from "@whatsapp-web/database";
 
 // WhatsApp Business label colors mapping (predefined_id to color)
-export const WHATSAPP_LABEL_COLORS: Record<number, { name: string; hex: string }> = {
+export const WHATSAPP_LABEL_COLORS: Record<
+  number,
+  { name: string; hex: string }
+> = {
   0: { name: "Light Green", hex: "#00a884" },
   1: { name: "Orange", hex: "#ffa500" },
   2: { name: "Light Yellow", hex: "#fed859" },
@@ -127,9 +130,11 @@ export async function syncLabelsFromWhatsApp(
   // Process incoming labels
   for (const label of labels) {
     const existing = existingMap.get(label.labelId);
-    const color = label.color || (label.predefinedId !== null
-      ? WHATSAPP_LABEL_COLORS[label.predefinedId]?.hex
-      : null);
+    const color =
+      label.color ||
+      (label.predefinedId !== null
+        ? WHATSAPP_LABEL_COLORS[label.predefinedId]?.hex
+        : null);
 
     if (existing) {
       // Update if name or color changed
@@ -164,7 +169,9 @@ export async function syncLabelsFromWhatsApp(
   }
 
   // Remove labels that no longer exist in WhatsApp
-  const toRemove = existingLabels.filter((l) => !incomingLabelIds.has(l.label_id));
+  const toRemove = existingLabels.filter(
+    (l) => !incomingLabelIds.has(l.label_id),
+  );
   let removed = 0;
 
   for (const label of toRemove) {
@@ -223,12 +230,18 @@ export async function linkTagToLabel(
 
   // Check if tag is already linked to another label
   if (tag.whatsapp_label_id && tag.whatsapp_label_id !== labelId) {
-    return { success: false, error: "Tag is already linked to another WhatsApp label" };
+    return {
+      success: false,
+      error: "Tag is already linked to another WhatsApp label",
+    };
   }
 
   // Check if label is already linked to another tag
   if (label.synced_tag_id && label.synced_tag_id !== tagId) {
-    return { success: false, error: "WhatsApp label is already linked to another tag" };
+    return {
+      success: false,
+      error: "WhatsApp label is already linked to another tag",
+    };
   }
 
   // Create the bidirectional link
@@ -301,19 +314,25 @@ export async function unlinkTagFromLabel(
  */
 export async function getTagsWithLabelStatus(
   tenantDb: Kysely<TenantDatabase>,
-): Promise<Array<{
-  id: string;
-  name: string;
-  color: string | null;
-  createdBy: string | null;
-  createdAt: Date;
-  whatsappLabelId: string | null;
-  syncedAt: Date | null;
-  linkedLabel: { labelId: string; name: string; color: string | null } | null;
-}>> {
+): Promise<
+  Array<{
+    id: string;
+    name: string;
+    color: string | null;
+    createdBy: string | null;
+    createdAt: Date;
+    whatsappLabelId: string | null;
+    syncedAt: Date | null;
+    linkedLabel: { labelId: string; name: string; color: string | null } | null;
+  }>
+> {
   const tags = await tenantDb
     .selectFrom("tags")
-    .leftJoin("whatsapp_labels", "tags.whatsapp_label_id", "whatsapp_labels.label_id")
+    .leftJoin(
+      "whatsapp_labels",
+      "tags.whatsapp_label_id",
+      "whatsapp_labels.label_id",
+    )
     .select([
       "tags.id",
       "tags.name",
@@ -425,32 +444,37 @@ export async function getLabelSyncStatus(
   linkedTags: number;
   lastSyncAt: Date | null;
 }> {
-  const [labelsResult, linkedLabelsResult, tagsResult, linkedTagsResult, lastSyncResult] =
-    await Promise.all([
-      tenantDb
-        .selectFrom("whatsapp_labels")
-        .select(({ fn }) => fn.countAll<number>().as("count"))
-        .executeTakeFirst(),
-      tenantDb
-        .selectFrom("whatsapp_labels")
-        .select(({ fn }) => fn.countAll<number>().as("count"))
-        .where("synced_tag_id", "is not", null)
-        .executeTakeFirst(),
-      tenantDb
-        .selectFrom("tags")
-        .select(({ fn }) => fn.countAll<number>().as("count"))
-        .executeTakeFirst(),
-      tenantDb
-        .selectFrom("tags")
-        .select(({ fn }) => fn.countAll<number>().as("count"))
-        .where("whatsapp_label_id", "is not", null)
-        .executeTakeFirst(),
-      tenantDb
-        .selectFrom("whatsapp_labels")
-        .select(["last_synced_at"])
-        .orderBy("last_synced_at", "desc")
-        .executeTakeFirst(),
-    ]);
+  const [
+    labelsResult,
+    linkedLabelsResult,
+    tagsResult,
+    linkedTagsResult,
+    lastSyncResult,
+  ] = await Promise.all([
+    tenantDb
+      .selectFrom("whatsapp_labels")
+      .select(({ fn }) => fn.countAll<number>().as("count"))
+      .executeTakeFirst(),
+    tenantDb
+      .selectFrom("whatsapp_labels")
+      .select(({ fn }) => fn.countAll<number>().as("count"))
+      .where("synced_tag_id", "is not", null)
+      .executeTakeFirst(),
+    tenantDb
+      .selectFrom("tags")
+      .select(({ fn }) => fn.countAll<number>().as("count"))
+      .executeTakeFirst(),
+    tenantDb
+      .selectFrom("tags")
+      .select(({ fn }) => fn.countAll<number>().as("count"))
+      .where("whatsapp_label_id", "is not", null)
+      .executeTakeFirst(),
+    tenantDb
+      .selectFrom("whatsapp_labels")
+      .select(["last_synced_at"])
+      .orderBy("last_synced_at", "desc")
+      .executeTakeFirst(),
+  ]);
 
   const totalLabels = Number(labelsResult?.count ?? 0);
   const linkedLabels = Number(linkedLabelsResult?.count ?? 0);

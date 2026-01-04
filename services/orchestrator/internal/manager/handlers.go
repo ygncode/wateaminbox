@@ -123,15 +123,15 @@ func (h *Handlers) handleSpawnCommand(ctx context.Context, data []byte) error {
 		return err
 	}
 
-	log.Printf("Received spawn command for company %s", cmd.CompanyID)
+	log.Printf("Received spawn command for company %s, connection %s", cmd.CompanyID, cmd.ConnectionID)
 
 	// Spawn the worker
-	err := h.manager.SpawnWorker(ctx, cmd.CompanyID, cmd.TenantSchema, cmd.DatabaseURL)
+	err := h.manager.SpawnWorker(ctx, cmd.CompanyID, cmd.ConnectionID, cmd.TenantSchema, cmd.DatabaseURL)
 	if err != nil {
-		log.Printf("Failed to spawn worker for company %s: %v", cmd.CompanyID, err)
+		log.Printf("Failed to spawn worker for company %s, connection %s: %v", cmd.CompanyID, cmd.ConnectionID, err)
 
 		// Publish error response
-		h.publishStatusResponse(cmd.CompanyID, types.StatusError, err.Error())
+		h.publishStatusResponse(cmd.CompanyID, cmd.ConnectionID, types.StatusError, err.Error())
 		return err
 	}
 
@@ -145,15 +145,15 @@ func (h *Handlers) handleKillCommand(ctx context.Context, data []byte) error {
 		return err
 	}
 
-	log.Printf("Received kill command for company %s: %s", cmd.CompanyID, cmd.Reason)
+	log.Printf("Received kill command for company %s, connection %s: %s", cmd.CompanyID, cmd.ConnectionID, cmd.Reason)
 
 	// Stop the worker
-	err := h.manager.StopWorker(ctx, cmd.CompanyID, cmd.Reason)
+	err := h.manager.StopWorker(ctx, cmd.CompanyID, cmd.ConnectionID, cmd.Reason)
 	if err != nil {
-		log.Printf("Failed to stop worker for company %s: %v", cmd.CompanyID, err)
+		log.Printf("Failed to stop worker for company %s, connection %s: %v", cmd.CompanyID, cmd.ConnectionID, err)
 
 		// Publish error response
-		h.publishStatusResponse(cmd.CompanyID, types.StatusError, err.Error())
+		h.publishStatusResponse(cmd.CompanyID, cmd.ConnectionID, types.StatusError, err.Error())
 		return err
 	}
 
@@ -167,17 +167,18 @@ func (h *Handlers) handleStatusCommand(ctx context.Context, data []byte) error {
 		return err
 	}
 
-	log.Printf("Received status command for company %s", cmd.CompanyID)
+	log.Printf("Received status command for company %s, connection %s", cmd.CompanyID, cmd.ConnectionID)
 
-	worker, exists := h.manager.GetWorkerStatus(cmd.CompanyID)
+	worker, exists := h.manager.GetWorkerStatus(cmd.ConnectionID)
 	if !exists {
-		h.publishStatusResponse(cmd.CompanyID, types.StatusStopped, "worker not found")
+		h.publishStatusResponse(cmd.CompanyID, cmd.ConnectionID, types.StatusStopped, "worker not found")
 		return nil
 	}
 
 	// Publish status response
 	response := types.WorkerStatusResponse{
 		CompanyID:    worker.CompanyID,
+		ConnectionID: worker.ConnectionID,
 		Status:       worker.Status,
 		ConnectedAt:  worker.StartedAt,
 		LastActivity: worker.LastActivity,
@@ -193,11 +194,12 @@ func (h *Handlers) handleStatusCommand(ctx context.Context, data []byte) error {
 }
 
 // publishStatusResponse publishes a worker status response event.
-func (h *Handlers) publishStatusResponse(companyID, status, errorMsg string) {
+func (h *Handlers) publishStatusResponse(companyID, connectionID, status, errorMsg string) {
 	response := types.WorkerStatusResponse{
-		CompanyID: companyID,
-		Status:    status,
-		Error:     errorMsg,
+		CompanyID:    companyID,
+		ConnectionID: connectionID,
+		Status:       status,
+		Error:        errorMsg,
 	}
 
 	data, err := json.Marshal(response)
@@ -212,12 +214,13 @@ func (h *Handlers) publishStatusResponse(companyID, status, errorMsg string) {
 }
 
 // PublishConnectionStatus publishes a connection status event.
-func (h *Handlers) PublishConnectionStatus(companyID, status, reason string) {
+func (h *Handlers) PublishConnectionStatus(companyID, connectionID, status, reason string) {
 	event := types.ConnectionStatusEvent{
-		CompanyID: companyID,
-		Status:    status,
-		Reason:    reason,
-		Timestamp: time.Now(),
+		CompanyID:    companyID,
+		ConnectionID: connectionID,
+		Status:       status,
+		Reason:       reason,
+		Timestamp:    time.Now(),
 	}
 
 	data, err := json.Marshal(event)
@@ -232,11 +235,12 @@ func (h *Handlers) PublishConnectionStatus(companyID, status, reason string) {
 }
 
 // PublishQRCodeEvent publishes a QR code event.
-func (h *Handlers) PublishQRCodeEvent(companyID, qrData string) {
+func (h *Handlers) PublishQRCodeEvent(companyID, connectionID, qrData string) {
 	event := types.QRCodeEvent{
-		CompanyID: companyID,
-		QRData:    qrData,
-		Timestamp: time.Now(),
+		CompanyID:    companyID,
+		ConnectionID: connectionID,
+		QRData:       qrData,
+		Timestamp:    time.Now(),
 	}
 
 	data, err := json.Marshal(event)

@@ -174,7 +174,10 @@ statusRoutes.post("/", async (c) => {
 
   // Validate mediaUrl for image/video status
   if ((type === "image" || type === "video") && !mediaUrl) {
-    return c.json({ error: "mediaUrl is required for image/video status" }, 400);
+    return c.json(
+      { error: "mediaUrl is required for image/video status" },
+      400,
+    );
   }
 
   // Get the WhatsApp connection to verify it's active
@@ -293,10 +296,7 @@ statusRoutes.get("/my", async (c) => {
     .selectFrom("status_updates")
     .selectAll()
     .where((eb) =>
-      eb.or([
-        eb("from_jid", "=", connection.jid!),
-        eb("from_jid", "=", "me"),
-      ]),
+      eb.or([eb("from_jid", "=", connection.jid!), eb("from_jid", "=", "me")]),
     )
     .where("expires_at", ">", now)
     .orderBy("timestamp", "desc")

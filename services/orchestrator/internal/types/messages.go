@@ -22,26 +22,30 @@ const (
 type SpawnWorkerCommand struct {
 	Type         string `json:"type"`
 	CompanyID    string `json:"company_id"`
+	ConnectionID string `json:"connection_id"`
 	TenantSchema string `json:"tenant_schema"`
 	DatabaseURL  string `json:"database_url"`
 }
 
 // KillWorkerCommand requests termination of a WhatsApp worker process.
 type KillWorkerCommand struct {
-	Type      string `json:"type"`
-	CompanyID string `json:"company_id"`
-	Reason    string `json:"reason,omitempty"`
+	Type         string `json:"type"`
+	CompanyID    string `json:"company_id"`
+	ConnectionID string `json:"connection_id"`
+	Reason       string `json:"reason,omitempty"`
 }
 
 // WorkerStatusCommand requests the status of a WhatsApp worker.
 type WorkerStatusCommand struct {
-	Type      string `json:"type"`
-	CompanyID string `json:"company_id"`
+	Type         string `json:"type"`
+	CompanyID    string `json:"company_id"`
+	ConnectionID string `json:"connection_id"`
 }
 
 // WorkerStatusResponse contains the status information of a worker.
 type WorkerStatusResponse struct {
 	CompanyID    string    `json:"company_id"`
+	ConnectionID string    `json:"connection_id"`
 	Status       string    `json:"status"`
 	ConnectedAt  time.Time `json:"connected_at,omitempty"`
 	LastActivity time.Time `json:"last_activity,omitempty"`
@@ -51,27 +55,30 @@ type WorkerStatusResponse struct {
 
 // QRCodeEvent is published when a QR code is generated for WhatsApp login.
 type QRCodeEvent struct {
-	CompanyID string    `json:"company_id"`
-	QRData    string    `json:"qr_data"`
-	Timestamp time.Time `json:"timestamp"`
+	CompanyID    string    `json:"company_id"`
+	ConnectionID string    `json:"connection_id"`
+	QRData       string    `json:"qr_data"`
+	Timestamp    time.Time `json:"timestamp"`
 }
 
 // ConnectionStatusEvent is published when the WhatsApp connection status changes.
 type ConnectionStatusEvent struct {
-	CompanyID string    `json:"company_id"`
-	Status    string    `json:"status"`
-	Reason    string    `json:"reason,omitempty"`
-	Timestamp time.Time `json:"timestamp"`
+	CompanyID    string    `json:"company_id"`
+	ConnectionID string    `json:"connection_id"`
+	Status       string    `json:"status"`
+	Reason       string    `json:"reason,omitempty"`
+	Timestamp    time.Time `json:"timestamp"`
 }
 
 // MessageEvent is published when a WhatsApp message is received.
 type MessageEvent struct {
-	CompanyID string    `json:"company_id"`
-	MessageID string    `json:"message_id"`
-	From      string    `json:"from"`
-	Content   string    `json:"content"`
-	Type      string    `json:"type"`
-	Timestamp time.Time `json:"timestamp"`
+	CompanyID    string    `json:"company_id"`
+	ConnectionID string    `json:"connection_id"`
+	MessageID    string    `json:"message_id"`
+	From         string    `json:"from"`
+	Content      string    `json:"content"`
+	Type         string    `json:"type"`
+	Timestamp    time.Time `json:"timestamp"`
 }
 
 // CommandEnvelope wraps any command with its type for routing.

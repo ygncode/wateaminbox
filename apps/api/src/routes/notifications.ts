@@ -18,8 +18,16 @@ const soundChoiceSchema = z.enum(["default", "chime", "bell", "pop", "none"]);
 const updatePreferencesSchema = z.object({
   soundEnabled: z.boolean().optional(),
   soundChoice: soundChoiceSchema.optional(),
-  quietHoursStart: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/).nullable().optional(),
-  quietHoursEnd: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/).nullable().optional(),
+  quietHoursStart: z
+    .string()
+    .regex(/^([01]\d|2[0-3]):([0-5]\d)$/)
+    .nullable()
+    .optional(),
+  quietHoursEnd: z
+    .string()
+    .regex(/^([01]\d|2[0-3]):([0-5]\d)$/)
+    .nullable()
+    .optional(),
   mutedContacts: z.array(z.string()).optional(),
 });
 
@@ -176,25 +184,44 @@ notificationRoutes.get(
     const companyId = c.get("companyId");
     const { limit, offset, unreadOnly } = c.req.valid("query");
 
-    const result = await notificationHistoryService.getNotifications(
-      companyId,
-      {
-        userId: user.id,
-        limit,
-        offset,
-        unreadOnly,
-      },
-    );
+    try {
+      const result = await notificationHistoryService.getNotifications(
+        companyId,
+        {
+          userId: user.id,
+          limit,
+          offset,
+          unreadOnly,
+        },
+      );
 
-    return c.json({
-      data: result.notifications,
-      meta: {
-        total: result.total,
-        unreadCount: result.unreadCount,
-        limit,
-        offset,
-      },
-    });
+      return c.json({
+        data: result.notifications,
+        meta: {
+          total: result.total,
+          unreadCount: result.unreadCount,
+          limit,
+          offset,
+        },
+      });
+    } catch (error) {
+      // Handle missing table or database errors gracefully
+      if (
+        error instanceof Error &&
+        error.message.includes("does not exist")
+      ) {
+        return c.json({
+          data: [],
+          meta: {
+            total: 0,
+            unreadCount: 0,
+            limit,
+            offset,
+          },
+        });
+      }
+      throw error;
+    }
   },
 );
 
@@ -205,16 +232,28 @@ notificationRoutes.get("/count", async (c) => {
   const user = c.get("user");
   const companyId = c.get("companyId");
 
-  const unreadCount = await notificationHistoryService.getUnreadCount(
-    companyId,
-    user.id,
-  );
+  try {
+    const unreadCount = await notificationHistoryService.getUnreadCount(
+      companyId,
+      user.id,
+    );
 
-  return c.json({
-    data: {
-      unreadCount,
-    },
-  });
+    return c.json({
+      data: {
+        unreadCount,
+      },
+    });
+  } catch (error) {
+    // Handle missing table or database errors gracefully
+    if (error instanceof Error && error.message.includes("does not exist")) {
+      return c.json({
+        data: {
+          unreadCount: 0,
+        },
+      });
+    }
+    throw error;
+  }
 });
 
 /**

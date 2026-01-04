@@ -3,48 +3,45 @@ package store
 import (
 	"context"
 	"fmt"
-	"os"
-	"path/filepath"
 
 	"go.mau.fi/whatsmeow/store"
-	"go.mau.fi/whatsmeow/store/sqlstore"
 	waLog "go.mau.fi/whatsmeow/util/log"
-
-	_ "github.com/mattn/go-sqlite3"
 )
 
 // Config holds store configuration.
 type Config struct {
-	DataDir   string
-	CompanyID string
-	Logger    waLog.Logger
+	// DatabaseURL is the PostgreSQL connection string
+	DatabaseURL string
+	// ConnectionID is the UUID for isolating session data (required)
+	ConnectionID string
+	// Logger is the whatsmeow logger
+	Logger waLog.Logger
 }
 
-// NewStore creates a new SQLite store container for whatsmeow session storage.
-// The database is stored at DATA_DIR/sessions.db
-func NewStore(ctx context.Context, cfg Config) (*sqlstore.Container, error) {
-	// Ensure data directory exists
-	if err := os.MkdirAll(cfg.DataDir, 0755); err != nil {
-		return nil, fmt.Errorf("failed to create data directory: %w", err)
+// NewStore creates a new PostgreSQL store container for whatsmeow session storage.
+// The store uses the whatsapp_sessions schema and filters all data by connection_id.
+func NewStore(ctx context.Context, cfg Config) (*PGContainer, error) {
+	if cfg.DatabaseURL == "" {
+		return nil, fmt.Errorf("database_url is required")
+	}
+	if cfg.ConnectionID == "" {
+		return nil, fmt.Errorf("connection_id is required")
 	}
 
-	// Construct database path
-	dbPath := filepath.Join(cfg.DataDir, "sessions.db")
-	dbURI := fmt.Sprintf("file:%s?_foreign_keys=on", dbPath)
-
-	// Create the store container
-	container, err := sqlstore.New(ctx, "sqlite3", dbURI, cfg.Logger)
+	container, err := NewPGContainer(ctx, PGConfig{
+		DatabaseURL:  cfg.DatabaseURL,
+		ConnectionID: cfg.ConnectionID,
+		Logger:       cfg.Logger,
+	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to create SQL store: %w", err)
+		return nil, fmt.Errorf("failed to create PostgreSQL store: %w", err)
 	}
 
 	return container, nil
 }
 
 // GetOrCreateDevice retrieves an existing device or creates a new one.
-// If companyID is provided, it can be used to identify the device.
-func GetOrCreateDevice(ctx context.Context, container *sqlstore.Container) (*store.Device, error) {
-	// Try to get the first existing device
+func GetOrCreateDevice(ctx context.Context, container *PGContainer) (*store.Device, error) {
 	device, err := container.GetFirstDevice(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get device: %w", err)

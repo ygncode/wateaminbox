@@ -14,21 +14,23 @@ const (
 	StreamName = "WHATSAPP_EVENTS"
 
 	// Subject prefixes (uppercase to match orchestrator's stream)
-	SubjectQR         = "WHATSAPP.events.%s.qr"
-	SubjectStatus     = "WHATSAPP.events.%s.status"
-	SubjectMessage    = "WHATSAPP.events.%s.message"
-	SubjectReceipt    = "WHATSAPP.events.%s.receipt"
-	SubjectPresence   = "WHATSAPP.events.%s.presence"
-	SubjectContact    = "WHATSAPP.events.%s.contact"
+	// Format: WHATSAPP.events.{companyId}.{connectionId}.{type}
+	SubjectQR       = "WHATSAPP.events.%s.%s.qr"
+	SubjectStatus   = "WHATSAPP.events.%s.%s.status"
+	SubjectMessage  = "WHATSAPP.events.%s.%s.message"
+	SubjectReceipt  = "WHATSAPP.events.%s.%s.receipt"
+	SubjectPresence = "WHATSAPP.events.%s.%s.presence"
+	SubjectContact  = "WHATSAPP.events.%s.%s.contact"
 )
 
 // WhatsAppEvent is the wrapper format expected by the API.
 // This matches the TypeScript WhatsAppEvent interface in apps/api/src/lib/nats.ts
 type WhatsAppEvent struct {
-	Type      string      `json:"type"`
-	CompanyID string      `json:"companyId"`
-	Payload   interface{} `json:"payload"`
-	Timestamp string      `json:"timestamp"`
+	Type         string      `json:"type"`
+	CompanyID    string      `json:"companyId"`
+	ConnectionID string      `json:"connectionId"`
+	Payload      interface{} `json:"payload"`
+	Timestamp    string      `json:"timestamp"`
 }
 
 // QRPayload is the payload for QR code events.
@@ -46,17 +48,19 @@ type ConnectionPayload struct {
 
 // QRCodeEvent represents a QR code event for device pairing (internal use).
 type QRCodeEvent struct {
-	CompanyID string    `json:"company_id"`
-	QRData    string    `json:"qr_data"`
-	Timestamp time.Time `json:"timestamp"`
+	CompanyID    string    `json:"company_id"`
+	ConnectionID string    `json:"connection_id"`
+	QRData       string    `json:"qr_data"`
+	Timestamp    time.Time `json:"timestamp"`
 }
 
 // ConnectionStatusEvent represents a connection status change (internal use).
 type ConnectionStatusEvent struct {
-	CompanyID string    `json:"company_id"`
-	Status    string    `json:"status"` // "connected", "disconnected", "logged_out"
-	Reason    string    `json:"reason,omitempty"`
-	Timestamp time.Time `json:"timestamp"`
+	CompanyID    string    `json:"company_id"`
+	ConnectionID string    `json:"connection_id"`
+	Status       string    `json:"status"` // "connected", "disconnected", "logged_out"
+	Reason       string    `json:"reason,omitempty"`
+	Timestamp    time.Time `json:"timestamp"`
 }
 
 // MessagePayload is the payload for message events (matches API MessageEvent.payload).
@@ -132,15 +136,17 @@ type PresenceEvent struct {
 
 // Publisher handles publishing events to NATS.
 type Publisher struct {
-	nc        *nats.Conn
-	js        nats.JetStreamContext
-	companyID string
+	nc           *nats.Conn
+	js           nats.JetStreamContext
+	companyID    string
+	connectionID string
 }
 
 // PublisherConfig holds configuration for the publisher.
 type PublisherConfig struct {
-	NATSURL   string
-	CompanyID string
+	NATSURL      string
+	CompanyID    string
+	ConnectionID string
 }
 
 // NewPublisher creates a new NATS publisher.
@@ -177,9 +183,10 @@ func NewPublisher(cfg PublisherConfig) (*Publisher, error) {
 	}
 
 	return &Publisher{
-		nc:        nc,
-		js:        js,
-		companyID: cfg.CompanyID,
+		nc:           nc,
+		js:           js,
+		companyID:    cfg.CompanyID,
+		connectionID: cfg.ConnectionID,
 	}, nil
 }
 
@@ -214,8 +221,9 @@ func (p *Publisher) PublishQRCode(qrData string) error {
 	expiresAt := time.Now().Add(60 * time.Second)
 
 	event := WhatsAppEvent{
-		Type:      "qr",
-		CompanyID: p.companyID,
+		Type:         "qr",
+		CompanyID:    p.companyID,
+		ConnectionID: p.connectionID,
 		Payload: QRPayload{
 			QRCode:    qrData,
 			ExpiresAt: expiresAt.Format(time.RFC3339),
@@ -223,22 +231,23 @@ func (p *Publisher) PublishQRCode(qrData string) error {
 		Timestamp: time.Now().Format(time.RFC3339),
 	}
 
-	subject := fmt.Sprintf(SubjectQR, p.companyID)
+	subject := fmt.Sprintf(SubjectQR, p.companyID, p.connectionID)
 	return p.publish(subject, event)
 }
 
 // PublishConnectionStatus publishes a connection status event.
 func (p *Publisher) PublishConnectionStatus(status, reason string) error {
 	event := WhatsAppEvent{
-		Type:      status, // "connected" or "disconnected"
-		CompanyID: p.companyID,
+		Type:         status, // "connected" or "disconnected"
+		CompanyID:    p.companyID,
+		ConnectionID: p.connectionID,
 		Payload: ConnectionPayload{
 			Reason: reason,
 		},
 		Timestamp: time.Now().Format(time.RFC3339),
 	}
 
-	subject := fmt.Sprintf(SubjectStatus, p.companyID)
+	subject := fmt.Sprintf(SubjectStatus, p.companyID, p.connectionID)
 	return p.publish(subject, event)
 }
 
@@ -255,8 +264,9 @@ func (p *Publisher) PublishMessage(msg MessageEvent) error {
 	}
 
 	event := WhatsAppEvent{
-		Type:      "message",
-		CompanyID: p.companyID,
+		Type:         "message",
+		CompanyID:    p.companyID,
+		ConnectionID: p.connectionID,
 		Payload: MessagePayload{
 			MessageID:       msg.MessageID,
 			From:            msg.From,
@@ -277,7 +287,7 @@ func (p *Publisher) PublishMessage(msg MessageEvent) error {
 		Timestamp: time.Now().Format(time.RFC3339),
 	}
 
-	subject := fmt.Sprintf(SubjectMessage, p.companyID)
+	subject := fmt.Sprintf(SubjectMessage, p.companyID, p.connectionID)
 	return p.publish(subject, event)
 }
 
@@ -290,8 +300,9 @@ func (p *Publisher) PublishReceipt(receipt ReceiptEvent) error {
 	// Publish one event per message ID
 	for _, msgID := range receipt.MessageIDs {
 		event := WhatsAppEvent{
-			Type:      "receipt",
-			CompanyID: p.companyID,
+			Type:         "receipt",
+			CompanyID:    p.companyID,
+			ConnectionID: p.connectionID,
 			Payload: ReceiptPayload{
 				MessageID: msgID,
 				Status:    receipt.ReceiptType,
@@ -300,7 +311,7 @@ func (p *Publisher) PublishReceipt(receipt ReceiptEvent) error {
 			Timestamp: time.Now().Format(time.RFC3339),
 		}
 
-		subject := fmt.Sprintf(SubjectReceipt, p.companyID)
+		subject := fmt.Sprintf(SubjectReceipt, p.companyID, p.connectionID)
 		if err := p.publish(subject, event); err != nil {
 			return err
 		}
@@ -328,8 +339,9 @@ func (p *Publisher) PublishPresence(presence PresenceEvent) error {
 	}
 
 	event := WhatsAppEvent{
-		Type:      "presence",
-		CompanyID: p.companyID,
+		Type:         "presence",
+		CompanyID:    p.companyID,
+		ConnectionID: p.connectionID,
 		Payload: PresencePayload{
 			From:        presence.From,
 			Unavailable: presence.Unavailable,
@@ -338,15 +350,16 @@ func (p *Publisher) PublishPresence(presence PresenceEvent) error {
 		Timestamp: time.Now().Format(time.RFC3339),
 	}
 
-	subject := fmt.Sprintf(SubjectPresence, p.companyID)
+	subject := fmt.Sprintf(SubjectPresence, p.companyID, p.connectionID)
 	return p.publish(subject, event)
 }
 
 // PublishContact publishes a contact sync event.
 func (p *Publisher) PublishContact(jid, name, displayName string, isGroup bool, unreadCount int) error {
 	event := WhatsAppEvent{
-		Type:      "contact",
-		CompanyID: p.companyID,
+		Type:         "contact",
+		CompanyID:    p.companyID,
+		ConnectionID: p.connectionID,
 		Payload: ContactPayload{
 			JID:         jid,
 			Name:        name,
@@ -357,7 +370,7 @@ func (p *Publisher) PublishContact(jid, name, displayName string, isGroup bool, 
 		Timestamp: time.Now().Format(time.RFC3339),
 	}
 
-	subject := fmt.Sprintf(SubjectContact, p.companyID)
+	subject := fmt.Sprintf(SubjectContact, p.companyID, p.connectionID)
 	return p.publish(subject, event)
 }
 

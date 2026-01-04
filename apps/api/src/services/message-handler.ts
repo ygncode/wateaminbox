@@ -1,4 +1,4 @@
-import type { Subscription } from "nats";
+import type { JetStreamSubscription } from "nats";
 import {
   subscribeToAllEvents,
   type WhatsAppEvent,
@@ -14,7 +14,7 @@ import { updateConnectionStatus } from "./whatsapp.service.js";
 import { broadcastToCompany } from "../routes/ws.js";
 
 // Subscription handle
-let eventSubscription: Subscription | null = null;
+let eventSubscription: JetStreamSubscription | null = null;
 let isInitialized = false;
 
 /**
@@ -55,10 +55,10 @@ export async function shutdownMessageHandler(): Promise<void> {
  * Handles incoming WhatsApp events from NATS
  */
 async function handleWhatsAppEvent(event: WhatsAppEvent): Promise<void> {
-  const { type, companyId } = event;
+  const { type, companyId, connectionId } = event;
 
   console.log(
-    `[MessageHandler] Received ${type} event for company ${companyId}`,
+    `[MessageHandler] Received ${type} event for company ${companyId}, connection ${connectionId || "unknown"}`,
   );
 
   try {
@@ -107,15 +107,18 @@ async function handleWhatsAppEvent(event: WhatsAppEvent): Promise<void> {
  * Handles QR code events
  */
 async function handleQREvent(event: QREvent): Promise<void> {
+  const { companyId, connectionId } = event;
+
   // QR events are handled by WebSocket broadcast
   // Just log for monitoring
   console.log(
-    `[MessageHandler] QR code generated for company ${event.companyId}`,
+    `[MessageHandler] QR code generated for company ${companyId}, connection ${connectionId}`,
   );
 
-  // Broadcast to connected WebSocket clients
-  broadcastToCompany(event.companyId, {
+  // Broadcast to connected WebSocket clients with connectionId
+  broadcastToCompany(companyId, {
     type: "qr",
+    connectionId,
     payload: event.payload,
     timestamp: event.timestamp,
   });
@@ -125,24 +128,28 @@ async function handleQREvent(event: QREvent): Promise<void> {
  * Handles WhatsApp connection established events
  */
 async function handleConnectedEvent(event: ConnectionEvent): Promise<void> {
-  const { companyId, payload } = event;
+  const { companyId, connectionId, payload } = event;
 
-  console.log(`[MessageHandler] WhatsApp connected for company ${companyId}`);
+  console.log(
+    `[MessageHandler] WhatsApp connected for company ${companyId}, connection ${connectionId}`,
+  );
 
   try {
     const tenantDb = getTenantConnection(companyId);
 
-    // Update connection status in database
+    // Update connection status in database with connectionId
     await updateConnectionStatus(
       tenantDb,
       "connected",
+      connectionId,
       payload.phoneNumber,
       payload.jid,
     );
 
-    // Broadcast to WebSocket clients
+    // Broadcast to WebSocket clients with connectionId
     broadcastToCompany(companyId, {
       type: "connected",
+      connectionId,
       payload: {
         phoneNumber: payload.phoneNumber,
         jid: payload.jid,
@@ -158,22 +165,23 @@ async function handleConnectedEvent(event: ConnectionEvent): Promise<void> {
  * Handles WhatsApp disconnection events
  */
 async function handleDisconnectedEvent(event: ConnectionEvent): Promise<void> {
-  const { companyId, payload } = event;
+  const { companyId, connectionId, payload } = event;
 
   console.log(
-    `[MessageHandler] WhatsApp disconnected for company ${companyId}:`,
+    `[MessageHandler] WhatsApp disconnected for company ${companyId}, connection ${connectionId}:`,
     payload.reason,
   );
 
   try {
     const tenantDb = getTenantConnection(companyId);
 
-    // Update connection status in database
-    await updateConnectionStatus(tenantDb, "disconnected");
+    // Update connection status in database with connectionId
+    await updateConnectionStatus(tenantDb, "disconnected", connectionId);
 
-    // Broadcast to WebSocket clients
+    // Broadcast to WebSocket clients with connectionId
     broadcastToCompany(companyId, {
       type: "disconnected",
+      connectionId,
       payload: {
         reason: payload.reason,
       },
@@ -191,21 +199,33 @@ async function handleDisconnectedEvent(event: ConnectionEvent): Promise<void> {
  * Handles incoming WhatsApp messages
  */
 async function handleMessageEvent(event: MessageEvent): Promise<void> {
-  const { companyId, payload } = event;
+  const { companyId, connectionId, payload } = event;
 
   console.log(
-    `[MessageHandler] Message received for company ${companyId} from ${payload.from}`,
+    `[MessageHandler] Message received for company ${companyId}, connection ${connectionId} from ${payload.from}`,
   );
 
   try {
     const tenantDb = getTenantConnection(companyId);
 
-    // Get the active connection
-    const connection = await tenantDb
-      .selectFrom("whatsapp_connections")
-      .select(["id"])
-      .where("status", "=", "connected")
-      .executeTakeFirst();
+    // Get the connection by ID if provided, otherwise get any connected one
+    let connection;
+    if (connectionId) {
+      connection = await tenantDb
+        .selectFrom("whatsapp_connections")
+        .select(["id"])
+        .where("id", "=", connectionId)
+        .executeTakeFirst();
+    }
+
+    if (!connection) {
+      // Fallback: get any active connection
+      connection = await tenantDb
+        .selectFrom("whatsapp_connections")
+        .select(["id"])
+        .where("status", "=", "connected")
+        .executeTakeFirst();
+    }
 
     if (!connection) {
       console.warn(
@@ -273,6 +293,7 @@ async function handleMessageEvent(event: MessageEvent): Promise<void> {
     // Frontend expects { message: Message, conversationId: string }
     broadcastToCompany(companyId, {
       type: "message:new",
+      connectionId,
       payload: {
         message: {
           id: messageId,
@@ -283,7 +304,9 @@ async function handleMessageEvent(event: MessageEvent): Promise<void> {
           messageType: payload.messageType || "text",
           status: payload.fromMe ? "sent" : "delivered",
           whatsappMessageId: payload.messageId,
-          metadata: payload.mediaUrl ? { mediaUrl: payload.mediaUrl } : undefined,
+          metadata: payload.mediaUrl
+            ? { mediaUrl: payload.mediaUrl }
+            : undefined,
           replyToMessageId: payload.quotedMessageId,
           isForwarded: false,
           isDeleted: false,
@@ -305,7 +328,9 @@ async function handleMessageEvent(event: MessageEvent): Promise<void> {
  * WhatsApp types: "sender", "delivered", "read", "played", ""
  * DB enum: "pending", "sent", "delivered", "read", "failed"
  */
-function mapReceiptStatus(waStatus: string): "sent" | "delivered" | "read" | null {
+function mapReceiptStatus(
+  waStatus: string,
+): "sent" | "delivered" | "read" | null {
   switch (waStatus) {
     case "sender":
       return "sent";
@@ -324,10 +349,10 @@ function mapReceiptStatus(waStatus: string): "sent" | "delivered" | "read" | nul
  * Handles message receipt/status updates
  */
 async function handleReceiptEvent(event: ReceiptEvent): Promise<void> {
-  const { companyId, payload } = event;
+  const { companyId, connectionId, payload } = event;
 
   console.log(
-    `[MessageHandler] Receipt ${payload.status} for message ${payload.messageId}`,
+    `[MessageHandler] Receipt ${payload.status} for message ${payload.messageId}, connection ${connectionId}`,
   );
 
   // Map WhatsApp receipt type to database enum
@@ -356,9 +381,10 @@ async function handleReceiptEvent(event: ReceiptEvent): Promise<void> {
       `[MessageHandler] Updated message status to ${dbStatus} for message ${payload.messageId} (rows affected: ${result.numUpdatedRows})`,
     );
 
-    // Broadcast to WebSocket clients with mapped status
+    // Broadcast to WebSocket clients with mapped status and connectionId
     broadcastToCompany(companyId, {
       type: "receipt",
+      connectionId,
       payload: {
         messageId: payload.messageId,
         status: dbStatus,
@@ -375,21 +401,33 @@ async function handleReceiptEvent(event: ReceiptEvent): Promise<void> {
  * Handles WhatsApp status updates
  */
 async function handleStatusEvent(event: StatusEvent): Promise<void> {
-  const { companyId, payload } = event;
+  const { companyId, connectionId, payload } = event;
 
   console.log(
-    `[MessageHandler] Status update received for company ${companyId} from ${payload.fromJid}`,
+    `[MessageHandler] Status update received for company ${companyId}, connection ${connectionId} from ${payload.fromJid}`,
   );
 
   try {
     const tenantDb = getTenantConnection(companyId);
 
-    // Get the active connection
-    const connection = await tenantDb
-      .selectFrom("whatsapp_connections")
-      .select(["id"])
-      .where("status", "=", "connected")
-      .executeTakeFirst();
+    // Get the connection by ID if provided
+    let connection;
+    if (connectionId) {
+      connection = await tenantDb
+        .selectFrom("whatsapp_connections")
+        .select(["id"])
+        .where("id", "=", connectionId)
+        .executeTakeFirst();
+    }
+
+    if (!connection) {
+      // Fallback: get any active connection
+      connection = await tenantDb
+        .selectFrom("whatsapp_connections")
+        .select(["id"])
+        .where("status", "=", "connected")
+        .executeTakeFirst();
+    }
 
     if (!connection) {
       console.warn(
@@ -419,9 +457,10 @@ async function handleStatusEvent(event: StatusEvent): Promise<void> {
       `[MessageHandler] Stored status ${statusId} for company ${companyId}`,
     );
 
-    // Broadcast to WebSocket clients
+    // Broadcast to WebSocket clients with connectionId
     broadcastToCompany(companyId, {
       type: "status",
+      connectionId,
       payload: {
         id: statusId,
         ...payload,
@@ -437,21 +476,33 @@ async function handleStatusEvent(event: StatusEvent): Promise<void> {
  * Handles contact sync events from history sync
  */
 async function handleContactEvent(event: ContactEvent): Promise<void> {
-  const { companyId, payload } = event;
+  const { companyId, connectionId, payload } = event;
 
   console.log(
-    `[MessageHandler] Contact sync received for company ${companyId}: ${payload.jid}`,
+    `[MessageHandler] Contact sync received for company ${companyId}, connection ${connectionId}: ${payload.jid}`,
   );
 
   try {
     const tenantDb = getTenantConnection(companyId);
 
-    // Get the active connection
-    const connection = await tenantDb
-      .selectFrom("whatsapp_connections")
-      .select(["id"])
-      .where("status", "=", "connected")
-      .executeTakeFirst();
+    // Get the connection by ID if provided
+    let connection;
+    if (connectionId) {
+      connection = await tenantDb
+        .selectFrom("whatsapp_connections")
+        .select(["id"])
+        .where("id", "=", connectionId)
+        .executeTakeFirst();
+    }
+
+    if (!connection) {
+      // Fallback: get any active connection
+      connection = await tenantDb
+        .selectFrom("whatsapp_connections")
+        .select(["id"])
+        .where("status", "=", "connected")
+        .executeTakeFirst();
+    }
 
     if (!connection) {
       console.warn(
@@ -506,9 +557,10 @@ async function handleContactEvent(event: ContactEvent): Promise<void> {
       );
     }
 
-    // Broadcast to WebSocket clients
+    // Broadcast to WebSocket clients with connectionId
     broadcastToCompany(companyId, {
       type: "contact",
+      connectionId,
       payload,
       timestamp: event.timestamp,
     });
@@ -521,13 +573,17 @@ async function handleContactEvent(event: ContactEvent): Promise<void> {
  * Handles error events from WhatsApp worker
  */
 async function handleErrorEvent(event: WhatsAppEvent): Promise<void> {
-  const { companyId, payload } = event;
+  const { companyId, connectionId, payload } = event;
 
-  console.error(`[MessageHandler] Error for company ${companyId}:`, payload);
+  console.error(
+    `[MessageHandler] Error for company ${companyId}, connection ${connectionId}:`,
+    payload,
+  );
 
-  // Broadcast error to WebSocket clients
+  // Broadcast error to WebSocket clients with connectionId
   broadcastToCompany(companyId, {
     type: "error",
+    connectionId,
     payload,
     timestamp: event.timestamp,
   });

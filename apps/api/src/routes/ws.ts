@@ -10,17 +10,17 @@ import {
   type WhatsAppEvent,
   type QREvent,
   type ConnectionEvent,
-  type MessageEvent,
-  type ReceiptEvent,
 } from "../lib/nats.js";
-import type { Subscription } from "nats";
+import { getActiveConnection } from "../services/whatsapp.service.js";
+import { getTenantConnection } from "../services/tenant.service.js";
+import type { JetStreamSubscription } from "nats";
 
 // WebSocket data interface
 interface WSData {
   userId: string;
   companyId: string;
   authenticated: boolean;
-  natsSubscription?: Subscription;
+  natsSubscription?: JetStreamSubscription;
   events?: {
     onOpen?: unknown;
     onClose?: unknown;
@@ -66,6 +66,7 @@ interface ServerMessage {
     | "error"
     | "pong"
     | "send_ack";
+  connectionId?: string;
   payload?: unknown;
   timestamp: string;
 }
@@ -354,8 +355,22 @@ async function handleClientMessage(
       }
 
       try {
+        // Get an active connection to send through
+        const tenantDb = getTenantConnection(ws.data.companyId);
+        const connection = await getActiveConnection(tenantDb);
+
+        if (!connection) {
+          sendMessage(ws, {
+            type: "error",
+            payload: { message: "No active WhatsApp connection" },
+            timestamp: new Date().toISOString(),
+          });
+          return;
+        }
+
         await publishSendMessage(
           ws.data.companyId,
+          connection.id,
           sendPayload.jid,
           sendPayload.content,
           sendPayload.messageType || "text",
@@ -367,6 +382,7 @@ async function handleClientMessage(
           type: "send_ack",
           payload: {
             jid: sendPayload.jid,
+            connectionId: connection.id,
             status: "queued",
           },
           timestamp: new Date().toISOString(),
@@ -392,7 +408,8 @@ async function handleClientMessage(
 }
 
 // Create Bun WebSocket handler
-const { upgradeWebSocket, websocket: honoWebsocket } = createBunWebSocket<WSData>();
+const { upgradeWebSocket, websocket: honoWebsocket } =
+  createBunWebSocket<WSData>();
 
 // Wrap the websocket handler with null checks to prevent crashes
 export const websocket = {

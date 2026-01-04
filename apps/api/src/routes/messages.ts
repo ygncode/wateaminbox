@@ -106,113 +106,134 @@ messageRoutes.get("/", async (c) => {
  * POST /messages - Send a new message
  * Requires can_send_messages permission
  */
-messageRoutes.post("/", requirePermission(PERMISSIONS.CAN_SEND_MESSAGES), async (c) => {
-  const tenantDb = c.get("tenantDb");
-  const user = c.get("user");
-  const companyId = c.get("companyId");
-  const body = await c.req.json();
+messageRoutes.post(
+  "/",
+  requirePermission(PERMISSIONS.CAN_SEND_MESSAGES),
+  async (c) => {
+    const tenantDb = c.get("tenantDb");
+    const user = c.get("user");
+    const companyId = c.get("companyId");
+    const body = await c.req.json();
 
-  const { contactId, content, messageType = "text", mediaUrl, replyToMessageId } = body;
-
-  if (!contactId) {
-    return c.json({ error: "contactId is required" }, 400);
-  }
-
-  if (!content && messageType === "text") {
-    return c.json({ error: "content is required for text messages" }, 400);
-  }
-
-  // Get contact JID
-  const contact = await tenantDb
-    .selectFrom("contacts")
-    .select(["id", "jid"])
-    .where("id", "=", contactId)
-    .executeTakeFirst();
-
-  if (!contact || !contact.jid) {
-    return c.json({ error: "Contact not found or has no JID" }, 404);
-  }
-
-  // Auto-assign contact to the user if unassigned ("Assign to me on first reply")
-  const wasAutoAssigned = await ensureContactAssignment(tenantDb, contactId, user.id);
-
-  // Look up the WhatsApp message ID and sender for reply-to if provided
-  let quotedWaMessageId: string | undefined;
-  let quotedSenderJid: string | undefined;
-  if (replyToMessageId) {
-    const quotedMessage = await tenantDb
-      .selectFrom("messages")
-      .select(["message_id", "sender_jid", "from_me"])
-      .where("id", "=", replyToMessageId)
-      .executeTakeFirst();
-    quotedWaMessageId = quotedMessage?.message_id || undefined;
-
-    // For reply context, we need the sender's JID
-    if (quotedMessage?.from_me) {
-      // If replying to our own message, get our JID from the connection
-      const connection = await tenantDb
-        .selectFrom("whatsapp_connections")
-        .select(["jid"])
-        .where("status", "=", "connected")
-        .executeTakeFirst();
-      quotedSenderJid = connection?.jid || undefined;
-    } else {
-      // If replying to their message, use their sender_jid
-      quotedSenderJid = quotedMessage?.sender_jid || contact.jid;
-    }
-  }
-
-  // Create a pending message in database
-  const messageId = crypto.randomUUID();
-  const waMessageId = `pending_${messageId}`;
-
-  await tenantDb
-    .insertInto("messages")
-    .values({
-      id: messageId,
-      contact_id: contactId,
-      message_id: waMessageId,
-      from_me: true,
-      sender_jid: null, // Will be updated when sent
-      message_type: messageType,
-      content,
-      media_url: mediaUrl || null,
-      quoted_message_id: quotedWaMessageId || null,
-      sent_by_user_id: user.id,
-      status: "pending",
-      timestamp: new Date(),
-    })
-    .execute();
-
-  // Publish send command to NATS
-  await publishSendMessage(
-    companyId,
-    contact.jid,
-    content,
-    messageType,
-    user.id,
-    mediaUrl,
-    quotedWaMessageId,
-    quotedSenderJid,
-  );
-
-  return c.json({
-    success: true,
-    message: {
-      id: messageId,
-      messageId: waMessageId,
+    const {
       contactId,
-      fromMe: true,
-      messageType,
       content,
+      messageType = "text",
       mediaUrl,
-      replyToMessageId: replyToMessageId || null,
-      timestamp: new Date().toISOString(),
-      status: "pending",
-    },
-    autoAssigned: wasAutoAssigned,
-  });
-});
+      replyToMessageId,
+    } = body;
+
+    if (!contactId) {
+      return c.json({ error: "contactId is required" }, 400);
+    }
+
+    if (!content && messageType === "text") {
+      return c.json({ error: "content is required for text messages" }, 400);
+    }
+
+    // Get contact JID and connection ID
+    const contact = await tenantDb
+      .selectFrom("contacts")
+      .select(["id", "jid", "whatsapp_connection_id"])
+      .where("id", "=", contactId)
+      .executeTakeFirst();
+
+    if (!contact || !contact.jid) {
+      return c.json({ error: "Contact not found or has no JID" }, 404);
+    }
+
+    // Get active WhatsApp connection
+    const connection = await tenantDb
+      .selectFrom("whatsapp_connections")
+      .select(["id", "jid"])
+      .where("status", "=", "connected")
+      .executeTakeFirst();
+
+    if (!connection) {
+      return c.json({ error: "No active WhatsApp connection" }, 400);
+    }
+
+    // Auto-assign contact to the user if unassigned ("Assign to me on first reply")
+    const wasAutoAssigned = await ensureContactAssignment(
+      tenantDb,
+      contactId,
+      user.id,
+    );
+
+    // Look up the WhatsApp message ID and sender for reply-to if provided
+    let quotedWaMessageId: string | undefined;
+    let quotedSenderJid: string | undefined;
+    if (replyToMessageId) {
+      const quotedMessage = await tenantDb
+        .selectFrom("messages")
+        .select(["message_id", "sender_jid", "from_me"])
+        .where("id", "=", replyToMessageId)
+        .executeTakeFirst();
+      quotedWaMessageId = quotedMessage?.message_id || undefined;
+
+      // For reply context, we need the sender's JID
+      if (quotedMessage?.from_me) {
+        // If replying to our own message, use our JID from the connection
+        quotedSenderJid = connection.jid || undefined;
+      } else {
+        // If replying to their message, use their sender_jid
+        quotedSenderJid = quotedMessage?.sender_jid || contact.jid;
+      }
+    }
+
+    // Create a pending message in database
+    const messageId = crypto.randomUUID();
+    const waMessageId = `pending_${messageId}`;
+
+    await tenantDb
+      .insertInto("messages")
+      .values({
+        id: messageId,
+        contact_id: contactId,
+        message_id: waMessageId,
+        from_me: true,
+        sender_jid: null, // Will be updated when sent
+        message_type: messageType,
+        content,
+        media_url: mediaUrl || null,
+        quoted_message_id: quotedWaMessageId || null,
+        sent_by_user_id: user.id,
+        status: "pending",
+        timestamp: new Date(),
+      })
+      .execute();
+
+    // Publish send command to NATS
+    await publishSendMessage(
+      companyId,
+      connection.id,
+      contact.jid,
+      content,
+      messageType,
+      user.id,
+      mediaUrl,
+      quotedWaMessageId,
+      quotedSenderJid,
+    );
+
+    return c.json({
+      success: true,
+      message: {
+        id: messageId,
+        messageId: waMessageId,
+        contactId,
+        fromMe: true,
+        messageType,
+        content,
+        mediaUrl,
+        replyToMessageId: replyToMessageId || null,
+        timestamp: new Date().toISOString(),
+        status: "pending",
+      },
+      autoAssigned: wasAutoAssigned,
+    });
+  },
+);
 
 /**
  * POST /messages/:id/star - Star a message
@@ -316,86 +337,106 @@ messageRoutes.delete("/:id/reaction", async (c) => {
  * POST /messages/:id/forward - Forward a message to another contact
  * Requires can_send_messages permission
  */
-messageRoutes.post("/:id/forward", requirePermission(PERMISSIONS.CAN_SEND_MESSAGES), async (c) => {
-  const tenantDb = c.get("tenantDb");
-  const user = c.get("user");
-  const companyId = c.get("companyId");
-  const messageId = c.req.param("id");
-  const body = await c.req.json();
+messageRoutes.post(
+  "/:id/forward",
+  requirePermission(PERMISSIONS.CAN_SEND_MESSAGES),
+  async (c) => {
+    const tenantDb = c.get("tenantDb");
+    const user = c.get("user");
+    const companyId = c.get("companyId");
+    const messageId = c.req.param("id");
+    const body = await c.req.json();
 
-  const { targetContactId } = body;
+    const { targetContactId } = body;
 
-  if (!targetContactId) {
-    return c.json({ error: "targetContactId is required" }, 400);
-  }
+    if (!targetContactId) {
+      return c.json({ error: "targetContactId is required" }, 400);
+    }
 
-  // Get original message
-  const originalMessage = await tenantDb
-    .selectFrom("messages")
-    .selectAll()
-    .where("id", "=", messageId)
-    .executeTakeFirst();
+    // Get original message
+    const originalMessage = await tenantDb
+      .selectFrom("messages")
+      .selectAll()
+      .where("id", "=", messageId)
+      .executeTakeFirst();
 
-  if (!originalMessage) {
-    return c.json({ error: "Message not found" }, 404);
-  }
+    if (!originalMessage) {
+      return c.json({ error: "Message not found" }, 404);
+    }
 
-  // Get target contact
-  const targetContact = await tenantDb
-    .selectFrom("contacts")
-    .select(["id", "jid"])
-    .where("id", "=", targetContactId)
-    .executeTakeFirst();
+    // Get target contact
+    const targetContact = await tenantDb
+      .selectFrom("contacts")
+      .select(["id", "jid"])
+      .where("id", "=", targetContactId)
+      .executeTakeFirst();
 
-  if (!targetContact || !targetContact.jid) {
-    return c.json({ error: "Target contact not found or has no JID" }, 404);
-  }
+    if (!targetContact || !targetContact.jid) {
+      return c.json({ error: "Target contact not found or has no JID" }, 404);
+    }
 
-  // Auto-assign target contact to the user if unassigned ("Assign to me on first reply")
-  const wasAutoAssigned = await ensureContactAssignment(tenantDb, targetContactId, user.id);
+    // Get active WhatsApp connection
+    const connection = await tenantDb
+      .selectFrom("whatsapp_connections")
+      .select(["id"])
+      .where("status", "=", "connected")
+      .executeTakeFirst();
 
-  // Create forwarded message
-  const newMessageId = crypto.randomUUID();
-  const waMessageId = `pending_${newMessageId}`;
+    if (!connection) {
+      return c.json({ error: "No active WhatsApp connection" }, 400);
+    }
 
-  await tenantDb
-    .insertInto("messages")
-    .values({
-      id: newMessageId,
-      contact_id: targetContactId,
-      message_id: waMessageId,
-      from_me: true,
-      sender_jid: null,
-      message_type: originalMessage.message_type,
-      content: originalMessage.content,
-      media_url: originalMessage.media_url,
-      is_forwarded: true,
-      sent_by_user_id: user.id,
-      status: "pending",
-      timestamp: new Date(),
-    })
-    .execute();
+    // Auto-assign target contact to the user if unassigned ("Assign to me on first reply")
+    const wasAutoAssigned = await ensureContactAssignment(
+      tenantDb,
+      targetContactId,
+      user.id,
+    );
 
-  // Publish send command
-  await publishSendMessage(
-    companyId,
-    targetContact.jid,
-    originalMessage.content || "",
-    originalMessage.message_type,
-    user.id,
-    originalMessage.media_url || undefined,
-  );
+    // Create forwarded message
+    const newMessageId = crypto.randomUUID();
+    const waMessageId = `pending_${newMessageId}`;
 
-  return c.json({
-    success: true,
-    message: {
-      id: newMessageId,
-      contactId: targetContactId,
-      isForwarded: true,
-    },
-    autoAssigned: wasAutoAssigned,
-  });
-});
+    await tenantDb
+      .insertInto("messages")
+      .values({
+        id: newMessageId,
+        contact_id: targetContactId,
+        message_id: waMessageId,
+        from_me: true,
+        sender_jid: null,
+        message_type: originalMessage.message_type,
+        content: originalMessage.content,
+        media_url: originalMessage.media_url,
+        is_forwarded: true,
+        sent_by_user_id: user.id,
+        status: "pending",
+        timestamp: new Date(),
+      })
+      .execute();
+
+    // Publish send command
+    await publishSendMessage(
+      companyId,
+      connection.id,
+      targetContact.jid,
+      originalMessage.content || "",
+      originalMessage.message_type,
+      user.id,
+      originalMessage.media_url || undefined,
+    );
+
+    return c.json({
+      success: true,
+      message: {
+        id: newMessageId,
+        contactId: targetContactId,
+        isForwarded: true,
+      },
+      autoAssigned: wasAutoAssigned,
+    });
+  },
+);
 
 /**
  * GET /messages/starred - Get all starred messages

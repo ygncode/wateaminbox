@@ -1,21 +1,25 @@
+import * as nats from "nats";
 import {
   connect,
   NatsConnection,
-  Subscription,
   JetStreamClient,
+  JetStreamSubscription,
   JSONCodec,
 } from "nats";
 import { env } from "./env.js";
 
 // NATS Subjects/Topics - Must match orchestrator subjects
+// Updated to support connectionId routing for multi-connection support
 export const NATS_SUBJECTS = {
   // Commands to WhatsApp worker (uppercase to match orchestrator)
+  // Format: WHATSAPP.commands.{companyId}.{connectionId}
   WHATSAPP_COMMANDS: "WHATSAPP.commands",
   WHATSAPP_SPAWN: "WHATSAPP.commands",
   WHATSAPP_KILL: "WHATSAPP.commands",
   WHATSAPP_SEND: "WHATSAPP.commands",
 
   // Events from WhatsApp worker
+  // Format: WHATSAPP.events.{companyId}.{connectionId}.{eventType}
   WHATSAPP_EVENTS: "WHATSAPP.events",
   WHATSAPP_QR: "WHATSAPP.events",
   WHATSAPP_CONNECTION: "WHATSAPP.events",
@@ -25,8 +29,22 @@ export const NATS_SUBJECTS = {
 
 // Message types for NATS communication (snake_case to match Go orchestrator)
 export interface NatsCommand {
-  type: "spawn" | "kill" | "send" | "post_status" | "group_promote_admin" | "group_demote_admin" | "group_remove_participant" | "group_update_settings" | "sync_labels" | "apply_label" | "remove_label" | "sync_catalogs" | "sync_catalog_products";
+  type:
+    | "spawn"
+    | "kill"
+    | "send"
+    | "post_status"
+    | "group_promote_admin"
+    | "group_demote_admin"
+    | "group_remove_participant"
+    | "group_update_settings"
+    | "sync_labels"
+    | "apply_label"
+    | "remove_label"
+    | "sync_catalogs"
+    | "sync_catalog_products";
   company_id: string;
+  connection_id: string;
   timestamp?: string;
 }
 
@@ -147,6 +165,7 @@ export interface WhatsAppEvent {
     | "catalog_products"
     | "error";
   companyId: string;
+  connectionId: string;
   payload: unknown;
   timestamp: string;
 }
@@ -365,7 +384,16 @@ export async function publishCommand(
     `[NATS] Published to ${subject}:`,
     command.type,
     command.company_id,
+    command.connection_id,
   );
+}
+
+/**
+ * Builds the command subject with connectionId
+ * Format: WHATSAPP.commands.{companyId}.{connectionId}
+ */
+function buildCommandSubject(companyId: string, connectionId: string): string {
+  return `${NATS_SUBJECTS.WHATSAPP_COMMANDS}.${companyId}.${connectionId}`;
 }
 
 /**
@@ -373,14 +401,23 @@ export async function publishCommand(
  */
 export async function publishSpawnCommand(
   companyId: string,
+  connectionId: string,
   databaseUrl: string,
 ): Promise<void> {
+  // Ensure sslmode is set for local development
+  let dbUrl = databaseUrl;
+  if (dbUrl && !dbUrl.includes("sslmode=")) {
+    dbUrl += dbUrl.includes("?") ? "&sslmode=disable" : "?sslmode=disable";
+  }
+
   const command: SpawnCommand = {
     type: "spawn",
     company_id: companyId,
+    connection_id: connectionId,
     tenant_schema: `tenant_${companyId.replace(/-/g, "_")}`,
-    database_url: databaseUrl,
+    database_url: dbUrl,
   };
+  console.log("[NATS] Spawn command DATABASE_URL:", dbUrl.replace(/\/\/[^:]+:[^@]+@/, "//***:***@"));
   await publishCommand(NATS_SUBJECTS.WHATSAPP_SPAWN, command);
 }
 
@@ -389,18 +426,20 @@ export async function publishSpawnCommand(
  */
 export async function publishKillCommand(
   companyId: string,
+  connectionId: string,
   reason?: string,
 ): Promise<void> {
   const command: KillCommand = {
     type: "kill",
     company_id: companyId,
+    connection_id: connectionId,
     reason,
   };
   await publishCommand(NATS_SUBJECTS.WHATSAPP_KILL, command);
 }
 
 /**
- * Publishes a send message command to company-specific subject
+ * Publishes a send message command to company/connection-specific subject
  * The command format must match what the Go WhatsApp worker expects:
  * - to: JID of recipient
  * - type: message type (text, image, etc.)
@@ -410,6 +449,7 @@ export async function publishKillCommand(
  */
 export async function publishSendMessage(
   companyId: string,
+  connectionId: string,
   jid: string,
   content: string,
   messageType: MessageType,
@@ -421,6 +461,7 @@ export async function publishSendMessage(
   // Format command to match Go worker's SendMessageCommand struct
   const sendCommand = {
     message_id: crypto.randomUUID(),
+    connection_id: connectionId,
     to: jid,
     type: messageType, // Go worker expects "text", "image", etc. directly
     content,
@@ -432,17 +473,20 @@ export async function publishSendMessage(
 
   // Publish directly to JetStream (not through publishCommand which adds NatsCommand envelope)
   const js = await getJetStreamClient();
-  const subject = `${NATS_SUBJECTS.WHATSAPP_COMMANDS}.${companyId}`;
+  const subject = buildCommandSubject(companyId, connectionId);
   const data = jc.encode(sendCommand);
   await js.publish(subject, data);
-  console.log(`[NATS] Published send message to ${subject}: to=${jid}, type=${messageType}, reply_to=${replyTo || 'none'}, reply_to_sender=${replyToSender || 'none'}`);
+  console.log(
+    `[NATS] Published send message to ${subject}: to=${jid}, type=${messageType}, reply_to=${replyTo || "none"}, reply_to_sender=${replyToSender || "none"}`,
+  );
 }
 
 /**
- * Publishes a post status command to company-specific subject
+ * Publishes a post status command to company/connection-specific subject
  */
 export async function publishPostStatus(
   companyId: string,
+  connectionId: string,
   statusType: StatusType,
   userId: string,
   content?: string,
@@ -451,13 +495,14 @@ export async function publishPostStatus(
   const command: PostStatusCommand = {
     type: "post_status",
     company_id: companyId,
+    connection_id: connectionId,
     status_type: statusType,
     content,
     media_url: mediaUrl,
     user_id: userId,
   };
-  // Publish to company-specific subject so worker can filter
-  const subject = `${NATS_SUBJECTS.WHATSAPP_COMMANDS}.${companyId}`;
+  // Publish to company/connection-specific subject so worker can filter
+  const subject = buildCommandSubject(companyId, connectionId);
   await publishCommand(subject, command);
 }
 
@@ -466,6 +511,7 @@ export async function publishPostStatus(
  */
 export async function publishGroupPromoteAdmin(
   companyId: string,
+  connectionId: string,
   groupJid: string,
   participantJid: string,
   userId: string,
@@ -473,11 +519,12 @@ export async function publishGroupPromoteAdmin(
   const command: GroupPromoteAdminCommand = {
     type: "group_promote_admin",
     company_id: companyId,
+    connection_id: connectionId,
     group_jid: groupJid,
     participant_jid: participantJid,
     user_id: userId,
   };
-  const subject = `${NATS_SUBJECTS.WHATSAPP_COMMANDS}.${companyId}`;
+  const subject = buildCommandSubject(companyId, connectionId);
   await publishCommand(subject, command);
 }
 
@@ -486,6 +533,7 @@ export async function publishGroupPromoteAdmin(
  */
 export async function publishGroupDemoteAdmin(
   companyId: string,
+  connectionId: string,
   groupJid: string,
   participantJid: string,
   userId: string,
@@ -493,11 +541,12 @@ export async function publishGroupDemoteAdmin(
   const command: GroupDemoteAdminCommand = {
     type: "group_demote_admin",
     company_id: companyId,
+    connection_id: connectionId,
     group_jid: groupJid,
     participant_jid: participantJid,
     user_id: userId,
   };
-  const subject = `${NATS_SUBJECTS.WHATSAPP_COMMANDS}.${companyId}`;
+  const subject = buildCommandSubject(companyId, connectionId);
   await publishCommand(subject, command);
 }
 
@@ -506,6 +555,7 @@ export async function publishGroupDemoteAdmin(
  */
 export async function publishGroupRemoveParticipant(
   companyId: string,
+  connectionId: string,
   groupJid: string,
   participantJid: string,
   userId: string,
@@ -513,11 +563,12 @@ export async function publishGroupRemoveParticipant(
   const command: GroupRemoveParticipantCommand = {
     type: "group_remove_participant",
     company_id: companyId,
+    connection_id: connectionId,
     group_jid: groupJid,
     participant_jid: participantJid,
     user_id: userId,
   };
-  const subject = `${NATS_SUBJECTS.WHATSAPP_COMMANDS}.${companyId}`;
+  const subject = buildCommandSubject(companyId, connectionId);
   await publishCommand(subject, command);
 }
 
@@ -526,6 +577,7 @@ export async function publishGroupRemoveParticipant(
  */
 export async function publishGroupUpdateSettings(
   companyId: string,
+  connectionId: string,
   groupJid: string,
   userId: string,
   name?: string,
@@ -534,12 +586,13 @@ export async function publishGroupUpdateSettings(
   const command: GroupUpdateSettingsCommand = {
     type: "group_update_settings",
     company_id: companyId,
+    connection_id: connectionId,
     group_jid: groupJid,
     user_id: userId,
     name,
     description,
   };
-  const subject = `${NATS_SUBJECTS.WHATSAPP_COMMANDS}.${companyId}`;
+  const subject = buildCommandSubject(companyId, connectionId);
   await publishCommand(subject, command);
 }
 
@@ -548,14 +601,16 @@ export async function publishGroupUpdateSettings(
  */
 export async function publishSyncLabels(
   companyId: string,
+  connectionId: string,
   userId: string,
 ): Promise<void> {
   const command: SyncLabelsCommand = {
     type: "sync_labels",
     company_id: companyId,
+    connection_id: connectionId,
     user_id: userId,
   };
-  const subject = `${NATS_SUBJECTS.WHATSAPP_COMMANDS}.${companyId}`;
+  const subject = buildCommandSubject(companyId, connectionId);
   await publishCommand(subject, command);
 }
 
@@ -564,6 +619,7 @@ export async function publishSyncLabels(
  */
 export async function publishApplyLabel(
   companyId: string,
+  connectionId: string,
   labelId: string,
   contactJid: string,
   userId: string,
@@ -571,11 +627,12 @@ export async function publishApplyLabel(
   const command: ApplyLabelCommand = {
     type: "apply_label",
     company_id: companyId,
+    connection_id: connectionId,
     label_id: labelId,
     contact_jid: contactJid,
     user_id: userId,
   };
-  const subject = `${NATS_SUBJECTS.WHATSAPP_COMMANDS}.${companyId}`;
+  const subject = buildCommandSubject(companyId, connectionId);
   await publishCommand(subject, command);
 }
 
@@ -584,6 +641,7 @@ export async function publishApplyLabel(
  */
 export async function publishRemoveLabel(
   companyId: string,
+  connectionId: string,
   labelId: string,
   contactJid: string,
   userId: string,
@@ -591,23 +649,38 @@ export async function publishRemoveLabel(
   const command: RemoveLabelCommand = {
     type: "remove_label",
     company_id: companyId,
+    connection_id: connectionId,
     label_id: labelId,
     contact_jid: contactJid,
     user_id: userId,
   };
-  const subject = `${NATS_SUBJECTS.WHATSAPP_COMMANDS}.${companyId}`;
+  const subject = buildCommandSubject(companyId, connectionId);
   await publishCommand(subject, command);
 }
 
 /**
- * Subscribes to a NATS subject
+ * Subscribes to a NATS subject using JetStream for event streams
+ * This ensures we receive messages published via JetStream
  */
 export async function subscribe(
   subject: string,
   callback: (event: WhatsAppEvent) => void | Promise<void>,
-): Promise<Subscription> {
+): Promise<JetStreamSubscription> {
+  const js = await getJetStreamClient();
   const nc = await getNatsConnection();
-  const subscription = nc.subscribe(subject);
+
+  // Create an ephemeral push consumer with a unique deliver subject
+  // This allows receiving messages published to JetStream
+  const inbox = nc.options.inboxPrefix + "." + Date.now() + "." + Math.random().toString(36).substring(7);
+
+  const subscription = await js.subscribe(subject, {
+    config: {
+      deliver_policy: "new",
+      ack_policy: "none",
+      replay_policy: "instant",
+      deliver_subject: inbox,
+    },
+  } as nats.ConsumerOptsBuilder);
 
   (async () => {
     for await (const msg of subscription) {
@@ -625,20 +698,35 @@ export async function subscribe(
     console.error(`[NATS] Subscription error for ${subject}:`, err);
   });
 
-  console.log(`[NATS] Subscribed to ${subject}`);
+  console.log(`[NATS] Subscribed to ${subject} via JetStream`);
   return subscription;
 }
 
 /**
  * Subscribes to WhatsApp events for a specific company
- * Uses wildcard to match all event types (qr, status, message, etc.)
+ * Uses wildcard to match all connections and event types (qr, status, message, etc.)
  */
 export async function subscribeToCompanyEvents(
   companyId: string,
   callback: (event: WhatsAppEvent) => void | Promise<void>,
-): Promise<Subscription> {
-  // Subscribe to WHATSAPP.events.{companyId}.> to match qr, status, message, etc.
+): Promise<JetStreamSubscription> {
+  // Subscribe to WHATSAPP.events.{companyId}.> to match all connections and event types
   return subscribe(`${NATS_SUBJECTS.WHATSAPP_EVENTS}.${companyId}.>`, callback);
+}
+
+/**
+ * Subscribes to WhatsApp events for a specific connection
+ */
+export async function subscribeToConnectionEvents(
+  companyId: string,
+  connectionId: string,
+  callback: (event: WhatsAppEvent) => void | Promise<void>,
+): Promise<JetStreamSubscription> {
+  // Subscribe to WHATSAPP.events.{companyId}.{connectionId}.> to match all event types for this connection
+  return subscribe(
+    `${NATS_SUBJECTS.WHATSAPP_EVENTS}.${companyId}.${connectionId}.>`,
+    callback,
+  );
 }
 
 /**
@@ -646,8 +734,8 @@ export async function subscribeToCompanyEvents(
  */
 export async function subscribeToAllEvents(
   callback: (event: WhatsAppEvent) => void | Promise<void>,
-): Promise<Subscription> {
-  // Use > wildcard to match all companies and event types
+): Promise<JetStreamSubscription> {
+  // Use > wildcard to match all companies, connections and event types
   return subscribe(`${NATS_SUBJECTS.WHATSAPP_EVENTS}.>`, callback);
 }
 
@@ -689,14 +777,16 @@ export async function request<T>(
  */
 export async function publishSyncCatalogs(
   companyId: string,
+  connectionId: string,
   userId: string,
 ): Promise<void> {
   const command: SyncCatalogsCommand = {
     type: "sync_catalogs",
     company_id: companyId,
+    connection_id: connectionId,
     user_id: userId,
   };
-  const subject = `${NATS_SUBJECTS.WHATSAPP_COMMANDS}.${companyId}`;
+  const subject = buildCommandSubject(companyId, connectionId);
   await publishCommand(subject, command);
 }
 
@@ -705,15 +795,17 @@ export async function publishSyncCatalogs(
  */
 export async function publishSyncCatalogProducts(
   companyId: string,
+  connectionId: string,
   catalogId: string,
   userId: string,
 ): Promise<void> {
   const command: SyncCatalogProductsCommand = {
     type: "sync_catalog_products",
     company_id: companyId,
+    connection_id: connectionId,
     catalog_id: catalogId,
     user_id: userId,
   };
-  const subject = `${NATS_SUBJECTS.WHATSAPP_COMMANDS}.${companyId}`;
+  const subject = buildCommandSubject(companyId, connectionId);
   await publishCommand(subject, command);
 }

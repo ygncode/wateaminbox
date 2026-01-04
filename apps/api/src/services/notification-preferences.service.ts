@@ -199,6 +199,8 @@ export async function unmuteContact(
   }
 
   return updateNotificationPreferences(companyId, userId, {
-    mutedContacts: preferences.mutedContacts.filter((jid) => jid !== contactJid),
+    mutedContacts: preferences.mutedContacts.filter(
+      (jid) => jid !== contactJid,
+    ),
   });
 }

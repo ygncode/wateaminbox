@@ -352,6 +352,9 @@ func (h *Handler) handleHistorySync(evt *events.HistorySync) {
 	conversations := evt.Data.GetConversations()
 	log.Printf("History sync received: %d conversations", len(conversations))
 
+	// Track stats for logging
+	var totalMessages, mediaDownloaded, mediaFailed int
+
 	for _, conv := range conversations {
 		jid := conv.GetID()
 		if jid == "" {
@@ -384,6 +387,8 @@ func (h *Handler) handleHistorySync(evt *events.HistorySync) {
 			if msg == nil || msg.Message == nil {
 				continue
 			}
+
+			totalMessages++
 
 			// Build message event
 			msgEvent := natsClient.MessageEvent{
@@ -424,7 +429,12 @@ func (h *Handler) handleHistorySync(evt *events.HistorySync) {
 				if waMsg.ImageMessage.Mimetype != nil {
 					msgEvent.MediaType = *waMsg.ImageMessage.Mimetype
 				}
-				// Note: we don't download media for history sync to avoid overloading
+				// Download media with rate limiting
+				if h.downloadHistoryMedia(waMsg.ImageMessage, &msgEvent) {
+					mediaDownloaded++
+				} else {
+					mediaFailed++
+				}
 			}
 
 			// Video message
@@ -436,6 +446,12 @@ func (h *Handler) handleHistorySync(evt *events.HistorySync) {
 				if waMsg.VideoMessage.Mimetype != nil {
 					msgEvent.MediaType = *waMsg.VideoMessage.Mimetype
 				}
+				// Download media with rate limiting
+				if h.downloadHistoryMedia(waMsg.VideoMessage, &msgEvent) {
+					mediaDownloaded++
+				} else {
+					mediaFailed++
+				}
 			}
 
 			// Audio message
@@ -443,6 +459,12 @@ func (h *Handler) handleHistorySync(evt *events.HistorySync) {
 				msgEvent.Type = "audio"
 				if waMsg.AudioMessage.Mimetype != nil {
 					msgEvent.MediaType = *waMsg.AudioMessage.Mimetype
+				}
+				// Download media with rate limiting
+				if h.downloadHistoryMedia(waMsg.AudioMessage, &msgEvent) {
+					mediaDownloaded++
+				} else {
+					mediaFailed++
 				}
 			}
 
@@ -458,6 +480,12 @@ func (h *Handler) handleHistorySync(evt *events.HistorySync) {
 				if waMsg.DocumentMessage.Mimetype != nil {
 					msgEvent.MediaType = *waMsg.DocumentMessage.Mimetype
 				}
+				// Download media with rate limiting
+				if h.downloadHistoryMedia(waMsg.DocumentMessage, &msgEvent) {
+					mediaDownloaded++
+				} else {
+					mediaFailed++
+				}
 			}
 
 			// Sticker message
@@ -465,6 +493,12 @@ func (h *Handler) handleHistorySync(evt *events.HistorySync) {
 				msgEvent.Type = "sticker"
 				if waMsg.StickerMessage.Mimetype != nil {
 					msgEvent.MediaType = *waMsg.StickerMessage.Mimetype
+				}
+				// Download media with rate limiting
+				if h.downloadHistoryMedia(waMsg.StickerMessage, &msgEvent) {
+					mediaDownloaded++
+				} else {
+					mediaFailed++
 				}
 			}
 
@@ -482,7 +516,57 @@ func (h *Handler) handleHistorySync(evt *events.HistorySync) {
 		}
 	}
 
-	log.Printf("History sync processing complete")
+	log.Printf("History sync complete: %d messages, %d media downloaded, %d media failed",
+		totalMessages, mediaDownloaded, mediaFailed)
+}
+
+// downloadHistoryMedia downloads media from history sync with rate limiting.
+// Returns true if download was successful, false otherwise.
+func (h *Handler) downloadHistoryMedia(downloadable whatsmeow.DownloadableMessage, event *natsClient.MessageEvent) bool {
+	if h.config.Client == nil {
+		log.Println("Client not available for history media download")
+		return false
+	}
+
+	if h.config.Storage == nil {
+		log.Println("Storage not configured, skipping history media download")
+		return false
+	}
+
+	// Create a context with timeout for media download and upload
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	// Download the media
+	data, err := h.config.Client.DownloadMedia(ctx, downloadable)
+	if err != nil {
+		log.Printf("Failed to download history media: %v", err)
+		return false
+	}
+
+	log.Printf("Downloaded history media: %d bytes, type: %s", len(data), event.MediaType)
+
+	// Upload to storage
+	var mediaURL string
+	if event.FileName != "" {
+		mediaURL, err = h.config.Storage.UploadMediaWithFilename(ctx, data, event.MediaType, h.config.CompanyID, event.FileName)
+	} else {
+		mediaURL, err = h.config.Storage.UploadMedia(ctx, data, event.MediaType, h.config.CompanyID)
+	}
+
+	if err != nil {
+		log.Printf("Failed to upload history media to storage: %v", err)
+		return false
+	}
+
+	event.MediaURL = mediaURL
+	event.MediaSize = int64(len(data))
+	log.Printf("History media uploaded: %s", mediaURL)
+
+	// Rate limiting: small delay between media downloads to avoid overwhelming
+	time.Sleep(100 * time.Millisecond)
+
+	return true
 }
 
 // handleStreamReplaced is called when the stream is replaced (logged in elsewhere).

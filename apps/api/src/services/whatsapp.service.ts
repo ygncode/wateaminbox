@@ -6,6 +6,10 @@ import {
   publishSendMessage,
 } from "../lib/nats.js";
 import { env } from "../lib/env.js";
+import { db } from "@whatsapp-web/database";
+
+// Default max connections if not specified in company settings
+const DEFAULT_MAX_CONNECTIONS = 5;
 
 // Types
 export interface WhatsAppConnection {
@@ -37,8 +41,8 @@ export interface SendMessageInput {
 
 // Error classes
 export class ConnectionNotFoundError extends Error {
-  constructor(companyId: string) {
-    super(`WhatsApp connection not found for company ${companyId}`);
+  constructor(connectionId: string) {
+    super(`WhatsApp connection ${connectionId} not found`);
     this.name = "ConnectionNotFoundError";
   }
 }
@@ -57,33 +61,133 @@ export class InvalidConnectionStateError extends Error {
   }
 }
 
+export class MaxConnectionsExceededError extends Error {
+  currentCount: number;
+  maxAllowed: number;
+
+  constructor(currentCount: number, maxAllowed: number) {
+    super(
+      `Maximum WhatsApp connections exceeded. Current: ${currentCount}, Max allowed: ${maxAllowed}`,
+    );
+    this.name = "MaxConnectionsExceededError";
+    this.currentCount = currentCount;
+    this.maxAllowed = maxAllowed;
+  }
+}
+
+/**
+ * Gets the maximum allowed WhatsApp connections for a company
+ */
+async function getMaxConnections(companyId: string): Promise<number> {
+  const company = await db
+    .selectFrom("companies" as any)
+    .select(["max_whatsapp_connections"])
+    .where("id", "=", companyId)
+    .executeTakeFirst();
+
+  return company?.max_whatsapp_connections ?? DEFAULT_MAX_CONNECTIONS;
+}
+
+/**
+ * Lists all WhatsApp connections for a company
+ */
+export async function listConnections(
+  tenantDb: Kysely<TenantDatabase>,
+): Promise<WhatsAppConnection[]> {
+  const connections = await tenantDb
+    .selectFrom("whatsapp_connections")
+    .select([
+      "id",
+      "phone_number",
+      "jid",
+      "status",
+      "connected_by",
+      "connected_at",
+      "last_sync_at",
+      "created_at",
+      "updated_at",
+    ])
+    .orderBy("created_at", "desc")
+    .execute();
+
+  return connections.map((conn) => ({
+    id: conn.id,
+    phoneNumber: conn.phone_number,
+    jid: conn.jid,
+    status: conn.status,
+    connectedBy: conn.connected_by,
+    connectedAt: conn.connected_at,
+    lastSyncAt: conn.last_sync_at,
+    createdAt: conn.created_at,
+    updatedAt: conn.updated_at,
+  }));
+}
+
+/**
+ * Gets a specific WhatsApp connection by ID
+ */
+export async function getConnection(
+  tenantDb: Kysely<TenantDatabase>,
+  connectionId: string,
+): Promise<WhatsAppConnection> {
+  const connection = await tenantDb
+    .selectFrom("whatsapp_connections")
+    .select([
+      "id",
+      "phone_number",
+      "jid",
+      "status",
+      "connected_by",
+      "connected_at",
+      "last_sync_at",
+      "created_at",
+      "updated_at",
+    ])
+    .where("id", "=", connectionId)
+    .executeTakeFirst();
+
+  if (!connection) {
+    throw new ConnectionNotFoundError(connectionId);
+  }
+
+  return {
+    id: connection.id,
+    phoneNumber: connection.phone_number,
+    jid: connection.jid,
+    status: connection.status,
+    connectedBy: connection.connected_by,
+    connectedAt: connection.connected_at,
+    lastSyncAt: connection.last_sync_at,
+    createdAt: connection.created_at,
+    updatedAt: connection.updated_at,
+  };
+}
+
 /**
  * Spawns a new WhatsApp connection for a company
  * Creates a pending connection record and publishes spawn command to NATS
+ * Supports multiple connections per company up to max_whatsapp_connections limit
  */
 export async function spawnConnection(
   tenantDb: Kysely<TenantDatabase>,
   companyId: string,
-  userId: string
+  userId: string,
 ): Promise<{ connectionId: string; wsUrl: string }> {
-  // Check if there's already an active connection
-  const existing = await tenantDb
+  // Get max connections limit for this company
+  const maxConnections = await getMaxConnections(companyId);
+
+  // Count current active connections (connected or pending)
+  const activeConnections = await tenantDb
     .selectFrom("whatsapp_connections")
-    .select(["id", "status"])
+    .select(({ fn }) => [fn.count<number>("id").as("count")])
     .where("status", "in", ["connected", "pending"])
     .executeTakeFirst();
 
-  if (existing) {
-    if (existing.status === "connected") {
-      throw new ConnectionAlreadyExistsError(companyId);
-    }
-    // If pending, republish spawn command and return existing connection info
-    // This handles retries when the previous spawn didn't complete
-    await publishSpawnCommand(companyId, env.DATABASE_URL);
-    return {
-      connectionId: existing.id,
-      wsUrl: `/ws?company=${companyId}`,
-    };
+  const currentCount = Number(activeConnections?.count ?? 0);
+
+  // Check if we've reached the limit
+  if (currentCount >= maxConnections) {
+    throw new MaxConnectionsExceededError(currentCount, maxConnections);
   }
 
   // Create a new pending connection record
@@ -100,31 +204,33 @@ export async function spawnConnection(
     })
     .execute();
 
-  // Publish spawn command to NATS
-  await publishSpawnCommand(companyId, env.DATABASE_URL);
+  // Publish spawn command to NATS with connectionId
+  await publishSpawnCommand(companyId, connectionId, env.DATABASE_URL);
 
   return {
     connectionId,
-    wsUrl: `/ws?company=${companyId}`,
+    wsUrl: `/ws?company=${companyId}&connection=${connectionId}`,
   };
 }
 
 /**
- * Kills/disconnects a WhatsApp connection for a company
+ * Kills/disconnects a specific WhatsApp connection
  */
 export async function killConnection(
   tenantDb: Kysely<TenantDatabase>,
-  companyId: string
+  companyId: string,
+  connectionId: string,
 ): Promise<void> {
-  // Get current connection
+  // Get connection to verify it exists and is active
   const connection = await tenantDb
     .selectFrom("whatsapp_connections")
     .select(["id", "status"])
+    .where("id", "=", connectionId)
     .where("status", "in", ["connected", "pending"])
     .executeTakeFirst();
 
   if (!connection) {
-    throw new ConnectionNotFoundError(companyId);
+    throw new ConnectionNotFoundError(connectionId);
   }
 
   // Update status to disconnected
@@ -134,20 +240,21 @@ export async function killConnection(
       status: "disconnected",
       updated_at: new Date(),
     })
-    .where("id", "=", connection.id)
+    .where("id", "=", connectionId)
     .execute();
 
-  // Publish kill command to NATS
-  await publishKillCommand(companyId);
+  // Publish kill command to NATS with connectionId
+  await publishKillCommand(companyId, connectionId);
 }
 
 /**
- * Gets the current connection status for a company
+ * Gets the current connection status for a specific connection
  */
 export async function getConnectionStatus(
-  tenantDb: Kysely<TenantDatabase>
+  tenantDb: Kysely<TenantDatabase>,
+  connectionId?: string,
 ): Promise<ConnectionStatus> {
-  const connection = await tenantDb
+  let query = tenantDb
     .selectFrom("whatsapp_connections")
     .select([
       "id",
@@ -156,10 +263,16 @@ export async function getConnectionStatus(
       "status",
       "connected_at",
       "last_sync_at",
-    ])
-    .orderBy("created_at", "desc")
-    .limit(1)
-    .executeTakeFirst();
+    ]);
+
+  if (connectionId) {
+    query = query.where("id", "=", connectionId);
+  } else {
+    // For backward compatibility, get the most recent connection
+    query = query.orderBy("created_at", "desc").limit(1);
+  }
+
+  const connection = await query.executeTakeFirst();
 
   if (!connection) {
     return { status: "not_found" };
@@ -175,23 +288,41 @@ export async function getConnectionStatus(
 }
 
 /**
- * Sends a message via WhatsApp
+ * Sends a message via a specific WhatsApp connection
  */
 export async function sendMessage(
   tenantDb: Kysely<TenantDatabase>,
   companyId: string,
   userId: string,
-  input: SendMessageInput
+  input: SendMessageInput,
+  connectionId?: string,
 ): Promise<{ messageId: string }> {
-  // Verify connection is active
-  const connection = await tenantDb
-    .selectFrom("whatsapp_connections")
-    .select(["id", "status"])
-    .where("status", "=", "connected")
-    .executeTakeFirst();
+  // Get the connection to use
+  let connection;
 
-  if (!connection) {
-    throw new InvalidConnectionStateError("disconnected", "connected");
+  if (connectionId) {
+    // Use specific connection
+    connection = await tenantDb
+      .selectFrom("whatsapp_connections")
+      .select(["id", "status"])
+      .where("id", "=", connectionId)
+      .where("status", "=", "connected")
+      .executeTakeFirst();
+
+    if (!connection) {
+      throw new ConnectionNotFoundError(connectionId);
+    }
+  } else {
+    // For backward compatibility, use any connected connection
+    connection = await tenantDb
+      .selectFrom("whatsapp_connections")
+      .select(["id", "status"])
+      .where("status", "=", "connected")
+      .executeTakeFirst();
+
+    if (!connection) {
+      throw new InvalidConnectionStateError("disconnected", "connected");
+    }
   }
 
   // Create a pending message record
@@ -241,14 +372,15 @@ export async function sendMessage(
     })
     .execute();
 
-  // Publish send command to NATS
+  // Publish send command to NATS with connectionId
   await publishSendMessage(
     companyId,
+    connection.id,
     input.jid,
     input.content,
     input.messageType,
     userId,
-    input.mediaUrl
+    input.mediaUrl,
   );
 
   return { messageId };
@@ -260,14 +392,26 @@ export async function sendMessage(
 export async function updateConnectionStatus(
   tenantDb: Kysely<TenantDatabase>,
   status: "connected" | "disconnected" | "banned" | "pending",
+  connectionId?: string,
   phoneNumber?: string,
-  jid?: string
+  jid?: string,
 ): Promise<void> {
-  const connection = await tenantDb
-    .selectFrom("whatsapp_connections")
-    .select(["id"])
-    .where("status", "in", ["connected", "pending"])
-    .executeTakeFirst();
+  let connection;
+
+  if (connectionId) {
+    connection = await tenantDb
+      .selectFrom("whatsapp_connections")
+      .select(["id"])
+      .where("id", "=", connectionId)
+      .executeTakeFirst();
+  } else {
+    // For backward compatibility, get any pending connection
+    connection = await tenantDb
+      .selectFrom("whatsapp_connections")
+      .select(["id"])
+      .where("status", "in", ["connected", "pending"])
+      .executeTakeFirst();
+  }
 
   if (!connection) {
     // No connection to update
@@ -299,26 +443,31 @@ export async function updateConnectionStatus(
 }
 
 /**
- * Updates last sync timestamp
+ * Updates last sync timestamp for a specific connection
  */
 export async function updateLastSync(
-  tenantDb: Kysely<TenantDatabase>
+  tenantDb: Kysely<TenantDatabase>,
+  connectionId?: string,
 ): Promise<void> {
-  await tenantDb
-    .updateTable("whatsapp_connections")
-    .set({
-      last_sync_at: new Date(),
-      updated_at: new Date(),
-    })
-    .where("status", "=", "connected")
-    .execute();
+  let query = tenantDb.updateTable("whatsapp_connections").set({
+    last_sync_at: new Date(),
+    updated_at: new Date(),
+  });
+
+  if (connectionId) {
+    query = query.where("id", "=", connectionId);
+  } else {
+    query = query.where("status", "=", "connected");
+  }
+
+  await query.execute();
 }
 
 /**
- * Gets all active connections (for message handler startup)
+ * Gets the first active connection (for backward compatibility)
  */
 export async function getActiveConnection(
-  tenantDb: Kysely<TenantDatabase>
+  tenantDb: Kysely<TenantDatabase>,
 ): Promise<WhatsAppConnection | null> {
   const connection = await tenantDb
     .selectFrom("whatsapp_connections")
@@ -350,5 +499,65 @@ export async function getActiveConnection(
     lastSyncAt: connection.last_sync_at,
     createdAt: connection.created_at,
     updatedAt: connection.updated_at,
+  };
+}
+
+/**
+ * Gets all active connections for a company
+ */
+export async function getActiveConnections(
+  tenantDb: Kysely<TenantDatabase>,
+): Promise<WhatsAppConnection[]> {
+  const connections = await tenantDb
+    .selectFrom("whatsapp_connections")
+    .select([
+      "id",
+      "phone_number",
+      "jid",
+      "status",
+      "connected_by",
+      "connected_at",
+      "last_sync_at",
+      "created_at",
+      "updated_at",
+    ])
+    .where("status", "=", "connected")
+    .orderBy("created_at", "asc")
+    .execute();
+
+  return connections.map((conn) => ({
+    id: conn.id,
+    phoneNumber: conn.phone_number,
+    jid: conn.jid,
+    status: conn.status,
+    connectedBy: conn.connected_by,
+    connectedAt: conn.connected_at,
+    lastSyncAt: conn.last_sync_at,
+    createdAt: conn.created_at,
+    updatedAt: conn.updated_at,
+  }));
+}
+
+/**
+ * Gets connection limits info for a company
+ */
+export async function getConnectionLimits(
+  tenantDb: Kysely<TenantDatabase>,
+  companyId: string,
+): Promise<{ current: number; max: number; available: number }> {
+  const maxConnections = await getMaxConnections(companyId);
+
+  const activeConnections = await tenantDb
+    .selectFrom("whatsapp_connections")
+    .select(({ fn }) => [fn.count<number>("id").as("count")])
+    .where("status", "in", ["connected", "pending"])
+    .executeTakeFirst();
+
+  const current = Number(activeConnections?.count ?? 0);
+
+  return {
+    current,
+    max: maxConnections,
+    available: Math.max(0, maxConnections - current),
   };
 }

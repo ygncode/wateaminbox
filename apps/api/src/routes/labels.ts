@@ -28,11 +28,21 @@ labelRoutes.use("/*", tenantMiddleware());
 labelRoutes.get("/", async (c) => {
   const tenantDb = c.get("tenantDb");
 
-  const labels = await getWhatsAppLabels(tenantDb);
+  try {
+    const labels = await getWhatsAppLabels(tenantDb);
 
-  return c.json({
-    data: labels,
-  });
+    return c.json({
+      data: labels,
+    });
+  } catch (error) {
+    // Handle missing table or database errors gracefully
+    if (error instanceof Error && error.message.includes("does not exist")) {
+      return c.json({
+        data: [],
+      });
+    }
+    throw error;
+  }
 });
 
 /**
@@ -41,9 +51,24 @@ labelRoutes.get("/", async (c) => {
 labelRoutes.get("/status", async (c) => {
   const tenantDb = c.get("tenantDb");
 
-  const status = await getLabelSyncStatus(tenantDb);
+  try {
+    const status = await getLabelSyncStatus(tenantDb);
 
-  return c.json(status);
+    return c.json(status);
+  } catch (error) {
+    // Handle missing table or database errors gracefully
+    if (error instanceof Error && error.message.includes("does not exist")) {
+      return c.json({
+        totalLabels: 0,
+        linkedLabels: 0,
+        unlinkedLabels: 0,
+        totalTags: 0,
+        linkedTags: 0,
+        lastSyncAt: null,
+      });
+    }
+    throw error;
+  }
 });
 
 /**
@@ -86,7 +111,7 @@ labelRoutes.post("/sync", async (c) => {
   }
 
   // Publish sync command to NATS
-  await publishSyncLabels(companyId, user.id);
+  await publishSyncLabels(companyId, connection.id, user.id);
 
   return c.json({
     message: "Label sync initiated. Labels will be updated shortly.",
@@ -167,11 +192,21 @@ labelRoutes.post("/auto-create", async (c) => {
 labelRoutes.get("/tags/with-status", async (c) => {
   const tenantDb = c.get("tenantDb");
 
-  const tags = await getTagsWithLabelStatus(tenantDb);
+  try {
+    const tags = await getTagsWithLabelStatus(tenantDb);
 
-  return c.json({
-    data: tags,
-  });
+    return c.json({
+      data: tags,
+    });
+  } catch (error) {
+    // Handle missing table or database errors gracefully
+    if (error instanceof Error && error.message.includes("does not exist")) {
+      return c.json({
+        data: [],
+      });
+    }
+    throw error;
+  }
 });
 
 /**
@@ -218,7 +253,7 @@ labelRoutes.post("/:labelId/apply/:contactId", async (c) => {
   }
 
   // Publish apply label command to NATS
-  await publishApplyLabel(companyId, labelId, contact.jid, user.id);
+  await publishApplyLabel(companyId, connection.id, labelId, contact.jid, user.id);
 
   // If the label is linked to a tag, also add the tag to the contact locally
   if (label.syncedTagId) {
@@ -291,7 +326,7 @@ labelRoutes.delete("/:labelId/apply/:contactId", async (c) => {
   }
 
   // Publish remove label command to NATS
-  await publishRemoveLabel(companyId, labelId, contact.jid, user.id);
+  await publishRemoveLabel(companyId, connection.id, labelId, contact.jid, user.id);
 
   // If the label is linked to a tag, also remove the tag from the contact locally
   if (label.syncedTagId) {

@@ -576,6 +576,130 @@ export async function getWhatsAppStatus(): Promise<WhatsAppConnectionStatus> {
   return fetchWithAuth<WhatsAppConnectionStatus>("/whatsapp/status");
 }
 
+// =====================
+// WhatsApp Multi-Connection API
+// =====================
+
+export type WhatsAppConnectionStatusType = "disconnected" | "pending" | "connected" | "error";
+
+export interface WhatsAppConnection {
+  id: string;
+  name: string;
+  status: WhatsAppConnectionStatusType;
+  phoneNumber?: string;
+  jid?: string;
+  connectedAt?: string;
+  lastSync?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface WhatsAppConnectionsListResponse {
+  data: WhatsAppConnection[];
+  meta: {
+    total: number;
+  };
+}
+
+export interface CreateWhatsAppConnectionResponse {
+  data: WhatsAppConnection;
+  message: string;
+  websocketUrl: string;
+}
+
+export interface WhatsAppConnectionDetailResponse {
+  data: WhatsAppConnection;
+}
+
+/**
+ * List all WhatsApp connections for the current company
+ */
+export async function listWhatsAppConnections(): Promise<WhatsAppConnection[]> {
+  const response = await fetchWithAuth<WhatsAppConnectionsListResponse>("/whatsapp/connections");
+  return response.data;
+}
+
+/**
+ * Get a specific WhatsApp connection by ID
+ */
+export async function getWhatsAppConnection(connectionId: string): Promise<WhatsAppConnection> {
+  const response = await fetchWithAuth<WhatsAppConnectionDetailResponse>(
+    `/whatsapp/connections/${connectionId}`
+  );
+  return response.data;
+}
+
+/**
+ * Create a new WhatsApp connection and initiate the pairing process
+ */
+export async function createWhatsAppConnection(
+  name?: string
+): Promise<CreateWhatsAppConnectionResponse> {
+  return fetchWithAuth<CreateWhatsAppConnectionResponse>("/whatsapp/connections", {
+    method: "POST",
+    body: JSON.stringify({ name }),
+  });
+}
+
+/**
+ * Reconnect an existing disconnected WhatsApp connection
+ */
+export async function reconnectWhatsAppConnection(
+  connectionId: string
+): Promise<{ message: string; websocketUrl: string }> {
+  return fetchWithAuth<{ message: string; websocketUrl: string }>(
+    `/whatsapp/connections/${connectionId}/reconnect`,
+    {
+      method: "POST",
+    }
+  );
+}
+
+/**
+ * Disconnect a specific WhatsApp connection
+ */
+export async function disconnectWhatsAppConnection(
+  connectionId: string
+): Promise<{ message: string }> {
+  return fetchWithAuth<{ message: string }>(
+    `/whatsapp/connections/${connectionId}/disconnect`,
+    {
+      method: "POST",
+    }
+  );
+}
+
+/**
+ * Delete a WhatsApp connection permanently
+ */
+export async function deleteWhatsAppConnection(
+  connectionId: string
+): Promise<{ message: string }> {
+  return fetchWithAuth<{ message: string }>(
+    `/whatsapp/connections/${connectionId}`,
+    {
+      method: "DELETE",
+    }
+  );
+}
+
+/**
+ * Update a WhatsApp connection (e.g., rename)
+ */
+export async function updateWhatsAppConnection(
+  connectionId: string,
+  data: { name?: string }
+): Promise<WhatsAppConnection> {
+  const response = await fetchWithAuth<WhatsAppConnectionDetailResponse>(
+    `/whatsapp/connections/${connectionId}`,
+    {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    }
+  );
+  return response.data;
+}
+
 export async function sendWhatsAppMessage(
   jid: string,
   content: string,

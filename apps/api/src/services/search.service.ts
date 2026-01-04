@@ -185,9 +185,19 @@ export async function searchMessages(
 export async function searchContacts(
   companyId: string,
   query: string,
-  options: { limit?: number; offset?: number; includeGroups?: boolean; useMeilisearch?: boolean } = {},
+  options: {
+    limit?: number;
+    offset?: number;
+    includeGroups?: boolean;
+    useMeilisearch?: boolean;
+  } = {},
 ): Promise<{ results: ContactSearchResult[]; total: number }> {
-  const { limit = 50, offset = 0, includeGroups = true, useMeilisearch } = options;
+  const {
+    limit = 50,
+    offset = 0,
+    includeGroups = true,
+    useMeilisearch,
+  } = options;
 
   // Try Meilisearch first if available
   const shouldUseMeilisearch =
@@ -253,7 +263,9 @@ export async function searchContacts(
   // Get total count
   let countQuery = tenantDb
     .selectFrom("contacts")
-    .select((eb: ExpressionBuilder<TenantDatabase, "contacts">) => eb.fn.count("id").as("total"))
+    .select((eb: ExpressionBuilder<TenantDatabase, "contacts">) =>
+      eb.fn.count("id").as("total"),
+    )
     .where((eb: ExpressionBuilder<TenantDatabase, "contacts">) =>
       eb.or([
         eb("push_name", "ilike", searchPattern),

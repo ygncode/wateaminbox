@@ -194,9 +194,7 @@ export async function importContacts(
     .select(["id", "name"])
     .execute();
 
-  const tagMap = new Map(
-    existingTags.map((t) => [t.name.toLowerCase(), t.id]),
-  );
+  const tagMap = new Map(existingTags.map((t) => [t.name.toLowerCase(), t.id]));
 
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];

@@ -1,6 +1,9 @@
 import { Kysely, sql, PostgresDialect } from "kysely";
 import { Pool } from "pg";
-import { TenantDatabase as TenantDatabaseType, getTenantSchemaName } from "@whatsapp-web/database";
+import {
+  TenantDatabase as TenantDatabaseType,
+  getTenantSchemaName,
+} from "@whatsapp-web/database";
 
 export type TenantDatabase = TenantDatabaseType;
 
@@ -147,8 +150,10 @@ export async function createTenantSchema(companyId: string): Promise<void> {
     await sql`
       CREATE TABLE IF NOT EXISTS ${sql.ref(schemaName)}.tags (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        name VARCHAR(50) NOT NULL,
+        name VARCHAR(100) NOT NULL,
         color VARCHAR(7),
+        whatsapp_label_id VARCHAR(100),
+        synced_at TIMESTAMP,
         created_by UUID,
         created_at TIMESTAMP DEFAULT NOW()
       )
@@ -283,11 +288,122 @@ export async function createTenantSchema(companyId: string): Promise<void> {
       )
     `.execute(db);
 
+    // Notification history table
+    await sql`
+      CREATE TABLE IF NOT EXISTS ${sql.ref(schemaName)}.notification_history (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id UUID NOT NULL,
+        notification_type VARCHAR(50) NOT NULL,
+        title VARCHAR(255) NOT NULL,
+        message TEXT,
+        action_url TEXT,
+        metadata JSONB,
+        is_read BOOLEAN DEFAULT FALSE,
+        read_at TIMESTAMP,
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    `.execute(db);
+
+    // Quick replies table
+    await sql`
+      CREATE TABLE IF NOT EXISTS ${sql.ref(schemaName)}.quick_replies (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        shortcut VARCHAR(50) NOT NULL,
+        title VARCHAR(255) NOT NULL,
+        content TEXT NOT NULL,
+        created_by UUID NOT NULL,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      )
+    `.execute(db);
+
+    // WhatsApp labels table
+    await sql`
+      CREATE TABLE IF NOT EXISTS ${sql.ref(schemaName)}.whatsapp_labels (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        label_id VARCHAR(100) NOT NULL UNIQUE,
+        name VARCHAR(100) NOT NULL,
+        color VARCHAR(20),
+        predefined_id INTEGER,
+        synced_tag_id UUID,
+        last_synced_at TIMESTAMP DEFAULT NOW(),
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      )
+    `.execute(db);
+
+    // WhatsApp catalogs table
+    await sql`
+      CREATE TABLE IF NOT EXISTS ${sql.ref(schemaName)}.whatsapp_catalogs (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        catalog_id VARCHAR(100) NOT NULL UNIQUE,
+        name VARCHAR(255) NOT NULL,
+        description TEXT,
+        currency VARCHAR(10) DEFAULT 'USD',
+        status VARCHAR(20) DEFAULT 'active',
+        business_jid VARCHAR(100),
+        header_image_url TEXT,
+        product_count INTEGER DEFAULT 0,
+        last_synced_at TIMESTAMP DEFAULT NOW(),
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      )
+    `.execute(db);
+
+    // Catalog products table
+    await sql`
+      CREATE TABLE IF NOT EXISTS ${sql.ref(schemaName)}.catalog_products (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        product_id VARCHAR(100) NOT NULL,
+        catalog_id VARCHAR(100) NOT NULL,
+        name VARCHAR(255) NOT NULL,
+        description TEXT,
+        price DECIMAL(12, 2),
+        currency VARCHAR(10) DEFAULT 'USD',
+        image_urls TEXT[],
+        sku VARCHAR(100),
+        category VARCHAR(255),
+        availability VARCHAR(50) DEFAULT 'in_stock',
+        visibility VARCHAR(20) DEFAULT 'visible',
+        url TEXT,
+        retailer_id VARCHAR(100),
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE(product_id, catalog_id)
+      )
+    `.execute(db);
+
     // Create indexes
-    await sql`CREATE INDEX IF NOT EXISTS idx_contacts_jid ON ${sql.ref(schemaName)}.contacts(jid)`.execute(db);
-    await sql`CREATE INDEX IF NOT EXISTS idx_messages_contact_id ON ${sql.ref(schemaName)}.messages(contact_id)`.execute(db);
-    await sql`CREATE INDEX IF NOT EXISTS idx_messages_timestamp ON ${sql.ref(schemaName)}.messages(timestamp)`.execute(db);
-    await sql`CREATE INDEX IF NOT EXISTS idx_messages_search ON ${sql.ref(schemaName)}.messages USING GIN(search_vector)`.execute(db);
+    await sql`CREATE INDEX IF NOT EXISTS idx_contacts_jid ON ${sql.ref(schemaName)}.contacts(jid)`.execute(
+      db,
+    );
+    await sql`CREATE INDEX IF NOT EXISTS idx_messages_contact_id ON ${sql.ref(schemaName)}.messages(contact_id)`.execute(
+      db,
+    );
+    await sql`CREATE INDEX IF NOT EXISTS idx_messages_timestamp ON ${sql.ref(schemaName)}.messages(timestamp)`.execute(
+      db,
+    );
+    await sql`CREATE INDEX IF NOT EXISTS idx_messages_search ON ${sql.ref(schemaName)}.messages USING GIN(search_vector)`.execute(
+      db,
+    );
+    await sql`CREATE INDEX IF NOT EXISTS idx_notification_history_user ON ${sql.ref(schemaName)}.notification_history(user_id)`.execute(
+      db,
+    );
+    await sql`CREATE INDEX IF NOT EXISTS idx_quick_replies_shortcut ON ${sql.ref(schemaName)}.quick_replies(shortcut)`.execute(
+      db,
+    );
+    await sql`CREATE INDEX IF NOT EXISTS idx_tags_label_id ON ${sql.ref(schemaName)}.tags(whatsapp_label_id)`.execute(
+      db,
+    );
+    await sql`CREATE INDEX IF NOT EXISTS idx_whatsapp_labels_label_id ON ${sql.ref(schemaName)}.whatsapp_labels(label_id)`.execute(
+      db,
+    );
+    await sql`CREATE INDEX IF NOT EXISTS idx_whatsapp_catalogs_catalog_id ON ${sql.ref(schemaName)}.whatsapp_catalogs(catalog_id)`.execute(
+      db,
+    );
+    await sql`CREATE INDEX IF NOT EXISTS idx_catalog_products_catalog_id ON ${sql.ref(schemaName)}.catalog_products(catalog_id)`.execute(
+      db,
+    );
 
     await db.destroy();
   } catch (error) {

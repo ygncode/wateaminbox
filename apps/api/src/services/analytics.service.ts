@@ -694,8 +694,14 @@ export async function getEngagementMetrics(
     .selectFrom("messages")
     .innerJoin("contacts", "contacts.id", "messages.contact_id")
     .select((eb) => [
-      eb.fn.count("messages.id").filterWhere("messages.from_me", "=", true).as("sent"),
-      eb.fn.count("messages.id").filterWhere("messages.from_me", "=", false).as("received"),
+      eb.fn
+        .count("messages.id")
+        .filterWhere("messages.from_me", "=", true)
+        .as("sent"),
+      eb.fn
+        .count("messages.id")
+        .filterWhere("messages.from_me", "=", false)
+        .as("received"),
     ])
     .where("contacts.is_group", "=", false)
     .where("messages.timestamp", ">=", startDate)
@@ -734,7 +740,12 @@ export async function getEngagementMetrics(
     .where("contacts.is_group", "=", false)
     .where("messages.timestamp", ">=", startDate)
     .where("messages.timestamp", "<=", endDate)
-    .where("messages.message_type", "in", ["image", "video", "audio", "document"])
+    .where("messages.message_type", "in", [
+      "image",
+      "video",
+      "audio",
+      "document",
+    ])
     .executeTakeFirst();
 
   const conversationsWithMedia = Number(mediaResult?.count || 0);
@@ -771,22 +782,30 @@ export async function getEngagementMetrics(
 
   const totalInbound = Number(responseRateResult.rows[0]?.total_inbound || 0);
   const respondedCount = Number(responseRateResult.rows[0]?.responded || 0);
-  const responseRate = totalInbound > 0 ? (respondedCount / totalInbound) * 100 : 0;
+  const responseRate =
+    totalInbound > 0 ? (respondedCount / totalInbound) * 100 : 0;
 
   // Calculate rates
-  const activeContactsRate = totalContacts > 0 ? (activeContacts / totalContacts) * 100 : 0;
-  const twoWayConversationRate = activeContacts > 0 ? (twoWayConversations / activeContacts) * 100 : 0;
-  const mediaEngagementRate = activeContacts > 0 ? (conversationsWithMedia / activeContacts) * 100 : 0;
-  const averageMessagesPerContact = activeContacts > 0 ? (messagesSent + messagesReceived) / activeContacts : 0;
+  const activeContactsRate =
+    totalContacts > 0 ? (activeContacts / totalContacts) * 100 : 0;
+  const twoWayConversationRate =
+    activeContacts > 0 ? (twoWayConversations / activeContacts) * 100 : 0;
+  const mediaEngagementRate =
+    activeContacts > 0 ? (conversationsWithMedia / activeContacts) * 100 : 0;
+  const averageMessagesPerContact =
+    activeContacts > 0 ? (messagesSent + messagesReceived) / activeContacts : 0;
 
   // Calculate engagement score (weighted average of key metrics)
   // Weights: Active rate (25%), Two-way rate (25%), Response rate (30%), Media rate (20%)
-  const engagementScore = Math.min(100, Math.round(
-    (activeContactsRate * 0.25) +
-    (twoWayConversationRate * 0.25) +
-    (responseRate * 0.30) +
-    (mediaEngagementRate * 0.20)
-  ));
+  const engagementScore = Math.min(
+    100,
+    Math.round(
+      activeContactsRate * 0.25 +
+        twoWayConversationRate * 0.25 +
+        responseRate * 0.3 +
+        mediaEngagementRate * 0.2,
+    ),
+  );
 
   return {
     engagementScore,
@@ -891,9 +910,10 @@ export async function getEngagementTrend(
   while (currentDate <= endDateNormalized) {
     const dateStr = currentDate.toISOString().split("T")[0];
     const found = dailyStats.rows.find((d) => {
-      const rowDate = d.date instanceof Date
-        ? d.date.toISOString().split("T")[0]
-        : String(d.date);
+      const rowDate =
+        d.date instanceof Date
+          ? d.date.toISOString().split("T")[0]
+          : String(d.date);
       return rowDate === dateStr;
     });
 
@@ -904,13 +924,16 @@ export async function getEngagementTrend(
       const responded = Number(found.responded);
       const totalInbound = Number(found.total_inbound);
 
-      const responseRate = totalInbound > 0 ? (responded / totalInbound) * 100 : 0;
-      const activeRate = totalContacts > 0 ? (activeContacts / totalContacts) * 100 : 0;
+      const responseRate =
+        totalInbound > 0 ? (responded / totalInbound) * 100 : 0;
+      const activeRate =
+        totalContacts > 0 ? (activeContacts / totalContacts) * 100 : 0;
 
       // Simplified daily engagement score
-      const engagementScore = Math.min(100, Math.round(
-        (activeRate * 0.5) + (responseRate * 0.5)
-      ));
+      const engagementScore = Math.min(
+        100,
+        Math.round(activeRate * 0.5 + responseRate * 0.5),
+      );
 
       result.push({
         date: dateStr,

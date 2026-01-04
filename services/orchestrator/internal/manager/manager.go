@@ -26,7 +26,7 @@ type Config struct {
 type Manager struct {
 	config    Config
 	mu        sync.RWMutex
-	workers   map[string]*WorkerProcess
+	workers   map[string]*WorkerProcess // keyed by connectionID
 	ctx       context.Context
 	cancel    context.CancelFunc
 	wg        sync.WaitGroup
@@ -38,6 +38,7 @@ type Manager struct {
 type WorkerProcess struct {
 	ID           string
 	CompanyID    string
+	ConnectionID string
 	TenantSchema string
 	DatabaseURL  string
 	Status       string
@@ -104,8 +105,11 @@ func (m *Manager) Stop(ctx context.Context) error {
 	m.mu.Unlock()
 
 	for _, id := range workerIDs {
-		if err := m.StopWorker(ctx, id, "orchestrator shutdown"); err != nil {
-			log.Printf("Error stopping worker %s: %v", id, err)
+		worker, exists := m.GetWorkerStatus(id)
+		if exists {
+			if err := m.StopWorker(ctx, worker.CompanyID, id, "orchestrator shutdown"); err != nil {
+				log.Printf("Error stopping worker %s: %v", id, err)
+			}
 		}
 	}
 
@@ -117,26 +121,26 @@ func (m *Manager) Stop(ctx context.Context) error {
 }
 
 // SpawnWorker creates and starts a new WhatsApp worker process.
-func (m *Manager) SpawnWorker(ctx context.Context, companyID, tenantSchema, databaseURL string) error {
+func (m *Manager) SpawnWorker(ctx context.Context, companyID, connectionID, tenantSchema, databaseURL string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	// Check if worker already exists
-	if existing, exists := m.workers[companyID]; exists {
+	// Check if worker already exists (keyed by connectionID)
+	if existing, exists := m.workers[connectionID]; exists {
 		if existing.Status != types.StatusStopped && existing.Status != types.StatusError {
 			// Worker already running - republish current status instead of returning error
 			status := existing.Status
-			log.Printf("Worker for company %s already exists with status %s, republishing status", companyID, status)
+			log.Printf("Worker for connection %s already exists with status %s, republishing status", connectionID, status)
 			// Use "connected" for any running state since the worker is functional
 			if status == types.StatusConnecting {
 				status = types.StatusConnected
 			}
 			// Schedule status publish after releasing lock
-			go m.publishConnectionStatus(companyID, status, "worker already running")
+			go m.publishConnectionStatus(companyID, connectionID, status, "worker already running")
 			return nil
 		}
 		// Clean up the old worker entry
-		delete(m.workers, companyID)
+		delete(m.workers, connectionID)
 	}
 
 	// Create worker context with cancel
@@ -146,19 +150,18 @@ func (m *Manager) SpawnWorker(ctx context.Context, companyID, tenantSchema, data
 	cmd := exec.CommandContext(workerCtx, m.config.WhatsAppBinaryPath)
 
 	// Set environment variables
-	// DATA_DIR is company-specific to isolate WhatsApp sessions per tenant
 	cmd.Env = append(os.Environ(),
-		fmt.Sprintf("WORKER_ID=%s", companyID),
+		fmt.Sprintf("WORKER_ID=%s", connectionID),
 		fmt.Sprintf("COMPANY_ID=%s", companyID),
+		fmt.Sprintf("CONNECTION_ID=%s", connectionID),
 		fmt.Sprintf("NATS_URL=%s", m.config.DefaultNATSURL),
 		fmt.Sprintf("DATABASE_URL=%s", databaseURL),
 		fmt.Sprintf("TENANT_SCHEMA=%s", tenantSchema),
-		fmt.Sprintf("DATA_DIR=./data/%s", companyID),
 	)
 
 	// Redirect stdout and stderr
-	cmd.Stdout = &workerLogWriter{companyID: companyID, stream: "stdout"}
-	cmd.Stderr = &workerLogWriter{companyID: companyID, stream: "stderr"}
+	cmd.Stdout = &workerLogWriter{connectionID: connectionID, stream: "stdout"}
+	cmd.Stderr = &workerLogWriter{connectionID: connectionID, stream: "stderr"}
 
 	// Set process group for clean termination
 	cmd.SysProcAttr = &syscall.SysProcAttr{
@@ -167,8 +170,9 @@ func (m *Manager) SpawnWorker(ctx context.Context, companyID, tenantSchema, data
 
 	// Create worker entry
 	worker := &WorkerProcess{
-		ID:           companyID,
+		ID:           connectionID,
 		CompanyID:    companyID,
+		ConnectionID: connectionID,
 		TenantSchema: tenantSchema,
 		DatabaseURL:  databaseURL,
 		Status:       types.StatusStarting,
@@ -179,7 +183,7 @@ func (m *Manager) SpawnWorker(ctx context.Context, companyID, tenantSchema, data
 	}
 
 	// Start the process
-	log.Printf("Spawning worker for company %s...", companyID)
+	log.Printf("Spawning worker for company %s, connection %s...", companyID, connectionID)
 	if err := cmd.Start(); err != nil {
 		workerCancel()
 		return fmt.Errorf("failed to start worker process: %w", err)
@@ -187,41 +191,41 @@ func (m *Manager) SpawnWorker(ctx context.Context, companyID, tenantSchema, data
 
 	worker.PID = cmd.Process.Pid
 	worker.Status = types.StatusConnecting
-	m.workers[companyID] = worker
+	m.workers[connectionID] = worker
 
-	log.Printf("Worker spawned for company %s with PID %d", companyID, worker.PID)
+	log.Printf("Worker spawned for company %s, connection %s with PID %d", companyID, connectionID, worker.PID)
 
 	// Start health check goroutine
 	healthCtx, healthCancel := context.WithCancel(m.ctx)
 	worker.healthCancel = healthCancel
 
 	m.wg.Add(1)
-	go m.healthCheckWorker(healthCtx, companyID)
+	go m.healthCheckWorker(healthCtx, connectionID)
 
 	// Start process monitor goroutine
 	m.wg.Add(1)
-	go m.monitorWorkerProcess(workerCtx, companyID, cmd)
+	go m.monitorWorkerProcess(workerCtx, connectionID, cmd)
 
 	// Publish worker started event
-	m.publishConnectionStatus(companyID, types.StatusConnecting, "Worker process started")
+	m.publishConnectionStatus(companyID, connectionID, types.StatusConnecting, "Worker process started")
 
 	return nil
 }
 
 // StopWorker terminates a specific worker process.
-func (m *Manager) StopWorker(ctx context.Context, companyID, reason string) error {
+func (m *Manager) StopWorker(ctx context.Context, companyID, connectionID, reason string) error {
 	m.mu.Lock()
-	worker, exists := m.workers[companyID]
+	worker, exists := m.workers[connectionID]
 	if !exists {
 		m.mu.Unlock()
-		return fmt.Errorf("worker %s not found", companyID)
+		return fmt.Errorf("worker %s not found", connectionID)
 	}
 
 	// Mark as stopping
 	worker.Status = types.StatusStopping
 	m.mu.Unlock()
 
-	log.Printf("Stopping worker %s: %s", companyID, reason)
+	log.Printf("Stopping worker %s: %s", connectionID, reason)
 
 	// Cancel health check
 	if worker.healthCancel != nil {
@@ -246,10 +250,10 @@ func (m *Manager) StopWorker(ctx context.Context, companyID, reason string) erro
 
 		select {
 		case <-done:
-			log.Printf("Worker %s terminated gracefully", companyID)
+			log.Printf("Worker %s terminated gracefully", connectionID)
 		case <-time.After(10 * time.Second):
 			// Force kill if graceful shutdown fails
-			log.Printf("Worker %s did not terminate gracefully, forcing kill", companyID)
+			log.Printf("Worker %s did not terminate gracefully, forcing kill", connectionID)
 			if worker.cmd.Process != nil {
 				pgid, err := syscall.Getpgid(worker.cmd.Process.Pid)
 				if err == nil {
@@ -269,21 +273,21 @@ func (m *Manager) StopWorker(ctx context.Context, companyID, reason string) erro
 	// Update status
 	m.mu.Lock()
 	worker.Status = types.StatusStopped
-	delete(m.workers, companyID)
+	delete(m.workers, connectionID)
 	m.mu.Unlock()
 
 	// Publish stopped event
-	m.publishConnectionStatus(companyID, types.StatusStopped, reason)
+	m.publishConnectionStatus(companyID, connectionID, types.StatusStopped, reason)
 
 	return nil
 }
 
-// GetWorkerStatus returns the status of a specific worker.
-func (m *Manager) GetWorkerStatus(companyID string) (*WorkerProcess, bool) {
+// GetWorkerStatus returns the status of a specific worker by connectionID.
+func (m *Manager) GetWorkerStatus(connectionID string) (*WorkerProcess, bool) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	worker, exists := m.workers[companyID]
+	worker, exists := m.workers[connectionID]
 	if !exists {
 		return nil, false
 	}
@@ -292,6 +296,7 @@ func (m *Manager) GetWorkerStatus(companyID string) (*WorkerProcess, bool) {
 	workerCopy := &WorkerProcess{
 		ID:           worker.ID,
 		CompanyID:    worker.CompanyID,
+		ConnectionID: worker.ConnectionID,
 		TenantSchema: worker.TenantSchema,
 		Status:       worker.Status,
 		PID:          worker.PID,
@@ -311,6 +316,7 @@ func (m *Manager) ListWorkers() []*WorkerProcess {
 		workerCopy := &WorkerProcess{
 			ID:           w.ID,
 			CompanyID:    w.CompanyID,
+			ConnectionID: w.ConnectionID,
 			TenantSchema: w.TenantSchema,
 			Status:       w.Status,
 			PID:          w.PID,
@@ -322,23 +328,47 @@ func (m *Manager) ListWorkers() []*WorkerProcess {
 	return workers
 }
 
+// ListWorkersByCompany returns all workers for a specific company.
+func (m *Manager) ListWorkersByCompany(companyID string) []*WorkerProcess {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	workers := make([]*WorkerProcess, 0)
+	for _, w := range m.workers {
+		if w.CompanyID == companyID {
+			workerCopy := &WorkerProcess{
+				ID:           w.ID,
+				CompanyID:    w.CompanyID,
+				ConnectionID: w.ConnectionID,
+				TenantSchema: w.TenantSchema,
+				Status:       w.Status,
+				PID:          w.PID,
+				StartedAt:    w.StartedAt,
+				LastActivity: w.LastActivity,
+			}
+			workers = append(workers, workerCopy)
+		}
+	}
+	return workers
+}
+
 // UpdateWorkerStatus updates the status of a worker (called by handlers).
-func (m *Manager) UpdateWorkerStatus(companyID, status string) {
+func (m *Manager) UpdateWorkerStatus(connectionID, status string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	if worker, exists := m.workers[companyID]; exists {
+	if worker, exists := m.workers[connectionID]; exists {
 		worker.Status = status
 		worker.LastActivity = time.Now()
 	}
 }
 
 // UpdateWorkerActivity updates the last activity time of a worker.
-func (m *Manager) UpdateWorkerActivity(companyID string) {
+func (m *Manager) UpdateWorkerActivity(connectionID string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	if worker, exists := m.workers[companyID]; exists {
+	if worker, exists := m.workers[connectionID]; exists {
 		worker.LastActivity = time.Now()
 	}
 }
@@ -356,7 +386,7 @@ func (m *Manager) WorkerCount() int {
 }
 
 // healthCheckWorker performs periodic health checks on a worker.
-func (m *Manager) healthCheckWorker(ctx context.Context, companyID string) {
+func (m *Manager) healthCheckWorker(ctx context.Context, connectionID string) {
 	defer m.wg.Done()
 
 	ticker := time.NewTicker(m.config.HealthCheckInterval)
@@ -368,11 +398,11 @@ func (m *Manager) healthCheckWorker(ctx context.Context, companyID string) {
 			return
 		case <-ticker.C:
 			m.mu.RLock()
-			worker, exists := m.workers[companyID]
+			worker, exists := m.workers[connectionID]
 			m.mu.RUnlock()
 
 			if !exists {
-				log.Printf("Health check: worker %s no longer exists, stopping health check", companyID)
+				log.Printf("Health check: worker %s no longer exists, stopping health check", connectionID)
 				return
 			}
 
@@ -381,30 +411,30 @@ func (m *Manager) healthCheckWorker(ctx context.Context, companyID string) {
 				// Try to get process state
 				process, err := os.FindProcess(worker.PID)
 				if err != nil {
-					log.Printf("Health check: worker %s process not found", companyID)
-					m.handleWorkerFailure(companyID, "process not found")
+					log.Printf("Health check: worker %s process not found", connectionID)
+					m.handleWorkerFailure(connectionID, "process not found")
 					return
 				}
 
 				// Send signal 0 to check if process exists
 				err = process.Signal(syscall.Signal(0))
 				if err != nil {
-					log.Printf("Health check: worker %s process dead: %v", companyID, err)
-					m.handleWorkerFailure(companyID, "process dead")
+					log.Printf("Health check: worker %s process dead: %v", connectionID, err)
+					m.handleWorkerFailure(connectionID, "process dead")
 					return
 				}
 			}
 
 			// Check for stale activity
 			if time.Since(worker.LastActivity) > 5*time.Minute {
-				log.Printf("Health check: worker %s has stale activity (last: %v)", companyID, worker.LastActivity)
+				log.Printf("Health check: worker %s has stale activity (last: %v)", connectionID, worker.LastActivity)
 			}
 		}
 	}
 }
 
 // monitorWorkerProcess monitors the worker process and handles its exit.
-func (m *Manager) monitorWorkerProcess(ctx context.Context, companyID string, cmd *exec.Cmd) {
+func (m *Manager) monitorWorkerProcess(ctx context.Context, connectionID string, cmd *exec.Cmd) {
 	defer m.wg.Done()
 
 	// Wait for the process to exit
@@ -417,20 +447,22 @@ func (m *Manager) monitorWorkerProcess(ctx context.Context, companyID string, cm
 	default:
 		// Process exited unexpectedly
 		if err != nil {
-			log.Printf("Worker %s exited with error: %v", companyID, err)
-			m.handleWorkerFailure(companyID, err.Error())
+			log.Printf("Worker %s exited with error: %v", connectionID, err)
+			m.handleWorkerFailure(connectionID, err.Error())
 		} else {
-			log.Printf("Worker %s exited cleanly", companyID)
-			m.handleWorkerFailure(companyID, "process exited")
+			log.Printf("Worker %s exited cleanly", connectionID)
+			m.handleWorkerFailure(connectionID, "process exited")
 		}
 	}
 }
 
 // handleWorkerFailure handles a worker failure.
-func (m *Manager) handleWorkerFailure(companyID, reason string) {
+func (m *Manager) handleWorkerFailure(connectionID, reason string) {
 	m.mu.Lock()
-	worker, exists := m.workers[companyID]
+	worker, exists := m.workers[connectionID]
+	var companyID string
 	if exists {
+		companyID = worker.CompanyID
 		worker.Status = types.StatusError
 		// Cancel health check if running
 		if worker.healthCancel != nil {
@@ -440,23 +472,25 @@ func (m *Manager) handleWorkerFailure(companyID, reason string) {
 	m.mu.Unlock()
 
 	// Publish error event
-	m.publishConnectionStatus(companyID, types.StatusError, reason)
+	if companyID != "" {
+		m.publishConnectionStatus(companyID, connectionID, types.StatusError, reason)
+	}
 }
 
 // publishConnectionStatus publishes a connection status event.
-func (m *Manager) publishConnectionStatus(companyID, status, reason string) {
+func (m *Manager) publishConnectionStatus(companyID, connectionID, status, reason string) {
 	if m.handlers != nil {
-		m.handlers.PublishConnectionStatus(companyID, status, reason)
+		m.handlers.PublishConnectionStatus(companyID, connectionID, status, reason)
 	}
 }
 
 // workerLogWriter captures worker process logs.
 type workerLogWriter struct {
-	companyID string
-	stream    string
+	connectionID string
+	stream       string
 }
 
 func (w *workerLogWriter) Write(p []byte) (n int, err error) {
-	log.Printf("[worker:%s:%s] %s", w.companyID, w.stream, string(p))
+	log.Printf("[worker:%s:%s] %s", w.connectionID, w.stream, string(p))
 	return len(p), nil
 }

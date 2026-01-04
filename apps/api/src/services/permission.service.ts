@@ -1,4 +1,4 @@
-import { db } from "@whatsapp-web/database"
+import { db } from "@whatsapp-web/database";
 
 /**
  * Feature-based permissions
@@ -19,21 +19,21 @@ export const PERMISSIONS = {
   // Data Management
   CAN_EXPORT: "can_export",
   CAN_DELETE: "can_delete",
-} as const
+} as const;
 
-export type Permission = (typeof PERMISSIONS)[keyof typeof PERMISSIONS]
+export type Permission = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
 
 /**
  * Full permissions interface for company members
  */
 export interface MemberPermissions {
-  can_view_all_chats: boolean
-  can_send_messages: boolean
-  can_assign_contacts: boolean
-  can_manage_team: boolean
-  can_invite: boolean
-  can_export: boolean
-  can_delete: boolean
+  can_view_all_chats: boolean;
+  can_send_messages: boolean;
+  can_assign_contacts: boolean;
+  can_manage_team: boolean;
+  can_invite: boolean;
+  can_export: boolean;
+  can_delete: boolean;
 }
 
 /**
@@ -73,7 +73,7 @@ export const ROLE_PRESETS: Record<
     can_export: false,
     can_delete: false,
   },
-}
+};
 
 /**
  * Gets the effective permissions for a member
@@ -83,18 +83,18 @@ export function getEffectivePermissions(
   role: "owner" | "admin" | "member",
   customPermissions: Partial<MemberPermissions> = {},
 ): MemberPermissions {
-  const roleDefaults = ROLE_PRESETS[role]
+  const roleDefaults = ROLE_PRESETS[role];
 
   // Owner always has all permissions, ignore custom overrides
   if (role === "owner") {
-    return roleDefaults
+    return roleDefaults;
   }
 
   // Merge custom permissions with role defaults
   return {
     ...roleDefaults,
     ...customPermissions,
-  }
+  };
 }
 
 /**
@@ -104,27 +104,28 @@ export async function getMemberWithPermissions(
   companyId: string,
   userId: string,
 ): Promise<{
-  role: "owner" | "admin" | "member"
-  permissions: MemberPermissions
+  role: "owner" | "admin" | "member";
+  permissions: MemberPermissions;
 } | null> {
   const member = await db
     .selectFrom("company_members" as any)
     .select(["role", "permissions"])
     .where("company_id", "=", companyId)
     .where("user_id", "=", userId)
-    .executeTakeFirst()
+    .executeTakeFirst();
 
   if (!member) {
-    return null
+    return null;
   }
 
-  const role = member.role as "owner" | "admin" | "member"
-  const customPermissions = (member.permissions || {}) as Partial<MemberPermissions>
+  const role = member.role as "owner" | "admin" | "member";
+  const customPermissions = (member.permissions ||
+    {}) as Partial<MemberPermissions>;
 
   return {
     role,
     permissions: getEffectivePermissions(role, customPermissions),
-  }
+  };
 }
 
 /**
@@ -135,13 +136,13 @@ export async function hasFeaturePermission(
   userId: string,
   permission: Permission,
 ): Promise<boolean> {
-  const memberData = await getMemberWithPermissions(companyId, userId)
+  const memberData = await getMemberWithPermissions(companyId, userId);
 
   if (!memberData) {
-    return false
+    return false;
   }
 
-  return memberData.permissions[permission] === true
+  return memberData.permissions[permission] === true;
 }
 
 /**
@@ -152,13 +153,13 @@ export async function hasAllPermissions(
   userId: string,
   permissions: Permission[],
 ): Promise<boolean> {
-  const memberData = await getMemberWithPermissions(companyId, userId)
+  const memberData = await getMemberWithPermissions(companyId, userId);
 
   if (!memberData) {
-    return false
+    return false;
   }
 
-  return permissions.every((p) => memberData.permissions[p] === true)
+  return permissions.every((p) => memberData.permissions[p] === true);
 }
 
 /**
@@ -169,13 +170,13 @@ export async function hasAnyPermission(
   userId: string,
   permissions: Permission[],
 ): Promise<boolean> {
-  const memberData = await getMemberWithPermissions(companyId, userId)
+  const memberData = await getMemberWithPermissions(companyId, userId);
 
   if (!memberData) {
-    return false
+    return false;
   }
 
-  return permissions.some((p) => memberData.permissions[p] === true)
+  return permissions.some((p) => memberData.permissions[p] === true);
 }
 
 /**
@@ -194,34 +195,35 @@ export async function updateMemberPermissions(
     .select(["role", "permissions"])
     .where("company_id", "=", companyId)
     .where("user_id", "=", targetUserId)
-    .executeTakeFirst()
+    .executeTakeFirst();
 
   if (!member) {
-    throw new Error("Member not found")
+    throw new Error("Member not found");
   }
 
-  const role = member.role as "owner" | "admin" | "member"
+  const role = member.role as "owner" | "admin" | "member";
 
   // Cannot change owner's permissions
   if (role === "owner") {
-    throw new Error("Cannot modify owner's permissions")
+    throw new Error("Cannot modify owner's permissions");
   }
 
   // Merge existing custom permissions with new ones
-  const currentCustom = (member.permissions || {}) as Partial<MemberPermissions>
+  const currentCustom = (member.permissions ||
+    {}) as Partial<MemberPermissions>;
   const updatedPermissions = {
     ...currentCustom,
     ...newPermissions,
-  }
+  };
 
   await db
     .updateTable("company_members" as any)
     .set({ permissions: updatedPermissions })
     .where("company_id", "=", companyId)
     .where("user_id", "=", targetUserId)
-    .execute()
+    .execute();
 
-  return getEffectivePermissions(role, updatedPermissions)
+  return getEffectivePermissions(role, updatedPermissions);
 }
 
 /**
@@ -236,13 +238,13 @@ export async function resetMemberPermissions(
     .select(["role"])
     .where("company_id", "=", companyId)
     .where("user_id", "=", targetUserId)
-    .executeTakeFirst()
+    .executeTakeFirst();
 
   if (!member) {
-    throw new Error("Member not found")
+    throw new Error("Member not found");
   }
 
-  const role = member.role as "owner" | "admin" | "member"
+  const role = member.role as "owner" | "admin" | "member";
 
   // Clear custom permissions
   await db
@@ -250,19 +252,19 @@ export async function resetMemberPermissions(
     .set({ permissions: {} })
     .where("company_id", "=", companyId)
     .where("user_id", "=", targetUserId)
-    .execute()
+    .execute();
 
-  return ROLE_PRESETS[role]
+  return ROLE_PRESETS[role];
 }
 
 /**
  * Gets all available permissions with their descriptions
  */
 export function getPermissionDescriptions(): Array<{
-  key: Permission
-  name: string
-  description: string
-  category: string
+  key: Permission;
+  name: string;
+  description: string;
+  category: string;
 }> {
   return [
     {
@@ -307,5 +309,5 @@ export function getPermissionDescriptions(): Array<{
       description: "Can delete contacts and messages",
       category: "Data Management",
     },
-  ]
+  ];
 }

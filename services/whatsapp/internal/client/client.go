@@ -10,7 +10,6 @@ import (
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/proto/waE2E"
 	waStore "go.mau.fi/whatsmeow/store"
-	"go.mau.fi/whatsmeow/store/sqlstore"
 	"go.mau.fi/whatsmeow/types"
 	waLog "go.mau.fi/whatsmeow/util/log"
 	"google.golang.org/protobuf/proto"
@@ -21,10 +20,11 @@ import (
 
 // Config holds WhatsApp client configuration.
 type Config struct {
-	WorkerID  string
-	CompanyID string
-	DataDir   string
-	LogLevel  string
+	WorkerID     string
+	CompanyID    string
+	ConnectionID string
+	DatabaseURL  string
+	LogLevel     string
 }
 
 // QRCallback is called when a QR code is available for pairing.
@@ -37,7 +37,7 @@ type StatusCallback func(status string, reason string)
 type Client struct {
 	config       Config
 	client       *whatsmeow.Client
-	container    *sqlstore.Container
+	container    *store.PGContainer
 	device       *waStore.Device
 	handlers     []func(interface{})
 	qrCallback   QRCallback
@@ -50,7 +50,7 @@ type Client struct {
 
 // New creates a new WhatsApp client wrapper.
 func New(ctx context.Context, cfg Config) (*Client, error) {
-	log.Printf("Initializing WhatsApp client for worker: %s, company: %s", cfg.WorkerID, cfg.CompanyID)
+	log.Printf("Initializing WhatsApp client for worker: %s, company: %s, connection: %s", cfg.WorkerID, cfg.CompanyID, cfg.ConnectionID)
 
 	// Create logger
 	logLevel := cfg.LogLevel
@@ -59,11 +59,11 @@ func New(ctx context.Context, cfg Config) (*Client, error) {
 	}
 	waLogger := logger.New("whatsmeow", logLevel)
 
-	// Initialize SQLite store
+	// Initialize PostgreSQL store
 	container, err := store.NewStore(ctx, store.Config{
-		DataDir:   cfg.DataDir,
-		CompanyID: cfg.CompanyID,
-		Logger:    waLogger.Sub("store"),
+		DatabaseURL:  cfg.DatabaseURL,
+		ConnectionID: cfg.ConnectionID,
+		Logger:       waLogger.Sub("store"),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create store: %w", err)
@@ -115,7 +115,15 @@ func (c *Client) internalEventHandler(evt interface{}) {
 }
 
 // Connect establishes connection to WhatsApp.
-func (c *Client) Connect(ctx context.Context) error {
+func (c *Client) Connect(ctx context.Context) (err error) {
+	// Recover from any panics in the whatsmeow library
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("panic during WhatsApp connection: %v", r)
+			log.Printf("Recovered from panic in Connect: %v", r)
+		}
+	}()
+
 	log.Println("Connecting to WhatsApp...")
 
 	// Check if we have a device ID (already logged in)
@@ -234,12 +242,23 @@ func (c *Client) HandleReconnect() {
 	}
 }
 
-// Disconnect closes the WhatsApp connection.
+// Disconnect closes the WhatsApp connection and the database.
 func (c *Client) Disconnect() {
 	log.Println("Disconnecting from WhatsApp...")
 
-	if c.client != nil {
+	// Recover from any panics during disconnect
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("Recovered from panic in Disconnect: %v", r)
+		}
+	}()
+
+	if c.client != nil && c.client.IsConnected() {
 		c.client.Disconnect()
+	}
+
+	if c.container != nil {
+		c.container.Close()
 	}
 
 	c.mu.Lock()
