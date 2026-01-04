@@ -104,6 +104,14 @@ Tests in `apps/web/e2e/tests/`. Page Object Model pattern in `e2e/pages/`. Auth 
 4. `bun run db:migrate`
 5. `bun run dev`
 
+## Claude Code Session
+
+Before starting a Claude Code session, ensure `dev-start.sh` is running. If it's not running, start it in the background:
+
+```bash
+./dev-start.sh &
+```
+
 ## API Routes
 
 All prefixed with `/api`:
