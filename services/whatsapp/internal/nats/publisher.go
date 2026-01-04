@@ -15,12 +15,13 @@ const (
 
 	// Subject prefixes (uppercase to match orchestrator's stream)
 	// Format: WHATSAPP.events.{companyId}.{connectionId}.{type}
-	SubjectQR       = "WHATSAPP.events.%s.%s.qr"
-	SubjectStatus   = "WHATSAPP.events.%s.%s.status"
-	SubjectMessage  = "WHATSAPP.events.%s.%s.message"
-	SubjectReceipt  = "WHATSAPP.events.%s.%s.receipt"
-	SubjectPresence = "WHATSAPP.events.%s.%s.presence"
-	SubjectContact  = "WHATSAPP.events.%s.%s.contact"
+	SubjectQR              = "WHATSAPP.events.%s.%s.qr"
+	SubjectStatus          = "WHATSAPP.events.%s.%s.status"
+	SubjectMessage         = "WHATSAPP.events.%s.%s.message"
+	SubjectReceipt         = "WHATSAPP.events.%s.%s.receipt"
+	SubjectPresence        = "WHATSAPP.events.%s.%s.presence"
+	SubjectContact         = "WHATSAPP.events.%s.%s.contact"
+	SubjectSendConfirmation = "WHATSAPP.events.%s.%s.send_confirmation"
 )
 
 // WhatsAppEvent is the wrapper format expected by the API.
@@ -117,6 +118,14 @@ type ReceiptPayload struct {
 	MessageID string `json:"messageId"`
 	Status    string `json:"status"` // "sent", "delivered", "read"
 	Timestamp string `json:"timestamp"`
+}
+
+// SendConfirmationPayload is the payload for send confirmation events.
+// This maps a pending message ID to the real WhatsApp message ID.
+type SendConfirmationPayload struct {
+	PendingMessageID string `json:"pendingMessageId"` // The temporary ID assigned by the API
+	MessageID        string `json:"messageId"`        // The real WhatsApp message ID
+	Timestamp        string `json:"timestamp"`
 }
 
 // ReceiptEvent represents a message receipt (delivered, read, etc.) (internal use).
@@ -373,6 +382,25 @@ func (p *Publisher) PublishContact(jid, name, displayName string, isGroup bool, 
 	}
 
 	subject := fmt.Sprintf(SubjectContact, p.companyID, p.connectionID)
+	return p.publish(subject, event)
+}
+
+// PublishSendConfirmation publishes a send confirmation event.
+// This maps a pending message ID to the real WhatsApp message ID.
+func (p *Publisher) PublishSendConfirmation(pendingMessageID, messageID string, timestamp time.Time) error {
+	event := WhatsAppEvent{
+		Type:         "send_confirmation",
+		CompanyID:    p.companyID,
+		ConnectionID: p.connectionID,
+		Payload: SendConfirmationPayload{
+			PendingMessageID: pendingMessageID,
+			MessageID:        messageID,
+			Timestamp:        timestamp.Format(time.RFC3339),
+		},
+		Timestamp: time.Now().Format(time.RFC3339),
+	}
+
+	subject := fmt.Sprintf(SubjectSendConfirmation, p.companyID, p.connectionID)
 	return p.publish(subject, event)
 }
 

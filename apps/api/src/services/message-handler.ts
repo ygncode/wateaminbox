@@ -6,6 +6,7 @@ import {
   type ConnectionEvent,
   type MessageEvent,
   type ReceiptEvent,
+  type SendConfirmationEvent,
   type StatusEvent,
   type ContactEvent,
 } from "../lib/nats.js";
@@ -53,8 +54,9 @@ export async function shutdownMessageHandler(): Promise<void> {
 
 /**
  * Handles incoming WhatsApp events from NATS
+ * Exported for testing purposes
  */
-async function handleWhatsAppEvent(event: WhatsAppEvent): Promise<void> {
+export async function handleWhatsAppEvent(event: WhatsAppEvent): Promise<void> {
   const { type, companyId, connectionId } = event;
 
   console.log(
@@ -81,6 +83,10 @@ async function handleWhatsAppEvent(event: WhatsAppEvent): Promise<void> {
 
       case "receipt":
         await handleReceiptEvent(event as ReceiptEvent);
+        break;
+
+      case "send_confirmation":
+        await handleSendConfirmationEvent(event as SendConfirmationEvent);
         break;
 
       case "status":
@@ -394,6 +400,56 @@ async function handleReceiptEvent(event: ReceiptEvent): Promise<void> {
     });
   } catch (error) {
     console.error(`[MessageHandler] Failed to handle receipt:`, error);
+  }
+}
+
+/**
+ * Handles send confirmation events
+ * Updates a message from pending status with its real WhatsApp message ID
+ */
+async function handleSendConfirmationEvent(
+  event: SendConfirmationEvent,
+): Promise<void> {
+  const { companyId, connectionId, payload } = event;
+
+  console.log(
+    `[MessageHandler] Send confirmation for pending message ${payload.pendingMessageId} -> real ID ${payload.messageId}, connection ${connectionId}`,
+  );
+
+  try {
+    const tenantDb = getTenantConnection(companyId);
+
+    // Update the message with the real WhatsApp ID and set status to sent
+    const result = await tenantDb
+      .updateTable("messages")
+      .set({
+        message_id: payload.messageId,
+        status: "sent",
+      })
+      .where("message_id", "=", payload.pendingMessageId)
+      .executeTakeFirst();
+
+    console.log(
+      `[MessageHandler] Updated message ${payload.pendingMessageId} -> ${payload.messageId}, status set to sent (rows affected: ${result.numUpdatedRows})`,
+    );
+
+    // Broadcast to WebSocket clients with the status update
+    broadcastToCompany(companyId, {
+      type: "message:status",
+      connectionId,
+      payload: {
+        pendingMessageId: payload.pendingMessageId,
+        messageId: payload.messageId,
+        status: "sent",
+        timestamp: payload.timestamp,
+      },
+      timestamp: event.timestamp,
+    });
+  } catch (error) {
+    console.error(
+      `[MessageHandler] Failed to handle send confirmation:`,
+      error,
+    );
   }
 }
 

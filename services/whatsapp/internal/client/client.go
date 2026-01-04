@@ -11,12 +11,13 @@ import (
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/proto/waE2E"
 	waStore "go.mau.fi/whatsmeow/store"
-	"go.mau.fi/whatsmeow/types"
+	waTypes "go.mau.fi/whatsmeow/types"
 	waLog "go.mau.fi/whatsmeow/util/log"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/ygncode-lab/whatsapp-web/services/whatsapp/internal/logger"
 	"github.com/ygncode-lab/whatsapp-web/services/whatsapp/internal/store"
+	"github.com/ygncode-lab/whatsapp-web/services/whatsapp/internal/types"
 )
 
 // Backoff configuration constants for the two-phase reconnection strategy.
@@ -413,11 +414,11 @@ func (c *Client) RegisterEventHandler(handler func(interface{})) {
 }
 
 // SendMessage sends a text message.
-func (c *Client) SendMessage(ctx context.Context, jid string, text string, replyTo string, replyToSender string) error {
+func (c *Client) SendMessage(ctx context.Context, jid string, text string, replyTo string, replyToSender string) (types.SendResponse, error) {
 	// Parse JID
-	recipient, err := types.ParseJID(jid)
+	recipient, err := waTypes.ParseJID(jid)
 	if err != nil {
-		return fmt.Errorf("invalid JID %s: %w", jid, err)
+		return types.SendResponse{}, fmt.Errorf("invalid JID %s: %w", jid, err)
 	}
 
 	var msg *waE2E.Message
@@ -449,19 +450,22 @@ func (c *Client) SendMessage(ctx context.Context, jid string, text string, reply
 	// Send message
 	resp, err := c.client.SendMessage(ctx, recipient, msg)
 	if err != nil {
-		return fmt.Errorf("failed to send message: %w", err)
+		return types.SendResponse{}, fmt.Errorf("failed to send message: %w", err)
 	}
 
 	log.Printf("Message sent: ID=%s, ServerTimestamp=%v", resp.ID, resp.Timestamp)
-	return nil
+	return types.SendResponse{
+		ID:        string(resp.ID),
+		Timestamp: resp.Timestamp,
+	}, nil
 }
 
 // SendMediaMessage sends a media message (image, document, video, audio).
-func (c *Client) SendMediaMessage(ctx context.Context, jid string, mediaType string, data []byte, caption string, fileName string, mimeType string, replyTo string, replyToSender string) error {
+func (c *Client) SendMediaMessage(ctx context.Context, jid string, mediaType string, data []byte, caption string, fileName string, mimeType string, replyTo string, replyToSender string) (types.SendResponse, error) {
 	// Parse JID
-	recipient, err := types.ParseJID(jid)
+	recipient, err := waTypes.ParseJID(jid)
 	if err != nil {
-		return fmt.Errorf("invalid JID %s: %w", jid, err)
+		return types.SendResponse{}, fmt.Errorf("invalid JID %s: %w", jid, err)
 	}
 
 	// Use provided sender JID, or fall back to recipient JID
@@ -482,21 +486,24 @@ func (c *Client) SendMediaMessage(ctx context.Context, jid string, mediaType str
 	case "audio":
 		msg, err = c.createAudioMessage(ctx, data, mimeType, participant, replyTo)
 	default:
-		return fmt.Errorf("unsupported media type: %s", mediaType)
+		return types.SendResponse{}, fmt.Errorf("unsupported media type: %s", mediaType)
 	}
 
 	if err != nil {
-		return fmt.Errorf("failed to create media message: %w", err)
+		return types.SendResponse{}, fmt.Errorf("failed to create media message: %w", err)
 	}
 
 	// Send message
 	resp, err := c.client.SendMessage(ctx, recipient, msg)
 	if err != nil {
-		return fmt.Errorf("failed to send media message: %w", err)
+		return types.SendResponse{}, fmt.Errorf("failed to send media message: %w", err)
 	}
 
 	log.Printf("Media message sent: ID=%s, Type=%s", resp.ID, mediaType)
-	return nil
+	return types.SendResponse{
+		ID:        string(resp.ID),
+		Timestamp: resp.Timestamp,
+	}, nil
 }
 
 // createImageMessage creates an image message.
