@@ -301,6 +301,26 @@ async function handleMessageEvent(event: MessageEvent): Promise<void> {
 }
 
 /**
+ * Maps WhatsApp receipt types to database message_status enum values
+ * WhatsApp types: "sender", "delivered", "read", "played", ""
+ * DB enum: "pending", "sent", "delivered", "read", "failed"
+ */
+function mapReceiptStatus(waStatus: string): "sent" | "delivered" | "read" | null {
+  switch (waStatus) {
+    case "sender":
+      return "sent";
+    case "delivered":
+      return "delivered";
+    case "read":
+    case "played":
+      return "read";
+    default:
+      // Unknown or empty status - skip update
+      return null;
+  }
+}
+
+/**
  * Handles message receipt/status updates
  */
 async function handleReceiptEvent(event: ReceiptEvent): Promise<void> {
@@ -310,6 +330,15 @@ async function handleReceiptEvent(event: ReceiptEvent): Promise<void> {
     `[MessageHandler] Receipt ${payload.status} for message ${payload.messageId}`,
   );
 
+  // Map WhatsApp receipt type to database enum
+  const dbStatus = mapReceiptStatus(payload.status);
+  if (!dbStatus) {
+    console.log(
+      `[MessageHandler] Skipping unknown receipt status: "${payload.status}"`,
+    );
+    return;
+  }
+
   try {
     const tenantDb = getTenantConnection(companyId);
 
@@ -318,21 +347,21 @@ async function handleReceiptEvent(event: ReceiptEvent): Promise<void> {
     const result = await tenantDb
       .updateTable("messages")
       .set({
-        status: payload.status as "sent" | "delivered" | "read",
+        status: dbStatus,
       })
       .where("message_id", "=", payload.messageId)
       .executeTakeFirst();
 
     console.log(
-      `[MessageHandler] Updated message status to ${payload.status} for message ${payload.messageId} (rows affected: ${result.numUpdatedRows})`,
+      `[MessageHandler] Updated message status to ${dbStatus} for message ${payload.messageId} (rows affected: ${result.numUpdatedRows})`,
     );
 
-    // Broadcast to WebSocket clients
+    // Broadcast to WebSocket clients with mapped status
     broadcastToCompany(companyId, {
       type: "receipt",
       payload: {
         messageId: payload.messageId,
-        status: payload.status,
+        status: dbStatus,
         timestamp: payload.timestamp,
       },
       timestamp: event.timestamp,

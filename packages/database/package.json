@@ -15,8 +15,8 @@
   },
   "scripts": {
     "build": "tsup src/index.ts --format cjs,esm --dts",
-    "db:migrate": "kysely migrate:latest",
-    "db:generate": "kysely-codegen --out-file ./src/types/database.ts"
+    "db:migrate": "bun run migrate.ts",
+    "db:generate": "bunx kysely-codegen --out-file ./src/types/database.ts"
   },
   "dependencies": {
     "kysely": "^0.27.2",
