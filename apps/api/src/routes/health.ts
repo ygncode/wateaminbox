@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import { getMessageCleanupStatus } from "../services/message-cleanup.service.js";
 
 export const healthRoutes = new Hono();
 
@@ -6,6 +7,9 @@ healthRoutes.get("/", (c) => {
   return c.json({
     status: "ok",
     timestamp: new Date().toISOString(),
+    services: {
+      messageCleanup: getMessageCleanupStatus(),
+    },
   });
 });
 

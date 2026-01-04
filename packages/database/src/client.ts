@@ -243,6 +243,7 @@ export interface TenantMessagesTable {
   deleted_at: Date | null;
   sent_by_user_id: string | null;
   status: Generated<MessageStatus>;
+  metadata: Record<string, unknown> | null;
   timestamp: Date;
   created_at: Generated<Date>;
   search_vector: unknown | null;

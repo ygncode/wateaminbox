@@ -1,6 +1,18 @@
 import { useState, useRef, useEffect, useCallback, memo } from "react";
 import type { Message, MessageType } from "@whatsapp-web/shared";
 
+// Error code to human-readable message mapping
+const ERROR_MESSAGES: Record<string, string> = {
+  delivery_timeout: "Message delivery timed out",
+  network_error: "Network error occurred",
+  rate_limit: "Too many messages. Please try again later",
+  unknown: "Failed to send message",
+};
+
+function getErrorMessage(error?: string, customErrorMessage?: string): string {
+  return customErrorMessage || ERROR_MESSAGES[error || ""] || ERROR_MESSAGES.unknown;
+}
+
 interface MessageBubbleProps {
   message: Message;
   isOwn: boolean;
@@ -8,8 +20,10 @@ interface MessageBubbleProps {
   onForward?: (message: Message) => void;
   onDelete?: (message: Message) => void;
   onStar?: (message: Message) => void;
+  onRetry?: (messageId: string) => void;
   /** Highlight this message (e.g., from search) */
   isHighlighted?: boolean;
+  isRetrying?: boolean;
 }
 
 export const MessageBubble = memo(function MessageBubble({
@@ -19,7 +33,9 @@ export const MessageBubble = memo(function MessageBubble({
   onForward,
   onDelete,
   onStar,
+  onRetry,
   isHighlighted = false,
+  isRetrying = false,
 }: MessageBubbleProps) {
   const [showContextMenu, setShowContextMenu] = useState(false);
   const [contextMenuPosition, setContextMenuPosition] = useState({
@@ -116,15 +132,22 @@ export const MessageBubble = memo(function MessageBubble({
           </svg>
         );
       case "failed":
+        const errorMsg = getErrorMessage(message.metadata?.error, message.metadata?.errorMessage);
         return (
-          <svg
-            className="h-4 w-4 text-red-500"
-            viewBox="0 0 16 16"
-            fill="currentColor"
-          >
-            <circle cx="8" cy="8" r="6" stroke="currentColor" fill="none" />
-            <path d="M8 4v5M8 11v1" />
-          </svg>
+          <div className="group/tooltip relative flex items-center">
+            <svg
+              className="h-4 w-4 text-red-500"
+              viewBox="0 0 16 16"
+              fill="currentColor"
+            >
+              <circle cx="8" cy="8" r="6" stroke="currentColor" fill="none" />
+              <path d="M8 4v5M8 11v1" />
+            </svg>
+            {/* Tooltip for failed messages */}
+            <div className="absolute bottom-full right-0 mb-2 px-2 py-1 bg-gray-900 text-white text-xs rounded whitespace-nowrap opacity-0 group-hover/tooltip:opacity-100 transition-opacity pointer-events-none z-10">
+              {errorMsg}
+            </div>
+          </div>
         );
       default:
         return null;
@@ -321,6 +344,53 @@ export const MessageBubble = memo(function MessageBubble({
 
         {/* Message content */}
         {renderMessageContent()}
+
+        {/* Error banner for failed messages */}
+        {message.status === "failed" && isOwn && (
+          <div
+            className={`mt-2 flex items-center justify-between gap-2 text-xs px-2 py-1 rounded ${
+              isOwn
+                ? "bg-red-500/20 text-red-100"
+                : "bg-red-100 text-red-700"
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              <svg className="h-3 w-3 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <span>{getErrorMessage(message.metadata?.error, message.metadata?.errorMessage)}</span>
+            </div>
+            {onRetry && (
+              <button
+                onClick={() => onRetry(message.id)}
+                disabled={isRetrying}
+                className={`flex items-center gap-1 px-2 py-0.5 rounded font-medium transition-colors ${
+                  isOwn
+                    ? "bg-white/20 hover:bg-white/30 text-white"
+                    : "bg-red-200 hover:bg-red-300 text-red-800"
+                } ${isRetrying ? "opacity-50 cursor-not-allowed" : ""}`}
+                title="Retry sending this message"
+              >
+                {isRetrying ? (
+                  <>
+                    <svg className="animate-spin h-3 w-3" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                    </svg>
+                    <span>Sending...</span>
+                  </>
+                ) : (
+                  <>
+                    <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                    <span>Retry</span>
+                  </>
+                )}
+              </button>
+            )}
+          </div>
+        )}
 
         {/* Timestamp and status */}
         <div
