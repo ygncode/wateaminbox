@@ -73,12 +73,13 @@ PURPLE='\033[0;35m'
 CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 
-log_info() { echo -e "${BLUE}[INFO]${NC} $1"; }
-log_success() { echo -e "${GREEN}[SUCCESS]${NC} $1"; }
-log_warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
-log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
-log_step() { echo -e "${PURPLE}[STEP]${NC} $1"; }
-log_agent() { echo -e "${CYAN}[$1]${NC} $2"; }
+# All logs go to stderr so they don't pollute stdout (used for return values)
+log_info() { echo -e "${BLUE}[INFO]${NC} $1" >&2; }
+log_success() { echo -e "${GREEN}[SUCCESS]${NC} $1" >&2; }
+log_warn() { echo -e "${YELLOW}[WARN]${NC} $1" >&2; }
+log_error() { echo -e "${RED}[ERROR]${NC} $1" >&2; }
+log_step() { echo -e "${PURPLE}[STEP]${NC} $1" >&2; }
+log_agent() { echo -e "${CYAN}[$1]${NC} $2" >&2; }
 
 # Run command (for git, etc. - not for AI tools)
 run_cmd() {
@@ -89,25 +90,25 @@ run_cmd() {
     fi
 }
 
-# Run Claude with prompt from file
+# Run Claude with prompt from file (output to stderr so it doesn't pollute return values)
 run_claude() {
     local model=$1
     local prompt_file=$2
 
     if [ "$DRY_RUN" = true ]; then
-        echo "[DRY-RUN] claude --dangerously-skip-permissions --model $model -p <prompt>"
+        echo "[DRY-RUN] claude --dangerously-skip-permissions --model $model -p <prompt>" >&2
         return 0
     fi
 
-    claude --dangerously-skip-permissions --model "$model" -p "$(cat "$prompt_file")"
+    claude --dangerously-skip-permissions --model "$model" -p "$(cat "$prompt_file")" >&2
 }
 
-# Run Claude with zai backend
+# Run Claude with zai backend (output to stderr)
 run_zyolo() {
     local prompt_file=$1
 
     if [ "$DRY_RUN" = true ]; then
-        echo "[DRY-RUN] zyolo -p <prompt>"
+        echo "[DRY-RUN] zyolo -p <prompt>" >&2
         return 0
     fi
 
@@ -118,19 +119,19 @@ run_zyolo() {
 
     ANTHROPIC_BASE_URL="https://api.z.ai/api/anthropic" \
     ANTHROPIC_AUTH_TOKEN="$ZAI_AUTH_TOKEN" \
-    claude --dangerously-skip-permissions -p "$(cat "$prompt_file")"
+    claude --dangerously-skip-permissions -p "$(cat "$prompt_file")" >&2
 }
 
-# Run Gemini with prompt from file
+# Run Gemini with prompt from file (output to stderr)
 run_gemini() {
     local prompt_file=$1
 
     if [ "$DRY_RUN" = true ]; then
-        echo "[DRY-RUN] gemini --yolo <prompt>"
+        echo "[DRY-RUN] gemini --yolo <prompt>" >&2
         return 0
     fi
 
-    gemini --yolo "$(cat "$prompt_file")"
+    gemini --yolo "$(cat "$prompt_file")" >&2
 }
 
 # Initialize loop directory
