@@ -20,6 +20,37 @@
 
 set -e
 
+# Load .env file from project root
+if [ -f "$(pwd)/.env" ]; then
+    export $(grep -v '^#' "$(pwd)/.env" | xargs)
+fi
+
+# =============================================================================
+# Tool Functions (replaces shell aliases which don't work in scripts)
+# =============================================================================
+
+# Gemini CLI with yolo mode
+gyolo() {
+    gemini --yolo "$@"
+}
+
+# Claude CLI with skip permissions
+cyolo() {
+    claude --dangerously-skip-permissions "$@"
+}
+
+# Claude CLI with zai backend (cheaper)
+# Requires ZAI_AUTH_TOKEN environment variable
+zyolo() {
+    if [ -z "$ZAI_AUTH_TOKEN" ]; then
+        echo "Error: ZAI_AUTH_TOKEN environment variable not set" >&2
+        exit 1
+    fi
+    ANTHROPIC_BASE_URL="https://api.z.ai/api/anthropic" \
+    ANTHROPIC_AUTH_TOKEN="$ZAI_AUTH_TOKEN" \
+    claude --dangerously-skip-permissions "$@"
+}
+
 # Configuration
 PROJECT_DIR="$(pwd)"
 LOOP_DIR="$PROJECT_DIR/.loop"
