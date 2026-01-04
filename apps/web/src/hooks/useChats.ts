@@ -41,6 +41,15 @@ interface ContactApiResponse {
   profilePictureUrl: string | null;
   notesShared: string | null;
   lastMessageAt: string | null;
+  lastMessage: {
+    id: string;
+    messageId: string;
+    fromMe: boolean;
+    messageType: string;
+    content: string;
+    status: string;
+    timestamp: string;
+  } | null;
   unreadCount: number;
   assignedTo: string | null;
   createdAt: string;
@@ -139,16 +148,16 @@ export function useChats(
             isOnline: false,
             isGroup: contact.isGroup,
           },
-          lastMessage: contact.lastMessageAt
+          lastMessage: contact.lastMessage
             ? {
-                id: "",
+                id: contact.lastMessage.id,
                 chatId: contact.id,
-                senderId: "",
-                content: "",
-                type: "text",
-                status: "delivered",
-                timestamp: new Date(contact.lastMessageAt),
-                isFromMe: false,
+                senderId: contact.lastMessage.fromMe ? "me" : contact.id,
+                content: contact.lastMessage.content || "",
+                type: contact.lastMessage.messageType as any,
+                status: contact.lastMessage.status as any,
+                timestamp: new Date(contact.lastMessage.timestamp),
+                isFromMe: contact.lastMessage.fromMe,
               }
             : undefined,
           unreadCount: contact.unreadCount,

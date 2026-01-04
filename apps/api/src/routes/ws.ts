@@ -145,6 +145,7 @@ async function handleNatsEvent(event: WhatsAppEvent): Promise<void> {
         payload: {
           qrCode: qrEvent.payload.qrCode,
           expiresAt: qrEvent.payload.expiresAt,
+          connectionId: qrEvent.connectionId,
         },
         timestamp: event.timestamp,
       });
@@ -158,6 +159,7 @@ async function handleNatsEvent(event: WhatsAppEvent): Promise<void> {
         payload: {
           phoneNumber: connEvent.payload.phoneNumber,
           jid: connEvent.payload.jid,
+          connectionId: connEvent.connectionId,
         },
         timestamp: event.timestamp,
       });
@@ -170,6 +172,7 @@ async function handleNatsEvent(event: WhatsAppEvent): Promise<void> {
         type: "disconnected",
         payload: {
           reason: disconnEvent.payload.reason,
+          connectionId: disconnEvent.connectionId,
         },
         timestamp: event.timestamp,
       });

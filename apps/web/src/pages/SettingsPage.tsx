@@ -106,13 +106,14 @@ export function SettingsPage() {
                 <SettingsCard
                   icon={<Smartphone className="h-5 w-5" />}
                   title={t(
-                    "settings.whatsappConnection",
-                    "WhatsApp Connection",
+                    "settings.whatsappConnections",
+                    "WhatsApp Connections",
                   )}
                   iconBg="bg-[#25D366]/10"
                   iconColor="text-[#25D366]"
+                  noPadding
                 >
-                  <WhatsAppConnectionPanel />
+                  <WhatsAppConnectionPanel multiConnection hideHeader />
                 </SettingsCard>
 
                 {/* Notifications */}
@@ -318,7 +319,7 @@ function SettingsCard({
   noPadding = false,
 }: SettingsCardProps) {
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-shadow duration-200">
+    <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-visible hover:shadow-md transition-shadow duration-200">
       <div className="flex items-center gap-3 px-5 py-4 border-b border-gray-100">
         {icon && (
           <div className={`p-2 rounded-lg ${iconBg}`}>

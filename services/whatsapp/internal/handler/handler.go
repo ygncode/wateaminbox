@@ -2,10 +2,13 @@ package handler
 
 import (
 	"context"
+	"io"
 	"log"
+	"net/http"
 	"time"
 
 	"go.mau.fi/whatsmeow"
+	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
 
 	"github.com/ygncode-lab/whatsapp-web/services/whatsapp/internal/client"
@@ -371,9 +374,22 @@ func (h *Handler) handleHistorySync(evt *events.HistorySync) {
 		// Get unread count
 		unreadCount := int(conv.GetUnreadCount())
 
+		// Fetch profile picture for individual contacts (not groups)
+		var profilePicURL string
+		if !isGroup {
+			parsedJID, err := types.ParseJID(jid)
+			if err == nil {
+				profilePicURL = h.fetchProfilePicture(parsedJID)
+				// Small delay to avoid rate limiting
+				if profilePicURL != "" {
+					time.Sleep(200 * time.Millisecond)
+				}
+			}
+		}
+
 		// Publish contact to NATS
 		if h.publisher != nil {
-			if err := h.publisher.PublishContact(jid, name, displayName, isGroup, unreadCount); err != nil {
+			if err := h.publisher.PublishContact(jid, name, displayName, isGroup, unreadCount, profilePicURL); err != nil {
 				log.Printf("Failed to publish contact %s: %v", jid, err)
 			}
 		}
@@ -579,4 +595,79 @@ func (h *Handler) handleStreamReplaced(evt *events.StreamReplaced) {
 			log.Printf("Failed to publish stream replaced status: %v", err)
 		}
 	}
+}
+
+// fetchProfilePicture downloads and uploads a contact's profile picture.
+// Returns the public URL if successful, empty string otherwise.
+func (h *Handler) fetchProfilePicture(jid types.JID) string {
+	if h.config.Client == nil {
+		log.Println("Client not available for profile picture fetch")
+		return ""
+	}
+
+	if h.config.Storage == nil {
+		log.Println("Storage not configured, skipping profile picture fetch")
+		return ""
+	}
+
+	// Get profile picture info from WhatsApp
+	client := h.config.Client.GetClient()
+	if client == nil {
+		log.Println("WhatsApp client not available for profile picture fetch")
+		return ""
+	}
+
+	// Get the profile picture (preview size is sufficient for contacts)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	picInfo, err := client.GetProfilePictureInfo(ctx, jid, &whatsmeow.GetProfilePictureParams{
+		Preview: true,
+	})
+	if err != nil {
+		log.Printf("Failed to get profile picture info for %s: %v", jid.String(), err)
+		return ""
+	}
+
+	if picInfo == nil || picInfo.URL == "" {
+		// No profile picture set
+		return ""
+	}
+
+	// Download the profile picture from the URL
+	req, err := http.NewRequestWithContext(ctx, "GET", picInfo.URL, nil)
+	if err != nil {
+		log.Printf("Failed to create request for profile picture: %v", err)
+		return ""
+	}
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		log.Printf("Failed to download profile picture for %s: %v", jid.String(), err)
+		return ""
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		log.Printf("Failed to download profile picture for %s: status %d", jid.String(), resp.StatusCode)
+		return ""
+	}
+
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		log.Printf("Failed to read profile picture data for %s: %v", jid.String(), err)
+		return ""
+	}
+
+	log.Printf("Downloaded profile picture for %s: %d bytes", jid.String(), len(data))
+
+	// Upload to storage
+	mediaURL, err := h.config.Storage.UploadMedia(ctx, data, "image/jpeg", h.config.CompanyID)
+	if err != nil {
+		log.Printf("Failed to upload profile picture to storage: %v", err)
+		return ""
+	}
+
+	log.Printf("Profile picture uploaded for %s: %s", jid.String(), mediaURL)
+	return mediaURL
 }

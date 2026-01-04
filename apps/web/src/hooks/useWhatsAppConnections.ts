@@ -7,6 +7,7 @@ import {
   deleteWhatsAppConnection,
   reconnectWhatsAppConnection,
   updateWhatsAppConnection,
+  ApiRequestError,
   type WhatsAppConnection,
   type WhatsAppConnectionStatusType,
 } from "../lib/api";
@@ -55,6 +56,9 @@ export function useWhatsAppConnections() {
     error: string | null;
     tempId: string | null;
   } | null>(null);
+
+  // Track global error (e.g., max connections exceeded)
+  const [globalError, setGlobalError] = useState<string | null>(null);
 
   // Track timeout refs for QR expiration
   const qrTimeoutsRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(
@@ -107,9 +111,10 @@ export function useWhatsAppConnections() {
         tempId: `temp-${Date.now()}`,
       });
     },
-    onSuccess: (response) => {
+    onSuccess: (connection) => {
       // Clear pending state and set up the new connection's state
-      const connectionId = response.data.id;
+      // Note: fetchWithAuth unwraps { success, data } so connection is already the data object
+      const connectionId = connection.id;
       setPendingConnection(null);
       updateConnectionState(connectionId, {
         qrCode: null,
@@ -124,8 +129,16 @@ export function useWhatsAppConnections() {
       });
     },
     onError: (error: Error) => {
+      let errorMessage = error.message;
+
+      // Handle max connections exceeded error (429)
+      if (error instanceof ApiRequestError && error.statusCode === 429) {
+        errorMessage = "You've reached the maximum number of WhatsApp connections allowed for your plan. Please disconnect an existing connection or upgrade your plan.";
+        setGlobalError(errorMessage);
+      }
+
       setPendingConnection((prev) =>
-        prev ? { ...prev, error: error.message } : null
+        prev ? { ...prev, error: errorMessage } : null
       );
     },
   });
@@ -413,10 +426,15 @@ export function useWhatsAppConnections() {
     setPendingConnection(null);
   }, []);
 
+  const clearGlobalError = useCallback(() => {
+    setGlobalError(null);
+  }, []);
+
   return {
     // Data
     connections: connectionsWithState,
     pendingConnection,
+    globalError,
 
     // Query state
     isLoading,
@@ -437,6 +455,7 @@ export function useWhatsAppConnections() {
     refresh: refetch,
     clearError,
     clearPendingConnection,
+    clearGlobalError,
 
     // Derived state
     connectedCount: connections.filter((c) => c.status === "connected").length,

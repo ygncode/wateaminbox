@@ -104,11 +104,12 @@ type MessageEvent struct {
 
 // ContactPayload is the payload for contact/conversation sync events.
 type ContactPayload struct {
-	JID         string `json:"jid"`
-	Name        string `json:"name,omitempty"`
-	DisplayName string `json:"displayName,omitempty"`
-	IsGroup     bool   `json:"isGroup"`
-	UnreadCount int    `json:"unreadCount,omitempty"`
+	JID                string `json:"jid"`
+	Name               string `json:"name,omitempty"`
+	DisplayName        string `json:"displayName,omitempty"`
+	IsGroup            bool   `json:"isGroup"`
+	UnreadCount        int    `json:"unreadCount,omitempty"`
+	ProfilePictureURL  string `json:"profilePictureUrl,omitempty"`
 }
 
 // ReceiptPayload is the payload for receipt events (matches API ReceiptEvent.payload).
@@ -355,17 +356,18 @@ func (p *Publisher) PublishPresence(presence PresenceEvent) error {
 }
 
 // PublishContact publishes a contact sync event.
-func (p *Publisher) PublishContact(jid, name, displayName string, isGroup bool, unreadCount int) error {
+func (p *Publisher) PublishContact(jid, name, displayName string, isGroup bool, unreadCount int, profilePictureURL string) error {
 	event := WhatsAppEvent{
 		Type:         "contact",
 		CompanyID:    p.companyID,
 		ConnectionID: p.connectionID,
 		Payload: ContactPayload{
-			JID:         jid,
-			Name:        name,
-			DisplayName: displayName,
-			IsGroup:     isGroup,
-			UnreadCount: unreadCount,
+			JID:               jid,
+			Name:              name,
+			DisplayName:       displayName,
+			IsGroup:           isGroup,
+			UnreadCount:       unreadCount,
+			ProfilePictureURL: profilePictureURL,
 		},
 		Timestamp: time.Now().Format(time.RFC3339),
 	}

@@ -93,6 +93,9 @@ export function MessageThread({
     [items]
   );
 
+  // State for virtualizer total size to avoid flushSync warnings
+  const [totalSize, setTotalSize] = useState(0);
+
   // Virtualizer setup
   const virtualizer = useVirtualizer({
     count: items.length,
@@ -100,7 +103,18 @@ export function MessageThread({
     estimateSize,
     overscan: 10,
     getItemKey,
+    onChange: (instance) => {
+      // Update total size asynchronously to avoid flushSync during render
+      requestAnimationFrame(() => {
+        setTotalSize(instance.getTotalSize());
+      });
+    },
   });
+
+  // Initialize total size
+  useEffect(() => {
+    setTotalSize(virtualizer.getTotalSize());
+  }, [virtualizer, items.length]);
 
   // Handle scroll to detect when we're near the top (for loading more)
   const handleScroll = useCallback(() => {
@@ -323,7 +337,7 @@ export function MessageThread({
         {/* Virtual list container */}
         <div
           style={{
-            height: `${virtualizer.getTotalSize()}px`,
+            height: `${totalSize}px`,
             width: "100%",
             position: "relative",
           }}

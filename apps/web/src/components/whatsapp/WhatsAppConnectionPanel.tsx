@@ -24,13 +24,85 @@ import {
   Edit2,
   Power,
   PowerOff,
+  X,
+  Zap,
+  MessageCircle,
+  Link2,
+  Sparkles,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+
+// CSS-in-JS styles for animations
+const animationStyles = `
+  @keyframes slideDown {
+    from {
+      opacity: 0;
+      transform: translateY(-12px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  @keyframes pulse-ring {
+    0% {
+      transform: scale(0.95);
+      opacity: 0.5;
+    }
+    50% {
+      transform: scale(1);
+      opacity: 0.3;
+    }
+    100% {
+      transform: scale(0.95);
+      opacity: 0.5;
+    }
+  }
+
+  @keyframes float {
+    0%, 100% { transform: translateY(0px); }
+    50% { transform: translateY(-6px); }
+  }
+
+  @keyframes shimmer {
+    0% { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
+  }
+
+  .animate-slide-down {
+    animation: slideDown 0.3s ease-out forwards;
+  }
+
+  .animate-fade-in {
+    animation: fadeIn 0.2s ease-out forwards;
+  }
+
+  .animate-pulse-ring {
+    animation: pulse-ring 2s ease-in-out infinite;
+  }
+
+  .animate-float {
+    animation: float 3s ease-in-out infinite;
+  }
+
+  .animate-shimmer {
+    background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.4) 50%, transparent 100%);
+    background-size: 200% 100%;
+    animation: shimmer 2s infinite;
+  }
+`;
 
 interface WhatsAppConnectionPanelProps {
   className?: string;
   compact?: boolean;
   multiConnection?: boolean;
+  hideHeader?: boolean;
 }
 
 /**
@@ -42,11 +114,12 @@ export function WhatsAppConnectionPanel({
   className,
   compact = false,
   multiConnection = false,
+  hideHeader = false,
 }: WhatsAppConnectionPanelProps) {
   // Use multi-connection mode if enabled
   if (multiConnection) {
     return (
-      <MultiConnectionPanel className={className} compact={compact} />
+      <MultiConnectionPanel className={className} compact={compact} hideHeader={hideHeader} />
     );
   }
 
@@ -63,13 +136,16 @@ export function WhatsAppConnectionPanel({
 function MultiConnectionPanel({
   className,
   compact = false,
+  hideHeader = false,
 }: {
   className?: string;
   compact?: boolean;
+  hideHeader?: boolean;
 }) {
   const {
     connections,
     pendingConnection,
+    globalError,
     isLoading,
     isCreating,
     create,
@@ -80,6 +156,7 @@ function MultiConnectionPanel({
     refresh,
     clearError,
     clearPendingConnection,
+    clearGlobalError,
     connectedCount,
     totalCount,
   } = useWhatsAppConnections();
@@ -90,6 +167,23 @@ function MultiConnectionPanel({
     null
   );
   const [editName, setEditName] = useState("");
+
+  // Inject animation styles into document head
+  useEffect(() => {
+    const styleId = 'whatsapp-connection-panel-styles';
+    // Avoid duplicate style injection
+    if (document.getElementById(styleId)) return;
+
+    const styleEl = document.createElement('style');
+    styleEl.id = styleId;
+    styleEl.textContent = animationStyles;
+    document.head.appendChild(styleEl);
+
+    return () => {
+      const existing = document.getElementById(styleId);
+      if (existing) existing.remove();
+    };
+  }, []);
 
   // Handle add new connection
   const handleAddConnection = useCallback(async () => {
@@ -147,82 +241,200 @@ function MultiConnectionPanel({
   return (
     <div
       className={cn(
-        "bg-white rounded-lg border border-gray-200 p-6",
+        hideHeader ? "p-4" : "bg-white rounded-lg border border-gray-200 p-6",
         className
       )}
     >
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-whatsapp-teal-green/10 flex items-center justify-center">
-            <Smartphone className="h-5 w-5 text-whatsapp-teal-green" />
+      {/* Header - hidden when wrapped in SettingsCard */}
+      {!hideHeader && (
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-whatsapp-teal-green/10 flex items-center justify-center">
+              <Smartphone className="h-5 w-5 text-whatsapp-teal-green" />
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900">
+                WhatsApp Connections
+              </h2>
+              <p className="text-sm text-gray-500">
+                {connectedCount} of {totalCount} connections active
+              </p>
+            </div>
           </div>
-          <div>
-            <h2 className="text-lg font-semibold text-gray-900">
-              WhatsApp Connections
-            </h2>
-            <p className="text-sm text-gray-500">
-              {connectedCount} of {totalCount} connections active
-            </p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => refresh()}>
-            <RefreshCw className="h-4 w-4" />
-          </Button>
-          <Button
-            size="sm"
-            onClick={() => setShowAddDialog(true)}
-            disabled={isCreating}
-            className="bg-whatsapp-teal-green hover:bg-whatsapp-dark-green"
-          >
-            {isCreating ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <>
-                <Plus className="h-4 w-4 mr-1" />
-                Add Connection
-              </>
-            )}
-          </Button>
-        </div>
-      </div>
-
-      {/* Add Connection Dialog */}
-      {showAddDialog && (
-        <div className="mb-6 p-4 border border-gray-200 rounded-lg bg-gray-50">
-          <h3 className="text-sm font-medium text-gray-900 mb-3">
-            Add New Connection
-          </h3>
-          <div className="flex gap-2">
-            <input
-              type="text"
-              value={newConnectionName}
-              onChange={(e) => setNewConnectionName(e.target.value)}
-              placeholder="Connection name (optional)"
-              className="flex-1 px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-whatsapp-teal-green focus:border-transparent"
-            />
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => refresh()}>
+              <RefreshCw className="h-4 w-4" />
+            </Button>
             <Button
               size="sm"
-              onClick={handleAddConnection}
+              onClick={() => setShowAddDialog(true)}
               disabled={isCreating}
+              className="bg-whatsapp-teal-green hover:bg-whatsapp-dark-green"
             >
               {isCreating ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
-                "Create"
+                <>
+                  <Plus className="h-4 w-4 mr-1" />
+                  Add Connection
+                </>
               )}
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Minimal action bar when header is hidden */}
+      {hideHeader && (
+        <div className="flex items-center justify-between mb-4">
+          <p className="text-sm text-gray-500">
+            {connectedCount} of {totalCount} connections active
+          </p>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => refresh()}>
+              <RefreshCw className="h-4 w-4" />
             </Button>
             <Button
               size="sm"
-              variant="outline"
-              onClick={() => {
-                setShowAddDialog(false);
-                setNewConnectionName("");
-              }}
+              onClick={() => setShowAddDialog(true)}
+              disabled={isCreating}
+              className="bg-whatsapp-teal-green hover:bg-whatsapp-dark-green"
             >
-              Cancel
+              {isCreating ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <>
+                  <Plus className="h-4 w-4 mr-1" />
+                  Add Connection
+                </>
+              )}
             </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Global Error Banner (e.g., max connections exceeded) */}
+      {globalError && (
+        <div className="mb-6 animate-slide-down">
+          <div className="relative overflow-hidden rounded-xl border border-amber-300/50 bg-gradient-to-r from-amber-50 via-orange-50 to-amber-50 p-4 shadow-lg shadow-amber-100/50">
+            {/* Decorative shimmer overlay */}
+            <div className="absolute inset-0 animate-shimmer opacity-30 pointer-events-none" />
+
+            <div className="relative flex items-start gap-4">
+              {/* Animated icon with pulse ring */}
+              <div className="relative flex-shrink-0">
+                <div className="absolute inset-0 rounded-full bg-amber-400/20 animate-pulse-ring" />
+                <div className="relative w-12 h-12 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center shadow-lg shadow-amber-400/30">
+                  <Zap className="h-6 w-6 text-white" />
+                </div>
+              </div>
+
+              <div className="flex-1 pt-1">
+                <h3 className="text-base font-semibold text-amber-900 tracking-tight">
+                  Connection Limit Reached
+                </h3>
+                <p className="text-sm text-amber-700/90 mt-1 leading-relaxed">{globalError}</p>
+                <div className="mt-3 flex items-center gap-3">
+                  <button className="inline-flex items-center gap-1.5 text-xs font-medium text-amber-800 hover:text-amber-900 bg-amber-200/50 hover:bg-amber-200 px-3 py-1.5 rounded-full transition-all duration-200">
+                    <Sparkles className="h-3.5 w-3.5" />
+                    Upgrade Plan
+                  </button>
+                  <span className="text-amber-400">•</span>
+                  <button
+                    onClick={clearGlobalError}
+                    className="text-xs text-amber-600 hover:text-amber-800 transition-colors"
+                  >
+                    Dismiss
+                  </button>
+                </div>
+              </div>
+
+              {/* Close button */}
+              <button
+                onClick={clearGlobalError}
+                className="flex-shrink-0 p-1.5 rounded-full hover:bg-amber-200/50 text-amber-500 hover:text-amber-700 transition-all duration-200"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add Connection Dialog */}
+      {showAddDialog && (
+        <div className="mb-6 animate-slide-down">
+          <div className="relative overflow-hidden rounded-xl border border-whatsapp-teal-green/20 bg-gradient-to-br from-white via-emerald-50/30 to-teal-50/50 p-5 shadow-xl shadow-emerald-100/30">
+            {/* Decorative corner accent */}
+            <div className="absolute -top-10 -right-10 w-32 h-32 bg-gradient-to-br from-whatsapp-teal-green/10 to-transparent rounded-full blur-2xl" />
+
+            <div className="relative">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-whatsapp-teal-green to-whatsapp-dark-green flex items-center justify-center shadow-lg shadow-emerald-500/20">
+                  <Link2 className="h-5 w-5 text-white" />
+                </div>
+                <div>
+                  <h3 className="text-base font-semibold text-gray-900">
+                    Add New Connection
+                  </h3>
+                  <p className="text-xs text-gray-500">Link a new WhatsApp device</p>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1.5">
+                    Connection Name
+                  </label>
+                  <input
+                    type="text"
+                    value={newConnectionName}
+                    onChange={(e) => setNewConnectionName(e.target.value)}
+                    placeholder="e.g., Support Team, Sales Phone..."
+                    className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-lg text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-whatsapp-teal-green/50 focus:border-whatsapp-teal-green transition-all duration-200"
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") handleAddConnection();
+                      if (e.key === "Escape") {
+                        setShowAddDialog(false);
+                        setNewConnectionName("");
+                      }
+                    }}
+                    autoFocus
+                  />
+                  <p className="text-xs text-gray-400 mt-1.5">Optional – helps identify this connection</p>
+                </div>
+
+                <div className="flex items-center gap-2 pt-2">
+                  <Button
+                    onClick={handleAddConnection}
+                    disabled={isCreating}
+                    className="flex-1 bg-gradient-to-r from-whatsapp-teal-green to-whatsapp-dark-green hover:from-whatsapp-dark-green hover:to-whatsapp-teal-green text-white shadow-lg shadow-emerald-500/20 transition-all duration-300"
+                  >
+                    {isCreating ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Creating...
+                      </>
+                    ) : (
+                      <>
+                        <Plus className="h-4 w-4 mr-2" />
+                        Create Connection
+                      </>
+                    )}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setShowAddDialog(false);
+                      setNewConnectionName("");
+                    }}
+                    className="px-4 border-gray-200 hover:bg-gray-50"
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       )}
@@ -269,7 +481,7 @@ function MultiConnectionPanel({
           isCreating={isCreating}
         />
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-3 overflow-visible">
           {connections.map((connection) => (
             <ConnectionCard
               key={connection.id}
@@ -352,6 +564,7 @@ function ConnectionCard({
     connected: "bg-green-100 text-green-800 border-green-200",
     pending: "bg-yellow-100 text-yellow-800 border-yellow-200",
     disconnected: "bg-gray-100 text-gray-800 border-gray-200",
+    banned: "bg-red-100 text-red-800 border-red-200",
     error: "bg-red-100 text-red-800 border-red-200",
   }[connection.status];
 
@@ -359,19 +572,20 @@ function ConnectionCard({
     connected: <Wifi className="h-3 w-3" />,
     pending: <Loader2 className="h-3 w-3 animate-spin" />,
     disconnected: <WifiOff className="h-3 w-3" />,
+    banned: <XCircle className="h-3 w-3" />,
     error: <XCircle className="h-3 w-3" />,
   }[connection.status];
 
   return (
     <div
       className={cn(
-        "border rounded-lg p-4 transition-colors",
+        "border rounded-lg p-4 transition-colors overflow-visible",
         connection.status === "connected"
           ? "border-green-200 bg-green-50/50"
           : "border-gray-200 bg-white"
       )}
     >
-      <div className="flex items-start justify-between">
+      <div className="flex items-start justify-between overflow-visible">
         <div className="flex items-start gap-3 flex-1">
           {/* Status Icon */}
           <div
@@ -439,15 +653,42 @@ function ConnectionCard({
 
             {/* Error Message */}
             {localState.error && (
-              <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded flex items-start gap-2">
-                <AlertCircle className="h-4 w-4 text-red-500 flex-shrink-0 mt-0.5" />
-                <p className="text-xs text-red-700 flex-1">{localState.error}</p>
-                <button
-                  onClick={onClearError}
-                  className="text-red-500 hover:text-red-700"
-                >
-                  <XCircle className="h-4 w-4" />
-                </button>
+              <div className="mt-3 animate-fade-in">
+                <div className="relative overflow-hidden rounded-lg border border-red-200/60 bg-gradient-to-r from-red-50 to-rose-50 p-3 shadow-sm">
+                  {/* Decorative accent line */}
+                  <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-red-400 to-rose-500" />
+
+                  <div className="flex items-start gap-2.5 pl-2">
+                    <div className="flex-shrink-0 w-7 h-7 rounded-full bg-red-100 flex items-center justify-center">
+                      <AlertCircle className="h-4 w-4 text-red-500" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-medium text-red-800">Connection Error</p>
+                      <p className="text-xs text-red-600/80 mt-0.5 leading-relaxed">{localState.error}</p>
+                      <div className="flex items-center gap-2 mt-2">
+                        <button
+                          onClick={onReconnect}
+                          className="inline-flex items-center gap-1 text-xs font-medium text-red-700 hover:text-red-800 bg-red-100 hover:bg-red-200/70 px-2.5 py-1 rounded-md transition-all duration-200"
+                        >
+                          <RefreshCw className="h-3 w-3" />
+                          Retry
+                        </button>
+                        <button
+                          onClick={onClearError}
+                          className="text-xs text-red-500 hover:text-red-700 transition-colors"
+                        >
+                          Dismiss
+                        </button>
+                      </div>
+                    </div>
+                    <button
+                      onClick={onClearError}
+                      className="flex-shrink-0 p-1 rounded-full hover:bg-red-100 text-red-400 hover:text-red-600 transition-all"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
               </div>
             )}
 
@@ -467,37 +708,93 @@ function ConnectionCard({
           </div>
         </div>
 
-        {/* Actions Menu */}
+        {/* Quick Actions + Menu */}
         {!isEditing && (
-          <div className="relative">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setShowMenu(!showMenu)}
-              className="h-8 w-8 p-0"
-            >
-              <MoreVertical className="h-4 w-4" />
-            </Button>
+          <div className="flex items-center gap-2">
+            {/* Quick action button based on status */}
+            {connection.status === "connected" ? (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={onDisconnect}
+                disabled={localState.isDisconnecting}
+                className="text-orange-600 border-orange-200 hover:bg-orange-50 hover:border-orange-300"
+              >
+                {localState.isDisconnecting ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <>
+                    <PowerOff className="h-4 w-4 mr-1.5" />
+                    Disconnect
+                  </>
+                )}
+              </Button>
+            ) : connection.status === "disconnected" ? (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={onReconnect}
+                disabled={localState.isConnecting}
+                className="text-whatsapp-teal-green border-emerald-200 hover:bg-emerald-50 hover:border-emerald-300"
+              >
+                {localState.isConnecting ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <>
+                    <Power className="h-4 w-4 mr-1.5" />
+                    Reconnect
+                  </>
+                )}
+              </Button>
+            ) : connection.status === "pending" ? (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={onDisconnect}
+                disabled={localState.isDisconnecting}
+                className="text-gray-600 border-gray-200 hover:bg-gray-50 hover:border-gray-300"
+              >
+                {localState.isDisconnecting ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <>
+                    <X className="h-4 w-4 mr-1.5" />
+                    Cancel
+                  </>
+                )}
+              </Button>
+            ) : null}
+
+            {/* 3-dot menu */}
+            <div className="relative">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowMenu(!showMenu)}
+                className="h-8 w-8 p-0"
+              >
+                <MoreVertical className="h-4 w-4" />
+              </Button>
             {showMenu && (
               <>
                 <div
                   className="fixed inset-0 z-10"
                   onClick={() => setShowMenu(false)}
                 />
-                <div className="absolute right-0 mt-1 w-40 bg-white border border-gray-200 rounded-lg shadow-lg z-20">
+                <div className="absolute right-0 mt-2 w-44 bg-white border border-gray-200 rounded-xl shadow-xl shadow-gray-200/50 z-20 py-1.5 animate-fade-in">
                   <button
-                    className="w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                    className="w-full px-3.5 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2.5 transition-colors"
                     onClick={() => {
                       onStartEdit();
                       setShowMenu(false);
                     }}
                   >
-                    <Edit2 className="h-4 w-4" />
+                    <Edit2 className="h-4 w-4 text-gray-400" />
                     Rename
                   </button>
                   {connection.status === "connected" ? (
                     <button
-                      className="w-full px-3 py-2 text-left text-sm text-orange-600 hover:bg-orange-50 flex items-center gap-2"
+                      className="w-full px-3.5 py-2.5 text-left text-sm text-orange-600 hover:bg-orange-50 flex items-center gap-2.5 transition-colors"
                       onClick={() => {
                         onDisconnect();
                         setShowMenu(false);
@@ -513,7 +810,7 @@ function ConnectionCard({
                     </button>
                   ) : (
                     <button
-                      className="w-full px-3 py-2 text-left text-sm text-green-600 hover:bg-green-50 flex items-center gap-2"
+                      className="w-full px-3.5 py-2.5 text-left text-sm text-whatsapp-teal-green hover:bg-emerald-50 flex items-center gap-2.5 transition-colors"
                       onClick={() => {
                         onReconnect();
                         setShowMenu(false);
@@ -528,8 +825,9 @@ function ConnectionCard({
                       Reconnect
                     </button>
                   )}
+                  <div className="my-1.5 border-t border-gray-100" />
                   <button
-                    className="w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2 border-t border-gray-100"
+                    className="w-full px-3.5 py-2.5 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2.5 transition-colors"
                     onClick={() => {
                       if (
                         window.confirm(
@@ -547,6 +845,7 @@ function ConnectionCard({
                 </div>
               </>
             )}
+            </div>
           </div>
         )}
       </div>
@@ -660,34 +959,66 @@ function EmptyConnectionsView({
   isCreating: boolean;
 }) {
   return (
-    <div className="text-center py-8">
-      <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-gray-100 flex items-center justify-center">
-        <Smartphone className="h-10 w-10 text-gray-400" />
+    <div className="relative py-12 px-4">
+      {/* Background decorative elements */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-0 left-1/4 w-32 h-32 bg-gradient-to-br from-whatsapp-teal-green/5 to-transparent rounded-full blur-3xl" />
+        <div className="absolute bottom-0 right-1/4 w-40 h-40 bg-gradient-to-tl from-emerald-500/5 to-transparent rounded-full blur-3xl" />
       </div>
-      <h3 className="text-lg font-medium text-gray-900 mb-2">
-        No WhatsApp Connections
-      </h3>
-      <p className="text-sm text-gray-500 mb-6 max-w-sm mx-auto">
-        Add your first WhatsApp connection to start receiving and sending
-        messages.
-      </p>
-      <Button
-        onClick={onAdd}
-        disabled={isCreating}
-        className="bg-whatsapp-teal-green hover:bg-whatsapp-dark-green"
-      >
-        {isCreating ? (
-          <>
-            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-            Creating...
-          </>
-        ) : (
-          <>
-            <Plus className="h-4 w-4 mr-2" />
-            Add Connection
-          </>
-        )}
-      </Button>
+
+      <div className="relative text-center">
+        {/* Animated illustration */}
+        <div className="relative w-28 h-28 mx-auto mb-6">
+          {/* Outer ring */}
+          <div className="absolute inset-0 rounded-full border-2 border-dashed border-whatsapp-teal-green/20 animate-[spin_20s_linear_infinite]" />
+
+          {/* Inner gradient circle */}
+          <div className="absolute inset-2 rounded-full bg-gradient-to-br from-whatsapp-teal-green/10 via-emerald-50 to-teal-50" />
+
+          {/* Icon container */}
+          <div className="absolute inset-4 rounded-full bg-gradient-to-br from-whatsapp-teal-green to-whatsapp-dark-green flex items-center justify-center shadow-xl shadow-emerald-500/20 animate-float">
+            <MessageCircle className="h-10 w-10 text-white" />
+          </div>
+
+          {/* Floating accent dots */}
+          <div className="absolute -top-1 left-1/2 w-2 h-2 rounded-full bg-whatsapp-teal-green/60 animate-pulse" />
+          <div className="absolute top-1/4 -right-1 w-1.5 h-1.5 rounded-full bg-emerald-400/60 animate-pulse" style={{ animationDelay: '0.5s' }} />
+          <div className="absolute -bottom-1 left-1/3 w-1.5 h-1.5 rounded-full bg-teal-400/60 animate-pulse" style={{ animationDelay: '1s' }} />
+        </div>
+
+        {/* Content */}
+        <h3 className="text-xl font-semibold text-gray-900 mb-2 tracking-tight">
+          No WhatsApp Connections Yet
+        </h3>
+        <p className="text-sm text-gray-500 mb-8 max-w-xs mx-auto leading-relaxed">
+          Connect your first WhatsApp device to start managing conversations with your team.
+        </p>
+
+        {/* CTA Button */}
+        <Button
+          onClick={onAdd}
+          disabled={isCreating}
+          size="lg"
+          className="bg-gradient-to-r from-whatsapp-teal-green to-whatsapp-dark-green hover:from-whatsapp-dark-green hover:to-whatsapp-teal-green text-white shadow-xl shadow-emerald-500/25 hover:shadow-emerald-500/40 transition-all duration-300 px-8"
+        >
+          {isCreating ? (
+            <>
+              <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+              Creating Connection...
+            </>
+          ) : (
+            <>
+              <Plus className="h-5 w-5 mr-2" />
+              Add Your First Connection
+            </>
+          )}
+        </Button>
+
+        {/* Helper text */}
+        <p className="text-xs text-gray-400 mt-4">
+          You'll need your phone nearby to scan the QR code
+        </p>
+      </div>
     </div>
   );
 }

@@ -580,7 +580,7 @@ export async function getWhatsAppStatus(): Promise<WhatsAppConnectionStatus> {
 // WhatsApp Multi-Connection API
 // =====================
 
-export type WhatsAppConnectionStatusType = "disconnected" | "pending" | "connected" | "error";
+export type WhatsAppConnectionStatusType = "disconnected" | "pending" | "connected" | "banned" | "error";
 
 export interface WhatsAppConnection {
   id: string;
@@ -615,18 +615,17 @@ export interface WhatsAppConnectionDetailResponse {
  * List all WhatsApp connections for the current company
  */
 export async function listWhatsAppConnections(): Promise<WhatsAppConnection[]> {
-  const response = await fetchWithAuth<WhatsAppConnectionsListResponse>("/whatsapp/connections");
-  return response.data;
+  // Note: fetchWithAuth already unwraps { success, data } format
+  // So response is already the array of connections
+  return fetchWithAuth<WhatsAppConnection[]>("/whatsapp/connections");
 }
 
 /**
  * Get a specific WhatsApp connection by ID
  */
 export async function getWhatsAppConnection(connectionId: string): Promise<WhatsAppConnection> {
-  const response = await fetchWithAuth<WhatsAppConnectionDetailResponse>(
-    `/whatsapp/connections/${connectionId}`
-  );
-  return response.data;
+  // Note: fetchWithAuth already unwraps { success, data } format
+  return fetchWithAuth<WhatsAppConnection>(`/whatsapp/connections/${connectionId}`);
 }
 
 /**
@@ -634,8 +633,9 @@ export async function getWhatsAppConnection(connectionId: string): Promise<Whats
  */
 export async function createWhatsAppConnection(
   name?: string
-): Promise<CreateWhatsAppConnectionResponse> {
-  return fetchWithAuth<CreateWhatsAppConnectionResponse>("/whatsapp/connections", {
+): Promise<WhatsAppConnection> {
+  // Note: fetchWithAuth already unwraps { success, data } format
+  return fetchWithAuth<WhatsAppConnection>("/whatsapp/connections", {
     method: "POST",
     body: JSON.stringify({ name }),
   });
@@ -690,14 +690,14 @@ export async function updateWhatsAppConnection(
   connectionId: string,
   data: { name?: string }
 ): Promise<WhatsAppConnection> {
-  const response = await fetchWithAuth<WhatsAppConnectionDetailResponse>(
+  // Note: fetchWithAuth already unwraps { success, data } format
+  return fetchWithAuth<WhatsAppConnection>(
     `/whatsapp/connections/${connectionId}`,
     {
       method: "PATCH",
       body: JSON.stringify(data),
     }
   );
-  return response.data;
 }
 
 export async function sendWhatsAppMessage(

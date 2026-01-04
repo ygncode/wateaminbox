@@ -281,6 +281,7 @@ export interface ContactEvent extends WhatsAppEvent {
     displayName?: string;
     isGroup: boolean;
     unreadCount?: number;
+    profilePictureUrl?: string;
   };
 }
 

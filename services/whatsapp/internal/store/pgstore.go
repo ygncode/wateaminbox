@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	_ "github.com/lib/pq"
+	"github.com/lib/pq"
 	"go.mau.fi/whatsmeow/store"
 	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/util/keys"
@@ -259,25 +259,30 @@ func (c *PGContainer) scanDevice(device *store.Device, jidStr string, registrati
 	device.BusinessName = businessName
 	device.PushName = pushName
 
-	// Set noise key
+	// Set noise key - use NewKeyPairFromPrivateKey to properly derive public key
 	if len(noiseKey) == 32 {
-		device.NoiseKey = &keys.KeyPair{}
-		copy(device.NoiseKey.Priv[:], noiseKey)
+		var privKey [32]byte
+		copy(privKey[:], noiseKey)
+		device.NoiseKey = keys.NewKeyPairFromPrivateKey(privKey)
 	}
 
-	// Set identity key
+	// Set identity key - use NewKeyPairFromPrivateKey to properly derive public key
 	if len(identityKey) == 32 {
-		device.IdentityKey = &keys.KeyPair{}
-		copy(device.IdentityKey.Priv[:], identityKey)
+		var privKey [32]byte
+		copy(privKey[:], identityKey)
+		device.IdentityKey = keys.NewKeyPairFromPrivateKey(privKey)
 	}
 
 	// Set signed pre-key
 	if len(signedPreKey) == 32 && len(signedPreKeySig) == 64 {
+		var privKey [32]byte
+		copy(privKey[:], signedPreKey)
+		keyPair := keys.NewKeyPairFromPrivateKey(privKey)
 		device.SignedPreKey = &keys.PreKey{
+			KeyPair:   *keyPair,
 			KeyID:     uint32(signedPreKeyID),
 			Signature: new([64]byte),
 		}
-		copy(device.SignedPreKey.Priv[:], signedPreKey)
 		copy(device.SignedPreKey.Signature[:], signedPreKeySig)
 	}
 
@@ -1321,7 +1326,7 @@ func (s *PGSQLStore) GetManyLIDsForPNs(ctx context.Context, pns []types.JID) (ma
 		pnStrs[i] = pn.String()
 	}
 
-	rows, err := s.db.QueryContext(ctx, query, s.connectionID, pnStrs)
+	rows, err := s.db.QueryContext(ctx, query, s.connectionID, pq.Array(pnStrs))
 	if err != nil {
 		return nil, err
 	}

@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { logger } from "hono/logger";
+import { HTTPException } from "hono/http-exception";
 import { routes } from "./routes/index.js";
 
 export const app = new Hono();
@@ -27,6 +28,14 @@ app.notFound((c) => {
 
 // Error handler
 app.onError((err, c) => {
+  // Handle HTTPException - preserve status code and message
+  if (err instanceof HTTPException) {
+    const status = err.status;
+    const message = err.message || "An error occurred";
+    return c.json({ error: message }, status);
+  }
+
+  // Log unexpected errors
   console.error(`${err}`);
   return c.json({ error: "Internal Server Error" }, 500);
 });

@@ -525,6 +525,7 @@ async function handleContactEvent(event: ContactEvent): Promise<void> {
         .set({
           push_name: payload.displayName || payload.name || null,
           is_group: payload.isGroup,
+          profile_picture_url: payload.profilePictureUrl || null,
           updated_at: new Date(),
         })
         .where("id", "=", existingContact.id)
@@ -547,6 +548,7 @@ async function handleContactEvent(event: ContactEvent): Promise<void> {
           phone_number: phoneNumber,
           push_name: payload.displayName || payload.name || null,
           is_group: payload.isGroup,
+          profile_picture_url: payload.profilePictureUrl || null,
           created_at: new Date(),
           updated_at: new Date(),
         })

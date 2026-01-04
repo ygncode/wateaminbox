@@ -36,7 +36,7 @@ export const whatsappRoutes = new Hono();
 whatsappRoutes.post(
   "/connect",
   authMiddleware,
-  tenantFromHeader("X-Company-ID"),
+  tenantFromHeader("X-Company-ID", "admin"),
   async (c) => {
     const companyId = c.get("companyId");
     const user = c.get("user");
@@ -59,18 +59,20 @@ whatsappRoutes.post(
         },
       });
     } catch (error) {
-      const err = error as Error;
-      // Check by name since instanceof may not work across module boundaries
-      if (
+      const err = error as Error & { code?: string; currentCount?: number; maxAllowed?: number };
+      // Check by code property, name, instanceof, or message pattern (fallback)
+      const isMaxConnectionsError =
+        err.code === "MAX_CONNECTIONS_EXCEEDED" ||
         err.name === "MaxConnectionsExceededError" ||
-        error instanceof whatsappService.MaxConnectionsExceededError
-      ) {
-        const maxErr = error as whatsappService.MaxConnectionsExceededError;
+        error instanceof whatsappService.MaxConnectionsExceededError ||
+        err.message?.includes("Maximum WhatsApp connections exceeded");
+
+      if (isMaxConnectionsError) {
         throw new HTTPException(429, {
           message: err.message,
           cause: {
-            currentCount: maxErr.currentCount,
-            maxAllowed: maxErr.maxAllowed,
+            currentCount: err.currentCount,
+            maxAllowed: err.maxAllowed,
           },
         });
       }
@@ -273,17 +275,20 @@ whatsappRoutes.get(
 
       return c.json({
         success: true,
-        data: {
-          connections: connections.map((conn) => ({
-            id: conn.id,
-            phoneNumber: conn.phoneNumber,
-            jid: conn.jid,
-            status: conn.status,
-            connectedBy: conn.connectedBy,
-            connectedAt: conn.connectedAt,
-            lastSyncAt: conn.lastSyncAt,
-            createdAt: conn.createdAt,
-          })),
+        data: connections.map((conn, index) => ({
+          id: conn.id,
+          name: conn.name || conn.phoneNumber || `Connection ${index + 1}`,
+          phoneNumber: conn.phoneNumber,
+          jid: conn.jid,
+          status: conn.status,
+          connectedBy: conn.connectedBy,
+          connectedAt: conn.connectedAt,
+          lastSync: conn.lastSyncAt,
+          createdAt: conn.createdAt,
+          updatedAt: conn.updatedAt,
+        })),
+        meta: {
+          total: connections.length,
           limits,
         },
       });
@@ -302,43 +307,56 @@ whatsappRoutes.get(
 whatsappRoutes.post(
   "/connections",
   authMiddleware,
-  tenantFromHeader("X-Company-ID"),
+  tenantFromHeader("X-Company-ID", "admin"),
   async (c) => {
     const companyId = c.get("companyId");
     const user = c.get("user");
     const tenantDb = c.get("tenantDb");
 
     try {
+      // Read name from request body
+      const body = await c.req.json().catch(() => ({}));
+      const name = body.name as string | undefined;
+
       const result = await whatsappService.spawnConnection(
         tenantDb,
         companyId,
         user.id,
+        name,
       );
 
       return c.json(
         {
           success: true,
           data: {
-            connectionId: result.connectionId,
-            wsUrl: result.wsUrl,
-            message:
-              "Connection initiated. Connect to the WebSocket URL to receive the QR code.",
+            id: result.connectionId,
+            name: name || null,
+            status: "pending" as const,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
           },
+          message:
+            "Connection initiated. Connect to the WebSocket URL to receive the QR code.",
+          websocketUrl: result.wsUrl,
         },
         201,
       );
     } catch (error) {
-      const err = error as Error;
-      if (
+      const err = error as Error & { code?: string; currentCount?: number; maxAllowed?: number };
+
+      // Check by code property, name, instanceof, or message pattern (fallback)
+      const isMaxConnectionsError =
+        err.code === "MAX_CONNECTIONS_EXCEEDED" ||
         err.name === "MaxConnectionsExceededError" ||
-        error instanceof whatsappService.MaxConnectionsExceededError
-      ) {
-        const maxErr = error as whatsappService.MaxConnectionsExceededError;
+        error instanceof whatsappService.MaxConnectionsExceededError ||
+        err.message?.includes("Maximum WhatsApp connections exceeded");
+
+      if (isMaxConnectionsError) {
         throw new HTTPException(429, {
           message: err.message,
           cause: {
-            currentCount: maxErr.currentCount,
-            maxAllowed: maxErr.maxAllowed,
+            currentCount: err.currentCount,
+            maxAllowed: err.maxAllowed,
           },
         });
       }
@@ -388,6 +406,166 @@ whatsappRoutes.get(
       console.error("Failed to get connection:", error);
       throw new HTTPException(500, {
         message: "Failed to get connection details",
+      });
+    }
+  },
+);
+
+/**
+ * PATCH /whatsapp/connections/:connectionId - Update connection (e.g., rename)
+ * Note: Currently name is auto-generated from phone number, so this is a no-op
+ * but returns success for frontend compatibility
+ */
+whatsappRoutes.patch(
+  "/connections/:connectionId",
+  authMiddleware,
+  tenantFromHeader("X-Company-ID"),
+  async (c) => {
+    const connectionId = c.req.param("connectionId");
+    const tenantDb = c.get("tenantDb");
+
+    try {
+      // Verify connection exists
+      const connection = await whatsappService.getConnection(
+        tenantDb,
+        connectionId,
+      );
+
+      // Note: Name is auto-generated from phone number, not stored separately
+      // Return the connection as-is for frontend compatibility
+      return c.json({
+        success: true,
+        data: {
+          id: connection.id,
+          name: connection.phoneNumber || `Connection`,
+          phoneNumber: connection.phoneNumber,
+          jid: connection.jid,
+          status: connection.status,
+          connectedAt: connection.connectedAt,
+          lastSync: connection.lastSyncAt,
+          createdAt: connection.createdAt,
+          updatedAt: connection.updatedAt,
+        },
+      });
+    } catch (error) {
+      if (error instanceof whatsappService.ConnectionNotFoundError) {
+        throw new HTTPException(404, { message: error.message });
+      }
+      console.error("Failed to update connection:", error);
+      throw new HTTPException(500, {
+        message: "Failed to update connection",
+      });
+    }
+  },
+);
+
+/**
+ * DELETE /whatsapp/connections/:connectionId - Delete a connection permanently
+ */
+whatsappRoutes.delete(
+  "/connections/:connectionId",
+  authMiddleware,
+  tenantFromHeader("X-Company-ID", "admin"),
+  async (c) => {
+    const companyId = c.get("companyId");
+    const connectionId = c.req.param("connectionId");
+    const tenantDb = c.get("tenantDb");
+
+    try {
+      // First disconnect if connected
+      const connection = await whatsappService.getConnection(
+        tenantDb,
+        connectionId,
+      );
+
+      if (connection.status === "connected" || connection.status === "pending") {
+        await whatsappService.killConnection(tenantDb, companyId, connectionId);
+      }
+
+      // Delete from database
+      await tenantDb
+        .deleteFrom("whatsapp_connections")
+        .where("id", "=", connectionId)
+        .execute();
+
+      return c.json({
+        success: true,
+        message: "Connection deleted successfully",
+      });
+    } catch (error) {
+      if (error instanceof whatsappService.ConnectionNotFoundError) {
+        throw new HTTPException(404, { message: error.message });
+      }
+      console.error("Failed to delete connection:", error);
+      throw new HTTPException(500, {
+        message: "Failed to delete connection",
+      });
+    }
+  },
+);
+
+/**
+ * POST /whatsapp/connections/:connectionId/reconnect - Reconnect a disconnected connection
+ */
+whatsappRoutes.post(
+  "/connections/:connectionId/reconnect",
+  authMiddleware,
+  tenantFromHeader("X-Company-ID"),
+  async (c) => {
+    const companyId = c.get("companyId");
+    const connectionId = c.req.param("connectionId");
+    const tenantDb = c.get("tenantDb");
+
+    try {
+      // Verify connection exists
+      const connection = await whatsappService.getConnection(
+        tenantDb,
+        connectionId,
+      );
+
+      // Only allow reconnect for disconnected connections
+      if (connection.status === "connected") {
+        throw new HTTPException(400, {
+          message: "Connection is already connected",
+        });
+      }
+
+      if (connection.status === "pending") {
+        throw new HTTPException(400, {
+          message: "Connection is already pending",
+        });
+      }
+
+      // Update status to pending
+      await tenantDb
+        .updateTable("whatsapp_connections")
+        .set({
+          status: "pending",
+          updated_at: new Date(),
+        })
+        .where("id", "=", connectionId)
+        .execute();
+
+      // Publish spawn command to NATS
+      const { publishSpawnCommand } = await import("../lib/nats.js");
+      const { env } = await import("../lib/env.js");
+      await publishSpawnCommand(companyId, connectionId, env.DATABASE_URL);
+
+      return c.json({
+        success: true,
+        message: "Reconnection initiated",
+        websocketUrl: `/ws?company=${companyId}&connection=${connectionId}`,
+      });
+    } catch (error) {
+      if (error instanceof whatsappService.ConnectionNotFoundError) {
+        throw new HTTPException(404, { message: error.message });
+      }
+      if (error instanceof HTTPException) {
+        throw error;
+      }
+      console.error("Failed to reconnect:", error);
+      throw new HTTPException(500, {
+        message: "Failed to reconnect",
       });
     }
   },

@@ -96,6 +96,34 @@ contactRoutes.get("/", async (c) => {
   // Pagination
   const contacts = await query.limit(limit).offset(offset).execute();
 
+  // Fetch last message details for each contact
+  const contactsWithMessages = await Promise.all(
+    contacts.map(async (contact) => {
+      if (!contact.last_message_at) {
+        return { ...contact, last_message: null };
+      }
+
+      // Get the most recent message for this contact
+      const lastMessage = await tenantDb
+        .selectFrom("messages")
+        .select([
+          "id",
+          "message_id",
+          "from_me",
+          "message_type",
+          "content",
+          "status",
+          "timestamp",
+        ])
+        .where("contact_id", "=", contact.id)
+        .orderBy("timestamp", "desc")
+        .limit(1)
+        .executeTakeFirst();
+
+      return { ...contact, last_message: lastMessage || null };
+    }),
+  );
+
   // Get total count with same filters
   let countQuery = tenantDb
     .selectFrom("contacts")
@@ -138,7 +166,7 @@ contactRoutes.get("/", async (c) => {
   const total = Number(countResult?.total || 0);
 
   return c.json({
-    data: contacts.map((contact) => {
+    data: contactsWithMessages.map((contact) => {
       // Extract phone number from JID if not available
       const phoneFromJid = contact.jid?.split("@")[0] || null;
       return {
@@ -162,6 +190,17 @@ contactRoutes.get("/", async (c) => {
         profilePictureUrl: contact.profile_picture_url,
         notesShared: contact.notes_shared,
         lastMessageAt: contact.last_message_at,
+        lastMessage: contact.last_message
+          ? {
+              id: contact.last_message.id,
+              messageId: contact.last_message.message_id,
+              fromMe: contact.last_message.from_me,
+              messageType: contact.last_message.message_type,
+              content: contact.last_message.content,
+              status: contact.last_message.status,
+              timestamp: contact.last_message.timestamp,
+            }
+          : null,
         unreadCount: Number(contact.unread_count),
         assignedTo: contact.assigned_to,
         createdAt: contact.created_at,
@@ -172,7 +211,7 @@ contactRoutes.get("/", async (c) => {
       total,
       limit,
       offset,
-      hasMore: offset + contacts.length < total,
+      hasMore: offset + contactsWithMessages.length < total,
     },
   });
 });

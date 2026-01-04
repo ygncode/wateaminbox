@@ -14,6 +14,7 @@ const DEFAULT_MAX_CONNECTIONS = 5;
 // Types
 export interface WhatsAppConnection {
   id: string;
+  name: string | null;
   phoneNumber: string | null;
   jid: string | null;
   status: "connected" | "disconnected" | "banned" | "pending";
@@ -44,6 +45,7 @@ export class ConnectionNotFoundError extends Error {
   constructor(connectionId: string) {
     super(`WhatsApp connection ${connectionId} not found`);
     this.name = "ConnectionNotFoundError";
+    Object.setPrototypeOf(this, ConnectionNotFoundError.prototype);
   }
 }
 
@@ -51,6 +53,7 @@ export class ConnectionAlreadyExistsError extends Error {
   constructor(companyId: string) {
     super(`WhatsApp connection already exists for company ${companyId}`);
     this.name = "ConnectionAlreadyExistsError";
+    Object.setPrototypeOf(this, ConnectionAlreadyExistsError.prototype);
   }
 }
 
@@ -58,10 +61,12 @@ export class InvalidConnectionStateError extends Error {
   constructor(currentState: string, requiredState: string) {
     super(`Connection is ${currentState}, but must be ${requiredState}`);
     this.name = "InvalidConnectionStateError";
+    Object.setPrototypeOf(this, InvalidConnectionStateError.prototype);
   }
 }
 
 export class MaxConnectionsExceededError extends Error {
+  code = "MAX_CONNECTIONS_EXCEEDED" as const;
   currentCount: number;
   maxAllowed: number;
 
@@ -72,6 +77,8 @@ export class MaxConnectionsExceededError extends Error {
     this.name = "MaxConnectionsExceededError";
     this.currentCount = currentCount;
     this.maxAllowed = maxAllowed;
+    // Fix ES6 class inheritance issue with Error
+    Object.setPrototypeOf(this, MaxConnectionsExceededError.prototype);
   }
 }
 
@@ -98,6 +105,7 @@ export async function listConnections(
     .selectFrom("whatsapp_connections")
     .select([
       "id",
+      "name",
       "phone_number",
       "jid",
       "status",
@@ -112,6 +120,7 @@ export async function listConnections(
 
   return connections.map((conn) => ({
     id: conn.id,
+    name: conn.name,
     phoneNumber: conn.phone_number,
     jid: conn.jid,
     status: conn.status,
@@ -134,6 +143,7 @@ export async function getConnection(
     .selectFrom("whatsapp_connections")
     .select([
       "id",
+      "name",
       "phone_number",
       "jid",
       "status",
@@ -152,6 +162,7 @@ export async function getConnection(
 
   return {
     id: connection.id,
+    name: connection.name,
     phoneNumber: connection.phone_number,
     jid: connection.jid,
     status: connection.status,
@@ -172,6 +183,7 @@ export async function spawnConnection(
   tenantDb: Kysely<TenantDatabase>,
   companyId: string,
   userId: string,
+  name?: string,
 ): Promise<{ connectionId: string; wsUrl: string }> {
   // Get max connections limit for this company
   const maxConnections = await getMaxConnections(companyId);
@@ -197,6 +209,7 @@ export async function spawnConnection(
     .insertInto("whatsapp_connections")
     .values({
       id: connectionId,
+      name: name || null,
       status: "pending",
       connected_by: userId,
       created_at: new Date(),
@@ -473,6 +486,7 @@ export async function getActiveConnection(
     .selectFrom("whatsapp_connections")
     .select([
       "id",
+      "name",
       "phone_number",
       "jid",
       "status",
@@ -491,6 +505,7 @@ export async function getActiveConnection(
 
   return {
     id: connection.id,
+    name: connection.name,
     phoneNumber: connection.phone_number,
     jid: connection.jid,
     status: connection.status,
@@ -512,6 +527,7 @@ export async function getActiveConnections(
     .selectFrom("whatsapp_connections")
     .select([
       "id",
+      "name",
       "phone_number",
       "jid",
       "status",
@@ -527,6 +543,7 @@ export async function getActiveConnections(
 
   return connections.map((conn) => ({
     id: conn.id,
+    name: conn.name,
     phoneNumber: conn.phone_number,
     jid: conn.jid,
     status: conn.status,

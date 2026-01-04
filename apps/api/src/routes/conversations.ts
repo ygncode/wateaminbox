@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { authMiddleware } from "../middleware/auth.js";
-import { tenantMiddleware } from "../middleware/tenant.js";
+import { tenantMiddleware, requirePermission } from "../middleware/tenant.js";
 import {
   getConversationState,
   resolveConversation,
@@ -11,6 +11,9 @@ import {
 } from "../services/conversation-state.service.js";
 import { createAuditLog, getClientIp } from "../services/audit.service.js";
 import { broadcastToCompany } from "./ws.js";
+import { PERMISSIONS } from "../services/permission.service.js";
+import { publishSendMessage } from "../lib/nats.js";
+import { ensureContactAssignment } from "../services/contact.service.js";
 
 export const conversationRoutes = new Hono();
 
@@ -109,6 +112,135 @@ conversationRoutes.get("/:id/messages", async (c) => {
     nextCursor: messages.length > 0 ? messages[messages.length - 1].id : null,
   });
 });
+
+/**
+ * POST /conversations/:id/messages - Send a new message
+ * Requires can_send_messages permission
+ */
+conversationRoutes.post(
+  "/:id/messages",
+  requirePermission(PERMISSIONS.CAN_SEND_MESSAGES),
+  async (c) => {
+    const tenantDb = c.get("tenantDb");
+    const user = c.get("user");
+    const companyId = c.get("companyId");
+    const contactId = c.req.param("id");
+    const body = await c.req.json();
+
+    const {
+      content,
+      messageType = "text",
+      mediaUrl,
+      replyToMessageId,
+    } = body;
+
+    if (!content && messageType === "text") {
+      return c.json({ error: "content is required for text messages" }, 400);
+    }
+
+    // Get contact JID and connection ID
+    const contact = await tenantDb
+      .selectFrom("contacts")
+      .select(["id", "jid", "whatsapp_connection_id"])
+      .where("id", "=", contactId)
+      .executeTakeFirst();
+
+    if (!contact || !contact.jid) {
+      return c.json({ error: "Contact not found or has no JID" }, 404);
+    }
+
+    // Get active WhatsApp connection
+    const connection = await tenantDb
+      .selectFrom("whatsapp_connections")
+      .select(["id", "jid"])
+      .where("status", "=", "connected")
+      .executeTakeFirst();
+
+    if (!connection) {
+      return c.json({ error: "No active WhatsApp connection" }, 400);
+    }
+
+    // Auto-assign contact to the user if unassigned
+    const wasAutoAssigned = await ensureContactAssignment(
+      tenantDb,
+      contactId,
+      user.id,
+    );
+
+    // Look up the WhatsApp message ID and sender for reply-to if provided
+    let quotedWaMessageId: string | undefined;
+    let quotedSenderJid: string | undefined;
+    if (replyToMessageId) {
+      const quotedMessage = await tenantDb
+        .selectFrom("messages")
+        .select(["message_id", "sender_jid", "from_me"])
+        .where("id", "=", replyToMessageId)
+        .executeTakeFirst();
+      quotedWaMessageId = quotedMessage?.message_id || undefined;
+
+      if (quotedMessage?.from_me) {
+        quotedSenderJid = connection.jid || undefined;
+      } else {
+        quotedSenderJid = quotedMessage?.sender_jid || contact.jid;
+      }
+    }
+
+    // Create a pending message in database
+    const messageId = crypto.randomUUID();
+    const waMessageId = `pending_${messageId}`;
+
+    await tenantDb
+      .insertInto("messages")
+      .values({
+        id: messageId,
+        contact_id: contactId,
+        whatsapp_connection_id: connection.id,
+        message_id: waMessageId,
+        from_me: true,
+        sender_jid: null,
+        message_type: messageType,
+        content,
+        media_url: mediaUrl || null,
+        quoted_message_id: quotedWaMessageId || null,
+        sent_by_user_id: user.id,
+        status: "pending",
+        timestamp: new Date(),
+        created_at: new Date(),
+      })
+      .execute();
+
+    // Publish send command to NATS
+    await publishSendMessage(
+      companyId,
+      connection.id,
+      contact.jid,
+      content,
+      messageType,
+      user.id,
+      mediaUrl,
+      quotedWaMessageId,
+      quotedSenderJid,
+    );
+
+    return c.json({
+      success: true,
+      message: {
+        id: messageId,
+        messageId: waMessageId,
+        conversationId: contactId,
+        contactId,
+        fromMe: true,
+        messageType,
+        content,
+        mediaUrl,
+        replyToMessageId: replyToMessageId || null,
+        timestamp: new Date().toISOString(),
+        status: "pending",
+      },
+      autoAssigned: wasAutoAssigned,
+    });
+  },
+);
 
 /**
  * GET /conversations/:id/state - Get the conversation state for a contact
