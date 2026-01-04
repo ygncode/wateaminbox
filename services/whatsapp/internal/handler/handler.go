@@ -1,3 +1,30 @@
+// Package handler implements WhatsApp event processing with robust media download handling.
+//
+// Media Download Retry Mechanism:
+//
+// All media downloads (images, videos, audio, documents, stickers) use exponential backoff
+// retry logic to handle transient network failures. The retry configuration is controlled
+// by package-level constants:
+//
+//   - mediaDownloadMaxRetries (4): Maximum number of total download attempts (initial + retries)
+//   - mediaDownloadBaseDelay (1s): Initial backoff, doubling each retry (1s, 2s, 4s)
+//   - mediaDownloadAttemptTimeout (30s): Per-attempt timeout to prevent indefinite blocking
+//
+// Retry Behavior:
+//   1. First attempt starts immediately with a 30s timeout
+//   2. On failure, waits 1s before second attempt (30s timeout)
+//   3. On failure, waits 2s before third attempt (30s timeout)
+//   4. On failure, waits 4s before fourth attempt (30s timeout)
+//   5. If all attempts fail, returns the last error
+//
+// Maximum additional delay: ~7 seconds (1s + 2s + 4s backoff)
+//
+// Context cancellation is checked before each attempt and during backoff delays,
+// allowing graceful shutdown when the service is stopping.
+//
+// Functions using retry logic:
+//   - handleMediaMessage: Real-time message media (timeout: 135s)
+//   - downloadHistoryMedia: History sync media (timeout: 75s)
 package handler
 
 import (
@@ -11,17 +38,97 @@ import (
 	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
 
-	"github.com/ygncode-lab/whatsapp-web/services/whatsapp/internal/client"
 	natsClient "github.com/ygncode-lab/whatsapp-web/services/whatsapp/internal/nats"
 	"github.com/ygncode-lab/whatsapp-web/services/whatsapp/internal/storage"
 )
+
+// Media download retry configuration constants.
+const (
+	// mediaDownloadMaxRetries is the maximum number of total attempts (initial + retries)
+	// for media downloads. 4 attempts allow for 3 backoff intervals (1s, 2s, 4s).
+	mediaDownloadMaxRetries = 4
+
+	// mediaDownloadBaseDelay is the initial delay between retry attempts.
+	// Subsequent delays follow exponential backoff: 1s, 2s, 4s.
+	mediaDownloadBaseDelay = 1 * time.Second
+
+	// mediaDownloadAttemptTimeout is the timeout for each individual download attempt.
+	mediaDownloadAttemptTimeout = 30 * time.Second
+)
+
+// downloadWithRetry downloads media with exponential backoff retry logic.
+// It attempts to download media up to mediaDownloadMaxRetries times, with each
+// attempt having its own mediaDownloadAttemptTimeout. Backoff delays follow
+// exponential progression: 1s, 2s, 4s.
+//
+// The parent context is checked between retries for cancellation.
+// Returns the downloaded data on success, or an error after all retries are exhausted.
+func (h *Handler) downloadWithRetry(ctx context.Context, downloadable whatsmeow.DownloadableMessage) ([]byte, error) {
+	var lastErr error
+
+	for attempt := 0; attempt < mediaDownloadMaxRetries; attempt++ {
+		// Check if parent context is cancelled before attempting
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
+
+		// Create a per-attempt context with timeout
+		attemptCtx, cancel := context.WithTimeout(context.Background(), mediaDownloadAttemptTimeout)
+
+		// Attempt the download
+		data, err := h.config.Client.DownloadMedia(attemptCtx, downloadable)
+		cancel()
+
+		// Success - return the data immediately
+		if err == nil {
+			if attempt > 0 {
+				log.Printf("Media download succeeded on attempt %d after retries", attempt+1)
+			}
+			return data, nil
+		}
+
+		// Store this attempt's error
+		lastErr = err
+
+		// Log the failure
+		if attempt < mediaDownloadMaxRetries-1 {
+			log.Printf("Media download attempt %d failed: %v (retrying in %v)", attempt+1, err, mediaDownloadBaseDelay*time.Duration(1<<uint(attempt)))
+		} else {
+			log.Printf("Media download attempt %d failed: %v (no more retries)", attempt+1, err)
+		}
+
+		// Exponential backoff before next retry (but not after the last attempt)
+		if attempt < mediaDownloadMaxRetries-1 {
+			backoffDelay := mediaDownloadBaseDelay * time.Duration(1<<uint(attempt))
+
+			// Wait for backoff duration or context cancellation
+			select {
+			case <-time.After(backoffDelay):
+				// Continue to next attempt
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			}
+		}
+	}
+
+	// All retries exhausted
+	return nil, lastErr
+}
+
+// WhatsAppClient defines the interface for the WhatsApp client.
+// This allows for mocking the client in tests.
+type WhatsAppClient interface {
+	DownloadMedia(ctx context.Context, msg whatsmeow.DownloadableMessage) ([]byte, error)
+	GetClient() *whatsmeow.Client
+	HandleReconnect(ctx context.Context)
+}
 
 // Config holds handler configuration.
 type Config struct {
 	WorkerID  string
 	CompanyID string
 	NATSUrl   string
-	Client    *client.Client
+	Client    WhatsAppClient
 	Publisher *natsClient.Publisher
 	Storage   *storage.Client
 	Ctx       context.Context
@@ -191,20 +298,23 @@ func (h *Handler) handleMessage(msg *events.Message) {
 }
 
 // handleMediaMessage downloads media and uploads to storage.
+// Uses retry logic with exponential backoff for robustness.
+// Timeout is extended to 135s to accommodate retry delays (1s + 2s + 4s backoff).
 func (h *Handler) handleMediaMessage(downloadable whatsmeow.DownloadableMessage, event *natsClient.MessageEvent) {
 	if h.config.Client == nil {
 		log.Println("Client not available for media download")
 		return
 	}
 
-	// Create a context with timeout for media download and upload
-	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+	// Create a context with timeout for media download and upload.
+	// Extended from 120s to 135s to accommodate retry delays (up to ~7s total backoff).
+	ctx, cancel := context.WithTimeout(context.Background(), 135*time.Second)
 	defer cancel()
 
-	// Download the media
-	data, err := h.config.Client.DownloadMedia(ctx, downloadable)
+	// Download the media with retry logic (exponential backoff)
+	data, err := h.downloadWithRetry(ctx, downloadable)
 	if err != nil {
-		log.Printf("Failed to download media: %v", err)
+		log.Printf("Failed to download media after retry exhaustion: %v", err)
 		return
 	}
 
@@ -538,6 +648,8 @@ func (h *Handler) handleHistorySync(evt *events.HistorySync) {
 }
 
 // downloadHistoryMedia downloads media from history sync with rate limiting.
+// Uses retry logic with exponential backoff for robustness.
+// Timeout is extended to 75s to accommodate retry delays (1s + 2s + 4s backoff).
 // Returns true if download was successful, false otherwise.
 func (h *Handler) downloadHistoryMedia(downloadable whatsmeow.DownloadableMessage, event *natsClient.MessageEvent) bool {
 	if h.config.Client == nil {
@@ -550,14 +662,15 @@ func (h *Handler) downloadHistoryMedia(downloadable whatsmeow.DownloadableMessag
 		return false
 	}
 
-	// Create a context with timeout for media download and upload
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	// Create a context with timeout for media download and upload.
+	// Extended from 60s to 75s to accommodate retry delays (up to ~7s total backoff).
+	ctx, cancel := context.WithTimeout(context.Background(), 75*time.Second)
 	defer cancel()
 
-	// Download the media
-	data, err := h.config.Client.DownloadMedia(ctx, downloadable)
+	// Download the media with retry logic (exponential backoff)
+	data, err := h.downloadWithRetry(ctx, downloadable)
 	if err != nil {
-		log.Printf("Failed to download history media: %v", err)
+		log.Printf("Failed to download history media after retry exhaustion: %v", err)
 		return false
 	}
 
