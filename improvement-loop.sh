@@ -479,6 +479,47 @@ EOF
     log_success "Tasks created: $tasks_file"
 }
 
+# Check if there are pending tasks using LLM
+check_pending_tasks() {
+    local tasks_file=$1
+    local check_file="$LOOP_DIR/.check-pending.txt"
+    local result_file="$LOOP_DIR/.check-result.txt"
+
+    cat > "$check_file" << EOF
+Read this file: ${tasks_file}
+
+Check if there are any PENDING/INCOMPLETE tasks remaining.
+Look for tasks marked with:
+- [ ] (unchecked checkbox)
+- "pending" status
+- Tasks not marked as done/completed/[x]
+
+IMPORTANT: Output ONLY one word:
+- "pending" if there are incomplete tasks
+- "done" if all tasks are completed
+
+Output nothing else, just that one word.
+EOF
+
+    # Use claude with haiku for quick check (cheaper)
+    if [ "$DRY_RUN" = true ]; then
+        echo "pending"
+        return
+    fi
+
+    claude --dangerously-skip-permissions --model haiku -p "$(cat "$check_file")" > "$result_file" 2>/dev/null
+
+    local result
+    result=$(cat "$result_file" | tr '[:upper:]' '[:lower:]' | grep -o -E '(pending|done)' | head -1)
+    rm -f "$check_file" "$result_file"
+
+    if [ "$result" = "done" ]; then
+        echo "done"
+    else
+        echo "pending"
+    fi
+}
+
 # =============================================================================
 # PHASE 4: Execute Tasks (zyolo/Claude Code)
 # =============================================================================
@@ -505,15 +546,16 @@ EOF
         ((iteration++))
         log_info "Task iteration $iteration..."
 
-        local pending_count
-        pending_count=$(grep -c "^\- \[ \]" "$tasks_file" 2>/dev/null || echo "0")
+        # Use LLM to check if there are pending tasks
+        local task_status
+        task_status=$(check_pending_tasks "$tasks_file")
 
-        if [ "$pending_count" -eq 0 ]; then
+        if [ "$task_status" = "done" ]; then
             log_success "All tasks completed!"
             break
         fi
 
-        log_info "Pending tasks: $pending_count"
+        log_info "Tasks pending, continuing..."
 
         cat > "$prompt_file" << EOF
 You are implementing improvements to a WhatsApp Web business messaging platform.
@@ -523,13 +565,13 @@ READ these files:
 - ${log_file} (implementation log)
 
 YOUR TASK:
-1. Find the FIRST pending task (marked with '- [ ]')
+1. Find the FIRST pending/incomplete task
 2. Implement it completely:
    - Write/modify the necessary code
    - Add appropriate tests
    - Ensure code compiles/runs
 3. Update ${tasks_file}:
-   - Mark the completed task as '[x]'
+   - Mark the completed task as done (change [ ] to [x])
 4. Append to ${log_file}:
    - What you did
    - Files modified
@@ -541,7 +583,8 @@ RULES:
 - If you encounter a blocker, document it and move on
 - Follow existing code patterns and style
 
-IMPORTANT: Start working now.
+IMPORTANT: If ALL tasks are already completed, just say "All tasks done" and exit.
+Otherwise, start working on the first pending task now.
 EOF
 
         run_zyolo "$prompt_file"
