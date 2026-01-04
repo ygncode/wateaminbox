@@ -24,6 +24,7 @@ type Config struct {
 	Client    *client.Client
 	Publisher *natsClient.Publisher
 	Storage   *storage.Client
+	Ctx       context.Context
 }
 
 // Handler processes WhatsApp events.
@@ -302,9 +303,9 @@ func (h *Handler) handleDisconnected(evt *events.Disconnected) {
 		}
 	}
 
-	// Attempt reconnection
+	// Attempt reconnection with the handler's context (if available)
 	if h.config.Client != nil {
-		go h.config.Client.HandleReconnect()
+		go h.config.Client.HandleReconnect(h.config.Ctx)
 	}
 }
 

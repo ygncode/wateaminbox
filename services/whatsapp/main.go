@@ -124,6 +124,7 @@ func main() {
 		Client:    waClient,
 		Publisher: publisher,
 		Storage:   storageClient,
+		Ctx:       ctx,
 	})
 
 	// Register event handlers
@@ -160,6 +161,12 @@ func main() {
 	<-sigCh
 
 	log.Println("Shutting down WhatsApp worker...")
+
+	// Cancel context to stop any active reconnection loops
+	cancel()
+
+	// Explicitly stop reconnection loop (in case it's still active)
+	waClient.StopReconnect()
 }
 
 func getEnv(key, defaultValue string) string {
