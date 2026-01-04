@@ -9,6 +9,8 @@ import {
   type SendConfirmationEvent,
   type StatusEvent,
   type ContactEvent,
+  type ProfilePictureEvent,
+  type MessageRevokeEvent,
 } from "../lib/nats.js";
 import { getTenantConnection } from "./tenant.service.js";
 import { updateConnectionStatus } from "./whatsapp.service.js";
@@ -95,6 +97,14 @@ export async function handleWhatsAppEvent(event: WhatsAppEvent): Promise<void> {
 
       case "contact":
         await handleContactEvent(event as ContactEvent);
+        break;
+
+      case "profile_picture":
+        await handleProfilePictureEvent(event as ProfilePictureEvent);
+        break;
+
+      case "message_revoke":
+        await handleMessageRevokeEvent(event as MessageRevokeEvent);
         break;
 
       case "error":
@@ -624,6 +634,128 @@ async function handleContactEvent(event: ContactEvent): Promise<void> {
     });
   } catch (error) {
     console.error(`[MessageHandler] Failed to handle contact event:`, error);
+  }
+}
+
+/**
+ * Handles profile picture update events
+ */
+async function handleProfilePictureEvent(
+  event: ProfilePictureEvent,
+): Promise<void> {
+  const { companyId, connectionId, payload } = event;
+
+  console.log(
+    `[MessageHandler] Profile picture update for company ${companyId}, connection ${connectionId}: ${payload.jid}`,
+  );
+
+  try {
+    const tenantDb = getTenantConnection(companyId);
+
+    // Update contact profile picture
+    const profilePictureUrl = payload.remove ? null : payload.profilePictureUrl;
+
+    const result = await tenantDb
+      .updateTable("contacts")
+      .set({
+        profile_picture_url: profilePictureUrl,
+        updated_at: new Date(),
+      })
+      .where("jid", "=", payload.jid)
+      .executeTakeFirst();
+
+    if (result.numUpdatedRows > 0) {
+      console.log(
+        `[MessageHandler] Updated profile picture for contact ${payload.jid} (rows affected: ${result.numUpdatedRows})`,
+      );
+
+      // Broadcast to WebSocket clients
+      broadcastToCompany(companyId, {
+        type: "contact:profile_picture", // Specific event type for frontend
+        connectionId,
+        payload: {
+          jid: payload.jid,
+          profilePictureUrl,
+        },
+        timestamp: event.timestamp,
+      });
+    } else {
+      console.warn(
+        `[MessageHandler] Contact not found for profile picture update: ${payload.jid}`,
+      );
+    }
+  } catch (error) {
+    console.error(
+      `[MessageHandler] Failed to handle profile picture event:`,
+      error,
+    );
+  }
+}
+
+/**
+ * Handles message revoke (deletion) events from WhatsApp
+ * When a user deletes a message for everyone, this updates the database
+ * and notifies WebSocket clients
+ */
+async function handleMessageRevokeEvent(
+  event: MessageRevokeEvent,
+): Promise<void> {
+  const { companyId, connectionId, payload } = event;
+
+  console.log(
+    `[MessageHandler] Message revoke for company ${companyId}, connection ${connectionId}: message ${payload.messageId}`,
+  );
+
+  try {
+    const tenantDb = getTenantConnection(companyId);
+
+    // Update the message to mark it as deleted by sender
+    const result = await tenantDb
+      .updateTable("messages")
+      .set({
+        deleted_by_sender: true,
+        deleted_at: new Date(),
+      })
+      .where("message_id", "=", payload.messageId)
+      .executeTakeFirst();
+
+    if (result.numUpdatedRows > 0) {
+      console.log(
+        `[MessageHandler] Marked message ${payload.messageId} as deleted (rows affected: ${result.numUpdatedRows})`,
+      );
+
+      // Get the message to find the contact_id for broadcasting
+      const message = await tenantDb
+        .selectFrom("messages")
+        .select(["id", "contact_id"])
+        .where("message_id", "=", payload.messageId)
+        .executeTakeFirst();
+
+      if (message) {
+        // Broadcast to WebSocket clients
+        broadcastToCompany(companyId, {
+          type: "message:deleted",
+          connectionId,
+          payload: {
+            messageId: message.id,
+            conversationId: message.contact_id,
+            whatsappMessageId: payload.messageId,
+          },
+          timestamp: event.timestamp,
+        });
+      }
+    } else {
+      // Message not found - this could happen if:
+      // 1. The message was never stored in our database (race condition)
+      // 2. The message was already deleted
+      // Log a warning but don't throw - this is expected in some edge cases
+      console.warn(
+        `[MessageHandler] Message not found for revoke: ${payload.messageId}. This may be a race condition or the message was never stored.`,
+      );
+    }
+  } catch (error) {
+    console.error(`[MessageHandler] Failed to handle message revoke:`, error);
+    // Don't throw - we want to continue processing other events
   }
 }
 

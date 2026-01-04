@@ -37,6 +37,7 @@ import (
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
+	"go.mau.fi/whatsmeow/proto/waE2E"
 
 	natsClient "github.com/ygncode-lab/whatsapp-web/services/whatsapp/internal/nats"
 	"github.com/ygncode-lab/whatsapp-web/services/whatsapp/internal/storage"
@@ -171,6 +172,8 @@ func (h *Handler) HandleEvent(evt interface{}) {
 		h.handleHistorySync(v)
 	case *events.StreamReplaced:
 		h.handleStreamReplaced(v)
+	case *events.Picture:
+		h.handlePicture(v)
 	default:
 		// Ignore other events silently
 	}
@@ -197,6 +200,12 @@ func (h *Handler) handleMessage(msg *events.Message) {
 	// Handle different message types
 	if msg.Message == nil {
 		log.Println("Message content is nil")
+		return
+	}
+
+	// Protocol message (Revoke, etc.)
+	if msg.Message.ProtocolMessage != nil {
+		h.handleProtocolMessage(msg)
 		return
 	}
 
@@ -293,6 +302,33 @@ func (h *Handler) handleMessage(msg *events.Message) {
 	if h.publisher != nil {
 		if err := h.publisher.PublishMessage(msgEvent); err != nil {
 			log.Printf("Failed to publish message event: %v", err)
+		}
+	}
+}
+
+// handleProtocolMessage processes protocol messages (revokes, etc.)
+func (h *Handler) handleProtocolMessage(msg *events.Message) {
+	protoMsg := msg.Message.ProtocolMessage
+	if protoMsg == nil {
+		return
+	}
+
+	// Check for Revoke type
+	if protoMsg.Type != nil && *protoMsg.Type == waE2E.ProtocolMessage_REVOKE {
+		revokedID := protoMsg.GetKey().GetID()
+		if revokedID == "" {
+			return
+		}
+
+		log.Printf("Message revoke received from %s for message %s", msg.Info.Sender.String(), revokedID)
+
+		if h.publisher != nil {
+			// Publish the revoke event
+			to := msg.Info.Chat.String()
+			
+			if err := h.publisher.PublishMessageRevoke(revokedID, msg.Info.Sender.String(), to, msg.Info.Timestamp); err != nil {
+				log.Printf("Failed to publish message revoke: %v", err)
+			}
 		}
 	}
 }
@@ -707,6 +743,28 @@ func (h *Handler) handleStreamReplaced(evt *events.StreamReplaced) {
 	if h.publisher != nil {
 		if err := h.publisher.PublishConnectionStatus("disconnected", "stream_replaced"); err != nil {
 			log.Printf("Failed to publish stream replaced status: %v", err)
+		}
+	}
+}
+
+// handlePicture processes profile picture updates.
+func (h *Handler) handlePicture(evt *events.Picture) {
+	log.Printf("Profile picture update for %s (remove: %v)", evt.JID.String(), evt.Remove)
+
+	var profilePictureURL string
+	if !evt.Remove {
+		// Fetch the new profile picture
+		profilePictureURL = h.fetchProfilePicture(evt.JID)
+		if profilePictureURL == "" {
+			log.Printf("Failed to fetch new profile picture for %s", evt.JID.String())
+			return
+		}
+	}
+
+	// Publish to NATS
+	if h.publisher != nil {
+		if err := h.publisher.PublishProfilePicture(evt.JID.String(), profilePictureURL, evt.Remove, evt.Timestamp); err != nil {
+			log.Printf("Failed to publish profile picture update: %v", err)
 		}
 	}
 }

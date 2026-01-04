@@ -50,6 +50,7 @@ interface ServerMessage {
     | 'message'
     | 'message:new'
     | 'message:status'
+    | 'message:deleted'
     | 'receipt'
     | 'status'
     | 'contact'
@@ -58,6 +59,7 @@ interface ServerMessage {
     | 'error'
     | 'pong'
     | 'send_ack'
+    | 'contact:profile_picture'
   connectionId?: string
   payload?: unknown
   timestamp: string

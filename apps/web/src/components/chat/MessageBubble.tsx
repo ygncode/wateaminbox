@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback, memo } from "react";
+import { useTranslation } from "react-i18next";
 import type { Message, MessageType } from "@whatsapp-web/shared";
 
 // Error code to human-readable message mapping
@@ -37,6 +38,7 @@ export const MessageBubble = memo(function MessageBubble({
   isHighlighted = false,
   isRetrying = false,
 }: MessageBubbleProps) {
+  const { t } = useTranslation();
   const [showContextMenu, setShowContextMenu] = useState(false);
   const [contextMenuPosition, setContextMenuPosition] = useState({
     x: 0,
@@ -157,7 +159,7 @@ export const MessageBubble = memo(function MessageBubble({
   const renderMessageContent = () => {
     if (message.isDeleted) {
       return (
-        <span className="italic text-gray-500">This message was deleted</span>
+        <span className="italic text-gray-500 dark:text-gray-400">{t('chat.messageDeleted')}</span>
       );
     }
 
@@ -318,7 +320,7 @@ export const MessageBubble = memo(function MessageBubble({
         {message.isForwarded && !message.isDeleted && (
           <div className="flex items-center gap-1 text-xs opacity-70 mb-1">
             <ForwardIcon className="h-3 w-3" />
-            <span>Forwarded</span>
+            <span>{t('chat.forwarded')}</span>
           </div>
         )}
 
@@ -336,7 +338,7 @@ export const MessageBubble = memo(function MessageBubble({
             </p>
             <p className="text-xs opacity-80 truncate">
               {message.replyToMessage.isDeleted
-                ? "This message was deleted"
+                ? t('chat.messageDeleted')
                 : message.replyToMessage.content}
             </p>
           </div>

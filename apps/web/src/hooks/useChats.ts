@@ -141,6 +141,7 @@ export function useChats(
           id: contact.id,
           contact: {
             id: contact.id,
+            jid: contact.jid,
             phoneNumber: contact.phoneNumber || "",
             name: contact.displayName,
             customName: contact.customName || undefined,

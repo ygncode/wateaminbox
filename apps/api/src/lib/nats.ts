@@ -164,11 +164,33 @@ export interface WhatsAppEvent {
     | "labels"
     | "catalogs"
     | "catalog_products"
+    | "profile_picture"
+    | "message_revoke"
     | "error";
   companyId: string;
   connectionId: string;
   payload: unknown;
   timestamp: string;
+}
+
+export interface MessageRevokeEvent extends WhatsAppEvent {
+  type: "message_revoke";
+  payload: {
+    messageId: string;
+    from: string;
+    to: string;
+    timestamp: string;
+  };
+}
+
+export interface ProfilePictureEvent extends WhatsAppEvent {
+  type: "profile_picture";
+  payload: {
+    jid: string;
+    profilePictureUrl: string;
+    timestamp: string;
+    remove?: boolean;
+  };
 }
 
 export interface LabelsEvent extends WhatsAppEvent {

@@ -9,6 +9,7 @@ export type WebSocketEventType =
   | "typing:stop"
   | "presence:online"
   | "presence:offline"
+  | "contact:profile_picture"
   | "conversation:updated"
   | "error"
   // WhatsApp connection events
@@ -36,6 +37,11 @@ export interface MessageStatusPayload {
   status: MessageStatus;
 }
 
+export interface MessageDeletedPayload {
+  messageId: string;
+  conversationId: string;
+}
+
 export interface TypingPayload {
   conversationId: string;
   userId: string;
@@ -46,6 +52,11 @@ export interface PresencePayload {
   userId: string;
   status: "online" | "offline";
   lastSeen?: Date;
+}
+
+export interface ProfilePicturePayload {
+  jid: string;
+  profilePictureUrl: string | null;
 }
 
 export interface ConversationUpdatedPayload {

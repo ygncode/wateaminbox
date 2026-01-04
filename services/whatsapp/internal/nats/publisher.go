@@ -21,6 +21,8 @@ const (
 	SubjectReceipt         = "WHATSAPP.events.%s.%s.receipt"
 	SubjectPresence        = "WHATSAPP.events.%s.%s.presence"
 	SubjectContact         = "WHATSAPP.events.%s.%s.contact"
+	SubjectProfilePicture  = "WHATSAPP.events.%s.%s.profile_picture"
+	SubjectMessageRevoke   = "WHATSAPP.events.%s.%s.message_revoke"
 	SubjectSendConfirmation = "WHATSAPP.events.%s.%s.send_confirmation"
 )
 
@@ -83,6 +85,14 @@ type MessagePayload struct {
 	MediaType       string `json:"mediaType,omitempty"`
 }
 
+// MessageRevokePayload is the payload for message revocation events.
+type MessageRevokePayload struct {
+	MessageID string `json:"messageId"`
+	From      string `json:"from"`
+	To        string `json:"to"`
+	Timestamp string `json:"timestamp"`
+}
+
 // MessageEvent represents an incoming WhatsApp message (internal use).
 type MessageEvent struct {
 	MessageID       string    `json:"message_id"`
@@ -113,7 +123,15 @@ type ContactPayload struct {
 	ProfilePictureURL  string `json:"profilePictureUrl,omitempty"`
 }
 
-// ReceiptPayload is the payload for receipt events (matches API ReceiptEvent.payload).
+// ProfilePicturePayload is the payload for profile picture update events.
+type ProfilePicturePayload struct {
+	JID               string `json:"jid"`
+	ProfilePictureURL string `json:"profilePictureUrl"`
+	Timestamp         string `json:"timestamp"`
+	Remove            bool   `json:"remove,omitempty"`
+}
+
+// ReceiptPayload is the payload for receipt events (matches API MessageEvent.payload).
 type ReceiptPayload struct {
 	MessageID string `json:"messageId"`
 	Status    string `json:"status"` // "sent", "delivered", "read"
@@ -382,6 +400,44 @@ func (p *Publisher) PublishContact(jid, name, displayName string, isGroup bool, 
 	}
 
 	subject := fmt.Sprintf(SubjectContact, p.companyID, p.connectionID)
+	return p.publish(subject, event)
+}
+
+// PublishProfilePicture publishes a profile picture update event.
+func (p *Publisher) PublishProfilePicture(jid, profilePictureURL string, remove bool, timestamp time.Time) error {
+	event := WhatsAppEvent{
+		Type:         "profile_picture",
+		CompanyID:    p.companyID,
+		ConnectionID: p.connectionID,
+		Payload: ProfilePicturePayload{
+			JID:               jid,
+			ProfilePictureURL: profilePictureURL,
+			Timestamp:         timestamp.Format(time.RFC3339),
+			Remove:            remove,
+		},
+		Timestamp: time.Now().Format(time.RFC3339),
+	}
+
+	subject := fmt.Sprintf(SubjectProfilePicture, p.companyID, p.connectionID)
+	return p.publish(subject, event)
+}
+
+// PublishMessageRevoke publishes a message revocation event.
+func (p *Publisher) PublishMessageRevoke(messageID, from, to string, timestamp time.Time) error {
+	event := WhatsAppEvent{
+		Type:         "message_revoke",
+		CompanyID:    p.companyID,
+		ConnectionID: p.connectionID,
+		Payload: MessageRevokePayload{
+			MessageID: messageID,
+			From:      from,
+			To:        to,
+			Timestamp: timestamp.Format(time.RFC3339),
+		},
+		Timestamp: time.Now().Format(time.RFC3339),
+	}
+
+	subject := fmt.Sprintf(SubjectMessageRevoke, p.companyID, p.connectionID)
 	return p.publish(subject, event)
 }
 
