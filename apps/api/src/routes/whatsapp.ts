@@ -5,6 +5,8 @@ import { HTTPException } from "hono/http-exception";
 import { authMiddleware } from "../middleware/auth.js";
 import { tenantFromHeader } from "../middleware/tenant.js";
 import * as whatsappService from "../services/whatsapp.service.js";
+import { createRateLimitMiddleware } from "../middleware/rate-limit.js";
+import { rateLimitConfig, rateLimitStore } from "../app.js";
 
 // Validation schemas
 const sendMessageSchema = z.object({
@@ -20,6 +22,15 @@ const sendMessageSchema = z.object({
     .enum(["text", "image", "video", "audio", "document"])
     .default("text"),
   mediaUrl: z.string().url().optional(),
+});
+
+// WhatsApp operations rate limiter: 30 requests per minute per user
+// Prevents abuse of WhatsApp connection and send operations
+const whatsappRateLimiter = createRateLimitMiddleware({
+  store: rateLimitStore,
+  tier: rateLimitConfig.tiers.messaging.whatsapp,
+  keyStrategy: "user",
+  keyPrefix: "whatsapp-ops",
 });
 
 // Create the router
@@ -160,6 +171,7 @@ whatsappRoutes.post(
   "/send",
   authMiddleware,
   tenantFromHeader("X-Company-ID"),
+  whatsappRateLimiter,
   zValidator("json", sendMessageSchema),
   async (c) => {
     const companyId = c.get("companyId");
@@ -612,6 +624,7 @@ whatsappRoutes.post(
   "/connections/:connectionId/send",
   authMiddleware,
   tenantFromHeader("X-Company-ID"),
+  whatsappRateLimiter,
   zValidator("json", sendMessageSchema),
   async (c) => {
     const companyId = c.get("companyId");
