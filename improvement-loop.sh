@@ -22,34 +22,10 @@ set -e
 
 # Load .env file from project root
 if [ -f "$(pwd)/.env" ]; then
-    export $(grep -v '^#' "$(pwd)/.env" | xargs)
+    set -a
+    source "$(pwd)/.env"
+    set +a
 fi
-
-# =============================================================================
-# Tool Functions (replaces shell aliases which don't work in scripts)
-# =============================================================================
-
-# Gemini CLI with yolo mode
-gyolo() {
-    gemini --yolo "$@"
-}
-
-# Claude CLI with skip permissions
-cyolo() {
-    claude --dangerously-skip-permissions "$@"
-}
-
-# Claude CLI with zai backend (cheaper)
-# Requires ZAI_AUTH_TOKEN environment variable
-zyolo() {
-    if [ -z "$ZAI_AUTH_TOKEN" ]; then
-        echo "Error: ZAI_AUTH_TOKEN environment variable not set" >&2
-        exit 1
-    fi
-    ANTHROPIC_BASE_URL="https://api.z.ai/api/anthropic" \
-    ANTHROPIC_AUTH_TOKEN="$ZAI_AUTH_TOKEN" \
-    claude --dangerously-skip-permissions "$@"
-}
 
 # Configuration
 PROJECT_DIR="$(pwd)"
@@ -104,12 +80,57 @@ log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 log_step() { echo -e "${PURPLE}[STEP]${NC} $1"; }
 log_agent() { echo -e "${CYAN}[$1]${NC} $2"; }
 
+# Run command (for git, etc. - not for AI tools)
 run_cmd() {
     if [ "$DRY_RUN" = true ]; then
         echo "[DRY-RUN] $*"
     else
-        eval "$@"
+        "$@"
     fi
+}
+
+# Run Claude with prompt from file
+run_claude() {
+    local model=$1
+    local prompt_file=$2
+
+    if [ "$DRY_RUN" = true ]; then
+        echo "[DRY-RUN] claude --dangerously-skip-permissions --model $model -p <prompt>"
+        return 0
+    fi
+
+    claude --dangerously-skip-permissions --model "$model" -p "$(cat "$prompt_file")"
+}
+
+# Run Claude with zai backend
+run_zyolo() {
+    local prompt_file=$1
+
+    if [ "$DRY_RUN" = true ]; then
+        echo "[DRY-RUN] zyolo -p <prompt>"
+        return 0
+    fi
+
+    if [ -z "$ZAI_AUTH_TOKEN" ]; then
+        echo "Error: ZAI_AUTH_TOKEN environment variable not set" >&2
+        exit 1
+    fi
+
+    ANTHROPIC_BASE_URL="https://api.z.ai/api/anthropic" \
+    ANTHROPIC_AUTH_TOKEN="$ZAI_AUTH_TOKEN" \
+    claude --dangerously-skip-permissions -p "$(cat "$prompt_file")"
+}
+
+# Run Gemini with prompt from file
+run_gemini() {
+    local prompt_file=$1
+
+    if [ "$DRY_RUN" = true ]; then
+        echo "[DRY-RUN] gemini --yolo <prompt>"
+        return 0
+    fi
+
+    gemini --yolo "$(cat "$prompt_file")"
 }
 
 # Initialize loop directory
@@ -124,17 +145,10 @@ get_cycle_letter() {
     if [ $idx -lt 26 ]; then
         echo "${CYCLE_LETTERS[$idx]}"
     else
-        # After z, use aa, ab, etc.
         local first=$((idx / 26 - 1))
         local second=$((idx % 26))
         echo "${CYCLE_LETTERS[$first]}${CYCLE_LETTERS[$second]}"
     fi
-}
-
-# Clean up old loop files for new cycle
-cleanup_loop_files() {
-    local slug=$1
-    log_info "Cleaning up previous loop state for new cycle..."
 }
 
 # =============================================================================
@@ -143,18 +157,24 @@ cleanup_loop_files() {
 phase_determine_focus() {
     local cycle_letter=$1
     log_step "Phase 0: Determining focus area with Claude..."
-    
+
     local focus_file="$LOOP_DIR/focus-${cycle_letter}.md"
-    
+    local prompt_file="$LOOP_DIR/.prompt-focus-${cycle_letter}.txt"
+
     # Initialize focus history if it doesn't exist
     if [ ! -f "$FOCUS_HISTORY_FILE" ]; then
-        echo "# Focus Area History" > "$FOCUS_HISTORY_FILE"
-        echo "" >> "$FOCUS_HISTORY_FILE"
-        echo "Tracks which areas have been focused on to ensure variety." >> "$FOCUS_HISTORY_FILE"
-        echo "" >> "$FOCUS_HISTORY_FILE"
+        cat > "$FOCUS_HISTORY_FILE" << 'EOF'
+# Focus Area History
+
+Tracks which areas have been focused on to ensure variety.
+
+EOF
     fi
-    
-    run_cmd cyolo --model sonnet -p "
+
+    local focus_history
+    focus_history=$(tail -20 "$FOCUS_HISTORY_FILE" 2>/dev/null || echo "No history yet")
+
+    cat > "$prompt_file" << EOF
 You are analyzing a WhatsApp Web business messaging platform to determine where to focus improvement efforts.
 
 PROJECT STRUCTURE:
@@ -165,7 +185,7 @@ PROJECT STRUCTURE:
 - packages/database/ - Kysely database client & migrations
 
 PREVIOUS FOCUS AREAS (avoid repeating recently):
-$(cat "$FOCUS_HISTORY_FILE" 2>/dev/null | tail -20)
+${focus_history}
 
 YOUR TASK:
 1. Analyze the codebase to identify the MOST impactful area to improve
@@ -210,25 +230,26 @@ rationale: <one line explanation>
 - <what success looks like>
 
 IMPORTANT: Write the file now. Be strategic and specific.
-    "
-    
+EOF
+
+    run_claude "sonnet" "$prompt_file"
+    rm -f "$prompt_file"
+
     if [ ! -f "$focus_file" ]; then
         log_error "Focus file was not created: $focus_file"
-        # Fallback to default
         echo "whatsapp-stability"
         return
     fi
-    
-    # Extract focus area
-    local focus=$(grep -E "^focus:" "$focus_file" | head -1 | cut -d: -f2 | tr -d ' ')
+
+    local focus
+    focus=$(grep -E "^focus:" "$focus_file" | head -1 | cut -d: -f2 | tr -d ' ')
     if [ -z "$focus" ]; then
         focus="general-improvement"
         log_warn "Could not extract focus, using default: $focus"
     fi
-    
-    # Record in history
+
     echo "- Cycle $cycle_letter: $focus ($(date '+%Y-%m-%d %H:%M'))" >> "$FOCUS_HISTORY_FILE"
-    
+
     log_success "Focus area determined: $focus"
     echo "$focus"
 }
@@ -240,17 +261,21 @@ phase_identify_improvements() {
     local cycle_letter=$1
     local focus_area=$2
     log_step "Phase 1: Identifying improvements with Gemini..."
-    
+
     local requirements_file="$LOOP_DIR/requirements-${cycle_letter}.md"
     local focus_file="$LOOP_DIR/focus-${cycle_letter}.md"
-    
-    run_cmd gyolo -p "
+    local prompt_file="$LOOP_DIR/.prompt-requirements-${cycle_letter}.txt"
+
+    local focus_context
+    focus_context=$(cat "$focus_file" 2>/dev/null || echo "No additional context available.")
+
+    cat > "$prompt_file" << EOF
 You are analyzing a WhatsApp Web business messaging platform codebase.
 
 FOCUS AREA: ${focus_area}
 
 FOCUS CONTEXT (read for more details):
-$(cat "$focus_file" 2>/dev/null || echo "No additional context available.")
+${focus_context}
 
 YOUR TASK:
 1. Analyze the codebase structure, especially:
@@ -297,20 +322,23 @@ type: bugfix|feature|refactor|performance|reliability
 - <potential issues to watch for>
 
 IMPORTANT: Write the file now. Be specific and actionable.
-    "
-    
+EOF
+
+    run_gemini "$prompt_file"
+    rm -f "$prompt_file"
+
     if [ ! -f "$requirements_file" ]; then
         log_error "Requirements file was not created: $requirements_file"
         return 1
     fi
-    
-    # Extract slug from the requirements file
-    local slug=$(grep -E "^slug:" "$requirements_file" | head -1 | cut -d: -f2 | tr -d ' ')
+
+    local slug
+    slug=$(grep -E "^slug:" "$requirements_file" | head -1 | cut -d: -f2 | tr -d ' ')
     if [ -z "$slug" ]; then
         slug="improvement-${cycle_letter}"
         log_warn "Could not extract slug, using default: $slug"
     fi
-    
+
     echo "$slug"
 }
 
@@ -321,11 +349,12 @@ phase_create_specs() {
     local cycle_letter=$1
     local slug=$2
     log_step "Phase 2: Creating specifications with Claude Opus..."
-    
+
     local requirements_file="$LOOP_DIR/requirements-${cycle_letter}.md"
     local specs_file="$LOOP_DIR/specs-${slug}.md"
-    
-    run_cmd cyolo --model opus -p "
+    local prompt_file="$LOOP_DIR/.prompt-specs-${slug}.txt"
+
+    cat > "$prompt_file" << EOF
 You are a senior software architect creating detailed technical specifications.
 
 READ: ${requirements_file}
@@ -351,7 +380,7 @@ The spec should include:
   - <specific change 1>
   - <specific change 2>
 - New functions/methods:
-  - \`functionName(params)\`: <description>
+  - functionName(params): <description>
 
 ### Component 2: <Name>
 ...
@@ -371,13 +400,16 @@ The spec should include:
 <How to revert if issues arise>
 
 IMPORTANT: Write the file now. Be thorough but practical.
-    "
-    
+EOF
+
+    run_claude "opus" "$prompt_file"
+    rm -f "$prompt_file"
+
     if [ ! -f "$specs_file" ]; then
         log_error "Specs file was not created: $specs_file"
         return 1
     fi
-    
+
     log_success "Specifications created: $specs_file"
 }
 
@@ -388,12 +420,13 @@ phase_create_tasks() {
     local cycle_letter=$1
     local slug=$2
     log_step "Phase 3: Creating task breakdown with Claude Opus..."
-    
+
     local requirements_file="$LOOP_DIR/requirements-${cycle_letter}.md"
     local specs_file="$LOOP_DIR/specs-${slug}.md"
     local tasks_file="$LOOP_DIR/tasks-${slug}.md"
-    
-    run_cmd cyolo --model opus -p "
+    local prompt_file="$LOOP_DIR/.prompt-tasks-${slug}.txt"
+
+    cat > "$prompt_file" << EOF
 You are a project manager breaking down technical work into actionable tasks.
 
 READ:
@@ -432,13 +465,16 @@ RULES:
 5. Maximum 10 tasks per improvement cycle
 
 IMPORTANT: Write the file now.
-    "
-    
+EOF
+
+    run_claude "opus" "$prompt_file"
+    rm -f "$prompt_file"
+
     if [ ! -f "$tasks_file" ]; then
         log_error "Tasks file was not created: $tasks_file"
         return 1
     fi
-    
+
     log_success "Tasks created: $tasks_file"
 }
 
@@ -448,35 +484,37 @@ IMPORTANT: Write the file now.
 phase_execute_tasks() {
     local slug=$1
     log_step "Phase 4: Executing tasks with Claude Code..."
-    
+
     local tasks_file="$LOOP_DIR/tasks-${slug}.md"
     local log_file="$LOOP_DIR/log-${slug}.md"
-    
+    local prompt_file="$LOOP_DIR/.prompt-execute-${slug}.txt"
+
     # Initialize log file
-    echo "# Implementation Log: ${slug}" > "$log_file"
-    echo "" >> "$log_file"
-    echo "Started: $(date)" >> "$log_file"
-    echo "" >> "$log_file"
-    
+    cat > "$log_file" << EOF
+# Implementation Log: ${slug}
+
+Started: $(date)
+
+EOF
+
     local iteration=0
-    local max_task_iterations=50  # Safety limit
-    
+    local max_task_iterations=50
+
     while [ $iteration -lt $max_task_iterations ]; do
         ((iteration++))
         log_info "Task iteration $iteration..."
-        
-        # Check if there are pending tasks
-        local pending_count=$(grep -c "^\- \[ \]" "$tasks_file" 2>/dev/null || echo "0")
-        
+
+        local pending_count
+        pending_count=$(grep -c "^\- \[ \]" "$tasks_file" 2>/dev/null || echo "0")
+
         if [ "$pending_count" -eq 0 ]; then
             log_success "All tasks completed!"
             break
         fi
-        
+
         log_info "Pending tasks: $pending_count"
-        
-        # Execute one task
-        run_cmd zyolo -p "
+
+        cat > "$prompt_file" << EOF
 You are implementing improvements to a WhatsApp Web business messaging platform.
 
 READ these files:
@@ -503,16 +541,17 @@ RULES:
 - Follow existing code patterns and style
 
 IMPORTANT: Start working now.
-        "
-        
-        # Brief pause between tasks
+EOF
+
+        run_zyolo "$prompt_file"
+        rm -f "$prompt_file"
+
         sleep 5
     done
-    
-    # Finalize log
+
     echo "" >> "$log_file"
     echo "Completed: $(date)" >> "$log_file"
-    
+
     log_success "Task execution phase completed"
 }
 
@@ -522,13 +561,14 @@ IMPORTANT: Start working now.
 phase_review_changes() {
     local slug=$1
     log_step "Phase 5: Reviewing changes with Gemini..."
-    
+
     local specs_file="$LOOP_DIR/specs-${slug}.md"
     local tasks_file="$LOOP_DIR/tasks-${slug}.md"
     local log_file="$LOOP_DIR/log-${slug}.md"
     local review_file="$LOOP_DIR/review-${slug}.md"
-    
-    run_cmd gyolo -p "
+    local prompt_file="$LOOP_DIR/.prompt-review-${slug}.txt"
+
+    cat > "$prompt_file" << EOF
 You are a senior code reviewer evaluating implemented changes.
 
 READ:
@@ -575,22 +615,26 @@ FORMAT for ${review_file}:
 <APPROVED or NEEDS_CHANGES>
 
 If NEEDS_CHANGES, create additional tasks. If APPROVED, we proceed to PR.
-    "
-    
+EOF
+
+    run_gemini "$prompt_file"
+    rm -f "$prompt_file"
+
     if [ ! -f "$review_file" ]; then
         log_warn "Review file was not created, assuming APPROVED"
-        echo "# Code Review: ${slug}" > "$review_file"
-        echo "" >> "$review_file"
-        echo "## Verdict" >> "$review_file"
-        echo "APPROVED" >> "$review_file"
+        cat > "$review_file" << EOF
+# Code Review: ${slug}
+
+## Verdict
+APPROVED
+EOF
     fi
-    
-    # Check verdict
+
     if grep -q "NEEDS_CHANGES" "$review_file"; then
-        return 1  # Needs more work
+        return 1
     fi
-    
-    return 0  # Approved
+
+    return 0
 }
 
 # =============================================================================
@@ -599,11 +643,12 @@ If NEEDS_CHANGES, create additional tasks. If APPROVED, we proceed to PR.
 phase_handle_review_feedback() {
     local slug=$1
     log_step "Phase 6: Addressing review feedback..."
-    
+
     local review_file="$LOOP_DIR/review-${slug}.md"
     local log_file="$LOOP_DIR/log-${slug}.md"
-    
-    run_cmd zyolo -p "
+    local prompt_file="$LOOP_DIR/.prompt-feedback-${slug}.txt"
+
+    cat > "$prompt_file" << EOF
 You are addressing code review feedback.
 
 READ: ${review_file}
@@ -615,8 +660,11 @@ YOUR TASK:
 4. Append what you fixed to ${log_file}
 
 Work through ALL critical issues before stopping.
-    "
-    
+EOF
+
+    run_zyolo "$prompt_file"
+    rm -f "$prompt_file"
+
     log_success "Review feedback addressed"
 }
 
@@ -627,21 +675,19 @@ phase_create_pr() {
     local slug=$1
     local base_branch=$2
     log_step "Phase 7: Creating branch and PR..."
-    
+
     local branch_name="improvement/${slug}"
     local specs_file="$LOOP_DIR/specs-${slug}.md"
     local log_file="$LOOP_DIR/log-${slug}.md"
-    
-    # Create and switch to new branch
+    local prompt_file="$LOOP_DIR/.prompt-pr-${slug}.txt"
+
     log_info "Creating branch: $branch_name from $base_branch"
     run_cmd git checkout -b "$branch_name"
-    
-    # Stage all changes
+
     run_cmd git add -A
-    
-    # Create commit
-    run_cmd cyolo --model sonnet -p "
-You are creating a git commit for the improvement work.
+
+    cat > "$prompt_file" << EOF
+You are creating a git commit and PR for the improvement work.
 
 READ:
 - ${specs_file}
@@ -649,63 +695,24 @@ READ:
 
 YOUR TASK:
 1. Review what was implemented
-2. Create a well-formatted commit using:
+2. Create a well-formatted commit:
+   git commit -m "<type>(<scope>): <short description>"
 
-   git commit -m \"\$(cat <<'EOF'
-   <type>(<scope>): <short description>
+   Types: feat, fix, refactor, perf, test, docs
+   Scope: whatsapp, api, web, orchestrator, etc.
 
-   <body - what was changed and why>
+3. Push the branch:
+   git push -u origin ${branch_name}
 
-   - <bullet point of change 1>
-   - <bullet point of change 2>
-   EOF
-   )\"
+4. Create a PR:
+   gh pr create --base "${base_branch}" --title "<title>" --body "<body>"
 
-Types: feat, fix, refactor, perf, test, docs
-Scope: whatsapp, api, web, orchestrator, etc.
-
-IMPORTANT: Run the git commit command now.
-    "
-    
-    # Push branch
-    log_info "Pushing branch to remote..."
-    run_cmd git push -u origin "$branch_name"
-    
-    # Create PR
-    log_info "Creating pull request..."
-    run_cmd cyolo --model sonnet -p "
-You are creating a GitHub Pull Request.
-
-READ:
-- ${specs_file}
-- ${log_file}
-
-Create a PR using gh cli:
-
-gh pr create \\
-  --base \"${base_branch}\" \\
-  --title \"<concise title>\" \\
-  --body \"\$(cat <<'EOF'
-## Summary
-<1-3 bullet points of what this PR does>
-
-## Changes
-<list of key changes>
-
-## Testing
-- [ ] Unit tests added/updated
-- [ ] Manual testing performed
-- [ ] E2E tests (if applicable)
-
-## Related
-- Specs: .loop/specs-${slug}.md
-- Log: .loop/log-${slug}.md
+IMPORTANT: Run these git commands now.
 EOF
-)\"
 
-IMPORTANT: Run the gh pr create command now.
-    "
-    
+    run_claude "sonnet" "$prompt_file"
+    rm -f "$prompt_file"
+
     log_success "PR created for $branch_name"
     echo "$branch_name"
 }
@@ -723,33 +730,31 @@ main() {
     log_info "Max cycles: $( [ $MAX_CYCLES -eq -1 ] && echo 'unlimited' || echo $MAX_CYCLES )"
     log_info "Cooldown: ${COOLDOWN_SECONDS}s between cycles"
     echo ""
-    
+
     init_loop_dir
-    
-    # Ensure we start from main
+
     log_info "Checking out main branch..."
     run_cmd git checkout main
     run_cmd git pull origin main
-    
+
     PREVIOUS_BRANCH="main"
-    
+
     while true; do
-        # Check cycle limit
         if [ $MAX_CYCLES -ne -1 ] && [ $CURRENT_CYCLE -ge $MAX_CYCLES ]; then
             log_info "Reached max cycles ($MAX_CYCLES). Stopping."
             break
         fi
-        
-        local cycle_letter=$(get_cycle_letter $CURRENT_CYCLE)
+
+        local cycle_letter
+        cycle_letter=$(get_cycle_letter $CURRENT_CYCLE)
         ((CURRENT_CYCLE++))
-        
+
         echo ""
         log_info "=============================================="
         log_info "IMPROVEMENT CYCLE: $cycle_letter (${CURRENT_CYCLE})"
         log_info "=============================================="
         echo ""
-        
-        # Phase 0: Determine focus area (unless manually specified)
+
         local current_focus=""
         if [ -n "$FOCUS_AREA" ]; then
             current_focus="$FOCUS_AREA"
@@ -758,36 +763,32 @@ main() {
             log_agent "CYOLO" "Determining focus area..."
             current_focus=$(phase_determine_focus "$cycle_letter")
         fi
-        
-        # Phase 1: Identify improvements
+
         log_agent "GYOLO" "Identifying improvements in: $current_focus"
-        local slug=$(phase_identify_improvements "$cycle_letter" "$current_focus")
+        local slug
+        slug=$(phase_identify_improvements "$cycle_letter" "$current_focus")
         if [ -z "$slug" ]; then
             log_error "Failed to identify improvements. Stopping."
             break
         fi
         log_success "Improvement identified: $slug"
-        
-        # Phase 2: Create specifications
+
         log_agent "CYOLO" "Creating specifications..."
         phase_create_specs "$cycle_letter" "$slug"
-        
-        # Phase 3: Create tasks
+
         log_agent "CYOLO" "Breaking down into tasks..."
         phase_create_tasks "$cycle_letter" "$slug"
-        
-        # Phase 4: Execute tasks
+
         log_agent "ZYOLO" "Implementing tasks..."
         phase_execute_tasks "$slug"
-        
-        # Phase 5 & 6: Review loop
+
         local review_iterations=0
         local max_review_iterations=3
-        
+
         while [ $review_iterations -lt $max_review_iterations ]; do
             ((review_iterations++))
             log_agent "GYOLO" "Reviewing changes (iteration $review_iterations)..."
-            
+
             if phase_review_changes "$slug"; then
                 log_success "Changes approved!"
                 break
@@ -797,24 +798,23 @@ main() {
                 phase_handle_review_feedback "$slug"
             fi
         done
-        
-        # Phase 7: Create branch and PR
+
         log_agent "CYOLO" "Creating branch and PR..."
-        local new_branch=$(phase_create_pr "$slug" "$PREVIOUS_BRANCH")
+        local new_branch
+        new_branch=$(phase_create_pr "$slug" "$PREVIOUS_BRANCH")
         PREVIOUS_BRANCH="$new_branch"
-        
+
         log_success "=============================================="
         log_success "CYCLE $cycle_letter COMPLETED: $slug"
         log_success "Branch: $new_branch"
         log_success "=============================================="
-        
-        # Cooldown before next cycle
+
         if [ $MAX_CYCLES -eq -1 ] || [ $CURRENT_CYCLE -lt $MAX_CYCLES ]; then
             log_info "Cooling down for ${COOLDOWN_SECONDS}s before next cycle..."
             sleep $COOLDOWN_SECONDS
         fi
     done
-    
+
     echo ""
     log_success "Improvement Loop finished!"
     log_info "Total cycles completed: $CURRENT_CYCLE"
@@ -822,5 +822,4 @@ main() {
     log_info "Review PRs in order: improvement/a, improvement/b, ..."
 }
 
-# Run
 main "$@"
