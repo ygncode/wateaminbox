@@ -665,17 +665,34 @@ phase_review_changes() {
     local review_file="$LOOP_DIR/review-${slug}.md"
     local prompt_file="$LOOP_DIR/.prompt-review-${slug}.txt"
 
+    # Read file contents to include in prompt (avoids ignore pattern issues)
+    local specs_content=""
+    local tasks_content=""
+    local log_content=""
+    if [ -f "$specs_file" ]; then
+        specs_content=$(cat "$specs_file" | head -150)
+    fi
+    if [ -f "$tasks_file" ]; then
+        tasks_content=$(cat "$tasks_file")
+    fi
+    if [ -f "$log_file" ]; then
+        log_content=$(cat "$log_file" | tail -100)
+    fi
+
     cat > "$prompt_file" << EOF
 You are a senior code reviewer evaluating implemented changes.
 
-READ:
-- ${specs_file} (original specifications)
-- ${tasks_file} (completed tasks)
-- ${log_file} (implementation log)
-- Review the actual git diff: run 'git diff HEAD~10' or appropriate range
+SPECIFICATIONS:
+${specs_content}
+
+TASKS:
+${tasks_content}
+
+IMPLEMENTATION LOG:
+${log_content}
 
 YOUR TASK:
-1. Review all changes made during this improvement cycle
+1. Run 'git diff HEAD~10' to review all code changes
 2. Check for:
    - Code quality issues
    - Missing error handling
@@ -778,20 +795,42 @@ phase_create_pr() {
     local log_file="$LOOP_DIR/log-${slug}.md"
     local prompt_file="$LOOP_DIR/.prompt-pr-${slug}.txt"
 
-    log_info "Creating branch: $branch_name from $base_branch"
-    run_cmd git checkout -b "$branch_name"
+    # Check if branch already exists
+    if git show-ref --verify --quiet "refs/heads/$branch_name"; then
+        log_info "Branch $branch_name already exists, checking out..."
+        run_cmd git checkout "$branch_name"
+    else
+        log_info "Creating branch: $branch_name from $base_branch"
+        run_cmd git checkout -b "$branch_name"
+    fi
 
     run_cmd git add -A
 
-    cat > "$prompt_file" << EOF
+    # Check if there are changes to commit
+    if git diff --cached --quiet; then
+        log_info "No staged changes to commit"
+    else
+        # Read file contents to include in prompt (avoids ignore pattern issues)
+        local specs_content=""
+        local log_content=""
+        if [ -f "$specs_file" ]; then
+            specs_content=$(cat "$specs_file" | head -100)
+        fi
+        if [ -f "$log_file" ]; then
+            log_content=$(cat "$log_file" | head -100)
+        fi
+
+        cat > "$prompt_file" << EOF
 You are creating a git commit and PR for the improvement work.
 
-READ:
-- ${specs_file}
-- ${log_file}
+SPECS SUMMARY:
+${specs_content}
+
+LOG SUMMARY:
+${log_content}
 
 YOUR TASK:
-1. Review what was implemented
+1. Review the staged changes with: git diff --cached
 2. Create a well-formatted commit:
    git commit -m "<type>(<scope>): <short description>"
 
@@ -801,14 +840,15 @@ YOUR TASK:
 3. Push the branch:
    git push -u origin ${branch_name}
 
-4. Create a PR:
-   gh pr create --base "${base_branch}" --title "<title>" --body "<body>"
+4. Check if PR exists, if not create one:
+   gh pr list --head "${branch_name}" --json number | grep -q number || gh pr create --base "${base_branch}" --title "<title>" --body "<body>"
 
 IMPORTANT: Run these git commands now.
 EOF
 
-    run_claude "sonnet" "$prompt_file"
-    rm -f "$prompt_file"
+        run_claude "sonnet" "$prompt_file"
+        rm -f "$prompt_file"
+    fi
 
     log_success "PR created for $branch_name"
     echo "$branch_name"
