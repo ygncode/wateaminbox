@@ -1,3 +1,0 @@
-- message_reactions sync is not working.
-- messages dates are using sync date instead of real date.
-- Contact assignment is using UUID - f9826820-6ea7-448e-89b3-26d006e589c6, it should use name.
