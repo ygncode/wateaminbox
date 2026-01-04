@@ -9,9 +9,8 @@ import {
   generateImportTemplate,
 } from "../services/import.service.js";
 import {
-  assignContactToUser,
-  unassignContact,
   getCurrentAssignment,
+  getContactsWithLastMessage,
 } from "../services/contact.service.js";
 import { createNotification } from "../services/notification-history.service.js";
 import { createAuditLog, getClientIp } from "../services/audit.service.js";
@@ -37,136 +36,20 @@ contactRoutes.get("/", async (c) => {
   const assignedToMe = c.req.query("assignedToMe") === "true";
   const unassigned = c.req.query("unassigned") === "true";
 
-  let query = tenantDb
-    .selectFrom("contacts")
-    .leftJoin("messages", "messages.contact_id", "contacts.id")
-    .leftJoin("contact_assignments", (join) =>
-      join
-        .onRef("contact_assignments.contact_id", "=", "contacts.id")
-        .on("contact_assignments.unassigned_at", "is", null),
-    )
-    .select([
-      "contacts.id",
-      "contacts.jid",
-      "contacts.phone_number",
-      "contacts.push_name",
-      "contacts.custom_name",
-      "contacts.is_group",
-      "contacts.profile_picture_url",
-      "contacts.notes_shared",
-      "contacts.created_at",
-      "contacts.updated_at",
-      "contact_assignments.assigned_to",
-    ])
-    .select((eb) => [
-      eb.fn.max("messages.timestamp").as("last_message_at"),
-      eb.fn
-        .count("messages.id")
-        .filterWhere("messages.from_me", "=", false)
-        .as("unread_count"),
-    ])
-    .groupBy(["contacts.id", "contact_assignments.assigned_to"]);
-
-  // Filter by search term
-  if (search) {
-    query = query.where((eb) =>
-      eb.or([
-        eb("contacts.push_name", "ilike", `%${search}%`),
-        eb("contacts.custom_name", "ilike", `%${search}%`),
-        eb("contacts.phone_number", "ilike", `%${search}%`),
-      ]),
-    );
-  }
-
-  // Filter groups
-  if (!includeGroups) {
-    query = query.where("contacts.is_group", "=", false);
-  }
-
-  // Filter by assignment
-  if (assignedToMe) {
-    query = query.where("contact_assignments.assigned_to", "=", user.id);
-  } else if (unassigned) {
-    query = query.where("contact_assignments.assigned_to", "is", null);
-  }
-
-  // Order by last message time
-  query = query.orderBy("last_message_at", "desc");
-
-  // Pagination
-  const contacts = await query.limit(limit).offset(offset).execute();
-
-  // Fetch last message details for each contact
-  const contactsWithMessages = await Promise.all(
-    contacts.map(async (contact) => {
-      if (!contact.last_message_at) {
-        return { ...contact, last_message: null };
-      }
-
-      // Get the most recent message for this contact
-      const lastMessage = await tenantDb
-        .selectFrom("messages")
-        .select([
-          "id",
-          "message_id",
-          "from_me",
-          "message_type",
-          "content",
-          "status",
-          "timestamp",
-        ])
-        .where("contact_id", "=", contact.id)
-        .orderBy("timestamp", "desc")
-        .limit(1)
-        .executeTakeFirst();
-
-      return { ...contact, last_message: lastMessage || null };
-    }),
-  );
-
-  // Get total count with same filters
-  let countQuery = tenantDb
-    .selectFrom("contacts")
-    .leftJoin("contact_assignments", (join) =>
-      join
-        .onRef("contact_assignments.contact_id", "=", "contacts.id")
-        .on("contact_assignments.unassigned_at", "is", null),
-    )
-    .select((eb) => eb.fn.count("contacts.id").as("total"));
-
-  if (!includeGroups) {
-    countQuery = countQuery.where("contacts.is_group", "=", false);
-  }
-
-  if (search) {
-    countQuery = countQuery.where((eb) =>
-      eb.or([
-        eb("contacts.push_name", "ilike", `%${search}%`),
-        eb("contacts.custom_name", "ilike", `%${search}%`),
-        eb("contacts.phone_number", "ilike", `%${search}%`),
-      ]),
-    );
-  }
-
-  if (assignedToMe) {
-    countQuery = countQuery.where(
-      "contact_assignments.assigned_to",
-      "=",
-      user.id,
-    );
-  } else if (unassigned) {
-    countQuery = countQuery.where(
-      "contact_assignments.assigned_to",
-      "is",
-      null,
-    );
-  }
-
-  const countResult = await countQuery.executeTakeFirst();
-  const total = Number(countResult?.total || 0);
+  // Use optimized service function that fetches contacts with last message in a single query
+  // This replaces the N+1 pattern where we fetched contacts first, then queried each contact's last message
+  const { contacts, total } = await getContactsWithLastMessage(tenantDb, {
+    search,
+    limit,
+    offset,
+    includeGroups,
+    assignedToMe,
+    unassigned,
+    userId: user.id,
+  });
 
   return c.json({
-    data: contactsWithMessages.map((contact) => {
+    data: contacts.map((contact) => {
       // Extract phone number from JID if not available
       const phoneFromJid = contact.jid?.split("@")[0] || null;
       return {
@@ -193,9 +76,9 @@ contactRoutes.get("/", async (c) => {
         lastMessage: contact.last_message
           ? {
               id: contact.last_message.id,
-              messageId: contact.last_message.message_id,
-              fromMe: contact.last_message.from_me,
-              messageType: contact.last_message.message_type,
+              messageId: contact.last_message.messageId,
+              fromMe: contact.last_message.fromMe,
+              messageType: contact.last_message.messageType,
               content: contact.last_message.content,
               status: contact.last_message.status,
               timestamp: contact.last_message.timestamp,
@@ -211,7 +94,7 @@ contactRoutes.get("/", async (c) => {
       total,
       limit,
       offset,
-      hasMore: offset + contactsWithMessages.length < total,
+      hasMore: offset + contacts.length < total,
     },
   });
 });
@@ -975,31 +858,73 @@ contactRoutes.post("/import/preview", async (c) => {
     .map(mapToContactRow)
     .filter((row): row is NonNullable<typeof row> => row !== null);
 
-  // Check which contacts already exist
-  const preview = await Promise.all(
-    contactRows.map(async (row, index) => {
-      const phoneNumber = row.phone_number.replace(/[^\d]/g, "");
-      const jid = `${phoneNumber}@s.whatsapp.net`;
+  // Batch lookup: Check which contacts already exist in a single query
+  // Build arrays of phone numbers and JIDs for batch query
+  const lookupData = contactRows.map((row) => {
+    const phoneNumber = row.phone_number.replace(/[^\d]/g, "");
+    return {
+      originalPhoneNumber: row.phone_number,
+      cleanPhoneNumber: phoneNumber,
+      jid: `${phoneNumber}@s.whatsapp.net`,
+    };
+  });
 
-      const existing = await tenantDb
-        .selectFrom("contacts")
-        .select(["id", "custom_name", "push_name"])
-        .where((eb) =>
-          eb.or([eb("jid", "=", jid), eb("phone_number", "=", phoneNumber)]),
-        )
-        .executeTakeFirst();
+  // Single query to find all existing contacts at once
+  const existingContacts = await tenantDb
+    .selectFrom("contacts")
+    .select(["jid", "phone_number", "custom_name", "push_name"])
+    .where((eb) =>
+      eb.or([
+        // Match by JID
+        eb(
+          "jid",
+          "in",
+          lookupData.map((d) => d.jid),
+        ),
+        // Match by phone number (normalized)
+        eb(
+          "phone_number",
+          "in",
+          lookupData.map((d) => d.cleanPhoneNumber),
+        ),
+      ]),
+    )
+    .execute();
 
-      return {
-        row: index + 1,
-        phoneNumber: row.phone_number,
-        name: row.custom_name || null,
-        notes: row.notes || null,
-        tags: row.tags || null,
-        exists: !!existing,
-        existingName: existing?.custom_name || existing?.push_name || null,
-      };
-    }),
-  );
+  // Build a Map for O(1) existence checks - key can be jid or phone_number
+  const existingMap = new Map<
+    string,
+    { customName: string | null; pushName: string | null }
+  >();
+  for (const contact of existingContacts) {
+    existingMap.set(contact.jid, {
+      customName: contact.custom_name,
+      pushName: contact.push_name,
+    });
+    if (contact.phone_number) {
+      existingMap.set(contact.phone_number.replace(/[^\d]/g, ""), {
+        customName: contact.custom_name,
+        pushName: contact.push_name,
+      });
+    }
+  }
+
+  // Build preview using the Map for instant lookups
+  const preview = lookupData.map((data, index) => {
+    const existing =
+      existingMap.get(data.jid) || existingMap.get(data.cleanPhoneNumber);
+    const contactRow = contactRows[index];
+
+    return {
+      row: index + 1,
+      phoneNumber: data.originalPhoneNumber,
+      name: contactRow.custom_name || null,
+      notes: contactRow.notes || null,
+      tags: contactRow.tags || null,
+      exists: !!existing,
+      existingName: existing?.customName || existing?.pushName || null,
+    };
+  });
 
   const existingCount = preview.filter((p) => p.exists).length;
   const newCount = preview.filter((p) => !p.exists).length;
