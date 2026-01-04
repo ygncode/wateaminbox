@@ -40,7 +40,7 @@ coverage
 
 # Playwright
 playwright-report/
-playwright/.auth/
+**/playwright/.auth/
 test-results/
 blob-report/
 
@@ -52,6 +52,10 @@ blob-report/
 services/*/bin/
 services/*/*.exe
 services/whatsapp/whatsapp-worker
+services/orchestrator/orchestrator
+
+# Astro
+.astro/
 
 # Temp
 tmp
