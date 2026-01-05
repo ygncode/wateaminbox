@@ -13,6 +13,7 @@ interface MessageThreadProps {
   onForwardMessage?: (message: Message) => void;
   onDeleteMessage?: (message: Message) => void;
   onStarMessage?: (message: Message) => void;
+  onReactMessage?: (message: Message, emoji: string) => void;
   onRetryMessage?: (messageId: string) => void;
   /** ID of message to highlight and scroll to */
   highlightedMessageId?: string | null;
@@ -29,6 +30,7 @@ export function MessageThread({
   onForwardMessage,
   onDeleteMessage,
   onStarMessage,
+  onReactMessage,
   onRetryMessage,
   highlightedMessageId,
 }: MessageThreadProps) {
@@ -411,6 +413,7 @@ export function MessageThread({
                   onForward={onForwardMessage}
                   onDelete={onDeleteMessage}
                   onStar={onStarMessage}
+                  onReact={onReactMessage}
                   onRetry={onRetryMessage || handleRetry}
                   isHighlighted={highlightedMessageId === item.message.id}
                   isRetrying={retryingMessageId === item.message.id}

@@ -11,7 +11,7 @@ import { MessageHeader } from "../components/chat/MessageHeader";
 import { ContactProfile } from "../components/chat/ContactProfile";
 import { ConversationSearch } from "../components/chat/ConversationSearch";
 import { useContact, type ContactDetail } from "../hooks/useContact";
-import { useSendMessage } from "../hooks/useMessages";
+import { useSendMessage, useDeleteMessage, useStarMessage, useReactMessage } from "../hooks/useMessages";
 import type { Message, Contact } from "@whatsapp-web/shared";
 
 // Helper to map ContactDetail to Contact type expected by MessageHeader
@@ -45,8 +45,11 @@ export function ChatPage() {
     ? mapContactDetailToContact(contactDetail)
     : undefined;
 
-  // Send message mutation
+  // Message mutations
   const sendMessage = useSendMessage();
+  const deleteMessage = useDeleteMessage();
+  const starMessage = useStarMessage();
+  const reactMessage = useReactMessage();
 
   // Sync URL with selected chat
   React.useEffect(() => {
@@ -120,6 +123,46 @@ export function ChatPage() {
     [],
   );
 
+  const handleDeleteMessage = React.useCallback(
+    (message: Message) => {
+      if (!selectedChatId) return;
+
+      if (window.confirm("Are you sure you want to delete this message?")) {
+        deleteMessage.mutate({
+          messageId: message.id,
+          conversationId: selectedChatId,
+        });
+      }
+    },
+    [selectedChatId, deleteMessage],
+  );
+
+  const handleStarMessage = React.useCallback(
+    (message: Message) => {
+      if (!selectedChatId) return;
+
+      starMessage.mutate({
+        messageId: message.id,
+        conversationId: selectedChatId,
+        isStarred: !message.isStarred,
+      });
+    },
+    [selectedChatId, starMessage],
+  );
+
+  const handleReactMessage = React.useCallback(
+    (message: Message, emoji: string) => {
+      if (!selectedChatId) return;
+
+      reactMessage.mutate({
+        messageId: message.id,
+        conversationId: selectedChatId,
+        emoji,
+      });
+    },
+    [selectedChatId, reactMessage],
+  );
+
   // Build the sidebar component
   const sidebar = (
     <Sidebar className="w-full md:w-[350px] lg:w-[400px] flex-shrink-0">
@@ -152,6 +195,9 @@ export function ChatPage() {
               conversationId={selectedChatId}
               currentUserId={user?.id || ""}
               onReplyToMessage={handleReplyToMessage}
+              onDeleteMessage={handleDeleteMessage}
+              onStarMessage={handleStarMessage}
+              onReactMessage={handleReactMessage}
               highlightedMessageId={highlightedMessageId}
             />
           </div>

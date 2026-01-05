@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback, memo } from "react";
 import { useTranslation } from "react-i18next";
 import type { Message, MessageType } from "@whatsapp-web/shared";
+import { EmojiReactionPicker } from "./EmojiReactionPicker";
 
 // Error code to human-readable message mapping
 const ERROR_MESSAGES: Record<string, string> = {
@@ -21,6 +22,7 @@ interface MessageBubbleProps {
   onForward?: (message: Message) => void;
   onDelete?: (message: Message) => void;
   onStar?: (message: Message) => void;
+  onReact?: (message: Message, emoji: string) => void;
   onRetry?: (messageId: string) => void;
   /** Highlight this message (e.g., from search) */
   isHighlighted?: boolean;
@@ -34,13 +36,19 @@ export const MessageBubble = memo(function MessageBubble({
   onForward,
   onDelete,
   onStar,
+  onReact,
   onRetry,
   isHighlighted = false,
   isRetrying = false,
 }: MessageBubbleProps) {
   const { t } = useTranslation();
   const [showContextMenu, setShowContextMenu] = useState(false);
+  const [showReactionPicker, setShowReactionPicker] = useState(false);
   const [contextMenuPosition, setContextMenuPosition] = useState({
+    x: 0,
+    y: 0,
+  });
+  const [reactionPickerPosition, setReactionPickerPosition] = useState({
     x: 0,
     y: 0,
   });
@@ -291,7 +299,28 @@ export const MessageBubble = memo(function MessageBubble({
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
 
+  const handleReactionClick = useCallback(() => {
+    const rect = bubbleRef.current?.getBoundingClientRect();
+    if (rect) {
+      setReactionPickerPosition({
+        x: isOwn ? -20 : rect.width - 20,
+        y: -50,
+      });
+    }
+    setShowReactionPicker(true);
+    setShowContextMenu(false);
+  }, [isOwn]);
+
+  const handleSelectReaction = useCallback(
+    (emoji: string) => {
+      onReact?.(message, emoji);
+      setShowReactionPicker(false);
+    },
+    [message, onReact],
+  );
+
   const contextMenuItems = [
+    { label: "React", icon: EmojiIcon, action: handleReactionClick },
     { label: "Reply", icon: ReplyIcon, action: () => onReply?.(message) },
     { label: "Forward", icon: ForwardIcon, action: () => onForward?.(message) },
     {
@@ -324,23 +353,32 @@ export const MessageBubble = memo(function MessageBubble({
           </div>
         )}
 
-        {/* Reply preview */}
+        {/* Reply preview - Enhanced with icon and better visual hierarchy */}
         {message.replyToMessage && !message.isDeleted && (
           <div
-            className={`mb-2 p-2 rounded border-l-4 ${
+            className={`mb-2 p-2.5 rounded-lg border-l-4 ${
               isOwn
                 ? "bg-whatsapp-dark-green/30 border-white/50"
                 : "bg-gray-100 dark:bg-dark-tertiary border-whatsapp-green"
             }`}
           >
-            <p className="text-xs font-medium truncate">
-              {message.replyToMessage.senderType === "user" ? "You" : "Contact"}
-            </p>
-            <p className="text-xs opacity-80 truncate">
-              {message.replyToMessage.isDeleted
-                ? t('chat.messageDeleted')
-                : message.replyToMessage.content}
-            </p>
+            <div className="flex items-start gap-2">
+              <ReplyIcon className="h-3.5 w-3.5 flex-shrink-0 mt-0.5 opacity-60" />
+              <div className="flex-1 min-w-0">
+                <p className={`text-xs font-semibold mb-0.5 ${
+                  isOwn ? "text-white/90" : "text-gray-900 dark:text-dark-text-primary"
+                }`}>
+                  {message.replyToMessage.senderType === "user" ? "You" : "Contact"}
+                </p>
+                <p className={`text-xs line-clamp-2 ${
+                  isOwn ? "text-white/80" : "text-gray-700 dark:text-dark-text-secondary"
+                }`}>
+                  {message.replyToMessage.isDeleted
+                    ? t('chat.messageDeleted')
+                    : message.replyToMessage.content}
+                </p>
+              </div>
+            </div>
           </div>
         )}
 
@@ -432,6 +470,15 @@ export const MessageBubble = memo(function MessageBubble({
             ))}
           </div>
         )}
+
+        {/* Reaction picker */}
+        {showReactionPicker && (
+          <EmojiReactionPicker
+            position={reactionPickerPosition}
+            onSelectReaction={handleSelectReaction}
+            onClose={() => setShowReactionPicker(false)}
+          />
+        )}
       </div>
     </div>
   );
@@ -513,6 +560,24 @@ function DeleteIcon({ className }: { className?: string }) {
         strokeLinejoin="round"
         strokeWidth={2}
         d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+      />
+    </svg>
+  );
+}
+
+function EmojiIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
       />
     </svg>
   );

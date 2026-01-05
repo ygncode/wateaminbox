@@ -222,3 +222,28 @@ export function useRetryMessage() {
     },
   });
 }
+
+export function useReactMessage() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      messageId,
+      emoji,
+    }: {
+      messageId: string;
+      conversationId: string;
+      emoji: string;
+    }) => api.post<{ success: boolean }>(`/messages/${messageId}/reaction`, { emoji }),
+    onSuccess: (_data, variables) => {
+      // Invalidate the messages query to show the new reaction
+      queryClient.invalidateQueries({
+        queryKey: infiniteMessageKeys.list(variables.conversationId),
+      });
+      // Also invalidate regular message list
+      queryClient.invalidateQueries({
+        queryKey: messageKeys.list(variables.conversationId),
+      });
+    },
+  });
+}

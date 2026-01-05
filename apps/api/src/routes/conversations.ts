@@ -53,23 +53,37 @@ conversationRoutes.get("/:id/messages", async (c) => {
 
   const messages = await query.execute();
 
-  // Get quoted messages if any
+  // Get quoted messages if any (for reply functionality)
   const quotedIds = messages
     .filter((m) => m.quoted_message_id)
     .map((m) => m.quoted_message_id as string);
 
-  let quotedMessages: Map<string, unknown> = new Map();
+  let quotedMessagesMap: Map<string, any> = new Map();
   if (quotedIds.length > 0) {
     const quoted = await tenantDb
       .selectFrom("messages")
-      .select(["message_id", "content", "message_type", "sender_jid"])
+      .selectAll()
       .where("message_id", "in", quotedIds)
       .execute();
 
-    quotedMessages = new Map(
+    quotedMessagesMap = new Map(
       quoted
         .filter((q) => q.message_id !== null)
-        .map((q) => [q.message_id as string, q]),
+        .map((q) => [
+          q.message_id as string,
+          {
+            id: q.id,
+            conversationId: q.contact_id,
+            senderId: q.sent_by_user_id || q.sender_jid || "",
+            senderType: q.from_me ? "user" : "contact",
+            messageType: q.message_type,
+            content: q.content || "",
+            isDeleted: q.deleted_by_sender || !!q.deleted_at,
+            status: q.status || (q.from_me ? "sent" : "delivered"),
+            createdAt: q.created_at,
+            updatedAt: q.created_at,
+          },
+        ]),
     );
   }
 
@@ -92,9 +106,10 @@ conversationRoutes.get("/:id/messages", async (c) => {
           fileSize: msg.media_size,
         }
       : undefined,
-    quotedMessage: msg.quoted_message_id
-      ? quotedMessages.get(msg.quoted_message_id) || null
-      : null,
+    replyToMessageId: msg.quoted_message_id || undefined,
+    replyToMessage: msg.quoted_message_id
+      ? quotedMessagesMap.get(msg.quoted_message_id) || null
+      : undefined,
     isForwarded: msg.is_forwarded,
     isStarred: msg.is_starred,
     isDeleted: msg.deleted_by_sender || !!msg.deleted_at,
