@@ -202,21 +202,25 @@ start_dev_servers() {
     print_success "Starting development servers..."
     echo ""
 
-    # Start API server
+    # Get absolute path for more robust directory handling
+    local ROOT_DIR="$(pwd)"
+
+    # Start API server using subshell with cd to avoid --cwd issues
+    # This is more robust when other processes run in the same directory
     print_status "  Starting API server..."
-    bun run --cwd apps/api --watch src/index.ts &
+    (cd "$ROOT_DIR/apps/api" && bun run --watch src/index.ts) &
     PIDS+=($!)
     sleep 2
 
-    # Start Frontend
+    # Start Frontend using subshell for isolation
     print_status "  Starting Frontend..."
-    bun run --cwd apps/web dev &
+    (cd "$ROOT_DIR/apps/web" && bun run dev) &
     PIDS+=($!)
     sleep 3
 
-    # Start Marketing site
+    # Start Marketing site using subshell for isolation
     print_status "  Starting Marketing site..."
-    bun run --cwd apps/marketing dev &
+    (cd "$ROOT_DIR/apps/marketing" && bun run dev) &
     PIDS+=($!)
     sleep 1
 
