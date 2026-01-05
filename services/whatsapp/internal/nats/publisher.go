@@ -301,13 +301,15 @@ func (p *Publisher) PublishQRCode(qrData string) error {
 }
 
 // PublishConnectionStatus publishes a connection status event.
-func (p *Publisher) PublishConnectionStatus(status, reason string) error {
+func (p *Publisher) PublishConnectionStatus(status, reason, phoneNumber, jid string) error {
 	event := WhatsAppEvent{
 		Type:         status, // "connected" or "disconnected"
 		CompanyID:    p.companyID,
 		ConnectionID: p.connectionID,
 		Payload: ConnectionPayload{
-			Reason: reason,
+			PhoneNumber: phoneNumber,
+			JID:         jid,
+			Reason:      reason,
 		},
 		Timestamp: time.Now().Format(time.RFC3339),
 	}

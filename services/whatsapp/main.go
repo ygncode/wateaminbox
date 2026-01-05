@@ -111,7 +111,7 @@ func main() {
 
 	// Set up status callback to publish to NATS
 	waClient.SetStatusCallback(func(status, reason string) {
-		if err := publisher.PublishConnectionStatus(status, reason); err != nil {
+		if err := publisher.PublishConnectionStatus(status, reason, "", ""); err != nil {
 			log.Printf("Failed to publish status: %v", err)
 		}
 	})
