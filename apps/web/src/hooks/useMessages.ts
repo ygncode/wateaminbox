@@ -157,15 +157,58 @@ export function useDeleteMessage() {
       messageId: string;
       conversationId: string;
     }) => api.delete<void>(`/messages/${messageId}`),
-    onSuccess: (_data, variables) => {
-      // Soft delete - mark as deleted
+    onMutate: async ({ messageId, conversationId }) => {
+      // Cancel outgoing refetches
+      await queryClient.cancelQueries({
+        queryKey: infiniteMessageKeys.list(conversationId),
+      });
+
+      // Snapshot previous value for rollback
+      const previousData = queryClient.getQueryData(
+        infiniteMessageKeys.list(conversationId),
+      );
+
+      // Optimistically update the infinite messages cache
+      queryClient.setQueryData<{
+        pages: {
+          messages: Message[];
+          hasMore: boolean;
+          nextCursor: string | null;
+        }[];
+        pageParams: (string | undefined)[];
+      }>(infiniteMessageKeys.list(conversationId), (oldData) => {
+        if (!oldData) return oldData;
+
+        return {
+          ...oldData,
+          pages: oldData.pages.map((page) => ({
+            ...page,
+            messages: page.messages.map((msg) =>
+              msg.id === messageId ? { ...msg, isDeleted: true } : msg,
+            ),
+          })),
+        };
+      });
+
+      // Also update legacy message list cache if it exists
       queryClient.setQueryData<Message[]>(
-        messageKeys.list(variables.conversationId),
+        messageKeys.list(conversationId),
         (old) =>
           old?.map((msg) =>
-            msg.id === variables.messageId ? { ...msg, isDeleted: true } : msg,
+            msg.id === messageId ? { ...msg, isDeleted: true } : msg,
           ) || [],
       );
+
+      return { previousData, conversationId };
+    },
+    onError: (_error, variables, context) => {
+      // Rollback on error
+      if (context?.previousData) {
+        queryClient.setQueryData(
+          infiniteMessageKeys.list(variables.conversationId),
+          context.previousData,
+        );
+      }
     },
   });
 }
