@@ -45,6 +45,60 @@ export const test = base.extend<{
    * - apps/web/src/lib/api.ts (TOKEN_STORAGE_KEY, REFRESH_TOKEN_STORAGE_KEY, COMPANY_ID_STORAGE_KEY)
    */
   authenticatedPage: async ({ page }, use) => {
+    // Mock API responses before navigation
+    await page.route("**/api/auth/me", (route) => {
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          user: {
+            id: TEST_USER.id,
+            email: TEST_USER.email,
+            name: TEST_USER.name,
+          },
+        }),
+      });
+    });
+
+    // Mock companies endpoint
+    await page.route("**/api/companies/me", (route) => {
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          data: {
+            id: MOCK_COMPANY_ID,
+            name: "Test Company",
+            createdAt: new Date().toISOString(),
+          },
+        }),
+      });
+    });
+
+    // Mock contacts/chats endpoint with empty data
+    await page.route("**/api/contacts**", (route) => {
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          data: [],
+          meta: { total: 0, limit: 50, offset: 0 },
+        }),
+      });
+    });
+
+    // Mock messages endpoint
+    await page.route("**/api/messages**", (route) => {
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          data: [],
+          meta: { total: 0, limit: 50, offset: 0 },
+        }),
+      });
+    });
+
     // First navigate to any page to establish the origin for localStorage
     await page.goto("/");
 

@@ -32,7 +32,7 @@ export function ChatListSearch({
       {/* Search Icon */}
       <div className="absolute left-3 pointer-events-none">
         <svg
-          className="w-4 h-4 text-gray-400"
+          className="w-4 h-4 text-gray-400 dark:text-dark-text-tertiary"
           fill="none"
           stroke="currentColor"
           viewBox="0 0 24 24"
@@ -54,7 +54,7 @@ export function ChatListSearch({
         onChange={(e) => onChange(e.target.value)}
         onKeyDown={handleKeyDown}
         placeholder={placeholder}
-        className="w-full py-2 pl-9 pr-8 text-sm bg-gray-100 border border-gray-200 rounded-lg placeholder-gray-500 focus:outline-none focus:border-whatsapp-green focus:ring-1 focus:ring-whatsapp-green focus:bg-white transition-all"
+        className="w-full py-2 pl-9 pr-8 text-sm bg-gray-100 dark:bg-dark-tertiary border border-gray-200 dark:border-dark-border rounded-lg text-gray-900 dark:text-dark-text-primary placeholder-gray-500 dark:placeholder-dark-text-tertiary focus:outline-none focus:border-whatsapp-green focus:ring-1 focus:ring-whatsapp-green focus:bg-white dark:focus:bg-dark-elevated transition-all"
         aria-label="Search contacts"
       />
 
@@ -63,7 +63,7 @@ export function ChatListSearch({
         <button
           type="button"
           onClick={handleClear}
-          className="absolute right-2 p-1 text-gray-400 hover:text-gray-600 focus:outline-none transition-colors"
+          className="absolute right-2 p-1 text-gray-400 dark:text-dark-text-tertiary hover:text-gray-600 dark:hover:text-dark-text-secondary focus:outline-none transition-colors"
           aria-label="Clear search"
         >
           <svg

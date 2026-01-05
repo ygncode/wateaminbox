@@ -72,7 +72,7 @@ export class ChatPage {
     this.page = page;
 
     // Chat List Sidebar Locators
-    this.chatListHeader = page.getByRole("heading", { name: "Chats" });
+    this.chatListHeader = page.getByRole("tab", { name: "Chats" });
     this.menuButton = page.getByRole("button", { name: "Menu" });
     this.logoutButton = page.getByRole("button", { name: /log out/i });
     this.userInfoSection = page.locator(".border-b.border-gray-100");

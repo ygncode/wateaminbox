@@ -1,5 +1,6 @@
 import type { Contact } from "@whatsapp-web/shared";
 import { ArrowLeft } from "lucide-react";
+import { ThemeToggle } from "./ThemeToggle";
 
 interface MessageHeaderProps {
   contact: Contact | undefined;
@@ -29,12 +30,12 @@ export function MessageHeader({
   const lastSeenText = getLastSeenText(contact.isOnline, contact.lastSeen);
 
   return (
-    <header className="flex items-center gap-2 md:gap-3 px-2 md:px-4 py-2 bg-gray-100 border-b border-gray-200 h-14 min-h-[56px] md:h-[60px] md:min-h-[60px] safe-area-top">
+    <header className="flex items-center gap-2 md:gap-3 px-2 md:px-4 py-2 bg-gray-100 dark:bg-dark-secondary border-b border-gray-200 dark:border-dark-border h-14 min-h-[56px] md:h-[60px] md:min-h-[60px] safe-area-top">
       {/* Back button for mobile */}
       {showBackButton && (
         <button
           onClick={onBack}
-          className="flex h-11 w-11 items-center justify-center rounded-full text-gray-600 hover:bg-gray-200 active:bg-gray-300 transition-colors touch-manipulation md:hidden"
+          className="flex h-11 w-11 items-center justify-center rounded-full text-gray-600 dark:text-dark-text-secondary hover:bg-gray-200 dark:hover:bg-dark-tertiary active:bg-gray-300 dark:active:bg-dark-border transition-colors touch-manipulation md:hidden"
           aria-label="Go back"
         >
           <ArrowLeft className="h-6 w-6" />
@@ -44,11 +45,11 @@ export function MessageHeader({
       {/* Avatar and info - clickable to open profile */}
       <button
         onClick={onOpenProfile}
-        className="flex items-center gap-2 md:gap-3 flex-1 min-w-0 hover:bg-gray-200 active:bg-gray-300 rounded-lg p-1 -m-1 transition-colors touch-manipulation"
+        className="flex items-center gap-2 md:gap-3 flex-1 min-w-0 hover:bg-gray-200 dark:hover:bg-dark-tertiary active:bg-gray-300 dark:active:bg-dark-border rounded-lg p-1 -m-1 transition-colors touch-manipulation"
       >
         {/* Avatar */}
         <div className="relative flex-shrink-0">
-          <div className="w-10 h-10 rounded-full bg-gray-300 overflow-hidden">
+          <div className="w-10 h-10 rounded-full bg-gray-300 dark:bg-dark-tertiary overflow-hidden">
             {contact.avatarUrl ? (
               <img
                 src={contact.avatarUrl}
@@ -63,25 +64,28 @@ export function MessageHeader({
           </div>
           {/* Online indicator */}
           {contact.isOnline && (
-            <span className="absolute bottom-0 right-0 w-3 h-3 bg-whatsapp-green rounded-full border-2 border-gray-100" />
+            <span className="absolute bottom-0 right-0 w-3 h-3 bg-whatsapp-green rounded-full border-2 border-gray-100 dark:border-dark-secondary" />
           )}
         </div>
 
         {/* Name and status */}
         <div className="flex-1 min-w-0 text-left">
-          <h2 className="text-base font-medium text-gray-900 truncate">
+          <h2 className="text-base font-medium text-gray-900 dark:text-dark-text-primary truncate">
             {displayName}
           </h2>
-          <p className="text-xs text-gray-500 truncate">{lastSeenText}</p>
+          <p className="text-xs text-gray-500 dark:text-dark-text-secondary truncate">{lastSeenText}</p>
         </div>
       </button>
 
       {/* Action buttons - hide search on very small screens */}
       <div className="flex items-center gap-0 md:gap-1">
+        {/* Theme toggle */}
+        <ThemeToggle />
+
         {/* Search button - hidden on small mobile */}
         <button
           onClick={onSearch}
-          className="hidden sm:flex h-11 w-11 md:h-10 md:w-10 items-center justify-center text-gray-500 hover:text-gray-700 rounded-full hover:bg-gray-200 active:bg-gray-300 transition-colors touch-manipulation"
+          className="hidden sm:flex h-11 w-11 md:h-10 md:w-10 items-center justify-center text-gray-500 dark:text-dark-text-secondary hover:text-gray-700 dark:hover:text-dark-text-primary rounded-full hover:bg-gray-200 dark:hover:bg-dark-tertiary active:bg-gray-300 dark:active:bg-dark-border transition-colors touch-manipulation"
           aria-label="Search in conversation"
         >
           <svg
@@ -102,7 +106,7 @@ export function MessageHeader({
         {/* More options button */}
         <button
           onClick={onMore}
-          className="flex h-11 w-11 md:h-10 md:w-10 items-center justify-center text-gray-500 hover:text-gray-700 rounded-full hover:bg-gray-200 active:bg-gray-300 transition-colors touch-manipulation"
+          className="flex h-11 w-11 md:h-10 md:w-10 items-center justify-center text-gray-500 dark:text-dark-text-secondary hover:text-gray-700 dark:hover:text-dark-text-primary rounded-full hover:bg-gray-200 dark:hover:bg-dark-tertiary active:bg-gray-300 dark:active:bg-dark-border transition-colors touch-manipulation"
           aria-label="More options"
         >
           <svg

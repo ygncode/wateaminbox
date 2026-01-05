@@ -4,6 +4,7 @@ import type { Message } from "@whatsapp-web/shared";
 import { useInfiniteMessages } from "../../hooks/useInfiniteMessages";
 import { MessageBubble } from "./MessageBubble";
 import { useRetryMessage } from "../../hooks/useMessages";
+import { useTheme } from "../../contexts";
 
 interface MessageThreadProps {
   conversationId: string | undefined;
@@ -33,6 +34,7 @@ export function MessageThread({
 }: MessageThreadProps) {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const retryMessage = useRetryMessage();
+  const { resolvedTheme } = useTheme();
   const [retryingMessageId, setRetryingMessageId] = useState<string | null>(null);
   const [isAtBottom, setIsAtBottom] = useState(true);
   const prevMessagesLengthRef = useRef(0);
@@ -218,11 +220,11 @@ export function MessageThread({
   // Empty state when no chat selected
   if (!conversationId) {
     return (
-      <div className="flex-1 flex items-center justify-center bg-gray-50">
+      <div className="flex-1 flex items-center justify-center bg-gray-50 dark:bg-dark-primary">
         <div className="text-center max-w-md px-4">
           <div className="mb-4">
             <svg
-              className="mx-auto h-24 w-24 text-gray-300"
+              className="mx-auto h-24 w-24 text-gray-300 dark:text-dark-text-tertiary"
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
@@ -235,10 +237,10 @@ export function MessageThread({
               />
             </svg>
           </div>
-          <h2 className="text-xl font-semibold text-gray-600 mb-2">
+          <h2 className="text-xl font-semibold text-gray-600 dark:text-dark-text-secondary mb-2">
             WhatsApp Web
           </h2>
-          <p className="text-gray-500">
+          <p className="text-gray-500 dark:text-dark-text-tertiary">
             Select a conversation to start messaging
           </p>
         </div>
@@ -249,10 +251,10 @@ export function MessageThread({
   // Loading state
   if (isLoading) {
     return (
-      <div className="flex-1 flex items-center justify-center bg-gray-50">
+      <div className="flex-1 flex items-center justify-center bg-gray-50 dark:bg-dark-primary">
         <div className="flex flex-col items-center gap-3">
           <LoadingSpinner />
-          <p className="text-sm text-gray-500">Loading messages...</p>
+          <p className="text-sm text-gray-500 dark:text-dark-text-secondary">Loading messages...</p>
         </div>
       </div>
     );
@@ -261,7 +263,7 @@ export function MessageThread({
   // Error state
   if (isError) {
     return (
-      <div className="flex-1 flex items-center justify-center bg-gray-50">
+      <div className="flex-1 flex items-center justify-center bg-gray-50 dark:bg-dark-primary">
         <div className="text-center max-w-md px-4">
           <div className="mb-4">
             <svg
@@ -278,10 +280,10 @@ export function MessageThread({
               />
             </svg>
           </div>
-          <h3 className="text-lg font-medium text-gray-900 mb-1">
+          <h3 className="text-lg font-medium text-gray-900 dark:text-dark-text-primary mb-1">
             Failed to load messages
           </h3>
-          <p className="text-sm text-gray-500">
+          <p className="text-sm text-gray-500 dark:text-dark-text-secondary">
             {error instanceof Error ? error.message : "An error occurred"}
           </p>
         </div>
@@ -292,11 +294,11 @@ export function MessageThread({
   // Empty messages state
   if (messages.length === 0) {
     return (
-      <div className="flex-1 flex items-center justify-center bg-gray-50">
+      <div className="flex-1 flex items-center justify-center bg-gray-50 dark:bg-dark-primary">
         <div className="text-center max-w-md px-4">
           <div className="mb-4">
             <svg
-              className="mx-auto h-16 w-16 text-gray-300"
+              className="mx-auto h-16 w-16 text-gray-300 dark:text-dark-text-tertiary"
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
@@ -309,7 +311,7 @@ export function MessageThread({
               />
             </svg>
           </div>
-          <p className="text-gray-500">
+          <p className="text-gray-500 dark:text-dark-text-secondary">
             No messages yet. Start the conversation!
           </p>
         </div>
@@ -317,13 +319,17 @@ export function MessageThread({
     );
   }
 
+  // Background pattern colors based on theme
+  const patternColor = resolvedTheme === 'dark' ? '%231a2730' : '%23000000';
+  const patternOpacity = resolvedTheme === 'dark' ? '0.4' : '1';
+
   return (
-    <div className="flex-1 relative flex flex-col min-h-0 bg-[#e5ddd5]">
+    <div className="flex-1 relative flex flex-col min-h-0 bg-[#e5ddd5] dark:bg-dark-primary">
       {/* WhatsApp-style background pattern */}
       <div
-        className="absolute inset-0 opacity-5"
+        className="absolute inset-0 opacity-5 dark:opacity-100"
         style={{
-          backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23000000' fill-opacity='1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
+          backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='${patternColor}' fill-opacity='${patternOpacity}'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
         }}
       />
 
@@ -377,7 +383,7 @@ export function MessageThread({
                   }}
                 >
                   <div className="flex justify-center my-4">
-                    <span className="px-3 py-1 bg-white/80 rounded-lg text-xs text-gray-600 shadow-sm">
+                    <span className="px-3 py-1 bg-white/80 dark:bg-dark-elevated/90 rounded-lg text-xs text-gray-600 dark:text-dark-text-secondary shadow-sm">
                       {formatDateSeparator(item.date)}
                     </span>
                   </div>
@@ -419,11 +425,11 @@ export function MessageThread({
       {!isAtBottom && (
         <button
           onClick={scrollToBottom}
-          className="absolute bottom-4 right-4 z-20 bg-white rounded-full p-2 shadow-lg hover:bg-gray-50 transition-colors"
+          className="absolute bottom-4 right-4 z-20 bg-white dark:bg-dark-elevated rounded-full p-2 shadow-lg hover:bg-gray-50 dark:hover:bg-dark-tertiary transition-colors"
           aria-label="Scroll to bottom"
         >
           <svg
-            className="h-6 w-6 text-gray-600"
+            className="h-6 w-6 text-gray-600 dark:text-dark-text-secondary"
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"

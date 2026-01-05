@@ -124,16 +124,16 @@ export function MessageComposer({
   }
 
   return (
-    <div className="bg-gray-100 border-t border-gray-200 safe-area-bottom">
+    <div className="bg-gray-100 dark:bg-dark-secondary border-t border-gray-200 dark:border-dark-border safe-area-bottom">
       {/* Reply preview */}
       {replyToMessage && (
         <div className="px-4 pt-2">
-          <div className="flex items-center bg-white rounded-lg border-l-4 border-whatsapp-green p-2">
+          <div className="flex items-center bg-white dark:bg-dark-elevated rounded-lg border-l-4 border-whatsapp-green p-2">
             <div className="flex-1 min-w-0">
               <p className="text-xs font-medium text-whatsapp-green truncate">
                 {replyToMessage.senderType === "user" ? "You" : "Contact"}
               </p>
-              <p className="text-sm text-gray-600 truncate">
+              <p className="text-sm text-gray-600 dark:text-dark-text-secondary truncate">
                 {replyToMessage.isDeleted
                   ? "This message was deleted"
                   : replyToMessage.content}
@@ -141,7 +141,7 @@ export function MessageComposer({
             </div>
             <button
               onClick={onClearReply}
-              className="ml-2 p-1 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-100"
+              className="ml-2 p-1 text-gray-400 dark:text-dark-text-tertiary hover:text-gray-600 dark:hover:text-dark-text-secondary rounded-full hover:bg-gray-100 dark:hover:bg-dark-tertiary"
               aria-label="Cancel reply"
             >
               <svg
@@ -166,7 +166,7 @@ export function MessageComposer({
       <div className="flex items-end gap-1 md:gap-2 p-2 md:p-3">
         {/* Emoji button (placeholder) - hidden on small mobile */}
         <button
-          className="hidden sm:flex flex-shrink-0 h-11 w-11 md:h-10 md:w-10 items-center justify-center text-gray-500 hover:text-gray-700 rounded-full hover:bg-gray-200 active:bg-gray-300 transition-colors touch-manipulation"
+          className="hidden sm:flex flex-shrink-0 h-11 w-11 md:h-10 md:w-10 items-center justify-center text-gray-500 dark:text-dark-text-secondary hover:text-gray-700 dark:hover:text-dark-text-primary rounded-full hover:bg-gray-200 dark:hover:bg-dark-tertiary active:bg-gray-300 dark:active:bg-dark-border transition-colors touch-manipulation"
           aria-label="Insert emoji"
           title="Emoji picker coming soon"
         >
@@ -188,7 +188,7 @@ export function MessageComposer({
         {/* Attachment button */}
         <div className="relative" ref={attachmentMenuRef}>
           <button
-            className="flex-shrink-0 flex h-11 w-11 md:h-10 md:w-10 items-center justify-center text-gray-500 hover:text-gray-700 rounded-full hover:bg-gray-200 active:bg-gray-300 transition-colors touch-manipulation"
+            className="flex-shrink-0 flex h-11 w-11 md:h-10 md:w-10 items-center justify-center text-gray-500 dark:text-dark-text-secondary hover:text-gray-700 dark:hover:text-dark-text-primary rounded-full hover:bg-gray-200 dark:hover:bg-dark-tertiary active:bg-gray-300 dark:active:bg-dark-border transition-colors touch-manipulation"
             onClick={() => setShowAttachmentMenu(!showAttachmentMenu)}
             aria-label="Attach file"
           >
@@ -209,9 +209,9 @@ export function MessageComposer({
 
           {/* Attachment menu */}
           {showAttachmentMenu && (
-            <div className="absolute bottom-full mb-2 left-0 bg-white rounded-lg shadow-lg py-2 min-w-[160px] z-10">
+            <div className="absolute bottom-full mb-2 left-0 bg-white dark:bg-dark-elevated rounded-lg shadow-lg py-2 min-w-[160px] z-10">
               <button
-                className="w-full flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                className="w-full flex items-center gap-3 px-4 py-2 text-sm text-gray-700 dark:text-dark-text-primary hover:bg-gray-100 dark:hover:bg-dark-tertiary"
                 onClick={() => triggerFileInput("image")}
               >
                 <div className="w-8 h-8 rounded-full bg-purple-500 flex items-center justify-center">
@@ -232,7 +232,7 @@ export function MessageComposer({
                 <span>Photos & Videos</span>
               </button>
               <button
-                className="w-full flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                className="w-full flex items-center gap-3 px-4 py-2 text-sm text-gray-700 dark:text-dark-text-primary hover:bg-gray-100 dark:hover:bg-dark-tertiary"
                 onClick={() => triggerFileInput("document")}
               >
                 <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center">
@@ -273,7 +273,7 @@ export function MessageComposer({
         </div>
 
         {/* Text input */}
-        <div className="flex-1 bg-white rounded-xl border border-gray-200 focus-within:border-whatsapp-green transition-colors">
+        <div className="flex-1 bg-white dark:bg-dark-tertiary rounded-xl border border-gray-200 dark:border-dark-border focus-within:border-whatsapp-green transition-colors">
           <textarea
             ref={textareaRef}
             value={message}
@@ -282,7 +282,7 @@ export function MessageComposer({
             placeholder="Type a message"
             disabled={disabled}
             rows={1}
-            className="w-full px-4 py-2 bg-transparent resize-none focus:outline-none text-gray-900 placeholder-gray-500 max-h-[150px]"
+            className="w-full px-4 py-2 bg-transparent resize-none focus:outline-none text-gray-900 dark:text-dark-text-primary placeholder-gray-500 dark:placeholder-dark-text-tertiary max-h-[150px]"
             style={{ minHeight: "40px" }}
           />
         </div>
@@ -294,7 +294,7 @@ export function MessageComposer({
           className={`flex-shrink-0 flex h-11 w-11 md:h-10 md:w-10 items-center justify-center rounded-full transition-colors touch-manipulation ${
             message.trim() && !disabled
               ? "bg-whatsapp-green text-white hover:bg-whatsapp-dark-green active:bg-whatsapp-dark-green"
-              : "bg-gray-200 text-gray-400 cursor-not-allowed"
+              : "bg-gray-200 dark:bg-dark-tertiary text-gray-400 dark:text-dark-text-tertiary cursor-not-allowed"
           }`}
           aria-label="Send message"
         >
