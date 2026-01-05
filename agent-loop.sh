@@ -357,7 +357,24 @@ Output ONLY one word: feature, bug, chore, refactor, or docs. Nothing else."
 # Task List Management
 # =============================================================================
 
-# Get next unchecked task from tasks.md
+# Detect input format: "checklist" or "feature"
+detect_input_format() {
+    local file="$1"
+
+    if [ ! -f "$file" ]; then
+        echo "feature"
+        return
+    fi
+
+    # Check if file contains checklist items
+    if grep -q '^\s*-\s*\[ \]' "$file" 2>/dev/null; then
+        echo "checklist"
+    else
+        echo "feature"
+    fi
+}
+
+# Get next unchecked task from tasks.md (checklist format)
 get_next_task() {
     local tasks_file="$1"
 
@@ -382,6 +399,19 @@ get_next_task() {
     task_desc=$(echo "$task_line" | cut -d: -f2- | sed 's/^\s*-\s*\[ \]\s*//')
 
     echo "$line_num|$task_desc"
+}
+
+# Get feature description from file (feature format)
+get_feature_task() {
+    local file="$1"
+
+    if [ ! -f "$file" ]; then
+        echo ""
+        return
+    fi
+
+    # Read entire file as the task description
+    cat "$file"
 }
 
 # Mark task as completed in tasks.md
@@ -1398,58 +1428,101 @@ main() {
         sync_main
     fi
 
-    # Main task loop
-    local tasks_completed=0
+    # Detect input format
+    local input_format
+    input_format=$(detect_input_format "$TASKS_FILE")
+    log_info "Input format detected: $input_format"
 
-    while true; do
-        # Sync with main before starting each task
-        if [ $tasks_completed -gt 0 ] || [ "$RESUME_MODE" = true ]; then
-            sync_main
+    if [ "$input_format" = "feature" ]; then
+        # Single feature/requirement - run once
+        log_info "Processing as single feature/requirement..."
+
+        CURRENT_TASK=$(get_feature_task "$TASKS_FILE")
+        CURRENT_TASK_INDEX=0
+
+        if [ -z "$CURRENT_TASK" ]; then
+            log_error "Empty input file: $TASKS_FILE"
+            exit 1
         fi
 
-        # Get next task
-        local next_task_info
-        next_task_info=$(get_next_task "$TASKS_FILE")
-
-        if [ -z "$next_task_info" ]; then
-            log_success "All tasks completed!"
-            break
-        fi
-
-        # Parse task info
-        CURRENT_TASK_INDEX=$(echo "$next_task_info" | cut -d'|' -f1)
-        CURRENT_TASK=$(echo "$next_task_info" | cut -d'|' -f2-)
-
-        local remaining
-        remaining=$(count_remaining_tasks "$TASKS_FILE")
         log_info "=============================================="
-        log_info "Starting task ($remaining remaining): $CURRENT_TASK"
+        log_info "Feature: $(echo "$CURRENT_TASK" | head -1)"
         log_info "=============================================="
 
-        # Classify task type (using Haiku - fast/cheap)
+        # Classify task type
         CURRENT_TASK_TYPE=$(classify_task "$CURRENT_TASK")
 
-        # Generate slug for this task
+        # Generate slug
         CURRENT_SLUG=$(generate_slug "$CURRENT_TASK")
         log_info "Generated slug: $CURRENT_SLUG"
 
         # Save initial state
         save_state "0" "starting" "0"
 
-        # Run the appropriate workflow based on task type
+        # Run workflow
         run_task_workflow 1
 
-        # Mark task as complete in original file
-        mark_task_complete "$TASKS_FILE" "$CURRENT_TASK_INDEX"
-
-        # Clear state after successful completion
+        # Clear state
         clear_state
 
-        ((tasks_completed++))
+        log_success "Feature completed!"
 
-        log_success "Task completed and merged. Moving to next task..."
-        echo ""
-    done
+    else
+        # Checklist format - loop through tasks
+        log_info "Processing as task checklist..."
+
+        local tasks_completed=0
+
+        while true; do
+            # Sync with main before starting each task
+            if [ $tasks_completed -gt 0 ] || [ "$RESUME_MODE" = true ]; then
+                sync_main
+            fi
+
+            # Get next task
+            local next_task_info
+            next_task_info=$(get_next_task "$TASKS_FILE")
+
+            if [ -z "$next_task_info" ]; then
+                log_success "All tasks completed!"
+                break
+            fi
+
+            # Parse task info
+            CURRENT_TASK_INDEX=$(echo "$next_task_info" | cut -d'|' -f1)
+            CURRENT_TASK=$(echo "$next_task_info" | cut -d'|' -f2-)
+
+            local remaining
+            remaining=$(count_remaining_tasks "$TASKS_FILE")
+            log_info "=============================================="
+            log_info "Starting task ($remaining remaining): $CURRENT_TASK"
+            log_info "=============================================="
+
+            # Classify task type (using Haiku - fast/cheap)
+            CURRENT_TASK_TYPE=$(classify_task "$CURRENT_TASK")
+
+            # Generate slug for this task
+            CURRENT_SLUG=$(generate_slug "$CURRENT_TASK")
+            log_info "Generated slug: $CURRENT_SLUG"
+
+            # Save initial state
+            save_state "0" "starting" "0"
+
+            # Run the appropriate workflow based on task type
+            run_task_workflow 1
+
+            # Mark task as complete in original file
+            mark_task_complete "$TASKS_FILE" "$CURRENT_TASK_INDEX"
+
+            # Clear state after successful completion
+            clear_state
+
+            ((tasks_completed++))
+
+            log_success "Task completed and merged. Moving to next task..."
+            echo ""
+        done
+    fi
 
     echo ""
     log_success "=============================================="
