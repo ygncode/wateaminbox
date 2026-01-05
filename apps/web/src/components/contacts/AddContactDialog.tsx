@@ -1,81 +1,77 @@
-import { useState } from "react";
+import { AlertCircle, Check, Loader2, UserPlus } from 'lucide-react'
+import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { toast } from 'sonner'
 import {
+  Button,
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogDescription,
-  Button,
   Input,
   Label,
   Textarea,
-} from "@/components/ui";
-import { UserPlus, Loader2, AlertCircle, Check } from "lucide-react";
-import { useCreateContact } from "@/hooks/useContact";
-import { useNavigate } from "react-router-dom";
+} from '@/components/ui'
+import { useCreateContact } from '@/hooks/useContact'
 
 export interface AddContactDialogProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
+  open: boolean
+  onOpenChange: (open: boolean) => void
 }
 
 /**
  * Dialog component for adding a new contact by phone number
  */
-export function AddContactDialog({
-  open,
-  onOpenChange,
-}: AddContactDialogProps) {
-  const [phoneNumber, setPhoneNumber] = useState("");
-  const [customName, setCustomName] = useState("");
-  const [notes, setNotes] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState(false);
+export function AddContactDialog({ open, onOpenChange }: AddContactDialogProps) {
+  const [phoneNumber, setPhoneNumber] = useState('')
+  const [customName, setCustomName] = useState('')
+  const [notes, setNotes] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  const [success, setSuccess] = useState(false)
 
-  const navigate = useNavigate();
-  const createContact = useCreateContact();
+  const navigate = useNavigate()
+  const createContact = useCreateContact()
 
   const resetForm = () => {
-    setPhoneNumber("");
-    setCustomName("");
-    setNotes("");
-    setError(null);
-    setSuccess(false);
-  };
+    setPhoneNumber('')
+    setCustomName('')
+    setNotes('')
+    setError(null)
+    setSuccess(false)
+  }
 
   const handleClose = () => {
-    resetForm();
-    onOpenChange(false);
-  };
+    resetForm()
+    onOpenChange(false)
+  }
 
   const validatePhoneNumber = (phone: string): boolean => {
     // Remove all non-digit characters except +
-    const cleaned = phone.replace(/[^\d+]/g, "");
+    const cleaned = phone.replace(/[^\d+]/g, '')
     // Check minimum length (country code + number)
     if (cleaned.length < 7) {
-      setError(
-        "Phone number is too short. Include country code (e.g., +1234567890)",
-      );
-      return false;
+      setError('Phone number is too short. Include country code (e.g., +1234567890)')
+      return false
     }
     if (cleaned.length > 16) {
-      setError("Phone number is too long");
-      return false;
+      setError('Phone number is too long')
+      return false
     }
-    return true;
-  };
+    return true
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
+    e.preventDefault()
+    setError(null)
 
     if (!phoneNumber.trim()) {
-      setError("Phone number is required");
-      return;
+      setError('Phone number is required')
+      return
     }
 
     if (!validatePhoneNumber(phoneNumber)) {
-      return;
+      return
     }
 
     try {
@@ -83,28 +79,28 @@ export function AddContactDialog({
         phoneNumber: phoneNumber.trim(),
         customName: customName.trim() || undefined,
         notesShared: notes.trim() || undefined,
-      });
+      })
 
-      setSuccess(true);
+      setSuccess(true)
 
       // Navigate to the new contact after a short delay
       setTimeout(() => {
-        handleClose();
-        navigate(`/chat/${contact.id}`);
-      }, 1000);
+        handleClose()
+        navigate(`/chat/${contact.id}`)
+      }, 1000)
     } catch (err) {
       if (err instanceof Error) {
-        // Handle conflict error (contact already exists)
-        if (err.message.includes("already exists")) {
-          setError("A contact with this phone number already exists");
+        // Handle conflict error (contact already exists) - show as toast
+        if (err.message.includes('already exists')) {
+          toast.error('A contact with this phone number already exists')
         } else {
-          setError(err.message);
+          setError(err.message)
         }
       } else {
-        setError("Failed to create contact");
+        setError('Failed to create contact')
       }
     }
-  };
+  }
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
@@ -115,8 +111,7 @@ export function AddContactDialog({
             Add New Contact
           </DialogTitle>
           <DialogDescription>
-            Enter a phone number to add a new contact. Include the country code
-            (e.g., +1 for US).
+            Enter a phone number to add a new contact. Include the country code (e.g., +1 for US).
           </DialogDescription>
         </DialogHeader>
 
@@ -158,8 +153,7 @@ export function AddContactDialog({
                 data-testid="add-contact-phone"
               />
               <p className="text-xs text-gray-500 dark:text-dark-text-tertiary">
-                Include country code (e.g., +1 for US, +44 for UK, +95 for
-                Myanmar)
+                Include country code (e.g., +1 for US, +44 for UK, +95 for Myanmar)
               </p>
             </div>
 
@@ -225,7 +219,7 @@ export function AddContactDialog({
         )}
       </DialogContent>
     </Dialog>
-  );
+  )
 }
 
-export default AddContactDialog;
+export default AddContactDialog
