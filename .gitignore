@@ -72,3 +72,4 @@ bun.lockb
 
 # Improvement loop artifacts
 .loop/
+tasks.md
