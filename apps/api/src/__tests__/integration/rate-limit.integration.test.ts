@@ -17,7 +17,7 @@ import { Hono } from 'hono'
 import type { RateLimitStore, RateLimitResult } from '../../lib/rate-limit-store'
 import { MemoryRateLimitStore } from '../../lib/rate-limit-store'
 import { createRateLimitMiddleware, RATE_LIMIT_HEADERS } from '../../middleware/rate-limit'
-import { getRateLimitConfig } from '../../config/rate-limit.config'
+import { DEFAULT_RATE_LIMIT_CONFIG } from '../../config/rate-limit.config'
 
 // ============================================================================
 // Mock Setup
@@ -95,9 +95,10 @@ class TestRateLimitStore implements RateLimitStore {
 /**
  * Create a test app with auth-like endpoints and rate limiting
  * This simulates the full request lifecycle without importing actual routes
+ * Uses DEFAULT_RATE_LIMIT_CONFIG to ensure consistent production-level limits in tests
  */
 function createTestAppWithRateLimiting(store: RateLimitStore): Hono {
-  const config = getRateLimitConfig()
+  const config = DEFAULT_RATE_LIMIT_CONFIG
   const app = new Hono()
 
   // Login rate limiter: 5 attempts per 15 minutes

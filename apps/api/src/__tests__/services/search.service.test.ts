@@ -58,6 +58,17 @@ mock.module("kysely", () => ({
   sql: mockSql,
 }));
 
+// Mock Meilisearch service to prevent it from being used during tests
+const mockIsMeilisearchAvailable = mock(() => Promise.resolve(false));
+const mockSearchMessagesWithMeilisearch = mock(() => Promise.resolve({ results: [], total: 0 }));
+const mockSearchContactsWithMeilisearch = mock(() => Promise.resolve({ results: [], total: 0 }));
+
+mock.module("../../services/meilisearch.service.js", () => ({
+  isMeilisearchAvailable: mockIsMeilisearchAvailable,
+  searchMessagesWithMeilisearch: mockSearchMessagesWithMeilisearch,
+  searchContactsWithMeilisearch: mockSearchContactsWithMeilisearch,
+}));
+
 // Import the service after mocking
 import {
   searchMessages,
@@ -73,6 +84,13 @@ describe("SearchService", () => {
     mockGetTenantConnection.mockClear();
     mockTenantDb.selectFrom = mock(() => mockQueryBuilder);
     mockSql.mockClear();
+    mockIsMeilisearchAvailable.mockClear();
+    mockSearchMessagesWithMeilisearch.mockClear();
+    mockSearchContactsWithMeilisearch.mockClear();
+    // Reset Meilisearch mocks to default behavior
+    mockIsMeilisearchAvailable.mockImplementation(() => Promise.resolve(false));
+    mockSearchMessagesWithMeilisearch.mockImplementation(() => Promise.resolve({ results: [], total: 0 }));
+    mockSearchContactsWithMeilisearch.mockImplementation(() => Promise.resolve({ results: [], total: 0 }));
   });
 
   describe("searchMessages", () => {

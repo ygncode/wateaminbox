@@ -81,6 +81,29 @@ messageRoutes.get("/", async (c) => {
     );
   }
 
+  // Get reactions for all messages
+  const messageIds = messages.map((m) => m.id);
+  let reactionsMap: Map<string, Array<{ emoji: string; reactorJid: string; createdAt: Date }>> = new Map();
+  if (messageIds.length > 0) {
+    const reactions = await tenantDb
+      .selectFrom("message_reactions")
+      .select(["message_id", "emoji", "reactor_jid", "created_at"])
+      .where("message_id", "in", messageIds)
+      .orderBy("created_at", "asc")
+      .execute();
+
+    // Group reactions by message ID
+    for (const reaction of reactions) {
+      const existing = reactionsMap.get(reaction.message_id) || [];
+      existing.push({
+        emoji: reaction.emoji,
+        reactorJid: reaction.reactor_jid,
+        createdAt: reaction.created_at,
+      });
+      reactionsMap.set(reaction.message_id, existing);
+    }
+  }
+
   // Return in chronological order (oldest first for display)
   const sortedMessages = messages.reverse();
 
@@ -107,6 +130,7 @@ messageRoutes.get("/", async (c) => {
       status: msg.status || "sent",
       timestamp: msg.timestamp,
       createdAt: msg.created_at,
+      reactions: reactionsMap.get(msg.id) || [],
     })),
     pagination: {
       limit,
@@ -302,16 +326,16 @@ messageRoutes.delete("/:id", async (c) => {
 
   const updated = await tenantDb
     .updateTable("messages")
-    .set({ is_deleted: true })
+    .set({ deleted_at: new Date() })
     .where("id", "=", messageId)
-    .returning(["id", "is_deleted"])
+    .returning(["id", "deleted_at"])
     .executeTakeFirst();
 
   if (!updated) {
     return c.json({ error: "Message not found" }, 404);
   }
 
-  return c.json({ success: true, message: updated });
+  return c.json({ success: true, message: { id: updated.id, deletedAt: updated.deleted_at } });
 });
 
 /**

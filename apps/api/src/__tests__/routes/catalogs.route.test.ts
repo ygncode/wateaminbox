@@ -286,7 +286,7 @@ describe("GET /catalogs - List catalogs", () => {
     // Mock middleware
     app.use("/*", async (c, next) => {
       c.set("tenantDb", mockTenantDb)
-      c.set("user", { id: "user-123", email: "test@example.com" })
+      c.set("user", { id: "user-123", email: "test@example.com", name: null, emailVerifiedAt: null })
       c.set("companyId", "company-123")
       await next()
     })
@@ -362,7 +362,7 @@ describe("GET /catalogs/status - Catalog sync status", () => {
 
     app.use("/*", async (c, next) => {
       c.set("tenantDb", mockTenantDb)
-      c.set("user", { id: "user-123", email: "test@example.com" })
+      c.set("user", { id: "user-123", email: "test@example.com", name: null, emailVerifiedAt: null })
       c.set("companyId", "company-123")
       await next()
     })
@@ -450,7 +450,7 @@ describe("GET /catalogs/:catalogId - Get catalog by ID", () => {
 
     app.use("/*", async (c, next) => {
       c.set("tenantDb", mockTenantDb)
-      c.set("user", { id: "user-123", email: "test@example.com" })
+      c.set("user", { id: "user-123", email: "test@example.com", name: null, emailVerifiedAt: null })
       c.set("companyId", "company-123")
       await next()
     })
@@ -522,7 +522,7 @@ describe("GET /catalogs/:catalogId/products - Get catalog products", () => {
 
     app.use("/*", async (c, next) => {
       c.set("tenantDb", mockTenantDb)
-      c.set("user", { id: "user-123", email: "test@example.com" })
+      c.set("user", { id: "user-123", email: "test@example.com", name: null, emailVerifiedAt: null })
       c.set("companyId", "company-123")
       await next()
     })
@@ -634,7 +634,7 @@ describe("POST /catalogs/sync - Trigger catalog sync", () => {
 
     app.use("/*", async (c, next) => {
       c.set("tenantDb", mockTenantDb)
-      c.set("user", { id: "user-123", email: "test@example.com" })
+      c.set("user", { id: "user-123", email: "test@example.com", name: null, emailVerifiedAt: null })
       c.set("companyId", "company-123")
       await next()
     })
@@ -703,7 +703,7 @@ describe("POST /catalogs/:catalogId/archive - Archive catalog", () => {
 
     app.use("/*", async (c, next) => {
       c.set("tenantDb", mockTenantDb)
-      c.set("user", { id: "user-123", email: "test@example.com" })
+      c.set("user", { id: "user-123", email: "test@example.com", name: null, emailVerifiedAt: null })
       c.set("companyId", "company-123")
       await next()
     })
@@ -774,7 +774,7 @@ describe("POST /catalogs/:catalogId/restore - Restore catalog", () => {
 
     app.use("/*", async (c, next) => {
       c.set("tenantDb", mockTenantDb)
-      c.set("user", { id: "user-123", email: "test@example.com" })
+      c.set("user", { id: "user-123", email: "test@example.com", name: null, emailVerifiedAt: null })
       c.set("companyId", "company-123")
       await next()
     })

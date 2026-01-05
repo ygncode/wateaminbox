@@ -247,3 +247,37 @@ export function useReactMessage() {
     },
   });
 }
+
+interface ForwardMessageResponse {
+  success: boolean;
+  forwardedMessageId: string;
+  autoAssigned: boolean;
+}
+
+export function useForwardMessage() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      messageId,
+      targetContactId,
+    }: {
+      messageId: string;
+      sourceConversationId: string;
+      targetContactId: string;
+    }) => api.post<ForwardMessageResponse>(`/messages/${messageId}/forward`, { targetContactId }),
+    onSuccess: (_data, variables) => {
+      // Invalidate both source and target conversation message lists
+      queryClient.invalidateQueries({
+        queryKey: infiniteMessageKeys.list(variables.sourceConversationId),
+      });
+      queryClient.invalidateQueries({
+        queryKey: infiniteMessageKeys.list(variables.targetContactId),
+      });
+      // Also invalidate chat list to update last message
+      queryClient.invalidateQueries({
+        queryKey: ["chats"],
+      });
+    },
+  });
+}

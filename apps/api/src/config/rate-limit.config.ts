@@ -95,8 +95,30 @@ function parsePositiveInt(
 }
 
 /**
+ * Check if we're in development mode
+ */
+function isDevelopment(): boolean {
+  return process.env.NODE_ENV === "development";
+}
+
+/**
+ * Get default value for a tier, with more lenient defaults in development
+ */
+function getDefaultRequests(
+  envValue: string | undefined,
+  prodDefault: number,
+  devMultiplier: number = 10,
+): number {
+  if (envValue !== undefined && envValue !== "") {
+    return parsePositiveInt(envValue, prodDefault);
+  }
+  return isDevelopment() ? prodDefault * devMultiplier : prodDefault;
+}
+
+/**
  * Get the rate limit configuration from environment variables
  * Uses sensible defaults when variables are not set
+ * Development mode uses 10x more lenient defaults
  */
 export function getRateLimitConfig(): RateLimitConfig {
   const enabled = process.env.RATE_LIMIT_ENABLED !== "false";
@@ -120,7 +142,7 @@ export function getRateLimitConfig(): RateLimitConfig {
     },
     tiers: {
       global: {
-        requests: parsePositiveInt(process.env.RATE_LIMIT_GLOBAL_REQUESTS, 100),
+        requests: getDefaultRequests(process.env.RATE_LIMIT_GLOBAL_REQUESTS, 100),
         windowSeconds: parsePositiveInt(
           process.env.RATE_LIMIT_GLOBAL_WINDOW_SECONDS,
           60,
@@ -128,37 +150,40 @@ export function getRateLimitConfig(): RateLimitConfig {
       },
       auth: {
         login: {
-          requests: parsePositiveInt(
+          requests: getDefaultRequests(
             process.env.RATE_LIMIT_AUTH_LOGIN_REQUESTS,
             5,
+            20, // 100 login attempts in dev
           ),
           windowSeconds: parsePositiveInt(
             process.env.RATE_LIMIT_AUTH_LOGIN_WINDOW_SECONDS,
-            900, // 15 minutes
+            isDevelopment() ? 60 : 900, // 1 minute in dev, 15 minutes in prod
           ),
         },
         register: {
-          requests: parsePositiveInt(
+          requests: getDefaultRequests(
             process.env.RATE_LIMIT_AUTH_REGISTER_REQUESTS,
             3,
+            20, // 60 registrations in dev
           ),
           windowSeconds: parsePositiveInt(
             process.env.RATE_LIMIT_AUTH_REGISTER_WINDOW_SECONDS,
-            3600, // 1 hour
+            isDevelopment() ? 60 : 3600, // 1 minute in dev, 1 hour in prod
           ),
         },
         forgotPassword: {
-          requests: parsePositiveInt(
+          requests: getDefaultRequests(
             process.env.RATE_LIMIT_AUTH_FORGOT_PASSWORD_REQUESTS,
             3,
+            20, // 60 in dev
           ),
           windowSeconds: parsePositiveInt(
             process.env.RATE_LIMIT_AUTH_FORGOT_PASSWORD_WINDOW_SECONDS,
-            3600, // 1 hour
+            isDevelopment() ? 60 : 3600, // 1 minute in dev, 1 hour in prod
           ),
         },
         refresh: {
-          requests: parsePositiveInt(
+          requests: getDefaultRequests(
             process.env.RATE_LIMIT_AUTH_REFRESH_REQUESTS,
             20,
           ),
@@ -170,7 +195,7 @@ export function getRateLimitConfig(): RateLimitConfig {
       },
       resource: {
         search: {
-          requests: parsePositiveInt(
+          requests: getDefaultRequests(
             process.env.RATE_LIMIT_RESOURCE_SEARCH_REQUESTS,
             30,
           ),
@@ -180,17 +205,17 @@ export function getRateLimitConfig(): RateLimitConfig {
           ),
         },
         export: {
-          requests: parsePositiveInt(
+          requests: getDefaultRequests(
             process.env.RATE_LIMIT_RESOURCE_EXPORT_REQUESTS,
             10,
           ),
           windowSeconds: parsePositiveInt(
             process.env.RATE_LIMIT_RESOURCE_EXPORT_WINDOW_SECONDS,
-            3600, // 1 hour
+            isDevelopment() ? 60 : 3600, // 1 minute in dev, 1 hour in prod
           ),
         },
         import: {
-          requests: parsePositiveInt(
+          requests: getDefaultRequests(
             process.env.RATE_LIMIT_RESOURCE_IMPORT_REQUESTS,
             5,
           ),
@@ -200,7 +225,7 @@ export function getRateLimitConfig(): RateLimitConfig {
           ),
         },
         analytics: {
-          requests: parsePositiveInt(
+          requests: getDefaultRequests(
             process.env.RATE_LIMIT_RESOURCE_ANALYTICS_REQUESTS,
             20,
           ),
@@ -212,7 +237,7 @@ export function getRateLimitConfig(): RateLimitConfig {
       },
       messaging: {
         send: {
-          requests: parsePositiveInt(
+          requests: getDefaultRequests(
             process.env.RATE_LIMIT_MESSAGING_SEND_REQUESTS,
             60,
           ),
@@ -222,7 +247,7 @@ export function getRateLimitConfig(): RateLimitConfig {
           ),
         },
         whatsapp: {
-          requests: parsePositiveInt(
+          requests: getDefaultRequests(
             process.env.RATE_LIMIT_MESSAGING_WHATSAPP_REQUESTS,
             30,
           ),

@@ -16,6 +16,8 @@ import {
 import { getTenantConnection } from "./tenant.service.js";
 import { updateConnectionStatus } from "./whatsapp.service.js";
 import { broadcastToCompany } from "../routes/ws.js";
+import { updateMessageSearchVector } from "./search.service.js";
+import { indexMessage, type MessageDocument } from "./meilisearch.service.js";
 
 // Subscription handle
 let eventSubscription: JetStreamSubscription | null = null;
@@ -329,6 +331,40 @@ async function handleMessageEvent(event: MessageEvent): Promise<void> {
     console.log(
       `[MessageHandler] Stored message ${messageId} for company ${companyId}`,
     );
+
+    // Index message for search (run in background, don't block message processing)
+    // Get contact name for search indexing
+    const contactForSearch = await tenantDb
+      .selectFrom("contacts")
+      .select(["push_name", "custom_name", "jid", "is_group"])
+      .where("id", "=", contact.id)
+      .executeTakeFirst();
+
+    const contactName = contactForSearch?.custom_name || contactForSearch?.push_name || null;
+
+    // Update PostgreSQL full-text search vector
+    updateMessageSearchVector(companyId, messageId).catch((err) => {
+      console.error(`[MessageHandler] Failed to update search vector:`, err);
+    });
+
+    // Index in Meilisearch for better search experience
+    const messageDoc: MessageDocument = {
+      id: messageId,
+      companyId,
+      contactId: contact.id,
+      contactName,
+      contactJid: contactForSearch?.jid || contactJid,
+      isGroup: contactForSearch?.is_group || contactJid.includes("@g.us"),
+      messageId: payload.messageId,
+      content: payload.content || null,
+      messageType: payload.messageType || "text",
+      timestamp: new Date(payload.timestamp).getTime(),
+      fromMe: payload.fromMe,
+    };
+
+    indexMessage(companyId, messageDoc).catch((err) => {
+      console.error(`[MessageHandler] Failed to index message in Meilisearch:`, err);
+    });
 
     // Update conversation_states: increment unread count for incoming messages
     if (!payload.fromMe) {

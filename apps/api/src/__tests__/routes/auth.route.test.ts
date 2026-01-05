@@ -6,7 +6,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'bun:test'
 import { Hono } from 'hono'
 import type { RateLimitStore, RateLimitResult } from '../../lib/rate-limit-store'
 import { createRateLimitMiddleware } from '../../middleware/rate-limit'
-import { getRateLimitConfig } from '../../config/rate-limit.config'
+import { DEFAULT_RATE_LIMIT_CONFIG } from '../../config/rate-limit.config'
 
 // Mock rate limit store for testing
 class MockRateLimitStore implements RateLimitStore {
@@ -55,7 +55,7 @@ describe('Auth Routes Rate Limiting', () => {
     store = new MockRateLimitStore()
     app = new Hono()
 
-    const config = getRateLimitConfig()
+    const config = DEFAULT_RATE_LIMIT_CONFIG
 
     // Set up auth-like routes with rate limiters
     // Login: 5 attempts per 15 minutes

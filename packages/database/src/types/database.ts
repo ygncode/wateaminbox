@@ -312,6 +312,7 @@ export interface Users {
   email: string;
   email_verified_at: Timestamp | null;
   id: Generated<string>;
+  name: string | null;
   password_hash: string;
   updated_at: Generated<Timestamp>;
 }
