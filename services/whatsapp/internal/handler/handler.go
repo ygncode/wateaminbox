@@ -468,9 +468,21 @@ func (h *Handler) handleChatPresence(presence *events.ChatPresence) {
 func (h *Handler) handleConnected(evt *events.Connected) {
 	log.Printf("Worker %s connected to WhatsApp", h.config.WorkerID)
 
+	// Extract phone number and JID from the client
+	var phoneNumber, jid string
+	if h.config.Client != nil {
+		client := h.config.Client.GetClient()
+		if client != nil && client.Store != nil && client.Store.ID != nil {
+			jid = client.Store.ID.String()
+			// ID.User contains just the phone number (e.g., "6594603306")
+			phoneNumber = client.Store.ID.User
+			log.Printf("Connected with JID: %s, Phone: %s", jid, phoneNumber)
+		}
+	}
+
 	// Publish connection status to NATS
 	if h.publisher != nil {
-		if err := h.publisher.PublishConnectionStatus("connected", ""); err != nil {
+		if err := h.publisher.PublishConnectionStatus("connected", "", phoneNumber, jid); err != nil {
 			log.Printf("Failed to publish connected status: %v", err)
 		}
 	}
@@ -482,7 +494,7 @@ func (h *Handler) handleDisconnected(evt *events.Disconnected) {
 
 	// Publish disconnection status to NATS
 	if h.publisher != nil {
-		if err := h.publisher.PublishConnectionStatus("disconnected", "connection_lost"); err != nil {
+		if err := h.publisher.PublishConnectionStatus("disconnected", "connection_lost", "", ""); err != nil {
 			log.Printf("Failed to publish disconnected status: %v", err)
 		}
 	}
@@ -503,7 +515,7 @@ func (h *Handler) handleLoggedOut(evt *events.LoggedOut) {
 
 	// Publish logged out status to NATS
 	if h.publisher != nil {
-		if err := h.publisher.PublishConnectionStatus("logged_out", reason); err != nil {
+		if err := h.publisher.PublishConnectionStatus("logged_out", reason, "", ""); err != nil {
 			log.Printf("Failed to publish logged out status: %v", err)
 		}
 	}
@@ -527,9 +539,13 @@ func (h *Handler) handleQR(evt *events.QR) {
 func (h *Handler) handlePairSuccess(evt *events.PairSuccess) {
 	log.Printf("Worker %s paired successfully with %s", h.config.WorkerID, evt.ID.String())
 
+	// Extract phone number from the paired JID
+	jid := evt.ID.String()
+	phoneNumber := evt.ID.User
+
 	// Publish pair success status to NATS
 	if h.publisher != nil {
-		if err := h.publisher.PublishConnectionStatus("paired", evt.ID.String()); err != nil {
+		if err := h.publisher.PublishConnectionStatus("paired", "", phoneNumber, jid); err != nil {
 			log.Printf("Failed to publish pair success status: %v", err)
 		}
 	}
@@ -779,7 +795,7 @@ func (h *Handler) handleStreamReplaced(evt *events.StreamReplaced) {
 
 	// Publish stream replaced status to NATS
 	if h.publisher != nil {
-		if err := h.publisher.PublishConnectionStatus("disconnected", "stream_replaced"); err != nil {
+		if err := h.publisher.PublishConnectionStatus("disconnected", "stream_replaced", "", ""); err != nil {
 			log.Printf("Failed to publish stream replaced status: %v", err)
 		}
 	}
