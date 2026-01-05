@@ -10,25 +10,40 @@ import { initializeMessageHandler, shutdownMessageHandler } from './services/mes
 
 const port = env.PORT
 
-// Initialize message handler for NATS event processing
-initializeMessageHandler()
-  .then(() => {
-    console.log('[Startup] Message handler initialized')
-  })
-  .catch((err) => {
-    console.error('[Startup] Failed to initialize message handler:', err)
-    // Continue running even if NATS is not available initially
-  })
+// Detect if we're running in a test environment
+// Don't initialize background services during test runs to avoid side effects
+const isTestEnvironment =
+  process.env.NODE_ENV === 'test' ||
+  process.env.VITEST === 'true' ||
+  (typeof Bun !== 'undefined' && Bun.argv.some((arg) => arg.includes('test')))
 
-// Initialize message cleanup service
-initializeMessageCleanup()
-  .then(() => {
-    console.log('[Startup] Message cleanup service initialized')
-  })
-  .catch((err) => {
-    console.error('[Startup] Failed to initialize message cleanup service:', err)
-    // Continue running even if cleanup service fails to initialize
-  })
+if (!isTestEnvironment) {
+  console.log(`[Startup] Starting server on http://localhost:${port}`)
+  console.log('[Startup] Initializing background services...')
+
+  // Initialize services - these run in background and don't block server startup
+  initializeMessageHandler()
+    .then(() => {
+      console.log('[Startup] ✓ Message handler initialized')
+    })
+    .catch((err) => {
+      console.error('[Startup] ✗ Failed to initialize message handler:', err)
+      // Continue running even if NATS is not available initially
+    })
+
+  initializeMessageCleanup()
+    .then(() => {
+      console.log('[Startup] ✓ Message cleanup service initialized')
+    })
+    .catch((err) => {
+      console.error('[Startup] ✗ Failed to initialize message cleanup service:', err)
+      // Continue running even if cleanup service fails to initialize
+    })
+
+  console.log(`[Startup] Server is accepting connections on http://localhost:${port}`)
+} else {
+  console.log('[Test Mode] Skipping service initialization in test environment')
+}
 
 // Graceful shutdown handler
 async function shutdown() {
@@ -41,8 +56,6 @@ async function shutdown() {
 
 process.on('SIGTERM', shutdown)
 process.on('SIGINT', shutdown)
-
-console.log(`Server is running on http://localhost:${port}`)
 
 export default {
   port,
