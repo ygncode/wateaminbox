@@ -1,5 +1,5 @@
-import { useCallback, useRef } from "react";
-import type { ChatListSearchProps } from "../../types/chat";
+import { useCallback, useRef } from 'react'
+import type { ChatListSearchProps } from '../../types/chat'
 
 /**
  * Search input component for filtering chat contacts
@@ -9,23 +9,23 @@ export function ChatListSearch({
   value,
   onChange,
   onClear,
-  placeholder = "Search contacts",
+  placeholder = 'Search contacts',
 }: ChatListSearchProps) {
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null)
 
   const handleClear = useCallback(() => {
-    onClear();
-    inputRef.current?.focus();
-  }, [onClear]);
+    onClear()
+    inputRef.current?.focus()
+  }, [onClear])
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLInputElement>) => {
-      if (e.key === "Escape") {
-        handleClear();
+      if (e.key === 'Escape') {
+        handleClear()
       }
     },
-    [handleClear],
-  );
+    [handleClear]
+  )
 
   return (
     <div className="relative flex items-center w-full">
@@ -66,12 +66,7 @@ export function ChatListSearch({
           className="absolute right-2 p-1 text-gray-400 dark:text-dark-text-tertiary hover:text-gray-600 dark:hover:text-dark-text-secondary focus:outline-none transition-colors"
           aria-label="Clear search"
         >
-          <svg
-            className="w-4 h-4"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path
               strokeLinecap="round"
               strokeLinejoin="round"
@@ -82,7 +77,7 @@ export function ChatListSearch({
         </button>
       )}
     </div>
-  );
+  )
 }
 
-export default ChatListSearch;
+export default ChatListSearch

@@ -1,40 +1,31 @@
-import { useState } from "react";
+import { ChevronLeft, ChevronRight, Clock, FileDown, Filter, Globe, Info, User } from 'lucide-react'
+import { useState } from 'react'
+import { Badge, Button, Input, Skeleton } from '@/components/ui'
+import { ScrollArea } from '@/components/ui/scroll-area'
 import {
-  useAuditLogs,
-  useAuditActions,
-  formatAuditAction,
   type AuditAction,
   type AuditLog as AuditLogType,
-} from "@/hooks/useAudit";
-import { Button, Input, Badge, Skeleton } from "@/components/ui";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import {
-  FileDown,
-  Filter,
-  ChevronLeft,
-  ChevronRight,
-  User,
-  Clock,
-  Globe,
-  Info,
-} from "lucide-react";
-import { cn } from "@/lib/utils";
+  formatAuditAction,
+  useAuditActions,
+  useAuditLogs,
+} from '@/hooks/useAudit'
+import { cn } from '@/lib/utils'
 
 export interface AuditLogProps {
-  companyId: string;
+  companyId: string
 }
 
 /**
  * Audit Log viewer component
  */
 export function AuditLog({ companyId }: AuditLogProps) {
-  const [page, setPage] = useState(0);
-  const [actionFilter, setActionFilter] = useState<AuditAction | "">("");
-  const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
-  const [showFilters, setShowFilters] = useState(false);
+  const [page, setPage] = useState(0)
+  const [actionFilter, setActionFilter] = useState<AuditAction | ''>('')
+  const [startDate, setStartDate] = useState('')
+  const [endDate, setEndDate] = useState('')
+  const [showFilters, setShowFilters] = useState(false)
 
-  const limit = 20;
+  const limit = 20
 
   const { data, isLoading, error } = useAuditLogs(companyId, {
     action: actionFilter || undefined,
@@ -42,20 +33,17 @@ export function AuditLog({ companyId }: AuditLogProps) {
     endDate: endDate || undefined,
     limit,
     offset: page * limit,
-  });
+  })
 
-  const { data: actions } = useAuditActions();
+  const { data: actions } = useAuditActions()
 
   const handleExport = () => {
-    const params = new URLSearchParams();
-    if (startDate) params.set("startDate", startDate);
-    if (endDate) params.set("endDate", endDate);
-    const queryString = params.toString();
-    window.open(
-      `/api/audit/export${queryString ? `?${queryString}` : ""}`,
-      "_blank",
-    );
-  };
+    const params = new URLSearchParams()
+    if (startDate) params.set('startDate', startDate)
+    if (endDate) params.set('endDate', endDate)
+    const queryString = params.toString()
+    window.open(`/api/audit/export${queryString ? `?${queryString}` : ''}`, '_blank')
+  }
 
   return (
     <div className="flex h-full flex-col">
@@ -67,7 +55,7 @@ export function AuditLog({ companyId }: AuditLogProps) {
             variant="outline"
             size="sm"
             onClick={() => setShowFilters(!showFilters)}
-            className={cn(showFilters && "bg-gray-100")}
+            className={cn(showFilters && 'bg-gray-100')}
           >
             <Filter className="mr-2 h-4 w-4" />
             Filters
@@ -84,14 +72,12 @@ export function AuditLog({ companyId }: AuditLogProps) {
         <div className="border-b border-gray-200 bg-gray-50 px-6 py-4">
           <div className="flex flex-wrap gap-4">
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">
-                Action Type
-              </label>
+              <label className="block text-xs font-medium text-gray-500 mb-1">Action Type</label>
               <select
                 value={actionFilter}
                 onChange={(e) => {
-                  setActionFilter(e.target.value as AuditAction | "");
-                  setPage(0);
+                  setActionFilter(e.target.value as AuditAction | '')
+                  setPage(0)
                 }}
                 className="rounded-md border border-gray-300 px-3 py-1.5 text-sm"
               >
@@ -104,29 +90,25 @@ export function AuditLog({ companyId }: AuditLogProps) {
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">
-                Start Date
-              </label>
+              <label className="block text-xs font-medium text-gray-500 mb-1">Start Date</label>
               <Input
                 type="date"
                 value={startDate}
                 onChange={(e) => {
-                  setStartDate(e.target.value);
-                  setPage(0);
+                  setStartDate(e.target.value)
+                  setPage(0)
                 }}
                 className="w-40"
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">
-                End Date
-              </label>
+              <label className="block text-xs font-medium text-gray-500 mb-1">End Date</label>
               <Input
                 type="date"
                 value={endDate}
                 onChange={(e) => {
-                  setEndDate(e.target.value);
-                  setPage(0);
+                  setEndDate(e.target.value)
+                  setPage(0)
                 }}
                 className="w-40"
               />
@@ -137,10 +119,10 @@ export function AuditLog({ companyId }: AuditLogProps) {
                   variant="ghost"
                   size="sm"
                   onClick={() => {
-                    setActionFilter("");
-                    setStartDate("");
-                    setEndDate("");
-                    setPage(0);
+                    setActionFilter('')
+                    setStartDate('')
+                    setEndDate('')
+                    setPage(0)
                   }}
                 >
                   Clear filters
@@ -160,9 +142,7 @@ export function AuditLog({ companyId }: AuditLogProps) {
             ))}
           </div>
         ) : error ? (
-          <div className="p-6 text-center text-red-500">
-            Failed to load audit logs
-          </div>
+          <div className="p-6 text-center text-red-500">Failed to load audit logs</div>
         ) : data?.data.length === 0 ? (
           <div className="p-6 text-center text-gray-500">
             <Info className="mx-auto h-12 w-12 text-gray-300" />
@@ -181,8 +161,7 @@ export function AuditLog({ companyId }: AuditLogProps) {
       {data && data.pagination.total > limit && (
         <div className="flex items-center justify-between border-t border-gray-200 px-6 py-3">
           <p className="text-sm text-gray-500">
-            Showing {page * limit + 1} to{" "}
-            {Math.min((page + 1) * limit, data.pagination.total)} of{" "}
+            Showing {page * limit + 1} to {Math.min((page + 1) * limit, data.pagination.total)} of{' '}
             {data.pagination.total}
           </p>
           <div className="flex gap-2">
@@ -206,21 +185,21 @@ export function AuditLog({ companyId }: AuditLogProps) {
         </div>
       )}
     </div>
-  );
+  )
 }
 
 /**
  * Individual audit log item
  */
 function AuditLogItem({ log }: { log: AuditLogType }) {
-  const [expanded, setExpanded] = useState(false);
-  const createdAt = new Date(log.createdAt);
+  const [expanded, setExpanded] = useState(false)
+  const createdAt = new Date(log.createdAt)
 
   return (
     <div
       className={cn(
-        "px-6 py-4 hover:bg-gray-50 cursor-pointer transition-colors",
-        expanded && "bg-gray-50",
+        'px-6 py-4 hover:bg-gray-50 cursor-pointer transition-colors',
+        expanded && 'bg-gray-50'
       )}
       onClick={() => setExpanded(!expanded)}
     >
@@ -266,7 +245,7 @@ function AuditLogItem({ log }: { log: AuditLogType }) {
         </div>
       )}
     </div>
-  );
+  )
 }
 
 /**
@@ -286,7 +265,7 @@ function AuditLogSkeleton() {
         </div>
       </div>
     </div>
-  );
+  )
 }
 
-export default AuditLog;
+export default AuditLog

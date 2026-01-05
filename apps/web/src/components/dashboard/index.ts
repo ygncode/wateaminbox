@@ -1,3 +1,3 @@
-export { Dashboard } from "./Dashboard";
-export type { DashboardProps } from "./Dashboard";
-export { ResponseTimeAnalytics } from "./ResponseTimeAnalytics";
+export type { DashboardProps } from './Dashboard'
+export { Dashboard } from './Dashboard'
+export { ResponseTimeAnalytics } from './ResponseTimeAnalytics'

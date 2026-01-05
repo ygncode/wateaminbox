@@ -1,4 +1,4 @@
-import { defineConfig, devices } from "@playwright/test";
+import { defineConfig, devices } from '@playwright/test'
 
 /**
  * Playwright configuration for WhatsApp Web React app
@@ -6,7 +6,7 @@ import { defineConfig, devices } from "@playwright/test";
  */
 export default defineConfig({
   // Directory containing test files
-  testDir: "./e2e/tests",
+  testDir: './e2e/tests',
 
   // Run tests in files in parallel
   fullyParallel: true,
@@ -21,52 +21,78 @@ export default defineConfig({
   workers: process.env.CI ? 1 : undefined,
 
   // Reporter to use
-  reporter: [
-    ["html", { outputFolder: "playwright-report" }],
-    ["list"],
-  ],
+  reporter: [['html', { outputFolder: 'playwright-report' }], ['list']],
 
   // Shared settings for all the projects below
   use: {
     // Base URL to use in actions like `await page.goto('/')`
-    baseURL: "http://localhost:5173",
+    baseURL: 'http://localhost:5173',
 
     // Collect trace when retrying the failed test
-    trace: "on-first-retry",
+    trace: 'on-first-retry',
 
     // Capture screenshot on failure
-    screenshot: "only-on-failure",
+    screenshot: 'only-on-failure',
 
     // Video recording
-    video: "retain-on-failure",
+    video: 'retain-on-failure',
   },
 
   // Configure projects for major browsers
   projects: [
     // Setup project to prepare authenticated state
     {
-      name: "setup",
+      name: 'setup',
       testMatch: /.*\.setup\.ts/,
     },
 
     {
-      name: "chromium",
+      name: 'chromium',
       use: {
-        ...devices["Desktop Chrome"],
+        ...devices['Desktop Chrome'],
         // Use stored authentication state
-        storageState: "playwright/.auth/user.json",
+        storageState: 'playwright/.auth/user.json',
       },
-      dependencies: ["setup"],
+      dependencies: ['setup'],
     },
 
     {
-      name: "firefox",
+      name: 'firefox',
       use: {
-        ...devices["Desktop Firefox"],
+        ...devices['Desktop Firefox'],
         // Use stored authentication state
-        storageState: "playwright/.auth/user.json",
+        storageState: 'playwright/.auth/user.json',
       },
-      dependencies: ["setup"],
+      dependencies: ['setup'],
+    },
+
+    {
+      name: 'webkit',
+      use: {
+        ...devices['Desktop Safari'],
+        // Use stored authentication state
+        storageState: 'playwright/.auth/user.json',
+      },
+      dependencies: ['setup'],
+    },
+
+    // Mobile viewports for responsive testing
+    {
+      name: 'mobile-chrome',
+      use: {
+        ...devices['Pixel 5'],
+        storageState: 'playwright/.auth/user.json',
+      },
+      dependencies: ['setup'],
+    },
+
+    {
+      name: 'mobile-safari',
+      use: {
+        ...devices['iPhone 12'],
+        storageState: 'playwright/.auth/user.json',
+      },
+      dependencies: ['setup'],
     },
   ],
 
@@ -74,14 +100,14 @@ export default defineConfig({
   // When running alongside dev-start.sh, the server should already be running
   // reuseExistingServer ensures we don't kill the existing dev server
   webServer: {
-    command: "bun run dev",
-    url: "http://localhost:5173",
+    command: 'bun run dev',
+    url: 'http://localhost:5173',
     reuseExistingServer: true,
     timeout: 120 * 1000,
   },
 
   // Output folder for test artifacts
-  outputDir: "test-results",
+  outputDir: 'test-results',
 
   // Global timeout for each test
   timeout: 30 * 1000,
@@ -90,4 +116,4 @@ export default defineConfig({
   expect: {
     timeout: 5 * 1000,
   },
-});
+})

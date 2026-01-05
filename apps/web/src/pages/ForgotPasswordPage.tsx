@@ -1,36 +1,36 @@
-import * as React from "react";
-import { Link } from "react-router-dom";
-import { Button } from "../components/ui/button";
-import { Input } from "../components/ui/input";
+import * as React from 'react'
+import { Link } from 'react-router-dom'
+import { Button } from '../components/ui/button'
+import { Input } from '../components/ui/input'
 
 export function ForgotPasswordPage() {
-  const [email, setEmail] = React.useState("");
-  const [isLoading, setIsLoading] = React.useState(false);
-  const [isSubmitted, setIsSubmitted] = React.useState(false);
-  const [error, setError] = React.useState<string | null>(null);
+  const [email, setEmail] = React.useState('')
+  const [isLoading, setIsLoading] = React.useState(false)
+  const [isSubmitted, setIsSubmitted] = React.useState(false)
+  const [error, setError] = React.useState<string | null>(null)
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    setIsLoading(true);
+    e.preventDefault()
+    setError(null)
+    setIsLoading(true)
 
     try {
       // TODO: Implement actual password reset API call
       // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      setIsSubmitted(true);
+      await new Promise((resolve) => setTimeout(resolve, 1000))
+      setIsSubmitted(true)
     } catch {
-      setError("Failed to send reset email. Please try again.");
+      setError('Failed to send reset email. Please try again.')
     } finally {
-      setIsLoading(false);
+      setIsLoading(false)
     }
-  };
+  }
 
   if (isSubmitted) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-100">
+      <div className="min-h-screen flex items-center justify-center bg-gray-100 dark:bg-dark-primary">
         <div className="w-full max-w-md">
-          <div className="bg-white rounded-lg shadow-lg p-8">
+          <div className="bg-white dark:bg-dark-elevated rounded-lg shadow-lg p-8">
             <div className="text-center">
               <div className="w-16 h-16 bg-[#25D366] rounded-full flex items-center justify-center mx-auto mb-4">
                 <svg
@@ -47,25 +47,24 @@ export function ForgotPasswordPage() {
                   />
                 </svg>
               </div>
-              <h1 className="text-2xl font-bold text-gray-900">
+              <h1 className="text-2xl font-bold text-gray-900 dark:text-dark-text-primary">
                 Check your email
               </h1>
-              <p className="text-gray-600 mt-2">
-                We've sent a password reset link to{" "}
-                <span className="font-medium">{email}</span>
+              <p className="text-gray-600 dark:text-dark-text-secondary mt-2">
+                We've sent a password reset link to <span className="font-medium">{email}</span>
               </p>
-              <p className="text-sm text-gray-500 mt-4">
-                Didn't receive the email? Check your spam folder or{" "}
+              <p className="text-sm text-gray-500 dark:text-dark-text-tertiary mt-4">
+                Didn't receive the email? Check your spam folder or{' '}
                 <button
                   onClick={() => setIsSubmitted(false)}
-                  className="text-[#25D366] hover:text-[#128C7E]"
+                  className="text-whatsapp-green-a11y-text dark:text-whatsapp-green hover:text-whatsapp-green-a11y-button dark:hover:text-whatsapp-green/80"
                 >
                   try again
                 </button>
               </p>
               <Link
                 to="/login"
-                className="inline-block mt-6 text-[#25D366] hover:text-[#128C7E] font-medium"
+                className="inline-block mt-6 text-whatsapp-green-a11y-text dark:text-whatsapp-green hover:text-whatsapp-green-a11y-button dark:hover:text-whatsapp-green/80 font-medium"
               >
                 Back to sign in
               </Link>
@@ -73,13 +72,13 @@ export function ForgotPasswordPage() {
           </div>
         </div>
       </div>
-    );
+    )
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100">
+    <div className="min-h-screen flex items-center justify-center bg-gray-100 dark:bg-dark-primary">
       <div className="w-full max-w-md">
-        <div className="bg-white rounded-lg shadow-lg p-8">
+        <div className="bg-white dark:bg-dark-elevated rounded-lg shadow-lg p-8">
           <div className="text-center mb-8">
             <div className="w-16 h-16 bg-[#25D366] rounded-full flex items-center justify-center mx-auto mb-4">
               <svg
@@ -96,17 +95,17 @@ export function ForgotPasswordPage() {
                 />
               </svg>
             </div>
-            <h1 className="text-2xl font-bold text-gray-900">
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-dark-text-primary">
               Forgot password?
             </h1>
-            <p className="text-gray-600 mt-2">
+            <p className="text-gray-600 dark:text-dark-text-secondary mt-2">
               No worries, we'll send you reset instructions.
             </p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             {error && (
-              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
+              <div className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 px-4 py-3 rounded-lg text-sm">
                 {error}
               </div>
             )}
@@ -114,7 +113,7 @@ export function ForgotPasswordPage() {
             <div>
               <label
                 htmlFor="email"
-                className="block text-sm font-medium text-gray-700 mb-1"
+                className="block text-sm font-medium text-gray-700 dark:text-dark-text-secondary mb-1"
               >
                 Email
               </label>
@@ -131,23 +130,20 @@ export function ForgotPasswordPage() {
 
             <Button
               type="submit"
-              className="w-full bg-[#25D366] hover:bg-[#128C7E] text-white"
+              className="w-full bg-whatsapp-green-a11y-button hover:bg-whatsapp-green-a11y-button/90 dark:bg-whatsapp-green-a11y-button dark:hover:bg-whatsapp-green-a11y-button/90 text-white"
               disabled={isLoading}
             >
-              {isLoading ? "Sending..." : "Reset password"}
+              {isLoading ? 'Sending...' : 'Reset password'}
             </Button>
           </form>
 
           <div className="mt-6 text-center">
-            <Link
-              to="/login"
-              className="text-sm text-[#25D366] hover:text-[#128C7E] font-medium"
-            >
+            <Link to="/login" className="text-sm text-whatsapp-green-a11y-text dark:text-whatsapp-green hover:text-whatsapp-green-a11y-button dark:hover:text-whatsapp-green/80 font-medium">
               Back to sign in
             </Link>
           </div>
         </div>
       </div>
     </div>
-  );
+  )
 }

@@ -1,11 +1,11 @@
-import { useState, useCallback, useEffect, useRef } from "react";
-import { Search, X, ChevronUp, ChevronDown, Loader2 } from "lucide-react";
-import { useConversationSearch } from "../../hooks/useSearch";
+import { ChevronDown, ChevronUp, Loader2, Search, X } from 'lucide-react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { useConversationSearch } from '../../hooks/useSearch'
 
 interface ConversationSearchProps {
-  contactId: string;
-  onClose: () => void;
-  onNavigateToMessage: (messageId: string) => void;
+  contactId: string
+  onClose: () => void
+  onNavigateToMessage: (messageId: string) => void
 }
 
 export function ConversationSearch({
@@ -13,90 +13,89 @@ export function ConversationSearch({
   onClose,
   onNavigateToMessage,
 }: ConversationSearchProps) {
-  const [query, setQuery] = useState("");
-  const [debouncedQuery, setDebouncedQuery] = useState("");
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const [query, setQuery] = useState('')
+  const [debouncedQuery, setDebouncedQuery] = useState('')
+  const [currentIndex, setCurrentIndex] = useState(0)
+  const inputRef = useRef<HTMLInputElement>(null)
 
   // Debounce search query
   useEffect(() => {
     const timer = setTimeout(() => {
-      setDebouncedQuery(query);
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [query]);
+      setDebouncedQuery(query)
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [query])
 
   // Reset index when results change
   useEffect(() => {
-    setCurrentIndex(0);
-  }, [debouncedQuery]);
+    setCurrentIndex(0)
+  }, [])
 
   // Focus input on mount
   useEffect(() => {
-    inputRef.current?.focus();
-  }, []);
+    inputRef.current?.focus()
+  }, [])
 
   // Search hook
   const { data, isLoading } = useConversationSearch(
     debouncedQuery,
     contactId,
-    debouncedQuery.length >= 2,
-  );
+    debouncedQuery.length >= 2
+  )
 
-  const results = data?.data || [];
-  const total = data?.pagination.total || 0;
+  const results = data?.data || []
+  const total = data?.pagination.total || 0
 
   // Navigate to next/previous result
   const goToNext = useCallback(() => {
-    if (results.length === 0) return;
-    const nextIndex = (currentIndex + 1) % results.length;
-    setCurrentIndex(nextIndex);
-    onNavigateToMessage(results[nextIndex].id);
-  }, [currentIndex, results, onNavigateToMessage]);
+    if (results.length === 0) return
+    const nextIndex = (currentIndex + 1) % results.length
+    setCurrentIndex(nextIndex)
+    onNavigateToMessage(results[nextIndex].id)
+  }, [currentIndex, results, onNavigateToMessage])
 
   const goToPrevious = useCallback(() => {
-    if (results.length === 0) return;
-    const prevIndex =
-      currentIndex === 0 ? results.length - 1 : currentIndex - 1;
-    setCurrentIndex(prevIndex);
-    onNavigateToMessage(results[prevIndex].id);
-  }, [currentIndex, results, onNavigateToMessage]);
+    if (results.length === 0) return
+    const prevIndex = currentIndex === 0 ? results.length - 1 : currentIndex - 1
+    setCurrentIndex(prevIndex)
+    onNavigateToMessage(results[prevIndex].id)
+  }, [currentIndex, results, onNavigateToMessage])
 
   // Navigate to first result when results load
   useEffect(() => {
     if (results.length > 0 && currentIndex === 0) {
-      onNavigateToMessage(results[0].id);
+      onNavigateToMessage(results[0].id)
     }
-  }, [results, currentIndex, onNavigateToMessage]);
+  }, [results, currentIndex, onNavigateToMessage])
 
   // Handle keyboard shortcuts
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
-      if (e.key === "Escape") {
-        onClose();
-      } else if (e.key === "Enter") {
+      if (e.key === 'Escape') {
+        onClose()
+      } else if (e.key === 'Enter') {
         if (e.shiftKey) {
-          goToPrevious();
+          goToPrevious()
         } else {
-          goToNext();
+          goToNext()
         }
-        e.preventDefault();
-      } else if (e.key === "ArrowUp") {
-        goToPrevious();
-        e.preventDefault();
-      } else if (e.key === "ArrowDown") {
-        goToNext();
-        e.preventDefault();
+        e.preventDefault()
+      } else if (e.key === 'ArrowUp') {
+        goToPrevious()
+        e.preventDefault()
+      } else if (e.key === 'ArrowDown') {
+        goToNext()
+        e.preventDefault()
       }
     },
-    [onClose, goToNext, goToPrevious],
-  );
+    [onClose, goToNext, goToPrevious]
+  )
 
   const handleClear = useCallback(() => {
-    setQuery("");
-    setDebouncedQuery("");
-    inputRef.current?.focus();
-  }, []);
+    setQuery('')
+    setDebouncedQuery('')
+    inputRef.current?.focus()
+  }, [])
 
   return (
     <div className="flex items-center gap-2 px-3 py-2 bg-gray-100 dark:bg-dark-secondary border-b border-gray-200 dark:border-dark-border">
@@ -136,9 +135,9 @@ export function ConversationSearch({
                 {currentIndex + 1} of {total}
               </>
             ) : isLoading ? (
-              "..."
+              '...'
             ) : (
-              "No results"
+              'No results'
             )}
           </span>
 
@@ -174,7 +173,7 @@ export function ConversationSearch({
         <X className="h-5 w-5" />
       </button>
     </div>
-  );
+  )
 }
 
-export default ConversationSearch;
+export default ConversationSearch

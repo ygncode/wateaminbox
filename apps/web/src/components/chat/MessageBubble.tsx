@@ -1,40 +1,38 @@
-import { useState, useRef, useEffect, useCallback, memo } from "react";
-import { useTranslation } from "react-i18next";
-import type { Message, MessageType } from "@whatsapp-web/shared";
-import { EmojiReactionPicker } from "./EmojiReactionPicker";
+import type { Message, MessageType } from '@whatsapp-web/shared'
+import { memo, useCallback, useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+import { EmojiReactionPicker } from './EmojiReactionPicker'
 
 // Error code to human-readable message mapping
 const ERROR_MESSAGES: Record<string, string> = {
-  delivery_timeout: "Message delivery timed out",
-  network_error: "Network error occurred",
-  rate_limit: "Too many messages. Please try again later",
-  unknown: "Failed to send message",
-};
+  delivery_timeout: 'Message delivery timed out',
+  network_error: 'Network error occurred',
+  rate_limit: 'Too many messages. Please try again later',
+  unknown: 'Failed to send message',
+}
 
 function getErrorMessage(error?: string, customErrorMessage?: string): string {
-  return (
-    customErrorMessage || ERROR_MESSAGES[error || ""] || ERROR_MESSAGES.unknown
-  );
+  return customErrorMessage || ERROR_MESSAGES[error || ''] || ERROR_MESSAGES.unknown
 }
 
 interface MessageBubbleProps {
-  message: Message;
-  isOwn: boolean;
-  onReply?: (message: Message) => void;
-  onForward?: (message: Message) => void;
-  onDelete?: (message: Message) => void;
-  onStar?: (message: Message) => void;
-  onReact?: (message: Message, emoji: string) => void;
-  onRetry?: (messageId: string) => void;
+  message: Message
+  isOwn: boolean
+  onReply?: (message: Message) => void
+  onForward?: (message: Message) => void
+  onDelete?: (message: Message) => void
+  onStar?: (message: Message) => void
+  onReact?: (message: Message, emoji: string) => void
+  onRetry?: (messageId: string) => void
   /** Highlight this message (e.g., from search) */
-  isHighlighted?: boolean;
-  isRetrying?: boolean;
+  isHighlighted?: boolean
+  isRetrying?: boolean
   /** Whether selection mode is active */
-  selectionMode?: boolean;
+  selectionMode?: boolean
   /** Whether this message is selected */
-  isSelected?: boolean;
+  isSelected?: boolean
   /** Callback when message selection is toggled */
-  onSelectionToggle?: (messageId: string) => void;
+  onSelectionToggle?: (messageId: string) => void
 }
 
 export const MessageBubble = memo(function MessageBubble({
@@ -52,118 +50,92 @@ export const MessageBubble = memo(function MessageBubble({
   isSelected = false,
   onSelectionToggle,
 }: MessageBubbleProps) {
-  const { t } = useTranslation();
-  const [showContextMenu, setShowContextMenu] = useState(false);
-  const [showReactionPicker, setShowReactionPicker] = useState(false);
+  const { t } = useTranslation()
+  const [showContextMenu, setShowContextMenu] = useState(false)
+  const [showReactionPicker, setShowReactionPicker] = useState(false)
   const [contextMenuPosition, setContextMenuPosition] = useState({
     x: 0,
     y: 0,
-  });
+  })
   const [reactionPickerPosition, setReactionPickerPosition] = useState({
     x: 0,
     y: 0,
-  });
-  const bubbleRef = useRef<HTMLDivElement>(null);
-  const contextMenuRef = useRef<HTMLDivElement>(null);
+  })
+  const bubbleRef = useRef<HTMLDivElement>(null)
+  const contextMenuRef = useRef<HTMLDivElement>(null)
 
   const handleContextMenu = useCallback(
     (e: React.MouseEvent) => {
-      e.preventDefault();
-      if (message.isDeleted) return;
+      e.preventDefault()
+      if (message.isDeleted) return
 
-      const rect = bubbleRef.current?.getBoundingClientRect();
+      const rect = bubbleRef.current?.getBoundingClientRect()
       if (rect) {
         setContextMenuPosition({
           x: e.clientX - rect.left,
           y: e.clientY - rect.top,
-        });
+        })
       }
-      setShowContextMenu(true);
+      setShowContextMenu(true)
     },
-    [message.isDeleted],
-  );
+    [message.isDeleted]
+  )
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
-      if (
-        contextMenuRef.current &&
-        !contextMenuRef.current.contains(event.target as Node)
-      ) {
-        setShowContextMenu(false);
+      if (contextMenuRef.current && !contextMenuRef.current.contains(event.target as Node)) {
+        setShowContextMenu(false)
       }
     }
 
     if (showContextMenu) {
-      document.addEventListener("mousedown", handleClickOutside);
+      document.addEventListener('mousedown', handleClickOutside)
     }
     return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
-  }, [showContextMenu]);
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [showContextMenu])
 
   const formatTime = (date: Date) => {
-    const d = new Date(date);
-    return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-  };
+    const d = new Date(date)
+    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  }
 
   const renderStatusIcon = () => {
-    if (!isOwn) return null;
+    if (!isOwn) return null
 
     switch (message.status) {
-      case "pending":
+      case 'pending':
         return (
-          <svg
-            className="h-4 w-4 text-white/60"
-            viewBox="0 0 16 16"
-            fill="currentColor"
-          >
+          <svg className="h-4 w-4 text-white/60" viewBox="0 0 16 16" fill="currentColor">
             <circle cx="8" cy="8" r="6" stroke="currentColor" fill="none" />
           </svg>
-        );
-      case "sent":
+        )
+      case 'sent':
         return (
-          <svg
-            className="h-4 w-4 text-white/60"
-            viewBox="0 0 16 16"
-            fill="currentColor"
-          >
+          <svg className="h-4 w-4 text-white/60" viewBox="0 0 16 16" fill="currentColor">
             <path d="M5.5 11.5L2 8l1-1 2.5 2.5L11 4l1 1-6.5 6.5z" />
           </svg>
-        );
-      case "delivered":
+        )
+      case 'delivered':
         return (
-          <svg
-            className="h-4 w-4 text-white/60"
-            viewBox="0 0 16 16"
-            fill="currentColor"
-          >
+          <svg className="h-4 w-4 text-white/60" viewBox="0 0 16 16" fill="currentColor">
             <path d="M5.5 11.5L2 8l1-1 2.5 2.5L11 4l1 1-6.5 6.5z" />
             <path d="M8.5 11.5L5 8l1-1 2.5 2.5L14 4l1 1-6.5 6.5z" />
           </svg>
-        );
-      case "read":
+        )
+      case 'read':
         return (
-          <svg
-            className="h-4 w-4 text-blue-500"
-            viewBox="0 0 16 16"
-            fill="currentColor"
-          >
+          <svg className="h-4 w-4 text-blue-500" viewBox="0 0 16 16" fill="currentColor">
             <path d="M5.5 11.5L2 8l1-1 2.5 2.5L11 4l1 1-6.5 6.5z" />
             <path d="M8.5 11.5L5 8l1-1 2.5 2.5L14 4l1 1-6.5 6.5z" />
           </svg>
-        );
-      case "failed":
-        const errorMsg = getErrorMessage(
-          message.metadata?.error,
-          message.metadata?.errorMessage,
-        );
+        )
+      case 'failed': {
+        const errorMsg = getErrorMessage(message.metadata?.error, message.metadata?.errorMessage)
         return (
           <div className="group/tooltip relative flex items-center">
-            <svg
-              className="h-4 w-4 text-red-500"
-              viewBox="0 0 16 16"
-              fill="currentColor"
-            >
+            <svg className="h-4 w-4 text-red-500" viewBox="0 0 16 16" fill="currentColor">
               <circle cx="8" cy="8" r="6" stroke="currentColor" fill="none" />
               <path d="M8 4v5M8 11v1" />
             </svg>
@@ -172,37 +144,32 @@ export const MessageBubble = memo(function MessageBubble({
               {errorMsg}
             </div>
           </div>
-        );
+        )
+      }
       default:
-        return null;
+        return null
     }
-  };
+  }
 
   const renderMessageContent = () => {
     if (message.isDeleted) {
       return (
-        <span className="italic text-gray-500 dark:text-gray-400">
-          {t("chat.messageDeleted")}
-        </span>
-      );
+        <span className="italic text-gray-500 dark:text-gray-400">{t('chat.messageDeleted')}</span>
+      )
     }
 
     const contentRenderer: Record<MessageType, () => React.ReactNode> = {
-      text: () => (
-        <p className="whitespace-pre-wrap break-words">{message.content}</p>
-      ),
+      text: () => <p className="whitespace-pre-wrap break-words">{message.content}</p>,
       image: () => (
         <div className="max-w-xs">
           <img
             src={message.metadata?.mediaUrl}
-            alt={message.metadata?.caption || "Image"}
+            alt={message.metadata?.caption || 'Image'}
             className="rounded-lg max-w-full h-auto cursor-pointer"
             loading="lazy"
           />
           {message.metadata?.caption && (
-            <p className="mt-1 whitespace-pre-wrap break-words">
-              {message.metadata.caption}
-            </p>
+            <p className="mt-1 whitespace-pre-wrap break-words">{message.metadata.caption}</p>
           )}
         </div>
       ),
@@ -215,9 +182,7 @@ export const MessageBubble = memo(function MessageBubble({
             className="rounded-lg max-w-full h-auto"
           />
           {message.metadata?.caption && (
-            <p className="mt-1 whitespace-pre-wrap break-words">
-              {message.metadata.caption}
-            </p>
+            <p className="mt-1 whitespace-pre-wrap break-words">{message.metadata.caption}</p>
           )}
         </div>
       ),
@@ -227,7 +192,7 @@ export const MessageBubble = memo(function MessageBubble({
           {message.metadata?.duration && (
             <span className="text-xs text-gray-500">
               {Math.floor(message.metadata.duration / 60)}:
-              {String(message.metadata.duration % 60).padStart(2, "0")}
+              {String(message.metadata.duration % 60).padStart(2, '0')}
             </span>
           )}
         </div>
@@ -256,7 +221,7 @@ export const MessageBubble = memo(function MessageBubble({
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-medium text-gray-900 dark:text-dark-text-primary truncate">
-              {message.metadata?.fileName || "Document"}
+              {message.metadata?.fileName || 'Document'}
             </p>
             {message.metadata?.fileSize && (
               <p className="text-xs text-gray-500 dark:text-dark-text-secondary">
@@ -312,78 +277,78 @@ export const MessageBubble = memo(function MessageBubble({
           <p className="whitespace-pre-wrap break-words">{message.content}</p>
         </div>
       ),
-    };
+    }
 
     return (
       contentRenderer[message.messageType]?.() || (
         <p className="whitespace-pre-wrap break-words">{message.content}</p>
       )
-    );
-  };
+    )
+  }
 
   const formatFileSize = (bytes: number): string => {
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-  };
+    if (bytes < 1024) return `${bytes} B`
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+  }
 
   const handleReactionClick = useCallback(() => {
-    const rect = bubbleRef.current?.getBoundingClientRect();
+    const rect = bubbleRef.current?.getBoundingClientRect()
     if (rect) {
       setReactionPickerPosition({
         x: isOwn ? -20 : rect.width - 20,
         y: -50,
-      });
+      })
     }
-    setShowReactionPicker(true);
-    setShowContextMenu(false);
-  }, [isOwn]);
+    setShowReactionPicker(true)
+    setShowContextMenu(false)
+  }, [isOwn])
 
   const handleSelectReaction = useCallback(
     (emoji: string) => {
-      onReact?.(message, emoji);
-      setShowReactionPicker(false);
+      onReact?.(message, emoji)
+      setShowReactionPicker(false)
     },
-    [message, onReact],
-  );
+    [message, onReact]
+  )
 
   const contextMenuItems = [
-    { label: "React", icon: EmojiIcon, action: handleReactionClick },
-    { label: "Reply", icon: ReplyIcon, action: () => onReply?.(message) },
-    { label: "Forward", icon: ForwardIcon, action: () => onForward?.(message) },
+    { label: 'React', icon: EmojiIcon, action: handleReactionClick },
+    { label: 'Reply', icon: ReplyIcon, action: () => onReply?.(message) },
+    { label: 'Forward', icon: ForwardIcon, action: () => onForward?.(message) },
     {
-      label: message.isStarred ? "Unstar" : "Star",
+      label: message.isStarred ? 'Unstar' : 'Star',
       icon: StarIcon,
       action: () => onStar?.(message),
     },
-    { label: "Delete", icon: DeleteIcon, action: () => onDelete?.(message) },
-  ];
+    { label: 'Delete', icon: DeleteIcon, action: () => onDelete?.(message) },
+  ]
 
   // Check if message has reactions for extra bottom margin
-  const hasReactions = message.reactions && message.reactions.length > 0;
+  const hasReactions = message.reactions && message.reactions.length > 0
 
   // Handle click in selection mode
   const handleClick = useCallback(() => {
     if (selectionMode && onSelectionToggle) {
-      onSelectionToggle(message.id);
+      onSelectionToggle(message.id)
     }
-  }, [selectionMode, onSelectionToggle, message.id]);
+  }, [selectionMode, onSelectionToggle, message.id])
 
   return (
     <div
-      className={`flex ${isOwn ? "justify-end" : "justify-start"} ${hasReactions ? "mb-5" : "mb-1"} group ${
-        selectionMode ? "cursor-pointer" : ""
+      className={`flex ${isOwn ? 'justify-end' : 'justify-start'} ${hasReactions ? 'mb-5' : 'mb-1'} group ${
+        selectionMode ? 'cursor-pointer' : ''
       }`}
       onClick={handleClick}
     >
       {/* Selection checkbox - shown on left for all messages in selection mode */}
       {selectionMode && (
-        <div className={`flex items-center ${isOwn ? "order-2 ml-2" : "mr-2"}`}>
+        <div className={`flex items-center ${isOwn ? 'order-2 ml-2' : 'mr-2'}`}>
           <div
             className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${
               isSelected
-                ? "bg-whatsapp-teal-green border-whatsapp-teal-green"
-                : "border-gray-400 dark:border-dark-text-tertiary bg-transparent"
+                ? 'bg-whatsapp-teal-green border-whatsapp-teal-green'
+                : 'border-gray-400 dark:border-dark-text-tertiary bg-transparent'
             }`}
           >
             {isSelected && (
@@ -394,11 +359,7 @@ export const MessageBubble = memo(function MessageBubble({
                 stroke="currentColor"
                 strokeWidth={3}
               >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M5 13l4 4L19 7"
-                />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
               </svg>
             )}
           </div>
@@ -409,12 +370,12 @@ export const MessageBubble = memo(function MessageBubble({
         ref={bubbleRef}
         className={`relative max-w-[70%] px-3 py-2 rounded-lg shadow-sm transition-all duration-300 ${
           isOwn
-            ? "bg-whatsapp-green text-white rounded-br-none"
-            : "bg-white dark:bg-dark-elevated text-gray-900 dark:text-dark-text-primary rounded-bl-none"
-        } ${isHighlighted ? "ring-2 ring-yellow-400 ring-offset-2 dark:ring-offset-dark-primary bg-yellow-50/20 dark:bg-yellow-900/20" : ""} ${
+            ? 'bg-whatsapp-green text-white rounded-br-none'
+            : 'bg-white dark:bg-dark-elevated text-gray-900 dark:text-dark-text-primary rounded-bl-none'
+        } ${isHighlighted ? 'ring-2 ring-yellow-400 ring-offset-2 dark:ring-offset-dark-primary bg-yellow-50/20 dark:bg-yellow-900/20' : ''} ${
           isSelected
-            ? "ring-2 ring-whatsapp-teal-green ring-offset-1 dark:ring-offset-dark-primary"
-            : ""
+            ? 'ring-2 ring-whatsapp-teal-green ring-offset-1 dark:ring-offset-dark-primary'
+            : ''
         }`}
         onContextMenu={selectionMode ? undefined : handleContextMenu}
         data-message-id={message.id}
@@ -423,7 +384,7 @@ export const MessageBubble = memo(function MessageBubble({
         {message.isForwarded && !message.isDeleted && (
           <div className="flex items-center gap-1 text-xs opacity-70 mb-1">
             <ForwardIcon className="h-3 w-3" />
-            <span>{t("chat.forwarded")}</span>
+            <span>{t('chat.forwarded')}</span>
           </div>
         )}
 
@@ -432,8 +393,8 @@ export const MessageBubble = memo(function MessageBubble({
           <div
             className={`mb-2 p-2.5 rounded-lg border-l-4 ${
               isOwn
-                ? "bg-whatsapp-dark-green/30 border-white/50"
-                : "bg-gray-100 dark:bg-dark-tertiary border-whatsapp-green"
+                ? 'bg-whatsapp-dark-green/30 border-white/50'
+                : 'bg-gray-100 dark:bg-dark-tertiary border-whatsapp-green'
             }`}
           >
             <div className="flex items-start gap-2">
@@ -441,24 +402,18 @@ export const MessageBubble = memo(function MessageBubble({
               <div className="flex-1 min-w-0">
                 <p
                   className={`text-xs font-semibold mb-0.5 ${
-                    isOwn
-                      ? "text-white/90"
-                      : "text-gray-900 dark:text-dark-text-primary"
+                    isOwn ? 'text-white/90' : 'text-gray-900 dark:text-dark-text-primary'
                   }`}
                 >
-                  {message.replyToMessage.senderType === "user"
-                    ? "You"
-                    : "Contact"}
+                  {message.replyToMessage.senderType === 'user' ? 'You' : 'Contact'}
                 </p>
                 <p
                   className={`text-xs line-clamp-2 ${
-                    isOwn
-                      ? "text-white/80"
-                      : "text-gray-700 dark:text-dark-text-secondary"
+                    isOwn ? 'text-white/80' : 'text-gray-700 dark:text-dark-text-secondary'
                   }`}
                 >
                   {message.replyToMessage.isDeleted
-                    ? t("chat.messageDeleted")
+                    ? t('chat.messageDeleted')
                     : message.replyToMessage.content}
                 </p>
               </div>
@@ -470,10 +425,10 @@ export const MessageBubble = memo(function MessageBubble({
         {renderMessageContent()}
 
         {/* Error banner for failed messages */}
-        {message.status === "failed" && isOwn && (
+        {message.status === 'failed' && isOwn && (
           <div
             className={`mt-2 flex items-center justify-between gap-2 text-xs px-2 py-1 rounded ${
-              isOwn ? "bg-red-500/20 text-red-100" : "bg-red-100 text-red-700"
+              isOwn ? 'bg-red-500/20 text-red-100' : 'bg-red-100 text-red-700'
             }`}
           >
             <div className="flex items-center gap-2">
@@ -491,10 +446,7 @@ export const MessageBubble = memo(function MessageBubble({
                 />
               </svg>
               <span>
-                {getErrorMessage(
-                  message.metadata?.error,
-                  message.metadata?.errorMessage,
-                )}
+                {getErrorMessage(message.metadata?.error, message.metadata?.errorMessage)}
               </span>
             </div>
             {onRetry && (
@@ -503,18 +455,14 @@ export const MessageBubble = memo(function MessageBubble({
                 disabled={isRetrying}
                 className={`flex items-center gap-1 px-2 py-0.5 rounded font-medium transition-colors ${
                   isOwn
-                    ? "bg-white/20 hover:bg-white/30 text-white"
-                    : "bg-red-200 hover:bg-red-300 text-red-800"
-                } ${isRetrying ? "opacity-50 cursor-not-allowed" : ""}`}
+                    ? 'bg-white/20 hover:bg-white/30 text-white'
+                    : 'bg-red-200 hover:bg-red-300 text-red-800'
+                } ${isRetrying ? 'opacity-50 cursor-not-allowed' : ''}`}
                 title="Retry sending this message"
               >
                 {isRetrying ? (
                   <>
-                    <svg
-                      className="animate-spin h-3 w-3"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                    >
+                    <svg className="animate-spin h-3 w-3" fill="none" viewBox="0 0 24 24">
                       <circle
                         className="opacity-25"
                         cx="12"
@@ -533,12 +481,7 @@ export const MessageBubble = memo(function MessageBubble({
                   </>
                 ) : (
                   <>
-                    <svg
-                      className="h-3 w-3"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                    >
+                    <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path
                         strokeLinecap="round"
                         strokeLinejoin="round"
@@ -557,9 +500,7 @@ export const MessageBubble = memo(function MessageBubble({
         {/* Timestamp and status */}
         <div
           className={`flex items-center justify-end gap-1 mt-1 text-xs ${
-            isOwn
-              ? "text-white/70"
-              : "text-gray-500 dark:text-dark-text-secondary"
+            isOwn ? 'text-white/70' : 'text-gray-500 dark:text-dark-text-secondary'
           }`}
         >
           <span>{formatTime(message.createdAt)}</span>
@@ -571,29 +512,25 @@ export const MessageBubble = memo(function MessageBubble({
 
         {/* Reaction display */}
         {message.reactions && message.reactions.length > 0 && (
-          <div
-            className={`absolute -bottom-3 ${isOwn ? "left-2" : "right-2"} flex gap-0.5`}
-          >
+          <div className={`absolute -bottom-3 ${isOwn ? 'left-2' : 'right-2'} flex gap-0.5`}>
             {/* Group reactions by emoji and show counts */}
             {Object.entries(
               message.reactions.reduce(
                 (acc, r) => {
-                  acc[r.emoji] = (acc[r.emoji] || 0) + 1;
-                  return acc;
+                  acc[r.emoji] = (acc[r.emoji] || 0) + 1
+                  return acc
                 },
-                {} as Record<string, number>,
-              ),
+                {} as Record<string, number>
+              )
             ).map(([emoji, count]) => (
               <span
                 key={emoji}
                 className="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-white dark:bg-dark-elevated rounded-full shadow-md text-xs border border-gray-200 dark:border-dark-border"
-                title={`${count} reaction${count > 1 ? "s" : ""}`}
+                title={`${count} reaction${count > 1 ? 's' : ''}`}
               >
                 <span>{emoji}</span>
                 {count > 1 && (
-                  <span className="text-gray-600 dark:text-dark-text-secondary">
-                    {count}
-                  </span>
+                  <span className="text-gray-600 dark:text-dark-text-secondary">{count}</span>
                 )}
               </span>
             ))}
@@ -615,8 +552,8 @@ export const MessageBubble = memo(function MessageBubble({
                 key={item.label}
                 className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-dark-text-primary hover:bg-gray-100 dark:hover:bg-dark-tertiary"
                 onClick={() => {
-                  item.action();
-                  setShowContextMenu(false);
+                  item.action()
+                  setShowContextMenu(false)
                 }}
               >
                 <item.icon className="h-4 w-4" />
@@ -636,18 +573,13 @@ export const MessageBubble = memo(function MessageBubble({
         )}
       </div>
     </div>
-  );
-});
+  )
+})
 
 // Icon components
 function ReplyIcon({ className }: { className?: string }) {
   return (
-    <svg
-      className={className}
-      fill="none"
-      viewBox="0 0 24 24"
-      stroke="currentColor"
-    >
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
       <path
         strokeLinecap="round"
         strokeLinejoin="round"
@@ -655,17 +587,12 @@ function ReplyIcon({ className }: { className?: string }) {
         d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"
       />
     </svg>
-  );
+  )
 }
 
 function ForwardIcon({ className }: { className?: string }) {
   return (
-    <svg
-      className={className}
-      fill="none"
-      viewBox="0 0 24 24"
-      stroke="currentColor"
-    >
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
       <path
         strokeLinecap="round"
         strokeLinejoin="round"
@@ -673,17 +600,12 @@ function ForwardIcon({ className }: { className?: string }) {
         d="M21 10h-10a8 8 0 00-8 8v2M21 10l-6 6m6-6l-6-6"
       />
     </svg>
-  );
+  )
 }
 
 function StarIcon({ className }: { className?: string }) {
   return (
-    <svg
-      className={className}
-      fill="none"
-      viewBox="0 0 24 24"
-      stroke="currentColor"
-    >
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
       <path
         strokeLinecap="round"
         strokeLinejoin="round"
@@ -691,7 +613,7 @@ function StarIcon({ className }: { className?: string }) {
         d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"
       />
     </svg>
-  );
+  )
 }
 
 function StarFilledIcon({ className }: { className?: string }) {
@@ -699,17 +621,12 @@ function StarFilledIcon({ className }: { className?: string }) {
     <svg className={className} viewBox="0 0 24 24" fill="currentColor">
       <path d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
     </svg>
-  );
+  )
 }
 
 function DeleteIcon({ className }: { className?: string }) {
   return (
-    <svg
-      className={className}
-      fill="none"
-      viewBox="0 0 24 24"
-      stroke="currentColor"
-    >
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
       <path
         strokeLinecap="round"
         strokeLinejoin="round"
@@ -717,17 +634,12 @@ function DeleteIcon({ className }: { className?: string }) {
         d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
       />
     </svg>
-  );
+  )
 }
 
 function EmojiIcon({ className }: { className?: string }) {
   return (
-    <svg
-      className={className}
-      fill="none"
-      viewBox="0 0 24 24"
-      stroke="currentColor"
-    >
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
       <path
         strokeLinecap="round"
         strokeLinejoin="round"
@@ -735,7 +647,7 @@ function EmojiIcon({ className }: { className?: string }) {
         d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
       />
     </svg>
-  );
+  )
 }
 
-export default MessageBubble;
+export default MessageBubble
