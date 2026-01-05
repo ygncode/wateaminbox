@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useEffect } from 'react'
 import {
   deleteNotification,
   getNotifications,
@@ -8,6 +9,8 @@ import {
   markNotificationAsRead,
   type NotificationListParams,
 } from '@/lib/api'
+import { useWebSocketContext } from '@/contexts/WebSocketProvider'
+import type { NotificationPayload } from '@/lib/websocket'
 
 // Stable empty params object to prevent query key instability
 const EMPTY_PARAMS: NotificationListParams = {}
@@ -19,6 +22,7 @@ export function useNotificationCenter(params?: NotificationListParams) {
   // Use stable empty params when none provided
   const effectiveParams = params ?? EMPTY_PARAMS
   const queryClient = useQueryClient()
+  const { subscribe, isConnected } = useWebSocketContext()
 
   // Fetch notifications list
   const {
@@ -127,6 +131,19 @@ export function useNotificationCenter(params?: NotificationListParams) {
     limit: 20,
     offset: 0,
   }
+
+  // Listen for new notifications via WebSocket
+  useEffect(() => {
+    if (!isConnected) return
+
+    const unsubscribe = subscribe<NotificationPayload>('notification:new', () => {
+      // Refetch notifications and count when a new notification arrives
+      void refetchNotifications()
+      void refetchCount()
+    })
+
+    return unsubscribe
+  }, [isConnected, subscribe, refetchNotifications, refetchCount])
 
   return {
     // Data

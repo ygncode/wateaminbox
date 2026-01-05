@@ -12,6 +12,7 @@ export type WebSocketEventType =
   | 'contact:profile_picture'
   | 'conversation:updated'
   | 'conversation:read'
+  | 'notification:new'
   | 'error'
   // WhatsApp connection events
   | 'qr'
@@ -72,6 +73,10 @@ export interface ConversationReadPayload {
   contactId: string
   unreadCount: number
   readBy: string
+}
+
+export interface NotificationPayload {
+  // Empty payload - frontend will refetch notification count
 }
 
 export interface ErrorPayload {

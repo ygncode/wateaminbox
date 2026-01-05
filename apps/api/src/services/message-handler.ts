@@ -15,11 +15,13 @@ import {
   type TypingEvent,
   type ReactionEvent,
 } from "../lib/nats.js";
+import { db } from "@whatsapp-web/database";
 import { getTenantConnection } from "./tenant.service.js";
 import { updateConnectionStatus } from "./whatsapp.service.js";
 import { broadcastToCompany } from "../routes/ws.js";
 import { updateMessageSearchVector } from "./search.service.js";
 import { indexMessage, type MessageDocument } from "./meilisearch.service.js";
+import { createNotification } from "./notification-history.service.js";
 
 // Subscription handle
 let eventSubscription: JetStreamSubscription | null = null;
@@ -406,6 +408,44 @@ async function handleMessageEvent(event: MessageEvent): Promise<void> {
           })
           .execute();
       }
+
+      // Create in-app notification for the message (run in background to avoid blocking)
+      // Get all users in the company to notify them (from public schema)
+      const users = await db
+        .selectFrom("company_members")
+        .innerJoin("users", "users.id", "company_members.user_id")
+        .select(["users.id"])
+        .where("company_members.company_id", "=", companyId)
+        .execute();
+
+      // Create notification for each user
+      for (const user of users) {
+        createNotification(companyId, {
+          userId: user.id,
+          notificationType: "message",
+          title: contactName || contactJid.split("@")[0] || "New Message",
+          message: payload.content?.substring(0, 100) || "New message",
+          actionUrl: `/chat/${contact.id}`,
+          metadata: {
+            contactId: contact.id,
+            messageId,
+            contactJid,
+          },
+        }).catch((err) => {
+          console.error(
+            `[MessageHandler] Failed to create notification for user ${user.id}:`,
+            err,
+          );
+        });
+      }
+
+      // Broadcast notification update to WebSocket clients
+      // Frontend will refetch the actual unread count per user
+      broadcastToCompany(companyId, {
+        type: "notification:new",
+        payload: {},
+        timestamp: event.timestamp,
+      });
     }
 
     // Broadcast to WebSocket clients with proper format for frontend
