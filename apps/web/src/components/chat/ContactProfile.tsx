@@ -622,7 +622,7 @@ function AssignmentSection({
               <p className="text-sm text-gray-700 dark:text-dark-text-primary">
                 Assigned to:{" "}
                 <span className="font-medium">
-                  {contact.assignment.assignedTo}
+                  {contact.assignment.assignedToName}
                 </span>
               </p>
               <p className="text-xs text-gray-500 dark:text-dark-text-tertiary">
@@ -713,7 +713,7 @@ function AssignmentHistorySection({ contactId }: { contactId: string }) {
             </div>
             <div className="flex-1 min-w-0">
               <p className="font-medium text-gray-800 dark:text-dark-text-primary truncate">
-                {entry.assignedTo}
+                {entry.assignedToName}
                 {entry.isActive && (
                   <Badge
                     variant="secondary"
@@ -724,7 +724,7 @@ function AssignmentHistorySection({ contactId }: { contactId: string }) {
                 )}
               </p>
               <p className="text-xs text-gray-500 dark:text-dark-text-secondary">
-                Assigned by {entry.assignedBy}
+                Assigned by {entry.assignedByName}
               </p>
               <p className="text-xs text-gray-400 dark:text-dark-text-tertiary">
                 {new Date(entry.assignedAt).toLocaleDateString()} at{" "}
