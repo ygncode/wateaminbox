@@ -97,7 +97,10 @@ export function RightPanelSection({
 }: RightPanelSectionProps) {
   return (
     <section
-      className={cn("border-b border-gray-200 dark:border-dark-border bg-white dark:bg-dark-secondary p-4", className)}
+      className={cn(
+        "border-b border-gray-200 dark:border-dark-border bg-white dark:bg-dark-secondary p-4",
+        className,
+      )}
       {...props}
     >
       {title && (

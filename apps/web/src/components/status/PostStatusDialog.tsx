@@ -25,7 +25,11 @@ export interface PostStatusDialogProps {
   onOpenChange: (open: boolean) => void;
 }
 
-const STATUS_TYPES: { value: StatusType; label: string; icon: React.ReactNode }[] = [
+const STATUS_TYPES: {
+  value: StatusType;
+  label: string;
+  icon: React.ReactNode;
+}[] = [
   { value: "text", label: "Text", icon: <Type className="h-4 w-4" /> },
   { value: "image", label: "Image", icon: <Image className="h-4 w-4" /> },
   { value: "video", label: "Video", icon: <Video className="h-4 w-4" /> },
@@ -34,7 +38,10 @@ const STATUS_TYPES: { value: StatusType; label: string; icon: React.ReactNode }[
 /**
  * Dialog component for posting a new WhatsApp status update
  */
-export function PostStatusDialog({ open, onOpenChange }: PostStatusDialogProps) {
+export function PostStatusDialog({
+  open,
+  onOpenChange,
+}: PostStatusDialogProps) {
   const [statusType, setStatusType] = useState<StatusType>("text");
   const [content, setContent] = useState("");
   const [mediaUrl, setMediaUrl] = useState("");
@@ -66,7 +73,10 @@ export function PostStatusDialog({ open, onOpenChange }: PostStatusDialogProps) 
       return;
     }
 
-    if ((statusType === "image" || statusType === "video") && !mediaUrl.trim()) {
+    if (
+      (statusType === "image" || statusType === "video") &&
+      !mediaUrl.trim()
+    ) {
       setError(`Please provide a URL for your ${statusType}`);
       return;
     }

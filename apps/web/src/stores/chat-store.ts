@@ -437,7 +437,11 @@ export const useChatStore = create<ChatState>()(
           ),
 
         clearSelection: () =>
-          set({ selectedMessageIds: new Set<string>() }, false, "clearSelection"),
+          set(
+            { selectedMessageIds: new Set<string>() },
+            false,
+            "clearSelection",
+          ),
 
         // Reset
         reset: () =>

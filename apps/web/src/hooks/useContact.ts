@@ -132,7 +132,12 @@ export function usePrivateNotes(contactId: string | null) {
       if (!contactId) throw new Error("No contact ID provided");
       const response = await api.get<{
         data: PrivateNote[];
-        pagination: { total: number; limit: number; offset: number; hasMore: boolean };
+        pagination: {
+          total: number;
+          limit: number;
+          offset: number;
+          hasMore: boolean;
+        };
       }>(`/contacts/${contactId}/notes/private`);
       return response;
     },
@@ -164,7 +169,9 @@ export function useUpdatePrivateNotes() {
       return response;
     },
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ["privateNotes", variables.contactId] });
+      queryClient.invalidateQueries({
+        queryKey: ["privateNotes", variables.contactId],
+      });
     },
   });
 }
@@ -190,7 +197,9 @@ export function useCreatePrivateNote() {
       return response;
     },
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ["privateNotes", variables.contactId] });
+      queryClient.invalidateQueries({
+        queryKey: ["privateNotes", variables.contactId],
+      });
     },
   });
 }
@@ -218,7 +227,9 @@ export function useUpdatePrivateNote() {
       return response;
     },
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ["privateNotes", variables.contactId] });
+      queryClient.invalidateQueries({
+        queryKey: ["privateNotes", variables.contactId],
+      });
     },
   });
 }
@@ -240,7 +251,9 @@ export function useDeletePrivateNote() {
       await api.delete(`/contacts/${contactId}/notes/private/${noteId}`);
     },
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ["privateNotes", variables.contactId] });
+      queryClient.invalidateQueries({
+        queryKey: ["privateNotes", variables.contactId],
+      });
     },
   });
 }
@@ -255,7 +268,12 @@ export function useSharedNotes(contactId: string | null) {
       if (!contactId) throw new Error("No contact ID provided");
       const response = await api.get<{
         data: SharedNote[];
-        pagination: { total: number; limit: number; offset: number; hasMore: boolean };
+        pagination: {
+          total: number;
+          limit: number;
+          offset: number;
+          hasMore: boolean;
+        };
       }>(`/contacts/${contactId}/notes/shared`);
       return response;
     },
@@ -285,7 +303,9 @@ export function useCreateSharedNote() {
       return response;
     },
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ["sharedNotes", variables.contactId] });
+      queryClient.invalidateQueries({
+        queryKey: ["sharedNotes", variables.contactId],
+      });
     },
   });
 }
@@ -313,7 +333,9 @@ export function useUpdateSharedNote() {
       return response;
     },
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ["sharedNotes", variables.contactId] });
+      queryClient.invalidateQueries({
+        queryKey: ["sharedNotes", variables.contactId],
+      });
     },
   });
 }
@@ -335,7 +357,9 @@ export function useDeleteSharedNote() {
       await api.delete(`/contacts/${contactId}/notes/shared/${noteId}`);
     },
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ["sharedNotes", variables.contactId] });
+      queryClient.invalidateQueries({
+        queryKey: ["sharedNotes", variables.contactId],
+      });
     },
   });
 }
@@ -504,7 +528,10 @@ export function useCreateContact() {
 
   return useMutation({
     mutationFn: async (input: CreateContactInput) => {
-      const response = await api.post<CreateContactResponse>("/contacts", input);
+      const response = await api.post<CreateContactResponse>(
+        "/contacts",
+        input,
+      );
       return response;
     },
     onSuccess: () => {

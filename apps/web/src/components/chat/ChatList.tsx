@@ -55,7 +55,7 @@ export const ChatList = memo(function ChatList({
   // Memoize getItemKey to prevent unnecessary re-renders
   const getItemKey = useCallback(
     (index: number) => visibleChats[index]?.id || index.toString(),
-    [visibleChats]
+    [visibleChats],
   );
 
   // Virtualizer for chat list
@@ -178,7 +178,9 @@ export const ChatList = memo(function ChatList({
                 d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
               />
             </svg>
-            <p className="text-gray-600 dark:text-dark-text-primary font-medium">Failed to load chats</p>
+            <p className="text-gray-600 dark:text-dark-text-primary font-medium">
+              Failed to load chats
+            </p>
             <p className="text-sm text-gray-500 dark:text-dark-text-secondary mt-1">
               {error?.message || "Please try again later"}
             </p>
@@ -201,7 +203,9 @@ export const ChatList = memo(function ChatList({
                 d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
               />
             </svg>
-            <p className="text-gray-600 dark:text-dark-text-primary font-medium">No chats found</p>
+            <p className="text-gray-600 dark:text-dark-text-primary font-medium">
+              No chats found
+            </p>
             <p className="text-sm text-gray-500 dark:text-dark-text-secondary mt-1">
               No results for "{searchQuery}"
             </p>
@@ -228,7 +232,9 @@ export const ChatList = memo(function ChatList({
                   d="M5 13l4 4L19 7"
                 />
               </svg>
-              <p className="text-gray-600 dark:text-dark-text-primary font-medium">All caught up!</p>
+              <p className="text-gray-600 dark:text-dark-text-primary font-medium">
+                All caught up!
+              </p>
               <p className="text-sm text-gray-500 dark:text-dark-text-secondary mt-1">
                 You have no unread messages
               </p>
@@ -255,7 +261,9 @@ export const ChatList = memo(function ChatList({
                   d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
                 />
               </svg>
-              <p className="text-gray-600 dark:text-dark-text-primary font-medium">No conversations yet</p>
+              <p className="text-gray-600 dark:text-dark-text-primary font-medium">
+                No conversations yet
+              </p>
               <p className="text-sm text-gray-500 dark:text-dark-text-secondary mt-1">
                 Start a new chat to begin messaging
               </p>

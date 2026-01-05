@@ -38,7 +38,9 @@ import type { WhatsAppLabel, TagWithLabelStatus } from "@/hooks/useLabels";
 export function LabelSyncManager() {
   const { t } = useTranslation();
   const [linkDialogOpen, setLinkDialogOpen] = useState(false);
-  const [selectedLabel, setSelectedLabel] = useState<WhatsAppLabel | null>(null);
+  const [selectedLabel, setSelectedLabel] = useState<WhatsAppLabel | null>(
+    null,
+  );
   const [selectedTagId, setSelectedTagId] = useState<string>("");
 
   const {
@@ -63,8 +65,8 @@ export function LabelSyncManager() {
   const unlinkedTags = allTags.filter(
     (tag) =>
       !tagsWithStatus.some(
-        (t) => t.id === tag.id && t.whatsappLabelId !== null
-      )
+        (t) => t.id === tag.id && t.whatsappLabelId !== null,
+      ),
   );
 
   const handleSync = async () => {
@@ -120,8 +122,10 @@ export function LabelSyncManager() {
     const diffDays = Math.floor(diffMs / 86400000);
 
     if (diffMins < 1) return t("labels.justNow", "Just now");
-    if (diffMins < 60) return t("labels.minutesAgo", "{{count}} min ago", { count: diffMins });
-    if (diffHours < 24) return t("labels.hoursAgo", "{{count}} hr ago", { count: diffHours });
+    if (diffMins < 60)
+      return t("labels.minutesAgo", "{{count}} min ago", { count: diffMins });
+    if (diffHours < 24)
+      return t("labels.hoursAgo", "{{count}} hr ago", { count: diffHours });
     return t("labels.daysAgo", "{{count}} days ago", { count: diffDays });
   };
 
@@ -140,7 +144,7 @@ export function LabelSyncManager() {
       <p className="text-sm text-gray-600">
         {t(
           "labels.description",
-          "Sync your WhatsApp Business labels with custom tags. This allows you to organize contacts consistently across both platforms."
+          "Sync your WhatsApp Business labels with custom tags. This allows you to organize contacts consistently across both platforms.",
         )}
       </p>
 
@@ -238,7 +242,7 @@ export function LabelSyncManager() {
           <p className="text-sm mt-1">
             {t(
               "labels.emptyHint",
-              "Create labels in WhatsApp Business and click 'Sync from WhatsApp' to import them"
+              "Create labels in WhatsApp Business and click 'Sync from WhatsApp' to import them",
             )}
           </p>
         </div>
@@ -246,7 +250,7 @@ export function LabelSyncManager() {
         <div className="space-y-2" data-testid="labels-list">
           {labels.map((label) => {
             const linkedTag = tagsWithStatus.find(
-              (t) => t.whatsappLabelId === label.labelId
+              (t) => t.whatsappLabelId === label.labelId,
             );
 
             return (
@@ -329,7 +333,7 @@ export function LabelSyncManager() {
               {t(
                 "labels.linkDialog.description",
                 "Select a tag to link with the WhatsApp label '{{labelName}}'.",
-                { labelName: selectedLabel?.name }
+                { labelName: selectedLabel?.name },
               )}
             </DialogDescription>
           </DialogHeader>
@@ -356,7 +360,10 @@ export function LabelSyncManager() {
               <SelectContent>
                 {unlinkedTags.length === 0 ? (
                   <div className="p-2 text-sm text-gray-500 text-center">
-                    {t("labels.linkDialog.noTags", "No unlinked tags available")}
+                    {t(
+                      "labels.linkDialog.noTags",
+                      "No unlinked tags available",
+                    )}
                   </div>
                 ) : (
                   unlinkedTags.map((tag) => (
@@ -379,7 +386,7 @@ export function LabelSyncManager() {
             <p className="text-xs text-gray-500 mt-2">
               {t(
                 "labels.linkDialog.hint",
-                "When linked, applying this label in WhatsApp will also apply the tag in this app."
+                "When linked, applying this label in WhatsApp will also apply the tag in this app.",
               )}
             </p>
           </div>

@@ -1,20 +1,20 @@
-import { Sun, Moon, Monitor } from 'lucide-react'
-import { useTheme, type Theme } from '../../contexts'
-import { Tooltip, TooltipContent, TooltipTrigger } from '../ui'
+import { Sun, Moon, Monitor } from "lucide-react";
+import { useTheme, type Theme } from "../../contexts";
+import { Tooltip, TooltipContent, TooltipTrigger } from "../ui";
 
 const THEME_CONFIG: Record<
   Theme,
   { icon: typeof Sun; label: string; nextTheme: Theme }
 > = {
-  light: { icon: Sun, label: 'Light', nextTheme: 'dark' },
-  dark: { icon: Moon, label: 'Dark', nextTheme: 'system' },
-  system: { icon: Monitor, label: 'Follow System', nextTheme: 'light' },
-}
+  light: { icon: Sun, label: "Light", nextTheme: "dark" },
+  dark: { icon: Moon, label: "Dark", nextTheme: "system" },
+  system: { icon: Monitor, label: "Follow System", nextTheme: "light" },
+};
 
 export function ThemeToggle() {
-  const { theme, toggleTheme } = useTheme()
-  const config = THEME_CONFIG[theme]
-  const Icon = config.icon
+  const { theme, toggleTheme } = useTheme();
+  const config = THEME_CONFIG[theme];
+  const Icon = config.icon;
 
   return (
     <Tooltip>
@@ -31,7 +31,7 @@ export function ThemeToggle() {
         <p>{config.label}</p>
       </TooltipContent>
     </Tooltip>
-  )
+  );
 }
 
-export default ThemeToggle
+export default ThemeToggle;

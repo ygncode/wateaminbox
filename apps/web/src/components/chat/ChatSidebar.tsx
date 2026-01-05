@@ -32,7 +32,12 @@ export const ChatSidebar = memo(function ChatSidebar({
   );
 
   return (
-    <div className={cn("flex flex-col h-full bg-white dark:bg-dark-secondary", className)}>
+    <div
+      className={cn(
+        "flex flex-col h-full bg-white dark:bg-dark-secondary",
+        className,
+      )}
+    >
       {/* Navigation Tabs */}
       <div className="flex items-center border-b border-gray-200 dark:border-dark-border bg-gray-50 dark:bg-dark-secondary">
         <nav className="flex flex-1" role="tablist">
@@ -88,7 +93,12 @@ interface TabButtonProps {
   label: string;
 }
 
-const TabButton = memo(function TabButton({ isActive, onClick, icon, label }: TabButtonProps) {
+const TabButton = memo(function TabButton({
+  isActive,
+  onClick,
+  icon,
+  label,
+}: TabButtonProps) {
   return (
     <button
       type="button"

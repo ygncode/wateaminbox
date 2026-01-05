@@ -236,7 +236,9 @@ export function Dashboard({ companyId, isAdmin = false }: DashboardProps) {
             {isLoadingMessages ? (
               <Skeleton className="h-48 w-full" />
             ) : isMessagesError ? (
-              <p className="text-red-500 text-center py-8">Failed to load data</p>
+              <p className="text-red-500 text-center py-8">
+                Failed to load data
+              </p>
             ) : (
               <MessageChart data={messageData?.data || []} />
             )}
@@ -251,7 +253,9 @@ export function Dashboard({ companyId, isAdmin = false }: DashboardProps) {
             {isLoadingContactsTrend ? (
               <Skeleton className="h-48 w-full" />
             ) : isContactsTrendError ? (
-              <p className="text-red-500 text-center py-8">Failed to load data</p>
+              <p className="text-red-500 text-center py-8">
+                Failed to load data
+              </p>
             ) : (
               <NewContactsChart data={contactsTrendData?.data || []} />
             )}
@@ -266,7 +270,9 @@ export function Dashboard({ companyId, isAdmin = false }: DashboardProps) {
             {isLoadingHourly ? (
               <Skeleton className="h-48 w-full" />
             ) : isHourlyError ? (
-              <p className="text-red-500 text-center py-8">Failed to load data</p>
+              <p className="text-red-500 text-center py-8">
+                Failed to load data
+              </p>
             ) : (
               <HourlyChart data={hourlyStats || []} />
             )}
@@ -288,7 +294,9 @@ export function Dashboard({ companyId, isAdmin = false }: DashboardProps) {
                 <Skeleton className="h-6 w-full" />
               </div>
             ) : isContactsError ? (
-              <p className="text-red-500 text-center py-4">Failed to load data</p>
+              <p className="text-red-500 text-center py-4">
+                Failed to load data
+              </p>
             ) : contactStats ? (
               <div className="space-y-3">
                 <StatRow
@@ -313,7 +321,9 @@ export function Dashboard({ companyId, isAdmin = false }: DashboardProps) {
                 />
               </div>
             ) : (
-              <p className="text-gray-500 text-center py-4">No data available</p>
+              <p className="text-gray-500 text-center py-4">
+                No data available
+              </p>
             )}
           </div>
 
@@ -329,7 +339,9 @@ export function Dashboard({ companyId, isAdmin = false }: DashboardProps) {
                 <Skeleton className="h-6 w-full" />
               </div>
             ) : isTypesError ? (
-              <p className="text-red-500 text-center py-4">Failed to load data</p>
+              <p className="text-red-500 text-center py-4">
+                Failed to load data
+              </p>
             ) : messageTypes && messageTypes.length > 0 ? (
               <div className="space-y-2">
                 {messageTypes.slice(0, 5).map((type) => (
@@ -347,7 +359,9 @@ export function Dashboard({ companyId, isAdmin = false }: DashboardProps) {
                 ))}
               </div>
             ) : (
-              <p className="text-gray-500 text-center py-4">No data available</p>
+              <p className="text-gray-500 text-center py-4">
+                No data available
+              </p>
             )}
           </div>
 
@@ -364,7 +378,9 @@ export function Dashboard({ companyId, isAdmin = false }: DashboardProps) {
                   <Skeleton className="h-10 w-full" />
                 </div>
               ) : isTeamError ? (
-                <p className="text-red-500 text-center py-4">Failed to load data</p>
+                <p className="text-red-500 text-center py-4">
+                  Failed to load data
+                </p>
               ) : teamStats && teamStats.length > 0 ? (
                 <div className="space-y-3">
                   {teamStats.slice(0, 5).map((member) => (
@@ -389,7 +405,9 @@ export function Dashboard({ companyId, isAdmin = false }: DashboardProps) {
                   ))}
                 </div>
               ) : (
-                <p className="text-gray-500 text-center py-4">No team activity</p>
+                <p className="text-gray-500 text-center py-4">
+                  No team activity
+                </p>
               )}
             </div>
           )}
@@ -409,7 +427,9 @@ export function Dashboard({ companyId, isAdmin = false }: DashboardProps) {
               <Skeleton className="h-20 w-full" />
             </div>
           ) : isResolutionError ? (
-            <p className="text-red-500 text-center py-4">Failed to load resolution data</p>
+            <p className="text-red-500 text-center py-4">
+              Failed to load resolution data
+            </p>
           ) : resolutionData?.data ? (
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <ResolutionStatCard
@@ -439,7 +459,9 @@ export function Dashboard({ companyId, isAdmin = false }: DashboardProps) {
               />
             </div>
           ) : (
-            <p className="text-gray-500 text-center py-4">No resolution data available</p>
+            <p className="text-gray-500 text-center py-4">
+              No resolution data available
+            </p>
           )}
         </div>
 
@@ -460,7 +482,9 @@ export function Dashboard({ companyId, isAdmin = false }: DashboardProps) {
               <Skeleton className="h-48 w-full" />
             </div>
           ) : isEngagementError ? (
-            <p className="text-red-500 text-center py-4">Failed to load engagement data</p>
+            <p className="text-red-500 text-center py-4">
+              Failed to load engagement data
+            </p>
           ) : engagementData?.data ? (
             <div className="space-y-6">
               {/* Engagement Score Highlight */}
@@ -476,7 +500,9 @@ export function Dashboard({ companyId, isAdmin = false }: DashboardProps) {
                   </div>
                 </div>
                 <div>
-                  <h4 className="font-semibold text-gray-900">Engagement Score</h4>
+                  <h4 className="font-semibold text-gray-900">
+                    Engagement Score
+                  </h4>
                   <p className="text-sm text-gray-500">
                     Based on activity, response rate, and interaction patterns
                   </p>
@@ -525,7 +551,9 @@ export function Dashboard({ companyId, isAdmin = false }: DashboardProps) {
                   <p className="text-2xl font-semibold text-gray-900">
                     {engagementData.data.averageMessagesPerContact}
                   </p>
-                  <p className="text-xs text-gray-500">Avg. messages per contact</p>
+                  <p className="text-xs text-gray-500">
+                    Avg. messages per contact
+                  </p>
                 </div>
                 <div className="text-center">
                   <p className="text-2xl font-semibold text-green-600">
@@ -552,13 +580,19 @@ export function Dashboard({ companyId, isAdmin = false }: DashboardProps) {
               )}
             </div>
           ) : (
-            <p className="text-gray-500 text-center py-4">No engagement data available</p>
+            <p className="text-gray-500 text-center py-4">
+              No engagement data available
+            </p>
           )}
         </div>
 
         {/* Response Time Analytics */}
         <div className="bg-white rounded-lg border border-gray-200 p-6">
-          <ResponseTimeAnalytics companyId={companyId} isAdmin={isAdmin} slaThreshold={60} />
+          <ResponseTimeAnalytics
+            companyId={companyId}
+            isAdmin={isAdmin}
+            slaThreshold={60}
+          />
         </div>
       </div>
     </ScrollArea>
@@ -746,7 +780,8 @@ function NewContactsChart({
   const displayData = data.slice(-14);
   const maxCount = Math.max(...displayData.map((d) => d.count));
   const totalNew = displayData.reduce((sum, d) => sum + d.count, 0);
-  const latestCumulative = displayData[displayData.length - 1]?.cumulativeTotal || 0;
+  const latestCumulative =
+    displayData[displayData.length - 1]?.cumulativeTotal || 0;
 
   return (
     <div className="h-48">
@@ -756,7 +791,10 @@ function NewContactsChart({
           <span className="font-medium text-purple-600">+{totalNew}</span> new
         </span>
         <span>
-          Total: <span className="font-medium text-gray-700">{formatNumber(latestCumulative)}</span>
+          Total:{" "}
+          <span className="font-medium text-gray-700">
+            {formatNumber(latestCumulative)}
+          </span>
         </span>
       </div>
 
@@ -782,7 +820,9 @@ function NewContactsChart({
                       ? "bg-purple-400 hover:bg-purple-500"
                       : "bg-gray-100",
                   )}
-                  style={{ height: `${Math.max(height, day.count > 0 ? 5 : 0)}%` }}
+                  style={{
+                    height: `${Math.max(height, day.count > 0 ? 5 : 0)}%`,
+                  }}
                 />
               </div>
               {i === 0 || i === displayData.length - 1 ? (
@@ -884,9 +924,7 @@ function EngagementStatCard({
         {value}
         {suffix}
       </p>
-      {detail && (
-        <p className="text-xs text-gray-500 mt-1">{detail}</p>
-      )}
+      {detail && <p className="text-xs text-gray-500 mt-1">{detail}</p>}
     </div>
   );
 }
@@ -907,7 +945,9 @@ function EngagementTrendChart({
   }[];
 }) {
   if (data.length === 0) {
-    return <p className="text-gray-500 text-center py-4">No trend data available</p>;
+    return (
+      <p className="text-gray-500 text-center py-4">No trend data available</p>
+    );
   }
 
   // Show last 14 days
@@ -918,7 +958,8 @@ function EngagementTrendChart({
     <div className="h-40">
       <div className="flex items-end gap-1 h-32">
         {displayData.map((day, i) => {
-          const height = maxScore > 0 ? (day.engagementScore / maxScore) * 100 : 0;
+          const height =
+            maxScore > 0 ? (day.engagementScore / maxScore) * 100 : 0;
           const scoreColor =
             day.engagementScore >= 70
               ? "bg-green-400 hover:bg-green-500"
@@ -939,11 +980,10 @@ function EngagementTrendChart({
                 style={{ height: "100px" }}
               >
                 <div
-                  className={cn(
-                    "w-full rounded-t transition-all",
-                    scoreColor,
-                  )}
-                  style={{ height: `${Math.max(height, day.engagementScore > 0 ? 5 : 0)}%` }}
+                  className={cn("w-full rounded-t transition-all", scoreColor)}
+                  style={{
+                    height: `${Math.max(height, day.engagementScore > 0 ? 5 : 0)}%`,
+                  }}
                 />
               </div>
               {i === 0 || i === displayData.length - 1 ? (

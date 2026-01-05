@@ -10,8 +10,15 @@ import { MessageComposer } from "../components/chat/MessageComposer";
 import { MessageHeader } from "../components/chat/MessageHeader";
 import { ContactProfile } from "../components/chat/ContactProfile";
 import { ConversationSearch } from "../components/chat/ConversationSearch";
+import { ForwardMessageDialog } from "../components/chat/ForwardMessageDialog";
 import { useContact, type ContactDetail } from "../hooks/useContact";
-import { useSendMessage, useDeleteMessage, useStarMessage, useReactMessage, useForwardMessage } from "../hooks/useMessages";
+import {
+  useSendMessage,
+  useDeleteMessage,
+  useStarMessage,
+  useReactMessage,
+  useForwardMessage,
+} from "../hooks/useMessages";
 import { markConversationAsRead, uploadMedia } from "../lib/api";
 import { chatKeys } from "../hooks/useChats";
 import { useQueryClient } from "@tanstack/react-query";
@@ -40,10 +47,15 @@ export function ChatPage() {
   >(contactId);
   const [isProfileOpen, setIsProfileOpen] = React.useState(false);
   const [isSearchOpen, setIsSearchOpen] = React.useState(false);
-  const [highlightedMessageId, setHighlightedMessageId] = React.useState<string | null>(null);
+  const [highlightedMessageId, setHighlightedMessageId] = React.useState<
+    string | null
+  >(null);
   const [replyToMessage, setReplyToMessage] = React.useState<Message | null>(
     null,
   );
+  const [forwardDialogOpen, setForwardDialogOpen] = React.useState(false);
+  const [messageToForward, setMessageToForward] =
+    React.useState<Message | null>(null);
 
   // Fetch contact data for the selected chat
   const { data: contactDetail } = useContact(selectedChatId || null);
@@ -167,9 +179,7 @@ export function ChatPage() {
         console.log("Uploading file:", file.name, type);
 
         // Show uploading toast
-        const uploadingToastId = toast.loading(
-          `Uploading ${file.name}...`,
-        );
+        const uploadingToastId = toast.loading(`Uploading ${file.name}...`);
 
         // Upload file to server
         const uploadResponse = await uploadMedia(file);
@@ -254,19 +264,19 @@ export function ChatPage() {
   const handleForwardMessage = React.useCallback(
     (message: Message) => {
       if (!selectedChatId) return;
+      setMessageToForward(message);
+      setForwardDialogOpen(true);
+    },
+    [selectedChatId],
+  );
 
-      // For now, show a simple prompt to get target contact ID
-      // In future, this should open a contact picker dialog
-      const targetContactId = window.prompt(
-        "Enter the contact ID to forward this message to:",
-        ""
-      );
-
-      if (!targetContactId) return;
+  const handleForwardToContact = React.useCallback(
+    (targetContactId: string) => {
+      if (!selectedChatId || !messageToForward) return;
 
       forwardMessage.mutate(
         {
-          messageId: message.id,
+          messageId: messageToForward.id,
           sourceConversationId: selectedChatId,
           targetContactId,
         },
@@ -276,15 +286,22 @@ export function ChatPage() {
             if (data.autoAssigned) {
               toast.info("Contact was automatically assigned to you");
             }
+            setForwardDialogOpen(false);
+            setMessageToForward(null);
           },
           onError: (error) => {
             toast.error(`Failed to forward message: ${error.message}`);
           },
-        }
+        },
       );
     },
-    [selectedChatId, forwardMessage],
+    [selectedChatId, messageToForward, forwardMessage],
   );
+
+  const handleCloseForwardDialog = React.useCallback(() => {
+    setForwardDialogOpen(false);
+    setMessageToForward(null);
+  }, []);
 
   // Build the sidebar component
   const sidebar = (
@@ -378,6 +395,12 @@ export function ChatPage() {
         onRightPanelClose={handleCloseProfile}
         selectedChatId={selectedChatId}
         onChatSelect={handleChatSelect}
+      />
+      <ForwardMessageDialog
+        open={forwardDialogOpen}
+        onOpenChange={handleCloseForwardDialog}
+        onForward={handleForwardToContact}
+        isForwarding={forwardMessage.isPending}
       />
     </AppLayout>
   );

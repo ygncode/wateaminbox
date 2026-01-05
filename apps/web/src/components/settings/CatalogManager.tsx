@@ -1,14 +1,18 @@
-import { useState } from "react"
-import { useTranslation } from "react-i18next"
-import { useCatalogs, useCatalogProducts, useTriggerCatalogProductsSync } from "@/hooks/useCatalogs"
-import { Button } from "@/components/ui/button"
+import { useState } from "react";
+import { useTranslation } from "react-i18next";
+import {
+  useCatalogs,
+  useCatalogProducts,
+  useTriggerCatalogProductsSync,
+} from "@/hooks/useCatalogs";
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogDescription,
-} from "@/components/ui/dialog"
+} from "@/components/ui/dialog";
 import {
   RefreshCw,
   ShoppingBag,
@@ -23,17 +27,18 @@ import {
   EyeOff,
   DollarSign,
   Image as ImageIcon,
-} from "lucide-react"
-import type { WhatsAppCatalog, CatalogProduct } from "@/hooks/useCatalogs"
+} from "lucide-react";
+import type { WhatsAppCatalog, CatalogProduct } from "@/hooks/useCatalogs";
 
 /**
  * WhatsApp Business Catalogs Manager Component
  * Allows users to view and manage WhatsApp Business product catalogs
  */
 export function CatalogManager() {
-  const { t } = useTranslation()
-  const [selectedCatalog, setSelectedCatalog] = useState<WhatsAppCatalog | null>(null)
-  const [productsDialogOpen, setProductsDialogOpen] = useState(false)
+  const { t } = useTranslation();
+  const [selectedCatalog, setSelectedCatalog] =
+    useState<WhatsAppCatalog | null>(null);
+  const [productsDialogOpen, setProductsDialogOpen] = useState(false);
 
   const {
     catalogs,
@@ -46,67 +51,71 @@ export function CatalogManager() {
     isSyncing,
     isArchiving,
     isRestoring,
-  } = useCatalogs()
+  } = useCatalogs();
 
   const handleSync = async () => {
     try {
-      await sync()
+      await sync();
     } catch (err) {
-      console.error("Failed to sync catalogs:", err)
+      console.error("Failed to sync catalogs:", err);
     }
-  }
+  };
 
   const handleArchive = async (catalogId: string) => {
     try {
-      await archive(catalogId)
+      await archive(catalogId);
     } catch (err) {
-      console.error("Failed to archive catalog:", err)
+      console.error("Failed to archive catalog:", err);
     }
-  }
+  };
 
   const handleRestore = async (catalogId: string) => {
     try {
-      await restore(catalogId)
+      await restore(catalogId);
     } catch (err) {
-      console.error("Failed to restore catalog:", err)
+      console.error("Failed to restore catalog:", err);
     }
-  }
+  };
 
   const openProductsDialog = (catalog: WhatsAppCatalog) => {
-    setSelectedCatalog(catalog)
-    setProductsDialogOpen(true)
-  }
+    setSelectedCatalog(catalog);
+    setProductsDialogOpen(true);
+  };
 
   const formatLastSync = (dateString: string | null) => {
-    if (!dateString) return t("catalogs.neverSynced", "Never synced")
-    const date = new Date(dateString)
-    const now = new Date()
-    const diffMs = now.getTime() - date.getTime()
-    const diffMins = Math.floor(diffMs / 60000)
-    const diffHours = Math.floor(diffMs / 3600000)
-    const diffDays = Math.floor(diffMs / 86400000)
+    if (!dateString) return t("catalogs.neverSynced", "Never synced");
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
 
-    if (diffMins < 1) return t("catalogs.justNow", "Just now")
-    if (diffMins < 60) return t("catalogs.minutesAgo", "{{count}} min ago", { count: diffMins })
-    if (diffHours < 24) return t("catalogs.hoursAgo", "{{count}} hr ago", { count: diffHours })
-    return t("catalogs.daysAgo", "{{count}} days ago", { count: diffDays })
-  }
+    if (diffMins < 1) return t("catalogs.justNow", "Just now");
+    if (diffMins < 60)
+      return t("catalogs.minutesAgo", "{{count}} min ago", { count: diffMins });
+    if (diffHours < 24)
+      return t("catalogs.hoursAgo", "{{count}} hr ago", { count: diffHours });
+    return t("catalogs.daysAgo", "{{count}} days ago", { count: diffDays });
+  };
 
   const formatCurrency = (price: number | null, currency: string) => {
-    if (price === null) return "-"
+    if (price === null) return "-";
     return new Intl.NumberFormat("en-US", {
       style: "currency",
       currency: currency || "USD",
-    }).format(price)
-  }
+    }).format(price);
+  };
 
   if (error) {
     return (
       <div className="flex items-center gap-2 text-red-600 text-sm">
         <AlertCircle className="h-4 w-4" />
-        <span>{t("catalogs.errors.loadFailed", "Failed to load catalogs")}</span>
+        <span>
+          {t("catalogs.errors.loadFailed", "Failed to load catalogs")}
+        </span>
       </div>
-    )
+    );
   }
 
   return (
@@ -115,7 +124,7 @@ export function CatalogManager() {
       <p className="text-sm text-gray-600">
         {t(
           "catalogs.description",
-          "View and manage your WhatsApp Business product catalogs. Sync catalogs from WhatsApp to display products and share them with customers."
+          "View and manage your WhatsApp Business product catalogs. Sync catalogs from WhatsApp to display products and share them with customers.",
         )}
       </p>
 
@@ -189,7 +198,7 @@ export function CatalogManager() {
           <p className="text-sm mt-1">
             {t(
               "catalogs.emptyHint",
-              "Create catalogs in WhatsApp Business and click 'Sync Catalogs' to import them"
+              "Create catalogs in WhatsApp Business and click 'Sync Catalogs' to import them",
             )}
           </p>
         </div>
@@ -229,8 +238,7 @@ export function CatalogManager() {
                 <div className="flex items-center gap-3 text-xs text-gray-500 mt-0.5">
                   <span className="flex items-center gap-1">
                     <Package className="h-3 w-3" />
-                    {catalog.productCount}{" "}
-                    {t("catalogs.products", "products")}
+                    {catalog.productCount} {t("catalogs.products", "products")}
                   </span>
                   <span className="flex items-center gap-1">
                     <DollarSign className="h-3 w-3" />
@@ -305,7 +313,7 @@ export function CatalogManager() {
         formatCurrency={formatCurrency}
       />
     </div>
-  )
+  );
 }
 
 /**
@@ -318,25 +326,27 @@ function ProductsDialog({
   onOpenChange,
   formatCurrency,
 }: {
-  catalog: WhatsAppCatalog | null
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  formatCurrency: (price: number | null, currency: string) => string
+  catalog: WhatsAppCatalog | null;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  formatCurrency: (price: number | null, currency: string) => string;
 }) {
-  const { t } = useTranslation()
-  const { data: productsData, isLoading } = useCatalogProducts(catalog?.catalogId || "")
-  const syncMutation = useTriggerCatalogProductsSync()
+  const { t } = useTranslation();
+  const { data: productsData, isLoading } = useCatalogProducts(
+    catalog?.catalogId || "",
+  );
+  const syncMutation = useTriggerCatalogProductsSync();
 
-  const products = productsData?.data || []
+  const products = productsData?.data || [];
 
   const handleSyncProducts = async () => {
-    if (!catalog) return
+    if (!catalog) return;
     try {
-      await syncMutation.mutateAsync(catalog.catalogId)
+      await syncMutation.mutateAsync(catalog.catalogId);
     } catch (err) {
-      console.error("Failed to sync products:", err)
+      console.error("Failed to sync products:", err);
     }
-  }
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -349,7 +359,7 @@ function ProductsDialog({
           <DialogDescription>
             {t(
               "catalogs.productsDescription",
-              "Products in this catalog from WhatsApp Business."
+              "Products in this catalog from WhatsApp Business.",
             )}
           </DialogDescription>
         </DialogHeader>
@@ -388,7 +398,7 @@ function ProductsDialog({
               <p className="text-sm mt-1">
                 {t(
                   "catalogs.noProductsHint",
-                  "Add products to this catalog in WhatsApp Business"
+                  "Add products to this catalog in WhatsApp Business",
                 )}
               </p>
             </div>
@@ -406,7 +416,7 @@ function ProductsDialog({
         </div>
       </DialogContent>
     </Dialog>
-  )
+  );
 }
 
 /**
@@ -417,11 +427,11 @@ function ProductItem({
   product,
   formatCurrency,
 }: {
-  product: CatalogProduct
-  formatCurrency: (price: number | null, currency: string) => string
+  product: CatalogProduct;
+  formatCurrency: (price: number | null, currency: string) => string;
 }) {
-  const { t } = useTranslation()
-  const imageUrl = product.imageUrls?.[0]
+  const { t } = useTranslation();
+  const imageUrl = product.imageUrls?.[0];
 
   return (
     <div
@@ -480,7 +490,7 @@ function ProductItem({
         )}
       </div>
     </div>
-  )
+  );
 }
 
-export default CatalogManager
+export default CatalogManager;

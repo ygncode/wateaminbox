@@ -131,7 +131,9 @@ export const ChatListItem = memo(function ChatListItem({
         <div className="flex items-center justify-between gap-2">
           <span
             className={`text-base truncate ${
-              unreadCount > 0 ? "font-semibold text-gray-900 dark:text-dark-text-primary" : "text-gray-900 dark:text-dark-text-primary"
+              unreadCount > 0
+                ? "font-semibold text-gray-900 dark:text-dark-text-primary"
+                : "text-gray-900 dark:text-dark-text-primary"
             }`}
           >
             {displayName}
@@ -193,7 +195,9 @@ export const ChatListItem = memo(function ChatListItem({
             )}
             <span
               className={`text-sm truncate ${
-                unreadCount > 0 ? "text-gray-700 dark:text-dark-text-primary" : "text-gray-500 dark:text-dark-text-secondary"
+                unreadCount > 0
+                  ? "text-gray-700 dark:text-dark-text-primary"
+                  : "text-gray-500 dark:text-dark-text-secondary"
               }`}
             >
               {messagePreview}

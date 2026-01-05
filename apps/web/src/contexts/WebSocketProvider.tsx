@@ -260,7 +260,7 @@ export function WebSocketProvider({
     const unsubNewMessage = client.on<NewMessagePayload>(
       "message:new",
       (payload) => {
-        console.log('[WebSocket] 💬 New message received in realtime:', {
+        console.log("[WebSocket] 💬 New message received in realtime:", {
           messageId: payload.message.id,
           conversationId: payload.conversationId,
           content: payload.message.content?.substring(0, 50),
@@ -280,10 +280,13 @@ export function WebSocketProvider({
 
           // Check if message already exists to avoid duplicates
           const messageExists = oldData.pages.some((page) =>
-            page.messages.some((msg) => msg.id === payload.message.id)
+            page.messages.some((msg) => msg.id === payload.message.id),
           );
           if (messageExists) {
-            console.log('[WebSocket] ⚠️ Duplicate message ignored:', payload.message.id);
+            console.log(
+              "[WebSocket] ⚠️ Duplicate message ignored:",
+              payload.message.id,
+            );
             return oldData;
           }
 
@@ -294,8 +297,10 @@ export function WebSocketProvider({
               ...newPages[0],
               messages: [payload.message, ...newPages[0].messages],
             };
-            console.log('[WebSocket] ✅ Message added to cache, total messages:',
-              newPages.reduce((sum, page) => sum + page.messages.length, 0));
+            console.log(
+              "[WebSocket] ✅ Message added to cache, total messages:",
+              newPages.reduce((sum, page) => sum + page.messages.length, 0),
+            );
           }
 
           return {
@@ -306,7 +311,9 @@ export function WebSocketProvider({
 
         // Invalidate chat list queries to update unread count badges
         // This ensures the sidebar shows updated unread counts when new messages arrive
-        queryClientRef.current.invalidateQueries({ queryKey: chatKeys.lists() });
+        queryClientRef.current.invalidateQueries({
+          queryKey: chatKeys.lists(),
+        });
       },
     );
 
@@ -341,7 +348,10 @@ export function WebSocketProvider({
     const unsubTypingStop = client.on<TypingPayload>(
       "typing:stop",
       (payload) => {
-        removeTypingIndicatorRef.current(payload.conversationId, payload.userId);
+        removeTypingIndicatorRef.current(
+          payload.conversationId,
+          payload.userId,
+        );
         clearTypingTimeoutRef.current(payload.conversationId, payload.userId);
       },
     );
@@ -358,13 +368,15 @@ export function WebSocketProvider({
     const unsubConversationRead = client.on<ConversationReadPayload>(
       "conversation:read",
       (payload) => {
-        console.log('[WebSocket] 📖 Conversation marked as read:', {
+        console.log("[WebSocket] 📖 Conversation marked as read:", {
           contactId: payload.contactId,
           readBy: payload.readBy,
         });
 
         // Invalidate chat list queries to update unread count badges
-        queryClientRef.current.invalidateQueries({ queryKey: chatKeys.lists() });
+        queryClientRef.current.invalidateQueries({
+          queryKey: chatKeys.lists(),
+        });
       },
     );
 
@@ -425,7 +437,11 @@ export function WebSocketProvider({
             ...page,
             messages: page.messages.map((msg) =>
               msg.id === payload.messageId
-                ? { ...msg, deleted_by_sender: true, deleted_at: new Date().toISOString() }
+                ? {
+                    ...msg,
+                    deleted_by_sender: true,
+                    deleted_at: new Date().toISOString(),
+                  }
                 : msg,
             ),
           }));
@@ -439,62 +455,71 @@ export function WebSocketProvider({
     );
 
     // Presence online handler
-    const unsubPresenceOnline = client.on<{ jid: string; isOnline: boolean; lastSeen?: string }>(
-      "presence:online",
-      (payload) => {
-        console.log('[WebSocket] ✅ Contact came online:', payload.jid);
+    const unsubPresenceOnline = client.on<{
+      jid: string;
+      isOnline: boolean;
+      lastSeen?: string;
+    }>("presence:online", (payload) => {
+      console.log("[WebSocket] ✅ Contact came online:", payload.jid);
 
-        // Update chat list cache
-        queryClientRef.current.setQueriesData(
-          { queryKey: chatKeys.lists() },
-          (oldData: any) => {
-            if (!oldData) return oldData;
-            return oldData.map((chat: any) => {
-              if (chat.contact?.jid === payload.jid) {
-                return {
-                  ...chat,
-                  contact: {
-                    ...chat.contact,
-                    isOnline: true,
-                    lastSeen: null,
-                  },
-                };
-              }
-              return chat;
-            });
-          },
-        );
-      },
-    );
+      // Update chat list cache
+      queryClientRef.current.setQueriesData(
+        { queryKey: chatKeys.lists() },
+        (oldData: any) => {
+          if (!oldData) return oldData;
+          return oldData.map((chat: any) => {
+            if (chat.contact?.jid === payload.jid) {
+              return {
+                ...chat,
+                contact: {
+                  ...chat.contact,
+                  isOnline: true,
+                  lastSeen: null,
+                },
+              };
+            }
+            return chat;
+          });
+        },
+      );
+    });
 
     // Presence offline handler
-    const unsubPresenceOffline = client.on<{ jid: string; isOnline: boolean; lastSeen?: string }>(
-      "presence:offline",
-      (payload) => {
-        console.log('[WebSocket] 🔴 Contact went offline:', payload.jid, 'last seen:', payload.lastSeen);
+    const unsubPresenceOffline = client.on<{
+      jid: string;
+      isOnline: boolean;
+      lastSeen?: string;
+    }>("presence:offline", (payload) => {
+      console.log(
+        "[WebSocket] 🔴 Contact went offline:",
+        payload.jid,
+        "last seen:",
+        payload.lastSeen,
+      );
 
-        // Update chat list cache
-        queryClientRef.current.setQueriesData(
-          { queryKey: chatKeys.lists() },
-          (oldData: any) => {
-            if (!oldData) return oldData;
-            return oldData.map((chat: any) => {
-              if (chat.contact?.jid === payload.jid) {
-                return {
-                  ...chat,
-                  contact: {
-                    ...chat.contact,
-                    isOnline: false,
-                    lastSeen: payload.lastSeen ? new Date(payload.lastSeen) : undefined,
-                  },
-                };
-              }
-              return chat;
-            });
-          },
-        );
-      },
-    );
+      // Update chat list cache
+      queryClientRef.current.setQueriesData(
+        { queryKey: chatKeys.lists() },
+        (oldData: any) => {
+          if (!oldData) return oldData;
+          return oldData.map((chat: any) => {
+            if (chat.contact?.jid === payload.jid) {
+              return {
+                ...chat,
+                contact: {
+                  ...chat.contact,
+                  isOnline: false,
+                  lastSeen: payload.lastSeen
+                    ? new Date(payload.lastSeen)
+                    : undefined,
+                },
+              };
+            }
+            return chat;
+          });
+        },
+      );
+    });
 
     // Auto-connect if enabled and we have a token
     if (autoConnect && getAccessToken()) {

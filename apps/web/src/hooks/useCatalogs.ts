@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   getWhatsAppCatalogs,
   getCatalogSyncStatus,
@@ -13,16 +13,18 @@ import {
   type CatalogProduct,
   type CatalogSyncStatus,
   type ProductVisibility,
-} from '@/lib/api'
+} from "@/lib/api";
 
 // Query keys for catalogs
 export const catalogKeys = {
-  all: ['catalogs'] as const,
-  list: () => [...catalogKeys.all, 'list'] as const,
-  status: () => [...catalogKeys.all, 'status'] as const,
-  detail: (catalogId: string) => [...catalogKeys.all, 'detail', catalogId] as const,
-  products: (catalogId: string) => [...catalogKeys.all, 'products', catalogId] as const,
-}
+  all: ["catalogs"] as const,
+  list: () => [...catalogKeys.all, "list"] as const,
+  status: () => [...catalogKeys.all, "status"] as const,
+  detail: (catalogId: string) =>
+    [...catalogKeys.all, "detail", catalogId] as const,
+  products: (catalogId: string) =>
+    [...catalogKeys.all, "products", catalogId] as const,
+};
 
 /**
  * Hook for fetching WhatsApp Business catalogs
@@ -32,7 +34,7 @@ export function useWhatsAppCatalogs() {
     queryKey: catalogKeys.list(),
     queryFn: getWhatsAppCatalogs,
     staleTime: 60 * 1000, // 1 minute
-  })
+  });
 }
 
 /**
@@ -43,7 +45,7 @@ export function useCatalogSyncStatus() {
     queryKey: catalogKeys.status(),
     queryFn: getCatalogSyncStatus,
     staleTime: 30 * 1000, // 30 seconds
-  })
+  });
 }
 
 /**
@@ -55,7 +57,7 @@ export function useWhatsAppCatalog(catalogId: string) {
     queryFn: () => getWhatsAppCatalog(catalogId),
     staleTime: 60 * 1000, // 1 minute
     enabled: !!catalogId,
-  })
+  });
 }
 
 /**
@@ -67,73 +69,77 @@ export function useCatalogProducts(catalogId: string) {
     queryFn: () => getCatalogProducts(catalogId),
     staleTime: 60 * 1000, // 1 minute
     enabled: !!catalogId,
-  })
+  });
 }
 
 /**
  * Hook for triggering a catalog sync from WhatsApp Business
  */
 export function useTriggerCatalogSync() {
-  const queryClient = useQueryClient()
+  const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: triggerCatalogSync,
     onSuccess: () => {
       // Invalidate catalogs and status to refresh after sync completes
-      queryClient.invalidateQueries({ queryKey: catalogKeys.all })
+      queryClient.invalidateQueries({ queryKey: catalogKeys.all });
     },
-  })
+  });
 }
 
 /**
  * Hook for triggering a product sync for a specific catalog
  */
 export function useTriggerCatalogProductsSync() {
-  const queryClient = useQueryClient()
+  const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: (catalogId: string) => triggerCatalogProductsSync(catalogId),
     onSuccess: (_, catalogId) => {
       // Invalidate products for the specific catalog
-      queryClient.invalidateQueries({ queryKey: catalogKeys.products(catalogId) })
-      queryClient.invalidateQueries({ queryKey: catalogKeys.detail(catalogId) })
+      queryClient.invalidateQueries({
+        queryKey: catalogKeys.products(catalogId),
+      });
+      queryClient.invalidateQueries({
+        queryKey: catalogKeys.detail(catalogId),
+      });
     },
-  })
+  });
 }
 
 /**
  * Hook for archiving a catalog
  */
 export function useArchiveCatalog() {
-  const queryClient = useQueryClient()
+  const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: (catalogId: string) => archiveCatalog(catalogId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: catalogKeys.all })
+      queryClient.invalidateQueries({ queryKey: catalogKeys.all });
     },
-  })
+  });
 }
 
 /**
  * Hook for restoring an archived catalog
  */
 export function useRestoreCatalog() {
-  const queryClient = useQueryClient()
+  const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: (catalogId: string) => restoreCatalog(catalogId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: catalogKeys.all })
+      queryClient.invalidateQueries({ queryKey: catalogKeys.all });
     },
-  })
+  });
 }
 
 /**
  * Hook for updating product visibility
  */
 export function useUpdateProductVisibility() {
-  const queryClient = useQueryClient()
+  const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: ({
@@ -141,29 +147,31 @@ export function useUpdateProductVisibility() {
       productId,
       visibility,
     }: {
-      catalogId: string
-      productId: string
-      visibility: ProductVisibility
+      catalogId: string;
+      productId: string;
+      visibility: ProductVisibility;
     }) => updateProductVisibility(catalogId, productId, visibility),
     onSuccess: (_, { catalogId }) => {
       // Invalidate products for the specific catalog
-      queryClient.invalidateQueries({ queryKey: catalogKeys.products(catalogId) })
+      queryClient.invalidateQueries({
+        queryKey: catalogKeys.products(catalogId),
+      });
     },
-  })
+  });
 }
 
 /**
  * Combined hook for catalog management
  */
 export function useCatalogs() {
-  const queryClient = useQueryClient()
+  const queryClient = useQueryClient();
 
-  const catalogsQuery = useWhatsAppCatalogs()
-  const statusQuery = useCatalogSyncStatus()
+  const catalogsQuery = useWhatsAppCatalogs();
+  const statusQuery = useCatalogSyncStatus();
 
-  const syncMutation = useTriggerCatalogSync()
-  const archiveMutation = useArchiveCatalog()
-  const restoreMutation = useRestoreCatalog()
+  const syncMutation = useTriggerCatalogSync();
+  const archiveMutation = useArchiveCatalog();
+  const restoreMutation = useRestoreCatalog();
 
   return {
     // Data
@@ -183,15 +191,20 @@ export function useCatalogs() {
     archive: (catalogId: string) => archiveMutation.mutateAsync(catalogId),
     restore: (catalogId: string) => restoreMutation.mutateAsync(catalogId),
     refresh: () => {
-      queryClient.invalidateQueries({ queryKey: catalogKeys.all })
+      queryClient.invalidateQueries({ queryKey: catalogKeys.all });
     },
 
     // Mutation states
     isSyncing: syncMutation.isPending,
     isArchiving: archiveMutation.isPending,
     isRestoring: restoreMutation.isPending,
-  }
+  };
 }
 
 // Type exports
-export type { WhatsAppCatalog, CatalogProduct, CatalogSyncStatus, ProductVisibility }
+export type {
+  WhatsAppCatalog,
+  CatalogProduct,
+  CatalogSyncStatus,
+  ProductVisibility,
+};

@@ -32,7 +32,7 @@ export function QuickRepliesManager() {
   const [searchQuery, setSearchQuery] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingQuickReply, setEditingQuickReply] = useState<QuickReply | null>(
-    null
+    null,
   );
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
@@ -59,7 +59,7 @@ export function QuickRepliesManager() {
         (qr) =>
           qr.shortcut.toLowerCase().includes(searchQuery.toLowerCase()) ||
           qr.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          qr.content.toLowerCase().includes(searchQuery.toLowerCase())
+          qr.content.toLowerCase().includes(searchQuery.toLowerCase()),
       )
     : quickReplies;
 
@@ -99,7 +99,9 @@ export function QuickRepliesManager() {
 
     // Validation
     if (!shortcut.trim()) {
-      setFormError(t("quickReplies.errors.shortcutRequired", "Shortcut is required"));
+      setFormError(
+        t("quickReplies.errors.shortcutRequired", "Shortcut is required"),
+      );
       return;
     }
 
@@ -107,8 +109,8 @@ export function QuickRepliesManager() {
       setFormError(
         t(
           "quickReplies.errors.shortcutInvalid",
-          "Shortcut can only contain letters, numbers, underscores, and hyphens"
-        )
+          "Shortcut can only contain letters, numbers, underscores, and hyphens",
+        ),
       );
       return;
     }
@@ -119,7 +121,9 @@ export function QuickRepliesManager() {
     }
 
     if (!content.trim()) {
-      setFormError(t("quickReplies.errors.contentRequired", "Content is required"));
+      setFormError(
+        t("quickReplies.errors.contentRequired", "Content is required"),
+      );
       return;
     }
 
@@ -144,8 +148,8 @@ export function QuickRepliesManager() {
           setFormError(
             t(
               "quickReplies.errors.shortcutExists",
-              "A quick reply with this shortcut already exists"
-            )
+              "A quick reply with this shortcut already exists",
+            ),
           );
         } else {
           setFormError(err.message);
@@ -180,7 +184,7 @@ export function QuickRepliesManager() {
       <p className="text-sm text-gray-600">
         {t(
           "quickReplies.description",
-          "Create predefined message templates for quick responses. Type / followed by the shortcut in the message composer to use them."
+          "Create predefined message templates for quick responses. Type / followed by the shortcut in the message composer to use them.",
         )}
       </p>
 
@@ -192,7 +196,10 @@ export function QuickRepliesManager() {
           </div>
           <Input
             type="text"
-            placeholder={t("quickReplies.searchPlaceholder", "Search quick replies...")}
+            placeholder={t(
+              "quickReplies.searchPlaceholder",
+              "Search quick replies...",
+            )}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="pl-9"
@@ -225,12 +232,21 @@ export function QuickRepliesManager() {
           </p>
           <p className="text-sm mt-1">
             {searchQuery
-              ? t("quickReplies.tryDifferentSearch", "Try a different search term")
-              : t("quickReplies.createFirst", "Create your first quick reply to get started")}
+              ? t(
+                  "quickReplies.tryDifferentSearch",
+                  "Try a different search term",
+                )
+              : t(
+                  "quickReplies.createFirst",
+                  "Create your first quick reply to get started",
+                )}
           </p>
         </div>
       ) : (
-        <div className="space-y-2 max-h-[400px] overflow-y-auto" data-testid="quick-replies-list">
+        <div
+          className="space-y-2 max-h-[400px] overflow-y-auto"
+          data-testid="quick-replies-list"
+        >
           {filteredQuickReplies.map((qr) => (
             <div
               key={qr.id}
@@ -291,11 +307,11 @@ export function QuickRepliesManager() {
               {editingQuickReply
                 ? t(
                     "quickReplies.editDescription",
-                    "Update the quick reply details below."
+                    "Update the quick reply details below.",
                   )
                 : t(
                     "quickReplies.createDescription",
-                    "Create a new quick reply template."
+                    "Create a new quick reply template.",
                   )}
             </DialogDescription>
           </DialogHeader>
@@ -323,7 +339,10 @@ export function QuickRepliesManager() {
                   id="shortcut"
                   value={shortcut}
                   onChange={(e) => setShortcut(e.target.value)}
-                  placeholder={t("quickReplies.shortcutPlaceholder", "greeting")}
+                  placeholder={t(
+                    "quickReplies.shortcutPlaceholder",
+                    "greeting",
+                  )}
                   className="pl-7"
                   maxLength={50}
                   data-testid="quick-reply-shortcut-input"
@@ -332,7 +351,7 @@ export function QuickRepliesManager() {
               <p className="text-xs text-gray-500">
                 {t(
                   "quickReplies.shortcutHelp",
-                  "Letters, numbers, underscores, and hyphens only"
+                  "Letters, numbers, underscores, and hyphens only",
                 )}
               </p>
             </div>
@@ -348,7 +367,10 @@ export function QuickRepliesManager() {
                 id="title"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                placeholder={t("quickReplies.titlePlaceholder", "Welcome Message")}
+                placeholder={t(
+                  "quickReplies.titlePlaceholder",
+                  "Welcome Message",
+                )}
                 maxLength={255}
                 data-testid="quick-reply-title-input"
               />
@@ -367,7 +389,7 @@ export function QuickRepliesManager() {
                 onChange={(e) => setContent(e.target.value)}
                 placeholder={t(
                   "quickReplies.contentPlaceholder",
-                  "Hello! Thank you for reaching out. How can I help you today?"
+                  "Hello! Thank you for reaching out. How can I help you today?",
                 )}
                 rows={4}
                 data-testid="quick-reply-content-input"
@@ -409,7 +431,7 @@ export function QuickRepliesManager() {
             <DialogDescription>
               {t(
                 "quickReplies.deleteConfirmation",
-                "Are you sure you want to delete this quick reply? This action cannot be undone."
+                "Are you sure you want to delete this quick reply? This action cannot be undone.",
               )}
             </DialogDescription>
           </DialogHeader>
