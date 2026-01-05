@@ -59,7 +59,9 @@ export function useSendMessage() {
         senderType: "user",
         messageType: newMessage.messageType || "text",
         content: newMessage.content,
-        metadata: newMessage.mediaUrl ? { mediaUrl: newMessage.mediaUrl } : undefined,
+        metadata: newMessage.mediaUrl
+          ? { mediaUrl: newMessage.mediaUrl }
+          : undefined,
         replyToMessageId: newMessage.replyToMessageId,
         isStarred: false,
         isDeleted: false,
@@ -73,7 +75,11 @@ export function useSendMessage() {
       const previousData = queryClient.getQueryData(queryKey);
 
       queryClient.setQueryData<{
-        pages: { messages: Message[]; hasMore: boolean; nextCursor: string | null }[];
+        pages: {
+          messages: Message[];
+          hasMore: boolean;
+          nextCursor: string | null;
+        }[];
         pageParams: (string | undefined)[];
       }>(queryKey, (oldData) => {
         if (!oldData) return oldData;
@@ -92,14 +98,18 @@ export function useSendMessage() {
         };
       });
 
-      return { contactId: newMessage.contactId, previousData, optimisticId: optimisticMessage.id };
+      return {
+        contactId: newMessage.contactId,
+        previousData,
+        optimisticId: optimisticMessage.id,
+      };
     },
     onError: (_error, variables, context) => {
       // Rollback on error
       if (context?.previousData) {
         queryClient.setQueryData(
           infiniteMessageKeys.list(variables.contactId),
-          context.previousData
+          context.previousData,
         );
       }
     },
@@ -234,7 +244,10 @@ export function useReactMessage() {
       messageId: string;
       conversationId: string;
       emoji: string;
-    }) => api.post<{ success: boolean }>(`/messages/${messageId}/reaction`, { emoji }),
+    }) =>
+      api.post<{ success: boolean }>(`/messages/${messageId}/reaction`, {
+        emoji,
+      }),
     onSuccess: (_data, variables) => {
       // Invalidate the messages query to show the new reaction
       queryClient.invalidateQueries({
@@ -265,7 +278,10 @@ export function useForwardMessage() {
       messageId: string;
       sourceConversationId: string;
       targetContactId: string;
-    }) => api.post<ForwardMessageResponse>(`/messages/${messageId}/forward`, { targetContactId }),
+    }) =>
+      api.post<ForwardMessageResponse>(`/messages/${messageId}/forward`, {
+        targetContactId,
+      }),
     onSuccess: (_data, variables) => {
       // Invalidate both source and target conversation message lists
       queryClient.invalidateQueries({

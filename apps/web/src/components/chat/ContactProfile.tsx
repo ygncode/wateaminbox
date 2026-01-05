@@ -194,7 +194,9 @@ function ProfileHeader({
           {contact.displayName}
         </h3>
         {contact.customName && contact.pushName && (
-          <p className="text-sm text-gray-500 dark:text-dark-text-secondary">~{contact.pushName}</p>
+          <p className="text-sm text-gray-500 dark:text-dark-text-secondary">
+            ~{contact.pushName}
+          </p>
         )}
       </div>
     </div>
@@ -219,7 +221,9 @@ function ContactInfoSection({
               <p className="text-sm font-medium text-gray-900 dark:text-dark-text-primary">
                 {contact.phoneNumber}
               </p>
-              <p className="text-xs text-gray-500 dark:text-dark-text-tertiary">Phone</p>
+              <p className="text-xs text-gray-500 dark:text-dark-text-tertiary">
+                Phone
+              </p>
             </div>
           </div>
         )}
@@ -230,7 +234,9 @@ function ContactInfoSection({
               <p className="text-sm font-medium text-gray-900 dark:text-dark-text-primary">
                 {contact.pushName}
               </p>
-              <p className="text-xs text-gray-500 dark:text-dark-text-tertiary">WhatsApp Name</p>
+              <p className="text-xs text-gray-500 dark:text-dark-text-tertiary">
+                WhatsApp Name
+              </p>
             </div>
           </div>
         )}
@@ -301,7 +307,9 @@ function EditableNameSection({
         <div className="flex items-center justify-between">
           <p className="text-sm text-gray-700 dark:text-dark-text-primary">
             {contact.customName || (
-              <span className="text-gray-400 dark:text-dark-text-tertiary italic">No custom name set</span>
+              <span className="text-gray-400 dark:text-dark-text-tertiary italic">
+                No custom name set
+              </span>
             )}
           </p>
           <Button
@@ -361,7 +369,8 @@ function NoteItem({
     return date.toLocaleDateString(undefined, {
       month: "short",
       day: "numeric",
-      year: date.getFullYear() !== new Date().getFullYear() ? "numeric" : undefined,
+      year:
+        date.getFullYear() !== new Date().getFullYear() ? "numeric" : undefined,
     });
   };
 
@@ -429,7 +438,12 @@ function NoteItem({
       <div className="mt-2 flex items-center gap-2 text-xs text-gray-500 dark:text-dark-text-tertiary">
         {showAuthor && "authorName" in note && (
           <>
-            <span className={cn("font-medium", isSystem && "text-blue-600 dark:text-blue-400")}>
+            <span
+              className={cn(
+                "font-medium",
+                isSystem && "text-blue-600 dark:text-blue-400",
+              )}
+            >
               {note.authorName}
             </span>
             <span>•</span>
@@ -461,7 +475,8 @@ function SharedNotesList({ contactId }: { contactId: string }) {
   const [isExpanded, setIsExpanded] = useState(true);
 
   const notes = data?.data || [];
-  const isPending = createNote.isPending || updateNote.isPending || deleteNote.isPending;
+  const isPending =
+    createNote.isPending || updateNote.isPending || deleteNote.isPending;
 
   const handleCreate = async () => {
     if (newContent.trim()) {
@@ -592,7 +607,8 @@ function PrivateNotesList({ contactId }: { contactId: string }) {
   const [isExpanded, setIsExpanded] = useState(true);
 
   const notes = data?.data || [];
-  const isPending = createNote.isPending || updateNote.isPending || deleteNote.isPending;
+  const isPending =
+    createNote.isPending || updateNote.isPending || deleteNote.isPending;
 
   const handleCreate = async () => {
     if (newContent.trim()) {
@@ -778,7 +794,9 @@ function TagsSection({
               {isLoadingTags ? (
                 <Skeleton className="h-8 w-full" />
               ) : availableTags.length === 0 ? (
-                <p className="text-xs text-gray-500 dark:text-dark-text-tertiary">No more tags available</p>
+                <p className="text-xs text-gray-500 dark:text-dark-text-tertiary">
+                  No more tags available
+                </p>
               ) : (
                 <div className="flex flex-wrap gap-1">
                   {availableTags.map((tag) => (
@@ -919,7 +937,9 @@ function AssignmentHistorySection({ contactId }: { contactId: string }) {
               <History
                 className={cn(
                   "h-4 w-4",
-                  entry.isActive ? "text-green-600 dark:text-green-400" : "text-gray-400 dark:text-dark-text-tertiary",
+                  entry.isActive
+                    ? "text-green-600 dark:text-green-400"
+                    : "text-gray-400 dark:text-dark-text-tertiary",
                 )}
               />
             </div>

@@ -209,7 +209,9 @@ export function usePromoteParticipant() {
         success: boolean;
         message: string;
         participantJid: string;
-      }>(`/groups/${groupId}/participants/${encodeURIComponent(participantJid)}/promote`);
+      }>(
+        `/groups/${groupId}/participants/${encodeURIComponent(participantJid)}/promote`,
+      );
       return response;
     },
     onSuccess: (_data, variables) => {
@@ -252,7 +254,9 @@ export function useDemoteParticipant() {
         success: boolean;
         message: string;
         participantJid: string;
-      }>(`/groups/${groupId}/participants/${encodeURIComponent(participantJid)}/demote`);
+      }>(
+        `/groups/${groupId}/participants/${encodeURIComponent(participantJid)}/demote`,
+      );
       return response;
     },
     onSuccess: (_data, variables) => {
@@ -295,7 +299,9 @@ export function useRemoveParticipant() {
         success: boolean;
         message: string;
         participantJid: string;
-      }>(`/groups/${groupId}/participants/${encodeURIComponent(participantJid)}`);
+      }>(
+        `/groups/${groupId}/participants/${encodeURIComponent(participantJid)}`,
+      );
       return response;
     },
     onSuccess: (_data, variables) => {

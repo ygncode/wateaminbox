@@ -14,7 +14,13 @@ import {
   SelectValue,
   Checkbox,
 } from "@/components/ui";
-import { Download, FileSpreadsheet, FileJson, Loader2, Archive } from "lucide-react";
+import {
+  Download,
+  FileSpreadsheet,
+  FileJson,
+  Loader2,
+  Archive,
+} from "lucide-react";
 import {
   useExportContacts,
   useExportMessages,
@@ -178,7 +184,9 @@ export function ExportDialog({
           )}
 
           {/* Date range for messages/conversations/full-backup */}
-          {(type === "messages" || type === "conversation" || type === "full-backup") && (
+          {(type === "messages" ||
+            type === "conversation" ||
+            type === "full-backup") && (
             <div className="space-y-2">
               <Label>Date Range</Label>
               <Select

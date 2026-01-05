@@ -239,7 +239,11 @@ async function handleResponse<T>(response: Response): Promise<T> {
       // Handle both { error: "..." } and { message: "..." } formats from backend
       errorData = {
         code: jsonResponse.code || jsonResponse.error || "UNKNOWN_ERROR",
-        message: jsonResponse.message || jsonResponse.error || response.statusText || "An unknown error occurred",
+        message:
+          jsonResponse.message ||
+          jsonResponse.error ||
+          response.statusText ||
+          "An unknown error occurred",
         details: jsonResponse.details || jsonResponse.existingContact,
       };
     } catch {
@@ -597,7 +601,12 @@ export async function getWhatsAppStatus(): Promise<WhatsAppConnectionStatus> {
 // WhatsApp Multi-Connection API
 // =====================
 
-export type WhatsAppConnectionStatusType = "disconnected" | "pending" | "connected" | "banned" | "error";
+export type WhatsAppConnectionStatusType =
+  | "disconnected"
+  | "pending"
+  | "connected"
+  | "banned"
+  | "error";
 
 export interface WhatsAppConnection {
   id: string;
@@ -640,16 +649,20 @@ export async function listWhatsAppConnections(): Promise<WhatsAppConnection[]> {
 /**
  * Get a specific WhatsApp connection by ID
  */
-export async function getWhatsAppConnection(connectionId: string): Promise<WhatsAppConnection> {
+export async function getWhatsAppConnection(
+  connectionId: string,
+): Promise<WhatsAppConnection> {
   // Note: fetchWithAuth already unwraps { success, data } format
-  return fetchWithAuth<WhatsAppConnection>(`/whatsapp/connections/${connectionId}`);
+  return fetchWithAuth<WhatsAppConnection>(
+    `/whatsapp/connections/${connectionId}`,
+  );
 }
 
 /**
  * Create a new WhatsApp connection and initiate the pairing process
  */
 export async function createWhatsAppConnection(
-  name?: string
+  name?: string,
 ): Promise<WhatsAppConnection> {
   // Note: fetchWithAuth already unwraps { success, data } format
   return fetchWithAuth<WhatsAppConnection>("/whatsapp/connections", {
@@ -662,13 +675,13 @@ export async function createWhatsAppConnection(
  * Reconnect an existing disconnected WhatsApp connection
  */
 export async function reconnectWhatsAppConnection(
-  connectionId: string
+  connectionId: string,
 ): Promise<{ message: string; websocketUrl: string }> {
   return fetchWithAuth<{ message: string; websocketUrl: string }>(
     `/whatsapp/connections/${connectionId}/reconnect`,
     {
       method: "POST",
-    }
+    },
   );
 }
 
@@ -676,13 +689,13 @@ export async function reconnectWhatsAppConnection(
  * Disconnect a specific WhatsApp connection
  */
 export async function disconnectWhatsAppConnection(
-  connectionId: string
+  connectionId: string,
 ): Promise<{ message: string }> {
   return fetchWithAuth<{ message: string }>(
     `/whatsapp/connections/${connectionId}/disconnect`,
     {
       method: "POST",
-    }
+    },
   );
 }
 
@@ -690,13 +703,13 @@ export async function disconnectWhatsAppConnection(
  * Delete a WhatsApp connection permanently
  */
 export async function deleteWhatsAppConnection(
-  connectionId: string
+  connectionId: string,
 ): Promise<{ message: string }> {
   return fetchWithAuth<{ message: string }>(
     `/whatsapp/connections/${connectionId}`,
     {
       method: "DELETE",
-    }
+    },
   );
 }
 
@@ -705,7 +718,7 @@ export async function deleteWhatsAppConnection(
  */
 export async function updateWhatsAppConnection(
   connectionId: string,
-  data: { name?: string }
+  data: { name?: string },
 ): Promise<WhatsAppConnection> {
   // Note: fetchWithAuth already unwraps { success, data } format
   return fetchWithAuth<WhatsAppConnection>(
@@ -713,7 +726,7 @@ export async function updateWhatsAppConnection(
     {
       method: "PATCH",
       body: JSON.stringify(data),
-    }
+    },
   );
 }
 
@@ -966,47 +979,46 @@ export interface UpdateNotificationPreferencesInput {
 }
 
 export async function getNotificationPreferences(): Promise<NotificationPreferencesResponse> {
-  const response = await fetchWithAuth<{ data: NotificationPreferencesResponse }>(
-    "/notifications/preferences"
-  );
+  const response = await fetchWithAuth<{
+    data: NotificationPreferencesResponse;
+  }>("/notifications/preferences");
   return response.data;
 }
 
 export async function updateNotificationPreferences(
-  input: UpdateNotificationPreferencesInput
+  input: UpdateNotificationPreferencesInput,
 ): Promise<NotificationPreferencesResponse> {
-  const response = await fetchWithAuth<{ data: NotificationPreferencesResponse }>(
-    "/notifications/preferences",
-    {
-      method: "PATCH",
-      body: JSON.stringify(input),
-    }
-  );
+  const response = await fetchWithAuth<{
+    data: NotificationPreferencesResponse;
+  }>("/notifications/preferences", {
+    method: "PATCH",
+    body: JSON.stringify(input),
+  });
   return response.data;
 }
 
 export async function muteContactApi(
-  contactJid: string
+  contactJid: string,
 ): Promise<{ mutedContacts: string[] }> {
   const response = await fetchWithAuth<{ data: { mutedContacts: string[] } }>(
     "/notifications/mute",
     {
       method: "POST",
       body: JSON.stringify({ contactJid }),
-    }
+    },
   );
   return response.data;
 }
 
 export async function unmuteContactApi(
-  contactJid: string
+  contactJid: string,
 ): Promise<{ mutedContacts: string[] }> {
   const response = await fetchWithAuth<{ data: { mutedContacts: string[] } }>(
     "/notifications/unmute",
     {
       method: "POST",
       body: JSON.stringify({ contactJid }),
-    }
+    },
   );
   return response.data;
 }
@@ -1015,7 +1027,12 @@ export async function unmuteContactApi(
 // Notification History API (In-App Notification Center)
 // =====================
 
-export type NotificationType = "message" | "mention" | "assignment" | "team" | "system";
+export type NotificationType =
+  | "message"
+  | "mention"
+  | "assignment"
+  | "team"
+  | "system";
 
 export interface InAppNotification {
   id: string;
@@ -1055,49 +1072,49 @@ export interface CreateNotificationInput {
 }
 
 export async function getNotifications(
-  params: NotificationListParams = {}
+  params: NotificationListParams = {},
 ): Promise<NotificationListResponse> {
   const query = buildQueryString(params as Record<string, unknown>);
   return fetchWithAuth<NotificationListResponse>(`/notifications${query}`);
 }
 
 export async function getNotificationById(
-  notificationId: string
+  notificationId: string,
 ): Promise<InAppNotification> {
   const response = await fetchWithAuth<{ data: InAppNotification }>(
-    `/notifications/${notificationId}`
+    `/notifications/${notificationId}`,
   );
   return response.data;
 }
 
 export async function getUnreadNotificationCount(): Promise<number> {
   const response = await fetchWithAuth<{ data: { unreadCount: number } }>(
-    "/notifications/count"
+    "/notifications/count",
   );
   return response.data.unreadCount;
 }
 
 export async function createNotification(
-  input: CreateNotificationInput
+  input: CreateNotificationInput,
 ): Promise<InAppNotification> {
   const response = await fetchWithAuth<{ data: InAppNotification }>(
     "/notifications",
     {
       method: "POST",
       body: JSON.stringify(input),
-    }
+    },
   );
   return response.data;
 }
 
 export async function markNotificationAsRead(
-  notificationId: string
+  notificationId: string,
 ): Promise<InAppNotification> {
   const response = await fetchWithAuth<{ data: InAppNotification }>(
     `/notifications/${notificationId}/read`,
     {
       method: "PATCH",
-    }
+    },
   );
   return response.data;
 }
@@ -1107,19 +1124,19 @@ export async function markAllNotificationsAsRead(): Promise<number> {
     "/notifications/read-all",
     {
       method: "POST",
-    }
+    },
   );
   return response.data.markedAsRead;
 }
 
 export async function deleteNotification(
-  notificationId: string
+  notificationId: string,
 ): Promise<boolean> {
   const response = await fetchWithAuth<{ data: { deleted: boolean } }>(
     `/notifications/${notificationId}`,
     {
       method: "DELETE",
-    }
+    },
   );
   return response.data.deleted;
 }
@@ -1166,7 +1183,7 @@ export interface QuickReplyListResponse {
 }
 
 export async function getQuickReplies(
-  params?: QuickReplyListParams
+  params?: QuickReplyListParams,
 ): Promise<QuickReplyListResponse> {
   const query = params
     ? buildQueryString(params as Record<string, unknown>)
@@ -1175,20 +1192,20 @@ export async function getQuickReplies(
 }
 
 export async function getQuickReplyById(
-  quickReplyId: string
+  quickReplyId: string,
 ): Promise<QuickReply> {
   const response = await fetchWithAuth<{ data: QuickReply }>(
-    `/quick-replies/${quickReplyId}`
+    `/quick-replies/${quickReplyId}`,
   );
   return response.data;
 }
 
 export async function getQuickReplyByShortcut(
-  shortcut: string
+  shortcut: string,
 ): Promise<QuickReply | null> {
   try {
     const response = await fetchWithAuth<{ data: QuickReply }>(
-      `/quick-replies/search/${encodeURIComponent(shortcut)}`
+      `/quick-replies/search/${encodeURIComponent(shortcut)}`,
     );
     return response.data;
   } catch (error) {
@@ -1200,40 +1217,35 @@ export async function getQuickReplyByShortcut(
 }
 
 export async function createQuickReply(
-  input: CreateQuickReplyInput
+  input: CreateQuickReplyInput,
 ): Promise<QuickReply> {
-  const response = await fetchWithAuth<{ data: QuickReply }>(
-    "/quick-replies",
-    {
-      method: "POST",
-      body: JSON.stringify(input),
-    }
-  );
+  const response = await fetchWithAuth<{ data: QuickReply }>("/quick-replies", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
   return response.data;
 }
 
 export async function updateQuickReply(
   quickReplyId: string,
-  input: UpdateQuickReplyInput
+  input: UpdateQuickReplyInput,
 ): Promise<QuickReply> {
   const response = await fetchWithAuth<{ data: QuickReply }>(
     `/quick-replies/${quickReplyId}`,
     {
       method: "PATCH",
       body: JSON.stringify(input),
-    }
+    },
   );
   return response.data;
 }
 
-export async function deleteQuickReply(
-  quickReplyId: string
-): Promise<boolean> {
+export async function deleteQuickReply(quickReplyId: string): Promise<boolean> {
   const response = await fetchWithAuth<{ data: { deleted: boolean } }>(
     `/quick-replies/${quickReplyId}`,
     {
       method: "DELETE",
-    }
+    },
   );
   return response.data.deleted;
 }
@@ -1322,7 +1334,7 @@ export async function getLabelSyncStatus(): Promise<LabelSyncStatus> {
  * Get a specific WhatsApp label
  */
 export async function getWhatsAppLabel(
-  labelId: string
+  labelId: string,
 ): Promise<WhatsAppLabel> {
   return fetchWithAuth<WhatsAppLabel>(`/labels/${labelId}`);
 }
@@ -1341,7 +1353,7 @@ export async function triggerLabelSync(): Promise<SyncLabelsResponse> {
  */
 export async function linkTagToLabel(
   labelId: string,
-  tagId: string
+  tagId: string,
 ): Promise<LinkTagResponse> {
   return fetchWithAuth<LinkTagResponse>(`/labels/${labelId}/link`, {
     method: "POST",
@@ -1353,7 +1365,7 @@ export async function linkTagToLabel(
  * Unlink a tag from a WhatsApp label
  */
 export async function unlinkTagFromLabel(
-  labelId: string
+  labelId: string,
 ): Promise<LinkTagResponse> {
   return fetchWithAuth<LinkTagResponse>(`/labels/${labelId}/link`, {
     method: "DELETE",
@@ -1374,7 +1386,7 @@ export async function autoCreateTagsFromLabels(): Promise<AutoCreateTagsResponse
  */
 export async function getTagsWithLabelStatus(): Promise<TagWithLabelStatus[]> {
   const response = await fetchWithAuth<TagsWithStatusResponse>(
-    "/labels/tags/with-status"
+    "/labels/tags/with-status",
   );
   return response.data;
 }
@@ -1384,13 +1396,13 @@ export async function getTagsWithLabelStatus(): Promise<TagWithLabelStatus[]> {
  */
 export async function applyLabelToContact(
   labelId: string,
-  contactId: string
+  contactId: string,
 ): Promise<LinkTagResponse> {
   return fetchWithAuth<LinkTagResponse>(
     `/labels/${labelId}/apply/${contactId}`,
     {
       method: "POST",
-    }
+    },
   );
 }
 
@@ -1399,13 +1411,13 @@ export async function applyLabelToContact(
  */
 export async function removeLabelFromContact(
   labelId: string,
-  contactId: string
+  contactId: string,
 ): Promise<LinkTagResponse> {
   return fetchWithAuth<LinkTagResponse>(
     `/labels/${labelId}/apply/${contactId}`,
     {
       method: "DELETE",
-    }
+    },
   );
 }
 
@@ -1500,7 +1512,7 @@ export async function getCatalogSyncStatus(): Promise<CatalogSyncStatus> {
  * Get a specific catalog by ID
  */
 export async function getWhatsAppCatalog(
-  catalogId: string
+  catalogId: string,
 ): Promise<WhatsAppCatalog> {
   return fetchWithAuth<WhatsAppCatalog>(`/catalogs/${catalogId}`);
 }
@@ -1509,10 +1521,10 @@ export async function getWhatsAppCatalog(
  * Get products for a specific catalog
  */
 export async function getCatalogProducts(
-  catalogId: string
+  catalogId: string,
 ): Promise<CatalogProductsResponse> {
   return fetchWithAuth<CatalogProductsResponse>(
-    `/catalogs/${catalogId}/products`
+    `/catalogs/${catalogId}/products`,
   );
 }
 
@@ -1529,13 +1541,13 @@ export async function triggerCatalogSync(): Promise<SyncCatalogsResponse> {
  * Trigger a sync of products for a specific catalog
  */
 export async function triggerCatalogProductsSync(
-  catalogId: string
+  catalogId: string,
 ): Promise<SyncCatalogsResponse> {
   return fetchWithAuth<SyncCatalogsResponse>(
     `/catalogs/${catalogId}/sync-products`,
     {
       method: "POST",
-    }
+    },
   );
 }
 
@@ -1543,13 +1555,13 @@ export async function triggerCatalogProductsSync(
  * Archive a catalog
  */
 export async function archiveCatalog(
-  catalogId: string
+  catalogId: string,
 ): Promise<CatalogActionResponse> {
   return fetchWithAuth<CatalogActionResponse>(
     `/catalogs/${catalogId}/archive`,
     {
       method: "POST",
-    }
+    },
   );
 }
 
@@ -1557,13 +1569,13 @@ export async function archiveCatalog(
  * Restore an archived catalog
  */
 export async function restoreCatalog(
-  catalogId: string
+  catalogId: string,
 ): Promise<CatalogActionResponse> {
   return fetchWithAuth<CatalogActionResponse>(
     `/catalogs/${catalogId}/restore`,
     {
       method: "POST",
-    }
+    },
   );
 }
 
@@ -1573,14 +1585,14 @@ export async function restoreCatalog(
 export async function updateProductVisibility(
   catalogId: string,
   productId: string,
-  visibility: ProductVisibility
+  visibility: ProductVisibility,
 ): Promise<CatalogActionResponse> {
   return fetchWithAuth<CatalogActionResponse>(
     `/catalogs/${catalogId}/products/${productId}/visibility`,
     {
       method: "PATCH",
       body: JSON.stringify({ visibility }),
-    }
+    },
   );
 }
 

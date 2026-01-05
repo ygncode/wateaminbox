@@ -7,7 +7,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui";
-import { Bell, BellOff, Volume2, VolumeX, Moon, TestTube2, Loader2, Cloud, CloudOff } from "lucide-react";
+import {
+  Bell,
+  BellOff,
+  Volume2,
+  VolumeX,
+  Moon,
+  TestTube2,
+  Loader2,
+  Cloud,
+  CloudOff,
+} from "lucide-react";
 import { NOTIFICATION_SOUNDS } from "@/lib/notifications";
 
 export function NotificationSettings() {

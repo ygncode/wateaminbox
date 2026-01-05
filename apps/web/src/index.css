@@ -25,13 +25,13 @@
   --color-whatsapp-blue: #34b7f1;
 
   /* Dark mode semantic colors */
-  --color-dark-primary: #111B21;
-  --color-dark-secondary: #1F2C33;
-  --color-dark-elevated: #202C33;
-  --color-dark-tertiary: #2A3942;
-  --color-dark-border: #2F3B43;
-  --color-dark-text-primary: #E9EDEF;
-  --color-dark-text-secondary: #8696A0;
+  --color-dark-primary: #111b21;
+  --color-dark-secondary: #1f2c33;
+  --color-dark-elevated: #202c33;
+  --color-dark-tertiary: #2a3942;
+  --color-dark-border: #2f3b43;
+  --color-dark-text-primary: #e9edef;
+  --color-dark-text-secondary: #8696a0;
   --color-dark-text-tertiary: #667781;
 }
 
@@ -152,7 +152,8 @@
 
 /* Typing indicator animation */
 @keyframes typing-dots {
-  0%, 20% {
+  0%,
+  20% {
     content: "";
   }
   40% {
@@ -161,7 +162,8 @@
   60% {
     content: "..";
   }
-  80%, 100% {
+  80%,
+  100% {
     content: "...";
   }
 }

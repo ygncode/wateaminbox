@@ -30,7 +30,10 @@ export function StatusList({ onStatusSelect, selectedJid }: StatusListProps) {
   return (
     <div className="flex flex-col h-full bg-white border-r border-gray-200">
       {/* Post Status Dialog */}
-      <PostStatusDialog open={postDialogOpen} onOpenChange={setPostDialogOpen} />
+      <PostStatusDialog
+        open={postDialogOpen}
+        onOpenChange={setPostDialogOpen}
+      />
 
       {/* My Status */}
       <button

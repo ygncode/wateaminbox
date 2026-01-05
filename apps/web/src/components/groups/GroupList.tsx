@@ -133,7 +133,9 @@ export function GroupList({
         {isError && (
           <div className="flex flex-col items-center justify-center h-full px-4 py-8 text-center">
             <MessageSquare className="w-12 h-12 text-red-400 dark:text-red-500 mb-4" />
-            <p className="text-gray-600 dark:text-dark-text-primary font-medium">Failed to load groups</p>
+            <p className="text-gray-600 dark:text-dark-text-primary font-medium">
+              Failed to load groups
+            </p>
             <p className="text-sm text-gray-500 dark:text-dark-text-secondary mt-1">
               {error?.message || "Please try again later"}
             </p>
@@ -144,7 +146,9 @@ export function GroupList({
         {!isLoading && !isError && groups.length === 0 && searchQuery && (
           <div className="flex flex-col items-center justify-center h-full px-4 py-8 text-center">
             <Search className="w-12 h-12 text-gray-400 dark:text-dark-text-tertiary mb-4" />
-            <p className="text-gray-600 dark:text-dark-text-primary font-medium">No groups found</p>
+            <p className="text-gray-600 dark:text-dark-text-primary font-medium">
+              No groups found
+            </p>
             <p className="text-sm text-gray-500 dark:text-dark-text-secondary mt-1">
               No results for "{searchQuery}"
             </p>
@@ -155,7 +159,9 @@ export function GroupList({
         {!isLoading && !isError && groups.length === 0 && !searchQuery && (
           <div className="flex flex-col items-center justify-center h-full px-4 py-8 text-center">
             <Users className="w-12 h-12 text-gray-400 dark:text-dark-text-tertiary mb-4" />
-            <p className="text-gray-600 dark:text-dark-text-primary font-medium">No groups yet</p>
+            <p className="text-gray-600 dark:text-dark-text-primary font-medium">
+              No groups yet
+            </p>
             <p className="text-sm text-gray-500 dark:text-dark-text-secondary mt-1">
               Groups you join will appear here
             </p>
@@ -206,7 +212,9 @@ function GroupListItem({ group, isSelected, onClick }: GroupListItemProps) {
       className={cn(
         "w-full flex items-center gap-3 px-3 py-3 text-left",
         "transition-colors duration-150 border-b border-gray-100 dark:border-dark-border",
-        isSelected ? "bg-gray-200 dark:bg-dark-tertiary" : "hover:bg-gray-50 dark:hover:bg-dark-elevated",
+        isSelected
+          ? "bg-gray-200 dark:bg-dark-tertiary"
+          : "hover:bg-gray-50 dark:hover:bg-dark-elevated",
       )}
       aria-selected={isSelected}
       role="option"

@@ -12,40 +12,229 @@ const QUICK_REACTIONS = ["❤️", "😂", "😮", "😢", "🙏", "👍"];
 // Extended emoji palette organized by category
 const EMOJI_CATEGORIES = {
   "Smileys & People": [
-    "😀", "😃", "😄", "😁", "😆", "😅", "🤣", "😂",
-    "🙂", "🙃", "😉", "😊", "😇", "🥰", "😍", "🤩",
-    "😘", "😗", "☺️", "😚", "😙", "🥲", "😋", "😛",
-    "😜", "🤪", "😝", "🤑", "🤗", "🤭", "🤫", "🤔",
-    "🤐", "🤨", "😐", "😑", "😶", "😏", "😒", "🙄",
-    "😬", "🤥", "😌", "😔", "😪", "🤤", "😴", "😷",
-    "🤒", "🤕", "🤢", "🤮", "🤧", "🥵", "🥶", "😶‍🌫️",
-    "🥴", "😵", "🤯", "🤠", "🥳", "🥸", "😎", "🤓",
-    "🧐", "😕", "😟", "🙁", "☹️", "😮", "😯", "😲",
-    "😳", "🥺", "😦", "😧", "😨", "😰", "😥", "😢",
-    "😭", "😱", "😖", "😣", "😞", "😓", "😩", "😫",
-    "🥱", "😤", "😡", "😠", "🤬", "😈", "👿", "💀",
-    "☠️", "💩", "🤡", "👹", "👺", "👻", "👽", "👾",
-    "🤖", "😺", "😸", "😹", "😻", "😼", "😽", "🙀",
-    "😿", "😾",
+    "😀",
+    "😃",
+    "😄",
+    "😁",
+    "😆",
+    "😅",
+    "🤣",
+    "😂",
+    "🙂",
+    "🙃",
+    "😉",
+    "😊",
+    "😇",
+    "🥰",
+    "😍",
+    "🤩",
+    "😘",
+    "😗",
+    "☺️",
+    "😚",
+    "😙",
+    "🥲",
+    "😋",
+    "😛",
+    "😜",
+    "🤪",
+    "😝",
+    "🤑",
+    "🤗",
+    "🤭",
+    "🤫",
+    "🤔",
+    "🤐",
+    "🤨",
+    "😐",
+    "😑",
+    "😶",
+    "😏",
+    "😒",
+    "🙄",
+    "😬",
+    "🤥",
+    "😌",
+    "😔",
+    "😪",
+    "🤤",
+    "😴",
+    "😷",
+    "🤒",
+    "🤕",
+    "🤢",
+    "🤮",
+    "🤧",
+    "🥵",
+    "🥶",
+    "😶‍🌫️",
+    "🥴",
+    "😵",
+    "🤯",
+    "🤠",
+    "🥳",
+    "🥸",
+    "😎",
+    "🤓",
+    "🧐",
+    "😕",
+    "😟",
+    "🙁",
+    "☹️",
+    "😮",
+    "😯",
+    "😲",
+    "😳",
+    "🥺",
+    "😦",
+    "😧",
+    "😨",
+    "😰",
+    "😥",
+    "😢",
+    "😭",
+    "😱",
+    "😖",
+    "😣",
+    "😞",
+    "😓",
+    "😩",
+    "😫",
+    "🥱",
+    "😤",
+    "😡",
+    "😠",
+    "🤬",
+    "😈",
+    "👿",
+    "💀",
+    "☠️",
+    "💩",
+    "🤡",
+    "👹",
+    "👺",
+    "👻",
+    "👽",
+    "👾",
+    "🤖",
+    "😺",
+    "😸",
+    "😹",
+    "😻",
+    "😼",
+    "😽",
+    "🙀",
+    "😿",
+    "😾",
   ],
   "Gestures & Body": [
-    "👋", "🤚", "🖐️", "✋", "🖖", "👌", "🤌", "🤏",
-    "✌️", "🤞", "🤟", "🤘", "🤙", "👈", "👉", "👆",
-    "🖕", "👇", "☝️", "👍", "👎", "✊", "👊", "🤛",
-    "🤜", "👏", "🙌", "👐", "🤲", "🤝", "🙏", "✍️",
-    "💅", "🤳", "💪", "🦾", "🦿", "🦵", "🦶",
+    "👋",
+    "🤚",
+    "🖐️",
+    "✋",
+    "🖖",
+    "👌",
+    "🤌",
+    "🤏",
+    "✌️",
+    "🤞",
+    "🤟",
+    "🤘",
+    "🤙",
+    "👈",
+    "👉",
+    "👆",
+    "🖕",
+    "👇",
+    "☝️",
+    "👍",
+    "👎",
+    "✊",
+    "👊",
+    "🤛",
+    "🤜",
+    "👏",
+    "🙌",
+    "👐",
+    "🤲",
+    "🤝",
+    "🙏",
+    "✍️",
+    "💅",
+    "🤳",
+    "💪",
+    "🦾",
+    "🦿",
+    "🦵",
+    "🦶",
   ],
   "Hearts & Love": [
-    "❤️", "🧡", "💛", "💚", "💙", "💜", "🖤", "🤍",
-    "🤎", "💔", "❤️‍🔥", "❤️‍🩹", "💕", "💞", "💓", "💗",
-    "💖", "💘", "💝", "💟", "💌", "💋", "💏", "💑",
+    "❤️",
+    "🧡",
+    "💛",
+    "💚",
+    "💙",
+    "💜",
+    "🖤",
+    "🤍",
+    "🤎",
+    "💔",
+    "❤️‍🔥",
+    "❤️‍🩹",
+    "💕",
+    "💞",
+    "💓",
+    "💗",
+    "💖",
+    "💘",
+    "💝",
+    "💟",
+    "💌",
+    "💋",
+    "💏",
+    "💑",
   ],
   "Objects & Symbols": [
-    "🎉", "🎊", "🎈", "🎁", "🏆", "🥇", "🥈", "🥉",
-    "⚽", "🏀", "🏈", "⚾", "🎾", "🏐", "🏉", "🥏",
-    "🎱", "🏓", "🏸", "🏒", "🏑", "🥍", "🏏", "🥅",
-    "⚡", "🔥", "✨", "💫", "⭐", "🌟", "💥", "💢",
-    "✅", "❌", "❓", "❗", "💯", "🔔", "🔕", "📢",
+    "🎉",
+    "🎊",
+    "🎈",
+    "🎁",
+    "🏆",
+    "🥇",
+    "🥈",
+    "🥉",
+    "⚽",
+    "🏀",
+    "🏈",
+    "⚾",
+    "🎾",
+    "🏐",
+    "🏉",
+    "🥏",
+    "🎱",
+    "🏓",
+    "🏸",
+    "🏒",
+    "🏑",
+    "🥍",
+    "🏏",
+    "🥅",
+    "⚡",
+    "🔥",
+    "✨",
+    "💫",
+    "⭐",
+    "🌟",
+    "💥",
+    "💢",
+    "✅",
+    "❌",
+    "❓",
+    "❗",
+    "💯",
+    "🔔",
+    "🔕",
+    "📢",
   ],
 };
 
@@ -55,7 +244,8 @@ export function EmojiReactionPicker({
   position,
 }: EmojiReactionPickerProps) {
   const [showExtended, setShowExtended] = useState(false);
-  const [selectedCategory, setSelectedCategory] = useState<string>("Smileys & People");
+  const [selectedCategory, setSelectedCategory] =
+    useState<string>("Smileys & People");
   const [adjustedPosition, setAdjustedPosition] = useState(position);
   const pickerRef = useRef<HTMLDivElement>(null);
 
@@ -95,7 +285,10 @@ export function EmojiReactionPicker({
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
-      if (pickerRef.current && !pickerRef.current.contains(event.target as Node)) {
+      if (
+        pickerRef.current &&
+        !pickerRef.current.contains(event.target as Node)
+      ) {
         onClose();
       }
     }
@@ -132,7 +325,11 @@ export function EmojiReactionPicker({
     >
       {!showExtended ? (
         /* Quick reactions bar */
-        <div className="bg-white dark:bg-dark-elevated rounded-full shadow-2xl px-2 py-2 flex items-center gap-1 border border-gray-200 dark:border-dark-border" role="toolbar" aria-label="Quick reactions">
+        <div
+          className="bg-white dark:bg-dark-elevated rounded-full shadow-2xl px-2 py-2 flex items-center gap-1 border border-gray-200 dark:border-dark-border"
+          role="toolbar"
+          aria-label="Quick reactions"
+        >
           {QUICK_REACTIONS.map((emoji) => (
             <button
               key={emoji}
@@ -150,7 +347,12 @@ export function EmojiReactionPicker({
             title="More reactions"
             aria-label="Show more reactions"
           >
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <svg
+              className="w-5 h-5"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
               <path
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -228,19 +430,19 @@ export function EmojiReactionPicker({
           {/* Emoji grid */}
           <div className="p-3 max-h-64 overflow-y-auto">
             <div className="grid grid-cols-8 gap-1">
-              {EMOJI_CATEGORIES[selectedCategory as keyof typeof EMOJI_CATEGORIES]?.map(
-                (emoji) => (
-                  <button
-                    key={emoji}
-                    onClick={() => handleReactionClick(emoji)}
-                    className="w-9 h-9 flex items-center justify-center text-2xl hover:bg-gray-100 dark:hover:bg-dark-tertiary rounded-lg transition-colors"
-                    title={emoji}
-                    aria-label={`React with ${emoji}`}
-                  >
-                    {emoji}
-                  </button>
-                ),
-              )}
+              {EMOJI_CATEGORIES[
+                selectedCategory as keyof typeof EMOJI_CATEGORIES
+              ]?.map((emoji) => (
+                <button
+                  key={emoji}
+                  onClick={() => handleReactionClick(emoji)}
+                  className="w-9 h-9 flex items-center justify-center text-2xl hover:bg-gray-100 dark:hover:bg-dark-tertiary rounded-lg transition-colors"
+                  title={emoji}
+                  aria-label={`React with ${emoji}`}
+                >
+                  {emoji}
+                </button>
+              ))}
             </div>
           </div>
         </div>

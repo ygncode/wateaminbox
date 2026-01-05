@@ -47,7 +47,9 @@ export function MessageThread({
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const retryMessage = useRetryMessage();
   const { resolvedTheme } = useTheme();
-  const [retryingMessageId, setRetryingMessageId] = useState<string | null>(null);
+  const [retryingMessageId, setRetryingMessageId] = useState<string | null>(
+    null,
+  );
   const [isAtBottom, setIsAtBottom] = useState(true);
   const prevMessagesLengthRef = useRef(0);
   const isInitialScrollDone = useRef(false);
@@ -59,7 +61,7 @@ export function MessageThread({
   const enterSelectionMode = useChatStore((state) => state.enterSelectionMode);
   const exitSelectionMode = useChatStore((state) => state.exitSelectionMode);
   const toggleMessageSelection = useChatStore(
-    (state) => state.toggleMessageSelection
+    (state) => state.toggleMessageSelection,
   );
 
   // Context menu state
@@ -120,12 +122,12 @@ export function MessageThread({
       if (item?.type === "date") return DATE_SEPARATOR_HEIGHT;
       return ESTIMATED_MESSAGE_HEIGHT;
     },
-    [items]
+    [items],
   );
 
   const getItemKey = useCallback(
     (index: number) => items[index]?.id || index.toString(),
-    [items]
+    [items],
   );
 
   // State for virtualizer total size to avoid flushSync warnings
@@ -225,7 +227,7 @@ export function MessageThread({
   useEffect(() => {
     if (highlightedMessageId && itemsRef.current.length > 0) {
       const messageIndex = itemsRef.current.findIndex(
-        (item) => item.type === "message" && item.id === highlightedMessageId
+        (item) => item.type === "message" && item.id === highlightedMessageId,
       );
       if (messageIndex !== -1) {
         virtualizerRef.current.scrollToIndex(messageIndex, {
@@ -260,19 +262,16 @@ export function MessageThread({
   );
 
   // Handle background context menu (right-click on empty area)
-  const handleBackgroundContextMenu = useCallback(
-    (e: React.MouseEvent) => {
-      // Only show context menu if clicking on the background, not on a message
-      const target = e.target as HTMLElement;
-      if (target.closest("[data-message-id]")) {
-        return; // Let the message bubble handle its own context menu
-      }
+  const handleBackgroundContextMenu = useCallback((e: React.MouseEvent) => {
+    // Only show context menu if clicking on the background, not on a message
+    const target = e.target as HTMLElement;
+    if (target.closest("[data-message-id]")) {
+      return; // Let the message bubble handle its own context menu
+    }
 
-      e.preventDefault();
-      setContextMenu({ x: e.clientX, y: e.clientY });
-    },
-    []
-  );
+    e.preventDefault();
+    setContextMenu({ x: e.clientX, y: e.clientY });
+  }, []);
 
   // Handle message click in selection mode
   const handleMessageClick = useCallback(
@@ -281,7 +280,7 @@ export function MessageThread({
         toggleMessageSelection(messageId);
       }
     },
-    [selectionMode, toggleMessageSelection]
+    [selectionMode, toggleMessageSelection],
   );
 
   // ESC key to exit selection mode
@@ -340,7 +339,9 @@ export function MessageThread({
       <div className="flex-1 flex items-center justify-center bg-gray-50 dark:bg-dark-primary">
         <div className="flex flex-col items-center gap-3">
           <LoadingSpinner />
-          <p className="text-sm text-gray-500 dark:text-dark-text-secondary">Loading messages...</p>
+          <p className="text-sm text-gray-500 dark:text-dark-text-secondary">
+            Loading messages...
+          </p>
         </div>
       </div>
     );
@@ -406,8 +407,8 @@ export function MessageThread({
   }
 
   // Background pattern colors based on theme
-  const patternColor = resolvedTheme === 'dark' ? '%231a2730' : '%23000000';
-  const patternOpacity = resolvedTheme === 'dark' ? '0.4' : '1';
+  const patternColor = resolvedTheme === "dark" ? "%231a2730" : "%23000000";
+  const patternOpacity = resolvedTheme === "dark" ? "0.4" : "1";
 
   return (
     <div className="flex-1 relative flex flex-col min-h-0 bg-[#e5ddd5] dark:bg-dark-primary">
@@ -532,7 +533,9 @@ export function MessageThread({
                   onDelete={selectionMode ? undefined : onDeleteMessage}
                   onStar={selectionMode ? undefined : onStarMessage}
                   onReact={selectionMode ? undefined : onReactMessage}
-                  onRetry={selectionMode ? undefined : onRetryMessage || handleRetry}
+                  onRetry={
+                    selectionMode ? undefined : onRetryMessage || handleRetry
+                  }
                   isHighlighted={highlightedMessageId === item.message.id}
                   isRetrying={retryingMessageId === item.message.id}
                   selectionMode={selectionMode}

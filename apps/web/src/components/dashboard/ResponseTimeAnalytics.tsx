@@ -109,7 +109,13 @@ export function ResponseTimeAnalytics({
   });
 
   const { data: breachData } = useQuery({
-    queryKey: ["slaBreaches", companyId, dateRange.start, dateRange.end, slaThreshold],
+    queryKey: [
+      "slaBreaches",
+      companyId,
+      dateRange.start,
+      dateRange.end,
+      slaThreshold,
+    ],
     queryFn: () =>
       getSlaBreaches(dateRange.start, dateRange.end, slaThreshold, 10),
     enabled: !!companyId,

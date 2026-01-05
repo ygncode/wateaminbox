@@ -241,16 +241,13 @@ export function useFullBackupExport() {
       const token = getAccessToken();
       const companyId = localStorage.getItem("selectedCompanyId");
 
-      const response = await fetch(
-        `${API_BASE_URL}/export/full?${params}`,
-        {
-          headers: {
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-            ...(companyId ? { "X-Company-ID": companyId } : {}),
-          },
-          credentials: "include",
+      const response = await fetch(`${API_BASE_URL}/export/full?${params}`, {
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          ...(companyId ? { "X-Company-ID": companyId } : {}),
         },
-      );
+        credentials: "include",
+      });
 
       if (!response.ok) {
         throw new Error("Full backup export failed");

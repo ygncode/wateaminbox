@@ -124,26 +124,29 @@ export function MessageComposer({
   };
 
   // Insert emoji at cursor position
-  const insertEmoji = useCallback((emoji: string) => {
-    const textarea = textareaRef.current;
-    if (!textarea) {
-      setMessage((prev) => prev + emoji);
-      return;
-    }
+  const insertEmoji = useCallback(
+    (emoji: string) => {
+      const textarea = textareaRef.current;
+      if (!textarea) {
+        setMessage((prev) => prev + emoji);
+        return;
+      }
 
-    const start = textarea.selectionStart;
-    const end = textarea.selectionEnd;
-    const newMessage =
-      message.substring(0, start) + emoji + message.substring(end);
-    setMessage(newMessage);
+      const start = textarea.selectionStart;
+      const end = textarea.selectionEnd;
+      const newMessage =
+        message.substring(0, start) + emoji + message.substring(end);
+      setMessage(newMessage);
 
-    // Restore focus and cursor position after emoji insertion
-    requestAnimationFrame(() => {
-      textarea.focus();
-      const newCursorPos = start + emoji.length;
-      textarea.setSelectionRange(newCursorPos, newCursorPos);
-    });
-  }, [message]);
+      // Restore focus and cursor position after emoji insertion
+      requestAnimationFrame(() => {
+        textarea.focus();
+        const newCursorPos = start + emoji.length;
+        textarea.setSelectionRange(newCursorPos, newCursorPos);
+      });
+    },
+    [message],
+  );
 
   if (!conversationId) {
     return null;

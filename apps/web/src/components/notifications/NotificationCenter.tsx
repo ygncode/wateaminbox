@@ -1,5 +1,5 @@
-import { useState, memo, useCallback } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useState, memo, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Popover,
   PopoverContent,
@@ -8,7 +8,7 @@ import {
   Badge,
   ScrollArea,
   Skeleton,
-} from '@/components/ui'
+} from "@/components/ui";
 import {
   Bell,
   Check,
@@ -21,28 +21,28 @@ import {
   Trash2,
   X,
   Sparkles,
-} from 'lucide-react'
-import { useNotificationCenter } from '@/hooks/useNotificationCenter'
-import type { InAppNotification, NotificationType } from '@/lib/api'
-import { cn } from '@/lib/utils'
+} from "lucide-react";
+import { useNotificationCenter } from "@/hooks/useNotificationCenter";
+import type { InAppNotification, NotificationType } from "@/lib/api";
+import { cn } from "@/lib/utils";
 
 /**
  * Returns the icon for a notification type
  */
 function getNotificationIcon(type: NotificationType) {
   switch (type) {
-    case 'message':
-      return <MessageSquare className="h-4 w-4" />
-    case 'mention':
-      return <AtSign className="h-4 w-4" />
-    case 'assignment':
-      return <UserPlus className="h-4 w-4" />
-    case 'team':
-      return <Users className="h-4 w-4" />
-    case 'system':
-      return <Info className="h-4 w-4" />
+    case "message":
+      return <MessageSquare className="h-4 w-4" />;
+    case "mention":
+      return <AtSign className="h-4 w-4" />;
+    case "assignment":
+      return <UserPlus className="h-4 w-4" />;
+    case "team":
+      return <Users className="h-4 w-4" />;
+    case "system":
+      return <Info className="h-4 w-4" />;
     default:
-      return <Bell className="h-4 w-4" />
+      return <Bell className="h-4 w-4" />;
   }
 }
 
@@ -51,42 +51,42 @@ function getNotificationIcon(type: NotificationType) {
  */
 function getNotificationColors(type: NotificationType) {
   switch (type) {
-    case 'message':
+    case "message":
       return {
-        bg: 'bg-sky-50',
-        icon: 'bg-sky-100 text-sky-600',
-        accent: 'border-l-sky-400',
-      }
-    case 'mention':
+        bg: "bg-sky-50",
+        icon: "bg-sky-100 text-sky-600",
+        accent: "border-l-sky-400",
+      };
+    case "mention":
       return {
-        bg: 'bg-violet-50',
-        icon: 'bg-violet-100 text-violet-600',
-        accent: 'border-l-violet-400',
-      }
-    case 'assignment':
+        bg: "bg-violet-50",
+        icon: "bg-violet-100 text-violet-600",
+        accent: "border-l-violet-400",
+      };
+    case "assignment":
       return {
-        bg: 'bg-emerald-50',
-        icon: 'bg-emerald-100 text-emerald-600',
-        accent: 'border-l-emerald-400',
-      }
-    case 'team':
+        bg: "bg-emerald-50",
+        icon: "bg-emerald-100 text-emerald-600",
+        accent: "border-l-emerald-400",
+      };
+    case "team":
       return {
-        bg: 'bg-amber-50',
-        icon: 'bg-amber-100 text-amber-600',
-        accent: 'border-l-amber-400',
-      }
-    case 'system':
+        bg: "bg-amber-50",
+        icon: "bg-amber-100 text-amber-600",
+        accent: "border-l-amber-400",
+      };
+    case "system":
       return {
-        bg: 'bg-slate-50',
-        icon: 'bg-slate-100 text-slate-600',
-        accent: 'border-l-slate-400',
-      }
+        bg: "bg-slate-50",
+        icon: "bg-slate-100 text-slate-600",
+        accent: "border-l-slate-400",
+      };
     default:
       return {
-        bg: 'bg-gray-50',
-        icon: 'bg-gray-100 text-gray-500',
-        accent: 'border-l-gray-300',
-      }
+        bg: "bg-gray-50",
+        icon: "bg-gray-100 text-gray-500",
+        accent: "border-l-gray-300",
+      };
   }
 }
 
@@ -94,20 +94,20 @@ function getNotificationColors(type: NotificationType) {
  * Formats a date for display
  */
 function formatNotificationTime(dateString: string): string {
-  const date = new Date(dateString)
-  const now = new Date()
-  const diff = now.getTime() - date.getTime()
+  const date = new Date(dateString);
+  const now = new Date();
+  const diff = now.getTime() - date.getTime();
 
-  const minutes = Math.floor(diff / 60000)
-  const hours = Math.floor(diff / 3600000)
-  const days = Math.floor(diff / 86400000)
+  const minutes = Math.floor(diff / 60000);
+  const hours = Math.floor(diff / 3600000);
+  const days = Math.floor(diff / 86400000);
 
-  if (minutes < 1) return 'Just now'
-  if (minutes < 60) return `${minutes}m ago`
-  if (hours < 24) return `${hours}h ago`
-  if (days < 7) return `${days}d ago`
+  if (minutes < 1) return "Just now";
+  if (minutes < 60) return `${minutes}m ago`;
+  if (hours < 24) return `${hours}h ago`;
+  if (days < 7) return `${days}d ago`;
 
-  return date.toLocaleDateString()
+  return date.toLocaleDateString();
 }
 
 /**
@@ -120,21 +120,21 @@ function NotificationItem({
   onClick,
   index,
 }: {
-  notification: InAppNotification
-  onMarkAsRead: (id: string) => void
-  onDelete: (id: string) => void
-  onClick: (notification: InAppNotification) => void
-  index: number
+  notification: InAppNotification;
+  onMarkAsRead: (id: string) => void;
+  onDelete: (id: string) => void;
+  onClick: (notification: InAppNotification) => void;
+  index: number;
 }) {
-  const colors = getNotificationColors(notification.notificationType)
+  const colors = getNotificationColors(notification.notificationType);
 
   return (
     <div
       className={cn(
-        'group relative flex items-start gap-3 p-3.5 cursor-pointer transition-all duration-200',
-        'border-l-2 hover:bg-gray-50/80',
-        !notification.isRead ? colors.accent : 'border-l-transparent',
-        !notification.isRead && 'bg-white',
+        "group relative flex items-start gap-3 p-3.5 cursor-pointer transition-all duration-200",
+        "border-l-2 hover:bg-gray-50/80",
+        !notification.isRead ? colors.accent : "border-l-transparent",
+        !notification.isRead && "bg-white",
       )}
       onClick={() => onClick(notification)}
       data-testid="notification-item"
@@ -145,8 +145,8 @@ function NotificationItem({
       {/* Type Icon */}
       <div
         className={cn(
-          'flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-transform duration-200 group-hover:scale-105',
-          colors.icon
+          "flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-transform duration-200 group-hover:scale-105",
+          colors.icon,
         )}
       >
         {getNotificationIcon(notification.notificationType)}
@@ -156,8 +156,8 @@ function NotificationItem({
       <div className="flex-1 min-w-0 pr-6">
         <p
           className={cn(
-            'text-sm text-gray-800 leading-snug',
-            !notification.isRead ? 'font-semibold' : 'font-medium'
+            "text-sm text-gray-800 leading-snug",
+            !notification.isRead ? "font-semibold" : "font-medium",
           )}
         >
           {notification.title}
@@ -190,8 +190,8 @@ function NotificationItem({
             size="sm"
             className="h-7 w-7 p-0 rounded-full hover:bg-whatsapp-green/10 hover:text-whatsapp-dark-green"
             onClick={(e) => {
-              e.stopPropagation()
-              onMarkAsRead(notification.id)
+              e.stopPropagation();
+              onMarkAsRead(notification.id);
             }}
             title="Mark as read"
           >
@@ -203,8 +203,8 @@ function NotificationItem({
           size="sm"
           className="h-7 w-7 p-0 rounded-full hover:bg-red-50 text-gray-400 hover:text-red-500"
           onClick={(e) => {
-            e.stopPropagation()
-            onDelete(notification.id)
+            e.stopPropagation();
+            onDelete(notification.id);
           }}
           title="Delete"
         >
@@ -212,7 +212,7 @@ function NotificationItem({
         </Button>
       </div>
     </div>
-  )
+  );
 }
 
 /**
@@ -235,7 +235,7 @@ function EmptyState() {
         No new notifications. We'll let you know when something arrives.
       </p>
     </div>
-  )
+  );
 }
 
 /**
@@ -258,15 +258,15 @@ function LoadingSkeleton() {
         </div>
       ))}
     </div>
-  )
+  );
 }
 
 /**
  * Main NotificationCenter component - Elevated dropdown design
  */
 export const NotificationCenter = memo(function NotificationCenter() {
-  const [isOpen, setIsOpen] = useState(false)
-  const navigate = useNavigate()
+  const [isOpen, setIsOpen] = useState(false);
+  const navigate = useNavigate();
 
   const {
     notifications,
@@ -276,18 +276,21 @@ export const NotificationCenter = memo(function NotificationCenter() {
     markAllAsRead,
     deleteNotification,
     isMarkingAllAsRead,
-  } = useNotificationCenter()
+  } = useNotificationCenter();
 
-  const handleNotificationClick = useCallback((notification: InAppNotification) => {
-    if (!notification.isRead) {
-      markAsRead(notification.id)
-    }
+  const handleNotificationClick = useCallback(
+    (notification: InAppNotification) => {
+      if (!notification.isRead) {
+        markAsRead(notification.id);
+      }
 
-    if (notification.actionUrl) {
-      setIsOpen(false)
-      navigate(notification.actionUrl)
-    }
-  }, [markAsRead, navigate])
+      if (notification.actionUrl) {
+        setIsOpen(false);
+        navigate(notification.actionUrl);
+      }
+    },
+    [markAsRead, navigate],
+  );
 
   return (
     <Popover open={isOpen} onOpenChange={setIsOpen}>
@@ -296,14 +299,19 @@ export const NotificationCenter = memo(function NotificationCenter() {
           variant="ghost"
           size="sm"
           className={cn(
-            'relative h-9 w-9 p-0 rounded-full transition-all duration-200',
-            'hover:bg-whatsapp-green/10 hover:text-whatsapp-dark-green',
-            isOpen && 'bg-whatsapp-green/10 text-whatsapp-dark-green'
+            "relative h-9 w-9 p-0 rounded-full transition-all duration-200",
+            "hover:bg-whatsapp-green/10 hover:text-whatsapp-dark-green",
+            isOpen && "bg-whatsapp-green/10 text-whatsapp-dark-green",
           )}
           aria-label="Notifications"
           data-testid="notification-bell"
         >
-          <Bell className={cn('h-5 w-5 transition-transform', isOpen && 'scale-110')} />
+          <Bell
+            className={cn(
+              "h-5 w-5 transition-transform",
+              isOpen && "scale-110",
+            )}
+          />
           {unreadCount > 0 && (
             <span className="absolute -top-0.5 -right-0.5 flex h-5 min-w-5 items-center justify-center">
               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-50" />
@@ -312,7 +320,7 @@ export const NotificationCenter = memo(function NotificationCenter() {
                 className="relative h-5 min-w-5 px-1.5 text-[10px] font-bold rounded-full border-2 border-white shadow-sm"
                 data-testid="notification-badge"
               >
-                {unreadCount > 99 ? '99+' : unreadCount}
+                {unreadCount > 99 ? "99+" : unreadCount}
               </Badge>
             </span>
           )}
@@ -321,11 +329,11 @@ export const NotificationCenter = memo(function NotificationCenter() {
 
       <PopoverContent
         className={cn(
-          'w-[360px] p-0 overflow-hidden',
-          'bg-white/95 backdrop-blur-xl',
-          'border border-gray-200/80',
-          'shadow-xl shadow-gray-900/10',
-          'rounded-xl',
+          "w-[360px] p-0 overflow-hidden",
+          "bg-white/95 backdrop-blur-xl",
+          "border border-gray-200/80",
+          "shadow-xl shadow-gray-900/10",
+          "rounded-xl",
         )}
         align="end"
         sideOffset={8}
@@ -338,7 +346,9 @@ export const NotificationCenter = memo(function NotificationCenter() {
 
           <div className="flex items-center justify-between px-4 py-3">
             <div className="flex items-center gap-2">
-              <h3 className="text-base font-semibold text-gray-900">Notifications</h3>
+              <h3 className="text-base font-semibold text-gray-900">
+                Notifications
+              </h3>
               {unreadCount > 0 && (
                 <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-whatsapp-green/10 text-whatsapp-dark-green">
                   {unreadCount} new
@@ -400,8 +410,8 @@ export const NotificationCenter = memo(function NotificationCenter() {
               size="sm"
               className="w-full h-10 text-xs font-medium text-gray-600 hover:text-whatsapp-dark-green hover:bg-transparent rounded-none"
               onClick={() => {
-                setIsOpen(false)
-                navigate('/notifications')
+                setIsOpen(false);
+                navigate("/notifications");
               }}
             >
               View all notifications
@@ -410,7 +420,7 @@ export const NotificationCenter = memo(function NotificationCenter() {
         )}
       </PopoverContent>
     </Popover>
-  )
-})
+  );
+});
 
-export default NotificationCenter
+export default NotificationCenter;

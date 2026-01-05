@@ -43,7 +43,9 @@ export interface UseNotificationsReturn {
 /**
  * Maps API response to local NotificationSettings format
  */
-function mapApiToLocal(prefs: NotificationPreferencesResponse): Partial<NotificationSettings> {
+function mapApiToLocal(
+  prefs: NotificationPreferencesResponse,
+): Partial<NotificationSettings> {
   return {
     soundEnabled: prefs.soundEnabled,
     soundChoice: prefs.soundChoice,
@@ -57,14 +59,21 @@ function mapApiToLocal(prefs: NotificationPreferencesResponse): Partial<Notifica
 /**
  * Maps local settings to API update input format
  */
-function mapLocalToApi(updates: Partial<NotificationSettings>): UpdateNotificationPreferencesInput {
+function mapLocalToApi(
+  updates: Partial<NotificationSettings>,
+): UpdateNotificationPreferencesInput {
   const apiInput: UpdateNotificationPreferencesInput = {};
 
   if (updates.soundEnabled !== undefined) {
     apiInput.soundEnabled = updates.soundEnabled;
   }
   if (updates.soundChoice !== undefined) {
-    apiInput.soundChoice = updates.soundChoice as "default" | "chime" | "bell" | "pop" | "none";
+    apiInput.soundChoice = updates.soundChoice as
+      | "default"
+      | "chime"
+      | "bell"
+      | "pop"
+      | "none";
   }
   if (updates.quietHoursEnabled !== undefined) {
     if (updates.quietHoursEnabled) {
@@ -266,7 +275,10 @@ export function useNotifications(): UseNotificationsReturn {
     permission,
     isSupported: isNotificationSupported(),
     isLoading,
-    isSyncing: updateMutation.isPending || muteMutation.isPending || unmuteMutation.isPending,
+    isSyncing:
+      updateMutation.isPending ||
+      muteMutation.isPending ||
+      unmuteMutation.isPending,
     updateSettings,
     requestPermission,
     testNotification,

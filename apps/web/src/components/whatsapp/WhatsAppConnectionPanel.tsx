@@ -119,14 +119,16 @@ export function WhatsAppConnectionPanel({
   // Use multi-connection mode if enabled
   if (multiConnection) {
     return (
-      <MultiConnectionPanel className={className} compact={compact} hideHeader={hideHeader} />
+      <MultiConnectionPanel
+        className={className}
+        compact={compact}
+        hideHeader={hideHeader}
+      />
     );
   }
 
   // Legacy single-connection mode
-  return (
-    <SingleConnectionPanel className={className} compact={compact} />
-  );
+  return <SingleConnectionPanel className={className} compact={compact} />;
 }
 
 // =====================
@@ -164,17 +166,17 @@ function MultiConnectionPanel({
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [newConnectionName, setNewConnectionName] = useState("");
   const [editingConnection, setEditingConnection] = useState<string | null>(
-    null
+    null,
   );
   const [editName, setEditName] = useState("");
 
   // Inject animation styles into document head
   useEffect(() => {
-    const styleId = 'whatsapp-connection-panel-styles';
+    const styleId = "whatsapp-connection-panel-styles";
     // Avoid duplicate style injection
     if (document.getElementById(styleId)) return;
 
-    const styleEl = document.createElement('style');
+    const styleEl = document.createElement("style");
     styleEl.id = styleId;
     styleEl.textContent = animationStyles;
     document.head.appendChild(styleEl);
@@ -205,7 +207,7 @@ function MultiConnectionPanel({
         setEditName("");
       }
     },
-    [rename, editName]
+    [rename, editName],
   );
 
   if (isLoading) {
@@ -227,7 +229,7 @@ function MultiConnectionPanel({
           <div
             className={cn(
               "w-2 h-2 rounded-full",
-              connectedCount > 0 ? "bg-green-500" : "bg-gray-400"
+              connectedCount > 0 ? "bg-green-500" : "bg-gray-400",
             )}
           />
           <span className="text-sm text-gray-600">
@@ -242,7 +244,7 @@ function MultiConnectionPanel({
     <div
       className={cn(
         hideHeader ? "p-4" : "bg-white rounded-lg border border-gray-200 p-6",
-        className
+        className,
       )}
     >
       {/* Header - hidden when wrapped in SettingsCard */}
@@ -333,7 +335,9 @@ function MultiConnectionPanel({
                 <h3 className="text-base font-semibold text-amber-900 tracking-tight">
                   Connection Limit Reached
                 </h3>
-                <p className="text-sm text-amber-700/90 mt-1 leading-relaxed">{globalError}</p>
+                <p className="text-sm text-amber-700/90 mt-1 leading-relaxed">
+                  {globalError}
+                </p>
                 <div className="mt-3 flex items-center gap-3">
                   <button className="inline-flex items-center gap-1.5 text-xs font-medium text-amber-800 hover:text-amber-900 bg-amber-200/50 hover:bg-amber-200 px-3 py-1.5 rounded-full transition-all duration-200">
                     <Sparkles className="h-3.5 w-3.5" />
@@ -377,7 +381,9 @@ function MultiConnectionPanel({
                   <h3 className="text-base font-semibold text-gray-900">
                     Add New Connection
                   </h3>
-                  <p className="text-xs text-gray-500">Link a new WhatsApp device</p>
+                  <p className="text-xs text-gray-500">
+                    Link a new WhatsApp device
+                  </p>
                 </div>
               </div>
 
@@ -401,7 +407,9 @@ function MultiConnectionPanel({
                     }}
                     autoFocus
                   />
-                  <p className="text-xs text-gray-400 mt-1.5">Optional – helps identify this connection</p>
+                  <p className="text-xs text-gray-400 mt-1.5">
+                    Optional – helps identify this connection
+                  </p>
                 </div>
 
                 <div className="flex items-center gap-2 pt-2">
@@ -550,7 +558,7 @@ function ConnectionCard({
     const updateCountdown = () => {
       const remaining = Math.max(
         0,
-        Math.floor((localState.qrExpiresAt!.getTime() - Date.now()) / 1000)
+        Math.floor((localState.qrExpiresAt!.getTime() - Date.now()) / 1000),
       );
       setCountdown(remaining);
     };
@@ -582,7 +590,7 @@ function ConnectionCard({
         "border rounded-lg p-4 transition-colors overflow-visible",
         connection.status === "connected"
           ? "border-green-200 bg-green-50/50"
-          : "border-gray-200 bg-white"
+          : "border-gray-200 bg-white",
       )}
     >
       <div className="flex items-start justify-between overflow-visible">
@@ -593,7 +601,7 @@ function ConnectionCard({
               "w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0",
               connection.status === "connected"
                 ? "bg-green-100"
-                : "bg-gray-100"
+                : "bg-gray-100",
             )}
           >
             {connection.status === "connected" ? (
@@ -663,8 +671,12 @@ function ConnectionCard({
                       <AlertCircle className="h-4 w-4 text-red-500" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-xs font-medium text-red-800">Connection Error</p>
-                      <p className="text-xs text-red-600/80 mt-0.5 leading-relaxed">{localState.error}</p>
+                      <p className="text-xs font-medium text-red-800">
+                        Connection Error
+                      </p>
+                      <p className="text-xs text-red-600/80 mt-0.5 leading-relaxed">
+                        {localState.error}
+                      </p>
                       <div className="flex items-center gap-2 mt-2">
                         <button
                           onClick={onReconnect}
@@ -775,76 +787,76 @@ function ConnectionCard({
               >
                 <MoreVertical className="h-4 w-4" />
               </Button>
-            {showMenu && (
-              <>
-                <div
-                  className="fixed inset-0 z-10"
-                  onClick={() => setShowMenu(false)}
-                />
-                <div className="absolute right-0 mt-2 w-44 bg-white border border-gray-200 rounded-xl shadow-xl shadow-gray-200/50 z-20 py-1.5 animate-fade-in">
-                  <button
-                    className="w-full px-3.5 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2.5 transition-colors"
-                    onClick={() => {
-                      onStartEdit();
-                      setShowMenu(false);
-                    }}
-                  >
-                    <Edit2 className="h-4 w-4 text-gray-400" />
-                    Rename
-                  </button>
-                  {connection.status === "connected" ? (
+              {showMenu && (
+                <>
+                  <div
+                    className="fixed inset-0 z-10"
+                    onClick={() => setShowMenu(false)}
+                  />
+                  <div className="absolute right-0 mt-2 w-44 bg-white border border-gray-200 rounded-xl shadow-xl shadow-gray-200/50 z-20 py-1.5 animate-fade-in">
                     <button
-                      className="w-full px-3.5 py-2.5 text-left text-sm text-orange-600 hover:bg-orange-50 flex items-center gap-2.5 transition-colors"
+                      className="w-full px-3.5 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2.5 transition-colors"
                       onClick={() => {
-                        onDisconnect();
+                        onStartEdit();
                         setShowMenu(false);
                       }}
-                      disabled={localState.isDisconnecting}
                     >
-                      {localState.isDisconnecting ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <PowerOff className="h-4 w-4" />
-                      )}
-                      Disconnect
+                      <Edit2 className="h-4 w-4 text-gray-400" />
+                      Rename
                     </button>
-                  ) : (
+                    {connection.status === "connected" ? (
+                      <button
+                        className="w-full px-3.5 py-2.5 text-left text-sm text-orange-600 hover:bg-orange-50 flex items-center gap-2.5 transition-colors"
+                        onClick={() => {
+                          onDisconnect();
+                          setShowMenu(false);
+                        }}
+                        disabled={localState.isDisconnecting}
+                      >
+                        {localState.isDisconnecting ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <PowerOff className="h-4 w-4" />
+                        )}
+                        Disconnect
+                      </button>
+                    ) : (
+                      <button
+                        className="w-full px-3.5 py-2.5 text-left text-sm text-whatsapp-teal-green hover:bg-emerald-50 flex items-center gap-2.5 transition-colors"
+                        onClick={() => {
+                          onReconnect();
+                          setShowMenu(false);
+                        }}
+                        disabled={localState.isConnecting}
+                      >
+                        {localState.isConnecting ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Power className="h-4 w-4" />
+                        )}
+                        Reconnect
+                      </button>
+                    )}
+                    <div className="my-1.5 border-t border-gray-100" />
                     <button
-                      className="w-full px-3.5 py-2.5 text-left text-sm text-whatsapp-teal-green hover:bg-emerald-50 flex items-center gap-2.5 transition-colors"
+                      className="w-full px-3.5 py-2.5 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2.5 transition-colors"
                       onClick={() => {
-                        onReconnect();
+                        if (
+                          window.confirm(
+                            "Are you sure you want to delete this connection?",
+                          )
+                        ) {
+                          onDelete();
+                        }
                         setShowMenu(false);
                       }}
-                      disabled={localState.isConnecting}
                     >
-                      {localState.isConnecting ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <Power className="h-4 w-4" />
-                      )}
-                      Reconnect
+                      <Trash2 className="h-4 w-4" />
+                      Delete
                     </button>
-                  )}
-                  <div className="my-1.5 border-t border-gray-100" />
-                  <button
-                    className="w-full px-3.5 py-2.5 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2.5 transition-colors"
-                    onClick={() => {
-                      if (
-                        window.confirm(
-                          "Are you sure you want to delete this connection?"
-                        )
-                      ) {
-                        onDelete();
-                      }
-                      setShowMenu(false);
-                    }}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                    Delete
-                  </button>
-                </div>
-              </>
-            )}
+                  </div>
+                </>
+              )}
             </div>
           </div>
         )}
@@ -886,7 +898,7 @@ function QRCodeDisplay({
     const updateCountdown = () => {
       const remaining = Math.max(
         0,
-        Math.floor((expiresAt.getTime() - Date.now()) / 1000)
+        Math.floor((expiresAt.getTime() - Date.now()) / 1000),
       );
       setLocalCountdown(remaining);
     };
@@ -904,7 +916,7 @@ function QRCodeDisplay({
       <div
         className={cn(
           "p-2 bg-white border rounded-lg",
-          small ? "border-gray-200" : "border-2 border-gray-200"
+          small ? "border-gray-200" : "border-2 border-gray-200",
         )}
       >
         <img
@@ -982,8 +994,14 @@ function EmptyConnectionsView({
 
           {/* Floating accent dots */}
           <div className="absolute -top-1 left-1/2 w-2 h-2 rounded-full bg-whatsapp-teal-green/60 animate-pulse" />
-          <div className="absolute top-1/4 -right-1 w-1.5 h-1.5 rounded-full bg-emerald-400/60 animate-pulse" style={{ animationDelay: '0.5s' }} />
-          <div className="absolute -bottom-1 left-1/3 w-1.5 h-1.5 rounded-full bg-teal-400/60 animate-pulse" style={{ animationDelay: '1s' }} />
+          <div
+            className="absolute top-1/4 -right-1 w-1.5 h-1.5 rounded-full bg-emerald-400/60 animate-pulse"
+            style={{ animationDelay: "0.5s" }}
+          />
+          <div
+            className="absolute -bottom-1 left-1/3 w-1.5 h-1.5 rounded-full bg-teal-400/60 animate-pulse"
+            style={{ animationDelay: "1s" }}
+          />
         </div>
 
         {/* Content */}
@@ -991,7 +1009,8 @@ function EmptyConnectionsView({
           No WhatsApp Connections Yet
         </h3>
         <p className="text-sm text-gray-500 mb-8 max-w-xs mx-auto leading-relaxed">
-          Connect your first WhatsApp device to start managing conversations with your team.
+          Connect your first WhatsApp device to start managing conversations
+          with your team.
         </p>
 
         {/* CTA Button */}
@@ -1061,7 +1080,7 @@ function SingleConnectionPanel({
     const updateCountdown = () => {
       const remaining = Math.max(
         0,
-        Math.floor((qrExpiresAt.getTime() - Date.now()) / 1000)
+        Math.floor((qrExpiresAt.getTime() - Date.now()) / 1000),
       );
       setCountdown(remaining);
     };
@@ -1112,7 +1131,7 @@ function SingleConnectionPanel({
     <div
       className={cn(
         "bg-white rounded-lg border border-gray-200 p-6",
-        className
+        className,
       )}
     >
       {/* Header */}

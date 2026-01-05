@@ -142,7 +142,13 @@ function GroupInfoPanelSkeleton() {
 /**
  * Group header with avatar and display name
  */
-function GroupHeader({ group, isAdmin }: { group: GroupDetail; isAdmin: boolean }) {
+function GroupHeader({
+  group,
+  isAdmin,
+}: {
+  group: GroupDetail;
+  isAdmin: boolean;
+}) {
   const initials = group.displayName
     .split(" ")
     .map((n) => n[0])
@@ -344,10 +350,7 @@ function GroupSettingsSection({ group }: { group: GroupDetail }) {
             <Button variant="outline" onClick={handleCancel}>
               Cancel
             </Button>
-            <Button
-              onClick={handleSave}
-              disabled={updateSettings.isPending}
-            >
+            <Button onClick={handleSave} disabled={updateSettings.isPending}>
               {updateSettings.isPending ? "Saving..." : "Save Changes"}
             </Button>
           </DialogFooter>
@@ -539,9 +542,7 @@ function ParticipantItem({
           <div className="flex items-center gap-2">
             <p className="text-sm font-medium text-gray-900 truncate">
               {displayName}
-              {isSelf && (
-                <span className="text-gray-500 ml-1">(You)</span>
-              )}
+              {isSelf && <span className="text-gray-500 ml-1">(You)</span>}
             </p>
             {participant.isAdmin && (
               <Badge

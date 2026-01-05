@@ -1,17 +1,17 @@
-import { useMemo } from "react"
-import { useAuth } from "../contexts/auth-context"
+import { useMemo } from "react";
+import { useAuth } from "../contexts/auth-context";
 
 /**
  * Feature-based permissions matching the backend
  */
 export interface MemberPermissions {
-  can_view_all_chats: boolean
-  can_send_messages: boolean
-  can_assign_contacts: boolean
-  can_manage_team: boolean
-  can_invite: boolean
-  can_export: boolean
-  can_delete: boolean
+  can_view_all_chats: boolean;
+  can_send_messages: boolean;
+  can_assign_contacts: boolean;
+  can_manage_team: boolean;
+  can_invite: boolean;
+  can_export: boolean;
+  can_delete: boolean;
 }
 
 /**
@@ -25,9 +25,9 @@ export const PERMISSIONS = {
   CAN_INVITE: "can_invite",
   CAN_EXPORT: "can_export",
   CAN_DELETE: "can_delete",
-} as const
+} as const;
 
-export type Permission = (typeof PERMISSIONS)[keyof typeof PERMISSIONS]
+export type Permission = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
 
 /**
  * Default permission presets for each role
@@ -61,67 +61,67 @@ const ROLE_PRESETS: Record<"owner" | "admin" | "member", MemberPermissions> = {
     can_export: false,
     can_delete: false,
   },
-}
+};
 
 /**
  * Hook to get current user's role and permissions
  */
 export function usePermissions(): {
-  role: "owner" | "admin" | "member" | null
-  permissions: MemberPermissions | null
-  hasPermission: (permission: Permission) => boolean
-  hasAnyPermission: (permissions: Permission[]) => boolean
-  hasAllPermissions: (permissions: Permission[]) => boolean
-  isOwner: boolean
-  isAdmin: boolean
-  canViewAllChats: boolean
-  canSendMessages: boolean
-  canAssignContacts: boolean
-  canManageTeam: boolean
-  canInvite: boolean
-  canExport: boolean
-  canDelete: boolean
+  role: "owner" | "admin" | "member" | null;
+  permissions: MemberPermissions | null;
+  hasPermission: (permission: Permission) => boolean;
+  hasAnyPermission: (permissions: Permission[]) => boolean;
+  hasAllPermissions: (permissions: Permission[]) => boolean;
+  isOwner: boolean;
+  isAdmin: boolean;
+  canViewAllChats: boolean;
+  canSendMessages: boolean;
+  canAssignContacts: boolean;
+  canManageTeam: boolean;
+  canInvite: boolean;
+  canExport: boolean;
+  canDelete: boolean;
 } {
-  const { companies, currentCompanyId } = useAuth()
+  const { companies, currentCompanyId } = useAuth();
 
   const { role, permissions } = useMemo(() => {
     if (!currentCompanyId || !companies.length) {
-      return { role: null, permissions: null }
+      return { role: null, permissions: null };
     }
 
-    const company = companies.find((c) => c.id === currentCompanyId)
+    const company = companies.find((c) => c.id === currentCompanyId);
     if (!company) {
-      return { role: null, permissions: null }
+      return { role: null, permissions: null };
     }
 
-    const role = company.role
+    const role = company.role;
     // Get default permissions based on role
     // In a full implementation, we'd fetch custom permissions from the API
-    const permissions = ROLE_PRESETS[role]
+    const permissions = ROLE_PRESETS[role];
 
-    return { role, permissions }
-  }, [companies, currentCompanyId])
+    return { role, permissions };
+  }, [companies, currentCompanyId]);
 
   const hasPermission = useMemo(() => {
     return (permission: Permission): boolean => {
-      if (!permissions) return false
-      return permissions[permission] === true
-    }
-  }, [permissions])
+      if (!permissions) return false;
+      return permissions[permission] === true;
+    };
+  }, [permissions]);
 
   const hasAnyPermission = useMemo(() => {
     return (perms: Permission[]): boolean => {
-      if (!permissions) return false
-      return perms.some((p) => permissions[p] === true)
-    }
-  }, [permissions])
+      if (!permissions) return false;
+      return perms.some((p) => permissions[p] === true);
+    };
+  }, [permissions]);
 
   const hasAllPermissions = useMemo(() => {
     return (perms: Permission[]): boolean => {
-      if (!permissions) return false
-      return perms.every((p) => permissions[p] === true)
-    }
-  }, [permissions])
+      if (!permissions) return false;
+      return perms.every((p) => permissions[p] === true);
+    };
+  }, [permissions]);
 
   return {
     role,
@@ -138,13 +138,13 @@ export function usePermissions(): {
     canInvite: hasPermission(PERMISSIONS.CAN_INVITE),
     canExport: hasPermission(PERMISSIONS.CAN_EXPORT),
     canDelete: hasPermission(PERMISSIONS.CAN_DELETE),
-  }
+  };
 }
 
 /**
  * Hook to check a single permission
  */
 export function useHasPermission(permission: Permission): boolean {
-  const { hasPermission } = usePermissions()
-  return hasPermission(permission)
+  const { hasPermission } = usePermissions();
+  return hasPermission(permission);
 }

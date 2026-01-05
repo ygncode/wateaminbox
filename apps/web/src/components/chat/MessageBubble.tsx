@@ -12,7 +12,9 @@ const ERROR_MESSAGES: Record<string, string> = {
 };
 
 function getErrorMessage(error?: string, customErrorMessage?: string): string {
-  return customErrorMessage || ERROR_MESSAGES[error || ""] || ERROR_MESSAGES.unknown;
+  return (
+    customErrorMessage || ERROR_MESSAGES[error || ""] || ERROR_MESSAGES.unknown
+  );
 }
 
 interface MessageBubbleProps {
@@ -151,7 +153,10 @@ export const MessageBubble = memo(function MessageBubble({
           </svg>
         );
       case "failed":
-        const errorMsg = getErrorMessage(message.metadata?.error, message.metadata?.errorMessage);
+        const errorMsg = getErrorMessage(
+          message.metadata?.error,
+          message.metadata?.errorMessage,
+        );
         return (
           <div className="group/tooltip relative flex items-center">
             <svg
@@ -176,7 +181,9 @@ export const MessageBubble = memo(function MessageBubble({
   const renderMessageContent = () => {
     if (message.isDeleted) {
       return (
-        <span className="italic text-gray-500 dark:text-gray-400">{t('chat.messageDeleted')}</span>
+        <span className="italic text-gray-500 dark:text-gray-400">
+          {t("chat.messageDeleted")}
+        </span>
       );
     }
 
@@ -299,7 +306,9 @@ export const MessageBubble = memo(function MessageBubble({
       ),
       template: () => (
         <div className="p-3 bg-gray-50 dark:bg-dark-tertiary rounded-lg border border-gray-200 dark:border-dark-border">
-          <p className="text-xs text-gray-500 dark:text-dark-text-secondary mb-1">Template Message</p>
+          <p className="text-xs text-gray-500 dark:text-dark-text-secondary mb-1">
+            Template Message
+          </p>
           <p className="whitespace-pre-wrap break-words">{message.content}</p>
         </div>
       ),
@@ -403,7 +412,9 @@ export const MessageBubble = memo(function MessageBubble({
             ? "bg-whatsapp-green text-white rounded-br-none"
             : "bg-white dark:bg-dark-elevated text-gray-900 dark:text-dark-text-primary rounded-bl-none"
         } ${isHighlighted ? "ring-2 ring-yellow-400 ring-offset-2 dark:ring-offset-dark-primary bg-yellow-50/20 dark:bg-yellow-900/20" : ""} ${
-          isSelected ? "ring-2 ring-whatsapp-teal-green ring-offset-1 dark:ring-offset-dark-primary" : ""
+          isSelected
+            ? "ring-2 ring-whatsapp-teal-green ring-offset-1 dark:ring-offset-dark-primary"
+            : ""
         }`}
         onContextMenu={selectionMode ? undefined : handleContextMenu}
         data-message-id={message.id}
@@ -412,7 +423,7 @@ export const MessageBubble = memo(function MessageBubble({
         {message.isForwarded && !message.isDeleted && (
           <div className="flex items-center gap-1 text-xs opacity-70 mb-1">
             <ForwardIcon className="h-3 w-3" />
-            <span>{t('chat.forwarded')}</span>
+            <span>{t("chat.forwarded")}</span>
           </div>
         )}
 
@@ -428,16 +439,26 @@ export const MessageBubble = memo(function MessageBubble({
             <div className="flex items-start gap-2">
               <ReplyIcon className="h-3.5 w-3.5 flex-shrink-0 mt-0.5 opacity-60" />
               <div className="flex-1 min-w-0">
-                <p className={`text-xs font-semibold mb-0.5 ${
-                  isOwn ? "text-white/90" : "text-gray-900 dark:text-dark-text-primary"
-                }`}>
-                  {message.replyToMessage.senderType === "user" ? "You" : "Contact"}
+                <p
+                  className={`text-xs font-semibold mb-0.5 ${
+                    isOwn
+                      ? "text-white/90"
+                      : "text-gray-900 dark:text-dark-text-primary"
+                  }`}
+                >
+                  {message.replyToMessage.senderType === "user"
+                    ? "You"
+                    : "Contact"}
                 </p>
-                <p className={`text-xs line-clamp-2 ${
-                  isOwn ? "text-white/80" : "text-gray-700 dark:text-dark-text-secondary"
-                }`}>
+                <p
+                  className={`text-xs line-clamp-2 ${
+                    isOwn
+                      ? "text-white/80"
+                      : "text-gray-700 dark:text-dark-text-secondary"
+                  }`}
+                >
                   {message.replyToMessage.isDeleted
-                    ? t('chat.messageDeleted')
+                    ? t("chat.messageDeleted")
                     : message.replyToMessage.content}
                 </p>
               </div>
@@ -452,16 +473,29 @@ export const MessageBubble = memo(function MessageBubble({
         {message.status === "failed" && isOwn && (
           <div
             className={`mt-2 flex items-center justify-between gap-2 text-xs px-2 py-1 rounded ${
-              isOwn
-                ? "bg-red-500/20 text-red-100"
-                : "bg-red-100 text-red-700"
+              isOwn ? "bg-red-500/20 text-red-100" : "bg-red-100 text-red-700"
             }`}
           >
             <div className="flex items-center gap-2">
-              <svg className="h-3 w-3 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              <svg
+                className="h-3 w-3 flex-shrink-0"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                />
               </svg>
-              <span>{getErrorMessage(message.metadata?.error, message.metadata?.errorMessage)}</span>
+              <span>
+                {getErrorMessage(
+                  message.metadata?.error,
+                  message.metadata?.errorMessage,
+                )}
+              </span>
             </div>
             {onRetry && (
               <button
@@ -476,16 +510,41 @@ export const MessageBubble = memo(function MessageBubble({
               >
                 {isRetrying ? (
                   <>
-                    <svg className="animate-spin h-3 w-3" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                    <svg
+                      className="animate-spin h-3 w-3"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                    >
+                      <circle
+                        className="opacity-25"
+                        cx="12"
+                        cy="12"
+                        r="10"
+                        stroke="currentColor"
+                        strokeWidth="4"
+                      />
+                      <path
+                        className="opacity-75"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                      />
                     </svg>
                     <span>Sending...</span>
                   </>
                 ) : (
                   <>
-                    <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    <svg
+                      className="h-3 w-3"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                      />
                     </svg>
                     <span>Retry</span>
                   </>
@@ -498,7 +557,9 @@ export const MessageBubble = memo(function MessageBubble({
         {/* Timestamp and status */}
         <div
           className={`flex items-center justify-end gap-1 mt-1 text-xs ${
-            isOwn ? "text-white/70" : "text-gray-500 dark:text-dark-text-secondary"
+            isOwn
+              ? "text-white/70"
+              : "text-gray-500 dark:text-dark-text-secondary"
           }`}
         >
           <span>{formatTime(message.createdAt)}</span>
@@ -510,21 +571,30 @@ export const MessageBubble = memo(function MessageBubble({
 
         {/* Reaction display */}
         {message.reactions && message.reactions.length > 0 && (
-          <div className={`absolute -bottom-3 ${isOwn ? 'left-2' : 'right-2'} flex gap-0.5`}>
+          <div
+            className={`absolute -bottom-3 ${isOwn ? "left-2" : "right-2"} flex gap-0.5`}
+          >
             {/* Group reactions by emoji and show counts */}
             {Object.entries(
-              message.reactions.reduce((acc, r) => {
-                acc[r.emoji] = (acc[r.emoji] || 0) + 1;
-                return acc;
-              }, {} as Record<string, number>)
+              message.reactions.reduce(
+                (acc, r) => {
+                  acc[r.emoji] = (acc[r.emoji] || 0) + 1;
+                  return acc;
+                },
+                {} as Record<string, number>,
+              ),
             ).map(([emoji, count]) => (
               <span
                 key={emoji}
                 className="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-white dark:bg-dark-elevated rounded-full shadow-md text-xs border border-gray-200 dark:border-dark-border"
-                title={`${count} reaction${count > 1 ? 's' : ''}`}
+                title={`${count} reaction${count > 1 ? "s" : ""}`}
               >
                 <span>{emoji}</span>
-                {count > 1 && <span className="text-gray-600 dark:text-dark-text-secondary">{count}</span>}
+                {count > 1 && (
+                  <span className="text-gray-600 dark:text-dark-text-secondary">
+                    {count}
+                  </span>
+                )}
               </span>
             ))}
           </div>
