@@ -12,6 +12,9 @@ import { ContactProfile } from "../components/chat/ContactProfile";
 import { ConversationSearch } from "../components/chat/ConversationSearch";
 import { useContact, type ContactDetail } from "../hooks/useContact";
 import { useSendMessage, useDeleteMessage, useStarMessage, useReactMessage } from "../hooks/useMessages";
+import { markConversationAsRead } from "../lib/api";
+import { chatKeys } from "../hooks/useChats";
+import { useQueryClient } from "@tanstack/react-query";
 import type { Message, Contact } from "@whatsapp-web/shared";
 
 // Helper to map ContactDetail to Contact type expected by MessageHeader
@@ -29,6 +32,7 @@ export function ChatPage() {
   const { contactId } = useParams<{ contactId?: string }>();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const queryClient = useQueryClient();
   const [selectedChatId, setSelectedChatId] = React.useState<
     string | undefined
   >(contactId);
@@ -55,6 +59,33 @@ export function ChatPage() {
   React.useEffect(() => {
     setSelectedChatId(contactId);
   }, [contactId]);
+
+  // Mark conversation as read when chat is selected
+  // Use ref to track last marked conversation to prevent duplicate calls
+  const lastMarkedRef = React.useRef<string | null>(null);
+
+  React.useEffect(() => {
+    if (selectedChatId && lastMarkedRef.current !== selectedChatId) {
+      lastMarkedRef.current = selectedChatId;
+
+      // Debounce to avoid rapid fire when switching chats quickly
+      const timeoutId = setTimeout(() => {
+        // Only mark as read if still on the same chat after debounce
+        if (lastMarkedRef.current === selectedChatId) {
+          markConversationAsRead(selectedChatId)
+            .then(() => {
+              // Invalidate chats query to update unread count in sidebar
+              queryClient.invalidateQueries({ queryKey: chatKeys.lists() });
+            })
+            .catch((error) => {
+              console.error("Failed to mark conversation as read:", error);
+            });
+        }
+      }, 300); // 300ms debounce
+
+      return () => clearTimeout(timeoutId);
+    }
+  }, [selectedChatId, queryClient]);
 
   const handleChatSelect = React.useCallback(
     (chatId: string | null) => {

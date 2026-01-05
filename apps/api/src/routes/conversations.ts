@@ -433,6 +433,69 @@ conversationRoutes.post("/:id/pending", async (c) => {
 });
 
 /**
+ * POST /conversations/:id/read - Mark a conversation as read (reset unread count)
+ */
+conversationRoutes.post("/:id/read", async (c) => {
+  const tenantDb = c.get("tenantDb");
+  const user = c.get("user");
+  const companyId = c.get("companyId");
+  const contactId = c.req.param("id");
+
+  // Verify contact exists
+  const contact = await tenantDb
+    .selectFrom("contacts")
+    .select(["id"])
+    .where("id", "=", contactId)
+    .executeTakeFirst();
+
+  if (!contact) {
+    return c.json({ error: "Contact not found" }, 404);
+  }
+
+  // Update conversation_states to reset unread count and record read time
+  const updateResult = await tenantDb
+    .updateTable("conversation_states")
+    .set({
+      unread_count: 0,
+      read_at: new Date(),
+      read_by_user_id: user.id,
+      updated_at: new Date(),
+    })
+    .where("contact_id", "=", contactId)
+    .executeTakeFirst();
+
+  // If no row exists, create one with unread_count = 0
+  if (updateResult.numUpdatedRows === BigInt(0)) {
+    await tenantDb
+      .insertInto("conversation_states")
+      .values({
+        contact_id: contactId,
+        unread_count: 0,
+        read_at: new Date(),
+        read_by_user_id: user.id,
+      })
+      .execute();
+  }
+
+  // Broadcast WebSocket event to update other clients
+  broadcastToCompany(companyId, {
+    type: "conversation",
+    payload: {
+      event: "read",
+      contactId,
+      unreadCount: 0,
+      readBy: user.id,
+    },
+    timestamp: new Date().toISOString(),
+  });
+
+  return c.json({
+    success: true,
+    unreadCount: 0,
+  });
+});
+
+/**
  * GET /conversations/stats/resolution - Get resolution statistics
  */
 conversationRoutes.get("/stats/resolution", async (c) => {

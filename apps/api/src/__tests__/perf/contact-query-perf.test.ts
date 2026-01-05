@@ -122,6 +122,20 @@ describe("Performance: Contact Query Optimization", () => {
       )
     `);
 
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS ${TEST_SCHEMA}.conversation_states (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        contact_id UUID NOT NULL UNIQUE,
+        read_by_user_id UUID,
+        read_at TIMESTAMP,
+        last_message_at TIMESTAMP,
+        last_message_preview TEXT,
+        unread_count INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+
     // Create performance indexes (same as migration 013)
     await pool.query(`
       CREATE INDEX idx_${TEST_SCHEMA}_messages_contact_timestamp

@@ -176,7 +176,7 @@ export async function getContactsWithLastMessage(
       lm.content as last_message_content,
       lm.status as last_message_status,
       lm.timestamp as last_message_timestamp,
-      COALESCE(COUNT(m.id) FILTER (WHERE m.from_me = false), 0)::bigint as unread_count
+      COALESCE(cs.unread_count, 0)::bigint as unread_count
     FROM contacts c
     LEFT JOIN contact_assignments ca
       ON ca.contact_id = c.id
@@ -184,14 +184,9 @@ export async function getContactsWithLastMessage(
     LEFT JOIN last_messages lm
       ON lm.contact_id = c.id
       AND lm.rn = 1
-    LEFT JOIN messages m
-      ON m.contact_id = c.id
+    LEFT JOIN conversation_states cs
+      ON cs.contact_id = c.id
     ${hasWhereCondition ? sql`WHERE ${whereClause}` : sql``}
-    GROUP BY
-      c.id, c.jid, c.phone_number, c.push_name, c.custom_name, c.is_group,
-      c.profile_picture_url, c.notes_shared, c.created_at, c.updated_at,
-      ca.assigned_to, lm.id, lm.message_id, lm.from_me, lm.message_type,
-      lm.content, lm.status, lm.timestamp
     ORDER BY last_message_at DESC NULLS LAST
     LIMIT ${limit}
     OFFSET ${offset}
