@@ -1,77 +1,73 @@
-import * as React from "react";
+import * as React from 'react'
 import {
   login as apiLogin,
-  register as apiRegister,
   logout as apiLogout,
-  getCurrentUser,
-  getUserCompanies,
+  register as apiRegister,
+  type CompanyWithRole,
+  clearAuthTokens,
   getAccessToken,
   getCompanyId,
-  setCompanyId,
-  clearAuthTokens,
+  getCurrentUser,
+  getUserCompanies,
   initializeAuth,
   type RegisterRequest,
   type RegisterResponse,
-  type CompanyWithRole,
-} from "../lib/api";
+  setCompanyId,
+} from '../lib/api'
 
-export type UserRole = "admin" | "agent" | "viewer";
+export type UserRole = 'admin' | 'agent' | 'viewer'
 
 export interface AuthUser {
-  id: string;
-  email: string;
-  name: string;
-  avatarUrl?: string;
-  companyId: string;
-  role: UserRole;
+  id: string
+  email: string
+  name: string
+  avatarUrl?: string
+  companyId: string
+  role: UserRole
 }
 
 export interface AuthState {
-  user: AuthUser | null;
-  isAuthenticated: boolean;
-  isLoading: boolean;
-  error: string | null;
-  companies: CompanyWithRole[];
-  currentCompanyId: string | null;
-  needsCompanySetup: boolean;
+  user: AuthUser | null
+  isAuthenticated: boolean
+  isLoading: boolean
+  error: string | null
+  companies: CompanyWithRole[]
+  currentCompanyId: string | null
+  needsCompanySetup: boolean
 }
 
 export interface AuthContextValue extends AuthState {
-  login: (email: string, password: string) => Promise<void>;
-  register: (
-    data: Omit<RegisterRequest, "companyName">,
-  ) => Promise<RegisterResponse>;
-  logout: () => Promise<void>;
-  refreshSession: () => Promise<void>;
-  clearError: () => void;
-  selectCompany: (companyId: string) => void;
+  login: (email: string, password: string) => Promise<void>
+  register: (data: Omit<RegisterRequest, 'companyName'>) => Promise<RegisterResponse>
+  logout: () => Promise<void>
+  refreshSession: () => Promise<void>
+  clearError: () => void
+  selectCompany: (companyId: string) => void
 }
 
-const AuthContext = React.createContext<AuthContextValue | undefined>(
-  undefined,
-);
+const AuthContext = React.createContext<AuthContextValue | undefined>(undefined)
 
 export interface AuthProviderProps {
-  children: React.ReactNode;
+  children: React.ReactNode
 }
 
 // Helper to map API user to AuthUser
 interface ApiUser {
-  id: string;
-  email: string;
-  name?: string;
-  emailVerified?: boolean;
+  id: string
+  email: string
+  name?: string
+  emailVerified?: boolean
 }
 
 function mapApiUserToAuthUser(apiUser: ApiUser): AuthUser {
   return {
     id: apiUser.id,
     email: apiUser.email,
-    name: apiUser.name || apiUser.email.split("@")[0],
+    name: apiUser.name || apiUser.email.split('@')[0],
     avatarUrl: undefined,
-    companyId: "1", // Default company - will be updated when company support is added
-    role: "agent" as UserRole,
-  };
+    companyId: '1', // Default company - will be updated when company support is added
+    role: 'agent' as UserRole,
+  }
 }
 
 export function AuthProvider({ children }: AuthProviderProps) {
@@ -83,32 +79,29 @@ export function AuthProvider({ children }: AuthProviderProps) {
     companies: [],
     currentCompanyId: null,
     needsCompanySetup: false,
-  });
+  })
 
   // Check for existing session on mount
   React.useEffect(() => {
     const checkSession = async () => {
       try {
-        initializeAuth();
-        const token = getAccessToken();
+        initializeAuth()
+        const token = getAccessToken()
         if (token) {
           // Validate token by fetching current user
-          const apiUser = await getCurrentUser();
+          const apiUser = await getCurrentUser()
 
           // Fetch user's companies
-          const companies = await getUserCompanies();
-          const storedCompanyId = getCompanyId();
+          const companies = await getUserCompanies()
+          const storedCompanyId = getCompanyId()
 
           // Use stored company ID if valid, otherwise use first company
-          let currentCompanyId: string | null = null;
-          if (
-            storedCompanyId &&
-            companies.some((c) => c.id === storedCompanyId)
-          ) {
-            currentCompanyId = storedCompanyId;
+          let currentCompanyId: string | null = null
+          if (storedCompanyId && companies.some((c) => c.id === storedCompanyId)) {
+            currentCompanyId = storedCompanyId
           } else if (companies.length > 0) {
-            currentCompanyId = companies[0].id;
-            setCompanyId(currentCompanyId);
+            currentCompanyId = companies[0].id
+            setCompanyId(currentCompanyId)
           }
 
           setState({
@@ -119,34 +112,34 @@ export function AuthProvider({ children }: AuthProviderProps) {
             companies,
             currentCompanyId,
             needsCompanySetup: companies.length === 0,
-          });
+          })
         } else {
-          setState((prev) => ({ ...prev, isLoading: false }));
+          setState((prev) => ({ ...prev, isLoading: false }))
         }
       } catch {
         // Token invalid or expired
-        clearAuthTokens();
-        setState((prev) => ({ ...prev, isLoading: false }));
+        clearAuthTokens()
+        setState((prev) => ({ ...prev, isLoading: false }))
       }
-    };
+    }
 
-    checkSession();
-  }, []);
+    checkSession()
+  }, [])
 
   const login = React.useCallback(async (email: string, password: string) => {
-    setState((prev) => ({ ...prev, isLoading: true, error: null }));
+    setState((prev) => ({ ...prev, isLoading: true, error: null }))
 
     try {
-      const response = await apiLogin({ email, password });
+      const response = await apiLogin({ email, password })
 
       // Fetch user's companies after login
-      const companies = await getUserCompanies();
+      const companies = await getUserCompanies()
 
       // Set first company as current if available
-      let currentCompanyId: string | null = null;
+      let currentCompanyId: string | null = null
       if (companies.length > 0) {
-        currentCompanyId = companies[0].id;
-        setCompanyId(currentCompanyId);
+        currentCompanyId = companies[0].id
+        setCompanyId(currentCompanyId)
       }
 
       setState({
@@ -157,56 +150,53 @@ export function AuthProvider({ children }: AuthProviderProps) {
         companies,
         currentCompanyId,
         needsCompanySetup: companies.length === 0,
-      });
+      })
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Login failed";
+      const message = error instanceof Error ? error.message : 'Login failed'
       setState((prev) => ({
         ...prev,
         isLoading: false,
         error: message,
-      }));
-      throw error;
+      }))
+      throw error
     }
-  }, []);
+  }, [])
 
   const register = React.useCallback(
-    async (
-      data: Omit<RegisterRequest, "companyName">,
-    ): Promise<RegisterResponse> => {
-      setState((prev) => ({ ...prev, isLoading: true, error: null }));
+    async (data: Omit<RegisterRequest, 'companyName'>): Promise<RegisterResponse> => {
+      setState((prev) => ({ ...prev, isLoading: true, error: null }))
 
       try {
-        const response = await apiRegister(data);
+        const response = await apiRegister(data)
         // Registration doesn't log user in - they need to verify email first
         setState((prev) => ({
           ...prev,
           isLoading: false,
           error: null,
-        }));
-        return response;
+        }))
+        return response
       } catch (error) {
-        const message =
-          error instanceof Error ? error.message : "Registration failed";
+        const message = error instanceof Error ? error.message : 'Registration failed'
         setState((prev) => ({
           ...prev,
           isLoading: false,
           error: message,
-        }));
-        throw error;
+        }))
+        throw error
       }
     },
-    [],
-  );
+    []
+  )
 
   const logout = React.useCallback(async () => {
-    setState((prev) => ({ ...prev, isLoading: true }));
+    setState((prev) => ({ ...prev, isLoading: true }))
 
     try {
-      await apiLogout();
+      await apiLogout()
     } catch {
       // Ignore logout errors, clear local state anyway
     } finally {
-      clearAuthTokens();
+      clearAuthTokens()
       setState({
         user: null,
         isAuthenticated: false,
@@ -215,43 +205,40 @@ export function AuthProvider({ children }: AuthProviderProps) {
         companies: [],
         currentCompanyId: null,
         needsCompanySetup: false,
-      });
+      })
     }
-  }, []);
+  }, [])
 
   const selectCompany = React.useCallback(
     (companyId: string) => {
-      const membership = state.companies.find((c) => c.id === companyId);
+      const membership = state.companies.find((c) => c.id === companyId)
       if (membership) {
-        setCompanyId(companyId);
+        setCompanyId(companyId)
         setState((prev) => ({
           ...prev,
           currentCompanyId: companyId,
-        }));
+        }))
       }
     },
-    [state.companies],
-  );
+    [state.companies]
+  )
 
   const refreshSession = React.useCallback(async () => {
-    setState((prev) => ({ ...prev, isLoading: true }));
+    setState((prev) => ({ ...prev, isLoading: true }))
 
     try {
-      const token = getAccessToken();
+      const token = getAccessToken()
       if (token) {
-        const apiUser = await getCurrentUser();
-        const companies = await getUserCompanies();
-        const storedCompanyId = getCompanyId();
+        const apiUser = await getCurrentUser()
+        const companies = await getUserCompanies()
+        const storedCompanyId = getCompanyId()
 
-        let currentCompanyId: string | null = null;
-        if (
-          storedCompanyId &&
-          companies.some((c) => c.id === storedCompanyId)
-        ) {
-          currentCompanyId = storedCompanyId;
+        let currentCompanyId: string | null = null
+        if (storedCompanyId && companies.some((c) => c.id === storedCompanyId)) {
+          currentCompanyId = storedCompanyId
         } else if (companies.length > 0) {
-          currentCompanyId = companies[0].id;
-          setCompanyId(currentCompanyId);
+          currentCompanyId = companies[0].id
+          setCompanyId(currentCompanyId)
         }
 
         setState({
@@ -262,7 +249,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
           companies,
           currentCompanyId,
           needsCompanySetup: companies.length === 0,
-        });
+        })
       } else {
         setState({
           user: null,
@@ -272,10 +259,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
           companies: [],
           currentCompanyId: null,
           needsCompanySetup: false,
-        });
+        })
       }
     } catch {
-      clearAuthTokens();
+      clearAuthTokens()
       setState({
         user: null,
         isAuthenticated: false,
@@ -284,13 +271,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
         companies: [],
         currentCompanyId: null,
         needsCompanySetup: false,
-      });
+      })
     }
-  }, []);
+  }, [])
 
   const clearError = React.useCallback(() => {
-    setState((prev) => ({ ...prev, error: null }));
-  }, []);
+    setState((prev) => ({ ...prev, error: null }))
+  }, [])
 
   const value = React.useMemo(
     () => ({
@@ -302,28 +289,28 @@ export function AuthProvider({ children }: AuthProviderProps) {
       clearError,
       selectCompany,
     }),
-    [state, login, register, logout, refreshSession, clearError, selectCompany],
-  );
+    [state, login, register, logout, refreshSession, clearError, selectCompany]
+  )
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }
 
 export function useAuth(): AuthContextValue {
-  const context = React.useContext(AuthContext);
+  const context = React.useContext(AuthContext)
   if (context === undefined) {
-    throw new Error("useAuth must be used within an AuthProvider");
+    throw new Error('useAuth must be used within an AuthProvider')
   }
-  return context;
+  return context
 }
 
 // Hook for checking if user has specific role
 export function useHasRole(allowedRoles: UserRole[]): boolean {
-  const { user } = useAuth();
-  if (!user) return false;
-  return allowedRoles.includes(user.role);
+  const { user } = useAuth()
+  if (!user) return false
+  return allowedRoles.includes(user.role)
 }
 
 // Hook for checking if user is admin
 export function useIsAdmin(): boolean {
-  return useHasRole(["admin"]);
+  return useHasRole(['admin'])
 }

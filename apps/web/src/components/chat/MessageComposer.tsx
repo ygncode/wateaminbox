@@ -1,21 +1,21 @@
+import type { Message } from '@whatsapp-web/shared'
 import {
-  useState,
-  useRef,
-  useEffect,
-  useCallback,
-  type KeyboardEvent,
   type ChangeEvent,
-} from "react";
-import type { Message } from "@whatsapp-web/shared";
-import { EmojiInputPicker } from "./EmojiInputPicker";
+  type KeyboardEvent,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from 'react'
+import { EmojiInputPicker } from './EmojiInputPicker'
 
 interface MessageComposerProps {
-  conversationId: string | undefined;
-  replyToMessage: Message | null;
-  onClearReply: () => void;
-  onSendMessage: (content: string, replyToMessageId?: string) => void;
-  onAttachFile: (file: File, type: "image" | "document") => void;
-  disabled?: boolean;
+  conversationId: string | undefined
+  replyToMessage: Message | null
+  onClearReply: () => void
+  onSendMessage: (content: string, replyToMessageId?: string) => void
+  onAttachFile: (file: File, type: 'image' | 'document') => void
+  disabled?: boolean
 }
 
 export function MessageComposer({
@@ -26,130 +26,123 @@ export function MessageComposer({
   onAttachFile,
   disabled = false,
 }: MessageComposerProps) {
-  const [message, setMessage] = useState("");
-  const [showAttachmentMenu, setShowAttachmentMenu] = useState(false);
-  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const attachmentMenuRef = useRef<HTMLDivElement>(null);
-  const emojiPickerRef = useRef<HTMLDivElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const imageInputRef = useRef<HTMLInputElement>(null);
+  const [message, setMessage] = useState('')
+  const [showAttachmentMenu, setShowAttachmentMenu] = useState(false)
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const attachmentMenuRef = useRef<HTMLDivElement>(null)
+  const emojiPickerRef = useRef<HTMLDivElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const imageInputRef = useRef<HTMLInputElement>(null)
 
   // Auto-resize textarea
   const adjustTextareaHeight = useCallback(() => {
-    const textarea = textareaRef.current;
+    const textarea = textareaRef.current
     if (textarea) {
-      textarea.style.height = "auto";
-      const newHeight = Math.min(textarea.scrollHeight, 150);
-      textarea.style.height = `${newHeight}px`;
+      textarea.style.height = 'auto'
+      const newHeight = Math.min(textarea.scrollHeight, 150)
+      textarea.style.height = `${newHeight}px`
     }
-  }, []);
+  }, [])
 
   useEffect(() => {
-    adjustTextareaHeight();
-  }, [message, adjustTextareaHeight]);
+    adjustTextareaHeight()
+  }, [adjustTextareaHeight])
 
   // Close attachment menu when clicking outside
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
-      if (
-        attachmentMenuRef.current &&
-        !attachmentMenuRef.current.contains(event.target as Node)
-      ) {
-        setShowAttachmentMenu(false);
+      if (attachmentMenuRef.current && !attachmentMenuRef.current.contains(event.target as Node)) {
+        setShowAttachmentMenu(false)
       }
     }
 
     if (showAttachmentMenu) {
-      document.addEventListener("mousedown", handleClickOutside);
+      document.addEventListener('mousedown', handleClickOutside)
     }
     return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
-  }, [showAttachmentMenu]);
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [showAttachmentMenu])
 
   // Focus textarea when reply is set
   useEffect(() => {
     if (replyToMessage) {
-      textareaRef.current?.focus();
+      textareaRef.current?.focus()
     }
-  }, [replyToMessage]);
+  }, [replyToMessage])
 
   const handleInputChange = (e: ChangeEvent<HTMLTextAreaElement>) => {
-    setMessage(e.target.value);
-  };
+    setMessage(e.target.value)
+  }
 
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     // Send on Enter, new line on Shift+Enter
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      handleSend();
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+      handleSend()
     }
-  };
+  }
 
   const handleSend = () => {
-    const trimmedMessage = message.trim();
-    if (!trimmedMessage || disabled || !conversationId) return;
+    const trimmedMessage = message.trim()
+    if (!trimmedMessage || disabled || !conversationId) return
 
-    onSendMessage(trimmedMessage, replyToMessage?.id);
-    setMessage("");
-    onClearReply();
+    onSendMessage(trimmedMessage, replyToMessage?.id)
+    setMessage('')
+    onClearReply()
 
     // Reset textarea height and maintain focus for continued typing
     if (textareaRef.current) {
-      textareaRef.current.style.height = "auto";
-      textareaRef.current.focus();
+      textareaRef.current.style.height = 'auto'
+      textareaRef.current.focus()
     }
-  };
+  }
 
-  const handleFileSelect = (
-    e: ChangeEvent<HTMLInputElement>,
-    type: "image" | "document",
-  ) => {
-    const file = e.target.files?.[0];
+  const handleFileSelect = (e: ChangeEvent<HTMLInputElement>, type: 'image' | 'document') => {
+    const file = e.target.files?.[0]
     if (file) {
-      onAttachFile(file, type);
+      onAttachFile(file, type)
     }
     // Reset input
-    e.target.value = "";
-    setShowAttachmentMenu(false);
-  };
+    e.target.value = ''
+    setShowAttachmentMenu(false)
+  }
 
-  const triggerFileInput = (type: "image" | "document") => {
-    if (type === "image") {
-      imageInputRef.current?.click();
+  const triggerFileInput = (type: 'image' | 'document') => {
+    if (type === 'image') {
+      imageInputRef.current?.click()
     } else {
-      fileInputRef.current?.click();
+      fileInputRef.current?.click()
     }
-  };
+  }
 
   // Insert emoji at cursor position
   const insertEmoji = useCallback(
     (emoji: string) => {
-      const textarea = textareaRef.current;
+      const textarea = textareaRef.current
       if (!textarea) {
-        setMessage((prev) => prev + emoji);
-        return;
+        setMessage((prev) => prev + emoji)
+        return
       }
 
-      const start = textarea.selectionStart;
-      const end = textarea.selectionEnd;
-      const newMessage =
-        message.substring(0, start) + emoji + message.substring(end);
-      setMessage(newMessage);
+      const start = textarea.selectionStart
+      const end = textarea.selectionEnd
+      const newMessage = message.substring(0, start) + emoji + message.substring(end)
+      setMessage(newMessage)
 
       // Restore focus and cursor position after emoji insertion
       requestAnimationFrame(() => {
-        textarea.focus();
-        const newCursorPos = start + emoji.length;
-        textarea.setSelectionRange(newCursorPos, newCursorPos);
-      });
+        textarea.focus()
+        const newCursorPos = start + emoji.length
+        textarea.setSelectionRange(newCursorPos, newCursorPos)
+      })
     },
-    [message],
-  );
+    [message]
+  )
 
   if (!conversationId) {
-    return null;
+    return null
   }
 
   return (
@@ -160,12 +153,10 @@ export function MessageComposer({
           <div className="flex items-center bg-white dark:bg-dark-elevated rounded-lg border-l-4 border-whatsapp-green p-2">
             <div className="flex-1 min-w-0">
               <p className="text-xs font-medium text-whatsapp-green truncate">
-                {replyToMessage.senderType === "user" ? "You" : "Contact"}
+                {replyToMessage.senderType === 'user' ? 'You' : 'Contact'}
               </p>
               <p className="text-sm text-gray-600 dark:text-dark-text-secondary truncate">
-                {replyToMessage.isDeleted
-                  ? "This message was deleted"
-                  : replyToMessage.content}
+                {replyToMessage.isDeleted ? 'This message was deleted' : replyToMessage.content}
               </p>
             </div>
             <button
@@ -173,12 +164,7 @@ export function MessageComposer({
               className="ml-2 p-1 text-gray-400 dark:text-dark-text-tertiary hover:text-gray-600 dark:hover:text-dark-text-secondary rounded-full hover:bg-gray-100 dark:hover:bg-dark-tertiary"
               aria-label="Cancel reply"
             >
-              <svg
-                className="h-5 w-5"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
+              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path
                   strokeLinecap="round"
                   strokeLinejoin="round"
@@ -200,12 +186,7 @@ export function MessageComposer({
             className="flex-shrink-0 flex h-11 w-11 md:h-10 md:w-10 items-center justify-center text-gray-500 dark:text-dark-text-secondary hover:text-gray-700 dark:hover:text-dark-text-primary rounded-full hover:bg-gray-200 dark:hover:bg-dark-tertiary active:bg-gray-300 dark:active:bg-dark-border transition-colors touch-manipulation"
             aria-label="Insert emoji"
           >
-            <svg
-              className="h-6 w-6"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
+            <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -231,12 +212,7 @@ export function MessageComposer({
             onClick={() => setShowAttachmentMenu(!showAttachmentMenu)}
             aria-label="Attach file"
           >
-            <svg
-              className="h-6 w-6"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
+            <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -251,7 +227,7 @@ export function MessageComposer({
             <div className="absolute bottom-full mb-2 left-0 bg-white dark:bg-dark-elevated rounded-lg shadow-lg py-2 min-w-[160px] z-10">
               <button
                 className="w-full flex items-center gap-3 px-4 py-2 text-sm text-gray-700 dark:text-dark-text-primary hover:bg-gray-100 dark:hover:bg-dark-tertiary"
-                onClick={() => triggerFileInput("image")}
+                onClick={() => triggerFileInput('image')}
               >
                 <div className="w-8 h-8 rounded-full bg-purple-500 flex items-center justify-center">
                   <svg
@@ -272,7 +248,7 @@ export function MessageComposer({
               </button>
               <button
                 className="w-full flex items-center gap-3 px-4 py-2 text-sm text-gray-700 dark:text-dark-text-primary hover:bg-gray-100 dark:hover:bg-dark-tertiary"
-                onClick={() => triggerFileInput("document")}
+                onClick={() => triggerFileInput('document')}
               >
                 <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center">
                   <svg
@@ -300,14 +276,14 @@ export function MessageComposer({
             type="file"
             accept="image/*,video/*"
             className="hidden"
-            onChange={(e) => handleFileSelect(e, "image")}
+            onChange={(e) => handleFileSelect(e, 'image')}
           />
           <input
             ref={fileInputRef}
             type="file"
             accept=".pdf,.doc,.docx,.xls,.xlsx,.txt,.zip,.rar"
             className="hidden"
-            onChange={(e) => handleFileSelect(e, "document")}
+            onChange={(e) => handleFileSelect(e, 'document')}
           />
         </div>
 
@@ -322,7 +298,7 @@ export function MessageComposer({
             disabled={disabled}
             rows={1}
             className="w-full px-4 py-2 bg-transparent resize-none focus:outline-none text-gray-900 dark:text-dark-text-primary placeholder-gray-500 dark:placeholder-dark-text-tertiary max-h-[150px]"
-            style={{ minHeight: "40px" }}
+            style={{ minHeight: '40px' }}
           />
         </div>
 
@@ -332,17 +308,12 @@ export function MessageComposer({
           disabled={!message.trim() || disabled}
           className={`flex-shrink-0 flex h-11 w-11 md:h-10 md:w-10 items-center justify-center rounded-full transition-colors touch-manipulation ${
             message.trim() && !disabled
-              ? "bg-whatsapp-green text-white hover:bg-whatsapp-dark-green active:bg-whatsapp-dark-green"
-              : "bg-gray-200 dark:bg-dark-tertiary text-gray-400 dark:text-dark-text-tertiary cursor-not-allowed"
+              ? 'bg-whatsapp-green text-white hover:bg-whatsapp-dark-green active:bg-whatsapp-dark-green'
+              : 'bg-gray-200 dark:bg-dark-tertiary text-gray-400 dark:text-dark-text-tertiary cursor-not-allowed'
           }`}
           aria-label="Send message"
         >
-          <svg
-            className="h-6 w-6"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
+          <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path
               strokeLinecap="round"
               strokeLinejoin="round"
@@ -353,7 +324,7 @@ export function MessageComposer({
         </button>
       </div>
     </div>
-  );
+  )
 }
 
-export default MessageComposer;
+export default MessageComposer

@@ -1,22 +1,22 @@
-import * as React from "react";
+import * as React from 'react'
 import {
-  useKeyboardShortcuts,
   getPrimaryModifier,
   type KeyboardShortcut,
-} from "@/hooks/useKeyboardShortcuts";
+  useKeyboardShortcuts,
+} from '@/hooks/useKeyboardShortcuts'
 
 /**
  * State for the keyboard shortcuts context
  */
 export interface KeyboardShortcutsState {
   /** Whether shortcuts are globally enabled */
-  enabled: boolean;
+  enabled: boolean
   /** Whether the help modal is open */
-  isHelpModalOpen: boolean;
+  isHelpModalOpen: boolean
   /** Whether the search panel is open */
-  isSearchPanelOpen: boolean;
+  isSearchPanelOpen: boolean
   /** All registered shortcuts */
-  shortcuts: KeyboardShortcut[];
+  shortcuts: KeyboardShortcut[]
 }
 
 /**
@@ -24,224 +24,214 @@ export interface KeyboardShortcutsState {
  */
 export interface KeyboardShortcutsContextValue extends KeyboardShortcutsState {
   /** Enable keyboard shortcuts globally */
-  enableShortcuts: () => void;
+  enableShortcuts: () => void
   /** Disable keyboard shortcuts globally (useful when typing in inputs) */
-  disableShortcuts: () => void;
+  disableShortcuts: () => void
   /** Temporarily disable shortcuts and return a function to re-enable */
-  suspendShortcuts: () => () => void;
+  suspendShortcuts: () => () => void
   /** Open the keyboard shortcuts help modal */
-  openHelpModal: () => void;
+  openHelpModal: () => void
   /** Close the keyboard shortcuts help modal */
-  closeHelpModal: () => void;
+  closeHelpModal: () => void
   /** Toggle the keyboard shortcuts help modal */
-  toggleHelpModal: () => void;
+  toggleHelpModal: () => void
   /** Open the search panel */
-  openSearchPanel: () => void;
+  openSearchPanel: () => void
   /** Close the search panel */
-  closeSearchPanel: () => void;
+  closeSearchPanel: () => void
   /** Toggle the search panel */
-  toggleSearchPanel: () => void;
+  toggleSearchPanel: () => void
   /** Focus the chat list search input (new chat) */
-  focusNewChat: () => void;
+  focusNewChat: () => void
   /** Navigate chat list up */
-  navigateChatListUp: () => void;
+  navigateChatListUp: () => void
   /** Navigate chat list down */
-  navigateChatListDown: () => void;
+  navigateChatListDown: () => void
   /** Close current modal/panel */
-  closeCurrentModal: () => void;
+  closeCurrentModal: () => void
   /** Register custom callbacks for actions */
-  registerAction: (actionId: string, callback: () => void) => void;
+  registerAction: (actionId: string, callback: () => void) => void
   /** Unregister a custom callback */
-  unregisterAction: (actionId: string) => void;
+  unregisterAction: (actionId: string) => void
 }
 
-const KeyboardShortcutsContext = React.createContext<
-  KeyboardShortcutsContextValue | undefined
->(undefined);
+const KeyboardShortcutsContext = React.createContext<KeyboardShortcutsContextValue | undefined>(
+  undefined
+)
 
 export interface KeyboardShortcutsProviderProps {
-  children: React.ReactNode;
+  children: React.ReactNode
 }
 
 /**
  * Provider component for keyboard shortcuts
  * Wraps the app to enable global keyboard shortcuts
  */
-export function KeyboardShortcutsProvider({
-  children,
-}: KeyboardShortcutsProviderProps) {
+export function KeyboardShortcutsProvider({ children }: KeyboardShortcutsProviderProps) {
   const [state, setState] = React.useState<KeyboardShortcutsState>({
     enabled: true,
     isHelpModalOpen: false,
     isSearchPanelOpen: false,
     shortcuts: [],
-  });
+  })
 
   // Store for custom action callbacks
-  const actionsRef = React.useRef<Map<string, () => void>>(new Map());
+  const actionsRef = React.useRef<Map<string, () => void>>(new Map())
 
   // Action methods
   const enableShortcuts = React.useCallback(() => {
-    setState((prev) => ({ ...prev, enabled: true }));
-  }, []);
+    setState((prev) => ({ ...prev, enabled: true }))
+  }, [])
 
   const disableShortcuts = React.useCallback(() => {
-    setState((prev) => ({ ...prev, enabled: false }));
-  }, []);
+    setState((prev) => ({ ...prev, enabled: false }))
+  }, [])
 
   const suspendShortcuts = React.useCallback(() => {
-    setState((prev) => ({ ...prev, enabled: false }));
+    setState((prev) => ({ ...prev, enabled: false }))
     return () => {
-      setState((prev) => ({ ...prev, enabled: true }));
-    };
-  }, []);
+      setState((prev) => ({ ...prev, enabled: true }))
+    }
+  }, [])
 
   const openHelpModal = React.useCallback(() => {
-    setState((prev) => ({ ...prev, isHelpModalOpen: true }));
-  }, []);
+    setState((prev) => ({ ...prev, isHelpModalOpen: true }))
+  }, [])
 
   const closeHelpModal = React.useCallback(() => {
-    setState((prev) => ({ ...prev, isHelpModalOpen: false }));
-  }, []);
+    setState((prev) => ({ ...prev, isHelpModalOpen: false }))
+  }, [])
 
   const toggleHelpModal = React.useCallback(() => {
-    setState((prev) => ({ ...prev, isHelpModalOpen: !prev.isHelpModalOpen }));
-  }, []);
+    setState((prev) => ({ ...prev, isHelpModalOpen: !prev.isHelpModalOpen }))
+  }, [])
 
   const openSearchPanel = React.useCallback(() => {
-    setState((prev) => ({ ...prev, isSearchPanelOpen: true }));
-    actionsRef.current.get("openSearchPanel")?.();
-  }, []);
+    setState((prev) => ({ ...prev, isSearchPanelOpen: true }))
+    actionsRef.current.get('openSearchPanel')?.()
+  }, [])
 
   const closeSearchPanel = React.useCallback(() => {
-    setState((prev) => ({ ...prev, isSearchPanelOpen: false }));
-    actionsRef.current.get("closeSearchPanel")?.();
-  }, []);
+    setState((prev) => ({ ...prev, isSearchPanelOpen: false }))
+    actionsRef.current.get('closeSearchPanel')?.()
+  }, [])
 
   const toggleSearchPanel = React.useCallback(() => {
     setState((prev) => {
-      const newState = !prev.isSearchPanelOpen;
+      const newState = !prev.isSearchPanelOpen
       if (newState) {
-        actionsRef.current.get("openSearchPanel")?.();
+        actionsRef.current.get('openSearchPanel')?.()
       } else {
-        actionsRef.current.get("closeSearchPanel")?.();
+        actionsRef.current.get('closeSearchPanel')?.()
       }
-      return { ...prev, isSearchPanelOpen: newState };
-    });
-  }, []);
+      return { ...prev, isSearchPanelOpen: newState }
+    })
+  }, [])
 
   const focusNewChat = React.useCallback(() => {
     // Try to find and focus the chat list search input
     const searchInput = document.querySelector<HTMLInputElement>(
-      '[aria-label="Search contacts"], [data-testid="chat-list-search"]',
-    );
+      '[aria-label="Search contacts"], [data-testid="chat-list-search"]'
+    )
     if (searchInput) {
-      searchInput.focus();
-      searchInput.select();
+      searchInput.focus()
+      searchInput.select()
     }
-    actionsRef.current.get("focusNewChat")?.();
-  }, []);
+    actionsRef.current.get('focusNewChat')?.()
+  }, [])
 
   const navigateChatListUp = React.useCallback(() => {
-    actionsRef.current.get("navigateChatListUp")?.();
-  }, []);
+    actionsRef.current.get('navigateChatListUp')?.()
+  }, [])
 
   const navigateChatListDown = React.useCallback(() => {
-    actionsRef.current.get("navigateChatListDown")?.();
-  }, []);
+    actionsRef.current.get('navigateChatListDown')?.()
+  }, [])
 
   const closeCurrentModal = React.useCallback(() => {
     // Close modals in order of priority
     if (state.isHelpModalOpen) {
-      closeHelpModal();
-      return;
+      closeHelpModal()
+      return
     }
     if (state.isSearchPanelOpen) {
-      closeSearchPanel();
-      return;
+      closeSearchPanel()
+      return
     }
     // Let custom handlers handle other modals
-    actionsRef.current.get("closeCurrentModal")?.();
-  }, [
-    state.isHelpModalOpen,
-    state.isSearchPanelOpen,
-    closeHelpModal,
-    closeSearchPanel,
-  ]);
+    actionsRef.current.get('closeCurrentModal')?.()
+  }, [state.isHelpModalOpen, state.isSearchPanelOpen, closeHelpModal, closeSearchPanel])
 
-  const registerAction = React.useCallback(
-    (actionId: string, callback: () => void) => {
-      actionsRef.current.set(actionId, callback);
-    },
-    [],
-  );
+  const registerAction = React.useCallback((actionId: string, callback: () => void) => {
+    actionsRef.current.set(actionId, callback)
+  }, [])
 
   const unregisterAction = React.useCallback((actionId: string) => {
-    actionsRef.current.delete(actionId);
-  }, []);
+    actionsRef.current.delete(actionId)
+  }, [])
 
   // Define all shortcuts
-  const primaryMod = getPrimaryModifier();
+  const primaryMod = getPrimaryModifier()
 
   const shortcuts: KeyboardShortcut[] = React.useMemo(
     () => [
       // Navigation shortcuts
       {
-        id: "new-chat",
-        label: "New Chat",
-        description: "Focus the search input to start a new chat",
-        key: "n",
+        id: 'new-chat',
+        label: 'New Chat',
+        description: 'Focus the search input to start a new chat',
+        key: 'n',
         modifiers: [primaryMod],
-        category: "navigation",
+        category: 'navigation',
         handler: focusNewChat,
       },
       {
-        id: "open-search",
-        label: "Open Search",
-        description: "Open the global search panel",
-        key: "f",
+        id: 'open-search',
+        label: 'Open Search',
+        description: 'Open the global search panel',
+        key: 'f',
         modifiers: [primaryMod],
-        category: "navigation",
+        category: 'navigation',
         handler: toggleSearchPanel,
       },
       {
-        id: "navigate-up",
-        label: "Navigate Up",
-        description: "Move up in the chat list",
-        key: "ArrowUp",
+        id: 'navigate-up',
+        label: 'Navigate Up',
+        description: 'Move up in the chat list',
+        key: 'ArrowUp',
         modifiers: [],
-        category: "navigation",
+        category: 'navigation',
         handler: navigateChatListUp,
         allowInInput: false,
       },
       {
-        id: "navigate-down",
-        label: "Navigate Down",
-        description: "Move down in the chat list",
-        key: "ArrowDown",
+        id: 'navigate-down',
+        label: 'Navigate Down',
+        description: 'Move down in the chat list',
+        key: 'ArrowDown',
         modifiers: [],
-        category: "navigation",
+        category: 'navigation',
         handler: navigateChatListDown,
         allowInInput: false,
       },
 
       // General shortcuts
       {
-        id: "show-shortcuts",
-        label: "Keyboard Shortcuts",
-        description: "Show this keyboard shortcuts help",
-        key: "/",
+        id: 'show-shortcuts',
+        label: 'Keyboard Shortcuts',
+        description: 'Show this keyboard shortcuts help',
+        key: '/',
         modifiers: [primaryMod],
-        category: "general",
+        category: 'general',
         handler: toggleHelpModal,
       },
       {
-        id: "close-modal",
-        label: "Close",
-        description: "Close the current modal or panel",
-        key: "Escape",
+        id: 'close-modal',
+        label: 'Close',
+        description: 'Close the current modal or panel',
+        key: 'Escape',
         modifiers: [],
-        category: "general",
+        category: 'general',
         handler: closeCurrentModal,
         allowInInput: true,
       },
@@ -254,19 +244,19 @@ export function KeyboardShortcutsProvider({
       navigateChatListDown,
       toggleHelpModal,
       closeCurrentModal,
-    ],
-  );
+    ]
+  )
 
   // Update state with shortcuts
   React.useEffect(() => {
-    setState((prev) => ({ ...prev, shortcuts }));
-  }, [shortcuts]);
+    setState((prev) => ({ ...prev, shortcuts }))
+  }, [shortcuts])
 
   // Register global shortcuts
   useKeyboardShortcuts({
     enabled: state.enabled,
     shortcuts,
-  });
+  })
 
   const value = React.useMemo<KeyboardShortcutsContextValue>(
     () => ({
@@ -304,60 +294,53 @@ export function KeyboardShortcutsProvider({
       closeCurrentModal,
       registerAction,
       unregisterAction,
-    ],
-  );
+    ]
+  )
 
   return (
-    <KeyboardShortcutsContext.Provider value={value}>
-      {children}
-    </KeyboardShortcutsContext.Provider>
-  );
+    <KeyboardShortcutsContext.Provider value={value}>{children}</KeyboardShortcutsContext.Provider>
+  )
 }
 
 /**
  * Hook to access the keyboard shortcuts context
  */
 export function useKeyboardShortcutsContext(): KeyboardShortcutsContextValue {
-  const context = React.useContext(KeyboardShortcutsContext);
+  const context = React.useContext(KeyboardShortcutsContext)
   if (context === undefined) {
-    throw new Error(
-      "useKeyboardShortcutsContext must be used within a KeyboardShortcutsProvider",
-    );
+    throw new Error('useKeyboardShortcutsContext must be used within a KeyboardShortcutsProvider')
   }
-  return context;
+  return context
 }
 
 /**
  * Hook to check if shortcuts are enabled
  */
 export function useShortcutsEnabled(): boolean {
-  const { enabled } = useKeyboardShortcutsContext();
-  return enabled;
+  const { enabled } = useKeyboardShortcutsContext()
+  return enabled
 }
 
 /**
  * Hook to get all registered shortcuts
  */
 export function useRegisteredShortcuts(): KeyboardShortcut[] {
-  const { shortcuts } = useKeyboardShortcutsContext();
-  return shortcuts;
+  const { shortcuts } = useKeyboardShortcutsContext()
+  return shortcuts
 }
 
 /**
  * Hook to register a custom action callback
  */
-export function useRegisterShortcutAction(
-  actionId: string,
-  callback: () => void,
-): void {
-  const { registerAction, unregisterAction } = useKeyboardShortcutsContext();
+export function useRegisterShortcutAction(actionId: string, callback: () => void): void {
+  const { registerAction, unregisterAction } = useKeyboardShortcutsContext()
 
   React.useEffect(() => {
-    registerAction(actionId, callback);
+    registerAction(actionId, callback)
     return () => {
-      unregisterAction(actionId);
-    };
-  }, [actionId, callback, registerAction, unregisterAction]);
+      unregisterAction(actionId)
+    }
+  }, [actionId, callback, registerAction, unregisterAction])
 }
 
-export default KeyboardShortcutsProvider;
+export default KeyboardShortcutsProvider

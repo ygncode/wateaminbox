@@ -1,14 +1,14 @@
-import { useState, useCallback, useMemo, useRef, memo } from "react";
-import { useVirtualizer } from "@tanstack/react-virtual";
-import { UserPlus } from "lucide-react";
-import { useChats, type AssignmentFilter } from "../../hooks/useChats";
-import type { ChatListProps } from "../../types/chat";
-import { ChatListSearch } from "./ChatListSearch";
-import { ChatListItem, ChatListItemSkeleton } from "./ChatListItem";
-import { AddContactDialog } from "../contacts/AddContactDialog";
+import { useVirtualizer } from '@tanstack/react-virtual'
+import { UserPlus } from 'lucide-react'
+import { memo, useCallback, useMemo, useRef, useState } from 'react'
+import { type AssignmentFilter, useChats } from '../../hooks/useChats'
+import type { ChatListProps } from '../../types/chat'
+import { AddContactDialog } from '../contacts/AddContactDialog'
+import { ChatListItem, ChatListItemSkeleton } from './ChatListItem'
+import { ChatListSearch } from './ChatListSearch'
 
 // Fixed height for chat list items for virtualization
-const CHAT_ITEM_HEIGHT = 72;
+const CHAT_ITEM_HEIGHT = 72
 
 /**
  * Main chat list sidebar component
@@ -17,46 +17,40 @@ const CHAT_ITEM_HEIGHT = 72;
 export const ChatList = memo(function ChatList({
   selectedChatId,
   onChatSelect,
-  className = "",
+  className = '',
 }: ChatListProps) {
-  const [searchQuery, setSearchQuery] = useState("");
-  const [assignmentFilter, setAssignmentFilter] =
-    useState<AssignmentFilter>("all");
-  const [isAddContactOpen, setIsAddContactOpen] = useState(false);
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const [searchQuery, setSearchQuery] = useState('')
+  const [assignmentFilter, setAssignmentFilter] = useState<AssignmentFilter>('all')
+  const [isAddContactOpen, setIsAddContactOpen] = useState(false)
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
 
-  const {
-    data: chats,
-    isLoading,
-    isError,
-    error,
-  } = useChats(searchQuery, true, assignmentFilter);
+  const { data: chats, isLoading, isError, error } = useChats(searchQuery, true, assignmentFilter)
 
   const handleSearchChange = useCallback((value: string) => {
-    setSearchQuery(value);
-  }, []);
+    setSearchQuery(value)
+  }, [])
 
   const handleSearchClear = useCallback(() => {
-    setSearchQuery("");
-  }, []);
+    setSearchQuery('')
+  }, [])
 
   const handleChatClick = useCallback(
     (chatId: string) => {
-      onChatSelect(chatId);
+      onChatSelect(chatId)
     },
-    [onChatSelect],
-  );
+    [onChatSelect]
+  )
 
   // Filter archived chats for main view
   const visibleChats = useMemo(() => {
-    return chats?.filter((chat) => !chat.isArchived) ?? [];
-  }, [chats]);
+    return chats?.filter((chat) => !chat.isArchived) ?? []
+  }, [chats])
 
   // Memoize getItemKey to prevent unnecessary re-renders
   const getItemKey = useCallback(
     (index: number) => visibleChats[index]?.id || index.toString(),
-    [visibleChats],
-  );
+    [visibleChats]
+  )
 
   // Virtualizer for chat list
   const virtualizer = useVirtualizer({
@@ -65,7 +59,7 @@ export const ChatList = memo(function ChatList({
     estimateSize: () => CHAT_ITEM_HEIGHT,
     overscan: 5,
     getItemKey,
-  });
+  })
 
   return (
     <div
@@ -86,44 +80,44 @@ export const ChatList = memo(function ChatList({
       <div className="flex items-center gap-1 px-2 py-1.5 border-b border-gray-200 dark:border-dark-border bg-gray-50 dark:bg-dark-secondary overflow-x-auto">
         <button
           type="button"
-          onClick={() => setAssignmentFilter("all")}
+          onClick={() => setAssignmentFilter('all')}
           className={`px-3 py-1 text-xs font-medium rounded-full transition-colors whitespace-nowrap ${
-            assignmentFilter === "all"
-              ? "bg-whatsapp-teal-green text-white"
-              : "bg-white dark:bg-dark-tertiary text-gray-600 dark:text-dark-text-secondary hover:bg-gray-100 dark:hover:bg-dark-border border border-gray-200 dark:border-dark-border"
+            assignmentFilter === 'all'
+              ? 'bg-whatsapp-teal-green text-white'
+              : 'bg-white dark:bg-dark-tertiary text-gray-600 dark:text-dark-text-secondary hover:bg-gray-100 dark:hover:bg-dark-border border border-gray-200 dark:border-dark-border'
           }`}
         >
           All
         </button>
         <button
           type="button"
-          onClick={() => setAssignmentFilter("unread")}
+          onClick={() => setAssignmentFilter('unread')}
           className={`px-3 py-1 text-xs font-medium rounded-full transition-colors whitespace-nowrap ${
-            assignmentFilter === "unread"
-              ? "bg-whatsapp-teal-green text-white"
-              : "bg-white dark:bg-dark-tertiary text-gray-600 dark:text-dark-text-secondary hover:bg-gray-100 dark:hover:bg-dark-border border border-gray-200 dark:border-dark-border"
+            assignmentFilter === 'unread'
+              ? 'bg-whatsapp-teal-green text-white'
+              : 'bg-white dark:bg-dark-tertiary text-gray-600 dark:text-dark-text-secondary hover:bg-gray-100 dark:hover:bg-dark-border border border-gray-200 dark:border-dark-border'
           }`}
         >
           Unread
         </button>
         <button
           type="button"
-          onClick={() => setAssignmentFilter("assignedToMe")}
+          onClick={() => setAssignmentFilter('assignedToMe')}
           className={`px-3 py-1 text-xs font-medium rounded-full transition-colors whitespace-nowrap ${
-            assignmentFilter === "assignedToMe"
-              ? "bg-whatsapp-teal-green text-white"
-              : "bg-white dark:bg-dark-tertiary text-gray-600 dark:text-dark-text-secondary hover:bg-gray-100 dark:hover:bg-dark-border border border-gray-200 dark:border-dark-border"
+            assignmentFilter === 'assignedToMe'
+              ? 'bg-whatsapp-teal-green text-white'
+              : 'bg-white dark:bg-dark-tertiary text-gray-600 dark:text-dark-text-secondary hover:bg-gray-100 dark:hover:bg-dark-border border border-gray-200 dark:border-dark-border'
           }`}
         >
           Assigned to me
         </button>
         <button
           type="button"
-          onClick={() => setAssignmentFilter("unassigned")}
+          onClick={() => setAssignmentFilter('unassigned')}
           className={`px-3 py-1 text-xs font-medium rounded-full transition-colors whitespace-nowrap ${
-            assignmentFilter === "unassigned"
-              ? "bg-whatsapp-teal-green text-white"
-              : "bg-white dark:bg-dark-tertiary text-gray-600 dark:text-dark-text-secondary hover:bg-gray-100 dark:hover:bg-dark-border border border-gray-200 dark:border-dark-border"
+            assignmentFilter === 'unassigned'
+              ? 'bg-whatsapp-teal-green text-white'
+              : 'bg-white dark:bg-dark-tertiary text-gray-600 dark:text-dark-text-secondary hover:bg-gray-100 dark:hover:bg-dark-border border border-gray-200 dark:border-dark-border'
           }`}
         >
           Unassigned
@@ -141,10 +135,7 @@ export const ChatList = memo(function ChatList({
       </div>
 
       {/* Add Contact Dialog */}
-      <AddContactDialog
-        open={isAddContactOpen}
-        onOpenChange={setIsAddContactOpen}
-      />
+      <AddContactDialog open={isAddContactOpen} onOpenChange={setIsAddContactOpen} />
 
       {/* Chat List */}
       <div
@@ -182,7 +173,7 @@ export const ChatList = memo(function ChatList({
               Failed to load chats
             </p>
             <p className="text-sm text-gray-500 dark:text-dark-text-secondary mt-1">
-              {error?.message || "Please try again later"}
+              {error?.message || 'Please try again later'}
             </p>
           </div>
         )}
@@ -203,9 +194,7 @@ export const ChatList = memo(function ChatList({
                 d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
               />
             </svg>
-            <p className="text-gray-600 dark:text-dark-text-primary font-medium">
-              No chats found
-            </p>
+            <p className="text-gray-600 dark:text-dark-text-primary font-medium">No chats found</p>
             <p className="text-sm text-gray-500 dark:text-dark-text-secondary mt-1">
               No results for "{searchQuery}"
             </p>
@@ -217,7 +206,7 @@ export const ChatList = memo(function ChatList({
           !isError &&
           visibleChats.length === 0 &&
           !searchQuery &&
-          assignmentFilter === "unread" && (
+          assignmentFilter === 'unread' && (
             <div className="flex flex-col items-center justify-center h-full px-4 py-8 text-center">
               <svg
                 className="w-12 h-12 text-whatsapp-green mb-4"
@@ -246,7 +235,7 @@ export const ChatList = memo(function ChatList({
           !isError &&
           visibleChats.length === 0 &&
           !searchQuery &&
-          assignmentFilter !== "unread" && (
+          assignmentFilter !== 'unread' && (
             <div className="flex flex-col items-center justify-center h-full px-4 py-8 text-center">
               <svg
                 className="w-12 h-12 text-gray-400 dark:text-dark-text-tertiary mb-4"
@@ -275,20 +264,20 @@ export const ChatList = memo(function ChatList({
           <div
             style={{
               height: `${virtualizer.getTotalSize()}px`,
-              width: "100%",
-              position: "relative",
+              width: '100%',
+              position: 'relative',
             }}
           >
             {virtualizer.getVirtualItems().map((virtualRow) => {
-              const chat = visibleChats[virtualRow.index];
+              const chat = visibleChats[virtualRow.index]
               return (
                 <div
                   key={virtualRow.key}
                   style={{
-                    position: "absolute",
+                    position: 'absolute',
                     top: 0,
                     left: 0,
-                    width: "100%",
+                    width: '100%',
                     height: `${virtualRow.size}px`,
                     transform: `translateY(${virtualRow.start}px)`,
                   }}
@@ -299,13 +288,13 @@ export const ChatList = memo(function ChatList({
                     onClick={() => handleChatClick(chat.id)}
                   />
                 </div>
-              );
+              )
             })}
           </div>
         )}
       </div>
     </div>
-  );
-});
+  )
+})
 
-export default ChatList;
+export default ChatList

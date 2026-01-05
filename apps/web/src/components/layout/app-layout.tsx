@@ -1,9 +1,9 @@
-import * as React from "react";
-import { cn } from "@/lib/utils";
-import { useIsMobile, useIsTablet } from "@/hooks/useMediaQuery";
+import type * as React from 'react'
+import { useIsMobile, useIsTablet } from '@/hooks/useMediaQuery'
+import { cn } from '@/lib/utils'
 
 export interface AppLayoutProps extends React.HTMLAttributes<HTMLDivElement> {
-  children: React.ReactNode;
+  children: React.ReactNode
 }
 
 /**
@@ -15,49 +15,49 @@ export interface AppLayoutProps extends React.HTMLAttributes<HTMLDivElement> {
  * Mobile (<768px): Single-column with navigation
  */
 export function AppLayout({ className, children, ...props }: AppLayoutProps) {
-  const isMobile = useIsMobile();
-  const isTablet = useIsTablet();
+  const isMobile = useIsMobile()
+  const isTablet = useIsTablet()
 
   return (
     <div
       className={cn(
-        "flex h-screen w-screen overflow-hidden bg-gray-200",
+        'flex h-screen w-screen overflow-hidden bg-gray-200 dark:bg-dark-primary',
         // Safe area insets for mobile devices (notch, home indicator)
-        "safe-area-inset",
-        className,
+        'safe-area-inset',
+        className
       )}
       {...props}
     >
       <div
         className={cn(
-          "mx-auto flex h-full w-full shadow-xl",
+          'mx-auto flex h-full w-full shadow-xl',
           // Responsive max-width
-          !isMobile && "max-w-[1600px]",
+          !isMobile && 'max-w-[1600px]',
           // On tablet, hide right panel by default (handled in children)
-          isTablet && !isMobile && "max-w-[1200px]",
+          isTablet && !isMobile && 'max-w-[1200px]'
         )}
       >
         {children}
       </div>
     </div>
-  );
+  )
 }
 
 export interface ResponsiveLayoutProps {
   /** Content for the left sidebar (chat list) */
-  sidebar: React.ReactNode;
+  sidebar: React.ReactNode
   /** Content for the main area (message thread) */
-  main: React.ReactNode;
+  main: React.ReactNode
   /** Content for the right panel (contact info) - optional */
-  rightPanel?: React.ReactNode;
+  rightPanel?: React.ReactNode
   /** Whether the right panel is open */
-  isRightPanelOpen?: boolean;
+  isRightPanelOpen?: boolean
   /** Callback when right panel should close */
-  onRightPanelClose?: () => void;
+  onRightPanelClose?: () => void
   /** Currently selected chat ID */
-  selectedChatId?: string | null;
+  selectedChatId?: string | null
   /** Callback when chat selection changes */
-  onChatSelect?: (chatId: string | null) => void;
+  onChatSelect?: (chatId: string | null) => void
 }
 
 /**
@@ -73,8 +73,8 @@ export function ResponsiveLayout({
   selectedChatId,
   onChatSelect,
 }: ResponsiveLayoutProps) {
-  const isMobile = useIsMobile();
-  const isTablet = useIsTablet();
+  const isMobile = useIsMobile()
+  const isTablet = useIsTablet()
 
   // Mobile layout - single column with view switching
   if (isMobile) {
@@ -88,7 +88,7 @@ export function ResponsiveLayout({
         selectedChatId={selectedChatId}
         onChatSelect={onChatSelect}
       />
-    );
+    )
   }
 
   // Tablet layout - two columns, right panel as overlay
@@ -101,7 +101,7 @@ export function ResponsiveLayout({
         isRightPanelOpen={isRightPanelOpen}
         onRightPanelClose={onRightPanelClose}
       />
-    );
+    )
   }
 
   // Desktop layout - three columns
@@ -111,25 +111,25 @@ export function ResponsiveLayout({
       {main}
       {rightPanel}
     </>
-  );
+  )
 }
 
 // Import mobile layout components
 import {
   MobileLayout,
   MobileLayoutProvider,
-  MobileViewContainer,
   MobileSlideInPanel,
-} from "./MobileLayout";
+  MobileViewContainer,
+} from './MobileLayout'
 
 interface MobileResponsiveLayoutProps {
-  sidebar: React.ReactNode;
-  main: React.ReactNode;
-  rightPanel?: React.ReactNode;
-  isRightPanelOpen?: boolean;
-  onRightPanelClose?: () => void;
-  selectedChatId?: string | null;
-  onChatSelect?: (chatId: string | null) => void;
+  sidebar: React.ReactNode
+  main: React.ReactNode
+  rightPanel?: React.ReactNode
+  isRightPanelOpen?: boolean
+  onRightPanelClose?: () => void
+  selectedChatId?: string | null
+  onChatSelect?: (chatId: string | null) => void
 }
 
 function MobileResponsiveLayout({
@@ -142,10 +142,7 @@ function MobileResponsiveLayout({
   onChatSelect,
 }: MobileResponsiveLayoutProps) {
   return (
-    <MobileLayoutProvider
-      initialChatId={selectedChatId}
-      onChatSelect={onChatSelect}
-    >
+    <MobileLayoutProvider initialChatId={selectedChatId} onChatSelect={onChatSelect}>
       <MobileLayout>
         {/* Chat List View */}
         <MobileViewContainer view="chat-list">{sidebar}</MobileViewContainer>
@@ -166,15 +163,15 @@ function MobileResponsiveLayout({
         )}
       </MobileLayout>
     </MobileLayoutProvider>
-  );
+  )
 }
 
 interface TabletResponsiveLayoutProps {
-  sidebar: React.ReactNode;
-  main: React.ReactNode;
-  rightPanel?: React.ReactNode;
-  isRightPanelOpen?: boolean;
-  onRightPanelClose?: () => void;
+  sidebar: React.ReactNode
+  main: React.ReactNode
+  rightPanel?: React.ReactNode
+  isRightPanelOpen?: boolean
+  onRightPanelClose?: () => void
 }
 
 function TabletResponsiveLayout({
@@ -204,5 +201,5 @@ function TabletResponsiveLayout({
         </MobileSlideInPanel>
       )}
     </>
-  );
+  )
 }

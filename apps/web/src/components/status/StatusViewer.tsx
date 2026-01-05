@@ -1,19 +1,11 @@
-import { useState, useEffect, useCallback } from "react";
-import { useContactStatus } from "@/hooks/useStatus";
-import { Skeleton } from "@/components/ui";
-import {
-  X,
-  ChevronLeft,
-  ChevronRight,
-  Pause,
-  Play,
-  Volume2,
-  VolumeX,
-} from "lucide-react";
+import { ChevronLeft, ChevronRight, Pause, Play, Volume2, VolumeX, X } from 'lucide-react'
+import { useCallback, useEffect, useState } from 'react'
+import { Skeleton } from '@/components/ui'
+import { useContactStatus } from '@/hooks/useStatus'
 
 export interface StatusViewerProps {
-  jid: string | null;
-  onClose: () => void;
+  jid: string | null
+  onClose: () => void
 }
 
 /**
@@ -21,99 +13,99 @@ export interface StatusViewerProps {
  * Shows status updates with progress bar and navigation
  */
 export function StatusViewer({ jid, onClose }: StatusViewerProps) {
-  const { data: contactStatus, isLoading, isError } = useContactStatus(jid);
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const [isPaused, setIsPaused] = useState(false);
-  const [isMuted, setIsMuted] = useState(false);
-  const [progress, setProgress] = useState(0);
+  const { data: contactStatus, isLoading, isError } = useContactStatus(jid)
+  const [currentIndex, setCurrentIndex] = useState(0)
+  const [isPaused, setIsPaused] = useState(false)
+  const [isMuted, setIsMuted] = useState(false)
+  const [progress, setProgress] = useState(0)
 
-  const statuses = contactStatus?.statuses || [];
-  const currentStatus = statuses[currentIndex];
-  const totalStatuses = statuses.length;
+  const statuses = contactStatus?.statuses || []
+  const currentStatus = statuses[currentIndex]
+  const totalStatuses = statuses.length
 
   // Auto-advance timer
   useEffect(() => {
-    if (!currentStatus || isPaused) return;
+    if (!currentStatus || isPaused) return
 
-    const duration = currentStatus.mediaType === "video" ? 30000 : 5000; // 30s for video, 5s for others
-    const interval = 50; // Update every 50ms for smooth progress
-    const increment = (interval / duration) * 100;
+    const duration = currentStatus.mediaType === 'video' ? 30000 : 5000 // 30s for video, 5s for others
+    const interval = 50 // Update every 50ms for smooth progress
+    const increment = (interval / duration) * 100
 
     const timer = setInterval(() => {
       setProgress((prev) => {
         if (prev >= 100) {
           // Move to next status
           if (currentIndex < totalStatuses - 1) {
-            setCurrentIndex((i) => i + 1);
-            return 0;
+            setCurrentIndex((i) => i + 1)
+            return 0
           } else {
             // Close viewer when all statuses are viewed
-            onClose();
-            return 100;
+            onClose()
+            return 100
           }
         }
-        return prev + increment;
-      });
-    }, interval);
+        return prev + increment
+      })
+    }, interval)
 
-    return () => clearInterval(timer);
-  }, [currentStatus, isPaused, currentIndex, totalStatuses, onClose]);
+    return () => clearInterval(timer)
+  }, [currentStatus, isPaused, currentIndex, totalStatuses, onClose])
 
   // Reset progress when changing status
   useEffect(() => {
-    setProgress(0);
-  }, [currentIndex]);
+    setProgress(0)
+  }, [])
 
   const goToPrevious = useCallback(() => {
     if (currentIndex > 0) {
-      setCurrentIndex((i) => i - 1);
+      setCurrentIndex((i) => i - 1)
     }
-  }, [currentIndex]);
+  }, [currentIndex])
 
   const goToNext = useCallback(() => {
     if (currentIndex < totalStatuses - 1) {
-      setCurrentIndex((i) => i + 1);
+      setCurrentIndex((i) => i + 1)
     } else {
-      onClose();
+      onClose()
     }
-  }, [currentIndex, totalStatuses, onClose]);
+  }, [currentIndex, totalStatuses, onClose])
 
   const togglePause = useCallback(() => {
-    setIsPaused((p) => !p);
-  }, []);
+    setIsPaused((p) => !p)
+  }, [])
 
   const toggleMute = useCallback(() => {
-    setIsMuted((m) => !m);
-  }, []);
+    setIsMuted((m) => !m)
+  }, [])
 
   // Keyboard navigation
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       switch (e.key) {
-        case "ArrowLeft":
-          goToPrevious();
-          break;
-        case "ArrowRight":
-          goToNext();
-          break;
-        case " ":
-          e.preventDefault();
-          togglePause();
-          break;
-        case "Escape":
-          onClose();
-          break;
+        case 'ArrowLeft':
+          goToPrevious()
+          break
+        case 'ArrowRight':
+          goToNext()
+          break
+        case ' ':
+          e.preventDefault()
+          togglePause()
+          break
+        case 'Escape':
+          onClose()
+          break
       }
-    };
+    }
 
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [goToPrevious, goToNext, togglePause, onClose]);
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [goToPrevious, goToNext, togglePause, onClose])
 
-  if (!jid) return null;
+  if (!jid) return null
 
-  const phoneNumber = jid.split("@")[0];
-  const displayName = phoneNumber || "Unknown";
+  const phoneNumber = jid.split('@')[0]
+  const displayName = phoneNumber || 'Unknown'
 
   return (
     <div className="fixed inset-0 z-50 bg-black flex flex-col">
@@ -121,19 +113,12 @@ export function StatusViewer({ jid, onClose }: StatusViewerProps) {
       <div className="absolute top-0 left-0 right-0 z-10 p-2">
         <div className="flex gap-1">
           {statuses.map((_, index) => (
-            <div
-              key={index}
-              className="flex-1 h-0.5 bg-white/30 rounded-full overflow-hidden"
-            >
+            <div key={index} className="flex-1 h-0.5 bg-white/30 rounded-full overflow-hidden">
               <div
                 className="h-full bg-white transition-all duration-50"
                 style={{
                   width:
-                    index < currentIndex
-                      ? "100%"
-                      : index === currentIndex
-                        ? `${progress}%`
-                        : "0%",
+                    index < currentIndex ? '100%' : index === currentIndex ? `${progress}%` : '0%',
                 }}
               />
             </div>
@@ -215,7 +200,7 @@ export function StatusViewer({ jid, onClose }: StatusViewerProps) {
         {!isLoading && !isError && currentStatus && (
           <div className="max-w-lg mx-auto text-center">
             {currentStatus.mediaUrl ? (
-              currentStatus.mediaType === "video" ? (
+              currentStatus.mediaType === 'video' ? (
                 <video
                   src={currentStatus.mediaUrl}
                   className="max-h-[70vh] rounded-lg"
@@ -234,7 +219,7 @@ export function StatusViewer({ jid, onClose }: StatusViewerProps) {
               // Text-only status
               <div className="p-8 bg-gradient-to-br from-whatsapp-teal-green to-whatsapp-dark-green rounded-lg">
                 <p className="text-white text-2xl font-medium">
-                  {currentStatus.caption || "No content"}
+                  {currentStatus.caption || 'No content'}
                 </p>
               </div>
             )}
@@ -268,12 +253,12 @@ export function StatusViewer({ jid, onClose }: StatusViewerProps) {
           <input
             type="text"
             placeholder="Reply..."
-            className="w-full px-4 py-3 bg-white/20 border border-white/30 rounded-full text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-white/50"
+            className="w-full px-4 py-3 bg-white/20 dark:bg-white/10 border border-white/30 dark:border-white/20 rounded-full text-white placeholder-white/60 dark:placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-white/50"
           />
         </div>
       </div>
     </div>
-  );
+  )
 }
 
-export default StatusViewer;
+export default StatusViewer

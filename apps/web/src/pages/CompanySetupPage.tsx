@@ -1,41 +1,41 @@
-import * as React from "react";
-import { useNavigate } from "react-router-dom";
-import { useAuth } from "../contexts/auth-context";
-import { api } from "../lib/api";
+import * as React from 'react'
+import { useNavigate } from 'react-router-dom'
+import { useAuth } from '../contexts/auth-context'
+import { api } from '../lib/api'
 
 export function CompanySetupPage() {
-  const navigate = useNavigate();
-  const { refreshSession, logout } = useAuth();
-  const [companyName, setCompanyName] = React.useState("");
-  const [isLoading, setIsLoading] = React.useState(false);
-  const [error, setError] = React.useState<string | null>(null);
+  const navigate = useNavigate()
+  const { refreshSession, logout } = useAuth()
+  const [companyName, setCompanyName] = React.useState('')
+  const [isLoading, setIsLoading] = React.useState(false)
+  const [error, setError] = React.useState<string | null>(null)
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+    e.preventDefault()
     if (!companyName.trim()) {
-      setError("Company name is required");
-      return;
+      setError('Company name is required')
+      return
     }
 
-    setIsLoading(true);
-    setError(null);
+    setIsLoading(true)
+    setError(null)
 
     try {
-      await api.post("/companies", { name: companyName.trim() });
+      await api.post('/companies', { name: companyName.trim() })
       // Refresh session to get the new company
-      await refreshSession();
-      navigate("/chat");
+      await refreshSession()
+      navigate('/chat')
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to create company");
+      setError(err instanceof Error ? err.message : 'Failed to create company')
     } finally {
-      setIsLoading(false);
+      setIsLoading(false)
     }
-  };
+  }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100">
+    <div className="min-h-screen flex items-center justify-center bg-gray-100 dark:bg-dark-primary">
       <div className="w-full max-w-md">
-        <div className="bg-white rounded-lg shadow-lg p-8">
+        <div className="bg-white dark:bg-dark-elevated rounded-lg shadow-lg p-8">
           <div className="text-center mb-8">
             <div className="w-16 h-16 bg-green-500 rounded-full flex items-center justify-center mx-auto mb-4">
               <svg
@@ -52,16 +52,16 @@ export function CompanySetupPage() {
                 />
               </svg>
             </div>
-            <h1 className="text-2xl font-bold text-gray-900">
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-dark-text-primary">
               Create Your Company
             </h1>
-            <p className="text-gray-600 mt-2">
+            <p className="text-gray-600 dark:text-dark-text-secondary mt-2">
               Set up your workspace to start using the app
             </p>
           </div>
 
           {error && (
-            <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
+            <div className="mb-4 p-3 bg-red-100 dark:bg-red-900/30 border border-red-400 dark:border-red-800 text-red-700 dark:text-red-400 rounded">
               {error}
             </div>
           )}
@@ -70,7 +70,7 @@ export function CompanySetupPage() {
             <div>
               <label
                 htmlFor="companyName"
-                className="block text-sm font-medium text-gray-700 mb-1"
+                className="block text-sm font-medium text-gray-700 dark:text-dark-text-secondary mb-1"
               >
                 Company Name
               </label>
@@ -80,9 +80,8 @@ export function CompanySetupPage() {
                 value={companyName}
                 onChange={(e) => setCompanyName(e.target.value)}
                 placeholder="Enter your company name"
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent dark:bg-dark-tertiary dark:text-dark-text-primary dark:placeholder:text-dark-text-tertiary"
                 disabled={isLoading}
-                autoFocus
               />
             </div>
 
@@ -91,14 +90,14 @@ export function CompanySetupPage() {
               disabled={isLoading || !companyName.trim()}
               className="w-full bg-green-500 text-white py-2 px-4 rounded-lg hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
-              {isLoading ? "Creating..." : "Create Company"}
+              {isLoading ? 'Creating...' : 'Create Company'}
             </button>
           </form>
 
           <div className="mt-6 text-center">
             <button
               onClick={logout}
-              className="text-sm text-gray-500 hover:text-gray-700"
+              className="text-sm text-gray-500 dark:text-dark-text-tertiary hover:text-gray-700 dark:hover:text-dark-text-secondary"
             >
               Sign out
             </button>
@@ -106,5 +105,5 @@ export function CompanySetupPage() {
         </div>
       </div>
     </div>
-  );
+  )
 }

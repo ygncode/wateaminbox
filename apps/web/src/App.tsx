@@ -1,19 +1,19 @@
-import { Routes, Route, Navigate } from "react-router-dom";
-import { Toaster } from "sonner";
-import { KeyboardShortcutsModal } from "./components/settings";
-import { ProtectedRoute } from "./components/auth";
+import { Navigate, Route, Routes } from 'react-router-dom'
+import { Toaster } from 'sonner'
+import { ProtectedRoute } from './components/auth'
+import { KeyboardShortcutsModal } from './components/settings'
 import {
-  LoginPage,
-  RegisterPage,
-  ForgotPasswordPage,
+  AcceptInvitationPage,
+  AuditPage,
   ChatPage,
   CompanySetupPage,
-  TeamPage,
-  SettingsPage,
-  AuditPage,
-  AcceptInvitationPage,
   DashboardPage,
-} from "./pages";
+  ForgotPasswordPage,
+  LoginPage,
+  RegisterPage,
+  SettingsPage,
+  TeamPage,
+} from './pages'
 
 function App() {
   return (
@@ -103,7 +103,7 @@ function App() {
       {/* Toast notifications */}
       <Toaster position="top-right" richColors />
     </>
-  );
+  )
 }
 
-export default App;
+export default App

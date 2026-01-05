@@ -1,316 +1,312 @@
-import { useState, useRef, useEffect } from "react";
+import { useEffect, useRef, useState } from 'react'
 
 interface EmojiReactionPickerProps {
-  onSelectReaction: (emoji: string) => void;
-  onClose: () => void;
-  position: { x: number; y: number };
+  onSelectReaction: (emoji: string) => void
+  onClose: () => void
+  position: { x: number; y: number }
 }
 
 // Popular WhatsApp-style reactions
-const QUICK_REACTIONS = ["❤️", "😂", "😮", "😢", "🙏", "👍"];
+const QUICK_REACTIONS = ['❤️', '😂', '😮', '😢', '🙏', '👍']
 
 // Extended emoji palette organized by category
 const EMOJI_CATEGORIES = {
-  "Smileys & People": [
-    "😀",
-    "😃",
-    "😄",
-    "😁",
-    "😆",
-    "😅",
-    "🤣",
-    "😂",
-    "🙂",
-    "🙃",
-    "😉",
-    "😊",
-    "😇",
-    "🥰",
-    "😍",
-    "🤩",
-    "😘",
-    "😗",
-    "☺️",
-    "😚",
-    "😙",
-    "🥲",
-    "😋",
-    "😛",
-    "😜",
-    "🤪",
-    "😝",
-    "🤑",
-    "🤗",
-    "🤭",
-    "🤫",
-    "🤔",
-    "🤐",
-    "🤨",
-    "😐",
-    "😑",
-    "😶",
-    "😏",
-    "😒",
-    "🙄",
-    "😬",
-    "🤥",
-    "😌",
-    "😔",
-    "😪",
-    "🤤",
-    "😴",
-    "😷",
-    "🤒",
-    "🤕",
-    "🤢",
-    "🤮",
-    "🤧",
-    "🥵",
-    "🥶",
-    "😶‍🌫️",
-    "🥴",
-    "😵",
-    "🤯",
-    "🤠",
-    "🥳",
-    "🥸",
-    "😎",
-    "🤓",
-    "🧐",
-    "😕",
-    "😟",
-    "🙁",
-    "☹️",
-    "😮",
-    "😯",
-    "😲",
-    "😳",
-    "🥺",
-    "😦",
-    "😧",
-    "😨",
-    "😰",
-    "😥",
-    "😢",
-    "😭",
-    "😱",
-    "😖",
-    "😣",
-    "😞",
-    "😓",
-    "😩",
-    "😫",
-    "🥱",
-    "😤",
-    "😡",
-    "😠",
-    "🤬",
-    "😈",
-    "👿",
-    "💀",
-    "☠️",
-    "💩",
-    "🤡",
-    "👹",
-    "👺",
-    "👻",
-    "👽",
-    "👾",
-    "🤖",
-    "😺",
-    "😸",
-    "😹",
-    "😻",
-    "😼",
-    "😽",
-    "🙀",
-    "😿",
-    "😾",
+  'Smileys & People': [
+    '😀',
+    '😃',
+    '😄',
+    '😁',
+    '😆',
+    '😅',
+    '🤣',
+    '😂',
+    '🙂',
+    '🙃',
+    '😉',
+    '😊',
+    '😇',
+    '🥰',
+    '😍',
+    '🤩',
+    '😘',
+    '😗',
+    '☺️',
+    '😚',
+    '😙',
+    '🥲',
+    '😋',
+    '😛',
+    '😜',
+    '🤪',
+    '😝',
+    '🤑',
+    '🤗',
+    '🤭',
+    '🤫',
+    '🤔',
+    '🤐',
+    '🤨',
+    '😐',
+    '😑',
+    '😶',
+    '😏',
+    '😒',
+    '🙄',
+    '😬',
+    '🤥',
+    '😌',
+    '😔',
+    '😪',
+    '🤤',
+    '😴',
+    '😷',
+    '🤒',
+    '🤕',
+    '🤢',
+    '🤮',
+    '🤧',
+    '🥵',
+    '🥶',
+    '😶‍🌫️',
+    '🥴',
+    '😵',
+    '🤯',
+    '🤠',
+    '🥳',
+    '🥸',
+    '😎',
+    '🤓',
+    '🧐',
+    '😕',
+    '😟',
+    '🙁',
+    '☹️',
+    '😮',
+    '😯',
+    '😲',
+    '😳',
+    '🥺',
+    '😦',
+    '😧',
+    '😨',
+    '😰',
+    '😥',
+    '😢',
+    '😭',
+    '😱',
+    '😖',
+    '😣',
+    '😞',
+    '😓',
+    '😩',
+    '😫',
+    '🥱',
+    '😤',
+    '😡',
+    '😠',
+    '🤬',
+    '😈',
+    '👿',
+    '💀',
+    '☠️',
+    '💩',
+    '🤡',
+    '👹',
+    '👺',
+    '👻',
+    '👽',
+    '👾',
+    '🤖',
+    '😺',
+    '😸',
+    '😹',
+    '😻',
+    '😼',
+    '😽',
+    '🙀',
+    '😿',
+    '😾',
   ],
-  "Gestures & Body": [
-    "👋",
-    "🤚",
-    "🖐️",
-    "✋",
-    "🖖",
-    "👌",
-    "🤌",
-    "🤏",
-    "✌️",
-    "🤞",
-    "🤟",
-    "🤘",
-    "🤙",
-    "👈",
-    "👉",
-    "👆",
-    "🖕",
-    "👇",
-    "☝️",
-    "👍",
-    "👎",
-    "✊",
-    "👊",
-    "🤛",
-    "🤜",
-    "👏",
-    "🙌",
-    "👐",
-    "🤲",
-    "🤝",
-    "🙏",
-    "✍️",
-    "💅",
-    "🤳",
-    "💪",
-    "🦾",
-    "🦿",
-    "🦵",
-    "🦶",
+  'Gestures & Body': [
+    '👋',
+    '🤚',
+    '🖐️',
+    '✋',
+    '🖖',
+    '👌',
+    '🤌',
+    '🤏',
+    '✌️',
+    '🤞',
+    '🤟',
+    '🤘',
+    '🤙',
+    '👈',
+    '👉',
+    '👆',
+    '🖕',
+    '👇',
+    '☝️',
+    '👍',
+    '👎',
+    '✊',
+    '👊',
+    '🤛',
+    '🤜',
+    '👏',
+    '🙌',
+    '👐',
+    '🤲',
+    '🤝',
+    '🙏',
+    '✍️',
+    '💅',
+    '🤳',
+    '💪',
+    '🦾',
+    '🦿',
+    '🦵',
+    '🦶',
   ],
-  "Hearts & Love": [
-    "❤️",
-    "🧡",
-    "💛",
-    "💚",
-    "💙",
-    "💜",
-    "🖤",
-    "🤍",
-    "🤎",
-    "💔",
-    "❤️‍🔥",
-    "❤️‍🩹",
-    "💕",
-    "💞",
-    "💓",
-    "💗",
-    "💖",
-    "💘",
-    "💝",
-    "💟",
-    "💌",
-    "💋",
-    "💏",
-    "💑",
+  'Hearts & Love': [
+    '❤️',
+    '🧡',
+    '💛',
+    '💚',
+    '💙',
+    '💜',
+    '🖤',
+    '🤍',
+    '🤎',
+    '💔',
+    '❤️‍🔥',
+    '❤️‍🩹',
+    '💕',
+    '💞',
+    '💓',
+    '💗',
+    '💖',
+    '💘',
+    '💝',
+    '💟',
+    '💌',
+    '💋',
+    '💏',
+    '💑',
   ],
-  "Objects & Symbols": [
-    "🎉",
-    "🎊",
-    "🎈",
-    "🎁",
-    "🏆",
-    "🥇",
-    "🥈",
-    "🥉",
-    "⚽",
-    "🏀",
-    "🏈",
-    "⚾",
-    "🎾",
-    "🏐",
-    "🏉",
-    "🥏",
-    "🎱",
-    "🏓",
-    "🏸",
-    "🏒",
-    "🏑",
-    "🥍",
-    "🏏",
-    "🥅",
-    "⚡",
-    "🔥",
-    "✨",
-    "💫",
-    "⭐",
-    "🌟",
-    "💥",
-    "💢",
-    "✅",
-    "❌",
-    "❓",
-    "❗",
-    "💯",
-    "🔔",
-    "🔕",
-    "📢",
+  'Objects & Symbols': [
+    '🎉',
+    '🎊',
+    '🎈',
+    '🎁',
+    '🏆',
+    '🥇',
+    '🥈',
+    '🥉',
+    '⚽',
+    '🏀',
+    '🏈',
+    '⚾',
+    '🎾',
+    '🏐',
+    '🏉',
+    '🥏',
+    '🎱',
+    '🏓',
+    '🏸',
+    '🏒',
+    '🏑',
+    '🥍',
+    '🏏',
+    '🥅',
+    '⚡',
+    '🔥',
+    '✨',
+    '💫',
+    '⭐',
+    '🌟',
+    '💥',
+    '💢',
+    '✅',
+    '❌',
+    '❓',
+    '❗',
+    '💯',
+    '🔔',
+    '🔕',
+    '📢',
   ],
-};
+}
 
 export function EmojiReactionPicker({
   onSelectReaction,
   onClose,
   position,
 }: EmojiReactionPickerProps) {
-  const [showExtended, setShowExtended] = useState(false);
-  const [selectedCategory, setSelectedCategory] =
-    useState<string>("Smileys & People");
-  const [adjustedPosition, setAdjustedPosition] = useState(position);
-  const pickerRef = useRef<HTMLDivElement>(null);
+  const [showExtended, setShowExtended] = useState(false)
+  const [selectedCategory, setSelectedCategory] = useState<string>('Smileys & People')
+  const [adjustedPosition, setAdjustedPosition] = useState(position)
+  const pickerRef = useRef<HTMLDivElement>(null)
 
   // Adjust position to keep picker within viewport
   useEffect(() => {
     if (pickerRef.current) {
-      const rect = pickerRef.current.getBoundingClientRect();
-      const viewportWidth = window.innerWidth;
-      const viewportHeight = window.innerHeight;
+      const rect = pickerRef.current.getBoundingClientRect()
+      const viewportWidth = window.innerWidth
+      const viewportHeight = window.innerHeight
 
-      let adjustedX = position.x;
-      let adjustedY = position.y;
+      let adjustedX = position.x
+      let adjustedY = position.y
 
       // Check right boundary
       if (rect.right > viewportWidth) {
-        adjustedX = position.x - (rect.right - viewportWidth) - 10;
+        adjustedX = position.x - (rect.right - viewportWidth) - 10
       }
 
       // Check left boundary
       if (rect.left < 0) {
-        adjustedX = 10;
+        adjustedX = 10
       }
 
       // Check bottom boundary
       if (rect.bottom > viewportHeight) {
-        adjustedY = position.y - rect.height - 10;
+        adjustedY = position.y - rect.height - 10
       }
 
       // Check top boundary
       if (rect.top < 0) {
-        adjustedY = 10;
+        adjustedY = 10
       }
 
-      setAdjustedPosition({ x: adjustedX, y: adjustedY });
+      setAdjustedPosition({ x: adjustedX, y: adjustedY })
     }
-  }, [position, showExtended]);
+  }, [position])
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
-      if (
-        pickerRef.current &&
-        !pickerRef.current.contains(event.target as Node)
-      ) {
-        onClose();
+      if (pickerRef.current && !pickerRef.current.contains(event.target as Node)) {
+        onClose()
       }
     }
 
     function handleEscapeKey(event: KeyboardEvent) {
-      if (event.key === "Escape") {
-        onClose();
+      if (event.key === 'Escape') {
+        onClose()
       }
     }
 
-    document.addEventListener("mousedown", handleClickOutside);
-    document.addEventListener("keydown", handleEscapeKey);
+    document.addEventListener('mousedown', handleClickOutside)
+    document.addEventListener('keydown', handleEscapeKey)
     return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-      document.removeEventListener("keydown", handleEscapeKey);
-    };
-  }, [onClose]);
+      document.removeEventListener('mousedown', handleClickOutside)
+      document.removeEventListener('keydown', handleEscapeKey)
+    }
+  }, [onClose])
 
   const handleReactionClick = (emoji: string) => {
-    onSelectReaction(emoji);
-    onClose();
-  };
+    onSelectReaction(emoji)
+    onClose()
+  }
 
   return (
     <div
@@ -347,12 +343,7 @@ export function EmojiReactionPicker({
             title="More reactions"
             aria-label="Show more reactions"
           >
-            <svg
-              className="w-5 h-5"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -418,8 +409,8 @@ export function EmojiReactionPicker({
                 onClick={() => setSelectedCategory(category)}
                 className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors whitespace-nowrap ${
                   selectedCategory === category
-                    ? "bg-whatsapp-green text-white"
-                    : "text-gray-600 dark:text-dark-text-secondary hover:bg-gray-200 dark:hover:bg-dark-tertiary"
+                    ? 'bg-whatsapp-green text-white'
+                    : 'text-gray-600 dark:text-dark-text-secondary hover:bg-gray-200 dark:hover:bg-dark-tertiary'
                 }`}
               >
                 {category}
@@ -430,9 +421,7 @@ export function EmojiReactionPicker({
           {/* Emoji grid */}
           <div className="p-3 max-h-64 overflow-y-auto">
             <div className="grid grid-cols-8 gap-1">
-              {EMOJI_CATEGORIES[
-                selectedCategory as keyof typeof EMOJI_CATEGORIES
-              ]?.map((emoji) => (
+              {EMOJI_CATEGORIES[selectedCategory as keyof typeof EMOJI_CATEGORIES]?.map((emoji) => (
                 <button
                   key={emoji}
                   onClick={() => handleReactionClick(emoji)}
@@ -448,7 +437,7 @@ export function EmojiReactionPicker({
         </div>
       )}
     </div>
-  );
+  )
 }
 
-export default EmojiReactionPicker;
+export default EmojiReactionPicker

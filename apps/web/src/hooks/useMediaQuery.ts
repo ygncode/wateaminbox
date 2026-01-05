@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useCallback, useEffect, useState } from 'react'
 
 /**
  * Generic media query hook that listens for changes in a CSS media query
@@ -8,44 +8,44 @@ import { useState, useEffect, useCallback } from "react";
 export function useMediaQuery(query: string): boolean {
   const getMatches = useCallback((query: string): boolean => {
     // Prevent SSR issues
-    if (typeof window === "undefined") {
-      return false;
+    if (typeof window === 'undefined') {
+      return false
     }
-    return window.matchMedia(query).matches;
-  }, []);
+    return window.matchMedia(query).matches
+  }, [])
 
-  const [matches, setMatches] = useState<boolean>(() => getMatches(query));
+  const [matches, setMatches] = useState<boolean>(() => getMatches(query))
 
   useEffect(() => {
-    const mediaQueryList = window.matchMedia(query);
+    const mediaQueryList = window.matchMedia(query)
 
     // Update state on initial mount
-    setMatches(mediaQueryList.matches);
+    setMatches(mediaQueryList.matches)
 
     // Event listener callback
     const handleChange = (event: MediaQueryListEvent) => {
-      setMatches(event.matches);
-    };
+      setMatches(event.matches)
+    }
 
     // Modern browsers
     if (mediaQueryList.addEventListener) {
-      mediaQueryList.addEventListener("change", handleChange);
+      mediaQueryList.addEventListener('change', handleChange)
     } else {
       // Fallback for older browsers
-      mediaQueryList.addListener(handleChange);
+      mediaQueryList.addListener(handleChange)
     }
 
     return () => {
       if (mediaQueryList.removeEventListener) {
-        mediaQueryList.removeEventListener("change", handleChange);
+        mediaQueryList.removeEventListener('change', handleChange)
       } else {
         // Fallback for older browsers
-        mediaQueryList.removeListener(handleChange);
+        mediaQueryList.removeListener(handleChange)
       }
-    };
-  }, [query]);
+    }
+  }, [query])
 
-  return matches;
+  return matches
 }
 
 /**
@@ -54,7 +54,7 @@ export function useMediaQuery(query: string): boolean {
  * @returns boolean indicating if the current screen is mobile
  */
 export function useIsMobile(): boolean {
-  return useMediaQuery("(max-width: 767px)");
+  return useMediaQuery('(max-width: 767px)')
 }
 
 /**
@@ -63,7 +63,7 @@ export function useIsMobile(): boolean {
  * @returns boolean indicating if the current screen is tablet or smaller
  */
 export function useIsTablet(): boolean {
-  return useMediaQuery("(max-width: 1023px)");
+  return useMediaQuery('(max-width: 1023px)')
 }
 
 /**
@@ -72,7 +72,7 @@ export function useIsTablet(): boolean {
  * @returns boolean indicating if the current screen is small mobile
  */
 export function useIsSmallMobile(): boolean {
-  return useMediaQuery("(max-width: 639px)");
+  return useMediaQuery('(max-width: 639px)')
 }
 
 /**
@@ -80,7 +80,7 @@ export function useIsSmallMobile(): boolean {
  * @returns boolean indicating if the device supports touch
  */
 export function useIsTouchDevice(): boolean {
-  return useMediaQuery("(pointer: coarse)");
+  return useMediaQuery('(pointer: coarse)')
 }
 
 /**
@@ -88,7 +88,7 @@ export function useIsTouchDevice(): boolean {
  * @returns boolean indicating if the device is in landscape orientation
  */
 export function useIsLandscape(): boolean {
-  return useMediaQuery("(orientation: landscape)");
+  return useMediaQuery('(orientation: landscape)')
 }
 
 /**
@@ -96,11 +96,11 @@ export function useIsLandscape(): boolean {
  * @returns object with boolean flags for each breakpoint
  */
 export function useBreakpoints() {
-  const isSmall = useMediaQuery("(max-width: 639px)");
-  const isMobile = useMediaQuery("(max-width: 767px)");
-  const isTablet = useMediaQuery("(max-width: 1023px)");
-  const isDesktop = useMediaQuery("(min-width: 1024px)");
-  const isLargeDesktop = useMediaQuery("(min-width: 1280px)");
+  const isSmall = useMediaQuery('(max-width: 639px)')
+  const isMobile = useMediaQuery('(max-width: 767px)')
+  const isTablet = useMediaQuery('(max-width: 1023px)')
+  const isDesktop = useMediaQuery('(min-width: 1024px)')
+  const isLargeDesktop = useMediaQuery('(min-width: 1280px)')
 
   return {
     isSmall,
@@ -111,5 +111,5 @@ export function useBreakpoints() {
     // Computed convenience values
     isMobileOrTablet: isTablet,
     isTabletOnly: isTablet && !isMobile,
-  };
+  }
 }

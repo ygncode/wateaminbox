@@ -1,19 +1,19 @@
-import { memo } from "react";
-import { Loader2 } from "lucide-react";
+import { Loader2 } from 'lucide-react'
+import { memo } from 'react'
 import {
   Dialog,
   DialogContent,
-  DialogHeader,
-  DialogTitle,
   DialogDescription,
   DialogFooter,
-} from "@/components/ui";
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui'
 
 interface DeleteMessageDialogProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  onConfirm: () => void;
-  isDeleting?: boolean;
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  onConfirm: () => void
+  isDeleting?: boolean
 }
 
 /**
@@ -26,8 +26,8 @@ export const DeleteMessageDialog = memo(function DeleteMessageDialog({
   isDeleting = false,
 }: DeleteMessageDialogProps) {
   const handleConfirm = () => {
-    onConfirm();
-  };
+    onConfirm()
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -35,8 +35,7 @@ export const DeleteMessageDialog = memo(function DeleteMessageDialog({
         <DialogHeader>
           <DialogTitle>Delete message?</DialogTitle>
           <DialogDescription>
-            This action cannot be undone. The message will be deleted for you
-            only.
+            This action cannot be undone. The message will be deleted for you only.
           </DialogDescription>
         </DialogHeader>
         <DialogFooter className="gap-2 sm:gap-0">
@@ -60,13 +59,13 @@ export const DeleteMessageDialog = memo(function DeleteMessageDialog({
                 Deleting...
               </>
             ) : (
-              "Delete"
+              'Delete'
             )}
           </button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
-  );
-});
+  )
+})
 
-export default DeleteMessageDialog;
+export default DeleteMessageDialog

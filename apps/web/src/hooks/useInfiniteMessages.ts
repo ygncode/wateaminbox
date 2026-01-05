@@ -1,17 +1,16 @@
-import { useInfiniteQuery } from "@tanstack/react-query";
-import type { PaginatedMessages } from "@whatsapp-web/shared";
-import { api } from "../lib/api";
+import { useInfiniteQuery } from '@tanstack/react-query'
+import type { PaginatedMessages } from '@whatsapp-web/shared'
+import { api } from '../lib/api'
 
 export const infiniteMessageKeys = {
-  all: ["infinite-messages"] as const,
-  list: (conversationId: string) =>
-    [...infiniteMessageKeys.all, conversationId] as const,
-};
+  all: ['infinite-messages'] as const,
+  list: (conversationId: string) => [...infiniteMessageKeys.all, conversationId] as const,
+}
 
 interface FetchMessagesParams {
-  conversationId: string;
-  cursor?: string;
-  limit?: number;
+  conversationId: string
+  cursor?: string
+  limit?: number
 }
 
 async function fetchMessages({
@@ -19,33 +18,32 @@ async function fetchMessages({
   cursor,
   limit = 50,
 }: FetchMessagesParams): Promise<PaginatedMessages> {
-  const params = new URLSearchParams();
-  params.set("limit", limit.toString());
+  const params = new URLSearchParams()
+  params.set('limit', limit.toString())
   if (cursor) {
-    params.set("cursor", cursor);
+    params.set('cursor', cursor)
   }
 
   return api.get<PaginatedMessages>(
-    `/conversations/${conversationId}/messages?${params.toString()}`,
-  );
+    `/conversations/${conversationId}/messages?${params.toString()}`
+  )
 }
 
 export function useInfiniteMessages(
   conversationId: string | undefined,
-  options?: { limit?: number },
+  options?: { limit?: number }
 ) {
-  const limit = options?.limit ?? 50;
+  const limit = options?.limit ?? 50
 
   return useInfiniteQuery({
-    queryKey: infiniteMessageKeys.list(conversationId || ""),
+    queryKey: infiniteMessageKeys.list(conversationId || ''),
     queryFn: ({ pageParam }) =>
       fetchMessages({
         conversationId: conversationId!,
         cursor: pageParam,
         limit,
       }),
-    getNextPageParam: (lastPage) =>
-      lastPage.hasMore ? lastPage.nextCursor : undefined,
+    getNextPageParam: (lastPage) => (lastPage.hasMore ? lastPage.nextCursor : undefined),
     initialPageParam: undefined as string | undefined,
     enabled: !!conversationId,
     staleTime: 1000 * 30, // 30 seconds
@@ -57,7 +55,7 @@ export function useInfiniteMessages(
       // Flatten and reverse to get chronological order
       messages: data.pages.flatMap((page) => page.messages).reverse(),
     }),
-  });
+  })
 }
 
 export function useInfiniteMessagesUtils() {
@@ -65,32 +63,30 @@ export function useInfiniteMessagesUtils() {
     // Utility to add a new message to the infinite query cache
     addMessageToCache: (
       conversationId: string,
-      queryClient: ReturnType<
-        typeof import("@tanstack/react-query").useQueryClient
-      >,
+      queryClient: ReturnType<typeof import('@tanstack/react-query').useQueryClient>
     ) => {
-      return (newMessage: import("@whatsapp-web/shared").Message) => {
+      return (newMessage: import('@whatsapp-web/shared').Message) => {
         queryClient.setQueryData(
           infiniteMessageKeys.list(conversationId),
-          (oldData: ReturnType<typeof useInfiniteMessages>["data"]) => {
-            if (!oldData) return oldData;
+          (oldData: ReturnType<typeof useInfiniteMessages>['data']) => {
+            if (!oldData) return oldData
 
             // Add the new message to the first page (most recent)
-            const newPages = [...oldData.pages];
+            const newPages = [...oldData.pages]
             if (newPages.length > 0) {
               newPages[0] = {
                 ...newPages[0],
                 messages: [newMessage, ...newPages[0].messages],
-              };
+              }
             }
 
             return {
               ...oldData,
               pages: newPages,
-            };
-          },
-        );
-      };
+            }
+          }
+        )
+      }
     },
-  };
+  }
 }
