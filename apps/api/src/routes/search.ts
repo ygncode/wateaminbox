@@ -1,3 +1,4 @@
+import type { MiddlewareHandler } from "hono"
 import { Hono } from "hono";
 import { authMiddleware } from "../middleware/auth.js";
 import { tenantMiddleware } from "../middleware/tenant.js";
@@ -15,12 +16,14 @@ searchRoutes.use("/*", tenantMiddleware());
 
 // Search rate limiter: 30 requests per minute per user
 // Uses user-based keys since these are authenticated routes
-const searchRateLimiter = createRateLimitMiddleware({
-  store: rateLimitStore,
-  tier: rateLimitConfig.tiers.resource.search,
-  keyStrategy: "user",
-  keyPrefix: "resource-search",
-});
+const searchRateLimiter: MiddlewareHandler = rateLimitConfig.enabled
+  ? createRateLimitMiddleware({
+      store: rateLimitStore,
+      tier: rateLimitConfig.tiers.resource.search,
+      keyStrategy: "user",
+      keyPrefix: "resource-search",
+    })
+  : async (c, next) => await next()
 
 /**
  * GET /search - Global search across messages and contacts
