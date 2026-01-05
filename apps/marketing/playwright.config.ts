@@ -55,10 +55,12 @@ export default defineConfig({
   ],
 
   // Run your local dev server before starting the tests
+  // When running alongside dev-start.sh, the server should already be running
+  // reuseExistingServer ensures we don't kill the existing dev server
   webServer: {
     command: "bun run dev",
     url: "http://localhost:4321",
-    reuseExistingServer: !process.env.CI,
+    reuseExistingServer: true,
     timeout: 120 * 1000,
   },
 
