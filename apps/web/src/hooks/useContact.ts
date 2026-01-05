@@ -43,6 +43,19 @@ export interface PrivateNote {
 }
 
 /**
+ * Shared note for a contact (visible to all team members)
+ */
+export interface SharedNote {
+  id: string;
+  contactId: string;
+  userId: string;
+  authorName: string;
+  content: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
  * Tag definition
  */
 export interface Tag {
@@ -110,17 +123,18 @@ export function useUpdateContact() {
 }
 
 /**
- * Hook to fetch private notes for a contact
+ * Hook to fetch private notes for a contact (multiple notes)
  */
 export function usePrivateNotes(contactId: string | null) {
   return useQuery({
     queryKey: ["privateNotes", contactId],
     queryFn: async () => {
       if (!contactId) throw new Error("No contact ID provided");
-      const response = await api.get<{ data: PrivateNote | null }>(
-        `/contacts/${contactId}/notes/private`,
-      );
-      return response.data;
+      const response = await api.get<{
+        data: PrivateNote[];
+        pagination: { total: number; limit: number; offset: number; hasMore: boolean };
+      }>(`/contacts/${contactId}/notes/private`);
+      return response;
     },
     enabled: !!contactId,
     staleTime: 30_000,
@@ -128,7 +142,7 @@ export function usePrivateNotes(contactId: string | null) {
 }
 
 /**
- * Hook to update private notes for a contact
+ * Hook to create a private note (legacy - for backwards compatibility)
  */
 export function useUpdatePrivateNotes() {
   const queryClient = useQueryClient();
@@ -149,8 +163,179 @@ export function useUpdatePrivateNotes() {
       );
       return response;
     },
-    onSuccess: (data, variables) => {
-      queryClient.setQueryData(["privateNotes", variables.contactId], data);
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["privateNotes", variables.contactId] });
+    },
+  });
+}
+
+/**
+ * Hook to create a new private note
+ */
+export function useCreatePrivateNote() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      contactId,
+      content,
+    }: {
+      contactId: string;
+      content: string;
+    }) => {
+      const response = await api.post<PrivateNote>(
+        `/contacts/${contactId}/notes/private`,
+        { content },
+      );
+      return response;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["privateNotes", variables.contactId] });
+    },
+  });
+}
+
+/**
+ * Hook to update an existing private note
+ */
+export function useUpdatePrivateNote() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      contactId,
+      noteId,
+      content,
+    }: {
+      contactId: string;
+      noteId: string;
+      content: string;
+    }) => {
+      const response = await api.put<PrivateNote>(
+        `/contacts/${contactId}/notes/private/${noteId}`,
+        { content },
+      );
+      return response;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["privateNotes", variables.contactId] });
+    },
+  });
+}
+
+/**
+ * Hook to delete a private note
+ */
+export function useDeletePrivateNote() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      contactId,
+      noteId,
+    }: {
+      contactId: string;
+      noteId: string;
+    }) => {
+      await api.delete(`/contacts/${contactId}/notes/private/${noteId}`);
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["privateNotes", variables.contactId] });
+    },
+  });
+}
+
+/**
+ * Hook to fetch shared notes for a contact (multiple notes)
+ */
+export function useSharedNotes(contactId: string | null) {
+  return useQuery({
+    queryKey: ["sharedNotes", contactId],
+    queryFn: async () => {
+      if (!contactId) throw new Error("No contact ID provided");
+      const response = await api.get<{
+        data: SharedNote[];
+        pagination: { total: number; limit: number; offset: number; hasMore: boolean };
+      }>(`/contacts/${contactId}/notes/shared`);
+      return response;
+    },
+    enabled: !!contactId,
+    staleTime: 30_000,
+  });
+}
+
+/**
+ * Hook to create a new shared note
+ */
+export function useCreateSharedNote() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      contactId,
+      content,
+    }: {
+      contactId: string;
+      content: string;
+    }) => {
+      const response = await api.post<SharedNote>(
+        `/contacts/${contactId}/notes/shared`,
+        { content },
+      );
+      return response;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["sharedNotes", variables.contactId] });
+    },
+  });
+}
+
+/**
+ * Hook to update an existing shared note
+ */
+export function useUpdateSharedNote() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      contactId,
+      noteId,
+      content,
+    }: {
+      contactId: string;
+      noteId: string;
+      content: string;
+    }) => {
+      const response = await api.put<SharedNote>(
+        `/contacts/${contactId}/notes/shared/${noteId}`,
+        { content },
+      );
+      return response;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["sharedNotes", variables.contactId] });
+    },
+  });
+}
+
+/**
+ * Hook to delete a shared note
+ */
+export function useDeleteSharedNote() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      contactId,
+      noteId,
+    }: {
+      contactId: string;
+      noteId: string;
+    }) => {
+      await api.delete(`/contacts/${contactId}/notes/shared/${noteId}`);
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["sharedNotes", variables.contactId] });
     },
   });
 }

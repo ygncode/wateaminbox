@@ -248,13 +248,26 @@ export async function up(db: Kysely<unknown>): Promise<void> {
         )
       ', schema_name);
 
-      -- Private contact notes table
+      -- Private contact notes table (allows multiple notes per user per contact)
       EXECUTE format('
         CREATE TABLE IF NOT EXISTS %I.contact_notes_private (
           id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
           contact_id UUID NOT NULL,
           user_id UUID NOT NULL,
           content TEXT,
+          created_at TIMESTAMPTZ DEFAULT now() NOT NULL,
+          updated_at TIMESTAMPTZ DEFAULT now() NOT NULL
+        )
+      ', schema_name);
+
+      -- Shared contact notes table (visible to all team members)
+      EXECUTE format('
+        CREATE TABLE IF NOT EXISTS %I.contact_notes_shared (
+          id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+          contact_id UUID NOT NULL,
+          user_id UUID NOT NULL,
+          author_name VARCHAR(255) NOT NULL,
+          content TEXT NOT NULL,
           created_at TIMESTAMPTZ DEFAULT now() NOT NULL,
           updated_at TIMESTAMPTZ DEFAULT now() NOT NULL
         )
@@ -509,6 +522,13 @@ export async function up(db: Kysely<unknown>): Promise<void> {
       EXECUTE format('CREATE INDEX IF NOT EXISTS %I ON %I.whatsapp_label_associations(label_id)', safe_schema_name || '_label_assoc_label_idx', schema_name);
       EXECUTE format('CREATE INDEX IF NOT EXISTS %I ON %I.whatsapp_label_associations(contact_id)', safe_schema_name || '_label_assoc_contact_idx', schema_name);
       EXECUTE format('CREATE INDEX IF NOT EXISTS %I ON %I.catalog_products(catalog_id)', safe_schema_name || '_catalog_products_catalog_idx', schema_name);
+
+      -- Notes indexes from migration 019
+      EXECUTE format('CREATE INDEX IF NOT EXISTS %I ON %I.contact_notes_shared(contact_id)', safe_schema_name || '_shared_notes_contact_idx', schema_name);
+      EXECUTE format('CREATE INDEX IF NOT EXISTS %I ON %I.contact_notes_shared(user_id)', safe_schema_name || '_shared_notes_user_idx', schema_name);
+      EXECUTE format('CREATE INDEX IF NOT EXISTS %I ON %I.contact_notes_shared(contact_id, created_at DESC)', safe_schema_name || '_shared_notes_created_idx', schema_name);
+      EXECUTE format('CREATE INDEX IF NOT EXISTS %I ON %I.contact_notes_private(contact_id, user_id)', safe_schema_name || '_private_notes_contact_user_idx', schema_name);
+      EXECUTE format('CREATE INDEX IF NOT EXISTS %I ON %I.contact_notes_private(contact_id, created_at DESC)', safe_schema_name || '_private_notes_created_idx', schema_name);
 
     END;
     $$ LANGUAGE plpgsql;

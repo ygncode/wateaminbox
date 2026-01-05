@@ -1,0 +1,48 @@
+{
+  "$schema": "https://unpkg.com/knip@5/schema.json",
+  "workspaces": {
+    "apps/api": {
+      "entry": ["src/index.ts", "src/**/*.test.ts"],
+      "project": ["src/**/*.ts"],
+      "ignore": ["src/__tests__/**"]
+    },
+    "apps/web": {
+      "entry": ["src/main.tsx", "e2e/**/*.ts"],
+      "project": ["src/**/*.{ts,tsx}"],
+      "ignore": ["e2e/**"]
+    },
+    "apps/marketing": {
+      "entry": ["src/**/*.astro"],
+      "project": ["src/**/*.{ts,tsx,astro}"]
+    },
+    "packages/database": {
+      "entry": ["src/index.ts", "src/migrations/*.ts"],
+      "project": ["src/**/*.ts"]
+    },
+    "packages/shared": {
+      "entry": ["src/index.ts"],
+      "project": ["src/**/*.ts"]
+    },
+    "packages/ui": {
+      "entry": ["src/index.ts"],
+      "project": ["src/**/*.{ts,tsx}"]
+    },
+    "services/orchestrator": {
+      "ignore": ["**/*.go"]
+    },
+    "services/whatsapp": {
+      "ignore": ["**/*.go"]
+    }
+  },
+  "ignoreDependencies": [
+    "@tailwindcss/vite",
+    "tailwindcss",
+    "@types/bun",
+    "typescript",
+    "eslint",
+    "prettier",
+    "biome"
+  ],
+  "ignoreExportsUsedInFile": true,
+  "exclude": ["duplicates", "enumMembers"]
+}

@@ -5,6 +5,13 @@ import { useInfiniteMessages } from "../../hooks/useInfiniteMessages";
 import { MessageBubble } from "./MessageBubble";
 import { useRetryMessage } from "../../hooks/useMessages";
 import { useTheme } from "../../contexts";
+import { ChatContextMenu } from "./ChatContextMenu";
+import {
+  useChatStore,
+  selectSelectionMode,
+  selectSelectedMessageIds,
+  selectSelectedMessageCount,
+} from "../../stores/chat-store";
 
 interface MessageThreadProps {
   conversationId: string | undefined;
@@ -17,6 +24,8 @@ interface MessageThreadProps {
   onRetryMessage?: (messageId: string) => void;
   /** ID of message to highlight and scroll to */
   highlightedMessageId?: string | null;
+  /** Callback when user clicks "Contact info" in context menu */
+  onOpenContactInfo?: () => void;
 }
 
 // Estimated row heights for virtualization
@@ -33,6 +42,7 @@ export function MessageThread({
   onReactMessage,
   onRetryMessage,
   highlightedMessageId,
+  onOpenContactInfo,
 }: MessageThreadProps) {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const retryMessage = useRetryMessage();
@@ -41,6 +51,22 @@ export function MessageThread({
   const [isAtBottom, setIsAtBottom] = useState(true);
   const prevMessagesLengthRef = useRef(0);
   const isInitialScrollDone = useRef(false);
+
+  // Selection mode state from store
+  const selectionMode = useChatStore(selectSelectionMode);
+  const selectedMessageIds = useChatStore(selectSelectedMessageIds);
+  const selectedCount = useChatStore(selectSelectedMessageCount);
+  const enterSelectionMode = useChatStore((state) => state.enterSelectionMode);
+  const exitSelectionMode = useChatStore((state) => state.exitSelectionMode);
+  const toggleMessageSelection = useChatStore(
+    (state) => state.toggleMessageSelection
+  );
+
+  // Context menu state
+  const [contextMenu, setContextMenu] = useState<{
+    x: number;
+    y: number;
+  } | null>(null);
 
   const {
     data,
@@ -144,11 +170,18 @@ export function MessageThread({
 
   // Scroll to bottom when new messages arrive (if already at bottom)
   useEffect(() => {
-    if (messages.length > prevMessagesLengthRef.current && isAtBottom) {
+    // Only auto-scroll for new messages if initial scroll is done and user is at bottom
+    if (
+      isInitialScrollDone.current &&
+      messages.length > prevMessagesLengthRef.current &&
+      isAtBottom
+    ) {
       requestAnimationFrame(() => {
         if (scrollContainerRef.current) {
-          scrollContainerRef.current.scrollTop =
-            scrollContainerRef.current.scrollHeight;
+          scrollContainerRef.current.scrollTo({
+            top: scrollContainerRef.current.scrollHeight,
+            behavior: "smooth",
+          });
         }
       });
     }
@@ -158,19 +191,26 @@ export function MessageThread({
   // Initial scroll to bottom when conversation loads
   useEffect(() => {
     if (conversationId && messages.length > 0 && !isInitialScrollDone.current) {
+      // Mark as done immediately to prevent duplicate scrolls
+      isInitialScrollDone.current = true;
+
+      // Use requestAnimationFrame to ensure DOM is ready
       requestAnimationFrame(() => {
         if (scrollContainerRef.current) {
-          scrollContainerRef.current.scrollTop =
-            scrollContainerRef.current.scrollHeight;
-          isInitialScrollDone.current = true;
+          // Use instant scroll for initial load (no animation delay)
+          scrollContainerRef.current.scrollTo({
+            top: scrollContainerRef.current.scrollHeight,
+            behavior: "auto",
+          });
         }
       });
     }
   }, [conversationId, messages.length]);
 
-  // Reset initial scroll flag when conversation changes
+  // Reset initial scroll flag and message count when conversation changes
   useEffect(() => {
     isInitialScrollDone.current = false;
+    prevMessagesLengthRef.current = 0;
   }, [conversationId]);
 
   // Store virtualizer in a ref to avoid dependency issues
@@ -218,6 +258,50 @@ export function MessageThread({
     },
     [retryMessage],
   );
+
+  // Handle background context menu (right-click on empty area)
+  const handleBackgroundContextMenu = useCallback(
+    (e: React.MouseEvent) => {
+      // Only show context menu if clicking on the background, not on a message
+      const target = e.target as HTMLElement;
+      if (target.closest("[data-message-id]")) {
+        return; // Let the message bubble handle its own context menu
+      }
+
+      e.preventDefault();
+      setContextMenu({ x: e.clientX, y: e.clientY });
+    },
+    []
+  );
+
+  // Handle message click in selection mode
+  const handleMessageClick = useCallback(
+    (messageId: string) => {
+      if (selectionMode) {
+        toggleMessageSelection(messageId);
+      }
+    },
+    [selectionMode, toggleMessageSelection]
+  );
+
+  // ESC key to exit selection mode
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape" && selectionMode) {
+        exitSelectionMode();
+      }
+    }
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [selectionMode, exitSelectionMode]);
+
+  // Exit selection mode when conversation changes
+  useEffect(() => {
+    if (selectionMode) {
+      exitSelectionMode();
+    }
+  }, [conversationId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Empty state when no chat selected
   if (!conversationId) {
@@ -327,6 +411,39 @@ export function MessageThread({
 
   return (
     <div className="flex-1 relative flex flex-col min-h-0 bg-[#e5ddd5] dark:bg-dark-primary">
+      {/* Selection mode header */}
+      {selectionMode && (
+        <div className="sticky top-0 z-30 bg-whatsapp-teal-green text-white px-4 py-3 flex items-center justify-between shadow-md">
+          <div className="flex items-center gap-4">
+            <button
+              onClick={exitSelectionMode}
+              className="p-1 hover:bg-white/10 rounded-full transition-colors"
+              aria-label="Exit selection mode"
+            >
+              <svg
+                className="h-6 w-6"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M6 18L18 6M6 6l12 12"
+                />
+              </svg>
+            </button>
+            <span className="font-medium">
+              {selectedCount === 0
+                ? "Select messages"
+                : `${selectedCount} selected`}
+            </span>
+          </div>
+          <span className="text-sm opacity-80">Press ESC to cancel</span>
+        </div>
+      )}
+
       {/* WhatsApp-style background pattern */}
       <div
         className="absolute inset-0 opacity-5 dark:opacity-100"
@@ -340,6 +457,7 @@ export function MessageThread({
         ref={scrollContainerRef}
         className="flex-1 min-h-0 overflow-y-auto px-4 py-2 relative z-10"
         onScroll={handleScroll}
+        onContextMenu={handleBackgroundContextMenu}
       >
         {/* Loading more indicator */}
         {isFetchingNextPage && (
@@ -409,14 +527,17 @@ export function MessageThread({
                 <MessageBubble
                   message={item.message}
                   isOwn={item.message.senderType === "user"}
-                  onReply={onReplyToMessage}
-                  onForward={onForwardMessage}
-                  onDelete={onDeleteMessage}
-                  onStar={onStarMessage}
-                  onReact={onReactMessage}
-                  onRetry={onRetryMessage || handleRetry}
+                  onReply={selectionMode ? undefined : onReplyToMessage}
+                  onForward={selectionMode ? undefined : onForwardMessage}
+                  onDelete={selectionMode ? undefined : onDeleteMessage}
+                  onStar={selectionMode ? undefined : onStarMessage}
+                  onReact={selectionMode ? undefined : onReactMessage}
+                  onRetry={selectionMode ? undefined : onRetryMessage || handleRetry}
                   isHighlighted={highlightedMessageId === item.message.id}
                   isRetrying={retryingMessageId === item.message.id}
+                  selectionMode={selectionMode}
+                  isSelected={selectedMessageIds.has(item.message.id)}
+                  onSelectionToggle={handleMessageClick}
                 />
               </div>
             );
@@ -445,6 +566,17 @@ export function MessageThread({
             />
           </svg>
         </button>
+      )}
+
+      {/* Background context menu */}
+      {contextMenu && (
+        <ChatContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          onClose={() => setContextMenu(null)}
+          onContactInfo={() => onOpenContactInfo?.()}
+          onSelectMessages={enterSelectionMode}
+        />
       )}
     </div>
   );

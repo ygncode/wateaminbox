@@ -117,11 +117,11 @@ export function AddContactDialog({ open, onOpenChange }: AddContactDialogProps) 
 
         {success ? (
           <div className="flex flex-col items-center justify-center py-8">
-            <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center mb-4">
-              <Check className="h-8 w-8 text-green-600" />
+            <div className="w-16 h-16 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center mb-4">
+              <Check className="h-8 w-8 text-green-600 dark:text-green-400" />
             </div>
-            <p className="text-lg font-medium text-gray-900">Contact Created!</p>
-            <p className="text-sm text-gray-500 mt-1">
+            <p className="text-lg font-medium text-gray-900 dark:text-dark-text-primary">Contact Created!</p>
+            <p className="text-sm text-gray-500 dark:text-dark-text-secondary mt-1">
               Redirecting to conversation...
             </p>
           </div>
@@ -129,7 +129,7 @@ export function AddContactDialog({ open, onOpenChange }: AddContactDialogProps) 
           <form onSubmit={handleSubmit} className="space-y-4 py-4">
             {/* Error message */}
             {error && (
-              <div className="flex items-center gap-2 p-3 text-sm text-red-600 bg-red-50 rounded-lg">
+              <div className="flex items-center gap-2 p-3 text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 rounded-lg">
                 <AlertCircle className="h-4 w-4 flex-shrink-0" />
                 <span>{error}</span>
               </div>
@@ -150,7 +150,7 @@ export function AddContactDialog({ open, onOpenChange }: AddContactDialogProps) 
                 autoFocus
                 data-testid="add-contact-phone"
               />
-              <p className="text-xs text-gray-500">
+              <p className="text-xs text-gray-500 dark:text-dark-text-tertiary">
                 Include country code (e.g., +1 for US, +44 for UK, +95 for Myanmar)
               </p>
             </div>
@@ -179,7 +179,7 @@ export function AddContactDialog({ open, onOpenChange }: AddContactDialogProps) 
                 rows={3}
                 data-testid="add-contact-notes"
               />
-              <p className="text-xs text-gray-500">
+              <p className="text-xs text-gray-500 dark:text-dark-text-tertiary">
                 These notes will be visible to all team members
               </p>
             </div>

@@ -167,6 +167,7 @@ export interface WhatsAppEvent {
     | "profile_picture"
     | "message_revoke"
     | "presence"
+    | "typing"
     | "error";
   companyId: string;
   connectionId: string;
@@ -324,6 +325,16 @@ export interface PresenceEvent extends WhatsAppEvent {
     from: string; // JID of the contact
     unavailable: boolean; // true = offline, false = online
     lastSeen?: string; // ISO 8601 timestamp when contact was last seen (only when going offline)
+  };
+}
+
+export interface TypingEvent extends WhatsAppEvent {
+  type: "typing";
+  payload: {
+    from: string; // JID of the contact who is typing
+    chatJid: string; // JID of the chat where typing occurs
+    isTyping: boolean; // true = composing, false = paused
+    mediaType?: string; // "text" or "audio"
   };
 }
 

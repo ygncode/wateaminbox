@@ -11,6 +11,8 @@ interface MessageHeaderProps {
   showBackButton?: boolean;
   /** Callback when back button is pressed */
   onBack?: () => void;
+  /** Whether the contact is currently typing */
+  isTyping?: boolean;
 }
 
 export function MessageHeader({
@@ -20,6 +22,7 @@ export function MessageHeader({
   onMore,
   showBackButton = false,
   onBack,
+  isTyping = false,
 }: MessageHeaderProps) {
   if (!contact) {
     return null;
@@ -28,6 +31,7 @@ export function MessageHeader({
   const displayName =
     contact.customName || contact.name || contact.jid || "Unknown";
   const lastSeenText = getLastSeenText(contact.isOnline, contact.lastSeen);
+  const statusText = isTyping ? "typing" : lastSeenText;
 
   return (
     <header className="flex items-center gap-2 md:gap-3 px-2 md:px-4 py-2 bg-gray-100 dark:bg-dark-secondary border-b border-gray-200 dark:border-dark-border h-14 min-h-[56px] md:h-[60px] md:min-h-[60px] safe-area-top">
@@ -73,7 +77,15 @@ export function MessageHeader({
           <h2 className="text-base font-medium text-gray-900 dark:text-dark-text-primary truncate">
             {displayName}
           </h2>
-          <p className="text-xs text-gray-500 dark:text-dark-text-secondary truncate">{lastSeenText}</p>
+          <p className={`text-xs truncate ${isTyping ? "text-whatsapp-green" : "text-gray-500 dark:text-dark-text-secondary"}`}>
+            {isTyping ? (
+              <span className="typing-indicator">
+                typing<span className="typing-dots" />
+              </span>
+            ) : (
+              statusText
+            )}
+          </p>
         </div>
       </button>
 

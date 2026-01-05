@@ -7,6 +7,7 @@ import {
   type ChangeEvent,
 } from "react";
 import type { Message } from "@whatsapp-web/shared";
+import { EmojiInputPicker } from "./EmojiInputPicker";
 
 interface MessageComposerProps {
   conversationId: string | undefined;
@@ -27,8 +28,10 @@ export function MessageComposer({
 }: MessageComposerProps) {
   const [message, setMessage] = useState("");
   const [showAttachmentMenu, setShowAttachmentMenu] = useState(false);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const attachmentMenuRef = useRef<HTMLDivElement>(null);
+  const emojiPickerRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
 
@@ -92,9 +95,10 @@ export function MessageComposer({
     setMessage("");
     onClearReply();
 
-    // Reset textarea height
+    // Reset textarea height and maintain focus for continued typing
     if (textareaRef.current) {
       textareaRef.current.style.height = "auto";
+      textareaRef.current.focus();
     }
   };
 
@@ -118,6 +122,28 @@ export function MessageComposer({
       fileInputRef.current?.click();
     }
   };
+
+  // Insert emoji at cursor position
+  const insertEmoji = useCallback((emoji: string) => {
+    const textarea = textareaRef.current;
+    if (!textarea) {
+      setMessage((prev) => prev + emoji);
+      return;
+    }
+
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const newMessage =
+      message.substring(0, start) + emoji + message.substring(end);
+    setMessage(newMessage);
+
+    // Restore focus and cursor position after emoji insertion
+    requestAnimationFrame(() => {
+      textarea.focus();
+      const newCursorPos = start + emoji.length;
+      textarea.setSelectionRange(newCursorPos, newCursorPos);
+    });
+  }, [message]);
 
   if (!conversationId) {
     return null;
@@ -164,26 +190,36 @@ export function MessageComposer({
 
       {/* Input area */}
       <div className="flex items-end gap-1 md:gap-2 p-2 md:p-3">
-        {/* Emoji button (placeholder) - hidden on small mobile */}
-        <button
-          className="hidden sm:flex flex-shrink-0 h-11 w-11 md:h-10 md:w-10 items-center justify-center text-gray-500 dark:text-dark-text-secondary hover:text-gray-700 dark:hover:text-dark-text-primary rounded-full hover:bg-gray-200 dark:hover:bg-dark-tertiary active:bg-gray-300 dark:active:bg-dark-border transition-colors touch-manipulation"
-          aria-label="Insert emoji"
-          title="Emoji picker coming soon"
-        >
-          <svg
-            className="h-6 w-6"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
+        {/* Emoji button - hidden on small mobile */}
+        <div className="relative hidden sm:block" ref={emojiPickerRef}>
+          <button
+            onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+            className="flex-shrink-0 flex h-11 w-11 md:h-10 md:w-10 items-center justify-center text-gray-500 dark:text-dark-text-secondary hover:text-gray-700 dark:hover:text-dark-text-primary rounded-full hover:bg-gray-200 dark:hover:bg-dark-tertiary active:bg-gray-300 dark:active:bg-dark-border transition-colors touch-manipulation"
+            aria-label="Insert emoji"
           >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+            <svg
+              className="h-6 w-6"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+              />
+            </svg>
+          </button>
+
+          {/* Emoji Picker */}
+          {showEmojiPicker && (
+            <EmojiInputPicker
+              onSelectEmoji={insertEmoji}
+              onClose={() => setShowEmojiPicker(false)}
             />
-          </svg>
-        </button>
+          )}
+        </div>
 
         {/* Attachment button */}
         <div className="relative" ref={attachmentMenuRef}>

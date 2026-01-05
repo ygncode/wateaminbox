@@ -19,21 +19,29 @@ import {
   useContact,
   useUpdateContact,
   usePrivateNotes,
-  useUpdatePrivateNotes,
+  useSharedNotes,
+  useCreatePrivateNote,
+  useUpdatePrivateNote,
+  useDeletePrivateNote,
+  useCreateSharedNote,
+  useUpdateSharedNote,
+  useDeleteSharedNote,
   useTags,
   useAddContactTag,
   useRemoveContactTag,
   useAssignContact,
   useUnassignContact,
   useAssignmentHistory,
+  type SharedNote,
+  type PrivateNote,
 } from "@/hooks/useContact";
+import { useAuth } from "@/contexts/auth-context";
 import {
   Phone,
   User,
   Edit2,
   Check,
   X,
-  FileText,
   Lock,
   Tag,
   UserPlus,
@@ -43,6 +51,8 @@ import {
   History,
   ChevronDown,
   ChevronUp,
+  Trash2,
+  Users,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -62,8 +72,6 @@ export function ContactProfile({
   onClose,
 }: ContactProfileProps) {
   const { data: contact, isLoading, error } = useContact(contactId);
-  const { data: privateNote, isLoading: isLoadingPrivateNote } =
-    usePrivateNotes(contactId);
   const [showExportDialog, setShowExportDialog] = useState(false);
 
   if (!contactId) return null;
@@ -89,15 +97,11 @@ export function ContactProfile({
             {/* Custom Name Section */}
             <EditableNameSection contact={contact} />
 
-            {/* Shared Notes Section */}
-            <SharedNotesSection contact={contact} />
+            {/* Shared Notes Section - Now using the new list component */}
+            <SharedNotesList contactId={contact.id} />
 
-            {/* Private Notes Section */}
-            <PrivateNotesSection
-              contactId={contact.id}
-              initialContent={privateNote?.content || ""}
-              isLoading={isLoadingPrivateNote}
-            />
+            {/* Private Notes Section - Now using the new list component */}
+            <PrivateNotesList contactId={contact.id} />
 
             {/* Tags Section */}
             <TagsSection contact={contact} />
@@ -318,120 +322,292 @@ function EditableNameSection({
 }
 
 /**
- * Shared notes section - visible to all team members
+ * Single note item component for displaying and editing a note
  */
-function SharedNotesSection({
-  contact,
+function NoteItem({
+  note,
+  isOwner,
+  isSystem,
+  onEdit,
+  onDelete,
+  isPending,
+  showAuthor,
 }: {
-  contact: NonNullable<ReturnType<typeof useContact>["data"]>;
+  note: SharedNote | PrivateNote;
+  isOwner: boolean;
+  isSystem: boolean;
+  onEdit: (noteId: string, content: string) => void;
+  onDelete: (noteId: string) => void;
+  isPending: boolean;
+  showAuthor: boolean;
 }) {
   const [isEditing, setIsEditing] = useState(false);
-  const [notes, setNotes] = useState(contact.notesShared || "");
-  const updateContact = useUpdateContact();
+  const [editContent, setEditContent] = useState(note.content || "");
 
-  useEffect(() => {
-    setNotes(contact.notesShared || "");
-  }, [contact.notesShared]);
-
-  const handleSave = async () => {
-    await updateContact.mutateAsync({
-      contactId: contact.id,
-      notesShared: notes.trim() || undefined,
-    });
-    setIsEditing(false);
+  const handleSave = () => {
+    if (editContent.trim()) {
+      onEdit(note.id, editContent.trim());
+      setIsEditing(false);
+    }
   };
 
   const handleCancel = () => {
-    setNotes(contact.notesShared || "");
+    setEditContent(note.content || "");
     setIsEditing(false);
   };
 
+  const formatDate = (dateStr: string) => {
+    const date = new Date(dateStr);
+    return date.toLocaleDateString(undefined, {
+      month: "short",
+      day: "numeric",
+      year: date.getFullYear() !== new Date().getFullYear() ? "numeric" : undefined,
+    });
+  };
+
+  if (isEditing) {
+    return (
+      <div className="rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-elevated p-3 space-y-2">
+        <textarea
+          value={editContent}
+          onChange={(e) => setEditContent(e.target.value)}
+          className="w-full rounded-md border border-gray-300 dark:border-dark-border dark:bg-dark-tertiary dark:text-dark-text-primary dark:placeholder:text-dark-text-tertiary p-2 text-sm focus:border-whatsapp-teal-green focus:outline-none focus:ring-1 focus:ring-whatsapp-teal-green resize-none"
+          rows={3}
+          autoFocus
+        />
+        <div className="flex justify-end gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={handleCancel}
+            disabled={isPending}
+            className="dark:border-dark-border dark:text-dark-text-primary dark:hover:bg-dark-tertiary"
+          >
+            Cancel
+          </Button>
+          <Button
+            size="sm"
+            onClick={handleSave}
+            disabled={isPending || !editContent.trim()}
+            className="bg-whatsapp-teal-green hover:bg-whatsapp-dark-green"
+          >
+            Save
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="group rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-elevated p-3">
+      <div className="flex items-start justify-between gap-2">
+        <p className="whitespace-pre-wrap text-sm text-gray-700 dark:text-dark-text-primary flex-1">
+          {note.content}
+        </p>
+        {isOwner && !isSystem && (
+          <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+            <Button
+              size="icon"
+              variant="ghost"
+              onClick={() => setIsEditing(true)}
+              className="h-6 w-6 dark:hover:bg-dark-tertiary"
+            >
+              <Edit2 className="h-3 w-3 text-gray-500 dark:text-dark-text-secondary" />
+            </Button>
+            <Button
+              size="icon"
+              variant="ghost"
+              onClick={() => onDelete(note.id)}
+              disabled={isPending}
+              className="h-6 w-6 hover:bg-red-50 dark:hover:bg-red-900/20"
+            >
+              <Trash2 className="h-3 w-3 text-red-500 dark:text-red-400" />
+            </Button>
+          </div>
+        )}
+      </div>
+      <div className="mt-2 flex items-center gap-2 text-xs text-gray-500 dark:text-dark-text-tertiary">
+        {showAuthor && "authorName" in note && (
+          <>
+            <span className={cn("font-medium", isSystem && "text-blue-600 dark:text-blue-400")}>
+              {note.authorName}
+            </span>
+            <span>•</span>
+          </>
+        )}
+        <span>{formatDate(note.createdAt)}</span>
+        {note.updatedAt !== note.createdAt && (
+          <>
+            <span>•</span>
+            <span className="italic">edited</span>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Shared notes list - visible to all team members
+ */
+function SharedNotesList({ contactId }: { contactId: string }) {
+  const { user } = useAuth();
+  const { data, isLoading } = useSharedNotes(contactId);
+  const createNote = useCreateSharedNote();
+  const updateNote = useUpdateSharedNote();
+  const deleteNote = useDeleteSharedNote();
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [newContent, setNewContent] = useState("");
+  const [isExpanded, setIsExpanded] = useState(true);
+
+  const notes = data?.data || [];
+  const isPending = createNote.isPending || updateNote.isPending || deleteNote.isPending;
+
+  const handleCreate = async () => {
+    if (newContent.trim()) {
+      await createNote.mutateAsync({ contactId, content: newContent.trim() });
+      setNewContent("");
+      setShowAddForm(false);
+    }
+  };
+
+  const handleEdit = async (noteId: string, content: string) => {
+    await updateNote.mutateAsync({ contactId, noteId, content });
+  };
+
+  const handleDelete = async (noteId: string) => {
+    await deleteNote.mutateAsync({ contactId, noteId });
+  };
+
+  if (isLoading) {
+    return (
+      <RightPanelSection title="Shared Notes">
+        <Skeleton className="h-20 w-full" />
+      </RightPanelSection>
+    );
+  }
+
   return (
     <RightPanelSection title="Shared Notes">
-      <div className="flex items-start gap-2">
-        <FileText className="mt-0.5 h-4 w-4 text-gray-400 dark:text-dark-text-tertiary" />
-        <div className="flex-1">
-          {isEditing ? (
-            <div className="space-y-2">
+      <div className="flex items-center gap-2 mb-2">
+        <Users className="h-4 w-4 text-gray-400 dark:text-dark-text-tertiary" />
+        <span className="text-xs text-gray-500 dark:text-dark-text-tertiary">
+          Visible to all team members
+        </span>
+        {notes.length > 0 && (
+          <button
+            type="button"
+            onClick={() => setIsExpanded(!isExpanded)}
+            className="ml-auto text-xs text-whatsapp-teal-green hover:text-whatsapp-dark-green font-medium flex items-center gap-1"
+          >
+            {isExpanded ? (
+              <>
+                <ChevronUp className="h-3 w-3" />
+                Hide
+              </>
+            ) : (
+              <>
+                <ChevronDown className="h-3 w-3" />
+                Show ({notes.length})
+              </>
+            )}
+          </button>
+        )}
+      </div>
+
+      {isExpanded && (
+        <div className="space-y-2">
+          {notes.map((note) => (
+            <NoteItem
+              key={note.id}
+              note={note}
+              isOwner={note.userId === user?.id}
+              isSystem={note.authorName === "System"}
+              onEdit={handleEdit}
+              onDelete={handleDelete}
+              isPending={isPending}
+              showAuthor
+            />
+          ))}
+
+          {showAddForm ? (
+            <div className="rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-elevated p-3 space-y-2">
               <textarea
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                placeholder="Add notes about this contact..."
-                className="w-full rounded-md border border-gray-300 dark:border-dark-border dark:bg-dark-tertiary dark:text-dark-text-primary dark:placeholder:text-dark-text-tertiary p-2 text-sm focus:border-whatsapp-teal-green focus:outline-none focus:ring-1 focus:ring-whatsapp-teal-green"
-                rows={4}
+                value={newContent}
+                onChange={(e) => setNewContent(e.target.value)}
+                placeholder="Add a shared note..."
+                className="w-full rounded-md border border-gray-300 dark:border-dark-border dark:bg-dark-tertiary dark:text-dark-text-primary dark:placeholder:text-dark-text-tertiary p-2 text-sm focus:border-whatsapp-teal-green focus:outline-none focus:ring-1 focus:ring-whatsapp-teal-green resize-none"
+                rows={3}
                 autoFocus
               />
               <div className="flex justify-end gap-2">
-                <Button size="sm" variant="outline" onClick={handleCancel} className="dark:border-dark-border dark:text-dark-text-primary dark:hover:bg-dark-tertiary">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    setShowAddForm(false);
+                    setNewContent("");
+                  }}
+                  disabled={isPending}
+                  className="dark:border-dark-border dark:text-dark-text-primary dark:hover:bg-dark-tertiary"
+                >
                   Cancel
                 </Button>
                 <Button
                   size="sm"
-                  onClick={handleSave}
-                  disabled={updateContact.isPending}
+                  onClick={handleCreate}
+                  disabled={isPending || !newContent.trim()}
                   className="bg-whatsapp-teal-green hover:bg-whatsapp-dark-green"
                 >
-                  Save
+                  Add Note
                 </Button>
               </div>
             </div>
           ) : (
-            <div
-              className="group cursor-pointer"
-              onClick={() => setIsEditing(true)}
+            <button
+              type="button"
+              onClick={() => setShowAddForm(true)}
+              className="flex items-center gap-2 w-full p-2 rounded-lg border border-dashed border-gray-300 dark:border-dark-border text-sm text-gray-500 dark:text-dark-text-secondary hover:border-gray-400 hover:text-gray-600 dark:hover:border-dark-text-tertiary dark:hover:text-dark-text-primary transition-colors"
             >
-              {notes ? (
-                <p className="whitespace-pre-wrap text-sm text-gray-700 dark:text-dark-text-primary">
-                  {notes}
-                </p>
-              ) : (
-                <p className="text-sm italic text-gray-400 dark:text-dark-text-tertiary">
-                  Click to add shared notes...
-                </p>
-              )}
-              <Edit2 className="mt-1 h-3 w-3 text-gray-400 dark:text-dark-text-tertiary opacity-0 transition-opacity group-hover:opacity-100" />
-            </div>
+              <Plus className="h-4 w-4" />
+              Add shared note
+            </button>
           )}
         </div>
-      </div>
-      <p className="mt-2 text-xs text-gray-500 dark:text-dark-text-tertiary">
-        These notes are visible to all team members
-      </p>
+      )}
     </RightPanelSection>
   );
 }
 
 /**
- * Private notes section - only visible to current user
+ * Private notes list - only visible to current user
  */
-function PrivateNotesSection({
-  contactId,
-  initialContent,
-  isLoading,
-}: {
-  contactId: string;
-  initialContent: string;
-  isLoading: boolean;
-}) {
-  const [isEditing, setIsEditing] = useState(false);
-  const [notes, setNotes] = useState(initialContent);
-  const updatePrivateNotes = useUpdatePrivateNotes();
+function PrivateNotesList({ contactId }: { contactId: string }) {
+  const { data, isLoading } = usePrivateNotes(contactId);
+  const createNote = useCreatePrivateNote();
+  const updateNote = useUpdatePrivateNote();
+  const deleteNote = useDeletePrivateNote();
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [newContent, setNewContent] = useState("");
+  const [isExpanded, setIsExpanded] = useState(true);
 
-  useEffect(() => {
-    setNotes(initialContent);
-  }, [initialContent]);
+  const notes = data?.data || [];
+  const isPending = createNote.isPending || updateNote.isPending || deleteNote.isPending;
 
-  const handleSave = async () => {
-    await updatePrivateNotes.mutateAsync({
-      contactId,
-      content: notes.trim(),
-    });
-    setIsEditing(false);
+  const handleCreate = async () => {
+    if (newContent.trim()) {
+      await createNote.mutateAsync({ contactId, content: newContent.trim() });
+      setNewContent("");
+      setShowAddForm(false);
+    }
   };
 
-  const handleCancel = () => {
-    setNotes(initialContent);
-    setIsEditing(false);
+  const handleEdit = async (noteId: string, content: string) => {
+    await updateNote.mutateAsync({ contactId, noteId, content });
+  };
+
+  const handleDelete = async (noteId: string) => {
+    await deleteNote.mutateAsync({ contactId, noteId });
   };
 
   if (isLoading) {
@@ -444,56 +620,92 @@ function PrivateNotesSection({
 
   return (
     <RightPanelSection title="Private Notes">
-      <div className="flex items-start gap-2">
-        <Lock className="mt-0.5 h-4 w-4 text-gray-400 dark:text-dark-text-tertiary" />
-        <div className="flex-1">
-          {isEditing ? (
-            <div className="space-y-2">
+      <div className="flex items-center gap-2 mb-2">
+        <Lock className="h-4 w-4 text-gray-400 dark:text-dark-text-tertiary" />
+        <span className="text-xs text-gray-500 dark:text-dark-text-tertiary">
+          Only you can see these
+        </span>
+        {notes.length > 0 && (
+          <button
+            type="button"
+            onClick={() => setIsExpanded(!isExpanded)}
+            className="ml-auto text-xs text-whatsapp-teal-green hover:text-whatsapp-dark-green font-medium flex items-center gap-1"
+          >
+            {isExpanded ? (
+              <>
+                <ChevronUp className="h-3 w-3" />
+                Hide
+              </>
+            ) : (
+              <>
+                <ChevronDown className="h-3 w-3" />
+                Show ({notes.length})
+              </>
+            )}
+          </button>
+        )}
+      </div>
+
+      {isExpanded && (
+        <div className="space-y-2">
+          {notes.map((note) => (
+            <NoteItem
+              key={note.id}
+              note={note}
+              isOwner
+              isSystem={false}
+              onEdit={handleEdit}
+              onDelete={handleDelete}
+              isPending={isPending}
+              showAuthor={false}
+            />
+          ))}
+
+          {showAddForm ? (
+            <div className="rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-elevated p-3 space-y-2">
               <textarea
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                placeholder="Add private notes (only you can see these)..."
-                className="w-full rounded-md border border-gray-300 dark:border-dark-border dark:bg-dark-tertiary dark:text-dark-text-primary dark:placeholder:text-dark-text-tertiary p-2 text-sm focus:border-whatsapp-teal-green focus:outline-none focus:ring-1 focus:ring-whatsapp-teal-green"
-                rows={4}
+                value={newContent}
+                onChange={(e) => setNewContent(e.target.value)}
+                placeholder="Add a private note..."
+                className="w-full rounded-md border border-gray-300 dark:border-dark-border dark:bg-dark-tertiary dark:text-dark-text-primary dark:placeholder:text-dark-text-tertiary p-2 text-sm focus:border-whatsapp-teal-green focus:outline-none focus:ring-1 focus:ring-whatsapp-teal-green resize-none"
+                rows={3}
                 autoFocus
               />
               <div className="flex justify-end gap-2">
-                <Button size="sm" variant="outline" onClick={handleCancel} className="dark:border-dark-border dark:text-dark-text-primary dark:hover:bg-dark-tertiary">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    setShowAddForm(false);
+                    setNewContent("");
+                  }}
+                  disabled={isPending}
+                  className="dark:border-dark-border dark:text-dark-text-primary dark:hover:bg-dark-tertiary"
+                >
                   Cancel
                 </Button>
                 <Button
                   size="sm"
-                  onClick={handleSave}
-                  disabled={updatePrivateNotes.isPending}
+                  onClick={handleCreate}
+                  disabled={isPending || !newContent.trim()}
                   className="bg-whatsapp-teal-green hover:bg-whatsapp-dark-green"
                 >
-                  Save
+                  Add Note
                 </Button>
               </div>
             </div>
           ) : (
-            <div
-              className="group cursor-pointer"
-              onClick={() => setIsEditing(true)}
+            <button
+              type="button"
+              onClick={() => setShowAddForm(true)}
+              className="flex items-center gap-2 w-full p-2 rounded-lg border border-dashed border-gray-300 dark:border-dark-border text-sm text-gray-500 dark:text-dark-text-secondary hover:border-gray-400 hover:text-gray-600 dark:hover:border-dark-text-tertiary dark:hover:text-dark-text-primary transition-colors"
             >
-              {notes ? (
-                <p className="whitespace-pre-wrap text-sm text-gray-700 dark:text-dark-text-primary">
-                  {notes}
-                </p>
-              ) : (
-                <p className="text-sm italic text-gray-400 dark:text-dark-text-tertiary">
-                  Click to add private notes...
-                </p>
-              )}
-              <Edit2 className="mt-1 h-3 w-3 text-gray-400 dark:text-dark-text-tertiary opacity-0 transition-opacity group-hover:opacity-100" />
-            </div>
+              <Plus className="h-4 w-4" />
+              Add private note
+            </button>
           )}
         </div>
-      </div>
-      <p className="mt-2 text-xs text-gray-500 dark:text-dark-text-tertiary">
-        <Lock className="mr-1 inline-block h-3 w-3" />
-        Only you can see these notes
-      </p>
+      )}
     </RightPanelSection>
   );
 }
