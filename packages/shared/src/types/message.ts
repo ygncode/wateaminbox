@@ -1,3 +1,9 @@
+export interface MessageReaction {
+  emoji: string;
+  reactorJid: string;
+  createdAt: Date;
+}
+
 export interface Message {
   id: string;
   conversationId: string;
@@ -13,6 +19,7 @@ export interface Message {
   isForwarded?: boolean;
   isDeleted?: boolean;
   isStarred?: boolean;
+  reactions?: MessageReaction[];
   createdAt: Date;
   updatedAt: Date;
 }

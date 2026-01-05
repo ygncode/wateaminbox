@@ -235,7 +235,13 @@ async function handleResponse<T>(response: Response): Promise<T> {
   if (!response.ok) {
     let errorData: ApiError;
     try {
-      errorData = await response.json();
+      const jsonResponse = await response.json();
+      // Handle both { error: "..." } and { message: "..." } formats from backend
+      errorData = {
+        code: jsonResponse.code || jsonResponse.error || "UNKNOWN_ERROR",
+        message: jsonResponse.message || jsonResponse.error || response.statusText || "An unknown error occurred",
+        details: jsonResponse.details || jsonResponse.existingContact,
+      };
     } catch {
       errorData = {
         code: "UNKNOWN_ERROR",

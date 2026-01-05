@@ -36,6 +36,7 @@ export interface UserSession {
 export interface AuthUser {
   id: string;
   email: string;
+  name: string | null;
   emailVerifiedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
@@ -65,6 +66,7 @@ function generateToken(): string {
 export async function register(
   email: string,
   password: string,
+  name?: string,
 ): Promise<{ user: AuthUser; verificationToken: string }> {
   // Check if user already exists
   const existingUser = await db
@@ -93,8 +95,9 @@ export async function register(
     .values({
       email: email.toLowerCase(),
       password_hash: passwordHash,
+      name: name || null,
     })
-    .returning(["id", "email", "email_verified_at", "created_at", "updated_at"])
+    .returning(["id", "email", "name", "email_verified_at", "created_at", "updated_at"])
     .executeTakeFirstOrThrow();
 
   // Store the verification token (we'll use a simple approach - store in invitations table or separate tokens table)
@@ -108,6 +111,7 @@ export async function register(
     user: {
       id: user.id,
       email: user.email,
+      name: user.name,
       emailVerifiedAt: user.email_verified_at,
       createdAt: user.created_at,
       updatedAt: user.updated_at,
@@ -187,6 +191,7 @@ export async function login(
     user: {
       id: user.id,
       email: user.email,
+      name: user.name,
       emailVerifiedAt: user.email_verified_at,
       createdAt: user.created_at,
       updatedAt: user.updated_at,
@@ -435,7 +440,7 @@ export async function getUserById(userId: string): Promise<AuthUser | null> {
   const user = await db
     .selectFrom("users")
     .where("id", "=", userId)
-    .select(["id", "email", "email_verified_at", "created_at", "updated_at"])
+    .select(["id", "email", "name", "email_verified_at", "created_at", "updated_at"])
     .executeTakeFirst();
 
   if (!user) {
@@ -445,6 +450,7 @@ export async function getUserById(userId: string): Promise<AuthUser | null> {
   return {
     id: user.id,
     email: user.email,
+    name: user.name,
     emailVerifiedAt: user.email_verified_at,
     createdAt: user.created_at,
     updatedAt: user.updated_at,

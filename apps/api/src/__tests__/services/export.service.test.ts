@@ -66,7 +66,7 @@ mock.module("kysely", () => ({
   sql: mockSql,
 }));
 
-// Mock fflate
+// Mock fflate - supports both sync and async versions
 const mockZipSync = mock((files: Record<string, Uint8Array>) => {
   // Return a simple Uint8Array that encodes the file names for testing
   const encoder = new TextEncoder();
@@ -74,8 +74,33 @@ const mockZipSync = mock((files: Record<string, Uint8Array>) => {
   return encoder.encode(`mock-zip:${fileNames}`);
 });
 
+// Store last captured files for inspection in tests
+let lastCapturedFiles: Record<string, Uint8Array> | null = null;
+
+// Async zip mock for the Promise-based API
+const mockZip = mock((files: Record<string, Uint8Array>, _options: unknown, callback: (err: Error | null, data: Uint8Array) => void) => {
+  // Capture files for test inspection
+  lastCapturedFiles = files;
+  const encoder = new TextEncoder();
+  const fileNames = Object.keys(files).join(",");
+  const result = encoder.encode(`mock-zip:${fileNames}`);
+  // Call callback asynchronously to simulate real behavior
+  setTimeout(() => callback(null, result), 0);
+});
+
+// Helper to get captured files in tests
+function getLastCapturedFiles(): Record<string, Uint8Array> | null {
+  return lastCapturedFiles;
+}
+
+// Helper to reset captured files
+function resetCapturedFiles(): void {
+  lastCapturedFiles = null;
+}
+
 mock.module("fflate", () => ({
   zipSync: mockZipSync,
+  zip: mockZip,
 }));
 
 // Import the service after mocking
@@ -92,6 +117,7 @@ import {
 describe("ExportService", () => {
   beforeEach(() => {
     resetMockQueryBuilder();
+    resetCapturedFiles();
     mockGetTenantConnection.mockClear();
     mockTenantDb.selectFrom = mock(() => mockQueryBuilder);
     mockSql.mockClear();
@@ -854,7 +880,7 @@ describe("ExportService", () => {
 
       // Assert
       expect(result).toBeInstanceOf(Uint8Array);
-      expect(mockZipSync).toHaveBeenCalled();
+      expect(mockZip).toHaveBeenCalled();
 
       // Check that required files are included
       const decoder = new TextDecoder();
@@ -881,7 +907,7 @@ describe("ExportService", () => {
 
       // Assert
       expect(mockSql).toHaveBeenCalled();
-      expect(mockZipSync).toHaveBeenCalled();
+      expect(mockZip).toHaveBeenCalled();
     });
 
     it("should include correct stats in backup", async () => {
@@ -911,13 +937,13 @@ describe("ExportService", () => {
       await exportFullBackup("company-123");
 
       // Assert
-      expect(mockZipSync).toHaveBeenCalled();
-      const zipCall = mockZipSync.mock.calls[0];
-      const files = zipCall[0] as Record<string, Uint8Array>;
+      expect(mockZip).toHaveBeenCalled();
+      const files = getLastCapturedFiles();
+      expect(files).not.toBeNull();
 
       // Check backup-summary.json content
       const decoder = new TextDecoder();
-      const summaryContent = decoder.decode(files["backup-summary.json"]);
+      const summaryContent = decoder.decode(files!["backup-summary.json"]);
       const summary = JSON.parse(summaryContent);
 
       expect(summary.stats.totalContacts).toBe(2);
@@ -936,13 +962,13 @@ describe("ExportService", () => {
 
       // Assert
       expect(result).toBeInstanceOf(Uint8Array);
-      expect(mockZipSync).toHaveBeenCalled();
+      expect(mockZip).toHaveBeenCalled();
 
-      const zipCall = mockZipSync.mock.calls[0];
-      const files = zipCall[0] as Record<string, Uint8Array>;
+      const files = getLastCapturedFiles();
+      expect(files).not.toBeNull();
 
       const decoder = new TextDecoder();
-      const summaryContent = decoder.decode(files["backup-summary.json"]);
+      const summaryContent = decoder.decode(files!["backup-summary.json"]);
       const summary = JSON.parse(summaryContent);
 
       expect(summary.stats.totalContacts).toBe(0);
@@ -961,11 +987,12 @@ describe("ExportService", () => {
       await exportFullBackup("company-123");
 
       // Assert
-      const zipCall = mockZipSync.mock.calls[0];
-      const files = zipCall[0] as Record<string, Uint8Array>;
+      expect(mockZip).toHaveBeenCalled();
+      const files = getLastCapturedFiles();
+      expect(files).not.toBeNull();
 
       const decoder = new TextDecoder();
-      const readmeContent = decoder.decode(files["README.txt"]);
+      const readmeContent = decoder.decode(files!["README.txt"]);
 
       expect(readmeContent).toContain("WhatsApp Web Backup");
       expect(readmeContent).toContain("Backup Contents");
@@ -987,11 +1014,12 @@ describe("ExportService", () => {
       });
 
       // Assert
-      const zipCall = mockZipSync.mock.calls[0];
-      const files = zipCall[0] as Record<string, Uint8Array>;
+      expect(mockZip).toHaveBeenCalled();
+      const files = getLastCapturedFiles();
+      expect(files).not.toBeNull();
 
       const decoder = new TextDecoder();
-      const readmeContent = decoder.decode(files["README.txt"]);
+      const readmeContent = decoder.decode(files!["README.txt"]);
 
       expect(readmeContent).toContain("Filters Applied");
       expect(readmeContent).toContain("Start Date: 2024-01-01");

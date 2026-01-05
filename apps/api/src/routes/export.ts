@@ -23,7 +23,7 @@ const exportRateLimiter: MiddlewareHandler = rateLimitConfig.enabled
       keyStrategy: "user",
       keyPrefix: "resource-export",
     })
-  : async (c, next) => await next()
+  : async (_c, next) => await next()
 
 /**
  * GET /export/contacts - Export contacts
@@ -61,7 +61,7 @@ exportRoutes.get("/contacts", exportRateLimiter, async (c) => {
 
 /**
  * GET /export/messages - Export messages
- * Query params: format (csv|json), contactId, startDate, endDate, messageTypes, limit
+ * Query params: format (csv|json), contactId, startDate, endDate, messageTypes, limit, offset
  * Rate limit: 10 requests per hour per user
  */
 exportRoutes.get("/messages", exportRateLimiter, async (c) => {
@@ -72,6 +72,7 @@ exportRoutes.get("/messages", exportRateLimiter, async (c) => {
   const endDateStr = c.req.query("endDate");
   const messageTypes = c.req.query("messageTypes")?.split(",").filter(Boolean);
   const limitStr = c.req.query("limit");
+  const offsetStr = c.req.query("offset");
 
   const messages = await exportService.exportMessages(companyId, {
     contactId: contactId || undefined,
@@ -79,10 +80,18 @@ exportRoutes.get("/messages", exportRateLimiter, async (c) => {
     endDate: endDateStr ? new Date(endDateStr) : undefined,
     messageTypes,
     limit: limitStr ? parseInt(limitStr, 10) : undefined,
+    offset: offsetStr ? parseInt(offsetStr, 10) : undefined,
   });
 
   if (format === "json") {
-    return c.json({ data: messages });
+    return c.json({
+      data: messages,
+      pagination: {
+        count: messages.length,
+        limit: limitStr ? parseInt(limitStr, 10) : null,
+        offset: offsetStr ? parseInt(offsetStr, 10) : 0,
+      },
+    });
   }
 
   // CSV format
@@ -160,7 +169,8 @@ exportRoutes.get("/full", exportRateLimiter, async (c) => {
     c.header("Content-Disposition", `attachment; filename="${filename}"`);
     c.header("Content-Length", String(zipData.length));
 
-    return c.body(zipData);
+    // Return as Buffer for proper binary response
+    return c.body(Buffer.from(zipData));
   } catch (error) {
     console.error("Full backup export error:", error);
     return c.json({ error: "Failed to create backup" }, 500);
@@ -186,6 +196,7 @@ exportRoutes.post("/bulk", exportRateLimiter, async (c) => {
       endDate?: string;
       messageTypes?: string[];
       limit?: number;
+      offset?: number;
     };
   }>();
 
@@ -209,12 +220,20 @@ exportRoutes.post("/bulk", exportRateLimiter, async (c) => {
       endDate: filters.endDate ? new Date(filters.endDate) : undefined,
       messageTypes: filters.messageTypes,
       limit: filters.limit,
+      offset: filters.offset,
     });
     filename = `messages-${new Date().toISOString().split("T")[0]}`;
   }
 
   if (format === "json") {
-    return c.json({ data });
+    return c.json({
+      data,
+      pagination: body.type === "messages" ? {
+        count: data.length,
+        limit: filters.limit || null,
+        offset: filters.offset || 0,
+      } : undefined,
+    });
   }
 
   // CSV format

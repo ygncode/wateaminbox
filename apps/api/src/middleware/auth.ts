@@ -11,6 +11,7 @@ declare module "hono" {
     user: {
       id: string;
       email: string;
+      name: string | null;
       emailVerifiedAt: Date | null;
     };
     session: {
@@ -86,6 +87,7 @@ export const authMiddleware = async (c: Context, next: Next) => {
   c.set("user", {
     id: user.id,
     email: user.email,
+    name: user.name,
     emailVerifiedAt: user.emailVerifiedAt,
   });
   c.set("session", {
@@ -111,6 +113,7 @@ export const optionalAuthMiddleware = async (c: Context, next: Next) => {
         c.set("user", {
           id: user.id,
           email: user.email,
+          name: user.name,
           emailVerifiedAt: user.emailVerifiedAt,
         });
         c.set("session", {

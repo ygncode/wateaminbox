@@ -83,11 +83,11 @@ export const ChatList = memo(function ChatList({
       </div>
 
       {/* Assignment Filter */}
-      <div className="flex items-center gap-1 px-2 py-1.5 border-b border-gray-200 dark:border-dark-border bg-gray-50 dark:bg-dark-secondary">
+      <div className="flex items-center gap-1 px-2 py-1.5 border-b border-gray-200 dark:border-dark-border bg-gray-50 dark:bg-dark-secondary overflow-x-auto">
         <button
           type="button"
           onClick={() => setAssignmentFilter("all")}
-          className={`px-3 py-1 text-xs font-medium rounded-full transition-colors ${
+          className={`px-3 py-1 text-xs font-medium rounded-full transition-colors whitespace-nowrap ${
             assignmentFilter === "all"
               ? "bg-whatsapp-teal-green text-white"
               : "bg-white dark:bg-dark-tertiary text-gray-600 dark:text-dark-text-secondary hover:bg-gray-100 dark:hover:bg-dark-border border border-gray-200 dark:border-dark-border"
@@ -97,8 +97,19 @@ export const ChatList = memo(function ChatList({
         </button>
         <button
           type="button"
+          onClick={() => setAssignmentFilter("unread")}
+          className={`px-3 py-1 text-xs font-medium rounded-full transition-colors whitespace-nowrap ${
+            assignmentFilter === "unread"
+              ? "bg-whatsapp-teal-green text-white"
+              : "bg-white dark:bg-dark-tertiary text-gray-600 dark:text-dark-text-secondary hover:bg-gray-100 dark:hover:bg-dark-border border border-gray-200 dark:border-dark-border"
+          }`}
+        >
+          Unread
+        </button>
+        <button
+          type="button"
           onClick={() => setAssignmentFilter("assignedToMe")}
-          className={`px-3 py-1 text-xs font-medium rounded-full transition-colors ${
+          className={`px-3 py-1 text-xs font-medium rounded-full transition-colors whitespace-nowrap ${
             assignmentFilter === "assignedToMe"
               ? "bg-whatsapp-teal-green text-white"
               : "bg-white dark:bg-dark-tertiary text-gray-600 dark:text-dark-text-secondary hover:bg-gray-100 dark:hover:bg-dark-border border border-gray-200 dark:border-dark-border"
@@ -109,7 +120,7 @@ export const ChatList = memo(function ChatList({
         <button
           type="button"
           onClick={() => setAssignmentFilter("unassigned")}
-          className={`px-3 py-1 text-xs font-medium rounded-full transition-colors ${
+          className={`px-3 py-1 text-xs font-medium rounded-full transition-colors whitespace-nowrap ${
             assignmentFilter === "unassigned"
               ? "bg-whatsapp-teal-green text-white"
               : "bg-white dark:bg-dark-tertiary text-gray-600 dark:text-dark-text-secondary hover:bg-gray-100 dark:hover:bg-dark-border border border-gray-200 dark:border-dark-border"
@@ -121,7 +132,7 @@ export const ChatList = memo(function ChatList({
         <button
           type="button"
           onClick={() => setIsAddContactOpen(true)}
-          className="ml-auto p-1.5 text-whatsapp-teal-green hover:bg-whatsapp-teal-green/10 dark:hover:bg-whatsapp-teal-green/20 rounded-full transition-colors"
+          className="ml-auto p-1.5 text-whatsapp-teal-green hover:bg-whatsapp-teal-green/10 dark:hover:bg-whatsapp-teal-green/20 rounded-full transition-colors flex-shrink-0"
           title="Add new contact"
           data-testid="add-contact-button"
         >
@@ -197,11 +208,39 @@ export const ChatList = memo(function ChatList({
           </div>
         )}
 
+        {/* Empty State - No Unread Chats */}
+        {!isLoading &&
+          !isError &&
+          visibleChats.length === 0 &&
+          !searchQuery &&
+          assignmentFilter === "unread" && (
+            <div className="flex flex-col items-center justify-center h-full px-4 py-8 text-center">
+              <svg
+                className="w-12 h-12 text-whatsapp-green mb-4"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M5 13l4 4L19 7"
+                />
+              </svg>
+              <p className="text-gray-600 dark:text-dark-text-primary font-medium">All caught up!</p>
+              <p className="text-sm text-gray-500 dark:text-dark-text-secondary mt-1">
+                You have no unread messages
+              </p>
+            </div>
+          )}
+
         {/* Empty State - No Chats */}
         {!isLoading &&
           !isError &&
           visibleChats.length === 0 &&
-          !searchQuery && (
+          !searchQuery &&
+          assignmentFilter !== "unread" && (
             <div className="flex flex-col items-center justify-center h-full px-4 py-8 text-center">
               <svg
                 className="w-12 h-12 text-gray-400 dark:text-dark-text-tertiary mb-4"

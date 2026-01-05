@@ -120,7 +120,34 @@ export async function exportContacts(
 }
 
 /**
- * Export messages to array
+ * Valid message types for export filtering
+ */
+const VALID_MESSAGE_TYPES = [
+  "text",
+  "image",
+  "video",
+  "audio",
+  "document",
+  "sticker",
+  "location",
+  "contact",
+  "poll",
+  "reaction",
+] as const;
+
+/**
+ * Maximum messages to export at once to prevent memory issues
+ */
+const MAX_EXPORT_LIMIT = 50000;
+
+/**
+ * Default batch size for pagination
+ */
+const DEFAULT_BATCH_SIZE = 5000;
+
+/**
+ * Export messages to array with proper parameterized queries
+ * Supports pagination for large conversations
  */
 export async function exportMessages(
   companyId: string,
@@ -130,30 +157,39 @@ export async function exportMessages(
     endDate?: Date;
     messageTypes?: string[];
     limit?: number;
+    offset?: number;
   } = {},
 ): Promise<MessageExport[]> {
   const tenantDb = getTenantConnection(companyId);
 
-  // Build WHERE conditions
-  const conditions: string[] = ["1=1"];
+  // Validate and sanitize limit
+  const limit = Math.min(
+    Math.max(1, options.limit || MAX_EXPORT_LIMIT),
+    MAX_EXPORT_LIMIT,
+  );
+  const offset = Math.max(0, options.offset || 0);
 
-  if (options.contactId) {
-    conditions.push(`m.contact_id = '${options.contactId}'`);
-  }
-  if (options.startDate) {
-    conditions.push(`m.timestamp >= '${options.startDate.toISOString()}'`);
-  }
-  if (options.endDate) {
-    conditions.push(`m.timestamp <= '${options.endDate.toISOString()}'`);
-  }
-  if (options.messageTypes && options.messageTypes.length > 0) {
-    const types = options.messageTypes.map((t) => `'${t}'`).join(",");
-    conditions.push(`m.message_type IN (${types})`);
-  }
+  // Validate message types to prevent injection (whitelist approach)
+  const validatedMessageTypes = options.messageTypes?.filter((t) =>
+    VALID_MESSAGE_TYPES.includes(t as (typeof VALID_MESSAGE_TYPES)[number]),
+  );
 
-  const whereClause = conditions.join(" AND ");
-  const limitClause = options.limit ? `LIMIT ${options.limit}` : "";
+  // Build optional WHERE clauses using Kysely's parameterized sql template
+  const contactIdFilter = options.contactId
+    ? sql`AND m.contact_id = ${options.contactId}`
+    : sql``;
+  const startDateFilter = options.startDate
+    ? sql`AND m.timestamp >= ${options.startDate}`
+    : sql``;
+  const endDateFilter = options.endDate
+    ? sql`AND m.timestamp <= ${options.endDate}`
+    : sql``;
+  const messageTypesFilter =
+    validatedMessageTypes && validatedMessageTypes.length > 0
+      ? sql`AND m.message_type = ANY(${validatedMessageTypes}::text[])`
+      : sql``;
 
+  // Use parameterized raw SQL query for complex joins with aliases
   const result = await sql<{
     message_id: string | null;
     contact_whatsapp_id: string;
@@ -177,9 +213,14 @@ export async function exportMessages(
       m.media_url
     FROM messages m
     INNER JOIN contacts c ON c.id = m.contact_id
-    WHERE ${sql.raw(whereClause)}
+    WHERE 1=1
+      ${contactIdFilter}
+      ${startDateFilter}
+      ${endDateFilter}
+      ${messageTypesFilter}
     ORDER BY m.timestamp DESC
-    ${sql.raw(limitClause)}
+    LIMIT ${limit}
+    OFFSET ${offset}
   `.execute(tenantDb);
 
   return result.rows.map((m) => ({
@@ -196,6 +237,61 @@ export async function exportMessages(
     sent_by_user: m.sent_by_user,
     has_media: !!m.media_url,
   }));
+}
+
+/**
+ * Export messages in batches for very large conversations
+ * Uses streaming approach to avoid memory issues
+ */
+export async function exportMessagesInBatches(
+  companyId: string,
+  options: {
+    contactId?: string;
+    startDate?: Date;
+    endDate?: Date;
+    messageTypes?: string[];
+    batchSize?: number;
+    onBatch?: (messages: MessageExport[], batchNumber: number) => Promise<void>;
+  } = {},
+): Promise<{ totalExported: number; batches: number }> {
+  const batchSize = Math.min(
+    Math.max(100, options.batchSize || DEFAULT_BATCH_SIZE),
+    MAX_EXPORT_LIMIT,
+  );
+
+  let offset = 0;
+  let batchNumber = 0;
+  let totalExported = 0;
+
+  while (true) {
+    const messages = await exportMessages(companyId, {
+      contactId: options.contactId,
+      startDate: options.startDate,
+      endDate: options.endDate,
+      messageTypes: options.messageTypes,
+      limit: batchSize,
+      offset,
+    });
+
+    if (messages.length === 0) {
+      break;
+    }
+
+    batchNumber++;
+    totalExported += messages.length;
+
+    if (options.onBatch) {
+      await options.onBatch(messages, batchNumber);
+    }
+
+    if (messages.length < batchSize) {
+      break; // Last batch
+    }
+
+    offset += batchSize;
+  }
+
+  return { totalExported, batches: batchNumber };
 }
 
 /**
@@ -330,6 +426,7 @@ export interface FullBackupExport {
 /**
  * Export full backup as ZIP file
  * Includes all contacts, messages, and a README
+ * Uses async compression to avoid blocking the event loop
  */
 export async function exportFullBackup(
   companyId: string,
@@ -342,20 +439,25 @@ export async function exportFullBackup(
   // Get all contacts
   const contacts = await exportContacts(companyId);
 
-  // Get all messages with date filters
-  const messages = await exportMessages(companyId, {
+  // Get all messages with date filters using batched approach for large datasets
+  const allMessages: MessageExport[] = [];
+  await exportMessagesInBatches(companyId, {
     startDate: options.startDate,
     endDate: options.endDate,
+    batchSize: DEFAULT_BATCH_SIZE,
+    onBatch: async (messages) => {
+      allMessages.push(...messages);
+    },
   });
 
   // Calculate stats
-  const messageTimestamps = messages
+  const messageTimestamps = allMessages
     .map((m) => new Date(m.timestamp).getTime())
     .filter((t) => !isNaN(t));
 
   const stats = {
     totalContacts: contacts.length,
-    totalMessages: messages.length,
+    totalMessages: allMessages.length,
     dateRange: {
       start:
         messageTimestamps.length > 0
@@ -372,14 +474,14 @@ export async function exportFullBackup(
   const backupData: FullBackupExport = {
     exportedAt: new Date().toISOString(),
     contacts,
-    messages,
+    messages: allMessages,
     stats,
   };
 
   // Create README content
   const readme = generateBackupReadme(stats, options);
 
-  // Create ZIP file using fflate
+  // Create ZIP file using fflate with async compression
   const encoder = new TextEncoder();
 
   const files: Record<string, Uint8Array> = {
@@ -388,16 +490,22 @@ export async function exportFullBackup(
     "contacts.csv": encoder.encode(
       toCSV(contacts as unknown as Record<string, unknown>[]),
     ),
-    "messages.json": encoder.encode(JSON.stringify(messages, null, 2)),
+    "messages.json": encoder.encode(JSON.stringify(allMessages, null, 2)),
     "messages.csv": encoder.encode(
-      toCSV(messages as unknown as Record<string, unknown>[]),
+      toCSV(allMessages as unknown as Record<string, unknown>[]),
     ),
     "backup-summary.json": encoder.encode(JSON.stringify(backupData, null, 2)),
   };
 
-  // Create ZIP synchronously
-  const zipData = fflate.zipSync(files, {
-    level: 6, // Compression level (0-9)
+  // Use async ZIP to avoid blocking the event loop for large files
+  const zipData = await new Promise<Uint8Array>((resolve, reject) => {
+    fflate.zip(files, { level: 6 }, (err, data) => {
+      if (err) {
+        reject(err);
+      } else {
+        resolve(data);
+      }
+    });
   });
 
   return zipData;

@@ -74,6 +74,11 @@ const registerSchema = z.object({
     .string()
     .min(8, "Password must be at least 8 characters")
     .max(128, "Password must be at most 128 characters"),
+  name: z
+    .string()
+    .min(1, "Name is required")
+    .max(255, "Name must be at most 255 characters")
+    .optional(),
 });
 
 const loginSchema = z.object({
@@ -158,7 +163,7 @@ authRoutes.post("/register", registerRateLimiter, async (c) => {
       );
     }
 
-    const { user } = await register(result.data.email, result.data.password);
+    const { user } = await register(result.data.email, result.data.password, result.data.name);
 
     return c.json(
       {
@@ -167,6 +172,7 @@ authRoutes.post("/register", registerRateLimiter, async (c) => {
         user: {
           id: user.id,
           email: user.email,
+          name: user.name,
           emailVerified: !!user.emailVerifiedAt,
           createdAt: user.createdAt,
         },
@@ -224,6 +230,7 @@ authRoutes.post("/login", loginRateLimiter, async (c) => {
       user: {
         id: user.id,
         email: user.email,
+        name: user.name,
         emailVerified: !!user.emailVerifiedAt,
       },
       tokens: {
@@ -550,6 +557,7 @@ authRoutes.get("/me", authMiddleware, async (c) => {
       user: {
         id: user.id,
         email: user.email,
+        name: user.name,
         emailVerified: !!user.emailVerifiedAt,
       },
     });

@@ -22,6 +22,7 @@ declare module 'hono' {
     user: {
       id: string
       email: string
+      name: string | null
       emailVerifiedAt: Date | null
     }
     companyId: string
@@ -339,7 +340,7 @@ describe('Rate Limit Middleware', () => {
   describe('User-based key generation', () => {
     it('should use user ID when authenticated', async () => {
       // Mock user context with all required fields
-      const mockUser = { id: 'user-123', email: 'test@example.com', emailVerifiedAt: null }
+      const mockUser = { id: 'user-123', email: 'test@example.com', name: null, emailVerifiedAt: null }
 
       app.use('*', async (c, next) => {
         c.set('user', mockUser)
@@ -404,7 +405,7 @@ describe('Rate Limit Middleware', () => {
   describe('User+Tenant key generation', () => {
     it('should combine user and tenant IDs when both exist', async () => {
       app.use('*', async (c, next) => {
-        c.set('user', { id: 'user-123', email: 'user@example.com', emailVerifiedAt: null })
+        c.set('user', { id: 'user-123', email: 'user@example.com', name: null, emailVerifiedAt: null })
         c.set('companyId', 'company-456')
         await next()
       })
@@ -419,7 +420,7 @@ describe('Rate Limit Middleware', () => {
 
     it('should use only user ID when tenant is missing', async () => {
       app.use('*', async (c, next) => {
-        c.set('user', { id: 'user-123', email: 'user@example.com', emailVerifiedAt: null })
+        c.set('user', { id: 'user-123', email: 'user@example.com', name: null, emailVerifiedAt: null })
         await next()
       })
 

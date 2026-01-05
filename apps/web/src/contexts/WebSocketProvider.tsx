@@ -303,6 +303,10 @@ export function WebSocketProvider({
             pages: newPages,
           };
         });
+
+        // Invalidate chat list queries to update unread count badges
+        // This ensures the sidebar shows updated unread counts when new messages arrive
+        queryClientRef.current.invalidateQueries({ queryKey: chatKeys.lists() });
       },
     );
 

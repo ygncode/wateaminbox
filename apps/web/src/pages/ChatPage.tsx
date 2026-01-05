@@ -11,7 +11,7 @@ import { MessageHeader } from "../components/chat/MessageHeader";
 import { ContactProfile } from "../components/chat/ContactProfile";
 import { ConversationSearch } from "../components/chat/ConversationSearch";
 import { useContact, type ContactDetail } from "../hooks/useContact";
-import { useSendMessage, useDeleteMessage, useStarMessage, useReactMessage } from "../hooks/useMessages";
+import { useSendMessage, useDeleteMessage, useStarMessage, useReactMessage, useForwardMessage } from "../hooks/useMessages";
 import { markConversationAsRead, uploadMedia } from "../lib/api";
 import { chatKeys } from "../hooks/useChats";
 import { useQueryClient } from "@tanstack/react-query";
@@ -55,6 +55,7 @@ export function ChatPage() {
   const deleteMessage = useDeleteMessage();
   const starMessage = useStarMessage();
   const reactMessage = useReactMessage();
+  const forwardMessage = useForwardMessage();
 
   // Sync URL with selected chat
   React.useEffect(() => {
@@ -239,6 +240,41 @@ export function ChatPage() {
     [selectedChatId, reactMessage],
   );
 
+  const handleForwardMessage = React.useCallback(
+    (message: Message) => {
+      if (!selectedChatId) return;
+
+      // For now, show a simple prompt to get target contact ID
+      // In future, this should open a contact picker dialog
+      const targetContactId = window.prompt(
+        "Enter the contact ID to forward this message to:",
+        ""
+      );
+
+      if (!targetContactId) return;
+
+      forwardMessage.mutate(
+        {
+          messageId: message.id,
+          sourceConversationId: selectedChatId,
+          targetContactId,
+        },
+        {
+          onSuccess: (data) => {
+            toast.success("Message forwarded successfully");
+            if (data.autoAssigned) {
+              toast.info("Contact was automatically assigned to you");
+            }
+          },
+          onError: (error) => {
+            toast.error(`Failed to forward message: ${error.message}`);
+          },
+        }
+      );
+    },
+    [selectedChatId, forwardMessage],
+  );
+
   // Build the sidebar component
   const sidebar = (
     <Sidebar className="w-full md:w-[350px] lg:w-[400px] flex-shrink-0">
@@ -271,6 +307,7 @@ export function ChatPage() {
               conversationId={selectedChatId}
               currentUserId={user?.id || ""}
               onReplyToMessage={handleReplyToMessage}
+              onForwardMessage={handleForwardMessage}
               onDeleteMessage={handleDeleteMessage}
               onStarMessage={handleStarMessage}
               onReactMessage={handleReactMessage}

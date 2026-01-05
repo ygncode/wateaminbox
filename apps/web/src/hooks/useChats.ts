@@ -10,7 +10,7 @@ const API_BASE_URL =
 /**
  * Assignment filter type
  */
-export type AssignmentFilter = "all" | "assignedToMe" | "unassigned";
+export type AssignmentFilter = "all" | "assignedToMe" | "unassigned" | "unread";
 
 /**
  * Query key factory for chat-related queries
@@ -138,7 +138,7 @@ export function useChats(
       const result: ContactsListResponse = await response.json();
 
       // Transform API response to Chat format
-      return result.data.map(
+      let chats = result.data.map(
         (contact): Chat => ({
           id: contact.id,
           contact: {
@@ -172,6 +172,13 @@ export function useChats(
           updatedAt: new Date(contact.updatedAt),
         }),
       );
+
+      // Filter by unread if needed (client-side filter)
+      if (assignmentFilter === "unread") {
+        chats = chats.filter((chat) => chat.unreadCount > 0);
+      }
+
+      return chats;
     },
     staleTime: 1000 * 30, // 30 seconds
     gcTime: 1000 * 60 * 5, // 5 minutes

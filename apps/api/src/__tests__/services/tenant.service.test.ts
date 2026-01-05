@@ -23,12 +23,38 @@ import {
   tenantSchemaExists,
 } from "../../services/tenant.service";
 
-// Use a unique test company ID to avoid conflicts
-// Using Math.random() in addition to Date.now() ensures uniqueness even in parallel test runs
-const TEST_COMPANY_ID = `test_company_${Date.now()}_${Math.random().toString(36).substring(7)}`;
-const TEST_COMPANY_ID_2 = `test_company_${Date.now()}_${Math.random().toString(36).substring(7)}_2`;
+// Generate unique test company IDs for each test run
+// Using crypto.randomUUID() ensures complete uniqueness
+function generateTestCompanyId(suffix = ''): string {
+  return `test_${crypto.randomUUID()}${suffix}`;
+}
 
 describe("TenantService", () => {
+  let TEST_COMPANY_ID: string;
+  let TEST_COMPANY_ID_2: string;
+
+  beforeEach(async () => {
+    // Generate fresh IDs for each test to ensure complete isolation
+    TEST_COMPANY_ID = generateTestCompanyId();
+    TEST_COMPANY_ID_2 = generateTestCompanyId('_2');
+
+    // Clean up: clear connections and drop test schemas BEFORE each test
+    // to ensure clean state
+    await clearAllTenantConnections();
+
+    try {
+      await dropTenantSchema(TEST_COMPANY_ID);
+    } catch {
+      // Ignore errors if schema doesn't exist
+    }
+
+    try {
+      await dropTenantSchema(TEST_COMPANY_ID_2);
+    } catch {
+      // Ignore errors if schema doesn't exist
+    }
+  });
+
   afterEach(async () => {
     // Clean up: clear connections and drop test schemas
     await clearAllTenantConnections();

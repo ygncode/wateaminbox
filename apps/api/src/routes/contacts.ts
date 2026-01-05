@@ -21,8 +21,8 @@ import { broadcastToCompany } from "./ws.js";
 import { rateLimitConfig, rateLimitStore } from "../lib/rate-limit-store.js";
 
 /**
- * Helper function to get user names by their IDs
- * Returns a map of userId -> display name (email prefix)
+ * Helper function to get user display names by their IDs
+ * Returns a map of userId -> display name (name field, or email prefix as fallback)
  * Falls back to userId if user not found or email is malformed
  */
 async function getUserNames(userIds: string[]): Promise<Map<string, string>> {
@@ -44,17 +44,22 @@ async function getUserNames(userIds: string[]): Promise<Map<string, string>> {
   try {
     const users = await db
       .selectFrom("users")
-      .select(["id", "email"])
+      .select(["id", "name", "email"])
       .where("id", "in", validIds)
       .execute();
 
     const userMap = new Map<string, string>();
     for (const user of users) {
-      // Use email prefix as display name (before @)
-      // Fallback to full email if no @ found (shouldn't happen but be safe)
-      const atIndex = user.email.indexOf("@");
-      const displayName =
-        atIndex > 0 ? user.email.substring(0, atIndex) : user.email;
+      // Use name if available, otherwise use email prefix as display name
+      let displayName: string;
+      if (user.name) {
+        displayName = user.name;
+      } else {
+        // Fallback to email prefix (before @)
+        const atIndex = user.email.indexOf("@");
+        displayName =
+          atIndex > 0 ? user.email.substring(0, atIndex) : user.email;
+      }
       userMap.set(user.id, displayName);
     }
 
@@ -196,7 +201,9 @@ contactRoutes.get("/:id", async (c) => {
       "ca.assigned_to",
       "ca.assigned_by",
       "ca.assigned_at",
+      "assigned_to_user.name as assigned_to_name",
       "assigned_to_user.email as assigned_to_email",
+      "assigned_by_user.name as assigned_by_name",
       "assigned_by_user.email as assigned_by_email",
     ])
     .where("ca.contact_id", "=", contactId)
@@ -206,8 +213,9 @@ contactRoutes.get("/:id", async (c) => {
   // Build assignment object with user names
   let assignmentWithNames = null;
   if (assignment) {
-    // Extract email prefix for display name
-    const getDisplayName = (email: string | null, fallbackId: string) => {
+    // Use name if available, otherwise fall back to email prefix
+    const getDisplayName = (name: string | null, email: string | null, fallbackId: string) => {
+      if (name) return name;
       if (!email) return fallbackId;
       const atIndex = email.indexOf("@");
       return atIndex > 0 ? email.substring(0, atIndex) : email;
@@ -216,11 +224,13 @@ contactRoutes.get("/:id", async (c) => {
     assignmentWithNames = {
       assignedTo: assignment.assigned_to,
       assignedToName: getDisplayName(
+        assignment.assigned_to_name,
         assignment.assigned_to_email,
         assignment.assigned_to,
       ),
       assignedBy: assignment.assigned_by,
       assignedByName: getDisplayName(
+        assignment.assigned_by_name,
         assignment.assigned_by_email,
         assignment.assigned_by,
       ),
