@@ -1,4 +1,4 @@
-import type { MiddlewareHandler } from "hono"
+import type { MiddlewareHandler } from "hono";
 import { Hono } from "hono";
 import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
@@ -34,7 +34,7 @@ const whatsappRateLimiter: MiddlewareHandler = rateLimitConfig.enabled
       keyStrategy: "user",
       keyPrefix: "whatsapp-ops",
     })
-  : async (c, next) => await next()
+  : async (c, next) => await next();
 
 // Create the router
 export const whatsappRoutes = new Hono();

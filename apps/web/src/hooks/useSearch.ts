@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { getAccessToken } from "../lib/api";
+import { getAccessToken, getCompanyId } from "../lib/api";
 
 const API_BASE_URL =
   import.meta.env.VITE_API_URL || "http://localhost:3000/api";
@@ -65,15 +65,26 @@ export function useGlobalSearch(query: string, enabled: boolean = true) {
     queryKey: searchKeys.global(query),
     queryFn: async () => {
       const token = getAccessToken();
+      const companyId = getCompanyId();
+
       if (!token) {
         throw new Error("Not authenticated");
+      }
+
+      if (!companyId) {
+        throw new Error("No company selected");
       }
 
       const params = new URLSearchParams();
       params.set("q", query);
 
+      const headers: HeadersInit = {
+        Authorization: `Bearer ${token}`,
+        "X-Company-ID": companyId,
+      };
+
       const response = await fetch(`${API_BASE_URL}/search?${params}`, {
-        headers: { Authorization: `Bearer ${token}` },
+        headers,
         credentials: "include",
       });
 
@@ -113,8 +124,14 @@ export function useMessageSearch(
     queryKey: searchKeys.messages(query, options),
     queryFn: async () => {
       const token = getAccessToken();
+      const companyId = getCompanyId();
+
       if (!token) {
         throw new Error("Not authenticated");
+      }
+
+      if (!companyId) {
+        throw new Error("No company selected");
       }
 
       const params = new URLSearchParams();
@@ -128,10 +145,15 @@ export function useMessageSearch(
         params.set("messageTypes", options.messageTypes.join(","));
       }
 
+      const headers: HeadersInit = {
+        Authorization: `Bearer ${token}`,
+        "X-Company-ID": companyId,
+      };
+
       const response = await fetch(
         `${API_BASE_URL}/search/messages?${params}`,
         {
-          headers: { Authorization: `Bearer ${token}` },
+          headers,
           credentials: "include",
         },
       );
@@ -172,8 +194,14 @@ export function useConversationSearch(
     queryKey: searchKeys.messages(query, { contactId }),
     queryFn: async () => {
       const token = getAccessToken();
+      const companyId = getCompanyId();
+
       if (!token) {
         throw new Error("Not authenticated");
+      }
+
+      if (!companyId) {
+        throw new Error("No company selected");
       }
 
       const params = new URLSearchParams();
@@ -181,10 +209,15 @@ export function useConversationSearch(
       params.set("limit", "50");
       if (contactId) params.set("contactId", contactId);
 
+      const headers: HeadersInit = {
+        Authorization: `Bearer ${token}`,
+        "X-Company-ID": companyId,
+      };
+
       const response = await fetch(
         `${API_BASE_URL}/search/messages?${params}`,
         {
-          headers: { Authorization: `Bearer ${token}` },
+          headers,
           credentials: "include",
         },
       );
@@ -225,18 +258,29 @@ export function useContactSearch(
     queryKey: searchKeys.contacts(query, includeGroups),
     queryFn: async () => {
       const token = getAccessToken();
+      const companyId = getCompanyId();
+
       if (!token) {
         throw new Error("Not authenticated");
+      }
+
+      if (!companyId) {
+        throw new Error("No company selected");
       }
 
       const params = new URLSearchParams();
       params.set("q", query);
       params.set("includeGroups", String(includeGroups));
 
+      const headers: HeadersInit = {
+        Authorization: `Bearer ${token}`,
+        "X-Company-ID": companyId,
+      };
+
       const response = await fetch(
         `${API_BASE_URL}/search/contacts?${params}`,
         {
-          headers: { Authorization: `Bearer ${token}` },
+          headers,
           credentials: "include",
         },
       );

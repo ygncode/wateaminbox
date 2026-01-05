@@ -345,7 +345,8 @@ async function handleMessageEvent(event: MessageEvent): Promise<void> {
       .where("id", "=", contact.id)
       .executeTakeFirst();
 
-    const contactName = contactForSearch?.custom_name || contactForSearch?.push_name || null;
+    const contactName =
+      contactForSearch?.custom_name || contactForSearch?.push_name || null;
 
     // Update PostgreSQL full-text search vector
     updateMessageSearchVector(companyId, messageId).catch((err) => {
@@ -368,7 +369,10 @@ async function handleMessageEvent(event: MessageEvent): Promise<void> {
     };
 
     indexMessage(companyId, messageDoc).catch((err) => {
-      console.error(`[MessageHandler] Failed to index message in Meilisearch:`, err);
+      console.error(
+        `[MessageHandler] Failed to index message in Meilisearch:`,
+        err,
+      );
     });
 
     // Update conversation_states: increment unread count for incoming messages

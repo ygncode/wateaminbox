@@ -1,4 +1,4 @@
-import type { MiddlewareHandler } from "hono"
+import type { MiddlewareHandler } from "hono";
 import { Hono } from "hono";
 import { authMiddleware } from "../middleware/auth.js";
 import { tenantMiddleware } from "../middleware/tenant.js";
@@ -23,7 +23,7 @@ const searchRateLimiter: MiddlewareHandler = rateLimitConfig.enabled
       keyStrategy: "user",
       keyPrefix: "resource-search",
     })
-  : async (c, next) => await next()
+  : async (c, next) => await next();
 
 /**
  * GET /search - Global search across messages and contacts

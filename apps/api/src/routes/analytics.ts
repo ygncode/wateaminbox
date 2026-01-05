@@ -1,4 +1,4 @@
-import type { MiddlewareHandler } from "hono"
+import type { MiddlewareHandler } from "hono";
 import { Hono } from "hono";
 import { authMiddleware } from "../middleware/auth.js";
 import { tenantMiddleware } from "../middleware/tenant.js";
@@ -21,7 +21,7 @@ const analyticsRateLimiter: MiddlewareHandler = rateLimitConfig.enabled
       keyStrategy: "user",
       keyPrefix: "resource-analytics",
     })
-  : async (c, next) => await next()
+  : async (c, next) => await next();
 
 /**
  * GET /analytics/dashboard - Get dashboard overview stats

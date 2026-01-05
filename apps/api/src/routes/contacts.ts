@@ -1,4 +1,4 @@
-import type { MiddlewareHandler } from "hono"
+import type { MiddlewareHandler } from "hono";
 import { Hono } from "hono";
 import { db } from "@whatsapp-web/database";
 import { authMiddleware } from "../middleware/auth.js";
@@ -86,7 +86,7 @@ const importRateLimiter: MiddlewareHandler = rateLimitConfig.enabled
       keyStrategy: "user",
       keyPrefix: "resource-import",
     })
-  : async (c, next) => await next()
+  : async (c, next) => await next();
 
 /**
  * GET /contacts - List all contacts
@@ -214,7 +214,11 @@ contactRoutes.get("/:id", async (c) => {
   let assignmentWithNames = null;
   if (assignment) {
     // Use name if available, otherwise fall back to email prefix
-    const getDisplayName = (name: string | null, email: string | null, fallbackId: string) => {
+    const getDisplayName = (
+      name: string | null,
+      email: string | null,
+      fallbackId: string,
+    ) => {
       if (name) return name;
       if (!email) return fallbackId;
       const atIndex = email.indexOf("@");
@@ -675,7 +679,8 @@ contactRoutes.post("/:id/notes/shared", async (c) => {
     authorName = userInfo.name;
   } else if (userInfo?.email) {
     const atIndex = userInfo.email.indexOf("@");
-    authorName = atIndex > 0 ? userInfo.email.substring(0, atIndex) : userInfo.email;
+    authorName =
+      atIndex > 0 ? userInfo.email.substring(0, atIndex) : userInfo.email;
   }
 
   // Create the note
@@ -761,7 +766,10 @@ contactRoutes.put("/:id/notes/shared/:noteId", async (c) => {
   }
 
   // Only the author can edit (System notes are read-only)
-  if (existingNote.user_id !== user.id || existingNote.author_name === "System") {
+  if (
+    existingNote.user_id !== user.id ||
+    existingNote.author_name === "System"
+  ) {
     return c.json(
       { error: "Permission denied: Only the note author can edit this note" },
       403,
@@ -836,7 +844,10 @@ contactRoutes.delete("/:id/notes/shared/:noteId", async (c) => {
   }
 
   // Only the author can delete (System notes are read-only)
-  if (existingNote.user_id !== user.id || existingNote.author_name === "System") {
+  if (
+    existingNote.user_id !== user.id ||
+    existingNote.author_name === "System"
+  ) {
     return c.json(
       { error: "Permission denied: Only the note author can delete this note" },
       403,

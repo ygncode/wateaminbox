@@ -1,4 +1,4 @@
-import type { MiddlewareHandler } from "hono"
+import type { MiddlewareHandler } from "hono";
 import { Hono } from "hono";
 import { authMiddleware } from "../middleware/auth.js";
 import { tenantMiddleware, requirePermission } from "../middleware/tenant.js";
@@ -23,7 +23,7 @@ const messageSendRateLimiter: MiddlewareHandler = rateLimitConfig.enabled
       keyStrategy: "user",
       keyPrefix: "messaging-send",
     })
-  : async (c, next) => await next()
+  : async (c, next) => await next();
 
 /**
  * GET /messages - Get messages for a contact
@@ -83,7 +83,10 @@ messageRoutes.get("/", async (c) => {
 
   // Get reactions for all messages
   const messageIds = messages.map((m) => m.id);
-  let reactionsMap: Map<string, Array<{ emoji: string; reactorJid: string; createdAt: Date }>> = new Map();
+  let reactionsMap: Map<
+    string,
+    Array<{ emoji: string; reactorJid: string; createdAt: Date }>
+  > = new Map();
   if (messageIds.length > 0) {
     const reactions = await tenantDb
       .selectFrom("message_reactions")
@@ -335,7 +338,10 @@ messageRoutes.delete("/:id", async (c) => {
     return c.json({ error: "Message not found" }, 404);
   }
 
-  return c.json({ success: true, message: { id: updated.id, deletedAt: updated.deleted_at } });
+  return c.json({
+    success: true,
+    message: { id: updated.id, deletedAt: updated.deleted_at },
+  });
 });
 
 /**
@@ -698,7 +704,7 @@ messageRoutes.post("/batch/star", async (c) => {
   if (messageIds.length > BATCH_LIMIT) {
     return c.json(
       { error: `Maximum ${BATCH_LIMIT} messages per batch request` },
-      400
+      400,
     );
   }
 
@@ -734,7 +740,7 @@ messageRoutes.post("/batch/delete", async (c) => {
   if (messageIds.length > BATCH_LIMIT) {
     return c.json(
       { error: `Maximum ${BATCH_LIMIT} messages per batch request` },
-      400
+      400,
     );
   }
 

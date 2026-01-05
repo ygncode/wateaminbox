@@ -75,6 +75,7 @@ import {
   searchContacts,
   globalSearch,
   updateMessageSearchVector,
+  resetMeilisearchCache,
   type SearchOptions,
 } from "../../services/search.service";
 
@@ -91,6 +92,8 @@ describe("SearchService", () => {
     mockIsMeilisearchAvailable.mockImplementation(() => Promise.resolve(false));
     mockSearchMessagesWithMeilisearch.mockImplementation(() => Promise.resolve({ results: [], total: 0 }));
     mockSearchContactsWithMeilisearch.mockImplementation(() => Promise.resolve({ results: [], total: 0 }));
+    // Reset the Meilisearch cache
+    resetMeilisearchCache();
   });
 
   describe("searchMessages", () => {
@@ -573,6 +576,169 @@ describe("SearchService", () => {
 
       // Assert - should have called sql with the query
       expect(mockSql).toHaveBeenCalled();
+    });
+  });
+
+  describe("Meilisearch integration", () => {
+    it("should use Meilisearch when available for message search", async () => {
+      // Arrange - clear mocks and set new behavior
+      mockIsMeilisearchAvailable.mockClear();
+      mockSearchMessagesWithMeilisearch.mockClear();
+
+      mockIsMeilisearchAvailable.mockResolvedValue(true);
+      mockSearchMessagesWithMeilisearch.mockResolvedValue({
+        results: [
+          {
+            id: "msg-1",
+            contactId: "contact-1",
+            contactName: "John Doe",
+            contactJid: "123@s.whatsapp.net",
+            isGroup: false,
+            messageId: "msg-wa-1",
+            content: "Hello from Meilisearch",
+            messageType: "text",
+            timestamp: new Date("2024-01-01"),
+            highlights: "<mark>Hello</mark> from Meilisearch",
+          },
+        ],
+        total: 1,
+      });
+
+      // Act
+      const result = await searchMessages("company-123", { query: "Hello" });
+
+      // Assert
+      expect(mockSearchMessagesWithMeilisearch).toHaveBeenCalledWith("company-123", {
+        query: "Hello",
+        limit: 50,
+        offset: 0,
+        contactId: undefined,
+        startDate: undefined,
+        endDate: undefined,
+        messageTypes: undefined,
+      });
+      expect(result.results).toHaveLength(1);
+      expect(result.results[0].content).toBe("Hello from Meilisearch");
+      expect(result.total).toBe(1);
+      expect(mockSql).not.toHaveBeenCalled(); // Should not fall back to PostgreSQL
+    });
+
+    it("should return empty results from Meilisearch when no matches", async () => {
+      // Arrange - clear mocks and set new behavior
+      mockIsMeilisearchAvailable.mockClear();
+      mockSearchMessagesWithMeilisearch.mockClear();
+
+      mockIsMeilisearchAvailable.mockResolvedValue(true);
+      mockSearchMessagesWithMeilisearch.mockResolvedValue({
+        results: [],
+        total: 0,
+      });
+
+      // Act
+      const result = await searchMessages("company-123", { query: "nonexistent" });
+
+      // Assert
+      expect(mockSearchMessagesWithMeilisearch).toHaveBeenCalled();
+      expect(result.results).toEqual([]);
+      expect(result.total).toBe(0);
+      expect(mockSql).not.toHaveBeenCalled(); // Should not fall back to PostgreSQL
+    });
+
+    it("should use Meilisearch when available for contact search", async () => {
+      // Arrange - clear mocks and set new behavior
+      mockIsMeilisearchAvailable.mockClear();
+      mockSearchContactsWithMeilisearch.mockClear();
+
+      mockIsMeilisearchAvailable.mockResolvedValue(true);
+      mockSearchContactsWithMeilisearch.mockResolvedValue({
+        results: [
+          {
+            id: "contact-1",
+            jid: "123@s.whatsapp.net",
+            phoneNumber: "+1234567890",
+            pushName: "John",
+            customName: "John Doe",
+            displayName: "John Doe",
+            isGroup: false,
+            notesShared: "Important contact",
+          },
+        ],
+        total: 1,
+      });
+
+      // Act
+      const result = await searchContacts("company-123", "John");
+
+      // Assert
+      expect(mockSearchContactsWithMeilisearch).toHaveBeenCalledWith("company-123", "John", {
+        limit: 50,
+        offset: 0,
+        includeGroups: true,
+      });
+      expect(result.results).toHaveLength(1);
+      expect(result.results[0].displayName).toBe("John Doe");
+      expect(result.total).toBe(1);
+      expect(mockTenantDb.selectFrom).not.toHaveBeenCalled(); // Should not fall back to PostgreSQL
+    });
+
+    it("should return empty results from Meilisearch for contacts when no matches", async () => {
+      // Arrange - clear mocks and set new behavior
+      mockIsMeilisearchAvailable.mockClear();
+      mockSearchContactsWithMeilisearch.mockClear();
+
+      mockIsMeilisearchAvailable.mockResolvedValue(true);
+      mockSearchContactsWithMeilisearch.mockResolvedValue({
+        results: [],
+        total: 0,
+      });
+
+      // Act
+      const result = await searchContacts("company-123", "nonexistent");
+
+      // Assert
+      expect(mockSearchContactsWithMeilisearch).toHaveBeenCalled();
+      expect(result.results).toEqual([]);
+      expect(result.total).toBe(0);
+      expect(mockTenantDb.selectFrom).not.toHaveBeenCalled(); // Should not fall back to PostgreSQL
+    });
+
+    it("should fall back to PostgreSQL when Meilisearch is not available", async () => {
+      // Arrange - clear mocks and set new behavior
+      mockIsMeilisearchAvailable.mockClear();
+      mockSearchMessagesWithMeilisearch.mockClear();
+
+      mockIsMeilisearchAvailable.mockResolvedValue(false);
+      mockSql.mockImplementation(() => ({
+        execute: mock(() => Promise.resolve({ rows: [] })),
+      }));
+
+      // Act
+      const result = await searchMessages("company-123", { query: "test" });
+
+      // Assert
+      expect(mockSearchMessagesWithMeilisearch).not.toHaveBeenCalled();
+      expect(mockSql).toHaveBeenCalled(); // Should use PostgreSQL
+    });
+
+    it("should allow forcing PostgreSQL with useMeilisearch option", async () => {
+      // Arrange - clear mocks and set new behavior
+      mockIsMeilisearchAvailable.mockClear();
+      mockSearchMessagesWithMeilisearch.mockClear();
+
+      mockIsMeilisearchAvailable.mockResolvedValue(true);
+      mockSql.mockImplementation(() => ({
+        execute: mock(() => Promise.resolve({ rows: [] })),
+      }));
+
+      // Act
+      const result = await searchMessages("company-123", {
+        query: "test",
+        useMeilisearch: false // Force PostgreSQL
+      });
+
+      // Assert
+      expect(mockSearchMessagesWithMeilisearch).not.toHaveBeenCalled();
+      expect(mockSql).toHaveBeenCalled(); // Should use PostgreSQL
     });
   });
 });
