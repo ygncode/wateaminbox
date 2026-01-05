@@ -6,8 +6,11 @@ import {
   type ConnectionEvent,
   type MessageEvent,
   type ReceiptEvent,
+  type SendConfirmationEvent,
   type StatusEvent,
   type ContactEvent,
+  type ProfilePictureEvent,
+  type MessageRevokeEvent,
 } from "../lib/nats.js";
 import { getTenantConnection } from "./tenant.service.js";
 import { updateConnectionStatus } from "./whatsapp.service.js";
@@ -20,6 +23,7 @@ let isInitialized = false;
 /**
  * Initializes the message event handler
  * Subscribes to NATS WhatsApp events and processes them
+ * Retries if streams don't exist yet (orchestrator may not have started)
  */
 export async function initializeMessageHandler(): Promise<void> {
   if (isInitialized) {
@@ -27,15 +31,31 @@ export async function initializeMessageHandler(): Promise<void> {
     return;
   }
 
-  try {
-    eventSubscription = await subscribeToAllEvents(handleWhatsAppEvent);
-    isInitialized = true;
-    console.log(
-      "[MessageHandler] Initialized and subscribed to WhatsApp events",
-    );
-  } catch (error) {
-    console.error("[MessageHandler] Failed to initialize:", error);
-    throw error;
+  const maxRetries = 10;
+  const retryDelayMs = 3000;
+
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      eventSubscription = await subscribeToAllEvents(handleWhatsAppEvent);
+      isInitialized = true;
+      console.log(
+        "[MessageHandler] Initialized and subscribed to WhatsApp events",
+      );
+      return;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const isStreamNotFound = errorMessage.includes("no stream matches subject");
+
+      if (isStreamNotFound && attempt < maxRetries) {
+        console.log(
+          `[MessageHandler] Streams not ready, retrying in ${retryDelayMs / 1000}s... (attempt ${attempt}/${maxRetries})`,
+        );
+        await new Promise((resolve) => setTimeout(resolve, retryDelayMs));
+      } else {
+        console.error("[MessageHandler] Failed to initialize:", error);
+        throw error;
+      }
+    }
   }
 }
 
@@ -53,8 +73,9 @@ export async function shutdownMessageHandler(): Promise<void> {
 
 /**
  * Handles incoming WhatsApp events from NATS
+ * Exported for testing purposes
  */
-async function handleWhatsAppEvent(event: WhatsAppEvent): Promise<void> {
+export async function handleWhatsAppEvent(event: WhatsAppEvent): Promise<void> {
   const { type, companyId, connectionId } = event;
 
   console.log(
@@ -83,12 +104,24 @@ async function handleWhatsAppEvent(event: WhatsAppEvent): Promise<void> {
         await handleReceiptEvent(event as ReceiptEvent);
         break;
 
+      case "send_confirmation":
+        await handleSendConfirmationEvent(event as SendConfirmationEvent);
+        break;
+
       case "status":
         await handleStatusEvent(event as StatusEvent);
         break;
 
       case "contact":
         await handleContactEvent(event as ContactEvent);
+        break;
+
+      case "profile_picture":
+        await handleProfilePictureEvent(event as ProfilePictureEvent);
+        break;
+
+      case "message_revoke":
+        await handleMessageRevokeEvent(event as MessageRevokeEvent);
         break;
 
       case "error":
@@ -398,6 +431,56 @@ async function handleReceiptEvent(event: ReceiptEvent): Promise<void> {
 }
 
 /**
+ * Handles send confirmation events
+ * Updates a message from pending status with its real WhatsApp message ID
+ */
+async function handleSendConfirmationEvent(
+  event: SendConfirmationEvent,
+): Promise<void> {
+  const { companyId, connectionId, payload } = event;
+
+  console.log(
+    `[MessageHandler] Send confirmation for pending message ${payload.pendingMessageId} -> real ID ${payload.messageId}, connection ${connectionId}`,
+  );
+
+  try {
+    const tenantDb = getTenantConnection(companyId);
+
+    // Update the message with the real WhatsApp ID and set status to sent
+    const result = await tenantDb
+      .updateTable("messages")
+      .set({
+        message_id: payload.messageId,
+        status: "sent",
+      })
+      .where("message_id", "=", payload.pendingMessageId)
+      .executeTakeFirst();
+
+    console.log(
+      `[MessageHandler] Updated message ${payload.pendingMessageId} -> ${payload.messageId}, status set to sent (rows affected: ${result.numUpdatedRows})`,
+    );
+
+    // Broadcast to WebSocket clients with the status update
+    broadcastToCompany(companyId, {
+      type: "message:status",
+      connectionId,
+      payload: {
+        pendingMessageId: payload.pendingMessageId,
+        messageId: payload.messageId,
+        status: "sent",
+        timestamp: payload.timestamp,
+      },
+      timestamp: event.timestamp,
+    });
+  } catch (error) {
+    console.error(
+      `[MessageHandler] Failed to handle send confirmation:`,
+      error,
+    );
+  }
+}
+
+/**
  * Handles WhatsApp status updates
  */
 async function handleStatusEvent(event: StatusEvent): Promise<void> {
@@ -568,6 +651,128 @@ async function handleContactEvent(event: ContactEvent): Promise<void> {
     });
   } catch (error) {
     console.error(`[MessageHandler] Failed to handle contact event:`, error);
+  }
+}
+
+/**
+ * Handles profile picture update events
+ */
+async function handleProfilePictureEvent(
+  event: ProfilePictureEvent,
+): Promise<void> {
+  const { companyId, connectionId, payload } = event;
+
+  console.log(
+    `[MessageHandler] Profile picture update for company ${companyId}, connection ${connectionId}: ${payload.jid}`,
+  );
+
+  try {
+    const tenantDb = getTenantConnection(companyId);
+
+    // Update contact profile picture
+    const profilePictureUrl = payload.remove ? null : payload.profilePictureUrl;
+
+    const result = await tenantDb
+      .updateTable("contacts")
+      .set({
+        profile_picture_url: profilePictureUrl,
+        updated_at: new Date(),
+      })
+      .where("jid", "=", payload.jid)
+      .executeTakeFirst();
+
+    if (result.numUpdatedRows > 0) {
+      console.log(
+        `[MessageHandler] Updated profile picture for contact ${payload.jid} (rows affected: ${result.numUpdatedRows})`,
+      );
+
+      // Broadcast to WebSocket clients
+      broadcastToCompany(companyId, {
+        type: "contact:profile_picture", // Specific event type for frontend
+        connectionId,
+        payload: {
+          jid: payload.jid,
+          profilePictureUrl,
+        },
+        timestamp: event.timestamp,
+      });
+    } else {
+      console.warn(
+        `[MessageHandler] Contact not found for profile picture update: ${payload.jid}`,
+      );
+    }
+  } catch (error) {
+    console.error(
+      `[MessageHandler] Failed to handle profile picture event:`,
+      error,
+    );
+  }
+}
+
+/**
+ * Handles message revoke (deletion) events from WhatsApp
+ * When a user deletes a message for everyone, this updates the database
+ * and notifies WebSocket clients
+ */
+async function handleMessageRevokeEvent(
+  event: MessageRevokeEvent,
+): Promise<void> {
+  const { companyId, connectionId, payload } = event;
+
+  console.log(
+    `[MessageHandler] Message revoke for company ${companyId}, connection ${connectionId}: message ${payload.messageId}`,
+  );
+
+  try {
+    const tenantDb = getTenantConnection(companyId);
+
+    // Update the message to mark it as deleted by sender
+    const result = await tenantDb
+      .updateTable("messages")
+      .set({
+        deleted_by_sender: true,
+        deleted_at: new Date(),
+      })
+      .where("message_id", "=", payload.messageId)
+      .executeTakeFirst();
+
+    if (result.numUpdatedRows > 0) {
+      console.log(
+        `[MessageHandler] Marked message ${payload.messageId} as deleted (rows affected: ${result.numUpdatedRows})`,
+      );
+
+      // Get the message to find the contact_id for broadcasting
+      const message = await tenantDb
+        .selectFrom("messages")
+        .select(["id", "contact_id"])
+        .where("message_id", "=", payload.messageId)
+        .executeTakeFirst();
+
+      if (message) {
+        // Broadcast to WebSocket clients
+        broadcastToCompany(companyId, {
+          type: "message:deleted",
+          connectionId,
+          payload: {
+            messageId: message.id,
+            conversationId: message.contact_id,
+            whatsappMessageId: payload.messageId,
+          },
+          timestamp: event.timestamp,
+        });
+      }
+    } else {
+      // Message not found - this could happen if:
+      // 1. The message was never stored in our database (race condition)
+      // 2. The message was already deleted
+      // Log a warning but don't throw - this is expected in some edge cases
+      console.warn(
+        `[MessageHandler] Message not found for revoke: ${payload.messageId}. This may be a race condition or the message was never stored.`,
+      );
+    }
+  } catch (error) {
+    console.error(`[MessageHandler] Failed to handle message revoke:`, error);
+    // Don't throw - we want to continue processing other events
   }
 }
 

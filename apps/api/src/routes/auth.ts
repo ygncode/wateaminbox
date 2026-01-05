@@ -14,8 +14,45 @@ import {
 } from "../services/auth.service.js";
 import { validatePasswordStrength } from "../lib/password.js";
 import { authMiddleware } from "../middleware/auth.js";
+import { createRateLimitMiddleware, ipRateLimit } from "../middleware/rate-limit.js";
+import { rateLimitConfig, rateLimitStore } from "../lib/rate-limit-store.js";
 
 export const authRoutes = new Hono();
+
+// Endpoint-specific rate limiters for auth endpoints
+// These use IP-based keys since they're pre-authentication or token-based
+
+// Login rate limiter: 5 attempts per 15 minutes
+const loginRateLimiter = createRateLimitMiddleware({
+  store: rateLimitStore,
+  tier: rateLimitConfig.tiers.auth.login,
+  keyStrategy: "ip",
+  keyPrefix: "auth-login",
+});
+
+// Register rate limiter: 3 attempts per hour
+const registerRateLimiter = createRateLimitMiddleware({
+  store: rateLimitStore,
+  tier: rateLimitConfig.tiers.auth.register,
+  keyStrategy: "ip",
+  keyPrefix: "auth-register",
+});
+
+// Forgot password rate limiter: 3 attempts per hour
+const forgotPasswordRateLimiter = createRateLimitMiddleware({
+  store: rateLimitStore,
+  tier: rateLimitConfig.tiers.auth.forgotPassword,
+  keyStrategy: "ip",
+  keyPrefix: "auth-forgot-password",
+});
+
+// Refresh token rate limiter: 20 attempts per minute
+const refreshRateLimiter = createRateLimitMiddleware({
+  store: rateLimitStore,
+  tier: rateLimitConfig.tiers.auth.refresh,
+  keyStrategy: "ip",
+  keyPrefix: "auth-refresh",
+});
 
 // Validation schemas
 const registerSchema = z.object({
@@ -76,8 +113,9 @@ function getDeviceInfo(c: {
 /**
  * POST /auth/register
  * Register a new user with email and password
+ * Rate limit: 3 attempts per hour per IP
  */
-authRoutes.post("/register", async (c) => {
+authRoutes.post("/register", registerRateLimiter, async (c) => {
   try {
     const body = await c.req.json();
     const result = registerSchema.safeParse(body);
@@ -137,8 +175,9 @@ authRoutes.post("/register", async (c) => {
 /**
  * POST /auth/login
  * Login with email and password
+ * Rate limit: 5 attempts per 15 minutes per IP
  */
-authRoutes.post("/login", async (c) => {
+authRoutes.post("/login", loginRateLimiter, async (c) => {
   try {
     const body = await c.req.json();
     const result = loginSchema.safeParse(body);
@@ -267,8 +306,9 @@ authRoutes.post("/verify-email", authMiddleware, async (c) => {
 /**
  * POST /auth/forgot-password
  * Request a password reset email
+ * Rate limit: 3 attempts per hour per IP
  */
-authRoutes.post("/forgot-password", async (c) => {
+authRoutes.post("/forgot-password", forgotPasswordRateLimiter, async (c) => {
   try {
     const body = await c.req.json();
     const result = forgotPasswordSchema.safeParse(body);
@@ -359,8 +399,9 @@ authRoutes.post("/reset-password", async (c) => {
 /**
  * POST /auth/refresh
  * Refresh access token using refresh token
+ * Rate limit: 20 attempts per minute per IP
  */
-authRoutes.post("/refresh", async (c) => {
+authRoutes.post("/refresh", refreshRateLimiter, async (c) => {
   try {
     const body = await c.req.json();
     const result = refreshTokenSchema.safeParse(body);

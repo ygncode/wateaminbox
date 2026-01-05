@@ -158,16 +158,39 @@ export interface WhatsAppEvent {
     | "disconnected"
     | "message"
     | "receipt"
+    | "send_confirmation"
     | "status"
     | "contact"
     | "labels"
     | "catalogs"
     | "catalog_products"
+    | "profile_picture"
+    | "message_revoke"
     | "error";
   companyId: string;
   connectionId: string;
   payload: unknown;
   timestamp: string;
+}
+
+export interface MessageRevokeEvent extends WhatsAppEvent {
+  type: "message_revoke";
+  payload: {
+    messageId: string;
+    from: string;
+    to: string;
+    timestamp: string;
+  };
+}
+
+export interface ProfilePictureEvent extends WhatsAppEvent {
+  type: "profile_picture";
+  payload: {
+    jid: string;
+    profilePictureUrl: string;
+    timestamp: string;
+    remove?: boolean;
+  };
 }
 
 export interface LabelsEvent extends WhatsAppEvent {
@@ -256,6 +279,15 @@ export interface ReceiptEvent extends WhatsAppEvent {
   payload: {
     messageId: string;
     status: "sent" | "delivered" | "read";
+    timestamp: string;
+  };
+}
+
+export interface SendConfirmationEvent extends WhatsAppEvent {
+  type: "send_confirmation";
+  payload: {
+    pendingMessageId: string;
+    messageId: string;
     timestamp: string;
   };
 }

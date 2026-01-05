@@ -4,18 +4,38 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"math/rand"
 	"sync"
 	"time"
 
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/proto/waE2E"
 	waStore "go.mau.fi/whatsmeow/store"
-	"go.mau.fi/whatsmeow/types"
+	waTypes "go.mau.fi/whatsmeow/types"
 	waLog "go.mau.fi/whatsmeow/util/log"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/ygncode-lab/whatsapp-web/services/whatsapp/internal/logger"
 	"github.com/ygncode-lab/whatsapp-web/services/whatsapp/internal/store"
+	"github.com/ygncode-lab/whatsapp-web/services/whatsapp/internal/types"
+)
+
+// Backoff configuration constants for the two-phase reconnection strategy.
+const (
+	// Initial backoff duration for exponential phase
+	initialBackoff = 2 * time.Second
+
+	// Maximum backoff duration during exponential phase
+	maxTransientBackoff = 30 * time.Second
+
+	// Duration of the transient (exponential) phase
+	transientPhaseDuration = 5 * time.Minute
+
+	// Fixed backoff duration during persistent phase
+	persistentBackoff = 2 * time.Minute
+
+	// Jitter factor for randomization (±10%)
+	jitterFactor = 0.1
 )
 
 // Config holds WhatsApp client configuration.
@@ -35,17 +55,22 @@ type StatusCallback func(status string, reason string)
 
 // Client wraps the whatsmeow client.
 type Client struct {
-	config       Config
-	client       *whatsmeow.Client
-	container    *store.PGContainer
-	device       *waStore.Device
-	handlers     []func(interface{})
-	qrCallback   QRCallback
-	statusCb     StatusCallback
-	logger       waLog.Logger
-	mu           sync.RWMutex
-	connected    bool
-	reconnecting bool
+	config         Config
+	client         *whatsmeow.Client
+	container      *store.PGContainer
+	device         *waStore.Device
+	handlers       []func(interface{})
+	qrCallback     QRCallback
+	statusCb       StatusCallback
+	logger         waLog.Logger
+	mu             sync.RWMutex
+	connected           bool
+	reconnecting         bool
+	ctx                 context.Context
+	cancelReconnect      context.CancelFunc
+	reconnectMu         sync.Mutex
+	reconnectStartTime  time.Time
+	reconnectAttemptNum int
 }
 
 // New creates a new WhatsApp client wrapper.
@@ -78,13 +103,18 @@ func New(ctx context.Context, cfg Config) (*Client, error) {
 	// Create whatsmeow client
 	waClient := whatsmeow.NewClient(device, waLogger.Sub("client"))
 
+	// Create a cancellable context for controlling reconnection loops
+	reconnectCtx, cancelReconnect := context.WithCancel(ctx)
+
 	c := &Client{
-		config:    cfg,
-		client:    waClient,
-		container: container,
-		device:    device,
-		handlers:  make([]func(interface{}), 0),
-		logger:    waLogger,
+		config:          cfg,
+		client:          waClient,
+		container:       container,
+		device:          device,
+		handlers:        make([]func(interface{}), 0),
+		logger:          waLogger,
+		ctx:             reconnectCtx,
+		cancelReconnect: cancelReconnect,
 	}
 
 	// Register internal event handler to forward events
@@ -196,13 +226,68 @@ func (c *Client) reconnect(ctx context.Context) error {
 	return nil
 }
 
-// HandleReconnect handles reconnection on disconnect.
-func (c *Client) HandleReconnect() {
-	c.mu.Lock()
-	if c.reconnecting {
-		c.mu.Unlock()
+// calculateBackoff computes the backoff duration based on the two-phase strategy.
+// Phase 1 (transient): Exponential backoff from 2s to 30s for the first 5 minutes.
+// Phase 2 (persistent): Fixed 2-minute intervals with ±10% jitter after 5 minutes.
+func (c *Client) calculateBackoff() time.Duration {
+	now := time.Now()
+	elapsed := now.Sub(c.reconnectStartTime)
+
+	var baseDuration time.Duration
+	isTransientPhase := elapsed < transientPhaseDuration
+
+	if isTransientPhase {
+		// Phase 1: Exponential backoff
+		// Calculate which attempt number we're on (0-indexed)
+		attempt := c.reconnectAttemptNum
+
+		// Exponential formula: min(initial * 2^attempt, maxTransientBackoff)
+		exponentialBackoff := initialBackoff * time.Duration(1<<uint(attempt))
+		if exponentialBackoff > maxTransientBackoff {
+			exponentialBackoff = maxTransientBackoff
+		}
+		baseDuration = exponentialBackoff
+	} else {
+		// Phase 2: Persistent phase with fixed 2-minute intervals
+		baseDuration = persistentBackoff
+	}
+
+	// Apply jitter: ±jitterFactor (e.g., ±10%)
+	// Generate random value in [1-jitterFactor, 1+jitterFactor]
+	jitterRange := 2 * jitterFactor
+	jitterOffset := (rand.Float64() * jitterRange) - jitterFactor
+	durationWithJitter := float64(baseDuration) * (1 + jitterOffset)
+
+	return time.Duration(durationWithJitter)
+}
+
+// HandleReconnect handles reconnection on disconnect with an infinite loop.
+// It implements a two-phase backoff strategy and continues indefinitely until
+// successful connection or context cancellation.
+//
+// The ctx parameter is optional for cancellation control. If nil, the client's
+// stored context is used. If the stored context is also nil, context.Background()
+// is used (which never cancels).
+func (c *Client) HandleReconnect(ctx context.Context) {
+	// Prevent duplicate reconnection loops
+	if !c.reconnectMu.TryLock() {
+		log.Println("Reconnection loop already active, skipping duplicate call")
 		return
 	}
+	defer c.reconnectMu.Unlock()
+
+	// Determine which context to use for cancellation
+	// Priority: passed ctx > stored c.ctx > context.Background()
+	shutdownCtx := ctx
+	if shutdownCtx == nil {
+		shutdownCtx = c.ctx
+	}
+	if shutdownCtx == nil {
+		shutdownCtx = context.Background()
+	}
+
+	// Mark as not connected and start reconnection
+	c.mu.Lock()
 	c.reconnecting = true
 	c.connected = false
 	c.mu.Unlock()
@@ -213,32 +298,87 @@ func (c *Client) HandleReconnect() {
 		c.mu.Unlock()
 	}()
 
-	// Wait before attempting reconnection
-	time.Sleep(5 * time.Second)
+	// Initialize reconnection tracking
+	c.reconnectStartTime = time.Now()
+	c.reconnectAttemptNum = 0
 
-	for attempts := 0; attempts < 5; attempts++ {
-		log.Printf("Attempting reconnection (attempt %d/5)...", attempts+1)
+	log.Println("Starting infinite reconnection loop...")
 
+	for {
+		// Check if context is cancelled
+		select {
+		case <-shutdownCtx.Done():
+			log.Println("Reconnection loop cancelled by context")
+			if c.statusCb != nil {
+				c.statusCb("disconnected", "shutdown")
+			}
+			return
+		default:
+		}
+
+		// Increment attempt counter
+		c.reconnectAttemptNum++
+
+		// Determine if we're in transient phase
+		elapsed := time.Since(c.reconnectStartTime)
+		isTransientPhase := elapsed < transientPhaseDuration
+
+		// Log every attempt in Phase 1, every 10th in Phase 2
+		if isTransientPhase || c.reconnectAttemptNum%10 == 1 {
+			phase := "transient"
+			if !isTransientPhase {
+				phase = "persistent"
+			}
+			log.Printf("Reconnection attempt #%d (phase: %s, elapsed: %v)",
+				c.reconnectAttemptNum, phase, elapsed.Round(time.Second))
+		}
+
+		// Attempt connection
 		if err := c.client.Connect(); err != nil {
-			log.Printf("Reconnection failed: %v", err)
-			time.Sleep(time.Duration(attempts+1) * 10 * time.Second)
+			log.Printf("Reconnection attempt #%d failed: %v", c.reconnectAttemptNum, err)
+
+			// Calculate backoff duration
+			backoff := c.calculateBackoff()
+
+			if isTransientPhase || c.reconnectAttemptNum%10 == 1 {
+				log.Printf("Waiting %v before next attempt...", backoff.Round(time.Millisecond))
+			}
+
+			// Wait for backoff duration or context cancellation
+			select {
+			case <-shutdownCtx.Done():
+				log.Println("Reconnection loop cancelled during backoff")
+				if c.statusCb != nil {
+					c.statusCb("disconnected", "shutdown")
+				}
+				return
+			case <-time.After(backoff):
+				// Continue to next attempt
+			}
+
 			continue
 		}
 
+		// Connection successful
 		c.mu.Lock()
 		c.connected = true
 		c.mu.Unlock()
 
-		log.Println("Reconnection successful")
+		log.Printf("Reconnection successful after %d attempts (elapsed: %v)",
+			c.reconnectAttemptNum, time.Since(c.reconnectStartTime).Round(time.Millisecond))
 		if c.statusCb != nil {
 			c.statusCb("connected", "reconnected")
 		}
 		return
 	}
+}
 
-	log.Println("Failed to reconnect after 5 attempts")
-	if c.statusCb != nil {
-		c.statusCb("disconnected", "reconnect_failed")
+// StopReconnect cancels any active reconnection loop for graceful shutdown.
+// It causes an active HandleReconnect loop to exit within 1 second.
+func (c *Client) StopReconnect() {
+	log.Println("Stopping reconnection loop...")
+	if c.cancelReconnect != nil {
+		c.cancelReconnect()
 	}
 }
 
@@ -274,11 +414,11 @@ func (c *Client) RegisterEventHandler(handler func(interface{})) {
 }
 
 // SendMessage sends a text message.
-func (c *Client) SendMessage(ctx context.Context, jid string, text string, replyTo string, replyToSender string) error {
+func (c *Client) SendMessage(ctx context.Context, jid string, text string, replyTo string, replyToSender string) (types.SendResponse, error) {
 	// Parse JID
-	recipient, err := types.ParseJID(jid)
+	recipient, err := waTypes.ParseJID(jid)
 	if err != nil {
-		return fmt.Errorf("invalid JID %s: %w", jid, err)
+		return types.SendResponse{}, fmt.Errorf("invalid JID %s: %w", jid, err)
 	}
 
 	var msg *waE2E.Message
@@ -310,19 +450,22 @@ func (c *Client) SendMessage(ctx context.Context, jid string, text string, reply
 	// Send message
 	resp, err := c.client.SendMessage(ctx, recipient, msg)
 	if err != nil {
-		return fmt.Errorf("failed to send message: %w", err)
+		return types.SendResponse{}, fmt.Errorf("failed to send message: %w", err)
 	}
 
 	log.Printf("Message sent: ID=%s, ServerTimestamp=%v", resp.ID, resp.Timestamp)
-	return nil
+	return types.SendResponse{
+		ID:        string(resp.ID),
+		Timestamp: resp.Timestamp,
+	}, nil
 }
 
 // SendMediaMessage sends a media message (image, document, video, audio).
-func (c *Client) SendMediaMessage(ctx context.Context, jid string, mediaType string, data []byte, caption string, fileName string, mimeType string, replyTo string, replyToSender string) error {
+func (c *Client) SendMediaMessage(ctx context.Context, jid string, mediaType string, data []byte, caption string, fileName string, mimeType string, replyTo string, replyToSender string) (types.SendResponse, error) {
 	// Parse JID
-	recipient, err := types.ParseJID(jid)
+	recipient, err := waTypes.ParseJID(jid)
 	if err != nil {
-		return fmt.Errorf("invalid JID %s: %w", jid, err)
+		return types.SendResponse{}, fmt.Errorf("invalid JID %s: %w", jid, err)
 	}
 
 	// Use provided sender JID, or fall back to recipient JID
@@ -343,21 +486,24 @@ func (c *Client) SendMediaMessage(ctx context.Context, jid string, mediaType str
 	case "audio":
 		msg, err = c.createAudioMessage(ctx, data, mimeType, participant, replyTo)
 	default:
-		return fmt.Errorf("unsupported media type: %s", mediaType)
+		return types.SendResponse{}, fmt.Errorf("unsupported media type: %s", mediaType)
 	}
 
 	if err != nil {
-		return fmt.Errorf("failed to create media message: %w", err)
+		return types.SendResponse{}, fmt.Errorf("failed to create media message: %w", err)
 	}
 
 	// Send message
 	resp, err := c.client.SendMessage(ctx, recipient, msg)
 	if err != nil {
-		return fmt.Errorf("failed to send media message: %w", err)
+		return types.SendResponse{}, fmt.Errorf("failed to send media message: %w", err)
 	}
 
 	log.Printf("Media message sent: ID=%s, Type=%s", resp.ID, mediaType)
-	return nil
+	return types.SendResponse{
+		ID:        string(resp.ID),
+		Timestamp: resp.Timestamp,
+	}, nil
 }
 
 // createImageMessage creates an image message.

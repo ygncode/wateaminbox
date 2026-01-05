@@ -16,13 +16,16 @@ import {
   type EventHandler,
   type NewMessagePayload,
   type MessageStatusPayload,
+  type MessageDeletedPayload,
   type TypingPayload,
   type ConversationUpdatedPayload,
+  type ProfilePicturePayload,
 } from "../lib/websocket";
 import { getAccessToken, getCompanyId } from "../lib/api";
 import { useWebSocketStore } from "../stores/websocket-store";
 import { useChatStore, type TypingIndicator } from "../stores/chat-store";
 import { infiniteMessageKeys } from "../hooks/useInfiniteMessages";
+import { chatKeys } from "../hooks/useChats";
 import type { PaginatedMessages } from "@whatsapp-web/shared";
 
 // Context value type
@@ -334,6 +337,76 @@ export function WebSocketProvider({
       },
     );
 
+    // Profile picture handler
+    const unsubProfilePicture = client.on<ProfilePicturePayload>(
+      "contact:profile_picture",
+      (payload) => {
+        // Update chat list cache
+        queryClientRef.current.setQueriesData(
+          { queryKey: chatKeys.lists() },
+          (oldData: any) => {
+            if (!oldData) return oldData;
+            // oldData is Chat[]
+            return oldData.map((chat: any) => {
+              // Check if this chat corresponds to the contact JID
+              if (chat.contact?.jid === payload.jid) {
+                return {
+                  ...chat,
+                  contact: {
+                    ...chat.contact,
+                    avatarUrl: payload.profilePictureUrl,
+                  },
+                };
+              }
+              return chat;
+            });
+          },
+        );
+
+        // Update individual contact details cache
+        queryClientRef.current
+          .getQueriesData({ queryKey: ["contact"] })
+          .forEach(([queryKey, oldData]: [any, any]) => {
+            if (oldData && oldData.jid === payload.jid) {
+              queryClientRef.current.setQueryData(queryKey, {
+                ...oldData,
+                profilePictureUrl: payload.profilePictureUrl,
+              });
+            }
+          });
+      },
+    );
+
+    // Message deleted handler
+    const unsubMessageDeleted = client.on<MessageDeletedPayload>(
+      "message:deleted",
+      (payload) => {
+        // Update TanStack Query cache to mark the message as deleted
+        const queryKey = infiniteMessageKeys.list(payload.conversationId);
+        queryClientRef.current.setQueryData<{
+          pages: PaginatedMessages[];
+          pageParams: (string | undefined)[];
+        }>(queryKey, (oldData) => {
+          if (!oldData) return oldData;
+
+          // Find and update the message in all pages
+          const newPages = oldData.pages.map((page) => ({
+            ...page,
+            messages: page.messages.map((msg) =>
+              msg.id === payload.messageId
+                ? { ...msg, deleted_by_sender: true, deleted_at: new Date().toISOString() }
+                : msg,
+            ),
+          }));
+
+          return {
+            ...oldData,
+            pages: newPages,
+          };
+        });
+      },
+    );
+
     // Auto-connect if enabled and we have a token
     if (autoConnect && getAccessToken()) {
       connect();
@@ -343,9 +416,11 @@ export function WebSocketProvider({
     return () => {
       unsubNewMessage();
       unsubMessageStatus();
+      unsubMessageDeleted();
       unsubTypingStart();
       unsubTypingStop();
       unsubConversationUpdated();
+      unsubProfilePicture();
 
       // Clear all typing timeouts
       typingTimeoutsRef.current.forEach((timeout) => clearTimeout(timeout));

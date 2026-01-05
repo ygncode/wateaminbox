@@ -118,11 +118,12 @@ func (c *Client) createOrUpdateStream(cfg StreamConfig) error {
 }
 
 // createCommandsConsumer creates a durable consumer for the commands stream.
+// Always deletes and recreates the consumer on startup to ensure clean state.
 func (c *Client) createCommandsConsumer() error {
 	consumerCfg := &nats.ConsumerConfig{
 		Durable:       ConsumerCommands,
 		Description:   "Orchestrator consumer for processing worker commands",
-		DeliverPolicy: nats.DeliverAllPolicy,
+		DeliverPolicy: nats.DeliverNewPolicy, // Only deliver NEW messages (avoid replaying old ones)
 		AckPolicy:     nats.AckExplicitPolicy,
 		AckWait:       30 * time.Second,
 		MaxDeliver:    5,
@@ -130,23 +131,30 @@ func (c *Client) createCommandsConsumer() error {
 		MaxAckPending: 1000,
 	}
 
-	// Check if consumer exists
+	// Always delete existing consumer to ensure clean state on startup
+	// This prevents issues with stale delivery positions
 	_, err := c.js.ConsumerInfo(StreamCommands, ConsumerCommands)
-	if err != nil {
-		if err == nats.ErrConsumerNotFound {
-			// Create new consumer
-			_, err = c.js.AddConsumer(StreamCommands, consumerCfg)
-			if err != nil {
-				return fmt.Errorf("failed to add consumer %s: %w", ConsumerCommands, err)
-			}
-			log.Printf("Created consumer: %s", ConsumerCommands)
-			return nil
+	if err == nil {
+		log.Printf("Deleting existing consumer %s to ensure clean state...", ConsumerCommands)
+		if err := c.js.DeleteConsumer(StreamCommands, ConsumerCommands); err != nil {
+			log.Printf("Warning: failed to delete existing consumer: %v", err)
 		}
-		return fmt.Errorf("failed to get consumer info for %s: %w", ConsumerCommands, err)
 	}
 
-	log.Printf("Consumer already exists: %s", ConsumerCommands)
+	// Create fresh consumer
+	_, err = c.js.AddConsumer(StreamCommands, consumerCfg)
+	if err != nil {
+		return fmt.Errorf("failed to add consumer %s: %w", ConsumerCommands, err)
+	}
+	log.Printf("Created consumer: %s (DeliverPolicy: New)", ConsumerCommands)
 	return nil
+}
+
+// consumerConfigMatches checks if critical consumer config settings match.
+func consumerConfigMatches(existing, expected nats.ConsumerConfig) bool {
+	return existing.FilterSubject == expected.FilterSubject &&
+		existing.DeliverPolicy == expected.DeliverPolicy &&
+		existing.AckPolicy == expected.AckPolicy
 }
 
 // SubscribeToCommands creates a pull subscription for processing commands.

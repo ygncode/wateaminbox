@@ -35,6 +35,10 @@ export interface MessageMetadata {
   thumbnailUrl?: string;
   duration?: number; // For audio/video in seconds
   caption?: string;
+  // Error-related fields for failed messages
+  error?: string; // Error code, e.g., "delivery_timeout", "network_error", "rate_limit"
+  errorMessage?: string; // Human-readable error message
+  failedAt?: string; // ISO timestamp when the message failed
 }
 
 export interface CreateMessageInput {

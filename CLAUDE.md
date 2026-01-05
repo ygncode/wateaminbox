@@ -163,4 +163,26 @@ When fixing database schema issues (missing columns, wrong types, etc.):
 4. Ensure fresh database setups work correctly
 5. Test with `bun run db:migrate` on a clean database
 
-**Common pitfall**: The `setup_tenant_schema` function is defined in multiple migrations. Later migrations may overwrite earlier ones, losing columns added in between. Always check the final state of the function.
+### Tenant Schema Migrations
+
+For multi-tenant schema changes, use the migration helpers in `packages/database/src/migrations/migration-helpers.ts`:
+
+```typescript
+import { addColumnToAllTenants, executeOnAllTenants } from '../migrations/migration-helpers.js'
+
+// ✅ CORRECT - Apply changes to ALL existing tenant schemas
+export async function up(db: Kysely<unknown>): Promise<void> {
+  // Add a column to all tenant schemas
+  await addColumnToAllTenants(db, 'messages', 'new_column', 'VARCHAR(100)')
+
+  // Or use the generic helper for custom operations
+  await executeOnAllTenants(db, async (schemaName) => {
+    await sql`ALTER TABLE ${sql.raw(`"${schemaName}".messages`)} ADD COLUMN ...`.execute(db)
+  })
+
+  // IMPORTANT: Also update migration 015's setup_tenant_schema function
+  // so NEW tenants created after this migration get the column too
+}
+```
+
+**Common pitfall**: The `setup_tenant_schema` function was historically overwritten in multiple migrations (009-014), causing inconsistent schemas. Migration 015 established this function as the single source of truth. For new columns/tables, update ONLY migration 015's function definition.

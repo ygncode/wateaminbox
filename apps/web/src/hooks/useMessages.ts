@@ -201,3 +201,24 @@ export function useStarMessage() {
     },
   });
 }
+
+interface RetryMessageResponse {
+  success: boolean;
+  message: Message;
+  originalMessageId: string;
+}
+
+export function useRetryMessage() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (messageId: string) =>
+      api.post<RetryMessageResponse>(`/messages/${messageId}/retry`, {}),
+    onSuccess: (data, _variables) => {
+      // Invalidate the messages query to show the new retried message
+      queryClient.invalidateQueries({
+        queryKey: infiniteMessageKeys.list(data.message.conversationId),
+      });
+    },
+  });
+}

@@ -3,6 +3,7 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import type { Message } from "@whatsapp-web/shared";
 import { useInfiniteMessages } from "../../hooks/useInfiniteMessages";
 import { MessageBubble } from "./MessageBubble";
+import { useRetryMessage } from "../../hooks/useMessages";
 
 interface MessageThreadProps {
   conversationId: string | undefined;
@@ -11,6 +12,7 @@ interface MessageThreadProps {
   onForwardMessage?: (message: Message) => void;
   onDeleteMessage?: (message: Message) => void;
   onStarMessage?: (message: Message) => void;
+  onRetryMessage?: (messageId: string) => void;
   /** ID of message to highlight and scroll to */
   highlightedMessageId?: string | null;
 }
@@ -26,9 +28,12 @@ export function MessageThread({
   onForwardMessage,
   onDeleteMessage,
   onStarMessage,
+  onRetryMessage,
   highlightedMessageId,
 }: MessageThreadProps) {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const retryMessage = useRetryMessage();
+  const [retryingMessageId, setRetryingMessageId] = useState<string | null>(null);
   const [isAtBottom, setIsAtBottom] = useState(true);
   const prevMessagesLengthRef = useRef(0);
   const isInitialScrollDone = useRef(false);
@@ -196,6 +201,19 @@ export function MessageThread({
       });
     }
   }, []);
+
+  // Handle retry message
+  const handleRetry = useCallback(
+    (messageId: string) => {
+      setRetryingMessageId(messageId);
+      retryMessage.mutate(messageId, {
+        onSettled: () => {
+          setRetryingMessageId(null);
+        },
+      });
+    },
+    [retryMessage],
+  );
 
   // Empty state when no chat selected
   if (!conversationId) {
@@ -387,7 +405,9 @@ export function MessageThread({
                   onForward={onForwardMessage}
                   onDelete={onDeleteMessage}
                   onStar={onStarMessage}
+                  onRetry={onRetryMessage || handleRetry}
                   isHighlighted={highlightedMessageId === item.message.id}
+                  isRetrying={retryingMessageId === item.message.id}
                 />
               </div>
             );

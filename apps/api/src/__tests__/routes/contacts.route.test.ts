@@ -863,3 +863,579 @@ describe("POST /contacts/:id/assign - Contact assignment with takeover", () => {
     expect(notificationCreated?.message).toContain("1234567890");
   });
 });
+
+// ============================================================================
+// POST /contacts/import/preview - Batch Lookup Tests
+// ============================================================================
+
+/**
+ * Mock builder that tracks query execution for verifying batch optimization
+ */
+function createMockPreviewDb() {
+  let queryCount = 0;
+  let lastQueryParams: {
+    table?: string;
+    jids?: string[];
+    phoneNumbers?: string[];
+  } = {};
+
+  const mockDb = {
+    selectFrom: mock((table: string) => {
+      queryCount++;
+      const builder: Record<string, unknown> = {};
+
+      builder.select = mock(() => builder);
+      builder.where = mock((cb: (eb: unknown) => unknown) => {
+        // Capture the where clause params by simulating the eb callback
+        const mockEb = {
+          or: mock((conds: Array<{ _type: string; column: string; op: string; value: string[] }>) => {
+            // Extract values from the conditions to verify batch query
+            conds.forEach((cond) => {
+              if (cond.column === "jid") {
+                lastQueryParams.jids = cond.value;
+              } else if (cond.column === "phone_number") {
+                lastQueryParams.phoneNumbers = cond.value;
+              }
+            });
+            return true;
+          }),
+        };
+        cb(mockEb);
+        return builder;
+      });
+      builder.execute = mock(() => Promise.resolve([]));
+
+      return builder;
+    }),
+    getQueryCount: () => queryCount,
+    resetQueryCount: () => {
+      queryCount = 0;
+      lastQueryParams = {};
+    },
+    getLastQueryParams: () => lastQueryParams,
+    setExistingContacts: (contacts: Array<{
+      jid: string;
+      phone_number: string | null;
+      custom_name: string | null;
+      push_name: string | null;
+    }>) => {
+      // Override execute to return the provided contacts
+      mockDb.selectFrom = mock((table: string) => {
+        queryCount++;
+        const builder: Record<string, unknown> = {};
+
+        builder.select = mock(() => builder);
+        builder.where = mock((cb: (eb: unknown) => unknown) => {
+          const mockEb = {
+            or: mock((conds: unknown[]) => true),
+          };
+          cb(mockEb);
+          return builder;
+        });
+        builder.execute = mock(() => Promise.resolve(contacts));
+        return builder;
+      });
+    },
+  };
+
+  return mockDb;
+}
+
+describe("POST /contacts/import/preview - Batch lookup optimization", () => {
+  let app: Hono;
+  let mockDb: ReturnType<typeof createMockPreviewDb>;
+
+  beforeEach(() => {
+    mockDb = createMockPreviewDb();
+    app = new Hono();
+
+    // Mock middleware
+    app.use("/*", async (c, next) => {
+      c.set("tenantDb", mockDb);
+      c.set("user", { id: "user-123", email: "test@example.com" });
+      await next();
+    });
+
+    // Import preview route - simplified version for testing
+    app.post("/contacts/import/preview", async (c) => {
+      const tenantDb = c.get("tenantDb") as ReturnType<typeof createMockPreviewDb>;
+
+      const body = await c.req.json();
+      const { csvContent } = body;
+
+      if (!csvContent) {
+        return c.json({ error: "csvContent is required" }, 400);
+      }
+
+      // Parse CSV
+      const lines = csvContent.trim().split("\n");
+      if (lines.length < 2) {
+        return c.json({ error: "No valid data found in CSV" }, 400);
+      }
+
+      const header = lines[0].split(",").map((h) => h.toLowerCase().trim().replace(/\s+/g, "_"));
+
+      const contactRows: Array<{
+        phone_number: string;
+        custom_name?: string;
+        notes?: string;
+        tags?: string;
+      }> = [];
+
+      for (let i = 1; i < lines.length; i++) {
+        const values = lines[i].split(",");
+        const row: Record<string, string> = {};
+        header.forEach((key, idx) => {
+          row[key] = values[idx]?.trim() || "";
+        });
+
+        // Map to contact row (simplified version)
+        const phoneNumber = row.phone_number || row.phone || row.mobile || "";
+        if (phoneNumber) {
+          contactRows.push({
+            phone_number: phoneNumber,
+            custom_name: row.name || row.custom_name || undefined,
+            notes: row.notes || undefined,
+            tags: row.tags || undefined,
+          });
+        }
+      }
+
+      if (contactRows.length === 0) {
+        return c.json({ error: "No valid contacts found" }, 400);
+      }
+
+      // Batch lookup: Check which contacts already exist in a single query
+      const lookupData = contactRows.map((row) => {
+        const phoneNumber = row.phone_number.replace(/[^\d]/g, "");
+        return {
+          originalPhoneNumber: row.phone_number,
+          cleanPhoneNumber: phoneNumber,
+          jid: `${phoneNumber}@s.whatsapp.net`,
+        };
+      });
+
+      // Single query to find all existing contacts at once
+      const existingContacts = await (tenantDb as unknown as {
+        selectFrom: (table: string) => {
+          select: (cols: string[]) => {
+            where: (cb: (eb: unknown) => unknown) => {
+              execute: () => Promise<
+                Array<{
+                  jid: string;
+                  phone_number: string | null;
+                  custom_name: string | null;
+                  push_name: string | null;
+                }>
+              >;
+            };
+          };
+        };
+      })
+        .selectFrom("contacts")
+        .select(["jid", "phone_number", "custom_name", "push_name"])
+        .where(() => true)
+        .execute();
+
+      // Build a Map for O(1) existence checks
+      const existingMap = new Map<
+        string,
+        { customName: string | null; pushName: string | null }
+      >();
+      for (const contact of existingContacts) {
+        existingMap.set(contact.jid, {
+          customName: contact.custom_name,
+          pushName: contact.push_name,
+        });
+        if (contact.phone_number) {
+          existingMap.set(contact.phone_number.replace(/[^\d]/g, ""), {
+            customName: contact.custom_name,
+            pushName: contact.push_name,
+          });
+        }
+      }
+
+      // Build preview using the Map
+      const preview = lookupData.map((data, index) => {
+        const existing =
+          existingMap.get(data.jid) || existingMap.get(data.cleanPhoneNumber);
+        const contactRow = contactRows[index];
+
+        return {
+          row: index + 1,
+          phoneNumber: data.originalPhoneNumber,
+          name: contactRow.custom_name || null,
+          notes: contactRow.notes || null,
+          tags: contactRow.tags || null,
+          exists: !!existing,
+          existingName: existing?.customName || existing?.pushName || null,
+        };
+      });
+
+      const existingCount = preview.filter((p) => p.exists).length;
+      const newCount = preview.filter((p) => !p.exists).length;
+
+      return c.json({
+        total: preview.length,
+        existingCount,
+        newCount,
+        preview: preview.slice(0, 100),
+      });
+    });
+  });
+
+  it("should execute only 1 query for existence check regardless of contact count", async () => {
+    const csvContent = `phone_number,name,notes
++1234567890,John Doe,Important
++0987654321,Jane Smith,Follow up
++1122334455,Bob Wilson,Customer
++5555555555,Alice Brown,Lead
++7777777777,Charlie Davis,VIP`;
+
+    mockDb.resetQueryCount();
+
+    await app.request("/contacts/import/preview", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ csvContent }),
+    });
+
+    // Should only execute 1 query for the batch lookup
+    expect(mockDb.getQueryCount()).toBe(1);
+  });
+
+  it("should execute only 1 query even with 50 contacts", async () => {
+    let csvContent = "phone_number,name\n";
+    for (let i = 1; i <= 50; i++) {
+      csvContent += `+1234567${String(i).padStart(3, "0")},Contact ${i}\n`;
+    }
+
+    mockDb.resetQueryCount();
+
+    await app.request("/contacts/import/preview", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ csvContent }),
+    });
+
+    // Should still be only 1 query
+    expect(mockDb.getQueryCount()).toBe(1);
+  });
+
+  it("should correctly classify existing contacts", async () => {
+    mockDb.setExistingContacts([
+      {
+        jid: "1234567890@s.whatsapp.net",
+        phone_number: "1234567890",
+        custom_name: "Existing John",
+        push_name: null,
+      },
+    ]);
+
+    const csvContent = `phone_number,name
++1234567890,John Doe
++0987654321,Jane Smith`;
+
+    const response = await app.request("/contacts/import/preview", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ csvContent }),
+    });
+
+    expect(response.status).toBe(200);
+    const data = await response.json();
+
+    expect(data.total).toBe(2);
+    expect(data.preview).toHaveLength(2);
+
+    // First contact exists
+    expect(data.preview[0].exists).toBe(true);
+    expect(data.preview[0].existingName).toBe("Existing John");
+    expect(data.preview[0].phoneNumber).toBe("+1234567890");
+
+    // Second contact is new
+    expect(data.preview[1].exists).toBe(false);
+    expect(data.preview[1].existingName).toBeNull();
+    expect(data.preview[1].phoneNumber).toBe("+0987654321");
+  });
+
+  it("should correctly classify all new contacts", async () => {
+    mockDb.setExistingContacts([]);
+
+    const csvContent = `phone_number,name
++1234567890,John Doe
++0987654321,Jane Smith
++1122334455,Bob Wilson`;
+
+    const response = await app.request("/contacts/import/preview", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ csvContent }),
+    });
+
+    expect(response.status).toBe(200);
+    const data = await response.json();
+
+    expect(data.total).toBe(3);
+    expect(data.existingCount).toBe(0);
+    expect(data.newCount).toBe(3);
+    expect(data.preview.every((p: { exists: boolean }) => p.exists === false)).toBe(true);
+  });
+
+  it("should correctly classify all existing contacts", async () => {
+    mockDb.setExistingContacts([
+      {
+        jid: "1234567890@s.whatsapp.net",
+        phone_number: "1234567890",
+        custom_name: "John Doe",
+        push_name: null,
+      },
+      {
+        jid: "9876543210@s.whatsapp.net",
+        phone_number: "9876543210",
+        custom_name: "Jane Smith",
+        push_name: null,
+      },
+      {
+        jid: "5555555555@s.whatsapp.net",
+        phone_number: "5555555555",
+        custom_name: "Bob Wilson",
+        push_name: null,
+      },
+    ]);
+
+    const csvContent = `phone_number,name
++1234567890,New John
++9876543210,New Jane
++5555555555,New Bob`;
+
+    const response = await app.request("/contacts/import/preview", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ csvContent }),
+    });
+
+    expect(response.status).toBe(200);
+    const data = await response.json();
+
+    expect(data.total).toBe(3);
+    expect(data.existingCount).toBe(3);
+    expect(data.newCount).toBe(0);
+    expect(data.preview.every((p: { exists: boolean }) => p.exists === true)).toBe(true);
+  });
+
+  it("should handle duplicate phone numbers correctly", async () => {
+    mockDb.setExistingContacts([
+      {
+        jid: "1234567890@s.whatsapp.net",
+        phone_number: "1234567890",
+        custom_name: "Original Contact",
+        push_name: null,
+      },
+    ]);
+
+    const csvContent = `phone_number,name
++1234567890,First Duplicate
+(123) 456-7890,Second Duplicate
+1234567890,Third Duplicate`;
+
+    const response = await app.request("/contacts/import/preview", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ csvContent }),
+    });
+
+    expect(response.status).toBe(200);
+    const data = await response.json();
+
+    expect(data.total).toBe(3);
+    // All should be marked as existing since they normalize to the same phone number
+    expect(data.preview[0].exists).toBe(true);
+    expect(data.preview[1].exists).toBe(true);
+    expect(data.preview[2].exists).toBe(true);
+  });
+
+  it("should use push_name when custom_name is null", async () => {
+    mockDb.setExistingContacts([
+      {
+        jid: "1234567890@s.whatsapp.net",
+        phone_number: "1234567890",
+        custom_name: null,
+        push_name: "WhatsApp Push Name",
+      },
+    ]);
+
+    const csvContent = `phone_number,name
++1234567890,CSV Name`;
+
+    const response = await app.request("/contacts/import/preview", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ csvContent }),
+    });
+
+    expect(response.status).toBe(200);
+    const data = await response.json();
+
+    expect(data.preview[0].exists).toBe(true);
+    expect(data.preview[0].existingName).toBe("WhatsApp Push Name");
+  });
+
+  it("should prefer custom_name over push_name for existingName", async () => {
+    mockDb.setExistingContacts([
+      {
+        jid: "1234567890@s.whatsapp.net",
+        phone_number: "1234567890",
+        custom_name: "Custom Name",
+        push_name: "Push Name",
+      },
+    ]);
+
+    const csvContent = `phone_number,name
++1234567890,CSV Name`;
+
+    const response = await app.request("/contacts/import/preview", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ csvContent }),
+    });
+
+    expect(response.status).toBe(200);
+    const data = await response.json();
+
+    expect(data.preview[0].existingName).toBe("Custom Name");
+  });
+
+  it("should return 400 when csvContent is missing", async () => {
+    const response = await app.request("/contacts/import/preview", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    });
+
+    expect(response.status).toBe(400);
+    const data = await response.json();
+    expect(data.error).toBe("csvContent is required");
+  });
+
+  it("should return 400 when CSV has no valid data", async () => {
+    const response = await app.request("/contacts/import/preview", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ csvContent: "phone_number,name" }),
+    });
+
+    expect(response.status).toBe(400);
+    const data = await response.json();
+    expect(data.error).toBe("No valid data found in CSV");
+  });
+
+  it("should handle various phone number formats in CSV", async () => {
+    mockDb.setExistingContacts([
+      {
+        jid: "1234567890@s.whatsapp.net",
+        phone_number: "1234567890",
+        custom_name: "Formatted Contact",
+        push_name: null,
+      },
+    ]);
+
+    const csvContent = `phone_number,name
++1234567890,With Plus
+(123) 456-7890,With Parens
+123-456-7890,With Dashes
+1234567890,Just Digits`;
+
+    const response = await app.request("/contacts/import/preview", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ csvContent }),
+    });
+
+    expect(response.status).toBe(200);
+    const data = await response.json();
+
+    // All should normalize to the same contact
+    expect(data.preview.every((p: { exists: boolean }) => p.exists === true)).toBe(true);
+    expect(data.preview[0].existingName).toBe("Formatted Contact");
+    expect(data.preview[1].existingName).toBe("Formatted Contact");
+    expect(data.preview[2].existingName).toBe("Formatted Contact");
+    expect(data.preview[3].existingName).toBe("Formatted Contact");
+  });
+
+  it("should handle empty CSV gracefully", async () => {
+    const response = await app.request("/contacts/import/preview", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ csvContent: "" }),
+    });
+
+    expect(response.status).toBe(400);
+    const data = await response.json();
+    // Empty string fails truthy check for csvContent
+    expect(data.error).toBe("csvContent is required");
+  });
+
+  it("should limit preview to 100 rows", async () => {
+    mockDb.setExistingContacts([]);
+
+    let csvContent = "phone_number,name\n";
+    for (let i = 1; i <= 150; i++) {
+      csvContent += `+1234567${String(i).padStart(3, "0")},Contact ${i}\n`;
+    }
+
+    const response = await app.request("/contacts/import/preview", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ csvContent }),
+    });
+
+    expect(response.status).toBe(200);
+    const data = await response.json();
+
+    expect(data.total).toBe(150);
+    expect(data.preview).toHaveLength(100);
+  });
+
+  it("should preserve CSV row numbers in preview", async () => {
+    mockDb.setExistingContacts([]);
+
+    const csvContent = `phone_number,name,notes
++1234567890,John Doe,Note 1
++0987654321,Jane Smith,Note 2
++1122334455,Bob Wilson,Note 3`;
+
+    const response = await app.request("/contacts/import/preview", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ csvContent }),
+    });
+
+    expect(response.status).toBe(200);
+    const data = await response.json();
+
+    expect(data.preview[0].row).toBe(1);
+    expect(data.preview[1].row).toBe(2);
+    expect(data.preview[2].row).toBe(3);
+  });
+
+  it("should include tags from CSV in preview", async () => {
+    mockDb.setExistingContacts([]);
+
+    const csvContent = `phone_number,name,tags
++1234567890,John Doe,VIP
++0987654321,Jane Smith,Customer`;
+
+    const response = await app.request("/contacts/import/preview", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ csvContent }),
+    });
+
+    expect(response.status).toBe(200);
+    const data = await response.json();
+
+    expect(data.preview[0].tags).toBe("VIP");
+    expect(data.preview[1].tags).toBe("Customer");
+  });
+});

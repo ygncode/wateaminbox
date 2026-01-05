@@ -4,12 +4,23 @@ import { tenantMiddleware, requirePermission } from "../middleware/tenant.js";
 import { PERMISSIONS } from "../services/permission.service.js";
 import { publishSendMessage } from "../lib/nats.js";
 import { ensureContactAssignment } from "../services/contact.service.js";
+import { createRateLimitMiddleware } from "../middleware/rate-limit.js";
+import { rateLimitConfig, rateLimitStore } from "../lib/rate-limit-store.js";
 
 export const messageRoutes = new Hono();
 
 // All message routes require authentication and tenant context
 messageRoutes.use("/*", authMiddleware);
 messageRoutes.use("/*", tenantMiddleware());
+
+// Message send rate limiter: 60 requests per minute per user
+// Prevents message spam while allowing reasonable burst usage
+const messageSendRateLimiter = createRateLimitMiddleware({
+  store: rateLimitStore,
+  tier: rateLimitConfig.tiers.messaging.send,
+  keyStrategy: "user",
+  keyPrefix: "messaging-send",
+});
 
 /**
  * GET /messages - Get messages for a contact
@@ -108,6 +119,7 @@ messageRoutes.get("/", async (c) => {
  */
 messageRoutes.post(
   "/",
+  messageSendRateLimiter,
   requirePermission(PERMISSIONS.CAN_SEND_MESSAGES),
   async (c) => {
     const tenantDb = c.get("tenantDb");
@@ -339,6 +351,7 @@ messageRoutes.delete("/:id/reaction", async (c) => {
  */
 messageRoutes.post(
   "/:id/forward",
+  messageSendRateLimiter,
   requirePermission(PERMISSIONS.CAN_SEND_MESSAGES),
   async (c) => {
     const tenantDb = c.get("tenantDb");
@@ -434,6 +447,116 @@ messageRoutes.post(
         isForwarded: true,
       },
       autoAssigned: wasAutoAssigned,
+    });
+  },
+);
+
+/**
+ * POST /messages/:id/retry - Retry a failed message
+ * Requires can_send_messages permission
+ */
+messageRoutes.post(
+  "/:id/retry",
+  messageSendRateLimiter,
+  requirePermission(PERMISSIONS.CAN_SEND_MESSAGES),
+  async (c) => {
+    const tenantDb = c.get("tenantDb");
+    const user = c.get("user");
+    const companyId = c.get("companyId");
+    const messageId = c.req.param("id");
+
+    // Get the original failed message
+    const originalMessage = await tenantDb
+      .selectFrom("messages")
+      .selectAll()
+      .where("id", "=", messageId)
+      .executeTakeFirst();
+
+    if (!originalMessage) {
+      return c.json({ error: "Message not found" }, 404);
+    }
+
+    // Verify this is a user's failed message
+    if (!originalMessage.from_me) {
+      return c.json({ error: "Can only retry sent messages" }, 400);
+    }
+
+    if (originalMessage.status !== "failed") {
+      return c.json({ error: "Can only retry failed messages" }, 400);
+    }
+
+    // Get contact JID
+    const contact = await tenantDb
+      .selectFrom("contacts")
+      .select(["id", "jid"])
+      .where("id", "=", originalMessage.contact_id)
+      .executeTakeFirst();
+
+    if (!contact || !contact.jid) {
+      return c.json({ error: "Contact not found or has no JID" }, 404);
+    }
+
+    // Get active WhatsApp connection
+    const connection = await tenantDb
+      .selectFrom("whatsapp_connections")
+      .select(["id", "jid"])
+      .where("status", "=", "connected")
+      .executeTakeFirst();
+
+    if (!connection) {
+      return c.json({ error: "No active WhatsApp connection" }, 400);
+    }
+
+    // Create a new message entry for the retry
+    const newMessageId = crypto.randomUUID();
+    const waMessageId = `pending_${newMessageId}`;
+
+    await tenantDb
+      .insertInto("messages")
+      .values({
+        id: newMessageId,
+        contact_id: originalMessage.contact_id,
+        message_id: waMessageId,
+        from_me: true,
+        sender_jid: null,
+        message_type: originalMessage.message_type,
+        content: originalMessage.content,
+        media_url: originalMessage.media_url,
+        media_mime_type: originalMessage.media_mime_type,
+        quoted_message_id: originalMessage.quoted_message_id,
+        sent_by_user_id: user.id,
+        status: "pending",
+        timestamp: new Date(),
+      })
+      .execute();
+
+    // Publish send command to NATS
+    await publishSendMessage(
+      companyId,
+      connection.id,
+      contact.jid,
+      originalMessage.content || "",
+      originalMessage.message_type,
+      user.id,
+      originalMessage.media_url || undefined,
+      originalMessage.quoted_message_id || undefined,
+      originalMessage.sender_jid || undefined,
+    );
+
+    return c.json({
+      success: true,
+      message: {
+        id: newMessageId,
+        messageId: waMessageId,
+        contactId: originalMessage.contact_id,
+        fromMe: true,
+        messageType: originalMessage.message_type,
+        content: originalMessage.content,
+        mediaUrl: originalMessage.media_url,
+        status: "pending",
+        timestamp: new Date().toISOString(),
+      },
+      originalMessageId: messageId,
     });
   },
 );

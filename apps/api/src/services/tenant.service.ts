@@ -1,5 +1,6 @@
+import type { Pool } from "pg";
 import { Kysely, sql, PostgresDialect } from "kysely";
-import { Pool } from "pg";
+import { Pool as PgPool } from "pg";
 import {
   TenantDatabase as TenantDatabaseType,
   getTenantSchemaName,
@@ -30,11 +31,18 @@ export function getTenantConnection(companyId: string): Kysely<TenantDatabase> {
     return connection;
   }
 
+  const pool = new PgPool({
+    connectionString: DATABASE_URL,
+    max: 5,
+  });
+
+  // Set search_path on all new connections from the pool
+  pool.on('connect', (client) => {
+    client.query(`SET search_path TO "${schemaName}"`);
+  });
+
   const dialect = new PostgresDialect({
-    pool: new Pool({
-      connectionString: DATABASE_URL,
-      max: 5,
-    }),
+    pool,
   });
 
   connection = new Kysely<TenantDatabase>({
@@ -72,7 +80,7 @@ export async function tenantSchemaExists(companyId: string): Promise<boolean> {
   const schemaName = getSchemaName(companyId);
 
   const dialect = new PostgresDialect({
-    pool: new Pool({
+    pool: new PgPool({
       connectionString: DATABASE_URL,
       max: 1,
     }),
@@ -103,7 +111,7 @@ export async function createTenantSchema(companyId: string): Promise<void> {
   const schemaName = getSchemaName(companyId);
 
   const dialect = new PostgresDialect({
-    pool: new Pool({
+    pool: new PgPool({
       connectionString: DATABASE_URL,
       max: 1,
     }),
@@ -133,7 +141,7 @@ export async function dropTenantSchema(companyId: string): Promise<void> {
   await clearTenantConnection(companyId);
 
   const dialect = new PostgresDialect({
-    pool: new Pool({
+    pool: new PgPool({
       connectionString: DATABASE_URL,
       max: 1,
     }),

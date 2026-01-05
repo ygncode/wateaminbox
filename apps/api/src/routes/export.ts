@@ -2,7 +2,9 @@ import { Hono } from "hono";
 import { authMiddleware } from "../middleware/auth.js";
 import { tenantMiddleware, requirePermission } from "../middleware/tenant.js";
 import { PERMISSIONS } from "../services/permission.service.js";
+import { createRateLimitMiddleware } from "../middleware/rate-limit.js";
 import * as exportService from "../services/export.service.js";
+import { rateLimitConfig, rateLimitStore } from "../lib/rate-limit-store.js";
 
 export const exportRoutes = new Hono();
 
@@ -11,11 +13,21 @@ exportRoutes.use("/*", authMiddleware);
 exportRoutes.use("/*", tenantMiddleware());
 exportRoutes.use("/*", requirePermission(PERMISSIONS.CAN_EXPORT));
 
+// Export rate limiter: 10 requests per hour per user
+// Export operations are resource-intensive, so we use a strict limit
+const exportRateLimiter = createRateLimitMiddleware({
+  store: rateLimitStore,
+  tier: rateLimitConfig.tiers.resource.export,
+  keyStrategy: "user",
+  keyPrefix: "resource-export",
+});
+
 /**
  * GET /export/contacts - Export contacts
  * Query params: format (csv|json), tagIds, assignedTo, hasCustomName
+ * Rate limit: 10 requests per hour per user
  */
-exportRoutes.get("/contacts", async (c) => {
+exportRoutes.get("/contacts", exportRateLimiter, async (c) => {
   const companyId = c.get("companyId");
   const format = (c.req.query("format") as "csv" | "json") || "csv";
   const tagIds = c.req.query("tagIds")?.split(",").filter(Boolean);
@@ -47,8 +59,9 @@ exportRoutes.get("/contacts", async (c) => {
 /**
  * GET /export/messages - Export messages
  * Query params: format (csv|json), contactId, startDate, endDate, messageTypes, limit
+ * Rate limit: 10 requests per hour per user
  */
-exportRoutes.get("/messages", async (c) => {
+exportRoutes.get("/messages", exportRateLimiter, async (c) => {
   const companyId = c.get("companyId");
   const format = (c.req.query("format") as "csv" | "json") || "csv";
   const contactId = c.req.query("contactId");
@@ -84,8 +97,9 @@ exportRoutes.get("/messages", async (c) => {
 /**
  * GET /export/conversation/:contactId - Export conversation for a specific contact
  * Query params: format (csv|json), startDate, endDate
+ * Rate limit: 10 requests per hour per user
  */
-exportRoutes.get("/conversation/:contactId", async (c) => {
+exportRoutes.get("/conversation/:contactId", exportRateLimiter, async (c) => {
   const companyId = c.get("companyId");
   const contactId = c.req.param("contactId");
   const format = (c.req.query("format") as "csv" | "json") || "json";
@@ -124,8 +138,9 @@ exportRoutes.get("/conversation/:contactId", async (c) => {
 /**
  * GET /export/full - Full backup as ZIP file
  * Query params: startDate, endDate
+ * Rate limit: 10 requests per hour per user
  */
-exportRoutes.get("/full", async (c) => {
+exportRoutes.get("/full", exportRateLimiter, async (c) => {
   const companyId = c.get("companyId");
   const startDateStr = c.req.query("startDate");
   const endDateStr = c.req.query("endDate");
@@ -152,8 +167,9 @@ exportRoutes.get("/full", async (c) => {
 /**
  * POST /export/bulk - Bulk export with custom filters
  * Body: { type: 'contacts' | 'messages', format: 'csv' | 'json', filters: {...} }
+ * Rate limit: 10 requests per hour per user
  */
-exportRoutes.post("/bulk", async (c) => {
+exportRoutes.post("/bulk", exportRateLimiter, async (c) => {
   const companyId = c.get("companyId");
   const body = await c.req.json<{
     type: "contacts" | "messages";

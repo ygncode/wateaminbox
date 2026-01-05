@@ -254,6 +254,7 @@ export function createMockMessage(overrides: Partial<MockMessage> = {}): MockMes
     deleted_at: null,
     sent_by_user_id: null,
     status: "sent" as const,
+    metadata: null,
     timestamp: new Date(),
     created_at: new Date(),
     search_vector: null,
@@ -371,6 +372,7 @@ export interface MockMessage {
   deleted_at: Date | null;
   sent_by_user_id: string | null;
   status: "pending" | "sent" | "delivered" | "read" | "failed";
+  metadata: Record<string, unknown> | null;
   timestamp: Date;
   created_at: Date;
   search_vector: unknown | null;

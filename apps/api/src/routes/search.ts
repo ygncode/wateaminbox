@@ -1,9 +1,11 @@
 import { Hono } from "hono";
 import { authMiddleware } from "../middleware/auth.js";
 import { tenantMiddleware } from "../middleware/tenant.js";
+import { createRateLimitMiddleware } from "../middleware/rate-limit.js";
 import * as searchService from "../services/search.service.js";
 import * as meilisearchService from "../services/meilisearch.service.js";
 import { getTenantConnection } from "../services/tenant.service.js";
+import { rateLimitConfig, rateLimitStore } from "../lib/rate-limit-store.js";
 
 export const searchRoutes = new Hono();
 
@@ -11,11 +13,21 @@ export const searchRoutes = new Hono();
 searchRoutes.use("/*", authMiddleware);
 searchRoutes.use("/*", tenantMiddleware());
 
+// Search rate limiter: 30 requests per minute per user
+// Uses user-based keys since these are authenticated routes
+const searchRateLimiter = createRateLimitMiddleware({
+  store: rateLimitStore,
+  tier: rateLimitConfig.tiers.resource.search,
+  keyStrategy: "user",
+  keyPrefix: "resource-search",
+});
+
 /**
  * GET /search - Global search across messages and contacts
  * Query params: q (required), limit
+ * Rate limit: 30 requests per minute per user
  */
-searchRoutes.get("/", async (c) => {
+searchRoutes.get("/", searchRateLimiter, async (c) => {
   const companyId = c.get("companyId");
   const query = c.req.query("q");
   const limit = parseInt(c.req.query("limit") || "10", 10);
@@ -41,8 +53,9 @@ searchRoutes.get("/", async (c) => {
 /**
  * GET /search/messages - Search messages only
  * Query params: q (required), limit, offset, contactId, startDate, endDate, messageTypes
+ * Rate limit: 30 requests per minute per user
  */
-searchRoutes.get("/messages", async (c) => {
+searchRoutes.get("/messages", searchRateLimiter, async (c) => {
   const companyId = c.get("companyId");
   const query = c.req.query("q");
   const limit = parseInt(c.req.query("limit") || "50", 10);
@@ -92,8 +105,9 @@ searchRoutes.get("/messages", async (c) => {
 /**
  * GET /search/contacts - Search contacts only
  * Query params: q (required), limit, offset, includeGroups
+ * Rate limit: 30 requests per minute per user
  */
-searchRoutes.get("/contacts", async (c) => {
+searchRoutes.get("/contacts", searchRateLimiter, async (c) => {
   const companyId = c.get("companyId");
   const query = c.req.query("q");
   const limit = parseInt(c.req.query("limit") || "50", 10);

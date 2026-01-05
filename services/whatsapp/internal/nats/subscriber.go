@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/nats-io/nats.go"
+
+	"github.com/ygncode-lab/whatsapp-web/services/whatsapp/internal/types"
 )
 
 const (
@@ -38,8 +40,8 @@ type SendMessageCommand struct {
 
 // MessageSender is the interface for sending WhatsApp messages.
 type MessageSender interface {
-	SendMessage(ctx context.Context, jid string, text string, replyTo string, replyToSender string) error
-	SendMediaMessage(ctx context.Context, jid string, mediaType string, data []byte, caption string, fileName string, mimeType string, replyTo string, replyToSender string) error
+	SendMessage(ctx context.Context, jid string, text string, replyTo string, replyToSender string) (types.SendResponse, error)
+	SendMediaMessage(ctx context.Context, jid string, mediaType string, data []byte, caption string, fileName string, mimeType string, replyTo string, replyToSender string) (types.SendResponse, error)
 }
 
 // Subscriber handles subscribing to NATS command subjects.
@@ -49,6 +51,7 @@ type Subscriber struct {
 	companyID    string
 	connectionID string
 	sender       MessageSender
+	publisher    *Publisher
 	sub          *nats.Subscription
 	ctx          context.Context
 	cancel       context.CancelFunc
@@ -60,6 +63,7 @@ type SubscriberConfig struct {
 	CompanyID    string
 	ConnectionID string
 	Sender       MessageSender
+	Publisher    *Publisher
 }
 
 // NewSubscriber creates a new NATS subscriber.
@@ -97,6 +101,7 @@ func NewSubscriber(cfg SubscriberConfig) (*Subscriber, error) {
 		companyID:    cfg.CompanyID,
 		connectionID: cfg.ConnectionID,
 		sender:       cfg.Sender,
+		publisher:    cfg.Publisher,
 		ctx:          ctx,
 		cancel:       cancel,
 	}, nil
@@ -222,15 +227,16 @@ func (s *Subscriber) handleSendCommand(msg *nats.Msg) {
 
 	log.Printf("Processing send command: type=%s, to=%s, reply_to=%s, reply_to_sender=%s", cmd.Type, cmd.To, cmd.ReplyTo, cmd.ReplyToSender)
 
+	var resp types.SendResponse
 	var err error
 	ctx, cancel := context.WithTimeout(s.ctx, 30*time.Second)
 	defer cancel()
 
 	switch cmd.Type {
 	case "text":
-		err = s.sender.SendMessage(ctx, cmd.To, cmd.Content, cmd.ReplyTo, cmd.ReplyToSender)
+		resp, err = s.sender.SendMessage(ctx, cmd.To, cmd.Content, cmd.ReplyTo, cmd.ReplyToSender)
 	case "image", "video", "audio", "document":
-		err = s.sender.SendMediaMessage(ctx, cmd.To, cmd.Type, cmd.MediaData, cmd.Caption, cmd.FileName, cmd.MimeType, cmd.ReplyTo, cmd.ReplyToSender)
+		resp, err = s.sender.SendMediaMessage(ctx, cmd.To, cmd.Type, cmd.MediaData, cmd.Caption, cmd.FileName, cmd.MimeType, cmd.ReplyTo, cmd.ReplyToSender)
 	default:
 		log.Printf("Unknown message type: %s", cmd.Type)
 		msg.Nak()
@@ -241,6 +247,16 @@ func (s *Subscriber) handleSendCommand(msg *nats.Msg) {
 		log.Printf("Failed to send message: %v", err)
 		msg.Nak()
 		return
+	}
+
+	// Publish send confirmation event with the real WhatsApp message ID
+	if s.publisher != nil {
+		if err := s.publisher.PublishSendConfirmation(cmd.MessageID, resp.ID, resp.Timestamp); err != nil {
+			log.Printf("Failed to publish send confirmation: %v", err)
+			// Don't Nak - the message was sent successfully, we just failed to notify
+		} else {
+			log.Printf("Published send confirmation: %s -> %s", cmd.MessageID, resp.ID)
+		}
 	}
 
 	log.Printf("Successfully sent message to %s", cmd.To)
