@@ -409,7 +409,7 @@ export class WebSocketClient {
   }
 
   private handleOpen(): void {
-    console.log('[WebSocket] Connected')
+    console.log('[WebSocket] ✅ Connected - Realtime updates enabled')
     this.clearConnectionTimeout()
     this.setStatus('connected')
     this.reconnectCount = 0
