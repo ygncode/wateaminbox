@@ -206,10 +206,7 @@ notificationRoutes.get(
       });
     } catch (error) {
       // Handle missing table or database errors gracefully
-      if (
-        error instanceof Error &&
-        error.message.includes("does not exist")
-      ) {
+      if (error instanceof Error && error.message.includes("does not exist")) {
         return c.json({
           data: [],
           meta: {

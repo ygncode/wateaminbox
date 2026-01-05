@@ -175,7 +175,12 @@ catalogRoutes.post("/:catalogId/sync-products", async (c) => {
   }
 
   // Publish sync command to NATS
-  await publishSyncCatalogProducts(companyId, connection.id, catalogId, user.id);
+  await publishSyncCatalogProducts(
+    companyId,
+    connection.id,
+    catalogId,
+    user.id,
+  );
 
   return c.json({
     message:

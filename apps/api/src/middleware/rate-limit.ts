@@ -6,24 +6,24 @@
  * standard rate limit headers.
  */
 
-import { Context, Next } from 'hono'
-import type { RateLimitStore, RateLimitResult } from '../lib/rate-limit-store'
-import type { RateLimitTier } from '../config/rate-limit.config'
+import { Context, Next } from "hono";
+import type { RateLimitStore, RateLimitResult } from "../lib/rate-limit-store";
+import type { RateLimitTier } from "../config/rate-limit.config";
 
 /**
  * Standard rate limit response headers
  */
 export const RATE_LIMIT_HEADERS = {
-  LIMIT: 'X-RateLimit-Limit',
-  REMAINING: 'X-RateLimit-Remaining',
-  RESET: 'X-RateLimit-Reset',
-  RETRY_AFTER: 'Retry-After',
-} as const
+  LIMIT: "X-RateLimit-Limit",
+  REMAINING: "X-RateLimit-Remaining",
+  RESET: "X-RateLimit-Reset",
+  RETRY_AFTER: "Retry-After",
+} as const;
 
 /**
  * Key generation strategy options
  */
-export type KeyStrategy = 'ip' | 'user' | 'tenant' | 'user-tenant'
+export type KeyStrategy = "ip" | "user" | "tenant" | "user-tenant";
 
 /**
  * Options for configuring the rate limit middleware
@@ -32,12 +32,12 @@ export interface RateLimitOptions {
   /**
    * The rate limit store to use for tracking counters
    */
-  store: RateLimitStore
+  store: RateLimitStore;
 
   /**
    * Rate limit tier configuration (requests per window)
    */
-  tier: RateLimitTier
+  tier: RateLimitTier;
 
   /**
    * How to generate the rate limit key
@@ -46,37 +46,40 @@ export interface RateLimitOptions {
    * - 'tenant': Use tenant (company) ID
    * - 'user-tenant': Combine user ID and tenant ID
    */
-  keyStrategy: KeyStrategy
+  keyStrategy: KeyStrategy;
 
   /**
    * Prefix for the rate limit key (useful for namespacing)
    * Default: 'ratelimit'
    */
-  keyPrefix?: string
+  keyPrefix?: string;
 
   /**
    * Optional function to skip rate limiting for certain requests
    * Return true to skip rate limiting for this request
    */
-  skip?: (c: Context) => boolean | Promise<boolean>
+  skip?: (c: Context) => boolean | Promise<boolean>;
 
   /**
    * Optional custom key generator
    * If provided, this overrides keyStrategy
    */
-  generateKey?: (c: Context) => string | Promise<string>
+  generateKey?: (c: Context) => string | Promise<string>;
 
   /**
    * Optional handler for when rate limit is exceeded
    * If not provided, uses default 429 response
    */
-  onLimitReached?: (c: Context, result: RateLimitResult) => Response | Promise<Response>
+  onLimitReached?: (
+    c: Context,
+    result: RateLimitResult,
+  ) => Response | Promise<Response>;
 
   /**
    * Whether to set rate limit headers on successful responses
    * Default: true
    */
-  setHeaders?: boolean
+  setHeaders?: boolean;
 }
 
 /**
@@ -85,25 +88,25 @@ export interface RateLimitOptions {
  */
 function getClientIp(c: Context): string {
   // Check common proxy headers first
-  const forwardedFor = c.req.header('x-forwarded-for')
+  const forwardedFor = c.req.header("x-forwarded-for");
   if (forwardedFor) {
     // Take the first IP from the comma-separated list
-    return forwardedFor.split(',')[0].trim()
+    return forwardedFor.split(",")[0].trim();
   }
 
-  const realIp = c.req.header('x-real-ip')
+  const realIp = c.req.header("x-real-ip");
   if (realIp) {
-    return realIp.trim()
+    return realIp.trim();
   }
 
-  const cfConnectingIp = c.req.header('cf-connecting-ip')
+  const cfConnectingIp = c.req.header("cf-connecting-ip");
   if (cfConnectingIp) {
-    return cfConnectingIp.trim()
+    return cfConnectingIp.trim();
   }
 
   // Fall back to the remote address (may not be available in all setups)
   // @ts-expect-error - Hono doesn't expose this in types but it's available at runtime
-  return c.req.raw?.header?.['x-forwarded-for'] || 'unknown'
+  return c.req.raw?.header?.["x-forwarded-for"] || "unknown";
 }
 
 /**
@@ -112,56 +115,56 @@ function getClientIp(c: Context): string {
 async function generateKey(
   c: Context,
   strategy: KeyStrategy,
-  prefix: string = 'ratelimit'
+  prefix: string = "ratelimit",
 ): Promise<string> {
-  const parts = [prefix]
+  const parts = [prefix];
 
   switch (strategy) {
-    case 'ip':
-      parts.push('ip', getClientIp(c))
-      break
+    case "ip":
+      parts.push("ip", getClientIp(c));
+      break;
 
-    case 'user': {
-      const user = c.get('user')
+    case "user": {
+      const user = c.get("user");
       if (!user?.id) {
         // Fall back to IP if user is not authenticated
-        parts.push('ip', getClientIp(c))
+        parts.push("ip", getClientIp(c));
       } else {
-        parts.push('user', user.id)
+        parts.push("user", user.id);
       }
-      break
+      break;
     }
 
-    case 'tenant': {
-      const companyId = c.get('companyId')
+    case "tenant": {
+      const companyId = c.get("companyId");
       if (!companyId) {
         // Fall back to IP if tenant is not available
-        parts.push('ip', getClientIp(c))
+        parts.push("ip", getClientIp(c));
       } else {
-        parts.push('tenant', companyId)
+        parts.push("tenant", companyId);
       }
-      break
+      break;
     }
 
-    case 'user-tenant': {
-      const user = c.get('user')
-      const companyId = c.get('companyId')
+    case "user-tenant": {
+      const user = c.get("user");
+      const companyId = c.get("companyId");
 
       if (user?.id && companyId) {
-        parts.push('user', user.id, 'tenant', companyId)
+        parts.push("user", user.id, "tenant", companyId);
       } else if (user?.id) {
-        parts.push('user', user.id)
+        parts.push("user", user.id);
       } else {
-        parts.push('ip', getClientIp(c))
+        parts.push("ip", getClientIp(c));
       }
-      break
+      break;
     }
 
     default:
-      parts.push('ip', getClientIp(c))
+      parts.push("ip", getClientIp(c));
   }
 
-  return parts.join(':')
+  return parts.join(":");
 }
 
 /**
@@ -170,11 +173,14 @@ async function generateKey(
 function setRateLimitHeaders(
   c: Context,
   result: RateLimitResult,
-  headers: typeof RATE_LIMIT_HEADERS
+  headers: typeof RATE_LIMIT_HEADERS,
 ): void {
-  c.header(headers.LIMIT, result.limit.toString())
-  c.header(headers.REMAINING, Math.max(0, result.limit - result.currentCount).toString())
-  c.header(headers.RESET, result.resetAt.toString())
+  c.header(headers.LIMIT, result.limit.toString());
+  c.header(
+    headers.REMAINING,
+    Math.max(0, result.limit - result.currentCount).toString(),
+  );
+  c.header(headers.RESET, result.resetAt.toString());
 }
 
 /**
@@ -183,20 +189,20 @@ function setRateLimitHeaders(
 function defaultRateLimitExceededResponse(
   c: Context,
   result: RateLimitResult,
-  headers: typeof RATE_LIMIT_HEADERS
+  headers: typeof RATE_LIMIT_HEADERS,
 ): Response {
   // Set rate limit headers
-  setRateLimitHeaders(c, result, headers)
-  c.header(headers.RETRY_AFTER, result.retryAfter.toString())
+  setRateLimitHeaders(c, result, headers);
+  c.header(headers.RETRY_AFTER, result.retryAfter.toString());
 
   return c.json(
     {
-      error: 'Too Many Requests',
+      error: "Too Many Requests",
       message: `Rate limit exceeded. Try again in ${result.retryAfter} seconds.`,
       retryAfter: result.retryAfter,
     },
-    429
-  )
+    429,
+  );
 }
 
 /**
@@ -236,90 +242,112 @@ export function createRateLimitMiddleware(options: RateLimitOptions) {
     store,
     tier,
     keyStrategy,
-    keyPrefix = 'ratelimit',
+    keyPrefix = "ratelimit",
     skip,
     generateKey: customKeyGenerator,
     onLimitReached,
     setHeaders = true,
-  } = options
+  } = options;
 
   return async (c: Context, next: Next) => {
     // Check if we should skip rate limiting for this request
     if (skip && (await skip(c))) {
-      await next()
-      return
+      await next();
+      return;
     }
 
     // Generate the rate limit key
-    const key = customKeyGenerator ? await customKeyGenerator(c) : await generateKey(c, keyStrategy, keyPrefix)
+    const key = customKeyGenerator
+      ? await customKeyGenerator(c)
+      : await generateKey(c, keyStrategy, keyPrefix);
 
     // Increment the counter and check if limit is exceeded
-    const result = await store.increment(key, tier.requests, tier.windowSeconds)
+    const result = await store.increment(
+      key,
+      tier.requests,
+      tier.windowSeconds,
+    );
 
     // Set headers on all responses if enabled
     if (setHeaders) {
-      setRateLimitHeaders(c, result, RATE_LIMIT_HEADERS)
+      setRateLimitHeaders(c, result, RATE_LIMIT_HEADERS);
     }
 
     // Check if limit is exceeded
     if (!result.allowed) {
       if (onLimitReached) {
-        return onLimitReached(c, result)
+        return onLimitReached(c, result);
       }
-      return defaultRateLimitExceededResponse(c, result, RATE_LIMIT_HEADERS)
+      return defaultRateLimitExceededResponse(c, result, RATE_LIMIT_HEADERS);
     }
 
     // Continue to next middleware/handler
-    await next()
-  }
+    await next();
+  };
 }
 
 /**
  * Shorthand for IP-based rate limiting (common for public endpoints)
  */
-export function ipRateLimit(store: RateLimitStore, tier: RateLimitTier, prefix?: string) {
+export function ipRateLimit(
+  store: RateLimitStore,
+  tier: RateLimitTier,
+  prefix?: string,
+) {
   return createRateLimitMiddleware({
     store,
     tier,
-    keyStrategy: 'ip',
+    keyStrategy: "ip",
     keyPrefix: prefix,
-  })
+  });
 }
 
 /**
  * Shorthand for user-based rate limiting (for authenticated endpoints)
  */
-export function userRateLimit(store: RateLimitStore, tier: RateLimitTier, prefix?: string) {
+export function userRateLimit(
+  store: RateLimitStore,
+  tier: RateLimitTier,
+  prefix?: string,
+) {
   return createRateLimitMiddleware({
     store,
     tier,
-    keyStrategy: 'user',
+    keyStrategy: "user",
     keyPrefix: prefix,
-  })
+  });
 }
 
 /**
  * Shorthand for tenant-based rate limiting (for multi-tenant scenarios)
  */
-export function tenantRateLimit(store: RateLimitStore, tier: RateLimitTier, prefix?: string) {
+export function tenantRateLimit(
+  store: RateLimitStore,
+  tier: RateLimitTier,
+  prefix?: string,
+) {
   return createRateLimitMiddleware({
     store,
     tier,
-    keyStrategy: 'tenant',
+    keyStrategy: "tenant",
     keyPrefix: prefix,
-  })
+  });
 }
 
 /**
  * Shorthand for combined user+tenant rate limiting
  */
-export function userTenantRateLimit(store: RateLimitStore, tier: RateLimitTier, prefix?: string) {
+export function userTenantRateLimit(
+  store: RateLimitStore,
+  tier: RateLimitTier,
+  prefix?: string,
+) {
   return createRateLimitMiddleware({
     store,
     tier,
-    keyStrategy: 'user-tenant',
+    keyStrategy: "user-tenant",
     keyPrefix: prefix,
-  })
+  });
 }
 
 /**
@@ -327,22 +355,22 @@ export function userTenantRateLimit(store: RateLimitStore, tier: RateLimitTier, 
  */
 export function skipPaths(paths: string[] | RegExp[]): (c: Context) => boolean {
   return (c: Context) => {
-    const path = c.req.path
+    const path = c.req.path;
     return paths.some((p) => {
       if (p instanceof RegExp) {
-        return p.test(path)
+        return p.test(path);
       }
-      return path === p || path.startsWith(p + '/')
-    })
-  }
+      return path === p || path.startsWith(p + "/");
+    });
+  };
 }
 
 /**
  * Helper to create a skip function for certain HTTP methods
  */
 export function skipMethods(methods: string[]): (c: Context) => boolean {
-  const upperMethods = methods.map((m) => m.toUpperCase())
+  const upperMethods = methods.map((m) => m.toUpperCase());
   return (c: Context) => {
-    return upperMethods.includes(c.req.method)
-  }
+    return upperMethods.includes(c.req.method);
+  };
 }

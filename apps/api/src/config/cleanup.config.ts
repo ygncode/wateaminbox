@@ -9,10 +9,10 @@
  */
 
 export interface MessageCleanupConfig {
-  enabled: boolean
-  timeoutMinutes: number
-  intervalMinutes: number
-  batchSize: number
+  enabled: boolean;
+  timeoutMinutes: number;
+  intervalMinutes: number;
+  batchSize: number;
 }
 
 /**
@@ -21,41 +21,41 @@ export interface MessageCleanupConfig {
  */
 export function getCleanupConfig(): MessageCleanupConfig {
   return {
-    enabled: process.env.MESSAGE_CLEANUP_ENABLED !== 'false',
+    enabled: process.env.MESSAGE_CLEANUP_ENABLED !== "false",
     timeoutMinutes: parsePositiveInt(
       process.env.MESSAGE_CLEANUP_TIMEOUT_MINUTES,
-      5
+      5,
     ),
     intervalMinutes: parsePositiveInt(
       process.env.MESSAGE_CLEANUP_INTERVAL_MINUTES,
-      1
+      1,
     ),
-    batchSize: parsePositiveInt(
-      process.env.MESSAGE_CLEANUP_BATCH_SIZE,
-      100
-    ),
-  }
+    batchSize: parsePositiveInt(process.env.MESSAGE_CLEANUP_BATCH_SIZE, 100),
+  };
 }
 
 /**
  * Parse a positive integer from an environment variable
  * Returns the default value if parsing fails or the value is not positive
  */
-function parsePositiveInt(value: string | undefined, defaultValue: number): number {
-  if (value === undefined || value === '') {
-    return defaultValue
+function parsePositiveInt(
+  value: string | undefined,
+  defaultValue: number,
+): number {
+  if (value === undefined || value === "") {
+    return defaultValue;
   }
 
-  const parsed = Number.parseInt(value, 10)
+  const parsed = Number.parseInt(value, 10);
 
   if (Number.isNaN(parsed) || parsed <= 0) {
     console.warn(
-      `[CleanupConfig] Invalid value "${value}" for environment variable, using default: ${defaultValue}`
-    )
-    return defaultValue
+      `[CleanupConfig] Invalid value "${value}" for environment variable, using default: ${defaultValue}`,
+    );
+    return defaultValue;
   }
 
-  return parsed
+  return parsed;
 }
 
 /**
@@ -63,32 +63,26 @@ function parsePositiveInt(value: string | undefined, defaultValue: number): numb
  * Returns true if the configuration is valid
  */
 export function isValidCleanupConfig(config: MessageCleanupConfig): boolean {
-  if (typeof config.enabled !== 'boolean') {
-    return false
+  if (typeof config.enabled !== "boolean") {
+    return false;
+  }
+
+  if (typeof config.timeoutMinutes !== "number" || config.timeoutMinutes <= 0) {
+    return false;
   }
 
   if (
-    typeof config.timeoutMinutes !== 'number' ||
-    config.timeoutMinutes <= 0
-  ) {
-    return false
-  }
-
-  if (
-    typeof config.intervalMinutes !== 'number' ||
+    typeof config.intervalMinutes !== "number" ||
     config.intervalMinutes <= 0
   ) {
-    return false
+    return false;
   }
 
-  if (
-    typeof config.batchSize !== 'number' ||
-    config.batchSize <= 0
-  ) {
-    return false
+  if (typeof config.batchSize !== "number" || config.batchSize <= 0) {
+    return false;
   }
 
-  return true
+  return true;
 }
 
 /**
@@ -99,4 +93,4 @@ export const DEFAULT_CLEANUP_CONFIG: MessageCleanupConfig = {
   timeoutMinutes: 5,
   intervalMinutes: 1,
   batchSize: 100,
-}
+};

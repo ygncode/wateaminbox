@@ -127,12 +127,7 @@ conversationRoutes.post(
     const contactId = c.req.param("id");
     const body = await c.req.json();
 
-    const {
-      content,
-      messageType = "text",
-      mediaUrl,
-      replyToMessageId,
-    } = body;
+    const { content, messageType = "text", mediaUrl, replyToMessageId } = body;
 
     if (!content && messageType === "text") {
       return c.json({ error: "content is required for text messages" }, 400);

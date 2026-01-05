@@ -4,25 +4,36 @@
 # Agent Loop - Autonomous AI-driven code workflow
 # =============================================================================
 #
-# Usage: ./agent-loop.sh <prompt.md> [OPTIONS]
+# Usage: ./agent-loop.sh <tasks.md> [OPTIONS]
+#
+# The tasks.md file contains a list of high-level tasks:
+#   - [ ] fix the login bug
+#   - [ ] add rate limiting to API
+#   - [ ] improve error handling
+#
+# For each task, the script will:
+#   1. Classify task type (feature/bug/chore/refactor/docs) using Haiku
+#   2. Route to appropriate workflow:
+#      - FEATURE:  Full (requirements → specs → subtasks → execute → review → merge)
+#      - REFACTOR: Medium (requirements → subtasks → execute → review → merge)
+#      - BUG:      Light (direct fix → code review → merge)
+#      - CHORE:    Light (direct fix → code review → merge)
+#      - DOCS:     Minimal (direct fix → merge)
+#   3. Auto squash-merge and sync main
+#   4. Mark task as [x] done in tasks.md
+#   5. Move to next task
 #
 # Options:
-#   --max-cycles N          Max full workflow cycles (default: 1)
 #   --max-review-iters N    Max review iterations per phase (default: 3)
 #   --dry-run               Print commands without executing
 #   --resume                Resume from saved state
 #   --verbose               Show detailed output
-#
-# Workflow:
-#   1. Read prompt.md → Generate requirement.md (with review loop)
-#   2. Requirement approved → Generate specs.md (with review loop)
-#   3. Specs approved → Generate tasks.md
-#   4. Execute tasks one by one (with code review loop)
-#   5. All tasks done → Create single branch and PR
+#   --skip-merge            Create PR but don't auto-merge
 #
 # =============================================================================
 
-set -e
+# NOTE: We do NOT use set -e because we handle errors explicitly
+# set -e would cause script to die on any command failure
 
 # Load .env if exists
 if [ -f "$(pwd)/.env" ]; then
@@ -36,16 +47,17 @@ fi
 # =============================================================================
 PROJECT_DIR="$(pwd)"
 LOOP_DIR="$PROJECT_DIR/.loop"
-PROMPT_FILE=""
-MAX_CYCLES=1
-MAX_REVIEW_ITERS=3
+TASKS_FILE=""
 DRY_RUN=false
 RESUME_MODE=false
 VERBOSE=false
+SKIP_MERGE=false
 
 # State tracking
-CURRENT_CYCLE=0
+CURRENT_TASK=""
+CURRENT_TASK_INDEX=0
 CURRENT_SLUG=""
+CURRENT_TASK_TYPE=""  # feature, bug, chore, refactor, docs
 
 # Colors
 RED='\033[0;31m'
@@ -62,14 +74,6 @@ NC='\033[0m'
 parse_args() {
     while [[ "$#" -gt 0 ]]; do
         case $1 in
-            --max-cycles)
-                MAX_CYCLES="$2"
-                shift 2
-                ;;
-            --max-review-iters)
-                MAX_REVIEW_ITERS="$2"
-                shift 2
-                ;;
             --dry-run)
                 DRY_RUN=true
                 shift
@@ -82,6 +86,10 @@ parse_args() {
                 VERBOSE=true
                 shift
                 ;;
+            --skip-merge)
+                SKIP_MERGE=true
+                shift
+                ;;
             -h|--help)
                 show_help
                 exit 0
@@ -92,43 +100,59 @@ parse_args() {
                 exit 1
                 ;;
             *)
-                if [ -z "$PROMPT_FILE" ]; then
-                    PROMPT_FILE="$1"
+                if [ -z "$TASKS_FILE" ]; then
+                    TASKS_FILE="$1"
                 fi
                 shift
                 ;;
         esac
     done
 
-    if [ -z "$PROMPT_FILE" ] && [ "$RESUME_MODE" != true ]; then
-        log_error "Prompt file required. Usage: $0 <prompt.md> [OPTIONS]"
+    if [ -z "$TASKS_FILE" ] && [ "$RESUME_MODE" != true ]; then
+        log_error "Tasks file required. Usage: $0 <tasks.md> [OPTIONS]"
         exit 1
     fi
 }
 
 show_help() {
     cat << 'EOF'
-Agent Loop - Autonomous AI-driven code workflow
+Agent Loop - Fully Autonomous AI-driven code workflow
 
-Usage: ./agent-loop.sh <prompt.md> [OPTIONS]
+Usage: ./agent-loop.sh <tasks.md> [OPTIONS]
 
-Arguments:
-  prompt.md               Path to the prompt file describing the task
+The tasks.md file contains a list of high-level tasks:
+  - [ ] fix the login bug
+  - [ ] add rate limiting to API
+  - [ ] improve error handling
+
+For each task, the AI will:
+  1. Classify task type (feature/bug/chore/refactor/docs)
+  2. Route to appropriate workflow:
+
+     FEATURE  → Full    (requirements → specs → subtasks → execute → review → test → merge)
+     REFACTOR → Medium  (requirements → subtasks → execute → review → test → merge)
+     BUG      → Light   (direct fix → code review → test → merge)
+     CHORE    → Light   (direct fix → code review → test → merge)
+     DOCS     → Minimal (direct fix → test → merge)
+
+  3. Auto squash-merge and sync main
+  4. Mark task as [x] done in tasks.md
+  5. Move to next task
+
+AI handles ALL decisions:
+  - Picks model: Haiku classifies → Sonnet (simple) or Opus (complex)
+  - Reviews until approved (no iteration limit)
+  - Tests until pass or blocked
+  - Resolves git conflicts
+  - Waits for CI, retries merges
+  - Fixes errors and retries
 
 Options:
-  --max-cycles N          Max full workflow cycles (default: 1)
-  --max-review-iters N    Max review iterations per phase (default: 3)
   --dry-run               Print commands without executing
   --resume                Resume from saved state in .loop/state.json
   --verbose               Show detailed output
+  --skip-merge            Create PR but don't auto-merge
   -h, --help              Show this help message
-
-Workflow:
-  1. Read prompt → Generate requirement.md (with review loop)
-  2. Requirement approved → Generate specs.md (with review loop)
-  3. Specs approved → Generate tasks.md
-  4. Execute tasks one by one (with code review loop)
-  5. Create single branch and PR at the end
 
 State:
   - All artifacts stored in .loop/{slug}/
@@ -157,16 +181,77 @@ log_verbose() {
 # Core Functions
 # =============================================================================
 
-# Run cyolo (Claude with opus model)
+# Classify task complexity using Haiku (fast/cheap)
+# Returns: "simple" or "complex"
+classify_complexity() {
+    local task_description="$1"
+
+    if [ "$DRY_RUN" = true ]; then
+        echo "complex"
+        return
+    fi
+
+    local classify_prompt="Classify this task's complexity for an AI coding assistant:
+
+TASK: $task_description
+
+SIMPLE tasks (use Sonnet):
+- Single file changes
+- Bug fixes with clear cause
+- Adding simple functions
+- Config changes
+- Documentation updates
+- Straightforward refactors
+- Code that follows existing patterns
+
+COMPLEX tasks (use Opus):
+- Multi-file architectural changes
+- Designing new systems/features
+- Complex debugging requiring deep analysis
+- Security-sensitive code
+- Performance optimization
+- Database migrations
+- API design decisions
+- Anything requiring creative problem-solving
+
+Output ONLY one word: 'simple' or 'complex'. Nothing else."
+
+    local result
+    result=$(claude --dangerously-skip-permissions --model haiku -p "$classify_prompt" 2>/dev/null | tr '[:upper:]' '[:lower:]' | grep -o -E '(simple|complex)' | head -1)
+
+    echo "${result:-complex}"
+}
+
+# Run cyolo with smart model selection
+# AI (Haiku) decides whether to use Sonnet (simple) or Opus (complex)
 run_cyolo() {
     local prompt="$1"
     local description="${2:-Running agent}"
+    local force_model="${3:-auto}"  # auto, sonnet, or opus
 
     log_agent "$description"
 
     if [ "$DRY_RUN" = true ]; then
-        echo "[DRY-RUN] claude --dangerously-skip-permissions --model opus -p <prompt>" >&2
+        echo "[DRY-RUN] claude --dangerously-skip-permissions --model <auto> -p <prompt>" >&2
         return 0
+    fi
+
+    # Determine model to use
+    local model="opus"
+    if [ "$force_model" = "auto" ]; then
+        local complexity
+        complexity=$(classify_complexity "$description")
+        if [ "$complexity" = "simple" ]; then
+            model="sonnet"
+            log_verbose "Complexity: SIMPLE → using Sonnet"
+        else
+            model="opus"
+            log_verbose "Complexity: COMPLEX → using Opus"
+        fi
+    elif [ "$force_model" = "sonnet" ]; then
+        model="sonnet"
+    else
+        model="opus"
     fi
 
     # Load system prompt if exists
@@ -181,15 +266,7 @@ $prompt"
         log_verbose "Loaded system prompt from .loop/.system-prompt.md"
     fi
 
-    claude --dangerously-skip-permissions --model opus -p "$prompt" >&2
-}
-
-# Run cyolo with prompt from file
-run_cyolo_file() {
-    local prompt_file="$1"
-    local description="${2:-Running agent}"
-
-    run_cyolo "$(cat "$prompt_file")" "$description"
+    claude --dangerously-skip-permissions --model "$model" -p "$prompt" >&2
 }
 
 # Run command (for git, etc.)
@@ -201,25 +278,24 @@ run_cmd() {
     "$@"
 }
 
-# Generate slug from prompt content
+# Generate slug from task description
 generate_slug() {
-    local prompt_content="$1"
+    local task_description="$1"
     local slug_file="$LOOP_DIR/.slug-temp.txt"
-    local prompt
 
-    prompt="Analyze this task description and generate a short, descriptive slug (kebab-case, 2-4 words).
+    local prompt="Analyze this task and generate a short, descriptive slug (kebab-case, 2-4 words).
 Examples: 'api-rate-limiting', 'contact-sync-fix', 'websocket-reconnect', 'message-delivery-timeout'
 
-Task description:
-$prompt_content
+Task: $task_description
 
 Output ONLY the slug, nothing else. No explanation, no quotes, just the slug."
 
     if [ "$DRY_RUN" = true ]; then
-        echo "dry-run-slug"
+        echo "dry-run-slug-$(date +%s)"
         return
     fi
 
+    mkdir -p "$LOOP_DIR"
     claude --dangerously-skip-permissions --model haiku -p "$prompt" > "$slug_file" 2>/dev/null
 
     local slug
@@ -233,6 +309,105 @@ Output ONLY the slug, nothing else. No explanation, no quotes, just the slug."
     fi
 
     echo "$slug"
+}
+
+# Classify task type using Haiku (fast/cheap)
+classify_task() {
+    local task_description="$1"
+
+    log_step "Classifying task type..."
+
+    if [ "$DRY_RUN" = true ]; then
+        echo "feature"
+        return
+    fi
+
+    local classify_prompt="Classify this task into ONE of these categories:
+- feature: New functionality, adding capabilities
+- bug: Fixing broken behavior, errors, crashes
+- chore: Maintenance, dependencies, cleanup, config
+- refactor: Code restructuring without changing behavior
+- docs: Documentation updates, comments, README
+
+Task: $task_description
+
+Rules:
+- If it mentions 'fix', 'broken', 'error', 'not working' → bug
+- If it mentions 'add', 'implement', 'new', 'create' → feature
+- If it mentions 'update deps', 'cleanup', 'remove unused' → chore
+- If it mentions 'refactor', 'restructure', 'improve code' → refactor
+- If it mentions 'docs', 'readme', 'comments', 'documentation' → docs
+
+Output ONLY one word: feature, bug, chore, refactor, or docs. Nothing else."
+
+    local result
+    result=$(claude --dangerously-skip-permissions --model haiku -p "$classify_prompt" 2>/dev/null | tr -d '\n' | tr '[:upper:]' '[:lower:]' | grep -o -E '(feature|bug|chore|refactor|docs)' | head -1)
+
+    # Default to feature if classification fails
+    if [ -z "$result" ]; then
+        result="feature"
+        log_warn "Classification failed, defaulting to: $result"
+    fi
+
+    log_success "Task classified as: $result"
+    echo "$result"
+}
+
+# =============================================================================
+# Task List Management
+# =============================================================================
+
+# Get next unchecked task from tasks.md
+get_next_task() {
+    local tasks_file="$1"
+
+    if [ ! -f "$tasks_file" ]; then
+        echo ""
+        return
+    fi
+
+    # Find first line matching "- [ ]" pattern
+    local task_line
+    task_line=$(grep -n '^\s*-\s*\[ \]' "$tasks_file" | head -1)
+
+    if [ -z "$task_line" ]; then
+        echo ""
+        return
+    fi
+
+    # Extract line number and task description
+    local line_num
+    line_num=$(echo "$task_line" | cut -d: -f1)
+    local task_desc
+    task_desc=$(echo "$task_line" | cut -d: -f2- | sed 's/^\s*-\s*\[ \]\s*//')
+
+    echo "$line_num|$task_desc"
+}
+
+# Mark task as completed in tasks.md
+mark_task_complete() {
+    local tasks_file="$1"
+    local line_num="$2"
+
+    if [ "$DRY_RUN" = true ]; then
+        echo "[DRY-RUN] Mark line $line_num as [x] in $tasks_file" >&2
+        return 0
+    fi
+
+    # Replace "- [ ]" with "- [x]" on the specific line
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        sed -i '' "${line_num}s/- \[ \]/- [x]/" "$tasks_file"
+    else
+        sed -i "${line_num}s/- \[ \]/- [x]/" "$tasks_file"
+    fi
+
+    log_success "Marked task on line $line_num as complete in $tasks_file"
+}
+
+# Count remaining tasks
+count_remaining_tasks() {
+    local tasks_file="$1"
+    grep -c '^\s*-\s*\[ \]' "$tasks_file" 2>/dev/null || echo "0"
 }
 
 # =============================================================================
@@ -249,16 +424,18 @@ save_state() {
 
     cat > "$STATE_FILE" << EOF
 {
-  "prompt_file": "$PROMPT_FILE",
+  "tasks_file": "$TASKS_FILE",
+  "current_task": "$CURRENT_TASK",
+  "current_task_index": $CURRENT_TASK_INDEX,
   "slug": "$CURRENT_SLUG",
-  "cycle": $CURRENT_CYCLE,
+  "task_type": "$CURRENT_TASK_TYPE",
   "phase": "$phase",
   "phase_name": "$phase_name",
   "review_iteration": $review_iter,
   "last_updated": "$(date -Iseconds)"
 }
 EOF
-    log_verbose "State saved: phase=$phase ($phase_name), cycle=$CURRENT_CYCLE, slug=$CURRENT_SLUG"
+    log_verbose "State saved: phase=$phase ($phase_name), task=$CURRENT_TASK_INDEX, slug=$CURRENT_SLUG"
 }
 
 load_state() {
@@ -267,16 +444,18 @@ load_state() {
         exit 1
     fi
 
-    PROMPT_FILE=$(grep '"prompt_file"' "$STATE_FILE" | cut -d'"' -f4)
+    TASKS_FILE=$(grep '"tasks_file"' "$STATE_FILE" | cut -d'"' -f4)
+    CURRENT_TASK=$(grep '"current_task"' "$STATE_FILE" | cut -d'"' -f4)
+    CURRENT_TASK_INDEX=$(grep '"current_task_index"' "$STATE_FILE" | grep -o '[0-9]*' | head -1)
     CURRENT_SLUG=$(grep '"slug"' "$STATE_FILE" | cut -d'"' -f4)
-    CURRENT_CYCLE=$(grep '"cycle"' "$STATE_FILE" | grep -o '[0-9]*' | head -1)
+    CURRENT_TASK_TYPE=$(grep '"task_type"' "$STATE_FILE" | cut -d'"' -f4)
 
     local phase
     phase=$(grep '"phase"' "$STATE_FILE" | cut -d'"' -f4)
     local phase_name
     phase_name=$(grep '"phase_name"' "$STATE_FILE" | cut -d'"' -f4)
 
-    log_success "State loaded: phase=$phase ($phase_name), cycle=$CURRENT_CYCLE, slug=$CURRENT_SLUG"
+    log_success "State loaded: phase=$phase ($phase_name), type=$CURRENT_TASK_TYPE, slug=$CURRENT_SLUG"
     echo "$phase"
 }
 
@@ -286,21 +465,64 @@ clear_state() {
 }
 
 # =============================================================================
+# Git Operations
+# =============================================================================
+
+# Sync with main branch - AI handles any issues
+sync_main() {
+    log_step "Syncing with main branch..."
+
+    local sync_prompt="You need to sync with the main branch.
+
+DO THE FOLLOWING:
+1. Check git status - if there are uncommitted changes, stash them
+2. Checkout main branch
+3. Pull latest from origin/main
+4. If there are any conflicts or issues, resolve them
+
+HANDLE ERRORS:
+- If checkout fails due to changes, stash first then checkout
+- If pull has conflicts, resolve them or reset to origin/main
+- If anything fails, fix it and try again
+
+Run these git commands now and ensure we're on a clean, up-to-date main branch."
+
+    run_cyolo "$sync_prompt" "Syncing with main..."
+    log_success "Synced with main"
+}
+
+# Create branch for current task
+create_branch() {
+    local branch_name="improvement/$CURRENT_SLUG"
+
+    log_info "Creating branch: $branch_name"
+
+    # Make sure we're on main first
+    run_cmd git checkout main
+
+    # Create and checkout new branch
+    if git show-ref --verify --quiet "refs/heads/$branch_name"; then
+        log_warn "Branch $branch_name already exists, checking out..."
+        run_cmd git checkout "$branch_name"
+    else
+        run_cmd git checkout -b "$branch_name"
+    fi
+
+    echo "$branch_name"
+}
+
+# =============================================================================
 # Phase 1: Generate Requirements
 # =============================================================================
 phase_requirements() {
     log_step "Phase 1: Generating requirements..."
 
-    local prompt_content
-    prompt_content=$(cat "$PROMPT_FILE")
-
     local work_dir="$LOOP_DIR/$CURRENT_SLUG"
     mkdir -p "$work_dir"
 
     local req_file="$work_dir/requirement.md"
-    local prompt
 
-    prompt="You are analyzing a task and creating a detailed requirements document.
+    local prompt="You are analyzing a task and creating a detailed requirements document.
 
 PROJECT CONTEXT:
 - This is a WhatsApp Web business messaging platform
@@ -309,7 +531,7 @@ PROJECT CONTEXT:
 - See CLAUDE.md for full architecture details
 
 USER TASK:
-$prompt_content
+$CURRENT_TASK
 
 YOUR TASK:
 1. Analyze the task thoroughly
@@ -357,7 +579,7 @@ IMPORTANT: Write the file now. Be thorough and specific."
 }
 
 # =============================================================================
-# Phase 2: Review Requirements
+# Phase 2: Review Requirements (AI handles entire review loop)
 # =============================================================================
 phase_review_requirements() {
     log_step "Phase 2: Reviewing requirements..."
@@ -366,94 +588,52 @@ phase_review_requirements() {
     local req_file="$work_dir/requirement.md"
     local review_file="$work_dir/requirement-review.md"
 
-    local iteration=0
-    while [ $iteration -lt $MAX_REVIEW_ITERS ]; do
-        ((iteration++))
-        log_review "Review iteration $iteration/$MAX_REVIEW_ITERS"
-        save_state "2" "requirements-review" "$iteration"
+    save_state "2" "requirements-review"
 
-        local req_content
-        req_content=$(cat "$req_file")
+    local review_prompt="You are reviewing requirements and iterating until they are APPROVED.
 
-        local review_prompt="You are a senior architect reviewing requirements for quality and completeness.
+REQUIREMENTS FILE: $req_file
+REVIEW FILE: $review_file
 
-REQUIREMENTS TO REVIEW:
-$req_content
+YOUR TASK - KEEP ITERATING UNTIL APPROVED:
 
-REVIEW CRITERIA:
-1. Scalability - Will this scale with the system?
-2. Maintainability - Is this easy to maintain long-term?
-3. Security - Are there security implications?
-4. Completeness - Are all edge cases considered?
-5. Clarity - Are requirements clear and testable?
-6. Feasibility - Is this technically achievable?
+1. Read the requirements from $req_file
 
-YOUR TASK:
-1. Analyze the requirements critically
-2. Write your review to: $review_file
+2. Review against these criteria:
+   - Scalability - Will this scale?
+   - Maintainability - Easy to maintain?
+   - Security - Any security implications?
+   - Completeness - All edge cases covered?
+   - Clarity - Clear and testable?
+   - Feasibility - Technically achievable?
 
-FORMAT for $review_file:
-# Requirements Review
+3. Write your review to $review_file with format:
+   # Requirements Review
+   ## Verdict: APPROVED | NEEDS_REVISION
+   ## Issues Found
+   ### Critical (Must Fix)
+   - [ ] issue
+   ## Summary
 
-## Verdict: APPROVED | NEEDS_REVISION
+4. If NEEDS_REVISION:
+   - Fix ALL critical issues in $req_file
+   - Mark fixed items [x] in $review_file
+   - Review again
+   - REPEAT until APPROVED
 
-## Strengths
-- <what's good>
+5. If APPROVED:
+   - Write final 'APPROVED' verdict
+   - You're done!
 
-## Issues Found
+RULES:
+- Do NOT stop until requirements are APPROVED
+- Be thorough but practical
+- Fix issues yourself, don't just list them
 
-### Critical (Must Fix)
-- [ ] <issue and suggested fix>
+Start reviewing now and keep iterating until APPROVED."
 
-### Suggestions (Nice to Have)
-- [ ] <improvement suggestion>
-
-## Summary
-<overall assessment>
-
-If verdict is NEEDS_REVISION, be specific about what needs to change.
-If verdict is APPROVED, confirm the requirements are ready for specs.
-
-IMPORTANT: Write the file now."
-
-        run_cyolo "$review_prompt" "Reviewing requirements (iteration $iteration)..."
-
-        if [ ! -f "$review_file" ]; then
-            log_warn "Review file not created, assuming APPROVED"
-            break
-        fi
-
-        if grep -q "APPROVED" "$review_file"; then
-            log_success "Requirements APPROVED"
-            break
-        fi
-
-        if [ $iteration -lt $MAX_REVIEW_ITERS ]; then
-            log_warn "Requirements need revision, updating..."
-
-            local revision_prompt="You are revising requirements based on review feedback.
-
-CURRENT REQUIREMENTS:
-$(cat "$req_file")
-
-REVIEW FEEDBACK:
-$(cat "$review_file")
-
-YOUR TASK:
-1. Address ALL critical issues from the review
-2. Consider suggestions where appropriate
-3. Update the requirements file: $req_file
-4. Mark addressed items as [x] in: $review_file
-
-IMPORTANT: Update both files now."
-
-            run_cyolo "$revision_prompt" "Revising requirements..."
-        fi
-    done
-
-    if [ $iteration -ge $MAX_REVIEW_ITERS ] && grep -q "NEEDS_REVISION" "$review_file" 2>/dev/null; then
-        log_warn "Max review iterations reached, proceeding anyway"
-    fi
+    run_cyolo "$review_prompt" "Reviewing requirements until approved..."
+    log_success "Requirements review completed"
 }
 
 # =============================================================================
@@ -533,7 +713,7 @@ IMPORTANT: Write the file now. Be thorough but practical."
 }
 
 # =============================================================================
-# Phase 4: Review Specifications
+# Phase 4: Review Specifications (AI handles entire review loop)
 # =============================================================================
 phase_review_specs() {
     log_step "Phase 4: Reviewing specifications..."
@@ -542,101 +722,66 @@ phase_review_specs() {
     local specs_file="$work_dir/specs.md"
     local review_file="$work_dir/specs-review.md"
 
-    local iteration=0
-    while [ $iteration -lt $MAX_REVIEW_ITERS ]; do
-        ((iteration++))
-        log_review "Review iteration $iteration/$MAX_REVIEW_ITERS"
-        save_state "4" "specs-review" "$iteration"
+    save_state "4" "specs-review"
 
-        local specs_content
-        specs_content=$(cat "$specs_file")
+    local review_prompt="You are reviewing technical specifications and iterating until APPROVED.
 
-        local review_prompt="You are a senior architect reviewing technical specifications.
+SPECS FILE: $specs_file
+REVIEW FILE: $review_file
 
-SPECIFICATIONS TO REVIEW:
-$specs_content
+YOUR TASK - KEEP ITERATING UNTIL APPROVED:
 
-REVIEW CRITERIA:
-1. Technical Accuracy - Is the approach correct?
-2. Completeness - Are all requirements addressed?
-3. Code Quality - Will this produce maintainable code?
-4. Performance - Are there performance concerns?
-5. Security - Are there security issues?
-6. Testing - Is testing strategy adequate?
+1. Read the specifications from $specs_file
 
-YOUR TASK:
-1. Analyze the specifications critically
-2. Write your review to: $review_file
+2. Review against these criteria:
+   - Technical Accuracy - Is the approach correct?
+   - Completeness - All requirements addressed?
+   - Code Quality - Will this produce maintainable code?
+   - Performance - Any performance concerns?
+   - Security - Any security issues?
+   - Testing - Adequate testing strategy?
 
-FORMAT for $review_file:
-# Specifications Review
+3. Write your review to $review_file with format:
+   # Specifications Review
+   ## Verdict: APPROVED | NEEDS_REVISION
+   ## Issues Found
+   ### Critical (Must Fix)
+   - [ ] issue
+   ## Summary
 
-## Verdict: APPROVED | NEEDS_REVISION
+4. If NEEDS_REVISION:
+   - Fix ALL critical issues in $specs_file
+   - Mark fixed items [x] in $review_file
+   - Review again
+   - REPEAT until APPROVED
 
-## Strengths
-- <what's good>
+5. If APPROVED:
+   - Write final 'APPROVED' verdict
+   - You're done!
 
-## Issues Found
+RULES:
+- Do NOT stop until specs are APPROVED
+- Be thorough but practical
+- Fix issues yourself, don't just list them
 
-### Critical (Must Fix)
-- [ ] <issue and suggested fix>
+Start reviewing now and keep iterating until APPROVED."
 
-### Suggestions
-- [ ] <improvement suggestion>
-
-## Summary
-<overall assessment>
-
-IMPORTANT: Write the file now."
-
-        run_cyolo "$review_prompt" "Reviewing specifications (iteration $iteration)..."
-
-        if [ ! -f "$review_file" ]; then
-            log_warn "Review file not created, assuming APPROVED"
-            break
-        fi
-
-        if grep -q "APPROVED" "$review_file"; then
-            log_success "Specifications APPROVED"
-            break
-        fi
-
-        if [ $iteration -lt $MAX_REVIEW_ITERS ]; then
-            log_warn "Specifications need revision, updating..."
-
-            local revision_prompt="You are revising specifications based on review feedback.
-
-CURRENT SPECIFICATIONS:
-$(cat "$specs_file")
-
-REVIEW FEEDBACK:
-$(cat "$review_file")
-
-YOUR TASK:
-1. Address ALL critical issues from the review
-2. Consider suggestions where appropriate
-3. Update the specifications file: $specs_file
-4. Mark addressed items as [x] in: $review_file
-
-IMPORTANT: Update both files now."
-
-            run_cyolo "$revision_prompt" "Revising specifications..."
-        fi
-    done
+    run_cyolo "$review_prompt" "Reviewing specifications until approved..."
+    log_success "Specifications review completed"
 }
 
 # =============================================================================
-# Phase 5: Generate Tasks
+# Phase 5: Generate Sub-Tasks
 # =============================================================================
-phase_tasks() {
-    log_step "Phase 5: Generating tasks..."
+phase_subtasks() {
+    log_step "Phase 5: Generating sub-tasks..."
 
     local work_dir="$LOOP_DIR/$CURRENT_SLUG"
     local req_file="$work_dir/requirement.md"
     local specs_file="$work_dir/specs.md"
-    local tasks_file="$work_dir/tasks.md"
+    local subtasks_file="$work_dir/subtasks.md"
 
-    save_state "5" "tasks"
+    save_state "5" "subtasks"
 
     local tasks_prompt="You are a project manager breaking down technical work into actionable tasks.
 
@@ -647,10 +792,10 @@ SPECIFICATIONS:
 $(cat "$specs_file")
 
 YOUR TASK:
-Create a detailed task list at: $tasks_file
+Create a detailed task list at: $subtasks_file
 
 FORMAT:
-# Tasks: <Title>
+# Sub-Tasks: <Title>
 
 ## Status Legend
 - [ ] Pending
@@ -686,291 +831,354 @@ RULES:
 
 IMPORTANT: Write the file now."
 
-    run_cyolo "$tasks_prompt" "Generating tasks..."
+    run_cyolo "$tasks_prompt" "Generating sub-tasks..."
 
-    if [ ! -f "$tasks_file" ]; then
-        log_error "Tasks file was not created: $tasks_file"
+    if [ ! -f "$subtasks_file" ]; then
+        log_error "Sub-tasks file was not created: $subtasks_file"
         return 1
     fi
 
-    log_success "Tasks generated: $tasks_file"
+    log_success "Sub-tasks generated: $subtasks_file"
 }
 
 # =============================================================================
-# Phase 6: Execute Tasks
+# Phase 6: Execute Sub-Tasks (AI decides batch, script loops)
 # =============================================================================
 phase_execute() {
-    log_step "Phase 6: Executing tasks..."
+    log_step "Phase 6: Executing sub-tasks..."
 
     local work_dir="$LOOP_DIR/$CURRENT_SLUG"
-    local tasks_file="$work_dir/tasks.md"
+    local subtasks_file="$work_dir/subtasks.md"
     local log_file="$work_dir/execution-log.md"
 
-    # Initialize log
-    cat > "$log_file" << EOF
-# Execution Log: $CURRENT_SLUG
+    # Outer loop - script keeps calling AI until all done
+    while true; do
+        save_state "6" "execute"
 
-Started: $(date)
-
-EOF
-
-    local max_task_iterations=50
-    local iteration=0
-
-    while [ $iteration -lt $max_task_iterations ]; do
-        ((iteration++))
-        save_state "6" "execute" "$iteration"
-
-        # Check for pending tasks
-        local has_pending
-        has_pending=$(check_pending_tasks "$tasks_file")
-
-        if [ "$has_pending" = "done" ]; then
-            log_success "All tasks completed!"
+        # Check if there are pending subtasks
+        if [ "$DRY_RUN" = true ]; then
+            log_info "[DRY-RUN] Executing subtasks..."
             break
         fi
 
-        log_info "Task execution iteration $iteration..."
+        # Quick check using haiku
+        local pending_check
+        pending_check=$(claude --dangerously-skip-permissions --model haiku -p "Read $subtasks_file and output ONLY 'pending' if there are tasks marked [ ], or 'done' if all are [x] or [!]. One word only." 2>/dev/null | tr '[:upper:]' '[:lower:]' | grep -o -E '(pending|done)' | head -1)
 
-        local exec_prompt="You are implementing tasks for a WhatsApp Web business platform.
+        if [ "$pending_check" = "done" ]; then
+            log_success "All sub-tasks completed!"
+            break
+        fi
 
-TASKS FILE: $tasks_file
+        log_info "Pending subtasks found, executing batch..."
+
+        local exec_prompt="You are implementing sub-tasks for a WhatsApp Web business platform.
+
+TASKS FILE: $subtasks_file
 LOG FILE: $log_file
 
 YOUR TASK:
-1. Read the tasks file
-2. Find the FIRST pending/incomplete task (marked with [ ])
-3. Implement it completely:
-   - Write/modify the necessary code
-   - Add appropriate tests if specified
-   - Ensure code compiles/runs
-4. Update $tasks_file:
-   - Change [ ] to [x] for the completed task
-5. Append to $log_file:
-   - What you did
-   - Files modified
-   - Any issues encountered
+
+1. Read the tasks file $subtasks_file
+2. Find pending tasks (marked with [ ])
+3. Implement AS MANY as you can in this session:
+   - You decide the batch size based on complexity
+   - Simple related tasks → do multiple together
+   - Complex task → focus on just that one
+   - For each completed task: mark [x] in $subtasks_file
+   - Log what you did in $log_file
+
+4. If you get BLOCKED on a task:
+   - Mark it with [!] in $subtasks_file
+   - Document why in $log_file
+   - Continue with other tasks if possible
+
+5. When you've done a reasonable batch OR hit a good stopping point:
+   - Make sure all completed work is saved
+   - The script will check and call you again if more remain
 
 RULES:
-- Complete ONLY ONE task per execution
-- Be thorough - the task should be fully done
+- Be thorough - each task should be fully done before marking [x]
 - Follow existing code patterns and style
-- If blocked, mark with [!] and document why
+- Document everything in the log file
+- It's OK to stop after a batch - script will loop
 
-If ALL tasks are already completed, just say 'All tasks done' and exit.
-Otherwise, start working on the first pending task now."
+Start implementing now."
 
-        run_cyolo "$exec_prompt" "Executing task (iteration $iteration)..."
+        run_cyolo "$exec_prompt" "Executing subtask batch..."
 
+        # Small delay before next check
         sleep 2
     done
 
-    echo "" >> "$log_file"
-    echo "Completed: $(date)" >> "$log_file"
-}
-
-# Check pending tasks using haiku (fast/cheap)
-check_pending_tasks() {
-    local tasks_file="$1"
-
-    if [ "$DRY_RUN" = true ]; then
-        echo "pending"
-        return
-    fi
-
-    local check_prompt="Read this tasks file and check if there are any pending tasks.
-Look for tasks marked with [ ] (unchecked).
-Ignore tasks marked with [x] (completed) or [!] (blocked).
-
-Tasks file content:
-$(cat "$tasks_file")
-
-Output ONLY one word: 'pending' or 'done'. Nothing else."
-
-    local result
-    result=$(claude --dangerously-skip-permissions --model haiku -p "$check_prompt" 2>/dev/null | tr '[:upper:]' '[:lower:]' | grep -o -E '(pending|done)' | head -1)
-
-    echo "${result:-pending}"
+    log_success "Sub-tasks execution completed"
 }
 
 # =============================================================================
-# Phase 7: Code Review
+# Phase 7: Code Review (AI handles entire review loop)
 # =============================================================================
 phase_code_review() {
     log_step "Phase 7: Code review..."
 
     local work_dir="$LOOP_DIR/$CURRENT_SLUG"
     local specs_file="$work_dir/specs.md"
-    local tasks_file="$work_dir/tasks.md"
+    local subtasks_file="$work_dir/subtasks.md"
     local review_file="$work_dir/code-review.md"
 
-    local iteration=0
-    while [ $iteration -lt $MAX_REVIEW_ITERS ]; do
-        ((iteration++))
-        log_review "Code review iteration $iteration/$MAX_REVIEW_ITERS"
-        save_state "7" "code-review" "$iteration"
+    save_state "7" "code-review"
 
-        local review_prompt="You are a senior code reviewer evaluating implemented changes.
+    local review_prompt="You are reviewing code and iterating until APPROVED.
 
-SPECIFICATIONS:
-$(cat "$specs_file" | head -150)
+SPECS FILE: $specs_file
+TASKS FILE: $subtasks_file
+REVIEW FILE: $review_file
 
-TASKS:
-$(cat "$tasks_file")
+YOUR TASK - KEEP ITERATING UNTIL APPROVED:
 
-YOUR TASK:
-1. Run 'git diff HEAD~20' to review all code changes
-2. Run tests to verify functionality
-3. Check for:
-   - Code quality issues
+1. Review the code changes:
+   - Run: git diff main
+   - Check all modified files
+
+2. Check for issues:
+   - Code quality problems
    - Missing error handling
    - Security concerns
    - Performance issues
    - Missing tests
    - Incomplete implementations
 
-4. Write a review document to: $review_file
+3. Write review to $review_file with format:
+   # Code Review
+   ## Verdict: APPROVED | NEEDS_CHANGES
+   ## Issues Found
+   ### Critical (Must Fix)
+   - [ ] issue with file and fix
+   ## Summary
 
-FORMAT for $review_file:
-# Code Review: $CURRENT_SLUG
+4. If NEEDS_CHANGES:
+   - Fix ALL critical issues in the code
+   - Mark fixed items [x] in $review_file
+   - Review again
+   - REPEAT until APPROVED
 
-## Verdict: APPROVED | NEEDS_CHANGES
+5. If APPROVED:
+   - Write final 'APPROVED' verdict
+   - You're done!
 
-## Changes Reviewed
-- <list of files reviewed>
+RULES:
+- Do NOT stop until code is APPROVED
+- Fix issues yourself, don't just list them
+- Run tests after fixes to verify
 
-## What Was Done Well
-- <positive feedback>
+Start reviewing now and keep iterating until APPROVED."
 
-## Issues Found
-
-### Critical (Must Fix)
-- [ ] <issue description>
-  - File: <path>
-  - Line: <if applicable>
-  - Fix: <suggested fix>
-
-### Minor (Nice to Fix)
-- [ ] <issue description>
-
-## Test Results
-<output of test runs>
-
-## Summary
-<overall assessment>
-
-If NEEDS_CHANGES, be specific about fixes needed.
-If APPROVED, confirm the code is ready for PR."
-
-        run_cyolo "$review_prompt" "Reviewing code (iteration $iteration)..."
-
-        if [ ! -f "$review_file" ]; then
-            log_warn "Review file not created, assuming APPROVED"
-            break
-        fi
-
-        if grep -q "APPROVED" "$review_file"; then
-            log_success "Code APPROVED"
-            break
-        fi
-
-        if [ $iteration -lt $MAX_REVIEW_ITERS ]; then
-            log_warn "Code needs changes, fixing..."
-
-            # Add review issues as new tasks
-            local fix_prompt="You are addressing code review feedback.
-
-REVIEW FEEDBACK:
-$(cat "$review_file")
-
-YOUR TASK:
-1. Find all unchecked items in the 'Critical (Must Fix)' section
-2. Fix each issue in the code
-3. Re-run affected tests
-4. Update $review_file - mark fixed items as [x]
-
-Work through ALL critical issues before stopping."
-
-            run_cyolo "$fix_prompt" "Fixing code review issues..."
-        fi
-    done
+    run_cyolo "$review_prompt" "Reviewing code until approved..."
+    log_success "Code review completed"
 }
 
 # =============================================================================
-# Phase 8: Create Branch and PR
+# Phase: Testing (AI handles entire test loop)
 # =============================================================================
-phase_create_pr() {
-    log_step "Phase 8: Creating branch and PR..."
+phase_testing() {
+    log_step "Testing: Running tests and fixing issues..."
 
     local work_dir="$LOOP_DIR/$CURRENT_SLUG"
-    local branch_name="improvement/$CURRENT_SLUG"
+    mkdir -p "$work_dir"
+    local test_log="$work_dir/test-log.md"
 
-    save_state "8" "pr"
+    save_state "testing" "testing"
 
-    # Check if on correct branch or create it
-    local current_branch
-    current_branch=$(git branch --show-current 2>/dev/null || echo "")
-
-    if [ "$current_branch" != "$branch_name" ]; then
-        if git show-ref --verify --quiet "refs/heads/$branch_name"; then
-            log_info "Checking out existing branch: $branch_name"
-            run_cmd git checkout "$branch_name"
-        else
-            log_info "Creating new branch: $branch_name"
-            run_cmd git checkout -b "$branch_name"
-        fi
-    fi
-
-    # Stage all changes
-    run_cmd git add -A
-
-    # Check if there are changes
-    if git diff --cached --quiet; then
-        log_warn "No changes to commit"
+    if [ "$DRY_RUN" = true ]; then
+        log_info "[DRY-RUN] Running tests..."
+        log_success "All tests passed!"
         return 0
     fi
 
-    local pr_prompt="You are creating a git commit and PR for the completed work.
+    local test_prompt="You are running tests and ensuring all tests pass before we can merge.
 
-WORK DIRECTORY: $work_dir
-BRANCH: $branch_name
+TASK: $CURRENT_TASK
+TYPE: $CURRENT_TASK_TYPE
+TEST LOG: $test_log
 
-FILES IN WORK DIRECTORY:
-$(ls -la "$work_dir" 2>/dev/null || echo "Directory not found")
+PROJECT TEST COMMANDS:
+- Backend: cd apps/api && bun test
+- E2E: cd apps/web && bunx playwright test
+- Go services: cd services/whatsapp && go test ./... and cd services/orchestrator && go test ./...
 
-YOUR TASK:
-1. Review staged changes: git diff --cached --stat
-2. Create a well-formatted commit:
-   git commit -m \"<type>(<scope>): <description>\"
+YOUR TASK - KEEP LOOPING UNTIL ALL TESTS PASS:
 
-   Types: feat, fix, refactor, perf, test, docs
+1. Determine which tests to run based on what files were changed:
+   - Check: git diff main --name-only
+   - apps/api/* → run backend tests
+   - apps/web/* → run E2E tests
+   - services/* → run Go tests
 
-3. Push the branch:
-   git push -u origin $branch_name
+2. Run the relevant tests
 
-4. Create PR if it doesn't exist:
-   Check with: gh pr list --head \"$branch_name\"
+3. If tests PASS:
+   - Write 'ALL TESTS PASSED' to $test_log
+   - You're done!
 
-   If no PR exists, create one with:
-   - Title: descriptive title based on the work
-   - Body: summary of changes, link to specs in .loop/
+4. If tests FAIL:
+   - Analyze the failure carefully
+   - Fix the code causing the failure
+   - Add missing tests if needed
+   - Document what you fixed in $test_log
+   - Run tests again
+   - REPEAT until all pass
 
-IMPORTANT: Run these git commands now to commit, push, and create PR."
+5. If you're STUCK (tried multiple times, can't fix):
+   - Write 'BLOCKED: <specific reason>' to $test_log
+   - Explain what you tried and why it's blocked
 
-    run_cyolo "$pr_prompt" "Creating commit and PR..."
+IMPORTANT RULES:
+- Do NOT stop until tests pass or you're truly blocked
+- Fix root causes, not symptoms
+- Keep trying different approaches if one doesn't work
+- Document everything in the test log
 
-    log_success "PR created for branch: $branch_name"
+Start running tests now and keep going until they all pass."
+
+    run_cyolo "$test_prompt" "Running tests until they pass..."
+
+    # Check result
+    if [ -f "$test_log" ]; then
+        if grep -q "ALL TESTS PASSED" "$test_log" 2>/dev/null; then
+            log_success "All tests passed!"
+            return 0
+        fi
+        if grep -q "BLOCKED" "$test_log" 2>/dev/null; then
+            log_warn "Testing blocked - see $test_log for details"
+            return 1
+        fi
+    fi
+
+    log_success "Testing phase completed"
 }
 
 # =============================================================================
-# Main Workflow
+# Phase: Direct Fix (for light workflows - bug/chore)
 # =============================================================================
-run_workflow() {
+phase_direct_fix() {
+    log_step "Direct Fix: Implementing task directly..."
+
+    local work_dir="$LOOP_DIR/$CURRENT_SLUG"
+    mkdir -p "$work_dir"
+
+    local log_file="$work_dir/execution-log.md"
+
+    save_state "direct-fix" "direct-fix"
+
+    # Initialize log
+    cat > "$log_file" << EOF
+# Execution Log: $CURRENT_SLUG
+Type: $CURRENT_TASK_TYPE (light workflow)
+Started: $(date)
+
+EOF
+
+    local fix_prompt="You are fixing a $CURRENT_TASK_TYPE in a WhatsApp Web business platform.
+
+TASK: $CURRENT_TASK
+TYPE: $CURRENT_TASK_TYPE
+
+PROJECT CONTEXT:
+- Multi-tenant WhatsApp Web business messaging platform
+- Go services (whatsapp, orchestrator) + TypeScript (Hono API, React frontend)
+- See CLAUDE.md for architecture details
+
+YOUR TASK:
+1. Analyze the task and understand what needs to be done
+2. Research the codebase to find relevant files
+3. Make the necessary changes to fix/implement the task
+4. Run relevant tests to verify the fix works
+5. Document what you did in: $log_file
+
+RULES:
+- Focus on the specific task, don't over-engineer
+- Follow existing code patterns and style
+- Ensure the fix is complete and tested
+- Keep changes minimal and focused
+
+IMPORTANT: Start working on this task now. Document your progress in the log file."
+
+    run_cyolo "$fix_prompt" "Implementing direct fix..."
+
+    echo "" >> "$log_file"
+    echo "Completed: $(date)" >> "$log_file"
+
+    log_success "Direct fix completed"
+}
+
+# =============================================================================
+# Phase 8: Create PR and Merge
+# =============================================================================
+phase_create_pr_and_merge() {
+    log_step "Creating PR and merging..."
+
+    local work_dir="$LOOP_DIR/$CURRENT_SLUG"
+    local branch_name="improvement/$CURRENT_SLUG"
+    local skip_merge_flag="$SKIP_MERGE"
+
+    save_state "8" "pr-merge"
+
+    local pr_prompt="You are creating a git commit, PR, and merging for the completed work.
+
+WORK DIRECTORY: $work_dir
+BRANCH: $branch_name
+TASK: $CURRENT_TASK
+SKIP_MERGE: $skip_merge_flag
+
+YOUR TASK:
+
+1. STAGE & COMMIT:
+   - Run: git add -A
+   - Check if there are changes: git diff --cached --stat
+   - If no changes, say 'No changes to commit' and stop
+   - Create commit: git commit -m \"<type>(<scope>): <description>\"
+     Types: feat, fix, refactor, perf, test, docs
+
+2. PUSH:
+   - Push: git push -u origin $branch_name
+   - If push fails (rejected), pull and retry
+
+3. CREATE PR:
+   - Check if PR exists: gh pr list --head \"$branch_name\"
+   - If no PR, create one with gh pr create
+
+4. MERGE (only if SKIP_MERGE is 'false'):
+   - Check CI status: gh pr checks
+   - If CI is running, wait and check again (up to 5 minutes)
+   - If CI passed, merge: gh pr merge --squash --delete-branch
+   - If CI failed, report the failure but don't merge
+   - If merge fails due to conflicts, try to resolve or report
+
+HANDLE ERRORS:
+- If any step fails, try to fix it and retry
+- If push is rejected, fetch and rebase first
+- If merge has conflicts, attempt to resolve them
+- Report any unrecoverable errors clearly
+
+Run these commands now."
+
+    run_cyolo "$pr_prompt" "Creating PR and merging..."
+
+    log_success "PR phase completed for branch: $branch_name"
+}
+
+# =============================================================================
+# Workflow: FULL (for features)
+# Requirements → Review → Specs → Review → Subtasks → Execute → Code Review → Merge
+# =============================================================================
+workflow_full() {
     local start_phase="${1:-1}"
 
-    log_info "=============================================="
-    log_info "WORKFLOW: $CURRENT_SLUG (starting from phase $start_phase)"
-    log_info "=============================================="
+    log_info "Running FULL workflow (feature)"
+
+    # Create branch
+    if [ "$start_phase" -le 1 ]; then
+        create_branch
+    fi
 
     # Phase 1: Requirements
     if [ "$start_phase" -le 1 ]; then
@@ -992,9 +1200,9 @@ run_workflow() {
         phase_review_specs
     fi
 
-    # Phase 5: Tasks
+    # Phase 5: Sub-Tasks
     if [ "$start_phase" -le 5 ]; then
-        phase_tasks
+        phase_subtasks
     fi
 
     # Phase 6: Execute
@@ -1007,16 +1215,142 @@ run_workflow() {
         phase_code_review
     fi
 
-    # Phase 8: Create PR
-    if [ "$start_phase" -le 8 ]; then
-        phase_create_pr
+    # Phase 8: Testing
+    phase_testing
+
+    # Phase 9: Create PR and Merge
+    phase_create_pr_and_merge
+}
+
+# =============================================================================
+# Workflow: MEDIUM (for refactors)
+# Requirements → Subtasks → Execute → Code Review → Testing → Merge
+# (skips requirement review and specs)
+# =============================================================================
+workflow_medium() {
+    local start_phase="${1:-1}"
+
+    log_info "Running MEDIUM workflow (refactor)"
+
+    # Create branch
+    if [ "$start_phase" -le 1 ]; then
+        create_branch
     fi
 
-    log_success "=============================================="
-    log_success "WORKFLOW COMPLETED: $CURRENT_SLUG"
-    log_success "=============================================="
+    # Phase 1: Requirements (brief, no review)
+    if [ "$start_phase" -le 1 ]; then
+        phase_requirements
+    fi
 
-    clear_state
+    # Skip requirement review and specs for refactors
+
+    # Phase 5: Sub-Tasks
+    if [ "$start_phase" -le 5 ]; then
+        phase_subtasks
+    fi
+
+    # Phase 6: Execute
+    if [ "$start_phase" -le 6 ]; then
+        phase_execute
+    fi
+
+    # Phase 7: Code Review
+    if [ "$start_phase" -le 7 ]; then
+        phase_code_review
+    fi
+
+    # Phase 8: Testing
+    phase_testing
+
+    # Phase 9: Create PR and Merge
+    phase_create_pr_and_merge
+}
+
+# =============================================================================
+# Workflow: LIGHT (for bugs/chores)
+# Direct Fix → Code Review → Testing → Merge
+# =============================================================================
+workflow_light() {
+    local start_phase="${1:-1}"
+
+    log_info "Running LIGHT workflow (bug/chore)"
+
+    # Create branch
+    create_branch
+
+    # Direct fix
+    if [ "$start_phase" != "code-review" ] && [ "$start_phase" != "testing" ]; then
+        phase_direct_fix
+    fi
+
+    # Code Review
+    if [ "$start_phase" != "testing" ]; then
+        phase_code_review
+    fi
+
+    # Testing
+    phase_testing
+
+    # Create PR and Merge
+    phase_create_pr_and_merge
+}
+
+# =============================================================================
+# Workflow: MINIMAL (for docs)
+# Direct Fix → Testing → Merge (no code review)
+# =============================================================================
+workflow_minimal() {
+    log_info "Running MINIMAL workflow (docs)"
+
+    # Create branch
+    create_branch
+
+    # Direct fix
+    phase_direct_fix
+
+    # Skip code review for docs
+
+    # Testing (still run tests to catch any issues)
+    phase_testing
+
+    # Create PR and Merge
+    phase_create_pr_and_merge
+}
+
+# =============================================================================
+# Run Task Workflow (routes to appropriate workflow based on type)
+# =============================================================================
+run_task_workflow() {
+    local start_phase="${1:-1}"
+
+    log_info "=============================================="
+    log_info "TASK: $CURRENT_TASK"
+    log_info "TYPE: $CURRENT_TASK_TYPE"
+    log_info "SLUG: $CURRENT_SLUG"
+    log_info "=============================================="
+
+    case "$CURRENT_TASK_TYPE" in
+        "feature")
+            workflow_full "$start_phase"
+            ;;
+        "refactor")
+            workflow_medium "$start_phase"
+            ;;
+        "bug"|"chore")
+            workflow_light "$start_phase"
+            ;;
+        "docs")
+            workflow_minimal
+            ;;
+        *)
+            log_warn "Unknown task type: $CURRENT_TASK_TYPE, using FULL workflow"
+            workflow_full "$start_phase"
+            ;;
+    esac
+
+    log_success "=============================================="
+    log_success "TASK COMPLETED: $CURRENT_TASK"
+    log_success "=============================================="
 }
 
 # =============================================================================
@@ -1025,9 +1359,8 @@ run_workflow() {
 main() {
     parse_args "$@"
 
-    log_info "Agent Loop Starting"
-    log_info "Max cycles: $MAX_CYCLES"
-    log_info "Max review iterations: $MAX_REVIEW_ITERS"
+    log_info "Agent Loop Starting (Fully Autonomous)"
+    log_info "Auto-merge: $( [ "$SKIP_MERGE" = true ] && echo 'disabled' || echo 'enabled (squash)' )"
     if [ "$RESUME_MODE" = true ]; then
         log_info "Mode: RESUME"
     fi
@@ -1047,53 +1380,82 @@ main() {
             "2"|"requirements-review") start_phase=2 ;;
             "3"|"specs") start_phase=3 ;;
             "4"|"specs-review") start_phase=4 ;;
-            "5"|"tasks") start_phase=5 ;;
+            "5"|"subtasks") start_phase=5 ;;
             "6"|"execute") start_phase=6 ;;
             "7"|"code-review") start_phase=7 ;;
-            "8"|"pr") start_phase=8 ;;
+            "8"|"pr-merge") start_phase=8 ;;
             *) start_phase=1 ;;
         esac
 
         log_info "Resuming from phase $start_phase ($phase)"
-        run_workflow "$start_phase"
-        return
+        run_task_workflow "$start_phase"
+
+        # After completing resumed task, mark it and continue
+        mark_task_complete "$TASKS_FILE" "$CURRENT_TASK_INDEX"
+        clear_state
+
+        # Sync and continue with remaining tasks
+        sync_main
     fi
 
-    # Fresh start
-    local prompt_content
-    prompt_content=$(cat "$PROMPT_FILE")
+    # Main task loop
+    local tasks_completed=0
 
-    log_info "Generating slug from prompt..."
-    CURRENT_SLUG=$(generate_slug "$prompt_content")
-    log_success "Slug: $CURRENT_SLUG"
-
-    # Copy prompt to work directory
-    local work_dir="$LOOP_DIR/$CURRENT_SLUG"
-    mkdir -p "$work_dir"
-    cp "$PROMPT_FILE" "$work_dir/prompt.md"
-
-    # Run workflow cycles
-    local cycle=0
-    while [ $cycle -lt $MAX_CYCLES ]; do
-        ((cycle++))
-        CURRENT_CYCLE=$cycle
-        log_info "=============================================="
-        log_info "CYCLE $cycle of $MAX_CYCLES"
-        log_info "=============================================="
-
-        run_workflow 1
-
-        if [ $cycle -lt $MAX_CYCLES ]; then
-            log_info "Cycle complete. Starting next cycle..."
-            # For subsequent cycles, the agent could analyze results and create new improvements
+    while true; do
+        # Sync with main before starting each task
+        if [ $tasks_completed -gt 0 ] || [ "$RESUME_MODE" = true ]; then
+            sync_main
         fi
+
+        # Get next task
+        local next_task_info
+        next_task_info=$(get_next_task "$TASKS_FILE")
+
+        if [ -z "$next_task_info" ]; then
+            log_success "All tasks completed!"
+            break
+        fi
+
+        # Parse task info
+        CURRENT_TASK_INDEX=$(echo "$next_task_info" | cut -d'|' -f1)
+        CURRENT_TASK=$(echo "$next_task_info" | cut -d'|' -f2-)
+
+        local remaining
+        remaining=$(count_remaining_tasks "$TASKS_FILE")
+        log_info "=============================================="
+        log_info "Starting task ($remaining remaining): $CURRENT_TASK"
+        log_info "=============================================="
+
+        # Classify task type (using Haiku - fast/cheap)
+        CURRENT_TASK_TYPE=$(classify_task "$CURRENT_TASK")
+
+        # Generate slug for this task
+        CURRENT_SLUG=$(generate_slug "$CURRENT_TASK")
+        log_info "Generated slug: $CURRENT_SLUG"
+
+        # Save initial state
+        save_state "0" "starting" "0"
+
+        # Run the appropriate workflow based on task type
+        run_task_workflow 1
+
+        # Mark task as complete in original file
+        mark_task_complete "$TASKS_FILE" "$CURRENT_TASK_INDEX"
+
+        # Clear state after successful completion
+        clear_state
+
+        ((tasks_completed++))
+
+        log_success "Task completed and merged. Moving to next task..."
+        echo ""
     done
 
     echo ""
+    log_success "=============================================="
     log_success "Agent Loop Finished!"
-    log_info "Total cycles completed: $cycle"
-    log_info "Work directory: $LOOP_DIR/$CURRENT_SLUG"
-    log_info "Check the PR for your changes"
+    log_success "Total tasks completed: $tasks_completed"
+    log_success "=============================================="
 }
 
 main "$@"

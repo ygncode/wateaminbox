@@ -118,7 +118,8 @@ export async function getContactsWithLastMessage(
     ${hasAssignmentFilter ? assignmentClause : sql``}
   `;
 
-  const hasWhereCondition = search || !includeGroups || assignedToMe || unassigned;
+  const hasWhereCondition =
+    search || !includeGroups || assignedToMe || unassigned;
 
   const result = await sql<{
     id: string;

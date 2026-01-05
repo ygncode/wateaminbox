@@ -35,60 +35,63 @@
  * Rate limit tier definition
  */
 export interface RateLimitTier {
-  requests: number
-  windowSeconds: number
+  requests: number;
+  windowSeconds: number;
 }
 
 /**
  * Complete rate limit configuration
  */
 export interface RateLimitConfig {
-  enabled: boolean
+  enabled: boolean;
   store: {
-    type: 'memory' | 'redis'
-    redisUrl?: string
-    memoryMaxItems: number
-  }
+    type: "memory" | "redis";
+    redisUrl?: string;
+    memoryMaxItems: number;
+  };
   tiers: {
-    global: RateLimitTier
+    global: RateLimitTier;
     auth: {
-      login: RateLimitTier
-      register: RateLimitTier
-      forgotPassword: RateLimitTier
-      refresh: RateLimitTier
-    }
+      login: RateLimitTier;
+      register: RateLimitTier;
+      forgotPassword: RateLimitTier;
+      refresh: RateLimitTier;
+    };
     resource: {
-      search: RateLimitTier
-      export: RateLimitTier
-      import: RateLimitTier
-      analytics: RateLimitTier
-    }
+      search: RateLimitTier;
+      export: RateLimitTier;
+      import: RateLimitTier;
+      analytics: RateLimitTier;
+    };
     messaging: {
-      send: RateLimitTier
-      whatsapp: RateLimitTier
-    }
-  }
+      send: RateLimitTier;
+      whatsapp: RateLimitTier;
+    };
+  };
 }
 
 /**
  * Parse a positive integer from an environment variable
  * Returns the default value if parsing fails or the value is not positive
  */
-function parsePositiveInt(value: string | undefined, defaultValue: number): number {
-  if (value === undefined || value === '') {
-    return defaultValue
+function parsePositiveInt(
+  value: string | undefined,
+  defaultValue: number,
+): number {
+  if (value === undefined || value === "") {
+    return defaultValue;
   }
 
-  const parsed = Number.parseInt(value, 10)
+  const parsed = Number.parseInt(value, 10);
 
   if (Number.isNaN(parsed) || parsed <= 0) {
     console.warn(
-      `[RateLimitConfig] Invalid value "${value}" for environment variable, using default: ${defaultValue}`
-    )
-    return defaultValue
+      `[RateLimitConfig] Invalid value "${value}" for environment variable, using default: ${defaultValue}`,
+    );
+    return defaultValue;
   }
 
-  return parsed
+  return parsed;
 }
 
 /**
@@ -96,98 +99,141 @@ function parsePositiveInt(value: string | undefined, defaultValue: number): numb
  * Uses sensible defaults when variables are not set
  */
 export function getRateLimitConfig(): RateLimitConfig {
-  const enabled = process.env.RATE_LIMIT_ENABLED !== 'false'
+  const enabled = process.env.RATE_LIMIT_ENABLED !== "false";
 
-  const storeType = process.env.RATE_LIMIT_STORE_TYPE as 'memory' | 'redis' | undefined
-  const validStoreType: 'memory' | 'redis' = storeType === 'redis' ? 'redis' : 'memory'
+  const storeType = process.env.RATE_LIMIT_STORE_TYPE as
+    | "memory"
+    | "redis"
+    | undefined;
+  const validStoreType: "memory" | "redis" =
+    storeType === "redis" ? "redis" : "memory";
 
   return {
     enabled,
     store: {
       type: validStoreType,
       redisUrl: process.env.RATE_LIMIT_REDIS_URL,
-      memoryMaxItems: parsePositiveInt(process.env.RATE_LIMIT_MEMORY_MAX_ITEMS, 10000),
+      memoryMaxItems: parsePositiveInt(
+        process.env.RATE_LIMIT_MEMORY_MAX_ITEMS,
+        10000,
+      ),
     },
     tiers: {
       global: {
         requests: parsePositiveInt(process.env.RATE_LIMIT_GLOBAL_REQUESTS, 100),
-        windowSeconds: parsePositiveInt(process.env.RATE_LIMIT_GLOBAL_WINDOW_SECONDS, 60),
+        windowSeconds: parsePositiveInt(
+          process.env.RATE_LIMIT_GLOBAL_WINDOW_SECONDS,
+          60,
+        ),
       },
       auth: {
         login: {
-          requests: parsePositiveInt(process.env.RATE_LIMIT_AUTH_LOGIN_REQUESTS, 5),
+          requests: parsePositiveInt(
+            process.env.RATE_LIMIT_AUTH_LOGIN_REQUESTS,
+            5,
+          ),
           windowSeconds: parsePositiveInt(
             process.env.RATE_LIMIT_AUTH_LOGIN_WINDOW_SECONDS,
-            900 // 15 minutes
+            900, // 15 minutes
           ),
         },
         register: {
-          requests: parsePositiveInt(process.env.RATE_LIMIT_AUTH_REGISTER_REQUESTS, 3),
+          requests: parsePositiveInt(
+            process.env.RATE_LIMIT_AUTH_REGISTER_REQUESTS,
+            3,
+          ),
           windowSeconds: parsePositiveInt(
             process.env.RATE_LIMIT_AUTH_REGISTER_WINDOW_SECONDS,
-            3600 // 1 hour
+            3600, // 1 hour
           ),
         },
         forgotPassword: {
-          requests: parsePositiveInt(process.env.RATE_LIMIT_AUTH_FORGOT_PASSWORD_REQUESTS, 3),
+          requests: parsePositiveInt(
+            process.env.RATE_LIMIT_AUTH_FORGOT_PASSWORD_REQUESTS,
+            3,
+          ),
           windowSeconds: parsePositiveInt(
             process.env.RATE_LIMIT_AUTH_FORGOT_PASSWORD_WINDOW_SECONDS,
-            3600 // 1 hour
+            3600, // 1 hour
           ),
         },
         refresh: {
-          requests: parsePositiveInt(process.env.RATE_LIMIT_AUTH_REFRESH_REQUESTS, 20),
+          requests: parsePositiveInt(
+            process.env.RATE_LIMIT_AUTH_REFRESH_REQUESTS,
+            20,
+          ),
           windowSeconds: parsePositiveInt(
             process.env.RATE_LIMIT_AUTH_REFRESH_WINDOW_SECONDS,
-            60 // 1 minute
+            60, // 1 minute
           ),
         },
       },
       resource: {
         search: {
-          requests: parsePositiveInt(process.env.RATE_LIMIT_RESOURCE_SEARCH_REQUESTS, 30),
+          requests: parsePositiveInt(
+            process.env.RATE_LIMIT_RESOURCE_SEARCH_REQUESTS,
+            30,
+          ),
           windowSeconds: parsePositiveInt(
             process.env.RATE_LIMIT_RESOURCE_SEARCH_WINDOW_SECONDS,
-            60
+            60,
           ),
         },
         export: {
-          requests: parsePositiveInt(process.env.RATE_LIMIT_RESOURCE_EXPORT_REQUESTS, 10),
+          requests: parsePositiveInt(
+            process.env.RATE_LIMIT_RESOURCE_EXPORT_REQUESTS,
+            10,
+          ),
           windowSeconds: parsePositiveInt(
             process.env.RATE_LIMIT_RESOURCE_EXPORT_WINDOW_SECONDS,
-            3600 // 1 hour
+            3600, // 1 hour
           ),
         },
         import: {
-          requests: parsePositiveInt(process.env.RATE_LIMIT_RESOURCE_IMPORT_REQUESTS, 5),
+          requests: parsePositiveInt(
+            process.env.RATE_LIMIT_RESOURCE_IMPORT_REQUESTS,
+            5,
+          ),
           windowSeconds: parsePositiveInt(
             process.env.RATE_LIMIT_RESOURCE_IMPORT_WINDOW_SECONDS,
-            60
+            60,
           ),
         },
         analytics: {
-          requests: parsePositiveInt(process.env.RATE_LIMIT_RESOURCE_ANALYTICS_REQUESTS, 20),
+          requests: parsePositiveInt(
+            process.env.RATE_LIMIT_RESOURCE_ANALYTICS_REQUESTS,
+            20,
+          ),
           windowSeconds: parsePositiveInt(
             process.env.RATE_LIMIT_RESOURCE_ANALYTICS_WINDOW_SECONDS,
-            60
+            60,
           ),
         },
       },
       messaging: {
         send: {
-          requests: parsePositiveInt(process.env.RATE_LIMIT_MESSAGING_SEND_REQUESTS, 60),
-          windowSeconds: parsePositiveInt(process.env.RATE_LIMIT_MESSAGING_SEND_WINDOW_SECONDS, 60),
+          requests: parsePositiveInt(
+            process.env.RATE_LIMIT_MESSAGING_SEND_REQUESTS,
+            60,
+          ),
+          windowSeconds: parsePositiveInt(
+            process.env.RATE_LIMIT_MESSAGING_SEND_WINDOW_SECONDS,
+            60,
+          ),
         },
         whatsapp: {
-          requests: parsePositiveInt(process.env.RATE_LIMIT_MESSAGING_WHATSAPP_REQUESTS, 30),
+          requests: parsePositiveInt(
+            process.env.RATE_LIMIT_MESSAGING_WHATSAPP_REQUESTS,
+            30,
+          ),
           windowSeconds: parsePositiveInt(
             process.env.RATE_LIMIT_MESSAGING_WHATSAPP_WINDOW_SECONDS,
-            60
+            60,
           ),
         },
       },
     },
-  }
+  };
 }
 
 /**
@@ -195,48 +241,51 @@ export function getRateLimitConfig(): RateLimitConfig {
  * Returns true if the configuration is valid
  */
 export function isValidRateLimitConfig(config: RateLimitConfig): boolean {
-  if (typeof config.enabled !== 'boolean') {
-    return false
+  if (typeof config.enabled !== "boolean") {
+    return false;
   }
 
-  const validStoreTypes = ['memory', 'redis']
+  const validStoreTypes = ["memory", "redis"];
   if (!validStoreTypes.includes(config.store.type)) {
-    return false
+    return false;
   }
 
-  if (config.store.type === 'redis' && !config.store.redisUrl) {
-    return false
+  if (config.store.type === "redis" && !config.store.redisUrl) {
+    return false;
   }
 
-  if (typeof config.store.memoryMaxItems !== 'number' || config.store.memoryMaxItems <= 0) {
-    return false
+  if (
+    typeof config.store.memoryMaxItems !== "number" ||
+    config.store.memoryMaxItems <= 0
+  ) {
+    return false;
   }
 
   // Validate all tiers have positive integers
   const validateTier = (tier: RateLimitTier): boolean => {
     return (
-      typeof tier.requests === 'number' &&
+      typeof tier.requests === "number" &&
       tier.requests > 0 &&
-      typeof tier.windowSeconds === 'number' &&
+      typeof tier.windowSeconds === "number" &&
       tier.windowSeconds > 0
-    )
-  }
+    );
+  };
 
-  if (!validateTier(config.tiers.global)) return false
+  if (!validateTier(config.tiers.global)) return false;
 
   for (const tier of Object.values(config.tiers.auth)) {
-    if (!validateTier(tier)) return false
+    if (!validateTier(tier)) return false;
   }
 
   for (const tier of Object.values(config.tiers.resource)) {
-    if (!validateTier(tier)) return false
+    if (!validateTier(tier)) return false;
   }
 
   for (const tier of Object.values(config.tiers.messaging)) {
-    if (!validateTier(tier)) return false
+    if (!validateTier(tier)) return false;
   }
 
-  return true
+  return true;
 }
 
 /**
@@ -245,7 +294,7 @@ export function isValidRateLimitConfig(config: RateLimitConfig): boolean {
 export const DEFAULT_RATE_LIMIT_CONFIG: RateLimitConfig = {
   enabled: true,
   store: {
-    type: 'memory',
+    type: "memory",
     redisUrl: undefined,
     memoryMaxItems: 10000,
   },
@@ -301,4 +350,4 @@ export const DEFAULT_RATE_LIMIT_CONFIG: RateLimitConfig = {
       },
     },
   },
-}
+};

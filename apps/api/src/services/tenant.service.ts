@@ -37,7 +37,7 @@ export function getTenantConnection(companyId: string): Kysely<TenantDatabase> {
   });
 
   // Set search_path on all new connections from the pool
-  pool.on('connect', (client) => {
+  pool.on("connect", (client) => {
     client.query(`SET search_path TO "${schemaName}"`);
   });
 

@@ -43,8 +43,11 @@ export async function initializeMessageHandler(): Promise<void> {
       );
       return;
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      const isStreamNotFound = errorMessage.includes("no stream matches subject");
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      const isStreamNotFound = errorMessage.includes(
+        "no stream matches subject",
+      );
 
       if (isStreamNotFound && attempt < maxRetries) {
         console.log(

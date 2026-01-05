@@ -223,6 +223,7 @@ messageRoutes.post(
       content,
       messageType,
       user.id,
+      waMessageId,
       mediaUrl,
       quotedWaMessageId,
       quotedSenderJid,
@@ -436,7 +437,10 @@ messageRoutes.post(
       originalMessage.content || "",
       originalMessage.message_type,
       user.id,
+      waMessageId,
       originalMessage.media_url || undefined,
+      undefined, // replyTo - forwards don't have reply context
+      undefined, // replyToSender - forwards don't have reply context
     );
 
     return c.json({
@@ -530,6 +534,21 @@ messageRoutes.post(
       })
       .execute();
 
+    // Look up the sender JID for reply context
+    let quotedSenderJid: string | undefined;
+    if (originalMessage.quoted_message_id) {
+      const quotedMessage = await tenantDb
+        .selectFrom("messages")
+        .select(["from_me", "sender_jid"])
+        .where("message_id", "=", originalMessage.quoted_message_id)
+        .executeTakeFirst();
+      if (quotedMessage?.from_me) {
+        quotedSenderJid = connection.jid || undefined;
+      } else {
+        quotedSenderJid = quotedMessage?.sender_jid || contact.jid;
+      }
+    }
+
     // Publish send command to NATS
     await publishSendMessage(
       companyId,
@@ -538,9 +557,10 @@ messageRoutes.post(
       originalMessage.content || "",
       originalMessage.message_type,
       user.id,
+      waMessageId,
       originalMessage.media_url || undefined,
       originalMessage.quoted_message_id || undefined,
-      originalMessage.sender_jid || undefined,
+      quotedSenderJid,
     );
 
     return c.json({

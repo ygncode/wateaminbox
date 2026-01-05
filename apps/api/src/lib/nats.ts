@@ -450,7 +450,10 @@ export async function publishSpawnCommand(
     tenant_schema: `tenant_${companyId.replace(/-/g, "_")}`,
     database_url: dbUrl,
   };
-  console.log("[NATS] Spawn command DATABASE_URL:", dbUrl.replace(/\/\/[^:]+:[^@]+@/, "//***:***@"));
+  console.log(
+    "[NATS] Spawn command DATABASE_URL:",
+    dbUrl.replace(/\/\/[^:]+:[^@]+@/, "//***:***@"),
+  );
   await publishCommand(NATS_SUBJECTS.WHATSAPP_SPAWN, command);
 }
 
@@ -479,6 +482,9 @@ export async function publishKillCommand(
  * - content: message content
  * - reply_to: optional message ID to reply to
  * - reply_to_sender: JID of the sender of the quoted message
+ * @param pendingMessageId - The message ID created when saving the pending message to the database.
+ *                           This ID is passed through to the Go worker and returned in the confirmation
+ *                           event, allowing us to update the correct database record when the message is sent.
  */
 export async function publishSendMessage(
   companyId: string,
@@ -487,13 +493,14 @@ export async function publishSendMessage(
   content: string,
   messageType: MessageType,
   userId: string,
+  pendingMessageId: string,
   mediaUrl?: string,
   replyTo?: string,
   replyToSender?: string,
 ): Promise<void> {
   // Format command to match Go worker's SendMessageCommand struct
   const sendCommand = {
-    message_id: crypto.randomUUID(),
+    message_id: pendingMessageId,
     connection_id: connectionId,
     to: jid,
     type: messageType, // Go worker expects "text", "image", etc. directly
@@ -704,7 +711,12 @@ export async function subscribe(
 
   // Create an ephemeral push consumer with a unique deliver subject
   // This allows receiving messages published to JetStream
-  const inbox = nc.options.inboxPrefix + "." + Date.now() + "." + Math.random().toString(36).substring(7);
+  const inbox =
+    nc.options.inboxPrefix +
+    "." +
+    Date.now() +
+    "." +
+    Math.random().toString(36).substring(7);
 
   const subscription = await js.subscribe(subject, {
     config: {

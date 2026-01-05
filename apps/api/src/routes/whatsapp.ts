@@ -70,7 +70,11 @@ whatsappRoutes.post(
         },
       });
     } catch (error) {
-      const err = error as Error & { code?: string; currentCount?: number; maxAllowed?: number };
+      const err = error as Error & {
+        code?: string;
+        currentCount?: number;
+        maxAllowed?: number;
+      };
       // Check by code property, name, instanceof, or message pattern (fallback)
       const isMaxConnectionsError =
         err.code === "MAX_CONNECTIONS_EXCEEDED" ||
@@ -354,7 +358,11 @@ whatsappRoutes.post(
         201,
       );
     } catch (error) {
-      const err = error as Error & { code?: string; currentCount?: number; maxAllowed?: number };
+      const err = error as Error & {
+        code?: string;
+        currentCount?: number;
+        maxAllowed?: number;
+      };
 
       // Check by code property, name, instanceof, or message pattern (fallback)
       const isMaxConnectionsError =
@@ -490,7 +498,10 @@ whatsappRoutes.delete(
         connectionId,
       );
 
-      if (connection.status === "connected" || connection.status === "pending") {
+      if (
+        connection.status === "connected" ||
+        connection.status === "pending"
+      ) {
         await whatsappService.killConnection(tenantDb, companyId, connectionId);
       }
 

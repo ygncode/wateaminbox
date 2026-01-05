@@ -253,7 +253,13 @@ labelRoutes.post("/:labelId/apply/:contactId", async (c) => {
   }
 
   // Publish apply label command to NATS
-  await publishApplyLabel(companyId, connection.id, labelId, contact.jid, user.id);
+  await publishApplyLabel(
+    companyId,
+    connection.id,
+    labelId,
+    contact.jid,
+    user.id,
+  );
 
   // If the label is linked to a tag, also add the tag to the contact locally
   if (label.syncedTagId) {
@@ -326,7 +332,13 @@ labelRoutes.delete("/:labelId/apply/:contactId", async (c) => {
   }
 
   // Publish remove label command to NATS
-  await publishRemoveLabel(companyId, connection.id, labelId, contact.jid, user.id);
+  await publishRemoveLabel(
+    companyId,
+    connection.id,
+    labelId,
+    contact.jid,
+    user.id,
+  );
 
   // If the label is linked to a tag, also remove the tag from the contact locally
   if (label.syncedTagId) {

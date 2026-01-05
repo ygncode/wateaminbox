@@ -549,7 +549,7 @@ func (s *PGSQLStore) GetManySessions(ctx context.Context, addresses []string) (m
 	query := `SELECT their_id, session FROM whatsmeow_sessions
 		WHERE connection_id = $1 AND our_jid = $2 AND their_id = ANY($3)`
 
-	rows, err := s.db.QueryContext(ctx, query, s.connectionID, s.JID, addresses)
+	rows, err := s.db.QueryContext(ctx, query, s.connectionID, s.JID, pq.Array(addresses))
 	if err != nil {
 		return nil, err
 	}
@@ -977,7 +977,7 @@ func (s *PGSQLStore) DeleteAppStateMutationMACs(ctx context.Context, name string
 	_, err := s.db.ExecContext(ctx, `
 		DELETE FROM whatsmeow_app_state_mutation_macs
 		WHERE connection_id = $1 AND jid = $2 AND name = $3 AND encode(index_mac, 'hex') = ANY($4)
-	`, s.connectionID, s.JID, name, hexMACs)
+	`, s.connectionID, s.JID, name, pq.Array(hexMACs))
 	return err
 }
 

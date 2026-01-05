@@ -5,8 +5,8 @@
  * Supports in-memory LRU cache for development and Redis for production.
  */
 
-import { getRateLimitConfig } from '../config/rate-limit.config.js'
-import type { RateLimitConfig } from '../config/rate-limit.config'
+import { getRateLimitConfig } from "../config/rate-limit.config.js";
+import type { RateLimitConfig } from "../config/rate-limit.config";
 
 /**
  * Result of a rate limit check/increment operation
@@ -15,23 +15,23 @@ export interface RateLimitResult {
   /**
    * Whether the request is allowed (not over limit)
    */
-  allowed: boolean
+  allowed: boolean;
   /**
    * Current request count in this window
    */
-  currentCount: number
+  currentCount: number;
   /**
    * Maximum requests allowed in this window
    */
-  limit: number
+  limit: number;
   /**
    * Unix timestamp (seconds) when the window resets
    */
-  resetAt: number
+  resetAt: number;
   /**
    * Seconds until the window resets
    */
-  retryAfter: number
+  retryAfter: number;
 }
 
 /**
@@ -52,34 +52,38 @@ export interface RateLimitStore {
    * @param windowSeconds - Length of the rolling window in seconds
    * @returns RateLimitResult with current state
    */
-  increment(key: string, limit: number, windowSeconds: number): Promise<RateLimitResult>
+  increment(
+    key: string,
+    limit: number,
+    windowSeconds: number,
+  ): Promise<RateLimitResult>;
 
   /**
    * Reset the counter for a specific key
    *
    * @param key - Unique identifier for the rate limit bucket
    */
-  reset(key: string): Promise<void>
+  reset(key: string): Promise<void>;
 
   /**
    * Clear all rate limit data
    * Useful for testing or emergency resets
    */
-  clear(): Promise<void>
+  clear(): Promise<void>;
 
   /**
    * Close the store and release resources
    * For Redis, this closes the connection
    */
-  close(): Promise<void>
+  close(): Promise<void>;
 }
 
 /**
  * Individual counter entry stored in memory
  */
 interface CounterEntry {
-  count: number
-  windowStart: number // Unix timestamp in milliseconds
+  count: number;
+  windowStart: number; // Unix timestamp in milliseconds
 }
 
 /**
@@ -89,51 +93,55 @@ interface CounterEntry {
  * Uses a Map with manual LRU tracking to limit memory usage.
  */
 export class MemoryRateLimitStore implements RateLimitStore {
-  private counters: Map<string, CounterEntry>
-  private accessOrder: string[] // Track access for LRU eviction
-  private maxItems: number
+  private counters: Map<string, CounterEntry>;
+  private accessOrder: string[]; // Track access for LRU eviction
+  private maxItems: number;
 
   constructor(maxItems: number = 10000) {
-    this.counters = new Map()
-    this.accessOrder = []
-    this.maxItems = maxItems
+    this.counters = new Map();
+    this.accessOrder = [];
+    this.maxItems = maxItems;
   }
 
   /**
    * Increment the counter for a key, enforcing LRU eviction if needed
    */
-  async increment(key: string, limit: number, windowSeconds: number): Promise<RateLimitResult> {
-    const now = Date.now()
-    const windowMs = windowSeconds * 1000
+  async increment(
+    key: string,
+    limit: number,
+    windowSeconds: number,
+  ): Promise<RateLimitResult> {
+    const now = Date.now();
+    const windowMs = windowSeconds * 1000;
 
     // Get or create entry
-    let entry = this.counters.get(key)
+    let entry = this.counters.get(key);
 
     // Update access order for LRU
-    this.updateAccessOrder(key)
+    this.updateAccessOrder(key);
 
     if (!entry) {
       // New entry - initialize with count of 1
-      entry = { count: 1, windowStart: now }
-      this.counters.set(key, entry)
-      this.evictIfNeeded()
+      entry = { count: 1, windowStart: now };
+      this.counters.set(key, entry);
+      this.evictIfNeeded();
     } else {
       // Check if window has expired
-      const windowElapsed = now - entry.windowStart
+      const windowElapsed = now - entry.windowStart;
 
       if (windowElapsed >= windowMs) {
         // Window expired - start fresh
-        entry.count = 1
-        entry.windowStart = now
+        entry.count = 1;
+        entry.windowStart = now;
       } else {
         // Within window - increment count
-        entry.count++
+        entry.count++;
       }
     }
 
-    const resetAtMs = entry.windowStart + windowMs
-    const resetAt = Math.floor(resetAtMs / 1000)
-    const retryAfter = Math.max(0, Math.ceil((resetAtMs - now) / 1000))
+    const resetAtMs = entry.windowStart + windowMs;
+    const resetAt = Math.floor(resetAtMs / 1000);
+    const retryAfter = Math.max(0, Math.ceil((resetAtMs - now) / 1000));
 
     return {
       allowed: entry.count <= limit,
@@ -141,23 +149,23 @@ export class MemoryRateLimitStore implements RateLimitStore {
       limit,
       resetAt,
       retryAfter,
-    }
+    };
   }
 
   /**
    * Reset a specific key's counter
    */
   async reset(key: string): Promise<void> {
-    this.counters.delete(key)
-    this.accessOrder = this.accessOrder.filter((k) => k !== key)
+    this.counters.delete(key);
+    this.accessOrder = this.accessOrder.filter((k) => k !== key);
   }
 
   /**
    * Clear all counters
    */
   async clear(): Promise<void> {
-    this.counters.clear()
-    this.accessOrder = []
+    this.counters.clear();
+    this.accessOrder = [];
   }
 
   /**
@@ -172,11 +180,11 @@ export class MemoryRateLimitStore implements RateLimitStore {
    * Moves the key to the end of the access list (most recently used)
    */
   private updateAccessOrder(key: string): void {
-    const index = this.accessOrder.indexOf(key)
+    const index = this.accessOrder.indexOf(key);
     if (index >= 0) {
-      this.accessOrder.splice(index, 1)
+      this.accessOrder.splice(index, 1);
     }
-    this.accessOrder.push(key)
+    this.accessOrder.push(key);
   }
 
   /**
@@ -184,9 +192,9 @@ export class MemoryRateLimitStore implements RateLimitStore {
    */
   private evictIfNeeded(): void {
     while (this.counters.size > this.maxItems && this.accessOrder.length > 0) {
-      const lruKey = this.accessOrder.shift()
+      const lruKey = this.accessOrder.shift();
       if (lruKey) {
-        this.counters.delete(lruKey)
+        this.counters.delete(lruKey);
       }
     }
   }
@@ -196,7 +204,7 @@ export class MemoryRateLimitStore implements RateLimitStore {
    * Useful for monitoring and testing
    */
   get size(): number {
-    return this.counters.size
+    return this.counters.size;
   }
 }
 
@@ -205,26 +213,30 @@ export class MemoryRateLimitStore implements RateLimitStore {
  * We use dynamic import to make Redis an optional dependency
  */
 interface RedisClient {
-  get(key: string): Promise<string | null>
-  set(key: string, value: string | number): Promise<'OK' | null>
-  incr(key: string): Promise<number>
-  expire(key: string, seconds: number): Promise<number>
-  del(...keys: string[]): Promise<number>
-  scan(cursor: string, arg1?: string, arg2?: string, arg3?: string, arg4?: string): Promise<
-    [string, string[]]
-  >
-  pipeline(): RedisPipeline
-  quit(): Promise<'OK'>
-  on(event: string, handler: (err: Error) => void): void
+  get(key: string): Promise<string | null>;
+  set(key: string, value: string | number): Promise<"OK" | null>;
+  incr(key: string): Promise<number>;
+  expire(key: string, seconds: number): Promise<number>;
+  del(...keys: string[]): Promise<number>;
+  scan(
+    cursor: string,
+    arg1?: string,
+    arg2?: string,
+    arg3?: string,
+    arg4?: string,
+  ): Promise<[string, string[]]>;
+  pipeline(): RedisPipeline;
+  quit(): Promise<"OK">;
+  on(event: string, handler: (err: Error) => void): void;
 }
 
 interface RedisPipeline {
-  set(key: string, value: string | number): RedisPipeline
-  expire(key: string, seconds: number): RedisPipeline
-  incr(key: string): RedisPipeline
-  del(...keys: string[]): RedisPipeline
-  exec(): Promise<Array<[Error | null, any] | null>>
-  length: number
+  set(key: string, value: string | number): RedisPipeline;
+  expire(key: string, seconds: number): RedisPipeline;
+  incr(key: string): RedisPipeline;
+  del(...keys: string[]): RedisPipeline;
+  exec(): Promise<Array<[Error | null, any] | null>>;
+  length: number;
 }
 
 /**
@@ -237,12 +249,12 @@ interface RedisPipeline {
  * Uses a simpler Lua-less approach for broader Redis compatibility.
  */
 export class RedisRateLimitStore implements RateLimitStore {
-  private redisUrl: string
-  private client: RedisClient | null = null
-  private ready = false
+  private redisUrl: string;
+  private client: RedisClient | null = null;
+  private ready = false;
 
   constructor(redisUrl: string) {
-    this.redisUrl = redisUrl
+    this.redisUrl = redisUrl;
   }
 
   /**
@@ -250,34 +262,34 @@ export class RedisRateLimitStore implements RateLimitStore {
    * Called lazily on first use to avoid startup failures
    */
   private async ensureConnected(): Promise<void> {
-    if (this.ready) return
+    if (this.ready) return;
 
     try {
       // Dynamic import to avoid requiring ioredis when not using Redis
       // @ts-expect-error - ioredis is an optional dependency
-      const redisModule = (await import('ioredis').catch(() => {
+      const redisModule = (await import("ioredis").catch(() => {
         throw new Error(
-          'ioredis package is required for Redis rate limiting. Install it with: bun add ioredis'
-        )
-      })) as any
+          "ioredis package is required for Redis rate limiting. Install it with: bun add ioredis",
+        );
+      })) as any;
 
-      const Redis = redisModule.default
+      const Redis = redisModule.default;
       this.client = new Redis(this.redisUrl, {
         maxRetriesPerRequest: 3,
         retryStrategy: (times: number) => {
-          if (times > 3) return null
-          return Math.min(times * 100, 500)
+          if (times > 3) return null;
+          return Math.min(times * 100, 500);
         },
-      })
+      });
 
-      this.client.on('error', (err: Error) => {
-        console.error('[RedisRateLimitStore] Redis error:', err.message)
-      })
+      this.client.on("error", (err: Error) => {
+        console.error("[RedisRateLimitStore] Redis error:", err.message);
+      });
 
-      this.ready = true
+      this.ready = true;
     } catch (error) {
-      console.error('[RedisRateLimitStore] Failed to connect to Redis:', error)
-      throw new Error(`Failed to initialize Redis store: ${error}`)
+      console.error("[RedisRateLimitStore] Failed to connect to Redis:", error);
+      throw new Error(`Failed to initialize Redis store: ${error}`);
     }
   }
 
@@ -290,29 +302,33 @@ export class RedisRateLimitStore implements RateLimitStore {
    *
    * If the window has expired, we reset the counter.
    */
-  async increment(key: string, limit: number, windowSeconds: number): Promise<RateLimitResult> {
-    await this.ensureConnected()
+  async increment(
+    key: string,
+    limit: number,
+    windowSeconds: number,
+  ): Promise<RateLimitResult> {
+    await this.ensureConnected();
 
     if (!this.client) {
-      throw new Error('Redis client not initialized')
+      throw new Error("Redis client not initialized");
     }
 
-    const now = Math.floor(Date.now() / 1000)
-    const countKey = `ratelimit:${key}:count`
-    const startKey = `ratelimit:${key}:start`
+    const now = Math.floor(Date.now() / 1000);
+    const countKey = `ratelimit:${key}:count`;
+    const startKey = `ratelimit:${key}:start`;
 
     try {
       // Get current window start
-      const windowStart = await this.client.get(startKey)
+      const windowStart = await this.client.get(startKey);
 
       if (windowStart === null) {
         // First request in this window
-        const pipeline = this.client.pipeline()
-        pipeline.set(countKey, 1)
-        pipeline.set(startKey, now)
-        pipeline.expire(countKey, windowSeconds)
-        pipeline.expire(startKey, windowSeconds)
-        await pipeline.exec()
+        const pipeline = this.client.pipeline();
+        pipeline.set(countKey, 1);
+        pipeline.set(startKey, now);
+        pipeline.expire(countKey, windowSeconds);
+        pipeline.expire(startKey, windowSeconds);
+        await pipeline.exec();
 
         return {
           allowed: 1 <= limit,
@@ -320,20 +336,20 @@ export class RedisRateLimitStore implements RateLimitStore {
           limit,
           resetAt: now + windowSeconds,
           retryAfter: windowSeconds,
-        }
+        };
       }
 
-      const windowStartNum = Number.parseInt(windowStart, 10)
-      const windowElapsed = now - windowStartNum
+      const windowStartNum = Number.parseInt(windowStart, 10);
+      const windowElapsed = now - windowStartNum;
 
       if (windowElapsed >= windowSeconds) {
         // Window expired - reset
-        const pipeline = this.client.pipeline()
-        pipeline.set(countKey, 1)
-        pipeline.set(startKey, now)
-        pipeline.expire(countKey, windowSeconds)
-        pipeline.expire(startKey, windowSeconds)
-        await pipeline.exec()
+        const pipeline = this.client.pipeline();
+        pipeline.set(countKey, 1);
+        pipeline.set(startKey, now);
+        pipeline.expire(countKey, windowSeconds);
+        pipeline.expire(startKey, windowSeconds);
+        await pipeline.exec();
 
         return {
           allowed: 1 <= limit,
@@ -341,13 +357,13 @@ export class RedisRateLimitStore implements RateLimitStore {
           limit,
           resetAt: now + windowSeconds,
           retryAfter: windowSeconds,
-        }
+        };
       }
 
       // Within window - increment counter
-      const newCount = await this.client.incr(countKey)
-      const resetAt = windowStartNum + windowSeconds
-      const retryAfter = Math.max(0, resetAt - now)
+      const newCount = await this.client.incr(countKey);
+      const resetAt = windowStartNum + windowSeconds;
+      const retryAfter = Math.max(0, resetAt - now);
 
       return {
         allowed: newCount <= limit,
@@ -355,9 +371,9 @@ export class RedisRateLimitStore implements RateLimitStore {
         limit,
         resetAt,
         retryAfter,
-      }
+      };
     } catch (error) {
-      console.error('[RedisRateLimitStore] Error during increment:', error)
+      console.error("[RedisRateLimitStore] Error during increment:", error);
       // On Redis error, fail open - allow the request
       return {
         allowed: true,
@@ -365,7 +381,7 @@ export class RedisRateLimitStore implements RateLimitStore {
         limit,
         resetAt: now + windowSeconds,
         retryAfter: windowSeconds,
-      }
+      };
     }
   }
 
@@ -373,17 +389,17 @@ export class RedisRateLimitStore implements RateLimitStore {
    * Reset a specific key's counter
    */
   async reset(key: string): Promise<void> {
-    await this.ensureConnected()
+    await this.ensureConnected();
 
-    if (!this.client) return
+    if (!this.client) return;
 
-    const countKey = `ratelimit:${key}:count`
-    const startKey = `ratelimit:${key}:start`
+    const countKey = `ratelimit:${key}:count`;
+    const startKey = `ratelimit:${key}:start`;
 
     try {
-      await this.client.del(countKey, startKey)
+      await this.client.del(countKey, startKey);
     } catch (error) {
-      console.error('[RedisRateLimitStore] Error during reset:', error)
+      console.error("[RedisRateLimitStore] Error during reset:", error);
     }
   }
 
@@ -392,31 +408,37 @@ export class RedisRateLimitStore implements RateLimitStore {
    * Uses SCAN to avoid blocking for large datasets
    */
   async clear(): Promise<void> {
-    await this.ensureConnected()
+    await this.ensureConnected();
 
-    if (!this.client) return
+    if (!this.client) return;
 
     try {
       // Use SCAN with pattern matching to find and delete all rate limit keys
-      let cursor = '0'
-      const pipeline = this.client.pipeline()
+      let cursor = "0";
+      const pipeline = this.client.pipeline();
 
       do {
-        const [nextCursor, keys] = await this.client.scan(cursor, 'MATCH', 'ratelimit:*', 'COUNT', '100')
+        const [nextCursor, keys] = await this.client.scan(
+          cursor,
+          "MATCH",
+          "ratelimit:*",
+          "COUNT",
+          "100",
+        );
 
         if (keys.length > 0) {
-          pipeline.del(...keys)
+          pipeline.del(...keys);
         }
 
-        cursor = nextCursor
-      } while (cursor !== '0')
+        cursor = nextCursor;
+      } while (cursor !== "0");
 
       // Execute the deletion pipeline
       if (pipeline.length > 0) {
-        await pipeline.exec()
+        await pipeline.exec();
       }
     } catch (error) {
-      console.error('[RedisRateLimitStore] Error during clear:', error)
+      console.error("[RedisRateLimitStore] Error during clear:", error);
     }
   }
 
@@ -426,12 +448,12 @@ export class RedisRateLimitStore implements RateLimitStore {
   async close(): Promise<void> {
     if (this.client) {
       try {
-        await this.client.quit()
+        await this.client.quit();
       } catch (error) {
-        console.error('[RedisRateLimitStore] Error during close:', error)
+        console.error("[RedisRateLimitStore] Error during close:", error);
       }
-      this.client = null
-      this.ready = false
+      this.client = null;
+      this.ready = false;
     }
   }
 }
@@ -444,15 +466,17 @@ export class RedisRateLimitStore implements RateLimitStore {
  * @returns Configured RateLimitStore instance
  */
 export function createRateLimitStore(config: RateLimitConfig): RateLimitStore {
-  if (config.store.type === 'redis') {
+  if (config.store.type === "redis") {
     if (!config.store.redisUrl) {
-      throw new Error('Redis store type requires RATE_LIMIT_REDIS_URL to be set')
+      throw new Error(
+        "Redis store type requires RATE_LIMIT_REDIS_URL to be set",
+      );
     }
-    return new RedisRateLimitStore(config.store.redisUrl)
+    return new RedisRateLimitStore(config.store.redisUrl);
   }
 
   // Default to memory store
-  return new MemoryRateLimitStore(config.store.memoryMaxItems)
+  return new MemoryRateLimitStore(config.store.memoryMaxItems);
 }
 
 // ============================================================================
@@ -461,5 +485,5 @@ export function createRateLimitStore(config: RateLimitConfig): RateLimitStore {
 // Initialized here to avoid circular dependencies between app.ts and route files
 // This module has no dependencies on routes, so it's safe to import from anywhere
 
-export const rateLimitConfig = getRateLimitConfig()
-export const rateLimitStore = createRateLimitStore(rateLimitConfig)
+export const rateLimitConfig = getRateLimitConfig();
+export const rateLimitStore = createRateLimitStore(rateLimitConfig);
