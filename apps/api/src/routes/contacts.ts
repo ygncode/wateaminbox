@@ -1,3 +1,4 @@
+import type { MiddlewareHandler } from "hono"
 import { Hono } from "hono";
 import { db } from "@whatsapp-web/database";
 import { authMiddleware } from "../middleware/auth.js";
@@ -73,12 +74,14 @@ contactRoutes.use("/*", tenantMiddleware());
 
 // Import rate limiter: 5 requests per minute per user
 // Bulk contact import is resource-intensive, so we use a strict limit
-const importRateLimiter = createRateLimitMiddleware({
-  store: rateLimitStore,
-  tier: rateLimitConfig.tiers.resource.import,
-  keyStrategy: "user",
-  keyPrefix: "resource-import",
-});
+const importRateLimiter: MiddlewareHandler = rateLimitConfig.enabled
+  ? createRateLimitMiddleware({
+      store: rateLimitStore,
+      tier: rateLimitConfig.tiers.resource.import,
+      keyStrategy: "user",
+      keyPrefix: "resource-import",
+    })
+  : async (c, next) => await next()
 
 /**
  * GET /contacts - List all contacts

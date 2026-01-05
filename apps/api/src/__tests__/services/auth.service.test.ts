@@ -53,6 +53,13 @@ function resetMockQueryBuilder(returnValue: unknown = undefined) {
   };
 }
 
+function resetMockDb() {
+  mockDb.selectFrom = mock(() => mockQueryBuilder);
+  mockDb.insertInto = mock(() => mockQueryBuilder);
+  mockDb.updateTable = mock(() => mockQueryBuilder);
+  mockDb.deleteFrom = mock(() => mockQueryBuilder);
+}
+
 // Mock @whatsapp-web/database
 mock.module("@whatsapp-web/database", () => ({
   db: mockDb,
@@ -109,6 +116,7 @@ describe("AuthService", () => {
   beforeEach(() => {
     // Reset all mocks before each test
     resetMockQueryBuilder();
+    resetMockDb();
     mockHashPassword.mockClear();
     mockVerifyPassword.mockClear();
     mockGenerateAccessToken.mockClear();
@@ -136,8 +144,9 @@ describe("AuthService", () => {
       resetMockQueryBuilder(undefined);
 
       // After checking, setup for insert
-      const insertBuilder = {
-        ...mockQueryBuilder,
+      const insertBuilder: Record<string, unknown> = {
+        values: mock(() => insertBuilder),
+        returning: mock(() => insertBuilder),
         executeTakeFirstOrThrow: mock(() => Promise.resolve(mockCreatedUser)),
       };
       mockDb.insertInto = mock(() => insertBuilder);
@@ -172,8 +181,9 @@ describe("AuthService", () => {
       });
 
       resetMockQueryBuilder(undefined);
-      const insertBuilder = {
-        ...mockQueryBuilder,
+      const insertBuilder: Record<string, unknown> = {
+        values: mock(() => insertBuilder),
+        returning: mock(() => insertBuilder),
         executeTakeFirstOrThrow: mock(() => Promise.resolve(mockCreatedUser)),
       };
       mockDb.insertInto = mock(() => insertBuilder);
@@ -193,22 +203,12 @@ describe("AuthService", () => {
       const mockSession = createMockSession();
 
       // Setup mock for user lookup
-      let callCount = 0;
-      mockDb.selectFrom = mock(() => {
-        callCount++;
-        if (callCount === 1) {
-          // First call - user lookup
-          resetMockQueryBuilder(mockUser);
-          return mockQueryBuilder;
-        }
-        // Subsequent calls
-        resetMockQueryBuilder(mockSession);
-        return mockQueryBuilder;
-      });
+      resetMockQueryBuilder(mockUser);
 
       // Setup mock for session creation
-      const insertBuilder = {
-        ...mockQueryBuilder,
+      const insertBuilder: Record<string, unknown> = {
+        values: mock(() => insertBuilder),
+        returning: mock(() => insertBuilder),
         executeTakeFirstOrThrow: mock(() => Promise.resolve(mockSession)),
       };
       mockDb.insertInto = mock(() => insertBuilder);
@@ -257,13 +257,11 @@ describe("AuthService", () => {
       const mockUser = createMockUser();
       const mockSession = createMockSession();
 
-      mockDb.selectFrom = mock(() => {
-        resetMockQueryBuilder(mockUser);
-        return mockQueryBuilder;
-      });
+      resetMockQueryBuilder(mockUser);
 
-      const insertBuilder = {
-        ...mockQueryBuilder,
+      const insertBuilder: Record<string, unknown> = {
+        values: mock(() => insertBuilder),
+        returning: mock(() => insertBuilder),
         executeTakeFirstOrThrow: mock(() => Promise.resolve(mockSession)),
       };
       mockDb.insertInto = mock(() => insertBuilder);
@@ -285,8 +283,10 @@ describe("AuthService", () => {
         email_verified_at: new Date(),
       });
 
-      const updateBuilder = {
-        ...mockQueryBuilder,
+      const updateBuilder: Record<string, unknown> = {
+        where: mock(() => updateBuilder),
+        set: mock(() => updateBuilder),
+        returning: mock(() => updateBuilder),
         executeTakeFirst: mock(() => Promise.resolve(mockUser)),
       };
       mockDb.updateTable = mock(() => updateBuilder);
@@ -302,8 +302,10 @@ describe("AuthService", () => {
 
     it("should throw error for invalid verification token", async () => {
       // Arrange
-      const updateBuilder = {
-        ...mockQueryBuilder,
+      const updateBuilder: Record<string, unknown> = {
+        where: mock(() => updateBuilder),
+        set: mock(() => updateBuilder),
+        returning: mock(() => updateBuilder),
         executeTakeFirst: mock(() => Promise.resolve(undefined)),
       };
       mockDb.updateTable = mock(() => updateBuilder);
@@ -319,6 +321,13 @@ describe("AuthService", () => {
       // Arrange
       const mockUser = createMockUser();
       resetMockQueryBuilder(mockUser);
+
+      const updateBuilder: Record<string, unknown> = {
+        where: mock(() => updateBuilder),
+        set: mock(() => updateBuilder),
+        executeTakeFirst: mock(() => Promise.resolve(mockUser)),
+      };
+      mockDb.updateTable = mock(() => updateBuilder);
 
       // Act
       const result = await forgotPassword("test@example.com");
@@ -345,9 +354,11 @@ describe("AuthService", () => {
   describe("resetPassword", () => {
     it("should reset password successfully", async () => {
       // Arrange
-      const updateBuilder = {
-        ...mockQueryBuilder,
-        executeTakeFirst: mock(() => Promise.resolve(createUpdateResult(1))),
+      const updateResult = createUpdateResult(1);
+      const updateBuilder: Record<string, unknown> = {
+        where: mock(() => updateBuilder),
+        set: mock(() => updateBuilder),
+        executeTakeFirst: mock(() => Promise.resolve(updateResult)),
       };
       mockDb.updateTable = mock(() => updateBuilder);
 
@@ -361,9 +372,11 @@ describe("AuthService", () => {
 
     it("should throw error for invalid reset token", async () => {
       // Arrange
-      const updateBuilder = {
-        ...mockQueryBuilder,
-        executeTakeFirst: mock(() => Promise.resolve(createUpdateResult(0))),
+      const updateResult = createUpdateResult(0);
+      const updateBuilder: Record<string, unknown> = {
+        where: mock(() => updateBuilder),
+        set: mock(() => updateBuilder),
+        executeTakeFirst: mock(() => Promise.resolve(updateResult)),
       };
       mockDb.updateTable = mock(() => updateBuilder);
 
@@ -381,8 +394,9 @@ describe("AuthService", () => {
 
       mockVerifyRefreshToken.mockImplementation(async () => ({ sessionId: "session-123" }));
 
-      const updateBuilder = {
-        ...mockQueryBuilder,
+      const updateBuilder: Record<string, unknown> = {
+        where: mock(() => updateBuilder),
+        set: mock(() => updateBuilder),
         execute: mock(() => Promise.resolve([])),
       };
       mockDb.updateTable = mock(() => updateBuilder);
@@ -419,9 +433,10 @@ describe("AuthService", () => {
   describe("revokeSession", () => {
     it("should revoke session successfully", async () => {
       // Arrange
-      const deleteBuilder = {
-        ...mockQueryBuilder,
-        executeTakeFirst: mock(() => Promise.resolve(createDeleteResult(1))),
+      const deleteResult = createDeleteResult(1);
+      const deleteBuilder: Record<string, unknown> = {
+        where: mock(() => deleteBuilder),
+        executeTakeFirst: mock(() => Promise.resolve(deleteResult)),
       };
       mockDb.deleteFrom = mock(() => deleteBuilder);
 
@@ -434,9 +449,10 @@ describe("AuthService", () => {
 
     it("should throw error if session not found", async () => {
       // Arrange
-      const deleteBuilder = {
-        ...mockQueryBuilder,
-        executeTakeFirst: mock(() => Promise.resolve(createDeleteResult(0))),
+      const deleteResult = createDeleteResult(0);
+      const deleteBuilder: Record<string, unknown> = {
+        where: mock(() => deleteBuilder),
+        executeTakeFirst: mock(() => Promise.resolve(deleteResult)),
       };
       mockDb.deleteFrom = mock(() => deleteBuilder);
 
@@ -449,9 +465,10 @@ describe("AuthService", () => {
   describe("revokeAllSessions", () => {
     it("should revoke all sessions for user", async () => {
       // Arrange
-      const deleteBuilder = {
-        ...mockQueryBuilder,
-        executeTakeFirst: mock(() => Promise.resolve(createDeleteResult(5))),
+      const deleteResult = createDeleteResult(5);
+      const deleteBuilder: Record<string, unknown> = {
+        where: mock(() => deleteBuilder),
+        executeTakeFirst: mock(() => Promise.resolve(deleteResult)),
       };
       mockDb.deleteFrom = mock(() => deleteBuilder);
 
@@ -464,10 +481,10 @@ describe("AuthService", () => {
 
     it("should exclude specified session when revoking all", async () => {
       // Arrange
-      const deleteBuilder = {
-        ...mockQueryBuilder,
+      const deleteResult = createDeleteResult(4);
+      const deleteBuilder: Record<string, unknown> = {
         where: mock(() => deleteBuilder),
-        executeTakeFirst: mock(() => Promise.resolve(createDeleteResult(4))),
+        executeTakeFirst: mock(() => Promise.resolve(deleteResult)),
       };
       mockDb.deleteFrom = mock(() => deleteBuilder);
 

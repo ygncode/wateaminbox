@@ -1,3 +1,4 @@
+import type { MiddlewareHandler } from "hono"
 import { Hono } from "hono";
 import { authMiddleware } from "../middleware/auth.js";
 import { tenantMiddleware } from "../middleware/tenant.js";
@@ -13,12 +14,14 @@ analyticsRoutes.use("/*", tenantMiddleware());
 
 // Analytics rate limiter: 20 requests per minute per user
 // Analytics queries can be resource-intensive with aggregations
-const analyticsRateLimiter = createRateLimitMiddleware({
-  store: rateLimitStore,
-  tier: rateLimitConfig.tiers.resource.analytics,
-  keyStrategy: "user",
-  keyPrefix: "resource-analytics",
-});
+const analyticsRateLimiter: MiddlewareHandler = rateLimitConfig.enabled
+  ? createRateLimitMiddleware({
+      store: rateLimitStore,
+      tier: rateLimitConfig.tiers.resource.analytics,
+      keyStrategy: "user",
+      keyPrefix: "resource-analytics",
+    })
+  : async (c, next) => await next()
 
 /**
  * GET /analytics/dashboard - Get dashboard overview stats

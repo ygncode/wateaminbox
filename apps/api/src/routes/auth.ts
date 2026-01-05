@@ -1,3 +1,4 @@
+import type { MiddlewareHandler } from "hono"
 import { Hono } from "hono";
 import { z } from "zod";
 import {
@@ -24,38 +25,47 @@ export const authRoutes = new Hono();
 
 // Endpoint-specific rate limiters for auth endpoints
 // These use IP-based keys since they're pre-authentication or token-based
+// Only apply rate limiting if enabled in config
 
 // Login rate limiter: 5 attempts per 15 minutes
-const loginRateLimiter = createRateLimitMiddleware({
-  store: rateLimitStore,
-  tier: rateLimitConfig.tiers.auth.login,
-  keyStrategy: "ip",
-  keyPrefix: "auth-login",
-});
+const loginRateLimiter: MiddlewareHandler = rateLimitConfig.enabled
+  ? createRateLimitMiddleware({
+      store: rateLimitStore,
+      tier: rateLimitConfig.tiers.auth.login,
+      keyStrategy: "ip",
+      keyPrefix: "auth-login",
+    })
+  : async (c, next) => await next()
 
 // Register rate limiter: 3 attempts per hour
-const registerRateLimiter = createRateLimitMiddleware({
-  store: rateLimitStore,
-  tier: rateLimitConfig.tiers.auth.register,
-  keyStrategy: "ip",
-  keyPrefix: "auth-register",
-});
+const registerRateLimiter: MiddlewareHandler = rateLimitConfig.enabled
+  ? createRateLimitMiddleware({
+      store: rateLimitStore,
+      tier: rateLimitConfig.tiers.auth.register,
+      keyStrategy: "ip",
+      keyPrefix: "auth-register",
+    })
+  : async (c, next) => await next()
 
 // Forgot password rate limiter: 3 attempts per hour
-const forgotPasswordRateLimiter = createRateLimitMiddleware({
-  store: rateLimitStore,
-  tier: rateLimitConfig.tiers.auth.forgotPassword,
-  keyStrategy: "ip",
-  keyPrefix: "auth-forgot-password",
-});
+const forgotPasswordRateLimiter: MiddlewareHandler = rateLimitConfig.enabled
+  ? createRateLimitMiddleware({
+      store: rateLimitStore,
+      tier: rateLimitConfig.tiers.auth.forgotPassword,
+      keyStrategy: "ip",
+      keyPrefix: "auth-forgot-password",
+    })
+  : async (c, next) => await next()
 
 // Refresh token rate limiter: 20 attempts per minute
-const refreshRateLimiter = createRateLimitMiddleware({
-  store: rateLimitStore,
-  tier: rateLimitConfig.tiers.auth.refresh,
-  keyStrategy: "ip",
-  keyPrefix: "auth-refresh",
-});
+const refreshRateLimiter: MiddlewareHandler = rateLimitConfig.enabled
+  ? createRateLimitMiddleware({
+      store: rateLimitStore,
+      tier: rateLimitConfig.tiers.auth.refresh,
+      keyStrategy: "ip",
+      keyPrefix: "auth-refresh",
+    })
+  : async (c, next) => await next()
 
 // Validation schemas
 const registerSchema = z.object({

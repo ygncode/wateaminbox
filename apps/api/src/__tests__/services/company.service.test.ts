@@ -47,6 +47,13 @@ function resetMockQueryBuilder(returnValue: unknown = undefined) {
   };
 }
 
+function resetMockDb() {
+  mockDb.selectFrom = mock(() => mockQueryBuilder);
+  mockDb.insertInto = mock(() => mockQueryBuilder);
+  mockDb.updateTable = mock(() => mockQueryBuilder);
+  mockDb.deleteFrom = mock(() => mockQueryBuilder);
+}
+
 // Mock database
 const mockDb = {
   selectFrom: mock(() => mockQueryBuilder),
@@ -117,6 +124,7 @@ import {
 describe("CompanyService", () => {
   beforeEach(() => {
     resetMockQueryBuilder();
+    resetMockDb();
     mockCreateTenantSchema.mockClear();
   });
 
@@ -364,8 +372,9 @@ describe("CompanyService", () => {
         return mockQueryBuilder;
       });
 
-      const insertBuilder = {
-        ...mockQueryBuilder,
+      const insertBuilder: Record<string, unknown> = {
+        values: mock(() => insertBuilder),
+        returning: mock(() => insertBuilder),
         executeTakeFirstOrThrow: mock(() => Promise.resolve(mockInvitation)),
       };
       mockDb.insertInto = mock(() => insertBuilder);
@@ -558,9 +567,19 @@ describe("CompanyService", () => {
         return mockQueryBuilder;
       });
 
-      resetMockQueryBuilder(createDeleteResult(1));
-      mockDb.deleteFrom = mock(() => mockQueryBuilder);
-      mockDb.updateTable = mock(() => mockQueryBuilder);
+      const deleteResult = createDeleteResult(1);
+      const deleteBuilder: Record<string, unknown> = {
+        where: mock(() => deleteBuilder),
+        executeTakeFirst: mock(() => Promise.resolve(deleteResult)),
+      };
+      mockDb.deleteFrom = mock(() => deleteBuilder);
+
+      const updateBuilder: Record<string, unknown> = {
+        where: mock(() => updateBuilder),
+        set: mock(() => updateBuilder),
+        execute: mock(() => Promise.resolve()),
+      };
+      mockDb.updateTable = mock(() => updateBuilder);
 
       // Act & Assert - should not throw
       await expect(removeMember("company-123", "member-123")).resolves.toBeUndefined();

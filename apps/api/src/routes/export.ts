@@ -1,3 +1,4 @@
+import type { MiddlewareHandler } from "hono"
 import { Hono } from "hono";
 import { authMiddleware } from "../middleware/auth.js";
 import { tenantMiddleware, requirePermission } from "../middleware/tenant.js";
@@ -15,12 +16,14 @@ exportRoutes.use("/*", requirePermission(PERMISSIONS.CAN_EXPORT));
 
 // Export rate limiter: 10 requests per hour per user
 // Export operations are resource-intensive, so we use a strict limit
-const exportRateLimiter = createRateLimitMiddleware({
-  store: rateLimitStore,
-  tier: rateLimitConfig.tiers.resource.export,
-  keyStrategy: "user",
-  keyPrefix: "resource-export",
-});
+const exportRateLimiter: MiddlewareHandler = rateLimitConfig.enabled
+  ? createRateLimitMiddleware({
+      store: rateLimitStore,
+      tier: rateLimitConfig.tiers.resource.export,
+      keyStrategy: "user",
+      keyPrefix: "resource-export",
+    })
+  : async (c, next) => await next()
 
 /**
  * GET /export/contacts - Export contacts

@@ -1,3 +1,4 @@
+import type { MiddlewareHandler } from "hono"
 import { Hono } from "hono";
 import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
@@ -26,12 +27,14 @@ const sendMessageSchema = z.object({
 
 // WhatsApp operations rate limiter: 30 requests per minute per user
 // Prevents abuse of WhatsApp connection and send operations
-const whatsappRateLimiter = createRateLimitMiddleware({
-  store: rateLimitStore,
-  tier: rateLimitConfig.tiers.messaging.whatsapp,
-  keyStrategy: "user",
-  keyPrefix: "whatsapp-ops",
-});
+const whatsappRateLimiter: MiddlewareHandler = rateLimitConfig.enabled
+  ? createRateLimitMiddleware({
+      store: rateLimitStore,
+      tier: rateLimitConfig.tiers.messaging.whatsapp,
+      keyStrategy: "user",
+      keyPrefix: "whatsapp-ops",
+    })
+  : async (c, next) => await next()
 
 // Create the router
 export const whatsappRoutes = new Hono();

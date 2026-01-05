@@ -1,3 +1,4 @@
+import type { MiddlewareHandler } from "hono"
 import { Hono } from "hono";
 import { authMiddleware } from "../middleware/auth.js";
 import { tenantMiddleware, requirePermission } from "../middleware/tenant.js";
@@ -15,12 +16,14 @@ messageRoutes.use("/*", tenantMiddleware());
 
 // Message send rate limiter: 60 requests per minute per user
 // Prevents message spam while allowing reasonable burst usage
-const messageSendRateLimiter = createRateLimitMiddleware({
-  store: rateLimitStore,
-  tier: rateLimitConfig.tiers.messaging.send,
-  keyStrategy: "user",
-  keyPrefix: "messaging-send",
-});
+const messageSendRateLimiter: MiddlewareHandler = rateLimitConfig.enabled
+  ? createRateLimitMiddleware({
+      store: rateLimitStore,
+      tier: rateLimitConfig.tiers.messaging.send,
+      keyStrategy: "user",
+      keyPrefix: "messaging-send",
+    })
+  : async (c, next) => await next()
 
 /**
  * GET /messages - Get messages for a contact

@@ -1,3 +1,4 @@
+import type { MiddlewareHandler } from "hono"
 import { Hono } from "hono";
 import { authMiddleware } from "../middleware/auth.js";
 import { tenantMiddleware } from "../middleware/tenant.js";
@@ -12,12 +13,14 @@ mediaRoutes.use("/*", authMiddleware);
 mediaRoutes.use("/*", tenantMiddleware());
 
 // Upload rate limiter: 30 uploads per minute per user
-const uploadRateLimiter = createRateLimitMiddleware({
-  store: rateLimitStore,
-  tier: rateLimitConfig.tiers.resource.import, // Reuse import tier config
-  keyStrategy: "user",
-  keyPrefix: "media-upload",
-});
+const uploadRateLimiter: MiddlewareHandler = rateLimitConfig.enabled
+  ? createRateLimitMiddleware({
+      store: rateLimitStore,
+      tier: rateLimitConfig.tiers.resource.import, // Reuse import tier config
+      keyStrategy: "user",
+      keyPrefix: "media-upload",
+    })
+  : async (c, next) => await next()
 
 /**
  * POST /media/upload - Upload media file
