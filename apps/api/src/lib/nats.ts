@@ -479,7 +479,8 @@ export async function publishKillCommand(
  * The command format must match what the Go WhatsApp worker expects:
  * - to: JID of recipient
  * - type: message type (text, image, etc.)
- * - content: message content
+ * - content: message content or caption for media
+ * - media_data: byte array of media file (for images, videos, etc.)
  * - reply_to: optional message ID to reply to
  * - reply_to_sender: JID of the sender of the quoted message
  * @param pendingMessageId - The message ID created when saving the pending message to the database.
@@ -498,6 +499,78 @@ export async function publishSendMessage(
   replyTo?: string,
   replyToSender?: string,
 ): Promise<void> {
+  let mediaData: number[] | undefined;
+  let caption: string | undefined;
+  let fileName: string | undefined;
+  let mimeType: string | undefined;
+
+  // For media messages, download the file and prepare media data
+  // NOTE: Performance optimization opportunity - we currently re-download from S3 here.
+  // Future improvement: Pass media data directly from upload endpoint to avoid this extra fetch.
+  // Current flow: Browser → API → S3 → API downloads → NATS → Go
+  // Optimized flow: Browser → API → (S3 + NATS simultaneously) → Go
+  if (
+    mediaUrl &&
+    (messageType === "image" ||
+      messageType === "video" ||
+      messageType === "audio" ||
+      messageType === "document")
+  ) {
+    try {
+      // SSRF Protection: Only allow downloads from our S3 endpoint
+      const s3Endpoint = new URL(env.S3_ENDPOINT);
+      const mediaUrlObj = new URL(mediaUrl);
+
+      // Check if URL is from our S3 endpoint (presigned URLs will have same hostname)
+      if (mediaUrlObj.hostname !== s3Endpoint.hostname) {
+        throw new Error(
+          `SSRF protection: Media URL hostname ${mediaUrlObj.hostname} does not match S3 endpoint ${s3Endpoint.hostname}`,
+        );
+      }
+
+      console.log(`[NATS] Downloading media from ${mediaUrl}`);
+      const response = await fetch(mediaUrl);
+
+      if (!response.ok) {
+        throw new Error(`Failed to download media: ${response.statusText}`);
+      }
+
+      // Get MIME type from response headers
+      mimeType =
+        response.headers.get("content-type") || "application/octet-stream";
+
+      // Extract filename from URL or Content-Disposition header
+      const contentDisposition = response.headers.get("content-disposition");
+      if (contentDisposition) {
+        const match = contentDisposition.match(/filename="?(.+)"?/);
+        if (match) {
+          fileName = match[1];
+        }
+      }
+      if (!fileName) {
+        // Extract from URL
+        const urlPath = new URL(mediaUrl).pathname;
+        fileName = urlPath.split("/").pop() || "file";
+      }
+
+      // Convert to byte array
+      const arrayBuffer = await response.arrayBuffer();
+      const uint8Array = new Uint8Array(arrayBuffer);
+      mediaData = Array.from(uint8Array);
+
+      // For media messages, content becomes the caption
+      caption = content || undefined;
+      content = ""; // Clear content field for media messages
+
+      console.log(
+        `[NATS] Downloaded ${mediaData.length} bytes, type: ${mimeType}, filename: ${fileName}`,
+      );
+    } catch (error) {
+      console.error("[NATS] Failed to download media:", error);
+      throw new Error("Failed to download media for sending");
+    }
+  }
+
   // Format command to match Go worker's SendMessageCommand struct
   const sendCommand = {
     message_id: pendingMessageId,
@@ -505,7 +578,10 @@ export async function publishSendMessage(
     to: jid,
     type: messageType, // Go worker expects "text", "image", etc. directly
     content,
-    media_url: mediaUrl,
+    caption,
+    file_name: fileName,
+    mime_type: mimeType,
+    media_data: mediaData,
     user_id: userId,
     reply_to: replyTo,
     reply_to_sender: replyToSender,
@@ -517,7 +593,7 @@ export async function publishSendMessage(
   const data = jc.encode(sendCommand);
   await js.publish(subject, data);
   console.log(
-    `[NATS] Published send message to ${subject}: to=${jid}, type=${messageType}, reply_to=${replyTo || "none"}, reply_to_sender=${replyToSender || "none"}`,
+    `[NATS] Published send message to ${subject}: to=${jid}, type=${messageType}, media=${mediaData ? `${mediaData.length} bytes` : "none"}, reply_to=${replyTo || "none"}, reply_to_sender=${replyToSender || "none"}`,
   );
 }
 

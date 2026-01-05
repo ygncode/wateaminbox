@@ -12,10 +12,11 @@ import { ContactProfile } from "../components/chat/ContactProfile";
 import { ConversationSearch } from "../components/chat/ConversationSearch";
 import { useContact, type ContactDetail } from "../hooks/useContact";
 import { useSendMessage, useDeleteMessage, useStarMessage, useReactMessage } from "../hooks/useMessages";
-import { markConversationAsRead } from "../lib/api";
+import { markConversationAsRead, uploadMedia } from "../lib/api";
 import { chatKeys } from "../hooks/useChats";
 import { useQueryClient } from "@tanstack/react-query";
 import type { Message, Contact } from "@whatsapp-web/shared";
+import { toast } from "sonner";
 
 // Helper to map ContactDetail to Contact type expected by MessageHeader
 function mapContactDetailToContact(detail: ContactDetail): Contact {
@@ -147,11 +148,55 @@ export function ChatPage() {
   );
 
   const handleAttachFile = React.useCallback(
-    (file: File, type: "image" | "document") => {
-      // TODO: Implement file upload
-      console.log("Attaching file:", file.name, type);
+    async (file: File, type: "image" | "document") => {
+      if (!selectedChatId) return;
+
+      try {
+        console.log("Uploading file:", file.name, type);
+
+        // Show uploading toast
+        const uploadingToastId = toast.loading(
+          `Uploading ${file.name}...`,
+        );
+
+        // Upload file to server
+        const uploadResponse = await uploadMedia(file);
+
+        console.log("File uploaded successfully:", uploadResponse.mediaUrl);
+
+        // Determine message type based on MIME type
+        let messageType: "image" | "video" | "audio" | "document" = "document";
+        if (uploadResponse.mimeType.startsWith("image/")) {
+          messageType = "image";
+        } else if (uploadResponse.mimeType.startsWith("video/")) {
+          messageType = "video";
+        } else if (uploadResponse.mimeType.startsWith("audio/")) {
+          messageType = "audio";
+        }
+
+        // Dismiss uploading toast
+        toast.dismiss(uploadingToastId);
+        toast.success("File uploaded successfully");
+
+        // Send message with media URL
+        sendMessage.mutate({
+          contactId: selectedChatId,
+          content: uploadResponse.fileName, // Use filename as caption
+          messageType,
+          mediaUrl: uploadResponse.mediaUrl,
+        });
+      } catch (error) {
+        console.error("Failed to upload file:", error);
+
+        // Show error notification to user
+        if (error instanceof Error) {
+          toast.error(`Failed to upload file: ${error.message}`);
+        } else {
+          toast.error("Failed to upload file. Please try again.");
+        }
+      }
     },
-    [],
+    [selectedChatId, sendMessage],
   );
 
   const handleDeleteMessage = React.useCallback(

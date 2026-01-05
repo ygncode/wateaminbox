@@ -55,6 +55,13 @@ export const env = {
   // NATS
   NATS_URL: getEnv("NATS_URL", "nats://localhost:4222"),
 
+  // S3 Storage
+  S3_ENDPOINT: getEnv("S3_ENDPOINT", "http://localhost:9000"),
+  S3_ACCESS_KEY: getEnv("S3_ACCESS_KEY", "minioadmin"),
+  S3_SECRET_KEY: getEnv("S3_SECRET_KEY", "minioadmin"),
+  S3_BUCKET: getEnv("S3_BUCKET", "whatsapp-media"),
+  S3_REGION: getEnv("S3_REGION", "us-east-1"),
+
   // Feature flags
   DEBUG: getEnvBoolean("DEBUG", false),
 

@@ -493,20 +493,31 @@ export async function deleteMessage(
 // =====================
 
 export interface UploadMediaResponse {
-  mediaId: string;
-  url: string;
-  mimeType: string;
+  success: boolean;
+  mediaUrl: string;
   fileName: string;
   fileSize: number;
+  mimeType: string;
 }
 
 export async function uploadMedia(file: File): Promise<UploadMediaResponse> {
   const formData = new FormData();
   formData.append("file", file);
 
+  // Get company ID from local storage
+  const companyId = getCompanyId();
+
+  const headers: Record<string, string> = {};
+  if (accessToken) {
+    headers.Authorization = `Bearer ${accessToken}`;
+  }
+  if (companyId) {
+    headers["X-Company-ID"] = companyId;
+  }
+
   const response = await fetch(`${API_BASE_URL}/media/upload`, {
     method: "POST",
-    headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
+    headers,
     body: formData,
   });
 
