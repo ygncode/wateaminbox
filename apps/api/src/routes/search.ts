@@ -5,7 +5,7 @@ import { createRateLimitMiddleware } from "../middleware/rate-limit.js";
 import * as searchService from "../services/search.service.js";
 import * as meilisearchService from "../services/meilisearch.service.js";
 import { getTenantConnection } from "../services/tenant.service.js";
-import { rateLimitConfig, rateLimitStore } from "../app.js";
+import { rateLimitConfig, rateLimitStore } from "../lib/rate-limit-store.js";
 
 export const searchRoutes = new Hono();
 

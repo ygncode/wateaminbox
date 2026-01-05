@@ -6,7 +6,7 @@ import { authMiddleware } from "../middleware/auth.js";
 import { tenantFromHeader } from "../middleware/tenant.js";
 import * as whatsappService from "../services/whatsapp.service.js";
 import { createRateLimitMiddleware } from "../middleware/rate-limit.js";
-import { rateLimitConfig, rateLimitStore } from "../app.js";
+import { rateLimitConfig, rateLimitStore } from "../lib/rate-limit-store.js";
 
 // Validation schemas
 const sendMessageSchema = z.object({

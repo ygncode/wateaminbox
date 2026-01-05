@@ -53,6 +53,8 @@ func (h *Handlers) StopSubscription() error {
 
 // processCommands continuously processes commands from the stream.
 func (h *Handlers) processCommands(ctx context.Context) {
+	log.Println("Command processing loop started, waiting for messages on WHATSAPP.commands...")
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -67,6 +69,10 @@ func (h *Handlers) processCommands(ctx context.Context) {
 				}
 				log.Printf("Error fetching messages: %v", err)
 				continue
+			}
+
+			if len(msgs) > 0 {
+				log.Printf("Fetched %d message(s) from NATS commands stream", len(msgs))
 			}
 
 			for _, msg := range msgs {
@@ -151,10 +157,8 @@ func (h *Handlers) handleKillCommand(ctx context.Context, data []byte) error {
 	err := h.manager.StopWorker(ctx, cmd.CompanyID, cmd.ConnectionID, cmd.Reason)
 	if err != nil {
 		log.Printf("Failed to stop worker for company %s, connection %s: %v", cmd.CompanyID, cmd.ConnectionID, err)
-
-		// Publish error response
-		h.publishStatusResponse(cmd.CompanyID, cmd.ConnectionID, types.StatusError, err.Error())
-		return err
+		// Note: We don't return error here - worker not found is not a retryable error
+		// Returning nil ensures the message is ACK'd and doesn't block other commands
 	}
 
 	return nil

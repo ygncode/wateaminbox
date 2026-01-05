@@ -4,7 +4,7 @@ import { tenantMiddleware, requirePermission } from "../middleware/tenant.js";
 import { PERMISSIONS } from "../services/permission.service.js";
 import { createRateLimitMiddleware } from "../middleware/rate-limit.js";
 import * as exportService from "../services/export.service.js";
-import { rateLimitConfig, rateLimitStore } from "../app.js";
+import { rateLimitConfig, rateLimitStore } from "../lib/rate-limit-store.js";
 
 export const exportRoutes = new Hono();
 

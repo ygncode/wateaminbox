@@ -678,9 +678,15 @@ func (s *PGSQLStore) GetOrGenPreKeys(ctx context.Context, count uint32) ([]*keys
 			return nil, err
 		}
 
-		preKey := &keys.PreKey{KeyID: keyID}
+		// Properly initialize PreKey with KeyPair from stored private key
+		var privKey [32]byte
 		if len(keyData) >= 32 {
-			copy(preKey.Priv[:], keyData[:32])
+			copy(privKey[:], keyData[:32])
+		}
+		keyPair := keys.NewKeyPairFromPrivateKey(privKey)
+		preKey := &keys.PreKey{
+			KeyPair: *keyPair,
+			KeyID:   keyID,
 		}
 		preKeys = append(preKeys, preKey)
 	}
@@ -750,9 +756,15 @@ func (s *PGSQLStore) GetPreKey(ctx context.Context, id uint32) (*keys.PreKey, er
 		return nil, err
 	}
 
-	preKey := &keys.PreKey{KeyID: id}
+	// Properly initialize PreKey with KeyPair from stored private key
+	var privKey [32]byte
 	if len(keyData) >= 32 {
-		copy(preKey.Priv[:], keyData[:32])
+		copy(privKey[:], keyData[:32])
+	}
+	keyPair := keys.NewKeyPairFromPrivateKey(privKey)
+	preKey := &keys.PreKey{
+		KeyPair: *keyPair,
+		KeyID:   id,
 	}
 	return preKey, nil
 }

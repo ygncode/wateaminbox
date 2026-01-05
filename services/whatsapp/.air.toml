@@ -1,0 +1,41 @@
+root = "."
+tmp_dir = "tmp"
+
+[build]
+  # Build command - output to the location orchestrator expects
+  cmd = "go build -o whatsapp-worker . && echo '[air] WhatsApp worker binary rebuilt'"
+  # We don't actually run the binary (orchestrator spawns workers)
+  # Using 'true' as a no-op since air requires an entrypoint
+  entrypoint = ["/usr/bin/true"]
+  # Watch these extensions
+  include_ext = ["go"]
+  # Exclude these directories
+  exclude_dir = ["tmp", "vendor", "testdata"]
+  # Exclude test files
+  exclude_regex = ["_test.go"]
+  # Delay before rebuild (in ms)
+  delay = 1000
+  # Stop on error
+  stop_on_error = true
+  # Kill delay
+  kill_delay = "0s"
+  # Send interrupt signal before killing
+  send_interrupt = false
+  # Rerun binary on build without changes
+  rerun = false
+  # Rerun delay (in ms)
+  rerun_delay = 500
+
+[log]
+  time = false
+  main_only = false
+
+[color]
+  main = "magenta"
+  watcher = "cyan"
+  build = "yellow"
+  runner = "green"
+
+[misc]
+  # Delete tmp directory on exit
+  clean_on_exit = true

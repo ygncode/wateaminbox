@@ -316,9 +316,9 @@ async function handleClientMessage(ws: ServerWebSocket<WSData>, message: string)
 const { upgradeWebSocket, websocket: honoWebsocket } = createBunWebSocket<WSData>()
 
 // Wrap the websocket handler with null checks to prevent crashes
-export const websocket = {
+export const websocket: typeof honoWebsocket = {
   ...honoWebsocket,
-  close(ws: ServerWebSocket<WSData>, code?: number, reason?: string) {
+  close(ws: Parameters<typeof honoWebsocket.close>[0], code?: number, reason?: string) {
     // Guard against undefined data.events (happens when connection closes before full setup)
     if (ws.data?.events?.onClose) {
       honoWebsocket.close(ws, code, reason)
@@ -326,7 +326,7 @@ export const websocket = {
       console.log('[WS] Connection closed before initialization')
     }
   },
-  message(ws: ServerWebSocket<WSData>, message: string | Buffer) {
+  message(ws: Parameters<typeof honoWebsocket.message>[0], message: string | Buffer) {
     // Guard against undefined data.events
     if (ws.data?.events?.onMessage) {
       honoWebsocket.message(ws, message)
@@ -339,68 +339,69 @@ export const websocket = {
 // WebSocket route
 export const wsRoutes = new Hono()
 
-wsRoutes.get(
-  '/',
-  upgradeWebSocket((c) => {
-    // Extract token and company from query params for initial auth
-    const token = c.req.query('token')
-    const company = c.req.query('company')
+const wsUpgradeHandler = upgradeWebSocket((c) => {
+  // Extract token and company from query params for initial auth
+  const token = c.req.query('token')
+  const company = c.req.query('company')
 
-    return {
-      onOpen: async (_event, ws) => {
-        const rawWs = ws.raw as unknown as ServerWebSocket<WSData>
-        rawWs.data = {
-          userId: '',
-          companyId: '',
-          authenticated: false,
-        }
+  return {
+    onOpen: async (_event, ws) => {
+      const rawWs = ws.raw as unknown as ServerWebSocket<WSData>
+      rawWs.data = {
+        userId: '',
+        companyId: '',
+        authenticated: false,
+      }
 
-        console.log('[WS] Client connected')
+      console.log('[WS] Client connected')
 
-        // If token and company provided in query, auto-authenticate
-        if (token && company) {
-          await authenticateConnection(rawWs, token, company)
-        } else {
-          // Send auth required message
-          sendMessage(rawWs, {
-            type: 'error',
-            payload: {
-              message: 'Authentication required. Send auth message with token and companyId.',
-            },
-            timestamp: new Date().toISOString(),
-          })
-        }
-      },
+      // If token and company provided in query, auto-authenticate
+      if (token && company) {
+        await authenticateConnection(rawWs, token, company)
+      } else {
+        // Send auth required message
+        sendMessage(rawWs, {
+          type: 'error',
+          payload: {
+            message: 'Authentication required. Send auth message with token and companyId.',
+          },
+          timestamp: new Date().toISOString(),
+        })
+      }
+    },
 
-      onMessage: async (event, ws) => {
-        const rawWs = ws.raw as unknown as ServerWebSocket<WSData>
-        const message = typeof event.data === 'string' ? event.data : event.data.toString()
+    onMessage: async (event, ws) => {
+      const rawWs = ws.raw as unknown as ServerWebSocket<WSData>
+      const message = typeof event.data === 'string' ? event.data : event.data.toString()
 
-        await handleClientMessage(rawWs, message)
-      },
+      await handleClientMessage(rawWs, message)
+    },
 
-      onClose: (_event, ws) => {
-        const rawWs = ws.raw as unknown as ServerWebSocket<WSData>
-        console.log('[WS] Client disconnected')
+    onClose: (_event, ws) => {
+      const rawWs = ws.raw as unknown as ServerWebSocket<WSData>
+      console.log('[WS] Client disconnected')
 
-        // Remove from connections
-        if (rawWs.data.companyId) {
-          removeConnection(rawWs.data.companyId, rawWs)
-        }
-      },
+      // Remove from connections
+      if (rawWs.data.companyId) {
+        removeConnection(rawWs.data.companyId, rawWs)
+      }
+    },
 
-      onError: (error, ws) => {
-        console.error('[WS] WebSocket error:', error)
-        const rawWs = ws.raw as unknown as ServerWebSocket<WSData>
+    onError: (error, ws) => {
+      console.error('[WS] WebSocket error:', error)
+      const rawWs = ws.raw as unknown as ServerWebSocket<WSData>
 
-        // Remove from connections
-        if (rawWs.data.companyId) {
-          removeConnection(rawWs.data.companyId, rawWs)
-        }
-      },
-    }
-  })
-)
+      // Remove from connections
+      if (rawWs.data.companyId) {
+        removeConnection(rawWs.data.companyId, rawWs)
+      }
+    },
+  }
+})
+
+// Support both with and without trailing slash to match ws://localhost:3001/api/ws
+wsRoutes.get('/', wsUpgradeHandler)
+wsRoutes.get('', wsUpgradeHandler)
 
 /**
  * Gets the number of active connections for a company

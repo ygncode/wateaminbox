@@ -16,7 +16,7 @@ import {
 import { createNotification } from "../services/notification-history.service.js";
 import { createAuditLog, getClientIp } from "../services/audit.service.js";
 import { broadcastToCompany } from "./ws.js";
-import { rateLimitConfig, rateLimitStore } from "../app.js";
+import { rateLimitConfig, rateLimitStore } from "../lib/rate-limit-store.js";
 
 export const contactRoutes = new Hono();
 

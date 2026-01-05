@@ -5,7 +5,7 @@ import { PERMISSIONS } from "../services/permission.service.js";
 import { publishSendMessage } from "../lib/nats.js";
 import { ensureContactAssignment } from "../services/contact.service.js";
 import { createRateLimitMiddleware } from "../middleware/rate-limit.js";
-import { rateLimitConfig, rateLimitStore } from "../app.js";
+import { rateLimitConfig, rateLimitStore } from "../lib/rate-limit-store.js";
 
 export const messageRoutes = new Hono();
 

@@ -5,6 +5,7 @@
  * Supports in-memory LRU cache for development and Redis for production.
  */
 
+import { getRateLimitConfig } from '../config/rate-limit.config.js'
 import type { RateLimitConfig } from '../config/rate-limit.config'
 
 /**
@@ -453,3 +454,12 @@ export function createRateLimitStore(config: RateLimitConfig): RateLimitStore {
   // Default to memory store
   return new MemoryRateLimitStore(config.store.memoryMaxItems)
 }
+
+// ============================================================================
+// SINGLETON EXPORTS
+// ============================================================================
+// Initialized here to avoid circular dependencies between app.ts and route files
+// This module has no dependencies on routes, so it's safe to import from anywhere
+
+export const rateLimitConfig = getRateLimitConfig()
+export const rateLimitStore = createRateLimitStore(rateLimitConfig)

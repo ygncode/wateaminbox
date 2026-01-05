@@ -23,6 +23,7 @@ let isInitialized = false;
 /**
  * Initializes the message event handler
  * Subscribes to NATS WhatsApp events and processes them
+ * Retries if streams don't exist yet (orchestrator may not have started)
  */
 export async function initializeMessageHandler(): Promise<void> {
   if (isInitialized) {
@@ -30,15 +31,31 @@ export async function initializeMessageHandler(): Promise<void> {
     return;
   }
 
-  try {
-    eventSubscription = await subscribeToAllEvents(handleWhatsAppEvent);
-    isInitialized = true;
-    console.log(
-      "[MessageHandler] Initialized and subscribed to WhatsApp events",
-    );
-  } catch (error) {
-    console.error("[MessageHandler] Failed to initialize:", error);
-    throw error;
+  const maxRetries = 10;
+  const retryDelayMs = 3000;
+
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      eventSubscription = await subscribeToAllEvents(handleWhatsAppEvent);
+      isInitialized = true;
+      console.log(
+        "[MessageHandler] Initialized and subscribed to WhatsApp events",
+      );
+      return;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const isStreamNotFound = errorMessage.includes("no stream matches subject");
+
+      if (isStreamNotFound && attempt < maxRetries) {
+        console.log(
+          `[MessageHandler] Streams not ready, retrying in ${retryDelayMs / 1000}s... (attempt ${attempt}/${maxRetries})`,
+        );
+        await new Promise((resolve) => setTimeout(resolve, retryDelayMs));
+      } else {
+        console.error("[MessageHandler] Failed to initialize:", error);
+        throw error;
+      }
+    }
   }
 }
 

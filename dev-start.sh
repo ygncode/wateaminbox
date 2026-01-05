@@ -1,6 +1,31 @@
 #!/bin/bash
 set -e
 
+# =============================================================================
+# WhatsApp Web - Development Environment Startup Script
+# =============================================================================
+#
+# USAGE:
+#   ./dev-start.sh                    # Run in foreground (logs to terminal)
+#   ./dev-start.sh &                  # Run in background
+#   ./dev-start.sh > dev-server.log 2>&1 &   # Run in background with logs to file
+#
+# MONITORING LOGS:
+#   tail -f dev-server.log            # Follow logs in real-time
+#   tail -100 dev-server.log          # View last 100 lines
+#
+# STOPPING:
+#   - If running in foreground: Press Ctrl+C
+#   - If running in background: kill %1  OR  pkill -f dev-start.sh
+#
+# HOT-RELOAD:
+#   - Frontend (Vite), API (Bun), Marketing (Astro): Auto-reload on file changes
+#   - Go services (Orchestrator, WhatsApp worker): Auto-rebuild via 'air'
+#     Note: Existing WhatsApp worker processes won't restart automatically.
+#           New workers spawned by orchestrator will use the updated binary.
+#
+# =============================================================================
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -42,6 +67,30 @@ cleanup() {
     exit 0
 }
 
+# Kill process on a specific port
+kill_port() {
+    local port=$1
+    local pid
+    pid=$(lsof -ti tcp:"$port" 2>/dev/null || true)
+    if [ -n "$pid" ]; then
+        kill -9 $pid 2>/dev/null || true
+        print_success "  Killed process on port $port (PID: $pid)"
+    fi
+}
+
+# Clean up app ports before starting
+cleanup_ports() {
+    print_status "Cleaning up app ports..."
+
+    # App ports
+    kill_port 5173   # Frontend
+    kill_port 3001   # API
+    kill_port 4321   # Marketing
+    kill_port 8080   # Orchestrator
+
+    print_success "Ports cleaned up"
+}
+
 trap cleanup SIGINT SIGTERM
 
 # Check prerequisites
@@ -71,7 +120,14 @@ check_prerequisites() {
         exit 1
     fi
 
-    print_success "Prerequisites OK (Docker, Bun, Go installed)"
+    # Check air (for Go hot-reload)
+    if ! command -v air &> /dev/null; then
+        print_warning "Air is not installed. Installing for Go hot-reload..."
+        go install github.com/air-verse/air@latest
+        print_success "Air installed"
+    fi
+
+    print_success "Prerequisites OK (Docker, Bun, Go, Air installed)"
 }
 
 # Start Docker services
@@ -126,13 +182,18 @@ run_migrations() {
     print_success "Database migrations complete"
 }
 
-# Build Go services
+# Build Go services (initial build before air takes over)
 build_go_services() {
     print_status "Building Go services..."
 
     # Build WhatsApp worker
     (cd services/whatsapp && go build -o whatsapp-worker main.go)
     print_success "  WhatsApp worker built"
+
+    # Build orchestrator (create tmp dir for air)
+    mkdir -p services/orchestrator/tmp
+    (cd services/orchestrator && go build -o tmp/orchestrator main.go)
+    print_success "  Orchestrator built"
 }
 
 # Start development servers
@@ -159,11 +220,17 @@ start_dev_servers() {
     PIDS+=($!)
     sleep 1
 
-    # Start Orchestrator
-    print_status "  Starting Orchestrator..."
+    # Start WhatsApp worker watcher (rebuilds binary on changes)
+    print_status "  Starting WhatsApp worker watcher (hot-reload)..."
+    (cd services/whatsapp && air) &
+    PIDS+=($!)
+    sleep 1
+
+    # Start Orchestrator with hot-reload
+    print_status "  Starting Orchestrator (hot-reload)..."
     WHATSAPP_BINARY_PATH="$(pwd)/services/whatsapp/whatsapp-worker"
     export WHATSAPP_BINARY_PATH
-    (cd services/orchestrator && go run main.go) &
+    (cd services/orchestrator && air) &
     PIDS+=($!)
 
     echo ""
@@ -195,6 +262,7 @@ main() {
     echo ""
 
     check_prerequisites
+    cleanup_ports
     start_docker_services
     install_dependencies
     run_migrations

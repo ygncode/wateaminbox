@@ -15,7 +15,7 @@ import {
 import { validatePasswordStrength } from "../lib/password.js";
 import { authMiddleware } from "../middleware/auth.js";
 import { createRateLimitMiddleware, ipRateLimit } from "../middleware/rate-limit.js";
-import { rateLimitConfig, rateLimitStore } from "../app.js";
+import { rateLimitConfig, rateLimitStore } from "../lib/rate-limit-store.js";
 
 export const authRoutes = new Hono();
 

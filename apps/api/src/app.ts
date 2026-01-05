@@ -3,13 +3,8 @@ import { cors } from "hono/cors";
 import { logger } from "hono/logger";
 import { HTTPException } from "hono/http-exception";
 import { routes } from "./routes/index.js";
-import { getRateLimitConfig } from "./config/rate-limit.config.js";
-import { createRateLimitStore } from "./lib/rate-limit-store.js";
+import { rateLimitConfig, rateLimitStore } from "./lib/rate-limit-store.js";
 import { createRateLimitMiddleware } from "./middleware/rate-limit.js";
-
-// Initialize rate limit store (singleton for the app lifetime)
-export const rateLimitConfig = getRateLimitConfig();
-export const rateLimitStore = createRateLimitStore(rateLimitConfig);
 
 export const app = new Hono();
 

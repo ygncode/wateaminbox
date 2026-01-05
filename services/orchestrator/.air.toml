@@ -1,0 +1,49 @@
+root = "."
+tmp_dir = "tmp"
+
+[build]
+  # Build command
+  cmd = "go build -o ./tmp/orchestrator ."
+  # Binary to run (entrypoint replaces deprecated bin)
+  entrypoint = ["./tmp/orchestrator"]
+  # Watch these extensions
+  include_ext = ["go", "tpl", "tmpl", "html"]
+  # Exclude these directories
+  exclude_dir = ["tmp", "vendor", "testdata"]
+  # Exclude these files
+  exclude_file = []
+  # Exclude files with these regex patterns
+  exclude_regex = ["_test.go"]
+  # Exclude unchanged files
+  exclude_unchanged = false
+  # Follow symlinks
+  follow_symlink = false
+  # Delay before rebuild (in ms)
+  delay = 1000
+  # Stop old binary before building new one
+  stop_on_error = true
+  # Kill delay (in ns)
+  kill_delay = "0s"
+  # Send interrupt signal before killing
+  send_interrupt = false
+  # Rerun binary on build without changes
+  rerun = false
+  # Rerun delay (in ms)
+  rerun_delay = 500
+
+[log]
+  # Show log time
+  time = false
+  # Only show main log
+  main_only = false
+
+[color]
+  # Customize colors
+  main = "magenta"
+  watcher = "cyan"
+  build = "yellow"
+  runner = "green"
+
+[misc]
+  # Delete tmp directory on exit
+  clean_on_exit = true

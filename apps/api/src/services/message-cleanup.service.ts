@@ -257,7 +257,7 @@ export async function cleanupCompanyMessages(
       status: 'failed',
       metadata: sql<Record<string, unknown>>`jsonb_build_object(
         'error', 'delivery_timeout',
-        'error_message', 'Message delivery timed out after ${timeoutMinutes} minutes',
+        'error_message', ${sql.lit(`Message delivery timed out after ${timeoutMinutes} minutes`)},
         'failed_at', now()
       )`,
     })
@@ -359,7 +359,7 @@ export async function getCleanupStats(companyId: string): Promise<{
       .where('status', '=', 'failed')
       .where('from_me', '=', true)
       .where('metadata', 'is not', null)
-      .where(sql`metadata->>'error'`, '=', 'delivery_timeout')
+      .where(sql`metadata->>'error' = ${sql.lit('delivery_timeout')}`)
       .executeTakeFirst(),
   ])
 

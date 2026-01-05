@@ -54,6 +54,9 @@ services/*/*.exe
 services/whatsapp/whatsapp-worker
 services/orchestrator/orchestrator
 
+# Air (Go hot-reload)
+services/*/tmp/
+
 # Astro
 .astro/
 
