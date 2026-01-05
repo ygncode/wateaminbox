@@ -186,3 +186,60 @@ export async function up(db: Kysely<unknown>): Promise<void> {
 ```
 
 **Common pitfall**: The `setup_tenant_schema` function was historically overwritten in multiple migrations (009-014), causing inconsistent schemas. Migration 015 established this function as the single source of truth. For new columns/tables, update ONLY migration 015's function definition.
+
+## Dark Mode
+
+The application supports light, dark, and system-preference themes. The theme system uses CSS class-based toggling with Tailwind v4's `@custom-variant`.
+
+### Using Theme in Components
+
+```typescript
+import { useTheme } from '@/contexts/theme-context'
+
+function MyComponent() {
+  const { theme, resolvedTheme, setTheme, toggleTheme } = useTheme()
+
+  // theme: 'light' | 'dark' | 'system'
+  // resolvedTheme: 'light' | 'dark' (actual applied theme)
+  // setTheme: set to specific theme
+  // toggleTheme: cycle through light → dark → system
+}
+```
+
+### Semantic Color Reference
+
+Use these semantic colors for dark mode styling (defined in `apps/web/src/index.css`):
+
+| Color | Value | Usage |
+|-------|-------|-------|
+| `dark-primary` | #111B21 | Main background (message thread) |
+| `dark-secondary` | #1F2C33 | Sidebar, headers, cards |
+| `dark-elevated` | #202C33 | Elevated surfaces (bubbles, dropdowns) |
+| `dark-tertiary` | #2A3942 | Selected/hover states |
+| `dark-border` | #2F3B43 | Borders and dividers |
+| `dark-text-primary` | #E9EDEF | Primary text |
+| `dark-text-secondary` | #8696A0 | Secondary text |
+| `dark-text-tertiary` | #667781 | Muted text, placeholders |
+
+### Adding Dark Mode to New Components
+
+1. Add `dark:` variants alongside existing light mode classes:
+
+```tsx
+// Before
+<div className="bg-white text-gray-900 border-gray-200">
+
+// After
+<div className="bg-white dark:bg-dark-elevated text-gray-900 dark:text-dark-text-primary border-gray-200 dark:border-dark-border">
+```
+
+2. Common patterns:
+   - Backgrounds: `bg-gray-50 dark:bg-dark-secondary`
+   - Text: `text-gray-700 dark:text-dark-text-primary`
+   - Muted text: `text-gray-500 dark:text-dark-text-secondary`
+   - Borders: `border-gray-200 dark:border-dark-border`
+   - Hover states: `hover:bg-gray-100 dark:hover:bg-dark-tertiary`
+
+3. Brand colors (`whatsapp-green`, `whatsapp-teal-green`) work in both themes - do not modify.
+
+4. Theme persistence: Theme is stored in localStorage (`whatsapp-web-theme`). The FOUC prevention script in `index.html` applies the theme before React renders.

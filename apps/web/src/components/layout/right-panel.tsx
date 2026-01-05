@@ -21,7 +21,7 @@ export function RightPanel({
   return (
     <aside
       className={cn(
-        "flex h-full flex-col border-l border-gray-200 bg-white",
+        "flex h-full flex-col border-l border-gray-200 dark:border-dark-border bg-white dark:bg-dark-secondary",
         // Responsive width - hidden on mobile/tablet (use MobileSlideInPanel instead)
         "hidden lg:flex lg:w-[350px] xl:w-[400px]",
         className,
@@ -97,7 +97,7 @@ export function RightPanelSection({
 }: RightPanelSectionProps) {
   return (
     <section
-      className={cn("border-b border-gray-200 bg-white p-4", className)}
+      className={cn("border-b border-gray-200 dark:border-dark-border bg-white dark:bg-dark-secondary p-4", className)}
       {...props}
     >
       {title && (

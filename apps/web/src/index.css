@@ -1,20 +1,57 @@
 @import "tailwindcss";
 
+/**
+ * Dark Mode Color Hierarchy:
+ * - dark-primary (#111B21): Main background (chat area, page background)
+ * - dark-secondary (#1F2C33): Elevated surfaces (sidebar, header, composer)
+ * - dark-elevated (#202C33): Cards, message bubbles (received)
+ * - dark-tertiary (#2A3942): Interactive elements (selected items, inputs)
+ * - dark-border (#2F3B43): Border color for separation
+ * - dark-text-primary (#E9EDEF): Main text
+ * - dark-text-secondary (#8696A0): Secondary text, timestamps
+ * - dark-text-tertiary (#667781): Tertiary text, placeholders
+ *
+ * Brand colors (whatsapp-green, whatsapp-teal-green) work in both themes.
+ */
+
+/* Enable class-based dark mode for Tailwind v4 */
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme {
   --color-ring: #25d366;
   --color-whatsapp-green: #25d366;
   --color-whatsapp-dark-green: #128c7e;
   --color-whatsapp-teal-green: #075e54;
   --color-whatsapp-blue: #34b7f1;
+
+  /* Dark mode semantic colors */
+  --color-dark-primary: #111B21;
+  --color-dark-secondary: #1F2C33;
+  --color-dark-elevated: #202C33;
+  --color-dark-tertiary: #2A3942;
+  --color-dark-border: #2F3B43;
+  --color-dark-text-primary: #E9EDEF;
+  --color-dark-text-secondary: #8696A0;
+  --color-dark-text-tertiary: #667781;
 }
 
 @layer base {
   * {
     border-color: theme("colors.gray.200");
   }
+
+  .dark * {
+    border-color: theme("colors.dark-border");
+  }
+
   body {
     color: theme("colors.gray.900");
     background-color: theme("colors.gray.100");
+  }
+
+  .dark body {
+    color: theme("colors.dark-text-primary");
+    background-color: theme("colors.dark-primary");
   }
 
   /* Enable smooth scrolling on touch devices */
@@ -25,6 +62,31 @@
   /* Prevent pull-to-refresh on mobile */
   body {
     overscroll-behavior-y: contain;
+  }
+
+  /* Dark mode scrollbar styling */
+  .dark ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  .dark ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .dark ::-webkit-scrollbar-thumb {
+    background-color: theme("colors.dark-tertiary");
+    border-radius: 3px;
+  }
+
+  .dark ::-webkit-scrollbar-thumb:hover {
+    background-color: theme("colors.dark-text-tertiary");
+  }
+
+  /* Firefox scrollbar for dark mode */
+  .dark * {
+    scrollbar-color: theme("colors.dark-tertiary") transparent;
+    scrollbar-width: thin;
   }
 }
 

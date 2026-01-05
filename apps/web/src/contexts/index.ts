@@ -26,3 +26,11 @@ export {
   type KeyboardShortcutsContextValue,
   type KeyboardShortcutsProviderProps,
 } from "./KeyboardShortcutsContext";
+
+export {
+  ThemeProvider,
+  useTheme,
+  type Theme,
+  type ResolvedTheme,
+  type ThemeContextValue,
+} from "./theme-context";

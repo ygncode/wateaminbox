@@ -32,9 +32,9 @@ export const ChatSidebar = memo(function ChatSidebar({
   );
 
   return (
-    <div className={cn("flex flex-col h-full bg-white", className)}>
+    <div className={cn("flex flex-col h-full bg-white dark:bg-dark-secondary", className)}>
       {/* Navigation Tabs */}
-      <div className="flex items-center border-b border-gray-200 bg-gray-50">
+      <div className="flex items-center border-b border-gray-200 dark:border-dark-border bg-gray-50 dark:bg-dark-secondary">
         <nav className="flex flex-1" role="tablist">
           <TabButton
             isActive={activeView === "chats"}
@@ -54,7 +54,7 @@ export const ChatSidebar = memo(function ChatSidebar({
           <NotificationCenter />
           <Link
             to="/settings"
-            className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-200 rounded-full transition-colors"
+            className="p-2 text-gray-500 dark:text-dark-text-secondary hover:text-gray-700 dark:hover:text-dark-text-primary hover:bg-gray-200 dark:hover:bg-dark-tertiary rounded-full transition-colors"
             title="Settings"
           >
             <Settings className="h-5 w-5" />
@@ -99,8 +99,8 @@ const TabButton = memo(function TabButton({ isActive, onClick, icon, label }: Ta
         "flex-1 flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium transition-colors",
         "border-b-2 -mb-px",
         isActive
-          ? "text-whatsapp-teal-green border-whatsapp-teal-green bg-white"
-          : "text-gray-500 border-transparent hover:text-gray-700 hover:bg-gray-50",
+          ? "text-whatsapp-teal-green border-whatsapp-teal-green bg-white dark:bg-dark-elevated"
+          : "text-gray-500 dark:text-dark-text-secondary border-transparent hover:text-gray-700 dark:hover:text-dark-text-primary hover:bg-gray-50 dark:hover:bg-dark-tertiary",
       )}
     >
       {icon}

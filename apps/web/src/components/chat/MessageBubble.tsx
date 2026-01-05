@@ -94,7 +94,7 @@ export const MessageBubble = memo(function MessageBubble({
       case "pending":
         return (
           <svg
-            className="h-4 w-4 text-gray-400"
+            className="h-4 w-4 text-white/60"
             viewBox="0 0 16 16"
             fill="currentColor"
           >
@@ -104,7 +104,7 @@ export const MessageBubble = memo(function MessageBubble({
       case "sent":
         return (
           <svg
-            className="h-4 w-4 text-gray-400"
+            className="h-4 w-4 text-white/60"
             viewBox="0 0 16 16"
             fill="currentColor"
           >
@@ -114,7 +114,7 @@ export const MessageBubble = memo(function MessageBubble({
       case "delivered":
         return (
           <svg
-            className="h-4 w-4 text-gray-400"
+            className="h-4 w-4 text-white/60"
             viewBox="0 0 16 16"
             fill="currentColor"
           >
@@ -146,7 +146,7 @@ export const MessageBubble = memo(function MessageBubble({
               <path d="M8 4v5M8 11v1" />
             </svg>
             {/* Tooltip for failed messages */}
-            <div className="absolute bottom-full right-0 mb-2 px-2 py-1 bg-gray-900 text-white text-xs rounded whitespace-nowrap opacity-0 group-hover/tooltip:opacity-100 transition-opacity pointer-events-none z-10">
+            <div className="absolute bottom-full right-0 mb-2 px-2 py-1 bg-gray-900 dark:bg-dark-tertiary text-white text-xs rounded whitespace-nowrap opacity-0 group-hover/tooltip:opacity-100 transition-opacity pointer-events-none z-10">
               {errorMsg}
             </div>
           </div>
@@ -213,11 +213,11 @@ export const MessageBubble = memo(function MessageBubble({
           href={message.metadata?.mediaUrl}
           target="_blank"
           rel="noopener noreferrer"
-          className="flex items-center gap-3 p-3 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+          className="flex items-center gap-3 p-3 bg-gray-100 dark:bg-dark-tertiary rounded-lg hover:bg-gray-200 dark:hover:bg-dark-border transition-colors"
         >
           <div className="flex-shrink-0">
             <svg
-              className="h-10 w-10 text-gray-500"
+              className="h-10 w-10 text-gray-500 dark:text-dark-text-secondary"
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
@@ -231,11 +231,11 @@ export const MessageBubble = memo(function MessageBubble({
             </svg>
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-gray-900 truncate">
+            <p className="text-sm font-medium text-gray-900 dark:text-dark-text-primary truncate">
               {message.metadata?.fileName || "Document"}
             </p>
             {message.metadata?.fileSize && (
-              <p className="text-xs text-gray-500">
+              <p className="text-xs text-gray-500 dark:text-dark-text-secondary">
                 {formatFileSize(message.metadata.fileSize)}
               </p>
             )}
@@ -244,9 +244,9 @@ export const MessageBubble = memo(function MessageBubble({
       ),
       location: () => (
         <div className="max-w-xs">
-          <div className="bg-gray-200 rounded-lg h-32 flex items-center justify-center">
+          <div className="bg-gray-200 dark:bg-dark-tertiary rounded-lg h-32 flex items-center justify-center">
             <svg
-              className="h-8 w-8 text-gray-500"
+              className="h-8 w-8 text-gray-500 dark:text-dark-text-secondary"
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
@@ -271,8 +271,8 @@ export const MessageBubble = memo(function MessageBubble({
         </div>
       ),
       template: () => (
-        <div className="p-3 bg-gray-50 rounded-lg border border-gray-200">
-          <p className="text-xs text-gray-500 mb-1">Template Message</p>
+        <div className="p-3 bg-gray-50 dark:bg-dark-tertiary rounded-lg border border-gray-200 dark:border-dark-border">
+          <p className="text-xs text-gray-500 dark:text-dark-text-secondary mb-1">Template Message</p>
           <p className="whitespace-pre-wrap break-words">{message.content}</p>
         </div>
       ),
@@ -311,8 +311,8 @@ export const MessageBubble = memo(function MessageBubble({
         className={`relative max-w-[70%] px-3 py-2 rounded-lg shadow-sm transition-all duration-300 ${
           isOwn
             ? "bg-whatsapp-green text-white rounded-br-none"
-            : "bg-white text-gray-900 rounded-bl-none"
-        } ${isHighlighted ? "ring-2 ring-yellow-400 ring-offset-2 bg-yellow-50/20" : ""}`}
+            : "bg-white dark:bg-dark-elevated text-gray-900 dark:text-dark-text-primary rounded-bl-none"
+        } ${isHighlighted ? "ring-2 ring-yellow-400 ring-offset-2 dark:ring-offset-dark-primary bg-yellow-50/20 dark:bg-yellow-900/20" : ""}`}
         onContextMenu={handleContextMenu}
         data-message-id={message.id}
       >
@@ -330,7 +330,7 @@ export const MessageBubble = memo(function MessageBubble({
             className={`mb-2 p-2 rounded border-l-4 ${
               isOwn
                 ? "bg-whatsapp-dark-green/30 border-white/50"
-                : "bg-gray-100 border-whatsapp-green"
+                : "bg-gray-100 dark:bg-dark-tertiary border-whatsapp-green"
             }`}
           >
             <p className="text-xs font-medium truncate">
@@ -397,7 +397,7 @@ export const MessageBubble = memo(function MessageBubble({
         {/* Timestamp and status */}
         <div
           className={`flex items-center justify-end gap-1 mt-1 text-xs ${
-            isOwn ? "text-white/70" : "text-gray-500"
+            isOwn ? "text-white/70" : "text-gray-500 dark:text-dark-text-secondary"
           }`}
         >
           <span>{formatTime(message.createdAt)}</span>
@@ -411,7 +411,7 @@ export const MessageBubble = memo(function MessageBubble({
         {showContextMenu && (
           <div
             ref={contextMenuRef}
-            className="absolute z-50 bg-white rounded-lg shadow-lg py-1 min-w-[140px]"
+            className="absolute z-50 bg-white dark:bg-dark-elevated rounded-lg shadow-lg py-1 min-w-[140px]"
             style={{
               left: contextMenuPosition.x,
               top: contextMenuPosition.y,
@@ -420,7 +420,7 @@ export const MessageBubble = memo(function MessageBubble({
             {contextMenuItems.map((item) => (
               <button
                 key={item.label}
-                className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-dark-text-primary hover:bg-gray-100 dark:hover:bg-dark-tertiary"
                 onClick={() => {
                   item.action();
                   setShowContextMenu(false);

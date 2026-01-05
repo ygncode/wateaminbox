@@ -5,6 +5,7 @@ import { BrowserRouter } from "react-router-dom";
 import {
   AuthProvider,
   KeyboardShortcutsProvider,
+  ThemeProvider,
   WebSocketProvider,
 } from "./contexts";
 import { TooltipProvider } from "./components/ui";
@@ -28,13 +29,15 @@ createRoot(document.getElementById("root")!).render(
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
         <AuthProvider>
-          <WebSocketProvider>
-            <KeyboardShortcutsProvider>
-              <TooltipProvider>
-                <App />
-              </TooltipProvider>
-            </KeyboardShortcutsProvider>
-          </WebSocketProvider>
+          <ThemeProvider>
+            <WebSocketProvider>
+              <KeyboardShortcutsProvider>
+                <TooltipProvider>
+                  <App />
+                </TooltipProvider>
+              </KeyboardShortcutsProvider>
+            </WebSocketProvider>
+          </ThemeProvider>
         </AuthProvider>
       </BrowserRouter>
     </QueryClientProvider>
