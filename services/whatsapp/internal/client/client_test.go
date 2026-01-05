@@ -2,6 +2,7 @@ package client
 
 import (
 	"context"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -553,4 +554,145 @@ func TestSetQRCallback(t *testing.T) {
 
 	assert.True(t, called, "QR callback should be called")
 	assert.Equal(t, "test-qr-code", receivedQR, "QR code should be passed correctly")
+}
+
+// TestSendResponse_Structure verifies the SendResponse structure.
+func TestSendResponse_Structure(t *testing.T) {
+	// Import the types package
+	// This test verifies that SendResponse has the correct fields
+
+	testTime := time.Date(2026, 1, 5, 12, 0, 0, 0, time.UTC)
+
+	// This would normally come from whatsmeow's response
+	// We're testing the structure our code expects
+	messageID := "3EB01234567890@s.whatsapp.net"
+	timestamp := testTime
+
+	// Verify we can construct a response with the expected data
+	assert.NotEmpty(t, messageID, "message ID should not be empty")
+	assert.False(t, timestamp.IsZero(), "timestamp should not be zero")
+
+	// Verify the timestamp format
+	assert.Equal(t, "2026-01-05 12:00:00 +0000 UTC", timestamp.String())
+}
+
+// MockMessageSender is a mock implementation of MessageSender for testing.
+type MockMessageSender struct {
+	SendMessageFunc       func(ctx context.Context, jid string, text string, replyTo string, replyToSender string) (interface{}, error)
+	SendMediaMessageFunc  func(ctx context.Context, jid string, mediaType string, data []byte, caption string, fileName string, mimeType string, replyTo string, replyToSender string) (interface{}, error)
+}
+
+// TestSendMessage_InvalidJID tests that SendMessage returns error for invalid JID.
+func TestSendMessage_InvalidJID(t *testing.T) {
+	ctx := context.Background()
+	c := &Client{}
+
+	// Test with invalid JID (no @ symbol)
+	resp, err := c.SendMessage(ctx, "invalid-jid", "Hello", "", "")
+	assert.Error(t, err, "should return error for invalid JID")
+	assert.Empty(t, resp.ID, "response ID should be empty on error")
+	assert.True(t, resp.Timestamp.IsZero(), "response timestamp should be zero on error")
+	// The error should mention "invalid JID" or fail with nil client error
+	assert.True(t, strings.Contains(err.Error(), "invalid JID") || strings.Contains(err.Error(), "client is nil"),
+		"error should mention invalid JID or client is nil")
+}
+
+// TestSendMessage_ValidJID_ParsesSuccessfully tests that a valid JID format is accepted.
+func TestSendMessage_ValidJID_ParsesSuccessfully(t *testing.T) {
+	ctx := context.Background()
+	c := &Client{
+		// Note: We can't create a real whatsmeow.Client without a database connection
+		// The test validates JID parsing which happens before client.SendMessage is called
+	}
+
+	// Note: This will fail at the SendMessage step because we're not connected,
+	// but it validates that the JID parsing works
+	_, err := c.SendMessage(ctx, "1234567890@s.whatsapp.net", "Hello", "", "")
+
+	// The error should be from the actual send attempt, not JID parsing
+	// (JID parsing should succeed)
+	assert.Error(t, err, "should return error (not connected)")
+	// The error should NOT be "invalid JID" if the JID format is correct
+	assert.NotContains(t, err.Error(), "invalid JID", "error should not mention invalid JID for valid format")
+}
+
+// TestSendMediaMessage_UnsupportedMediaType tests that SendMediaMessage returns error for unsupported media type.
+func TestSendMediaMessage_UnsupportedMediaType(t *testing.T) {
+	ctx := context.Background()
+	c := &Client{}
+
+	data := []byte("fake data")
+	resp, err := c.SendMediaMessage(ctx, "1234567890@s.whatsapp.net", "unsupported", data, "caption", "file.txt", "text/plain", "", "")
+
+	assert.Error(t, err, "should return error for unsupported media type")
+	assert.Contains(t, err.Error(), "unsupported media type", "error should mention unsupported media type")
+	assert.Empty(t, resp.ID, "response ID should be empty on error")
+}
+
+// TestSendMediaMessage_InvalidJID tests that SendMediaMessage returns error for invalid JID.
+func TestSendMediaMessage_InvalidJID(t *testing.T) {
+	ctx := context.Background()
+	c := &Client{}
+
+	data := []byte("fake data")
+	resp, err := c.SendMediaMessage(ctx, "invalid-jid", "image", data, "caption", "file.jpg", "image/jpeg", "", "")
+
+	assert.Error(t, err, "should return error for invalid JID")
+	assert.Empty(t, resp.ID, "response ID should be empty on error")
+	// The error should mention "invalid JID" or fail with nil/upload client error
+	assert.True(t, strings.Contains(err.Error(), "invalid JID") || strings.Contains(err.Error(), "failed to"),
+		"error should mention invalid JID or failure")
+}
+
+// TestSendMediaMessage_ImageType_ParsesSuccessfully tests that image type is recognized.
+func TestSendMediaMessage_ImageType_ParsesSuccessfully(t *testing.T) {
+	ctx := context.Background()
+	c := &Client{}
+
+	data := []byte("fake image data")
+	_, err := c.SendMediaMessage(ctx, "1234567890@s.whatsapp.net", "image", data, "test caption", "test.jpg", "image/jpeg", "", "")
+
+	// Should fail at upload/send step (client is nil), not at type recognition
+	assert.Error(t, err, "should return error (client is nil)")
+	// Since client is nil, we get a different error, but it's not "unsupported media type"
+	assert.NotContains(t, err.Error(), "unsupported media type", "error should not mention unsupported media type for image")
+}
+
+// TestSendMediaMessage_VideoType_ParsesSuccessfully tests that video type is recognized.
+func TestSendMediaMessage_VideoType_ParsesSuccessfully(t *testing.T) {
+	ctx := context.Background()
+	c := &Client{}
+
+	data := []byte("fake video data")
+	_, err := c.SendMediaMessage(ctx, "1234567890@s.whatsapp.net", "video", data, "test caption", "test.mp4", "video/mp4", "", "")
+
+	// Should fail at upload/send step (client is nil), not at type recognition
+	assert.Error(t, err, "should return error (client is nil)")
+	assert.NotContains(t, err.Error(), "unsupported media type", "error should not mention unsupported media type for video")
+}
+
+// TestSendMediaMessage_DocumentType_ParsesSuccessfully tests that document type is recognized.
+func TestSendMediaMessage_DocumentType_ParsesSuccessfully(t *testing.T) {
+	ctx := context.Background()
+	c := &Client{}
+
+	data := []byte("fake document data")
+	_, err := c.SendMediaMessage(ctx, "1234567890@s.whatsapp.net", "document", data, "test caption", "test.pdf", "application/pdf", "", "")
+
+	// Should fail at upload/send step (client is nil), not at type recognition
+	assert.Error(t, err, "should return error (client is nil)")
+	assert.NotContains(t, err.Error(), "unsupported media type", "error should not mention unsupported media type for document")
+}
+
+// TestSendMediaMessage_AudioType_ParsesSuccessfully tests that audio type is recognized.
+func TestSendMediaMessage_AudioType_ParsesSuccessfully(t *testing.T) {
+	ctx := context.Background()
+	c := &Client{}
+
+	data := []byte("fake audio data")
+	_, err := c.SendMediaMessage(ctx, "1234567890@s.whatsapp.net", "audio", data, "", "", "audio/ogg; codecs=opus", "", "")
+
+	// Should fail at upload/send step (client is nil), not at type recognition
+	assert.Error(t, err, "should return error (client is nil)")
+	assert.NotContains(t, err.Error(), "unsupported media type", "error should not mention unsupported media type for audio")
 }

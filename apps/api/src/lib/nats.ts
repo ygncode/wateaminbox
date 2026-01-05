@@ -158,6 +158,7 @@ export interface WhatsAppEvent {
     | "disconnected"
     | "message"
     | "receipt"
+    | "send_confirmation"
     | "status"
     | "contact"
     | "labels"
@@ -256,6 +257,15 @@ export interface ReceiptEvent extends WhatsAppEvent {
   payload: {
     messageId: string;
     status: "sent" | "delivered" | "read";
+    timestamp: string;
+  };
+}
+
+export interface SendConfirmationEvent extends WhatsAppEvent {
+  type: "send_confirmation";
+  payload: {
+    pendingMessageId: string;
+    messageId: string;
     timestamp: string;
   };
 }

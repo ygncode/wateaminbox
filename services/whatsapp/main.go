@@ -136,6 +136,7 @@ func main() {
 		CompanyID:    companyID,
 		ConnectionID: connectionID,
 		Sender:       waClient,
+		Publisher:    publisher,
 	})
 	if err != nil {
 		log.Fatalf("Failed to initialize NATS subscriber: %v", err)
