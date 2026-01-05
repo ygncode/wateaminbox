@@ -291,6 +291,27 @@ messageRoutes.delete("/:id/star", async (c) => {
 });
 
 /**
+ * DELETE /messages/:id - Soft delete a message
+ */
+messageRoutes.delete("/:id", async (c) => {
+  const tenantDb = c.get("tenantDb");
+  const messageId = c.req.param("id");
+
+  const updated = await tenantDb
+    .updateTable("messages")
+    .set({ is_deleted: true })
+    .where("id", "=", messageId)
+    .returning(["id", "is_deleted"])
+    .executeTakeFirst();
+
+  if (!updated) {
+    return c.json({ error: "Message not found" }, 404);
+  }
+
+  return c.json({ success: true, message: updated });
+});
+
+/**
  * POST /messages/:id/reaction - Add a reaction to a message
  */
 messageRoutes.post("/:id/reaction", async (c) => {
