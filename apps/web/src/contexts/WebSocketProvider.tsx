@@ -259,6 +259,13 @@ export function WebSocketProvider({
     const unsubNewMessage = client.on<NewMessagePayload>(
       "message:new",
       (payload) => {
+        console.log('[WebSocket] 💬 New message received in realtime:', {
+          messageId: payload.message.id,
+          conversationId: payload.conversationId,
+          content: payload.message.content?.substring(0, 50),
+          senderType: payload.message.senderType,
+        });
+
         // Update Zustand store (for legacy compatibility)
         addMessageRef.current(payload.conversationId, payload.message);
 
@@ -274,7 +281,10 @@ export function WebSocketProvider({
           const messageExists = oldData.pages.some((page) =>
             page.messages.some((msg) => msg.id === payload.message.id)
           );
-          if (messageExists) return oldData;
+          if (messageExists) {
+            console.log('[WebSocket] ⚠️ Duplicate message ignored:', payload.message.id);
+            return oldData;
+          }
 
           // Add the new message to the first page (most recent)
           const newPages = [...oldData.pages];
@@ -283,6 +293,8 @@ export function WebSocketProvider({
               ...newPages[0],
               messages: [payload.message, ...newPages[0].messages],
             };
+            console.log('[WebSocket] ✅ Message added to cache, total messages:',
+              newPages.reduce((sum, page) => sum + page.messages.length, 0));
           }
 
           return {

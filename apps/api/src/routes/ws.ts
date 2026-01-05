@@ -104,11 +104,20 @@ export function broadcastToCompany(
   const companyConnections = connections.get(companyId);
   if (companyConnections) {
     const payload = JSON.stringify(message);
+    let sentCount = 0;
     for (const ws of companyConnections) {
       if (ws.readyState === 1) {
         // OPEN
         ws.send(payload);
+        sentCount++;
       }
+    }
+    if (message.type === "message:new") {
+      console.log(`[WS] 💬 Broadcast message:new to ${sentCount} client(s) for company ${companyId}`);
+    }
+  } else {
+    if (message.type === "message:new") {
+      console.log(`[WS] ⚠️ No active connections for company ${companyId} to broadcast message`);
     }
   }
 }
