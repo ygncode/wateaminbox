@@ -176,7 +176,7 @@ export async function up(db: Kysely<unknown>): Promise<void> {
         CREATE TABLE IF NOT EXISTS %I.conversation_states (
           id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
           contact_id UUID NOT NULL UNIQUE,
-          state conversation_state DEFAULT ''open'' NOT NULL,
+          state conversation_status DEFAULT ''open'' NOT NULL,
           resolved_by UUID,
           resolved_at TIMESTAMPTZ,
           created_at TIMESTAMPTZ DEFAULT now() NOT NULL,
