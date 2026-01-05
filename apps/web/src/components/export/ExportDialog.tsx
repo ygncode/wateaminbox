@@ -203,6 +203,12 @@ export function ExportDialog({
                   <SelectItem value="all">All time</SelectItem>
                 </SelectContent>
               </Select>
+              {type === "conversation" && dateRange === "all" && (
+                <p className="text-xs text-amber-600 dark:text-amber-400">
+                  Note: Exports are limited to 50,000 messages. Use date ranges
+                  for very large conversations.
+                </p>
+              )}
             </div>
           )}
 
