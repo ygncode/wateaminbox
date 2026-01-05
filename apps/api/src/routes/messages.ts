@@ -676,3 +676,78 @@ messageRoutes.get("/starred", async (c) => {
     },
   });
 });
+
+// Batch operation limit
+const BATCH_LIMIT = 50;
+
+/**
+ * POST /messages/batch/star - Star multiple messages at once
+ * Body: { messageIds: string[], star: boolean }
+ * Limit: 50 messages per request
+ */
+messageRoutes.post("/batch/star", async (c) => {
+  const tenantDb = c.get("tenantDb");
+  const body = await c.req.json();
+
+  const { messageIds, star = true } = body;
+
+  if (!Array.isArray(messageIds) || messageIds.length === 0) {
+    return c.json({ error: "messageIds array is required" }, 400);
+  }
+
+  if (messageIds.length > BATCH_LIMIT) {
+    return c.json(
+      { error: `Maximum ${BATCH_LIMIT} messages per batch request` },
+      400
+    );
+  }
+
+  // Update all messages
+  const result = await tenantDb
+    .updateTable("messages")
+    .set({ is_starred: star })
+    .where("id", "in", messageIds)
+    .execute();
+
+  return c.json({
+    success: true,
+    updated: Number(result[0]?.numUpdatedRows || 0),
+    isStarred: star,
+  });
+});
+
+/**
+ * POST /messages/batch/delete - Soft delete multiple messages at once
+ * Body: { messageIds: string[] }
+ * Limit: 50 messages per request
+ */
+messageRoutes.post("/batch/delete", async (c) => {
+  const tenantDb = c.get("tenantDb");
+  const body = await c.req.json();
+
+  const { messageIds } = body;
+
+  if (!Array.isArray(messageIds) || messageIds.length === 0) {
+    return c.json({ error: "messageIds array is required" }, 400);
+  }
+
+  if (messageIds.length > BATCH_LIMIT) {
+    return c.json(
+      { error: `Maximum ${BATCH_LIMIT} messages per batch request` },
+      400
+    );
+  }
+
+  // Soft delete all messages
+  const result = await tenantDb
+    .updateTable("messages")
+    .set({ deleted_at: new Date() })
+    .where("id", "in", messageIds)
+    .where("deleted_at", "is", null) // Don't re-delete already deleted messages
+    .execute();
+
+  return c.json({
+    success: true,
+    deleted: Number(result[0]?.numUpdatedRows || 0),
+  });
+});

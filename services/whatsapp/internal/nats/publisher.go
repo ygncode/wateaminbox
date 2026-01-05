@@ -21,9 +21,10 @@ const (
 	SubjectReceipt         = "WHATSAPP.events.%s.%s.receipt"
 	SubjectPresence        = "WHATSAPP.events.%s.%s.presence"
 	SubjectContact         = "WHATSAPP.events.%s.%s.contact"
-	SubjectProfilePicture  = "WHATSAPP.events.%s.%s.profile_picture"
-	SubjectMessageRevoke   = "WHATSAPP.events.%s.%s.message_revoke"
+	SubjectProfilePicture   = "WHATSAPP.events.%s.%s.profile_picture"
+	SubjectMessageRevoke    = "WHATSAPP.events.%s.%s.message_revoke"
 	SubjectSendConfirmation = "WHATSAPP.events.%s.%s.send_confirmation"
+	SubjectTyping           = "WHATSAPP.events.%s.%s.typing"
 )
 
 // WhatsAppEvent is the wrapper format expected by the API.
@@ -160,6 +161,23 @@ type PresenceEvent struct {
 	Unavailable bool      `json:"unavailable"`
 	LastSeen    time.Time `json:"last_seen,omitempty"`
 	Timestamp   time.Time `json:"timestamp"`
+}
+
+// TypingPayload is the payload for typing indicator events.
+type TypingPayload struct {
+	From      string `json:"from"`
+	ChatJID   string `json:"chatJid"`
+	IsTyping  bool   `json:"isTyping"`
+	MediaType string `json:"mediaType,omitempty"` // "text" or "audio"
+}
+
+// TypingEvent represents a typing indicator event (internal use).
+type TypingEvent struct {
+	From      string    `json:"from"`
+	ChatJID   string    `json:"chat_jid"`
+	IsTyping  bool      `json:"is_typing"`
+	MediaType string    `json:"media_type,omitempty"`
+	Timestamp time.Time `json:"timestamp"`
 }
 
 // Publisher handles publishing events to NATS.
@@ -379,6 +397,29 @@ func (p *Publisher) PublishPresence(presence PresenceEvent) error {
 	}
 
 	subject := fmt.Sprintf(SubjectPresence, p.companyID, p.connectionID)
+	return p.publish(subject, event)
+}
+
+// PublishTyping publishes a typing indicator event.
+func (p *Publisher) PublishTyping(typing TypingEvent) error {
+	if typing.Timestamp.IsZero() {
+		typing.Timestamp = time.Now()
+	}
+
+	event := WhatsAppEvent{
+		Type:         "typing",
+		CompanyID:    p.companyID,
+		ConnectionID: p.connectionID,
+		Payload: TypingPayload{
+			From:      typing.From,
+			ChatJID:   typing.ChatJID,
+			IsTyping:  typing.IsTyping,
+			MediaType: typing.MediaType,
+		},
+		Timestamp: time.Now().Format(time.RFC3339),
+	}
+
+	subject := fmt.Sprintf(SubjectTyping, p.companyID, p.connectionID)
 	return p.publish(subject, event)
 }
 

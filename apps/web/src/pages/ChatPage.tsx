@@ -17,6 +17,7 @@ import { chatKeys } from "../hooks/useChats";
 import { useQueryClient } from "@tanstack/react-query";
 import type { Message, Contact } from "@whatsapp-web/shared";
 import { toast } from "sonner";
+import { useChatStore } from "../stores/chat-store";
 
 // Helper to map ContactDetail to Contact type expected by MessageHeader
 function mapContactDetailToContact(detail: ContactDetail): Contact {
@@ -49,6 +50,16 @@ export function ChatPage() {
   const selectedContact = contactDetail
     ? mapContactDetailToContact(contactDetail)
     : undefined;
+
+  // Get typing indicators from store
+  // WhatsApp typing events use jid as the key, so we check if the contact's jid has a typing indicator
+  const typingIndicators = useChatStore((state) => state.typingIndicators);
+  const isContactTyping = React.useMemo(() => {
+    if (!contactDetail?.jid) return false;
+    // Check if there's a typing indicator for this contact's jid
+    const indicators = typingIndicators.get(contactDetail.jid);
+    return indicators && indicators.length > 0;
+  }, [contactDetail?.jid, typingIndicators]);
 
   // Message mutations
   const sendMessage = useSendMessage();
@@ -294,6 +305,7 @@ export function ChatPage() {
             contact={selectedContact}
             onOpenProfile={handleOpenProfile}
             onSearch={handleOpenSearch}
+            isTyping={isContactTyping}
           />
           {isSearchOpen && (
             <ConversationSearch

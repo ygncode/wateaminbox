@@ -38,6 +38,10 @@ export interface ChatState {
   // Draft messages per conversation
   draftMessages: Map<string, string>;
 
+  // Selection mode state (NOT persisted)
+  selectionMode: boolean;
+  selectedMessageIds: Set<string>;
+
   // Actions
   selectConversation: (
     conversationId: string | null,
@@ -78,6 +82,13 @@ export interface ChatState {
   setDraftMessage: (conversationId: string, content: string) => void;
   clearDraftMessage: (conversationId: string) => void;
 
+  // Selection mode
+  enterSelectionMode: () => void;
+  exitSelectionMode: () => void;
+  toggleMessageSelection: (messageId: string) => void;
+  selectAllMessages: (messageIds: string[]) => void;
+  clearSelection: () => void;
+
   // Reset
   reset: () => void;
 }
@@ -91,6 +102,8 @@ const initialState = {
   optimisticMessages: new Map<string, OptimisticMessage>(),
   lastReadMessageId: new Map<string, string>(),
   draftMessages: new Map<string, string>(),
+  selectionMode: false,
+  selectedMessageIds: new Set<string>(),
 };
 
 export const useChatStore = create<ChatState>()(
@@ -386,6 +399,46 @@ export const useChatStore = create<ChatState>()(
             "clearDraftMessage",
           ),
 
+        // Selection mode
+        enterSelectionMode: () =>
+          set(
+            { selectionMode: true, selectedMessageIds: new Set<string>() },
+            false,
+            "enterSelectionMode",
+          ),
+
+        exitSelectionMode: () =>
+          set(
+            { selectionMode: false, selectedMessageIds: new Set<string>() },
+            false,
+            "exitSelectionMode",
+          ),
+
+        toggleMessageSelection: (messageId) =>
+          set(
+            (state) => {
+              const newSet = new Set(state.selectedMessageIds);
+              if (newSet.has(messageId)) {
+                newSet.delete(messageId);
+              } else {
+                newSet.add(messageId);
+              }
+              return { selectedMessageIds: newSet };
+            },
+            false,
+            "toggleMessageSelection",
+          ),
+
+        selectAllMessages: (messageIds) =>
+          set(
+            { selectedMessageIds: new Set(messageIds) },
+            false,
+            "selectAllMessages",
+          ),
+
+        clearSelection: () =>
+          set({ selectedMessageIds: new Set<string>() }, false, "clearSelection"),
+
         // Reset
         reset: () =>
           set(
@@ -396,6 +449,8 @@ export const useChatStore = create<ChatState>()(
               optimisticMessages: new Map(),
               lastReadMessageId: new Map(),
               draftMessages: new Map(),
+              selectionMode: false,
+              selectedMessageIds: new Set(),
             },
             false,
             "reset",
@@ -467,6 +522,16 @@ export const selectLastReadMessageId =
 
 export const selectHasOptimisticMessages = (state: ChatState) =>
   state.optimisticMessages.size > 0;
+
+// Selection mode selectors
+export const selectSelectionMode = (state: ChatState) => state.selectionMode;
+export const selectSelectedMessageIds = (state: ChatState) =>
+  state.selectedMessageIds;
+export const selectSelectedMessageCount = (state: ChatState) =>
+  state.selectedMessageIds.size;
+export const selectIsMessageSelected =
+  (messageId: string) => (state: ChatState) =>
+    state.selectedMessageIds.has(messageId);
 
 // Helper to generate temp IDs
 export function generateTempId(): string {

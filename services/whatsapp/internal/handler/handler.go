@@ -158,6 +158,8 @@ func (h *Handler) HandleEvent(evt interface{}) {
 		h.handleReceipt(v)
 	case *events.Presence:
 		h.handlePresence(v)
+	case *events.ChatPresence:
+		h.handleChatPresence(v)
 	case *events.Connected:
 		h.handleConnected(v)
 	case *events.Disconnected:
@@ -422,6 +424,36 @@ func (h *Handler) handlePresence(presence *events.Presence) {
 	if h.publisher != nil {
 		if err := h.publisher.PublishPresence(presenceEvent); err != nil {
 			log.Printf("Failed to publish presence event: %v", err)
+		}
+	}
+}
+
+// handleChatPresence processes typing indicator events.
+func (h *Handler) handleChatPresence(presence *events.ChatPresence) {
+	// ChatPresence.State is "composing" when typing, "paused" when stopped
+	isTyping := presence.State == types.ChatPresenceComposing
+
+	// Determine media type from ChatPresenceMedia
+	mediaType := "text"
+	if presence.Media == types.ChatPresenceMediaAudio {
+		mediaType = "audio"
+	}
+
+	log.Printf("Typing indicator from %s in %s: typing=%v, media=%s",
+		presence.Sender.String(), presence.Chat.String(), isTyping, mediaType)
+
+	typingEvent := natsClient.TypingEvent{
+		From:      presence.Sender.String(),
+		ChatJID:   presence.Chat.String(),
+		IsTyping:  isTyping,
+		MediaType: mediaType,
+		Timestamp: time.Now(),
+	}
+
+	// Publish to NATS
+	if h.publisher != nil {
+		if err := h.publisher.PublishTyping(typingEvent); err != nil {
+			log.Printf("Failed to publish typing event: %v", err)
 		}
 	}
 }

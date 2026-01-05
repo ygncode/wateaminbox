@@ -17,6 +17,7 @@
     "db:generate": "turbo db:generate"
   },
   "devDependencies": {
+    "knip": "^5.80.0",
     "turbo": "^2.3.3"
   },
   "packageManager": "bun@1.1.38"

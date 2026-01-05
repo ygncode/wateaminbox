@@ -15,6 +15,13 @@ import { getAccessToken } from "../lib/api";
 import { useWebSocketStore } from "../stores/websocket-store";
 import { useChatStore, type TypingIndicator } from "../stores/chat-store";
 
+// WhatsApp typing payload (different from internal TypingPayload)
+interface WhatsAppTypingPayload {
+  jid: string;
+  chatJid: string;
+  mediaType?: string;
+}
+
 // Typing timeout in milliseconds (stop typing after 5 seconds of no updates)
 const TYPING_TIMEOUT = 5000;
 
@@ -163,29 +170,62 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
       },
     );
 
-    // Typing start handler
-    const unsubTypingStart = client.on<TypingPayload>(
+    // Typing start handler - handles both internal typing events and WhatsApp typing events
+    // WhatsApp events come with { jid, chatJid, mediaType }, internal events with { conversationId, userId, userName }
+    const unsubTypingStart = client.on<TypingPayload | WhatsAppTypingPayload>(
       "typing:start",
       (payload) => {
-        const indicator: TypingIndicator = {
-          conversationId: payload.conversationId,
-          userId: payload.userId,
-          userName: payload.userName,
-          startedAt: new Date(),
-        };
-        addTypingIndicator(indicator);
-        setTypingTimeout(payload.conversationId, payload.userId);
-        options.onTypingStart?.(payload);
+        // Handle WhatsApp typing events (from contacts)
+        if ("jid" in payload) {
+          // For WhatsApp typing events, use jid as both conversationId and userId
+          // The frontend will match this to the correct contact via jid
+          const indicator: TypingIndicator = {
+            conversationId: payload.jid, // Use jid as conversation identifier
+            userId: payload.jid,
+            userName: "", // Contact name will be displayed from context
+            startedAt: new Date(),
+          };
+          addTypingIndicator(indicator);
+          setTypingTimeout(payload.jid, payload.jid);
+          options.onTypingStart?.({
+            conversationId: payload.jid,
+            userId: payload.jid,
+            userName: "",
+          });
+        } else {
+          // Handle internal typing events (from team members)
+          const indicator: TypingIndicator = {
+            conversationId: payload.conversationId,
+            userId: payload.userId,
+            userName: payload.userName,
+            startedAt: new Date(),
+          };
+          addTypingIndicator(indicator);
+          setTypingTimeout(payload.conversationId, payload.userId);
+          options.onTypingStart?.(payload);
+        }
       },
     );
 
-    // Typing stop handler
-    const unsubTypingStop = client.on<TypingPayload>(
+    // Typing stop handler - handles both internal typing events and WhatsApp typing events
+    const unsubTypingStop = client.on<TypingPayload | WhatsAppTypingPayload>(
       "typing:stop",
       (payload) => {
-        removeTypingIndicator(payload.conversationId, payload.userId);
-        clearTypingTimeout(payload.conversationId, payload.userId);
-        options.onTypingStop?.(payload);
+        if ("jid" in payload) {
+          // Handle WhatsApp typing events
+          removeTypingIndicator(payload.jid, payload.jid);
+          clearTypingTimeout(payload.jid, payload.jid);
+          options.onTypingStop?.({
+            conversationId: payload.jid,
+            userId: payload.jid,
+            userName: "",
+          });
+        } else {
+          // Handle internal typing events
+          removeTypingIndicator(payload.conversationId, payload.userId);
+          clearTypingTimeout(payload.conversationId, payload.userId);
+          options.onTypingStop?.(payload);
+        }
       },
     );
 

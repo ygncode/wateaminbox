@@ -12,6 +12,7 @@ import {
   type ProfilePictureEvent,
   type MessageRevokeEvent,
   type PresenceEvent,
+  type TypingEvent,
 } from "../lib/nats.js";
 import { getTenantConnection } from "./tenant.service.js";
 import { updateConnectionStatus } from "./whatsapp.service.js";
@@ -132,6 +133,10 @@ export async function handleWhatsAppEvent(event: WhatsAppEvent): Promise<void> {
 
       case "presence":
         await handlePresenceEvent(event as PresenceEvent);
+        break;
+
+      case "typing":
+        await handleTypingEvent(event as TypingEvent);
         break;
 
       case "error":
@@ -903,6 +908,32 @@ async function handlePresenceEvent(event: PresenceEvent): Promise<void> {
   } catch (error) {
     console.error(`[MessageHandler] Failed to handle presence event:`, error);
   }
+}
+
+/**
+ * Handles typing indicator events from WhatsApp
+ * Broadcasts directly to WebSocket clients without storing in database
+ * (typing state is ephemeral and doesn't need persistence)
+ */
+async function handleTypingEvent(event: TypingEvent): Promise<void> {
+  const { companyId, connectionId, payload } = event;
+
+  console.log(
+    `[MessageHandler] Typing event for company ${companyId}, connection ${connectionId}: ${payload.from} is ${payload.isTyping ? "typing" : "stopped typing"}`,
+  );
+
+  // Broadcast to WebSocket clients
+  // Frontend will match the "from" JID to the active conversation
+  broadcastToCompany(companyId, {
+    type: payload.isTyping ? "typing:start" : "typing:stop",
+    connectionId,
+    payload: {
+      jid: payload.from,
+      chatJid: payload.chatJid,
+      mediaType: payload.mediaType || "text",
+    },
+    timestamp: event.timestamp,
+  });
 }
 
 /**

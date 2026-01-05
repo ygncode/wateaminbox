@@ -149,3 +149,31 @@
     -webkit-tap-highlight-color: transparent;
   }
 }
+
+/* Typing indicator animation */
+@keyframes typing-dots {
+  0%, 20% {
+    content: "";
+  }
+  40% {
+    content: ".";
+  }
+  60% {
+    content: "..";
+  }
+  80%, 100% {
+    content: "...";
+  }
+}
+
+.typing-indicator {
+  display: inline-flex;
+  align-items: center;
+}
+
+.typing-dots::after {
+  content: "";
+  animation: typing-dots 1.5s infinite;
+  width: 1em;
+  display: inline-block;
+}
