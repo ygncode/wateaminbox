@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { authMiddleware } from "../middleware/auth.js";
 import { tenantMiddleware, requirePermission } from "../middleware/tenant.js";
 import { PERMISSIONS } from "../services/permission.service.js";
+import { createRateLimitMiddleware } from "../middleware/rate-limit.js";
 import {
   parseCSV,
   mapToContactRow,
@@ -15,12 +16,22 @@ import {
 import { createNotification } from "../services/notification-history.service.js";
 import { createAuditLog, getClientIp } from "../services/audit.service.js";
 import { broadcastToCompany } from "./ws.js";
+import { rateLimitConfig, rateLimitStore } from "../app.js";
 
 export const contactRoutes = new Hono();
 
 // All contact routes require authentication and tenant context
 contactRoutes.use("/*", authMiddleware);
 contactRoutes.use("/*", tenantMiddleware());
+
+// Import rate limiter: 5 requests per minute per user
+// Bulk contact import is resource-intensive, so we use a strict limit
+const importRateLimiter = createRateLimitMiddleware({
+  store: rateLimitStore,
+  tier: rateLimitConfig.tiers.resource.import,
+  keyStrategy: "user",
+  keyPrefix: "resource-import",
+});
 
 /**
  * GET /contacts - List all contacts
@@ -733,8 +744,9 @@ contactRoutes.get("/import/template", async (c) => {
 /**
  * POST /contacts/import - Import contacts from CSV
  * Accepts: multipart/form-data with file field, or JSON with csvContent field
+ * Rate limit: 5 requests per minute per user
  */
-contactRoutes.post("/import", async (c) => {
+contactRoutes.post("/import", importRateLimiter, async (c) => {
   const tenantDb = c.get("tenantDb");
   const user = c.get("user");
 
@@ -822,8 +834,9 @@ contactRoutes.post("/import", async (c) => {
 
 /**
  * POST /contacts/import/preview - Preview import without saving
+ * Rate limit: 5 requests per minute per user
  */
-contactRoutes.post("/import/preview", async (c) => {
+contactRoutes.post("/import/preview", importRateLimiter, async (c) => {
   const tenantDb = c.get("tenantDb");
 
   let csvContent: string;

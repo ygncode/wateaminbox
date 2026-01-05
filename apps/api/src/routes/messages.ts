@@ -4,12 +4,23 @@ import { tenantMiddleware, requirePermission } from "../middleware/tenant.js";
 import { PERMISSIONS } from "../services/permission.service.js";
 import { publishSendMessage } from "../lib/nats.js";
 import { ensureContactAssignment } from "../services/contact.service.js";
+import { createRateLimitMiddleware } from "../middleware/rate-limit.js";
+import { rateLimitConfig, rateLimitStore } from "../app.js";
 
 export const messageRoutes = new Hono();
 
 // All message routes require authentication and tenant context
 messageRoutes.use("/*", authMiddleware);
 messageRoutes.use("/*", tenantMiddleware());
+
+// Message send rate limiter: 60 requests per minute per user
+// Prevents message spam while allowing reasonable burst usage
+const messageSendRateLimiter = createRateLimitMiddleware({
+  store: rateLimitStore,
+  tier: rateLimitConfig.tiers.messaging.send,
+  keyStrategy: "user",
+  keyPrefix: "messaging-send",
+});
 
 /**
  * GET /messages - Get messages for a contact
@@ -108,6 +119,7 @@ messageRoutes.get("/", async (c) => {
  */
 messageRoutes.post(
   "/",
+  messageSendRateLimiter,
   requirePermission(PERMISSIONS.CAN_SEND_MESSAGES),
   async (c) => {
     const tenantDb = c.get("tenantDb");
@@ -339,6 +351,7 @@ messageRoutes.delete("/:id/reaction", async (c) => {
  */
 messageRoutes.post(
   "/:id/forward",
+  messageSendRateLimiter,
   requirePermission(PERMISSIONS.CAN_SEND_MESSAGES),
   async (c) => {
     const tenantDb = c.get("tenantDb");
@@ -444,6 +457,7 @@ messageRoutes.post(
  */
 messageRoutes.post(
   "/:id/retry",
+  messageSendRateLimiter,
   requirePermission(PERMISSIONS.CAN_SEND_MESSAGES),
   async (c) => {
     const tenantDb = c.get("tenantDb");

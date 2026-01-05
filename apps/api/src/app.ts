@@ -3,6 +3,13 @@ import { cors } from "hono/cors";
 import { logger } from "hono/logger";
 import { HTTPException } from "hono/http-exception";
 import { routes } from "./routes/index.js";
+import { getRateLimitConfig } from "./config/rate-limit.config.js";
+import { createRateLimitStore } from "./lib/rate-limit-store.js";
+import { createRateLimitMiddleware } from "./middleware/rate-limit.js";
+
+// Initialize rate limit store (singleton for the app lifetime)
+export const rateLimitConfig = getRateLimitConfig();
+export const rateLimitStore = createRateLimitStore(rateLimitConfig);
 
 export const app = new Hono();
 
@@ -17,6 +24,21 @@ app.use(
     allowHeaders: ["Content-Type", "Authorization", "X-Company-Id"],
   })
 );
+
+// Global rate limiting (applied to all /api/* routes)
+// Positioned after CORS and before route-specific middleware
+if (rateLimitConfig.enabled) {
+  const globalRateLimiter = createRateLimitMiddleware({
+    store: rateLimitStore,
+    tier: rateLimitConfig.tiers.global,
+    keyStrategy: "ip",
+    keyPrefix: "global",
+    // Skip rate limiting for non-API routes
+    skip: (c) => !c.req.path.startsWith("/api"),
+  });
+
+  app.use("*", globalRateLimiter);
+}
 
 // Routes - mounted at /api
 app.route("/api", routes);
