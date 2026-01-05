@@ -36,6 +36,8 @@ interface ContactRow {
   is_group: boolean;
   profile_picture_url: string | null;
   notes_shared: string | null;
+  is_online: boolean;
+  last_seen: Date | null;
   created_at: Date;
   updated_at: Date;
   last_message_at: Date | null;
@@ -91,6 +93,8 @@ describe("Performance: Contact Query Optimization", () => {
         is_group BOOLEAN DEFAULT false,
         profile_picture_url TEXT,
         notes_shared TEXT,
+        is_online BOOLEAN DEFAULT false NOT NULL,
+        last_seen TIMESTAMPTZ,
         created_at TIMESTAMP DEFAULT NOW(),
         updated_at TIMESTAMP DEFAULT NOW(),
         last_message_at TIMESTAMP
@@ -152,6 +156,11 @@ describe("Performance: Contact Query Optimization", () => {
       CREATE INDEX idx_${TEST_SCHEMA}_messages_incoming
         ON ${TEST_SCHEMA}.messages (contact_id, from_me)
         WHERE from_me = false
+    `);
+
+    await pool.query(`
+      CREATE INDEX idx_${TEST_SCHEMA}_contacts_presence
+        ON ${TEST_SCHEMA}.contacts (is_online, last_seen DESC NULLS LAST)
     `);
 
     // Create tenant DB connection with search_path set
@@ -373,6 +382,8 @@ async function generateTestData(tenantDb: Kysely<any>): Promise<void> {
       is_group: false,
       profile_picture_url: null,
       notes_shared: null,
+      is_online: i % 5 === 0, // Every 5th contact is online
+      last_seen: i % 5 === 0 ? null : new Date(now - Math.random() * 60 * 60 * 1000), // Last seen within last hour if offline
       created_at: new Date(now - 90 * 24 * 60 * 60 * 1000), // 90 days ago
       updated_at: new Date(now - Math.random() * 7 * 24 * 60 * 60 * 1000), // Within last week
       last_message_at: new Date(now - Math.random() * 24 * 60 * 60 * 1000), // Within last day

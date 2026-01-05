@@ -434,6 +434,64 @@ export function WebSocketProvider({
       },
     );
 
+    // Presence online handler
+    const unsubPresenceOnline = client.on<{ jid: string; isOnline: boolean; lastSeen?: string }>(
+      "presence:online",
+      (payload) => {
+        console.log('[WebSocket] ✅ Contact came online:', payload.jid);
+
+        // Update chat list cache
+        queryClientRef.current.setQueriesData(
+          { queryKey: chatKeys.lists() },
+          (oldData: any) => {
+            if (!oldData) return oldData;
+            return oldData.map((chat: any) => {
+              if (chat.contact?.jid === payload.jid) {
+                return {
+                  ...chat,
+                  contact: {
+                    ...chat.contact,
+                    isOnline: true,
+                    lastSeen: null,
+                  },
+                };
+              }
+              return chat;
+            });
+          },
+        );
+      },
+    );
+
+    // Presence offline handler
+    const unsubPresenceOffline = client.on<{ jid: string; isOnline: boolean; lastSeen?: string }>(
+      "presence:offline",
+      (payload) => {
+        console.log('[WebSocket] 🔴 Contact went offline:', payload.jid, 'last seen:', payload.lastSeen);
+
+        // Update chat list cache
+        queryClientRef.current.setQueriesData(
+          { queryKey: chatKeys.lists() },
+          (oldData: any) => {
+            if (!oldData) return oldData;
+            return oldData.map((chat: any) => {
+              if (chat.contact?.jid === payload.jid) {
+                return {
+                  ...chat,
+                  contact: {
+                    ...chat.contact,
+                    isOnline: false,
+                    lastSeen: payload.lastSeen ? new Date(payload.lastSeen) : undefined,
+                  },
+                };
+              }
+              return chat;
+            });
+          },
+        );
+      },
+    );
+
     // Auto-connect if enabled and we have a token
     if (autoConnect && getAccessToken()) {
       connect();
@@ -449,6 +507,8 @@ export function WebSocketProvider({
       unsubConversationUpdated();
       unsubConversationRead();
       unsubProfilePicture();
+      unsubPresenceOnline();
+      unsubPresenceOffline();
 
       // Clear all typing timeouts
       typingTimeoutsRef.current.forEach((timeout) => clearTimeout(timeout));

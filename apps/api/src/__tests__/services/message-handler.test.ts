@@ -963,3 +963,381 @@ describe("MessageHandler - handleMessageRevokeEvent", () => {
     });
   });
 });
+
+describe("MessageHandler - handlePresenceEvent", () => {
+  beforeEach(() => {
+    resetMockTenantDb();
+    mockBroadcastToCompany.mockClear();
+    mockGetTenantConnection.mockClear();
+  });
+
+  describe("successful presence handling", () => {
+    it("should update contact to online status", async () => {
+      // Arrange
+      const jid = "1234567890@s.whatsapp.net";
+      const companyId = "company-123";
+      const connectionId = "connection-abc";
+      const timestamp = "2026-01-05T12:34:56Z";
+
+      const mockUpdateResult = createUpdateResult(1);
+      mockQueryBuilder.executeTakeFirst = mock(() => Promise.resolve(mockUpdateResult));
+
+      const event = {
+        type: "presence" as const,
+        companyId,
+        connectionId,
+        timestamp,
+        payload: {
+          from: jid,
+          unavailable: false,
+        },
+      };
+
+      // Act
+      await handleWhatsAppEvent(event);
+
+      // Assert - verify updateTable was called with correct parameters
+      expect(mockTenantDb.updateTable).toHaveBeenCalledWith("contacts");
+
+      // Verify the update set the correct values
+      const setCall = mockQueryBuilder.set as unknown as ReturnType<typeof mock>;
+      expect(setCall).toHaveBeenCalledWith({
+        is_online: true,
+        last_seen: null,
+        updated_at: expect.any(Date),
+      });
+
+      // Verify the WHERE clause targets the JID
+      const whereCall = mockQueryBuilder.where as unknown as ReturnType<typeof mock>;
+      expect(whereCall).toHaveBeenCalledWith("jid", "=", jid);
+
+      // Verify executeTakeFirst was called to run the update
+      expect(mockQueryBuilder.executeTakeFirst).toHaveBeenCalled();
+
+      // Verify WebSocket broadcast was called with correct payload
+      expect(mockBroadcastToCompany).toHaveBeenCalledWith(
+        companyId,
+        expect.objectContaining({
+          type: "presence:online",
+          connectionId,
+          payload: {
+            jid,
+            isOnline: true,
+            lastSeen: undefined,
+          },
+          timestamp,
+        }),
+      );
+    });
+
+    it("should update contact to offline status with last seen", async () => {
+      // Arrange
+      const jid = "9876543210@s.whatsapp.net";
+      const companyId = "company-456";
+      const connectionId = "connection-def";
+      const timestamp = "2026-01-05T14:00:00Z";
+      const lastSeen = "2026-01-05T13:59:00Z";
+
+      const mockUpdateResult = createUpdateResult(1);
+      mockQueryBuilder.executeTakeFirst = mock(() => Promise.resolve(mockUpdateResult));
+
+      const event = {
+        type: "presence" as const,
+        companyId,
+        connectionId,
+        timestamp,
+        payload: {
+          from: jid,
+          unavailable: true,
+          lastSeen,
+        },
+      };
+
+      // Act
+      await handleWhatsAppEvent(event);
+
+      // Assert - verify the update set the correct values
+      const setCall = mockQueryBuilder.set as unknown as ReturnType<typeof mock>;
+      expect(setCall).toHaveBeenCalledWith({
+        is_online: false,
+        last_seen: new Date(lastSeen),
+        updated_at: expect.any(Date),
+      });
+
+      // Verify WebSocket broadcast was called with correct payload
+      expect(mockBroadcastToCompany).toHaveBeenCalledWith(
+        companyId,
+        expect.objectContaining({
+          type: "presence:offline",
+          connectionId,
+          payload: expect.objectContaining({
+            jid,
+            isOnline: false,
+          }),
+          timestamp,
+        }),
+      );
+
+      // Verify lastSeen is sent as ISO string (with milliseconds)
+      const broadcastCall = mockBroadcastToCompany.mock.calls[0];
+      expect(broadcastCall[1].payload.lastSeen).toBe(new Date(lastSeen).toISOString());
+    });
+
+    it("should broadcast correct WebSocket payload structure for online", async () => {
+      // Arrange
+      const jid = "1111111111@s.whatsapp.net";
+      const companyId = "company-ws";
+      const connectionId = "conn-ws";
+      const timestamp = "2026-01-05T15:00:00Z";
+
+      const mockUpdateResult = createUpdateResult(1);
+      mockQueryBuilder.executeTakeFirst = mock(() => Promise.resolve(mockUpdateResult));
+
+      const event = {
+        type: "presence" as const,
+        companyId,
+        connectionId,
+        timestamp,
+        payload: {
+          from: jid,
+          unavailable: false,
+        },
+      };
+
+      // Act
+      await handleWhatsAppEvent(event);
+
+      // Assert - verify WebSocket broadcast payload
+      expect(mockBroadcastToCompany).toHaveBeenCalledTimes(1);
+      const broadcastCall = mockBroadcastToCompany.mock.calls[0];
+      expect(broadcastCall[0]).toBe(companyId);
+
+      const wsMessage = broadcastCall[1];
+      expect(wsMessage).toMatchObject({
+        type: "presence:online",
+        connectionId,
+        payload: {
+          jid,
+          isOnline: true,
+          lastSeen: undefined,
+        },
+      });
+      expect(wsMessage).toHaveProperty("timestamp");
+    });
+  });
+
+  describe("handling contact not found", () => {
+    it("should handle gracefully when contact does not exist (0 rows updated)", async () => {
+      // Arrange
+      const jid = "unknown@s.whatsapp.net";
+      const companyId = "company-789";
+      const connectionId = "conn-missing";
+      const timestamp = "2026-01-05T16:00:00Z";
+
+      // Simulate 0 rows affected (contact not found)
+      const mockUpdateResult = createUpdateResult(0);
+      mockQueryBuilder.executeTakeFirst = mock(() => Promise.resolve(mockUpdateResult));
+
+      const event = {
+        type: "presence" as const,
+        companyId,
+        connectionId,
+        timestamp,
+        payload: {
+          from: jid,
+          unavailable: false,
+        },
+      };
+
+      // Act - should not throw, should handle gracefully
+      const result = await handleWhatsAppEvent(event);
+
+      // Assert - no error thrown
+      expect(result).toBeUndefined();
+
+      // Assert - update was attempted
+      expect(mockTenantDb.updateTable).toHaveBeenCalledWith("contacts");
+      expect(mockQueryBuilder.executeTakeFirst).toHaveBeenCalled();
+
+      // Assert - WebSocket broadcast should NOT happen when contact not found
+      expect(mockBroadcastToCompany).not.toHaveBeenCalled();
+    });
+
+    it("should not log warning for unknown contact (expected behavior)", async () => {
+      // This test verifies that presence updates for unknown contacts are handled silently
+      // This is normal behavior - we only track presence for contacts we've received messages from
+      const jid = "newcontact@s.whatsapp.net";
+
+      const mockUpdateResult = createUpdateResult(0);
+      mockQueryBuilder.executeTakeFirst = mock(() => Promise.resolve(mockUpdateResult));
+
+      const event = {
+        type: "presence" as const,
+        companyId: "company-normal",
+        connectionId: "conn-normal",
+        timestamp: "2026-01-05T17:00:00Z",
+        payload: {
+          from: jid,
+          unavailable: true,
+          lastSeen: "2026-01-05T16:59:00Z",
+        },
+      };
+
+      // Act & Assert - should complete without error
+      const result = await handleWhatsAppEvent(event);
+      expect(result).toBeUndefined();
+      expect(mockBroadcastToCompany).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("error handling", () => {
+    it("should handle database errors gracefully", async () => {
+      // Arrange
+      const event = {
+        type: "presence" as const,
+        companyId: "company-error",
+        connectionId: "conn-error",
+        timestamp: "2026-01-05T18:00:00Z",
+        payload: {
+          from: "error@s.whatsapp.net",
+          unavailable: false,
+        },
+      };
+
+      // Mock database error
+      mockQueryBuilder.executeTakeFirst = mock(() => Promise.reject(new Error("Database connection failed")));
+
+      // Act & Assert - should not throw, error is caught and logged
+      const result = await handleWhatsAppEvent(event);
+      expect(result).toBeUndefined();
+
+      // WebSocket broadcast should not happen on error
+      expect(mockBroadcastToCompany).not.toHaveBeenCalled();
+    });
+
+    it("should handle tenant connection errors gracefully", async () => {
+      // Arrange - mock getTenantConnection to throw
+      mockGetTenantConnection.mockImplementation(() => {
+        throw new Error("Tenant not found");
+      });
+
+      const event = {
+        type: "presence" as const,
+        companyId: "non-existent-company",
+        connectionId: "conn-no-tenant",
+        timestamp: "2026-01-05T19:00:00Z",
+        payload: {
+          from: "contact@s.whatsapp.net",
+          unavailable: false,
+        },
+      };
+
+      // Act & Assert - should not throw
+      const result = await handleWhatsAppEvent(event);
+      expect(result).toBeUndefined();
+
+      // Reset mock
+      mockGetTenantConnection.mockImplementation(() => mockTenantDb);
+    });
+
+    it("should handle multiple presence updates for same contact", async () => {
+      // Arrange - first update (online)
+      const jid = "contact@s.whatsapp.net";
+      const event1 = {
+        type: "presence" as const,
+        companyId: "company-123",
+        connectionId: "conn-1",
+        timestamp: "2026-01-05T20:00:00Z",
+        payload: {
+          from: jid,
+          unavailable: false,
+        },
+      };
+
+      const mockUpdateResult1 = createUpdateResult(1);
+      mockQueryBuilder.executeTakeFirst = mock(() => Promise.resolve(mockUpdateResult1));
+
+      // Act - first update
+      await handleWhatsAppEvent(event1);
+
+      // Assert - first update
+      expect(mockBroadcastToCompany).toHaveBeenCalledTimes(1);
+      expect(mockBroadcastToCompany.mock.calls[0][1].type).toBe("presence:online");
+
+      // Arrange - second update (offline)
+      mockBroadcastToCompany.mockClear();
+      const event2 = {
+        type: "presence" as const,
+        companyId: "company-123",
+        connectionId: "conn-1",
+        timestamp: "2026-01-05T20:05:00Z",
+        payload: {
+          from: jid,
+          unavailable: true,
+          lastSeen: "2026-01-05T20:04:00Z",
+        },
+      };
+
+      const mockUpdateResult2 = createUpdateResult(1);
+      mockQueryBuilder.executeTakeFirst = mock(() => Promise.resolve(mockUpdateResult2));
+
+      // Act - second update
+      await handleWhatsAppEvent(event2);
+
+      // Assert - second update
+      expect(mockBroadcastToCompany).toHaveBeenCalledTimes(1);
+      expect(mockBroadcastToCompany.mock.calls[0][1].type).toBe("presence:offline");
+    });
+  });
+
+  describe("integration with other handlers", () => {
+    it("should not interfere with other event types", async () => {
+      // This test verifies the switch statement correctly routes to handlePresenceEvent
+      const messageEvent = {
+        type: "message" as const,
+        companyId: "company-123",
+        connectionId: "conn-1",
+        timestamp: "2026-01-05T21:00:00Z",
+        payload: {
+          messageId: "3EB0MSG@s.whatsapp.net",
+          from: "sender@s.whatsapp.net",
+          to: "receiver@s.whatsapp.net",
+          content: "Hello",
+          timestamp: "2026-01-05T21:00:00Z",
+          fromMe: false,
+        },
+      };
+
+      const mockContactId = "contact-123";
+      let callCount = 0;
+      mockQueryBuilder.executeTakeFirst = mock(() => {
+        callCount++;
+        // First call returns contact, second returns message insert result
+        if (callCount === 1) {
+          return Promise.resolve({
+            id: mockContactId,
+            jid: "sender@s.whatsapp.net",
+            whatsapp_connection_id: "conn-1",
+          });
+        }
+        return Promise.resolve({
+          id: "message-123",
+          contact_id: mockContactId,
+          message_id: "3EB0MSG@s.whatsapp.net",
+        });
+      });
+
+      // Act - message event should be handled differently than presence
+      await handleWhatsAppEvent(messageEvent);
+
+      // Assert - should have processed as message, not presence
+      expect(mockTenantDb.updateTable).toHaveBeenCalled();
+      expect(mockBroadcastToCompany).toHaveBeenCalled();
+
+      // The broadcast type should be "message:new", not "presence:online" or "presence:offline"
+      const broadcastPayload = mockBroadcastToCompany.mock.calls[0]?.[1];
+      expect(broadcastPayload?.type).not.toBe("presence:online");
+      expect(broadcastPayload?.type).not.toBe("presence:offline");
+    });
+  });
+});

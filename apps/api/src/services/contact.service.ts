@@ -40,6 +40,8 @@ export interface ContactWithLastMessage {
   assigned_to: string | null;
   last_message_at: Date | null;
   unread_count: number | bigint;
+  is_online: boolean;
+  last_seen: Date | null;
   last_message: {
     id: string;
     messageId: string | null;
@@ -142,6 +144,8 @@ export async function getContactsWithLastMessage(
     last_message_status: string | null;
     last_message_timestamp: Date | null;
     unread_count: string;
+    is_online: boolean;
+    last_seen: Date | null;
   }>`
     WITH last_messages AS (
       SELECT
@@ -167,6 +171,8 @@ export async function getContactsWithLastMessage(
       c.notes_shared,
       c.created_at,
       c.updated_at,
+      c.is_online,
+      c.last_seen,
       ca.assigned_to,
       lm.timestamp as last_message_at,
       lm.id as last_message_id,
@@ -223,6 +229,8 @@ export async function getContactsWithLastMessage(
       assigned_to: contact.assigned_to,
       last_message_at: contact.last_message_at,
       unread_count: BigInt(contact.unread_count),
+      is_online: contact.is_online,
+      last_seen: contact.last_seen,
       last_message: lastMessage,
     };
   });
