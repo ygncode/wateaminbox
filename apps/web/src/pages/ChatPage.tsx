@@ -11,6 +11,7 @@ import { MessageHeader } from "../components/chat/MessageHeader";
 import { ContactProfile } from "../components/chat/ContactProfile";
 import { ConversationSearch } from "../components/chat/ConversationSearch";
 import { ForwardMessageDialog } from "../components/chat/ForwardMessageDialog";
+import { DeleteMessageDialog } from "../components/chat/DeleteMessageDialog";
 import { useContact, type ContactDetail } from "../hooks/useContact";
 import {
   useSendMessage,
@@ -55,6 +56,9 @@ export function ChatPage() {
   );
   const [forwardDialogOpen, setForwardDialogOpen] = React.useState(false);
   const [messageToForward, setMessageToForward] =
+    React.useState<Message | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = React.useState(false);
+  const [messageToDelete, setMessageToDelete] =
     React.useState<Message | null>(null);
 
   // Fetch contact data for the selected chat
@@ -224,16 +228,36 @@ export function ChatPage() {
   const handleDeleteMessage = React.useCallback(
     (message: Message) => {
       if (!selectedChatId) return;
-
-      if (window.confirm("Are you sure you want to delete this message?")) {
-        deleteMessage.mutate({
-          messageId: message.id,
-          conversationId: selectedChatId,
-        });
-      }
+      setMessageToDelete(message);
+      setDeleteDialogOpen(true);
     },
-    [selectedChatId, deleteMessage],
+    [selectedChatId],
   );
+
+  const handleConfirmDelete = React.useCallback(() => {
+    if (!selectedChatId || !messageToDelete) return;
+
+    deleteMessage.mutate(
+      {
+        messageId: messageToDelete.id,
+        conversationId: selectedChatId,
+      },
+      {
+        onSuccess: () => {
+          setDeleteDialogOpen(false);
+          setMessageToDelete(null);
+        },
+        onError: (error) => {
+          toast.error(`Failed to delete message: ${error.message}`);
+        },
+      },
+    );
+  }, [selectedChatId, messageToDelete, deleteMessage]);
+
+  const handleCloseDeleteDialog = React.useCallback(() => {
+    setDeleteDialogOpen(false);
+    setMessageToDelete(null);
+  }, []);
 
   const handleStarMessage = React.useCallback(
     (message: Message) => {
@@ -401,6 +425,12 @@ export function ChatPage() {
         onOpenChange={handleCloseForwardDialog}
         onForward={handleForwardToContact}
         isForwarding={forwardMessage.isPending}
+      />
+      <DeleteMessageDialog
+        open={deleteDialogOpen}
+        onOpenChange={handleCloseDeleteDialog}
+        onConfirm={handleConfirmDelete}
+        isDeleting={deleteMessage.isPending}
       />
     </AppLayout>
   );
