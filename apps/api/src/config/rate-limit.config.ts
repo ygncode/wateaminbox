@@ -142,7 +142,10 @@ export function getRateLimitConfig(): RateLimitConfig {
     },
     tiers: {
       global: {
-        requests: getDefaultRequests(process.env.RATE_LIMIT_GLOBAL_REQUESTS, 100),
+        requests: getDefaultRequests(
+          process.env.RATE_LIMIT_GLOBAL_REQUESTS,
+          100,
+        ),
         windowSeconds: parsePositiveInt(
           process.env.RATE_LIMIT_GLOBAL_WINDOW_SECONDS,
           60,

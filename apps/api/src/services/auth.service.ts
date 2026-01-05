@@ -97,7 +97,14 @@ export async function register(
       password_hash: passwordHash,
       name: name || null,
     })
-    .returning(["id", "email", "name", "email_verified_at", "created_at", "updated_at"])
+    .returning([
+      "id",
+      "email",
+      "name",
+      "email_verified_at",
+      "created_at",
+      "updated_at",
+    ])
     .executeTakeFirstOrThrow();
 
   // Store the verification token (we'll use a simple approach - store in invitations table or separate tokens table)
@@ -440,7 +447,14 @@ export async function getUserById(userId: string): Promise<AuthUser | null> {
   const user = await db
     .selectFrom("users")
     .where("id", "=", userId)
-    .select(["id", "email", "name", "email_verified_at", "created_at", "updated_at"])
+    .select([
+      "id",
+      "email",
+      "name",
+      "email_verified_at",
+      "created_at",
+      "updated_at",
+    ])
     .executeTakeFirst();
 
   if (!user) {

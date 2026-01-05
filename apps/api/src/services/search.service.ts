@@ -25,6 +25,14 @@ async function checkMeilisearchAvailable(): Promise<boolean> {
 }
 
 /**
+ * Reset the Meilisearch availability cache (for testing)
+ */
+export function resetMeilisearchCache(): void {
+  meilisearchAvailable = null;
+  lastMeilisearchCheck = 0;
+}
+
+/**
  * Search result interface
  */
 export interface SearchResult {
@@ -85,15 +93,15 @@ export async function searchMessages(
       messageTypes,
     });
 
-    if (meiliResult.results.length > 0 || meiliResult.total > 0) {
-      return {
-        results: meiliResult.results.map((r) => ({
-          ...r,
-          rank: 1, // Meilisearch results are pre-ranked
-        })),
-        total: meiliResult.total,
-      };
-    }
+    // Always return Meilisearch results when Meilisearch is available
+    // Even if empty - this ensures consistent behavior
+    return {
+      results: meiliResult.results.map((r) => ({
+        ...r,
+        rank: 1, // Meilisearch results are pre-ranked
+      })),
+      total: meiliResult.total,
+    };
   }
 
   // Fall back to PostgreSQL full-text search
@@ -210,22 +218,22 @@ export async function searchContacts(
       includeGroups,
     });
 
-    if (meiliResult.results.length > 0 || meiliResult.total > 0) {
-      return {
-        results: meiliResult.results.map((r) => ({
-          id: r.id,
-          jid: r.jid,
-          phoneNumber: r.phoneNumber,
-          pushName: r.pushName,
-          customName: r.customName,
-          displayName: r.displayName,
-          isGroup: r.isGroup,
-          profilePictureUrl: null, // Not indexed in Meilisearch
-          notesShared: r.notesShared,
-        })),
-        total: meiliResult.total,
-      };
-    }
+    // Always return Meilisearch results when Meilisearch is available
+    // Even if empty - this ensures consistent behavior
+    return {
+      results: meiliResult.results.map((r) => ({
+        id: r.id,
+        jid: r.jid,
+        phoneNumber: r.phoneNumber,
+        pushName: r.pushName,
+        customName: r.customName,
+        displayName: r.displayName,
+        isGroup: r.isGroup,
+        profilePictureUrl: null, // Not indexed in Meilisearch
+        notesShared: r.notesShared,
+      })),
+      total: meiliResult.total,
+    };
   }
 
   // Fall back to PostgreSQL ILIKE search

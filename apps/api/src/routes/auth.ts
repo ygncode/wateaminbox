@@ -1,4 +1,4 @@
-import type { MiddlewareHandler } from "hono"
+import type { MiddlewareHandler } from "hono";
 import { Hono } from "hono";
 import { z } from "zod";
 import {
@@ -35,7 +35,7 @@ const loginRateLimiter: MiddlewareHandler = rateLimitConfig.enabled
       keyStrategy: "ip",
       keyPrefix: "auth-login",
     })
-  : async (c, next) => await next()
+  : async (c, next) => await next();
 
 // Register rate limiter: 3 attempts per hour
 const registerRateLimiter: MiddlewareHandler = rateLimitConfig.enabled
@@ -45,7 +45,7 @@ const registerRateLimiter: MiddlewareHandler = rateLimitConfig.enabled
       keyStrategy: "ip",
       keyPrefix: "auth-register",
     })
-  : async (c, next) => await next()
+  : async (c, next) => await next();
 
 // Forgot password rate limiter: 3 attempts per hour
 const forgotPasswordRateLimiter: MiddlewareHandler = rateLimitConfig.enabled
@@ -55,7 +55,7 @@ const forgotPasswordRateLimiter: MiddlewareHandler = rateLimitConfig.enabled
       keyStrategy: "ip",
       keyPrefix: "auth-forgot-password",
     })
-  : async (c, next) => await next()
+  : async (c, next) => await next();
 
 // Refresh token rate limiter: 20 attempts per minute
 const refreshRateLimiter: MiddlewareHandler = rateLimitConfig.enabled
@@ -65,7 +65,7 @@ const refreshRateLimiter: MiddlewareHandler = rateLimitConfig.enabled
       keyStrategy: "ip",
       keyPrefix: "auth-refresh",
     })
-  : async (c, next) => await next()
+  : async (c, next) => await next();
 
 // Validation schemas
 const registerSchema = z.object({
@@ -163,7 +163,11 @@ authRoutes.post("/register", registerRateLimiter, async (c) => {
       );
     }
 
-    const { user } = await register(result.data.email, result.data.password, result.data.name);
+    const { user } = await register(
+      result.data.email,
+      result.data.password,
+      result.data.name,
+    );
 
     return c.json(
       {

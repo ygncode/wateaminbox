@@ -1,4 +1,4 @@
-import type { MiddlewareHandler } from "hono"
+import type { MiddlewareHandler } from "hono";
 import { Hono } from "hono";
 import { authMiddleware } from "../middleware/auth.js";
 import { tenantMiddleware, requirePermission } from "../middleware/tenant.js";
@@ -23,7 +23,7 @@ const exportRateLimiter: MiddlewareHandler = rateLimitConfig.enabled
       keyStrategy: "user",
       keyPrefix: "resource-export",
     })
-  : async (_c, next) => await next()
+  : async (_c, next) => await next();
 
 /**
  * GET /export/contacts - Export contacts
@@ -228,11 +228,14 @@ exportRoutes.post("/bulk", exportRateLimiter, async (c) => {
   if (format === "json") {
     return c.json({
       data,
-      pagination: body.type === "messages" ? {
-        count: data.length,
-        limit: filters.limit || null,
-        offset: filters.offset || 0,
-      } : undefined,
+      pagination:
+        body.type === "messages"
+          ? {
+              count: data.length,
+              limit: filters.limit || null,
+              offset: filters.offset || 0,
+            }
+          : undefined,
     });
   }
 

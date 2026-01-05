@@ -270,7 +270,7 @@ export async function cleanupCompanyMessages(
       status: "failed",
       metadata: sql<Record<string, unknown>>`jsonb_build_object(
         'error', 'delivery_timeout',
-        'error_message', ${'Message delivery timed out after ' + timeoutMinutes + ' minutes'},
+        'error_message', ${"Message delivery timed out after " + timeoutMinutes + " minutes"},
         'failed_at', now()
       )`,
     })

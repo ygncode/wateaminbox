@@ -1,4 +1,4 @@
-import type { MiddlewareHandler } from "hono"
+import type { MiddlewareHandler } from "hono";
 import { Hono } from "hono";
 import { authMiddleware } from "../middleware/auth.js";
 import { tenantMiddleware } from "../middleware/tenant.js";
@@ -20,7 +20,7 @@ const uploadRateLimiter: MiddlewareHandler = rateLimitConfig.enabled
       keyStrategy: "user",
       keyPrefix: "media-upload",
     })
-  : async (c, next) => await next()
+  : async (c, next) => await next();
 
 /**
  * POST /media/upload - Upload media file
