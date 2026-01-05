@@ -337,12 +337,11 @@ export interface QuickRepliesTable {
 export interface ConversationStatesTable {
   id: Generated<string>;
   contact_id: string;
-  status: Generated<ConversationStatus>;
-  resolved_at: Date | null;
-  resolved_by: string | null;
-  reopened_at: Date | null;
-  reopened_by: string | null;
-  resolution_notes: string | null;
+  read_by_user_id: string | null;
+  read_at: Date | null;
+  last_message_at: Date | null;
+  last_message_preview: string | null;
+  unread_count: Generated<number>;
   created_at: Generated<Date>;
   updated_at: Generated<Date>;
 }

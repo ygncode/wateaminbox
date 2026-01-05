@@ -19,6 +19,7 @@ import {
   type MessageDeletedPayload,
   type TypingPayload,
   type ConversationUpdatedPayload,
+  type ConversationReadPayload,
   type ProfilePicturePayload,
 } from "../lib/websocket";
 import { getAccessToken, getCompanyId } from "../lib/api";
@@ -349,6 +350,20 @@ export function WebSocketProvider({
       },
     );
 
+    // Conversation read handler - invalidate chat list to update unread counts
+    const unsubConversationRead = client.on<ConversationReadPayload>(
+      "conversation:read",
+      (payload) => {
+        console.log('[WebSocket] 📖 Conversation marked as read:', {
+          contactId: payload.contactId,
+          readBy: payload.readBy,
+        });
+
+        // Invalidate chat list queries to update unread count badges
+        queryClientRef.current.invalidateQueries({ queryKey: chatKeys.lists() });
+      },
+    );
+
     // Profile picture handler
     const unsubProfilePicture = client.on<ProfilePicturePayload>(
       "contact:profile_picture",
@@ -432,6 +447,7 @@ export function WebSocketProvider({
       unsubTypingStart();
       unsubTypingStop();
       unsubConversationUpdated();
+      unsubConversationRead();
       unsubProfilePicture();
 
       // Clear all typing timeouts

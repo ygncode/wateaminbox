@@ -11,6 +11,7 @@ export type WebSocketEventType =
   | 'presence:offline'
   | 'contact:profile_picture'
   | 'conversation:updated'
+  | 'conversation:read'
   | 'error'
   // WhatsApp connection events
   | 'qr'
@@ -65,6 +66,12 @@ export interface ConversationUpdatedPayload {
   conversationId: string
   lastMessage?: Message
   unreadCount?: number
+}
+
+export interface ConversationReadPayload {
+  contactId: string
+  unreadCount: number
+  readBy: string
 }
 
 export interface ErrorPayload {

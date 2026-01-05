@@ -325,6 +325,34 @@ async function handleMessageEvent(event: MessageEvent): Promise<void> {
       `[MessageHandler] Stored message ${messageId} for company ${companyId}`,
     );
 
+    // Update conversation_states: increment unread count for incoming messages
+    if (!payload.fromMe) {
+      // Try to update existing conversation_states row
+      const updateResult = await tenantDb
+        .updateTable("conversation_states")
+        .set((eb) => ({
+          unread_count: eb("unread_count", "+", 1),
+          last_message_at: new Date(payload.timestamp),
+          last_message_preview: payload.content?.substring(0, 100) || null,
+          updated_at: new Date(),
+        }))
+        .where("contact_id", "=", contact.id)
+        .executeTakeFirst();
+
+      // If no row exists, create one with unread_count = 1
+      if (updateResult.numUpdatedRows === BigInt(0)) {
+        await tenantDb
+          .insertInto("conversation_states")
+          .values({
+            contact_id: contact.id,
+            unread_count: 1,
+            last_message_at: new Date(payload.timestamp),
+            last_message_preview: payload.content?.substring(0, 100) || null,
+          })
+          .execute();
+      }
+    }
+
     // Broadcast to WebSocket clients with proper format for frontend
     // Frontend expects { message: Message, conversationId: string }
     broadcastToCompany(companyId, {
