@@ -3,7 +3,7 @@ import { Hono } from "hono";
 import { authMiddleware } from "../middleware/auth.js";
 import { tenantMiddleware, requirePermission } from "../middleware/tenant.js";
 import { PERMISSIONS } from "../services/permission.service.js";
-import { publishSendMessage } from "../lib/nats.js";
+import { publishSendMessage, publishSendReaction } from "../lib/nats.js";
 import { ensureContactAssignment } from "../services/contact.service.js";
 import { createRateLimitMiddleware } from "../middleware/rate-limit.js";
 import { rateLimitConfig, rateLimitStore } from "../lib/rate-limit-store.js";
@@ -359,10 +359,10 @@ messageRoutes.post("/:id/reaction", async (c) => {
     return c.json({ error: "emoji is required" }, 400);
   }
 
-  // Check message exists
+  // Check message exists and get WhatsApp message_id, from_me, and contact ID
   const message = await tenantDb
     .selectFrom("messages")
-    .select(["id"])
+    .select(["id", "contact_id", "message_id", "from_me"])
     .where("id", "=", messageId)
     .executeTakeFirst();
 
@@ -370,7 +370,37 @@ messageRoutes.post("/:id/reaction", async (c) => {
     return c.json({ error: "Message not found" }, 404);
   }
 
-  // Upsert reaction
+  if (!message.contact_id) {
+    return c.json({ error: "Message has no associated contact" }, 400);
+  }
+
+  if (!message.message_id) {
+    return c.json({ error: "Message has no WhatsApp message ID" }, 400);
+  }
+
+  // Get contact to determine chat JID
+  const contact = await tenantDb
+    .selectFrom("contacts")
+    .select(["jid"])
+    .where("id", "=", message.contact_id)
+    .executeTakeFirst();
+
+  if (!contact || !contact.jid) {
+    return c.json({ error: "Contact not found or has no JID" }, 404);
+  }
+
+  // Get active WhatsApp connection
+  const connection = await tenantDb
+    .selectFrom("whatsapp_connections")
+    .select(["id", "status"])
+    .where("status", "=", "connected")
+    .executeTakeFirst();
+
+  if (!connection) {
+    return c.json({ error: "No active WhatsApp connection" }, 400);
+  }
+
+  // Upsert reaction in database
   await tenantDb
     .insertInto("message_reactions")
     .values({
@@ -379,6 +409,23 @@ messageRoutes.post("/:id/reaction", async (c) => {
       emoji,
     })
     .execute();
+
+  // Send reaction to WhatsApp via NATS
+  const companyId = c.get("companyId");
+  try {
+    await publishSendReaction(
+      companyId,
+      connection.id,
+      contact.jid,
+      message.message_id, // Use WhatsApp message_id
+      emoji,
+      user.id,
+      message.from_me, // Pass from_me flag
+    );
+  } catch (error) {
+    console.error("Failed to send reaction to WhatsApp:", error);
+    // Don't fail the request - the reaction is stored in DB
+  }
 
   return c.json({ success: true, emoji });
 });
@@ -391,11 +438,58 @@ messageRoutes.delete("/:id/reaction", async (c) => {
   const user = c.get("user");
   const messageId = c.req.param("id");
 
+  // Get message with WhatsApp message_id, from_me, and contact info
+  const message = await tenantDb
+    .selectFrom("messages")
+    .select(["id", "contact_id", "message_id", "from_me"])
+    .where("id", "=", messageId)
+    .executeTakeFirst();
+
+  if (!message) {
+    return c.json({ error: "Message not found" }, 404);
+  }
+
+  // Delete reaction from database
   await tenantDb
     .deleteFrom("message_reactions")
     .where("message_id", "=", messageId)
     .where("reactor_jid", "=", user.id)
     .execute();
+
+  // Send empty emoji to WhatsApp to remove reaction (if we have contact info)
+  if (message.contact_id && message.message_id) {
+    const contact = await tenantDb
+      .selectFrom("contacts")
+      .select(["jid"])
+      .where("id", "=", message.contact_id)
+      .executeTakeFirst();
+
+    if (contact?.jid) {
+      const connection = await tenantDb
+        .selectFrom("whatsapp_connections")
+        .select(["id", "status"])
+        .where("status", "=", "connected")
+        .executeTakeFirst();
+
+      if (connection) {
+        const companyId = c.get("companyId");
+        try {
+          await publishSendReaction(
+            companyId,
+            connection.id,
+            contact.jid,
+            message.message_id, // Use WhatsApp message_id
+            "", // Empty emoji removes the reaction
+            user.id,
+            message.from_me, // Pass from_me flag
+          );
+        } catch (error) {
+          console.error("Failed to remove reaction from WhatsApp:", error);
+          // Don't fail the request - the reaction is removed from DB
+        }
+      }
+    }
+  }
 
   return c.json({ success: true });
 });

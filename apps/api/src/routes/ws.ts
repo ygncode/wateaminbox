@@ -51,6 +51,7 @@ interface ServerMessage {
     | "message:new"
     | "message:status"
     | "message:deleted"
+    | "message:reaction"
     | "receipt"
     | "status"
     | "contact"
@@ -61,7 +62,9 @@ interface ServerMessage {
     | "send_ack"
     | "contact:profile_picture"
     | "presence:online"
-    | "presence:offline";
+    | "presence:offline"
+    | "typing:start"
+    | "typing:stop";
   connectionId?: string;
   payload?: unknown;
   timestamp: string;

@@ -168,6 +168,7 @@ export interface WhatsAppEvent {
     | "message_revoke"
     | "presence"
     | "typing"
+    | "reaction"
     | "error";
   companyId: string;
   connectionId: string;
@@ -335,6 +336,17 @@ export interface TypingEvent extends WhatsAppEvent {
     chatJid: string; // JID of the chat where typing occurs
     isTyping: boolean; // true = composing, false = paused
     mediaType?: string; // "text" or "audio"
+  };
+}
+
+export interface ReactionEvent extends WhatsAppEvent {
+  type: "reaction";
+  payload: {
+    messageId: string; // ID of the message being reacted to
+    from: string; // JID of the user who reacted
+    chatJid: string; // JID of the chat
+    emoji: string; // Reaction emoji (empty string means removed)
+    timestamp: string;
   };
 }
 
@@ -950,4 +962,36 @@ export async function publishSyncCatalogProducts(
   };
   const subject = buildCommandSubject(companyId, connectionId);
   await publishCommand(subject, command);
+}
+
+/**
+ * Publishes a send reaction command
+ */
+export async function publishSendReaction(
+  companyId: string,
+  connectionId: string,
+  chatJid: string,
+  targetMessageId: string,
+  emoji: string,
+  userId: string,
+  fromMe: boolean,
+): Promise<void> {
+  const sendCommand = {
+    message_id: `reaction_${Date.now()}`, // Temporary ID for tracking
+    connection_id: connectionId,
+    to: chatJid,
+    type: "reaction" as MessageType,
+    target_message_id: targetMessageId,
+    emoji,
+    user_id: userId,
+    from_me: fromMe, // Add from_me flag
+  };
+
+  const js = await getJetStreamClient();
+  const subject = buildCommandSubject(companyId, connectionId);
+  const data = jc.encode(sendCommand);
+  await js.publish(subject, data);
+  console.log(
+    `[NATS] Published send reaction to ${subject}: chatJid=${chatJid}, targetMessageId=${targetMessageId}, emoji=${emoji}, fromMe=${fromMe}`,
+  );
 }
