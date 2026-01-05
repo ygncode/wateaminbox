@@ -28,7 +28,7 @@ const (
 type SendMessageCommand struct {
 	MessageID     string `json:"message_id"`
 	To            string `json:"to"`              // JID of the recipient
-	Type          string `json:"type"`            // "text", "image", "document", "video", "audio"
+	Type          string `json:"type"`            // "text", "image", "document", "video", "audio", "reaction"
 	Content       string `json:"content"`         // Text content or media URL
 	Caption       string `json:"caption"`         // Caption for media messages
 	FileName      string `json:"file_name"`       // File name for documents
@@ -36,12 +36,17 @@ type SendMessageCommand struct {
 	MediaData     []byte `json:"media_data"`      // Base64 decoded media data
 	ReplyTo       string `json:"reply_to"`        // Message ID to reply to
 	ReplyToSender string `json:"reply_to_sender"` // JID of the sender of the quoted message
+	// Reaction-specific fields
+	TargetMessageID string `json:"target_message_id"` // Message ID to react to (for reaction type)
+	Emoji           string `json:"emoji"`             // Emoji for reaction (for reaction type)
+	FromMe          bool   `json:"from_me"`           // Whether the target message is from us (for reaction type)
 }
 
 // MessageSender is the interface for sending WhatsApp messages.
 type MessageSender interface {
 	SendMessage(ctx context.Context, jid string, text string, replyTo string, replyToSender string) (types.SendResponse, error)
 	SendMediaMessage(ctx context.Context, jid string, mediaType string, data []byte, caption string, fileName string, mimeType string, replyTo string, replyToSender string) (types.SendResponse, error)
+	SendReaction(ctx context.Context, chatJID string, messageID string, emoji string, fromMe bool) (types.SendResponse, error)
 }
 
 // Subscriber handles subscribing to NATS command subjects.
@@ -237,6 +242,8 @@ func (s *Subscriber) handleSendCommand(msg *nats.Msg) {
 		resp, err = s.sender.SendMessage(ctx, cmd.To, cmd.Content, cmd.ReplyTo, cmd.ReplyToSender)
 	case "image", "video", "audio", "document":
 		resp, err = s.sender.SendMediaMessage(ctx, cmd.To, cmd.Type, cmd.MediaData, cmd.Caption, cmd.FileName, cmd.MimeType, cmd.ReplyTo, cmd.ReplyToSender)
+	case "reaction":
+		resp, err = s.sender.SendReaction(ctx, cmd.To, cmd.TargetMessageID, cmd.Emoji, cmd.FromMe)
 	default:
 		log.Printf("Unknown message type: %s", cmd.Type)
 		msg.Nak()

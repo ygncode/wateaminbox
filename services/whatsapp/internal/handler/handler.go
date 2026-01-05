@@ -205,6 +205,12 @@ func (h *Handler) handleMessage(msg *events.Message) {
 		return
 	}
 
+	// Reaction message - handle separately and return early
+	if msg.Message.ReactionMessage != nil {
+		h.handleReactionMessage(msg)
+		return
+	}
+
 	// Protocol message (Revoke, etc.)
 	if msg.Message.ProtocolMessage != nil {
 		h.handleProtocolMessage(msg)
@@ -874,4 +880,34 @@ func (h *Handler) fetchProfilePicture(jid types.JID) string {
 
 	log.Printf("Profile picture uploaded for %s: %s", jid.String(), mediaURL)
 	return mediaURL
+}
+
+// handleReactionMessage processes incoming reaction messages.
+// Reactions come as Message events with a ReactionMessage field.
+func (h *Handler) handleReactionMessage(msg *events.Message) {
+	reactionMsg := msg.Message.ReactionMessage
+	if reactionMsg == nil || reactionMsg.Key == nil {
+		log.Println("Invalid reaction message: missing key")
+		return
+	}
+
+	// Get the target message ID
+	targetMsgID := reactionMsg.Key.GetID()
+	emoji := reactionMsg.GetText()
+
+	log.Printf("Received reaction from %s: %s on message %s",
+		msg.Info.Sender.String(), emoji, targetMsgID)
+
+	// Publish reaction to NATS
+	if h.publisher != nil {
+		if err := h.publisher.PublishReaction(
+			targetMsgID,
+			msg.Info.Sender.String(),
+			msg.Info.Chat.String(),
+			emoji,
+			msg.Info.Timestamp,
+		); err != nil {
+			log.Printf("Failed to publish reaction event: %v", err)
+		}
+	}
 }

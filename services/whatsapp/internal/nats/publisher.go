@@ -25,6 +25,7 @@ const (
 	SubjectMessageRevoke    = "WHATSAPP.events.%s.%s.message_revoke"
 	SubjectSendConfirmation = "WHATSAPP.events.%s.%s.send_confirmation"
 	SubjectTyping           = "WHATSAPP.events.%s.%s.typing"
+	SubjectReaction         = "WHATSAPP.events.%s.%s.reaction"
 )
 
 // WhatsAppEvent is the wrapper format expected by the API.
@@ -177,6 +178,24 @@ type TypingEvent struct {
 	ChatJID   string    `json:"chat_jid"`
 	IsTyping  bool      `json:"is_typing"`
 	MediaType string    `json:"media_type,omitempty"`
+	Timestamp time.Time `json:"timestamp"`
+}
+
+// ReactionPayload is the payload for reaction events.
+type ReactionPayload struct {
+	MessageID string `json:"messageId"` // ID of the message being reacted to
+	From      string `json:"from"`      // JID of the user who reacted
+	ChatJID   string `json:"chatJid"`   // JID of the chat
+	Emoji     string `json:"emoji"`     // Reaction emoji (empty string means removed)
+	Timestamp string `json:"timestamp"`
+}
+
+// ReactionEvent represents a reaction event (internal use).
+type ReactionEvent struct {
+	MessageID string    `json:"message_id"`
+	From      string    `json:"from"`
+	ChatJID   string    `json:"chat_jid"`
+	Emoji     string    `json:"emoji"`
 	Timestamp time.Time `json:"timestamp"`
 }
 
@@ -498,6 +517,26 @@ func (p *Publisher) PublishSendConfirmation(pendingMessageID, messageID string, 
 	}
 
 	subject := fmt.Sprintf(SubjectSendConfirmation, p.companyID, p.connectionID)
+	return p.publish(subject, event)
+}
+
+// PublishReaction publishes a message reaction event.
+func (p *Publisher) PublishReaction(messageID, from, chatJID, emoji string, timestamp time.Time) error {
+	event := WhatsAppEvent{
+		Type:         "reaction",
+		CompanyID:    p.companyID,
+		ConnectionID: p.connectionID,
+		Payload: ReactionPayload{
+			MessageID: messageID,
+			From:      from,
+			ChatJID:   chatJID,
+			Emoji:     emoji,
+			Timestamp: timestamp.Format(time.RFC3339),
+		},
+		Timestamp: time.Now().Format(time.RFC3339),
+	}
+
+	subject := fmt.Sprintf(SubjectReaction, p.companyID, p.connectionID)
 	return p.publish(subject, event)
 }
 

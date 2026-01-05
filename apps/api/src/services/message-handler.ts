@@ -13,6 +13,7 @@ import {
   type MessageRevokeEvent,
   type PresenceEvent,
   type TypingEvent,
+  type ReactionEvent,
 } from "../lib/nats.js";
 import { getTenantConnection } from "./tenant.service.js";
 import { updateConnectionStatus } from "./whatsapp.service.js";
@@ -137,6 +138,10 @@ export async function handleWhatsAppEvent(event: WhatsAppEvent): Promise<void> {
 
       case "typing":
         await handleTypingEvent(event as TypingEvent);
+        break;
+
+      case "reaction":
+        await handleReactionEvent(event as ReactionEvent);
         break;
 
       case "error":
@@ -938,6 +943,77 @@ async function handleTypingEvent(event: TypingEvent): Promise<void> {
     },
     timestamp: event.timestamp,
   });
+}
+
+/**
+ * Handles reaction events from WhatsApp
+ * Stores reactions in database and broadcasts to WebSocket clients
+ */
+async function handleReactionEvent(event: ReactionEvent): Promise<void> {
+  const { companyId, connectionId, payload } = event;
+
+  console.log(
+    `[MessageHandler] Reaction event for company ${companyId}: ${payload.from} reacted with ${payload.emoji || "(removed)"} to message ${payload.messageId}`,
+  );
+
+  try {
+    // Get database connection
+    const tenantDb = getTenantConnection(companyId);
+
+    // Find the message being reacted to (by WhatsApp message_id field, not the internal id)
+    const message = await tenantDb
+      .selectFrom("messages")
+      .select(["id", "contact_id"])
+      .where("message_id", "=", payload.messageId)
+      .executeTakeFirst();
+
+    if (!message) {
+      console.warn(
+        `[MessageHandler] Message ${payload.messageId} not found for reaction`,
+      );
+      return;
+    }
+
+    if (payload.emoji) {
+      // Add or update reaction
+      await tenantDb
+        .insertInto("message_reactions")
+        .values({
+          message_id: message.id, // Use internal message ID for FK
+          reactor_jid: payload.from,
+          emoji: payload.emoji,
+        })
+        .onConflict((oc) =>
+          oc.columns(["message_id", "reactor_jid"]).doUpdateSet({
+            emoji: payload.emoji,
+          }),
+        )
+        .execute();
+    } else {
+      // Remove reaction (empty emoji)
+      await tenantDb
+        .deleteFrom("message_reactions")
+        .where("message_id", "=", message.id) // Use internal message ID
+        .where("reactor_jid", "=", payload.from)
+        .execute();
+    }
+
+    // Broadcast to WebSocket clients
+    broadcastToCompany(companyId, {
+      type: "message:reaction",
+      connectionId,
+      payload: {
+        messageId: message.id, // Use internal message ID
+        contactId: message.contact_id, // Use contact_id instead of conversationId
+        from: payload.from,
+        emoji: payload.emoji,
+        timestamp: payload.timestamp,
+      },
+      timestamp: event.timestamp,
+    });
+  } catch (error) {
+    console.error("[MessageHandler] Error handling reaction event:", error);
+  }
 }
 
 /**

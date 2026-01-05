@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"go.mau.fi/whatsmeow"
+	"go.mau.fi/whatsmeow/proto/waCommon"
 	"go.mau.fi/whatsmeow/proto/waE2E"
 	waStore "go.mau.fi/whatsmeow/store"
 	waTypes "go.mau.fi/whatsmeow/types"
@@ -500,6 +501,44 @@ func (c *Client) SendMediaMessage(ctx context.Context, jid string, mediaType str
 	}
 
 	log.Printf("Media message sent: ID=%s, Type=%s", resp.ID, mediaType)
+	return types.SendResponse{
+		ID:        string(resp.ID),
+		Timestamp: resp.Timestamp,
+	}, nil
+}
+
+// SendReaction sends a reaction to a message.
+// emoji can be an emoji string to add a reaction, or empty string to remove reaction.
+// fromMe indicates whether the message being reacted to was sent by us (true) or received (false).
+func (c *Client) SendReaction(ctx context.Context, chatJID string, messageID string, emoji string, fromMe bool) (types.SendResponse, error) {
+	// Parse chat JID
+	recipient, err := waTypes.ParseJID(chatJID)
+	if err != nil {
+		return types.SendResponse{}, fmt.Errorf("invalid chat JID %s: %w", chatJID, err)
+	}
+
+	// Create reaction message using waCommon.MessageKey
+	reactionMsg := &waE2E.ReactionMessage{
+		Key: &waCommon.MessageKey{
+			RemoteJID: proto.String(chatJID),
+			FromMe:    proto.Bool(fromMe), // Use the fromMe parameter to indicate if we sent the original message
+			ID:        proto.String(messageID),
+		},
+		Text:              proto.String(emoji),
+		SenderTimestampMS: proto.Int64(time.Now().UnixMilli()),
+	}
+
+	msg := &waE2E.Message{
+		ReactionMessage: reactionMsg,
+	}
+
+	// Send reaction
+	resp, err := c.client.SendMessage(ctx, recipient, msg)
+	if err != nil {
+		return types.SendResponse{}, fmt.Errorf("failed to send reaction: %w", err)
+	}
+
+	log.Printf("Reaction sent: ID=%s, TargetMessage=%s, Emoji=%s, FromMe=%v", resp.ID, messageID, emoji, fromMe)
 	return types.SendResponse{
 		ID:        string(resp.ID),
 		Timestamp: resp.Timestamp,
