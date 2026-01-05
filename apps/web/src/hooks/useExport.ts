@@ -1,5 +1,5 @@
 import { useMutation } from "@tanstack/react-query";
-import { getAccessToken } from "@/lib/api";
+import { getAccessToken, getCompanyId } from "@/lib/api";
 
 /**
  * Export format types
@@ -28,6 +28,30 @@ export interface MessageExportFilters {
 
 const API_BASE_URL =
   import.meta.env.VITE_API_URL || "http://localhost:3000/api";
+
+/**
+ * Get headers with auth and company ID
+ * @throws {Error} If token or company ID is missing
+ */
+function getHeaders(): Record<string, string> {
+  const headers: Record<string, string> = {};
+
+  const token = getAccessToken();
+  if (!token) {
+    throw new Error("Authentication required. Please log in again.");
+  }
+  headers.Authorization = `Bearer ${token}`;
+
+  const companyId = getCompanyId();
+  if (!companyId) {
+    throw new Error(
+      "No company selected. Please select a company to continue.",
+    );
+  }
+  headers["X-Company-ID"] = companyId;
+
+  return headers;
+}
 
 /**
  * Download a file from blob
@@ -62,11 +86,10 @@ export function useExportContacts() {
       if (filters.assignedTo) params.set("assignedTo", filters.assignedTo);
       if (filters.hasCustomName) params.set("hasCustomName", "true");
 
-      const token = getAccessToken();
       const response = await fetch(
         `${API_BASE_URL}/export/contacts?${params}`,
         {
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
+          headers: getHeaders(),
           credentials: "include",
         },
       );
@@ -108,11 +131,10 @@ export function useExportMessages() {
         params.set("messageTypes", filters.messageTypes.join(","));
       if (filters.limit) params.set("limit", String(filters.limit));
 
-      const token = getAccessToken();
       const response = await fetch(
         `${API_BASE_URL}/export/messages?${params}`,
         {
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
+          headers: getHeaders(),
           credentials: "include",
         },
       );
@@ -154,11 +176,10 @@ export function useExportConversation() {
       if (startDate) params.set("startDate", startDate);
       if (endDate) params.set("endDate", endDate);
 
-      const token = getAccessToken();
       const response = await fetch(
         `${API_BASE_URL}/export/conversation/${contactId}?${params}`,
         {
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
+          headers: getHeaders(),
           credentials: "include",
         },
       );
@@ -193,12 +214,11 @@ export function useBulkExport() {
       format?: ExportFormat;
       filters?: ContactExportFilters & MessageExportFilters;
     }) => {
-      const token = getAccessToken();
       const response = await fetch(`${API_BASE_URL}/export/bulk`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          ...getHeaders(),
         },
         credentials: "include",
         body: JSON.stringify({ type, format, filters }),
@@ -238,14 +258,8 @@ export function useFullBackupExport() {
       if (filters.startDate) params.set("startDate", filters.startDate);
       if (filters.endDate) params.set("endDate", filters.endDate);
 
-      const token = getAccessToken();
-      const companyId = localStorage.getItem("selectedCompanyId");
-
       const response = await fetch(`${API_BASE_URL}/export/full?${params}`, {
-        headers: {
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          ...(companyId ? { "X-Company-ID": companyId } : {}),
-        },
+        headers: getHeaders(),
         credentials: "include",
       });
 
