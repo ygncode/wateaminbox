@@ -18,6 +18,7 @@ import { notificationRoutes } from "./notifications.js";
 import { quickReplyRoutes } from "./quick-replies.js";
 import { labelRoutes } from "./labels.js";
 import { catalogRoutes } from "./catalogs.js";
+import { mediaRoutes } from "./media.js";
 
 export const routes = new Hono();
 
@@ -75,6 +76,9 @@ routes.route("/labels", labelRoutes);
 
 // Catalog routes
 routes.route("/catalogs", catalogRoutes);
+
+// Media upload routes
+routes.route("/media", mediaRoutes);
 
 // WebSocket routes
 routes.route("/ws", wsRoutes);

@@ -12,6 +12,8 @@
     "test": "bun test"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.962.0",
+    "@aws-sdk/s3-request-presigner": "^3.962.0",
     "@hono/node-server": "^1.13.0",
     "@hono/zod-validator": "^0.2.0",
     "@whatsapp-web/database": "workspace:*",

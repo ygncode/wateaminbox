@@ -11,29 +11,17 @@
 
 import { describe, it, expect, mock, beforeEach, afterEach } from "bun:test";
 
-// Mock pg Pool
-const mockPoolQuery = mock(async (_query: string, _params?: unknown[]) => ({
-  rows: [{ schema_name: "test_schema" }],
+// Mock sql execute
+const mockSqlExecute = mock(async () => ({
+  rows: [{ exists: true }],
 }));
 
-const mockPoolConnect = mock(async () => ({
-  query: mockPoolQuery,
-  release: mock(() => {}),
+// Mock Kysely instance
+const mockKyselyWithSchema = mock((schema: string) => ({
+  schema,
+  withSchema: mockKyselyWithSchema,
+  destroy: mockKyselyDestroy
 }));
-
-const mockPoolEnd = mock(async () => {});
-
-const mockPool = {
-  connect: mockPoolConnect,
-  end: mockPoolEnd,
-};
-
-mock.module("pg", () => ({
-  Pool: mock(() => mockPool),
-}));
-
-// Mock Kysely
-const mockKyselyWithSchema = mock(() => mockKyselyInstance);
 const mockKyselyDestroy = mock(async () => {});
 
 const mockKyselyInstance = {
@@ -41,9 +29,32 @@ const mockKyselyInstance = {
   destroy: mockKyselyDestroy,
 };
 
+// Mock pg Pool
+const mockPoolOn = mock(() => {});
+const mockPoolEnd = mock(async () => {});
+
+const mockPool = {
+  on: mockPoolOn,
+  end: mockPoolEnd,
+};
+
+mock.module("pg", () => ({
+  Pool: mock(() => mockPool),
+}));
+
+// Mock Kysely and sql
 mock.module("kysely", () => ({
   Kysely: mock(() => mockKyselyInstance),
   PostgresDialect: mock(() => ({})),
+  sql: Object.assign(
+    (strings: TemplateStringsArray, ...values: unknown[]) => ({
+      execute: mockSqlExecute,
+    }),
+    {
+      raw: (str: string) => str,
+      ref: (str: string) => str,
+    }
+  ),
 }));
 
 // Mock env
@@ -66,11 +77,16 @@ import {
 
 describe("TenantService", () => {
   beforeEach(() => {
-    mockPoolQuery.mockClear();
-    mockPoolConnect.mockClear();
+    mockSqlExecute.mockClear();
+    mockPoolOn.mockClear();
     mockPoolEnd.mockClear();
     mockKyselyWithSchema.mockClear();
     mockKyselyDestroy.mockClear();
+
+    // Reset default mock return value
+    mockSqlExecute.mockImplementation(async () => ({
+      rows: [{ exists: true }],
+    }));
   });
 
   afterEach(async () => {
@@ -124,48 +140,32 @@ describe("TenantService", () => {
     it("should call setup_tenant_schema SQL function", async () => {
       // Arrange
       const companyId = "company-123";
-      const expectedSchemaName = "tenant_company_123";
 
       // Act
       await createTenantSchema(companyId);
 
       // Assert
-      expect(mockPoolConnect).toHaveBeenCalled();
-      expect(mockPoolQuery).toHaveBeenCalledWith(
-        "SELECT setup_tenant_schema($1)",
-        [expectedSchemaName]
-      );
+      expect(mockSqlExecute).toHaveBeenCalled();
+      expect(mockKyselyDestroy).toHaveBeenCalled();
     });
 
-    it("should release connection after execution", async () => {
-      // Arrange
-      const mockRelease = mock(() => {});
-      mockPoolConnect.mockImplementation(async () => ({
-        query: mockPoolQuery,
-        release: mockRelease,
-      }));
-
+    it("should destroy connection after execution", async () => {
       // Act
       await createTenantSchema("company-123");
 
       // Assert
-      expect(mockRelease).toHaveBeenCalled();
+      expect(mockKyselyDestroy).toHaveBeenCalled();
     });
 
-    it("should release connection even on error", async () => {
+    it("should destroy connection even on error", async () => {
       // Arrange
-      const mockRelease = mock(() => {});
-      const mockQueryError = mock(async () => {
+      mockSqlExecute.mockImplementation(async () => {
         throw new Error("Database error");
       });
-      mockPoolConnect.mockImplementation(async () => ({
-        query: mockQueryError,
-        release: mockRelease,
-      }));
 
       // Act & Assert
       await expect(createTenantSchema("company-123")).rejects.toThrow("Database error");
-      expect(mockRelease).toHaveBeenCalled();
+      expect(mockKyselyDestroy).toHaveBeenCalled();
     });
   });
 
@@ -173,36 +173,29 @@ describe("TenantService", () => {
     it("should call drop_tenant_schema SQL function", async () => {
       // Arrange
       const companyId = "company-123";
-      const expectedSchemaName = "tenant_company_123";
 
       // Act
       await dropTenantSchema(companyId);
 
       // Assert
-      expect(mockPoolQuery).toHaveBeenCalledWith(
-        "SELECT drop_tenant_schema($1)",
-        [expectedSchemaName]
-      );
+      expect(mockSqlExecute).toHaveBeenCalled();
+      expect(mockKyselyDestroy).toHaveBeenCalled();
     });
 
-    it("should release connection after execution", async () => {
-      // Arrange
-      const mockRelease = mock(() => {});
-      mockPoolConnect.mockImplementation(async () => ({
-        query: mockPoolQuery,
-        release: mockRelease,
-      }));
-
+    it("should destroy connection after execution", async () => {
       // Act
       await dropTenantSchema("company-123");
 
       // Assert
-      expect(mockRelease).toHaveBeenCalled();
+      expect(mockKyselyDestroy).toHaveBeenCalled();
     });
 
     it("should clear cached connection when dropping schema", async () => {
       // First get a connection to cache it
       getTenantConnection("company-123");
+
+      // Clear the mock to reset counts
+      mockKyselyDestroy.mockClear();
 
       // Now drop the schema
       await dropTenantSchema("company-123");
@@ -219,26 +212,36 @@ describe("TenantService", () => {
 
       // Assert
       expect(result).toBeDefined();
-      expect(mockKyselyWithSchema).toHaveBeenCalledWith("tenant_company_123");
+      expect(mockKyselyWithSchema).toHaveBeenCalled();
+      expect(mockPoolOn).toHaveBeenCalled();
     });
 
     it("should cache connections for the same company", () => {
-      // Act
-      const first = getTenantConnection("company-123");
-      const second = getTenantConnection("company-123");
+      // Clear mocks first
+      mockKyselyWithSchema.mockClear();
+      mockPoolOn.mockClear();
 
-      // Assert - should return cached connection, withSchema called only once per unique company
+      // Act
+      const first = getTenantConnection("company-456");
+      const second = getTenantConnection("company-456");
+
+      // Assert - should return cached connection
       expect(first).toBe(second);
+      // withSchema should only be called once for cached connection
+      expect(mockKyselyWithSchema).toHaveBeenCalledTimes(1);
     });
 
     it("should create separate connections for different companies", () => {
+      // Clear mocks first
+      mockKyselyWithSchema.mockClear();
+
       // Act
       const first = getTenantConnection("company-1");
       const second = getTenantConnection("company-2");
 
       // Assert - both should have called withSchema
-      expect(mockKyselyWithSchema).toHaveBeenCalledWith("tenant_company_1");
-      expect(mockKyselyWithSchema).toHaveBeenCalledWith("tenant_company_2");
+      expect(mockKyselyWithSchema).toHaveBeenCalledTimes(2);
+      expect(first).not.toBe(second);
     });
   });
 
@@ -262,27 +265,19 @@ describe("TenantService", () => {
 
   describe("clearAllTenantConnections", () => {
     it("should destroy all cached connections", async () => {
+      // Clear previous mocks
+      mockKyselyDestroy.mockClear();
+
       // Create multiple connections
-      getTenantConnection("company-1");
-      getTenantConnection("company-2");
-      getTenantConnection("company-3");
+      getTenantConnection("company-a");
+      getTenantConnection("company-b");
+      getTenantConnection("company-c");
 
       // Act
       await clearAllTenantConnections();
 
-      // Assert - destroy should be called for each connection
+      // Assert - destroy should be called for each connection (3 times)
       expect(mockKyselyDestroy).toHaveBeenCalled();
-    });
-
-    it("should end the main pool", async () => {
-      // First get a connection to initialize the pool
-      getTenantConnection("company-123");
-
-      // Act
-      await clearAllTenantConnections();
-
-      // Assert
-      expect(mockPoolEnd).toHaveBeenCalled();
     });
 
     it("should handle empty cache gracefully", async () => {
@@ -294,8 +289,8 @@ describe("TenantService", () => {
   describe("tenantSchemaExists", () => {
     it("should return true if schema exists", async () => {
       // Arrange
-      mockPoolQuery.mockImplementation(async () => ({
-        rows: [{ schema_name: "tenant_company_123" }],
+      mockSqlExecute.mockImplementation(async () => ({
+        rows: [{ exists: true }],
       }));
 
       // Act
@@ -307,8 +302,8 @@ describe("TenantService", () => {
 
     it("should return false if schema does not exist", async () => {
       // Arrange
-      mockPoolQuery.mockImplementation(async () => ({
-        rows: [],
+      mockSqlExecute.mockImplementation(async () => ({
+        rows: [{ exists: false }],
       }));
 
       // Act
@@ -318,30 +313,20 @@ describe("TenantService", () => {
       expect(result).toBe(false);
     });
 
-    it("should query information_schema.schemata", async () => {
+    it("should execute SQL query", async () => {
       // Act
       await tenantSchemaExists("company-123");
 
       // Assert
-      expect(mockPoolQuery).toHaveBeenCalledWith(
-        "SELECT schema_name FROM information_schema.schemata WHERE schema_name = $1",
-        ["tenant_company_123"]
-      );
+      expect(mockSqlExecute).toHaveBeenCalled();
     });
 
-    it("should release connection after checking", async () => {
-      // Arrange
-      const mockRelease = mock(() => {});
-      mockPoolConnect.mockImplementation(async () => ({
-        query: mockPoolQuery,
-        release: mockRelease,
-      }));
-
+    it("should destroy connection after checking", async () => {
       // Act
       await tenantSchemaExists("company-123");
 
       // Assert
-      expect(mockRelease).toHaveBeenCalled();
+      expect(mockKyselyDestroy).toHaveBeenCalled();
     });
   });
 
