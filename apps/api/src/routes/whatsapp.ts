@@ -19,7 +19,7 @@ const sendMessageSchema = z.object({
     ),
   content: z.string().min(1, "Message content is required"),
   messageType: z
-    .enum(["text", "image", "video", "audio", "document"])
+    .enum(["text", "image", "video", "audio", "document", "sticker"])
     .default("text"),
   mediaUrl: z.string().url().optional(),
 });

@@ -19,7 +19,7 @@ export interface Message {
 
 export type SenderType = "user" | "contact" | "system";
 
-export type MessageType = "text" | "image" | "video" | "audio" | "document" | "location" | "template";
+export type MessageType = "text" | "image" | "video" | "audio" | "document" | "sticker" | "location" | "template";
 
 export type MessageStatus = "pending" | "sent" | "delivered" | "read" | "failed";
 
