@@ -199,7 +199,7 @@ export async function up(db: Kysely<unknown>): Promise<void> {
         )
       ', schema_name);
 
-      -- Contacts table
+      -- Contacts table (with presence tracking from migration 017)
       EXECUTE format('
         CREATE TABLE IF NOT EXISTS %I.contacts (
           id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -211,6 +211,8 @@ export async function up(db: Kysely<unknown>): Promise<void> {
           notes_shared TEXT,
           is_group BOOLEAN DEFAULT false,
           profile_picture_url TEXT,
+          is_online BOOLEAN DEFAULT false NOT NULL,
+          last_seen TIMESTAMPTZ,
           created_at TIMESTAMPTZ DEFAULT now() NOT NULL,
           updated_at TIMESTAMPTZ DEFAULT now() NOT NULL
         )
@@ -529,6 +531,9 @@ export async function up(db: Kysely<unknown>): Promise<void> {
       EXECUTE format('CREATE INDEX IF NOT EXISTS %I ON %I.contact_notes_shared(contact_id, created_at DESC)', safe_schema_name || '_shared_notes_created_idx', schema_name);
       EXECUTE format('CREATE INDEX IF NOT EXISTS %I ON %I.contact_notes_private(contact_id, user_id)', safe_schema_name || '_private_notes_contact_user_idx', schema_name);
       EXECUTE format('CREATE INDEX IF NOT EXISTS %I ON %I.contact_notes_private(contact_id, created_at DESC)', safe_schema_name || '_private_notes_created_idx', schema_name);
+
+      -- Presence index from migration 017
+      EXECUTE format('CREATE INDEX IF NOT EXISTS %I ON %I.contacts (is_online, last_seen DESC NULLS LAST)', safe_schema_name || '_contacts_presence_idx', schema_name);
 
     END;
     $$ LANGUAGE plpgsql;
