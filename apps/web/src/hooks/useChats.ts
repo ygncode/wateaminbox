@@ -52,6 +52,8 @@ interface ContactApiResponse {
   } | null;
   unreadCount: number;
   assignedTo: string | null;
+  isOnline: boolean;
+  lastSeen: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -146,7 +148,8 @@ export function useChats(
             name: contact.displayName,
             customName: contact.customName || undefined,
             avatarUrl: contact.profilePictureUrl || undefined,
-            isOnline: false,
+            isOnline: contact.isOnline,
+            lastSeen: contact.lastSeen ? new Date(contact.lastSeen) : undefined,
             isGroup: contact.isGroup,
           },
           lastMessage: contact.lastMessage

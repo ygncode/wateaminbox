@@ -59,7 +59,9 @@ interface ServerMessage {
     | "error"
     | "pong"
     | "send_ack"
-    | "contact:profile_picture";
+    | "contact:profile_picture"
+    | "presence:online"
+    | "presence:offline";
   connectionId?: string;
   payload?: unknown;
   timestamp: string;

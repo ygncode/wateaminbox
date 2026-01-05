@@ -11,6 +11,7 @@ import {
   type ContactEvent,
   type ProfilePictureEvent,
   type MessageRevokeEvent,
+  type PresenceEvent,
 } from "../lib/nats.js";
 import { getTenantConnection } from "./tenant.service.js";
 import { updateConnectionStatus } from "./whatsapp.service.js";
@@ -125,6 +126,10 @@ export async function handleWhatsAppEvent(event: WhatsAppEvent): Promise<void> {
 
       case "message_revoke":
         await handleMessageRevokeEvent(event as MessageRevokeEvent);
+        break;
+
+      case "presence":
+        await handlePresenceEvent(event as PresenceEvent);
         break;
 
       case "error":
@@ -804,6 +809,63 @@ async function handleMessageRevokeEvent(
   } catch (error) {
     console.error(`[MessageHandler] Failed to handle message revoke:`, error);
     // Don't throw - we want to continue processing other events
+  }
+}
+
+/**
+ * Handles presence (online/offline status) events from WhatsApp
+ * Updates contact status in database and broadcasts to WebSocket clients
+ */
+async function handlePresenceEvent(event: PresenceEvent): Promise<void> {
+  const { companyId, connectionId, payload } = event;
+
+  console.log(
+    `[MessageHandler] Presence event for company ${companyId}, connection ${connectionId}: ${payload.from} is ${payload.unavailable ? "offline" : "online"}`,
+  );
+
+  try {
+    const tenantDb = getTenantConnection(companyId);
+
+    // Determine status and last seen
+    const isOnline = !payload.unavailable;
+    const lastSeen = payload.lastSeen ? new Date(payload.lastSeen) : null;
+
+    // Update contact presence in database
+    const result = await tenantDb
+      .updateTable("contacts")
+      .set({
+        is_online: isOnline,
+        last_seen: isOnline ? null : lastSeen, // Only set last_seen when going offline
+        updated_at: new Date(),
+      })
+      .where("jid", "=", payload.from)
+      .executeTakeFirst();
+
+    if (result.numUpdatedRows > 0) {
+      console.log(
+        `[MessageHandler] Updated presence for contact ${payload.from}: ${isOnline ? "online" : "offline"} (rows affected: ${result.numUpdatedRows})`,
+      );
+
+      // Broadcast to WebSocket clients
+      broadcastToCompany(companyId, {
+        type: isOnline ? "presence:online" : "presence:offline",
+        connectionId,
+        payload: {
+          jid: payload.from,
+          isOnline,
+          lastSeen: lastSeen?.toISOString(),
+        },
+        timestamp: event.timestamp,
+      });
+    } else {
+      // Contact not found - this is normal for contacts we haven't seen messages from yet
+      // Don't log a warning as this is expected behavior
+      console.log(
+        `[MessageHandler] Presence update for unknown contact ${payload.from}, will be created when first message arrives`,
+      );
+    }
+  } catch (error) {
+    console.error(`[MessageHandler] Failed to handle presence event:`, error);
   }
 }
 

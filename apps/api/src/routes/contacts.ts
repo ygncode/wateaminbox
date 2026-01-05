@@ -144,6 +144,8 @@ contactRoutes.get("/", async (c) => {
           : null,
         unreadCount: Number(contact.unread_count),
         assignedTo: contact.assigned_to,
+        isOnline: contact.is_online,
+        lastSeen: contact.last_seen,
         createdAt: contact.created_at,
         updatedAt: contact.updated_at,
       };

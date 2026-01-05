@@ -166,6 +166,7 @@ export interface WhatsAppEvent {
     | "catalog_products"
     | "profile_picture"
     | "message_revoke"
+    | "presence"
     | "error";
   companyId: string;
   connectionId: string;
@@ -314,6 +315,15 @@ export interface ContactEvent extends WhatsAppEvent {
     isGroup: boolean;
     unreadCount?: number;
     profilePictureUrl?: string;
+  };
+}
+
+export interface PresenceEvent extends WhatsAppEvent {
+  type: "presence";
+  payload: {
+    from: string; // JID of the contact
+    unavailable: boolean; // true = offline, false = online
+    lastSeen?: string; // ISO 8601 timestamp when contact was last seen (only when going offline)
   };
 }
 
