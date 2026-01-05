@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import { db } from "@whatsapp-web/database";
 import { authMiddleware } from "../middleware/auth.js";
 import { tenantMiddleware, requirePermission } from "../middleware/tenant.js";
 import { PERMISSIONS } from "../services/permission.service.js";
@@ -17,6 +18,52 @@ import { createNotification } from "../services/notification-history.service.js"
 import { createAuditLog, getClientIp } from "../services/audit.service.js";
 import { broadcastToCompany } from "./ws.js";
 import { rateLimitConfig, rateLimitStore } from "../lib/rate-limit-store.js";
+
+/**
+ * Helper function to get user names by their IDs
+ * Returns a map of userId -> display name (email prefix)
+ * Falls back to userId if user not found or email is malformed
+ */
+async function getUserNames(userIds: string[]): Promise<Map<string, string>> {
+  if (userIds.length === 0) {
+    return new Map();
+  }
+
+  // Validate and filter valid UUIDs
+  const uuidRegex =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const validIds = Array.from(new Set(userIds)).filter((id) =>
+    uuidRegex.test(id),
+  );
+
+  if (validIds.length === 0) {
+    return new Map();
+  }
+
+  try {
+    const users = await db
+      .selectFrom("users")
+      .select(["id", "email"])
+      .where("id", "in", validIds)
+      .execute();
+
+    const userMap = new Map<string, string>();
+    for (const user of users) {
+      // Use email prefix as display name (before @)
+      // Fallback to full email if no @ found (shouldn't happen but be safe)
+      const atIndex = user.email.indexOf("@");
+      const displayName =
+        atIndex > 0 ? user.email.substring(0, atIndex) : user.email;
+      userMap.set(user.id, displayName);
+    }
+
+    return userMap;
+  } catch (error) {
+    console.error("Error fetching user names:", error);
+    // Return empty map on error - callers will fall back to UUID
+    return new Map();
+  }
+}
 
 export const contactRoutes = new Hono();
 
@@ -127,13 +174,54 @@ contactRoutes.get("/:id", async (c) => {
     return c.json({ error: "Contact not found" }, 404);
   }
 
-  // Get assignment info
+  // Get assignment info with user names in a single query using JOINs
   const assignment = await tenantDb
-    .selectFrom("contact_assignments")
-    .select(["assigned_to", "assigned_by", "assigned_at"])
-    .where("contact_id", "=", contactId)
-    .where("unassigned_at", "is", null)
+    .selectFrom("contact_assignments as ca")
+    .leftJoin(
+      "public.users as assigned_to_user",
+      "ca.assigned_to",
+      "assigned_to_user.id",
+    )
+    .leftJoin(
+      "public.users as assigned_by_user",
+      "ca.assigned_by",
+      "assigned_by_user.id",
+    )
+    .select([
+      "ca.assigned_to",
+      "ca.assigned_by",
+      "ca.assigned_at",
+      "assigned_to_user.email as assigned_to_email",
+      "assigned_by_user.email as assigned_by_email",
+    ])
+    .where("ca.contact_id", "=", contactId)
+    .where("ca.unassigned_at", "is", null)
     .executeTakeFirst();
+
+  // Build assignment object with user names
+  let assignmentWithNames = null;
+  if (assignment) {
+    // Extract email prefix for display name
+    const getDisplayName = (email: string | null, fallbackId: string) => {
+      if (!email) return fallbackId;
+      const atIndex = email.indexOf("@");
+      return atIndex > 0 ? email.substring(0, atIndex) : email;
+    };
+
+    assignmentWithNames = {
+      assignedTo: assignment.assigned_to,
+      assignedToName: getDisplayName(
+        assignment.assigned_to_email,
+        assignment.assigned_to,
+      ),
+      assignedBy: assignment.assigned_by,
+      assignedByName: getDisplayName(
+        assignment.assigned_by_email,
+        assignment.assigned_by,
+      ),
+      assignedAt: assignment.assigned_at,
+    };
+  }
 
   // Get tags
   const tags = await tenantDb
@@ -168,13 +256,7 @@ contactRoutes.get("/:id", async (c) => {
     notesShared: contact.notes_shared,
     createdAt: contact.created_at,
     updatedAt: contact.updated_at,
-    assignment: assignment
-      ? {
-          assignedTo: assignment.assigned_to,
-          assignedBy: assignment.assigned_by,
-          assignedAt: assignment.assigned_at,
-        }
-      : null,
+    assignment: assignmentWithNames,
     tags,
   });
 });
@@ -715,11 +797,19 @@ contactRoutes.get("/:id/assignments", async (c) => {
     .orderBy("assigned_at", "desc")
     .execute();
 
+  // Collect all user IDs and fetch their names
+  const userIds = assignments.flatMap((a) => [a.assigned_to, a.assigned_by]);
+  const userNames = await getUserNames(userIds);
+
   return c.json({
     data: assignments.map((assignment) => ({
       id: assignment.id,
       assignedTo: assignment.assigned_to,
+      assignedToName:
+        userNames.get(assignment.assigned_to) || assignment.assigned_to,
       assignedBy: assignment.assigned_by,
+      assignedByName:
+        userNames.get(assignment.assigned_by) || assignment.assigned_by,
       assignedAt: assignment.assigned_at,
       unassignedAt: assignment.unassigned_at,
       isActive: assignment.unassigned_at === null,

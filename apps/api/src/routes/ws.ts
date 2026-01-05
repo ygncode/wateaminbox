@@ -113,11 +113,15 @@ export function broadcastToCompany(
       }
     }
     if (message.type === "message:new") {
-      console.log(`[WS] 💬 Broadcast message:new to ${sentCount} client(s) for company ${companyId}`);
+      console.log(
+        `[WS] 💬 Broadcast message:new to ${sentCount} client(s) for company ${companyId}`,
+      );
     }
   } else {
     if (message.type === "message:new") {
-      console.log(`[WS] ⚠️ No active connections for company ${companyId} to broadcast message`);
+      console.log(
+        `[WS] ⚠️ No active connections for company ${companyId} to broadcast message`,
+      );
     }
   }
 }

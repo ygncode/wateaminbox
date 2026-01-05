@@ -41,8 +41,7 @@ function getExtensionFromMimeType(mimeType: string): string {
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
       "docx",
     "application/vnd.ms-excel": "xls",
-    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":
-      "xlsx",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "xlsx",
     "application/zip": "zip",
     "application/x-rar-compressed": "rar",
     "text/plain": "txt",
@@ -144,7 +143,8 @@ export async function downloadMediaFromUrl(url: string): Promise<{
     throw new Error(`Failed to download media: ${response.statusText}`);
   }
 
-  const mimeType = response.headers.get("content-type") || "application/octet-stream";
+  const mimeType =
+    response.headers.get("content-type") || "application/octet-stream";
   const arrayBuffer = await response.arrayBuffer();
   const data = Buffer.from(arrayBuffer);
 

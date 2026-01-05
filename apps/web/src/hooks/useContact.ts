@@ -18,7 +18,9 @@ export interface ContactDetail {
   updatedAt: string;
   assignment: {
     assignedTo: string;
+    assignedToName: string;
     assignedBy: string;
+    assignedByName: string;
     assignedAt: string;
   } | null;
   tags: Array<{
@@ -259,7 +261,9 @@ export function useUnassignContact() {
 export interface AssignmentHistoryEntry {
   id: string;
   assignedTo: string;
+  assignedToName: string;
   assignedBy: string;
+  assignedByName: string;
   assignedAt: string;
   unassignedAt: string | null;
   isActive: boolean;
