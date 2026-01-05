@@ -69,7 +69,7 @@ mock.module("@whatsapp-web/database", () => ({
 const mockHashPassword = mock(async (password: string) => `hashed_${password}`);
 const mockVerifyPassword = mock(async (_password: string, _hash: string) => true);
 
-mock.module("../lib/password.js", () => ({
+mock.module("../../lib/password.js", () => ({
   hashPassword: mockHashPassword,
   verifyPassword: mockVerifyPassword,
 }));
@@ -80,7 +80,7 @@ const mockGenerateRefreshToken = mock(async () => "mock-refresh-token");
 const mockVerifyRefreshToken = mock(async () => ({ sessionId: "session-123" }));
 const mockGetRefreshTokenExpiry = mock(() => new Date(Date.now() + 7 * 24 * 60 * 60 * 1000));
 
-mock.module("../lib/jwt.js", () => ({
+mock.module("../../lib/jwt.js", () => ({
   generateAccessToken: mockGenerateAccessToken,
   generateRefreshToken: mockGenerateRefreshToken,
   verifyRefreshToken: mockVerifyRefreshToken,
@@ -91,7 +91,7 @@ mock.module("../lib/jwt.js", () => ({
 const mockSendVerificationEmail = mock(async () => ({ success: true }));
 const mockSendPasswordResetEmail = mock(async () => ({ success: true }));
 
-mock.module("../lib/email.js", () => ({
+mock.module("../../lib/email.js", () => ({
   sendVerificationEmail: mockSendVerificationEmail,
   sendPasswordResetEmail: mockSendPasswordResetEmail,
 }));

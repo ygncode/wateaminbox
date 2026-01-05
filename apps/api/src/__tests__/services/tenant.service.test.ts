@@ -16,13 +16,15 @@ const mockSqlExecute = mock(async () => ({
   rows: [{ exists: true }],
 }));
 
+// Mock Kysely destroy - needs to be defined first
+const mockKyselyDestroy = mock(async () => {});
+
 // Mock Kysely instance
 const mockKyselyWithSchema = mock((schema: string) => ({
   schema,
   withSchema: mockKyselyWithSchema,
   destroy: mockKyselyDestroy
 }));
-const mockKyselyDestroy = mock(async () => {});
 
 const mockKyselyInstance = {
   withSchema: mockKyselyWithSchema,
