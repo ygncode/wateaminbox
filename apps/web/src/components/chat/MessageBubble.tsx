@@ -250,6 +250,16 @@ export const MessageBubble = memo(function MessageBubble({
           </div>
         </a>
       ),
+      sticker: () => (
+        <div className="max-w-[200px]">
+          <img
+            src={message.metadata?.mediaUrl}
+            alt="Sticker"
+            className="w-full h-auto"
+            loading="lazy"
+          />
+        </div>
+      ),
       location: () => (
         <div className="max-w-xs">
           <div className="bg-gray-200 dark:bg-dark-tertiary rounded-lg h-32 flex items-center justify-center">

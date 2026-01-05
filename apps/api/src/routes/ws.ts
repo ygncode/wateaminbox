@@ -35,7 +35,7 @@ interface AuthPayload {
 interface SendMessagePayload {
   jid: string;
   content: string;
-  messageType: "text" | "image" | "video" | "audio" | "document";
+  messageType: "text" | "image" | "video" | "audio" | "document" | "sticker";
   mediaUrl?: string;
 }
 
