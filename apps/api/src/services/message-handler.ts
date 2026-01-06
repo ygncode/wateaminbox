@@ -16,6 +16,7 @@ import {
   type ReactionEvent,
 } from "../lib/nats.js";
 import { db, type MessageType } from "@whatsapp-web/database";
+import { toDbDate, toDate, toISOString } from "@whatsapp-web/shared";
 import { getTenantConnection } from "./tenant.service.js";
 import { updateConnectionStatus } from "./whatsapp.service.js";
 import { broadcastToCompany } from "../routes/ws.js";
@@ -25,6 +26,47 @@ import { createNotification } from "./notification-history.service.js";
 import { createLogger, formatError } from "../lib/logger.js";
 
 const logger = createLogger("MessageHandler");
+
+/**
+ * Extracts phone number from a JID, handling device suffix.
+ * Input: "44578136657990:3@s.whatsapp.net" or "44578136657990@s.whatsapp.net"
+ * Output: "44578136657990"
+ */
+function extractPhoneNumber(jid: string): string | null {
+  if (!jid) return null;
+
+  // Remove server suffix (@s.whatsapp.net, @g.us, etc.)
+  const userPart = jid.split("@")[0];
+  if (!userPart) return null;
+
+  // Remove device suffix (the :N part, e.g., ":3")
+  const phoneNumber = userPart.split(":")[0];
+
+  return phoneNumber || null;
+}
+
+/**
+ * Normalizes a JID by removing the device suffix.
+ * Input: "44578136657990:3@s.whatsapp.net"
+ * Output: "44578136657990@s.whatsapp.net"
+ * Groups (@g.us) and broadcast lists are returned unchanged.
+ */
+function normalizeJID(jid: string): string {
+  if (!jid) return jid;
+
+  const [userPart, server] = jid.split("@");
+  if (!userPart || !server) return jid;
+
+  // Groups and broadcast lists don't have device suffixes
+  if (server === "g.us" || server === "broadcast") {
+    return jid;
+  }
+
+  // Remove device suffix (the :N part)
+  const phoneNumber = userPart.split(":")[0];
+
+  return `${phoneNumber}@${server}`;
+}
 
 // Subscription handle
 let eventSubscription: JetStreamSubscription | null = null;
@@ -287,8 +329,9 @@ async function handleMessageEvent(event: MessageEvent): Promise<void> {
       return;
     }
 
-    // Get or create contact
-    const contactJid = payload.fromMe ? payload.to : payload.from;
+    // Get or create contact - normalize JID first to remove device suffix
+    const rawContactJid = payload.fromMe ? payload.to : payload.from;
+    const contactJid = normalizeJID(rawContactJid);
     let contact = await tenantDb
       .selectFrom("contacts")
       .select(["id"])
@@ -297,8 +340,8 @@ async function handleMessageEvent(event: MessageEvent): Promise<void> {
 
     if (!contact) {
       const contactId = crypto.randomUUID();
-      // Extract phone number from JID (e.g., "6594603306@s.whatsapp.net" -> "6594603306")
-      const phoneNumber = contactJid.split("@")[0] || null;
+      // Extract phone number from JID (removes device suffix like ":3")
+      const phoneNumber = extractPhoneNumber(contactJid);
       await tenantDb
         .insertInto("contacts")
         .values({
@@ -307,14 +350,14 @@ async function handleMessageEvent(event: MessageEvent): Promise<void> {
           jid: contactJid,
           phone_number: phoneNumber,
           is_group: contactJid.includes("@g.us"),
-          created_at: new Date(),
-          updated_at: new Date(),
+          created_at: toDbDate(),
+          updated_at: toDbDate(),
         })
         .execute();
       contact = { id: contactId };
     }
 
-    // Store the message
+    // Store the message - also normalize sender_jid
     const messageId = crypto.randomUUID();
     await tenantDb
       .insertInto("messages")
@@ -324,7 +367,7 @@ async function handleMessageEvent(event: MessageEvent): Promise<void> {
         contact_id: contact.id,
         message_id: payload.messageId,
         from_me: payload.fromMe,
-        sender_jid: payload.from,
+        sender_jid: normalizeJID(payload.from),
         message_type: payload.messageType as MessageType,
         content: payload.content,
         media_url: payload.mediaUrl || null,
@@ -333,8 +376,8 @@ async function handleMessageEvent(event: MessageEvent): Promise<void> {
         is_starred: false,
         deleted_by_sender: false,
         status: payload.fromMe ? "sent" : "delivered",
-        timestamp: new Date(payload.timestamp),
-        created_at: new Date(),
+        timestamp: toDbDate(payload.timestamp),
+        created_at: toDbDate(),
       })
       .execute();
 
@@ -367,7 +410,7 @@ async function handleMessageEvent(event: MessageEvent): Promise<void> {
       messageId: payload.messageId,
       content: payload.content || null,
       messageType: payload.messageType || "text",
-      timestamp: new Date(payload.timestamp).getTime(),
+      timestamp: toDate(payload.timestamp)?.getTime() || Date.now(),
       fromMe: payload.fromMe,
     };
 
@@ -382,9 +425,9 @@ async function handleMessageEvent(event: MessageEvent): Promise<void> {
         .updateTable("conversation_states")
         .set((eb) => ({
           unread_count: eb("unread_count", "+", 1),
-          last_message_at: new Date(payload.timestamp),
+          last_message_at: toDbDate(payload.timestamp),
           last_message_preview: payload.content?.substring(0, 100) || null,
-          updated_at: new Date(),
+          updated_at: toDbDate(),
         }))
         .where("contact_id", "=", contact.id)
         .executeTakeFirst();
@@ -396,7 +439,7 @@ async function handleMessageEvent(event: MessageEvent): Promise<void> {
           .values({
             contact_id: contact.id,
             unread_count: 1,
-            last_message_at: new Date(payload.timestamp),
+            last_message_at: toDbDate(payload.timestamp),
             last_message_preview: payload.content?.substring(0, 100) || null,
           })
           .execute();
@@ -673,8 +716,8 @@ async function handleStatusEvent(event: StatusEvent): Promise<void> {
         media_type: payload.mediaType,
         media_url: payload.mediaUrl,
         caption: payload.caption,
-        timestamp: new Date(payload.timestamp),
-        expires_at: new Date(payload.expiresAt),
+        timestamp: toDbDate(payload.timestamp),
+        expires_at: toDbDate(payload.expiresAt),
       })
       .execute();
 
@@ -733,11 +776,14 @@ async function handleContactEvent(event: ContactEvent): Promise<void> {
       return;
     }
 
+    // Normalize JID to remove device suffix
+    const contactJid = normalizeJID(payload.jid);
+
     // Check if contact already exists
     const existingContact = await tenantDb
       .selectFrom("contacts")
       .select(["id"])
-      .where("jid", "=", payload.jid)
+      .where("jid", "=", contactJid)
       .executeTakeFirst();
 
     if (existingContact) {
@@ -748,33 +794,33 @@ async function handleContactEvent(event: ContactEvent): Promise<void> {
           push_name: payload.displayName || payload.name || null,
           is_group: payload.isGroup,
           profile_picture_url: payload.profilePictureUrl || null,
-          updated_at: new Date(),
+          updated_at: toDbDate(),
         })
         .where("id", "=", existingContact.id)
         .execute();
 
-      logger.debug({ jid: payload.jid, companyId }, "Updated contact");
+      logger.debug({ jid: contactJid, companyId }, "Updated contact");
     } else {
       // Create new contact
       const contactId = crypto.randomUUID();
-      // Extract phone number from JID (e.g., "6594603306@s.whatsapp.net" -> "6594603306")
-      const phoneNumber = payload.jid.split("@")[0] || null;
+      // Extract phone number from JID (removes device suffix like ":3")
+      const phoneNumber = extractPhoneNumber(contactJid);
       await tenantDb
         .insertInto("contacts")
         .values({
           id: contactId,
           whatsapp_connection_id: connection.id,
-          jid: payload.jid,
+          jid: contactJid,
           phone_number: phoneNumber,
           push_name: payload.displayName || payload.name || null,
           is_group: payload.isGroup,
           profile_picture_url: payload.profilePictureUrl || null,
-          created_at: new Date(),
-          updated_at: new Date(),
+          created_at: toDbDate(),
+          updated_at: toDbDate(),
         })
         .execute();
 
-      logger.debug({ jid: payload.jid, companyId }, "Created contact");
+      logger.debug({ jid: contactJid, companyId }, "Created contact");
     }
 
     // Broadcast to WebSocket clients with connectionId
@@ -805,6 +851,9 @@ async function handleProfilePictureEvent(
   try {
     const tenantDb = getTenantConnection(companyId);
 
+    // Normalize JID to match how contacts are stored (without device suffix)
+    const contactJid = normalizeJID(payload.jid);
+
     // Update contact profile picture
     const profilePictureUrl = payload.remove ? null : payload.profilePictureUrl;
 
@@ -812,33 +861,33 @@ async function handleProfilePictureEvent(
       .updateTable("contacts")
       .set({
         profile_picture_url: profilePictureUrl,
-        updated_at: new Date(),
+        updated_at: toDbDate(),
       })
-      .where("jid", "=", payload.jid)
+      .where("jid", "=", contactJid)
       .executeTakeFirst();
 
     if (result.numUpdatedRows > 0) {
       logger.debug(
         {
-          jid: payload.jid,
+          jid: contactJid,
           rowsAffected: result.numUpdatedRows.toString(),
         },
         "Updated profile picture for contact",
       );
 
-      // Broadcast to WebSocket clients
+      // Broadcast to WebSocket clients with normalized JID
       broadcastToCompany(companyId, {
         type: "contact:profile_picture", // Specific event type for frontend
         connectionId,
         payload: {
-          jid: payload.jid,
+          jid: contactJid,
           profilePictureUrl,
         },
         timestamp: event.timestamp,
       });
     } else {
       logger.warn(
-        { jid: payload.jid },
+        { jid: contactJid },
         "Contact not found for profile picture update",
       );
     }
@@ -870,7 +919,7 @@ async function handleMessageRevokeEvent(
       .updateTable("messages")
       .set({
         deleted_by_sender: true,
-        deleted_at: new Date(),
+        deleted_at: toDbDate(),
       })
       .where("message_id", "=", payload.messageId)
       .executeTakeFirst();
@@ -936,8 +985,11 @@ async function handlePresenceEvent(event: PresenceEvent): Promise<void> {
   try {
     const tenantDb = getTenantConnection(companyId);
 
+    // Normalize JID to match how contacts are stored (without device suffix)
+    const contactJid = normalizeJID(payload.from);
+
     // Determine status and last seen
-    const lastSeen = payload.lastSeen ? new Date(payload.lastSeen) : null;
+    const lastSeen = payload.lastSeen ? toDbDate(payload.lastSeen) : null;
 
     // Update contact presence in database
     const result = await tenantDb
@@ -945,29 +997,29 @@ async function handlePresenceEvent(event: PresenceEvent): Promise<void> {
       .set({
         is_online: isOnline,
         last_seen: isOnline ? null : lastSeen, // Only set last_seen when going offline
-        updated_at: new Date(),
+        updated_at: toDbDate(),
       })
-      .where("jid", "=", payload.from)
+      .where("jid", "=", contactJid)
       .executeTakeFirst();
 
     if (result.numUpdatedRows > 0) {
       logger.debug(
         {
-          from: payload.from,
+          from: contactJid,
           isOnline,
           rowsAffected: result.numUpdatedRows.toString(),
         },
         "Updated presence for contact",
       );
 
-      // Broadcast to WebSocket clients
+      // Broadcast to WebSocket clients with normalized JID
       broadcastToCompany(companyId, {
         type: isOnline ? "presence:online" : "presence:offline",
         connectionId,
         payload: {
-          jid: payload.from,
+          jid: contactJid,
           isOnline,
-          lastSeen: lastSeen?.toISOString(),
+          lastSeen: lastSeen ? toISOString(lastSeen) : undefined,
         },
         timestamp: event.timestamp,
       });
@@ -975,7 +1027,7 @@ async function handlePresenceEvent(event: PresenceEvent): Promise<void> {
       // Contact not found - this is normal for contacts we haven't seen messages from yet
       // Don't log a warning as this is expected behavior
       logger.debug(
-        { from: payload.from },
+        { from: contactJid },
         "Presence update for unknown contact - will be created when first message arrives",
       );
     }

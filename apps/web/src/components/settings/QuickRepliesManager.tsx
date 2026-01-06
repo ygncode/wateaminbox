@@ -288,7 +288,7 @@ export function QuickRepliesManager() {
 
       {/* Create/Edit Dialog */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="sm:max-w-lg p-0 overflow-hidden">
+        <DialogContent className="sm:max-w-md p-0 overflow-hidden">
           {/* Header with gradient background */}
           <div className="relative px-6 pt-6 pb-4 bg-gradient-to-br from-emerald-50 via-teal-50/50 to-white dark:from-emerald-900/20 dark:via-teal-900/10 dark:to-dark-elevated">
             <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-bl from-whatsapp-teal-green/10 to-transparent rounded-full blur-2xl" />
@@ -348,11 +348,16 @@ export function QuickRepliesManager() {
               <div className="space-y-5">
                 {/* Shortcut Input */}
                 <div className="space-y-2">
-                  <Label htmlFor="shortcut" className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-dark-text-primary">
-                    <Hash className="h-3.5 w-3.5 text-gray-400 dark:text-dark-text-tertiary" />
-                    {t('quickReplies.shortcutLabel', 'Shortcut')}
-                    <span className="text-red-500">*</span>
-                  </Label>
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="shortcut" className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-dark-text-primary">
+                      <Hash className="h-3.5 w-3.5 text-gray-400 dark:text-dark-text-tertiary" />
+                      {t('quickReplies.shortcutLabel', 'Shortcut')}
+                      <span className="text-red-500">*</span>
+                    </Label>
+                    <span className="text-xs text-gray-400 dark:text-dark-text-tertiary font-mono">
+                      {shortcut.length}/50
+                    </span>
+                  </div>
                   <div className="relative">
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-whatsapp-teal-green font-mono font-semibold text-lg">
                       /
@@ -368,9 +373,6 @@ export function QuickRepliesManager() {
                       data-testid="quick-reply-shortcut-input"
                       aria-describedby="shortcut-hint"
                     />
-                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400 dark:text-dark-text-tertiary font-mono">
-                      {shortcut.length}/50
-                    </span>
                   </div>
                   <p id="shortcut-hint" className="text-xs text-gray-500 dark:text-dark-text-tertiary">
                     {t('quickReplies.shortcutHelp', 'Letters, numbers, underscores, and hyphens only')}

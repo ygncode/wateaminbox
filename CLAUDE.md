@@ -168,17 +168,22 @@ When fixing database schema issues (missing columns, wrong types, etc.):
 For multi-tenant schema changes, use the migration helpers in `packages/database/src/migrations/migration-helpers.ts`:
 
 ```typescript
-import { addColumnToAllTenants, executeOnAllTenants } from '../migrations/migration-helpers.js'
+import {
+  addColumnToAllTenants,
+  executeOnAllTenants,
+} from "../migrations/migration-helpers.js";
 
 // ✅ CORRECT - Apply changes to ALL existing tenant schemas
 export async function up(db: Kysely<unknown>): Promise<void> {
   // Add a column to all tenant schemas
-  await addColumnToAllTenants(db, 'messages', 'new_column', 'VARCHAR(100)')
+  await addColumnToAllTenants(db, "messages", "new_column", "VARCHAR(100)");
 
   // Or use the generic helper for custom operations
   await executeOnAllTenants(db, async (schemaName) => {
-    await sql`ALTER TABLE ${sql.raw(`"${schemaName}".messages`)} ADD COLUMN ...`.execute(db)
-  })
+    await sql`ALTER TABLE ${sql.raw(`"${schemaName}".messages`)} ADD COLUMN ...`.execute(
+      db
+    );
+  });
 
   // IMPORTANT: Also update migration 015's setup_tenant_schema function
   // so NEW tenants created after this migration get the column too
@@ -194,10 +199,10 @@ The application supports light, dark, and system-preference themes. The theme sy
 ### Using Theme in Components
 
 ```typescript
-import { useTheme } from '@/contexts/theme-context'
+import { useTheme } from "@/contexts/theme-context";
 
 function MyComponent() {
-  const { theme, resolvedTheme, setTheme, toggleTheme } = useTheme()
+  const { theme, resolvedTheme, setTheme, toggleTheme } = useTheme();
 
   // theme: 'light' | 'dark' | 'system'
   // resolvedTheme: 'light' | 'dark' (actual applied theme)
@@ -210,16 +215,16 @@ function MyComponent() {
 
 Use these semantic colors for dark mode styling (defined in `apps/web/src/index.css`):
 
-| Color | Value | Usage |
-|-------|-------|-------|
-| `dark-primary` | #111B21 | Main background (message thread) |
-| `dark-secondary` | #1F2C33 | Sidebar, headers, cards |
-| `dark-elevated` | #202C33 | Elevated surfaces (bubbles, dropdowns) |
-| `dark-tertiary` | #2A3942 | Selected/hover states |
-| `dark-border` | #2F3B43 | Borders and dividers |
-| `dark-text-primary` | #E9EDEF | Primary text |
-| `dark-text-secondary` | #8696A0 | Secondary text |
-| `dark-text-tertiary` | #667781 | Muted text, placeholders |
+| Color                 | Value   | Usage                                  |
+| --------------------- | ------- | -------------------------------------- |
+| `dark-primary`        | #111B21 | Main background (message thread)       |
+| `dark-secondary`      | #1F2C33 | Sidebar, headers, cards                |
+| `dark-elevated`       | #202C33 | Elevated surfaces (bubbles, dropdowns) |
+| `dark-tertiary`       | #2A3942 | Selected/hover states                  |
+| `dark-border`         | #2F3B43 | Borders and dividers                   |
+| `dark-text-primary`   | #E9EDEF | Primary text                           |
+| `dark-text-secondary` | #8696A0 | Secondary text                         |
+| `dark-text-tertiary`  | #667781 | Muted text, placeholders               |
 
 ### Adding Dark Mode to New Components
 
@@ -257,17 +262,18 @@ The application uses React Error Boundaries to catch and handle component errors
 // Catches all React component errors and displays a user-friendly fallback
 
 // For custom error handling in specific areas:
-import { ErrorBoundary } from '@/components/error-boundary'
+import { ErrorBoundary } from "@/components/error-boundary";
 
 <ErrorBoundary
   fallback={<CustomFallback />}
   onError={(error, errorInfo) => logToService(error)}
 >
   <RiskyComponent />
-</ErrorBoundary>
+</ErrorBoundary>;
 ```
 
 Features:
+
 - User-friendly error screen with recovery options
 - "Go to Home" and "Refresh Page" buttons
 - Development-only error details (component stack trace)
@@ -301,6 +307,7 @@ const {
 ```
 
 Existing schemas:
+
 - `loginSchema` - Email and password validation
 - `registerSchema` - Name, email, password with confirmation
 - `forgotPasswordSchema` - Email validation
@@ -316,13 +323,102 @@ The backend uses Resend for transactional emails:
 
 // Available email functions:
 import {
-  sendVerificationEmail,     // Account verification
-  sendPasswordResetEmail,    // Password reset
-  sendInvitationEmail,       // Team invitation
-} from '@/lib/email'
+  sendVerificationEmail, // Account verification
+  sendPasswordResetEmail, // Password reset
+  sendInvitationEmail, // Team invitation
+} from "@/lib/email";
 
 // In development mode, emails are logged instead of sent
 // Set RESEND_API_KEY in .env for production
 ```
 
 Email templates are HTML with inline styles for cross-client compatibility.
+
+## Date/Time Handling
+
+All datetime operations use **dayjs** through a centralized module in `@whatsapp-web/shared`. **Never use native JavaScript `Date` directly.**
+
+### Import Pattern
+
+```typescript
+import {
+  // Core utilities
+  now, // Current time in UTC (returns dayjs)
+  nowMs, // Current timestamp in milliseconds
+  toDbDate, // Date object for database storage
+  toISOString, // ISO 8601 string format
+  toDate, // Convert to native Date object
+  parseDate, // Parse any input to dayjs
+
+  // Display formatting
+  formatMessageTime, // "14:30" - for message bubbles
+  formatChatListTime, // "Yesterday" / "Mon" / "Jan 5" - for chat list
+  formatDateSeparator, // "Today" / "Yesterday" / "Monday, January 15"
+  formatLastSeen, // "online" / "last seen 2 hours ago"
+  formatRelativeTime, // "5 minutes ago"
+  formatStatusTime, // "5m ago" / "2h ago" (compact)
+  formatAuditTime, // "Jan 5, 2024 14:30:45"
+
+  // Date manipulation
+  startOfDay, // Start of day in UTC
+  endOfDay, // End of day in UTC
+  subtractDays, // Subtract N days from date
+  addDays, // Add N days to date
+  getDateRange, // Get { start, end } for '7d' | '30d' | '90d'
+
+  // Checks
+  isToday, // Check if date is today
+  isYesterday, // Check if date is yesterday
+  isWithinDays, // Check if within last N days
+
+  // Direct dayjs access (only when needed)
+  dayjs,
+} from "@whatsapp-web/shared";
+```
+
+### UTC Convention
+
+- **Storage/Processing**: Always use UTC. Functions like `now()`, `toDbDate()`, `parseDate()` work in UTC by default.
+- **Display**: Use display functions like `formatMessageTime()`, `formatChatListTime()` which automatically convert to local time.
+- **API Responses**: Return ISO strings in UTC using `toISOString()`.
+
+### Common Patterns
+
+```typescript
+// Current time
+const timestamp = nowMs(); // Replaces Date.now()
+const dbDate = toDbDate(); // For Kysely inserts: created_at: toDbDate()
+
+// Date math
+const thirtyDaysAgo = subtractDays(dayjs.utc(), 30);
+const range = getDateRange("30d"); // { start, end }
+
+// Display formatting (automatically uses local time)
+formatMessageTime(message.createdAt); // "14:30"
+formatChatListTime(chat.lastMessageAt); // "Yesterday" / "Mon" / "Jan 5"
+formatLastSeen(contact.lastSeen, isOnline); // "last seen 2 hours ago"
+formatRelativeTime(notification.createdAt); // "5 minutes ago"
+
+// ISO string for APIs
+const isoString = toISOString(date); // "2024-01-15T14:30:00.000Z"
+```
+
+### Anti-Patterns (Do NOT Use)
+
+```typescript
+// WRONG                              // CORRECT
+new Date()                            // now() or toDbDate()
+Date.now()                            // nowMs()
+date.setDate(date.getDate() - 7)      // subtractDays(date, 7)
+date.toLocaleTimeString()             // formatMessageTime()
+date.toLocaleDateString()             // formatChatListTime()
+new Date(Date.now() - 30 * 24 * ...)  // subtractDays(dayjs.utc(), 30)
+```
+
+### Adding New Date Utilities
+
+If you need date functionality not covered by existing helpers:
+
+1. Add the function to `packages/shared/src/date.ts`
+2. Export it from `packages/shared/src/index.ts`
+3. Document it in this section

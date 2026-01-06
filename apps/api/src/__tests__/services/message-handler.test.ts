@@ -176,9 +176,12 @@ describe("MessageHandler - handleSendConfirmationEvent", () => {
       const companyId = "company-123";
       const connectionId = "connection-abc";
       const timestamp = "2026-01-05T12:34:56Z";
+      const internalMessageId = "internal-msg-123";
+      const contactId = "contact-456";
 
-      const mockUpdateResult = createUpdateResult(1);
-      mockQueryBuilder.executeTakeFirst = mock(() => Promise.resolve(mockUpdateResult));
+      // Mock returning the updated message with id and contact_id (from .returning() clause)
+      const mockUpdatedMessage = { id: internalMessageId, contact_id: contactId };
+      mockQueryBuilder.executeTakeFirst = mock(() => Promise.resolve(mockUpdatedMessage));
 
       const event: SendConfirmationEvent = {
         type: "send_confirmation",
@@ -212,18 +215,19 @@ describe("MessageHandler - handleSendConfirmationEvent", () => {
       // Verify executeTakeFirst was called to run the update
       expect(mockQueryBuilder.executeTakeFirst).toHaveBeenCalled();
 
-      // Verify WebSocket broadcast was called
+      // Verify WebSocket broadcast was called with correct payload format
+      // Code sends: { conversationId: contact_id, messageId: internal id, status }
       expect(mockBroadcastToCompany).toHaveBeenCalledWith(
         companyId,
         expect.objectContaining({
           type: "message:status",
           connectionId,
           payload: {
-            pendingMessageId,
-            messageId: realMessageId,
+            conversationId: contactId,
+            messageId: internalMessageId,
             status: "sent",
-            timestamp,
           },
+          timestamp,
         }),
       );
     });
@@ -235,9 +239,12 @@ describe("MessageHandler - handleSendConfirmationEvent", () => {
       const companyId = "company-456";
       const connectionId = "connection-def";
       const timestamp = "2026-01-05T10:20:30Z";
+      const internalMessageId = "internal-msg-xyz";
+      const contactId = "contact-xyz";
 
-      const mockUpdateResult = createUpdateResult(1);
-      mockQueryBuilder.executeTakeFirst = mock(() => Promise.resolve(mockUpdateResult));
+      // Mock returning the updated message with id and contact_id
+      const mockUpdatedMessage = { id: internalMessageId, contact_id: contactId };
+      mockQueryBuilder.executeTakeFirst = mock(() => Promise.resolve(mockUpdatedMessage));
 
       const event: SendConfirmationEvent = {
         type: "send_confirmation",
@@ -264,10 +271,9 @@ describe("MessageHandler - handleSendConfirmationEvent", () => {
         type: "message:status",
         connectionId,
         payload: {
-          pendingMessageId,
-          messageId: realMessageId,
+          conversationId: contactId,
+          messageId: internalMessageId,
           status: "sent",
-          timestamp,
         },
       });
       expect(wsMessage).toHaveProperty("timestamp");
@@ -287,8 +293,9 @@ describe("MessageHandler - handleSendConfirmationEvent", () => {
         },
       };
 
-      const mockUpdateResult1 = createUpdateResult(1);
-      mockQueryBuilder.executeTakeFirst = mock(() => Promise.resolve(mockUpdateResult1));
+      // Mock returning the updated message with id and contact_id
+      const mockUpdatedMessage1 = { id: "msg-001", contact_id: "contact-001" };
+      mockQueryBuilder.executeTakeFirst = mock(() => Promise.resolve(mockUpdatedMessage1));
 
       // Act - first confirmation
       await handleWhatsAppEvent(event1);
@@ -310,8 +317,9 @@ describe("MessageHandler - handleSendConfirmationEvent", () => {
         },
       };
 
-      const mockUpdateResult2 = createUpdateResult(1);
-      mockQueryBuilder.executeTakeFirst = mock(() => Promise.resolve(mockUpdateResult2));
+      // Mock returning the updated message with id and contact_id
+      const mockUpdatedMessage2 = { id: "msg-002", contact_id: "contact-002" };
+      mockQueryBuilder.executeTakeFirst = mock(() => Promise.resolve(mockUpdatedMessage2));
 
       // Act - second confirmation
       await handleWhatsAppEvent(event2);
@@ -334,9 +342,8 @@ describe("MessageHandler - handleSendConfirmationEvent", () => {
       const connectionId = "conn-missing";
       const timestamp = "2026-01-05T15:30:00Z";
 
-      // Simulate 0 rows affected (message not found)
-      const mockUpdateResult = createUpdateResult(0);
-      mockQueryBuilder.executeTakeFirst = mock(() => Promise.resolve(mockUpdateResult));
+      // Simulate no rows returned (message not found) - executeTakeFirst returns undefined
+      mockQueryBuilder.executeTakeFirst = mock(() => Promise.resolve(undefined));
 
       const event: SendConfirmationEvent = {
         type: "send_confirmation",
@@ -351,7 +358,6 @@ describe("MessageHandler - handleSendConfirmationEvent", () => {
       };
 
       // Act - should not throw, should handle gracefully
-      // The function catches errors internally and returns undefined
       const result = await handleWhatsAppEvent(event);
 
       // Assert - no error thrown
@@ -361,18 +367,9 @@ describe("MessageHandler - handleSendConfirmationEvent", () => {
       expect(mockTenantDb.updateTable).toHaveBeenCalledWith("messages");
       expect(mockQueryBuilder.executeTakeFirst).toHaveBeenCalled();
 
-      // Assert - WebSocket broadcast still happens (as per implementation)
-      expect(mockBroadcastToCompany).toHaveBeenCalledWith(
-        companyId,
-        expect.objectContaining({
-          type: "message:status",
-          payload: expect.objectContaining({
-            pendingMessageId,
-            messageId: realMessageId,
-            status: "sent",
-          }),
-        }),
-      );
+      // Assert - WebSocket broadcast does NOT happen when message not found
+      // (because updatedMessage is undefined, so the if condition fails)
+      expect(mockBroadcastToCompany).not.toHaveBeenCalled();
     });
 
     it("should handle race condition where receipt arrives before confirmation", async () => {
@@ -381,9 +378,8 @@ describe("MessageHandler - handleSendConfirmationEvent", () => {
       const pendingMessageId = "pending_racy";
       const realMessageId = "3EB0RACE@s.whatsapp.net";
 
-      // Simulate 0 rows because message was already updated
-      const mockUpdateResult = createUpdateResult(0);
-      mockQueryBuilder.executeTakeFirst = mock(() => Promise.resolve(mockUpdateResult));
+      // Simulate no rows returned because message was already updated
+      mockQueryBuilder.executeTakeFirst = mock(() => Promise.resolve(undefined));
 
       const event: SendConfirmationEvent = {
         type: "send_confirmation",
@@ -400,7 +396,8 @@ describe("MessageHandler - handleSendConfirmationEvent", () => {
       // Act & Assert - should not throw
       const result = await handleWhatsAppEvent(event);
       expect(result).toBeUndefined();
-      expect(mockBroadcastToCompany).toHaveBeenCalled();
+      // No broadcast when message not found
+      expect(mockBroadcastToCompany).not.toHaveBeenCalled();
     });
   });
 
@@ -463,8 +460,8 @@ describe("MessageHandler - handleSendConfirmationEvent", () => {
       const realMessageId = "3EB0DUP@s.whatsapp.net";
 
       // First call - message found and updated
-      const mockUpdateResult1 = createUpdateResult(1);
-      mockQueryBuilder.executeTakeFirst = mock(() => Promise.resolve(mockUpdateResult1));
+      const mockUpdatedMessage = { id: "msg-dup", contact_id: "contact-dup" };
+      mockQueryBuilder.executeTakeFirst = mock(() => Promise.resolve(mockUpdatedMessage));
 
       const event: SendConfirmationEvent = {
         type: "send_confirmation",
@@ -482,8 +479,7 @@ describe("MessageHandler - handleSendConfirmationEvent", () => {
       await handleWhatsAppEvent(event);
 
       // Arrange for second call - message already updated (WHERE clause won't match)
-      const mockUpdateResult2 = createUpdateResult(0);
-      mockQueryBuilder.executeTakeFirst = mock(() => Promise.resolve(mockUpdateResult2));
+      mockQueryBuilder.executeTakeFirst = mock(() => Promise.resolve(undefined));
 
       // Act - duplicate confirmation (same pending ID)
       await handleWhatsAppEvent(event);
@@ -495,7 +491,7 @@ describe("MessageHandler - handleSendConfirmationEvent", () => {
 
   describe("integration with other handlers", () => {
     it("should not interfere with other event types", async () => {
-      // This test verifies the switch statement correctly routes to handleSendConfirmationEvent
+      // This test verifies the switch statement correctly routes to handleReceiptEvent
       const receiptEvent = {
         type: "receipt",
         companyId: "company-123",
@@ -508,21 +504,21 @@ describe("MessageHandler - handleSendConfirmationEvent", () => {
         },
       };
 
-      const mockUpdateResult = createUpdateResult(1);
-      mockQueryBuilder.executeTakeFirst = mock(() => Promise.resolve(mockUpdateResult));
+      // Mock returning the updated message with id and contact_id
+      const mockUpdatedMessage = { id: "msg-receipt", contact_id: "contact-receipt" };
+      mockQueryBuilder.executeTakeFirst = mock(() => Promise.resolve(mockUpdatedMessage));
 
-      // Act - receipt event should be handled differently
+      // Act - receipt event should be handled differently from send_confirmation
       await handleWhatsAppEvent(receiptEvent);
 
-      // Assert - should use "sent" status for receipt "sender" type
-      // This is a receipt event, not send_confirmation
+      // Assert - should update the message status
       expect(mockTenantDb.updateTable).toHaveBeenCalled();
       expect(mockBroadcastToCompany).toHaveBeenCalled();
 
-      // The broadcast type should be "receipt", not "message:status"
+      // The broadcast should have type "message:status" with the read status
       const broadcastPayload = mockBroadcastToCompany.mock.calls[0]?.[1];
-      // Receipt events broadcast with type "receipt"
-      // Send confirmation events broadcast with type "message:status"
+      expect(broadcastPayload.type).toBe("message:status");
+      expect(broadcastPayload.payload.status).toBe("read");
     });
   });
 });
@@ -538,9 +534,12 @@ describe("MessageHandler - message ID mapping behavior", () => {
     // Typical WhatsApp ID: "3EB0{hex}@s.whatsapp.net"
     const pendingMessageId = "pending_550e8400-e29b-41d4-a716-446655440000";
     const realMessageId = "3EB0123ABCDEF@s.whatsapp.net";
+    const internalId = "internal-msg-format";
+    const contactId = "contact-format";
 
-    const mockUpdateResult = createUpdateResult(1);
-    mockQueryBuilder.executeTakeFirst = mock(() => Promise.resolve(mockUpdateResult));
+    // Mock returning the updated message with id and contact_id
+    const mockUpdatedMessage = { id: internalId, contact_id: contactId };
+    mockQueryBuilder.executeTakeFirst = mock(() => Promise.resolve(mockUpdatedMessage));
 
     const event: SendConfirmationEvent = {
       type: "send_confirmation",
@@ -556,13 +555,15 @@ describe("MessageHandler - message ID mapping behavior", () => {
 
     await handleWhatsAppEvent(event);
 
-    // Verify both IDs are in the broadcast
+    // Verify broadcast with correct payload (internal IDs, not WhatsApp IDs)
     expect(mockBroadcastToCompany).toHaveBeenCalledWith(
       "company-format",
       expect.objectContaining({
+        type: "message:status",
         payload: expect.objectContaining({
-          pendingMessageId,
-          messageId: realMessageId,
+          conversationId: contactId,
+          messageId: internalId,
+          status: "sent",
         }),
       }),
     );
@@ -1024,7 +1025,7 @@ describe("MessageHandler - handleMessageRevokeEvent", () => {
 
   describe("integration with other handlers", () => {
     it("should not interfere with other event types", async () => {
-      // This test verifies the switch statement correctly routes to handleMessageRevokeEvent
+      // This test verifies the switch statement correctly routes to handleSendConfirmationEvent
       const sendConfirmationEvent = {
         type: "send_confirmation" as const,
         companyId: "company-123",
@@ -1037,13 +1038,15 @@ describe("MessageHandler - handleMessageRevokeEvent", () => {
         },
       };
 
-      const mockUpdateResult = createUpdateResult(1);
-      mockQueryBuilder.executeTakeFirst = mock(() => Promise.resolve(mockUpdateResult));
+      // Mock returning the updated message with id and contact_id
+      const mockUpdatedMessage = { id: "msg-conf", contact_id: "contact-conf" };
+      mockQueryBuilder.executeTakeFirst = mock(() => Promise.resolve(mockUpdatedMessage));
 
       // Act - send confirmation event should be handled differently
       await handleWhatsAppEvent(sendConfirmationEvent);
 
       // Assert - should use message:status type, not message:deleted
+      expect(mockBroadcastToCompany).toHaveBeenCalled();
       const broadcastPayload = mockBroadcastToCompany.mock.calls[0]?.[1];
       expect(broadcastPayload?.type).toBe("message:status");
     });

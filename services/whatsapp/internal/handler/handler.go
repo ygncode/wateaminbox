@@ -183,20 +183,24 @@ func (h *Handler) HandleEvent(evt interface{}) {
 
 // handleMessage processes incoming messages.
 func (h *Handler) handleMessage(msg *events.Message) {
-	log.Printf("Received message from %s", msg.Info.Sender.String())
+	// Normalize JIDs to remove device suffix (e.g., ":3" from "44578136657990:3@s.whatsapp.net")
+	senderJID := msg.Info.Sender.ToNonAD()
+	chatJID := msg.Info.Chat.ToNonAD()
+
+	log.Printf("Received message from %s", senderJID.String())
 
 	// Extract message content
 	msgEvent := natsClient.MessageEvent{
 		MessageID:  msg.Info.ID,
-		From:       msg.Info.Sender.String(),
-		To:         msg.Info.Chat.String(),
+		From:       senderJID.String(),
+		To:         chatJID.String(),
 		IsGroup:    msg.Info.IsGroup,
 		SenderName: msg.Info.PushName,
 		Timestamp:  msg.Info.Timestamp,
 	}
 
 	if msg.Info.IsGroup {
-		msgEvent.GroupID = msg.Info.Chat.String()
+		msgEvent.GroupID = chatJID.String()
 	}
 
 	// Handle different message types
@@ -302,7 +306,7 @@ func (h *Handler) handleMessage(msg *events.Message) {
 
 	// If we couldn't determine the message type, skip
 	if msgEvent.Type == "" {
-		log.Printf("Unknown message type from %s", msg.Info.Sender.String())
+		log.Printf("Unknown message type from %s", senderJID.String())
 		return
 	}
 
@@ -328,13 +332,15 @@ func (h *Handler) handleProtocolMessage(msg *events.Message) {
 			return
 		}
 
-		log.Printf("Message revoke received from %s for message %s", msg.Info.Sender.String(), revokedID)
+		// Normalize JIDs to remove device suffix
+		senderJID := msg.Info.Sender.ToNonAD()
+		chatJID := msg.Info.Chat.ToNonAD()
+
+		log.Printf("Message revoke received from %s for message %s", senderJID.String(), revokedID)
 
 		if h.publisher != nil {
 			// Publish the revoke event
-			to := msg.Info.Chat.String()
-			
-			if err := h.publisher.PublishMessageRevoke(revokedID, msg.Info.Sender.String(), to, msg.Info.Timestamp); err != nil {
+			if err := h.publisher.PublishMessageRevoke(revokedID, senderJID.String(), chatJID.String(), msg.Info.Timestamp); err != nil {
 				log.Printf("Failed to publish message revoke: %v", err)
 			}
 		}
@@ -389,7 +395,10 @@ func (h *Handler) handleMediaMessage(downloadable whatsmeow.DownloadableMessage,
 
 // handleReceipt processes message receipts.
 func (h *Handler) handleReceipt(receipt *events.Receipt) {
-	log.Printf("Received receipt: %s from %s", receipt.Type, receipt.Sender.String())
+	// Normalize JID to remove device suffix
+	senderJID := receipt.Sender.ToNonAD()
+
+	log.Printf("Received receipt: %s from %s", receipt.Type, senderJID.String())
 
 	// Convert message IDs
 	messageIDs := make([]string, len(receipt.MessageIDs))
@@ -403,7 +412,7 @@ func (h *Handler) handleReceipt(receipt *events.Receipt) {
 	receiptEvent := natsClient.ReceiptEvent{
 		MessageIDs:  messageIDs,
 		ReceiptType: receiptType,
-		From:        receipt.Sender.String(),
+		From:        senderJID.String(),
 		Timestamp:   receipt.Timestamp,
 	}
 
@@ -417,10 +426,13 @@ func (h *Handler) handleReceipt(receipt *events.Receipt) {
 
 // handlePresence processes presence updates.
 func (h *Handler) handlePresence(presence *events.Presence) {
-	log.Printf("Presence update from %s: unavailable=%v", presence.From.String(), presence.Unavailable)
+	// Normalize JID to remove device suffix
+	fromJID := presence.From.ToNonAD()
+
+	log.Printf("Presence update from %s: unavailable=%v", fromJID.String(), presence.Unavailable)
 
 	presenceEvent := natsClient.PresenceEvent{
-		From:        presence.From.String(),
+		From:        fromJID.String(),
 		Unavailable: presence.Unavailable,
 		LastSeen:    presence.LastSeen,
 		Timestamp:   time.Now(),
@@ -436,6 +448,10 @@ func (h *Handler) handlePresence(presence *events.Presence) {
 
 // handleChatPresence processes typing indicator events.
 func (h *Handler) handleChatPresence(presence *events.ChatPresence) {
+	// Normalize JIDs to remove device suffix
+	senderJID := presence.Sender.ToNonAD()
+	chatJID := presence.Chat.ToNonAD()
+
 	// ChatPresence.State is "composing" when typing, "paused" when stopped
 	isTyping := presence.State == types.ChatPresenceComposing
 
@@ -446,11 +462,11 @@ func (h *Handler) handleChatPresence(presence *events.ChatPresence) {
 	}
 
 	log.Printf("Typing indicator from %s in %s: typing=%v, media=%s",
-		presence.Sender.String(), presence.Chat.String(), isTyping, mediaType)
+		senderJID.String(), chatJID.String(), isTyping, mediaType)
 
 	typingEvent := natsClient.TypingEvent{
-		From:      presence.Sender.String(),
-		ChatJID:   presence.Chat.String(),
+		From:      senderJID.String(),
+		ChatJID:   chatJID.String(),
 		IsTyping:  isTyping,
 		MediaType: mediaType,
 		Timestamp: time.Now(),
@@ -560,10 +576,19 @@ func (h *Handler) handleHistorySync(evt *events.HistorySync) {
 	var totalMessages, mediaDownloaded, mediaFailed int
 
 	for _, conv := range conversations {
-		jid := conv.GetID()
-		if jid == "" {
+		rawJID := conv.GetID()
+		if rawJID == "" {
 			continue
 		}
+
+		// Parse and normalize JID to remove any device suffix
+		parsedJID, err := types.ParseJID(rawJID)
+		if err != nil {
+			log.Printf("Failed to parse JID %s: %v", rawJID, err)
+			continue
+		}
+		normalizedJID := parsedJID.ToNonAD()
+		jid := normalizedJID.String()
 
 		// Determine if this is a group chat
 		isGroup := conv.GetIsDefaultSubgroup() || len(conv.GetParticipant()) > 0
@@ -578,13 +603,10 @@ func (h *Handler) handleHistorySync(evt *events.HistorySync) {
 		// Fetch profile picture for individual contacts (not groups)
 		var profilePicURL string
 		if !isGroup {
-			parsedJID, err := types.ParseJID(jid)
-			if err == nil {
-				profilePicURL = h.fetchProfilePicture(parsedJID)
-				// Small delay to avoid rate limiting
-				if profilePicURL != "" {
-					time.Sleep(200 * time.Millisecond)
-				}
+			profilePicURL = h.fetchProfilePicture(normalizedJID)
+			// Small delay to avoid rate limiting
+			if profilePicURL != "" {
+				time.Sleep(200 * time.Millisecond)
 			}
 		}
 
@@ -803,21 +825,23 @@ func (h *Handler) handleStreamReplaced(evt *events.StreamReplaced) {
 
 // handlePicture processes profile picture updates.
 func (h *Handler) handlePicture(evt *events.Picture) {
-	log.Printf("Profile picture update for %s (remove: %v)", evt.JID.String(), evt.Remove)
+	// Normalize JID to remove device suffix for consistent contact matching
+	normalizedJID := evt.JID.ToNonAD()
+	log.Printf("Profile picture update for %s (remove: %v)", normalizedJID.String(), evt.Remove)
 
 	var profilePictureURL string
 	if !evt.Remove {
-		// Fetch the new profile picture
+		// Fetch the new profile picture (use original JID for API call)
 		profilePictureURL = h.fetchProfilePicture(evt.JID)
 		if profilePictureURL == "" {
-			log.Printf("Failed to fetch new profile picture for %s", evt.JID.String())
+			log.Printf("Failed to fetch new profile picture for %s", normalizedJID.String())
 			return
 		}
 	}
 
-	// Publish to NATS
+	// Publish to NATS with normalized JID
 	if h.publisher != nil {
-		if err := h.publisher.PublishProfilePicture(evt.JID.String(), profilePictureURL, evt.Remove, evt.Timestamp); err != nil {
+		if err := h.publisher.PublishProfilePicture(normalizedJID.String(), profilePictureURL, evt.Remove, evt.Timestamp); err != nil {
 			log.Printf("Failed to publish profile picture update: %v", err)
 		}
 	}
@@ -907,19 +931,23 @@ func (h *Handler) handleReactionMessage(msg *events.Message) {
 		return
 	}
 
+	// Normalize JIDs to remove device suffix
+	senderJID := msg.Info.Sender.ToNonAD()
+	chatJID := msg.Info.Chat.ToNonAD()
+
 	// Get the target message ID
 	targetMsgID := reactionMsg.Key.GetID()
 	emoji := reactionMsg.GetText()
 
 	log.Printf("Received reaction from %s: %s on message %s",
-		msg.Info.Sender.String(), emoji, targetMsgID)
+		senderJID.String(), emoji, targetMsgID)
 
 	// Publish reaction to NATS
 	if h.publisher != nil {
 		if err := h.publisher.PublishReaction(
 			targetMsgID,
-			msg.Info.Sender.String(),
-			msg.Info.Chat.String(),
+			senderJID.String(),
+			chatJID.String(),
 			emoji,
 			msg.Info.Timestamp,
 		); err != nil {

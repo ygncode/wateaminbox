@@ -508,6 +508,72 @@ count_remaining_tasks() {
 }
 
 # =============================================================================
+# Context Management
+# =============================================================================
+
+# Initialize context.md for a task
+init_context() {
+    local work_dir="$LOOP_DIR/$CURRENT_SLUG"
+    local context_file="$work_dir/context.md"
+
+    mkdir -p "$work_dir"
+
+    if [ -f "$context_file" ]; then
+        log_verbose "Context file already exists: $context_file"
+        return 0
+    fi
+
+    cat > "$context_file" << EOF
+# Context: $CURRENT_SLUG
+
+Task: $CURRENT_TASK
+Type: $CURRENT_TASK_TYPE
+Started: $(date -Iseconds)
+
+---
+
+## Discoveries
+<!-- Codebase findings: files, patterns, architecture insights -->
+
+## Decisions
+<!-- Key decisions and rationale (e.g., "chose X over Y because...") -->
+
+## Progress
+<!-- Running summary of what's been done -->
+
+EOF
+
+    log_verbose "Initialized context file: $context_file"
+}
+
+# Get context file path for current task
+get_context_file() {
+    echo "$LOOP_DIR/$CURRENT_SLUG/context.md"
+}
+
+# Build context instruction for prompts
+# Usage: $(build_context_instruction "read") or $(build_context_instruction "read_write")
+build_context_instruction() {
+    local mode="${1:-read_write}"
+    local context_file
+    context_file=$(get_context_file)
+
+    if [ "$mode" = "read" ]; then
+        echo "CONTEXT FILE: $context_file
+- Read this file FIRST to understand prior discoveries and decisions
+- This contains insights from previous phases - leverage them, don't re-discover"
+    else
+        echo "CONTEXT FILE: $context_file
+- Read this file FIRST to understand prior discoveries and decisions
+- UPDATE it continuously as you work:
+  - Add codebase discoveries to ## Discoveries (files found, patterns, insights)
+  - Add key decisions to ## Decisions (what you chose and why)
+  - Update ## Progress with what you accomplished
+- Keep entries concise but informative for future phases"
+    fi
+}
+
+# =============================================================================
 # State Management
 # =============================================================================
 STATE_FILE="$LOOP_DIR/state.json"
@@ -697,6 +763,8 @@ phase_requirements() {
     mkdir -p "$work_dir"
 
     local req_file="$work_dir/requirement.md"
+    local context_instruction
+    context_instruction=$(build_context_instruction "read_write")
 
     local prompt="You are analyzing a task and creating a detailed requirements document.
 
@@ -706,13 +774,16 @@ PROJECT CONTEXT:
 - Go services (whatsapp, orchestrator) + TypeScript (Hono API, React frontend)
 - See CLAUDE.md for full architecture details
 
+$context_instruction
+
 USER TASK:
 $CURRENT_TASK
 
 YOUR TASK:
 1. Analyze the task thoroughly
 2. Research the codebase to understand current state
-3. Create a comprehensive requirements document at: $req_file
+3. Update context.md with discoveries (files found, patterns, architecture insights)
+4. Create a comprehensive requirements document at: $req_file
 
 FORMAT for $req_file:
 # Requirements: <Title>
@@ -741,7 +812,7 @@ FORMAT for $req_file:
 ## Success Criteria
 - <how to verify the task is complete>
 
-IMPORTANT: Write the file now. Be thorough and specific."
+IMPORTANT: Write the file now. Be thorough and specific. Update context.md with your discoveries."
 
     run_cyolo "$prompt" "Generating requirements..."
     save_state "1" "requirements"
@@ -821,6 +892,8 @@ phase_specs() {
     local work_dir="$LOOP_DIR/$CURRENT_SLUG"
     local req_file="$work_dir/requirement.md"
     local specs_file="$work_dir/specs.md"
+    local context_instruction
+    context_instruction=$(build_context_instruction "read_write")
 
     save_state "3" "specs"
 
@@ -832,10 +905,14 @@ phase_specs() {
 REQUIREMENTS:
 $req_content
 
+$context_instruction
+
 YOUR TASK:
-1. Analyze the requirements
-2. Research the codebase to understand implementation context
-3. Create detailed technical specifications at: $specs_file
+1. Read context.md FIRST - leverage discoveries from requirements phase
+2. Analyze the requirements
+3. Research codebase further if needed (update context.md with new discoveries)
+4. Create detailed technical specifications at: $specs_file
+5. Update context.md with architecture decisions made
 
 FORMAT for $specs_file:
 # Technical Specification: <Title>
@@ -876,7 +953,7 @@ FORMAT for $specs_file:
 ## Rollback Plan
 <How to revert if issues arise>
 
-IMPORTANT: Write the file now. Be thorough but practical."
+IMPORTANT: Write the file now. Be thorough but practical. Update context.md with your decisions."
 
     run_cyolo "$specs_prompt" "Generating specifications..."
 
@@ -956,6 +1033,8 @@ phase_subtasks() {
     local req_file="$work_dir/requirement.md"
     local specs_file="$work_dir/specs.md"
     local subtasks_file="$work_dir/subtasks.md"
+    local context_instruction
+    context_instruction=$(build_context_instruction "read")
 
     save_state "5" "subtasks"
 
@@ -967,8 +1046,12 @@ $(cat "$req_file")
 SPECIFICATIONS:
 $(cat "$specs_file")
 
+$context_instruction
+
 YOUR TASK:
-Create a detailed task list at: $subtasks_file
+1. Read context.md FIRST - it has file locations and architecture decisions
+2. Create a detailed task list at: $subtasks_file
+3. Use discoveries from context.md to be specific about file paths
 
 FORMAT:
 # Sub-Tasks: <Title>
@@ -1003,7 +1086,7 @@ RULES:
 2. Tasks should be ordered by dependency
 3. Include testing tasks for each component
 4. Maximum 15 tasks
-5. Be specific about files and changes
+5. Be specific about files and changes - use paths from context.md
 
 IMPORTANT: Write the file now."
 
@@ -1048,35 +1131,44 @@ phase_execute() {
 
         log_info "Pending subtasks found, executing batch..."
 
+        local context_instruction
+        context_instruction=$(build_context_instruction "read_write")
+
         local exec_prompt="You are implementing sub-tasks for a WhatsApp Web business platform.
 
 TASKS FILE: $subtasks_file
 LOG FILE: $log_file
 
+$context_instruction
+
 YOUR TASK:
 
-1. Read the tasks file $subtasks_file
-2. Find pending tasks (marked with [ ])
-3. Implement AS MANY as you can in this session:
+1. Read context.md FIRST - it has file locations, patterns, and decisions from earlier phases
+2. Read the tasks file $subtasks_file
+3. Find pending tasks (marked with [ ])
+4. Implement AS MANY as you can in this session:
    - You decide the batch size based on complexity
    - Simple related tasks → do multiple together
    - Complex task → focus on just that one
    - For each completed task: mark [x] in $subtasks_file
    - Log what you did in $log_file
+   - Update context.md with new discoveries and progress
 
-4. If you get BLOCKED on a task:
+5. If you get BLOCKED on a task:
    - Mark it with [!] in $subtasks_file
-   - Document why in $log_file
+   - Document why in $log_file and context.md
    - Continue with other tasks if possible
 
-5. When you've done a reasonable batch OR hit a good stopping point:
+6. When you've done a reasonable batch OR hit a good stopping point:
    - Make sure all completed work is saved
+   - Update context.md ## Progress section
    - The script will check and call you again if more remain
 
 RULES:
 - Be thorough - each task should be fully done before marking [x]
 - Follow existing code patterns and style
 - Document everything in the log file
+- Update context.md with discoveries and progress
 - It's OK to stop after a batch - script will loop
 
 Start implementing now."
@@ -1103,19 +1195,25 @@ phase_code_review() {
 
     save_state "7" "code-review"
 
+    local context_instruction
+    context_instruction=$(build_context_instruction "read_write")
+
     local review_prompt="You are reviewing code and iterating until APPROVED.
 
 SPECS FILE: $specs_file
 TASKS FILE: $subtasks_file
 REVIEW FILE: $review_file
 
+$context_instruction
+
 YOUR TASK - KEEP ITERATING UNTIL APPROVED:
 
-1. Review the code changes:
+1. Read context.md FIRST - understand what was intended and decided
+2. Review the code changes:
    - Run: git diff main
    - Check all modified files
 
-2. Check for issues:
+3. Check for issues:
    - Code quality problems
    - Missing error handling
    - Security concerns
@@ -1123,7 +1221,7 @@ YOUR TASK - KEEP ITERATING UNTIL APPROVED:
    - Missing tests
    - Incomplete implementations
 
-3. Write review to $review_file with format:
+4. Write review to $review_file with format:
    # Code Review
    ## Verdict: APPROVED | NEEDS_CHANGES
    ## Issues Found
@@ -1131,20 +1229,23 @@ YOUR TASK - KEEP ITERATING UNTIL APPROVED:
    - [ ] issue with file and fix
    ## Summary
 
-4. If NEEDS_CHANGES:
+5. If NEEDS_CHANGES:
    - Fix ALL critical issues in the code
    - Mark fixed items [x] in $review_file
+   - Update context.md with issues found and fixes applied
    - Review again
    - REPEAT until APPROVED
 
-5. If APPROVED:
+6. If APPROVED:
    - Write final 'APPROVED' verdict
+   - Update context.md ## Progress with review completion
    - You're done!
 
 RULES:
 - Do NOT stop until code is APPROVED
 - Fix issues yourself, don't just list them
 - Run tests after fixes to verify
+- Document significant findings in context.md
 
 Start reviewing now and keep iterating until APPROVED."
 
@@ -1170,11 +1271,16 @@ phase_testing() {
         return 0
     fi
 
+    local context_instruction
+    context_instruction=$(build_context_instruction "read_write")
+
     local test_prompt="You are running tests and ensuring all tests pass before we can merge.
 
 TASK: $CURRENT_TASK
 TYPE: $CURRENT_TASK_TYPE
 TEST LOG: $test_log
+
+$context_instruction
 
 PROJECT TEST COMMANDS:
 - Backend: cd apps/api && bun test
@@ -1183,35 +1289,37 @@ PROJECT TEST COMMANDS:
 
 YOUR TASK - KEEP LOOPING UNTIL ALL TESTS PASS:
 
-1. Determine which tests to run based on what files were changed:
+1. Read context.md to understand what was changed and why
+2. Determine which tests to run based on what files were changed:
    - Check: git diff main --name-only
    - apps/api/* → run backend tests
    - apps/web/* → run E2E tests
    - services/* → run Go tests
 
-2. Run the relevant tests
+3. Run the relevant tests
 
-3. If tests PASS:
+4. If tests PASS:
    - Write 'ALL TESTS PASSED' to $test_log
+   - Update context.md ## Progress with test results
    - You're done!
 
-4. If tests FAIL:
+5. If tests FAIL:
    - Analyze the failure carefully
    - Fix the code causing the failure
    - Add missing tests if needed
-   - Document what you fixed in $test_log
+   - Document what you fixed in $test_log and context.md
    - Run tests again
    - REPEAT until all pass
 
-5. If you're STUCK (tried multiple times, can't fix):
+6. If you're STUCK (tried multiple times, can't fix):
    - Write 'BLOCKED: <specific reason>' to $test_log
-   - Explain what you tried and why it's blocked
+   - Update context.md with what you tried and why it's blocked
 
 IMPORTANT RULES:
 - Do NOT stop until tests pass or you're truly blocked
 - Fix root causes, not symptoms
 - Keep trying different approaches if one doesn't work
-- Document everything in the test log
+- Document everything in the test log and context.md
 
 Start running tests now and keep going until they all pass."
 
@@ -1253,6 +1361,9 @@ Started: $(date)
 
 EOF
 
+    local context_instruction
+    context_instruction=$(build_context_instruction "read_write")
+
     local fix_prompt="You are fixing a $CURRENT_TASK_TYPE in a WhatsApp Web business platform.
 
 TASK: $CURRENT_TASK
@@ -1263,20 +1374,26 @@ PROJECT CONTEXT:
 - Go services (whatsapp, orchestrator) + TypeScript (Hono API, React frontend)
 - See CLAUDE.md for architecture details
 
+$context_instruction
+
 YOUR TASK:
-1. Analyze the task and understand what needs to be done
-2. Research the codebase to find relevant files
-3. Make the necessary changes to fix/implement the task
-4. Run relevant tests to verify the fix works
-5. Document what you did in: $log_file
+1. Read context.md if it exists (may have prior discoveries)
+2. Analyze the task and understand what needs to be done
+3. Research the codebase to find relevant files
+4. Update context.md with discoveries (files found, patterns identified)
+5. Make the necessary changes to fix/implement the task
+6. Run relevant tests to verify the fix works
+7. Document what you did in: $log_file
+8. Update context.md ## Progress with completion status
 
 RULES:
 - Focus on the specific task, don't over-engineer
 - Follow existing code patterns and style
 - Ensure the fix is complete and tested
 - Keep changes minimal and focused
+- Document discoveries in context.md for future reference
 
-IMPORTANT: Start working on this task now. Document your progress in the log file."
+IMPORTANT: Start working on this task now. Document your progress in the log file and context.md."
 
     run_cyolo "$fix_prompt" "Implementing direct fix..."
 
@@ -1507,6 +1624,9 @@ run_task_workflow() {
     log_info "TYPE: $CURRENT_TASK_TYPE"
     log_info "SLUG: $CURRENT_SLUG"
     log_info "=============================================="
+
+    # Initialize shared context file for this task
+    init_context
 
     case "$CURRENT_TASK_TYPE" in
         "feature")

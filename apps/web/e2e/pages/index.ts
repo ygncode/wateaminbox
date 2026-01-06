@@ -6,3 +6,4 @@ export { ChatPage } from "./chat.page";
 export { HomePage } from "./home.page";
 export { SettingsPage } from "./settings.page";
 export { DashboardPage } from "./dashboard.page";
+export { WhatsAppConnectionPage } from "./whatsapp-connection.page";

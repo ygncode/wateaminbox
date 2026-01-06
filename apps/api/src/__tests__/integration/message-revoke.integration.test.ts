@@ -175,48 +175,41 @@ mock.module('../../routes/ws.js', () => ({
   broadcastToCompany: mockBroadcastToCompany,
 }))
 
-// Mock other dependencies
+// Mock NATS - mock all exports needed by message-handler and its dependencies
 const mockSubscribeToAllEvents = mock(async () => ({}))
-const mockUpdateConnectionStatus = mock(async () => {})
 
 mock.module('../../lib/nats.js', () => ({
+  NATS_SUBJECTS: {},
+  getNatsConnection: mock(async () => ({})),
+  getJetStreamClient: mock(async () => ({})),
+  publishCommand: mock(async () => {}),
+  publishSpawnCommand: mock(async () => {}),
+  publishKillCommand: mock(async () => {}),
+  publishSendMessage: mock(async () => {}),
+  publishPostStatus: mock(async () => {}),
+  publishGroupPromoteAdmin: mock(async () => {}),
+  publishGroupDemoteAdmin: mock(async () => {}),
+  publishGroupRemoveParticipant: mock(async () => {}),
+  publishGroupUpdateSettings: mock(async () => {}),
+  publishSyncLabels: mock(async () => {}),
+  publishApplyLabel: mock(async () => {}),
+  publishRemoveLabel: mock(async () => {}),
+  subscribe: mock(async () => {}),
+  subscribeToCompanyEvents: mock(async () => {}),
+  subscribeToConnectionEvents: mock(async () => {}),
   subscribeToAllEvents: mockSubscribeToAllEvents,
-  type: {} as never,
+  closeNatsConnection: mock(async () => {}),
+  isNatsConnected: mock(() => true),
+  request: mock(async () => ({})),
+  publishSyncCatalogs: mock(async () => {}),
+  publishSyncCatalogProducts: mock(async () => {}),
+  publishSendReaction: mock(async () => {}),
 }))
 
-// Error classes need to be defined for the mock
-class ConnectionNotFoundError extends Error {
-  constructor(message = 'Connection not found') { super(message); this.name = 'ConnectionNotFoundError' }
-}
-class ConnectionAlreadyExistsError extends Error {
-  constructor(message = 'Connection already exists') { super(message); this.name = 'ConnectionAlreadyExistsError' }
-}
-class InvalidConnectionStateError extends Error {
-  constructor(message = 'Invalid connection state') { super(message); this.name = 'InvalidConnectionStateError' }
-}
-class MaxConnectionsExceededError extends Error {
-  constructor(message = 'Max connections exceeded') { super(message); this.name = 'MaxConnectionsExceededError' }
-}
-
-mock.module('../../services/whatsapp.service.js', () => ({
-  updateConnectionStatus: mockUpdateConnectionStatus,
-  // Stub other exports to prevent Bun's global mock.module from breaking other tests
-  listConnections: mock(async () => []),
-  getConnection: mock(async () => null),
-  spawnConnection: mock(async () => ({})),
-  killConnection: mock(async () => {}),
-  getConnectionStatus: mock(async () => ({})),
-  sendMessage: mock(async () => ({})),
-  updateLastSync: mock(async () => {}),
-  getActiveConnection: mock(async () => null),
-  getActiveConnections: mock(async () => []),
-  getConnectionLimits: mock(async () => ({ current: 0, max: 5 })),
-  // Export error classes
-  ConnectionNotFoundError,
-  ConnectionAlreadyExistsError,
-  InvalidConnectionStateError,
-  MaxConnectionsExceededError,
-}))
+// Note: We intentionally do NOT mock whatsapp.service.js here.
+// The handleMessageRevokeEvent function doesn't use any whatsapp.service functions.
+// Mocking the entire module with mock.module() would break whatsapp.service.test.ts
+// when running all tests together since Bun's mock.module is global.
 
 // Mock the tenant service module
 const tenantServiceMock = {

@@ -1,6 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query'
 import type { PaginatedMessages } from '@whatsapp-web/shared'
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useRef } from 'react'
+import { useAuth } from './auth-context'
 import { chatKeys } from '../hooks/useChats'
 import { infiniteMessageKeys } from '../hooks/useInfiniteMessages'
 import { getAccessToken, getCompanyId } from '../lib/api'
@@ -59,6 +60,14 @@ export function WebSocketProvider({ children, autoConnect = true }: WebSocketPro
   const wsClientRef = useRef<WebSocketClient | null>(null)
   const typingTimeoutsRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map())
   const isInitializedRef = useRef(false)
+
+  // Track previous company ID to detect changes
+  // This is needed because WebSocket URL includes company ID for routing events
+  const previousCompanyIdRef = useRef<string | null>(null)
+
+  // Get current company ID from auth context
+  // When this changes (e.g., user creates first company), we need to reconnect WebSocket
+  const { currentCompanyId } = useAuth()
 
   // TanStack Query client for cache updates
   const queryClient = useQueryClient()
@@ -165,6 +174,75 @@ export function WebSocketProvider({ children, autoConnect = true }: WebSocketPro
       connect()
     }, 100)
   }, [connect, disconnect])
+
+  /**
+   * Force reconnect with fresh credentials
+   *
+   * Unlike regular reconnect(), this completely destroys the existing WebSocket client
+   * and creates a new one. This is necessary when credentials change (e.g., company ID)
+   * because the WebSocket URL includes the company ID for server-side event routing.
+   *
+   * Flow:
+   * 1. Disconnect existing connection
+   * 2. Reset the singleton client instance
+   * 3. Clear local refs to force reinitialization
+   * 4. Create new client with fresh credentials from localStorage
+   */
+  const forceReconnectWithFreshCredentials = useCallback(() => {
+    wsClientRef.current?.disconnect()
+    resetWebSocketClient()
+    wsClientRef.current = null
+    isInitializedRef.current = false
+
+    // Small delay before reconnecting to allow cleanup
+    setTimeout(() => {
+      const token = getAccessToken()
+      if (token) {
+        const client = initializeClient()
+        client.connect()
+      }
+    }, 100)
+  }, [initializeClient])
+
+  /**
+   * Reconnect WebSocket when company ID changes
+   *
+   * This handles the case where:
+   * 1. User logs in without a company → WebSocket connects without company ID
+   * 2. User creates their first company → company ID is set
+   * 3. WebSocket needs to reconnect WITH the company ID so the server can route
+   *    events (like QR codes) to the correct client
+   *
+   * Without this, users would see "Pending" forever when creating their first
+   * WhatsApp connection because QR code events wouldn't reach their WebSocket.
+   */
+  useEffect(() => {
+    // Skip on initial mount when both are null
+    if (previousCompanyIdRef.current === null && currentCompanyId === null) {
+      return
+    }
+
+    // Case 1: Company switched to a different one
+    if (
+      previousCompanyIdRef.current !== null &&
+      currentCompanyId !== null &&
+      previousCompanyIdRef.current !== currentCompanyId
+    ) {
+      console.log(
+        '[WebSocket] Company changed, reconnecting with new company ID:',
+        currentCompanyId
+      )
+      forceReconnectWithFreshCredentials()
+    }
+
+    // Case 2: First company created (was null, now has value)
+    if (previousCompanyIdRef.current === null && currentCompanyId !== null) {
+      console.log('[WebSocket] Company ID set, reconnecting:', currentCompanyId)
+      forceReconnectWithFreshCredentials()
+    }
+
+    previousCompanyIdRef.current = currentCompanyId
+  }, [currentCompanyId, forceReconnectWithFreshCredentials])
 
   // Send a message through WebSocket
   const send = useCallback(function sendMessage<T>(type: string, payload: T): boolean {
