@@ -23,7 +23,7 @@ const searchRateLimiter: MiddlewareHandler = rateLimitConfig.enabled
       keyStrategy: "user",
       keyPrefix: "resource-search",
     })
-  : async (c, next) => await next();
+  : async (_c, next) => await next();
 
 /**
  * GET /search - Global search across messages and contacts

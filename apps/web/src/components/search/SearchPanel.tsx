@@ -76,7 +76,7 @@ function useDebounce<T>(value: T, delay: number): T {
 /**
  * Highlight matching text in search results
  */
-function HighlightedText({ text, query }: { text: string; query: string }): JSX.Element {
+function HighlightedText({ text, query }: { text: string; query: string }): React.ReactElement {
   if (!query.trim() || !text) {
     return <>{text}</>
   }
@@ -131,7 +131,7 @@ function formatTimestamp(dateString: string): string {
 /**
  * Get icon for message type
  */
-function getMessageTypeIcon(type: string | null): JSX.Element | null {
+function getMessageTypeIcon(type: string | null): React.ReactElement | null {
   switch (type) {
     case 'image':
       return <Image className="w-4 h-4 text-gray-400 dark:text-dark-text-tertiary" />
@@ -299,7 +299,7 @@ function MessageFilters({
   const messageTypes: {
     value: MessageType
     label: string
-    icon: JSX.Element
+    icon: React.ReactElement
   }[] = [
     {
       value: 'text',
@@ -531,7 +531,7 @@ export function SearchPanel({
     }
   }, [])
 
-  const tabs: { value: SearchTab; label: string; icon: JSX.Element }[] = [
+  const tabs: { value: SearchTab; label: string; icon: React.ReactElement }[] = [
     { value: 'all', label: 'All', icon: <Search className="w-4 h-4" /> },
     {
       value: 'messages',

@@ -1,32 +1,39 @@
 import * as React from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
 import { useAuth } from '../contexts/auth-context'
 import { api } from '../lib/api'
+import { companySetupSchema, type CompanySetupFormData } from '../lib/schemas'
 
 export function CompanySetupPage() {
   const navigate = useNavigate()
   const { refreshSession, logout } = useAuth()
-  const [companyName, setCompanyName] = React.useState('')
   const [isLoading, setIsLoading] = React.useState(false)
-  const [error, setError] = React.useState<string | null>(null)
+  const [serverError, setServerError] = React.useState<string | null>(null)
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!companyName.trim()) {
-      setError('Company name is required')
-      return
-    }
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<CompanySetupFormData>({
+    resolver: zodResolver(companySetupSchema),
+    defaultValues: {
+      name: '',
+    },
+  })
 
+  const onSubmit = async (data: CompanySetupFormData) => {
     setIsLoading(true)
-    setError(null)
+    setServerError(null)
 
     try {
-      await api.post('/companies', { name: companyName.trim() })
+      await api.post('/companies', { name: data.name.trim() })
       // Refresh session to get the new company
       await refreshSession()
       navigate('/chat')
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create company')
+      setServerError(err instanceof Error ? err.message : 'Failed to create company')
     } finally {
       setIsLoading(false)
     }
@@ -60,13 +67,13 @@ export function CompanySetupPage() {
             </p>
           </div>
 
-          {error && (
+          {serverError && (
             <div className="mb-4 p-3 bg-red-100 dark:bg-red-900/30 border border-red-400 dark:border-red-800 text-red-700 dark:text-red-400 rounded">
-              {error}
+              {serverError}
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
             <div>
               <label
                 htmlFor="companyName"
@@ -77,17 +84,23 @@ export function CompanySetupPage() {
               <input
                 id="companyName"
                 type="text"
-                value={companyName}
-                onChange={(e) => setCompanyName(e.target.value)}
                 placeholder="Enter your company name"
                 className="w-full px-4 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent dark:bg-dark-tertiary dark:text-dark-text-primary dark:placeholder:text-dark-text-tertiary"
                 disabled={isLoading}
+                aria-invalid={errors.name ? 'true' : 'false'}
+                aria-describedby={errors.name ? 'companyName-error' : undefined}
+                {...register('name')}
               />
+              {errors.name && (
+                <p id="companyName-error" className="mt-1 text-xs text-red-500 dark:text-red-400" role="alert">
+                  {errors.name.message}
+                </p>
+              )}
             </div>
 
             <button
               type="submit"
-              disabled={isLoading || !companyName.trim()}
+              disabled={isLoading}
               className="w-full bg-green-500 text-white py-2 px-4 rounded-lg hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               {isLoading ? 'Creating...' : 'Create Company'}

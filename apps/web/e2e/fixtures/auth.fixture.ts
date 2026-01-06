@@ -45,7 +45,23 @@ export const test = base.extend<{
    * - apps/web/src/lib/api.ts (TOKEN_STORAGE_KEY, REFRESH_TOKEN_STORAGE_KEY, COMPANY_ID_STORAGE_KEY)
    */
   authenticatedPage: async ({ page }, use) => {
-    // Mock API responses before navigation
+    // Set up mock authentication state in localStorage BEFORE any navigation
+    // This ensures the auth state is available when React mounts
+    await page.addInitScript(
+      ({ accessToken, refreshToken, companyId }) => {
+        localStorage.setItem("auth_token", accessToken);
+        localStorage.setItem("refresh_token", refreshToken);
+        localStorage.setItem("company_id", companyId);
+      },
+      {
+        accessToken: MOCK_ACCESS_TOKEN,
+        refreshToken: MOCK_REFRESH_TOKEN,
+        companyId: MOCK_COMPANY_ID,
+      }
+    );
+
+    // Mock all API responses - set up BEFORE navigation
+    // Use string patterns that match the full URL to avoid over-matching
     await page.route("**/api/auth/me", (route) => {
       route.fulfill({
         status: 200,
@@ -60,19 +76,31 @@ export const test = base.extend<{
       });
     });
 
-    // Mock companies endpoint
-    await page.route("**/api/companies/me", (route) => {
-      route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({
-          data: {
-            id: MOCK_COMPANY_ID,
-            name: "Test Company",
-            createdAt: new Date().toISOString(),
-          },
-        }),
-      });
+    // Mock companies endpoint - returns array of companies with role
+    // Use exact path match to avoid matching /companies/invitations etc
+    await page.route("**/api/companies", (route) => {
+      // Only handle GET requests to /companies (not sub-paths)
+      const url = new URL(route.request().url());
+      if (url.pathname === "/api/companies" && route.request().method() === "GET") {
+        route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({
+            success: true,
+            data: [
+              {
+                id: MOCK_COMPANY_ID,
+                name: "Test Company",
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+                role: "owner",
+              },
+            ],
+          }),
+        });
+      } else {
+        route.continue();
+      }
     });
 
     // Mock contacts/chats endpoint with empty data
@@ -81,6 +109,7 @@ export const test = base.extend<{
         status: 200,
         contentType: "application/json",
         body: JSON.stringify({
+          success: true,
           data: [],
           meta: { total: 0, limit: 50, offset: 0 },
         }),
@@ -93,33 +122,85 @@ export const test = base.extend<{
         status: 200,
         contentType: "application/json",
         body: JSON.stringify({
+          success: true,
           data: [],
           meta: { total: 0, limit: 50, offset: 0 },
         }),
       });
     });
 
-    // First navigate to any page to establish the origin for localStorage
-    await page.goto("/");
+    // Mock WhatsApp connections endpoint
+    await page.route("**/api/whatsapp/connections**", (route) => {
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          success: true,
+          data: [],
+        }),
+      });
+    });
 
-    // Set up mock authentication state in localStorage
-    // These keys match what's used in apps/web/src/lib/api.ts
-    await page.evaluate(
-      ({ accessToken, refreshToken, companyId }) => {
-        // Set auth tokens - these match the storage keys in api.ts
-        localStorage.setItem("auth_token", accessToken);
-        localStorage.setItem("refresh_token", refreshToken);
-        localStorage.setItem("company_id", companyId);
-      },
-      {
-        accessToken: MOCK_ACCESS_TOKEN,
-        refreshToken: MOCK_REFRESH_TOKEN,
-        companyId: MOCK_COMPANY_ID,
+    // Mock WhatsApp status endpoint
+    await page.route("**/api/whatsapp/status**", (route) => {
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          isConnected: false,
+          isConnecting: false,
+          qrCode: null,
+        }),
+      });
+    });
+
+    // Mock notifications endpoint
+    await page.route("**/api/notifications**", (route) => {
+      const url = new URL(route.request().url());
+      if (url.pathname.endsWith("/count")) {
+        route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({ success: true, data: { count: 0 } }),
+        });
+      } else {
+        route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({ success: true, data: [] }),
+        });
       }
-    );
+    });
 
-    // Reload to apply the authentication state
-    await page.reload();
+    // Mock tags endpoint
+    await page.route("**/api/tags**", (route) => {
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ success: true, data: [] }),
+      });
+    });
+
+    // Mock analytics endpoint
+    await page.route("**/api/analytics**", (route) => {
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          success: true,
+          data: {
+            totalMessages: 0,
+            totalContacts: 0,
+            activeChats: 0,
+          },
+        }),
+      });
+    });
+
+    // Mock WebSocket upgrade - just continue (don't mock WebSocket)
+    await page.route("**/api/ws**", (route) => {
+      route.continue();
+    });
 
     await use(page);
 

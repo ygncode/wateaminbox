@@ -1,6 +1,8 @@
 module github.com/ygncode-lab/whatsapp-web/services/orchestrator
 
-go 1.22
+go 1.24.0
+
+toolchain go1.24.2
 
 require github.com/nats-io/nats.go v1.31.0
 

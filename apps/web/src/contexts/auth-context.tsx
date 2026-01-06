@@ -59,14 +59,18 @@ interface ApiUser {
   emailVerified?: boolean
 }
 
-function mapApiUserToAuthUser(apiUser: ApiUser): AuthUser {
+function mapApiUserToAuthUser(
+  apiUser: ApiUser,
+  companyId?: string,
+  role?: string
+): AuthUser {
   return {
     id: apiUser.id,
     email: apiUser.email,
     name: apiUser.name || apiUser.email.split('@')[0],
     avatarUrl: undefined,
-    companyId: '1', // Default company - will be updated when company support is added
-    role: 'agent' as UserRole,
+    companyId: companyId || '',
+    role: (role as UserRole) || 'agent',
   }
 }
 
@@ -97,15 +101,18 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
           // Use stored company ID if valid, otherwise use first company
           let currentCompanyId: string | null = null
+          let currentRole: string | undefined
           if (storedCompanyId && companies.some((c) => c.id === storedCompanyId)) {
             currentCompanyId = storedCompanyId
+            currentRole = companies.find((c) => c.id === storedCompanyId)?.role
           } else if (companies.length > 0) {
             currentCompanyId = companies[0].id
+            currentRole = companies[0].role
             setCompanyId(currentCompanyId)
           }
 
           setState({
-            user: mapApiUserToAuthUser(apiUser),
+            user: mapApiUserToAuthUser(apiUser, currentCompanyId || undefined, currentRole),
             isAuthenticated: true,
             isLoading: false,
             error: null,
@@ -137,13 +144,15 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
       // Set first company as current if available
       let currentCompanyId: string | null = null
+      let currentRole: string | undefined
       if (companies.length > 0) {
         currentCompanyId = companies[0].id
+        currentRole = companies[0].role
         setCompanyId(currentCompanyId)
       }
 
       setState({
-        user: mapApiUserToAuthUser(response.user),
+        user: mapApiUserToAuthUser(response.user, currentCompanyId || undefined, currentRole),
         isAuthenticated: true,
         isLoading: false,
         error: null,
@@ -234,15 +243,18 @@ export function AuthProvider({ children }: AuthProviderProps) {
         const storedCompanyId = getCompanyId()
 
         let currentCompanyId: string | null = null
+        let currentRole: string | undefined
         if (storedCompanyId && companies.some((c) => c.id === storedCompanyId)) {
           currentCompanyId = storedCompanyId
+          currentRole = companies.find((c) => c.id === storedCompanyId)?.role
         } else if (companies.length > 0) {
           currentCompanyId = companies[0].id
+          currentRole = companies[0].role
           setCompanyId(currentCompanyId)
         }
 
         setState({
-          user: mapApiUserToAuthUser(apiUser),
+          user: mapApiUserToAuthUser(apiUser, currentCompanyId || undefined, currentRole),
           isAuthenticated: true,
           isLoading: false,
           error: null,

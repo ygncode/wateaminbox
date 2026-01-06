@@ -1,6 +1,8 @@
 import { AlertCircle, Check, Loader2, UserPlus } from 'lucide-react'
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
 import { toast } from 'sonner'
 import {
   Button,
@@ -14,6 +16,7 @@ import {
   Textarea,
 } from '@/components/ui'
 import { useCreateContact } from '@/hooks/useContact'
+import { addContactSchema, type AddContactFormData } from '@/lib/schemas'
 
 export interface AddContactDialogProps {
   open: boolean
@@ -24,20 +27,29 @@ export interface AddContactDialogProps {
  * Dialog component for adding a new contact by phone number
  */
 export function AddContactDialog({ open, onOpenChange }: AddContactDialogProps) {
-  const [phoneNumber, setPhoneNumber] = useState('')
-  const [customName, setCustomName] = useState('')
-  const [notes, setNotes] = useState('')
-  const [error, setError] = useState<string | null>(null)
+  const [serverError, setServerError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
 
   const navigate = useNavigate()
   const createContact = useCreateContact()
 
+  const {
+    register,
+    handleSubmit,
+    reset,
+    formState: { errors },
+  } = useForm<AddContactFormData>({
+    resolver: zodResolver(addContactSchema),
+    defaultValues: {
+      phoneNumber: '',
+      customName: '',
+      notes: '',
+    },
+  })
+
   const resetForm = () => {
-    setPhoneNumber('')
-    setCustomName('')
-    setNotes('')
-    setError(null)
+    reset()
+    setServerError(null)
     setSuccess(false)
   }
 
@@ -46,39 +58,14 @@ export function AddContactDialog({ open, onOpenChange }: AddContactDialogProps) 
     onOpenChange(false)
   }
 
-  const validatePhoneNumber = (phone: string): boolean => {
-    // Remove all non-digit characters except +
-    const cleaned = phone.replace(/[^\d+]/g, '')
-    // Check minimum length (country code + number)
-    if (cleaned.length < 7) {
-      setError('Phone number is too short. Include country code (e.g., +1234567890)')
-      return false
-    }
-    if (cleaned.length > 16) {
-      setError('Phone number is too long')
-      return false
-    }
-    return true
-  }
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setError(null)
-
-    if (!phoneNumber.trim()) {
-      setError('Phone number is required')
-      return
-    }
-
-    if (!validatePhoneNumber(phoneNumber)) {
-      return
-    }
+  const onSubmit = async (data: AddContactFormData) => {
+    setServerError(null)
 
     try {
       const contact = await createContact.mutateAsync({
-        phoneNumber: phoneNumber.trim(),
-        customName: customName.trim() || undefined,
-        notesShared: notes.trim() || undefined,
+        phoneNumber: data.phoneNumber,
+        customName: data.customName || undefined,
+        notesShared: data.notes || undefined,
       })
 
       setSuccess(true)
@@ -94,10 +81,10 @@ export function AddContactDialog({ open, onOpenChange }: AddContactDialogProps) 
         if (err.message.includes('already exists')) {
           toast.error('A contact with this phone number already exists')
         } else {
-          setError(err.message)
+          setServerError(err.message)
         }
       } else {
-        setError('Failed to create contact')
+        setServerError('Failed to create contact')
       }
     }
   }
@@ -128,12 +115,12 @@ export function AddContactDialog({ open, onOpenChange }: AddContactDialogProps) 
             </p>
           </div>
         ) : (
-          <form onSubmit={handleSubmit} className="space-y-4 py-4">
-            {/* Error message */}
-            {error && (
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 py-4">
+            {/* Server error message */}
+            {serverError && (
               <div className="flex items-center gap-2 p-3 text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 rounded-lg">
                 <AlertCircle className="h-4 w-4 flex-shrink-0" />
-                <span>{error}</span>
+                <span>{serverError}</span>
               </div>
             )}
 
@@ -146,15 +133,22 @@ export function AddContactDialog({ open, onOpenChange }: AddContactDialogProps) 
                 id="phoneNumber"
                 type="tel"
                 placeholder="+1234567890"
-                value={phoneNumber}
-                onChange={(e) => setPhoneNumber(e.target.value)}
                 className="font-mono"
                 autoFocus
                 data-testid="add-contact-phone"
+                aria-invalid={errors.phoneNumber ? 'true' : 'false'}
+                aria-describedby={errors.phoneNumber ? 'phoneNumber-error' : 'phoneNumber-hint'}
+                {...register('phoneNumber')}
               />
-              <p className="text-xs text-gray-500 dark:text-dark-text-tertiary">
-                Include country code (e.g., +1 for US, +44 for UK, +95 for Myanmar)
-              </p>
+              {errors.phoneNumber ? (
+                <p id="phoneNumber-error" className="text-xs text-red-500 dark:text-red-400" role="alert">
+                  {errors.phoneNumber.message}
+                </p>
+              ) : (
+                <p id="phoneNumber-hint" className="text-xs text-gray-500 dark:text-dark-text-tertiary">
+                  Include country code (e.g., +1 for US, +44 for UK, +95 for Myanmar)
+                </p>
+              )}
             </div>
 
             {/* Custom Name Input */}
@@ -164,10 +158,16 @@ export function AddContactDialog({ open, onOpenChange }: AddContactDialogProps) 
                 id="customName"
                 type="text"
                 placeholder="John Doe"
-                value={customName}
-                onChange={(e) => setCustomName(e.target.value)}
                 data-testid="add-contact-name"
+                aria-invalid={errors.customName ? 'true' : 'false'}
+                aria-describedby={errors.customName ? 'customName-error' : undefined}
+                {...register('customName')}
               />
+              {errors.customName && (
+                <p id="customName-error" className="text-xs text-red-500 dark:text-red-400" role="alert">
+                  {errors.customName.message}
+                </p>
+              )}
             </div>
 
             {/* Notes Input */}
@@ -176,14 +176,21 @@ export function AddContactDialog({ open, onOpenChange }: AddContactDialogProps) 
               <Textarea
                 id="notes"
                 placeholder="Add notes about this contact..."
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
                 rows={3}
                 data-testid="add-contact-notes"
+                aria-invalid={errors.notes ? 'true' : 'false'}
+                aria-describedby={errors.notes ? 'notes-error' : 'notes-hint'}
+                {...register('notes')}
               />
-              <p className="text-xs text-gray-500 dark:text-dark-text-tertiary">
-                These notes will be visible to all team members
-              </p>
+              {errors.notes ? (
+                <p id="notes-error" className="text-xs text-red-500 dark:text-red-400" role="alert">
+                  {errors.notes.message}
+                </p>
+              ) : (
+                <p id="notes-hint" className="text-xs text-gray-500 dark:text-dark-text-tertiary">
+                  These notes will be visible to all team members
+                </p>
+              )}
             </div>
 
             {/* Action Buttons */}
@@ -198,7 +205,7 @@ export function AddContactDialog({ open, onOpenChange }: AddContactDialogProps) 
               </Button>
               <Button
                 type="submit"
-                disabled={createContact.isPending || !phoneNumber.trim()}
+                disabled={createContact.isPending}
                 className="bg-whatsapp-teal-green hover:bg-whatsapp-dark-green"
                 data-testid="add-contact-submit"
               >

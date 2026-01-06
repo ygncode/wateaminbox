@@ -2,11 +2,14 @@ import type { ServerWebSocket } from "bun";
 import { Hono } from "hono";
 import { createBunWebSocket } from "hono/bun";
 import { verifyAccessToken } from "../lib/jwt.js";
+import { createLogger, formatError } from "../lib/logger.js";
 import { publishSendMessage } from "../lib/nats.js";
 import { getUserById } from "../services/auth.service.js";
 import { getMemberRole } from "../services/company.service.js";
 import { getTenantConnection } from "../services/tenant.service.js";
 import { getActiveConnection } from "../services/whatsapp.service.js";
+
+const logger = createLogger("WebSocket");
 
 // WebSocket data interface
 interface WSData {
@@ -64,7 +67,8 @@ interface ServerMessage {
     | "presence:online"
     | "presence:offline"
     | "typing:start"
-    | "typing:stop";
+    | "typing:stop"
+    | "notification:new";
   connectionId?: string;
   payload?: unknown;
   timestamp: string;
@@ -118,14 +122,16 @@ export function broadcastToCompany(
       }
     }
     if (message.type === "message:new") {
-      console.log(
-        `[WS] 💬 Broadcast message:new to ${sentCount} client(s) for company ${companyId}`,
+      logger.debug(
+        { sentCount, companyId },
+        "Broadcast message:new to clients",
       );
     }
   } else {
     if (message.type === "message:new") {
-      console.log(
-        `[WS] ⚠️ No active connections for company ${companyId} to broadcast message`,
+      logger.debug(
+        { companyId },
+        "No active connections for company to broadcast message",
       );
     }
   }
@@ -215,12 +221,13 @@ async function authenticateConnection(
       timestamp: new Date().toISOString(),
     });
 
-    console.log(
-      `[WS] Client authenticated: user=${user.id}, company=${companyId}`,
+    logger.info(
+      { userId: user.id, companyId },
+      "Client authenticated",
     );
     return true;
   } catch (error) {
-    console.error("[WS] Authentication error:", error);
+    logger.error({ err: formatError(error) }, "Authentication error");
     sendMessage(ws, {
       type: "auth_error",
       payload: { message: "Authentication failed" },
@@ -310,6 +317,9 @@ async function handleClientMessage(
           return;
         }
 
+        // Generate a pending message ID for this WebSocket-initiated message
+        const pendingMessageId = crypto.randomUUID();
+
         await publishSendMessage(
           ws.data.companyId,
           connection.id,
@@ -317,6 +327,7 @@ async function handleClientMessage(
           sendPayload.content,
           sendPayload.messageType || "text",
           ws.data.userId,
+          pendingMessageId,
           sendPayload.mediaUrl,
         );
 
@@ -330,7 +341,7 @@ async function handleClientMessage(
           timestamp: new Date().toISOString(),
         });
       } catch (error) {
-        console.error("[WS] Failed to send message:", error);
+        logger.error({ err: formatError(error) }, "Failed to send message");
         sendMessage(ws, {
           type: "error",
           payload: { message: "Failed to send message" },
@@ -365,7 +376,7 @@ export const websocket: typeof honoWebsocket = {
     if (ws.data?.events?.onClose) {
       honoWebsocket.close(ws, code, reason);
     } else {
-      console.log("[WS] Connection closed before initialization");
+      logger.debug("Connection closed before initialization");
     }
   },
   message(
@@ -376,7 +387,7 @@ export const websocket: typeof honoWebsocket = {
     if (ws.data?.events?.onMessage) {
       honoWebsocket.message(ws, message);
     } else {
-      console.log("[WS] Message received before initialization");
+      logger.debug("Message received before initialization");
     }
   },
 };
@@ -398,7 +409,7 @@ const wsUpgradeHandler = upgradeWebSocket((c) => {
         authenticated: false,
       };
 
-      console.log("[WS] Client connected");
+      logger.debug("Client connected");
 
       // If token and company provided in query, auto-authenticate
       if (token && company) {
@@ -426,7 +437,7 @@ const wsUpgradeHandler = upgradeWebSocket((c) => {
 
     onClose: (_event, ws) => {
       const rawWs = ws.raw as unknown as ServerWebSocket<WSData>;
-      console.log("[WS] Client disconnected");
+      logger.debug("Client disconnected");
 
       // Remove from connections
       if (rawWs.data.companyId) {
@@ -435,7 +446,7 @@ const wsUpgradeHandler = upgradeWebSocket((c) => {
     },
 
     onError: (error, ws) => {
-      console.error("[WS] WebSocket error:", error);
+      logger.error({ err: formatError(error) }, "WebSocket error");
       const rawWs = ws.raw as unknown as ServerWebSocket<WSData>;
 
       // Remove from connections

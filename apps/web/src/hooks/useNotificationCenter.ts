@@ -102,7 +102,11 @@ export function useNotificationCenter(params?: NotificationListParams) {
       // Remove from the notifications list
       queryClient.setQueryData(
         ['notifications', effectiveParams],
-        (old: { data: InAppNotification[]; meta: unknown } | undefined) => {
+        (
+          old:
+            | { data: InAppNotification[]; meta: { total: number; unreadCount: number } }
+            | undefined
+        ) => {
           if (!old) return old
           const notification = old.data.find((n) => n.id === notificationId)
           return {
@@ -110,11 +114,11 @@ export function useNotificationCenter(params?: NotificationListParams) {
             data: old.data.filter((n) => n.id !== notificationId),
             meta: {
               ...old.meta,
-              total: (old.meta as { total: number }).total - 1,
+              total: old.meta.total - 1,
               unreadCount:
                 notification && !notification.isRead
-                  ? (old.meta as { unreadCount: number }).unreadCount - 1
-                  : (old.meta as { unreadCount: number }).unreadCount,
+                  ? old.meta.unreadCount - 1
+                  : old.meta.unreadCount,
             },
           }
         }

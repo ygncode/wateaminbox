@@ -13,6 +13,9 @@ import {
   resetMemberPermissions,
   getPermissionDescriptions,
 } from "../services/permission.service.js";
+import { createLogger, formatError } from "../lib/logger.js";
+
+const logger = createLogger("CompanyRoutes");
 
 // Validation schemas
 const createCompanySchema = z.object({
@@ -68,7 +71,7 @@ companyRoutes.get("/", authMiddleware, async (c) => {
       data: companies,
     });
   } catch (error) {
-    console.error("Failed to get user companies:", error);
+    logger.error({ err: formatError(error) }, "Failed to get user companies");
     throw new HTTPException(500, {
       message: "Failed to get companies",
     });
@@ -99,7 +102,7 @@ companyRoutes.post(
         201,
       );
     } catch (error) {
-      console.error("Failed to create company:", error);
+      logger.error({ err: formatError(error) }, "Failed to create company");
       throw new HTTPException(500, {
         message: "Failed to create company",
       });

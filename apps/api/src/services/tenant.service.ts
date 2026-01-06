@@ -1,4 +1,3 @@
-import type { Pool } from "pg";
 import { Kysely, sql, PostgresDialect } from "kysely";
 import { Pool as PgPool } from "pg";
 import {

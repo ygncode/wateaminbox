@@ -7,6 +7,9 @@
 
 import { getRateLimitConfig } from "../config/rate-limit.config.js";
 import type { RateLimitConfig } from "../config/rate-limit.config";
+import { createLogger, formatError } from "./logger.js";
+
+const logger = createLogger("RedisRateLimitStore");
 
 /**
  * Result of a rate limit check/increment operation
@@ -267,28 +270,29 @@ export class RedisRateLimitStore implements RateLimitStore {
     try {
       // Dynamic import to avoid requiring ioredis when not using Redis
       // @ts-expect-error - ioredis is an optional dependency
-      const redisModule = (await import("ioredis").catch(() => {
+      const redisModule = await import("ioredis").catch(() => {
         throw new Error(
           "ioredis package is required for Redis rate limiting. Install it with: bun add ioredis",
         );
-      })) as any;
+      });
 
-      const Redis = redisModule.default;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const Redis = redisModule.default as any;
       this.client = new Redis(this.redisUrl, {
         maxRetriesPerRequest: 3,
         retryStrategy: (times: number) => {
           if (times > 3) return null;
           return Math.min(times * 100, 500);
         },
-      });
+      }) as RedisClient;
 
-      this.client.on("error", (err: Error) => {
-        console.error("[RedisRateLimitStore] Redis error:", err.message);
+      this.client!.on("error", (err: Error) => {
+        logger.error({ err: formatError(err) }, "Redis error");
       });
 
       this.ready = true;
     } catch (error) {
-      console.error("[RedisRateLimitStore] Failed to connect to Redis:", error);
+      logger.error({ err: formatError(error) }, "Failed to connect to Redis");
       throw new Error(`Failed to initialize Redis store: ${error}`);
     }
   }
@@ -373,7 +377,7 @@ export class RedisRateLimitStore implements RateLimitStore {
         retryAfter,
       };
     } catch (error) {
-      console.error("[RedisRateLimitStore] Error during increment:", error);
+      logger.error({ err: formatError(error) }, "Error during increment");
       // On Redis error, fail open - allow the request
       return {
         allowed: true,
@@ -399,7 +403,7 @@ export class RedisRateLimitStore implements RateLimitStore {
     try {
       await this.client.del(countKey, startKey);
     } catch (error) {
-      console.error("[RedisRateLimitStore] Error during reset:", error);
+      logger.error({ err: formatError(error) }, "Error during reset");
     }
   }
 
@@ -438,7 +442,7 @@ export class RedisRateLimitStore implements RateLimitStore {
         await pipeline.exec();
       }
     } catch (error) {
-      console.error("[RedisRateLimitStore] Error during clear:", error);
+      logger.error({ err: formatError(error) }, "Error during clear");
     }
   }
 
@@ -450,7 +454,7 @@ export class RedisRateLimitStore implements RateLimitStore {
       try {
         await this.client.quit();
       } catch (error) {
-        console.error("[RedisRateLimitStore] Error during close:", error);
+        logger.error({ err: formatError(error) }, "Error during close");
       }
       this.client = null;
       this.ready = false;

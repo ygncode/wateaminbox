@@ -55,7 +55,7 @@ export async function getDashboardStats(
 
   // Get basic stats from company_stats table
   const companyStats = await db
-    .selectFrom("company_stats" as any)
+    .selectFrom("company_stats")
     .select(["total_messages", "total_contacts", "active_users"])
     .where("company_id", "=", companyId)
     .executeTakeFirst();
@@ -180,7 +180,7 @@ export async function getTeamActivityStats(
   const tenantDb = getTenantConnection(companyId);
 
   // Get company members with their stats
-  const members = await (db as any)
+  const members = await db
     .selectFrom("company_members as cm")
     .innerJoin("users as u", "u.id", "cm.user_id")
     .select(["cm.user_id", "u.email"])
@@ -479,7 +479,7 @@ export async function getTeamResponseTimeStats(
   const tenantDb = getTenantConnection(companyId);
 
   // Get company members
-  const members = await (db as any)
+  const members = await db
     .selectFrom("company_members as cm")
     .innerJoin("users as u", "u.id", "cm.user_id")
     .select(["cm.user_id", "u.email"])

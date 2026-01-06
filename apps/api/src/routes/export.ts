@@ -6,6 +6,9 @@ import { PERMISSIONS } from "../services/permission.service.js";
 import { createRateLimitMiddleware } from "../middleware/rate-limit.js";
 import * as exportService from "../services/export.service.js";
 import { rateLimitConfig, rateLimitStore } from "../lib/rate-limit-store.js";
+import { createLogger, formatError } from "../lib/logger.js";
+
+const logger = createLogger("ExportRoutes");
 
 export const exportRoutes = new Hono();
 
@@ -172,7 +175,7 @@ exportRoutes.get("/full", exportRateLimiter, async (c) => {
     // Return as Buffer for proper binary response
     return c.body(Buffer.from(zipData));
   } catch (error) {
-    console.error("Full backup export error:", error);
+    logger.error({ err: formatError(error) }, "Full backup export error");
     return c.json({ error: "Failed to create backup" }, 500);
   }
 });

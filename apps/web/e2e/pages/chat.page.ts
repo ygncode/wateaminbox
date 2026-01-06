@@ -473,11 +473,23 @@ export class ChatPage {
 
   /**
    * Get the error message from the add contact dialog
+   * Checks both server errors (bg-red-50 alert) and field validation errors (text-red-500)
    */
   async getAddContactError(): Promise<string | null> {
-    const errorAlert = this.addContactDialog.locator(".bg-red-50");
-    if (await errorAlert.isVisible()) {
-      return errorAlert.textContent();
+    // Check for server error (displayed in alert box)
+    const serverError = this.addContactDialog.locator(".bg-red-50");
+    if (await serverError.isVisible()) {
+      return serverError.textContent();
+    }
+    // Check for field validation error (displayed below input with role="alert")
+    const fieldError = this.addContactDialog.locator('[role="alert"]');
+    if (await fieldError.isVisible()) {
+      return fieldError.textContent();
+    }
+    // Also check for dark mode variant
+    const darkFieldError = this.addContactDialog.locator(".text-red-500, .text-red-400");
+    if (await darkFieldError.first().isVisible()) {
+      return darkFieldError.first().textContent();
     }
     return null;
   }

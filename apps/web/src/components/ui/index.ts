@@ -2,6 +2,7 @@ export { Avatar, AvatarFallback, AvatarImage } from './avatar'
 export { Badge, type BadgeProps, badgeVariants } from './badge'
 export { Button, type ButtonProps, buttonVariants } from './button'
 export { Checkbox } from './checkbox'
+export { FormField, type FormFieldProps } from './form-field'
 export {
   Dialog,
   DialogClose,

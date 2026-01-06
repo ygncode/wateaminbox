@@ -243,3 +243,86 @@ Use these semantic colors for dark mode styling (defined in `apps/web/src/index.
 3. Brand colors (`whatsapp-green`, `whatsapp-teal-green`) work in both themes - do not modify.
 
 4. Theme persistence: Theme is stored in localStorage (`whatsapp-web-theme`). The FOUC prevention script in `index.html` applies the theme before React renders.
+
+## Error Handling
+
+### React Error Boundaries
+
+The application uses React Error Boundaries to catch and handle component errors gracefully:
+
+```tsx
+// Location: apps/web/src/components/error-boundary.tsx
+
+// The ErrorBoundary wraps the entire app in main.tsx
+// Catches all React component errors and displays a user-friendly fallback
+
+// For custom error handling in specific areas:
+import { ErrorBoundary } from '@/components/error-boundary'
+
+<ErrorBoundary
+  fallback={<CustomFallback />}
+  onError={(error, errorInfo) => logToService(error)}
+>
+  <RiskyComponent />
+</ErrorBoundary>
+```
+
+Features:
+- User-friendly error screen with recovery options
+- "Go to Home" and "Refresh Page" buttons
+- Development-only error details (component stack trace)
+- Dark mode support
+
+### Form Validation
+
+The application uses react-hook-form with Zod for form validation:
+
+```tsx
+// Zod schemas are in: apps/web/src/lib/schemas/
+import { loginSchema, registerSchema, forgotPasswordSchema } from '@/lib/schemas'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { FormField } from '@/components/ui/form-field'
+
+const {
+  register,
+  handleSubmit,
+  formState: { errors },
+} = useForm({
+  resolver: zodResolver(loginSchema),
+})
+
+// Use FormField for consistent form inputs with error display
+<FormField
+  label="Email"
+  error={errors.email?.message}
+  {...register('email')}
+/>
+```
+
+Existing schemas:
+- `loginSchema` - Email and password validation
+- `registerSchema` - Name, email, password with confirmation
+- `forgotPasswordSchema` - Email validation
+- `addContactSchema` - Phone number validation
+- `companySetupSchema` - Company name validation
+
+## Email System
+
+The backend uses Resend for transactional emails:
+
+```typescript
+// Location: apps/api/src/lib/email.ts
+
+// Available email functions:
+import {
+  sendVerificationEmail,     // Account verification
+  sendPasswordResetEmail,    // Password reset
+  sendInvitationEmail,       // Team invitation
+} from '@/lib/email'
+
+// In development mode, emails are logged instead of sent
+// Set RESEND_API_KEY in .env for production
+```
+
+Email templates are HTML with inline styles for cross-client compatibility.

@@ -36,14 +36,14 @@ export function useQuickReplies(params: QuickReplyListParams = {}) {
       // Add to the list
       queryClient.setQueryData(
         ['quick-replies', params],
-        (old: { data: QuickReply[]; meta: unknown } | undefined) => {
+        (old: { data: QuickReply[]; meta: { total: number } } | undefined) => {
           if (!old) return old
           return {
             ...old,
             data: [...old.data, newQuickReply].sort((a, b) => a.shortcut.localeCompare(b.shortcut)),
             meta: {
               ...old.meta,
-              total: (old.meta as { total: number }).total + 1,
+              total: old.meta.total + 1,
             },
           }
         }
@@ -83,14 +83,14 @@ export function useQuickReplies(params: QuickReplyListParams = {}) {
       // Remove from the list
       queryClient.setQueryData(
         ['quick-replies', params],
-        (old: { data: QuickReply[]; meta: unknown } | undefined) => {
+        (old: { data: QuickReply[]; meta: { total: number } } | undefined) => {
           if (!old) return old
           return {
             ...old,
             data: old.data.filter((qr) => qr.id !== quickReplyId),
             meta: {
               ...old.meta,
-              total: Math.max(0, (old.meta as { total: number }).total - 1),
+              total: Math.max(0, old.meta.total - 1),
             },
           }
         }

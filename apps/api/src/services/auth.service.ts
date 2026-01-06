@@ -241,7 +241,7 @@ export async function verifyEmail(
       updated_at: new Date(),
     })
     .where("id", "=", userId)
-    .returning(["id", "email", "email_verified_at", "created_at", "updated_at"])
+    .returning(["id", "email", "name", "email_verified_at", "created_at", "updated_at"])
     .executeTakeFirst();
 
   if (!user) {
@@ -251,6 +251,7 @@ export async function verifyEmail(
   return {
     id: user.id,
     email: user.email,
+    name: user.name,
     emailVerifiedAt: user.email_verified_at,
     createdAt: user.created_at,
     updatedAt: user.updated_at,
