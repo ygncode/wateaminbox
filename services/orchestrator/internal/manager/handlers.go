@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"log"
+	"strings"
 	"time"
 
 	"github.com/nats-io/nats.go"
@@ -66,6 +67,14 @@ func (h *Handlers) processCommands(ctx context.Context) {
 			if err != nil {
 				if err == nats.ErrTimeout {
 					continue
+				}
+				// During shutdown, subscription is drained which causes connection closed errors
+				// These are expected and should exit gracefully
+				if err == nats.ErrConnectionClosed || err == nats.ErrBadSubscription ||
+					strings.Contains(err.Error(), "connection closed") ||
+					strings.Contains(err.Error(), "bad subscription") {
+					log.Println("Subscription closed, stopping command processing")
+					return
 				}
 				log.Printf("Error fetching messages: %v", err)
 				continue

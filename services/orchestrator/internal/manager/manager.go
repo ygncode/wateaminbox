@@ -24,14 +24,15 @@ type Config struct {
 
 // Manager handles WhatsApp worker process lifecycle.
 type Manager struct {
-	config    Config
-	mu        sync.RWMutex
-	workers   map[string]*WorkerProcess // keyed by connectionID
-	ctx       context.Context
-	cancel    context.CancelFunc
-	wg        sync.WaitGroup
-	handlers  *Handlers
-	startedAt time.Time
+	config       Config
+	mu           sync.RWMutex
+	workers      map[string]*WorkerProcess // keyed by connectionID
+	ctx          context.Context
+	cancel       context.CancelFunc
+	wg           sync.WaitGroup
+	handlers     *Handlers
+	startedAt    time.Time
+	shuttingDown bool // prevents NATS publishes during shutdown
 }
 
 // WorkerProcess represents a managed WhatsApp worker.
@@ -91,7 +92,21 @@ func (m *Manager) Start(ctx context.Context) error {
 func (m *Manager) Stop(ctx context.Context) error {
 	log.Println("Stopping process manager...")
 
-	// Cancel the manager context
+	// Set shutdown flag first to prevent NATS publishes during shutdown
+	m.mu.Lock()
+	m.shuttingDown = true
+	m.mu.Unlock()
+
+	// Stop NATS subscription first to prevent processing new commands
+	// and avoid "nats: connection closed" errors during shutdown
+	if m.handlers != nil {
+		log.Println("Stopping NATS command subscription...")
+		if err := m.handlers.StopSubscription(); err != nil {
+			log.Printf("Error stopping NATS subscription: %v", err)
+		}
+	}
+
+	// Cancel the manager context (stops health checks and monitors)
 	if m.cancel != nil {
 		m.cancel()
 	}
@@ -107,7 +122,7 @@ func (m *Manager) Stop(ctx context.Context) error {
 	for _, id := range workerIDs {
 		worker, exists := m.GetWorkerStatus(id)
 		if exists {
-			if err := m.StopWorker(ctx, worker.CompanyID, id, "orchestrator shutdown"); err != nil {
+			if err := m.stopWorkerInternal(ctx, worker.CompanyID, id, "orchestrator shutdown"); err != nil {
 				log.Printf("Error stopping worker %s: %v", id, err)
 			}
 		}
@@ -214,6 +229,19 @@ func (m *Manager) SpawnWorker(ctx context.Context, companyID, connectionID, tena
 
 // StopWorker terminates a specific worker process.
 func (m *Manager) StopWorker(ctx context.Context, companyID, connectionID, reason string) error {
+	if err := m.stopWorkerInternal(ctx, companyID, connectionID, reason); err != nil {
+		return err
+	}
+
+	// Publish stopped event (only if not shutting down)
+	m.publishConnectionStatus(companyID, connectionID, types.StatusStopped, reason)
+
+	return nil
+}
+
+// stopWorkerInternal terminates a worker without publishing events.
+// Used during shutdown to avoid NATS errors.
+func (m *Manager) stopWorkerInternal(ctx context.Context, companyID, connectionID, reason string) error {
 	m.mu.Lock()
 	worker, exists := m.workers[connectionID]
 	if !exists {
@@ -275,9 +303,6 @@ func (m *Manager) StopWorker(ctx context.Context, companyID, connectionID, reaso
 	worker.Status = types.StatusStopped
 	delete(m.workers, connectionID)
 	m.mu.Unlock()
-
-	// Publish stopped event
-	m.publishConnectionStatus(companyID, connectionID, types.StatusStopped, reason)
 
 	return nil
 }
@@ -478,7 +503,17 @@ func (m *Manager) handleWorkerFailure(connectionID, reason string) {
 }
 
 // publishConnectionStatus publishes a connection status event.
+// Skips publishing during shutdown to avoid NATS errors.
 func (m *Manager) publishConnectionStatus(companyID, connectionID, status, reason string) {
+	m.mu.RLock()
+	shuttingDown := m.shuttingDown
+	m.mu.RUnlock()
+
+	if shuttingDown {
+		log.Printf("Skipping status publish during shutdown: %s -> %s", connectionID, status)
+		return
+	}
+
 	if m.handlers != nil {
 		m.handlers.PublishConnectionStatus(companyID, connectionID, status, reason)
 	}
