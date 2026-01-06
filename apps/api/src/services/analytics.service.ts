@@ -1,6 +1,7 @@
 import { sql } from "kysely";
 import { getTenantConnection } from "./tenant.service.js";
 import { db } from "@whatsapp-web/database";
+import { startOfDay, subtractDays, toISOString, dayjs } from "@whatsapp-web/shared";
 
 /**
  * Dashboard statistics
@@ -60,8 +61,7 @@ export async function getDashboardStats(
     .where("company_id", "=", companyId)
     .executeTakeFirst();
 
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  const today = startOfDay().toDate();
 
   // Get today's message counts
   const todayMessages = await tenantDb
@@ -78,7 +78,7 @@ export async function getDashboardStats(
     .selectFrom("messages")
     .select((eb) => eb.fn.countAll().as("count"))
     .where("from_me", "=", false)
-    .where("timestamp", ">=", new Date(Date.now() - 24 * 60 * 60 * 1000))
+    .where("timestamp", ">=", subtractDays(dayjs.utc(), 1).toDate())
     .executeTakeFirst();
 
   return {
@@ -266,8 +266,7 @@ export async function getHourlyMessageStats(
 ): Promise<{ hour: number; count: number }[]> {
   const tenantDb = getTenantConnection(companyId);
 
-  const startDate = new Date();
-  startDate.setDate(startDate.getDate() - days);
+  const startDate = subtractDays(dayjs.utc(), days).toDate();
 
   const results = await tenantDb
     .selectFrom("messages")
@@ -457,7 +456,7 @@ export async function getResponseTimeTrend(
     return {
       date:
         row.date instanceof Date
-          ? row.date.toISOString().split("T")[0]
+          ? toISOString(row.date).split("T")[0]
           : String(row.date),
       averageResponseTimeMinutes: Number(row.avg_response_minutes || 0),
       conversationCount: totalCount,
@@ -591,14 +590,11 @@ export async function getNewContactsTrend(
   // Fill in all days in the range and calculate cumulative totals
   const result: NewContactsTrend[] = [];
   let cumulativeTotal = baseTotal;
-  const currentDate = new Date(startDate);
-  currentDate.setHours(0, 0, 0, 0);
+  let currentDate = dayjs.utc(startDate).startOf('day');
+  const endDateNormalized = dayjs.utc(endDate).endOf('day');
 
-  const endDateNormalized = new Date(endDate);
-  endDateNormalized.setHours(23, 59, 59, 999);
-
-  while (currentDate <= endDateNormalized) {
-    const dateStr = currentDate.toISOString().split("T")[0];
+  while (currentDate.isBefore(endDateNormalized) || currentDate.isSame(endDateNormalized, 'day')) {
+    const dateStr = currentDate.format('YYYY-MM-DD');
     const found = dailyCounts.find((d) => String(d.date) === dateStr);
     const count = found ? Number(found.count) : 0;
     cumulativeTotal += count;
@@ -609,7 +605,7 @@ export async function getNewContactsTrend(
       cumulativeTotal,
     });
 
-    currentDate.setDate(currentDate.getDate() + 1);
+    currentDate = currentDate.add(1, 'day');
   }
 
   return result;
@@ -901,18 +897,15 @@ export async function getEngagementTrend(
 
   // Fill in missing dates and calculate engagement scores
   const result: EngagementTrend[] = [];
-  const currentDate = new Date(startDate);
-  currentDate.setHours(0, 0, 0, 0);
+  let currentDate = dayjs.utc(startDate).startOf('day');
+  const endDateNormalized = dayjs.utc(endDate).endOf('day');
 
-  const endDateNormalized = new Date(endDate);
-  endDateNormalized.setHours(23, 59, 59, 999);
-
-  while (currentDate <= endDateNormalized) {
-    const dateStr = currentDate.toISOString().split("T")[0];
+  while (currentDate.isBefore(endDateNormalized) || currentDate.isSame(endDateNormalized, 'day')) {
+    const dateStr = currentDate.format('YYYY-MM-DD');
     const found = dailyStats.rows.find((d) => {
       const rowDate =
         d.date instanceof Date
-          ? d.date.toISOString().split("T")[0]
+          ? toISOString(d.date).split("T")[0]
           : String(d.date);
       return rowDate === dateStr;
     });
@@ -954,7 +947,7 @@ export async function getEngagementTrend(
       });
     }
 
-    currentDate.setDate(currentDate.getDate() + 1);
+    currentDate = currentDate.add(1, 'day');
   }
 
   return result;

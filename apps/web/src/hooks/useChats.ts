@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { useMemo } from 'react'
+import { toDate } from '@whatsapp-web/shared'
 import { getAccessToken, getCompanyId } from '../lib/api'
 import { fetchMockChats, searchMockChats } from '../lib/mock-data'
 import type { Chat } from '../types/chat'
@@ -147,7 +148,7 @@ export function useChats(
             customName: contact.customName || undefined,
             avatarUrl: contact.profilePictureUrl || undefined,
             isOnline: contact.isOnline,
-            lastSeen: contact.lastSeen ? new Date(contact.lastSeen) : undefined,
+            lastSeen: contact.lastSeen ? toDate(contact.lastSeen) ?? undefined : undefined,
             isGroup: contact.isGroup,
           },
           lastMessage: contact.lastMessage
@@ -158,7 +159,7 @@ export function useChats(
                 content: contact.lastMessage.content || '',
                 type: contact.lastMessage.messageType as any,
                 status: contact.lastMessage.status as any,
-                timestamp: new Date(contact.lastMessage.timestamp),
+                timestamp: toDate(contact.lastMessage.timestamp) ?? new Date(),
                 isFromMe: contact.lastMessage.fromMe,
               }
             : undefined,
@@ -167,7 +168,7 @@ export function useChats(
           isPinned: false,
           isMuted: false,
           isArchived: false,
-          updatedAt: new Date(contact.updatedAt),
+          updatedAt: toDate(contact.updatedAt) ?? new Date(),
         })
       )
 
@@ -254,7 +255,7 @@ export function useGroupsAsChats(searchQuery: string = '') {
                 content: '',
                 type: 'text',
                 status: 'delivered',
-                timestamp: new Date(group.lastMessageAt),
+                timestamp: toDate(group.lastMessageAt) ?? new Date(),
                 isFromMe: false,
               }
             : undefined,
@@ -262,7 +263,7 @@ export function useGroupsAsChats(searchQuery: string = '') {
           isPinned: false,
           isMuted: false,
           isArchived: false,
-          updatedAt: new Date(group.createdAt),
+          updatedAt: toDate(group.createdAt) ?? new Date(),
         })
       )
     },

@@ -1,4 +1,5 @@
 import * as jose from "jose";
+import { nowMs, toDbDate } from "@whatsapp-web/shared";
 import { env } from "./env.js";
 
 const SECRET = new TextEncoder().encode(env.JWT_SECRET);
@@ -58,7 +59,7 @@ export async function generateAccessToken(
     .setIssuedAt()
     .setIssuer(ISSUER)
     .setAudience(AUDIENCE)
-    .setExpirationTime(Math.floor(Date.now() / 1000) + expiresIn)
+    .setExpirationTime(Math.floor(nowMs() / 1000) + expiresIn)
     .setSubject(userId)
     .sign(SECRET);
 }
@@ -76,7 +77,7 @@ export async function generateRefreshToken(sessionId: string): Promise<string> {
     .setIssuedAt()
     .setIssuer(ISSUER)
     .setAudience(AUDIENCE)
-    .setExpirationTime(Math.floor(Date.now() / 1000) + expiresIn)
+    .setExpirationTime(Math.floor(nowMs() / 1000) + expiresIn)
     .sign(SECRET);
 }
 
@@ -155,5 +156,5 @@ export function decodeToken(token: string): jose.JWTPayload | null {
  */
 export function getRefreshTokenExpiry(): Date {
   const expiresIn = parseDuration(env.JWT_REFRESH_EXPIRES_IN);
-  return new Date(Date.now() + expiresIn * 1000);
+  return toDbDate(nowMs() + expiresIn * 1000);
 }

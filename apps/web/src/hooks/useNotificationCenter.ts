@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect } from 'react'
+import { toISOString } from '@whatsapp-web/shared'
 import {
   deleteNotification,
   getNotifications,
@@ -85,7 +86,7 @@ export function useNotificationCenter(params?: NotificationListParams) {
             data: old.data.map((n) => ({
               ...n,
               isRead: true,
-              readAt: new Date().toISOString(),
+              readAt: toISOString(),
             })),
           }
         }

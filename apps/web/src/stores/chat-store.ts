@@ -1,4 +1,5 @@
 import type { Message, MessageStatus } from '@whatsapp-web/shared'
+import { nowMs } from '@whatsapp-web/shared'
 import { create } from 'zustand'
 import { devtools, persist } from 'zustand/middleware'
 import type { Contact, Conversation } from '../lib/api'
@@ -502,5 +503,5 @@ export const selectIsMessageSelected = (messageId: string) => (state: ChatState)
 
 // Helper to generate temp IDs
 export function generateTempId(): string {
-  return `temp_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`
+  return `temp_${nowMs()}_${Math.random().toString(36).substring(2, 9)}`
 }

@@ -23,5 +23,8 @@
     "tsup": "^8.0.1",
     "eslint": "^8.56.0",
     "prettier": "^3.2.4"
+  },
+  "dependencies": {
+    "dayjs": "^1.11.19"
   }
 }

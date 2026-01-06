@@ -15,6 +15,7 @@ import {
   X,
 } from 'lucide-react'
 import { useEffect, useState } from 'react'
+import { dayjs } from '@whatsapp-web/shared'
 import {
   RightPanel,
   RightPanelContent,
@@ -350,11 +351,7 @@ function DescriptionSection({ group }: { group: GroupDetail }) {
  * Group info section with creation date
  */
 function GroupInfoSection({ group }: { group: GroupDetail }) {
-  const createdDate = new Date(group.createdAt).toLocaleDateString(undefined, {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-  })
+  const createdDate = dayjs(group.createdAt).format('MMMM D, YYYY')
 
   return (
     <RightPanelSection>
@@ -522,12 +519,7 @@ function ParticipantItem({
           </div>
           {participant.joinedAt && (
             <p className="text-xs text-gray-500">
-              Joined{' '}
-              {new Date(participant.joinedAt).toLocaleDateString(undefined, {
-                month: 'short',
-                day: 'numeric',
-                year: 'numeric',
-              })}
+              Joined {dayjs(participant.joinedAt).format('MMM D, YYYY')}
             </p>
           )}
         </div>

@@ -1,28 +1,7 @@
 import { memo, useMemo } from 'react'
 import type { ChatListItemProps } from '../../types/chat'
-
-/**
- * Format timestamp for display in chat list
- * Shows time for today, day name for this week, or date for older messages
- */
-function formatTimestamp(date: Date): string {
-  const now = new Date()
-  const diff = now.getTime() - date.getTime()
-  const daysDiff = Math.floor(diff / (1000 * 60 * 60 * 24))
-
-  if (daysDiff === 0) {
-    // Today - show time
-    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-  } else if (daysDiff === 1) {
-    return 'Yesterday'
-  } else if (daysDiff < 7) {
-    // This week - show day name
-    return date.toLocaleDateString([], { weekday: 'short' })
-  } else {
-    // Older - show date
-    return date.toLocaleDateString([], { month: 'short', day: 'numeric' })
-  }
-}
+import { extractPhoneFromJID, formatPhoneNumber } from '@/lib/utils'
+import { formatChatListTime } from '@whatsapp-web/shared'
 
 /**
  * Truncate message content for preview display
@@ -42,11 +21,20 @@ export const ChatListItem = memo(function ChatListItem({
   onClick,
 }: ChatListItemProps) {
   const { contact, lastMessage, unreadCount } = chat
-  const displayName = contact.customName || contact.name || contact.jid || 'Unknown'
+
+  // Display priority: customName > pushName > formatted phone number > 'Unknown'
+  const displayName = useMemo(() => {
+    if (contact.customName) return contact.customName
+    if (contact.name) return contact.name
+    // Use phone number if available, otherwise extract from JID
+    const phone = contact.phoneNumber || extractPhoneFromJID(contact.jid)
+    if (phone) return formatPhoneNumber(phone)
+    return 'Unknown'
+  }, [contact.customName, contact.name, contact.phoneNumber, contact.jid])
 
   const formattedTime = useMemo(() => {
     if (!lastMessage) return ''
-    return formatTimestamp(lastMessage.timestamp)
+    return formatChatListTime(lastMessage.timestamp)
   }, [lastMessage])
 
   const messagePreview = useMemo(() => {

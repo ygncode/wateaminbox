@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { AlertTriangle, CheckCircle, Clock, TrendingUp, Users } from 'lucide-react'
 import { useMemo, useState } from 'react'
+import { dayjs, getDateRange } from '@whatsapp-web/shared'
 import {
   getResponseTimeStats,
   getResponseTimeTrend,
@@ -44,20 +45,8 @@ export function ResponseTimeAnalytics({
   const [timeRange, setTimeRange] = useState<TimeRange>('30d')
 
   const dateRange = useMemo(() => {
-    const end = new Date()
-    const start = new Date()
-    switch (timeRange) {
-      case '7d':
-        start.setDate(start.getDate() - 7)
-        break
-      case '30d':
-        start.setDate(start.getDate() - 30)
-        break
-      case '90d':
-        start.setDate(start.getDate() - 90)
-        break
-    }
-    return { start, end }
+    const { start, end } = getDateRange(timeRange)
+    return { start: start.toDate(), end: end.toDate() }
   }, [timeRange])
 
   const { data: statsData, isLoading: statsLoading } = useQuery({
@@ -204,7 +193,7 @@ export function ResponseTimeAnalytics({
                       />
                     </div>
                     <span className="text-[10px] text-gray-400 dark:text-dark-text-tertiary">
-                      {new Date(day.date).getDate()}
+                      {dayjs(day.date).date()}
                     </span>
                   </div>
                 )
@@ -283,7 +272,7 @@ export function ResponseTimeAnalytics({
                     {breach.contactName || breach.contactId}
                   </span>
                   <span className="ml-2 text-gray-500 dark:text-dark-text-secondary">
-                    {new Date(breach.inboundMessageTime).toLocaleDateString()}
+                    {dayjs(breach.inboundMessageTime).format('MMM D, YYYY')}
                   </span>
                 </div>
                 <div className="text-right">

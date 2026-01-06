@@ -14,6 +14,7 @@ import {
   X,
 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { formatChatListTime, subtractDays, toISOString, now } from '@whatsapp-web/shared'
 import {
   Avatar,
   AvatarFallback,
@@ -108,25 +109,6 @@ function escapeRegExp(string: string): string {
   return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
-/**
- * Format timestamp for display
- */
-function formatTimestamp(dateString: string): string {
-  const date = new Date(dateString)
-  const now = new Date()
-  const diff = now.getTime() - date.getTime()
-  const daysDiff = Math.floor(diff / (1000 * 60 * 60 * 24))
-
-  if (daysDiff === 0) {
-    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-  } else if (daysDiff === 1) {
-    return 'Yesterday'
-  } else if (daysDiff < 7) {
-    return date.toLocaleDateString([], { weekday: 'short' })
-  } else {
-    return date.toLocaleDateString([], { month: 'short', day: 'numeric' })
-  }
-}
 
 /**
  * Get icon for message type
@@ -188,7 +170,7 @@ function MessageResultItem({
             {result.contactName || result.contactJid || 'Unknown'}
           </span>
           <span className="text-xs text-gray-500 dark:text-dark-text-tertiary flex-shrink-0">
-            {formatTimestamp(result.timestamp)}
+            {formatChatListTime(result.timestamp)}
           </span>
         </div>
         <div className="flex items-center gap-1 mt-1">
@@ -445,12 +427,10 @@ export function SearchPanel({
   // Calculate date range for API
   const dateFilters = useMemo(() => {
     if (dateRange === 'all') return {}
-    const end = new Date()
-    const start = new Date()
-    if (dateRange === '7d') start.setDate(start.getDate() - 7)
-    else if (dateRange === '30d') start.setDate(start.getDate() - 30)
-    else start.setDate(start.getDate() - 90)
-    return { startDate: start.toISOString(), endDate: end.toISOString() }
+    const end = now()
+    const days = dateRange === '7d' ? 7 : dateRange === '30d' ? 30 : 90
+    const start = subtractDays(end, days)
+    return { startDate: toISOString(start), endDate: toISOString(end) }
   }, [dateRange])
 
   // Search options for message search

@@ -20,6 +20,7 @@ import {
   Zap,
 } from 'lucide-react'
 import { useState } from 'react'
+import { getDateRange, toISOString } from '@whatsapp-web/shared'
 import { ExportDialog } from '@/components/export'
 import { Avatar, AvatarFallback, Badge, Button, Skeleton } from '@/components/ui'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -53,12 +54,8 @@ export function Dashboard({ companyId, isAdmin = false }: DashboardProps) {
   const [exportType, setExportType] = useState<'contacts' | 'messages' | 'full-backup' | null>(null)
 
   const getDates = () => {
-    const end = new Date()
-    const start = new Date()
-    if (dateRange === '7d') start.setDate(start.getDate() - 7)
-    else if (dateRange === '30d') start.setDate(start.getDate() - 30)
-    else start.setDate(start.getDate() - 90)
-    return { startDate: start.toISOString(), endDate: end.toISOString() }
+    const { start, end } = getDateRange(dateRange)
+    return { startDate: toISOString(start), endDate: toISOString(end) }
   }
 
   const { startDate, endDate } = getDates()

@@ -22,6 +22,7 @@ import {
   Zap,
 } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
+import { formatAuditTime, nowMs } from '@whatsapp-web/shared'
 import { Badge, Button, Skeleton } from '@/components/ui'
 import { useWhatsAppConnection, type WhatsAppConnectionState } from '@/hooks/useWhatsAppConnection'
 import { type ConnectionWithState, useWhatsAppConnections } from '@/hooks/useWhatsAppConnections'
@@ -538,7 +539,7 @@ function ConnectionCard({
     const updateCountdown = () => {
       const expiresAt = localState.qrExpiresAt
       if (!expiresAt) return
-      const remaining = Math.max(0, Math.floor((expiresAt.getTime() - Date.now()) / 1000))
+      const remaining = Math.max(0, Math.floor((expiresAt.getTime() - nowMs()) / 1000))
       setCountdown(remaining)
     }
 
@@ -634,7 +635,7 @@ function ConnectionCard({
                 )}
                 {connection.lastSync && (
                   <p className="text-xs text-gray-500 dark:text-dark-text-tertiary mt-0.5">
-                    Last sync: {new Date(connection.lastSync).toLocaleString()}
+                    Last sync: {formatAuditTime(connection.lastSync)}
                   </p>
                 )}
               </>
@@ -870,7 +871,7 @@ function QRCodeDisplay({
     }
 
     const updateCountdown = () => {
-      const remaining = Math.max(0, Math.floor((expiresAt.getTime() - Date.now()) / 1000))
+      const remaining = Math.max(0, Math.floor((expiresAt.getTime() - nowMs()) / 1000))
       setLocalCountdown(remaining)
     }
 
@@ -1040,7 +1041,7 @@ function SingleConnectionPanel({
     }
 
     const updateCountdown = () => {
-      const remaining = Math.max(0, Math.floor((qrExpiresAt.getTime() - Date.now()) / 1000))
+      const remaining = Math.max(0, Math.floor((qrExpiresAt.getTime() - nowMs()) / 1000))
       setCountdown(remaining)
     }
 
@@ -1369,7 +1370,7 @@ function ConnectedView({
       )}
       {lastSync && (
         <p className="text-sm text-gray-500 dark:text-dark-text-secondary mb-4">
-          Last synced: {lastSync.toLocaleString()}
+          Last synced: {formatAuditTime(lastSync)}
         </p>
       )}
       <div className="flex items-center justify-center gap-2">

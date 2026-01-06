@@ -1,4 +1,5 @@
 import type { Message, MessageStatus } from '@whatsapp-web/shared'
+import { nowMs } from '@whatsapp-web/shared'
 
 // WebSocket event types
 export type WebSocketEventType =
@@ -304,7 +305,7 @@ export class WebSocketClient {
       const message = JSON.stringify({
         type,
         payload,
-        timestamp: Date.now(),
+        timestamp: nowMs(),
       })
       this.socket.send(message)
       return true
@@ -425,7 +426,7 @@ export class WebSocketClient {
     this.clearConnectionTimeout()
     this.setStatus('connected')
     this.reconnectCount = 0
-    this.lastPongReceived = Date.now()
+    this.lastPongReceived = nowMs()
 
     // Process any queued messages
     this.processMessageQueue()
@@ -474,7 +475,7 @@ export class WebSocketClient {
 
       // Handle pong response
       if (message.type === ('pong' as WebSocketEventType)) {
-        this.lastPongReceived = Date.now()
+        this.lastPongReceived = nowMs()
         this.clearPongTimeout()
         return
       }
@@ -565,7 +566,7 @@ export class WebSocketClient {
       console.warn('[WebSocket] Pong timeout - connection may be stale')
 
       // Check if we've received any pong recently
-      const timeSinceLastPong = Date.now() - this.lastPongReceived
+      const timeSinceLastPong = nowMs() - this.lastPongReceived
       if (timeSinceLastPong > this.config.pongTimeout * 2) {
         console.warn('[WebSocket] No recent pong - initiating reconnect')
         // Clean up properly before reconnecting

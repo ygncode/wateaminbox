@@ -1,3 +1,4 @@
+import { dayjs } from '@whatsapp-web/shared'
 import type { Chat, Contact, Message } from '../types/chat'
 
 /**
@@ -18,7 +19,7 @@ export const mockContacts: Contact[] = [
     name: 'Bob Smith',
     avatarUrl: 'https://api.dicebear.com/7.x/avataaars/svg?seed=bob',
     isOnline: false,
-    lastSeen: new Date(Date.now() - 1000 * 60 * 30), // 30 minutes ago
+    lastSeen: dayjs().subtract(30, 'minute').toDate(), // 30 minutes ago
     about: 'At work',
   },
   {
@@ -36,7 +37,7 @@ export const mockContacts: Contact[] = [
     name: 'David Brown',
     avatarUrl: 'https://api.dicebear.com/7.x/avataaars/svg?seed=david',
     isOnline: false,
-    lastSeen: new Date(Date.now() - 1000 * 60 * 60 * 2), // 2 hours ago
+    lastSeen: dayjs().subtract(2, 'hour').toDate(), // 2 hours ago
     about: 'Busy',
   },
   {
@@ -53,7 +54,7 @@ export const mockContacts: Contact[] = [
     name: 'Frank Miller',
     avatarUrl: 'https://api.dicebear.com/7.x/avataaars/svg?seed=frank',
     isOnline: false,
-    lastSeen: new Date(Date.now() - 1000 * 60 * 60 * 24), // 1 day ago
+    lastSeen: dayjs().subtract(1, 'day').toDate(), // 1 day ago
   },
   {
     id: 'contact-7',
@@ -70,7 +71,7 @@ export const mockContacts: Contact[] = [
     name: 'Henry Taylor',
     avatarUrl: 'https://api.dicebear.com/7.x/avataaars/svg?seed=henry',
     isOnline: false,
-    lastSeen: new Date(Date.now() - 1000 * 60 * 5), // 5 minutes ago
+    lastSeen: dayjs().subtract(5, 'minute').toDate(), // 5 minutes ago
     about: 'Be right back',
   },
 ]
@@ -86,7 +87,7 @@ export const mockMessages: Message[] = [
     content: "Hey! How's the project going?",
     type: 'text',
     status: 'read',
-    timestamp: new Date(Date.now() - 1000 * 60 * 2), // 2 minutes ago
+    timestamp: dayjs().subtract(2, 'minute').toDate(), // 2 minutes ago
     isFromMe: false,
   },
   {
@@ -96,7 +97,7 @@ export const mockMessages: Message[] = [
     content: "I'll send you the report by end of day",
     type: 'text',
     status: 'delivered',
-    timestamp: new Date(Date.now() - 1000 * 60 * 15), // 15 minutes ago
+    timestamp: dayjs().subtract(15, 'minute').toDate(), // 15 minutes ago
     isFromMe: true,
   },
   {
@@ -106,7 +107,7 @@ export const mockMessages: Message[] = [
     content: 'The marketing campaign is ready for review!',
     type: 'text',
     status: 'read',
-    timestamp: new Date(Date.now() - 1000 * 60 * 45), // 45 minutes ago
+    timestamp: dayjs().subtract(45, 'minute').toDate(), // 45 minutes ago
     isFromMe: false,
   },
   {
@@ -116,7 +117,7 @@ export const mockMessages: Message[] = [
     content: 'Meeting moved to 3 PM',
     type: 'text',
     status: 'read',
-    timestamp: new Date(Date.now() - 1000 * 60 * 60 * 2), // 2 hours ago
+    timestamp: dayjs().subtract(2, 'hour').toDate(), // 2 hours ago
     isFromMe: false,
   },
   {
@@ -126,7 +127,7 @@ export const mockMessages: Message[] = [
     content: 'Have a great vacation! See you when you get back.',
     type: 'text',
     status: 'read',
-    timestamp: new Date(Date.now() - 1000 * 60 * 60 * 5), // 5 hours ago
+    timestamp: dayjs().subtract(5, 'hour').toDate(), // 5 hours ago
     isFromMe: true,
   },
   {
@@ -136,7 +137,7 @@ export const mockMessages: Message[] = [
     content: 'Thanks for your help yesterday!',
     type: 'text',
     status: 'read',
-    timestamp: new Date(Date.now() - 1000 * 60 * 60 * 24), // 1 day ago
+    timestamp: dayjs().subtract(1, 'day').toDate(), // 1 day ago
     isFromMe: false,
   },
   {
@@ -146,7 +147,7 @@ export const mockMessages: Message[] = [
     content: "Customer issue resolved. They're happy now!",
     type: 'text',
     status: 'read',
-    timestamp: new Date(Date.now() - 1000 * 60 * 60 * 26), // 26 hours ago
+    timestamp: dayjs().subtract(26, 'hour').toDate(), // 26 hours ago
     isFromMe: false,
   },
   {
@@ -156,7 +157,7 @@ export const mockMessages: Message[] = [
     content: "Sure, I'll check and get back to you",
     type: 'text',
     status: 'sent',
-    timestamp: new Date(Date.now() - 1000 * 60 * 60 * 48), // 2 days ago
+    timestamp: dayjs().subtract(2, 'day').toDate(), // 2 days ago
     isFromMe: true,
   },
 ]

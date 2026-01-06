@@ -6,6 +6,7 @@ import {
   JetStreamSubscription,
   JSONCodec,
 } from "nats";
+import { nowMs } from "@whatsapp-web/shared";
 import { env } from "./env.js";
 import { createLogger, formatError } from "./logger.js";
 
@@ -838,7 +839,7 @@ export async function subscribe(
   // This allows receiving messages published to JetStream
   const inbox =
     "_INBOX." +
-    Date.now() +
+    nowMs() +
     "." +
     Math.random().toString(36).substring(7);
 
@@ -992,7 +993,7 @@ export async function publishSendReaction(
   fromMe: boolean,
 ): Promise<void> {
   const sendCommand = {
-    message_id: `reaction_${Date.now()}`, // Temporary ID for tracking
+    message_id: `reaction_${nowMs()}`, // Temporary ID for tracking
     connection_id: connectionId,
     to: chatJid,
     type: "reaction" as MessageType,

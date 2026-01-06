@@ -1,5 +1,6 @@
 import type { MiddlewareHandler } from "hono";
 import { Hono } from "hono";
+import { toDate, toDbDate, subtractDays, toISOString, now } from "@whatsapp-web/shared";
 import { authMiddleware } from "../middleware/auth.js";
 import { tenantMiddleware } from "../middleware/tenant.js";
 import { createRateLimitMiddleware } from "../middleware/rate-limit.js";
@@ -48,10 +49,10 @@ analyticsRoutes.get("/messages", analyticsRateLimiter, async (c) => {
   const endDateStr = c.req.query("endDate");
 
   // Default to last 30 days
-  const endDate = endDateStr ? new Date(endDateStr) : new Date();
+  const endDate = endDateStr ? toDbDate(endDateStr) : toDbDate();
   const startDate = startDateStr
-    ? new Date(startDateStr)
-    : new Date(endDate.getTime() - 30 * 24 * 60 * 60 * 1000);
+    ? toDbDate(startDateStr)
+    : subtractDays(endDate, 30).toDate();
 
   const stats = await analyticsService.getMessageStats(
     companyId,
@@ -62,8 +63,8 @@ analyticsRoutes.get("/messages", analyticsRateLimiter, async (c) => {
   return c.json({
     data: stats,
     meta: {
-      startDate: startDate.toISOString(),
-      endDate: endDate.toISOString(),
+      startDate: toISOString(startDate),
+      endDate: toISOString(endDate),
     },
   });
 });
@@ -112,8 +113,8 @@ analyticsRoutes.get("/message-types", analyticsRateLimiter, async (c) => {
   const startDateStr = c.req.query("startDate");
   const endDateStr = c.req.query("endDate");
 
-  const startDate = startDateStr ? new Date(startDateStr) : undefined;
-  const endDate = endDateStr ? new Date(endDateStr) : undefined;
+  const startDate = startDateStr ? toDbDate(startDateStr) : undefined;
+  const endDate = endDateStr ? toDbDate(endDateStr) : undefined;
 
   const stats = await analyticsService.getMessageTypeStats(
     companyId,
@@ -154,10 +155,10 @@ analyticsRoutes.get("/response-time", analyticsRateLimiter, async (c) => {
   const slaThreshold = parseInt(c.req.query("slaThreshold") || "60", 10);
 
   // Default to last 30 days
-  const endDate = endDateStr ? new Date(endDateStr) : new Date();
+  const endDate = endDateStr ? toDbDate(endDateStr) : toDbDate();
   const startDate = startDateStr
-    ? new Date(startDateStr)
-    : new Date(endDate.getTime() - 30 * 24 * 60 * 60 * 1000);
+    ? toDbDate(startDateStr)
+    : subtractDays(endDate, 30).toDate();
 
   const stats = await analyticsService.getResponseTimeStats(
     companyId,
@@ -169,8 +170,8 @@ analyticsRoutes.get("/response-time", analyticsRateLimiter, async (c) => {
   return c.json({
     data: stats,
     meta: {
-      startDate: startDate.toISOString(),
-      endDate: endDate.toISOString(),
+      startDate: toISOString(startDate),
+      endDate: toISOString(endDate),
       slaThresholdMinutes: slaThreshold,
     },
   });
@@ -188,10 +189,10 @@ analyticsRoutes.get("/response-time/trend", analyticsRateLimiter, async (c) => {
   const slaThreshold = parseInt(c.req.query("slaThreshold") || "60", 10);
 
   // Default to last 30 days
-  const endDate = endDateStr ? new Date(endDateStr) : new Date();
+  const endDate = endDateStr ? toDbDate(endDateStr) : toDbDate();
   const startDate = startDateStr
-    ? new Date(startDateStr)
-    : new Date(endDate.getTime() - 30 * 24 * 60 * 60 * 1000);
+    ? toDbDate(startDateStr)
+    : subtractDays(endDate, 30).toDate();
 
   const trend = await analyticsService.getResponseTimeTrend(
     companyId,
@@ -203,8 +204,8 @@ analyticsRoutes.get("/response-time/trend", analyticsRateLimiter, async (c) => {
   return c.json({
     data: trend,
     meta: {
-      startDate: startDate.toISOString(),
-      endDate: endDate.toISOString(),
+      startDate: toISOString(startDate),
+      endDate: toISOString(endDate),
       slaThresholdMinutes: slaThreshold,
     },
   });
@@ -228,10 +229,10 @@ analyticsRoutes.get("/response-time/team", analyticsRateLimiter, async (c) => {
   }
 
   // Default to last 30 days
-  const endDate = endDateStr ? new Date(endDateStr) : new Date();
+  const endDate = endDateStr ? toDbDate(endDateStr) : toDbDate();
   const startDate = startDateStr
-    ? new Date(startDateStr)
-    : new Date(endDate.getTime() - 30 * 24 * 60 * 60 * 1000);
+    ? toDbDate(startDateStr)
+    : subtractDays(endDate, 30).toDate();
 
   const stats = await analyticsService.getTeamResponseTimeStats(
     companyId,
@@ -243,8 +244,8 @@ analyticsRoutes.get("/response-time/team", analyticsRateLimiter, async (c) => {
   return c.json({
     data: stats,
     meta: {
-      startDate: startDate.toISOString(),
-      endDate: endDate.toISOString(),
+      startDate: toISOString(startDate),
+      endDate: toISOString(endDate),
       slaThresholdMinutes: slaThreshold,
     },
   });
@@ -261,10 +262,10 @@ analyticsRoutes.get("/contacts/trend", analyticsRateLimiter, async (c) => {
   const endDateStr = c.req.query("endDate");
 
   // Default to last 30 days
-  const endDate = endDateStr ? new Date(endDateStr) : new Date();
+  const endDate = endDateStr ? toDbDate(endDateStr) : toDbDate();
   const startDate = startDateStr
-    ? new Date(startDateStr)
-    : new Date(endDate.getTime() - 30 * 24 * 60 * 60 * 1000);
+    ? toDbDate(startDateStr)
+    : subtractDays(endDate, 30).toDate();
 
   const trend = await analyticsService.getNewContactsTrend(
     companyId,
@@ -275,8 +276,8 @@ analyticsRoutes.get("/contacts/trend", analyticsRateLimiter, async (c) => {
   return c.json({
     data: trend,
     meta: {
-      startDate: startDate.toISOString(),
-      endDate: endDate.toISOString(),
+      startDate: toISOString(startDate),
+      endDate: toISOString(endDate),
     },
   });
 });
@@ -292,10 +293,10 @@ analyticsRoutes.get("/engagement", analyticsRateLimiter, async (c) => {
   const endDateStr = c.req.query("endDate");
 
   // Default to last 30 days
-  const endDate = endDateStr ? new Date(endDateStr) : new Date();
+  const endDate = endDateStr ? toDbDate(endDateStr) : toDbDate();
   const startDate = startDateStr
-    ? new Date(startDateStr)
-    : new Date(endDate.getTime() - 30 * 24 * 60 * 60 * 1000);
+    ? toDbDate(startDateStr)
+    : subtractDays(endDate, 30).toDate();
 
   const metrics = await analyticsService.getEngagementMetrics(
     companyId,
@@ -306,8 +307,8 @@ analyticsRoutes.get("/engagement", analyticsRateLimiter, async (c) => {
   return c.json({
     data: metrics,
     meta: {
-      startDate: startDate.toISOString(),
-      endDate: endDate.toISOString(),
+      startDate: toISOString(startDate),
+      endDate: toISOString(endDate),
     },
   });
 });
@@ -323,10 +324,10 @@ analyticsRoutes.get("/engagement/trend", analyticsRateLimiter, async (c) => {
   const endDateStr = c.req.query("endDate");
 
   // Default to last 30 days
-  const endDate = endDateStr ? new Date(endDateStr) : new Date();
+  const endDate = endDateStr ? toDbDate(endDateStr) : toDbDate();
   const startDate = startDateStr
-    ? new Date(startDateStr)
-    : new Date(endDate.getTime() - 30 * 24 * 60 * 60 * 1000);
+    ? toDbDate(startDateStr)
+    : subtractDays(endDate, 30).toDate();
 
   const trend = await analyticsService.getEngagementTrend(
     companyId,
@@ -337,8 +338,8 @@ analyticsRoutes.get("/engagement/trend", analyticsRateLimiter, async (c) => {
   return c.json({
     data: trend,
     meta: {
-      startDate: startDate.toISOString(),
-      endDate: endDate.toISOString(),
+      startDate: toISOString(startDate),
+      endDate: toISOString(endDate),
     },
   });
 });
@@ -356,10 +357,10 @@ analyticsRoutes.get("/sla-breaches", analyticsRateLimiter, async (c) => {
   const limit = parseInt(c.req.query("limit") || "50", 10);
 
   // Default to last 7 days
-  const endDate = endDateStr ? new Date(endDateStr) : new Date();
+  const endDate = endDateStr ? toDbDate(endDateStr) : toDbDate();
   const startDate = startDateStr
-    ? new Date(startDateStr)
-    : new Date(endDate.getTime() - 7 * 24 * 60 * 60 * 1000);
+    ? toDbDate(startDateStr)
+    : subtractDays(endDate, 7).toDate();
 
   const breaches = await analyticsService.getSlaBreaches(
     companyId,
@@ -372,8 +373,8 @@ analyticsRoutes.get("/sla-breaches", analyticsRateLimiter, async (c) => {
   return c.json({
     data: breaches,
     meta: {
-      startDate: startDate.toISOString(),
-      endDate: endDate.toISOString(),
+      startDate: toISOString(startDate),
+      endDate: toISOString(endDate),
       slaThresholdMinutes: slaThreshold,
     },
   });

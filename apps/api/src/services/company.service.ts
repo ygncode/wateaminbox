@@ -1,6 +1,7 @@
 import { sql } from "kysely";
 import type { Transaction } from "kysely";
 import { randomBytes } from "crypto";
+import { toDbDate, addDays } from "@whatsapp-web/shared";
 import { createTenantSchema, getSchemaName } from "./tenant.service.js";
 import { db } from "@whatsapp-web/database";
 import type { Database } from "@whatsapp-web/database";
@@ -112,8 +113,8 @@ export async function createCompany(
         name: input.name,
         schema_name: schemaName,
         status: "active",
-        created_at: new Date(),
-        updated_at: new Date(),
+        created_at: toDbDate(),
+        updated_at: toDbDate(),
       })
       .returning([
         "id",
@@ -133,7 +134,7 @@ export async function createCompany(
         total_messages: 0,
         total_contacts: 0,
         active_users: 1,
-        updated_at: new Date(),
+        updated_at: toDbDate(),
       })
       .execute();
 
@@ -145,7 +146,7 @@ export async function createCompany(
         company_id: companyId,
         role: "owner",
         permissions: {},
-        joined_at: new Date(),
+        joined_at: toDbDate(),
       })
       .execute();
 
@@ -184,7 +185,7 @@ export async function updateCompany(
   input: UpdateCompanyInput,
 ): Promise<Company> {
   const updateData: Record<string, unknown> = {
-    updated_at: new Date(),
+    updated_at: toDbDate(),
   };
 
   if (input.name !== undefined) {
@@ -224,7 +225,7 @@ export async function deleteCompany(companyId: string): Promise<void> {
     .updateTable("companies")
     .set({
       status: "deleted",
-      updated_at: new Date(),
+      updated_at: toDbDate(),
     })
     .where("id", "=", companyId)
     .where("status", "!=", "deleted")
@@ -335,7 +336,7 @@ export async function inviteMember(
     .where("company_id", "=", companyId)
     .where("email", "=", input.email)
     .where("accepted_at", "is", null)
-    .where("expires_at", ">", new Date())
+    .where("expires_at", ">", toDbDate())
     .executeTakeFirst();
 
   if (existingInvitation) {
@@ -350,8 +351,7 @@ export async function inviteMember(
   const token = randomBytes(32).toString("hex");
 
   // Set expiration to 7 days from now
-  const expiresAt = new Date();
-  expiresAt.setDate(expiresAt.getDate() + 7);
+  const expiresAt = addDays(toDbDate(), 7).toDate();
 
   const invitation = await db
     .insertInto("invitations")
@@ -361,7 +361,7 @@ export async function inviteMember(
       token,
       invited_by: invitedBy,
       expires_at: expiresAt,
-      created_at: new Date(),
+      created_at: toDbDate(),
     })
     .returning([
       "id",
@@ -415,7 +415,7 @@ export async function getPendingInvitations(
     ])
     .where("company_id", "=", companyId)
     .where("accepted_at", "is", null)
-    .where("expires_at", ">", new Date())
+    .where("expires_at", ">", toDbDate())
     .execute();
 
   return invitations as unknown as Invitation[];
@@ -466,7 +466,7 @@ export async function acceptInvitation(
     throw new InvitationNotFoundError(token);
   }
 
-  if (new Date(invitation.expires_at) < new Date()) {
+  if (toDbDate(invitation.expires_at) < toDbDate()) {
     throw new InvitationExpiredError();
   }
 
@@ -476,7 +476,7 @@ export async function acceptInvitation(
     // Mark invitation as accepted
     await trx
       .updateTable("invitations")
-      .set({ accepted_at: new Date() })
+      .set({ accepted_at: toDbDate() })
       .where("id", "=", invitation.id)
       .execute();
 
@@ -489,7 +489,7 @@ export async function acceptInvitation(
         role: "member",
         permissions: {},
         invited_by: invitation.invited_by,
-        joined_at: new Date(),
+        joined_at: toDbDate(),
       })
       .returning([
         "id",
@@ -507,7 +507,7 @@ export async function acceptInvitation(
       .updateTable("company_stats")
       .set({
         active_users: sql`active_users + 1`,
-        updated_at: new Date(),
+        updated_at: toDbDate(),
       })
       .where("company_id", "=", invitation.company_id)
       .execute();
@@ -552,7 +552,7 @@ export async function removeMember(
     .updateTable("company_stats")
     .set({
       active_users: sql`GREATEST(active_users - 1, 0)`,
-      updated_at: new Date(),
+      updated_at: toDbDate(),
     })
     .where("company_id", "=", companyId)
     .execute();
@@ -714,8 +714,7 @@ export async function resendInvitation(
 
   // Generate new token and extend expiry
   const newToken = randomBytes(32).toString("hex");
-  const expiresAt = new Date();
-  expiresAt.setDate(expiresAt.getDate() + 7);
+  const expiresAt = addDays(toDbDate(), 7).toDate();
 
   const updated = await db
     .updateTable("invitations")

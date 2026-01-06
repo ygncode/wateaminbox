@@ -1,4 +1,5 @@
 import type { Kysely } from "kysely";
+import { toDbDate } from "@whatsapp-web/shared";
 import type { TenantDatabase } from "./tenant.service.js";
 import {
   publishSpawnCommand,
@@ -212,8 +213,8 @@ export async function spawnConnection(
       name: name || null,
       status: "pending",
       connected_by: userId,
-      created_at: new Date(),
-      updated_at: new Date(),
+      created_at: toDbDate(),
+      updated_at: toDbDate(),
     })
     .execute();
 
@@ -251,7 +252,7 @@ export async function killConnection(
     .updateTable("whatsapp_connections")
     .set({
       status: "disconnected",
-      updated_at: new Date(),
+      updated_at: toDbDate(),
     })
     .where("id", "=", connectionId)
     .execute();
@@ -358,7 +359,7 @@ export async function sendMessage(
         jid: input.jid,
         is_group: input.jid.includes("@g.us"),
         created_at: new Date(),
-        updated_at: new Date(),
+        updated_at: toDbDate(),
       })
       .execute();
     contact = { id: contactId };
@@ -380,8 +381,8 @@ export async function sendMessage(
       is_starred: false,
       deleted_by_sender: false,
       sent_by_user_id: userId,
-      timestamp: new Date(),
-      created_at: new Date(),
+      timestamp: toDbDate(),
+      created_at: toDbDate(),
     })
     .execute();
 
@@ -434,11 +435,11 @@ export async function updateConnectionStatus(
 
   const updateData: Record<string, unknown> = {
     status,
-    updated_at: new Date(),
+    updated_at: toDbDate(),
   };
 
   if (status === "connected") {
-    updateData.connected_at = new Date();
+    updateData.connected_at = toDbDate();
   }
 
   if (phoneNumber) {
@@ -465,7 +466,7 @@ export async function updateLastSync(
 ): Promise<void> {
   let query = tenantDb.updateTable("whatsapp_connections").set({
     last_sync_at: new Date(),
-    updated_at: new Date(),
+    updated_at: toDbDate(),
   });
 
   if (connectionId) {

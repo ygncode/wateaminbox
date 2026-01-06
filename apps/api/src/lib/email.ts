@@ -1,3 +1,4 @@
+import { nowMs } from "@whatsapp-web/shared";
 import { env } from "./env.js";
 import { createLogger } from "./logger.js";
 
@@ -28,7 +29,7 @@ export async function sendEmail(options: EmailOptions): Promise<EmailResult> {
       "Email (dev mode) - not sending",
     );
     logger.debug({ body: options.text || options.html }, "Email body");
-    return { success: true, messageId: "dev-" + Date.now() };
+    return { success: true, messageId: "dev-" + nowMs() };
   }
 
   try {

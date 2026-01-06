@@ -1,5 +1,6 @@
 import { ChevronLeft, ChevronRight, Clock, FileDown, Filter, Globe, Info, User } from 'lucide-react'
 import { useState } from 'react'
+import { formatAuditTime } from '@whatsapp-web/shared'
 import { Badge, Button, Input, Skeleton } from '@/components/ui'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import {
@@ -193,7 +194,6 @@ export function AuditLog({ companyId }: AuditLogProps) {
  */
 function AuditLogItem({ log }: { log: AuditLogType }) {
   const [expanded, setExpanded] = useState(false)
-  const createdAt = new Date(log.createdAt)
 
   return (
     <div
@@ -225,7 +225,7 @@ function AuditLogItem({ log }: { log: AuditLogType }) {
             )}
             <span className="flex items-center gap-1">
               <Clock className="h-3 w-3" />
-              {createdAt.toLocaleString()}
+              {formatAuditTime(log.createdAt)}
             </span>
             {log.ipAddress && (
               <span className="flex items-center gap-1">

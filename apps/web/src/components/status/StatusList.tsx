@@ -1,6 +1,7 @@
 import { Circle, Clock, Eye, Plus } from 'lucide-react'
 import { useState } from 'react'
 import { Avatar, AvatarFallback, Skeleton } from '@/components/ui'
+import { formatStatusTime } from '@whatsapp-web/shared'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import {
   type ContactStatus,
@@ -157,20 +158,6 @@ function StatusItem({ contactStatus, isSelected, onClick }: StatusItemProps) {
   const phoneNumber = jid.split('@')[0]
   const displayName = phoneNumber || 'Unknown'
 
-  // Calculate time since latest status
-  const getTimeAgo = (timestamp: string) => {
-    const now = new Date()
-    const statusTime = new Date(timestamp)
-    const diffMs = now.getTime() - statusTime.getTime()
-    const diffMins = Math.floor(diffMs / (1000 * 60))
-    const diffHours = Math.floor(diffMins / 60)
-
-    if (diffMins < 1) return 'Just now'
-    if (diffMins < 60) return `${diffMins}m ago`
-    if (diffHours < 24) return `${diffHours}h ago`
-    return statusTime.toLocaleDateString()
-  }
-
   return (
     <button
       type="button"
@@ -204,7 +191,7 @@ function StatusItem({ contactStatus, isSelected, onClick }: StatusItemProps) {
         </p>
         <div className="flex items-center gap-1 text-sm text-gray-500 dark:text-dark-text-secondary">
           <Clock className="w-3 h-3" />
-          <span>{getTimeAgo(latestStatus.timestamp)}</span>
+          <span>{formatStatusTime(latestStatus.timestamp)}</span>
           {totalStatuses > 1 && (
             <span className="text-gray-400 dark:text-dark-text-tertiary">
               ({totalStatuses} updates)

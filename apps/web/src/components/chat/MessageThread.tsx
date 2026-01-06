@@ -1,5 +1,6 @@
 import { useVirtualizer } from '@tanstack/react-virtual'
 import type { Message } from '@whatsapp-web/shared'
+import { formatDateSeparator as formatDateSep } from '@whatsapp-web/shared'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTheme } from '../../contexts'
 import { useInfiniteMessages } from '../../hooks/useInfiniteMessages'
@@ -479,7 +480,7 @@ export function MessageThread({
                 >
                   <div className="flex justify-center my-4">
                     <span className="px-3 py-1 bg-white/80 dark:bg-dark-elevated/90 rounded-lg text-xs text-gray-600 dark:text-dark-text-secondary shadow-sm">
-                      {formatDateSeparator(item.date)}
+                      {formatDateSep(item.date)}
                     </span>
                   </div>
                 </div>
@@ -557,27 +558,6 @@ export function MessageThread({
   )
 }
 
-// Helper function to format date separator
-function formatDateSeparator(dateString: string): string {
-  const date = new Date(dateString)
-  const today = new Date()
-  const yesterday = new Date(today)
-  yesterday.setDate(yesterday.getDate() - 1)
-
-  if (date.toDateString() === today.toDateString()) {
-    return 'Today'
-  }
-  if (date.toDateString() === yesterday.toDateString()) {
-    return 'Yesterday'
-  }
-
-  return date.toLocaleDateString(undefined, {
-    weekday: 'long',
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-  })
-}
 
 // Loading spinner component
 function LoadingSpinner({ size = 'md' }: { size?: 'sm' | 'md' }) {

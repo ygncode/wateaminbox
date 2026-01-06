@@ -11,6 +11,7 @@ import {
 } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { formatStatusTime } from '@whatsapp-web/shared'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -109,17 +110,7 @@ export function LabelSyncManager() {
 
   const formatLastSync = (dateString: string | null) => {
     if (!dateString) return t('labels.neverSynced', 'Never synced')
-    const date = new Date(dateString)
-    const now = new Date()
-    const diffMs = now.getTime() - date.getTime()
-    const diffMins = Math.floor(diffMs / 60000)
-    const diffHours = Math.floor(diffMs / 3600000)
-    const diffDays = Math.floor(diffMs / 86400000)
-
-    if (diffMins < 1) return t('labels.justNow', 'Just now')
-    if (diffMins < 60) return t('labels.minutesAgo', '{{count}} min ago', { count: diffMins })
-    if (diffHours < 24) return t('labels.hoursAgo', '{{count}} hr ago', { count: diffHours })
-    return t('labels.daysAgo', '{{count}} days ago', { count: diffDays })
+    return formatStatusTime(dateString)
   }
 
   if (error) {

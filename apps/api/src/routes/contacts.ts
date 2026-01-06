@@ -1,6 +1,7 @@
 import type { MiddlewareHandler } from "hono";
 import { Hono } from "hono";
 import { db } from "@whatsapp-web/database";
+import { toDbDate, toISOString } from "@whatsapp-web/shared";
 import { authMiddleware } from "../middleware/auth.js";
 import { tenantMiddleware, requirePermission } from "../middleware/tenant.js";
 import { PERMISSIONS } from "../services/permission.service.js";
@@ -410,7 +411,7 @@ contactRoutes.patch("/:id", async (c) => {
   const { customName, notesShared } = body;
 
   const updateData: Record<string, unknown> = {
-    updated_at: new Date(),
+    updated_at: toDbDate(),
   };
 
   if (customName !== undefined) {
@@ -508,7 +509,7 @@ contactRoutes.post("/:id/assign", async (c) => {
   // Unassign previous assignment
   await tenantDb
     .updateTable("contact_assignments")
-    .set({ unassigned_at: new Date() })
+    .set({ unassigned_at: toDbDate() })
     .where("contact_id", "=", contactId)
     .where("unassigned_at", "is", null)
     .execute();
@@ -552,7 +553,7 @@ contactRoutes.post("/:id/assign", async (c) => {
         newAssignee: targetUserId,
         reassignedBy: user.id,
       },
-      timestamp: new Date().toISOString(),
+      timestamp: toISOString(),
     });
 
     // Create audit log
@@ -613,7 +614,7 @@ contactRoutes.delete(
 
     await tenantDb
       .updateTable("contact_assignments")
-      .set({ unassigned_at: new Date() })
+      .set({ unassigned_at: toDbDate() })
       .where("contact_id", "=", contactId)
       .where("unassigned_at", "is", null)
       .execute();
@@ -800,7 +801,7 @@ contactRoutes.put("/:id/notes/shared/:noteId", async (c) => {
     .updateTable("contact_notes_shared")
     .set({
       content: content.trim(),
-      updated_at: new Date(),
+      updated_at: toDbDate(),
     })
     .where("id", "=", noteId)
     .returning([
@@ -1029,7 +1030,7 @@ contactRoutes.put("/:id/notes/private/:noteId", async (c) => {
     .updateTable("contact_notes_private")
     .set({
       content: content.trim(),
-      updated_at: new Date(),
+      updated_at: toDbDate(),
     })
     .where("id", "=", noteId)
     .returning([

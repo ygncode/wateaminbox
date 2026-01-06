@@ -3,34 +3,12 @@ import { useCallback, useMemo, useState } from 'react'
 import { Avatar, AvatarFallback, AvatarImage, Skeleton } from '@/components/ui'
 import { type GroupListItem, useGroups } from '@/hooks/useGroups'
 import { cn } from '@/lib/utils'
+import { formatChatListTime } from '@whatsapp-web/shared'
 
 export interface GroupListProps {
   selectedGroupId?: string | null
   onGroupSelect: (groupId: string) => void
   className?: string
-}
-
-/**
- * Format timestamp for display in group list
- * Shows time for today, day name for this week, or date for older
- */
-function formatTimestamp(dateString: string | null): string {
-  if (!dateString) return ''
-
-  const date = new Date(dateString)
-  const now = new Date()
-  const diff = now.getTime() - date.getTime()
-  const daysDiff = Math.floor(diff / (1000 * 60 * 60 * 24))
-
-  if (daysDiff === 0) {
-    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-  } else if (daysDiff === 1) {
-    return 'Yesterday'
-  } else if (daysDiff < 7) {
-    return date.toLocaleDateString([], { weekday: 'short' })
-  } else {
-    return date.toLocaleDateString([], { month: 'short', day: 'numeric' })
-  }
 }
 
 /**
@@ -188,7 +166,7 @@ function GroupListItem({ group, isSelected, onClick }: GroupListItemProps) {
     .toUpperCase()
     .slice(0, 2)
 
-  const formattedTime = formatTimestamp(group.lastMessageAt)
+  const formattedTime = group.lastMessageAt ? formatChatListTime(group.lastMessageAt) : ''
 
   return (
     <button

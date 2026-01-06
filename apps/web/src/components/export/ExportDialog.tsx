@@ -1,5 +1,6 @@
 import { Archive, Download, FileJson, FileSpreadsheet, Loader2 } from 'lucide-react'
 import { useState } from 'react'
+import { getDateRange as getDateRangeHelper, toISOString } from '@whatsapp-web/shared'
 import {
   Button,
   Checkbox,
@@ -58,12 +59,8 @@ export function ExportDialog({
 
   const getDateRange = () => {
     if (dateRange === 'all') return {}
-    const end = new Date()
-    const start = new Date()
-    if (dateRange === '7d') start.setDate(start.getDate() - 7)
-    else if (dateRange === '30d') start.setDate(start.getDate() - 30)
-    else start.setDate(start.getDate() - 90)
-    return { startDate: start.toISOString(), endDate: end.toISOString() }
+    const { start, end } = getDateRangeHelper(dateRange)
+    return { startDate: toISOString(start), endDate: toISOString(end) }
   }
 
   const handleExport = async () => {

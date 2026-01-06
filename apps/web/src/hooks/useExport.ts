@@ -1,4 +1,5 @@
 import { useMutation } from '@tanstack/react-query'
+import { dayjs } from '@whatsapp-web/shared'
 import { getAccessToken, getCompanyId } from '@/lib/api'
 
 /**
@@ -96,7 +97,7 @@ export function useExportContacts() {
       }
 
       const blob = await response.blob()
-      const filename = `contacts-${new Date().toISOString().split('T')[0]}.csv`
+      const filename = `contacts-${dayjs().format('YYYY-MM-DD')}.csv`
       downloadBlob(blob, filename)
       return { success: true }
     },
@@ -137,7 +138,7 @@ export function useExportMessages() {
       }
 
       const blob = await response.blob()
-      const filename = `messages-${new Date().toISOString().split('T')[0]}.csv`
+      const filename = `messages-${dayjs().format('YYYY-MM-DD')}.csv`
       downloadBlob(blob, filename)
       return { success: true }
     },
@@ -179,7 +180,7 @@ export function useExportConversation() {
       }
 
       const blob = await response.blob()
-      const filename = `conversation-${contactId}-${new Date().toISOString().split('T')[0]}.csv`
+      const filename = `conversation-${contactId}-${dayjs().format('YYYY-MM-DD')}.csv`
       downloadBlob(blob, filename)
       return { success: true }
     },
@@ -219,7 +220,7 @@ export function useBulkExport() {
       }
 
       const blob = await response.blob()
-      const filename = `${type}-${new Date().toISOString().split('T')[0]}.csv`
+      const filename = `${type}-${dayjs().format('YYYY-MM-DD')}.csv`
       downloadBlob(blob, filename)
       return { success: true }
     },
@@ -254,7 +255,7 @@ export function useFullBackupExport() {
       }
 
       const blob = await response.blob()
-      const filename = `whatsapp-backup-${new Date().toISOString().split('T')[0]}.zip`
+      const filename = `whatsapp-backup-${dayjs().format('YYYY-MM-DD')}.zip`
       downloadBlob(blob, filename)
       return { success: true }
     },

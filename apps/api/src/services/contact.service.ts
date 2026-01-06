@@ -1,5 +1,6 @@
 import type { Kysely } from "kysely";
 import { sql } from "kysely";
+import { toDbDate } from "@whatsapp-web/shared";
 import type { TenantDatabase } from "./tenant.service.js";
 
 /**
@@ -296,7 +297,7 @@ export async function assignContactToUser(
   // Unassign previous assignment
   await tenantDb
     .updateTable("contact_assignments")
-    .set({ unassigned_at: new Date() })
+    .set({ unassigned_at: toDbDate() })
     .where("contact_id", "=", contactId)
     .where("unassigned_at", "is", null)
     .execute();
@@ -344,7 +345,7 @@ export async function unassignContact(
 ): Promise<void> {
   await tenantDb
     .updateTable("contact_assignments")
-    .set({ unassigned_at: new Date() })
+    .set({ unassigned_at: toDbDate() })
     .where("contact_id", "=", contactId)
     .where("unassigned_at", "is", null)
     .execute();

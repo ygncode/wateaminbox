@@ -1,4 +1,5 @@
 import { db } from "@whatsapp-web/database";
+import { toDbDate } from "@whatsapp-web/shared";
 import { hashPassword, verifyPassword } from "../lib/password.js";
 import {
   generateAccessToken,
@@ -237,8 +238,8 @@ export async function verifyEmail(
   const user = await db
     .updateTable("users")
     .set({
-      email_verified_at: new Date(),
-      updated_at: new Date(),
+      email_verified_at: toDbDate(),
+      updated_at: toDbDate(),
     })
     .where("id", "=", userId)
     .returning(["id", "email", "name", "email_verified_at", "created_at", "updated_at"])
@@ -305,7 +306,7 @@ export async function resetPassword(
     .updateTable("users")
     .set({
       password_hash: passwordHash,
-      updated_at: new Date(),
+      updated_at: toDbDate(),
     })
     .where("email", "=", email.toLowerCase())
     .executeTakeFirst();
@@ -333,7 +334,7 @@ export async function refreshSession(
   const session = await db
     .selectFrom("user_sessions")
     .where("id", "=", payload.sessionId)
-    .where("expires_at", ">", new Date())
+    .where("expires_at", ">", toDbDate())
     .selectAll()
     .executeTakeFirst();
 
@@ -348,7 +349,7 @@ export async function refreshSession(
     .updateTable("user_sessions")
     .set({
       refresh_token: newRefreshTokenString,
-      last_active_at: new Date(),
+      last_active_at: toDbDate(),
       expires_at: getRefreshTokenExpiry(),
     })
     .where("id", "=", session.id)
@@ -413,7 +414,7 @@ export async function getUserSessions(userId: string): Promise<UserSession[]> {
   const sessions = await db
     .selectFrom("user_sessions")
     .where("user_id", "=", userId)
-    .where("expires_at", ">", new Date())
+    .where("expires_at", ">", toDbDate())
     .select([
       "id",
       "user_id",
@@ -478,7 +479,7 @@ export async function getUserById(userId: string): Promise<AuthUser | null> {
 export async function updateSessionActivity(sessionId: string): Promise<void> {
   await db
     .updateTable("user_sessions")
-    .set({ last_active_at: new Date() })
+    .set({ last_active_at: toDbDate() })
     .where("id", "=", sessionId)
     .execute();
 }

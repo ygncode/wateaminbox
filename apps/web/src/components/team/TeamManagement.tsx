@@ -12,6 +12,7 @@ import {
   X,
 } from 'lucide-react'
 import { useState } from 'react'
+import { dayjs, nowMs } from '@whatsapp-web/shared'
 import { Avatar, AvatarFallback, Badge, Button, Input, Skeleton } from '@/components/ui'
 import {
   type CompanyMember,
@@ -354,8 +355,8 @@ function InvitationCard({
   isCancelling: boolean
   isResending: boolean
 }) {
-  const expiresAt = new Date(invitation.expiresAt)
-  const isExpiringSoon = expiresAt.getTime() - Date.now() < 24 * 60 * 60 * 1000
+  const expiresAt = dayjs(invitation.expiresAt)
+  const isExpiringSoon = expiresAt.valueOf() - nowMs() < 24 * 60 * 60 * 1000
 
   return (
     <div className="flex items-center justify-between rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-elevated p-4">
@@ -370,7 +371,7 @@ function InvitationCard({
           <div className="flex items-center gap-1 text-sm text-gray-500 dark:text-dark-text-secondary">
             <Clock className="h-3 w-3" />
             <span className={isExpiringSoon ? 'text-orange-500 dark:text-orange-400' : ''}>
-              Expires {expiresAt.toLocaleDateString()}
+              Expires {expiresAt.format('MMM D, YYYY')}
             </span>
           </div>
         </div>

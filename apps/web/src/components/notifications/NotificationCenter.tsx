@@ -13,6 +13,7 @@ import {
 } from 'lucide-react'
 import { memo, useCallback, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { formatStatusTime } from '@whatsapp-web/shared'
 import {
   Badge,
   Button,
@@ -91,26 +92,6 @@ function getNotificationColors(type: NotificationType) {
 }
 
 /**
- * Formats a date for display
- */
-function formatNotificationTime(dateString: string): string {
-  const date = new Date(dateString)
-  const now = new Date()
-  const diff = now.getTime() - date.getTime()
-
-  const minutes = Math.floor(diff / 60000)
-  const hours = Math.floor(diff / 3600000)
-  const days = Math.floor(diff / 86400000)
-
-  if (minutes < 1) return 'Just now'
-  if (minutes < 60) return `${minutes}m ago`
-  if (hours < 24) return `${hours}h ago`
-  if (days < 7) return `${days}d ago`
-
-  return date.toLocaleDateString()
-}
-
-/**
  * Single notification item component with refined styling
  */
 function NotificationItem({
@@ -168,7 +149,7 @@ function NotificationItem({
           </p>
         )}
         <p className="text-xs text-gray-400 dark:text-dark-text-tertiary mt-1.5 font-medium">
-          {formatNotificationTime(notification.createdAt)}
+          {formatStatusTime(notification.createdAt)}
         </p>
       </div>
 

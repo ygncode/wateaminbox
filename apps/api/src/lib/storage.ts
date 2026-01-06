@@ -4,6 +4,7 @@ import {
   GetObjectCommand,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { nowMs } from "@whatsapp-web/shared";
 import { env } from "./env.js";
 
 // S3 client configuration
@@ -58,7 +59,7 @@ function generateMediaKey(
   extension: string,
   filename?: string,
 ): string {
-  const timestamp = Date.now();
+  const timestamp = nowMs();
   const random = Math.random().toString(36).substring(2, 15);
 
   if (filename) {

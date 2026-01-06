@@ -1,6 +1,7 @@
 import { Building2, CheckCircle, Clock, Mail, User, XCircle } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
+import { dayjs, now } from '@whatsapp-web/shared'
 import { Button, Skeleton } from '../components/ui'
 import { useAuth } from '../contexts/auth-context'
 import { useAcceptInvitation, useInvitationByToken } from '../hooks/useTeam'
@@ -23,15 +24,11 @@ export function AcceptInvitationPage() {
   const acceptInvitation = useAcceptInvitation()
 
   // Check if invitation is expired
-  const isExpired = invitation ? new Date(invitation.expiresAt) < new Date() : false
+  const isExpired = invitation ? dayjs(invitation.expiresAt).isBefore(now()) : false
 
   // Format date for display
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString(undefined, {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-    })
+    return dayjs(dateString).format('MMMM D, YYYY')
   }
 
   const handleAccept = async () => {

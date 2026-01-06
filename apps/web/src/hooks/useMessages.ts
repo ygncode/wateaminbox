@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { Message, UpdateMessageInput } from '@whatsapp-web/shared'
+import { toDbDate, nowMs } from '@whatsapp-web/shared'
 import { api } from '../lib/api'
 import { infiniteMessageKeys } from './useInfiniteMessages'
 
@@ -49,9 +50,9 @@ export function useSendMessage() {
       })
 
       // Create an optimistic message
-      const now = new Date()
+      const now = toDbDate()
       const optimisticMessage: Message = {
-        id: `optimistic-${Date.now()}`,
+        id: `optimistic-${nowMs()}`,
         conversationId: newMessage.contactId,
         senderId: 'current-user',
         senderType: 'user',

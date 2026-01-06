@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
+import { dayjs } from '@whatsapp-web/shared'
 import { api } from '@/lib/api'
 
 /**
@@ -283,8 +284,7 @@ export function formatNumber(num: number): string {
  * Format date for display
  */
 export function formatDate(dateStr: string): string {
-  const date = new Date(dateStr)
-  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  return dayjs(dateStr).format('MMM D')
 }
 
 /**

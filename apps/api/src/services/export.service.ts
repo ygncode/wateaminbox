@@ -1,4 +1,5 @@
 import { sql } from "kysely";
+import { toISOString, dayjs } from "@whatsapp-web/shared";
 import { getTenantConnection } from "./tenant.service.js";
 import * as fflate from "fflate";
 
@@ -107,15 +108,8 @@ export async function exportContacts(
     shared_notes: c.shared_notes,
     tags: c.tags || "",
     assigned_to: c.assigned_to,
-    created_at:
-      c.created_at instanceof Date
-        ? c.created_at.toISOString()
-        : String(c.created_at),
-    last_message_at: c.last_message_at
-      ? c.last_message_at instanceof Date
-        ? c.last_message_at.toISOString()
-        : String(c.last_message_at)
-      : null,
+    created_at: toISOString(c.created_at),
+    last_message_at: c.last_message_at ? toISOString(c.last_message_at) : null,
   }));
 }
 
@@ -230,10 +224,7 @@ export async function exportMessages(
     direction: m.from_me ? ("sent" as const) : ("received" as const),
     message_type: m.message_type || "text",
     text_content: m.text_content,
-    timestamp:
-      m.timestamp instanceof Date
-        ? m.timestamp.toISOString()
-        : String(m.timestamp),
+    timestamp: toISOString(m.timestamp),
     sent_by_user: m.sent_by_user,
     has_media: !!m.media_url,
   }));
@@ -362,15 +353,8 @@ export async function exportConversation(
       shared_notes: c.shared_notes,
       tags: c.tags || "",
       assigned_to: c.assigned_to,
-      created_at:
-        c.created_at instanceof Date
-          ? c.created_at.toISOString()
-          : String(c.created_at),
-      last_message_at: c.last_message_at
-        ? c.last_message_at instanceof Date
-          ? c.last_message_at.toISOString()
-          : String(c.last_message_at)
-        : null,
+      created_at: toISOString(c.created_at),
+      last_message_at: c.last_message_at ? toISOString(c.last_message_at) : null,
     },
     messages: messages.reverse(), // Chronological order
   };
@@ -452,7 +436,7 @@ export async function exportFullBackup(
 
   // Calculate stats
   const messageTimestamps = allMessages
-    .map((m) => new Date(m.timestamp).getTime())
+    .map((m) => dayjs(m.timestamp).valueOf())
     .filter((t) => !isNaN(t));
 
   const stats = {
@@ -461,18 +445,18 @@ export async function exportFullBackup(
     dateRange: {
       start:
         messageTimestamps.length > 0
-          ? new Date(Math.min(...messageTimestamps)).toISOString()
+          ? dayjs(Math.min(...messageTimestamps)).toISOString()
           : null,
       end:
         messageTimestamps.length > 0
-          ? new Date(Math.max(...messageTimestamps)).toISOString()
+          ? dayjs(Math.max(...messageTimestamps)).toISOString()
           : null,
     },
   };
 
   // Create full backup data
   const backupData: FullBackupExport = {
-    exportedAt: new Date().toISOString(),
+    exportedAt: toISOString(),
     contacts,
     messages: allMessages,
     stats,
@@ -518,8 +502,9 @@ function generateBackupReadme(
   stats: FullBackupExport["stats"],
   options: { startDate?: Date; endDate?: Date; includeMedia?: boolean },
 ): string {
-  const dateStr = new Date().toISOString().split("T")[0];
-  const timeStr = new Date().toISOString().split("T")[1].split(".")[0];
+  const now = dayjs.utc();
+  const dateStr = now.format("YYYY-MM-DD");
+  const timeStr = now.format("HH:mm:ss");
 
   let content = `WhatsApp Web Backup
 ===================
@@ -551,11 +536,11 @@ Filters Applied
 ---------------
 `;
     if (options.startDate) {
-      content += `- Start Date: ${options.startDate.toISOString().split("T")[0]}
+      content += `- Start Date: ${dayjs(options.startDate).format("YYYY-MM-DD")}
 `;
     }
     if (options.endDate) {
-      content += `- End Date: ${options.endDate.toISOString().split("T")[0]}
+      content += `- End Date: ${dayjs(options.endDate).format("YYYY-MM-DD")}
 `;
     }
   }

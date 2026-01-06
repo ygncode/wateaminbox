@@ -1,5 +1,6 @@
 import type { MiddlewareHandler } from "hono";
 import { Hono } from "hono";
+import { toDbDate, toISOString } from "@whatsapp-web/shared";
 import { authMiddleware } from "../middleware/auth.js";
 import { tenantMiddleware, requirePermission } from "../middleware/tenant.js";
 import { PERMISSIONS } from "../services/permission.service.js";
@@ -245,8 +246,8 @@ messageRoutes.post(
         quoted_message_id: quotedWaMessageId || null,
         sent_by_user_id: user.id,
         status: "pending",
-        timestamp: new Date(),
-        created_at: new Date(),
+        timestamp: toDbDate(),
+        created_at: toDbDate(),
       })
       .execute();
 
@@ -275,7 +276,7 @@ messageRoutes.post(
         content,
         mediaUrl,
         replyToMessageId: replyToMessageId || null,
-        timestamp: new Date().toISOString(),
+        timestamp: toISOString(),
         status: "pending",
       },
       autoAssigned: wasAutoAssigned,
@@ -334,7 +335,7 @@ messageRoutes.delete("/:id", async (c) => {
 
   const updated = await tenantDb
     .updateTable("messages")
-    .set({ deleted_at: new Date() })
+    .set({ deleted_at: toDbDate() })
     .where("id", "=", messageId)
     .returning(["id", "deleted_at"])
     .executeTakeFirst();
@@ -578,7 +579,7 @@ messageRoutes.post(
         is_forwarded: true,
         sent_by_user_id: user.id,
         status: "pending",
-        timestamp: new Date(),
+        timestamp: toDbDate(),
       })
       .execute();
 
@@ -683,7 +684,7 @@ messageRoutes.post(
         quoted_message_id: originalMessage.quoted_message_id,
         sent_by_user_id: user.id,
         status: "pending",
-        timestamp: new Date(),
+        timestamp: toDbDate(),
       })
       .execute();
 
@@ -727,7 +728,7 @@ messageRoutes.post(
         content: originalMessage.content,
         mediaUrl: originalMessage.media_url,
         status: "pending",
-        timestamp: new Date().toISOString(),
+        timestamp: toISOString(),
       },
       originalMessageId: messageId,
     });
@@ -846,7 +847,7 @@ messageRoutes.post("/batch/delete", async (c) => {
   // Soft delete all messages
   const result = await tenantDb
     .updateTable("messages")
-    .set({ deleted_at: new Date() })
+    .set({ deleted_at: toDbDate() })
     .where("id", "in", messageIds)
     .where("deleted_at", "is", null) // Don't re-delete already deleted messages
     .execute();

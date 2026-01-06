@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { nowMs, toDate } from '@whatsapp-web/shared'
 import { useWebSocketContext } from '../contexts/WebSocketProvider'
 import {
   ApiRequestError,
@@ -60,6 +61,20 @@ export function useWhatsAppConnections() {
   // Track timeout refs for QR expiration
   const qrTimeoutsRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map())
 
+  /**
+   * Use refs to stabilize callback references for WebSocket subscriptions
+   *
+   * Problem: The `subscribe` function from WebSocketContext changes reference
+   * when its dependencies change, which would cause the subscription effect
+   * to re-run and create duplicate handlers.
+   *
+   * Solution: Store `subscribe` in a ref and update it on each render.
+   * The effect only depends on `wsConnected`, so it only re-runs when
+   * connection state actually changes.
+   */
+  const subscribeRef = useRef(subscribe)
+  subscribeRef.current = subscribe
+
   // Query for list of connections
   const {
     data: connections = [],
@@ -103,7 +118,7 @@ export function useWhatsAppConnections() {
         qrCode: null,
         qrExpiresAt: null,
         error: null,
-        tempId: `temp-${Date.now()}`,
+        tempId: `temp-${nowMs()}`,
       })
     },
     onSuccess: (connection) => {
@@ -118,7 +133,34 @@ export function useWhatsAppConnections() {
         isConnecting: true,
         isDisconnecting: false,
       })
-      // Invalidate list to refetch connections
+
+      /**
+       * Optimistically add the new connection to the React Query cache
+       *
+       * Why this is needed:
+       * 1. API returns new connection → onSuccess fires
+       * 2. We call invalidateQueries() which triggers a background refetch
+       * 3. Meanwhile, Go service generates QR code and broadcasts via WebSocket
+       * 4. QR event arrives and updates connectionStates[connectionId]
+       * 5. BUT if the refetch hasn't completed, `connections` array doesn't
+       *    include the new connection yet!
+       * 6. connectionsWithState won't show the QR code because the connection
+       *    isn't in the list to merge with its local state
+       *
+       * Solution: Immediately add the connection to cache so it's available
+       * when the QR code arrives, regardless of refetch timing.
+       */
+      queryClient.setQueryData<WhatsAppConnection[]>(
+        whatsappConnectionKeys.list(),
+        (oldConnections = []) => {
+          if (oldConnections.some((c) => c.id === connectionId)) {
+            return oldConnections
+          }
+          return [...oldConnections, connection]
+        }
+      )
+
+      // Also invalidate to ensure we eventually get fresh data from server
       queryClient.invalidateQueries({
         queryKey: whatsappConnectionKeys.list(),
       })
@@ -224,19 +266,27 @@ export function useWhatsAppConnections() {
     },
   })
 
+  // Store refs for callbacks used in WebSocket handlers
+  const updateConnectionStateRef = useRef(updateConnectionState)
+  updateConnectionStateRef.current = updateConnectionState
+
+  const queryClientRef = useRef(queryClient)
+  queryClientRef.current = queryClient
+
   // Handle WebSocket events for multi-connection
+  // Use refs to avoid stale closures and ensure handlers always use latest values
   useEffect(() => {
     if (!wsConnected) return
 
     // Handle QR code events
-    const unsubQr = subscribe<QRCodePayload>('qr', (payload) => {
+    const unsubQr = subscribeRef.current<QRCodePayload>('qr', (payload) => {
       // Ensure we can correlate by connectionId; ignore if missing
       const connectionId = payload.connectionId
 
       if (connectionId) {
-        updateConnectionState(connectionId, {
+        updateConnectionStateRef.current(connectionId, {
           qrCode: payload.qrCode,
-          qrExpiresAt: new Date(payload.expiresAt),
+          qrExpiresAt: toDate(payload.expiresAt),
           error: null,
           isConnecting: true,
         })
@@ -247,10 +297,10 @@ export function useWhatsAppConnections() {
           clearTimeout(existingTimeout)
         }
 
-        const expiresIn = new Date(payload.expiresAt).getTime() - Date.now()
+        const expiresIn = (toDate(payload.expiresAt)?.getTime() ?? nowMs()) - nowMs()
         const timeout = setTimeout(
           () => {
-            updateConnectionState(connectionId, {
+            updateConnectionStateRef.current(connectionId, {
               qrCode: null,
               qrExpiresAt: null,
               error: 'QR code expired. Please try again.',
@@ -268,24 +318,24 @@ export function useWhatsAppConnections() {
             ? {
                 ...prev,
                 qrCode: payload.qrCode,
-                qrExpiresAt: new Date(payload.expiresAt),
+                qrExpiresAt: toDate(payload.expiresAt),
               }
             : {
                 qrCode: payload.qrCode,
-                qrExpiresAt: new Date(payload.expiresAt),
+                qrExpiresAt: toDate(payload.expiresAt),
                 error: null,
-                tempId: `temp-${Date.now()}`,
+                tempId: `temp-${nowMs()}`,
               }
         )
       }
     })
 
     // Handle connected events
-    const unsubConnected = subscribe<WhatsAppConnectedPayload>('connected', (payload) => {
+    const unsubConnected = subscribeRef.current<WhatsAppConnectedPayload>('connected', (payload) => {
       const connectionId = payload.connectionId
       if (connectionId) {
         // Clear QR and update state
-        updateConnectionState(connectionId, {
+        updateConnectionStateRef.current(connectionId, {
           qrCode: null,
           qrExpiresAt: null,
           error: null,
@@ -300,44 +350,47 @@ export function useWhatsAppConnections() {
         }
 
         // Refetch connections to get updated status
-        queryClient.invalidateQueries({
+        queryClientRef.current.invalidateQueries({
           queryKey: whatsappConnectionKeys.list(),
         })
       }
     })
 
     // Handle disconnected events
-    const unsubDisconnected = subscribe<WhatsAppDisconnectedPayload>('disconnected', (payload) => {
-      const connectionId = payload.connectionId
-      if (connectionId) {
-        updateConnectionState(connectionId, {
-          qrCode: null,
-          qrExpiresAt: null,
-          error: payload.reason ? `Disconnected: ${payload.reason}` : null,
-          isConnecting: false,
-          isDisconnecting: false,
-        })
+    const unsubDisconnected = subscribeRef.current<WhatsAppDisconnectedPayload>(
+      'disconnected',
+      (payload) => {
+        const connectionId = payload.connectionId
+        if (connectionId) {
+          updateConnectionStateRef.current(connectionId, {
+            qrCode: null,
+            qrExpiresAt: null,
+            error: payload.reason ? `Disconnected: ${payload.reason}` : null,
+            isConnecting: false,
+            isDisconnecting: false,
+          })
 
-        // Clear QR timeout
-        const timeout = qrTimeoutsRef.current.get(connectionId)
-        if (timeout) {
-          clearTimeout(timeout)
-          qrTimeoutsRef.current.delete(connectionId)
+          // Clear QR timeout
+          const timeout = qrTimeoutsRef.current.get(connectionId)
+          if (timeout) {
+            clearTimeout(timeout)
+            qrTimeoutsRef.current.delete(connectionId)
+          }
+
+          // Refetch connections
+          queryClientRef.current.invalidateQueries({
+            queryKey: whatsappConnectionKeys.list(),
+          })
         }
-
-        // Refetch connections
-        queryClient.invalidateQueries({
-          queryKey: whatsappConnectionKeys.list(),
-        })
       }
-    })
+    )
 
     return () => {
       unsubQr()
       unsubConnected()
       unsubDisconnected()
     }
-  }, [wsConnected, subscribe, queryClient, updateConnectionState])
+  }, [wsConnected])
 
   // Cleanup timeouts on unmount
   useEffect(() => {

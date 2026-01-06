@@ -1,4 +1,5 @@
 import type { Message, MessageType } from '@whatsapp-web/shared'
+import { formatMessageTime } from '@whatsapp-web/shared'
 import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { EmojiReactionPicker } from './EmojiReactionPicker'
@@ -95,11 +96,6 @@ export const MessageBubble = memo(function MessageBubble({
       document.removeEventListener('mousedown', handleClickOutside)
     }
   }, [showContextMenu])
-
-  const formatTime = (date: Date) => {
-    const d = new Date(date)
-    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-  }
 
   const renderStatusIcon = () => {
     if (!isOwn) return null
@@ -503,7 +499,7 @@ export const MessageBubble = memo(function MessageBubble({
             isOwn ? 'text-white/70' : 'text-gray-500 dark:text-dark-text-secondary'
           }`}
         >
-          <span>{formatTime(message.createdAt)}</span>
+          <span>{formatMessageTime(message.createdAt)}</span>
           {renderStatusIcon()}
           {message.isStarred && !message.isDeleted && (
             <StarFilledIcon className="h-3 w-3 text-yellow-400" />

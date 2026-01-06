@@ -17,6 +17,8 @@ import {
   X,
 } from 'lucide-react'
 import { useEffect, useState } from 'react'
+import { formatPhoneNumber } from '@/lib/utils'
+import { formatShortDate, dayjs } from '@whatsapp-web/shared'
 import { ExportDialog } from '@/components/export'
 import {
   RightPanel,
@@ -210,7 +212,7 @@ function ContactInfoSection({
             <Phone className="h-5 w-5 text-gray-400 dark:text-dark-text-tertiary" />
             <div>
               <p className="text-sm font-medium text-gray-900 dark:text-dark-text-primary">
-                {contact.phoneNumber}
+                {formatPhoneNumber(contact.phoneNumber)}
               </p>
               <p className="text-xs text-gray-500 dark:text-dark-text-tertiary">Phone</p>
             </div>
@@ -352,12 +354,9 @@ function NoteItem({
   }
 
   const formatDate = (dateStr: string) => {
-    const date = new Date(dateStr)
-    return date.toLocaleDateString(undefined, {
-      month: 'short',
-      day: 'numeric',
-      year: date.getFullYear() !== new Date().getFullYear() ? 'numeric' : undefined,
-    })
+    const parsed = dayjs(dateStr)
+    const showYear = parsed.year() !== dayjs().year()
+    return showYear ? parsed.format('MMM D, YYYY') : parsed.format('MMM D')
   }
 
   if (isEditing) {
@@ -820,7 +819,7 @@ function AssignmentSection({
                 <span className="font-medium">{contact.assignment.assignedToName}</span>
               </p>
               <p className="text-xs text-gray-500 dark:text-dark-text-tertiary">
-                Since {new Date(contact.assignment.assignedAt).toLocaleDateString()}
+                Since {formatShortDate(contact.assignment.assignedAt)}
               </p>
             </div>
             <Button
@@ -922,19 +921,11 @@ function AssignmentHistorySection({ contactId }: { contactId: string }) {
                 Assigned by {entry.assignedByName}
               </p>
               <p className="text-xs text-gray-400 dark:text-dark-text-tertiary">
-                {new Date(entry.assignedAt).toLocaleDateString()} at{' '}
-                {new Date(entry.assignedAt).toLocaleTimeString([], {
-                  hour: '2-digit',
-                  minute: '2-digit',
-                })}
+                {dayjs(entry.assignedAt).format('MMM D')} at {dayjs(entry.assignedAt).format('HH:mm')}
                 {entry.unassignedAt && (
                   <>
                     {' → '}
-                    {new Date(entry.unassignedAt).toLocaleDateString()} at{' '}
-                    {new Date(entry.unassignedAt).toLocaleTimeString([], {
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    })}
+                    {dayjs(entry.unassignedAt).format('MMM D')} at {dayjs(entry.unassignedAt).format('HH:mm')}
                   </>
                 )}
               </p>

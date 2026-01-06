@@ -1,4 +1,5 @@
 import type { Contact } from '@whatsapp-web/shared'
+import { formatLastSeen } from '@whatsapp-web/shared'
 import { ArrowLeft } from 'lucide-react'
 import { ThemeToggle } from './ThemeToggle'
 
@@ -29,7 +30,7 @@ export function MessageHeader({
   }
 
   const displayName = contact.customName || contact.name || contact.jid || 'Unknown'
-  const lastSeenText = getLastSeenText(contact.isOnline, contact.lastSeen)
+  const lastSeenText = formatLastSeen(contact.lastSeen, contact.isOnline)
   const statusText = isTyping ? 'typing' : lastSeenText
 
   return (
@@ -144,58 +145,6 @@ function getInitials(name: string | null | undefined): string {
       .toUpperCase()
       .slice(0, 2) || '?'
   )
-}
-
-// Helper function to format last seen time
-function getLastSeenText(isOnline: boolean | undefined, lastSeen: Date | undefined): string {
-  if (isOnline) {
-    return 'online'
-  }
-
-  if (!lastSeen) {
-    return 'offline'
-  }
-
-  const now = new Date()
-  const lastSeenDate = new Date(lastSeen)
-  const diffMs = now.getTime() - lastSeenDate.getTime()
-  const diffMinutes = Math.floor(diffMs / 60000)
-  const diffHours = Math.floor(diffMinutes / 60)
-  const diffDays = Math.floor(diffHours / 24)
-
-  if (diffMinutes < 1) {
-    return 'last seen just now'
-  }
-  if (diffMinutes < 60) {
-    return `last seen ${diffMinutes} minute${diffMinutes === 1 ? '' : 's'} ago`
-  }
-  if (diffHours < 24) {
-    return `last seen ${diffHours} hour${diffHours === 1 ? '' : 's'} ago`
-  }
-  if (diffDays === 1) {
-    return `last seen yesterday at ${formatTime(lastSeenDate)}`
-  }
-  if (diffDays < 7) {
-    return `last seen ${formatDay(lastSeenDate)} at ${formatTime(lastSeenDate)}`
-  }
-
-  return `last seen ${formatDate(lastSeenDate)}`
-}
-
-function formatTime(date: Date): string {
-  return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-}
-
-function formatDay(date: Date): string {
-  return date.toLocaleDateString([], { weekday: 'long' })
-}
-
-function formatDate(date: Date): string {
-  return date.toLocaleDateString([], {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  })
 }
 
 export default MessageHeader
