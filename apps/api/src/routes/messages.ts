@@ -234,10 +234,11 @@ messageRoutes.post(
       .insertInto("messages")
       .values({
         id: messageId,
+        whatsapp_connection_id: connection.id,
         contact_id: contactId,
         message_id: waMessageId,
         from_me: true,
-        sender_jid: null, // Will be updated when sent
+        sender_jid: connection.jid, // Set sender JID from connection
         message_type: messageType,
         content,
         media_url: mediaUrl || null,
@@ -245,6 +246,7 @@ messageRoutes.post(
         sent_by_user_id: user.id,
         status: "pending",
         timestamp: new Date(),
+        created_at: new Date(),
       })
       .execute();
 

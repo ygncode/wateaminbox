@@ -521,36 +521,41 @@ async function handleReceiptEvent(event: ReceiptEvent): Promise<void> {
   try {
     const tenantDb = getTenantConnection(companyId);
 
-    // Update message status in database
+    // Update message status in database and return the message info
     // Note: We store the WhatsApp message ID in message_id column
-    const result = await tenantDb
+    const updatedMessage = await tenantDb
       .updateTable("messages")
       .set({
         status: dbStatus,
       })
       .where("message_id", "=", payload.messageId)
+      .returning(["id", "contact_id"])
       .executeTakeFirst();
 
     logger.debug(
       {
         status: dbStatus,
-        messageId: payload.messageId,
-        rowsAffected: result.numUpdatedRows.toString(),
+        waMessageId: payload.messageId,
+        internalId: updatedMessage?.id,
+        contactId: updatedMessage?.contact_id,
       },
       "Updated message status",
     );
 
-    // Broadcast to WebSocket clients with mapped status and connectionId
-    broadcastToCompany(companyId, {
-      type: "receipt",
-      connectionId,
-      payload: {
-        messageId: payload.messageId,
-        status: dbStatus,
-        timestamp: payload.timestamp,
-      },
-      timestamp: event.timestamp,
-    });
+    // Broadcast to WebSocket clients with correct message:status format
+    // Frontend expects: { conversationId, messageId (internal), status }
+    if (updatedMessage?.id && updatedMessage?.contact_id) {
+      broadcastToCompany(companyId, {
+        type: "message:status",
+        connectionId,
+        payload: {
+          conversationId: updatedMessage.contact_id,
+          messageId: updatedMessage.id,
+          status: dbStatus,
+        },
+        timestamp: event.timestamp,
+      });
+    }
   } catch (error) {
     logger.error(formatError(error), "Failed to handle receipt");
   }
@@ -578,36 +583,41 @@ async function handleSendConfirmationEvent(
     const tenantDb = getTenantConnection(companyId);
 
     // Update the message with the real WhatsApp ID and set status to sent
-    const result = await tenantDb
+    // Also return the updated message to get internal ID and contact_id
+    const updatedMessage = await tenantDb
       .updateTable("messages")
       .set({
         message_id: payload.messageId,
         status: "sent",
       })
       .where("message_id", "=", payload.pendingMessageId)
+      .returning(["id", "contact_id"])
       .executeTakeFirst();
 
     logger.debug(
       {
         pendingMessageId: payload.pendingMessageId,
         messageId: payload.messageId,
-        rowsAffected: result.numUpdatedRows.toString(),
+        internalId: updatedMessage?.id,
+        contactId: updatedMessage?.contact_id,
       },
       "Updated message with real ID",
     );
 
-    // Broadcast to WebSocket clients with the status update
-    broadcastToCompany(companyId, {
-      type: "message:status",
-      connectionId,
-      payload: {
-        pendingMessageId: payload.pendingMessageId,
-        messageId: payload.messageId,
-        status: "sent",
-        timestamp: payload.timestamp,
-      },
-      timestamp: event.timestamp,
-    });
+    // Broadcast to WebSocket clients with the correct payload format
+    // Frontend expects: { conversationId, messageId (internal), status }
+    if (updatedMessage?.id && updatedMessage?.contact_id) {
+      broadcastToCompany(companyId, {
+        type: "message:status",
+        connectionId,
+        payload: {
+          conversationId: updatedMessage.contact_id,
+          messageId: updatedMessage.id,
+          status: "sent",
+        },
+        timestamp: event.timestamp,
+      });
+    }
   } catch (error) {
     logger.error(formatError(error), "Failed to handle send confirmation");
   }

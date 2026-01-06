@@ -6,6 +6,7 @@ import {
   Loader2,
   MessageCircle,
   MoreVertical,
+  Phone,
   Plus,
   Power,
   PowerOff,
@@ -624,8 +625,11 @@ function ConnectionCard({
                   </Badge>
                 </div>
                 {connection.phoneNumber && (
-                  <p className="text-sm text-whatsapp-teal-green font-medium mt-0.5">
-                    {connection.phoneNumber}
+                  <p className="text-sm text-gray-500 dark:text-dark-text-secondary mt-0.5 flex items-center gap-1.5">
+                    <span>Phone</span>
+                    <span className="text-gray-400 dark:text-dark-text-tertiary">-</span>
+                    <Phone className="h-3.5 w-3.5 text-whatsapp-teal-green" />
+                    <span className="text-whatsapp-teal-green font-medium">{connection.phoneNumber}</span>
                   </p>
                 )}
                 {connection.lastSync && (

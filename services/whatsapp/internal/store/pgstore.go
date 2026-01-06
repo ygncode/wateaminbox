@@ -7,6 +7,7 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
+	"log"
 	"strings"
 	"sync"
 	"time"
@@ -671,6 +672,9 @@ func (s *PGSQLStore) GetOrGenPreKeys(ctx context.Context, count uint32) ([]*keys
 	defer rows.Close()
 
 	var preKeys []*keys.PreKey
+	var corruptedKeyIDs []uint32
+	emptyKey := [32]byte{}
+
 	for rows.Next() {
 		var keyID uint32
 		var keyData []byte
@@ -684,11 +688,27 @@ func (s *PGSQLStore) GetOrGenPreKeys(ctx context.Context, count uint32) ([]*keys
 			copy(privKey[:], keyData[:32])
 		}
 		keyPair := keys.NewKeyPairFromPrivateKey(privKey)
+
+		// Validate the PreKey has valid public key (detects corrupted keys)
+		if keyPair.Pub == nil || *keyPair.Pub == emptyKey {
+			log.Printf("Detected corrupted PreKey %d with empty public key in GetOrGenPreKeys", keyID)
+			corruptedKeyIDs = append(corruptedKeyIDs, keyID)
+			continue // Skip corrupted keys
+		}
+
 		preKey := &keys.PreKey{
 			KeyPair: *keyPair,
 			KeyID:   keyID,
 		}
 		preKeys = append(preKeys, preKey)
+	}
+
+	// Clean up corrupted keys in background
+	for _, keyID := range corruptedKeyIDs {
+		_, _ = s.db.ExecContext(ctx, `
+			DELETE FROM whatsmeow_pre_keys
+			WHERE connection_id = $1 AND jid = $2 AND key_id = $3
+		`, s.connectionID, s.JID, keyID)
 	}
 
 	if err := rows.Err(); err != nil {
@@ -762,6 +782,19 @@ func (s *PGSQLStore) GetPreKey(ctx context.Context, id uint32) (*keys.PreKey, er
 		copy(privKey[:], keyData[:32])
 	}
 	keyPair := keys.NewKeyPairFromPrivateKey(privKey)
+
+	// Validate the PreKey has valid public key (detects corrupted keys from before the fix)
+	emptyKey := [32]byte{}
+	if keyPair.Pub == nil || *keyPair.Pub == emptyKey {
+		log.Printf("Detected corrupted PreKey %d with empty public key, removing it", id)
+		// Remove the corrupted key so whatsmeow will generate a new one
+		_, _ = s.db.ExecContext(ctx, `
+			DELETE FROM whatsmeow_pre_keys
+			WHERE connection_id = $1 AND jid = $2 AND key_id = $3
+		`, s.connectionID, s.JID, id)
+		return nil, nil
+	}
+
 	preKey := &keys.PreKey{
 		KeyPair: *keyPair,
 		KeyID:   id,

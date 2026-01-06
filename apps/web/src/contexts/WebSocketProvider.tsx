@@ -285,7 +285,36 @@ export function WebSocketProvider({ children, autoConnect = true }: WebSocketPro
 
     // Message status handler
     const unsubMessageStatus = client.on<MessageStatusPayload>('message:status', (payload) => {
+      console.log('[WebSocket] 📬 Message status update:', {
+        conversationId: payload.conversationId,
+        messageId: payload.messageId,
+        status: payload.status,
+      })
+
+      // Update Zustand store (for legacy compatibility)
       updateMessageStatusRef.current(payload.conversationId, payload.messageId, payload.status)
+
+      // Update TanStack Query cache for real-time status updates
+      const queryKey = infiniteMessageKeys.list(payload.conversationId)
+      queryClientRef.current.setQueryData<{
+        pages: PaginatedMessages[]
+        pageParams: (string | undefined)[]
+      }>(queryKey, (oldData) => {
+        if (!oldData) return oldData
+
+        // Find and update the message status in all pages
+        const newPages = oldData.pages.map((page) => ({
+          ...page,
+          messages: page.messages.map((msg) =>
+            msg.id === payload.messageId ? { ...msg, status: payload.status } : msg
+          ),
+        }))
+
+        return {
+          ...oldData,
+          pages: newPages,
+        }
+      })
     })
 
     // Typing start handler
