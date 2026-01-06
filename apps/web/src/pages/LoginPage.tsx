@@ -1,14 +1,27 @@
 import * as React from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
 import { Button } from '../components/ui/button'
-import { Input } from '../components/ui/input'
+import { FormField } from '../components/ui/form-field'
 import { useAuth } from '../contexts/auth-context'
+import { loginSchema, type LoginFormData } from '../lib/schemas'
 
 export function LoginPage() {
   const navigate = useNavigate()
   const { login, isLoading, error, clearError, isAuthenticated } = useAuth()
-  const [email, setEmail] = React.useState('')
-  const [password, setPassword] = React.useState('')
+
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<LoginFormData>({
+    resolver: zodResolver(loginSchema),
+    defaultValues: {
+      email: '',
+      password: '',
+    },
+  })
 
   React.useEffect(() => {
     if (isAuthenticated) {
@@ -16,11 +29,10 @@ export function LoginPage() {
     }
   }, [isAuthenticated, navigate])
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const onSubmit = async (data: LoginFormData) => {
     clearError()
     try {
-      await login(email, password)
+      await login(data.email, data.password)
       navigate('/chat')
     } catch {
       // Error is handled by auth context
@@ -45,48 +57,32 @@ export function LoginPage() {
             </p>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
             {error && (
               <div role="alert" className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 px-4 py-3 rounded-lg text-sm">
                 {error}
               </div>
             )}
 
-            <div>
-              <label
-                htmlFor="email"
-                className="block text-sm font-medium text-gray-700 dark:text-dark-text-secondary mb-1"
-              >
-                Email
-              </label>
-              <Input
-                id="email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@example.com"
-                required
-                autoComplete="email"
-              />
-            </div>
+            <FormField
+              label="Email"
+              id="email"
+              type="email"
+              placeholder="you@example.com"
+              registration={register('email')}
+              error={errors.email}
+              autoComplete="email"
+            />
 
-            <div>
-              <label
-                htmlFor="password"
-                className="block text-sm font-medium text-gray-700 dark:text-dark-text-secondary mb-1"
-              >
-                Password
-              </label>
-              <Input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="Enter your password"
-                required
-                autoComplete="current-password"
-              />
-            </div>
+            <FormField
+              label="Password"
+              id="password"
+              type="password"
+              placeholder="Enter your password"
+              registration={register('password')}
+              error={errors.password}
+              autoComplete="current-password"
+            />
 
             <div className="flex items-center justify-between">
               <label className="flex items-center">

@@ -25,12 +25,14 @@ export interface CompaniesTable {
   name: string;
   schema_name: string;
   status: Generated<CompanyStatus>;
+  max_whatsapp_connections: Generated<number>;
   created_at: Generated<Date>;
   updated_at: Generated<Date>;
 }
 
 export interface UsersTable {
   id: Generated<string>;
+  name: string | null;
   email: string;
   password_hash: string;
   email_verified_at: Date | null;
@@ -106,6 +108,7 @@ export interface TenantDatabase {
   contact_tags: ContactTagsTable;
   contact_assignments: ContactAssignmentsTable;
   contact_notes_private: ContactNotesPrivateTable;
+  contact_notes_shared: ContactNotesSharedTable;
   messages: TenantMessagesTable;
   message_reactions: MessageReactionsTable;
   groups: GroupsTable;
@@ -120,6 +123,7 @@ export interface TenantDatabase {
 
 export interface WhatsAppConnectionsTable {
   id: Generated<string>;
+  name: string | null;
   phone_number: string | null;
   jid: string | null;
   status: Generated<WhatsAppConnectionStatus>;
@@ -140,6 +144,8 @@ export interface ContactsTable {
   custom_name: string | null;
   notes_shared: string | null;
   is_group: Generated<boolean>;
+  is_online: Generated<boolean>;
+  last_seen: Date | null;
   profile_picture_url: string | null;
   created_at: Generated<Date>;
   updated_at: Generated<Date>;
@@ -220,6 +226,16 @@ export interface ContactNotesPrivateTable {
   contact_id: string;
   user_id: string;
   content: string | null;
+  created_at: Generated<Date>;
+  updated_at: Generated<Date>;
+}
+
+export interface ContactNotesSharedTable {
+  id: Generated<string>;
+  contact_id: string;
+  user_id: string;
+  author_name: string;
+  content: string;
   created_at: Generated<Date>;
   updated_at: Generated<Date>;
 }

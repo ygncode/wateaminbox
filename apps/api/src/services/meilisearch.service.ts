@@ -1,4 +1,7 @@
 import { MeiliSearch, Index } from "meilisearch";
+import { createLogger, formatError } from "../lib/logger.js";
+
+const logger = createLogger("Meilisearch");
 
 /**
  * Meilisearch configuration
@@ -191,7 +194,7 @@ export async function indexMessage(
     const index = await getMessagesIndex(companyId);
     await index.addDocuments([message]);
   } catch (error) {
-    console.error("[Meilisearch] Failed to index message:", error);
+    logger.error(formatError(error), "Failed to index message");
   }
 }
 
@@ -208,7 +211,7 @@ export async function indexMessages(
     const index = await getMessagesIndex(companyId);
     await index.addDocuments(messages);
   } catch (error) {
-    console.error("[Meilisearch] Failed to index messages:", error);
+    logger.error(formatError(error), "Failed to index messages");
   }
 }
 
@@ -223,7 +226,7 @@ export async function indexContact(
     const index = await getContactsIndex(companyId);
     await index.addDocuments([contact]);
   } catch (error) {
-    console.error("[Meilisearch] Failed to index contact:", error);
+    logger.error(formatError(error), "Failed to index contact");
   }
 }
 
@@ -240,7 +243,7 @@ export async function indexContacts(
     const index = await getContactsIndex(companyId);
     await index.addDocuments(contacts);
   } catch (error) {
-    console.error("[Meilisearch] Failed to index contacts:", error);
+    logger.error(formatError(error), "Failed to index contacts");
   }
 }
 
@@ -255,7 +258,7 @@ export async function deleteMessage(
     const index = await getMessagesIndex(companyId);
     await index.deleteDocument(messageId);
   } catch (error) {
-    console.error("[Meilisearch] Failed to delete message:", error);
+    logger.error(formatError(error), "Failed to delete message");
   }
 }
 
@@ -270,7 +273,7 @@ export async function deleteContact(
     const index = await getContactsIndex(companyId);
     await index.deleteDocument(contactId);
   } catch (error) {
-    console.error("[Meilisearch] Failed to delete contact:", error);
+    logger.error(formatError(error), "Failed to delete contact");
   }
 }
 
@@ -372,7 +375,7 @@ export async function searchMessagesWithMeilisearch(
       total: searchResult.estimatedTotalHits || results.length,
     };
   } catch (error) {
-    console.error("[Meilisearch] Search failed:", error);
+    logger.error(formatError(error), "Search failed");
     return { results: [], total: 0 };
   }
 }
@@ -433,7 +436,7 @@ export async function searchContactsWithMeilisearch(
       total: searchResult.estimatedTotalHits || results.length,
     };
   } catch (error) {
-    console.error("[Meilisearch] Contact search failed:", error);
+    logger.error(formatError(error), "Contact search failed");
     return { results: [], total: 0 };
   }
 }
@@ -453,7 +456,7 @@ export async function deleteCompanyIndexes(companyId: string): Promise<void> {
       meili.deleteIndex(contactsIndexName).catch(() => {}),
     ]);
   } catch (error) {
-    console.error("[Meilisearch] Failed to delete company indexes:", error);
+    logger.error(formatError(error), "Failed to delete company indexes");
   }
 }
 

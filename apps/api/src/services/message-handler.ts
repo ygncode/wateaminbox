@@ -15,13 +15,16 @@ import {
   type TypingEvent,
   type ReactionEvent,
 } from "../lib/nats.js";
-import { db } from "@whatsapp-web/database";
+import { db, type MessageType } from "@whatsapp-web/database";
 import { getTenantConnection } from "./tenant.service.js";
 import { updateConnectionStatus } from "./whatsapp.service.js";
 import { broadcastToCompany } from "../routes/ws.js";
 import { updateMessageSearchVector } from "./search.service.js";
 import { indexMessage, type MessageDocument } from "./meilisearch.service.js";
 import { createNotification } from "./notification-history.service.js";
+import { createLogger, formatError } from "../lib/logger.js";
+
+const logger = createLogger("MessageHandler");
 
 // Subscription handle
 let eventSubscription: JetStreamSubscription | null = null;
@@ -34,7 +37,7 @@ let isInitialized = false;
  */
 export async function initializeMessageHandler(): Promise<void> {
   if (isInitialized) {
-    console.log("[MessageHandler] Already initialized");
+    logger.info("Already initialized");
     return;
   }
 
@@ -45,9 +48,7 @@ export async function initializeMessageHandler(): Promise<void> {
     try {
       eventSubscription = await subscribeToAllEvents(handleWhatsAppEvent);
       isInitialized = true;
-      console.log(
-        "[MessageHandler] Initialized and subscribed to WhatsApp events",
-      );
+      logger.info("Initialized and subscribed to WhatsApp events");
       return;
     } catch (error) {
       const errorMessage =
@@ -57,12 +58,13 @@ export async function initializeMessageHandler(): Promise<void> {
       );
 
       if (isStreamNotFound && attempt < maxRetries) {
-        console.log(
-          `[MessageHandler] Streams not ready, retrying in ${retryDelayMs / 1000}s... (attempt ${attempt}/${maxRetries})`,
+        logger.info(
+          { attempt, maxRetries, retryDelaySeconds: retryDelayMs / 1000 },
+          "Streams not ready, retrying...",
         );
         await new Promise((resolve) => setTimeout(resolve, retryDelayMs));
       } else {
-        console.error("[MessageHandler] Failed to initialize:", error);
+        logger.error(formatError(error), "Failed to initialize");
         throw error;
       }
     }
@@ -78,7 +80,7 @@ export async function shutdownMessageHandler(): Promise<void> {
     eventSubscription = null;
   }
   isInitialized = false;
-  console.log("[MessageHandler] Shutdown complete");
+  logger.info("Shutdown complete");
 }
 
 /**
@@ -88,8 +90,9 @@ export async function shutdownMessageHandler(): Promise<void> {
 export async function handleWhatsAppEvent(event: WhatsAppEvent): Promise<void> {
   const { type, companyId, connectionId } = event;
 
-  console.log(
-    `[MessageHandler] Received ${type} event for company ${companyId}, connection ${connectionId || "unknown"}`,
+  logger.debug(
+    { type, companyId, connectionId: connectionId || "unknown" },
+    "Received WhatsApp event",
   );
 
   try {
@@ -151,10 +154,10 @@ export async function handleWhatsAppEvent(event: WhatsAppEvent): Promise<void> {
         break;
 
       default:
-        console.warn(`[MessageHandler] Unknown event type: ${type}`);
+        logger.warn({ type }, "Unknown event type");
     }
   } catch (error) {
-    console.error(`[MessageHandler] Error processing ${type} event:`, error);
+    logger.error({ ...formatError(error), type }, "Error processing event");
   }
 }
 
@@ -166,9 +169,7 @@ async function handleQREvent(event: QREvent): Promise<void> {
 
   // QR events are handled by WebSocket broadcast
   // Just log for monitoring
-  console.log(
-    `[MessageHandler] QR code generated for company ${companyId}, connection ${connectionId}`,
-  );
+  logger.info({ companyId, connectionId }, "QR code generated");
 
   // Broadcast to connected WebSocket clients with connectionId
   broadcastToCompany(companyId, {
@@ -185,8 +186,9 @@ async function handleQREvent(event: QREvent): Promise<void> {
 async function handleConnectedEvent(event: ConnectionEvent): Promise<void> {
   const { companyId, connectionId, payload } = event;
 
-  console.log(
-    `[MessageHandler] WhatsApp connected for company ${companyId}, connection ${connectionId}`,
+  logger.info(
+    { companyId, connectionId, phoneNumber: payload.phoneNumber },
+    "WhatsApp connected",
   );
 
   try {
@@ -212,7 +214,7 @@ async function handleConnectedEvent(event: ConnectionEvent): Promise<void> {
       timestamp: event.timestamp,
     });
   } catch (error) {
-    console.error(`[MessageHandler] Failed to handle connected event:`, error);
+    logger.error(formatError(error), "Failed to handle connected event");
   }
 }
 
@@ -222,9 +224,9 @@ async function handleConnectedEvent(event: ConnectionEvent): Promise<void> {
 async function handleDisconnectedEvent(event: ConnectionEvent): Promise<void> {
   const { companyId, connectionId, payload } = event;
 
-  console.log(
-    `[MessageHandler] WhatsApp disconnected for company ${companyId}, connection ${connectionId}:`,
-    payload.reason,
+  logger.info(
+    { companyId, connectionId, reason: payload.reason },
+    "WhatsApp disconnected",
   );
 
   try {
@@ -243,10 +245,7 @@ async function handleDisconnectedEvent(event: ConnectionEvent): Promise<void> {
       timestamp: event.timestamp,
     });
   } catch (error) {
-    console.error(
-      `[MessageHandler] Failed to handle disconnected event:`,
-      error,
-    );
+    logger.error(formatError(error), "Failed to handle disconnected event");
   }
 }
 
@@ -256,8 +255,9 @@ async function handleDisconnectedEvent(event: ConnectionEvent): Promise<void> {
 async function handleMessageEvent(event: MessageEvent): Promise<void> {
   const { companyId, connectionId, payload } = event;
 
-  console.log(
-    `[MessageHandler] Message received for company ${companyId}, connection ${connectionId} from ${payload.from}`,
+  logger.debug(
+    { companyId, connectionId, from: payload.from },
+    "Message received",
   );
 
   try {
@@ -283,9 +283,7 @@ async function handleMessageEvent(event: MessageEvent): Promise<void> {
     }
 
     if (!connection) {
-      console.warn(
-        `[MessageHandler] No active connection for company ${companyId}`,
-      );
+      logger.warn({ companyId }, "No active connection for company");
       return;
     }
 
@@ -327,7 +325,7 @@ async function handleMessageEvent(event: MessageEvent): Promise<void> {
         message_id: payload.messageId,
         from_me: payload.fromMe,
         sender_jid: payload.from,
-        message_type: payload.messageType as any,
+        message_type: payload.messageType as MessageType,
         content: payload.content,
         media_url: payload.mediaUrl || null,
         quoted_message_id: payload.quotedMessageId || null,
@@ -340,9 +338,7 @@ async function handleMessageEvent(event: MessageEvent): Promise<void> {
       })
       .execute();
 
-    console.log(
-      `[MessageHandler] Stored message ${messageId} for company ${companyId}`,
-    );
+    logger.debug({ messageId, companyId }, "Stored message");
 
     // Index message for search (run in background, don't block message processing)
     // Get contact name for search indexing
@@ -357,7 +353,7 @@ async function handleMessageEvent(event: MessageEvent): Promise<void> {
 
     // Update PostgreSQL full-text search vector
     updateMessageSearchVector(companyId, messageId).catch((err) => {
-      console.error(`[MessageHandler] Failed to update search vector:`, err);
+      logger.error(formatError(err), "Failed to update search vector");
     });
 
     // Index in Meilisearch for better search experience
@@ -376,10 +372,7 @@ async function handleMessageEvent(event: MessageEvent): Promise<void> {
     };
 
     indexMessage(companyId, messageDoc).catch((err) => {
-      console.error(
-        `[MessageHandler] Failed to index message in Meilisearch:`,
-        err,
-      );
+      logger.error(formatError(err), "Failed to index message in Meilisearch");
     });
 
     // Update conversation_states: increment unread count for incoming messages
@@ -432,9 +425,9 @@ async function handleMessageEvent(event: MessageEvent): Promise<void> {
             contactJid,
           },
         }).catch((err) => {
-          console.error(
-            `[MessageHandler] Failed to create notification for user ${user.id}:`,
-            err,
+          logger.error(
+            { ...formatError(err), userId: user.id },
+            "Failed to create notification for user",
           );
         });
       }
@@ -478,7 +471,7 @@ async function handleMessageEvent(event: MessageEvent): Promise<void> {
       timestamp: event.timestamp,
     });
   } catch (error) {
-    console.error(`[MessageHandler] Failed to store message:`, error);
+    logger.error(formatError(error), "Failed to store message");
   }
 }
 
@@ -510,15 +503,17 @@ function mapReceiptStatus(
 async function handleReceiptEvent(event: ReceiptEvent): Promise<void> {
   const { companyId, connectionId, payload } = event;
 
-  console.log(
-    `[MessageHandler] Receipt ${payload.status} for message ${payload.messageId}, connection ${connectionId}`,
+  logger.debug(
+    { status: payload.status, messageId: payload.messageId, connectionId },
+    "Receipt received",
   );
 
   // Map WhatsApp receipt type to database enum
   const dbStatus = mapReceiptStatus(payload.status);
   if (!dbStatus) {
-    console.log(
-      `[MessageHandler] Skipping unknown receipt status: "${payload.status}"`,
+    logger.debug(
+      { status: payload.status },
+      "Skipping unknown receipt status",
     );
     return;
   }
@@ -536,8 +531,13 @@ async function handleReceiptEvent(event: ReceiptEvent): Promise<void> {
       .where("message_id", "=", payload.messageId)
       .executeTakeFirst();
 
-    console.log(
-      `[MessageHandler] Updated message status to ${dbStatus} for message ${payload.messageId} (rows affected: ${result.numUpdatedRows})`,
+    logger.debug(
+      {
+        status: dbStatus,
+        messageId: payload.messageId,
+        rowsAffected: result.numUpdatedRows.toString(),
+      },
+      "Updated message status",
     );
 
     // Broadcast to WebSocket clients with mapped status and connectionId
@@ -552,7 +552,7 @@ async function handleReceiptEvent(event: ReceiptEvent): Promise<void> {
       timestamp: event.timestamp,
     });
   } catch (error) {
-    console.error(`[MessageHandler] Failed to handle receipt:`, error);
+    logger.error(formatError(error), "Failed to handle receipt");
   }
 }
 
@@ -565,8 +565,13 @@ async function handleSendConfirmationEvent(
 ): Promise<void> {
   const { companyId, connectionId, payload } = event;
 
-  console.log(
-    `[MessageHandler] Send confirmation for pending message ${payload.pendingMessageId} -> real ID ${payload.messageId}, connection ${connectionId}`,
+  logger.debug(
+    {
+      pendingMessageId: payload.pendingMessageId,
+      messageId: payload.messageId,
+      connectionId,
+    },
+    "Send confirmation received",
   );
 
   try {
@@ -582,8 +587,13 @@ async function handleSendConfirmationEvent(
       .where("message_id", "=", payload.pendingMessageId)
       .executeTakeFirst();
 
-    console.log(
-      `[MessageHandler] Updated message ${payload.pendingMessageId} -> ${payload.messageId}, status set to sent (rows affected: ${result.numUpdatedRows})`,
+    logger.debug(
+      {
+        pendingMessageId: payload.pendingMessageId,
+        messageId: payload.messageId,
+        rowsAffected: result.numUpdatedRows.toString(),
+      },
+      "Updated message with real ID",
     );
 
     // Broadcast to WebSocket clients with the status update
@@ -599,10 +609,7 @@ async function handleSendConfirmationEvent(
       timestamp: event.timestamp,
     });
   } catch (error) {
-    console.error(
-      `[MessageHandler] Failed to handle send confirmation:`,
-      error,
-    );
+    logger.error(formatError(error), "Failed to handle send confirmation");
   }
 }
 
@@ -612,8 +619,9 @@ async function handleSendConfirmationEvent(
 async function handleStatusEvent(event: StatusEvent): Promise<void> {
   const { companyId, connectionId, payload } = event;
 
-  console.log(
-    `[MessageHandler] Status update received for company ${companyId}, connection ${connectionId} from ${payload.fromJid}`,
+  logger.debug(
+    { companyId, connectionId, fromJid: payload.fromJid },
+    "Status update received",
   );
 
   try {
@@ -639,9 +647,7 @@ async function handleStatusEvent(event: StatusEvent): Promise<void> {
     }
 
     if (!connection) {
-      console.warn(
-        `[MessageHandler] No active connection for company ${companyId}`,
-      );
+      logger.warn({ companyId }, "No active connection for company");
       return;
     }
 
@@ -662,9 +668,7 @@ async function handleStatusEvent(event: StatusEvent): Promise<void> {
       })
       .execute();
 
-    console.log(
-      `[MessageHandler] Stored status ${statusId} for company ${companyId}`,
-    );
+    logger.debug({ statusId, companyId }, "Stored status update");
 
     // Broadcast to WebSocket clients with connectionId
     broadcastToCompany(companyId, {
@@ -677,7 +681,7 @@ async function handleStatusEvent(event: StatusEvent): Promise<void> {
       timestamp: event.timestamp,
     });
   } catch (error) {
-    console.error(`[MessageHandler] Failed to store status:`, error);
+    logger.error(formatError(error), "Failed to store status");
   }
 }
 
@@ -687,8 +691,9 @@ async function handleStatusEvent(event: StatusEvent): Promise<void> {
 async function handleContactEvent(event: ContactEvent): Promise<void> {
   const { companyId, connectionId, payload } = event;
 
-  console.log(
-    `[MessageHandler] Contact sync received for company ${companyId}, connection ${connectionId}: ${payload.jid}`,
+  logger.debug(
+    { companyId, connectionId, jid: payload.jid },
+    "Contact sync received",
   );
 
   try {
@@ -714,9 +719,7 @@ async function handleContactEvent(event: ContactEvent): Promise<void> {
     }
 
     if (!connection) {
-      console.warn(
-        `[MessageHandler] No active connection for company ${companyId}`,
-      );
+      logger.warn({ companyId }, "No active connection for company");
       return;
     }
 
@@ -740,9 +743,7 @@ async function handleContactEvent(event: ContactEvent): Promise<void> {
         .where("id", "=", existingContact.id)
         .execute();
 
-      console.log(
-        `[MessageHandler] Updated contact ${payload.jid} for company ${companyId}`,
-      );
+      logger.debug({ jid: payload.jid, companyId }, "Updated contact");
     } else {
       // Create new contact
       const contactId = crypto.randomUUID();
@@ -763,9 +764,7 @@ async function handleContactEvent(event: ContactEvent): Promise<void> {
         })
         .execute();
 
-      console.log(
-        `[MessageHandler] Created contact ${payload.jid} for company ${companyId}`,
-      );
+      logger.debug({ jid: payload.jid, companyId }, "Created contact");
     }
 
     // Broadcast to WebSocket clients with connectionId
@@ -776,7 +775,7 @@ async function handleContactEvent(event: ContactEvent): Promise<void> {
       timestamp: event.timestamp,
     });
   } catch (error) {
-    console.error(`[MessageHandler] Failed to handle contact event:`, error);
+    logger.error(formatError(error), "Failed to handle contact event");
   }
 }
 
@@ -788,8 +787,9 @@ async function handleProfilePictureEvent(
 ): Promise<void> {
   const { companyId, connectionId, payload } = event;
 
-  console.log(
-    `[MessageHandler] Profile picture update for company ${companyId}, connection ${connectionId}: ${payload.jid}`,
+  logger.debug(
+    { companyId, connectionId, jid: payload.jid },
+    "Profile picture update",
   );
 
   try {
@@ -808,8 +808,12 @@ async function handleProfilePictureEvent(
       .executeTakeFirst();
 
     if (result.numUpdatedRows > 0) {
-      console.log(
-        `[MessageHandler] Updated profile picture for contact ${payload.jid} (rows affected: ${result.numUpdatedRows})`,
+      logger.debug(
+        {
+          jid: payload.jid,
+          rowsAffected: result.numUpdatedRows.toString(),
+        },
+        "Updated profile picture for contact",
       );
 
       // Broadcast to WebSocket clients
@@ -823,15 +827,13 @@ async function handleProfilePictureEvent(
         timestamp: event.timestamp,
       });
     } else {
-      console.warn(
-        `[MessageHandler] Contact not found for profile picture update: ${payload.jid}`,
+      logger.warn(
+        { jid: payload.jid },
+        "Contact not found for profile picture update",
       );
     }
   } catch (error) {
-    console.error(
-      `[MessageHandler] Failed to handle profile picture event:`,
-      error,
-    );
+    logger.error(formatError(error), "Failed to handle profile picture event");
   }
 }
 
@@ -845,8 +847,9 @@ async function handleMessageRevokeEvent(
 ): Promise<void> {
   const { companyId, connectionId, payload } = event;
 
-  console.log(
-    `[MessageHandler] Message revoke for company ${companyId}, connection ${connectionId}: message ${payload.messageId}`,
+  logger.debug(
+    { companyId, connectionId, messageId: payload.messageId },
+    "Message revoke received",
   );
 
   try {
@@ -863,8 +866,12 @@ async function handleMessageRevokeEvent(
       .executeTakeFirst();
 
     if (result.numUpdatedRows > 0) {
-      console.log(
-        `[MessageHandler] Marked message ${payload.messageId} as deleted (rows affected: ${result.numUpdatedRows})`,
+      logger.debug(
+        {
+          messageId: payload.messageId,
+          rowsAffected: result.numUpdatedRows.toString(),
+        },
+        "Marked message as deleted",
       );
 
       // Get the message to find the contact_id for broadcasting
@@ -892,12 +899,13 @@ async function handleMessageRevokeEvent(
       // 1. The message was never stored in our database (race condition)
       // 2. The message was already deleted
       // Log a warning but don't throw - this is expected in some edge cases
-      console.warn(
-        `[MessageHandler] Message not found for revoke: ${payload.messageId}. This may be a race condition or the message was never stored.`,
+      logger.warn(
+        { messageId: payload.messageId },
+        "Message not found for revoke - may be race condition or never stored",
       );
     }
   } catch (error) {
-    console.error(`[MessageHandler] Failed to handle message revoke:`, error);
+    logger.error(formatError(error), "Failed to handle message revoke");
     // Don't throw - we want to continue processing other events
   }
 }
@@ -909,15 +917,16 @@ async function handleMessageRevokeEvent(
 async function handlePresenceEvent(event: PresenceEvent): Promise<void> {
   const { companyId, connectionId, payload } = event;
 
-  console.log(
-    `[MessageHandler] Presence event for company ${companyId}, connection ${connectionId}: ${payload.from} is ${payload.unavailable ? "offline" : "online"}`,
+  const isOnline = !payload.unavailable;
+  logger.debug(
+    { companyId, connectionId, from: payload.from, isOnline },
+    "Presence event received",
   );
 
   try {
     const tenantDb = getTenantConnection(companyId);
 
     // Determine status and last seen
-    const isOnline = !payload.unavailable;
     const lastSeen = payload.lastSeen ? new Date(payload.lastSeen) : null;
 
     // Update contact presence in database
@@ -932,8 +941,13 @@ async function handlePresenceEvent(event: PresenceEvent): Promise<void> {
       .executeTakeFirst();
 
     if (result.numUpdatedRows > 0) {
-      console.log(
-        `[MessageHandler] Updated presence for contact ${payload.from}: ${isOnline ? "online" : "offline"} (rows affected: ${result.numUpdatedRows})`,
+      logger.debug(
+        {
+          from: payload.from,
+          isOnline,
+          rowsAffected: result.numUpdatedRows.toString(),
+        },
+        "Updated presence for contact",
       );
 
       // Broadcast to WebSocket clients
@@ -950,12 +964,13 @@ async function handlePresenceEvent(event: PresenceEvent): Promise<void> {
     } else {
       // Contact not found - this is normal for contacts we haven't seen messages from yet
       // Don't log a warning as this is expected behavior
-      console.log(
-        `[MessageHandler] Presence update for unknown contact ${payload.from}, will be created when first message arrives`,
+      logger.debug(
+        { from: payload.from },
+        "Presence update for unknown contact - will be created when first message arrives",
       );
     }
   } catch (error) {
-    console.error(`[MessageHandler] Failed to handle presence event:`, error);
+    logger.error(formatError(error), "Failed to handle presence event");
   }
 }
 
@@ -967,8 +982,14 @@ async function handlePresenceEvent(event: PresenceEvent): Promise<void> {
 async function handleTypingEvent(event: TypingEvent): Promise<void> {
   const { companyId, connectionId, payload } = event;
 
-  console.log(
-    `[MessageHandler] Typing event for company ${companyId}, connection ${connectionId}: ${payload.from} is ${payload.isTyping ? "typing" : "stopped typing"}`,
+  logger.debug(
+    {
+      companyId,
+      connectionId,
+      from: payload.from,
+      isTyping: payload.isTyping,
+    },
+    "Typing event received",
   );
 
   // Broadcast to WebSocket clients
@@ -992,8 +1013,14 @@ async function handleTypingEvent(event: TypingEvent): Promise<void> {
 async function handleReactionEvent(event: ReactionEvent): Promise<void> {
   const { companyId, connectionId, payload } = event;
 
-  console.log(
-    `[MessageHandler] Reaction event for company ${companyId}: ${payload.from} reacted with ${payload.emoji || "(removed)"} to message ${payload.messageId}`,
+  logger.debug(
+    {
+      companyId,
+      from: payload.from,
+      emoji: payload.emoji || "(removed)",
+      messageId: payload.messageId,
+    },
+    "Reaction event received",
   );
 
   try {
@@ -1008,8 +1035,9 @@ async function handleReactionEvent(event: ReactionEvent): Promise<void> {
       .executeTakeFirst();
 
     if (!message) {
-      console.warn(
-        `[MessageHandler] Message ${payload.messageId} not found for reaction`,
+      logger.warn(
+        { messageId: payload.messageId },
+        "Message not found for reaction",
       );
       return;
     }
@@ -1052,7 +1080,7 @@ async function handleReactionEvent(event: ReactionEvent): Promise<void> {
       timestamp: event.timestamp,
     });
   } catch (error) {
-    console.error("[MessageHandler] Error handling reaction event:", error);
+    logger.error(formatError(error), "Error handling reaction event");
   }
 }
 
@@ -1062,9 +1090,9 @@ async function handleReactionEvent(event: ReactionEvent): Promise<void> {
 async function handleErrorEvent(event: WhatsAppEvent): Promise<void> {
   const { companyId, connectionId, payload } = event;
 
-  console.error(
-    `[MessageHandler] Error for company ${companyId}, connection ${connectionId}:`,
-    payload,
+  logger.error(
+    { companyId, connectionId, payload },
+    "Error event from WhatsApp worker",
   );
 
   // Broadcast error to WebSocket clients with connectionId

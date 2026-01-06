@@ -1,6 +1,8 @@
 import { Hono } from "hono";
+import type { Kysely } from "kysely";
 import { authMiddleware } from "../middleware/auth.js";
 import { tenantMiddleware } from "../middleware/tenant.js";
+import type { TenantDatabase } from "../services/tenant.service.js";
 import {
   publishGroupPromoteAdmin,
   publishGroupDemoteAdmin,
@@ -202,7 +204,7 @@ groupRoutes.patch("/:id", async (c) => {
  * Helper function to check if current user is a group admin
  */
 async function isUserGroupAdmin(
-  tenantDb: ReturnType<typeof import("../middleware/tenant.js").getTenantDb>,
+  tenantDb: Kysely<TenantDatabase>,
   groupId: string,
   userJid: string | null,
 ): Promise<boolean> {
@@ -242,7 +244,7 @@ async function isUserGroupAdmin(
  * Helper function to get the WhatsApp JID of the current connection
  */
 async function getConnectionJid(
-  tenantDb: ReturnType<typeof import("../middleware/tenant.js").getTenantDb>,
+  tenantDb: Kysely<TenantDatabase>,
 ): Promise<string | null> {
   const connection = await tenantDb
     .selectFrom("whatsapp_connections")
@@ -259,20 +261,28 @@ async function getConnectionJid(
 groupRoutes.post("/:id/participants/:participantJid/promote", async (c) => {
   const tenantDb = c.get("tenantDb");
   const companyId = c.get("companyId");
-  const userId = c.get("userId");
+  const user = c.get("user");
+  if (!user) {
+    return c.json({ error: "Unauthorized" }, 401);
+  }
+  const userId = user.id;
   const contactId = c.req.param("id");
   const participantJid = c.req.param("participantJid");
 
   // Get group contact
   const contact = await tenantDb
     .selectFrom("contacts")
-    .select(["id", "jid"])
+    .select(["id", "jid", "whatsapp_connection_id"])
     .where("id", "=", contactId)
     .where("is_group", "=", true)
     .executeTakeFirst();
 
   if (!contact || !contact.jid) {
     return c.json({ error: "Group not found" }, 404);
+  }
+
+  if (!contact.whatsapp_connection_id) {
+    return c.json({ error: "Group is not associated with any WhatsApp connection" }, 400);
   }
 
   // Get group details
@@ -320,23 +330,26 @@ groupRoutes.post("/:id/participants/:participantJid/promote", async (c) => {
   // Publish NATS command to WhatsApp service
   await publishGroupPromoteAdmin(
     companyId,
+    contact.whatsapp_connection_id,
     contact.jid,
     participantJid,
     userId,
   );
 
   // Create audit log
-  await createAuditLog(tenantDb, {
+  await createAuditLog({
+    companyId,
     userId,
-    action: "group_participant_promoted",
+    action: "contact.updated",
     entityType: "group",
     entityId: contactId,
     details: {
       groupJid: contact.jid,
       groupName: group.name,
       participantJid,
+      operation: "promote_admin",
     },
-    ipAddress: getClientIp(c),
+    ipAddress: getClientIp(c.req.raw.headers),
   });
 
   return c.json({
@@ -352,20 +365,28 @@ groupRoutes.post("/:id/participants/:participantJid/promote", async (c) => {
 groupRoutes.post("/:id/participants/:participantJid/demote", async (c) => {
   const tenantDb = c.get("tenantDb");
   const companyId = c.get("companyId");
-  const userId = c.get("userId");
+  const user = c.get("user");
+  if (!user) {
+    return c.json({ error: "Unauthorized" }, 401);
+  }
+  const userId = user.id;
   const contactId = c.req.param("id");
   const participantJid = c.req.param("participantJid");
 
   // Get group contact
   const contact = await tenantDb
     .selectFrom("contacts")
-    .select(["id", "jid"])
+    .select(["id", "jid", "whatsapp_connection_id"])
     .where("id", "=", contactId)
     .where("is_group", "=", true)
     .executeTakeFirst();
 
   if (!contact || !contact.jid) {
     return c.json({ error: "Group not found" }, 404);
+  }
+
+  if (!contact.whatsapp_connection_id) {
+    return c.json({ error: "Group is not associated with any WhatsApp connection" }, 400);
   }
 
   // Get group details
@@ -411,20 +432,28 @@ groupRoutes.post("/:id/participants/:participantJid/demote", async (c) => {
     .execute();
 
   // Publish NATS command to WhatsApp service
-  await publishGroupDemoteAdmin(companyId, contact.jid, participantJid, userId);
+  await publishGroupDemoteAdmin(
+    companyId,
+    contact.whatsapp_connection_id,
+    contact.jid,
+    participantJid,
+    userId,
+  );
 
   // Create audit log
-  await createAuditLog(tenantDb, {
+  await createAuditLog({
+    companyId,
     userId,
-    action: "group_participant_demoted",
+    action: "contact.updated",
     entityType: "group",
     entityId: contactId,
     details: {
       groupJid: contact.jid,
       groupName: group.name,
       participantJid,
+      operation: "demote_admin",
     },
-    ipAddress: getClientIp(c),
+    ipAddress: getClientIp(c.req.raw.headers),
   });
 
   return c.json({
@@ -440,20 +469,28 @@ groupRoutes.post("/:id/participants/:participantJid/demote", async (c) => {
 groupRoutes.delete("/:id/participants/:participantJid", async (c) => {
   const tenantDb = c.get("tenantDb");
   const companyId = c.get("companyId");
-  const userId = c.get("userId");
+  const user = c.get("user");
+  if (!user) {
+    return c.json({ error: "Unauthorized" }, 401);
+  }
+  const userId = user.id;
   const contactId = c.req.param("id");
   const participantJid = c.req.param("participantJid");
 
   // Get group contact
   const contact = await tenantDb
     .selectFrom("contacts")
-    .select(["id", "jid"])
+    .select(["id", "jid", "whatsapp_connection_id"])
     .where("id", "=", contactId)
     .where("is_group", "=", true)
     .executeTakeFirst();
 
   if (!contact || !contact.jid) {
     return c.json({ error: "Group not found" }, 404);
+  }
+
+  if (!contact.whatsapp_connection_id) {
+    return c.json({ error: "Group is not associated with any WhatsApp connection" }, 400);
   }
 
   // Get group details
@@ -508,23 +545,26 @@ groupRoutes.delete("/:id/participants/:participantJid", async (c) => {
   // Publish NATS command to WhatsApp service
   await publishGroupRemoveParticipant(
     companyId,
+    contact.whatsapp_connection_id,
     contact.jid,
     participantJid,
     userId,
   );
 
   // Create audit log
-  await createAuditLog(tenantDb, {
+  await createAuditLog({
+    companyId,
     userId,
-    action: "group_participant_removed",
+    action: "contact.updated",
     entityType: "group",
     entityId: contactId,
     details: {
       groupJid: contact.jid,
       groupName: group.name,
       participantJid,
+      operation: "remove_participant",
     },
-    ipAddress: getClientIp(c),
+    ipAddress: getClientIp(c.req.raw.headers),
   });
 
   return c.json({
@@ -540,7 +580,11 @@ groupRoutes.delete("/:id/participants/:participantJid", async (c) => {
 groupRoutes.patch("/:id/settings", async (c) => {
   const tenantDb = c.get("tenantDb");
   const companyId = c.get("companyId");
-  const userId = c.get("userId");
+  const user = c.get("user");
+  if (!user) {
+    return c.json({ error: "Unauthorized" }, 401);
+  }
+  const userId = user.id;
   const contactId = c.req.param("id");
   const body = await c.req.json();
 
@@ -557,13 +601,17 @@ groupRoutes.patch("/:id/settings", async (c) => {
   // Get group contact
   const contact = await tenantDb
     .selectFrom("contacts")
-    .select(["id", "jid"])
+    .select(["id", "jid", "whatsapp_connection_id"])
     .where("id", "=", contactId)
     .where("is_group", "=", true)
     .executeTakeFirst();
 
   if (!contact || !contact.jid) {
     return c.json({ error: "Group not found" }, 404);
+  }
+
+  if (!contact.whatsapp_connection_id) {
+    return c.json({ error: "Group is not associated with any WhatsApp connection" }, 400);
   }
 
   // Get group details
@@ -609,6 +657,7 @@ groupRoutes.patch("/:id/settings", async (c) => {
   // Publish NATS command to WhatsApp service
   await publishGroupUpdateSettings(
     companyId,
+    contact.whatsapp_connection_id,
     contact.jid,
     userId,
     name,
@@ -616,9 +665,10 @@ groupRoutes.patch("/:id/settings", async (c) => {
   );
 
   // Create audit log
-  await createAuditLog(tenantDb, {
+  await createAuditLog({
+    companyId,
     userId,
-    action: "group_settings_updated",
+    action: "contact.updated",
     entityType: "group",
     entityId: contactId,
     details: {
@@ -627,8 +677,9 @@ groupRoutes.patch("/:id/settings", async (c) => {
       previousDescription: group.description,
       newName: name,
       newDescription: description,
+      operation: "update_settings",
     },
-    ipAddress: getClientIp(c),
+    ipAddress: getClientIp(c.req.raw.headers),
   });
 
   return c.json({

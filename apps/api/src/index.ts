@@ -1,5 +1,6 @@
 import { app } from './app.js'
 import { env } from './lib/env.js'
+import { createLogger, formatError } from './lib/logger.js'
 import { closeNatsConnection } from './lib/nats.js'
 import { websocket } from './routes/ws.js'
 import {
@@ -7,6 +8,8 @@ import {
   shutdownMessageCleanup,
 } from './services/message-cleanup.service.js'
 import { initializeMessageHandler, shutdownMessageHandler } from './services/message-handler.js'
+
+const logger = createLogger('Startup')
 
 const port = env.PORT
 
@@ -18,36 +21,36 @@ const isTestEnvironment =
   (typeof Bun !== 'undefined' && Bun.argv.some((arg) => arg.includes('test')))
 
 if (!isTestEnvironment) {
-  console.log(`[Startup] Starting server on http://localhost:${port}`)
-  console.log('[Startup] Initializing background services...')
+  logger.info({ port }, `Starting server on http://localhost:${port}`)
+  logger.info('Initializing background services...')
 
   // Initialize services - these run in background and don't block server startup
   initializeMessageHandler()
     .then(() => {
-      console.log('[Startup] ✓ Message handler initialized')
+      logger.info('Message handler initialized')
     })
     .catch((err) => {
-      console.error('[Startup] ✗ Failed to initialize message handler:', err)
+      logger.error({ err: formatError(err) }, 'Failed to initialize message handler')
       // Continue running even if NATS is not available initially
     })
 
   initializeMessageCleanup()
     .then(() => {
-      console.log('[Startup] ✓ Message cleanup service initialized')
+      logger.info('Message cleanup service initialized')
     })
     .catch((err) => {
-      console.error('[Startup] ✗ Failed to initialize message cleanup service:', err)
+      logger.error({ err: formatError(err) }, 'Failed to initialize message cleanup service')
       // Continue running even if cleanup service fails to initialize
     })
 
-  console.log(`[Startup] Server is accepting connections on http://localhost:${port}`)
+  logger.info({ port }, `Server is accepting connections on http://localhost:${port}`)
 } else {
-  console.log('[Test Mode] Skipping service initialization in test environment')
+  logger.info('Skipping service initialization in test environment')
 }
 
 // Graceful shutdown handler
 async function shutdown() {
-  console.log('[Shutdown] Gracefully shutting down...')
+  logger.info('Gracefully shutting down...')
   await shutdownMessageHandler()
   await shutdownMessageCleanup()
   await closeNatsConnection()

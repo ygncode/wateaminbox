@@ -1,4 +1,7 @@
+import { createLogger, formatError } from "../lib/logger.js";
 import { getTenantConnection } from "./tenant.service.js";
+
+const logger = createLogger("Audit");
 
 /**
  * Audit log action types
@@ -16,6 +19,9 @@ export type AuditAction =
   | "contact.updated"
   | "contact.assigned"
   | "contact.unassigned"
+  | "contact.note.created"
+  | "contact.note.updated"
+  | "contact.note.deleted"
   | "message.sent"
   | "message.deleted"
   | "tag.created"
@@ -73,7 +79,7 @@ export async function createAuditLog(
       .execute();
   } catch (error) {
     // Log error but don't throw - audit logging shouldn't break main functionality
-    console.error("[Audit] Failed to create audit log:", error);
+    logger.error({ err: formatError(error), action: input.action }, "Failed to create audit log");
   }
 }
 

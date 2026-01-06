@@ -9,26 +9,32 @@
     "start": "bun run dist/index.js",
     "lint": "eslint src --ext .ts",
     "format": "prettier --write src/**/*.ts",
-    "test": "bun test"
+    "test": "bun test src/__tests__/services/*.test.ts && bun test src/__tests__/integration/*.test.ts && bun test src/__tests__/routes/*.test.ts && bun test src/__tests__/lib/*.test.ts && bun test src/__tests__/middleware/*.test.ts && bun test src/__tests__/perf/*.test.ts",
+    "test:all": "bun test",
+    "test:services": "bun test src/__tests__/services/*.test.ts",
+    "test:integration": "bun test src/__tests__/integration/*.test.ts",
+    "test:routes": "bun test src/__tests__/routes/*.test.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.962.0",
     "@aws-sdk/s3-request-presigner": "^3.962.0",
     "@hono/node-server": "^1.13.0",
-    "@hono/zod-validator": "^0.2.0",
+    "@hono/zod-validator": "^0.7.6",
     "@whatsapp-web/database": "workspace:*",
     "@whatsapp-web/shared": "workspace:*",
-    "bcrypt": "^5.1.1",
+    "bcrypt": "^6.0.0",
     "fflate": "^0.8.2",
-    "hono": "^4.6.0",
-    "jose": "^5.2.0",
-    "meilisearch": "^0.54.0",
+    "hono": "^4.11.3",
+    "jose": "^6.1.3",
+    "meilisearch": "^0.55.0",
     "nats": "^2.29.3",
-    "zod": "^3.23.8"
+    "pino": "^10.1.0",
+    "pino-pretty": "^13.1.3",
+    "zod": "^3.25.76"
   },
   "devDependencies": {
     "@types/bun": "latest",
-    "@types/bcrypt": "^5.0.2",
-    "typescript": "^5.6.0"
+    "@types/bcrypt": "^6.0.0",
+    "typescript": "^5.7.2"
   }
 }

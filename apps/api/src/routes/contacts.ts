@@ -19,6 +19,9 @@ import { createNotification } from "../services/notification-history.service.js"
 import { createAuditLog, getClientIp } from "../services/audit.service.js";
 import { broadcastToCompany } from "./ws.js";
 import { rateLimitConfig, rateLimitStore } from "../lib/rate-limit-store.js";
+import { createLogger, formatError } from "../lib/logger.js";
+
+const logger = createLogger("ContactRoutes");
 
 /**
  * Helper function to get user display names by their IDs
@@ -65,7 +68,7 @@ async function getUserNames(userIds: string[]): Promise<Map<string, string>> {
 
     return userMap;
   } catch (error) {
-    console.error("Error fetching user names:", error);
+    logger.error({ err: formatError(error) }, "Error fetching user names");
     // Return empty map on error - callers will fall back to UUID
     return new Map();
   }
@@ -86,7 +89,7 @@ const importRateLimiter: MiddlewareHandler = rateLimitConfig.enabled
       keyStrategy: "user",
       keyPrefix: "resource-import",
     })
-  : async (c, next) => await next();
+  : async (_c, next) => await next();
 
 /**
  * GET /contacts - List all contacts
@@ -184,31 +187,47 @@ contactRoutes.get("/:id", async (c) => {
     return c.json({ error: "Contact not found" }, 404);
   }
 
-  // Get assignment info with user names in a single query using JOINs
-  const assignment = await tenantDb
-    .selectFrom("contact_assignments as ca")
-    .leftJoin(
-      "public.users as assigned_to_user",
-      "ca.assigned_to",
-      "assigned_to_user.id",
-    )
-    .leftJoin(
-      "public.users as assigned_by_user",
-      "ca.assigned_by",
-      "assigned_by_user.id",
-    )
-    .select([
-      "ca.assigned_to",
-      "ca.assigned_by",
-      "ca.assigned_at",
-      "assigned_to_user.name as assigned_to_name",
-      "assigned_to_user.email as assigned_to_email",
-      "assigned_by_user.name as assigned_by_name",
-      "assigned_by_user.email as assigned_by_email",
-    ])
-    .where("ca.contact_id", "=", contactId)
-    .where("ca.unassigned_at", "is", null)
+  // Get assignment info - first get the assignment, then fetch user names separately
+  const assignmentRecord = await tenantDb
+    .selectFrom("contact_assignments")
+    .select(["assigned_to", "assigned_by", "assigned_at"])
+    .where("contact_id", "=", contactId)
+    .where("unassigned_at", "is", null)
     .executeTakeFirst();
+
+  // Fetch user names from public schema if we have an assignment
+  let assignment: {
+    assigned_to: string;
+    assigned_by: string;
+    assigned_at: Date;
+    assigned_to_name: string | null;
+    assigned_to_email: string | null;
+    assigned_by_name: string | null;
+    assigned_by_email: string | null;
+  } | undefined;
+
+  if (assignmentRecord) {
+    const userIds = [assignmentRecord.assigned_to, assignmentRecord.assigned_by].filter(Boolean);
+    const users = userIds.length > 0 ? await db
+      .selectFrom("users")
+      .select(["id", "name", "email"])
+      .where("id", "in", userIds)
+      .execute() : [];
+
+    const userMap = new Map(users.map(u => [u.id, u]));
+    const assignedToUser = userMap.get(assignmentRecord.assigned_to);
+    const assignedByUser = userMap.get(assignmentRecord.assigned_by);
+
+    assignment = {
+      assigned_to: assignmentRecord.assigned_to,
+      assigned_by: assignmentRecord.assigned_by,
+      assigned_at: assignmentRecord.assigned_at,
+      assigned_to_name: assignedToUser?.name ?? null,
+      assigned_to_email: assignedToUser?.email ?? null,
+      assigned_by_name: assignedByUser?.name ?? null,
+      assigned_by_email: assignedByUser?.email ?? null,
+    };
+  }
 
   // Build assignment object with user names
   let assignmentWithNames = null;
@@ -1383,10 +1402,12 @@ contactRoutes.post("/import/preview", importRateLimiter, async (c) => {
     { customName: string | null; pushName: string | null }
   >();
   for (const contact of existingContacts) {
-    existingMap.set(contact.jid, {
-      customName: contact.custom_name,
-      pushName: contact.push_name,
-    });
+    if (contact.jid) {
+      existingMap.set(contact.jid, {
+        customName: contact.custom_name,
+        pushName: contact.push_name,
+      });
+    }
     if (contact.phone_number) {
       existingMap.set(contact.phone_number.replace(/[^\d]/g, ""), {
         customName: contact.custom_name,

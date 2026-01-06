@@ -21,7 +21,7 @@ const analyticsRateLimiter: MiddlewareHandler = rateLimitConfig.enabled
       keyStrategy: "user",
       keyPrefix: "resource-analytics",
     })
-  : async (c, next) => await next();
+  : async (_c, next) => await next();
 
 /**
  * GET /analytics/dashboard - Get dashboard overview stats

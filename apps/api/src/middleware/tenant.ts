@@ -4,7 +4,6 @@ import {
   getTenantConnection,
   TenantDatabase,
 } from "../services/tenant.service.js";
-import { getMemberRole } from "../services/company.service.js";
 import {
   getMemberWithPermissions,
   type MemberPermissions,

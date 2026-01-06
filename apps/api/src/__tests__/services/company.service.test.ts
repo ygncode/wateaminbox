@@ -728,10 +728,27 @@ describe("CompanyService", () => {
 
   describe("resendInvitation", () => {
     it("should resend invitation with new token and extended expiry", async () => {
-      // Arrange
+      // Arrange - create mock company, user, and invitation
+      const mockCompany = createMockCompany();
       const mockInvitation = createMockInvitation();
-      resetMockQueryBuilder(mockInvitation);
-      mockDb.selectFrom = mock(() => mockQueryBuilder);
+      const mockUser = { email: "resender@example.com" };
+      let selectCallCount = 0;
+
+      // Mock selectFrom to return company first, then user, then invitation
+      const selectMockBuilder: Record<string, unknown> = {};
+      selectMockBuilder.select = mock(() => selectMockBuilder);
+      selectMockBuilder.selectAll = mock(() => selectMockBuilder);
+      selectMockBuilder.innerJoin = mock(() => selectMockBuilder);
+      selectMockBuilder.where = mock(() => selectMockBuilder);
+      selectMockBuilder.executeTakeFirst = mock(() => {
+        selectCallCount++;
+        // First call: getCompany, second call: get user, third call: get invitation
+        if (selectCallCount === 1) return Promise.resolve(mockCompany);
+        if (selectCallCount === 2) return Promise.resolve(mockUser);
+        return Promise.resolve(mockInvitation);
+      });
+
+      mockDb.selectFrom = mock(() => selectMockBuilder);
 
       const updatedInvitation = createMockInvitation({
         token: "new-token",
@@ -756,9 +773,25 @@ describe("CompanyService", () => {
     });
 
     it("should throw InvitationNotFoundError for non-existent invitation", async () => {
-      // Arrange
-      resetMockQueryBuilder(undefined);
-      mockDb.selectFrom = mock(() => mockQueryBuilder);
+      // Arrange - mock company and user as existing, but invitation not found
+      const mockCompany = createMockCompany();
+      const mockUser = { email: "resender@example.com" };
+      let selectCallCount = 0;
+
+      const selectMockBuilder: Record<string, unknown> = {};
+      selectMockBuilder.select = mock(() => selectMockBuilder);
+      selectMockBuilder.selectAll = mock(() => selectMockBuilder);
+      selectMockBuilder.innerJoin = mock(() => selectMockBuilder);
+      selectMockBuilder.where = mock(() => selectMockBuilder);
+      selectMockBuilder.executeTakeFirst = mock(() => {
+        selectCallCount++;
+        // First call: getCompany, second call: get user, third call: get invitation (not found)
+        if (selectCallCount === 1) return Promise.resolve(mockCompany);
+        if (selectCallCount === 2) return Promise.resolve(mockUser);
+        return Promise.resolve(undefined);
+      });
+
+      mockDb.selectFrom = mock(() => selectMockBuilder);
 
       // Act & Assert
       await expect(resendInvitation("company-123", "non-existent", "user-123")).rejects.toThrow(InvitationNotFoundError);

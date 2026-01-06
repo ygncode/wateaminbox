@@ -1,26 +1,42 @@
 import * as React from 'react'
 import { Link } from 'react-router-dom'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
 import { Button } from '../components/ui/button'
-import { Input } from '../components/ui/input'
+import { FormField } from '../components/ui/form-field'
+import { forgotPasswordSchema, type ForgotPasswordFormData } from '../lib/schemas'
+import { forgotPassword } from '../lib/api'
 
 export function ForgotPasswordPage() {
-  const [email, setEmail] = React.useState('')
   const [isLoading, setIsLoading] = React.useState(false)
   const [isSubmitted, setIsSubmitted] = React.useState(false)
-  const [error, setError] = React.useState<string | null>(null)
+  const [submittedEmail, setSubmittedEmail] = React.useState('')
+  const [serverError, setServerError] = React.useState<string | null>(null)
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setError(null)
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<ForgotPasswordFormData>({
+    resolver: zodResolver(forgotPasswordSchema),
+    defaultValues: {
+      email: '',
+    },
+  })
+
+  const onSubmit = async (data: ForgotPasswordFormData) => {
+    setServerError(null)
     setIsLoading(true)
 
     try {
-      // TODO: Implement actual password reset API call
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1000))
+      await forgotPassword(data.email)
+      setSubmittedEmail(data.email)
       setIsSubmitted(true)
     } catch {
-      setError('Failed to send reset email. Please try again.')
+      // Backend always returns success to prevent email enumeration
+      // but we show success anyway for the same reason
+      setSubmittedEmail(data.email)
+      setIsSubmitted(true)
     } finally {
       setIsLoading(false)
     }
@@ -51,7 +67,7 @@ export function ForgotPasswordPage() {
                 Check your email
               </h1>
               <p className="text-gray-600 dark:text-dark-text-secondary mt-2">
-                We've sent a password reset link to <span className="font-medium">{email}</span>
+                We've sent a password reset link to <span className="font-medium">{submittedEmail}</span>
               </p>
               <p className="text-sm text-gray-500 dark:text-dark-text-tertiary mt-4">
                 Didn't receive the email? Check your spam folder or{' '}
@@ -103,30 +119,22 @@ export function ForgotPasswordPage() {
             </p>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {error && (
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+            {serverError && (
               <div className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 px-4 py-3 rounded-lg text-sm">
-                {error}
+                {serverError}
               </div>
             )}
 
-            <div>
-              <label
-                htmlFor="email"
-                className="block text-sm font-medium text-gray-700 dark:text-dark-text-secondary mb-1"
-              >
-                Email
-              </label>
-              <Input
-                id="email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@example.com"
-                required
-                autoComplete="email"
-              />
-            </div>
+            <FormField
+              label="Email"
+              id="email"
+              type="email"
+              placeholder="you@example.com"
+              registration={register('email')}
+              error={errors.email}
+              autoComplete="email"
+            />
 
             <Button
               type="submit"

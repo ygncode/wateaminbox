@@ -5,6 +5,9 @@ import { tenantMiddleware } from "../middleware/tenant.js";
 import { uploadMedia } from "../lib/storage.js";
 import { createRateLimitMiddleware } from "../middleware/rate-limit.js";
 import { rateLimitConfig, rateLimitStore } from "../lib/rate-limit-store.js";
+import { createLogger, formatError } from "../lib/logger.js";
+
+const logger = createLogger("MediaRoutes");
 
 export const mediaRoutes = new Hono();
 
@@ -20,7 +23,7 @@ const uploadRateLimiter: MiddlewareHandler = rateLimitConfig.enabled
       keyStrategy: "user",
       keyPrefix: "media-upload",
     })
-  : async (c, next) => await next();
+  : async (_c, next) => await next();
 
 /**
  * POST /media/upload - Upload media file
@@ -102,7 +105,7 @@ mediaRoutes.post("/upload", uploadRateLimiter, async (c) => {
       key: uploadResult.key, // S3 key for backend reference
     });
   } catch (error) {
-    console.error("Failed to upload media:", error);
+    logger.error({ err: formatError(error) }, "Failed to upload media");
 
     // Check for specific error types
     if (error instanceof Error) {

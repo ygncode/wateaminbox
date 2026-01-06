@@ -65,6 +65,10 @@ export const env = {
   // Feature flags
   DEBUG: getEnvBoolean("DEBUG", false),
 
+  // Logging
+  LOG_LEVEL: getEnv("LOG_LEVEL", "info"),
+  LOG_PRETTY: getEnvBoolean("LOG_PRETTY", true),
+
   // Rate Limiting
   RATE_LIMIT_ENABLED: getEnvBoolean("RATE_LIMIT_ENABLED", true),
   RATE_LIMIT_STORE_TYPE: getEnv("RATE_LIMIT_STORE_TYPE", "memory"),

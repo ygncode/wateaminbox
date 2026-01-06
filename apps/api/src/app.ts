@@ -5,6 +5,9 @@ import { HTTPException } from "hono/http-exception";
 import { routes } from "./routes/index.js";
 import { rateLimitConfig, rateLimitStore } from "./lib/rate-limit-store.js";
 import { createRateLimitMiddleware } from "./middleware/rate-limit.js";
+import { createLogger, formatError } from "./lib/logger.js";
+
+const appLogger = createLogger("App");
 
 export const app = new Hono();
 
@@ -53,6 +56,6 @@ app.onError((err, c) => {
   }
 
   // Log unexpected errors
-  console.error(`${err}`);
+  appLogger.error({ err: formatError(err), path: c.req.path }, "Unexpected error");
   return c.json({ error: "Internal Server Error" }, 500);
 });

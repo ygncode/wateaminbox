@@ -52,6 +52,31 @@ mock.module("../../lib/env.js", () => ({
   },
 }));
 
+// Mock the shared database from @whatsapp-web/database
+// This is used by getMaxConnections() to check company limits
+let mockDbQueryBuilder: Record<string, unknown> = {};
+
+// Create the db mock object that we'll reuse
+const mockDb = {
+  selectFrom: mock(() => mockDbQueryBuilder),
+};
+
+function resetMockDbQueryBuilder(returnValue: unknown = undefined) {
+  mockDbQueryBuilder = {
+    selectFrom: mock(() => mockDbQueryBuilder),
+    select: mock(() => mockDbQueryBuilder),
+    where: mock(() => mockDbQueryBuilder),
+    executeTakeFirst: mock(() => Promise.resolve(returnValue)),
+  };
+  // Update the mock to return the new query builder
+  mockDb.selectFrom = mock(() => mockDbQueryBuilder);
+}
+resetMockDbQueryBuilder({ max_whatsapp_connections: 5 });
+
+mock.module("@whatsapp-web/database", () => ({
+  db: mockDb,
+}));
+
 // Import the service after mocking
 import {
   spawnConnection,
@@ -79,6 +104,7 @@ function createMockTenantDb() {
 describe("WhatsAppService", () => {
   beforeEach(() => {
     resetMockQueryBuilder();
+    resetMockDbQueryBuilder({ max_whatsapp_connections: 5 });
     mockPublishSpawnCommand.mockClear();
     mockPublishKillCommand.mockClear();
     mockPublishSendMessage.mockClear();
@@ -88,12 +114,20 @@ describe("WhatsAppService", () => {
     it("should create new pending connection", async () => {
       // Arrange
       const mockTenantDb = createMockTenantDb();
-      resetMockQueryBuilder(undefined); // No existing connection
-      mockTenantDb.selectFrom = mock(() => mockQueryBuilder);
-      mockTenantDb.insertInto = mock(() => ({
-        ...mockQueryBuilder,
+      // Mock count query returns 0 active connections
+      const countResult = { count: 0 };
+      const countQueryBuilder = {
+        select: mock(() => countQueryBuilder),
+        where: mock(() => countQueryBuilder),
+        executeTakeFirst: mock(() => Promise.resolve(countResult)),
+      };
+      mockTenantDb.selectFrom = mock(() => countQueryBuilder);
+
+      const insertQueryBuilder = {
+        values: mock(() => insertQueryBuilder),
         execute: mock(() => Promise.resolve()),
-      }));
+      };
+      mockTenantDb.insertInto = mock(() => insertQueryBuilder);
 
       // Act
       const result = await spawnConnection(mockTenantDb as never, "company-123", "user-123");
@@ -101,36 +135,50 @@ describe("WhatsAppService", () => {
       // Assert
       expect(result.connectionId).toBeDefined();
       expect(result.wsUrl).toContain("company=company-123");
-      expect(mockPublishSpawnCommand).toHaveBeenCalledWith("company-123", TEST_DATABASE_URL);
+      expect(result.wsUrl).toContain(`connection=${result.connectionId}`);
+      expect(mockPublishSpawnCommand).toHaveBeenCalledWith("company-123", result.connectionId, TEST_DATABASE_URL);
     });
 
-    it("should throw error if active connection exists", async () => {
+    it("should throw error if max connections exceeded", async () => {
       // Arrange
       const mockTenantDb = createMockTenantDb();
-      const existingConnection = createMockWhatsAppConnection({ status: "connected" });
-      resetMockQueryBuilder(existingConnection);
-      mockTenantDb.selectFrom = mock(() => mockQueryBuilder);
+      // Mock count query returns max connections reached (5)
+      const countResult = { count: 5 };
+      const countQueryBuilder = {
+        select: mock(() => countQueryBuilder),
+        where: mock(() => countQueryBuilder),
+        executeTakeFirst: mock(() => Promise.resolve(countResult)),
+      };
+      mockTenantDb.selectFrom = mock(() => countQueryBuilder);
 
       // Act & Assert
-      await expect(spawnConnection(mockTenantDb as never, "company-123", "user-123")).rejects.toThrow(ConnectionAlreadyExistsError);
+      await expect(spawnConnection(mockTenantDb as never, "company-123", "user-123")).rejects.toThrow("Maximum WhatsApp connections exceeded");
     });
 
-    it("should return existing pending connection info", async () => {
+    it("should allow connection when under limit", async () => {
       // Arrange
       const mockTenantDb = createMockTenantDb();
-      const pendingConnection = createMockWhatsAppConnection({
-        id: "existing-connection",
-        status: "pending",
-      });
-      resetMockQueryBuilder(pendingConnection);
-      mockTenantDb.selectFrom = mock(() => mockQueryBuilder);
+      // Mock count query returns 2 active connections (under limit of 5)
+      const countResult = { count: 2 };
+      const countQueryBuilder = {
+        select: mock(() => countQueryBuilder),
+        where: mock(() => countQueryBuilder),
+        executeTakeFirst: mock(() => Promise.resolve(countResult)),
+      };
+      mockTenantDb.selectFrom = mock(() => countQueryBuilder);
+
+      const insertQueryBuilder = {
+        values: mock(() => insertQueryBuilder),
+        execute: mock(() => Promise.resolve()),
+      };
+      mockTenantDb.insertInto = mock(() => insertQueryBuilder);
 
       // Act
       const result = await spawnConnection(mockTenantDb as never, "company-123", "user-123");
 
       // Assert
-      expect(result.connectionId).toBe("existing-connection");
-      expect(mockPublishSpawnCommand).not.toHaveBeenCalled();
+      expect(result.connectionId).toBeDefined();
+      expect(mockPublishSpawnCommand).toHaveBeenCalled();
     });
   });
 
@@ -138,19 +186,22 @@ describe("WhatsAppService", () => {
     it("should disconnect active connection", async () => {
       // Arrange
       const mockTenantDb = createMockTenantDb();
-      const activeConnection = createMockWhatsAppConnection({ status: "connected" });
+      const connectionId = "conn-123";
+      const activeConnection = createMockWhatsAppConnection({ id: connectionId, status: "connected" });
       resetMockQueryBuilder(activeConnection);
       mockTenantDb.selectFrom = mock(() => mockQueryBuilder);
       mockTenantDb.updateTable = mock(() => ({
         ...mockQueryBuilder,
+        set: mock(() => mockQueryBuilder),
+        where: mock(() => mockQueryBuilder),
         execute: mock(() => Promise.resolve()),
       }));
 
       // Act
-      await killConnection(mockTenantDb as never, "company-123");
+      await killConnection(mockTenantDb as never, "company-123", connectionId);
 
       // Assert
-      expect(mockPublishKillCommand).toHaveBeenCalledWith("company-123");
+      expect(mockPublishKillCommand).toHaveBeenCalledWith("company-123", connectionId);
     });
 
     it("should throw error if no connection exists", async () => {
@@ -160,7 +211,7 @@ describe("WhatsAppService", () => {
       mockTenantDb.selectFrom = mock(() => mockQueryBuilder);
 
       // Act & Assert
-      await expect(killConnection(mockTenantDb as never, "company-123")).rejects.toThrow(ConnectionNotFoundError);
+      await expect(killConnection(mockTenantDb as never, "company-123", "non-existent")).rejects.toThrow(ConnectionNotFoundError);
     });
   });
 
@@ -259,7 +310,8 @@ describe("WhatsAppService", () => {
     it("should send text message", async () => {
       // Arrange
       const mockTenantDb = createMockTenantDb();
-      const activeConnection = createMockWhatsAppConnection({ status: "connected" });
+      const connectionId = "conn-123";
+      const activeConnection = createMockWhatsAppConnection({ id: connectionId, status: "connected" });
       const existingContact = createMockContact();
 
       let selectCount = 0;
@@ -277,6 +329,7 @@ describe("WhatsAppService", () => {
 
       mockTenantDb.insertInto = mock(() => ({
         ...mockQueryBuilder,
+        values: mock(() => ({ execute: mock(() => Promise.resolve()) })),
         execute: mock(() => Promise.resolve()),
       }));
 
@@ -291,13 +344,17 @@ describe("WhatsAppService", () => {
 
       // Assert
       expect(result.messageId).toBeDefined();
+      // sendMessage now uses connection.id, not just companyId
+      // pendingMessageId (result.messageId) is passed to allow worker to update correct record
       expect(mockPublishSendMessage).toHaveBeenCalledWith(
         "company-123",
+        connectionId,
         input.jid,
         input.content,
         input.messageType,
         "user-123",
-        undefined
+        result.messageId, // pendingMessageId
+        undefined // mediaUrl
       );
     });
 
@@ -358,7 +415,8 @@ describe("WhatsAppService", () => {
     it("should handle media message with URL", async () => {
       // Arrange
       const mockTenantDb = createMockTenantDb();
-      const activeConnection = createMockWhatsAppConnection({ status: "connected" });
+      const connectionId = "conn-123";
+      const activeConnection = createMockWhatsAppConnection({ id: connectionId, status: "connected" });
       const existingContact = createMockContact();
 
       let selectCount = 0;
@@ -374,6 +432,7 @@ describe("WhatsAppService", () => {
 
       mockTenantDb.insertInto = mock(() => ({
         ...mockQueryBuilder,
+        values: mock(() => ({ execute: mock(() => Promise.resolve()) })),
         execute: mock(() => Promise.resolve()),
       }));
 
@@ -389,12 +448,15 @@ describe("WhatsAppService", () => {
 
       // Assert
       expect(result.messageId).toBeDefined();
+      // pendingMessageId (result.messageId) is passed to allow worker to update correct record
       expect(mockPublishSendMessage).toHaveBeenCalledWith(
         "company-123",
+        connectionId,
         input.jid,
         input.content,
         input.messageType,
         "user-123",
+        result.messageId, // pendingMessageId
         input.mediaUrl
       );
     });

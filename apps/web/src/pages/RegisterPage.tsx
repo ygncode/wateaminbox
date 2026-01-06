@@ -1,18 +1,31 @@
 import * as React from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
 import { Button } from '../components/ui/button'
-import { Input } from '../components/ui/input'
+import { FormField } from '../components/ui/form-field'
 import { useAuth } from '../contexts/auth-context'
+import { registerSchema, type RegisterFormData } from '../lib/schemas'
 
 export function RegisterPage() {
   const navigate = useNavigate()
-  const { register, isLoading, error, clearError, isAuthenticated } = useAuth()
-  const [name, setName] = React.useState('')
-  const [email, setEmail] = React.useState('')
-  const [password, setPassword] = React.useState('')
-  const [confirmPassword, setConfirmPassword] = React.useState('')
-  const [validationError, setValidationError] = React.useState<string | null>(null)
+  const { register: registerUser, isLoading, error, clearError, isAuthenticated } = useAuth()
   const [registrationSuccess, setRegistrationSuccess] = React.useState(false)
+  const [registeredEmail, setRegisteredEmail] = React.useState('')
+
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<RegisterFormData>({
+    resolver: zodResolver(registerSchema),
+    defaultValues: {
+      name: '',
+      email: '',
+      password: '',
+      confirmPassword: '',
+    },
+  })
 
   React.useEffect(() => {
     if (isAuthenticated) {
@@ -20,23 +33,11 @@ export function RegisterPage() {
     }
   }, [isAuthenticated, navigate])
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const onSubmit = async (data: RegisterFormData) => {
     clearError()
-    setValidationError(null)
-
-    if (password !== confirmPassword) {
-      setValidationError('Passwords do not match')
-      return
-    }
-
-    if (password.length < 8) {
-      setValidationError('Password must be at least 8 characters')
-      return
-    }
-
     try {
-      await register({ name, email, password })
+      await registerUser({ name: data.name, email: data.email, password: data.password })
+      setRegisteredEmail(data.email)
       setRegistrationSuccess(true)
     } catch {
       // Error is handled by auth context
@@ -69,7 +70,7 @@ export function RegisterPage() {
                 Check your email
               </h1>
               <p className="text-gray-600 dark:text-dark-text-secondary mb-6">
-                We've sent a verification link to <strong>{email}</strong>. Please check your email
+                We've sent a verification link to <strong>{registeredEmail}</strong>. Please check your email
                 and click the link to verify your account.
               </p>
               <Link
@@ -84,8 +85,6 @@ export function RegisterPage() {
       </div>
     )
   }
-
-  const displayError = validationError || error
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-100 dark:bg-dark-primary">
@@ -105,84 +104,52 @@ export function RegisterPage() {
             </p>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {displayError && (
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+            {error && (
               <div className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 px-4 py-3 rounded-lg text-sm">
-                {displayError}
+                {error}
               </div>
             )}
 
-            <div>
-              <label
-                htmlFor="name"
-                className="block text-sm font-medium text-gray-700 dark:text-dark-text-secondary mb-1"
-              >
-                Full name
-              </label>
-              <Input
-                id="name"
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="John Doe"
-                required
-                autoComplete="name"
-              />
-            </div>
+            <FormField
+              label="Full name"
+              id="name"
+              type="text"
+              placeholder="John Doe"
+              registration={register('name')}
+              error={errors.name}
+              autoComplete="name"
+            />
 
-            <div>
-              <label
-                htmlFor="email"
-                className="block text-sm font-medium text-gray-700 dark:text-dark-text-secondary mb-1"
-              >
-                Email
-              </label>
-              <Input
-                id="email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@example.com"
-                required
-                autoComplete="email"
-              />
-            </div>
+            <FormField
+              label="Email"
+              id="email"
+              type="email"
+              placeholder="you@example.com"
+              registration={register('email')}
+              error={errors.email}
+              autoComplete="email"
+            />
 
-            <div>
-              <label
-                htmlFor="password"
-                className="block text-sm font-medium text-gray-700 dark:text-dark-text-secondary mb-1"
-              >
-                Password
-              </label>
-              <Input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="At least 8 characters"
-                required
-                autoComplete="new-password"
-              />
-            </div>
+            <FormField
+              label="Password"
+              id="password"
+              type="password"
+              placeholder="At least 8 characters"
+              registration={register('password')}
+              error={errors.password}
+              autoComplete="new-password"
+            />
 
-            <div>
-              <label
-                htmlFor="confirmPassword"
-                className="block text-sm font-medium text-gray-700 dark:text-dark-text-secondary mb-1"
-              >
-                Confirm password
-              </label>
-              <Input
-                id="confirmPassword"
-                type="password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                placeholder="Confirm your password"
-                required
-                autoComplete="new-password"
-              />
-            </div>
+            <FormField
+              label="Confirm password"
+              id="confirmPassword"
+              type="password"
+              placeholder="Confirm your password"
+              registration={register('confirmPassword')}
+              error={errors.confirmPassword}
+              autoComplete="new-password"
+            />
 
             <Button
               type="submit"

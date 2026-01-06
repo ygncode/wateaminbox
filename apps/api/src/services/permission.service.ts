@@ -108,7 +108,7 @@ export async function getMemberWithPermissions(
   permissions: MemberPermissions;
 } | null> {
   const member = await db
-    .selectFrom("company_members" as any)
+    .selectFrom("company_members")
     .select(["role", "permissions"])
     .where("company_id", "=", companyId)
     .where("user_id", "=", userId)
@@ -191,7 +191,7 @@ export async function updateMemberPermissions(
 ): Promise<MemberPermissions> {
   // First get the member's current role
   const member = await db
-    .selectFrom("company_members" as any)
+    .selectFrom("company_members")
     .select(["role", "permissions"])
     .where("company_id", "=", companyId)
     .where("user_id", "=", targetUserId)
@@ -217,7 +217,7 @@ export async function updateMemberPermissions(
   };
 
   await db
-    .updateTable("company_members" as any)
+    .updateTable("company_members")
     .set({ permissions: updatedPermissions })
     .where("company_id", "=", companyId)
     .where("user_id", "=", targetUserId)
@@ -234,7 +234,7 @@ export async function resetMemberPermissions(
   targetUserId: string,
 ): Promise<MemberPermissions> {
   const member = await db
-    .selectFrom("company_members" as any)
+    .selectFrom("company_members")
     .select(["role"])
     .where("company_id", "=", companyId)
     .where("user_id", "=", targetUserId)
@@ -248,7 +248,7 @@ export async function resetMemberPermissions(
 
   // Clear custom permissions
   await db
-    .updateTable("company_members" as any)
+    .updateTable("company_members")
     .set({ permissions: {} })
     .where("company_id", "=", companyId)
     .where("user_id", "=", targetUserId)

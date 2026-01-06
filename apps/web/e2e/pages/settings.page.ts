@@ -21,21 +21,37 @@ export class SettingsPage extends BasePage {
   constructor(page: Page) {
     super(page);
 
-    // Initialize locators
+    // Initialize locators using simpler, more robust selectors
     this.notificationSection = page.locator("text=Notification Settings").first();
+
+    // Find checkboxes by their adjacent label text
+    // The checkboxes are in the same row as the label
     this.desktopNotificationsToggle = page
-      .locator("text=Desktop Notifications")
-      .locator("xpath=../../../..")
+      .getByText("Desktop Notifications", { exact: false })
+      .locator("..") // parent div
+      .locator("..") // outer row
+      .locator("..") // flex container
       .locator('button[role="checkbox"]');
+
     this.soundEnabledToggle = page
-      .locator("text=Notification Sound")
-      .locator("xpath=../../../..")
+      .getByText("Notification Sound", { exact: false })
+      .locator("..") // parent div
+      .locator("..") // outer row
+      .locator("..") // flex container
       .locator('button[role="checkbox"]');
-    this.soundSelect = page.locator('button[role="combobox"]');
+
+    // Sound select - find the row with "Sound" label (not "Notification Sound")
+    // The select is in a div with className containing "flex items-center justify-between"
+    // Use a more targeted approach - get all comboboxes and filter
+    this.soundSelect = page.getByRole("combobox").first();
+
     this.quietHoursToggle = page
-      .locator("text=Quiet Hours")
-      .locator("xpath=../../../..")
+      .getByText("Quiet Hours", { exact: true })
+      .locator("..") // parent div
+      .locator("..") // outer row
+      .locator("..") // flex container
       .locator('button[role="checkbox"]');
+
     this.quietHoursStartInput = page.locator('input[type="time"]').first();
     this.quietHoursEndInput = page.locator('input[type="time"]').last();
     this.testNotificationButton = page.getByRole("button", { name: /send test notification/i });

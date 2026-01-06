@@ -535,10 +535,9 @@ function ConnectionCard({
     }
 
     const updateCountdown = () => {
-      const remaining = Math.max(
-        0,
-        Math.floor((localState.qrExpiresAt?.getTime() - Date.now()) / 1000)
-      )
+      const expiresAt = localState.qrExpiresAt
+      if (!expiresAt) return
+      const remaining = Math.max(0, Math.floor((expiresAt.getTime() - Date.now()) / 1000))
       setCountdown(remaining)
     }
 

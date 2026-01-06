@@ -59,6 +59,11 @@ CURRENT_TASK_INDEX=0
 CURRENT_SLUG=""
 CURRENT_TASK_TYPE=""  # feature, bug, chore, refactor, docs
 
+# Worktree management
+WORKTREES_DIR="$PROJECT_DIR/.worktrees"
+USE_WORKTREE=false
+WORKTREE_PATH=""
+
 # Colors
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -222,6 +227,46 @@ Output ONLY one word: 'simple' or 'complex'. Nothing else."
     echo "${result:-complex}"
 }
 
+# Classify if task needs worktree (isolated environment) using Haiku
+# Returns: "worktree" or "inplace"
+classify_worktree_need() {
+    local task_description="$1"
+    local task_type="$2"
+
+    if [ "$DRY_RUN" = true ]; then
+        echo "inplace"
+        return
+    fi
+
+    local classify_prompt="Decide if this coding task should use a git worktree (isolated directory) or work in-place.
+
+TASK: $task_description
+TASK TYPE: $task_type
+
+Use WORKTREE when:
+- Heavy/disruptive changes that would interrupt someone testing the main code
+- Multi-file refactoring that touches many parts of the codebase
+- New feature implementation with many new files
+- Database migrations or schema changes
+- Changes that require significant build/compile time
+- Risky changes that might break the build temporarily
+
+Use INPLACE when:
+- Small bug fixes (1-3 files)
+- Documentation updates
+- Config changes
+- Simple chores (dependency updates)
+- Quick fixes that won't disrupt testing
+- Changes that are low-risk and fast to implement
+
+Output ONLY one word: 'worktree' or 'inplace'. Nothing else."
+
+    local result
+    result=$(claude --dangerously-skip-permissions --model haiku -p "$classify_prompt" 2>/dev/null | tr '[:upper:]' '[:lower:]' | grep -o -E '(worktree|inplace)' | head -1)
+
+    echo "${result:-inplace}"
+}
+
 # Run cyolo with smart model selection
 # AI (Haiku) decides whether to use Sonnet (simple) or Opus (complex)
 run_cyolo() {
@@ -357,7 +402,7 @@ Output ONLY one word: feature, bug, chore, refactor, or docs. Nothing else."
 # Task List Management
 # =============================================================================
 
-# Detect input format: "checklist" or "feature"
+# Detect input format: "checklist" or "feature" using Haiku
 detect_input_format() {
     local file="$1"
 
@@ -366,12 +411,34 @@ detect_input_format() {
         return
     fi
 
-    # Check if file contains checklist items
-    if grep -q '^\s*-\s*\[ \]' "$file" 2>/dev/null; then
-        echo "checklist"
-    else
-        echo "feature"
+    if [ "$DRY_RUN" = true ]; then
+        # Fallback to simple grep check in dry-run mode
+        if grep -q '^\s*-\s*\[ \]' "$file" 2>/dev/null; then
+            echo "checklist"
+        else
+            echo "feature"
+        fi
+        return
     fi
+
+    local content
+    content=$(cat "$file")
+
+    local detect_prompt="Analyze this input file and determine its format.
+
+FILE CONTENT:
+$content
+
+OUTPUT ONLY ONE WORD:
+- 'checklist' if this is a task list with multiple independent items to do one by one (like todo items, checkboxes, numbered tasks, bullet points with separate tasks)
+- 'feature' if this is a single feature description, requirement document, specification, or one cohesive thing to implement as a unit
+
+Reply with ONLY 'checklist' or 'feature', nothing else."
+
+    local result
+    result=$(claude --dangerously-skip-permissions --model haiku -p "$detect_prompt" 2>/dev/null | tr '[:upper:]' '[:lower:]' | grep -o -E '(checklist|feature)' | head -1)
+
+    echo "${result:-feature}"
 }
 
 # Get next unchecked task from tasks.md (checklist format)
@@ -521,24 +588,103 @@ Run these git commands now and ensure we're on a clean, up-to-date main branch."
     log_success "Synced with main"
 }
 
-# Create branch for current task
+# Create branch for current task (with optional worktree)
 create_branch() {
     local branch_name="improvement/$CURRENT_SLUG"
 
-    log_info "Creating branch: $branch_name"
+    # Classify if worktree is needed
+    local worktree_decision
+    worktree_decision=$(classify_worktree_need "$CURRENT_TASK" "$CURRENT_TASK_TYPE")
 
-    # Make sure we're on main first
-    run_cmd git checkout main
-
-    # Create and checkout new branch
-    if git show-ref --verify --quiet "refs/heads/$branch_name"; then
-        log_warn "Branch $branch_name already exists, checking out..."
-        run_cmd git checkout "$branch_name"
+    if [ "$worktree_decision" = "worktree" ]; then
+        USE_WORKTREE=true
+        log_info "Using git worktree for isolation"
+        setup_worktree "$branch_name"
     else
-        run_cmd git checkout -b "$branch_name"
+        USE_WORKTREE=false
+        WORKTREE_PATH=""
+        log_info "Working in-place (low disruption task)"
+
+        # Standard branch creation
+        log_info "Creating branch: $branch_name"
+        run_cmd git checkout main
+
+        if git show-ref --verify --quiet "refs/heads/$branch_name"; then
+            log_warn "Branch $branch_name already exists, checking out..."
+            run_cmd git checkout "$branch_name"
+        else
+            run_cmd git checkout -b "$branch_name"
+        fi
     fi
 
     echo "$branch_name"
+}
+
+# Setup git worktree for isolated development
+setup_worktree() {
+    local branch_name="$1"
+
+    WORKTREE_PATH="$WORKTREES_DIR/$CURRENT_SLUG"
+
+    log_info "Creating worktree at: $WORKTREE_PATH"
+
+    # Create worktrees directory if needed
+    mkdir -p "$WORKTREES_DIR"
+
+    # Clean up existing worktree if it exists
+    if [ -d "$WORKTREE_PATH" ]; then
+        log_warn "Worktree already exists, removing..."
+        run_cmd git worktree remove "$WORKTREE_PATH" --force 2>/dev/null || true
+        rm -rf "$WORKTREE_PATH" 2>/dev/null || true
+    fi
+
+    # Make sure we're on main and have latest
+    run_cmd git checkout main
+    run_cmd git pull origin main 2>/dev/null || true
+
+    # Create new worktree with branch
+    if git show-ref --verify --quiet "refs/heads/$branch_name"; then
+        # Branch exists, create worktree pointing to it
+        run_cmd git worktree add "$WORKTREE_PATH" "$branch_name"
+    else
+        # Create new branch in worktree
+        run_cmd git worktree add -b "$branch_name" "$WORKTREE_PATH" main
+    fi
+
+    log_success "Worktree ready at: $WORKTREE_PATH"
+
+    # Change to worktree directory
+    cd "$WORKTREE_PATH" || {
+        log_error "Failed to change to worktree directory"
+        return 1
+    }
+
+    log_info "Working directory: $(pwd)"
+}
+
+# Cleanup git worktree after merge
+cleanup_worktree() {
+    if [ "$USE_WORKTREE" != true ] || [ -z "$WORKTREE_PATH" ]; then
+        return 0
+    fi
+
+    log_info "Cleaning up worktree: $WORKTREE_PATH"
+
+    # Return to project directory first
+    cd "$PROJECT_DIR" || true
+
+    # Remove the worktree
+    run_cmd git worktree remove "$WORKTREE_PATH" --force 2>/dev/null || {
+        log_warn "Could not remove worktree gracefully, forcing removal..."
+        rm -rf "$WORKTREE_PATH" 2>/dev/null || true
+        run_cmd git worktree prune 2>/dev/null || true
+    }
+
+    log_success "Worktree cleaned up"
+
+    # Reset worktree state
+    USE_WORKTREE=false
+    WORKTREE_PATH=""
 }
 
 # =============================================================================
@@ -1194,6 +1340,9 @@ Run these commands now."
     run_cyolo "$pr_prompt" "Creating PR and merging..."
 
     log_success "PR phase completed for branch: $branch_name"
+
+    # Cleanup worktree if we used one
+    cleanup_worktree
 }
 
 # =============================================================================

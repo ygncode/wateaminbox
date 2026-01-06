@@ -87,7 +87,7 @@ export class MaxConnectionsExceededError extends Error {
  */
 async function getMaxConnections(companyId: string): Promise<number> {
   const company = await db
-    .selectFrom("companies" as any)
+    .selectFrom("companies")
     .select(["max_whatsapp_connections"])
     .where("id", "=", companyId)
     .executeTakeFirst();
@@ -393,6 +393,7 @@ export async function sendMessage(
     input.content,
     input.messageType,
     userId,
+    messageId, // Pass the pending message ID so worker can update correct record
     input.mediaUrl,
   );
 

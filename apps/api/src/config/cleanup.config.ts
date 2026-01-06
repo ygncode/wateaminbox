@@ -8,6 +8,10 @@
  * - MESSAGE_CLEANUP_BATCH_SIZE: Number of messages to process per batch (default: 100)
  */
 
+import { createLogger } from "../lib/logger.js";
+
+const logger = createLogger("CleanupConfig");
+
 export interface MessageCleanupConfig {
   enabled: boolean;
   timeoutMinutes: number;
@@ -49,8 +53,9 @@ function parsePositiveInt(
   const parsed = Number.parseInt(value, 10);
 
   if (Number.isNaN(parsed) || parsed <= 0) {
-    console.warn(
-      `[CleanupConfig] Invalid value "${value}" for environment variable, using default: ${defaultValue}`,
+    logger.warn(
+      { value, defaultValue },
+      "Invalid value for environment variable, using default",
     );
     return defaultValue;
   }

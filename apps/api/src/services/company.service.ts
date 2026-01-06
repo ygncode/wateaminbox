@@ -1,7 +1,13 @@
 import { sql } from "kysely";
+import type { Transaction } from "kysely";
 import { randomBytes } from "crypto";
 import { createTenantSchema, getSchemaName } from "./tenant.service.js";
 import { db } from "@whatsapp-web/database";
+import type { Database } from "@whatsapp-web/database";
+import { sendInvitationEmail } from "../lib/email.js";
+import { createLogger } from "../lib/logger.js";
+
+const logger = createLogger("CompanyService");
 
 // Types for company operations
 export interface Company {
@@ -97,11 +103,10 @@ export async function createCompany(
   const schemaName = getSchemaName(companyId);
 
   // Start a transaction
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const result = await db.transaction().execute(async (trx: any) => {
+  const result = await db.transaction().execute(async (trx: Transaction<Database>) => {
     // Create the company record
     const company = await trx
-      .insertInto("companies" as any)
+      .insertInto("companies")
       .values({
         id: companyId,
         name: input.name,
@@ -122,7 +127,7 @@ export async function createCompany(
 
     // Create company stats record
     await trx
-      .insertInto("company_stats" as any)
+      .insertInto("company_stats")
       .values({
         company_id: companyId,
         total_messages: 0,
@@ -134,7 +139,7 @@ export async function createCompany(
 
     // Add the owner as a member
     await trx
-      .insertInto("company_members" as any)
+      .insertInto("company_members")
       .values({
         user_id: ownerId,
         company_id: companyId,
@@ -158,7 +163,7 @@ export async function createCompany(
  */
 export async function getCompany(companyId: string): Promise<Company> {
   const company = await db
-    .selectFrom("companies" as any)
+    .selectFrom("companies")
     .select(["id", "name", "schema_name", "status", "created_at", "updated_at"])
     .where("id", "=", companyId)
     .where("status", "!=", "deleted")
@@ -190,7 +195,7 @@ export async function updateCompany(
   }
 
   const company = await db
-    .updateTable("companies" as any)
+    .updateTable("companies")
     .set(updateData)
     .where("id", "=", companyId)
     .where("status", "!=", "deleted")
@@ -216,7 +221,7 @@ export async function updateCompany(
  */
 export async function deleteCompany(companyId: string): Promise<void> {
   const result = await db
-    .updateTable("companies" as any)
+    .updateTable("companies")
     .set({
       status: "deleted",
       updated_at: new Date(),
@@ -240,7 +245,7 @@ export async function getMembers(companyId: string): Promise<CompanyMember[]> {
   // First verify company exists
   await getCompany(companyId);
 
-  const members = await (db as any)
+  const members = await db
     .selectFrom("company_members as cm")
     .innerJoin("users as u", "u.id", "cm.user_id")
     .select([
@@ -267,7 +272,7 @@ export async function getMemberRole(
   userId: string,
 ): Promise<"owner" | "admin" | "member" | null> {
   const member = await db
-    .selectFrom("company_members" as any)
+    .selectFrom("company_members")
     .select(["role"])
     .where("company_id", "=", companyId)
     .where("user_id", "=", userId)
@@ -299,11 +304,20 @@ export async function inviteMember(
   input: InviteMemberInput,
   invitedBy: string,
 ): Promise<Invitation> {
-  // Verify company exists
-  await getCompany(companyId);
+  // Verify company exists and get company name
+  const company = await getCompany(companyId);
+
+  // Get inviter email
+  const inviter = await db
+    .selectFrom("users")
+    .select(["email"])
+    .where("id", "=", invitedBy)
+    .executeTakeFirst();
+
+  const inviterEmail = inviter?.email || "A team member";
 
   // Check if user is already a member
-  const existingUser = await (db as any)
+  const existingUser = await db
     .selectFrom("users as u")
     .innerJoin("company_members as cm", "cm.user_id", "u.id")
     .where("u.email", "=", input.email)
@@ -316,7 +330,7 @@ export async function inviteMember(
 
   // Check if there's already a pending invitation
   const existingInvitation = await db
-    .selectFrom("invitations" as any)
+    .selectFrom("invitations")
     .select(["id"])
     .where("company_id", "=", companyId)
     .where("email", "=", input.email)
@@ -327,7 +341,7 @@ export async function inviteMember(
   if (existingInvitation) {
     // Cancel existing invitation and create new one
     await db
-      .deleteFrom("invitations" as any)
+      .deleteFrom("invitations")
       .where("id", "=", existingInvitation.id)
       .execute();
   }
@@ -340,7 +354,7 @@ export async function inviteMember(
   expiresAt.setDate(expiresAt.getDate() + 7);
 
   const invitation = await db
-    .insertInto("invitations" as any)
+    .insertInto("invitations")
     .values({
       company_id: companyId,
       email: input.email,
@@ -361,6 +375,23 @@ export async function inviteMember(
     ])
     .executeTakeFirstOrThrow();
 
+  // Send invitation email (fire and forget, don't block on email delivery)
+  sendInvitationEmail(input.email, token, company.name, inviterEmail)
+    .then((result) => {
+      if (!result.success) {
+        logger.warn(
+          { email: input.email, error: result.error },
+          "Failed to send invitation email",
+        );
+      }
+    })
+    .catch((err) => {
+      logger.error(
+        { email: input.email, error: err },
+        "Error sending invitation email",
+      );
+    });
+
   return invitation as unknown as Invitation;
 }
 
@@ -371,7 +402,7 @@ export async function getPendingInvitations(
   companyId: string,
 ): Promise<Invitation[]> {
   const invitations = await db
-    .selectFrom("invitations" as any)
+    .selectFrom("invitations")
     .select([
       "id",
       "company_id",
@@ -398,7 +429,7 @@ export async function cancelInvitation(
   invitationId: string,
 ): Promise<void> {
   const result = await db
-    .deleteFrom("invitations" as any)
+    .deleteFrom("invitations")
     .where("id", "=", invitationId)
     .where("company_id", "=", companyId)
     .where("accepted_at", "is", null)
@@ -418,7 +449,7 @@ export async function acceptInvitation(
 ): Promise<{ company: Company; member: CompanyMember }> {
   // Find the invitation
   const invitation = await db
-    .selectFrom("invitations" as any)
+    .selectFrom("invitations")
     .select([
       "id",
       "company_id",
@@ -444,14 +475,14 @@ export async function acceptInvitation(
   const result = await db.transaction().execute(async (trx: any) => {
     // Mark invitation as accepted
     await trx
-      .updateTable("invitations" as any)
+      .updateTable("invitations")
       .set({ accepted_at: new Date() })
       .where("id", "=", invitation.id)
       .execute();
 
     // Add user as a member
     const member = await trx
-      .insertInto("company_members" as any)
+      .insertInto("company_members")
       .values({
         user_id: userId,
         company_id: invitation.company_id,
@@ -473,7 +504,7 @@ export async function acceptInvitation(
 
     // Update company stats
     await trx
-      .updateTable("company_stats" as any)
+      .updateTable("company_stats")
       .set({
         active_users: sql`active_users + 1`,
         updated_at: new Date(),
@@ -507,7 +538,7 @@ export async function removeMember(
   }
 
   const result = await db
-    .deleteFrom("company_members" as any)
+    .deleteFrom("company_members")
     .where("company_id", "=", companyId)
     .where("user_id", "=", userId)
     .executeTakeFirst();
@@ -518,7 +549,7 @@ export async function removeMember(
 
   // Update company stats
   await db
-    .updateTable("company_stats" as any)
+    .updateTable("company_stats")
     .set({
       active_users: sql`GREATEST(active_users - 1, 0)`,
       updated_at: new Date(),
@@ -543,7 +574,7 @@ export async function updateMemberRole(
   }
 
   const member = await db
-    .updateTable("company_members" as any)
+    .updateTable("company_members")
     .set({ role: newRole })
     .where("company_id", "=", companyId)
     .where("user_id", "=", userId)
@@ -571,7 +602,7 @@ export async function updateMemberRole(
 export async function getUserCompanies(
   userId: string,
 ): Promise<(Company & { role: string })[]> {
-  const companies = await (db as any)
+  const companies = await db
     .selectFrom("company_members as cm")
     .innerJoin("companies as c", "c.id", "cm.company_id")
     .select([
@@ -601,7 +632,7 @@ export async function getInvitationByToken(token: string): Promise<{
   expiresAt: Date;
   createdAt: Date;
 }> {
-  const result = await (db as any)
+  const result = await db
     .selectFrom("invitations as i")
     .innerJoin("companies as c", "c.id", "i.company_id")
     .innerJoin("users as u", "u.id", "i.invited_by")
@@ -640,16 +671,28 @@ export async function getInvitationByToken(token: string): Promise<{
 }
 
 /**
- * Resends an invitation (extends expiry and can be used to trigger email)
+ * Resends an invitation (extends expiry and sends email)
  */
 export async function resendInvitation(
   companyId: string,
   invitationId: string,
   userId: string,
 ): Promise<Invitation> {
+  // Get company name
+  const company = await getCompany(companyId);
+
+  // Get resender email
+  const resender = await db
+    .selectFrom("users")
+    .select(["email"])
+    .where("id", "=", userId)
+    .executeTakeFirst();
+
+  const resenderEmail = resender?.email || "A team member";
+
   // Find the invitation
   const invitation = await db
-    .selectFrom("invitations" as any)
+    .selectFrom("invitations")
     .select([
       "id",
       "company_id",
@@ -675,7 +718,7 @@ export async function resendInvitation(
   expiresAt.setDate(expiresAt.getDate() + 7);
 
   const updated = await db
-    .updateTable("invitations" as any)
+    .updateTable("invitations")
     .set({
       token: newToken,
       expires_at: expiresAt,
@@ -694,8 +737,22 @@ export async function resendInvitation(
     ])
     .executeTakeFirstOrThrow();
 
-  // TODO: Send invitation email here
-  // await sendInvitationEmail(updated.email, newToken, companyName);
+  // Send invitation email (fire and forget, don't block on email delivery)
+  sendInvitationEmail(updated.email, newToken, company.name, resenderEmail)
+    .then((result) => {
+      if (!result.success) {
+        logger.warn(
+          { email: updated.email, error: result.error },
+          "Failed to send invitation email on resend",
+        );
+      }
+    })
+    .catch((err) => {
+      logger.error(
+        { email: updated.email, error: err },
+        "Error sending invitation email on resend",
+      );
+    });
 
   return updated as unknown as Invitation;
 }

@@ -184,8 +184,38 @@ mock.module('../../lib/nats.js', () => ({
   type: {} as never,
 }))
 
+// Error classes need to be defined for the mock
+class ConnectionNotFoundError extends Error {
+  constructor(message = 'Connection not found') { super(message); this.name = 'ConnectionNotFoundError' }
+}
+class ConnectionAlreadyExistsError extends Error {
+  constructor(message = 'Connection already exists') { super(message); this.name = 'ConnectionAlreadyExistsError' }
+}
+class InvalidConnectionStateError extends Error {
+  constructor(message = 'Invalid connection state') { super(message); this.name = 'InvalidConnectionStateError' }
+}
+class MaxConnectionsExceededError extends Error {
+  constructor(message = 'Max connections exceeded') { super(message); this.name = 'MaxConnectionsExceededError' }
+}
+
 mock.module('../../services/whatsapp.service.js', () => ({
   updateConnectionStatus: mockUpdateConnectionStatus,
+  // Stub other exports to prevent Bun's global mock.module from breaking other tests
+  listConnections: mock(async () => []),
+  getConnection: mock(async () => null),
+  spawnConnection: mock(async () => ({})),
+  killConnection: mock(async () => {}),
+  getConnectionStatus: mock(async () => ({})),
+  sendMessage: mock(async () => ({})),
+  updateLastSync: mock(async () => {}),
+  getActiveConnection: mock(async () => null),
+  getActiveConnections: mock(async () => []),
+  getConnectionLimits: mock(async () => ({ current: 0, max: 5 })),
+  // Export error classes
+  ConnectionNotFoundError,
+  ConnectionAlreadyExistsError,
+  InvalidConnectionStateError,
+  MaxConnectionsExceededError,
 }))
 
 // Mock the tenant service module

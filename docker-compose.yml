@@ -1,5 +1,8 @@
 services:
   postgres:
+    # Using PostgreSQL 16 for compatibility with existing data volumes
+    # PostgreSQL 18 requires data directory migration (see: https://github.com/docker-library/postgres/pull/1259)
+    # To upgrade: backup data, remove volume, then use postgres:18-alpine with /var/lib/postgresql mount
     image: postgres:16-alpine
     container_name: whatsapp-web-postgres
     environment:

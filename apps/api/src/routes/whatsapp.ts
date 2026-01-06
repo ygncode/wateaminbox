@@ -8,6 +8,9 @@ import { tenantFromHeader } from "../middleware/tenant.js";
 import * as whatsappService from "../services/whatsapp.service.js";
 import { createRateLimitMiddleware } from "../middleware/rate-limit.js";
 import { rateLimitConfig, rateLimitStore } from "../lib/rate-limit-store.js";
+import { createLogger, formatError } from "../lib/logger.js";
+
+const logger = createLogger("WhatsAppRoutes");
 
 // Validation schemas
 const sendMessageSchema = z.object({
@@ -34,7 +37,7 @@ const whatsappRateLimiter: MiddlewareHandler = rateLimitConfig.enabled
       keyStrategy: "user",
       keyPrefix: "whatsapp-ops",
     })
-  : async (c, next) => await next();
+  : async (_c, next) => await next();
 
 // Create the router
 export const whatsappRoutes = new Hono();
@@ -100,7 +103,7 @@ whatsappRoutes.post(
       ) {
         throw new HTTPException(409, { message: err.message });
       }
-      console.error("Failed to spawn WhatsApp connection:", error);
+      logger.error({ err: formatError(error) }, "Failed to spawn WhatsApp connection");
       throw new HTTPException(500, {
         message: "Failed to initiate WhatsApp connection",
       });
@@ -137,7 +140,7 @@ whatsappRoutes.post(
       if (error instanceof whatsappService.ConnectionNotFoundError) {
         throw new HTTPException(404, { message: error.message });
       }
-      console.error("Failed to disconnect WhatsApp:", error);
+      logger.error({ err: formatError(error) }, "Failed to disconnect WhatsApp");
       throw new HTTPException(500, {
         message: "Failed to disconnect WhatsApp",
       });
@@ -163,7 +166,7 @@ whatsappRoutes.get(
         data: status,
       });
     } catch (error) {
-      console.error("Failed to get connection status:", error);
+      logger.error({ err: formatError(error) }, "Failed to get connection status");
       throw new HTTPException(500, {
         message: "Failed to get connection status",
       });
@@ -221,7 +224,7 @@ whatsappRoutes.post(
       if (error instanceof whatsappService.ConnectionNotFoundError) {
         throw new HTTPException(404, { message: error.message });
       }
-      console.error("Failed to send message:", error);
+      logger.error({ err: formatError(error) }, "Failed to send message");
       throw new HTTPException(500, {
         message: "Failed to send message",
       });
@@ -262,7 +265,7 @@ whatsappRoutes.get(
         },
       });
     } catch (error) {
-      console.error("Failed to get connection info:", error);
+      logger.error({ err: formatError(error) }, "Failed to get connection info");
       throw new HTTPException(500, {
         message: "Failed to get connection information",
       });
@@ -312,7 +315,7 @@ whatsappRoutes.get(
         },
       });
     } catch (error) {
-      console.error("Failed to list connections:", error);
+      logger.error({ err: formatError(error) }, "Failed to list connections");
       throw new HTTPException(500, {
         message: "Failed to list WhatsApp connections",
       });
@@ -383,7 +386,7 @@ whatsappRoutes.post(
           },
         });
       }
-      console.error("Failed to create WhatsApp connection:", error);
+      logger.error({ err: formatError(error) }, "Failed to create WhatsApp connection");
       throw new HTTPException(500, {
         message: "Failed to create WhatsApp connection",
       });
@@ -426,7 +429,7 @@ whatsappRoutes.get(
       if (error instanceof whatsappService.ConnectionNotFoundError) {
         throw new HTTPException(404, { message: error.message });
       }
-      console.error("Failed to get connection:", error);
+      logger.error({ err: formatError(error) }, "Failed to get connection");
       throw new HTTPException(500, {
         message: "Failed to get connection details",
       });
@@ -474,7 +477,7 @@ whatsappRoutes.patch(
       if (error instanceof whatsappService.ConnectionNotFoundError) {
         throw new HTTPException(404, { message: error.message });
       }
-      console.error("Failed to update connection:", error);
+      logger.error({ err: formatError(error) }, "Failed to update connection");
       throw new HTTPException(500, {
         message: "Failed to update connection",
       });
@@ -522,7 +525,7 @@ whatsappRoutes.delete(
       if (error instanceof whatsappService.ConnectionNotFoundError) {
         throw new HTTPException(404, { message: error.message });
       }
-      console.error("Failed to delete connection:", error);
+      logger.error({ err: formatError(error) }, "Failed to delete connection");
       throw new HTTPException(500, {
         message: "Failed to delete connection",
       });
@@ -589,7 +592,7 @@ whatsappRoutes.post(
       if (error instanceof HTTPException) {
         throw error;
       }
-      console.error("Failed to reconnect:", error);
+      logger.error({ err: formatError(error) }, "Failed to reconnect");
       throw new HTTPException(500, {
         message: "Failed to reconnect",
       });
@@ -623,7 +626,7 @@ whatsappRoutes.post(
       if (error instanceof whatsappService.ConnectionNotFoundError) {
         throw new HTTPException(404, { message: error.message });
       }
-      console.error("Failed to disconnect WhatsApp:", error);
+      logger.error({ err: formatError(error) }, "Failed to disconnect WhatsApp");
       throw new HTTPException(500, {
         message: "Failed to disconnect WhatsApp",
       });
@@ -684,7 +687,7 @@ whatsappRoutes.post(
       if (error instanceof whatsappService.ConnectionNotFoundError) {
         throw new HTTPException(404, { message: error.message });
       }
-      console.error("Failed to send message:", error);
+      logger.error({ err: formatError(error) }, "Failed to send message");
       throw new HTTPException(500, {
         message: "Failed to send message",
       });
@@ -717,7 +720,7 @@ whatsappRoutes.get(
         },
       });
     } catch (error) {
-      console.error("Failed to get connection status:", error);
+      logger.error({ err: formatError(error) }, "Failed to get connection status");
       throw new HTTPException(500, {
         message: "Failed to get connection status",
       });
@@ -747,7 +750,7 @@ whatsappRoutes.get(
         data: limits,
       });
     } catch (error) {
-      console.error("Failed to get connection limits:", error);
+      logger.error({ err: formatError(error) }, "Failed to get connection limits");
       throw new HTTPException(500, {
         message: "Failed to get connection limits",
       });

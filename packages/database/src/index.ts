@@ -18,6 +18,7 @@ export type {
   ContactTagsTable,
   ContactAssignmentsTable,
   ContactNotesPrivateTable,
+  ContactNotesSharedTable,
   TenantMessagesTable,
   MessageReactionsTable,
   GroupsTable,

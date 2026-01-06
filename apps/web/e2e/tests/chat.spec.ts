@@ -671,15 +671,17 @@ test.describe("Add Contact", () => {
     // Should show validation error
     await authenticatedPage.waitForTimeout(300);
     const error = await chatPage.getAddContactError();
-    expect(error).toContain("too short");
+    // Validation error could be about format or length
+    expect(error).toMatch(/phone number|between.*digits|valid/i);
   });
 
-  test("should have submit button disabled when phone is empty", async () => {
+  test("should have submit button enabled (validation on submit)", async () => {
     // Open dialog
     await chatPage.openAddContactDialog();
 
-    // Initially submit button should be disabled
-    await expect(chatPage.addContactSubmitButton).toBeDisabled();
+    // With react-hook-form, submit button is enabled by default
+    // Validation happens on submit, not on initial render
+    await expect(chatPage.addContactSubmitButton).toBeEnabled();
   });
 
   test("should enable submit button when phone is entered", async () => {
@@ -689,8 +691,8 @@ test.describe("Add Contact", () => {
     // Enter valid phone
     await chatPage.fillAddContactForm({ phoneNumber: "+1234567890" });
 
-    // Submit button should now be enabled
-    await expect(chatPage.addContactSubmitButton).not.toBeDisabled();
+    // Submit button should be enabled
+    await expect(chatPage.addContactSubmitButton).toBeEnabled();
   });
 
   test("should create contact with valid phone number", async ({

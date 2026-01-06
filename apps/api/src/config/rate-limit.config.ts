@@ -31,6 +31,10 @@
  * - RATE_LIMIT_MESSAGING_WHATSAPP_REQUESTS: WhatsApp requests per window (default: 30)
  */
 
+import { createLogger } from "../lib/logger.js";
+
+const logger = createLogger("RateLimitConfig");
+
 /**
  * Rate limit tier definition
  */
@@ -85,8 +89,9 @@ function parsePositiveInt(
   const parsed = Number.parseInt(value, 10);
 
   if (Number.isNaN(parsed) || parsed <= 0) {
-    console.warn(
-      `[RateLimitConfig] Invalid value "${value}" for environment variable, using default: ${defaultValue}`,
+    logger.warn(
+      { value, defaultValue },
+      "Invalid value for environment variable, using default",
     );
     return defaultValue;
   }

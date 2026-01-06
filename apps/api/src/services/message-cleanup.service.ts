@@ -4,8 +4,11 @@ import {
   getCleanupConfig,
   type MessageCleanupConfig,
 } from "../config/cleanup.config.js";
+import { createLogger } from "../lib/logger.js";
 import { broadcastToCompany } from "../routes/ws.js";
 import { getTenantConnection, tenantSchemaExists } from "./tenant.service.js";
+
+const logger = createLogger("MessageCleanup");
 
 // Re-export the type for consumers of this service
 export type { MessageCleanupConfig };
@@ -54,7 +57,7 @@ export function setMessageCleanupConfig(
   updates: Partial<MessageCleanupConfig>,
 ): MessageCleanupConfig {
   currentConfig = { ...currentConfig, ...updates };
-  console.log("[MessageCleanup] Configuration updated:", currentConfig);
+  logger.info({ config: currentConfig }, "Configuration updated");
   return currentConfig;
 }
 
@@ -81,7 +84,7 @@ export async function initializeMessageCleanup(
   config?: Partial<MessageCleanupConfig>,
 ): Promise<void> {
   if (isInitialized) {
-    console.log("[MessageCleanup] Already initialized");
+    logger.debug("Already initialized");
     return;
   }
 
@@ -92,20 +95,21 @@ export async function initializeMessageCleanup(
 
   // Check if cleanup is disabled
   if (!currentConfig.enabled) {
-    console.log("[MessageCleanup] Disabled by configuration");
+    logger.info("Disabled by configuration");
     return;
   }
 
-  console.log("[MessageCleanup] Initializing with config:", currentConfig);
+  logger.info({ config: currentConfig }, "Initializing with config");
 
   // Run initial cleanup cycle
   try {
     const result = await runCleanupCycle();
-    console.log(
-      `[MessageCleanup] Initial cleanup complete: ${result.totalExpired} messages expired across ${result.companies.length} companies`,
+    logger.info(
+      { totalExpired: result.totalExpired, companyCount: result.companies.length },
+      "Initial cleanup complete",
     );
   } catch (error) {
-    console.error("[MessageCleanup] Initial cleanup failed:", error);
+    logger.error({ err: error }, "Initial cleanup failed");
   }
 
   // Start periodic cleanup cycles
@@ -114,22 +118,22 @@ export async function initializeMessageCleanup(
     try {
       const result = await runCleanupCycle();
       if (result.skipped) {
-        console.log(
-          `[MessageCleanup] Cleanup cycle skipped (no active companies)`,
-        );
+        logger.debug("Cleanup cycle skipped (no active companies)");
       } else {
-        console.log(
-          `[MessageCleanup] Cleanup cycle complete: ${result.totalExpired} messages expired across ${result.companies.length} companies in ${result.durationMs}ms`,
+        logger.info(
+          { totalExpired: result.totalExpired, companyCount: result.companies.length, durationMs: result.durationMs },
+          "Cleanup cycle complete",
         );
       }
     } catch (error) {
-      console.error("[MessageCleanup] Cleanup cycle failed:", error);
+      logger.error({ err: error }, "Cleanup cycle failed");
     }
   }, intervalMs);
 
   isInitialized = true;
-  console.log(
-    `[MessageCleanup] Initialized and running every ${currentConfig.intervalMinutes} minute(s)`,
+  logger.info(
+    { intervalMinutes: currentConfig.intervalMinutes },
+    "Initialized and running",
   );
 }
 
@@ -143,7 +147,7 @@ export async function shutdownMessageCleanup(): Promise<void> {
     cleanupIntervalId = null;
   }
   isInitialized = false;
-  console.log("[MessageCleanup] Shutdown complete");
+  logger.info("Shutdown complete");
 }
 
 /**
@@ -201,9 +205,9 @@ export async function runCleanupCycle(): Promise<CleanupCycleResult> {
         expiredCount: 0,
         error: errorMessage,
       });
-      console.error(
-        `[MessageCleanup] Failed to cleanup company ${company.id}:`,
-        error,
+      logger.error(
+        { err: error, companyId: company.id },
+        "Failed to cleanup company",
       );
     }
   }
@@ -234,8 +238,9 @@ export async function cleanupCompanyMessages(
   // Check if tenant schema exists
   const schemaExists = await tenantSchemaExists(companyId);
   if (!schemaExists) {
-    console.warn(
-      `[MessageCleanup] Tenant schema does not exist for company ${companyId}`,
+    logger.warn(
+      { companyId },
+      "Tenant schema does not exist for company",
     );
     return 0;
   }
@@ -264,31 +269,36 @@ export async function cleanupCompanyMessages(
   // Update stale pending messages to failed status
   // Only target messages sent by the user (from_me = true)
   // that have been pending for longer than the timeout
+  const errorMessage = `Message delivery timed out after ${timeoutMinutes} minutes`;
   const result = await tenantDb
     .updateTable("messages")
     .set({
       status: "failed",
       metadata: sql<Record<string, unknown>>`jsonb_build_object(
         'error', 'delivery_timeout',
-        'error_message', ${"Message delivery timed out after " + timeoutMinutes + " minutes"},
+        'error_message', ${errorMessage}::text,
         'failed_at', now()
       )`,
     })
     .where("id", "in", messageIds)
     .execute();
 
-  const expiredCount = Number(result.numUpdatedRows);
+  // result from execute() - handle both array and single result for test compatibility
+  const expiredCount = Array.isArray(result)
+    ? result.reduce((sum, r) => sum + Number(r.numUpdatedRows), 0)
+    : Number((result as { numUpdatedRows: bigint }).numUpdatedRows);
 
   if (expiredCount > 0) {
-    console.log(
-      `[MessageCleanup] Expired ${expiredCount} pending messages for company ${companyId}`,
+    logger.info(
+      { expiredCount, companyId },
+      "Expired pending messages for company",
     );
 
     // Broadcast WebSocket notifications for each expired message
     // Group by contact_id to minimize broadcasts
     const messagesByContact = new Map<string, typeof messagesToExpire>();
     for (const message of messagesToExpire) {
-      const contactId = message.contact_id;
+      const contactId = message.contact_id ?? "unknown";
       if (!messagesByContact.has(contactId)) {
         messagesByContact.set(contactId, []);
       }
@@ -308,8 +318,9 @@ export async function cleanupCompanyMessages(
         },
         timestamp: new Date().toISOString(),
       });
-      console.log(
-        `[MessageCleanup] Broadcast timeout notification for ${messages.length} message(s) in conversation ${contactId}`,
+      logger.debug(
+        { messageCount: messages.length, contactId },
+        "Broadcast timeout notification for messages in conversation",
       );
     }
   }
@@ -321,14 +332,14 @@ export async function cleanupCompanyMessages(
  * Get all active companies
  * Returns companies with status = 'active' that have members
  */
-async function getActiveCompanies(): Array<{ id: string }> {
+async function getActiveCompanies(): Promise<Array<{ id: string }>> {
   const result = await db
     .selectFrom("companies")
     .select(["id"])
     .where("status", "=", "active")
     .execute();
 
-  return result.map((c: { id: string }) => ({ id: c.id }));
+  return result.map((c) => ({ id: c.id }));
 }
 
 /**
@@ -372,7 +383,7 @@ export async function getCleanupStats(companyId: string): Promise<{
       .where("status", "=", "failed")
       .where("from_me", "=", true)
       .where("metadata", "is not", null)
-      .where(sql`metadata->>'error' = ${"delivery_timeout"}`)
+      .where(sql<boolean>`metadata->>'error' = 'delivery_timeout'`)
       .executeTakeFirst(),
   ]);
 

@@ -15,11 +15,11 @@ import {
 } from "../services/auth.service.js";
 import { validatePasswordStrength } from "../lib/password.js";
 import { authMiddleware } from "../middleware/auth.js";
-import {
-  createRateLimitMiddleware,
-  ipRateLimit,
-} from "../middleware/rate-limit.js";
+import { createRateLimitMiddleware } from "../middleware/rate-limit.js";
 import { rateLimitConfig, rateLimitStore } from "../lib/rate-limit-store.js";
+import { createLogger, formatError } from "../lib/logger.js";
+
+const logger = createLogger("AuthRoutes");
 
 export const authRoutes = new Hono();
 
@@ -35,7 +35,7 @@ const loginRateLimiter: MiddlewareHandler = rateLimitConfig.enabled
       keyStrategy: "ip",
       keyPrefix: "auth-login",
     })
-  : async (c, next) => await next();
+  : async (_c, next) => await next();
 
 // Register rate limiter: 3 attempts per hour
 const registerRateLimiter: MiddlewareHandler = rateLimitConfig.enabled
@@ -45,7 +45,7 @@ const registerRateLimiter: MiddlewareHandler = rateLimitConfig.enabled
       keyStrategy: "ip",
       keyPrefix: "auth-register",
     })
-  : async (c, next) => await next();
+  : async (_c, next) => await next();
 
 // Forgot password rate limiter: 3 attempts per hour
 const forgotPasswordRateLimiter: MiddlewareHandler = rateLimitConfig.enabled
@@ -55,7 +55,7 @@ const forgotPasswordRateLimiter: MiddlewareHandler = rateLimitConfig.enabled
       keyStrategy: "ip",
       keyPrefix: "auth-forgot-password",
     })
-  : async (c, next) => await next();
+  : async (_c, next) => await next();
 
 // Refresh token rate limiter: 20 attempts per minute
 const refreshRateLimiter: MiddlewareHandler = rateLimitConfig.enabled
@@ -65,7 +65,7 @@ const refreshRateLimiter: MiddlewareHandler = rateLimitConfig.enabled
       keyStrategy: "ip",
       keyPrefix: "auth-refresh",
     })
-  : async (c, next) => await next();
+  : async (_c, next) => await next();
 
 // Validation schemas
 const registerSchema = z.object({
@@ -190,7 +190,7 @@ authRoutes.post("/register", registerRateLimiter, async (c) => {
         error.statusCode as 400 | 401 | 403 | 404 | 409,
       );
     }
-    console.error("Registration error:", error);
+    logger.error({ err: formatError(error) }, "Registration error");
     return c.json({ error: "Internal Server Error" }, 500);
   }
 });
@@ -253,7 +253,7 @@ authRoutes.post("/login", loginRateLimiter, async (c) => {
         error.statusCode as 400 | 401 | 403 | 404 | 409,
       );
     }
-    console.error("Login error:", error);
+    logger.error({ err: formatError(error) }, "Login error");
     return c.json({ error: "Internal Server Error" }, 500);
   }
 });
@@ -277,7 +277,7 @@ authRoutes.post("/logout", authMiddleware, async (c) => {
         error.statusCode as 400 | 401 | 403 | 404 | 409,
       );
     }
-    console.error("Logout error:", error);
+    logger.error({ err: formatError(error) }, "Logout error");
     return c.json({ error: "Internal Server Error" }, 500);
   }
 });
@@ -322,7 +322,7 @@ authRoutes.post("/verify-email", authMiddleware, async (c) => {
         error.statusCode as 400 | 401 | 403 | 404 | 409,
       );
     }
-    console.error("Email verification error:", error);
+    logger.error({ err: formatError(error) }, "Email verification error");
     return c.json({ error: "Internal Server Error" }, 500);
   }
 });
@@ -358,7 +358,7 @@ authRoutes.post("/forgot-password", forgotPasswordRateLimiter, async (c) => {
         "If an account exists with this email, you will receive a password reset link.",
     });
   } catch (error) {
-    console.error("Forgot password error:", error);
+    logger.error({ err: formatError(error) }, "Forgot password error");
     // Always return success to prevent email enumeration
     return c.json({
       message:
@@ -415,7 +415,7 @@ authRoutes.post("/reset-password", async (c) => {
         error.statusCode as 400 | 401 | 403 | 404 | 409,
       );
     }
-    console.error("Reset password error:", error);
+    logger.error({ err: formatError(error) }, "Reset password error");
     return c.json({ error: "Internal Server Error" }, 500);
   }
 });
@@ -459,7 +459,7 @@ authRoutes.post("/refresh", refreshRateLimiter, async (c) => {
         error.statusCode as 400 | 401 | 403 | 404 | 409,
       );
     }
-    console.error("Token refresh error:", error);
+    logger.error({ err: formatError(error) }, "Token refresh error");
     return c.json({ error: "Internal Server Error" }, 500);
   }
 });
@@ -488,7 +488,7 @@ authRoutes.get("/sessions", authMiddleware, async (c) => {
       })),
     });
   } catch (error) {
-    console.error("Get sessions error:", error);
+    logger.error({ err: formatError(error) }, "Get sessions error");
     return c.json({ error: "Internal Server Error" }, 500);
   }
 });
@@ -523,7 +523,7 @@ authRoutes.delete("/sessions/:id", authMiddleware, async (c) => {
         error.statusCode as 400 | 401 | 403 | 404 | 409,
       );
     }
-    console.error("Delete session error:", error);
+    logger.error({ err: formatError(error) }, "Delete session error");
     return c.json({ error: "Internal Server Error" }, 500);
   }
 });
@@ -544,7 +544,7 @@ authRoutes.delete("/sessions", authMiddleware, async (c) => {
       count,
     });
   } catch (error) {
-    console.error("Delete all sessions error:", error);
+    logger.error({ err: formatError(error) }, "Delete all sessions error");
     return c.json({ error: "Internal Server Error" }, 500);
   }
 });
@@ -566,7 +566,7 @@ authRoutes.get("/me", authMiddleware, async (c) => {
       },
     });
   } catch (error) {
-    console.error("Get user error:", error);
+    logger.error({ err: formatError(error) }, "Get user error");
     return c.json({ error: "Internal Server Error" }, 500);
   }
 });

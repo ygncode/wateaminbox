@@ -311,10 +311,10 @@ export async function fetchApi<T>(endpoint: string, options?: RequestInit): Prom
 export const api = {
   get: <T>(endpoint: string) => fetchApi<T>(endpoint),
 
-  post: <T>(endpoint: string, data: unknown) =>
+  post: <T>(endpoint: string, data?: unknown) =>
     fetchApi<T>(endpoint, {
       method: 'POST',
-      body: JSON.stringify(data),
+      body: data !== undefined ? JSON.stringify(data) : undefined,
     }),
 
   put: <T>(endpoint: string, data: unknown) =>
@@ -365,6 +365,17 @@ export async function logout(): Promise<void> {
   } finally {
     clearAuthTokens()
   }
+}
+
+export interface ForgotPasswordResponse {
+  message: string
+}
+
+export async function forgotPassword(email: string): Promise<ForgotPasswordResponse> {
+  return fetchWithAuth<ForgotPasswordResponse>('/auth/forgot-password', {
+    method: 'POST',
+    body: JSON.stringify({ email }),
+  })
 }
 
 interface GetMeResponse {

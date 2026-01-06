@@ -7,6 +7,9 @@ import {
   JSONCodec,
 } from "nats";
 import { env } from "./env.js";
+import { createLogger, formatError } from "./logger.js";
+
+const logger = createLogger("NATS");
 
 // NATS Subjects/Topics - Must match orchestrator subjects
 // Updated to support connectionId routing for multi-connection support
@@ -382,11 +385,11 @@ export async function getNatsConnection(): Promise<NatsConnection> {
     setupConnectionHandlers(natsConnection);
 
     reconnectAttempts = 0;
-    console.log(`[NATS] Connected to ${env.NATS_URL}`);
+    logger.info({ url: env.NATS_URL }, "Connected to NATS");
 
     return natsConnection;
   } catch (error) {
-    console.error("[NATS] Failed to connect:", error);
+    logger.error(formatError(error), "Failed to connect to NATS");
     throw error;
   }
 }
@@ -399,26 +402,26 @@ function setupConnectionHandlers(nc: NatsConnection): void {
     for await (const status of nc.status()) {
       switch (status.type) {
         case "disconnect":
-          console.warn("[NATS] Disconnected from server");
+          logger.warn("Disconnected from server");
           break;
         case "reconnect":
-          console.log("[NATS] Reconnected to server");
+          logger.info("Reconnected to server");
           reconnectAttempts = 0;
           break;
         case "reconnecting":
           reconnectAttempts++;
-          console.log(`[NATS] Reconnecting... attempt ${reconnectAttempts}`);
+          logger.info({ attempt: reconnectAttempts }, "Reconnecting to NATS");
           break;
         case "error":
-          console.error("[NATS] Connection error:", status.data);
+          logger.error({ error: status.data }, "Connection error");
           break;
         case "update":
-          console.log("[NATS] Connection updated");
+          logger.debug("Connection updated");
           break;
       }
     }
   })().catch((err) => {
-    console.error("[NATS] Status monitoring error:", err);
+    logger.error(formatError(err), "Status monitoring error");
   });
 }
 
@@ -446,11 +449,14 @@ export async function publishCommand(
   const js = await getJetStreamClient();
   const data = jc.encode(command);
   await js.publish(subject, data);
-  console.log(
-    `[NATS] Published to ${subject}:`,
-    command.type,
-    command.company_id,
-    command.connection_id,
+  logger.debug(
+    {
+      subject,
+      type: command.type,
+      companyId: command.company_id,
+      connectionId: command.connection_id,
+    },
+    "Published command to NATS",
   );
 }
 
@@ -483,9 +489,9 @@ export async function publishSpawnCommand(
     tenant_schema: `tenant_${companyId.replace(/-/g, "_")}`,
     database_url: dbUrl,
   };
-  console.log(
-    "[NATS] Spawn command DATABASE_URL:",
-    dbUrl.replace(/\/\/[^:]+:[^@]+@/, "//***:***@"),
+  logger.debug(
+    { databaseUrl: dbUrl.replace(/\/\/[^:]+:[^@]+@/, "//***:***@") },
+    "Spawn command with redacted DATABASE_URL",
   );
   await publishCommand(NATS_SUBJECTS.WHATSAPP_SPAWN, command);
 }
@@ -561,7 +567,7 @@ export async function publishSendMessage(
         );
       }
 
-      console.log(`[NATS] Downloading media from ${mediaUrl}`);
+      logger.debug({ mediaUrl }, "Downloading media from URL");
       const response = await fetch(mediaUrl);
 
       if (!response.ok) {
@@ -595,11 +601,12 @@ export async function publishSendMessage(
       caption = content || undefined;
       content = ""; // Clear content field for media messages
 
-      console.log(
-        `[NATS] Downloaded ${mediaData.length} bytes, type: ${mimeType}, filename: ${fileName}`,
+      logger.debug(
+        { bytes: mediaData.length, mimeType, fileName },
+        "Downloaded media",
       );
     } catch (error) {
-      console.error("[NATS] Failed to download media:", error);
+      logger.error(formatError(error), "Failed to download media");
       throw new Error("Failed to download media for sending");
     }
   }
@@ -625,8 +632,16 @@ export async function publishSendMessage(
   const subject = buildCommandSubject(companyId, connectionId);
   const data = jc.encode(sendCommand);
   await js.publish(subject, data);
-  console.log(
-    `[NATS] Published send message to ${subject}: to=${jid}, type=${messageType}, media=${mediaData ? `${mediaData.length} bytes` : "none"}, reply_to=${replyTo || "none"}, reply_to_sender=${replyToSender || "none"}`,
+  logger.debug(
+    {
+      subject,
+      to: jid,
+      type: messageType,
+      mediaBytes: mediaData ? mediaData.length : 0,
+      replyTo: replyTo || null,
+      replyToSender: replyToSender || null,
+    },
+    "Published send message",
   );
 }
 
@@ -816,13 +831,13 @@ export async function subscribe(
   callback: (event: WhatsAppEvent) => void | Promise<void>,
 ): Promise<JetStreamSubscription> {
   const js = await getJetStreamClient();
-  const nc = await getNatsConnection();
+  // Note: We used to get the nats connection for inbox prefix, but now use static prefix
+  await getNatsConnection(); // Ensure connection is established
 
   // Create an ephemeral push consumer with a unique deliver subject
   // This allows receiving messages published to JetStream
   const inbox =
-    nc.options.inboxPrefix +
-    "." +
+    "_INBOX." +
     Date.now() +
     "." +
     Math.random().toString(36).substring(7);
@@ -834,7 +849,7 @@ export async function subscribe(
       replay_policy: "instant",
       deliver_subject: inbox,
     },
-  } as nats.ConsumerOptsBuilder);
+  } as unknown as nats.ConsumerOptsBuilder);
 
   (async () => {
     for await (const msg of subscription) {
@@ -842,17 +857,17 @@ export async function subscribe(
         const event = jc.decode(msg.data) as WhatsAppEvent;
         await callback(event);
       } catch (error) {
-        console.error(
-          `[NATS] Error processing message from ${subject}:`,
-          error,
+        logger.error(
+          { ...formatError(error), subject },
+          "Error processing message",
         );
       }
     }
   })().catch((err) => {
-    console.error(`[NATS] Subscription error for ${subject}:`, err);
+    logger.error({ ...formatError(err), subject }, "Subscription error");
   });
 
-  console.log(`[NATS] Subscribed to ${subject} via JetStream`);
+  logger.info({ subject }, "Subscribed to subject via JetStream");
   return subscription;
 }
 
@@ -902,7 +917,7 @@ export async function closeNatsConnection(): Promise<void> {
     await natsConnection.close();
     natsConnection = null;
     jetStreamClient = null;
-    console.log("[NATS] Connection closed");
+    logger.info("Connection closed");
   }
 }
 
@@ -991,7 +1006,14 @@ export async function publishSendReaction(
   const subject = buildCommandSubject(companyId, connectionId);
   const data = jc.encode(sendCommand);
   await js.publish(subject, data);
-  console.log(
-    `[NATS] Published send reaction to ${subject}: chatJid=${chatJid}, targetMessageId=${targetMessageId}, emoji=${emoji}, fromMe=${fromMe}`,
+  logger.debug(
+    {
+      subject,
+      chatJid,
+      targetMessageId,
+      emoji,
+      fromMe,
+    },
+    "Published send reaction",
   );
 }

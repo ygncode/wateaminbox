@@ -7,6 +7,9 @@ import { publishSendMessage, publishSendReaction } from "../lib/nats.js";
 import { ensureContactAssignment } from "../services/contact.service.js";
 import { createRateLimitMiddleware } from "../middleware/rate-limit.js";
 import { rateLimitConfig, rateLimitStore } from "../lib/rate-limit-store.js";
+import { createLogger, formatError } from "../lib/logger.js";
+
+const logger = createLogger("MessageRoutes");
 
 export const messageRoutes = new Hono();
 
@@ -23,7 +26,7 @@ const messageSendRateLimiter: MiddlewareHandler = rateLimitConfig.enabled
       keyStrategy: "user",
       keyPrefix: "messaging-send",
     })
-  : async (c, next) => await next();
+  : async (_c, next) => await next();
 
 /**
  * GET /messages - Get messages for a contact
@@ -423,7 +426,7 @@ messageRoutes.post("/:id/reaction", async (c) => {
       message.from_me, // Pass from_me flag
     );
   } catch (error) {
-    console.error("Failed to send reaction to WhatsApp:", error);
+    logger.error({ err: formatError(error) }, "Failed to send reaction to WhatsApp");
     // Don't fail the request - the reaction is stored in DB
   }
 
@@ -484,7 +487,7 @@ messageRoutes.delete("/:id/reaction", async (c) => {
             message.from_me, // Pass from_me flag
           );
         } catch (error) {
-          console.error("Failed to remove reaction from WhatsApp:", error);
+          logger.error({ err: formatError(error) }, "Failed to remove reaction from WhatsApp");
           // Don't fail the request - the reaction is removed from DB
         }
       }
