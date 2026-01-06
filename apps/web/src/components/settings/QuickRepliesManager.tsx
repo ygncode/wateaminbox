@@ -1,4 +1,4 @@
-import { AlertCircle, Loader2, Pencil, Plus, Search, Trash2, Zap } from 'lucide-react'
+import { AlertCircle, Check, Loader2, Pencil, Plus, Search, Trash2, Zap } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
@@ -11,6 +11,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { useQuickReplies } from '@/hooks/useQuickReplies'
 import type { QuickReply } from '@/lib/api'
@@ -31,6 +32,7 @@ export function QuickRepliesManager() {
   const [title, setTitle] = useState('')
   const [content, setContent] = useState('')
   const [formError, setFormError] = useState<string | null>(null)
+  const [success, setSuccess] = useState(false)
 
   const {
     quickReplies,
@@ -58,6 +60,7 @@ export function QuickRepliesManager() {
     setTitle('')
     setContent('')
     setFormError(null)
+    setSuccess(false)
     setEditingQuickReply(null)
   }
 
@@ -120,14 +123,19 @@ export function QuickRepliesManager() {
           title: title.trim(),
           content: content.trim(),
         })
+        closeDialog()
       } else {
         await create({
           shortcut: shortcut.trim(),
           title: title.trim(),
           content: content.trim(),
         })
+        setSuccess(true)
+        // Auto-close after showing success
+        setTimeout(() => {
+          closeDialog()
+        }, 1000)
       }
-      closeDialog()
     } catch (err) {
       if (err instanceof Error) {
         if (err.message.includes('already exists')) {
@@ -268,9 +276,10 @@ export function QuickRepliesManager() {
 
       {/* Create/Edit Dialog */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="sm:max-w-[425px]">
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>
+            <DialogTitle className="flex items-center gap-2">
+              <Zap className="h-5 w-5 text-whatsapp-teal-green" />
               {editingQuickReply
                 ? t('quickReplies.editTitle', 'Edit Quick Reply')
                 : t('quickReplies.createTitle', 'Create Quick Reply')}
@@ -282,92 +291,124 @@ export function QuickRepliesManager() {
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4 py-4">
-            {formError && (
-              <div className="flex items-center gap-2 text-red-600 dark:text-red-400 text-sm bg-red-50 dark:bg-red-900/30 px-3 py-2 rounded-md">
-                <AlertCircle className="h-4 w-4 flex-shrink-0" />
-                <span>{formError}</span>
+          {success ? (
+            <div className="flex flex-col items-center justify-center py-8">
+              <div className="w-16 h-16 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center mb-4">
+                <Check className="h-8 w-8 text-green-600 dark:text-green-400" />
               </div>
-            )}
-
-            <div className="space-y-2">
-              <label
-                htmlFor="shortcut"
-                className="text-sm font-medium text-gray-700 dark:text-dark-text-primary"
-              >
-                {t('quickReplies.shortcutLabel', 'Shortcut')}
-              </label>
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-dark-text-tertiary">
-                  /
-                </span>
-                <Input
-                  id="shortcut"
-                  value={shortcut}
-                  onChange={(e) => setShortcut(e.target.value)}
-                  placeholder={t('quickReplies.shortcutPlaceholder', 'greeting')}
-                  className="pl-7"
-                  maxLength={50}
-                  data-testid="quick-reply-shortcut-input"
-                />
-              </div>
-              <p className="text-xs text-gray-500 dark:text-dark-text-secondary">
-                {t('quickReplies.shortcutHelp', 'Letters, numbers, underscores, and hyphens only')}
+              <p className="text-lg font-medium text-gray-900 dark:text-dark-text-primary">
+                {t('quickReplies.created', 'Quick Reply Created!')}
+              </p>
+              <p className="text-sm text-gray-500 dark:text-dark-text-secondary mt-1">
+                {t('quickReplies.createdHint', 'Type /{shortcut} to use it', { shortcut })}
               </p>
             </div>
+          ) : (
+            <form onSubmit={(e) => { e.preventDefault(); handleSubmit() }} className="space-y-4 py-4">
+              {/* Server error message */}
+              {formError && (
+                <div className="flex items-center gap-2 p-3 text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 rounded-lg">
+                  <AlertCircle className="h-4 w-4 flex-shrink-0" />
+                  <span>{formError}</span>
+                </div>
+              )}
 
-            <div className="space-y-2">
-              <label
-                htmlFor="title"
-                className="text-sm font-medium text-gray-700 dark:text-dark-text-primary"
-              >
-                {t('quickReplies.titleLabel', 'Title')}
-              </label>
-              <Input
-                id="title"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                placeholder={t('quickReplies.titlePlaceholder', 'Welcome Message')}
-                maxLength={255}
-                data-testid="quick-reply-title-input"
-              />
-            </div>
+              {/* Shortcut Input */}
+              <div className="space-y-2">
+                <Label htmlFor="shortcut">
+                  {t('quickReplies.shortcutLabel', 'Shortcut')} <span className="text-red-500">*</span>
+                </Label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-dark-text-tertiary font-mono">
+                    /
+                  </span>
+                  <Input
+                    id="shortcut"
+                    value={shortcut}
+                    onChange={(e) => setShortcut(e.target.value)}
+                    placeholder={t('quickReplies.shortcutPlaceholder', 'greeting')}
+                    className="pl-7 font-mono"
+                    maxLength={50}
+                    autoFocus
+                    data-testid="quick-reply-shortcut-input"
+                    aria-describedby="shortcut-hint"
+                  />
+                </div>
+                <p id="shortcut-hint" className="text-xs text-gray-500 dark:text-dark-text-tertiary">
+                  {t('quickReplies.shortcutHelp', 'Letters, numbers, underscores, and hyphens only')}
+                </p>
+              </div>
 
-            <div className="space-y-2">
-              <label
-                htmlFor="content"
-                className="text-sm font-medium text-gray-700 dark:text-dark-text-primary"
-              >
-                {t('quickReplies.contentLabel', 'Message Content')}
-              </label>
-              <Textarea
-                id="content"
-                value={content}
-                onChange={(e) => setContent(e.target.value)}
-                placeholder={t(
-                  'quickReplies.contentPlaceholder',
-                  'Hello! Thank you for reaching out. How can I help you today?'
-                )}
-                rows={4}
-                data-testid="quick-reply-content-input"
-              />
-            </div>
-          </div>
+              {/* Title Input */}
+              <div className="space-y-2">
+                <Label htmlFor="title">
+                  {t('quickReplies.titleLabel', 'Title')} <span className="text-red-500">*</span>
+                </Label>
+                <Input
+                  id="title"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  placeholder={t('quickReplies.titlePlaceholder', 'Welcome Message')}
+                  maxLength={255}
+                  data-testid="quick-reply-title-input"
+                />
+              </div>
 
-          <DialogFooter>
-            <Button variant="outline" onClick={closeDialog}>
-              {t('common.cancel', 'Cancel')}
-            </Button>
-            <Button
-              onClick={handleSubmit}
-              disabled={isCreating || isUpdating}
-              className="gap-2 bg-[#25D366] hover:bg-[#128C7E] text-white"
-              data-testid="save-quick-reply-button"
-            >
-              {(isCreating || isUpdating) && <Loader2 className="h-4 w-4 animate-spin" />}
-              {editingQuickReply ? t('common.save', 'Save') : t('common.create', 'Create')}
-            </Button>
-          </DialogFooter>
+              {/* Content Input */}
+              <div className="space-y-2">
+                <Label htmlFor="content">
+                  {t('quickReplies.contentLabel', 'Message Content')} <span className="text-red-500">*</span>
+                </Label>
+                <Textarea
+                  id="content"
+                  value={content}
+                  onChange={(e) => setContent(e.target.value)}
+                  placeholder={t(
+                    'quickReplies.contentPlaceholder',
+                    'Hello! Thank you for reaching out. How can I help you today?'
+                  )}
+                  rows={4}
+                  data-testid="quick-reply-content-input"
+                  aria-describedby="content-hint"
+                />
+                <p id="content-hint" className="text-xs text-gray-500 dark:text-dark-text-tertiary">
+                  {t('quickReplies.contentHint', 'This message will be sent when you use this quick reply')}
+                </p>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex justify-end gap-2 pt-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={closeDialog}
+                  disabled={isCreating || isUpdating}
+                >
+                  {t('common.cancel', 'Cancel')}
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={isCreating || isUpdating}
+                  className="bg-whatsapp-teal-green hover:bg-whatsapp-dark-green"
+                  data-testid="save-quick-reply-button"
+                >
+                  {(isCreating || isUpdating) ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      {editingQuickReply
+                        ? t('common.saving', 'Saving...')
+                        : t('common.creating', 'Creating...')}
+                    </>
+                  ) : (
+                    <>
+                      <Zap className="h-4 w-4 mr-2" />
+                      {editingQuickReply ? t('common.save', 'Save') : t('common.create', 'Create')}
+                    </>
+                  )}
+                </Button>
+              </div>
+            </form>
+          )}
         </DialogContent>
       </Dialog>
 
