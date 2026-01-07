@@ -476,6 +476,9 @@ export class WebSocketClient {
     try {
       const message = JSON.parse(data) as WebSocketMessage
 
+      // Debug: log all incoming messages
+      console.log('[WebSocket] 📨 Received message:', message.type, message)
+
       // Handle pong response
       if (message.type === ('pong' as WebSocketEventType)) {
         this.lastPongReceived = nowMs()
@@ -486,6 +489,7 @@ export class WebSocketClient {
       // Emit event to handlers
       const handlers = this.eventHandlers.get(message.type)
       if (handlers) {
+        console.log('[WebSocket] ✅ Found', handlers.size, 'handler(s) for:', message.type)
         handlers.forEach((handler) => {
           try {
             const payloadWithConnection =
@@ -505,6 +509,8 @@ export class WebSocketClient {
             console.error(`[WebSocket] Handler error for ${message.type}:`, error)
           }
         })
+      } else {
+        console.log('[WebSocket] ⚠️ No handlers registered for:', message.type)
       }
     } catch (error) {
       console.error('[WebSocket] Failed to parse message:', error)

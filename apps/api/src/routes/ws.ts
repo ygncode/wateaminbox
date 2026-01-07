@@ -68,7 +68,9 @@ interface ServerMessage {
     | "presence:offline"
     | "typing:start"
     | "typing:stop"
-    | "notification:new";
+    | "notification:new"
+    | "media:downloaded"
+    | "media:download_failed";
   connectionId?: string;
   payload?: unknown;
   timestamp: string;
@@ -125,6 +127,12 @@ export function broadcastToCompany(
       logger.debug(
         { sentCount, companyId },
         "Broadcast message:new to clients",
+      );
+    }
+    if (message.type === "media:downloaded" || message.type === "media:download_failed") {
+      logger.info(
+        { sentCount, companyId, type: message.type, payload: message.payload },
+        "Broadcast media event to clients",
       );
     }
   } else {

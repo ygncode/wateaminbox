@@ -10,8 +10,9 @@ import (
 
 // Stream and consumer names
 const (
-	StreamCommands = "WHATSAPP_COMMANDS"
-	StreamEvents   = "WHATSAPP_EVENTS"
+	StreamCommands  = "WHATSAPP_COMMANDS"
+	StreamEvents    = "WHATSAPP_EVENTS"
+	StreamDownloads = "WHATSAPP_DOWNLOADS"
 
 	ConsumerCommands = "orchestrator-commands"
 )
@@ -50,6 +51,18 @@ func DefaultEventsStreamConfig() StreamConfig {
 	}
 }
 
+// DefaultDownloadsStreamConfig returns the default configuration for the downloads stream.
+func DefaultDownloadsStreamConfig() StreamConfig {
+	return StreamConfig{
+		Name:        StreamDownloads,
+		Subjects:    []string{"WHATSAPP.download", "WHATSAPP.download.>"},
+		Description: "On-demand media download requests from API to WhatsApp workers",
+		MaxAge:      1 * time.Hour,  // Download requests expire after 1 hour
+		MaxMsgs:     10000,
+		MaxBytes:    10 * 1024 * 1024, // 10MB - requests are small
+	}
+}
+
 // CreateStreams creates the required JetStream streams for the orchestrator.
 func (c *Client) CreateStreams() error {
 	log.Println("Setting up JetStream streams...")
@@ -62,6 +75,11 @@ func (c *Client) CreateStreams() error {
 	// Create events stream
 	if err := c.createOrUpdateStream(DefaultEventsStreamConfig()); err != nil {
 		return fmt.Errorf("failed to create events stream: %w", err)
+	}
+
+	// Create downloads stream
+	if err := c.createOrUpdateStream(DefaultDownloadsStreamConfig()); err != nil {
+		return fmt.Errorf("failed to create downloads stream: %w", err)
 	}
 
 	// Create consumer for commands
@@ -212,6 +230,9 @@ func (c *Client) DeleteStreams() error {
 	}
 	if err := c.js.DeleteStream(StreamEvents); err != nil && err != nats.ErrStreamNotFound {
 		return fmt.Errorf("failed to delete events stream: %w", err)
+	}
+	if err := c.js.DeleteStream(StreamDownloads); err != nil && err != nats.ErrStreamNotFound {
+		return fmt.Errorf("failed to delete downloads stream: %w", err)
 	}
 	return nil
 }

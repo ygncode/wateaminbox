@@ -60,6 +60,10 @@ export function WebSocketProvider({ children, autoConnect = true }: WebSocketPro
   const wsClientRef = useRef<WebSocketClient | null>(null)
   const typingTimeoutsRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map())
   const isInitializedRef = useRef(false)
+  // Track handler unsubscribe functions so we can clean them up before re-registering
+  const handlerUnsubscribesRef = useRef<(() => void)[]>([])
+  // Ref to store registerHandlers function for use in forceReconnectWithFreshCredentials
+  const registerHandlersRef = useRef<((client: WebSocketClient) => void) | null>(null)
 
   // Track previous company ID to detect changes
   // This is needed because WebSocket URL includes company ID for routing events
@@ -187,18 +191,25 @@ export function WebSocketProvider({ children, autoConnect = true }: WebSocketPro
    * 2. Reset the singleton client instance
    * 3. Clear local refs to force reinitialization
    * 4. Create new client with fresh credentials from localStorage
+   * 5. Re-register all event handlers on the new client
    */
   const forceReconnectWithFreshCredentials = useCallback(() => {
+    console.log('[WebSocket] 🔄 Force reconnecting with fresh credentials...')
     wsClientRef.current?.disconnect()
     resetWebSocketClient()
     wsClientRef.current = null
-    isInitializedRef.current = false
+    // Don't reset isInitializedRef here - we'll manually re-register handlers
 
     // Small delay before reconnecting to allow cleanup
     setTimeout(() => {
       const token = getAccessToken()
       if (token) {
         const client = initializeClient()
+        // Re-register handlers on the new client using ref
+        if (registerHandlersRef.current) {
+          registerHandlersRef.current(client)
+          console.log('[WebSocket] ✅ Handlers re-registered after reconnect')
+        }
         client.connect()
       }
     }, 100)
@@ -299,298 +310,318 @@ export function WebSocketProvider({ children, autoConnect = true }: WebSocketPro
     clearTypingTimeoutRef.current = clearTypingTimeout
   })
 
-  // Set up event handlers and auto-connect
-  useEffect(() => {
-    if (isInitializedRef.current) return
-    isInitializedRef.current = true
+  /**
+   * Register all WebSocket event handlers on a client
+   *
+   * This function is called:
+   * 1. On initial mount by the setup useEffect
+   * 2. After forceReconnectWithFreshCredentials creates a new client
+   *
+   * It first cleans up any existing handlers, then registers fresh ones.
+   */
+  const registerHandlers = useCallback(
+    (client: WebSocketClient) => {
+      // Clean up any existing handlers first
+      handlerUnsubscribesRef.current.forEach((unsub) => unsub())
+      handlerUnsubscribesRef.current = []
 
-    const client = initializeClient()
+      // New message handler
+      const unsubNewMessage = client.on<NewMessagePayload>('message:new', (payload) => {
+        console.log('[WebSocket] 💬 New message received in realtime:', {
+          messageId: payload.message.id,
+          conversationId: payload.conversationId,
+          content: payload.message.content?.substring(0, 50),
+          senderType: payload.message.senderType,
+        })
 
-    // New message handler
-    const unsubNewMessage = client.on<NewMessagePayload>('message:new', (payload) => {
-      console.log('[WebSocket] 💬 New message received in realtime:', {
-        messageId: payload.message.id,
-        conversationId: payload.conversationId,
-        content: payload.message.content?.substring(0, 50),
-        senderType: payload.message.senderType,
-      })
+        // Update Zustand store (for legacy compatibility)
+        addMessageRef.current(payload.conversationId, payload.message)
 
-      // Update Zustand store (for legacy compatibility)
-      addMessageRef.current(payload.conversationId, payload.message)
+        // Update TanStack Query cache for real-time message updates
+        const queryKey = infiniteMessageKeys.list(payload.conversationId)
+        queryClientRef.current.setQueryData<{
+          pages: PaginatedMessages[]
+          pageParams: (string | undefined)[]
+        }>(queryKey, (oldData) => {
+          if (!oldData) return oldData
 
-      // Update TanStack Query cache for real-time message updates
-      const queryKey = infiniteMessageKeys.list(payload.conversationId)
-      queryClientRef.current.setQueryData<{
-        pages: PaginatedMessages[]
-        pageParams: (string | undefined)[]
-      }>(queryKey, (oldData) => {
-        if (!oldData) return oldData
-
-        // Check if message already exists to avoid duplicates
-        const messageExists = oldData.pages.some((page) =>
-          page.messages.some((msg) => msg.id === payload.message.id)
-        )
-        if (messageExists) {
-          console.log('[WebSocket] ⚠️ Duplicate message ignored:', payload.message.id)
-          return oldData
-        }
-
-        // Add the new message to the first page (most recent)
-        const newPages = [...oldData.pages]
-        if (newPages.length > 0) {
-          newPages[0] = {
-            ...newPages[0],
-            messages: [payload.message, ...newPages[0].messages],
-          }
-          console.log(
-            '[WebSocket] ✅ Message added to cache, total messages:',
-            newPages.reduce((sum, page) => sum + page.messages.length, 0)
+          // Check if message already exists to avoid duplicates
+          const messageExists = oldData.pages.some((page) =>
+            page.messages.some((msg) => msg.id === payload.message.id)
           )
-        }
+          if (messageExists) {
+            console.log('[WebSocket] ⚠️ Duplicate message ignored:', payload.message.id)
+            return oldData
+          }
 
-        return {
-          ...oldData,
-          pages: newPages,
-        }
-      })
+          // Add the new message to the first page (most recent)
+          const newPages = [...oldData.pages]
+          if (newPages.length > 0) {
+            newPages[0] = {
+              ...newPages[0],
+              messages: [payload.message, ...newPages[0].messages],
+            }
+            console.log(
+              '[WebSocket] ✅ Message added to cache, total messages:',
+              newPages.reduce((sum, page) => sum + page.messages.length, 0)
+            )
+          }
 
-      // Invalidate chat list queries to update unread count badges
-      // This ensures the sidebar shows updated unread counts when new messages arrive
-      queryClientRef.current.invalidateQueries({
-        queryKey: chatKeys.lists(),
-      })
-    })
-
-    // Message status handler
-    const unsubMessageStatus = client.on<MessageStatusPayload>('message:status', (payload) => {
-      console.log('[WebSocket] 📬 Message status update:', {
-        conversationId: payload.conversationId,
-        messageId: payload.messageId,
-        status: payload.status,
-      })
-
-      // Update Zustand store (for legacy compatibility)
-      updateMessageStatusRef.current(payload.conversationId, payload.messageId, payload.status)
-
-      // Update TanStack Query cache for real-time status updates
-      const queryKey = infiniteMessageKeys.list(payload.conversationId)
-      queryClientRef.current.setQueryData<{
-        pages: PaginatedMessages[]
-        pageParams: (string | undefined)[]
-      }>(queryKey, (oldData) => {
-        if (!oldData) return oldData
-
-        // Find and update the message status in all pages
-        const newPages = oldData.pages.map((page) => ({
-          ...page,
-          messages: page.messages.map((msg) =>
-            msg.id === payload.messageId ? { ...msg, status: payload.status } : msg
-          ),
-        }))
-
-        return {
-          ...oldData,
-          pages: newPages,
-        }
-      })
-    })
-
-    // Typing start handler
-    const unsubTypingStart = client.on<TypingPayload>('typing:start', (payload) => {
-      const indicator: TypingIndicator = {
-        conversationId: payload.conversationId,
-        userId: payload.userId,
-        userName: payload.userName,
-        startedAt: new Date(),
-      }
-      addTypingIndicatorRef.current(indicator)
-      setTypingTimeoutRef.current(payload.conversationId, payload.userId)
-    })
-
-    // Typing stop handler
-    const unsubTypingStop = client.on<TypingPayload>('typing:stop', (payload) => {
-      removeTypingIndicatorRef.current(payload.conversationId, payload.userId)
-      clearTypingTimeoutRef.current(payload.conversationId, payload.userId)
-    })
-
-    // Conversation updated handler (can be used by consumers)
-    const unsubConversationUpdated = client.on<ConversationUpdatedPayload>(
-      'conversation:updated',
-      () => {
-        // This event can be handled by individual components via subscribe
-      }
-    )
-
-    // Conversation read handler - invalidate chat list to update unread counts
-    const unsubConversationRead = client.on<ConversationReadPayload>(
-      'conversation:read',
-      (payload) => {
-        console.log('[WebSocket] 📖 Conversation marked as read:', {
-          contactId: payload.contactId,
-          readBy: payload.readBy,
+          return {
+            ...oldData,
+            pages: newPages,
+          }
         })
 
         // Invalidate chat list queries to update unread count badges
+        // This ensures the sidebar shows updated unread counts when new messages arrive
         queryClientRef.current.invalidateQueries({
           queryKey: chatKeys.lists(),
         })
-      }
-    )
+      })
 
-    // Profile picture handler
-    const unsubProfilePicture = client.on<ProfilePicturePayload>(
-      'contact:profile_picture',
-      (payload) => {
+      // Message status handler
+      const unsubMessageStatus = client.on<MessageStatusPayload>('message:status', (payload) => {
+        console.log('[WebSocket] 📬 Message status update:', {
+          conversationId: payload.conversationId,
+          messageId: payload.messageId,
+          status: payload.status,
+        })
+
+        // Update Zustand store (for legacy compatibility)
+        updateMessageStatusRef.current(payload.conversationId, payload.messageId, payload.status)
+
+        // Update TanStack Query cache for real-time status updates
+        const queryKey = infiniteMessageKeys.list(payload.conversationId)
+        queryClientRef.current.setQueryData<{
+          pages: PaginatedMessages[]
+          pageParams: (string | undefined)[]
+        }>(queryKey, (oldData) => {
+          if (!oldData) return oldData
+
+          // Find and update the message status in all pages
+          const newPages = oldData.pages.map((page) => ({
+            ...page,
+            messages: page.messages.map((msg) =>
+              msg.id === payload.messageId ? { ...msg, status: payload.status } : msg
+            ),
+          }))
+
+          return {
+            ...oldData,
+            pages: newPages,
+          }
+        })
+      })
+
+      // Typing start handler
+      const unsubTypingStart = client.on<TypingPayload>('typing:start', (payload) => {
+        const indicator: TypingIndicator = {
+          conversationId: payload.conversationId,
+          userId: payload.userId,
+          userName: payload.userName,
+          startedAt: new Date(),
+        }
+        addTypingIndicatorRef.current(indicator)
+        setTypingTimeoutRef.current(payload.conversationId, payload.userId)
+      })
+
+      // Typing stop handler
+      const unsubTypingStop = client.on<TypingPayload>('typing:stop', (payload) => {
+        removeTypingIndicatorRef.current(payload.conversationId, payload.userId)
+        clearTypingTimeoutRef.current(payload.conversationId, payload.userId)
+      })
+
+      // Conversation updated handler (can be used by consumers)
+      const unsubConversationUpdated = client.on<ConversationUpdatedPayload>(
+        'conversation:updated',
+        () => {
+          // This event can be handled by individual components via subscribe
+        }
+      )
+
+      // Conversation read handler - invalidate chat list to update unread counts
+      const unsubConversationRead = client.on<ConversationReadPayload>(
+        'conversation:read',
+        (payload) => {
+          console.log('[WebSocket] 📖 Conversation marked as read:', {
+            contactId: payload.contactId,
+            readBy: payload.readBy,
+          })
+
+          // Invalidate chat list queries to update unread count badges
+          queryClientRef.current.invalidateQueries({
+            queryKey: chatKeys.lists(),
+          })
+        }
+      )
+
+      // Profile picture handler
+      const unsubProfilePicture = client.on<ProfilePicturePayload>(
+        'contact:profile_picture',
+        (payload) => {
+          // Update chat list cache
+          queryClientRef.current.setQueriesData({ queryKey: chatKeys.lists() }, (oldData: any) => {
+            if (!oldData) return oldData
+            // oldData is Chat[]
+            return oldData.map((chat: any) => {
+              // Check if this chat corresponds to the contact JID
+              if (chat.contact?.jid === payload.jid) {
+                return {
+                  ...chat,
+                  contact: {
+                    ...chat.contact,
+                    avatarUrl: payload.profilePictureUrl,
+                  },
+                }
+              }
+              return chat
+            })
+          })
+
+          // Update individual contact details cache
+          queryClientRef.current
+            .getQueriesData({ queryKey: ['contact'] })
+            .forEach(([queryKey, oldData]: [any, any]) => {
+              if (oldData && oldData.jid === payload.jid) {
+                queryClientRef.current.setQueryData(queryKey, {
+                  ...oldData,
+                  profilePictureUrl: payload.profilePictureUrl,
+                })
+              }
+            })
+        }
+      )
+
+      // Message deleted handler
+      const unsubMessageDeleted = client.on<MessageDeletedPayload>('message:deleted', (payload) => {
+        // Update TanStack Query cache to mark the message as deleted
+        const queryKey = infiniteMessageKeys.list(payload.conversationId)
+        queryClientRef.current.setQueryData<{
+          pages: PaginatedMessages[]
+          pageParams: (string | undefined)[]
+        }>(queryKey, (oldData) => {
+          if (!oldData) return oldData
+
+          // Find and update the message in all pages
+          const newPages = oldData.pages.map((page) => ({
+            ...page,
+            messages: page.messages.map((msg) =>
+              msg.id === payload.messageId
+                ? {
+                    ...msg,
+                    deleted_by_sender: true,
+                    deleted_at: new Date().toISOString(),
+                  }
+                : msg
+            ),
+          }))
+
+          return {
+            ...oldData,
+            pages: newPages,
+          }
+        })
+      })
+
+      // Presence online handler
+      const unsubPresenceOnline = client.on<{
+        jid: string
+        isOnline: boolean
+        lastSeen?: string
+      }>('presence:online', (payload) => {
+        console.log('[WebSocket] ✅ Contact came online:', payload.jid)
+
         // Update chat list cache
         queryClientRef.current.setQueriesData({ queryKey: chatKeys.lists() }, (oldData: any) => {
           if (!oldData) return oldData
-          // oldData is Chat[]
           return oldData.map((chat: any) => {
-            // Check if this chat corresponds to the contact JID
             if (chat.contact?.jid === payload.jid) {
               return {
                 ...chat,
                 contact: {
                   ...chat.contact,
-                  avatarUrl: payload.profilePictureUrl,
+                  isOnline: true,
+                  lastSeen: null,
                 },
               }
             }
             return chat
           })
         })
+      })
 
-        // Update individual contact details cache
-        queryClientRef.current
-          .getQueriesData({ queryKey: ['contact'] })
-          .forEach(([queryKey, oldData]: [any, any]) => {
-            if (oldData && oldData.jid === payload.jid) {
-              queryClientRef.current.setQueryData(queryKey, {
-                ...oldData,
-                profilePictureUrl: payload.profilePictureUrl,
-              })
+      // Presence offline handler
+      const unsubPresenceOffline = client.on<{
+        jid: string
+        isOnline: boolean
+        lastSeen?: string
+      }>('presence:offline', (payload) => {
+        console.log(
+          '[WebSocket] 🔴 Contact went offline:',
+          payload.jid,
+          'last seen:',
+          payload.lastSeen
+        )
+
+        // Update chat list cache
+        queryClientRef.current.setQueriesData({ queryKey: chatKeys.lists() }, (oldData: any) => {
+          if (!oldData) return oldData
+          return oldData.map((chat: any) => {
+            if (chat.contact?.jid === payload.jid) {
+              return {
+                ...chat,
+                contact: {
+                  ...chat.contact,
+                  isOnline: false,
+                  lastSeen: payload.lastSeen ? new Date(payload.lastSeen) : undefined,
+                },
+              }
             }
+            return chat
           })
-      }
-    )
-
-    // Message deleted handler
-    const unsubMessageDeleted = client.on<MessageDeletedPayload>('message:deleted', (payload) => {
-      // Update TanStack Query cache to mark the message as deleted
-      const queryKey = infiniteMessageKeys.list(payload.conversationId)
-      queryClientRef.current.setQueryData<{
-        pages: PaginatedMessages[]
-        pageParams: (string | undefined)[]
-      }>(queryKey, (oldData) => {
-        if (!oldData) return oldData
-
-        // Find and update the message in all pages
-        const newPages = oldData.pages.map((page) => ({
-          ...page,
-          messages: page.messages.map((msg) =>
-            msg.id === payload.messageId
-              ? {
-                  ...msg,
-                  deleted_by_sender: true,
-                  deleted_at: new Date().toISOString(),
-                }
-              : msg
-          ),
-        }))
-
-        return {
-          ...oldData,
-          pages: newPages,
-        }
-      })
-    })
-
-    // Presence online handler
-    const unsubPresenceOnline = client.on<{
-      jid: string
-      isOnline: boolean
-      lastSeen?: string
-    }>('presence:online', (payload) => {
-      console.log('[WebSocket] ✅ Contact came online:', payload.jid)
-
-      // Update chat list cache
-      queryClientRef.current.setQueriesData({ queryKey: chatKeys.lists() }, (oldData: any) => {
-        if (!oldData) return oldData
-        return oldData.map((chat: any) => {
-          if (chat.contact?.jid === payload.jid) {
-            return {
-              ...chat,
-              contact: {
-                ...chat.contact,
-                isOnline: true,
-                lastSeen: null,
-              },
-            }
-          }
-          return chat
         })
       })
-    })
 
-    // Presence offline handler
-    const unsubPresenceOffline = client.on<{
-      jid: string
-      isOnline: boolean
-      lastSeen?: string
-    }>('presence:offline', (payload) => {
-      console.log(
-        '[WebSocket] 🔴 Contact went offline:',
-        payload.jid,
-        'last seen:',
-        payload.lastSeen
-      )
-
-      // Update chat list cache
-      queryClientRef.current.setQueriesData({ queryKey: chatKeys.lists() }, (oldData: any) => {
-        if (!oldData) return oldData
-        return oldData.map((chat: any) => {
-          if (chat.contact?.jid === payload.jid) {
-            return {
-              ...chat,
-              contact: {
-                ...chat.contact,
-                isOnline: false,
-                lastSeen: payload.lastSeen ? new Date(payload.lastSeen) : undefined,
-              },
-            }
-          }
-          return chat
+      // Media downloaded handler - update message with downloaded media URL
+      const unsubMediaDownloaded = client.on<{
+        messageId: string
+        conversationId: string
+        mediaUrl: string
+        mediaSize?: number
+      }>('media:downloaded', (payload) => {
+        console.log('[WebSocket] 📥 Media downloaded:', {
+          messageId: payload.messageId,
+          conversationId: payload.conversationId,
+          mediaUrl: payload.mediaUrl,
         })
-      })
-    })
 
-    // Media downloaded handler - update message with downloaded media URL
-    const unsubMediaDownloaded = client.on<{
-      messageId: string
-      conversationId: string
-      mediaUrl: string
-      mediaSize?: number
-    }>('media:downloaded', (payload) => {
-      console.log('[WebSocket] 📥 Media downloaded:', {
-        messageId: payload.messageId,
-        conversationId: payload.conversationId,
-        mediaUrl: payload.mediaUrl,
-      })
+        // Update TanStack Query cache with downloaded media
+        const queryKey = infiniteMessageKeys.list(payload.conversationId)
+        let messageFound = false
 
-      // Update TanStack Query cache with downloaded media
-      const queryKey = infiniteMessageKeys.list(payload.conversationId)
-      queryClientRef.current.setQueryData<{
-        pages: PaginatedMessages[]
-        pageParams: (string | undefined)[]
-      }>(queryKey, (oldData) => {
-        if (!oldData) return oldData
+        queryClientRef.current.setQueryData<{
+          pages: PaginatedMessages[]
+          pageParams: (string | undefined)[]
+        }>(queryKey, (oldData) => {
+          if (!oldData) {
+            console.log('[WebSocket] ⚠️ No cached data for conversation:', payload.conversationId)
+            return oldData
+          }
 
-        // Find and update the message with the downloaded media URL
-        const newPages = oldData.pages.map((page) => ({
-          ...page,
-          messages: page.messages.map((msg) =>
-            msg.id === payload.messageId
-              ? {
+          // Find and update the message with the downloaded media URL
+          const newPages = oldData.pages.map((page) => ({
+            ...page,
+            messages: page.messages.map((msg) => {
+              if (msg.id === payload.messageId) {
+                messageFound = true
+                console.log(
+                  '[WebSocket] ✅ Found message to update:',
+                  msg.id,
+                  'old mediaUrl:',
+                  msg.metadata?.mediaUrl
+                )
+                return {
                   ...msg,
                   metadata: {
                     ...msg.metadata,
@@ -600,59 +631,114 @@ export function WebSocketProvider({ children, autoConnect = true }: WebSocketPro
                     fileSize: payload.mediaSize || msg.metadata?.fileSize,
                   },
                 }
-              : msg
-          ),
-        }))
+              }
+              return msg
+            }),
+          }))
 
-        return {
-          ...oldData,
-          pages: newPages,
-        }
+          if (!messageFound) {
+            console.log('[WebSocket] ⚠️ Message not found in cache:', payload.messageId)
+          }
+
+          return {
+            ...oldData,
+            pages: newPages,
+          }
+        })
+
+        // Force refetch to ensure UI updates immediately
+        // invalidateQueries may not immediately refetch, but refetchQueries will
+        queryClientRef.current.refetchQueries({
+          queryKey: queryKey,
+          type: 'active',
+        })
       })
-    })
 
-    // Media download failed handler
-    const unsubMediaDownloadFailed = client.on<{
-      messageId: string
-      conversationId: string
-      error?: string
-    }>('media:download_failed', (payload) => {
-      console.log('[WebSocket] ❌ Media download failed:', {
-        messageId: payload.messageId,
-        conversationId: payload.conversationId,
-        error: payload.error,
+      // Media download failed handler
+      const unsubMediaDownloadFailed = client.on<{
+        messageId: string
+        conversationId: string
+        error?: string
+      }>('media:download_failed', (payload) => {
+        console.log('[WebSocket] ❌ Media download failed:', {
+          messageId: payload.messageId,
+          conversationId: payload.conversationId,
+          error: payload.error,
+        })
+
+        // Update TanStack Query cache with failed status
+        const queryKey = infiniteMessageKeys.list(payload.conversationId)
+        queryClientRef.current.setQueryData<{
+          pages: PaginatedMessages[]
+          pageParams: (string | undefined)[]
+        }>(queryKey, (oldData) => {
+          if (!oldData) {
+            console.log('[WebSocket] ⚠️ No cached data for conversation:', payload.conversationId)
+            return oldData
+          }
+
+          const newPages = oldData.pages.map((page) => ({
+            ...page,
+            messages: page.messages.map((msg) =>
+              msg.id === payload.messageId
+                ? {
+                    ...msg,
+                    metadata: {
+                      ...msg.metadata,
+                      mediaPending: true,
+                      mediaDownloadStatus: 'failed' as const,
+                    },
+                  }
+                : msg
+            ),
+          }))
+
+          return {
+            ...oldData,
+            pages: newPages,
+          }
+        })
+
+        // Force refetch to ensure UI updates immediately
+        queryClientRef.current.refetchQueries({
+          queryKey: queryKey,
+          type: 'active',
+        })
       })
 
-      // Update TanStack Query cache with failed status
-      const queryKey = infiniteMessageKeys.list(payload.conversationId)
-      queryClientRef.current.setQueryData<{
-        pages: PaginatedMessages[]
-        pageParams: (string | undefined)[]
-      }>(queryKey, (oldData) => {
-        if (!oldData) return oldData
+      // Store all unsubscribe functions for cleanup
+      handlerUnsubscribesRef.current = [
+        unsubNewMessage,
+        unsubMessageStatus,
+        unsubMessageDeleted,
+        unsubTypingStart,
+        unsubTypingStop,
+        unsubConversationUpdated,
+        unsubConversationRead,
+        unsubProfilePicture,
+        unsubPresenceOnline,
+        unsubPresenceOffline,
+        unsubMediaDownloaded,
+        unsubMediaDownloadFailed,
+      ]
 
-        const newPages = oldData.pages.map((page) => ({
-          ...page,
-          messages: page.messages.map((msg) =>
-            msg.id === payload.messageId
-              ? {
-                  ...msg,
-                  metadata: {
-                    ...msg.metadata,
-                    mediaPending: true,
-                    mediaDownloadStatus: 'failed' as const,
-                  },
-                }
-              : msg
-          ),
-        }))
+      console.log('[WebSocket] ✅ Handlers registered:', handlerUnsubscribesRef.current.length)
+    },
+    []
+  )
 
-        return {
-          ...oldData,
-          pages: newPages,
-        }
-      })
-    })
+  // Update the ref so forceReconnectWithFreshCredentials can access registerHandlers
+  registerHandlersRef.current = registerHandlers
+
+  // Set up event handlers and auto-connect
+  useEffect(() => {
+    if (isInitializedRef.current) return
+    isInitializedRef.current = true
+
+    const client = initializeClient()
+
+    // Register all event handlers
+    registerHandlers(client)
 
     // Auto-connect if enabled and we have a token
     if (autoConnect && getAccessToken()) {
@@ -661,18 +747,9 @@ export function WebSocketProvider({ children, autoConnect = true }: WebSocketPro
 
     // Cleanup
     return () => {
-      unsubNewMessage()
-      unsubMessageStatus()
-      unsubMessageDeleted()
-      unsubTypingStart()
-      unsubTypingStop()
-      unsubConversationUpdated()
-      unsubConversationRead()
-      unsubProfilePicture()
-      unsubPresenceOnline()
-      unsubPresenceOffline()
-      unsubMediaDownloaded()
-      unsubMediaDownloadFailed()
+      // Clean up all registered handlers
+      handlerUnsubscribesRef.current.forEach((unsub) => unsub())
+      handlerUnsubscribesRef.current = []
 
       // Clear all typing timeouts
       typingTimeoutsRef.current.forEach((timeout) => clearTimeout(timeout))
@@ -685,7 +762,7 @@ export function WebSocketProvider({ children, autoConnect = true }: WebSocketPro
       resetWsStore()
       isInitializedRef.current = false
     }
-  }, [autoConnect, connect, initializeClient, resetWsStore])
+  }, [autoConnect, connect, initializeClient, registerHandlers, resetWsStore])
 
   // Context value
   const contextValue: WebSocketContextValue = {

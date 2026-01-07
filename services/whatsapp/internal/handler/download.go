@@ -14,51 +14,28 @@ import (
 	natsClient "github.com/ygncode-lab/whatsapp-web/services/whatsapp/internal/nats"
 )
 
+// mediaTypeMapping maps request media types to whatsmeow MediaType constants.
+var mediaTypeMapping = map[string]whatsmeow.MediaType{
+	"image":    whatsmeow.MediaImage,
+	"video":    whatsmeow.MediaVideo,
+	"audio":    whatsmeow.MediaAudio,
+	"document": whatsmeow.MediaDocument,
+}
+
+// mmsTypeMapping maps request media types to MMS type strings.
+var mmsTypeMapping = map[string]string{
+	"image":    "image",
+	"video":    "video",
+	"audio":    "audio",
+	"document": "document",
+}
+
 // DownloadHandler handles on-demand media download requests.
 type DownloadHandler struct {
 	handler      *Handler
 	subscription *nats.Subscription
 	nc           *nats.Conn
 	js           nats.JetStreamContext
-}
-
-// reconstructedMedia implements whatsmeow.DownloadableMessage for on-demand downloads.
-// It reconstructs the download info from stored references.
-type reconstructedMedia struct {
-	directPath    string
-	mediaKey      []byte
-	fileSHA256    []byte
-	fileEncSHA256 []byte
-}
-
-// Implement DownloadableMessage interface
-func (r *reconstructedMedia) GetDirectPath() string {
-	return r.directPath
-}
-
-func (r *reconstructedMedia) GetMediaKey() []byte {
-	return r.mediaKey
-}
-
-func (r *reconstructedMedia) GetFileSHA256() []byte {
-	return r.fileSHA256
-}
-
-func (r *reconstructedMedia) GetFileEncSHA256() []byte {
-	return r.fileEncSHA256
-}
-
-// These methods are required by the interface but not used for download
-func (r *reconstructedMedia) GetFileLength() uint64 {
-	return 0
-}
-
-func (r *reconstructedMedia) GetMediaKeyTimestamp() int64 {
-	return 0
-}
-
-func (r *reconstructedMedia) GetMimetype() string {
-	return ""
 }
 
 // NewDownloadHandler creates a new download handler.
@@ -101,16 +78,29 @@ func NewDownloadHandler(h *Handler) (*DownloadHandler, error) {
 	return dh, nil
 }
 
-// subscribe sets up the NATS subscription for download requests.
+// subscribe sets up the JetStream subscription for download requests.
 func (dh *DownloadHandler) subscribe() error {
 	subject := fmt.Sprintf(natsClient.SubjectDownloadRequest,
 		dh.handler.config.CompanyID, dh.handler.config.ConnectionID)
 
-	log.Printf("Subscribing to download requests on: %s", subject)
+	log.Printf("Subscribing to download requests on: %s (JetStream)", subject)
 
-	sub, err := dh.nc.Subscribe(subject, func(msg *nats.Msg) {
-		dh.handleDownloadRequest(msg)
-	})
+	// Use JetStream subscription with ephemeral consumer
+	// This ensures messages are acknowledged and not redelivered
+	sub, err := dh.js.Subscribe(
+		subject,
+		func(msg *nats.Msg) {
+			dh.handleDownloadRequest(msg)
+			// Acknowledge the message after processing
+			if err := msg.Ack(); err != nil {
+				log.Printf("Failed to ack download request: %v", err)
+			}
+		},
+		nats.DeliverNew(),           // Only receive new messages
+		nats.AckExplicit(),          // Require explicit acknowledgment
+		nats.MaxDeliver(3),          // Retry up to 3 times on failure
+		nats.AckWait(120*time.Second), // Wait up to 2 minutes for ack (downloads can be slow)
+	)
 	if err != nil {
 		return fmt.Errorf("failed to subscribe to %s: %w", subject, err)
 	}
@@ -127,7 +117,7 @@ func (dh *DownloadHandler) handleDownloadRequest(msg *nats.Msg) {
 		return
 	}
 
-	log.Printf("Received download request for message: %s", req.MessageID)
+	log.Printf("Received download request for message: %s, mediaType: %s", req.MessageID, req.MediaType)
 
 	// Validate required fields
 	if req.DirectPath == "" || len(req.MediaKey) == 0 {
@@ -136,19 +126,49 @@ func (dh *DownloadHandler) handleDownloadRequest(msg *nats.Msg) {
 		return
 	}
 
-	// Reconstruct downloadable message
-	downloadable := &reconstructedMedia{
-		directPath:    req.DirectPath,
-		mediaKey:      req.MediaKey,
-		fileSHA256:    req.FileSHA256,
-		fileEncSHA256: req.FileEncSHA256,
+	// Map request media type to whatsmeow MediaType
+	mediaType, ok := mediaTypeMapping[req.MediaType]
+	if !ok {
+		log.Printf("Unknown media type: %s, defaulting to document", req.MediaType)
+		mediaType = whatsmeow.MediaDocument
 	}
 
-	// Download the media
+	mmsType, ok := mmsTypeMapping[req.MediaType]
+	if !ok {
+		mmsType = "document"
+	}
+
+	// Download the media using DownloadMediaWithPath
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 
-	data, err := dh.downloadMedia(ctx, downloadable)
+	if dh.handler.config.Client == nil {
+		log.Printf("WhatsApp client not available for download")
+		dh.publishError(req.MessageID, "WhatsApp client not available")
+		return
+	}
+
+	// Get the underlying whatsmeow client to access DownloadMediaWithPath
+	client := dh.handler.config.Client.GetClient()
+	if client == nil {
+		log.Printf("WhatsApp client not initialized for download")
+		dh.publishError(req.MessageID, "WhatsApp client not initialized")
+		return
+	}
+
+	// Use DownloadMediaWithPath which takes raw parameters directly
+	// This avoids the type assertion issue with custom DownloadableMessage implementations
+	// Pass -1 for fileLength to skip length validation (whatsmeow validates when >= 0)
+	data, err := client.DownloadMediaWithPath(
+		ctx,
+		req.DirectPath,
+		req.FileEncSHA256,
+		req.FileSHA256,
+		req.MediaKey,
+		-1, // fileLength - pass -1 to skip length validation
+		mediaType,
+		mmsType,
+	)
 	if err != nil {
 		log.Printf("Failed to download media for message %s: %v", req.MessageID, err)
 		dh.publishError(req.MessageID, fmt.Sprintf("download failed: %v", err))
@@ -186,16 +206,6 @@ func (dh *DownloadHandler) handleDownloadRequest(msg *nats.Msg) {
 		req.MessageID, mediaURL, int64(len(data)), true, ""); err != nil {
 		log.Printf("Failed to publish download response: %v", err)
 	}
-}
-
-// downloadMedia downloads media using the reconstructed reference.
-func (dh *DownloadHandler) downloadMedia(ctx context.Context, downloadable whatsmeow.DownloadableMessage) ([]byte, error) {
-	if dh.handler.config.Client == nil {
-		return nil, fmt.Errorf("WhatsApp client not available")
-	}
-
-	// Use the handler's retry logic
-	return dh.handler.downloadWithRetry(ctx, downloadable)
 }
 
 // publishError publishes an error response for a download request.
