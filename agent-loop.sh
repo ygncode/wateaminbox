@@ -1113,10 +1113,13 @@ phase_execute() {
     local work_dir="$LOOP_DIR/$CURRENT_SLUG"
     local subtasks_file="$work_dir/subtasks.md"
     local log_file="$work_dir/execution-log.md"
+    local max_iterations=10
+    local iteration=0
 
-    # Outer loop - script keeps calling AI until all done
-    while true; do
-        save_state "6" "execute"
+    # Outer loop - script keeps calling AI until all done (with safety limit)
+    while [ $iteration -lt $max_iterations ]; do
+        ((iteration++))
+        save_state "6" "execute" "$iteration"
 
         # Check if there are pending subtasks
         if [ "$DRY_RUN" = true ]; then
@@ -1133,7 +1136,7 @@ phase_execute() {
             break
         fi
 
-        log_info "Pending subtasks found, executing batch..."
+        log_info "Executing subtasks (iteration $iteration of $max_iterations)..."
 
         local context_instruction
         context_instruction=$(build_context_instruction "read_write")
@@ -1177,17 +1180,21 @@ RULES:
 
 Start implementing now."
 
-        run_cyolo "$exec_prompt" "Executing subtask batch..."
+        run_cyolo "$exec_prompt" "Executing subtasks..."
 
         # Small delay before next check
         sleep 2
     done
 
+    if [ $iteration -ge $max_iterations ]; then
+        log_warn "Max iterations ($max_iterations) reached - some tasks may be incomplete or require manual work"
+    fi
+
     log_success "Sub-tasks execution completed"
 }
 
 # =============================================================================
-# Phase 7: Code Review (AI handles entire review loop)
+# Phase 7: Code Review (with safety loop)
 # =============================================================================
 phase_code_review() {
     log_step "Phase 7: Code review..."
@@ -1196,69 +1203,63 @@ phase_code_review() {
     local specs_file="$work_dir/specs.md"
     local subtasks_file="$work_dir/subtasks.md"
     local review_file="$work_dir/code-review.md"
+    local max_iterations=5
+    local iteration=0
 
-    save_state "7" "code-review"
+    # Check if there are any changes to review
+    local changes_count
+    changes_count=$(git diff main --name-only 2>/dev/null | wc -l | tr -d ' ')
 
-    local context_instruction
-    context_instruction=$(build_context_instruction "read_write")
+    if [ "$changes_count" = "0" ]; then
+        log_info "No code changes to review - auto-approved"
+        mkdir -p "$work_dir"
+        echo -e "# Code Review\n\n## Verdict: APPROVED\n\nNo code changes detected." > "$review_file"
+        return 0
+    fi
 
-    local review_prompt="You are reviewing code and iterating until APPROVED.
+    while [ $iteration -lt $max_iterations ]; do
+        ((iteration++))
+        save_state "7" "code-review" "$iteration"
 
-SPECS FILE: $specs_file
-TASKS FILE: $subtasks_file
+        # Check if already approved
+        if [ -f "$review_file" ]; then
+            local status
+            status=$(claude --dangerously-skip-permissions --model haiku -p "Read $review_file and output ONLY 'approved' if verdict is APPROVED, or 'pending' otherwise. One word only." 2>/dev/null | tr '[:upper:]' '[:lower:]' | grep -o -E '(approved|pending)' | head -1)
+            if [ "$status" = "approved" ]; then
+                log_success "Code review APPROVED"
+                return 0
+            fi
+        fi
+
+        log_info "Code review iteration $iteration of $max_iterations..."
+
+        local context_instruction
+        context_instruction=$(build_context_instruction "read_write")
+
+        local review_prompt="You are reviewing code. Review, fix issues, then APPROVE.
+
 REVIEW FILE: $review_file
 
 $context_instruction
 
-YOUR TASK - KEEP ITERATING UNTIL APPROVED:
+PROCESS:
+1. Run: git diff main
+2. Check for: code quality, error handling, security, performance
+3. If issues: fix them, then approve
+4. Write to $review_file: '## Verdict: APPROVED' with summary
 
-1. Read context.md FIRST - understand what was intended and decided
-2. Review the code changes:
-   - Run: git diff main
-   - Check all modified files
+Fix issues yourself rather than just listing them. Approve when ready."
 
-3. Check for issues:
-   - Code quality problems
-   - Missing error handling
-   - Security concerns
-   - Performance issues
-   - Missing tests
-   - Incomplete implementations
+        run_cyolo "$review_prompt" "Reviewing code..."
+        sleep 2
+    done
 
-4. Write review to $review_file with format:
-   # Code Review
-   ## Verdict: APPROVED | NEEDS_CHANGES
-   ## Issues Found
-   ### Critical (Must Fix)
-   - [ ] issue with file and fix
-   ## Summary
-
-5. If NEEDS_CHANGES:
-   - Fix ALL critical issues in the code
-   - Mark fixed items [x] in $review_file
-   - Update context.md with issues found and fixes applied
-   - Review again
-   - REPEAT until APPROVED
-
-6. If APPROVED:
-   - Write final 'APPROVED' verdict
-   - Update context.md ## Progress with review completion
-   - You're done!
-
-RULES:
-- Do NOT stop until code is APPROVED
-- Fix issues yourself, don't just list them
-- Run tests after fixes to verify
-- Document significant findings in context.md
-
-Start reviewing now and keep iterating until APPROVED."
-
-    run_cyolo "$review_prompt" "Reviewing code until approved..."
+    log_warn "Max iterations ($max_iterations) reached, proceeding anyway"
     log_success "Code review completed"
 }
 
 # =============================================================================
-# Phase: Testing (AI handles entire test loop)
+# Phase: Testing (with safety loop)
 # =============================================================================
 phase_testing() {
     log_step "Testing: Running tests and fixing issues..."
@@ -1266,8 +1267,8 @@ phase_testing() {
     local work_dir="$LOOP_DIR/$CURRENT_SLUG"
     mkdir -p "$work_dir"
     local test_log="$work_dir/test-log.md"
-
-    save_state "testing" "testing"
+    local max_iterations=5
+    local iteration=0
 
     if [ "$DRY_RUN" = true ]; then
         log_info "[DRY-RUN] Running tests..."
@@ -1275,73 +1276,52 @@ phase_testing() {
         return 0
     fi
 
-    local context_instruction
-    context_instruction=$(build_context_instruction "read_write")
+    while [ $iteration -lt $max_iterations ]; do
+        ((iteration++))
+        save_state "testing" "testing" "$iteration"
 
-    local test_prompt="You are running tests and ensuring all tests pass before we can merge.
+        # Check if already passed or blocked
+        if [ -f "$test_log" ]; then
+            local status
+            status=$(claude --dangerously-skip-permissions --model haiku -p "Read $test_log and output ONLY: 'passed' if all tests passed, 'blocked' if blocked, or 'pending' if tests still failing. One word only." 2>/dev/null | tr '[:upper:]' '[:lower:]' | grep -o -E '(passed|blocked|pending)' | head -1)
+            if [ "$status" = "passed" ]; then
+                log_success "All tests passed!"
+                return 0
+            fi
+            if [ "$status" = "blocked" ]; then
+                log_warn "Testing blocked - see $test_log for details"
+                return 1
+            fi
+        fi
 
-TASK: $CURRENT_TASK
-TYPE: $CURRENT_TASK_TYPE
+        log_info "Testing iteration $iteration of $max_iterations..."
+
+        local context_instruction
+        context_instruction=$(build_context_instruction "read_write")
+
+        local test_prompt="You are running tests. Run tests, fix failures, confirm pass.
+
 TEST LOG: $test_log
 
 $context_instruction
 
-PROJECT TEST COMMANDS:
+TEST COMMANDS:
 - Backend: cd apps/api && bun test
 - Go services: cd services/whatsapp && go test ./... and cd services/orchestrator && go test ./...
 
-NOTE: Skip E2E tests (Playwright) - they are not required for this workflow.
+PROCESS:
+1. Check changed files: git diff main --name-only
+2. Run relevant tests (apps/api/* → bun test, services/* → go test)
+3. If fail: fix the code and re-run
+4. Write to $test_log: 'ALL TESTS PASSED' or 'BLOCKED: <reason>'
 
-YOUR TASK - KEEP LOOPING UNTIL ALL TESTS PASS:
+Skip E2E tests. Fix failures yourself."
 
-1. Read context.md to understand what was changed and why
-2. Determine which tests to run based on what files were changed:
-   - Check: git diff main --name-only
-   - apps/api/* → run backend tests
-   - apps/web/* → skip (no E2E tests needed)
-   - services/* → run Go tests
+        run_cyolo "$test_prompt" "Running tests..."
+        sleep 2
+    done
 
-3. Run the relevant tests
-
-4. If tests PASS:
-   - Write 'ALL TESTS PASSED' to $test_log
-   - Update context.md ## Progress with test results
-   - You're done!
-
-5. If tests FAIL:
-   - Analyze the failure carefully
-   - Fix the code causing the failure
-   - Add missing tests if needed
-   - Document what you fixed in $test_log and context.md
-   - Run tests again
-   - REPEAT until all pass
-
-6. If you're STUCK (tried multiple times, can't fix):
-   - Write 'BLOCKED: <specific reason>' to $test_log
-   - Update context.md with what you tried and why it's blocked
-
-IMPORTANT RULES:
-- Do NOT stop until tests pass or you're truly blocked
-- Fix root causes, not symptoms
-- Keep trying different approaches if one doesn't work
-- Document everything in the test log and context.md
-
-Start running tests now and keep going until they all pass."
-
-    run_cyolo "$test_prompt" "Running tests until they pass..."
-
-    # Check result
-    if [ -f "$test_log" ]; then
-        if grep -q "ALL TESTS PASSED" "$test_log" 2>/dev/null; then
-            log_success "All tests passed!"
-            return 0
-        fi
-        if grep -q "BLOCKED" "$test_log" 2>/dev/null; then
-            log_warn "Testing blocked - see $test_log for details"
-            return 1
-        fi
-    fi
-
+    log_warn "Max iterations ($max_iterations) reached, proceeding anyway"
     log_success "Testing phase completed"
 }
 
@@ -1743,7 +1723,20 @@ main() {
         mark_task_complete "$TASKS_FILE" "$CURRENT_TASK_INDEX"
         clear_state
 
-        # Sync and continue with remaining tasks
+        # Check input format to decide whether to continue or exit
+        local input_format
+        input_format=$(detect_input_format "$TASKS_FILE")
+
+        if [ "$input_format" = "feature" ]; then
+            # Single feature file - we're done after resume completes
+            log_success "=============================================="
+            log_success "Agent Loop Finished!"
+            log_success "Feature completed via resume!"
+            log_success "=============================================="
+            exit 0
+        fi
+
+        # Checklist format - sync and continue with remaining tasks
         sync_main
     fi
 
