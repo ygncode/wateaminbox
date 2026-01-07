@@ -1,51 +1,66 @@
-import type * as React from 'react'
-import { cn } from '@/lib/utils'
+import type * as React from "react";
+import { cn } from "@/lib/utils";
 
 export interface MainContentProps extends React.HTMLAttributes<HTMLDivElement> {
-  children: React.ReactNode
+  children: React.ReactNode;
 }
 
-export function MainContent({ className, children, ...props }: MainContentProps) {
+export function MainContent({
+  className,
+  children,
+  ...props
+}: MainContentProps) {
   return (
     <main
-      className={cn('flex flex-1 flex-col bg-gray-50 dark:bg-dark-primary', className)}
+      className={cn(
+        "flex flex-1 flex-col bg-gray-50 dark:bg-dark-primary",
+        className,
+      )}
       {...props}
     >
       {children}
     </main>
-  )
+  );
 }
 
 export interface MainContentHeaderProps extends React.HTMLAttributes<HTMLDivElement> {
-  children: React.ReactNode
+  children: React.ReactNode;
 }
 
-export function MainContentHeader({ className, children, ...props }: MainContentHeaderProps) {
+export function MainContentHeader({
+  className,
+  children,
+  ...props
+}: MainContentHeaderProps) {
   return (
     <header
       className={cn(
-        'flex items-center justify-between border-b border-gray-200 dark:border-dark-border bg-gray-100 dark:bg-dark-secondary px-4',
+        "flex items-center justify-between border-b border-gray-200 dark:border-dark-border bg-gray-100 dark:bg-dark-secondary px-4",
         // Responsive height with safe area support
-        'h-14 min-h-[56px] md:h-[60px] md:min-h-[60px]',
+        "h-14 min-h-[56px] md:h-[60px] md:min-h-[60px]",
         // Safe area inset for notch
-        'safe-area-top',
-        className
+        "safe-area-top",
+        className,
       )}
       {...props}
     >
       {children}
     </header>
-  )
+  );
 }
 
 export interface MessageAreaProps extends React.HTMLAttributes<HTMLDivElement> {
-  children: React.ReactNode
+  children: React.ReactNode;
 }
 
-export function MessageArea({ className, children, ...props }: MessageAreaProps) {
+export function MessageArea({
+  className,
+  children,
+  ...props
+}: MessageAreaProps) {
   return (
     <div
-      className={cn('flex-1 overflow-y-auto bg-[#e5ddd5] p-4', className)}
+      className={cn("flex-1 overflow-y-auto bg-[#e5ddd5] p-4", className)}
       style={{
         backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23c5c5c5' fill-opacity='0.1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
       }}
@@ -53,47 +68,51 @@ export function MessageArea({ className, children, ...props }: MessageAreaProps)
     >
       {children}
     </div>
-  )
+  );
 }
 
 export interface MessageInputAreaProps extends React.HTMLAttributes<HTMLDivElement> {
-  children: React.ReactNode
+  children: React.ReactNode;
 }
 
-export function MessageInputArea({ className, children, ...props }: MessageInputAreaProps) {
+export function MessageInputArea({
+  className,
+  children,
+  ...props
+}: MessageInputAreaProps) {
   return (
     <footer
       className={cn(
-        'flex items-center gap-2 border-t border-gray-200 dark:border-dark-border bg-gray-100 dark:bg-dark-secondary',
+        "flex items-center gap-2 border-t border-gray-200 dark:border-dark-border bg-gray-100 dark:bg-dark-secondary",
         // Responsive padding
-        'px-2 py-2 md:px-4 md:py-3',
+        "px-2 py-2 md:px-4 md:py-3",
         // Safe area inset for home indicator
-        'safe-area-bottom',
-        className
+        "safe-area-bottom",
+        className,
       )}
       {...props}
     >
       {children}
     </footer>
-  )
+  );
 }
 
 export interface EmptyStateProps extends React.HTMLAttributes<HTMLDivElement> {
-  title?: string
-  description?: string
+  title?: string;
+  description?: string;
 }
 
 export function EmptyState({
   className,
-  title = 'Select a chat',
-  description = 'Choose a conversation from the sidebar to start messaging',
+  title = "Select a chat",
+  description = "Choose a conversation from the sidebar to start messaging",
   ...props
 }: EmptyStateProps) {
   return (
     <div
       className={cn(
-        'flex flex-1 flex-col items-center justify-center bg-gray-100 dark:bg-dark-primary text-center',
-        className
+        "flex flex-1 flex-col items-center justify-center bg-gray-100 dark:bg-dark-primary text-center",
+        className,
       )}
       {...props}
     >
@@ -113,9 +132,13 @@ export function EmptyState({
             />
           </svg>
         </div>
-        <h2 className="text-2xl font-light text-gray-800 dark:text-dark-text-primary">{title}</h2>
-        <p className="text-sm text-gray-500 dark:text-dark-text-secondary">{description}</p>
+        <h2 className="text-2xl font-light text-gray-800 dark:text-dark-text-primary">
+          {title}
+        </h2>
+        <p className="text-sm text-gray-500 dark:text-dark-text-secondary">
+          {description}
+        </p>
       </div>
     </div>
-  )
+  );
 }

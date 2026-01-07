@@ -1,37 +1,37 @@
-import { useVirtualizer } from '@tanstack/react-virtual'
-import type { Message } from '@whatsapp-web/shared'
-import { formatDateSeparator as formatDateSep } from '@whatsapp-web/shared'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useTheme } from '../../contexts'
-import { useInfiniteMessages } from '../../hooks/useInfiniteMessages'
-import { useRetryMessage } from '../../hooks/useMessages'
+import { useVirtualizer } from "@tanstack/react-virtual";
+import type { Message } from "@whatsapp-web/shared";
+import { formatDateSeparator as formatDateSep } from "@whatsapp-web/shared";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useTheme } from "../../contexts";
+import { useInfiniteMessages } from "../../hooks/useInfiniteMessages";
+import { useRetryMessage } from "../../hooks/useMessages";
 import {
   selectSelectedMessageCount,
   selectSelectedMessageIds,
   selectSelectionMode,
   useChatStore,
-} from '../../stores/chat-store'
-import { ChatContextMenu } from './ChatContextMenu'
-import { MessageBubble } from './MessageBubble'
+} from "../../stores/chat-store";
+import { ChatContextMenu } from "./ChatContextMenu";
+import { MessageBubble } from "./MessageBubble";
 
 interface MessageThreadProps {
-  conversationId: string | undefined
-  currentUserId: string
-  onReplyToMessage?: (message: Message) => void
-  onForwardMessage?: (message: Message) => void
-  onDeleteMessage?: (message: Message) => void
-  onStarMessage?: (message: Message) => void
-  onReactMessage?: (message: Message, emoji: string) => void
-  onRetryMessage?: (messageId: string) => void
+  conversationId: string | undefined;
+  currentUserId: string;
+  onReplyToMessage?: (message: Message) => void;
+  onForwardMessage?: (message: Message) => void;
+  onDeleteMessage?: (message: Message) => void;
+  onStarMessage?: (message: Message) => void;
+  onReactMessage?: (message: Message, emoji: string) => void;
+  onRetryMessage?: (messageId: string) => void;
   /** ID of message to highlight and scroll to */
-  highlightedMessageId?: string | null
+  highlightedMessageId?: string | null;
   /** Callback when user clicks "Contact info" in context menu */
-  onOpenContactInfo?: () => void
+  onOpenContactInfo?: () => void;
 }
 
 // Estimated row heights for virtualization
-const ESTIMATED_MESSAGE_HEIGHT = 80
-const DATE_SEPARATOR_HEIGHT = 48
+const ESTIMATED_MESSAGE_HEIGHT = 80;
+const DATE_SEPARATOR_HEIGHT = 48;
 
 export function MessageThread({
   conversationId,
@@ -45,79 +45,94 @@ export function MessageThread({
   highlightedMessageId,
   onOpenContactInfo,
 }: MessageThreadProps) {
-  const scrollContainerRef = useRef<HTMLDivElement>(null)
-  const retryMessage = useRetryMessage()
-  const { resolvedTheme } = useTheme()
-  const [retryingMessageId, setRetryingMessageId] = useState<string | null>(null)
-  const [isAtBottom, setIsAtBottom] = useState(true)
-  const prevMessagesLengthRef = useRef(0)
-  const isInitialScrollDone = useRef(false)
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const retryMessage = useRetryMessage();
+  const { resolvedTheme } = useTheme();
+  const [retryingMessageId, setRetryingMessageId] = useState<string | null>(
+    null,
+  );
+  const [isAtBottom, setIsAtBottom] = useState(true);
+  const prevMessagesLengthRef = useRef(0);
+  const isInitialScrollDone = useRef(false);
 
   // Selection mode state from store
-  const selectionMode = useChatStore(selectSelectionMode)
-  const selectedMessageIds = useChatStore(selectSelectedMessageIds)
-  const selectedCount = useChatStore(selectSelectedMessageCount)
-  const enterSelectionMode = useChatStore((state) => state.enterSelectionMode)
-  const exitSelectionMode = useChatStore((state) => state.exitSelectionMode)
-  const toggleMessageSelection = useChatStore((state) => state.toggleMessageSelection)
+  const selectionMode = useChatStore(selectSelectionMode);
+  const selectedMessageIds = useChatStore(selectSelectedMessageIds);
+  const selectedCount = useChatStore(selectSelectedMessageCount);
+  const enterSelectionMode = useChatStore((state) => state.enterSelectionMode);
+  const exitSelectionMode = useChatStore((state) => state.exitSelectionMode);
+  const toggleMessageSelection = useChatStore(
+    (state) => state.toggleMessageSelection,
+  );
 
   // Context menu state
   const [contextMenu, setContextMenu] = useState<{
-    x: number
-    y: number
-  } | null>(null)
+    x: number;
+    y: number;
+  } | null>(null);
 
-  const { data, isLoading, isError, error, fetchNextPage, hasNextPage, isFetchingNextPage } =
-    useInfiniteMessages(conversationId)
+  const {
+    data,
+    isLoading,
+    isError,
+    error,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useInfiniteMessages(conversationId);
 
-  const messages = data?.messages || []
+  const messages = data?.messages || [];
 
   // Group messages by date and flatten into virtual items - memoized to prevent re-renders
   const items = useMemo(() => {
-    if (messages.length === 0) return []
+    if (messages.length === 0) return [];
 
     const result: Array<
-      { type: 'date'; date: string; id: string } | { type: 'message'; message: Message; id: string }
-    > = []
+      | { type: "date"; date: string; id: string }
+      | { type: "message"; message: Message; id: string }
+    > = [];
 
-    let currentDate = ''
+    let currentDate = "";
 
     messages.forEach((message) => {
-      const messageDate = new Date(message.createdAt).toDateString()
+      const messageDate = new Date(message.createdAt).toDateString();
 
       if (messageDate !== currentDate) {
-        currentDate = messageDate
+        currentDate = messageDate;
         result.push({
-          type: 'date',
+          type: "date",
           date: messageDate,
           id: `date-${messageDate}`,
-        })
+        });
       }
 
       result.push({
-        type: 'message',
+        type: "message",
         message,
         id: message.id,
-      })
-    })
+      });
+    });
 
-    return result
-  }, [messages])
+    return result;
+  }, [messages]);
 
   // Memoize virtualizer callbacks to prevent re-renders
   const estimateSize = useCallback(
     (index: number) => {
-      const item = items[index]
-      if (item?.type === 'date') return DATE_SEPARATOR_HEIGHT
-      return ESTIMATED_MESSAGE_HEIGHT
+      const item = items[index];
+      if (item?.type === "date") return DATE_SEPARATOR_HEIGHT;
+      return ESTIMATED_MESSAGE_HEIGHT;
     },
-    [items]
-  )
+    [items],
+  );
 
-  const getItemKey = useCallback((index: number) => items[index]?.id || index.toString(), [items])
+  const getItemKey = useCallback(
+    (index: number) => items[index]?.id || index.toString(),
+    [items],
+  );
 
   // State for virtualizer total size to avoid flushSync warnings
-  const [totalSize, setTotalSize] = useState(0)
+  const [totalSize, setTotalSize] = useState(0);
 
   // Virtualizer setup
   const virtualizer = useVirtualizer({
@@ -129,30 +144,32 @@ export function MessageThread({
     onChange: (instance) => {
       // Update total size asynchronously to avoid flushSync during render
       requestAnimationFrame(() => {
-        setTotalSize(instance.getTotalSize())
-      })
+        setTotalSize(instance.getTotalSize());
+      });
     },
-  })
+  });
 
   // Initialize total size
   useEffect(() => {
-    setTotalSize(virtualizer.getTotalSize())
-  }, [virtualizer])
+    setTotalSize(virtualizer.getTotalSize());
+  }, [virtualizer]);
 
   // Handle scroll to detect when we're near the top (for loading more)
   const handleScroll = useCallback(() => {
-    const container = scrollContainerRef.current
-    if (!container) return
+    const container = scrollContainerRef.current;
+    if (!container) return;
 
     // Load more when scrolling near the top
     if (container.scrollTop < 200 && hasNextPage && !isFetchingNextPage) {
-      fetchNextPage()
+      fetchNextPage();
     }
 
     // Check if we're at the bottom
-    const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 100
-    setIsAtBottom(isNearBottom)
-  }, [fetchNextPage, hasNextPage, isFetchingNextPage])
+    const isNearBottom =
+      container.scrollHeight - container.scrollTop - container.clientHeight <
+      100;
+    setIsAtBottom(isNearBottom);
+  }, [fetchNextPage, hasNextPage, isFetchingNextPage]);
 
   // Scroll to bottom when new messages arrive (if already at bottom)
   useEffect(() => {
@@ -166,19 +183,19 @@ export function MessageThread({
         if (scrollContainerRef.current) {
           scrollContainerRef.current.scrollTo({
             top: scrollContainerRef.current.scrollHeight,
-            behavior: 'smooth',
-          })
+            behavior: "smooth",
+          });
         }
-      })
+      });
     }
-    prevMessagesLengthRef.current = messages.length
-  }, [messages.length, isAtBottom])
+    prevMessagesLengthRef.current = messages.length;
+  }, [messages.length, isAtBottom]);
 
   // Initial scroll to bottom when conversation loads
   useEffect(() => {
     if (conversationId && messages.length > 0 && !isInitialScrollDone.current) {
       // Mark as done immediately to prevent duplicate scrolls
-      isInitialScrollDone.current = true
+      isInitialScrollDone.current = true;
 
       // Use requestAnimationFrame to ensure DOM is ready
       requestAnimationFrame(() => {
@@ -186,105 +203,105 @@ export function MessageThread({
           // Use instant scroll for initial load (no animation delay)
           scrollContainerRef.current.scrollTo({
             top: scrollContainerRef.current.scrollHeight,
-            behavior: 'auto',
-          })
+            behavior: "auto",
+          });
         }
-      })
+      });
     }
-  }, [conversationId, messages.length])
+  }, [conversationId, messages.length]);
 
   // Reset initial scroll flag and message count when conversation changes
   useEffect(() => {
-    isInitialScrollDone.current = false
-    prevMessagesLengthRef.current = 0
-  }, [])
+    isInitialScrollDone.current = false;
+    prevMessagesLengthRef.current = 0;
+  }, []);
 
   // Store virtualizer in a ref to avoid dependency issues
-  const virtualizerRef = useRef(virtualizer)
-  virtualizerRef.current = virtualizer
+  const virtualizerRef = useRef(virtualizer);
+  virtualizerRef.current = virtualizer;
 
   // Store items in a ref for the effect
-  const itemsRef = useRef(items)
-  itemsRef.current = items
+  const itemsRef = useRef(items);
+  itemsRef.current = items;
 
   // Scroll to highlighted message when it changes
   useEffect(() => {
     if (highlightedMessageId && itemsRef.current.length > 0) {
       const messageIndex = itemsRef.current.findIndex(
-        (item) => item.type === 'message' && item.id === highlightedMessageId
-      )
+        (item) => item.type === "message" && item.id === highlightedMessageId,
+      );
       if (messageIndex !== -1) {
         virtualizerRef.current.scrollToIndex(messageIndex, {
-          align: 'center',
-          behavior: 'smooth',
-        })
+          align: "center",
+          behavior: "smooth",
+        });
       }
     }
-  }, [highlightedMessageId])
+  }, [highlightedMessageId]);
 
   // Scroll to bottom button click
   const scrollToBottom = useCallback(() => {
     if (scrollContainerRef.current) {
       scrollContainerRef.current.scrollTo({
         top: scrollContainerRef.current.scrollHeight,
-        behavior: 'smooth',
-      })
+        behavior: "smooth",
+      });
     }
-  }, [])
+  }, []);
 
   // Handle retry message
   const handleRetry = useCallback(
     (messageId: string) => {
-      setRetryingMessageId(messageId)
+      setRetryingMessageId(messageId);
       retryMessage.mutate(messageId, {
         onSettled: () => {
-          setRetryingMessageId(null)
+          setRetryingMessageId(null);
         },
-      })
+      });
     },
-    [retryMessage]
-  )
+    [retryMessage],
+  );
 
   // Handle background context menu (right-click on empty area)
   const handleBackgroundContextMenu = useCallback((e: React.MouseEvent) => {
     // Only show context menu if clicking on the background, not on a message
-    const target = e.target as HTMLElement
-    if (target.closest('[data-message-id]')) {
-      return // Let the message bubble handle its own context menu
+    const target = e.target as HTMLElement;
+    if (target.closest("[data-message-id]")) {
+      return; // Let the message bubble handle its own context menu
     }
 
-    e.preventDefault()
-    setContextMenu({ x: e.clientX, y: e.clientY })
-  }, [])
+    e.preventDefault();
+    setContextMenu({ x: e.clientX, y: e.clientY });
+  }, []);
 
   // Handle message click in selection mode
   const handleMessageClick = useCallback(
     (messageId: string) => {
       if (selectionMode) {
-        toggleMessageSelection(messageId)
+        toggleMessageSelection(messageId);
       }
     },
-    [selectionMode, toggleMessageSelection]
-  )
+    [selectionMode, toggleMessageSelection],
+  );
 
   // ESC key to exit selection mode
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
-      if (e.key === 'Escape' && selectionMode) {
-        exitSelectionMode()
+      if (e.key === "Escape" && selectionMode) {
+        exitSelectionMode();
       }
     }
 
-    document.addEventListener('keydown', handleKeyDown)
-    return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [selectionMode, exitSelectionMode])
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [selectionMode, exitSelectionMode]);
 
   // Exit selection mode when conversation changes
   useEffect(() => {
     if (selectionMode) {
-      exitSelectionMode()
+      exitSelectionMode();
     }
-  }, [exitSelectionMode, selectionMode]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [exitSelectionMode, selectionMode]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Empty state when no chat selected
   if (!conversationId) {
@@ -314,7 +331,7 @@ export function MessageThread({
           </p>
         </div>
       </div>
-    )
+    );
   }
 
   // Loading state
@@ -323,10 +340,12 @@ export function MessageThread({
       <div className="flex-1 flex items-center justify-center bg-gray-50 dark:bg-dark-primary">
         <div className="flex flex-col items-center gap-3">
           <LoadingSpinner />
-          <p className="text-sm text-gray-500 dark:text-dark-text-secondary">Loading messages...</p>
+          <p className="text-sm text-gray-500 dark:text-dark-text-secondary">
+            Loading messages...
+          </p>
         </div>
       </div>
-    )
+    );
   }
 
   // Error state
@@ -353,11 +372,11 @@ export function MessageThread({
             Failed to load messages
           </h3>
           <p className="text-sm text-gray-500 dark:text-dark-text-secondary">
-            {error instanceof Error ? error.message : 'An error occurred'}
+            {error instanceof Error ? error.message : "An error occurred"}
           </p>
         </div>
       </div>
-    )
+    );
   }
 
   // Empty messages state
@@ -385,12 +404,12 @@ export function MessageThread({
           </p>
         </div>
       </div>
-    )
+    );
   }
 
   // Background pattern colors based on theme
-  const patternColor = resolvedTheme === 'dark' ? '%231a2730' : '%23000000'
-  const patternOpacity = resolvedTheme === 'dark' ? '0.4' : '1'
+  const patternColor = resolvedTheme === "dark" ? "%231a2730" : "%23000000";
+  const patternOpacity = resolvedTheme === "dark" ? "0.4" : "1";
 
   return (
     <div className="flex-1 relative flex flex-col min-h-0 bg-[#e5ddd5] dark:bg-dark-primary">
@@ -403,7 +422,12 @@ export function MessageThread({
               className="p-1 hover:bg-white/10 rounded-full transition-colors"
               aria-label="Exit selection mode"
             >
-              <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <svg
+                className="h-6 w-6"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
                 <path
                   strokeLinecap="round"
                   strokeLinejoin="round"
@@ -413,7 +437,9 @@ export function MessageThread({
               </svg>
             </button>
             <span className="font-medium">
-              {selectedCount === 0 ? 'Select messages' : `${selectedCount} selected`}
+              {selectedCount === 0
+                ? "Select messages"
+                : `${selectedCount} selected`}
             </span>
           </div>
           <span className="text-sm opacity-80">Press ESC to cancel</span>
@@ -458,22 +484,22 @@ export function MessageThread({
         <div
           style={{
             height: `${totalSize}px`,
-            width: '100%',
-            position: 'relative',
+            width: "100%",
+            position: "relative",
           }}
         >
           {virtualizer.getVirtualItems().map((virtualRow) => {
-            const item = items[virtualRow.index]
+            const item = items[virtualRow.index];
 
-            if (item.type === 'date') {
+            if (item.type === "date") {
               return (
                 <div
                   key={virtualRow.key}
                   style={{
-                    position: 'absolute',
+                    position: "absolute",
                     top: 0,
                     left: 0,
-                    width: '100%',
+                    width: "100%",
                     height: `${virtualRow.size}px`,
                     transform: `translateY(${virtualRow.start}px)`,
                   }}
@@ -484,7 +510,7 @@ export function MessageThread({
                     </span>
                   </div>
                 </div>
-              )
+              );
             }
 
             return (
@@ -493,22 +519,24 @@ export function MessageThread({
                 data-index={virtualRow.index}
                 ref={virtualizer.measureElement}
                 style={{
-                  position: 'absolute',
+                  position: "absolute",
                   top: 0,
                   left: 0,
-                  width: '100%',
+                  width: "100%",
                   transform: `translateY(${virtualRow.start}px)`,
                 }}
               >
                 <MessageBubble
                   message={item.message}
-                  isOwn={item.message.senderType === 'user'}
+                  isOwn={item.message.senderType === "user"}
                   onReply={selectionMode ? undefined : onReplyToMessage}
                   onForward={selectionMode ? undefined : onForwardMessage}
                   onDelete={selectionMode ? undefined : onDeleteMessage}
                   onStar={selectionMode ? undefined : onStarMessage}
                   onReact={selectionMode ? undefined : onReactMessage}
-                  onRetry={selectionMode ? undefined : onRetryMessage || handleRetry}
+                  onRetry={
+                    selectionMode ? undefined : onRetryMessage || handleRetry
+                  }
                   isHighlighted={highlightedMessageId === item.message.id}
                   isRetrying={retryingMessageId === item.message.id}
                   selectionMode={selectionMode}
@@ -516,7 +544,7 @@ export function MessageThread({
                   onSelectionToggle={handleMessageClick}
                 />
               </div>
-            )
+            );
           })}
         </div>
       </div>
@@ -555,13 +583,12 @@ export function MessageThread({
         />
       )}
     </div>
-  )
+  );
 }
 
-
 // Loading spinner component
-function LoadingSpinner({ size = 'md' }: { size?: 'sm' | 'md' }) {
-  const sizeClasses = size === 'sm' ? 'h-5 w-5' : 'h-8 w-8'
+function LoadingSpinner({ size = "md" }: { size?: "sm" | "md" }) {
+  const sizeClasses = size === "sm" ? "h-5 w-5" : "h-8 w-8";
 
   return (
     <svg
@@ -570,14 +597,21 @@ function LoadingSpinner({ size = 'md' }: { size?: 'sm' | 'md' }) {
       fill="none"
       viewBox="0 0 24 24"
     >
-      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+      <circle
+        className="opacity-25"
+        cx="12"
+        cy="12"
+        r="10"
+        stroke="currentColor"
+        strokeWidth="4"
+      />
       <path
         className="opacity-75"
         fill="currentColor"
         d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
       />
     </svg>
-  )
+  );
 }
 
-export default MessageThread
+export default MessageThread;

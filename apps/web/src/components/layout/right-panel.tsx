@@ -1,12 +1,12 @@
-import { X } from 'lucide-react'
-import type * as React from 'react'
-import { ScrollArea } from '@/components/ui'
-import { cn } from '@/lib/utils'
+import { X } from "lucide-react";
+import type * as React from "react";
+import { ScrollArea } from "@/components/ui";
+import { cn } from "@/lib/utils";
 
 export interface RightPanelProps extends React.HTMLAttributes<HTMLDivElement> {
-  children: React.ReactNode
-  isOpen?: boolean
-  onClose?: () => void
+  children: React.ReactNode;
+  isOpen?: boolean;
+  onClose?: () => void;
 }
 
 export function RightPanel({
@@ -16,38 +16,43 @@ export function RightPanel({
   onClose,
   ...props
 }: RightPanelProps) {
-  if (!isOpen) return null
+  if (!isOpen) return null;
 
   return (
     <aside
       className={cn(
-        'flex h-full flex-col border-l border-gray-200 dark:border-dark-border bg-white dark:bg-dark-secondary',
+        "flex h-full flex-col border-l border-gray-200 dark:border-dark-border bg-white dark:bg-dark-secondary",
         // Responsive width - hidden on mobile/tablet (use MobileSlideInPanel instead)
-        'hidden lg:flex lg:w-[350px] xl:w-[400px]',
-        className
+        "hidden lg:flex lg:w-[350px] xl:w-[400px]",
+        className,
       )}
       {...props}
     >
       {children}
     </aside>
-  )
+  );
 }
 
 export interface RightPanelHeaderProps extends React.HTMLAttributes<HTMLDivElement> {
-  title: string
-  onClose?: () => void
+  title: string;
+  onClose?: () => void;
 }
 
-export function RightPanelHeader({ className, title, onClose, ...props }: RightPanelHeaderProps) {
+export function RightPanelHeader({
+  className,
+  title,
+  onClose,
+  ...props
+}: RightPanelHeaderProps) {
   return (
     <header
       className={cn(
-        'flex items-center gap-4 bg-whatsapp-teal-green px-4 text-white',
+        "flex items-center gap-4 bg-whatsapp-teal-green px-4 text-white",
         // Responsive height
-        'h-14 min-h-[56px] md:h-[60px] md:min-h-[60px]',
+        "h-14 min-h-[56px] md:h-[60px] md:min-h-[60px]",
         // Safe area for notch
-        'safe-area-top',
-        className
+        "safe-area-top",
+        className,
       )}
       {...props}
     >
@@ -62,21 +67,26 @@ export function RightPanelHeader({ className, title, onClose, ...props }: RightP
       )}
       <h2 className="text-lg font-medium">{title}</h2>
     </header>
-  )
+  );
 }
 
 export interface RightPanelContentProps {
-  className?: string
-  children: React.ReactNode
+  className?: string;
+  children: React.ReactNode;
 }
 
-export function RightPanelContent({ className, children }: RightPanelContentProps) {
-  return <ScrollArea className={cn('flex-1', className)}>{children}</ScrollArea>
+export function RightPanelContent({
+  className,
+  children,
+}: RightPanelContentProps) {
+  return (
+    <ScrollArea className={cn("flex-1", className)}>{children}</ScrollArea>
+  );
 }
 
 export interface RightPanelSectionProps extends React.HTMLAttributes<HTMLDivElement> {
-  title?: string
-  children: React.ReactNode
+  title?: string;
+  children: React.ReactNode;
 }
 
 export function RightPanelSection({
@@ -88,13 +98,17 @@ export function RightPanelSection({
   return (
     <section
       className={cn(
-        'border-b border-gray-200 dark:border-dark-border bg-white dark:bg-dark-secondary p-4',
-        className
+        "border-b border-gray-200 dark:border-dark-border bg-white dark:bg-dark-secondary p-4",
+        className,
       )}
       {...props}
     >
-      {title && <h3 className="mb-3 text-sm font-medium text-whatsapp-teal-green">{title}</h3>}
+      {title && (
+        <h3 className="mb-3 text-sm font-medium text-whatsapp-teal-green">
+          {title}
+        </h3>
+      )}
       {children}
     </section>
-  )
+  );
 }

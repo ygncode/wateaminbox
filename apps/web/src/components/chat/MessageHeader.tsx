@@ -1,19 +1,19 @@
-import type { Contact } from '@whatsapp-web/shared'
-import { formatLastSeen } from '@whatsapp-web/shared'
-import { ArrowLeft } from 'lucide-react'
-import { ThemeToggle } from './ThemeToggle'
+import type { Contact } from "@whatsapp-web/shared";
+import { formatLastSeen } from "@whatsapp-web/shared";
+import { ArrowLeft } from "lucide-react";
+import { ThemeToggle } from "./ThemeToggle";
 
 interface MessageHeaderProps {
-  contact: Contact | undefined
-  onOpenProfile?: () => void
-  onSearch?: () => void
-  onMore?: () => void
+  contact: Contact | undefined;
+  onOpenProfile?: () => void;
+  onSearch?: () => void;
+  onMore?: () => void;
   /** Show back button for mobile navigation */
-  showBackButton?: boolean
+  showBackButton?: boolean;
   /** Callback when back button is pressed */
-  onBack?: () => void
+  onBack?: () => void;
   /** Whether the contact is currently typing */
-  isTyping?: boolean
+  isTyping?: boolean;
 }
 
 export function MessageHeader({
@@ -26,12 +26,13 @@ export function MessageHeader({
   isTyping = false,
 }: MessageHeaderProps) {
   if (!contact) {
-    return null
+    return null;
   }
 
-  const displayName = contact.customName || contact.name || contact.jid || 'Unknown'
-  const lastSeenText = formatLastSeen(contact.lastSeen, contact.isOnline)
-  const statusText = isTyping ? 'typing' : lastSeenText
+  const displayName =
+    contact.customName || contact.name || contact.jid || "Unknown";
+  const lastSeenText = formatLastSeen(contact.lastSeen, contact.isOnline);
+  const statusText = isTyping ? "typing" : lastSeenText;
 
   return (
     <header className="flex items-center gap-2 md:gap-3 px-2 md:px-4 py-2 bg-gray-100 dark:bg-dark-secondary border-b border-gray-200 dark:border-dark-border h-14 min-h-[56px] md:h-[60px] md:min-h-[60px] safe-area-top">
@@ -78,7 +79,7 @@ export function MessageHeader({
             {displayName}
           </h2>
           <p
-            className={`text-xs truncate ${isTyping ? 'text-whatsapp-green' : 'text-gray-500 dark:text-dark-text-secondary'}`}
+            className={`text-xs truncate ${isTyping ? "text-whatsapp-green" : "text-gray-500 dark:text-dark-text-secondary"}`}
           >
             {isTyping ? (
               <span className="typing-indicator">
@@ -103,7 +104,12 @@ export function MessageHeader({
           className="hidden sm:flex h-11 w-11 md:h-10 md:w-10 items-center justify-center text-gray-500 dark:text-dark-text-secondary hover:text-gray-700 dark:hover:text-dark-text-primary rounded-full hover:bg-gray-200 dark:hover:bg-dark-tertiary active:bg-gray-300 dark:active:bg-dark-border transition-colors touch-manipulation"
           aria-label="Search in conversation"
         >
-          <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <svg
+            className="h-5 w-5"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
             <path
               strokeLinecap="round"
               strokeLinejoin="round"
@@ -119,7 +125,12 @@ export function MessageHeader({
           className="flex h-11 w-11 md:h-10 md:w-10 items-center justify-center text-gray-500 dark:text-dark-text-secondary hover:text-gray-700 dark:hover:text-dark-text-primary rounded-full hover:bg-gray-200 dark:hover:bg-dark-tertiary active:bg-gray-300 dark:active:bg-dark-border transition-colors touch-manipulation"
           aria-label="More options"
         >
-          <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <svg
+            className="h-5 w-5"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
             <path
               strokeLinecap="round"
               strokeLinejoin="round"
@@ -130,21 +141,21 @@ export function MessageHeader({
         </button>
       </div>
     </header>
-  )
+  );
 }
 
 // Helper function to get initials from name
 function getInitials(name: string | null | undefined): string {
-  if (!name) return '?'
+  if (!name) return "?";
   return (
     name
-      .split(' ')
+      .split(" ")
       .map((part) => part[0])
       .filter(Boolean)
-      .join('')
+      .join("")
       .toUpperCase()
-      .slice(0, 2) || '?'
-  )
+      .slice(0, 2) || "?"
+  );
 }
 
-export default MessageHeader
+export default MessageHeader;

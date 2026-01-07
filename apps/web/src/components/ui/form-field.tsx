@@ -1,18 +1,18 @@
-import { FieldError, UseFormRegisterReturn } from 'react-hook-form'
-import { Input } from './input'
+import { FieldError, UseFormRegisterReturn } from "react-hook-form";
+import { Input } from "./input";
 
 export interface FormFieldProps {
-  label: string
-  id: string
-  type?: 'text' | 'email' | 'password' | 'tel'
-  placeholder?: string
-  registration: UseFormRegisterReturn
-  error?: FieldError
-  autoComplete?: string
-  autoFocus?: boolean
-  disabled?: boolean
-  className?: string
-  hint?: string
+  label: string;
+  id: string;
+  type?: "text" | "email" | "password" | "tel";
+  placeholder?: string;
+  registration: UseFormRegisterReturn;
+  error?: FieldError;
+  autoComplete?: string;
+  autoFocus?: boolean;
+  disabled?: boolean;
+  className?: string;
+  hint?: string;
 }
 
 /**
@@ -21,7 +21,7 @@ export interface FormFieldProps {
 export function FormField({
   label,
   id,
-  type = 'text',
+  type = "text",
   placeholder,
   registration,
   error,
@@ -46,20 +46,29 @@ export function FormField({
         autoComplete={autoComplete}
         autoFocus={autoFocus}
         disabled={disabled}
-        aria-invalid={error ? 'true' : 'false'}
-        aria-describedby={error ? `${id}-error` : hint ? `${id}-hint` : undefined}
+        aria-invalid={error ? "true" : "false"}
+        aria-describedby={
+          error ? `${id}-error` : hint ? `${id}-hint` : undefined
+        }
         {...registration}
       />
       {hint && !error && (
-        <p id={`${id}-hint`} className="mt-1 text-xs text-gray-500 dark:text-dark-text-tertiary">
+        <p
+          id={`${id}-hint`}
+          className="mt-1 text-xs text-gray-500 dark:text-dark-text-tertiary"
+        >
           {hint}
         </p>
       )}
       {error && (
-        <p id={`${id}-error`} className="mt-1 text-xs text-red-500 dark:text-red-400" role="alert">
+        <p
+          id={`${id}-error`}
+          className="mt-1 text-xs text-red-500 dark:text-red-400"
+          role="alert"
+        >
           {error.message}
         </p>
       )}
     </div>
-  )
+  );
 }

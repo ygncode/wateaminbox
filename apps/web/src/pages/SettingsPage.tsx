@@ -14,12 +14,12 @@ import {
   User,
   Users,
   Zap,
-} from 'lucide-react'
-import { useState } from 'react'
-import { useTranslation } from 'react-i18next'
-import { Link } from 'react-router-dom'
-import { ContactImport } from '../components/contacts'
-import { AppLayout } from '../components/layout/app-layout'
+} from "lucide-react";
+import { useState } from "react";
+import { useTranslation } from "react-i18next";
+import { Link } from "react-router-dom";
+import { ContactImport } from "../components/contacts";
+import { AppLayout } from "../components/layout/app-layout";
 import {
   CatalogManager,
   KeyboardShortcutsModal,
@@ -27,24 +27,24 @@ import {
   LanguageSwitcher,
   NotificationSettings,
   QuickRepliesManager,
-} from '../components/settings'
-import { Button } from '../components/ui'
-import { WhatsAppConnectionPanel } from '../components/whatsapp'
-import { useAuth } from '../contexts/auth-context'
+} from "../components/settings";
+import { Button } from "../components/ui";
+import { WhatsAppConnectionPanel } from "../components/whatsapp";
+import { useAuth } from "../contexts/auth-context";
 
 /**
  * Settings page
  * Modern, well-organized settings interface with user profile
  */
 export function SettingsPage() {
-  const { t } = useTranslation()
-  const { user, logout } = useAuth()
-  const [showKeyboardShortcuts, setShowKeyboardShortcuts] = useState(false)
-  const [showContactImport, setShowContactImport] = useState(false)
+  const { t } = useTranslation();
+  const { user, logout } = useAuth();
+  const [showKeyboardShortcuts, setShowKeyboardShortcuts] = useState(false);
+  const [showContactImport, setShowContactImport] = useState(false);
 
   const handleLogout = async () => {
-    await logout()
-  }
+    await logout();
+  };
 
   return (
     <AppLayout>
@@ -61,7 +61,7 @@ export function SettingsPage() {
                 <span>Back to Chat</span>
               </Link>
               <h1 className="text-lg font-semibold text-gray-900 dark:text-dark-text-primary">
-                {t('settings.title', 'Settings')}
+                {t("settings.title", "Settings")}
               </h1>
               <div className="w-24" /> {/* Spacer for centering */}
             </div>
@@ -80,7 +80,9 @@ export function SettingsPage() {
                       <User className="w-8 h-8 text-white" />
                     </div>
                     <div className="flex-1">
-                      <h2 className="text-xl font-bold text-white">{user?.name || 'User'}</h2>
+                      <h2 className="text-xl font-bold text-white">
+                        {user?.name || "User"}
+                      </h2>
                       <p className="text-sm text-white/80">{user?.email}</p>
                     </div>
                     <Button
@@ -103,7 +105,10 @@ export function SettingsPage() {
                 {/* WhatsApp Connection */}
                 <SettingsCard
                   icon={<Smartphone className="h-5 w-5" />}
-                  title={t('settings.whatsappConnections', 'WhatsApp Connections')}
+                  title={t(
+                    "settings.whatsappConnections",
+                    "WhatsApp Connections",
+                  )}
                   iconBg="bg-[#25D366]/10"
                   iconColor="text-[#25D366]"
                   noPadding
@@ -114,7 +119,7 @@ export function SettingsPage() {
                 {/* Notifications */}
                 <SettingsCard
                   icon={<Bell className="h-5 w-5" />}
-                  title={t('settings.notifications', 'Notifications')}
+                  title={t("settings.notifications", "Notifications")}
                   iconBg="bg-amber-100"
                   iconColor="text-amber-600"
                 >
@@ -124,7 +129,7 @@ export function SettingsPage() {
                 {/* Quick Replies */}
                 <SettingsCard
                   icon={<Zap className="h-5 w-5" />}
-                  title={t('settings.quickReplies', 'Quick Replies')}
+                  title={t("settings.quickReplies", "Quick Replies")}
                   iconBg="bg-cyan-100"
                   iconColor="text-cyan-600"
                 >
@@ -134,7 +139,7 @@ export function SettingsPage() {
                 {/* WhatsApp Labels Sync */}
                 <SettingsCard
                   icon={<Tag className="h-5 w-5" />}
-                  title={t('settings.labelSync', 'WhatsApp Labels')}
+                  title={t("settings.labelSync", "WhatsApp Labels")}
                   iconBg="bg-indigo-100"
                   iconColor="text-indigo-600"
                 >
@@ -144,7 +149,7 @@ export function SettingsPage() {
                 {/* WhatsApp Catalogs */}
                 <SettingsCard
                   icon={<ShoppingBag className="h-5 w-5" />}
-                  title={t('settings.catalogs', 'Product Catalogs')}
+                  title={t("settings.catalogs", "Product Catalogs")}
                   iconBg="bg-orange-100"
                   iconColor="text-orange-600"
                 >
@@ -154,14 +159,14 @@ export function SettingsPage() {
                 {/* Contact Import */}
                 <SettingsCard
                   icon={<Upload className="h-5 w-5" />}
-                  title={t('settings.contactImport', 'Contact Import')}
+                  title={t("settings.contactImport", "Contact Import")}
                   iconBg="bg-blue-100"
                   iconColor="text-blue-600"
                 >
                   <p className="text-sm text-gray-600 dark:text-dark-text-secondary mb-4">
                     {t(
-                      'settings.contactImportDescription',
-                      'Import contacts from a CSV file to quickly add multiple contacts at once.'
+                      "settings.contactImportDescription",
+                      "Import contacts from a CSV file to quickly add multiple contacts at once.",
                     )}
                   </p>
                   <Button
@@ -170,7 +175,7 @@ export function SettingsPage() {
                     className="gap-2 hover:border-[#25D366] hover:text-[#25D366]"
                   >
                     <Upload className="h-4 w-4" />
-                    {t('settings.importContacts', 'Import Contacts')}
+                    {t("settings.importContacts", "Import Contacts")}
                   </Button>
                 </SettingsCard>
               </div>
@@ -180,14 +185,14 @@ export function SettingsPage() {
                 {/* Language */}
                 <SettingsCard
                   icon={<Globe className="h-5 w-5" />}
-                  title={t('settings.language', 'Language')}
+                  title={t("settings.language", "Language")}
                   iconBg="bg-purple-100"
                   iconColor="text-purple-600"
                 >
                   <p className="text-sm text-gray-600 dark:text-dark-text-secondary mb-4">
                     {t(
-                      'settings.languageDescription',
-                      'Choose your preferred language for the application interface.'
+                      "settings.languageDescription",
+                      "Choose your preferred language for the application interface.",
                     )}
                   </p>
                   <LanguageSwitcher showLabel={false} />
@@ -196,14 +201,14 @@ export function SettingsPage() {
                 {/* Keyboard Shortcuts */}
                 <SettingsCard
                   icon={<Keyboard className="h-5 w-5" />}
-                  title={t('settings.keyboardShortcuts', 'Keyboard Shortcuts')}
+                  title={t("settings.keyboardShortcuts", "Keyboard Shortcuts")}
                   iconBg="bg-gray-100"
                   iconColor="text-gray-600"
                 >
                   <p className="text-sm text-gray-600 dark:text-dark-text-secondary mb-4">
                     {t(
-                      'settings.keyboardShortcutsDescription',
-                      'View all available keyboard shortcuts to navigate the app faster.'
+                      "settings.keyboardShortcutsDescription",
+                      "View all available keyboard shortcuts to navigate the app faster.",
                     )}
                   </p>
                   <Button
@@ -212,35 +217,38 @@ export function SettingsPage() {
                     className="gap-2 hover:border-[#25D366] hover:text-[#25D366]"
                   >
                     <Keyboard className="h-4 w-4" />
-                    {t('settings.viewShortcuts', 'View Shortcuts')}
+                    {t("settings.viewShortcuts", "View Shortcuts")}
                   </Button>
                 </SettingsCard>
 
                 {/* Quick Links */}
-                <SettingsCard title={t('settings.quickLinks', 'Quick Links')} noPadding>
+                <SettingsCard
+                  title={t("settings.quickLinks", "Quick Links")}
+                  noPadding
+                >
                   <div className="divide-y divide-gray-100 dark:divide-dark-border">
                     <QuickLink
                       to="/dashboard"
-                      state={{ from: 'settings' }}
+                      state={{ from: "settings" }}
                       icon={<LayoutDashboard className="h-5 w-5" />}
                       iconBg="bg-emerald-100"
                       iconColor="text-emerald-600"
-                      title={t('settings.dashboard', 'Dashboard')}
+                      title={t("settings.dashboard", "Dashboard")}
                       description={t(
-                        'settings.dashboardDescription',
-                        'View analytics and statistics'
+                        "settings.dashboardDescription",
+                        "View analytics and statistics",
                       )}
                     />
                     <QuickLink
                       to="/team"
-                      state={{ from: 'settings' }}
+                      state={{ from: "settings" }}
                       icon={<Users className="h-5 w-5" />}
                       iconBg="bg-blue-100"
                       iconColor="text-blue-600"
-                      title={t('settings.teamManagement', 'Team Management')}
+                      title={t("settings.teamManagement", "Team Management")}
                       description={t(
-                        'settings.teamManagementDescription',
-                        'Manage team members and invitations'
+                        "settings.teamManagementDescription",
+                        "Manage team members and invitations",
                       )}
                     />
                     <QuickLink
@@ -248,10 +256,10 @@ export function SettingsPage() {
                       icon={<FileText className="h-5 w-5" />}
                       iconBg="bg-orange-100"
                       iconColor="text-orange-600"
-                      title={t('settings.auditLog', 'Audit Log')}
+                      title={t("settings.auditLog", "Audit Log")}
                       description={t(
-                        'settings.auditLogDescription',
-                        'View activity and security logs'
+                        "settings.auditLogDescription",
+                        "View activity and security logs",
                       )}
                     />
                   </div>
@@ -279,14 +287,14 @@ export function SettingsPage() {
             <ContactImport
               onClose={() => setShowContactImport(false)}
               onImportComplete={() => {
-                setShowContactImport(false)
+                setShowContactImport(false);
               }}
             />
           </div>
         )}
       </div>
     </AppLayout>
-  )
+  );
 }
 
 /* ============================================
@@ -294,19 +302,19 @@ export function SettingsPage() {
    ============================================ */
 
 interface SettingsCardProps {
-  icon?: React.ReactNode
-  title: string
-  iconBg?: string
-  iconColor?: string
-  children: React.ReactNode
-  noPadding?: boolean
+  icon?: React.ReactNode;
+  title: string;
+  iconBg?: string;
+  iconColor?: string;
+  children: React.ReactNode;
+  noPadding?: boolean;
 }
 
 function SettingsCard({
   icon,
   title,
-  iconBg = 'bg-gray-100',
-  iconColor = 'text-gray-600',
+  iconBg = "bg-gray-100",
+  iconColor = "text-gray-600",
   children,
   noPadding = false,
 }: SettingsCardProps) {
@@ -318,24 +326,34 @@ function SettingsCard({
             <span className={iconColor}>{icon}</span>
           </div>
         )}
-        <h3 className="font-semibold text-gray-900 dark:text-dark-text-primary">{title}</h3>
+        <h3 className="font-semibold text-gray-900 dark:text-dark-text-primary">
+          {title}
+        </h3>
       </div>
-      <div className={noPadding ? '' : 'px-5 py-4'}>{children}</div>
+      <div className={noPadding ? "" : "px-5 py-4"}>{children}</div>
     </div>
-  )
+  );
 }
 
 interface QuickLinkProps {
-  to: string
-  icon: React.ReactNode
-  iconBg: string
-  iconColor: string
-  title: string
-  description: string
-  state?: Record<string, unknown>
+  to: string;
+  icon: React.ReactNode;
+  iconBg: string;
+  iconColor: string;
+  title: string;
+  description: string;
+  state?: Record<string, unknown>;
 }
 
-function QuickLink({ to, icon, iconBg, iconColor, title, description, state }: QuickLinkProps) {
+function QuickLink({
+  to,
+  icon,
+  iconBg,
+  iconColor,
+  title,
+  description,
+  state,
+}: QuickLinkProps) {
   return (
     <Link
       to={to}
@@ -355,5 +373,5 @@ function QuickLink({ to, icon, iconBg, iconColor, title, description, state }: Q
       </div>
       <ChevronRight className="h-5 w-5 text-gray-400 dark:text-dark-text-tertiary group-hover:text-[#25D366] group-hover:translate-x-1 transition-all" />
     </Link>
-  )
+  );
 }

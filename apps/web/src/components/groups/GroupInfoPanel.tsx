@@ -13,15 +13,15 @@ import {
   UserMinus,
   Users,
   X,
-} from 'lucide-react'
-import { useEffect, useState } from 'react'
-import { dayjs } from '@whatsapp-web/shared'
+} from "lucide-react";
+import { useEffect, useState } from "react";
+import { dayjs } from "@whatsapp-web/shared";
 import {
   RightPanel,
   RightPanelContent,
   RightPanelHeader,
   RightPanelSection,
-} from '@/components/layout/right-panel'
+} from "@/components/layout/right-panel";
 import {
   Avatar,
   AvatarFallback,
@@ -40,7 +40,7 @@ import {
   PopoverTrigger,
   Skeleton,
   Textarea,
-} from '@/components/ui'
+} from "@/components/ui";
 import {
   type GroupDetail,
   type GroupParticipant,
@@ -51,27 +51,31 @@ import {
   useRemoveParticipant,
   useUpdateGroup,
   useUpdateGroupSettings,
-} from '@/hooks/useGroups'
-import { cn } from '@/lib/utils'
+} from "@/hooks/useGroups";
+import { cn } from "@/lib/utils";
 
 export interface GroupInfoPanelProps {
-  groupId: string | null
-  isOpen: boolean
-  onClose: () => void
+  groupId: string | null;
+  isOpen: boolean;
+  onClose: () => void;
 }
 
 /**
  * Group Info Panel - shows detailed group information
  * with editable custom name, participant list, and tags
  */
-export function GroupInfoPanel({ groupId, isOpen, onClose }: GroupInfoPanelProps) {
-  const { data: group, isLoading, error } = useGroup(groupId)
-  const { data: adminStatus } = useGroupAdminStatus(groupId)
+export function GroupInfoPanel({
+  groupId,
+  isOpen,
+  onClose,
+}: GroupInfoPanelProps) {
+  const { data: group, isLoading, error } = useGroup(groupId);
+  const { data: adminStatus } = useGroupAdminStatus(groupId);
 
-  const isAdmin = adminStatus?.isAdmin ?? false
-  const connectionJid = adminStatus?.connectionJid
+  const isAdmin = adminStatus?.isAdmin ?? false;
+  const connectionJid = adminStatus?.connectionJid;
 
-  if (!groupId) return null
+  if (!groupId) return null;
 
   return (
     <RightPanel isOpen={isOpen} onClose={onClose}>
@@ -80,7 +84,9 @@ export function GroupInfoPanel({ groupId, isOpen, onClose }: GroupInfoPanelProps
         {isLoading ? (
           <GroupInfoPanelSkeleton />
         ) : error ? (
-          <div className="p-4 text-center text-red-500">Failed to load group information</div>
+          <div className="p-4 text-center text-red-500">
+            Failed to load group information
+          </div>
         ) : group ? (
           <>
             {/* Profile Header */}
@@ -113,7 +119,7 @@ export function GroupInfoPanel({ groupId, isOpen, onClose }: GroupInfoPanelProps
         ) : null}
       </RightPanelContent>
     </RightPanel>
-  )
+  );
 }
 
 /**
@@ -131,30 +137,41 @@ function GroupInfoPanelSkeleton() {
       <Skeleton className="h-20 w-full" />
       <Skeleton className="h-40 w-full" />
     </div>
-  )
+  );
 }
 
 /**
  * Group header with avatar and display name
  */
-function GroupHeader({ group, isAdmin }: { group: GroupDetail; isAdmin: boolean }) {
+function GroupHeader({
+  group,
+  isAdmin,
+}: {
+  group: GroupDetail;
+  isAdmin: boolean;
+}) {
   const initials = group.displayName
-    .split(' ')
+    .split(" ")
     .map((n) => n[0])
-    .join('')
+    .join("")
     .toUpperCase()
-    .slice(0, 2)
+    .slice(0, 2);
 
   return (
     <div className="flex flex-col items-center gap-4 bg-gray-50 py-8">
       <Avatar className="h-32 w-32 border-4 border-white shadow-lg">
-        <AvatarImage src={group.profilePictureUrl || undefined} alt={group.displayName} />
+        <AvatarImage
+          src={group.profilePictureUrl || undefined}
+          alt={group.displayName}
+        />
         <AvatarFallback className="bg-gray-400 text-3xl text-white">
           {group.profilePictureUrl ? initials : <Users className="h-12 w-12" />}
         </AvatarFallback>
       </Avatar>
       <div className="text-center">
-        <h3 className="text-xl font-semibold text-gray-900">{group.displayName}</h3>
+        <h3 className="text-xl font-semibold text-gray-900">
+          {group.displayName}
+        </h3>
         {group.customName && group.name && group.customName !== group.name && (
           <p className="text-sm text-gray-500">~{group.name}</p>
         )}
@@ -173,33 +190,33 @@ function GroupHeader({ group, isAdmin }: { group: GroupDetail; isAdmin: boolean 
         )}
       </div>
     </div>
-  )
+  );
 }
 
 /**
  * Editable custom name section
  */
 function EditableNameSection({ group }: { group: GroupDetail }) {
-  const [isEditing, setIsEditing] = useState(false)
-  const [customName, setCustomName] = useState(group.customName || '')
-  const updateGroup = useUpdateGroup()
+  const [isEditing, setIsEditing] = useState(false);
+  const [customName, setCustomName] = useState(group.customName || "");
+  const updateGroup = useUpdateGroup();
 
   useEffect(() => {
-    setCustomName(group.customName || '')
-  }, [group.customName])
+    setCustomName(group.customName || "");
+  }, [group.customName]);
 
   const handleSave = async () => {
     await updateGroup.mutateAsync({
       groupId: group.id,
       customName: customName.trim() || undefined,
-    })
-    setIsEditing(false)
-  }
+    });
+    setIsEditing(false);
+  };
 
   const handleCancel = () => {
-    setCustomName(group.customName || '')
-    setIsEditing(false)
-  }
+    setCustomName(group.customName || "");
+    setIsEditing(false);
+  };
 
   return (
     <RightPanelSection title="Custom Name">
@@ -221,14 +238,21 @@ function EditableNameSection({ group }: { group: GroupDetail }) {
           >
             <Check className="h-4 w-4 text-green-600" />
           </Button>
-          <Button size="icon" variant="ghost" onClick={handleCancel} className="h-8 w-8">
+          <Button
+            size="icon"
+            variant="ghost"
+            onClick={handleCancel}
+            className="h-8 w-8"
+          >
             <X className="h-4 w-4 text-red-600" />
           </Button>
         </div>
       ) : (
         <div className="flex items-center justify-between">
           <p className="text-sm text-gray-700">
-            {group.customName || <span className="text-gray-400 italic">No custom name set</span>}
+            {group.customName || (
+              <span className="text-gray-400 italic">No custom name set</span>
+            )}
           </p>
           <Button
             size="icon"
@@ -240,39 +264,41 @@ function EditableNameSection({ group }: { group: GroupDetail }) {
           </Button>
         </div>
       )}
-      <p className="mt-1 text-xs text-gray-500">Custom name is visible to all team members</p>
+      <p className="mt-1 text-xs text-gray-500">
+        Custom name is visible to all team members
+      </p>
     </RightPanelSection>
-  )
+  );
 }
 
 /**
  * Group settings section for admins
  */
 function GroupSettingsSection({ group }: { group: GroupDetail }) {
-  const [isOpen, setIsOpen] = useState(false)
-  const [name, setName] = useState(group.name || '')
-  const [description, setDescription] = useState(group.description || '')
-  const updateSettings = useUpdateGroupSettings()
+  const [isOpen, setIsOpen] = useState(false);
+  const [name, setName] = useState(group.name || "");
+  const [description, setDescription] = useState(group.description || "");
+  const updateSettings = useUpdateGroupSettings();
 
   useEffect(() => {
-    setName(group.name || '')
-    setDescription(group.description || '')
-  }, [group.name, group.description])
+    setName(group.name || "");
+    setDescription(group.description || "");
+  }, [group.name, group.description]);
 
   const handleSave = async () => {
     await updateSettings.mutateAsync({
       groupId: group.id,
       name: name.trim() || undefined,
       description: description.trim() || undefined,
-    })
-    setIsOpen(false)
-  }
+    });
+    setIsOpen(false);
+  };
 
   const handleCancel = () => {
-    setName(group.name || '')
-    setDescription(group.description || '')
-    setIsOpen(false)
-  }
+    setName(group.name || "");
+    setDescription(group.description || "");
+    setIsOpen(false);
+  };
 
   return (
     <>
@@ -286,7 +312,9 @@ function GroupSettingsSection({ group }: { group: GroupDetail }) {
           <Settings className="h-4 w-4" />
           Edit Group Settings
         </Button>
-        <p className="mt-1 text-xs text-gray-500">Change group name and description on WhatsApp</p>
+        <p className="mt-1 text-xs text-gray-500">
+          Change group name and description on WhatsApp
+        </p>
       </RightPanelSection>
 
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
@@ -294,8 +322,8 @@ function GroupSettingsSection({ group }: { group: GroupDetail }) {
           <DialogHeader>
             <DialogTitle>Edit Group Settings</DialogTitle>
             <DialogDescription>
-              Update the group name and description. These changes will be reflected on WhatsApp for
-              all members.
+              Update the group name and description. These changes will be
+              reflected on WhatsApp for all members.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
@@ -324,13 +352,13 @@ function GroupSettingsSection({ group }: { group: GroupDetail }) {
               Cancel
             </Button>
             <Button onClick={handleSave} disabled={updateSettings.isPending}>
-              {updateSettings.isPending ? 'Saving...' : 'Save Changes'}
+              {updateSettings.isPending ? "Saving..." : "Save Changes"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
     </>
-  )
+  );
 }
 
 /**
@@ -341,17 +369,19 @@ function DescriptionSection({ group }: { group: GroupDetail }) {
     <RightPanelSection title="Description">
       <div className="flex items-start gap-2">
         <FileText className="mt-0.5 h-4 w-4 text-gray-400 flex-shrink-0" />
-        <p className="text-sm text-gray-700 whitespace-pre-wrap">{group.description}</p>
+        <p className="text-sm text-gray-700 whitespace-pre-wrap">
+          {group.description}
+        </p>
       </div>
     </RightPanelSection>
-  )
+  );
 }
 
 /**
  * Group info section with creation date
  */
 function GroupInfoSection({ group }: { group: GroupDetail }) {
-  const createdDate = dayjs(group.createdAt).format('MMMM D, YYYY')
+  const createdDate = dayjs(group.createdAt).format("MMMM D, YYYY");
 
   return (
     <RightPanelSection>
@@ -374,7 +404,7 @@ function GroupInfoSection({ group }: { group: GroupDetail }) {
         )}
       </div>
     </RightPanelSection>
-  )
+  );
 }
 
 /**
@@ -387,23 +417,25 @@ function ParticipantsSection({
   isAdmin,
   connectionJid,
 }: {
-  groupId: string
-  participants: GroupParticipant[]
-  participantCount: number
-  isAdmin: boolean
-  connectionJid: string | null | undefined
+  groupId: string;
+  participants: GroupParticipant[];
+  participantCount: number;
+  isAdmin: boolean;
+  connectionJid: string | null | undefined;
 }) {
-  const [showAll, setShowAll] = useState(false)
-  const displayLimit = 10
-  const displayedParticipants = showAll ? participants : participants.slice(0, displayLimit)
-  const hasMore = participants.length > displayLimit
+  const [showAll, setShowAll] = useState(false);
+  const displayLimit = 10;
+  const displayedParticipants = showAll
+    ? participants
+    : participants.slice(0, displayLimit);
+  const hasMore = participants.length > displayLimit;
 
   // Sort admins first
   const sortedParticipants = [...displayedParticipants].sort((a, b) => {
-    if (a.isAdmin && !b.isAdmin) return -1
-    if (!a.isAdmin && b.isAdmin) return 1
-    return 0
-  })
+    if (a.isAdmin && !b.isAdmin) return -1;
+    if (!a.isAdmin && b.isAdmin) return 1;
+    return 0;
+  });
 
   return (
     <RightPanelSection title={`${participantCount} Participants`}>
@@ -437,7 +469,7 @@ function ParticipantsSection({
         )}
       </div>
     </RightPanelSection>
-  )
+  );
 }
 
 /**
@@ -449,49 +481,51 @@ function ParticipantItem({
   isAdmin,
   isSelf,
 }: {
-  groupId: string
-  participant: GroupParticipant
-  isAdmin: boolean
-  isSelf: boolean
+  groupId: string;
+  participant: GroupParticipant;
+  isAdmin: boolean;
+  isSelf: boolean;
 }) {
-  const [isMenuOpen, setIsMenuOpen] = useState(false)
-  const [confirmRemove, setConfirmRemove] = useState(false)
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [confirmRemove, setConfirmRemove] = useState(false);
 
-  const promoteParticipant = usePromoteParticipant()
-  const demoteParticipant = useDemoteParticipant()
-  const removeParticipant = useRemoveParticipant()
+  const promoteParticipant = usePromoteParticipant();
+  const demoteParticipant = useDemoteParticipant();
+  const removeParticipant = useRemoveParticipant();
 
   // Extract phone number from JID
-  const phoneNumber = participant.jid.split('@')[0]
-  const displayName = formatPhoneNumber(phoneNumber)
+  const phoneNumber = participant.jid.split("@")[0];
+  const displayName = formatPhoneNumber(phoneNumber);
 
   const handlePromote = async () => {
     await promoteParticipant.mutateAsync({
       groupId,
       participantJid: participant.jid,
-    })
-    setIsMenuOpen(false)
-  }
+    });
+    setIsMenuOpen(false);
+  };
 
   const handleDemote = async () => {
     await demoteParticipant.mutateAsync({
       groupId,
       participantJid: participant.jid,
-    })
-    setIsMenuOpen(false)
-  }
+    });
+    setIsMenuOpen(false);
+  };
 
   const handleRemove = async () => {
     await removeParticipant.mutateAsync({
       groupId,
       participantJid: participant.jid,
-    })
-    setConfirmRemove(false)
-    setIsMenuOpen(false)
-  }
+    });
+    setConfirmRemove(false);
+    setIsMenuOpen(false);
+  };
 
   const isPending =
-    promoteParticipant.isPending || demoteParticipant.isPending || removeParticipant.isPending
+    promoteParticipant.isPending ||
+    demoteParticipant.isPending ||
+    removeParticipant.isPending;
 
   return (
     <>
@@ -519,7 +553,7 @@ function ParticipantItem({
           </div>
           {participant.joinedAt && (
             <p className="text-xs text-gray-500">
-              Joined {dayjs(participant.joinedAt).format('MMM D, YYYY')}
+              Joined {dayjs(participant.joinedAt).format("MMM D, YYYY")}
             </p>
           )}
         </div>
@@ -560,8 +594,8 @@ function ParticipantItem({
                 )}
                 <button
                   onClick={() => {
-                    setConfirmRemove(true)
-                    setIsMenuOpen(false)
+                    setConfirmRemove(true);
+                    setIsMenuOpen(false);
                   }}
                   disabled={isPending}
                   className="flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-md disabled:opacity-50"
@@ -581,8 +615,8 @@ function ParticipantItem({
           <DialogHeader>
             <DialogTitle>Remove Participant</DialogTitle>
             <DialogDescription>
-              Are you sure you want to remove {displayName} from this group? This action cannot be
-              undone.
+              Are you sure you want to remove {displayName} from this group?
+              This action cannot be undone.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -594,13 +628,13 @@ function ParticipantItem({
               onClick={handleRemove}
               disabled={removeParticipant.isPending}
             >
-              {removeParticipant.isPending ? 'Removing...' : 'Remove'}
+              {removeParticipant.isPending ? "Removing..." : "Remove"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
     </>
-  )
+  );
 }
 
 /**
@@ -609,15 +643,19 @@ function ParticipantItem({
 function formatPhoneNumber(phone: string): string {
   // Basic formatting - can be enhanced
   if (phone.length > 10) {
-    return `+${phone}`
+    return `+${phone}`;
   }
-  return phone
+  return phone;
 }
 
 /**
  * Tags section
  */
-function TagsSection({ tags }: { tags: { id: string; name: string; color: string | null }[] }) {
+function TagsSection({
+  tags,
+}: {
+  tags: { id: string; name: string; color: string | null }[];
+}) {
   if (tags.length === 0) {
     return (
       <RightPanelSection title="Tags">
@@ -626,7 +664,7 @@ function TagsSection({ tags }: { tags: { id: string; name: string; color: string
           <p className="text-sm text-gray-400 italic">No tags assigned</p>
         </div>
       </RightPanelSection>
-    )
+    );
   }
 
   return (
@@ -638,9 +676,11 @@ function TagsSection({ tags }: { tags: { id: string; name: string; color: string
             <Badge
               key={tag.id}
               variant="secondary"
-              className={cn('cursor-default')}
+              className={cn("cursor-default")}
               style={
-                tag.color ? { backgroundColor: `${tag.color}20`, color: tag.color } : undefined
+                tag.color
+                  ? { backgroundColor: `${tag.color}20`, color: tag.color }
+                  : undefined
               }
             >
               {tag.name}
@@ -649,7 +689,7 @@ function TagsSection({ tags }: { tags: { id: string; name: string; color: string
         </div>
       </div>
     </RightPanelSection>
-  )
+  );
 }
 
-export default GroupInfoPanel
+export default GroupInfoPanel;

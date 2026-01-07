@@ -12,29 +12,34 @@ import {
   Package,
   RefreshCw,
   ShoppingBag,
-} from 'lucide-react'
-import { useState } from 'react'
-import { useTranslation } from 'react-i18next'
-import { formatStatusTime } from '@whatsapp-web/shared'
-import { Button } from '@/components/ui/button'
+} from "lucide-react";
+import { useState } from "react";
+import { useTranslation } from "react-i18next";
+import { formatStatusTime } from "@whatsapp-web/shared";
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog'
-import type { CatalogProduct, WhatsAppCatalog } from '@/hooks/useCatalogs'
-import { useCatalogProducts, useCatalogs, useTriggerCatalogProductsSync } from '@/hooks/useCatalogs'
+} from "@/components/ui/dialog";
+import type { CatalogProduct, WhatsAppCatalog } from "@/hooks/useCatalogs";
+import {
+  useCatalogProducts,
+  useCatalogs,
+  useTriggerCatalogProductsSync,
+} from "@/hooks/useCatalogs";
 
 /**
  * WhatsApp Business Catalogs Manager Component
  * Allows users to view and manage WhatsApp Business product catalogs
  */
 export function CatalogManager() {
-  const { t } = useTranslation()
-  const [selectedCatalog, setSelectedCatalog] = useState<WhatsAppCatalog | null>(null)
-  const [productsDialogOpen, setProductsDialogOpen] = useState(false)
+  const { t } = useTranslation();
+  const [selectedCatalog, setSelectedCatalog] =
+    useState<WhatsAppCatalog | null>(null);
+  const [productsDialogOpen, setProductsDialogOpen] = useState(false);
 
   const {
     catalogs,
@@ -47,57 +52,59 @@ export function CatalogManager() {
     isSyncing,
     isArchiving,
     isRestoring,
-  } = useCatalogs()
+  } = useCatalogs();
 
   const handleSync = async () => {
     try {
-      await sync()
+      await sync();
     } catch (err) {
-      console.error('Failed to sync catalogs:', err)
+      console.error("Failed to sync catalogs:", err);
     }
-  }
+  };
 
   const handleArchive = async (catalogId: string) => {
     try {
-      await archive(catalogId)
+      await archive(catalogId);
     } catch (err) {
-      console.error('Failed to archive catalog:', err)
+      console.error("Failed to archive catalog:", err);
     }
-  }
+  };
 
   const handleRestore = async (catalogId: string) => {
     try {
-      await restore(catalogId)
+      await restore(catalogId);
     } catch (err) {
-      console.error('Failed to restore catalog:', err)
+      console.error("Failed to restore catalog:", err);
     }
-  }
+  };
 
   const openProductsDialog = (catalog: WhatsAppCatalog) => {
-    setSelectedCatalog(catalog)
-    setProductsDialogOpen(true)
-  }
+    setSelectedCatalog(catalog);
+    setProductsDialogOpen(true);
+  };
 
   const formatLastSync = (dateString: string | null) => {
-    if (!dateString) return t('catalogs.neverSynced', 'Never synced')
-    return formatStatusTime(dateString)
-  }
+    if (!dateString) return t("catalogs.neverSynced", "Never synced");
+    return formatStatusTime(dateString);
+  };
 
   const formatCurrency = (price: number | null, currency: string) => {
-    if (price === null) return '-'
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: currency || 'USD',
-    }).format(price)
-  }
+    if (price === null) return "-";
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: currency || "USD",
+    }).format(price);
+  };
 
   if (error) {
     return (
       <div className="flex items-center gap-2 text-red-600 dark:text-red-400 text-sm">
         <AlertCircle className="h-4 w-4" />
-        <span>{t('catalogs.errors.loadFailed', 'Failed to load catalogs')}</span>
+        <span>
+          {t("catalogs.errors.loadFailed", "Failed to load catalogs")}
+        </span>
       </div>
-    )
+    );
   }
 
   return (
@@ -105,8 +112,8 @@ export function CatalogManager() {
       {/* Description */}
       <p className="text-sm text-gray-600 dark:text-dark-text-secondary">
         {t(
-          'catalogs.description',
-          'View and manage your WhatsApp Business product catalogs. Sync catalogs from WhatsApp to display products and share them with customers.'
+          "catalogs.description",
+          "View and manage your WhatsApp Business product catalogs. Sync catalogs from WhatsApp to display products and share them with customers.",
         )}
       </p>
 
@@ -118,7 +125,7 @@ export function CatalogManager() {
               {status.totalCatalogs}
             </div>
             <div className="text-xs text-orange-600 dark:text-orange-300">
-              {t('catalogs.stats.totalCatalogs', 'Total Catalogs')}
+              {t("catalogs.stats.totalCatalogs", "Total Catalogs")}
             </div>
           </div>
           <div className="bg-green-50 dark:bg-green-900/30 rounded-lg p-3">
@@ -126,7 +133,7 @@ export function CatalogManager() {
               {status.activeCatalogs}
             </div>
             <div className="text-xs text-green-600 dark:text-green-300">
-              {t('catalogs.stats.active', 'Active')}
+              {t("catalogs.stats.active", "Active")}
             </div>
           </div>
           <div className="bg-blue-50 dark:bg-blue-900/30 rounded-lg p-3">
@@ -134,7 +141,7 @@ export function CatalogManager() {
               {status.totalProducts}
             </div>
             <div className="text-xs text-blue-600 dark:text-blue-300">
-              {t('catalogs.stats.totalProducts', 'Total Products')}
+              {t("catalogs.stats.totalProducts", "Total Products")}
             </div>
           </div>
           <div className="bg-purple-50 dark:bg-purple-900/30 rounded-lg p-3 flex items-center justify-center">
@@ -162,7 +169,7 @@ export function CatalogManager() {
           ) : (
             <RefreshCw className="h-4 w-4" />
           )}
-          {t('catalogs.syncFromWhatsApp', 'Sync Catalogs')}
+          {t("catalogs.syncFromWhatsApp", "Sync Catalogs")}
         </Button>
       </div>
 
@@ -174,11 +181,13 @@ export function CatalogManager() {
       ) : catalogs.length === 0 ? (
         <div className="text-center py-8 text-gray-500 dark:text-dark-text-secondary">
           <ShoppingBag className="h-12 w-12 mx-auto mb-3 text-gray-300 dark:text-dark-text-tertiary" />
-          <p className="font-medium">{t('catalogs.empty', 'No catalogs found')}</p>
+          <p className="font-medium">
+            {t("catalogs.empty", "No catalogs found")}
+          </p>
           <p className="text-sm mt-1">
             {t(
-              'catalogs.emptyHint',
-              "Create catalogs in WhatsApp Business and click 'Sync Catalogs' to import them"
+              "catalogs.emptyHint",
+              "Create catalogs in WhatsApp Business and click 'Sync Catalogs' to import them",
             )}
           </p>
         </div>
@@ -209,16 +218,16 @@ export function CatalogManager() {
                   <p className="font-medium text-gray-900 dark:text-dark-text-primary truncate">
                     {catalog.name}
                   </p>
-                  {catalog.status === 'archived' && (
+                  {catalog.status === "archived" && (
                     <span className="text-xs bg-gray-100 dark:bg-dark-tertiary text-gray-600 dark:text-dark-text-secondary px-1.5 py-0.5 rounded">
-                      {t('catalogs.archived', 'Archived')}
+                      {t("catalogs.archived", "Archived")}
                     </span>
                   )}
                 </div>
                 <div className="flex items-center gap-3 text-xs text-gray-500 dark:text-dark-text-secondary mt-0.5">
                   <span className="flex items-center gap-1">
                     <Package className="h-3 w-3" />
-                    {catalog.productCount} {t('catalogs.products', 'products')}
+                    {catalog.productCount} {t("catalogs.products", "products")}
                   </span>
                   <span className="flex items-center gap-1">
                     <DollarSign className="h-3 w-3" />
@@ -229,7 +238,7 @@ export function CatalogManager() {
 
               {/* Actions */}
               <div className="flex-shrink-0 flex items-center gap-1">
-                {catalog.status === 'archived' ? (
+                {catalog.status === "archived" ? (
                   <Button
                     variant="ghost"
                     size="sm"
@@ -243,7 +252,9 @@ export function CatalogManager() {
                     ) : (
                       <ArchiveRestore className="h-4 w-4" />
                     )}
-                    <span className="hidden sm:inline">{t('catalogs.restore', 'Restore')}</span>
+                    <span className="hidden sm:inline">
+                      {t("catalogs.restore", "Restore")}
+                    </span>
                   </Button>
                 ) : (
                   <Button
@@ -259,7 +270,9 @@ export function CatalogManager() {
                     ) : (
                       <Archive className="h-4 w-4" />
                     )}
-                    <span className="hidden sm:inline">{t('catalogs.archive', 'Archive')}</span>
+                    <span className="hidden sm:inline">
+                      {t("catalogs.archive", "Archive")}
+                    </span>
                   </Button>
                 )}
 
@@ -271,7 +284,9 @@ export function CatalogManager() {
                   data-testid={`view-products-${catalog.catalogId}`}
                 >
                   <ChevronRight className="h-4 w-4" />
-                  <span className="hidden sm:inline">{t('catalogs.viewProducts', 'View')}</span>
+                  <span className="hidden sm:inline">
+                    {t("catalogs.viewProducts", "View")}
+                  </span>
                 </Button>
               </div>
             </div>
@@ -287,7 +302,7 @@ export function CatalogManager() {
         formatCurrency={formatCurrency}
       />
     </div>
-  )
+  );
 }
 
 /**
@@ -300,25 +315,27 @@ function ProductsDialog({
   onOpenChange,
   formatCurrency,
 }: {
-  catalog: WhatsAppCatalog | null
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  formatCurrency: (price: number | null, currency: string) => string
+  catalog: WhatsAppCatalog | null;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  formatCurrency: (price: number | null, currency: string) => string;
 }) {
-  const { t } = useTranslation()
-  const { data: productsData, isLoading } = useCatalogProducts(catalog?.catalogId || '')
-  const syncMutation = useTriggerCatalogProductsSync()
+  const { t } = useTranslation();
+  const { data: productsData, isLoading } = useCatalogProducts(
+    catalog?.catalogId || "",
+  );
+  const syncMutation = useTriggerCatalogProductsSync();
 
-  const products = productsData?.data || []
+  const products = productsData?.data || [];
 
   const handleSyncProducts = async () => {
-    if (!catalog) return
+    if (!catalog) return;
     try {
-      await syncMutation.mutateAsync(catalog.catalogId)
+      await syncMutation.mutateAsync(catalog.catalogId);
     } catch (err) {
-      console.error('Failed to sync products:', err)
+      console.error("Failed to sync products:", err);
     }
-  }
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -326,10 +343,13 @@ function ProductsDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <ShoppingBag className="h-5 w-5 text-orange-600 dark:text-orange-400" />
-            {catalog?.name || t('catalogs.products', 'Products')}
+            {catalog?.name || t("catalogs.products", "Products")}
           </DialogTitle>
           <DialogDescription>
-            {t('catalogs.productsDescription', 'Products in this catalog from WhatsApp Business.')}
+            {t(
+              "catalogs.productsDescription",
+              "Products in this catalog from WhatsApp Business.",
+            )}
           </DialogDescription>
         </DialogHeader>
 
@@ -348,7 +368,7 @@ function ProductsDialog({
             ) : (
               <RefreshCw className="h-4 w-4" />
             )}
-            {t('catalogs.syncProducts', 'Sync Products')}
+            {t("catalogs.syncProducts", "Sync Products")}
           </Button>
         </div>
 
@@ -361,22 +381,31 @@ function ProductsDialog({
           ) : products.length === 0 ? (
             <div className="text-center py-8 text-gray-500 dark:text-dark-text-secondary">
               <Package className="h-12 w-12 mx-auto mb-3 text-gray-300 dark:text-dark-text-tertiary" />
-              <p className="font-medium">{t('catalogs.noProducts', 'No products found')}</p>
+              <p className="font-medium">
+                {t("catalogs.noProducts", "No products found")}
+              </p>
               <p className="text-sm mt-1">
-                {t('catalogs.noProductsHint', 'Add products to this catalog in WhatsApp Business')}
+                {t(
+                  "catalogs.noProductsHint",
+                  "Add products to this catalog in WhatsApp Business",
+                )}
               </p>
             </div>
           ) : (
             <div className="space-y-2" data-testid="products-list">
               {products.map((product) => (
-                <ProductItem key={product.id} product={product} formatCurrency={formatCurrency} />
+                <ProductItem
+                  key={product.id}
+                  product={product}
+                  formatCurrency={formatCurrency}
+                />
               ))}
             </div>
           )}
         </div>
       </DialogContent>
     </Dialog>
-  )
+  );
 }
 
 /**
@@ -387,11 +416,11 @@ function ProductItem({
   product,
   formatCurrency,
 }: {
-  product: CatalogProduct
-  formatCurrency: (price: number | null, currency: string) => string
+  product: CatalogProduct;
+  formatCurrency: (price: number | null, currency: string) => string;
 }) {
-  const { t } = useTranslation()
-  const imageUrl = product.imageUrls?.[0]
+  const { t } = useTranslation();
+  const imageUrl = product.imageUrls?.[0];
 
   return (
     <div
@@ -401,7 +430,11 @@ function ProductItem({
       {/* Product image */}
       <div className="w-12 h-12 rounded-lg bg-gray-100 dark:bg-dark-tertiary flex items-center justify-center flex-shrink-0 overflow-hidden">
         {imageUrl ? (
-          <img src={imageUrl} alt={product.name} className="w-12 h-12 object-cover" />
+          <img
+            src={imageUrl}
+            alt={product.name}
+            className="w-12 h-12 object-cover"
+          />
         ) : (
           <ImageIcon className="h-5 w-5 text-gray-400 dark:text-dark-text-tertiary" />
         )}
@@ -417,7 +450,9 @@ function ProductItem({
             {formatCurrency(product.price, product.currency)}
           </span>
           {product.sku && (
-            <span className="text-gray-400 dark:text-dark-text-tertiary">SKU: {product.sku}</span>
+            <span className="text-gray-400 dark:text-dark-text-tertiary">
+              SKU: {product.sku}
+            </span>
           )}
         </div>
         {product.category && (
@@ -429,20 +464,24 @@ function ProductItem({
 
       {/* Visibility indicator */}
       <div className="flex-shrink-0">
-        {product.visibility === 'hidden' ? (
+        {product.visibility === "hidden" ? (
           <div className="flex items-center gap-1 text-xs text-gray-400 dark:text-dark-text-tertiary">
             <EyeOff className="h-4 w-4" />
-            <span className="hidden sm:inline">{t('catalogs.hidden', 'Hidden')}</span>
+            <span className="hidden sm:inline">
+              {t("catalogs.hidden", "Hidden")}
+            </span>
           </div>
         ) : (
           <div className="flex items-center gap-1 text-xs text-green-600 dark:text-green-400">
             <Eye className="h-4 w-4" />
-            <span className="hidden sm:inline">{t('catalogs.visible', 'Visible')}</span>
+            <span className="hidden sm:inline">
+              {t("catalogs.visible", "Visible")}
+            </span>
           </div>
         )}
       </div>
     </div>
-  )
+  );
 }
 
-export default CatalogManager
+export default CatalogManager;

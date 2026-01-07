@@ -20,13 +20,19 @@ import {
   X,
   XCircle,
   Zap,
-} from 'lucide-react'
-import { useCallback, useEffect, useState } from 'react'
-import { formatAuditTime, nowMs } from '@whatsapp-web/shared'
-import { Badge, Button, Skeleton } from '@/components/ui'
-import { useWhatsAppConnection, type WhatsAppConnectionState } from '@/hooks/useWhatsAppConnection'
-import { type ConnectionWithState, useWhatsAppConnections } from '@/hooks/useWhatsAppConnections'
-import { cn } from '@/lib/utils'
+} from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import { formatAuditTime, nowMs } from "@whatsapp-web/shared";
+import { Badge, Button, Skeleton } from "@/components/ui";
+import {
+  useWhatsAppConnection,
+  type WhatsAppConnectionState,
+} from "@/hooks/useWhatsAppConnection";
+import {
+  type ConnectionWithState,
+  useWhatsAppConnections,
+} from "@/hooks/useWhatsAppConnections";
+import { cn } from "@/lib/utils";
 
 // CSS-in-JS styles for animations
 const animationStyles = `
@@ -92,13 +98,13 @@ const animationStyles = `
     background-size: 200% 100%;
     animation: shimmer 2s infinite;
   }
-`
+`;
 
 interface WhatsAppConnectionPanelProps {
-  className?: string
-  compact?: boolean
-  multiConnection?: boolean
-  hideHeader?: boolean
+  className?: string;
+  compact?: boolean;
+  multiConnection?: boolean;
+  hideHeader?: boolean;
 }
 
 /**
@@ -114,11 +120,17 @@ export function WhatsAppConnectionPanel({
 }: WhatsAppConnectionPanelProps) {
   // Use multi-connection mode if enabled
   if (multiConnection) {
-    return <MultiConnectionPanel className={className} compact={compact} hideHeader={hideHeader} />
+    return (
+      <MultiConnectionPanel
+        className={className}
+        compact={compact}
+        hideHeader={hideHeader}
+      />
+    );
   }
 
   // Legacy single-connection mode
-  return <SingleConnectionPanel className={className} compact={compact} />
+  return <SingleConnectionPanel className={className} compact={compact} />;
 }
 
 // =====================
@@ -130,9 +142,9 @@ function MultiConnectionPanel({
   compact = false,
   hideHeader = false,
 }: {
-  className?: string
-  compact?: boolean
-  hideHeader?: boolean
+  className?: string;
+  compact?: boolean;
+  hideHeader?: boolean;
 }) {
   const {
     connections,
@@ -151,73 +163,77 @@ function MultiConnectionPanel({
     clearGlobalError,
     connectedCount,
     totalCount,
-  } = useWhatsAppConnections()
+  } = useWhatsAppConnections();
 
-  const [showAddDialog, setShowAddDialog] = useState(false)
-  const [newConnectionName, setNewConnectionName] = useState('')
-  const [editingConnection, setEditingConnection] = useState<string | null>(null)
-  const [editName, setEditName] = useState('')
+  const [showAddDialog, setShowAddDialog] = useState(false);
+  const [newConnectionName, setNewConnectionName] = useState("");
+  const [editingConnection, setEditingConnection] = useState<string | null>(
+    null,
+  );
+  const [editName, setEditName] = useState("");
 
   // Inject animation styles into document head
   useEffect(() => {
-    const styleId = 'whatsapp-connection-panel-styles'
+    const styleId = "whatsapp-connection-panel-styles";
     // Avoid duplicate style injection
-    if (document.getElementById(styleId)) return
+    if (document.getElementById(styleId)) return;
 
-    const styleEl = document.createElement('style')
-    styleEl.id = styleId
-    styleEl.textContent = animationStyles
-    document.head.appendChild(styleEl)
+    const styleEl = document.createElement("style");
+    styleEl.id = styleId;
+    styleEl.textContent = animationStyles;
+    document.head.appendChild(styleEl);
 
     return () => {
-      const existing = document.getElementById(styleId)
-      if (existing) existing.remove()
-    }
-  }, [])
+      const existing = document.getElementById(styleId);
+      if (existing) existing.remove();
+    };
+  }, []);
 
   // Handle add new connection
   const handleAddConnection = useCallback(async () => {
     try {
-      await create(newConnectionName || undefined)
-      setNewConnectionName('')
-      setShowAddDialog(false)
+      await create(newConnectionName || undefined);
+      setNewConnectionName("");
+      setShowAddDialog(false);
     } catch (_error) {
       // Error is handled by the hook
     }
-  }, [create, newConnectionName])
+  }, [create, newConnectionName]);
 
   // Handle rename connection
   const handleRename = useCallback(
     async (connectionId: string) => {
       if (editName.trim()) {
-        await rename(connectionId, editName.trim())
-        setEditingConnection(null)
-        setEditName('')
+        await rename(connectionId, editName.trim());
+        setEditingConnection(null);
+        setEditName("");
       }
     },
-    [rename, editName]
-  )
+    [rename, editName],
+  );
 
   if (isLoading) {
     return (
-      <div className={cn('p-6', className)}>
+      <div className={cn("p-6", className)}>
         <Skeleton className="h-8 w-48 mb-4" />
         <div className="space-y-3">
           <Skeleton className="h-20 w-full" />
           <Skeleton className="h-20 w-full" />
         </div>
       </div>
-    )
+    );
   }
 
   if (compact) {
     return (
-      <div className={cn('flex items-center gap-2', className)}>
+      <div className={cn("flex items-center gap-2", className)}>
         <div className="flex items-center gap-1">
           <div
             className={cn(
-              'w-2 h-2 rounded-full',
-              connectedCount > 0 ? 'bg-green-500' : 'bg-gray-400 dark:bg-gray-500'
+              "w-2 h-2 rounded-full",
+              connectedCount > 0
+                ? "bg-green-500"
+                : "bg-gray-400 dark:bg-gray-500",
             )}
           />
           <span className="text-sm text-gray-600 dark:text-dark-text-secondary">
@@ -225,16 +241,16 @@ function MultiConnectionPanel({
           </span>
         </div>
       </div>
-    )
+    );
   }
 
   return (
     <div
       className={cn(
         hideHeader
-          ? 'p-4'
-          : 'bg-white dark:bg-dark-elevated rounded-lg border border-gray-200 dark:border-dark-border p-6',
-        className
+          ? "p-4"
+          : "bg-white dark:bg-dark-elevated rounded-lg border border-gray-200 dark:border-dark-border p-6",
+        className,
       )}
     >
       {/* Header - hidden when wrapped in SettingsCard */}
@@ -389,10 +405,10 @@ function MultiConnectionPanel({
                     placeholder="e.g., Support Team, Sales Phone..."
                     className="w-full px-4 py-2.5 bg-white dark:bg-dark-tertiary border border-gray-200 dark:border-dark-border rounded-lg text-sm text-gray-900 dark:text-dark-text-primary placeholder:text-gray-400 dark:placeholder:text-dark-text-tertiary focus:outline-none focus:ring-2 focus:ring-whatsapp-teal-green/50 focus:border-whatsapp-teal-green transition-all duration-200"
                     onKeyDown={(e) => {
-                      if (e.key === 'Enter') handleAddConnection()
-                      if (e.key === 'Escape') {
-                        setShowAddDialog(false)
-                        setNewConnectionName('')
+                      if (e.key === "Enter") handleAddConnection();
+                      if (e.key === "Escape") {
+                        setShowAddDialog(false);
+                        setNewConnectionName("");
                       }
                     }}
                   />
@@ -422,8 +438,8 @@ function MultiConnectionPanel({
                   <Button
                     variant="outline"
                     onClick={() => {
-                      setShowAddDialog(false)
-                      setNewConnectionName('')
+                      setShowAddDialog(false);
+                      setNewConnectionName("");
                     }}
                     className="px-4 border-gray-200 dark:border-dark-border hover:bg-gray-50 dark:hover:bg-dark-tertiary"
                   >
@@ -458,7 +474,12 @@ function MultiConnectionPanel({
                 <li>3. Select Linked Devices</li>
                 <li>4. Point your phone at this QR code</li>
               </ol>
-              <Button size="sm" variant="ghost" className="mt-3" onClick={clearPendingConnection}>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="mt-3"
+                onClick={clearPendingConnection}
+              >
                 Cancel
               </Button>
             </div>
@@ -468,7 +489,10 @@ function MultiConnectionPanel({
 
       {/* Connections List */}
       {connections.length === 0 && !pendingConnection ? (
-        <EmptyConnectionsView onAdd={() => setShowAddDialog(true)} isCreating={isCreating} />
+        <EmptyConnectionsView
+          onAdd={() => setShowAddDialog(true)}
+          isCreating={isCreating}
+        />
       ) : (
         <div className="space-y-3 overflow-visible">
           {connections.map((connection) => (
@@ -479,12 +503,12 @@ function MultiConnectionPanel({
               editName={editName}
               onEditNameChange={setEditName}
               onStartEdit={() => {
-                setEditingConnection(connection.id)
-                setEditName(connection.name)
+                setEditingConnection(connection.id);
+                setEditName(connection.name);
               }}
               onCancelEdit={() => {
-                setEditingConnection(null)
-                setEditName('')
+                setEditingConnection(null);
+                setEditName("");
               }}
               onSaveEdit={() => handleRename(connection.id)}
               onReconnect={() => reconnect(connection.id)}
@@ -496,7 +520,7 @@ function MultiConnectionPanel({
         </div>
       )}
     </div>
-  )
+  );
 }
 
 // Connection Card Component
@@ -513,48 +537,51 @@ function ConnectionCard({
   onDelete,
   onClearError,
 }: {
-  connection: ConnectionWithState
-  isEditing: boolean
-  editName: string
-  onEditNameChange: (name: string) => void
-  onStartEdit: () => void
-  onCancelEdit: () => void
-  onSaveEdit: () => void
-  onReconnect: () => void
-  onDisconnect: () => void
-  onDelete: () => void
-  onClearError: () => void
+  connection: ConnectionWithState;
+  isEditing: boolean;
+  editName: string;
+  onEditNameChange: (name: string) => void;
+  onStartEdit: () => void;
+  onCancelEdit: () => void;
+  onSaveEdit: () => void;
+  onReconnect: () => void;
+  onDisconnect: () => void;
+  onDelete: () => void;
+  onClearError: () => void;
 }) {
-  const { localState } = connection
-  const [showMenu, setShowMenu] = useState(false)
-  const [countdown, setCountdown] = useState<number>(0)
+  const { localState } = connection;
+  const [showMenu, setShowMenu] = useState(false);
+  const [countdown, setCountdown] = useState<number>(0);
 
   // Countdown for QR expiry
   useEffect(() => {
     if (!localState.qrExpiresAt) {
-      setCountdown(0)
-      return
+      setCountdown(0);
+      return;
     }
 
     const updateCountdown = () => {
-      const expiresAt = localState.qrExpiresAt
-      if (!expiresAt) return
-      const remaining = Math.max(0, Math.floor((expiresAt.getTime() - nowMs()) / 1000))
-      setCountdown(remaining)
-    }
+      const expiresAt = localState.qrExpiresAt;
+      if (!expiresAt) return;
+      const remaining = Math.max(
+        0,
+        Math.floor((expiresAt.getTime() - nowMs()) / 1000),
+      );
+      setCountdown(remaining);
+    };
 
-    updateCountdown()
-    const interval = setInterval(updateCountdown, 1000)
-    return () => clearInterval(interval)
-  }, [localState.qrExpiresAt])
+    updateCountdown();
+    const interval = setInterval(updateCountdown, 1000);
+    return () => clearInterval(interval);
+  }, [localState.qrExpiresAt]);
 
   const statusColor = {
-    connected: 'bg-green-100 text-green-800 border-green-200',
-    pending: 'bg-yellow-100 text-yellow-800 border-yellow-200',
-    disconnected: 'bg-gray-100 text-gray-800 border-gray-200',
-    banned: 'bg-red-100 text-red-800 border-red-200',
-    error: 'bg-red-100 text-red-800 border-red-200',
-  }[connection.status]
+    connected: "bg-green-100 text-green-800 border-green-200",
+    pending: "bg-yellow-100 text-yellow-800 border-yellow-200",
+    disconnected: "bg-gray-100 text-gray-800 border-gray-200",
+    banned: "bg-red-100 text-red-800 border-red-200",
+    error: "bg-red-100 text-red-800 border-red-200",
+  }[connection.status];
 
   const statusIcon = {
     connected: <Wifi className="h-3 w-3" />,
@@ -562,15 +589,15 @@ function ConnectionCard({
     disconnected: <WifiOff className="h-3 w-3" />,
     banned: <XCircle className="h-3 w-3" />,
     error: <XCircle className="h-3 w-3" />,
-  }[connection.status]
+  }[connection.status];
 
   return (
     <div
       className={cn(
-        'border rounded-lg p-4 transition-colors overflow-visible',
-        connection.status === 'connected'
-          ? 'border-green-200 dark:border-green-800 bg-green-50/50 dark:bg-green-900/20'
-          : 'border-gray-200 dark:border-dark-border bg-white dark:bg-dark-elevated'
+        "border rounded-lg p-4 transition-colors overflow-visible",
+        connection.status === "connected"
+          ? "border-green-200 dark:border-green-800 bg-green-50/50 dark:bg-green-900/20"
+          : "border-gray-200 dark:border-dark-border bg-white dark:bg-dark-elevated",
       )}
     >
       <div className="flex items-start justify-between overflow-visible">
@@ -578,15 +605,15 @@ function ConnectionCard({
           {/* Status Icon */}
           <div
             className={cn(
-              'w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0',
-              connection.status === 'connected'
-                ? 'bg-green-100 dark:bg-green-900/50'
-                : 'bg-gray-100 dark:bg-dark-tertiary'
+              "w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0",
+              connection.status === "connected"
+                ? "bg-green-100 dark:bg-green-900/50"
+                : "bg-gray-100 dark:bg-dark-tertiary",
             )}
           >
-            {connection.status === 'connected' ? (
+            {connection.status === "connected" ? (
               <CheckCircle2 className="h-5 w-5 text-green-600" />
-            ) : connection.status === 'pending' || localState.isConnecting ? (
+            ) : connection.status === "pending" || localState.isConnecting ? (
               <Loader2 className="h-5 w-5 text-blue-500 animate-spin" />
             ) : (
               <Smartphone className="h-5 w-5 text-gray-400" />
@@ -603,8 +630,8 @@ function ConnectionCard({
                   onChange={(e) => onEditNameChange(e.target.value)}
                   className="flex-1 px-2 py-1 border border-gray-300 dark:border-dark-border rounded text-sm bg-white dark:bg-dark-tertiary text-gray-900 dark:text-dark-text-primary focus:outline-none focus:ring-2 focus:ring-whatsapp-teal-green"
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter') onSaveEdit()
-                    if (e.key === 'Escape') onCancelEdit()
+                    if (e.key === "Enter") onSaveEdit();
+                    if (e.key === "Escape") onCancelEdit();
                   }}
                 />
                 <Button size="sm" onClick={onSaveEdit}>
@@ -620,7 +647,7 @@ function ConnectionCard({
                   <h3 className="text-sm font-medium text-gray-900 dark:text-dark-text-primary truncate">
                     {connection.name}
                   </h3>
-                  <Badge className={cn('text-xs', statusColor)}>
+                  <Badge className={cn("text-xs", statusColor)}>
                     {statusIcon}
                     <span className="ml-1 capitalize">{connection.status}</span>
                   </Badge>
@@ -628,9 +655,13 @@ function ConnectionCard({
                 {connection.phoneNumber && (
                   <p className="text-sm text-gray-500 dark:text-dark-text-secondary mt-0.5 flex items-center gap-1.5">
                     <span>Phone</span>
-                    <span className="text-gray-400 dark:text-dark-text-tertiary">-</span>
+                    <span className="text-gray-400 dark:text-dark-text-tertiary">
+                      -
+                    </span>
                     <Phone className="h-3.5 w-3.5 text-whatsapp-teal-green" />
-                    <span className="text-whatsapp-teal-green font-medium">{connection.phoneNumber}</span>
+                    <span className="text-whatsapp-teal-green font-medium">
+                      {connection.phoneNumber}
+                    </span>
                   </p>
                 )}
                 {connection.lastSync && (
@@ -706,7 +737,7 @@ function ConnectionCard({
         {!isEditing && (
           <div className="flex items-center gap-2">
             {/* Quick action button based on status */}
-            {connection.status === 'connected' ? (
+            {connection.status === "connected" ? (
               <Button
                 variant="outline"
                 size="sm"
@@ -723,7 +754,7 @@ function ConnectionCard({
                   </>
                 )}
               </Button>
-            ) : connection.status === 'disconnected' ? (
+            ) : connection.status === "disconnected" ? (
               <Button
                 variant="outline"
                 size="sm"
@@ -740,7 +771,7 @@ function ConnectionCard({
                   </>
                 )}
               </Button>
-            ) : connection.status === 'pending' ? (
+            ) : connection.status === "pending" ? (
               <Button
                 variant="outline"
                 size="sm"
@@ -771,24 +802,27 @@ function ConnectionCard({
               </Button>
               {showMenu && (
                 <>
-                  <div className="fixed inset-0 z-10" onClick={() => setShowMenu(false)} />
+                  <div
+                    className="fixed inset-0 z-10"
+                    onClick={() => setShowMenu(false)}
+                  />
                   <div className="absolute right-0 mt-2 w-44 bg-white dark:bg-dark-elevated border border-gray-200 dark:border-dark-border rounded-xl shadow-xl shadow-gray-200/50 dark:shadow-black/30 z-20 py-1.5 animate-fade-in">
                     <button
                       className="w-full px-3.5 py-2.5 text-left text-sm text-gray-700 dark:text-dark-text-primary hover:bg-gray-50 dark:hover:bg-dark-tertiary flex items-center gap-2.5 transition-colors"
                       onClick={() => {
-                        onStartEdit()
-                        setShowMenu(false)
+                        onStartEdit();
+                        setShowMenu(false);
                       }}
                     >
                       <Edit2 className="h-4 w-4 text-gray-400 dark:text-dark-text-tertiary" />
                       Rename
                     </button>
-                    {connection.status === 'connected' ? (
+                    {connection.status === "connected" ? (
                       <button
                         className="w-full px-3.5 py-2.5 text-left text-sm text-orange-600 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900/30 flex items-center gap-2.5 transition-colors"
                         onClick={() => {
-                          onDisconnect()
-                          setShowMenu(false)
+                          onDisconnect();
+                          setShowMenu(false);
                         }}
                         disabled={localState.isDisconnecting}
                       >
@@ -803,8 +837,8 @@ function ConnectionCard({
                       <button
                         className="w-full px-3.5 py-2.5 text-left text-sm text-whatsapp-teal-green hover:bg-emerald-50 dark:hover:bg-emerald-900/30 flex items-center gap-2.5 transition-colors"
                         onClick={() => {
-                          onReconnect()
-                          setShowMenu(false)
+                          onReconnect();
+                          setShowMenu(false);
                         }}
                         disabled={localState.isConnecting}
                       >
@@ -820,10 +854,14 @@ function ConnectionCard({
                     <button
                       className="w-full px-3.5 py-2.5 text-left text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 flex items-center gap-2.5 transition-colors"
                       onClick={() => {
-                        if (window.confirm('Are you sure you want to delete this connection?')) {
-                          onDelete()
+                        if (
+                          window.confirm(
+                            "Are you sure you want to delete this connection?",
+                          )
+                        ) {
+                          onDelete();
                         }
-                        setShowMenu(false)
+                        setShowMenu(false);
                       }}
                     >
                       <Trash2 className="h-4 w-4" />
@@ -837,7 +875,7 @@ function ConnectionCard({
         )}
       </div>
     </div>
-  )
+  );
 }
 
 // QR Code Display Component
@@ -849,58 +887,63 @@ function QRCodeDisplay({
   isRefreshing,
   small = false,
 }: {
-  qrCode: string
-  expiresAt: Date | null
-  countdown?: number
-  onRefresh: () => void
-  isRefreshing: boolean
-  small?: boolean
+  qrCode: string;
+  expiresAt: Date | null;
+  countdown?: number;
+  onRefresh: () => void;
+  isRefreshing: boolean;
+  small?: boolean;
 }) {
-  const [localCountdown, setLocalCountdown] = useState<number>(0)
+  const [localCountdown, setLocalCountdown] = useState<number>(0);
 
   // Calculate countdown if not provided
   useEffect(() => {
     if (countdown !== undefined) {
-      setLocalCountdown(countdown)
-      return
+      setLocalCountdown(countdown);
+      return;
     }
 
     if (!expiresAt) {
-      setLocalCountdown(0)
-      return
+      setLocalCountdown(0);
+      return;
     }
 
     const updateCountdown = () => {
-      const remaining = Math.max(0, Math.floor((expiresAt.getTime() - nowMs()) / 1000))
-      setLocalCountdown(remaining)
-    }
+      const remaining = Math.max(
+        0,
+        Math.floor((expiresAt.getTime() - nowMs()) / 1000),
+      );
+      setLocalCountdown(remaining);
+    };
 
-    updateCountdown()
-    const interval = setInterval(updateCountdown, 1000)
-    return () => clearInterval(interval)
-  }, [expiresAt, countdown])
+    updateCountdown();
+    const interval = setInterval(updateCountdown, 1000);
+    return () => clearInterval(interval);
+  }, [expiresAt, countdown]);
 
-  const displayCountdown = countdown !== undefined ? countdown : localCountdown
-  const size = small ? 128 : 200
+  const displayCountdown = countdown !== undefined ? countdown : localCountdown;
+  const size = small ? 128 : 200;
 
   return (
     <div className="relative inline-block">
       <div
         className={cn(
-          'p-2 bg-white border rounded-lg',
-          small ? 'border-gray-200' : 'border-2 border-gray-200'
+          "p-2 bg-white border rounded-lg",
+          small ? "border-gray-200" : "border-2 border-gray-200",
         )}
       >
         <img
           src={`https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${encodeURIComponent(qrCode)}`}
           alt="WhatsApp QR Code"
-          className={small ? 'w-32 h-32' : 'w-48 h-48'}
+          className={small ? "w-32 h-32" : "w-48 h-48"}
         />
         {displayCountdown <= 30 && displayCountdown > 0 && (
           <div className="absolute inset-0 bg-white/80 flex items-center justify-center rounded-lg">
             <div className="text-center">
               <p className="text-orange-600 font-medium text-sm">Expiring</p>
-              <p className="text-xl font-bold text-gray-900">{displayCountdown}s</p>
+              <p className="text-xl font-bold text-gray-900">
+                {displayCountdown}s
+              </p>
             </div>
           </div>
         )}
@@ -925,15 +968,21 @@ function QRCodeDisplay({
       {displayCountdown > 30 && (
         <p className="text-xs text-gray-400 text-center mt-1">
           Expires in {Math.floor(displayCountdown / 60)}:
-          {String(displayCountdown % 60).padStart(2, '0')}
+          {String(displayCountdown % 60).padStart(2, "0")}
         </p>
       )}
     </div>
-  )
+  );
 }
 
 // Empty state for connections list
-function EmptyConnectionsView({ onAdd, isCreating }: { onAdd: () => void; isCreating: boolean }) {
+function EmptyConnectionsView({
+  onAdd,
+  isCreating,
+}: {
+  onAdd: () => void;
+  isCreating: boolean;
+}) {
   return (
     <div className="relative py-12 px-4 dark:bg-dark-elevated rounded-lg">
       {/* Background decorative elements */}
@@ -960,11 +1009,11 @@ function EmptyConnectionsView({ onAdd, isCreating }: { onAdd: () => void; isCrea
           <div className="absolute -top-1 left-1/2 w-2 h-2 rounded-full bg-whatsapp-teal-green/60 animate-pulse" />
           <div
             className="absolute top-1/4 -right-1 w-1.5 h-1.5 rounded-full bg-emerald-400/60 animate-pulse"
-            style={{ animationDelay: '0.5s' }}
+            style={{ animationDelay: "0.5s" }}
           />
           <div
             className="absolute -bottom-1 left-1/3 w-1.5 h-1.5 rounded-full bg-teal-400/60 animate-pulse"
-            style={{ animationDelay: '1s' }}
+            style={{ animationDelay: "1s" }}
           />
         </div>
 
@@ -973,7 +1022,8 @@ function EmptyConnectionsView({ onAdd, isCreating }: { onAdd: () => void; isCrea
           No WhatsApp Connections Yet
         </h3>
         <p className="text-sm text-gray-500 dark:text-dark-text-secondary mb-8 max-w-xs mx-auto leading-relaxed">
-          Connect your first WhatsApp device to start managing conversations with your team.
+          Connect your first WhatsApp device to start managing conversations
+          with your team.
         </p>
 
         {/* CTA Button */}
@@ -1002,7 +1052,7 @@ function EmptyConnectionsView({ onAdd, isCreating }: { onAdd: () => void; isCrea
         </p>
       </div>
     </div>
-  )
+  );
 }
 
 // =====================
@@ -1013,8 +1063,8 @@ function SingleConnectionPanel({
   className,
   compact = false,
 }: {
-  className?: string
-  compact?: boolean
+  className?: string;
+  compact?: boolean;
 }) {
   const {
     state,
@@ -1029,58 +1079,72 @@ function SingleConnectionPanel({
     isConnecting,
     isDisconnecting,
     isLoading,
-  } = useWhatsAppConnection()
+  } = useWhatsAppConnection();
 
   // Countdown for QR expiry
-  const [countdown, setCountdown] = useState<number>(0)
+  const [countdown, setCountdown] = useState<number>(0);
 
   useEffect(() => {
     if (!qrExpiresAt) {
-      setCountdown(0)
-      return
+      setCountdown(0);
+      return;
     }
 
     const updateCountdown = () => {
-      const remaining = Math.max(0, Math.floor((qrExpiresAt.getTime() - nowMs()) / 1000))
-      setCountdown(remaining)
-    }
+      const remaining = Math.max(
+        0,
+        Math.floor((qrExpiresAt.getTime() - nowMs()) / 1000),
+      );
+      setCountdown(remaining);
+    };
 
-    updateCountdown()
-    const interval = setInterval(updateCountdown, 1000)
-    return () => clearInterval(interval)
-  }, [qrExpiresAt])
+    updateCountdown();
+    const interval = setInterval(updateCountdown, 1000);
+    return () => clearInterval(interval);
+  }, [qrExpiresAt]);
 
   if (isLoading) {
     return (
-      <div className={cn('p-6', className)}>
+      <div className={cn("p-6", className)}>
         <Skeleton className="h-8 w-48 mb-4" />
         <Skeleton className="h-64 w-64 mx-auto" />
       </div>
-    )
+    );
   }
 
   // Compact view for sidebar/header
   if (compact) {
     return (
-      <div className={cn('flex items-center gap-2', className)}>
+      <div className={cn("flex items-center gap-2", className)}>
         <StatusIndicator state={state} />
         <span className="text-sm text-gray-600">
-          {state === 'connected' ? phoneNumber || 'Connected' : getStateLabel(state)}
+          {state === "connected"
+            ? phoneNumber || "Connected"
+            : getStateLabel(state)}
         </span>
-        {state === 'disconnected' && (
-          <Button size="sm" variant="outline" onClick={connect} disabled={isConnecting}>
-            {isConnecting ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Connect'}
+        {state === "disconnected" && (
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={connect}
+            disabled={isConnecting}
+          >
+            {isConnecting ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              "Connect"
+            )}
           </Button>
         )}
       </div>
-    )
+    );
   }
 
   return (
     <div
       className={cn(
-        'bg-white dark:bg-dark-elevated rounded-lg border border-gray-200 dark:border-dark-border p-6',
-        className
+        "bg-white dark:bg-dark-elevated rounded-lg border border-gray-200 dark:border-dark-border p-6",
+        className,
       )}
     >
       {/* Header */}
@@ -1110,13 +1174,13 @@ function SingleConnectionPanel({
       )}
 
       {/* Content based on state */}
-      {state === 'disconnected' && (
+      {state === "disconnected" && (
         <DisconnectedView onConnect={connect} isConnecting={isConnecting} />
       )}
 
-      {(state === 'connecting' || state === 'waiting_qr') && <ConnectingView />}
+      {(state === "connecting" || state === "waiting_qr") && <ConnectingView />}
 
-      {state === 'scanning' && qrCode && (
+      {state === "scanning" && qrCode && (
         <LegacyQRCodeView
           qrCode={qrCode}
           countdown={countdown}
@@ -1125,7 +1189,7 @@ function SingleConnectionPanel({
         />
       )}
 
-      {state === 'connected' && (
+      {state === "connected" && (
         <ConnectedView
           phoneNumber={phoneNumber}
           lastSync={lastSync}
@@ -1135,95 +1199,97 @@ function SingleConnectionPanel({
         />
       )}
 
-      {state === 'error' && <ErrorView error={error} onRetry={connect} isRetrying={isConnecting} />}
+      {state === "error" && (
+        <ErrorView error={error} onRetry={connect} isRetrying={isConnecting} />
+      )}
     </div>
-  )
+  );
 }
 
 // Helper components
 
 function StatusIndicator({ state }: { state: WhatsAppConnectionState }) {
   const colors: Record<WhatsAppConnectionState, string> = {
-    disconnected: 'bg-gray-400',
-    connecting: 'bg-yellow-400 animate-pulse',
-    waiting_qr: 'bg-yellow-400 animate-pulse',
-    scanning: 'bg-blue-400 animate-pulse',
-    connected: 'bg-green-500',
-    error: 'bg-red-500',
-  }
+    disconnected: "bg-gray-400",
+    connecting: "bg-yellow-400 animate-pulse",
+    waiting_qr: "bg-yellow-400 animate-pulse",
+    scanning: "bg-blue-400 animate-pulse",
+    connected: "bg-green-500",
+    error: "bg-red-500",
+  };
 
-  return <div className={cn('w-2 h-2 rounded-full', colors[state])} />
+  return <div className={cn("w-2 h-2 rounded-full", colors[state])} />;
 }
 
 function StatusBadge({ state }: { state: WhatsAppConnectionState }) {
   const variants: Record<
     WhatsAppConnectionState,
     {
-      variant: 'default' | 'secondary' | 'destructive' | 'outline'
-      icon: React.ReactNode
-      label: string
+      variant: "default" | "secondary" | "destructive" | "outline";
+      icon: React.ReactNode;
+      label: string;
     }
   > = {
     disconnected: {
-      variant: 'secondary',
+      variant: "secondary",
       icon: <WifiOff className="h-3 w-3" />,
-      label: 'Disconnected',
+      label: "Disconnected",
     },
     connecting: {
-      variant: 'outline',
+      variant: "outline",
       icon: <Loader2 className="h-3 w-3 animate-spin" />,
-      label: 'Connecting',
+      label: "Connecting",
     },
     waiting_qr: {
-      variant: 'outline',
+      variant: "outline",
       icon: <QrCode className="h-3 w-3" />,
-      label: 'Waiting for QR',
+      label: "Waiting for QR",
     },
     scanning: {
-      variant: 'outline',
+      variant: "outline",
       icon: <QrCode className="h-3 w-3 animate-pulse" />,
-      label: 'Scan QR Code',
+      label: "Scan QR Code",
     },
     connected: {
-      variant: 'default',
+      variant: "default",
       icon: <Wifi className="h-3 w-3" />,
-      label: 'Connected',
+      label: "Connected",
     },
     error: {
-      variant: 'destructive',
+      variant: "destructive",
       icon: <XCircle className="h-3 w-3" />,
-      label: 'Error',
+      label: "Error",
     },
-  }
+  };
 
-  const { variant, icon, label } = variants[state]
+  const { variant, icon, label } = variants[state];
 
   return (
     <Badge variant={variant} className="gap-1">
       {icon}
       {label}
     </Badge>
-  )
+  );
 }
 
 function getStateLabel(state: WhatsAppConnectionState): string {
   const labels: Record<WhatsAppConnectionState, string> = {
-    disconnected: 'Not connected',
-    connecting: 'Connecting...',
-    waiting_qr: 'Waiting for QR...',
-    scanning: 'Scan QR code',
-    connected: 'Connected',
-    error: 'Connection error',
-  }
-  return labels[state]
+    disconnected: "Not connected",
+    connecting: "Connecting...",
+    waiting_qr: "Waiting for QR...",
+    scanning: "Scan QR code",
+    connected: "Connected",
+    error: "Connection error",
+  };
+  return labels[state];
 }
 
 function DisconnectedView({
   onConnect,
   isConnecting,
 }: {
-  onConnect: () => void
-  isConnecting: boolean
+  onConnect: () => void;
+  isConnecting: boolean;
 }) {
   return (
     <div className="text-center py-8">
@@ -1234,7 +1300,8 @@ function DisconnectedView({
         Connect WhatsApp
       </h3>
       <p className="text-sm text-gray-500 dark:text-dark-text-secondary mb-6 max-w-sm mx-auto">
-        Link your WhatsApp Business account to start receiving and sending messages.
+        Link your WhatsApp Business account to start receiving and sending
+        messages.
       </p>
       <Button
         onClick={onConnect}
@@ -1254,7 +1321,7 @@ function DisconnectedView({
         )}
       </Button>
     </div>
-  )
+  );
 }
 
 function ConnectingView() {
@@ -1270,7 +1337,7 @@ function ConnectingView() {
         Please wait while we prepare the QR code...
       </p>
     </div>
-  )
+  );
 }
 
 function LegacyQRCodeView({
@@ -1279,10 +1346,10 @@ function LegacyQRCodeView({
   onRefresh,
   isRefreshing,
 }: {
-  qrCode: string
-  countdown: number
-  onRefresh: () => void
-  isRefreshing: boolean
+  qrCode: string;
+  countdown: number;
+  onRefresh: () => void;
+  isRefreshing: boolean;
 }) {
   return (
     <div className="text-center">
@@ -1337,11 +1404,12 @@ function LegacyQRCodeView({
       {/* Timer */}
       {countdown > 30 && (
         <p className="text-sm text-gray-400 dark:text-dark-text-tertiary">
-          QR code expires in {Math.floor(countdown / 60)}:{String(countdown % 60).padStart(2, '0')}
+          QR code expires in {Math.floor(countdown / 60)}:
+          {String(countdown % 60).padStart(2, "0")}
         </p>
       )}
     </div>
-  )
+  );
 }
 
 function ConnectedView({
@@ -1351,11 +1419,11 @@ function ConnectedView({
   onRefresh,
   isDisconnecting,
 }: {
-  phoneNumber: string | null
-  lastSync: Date | null
-  onDisconnect: () => void
-  onRefresh: () => void
-  isDisconnecting: boolean
+  phoneNumber: string | null;
+  lastSync: Date | null;
+  onDisconnect: () => void;
+  onRefresh: () => void;
+  isDisconnecting: boolean;
 }) {
   return (
     <div className="text-center py-4">
@@ -1366,7 +1434,9 @@ function ConnectedView({
         WhatsApp Connected
       </h3>
       {phoneNumber && (
-        <p className="text-xl font-semibold text-whatsapp-teal-green mb-2">{phoneNumber}</p>
+        <p className="text-xl font-semibold text-whatsapp-teal-green mb-2">
+          {phoneNumber}
+        </p>
       )}
       {lastSync && (
         <p className="text-sm text-gray-500 dark:text-dark-text-secondary mb-4">
@@ -1378,12 +1448,21 @@ function ConnectedView({
           <RefreshCw className="h-4 w-4 mr-1" />
           Refresh Status
         </Button>
-        <Button variant="destructive" size="sm" onClick={onDisconnect} disabled={isDisconnecting}>
-          {isDisconnecting ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Disconnect'}
+        <Button
+          variant="destructive"
+          size="sm"
+          onClick={onDisconnect}
+          disabled={isDisconnecting}
+        >
+          {isDisconnecting ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            "Disconnect"
+          )}
         </Button>
       </div>
     </div>
-  )
+  );
 }
 
 function ErrorView({
@@ -1391,9 +1470,9 @@ function ErrorView({
   onRetry,
   isRetrying,
 }: {
-  error: string | null
-  onRetry: () => void
-  isRetrying: boolean
+  error: string | null;
+  onRetry: () => void;
+  isRetrying: boolean;
 }) {
   return (
     <div className="text-center py-8">
@@ -1404,7 +1483,7 @@ function ErrorView({
         Connection Failed
       </h3>
       <p className="text-sm text-gray-500 dark:text-dark-text-secondary mb-4 max-w-sm mx-auto">
-        {error || 'Unable to connect to WhatsApp. Please try again.'}
+        {error || "Unable to connect to WhatsApp. Please try again."}
       </p>
       <Button onClick={onRetry} disabled={isRetrying}>
         {isRetrying ? (
@@ -1420,7 +1499,7 @@ function ErrorView({
         )}
       </Button>
     </div>
-  )
+  );
 }
 
-export default WhatsAppConnectionPanel
+export default WhatsAppConnectionPanel;

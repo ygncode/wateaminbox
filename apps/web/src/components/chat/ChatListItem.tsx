@@ -1,14 +1,14 @@
-import { memo, useMemo } from 'react'
-import type { ChatListItemProps } from '../../types/chat'
-import { extractPhoneFromJID, formatPhoneNumber } from '@/lib/utils'
-import { formatChatListTime } from '@whatsapp-web/shared'
+import { memo, useMemo } from "react";
+import type { ChatListItemProps } from "../../types/chat";
+import { extractPhoneFromJID, formatPhoneNumber } from "@/lib/utils";
+import { formatChatListTime } from "@whatsapp-web/shared";
 
 /**
  * Truncate message content for preview display
  */
 function truncateMessage(content: string, maxLength: number = 45): string {
-  if (content.length <= maxLength) return content
-  return `${content.substring(0, maxLength).trim()}...`
+  if (content.length <= maxLength) return content;
+  return `${content.substring(0, maxLength).trim()}...`;
 }
 
 /**
@@ -20,52 +20,52 @@ export const ChatListItem = memo(function ChatListItem({
   isSelected,
   onClick,
 }: ChatListItemProps) {
-  const { contact, lastMessage, unreadCount } = chat
+  const { contact, lastMessage, unreadCount } = chat;
 
   // Display priority: customName > pushName > formatted phone number > 'Unknown'
   const displayName = useMemo(() => {
-    if (contact.customName) return contact.customName
-    if (contact.name) return contact.name
+    if (contact.customName) return contact.customName;
+    if (contact.name) return contact.name;
     // Use phone number if available, otherwise extract from JID
-    const phone = contact.phoneNumber || extractPhoneFromJID(contact.jid)
-    if (phone) return formatPhoneNumber(phone)
-    return 'Unknown'
-  }, [contact.customName, contact.name, contact.phoneNumber, contact.jid])
+    const phone = contact.phoneNumber || extractPhoneFromJID(contact.jid);
+    if (phone) return formatPhoneNumber(phone);
+    return "Unknown";
+  }, [contact.customName, contact.name, contact.phoneNumber, contact.jid]);
 
   const formattedTime = useMemo(() => {
-    if (!lastMessage) return ''
-    return formatChatListTime(lastMessage.timestamp)
-  }, [lastMessage])
+    if (!lastMessage) return "";
+    return formatChatListTime(lastMessage.timestamp);
+  }, [lastMessage]);
 
   const messagePreview = useMemo(() => {
-    if (!lastMessage) return 'No messages yet'
+    if (!lastMessage) return "No messages yet";
 
     // Add prefix for sent messages
-    const prefix = lastMessage.isFromMe ? 'You: ' : ''
+    const prefix = lastMessage.isFromMe ? "You: " : "";
 
     if (lastMessage.isDeleted) {
-      return `${prefix}This message was deleted`
+      return `${prefix}This message was deleted`;
     }
 
     switch (lastMessage.type) {
-      case 'image':
-        return `${prefix}Photo`
-      case 'video':
-        return `${prefix}Video`
-      case 'audio':
-        return `${prefix}Audio`
-      case 'document':
-        return `${prefix}Document`
-      case 'sticker':
-        return `${prefix}Sticker`
-      case 'location':
-        return `${prefix}Location`
-      case 'contact':
-        return `${prefix}Contact`
+      case "image":
+        return `${prefix}Photo`;
+      case "video":
+        return `${prefix}Video`;
+      case "audio":
+        return `${prefix}Audio`;
+      case "document":
+        return `${prefix}Document`;
+      case "sticker":
+        return `${prefix}Sticker`;
+      case "location":
+        return `${prefix}Location`;
+      case "contact":
+        return `${prefix}Contact`;
       default:
-        return prefix + truncateMessage(lastMessage.content)
+        return prefix + truncateMessage(lastMessage.content);
     }
-  }, [lastMessage])
+  }, [lastMessage]);
 
   return (
     <button
@@ -74,7 +74,7 @@ export const ChatListItem = memo(function ChatListItem({
       className={`w-full flex items-center gap-3 px-3 text-left
                   transition-colors duration-150 border-b border-gray-100 dark:border-dark-border
                   touch-manipulation active:bg-gray-200 dark:active:bg-dark-border
-                  ${isSelected ? 'bg-gray-200 dark:bg-dark-tertiary' : 'hover:bg-gray-50 dark:hover:bg-dark-elevated'}
+                  ${isSelected ? "bg-gray-200 dark:bg-dark-tertiary" : "hover:bg-gray-50 dark:hover:bg-dark-elevated"}
                   py-3 md:py-3 min-h-[72px] md:min-h-0`}
       aria-selected={isSelected}
       role="option"
@@ -119,8 +119,8 @@ export const ChatListItem = memo(function ChatListItem({
           <span
             className={`text-base truncate ${
               unreadCount > 0
-                ? 'font-semibold text-gray-900 dark:text-dark-text-primary'
-                : 'text-gray-900 dark:text-dark-text-primary'
+                ? "font-semibold text-gray-900 dark:text-dark-text-primary"
+                : "text-gray-900 dark:text-dark-text-primary"
             }`}
           >
             {displayName}
@@ -128,8 +128,8 @@ export const ChatListItem = memo(function ChatListItem({
           <span
             className={`text-xs flex-shrink-0 ${
               unreadCount > 0
-                ? 'text-whatsapp-green font-medium'
-                : 'text-gray-500 dark:text-dark-text-secondary'
+                ? "text-whatsapp-green font-medium"
+                : "text-gray-500 dark:text-dark-text-secondary"
             }`}
           >
             {formattedTime}
@@ -142,12 +142,16 @@ export const ChatListItem = memo(function ChatListItem({
             {/* Message Status Icon for sent messages */}
             {lastMessage?.isFromMe && !lastMessage.isDeleted && (
               <span className="flex-shrink-0">
-                {lastMessage.status === 'read' && (
-                  <svg className="w-4 h-4 text-blue-500" fill="currentColor" viewBox="0 0 24 24">
+                {lastMessage.status === "read" && (
+                  <svg
+                    className="w-4 h-4 text-blue-500"
+                    fill="currentColor"
+                    viewBox="0 0 24 24"
+                  >
                     <path d="M18 7l-1.41-1.41-6.34 6.34 1.41 1.41L18 7zm4.24-1.41L11.66 16.17 7.48 12l-1.41 1.41L11.66 19l12-12-1.42-1.41zM.41 13.41L6 19l1.41-1.41L1.83 12 .41 13.41z" />
                   </svg>
                 )}
-                {lastMessage.status === 'delivered' && (
+                {lastMessage.status === "delivered" && (
                   <svg
                     className="w-4 h-4 text-gray-400 dark:text-dark-text-tertiary"
                     fill="currentColor"
@@ -156,7 +160,7 @@ export const ChatListItem = memo(function ChatListItem({
                     <path d="M18 7l-1.41-1.41-6.34 6.34 1.41 1.41L18 7zm4.24-1.41L11.66 16.17 7.48 12l-1.41 1.41L11.66 19l12-12-1.42-1.41zM.41 13.41L6 19l1.41-1.41L1.83 12 .41 13.41z" />
                   </svg>
                 )}
-                {lastMessage.status === 'sent' && (
+                {lastMessage.status === "sent" && (
                   <svg
                     className="w-4 h-4 text-gray-400 dark:text-dark-text-tertiary"
                     fill="currentColor"
@@ -165,7 +169,7 @@ export const ChatListItem = memo(function ChatListItem({
                     <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z" />
                   </svg>
                 )}
-                {lastMessage.status === 'sending' && (
+                {lastMessage.status === "sending" && (
                   <svg
                     className="w-4 h-4 text-gray-400 dark:text-dark-text-tertiary animate-pulse"
                     fill="currentColor"
@@ -179,8 +183,8 @@ export const ChatListItem = memo(function ChatListItem({
             <span
               className={`text-sm truncate ${
                 unreadCount > 0
-                  ? 'text-gray-700 dark:text-dark-text-primary'
-                  : 'text-gray-500 dark:text-dark-text-secondary'
+                  ? "text-gray-700 dark:text-dark-text-primary"
+                  : "text-gray-500 dark:text-dark-text-secondary"
               }`}
             >
               {messagePreview}
@@ -229,15 +233,15 @@ export const ChatListItem = memo(function ChatListItem({
                 className="flex items-center justify-center min-w-[20px] h-5 px-1.5
                            text-xs font-medium text-white bg-whatsapp-green rounded-full"
               >
-                {unreadCount > 99 ? '99+' : unreadCount}
+                {unreadCount > 99 ? "99+" : unreadCount}
               </span>
             )}
           </div>
         </div>
       </div>
     </button>
-  )
-})
+  );
+});
 
 /**
  * Loading skeleton for chat list item
@@ -257,7 +261,7 @@ export function ChatListItemSkeleton() {
         <div className="mt-2 h-3 bg-gray-200 dark:bg-dark-tertiary rounded w-48" />
       </div>
     </div>
-  )
+  );
 }
 
-export default ChatListItem
+export default ChatListItem;

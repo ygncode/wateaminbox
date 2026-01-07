@@ -1,32 +1,32 @@
-import type { ReactNode } from 'react'
-import { type Permission, usePermissions } from '../../hooks/usePermissions'
+import type { ReactNode } from "react";
+import { type Permission, usePermissions } from "../../hooks/usePermissions";
 
 interface PermissionGuardProps {
-  children: ReactNode
+  children: ReactNode;
   /**
    * Permission required to render children
    */
-  permission?: Permission
+  permission?: Permission;
   /**
    * If provided, user must have ALL these permissions
    */
-  allOf?: Permission[]
+  allOf?: Permission[];
   /**
    * If provided, user must have ANY of these permissions
    */
-  anyOf?: Permission[]
+  anyOf?: Permission[];
   /**
    * Require owner role
    */
-  requireOwner?: boolean
+  requireOwner?: boolean;
   /**
    * Require admin role (includes owner)
    */
-  requireAdmin?: boolean
+  requireAdmin?: boolean;
   /**
    * Content to show when permission is denied
    */
-  fallback?: ReactNode
+  fallback?: ReactNode;
 }
 
 /**
@@ -64,34 +64,40 @@ export function PermissionGuard({
   requireAdmin,
   fallback = null,
 }: PermissionGuardProps) {
-  const { hasPermission, hasAllPermissions, hasAnyPermission, isOwner, isAdmin } = usePermissions()
+  const {
+    hasPermission,
+    hasAllPermissions,
+    hasAnyPermission,
+    isOwner,
+    isAdmin,
+  } = usePermissions();
 
   // Check owner requirement
   if (requireOwner && !isOwner) {
-    return <>{fallback}</>
+    return <>{fallback}</>;
   }
 
   // Check admin requirement
   if (requireAdmin && !isAdmin) {
-    return <>{fallback}</>
+    return <>{fallback}</>;
   }
 
   // Check single permission
   if (permission && !hasPermission(permission)) {
-    return <>{fallback}</>
+    return <>{fallback}</>;
   }
 
   // Check all permissions
   if (allOf && !hasAllPermissions(allOf)) {
-    return <>{fallback}</>
+    return <>{fallback}</>;
   }
 
   // Check any permission
   if (anyOf && !hasAnyPermission(anyOf)) {
-    return <>{fallback}</>
+    return <>{fallback}</>;
   }
 
-  return <>{children}</>
+  return <>{children}</>;
 }
 
 /**
@@ -100,15 +106,15 @@ export function PermissionGuard({
 export function withPermission<P extends object>(
   WrappedComponent: React.ComponentType<P>,
   permission: Permission,
-  FallbackComponent?: React.ComponentType<P>
+  FallbackComponent?: React.ComponentType<P>,
 ) {
   return function WithPermissionComponent(props: P) {
-    const { hasPermission } = usePermissions()
+    const { hasPermission } = usePermissions();
 
     if (!hasPermission(permission)) {
-      return FallbackComponent ? <FallbackComponent {...props} /> : null
+      return FallbackComponent ? <FallbackComponent {...props} /> : null;
     }
 
-    return <WrappedComponent {...props} />
-  }
+    return <WrappedComponent {...props} />;
+  };
 }

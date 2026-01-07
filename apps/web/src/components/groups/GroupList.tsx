@@ -1,55 +1,62 @@
-import { MessageSquare, Search, Users, X } from 'lucide-react'
-import { useCallback, useMemo, useState } from 'react'
-import { Avatar, AvatarFallback, AvatarImage, Skeleton } from '@/components/ui'
-import { type GroupListItem, useGroups } from '@/hooks/useGroups'
-import { cn } from '@/lib/utils'
-import { formatChatListTime } from '@whatsapp-web/shared'
+import { MessageSquare, Search, Users, X } from "lucide-react";
+import { useCallback, useMemo, useState } from "react";
+import { Avatar, AvatarFallback, AvatarImage, Skeleton } from "@/components/ui";
+import { type GroupListItem, useGroups } from "@/hooks/useGroups";
+import { cn } from "@/lib/utils";
+import { formatChatListTime } from "@whatsapp-web/shared";
 
 export interface GroupListProps {
-  selectedGroupId?: string | null
-  onGroupSelect: (groupId: string) => void
-  className?: string
+  selectedGroupId?: string | null;
+  onGroupSelect: (groupId: string) => void;
+  className?: string;
 }
 
 /**
  * Main group list sidebar component
  * Displays searchable list of groups with avatars, participant count, and unread badges
  */
-export function GroupList({ selectedGroupId, onGroupSelect, className = '' }: GroupListProps) {
-  const [searchQuery, setSearchQuery] = useState('')
-  const { data, isLoading, isError, error } = useGroups(searchQuery, 100)
+export function GroupList({
+  selectedGroupId,
+  onGroupSelect,
+  className = "",
+}: GroupListProps) {
+  const [searchQuery, setSearchQuery] = useState("");
+  const { data, isLoading, isError, error } = useGroups(searchQuery, 100);
 
-  const handleSearchChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    setSearchQuery(e.target.value)
-  }, [])
+  const handleSearchChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      setSearchQuery(e.target.value);
+    },
+    [],
+  );
 
   const handleSearchClear = useCallback(() => {
-    setSearchQuery('')
-  }, [])
+    setSearchQuery("");
+  }, []);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLInputElement>) => {
-      if (e.key === 'Escape') {
-        handleSearchClear()
+      if (e.key === "Escape") {
+        handleSearchClear();
       }
     },
-    [handleSearchClear]
-  )
+    [handleSearchClear],
+  );
 
   const handleGroupClick = useCallback(
     (groupId: string) => {
-      onGroupSelect(groupId)
+      onGroupSelect(groupId);
     },
-    [onGroupSelect]
-  )
+    [onGroupSelect],
+  );
 
-  const groups = useMemo(() => data?.data ?? [], [data])
+  const groups = useMemo(() => data?.data ?? [], [data]);
 
   return (
     <div
       className={cn(
-        'flex flex-col h-full bg-white dark:bg-dark-primary border-r border-gray-200 dark:border-dark-border',
-        className
+        "flex flex-col h-full bg-white dark:bg-dark-primary border-r border-gray-200 dark:border-dark-border",
+        className,
       )}
       role="navigation"
       aria-label="Group list"
@@ -86,7 +93,11 @@ export function GroupList({ selectedGroupId, onGroupSelect, className = '' }: Gr
       </div>
 
       {/* Group List */}
-      <div className="flex-1 overflow-y-auto" role="listbox" aria-label="Groups">
+      <div
+        className="flex-1 overflow-y-auto"
+        role="listbox"
+        aria-label="Groups"
+      >
         {/* Loading State */}
         {isLoading && (
           <div className="divide-y divide-gray-100 dark:divide-dark-border">
@@ -104,7 +115,7 @@ export function GroupList({ selectedGroupId, onGroupSelect, className = '' }: Gr
               Failed to load groups
             </p>
             <p className="text-sm text-gray-500 dark:text-dark-text-secondary mt-1">
-              {error?.message || 'Please try again later'}
+              {error?.message || "Please try again later"}
             </p>
           </div>
         )}
@@ -113,7 +124,9 @@ export function GroupList({ selectedGroupId, onGroupSelect, className = '' }: Gr
         {!isLoading && !isError && groups.length === 0 && searchQuery && (
           <div className="flex flex-col items-center justify-center h-full px-4 py-8 text-center">
             <Search className="w-12 h-12 text-gray-400 dark:text-dark-text-tertiary mb-4" />
-            <p className="text-gray-600 dark:text-dark-text-primary font-medium">No groups found</p>
+            <p className="text-gray-600 dark:text-dark-text-primary font-medium">
+              No groups found
+            </p>
             <p className="text-sm text-gray-500 dark:text-dark-text-secondary mt-1">
               No results for "{searchQuery}"
             </p>
@@ -124,7 +137,9 @@ export function GroupList({ selectedGroupId, onGroupSelect, className = '' }: Gr
         {!isLoading && !isError && groups.length === 0 && !searchQuery && (
           <div className="flex flex-col items-center justify-center h-full px-4 py-8 text-center">
             <Users className="w-12 h-12 text-gray-400 dark:text-dark-text-tertiary mb-4" />
-            <p className="text-gray-600 dark:text-dark-text-primary font-medium">No groups yet</p>
+            <p className="text-gray-600 dark:text-dark-text-primary font-medium">
+              No groups yet
+            </p>
             <p className="text-sm text-gray-500 dark:text-dark-text-secondary mt-1">
               Groups you join will appear here
             </p>
@@ -146,13 +161,13 @@ export function GroupList({ selectedGroupId, onGroupSelect, className = '' }: Gr
         )}
       </div>
     </div>
-  )
+  );
 }
 
 interface GroupListItemProps {
-  group: GroupListItem
-  isSelected: boolean
-  onClick: () => void
+  group: GroupListItem;
+  isSelected: boolean;
+  onClick: () => void;
 }
 
 /**
@@ -160,24 +175,26 @@ interface GroupListItemProps {
  */
 function GroupListItem({ group, isSelected, onClick }: GroupListItemProps) {
   const initials = group.displayName
-    .split(' ')
+    .split(" ")
     .map((n) => n[0])
-    .join('')
+    .join("")
     .toUpperCase()
-    .slice(0, 2)
+    .slice(0, 2);
 
-  const formattedTime = group.lastMessageAt ? formatChatListTime(group.lastMessageAt) : ''
+  const formattedTime = group.lastMessageAt
+    ? formatChatListTime(group.lastMessageAt)
+    : "";
 
   return (
     <button
       type="button"
       onClick={onClick}
       className={cn(
-        'w-full flex items-center gap-3 px-3 py-3 text-left',
-        'transition-colors duration-150 border-b border-gray-100 dark:border-dark-border',
+        "w-full flex items-center gap-3 px-3 py-3 text-left",
+        "transition-colors duration-150 border-b border-gray-100 dark:border-dark-border",
         isSelected
-          ? 'bg-gray-200 dark:bg-dark-tertiary'
-          : 'hover:bg-gray-50 dark:hover:bg-dark-elevated'
+          ? "bg-gray-200 dark:bg-dark-tertiary"
+          : "hover:bg-gray-50 dark:hover:bg-dark-elevated",
       )}
       aria-selected={isSelected}
       role="option"
@@ -185,7 +202,10 @@ function GroupListItem({ group, isSelected, onClick }: GroupListItemProps) {
       {/* Avatar */}
       <div className="relative flex-shrink-0">
         <Avatar className="h-12 w-12">
-          <AvatarImage src={group.profilePictureUrl || undefined} alt={group.displayName} />
+          <AvatarImage
+            src={group.profilePictureUrl || undefined}
+            alt={group.displayName}
+          />
           <AvatarFallback className="bg-gray-400 dark:bg-dark-tertiary text-white dark:text-dark-text-primary">
             {group.profilePictureUrl ? initials : <Users className="h-6 w-6" />}
           </AvatarFallback>
@@ -198,20 +218,20 @@ function GroupListItem({ group, isSelected, onClick }: GroupListItemProps) {
         <div className="flex items-center justify-between gap-2">
           <span
             className={cn(
-              'text-base truncate',
+              "text-base truncate",
               group.unreadCount > 0
-                ? 'font-semibold text-gray-900 dark:text-dark-text-primary'
-                : 'text-gray-900 dark:text-dark-text-primary'
+                ? "font-semibold text-gray-900 dark:text-dark-text-primary"
+                : "text-gray-900 dark:text-dark-text-primary",
             )}
           >
             {group.displayName}
           </span>
           <span
             className={cn(
-              'text-xs flex-shrink-0',
+              "text-xs flex-shrink-0",
               group.unreadCount > 0
-                ? 'text-whatsapp-green font-medium'
-                : 'text-gray-500 dark:text-dark-text-secondary'
+                ? "text-whatsapp-green font-medium"
+                : "text-gray-500 dark:text-dark-text-secondary",
             )}
           >
             {formattedTime}
@@ -233,13 +253,13 @@ function GroupListItem({ group, isSelected, onClick }: GroupListItemProps) {
               className="flex items-center justify-center min-w-[20px] h-5 px-1.5
                          text-xs font-medium text-white bg-whatsapp-green rounded-full flex-shrink-0"
             >
-              {group.unreadCount > 99 ? '99+' : group.unreadCount}
+              {group.unreadCount > 99 ? "99+" : group.unreadCount}
             </span>
           )}
         </div>
       </div>
     </button>
-  )
+  );
 }
 
 /**
@@ -259,7 +279,7 @@ function GroupListItemSkeleton() {
         </div>
       </div>
     </div>
-  )
+  );
 }
 
-export default GroupList
+export default GroupList;

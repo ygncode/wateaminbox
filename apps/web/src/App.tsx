@@ -1,7 +1,7 @@
-import { Navigate, Route, Routes } from 'react-router-dom'
-import { Toaster } from 'sonner'
-import { ProtectedRoute } from './components/auth'
-import { KeyboardShortcutsModal } from './components/settings'
+import { Navigate, Route, Routes } from "react-router-dom";
+import { Toaster } from "sonner";
+import { ProtectedRoute } from "./components/auth";
+import { KeyboardShortcutsModal } from "./components/settings";
 import {
   AcceptInvitationPage,
   AuditPage,
@@ -13,7 +13,7 @@ import {
   RegisterPage,
   SettingsPage,
   TeamPage,
-} from './pages'
+} from "./pages";
 
 function App() {
   return (
@@ -103,7 +103,7 @@ function App() {
       {/* Toast notifications */}
       <Toaster position="top-right" richColors />
     </>
-  )
+  );
 }
 
-export default App
+export default App;

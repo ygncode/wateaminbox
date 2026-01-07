@@ -12,9 +12,14 @@ import {
   Users,
   Video,
   X,
-} from 'lucide-react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { formatChatListTime, subtractDays, toISOString, now } from '@whatsapp-web/shared'
+} from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  formatChatListTime,
+  subtractDays,
+  toISOString,
+  now,
+} from "@whatsapp-web/shared";
 import {
   Avatar,
   AvatarFallback,
@@ -30,7 +35,7 @@ import {
   SelectTrigger,
   SelectValue,
   Skeleton,
-} from '@/components/ui'
+} from "@/components/ui";
 import {
   type ContactSearchResult,
   type MessageSearchOptions,
@@ -38,51 +43,63 @@ import {
   useContactSearch,
   useGlobalSearch,
   useMessageSearch,
-} from '@/hooks/useSearch'
+} from "@/hooks/useSearch";
 
-type SearchTab = 'all' | 'messages' | 'contacts'
+type SearchTab = "all" | "messages" | "contacts";
 
-type MessageType = 'text' | 'image' | 'video' | 'audio' | 'document' | 'location'
+type MessageType =
+  | "text"
+  | "image"
+  | "video"
+  | "audio"
+  | "document"
+  | "location";
 
 interface SearchPanelProps {
   /** Callback when a message result is clicked */
-  onMessageClick?: (contactId: string, messageId: string) => void
+  onMessageClick?: (contactId: string, messageId: string) => void;
   /** Callback when a contact result is clicked */
-  onContactClick?: (contactId: string) => void
+  onContactClick?: (contactId: string) => void;
   /** Callback to close the search panel */
-  onClose?: () => void
+  onClose?: () => void;
   /** Additional class names */
-  className?: string
+  className?: string;
 }
 
 /**
  * Debounce hook for search input
  */
 function useDebounce<T>(value: T, delay: number): T {
-  const [debouncedValue, setDebouncedValue] = useState<T>(value)
+  const [debouncedValue, setDebouncedValue] = useState<T>(value);
 
   useEffect(() => {
     const handler = setTimeout(() => {
-      setDebouncedValue(value)
-    }, delay)
+      setDebouncedValue(value);
+    }, delay);
 
     return () => {
-      clearTimeout(handler)
-    }
-  }, [value, delay])
+      clearTimeout(handler);
+    };
+  }, [value, delay]);
 
-  return debouncedValue
+  return debouncedValue;
 }
 
 /**
  * Highlight matching text in search results
  */
-function HighlightedText({ text, query }: { text: string; query: string }): React.ReactElement {
+function HighlightedText({
+  text,
+  query,
+}: {
+  text: string;
+  query: string;
+}): React.ReactElement {
   if (!query.trim() || !text) {
-    return <>{text}</>
+    return <>{text}</>;
   }
 
-  const parts = text.split(new RegExp(`(${escapeRegExp(query)})`, 'gi'))
+  const parts = text.split(new RegExp(`(${escapeRegExp(query)})`, "gi"));
 
   return (
     <>
@@ -96,37 +113,46 @@ function HighlightedText({ text, query }: { text: string; query: string }): Reac
           </mark>
         ) : (
           <span key={index}>{part}</span>
-        )
+        ),
       )}
     </>
-  )
+  );
 }
 
 /**
  * Escape special regex characters
  */
 function escapeRegExp(string: string): string {
-  return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  return string.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
-
 
 /**
  * Get icon for message type
  */
 function getMessageTypeIcon(type: string | null): React.ReactElement | null {
   switch (type) {
-    case 'image':
-      return <Image className="w-4 h-4 text-gray-400 dark:text-dark-text-tertiary" />
-    case 'video':
-      return <Video className="w-4 h-4 text-gray-400 dark:text-dark-text-tertiary" />
-    case 'audio':
-      return <Music className="w-4 h-4 text-gray-400 dark:text-dark-text-tertiary" />
-    case 'document':
-      return <FileText className="w-4 h-4 text-gray-400 dark:text-dark-text-tertiary" />
-    case 'location':
-      return <MapPin className="w-4 h-4 text-gray-400 dark:text-dark-text-tertiary" />
+    case "image":
+      return (
+        <Image className="w-4 h-4 text-gray-400 dark:text-dark-text-tertiary" />
+      );
+    case "video":
+      return (
+        <Video className="w-4 h-4 text-gray-400 dark:text-dark-text-tertiary" />
+      );
+    case "audio":
+      return (
+        <Music className="w-4 h-4 text-gray-400 dark:text-dark-text-tertiary" />
+      );
+    case "document":
+      return (
+        <FileText className="w-4 h-4 text-gray-400 dark:text-dark-text-tertiary" />
+      );
+    case "location":
+      return (
+        <MapPin className="w-4 h-4 text-gray-400 dark:text-dark-text-tertiary" />
+      );
     default:
-      return null
+      return null;
   }
 }
 
@@ -138,11 +164,11 @@ function MessageResultItem({
   query,
   onClick,
 }: {
-  result: MessageSearchResult
-  query: string
-  onClick: () => void
+  result: MessageSearchResult;
+  query: string;
+  onClick: () => void;
 }) {
-  const displayContent = result.highlights || result.content || ''
+  const displayContent = result.highlights || result.content || "";
 
   return (
     <button
@@ -158,7 +184,7 @@ function MessageResultItem({
           </AvatarFallback>
         ) : (
           <AvatarFallback className="bg-whatsapp-teal-green text-white">
-            {(result.contactName || '?').charAt(0).toUpperCase()}
+            {(result.contactName || "?").charAt(0).toUpperCase()}
           </AvatarFallback>
         )}
       </Avatar>
@@ -167,7 +193,7 @@ function MessageResultItem({
       <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between gap-2">
           <span className="font-medium text-gray-900 dark:text-dark-text-primary truncate">
-            {result.contactName || result.contactJid || 'Unknown'}
+            {result.contactName || result.contactJid || "Unknown"}
           </span>
           <span className="text-xs text-gray-500 dark:text-dark-text-tertiary flex-shrink-0">
             {formatChatListTime(result.timestamp)}
@@ -181,7 +207,7 @@ function MessageResultItem({
         </div>
       </div>
     </button>
-  )
+  );
 }
 
 /**
@@ -192,9 +218,9 @@ function ContactResultItem({
   query,
   onClick,
 }: {
-  result: ContactSearchResult
-  query: string
-  onClick: () => void
+  result: ContactSearchResult;
+  query: string;
+  onClick: () => void;
 }) {
   return (
     <button
@@ -205,7 +231,10 @@ function ContactResultItem({
       {/* Avatar */}
       <Avatar className="h-10 w-10 flex-shrink-0">
         {result.profilePictureUrl ? (
-          <AvatarImage src={result.profilePictureUrl} alt={result.displayName} />
+          <AvatarImage
+            src={result.profilePictureUrl}
+            alt={result.displayName}
+          />
         ) : null}
         {result.isGroup ? (
           <AvatarFallback className="bg-gray-400 dark:bg-dark-text-tertiary">
@@ -242,7 +271,7 @@ function ContactResultItem({
         )}
       </div>
     </button>
-  )
+  );
 }
 
 /**
@@ -257,7 +286,7 @@ function SearchResultSkeleton() {
         <Skeleton className="h-3 w-48" />
       </div>
     </div>
-  )
+  );
 }
 
 /**
@@ -271,45 +300,45 @@ function MessageFilters({
   expanded,
   onToggle,
 }: {
-  dateRange: '7d' | '30d' | '90d' | 'all'
-  onDateRangeChange: (range: '7d' | '30d' | '90d' | 'all') => void
-  selectedTypes: MessageType[]
-  onTypesChange: (types: MessageType[]) => void
-  expanded: boolean
-  onToggle: () => void
+  dateRange: "7d" | "30d" | "90d" | "all";
+  onDateRangeChange: (range: "7d" | "30d" | "90d" | "all") => void;
+  selectedTypes: MessageType[];
+  onTypesChange: (types: MessageType[]) => void;
+  expanded: boolean;
+  onToggle: () => void;
 }) {
   const messageTypes: {
-    value: MessageType
-    label: string
-    icon: React.ReactElement
+    value: MessageType;
+    label: string;
+    icon: React.ReactElement;
   }[] = [
     {
-      value: 'text',
-      label: 'Text',
+      value: "text",
+      label: "Text",
       icon: <MessageSquare className="w-3 h-3" />,
     },
-    { value: 'image', label: 'Images', icon: <Image className="w-3 h-3" /> },
-    { value: 'video', label: 'Videos', icon: <Video className="w-3 h-3" /> },
-    { value: 'audio', label: 'Audio', icon: <Music className="w-3 h-3" /> },
+    { value: "image", label: "Images", icon: <Image className="w-3 h-3" /> },
+    { value: "video", label: "Videos", icon: <Video className="w-3 h-3" /> },
+    { value: "audio", label: "Audio", icon: <Music className="w-3 h-3" /> },
     {
-      value: 'document',
-      label: 'Documents',
+      value: "document",
+      label: "Documents",
       icon: <FileText className="w-3 h-3" />,
     },
     {
-      value: 'location',
-      label: 'Location',
+      value: "location",
+      label: "Location",
       icon: <MapPin className="w-3 h-3" />,
     },
-  ]
+  ];
 
   const toggleType = (type: MessageType) => {
     if (selectedTypes.includes(type)) {
-      onTypesChange(selectedTypes.filter((t) => t !== type))
+      onTypesChange(selectedTypes.filter((t) => t !== type));
     } else {
-      onTypesChange([...selectedTypes, type])
+      onTypesChange([...selectedTypes, type]);
     }
-  }
+  };
 
   return (
     <div className="border-b border-gray-200 dark:border-dark-border bg-gray-50 dark:bg-dark-secondary">
@@ -322,13 +351,18 @@ function MessageFilters({
         <div className="flex items-center gap-2">
           <Filter className="w-4 h-4" />
           <span>Filters</span>
-          {(dateRange !== 'all' || selectedTypes.length > 0) && (
+          {(dateRange !== "all" || selectedTypes.length > 0) && (
             <Badge variant="default" className="text-xs">
-              {(dateRange !== 'all' ? 1 : 0) + (selectedTypes.length > 0 ? 1 : 0)}
+              {(dateRange !== "all" ? 1 : 0) +
+                (selectedTypes.length > 0 ? 1 : 0)}
             </Badge>
           )}
         </div>
-        {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+        {expanded ? (
+          <ChevronUp className="w-4 h-4" />
+        ) : (
+          <ChevronDown className="w-4 h-4" />
+        )}
       </button>
 
       {/* Expanded Filters */}
@@ -361,8 +395,8 @@ function MessageFilters({
                   onClick={() => toggleType(type.value)}
                   className={`inline-flex items-center gap-1 px-2 py-1 text-xs rounded-full border transition-colors ${
                     selectedTypes.includes(type.value)
-                      ? 'bg-whatsapp-teal-green text-white border-whatsapp-teal-green'
-                      : 'bg-white dark:bg-dark-tertiary text-gray-600 dark:text-dark-text-secondary border-gray-300 dark:border-dark-border hover:border-gray-400 dark:hover:border-dark-text-tertiary'
+                      ? "bg-whatsapp-teal-green text-white border-whatsapp-teal-green"
+                      : "bg-white dark:bg-dark-tertiary text-gray-600 dark:text-dark-text-secondary border-gray-300 dark:border-dark-border hover:border-gray-400 dark:hover:border-dark-text-tertiary"
                   }`}
                 >
                   {type.icon}
@@ -374,33 +408,44 @@ function MessageFilters({
         </div>
       )}
     </div>
-  )
+  );
 }
 
 /**
  * Empty state component
  */
-function EmptyState({ query, hasFilters }: { query: string; hasFilters: boolean }) {
+function EmptyState({
+  query,
+  hasFilters,
+}: {
+  query: string;
+  hasFilters: boolean;
+}) {
   return (
     <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
       <Search className="w-12 h-12 text-gray-300 dark:text-dark-text-tertiary mb-4" />
       {query.length < 2 ? (
         <>
-          <p className="text-gray-600 dark:text-dark-text-primary font-medium">Start searching</p>
+          <p className="text-gray-600 dark:text-dark-text-primary font-medium">
+            Start searching
+          </p>
           <p className="text-sm text-gray-500 dark:text-dark-text-secondary mt-1">
             Enter at least 2 characters to search
           </p>
         </>
       ) : (
         <>
-          <p className="text-gray-600 dark:text-dark-text-primary font-medium">No results found</p>
+          <p className="text-gray-600 dark:text-dark-text-primary font-medium">
+            No results found
+          </p>
           <p className="text-sm text-gray-500 dark:text-dark-text-secondary mt-1">
-            No matches for "{query}"{hasFilters && '. Try adjusting your filters.'}
+            No matches for "{query}"
+            {hasFilters && ". Try adjusting your filters."}
           </p>
         </>
       )}
     </div>
-  )
+  );
 }
 
 /**
@@ -410,120 +455,133 @@ export function SearchPanel({
   onMessageClick,
   onContactClick,
   onClose,
-  className = '',
+  className = "",
 }: SearchPanelProps) {
   // Search state
-  const [query, setQuery] = useState('')
-  const [activeTab, setActiveTab] = useState<SearchTab>('all')
-  const [filtersExpanded, setFiltersExpanded] = useState(false)
+  const [query, setQuery] = useState("");
+  const [activeTab, setActiveTab] = useState<SearchTab>("all");
+  const [filtersExpanded, setFiltersExpanded] = useState(false);
 
   // Message filter state
-  const [dateRange, setDateRange] = useState<'7d' | '30d' | '90d' | 'all'>('all')
-  const [selectedMessageTypes, setSelectedMessageTypes] = useState<MessageType[]>([])
+  const [dateRange, setDateRange] = useState<"7d" | "30d" | "90d" | "all">(
+    "all",
+  );
+  const [selectedMessageTypes, setSelectedMessageTypes] = useState<
+    MessageType[]
+  >([]);
 
   // Debounced query
-  const debouncedQuery = useDebounce(query, 300)
+  const debouncedQuery = useDebounce(query, 300);
 
   // Calculate date range for API
   const dateFilters = useMemo(() => {
-    if (dateRange === 'all') return {}
-    const end = now()
-    const days = dateRange === '7d' ? 7 : dateRange === '30d' ? 30 : 90
-    const start = subtractDays(end, days)
-    return { startDate: toISOString(start), endDate: toISOString(end) }
-  }, [dateRange])
+    if (dateRange === "all") return {};
+    const end = now();
+    const days = dateRange === "7d" ? 7 : dateRange === "30d" ? 30 : 90;
+    const start = subtractDays(end, days);
+    return { startDate: toISOString(start), endDate: toISOString(end) };
+  }, [dateRange]);
 
   // Search options for message search
   const messageSearchOptions: MessageSearchOptions = useMemo(
     () => ({
       ...dateFilters,
-      messageTypes: selectedMessageTypes.length > 0 ? selectedMessageTypes : undefined,
+      messageTypes:
+        selectedMessageTypes.length > 0 ? selectedMessageTypes : undefined,
       limit: 50,
     }),
-    [dateFilters, selectedMessageTypes]
-  )
+    [dateFilters, selectedMessageTypes],
+  );
 
   // Search queries
-  const globalSearch = useGlobalSearch(debouncedQuery, activeTab === 'all')
+  const globalSearch = useGlobalSearch(debouncedQuery, activeTab === "all");
   const messageSearch = useMessageSearch(
     debouncedQuery,
     messageSearchOptions,
-    activeTab === 'messages'
-  )
-  const contactSearch = useContactSearch(debouncedQuery, true, activeTab === 'contacts')
+    activeTab === "messages",
+  );
+  const contactSearch = useContactSearch(
+    debouncedQuery,
+    true,
+    activeTab === "contacts",
+  );
 
   // Loading state
   const isLoading =
-    (activeTab === 'all' && globalSearch.isLoading) ||
-    (activeTab === 'messages' && messageSearch.isLoading) ||
-    (activeTab === 'contacts' && contactSearch.isLoading)
+    (activeTab === "all" && globalSearch.isLoading) ||
+    (activeTab === "messages" && messageSearch.isLoading) ||
+    (activeTab === "contacts" && contactSearch.isLoading);
 
   // Results
   const messages = useMemo(() => {
-    if (activeTab === 'all') {
-      return globalSearch.data?.messages ?? []
+    if (activeTab === "all") {
+      return globalSearch.data?.messages ?? [];
     }
-    return messageSearch.data?.data ?? []
-  }, [activeTab, globalSearch.data, messageSearch.data])
+    return messageSearch.data?.data ?? [];
+  }, [activeTab, globalSearch.data, messageSearch.data]);
 
   const contacts = useMemo(() => {
-    if (activeTab === 'all') {
-      return globalSearch.data?.contacts ?? []
+    if (activeTab === "all") {
+      return globalSearch.data?.contacts ?? [];
     }
-    return contactSearch.data?.data ?? []
-  }, [activeTab, globalSearch.data, contactSearch.data])
+    return contactSearch.data?.data ?? [];
+  }, [activeTab, globalSearch.data, contactSearch.data]);
 
   // Has filters applied
-  const hasFilters = dateRange !== 'all' || selectedMessageTypes.length > 0
+  const hasFilters = dateRange !== "all" || selectedMessageTypes.length > 0;
 
   // Event handlers
-  const handleQueryChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    setQuery(e.target.value)
-  }, [])
+  const handleQueryChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      setQuery(e.target.value);
+    },
+    [],
+  );
 
   const handleClearQuery = useCallback(() => {
-    setQuery('')
-  }, [])
+    setQuery("");
+  }, []);
 
   const handleMessageResultClick = useCallback(
     (contactId: string, messageId: string | null) => {
       if (messageId) {
-        onMessageClick?.(contactId, messageId)
+        onMessageClick?.(contactId, messageId);
       } else {
-        onContactClick?.(contactId)
+        onContactClick?.(contactId);
       }
     },
-    [onMessageClick, onContactClick]
-  )
+    [onMessageClick, onContactClick],
+  );
 
   const handleContactResultClick = useCallback(
     (contactId: string) => {
-      onContactClick?.(contactId)
+      onContactClick?.(contactId);
     },
-    [onContactClick]
-  )
+    [onContactClick],
+  );
 
   const handleTabChange = useCallback((tab: SearchTab) => {
-    setActiveTab(tab)
+    setActiveTab(tab);
     // Reset filters when switching tabs
-    if (tab !== 'messages') {
-      setFiltersExpanded(false)
+    if (tab !== "messages") {
+      setFiltersExpanded(false);
     }
-  }, [])
+  }, []);
 
-  const tabs: { value: SearchTab; label: string; icon: React.ReactElement }[] = [
-    { value: 'all', label: 'All', icon: <Search className="w-4 h-4" /> },
-    {
-      value: 'messages',
-      label: 'Messages',
-      icon: <MessageSquare className="w-4 h-4" />,
-    },
-    {
-      value: 'contacts',
-      label: 'Contacts',
-      icon: <User className="w-4 h-4" />,
-    },
-  ]
+  const tabs: { value: SearchTab; label: string; icon: React.ReactElement }[] =
+    [
+      { value: "all", label: "All", icon: <Search className="w-4 h-4" /> },
+      {
+        value: "messages",
+        label: "Messages",
+        icon: <MessageSquare className="w-4 h-4" />,
+      },
+      {
+        value: "contacts",
+        label: "Contacts",
+        icon: <User className="w-4 h-4" />,
+      },
+    ];
 
   return (
     <div
@@ -537,7 +595,12 @@ export function SearchPanel({
           Search
         </h2>
         {onClose && (
-          <Button variant="ghost" size="icon" onClick={onClose} aria-label="Close search">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onClose}
+            aria-label="Close search"
+          >
             <X className="w-5 h-5" />
           </Button>
         )}
@@ -577,8 +640,8 @@ export function SearchPanel({
             onClick={() => handleTabChange(tab.value)}
             className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium transition-colors ${
               activeTab === tab.value
-                ? 'text-whatsapp-green border-b-2 border-whatsapp-green bg-whatsapp-green/5 dark:bg-whatsapp-green/10'
-                : 'text-gray-600 dark:text-dark-text-secondary hover:text-gray-900 dark:hover:text-dark-text-primary hover:bg-gray-50 dark:hover:bg-dark-tertiary'
+                ? "text-whatsapp-green border-b-2 border-whatsapp-green bg-whatsapp-green/5 dark:bg-whatsapp-green/10"
+                : "text-gray-600 dark:text-dark-text-secondary hover:text-gray-900 dark:hover:text-dark-text-primary hover:bg-gray-50 dark:hover:bg-dark-tertiary"
             }`}
             aria-selected={activeTab === tab.value}
             role="tab"
@@ -590,7 +653,7 @@ export function SearchPanel({
       </div>
 
       {/* Filters (Messages tab only) */}
-      {activeTab === 'messages' && (
+      {activeTab === "messages" && (
         <MessageFilters
           dateRange={dateRange}
           onDateRangeChange={setDateRange}
@@ -616,7 +679,9 @@ export function SearchPanel({
         {!isLoading &&
           debouncedQuery.length >= 2 &&
           messages.length === 0 &&
-          contacts.length === 0 && <EmptyState query={debouncedQuery} hasFilters={hasFilters} />}
+          contacts.length === 0 && (
+            <EmptyState query={debouncedQuery} hasFilters={hasFilters} />
+          )}
 
         {/* No Query State */}
         {!isLoading && debouncedQuery.length < 2 && (
@@ -627,7 +692,7 @@ export function SearchPanel({
         {!isLoading && debouncedQuery.length >= 2 && (
           <div>
             {/* All Tab - Show both sections */}
-            {activeTab === 'all' && (
+            {activeTab === "all" && (
               <>
                 {/* Contacts Section */}
                 {contacts.length > 0 && (
@@ -648,7 +713,7 @@ export function SearchPanel({
                     {contacts.length > 5 && (
                       <button
                         type="button"
-                        onClick={() => handleTabChange('contacts')}
+                        onClick={() => handleTabChange("contacts")}
                         className="w-full px-4 py-2 text-sm text-whatsapp-green hover:bg-gray-50 dark:hover:bg-dark-tertiary transition-colors text-center"
                       >
                         View all {contacts.length} contacts
@@ -671,14 +736,17 @@ export function SearchPanel({
                         result={message}
                         query={debouncedQuery}
                         onClick={() =>
-                          handleMessageResultClick(message.contactId, message.messageId)
+                          handleMessageResultClick(
+                            message.contactId,
+                            message.messageId,
+                          )
                         }
                       />
                     ))}
                     {messages.length > 10 && (
                       <button
                         type="button"
-                        onClick={() => handleTabChange('messages')}
+                        onClick={() => handleTabChange("messages")}
                         className="w-full px-4 py-2 text-sm text-whatsapp-green hover:bg-gray-50 dark:hover:bg-dark-tertiary transition-colors text-center"
                       >
                         View all {messages.length} messages
@@ -690,26 +758,32 @@ export function SearchPanel({
             )}
 
             {/* Messages Tab */}
-            {activeTab === 'messages' && messages.length > 0 && (
+            {activeTab === "messages" && messages.length > 0 && (
               <div>
                 {messages.map((message) => (
                   <MessageResultItem
                     key={message.id}
                     result={message}
                     query={debouncedQuery}
-                    onClick={() => handleMessageResultClick(message.contactId, message.messageId)}
+                    onClick={() =>
+                      handleMessageResultClick(
+                        message.contactId,
+                        message.messageId,
+                      )
+                    }
                   />
                 ))}
                 {messageSearch.data?.pagination?.hasMore && (
                   <div className="px-4 py-3 text-center text-sm text-gray-500 dark:text-dark-text-secondary">
-                    Showing {messages.length} of {messageSearch.data.pagination.total} results
+                    Showing {messages.length} of{" "}
+                    {messageSearch.data.pagination.total} results
                   </div>
                 )}
               </div>
             )}
 
             {/* Contacts Tab */}
-            {activeTab === 'contacts' && contacts.length > 0 && (
+            {activeTab === "contacts" && contacts.length > 0 && (
               <div>
                 {contacts.map((contact) => (
                   <ContactResultItem
@@ -721,7 +795,8 @@ export function SearchPanel({
                 ))}
                 {contactSearch.data?.pagination?.hasMore && (
                   <div className="px-4 py-3 text-center text-sm text-gray-500 dark:text-dark-text-secondary">
-                    Showing {contacts.length} of {contactSearch.data.pagination.total} results
+                    Showing {contacts.length} of{" "}
+                    {contactSearch.data.pagination.total} results
                   </div>
                 )}
               </div>
@@ -730,7 +805,7 @@ export function SearchPanel({
         )}
       </ScrollArea>
     </div>
-  )
+  );
 }
 
-export default SearchPanel
+export default SearchPanel;

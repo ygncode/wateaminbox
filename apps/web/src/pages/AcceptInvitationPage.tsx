@@ -1,59 +1,74 @@
-import { Building2, CheckCircle, Clock, Mail, User, XCircle } from 'lucide-react'
-import { useEffect, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
-import { dayjs, now } from '@whatsapp-web/shared'
-import { Button, Skeleton } from '../components/ui'
-import { useAuth } from '../contexts/auth-context'
-import { useAcceptInvitation, useInvitationByToken } from '../hooks/useTeam'
+import {
+  Building2,
+  CheckCircle,
+  Clock,
+  Mail,
+  User,
+  XCircle,
+} from "lucide-react";
+import { useEffect, useState } from "react";
+import { Link, useNavigate, useParams } from "react-router-dom";
+import { dayjs, now } from "@whatsapp-web/shared";
+import { Button, Skeleton } from "../components/ui";
+import { useAuth } from "../contexts/auth-context";
+import { useAcceptInvitation, useInvitationByToken } from "../hooks/useTeam";
 
 /**
  * Accept Invitation page
  * Allows users to view and accept team invitations
  */
 export function AcceptInvitationPage() {
-  const { token } = useParams<{ token: string }>()
-  const navigate = useNavigate()
-  const { isAuthenticated, refreshSession } = useAuth()
-  const [accepted, setAccepted] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const { token } = useParams<{ token: string }>();
+  const navigate = useNavigate();
+  const { isAuthenticated, refreshSession } = useAuth();
+  const [accepted, setAccepted] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   // Fetch invitation details
-  const { data: invitation, isLoading, error: fetchError } = useInvitationByToken(token || null)
+  const {
+    data: invitation,
+    isLoading,
+    error: fetchError,
+  } = useInvitationByToken(token || null);
 
   // Accept invitation mutation
-  const acceptInvitation = useAcceptInvitation()
+  const acceptInvitation = useAcceptInvitation();
 
   // Check if invitation is expired
-  const isExpired = invitation ? dayjs(invitation.expiresAt).isBefore(now()) : false
+  const isExpired = invitation
+    ? dayjs(invitation.expiresAt).isBefore(now())
+    : false;
 
   // Format date for display
   const formatDate = (dateString: string) => {
-    return dayjs(dateString).format('MMMM D, YYYY')
-  }
+    return dayjs(dateString).format("MMMM D, YYYY");
+  };
 
   const handleAccept = async () => {
-    if (!token) return
+    if (!token) return;
 
     try {
-      setError(null)
-      await acceptInvitation.mutateAsync(token)
-      setAccepted(true)
+      setError(null);
+      await acceptInvitation.mutateAsync(token);
+      setAccepted(true);
       // Refresh the session to update companies list
-      await refreshSession()
+      await refreshSession();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to accept invitation')
+      setError(
+        err instanceof Error ? err.message : "Failed to accept invitation",
+      );
     }
-  }
+  };
 
   // Redirect to chat after successful acceptance
   useEffect(() => {
     if (accepted) {
       const timer = setTimeout(() => {
-        navigate('/chat')
-      }, 3000)
-      return () => clearTimeout(timer)
+        navigate("/chat");
+      }, 3000);
+      return () => clearTimeout(timer);
     }
-  }, [accepted, navigate])
+  }, [accepted, navigate]);
 
   // Show loading state
   if (isLoading) {
@@ -68,7 +83,7 @@ export function AcceptInvitationPage() {
           </div>
         </div>
       </div>
-    )
+    );
   }
 
   // Show error state for invalid/not found invitation
@@ -92,7 +107,7 @@ export function AcceptInvitationPage() {
           </Link>
         </div>
       </div>
-    )
+    );
   }
 
   // Show success state after accepting
@@ -107,14 +122,15 @@ export function AcceptInvitationPage() {
             Welcome to {invitation.companyName}!
           </h1>
           <p className="text-gray-600 dark:text-dark-text-secondary mb-4">
-            You have successfully joined the team. Redirecting you to the chat...
+            You have successfully joined the team. Redirecting you to the
+            chat...
           </p>
           <div className="animate-pulse text-sm text-gray-500 dark:text-dark-text-tertiary">
             Redirecting in a moment...
           </div>
         </div>
       </div>
-    )
+    );
   }
 
   // Main invitation view
@@ -139,7 +155,9 @@ export function AcceptInvitationPage() {
           <div className="flex items-center gap-3 p-3 rounded-lg bg-gray-50 dark:bg-dark-tertiary">
             <Building2 className="h-5 w-5 text-gray-500 dark:text-dark-text-tertiary flex-shrink-0" />
             <div>
-              <p className="text-xs text-gray-500 dark:text-dark-text-tertiary">Company</p>
+              <p className="text-xs text-gray-500 dark:text-dark-text-tertiary">
+                Company
+              </p>
               <p className="font-medium text-gray-900 dark:text-dark-text-primary">
                 {invitation.companyName}
               </p>
@@ -149,7 +167,9 @@ export function AcceptInvitationPage() {
           <div className="flex items-center gap-3 p-3 rounded-lg bg-gray-50 dark:bg-dark-tertiary">
             <Mail className="h-5 w-5 text-gray-500 dark:text-dark-text-tertiary flex-shrink-0" />
             <div>
-              <p className="text-xs text-gray-500 dark:text-dark-text-tertiary">Invited Email</p>
+              <p className="text-xs text-gray-500 dark:text-dark-text-tertiary">
+                Invited Email
+              </p>
               <p className="font-medium text-gray-900 dark:text-dark-text-primary">
                 {invitation.email}
               </p>
@@ -159,7 +179,9 @@ export function AcceptInvitationPage() {
           <div className="flex items-center gap-3 p-3 rounded-lg bg-gray-50 dark:bg-dark-tertiary">
             <User className="h-5 w-5 text-gray-500 dark:text-dark-text-tertiary flex-shrink-0" />
             <div>
-              <p className="text-xs text-gray-500 dark:text-dark-text-tertiary">Invited By</p>
+              <p className="text-xs text-gray-500 dark:text-dark-text-tertiary">
+                Invited By
+              </p>
               <p className="font-medium text-gray-900 dark:text-dark-text-primary">
                 {invitation.invitedBy}
               </p>
@@ -169,16 +191,18 @@ export function AcceptInvitationPage() {
           <div className="flex items-center gap-3 p-3 rounded-lg bg-gray-50 dark:bg-dark-tertiary">
             <Clock className="h-5 w-5 text-gray-500 dark:text-dark-text-tertiary flex-shrink-0" />
             <div>
-              <p className="text-xs text-gray-500 dark:text-dark-text-tertiary">Expires</p>
+              <p className="text-xs text-gray-500 dark:text-dark-text-tertiary">
+                Expires
+              </p>
               <p
                 className={`font-medium ${
                   isExpired
-                    ? 'text-red-600 dark:text-red-400'
-                    : 'text-gray-900 dark:text-dark-text-primary'
+                    ? "text-red-600 dark:text-red-400"
+                    : "text-gray-900 dark:text-dark-text-primary"
                 }`}
               >
                 {formatDate(invitation.expiresAt)}
-                {isExpired && ' (Expired)'}
+                {isExpired && " (Expired)"}
               </p>
             </div>
           </div>
@@ -228,7 +252,9 @@ export function AcceptInvitationPage() {
               disabled={acceptInvitation.isPending}
               className="w-full bg-whatsapp-teal-green hover:bg-whatsapp-dark-green"
             >
-              {acceptInvitation.isPending ? 'Accepting...' : 'Accept Invitation'}
+              {acceptInvitation.isPending
+                ? "Accepting..."
+                : "Accept Invitation"}
             </Button>
             <Link to="/chat">
               <Button variant="outline" className="w-full">
@@ -239,5 +265,5 @@ export function AcceptInvitationPage() {
         )}
       </div>
     </div>
-  )
+  );
 }

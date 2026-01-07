@@ -1,15 +1,15 @@
-import { ArrowLeft } from 'lucide-react'
-import { Link } from 'react-router-dom'
-import { AppLayout } from '../components/layout/app-layout'
-import { AuditLog } from '../components/team'
-import { useAuth } from '../contexts/auth-context'
+import { ArrowLeft } from "lucide-react";
+import { Link } from "react-router-dom";
+import { AppLayout } from "../components/layout/app-layout";
+import { AuditLog } from "../components/team";
+import { useAuth } from "../contexts/auth-context";
 
 /**
  * Audit Log page
  * Displays company activity and security logs
  */
 export function AuditPage() {
-  const { currentCompanyId } = useAuth()
+  const { currentCompanyId } = useAuth();
 
   if (!currentCompanyId) {
     return (
@@ -18,7 +18,7 @@ export function AuditPage() {
           <p className="text-gray-500">No company selected</p>
         </div>
       </AppLayout>
-    )
+    );
   }
 
   return (
@@ -41,5 +41,5 @@ export function AuditPage() {
         </div>
       </div>
     </AppLayout>
-  )
+  );
 }

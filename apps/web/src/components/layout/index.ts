@@ -3,7 +3,7 @@ export {
   type AppLayoutProps,
   ResponsiveLayout,
   type ResponsiveLayoutProps,
-} from './app-layout'
+} from "./app-layout";
 export {
   MobileActionButton,
   type MobileActionButtonProps,
@@ -20,7 +20,7 @@ export {
   MobileViewContainer,
   type MobileViewContainerProps,
   useMobileLayout,
-} from './MobileLayout'
+} from "./MobileLayout";
 export {
   EmptyState,
   type EmptyStateProps,
@@ -32,7 +32,7 @@ export {
   type MessageAreaProps,
   MessageInputArea,
   type MessageInputAreaProps,
-} from './main-content'
+} from "./main-content";
 export {
   RightPanel,
   RightPanelContent,
@@ -42,7 +42,7 @@ export {
   type RightPanelProps,
   RightPanelSection,
   type RightPanelSectionProps,
-} from './right-panel'
+} from "./right-panel";
 export {
   Sidebar,
   SidebarContent,
@@ -52,4 +52,4 @@ export {
   type SidebarProps,
   SidebarSearch,
   type SidebarSearchProps,
-} from './sidebar'
+} from "./sidebar";

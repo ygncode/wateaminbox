@@ -1,9 +1,9 @@
-import { AlertCircle, Check, Loader2, UserPlus } from 'lucide-react'
-import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { useForm } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
-import { toast } from 'sonner'
+import { AlertCircle, Check, Loader2, UserPlus } from "lucide-react";
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { toast } from "sonner";
 import {
   Button,
   Dialog,
@@ -14,24 +14,27 @@ import {
   Input,
   Label,
   Textarea,
-} from '@/components/ui'
-import { useCreateContact } from '@/hooks/useContact'
-import { addContactSchema, type AddContactFormData } from '@/lib/schemas'
+} from "@/components/ui";
+import { useCreateContact } from "@/hooks/useContact";
+import { addContactSchema, type AddContactFormData } from "@/lib/schemas";
 
 export interface AddContactDialogProps {
-  open: boolean
-  onOpenChange: (open: boolean) => void
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
 }
 
 /**
  * Dialog component for adding a new contact by phone number
  */
-export function AddContactDialog({ open, onOpenChange }: AddContactDialogProps) {
-  const [serverError, setServerError] = useState<string | null>(null)
-  const [success, setSuccess] = useState(false)
+export function AddContactDialog({
+  open,
+  onOpenChange,
+}: AddContactDialogProps) {
+  const [serverError, setServerError] = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
 
-  const navigate = useNavigate()
-  const createContact = useCreateContact()
+  const navigate = useNavigate();
+  const createContact = useCreateContact();
 
   const {
     register,
@@ -41,53 +44,53 @@ export function AddContactDialog({ open, onOpenChange }: AddContactDialogProps) 
   } = useForm<AddContactFormData>({
     resolver: zodResolver(addContactSchema),
     defaultValues: {
-      phoneNumber: '',
-      customName: '',
-      notes: '',
+      phoneNumber: "",
+      customName: "",
+      notes: "",
     },
-  })
+  });
 
   const resetForm = () => {
-    reset()
-    setServerError(null)
-    setSuccess(false)
-  }
+    reset();
+    setServerError(null);
+    setSuccess(false);
+  };
 
   const handleClose = () => {
-    resetForm()
-    onOpenChange(false)
-  }
+    resetForm();
+    onOpenChange(false);
+  };
 
   const onSubmit = async (data: AddContactFormData) => {
-    setServerError(null)
+    setServerError(null);
 
     try {
       const contact = await createContact.mutateAsync({
         phoneNumber: data.phoneNumber,
         customName: data.customName || undefined,
         notesShared: data.notes || undefined,
-      })
+      });
 
-      setSuccess(true)
+      setSuccess(true);
 
       // Navigate to the new contact after a short delay
       setTimeout(() => {
-        handleClose()
-        navigate(`/chat/${contact.id}`)
-      }, 1000)
+        handleClose();
+        navigate(`/chat/${contact.id}`);
+      }, 1000);
     } catch (err) {
       if (err instanceof Error) {
         // Handle conflict error (contact already exists) - show as toast
-        if (err.message.includes('already exists')) {
-          toast.error('A contact with this phone number already exists')
+        if (err.message.includes("already exists")) {
+          toast.error("A contact with this phone number already exists");
         } else {
-          setServerError(err.message)
+          setServerError(err.message);
         }
       } else {
-        setServerError('Failed to create contact')
+        setServerError("Failed to create contact");
       }
     }
-  }
+  };
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
@@ -98,7 +101,8 @@ export function AddContactDialog({ open, onOpenChange }: AddContactDialogProps) 
             Add New Contact
           </DialogTitle>
           <DialogDescription>
-            Enter a phone number to add a new contact. Include the country code (e.g., +1 for US).
+            Enter a phone number to add a new contact. Include the country code
+            (e.g., +1 for US).
           </DialogDescription>
         </DialogHeader>
 
@@ -136,17 +140,27 @@ export function AddContactDialog({ open, onOpenChange }: AddContactDialogProps) 
                 className="font-mono"
                 autoFocus
                 data-testid="add-contact-phone"
-                aria-invalid={errors.phoneNumber ? 'true' : 'false'}
-                aria-describedby={errors.phoneNumber ? 'phoneNumber-error' : 'phoneNumber-hint'}
-                {...register('phoneNumber')}
+                aria-invalid={errors.phoneNumber ? "true" : "false"}
+                aria-describedby={
+                  errors.phoneNumber ? "phoneNumber-error" : "phoneNumber-hint"
+                }
+                {...register("phoneNumber")}
               />
               {errors.phoneNumber ? (
-                <p id="phoneNumber-error" className="text-xs text-red-500 dark:text-red-400" role="alert">
+                <p
+                  id="phoneNumber-error"
+                  className="text-xs text-red-500 dark:text-red-400"
+                  role="alert"
+                >
                   {errors.phoneNumber.message}
                 </p>
               ) : (
-                <p id="phoneNumber-hint" className="text-xs text-gray-500 dark:text-dark-text-tertiary">
-                  Include country code (e.g., +1 for US, +44 for UK, +95 for Myanmar)
+                <p
+                  id="phoneNumber-hint"
+                  className="text-xs text-gray-500 dark:text-dark-text-tertiary"
+                >
+                  Include country code (e.g., +1 for US, +44 for UK, +95 for
+                  Myanmar)
                 </p>
               )}
             </div>
@@ -159,12 +173,18 @@ export function AddContactDialog({ open, onOpenChange }: AddContactDialogProps) 
                 type="text"
                 placeholder="John Doe"
                 data-testid="add-contact-name"
-                aria-invalid={errors.customName ? 'true' : 'false'}
-                aria-describedby={errors.customName ? 'customName-error' : undefined}
-                {...register('customName')}
+                aria-invalid={errors.customName ? "true" : "false"}
+                aria-describedby={
+                  errors.customName ? "customName-error" : undefined
+                }
+                {...register("customName")}
               />
               {errors.customName && (
-                <p id="customName-error" className="text-xs text-red-500 dark:text-red-400" role="alert">
+                <p
+                  id="customName-error"
+                  className="text-xs text-red-500 dark:text-red-400"
+                  role="alert"
+                >
                   {errors.customName.message}
                 </p>
               )}
@@ -178,16 +198,23 @@ export function AddContactDialog({ open, onOpenChange }: AddContactDialogProps) 
                 placeholder="Add notes about this contact..."
                 rows={3}
                 data-testid="add-contact-notes"
-                aria-invalid={errors.notes ? 'true' : 'false'}
-                aria-describedby={errors.notes ? 'notes-error' : 'notes-hint'}
-                {...register('notes')}
+                aria-invalid={errors.notes ? "true" : "false"}
+                aria-describedby={errors.notes ? "notes-error" : "notes-hint"}
+                {...register("notes")}
               />
               {errors.notes ? (
-                <p id="notes-error" className="text-xs text-red-500 dark:text-red-400" role="alert">
+                <p
+                  id="notes-error"
+                  className="text-xs text-red-500 dark:text-red-400"
+                  role="alert"
+                >
                   {errors.notes.message}
                 </p>
               ) : (
-                <p id="notes-hint" className="text-xs text-gray-500 dark:text-dark-text-tertiary">
+                <p
+                  id="notes-hint"
+                  className="text-xs text-gray-500 dark:text-dark-text-tertiary"
+                >
                   These notes will be visible to all team members
                 </p>
               )}
@@ -226,7 +253,7 @@ export function AddContactDialog({ open, onOpenChange }: AddContactDialogProps) 
         )}
       </DialogContent>
     </Dialog>
-  )
+  );
 }
 
-export default AddContactDialog
+export default AddContactDialog;

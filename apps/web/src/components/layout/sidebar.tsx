@@ -1,74 +1,84 @@
-import type * as React from 'react'
-import { ScrollArea } from '@/components/ui'
-import { cn } from '@/lib/utils'
+import type * as React from "react";
+import { ScrollArea } from "@/components/ui";
+import { cn } from "@/lib/utils";
 
 export interface SidebarProps extends React.HTMLAttributes<HTMLDivElement> {
-  children: React.ReactNode
+  children: React.ReactNode;
 }
 
 export function Sidebar({ className, children, ...props }: SidebarProps) {
   return (
     <aside
       className={cn(
-        'flex h-full flex-col border-r border-gray-200 dark:border-dark-border bg-white dark:bg-dark-secondary',
+        "flex h-full flex-col border-r border-gray-200 dark:border-dark-border bg-white dark:bg-dark-secondary",
         // Responsive width
-        'w-full md:w-[320px] lg:w-[400px]',
+        "w-full md:w-[320px] lg:w-[400px]",
         // Mobile: full width, no border
-        'max-md:border-r-0',
-        className
+        "max-md:border-r-0",
+        className,
       )}
       {...props}
     >
       {children}
     </aside>
-  )
+  );
 }
 
 export interface SidebarHeaderProps extends React.HTMLAttributes<HTMLDivElement> {
-  children: React.ReactNode
+  children: React.ReactNode;
 }
 
-export function SidebarHeader({ className, children, ...props }: SidebarHeaderProps) {
+export function SidebarHeader({
+  className,
+  children,
+  ...props
+}: SidebarHeaderProps) {
   return (
     <header
       className={cn(
-        'flex items-center justify-between border-b border-gray-200 dark:border-dark-border bg-gray-100 dark:bg-dark-secondary px-4',
+        "flex items-center justify-between border-b border-gray-200 dark:border-dark-border bg-gray-100 dark:bg-dark-secondary px-4",
         // Responsive height with safe area support
-        'h-14 min-h-[56px] md:h-[60px] md:min-h-[60px]',
+        "h-14 min-h-[56px] md:h-[60px] md:min-h-[60px]",
         // Safe area inset for notch
-        'safe-area-top',
-        className
+        "safe-area-top",
+        className,
       )}
       {...props}
     >
       {children}
     </header>
-  )
+  );
 }
 
 export interface SidebarSearchProps extends React.HTMLAttributes<HTMLDivElement> {
-  children: React.ReactNode
+  children: React.ReactNode;
 }
 
-export function SidebarSearch({ className, children, ...props }: SidebarSearchProps) {
+export function SidebarSearch({
+  className,
+  children,
+  ...props
+}: SidebarSearchProps) {
   return (
     <div
       className={cn(
-        'border-b border-gray-200 dark:border-dark-border bg-white dark:bg-dark-secondary p-2',
-        className
+        "border-b border-gray-200 dark:border-dark-border bg-white dark:bg-dark-secondary p-2",
+        className,
       )}
       {...props}
     >
       {children}
     </div>
-  )
+  );
 }
 
 export interface SidebarContentProps {
-  className?: string
-  children: React.ReactNode
+  className?: string;
+  children: React.ReactNode;
 }
 
 export function SidebarContent({ className, children }: SidebarContentProps) {
-  return <ScrollArea className={cn('flex-1', className)}>{children}</ScrollArea>
+  return (
+    <ScrollArea className={cn("flex-1", className)}>{children}</ScrollArea>
+  );
 }

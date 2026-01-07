@@ -10,10 +10,10 @@ import {
   Tag,
   Trash2,
   Zap,
-} from 'lucide-react'
-import { useState } from 'react'
-import { useTranslation } from 'react-i18next'
-import { Button } from '@/components/ui/button'
+} from "lucide-react";
+import { useState } from "react";
+import { useTranslation } from "react-i18next";
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -21,30 +21,32 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
-import { useQuickReplies } from '@/hooks/useQuickReplies'
-import type { QuickReply } from '@/lib/api'
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { useQuickReplies } from "@/hooks/useQuickReplies";
+import type { QuickReply } from "@/lib/api";
 
 /**
  * Quick Replies Manager Component
  * Allows users to create, edit, and delete quick reply templates
  */
 export function QuickRepliesManager() {
-  const { t } = useTranslation()
-  const [searchQuery, setSearchQuery] = useState('')
-  const [isDialogOpen, setIsDialogOpen] = useState(false)
-  const [editingQuickReply, setEditingQuickReply] = useState<QuickReply | null>(null)
-  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
+  const { t } = useTranslation();
+  const [searchQuery, setSearchQuery] = useState("");
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [editingQuickReply, setEditingQuickReply] = useState<QuickReply | null>(
+    null,
+  );
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
   // Form state
-  const [shortcut, setShortcut] = useState('')
-  const [title, setTitle] = useState('')
-  const [content, setContent] = useState('')
-  const [formError, setFormError] = useState<string | null>(null)
-  const [success, setSuccess] = useState(false)
+  const [shortcut, setShortcut] = useState("");
+  const [title, setTitle] = useState("");
+  const [content, setContent] = useState("");
+  const [formError, setFormError] = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
 
   const {
     quickReplies,
@@ -56,76 +58,80 @@ export function QuickRepliesManager() {
     isCreating,
     isUpdating,
     isDeleting,
-  } = useQuickReplies({ search: searchQuery || undefined })
+  } = useQuickReplies({ search: searchQuery || undefined });
 
   const filteredQuickReplies = searchQuery
     ? quickReplies.filter(
         (qr) =>
           qr.shortcut.toLowerCase().includes(searchQuery.toLowerCase()) ||
           qr.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          qr.content.toLowerCase().includes(searchQuery.toLowerCase())
+          qr.content.toLowerCase().includes(searchQuery.toLowerCase()),
       )
-    : quickReplies
+    : quickReplies;
 
   const resetForm = () => {
-    setShortcut('')
-    setTitle('')
-    setContent('')
-    setFormError(null)
-    setSuccess(false)
-    setEditingQuickReply(null)
-  }
+    setShortcut("");
+    setTitle("");
+    setContent("");
+    setFormError(null);
+    setSuccess(false);
+    setEditingQuickReply(null);
+  };
 
   const openCreateDialog = () => {
-    resetForm()
-    setIsDialogOpen(true)
-  }
+    resetForm();
+    setIsDialogOpen(true);
+  };
 
   const openEditDialog = (qr: QuickReply) => {
-    setEditingQuickReply(qr)
-    setShortcut(qr.shortcut)
-    setTitle(qr.title)
-    setContent(qr.content)
-    setFormError(null)
-    setIsDialogOpen(true)
-  }
+    setEditingQuickReply(qr);
+    setShortcut(qr.shortcut);
+    setTitle(qr.title);
+    setContent(qr.content);
+    setFormError(null);
+    setIsDialogOpen(true);
+  };
 
   const closeDialog = () => {
-    setIsDialogOpen(false)
-    resetForm()
-  }
+    setIsDialogOpen(false);
+    resetForm();
+  };
 
   const validateShortcut = (value: string): boolean => {
-    return /^[a-zA-Z0-9_-]+$/.test(value)
-  }
+    return /^[a-zA-Z0-9_-]+$/.test(value);
+  };
 
   const handleSubmit = async () => {
-    setFormError(null)
+    setFormError(null);
 
     // Validation
     if (!shortcut.trim()) {
-      setFormError(t('quickReplies.errors.shortcutRequired', 'Shortcut is required'))
-      return
+      setFormError(
+        t("quickReplies.errors.shortcutRequired", "Shortcut is required"),
+      );
+      return;
     }
 
     if (!validateShortcut(shortcut)) {
       setFormError(
         t(
-          'quickReplies.errors.shortcutInvalid',
-          'Shortcut can only contain letters, numbers, underscores, and hyphens'
-        )
-      )
-      return
+          "quickReplies.errors.shortcutInvalid",
+          "Shortcut can only contain letters, numbers, underscores, and hyphens",
+        ),
+      );
+      return;
     }
 
     if (!title.trim()) {
-      setFormError(t('quickReplies.errors.titleRequired', 'Title is required'))
-      return
+      setFormError(t("quickReplies.errors.titleRequired", "Title is required"));
+      return;
     }
 
     if (!content.trim()) {
-      setFormError(t('quickReplies.errors.contentRequired', 'Content is required'))
-      return
+      setFormError(
+        t("quickReplies.errors.contentRequired", "Content is required"),
+      );
+      return;
     }
 
     try {
@@ -134,52 +140,54 @@ export function QuickRepliesManager() {
           shortcut: shortcut.trim(),
           title: title.trim(),
           content: content.trim(),
-        })
-        closeDialog()
+        });
+        closeDialog();
       } else {
         await create({
           shortcut: shortcut.trim(),
           title: title.trim(),
           content: content.trim(),
-        })
-        setSuccess(true)
+        });
+        setSuccess(true);
         // Auto-close after showing success
         setTimeout(() => {
-          closeDialog()
-        }, 1000)
+          closeDialog();
+        }, 1000);
       }
     } catch (err) {
       if (err instanceof Error) {
-        if (err.message.includes('already exists')) {
+        if (err.message.includes("already exists")) {
           setFormError(
             t(
-              'quickReplies.errors.shortcutExists',
-              'A quick reply with this shortcut already exists'
-            )
-          )
+              "quickReplies.errors.shortcutExists",
+              "A quick reply with this shortcut already exists",
+            ),
+          );
         } else {
-          setFormError(err.message)
+          setFormError(err.message);
         }
       }
     }
-  }
+  };
 
   const handleDelete = async (id: string) => {
     try {
-      await deleteQuickReply(id)
-      setDeleteConfirmId(null)
+      await deleteQuickReply(id);
+      setDeleteConfirmId(null);
     } catch (err) {
-      console.error('Failed to delete quick reply:', err)
+      console.error("Failed to delete quick reply:", err);
     }
-  }
+  };
 
   if (error) {
     return (
       <div className="flex items-center gap-2 text-red-600 dark:text-red-400 text-sm">
         <AlertCircle className="h-4 w-4" />
-        <span>{t('quickReplies.errors.loadFailed', 'Failed to load quick replies')}</span>
+        <span>
+          {t("quickReplies.errors.loadFailed", "Failed to load quick replies")}
+        </span>
       </div>
-    )
+    );
   }
 
   return (
@@ -187,8 +195,8 @@ export function QuickRepliesManager() {
       {/* Description */}
       <p className="text-sm text-gray-600 dark:text-dark-text-secondary">
         {t(
-          'quickReplies.description',
-          'Create predefined message templates for quick responses. Type / followed by the shortcut in the message composer to use them.'
+          "quickReplies.description",
+          "Create predefined message templates for quick responses. Type / followed by the shortcut in the message composer to use them.",
         )}
       </p>
 
@@ -200,7 +208,10 @@ export function QuickRepliesManager() {
           </div>
           <Input
             type="text"
-            placeholder={t('quickReplies.searchPlaceholder', 'Search quick replies...')}
+            placeholder={t(
+              "quickReplies.searchPlaceholder",
+              "Search quick replies...",
+            )}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="pl-9"
@@ -212,7 +223,9 @@ export function QuickRepliesManager() {
           data-testid="add-quick-reply-button"
         >
           <Plus className="h-4 w-4" />
-          <span className="hidden sm:inline">{t('quickReplies.addNew', 'Add New')}</span>
+          <span className="hidden sm:inline">
+            {t("quickReplies.addNew", "Add New")}
+          </span>
         </Button>
       </div>
 
@@ -226,17 +239,26 @@ export function QuickRepliesManager() {
           <Zap className="h-12 w-12 mx-auto mb-3 text-gray-300 dark:text-dark-text-tertiary" />
           <p className="font-medium">
             {searchQuery
-              ? t('quickReplies.noResults', 'No quick replies found')
-              : t('quickReplies.empty', 'No quick replies yet')}
+              ? t("quickReplies.noResults", "No quick replies found")
+              : t("quickReplies.empty", "No quick replies yet")}
           </p>
           <p className="text-sm mt-1">
             {searchQuery
-              ? t('quickReplies.tryDifferentSearch', 'Try a different search term')
-              : t('quickReplies.createFirst', 'Create your first quick reply to get started')}
+              ? t(
+                  "quickReplies.tryDifferentSearch",
+                  "Try a different search term",
+                )
+              : t(
+                  "quickReplies.createFirst",
+                  "Create your first quick reply to get started",
+                )}
           </p>
         </div>
       ) : (
-        <div className="space-y-2 max-h-[400px] overflow-y-auto" data-testid="quick-replies-list">
+        <div
+          className="space-y-2 max-h-[400px] overflow-y-auto"
+          data-testid="quick-replies-list"
+        >
           {filteredQuickReplies.map((qr) => (
             <div
               key={qr.id}
@@ -300,13 +322,19 @@ export function QuickRepliesManager() {
                 <div>
                   <DialogTitle className="text-lg font-semibold text-gray-900 dark:text-dark-text-primary">
                     {editingQuickReply
-                      ? t('quickReplies.editTitle', 'Edit Quick Reply')
-                      : t('quickReplies.createTitle', 'Create Quick Reply')}
+                      ? t("quickReplies.editTitle", "Edit Quick Reply")
+                      : t("quickReplies.createTitle", "Create Quick Reply")}
                   </DialogTitle>
                   <DialogDescription className="text-sm text-gray-500 dark:text-dark-text-secondary mt-0.5">
                     {editingQuickReply
-                      ? t('quickReplies.editDescription', 'Update the quick reply details below.')
-                      : t('quickReplies.createDescription', 'Create a new quick reply template.')}
+                      ? t(
+                          "quickReplies.editDescription",
+                          "Update the quick reply details below.",
+                        )
+                      : t(
+                          "quickReplies.createDescription",
+                          "Create a new quick reply template.",
+                        )}
                   </DialogDescription>
                 </div>
               </div>
@@ -322,10 +350,12 @@ export function QuickRepliesManager() {
                 </div>
               </div>
               <p className="text-lg font-semibold text-gray-900 dark:text-dark-text-primary mt-4">
-                {t('quickReplies.created', 'Quick Reply Created!')}
+                {t("quickReplies.created", "Quick Reply Created!")}
               </p>
               <p className="text-sm text-gray-500 dark:text-dark-text-secondary mt-1">
-                {t('quickReplies.createdHint', 'Type /{shortcut} to use it', { shortcut })}
+                {t("quickReplies.createdHint", "Type /{shortcut} to use it", {
+                  shortcut,
+                })}
               </p>
               {/* Preview badge */}
               <div className="mt-4 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gray-100 dark:bg-dark-tertiary text-sm font-mono text-gray-700 dark:text-dark-text-primary">
@@ -334,7 +364,13 @@ export function QuickRepliesManager() {
               </div>
             </div>
           ) : (
-            <form onSubmit={(e) => { e.preventDefault(); handleSubmit() }} className="px-6 pb-6 pt-2">
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleSubmit();
+              }}
+              className="px-6 pb-6 pt-2"
+            >
               {/* Server error message */}
               {formError && (
                 <div className="flex items-center gap-2.5 p-3 mb-4 text-sm text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-900/30 border border-red-200/50 dark:border-red-800/50 rounded-lg">
@@ -349,9 +385,12 @@ export function QuickRepliesManager() {
                 {/* Shortcut Input */}
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <Label htmlFor="shortcut" className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-dark-text-primary">
+                    <Label
+                      htmlFor="shortcut"
+                      className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-dark-text-primary"
+                    >
                       <Hash className="h-3.5 w-3.5 text-gray-400 dark:text-dark-text-tertiary" />
-                      {t('quickReplies.shortcutLabel', 'Shortcut')}
+                      {t("quickReplies.shortcutLabel", "Shortcut")}
                       <span className="text-red-500">*</span>
                     </Label>
                     <span className="text-xs text-gray-400 dark:text-dark-text-tertiary font-mono">
@@ -365,8 +404,17 @@ export function QuickRepliesManager() {
                     <Input
                       id="shortcut"
                       value={shortcut}
-                      onChange={(e) => setShortcut(e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, ''))}
-                      placeholder={t('quickReplies.shortcutPlaceholder', 'greeting')}
+                      onChange={(e) =>
+                        setShortcut(
+                          e.target.value
+                            .toLowerCase()
+                            .replace(/[^a-z0-9_-]/g, ""),
+                        )
+                      }
+                      placeholder={t(
+                        "quickReplies.shortcutPlaceholder",
+                        "greeting",
+                      )}
                       className="pl-8 font-mono text-base h-11 bg-gray-50 dark:bg-dark-tertiary border-gray-200 dark:border-dark-border focus:bg-white dark:focus:bg-dark-elevated transition-colors"
                       maxLength={50}
                       autoFocus
@@ -374,38 +422,56 @@ export function QuickRepliesManager() {
                       aria-describedby="shortcut-hint"
                     />
                   </div>
-                  <p id="shortcut-hint" className="text-xs text-gray-500 dark:text-dark-text-tertiary">
-                    {t('quickReplies.shortcutHelp', 'Letters, numbers, underscores, and hyphens only')}
+                  <p
+                    id="shortcut-hint"
+                    className="text-xs text-gray-500 dark:text-dark-text-tertiary"
+                  >
+                    {t(
+                      "quickReplies.shortcutHelp",
+                      "Letters, numbers, underscores, and hyphens only",
+                    )}
                   </p>
                 </div>
 
                 {/* Title Input */}
                 <div className="space-y-2">
-                  <Label htmlFor="title" className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-dark-text-primary">
+                  <Label
+                    htmlFor="title"
+                    className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-dark-text-primary"
+                  >
                     <Tag className="h-3.5 w-3.5 text-gray-400 dark:text-dark-text-tertiary" />
-                    {t('quickReplies.titleLabel', 'Title')}
+                    {t("quickReplies.titleLabel", "Title")}
                     <span className="text-red-500">*</span>
                   </Label>
                   <Input
                     id="title"
                     value={title}
                     onChange={(e) => setTitle(e.target.value)}
-                    placeholder={t('quickReplies.titlePlaceholder', 'Welcome Message')}
+                    placeholder={t(
+                      "quickReplies.titlePlaceholder",
+                      "Welcome Message",
+                    )}
                     className="h-11 bg-gray-50 dark:bg-dark-tertiary border-gray-200 dark:border-dark-border focus:bg-white dark:focus:bg-dark-elevated transition-colors"
                     maxLength={255}
                     data-testid="quick-reply-title-input"
                   />
                   <p className="text-xs text-gray-500 dark:text-dark-text-tertiary">
-                    {t('quickReplies.titleHint', 'A descriptive name to identify this quick reply')}
+                    {t(
+                      "quickReplies.titleHint",
+                      "A descriptive name to identify this quick reply",
+                    )}
                   </p>
                 </div>
 
                 {/* Content Input */}
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <Label htmlFor="content" className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-dark-text-primary">
+                    <Label
+                      htmlFor="content"
+                      className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-dark-text-primary"
+                    >
                       <MessageSquare className="h-3.5 w-3.5 text-gray-400 dark:text-dark-text-tertiary" />
-                      {t('quickReplies.contentLabel', 'Message Content')}
+                      {t("quickReplies.contentLabel", "Message Content")}
                       <span className="text-red-500">*</span>
                     </Label>
                     <span className="text-xs text-gray-400 dark:text-dark-text-tertiary font-mono">
@@ -417,16 +483,22 @@ export function QuickRepliesManager() {
                     value={content}
                     onChange={(e) => setContent(e.target.value)}
                     placeholder={t(
-                      'quickReplies.contentPlaceholder',
-                      'Hello! Thank you for reaching out. How can I help you today?'
+                      "quickReplies.contentPlaceholder",
+                      "Hello! Thank you for reaching out. How can I help you today?",
                     )}
                     rows={4}
                     className="resize-none bg-gray-50 dark:bg-dark-tertiary border-gray-200 dark:border-dark-border focus:bg-white dark:focus:bg-dark-elevated transition-colors"
                     data-testid="quick-reply-content-input"
                     aria-describedby="content-hint"
                   />
-                  <p id="content-hint" className="text-xs text-gray-500 dark:text-dark-text-tertiary">
-                    {t('quickReplies.contentHint', 'This message will be sent when you use this quick reply')}
+                  <p
+                    id="content-hint"
+                    className="text-xs text-gray-500 dark:text-dark-text-tertiary"
+                  >
+                    {t(
+                      "quickReplies.contentHint",
+                      "This message will be sent when you use this quick reply",
+                    )}
                   </p>
                 </div>
 
@@ -439,15 +511,15 @@ export function QuickRepliesManager() {
                     <div className="flex items-start gap-3">
                       <div className="flex-shrink-0 mt-0.5">
                         <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-mono font-medium bg-whatsapp-teal-green/10 text-whatsapp-teal-green border border-whatsapp-teal-green/20">
-                          /{shortcut || '...'}
+                          /{shortcut || "..."}
                         </span>
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="font-medium text-sm text-gray-900 dark:text-dark-text-primary truncate">
-                          {title || 'Untitled'}
+                          {title || "Untitled"}
                         </p>
                         <p className="text-sm text-gray-500 dark:text-dark-text-secondary line-clamp-2 mt-0.5">
-                          {content || 'No content yet...'}
+                          {content || "No content yet..."}
                         </p>
                       </div>
                     </div>
@@ -464,25 +536,33 @@ export function QuickRepliesManager() {
                   disabled={isCreating || isUpdating}
                   className="px-4"
                 >
-                  {t('common.cancel', 'Cancel')}
+                  {t("common.cancel", "Cancel")}
                 </Button>
                 <Button
                   type="submit"
-                  disabled={isCreating || isUpdating || !shortcut.trim() || !title.trim() || !content.trim()}
+                  disabled={
+                    isCreating ||
+                    isUpdating ||
+                    !shortcut.trim() ||
+                    !title.trim() ||
+                    !content.trim()
+                  }
                   className="px-5 bg-gradient-to-r from-whatsapp-teal-green to-emerald-600 hover:from-emerald-600 hover:to-whatsapp-teal-green text-white shadow-lg shadow-emerald-500/25 hover:shadow-emerald-500/40 transition-all duration-300"
                   data-testid="save-quick-reply-button"
                 >
-                  {(isCreating || isUpdating) ? (
+                  {isCreating || isUpdating ? (
                     <>
                       <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                       {editingQuickReply
-                        ? t('common.saving', 'Saving...')
-                        : t('common.creating', 'Creating...')}
+                        ? t("common.saving", "Saving...")
+                        : t("common.creating", "Creating...")}
                     </>
                   ) : (
                     <>
                       <Zap className="h-4 w-4 mr-2" />
-                      {editingQuickReply ? t('common.save', 'Save') : t('common.create', 'Create')}
+                      {editingQuickReply
+                        ? t("common.save", "Save")
+                        : t("common.create", "Create")}
                     </>
                   )}
                 </Button>
@@ -493,20 +573,25 @@ export function QuickRepliesManager() {
       </Dialog>
 
       {/* Delete Confirmation Dialog */}
-      <Dialog open={deleteConfirmId !== null} onOpenChange={() => setDeleteConfirmId(null)}>
+      <Dialog
+        open={deleteConfirmId !== null}
+        onOpenChange={() => setDeleteConfirmId(null)}
+      >
         <DialogContent className="sm:max-w-[400px]">
           <DialogHeader>
-            <DialogTitle>{t('quickReplies.deleteTitle', 'Delete Quick Reply')}</DialogTitle>
+            <DialogTitle>
+              {t("quickReplies.deleteTitle", "Delete Quick Reply")}
+            </DialogTitle>
             <DialogDescription>
               {t(
-                'quickReplies.deleteConfirmation',
-                'Are you sure you want to delete this quick reply? This action cannot be undone.'
+                "quickReplies.deleteConfirmation",
+                "Are you sure you want to delete this quick reply? This action cannot be undone.",
               )}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteConfirmId(null)}>
-              {t('common.cancel', 'Cancel')}
+              {t("common.cancel", "Cancel")}
             </Button>
             <Button
               variant="destructive"
@@ -516,13 +601,13 @@ export function QuickRepliesManager() {
               data-testid="confirm-delete-quick-reply"
             >
               {isDeleting && <Loader2 className="h-4 w-4 animate-spin" />}
-              {t('common.delete', 'Delete')}
+              {t("common.delete", "Delete")}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
-  )
+  );
 }
 
-export default QuickRepliesManager
+export default QuickRepliesManager;

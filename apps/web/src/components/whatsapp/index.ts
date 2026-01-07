@@ -1,1 +1,1 @@
-export { WhatsAppConnectionPanel } from './WhatsAppConnectionPanel'
+export { WhatsAppConnectionPanel } from "./WhatsAppConnectionPanel";

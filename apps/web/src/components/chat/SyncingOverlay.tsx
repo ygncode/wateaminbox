@@ -1,46 +1,49 @@
-import { useEffect, useState } from 'react'
-import { useWebSocketContext } from '../../contexts/WebSocketProvider'
+import { useEffect, useState } from "react";
+import { useWebSocketContext } from "../../contexts/WebSocketProvider";
 
-const SYNC_TIMEOUT_MS = 5 * 60 * 1000 // 5 minutes
+const SYNC_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
 
 export function SyncingOverlay() {
-  const { syncingConnections } = useWebSocketContext()
-  const [timedOut, setTimedOut] = useState(false)
+  const { syncingConnections, clearSyncingConnections } = useWebSocketContext();
+  const [timedOut, setTimedOut] = useState(false);
 
   // Calculate total conversations across all syncing connections
   const totalConversations = Array.from(syncingConnections.values()).reduce(
     (sum, s) => sum + s.conversations,
-    0
-  )
+    0,
+  );
 
   // Check for timeout
   useEffect(() => {
     if (syncingConnections.size === 0) {
-      setTimedOut(false)
-      return
+      setTimedOut(false);
+      return;
     }
 
     // Find oldest sync
-    let oldestSync: { startedAt: Date } | undefined
+    let oldestSync: { startedAt: Date } | undefined;
     for (const sync of syncingConnections.values()) {
       if (!oldestSync || sync.startedAt < oldestSync.startedAt) {
-        oldestSync = sync
+        oldestSync = sync;
       }
     }
 
-    if (!oldestSync) return
+    if (!oldestSync) return;
 
-    const elapsed = Date.now() - oldestSync.startedAt.getTime()
+    const elapsed = Date.now() - oldestSync.startedAt.getTime();
     if (elapsed >= SYNC_TIMEOUT_MS) {
-      setTimedOut(true)
-      return
+      setTimedOut(true);
+      return;
     }
 
-    const timer = setTimeout(() => setTimedOut(true), SYNC_TIMEOUT_MS - elapsed)
-    return () => clearTimeout(timer)
-  }, [syncingConnections])
+    const timer = setTimeout(
+      () => setTimedOut(true),
+      SYNC_TIMEOUT_MS - elapsed,
+    );
+    return () => clearTimeout(timer);
+  }, [syncingConnections]);
 
-  if (syncingConnections.size === 0) return null
+  if (syncingConnections.size === 0) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-white dark:bg-dark-primary">
@@ -56,18 +59,16 @@ export function SyncingOverlay() {
 
         <p className="text-gray-600 dark:text-dark-text-secondary">
           {totalConversations > 0
-            ? `${totalConversations} conversation${totalConversations !== 1 ? 's' : ''} synced`
-            : 'Please wait while we sync your conversations'}
+            ? `${totalConversations} conversation${totalConversations !== 1 ? "s" : ""} synced`
+            : "Please wait while we sync your conversations"}
         </p>
 
         {timedOut && (
           <button
             type="button"
             onClick={() => {
-              // Clear syncing connections to dismiss overlay
-              // This is a workaround - in production you might want to call a context method
-              setTimedOut(false)
-              window.location.reload()
+              clearSyncingConnections();
+              setTimedOut(false);
             }}
             className="mt-6 px-6 py-2 bg-whatsapp-green text-white rounded-lg hover:bg-whatsapp-green/90 transition-colors"
           >
@@ -76,5 +77,5 @@ export function SyncingOverlay() {
         )}
       </div>
     </div>
-  )
+  );
 }

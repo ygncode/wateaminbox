@@ -10,10 +10,17 @@ import {
   UserPlus,
   Users,
   X,
-} from 'lucide-react'
-import { useState } from 'react'
-import { dayjs, nowMs } from '@whatsapp-web/shared'
-import { Avatar, AvatarFallback, Badge, Button, Input, Skeleton } from '@/components/ui'
+} from "lucide-react";
+import { useState } from "react";
+import { dayjs, nowMs } from "@whatsapp-web/shared";
+import {
+  Avatar,
+  AvatarFallback,
+  Badge,
+  Button,
+  Input,
+  Skeleton,
+} from "@/components/ui";
 import {
   type CompanyMember,
   type Invitation,
@@ -24,29 +31,37 @@ import {
   useRemoveMember,
   useResendInvitation,
   useUpdateMemberRole,
-} from '@/hooks/useTeam'
-import { cn } from '@/lib/utils'
+} from "@/hooks/useTeam";
+import { cn } from "@/lib/utils";
 
 export interface TeamManagementProps {
-  companyId: string
-  currentUserId: string
-  currentUserRole: 'owner' | 'admin' | 'member'
+  companyId: string;
+  currentUserId: string;
+  currentUserRole: "owner" | "admin" | "member";
 }
 
 /**
  * Team Management component for managing members and invitations
  */
-export function TeamManagement({ companyId, currentUserId, currentUserRole }: TeamManagementProps) {
-  const [activeTab, setActiveTab] = useState<'members' | 'invitations'>('members')
-  const [showInviteForm, setShowInviteForm] = useState(false)
+export function TeamManagement({
+  companyId,
+  currentUserId,
+  currentUserRole,
+}: TeamManagementProps) {
+  const [activeTab, setActiveTab] = useState<"members" | "invitations">(
+    "members",
+  );
+  const [showInviteForm, setShowInviteForm] = useState(false);
 
-  const isAdmin = currentUserRole === 'owner' || currentUserRole === 'admin'
+  const isAdmin = currentUserRole === "owner" || currentUserRole === "admin";
 
   return (
     <div className="flex h-full flex-col">
       {/* Header */}
       <div className="flex items-center justify-between border-b border-gray-200 dark:border-dark-border px-6 py-4">
-        <h2 className="text-xl font-semibold text-gray-900 dark:text-dark-text-primary">Team</h2>
+        <h2 className="text-xl font-semibold text-gray-900 dark:text-dark-text-primary">
+          Team
+        </h2>
         {isAdmin && (
           <Button
             onClick={() => setShowInviteForm(true)}
@@ -61,12 +76,12 @@ export function TeamManagement({ companyId, currentUserId, currentUserRole }: Te
       {/* Tabs */}
       <div className="flex border-b border-gray-200 dark:border-dark-border">
         <button
-          onClick={() => setActiveTab('members')}
+          onClick={() => setActiveTab("members")}
           className={cn(
-            'flex items-center gap-2 px-6 py-3 text-sm font-medium transition-colors',
-            activeTab === 'members'
-              ? 'border-b-2 border-whatsapp-teal-green text-whatsapp-teal-green'
-              : 'text-gray-500 dark:text-dark-text-secondary hover:text-gray-700 dark:hover:text-dark-text-primary'
+            "flex items-center gap-2 px-6 py-3 text-sm font-medium transition-colors",
+            activeTab === "members"
+              ? "border-b-2 border-whatsapp-teal-green text-whatsapp-teal-green"
+              : "text-gray-500 dark:text-dark-text-secondary hover:text-gray-700 dark:hover:text-dark-text-primary",
           )}
         >
           <Users className="h-4 w-4" />
@@ -74,12 +89,12 @@ export function TeamManagement({ companyId, currentUserId, currentUserRole }: Te
         </button>
         {isAdmin && (
           <button
-            onClick={() => setActiveTab('invitations')}
+            onClick={() => setActiveTab("invitations")}
             className={cn(
-              'flex items-center gap-2 px-6 py-3 text-sm font-medium transition-colors',
-              activeTab === 'invitations'
-                ? 'border-b-2 border-whatsapp-teal-green text-whatsapp-teal-green'
-                : 'text-gray-500 dark:text-dark-text-secondary hover:text-gray-700 dark:hover:text-dark-text-primary'
+              "flex items-center gap-2 px-6 py-3 text-sm font-medium transition-colors",
+              activeTab === "invitations"
+                ? "border-b-2 border-whatsapp-teal-green text-whatsapp-teal-green"
+                : "text-gray-500 dark:text-dark-text-secondary hover:text-gray-700 dark:hover:text-dark-text-primary",
             )}
           >
             <Mail className="h-4 w-4" />
@@ -90,7 +105,7 @@ export function TeamManagement({ companyId, currentUserId, currentUserRole }: Te
 
       {/* Content */}
       <div className="flex-1 overflow-auto p-6">
-        {activeTab === 'members' ? (
+        {activeTab === "members" ? (
           <MembersList
             companyId={companyId}
             currentUserId={currentUserId}
@@ -103,10 +118,13 @@ export function TeamManagement({ companyId, currentUserId, currentUserRole }: Te
 
       {/* Invite Form Modal */}
       {showInviteForm && (
-        <InviteFormModal companyId={companyId} onClose={() => setShowInviteForm(false)} />
+        <InviteFormModal
+          companyId={companyId}
+          onClose={() => setShowInviteForm(false)}
+        />
       )}
     </div>
-  )
+  );
 }
 
 /**
@@ -117,16 +135,16 @@ function MembersList({
   currentUserId,
   currentUserRole,
 }: {
-  companyId: string
-  currentUserId: string
-  currentUserRole: 'owner' | 'admin' | 'member'
+  companyId: string;
+  currentUserId: string;
+  currentUserRole: "owner" | "admin" | "member";
 }) {
-  const { data: members, isLoading, error } = useCompanyMembers(companyId)
-  const updateRole = useUpdateMemberRole()
-  const removeMember = useRemoveMember()
-  const [menuOpenFor, setMenuOpenFor] = useState<string | null>(null)
+  const { data: members, isLoading, error } = useCompanyMembers(companyId);
+  const updateRole = useUpdateMemberRole();
+  const removeMember = useRemoveMember();
+  const [menuOpenFor, setMenuOpenFor] = useState<string | null>(null);
 
-  const isAdmin = currentUserRole === 'owner' || currentUserRole === 'admin'
+  const isAdmin = currentUserRole === "owner" || currentUserRole === "admin";
 
   if (isLoading) {
     return (
@@ -135,26 +153,31 @@ function MembersList({
           <MemberSkeleton key={i} />
         ))}
       </div>
-    )
+    );
   }
 
   if (error) {
     return (
-      <div className="text-center text-red-500 dark:text-red-400">Failed to load team members</div>
-    )
+      <div className="text-center text-red-500 dark:text-red-400">
+        Failed to load team members
+      </div>
+    );
   }
 
-  const handleRoleChange = async (userId: string, newRole: 'admin' | 'member') => {
-    await updateRole.mutateAsync({ companyId, userId, role: newRole })
-    setMenuOpenFor(null)
-  }
+  const handleRoleChange = async (
+    userId: string,
+    newRole: "admin" | "member",
+  ) => {
+    await updateRole.mutateAsync({ companyId, userId, role: newRole });
+    setMenuOpenFor(null);
+  };
 
   const handleRemove = async (userId: string) => {
-    if (confirm('Are you sure you want to remove this member?')) {
-      await removeMember.mutateAsync({ companyId, userId })
+    if (confirm("Are you sure you want to remove this member?")) {
+      await removeMember.mutateAsync({ companyId, userId });
     }
-    setMenuOpenFor(null)
-  }
+    setMenuOpenFor(null);
+  };
 
   return (
     <div className="space-y-2">
@@ -163,15 +186,21 @@ function MembersList({
           key={member.id}
           member={member}
           isCurrentUser={member.userId === currentUserId}
-          canManage={isAdmin && member.role !== 'owner' && member.userId !== currentUserId}
+          canManage={
+            isAdmin &&
+            member.role !== "owner" &&
+            member.userId !== currentUserId
+          }
           isMenuOpen={menuOpenFor === member.id}
-          onMenuToggle={() => setMenuOpenFor(menuOpenFor === member.id ? null : member.id)}
+          onMenuToggle={() =>
+            setMenuOpenFor(menuOpenFor === member.id ? null : member.id)
+          }
           onRoleChange={(role) => handleRoleChange(member.userId, role)}
           onRemove={() => handleRemove(member.userId)}
         />
       ))}
     </div>
-  )
+  );
 }
 
 /**
@@ -186,18 +215,23 @@ function MemberCard({
   onRoleChange,
   onRemove,
 }: {
-  member: CompanyMember
-  isCurrentUser: boolean
-  canManage: boolean
-  isMenuOpen: boolean
-  onMenuToggle: () => void
-  onRoleChange: (role: 'admin' | 'member') => void
-  onRemove: () => void
+  member: CompanyMember;
+  isCurrentUser: boolean;
+  canManage: boolean;
+  isMenuOpen: boolean;
+  onMenuToggle: () => void;
+  onRoleChange: (role: "admin" | "member") => void;
+  onRemove: () => void;
 }) {
-  const initials = member.email.slice(0, 2).toUpperCase()
+  const initials = member.email.slice(0, 2).toUpperCase();
 
-  const RoleIcon = member.role === 'owner' ? Crown : member.role === 'admin' ? ShieldCheck : Shield
-  const roleLabel = member.role.charAt(0).toUpperCase() + member.role.slice(1)
+  const RoleIcon =
+    member.role === "owner"
+      ? Crown
+      : member.role === "admin"
+        ? ShieldCheck
+        : Shield;
+  const roleLabel = member.role.charAt(0).toUpperCase() + member.role.slice(1);
 
   return (
     <div className="flex items-center justify-between rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-elevated p-4 hover:bg-gray-50 dark:hover:bg-dark-tertiary">
@@ -209,7 +243,9 @@ function MemberCard({
         </Avatar>
         <div>
           <div className="flex items-center gap-2">
-            <p className="font-medium text-gray-900 dark:text-dark-text-primary">{member.email}</p>
+            <p className="font-medium text-gray-900 dark:text-dark-text-primary">
+              {member.email}
+            </p>
             {isCurrentUser && (
               <Badge variant="secondary" className="text-xs">
                 You
@@ -225,15 +261,20 @@ function MemberCard({
 
       {canManage && (
         <div className="relative">
-          <Button variant="ghost" size="icon" onClick={onMenuToggle} className="h-8 w-8">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onMenuToggle}
+            className="h-8 w-8"
+          >
             <MoreVertical className="h-4 w-4" />
           </Button>
 
           {isMenuOpen && (
             <div className="absolute right-0 top-full z-10 mt-1 w-48 rounded-md border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-elevated py-1 shadow-lg">
-              {member.role === 'member' ? (
+              {member.role === "member" ? (
                 <button
-                  onClick={() => onRoleChange('admin')}
+                  onClick={() => onRoleChange("admin")}
                   className="flex w-full items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-dark-text-primary hover:bg-gray-100 dark:hover:bg-dark-tertiary"
                 >
                   <ShieldCheck className="h-4 w-4" />
@@ -241,7 +282,7 @@ function MemberCard({
                 </button>
               ) : (
                 <button
-                  onClick={() => onRoleChange('member')}
+                  onClick={() => onRoleChange("member")}
                   className="flex w-full items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-dark-text-primary hover:bg-gray-100 dark:hover:bg-dark-tertiary"
                 >
                   <Shield className="h-4 w-4" />
@@ -260,7 +301,7 @@ function MemberCard({
         </div>
       )}
     </div>
-  )
+  );
 }
 
 /**
@@ -277,16 +318,20 @@ function MemberSkeleton() {
         </div>
       </div>
     </div>
-  )
+  );
 }
 
 /**
  * Invitations list component
  */
 function InvitationsList({ companyId }: { companyId: string }) {
-  const { data: invitations, isLoading, error } = usePendingInvitations(companyId)
-  const cancelInvitation = useCancelInvitation()
-  const resendInvitation = useResendInvitation()
+  const {
+    data: invitations,
+    isLoading,
+    error,
+  } = usePendingInvitations(companyId);
+  const cancelInvitation = useCancelInvitation();
+  const resendInvitation = useResendInvitation();
 
   if (isLoading) {
     return (
@@ -295,13 +340,15 @@ function InvitationsList({ companyId }: { companyId: string }) {
           <MemberSkeleton key={i} />
         ))}
       </div>
-    )
+    );
   }
 
   if (error) {
     return (
-      <div className="text-center text-red-500 dark:text-red-400">Failed to load invitations</div>
-    )
+      <div className="text-center text-red-500 dark:text-red-400">
+        Failed to load invitations
+      </div>
+    );
   }
 
   if (!invitations?.length) {
@@ -310,18 +357,18 @@ function InvitationsList({ companyId }: { companyId: string }) {
         <Mail className="mx-auto h-12 w-12 text-gray-300 dark:text-dark-text-tertiary" />
         <p className="mt-2">No pending invitations</p>
       </div>
-    )
+    );
   }
 
   const handleCancel = async (invitationId: string) => {
-    if (confirm('Are you sure you want to cancel this invitation?')) {
-      await cancelInvitation.mutateAsync({ companyId, invitationId })
+    if (confirm("Are you sure you want to cancel this invitation?")) {
+      await cancelInvitation.mutateAsync({ companyId, invitationId });
     }
-  }
+  };
 
   const handleResend = async (invitationId: string) => {
-    await resendInvitation.mutateAsync({ companyId, invitationId })
-  }
+    await resendInvitation.mutateAsync({ companyId, invitationId });
+  };
 
   return (
     <div className="space-y-2">
@@ -336,7 +383,7 @@ function InvitationsList({ companyId }: { companyId: string }) {
         />
       ))}
     </div>
-  )
+  );
 }
 
 /**
@@ -349,14 +396,14 @@ function InvitationCard({
   isCancelling,
   isResending,
 }: {
-  invitation: Invitation
-  onCancel: () => void
-  onResend: () => void
-  isCancelling: boolean
-  isResending: boolean
+  invitation: Invitation;
+  onCancel: () => void;
+  onResend: () => void;
+  isCancelling: boolean;
+  isResending: boolean;
 }) {
-  const expiresAt = dayjs(invitation.expiresAt)
-  const isExpiringSoon = expiresAt.valueOf() - nowMs() < 24 * 60 * 60 * 1000
+  const expiresAt = dayjs(invitation.expiresAt);
+  const isExpiringSoon = expiresAt.valueOf() - nowMs() < 24 * 60 * 60 * 1000;
 
   return (
     <div className="flex items-center justify-between rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-elevated p-4">
@@ -370,8 +417,12 @@ function InvitationCard({
           </p>
           <div className="flex items-center gap-1 text-sm text-gray-500 dark:text-dark-text-secondary">
             <Clock className="h-3 w-3" />
-            <span className={isExpiringSoon ? 'text-orange-500 dark:text-orange-400' : ''}>
-              Expires {expiresAt.format('MMM D, YYYY')}
+            <span
+              className={
+                isExpiringSoon ? "text-orange-500 dark:text-orange-400" : ""
+              }
+            >
+              Expires {expiresAt.format("MMM D, YYYY")}
             </span>
           </div>
         </div>
@@ -385,7 +436,7 @@ function InvitationCard({
           disabled={isResending}
           className="gap-1"
         >
-          <RefreshCw className={cn('h-4 w-4', isResending && 'animate-spin')} />
+          <RefreshCw className={cn("h-4 w-4", isResending && "animate-spin")} />
           Resend
         </Button>
         <Button
@@ -399,22 +450,28 @@ function InvitationCard({
         </Button>
       </div>
     </div>
-  )
+  );
 }
 
 /**
  * Invite form modal
  */
-function InviteFormModal({ companyId, onClose }: { companyId: string; onClose: () => void }) {
-  const [email, setEmail] = useState('')
-  const [role, setRole] = useState<'admin' | 'member'>('member')
-  const inviteMember = useInviteMember()
+function InviteFormModal({
+  companyId,
+  onClose,
+}: {
+  companyId: string;
+  onClose: () => void;
+}) {
+  const [email, setEmail] = useState("");
+  const [role, setRole] = useState<"admin" | "member">("member");
+  const inviteMember = useInviteMember();
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    await inviteMember.mutateAsync({ companyId, email, role })
-    onClose()
-  }
+    e.preventDefault();
+    await inviteMember.mutateAsync({ companyId, email, role });
+    onClose();
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 dark:bg-black/70">
@@ -456,12 +513,12 @@ function InviteFormModal({ companyId, onClose }: { companyId: string; onClose: (
             <div className="flex gap-2">
               <button
                 type="button"
-                onClick={() => setRole('member')}
+                onClick={() => setRole("member")}
                 className={cn(
-                  'flex-1 rounded-lg border px-4 py-2 text-sm font-medium transition-colors',
-                  role === 'member'
-                    ? 'border-whatsapp-teal-green bg-whatsapp-light-green text-whatsapp-dark-green'
-                    : 'border-gray-300 dark:border-dark-border text-gray-700 dark:text-dark-text-primary hover:bg-gray-50 dark:hover:bg-dark-tertiary'
+                  "flex-1 rounded-lg border px-4 py-2 text-sm font-medium transition-colors",
+                  role === "member"
+                    ? "border-whatsapp-teal-green bg-whatsapp-light-green text-whatsapp-dark-green"
+                    : "border-gray-300 dark:border-dark-border text-gray-700 dark:text-dark-text-primary hover:bg-gray-50 dark:hover:bg-dark-tertiary",
                 )}
               >
                 <Shield className="mx-auto mb-1 h-5 w-5" />
@@ -469,12 +526,12 @@ function InviteFormModal({ companyId, onClose }: { companyId: string; onClose: (
               </button>
               <button
                 type="button"
-                onClick={() => setRole('admin')}
+                onClick={() => setRole("admin")}
                 className={cn(
-                  'flex-1 rounded-lg border px-4 py-2 text-sm font-medium transition-colors',
-                  role === 'admin'
-                    ? 'border-whatsapp-teal-green bg-whatsapp-light-green text-whatsapp-dark-green'
-                    : 'border-gray-300 dark:border-dark-border text-gray-700 dark:text-dark-text-primary hover:bg-gray-50 dark:hover:bg-dark-tertiary'
+                  "flex-1 rounded-lg border px-4 py-2 text-sm font-medium transition-colors",
+                  role === "admin"
+                    ? "border-whatsapp-teal-green bg-whatsapp-light-green text-whatsapp-dark-green"
+                    : "border-gray-300 dark:border-dark-border text-gray-700 dark:text-dark-text-primary hover:bg-gray-50 dark:hover:bg-dark-tertiary",
                 )}
               >
                 <ShieldCheck className="mx-auto mb-1 h-5 w-5" />
@@ -484,7 +541,12 @@ function InviteFormModal({ companyId, onClose }: { companyId: string; onClose: (
           </div>
 
           <div className="flex gap-2 pt-2">
-            <Button type="button" variant="outline" onClick={onClose} className="flex-1">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={onClose}
+              className="flex-1"
+            >
               Cancel
             </Button>
             <Button
@@ -492,13 +554,13 @@ function InviteFormModal({ companyId, onClose }: { companyId: string; onClose: (
               disabled={inviteMember.isPending || !email}
               className="flex-1 bg-whatsapp-teal-green hover:bg-whatsapp-dark-green"
             >
-              {inviteMember.isPending ? 'Sending...' : 'Send Invitation'}
+              {inviteMember.isPending ? "Sending..." : "Send Invitation"}
             </Button>
           </div>
         </form>
       </div>
     </div>
-  )
+  );
 }
 
-export default TeamManagement
+export default TeamManagement;

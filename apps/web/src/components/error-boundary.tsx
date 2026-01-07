@@ -1,48 +1,51 @@
-import * as React from 'react'
-import { useNavigate } from 'react-router-dom'
-import { Button } from './ui/button'
+import * as React from "react";
+import { useNavigate } from "react-router-dom";
+import { Button } from "./ui/button";
 
 interface ErrorBoundaryState {
-  hasError: boolean
-  error: Error | null
-  errorInfo: React.ErrorInfo | null
+  hasError: boolean;
+  error: Error | null;
+  errorInfo: React.ErrorInfo | null;
 }
 
 interface ErrorBoundaryProps {
-  children: React.ReactNode
-  fallback?: React.ReactNode
-  onError?: (error: Error, errorInfo: React.ErrorInfo) => void
+  children: React.ReactNode;
+  fallback?: React.ReactNode;
+  onError?: (error: Error, errorInfo: React.ErrorInfo) => void;
 }
 
 /**
  * Error Boundary component for catching and handling React errors
  * Displays a user-friendly error screen instead of crashing the app
  */
-export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
+export class ErrorBoundary extends React.Component<
+  ErrorBoundaryProps,
+  ErrorBoundaryState
+> {
   constructor(props: ErrorBoundaryProps) {
-    super(props)
+    super(props);
     this.state = {
       hasError: false,
       error: null,
       errorInfo: null,
-    }
+    };
   }
 
   static getDerivedStateFromError(error: Error): Partial<ErrorBoundaryState> {
-    return { hasError: true, error }
+    return { hasError: true, error };
   }
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-    this.setState({ errorInfo })
+    this.setState({ errorInfo });
 
     // Call optional error callback
     if (this.props.onError) {
-      this.props.onError(error, errorInfo)
+      this.props.onError(error, errorInfo);
     }
 
     // Log error in development
-    if (process.env.NODE_ENV === 'development') {
-      console.error('ErrorBoundary caught an error:', error, errorInfo)
+    if (process.env.NODE_ENV === "development") {
+      console.error("ErrorBoundary caught an error:", error, errorInfo);
     }
   }
 
@@ -51,14 +54,14 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
       hasError: false,
       error: null,
       errorInfo: null,
-    })
-  }
+    });
+  };
 
   render() {
     if (this.state.hasError) {
       // Use custom fallback if provided
       if (this.props.fallback) {
-        return this.props.fallback
+        return this.props.fallback;
       }
 
       // Default error UI
@@ -68,33 +71,37 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
           errorInfo={this.state.errorInfo}
           onReset={this.handleReset}
         />
-      )
+      );
     }
 
-    return this.props.children
+    return this.props.children;
   }
 }
 
 interface ErrorFallbackProps {
-  error: Error | null
-  errorInfo: React.ErrorInfo | null
-  onReset: () => void
+  error: Error | null;
+  errorInfo: React.ErrorInfo | null;
+  onReset: () => void;
 }
 
 /**
  * Default error fallback UI component
  */
-export function ErrorFallback({ error, errorInfo, onReset }: ErrorFallbackProps) {
-  const navigate = useNavigate()
+export function ErrorFallback({
+  error,
+  errorInfo,
+  onReset,
+}: ErrorFallbackProps) {
+  const navigate = useNavigate();
 
   const handleGoHome = () => {
-    onReset()
-    navigate('/chat')
-  }
+    onReset();
+    navigate("/chat");
+  };
 
   const handleRefresh = () => {
-    window.location.reload()
-  }
+    window.location.reload();
+  };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-100 dark:bg-dark-primary p-4">
@@ -123,12 +130,12 @@ export function ErrorFallback({ error, errorInfo, onReset }: ErrorFallbackProps)
 
         {/* Error Description */}
         <p className="text-gray-600 dark:text-dark-text-secondary mb-6">
-          We're sorry, but something unexpected happened. Please try refreshing the page or going
-          back to the home screen.
+          We're sorry, but something unexpected happened. Please try refreshing
+          the page or going back to the home screen.
         </p>
 
         {/* Error Details (dev only) */}
-        {process.env.NODE_ENV === 'development' && error && (
+        {process.env.NODE_ENV === "development" && error && (
           <details className="text-left mb-6 bg-gray-50 dark:bg-dark-secondary rounded-lg p-4">
             <summary className="cursor-pointer text-sm font-medium text-gray-700 dark:text-dark-text-secondary mb-2">
               Error Details
@@ -164,7 +171,7 @@ export function ErrorFallback({ error, errorInfo, onReset }: ErrorFallbackProps)
         </div>
       </div>
     </div>
-  )
+  );
 }
 
 /**
@@ -172,17 +179,19 @@ export function ErrorFallback({ error, errorInfo, onReset }: ErrorFallbackProps)
  * Use this when you need to programmatically trigger error recovery
  */
 interface ErrorBoundaryContextValue {
-  reset: () => void
+  reset: () => void;
 }
 
-const ErrorBoundaryContext = React.createContext<ErrorBoundaryContextValue | undefined>(undefined)
+const ErrorBoundaryContext = React.createContext<
+  ErrorBoundaryContextValue | undefined
+>(undefined);
 
 export function useErrorBoundary() {
-  const context = React.useContext(ErrorBoundaryContext)
+  const context = React.useContext(ErrorBoundaryContext);
   if (!context) {
-    throw new Error('useErrorBoundary must be used within an ErrorBoundary')
+    throw new Error("useErrorBoundary must be used within an ErrorBoundary");
   }
-  return context
+  return context;
 }
 
 /**
@@ -192,14 +201,14 @@ export function ErrorBoundaryProvider({
   children,
   onError,
 }: {
-  children: React.ReactNode
-  onError?: (error: Error, errorInfo: React.ErrorInfo) => void
+  children: React.ReactNode;
+  onError?: (error: Error, errorInfo: React.ErrorInfo) => void;
 }) {
-  const [key, setKey] = React.useState(0)
+  const [key, setKey] = React.useState(0);
 
   const reset = React.useCallback(() => {
-    setKey((prev) => prev + 1)
-  }, [])
+    setKey((prev) => prev + 1);
+  }, []);
 
   return (
     <ErrorBoundaryContext.Provider value={{ reset }}>
@@ -207,5 +216,5 @@ export function ErrorBoundaryProvider({
         {children}
       </ErrorBoundary>
     </ErrorBoundaryContext.Provider>
-  )
+  );
 }

@@ -1,19 +1,19 @@
-import { Circle, Clock, Eye, Plus } from 'lucide-react'
-import { useState } from 'react'
-import { Avatar, AvatarFallback, Skeleton } from '@/components/ui'
-import { formatStatusTime } from '@whatsapp-web/shared'
-import { ScrollArea } from '@/components/ui/scroll-area'
+import { Circle, Clock, Eye, Plus } from "lucide-react";
+import { useState } from "react";
+import { Avatar, AvatarFallback, Skeleton } from "@/components/ui";
+import { formatStatusTime } from "@whatsapp-web/shared";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   type ContactStatus,
   useMyStatus,
   useStatusStats,
   useStatusUpdates,
-} from '@/hooks/useStatus'
-import { PostStatusDialog } from './PostStatusDialog'
+} from "@/hooks/useStatus";
+import { PostStatusDialog } from "./PostStatusDialog";
 
 export interface StatusListProps {
-  onStatusSelect: (jid: string) => void
-  selectedJid?: string
+  onStatusSelect: (jid: string) => void;
+  selectedJid?: string;
 }
 
 /**
@@ -21,17 +21,20 @@ export interface StatusListProps {
  * Displays contacts with active status updates
  */
 export function StatusList({ onStatusSelect, selectedJid }: StatusListProps) {
-  const { data: statuses, isLoading, isError } = useStatusUpdates()
-  const { data: stats } = useStatusStats()
-  const { data: myStatus } = useMyStatus()
-  const [postDialogOpen, setPostDialogOpen] = useState(false)
+  const { data: statuses, isLoading, isError } = useStatusUpdates();
+  const { data: stats } = useStatusStats();
+  const { data: myStatus } = useMyStatus();
+  const [postDialogOpen, setPostDialogOpen] = useState(false);
 
-  const myStatusCount = myStatus?.count || 0
+  const myStatusCount = myStatus?.count || 0;
 
   return (
     <div className="flex flex-col h-full bg-white dark:bg-dark-secondary border-r border-gray-200 dark:border-dark-border">
       {/* Post Status Dialog */}
-      <PostStatusDialog open={postDialogOpen} onOpenChange={setPostDialogOpen} />
+      <PostStatusDialog
+        open={postDialogOpen}
+        onOpenChange={setPostDialogOpen}
+      />
 
       {/* My Status */}
       <button
@@ -45,15 +48,15 @@ export function StatusList({ onStatusSelect, selectedJid }: StatusListProps) {
             <Avatar
               className={`h-12 w-12 border-2 ${
                 myStatusCount > 0
-                  ? 'border-whatsapp-teal-green'
-                  : 'border-gray-300 dark:border-dark-border border-dashed'
+                  ? "border-whatsapp-teal-green"
+                  : "border-gray-300 dark:border-dark-border border-dashed"
               }`}
             >
               <AvatarFallback
                 className={
                   myStatusCount > 0
-                    ? 'bg-whatsapp-teal-green text-white'
-                    : 'bg-gray-100 dark:bg-dark-tertiary text-gray-500 dark:text-dark-text-secondary'
+                    ? "bg-whatsapp-teal-green text-white"
+                    : "bg-gray-100 dark:bg-dark-tertiary text-gray-500 dark:text-dark-text-secondary"
                 }
               >
                 ME
@@ -64,11 +67,13 @@ export function StatusList({ onStatusSelect, selectedJid }: StatusListProps) {
             </div>
           </div>
           <div>
-            <p className="font-medium text-gray-900 dark:text-dark-text-primary">My status</p>
+            <p className="font-medium text-gray-900 dark:text-dark-text-primary">
+              My status
+            </p>
             <p className="text-sm text-gray-500 dark:text-dark-text-secondary">
               {myStatusCount > 0
-                ? `${myStatusCount} active update${myStatusCount > 1 ? 's' : ''}`
-                : 'Tap to add status update'}
+                ? `${myStatusCount} active update${myStatusCount > 1 ? "s" : ""}`
+                : "Tap to add status update"}
             </p>
           </div>
         </div>
@@ -140,30 +145,30 @@ export function StatusList({ onStatusSelect, selectedJid }: StatusListProps) {
         )}
       </ScrollArea>
     </div>
-  )
+  );
 }
 
 interface StatusItemProps {
-  contactStatus: ContactStatus
-  isSelected: boolean
-  onClick: () => void
+  contactStatus: ContactStatus;
+  isSelected: boolean;
+  onClick: () => void;
 }
 
 function StatusItem({ contactStatus, isSelected, onClick }: StatusItemProps) {
-  const { jid, statuses } = contactStatus
-  const latestStatus = statuses[statuses.length - 1]
-  const totalStatuses = statuses.length
+  const { jid, statuses } = contactStatus;
+  const latestStatus = statuses[statuses.length - 1];
+  const totalStatuses = statuses.length;
 
   // Extract phone number from JID
-  const phoneNumber = jid.split('@')[0]
-  const displayName = phoneNumber || 'Unknown'
+  const phoneNumber = jid.split("@")[0];
+  const displayName = phoneNumber || "Unknown";
 
   return (
     <button
       type="button"
       onClick={onClick}
       className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-colors
-                  ${isSelected ? 'bg-gray-200 dark:bg-dark-tertiary' : 'hover:bg-gray-50 dark:hover:bg-dark-tertiary'}`}
+                  ${isSelected ? "bg-gray-200 dark:bg-dark-tertiary" : "hover:bg-gray-50 dark:hover:bg-dark-tertiary"}`}
     >
       {/* Avatar with status ring */}
       <div className="relative">
@@ -173,7 +178,7 @@ function StatusItem({ contactStatus, isSelected, onClick }: StatusItemProps) {
             background:
               totalStatuses > 0
                 ? `conic-gradient(from 0deg, #25D366 0deg, #25D366 ${360 / totalStatuses}deg, #e5e7eb ${360 / totalStatuses}deg)`
-                : '#e5e7eb',
+                : "#e5e7eb",
           }}
         >
           <Avatar className="h-full w-full border-2 border-white dark:border-dark-secondary">
@@ -203,7 +208,7 @@ function StatusItem({ contactStatus, isSelected, onClick }: StatusItemProps) {
       {/* View indicator */}
       <Eye className="w-4 h-4 text-gray-400 dark:text-dark-text-tertiary" />
     </button>
-  )
+  );
 }
 
 function StatusItemSkeleton() {
@@ -215,7 +220,7 @@ function StatusItemSkeleton() {
         <Skeleton className="h-3 w-24" />
       </div>
     </div>
-  )
+  );
 }
 
-export default StatusList
+export default StatusList;

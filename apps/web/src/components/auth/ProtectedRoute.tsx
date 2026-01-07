@@ -1,14 +1,17 @@
-import { Navigate, useLocation } from 'react-router-dom'
-import { useAuth } from '../../contexts/auth-context'
+import { Navigate, useLocation } from "react-router-dom";
+import { useAuth } from "../../contexts/auth-context";
 
 interface ProtectedRouteProps {
-  children: React.ReactNode
-  requireCompany?: boolean
+  children: React.ReactNode;
+  requireCompany?: boolean;
 }
 
-export function ProtectedRoute({ children, requireCompany = true }: ProtectedRouteProps) {
-  const { isAuthenticated, isLoading, needsCompanySetup } = useAuth()
-  const location = useLocation()
+export function ProtectedRoute({
+  children,
+  requireCompany = true,
+}: ProtectedRouteProps) {
+  const { isAuthenticated, isLoading, needsCompanySetup } = useAuth();
+  const location = useLocation();
 
   if (isLoading) {
     return (
@@ -18,17 +21,17 @@ export function ProtectedRoute({ children, requireCompany = true }: ProtectedRou
           <p className="mt-4 text-gray-600">Loading...</p>
         </div>
       </div>
-    )
+    );
   }
 
   if (!isAuthenticated) {
-    return <Navigate to="/login" state={{ from: location }} replace />
+    return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
   // Redirect to company setup if user has no companies
   if (requireCompany && needsCompanySetup) {
-    return <Navigate to="/company-setup" replace />
+    return <Navigate to="/company-setup" replace />;
   }
 
-  return <>{children}</>
+  return <>{children}</>;
 }

@@ -1,11 +1,11 @@
-import { ArrowLeft } from 'lucide-react'
-import { Link, useLocation } from 'react-router-dom'
-import { AppLayout } from '../components/layout/app-layout'
-import { TeamManagement } from '../components/team'
-import { useAuth } from '../contexts/auth-context'
+import { ArrowLeft } from "lucide-react";
+import { Link, useLocation } from "react-router-dom";
+import { AppLayout } from "../components/layout/app-layout";
+import { TeamManagement } from "../components/team";
+import { useAuth } from "../contexts/auth-context";
 
 interface LocationState {
-  from?: string
+  from?: string;
 }
 
 /**
@@ -13,26 +13,29 @@ interface LocationState {
  * Provides interface for managing company members and invitations
  */
 export function TeamPage() {
-  const { user, currentCompanyId, companies } = useAuth()
-  const location = useLocation()
-  const locationState = location.state as LocationState | null
+  const { user, currentCompanyId, companies } = useAuth();
+  const location = useLocation();
+  const locationState = location.state as LocationState | null;
 
   // Determine back navigation based on where user came from
-  const backTo = locationState?.from === 'settings' ? '/settings' : '/chat'
-  const backLabel = locationState?.from === 'settings' ? 'Back to Settings' : 'Back to Chat'
+  const backTo = locationState?.from === "settings" ? "/settings" : "/chat";
+  const backLabel =
+    locationState?.from === "settings" ? "Back to Settings" : "Back to Chat";
 
   // Find the current company to get the user's role
-  const currentCompany = companies.find((c) => c.id === currentCompanyId)
-  const currentUserRole = currentCompany?.role || 'member'
+  const currentCompany = companies.find((c) => c.id === currentCompanyId);
+  const currentUserRole = currentCompany?.role || "member";
 
   if (!currentCompanyId || !user) {
     return (
       <AppLayout>
         <div className="flex h-full w-full items-center justify-center bg-white dark:bg-dark-primary">
-          <p className="text-gray-500 dark:text-dark-text-secondary">No company selected</p>
+          <p className="text-gray-500 dark:text-dark-text-secondary">
+            No company selected
+          </p>
         </div>
       </AppLayout>
-    )
+    );
   }
 
   return (
@@ -54,10 +57,10 @@ export function TeamPage() {
           <TeamManagement
             companyId={currentCompanyId}
             currentUserId={user.id}
-            currentUserRole={currentUserRole as 'owner' | 'admin' | 'member'}
+            currentUserRole={currentUserRole as "owner" | "admin" | "member"}
           />
         </div>
       </div>
     </AppLayout>
-  )
+  );
 }
