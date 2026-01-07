@@ -1,6 +1,14 @@
 import { useQueryClient } from '@tanstack/react-query'
 import type { PaginatedMessages } from '@whatsapp-web/shared'
-import { createContext, type ReactNode, useCallback, useContext, useEffect, useRef } from 'react'
+import {
+  createContext,
+  type ReactNode,
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+} from 'react'
 import { useAuth } from './auth-context'
 import { chatKeys } from '../hooks/useChats'
 import { infiniteMessageKeys } from '../hooks/useInfiniteMessages'
@@ -16,12 +24,20 @@ import {
   type NewMessagePayload,
   type ProfilePicturePayload,
   resetWebSocketClient,
+  type SyncStatusPayload,
   type TypingPayload,
   type WebSocketClient,
   type WebSocketEventType,
 } from '../lib/websocket'
 import { type TypingIndicator, useChatStore } from '../stores/chat-store'
 import { useWebSocketStore } from '../stores/websocket-store'
+
+// Sync state type
+export interface SyncState {
+  connectionId: string
+  conversations: number
+  startedAt: Date
+}
 
 // Context value type
 interface WebSocketContextValue {
@@ -30,6 +46,9 @@ interface WebSocketContextValue {
   isConnected: boolean
   isConnecting: boolean
   error: string | null
+
+  // Sync state
+  syncingConnections: Map<string, SyncState>
 
   // Connection methods
   connect: () => void
@@ -72,6 +91,9 @@ export function WebSocketProvider({ children, autoConnect = true }: WebSocketPro
   // Get current company ID from auth context
   // When this changes (e.g., user creates first company), we need to reconnect WebSocket
   const { currentCompanyId } = useAuth()
+
+  // Sync state - track which connections are currently syncing
+  const [syncingConnections, setSyncingConnections] = useState<Map<string, SyncState>>(new Map())
 
   // TanStack Query client for cache updates
   const queryClient = useQueryClient()
@@ -706,6 +728,49 @@ export function WebSocketProvider({ children, autoConnect = true }: WebSocketPro
         })
       })
 
+      // Sync event handlers
+      const unsubSyncStart = client.on<SyncStatusPayload>('sync:start', (payload) => {
+        console.log('[WebSocket] 🔄 Sync started', payload)
+        const connectionId = (payload as any).connectionId || 'unknown'
+        setSyncingConnections((prev) => {
+          const newMap = new Map(prev)
+          newMap.set(connectionId, {
+            connectionId,
+            conversations: 0,
+            startedAt: new Date(),
+          })
+          return newMap
+        })
+      })
+
+      const unsubSyncProgress = client.on<SyncStatusPayload>('sync:progress', (payload) => {
+        console.log('[WebSocket] 🔄 Sync progress', payload)
+        const connectionId = (payload as any).connectionId || 'unknown'
+        setSyncingConnections((prev) => {
+          const newMap = new Map(prev)
+          const existing = newMap.get(connectionId)
+          if (existing) {
+            newMap.set(connectionId, {
+              ...existing,
+              conversations: payload.conversations,
+            })
+          }
+          return newMap
+        })
+      })
+
+      const unsubSyncComplete = client.on<SyncStatusPayload>('sync:complete', (payload) => {
+        console.log('[WebSocket] ✅ Sync completed', payload)
+        const connectionId = (payload as any).connectionId || 'unknown'
+        setSyncingConnections((prev) => {
+          const newMap = new Map(prev)
+          newMap.delete(connectionId)
+          return newMap
+        })
+        // Invalidate chat list to show new contacts
+        queryClientRef.current.invalidateQueries({ queryKey: chatKeys.lists() })
+      })
+
       // Store all unsubscribe functions for cleanup
       handlerUnsubscribesRef.current = [
         unsubNewMessage,
@@ -720,6 +785,9 @@ export function WebSocketProvider({ children, autoConnect = true }: WebSocketPro
         unsubPresenceOffline,
         unsubMediaDownloaded,
         unsubMediaDownloadFailed,
+        unsubSyncStart,
+        unsubSyncProgress,
+        unsubSyncComplete,
       ]
 
       console.log('[WebSocket] ✅ Handlers registered:', handlerUnsubscribesRef.current.length)
@@ -770,6 +838,7 @@ export function WebSocketProvider({ children, autoConnect = true }: WebSocketPro
     isConnected: status === 'connected',
     isConnecting: status === 'connecting',
     error,
+    syncingConnections,
     connect,
     disconnect,
     reconnect,

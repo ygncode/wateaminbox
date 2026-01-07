@@ -18,6 +18,10 @@ export type WebSocketEventType =
   // Media download events
   | 'media:downloaded'
   | 'media:download_failed'
+  // Sync events
+  | 'sync:start'
+  | 'sync:progress'
+  | 'sync:complete'
   // WhatsApp connection events
   | 'qr'
   | 'connected'
@@ -86,6 +90,12 @@ export interface NotificationPayload {
 export interface ErrorPayload {
   code: string
   message: string
+}
+
+// Sync event payloads
+export interface SyncStatusPayload {
+  messageCount: number
+  conversations: number
 }
 
 // WhatsApp connection event payloads

@@ -11,12 +11,15 @@ import { ForwardMessageDialog } from '../components/chat/ForwardMessageDialog'
 import { MessageComposer } from '../components/chat/MessageComposer'
 import { MessageHeader } from '../components/chat/MessageHeader'
 import { MessageThread } from '../components/chat/MessageThread'
+import { SyncingOverlay } from '../components/chat/SyncingOverlay'
 import { AppLayout, ResponsiveLayout } from '../components/layout/app-layout'
 import { MainContent } from '../components/layout/main-content'
 import { Sidebar } from '../components/layout/sidebar'
 import { useAuth } from '../contexts/auth-context'
+import { useWebSocketContext } from '../contexts/WebSocketProvider'
 import { chatKeys } from '../hooks/useChats'
 import { type ContactDetail, useContact } from '../hooks/useContact'
+import { useSyncStatus } from '../hooks/useSyncStatus'
 import {
   useDeleteMessage,
   useForwardMessage,
@@ -43,6 +46,10 @@ export function ChatPage() {
   const navigate = useNavigate()
   const { user } = useAuth()
   const queryClient = useQueryClient()
+  const { syncingConnections } = useWebSocketContext()
+
+  // Check if any connections are syncing on page load
+  useSyncStatus()
   const [selectedChatId, setSelectedChatId] = React.useState<string | undefined>(contactId)
   const [isProfileOpen, setIsProfileOpen] = React.useState(false)
   const [isSearchOpen, setIsSearchOpen] = React.useState(false)
@@ -394,6 +401,7 @@ export function ChatPage() {
 
   return (
     <AppLayout>
+      <SyncingOverlay />
       <ResponsiveLayout
         sidebar={sidebar}
         main={main}

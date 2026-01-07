@@ -173,6 +173,7 @@ export interface WhatsAppEvent {
     | "presence"
     | "typing"
     | "reaction"
+    | "sync_status"
     | "error";
   companyId: string;
   connectionId: string;
@@ -374,6 +375,15 @@ export interface DownloadResponseEvent extends WhatsAppEvent {
     mediaSize?: number;
     success: boolean;
     error?: string;
+  };
+}
+
+export interface SyncStatusEvent extends WhatsAppEvent {
+  type: "sync_status";
+  payload: {
+    status: "starting" | "progress" | "completed";
+    messageCount: number;
+    conversations: number;
   };
 }
 

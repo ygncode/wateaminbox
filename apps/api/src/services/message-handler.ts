@@ -15,6 +15,7 @@ import {
   type TypingEvent,
   type ReactionEvent,
   type DownloadResponseEvent,
+  type SyncStatusEvent,
 } from '../lib/nats.js'
 import { db, type MessageType } from '@whatsapp-web/database'
 import { toDbDate, toDate, toISOString } from '@whatsapp-web/shared'
@@ -191,6 +192,10 @@ export async function handleWhatsAppEvent(event: WhatsAppEvent): Promise<void> {
 
       case 'download_response':
         await handleDownloadResponseEvent(event as DownloadResponseEvent)
+        break
+
+      case 'sync_status':
+        await handleSyncStatusEvent(event as SyncStatusEvent)
         break
 
       case 'error':
@@ -1235,6 +1240,79 @@ async function handleDownloadResponseEvent(event: DownloadResponseEvent): Promis
     }
   } catch (error) {
     logger.error(formatError(error), 'Failed to handle download response')
+  }
+}
+
+/**
+ * Handles sync status events from WhatsApp history sync
+ * Updates database sync_status and broadcasts progress to WebSocket clients
+ */
+async function handleSyncStatusEvent(event: SyncStatusEvent): Promise<void> {
+  const { companyId, connectionId, payload } = event
+
+  logger.info(
+    {
+      companyId,
+      connectionId,
+      status: payload.status,
+      messageCount: payload.messageCount,
+      conversations: payload.conversations,
+    },
+    'Sync status event received'
+  )
+
+  try {
+    const tenantDb = getTenantConnection(companyId)
+
+    // Update database sync_status for starting/completed (not progress to avoid excessive updates)
+    if (payload.status === 'starting' || payload.status === 'completed') {
+      const dbStatus = payload.status === 'starting' ? 'syncing' : 'completed'
+
+      await tenantDb
+        .updateTable('whatsapp_connections')
+        .set({
+          sync_status: dbStatus,
+          updated_at: toDbDate(),
+        })
+        .where('id', '=', connectionId)
+        .execute()
+
+      logger.info(
+        {
+          connectionId,
+          status: dbStatus,
+        },
+        'Updated connection sync_status'
+      )
+    }
+
+    // Map NATS status to WebSocket event type
+    const wsTypeMap = {
+      starting: 'sync:start' as const,
+      progress: 'sync:progress' as const,
+      completed: 'sync:complete' as const,
+    }
+
+    // Broadcast to WebSocket clients
+    broadcastToCompany(companyId, {
+      type: wsTypeMap[payload.status],
+      connectionId,
+      payload: {
+        messageCount: payload.messageCount,
+        conversations: payload.conversations,
+      },
+      timestamp: event.timestamp,
+    })
+
+    logger.debug(
+      {
+        type: wsTypeMap[payload.status],
+        connectionId,
+      },
+      'Broadcasted sync status to WebSocket clients'
+    )
+  } catch (error) {
+    logger.error(formatError(error), 'Failed to handle sync status event')
   }
 }
 
