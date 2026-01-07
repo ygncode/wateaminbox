@@ -1,0 +1,81 @@
+# WhatsApp Synchronization Mechanism
+
+This document outlines how WhatsApp synchronization works within the platform, specifically focusing on the **History Sync** mechanism which ensures local data consistency with the linked WhatsApp device.
+
+## Overview
+
+The platform primarily synchronizes data through **History Sync**, which occurs automatically when a WhatsApp session is established or reconnected. This process fetches historical messages and contacts from the phone to populate the platform's database.
+
+> **Note:** Infrastructure for **Label Sync** and **Catalog Sync** (for WhatsApp Business) exists in the codebase (API routes, services, NATS commands), but the end-to-end implementation is currently under development.
+
+## Architecture
+
+The synchronization process involves four main components:
+
+1.  **WhatsApp Worker (Go Service):** Manages the direct connection to WhatsApp servers using the `whatsmeow` library.
+2.  **NATS (Message Broker):** Facilitates asynchronous communication between the Worker and the API.
+3.  **API Service (Node.js):** Consumes events, updates the PostgreSQL database, and manages WebSocket connections to the frontend.
+4.  **Frontend (React):** Displays real-time sync status to the user.
+
+## History Sync Flow
+
+### 1. Trigger
+The process begins when the **WhatsApp Worker** successfully connects to the WhatsApp servers. This triggers a `HistorySync` event from the underlying `whatsmeow` library.
+
+### 2. Synchronization Phases
+
+The sync process reports its status via NATS events (`WHATSAPP.events.{companyId}.{connectionId}.sync_status`).
+
+#### Phase A: Starting
+- The Worker publishes a `sync:start` status.
+- **API:** Updates the connection's `sync_status` to `syncing` in the database.
+- **Frontend:** Receives a WebSocket event and displays the `SyncingOverlay`.
+
+#### Phase B: Processing (Optimized)
+The Worker processes incoming history data with specific optimizations to ensure performance and prevent flooding:
+
+- **Batching:** Messages and conversations are processed in parallel workers (default: 10).
+- **Deferred Media:** To speed up the initial sync, media (images, videos, documents) are **not** downloaded immediately. They are marked for "on-demand" download.
+- **Profile Pictures:** Fetching of profile pictures is skipped during history sync.
+- **Flagging:** Messages are marked with `IsHistorySync: true`.
+
+#### Phase C: Event Consumption (API)
+The API Service listens for incoming message events. Crucially, it checks the `isHistorySync` flag:
+
+- **Notifications:** Skipped for history sync messages to prevent flooding the user with alerts for old messages.
+- **Unread Counts:** Skipped to ensure the unread count reflects only *new* activity.
+- **Webhooks:** Outgoing webhooks are typically suppressed for history sync messages.
+
+#### Phase D: Completion
+- Once all history data is processed, the Worker publishes a `sync:complete` status.
+- **API:** Updates `sync_status` to `completed`.
+- **Frontend:** Removes the overlay and displays the chat interface.
+
+## Data Models & Events
+
+### NATS Subjects
+- **Sync Status:** `WHATSAPP.events.{companyId}.{connectionId}.sync_status`
+- **Payload:**
+  ```json
+  {
+    "status": "starting" | "progress" | "completed",
+    "messageCount": 123,
+    "conversations": 10
+  }
+  ```
+
+### WebSocket Events
+The Frontend subscribes to these events to update the UI:
+- `sync:start`
+- `sync:progress`
+- `sync:complete`
+
+## Label & Catalog Sync (Status)
+
+The codebase contains the following infrastructure for WhatsApp Business features:
+
+- **Services:** `LabelSyncService` and `CatalogSyncService` in the API.
+- **Routes:** Endpoints to trigger syncs (e.g., `POST /labels/sync`).
+- **Commands:** NATS commands `sync_labels` and `sync_catalogs` are defined.
+
+**Current State:** The WhatsApp Worker's NATS subscriber (`services/whatsapp/internal/nats/subscriber.go`) currently handles message sending (`text`, `media`, `reaction`) but does not yet process `sync_labels` or `sync_catalogs` commands. Consequently, the downstream logic to update the database (`syncLabelsFromWhatsApp`) is not currently invoked.
