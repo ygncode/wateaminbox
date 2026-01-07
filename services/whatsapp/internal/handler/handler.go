@@ -126,7 +126,6 @@ func (h *Handler) downloadWithRetry(ctx context.Context, downloadable whatsmeow.
 // This allows for mocking the client in tests.
 type WhatsAppClient interface {
 	DownloadMedia(ctx context.Context, msg whatsmeow.DownloadableMessage) ([]byte, error)
-	DownloadMediaWithPath(ctx context.Context, directPath string, encFileHash, fileHash, mediaKey []byte, fileLength int, mediaType whatsmeow.MediaType, mmsType string) ([]byte, error)
 	GetClient() *whatsmeow.Client
 	HandleReconnect(ctx context.Context)
 }
@@ -550,17 +549,10 @@ func (h *Handler) handleLoggedOut(evt *events.LoggedOut) {
 }
 
 // handleQR is called when QR code is available.
+// Note: QR codes are published via the callback set in main.go (SetQRCallback).
+// This handler only logs the event to avoid duplicate publishing.
 func (h *Handler) handleQR(evt *events.QR) {
 	log.Printf("QR code event for worker %s: %d codes available", h.config.WorkerID, len(evt.Codes))
-
-	// Publish each QR code to NATS
-	if h.publisher != nil {
-		for _, qrCode := range evt.Codes {
-			if err := h.publisher.PublishQRCode(qrCode); err != nil {
-				log.Printf("Failed to publish QR code: %v", err)
-			}
-		}
-	}
 }
 
 // handlePairSuccess is called when device pairing succeeds.
@@ -590,20 +582,27 @@ type historySyncConversation struct {
 }
 
 // handleHistorySync is called when history sync is received.
-// Optimized for performance with:
+// Features:
 // - Parallel conversation processing using worker pool
-// - Deferred media downloads (stores references instead of downloading)
-// - Skipped profile picture fetching (fetched on-demand later)
+// - Immediate media downloads with retry logic
+// - Profile picture fetching for each contact
 func (h *Handler) handleHistorySync(evt *events.HistorySync) {
 	conversations := evt.Data.GetConversations()
-	log.Printf("History sync received: %d conversations (optimized mode - media deferred)", len(conversations))
+	log.Printf("History sync received: %d conversations", len(conversations))
+
+	// Publish initial progress to trigger sync overlay (in case OfflineSyncPreview didn't fire)
+	if h.publisher != nil && len(conversations) > 0 {
+		if err := h.publisher.PublishSyncStatus("progress", 0, 0); err != nil {
+			log.Printf("Failed to publish initial sync progress: %v", err)
+		}
+	}
 
 	startTime := time.Now()
 
 	// Use channels for worker pool pattern
 	type conversationResult struct {
-		messages     int
-		mediaDeferred int
+		messages      int
+		mediaDownloaded int
 	}
 
 	jobs := make(chan int, len(conversations))
@@ -636,10 +635,10 @@ func (h *Handler) handleHistorySync(evt *events.HistorySync) {
 	}()
 
 	// Collect results and publish progress
-	var totalMessages, totalMediaDeferred, conversationsProcessed int
+	var totalMessages, totalMediaDownloaded, conversationsProcessed int
 	for result := range results {
 		totalMessages += result.messages
-		totalMediaDeferred += result.mediaDeferred
+		totalMediaDownloaded += result.mediaDownloaded
 		conversationsProcessed++
 
 		// Publish progress every 10 conversations to avoid flooding
@@ -660,13 +659,13 @@ func (h *Handler) handleHistorySync(evt *events.HistorySync) {
 	}
 
 	elapsed := time.Since(startTime)
-	log.Printf("History sync complete: %d messages, %d media deferred for on-demand download (took %v)",
-		totalMessages, totalMediaDeferred, elapsed.Round(time.Millisecond))
+	log.Printf("History sync complete: %d messages, %d media downloaded (took %v)",
+		totalMessages, totalMediaDownloaded, elapsed.Round(time.Millisecond))
 }
 
 // processHistorySyncConversation processes a single conversation during history sync.
-// Returns the count of messages processed and media items deferred.
-func (h *Handler) processHistorySyncConversation(conv interface{}) (result struct{ messages, mediaDeferred int }) {
+// Returns the count of messages processed and media items downloaded.
+func (h *Handler) processHistorySyncConversation(conv interface{}) (result struct{ messages, mediaDownloaded int }) {
 	// Type assert to get conversation methods
 	type conversationGetter interface {
 		GetID() string
@@ -708,9 +707,11 @@ func (h *Handler) processHistorySyncConversation(conv interface{}) (result struc
 	// Get unread count
 	unreadCount := int(c.GetUnreadCount())
 
-	// OPTIMIZATION: Skip profile picture fetching during history sync
-	// Profile pictures will be fetched on-demand when viewing contacts
-	var profilePicURL string // Empty - will be fetched later
+	// Fetch profile picture during history sync
+	var profilePicURL string
+	if h.config.Client != nil && h.config.Storage != nil {
+		profilePicURL = h.fetchProfilePicture(normalizedJID)
+	}
 
 	// Publish contact to NATS
 	if h.publisher != nil {
@@ -726,7 +727,7 @@ func (h *Handler) processHistorySyncConversation(conv interface{}) (result struc
 		if processed {
 			result.messages++
 			if hasMedia {
-				result.mediaDeferred++
+				result.mediaDownloaded++
 			}
 		}
 	}
@@ -735,7 +736,7 @@ func (h *Handler) processHistorySyncConversation(conv interface{}) (result struc
 }
 
 // processHistorySyncConversationDirect processes a conversation using direct type assertion.
-func (h *Handler) processHistorySyncConversationDirect(conv interface{}) (result struct{ messages, mediaDeferred int }) {
+func (h *Handler) processHistorySyncConversationDirect(conv interface{}) (result struct{ messages, mediaDownloaded int }) {
 	// Use waHistorySync types directly
 	type waConversation interface {
 		GetID() string
@@ -780,9 +781,15 @@ func (h *Handler) processHistorySyncConversationDirect(conv interface{}) (result
 			unreadCount = int(u.GetUnreadCount())
 		}
 
-		// Publish contact (no profile picture - deferred)
+		// Fetch profile picture during history sync
+		var profilePicURL string
+		if h.config.Client != nil && h.config.Storage != nil {
+			profilePicURL = h.fetchProfilePicture(normalizedJID)
+		}
+
+		// Publish contact to NATS
 		if h.publisher != nil {
-			h.publisher.PublishContact(jid, name, displayName, isGroup, unreadCount, "")
+			h.publisher.PublishContact(jid, name, displayName, isGroup, unreadCount, profilePicURL)
 		}
 
 		// Process messages
@@ -792,7 +799,7 @@ func (h *Handler) processHistorySyncConversationDirect(conv interface{}) (result
 				if processed {
 					result.messages++
 					if hasMedia {
-						result.mediaDeferred++
+						result.mediaDownloaded++
 					}
 				}
 			}
@@ -828,7 +835,7 @@ func (h *Handler) processHistorySyncMessage(historyMsg interface{}, jid string, 
 		FromMe:        msg.GetKey().GetFromMe(),
 		IsGroup:       isGroup,
 		Timestamp:     time.Unix(int64(msg.GetMessageTimestamp()), 0),
-		IsHistorySync: true, // Mark as history sync for deferred media
+		IsHistorySync: true, // Mark as history sync message
 	}
 
 	// Get push name
@@ -853,7 +860,7 @@ func (h *Handler) processHistorySyncMessage(historyMsg interface{}, jid string, 
 		}
 	}
 
-	// Image message - extract reference, don't download
+	// Image message - download immediately
 	if waMsg.ImageMessage != nil {
 		msgEvent.Type = "image"
 		if waMsg.ImageMessage.Caption != nil {
@@ -862,11 +869,12 @@ func (h *Handler) processHistorySyncMessage(historyMsg interface{}, jid string, 
 		if waMsg.ImageMessage.Mimetype != nil {
 			msgEvent.MediaType = *waMsg.ImageMessage.Mimetype
 		}
-		extractMediaReference(waMsg.ImageMessage, &msgEvent)
-		hasMedia = true
+		if h.downloadHistoryMedia(waMsg.ImageMessage, &msgEvent) {
+			hasMedia = true
+		}
 	}
 
-	// Video message - extract reference, don't download
+	// Video message - download immediately
 	if waMsg.VideoMessage != nil {
 		msgEvent.Type = "video"
 		if waMsg.VideoMessage.Caption != nil {
@@ -875,21 +883,23 @@ func (h *Handler) processHistorySyncMessage(historyMsg interface{}, jid string, 
 		if waMsg.VideoMessage.Mimetype != nil {
 			msgEvent.MediaType = *waMsg.VideoMessage.Mimetype
 		}
-		extractMediaReference(waMsg.VideoMessage, &msgEvent)
-		hasMedia = true
+		if h.downloadHistoryMedia(waMsg.VideoMessage, &msgEvent) {
+			hasMedia = true
+		}
 	}
 
-	// Audio message - extract reference, don't download
+	// Audio message - download immediately
 	if waMsg.AudioMessage != nil {
 		msgEvent.Type = "audio"
 		if waMsg.AudioMessage.Mimetype != nil {
 			msgEvent.MediaType = *waMsg.AudioMessage.Mimetype
 		}
-		extractMediaReference(waMsg.AudioMessage, &msgEvent)
-		hasMedia = true
+		if h.downloadHistoryMedia(waMsg.AudioMessage, &msgEvent) {
+			hasMedia = true
+		}
 	}
 
-	// Document message - extract reference, don't download
+	// Document message - download immediately
 	if waMsg.DocumentMessage != nil {
 		msgEvent.Type = "document"
 		if waMsg.DocumentMessage.Caption != nil {
@@ -901,18 +911,20 @@ func (h *Handler) processHistorySyncMessage(historyMsg interface{}, jid string, 
 		if waMsg.DocumentMessage.Mimetype != nil {
 			msgEvent.MediaType = *waMsg.DocumentMessage.Mimetype
 		}
-		extractMediaReference(waMsg.DocumentMessage, &msgEvent)
-		hasMedia = true
+		if h.downloadHistoryMedia(waMsg.DocumentMessage, &msgEvent) {
+			hasMedia = true
+		}
 	}
 
-	// Sticker message - extract reference, don't download
+	// Sticker message - download immediately
 	if waMsg.StickerMessage != nil {
 		msgEvent.Type = "sticker"
 		if waMsg.StickerMessage.Mimetype != nil {
 			msgEvent.MediaType = *waMsg.StickerMessage.Mimetype
 		}
-		extractMediaReference(waMsg.StickerMessage, &msgEvent)
-		hasMedia = true
+		if h.downloadHistoryMedia(waMsg.StickerMessage, &msgEvent) {
+			hasMedia = true
+		}
 	}
 
 	// Skip if we couldn't determine message type
@@ -929,82 +941,6 @@ func (h *Handler) processHistorySyncMessage(historyMsg interface{}, jid string, 
 	}
 
 	return true, hasMedia
-}
-
-// extractMediaReference extracts media download reference info for deferred processing.
-// Does NOT download the media - stores reference for on-demand download later.
-// This is used for history sync messages to speed up initial sync.
-func extractMediaReference(downloadable whatsmeow.DownloadableMessage, event *natsClient.MessageEvent) {
-	event.MediaDirectPath = downloadable.GetDirectPath()
-	event.MediaKey = downloadable.GetMediaKey()
-	event.MediaFileSHA256 = downloadable.GetFileSHA256()
-	event.MediaFileEncSHA256 = downloadable.GetFileEncSHA256()
-}
-
-// downloadHistoryMediaWithRetry downloads history media using DownloadMediaWithPath to avoid expired URLs.
-func (h *Handler) downloadHistoryMediaWithRetry(ctx context.Context, downloadable whatsmeow.DownloadableMessage, mediaTypeStr string) ([]byte, error) {
-	var mediaType whatsmeow.MediaType
-	var mmsType string
-
-	switch mediaTypeStr {
-	case "image":
-		mediaType = whatsmeow.MediaImage
-		mmsType = "image"
-	case "video":
-		mediaType = whatsmeow.MediaVideo
-		mmsType = "video"
-	case "audio":
-		mediaType = whatsmeow.MediaAudio
-		mmsType = "audio"
-	case "document":
-		mediaType = whatsmeow.MediaDocument
-		mmsType = "document"
-	case "sticker":
-		mediaType = whatsmeow.MediaImage
-		mmsType = "sticker"
-	default:
-		mediaType = whatsmeow.MediaDocument
-		mmsType = "document"
-	}
-
-	var lastErr error
-	for attempt := 0; attempt < mediaDownloadMaxRetries; attempt++ {
-		if ctx.Err() != nil {
-			return nil, ctx.Err()
-		}
-
-		attemptCtx, cancel := context.WithTimeout(context.Background(), mediaDownloadAttemptTimeout)
-		data, err := h.config.Client.DownloadMediaWithPath(
-			attemptCtx,
-			downloadable.GetDirectPath(),
-			downloadable.GetFileEncSHA256(),
-			downloadable.GetFileSHA256(),
-			downloadable.GetMediaKey(),
-			-1,
-			mediaType,
-			mmsType,
-		)
-		cancel()
-
-		if err == nil {
-			if attempt > 0 {
-				log.Printf("History media download succeeded on attempt %d after retries", attempt+1)
-			}
-			return data, nil
-		}
-
-		lastErr = err
-		if attempt < mediaDownloadMaxRetries-1 {
-			log.Printf("History media download attempt %d failed: %v (retrying in %v)", attempt+1, err, mediaDownloadBaseDelay*time.Duration(1<<uint(attempt)))
-			backoffDelay := mediaDownloadBaseDelay * time.Duration(1<<uint(attempt))
-			select {
-			case <-time.After(backoffDelay):
-			case <-ctx.Done():
-				return nil, ctx.Err()
-			}
-		}
-	}
-	return nil, lastErr
 }
 
 // downloadHistoryMedia downloads media from history sync with rate limiting.
@@ -1027,9 +963,8 @@ func (h *Handler) downloadHistoryMedia(downloadable whatsmeow.DownloadableMessag
 	ctx, cancel := context.WithTimeout(context.Background(), 75*time.Second)
 	defer cancel()
 
-	// Download the media with retry logic (exponential backoff) using DownloadMediaWithPath
-	// to avoid 403 Forbidden errors from expired URLs in history sync.
-	data, err := h.downloadHistoryMediaWithRetry(ctx, downloadable, event.Type)
+	// Download the media with retry logic (exponential backoff)
+	data, err := h.downloadWithRetry(ctx, downloadable)
 	if err != nil {
 		log.Printf("Failed to download history media after retry exhaustion: %v", err)
 		return false

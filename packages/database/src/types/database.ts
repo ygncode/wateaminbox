@@ -77,7 +77,7 @@ export interface Invitations {
   token: string;
 }
 
-export interface TenantC2766e1436df43b8Bc972a30193f80f5AuditLogs {
+export interface Tenant50e25229A3514f5c953eA11b65866b2dAuditLogs {
   action: string;
   created_at: Generated<Timestamp>;
   details: Json | null;
@@ -88,7 +88,7 @@ export interface TenantC2766e1436df43b8Bc972a30193f80f5AuditLogs {
   user_id: string | null;
 }
 
-export interface TenantC2766e1436df43b8Bc972a30193f80f5CatalogProducts {
+export interface Tenant50e25229A3514f5c953eA11b65866b2dCatalogProducts {
   availability: Generated<string | null>;
   catalog_id: string;
   created_at: Generated<Timestamp>;
@@ -104,7 +104,7 @@ export interface TenantC2766e1436df43b8Bc972a30193f80f5CatalogProducts {
   url: string | null;
 }
 
-export interface TenantC2766e1436df43b8Bc972a30193f80f5ContactAssignments {
+export interface Tenant50e25229A3514f5c953eA11b65866b2dContactAssignments {
   assigned_at: Generated<Timestamp>;
   assigned_by: string;
   assigned_to: string;
@@ -113,7 +113,7 @@ export interface TenantC2766e1436df43b8Bc972a30193f80f5ContactAssignments {
   unassigned_at: Timestamp | null;
 }
 
-export interface TenantC2766e1436df43b8Bc972a30193f80f5ContactNotesPrivate {
+export interface Tenant50e25229A3514f5c953eA11b65866b2dContactNotesPrivate {
   contact_id: string;
   content: string | null;
   created_at: Generated<Timestamp>;
@@ -122,7 +122,7 @@ export interface TenantC2766e1436df43b8Bc972a30193f80f5ContactNotesPrivate {
   user_id: string;
 }
 
-export interface TenantC2766e1436df43b8Bc972a30193f80f5ContactNotesShared {
+export interface Tenant50e25229A3514f5c953eA11b65866b2dContactNotesShared {
   author_name: string;
   contact_id: string;
   content: string;
@@ -132,7 +132,7 @@ export interface TenantC2766e1436df43b8Bc972a30193f80f5ContactNotesShared {
   user_id: string;
 }
 
-export interface TenantC2766e1436df43b8Bc972a30193f80f5Contacts {
+export interface Tenant50e25229A3514f5c953eA11b65866b2dContacts {
   created_at: Generated<Timestamp>;
   custom_name: string | null;
   id: Generated<string>;
@@ -148,12 +148,12 @@ export interface TenantC2766e1436df43b8Bc972a30193f80f5Contacts {
   whatsapp_connection_id: string | null;
 }
 
-export interface TenantC2766e1436df43b8Bc972a30193f80f5ContactTags {
+export interface Tenant50e25229A3514f5c953eA11b65866b2dContactTags {
   contact_id: string;
   tag_id: string;
 }
 
-export interface TenantC2766e1436df43b8Bc972a30193f80f5ConversationStates {
+export interface Tenant50e25229A3514f5c953eA11b65866b2dConversationStates {
   contact_id: string;
   created_at: Generated<Timestamp>;
   id: Generated<string>;
@@ -165,7 +165,7 @@ export interface TenantC2766e1436df43b8Bc972a30193f80f5ConversationStates {
   updated_at: Generated<Timestamp>;
 }
 
-export interface TenantC2766e1436df43b8Bc972a30193f80f5GroupParticipants {
+export interface Tenant50e25229A3514f5c953eA11b65866b2dGroupParticipants {
   group_id: string;
   id: Generated<string>;
   is_admin: Generated<boolean | null>;
@@ -173,7 +173,7 @@ export interface TenantC2766e1436df43b8Bc972a30193f80f5GroupParticipants {
   participant_jid: string;
 }
 
-export interface TenantC2766e1436df43b8Bc972a30193f80f5Groups {
+export interface Tenant50e25229A3514f5c953eA11b65866b2dGroups {
   contact_id: string | null;
   created_at: Generated<Timestamp>;
   created_by: string | null;
@@ -184,7 +184,7 @@ export interface TenantC2766e1436df43b8Bc972a30193f80f5Groups {
   participant_count: Generated<number | null>;
 }
 
-export interface TenantC2766e1436df43b8Bc972a30193f80f5MessageReactions {
+export interface Tenant50e25229A3514f5c953eA11b65866b2dMessageReactions {
   created_at: Generated<Timestamp>;
   emoji: string;
   id: Generated<string>;
@@ -192,7 +192,7 @@ export interface TenantC2766e1436df43b8Bc972a30193f80f5MessageReactions {
   reactor_jid: string;
 }
 
-export interface TenantC2766e1436df43b8Bc972a30193f80f5Messages {
+export interface Tenant50e25229A3514f5c953eA11b65866b2dMessages {
   contact_id: string | null;
   content: string | null;
   created_at: Generated<Timestamp>;
@@ -202,6 +202,14 @@ export interface TenantC2766e1436df43b8Bc972a30193f80f5Messages {
   id: Generated<string>;
   is_forwarded: Generated<boolean | null>;
   is_starred: Generated<boolean | null>;
+  media_direct_path: string | null;
+  media_download_error: string | null;
+  media_download_status: string | null;
+  media_downloaded_at: Timestamp | null;
+  media_file_enc_sha256: Buffer | null;
+  media_file_sha256: Buffer | null;
+  media_filename: string | null;
+  media_key: Buffer | null;
   media_mime_type: string | null;
   media_size: number | null;
   media_url: string | null;
@@ -217,7 +225,7 @@ export interface TenantC2766e1436df43b8Bc972a30193f80f5Messages {
   whatsapp_connection_id: string | null;
 }
 
-export interface TenantC2766e1436df43b8Bc972a30193f80f5NotificationHistory {
+export interface Tenant50e25229A3514f5c953eA11b65866b2dNotificationHistory {
   action_url: string | null;
   created_at: Generated<Timestamp>;
   id: Generated<string>;
@@ -230,7 +238,7 @@ export interface TenantC2766e1436df43b8Bc972a30193f80f5NotificationHistory {
   user_id: string;
 }
 
-export interface TenantC2766e1436df43b8Bc972a30193f80f5NotificationPreferences {
+export interface Tenant50e25229A3514f5c953eA11b65866b2dNotificationPreferences {
   created_at: Generated<Timestamp>;
   id: Generated<string>;
   muted_contacts: string[] | null;
@@ -242,264 +250,18 @@ export interface TenantC2766e1436df43b8Bc972a30193f80f5NotificationPreferences {
   user_id: string;
 }
 
-export interface TenantC2766e1436df43b8Bc972a30193f80f5QuickReplies {
+export interface Tenant50e25229A3514f5c953eA11b65866b2dQuickReplies {
   content: string;
   created_at: Generated<Timestamp>;
   created_by: string;
   id: Generated<string>;
   is_shared: Generated<boolean | null>;
   shortcut: string;
-  title: Generated<string>;
-  updated_at: Generated<Timestamp>;
-}
-
-export interface TenantC2766e1436df43b8Bc972a30193f80f5StatusUpdates {
-  caption: string | null;
-  expires_at: Timestamp;
-  from_jid: string | null;
-  id: Generated<string>;
-  media_type: string | null;
-  media_url: string | null;
-  status_id: string | null;
-  timestamp: Timestamp;
-  whatsapp_connection_id: string | null;
-}
-
-export interface TenantC2766e1436df43b8Bc972a30193f80f5Tags {
-  color: string | null;
-  created_at: Generated<Timestamp>;
-  created_by: string | null;
-  id: Generated<string>;
-  name: string;
-}
-
-export interface TenantC2766e1436df43b8Bc972a30193f80f5WhatsappCatalogs {
-  catalog_id: string;
-  created_at: Generated<Timestamp>;
-  description: string | null;
-  id: Generated<string>;
-  name: string | null;
-  product_count: Generated<number | null>;
-  synced_at: Timestamp | null;
-  updated_at: Generated<Timestamp>;
-}
-
-export interface TenantC2766e1436df43b8Bc972a30193f80f5WhatsappConnections {
-  connected_at: Timestamp | null;
-  connected_by: string | null;
-  connection_order: Generated<number | null>;
-  created_at: Generated<Timestamp>;
-  id: Generated<string>;
-  jid: string | null;
-  last_sync_at: Timestamp | null;
-  name: string | null;
-  phone_number: string | null;
-  status: Generated<WhatsappConnectionStatus>;
-  updated_at: Generated<Timestamp>;
-}
-
-export interface TenantC2766e1436df43b8Bc972a30193f80f5WhatsappLabelAssociations {
-  contact_id: string | null;
-  created_at: Generated<Timestamp>;
-  id: Generated<string>;
-  label_id: string;
-  message_id: string | null;
-}
-
-export interface TenantC2766e1436df43b8Bc972a30193f80f5WhatsappLabels {
-  color: string | null;
-  created_at: Generated<Timestamp>;
-  id: Generated<string>;
-  name: string;
-  predefined_id: number | null;
-  updated_at: Generated<Timestamp>;
-  whatsapp_label_id: string;
-}
-
-export interface TenantC2766e1436df43b8Bc972a30193f80f5WhatsmeowLidMappings {
-  connection_id: string;
-  created_at: Generated<Timestamp>;
-  jid: string;
-  lid: string;
-}
-
-export interface TenantTestFixAuditLogs {
-  action: string;
-  created_at: Generated<Timestamp>;
-  details: Json | null;
-  entity_id: string | null;
-  entity_type: string | null;
-  id: Generated<string>;
-  ip_address: string | null;
-  user_id: string | null;
-}
-
-export interface TenantTestFixCatalogProducts {
-  availability: Generated<string | null>;
-  catalog_id: string;
-  created_at: Generated<Timestamp>;
-  currency: Generated<string | null>;
-  description: string | null;
-  id: Generated<string>;
-  image_url: string | null;
-  name: string;
-  price: Numeric | null;
-  product_id: string;
-  retailer_id: string | null;
-  updated_at: Generated<Timestamp>;
-  url: string | null;
-}
-
-export interface TenantTestFixContactAssignments {
-  assigned_at: Generated<Timestamp>;
-  assigned_by: string;
-  assigned_to: string;
-  contact_id: string;
-  id: Generated<string>;
-  unassigned_at: Timestamp | null;
-}
-
-export interface TenantTestFixContactNotesPrivate {
-  contact_id: string;
-  content: string | null;
-  created_at: Generated<Timestamp>;
-  id: Generated<string>;
-  updated_at: Generated<Timestamp>;
-  user_id: string;
-}
-
-export interface TenantTestFixContactNotesShared {
-  author_name: string;
-  contact_id: string;
-  content: string;
-  created_at: Generated<Timestamp>;
-  id: Generated<string>;
-  updated_at: Generated<Timestamp>;
-  user_id: string;
-}
-
-export interface TenantTestFixContacts {
-  created_at: Generated<Timestamp>;
-  custom_name: string | null;
-  id: Generated<string>;
-  is_group: Generated<boolean | null>;
-  is_online: Generated<boolean>;
-  jid: string | null;
-  last_seen: Timestamp | null;
-  notes_shared: string | null;
-  phone_number: string | null;
-  profile_picture_url: string | null;
-  push_name: string | null;
-  updated_at: Generated<Timestamp>;
-  whatsapp_connection_id: string | null;
-}
-
-export interface TenantTestFixContactTags {
-  contact_id: string;
-  tag_id: string;
-}
-
-export interface TenantTestFixConversationStates {
-  contact_id: string;
-  created_at: Generated<Timestamp>;
-  id: Generated<string>;
-  last_message_at: Timestamp | null;
-  last_message_preview: string | null;
-  read_at: Timestamp | null;
-  read_by_user_id: string | null;
-  unread_count: Generated<number | null>;
-  updated_at: Generated<Timestamp>;
-}
-
-export interface TenantTestFixGroupParticipants {
-  group_id: string;
-  id: Generated<string>;
-  is_admin: Generated<boolean | null>;
-  joined_at: Generated<Timestamp>;
-  participant_jid: string;
-}
-
-export interface TenantTestFixGroups {
-  contact_id: string | null;
-  created_at: Generated<Timestamp>;
-  created_by: string | null;
-  description: string | null;
-  id: Generated<string>;
-  jid: string | null;
-  name: string | null;
-  participant_count: Generated<number | null>;
-}
-
-export interface TenantTestFixMessageReactions {
-  created_at: Generated<Timestamp>;
-  emoji: string;
-  id: Generated<string>;
-  message_id: string;
-  reactor_jid: string;
-}
-
-export interface TenantTestFixMessages {
-  contact_id: string | null;
-  content: string | null;
-  created_at: Generated<Timestamp>;
-  deleted_at: Timestamp | null;
-  deleted_by_sender: Generated<boolean | null>;
-  from_me: boolean;
-  id: Generated<string>;
-  is_forwarded: Generated<boolean | null>;
-  is_starred: Generated<boolean | null>;
-  media_mime_type: string | null;
-  media_size: number | null;
-  media_url: string | null;
-  message_id: string | null;
-  message_type: MessageType;
-  metadata: Json | null;
-  quoted_message_id: string | null;
-  search_vector: string | null;
-  sender_jid: string | null;
-  sent_by_user_id: string | null;
-  status: Generated<MessageStatus | null>;
-  timestamp: Timestamp;
-  whatsapp_connection_id: string | null;
-}
-
-export interface TenantTestFixNotificationHistory {
-  action_url: string | null;
-  created_at: Generated<Timestamp>;
-  id: Generated<string>;
-  is_read: Generated<boolean | null>;
-  message: string | null;
-  metadata: Json | null;
-  notification_type: string;
-  read_at: Timestamp | null;
   title: string;
-  user_id: string;
-}
-
-export interface TenantTestFixNotificationPreferences {
-  created_at: Generated<Timestamp>;
-  id: Generated<string>;
-  muted_contacts: string[] | null;
-  quiet_hours_end: string | null;
-  quiet_hours_start: string | null;
-  sound_choice: Generated<string | null>;
-  sound_enabled: Generated<boolean | null>;
-  updated_at: Generated<Timestamp>;
-  user_id: string;
-}
-
-export interface TenantTestFixQuickReplies {
-  content: string;
-  created_at: Generated<Timestamp>;
-  created_by: string;
-  id: Generated<string>;
-  is_shared: Generated<boolean | null>;
-  shortcut: string;
-  title: Generated<string>;
   updated_at: Generated<Timestamp>;
 }
 
-export interface TenantTestFixStatusUpdates {
+export interface Tenant50e25229A3514f5c953eA11b65866b2dStatusUpdates {
   caption: string | null;
   expires_at: Timestamp;
   from_jid: string | null;
@@ -511,7 +273,7 @@ export interface TenantTestFixStatusUpdates {
   whatsapp_connection_id: string | null;
 }
 
-export interface TenantTestFixTags {
+export interface Tenant50e25229A3514f5c953eA11b65866b2dTags {
   color: string | null;
   created_at: Generated<Timestamp>;
   created_by: string | null;
@@ -519,7 +281,7 @@ export interface TenantTestFixTags {
   name: string;
 }
 
-export interface TenantTestFixWhatsappCatalogs {
+export interface Tenant50e25229A3514f5c953eA11b65866b2dWhatsappCatalogs {
   catalog_id: string;
   created_at: Generated<Timestamp>;
   description: string | null;
@@ -530,7 +292,7 @@ export interface TenantTestFixWhatsappCatalogs {
   updated_at: Generated<Timestamp>;
 }
 
-export interface TenantTestFixWhatsappConnections {
+export interface Tenant50e25229A3514f5c953eA11b65866b2dWhatsappConnections {
   connected_at: Timestamp | null;
   connected_by: string | null;
   connection_order: Generated<number | null>;
@@ -541,10 +303,11 @@ export interface TenantTestFixWhatsappConnections {
   name: string | null;
   phone_number: string | null;
   status: Generated<WhatsappConnectionStatus>;
+  sync_status: string | null;
   updated_at: Generated<Timestamp>;
 }
 
-export interface TenantTestFixWhatsappLabelAssociations {
+export interface Tenant50e25229A3514f5c953eA11b65866b2dWhatsappLabelAssociations {
   contact_id: string | null;
   created_at: Generated<Timestamp>;
   id: Generated<string>;
@@ -552,7 +315,7 @@ export interface TenantTestFixWhatsappLabelAssociations {
   message_id: string | null;
 }
 
-export interface TenantTestFixWhatsappLabels {
+export interface Tenant50e25229A3514f5c953eA11b65866b2dWhatsappLabels {
   color: string | null;
   created_at: Generated<Timestamp>;
   id: Generated<string>;
@@ -562,253 +325,7 @@ export interface TenantTestFixWhatsappLabels {
   whatsapp_label_id: string;
 }
 
-export interface TenantTestFixWhatsmeowLidMappings {
-  connection_id: string;
-  created_at: Generated<Timestamp>;
-  jid: string;
-  lid: string;
-}
-
-export interface TenantTestMigrationFixAuditLogs {
-  action: string;
-  created_at: Generated<Timestamp>;
-  details: Json | null;
-  entity_id: string | null;
-  entity_type: string | null;
-  id: Generated<string>;
-  ip_address: string | null;
-  user_id: string | null;
-}
-
-export interface TenantTestMigrationFixCatalogProducts {
-  availability: Generated<string | null>;
-  catalog_id: string;
-  created_at: Generated<Timestamp>;
-  currency: Generated<string | null>;
-  description: string | null;
-  id: Generated<string>;
-  image_url: string | null;
-  name: string;
-  price: Numeric | null;
-  product_id: string;
-  retailer_id: string | null;
-  updated_at: Generated<Timestamp>;
-  url: string | null;
-}
-
-export interface TenantTestMigrationFixContactAssignments {
-  assigned_at: Generated<Timestamp>;
-  assigned_by: string;
-  assigned_to: string;
-  contact_id: string;
-  id: Generated<string>;
-  unassigned_at: Timestamp | null;
-}
-
-export interface TenantTestMigrationFixContactNotesPrivate {
-  contact_id: string;
-  content: string | null;
-  created_at: Generated<Timestamp>;
-  id: Generated<string>;
-  updated_at: Generated<Timestamp>;
-  user_id: string;
-}
-
-export interface TenantTestMigrationFixContactNotesShared {
-  author_name: string;
-  contact_id: string;
-  content: string;
-  created_at: Generated<Timestamp>;
-  id: Generated<string>;
-  updated_at: Generated<Timestamp>;
-  user_id: string;
-}
-
-export interface TenantTestMigrationFixContacts {
-  created_at: Generated<Timestamp>;
-  custom_name: string | null;
-  id: Generated<string>;
-  is_group: Generated<boolean | null>;
-  is_online: Generated<boolean>;
-  jid: string | null;
-  last_seen: Timestamp | null;
-  notes_shared: string | null;
-  phone_number: string | null;
-  profile_picture_url: string | null;
-  push_name: string | null;
-  updated_at: Generated<Timestamp>;
-  whatsapp_connection_id: string | null;
-}
-
-export interface TenantTestMigrationFixContactTags {
-  contact_id: string;
-  tag_id: string;
-}
-
-export interface TenantTestMigrationFixConversationStates {
-  contact_id: string;
-  created_at: Generated<Timestamp>;
-  id: Generated<string>;
-  last_message_at: Timestamp | null;
-  last_message_preview: string | null;
-  read_at: Timestamp | null;
-  read_by_user_id: string | null;
-  unread_count: Generated<number | null>;
-  updated_at: Generated<Timestamp>;
-}
-
-export interface TenantTestMigrationFixGroupParticipants {
-  group_id: string;
-  id: Generated<string>;
-  is_admin: Generated<boolean | null>;
-  joined_at: Generated<Timestamp>;
-  participant_jid: string;
-}
-
-export interface TenantTestMigrationFixGroups {
-  contact_id: string | null;
-  created_at: Generated<Timestamp>;
-  created_by: string | null;
-  description: string | null;
-  id: Generated<string>;
-  jid: string | null;
-  name: string | null;
-  participant_count: Generated<number | null>;
-}
-
-export interface TenantTestMigrationFixMessageReactions {
-  created_at: Generated<Timestamp>;
-  emoji: string;
-  id: Generated<string>;
-  message_id: string;
-  reactor_jid: string;
-}
-
-export interface TenantTestMigrationFixMessages {
-  contact_id: string | null;
-  content: string | null;
-  created_at: Generated<Timestamp>;
-  deleted_at: Timestamp | null;
-  deleted_by_sender: Generated<boolean | null>;
-  from_me: boolean;
-  id: Generated<string>;
-  is_forwarded: Generated<boolean | null>;
-  is_starred: Generated<boolean | null>;
-  media_mime_type: string | null;
-  media_size: number | null;
-  media_url: string | null;
-  message_id: string | null;
-  message_type: MessageType;
-  metadata: Json | null;
-  quoted_message_id: string | null;
-  search_vector: string | null;
-  sender_jid: string | null;
-  sent_by_user_id: string | null;
-  status: Generated<MessageStatus | null>;
-  timestamp: Timestamp;
-  whatsapp_connection_id: string | null;
-}
-
-export interface TenantTestMigrationFixNotificationHistory {
-  action_url: string | null;
-  created_at: Generated<Timestamp>;
-  id: Generated<string>;
-  is_read: Generated<boolean | null>;
-  message: string | null;
-  metadata: Json | null;
-  notification_type: string;
-  read_at: Timestamp | null;
-  title: string;
-  user_id: string;
-}
-
-export interface TenantTestMigrationFixNotificationPreferences {
-  created_at: Generated<Timestamp>;
-  id: Generated<string>;
-  muted_contacts: string[] | null;
-  quiet_hours_end: string | null;
-  quiet_hours_start: string | null;
-  sound_choice: Generated<string | null>;
-  sound_enabled: Generated<boolean | null>;
-  updated_at: Generated<Timestamp>;
-  user_id: string;
-}
-
-export interface TenantTestMigrationFixQuickReplies {
-  content: string;
-  created_at: Generated<Timestamp>;
-  created_by: string;
-  id: Generated<string>;
-  is_shared: Generated<boolean | null>;
-  shortcut: string;
-  title: Generated<string>;
-  updated_at: Generated<Timestamp>;
-}
-
-export interface TenantTestMigrationFixStatusUpdates {
-  caption: string | null;
-  expires_at: Timestamp;
-  from_jid: string | null;
-  id: Generated<string>;
-  media_type: string | null;
-  media_url: string | null;
-  status_id: string | null;
-  timestamp: Timestamp;
-  whatsapp_connection_id: string | null;
-}
-
-export interface TenantTestMigrationFixTags {
-  color: string | null;
-  created_at: Generated<Timestamp>;
-  created_by: string | null;
-  id: Generated<string>;
-  name: string;
-}
-
-export interface TenantTestMigrationFixWhatsappCatalogs {
-  catalog_id: string;
-  created_at: Generated<Timestamp>;
-  description: string | null;
-  id: Generated<string>;
-  name: string | null;
-  product_count: Generated<number | null>;
-  synced_at: Timestamp | null;
-  updated_at: Generated<Timestamp>;
-}
-
-export interface TenantTestMigrationFixWhatsappConnections {
-  connected_at: Timestamp | null;
-  connected_by: string | null;
-  connection_order: Generated<number | null>;
-  created_at: Generated<Timestamp>;
-  id: Generated<string>;
-  jid: string | null;
-  last_sync_at: Timestamp | null;
-  name: string | null;
-  phone_number: string | null;
-  status: Generated<WhatsappConnectionStatus>;
-  updated_at: Generated<Timestamp>;
-}
-
-export interface TenantTestMigrationFixWhatsappLabelAssociations {
-  contact_id: string | null;
-  created_at: Generated<Timestamp>;
-  id: Generated<string>;
-  label_id: string;
-  message_id: string | null;
-}
-
-export interface TenantTestMigrationFixWhatsappLabels {
-  color: string | null;
-  created_at: Generated<Timestamp>;
-  id: Generated<string>;
-  name: string;
-  predefined_id: number | null;
-  updated_at: Generated<Timestamp>;
-  whatsapp_label_id: string;
-}
-
-export interface TenantTestMigrationFixWhatsmeowLidMappings {
+export interface Tenant50e25229A3514f5c953eA11b65866b2dWhatsmeowLidMappings {
   connection_id: string;
   created_at: Generated<Timestamp>;
   jid: string;
@@ -966,72 +483,28 @@ export interface DB {
   company_members: CompanyMembers;
   company_stats: CompanyStats;
   invitations: Invitations;
-  "tenant_c2766e14_36df_43b8_bc97_2a30193f80f5.audit_logs": TenantC2766e1436df43b8Bc972a30193f80f5AuditLogs;
-  "tenant_c2766e14_36df_43b8_bc97_2a30193f80f5.catalog_products": TenantC2766e1436df43b8Bc972a30193f80f5CatalogProducts;
-  "tenant_c2766e14_36df_43b8_bc97_2a30193f80f5.contact_assignments": TenantC2766e1436df43b8Bc972a30193f80f5ContactAssignments;
-  "tenant_c2766e14_36df_43b8_bc97_2a30193f80f5.contact_notes_private": TenantC2766e1436df43b8Bc972a30193f80f5ContactNotesPrivate;
-  "tenant_c2766e14_36df_43b8_bc97_2a30193f80f5.contact_notes_shared": TenantC2766e1436df43b8Bc972a30193f80f5ContactNotesShared;
-  "tenant_c2766e14_36df_43b8_bc97_2a30193f80f5.contact_tags": TenantC2766e1436df43b8Bc972a30193f80f5ContactTags;
-  "tenant_c2766e14_36df_43b8_bc97_2a30193f80f5.contacts": TenantC2766e1436df43b8Bc972a30193f80f5Contacts;
-  "tenant_c2766e14_36df_43b8_bc97_2a30193f80f5.conversation_states": TenantC2766e1436df43b8Bc972a30193f80f5ConversationStates;
-  "tenant_c2766e14_36df_43b8_bc97_2a30193f80f5.group_participants": TenantC2766e1436df43b8Bc972a30193f80f5GroupParticipants;
-  "tenant_c2766e14_36df_43b8_bc97_2a30193f80f5.groups": TenantC2766e1436df43b8Bc972a30193f80f5Groups;
-  "tenant_c2766e14_36df_43b8_bc97_2a30193f80f5.message_reactions": TenantC2766e1436df43b8Bc972a30193f80f5MessageReactions;
-  "tenant_c2766e14_36df_43b8_bc97_2a30193f80f5.messages": TenantC2766e1436df43b8Bc972a30193f80f5Messages;
-  "tenant_c2766e14_36df_43b8_bc97_2a30193f80f5.notification_history": TenantC2766e1436df43b8Bc972a30193f80f5NotificationHistory;
-  "tenant_c2766e14_36df_43b8_bc97_2a30193f80f5.notification_preferences": TenantC2766e1436df43b8Bc972a30193f80f5NotificationPreferences;
-  "tenant_c2766e14_36df_43b8_bc97_2a30193f80f5.quick_replies": TenantC2766e1436df43b8Bc972a30193f80f5QuickReplies;
-  "tenant_c2766e14_36df_43b8_bc97_2a30193f80f5.status_updates": TenantC2766e1436df43b8Bc972a30193f80f5StatusUpdates;
-  "tenant_c2766e14_36df_43b8_bc97_2a30193f80f5.tags": TenantC2766e1436df43b8Bc972a30193f80f5Tags;
-  "tenant_c2766e14_36df_43b8_bc97_2a30193f80f5.whatsapp_catalogs": TenantC2766e1436df43b8Bc972a30193f80f5WhatsappCatalogs;
-  "tenant_c2766e14_36df_43b8_bc97_2a30193f80f5.whatsapp_connections": TenantC2766e1436df43b8Bc972a30193f80f5WhatsappConnections;
-  "tenant_c2766e14_36df_43b8_bc97_2a30193f80f5.whatsapp_label_associations": TenantC2766e1436df43b8Bc972a30193f80f5WhatsappLabelAssociations;
-  "tenant_c2766e14_36df_43b8_bc97_2a30193f80f5.whatsapp_labels": TenantC2766e1436df43b8Bc972a30193f80f5WhatsappLabels;
-  "tenant_c2766e14_36df_43b8_bc97_2a30193f80f5.whatsmeow_lid_mappings": TenantC2766e1436df43b8Bc972a30193f80f5WhatsmeowLidMappings;
-  "tenant_test_fix.audit_logs": TenantTestFixAuditLogs;
-  "tenant_test_fix.catalog_products": TenantTestFixCatalogProducts;
-  "tenant_test_fix.contact_assignments": TenantTestFixContactAssignments;
-  "tenant_test_fix.contact_notes_private": TenantTestFixContactNotesPrivate;
-  "tenant_test_fix.contact_notes_shared": TenantTestFixContactNotesShared;
-  "tenant_test_fix.contact_tags": TenantTestFixContactTags;
-  "tenant_test_fix.contacts": TenantTestFixContacts;
-  "tenant_test_fix.conversation_states": TenantTestFixConversationStates;
-  "tenant_test_fix.group_participants": TenantTestFixGroupParticipants;
-  "tenant_test_fix.groups": TenantTestFixGroups;
-  "tenant_test_fix.message_reactions": TenantTestFixMessageReactions;
-  "tenant_test_fix.messages": TenantTestFixMessages;
-  "tenant_test_fix.notification_history": TenantTestFixNotificationHistory;
-  "tenant_test_fix.notification_preferences": TenantTestFixNotificationPreferences;
-  "tenant_test_fix.quick_replies": TenantTestFixQuickReplies;
-  "tenant_test_fix.status_updates": TenantTestFixStatusUpdates;
-  "tenant_test_fix.tags": TenantTestFixTags;
-  "tenant_test_fix.whatsapp_catalogs": TenantTestFixWhatsappCatalogs;
-  "tenant_test_fix.whatsapp_connections": TenantTestFixWhatsappConnections;
-  "tenant_test_fix.whatsapp_label_associations": TenantTestFixWhatsappLabelAssociations;
-  "tenant_test_fix.whatsapp_labels": TenantTestFixWhatsappLabels;
-  "tenant_test_fix.whatsmeow_lid_mappings": TenantTestFixWhatsmeowLidMappings;
-  "tenant_test_migration_fix.audit_logs": TenantTestMigrationFixAuditLogs;
-  "tenant_test_migration_fix.catalog_products": TenantTestMigrationFixCatalogProducts;
-  "tenant_test_migration_fix.contact_assignments": TenantTestMigrationFixContactAssignments;
-  "tenant_test_migration_fix.contact_notes_private": TenantTestMigrationFixContactNotesPrivate;
-  "tenant_test_migration_fix.contact_notes_shared": TenantTestMigrationFixContactNotesShared;
-  "tenant_test_migration_fix.contact_tags": TenantTestMigrationFixContactTags;
-  "tenant_test_migration_fix.contacts": TenantTestMigrationFixContacts;
-  "tenant_test_migration_fix.conversation_states": TenantTestMigrationFixConversationStates;
-  "tenant_test_migration_fix.group_participants": TenantTestMigrationFixGroupParticipants;
-  "tenant_test_migration_fix.groups": TenantTestMigrationFixGroups;
-  "tenant_test_migration_fix.message_reactions": TenantTestMigrationFixMessageReactions;
-  "tenant_test_migration_fix.messages": TenantTestMigrationFixMessages;
-  "tenant_test_migration_fix.notification_history": TenantTestMigrationFixNotificationHistory;
-  "tenant_test_migration_fix.notification_preferences": TenantTestMigrationFixNotificationPreferences;
-  "tenant_test_migration_fix.quick_replies": TenantTestMigrationFixQuickReplies;
-  "tenant_test_migration_fix.status_updates": TenantTestMigrationFixStatusUpdates;
-  "tenant_test_migration_fix.tags": TenantTestMigrationFixTags;
-  "tenant_test_migration_fix.whatsapp_catalogs": TenantTestMigrationFixWhatsappCatalogs;
-  "tenant_test_migration_fix.whatsapp_connections": TenantTestMigrationFixWhatsappConnections;
-  "tenant_test_migration_fix.whatsapp_label_associations": TenantTestMigrationFixWhatsappLabelAssociations;
-  "tenant_test_migration_fix.whatsapp_labels": TenantTestMigrationFixWhatsappLabels;
-  "tenant_test_migration_fix.whatsmeow_lid_mappings": TenantTestMigrationFixWhatsmeowLidMappings;
+  "tenant_50e25229_a351_4f5c_953e_a11b65866b2d.audit_logs": Tenant50e25229A3514f5c953eA11b65866b2dAuditLogs;
+  "tenant_50e25229_a351_4f5c_953e_a11b65866b2d.catalog_products": Tenant50e25229A3514f5c953eA11b65866b2dCatalogProducts;
+  "tenant_50e25229_a351_4f5c_953e_a11b65866b2d.contact_assignments": Tenant50e25229A3514f5c953eA11b65866b2dContactAssignments;
+  "tenant_50e25229_a351_4f5c_953e_a11b65866b2d.contact_notes_private": Tenant50e25229A3514f5c953eA11b65866b2dContactNotesPrivate;
+  "tenant_50e25229_a351_4f5c_953e_a11b65866b2d.contact_notes_shared": Tenant50e25229A3514f5c953eA11b65866b2dContactNotesShared;
+  "tenant_50e25229_a351_4f5c_953e_a11b65866b2d.contact_tags": Tenant50e25229A3514f5c953eA11b65866b2dContactTags;
+  "tenant_50e25229_a351_4f5c_953e_a11b65866b2d.contacts": Tenant50e25229A3514f5c953eA11b65866b2dContacts;
+  "tenant_50e25229_a351_4f5c_953e_a11b65866b2d.conversation_states": Tenant50e25229A3514f5c953eA11b65866b2dConversationStates;
+  "tenant_50e25229_a351_4f5c_953e_a11b65866b2d.group_participants": Tenant50e25229A3514f5c953eA11b65866b2dGroupParticipants;
+  "tenant_50e25229_a351_4f5c_953e_a11b65866b2d.groups": Tenant50e25229A3514f5c953eA11b65866b2dGroups;
+  "tenant_50e25229_a351_4f5c_953e_a11b65866b2d.message_reactions": Tenant50e25229A3514f5c953eA11b65866b2dMessageReactions;
+  "tenant_50e25229_a351_4f5c_953e_a11b65866b2d.messages": Tenant50e25229A3514f5c953eA11b65866b2dMessages;
+  "tenant_50e25229_a351_4f5c_953e_a11b65866b2d.notification_history": Tenant50e25229A3514f5c953eA11b65866b2dNotificationHistory;
+  "tenant_50e25229_a351_4f5c_953e_a11b65866b2d.notification_preferences": Tenant50e25229A3514f5c953eA11b65866b2dNotificationPreferences;
+  "tenant_50e25229_a351_4f5c_953e_a11b65866b2d.quick_replies": Tenant50e25229A3514f5c953eA11b65866b2dQuickReplies;
+  "tenant_50e25229_a351_4f5c_953e_a11b65866b2d.status_updates": Tenant50e25229A3514f5c953eA11b65866b2dStatusUpdates;
+  "tenant_50e25229_a351_4f5c_953e_a11b65866b2d.tags": Tenant50e25229A3514f5c953eA11b65866b2dTags;
+  "tenant_50e25229_a351_4f5c_953e_a11b65866b2d.whatsapp_catalogs": Tenant50e25229A3514f5c953eA11b65866b2dWhatsappCatalogs;
+  "tenant_50e25229_a351_4f5c_953e_a11b65866b2d.whatsapp_connections": Tenant50e25229A3514f5c953eA11b65866b2dWhatsappConnections;
+  "tenant_50e25229_a351_4f5c_953e_a11b65866b2d.whatsapp_label_associations": Tenant50e25229A3514f5c953eA11b65866b2dWhatsappLabelAssociations;
+  "tenant_50e25229_a351_4f5c_953e_a11b65866b2d.whatsapp_labels": Tenant50e25229A3514f5c953eA11b65866b2dWhatsappLabels;
+  "tenant_50e25229_a351_4f5c_953e_a11b65866b2d.whatsmeow_lid_mappings": Tenant50e25229A3514f5c953eA11b65866b2dWhatsmeowLidMappings;
   user_sessions: UserSessions;
   users: Users;
   "whatsapp_sessions.whatsmeow_app_state_mutation_macs": WhatsappSessionsWhatsmeowAppStateMutationMacs;

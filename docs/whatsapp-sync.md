@@ -31,12 +31,12 @@ The sync process reports its status via NATS events (`WHATSAPP.events.{companyId
 - **API:** Updates the connection's `sync_status` to `syncing` in the database.
 - **Frontend:** Receives a WebSocket event and displays the `SyncingOverlay`.
 
-#### Phase B: Processing (Optimized)
-The Worker processes incoming history data with specific optimizations to ensure performance and prevent flooding:
+#### Phase B: Processing
+The Worker processes incoming history data with parallelization for performance:
 
 - **Batching:** Messages and conversations are processed in parallel workers (default: 10).
-- **Deferred Media:** To speed up the initial sync, media (images, videos, documents) are **not** downloaded immediately. They are marked for "on-demand" download.
-- **Profile Pictures:** Fetching of profile pictures is skipped during history sync.
+- **Immediate Media Download:** Media (images, videos, documents) are downloaded immediately during sync with retry logic (exponential backoff).
+- **Profile Pictures:** Profile pictures are fetched during history sync for each contact.
 - **Flagging:** Messages are marked with `IsHistorySync: true`.
 
 #### Phase C: Event Consumption (API)
@@ -91,4 +91,3 @@ The codebase contains the following infrastructure for WhatsApp Business feature
 
 1.  **Last Sync Timestamp:** Although `whatsapp_connections` has a `last_sync_at` column and the API has an `updateLastSync` service function, it is currently **not invoked** upon sync completion. The `updated_at` column is used as a proxy for the last sync activity.
 2.  **Label/Catalog Sync:** End-to-end synchronization for labels and catalogs is not yet operational in the worker service.
-3.  **Profile Pictures during Sync:** To maximize performance, profile pictures are not fetched during the initial history sync and are instead loaded on-demand.
