@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { db } from "@whatsapp-web/database";
 import { toDbDate } from "@whatsapp-web/shared";
 import { createAuditLog, getClientIp } from "../services/audit.service.js";
+import { getRouteContext } from "../middleware/context.js";
 import { notFound, badRequest, forbidden, serverError } from "../lib/errors.js";
 
 export const contactNotesRoutes = new Hono();
@@ -10,7 +11,7 @@ export const contactNotesRoutes = new Hono();
  * GET /contacts/:id/notes/shared - Get shared notes for a contact (paginated)
  */
 contactNotesRoutes.get("/:id/notes/shared", async (c) => {
-  const tenantDb = c.get("tenantDb");
+  const { tenantDb } = getRouteContext(c);
   const contactId = c.req.param("id");
   const limit = parseInt(c.req.query("limit") || "20", 10);
   const offset = parseInt(c.req.query("offset") || "0", 10);
@@ -57,9 +58,7 @@ contactNotesRoutes.get("/:id/notes/shared", async (c) => {
  * POST /contacts/:id/notes/shared - Create a new shared note
  */
 contactNotesRoutes.post("/:id/notes/shared", async (c) => {
-  const tenantDb = c.get("tenantDb");
-  const user = c.get("user");
-  const companyId = c.get("companyId");
+  const { tenantDb, user, companyId } = getRouteContext(c);
   const contactId = c.req.param("id");
   const body = await c.req.json();
 
@@ -143,9 +142,7 @@ contactNotesRoutes.post("/:id/notes/shared", async (c) => {
  * PUT /contacts/:id/notes/shared/:noteId - Update a shared note (author only)
  */
 contactNotesRoutes.put("/:id/notes/shared/:noteId", async (c) => {
-  const tenantDb = c.get("tenantDb");
-  const user = c.get("user");
-  const companyId = c.get("companyId");
+  const { tenantDb, user, companyId } = getRouteContext(c);
   const contactId = c.req.param("id");
   const noteId = c.req.param("noteId");
   const body = await c.req.json();
@@ -225,9 +222,7 @@ contactNotesRoutes.put("/:id/notes/shared/:noteId", async (c) => {
  * DELETE /contacts/:id/notes/shared/:noteId - Delete a shared note (author only)
  */
 contactNotesRoutes.delete("/:id/notes/shared/:noteId", async (c) => {
-  const tenantDb = c.get("tenantDb");
-  const user = c.get("user");
-  const companyId = c.get("companyId");
+  const { tenantDb, user, companyId } = getRouteContext(c);
   const contactId = c.req.param("id");
   const noteId = c.req.param("noteId");
 
@@ -278,8 +273,7 @@ contactNotesRoutes.delete("/:id/notes/shared/:noteId", async (c) => {
  * GET /contacts/:id/notes/private - Get private notes for a contact (user's own notes only)
  */
 contactNotesRoutes.get("/:id/notes/private", async (c) => {
-  const tenantDb = c.get("tenantDb");
-  const user = c.get("user");
+  const { tenantDb, user } = getRouteContext(c);
   const contactId = c.req.param("id");
   const limit = parseInt(c.req.query("limit") || "20", 10);
   const offset = parseInt(c.req.query("offset") || "0", 10);
@@ -327,8 +321,7 @@ contactNotesRoutes.get("/:id/notes/private", async (c) => {
  * POST /contacts/:id/notes/private - Create a new private note
  */
 contactNotesRoutes.post("/:id/notes/private", async (c) => {
-  const tenantDb = c.get("tenantDb");
-  const user = c.get("user");
+  const { tenantDb, user } = getRouteContext(c);
   const contactId = c.req.param("id");
   const body = await c.req.json();
 
@@ -377,8 +370,7 @@ contactNotesRoutes.post("/:id/notes/private", async (c) => {
  * PUT /contacts/:id/notes/private/:noteId - Update a specific private note
  */
 contactNotesRoutes.put("/:id/notes/private/:noteId", async (c) => {
-  const tenantDb = c.get("tenantDb");
-  const user = c.get("user");
+  const { tenantDb, user } = getRouteContext(c);
   const contactId = c.req.param("id");
   const noteId = c.req.param("noteId");
   const body = await c.req.json();
@@ -434,8 +426,7 @@ contactNotesRoutes.put("/:id/notes/private/:noteId", async (c) => {
  * DELETE /contacts/:id/notes/private/:noteId - Delete a specific private note
  */
 contactNotesRoutes.delete("/:id/notes/private/:noteId", async (c) => {
-  const tenantDb = c.get("tenantDb");
-  const user = c.get("user");
+  const { tenantDb, user } = getRouteContext(c);
   const contactId = c.req.param("id");
   const noteId = c.req.param("noteId");
 

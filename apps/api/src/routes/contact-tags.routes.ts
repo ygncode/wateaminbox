@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import { getRouteContext } from "../middleware/context.js";
 import { notFound, badRequest, conflict } from "../lib/errors.js";
 
 export const contactTagsRoutes = new Hono();
@@ -7,7 +8,7 @@ export const contactTagsRoutes = new Hono();
  * POST /contacts/:id/tags - Add a tag to a contact
  */
 contactTagsRoutes.post("/:id/tags", async (c) => {
-  const tenantDb = c.get("tenantDb");
+  const { tenantDb } = getRouteContext(c);
   const contactId = c.req.param("id");
   const body = await c.req.json();
 
@@ -74,7 +75,7 @@ contactTagsRoutes.post("/:id/tags", async (c) => {
  * DELETE /contacts/:id/tags/:tagId - Remove a tag from a contact
  */
 contactTagsRoutes.delete("/:id/tags/:tagId", async (c) => {
-  const tenantDb = c.get("tenantDb");
+  const { tenantDb } = getRouteContext(c);
   const contactId = c.req.param("id");
   const tagId = c.req.param("tagId");
 

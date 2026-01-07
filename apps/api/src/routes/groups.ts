@@ -3,6 +3,7 @@ import type { Kysely } from "kysely";
 import { toDbDate, getGroupDisplayName } from "@whatsapp-web/shared";
 import { authMiddleware } from "../middleware/auth.js";
 import { tenantMiddleware } from "../middleware/tenant.js";
+import { getRouteContext } from "../middleware/context.js";
 import type { TenantDatabase } from "../services/tenant.service.js";
 import {
   publishGroupPromoteAdmin,
@@ -24,7 +25,7 @@ groupRoutes.use("/*", tenantMiddleware());
  * Query params: search, limit, offset
  */
 groupRoutes.get("/", async (c) => {
-  const tenantDb = c.get("tenantDb");
+  const { tenantDb } = getRouteContext(c);
   const search = c.req.query("search");
   const limit = parseInt(c.req.query("limit") || "50", 10);
   const offset = parseInt(c.req.query("offset") || "0", 10);
@@ -108,7 +109,7 @@ groupRoutes.get("/", async (c) => {
  * GET /groups/:id - Get a specific group with participants
  */
 groupRoutes.get("/:id", async (c) => {
-  const tenantDb = c.get("tenantDb");
+  const { tenantDb } = getRouteContext(c);
   const contactId = c.req.param("id");
 
   // Get contact (group)
@@ -174,7 +175,7 @@ groupRoutes.get("/:id", async (c) => {
  * PATCH /groups/:id - Update group custom name
  */
 groupRoutes.patch("/:id", async (c) => {
-  const tenantDb = c.get("tenantDb");
+  const { tenantDb } = getRouteContext(c);
   const contactId = c.req.param("id");
   const body = await c.req.json();
 
@@ -261,12 +262,7 @@ async function getConnectionJid(
  * POST /groups/:id/participants/:participantJid/promote - Promote participant to admin
  */
 groupRoutes.post("/:id/participants/:participantJid/promote", async (c) => {
-  const tenantDb = c.get("tenantDb");
-  const companyId = c.get("companyId");
-  const user = c.get("user");
-  if (!user) {
-    return unauthorized(c);
-  }
+  const { tenantDb, companyId, user } = getRouteContext(c);
   const userId = user.id;
   const contactId = c.req.param("id");
   const participantJid = c.req.param("participantJid");
@@ -365,12 +361,7 @@ groupRoutes.post("/:id/participants/:participantJid/promote", async (c) => {
  * POST /groups/:id/participants/:participantJid/demote - Demote admin to regular participant
  */
 groupRoutes.post("/:id/participants/:participantJid/demote", async (c) => {
-  const tenantDb = c.get("tenantDb");
-  const companyId = c.get("companyId");
-  const user = c.get("user");
-  if (!user) {
-    return unauthorized(c);
-  }
+  const { tenantDb, companyId, user } = getRouteContext(c);
   const userId = user.id;
   const contactId = c.req.param("id");
   const participantJid = c.req.param("participantJid");
@@ -469,12 +460,7 @@ groupRoutes.post("/:id/participants/:participantJid/demote", async (c) => {
  * DELETE /groups/:id/participants/:participantJid - Remove participant from group
  */
 groupRoutes.delete("/:id/participants/:participantJid", async (c) => {
-  const tenantDb = c.get("tenantDb");
-  const companyId = c.get("companyId");
-  const user = c.get("user");
-  if (!user) {
-    return unauthorized(c);
-  }
+  const { tenantDb, companyId, user } = getRouteContext(c);
   const userId = user.id;
   const contactId = c.req.param("id");
   const participantJid = c.req.param("participantJid");
@@ -580,12 +566,7 @@ groupRoutes.delete("/:id/participants/:participantJid", async (c) => {
  * PATCH /groups/:id/settings - Update group settings (name, description)
  */
 groupRoutes.patch("/:id/settings", async (c) => {
-  const tenantDb = c.get("tenantDb");
-  const companyId = c.get("companyId");
-  const user = c.get("user");
-  if (!user) {
-    return unauthorized(c);
-  }
+  const { tenantDb, companyId, user } = getRouteContext(c);
   const userId = user.id;
   const contactId = c.req.param("id");
   const body = await c.req.json();
@@ -690,7 +671,7 @@ groupRoutes.patch("/:id/settings", async (c) => {
  * GET /groups/:id/admin-status - Check if current user is admin of this group
  */
 groupRoutes.get("/:id/admin-status", async (c) => {
-  const tenantDb = c.get("tenantDb");
+  const { tenantDb } = getRouteContext(c);
   const contactId = c.req.param("id");
 
   // Check if group exists

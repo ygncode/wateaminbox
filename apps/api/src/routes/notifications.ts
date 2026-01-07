@@ -3,8 +3,10 @@ import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
 import { authMiddleware } from "../middleware/auth.js";
 import { tenantMiddleware } from "../middleware/tenant.js";
+import { getRouteContext } from "../middleware/context.js";
 import * as notificationPreferencesService from "../services/notification-preferences.service.js";
 import * as notificationHistoryService from "../services/notification-history.service.js";
+import { isTableNotFoundError } from "../lib/errors.js";
 
 export const notificationRoutes = new Hono();
 
@@ -61,8 +63,7 @@ const createNotificationSchema = z.object({
  * GET /notifications/preferences - Get notification preferences
  */
 notificationRoutes.get("/preferences", async (c) => {
-  const user = c.get("user");
-  const companyId = c.get("companyId");
+  const { user, companyId } = getRouteContext(c);
 
   const preferences =
     await notificationPreferencesService.getNotificationPreferences(
@@ -92,8 +93,7 @@ notificationRoutes.patch(
   "/preferences",
   zValidator("json", updatePreferencesSchema),
   async (c) => {
-    const user = c.get("user");
-    const companyId = c.get("companyId");
+    const { user, companyId } = getRouteContext(c);
     const input = c.req.valid("json");
 
     const preferences =
@@ -126,8 +126,7 @@ notificationRoutes.post(
   "/mute",
   zValidator("json", muteContactSchema),
   async (c) => {
-    const user = c.get("user");
-    const companyId = c.get("companyId");
+    const { user, companyId } = getRouteContext(c);
     const { contactJid } = c.req.valid("json");
 
     const preferences = await notificationPreferencesService.muteContact(
@@ -151,8 +150,7 @@ notificationRoutes.post(
   "/unmute",
   zValidator("json", muteContactSchema),
   async (c) => {
-    const user = c.get("user");
-    const companyId = c.get("companyId");
+    const { user, companyId } = getRouteContext(c);
     const { contactJid } = c.req.valid("json");
 
     const preferences = await notificationPreferencesService.unmuteContact(
@@ -180,8 +178,7 @@ notificationRoutes.get(
   "/",
   zValidator("query", listNotificationsQuerySchema),
   async (c) => {
-    const user = c.get("user");
-    const companyId = c.get("companyId");
+    const { user, companyId } = getRouteContext(c);
     const { limit, offset, unreadOnly } = c.req.valid("query");
 
     try {
@@ -205,8 +202,8 @@ notificationRoutes.get(
         },
       });
     } catch (error) {
-      // Handle missing table or database errors gracefully
-      if (error instanceof Error && error.message.includes("does not exist")) {
+      // Handle missing table gracefully - return empty array
+      if (isTableNotFoundError(error)) {
         return c.json({
           data: [],
           meta: {
@@ -226,8 +223,7 @@ notificationRoutes.get(
  * GET /notifications/count - Get unread notification count
  */
 notificationRoutes.get("/count", async (c) => {
-  const user = c.get("user");
-  const companyId = c.get("companyId");
+  const { user, companyId } = getRouteContext(c);
 
   try {
     const unreadCount = await notificationHistoryService.getUnreadCount(
@@ -241,8 +237,8 @@ notificationRoutes.get("/count", async (c) => {
       },
     });
   } catch (error) {
-    // Handle missing table or database errors gracefully
-    if (error instanceof Error && error.message.includes("does not exist")) {
+    // Handle missing table gracefully - return zero count
+    if (isTableNotFoundError(error)) {
       return c.json({
         data: {
           unreadCount: 0,
@@ -257,8 +253,7 @@ notificationRoutes.get("/count", async (c) => {
  * GET /notifications/:id - Get a single notification
  */
 notificationRoutes.get("/:id", async (c) => {
-  const user = c.get("user");
-  const companyId = c.get("companyId");
+  const { user, companyId } = getRouteContext(c);
   const notificationId = c.req.param("id");
 
   const notification = await notificationHistoryService.getNotificationById(
@@ -283,8 +278,7 @@ notificationRoutes.post(
   "/",
   zValidator("json", createNotificationSchema),
   async (c) => {
-    const user = c.get("user");
-    const companyId = c.get("companyId");
+    const { user, companyId } = getRouteContext(c);
     const input = c.req.valid("json");
 
     const notification = await notificationHistoryService.createNotification(
@@ -308,8 +302,7 @@ notificationRoutes.post(
  * PATCH /notifications/:id/read - Mark a notification as read
  */
 notificationRoutes.patch("/:id/read", async (c) => {
-  const user = c.get("user");
-  const companyId = c.get("companyId");
+  const { user, companyId } = getRouteContext(c);
   const notificationId = c.req.param("id");
 
   const notification = await notificationHistoryService.markNotificationAsRead(
@@ -331,8 +324,7 @@ notificationRoutes.patch("/:id/read", async (c) => {
  * POST /notifications/read-all - Mark all notifications as read
  */
 notificationRoutes.post("/read-all", async (c) => {
-  const user = c.get("user");
-  const companyId = c.get("companyId");
+  const { user, companyId } = getRouteContext(c);
 
   const count = await notificationHistoryService.markAllNotificationsAsRead(
     companyId,
@@ -350,8 +342,7 @@ notificationRoutes.post("/read-all", async (c) => {
  * DELETE /notifications/:id - Delete a notification
  */
 notificationRoutes.delete("/:id", async (c) => {
-  const user = c.get("user");
-  const companyId = c.get("companyId");
+  const { user, companyId } = getRouteContext(c);
   const notificationId = c.req.param("id");
 
   const deleted = await notificationHistoryService.deleteNotification(

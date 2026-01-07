@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { authMiddleware } from "../middleware/auth.js";
 import { tenantMiddleware } from "../middleware/tenant.js";
+import { getRouteContext } from "../middleware/context.js";
 import {
   getWhatsAppCatalogs,
   getWhatsAppCatalogByCatalogId,
@@ -10,10 +11,12 @@ import {
   restoreCatalog,
   updateProductVisibility,
 } from "../services/catalog-sync.service.js";
+import { getActiveWhatsAppConnection } from "../services/whatsapp-connection.service.js";
 import {
   publishSyncCatalogs,
   publishSyncCatalogProducts,
 } from "../lib/nats/index.js";
+import { isTableNotFoundError } from "../lib/errors.js";
 // ProductVisibility type defined locally to avoid import issues
 type ProductVisibility = "visible" | "hidden";
 
@@ -27,7 +30,7 @@ catalogRoutes.use("/*", tenantMiddleware());
  * GET /catalogs - List all WhatsApp Business catalogs
  */
 catalogRoutes.get("/", async (c) => {
-  const tenantDb = c.get("tenantDb");
+  const { tenantDb } = getRouteContext(c);
 
   try {
     const catalogs = await getWhatsAppCatalogs(tenantDb);
@@ -36,8 +39,8 @@ catalogRoutes.get("/", async (c) => {
       data: catalogs,
     });
   } catch (error) {
-    // Handle missing table or database errors gracefully
-    if (error instanceof Error && error.message.includes("does not exist")) {
+    // Handle missing table gracefully - return empty array
+    if (isTableNotFoundError(error)) {
       return c.json({
         data: [],
       });
@@ -50,15 +53,15 @@ catalogRoutes.get("/", async (c) => {
  * GET /catalogs/status - Get catalog sync status summary
  */
 catalogRoutes.get("/status", async (c) => {
-  const tenantDb = c.get("tenantDb");
+  const { tenantDb } = getRouteContext(c);
 
   try {
     const status = await getCatalogSyncStatus(tenantDb);
 
     return c.json(status);
   } catch (error) {
-    // Handle missing table or database errors gracefully
-    if (error instanceof Error && error.message.includes("does not exist")) {
+    // Handle missing table gracefully - return empty status
+    if (isTableNotFoundError(error)) {
       return c.json({
         totalCatalogs: 0,
         activeCatalogs: 0,
@@ -74,7 +77,7 @@ catalogRoutes.get("/status", async (c) => {
  * GET /catalogs/:catalogId - Get a specific catalog
  */
 catalogRoutes.get("/:catalogId", async (c) => {
-  const tenantDb = c.get("tenantDb");
+  const { tenantDb } = getRouteContext(c);
   const catalogId = c.req.param("catalogId");
 
   const catalog = await getWhatsAppCatalogByCatalogId(tenantDb, catalogId);
@@ -90,7 +93,7 @@ catalogRoutes.get("/:catalogId", async (c) => {
  * GET /catalogs/:catalogId/products - Get products for a catalog
  */
 catalogRoutes.get("/:catalogId/products", async (c) => {
-  const tenantDb = c.get("tenantDb");
+  const { tenantDb } = getRouteContext(c);
   const catalogId = c.req.param("catalogId");
 
   // Verify catalog exists
@@ -117,23 +120,10 @@ catalogRoutes.get("/:catalogId/products", async (c) => {
  * This sends a command to the Go service to fetch catalogs
  */
 catalogRoutes.post("/sync", async (c) => {
-  const user = c.get("user");
-  const companyId = c.get("companyId");
-  const tenantDb = c.get("tenantDb");
+  const { tenantDb, user, companyId } = getRouteContext(c);
 
-  // Check if WhatsApp is connected
-  const connection = await tenantDb
-    .selectFrom("whatsapp_connections")
-    .select(["id", "status"])
-    .where("status", "=", "connected")
-    .executeTakeFirst();
-
-  if (!connection) {
-    return c.json(
-      { error: "WhatsApp is not connected. Please connect first." },
-      400,
-    );
-  }
+  // Check if WhatsApp is connected (throws ServiceUnavailableError if not)
+  const connection = await getActiveWhatsAppConnection(tenantDb);
 
   // Publish sync command to NATS
   await publishSyncCatalogs(companyId, connection.id, user.id);
@@ -148,9 +138,7 @@ catalogRoutes.post("/sync", async (c) => {
  * POST /catalogs/:catalogId/sync-products - Trigger a sync of products for a specific catalog
  */
 catalogRoutes.post("/:catalogId/sync-products", async (c) => {
-  const user = c.get("user");
-  const companyId = c.get("companyId");
-  const tenantDb = c.get("tenantDb");
+  const { tenantDb, user, companyId } = getRouteContext(c);
   const catalogId = c.req.param("catalogId");
 
   // Verify catalog exists
@@ -160,19 +148,8 @@ catalogRoutes.post("/:catalogId/sync-products", async (c) => {
     return c.json({ error: "Catalog not found" }, 404);
   }
 
-  // Check if WhatsApp is connected
-  const connection = await tenantDb
-    .selectFrom("whatsapp_connections")
-    .select(["id", "status"])
-    .where("status", "=", "connected")
-    .executeTakeFirst();
-
-  if (!connection) {
-    return c.json(
-      { error: "WhatsApp is not connected. Please connect first." },
-      400,
-    );
-  }
+  // Check if WhatsApp is connected (throws ServiceUnavailableError if not)
+  const connection = await getActiveWhatsAppConnection(tenantDb);
 
   // Publish sync command to NATS
   await publishSyncCatalogProducts(
@@ -194,7 +171,7 @@ catalogRoutes.post("/:catalogId/sync-products", async (c) => {
  * POST /catalogs/:catalogId/archive - Archive a catalog
  */
 catalogRoutes.post("/:catalogId/archive", async (c) => {
-  const tenantDb = c.get("tenantDb");
+  const { tenantDb } = getRouteContext(c);
   const catalogId = c.req.param("catalogId");
 
   const result = await archiveCatalog(tenantDb, catalogId);
@@ -213,7 +190,7 @@ catalogRoutes.post("/:catalogId/archive", async (c) => {
  * POST /catalogs/:catalogId/restore - Restore an archived catalog
  */
 catalogRoutes.post("/:catalogId/restore", async (c) => {
-  const tenantDb = c.get("tenantDb");
+  const { tenantDb } = getRouteContext(c);
   const catalogId = c.req.param("catalogId");
 
   const result = await restoreCatalog(tenantDb, catalogId);
@@ -232,7 +209,7 @@ catalogRoutes.post("/:catalogId/restore", async (c) => {
  * PATCH /catalogs/:catalogId/products/:productId/visibility - Update product visibility
  */
 catalogRoutes.patch("/:catalogId/products/:productId/visibility", async (c) => {
-  const tenantDb = c.get("tenantDb");
+  const { tenantDb } = getRouteContext(c);
   const catalogId = c.req.param("catalogId");
   const productId = c.req.param("productId");
   const body = await c.req.json();

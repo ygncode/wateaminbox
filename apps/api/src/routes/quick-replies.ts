@@ -3,7 +3,9 @@ import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
 import { authMiddleware } from "../middleware/auth.js";
 import { tenantMiddleware } from "../middleware/tenant.js";
+import { getRouteContext } from "../middleware/context.js";
 import * as quickRepliesService from "../services/quick-replies.service.js";
+import { isTableNotFoundError } from "../lib/errors.js";
 
 export const quickReplyRoutes = new Hono();
 
@@ -49,7 +51,7 @@ const listQuerySchema = z.object({
  * GET /quick-replies - List all quick replies
  */
 quickReplyRoutes.get("/", zValidator("query", listQuerySchema), async (c) => {
-  const companyId = c.get("companyId");
+  const { companyId } = getRouteContext(c);
   const { search, limit, offset } = c.req.valid("query");
 
   try {
@@ -68,8 +70,8 @@ quickReplyRoutes.get("/", zValidator("query", listQuerySchema), async (c) => {
       },
     });
   } catch (error) {
-    // Handle missing table or database errors gracefully
-    if (error instanceof Error && error.message.includes("does not exist")) {
+    // Handle missing table gracefully - return empty array
+    if (isTableNotFoundError(error)) {
       return c.json({
         data: [],
         meta: {
@@ -87,7 +89,7 @@ quickReplyRoutes.get("/", zValidator("query", listQuerySchema), async (c) => {
  * GET /quick-replies/search/:shortcut - Search by shortcut (for autocomplete)
  */
 quickReplyRoutes.get("/search/:shortcut", async (c) => {
-  const companyId = c.get("companyId");
+  const { companyId } = getRouteContext(c);
   const shortcut = c.req.param("shortcut");
 
   const quickReply = await quickRepliesService.getQuickReplyByShortcut(
@@ -108,7 +110,7 @@ quickReplyRoutes.get("/search/:shortcut", async (c) => {
  * GET /quick-replies/:id - Get a quick reply by ID
  */
 quickReplyRoutes.get("/:id", async (c) => {
-  const companyId = c.get("companyId");
+  const { companyId } = getRouteContext(c);
   const quickReplyId = c.req.param("id");
 
   const quickReply = await quickRepliesService.getQuickReplyById(
@@ -132,8 +134,7 @@ quickReplyRoutes.post(
   "/",
   zValidator("json", createQuickReplySchema),
   async (c) => {
-    const user = c.get("user");
-    const companyId = c.get("companyId");
+    const { user, companyId } = getRouteContext(c);
     const input = c.req.valid("json");
 
     try {
@@ -165,7 +166,7 @@ quickReplyRoutes.patch(
   "/:id",
   zValidator("json", updateQuickReplySchema),
   async (c) => {
-    const companyId = c.get("companyId");
+    const { companyId } = getRouteContext(c);
     const quickReplyId = c.req.param("id");
     const input = c.req.valid("json");
 
@@ -196,7 +197,7 @@ quickReplyRoutes.patch(
  * DELETE /quick-replies/:id - Delete a quick reply
  */
 quickReplyRoutes.delete("/:id", async (c) => {
-  const companyId = c.get("companyId");
+  const { companyId } = getRouteContext(c);
   const quickReplyId = c.req.param("id");
 
   const deleted = await quickRepliesService.deleteQuickReply(

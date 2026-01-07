@@ -6,6 +6,7 @@ import { routes } from "./routes/index.js";
 import { rateLimitConfig, rateLimitStore } from "./lib/rate-limit-store.js";
 import { createRateLimitMiddleware } from "./middleware/rate-limit.js";
 import { createLogger, formatError } from "./lib/logger.js";
+import { AppError } from "./lib/errors.js";
 
 const appLogger = createLogger("App");
 
@@ -53,6 +54,14 @@ app.onError((err, c) => {
     const status = err.status;
     const message = err.message || "An error occurred";
     return c.json({ error: message }, status);
+  }
+
+  // Handle AppError and its subclasses (TableNotFoundError, ServiceUnavailableError, etc.)
+  if (err instanceof AppError) {
+    return c.json(
+      err.details ? { error: err.message, details: err.details } : { error: err.message },
+      err.statusCode as 400 | 401 | 403 | 404 | 409 | 500 | 503
+    );
   }
 
   // Log unexpected errors
