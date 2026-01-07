@@ -8,6 +8,7 @@ import {
 } from "../services/import.service.js";
 import { createRateLimitMiddleware } from "../middleware/rate-limit.js";
 import { rateLimitConfig, rateLimitStore } from "../lib/rate-limit-store.js";
+import { getRouteContext } from "../middleware/context.js";
 import { badRequest } from "../lib/errors.js";
 
 export const contactImportRoutes = new Hono();
@@ -43,8 +44,7 @@ contactImportRoutes.get("/import/template", async (c) => {
  * Rate limit: 5 requests per minute per user
  */
 contactImportRoutes.post("/import", importRateLimiter, async (c) => {
-  const tenantDb = c.get("tenantDb");
-  const user = c.get("user");
+  const { tenantDb, user } = getRouteContext(c);
 
   let csvContent: string;
   let updateExisting = true;
@@ -133,7 +133,7 @@ contactImportRoutes.post("/import", importRateLimiter, async (c) => {
  * Rate limit: 5 requests per minute per user
  */
 contactImportRoutes.post("/import/preview", importRateLimiter, async (c) => {
-  const tenantDb = c.get("tenantDb");
+  const { tenantDb } = getRouteContext(c);
 
   let csvContent: string;
 

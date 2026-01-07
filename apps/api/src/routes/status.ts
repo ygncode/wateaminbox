@@ -1,7 +1,9 @@
 import { Hono } from "hono";
 import { authMiddleware } from "../middleware/auth.js";
 import { tenantMiddleware } from "../middleware/tenant.js";
+import { getRouteContext } from "../middleware/context.js";
 import { publishPostStatus, type StatusType } from "../lib/nats/index.js";
+import { getActiveWhatsAppConnection } from "../services/whatsapp-connection.service.js";
 
 export const statusRoutes = new Hono();
 
@@ -14,7 +16,7 @@ statusRoutes.use("/*", tenantMiddleware());
  * Query params: limit, offset
  */
 statusRoutes.get("/", async (c) => {
-  const tenantDb = c.get("tenantDb");
+  const { tenantDb } = getRouteContext(c);
   const limit = parseInt(c.req.query("limit") || "50", 10);
   const offset = parseInt(c.req.query("offset") || "0", 10);
 
@@ -79,7 +81,7 @@ statusRoutes.get("/", async (c) => {
  * GET /status/:jid - Get all status updates from a specific contact
  */
 statusRoutes.get("/:jid", async (c) => {
-  const tenantDb = c.get("tenantDb");
+  const { tenantDb } = getRouteContext(c);
   const jid = c.req.param("jid");
   const now = new Date();
 
@@ -113,7 +115,7 @@ statusRoutes.get("/:jid", async (c) => {
  * GET /status/stats - Get status statistics
  */
 statusRoutes.get("/stats/overview", async (c) => {
-  const tenantDb = c.get("tenantDb");
+  const { tenantDb } = getRouteContext(c);
   const now = new Date();
 
   // Get active status count
@@ -148,9 +150,7 @@ statusRoutes.get("/stats/overview", async (c) => {
  * Body: { type: "text" | "image" | "video", content?: string, mediaUrl?: string }
  */
 statusRoutes.post("/", async (c) => {
-  const tenantDb = c.get("tenantDb");
-  const user = c.get("user");
-  const companyId = c.get("companyId");
+  const { tenantDb, user, companyId } = getRouteContext(c);
   const body = await c.req.json();
 
   const { type, content, mediaUrl } = body as {
@@ -180,19 +180,15 @@ statusRoutes.post("/", async (c) => {
     );
   }
 
-  // Get the WhatsApp connection to verify it's active
-  const connection = await tenantDb
-    .selectFrom("whatsapp_connections")
-    .select(["id", "status", "jid"])
-    .where("status", "=", "connected")
-    .executeTakeFirst();
+  // Get the WhatsApp connection to verify it's active (throws ServiceUnavailableError if not)
+  const connection = await getActiveWhatsAppConnection(tenantDb);
 
-  if (!connection) {
-    return c.json(
-      { error: "WhatsApp is not connected. Please connect first." },
-      400,
-    );
-  }
+  // Get the JID for the connection
+  const connectionDetails = await tenantDb
+    .selectFrom("whatsapp_connections")
+    .select(["jid"])
+    .where("id", "=", connection.id)
+    .executeTakeFirst();
 
   // Create status record with pending state
   const statusId = crypto.randomUUID();
@@ -205,7 +201,7 @@ statusRoutes.post("/", async (c) => {
       id: statusId,
       whatsapp_connection_id: connection.id,
       status_id: `pending_${statusId}`,
-      from_jid: connection.jid || "me",
+      from_jid: connectionDetails?.jid || "me",
       media_type: type === "text" ? null : type,
       media_url: mediaUrl || null,
       caption: content || null,
@@ -234,7 +230,7 @@ statusRoutes.post("/", async (c) => {
  * DELETE /status/:id - Delete a posted status
  */
 statusRoutes.delete("/:id", async (c) => {
-  const tenantDb = c.get("tenantDb");
+  const { tenantDb } = getRouteContext(c);
   const statusId = c.req.param("id");
 
   // Get the status to verify it exists and is our own
@@ -277,7 +273,7 @@ statusRoutes.delete("/:id", async (c) => {
  * GET /status/my - Get my posted status updates
  */
 statusRoutes.get("/my", async (c) => {
-  const tenantDb = c.get("tenantDb");
+  const { tenantDb } = getRouteContext(c);
   const now = new Date();
 
   // Get connected JID

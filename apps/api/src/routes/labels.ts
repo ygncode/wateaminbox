@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { authMiddleware } from "../middleware/auth.js";
 import { tenantMiddleware } from "../middleware/tenant.js";
+import { getRouteContext } from "../middleware/context.js";
 import {
   getWhatsAppLabels,
   getWhatsAppLabelByLabelId,
@@ -10,11 +11,13 @@ import {
   autoCreateTagsFromLabels,
   getLabelSyncStatus,
 } from "../services/label-sync.service.js";
+import { getActiveWhatsAppConnection } from "../services/whatsapp-connection.service.js";
 import {
   publishSyncLabels,
   publishApplyLabel,
   publishRemoveLabel,
 } from "../lib/nats/index.js";
+import { isTableNotFoundError, TableNotFoundError } from "../lib/errors.js";
 
 export const labelRoutes = new Hono();
 
@@ -26,7 +29,7 @@ labelRoutes.use("/*", tenantMiddleware());
  * GET /labels - List all WhatsApp labels
  */
 labelRoutes.get("/", async (c) => {
-  const tenantDb = c.get("tenantDb");
+  const { tenantDb } = getRouteContext(c);
 
   try {
     const labels = await getWhatsAppLabels(tenantDb);
@@ -35,8 +38,8 @@ labelRoutes.get("/", async (c) => {
       data: labels,
     });
   } catch (error) {
-    // Handle missing table or database errors gracefully
-    if (error instanceof Error && error.message.includes("does not exist")) {
+    // Handle missing table gracefully - return empty array
+    if (isTableNotFoundError(error)) {
       return c.json({
         data: [],
       });
@@ -49,15 +52,15 @@ labelRoutes.get("/", async (c) => {
  * GET /labels/status - Get label sync status summary
  */
 labelRoutes.get("/status", async (c) => {
-  const tenantDb = c.get("tenantDb");
+  const { tenantDb } = getRouteContext(c);
 
   try {
     const status = await getLabelSyncStatus(tenantDb);
 
     return c.json(status);
   } catch (error) {
-    // Handle missing table or database errors gracefully
-    if (error instanceof Error && error.message.includes("does not exist")) {
+    // Handle missing table gracefully - return empty status
+    if (isTableNotFoundError(error)) {
       return c.json({
         totalLabels: 0,
         linkedLabels: 0,
@@ -75,7 +78,7 @@ labelRoutes.get("/status", async (c) => {
  * GET /labels/:labelId - Get a specific WhatsApp label
  */
 labelRoutes.get("/:labelId", async (c) => {
-  const tenantDb = c.get("tenantDb");
+  const { tenantDb } = getRouteContext(c);
   const labelId = c.req.param("labelId");
 
   const label = await getWhatsAppLabelByLabelId(tenantDb, labelId);
@@ -92,23 +95,10 @@ labelRoutes.get("/:labelId", async (c) => {
  * This sends a command to the Go service to fetch labels
  */
 labelRoutes.post("/sync", async (c) => {
-  const user = c.get("user");
-  const companyId = c.get("companyId");
-  const tenantDb = c.get("tenantDb");
+  const { tenantDb, user, companyId } = getRouteContext(c);
 
-  // Check if WhatsApp is connected
-  const connection = await tenantDb
-    .selectFrom("whatsapp_connections")
-    .select(["id", "status"])
-    .where("status", "=", "connected")
-    .executeTakeFirst();
-
-  if (!connection) {
-    return c.json(
-      { error: "WhatsApp is not connected. Please connect first." },
-      400,
-    );
-  }
+  // Check if WhatsApp is connected (throws ServiceUnavailableError if not)
+  const connection = await getActiveWhatsAppConnection(tenantDb);
 
   // Publish sync command to NATS
   await publishSyncLabels(companyId, connection.id, user.id);
@@ -123,7 +113,7 @@ labelRoutes.post("/sync", async (c) => {
  * POST /labels/:labelId/link - Link a tag to a WhatsApp label
  */
 labelRoutes.post("/:labelId/link", async (c) => {
-  const tenantDb = c.get("tenantDb");
+  const { tenantDb } = getRouteContext(c);
   const labelId = c.req.param("labelId");
   const body = await c.req.json();
 
@@ -146,7 +136,7 @@ labelRoutes.post("/:labelId/link", async (c) => {
  * DELETE /labels/:labelId/link - Unlink a tag from a WhatsApp label
  */
 labelRoutes.delete("/:labelId/link", async (c) => {
-  const tenantDb = c.get("tenantDb");
+  const { tenantDb } = getRouteContext(c);
   const labelId = c.req.param("labelId");
 
   // Find the tag linked to this label
@@ -173,8 +163,7 @@ labelRoutes.delete("/:labelId/link", async (c) => {
  * POST /labels/auto-create - Auto-create tags from unlinked WhatsApp labels
  */
 labelRoutes.post("/auto-create", async (c) => {
-  const tenantDb = c.get("tenantDb");
-  const user = c.get("user");
+  const { tenantDb, user } = getRouteContext(c);
 
   const result = await autoCreateTagsFromLabels(tenantDb, user.id);
 
@@ -190,7 +179,7 @@ labelRoutes.post("/auto-create", async (c) => {
  * GET /labels/tags/with-status - Get all tags with their label sync status
  */
 labelRoutes.get("/tags/with-status", async (c) => {
-  const tenantDb = c.get("tenantDb");
+  const { tenantDb } = getRouteContext(c);
 
   try {
     const tags = await getTagsWithLabelStatus(tenantDb);
@@ -199,8 +188,8 @@ labelRoutes.get("/tags/with-status", async (c) => {
       data: tags,
     });
   } catch (error) {
-    // Handle missing table or database errors gracefully
-    if (error instanceof Error && error.message.includes("does not exist")) {
+    // Handle missing table gracefully - return empty array
+    if (isTableNotFoundError(error)) {
       return c.json({
         data: [],
       });
@@ -214,9 +203,7 @@ labelRoutes.get("/tags/with-status", async (c) => {
  * This syncs the label to WhatsApp
  */
 labelRoutes.post("/:labelId/apply/:contactId", async (c) => {
-  const tenantDb = c.get("tenantDb");
-  const user = c.get("user");
-  const companyId = c.get("companyId");
+  const { tenantDb, user, companyId } = getRouteContext(c);
   const labelId = c.req.param("labelId");
   const contactId = c.req.param("contactId");
 
@@ -238,19 +225,8 @@ labelRoutes.post("/:labelId/apply/:contactId", async (c) => {
     return c.json({ error: "WhatsApp label not found" }, 404);
   }
 
-  // Check if WhatsApp is connected
-  const connection = await tenantDb
-    .selectFrom("whatsapp_connections")
-    .select(["id", "status"])
-    .where("status", "=", "connected")
-    .executeTakeFirst();
-
-  if (!connection) {
-    return c.json(
-      { error: "WhatsApp is not connected. Please connect first." },
-      400,
-    );
-  }
+  // Check if WhatsApp is connected (throws ServiceUnavailableError if not)
+  const connection = await getActiveWhatsAppConnection(tenantDb);
 
   // Publish apply label command to NATS
   await publishApplyLabel(
@@ -293,9 +269,7 @@ labelRoutes.post("/:labelId/apply/:contactId", async (c) => {
  * This syncs the removal to WhatsApp
  */
 labelRoutes.delete("/:labelId/apply/:contactId", async (c) => {
-  const tenantDb = c.get("tenantDb");
-  const user = c.get("user");
-  const companyId = c.get("companyId");
+  const { tenantDb, user, companyId } = getRouteContext(c);
   const labelId = c.req.param("labelId");
   const contactId = c.req.param("contactId");
 
@@ -317,19 +291,8 @@ labelRoutes.delete("/:labelId/apply/:contactId", async (c) => {
     return c.json({ error: "WhatsApp label not found" }, 404);
   }
 
-  // Check if WhatsApp is connected
-  const connection = await tenantDb
-    .selectFrom("whatsapp_connections")
-    .select(["id", "status"])
-    .where("status", "=", "connected")
-    .executeTakeFirst();
-
-  if (!connection) {
-    return c.json(
-      { error: "WhatsApp is not connected. Please connect first." },
-      400,
-    );
-  }
+  // Check if WhatsApp is connected (throws ServiceUnavailableError if not)
+  const connection = await getActiveWhatsAppConnection(tenantDb);
 
   // Publish remove label command to NATS
   await publishRemoveLabel(

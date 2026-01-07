@@ -127,3 +127,41 @@ export class ConflictError extends AppError {
     this.name = 'ConflictError'
   }
 }
+
+export class TableNotFoundError extends AppError {
+  constructor(tableName: string) {
+    super(`Table '${tableName}' does not exist`, 404)
+    this.name = 'TableNotFoundError'
+  }
+}
+
+export class ServiceUnavailableError extends AppError {
+  constructor(message: string = 'Service unavailable') {
+    super(message, 503)
+    this.name = 'ServiceUnavailableError'
+  }
+}
+
+/**
+ * Check if an error is a PostgreSQL "relation does not exist" error
+ * and extract the table name if so.
+ */
+export function isTableNotFoundError(error: unknown): string | null {
+  if (error instanceof Error) {
+    // PostgreSQL error pattern: relation "schema.table" does not exist
+    const match = error.message.match(/relation "([^"]+)" does not exist/)
+    if (match) {
+      return match[1]
+    }
+    // Alternative pattern: table "table" does not exist
+    const altMatch = error.message.match(/table "([^"]+)" does not exist/)
+    if (altMatch) {
+      return altMatch[1]
+    }
+    // Generic "does not exist" check
+    if (error.message.includes('does not exist')) {
+      return 'unknown'
+    }
+  }
+  return null
+}
