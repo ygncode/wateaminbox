@@ -9,7 +9,7 @@ import {
   publishGroupDemoteAdmin,
   publishGroupRemoveParticipant,
   publishGroupUpdateSettings,
-} from "../lib/nats.js";
+} from "../lib/nats/index.js";
 import { createAuditLog, getClientIp } from "../services/audit.service.js";
 import { notFound, badRequest, forbidden, unauthorized } from "../lib/errors.js";
 

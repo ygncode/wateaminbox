@@ -9,6 +9,7 @@ import {
 import { authMiddleware } from "../middleware/auth.js";
 import { notFound, badRequest, serverError } from "../lib/errors.js";
 import { tenantMiddleware } from "../middleware/tenant.js";
+import { getRouteContext } from "../middleware/context.js";
 import { getContactsWithLastMessage } from "../services/contact.service.js";
 import { createLogger } from "../lib/logger.js";
 
@@ -38,8 +39,7 @@ contactRoutes.route("/", contactAssignmentRoutes);
  * Query params: search, limit, offset, includeGroups, assignedToMe, unassigned
  */
 contactRoutes.get("/", async (c) => {
-  const tenantDb = c.get("tenantDb");
-  const user = c.get("user");
+  const { tenantDb, user } = getRouteContext(c);
   const search = c.req.query("search");
   const limit = parseInt(c.req.query("limit") || "50", 10);
   const offset = parseInt(c.req.query("offset") || "0", 10);
@@ -105,7 +105,7 @@ contactRoutes.get("/", async (c) => {
  * GET /contacts/:id - Get a specific contact
  */
 contactRoutes.get("/:id", async (c) => {
-  const tenantDb = c.get("tenantDb");
+  const { tenantDb } = getRouteContext(c);
   const contactId = c.req.param("id");
 
   const contact = await tenantDb
@@ -222,7 +222,7 @@ contactRoutes.get("/:id", async (c) => {
  * POST /contacts - Create a new contact manually by phone number
  */
 contactRoutes.post("/", async (c) => {
-  const tenantDb = c.get("tenantDb");
+  const { tenantDb } = getRouteContext(c);
   const body = await c.req.json();
 
   const { phoneNumber, customName, notesShared } = body;
@@ -316,7 +316,7 @@ contactRoutes.post("/", async (c) => {
  * PATCH /contacts/:id - Update a contact
  */
 contactRoutes.patch("/:id", async (c) => {
-  const tenantDb = c.get("tenantDb");
+  const { tenantDb } = getRouteContext(c);
   const contactId = c.req.param("id");
   const body = await c.req.json();
 

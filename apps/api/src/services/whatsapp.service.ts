@@ -5,7 +5,7 @@ import {
   publishSpawnCommand,
   publishKillCommand,
   publishSendMessage,
-} from "../lib/nats.js";
+} from "../lib/nats/index.js";
 import { env } from "../lib/env.js";
 import { db } from "@whatsapp-web/database";
 

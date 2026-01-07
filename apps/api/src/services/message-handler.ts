@@ -16,7 +16,7 @@ import {
   type ReactionEvent,
   type DownloadResponseEvent,
   type SyncStatusEvent,
-} from '../lib/nats.js'
+} from '../lib/nats/index.js'
 import { db, type MessageType } from '@whatsapp-web/database'
 import { toDbDate, toDate, toISOString, extractPhoneFromJid, normalizeJid } from '@whatsapp-web/shared'
 import { getTenantConnection } from './tenant.service.js'

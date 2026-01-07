@@ -13,7 +13,7 @@ import {
 import {
   publishSyncCatalogs,
   publishSyncCatalogProducts,
-} from "../lib/nats.js";
+} from "../lib/nats/index.js";
 // ProductVisibility type defined locally to avoid import issues
 type ProductVisibility = "visible" | "hidden";
 

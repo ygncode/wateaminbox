@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { authMiddleware } from "../middleware/auth.js";
 import { tenantMiddleware } from "../middleware/tenant.js";
-import { publishPostStatus, type StatusType } from "../lib/nats.js";
+import { publishPostStatus, type StatusType } from "../lib/nats/index.js";
 
 export const statusRoutes = new Hono();
 

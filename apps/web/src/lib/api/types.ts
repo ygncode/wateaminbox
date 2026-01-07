@@ -1,0 +1,498 @@
+/**
+ * API Types
+ * Shared type definitions for API requests and responses
+ */
+
+import type { Message } from "@whatsapp-web/shared"
+
+// Common types
+export interface ApiError {
+  code: string
+  message: string
+  details?: Record<string, unknown>
+}
+
+export interface ApiResponse<T> {
+  data: T
+  meta?: {
+    page?: number
+    limit?: number
+    total?: number
+    hasMore?: boolean
+  }
+}
+
+export interface PaginationParams {
+  page?: number
+  limit?: number
+  cursor?: string
+}
+
+export interface MessageQueryParams extends PaginationParams {
+  before?: string // Message ID to fetch messages before
+  after?: string // Message ID to fetch messages after
+}
+
+// Auth types
+export interface LoginRequest {
+  email: string
+  password: string
+}
+
+export interface LoginResponse {
+  message: string
+  user: {
+    id: string
+    email: string
+    name?: string
+    emailVerified: boolean
+  }
+  tokens: {
+    accessToken: string
+    refreshToken: string
+  }
+  session: {
+    id: string
+    expiresAt: string
+  }
+}
+
+export interface RegisterRequest {
+  email: string
+  password: string
+  name: string
+  companyName?: string
+}
+
+export interface RegisterResponse {
+  message: string
+  user: {
+    id: string
+    email: string
+    emailVerified: boolean
+    createdAt: string
+  }
+}
+
+export interface RefreshResponse {
+  message: string
+  tokens: {
+    accessToken: string
+    refreshToken: string
+  }
+}
+
+export interface ForgotPasswordResponse {
+  message: string
+}
+
+// Contact types
+export interface Contact {
+  id: string
+  phoneNumber: string
+  jid?: string
+  name?: string
+  customName?: string
+  avatarUrl?: string
+  isBlocked: boolean
+  isGroup?: boolean
+  isOnline?: boolean
+  lastSeen?: Date
+  createdAt: Date
+  updatedAt: Date
+}
+
+// Conversation types
+export interface Conversation {
+  id: string
+  contactId: string
+  contact: Contact
+  lastMessage?: Message
+  unreadCount: number
+  isPinned: boolean
+  isMuted: boolean
+  assignedUserId?: string
+  createdAt: Date
+  updatedAt: Date
+}
+
+// Company types
+export interface Company {
+  id: string
+  name: string
+  status: "active" | "suspended"
+  createdAt: string
+  updatedAt: string
+}
+
+export interface CompanyWithRole extends Company {
+  role: "owner" | "admin" | "member"
+}
+
+// Media types
+export interface UploadMediaResponse {
+  success: boolean
+  mediaUrl: string
+  fileName: string
+  fileSize: number
+  mimeType: string
+}
+
+// WhatsApp connection types
+export interface WhatsAppConnectionStatus {
+  status: "disconnected" | "pending" | "connected"
+  phoneNumber?: string
+  jid?: string
+  connectedAt?: string
+  lastSync?: string
+}
+
+export interface WhatsAppConnectResponse {
+  message: string
+  websocketUrl: string
+}
+
+export type WhatsAppConnectionStatusType =
+  | "disconnected"
+  | "pending"
+  | "connected"
+  | "banned"
+  | "error"
+
+export interface WhatsAppConnection {
+  id: string
+  name: string
+  status: WhatsAppConnectionStatusType
+  phoneNumber?: string
+  jid?: string
+  connectedAt?: string
+  lastSync?: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface WhatsAppConnectionsListResponse {
+  data: WhatsAppConnection[]
+  meta: {
+    total: number
+  }
+}
+
+export interface CreateWhatsAppConnectionResponse {
+  data: WhatsAppConnection
+  message: string
+  websocketUrl: string
+}
+
+export interface WhatsAppConnectionDetailResponse {
+  data: WhatsAppConnection
+}
+
+// Contact import types
+export interface ContactImportPreview {
+  row: number
+  phoneNumber: string
+  name: string | null
+  notes: string | null
+  tags: string | null
+  exists: boolean
+  existingName: string | null
+}
+
+export interface ContactImportPreviewResponse {
+  total: number
+  existingCount: number
+  newCount: number
+  preview: ContactImportPreview[]
+}
+
+export interface ContactImportResult {
+  row: number
+  phoneNumber: string
+  status: "created" | "updated" | "skipped" | "error"
+  error?: string
+  contactId?: string
+}
+
+export interface ContactImportResponse {
+  success: boolean
+  summary: {
+    total: number
+    created: number
+    updated: number
+    skipped: number
+    errors: number
+  }
+  results: ContactImportResult[]
+}
+
+// Analytics types
+export interface ResponseTimeStats {
+  averageResponseTimeMinutes: number
+  medianResponseTimeMinutes: number
+  maxResponseTimeMinutes: number
+  minResponseTimeMinutes: number
+  totalConversations: number
+  withinSlaCount: number
+  slaComplianceRate: number
+}
+
+export interface ResponseTimeByDate {
+  date: string
+  averageResponseTimeMinutes: number
+  conversationCount: number
+  slaComplianceRate: number
+}
+
+export interface TeamResponseTimeStats {
+  userId: string
+  email: string
+  averageResponseTimeMinutes: number
+  totalResponses: number
+  slaComplianceRate: number
+}
+
+export interface SlaBreach {
+  contactId: string
+  contactName: string | null
+  inboundMessageTime: string
+  responseTime: string | null
+  responseMinutes: number
+  respondedBy: string | null
+}
+
+// Notification types
+export type SoundChoice = "default" | "chime" | "bell" | "pop" | "none"
+
+export interface NotificationPreferencesResponse {
+  id: string
+  userId: string
+  soundEnabled: boolean
+  soundChoice: SoundChoice
+  quietHoursStart: string | null
+  quietHoursEnd: string | null
+  mutedContacts: string[]
+  createdAt: string
+  updatedAt: string
+}
+
+export interface UpdateNotificationPreferencesInput {
+  soundEnabled?: boolean
+  soundChoice?: SoundChoice
+  quietHoursStart?: string | null
+  quietHoursEnd?: string | null
+  mutedContacts?: string[]
+}
+
+export type NotificationType =
+  | "message"
+  | "mention"
+  | "assignment"
+  | "team"
+  | "system"
+
+export interface InAppNotification {
+  id: string
+  userId: string
+  notificationType: NotificationType
+  title: string
+  message: string | null
+  actionUrl: string | null
+  metadata: Record<string, unknown> | null
+  isRead: boolean
+  readAt: string | null
+  createdAt: string
+}
+
+export interface NotificationListParams {
+  limit?: number
+  offset?: number
+  unreadOnly?: boolean
+}
+
+export interface NotificationListResponse {
+  data: InAppNotification[]
+  meta: {
+    total: number
+    unreadCount: number
+    limit: number
+    offset: number
+  }
+}
+
+export interface CreateNotificationInput {
+  notificationType: NotificationType
+  title: string
+  message?: string
+  actionUrl?: string
+  metadata?: Record<string, unknown>
+}
+
+// Quick reply types
+export interface QuickReply {
+  id: string
+  shortcut: string
+  title: string
+  content: string
+  createdBy: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface QuickReplyListParams {
+  search?: string
+  limit?: number
+  offset?: number
+}
+
+export interface CreateQuickReplyInput {
+  shortcut: string
+  title: string
+  content: string
+}
+
+export interface UpdateQuickReplyInput {
+  shortcut?: string
+  title?: string
+  content?: string
+}
+
+export interface QuickReplyListResponse {
+  data: QuickReply[]
+  meta: {
+    total: number
+    limit: number
+    offset: number
+  }
+}
+
+// Label types
+export interface WhatsAppLabel {
+  id: string
+  labelId: string
+  name: string
+  color: string | null
+  predefinedId: number | null
+  syncedTagId: string | null
+  lastSyncedAt: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface LabelSyncStatus {
+  totalLabels: number
+  linkedLabels: number
+  unlinkedLabels: number
+  totalTags: number
+  linkedTags: number
+  lastSyncAt: string | null
+}
+
+export interface TagWithLabelStatus {
+  id: string
+  name: string
+  color: string | null
+  createdBy: string | null
+  createdAt: string
+  whatsappLabelId: string | null
+  syncedAt: string | null
+  linkedLabel: {
+    labelId: string
+    name: string
+    color: string | null
+  } | null
+}
+
+export interface LabelListResponse {
+  data: WhatsAppLabel[]
+}
+
+export interface TagsWithStatusResponse {
+  data: TagWithLabelStatus[]
+}
+
+export interface SyncLabelsResponse {
+  message: string
+  status: string
+}
+
+export interface LinkTagResponse {
+  success: boolean
+  message: string
+}
+
+export interface AutoCreateTagsResponse {
+  success: boolean
+  message: string
+  created: number
+  linked: number
+}
+
+// Catalog types
+export type CatalogStatus = "active" | "inactive" | "archived"
+export type ProductVisibility = "visible" | "hidden"
+
+export interface WhatsAppCatalog {
+  id: string
+  catalogId: string
+  name: string
+  description: string | null
+  currency: string
+  status: CatalogStatus
+  businessJid: string | null
+  headerImageUrl: string | null
+  productCount: number
+  lastSyncedAt: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface CatalogProduct {
+  id: string
+  productId: string
+  catalogId: string
+  name: string
+  description: string | null
+  price: number | null
+  currency: string
+  imageUrls: string[] | null
+  sku: string | null
+  category: string | null
+  availability: string
+  visibility: ProductVisibility
+  url: string | null
+  retailerId: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface CatalogSyncStatus {
+  totalCatalogs: number
+  activeCatalogs: number
+  totalProducts: number
+  lastSyncAt: string | null
+}
+
+export interface CatalogListResponse {
+  data: WhatsAppCatalog[]
+}
+
+export interface CatalogProductsResponse {
+  data: CatalogProduct[]
+  meta: {
+    catalogId: string
+    catalogName: string
+    totalProducts: number
+  }
+}
+
+export interface SyncCatalogsResponse {
+  message: string
+  status: string
+  catalogId?: string
+}
+
+export interface CatalogActionResponse {
+  success: boolean
+  message: string
+}

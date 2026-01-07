@@ -1,6 +1,7 @@
 import { Hono } from 'hono'
 import { authMiddleware } from '../middleware/auth.js'
 import { tenantMiddleware, requirePermission } from '../middleware/tenant.js'
+import { getRouteContext } from '../middleware/context.js'
 import {
   getConversationState,
   resolveConversation,
@@ -12,7 +13,7 @@ import {
 import { createAuditLog, getClientIp } from '../services/audit.service.js'
 import { broadcastToCompany } from './ws.js'
 import { PERMISSIONS } from '../services/permission.service.js'
-import { publishSendMessage } from '../lib/nats.js'
+import { publishSendMessage } from '../lib/nats/index.js'
 import { ensureContactAssignment } from '../services/contact.service.js'
 
 export const conversationRoutes = new Hono()
@@ -26,7 +27,7 @@ conversationRoutes.use('/*', tenantMiddleware())
  * Query params: limit, cursor (for pagination)
  */
 conversationRoutes.get('/:id/messages', async (c) => {
-  const tenantDb = c.get('tenantDb')
+  const { tenantDb } = getRouteContext(c)
   const contactId = c.req.param('id')
   const limit = parseInt(c.req.query('limit') || '50', 10)
   const cursor = c.req.query('cursor') // Message ID for cursor pagination
@@ -137,9 +138,7 @@ conversationRoutes.post(
   '/:id/messages',
   requirePermission(PERMISSIONS.CAN_SEND_MESSAGES),
   async (c) => {
-    const tenantDb = c.get('tenantDb')
-    const user = c.get('user')
-    const companyId = c.get('companyId')
+    const { tenantDb, user, companyId } = getRouteContext(c)
     const contactId = c.req.param('id')
     const body = await c.req.json()
 
@@ -253,7 +252,7 @@ conversationRoutes.post(
  * GET /conversations/:id/state - Get the conversation state for a contact
  */
 conversationRoutes.get('/:id/state', async (c) => {
-  const tenantDb = c.get('tenantDb')
+  const { tenantDb } = getRouteContext(c)
   const contactId = c.req.param('id')
 
   const state = await getConversationState(tenantDb, contactId)
@@ -277,9 +276,7 @@ conversationRoutes.get('/:id/state', async (c) => {
  * POST /conversations/:id/resolve - Mark a conversation as resolved
  */
 conversationRoutes.post('/:id/resolve', async (c) => {
-  const tenantDb = c.get('tenantDb')
-  const user = c.get('user')
-  const companyId = c.get('companyId')
+  const { tenantDb, user, companyId } = getRouteContext(c)
   const contactId = c.req.param('id')
 
   let notes: string | undefined
@@ -340,9 +337,7 @@ conversationRoutes.post('/:id/resolve', async (c) => {
  * POST /conversations/:id/reopen - Reopen a resolved conversation
  */
 conversationRoutes.post('/:id/reopen', async (c) => {
-  const tenantDb = c.get('tenantDb')
-  const user = c.get('user')
-  const companyId = c.get('companyId')
+  const { tenantDb, user, companyId } = getRouteContext(c)
   const contactId = c.req.param('id')
 
   // Verify contact exists
@@ -394,8 +389,7 @@ conversationRoutes.post('/:id/reopen', async (c) => {
  * POST /conversations/:id/pending - Set a conversation to pending status
  */
 conversationRoutes.post('/:id/pending', async (c) => {
-  const tenantDb = c.get('tenantDb')
-  const companyId = c.get('companyId')
+  const { tenantDb, companyId } = getRouteContext(c)
   const contactId = c.req.param('id')
 
   // Verify contact exists
@@ -431,9 +425,7 @@ conversationRoutes.post('/:id/pending', async (c) => {
  * POST /conversations/:id/read - Mark a conversation as read (reset unread count)
  */
 conversationRoutes.post('/:id/read', async (c) => {
-  const tenantDb = c.get('tenantDb')
-  const user = c.get('user')
-  const companyId = c.get('companyId')
+  const { tenantDb, user, companyId } = getRouteContext(c)
   const contactId = c.req.param('id')
 
   // Verify contact exists
@@ -494,7 +486,7 @@ conversationRoutes.post('/:id/read', async (c) => {
  * GET /conversations/stats/resolution - Get resolution statistics
  */
 conversationRoutes.get('/stats/resolution', async (c) => {
-  const tenantDb = c.get('tenantDb')
+  const { tenantDb } = getRouteContext(c)
 
   const stats = await getResolutionStats(tenantDb)
 
@@ -507,7 +499,7 @@ conversationRoutes.get('/stats/resolution', async (c) => {
  * GET /conversations/stats/resolution-trend - Get resolution trend over time
  */
 conversationRoutes.get('/stats/resolution-trend', async (c) => {
-  const tenantDb = c.get('tenantDb')
+  const { tenantDb } = getRouteContext(c)
   const startDateStr = c.req.query('startDate')
   const endDateStr = c.req.query('endDate')
 

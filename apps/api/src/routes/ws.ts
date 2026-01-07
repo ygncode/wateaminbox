@@ -3,7 +3,7 @@ import { Hono } from "hono";
 import { createBunWebSocket } from "hono/bun";
 import { verifyAccessToken } from "../lib/jwt.js";
 import { createLogger, formatError } from "../lib/logger.js";
-import { publishSendMessage } from "../lib/nats.js";
+import { publishSendMessage } from "../lib/nats/index.js";
 import { getUserById } from "../services/auth.service.js";
 import { getMemberRole } from "../services/company.service.js";
 import { getTenantConnection } from "../services/tenant.service.js";

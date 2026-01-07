@@ -5,6 +5,7 @@ import {
   getContactDisplayName,
 } from "@whatsapp-web/shared";
 import { requirePermission } from "../middleware/tenant.js";
+import { getRouteContext } from "../middleware/context.js";
 import { PERMISSIONS } from "../services/permission.service.js";
 import { getCurrentAssignment } from "../services/contact.service.js";
 import { createNotification } from "../services/notification-history.service.js";
@@ -28,10 +29,7 @@ export const contactAssignmentRoutes = new Hono();
  * Self-assignment (claiming unassigned contacts) is allowed for all members
  */
 contactAssignmentRoutes.post("/:id/assign", async (c) => {
-  const tenantDb = c.get("tenantDb");
-  const user = c.get("user");
-  const companyId = c.get("companyId");
-  const permissions = c.get("companyPermissions");
+  const { tenantDb, user, companyId, permissions } = getRouteContext(c);
   const contactId = c.req.param("id");
 
   // Parse optional body for targetUserId
@@ -172,7 +170,7 @@ contactAssignmentRoutes.delete(
   "/:id/assign",
   requirePermission(PERMISSIONS.CAN_ASSIGN_CONTACTS),
   async (c) => {
-    const tenantDb = c.get("tenantDb");
+    const { tenantDb } = getRouteContext(c);
     const contactId = c.req.param("id");
 
     await tenantDb
@@ -190,7 +188,7 @@ contactAssignmentRoutes.delete(
  * GET /contacts/:id/assignments - Get assignment history for a contact
  */
 contactAssignmentRoutes.get("/:id/assignments", async (c) => {
-  const tenantDb = c.get("tenantDb");
+  const { tenantDb } = getRouteContext(c);
   const contactId = c.req.param("id");
 
   // Check if contact exists

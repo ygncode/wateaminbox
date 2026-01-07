@@ -14,7 +14,7 @@ import {
   publishSyncLabels,
   publishApplyLabel,
   publishRemoveLabel,
-} from "../lib/nats.js";
+} from "../lib/nats/index.js";
 
 export const labelRoutes = new Hono();
 

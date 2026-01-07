@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
+import { createQueryKeyFactory } from "./query-keys";
 
 /**
  * Group participant from API
@@ -70,15 +71,9 @@ interface GroupsListResponse {
 
 /**
  * Query key factory for group-related queries
+ * Uses the standardized factory from query-keys.ts
  */
-export const groupKeys = {
-  all: ["groups"] as const,
-  lists: () => [...groupKeys.all, "list"] as const,
-  list: (filters: { search?: string; limit?: number; offset?: number }) =>
-    [...groupKeys.lists(), filters] as const,
-  details: () => [...groupKeys.all, "detail"] as const,
-  detail: (id: string) => [...groupKeys.details(), id] as const,
-};
+export const groupKeys = createQueryKeyFactory("groups");
 
 /**
  * Hook to fetch groups list with optional search, limit, and offset
