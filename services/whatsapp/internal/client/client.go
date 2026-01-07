@@ -722,3 +722,8 @@ func (c *Client) GetJID() string {
 func (c *Client) DownloadMedia(ctx context.Context, msg whatsmeow.DownloadableMessage) ([]byte, error) {
 	return c.client.Download(ctx, msg)
 }
+
+// DownloadMediaWithPath downloads media using its direct path and keys.
+func (c *Client) DownloadMediaWithPath(ctx context.Context, directPath string, encFileHash, fileHash, mediaKey []byte, fileLength int, mediaType whatsmeow.MediaType, mmsType string) ([]byte, error) {
+	return c.client.DownloadMediaWithPath(ctx, directPath, encFileHash, fileHash, mediaKey, fileLength, mediaType, mmsType)
+}

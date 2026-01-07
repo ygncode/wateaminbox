@@ -126,6 +126,7 @@ func (h *Handler) downloadWithRetry(ctx context.Context, downloadable whatsmeow.
 // This allows for mocking the client in tests.
 type WhatsAppClient interface {
 	DownloadMedia(ctx context.Context, msg whatsmeow.DownloadableMessage) ([]byte, error)
+	DownloadMediaWithPath(ctx context.Context, directPath string, encFileHash, fileHash, mediaKey []byte, fileLength int, mediaType whatsmeow.MediaType, mmsType string) ([]byte, error)
 	GetClient() *whatsmeow.Client
 	HandleReconnect(ctx context.Context)
 }
@@ -940,6 +941,72 @@ func extractMediaReference(downloadable whatsmeow.DownloadableMessage, event *na
 	event.MediaFileEncSHA256 = downloadable.GetFileEncSHA256()
 }
 
+// downloadHistoryMediaWithRetry downloads history media using DownloadMediaWithPath to avoid expired URLs.
+func (h *Handler) downloadHistoryMediaWithRetry(ctx context.Context, downloadable whatsmeow.DownloadableMessage, mediaTypeStr string) ([]byte, error) {
+	var mediaType whatsmeow.MediaType
+	var mmsType string
+
+	switch mediaTypeStr {
+	case "image":
+		mediaType = whatsmeow.MediaImage
+		mmsType = "image"
+	case "video":
+		mediaType = whatsmeow.MediaVideo
+		mmsType = "video"
+	case "audio":
+		mediaType = whatsmeow.MediaAudio
+		mmsType = "audio"
+	case "document":
+		mediaType = whatsmeow.MediaDocument
+		mmsType = "document"
+	case "sticker":
+		mediaType = whatsmeow.MediaImage
+		mmsType = "sticker"
+	default:
+		mediaType = whatsmeow.MediaDocument
+		mmsType = "document"
+	}
+
+	var lastErr error
+	for attempt := 0; attempt < mediaDownloadMaxRetries; attempt++ {
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
+
+		attemptCtx, cancel := context.WithTimeout(context.Background(), mediaDownloadAttemptTimeout)
+		data, err := h.config.Client.DownloadMediaWithPath(
+			attemptCtx,
+			downloadable.GetDirectPath(),
+			downloadable.GetFileEncSHA256(),
+			downloadable.GetFileSHA256(),
+			downloadable.GetMediaKey(),
+			-1,
+			mediaType,
+			mmsType,
+		)
+		cancel()
+
+		if err == nil {
+			if attempt > 0 {
+				log.Printf("History media download succeeded on attempt %d after retries", attempt+1)
+			}
+			return data, nil
+		}
+
+		lastErr = err
+		if attempt < mediaDownloadMaxRetries-1 {
+			log.Printf("History media download attempt %d failed: %v (retrying in %v)", attempt+1, err, mediaDownloadBaseDelay*time.Duration(1<<uint(attempt)))
+			backoffDelay := mediaDownloadBaseDelay * time.Duration(1<<uint(attempt))
+			select {
+			case <-time.After(backoffDelay):
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			}
+		}
+	}
+	return nil, lastErr
+}
+
 // downloadHistoryMedia downloads media from history sync with rate limiting.
 // Uses retry logic with exponential backoff for robustness.
 // Timeout is extended to 75s to accommodate retry delays (1s + 2s + 4s backoff).
@@ -960,8 +1027,9 @@ func (h *Handler) downloadHistoryMedia(downloadable whatsmeow.DownloadableMessag
 	ctx, cancel := context.WithTimeout(context.Background(), 75*time.Second)
 	defer cancel()
 
-	// Download the media with retry logic (exponential backoff)
-	data, err := h.downloadWithRetry(ctx, downloadable)
+	// Download the media with retry logic (exponential backoff) using DownloadMediaWithPath
+	// to avoid 403 Forbidden errors from expired URLs in history sync.
+	data, err := h.downloadHistoryMediaWithRetry(ctx, downloadable, event.Type)
 	if err != nil {
 		log.Printf("Failed to download history media after retry exhaustion: %v", err)
 		return false
