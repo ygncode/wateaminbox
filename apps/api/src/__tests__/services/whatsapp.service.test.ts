@@ -25,7 +25,7 @@ const mockPublishSpawnCommand = mock(async () => {});
 const mockPublishKillCommand = mock(async () => {});
 const mockPublishSendMessage = mock(async () => {});
 
-mock.module("../../lib/nats.js", () => ({
+mock.module("../../lib/nats/index.js", () => ({
   buildCommandSubject: (companyId: string, connectionId: string) =>
     `WHATSAPP.commands.${companyId}.${connectionId}`,
   publishSpawnCommand: mockPublishSpawnCommand,

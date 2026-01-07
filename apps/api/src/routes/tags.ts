@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { authMiddleware } from "../middleware/auth.js";
 import { tenantMiddleware } from "../middleware/tenant.js";
+import { getRouteContext } from "../middleware/context.js";
 
 export const tagRoutes = new Hono();
 
@@ -12,7 +13,7 @@ tagRoutes.use("/*", tenantMiddleware());
  * GET /tags - List all tags
  */
 tagRoutes.get("/", async (c) => {
-  const tenantDb = c.get("tenantDb");
+  const { tenantDb } = getRouteContext(c);
 
   const tags = await tenantDb
     .selectFrom("tags")
@@ -35,8 +36,7 @@ tagRoutes.get("/", async (c) => {
  * POST /tags - Create a new tag
  */
 tagRoutes.post("/", async (c) => {
-  const tenantDb = c.get("tenantDb");
-  const user = c.get("user");
+  const { tenantDb, user } = getRouteContext(c);
   const body = await c.req.json();
 
   const { name, color } = body;
@@ -79,7 +79,7 @@ tagRoutes.post("/", async (c) => {
  * PATCH /tags/:id - Update a tag
  */
 tagRoutes.patch("/:id", async (c) => {
-  const tenantDb = c.get("tenantDb");
+  const { tenantDb } = getRouteContext(c);
   const tagId = c.req.param("id");
   const body = await c.req.json();
 
@@ -119,7 +119,7 @@ tagRoutes.patch("/:id", async (c) => {
  * DELETE /tags/:id - Delete a tag
  */
 tagRoutes.delete("/:id", async (c) => {
-  const tenantDb = c.get("tenantDb");
+  const { tenantDb } = getRouteContext(c);
   const tagId = c.req.param("id");
 
   // First remove all contact_tags associations

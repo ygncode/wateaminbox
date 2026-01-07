@@ -3,8 +3,9 @@ import { Hono } from 'hono'
 import { toDbDate, toISOString } from '@whatsapp-web/shared'
 import { authMiddleware } from '../middleware/auth.js'
 import { tenantMiddleware, requirePermission } from '../middleware/tenant.js'
+import { getRouteContext } from '../middleware/context.js'
 import { PERMISSIONS } from '../services/permission.service.js'
-import { publishSendMessage, publishSendReaction } from '../lib/nats.js'
+import { publishSendMessage, publishSendReaction } from '../lib/nats/index.js'
 import { ensureContactAssignment } from '../services/contact.service.js'
 import { createRateLimitMiddleware } from '../middleware/rate-limit.js'
 import { rateLimitConfig, rateLimitStore } from '../lib/rate-limit-store.js'
@@ -35,7 +36,7 @@ const messageSendRateLimiter: MiddlewareHandler = rateLimitConfig.enabled
  * Query params: contactId (required), limit, before (cursor for pagination)
  */
 messageRoutes.get('/', async (c) => {
-  const tenantDb = c.get('tenantDb')
+  const { tenantDb } = getRouteContext(c)
   const contactId = c.req.query('contactId')
   const limit = parseInt(c.req.query('limit') || '50', 10)
   const before = c.req.query('before') // Message ID for cursor pagination
@@ -165,9 +166,7 @@ messageRoutes.post(
   messageSendRateLimiter,
   requirePermission(PERMISSIONS.CAN_SEND_MESSAGES),
   async (c) => {
-    const tenantDb = c.get('tenantDb')
-    const user = c.get('user')
-    const companyId = c.get('companyId')
+    const { tenantDb, user, companyId } = getRouteContext(c)
     const body = await c.req.json()
 
     const { contactId, content, messageType = 'text', mediaUrl, replyToMessageId } = body
@@ -287,7 +286,7 @@ messageRoutes.post(
  * POST /messages/:id/star - Star a message
  */
 messageRoutes.post('/:id/star', async (c) => {
-  const tenantDb = c.get('tenantDb')
+  const { tenantDb } = getRouteContext(c)
   const messageId = c.req.param('id')
 
   const updated = await tenantDb
@@ -308,7 +307,7 @@ messageRoutes.post('/:id/star', async (c) => {
  * DELETE /messages/:id/star - Unstar a message
  */
 messageRoutes.delete('/:id/star', async (c) => {
-  const tenantDb = c.get('tenantDb')
+  const { tenantDb } = getRouteContext(c)
   const messageId = c.req.param('id')
 
   const updated = await tenantDb
@@ -329,7 +328,7 @@ messageRoutes.delete('/:id/star', async (c) => {
  * DELETE /messages/:id - Soft delete a message
  */
 messageRoutes.delete('/:id', async (c) => {
-  const tenantDb = c.get('tenantDb')
+  const { tenantDb } = getRouteContext(c)
   const messageId = c.req.param('id')
 
   const updated = await tenantDb
@@ -353,8 +352,7 @@ messageRoutes.delete('/:id', async (c) => {
  * POST /messages/:id/reaction - Add a reaction to a message
  */
 messageRoutes.post('/:id/reaction', async (c) => {
-  const tenantDb = c.get('tenantDb')
-  const user = c.get('user')
+  const { tenantDb, user, companyId } = getRouteContext(c)
   const messageId = c.req.param('id')
   const body = await c.req.json()
 
@@ -416,7 +414,6 @@ messageRoutes.post('/:id/reaction', async (c) => {
     .execute()
 
   // Send reaction to WhatsApp via NATS
-  const companyId = c.get('companyId')
   try {
     await publishSendReaction(
       companyId,
@@ -439,8 +436,7 @@ messageRoutes.post('/:id/reaction', async (c) => {
  * DELETE /messages/:id/reaction - Remove a reaction from a message
  */
 messageRoutes.delete('/:id/reaction', async (c) => {
-  const tenantDb = c.get('tenantDb')
-  const user = c.get('user')
+  const { tenantDb, user, companyId } = getRouteContext(c)
   const messageId = c.req.param('id')
 
   // Get message with WhatsApp message_id, from_me, and contact info
@@ -477,7 +473,6 @@ messageRoutes.delete('/:id/reaction', async (c) => {
         .executeTakeFirst()
 
       if (connection) {
-        const companyId = c.get('companyId')
         try {
           await publishSendReaction(
             companyId,
@@ -508,9 +503,7 @@ messageRoutes.post(
   messageSendRateLimiter,
   requirePermission(PERMISSIONS.CAN_SEND_MESSAGES),
   async (c) => {
-    const tenantDb = c.get('tenantDb')
-    const user = c.get('user')
-    const companyId = c.get('companyId')
+    const { tenantDb, user, companyId } = getRouteContext(c)
     const messageId = c.req.param('id')
     const body = await c.req.json()
 
@@ -613,9 +606,7 @@ messageRoutes.post(
   messageSendRateLimiter,
   requirePermission(PERMISSIONS.CAN_SEND_MESSAGES),
   async (c) => {
-    const tenantDb = c.get('tenantDb')
-    const user = c.get('user')
-    const companyId = c.get('companyId')
+    const { tenantDb, user, companyId } = getRouteContext(c)
     const messageId = c.req.param('id')
 
     // Get the original failed message
@@ -734,7 +725,7 @@ messageRoutes.post(
  * GET /messages/starred - Get all starred messages
  */
 messageRoutes.get('/starred', async (c) => {
-  const tenantDb = c.get('tenantDb')
+  const { tenantDb } = getRouteContext(c)
   const limit = parseInt(c.req.query('limit') || '50', 10)
   const offset = parseInt(c.req.query('offset') || '0', 10)
 
@@ -787,7 +778,7 @@ const BATCH_LIMIT = 50
  * Limit: 50 messages per request
  */
 messageRoutes.post('/batch/star', async (c) => {
-  const tenantDb = c.get('tenantDb')
+  const { tenantDb } = getRouteContext(c)
   const body = await c.req.json()
 
   const { messageIds, star = true } = body
@@ -820,7 +811,7 @@ messageRoutes.post('/batch/star', async (c) => {
  * Limit: 50 messages per request
  */
 messageRoutes.post('/batch/delete', async (c) => {
-  const tenantDb = c.get('tenantDb')
+  const { tenantDb } = getRouteContext(c)
   const body = await c.req.json()
 
   const { messageIds } = body
