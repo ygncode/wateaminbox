@@ -96,6 +96,7 @@ export interface ErrorPayload {
 export interface SyncStatusPayload {
   messageCount: number;
   conversations: number;
+  connectionId?: string;
 }
 
 // WhatsApp connection event payloads

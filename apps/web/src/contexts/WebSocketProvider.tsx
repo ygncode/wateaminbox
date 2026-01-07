@@ -40,6 +40,7 @@ interface SyncStatusResponse {
     name: string | null;
     phone_number: string | null;
     sync_status: string | null;
+    updated_at: string | null;
   }>;
 }
 
@@ -307,7 +308,10 @@ export function WebSocketProvider({
             newMap.set(connection.id, {
               connectionId: connection.id,
               conversations: 0, // We don't have progress from DB, start at 0
-              startedAt: new Date(), // Use current time as startedAt
+              // Use updated_at from DB as sync start time, fallback to now
+              startedAt: connection.updated_at
+                ? new Date(connection.updated_at)
+                : new Date(),
             });
           }
         }
@@ -347,16 +351,27 @@ export function WebSocketProvider({
    * WhatsApp connection because QR code events wouldn't reach their WebSocket.
    */
   useEffect(() => {
-    // Skip on initial mount when both are null
-    if (previousCompanyIdRef.current === null && currentCompanyId === null) {
+    // Skip if company ID hasn't changed
+    if (previousCompanyIdRef.current === currentCompanyId) {
+      return;
+    }
+
+    const previousCompanyId = previousCompanyIdRef.current;
+    previousCompanyIdRef.current = currentCompanyId;
+
+    // Only reconnect if WebSocket is already connected.
+    // If it's still connecting/disconnected, the initial connection will use
+    // the correct company ID from localStorage (via getCompanyId()).
+    // This prevents unnecessary reconnects during initial auth context loading.
+    if (status !== "connected") {
       return;
     }
 
     // Case 1: Company switched to a different one
     if (
-      previousCompanyIdRef.current !== null &&
+      previousCompanyId !== null &&
       currentCompanyId !== null &&
-      previousCompanyIdRef.current !== currentCompanyId
+      previousCompanyId !== currentCompanyId
     ) {
       console.log(
         "[WebSocket] Company changed, reconnecting with new company ID:",
@@ -366,16 +381,14 @@ export function WebSocketProvider({
     }
 
     // Case 2: First company created (was null, now has value)
-    if (previousCompanyIdRef.current === null && currentCompanyId !== null) {
+    if (previousCompanyId === null && currentCompanyId !== null) {
       console.log(
         "[WebSocket] Company ID set, reconnecting:",
         currentCompanyId,
       );
       forceReconnectWithFreshCredentials();
     }
-
-    previousCompanyIdRef.current = currentCompanyId;
-  }, [currentCompanyId, forceReconnectWithFreshCredentials]);
+  }, [currentCompanyId, status, forceReconnectWithFreshCredentials]);
 
   // Send a message through WebSocket
   const send = useCallback(function sendMessage<T>(
@@ -885,7 +898,7 @@ export function WebSocketProvider({
       "sync:start",
       (payload) => {
         console.log("[WebSocket] 🔄 Sync started", payload);
-        const connectionId = (payload as any).connectionId || "unknown";
+        const connectionId = payload.connectionId || "unknown";
         setSyncingConnections((prev) => {
           const newMap = new Map(prev);
           newMap.set(connectionId, {
@@ -902,16 +915,16 @@ export function WebSocketProvider({
       "sync:progress",
       (payload) => {
         console.log("[WebSocket] 🔄 Sync progress", payload);
-        const connectionId = (payload as any).connectionId || "unknown";
+        const connectionId = payload.connectionId || "unknown";
         setSyncingConnections((prev) => {
           const newMap = new Map(prev);
           const existing = newMap.get(connectionId);
-          if (existing) {
-            newMap.set(connectionId, {
-              ...existing,
-              conversations: payload.conversations,
-            });
-          }
+          // Create entry if it doesn't exist (in case sync:start was missed)
+          newMap.set(connectionId, {
+            connectionId,
+            conversations: payload.conversations,
+            startedAt: existing?.startedAt || new Date(),
+          });
           return newMap;
         });
       },
@@ -921,7 +934,7 @@ export function WebSocketProvider({
       "sync:complete",
       (payload) => {
         console.log("[WebSocket] ✅ Sync completed", payload);
-        const connectionId = (payload as any).connectionId || "unknown";
+        const connectionId = payload.connectionId || "unknown";
         setSyncingConnections((prev) => {
           const newMap = new Map(prev);
           newMap.delete(connectionId);
@@ -933,6 +946,11 @@ export function WebSocketProvider({
         });
       },
     );
+
+    // Auth success handler (no-op, just acknowledges the event)
+    const unsubAuthSuccess = client.on("auth_success", () => {
+      console.log("[WebSocket] ✅ Authentication successful");
+    });
 
     // Store all unsubscribe functions for cleanup
     handlerUnsubscribesRef.current = [
@@ -951,6 +969,7 @@ export function WebSocketProvider({
       unsubSyncStart,
       unsubSyncProgress,
       unsubSyncComplete,
+      unsubAuthSuccess,
     ];
 
     console.log(

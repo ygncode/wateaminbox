@@ -3,6 +3,7 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
 import { HTTPException } from "hono/http-exception";
+import { toDbDate } from "@whatsapp-web/shared";
 import { authMiddleware } from "../middleware/auth.js";
 import { tenantFromHeader } from "../middleware/tenant.js";
 import * as whatsappService from "../services/whatsapp.service.js";
@@ -765,16 +766,17 @@ whatsappRoutes.get(
 whatsappRoutes.get(
   "/sync-status",
   authMiddleware,
-  tenantFromHeader,
+  tenantFromHeader("X-Company-ID"),
   async (c) => {
     const companyId = c.get("companyId");
     const tenantDb = c.get("tenantDb");
 
     try {
       // Get all connections that are currently syncing
+      // Include updated_at as a proxy for sync start time
       const syncingConnections = await tenantDb
         .selectFrom("whatsapp_connections")
-        .select(["id", "name", "phone_number", "sync_status"])
+        .select(["id", "name", "phone_number", "sync_status", "updated_at"])
         .where("sync_status", "=", "syncing")
         .execute();
 
@@ -789,6 +791,40 @@ whatsappRoutes.get(
       logger.error({ err: formatError(error) }, "Failed to get sync status");
       throw new HTTPException(500, {
         message: "Failed to get sync status",
+      });
+    }
+  },
+);
+
+/**
+ * POST /api/whatsapp/sync-reset
+ * Resets sync status for all connections (failsafe for stuck syncs)
+ */
+whatsappRoutes.post(
+  "/sync-reset",
+  authMiddleware,
+  tenantFromHeader("X-Company-ID"),
+  async (c) => {
+    const tenantDb = c.get("tenantDb");
+
+    try {
+      await tenantDb
+        .updateTable("whatsapp_connections")
+        .set({
+          sync_status: "completed",
+          updated_at: toDbDate(),
+        })
+        .where("sync_status", "=", "syncing")
+        .execute();
+
+      return c.json({
+        success: true,
+        message: "Sync status reset successfully",
+      });
+    } catch (error) {
+      logger.error({ err: formatError(error) }, "Failed to reset sync status");
+      throw new HTTPException(500, {
+        message: "Failed to reset sync status",
       });
     }
   },
