@@ -8,14 +8,21 @@
  */
 
 /**
- * Extract phone number from a JID
+ * Extract phone number from a JID, handling device suffix
  *
- * @param jid - WhatsApp JID (e.g., "1234567890@s.whatsapp.net")
+ * @param jid - WhatsApp JID (e.g., "1234567890@s.whatsapp.net" or "1234567890:3@s.whatsapp.net")
  * @returns Phone number or null if invalid
  */
 export function extractPhoneFromJid(jid: string | null | undefined): string | null {
   if (!jid) return null
-  const phone = jid.split('@')[0]
+
+  // Remove server suffix (@s.whatsapp.net, @g.us, etc.)
+  const userPart = jid.split('@')[0]
+  if (!userPart) return null
+
+  // Remove device suffix (the :N part, e.g., ":3")
+  const phone = userPart.split(':')[0]
+
   return phone || null
 }
 

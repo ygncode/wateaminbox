@@ -119,8 +119,6 @@ export function WebSocketProvider({
   const [syncingConnections, setSyncingConnections] = useState<
     Map<string, SyncState>
   >(new Map());
-  // Track if we've fetched initial sync status to prevent double-fetch
-  const [syncStatusFetched, setSyncStatusFetched] = useState(false);
 
   // TanStack Query client for cache updates
   const queryClient = useQueryClient();
@@ -280,63 +278,61 @@ export function WebSocketProvider({
   }, []);
 
   /**
-   * Fetch initial sync status from API on mount
+   * Fetch sync status from API
    *
-   * This populates syncingConnections state from the database when:
-   * 1. User reloads the page during an active sync
-   * 2. User navigates to chat page while connections are syncing
-   *
-   * Without this, the overlay wouldn't appear on page reload because
-   * syncingConnections only gets populated from WebSocket events.
+   * This populates syncingConnections state from the database.
+   * We call this on mount and on reconnect to ensure our local state matches the server.
+   */
+  const fetchSyncStatus = useCallback(async () => {
+    if (!currentCompanyId) return;
+
+    try {
+      const response = await api.get<SyncStatusResponse>(
+        "/whatsapp/sync-status",
+      );
+
+      // Populate syncingConnections from API response
+      const newMap = new Map<string, SyncState>();
+      for (const connection of response.connections) {
+        if (connection.sync_status === "syncing") {
+          newMap.set(connection.id, {
+            connectionId: connection.id,
+            conversations: 0, // We don't have progress from DB, start at 0
+            // Use updated_at from DB as sync start time, fallback to now
+            startedAt: connection.updated_at
+              ? new Date(connection.updated_at)
+              : new Date(),
+          });
+        }
+      }
+
+      // Always update state, even if empty, to clear stuck syncing states
+      console.log(
+        "[WebSocket] 🔄 Sync status fetched. Active syncs:",
+        newMap.size,
+      );
+      setSyncingConnections(newMap);
+    } catch (error) {
+      console.warn("[WebSocket] ⚠️ Failed to fetch sync status:", error);
+    }
+  }, [currentCompanyId]);
+
+  /**
+   * Fetch initial sync status on mount
    */
   useEffect(() => {
-    // Only fetch once and only when we have a company ID
-    if (syncStatusFetched || !currentCompanyId) {
-      return;
-    }
-
-    const fetchSyncStatus = async () => {
-      try {
-        const response = await api.get<SyncStatusResponse>(
-          "/whatsapp/sync-status",
-        );
-
-        // Populate syncingConnections from API response
-        const newMap = new Map<string, SyncState>();
-        for (const connection of response.connections) {
-          if (connection.sync_status === "syncing") {
-            newMap.set(connection.id, {
-              connectionId: connection.id,
-              conversations: 0, // We don't have progress from DB, start at 0
-              // Use updated_at from DB as sync start time, fallback to now
-              startedAt: connection.updated_at
-                ? new Date(connection.updated_at)
-                : new Date(),
-            });
-          }
-        }
-
-        if (newMap.size > 0) {
-          console.log(
-            "[WebSocket] 🔄 Initialized syncing connections from API:",
-            newMap.size,
-          );
-          setSyncingConnections(newMap);
-        }
-
-        setSyncStatusFetched(true);
-      } catch (error) {
-        console.warn(
-          "[WebSocket] ⚠️ Failed to fetch initial sync status:",
-          error,
-        );
-        // Don't throw - this is a non-critical enhancement
-        setSyncStatusFetched(true); // Mark as fetched to avoid retrying
-      }
-    };
-
     fetchSyncStatus();
-  }, [currentCompanyId, syncStatusFetched]);
+  }, [fetchSyncStatus]);
+
+  /**
+   * Re-fetch sync status on reconnect
+   * This handles cases where we missed a "sync:complete" event while disconnected
+   */
+  useEffect(() => {
+    if (status === "connected") {
+      fetchSyncStatus();
+    }
+  }, [status, fetchSyncStatus]);
 
   /**
    * Reconnect WebSocket when company ID changes

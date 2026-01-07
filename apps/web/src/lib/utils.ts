@@ -1,5 +1,6 @@
 import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
+import { extractPhoneFromJid } from "@whatsapp-web/shared";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -42,22 +43,6 @@ export function formatPhoneNumber(phone: string | null | undefined): string {
   return normalized;
 }
 
-/**
- * Extracts phone number from a JID, handling device suffix.
- * Input: "44578136657990:3@s.whatsapp.net" or "44578136657990@s.whatsapp.net"
- * Output: "44578136657990"
- */
-export function extractPhoneFromJID(
-  jid: string | null | undefined,
-): string | null {
-  if (!jid) return null;
-
-  // Remove server suffix (@s.whatsapp.net, @g.us, etc.)
-  const userPart = jid.split("@")[0];
-  if (!userPart) return null;
-
-  // Remove device suffix (the :N part)
-  const phoneNumber = userPart.split(":")[0];
-
-  return phoneNumber || null;
-}
+// Re-export from shared package for backward compatibility
+// Uses uppercase JID to match existing API (extractPhoneFromJID)
+export { extractPhoneFromJid as extractPhoneFromJID };

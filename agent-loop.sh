@@ -12,7 +12,7 @@
 #   - [ ] improve error handling
 #
 # For each task, the script will:
-#   1. Classify task type (feature/bug/chore/refactor/docs) using Haiku
+#   1. Classify task type (feature/bug/chore/refactor/docs) using Sonnet
 #   2. Route to appropriate workflow:
 #      - FEATURE:  Full (requirements → specs → subtasks → execute → review → merge)
 #      - REFACTOR: Medium (requirements → subtasks → execute → review → merge)
@@ -24,7 +24,6 @@
 #   5. Move to next task
 #
 # Options:
-#   --max-review-iters N    Max review iterations per phase (default: 3)
 #   --dry-run               Print commands without executing
 #   --resume                Resume from saved state
 #   --verbose               Show detailed output
@@ -145,9 +144,10 @@ For each task, the AI will:
   5. Move to next task
 
 AI handles ALL decisions:
-  - Picks model: Haiku classifies → Sonnet (simple) or Opus (complex)
-  - Reviews until approved (no iteration limit)
-  - Tests until pass or blocked
+  - Picks model: Sonnet classifies → Sonnet (simple) or Opus (complex)
+  - Reviews until approved (max 5 iterations)
+  - Tests until pass or blocked (max 5 iterations)
+  - Execution loops until done (max 10 iterations)
   - Resolves git conflicts
   - Waits for CI, retries merges
   - Fixes errors and retries
@@ -186,7 +186,7 @@ log_verbose() {
 # Core Functions
 # =============================================================================
 
-# Classify task complexity using Haiku (fast/cheap)
+# Classify task complexity using Sonnet
 # Returns: "simple" or "complex"
 classify_complexity() {
     local task_description="$1"
@@ -222,12 +222,12 @@ COMPLEX tasks (use Opus):
 Output ONLY one word: 'simple' or 'complex'. Nothing else."
 
     local result
-    result=$(claude --dangerously-skip-permissions --model haiku -p "$classify_prompt" 2>/dev/null | tr '[:upper:]' '[:lower:]' | grep -o -E '(simple|complex)' | head -1)
+    result=$(claude --dangerously-skip-permissions --model sonnet -p "$classify_prompt" 2>/dev/null | tr '[:upper:]' '[:lower:]' | grep -o -E '(simple|complex)' | head -1)
 
     echo "${result:-complex}"
 }
 
-# Classify if task needs worktree (isolated environment) using Haiku
+# Classify if task needs worktree (isolated environment) using Sonnet
 # Returns: "worktree" or "inplace"
 classify_worktree_need() {
     local task_description="$1"
@@ -262,13 +262,13 @@ Use INPLACE when:
 Output ONLY one word: 'worktree' or 'inplace'. Nothing else."
 
     local result
-    result=$(claude --dangerously-skip-permissions --model haiku -p "$classify_prompt" 2>/dev/null | tr '[:upper:]' '[:lower:]' | grep -o -E '(worktree|inplace)' | head -1)
+    result=$(claude --dangerously-skip-permissions --model sonnet -p "$classify_prompt" 2>/dev/null | tr '[:upper:]' '[:lower:]' | grep -o -E '(worktree|inplace)' | head -1)
 
     echo "${result:-inplace}"
 }
 
 # Run cyolo with smart model selection
-# AI (Haiku) decides whether to use Sonnet (simple) or Opus (complex)
+# AI (Sonnet) decides whether to use Sonnet (simple) or Opus (complex)
 run_cyolo() {
     local prompt="$1"
     local description="${2:-Running agent}"
@@ -341,7 +341,7 @@ Output ONLY the slug, nothing else. No explanation, no quotes, just the slug."
     fi
 
     mkdir -p "$LOOP_DIR"
-    claude --dangerously-skip-permissions --model haiku -p "$prompt" > "$slug_file" 2>/dev/null
+    claude --dangerously-skip-permissions --model sonnet -p "$prompt" > "$slug_file" 2>/dev/null
 
     local slug
     slug=$(cat "$slug_file" | tr -d '\n' | tr -d ' ' | tr '[:upper:]' '[:lower:]')
@@ -356,7 +356,7 @@ Output ONLY the slug, nothing else. No explanation, no quotes, just the slug."
     echo "$slug"
 }
 
-# Classify task type using Haiku (fast/cheap)
+# Classify task type using Sonnet
 classify_task() {
     local task_description="$1"
 
@@ -386,7 +386,7 @@ Rules:
 Output ONLY one word: feature, bug, chore, refactor, or docs. Nothing else."
 
     local result
-    result=$(claude --dangerously-skip-permissions --model haiku -p "$classify_prompt" 2>/dev/null | tr -d '\n' | tr '[:upper:]' '[:lower:]' | grep -o -E '(feature|bug|chore|refactor|docs)' | head -1)
+    result=$(claude --dangerously-skip-permissions --model sonnet -p "$classify_prompt" 2>/dev/null | tr -d '\n' | tr '[:upper:]' '[:lower:]' | grep -o -E '(feature|bug|chore|refactor|docs)' | head -1)
 
     # Default to feature if classification fails
     if [ -z "$result" ]; then
@@ -402,7 +402,7 @@ Output ONLY one word: feature, bug, chore, refactor, or docs. Nothing else."
 # Task List Management
 # =============================================================================
 
-# Detect input format: "checklist" or "feature" using Haiku
+# Detect input format: "checklist" or "feature" using Sonnet
 detect_input_format() {
     local file="$1"
 
@@ -436,7 +436,7 @@ OUTPUT ONLY ONE WORD:
 Reply with ONLY 'checklist' or 'feature', nothing else."
 
     local result
-    result=$(claude --dangerously-skip-permissions --model haiku -p "$detect_prompt" 2>/dev/null | tr '[:upper:]' '[:lower:]' | grep -o -E '(checklist|feature)' | head -1)
+    result=$(claude --dangerously-skip-permissions --model sonnet -p "$detect_prompt" 2>/dev/null | tr '[:upper:]' '[:lower:]' | grep -o -E '(checklist|feature)' | head -1)
 
     echo "${result:-feature}"
 }
@@ -1127,9 +1127,9 @@ phase_execute() {
             break
         fi
 
-        # Quick check using haiku
+        # Quick check using sonnet
         local pending_check
-        pending_check=$(claude --dangerously-skip-permissions --model haiku -p "Read $subtasks_file and output ONLY 'pending' if there are tasks marked [ ], or 'done' if all are [x] or [!]. One word only." 2>/dev/null | tr '[:upper:]' '[:lower:]' | grep -o -E '(pending|done)' | head -1)
+        pending_check=$(claude --dangerously-skip-permissions --model sonnet -p "Read $subtasks_file and output ONLY 'pending' if there are tasks marked [ ], or 'done' if all are [x] or [!]. One word only." 2>/dev/null | tr '[:upper:]' '[:lower:]' | grep -o -E '(pending|done)' | head -1)
 
         if [ "$pending_check" = "done" ]; then
             log_success "All sub-tasks completed!"
@@ -1224,7 +1224,7 @@ phase_code_review() {
         # Check if already approved
         if [ -f "$review_file" ]; then
             local status
-            status=$(claude --dangerously-skip-permissions --model haiku -p "Read $review_file and output ONLY 'approved' if verdict is APPROVED, or 'pending' otherwise. One word only." 2>/dev/null | tr '[:upper:]' '[:lower:]' | grep -o -E '(approved|pending)' | head -1)
+            status=$(claude --dangerously-skip-permissions --model sonnet -p "Read $review_file and output ONLY 'approved' if verdict is APPROVED, or 'pending' otherwise. One word only." 2>/dev/null | tr '[:upper:]' '[:lower:]' | grep -o -E '(approved|pending)' | head -1)
             if [ "$status" = "approved" ]; then
                 log_success "Code review APPROVED"
                 return 0
@@ -1283,7 +1283,7 @@ phase_testing() {
         # Check if already passed or blocked
         if [ -f "$test_log" ]; then
             local status
-            status=$(claude --dangerously-skip-permissions --model haiku -p "Read $test_log and output ONLY: 'passed' if all tests passed, 'blocked' if blocked, or 'pending' if tests still failing. One word only." 2>/dev/null | tr '[:upper:]' '[:lower:]' | grep -o -E '(passed|blocked|pending)' | head -1)
+            status=$(claude --dangerously-skip-permissions --model sonnet -p "Read $test_log and output ONLY: 'passed' if all tests passed, 'blocked' if blocked, or 'pending' if tests still failing. One word only." 2>/dev/null | tr '[:upper:]' '[:lower:]' | grep -o -E '(passed|blocked|pending)' | head -1)
             if [ "$status" = "passed" ]; then
                 log_success "All tests passed!"
                 return 0
@@ -1810,7 +1810,7 @@ main() {
             log_info "Starting task ($remaining remaining): $CURRENT_TASK"
             log_info "=============================================="
 
-            # Classify task type (using Haiku - fast/cheap)
+            # Classify task type (using Sonnet)
             CURRENT_TASK_TYPE=$(classify_task "$CURRENT_TASK")
 
             # Generate slug for this task

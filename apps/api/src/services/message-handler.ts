@@ -18,7 +18,7 @@ import {
   type SyncStatusEvent,
 } from '../lib/nats.js'
 import { db, type MessageType } from '@whatsapp-web/database'
-import { toDbDate, toDate, toISOString } from '@whatsapp-web/shared'
+import { toDbDate, toDate, toISOString, extractPhoneFromJid, normalizeJid } from '@whatsapp-web/shared'
 import { getTenantConnection } from './tenant.service.js'
 import { updateConnectionStatus } from './whatsapp.service.js'
 import { broadcastToCompany } from '../routes/ws.js'
@@ -28,47 +28,6 @@ import { createNotification } from './notification-history.service.js'
 import { createLogger, formatError } from '../lib/logger.js'
 
 const logger = createLogger('MessageHandler')
-
-/**
- * Extracts phone number from a JID, handling device suffix.
- * Input: "44578136657990:3@s.whatsapp.net" or "44578136657990@s.whatsapp.net"
- * Output: "44578136657990"
- */
-function extractPhoneNumber(jid: string): string | null {
-  if (!jid) return null
-
-  // Remove server suffix (@s.whatsapp.net, @g.us, etc.)
-  const userPart = jid.split('@')[0]
-  if (!userPart) return null
-
-  // Remove device suffix (the :N part, e.g., ":3")
-  const phoneNumber = userPart.split(':')[0]
-
-  return phoneNumber || null
-}
-
-/**
- * Normalizes a JID by removing the device suffix.
- * Input: "44578136657990:3@s.whatsapp.net"
- * Output: "44578136657990@s.whatsapp.net"
- * Groups (@g.us) and broadcast lists are returned unchanged.
- */
-function normalizeJID(jid: string): string {
-  if (!jid) return jid
-
-  const [userPart, server] = jid.split('@')
-  if (!userPart || !server) return jid
-
-  // Groups and broadcast lists don't have device suffixes
-  if (server === 'g.us' || server === 'broadcast') {
-    return jid
-  }
-
-  // Remove device suffix (the :N part)
-  const phoneNumber = userPart.split(':')[0]
-
-  return `${phoneNumber}@${server}`
-}
 
 // Subscription handle
 let eventSubscription: JetStreamSubscription | null = null
@@ -329,7 +288,7 @@ async function handleMessageEvent(event: MessageEvent): Promise<void> {
 
     // Get or create contact - normalize JID first to remove device suffix
     const rawContactJid = payload.fromMe ? payload.to : payload.from
-    const contactJid = normalizeJID(rawContactJid)
+    const contactJid = normalizeJid(rawContactJid)
     let contact = await tenantDb
       .selectFrom('contacts')
       .select(['id'])
@@ -339,7 +298,7 @@ async function handleMessageEvent(event: MessageEvent): Promise<void> {
     if (!contact) {
       const contactId = crypto.randomUUID()
       // Extract phone number from JID (removes device suffix like ":3")
-      const phoneNumber = extractPhoneNumber(contactJid)
+      const phoneNumber = extractPhoneFromJid(contactJid)
       await tenantDb
         .insertInto('contacts')
         .values({
@@ -373,7 +332,7 @@ async function handleMessageEvent(event: MessageEvent): Promise<void> {
         contact_id: contact.id,
         message_id: payload.messageId,
         from_me: payload.fromMe,
-        sender_jid: normalizeJID(payload.from),
+        sender_jid: normalizeJid(payload.from),
         message_type: payload.messageType as MessageType,
         content: payload.content,
         media_url: payload.mediaUrl || null,
@@ -792,7 +751,7 @@ async function handleContactEvent(event: ContactEvent): Promise<void> {
     }
 
     // Normalize JID to remove device suffix
-    const contactJid = normalizeJID(payload.jid)
+    const contactJid = normalizeJid(payload.jid)
 
     // Check if contact already exists
     const existingContact = await tenantDb
@@ -819,7 +778,7 @@ async function handleContactEvent(event: ContactEvent): Promise<void> {
       // Create new contact
       const contactId = crypto.randomUUID()
       // Extract phone number from JID (removes device suffix like ":3")
-      const phoneNumber = extractPhoneNumber(contactJid)
+      const phoneNumber = extractPhoneFromJid(contactJid)
       await tenantDb
         .insertInto('contacts')
         .values({
@@ -862,7 +821,7 @@ async function handleProfilePictureEvent(event: ProfilePictureEvent): Promise<vo
     const tenantDb = getTenantConnection(companyId)
 
     // Normalize JID to match how contacts are stored (without device suffix)
-    const contactJid = normalizeJID(payload.jid)
+    const contactJid = normalizeJid(payload.jid)
 
     // Update contact profile picture
     const profilePictureUrl = payload.remove ? null : payload.profilePictureUrl
@@ -985,7 +944,7 @@ async function handlePresenceEvent(event: PresenceEvent): Promise<void> {
     const tenantDb = getTenantConnection(companyId)
 
     // Normalize JID to match how contacts are stored (without device suffix)
-    const contactJid = normalizeJID(payload.from)
+    const contactJid = normalizeJid(payload.from)
 
     // Determine status and last seen
     const lastSeen = payload.lastSeen ? toDbDate(payload.lastSeen) : null
