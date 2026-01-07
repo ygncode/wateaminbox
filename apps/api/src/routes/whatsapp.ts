@@ -768,7 +768,6 @@ whatsappRoutes.get(
   authMiddleware,
   tenantFromHeader("X-Company-ID"),
   async (c) => {
-    const companyId = c.get("companyId");
     const tenantDb = c.get("tenantDb");
 
     try {
@@ -780,11 +779,52 @@ whatsappRoutes.get(
         .where("sync_status", "=", "syncing")
         .execute();
 
+      // Filter out stale syncs (older than 5 minutes) and auto-correct DB
+      const STALE_THRESHOLD_MS = 5 * 60 * 1000;
+      const now = new Date().getTime();
+      const activeConnections = [];
+      const staleConnectionIds: string[] = [];
+
+      for (const conn of syncingConnections) {
+        const updatedAt = conn.updated_at
+          ? new Date(conn.updated_at).getTime()
+          : 0;
+        // If updated_at is missing or older than threshold, it's stale
+        if (!updatedAt || now - updatedAt > STALE_THRESHOLD_MS) {
+          staleConnectionIds.push(conn.id);
+        } else {
+          activeConnections.push(conn);
+        }
+      }
+
+      // Auto-correct stale connections in background
+      if (staleConnectionIds.length > 0) {
+        logger.warn(
+          { count: staleConnectionIds.length, ids: staleConnectionIds },
+          "Found stale syncing connections, resetting to completed",
+        );
+        // Fire and forget update
+        tenantDb
+          .updateTable("whatsapp_connections")
+          .set({
+            sync_status: "completed",
+            updated_at: toDbDate(),
+          })
+          .where("id", "in", staleConnectionIds)
+          .execute()
+          .catch((err) => {
+            logger.error(
+              { err: formatError(err) },
+              "Failed to auto-reset stale sync status",
+            );
+          });
+      }
+
       return c.json({
         success: true,
         data: {
-          syncing: syncingConnections.length > 0,
-          connections: syncingConnections,
+          syncing: activeConnections.length > 0,
+          connections: activeConnections,
         },
       });
     } catch (error) {
