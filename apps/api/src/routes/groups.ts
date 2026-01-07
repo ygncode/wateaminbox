@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import type { Kysely } from "kysely";
+import { toDbDate, getGroupDisplayName } from "@whatsapp-web/shared";
 import { authMiddleware } from "../middleware/auth.js";
 import { tenantMiddleware } from "../middleware/tenant.js";
 import type { TenantDatabase } from "../services/tenant.service.js";
@@ -10,6 +11,7 @@ import {
   publishGroupUpdateSettings,
 } from "../lib/nats.js";
 import { createAuditLog, getClientIp } from "../services/audit.service.js";
+import { notFound, badRequest, forbidden, unauthorized } from "../lib/errors.js";
 
 export const groupRoutes = new Hono();
 
@@ -85,7 +87,7 @@ groupRoutes.get("/", async (c) => {
       id: group.id,
       jid: group.jid,
       name: group.custom_name || group.group_name,
-      displayName: group.custom_name || group.group_name || "Unknown Group",
+      displayName: getGroupDisplayName(group),
       description: group.description,
       participantCount: group.participant_count,
       profilePictureUrl: group.profile_picture_url,
@@ -118,7 +120,7 @@ groupRoutes.get("/:id", async (c) => {
     .executeTakeFirst();
 
   if (!contact) {
-    return c.json({ error: "Group not found" }, 404);
+    return notFound(c, "Group");
   }
 
   // Get group info
@@ -151,7 +153,7 @@ groupRoutes.get("/:id", async (c) => {
     id: contact.id,
     jid: contact.jid,
     name: contact.custom_name || group?.name,
-    displayName: contact.custom_name || group?.name || "Unknown Group",
+    displayName: getGroupDisplayName({ custom_name: contact.custom_name, name: group?.name }),
     customName: contact.custom_name,
     description: group?.description,
     profilePictureUrl: contact.profile_picture_url,
@@ -182,7 +184,7 @@ groupRoutes.patch("/:id", async (c) => {
     .updateTable("contacts")
     .set({
       custom_name: customName,
-      updated_at: new Date(),
+      updated_at: toDbDate(),
     })
     .where("id", "=", contactId)
     .where("is_group", "=", true)
@@ -190,7 +192,7 @@ groupRoutes.patch("/:id", async (c) => {
     .executeTakeFirst();
 
   if (!updated) {
-    return c.json({ error: "Group not found" }, 404);
+    return notFound(c, "Group");
   }
 
   return c.json({
@@ -263,7 +265,7 @@ groupRoutes.post("/:id/participants/:participantJid/promote", async (c) => {
   const companyId = c.get("companyId");
   const user = c.get("user");
   if (!user) {
-    return c.json({ error: "Unauthorized" }, 401);
+    return unauthorized(c);
   }
   const userId = user.id;
   const contactId = c.req.param("id");
@@ -278,11 +280,11 @@ groupRoutes.post("/:id/participants/:participantJid/promote", async (c) => {
     .executeTakeFirst();
 
   if (!contact || !contact.jid) {
-    return c.json({ error: "Group not found" }, 404);
+    return notFound(c, "Group");
   }
 
   if (!contact.whatsapp_connection_id) {
-    return c.json({ error: "Group is not associated with any WhatsApp connection" }, 400);
+    return badRequest(c, "Group is not associated with any WhatsApp connection");
   }
 
   // Get group details
@@ -293,7 +295,7 @@ groupRoutes.post("/:id/participants/:participantJid/promote", async (c) => {
     .executeTakeFirst();
 
   if (!group) {
-    return c.json({ error: "Group details not found" }, 404);
+    return notFound(c, "Group details");
   }
 
   // Check if current user is admin
@@ -301,7 +303,7 @@ groupRoutes.post("/:id/participants/:participantJid/promote", async (c) => {
   const isAdmin = await isUserGroupAdmin(tenantDb, contactId, connectionJid);
 
   if (!isAdmin) {
-    return c.json({ error: "Only group admins can promote participants" }, 403);
+    return forbidden(c, "Only group admins can promote participants");
   }
 
   // Check if participant exists in group
@@ -313,11 +315,11 @@ groupRoutes.post("/:id/participants/:participantJid/promote", async (c) => {
     .executeTakeFirst();
 
   if (!participant) {
-    return c.json({ error: "Participant not found in group" }, 404);
+    return notFound(c, "Participant in group");
   }
 
   if (participant.is_admin) {
-    return c.json({ error: "Participant is already an admin" }, 400);
+    return badRequest(c, "Participant is already an admin");
   }
 
   // Update local database
@@ -367,7 +369,7 @@ groupRoutes.post("/:id/participants/:participantJid/demote", async (c) => {
   const companyId = c.get("companyId");
   const user = c.get("user");
   if (!user) {
-    return c.json({ error: "Unauthorized" }, 401);
+    return unauthorized(c);
   }
   const userId = user.id;
   const contactId = c.req.param("id");
@@ -382,11 +384,11 @@ groupRoutes.post("/:id/participants/:participantJid/demote", async (c) => {
     .executeTakeFirst();
 
   if (!contact || !contact.jid) {
-    return c.json({ error: "Group not found" }, 404);
+    return notFound(c, "Group");
   }
 
   if (!contact.whatsapp_connection_id) {
-    return c.json({ error: "Group is not associated with any WhatsApp connection" }, 400);
+    return badRequest(c, "Group is not associated with any WhatsApp connection");
   }
 
   // Get group details
@@ -397,7 +399,7 @@ groupRoutes.post("/:id/participants/:participantJid/demote", async (c) => {
     .executeTakeFirst();
 
   if (!group) {
-    return c.json({ error: "Group details not found" }, 404);
+    return notFound(c, "Group details");
   }
 
   // Check if current user is admin
@@ -405,7 +407,7 @@ groupRoutes.post("/:id/participants/:participantJid/demote", async (c) => {
   const isAdmin = await isUserGroupAdmin(tenantDb, contactId, connectionJid);
 
   if (!isAdmin) {
-    return c.json({ error: "Only group admins can demote participants" }, 403);
+    return forbidden(c, "Only group admins can demote participants");
   }
 
   // Check if participant exists and is admin
@@ -417,11 +419,11 @@ groupRoutes.post("/:id/participants/:participantJid/demote", async (c) => {
     .executeTakeFirst();
 
   if (!participant) {
-    return c.json({ error: "Participant not found in group" }, 404);
+    return notFound(c, "Participant in group");
   }
 
   if (!participant.is_admin) {
-    return c.json({ error: "Participant is not an admin" }, 400);
+    return badRequest(c, "Participant is not an admin");
   }
 
   // Update local database
@@ -471,7 +473,7 @@ groupRoutes.delete("/:id/participants/:participantJid", async (c) => {
   const companyId = c.get("companyId");
   const user = c.get("user");
   if (!user) {
-    return c.json({ error: "Unauthorized" }, 401);
+    return unauthorized(c);
   }
   const userId = user.id;
   const contactId = c.req.param("id");
@@ -486,11 +488,11 @@ groupRoutes.delete("/:id/participants/:participantJid", async (c) => {
     .executeTakeFirst();
 
   if (!contact || !contact.jid) {
-    return c.json({ error: "Group not found" }, 404);
+    return notFound(c, "Group");
   }
 
   if (!contact.whatsapp_connection_id) {
-    return c.json({ error: "Group is not associated with any WhatsApp connection" }, 400);
+    return badRequest(c, "Group is not associated with any WhatsApp connection");
   }
 
   // Get group details
@@ -501,7 +503,7 @@ groupRoutes.delete("/:id/participants/:participantJid", async (c) => {
     .executeTakeFirst();
 
   if (!group) {
-    return c.json({ error: "Group details not found" }, 404);
+    return notFound(c, "Group details");
   }
 
   // Check if current user is admin
@@ -509,7 +511,7 @@ groupRoutes.delete("/:id/participants/:participantJid", async (c) => {
   const isAdmin = await isUserGroupAdmin(tenantDb, contactId, connectionJid);
 
   if (!isAdmin) {
-    return c.json({ error: "Only group admins can remove participants" }, 403);
+    return forbidden(c, "Only group admins can remove participants");
   }
 
   // Check if participant exists
@@ -521,12 +523,12 @@ groupRoutes.delete("/:id/participants/:participantJid", async (c) => {
     .executeTakeFirst();
 
   if (!participant) {
-    return c.json({ error: "Participant not found in group" }, 404);
+    return notFound(c, "Participant in group");
   }
 
   // Cannot remove yourself
   if (participantJid === connectionJid) {
-    return c.json({ error: "Cannot remove yourself from the group" }, 400);
+    return badRequest(c, "Cannot remove yourself from the group");
   }
 
   // Remove from local database
@@ -582,7 +584,7 @@ groupRoutes.patch("/:id/settings", async (c) => {
   const companyId = c.get("companyId");
   const user = c.get("user");
   if (!user) {
-    return c.json({ error: "Unauthorized" }, 401);
+    return unauthorized(c);
   }
   const userId = user.id;
   const contactId = c.req.param("id");
@@ -592,10 +594,7 @@ groupRoutes.patch("/:id/settings", async (c) => {
 
   // Validate input
   if (!name && description === undefined) {
-    return c.json(
-      { error: "At least one of name or description is required" },
-      400,
-    );
+    return badRequest(c, "At least one of name or description is required");
   }
 
   // Get group contact
@@ -607,11 +606,11 @@ groupRoutes.patch("/:id/settings", async (c) => {
     .executeTakeFirst();
 
   if (!contact || !contact.jid) {
-    return c.json({ error: "Group not found" }, 404);
+    return notFound(c, "Group");
   }
 
   if (!contact.whatsapp_connection_id) {
-    return c.json({ error: "Group is not associated with any WhatsApp connection" }, 400);
+    return badRequest(c, "Group is not associated with any WhatsApp connection");
   }
 
   // Get group details
@@ -622,7 +621,7 @@ groupRoutes.patch("/:id/settings", async (c) => {
     .executeTakeFirst();
 
   if (!group) {
-    return c.json({ error: "Group details not found" }, 404);
+    return notFound(c, "Group details");
   }
 
   // Check if current user is admin
@@ -630,10 +629,7 @@ groupRoutes.patch("/:id/settings", async (c) => {
   const isAdmin = await isUserGroupAdmin(tenantDb, contactId, connectionJid);
 
   if (!isAdmin) {
-    return c.json(
-      { error: "Only group admins can update group settings" },
-      403,
-    );
+    return forbidden(c, "Only group admins can update group settings");
   }
 
   // Build update object
@@ -706,7 +702,7 @@ groupRoutes.get("/:id/admin-status", async (c) => {
     .executeTakeFirst();
 
   if (!contact) {
-    return c.json({ error: "Group not found" }, 404);
+    return notFound(c, "Group");
   }
 
   // Get connection JID

@@ -9,6 +9,7 @@ import { ensureContactAssignment } from '../services/contact.service.js'
 import { createRateLimitMiddleware } from '../middleware/rate-limit.js'
 import { rateLimitConfig, rateLimitStore } from '../lib/rate-limit-store.js'
 import { createLogger, formatError } from '../lib/logger.js'
+import { notFound, badRequest } from '../lib/errors.js'
 
 const logger = createLogger('MessageRoutes')
 
@@ -40,7 +41,7 @@ messageRoutes.get('/', async (c) => {
   const before = c.req.query('before') // Message ID for cursor pagination
 
   if (!contactId) {
-    return c.json({ error: 'contactId is required' }, 400)
+    return badRequest(c, 'contactId is required')
   }
 
   let query = tenantDb
@@ -172,11 +173,11 @@ messageRoutes.post(
     const { contactId, content, messageType = 'text', mediaUrl, replyToMessageId } = body
 
     if (!contactId) {
-      return c.json({ error: 'contactId is required' }, 400)
+      return badRequest(c, 'contactId is required')
     }
 
     if (!content && messageType === 'text') {
-      return c.json({ error: 'content is required for text messages' }, 400)
+      return badRequest(c, 'content is required for text messages')
     }
 
     // Get contact JID and connection ID
@@ -187,7 +188,7 @@ messageRoutes.post(
       .executeTakeFirst()
 
     if (!contact || !contact.jid) {
-      return c.json({ error: 'Contact not found or has no JID' }, 404)
+      return notFound(c, 'Contact or JID')
     }
 
     // Get active WhatsApp connection
@@ -198,7 +199,7 @@ messageRoutes.post(
       .executeTakeFirst()
 
     if (!connection) {
-      return c.json({ error: 'No active WhatsApp connection' }, 400)
+      return badRequest(c, 'No active WhatsApp connection')
     }
 
     // Auto-assign contact to the user if unassigned ("Assign to me on first reply")
@@ -297,7 +298,7 @@ messageRoutes.post('/:id/star', async (c) => {
     .executeTakeFirst()
 
   if (!updated) {
-    return c.json({ error: 'Message not found' }, 404)
+    return notFound(c, 'Message')
   }
 
   return c.json({ success: true, isStarred: true })
@@ -318,7 +319,7 @@ messageRoutes.delete('/:id/star', async (c) => {
     .executeTakeFirst()
 
   if (!updated) {
-    return c.json({ error: 'Message not found' }, 404)
+    return notFound(c, 'Message')
   }
 
   return c.json({ success: true, isStarred: false })
@@ -339,7 +340,7 @@ messageRoutes.delete('/:id', async (c) => {
     .executeTakeFirst()
 
   if (!updated) {
-    return c.json({ error: 'Message not found' }, 404)
+    return notFound(c, 'Message')
   }
 
   return c.json({
@@ -360,7 +361,7 @@ messageRoutes.post('/:id/reaction', async (c) => {
   const { emoji } = body
 
   if (!emoji) {
-    return c.json({ error: 'emoji is required' }, 400)
+    return badRequest(c, 'emoji is required')
   }
 
   // Check message exists and get WhatsApp message_id, from_me, and contact ID
@@ -371,15 +372,15 @@ messageRoutes.post('/:id/reaction', async (c) => {
     .executeTakeFirst()
 
   if (!message) {
-    return c.json({ error: 'Message not found' }, 404)
+    return notFound(c, 'Message')
   }
 
   if (!message.contact_id) {
-    return c.json({ error: 'Message has no associated contact' }, 400)
+    return badRequest(c, 'Message has no associated contact')
   }
 
   if (!message.message_id) {
-    return c.json({ error: 'Message has no WhatsApp message ID' }, 400)
+    return badRequest(c, 'Message has no WhatsApp message ID')
   }
 
   // Get contact to determine chat JID
@@ -390,7 +391,7 @@ messageRoutes.post('/:id/reaction', async (c) => {
     .executeTakeFirst()
 
   if (!contact || !contact.jid) {
-    return c.json({ error: 'Contact not found or has no JID' }, 404)
+    return notFound(c, 'Contact or JID')
   }
 
   // Get active WhatsApp connection
@@ -401,7 +402,7 @@ messageRoutes.post('/:id/reaction', async (c) => {
     .executeTakeFirst()
 
   if (!connection) {
-    return c.json({ error: 'No active WhatsApp connection' }, 400)
+    return badRequest(c, 'No active WhatsApp connection')
   }
 
   // Upsert reaction in database
@@ -450,7 +451,7 @@ messageRoutes.delete('/:id/reaction', async (c) => {
     .executeTakeFirst()
 
   if (!message) {
-    return c.json({ error: 'Message not found' }, 404)
+    return notFound(c, 'Message')
   }
 
   // Delete reaction from database
@@ -516,7 +517,7 @@ messageRoutes.post(
     const { targetContactId } = body
 
     if (!targetContactId) {
-      return c.json({ error: 'targetContactId is required' }, 400)
+      return badRequest(c, 'targetContactId is required')
     }
 
     // Get original message
@@ -527,7 +528,7 @@ messageRoutes.post(
       .executeTakeFirst()
 
     if (!originalMessage) {
-      return c.json({ error: 'Message not found' }, 404)
+      return notFound(c, 'Message')
     }
 
     // Get target contact
@@ -538,7 +539,7 @@ messageRoutes.post(
       .executeTakeFirst()
 
     if (!targetContact || !targetContact.jid) {
-      return c.json({ error: 'Target contact not found or has no JID' }, 404)
+      return notFound(c, 'Target contact or JID')
     }
 
     // Get active WhatsApp connection
@@ -549,7 +550,7 @@ messageRoutes.post(
       .executeTakeFirst()
 
     if (!connection) {
-      return c.json({ error: 'No active WhatsApp connection' }, 400)
+      return badRequest(c, 'No active WhatsApp connection')
     }
 
     // Auto-assign target contact to the user if unassigned ("Assign to me on first reply")
@@ -625,16 +626,16 @@ messageRoutes.post(
       .executeTakeFirst()
 
     if (!originalMessage) {
-      return c.json({ error: 'Message not found' }, 404)
+      return notFound(c, 'Message')
     }
 
     // Verify this is a user's failed message
     if (!originalMessage.from_me) {
-      return c.json({ error: 'Can only retry sent messages' }, 400)
+      return badRequest(c, 'Can only retry sent messages')
     }
 
     if (originalMessage.status !== 'failed') {
-      return c.json({ error: 'Can only retry failed messages' }, 400)
+      return badRequest(c, 'Can only retry failed messages')
     }
 
     // Get contact JID
@@ -645,7 +646,7 @@ messageRoutes.post(
       .executeTakeFirst()
 
     if (!contact || !contact.jid) {
-      return c.json({ error: 'Contact not found or has no JID' }, 404)
+      return notFound(c, 'Contact or JID')
     }
 
     // Get active WhatsApp connection
@@ -656,7 +657,7 @@ messageRoutes.post(
       .executeTakeFirst()
 
     if (!connection) {
-      return c.json({ error: 'No active WhatsApp connection' }, 400)
+      return badRequest(c, 'No active WhatsApp connection')
     }
 
     // Create a new message entry for the retry
@@ -792,11 +793,11 @@ messageRoutes.post('/batch/star', async (c) => {
   const { messageIds, star = true } = body
 
   if (!Array.isArray(messageIds) || messageIds.length === 0) {
-    return c.json({ error: 'messageIds array is required' }, 400)
+    return badRequest(c, 'messageIds array is required')
   }
 
   if (messageIds.length > BATCH_LIMIT) {
-    return c.json({ error: `Maximum ${BATCH_LIMIT} messages per batch request` }, 400)
+    return badRequest(c, `Maximum ${BATCH_LIMIT} messages per batch request`)
   }
 
   // Update all messages
@@ -825,11 +826,11 @@ messageRoutes.post('/batch/delete', async (c) => {
   const { messageIds } = body
 
   if (!Array.isArray(messageIds) || messageIds.length === 0) {
-    return c.json({ error: 'messageIds array is required' }, 400)
+    return badRequest(c, 'messageIds array is required')
   }
 
   if (messageIds.length > BATCH_LIMIT) {
-    return c.json({ error: `Maximum ${BATCH_LIMIT} messages per batch request` }, 400)
+    return badRequest(c, `Maximum ${BATCH_LIMIT} messages per batch request`)
   }
 
   // Soft delete all messages

@@ -1,26 +1,22 @@
-import type { MiddlewareHandler } from "hono";
 import { Hono } from "hono";
 import { db } from "@whatsapp-web/database";
-import { toDbDate, toISOString } from "@whatsapp-web/shared";
+import {
+  toDbDate,
+  getContactDisplayName,
+  getContactName,
+  extractPhoneFromJid,
+} from "@whatsapp-web/shared";
 import { authMiddleware } from "../middleware/auth.js";
-import { tenantMiddleware, requirePermission } from "../middleware/tenant.js";
-import { PERMISSIONS } from "../services/permission.service.js";
-import { createRateLimitMiddleware } from "../middleware/rate-limit.js";
-import {
-  parseCSV,
-  mapToContactRow,
-  importContacts,
-  generateImportTemplate,
-} from "../services/import.service.js";
-import {
-  getCurrentAssignment,
-  getContactsWithLastMessage,
-} from "../services/contact.service.js";
-import { createNotification } from "../services/notification-history.service.js";
-import { createAuditLog, getClientIp } from "../services/audit.service.js";
-import { broadcastToCompany } from "./ws.js";
-import { rateLimitConfig, rateLimitStore } from "../lib/rate-limit-store.js";
+import { notFound, badRequest, serverError } from "../lib/errors.js";
+import { tenantMiddleware } from "../middleware/tenant.js";
+import { getContactsWithLastMessage } from "../services/contact.service.js";
 import { createLogger, formatError } from "../lib/logger.js";
+
+// Import sub-routes
+import { contactNotesRoutes } from "./contact-notes.routes.js";
+import { contactTagsRoutes } from "./contact-tags.routes.js";
+import { contactAssignmentRoutes } from "./contact-assignment.routes.js";
+import { contactImportRoutes } from "./contact-import.routes.js";
 
 const logger = createLogger("ContactRoutes");
 
@@ -81,16 +77,12 @@ export const contactRoutes = new Hono();
 contactRoutes.use("/*", authMiddleware);
 contactRoutes.use("/*", tenantMiddleware());
 
-// Import rate limiter: 5 requests per minute per user
-// Bulk contact import is resource-intensive, so we use a strict limit
-const importRateLimiter: MiddlewareHandler = rateLimitConfig.enabled
-  ? createRateLimitMiddleware({
-      store: rateLimitStore,
-      tier: rateLimitConfig.tiers.resource.import,
-      keyStrategy: "user",
-      keyPrefix: "resource-import",
-    })
-  : async (_c, next) => await next();
+// Mount sub-routes
+// Note: Import routes need to be mounted before /:id routes to avoid conflicts
+contactRoutes.route("/", contactImportRoutes);
+contactRoutes.route("/", contactNotesRoutes);
+contactRoutes.route("/", contactTagsRoutes);
+contactRoutes.route("/", contactAssignmentRoutes);
 
 /**
  * GET /contacts - List all contacts
@@ -120,25 +112,14 @@ contactRoutes.get("/", async (c) => {
 
   return c.json({
     data: contacts.map((contact) => {
-      // Extract phone number from JID if not available
-      const phoneFromJid = contact.jid?.split("@")[0] || null;
       return {
         id: contact.id,
         jid: contact.jid,
-        phoneNumber: contact.phone_number || phoneFromJid,
+        phoneNumber: contact.phone_number || extractPhoneFromJid(contact.jid),
         pushName: contact.push_name,
         customName: contact.custom_name,
-        displayName:
-          contact.custom_name ||
-          contact.push_name ||
-          contact.phone_number ||
-          phoneFromJid ||
-          "Unknown",
-        name:
-          contact.custom_name ||
-          contact.push_name ||
-          contact.phone_number ||
-          phoneFromJid,
+        displayName: getContactDisplayName(contact),
+        name: getContactName(contact),
         isGroup: contact.is_group,
         profilePictureUrl: contact.profile_picture_url,
         notesShared: contact.notes_shared,
@@ -185,7 +166,7 @@ contactRoutes.get("/:id", async (c) => {
     .executeTakeFirst();
 
   if (!contact) {
-    return c.json({ error: "Contact not found" }, 404);
+    return notFound(c, "Contact");
   }
 
   // Get assignment info - first get the assignment, then fetch user names separately
@@ -270,26 +251,14 @@ contactRoutes.get("/:id", async (c) => {
     .where("contact_tags.contact_id", "=", contactId)
     .execute();
 
-  // Extract phone number from JID if not available
-  const phoneFromJid = contact.jid?.split("@")[0] || null;
-
   return c.json({
     id: contact.id,
     jid: contact.jid,
-    phoneNumber: contact.phone_number || phoneFromJid,
+    phoneNumber: contact.phone_number || extractPhoneFromJid(contact.jid),
     pushName: contact.push_name,
     customName: contact.custom_name,
-    displayName:
-      contact.custom_name ||
-      contact.push_name ||
-      contact.phone_number ||
-      phoneFromJid ||
-      "Unknown",
-    name:
-      contact.custom_name ||
-      contact.push_name ||
-      contact.phone_number ||
-      phoneFromJid,
+    displayName: getContactDisplayName(contact),
+    name: getContactName(contact),
     isGroup: contact.is_group,
     profilePictureUrl: contact.profile_picture_url,
     notesShared: contact.notes_shared,
@@ -310,7 +279,7 @@ contactRoutes.post("/", async (c) => {
   const { phoneNumber, customName, notesShared } = body;
 
   if (!phoneNumber) {
-    return c.json({ error: "phoneNumber is required" }, 400);
+    return badRequest(c, "phoneNumber is required");
   }
 
   // Normalize phone number
@@ -324,10 +293,7 @@ contactRoutes.post("/", async (c) => {
 
   // Validate phone number length
   if (cleanedPhone.length < 6 || cleanedPhone.length > 15) {
-    return c.json(
-      { error: "Invalid phone number. Must be between 6 and 15 digits." },
-      400,
-    );
+    return badRequest(c, "Invalid phone number. Must be between 6 and 15 digits.");
   }
 
   const jid = `${cleanedPhone}@s.whatsapp.net`;
@@ -348,10 +314,7 @@ contactRoutes.post("/", async (c) => {
         existingContact: {
           id: existingContact.id,
           phoneNumber: existingContact.phone_number,
-          displayName:
-            existingContact.custom_name ||
-            existingContact.push_name ||
-            existingContact.phone_number,
+          displayName: getContactDisplayName(existingContact),
         },
       },
       409,
@@ -381,7 +344,7 @@ contactRoutes.post("/", async (c) => {
     .executeTakeFirst();
 
   if (!newContact) {
-    return c.json({ error: "Failed to create contact" }, 500);
+    return serverError(c, "Failed to create contact");
   }
 
   return c.json(
@@ -390,7 +353,7 @@ contactRoutes.post("/", async (c) => {
       jid: newContact.jid,
       phoneNumber: newContact.phone_number,
       customName: newContact.custom_name,
-      displayName: newContact.custom_name || newContact.phone_number,
+      displayName: getContactDisplayName(newContact),
       notesShared: newContact.notes_shared,
       isGroup: newContact.is_group,
       createdAt: newContact.created_at,
@@ -430,7 +393,7 @@ contactRoutes.patch("/:id", async (c) => {
     .executeTakeFirst();
 
   if (!updated) {
-    return c.json({ error: "Contact not found" }, 404);
+    return notFound(c, "Contact");
   }
 
   return c.json({
@@ -438,1009 +401,5 @@ contactRoutes.patch("/:id", async (c) => {
     customName: updated.custom_name,
     notesShared: updated.notes_shared,
     updatedAt: updated.updated_at,
-  });
-});
-
-/**
- * POST /contacts/:id/assign - Assign contact to a user (or self)
- * Body: { targetUserId?: string } - If not provided, assigns to current user
- *
- * When reassigning from another user (takeover):
- * - Creates notification for previous assignee
- * - Broadcasts WebSocket event for real-time update
- * - Logs to audit trail
- *
- * Permission: can_assign_contacts is required to assign to another user
- * Self-assignment (claiming unassigned contacts) is allowed for all members
- */
-contactRoutes.post("/:id/assign", async (c) => {
-  const tenantDb = c.get("tenantDb");
-  const user = c.get("user");
-  const companyId = c.get("companyId");
-  const permissions = c.get("companyPermissions");
-  const contactId = c.req.param("id");
-
-  // Parse optional body for targetUserId
-  let targetUserId = user.id;
-  try {
-    const body = await c.req.json();
-    if (body.targetUserId) {
-      targetUserId = body.targetUserId;
-    }
-  } catch {
-    // No body or invalid JSON - default to self-assignment
-  }
-
-  // Check permission: can_assign_contacts required to assign to someone else
-  if (targetUserId !== user.id && !permissions?.can_assign_contacts) {
-    return c.json(
-      {
-        error:
-          "Permission denied: can_assign_contacts is required to assign contacts to other users",
-      },
-      403,
-    );
-  }
-
-  // Check if contact exists
-  const contact = await tenantDb
-    .selectFrom("contacts")
-    .select(["id", "custom_name", "push_name", "phone_number", "jid"])
-    .where("id", "=", contactId)
-    .executeTakeFirst();
-
-  if (!contact) {
-    return c.json({ error: "Contact not found" }, 404);
-  }
-
-  // Get contact display name
-  const contactDisplayName =
-    contact.custom_name ||
-    contact.push_name ||
-    contact.phone_number ||
-    contact.jid?.split("@")[0] ||
-    "Unknown Contact";
-
-  // Get current assignment before updating
-  const previousAssignment = await getCurrentAssignment(tenantDb, contactId);
-  const previousAssigneeId = previousAssignment?.assigned_to;
-  const isTakeover = previousAssigneeId && previousAssigneeId !== targetUserId;
-
-  // Unassign previous assignment
-  await tenantDb
-    .updateTable("contact_assignments")
-    .set({ unassigned_at: toDbDate() })
-    .where("contact_id", "=", contactId)
-    .where("unassigned_at", "is", null)
-    .execute();
-
-  // Create new assignment
-  const assignment = await tenantDb
-    .insertInto("contact_assignments")
-    .values({
-      contact_id: contactId,
-      assigned_to: targetUserId,
-      assigned_by: user.id,
-    })
-    .returning(["id", "assigned_to", "assigned_by", "assigned_at"])
-    .executeTakeFirst();
-
-  // If this is a takeover (reassigning from another user), create notification
-  if (isTakeover && previousAssigneeId) {
-    // Create in-app notification for previous assignee
-    await createNotification(companyId, {
-      userId: previousAssigneeId,
-      notificationType: "assignment",
-      title: "Contact Reassigned",
-      message: `"${contactDisplayName}" has been reassigned to another team member`,
-      actionUrl: `/chat/${contactId}`,
-      metadata: {
-        contactId,
-        contactName: contactDisplayName,
-        reassignedBy: user.id,
-        newAssignee: targetUserId,
-      },
-    });
-
-    // Broadcast WebSocket event for real-time update
-    broadcastToCompany(companyId, {
-      type: "contact",
-      payload: {
-        event: "reassigned",
-        contactId,
-        contactName: contactDisplayName,
-        previousAssignee: previousAssigneeId,
-        newAssignee: targetUserId,
-        reassignedBy: user.id,
-      },
-      timestamp: toISOString(),
-    });
-
-    // Create audit log
-    await createAuditLog({
-      companyId,
-      userId: user.id,
-      action: "contact.assigned",
-      entityType: "contact",
-      entityId: contactId,
-      details: {
-        previousAssignee: previousAssigneeId,
-        newAssignee: targetUserId,
-        isTakeover: true,
-        contactName: contactDisplayName,
-      },
-      ipAddress: getClientIp(c.req.raw.headers),
-    });
-  } else {
-    // Regular assignment (not a takeover)
-    await createAuditLog({
-      companyId,
-      userId: user.id,
-      action: "contact.assigned",
-      entityType: "contact",
-      entityId: contactId,
-      details: {
-        assignee: targetUserId,
-        isTakeover: false,
-        contactName: contactDisplayName,
-      },
-      ipAddress: getClientIp(c.req.raw.headers),
-    });
-  }
-
-  return c.json({
-    success: true,
-    assignment: {
-      id: assignment?.id,
-      assignedTo: assignment?.assigned_to,
-      assignedBy: assignment?.assigned_by,
-      assignedAt: assignment?.assigned_at,
-    },
-    wasTakeover: !!isTakeover,
-    previousAssignee: previousAssigneeId || null,
-  });
-});
-
-/**
- * DELETE /contacts/:id/assign - Unassign contact
- * Requires can_assign_contacts permission
- */
-contactRoutes.delete(
-  "/:id/assign",
-  requirePermission(PERMISSIONS.CAN_ASSIGN_CONTACTS),
-  async (c) => {
-    const tenantDb = c.get("tenantDb");
-    const contactId = c.req.param("id");
-
-    await tenantDb
-      .updateTable("contact_assignments")
-      .set({ unassigned_at: toDbDate() })
-      .where("contact_id", "=", contactId)
-      .where("unassigned_at", "is", null)
-      .execute();
-
-    return c.json({ success: true });
-  },
-);
-
-/**
- * GET /contacts/:id/notes/shared - Get shared notes for a contact (paginated)
- */
-contactRoutes.get("/:id/notes/shared", async (c) => {
-  const tenantDb = c.get("tenantDb");
-  const contactId = c.req.param("id");
-  const limit = parseInt(c.req.query("limit") || "20", 10);
-  const offset = parseInt(c.req.query("offset") || "0", 10);
-
-  // Get total count
-  const countResult = await tenantDb
-    .selectFrom("contact_notes_shared")
-    .select((eb) => eb.fn.countAll().as("count"))
-    .where("contact_id", "=", contactId)
-    .executeTakeFirst();
-
-  const total = Number(countResult?.count || 0);
-
-  // Get notes with pagination
-  const notes = await tenantDb
-    .selectFrom("contact_notes_shared")
-    .selectAll()
-    .where("contact_id", "=", contactId)
-    .orderBy("created_at", "desc")
-    .limit(limit)
-    .offset(offset)
-    .execute();
-
-  return c.json({
-    data: notes.map((note) => ({
-      id: note.id,
-      contactId: note.contact_id,
-      userId: note.user_id,
-      authorName: note.author_name,
-      content: note.content,
-      createdAt: note.created_at,
-      updatedAt: note.updated_at,
-    })),
-    pagination: {
-      total,
-      limit,
-      offset,
-      hasMore: offset + notes.length < total,
-    },
-  });
-});
-
-/**
- * POST /contacts/:id/notes/shared - Create a new shared note
- */
-contactRoutes.post("/:id/notes/shared", async (c) => {
-  const tenantDb = c.get("tenantDb");
-  const user = c.get("user");
-  const companyId = c.get("companyId");
-  const contactId = c.req.param("id");
-  const body = await c.req.json();
-
-  const { content } = body;
-
-  if (!content || content.trim().length === 0) {
-    return c.json({ error: "Content is required" }, 400);
-  }
-
-  // Get author name from public.users
-  const userInfo = await db
-    .selectFrom("users")
-    .select(["name", "email"])
-    .where("id", "=", user.id)
-    .executeTakeFirst();
-
-  // Use name if available, otherwise use email prefix
-  let authorName = user.id; // Fallback to ID
-  if (userInfo?.name) {
-    authorName = userInfo.name;
-  } else if (userInfo?.email) {
-    const atIndex = userInfo.email.indexOf("@");
-    authorName =
-      atIndex > 0 ? userInfo.email.substring(0, atIndex) : userInfo.email;
-  }
-
-  // Create the note
-  const note = await tenantDb
-    .insertInto("contact_notes_shared")
-    .values({
-      contact_id: contactId,
-      user_id: user.id,
-      author_name: authorName,
-      content: content.trim(),
-    })
-    .returning([
-      "id",
-      "contact_id",
-      "user_id",
-      "author_name",
-      "content",
-      "created_at",
-      "updated_at",
-    ])
-    .executeTakeFirst();
-
-  if (!note) {
-    return c.json({ error: "Failed to create note" }, 500);
-  }
-
-  // Create audit log
-  await createAuditLog({
-    companyId,
-    userId: user.id,
-    action: "contact.note.created",
-    entityType: "contact_note",
-    entityId: note.id,
-    details: {
-      contactId,
-      noteType: "shared",
-      contentLength: content.trim().length,
-    },
-    ipAddress: getClientIp(c.req.raw.headers),
-  });
-
-  return c.json(
-    {
-      id: note.id,
-      contactId: note.contact_id,
-      userId: note.user_id,
-      authorName: note.author_name,
-      content: note.content,
-      createdAt: note.created_at,
-      updatedAt: note.updated_at,
-    },
-    201,
-  );
-});
-
-/**
- * PUT /contacts/:id/notes/shared/:noteId - Update a shared note (author only)
- */
-contactRoutes.put("/:id/notes/shared/:noteId", async (c) => {
-  const tenantDb = c.get("tenantDb");
-  const user = c.get("user");
-  const companyId = c.get("companyId");
-  const contactId = c.req.param("id");
-  const noteId = c.req.param("noteId");
-  const body = await c.req.json();
-
-  const { content } = body;
-
-  if (!content || content.trim().length === 0) {
-    return c.json({ error: "Content is required" }, 400);
-  }
-
-  // Check if note exists and user is the author
-  const existingNote = await tenantDb
-    .selectFrom("contact_notes_shared")
-    .select(["id", "user_id", "author_name"])
-    .where("id", "=", noteId)
-    .where("contact_id", "=", contactId)
-    .executeTakeFirst();
-
-  if (!existingNote) {
-    return c.json({ error: "Note not found" }, 404);
-  }
-
-  // Only the author can edit (System notes are read-only)
-  if (
-    existingNote.user_id !== user.id ||
-    existingNote.author_name === "System"
-  ) {
-    return c.json(
-      { error: "Permission denied: Only the note author can edit this note" },
-      403,
-    );
-  }
-
-  // Update the note
-  const updatedNote = await tenantDb
-    .updateTable("contact_notes_shared")
-    .set({
-      content: content.trim(),
-      updated_at: toDbDate(),
-    })
-    .where("id", "=", noteId)
-    .returning([
-      "id",
-      "contact_id",
-      "user_id",
-      "author_name",
-      "content",
-      "created_at",
-      "updated_at",
-    ])
-    .executeTakeFirst();
-
-  // Create audit log
-  await createAuditLog({
-    companyId,
-    userId: user.id,
-    action: "contact.note.updated",
-    entityType: "contact_note",
-    entityId: noteId,
-    details: {
-      contactId,
-      noteType: "shared",
-      contentLength: content.trim().length,
-    },
-    ipAddress: getClientIp(c.req.raw.headers),
-  });
-
-  return c.json({
-    id: updatedNote?.id,
-    contactId: updatedNote?.contact_id,
-    userId: updatedNote?.user_id,
-    authorName: updatedNote?.author_name,
-    content: updatedNote?.content,
-    createdAt: updatedNote?.created_at,
-    updatedAt: updatedNote?.updated_at,
-  });
-});
-
-/**
- * DELETE /contacts/:id/notes/shared/:noteId - Delete a shared note (author only)
- */
-contactRoutes.delete("/:id/notes/shared/:noteId", async (c) => {
-  const tenantDb = c.get("tenantDb");
-  const user = c.get("user");
-  const companyId = c.get("companyId");
-  const contactId = c.req.param("id");
-  const noteId = c.req.param("noteId");
-
-  // Check if note exists and user is the author
-  const existingNote = await tenantDb
-    .selectFrom("contact_notes_shared")
-    .select(["id", "user_id", "author_name"])
-    .where("id", "=", noteId)
-    .where("contact_id", "=", contactId)
-    .executeTakeFirst();
-
-  if (!existingNote) {
-    return c.json({ error: "Note not found" }, 404);
-  }
-
-  // Only the author can delete (System notes are read-only)
-  if (
-    existingNote.user_id !== user.id ||
-    existingNote.author_name === "System"
-  ) {
-    return c.json(
-      { error: "Permission denied: Only the note author can delete this note" },
-      403,
-    );
-  }
-
-  // Delete the note
-  await tenantDb
-    .deleteFrom("contact_notes_shared")
-    .where("id", "=", noteId)
-    .execute();
-
-  // Create audit log
-  await createAuditLog({
-    companyId,
-    userId: user.id,
-    action: "contact.note.deleted",
-    entityType: "contact_note",
-    entityId: noteId,
-    details: {
-      contactId,
-      noteType: "shared",
-    },
-    ipAddress: getClientIp(c.req.raw.headers),
-  });
-
-  return c.json({ success: true });
-});
-
-/**
- * GET /contacts/:id/notes/private - Get private notes for a contact (paginated)
- */
-contactRoutes.get("/:id/notes/private", async (c) => {
-  const tenantDb = c.get("tenantDb");
-  const user = c.get("user");
-  const contactId = c.req.param("id");
-  const limit = parseInt(c.req.query("limit") || "20", 10);
-  const offset = parseInt(c.req.query("offset") || "0", 10);
-
-  // Get total count
-  const countResult = await tenantDb
-    .selectFrom("contact_notes_private")
-    .select((eb) => eb.fn.countAll().as("count"))
-    .where("contact_id", "=", contactId)
-    .where("user_id", "=", user.id)
-    .executeTakeFirst();
-
-  const total = Number(countResult?.count || 0);
-
-  // Get notes with pagination (user can only see their own)
-  const notes = await tenantDb
-    .selectFrom("contact_notes_private")
-    .selectAll()
-    .where("contact_id", "=", contactId)
-    .where("user_id", "=", user.id)
-    .orderBy("created_at", "desc")
-    .limit(limit)
-    .offset(offset)
-    .execute();
-
-  return c.json({
-    data: notes.map((note) => ({
-      id: note.id,
-      contactId: note.contact_id,
-      userId: note.user_id,
-      content: note.content,
-      createdAt: note.created_at,
-      updatedAt: note.updated_at,
-    })),
-    pagination: {
-      total,
-      limit,
-      offset,
-      hasMore: offset + notes.length < total,
-    },
-  });
-});
-
-/**
- * POST /contacts/:id/notes/private - Create a new private note
- */
-contactRoutes.post("/:id/notes/private", async (c) => {
-  const tenantDb = c.get("tenantDb");
-  const user = c.get("user");
-  const contactId = c.req.param("id");
-  const body = await c.req.json();
-
-  const { content } = body;
-
-  if (!content || content.trim().length === 0) {
-    return c.json({ error: "Content is required" }, 400);
-  }
-
-  // Create new note
-  const note = await tenantDb
-    .insertInto("contact_notes_private")
-    .values({
-      contact_id: contactId,
-      user_id: user.id,
-      content: content.trim(),
-    })
-    .returning([
-      "id",
-      "contact_id",
-      "user_id",
-      "content",
-      "created_at",
-      "updated_at",
-    ])
-    .executeTakeFirst();
-
-  if (!note) {
-    return c.json({ error: "Failed to create note" }, 500);
-  }
-
-  return c.json(
-    {
-      id: note.id,
-      contactId: note.contact_id,
-      userId: note.user_id,
-      content: note.content,
-      createdAt: note.created_at,
-      updatedAt: note.updated_at,
-    },
-    201,
-  );
-});
-
-/**
- * PUT /contacts/:id/notes/private/:noteId - Update a specific private note
- */
-contactRoutes.put("/:id/notes/private/:noteId", async (c) => {
-  const tenantDb = c.get("tenantDb");
-  const user = c.get("user");
-  const contactId = c.req.param("id");
-  const noteId = c.req.param("noteId");
-  const body = await c.req.json();
-
-  const { content } = body;
-
-  if (!content || content.trim().length === 0) {
-    return c.json({ error: "Content is required" }, 400);
-  }
-
-  // Check if note exists and belongs to user
-  const existingNote = await tenantDb
-    .selectFrom("contact_notes_private")
-    .select(["id"])
-    .where("id", "=", noteId)
-    .where("contact_id", "=", contactId)
-    .where("user_id", "=", user.id)
-    .executeTakeFirst();
-
-  if (!existingNote) {
-    return c.json({ error: "Note not found" }, 404);
-  }
-
-  // Update the note
-  const updatedNote = await tenantDb
-    .updateTable("contact_notes_private")
-    .set({
-      content: content.trim(),
-      updated_at: toDbDate(),
-    })
-    .where("id", "=", noteId)
-    .returning([
-      "id",
-      "contact_id",
-      "user_id",
-      "content",
-      "created_at",
-      "updated_at",
-    ])
-    .executeTakeFirst();
-
-  return c.json({
-    id: updatedNote?.id,
-    contactId: updatedNote?.contact_id,
-    userId: updatedNote?.user_id,
-    content: updatedNote?.content,
-    createdAt: updatedNote?.created_at,
-    updatedAt: updatedNote?.updated_at,
-  });
-});
-
-/**
- * DELETE /contacts/:id/notes/private/:noteId - Delete a specific private note
- */
-contactRoutes.delete("/:id/notes/private/:noteId", async (c) => {
-  const tenantDb = c.get("tenantDb");
-  const user = c.get("user");
-  const contactId = c.req.param("id");
-  const noteId = c.req.param("noteId");
-
-  // Check if note exists and belongs to user
-  const existingNote = await tenantDb
-    .selectFrom("contact_notes_private")
-    .select(["id"])
-    .where("id", "=", noteId)
-    .where("contact_id", "=", contactId)
-    .where("user_id", "=", user.id)
-    .executeTakeFirst();
-
-  if (!existingNote) {
-    return c.json({ error: "Note not found" }, 404);
-  }
-
-  // Delete the note
-  await tenantDb
-    .deleteFrom("contact_notes_private")
-    .where("id", "=", noteId)
-    .execute();
-
-  return c.json({ success: true });
-});
-
-/**
- * POST /contacts/:id/tags - Add a tag to a contact
- */
-contactRoutes.post("/:id/tags", async (c) => {
-  const tenantDb = c.get("tenantDb");
-  const contactId = c.req.param("id");
-  const body = await c.req.json();
-
-  const { tagId } = body;
-
-  if (!tagId) {
-    return c.json({ error: "tagId is required" }, 400);
-  }
-
-  // Check if contact exists
-  const contact = await tenantDb
-    .selectFrom("contacts")
-    .select(["id"])
-    .where("id", "=", contactId)
-    .executeTakeFirst();
-
-  if (!contact) {
-    return c.json({ error: "Contact not found" }, 404);
-  }
-
-  // Check if tag exists
-  const tag = await tenantDb
-    .selectFrom("tags")
-    .select(["id", "name", "color"])
-    .where("id", "=", tagId)
-    .executeTakeFirst();
-
-  if (!tag) {
-    return c.json({ error: "Tag not found" }, 404);
-  }
-
-  // Check if already tagged
-  const existingTag = await tenantDb
-    .selectFrom("contact_tags")
-    .select(["contact_id", "tag_id"])
-    .where("contact_id", "=", contactId)
-    .where("tag_id", "=", tagId)
-    .executeTakeFirst();
-
-  if (existingTag) {
-    return c.json({ error: "Tag already exists on contact" }, 409);
-  }
-
-  // Add tag
-  await tenantDb
-    .insertInto("contact_tags")
-    .values({
-      contact_id: contactId,
-      tag_id: tagId,
-    })
-    .execute();
-
-  return c.json({
-    success: true,
-    tag: {
-      id: tag.id,
-      name: tag.name,
-      color: tag.color,
-    },
-  });
-});
-
-/**
- * DELETE /contacts/:id/tags/:tagId - Remove a tag from a contact
- */
-contactRoutes.delete("/:id/tags/:tagId", async (c) => {
-  const tenantDb = c.get("tenantDb");
-  const contactId = c.req.param("id");
-  const tagId = c.req.param("tagId");
-
-  await tenantDb
-    .deleteFrom("contact_tags")
-    .where("contact_id", "=", contactId)
-    .where("tag_id", "=", tagId)
-    .execute();
-
-  return c.json({ success: true });
-});
-
-/**
- * GET /contacts/:id/assignments - Get assignment history for a contact
- */
-contactRoutes.get("/:id/assignments", async (c) => {
-  const tenantDb = c.get("tenantDb");
-  const contactId = c.req.param("id");
-
-  // Check if contact exists
-  const contact = await tenantDb
-    .selectFrom("contacts")
-    .select(["id"])
-    .where("id", "=", contactId)
-    .executeTakeFirst();
-
-  if (!contact) {
-    return c.json({ error: "Contact not found" }, 404);
-  }
-
-  // Get all assignments (including historical ones)
-  const assignments = await tenantDb
-    .selectFrom("contact_assignments")
-    .select([
-      "id",
-      "assigned_to",
-      "assigned_by",
-      "assigned_at",
-      "unassigned_at",
-    ])
-    .where("contact_id", "=", contactId)
-    .orderBy("assigned_at", "desc")
-    .execute();
-
-  // Collect all user IDs and fetch their names
-  const userIds = assignments.flatMap((a) => [a.assigned_to, a.assigned_by]);
-  const userNames = await getUserNames(userIds);
-
-  return c.json({
-    data: assignments.map((assignment) => ({
-      id: assignment.id,
-      assignedTo: assignment.assigned_to,
-      assignedToName:
-        userNames.get(assignment.assigned_to) || assignment.assigned_to,
-      assignedBy: assignment.assigned_by,
-      assignedByName:
-        userNames.get(assignment.assigned_by) || assignment.assigned_by,
-      assignedAt: assignment.assigned_at,
-      unassignedAt: assignment.unassigned_at,
-      isActive: assignment.unassigned_at === null,
-    })),
-  });
-});
-
-/**
- * GET /contacts/import/template - Download CSV template for import
- */
-contactRoutes.get("/import/template", async (c) => {
-  const csv = generateImportTemplate();
-
-  c.header("Content-Type", "text/csv");
-  c.header(
-    "Content-Disposition",
-    'attachment; filename="contact-import-template.csv"',
-  );
-  return c.body(csv);
-});
-
-/**
- * POST /contacts/import - Import contacts from CSV
- * Accepts: multipart/form-data with file field, or JSON with csvContent field
- * Rate limit: 5 requests per minute per user
- */
-contactRoutes.post("/import", importRateLimiter, async (c) => {
-  const tenantDb = c.get("tenantDb");
-  const user = c.get("user");
-
-  let csvContent: string;
-  let updateExisting = true;
-  let createTags = true;
-
-  const contentType = c.req.header("Content-Type") || "";
-
-  if (contentType.includes("multipart/form-data")) {
-    // Handle file upload
-    const formData = await c.req.formData();
-    const file = formData.get("file");
-    const updateExistingParam = formData.get("updateExisting");
-    const createTagsParam = formData.get("createTags");
-
-    if (!file || !(file instanceof File)) {
-      return c.json({ error: "No file provided" }, 400);
-    }
-
-    // Check file type
-    const fileName = file.name.toLowerCase();
-    if (!fileName.endsWith(".csv")) {
-      return c.json({ error: "Only CSV files are supported" }, 400);
-    }
-
-    // Check file size (max 5MB)
-    if (file.size > 5 * 1024 * 1024) {
-      return c.json({ error: "File size must be less than 5MB" }, 400);
-    }
-
-    csvContent = await file.text();
-    updateExisting = updateExistingParam !== "false";
-    createTags = createTagsParam !== "false";
-  } else {
-    // Handle JSON with CSV content
-    const body = await c.req.json();
-    if (!body.csvContent) {
-      return c.json({ error: "csvContent is required" }, 400);
-    }
-
-    csvContent = body.csvContent;
-    updateExisting = body.updateExisting !== false;
-    createTags = body.createTags !== false;
-  }
-
-  // Parse CSV
-  const parsed = parseCSV(csvContent);
-  if (parsed.length === 0) {
-    return c.json({ error: "No valid data found in CSV" }, 400);
-  }
-
-  // Map to contact rows
-  const contactRows = parsed
-    .map(mapToContactRow)
-    .filter((row): row is NonNullable<typeof row> => row !== null);
-
-  if (contactRows.length === 0) {
-    return c.json(
-      {
-        error: "No valid contacts found. Ensure CSV has a phone_number column.",
-      },
-      400,
-    );
-  }
-
-  // Import contacts
-  const summary = await importContacts(tenantDb, contactRows, user.id, {
-    updateExisting,
-    createTags,
-  });
-
-  return c.json({
-    success: true,
-    summary: {
-      total: summary.total,
-      created: summary.created,
-      updated: summary.updated,
-      skipped: summary.skipped,
-      errors: summary.errors,
-    },
-    results: summary.results,
-  });
-});
-
-/**
- * POST /contacts/import/preview - Preview import without saving
- * Rate limit: 5 requests per minute per user
- */
-contactRoutes.post("/import/preview", importRateLimiter, async (c) => {
-  const tenantDb = c.get("tenantDb");
-
-  let csvContent: string;
-
-  const contentType = c.req.header("Content-Type") || "";
-
-  if (contentType.includes("multipart/form-data")) {
-    const formData = await c.req.formData();
-    const file = formData.get("file");
-
-    if (!file || !(file instanceof File)) {
-      return c.json({ error: "No file provided" }, 400);
-    }
-
-    csvContent = await file.text();
-  } else {
-    const body = await c.req.json();
-    if (!body.csvContent) {
-      return c.json({ error: "csvContent is required" }, 400);
-    }
-    csvContent = body.csvContent;
-  }
-
-  // Parse CSV
-  const parsed = parseCSV(csvContent);
-  if (parsed.length === 0) {
-    return c.json({ error: "No valid data found in CSV" }, 400);
-  }
-
-  // Map to contact rows
-  const contactRows = parsed
-    .map(mapToContactRow)
-    .filter((row): row is NonNullable<typeof row> => row !== null);
-
-  // Batch lookup: Check which contacts already exist in a single query
-  // Build arrays of phone numbers and JIDs for batch query
-  const lookupData = contactRows.map((row) => {
-    const phoneNumber = row.phone_number.replace(/[^\d]/g, "");
-    return {
-      originalPhoneNumber: row.phone_number,
-      cleanPhoneNumber: phoneNumber,
-      jid: `${phoneNumber}@s.whatsapp.net`,
-    };
-  });
-
-  // Single query to find all existing contacts at once
-  const existingContacts = await tenantDb
-    .selectFrom("contacts")
-    .select(["jid", "phone_number", "custom_name", "push_name"])
-    .where((eb) =>
-      eb.or([
-        // Match by JID
-        eb(
-          "jid",
-          "in",
-          lookupData.map((d) => d.jid),
-        ),
-        // Match by phone number (normalized)
-        eb(
-          "phone_number",
-          "in",
-          lookupData.map((d) => d.cleanPhoneNumber),
-        ),
-      ]),
-    )
-    .execute();
-
-  // Build a Map for O(1) existence checks - key can be jid or phone_number
-  const existingMap = new Map<
-    string,
-    { customName: string | null; pushName: string | null }
-  >();
-  for (const contact of existingContacts) {
-    if (contact.jid) {
-      existingMap.set(contact.jid, {
-        customName: contact.custom_name,
-        pushName: contact.push_name,
-      });
-    }
-    if (contact.phone_number) {
-      existingMap.set(contact.phone_number.replace(/[^\d]/g, ""), {
-        customName: contact.custom_name,
-        pushName: contact.push_name,
-      });
-    }
-  }
-
-  // Build preview using the Map for instant lookups
-  const preview = lookupData.map((data, index) => {
-    const existing =
-      existingMap.get(data.jid) || existingMap.get(data.cleanPhoneNumber);
-    const contactRow = contactRows[index];
-
-    return {
-      row: index + 1,
-      phoneNumber: data.originalPhoneNumber,
-      name: contactRow.custom_name || null,
-      notes: contactRow.notes || null,
-      tags: contactRow.tags || null,
-      exists: !!existing,
-      existingName: existing?.customName || existing?.pushName || null,
-    };
-  });
-
-  const existingCount = preview.filter((p) => p.exists).length;
-  const newCount = preview.filter((p) => !p.exists).length;
-
-  return c.json({
-    total: preview.length,
-    existingCount,
-    newCount,
-    preview: preview.slice(0, 100), // Limit preview to first 100 rows
   });
 });
