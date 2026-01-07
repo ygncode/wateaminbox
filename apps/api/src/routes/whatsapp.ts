@@ -757,3 +757,39 @@ whatsappRoutes.get(
     }
   },
 );
+
+/**
+ * GET /api/whatsapp/sync-status
+ * Gets sync status for all connections (for page reload handling)
+ */
+whatsappRoutes.get(
+  "/sync-status",
+  authMiddleware,
+  tenantFromHeader,
+  async (c) => {
+    const companyId = c.get("companyId");
+    const tenantDb = c.get("tenantDb");
+
+    try {
+      // Get all connections that are currently syncing
+      const syncingConnections = await tenantDb
+        .selectFrom("whatsapp_connections")
+        .select(["id", "name", "phone_number", "sync_status"])
+        .where("sync_status", "=", "syncing")
+        .execute();
+
+      return c.json({
+        success: true,
+        data: {
+          syncing: syncingConnections.length > 0,
+          connections: syncingConnections,
+        },
+      });
+    } catch (error) {
+      logger.error({ err: formatError(error) }, "Failed to get sync status");
+      throw new HTTPException(500, {
+        message: "Failed to get sync status",
+      });
+    }
+  },
+);

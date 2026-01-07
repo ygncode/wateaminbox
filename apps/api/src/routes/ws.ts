@@ -70,7 +70,10 @@ interface ServerMessage {
     | "typing:stop"
     | "notification:new"
     | "media:downloaded"
-    | "media:download_failed";
+    | "media:download_failed"
+    | "sync:start"
+    | "sync:progress"
+    | "sync:complete";
   connectionId?: string;
   payload?: unknown;
   timestamp: string;

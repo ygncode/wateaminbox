@@ -608,18 +608,22 @@ load_state() {
     fi
 
     TASKS_FILE=$(grep '"tasks_file"' "$STATE_FILE" | cut -d'"' -f4)
-    CURRENT_TASK=$(grep '"current_task"' "$STATE_FILE" | cut -d'"' -f4)
+    # For current_task, we need to handle multiline JSON - extract everything between first and last quote
+    CURRENT_TASK=$(sed -n 's/.*"current_task": "\(.*\)",$/\1/p' "$STATE_FILE" | head -1)
+    # If task is multiline, just get a summary (first line)
+    if [ -z "$CURRENT_TASK" ]; then
+        CURRENT_TASK=$(grep -A1 '"current_task"' "$STATE_FILE" | tail -1 | sed 's/^[[:space:]]*//' | cut -c1-100)
+    fi
     CURRENT_TASK_INDEX=$(grep '"current_task_index"' "$STATE_FILE" | grep -o '[0-9]*' | head -1)
     CURRENT_SLUG=$(grep '"slug"' "$STATE_FILE" | cut -d'"' -f4)
     CURRENT_TASK_TYPE=$(grep '"task_type"' "$STATE_FILE" | cut -d'"' -f4)
 
-    local phase
-    phase=$(grep '"phase"' "$STATE_FILE" | cut -d'"' -f4)
+    # Set global LOADED_PHASE instead of echoing (to avoid subshell issues)
+    LOADED_PHASE=$(grep '"phase"' "$STATE_FILE" | cut -d'"' -f4)
     local phase_name
     phase_name=$(grep '"phase_name"' "$STATE_FILE" | cut -d'"' -f4)
 
-    log_success "State loaded: phase=$phase ($phase_name), type=$CURRENT_TASK_TYPE, slug=$CURRENT_SLUG"
-    echo "$phase"
+    log_success "State loaded: phase=$LOADED_PHASE ($phase_name), type=$CURRENT_TASK_TYPE, slug=$CURRENT_SLUG"
 }
 
 clear_state() {
@@ -1284,8 +1288,9 @@ $context_instruction
 
 PROJECT TEST COMMANDS:
 - Backend: cd apps/api && bun test
-- E2E: cd apps/web && bunx playwright test
 - Go services: cd services/whatsapp && go test ./... and cd services/orchestrator && go test ./...
+
+NOTE: Skip E2E tests (Playwright) - they are not required for this workflow.
 
 YOUR TASK - KEEP LOOPING UNTIL ALL TESTS PASS:
 
@@ -1293,7 +1298,7 @@ YOUR TASK - KEEP LOOPING UNTIL ALL TESTS PASS:
 2. Determine which tests to run based on what files were changed:
    - Check: git diff main --name-only
    - apps/api/* → run backend tests
-   - apps/web/* → run E2E tests
+   - apps/web/* → skip (no E2E tests needed)
    - services/* → run Go tests
 
 3. Run the relevant tests
@@ -1619,14 +1624,57 @@ workflow_minimal() {
 run_task_workflow() {
     local start_phase="${1:-1}"
 
+    # Show task summary (truncate long tasks)
+    local task_summary
+    task_summary=$(echo "$CURRENT_TASK" | head -1 | cut -c1-80)
+
     log_info "=============================================="
-    log_info "TASK: $CURRENT_TASK"
+    log_info "TASK: $task_summary"
     log_info "TYPE: $CURRENT_TASK_TYPE"
     log_info "SLUG: $CURRENT_SLUG"
     log_info "=============================================="
 
     # Initialize shared context file for this task
     init_context
+
+    # Helper to ensure we're on the correct branch for resume
+    ensure_branch() {
+        local branch_name="improvement/$CURRENT_SLUG"
+        if git show-ref --verify --quiet "refs/heads/$branch_name"; then
+            log_info "Checking out branch: $branch_name"
+            git checkout "$branch_name" 2>/dev/null || true
+        else
+            log_warn "Branch $branch_name not found, staying on current branch"
+        fi
+    }
+
+    # Handle special resume phases that skip to specific points
+    if [ "$start_phase" = "testing" ]; then
+        log_info "Resuming from testing phase..."
+        ensure_branch
+        phase_testing
+        phase_create_pr_and_merge
+        return
+    fi
+
+    if [ "$start_phase" = "code-review" ] || [ "$start_phase" = "7" ]; then
+        log_info "Resuming from code-review phase..."
+        ensure_branch
+        phase_code_review
+        phase_testing
+        phase_create_pr_and_merge
+        return
+    fi
+
+    if [ "$start_phase" = "direct-fix" ]; then
+        log_info "Resuming from direct-fix phase..."
+        ensure_branch
+        phase_direct_fix
+        phase_code_review
+        phase_testing
+        phase_create_pr_and_merge
+        return
+    fi
 
     case "$CURRENT_TASK_TYPE" in
         "feature")
@@ -1648,7 +1696,7 @@ run_task_workflow() {
     esac
 
     log_success "=============================================="
-    log_success "TASK COMPLETED: $CURRENT_TASK"
+    log_success "TASK COMPLETED: $task_summary"
     log_success "=============================================="
 }
 
@@ -1669,12 +1717,12 @@ main() {
 
     # Handle resume mode
     if [ "$RESUME_MODE" = true ]; then
-        local phase
-        phase=$(load_state)
+        # load_state sets global variables directly (no subshell)
+        load_state
 
         # Convert phase string to number
         local start_phase=1
-        case "$phase" in
+        case "$LOADED_PHASE" in
             "1"|"requirements") start_phase=1 ;;
             "2"|"requirements-review") start_phase=2 ;;
             "3"|"specs") start_phase=3 ;;
@@ -1682,11 +1730,13 @@ main() {
             "5"|"subtasks") start_phase=5 ;;
             "6"|"execute") start_phase=6 ;;
             "7"|"code-review") start_phase=7 ;;
+            "testing") start_phase="testing" ;;
             "8"|"pr-merge") start_phase=8 ;;
+            "direct-fix") start_phase="direct-fix" ;;
             *) start_phase=1 ;;
         esac
 
-        log_info "Resuming from phase $start_phase ($phase)"
+        log_info "Resuming from phase $start_phase ($LOADED_PHASE)"
         run_task_workflow "$start_phase"
 
         # After completing resumed task, mark it and continue

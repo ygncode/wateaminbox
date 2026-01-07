@@ -26,6 +26,7 @@ const (
 	SubjectSendConfirmation = "WHATSAPP.events.%s.%s.send_confirmation"
 	SubjectTyping           = "WHATSAPP.events.%s.%s.typing"
 	SubjectReaction         = "WHATSAPP.events.%s.%s.reaction"
+	SubjectSyncStatus       = "WHATSAPP.events.%s.%s.sync_status"
 
 	// On-demand media download subjects
 	SubjectDownloadRequest  = "WHATSAPP.download.%s.%s.request"
@@ -214,6 +215,13 @@ type ReactionEvent struct {
 	ChatJID   string    `json:"chat_jid"`
 	Emoji     string    `json:"emoji"`
 	Timestamp time.Time `json:"timestamp"`
+}
+
+// SyncStatusPayload is the payload for sync status events.
+type SyncStatusPayload struct {
+	Status        string `json:"status"`        // "starting", "progress", "completed"
+	MessageCount  int    `json:"messageCount"`  // Total messages synced
+	Conversations int    `json:"conversations"` // Number of conversations processed
 }
 
 // Publisher handles publishing events to NATS.
@@ -619,6 +627,24 @@ func (p *Publisher) publish(subject string, event interface{}) error {
 
 	log.Printf("Published event to %s", subject)
 	return nil
+}
+
+// PublishSyncStatus publishes a sync status event.
+func (p *Publisher) PublishSyncStatus(status string, messageCount int, conversations int) error {
+	event := WhatsAppEvent{
+		Type:         "sync_status",
+		CompanyID:    p.companyID,
+		ConnectionID: p.connectionID,
+		Payload: SyncStatusPayload{
+			Status:        status,
+			MessageCount:  messageCount,
+			Conversations: conversations,
+		},
+		Timestamp: time.Now().Format(time.RFC3339),
+	}
+
+	subject := fmt.Sprintf(SubjectSyncStatus, p.companyID, p.connectionID)
+	return p.publish(subject, event)
 }
 
 // Close closes the NATS connection.

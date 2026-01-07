@@ -193,6 +193,7 @@ export async function up(db: Kysely<unknown>): Promise<void> {
           connected_by UUID,
           connected_at TIMESTAMPTZ,
           last_sync_at TIMESTAMPTZ,
+          sync_status VARCHAR(20),
           connection_order INTEGER DEFAULT 0,
           created_at TIMESTAMPTZ DEFAULT now() NOT NULL,
           updated_at TIMESTAMPTZ DEFAULT now() NOT NULL

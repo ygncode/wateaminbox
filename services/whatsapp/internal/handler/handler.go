@@ -183,6 +183,10 @@ func (h *Handler) HandleEvent(evt interface{}) {
 		h.handleStreamReplaced(v)
 	case *events.Picture:
 		h.handlePicture(v)
+	case *events.OfflineSyncPreview:
+		h.handleOfflineSyncPreview(v)
+	case *events.OfflineSyncCompleted:
+		h.handleOfflineSyncCompleted(v)
 	default:
 		// Ignore other events silently
 	}
@@ -630,11 +634,28 @@ func (h *Handler) handleHistorySync(evt *events.HistorySync) {
 		close(results)
 	}()
 
-	// Collect results
-	var totalMessages, totalMediaDeferred int
+	// Collect results and publish progress
+	var totalMessages, totalMediaDeferred, conversationsProcessed int
 	for result := range results {
 		totalMessages += result.messages
 		totalMediaDeferred += result.mediaDeferred
+		conversationsProcessed++
+
+		// Publish progress every 10 conversations to avoid flooding
+		if conversationsProcessed%10 == 0 {
+			if h.publisher != nil {
+				if err := h.publisher.PublishSyncStatus("progress", totalMessages, conversationsProcessed); err != nil {
+					log.Printf("Failed to publish sync progress: %v", err)
+				}
+			}
+		}
+	}
+
+	// Publish final progress if not on 10-conversation boundary
+	if conversationsProcessed%10 != 0 && h.publisher != nil {
+		if err := h.publisher.PublishSyncStatus("progress", totalMessages, conversationsProcessed); err != nil {
+			log.Printf("Failed to publish final sync progress: %v", err)
+		}
 	}
 
 	elapsed := time.Since(startTime)
@@ -1112,6 +1133,31 @@ func (h *Handler) handleReactionMessage(msg *events.Message) {
 			msg.Info.Timestamp,
 		); err != nil {
 			log.Printf("Failed to publish reaction event: %v", err)
+		}
+	}
+}
+
+// handleOfflineSyncPreview handles the sync starting event.
+func (h *Handler) handleOfflineSyncPreview(evt *events.OfflineSyncPreview) {
+	log.Printf("Offline sync starting: %d messages, %d notifications expected",
+		evt.Messages, evt.Notifications)
+
+	// Publish sync:starting event
+	if h.publisher != nil {
+		if err := h.publisher.PublishSyncStatus("starting", evt.Messages, 0); err != nil {
+			log.Printf("Failed to publish sync start: %v", err)
+		}
+	}
+}
+
+// handleOfflineSyncCompleted handles the sync completion event.
+func (h *Handler) handleOfflineSyncCompleted(evt *events.OfflineSyncCompleted) {
+	log.Printf("Offline sync completed")
+
+	// Publish sync:completed event
+	if h.publisher != nil {
+		if err := h.publisher.PublishSyncStatus("completed", 0, 0); err != nil {
+			log.Printf("Failed to publish sync complete: %v", err)
 		}
 	}
 }
