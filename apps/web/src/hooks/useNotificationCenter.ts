@@ -1,6 +1,6 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect } from 'react'
-import { toISOString } from '@whatsapp-web/shared'
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect } from "react";
+import { toISOString } from "@whatsapp-web/shared";
 import {
   deleteNotification,
   getNotifications,
@@ -9,21 +9,21 @@ import {
   markAllNotificationsAsRead,
   markNotificationAsRead,
   type NotificationListParams,
-} from '@/lib/api'
-import { useWebSocketContext } from '@/contexts/WebSocketProvider'
-import type { NotificationPayload } from '@/lib/websocket'
+} from "@/lib/api";
+import { useWebSocketContext } from "@/contexts/WebSocketProvider";
+import type { NotificationPayload } from "@/lib/websocket";
 
 // Stable empty params object to prevent query key instability
-const EMPTY_PARAMS: NotificationListParams = {}
+const EMPTY_PARAMS: NotificationListParams = {};
 
 /**
  * Hook for managing in-app notification center
  */
 export function useNotificationCenter(params?: NotificationListParams) {
   // Use stable empty params when none provided
-  const effectiveParams = params ?? EMPTY_PARAMS
-  const queryClient = useQueryClient()
-  const { subscribe, isConnected } = useWebSocketContext()
+  const effectiveParams = params ?? EMPTY_PARAMS;
+  const queryClient = useQueryClient();
+  const { subscribe, isConnected } = useWebSocketContext();
 
   // Fetch notifications list
   const {
@@ -32,11 +32,11 @@ export function useNotificationCenter(params?: NotificationListParams) {
     error: notificationsError,
     refetch: refetchNotifications,
   } = useQuery({
-    queryKey: ['notifications', effectiveParams],
+    queryKey: ["notifications", effectiveParams],
     queryFn: () => getNotifications(effectiveParams),
     staleTime: 30 * 1000, // 30 seconds
     refetchInterval: 60 * 1000, // Refetch every minute
-  })
+  });
 
   // Fetch unread count separately for the badge
   const {
@@ -44,11 +44,11 @@ export function useNotificationCenter(params?: NotificationListParams) {
     isLoading: isLoadingCount,
     refetch: refetchCount,
   } = useQuery({
-    queryKey: ['notifications', 'count'],
+    queryKey: ["notifications", "count"],
     queryFn: getUnreadNotificationCount,
     staleTime: 30 * 1000,
     refetchInterval: 30 * 1000, // Refetch count more frequently
-  })
+  });
 
   // Mark single notification as read
   const markAsReadMutation = useMutation({
@@ -56,21 +56,24 @@ export function useNotificationCenter(params?: NotificationListParams) {
     onSuccess: (updatedNotification) => {
       // Update the notifications list
       queryClient.setQueryData(
-        ['notifications', effectiveParams],
+        ["notifications", effectiveParams],
         (old: { data: InAppNotification[]; meta: unknown } | undefined) => {
-          if (!old) return old
+          if (!old) return old;
           return {
             ...old,
-            data: old.data.map((n) => (n.id === updatedNotification.id ? updatedNotification : n)),
-          }
-        }
-      )
+            data: old.data.map((n) =>
+              n.id === updatedNotification.id ? updatedNotification : n,
+            ),
+          };
+        },
+      );
       // Decrement the unread count
-      queryClient.setQueryData(['notifications', 'count'], (old: number | undefined) =>
-        old ? Math.max(0, old - 1) : 0
-      )
+      queryClient.setQueryData(
+        ["notifications", "count"],
+        (old: number | undefined) => (old ? Math.max(0, old - 1) : 0),
+      );
     },
-  })
+  });
 
   // Mark all notifications as read
   const markAllAsReadMutation = useMutation({
@@ -78,9 +81,9 @@ export function useNotificationCenter(params?: NotificationListParams) {
     onSuccess: () => {
       // Update the notifications list - mark all as read
       queryClient.setQueryData(
-        ['notifications', effectiveParams],
+        ["notifications", effectiveParams],
         (old: { data: InAppNotification[]; meta: unknown } | undefined) => {
-          if (!old) return old
+          if (!old) return old;
           return {
             ...old,
             data: old.data.map((n) => ({
@@ -88,13 +91,13 @@ export function useNotificationCenter(params?: NotificationListParams) {
               isRead: true,
               readAt: toISOString(),
             })),
-          }
-        }
-      )
+          };
+        },
+      );
       // Reset unread count to 0
-      queryClient.setQueryData(['notifications', 'count'], 0)
+      queryClient.setQueryData(["notifications", "count"], 0);
     },
-  })
+  });
 
   // Delete notification
   const deleteMutation = useMutation({
@@ -102,14 +105,17 @@ export function useNotificationCenter(params?: NotificationListParams) {
     onSuccess: (_, notificationId) => {
       // Remove from the notifications list
       queryClient.setQueryData(
-        ['notifications', effectiveParams],
+        ["notifications", effectiveParams],
         (
           old:
-            | { data: InAppNotification[]; meta: { total: number; unreadCount: number } }
-            | undefined
+            | {
+                data: InAppNotification[];
+                meta: { total: number; unreadCount: number };
+              }
+            | undefined,
         ) => {
-          if (!old) return old
-          const notification = old.data.find((n) => n.id === notificationId)
+          if (!old) return old;
+          const notification = old.data.find((n) => n.id === notificationId);
           return {
             ...old,
             data: old.data.filter((n) => n.id !== notificationId),
@@ -121,34 +127,37 @@ export function useNotificationCenter(params?: NotificationListParams) {
                   ? old.meta.unreadCount - 1
                   : old.meta.unreadCount,
             },
-          }
-        }
-      )
+          };
+        },
+      );
       // Potentially update unread count
-      refetchCount()
+      refetchCount();
     },
-  })
+  });
 
-  const notifications = notificationsData?.data || []
+  const notifications = notificationsData?.data || [];
   const meta = notificationsData?.meta || {
     total: 0,
     unreadCount: 0,
     limit: 20,
     offset: 0,
-  }
+  };
 
   // Listen for new notifications via WebSocket
   useEffect(() => {
-    if (!isConnected) return
+    if (!isConnected) return;
 
-    const unsubscribe = subscribe<NotificationPayload>('notification:new', () => {
-      // Refetch notifications and count when a new notification arrives
-      void refetchNotifications()
-      void refetchCount()
-    })
+    const unsubscribe = subscribe<NotificationPayload>(
+      "notification:new",
+      () => {
+        // Refetch notifications and count when a new notification arrives
+        void refetchNotifications();
+        void refetchCount();
+      },
+    );
 
-    return unsubscribe
-  }, [isConnected, subscribe, refetchNotifications, refetchCount])
+    return unsubscribe;
+  }, [isConnected, subscribe, refetchNotifications, refetchCount]);
 
   return {
     // Data
@@ -166,19 +175,21 @@ export function useNotificationCenter(params?: NotificationListParams) {
     error: notificationsError,
 
     // Actions
-    markAsRead: (notificationId: string) => markAsReadMutation.mutate(notificationId),
+    markAsRead: (notificationId: string) =>
+      markAsReadMutation.mutate(notificationId),
     markAllAsRead: () => markAllAsReadMutation.mutate(),
-    deleteNotification: (notificationId: string) => deleteMutation.mutate(notificationId),
+    deleteNotification: (notificationId: string) =>
+      deleteMutation.mutate(notificationId),
     refresh: () => {
-      refetchNotifications()
-      refetchCount()
+      refetchNotifications();
+      refetchCount();
     },
 
     // Mutation states
     isMarkingAsRead: markAsReadMutation.isPending,
     isMarkingAllAsRead: markAllAsReadMutation.isPending,
     isDeleting: deleteMutation.isPending,
-  }
+  };
 }
 
-export default useNotificationCenter
+export default useNotificationCenter;

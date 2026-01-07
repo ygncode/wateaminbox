@@ -1,34 +1,35 @@
-import { ArrowLeft, LayoutDashboard } from 'lucide-react'
-import { useTranslation } from 'react-i18next'
-import { Link, useLocation } from 'react-router-dom'
-import { Dashboard } from '../components/dashboard/Dashboard'
-import { AppLayout } from '../components/layout/app-layout'
-import { useAuth } from '../contexts/auth-context'
+import { ArrowLeft, LayoutDashboard } from "lucide-react";
+import { useTranslation } from "react-i18next";
+import { Link, useLocation } from "react-router-dom";
+import { Dashboard } from "../components/dashboard/Dashboard";
+import { AppLayout } from "../components/layout/app-layout";
+import { useAuth } from "../contexts/auth-context";
 
 /**
  * Dashboard page
  * Shows analytics and statistics for the company
  */
 interface LocationState {
-  from?: string
+  from?: string;
 }
 
 export function DashboardPage() {
-  const { t } = useTranslation()
-  const { currentCompanyId, companies } = useAuth()
-  const location = useLocation()
-  const locationState = location.state as LocationState | null
+  const { t } = useTranslation();
+  const { currentCompanyId, companies } = useAuth();
+  const location = useLocation();
+  const locationState = location.state as LocationState | null;
 
   // Determine back navigation based on where user came from
-  const backTo = locationState?.from === 'settings' ? '/settings' : '/chat'
+  const backTo = locationState?.from === "settings" ? "/settings" : "/chat";
   const backLabel =
-    locationState?.from === 'settings'
-      ? t('common.backToSettings', 'Back to Settings')
-      : t('common.backToChat', 'Back to Chat')
+    locationState?.from === "settings"
+      ? t("common.backToSettings", "Back to Settings")
+      : t("common.backToChat", "Back to Chat");
 
-  const companyId = currentCompanyId || companies?.[0]?.id
-  const currentCompany = companies?.find((c) => c.id === companyId)
-  const isAdmin = currentCompany?.role === 'admin' || currentCompany?.role === 'owner'
+  const companyId = currentCompanyId || companies?.[0]?.id;
+  const currentCompany = companies?.find((c) => c.id === companyId);
+  const isAdmin =
+    currentCompany?.role === "admin" || currentCompany?.role === "owner";
 
   return (
     <AppLayout>
@@ -57,10 +58,10 @@ export function DashboardPage() {
               </div>
               <div className="hidden sm:block">
                 <h1 className="text-lg font-semibold text-gray-900 dark:text-dark-text-primary tracking-tight">
-                  {t('dashboard.title', 'Dashboard')}
+                  {t("dashboard.title", "Dashboard")}
                 </h1>
                 <p className="text-xs text-gray-500 dark:text-dark-text-secondary -mt-0.5">
-                  {t('dashboard.subtitle', 'Analytics & Insights')}
+                  {t("dashboard.subtitle", "Analytics & Insights")}
                 </p>
               </div>
             </div>
@@ -77,12 +78,15 @@ export function DashboardPage() {
           ) : (
             <div className="flex items-center justify-center h-full">
               <p className="text-gray-500 dark:text-dark-text-secondary">
-                {t('dashboard.noCompany', 'Please select a company to view dashboard')}
+                {t(
+                  "dashboard.noCompany",
+                  "Please select a company to view dashboard",
+                )}
               </p>
             </div>
           )}
         </div>
       </div>
     </AppLayout>
-  )
+  );
 }

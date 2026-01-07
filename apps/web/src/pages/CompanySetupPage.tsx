@@ -1,16 +1,16 @@
-import * as React from 'react'
-import { useNavigate } from 'react-router-dom'
-import { useForm } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
-import { useAuth } from '../contexts/auth-context'
-import { api } from '../lib/api'
-import { companySetupSchema, type CompanySetupFormData } from '../lib/schemas'
+import * as React from "react";
+import { useNavigate } from "react-router-dom";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useAuth } from "../contexts/auth-context";
+import { api } from "../lib/api";
+import { companySetupSchema, type CompanySetupFormData } from "../lib/schemas";
 
 export function CompanySetupPage() {
-  const navigate = useNavigate()
-  const { refreshSession, logout } = useAuth()
-  const [isLoading, setIsLoading] = React.useState(false)
-  const [serverError, setServerError] = React.useState<string | null>(null)
+  const navigate = useNavigate();
+  const { refreshSession, logout } = useAuth();
+  const [isLoading, setIsLoading] = React.useState(false);
+  const [serverError, setServerError] = React.useState<string | null>(null);
 
   const {
     register,
@@ -19,25 +19,27 @@ export function CompanySetupPage() {
   } = useForm<CompanySetupFormData>({
     resolver: zodResolver(companySetupSchema),
     defaultValues: {
-      name: '',
+      name: "",
     },
-  })
+  });
 
   const onSubmit = async (data: CompanySetupFormData) => {
-    setIsLoading(true)
-    setServerError(null)
+    setIsLoading(true);
+    setServerError(null);
 
     try {
-      await api.post('/companies', { name: data.name.trim() })
+      await api.post("/companies", { name: data.name.trim() });
       // Refresh session to get the new company
-      await refreshSession()
-      navigate('/chat')
+      await refreshSession();
+      navigate("/chat");
     } catch (err) {
-      setServerError(err instanceof Error ? err.message : 'Failed to create company')
+      setServerError(
+        err instanceof Error ? err.message : "Failed to create company",
+      );
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }
+  };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-100 dark:bg-dark-primary">
@@ -87,12 +89,16 @@ export function CompanySetupPage() {
                 placeholder="Enter your company name"
                 className="w-full px-4 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent dark:bg-dark-tertiary dark:text-dark-text-primary dark:placeholder:text-dark-text-tertiary"
                 disabled={isLoading}
-                aria-invalid={errors.name ? 'true' : 'false'}
-                aria-describedby={errors.name ? 'companyName-error' : undefined}
-                {...register('name')}
+                aria-invalid={errors.name ? "true" : "false"}
+                aria-describedby={errors.name ? "companyName-error" : undefined}
+                {...register("name")}
               />
               {errors.name && (
-                <p id="companyName-error" className="mt-1 text-xs text-red-500 dark:text-red-400" role="alert">
+                <p
+                  id="companyName-error"
+                  className="mt-1 text-xs text-red-500 dark:text-red-400"
+                  role="alert"
+                >
                   {errors.name.message}
                 </p>
               )}
@@ -103,7 +109,7 @@ export function CompanySetupPage() {
               disabled={isLoading}
               className="w-full bg-green-500 text-white py-2 px-4 rounded-lg hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
-              {isLoading ? 'Creating...' : 'Create Company'}
+              {isLoading ? "Creating..." : "Create Company"}
             </button>
           </form>
 
@@ -118,5 +124,5 @@ export function CompanySetupPage() {
         </div>
       </div>
     </div>
-  )
+  );
 }

@@ -1,87 +1,100 @@
-import { AlertCircle, Check, Download, FileText, Loader2, Upload, X } from 'lucide-react'
-import { useRef, useState } from 'react'
+import {
+  AlertCircle,
+  Check,
+  Download,
+  FileText,
+  Loader2,
+  Upload,
+  X,
+} from "lucide-react";
+import { useRef, useState } from "react";
 import {
   type ContactImportPreviewResponse,
   type ContactImportResponse,
   downloadImportTemplate,
   importContacts,
   previewContactImport,
-} from '../../lib/api'
+} from "../../lib/api";
 
 interface ContactImportProps {
-  onImportComplete?: () => void
-  onClose?: () => void
+  onImportComplete?: () => void;
+  onClose?: () => void;
 }
 
-type ImportStep = 'upload' | 'preview' | 'importing' | 'complete'
+type ImportStep = "upload" | "preview" | "importing" | "complete";
 
-export function ContactImport({ onImportComplete, onClose }: ContactImportProps) {
-  const [step, setStep] = useState<ImportStep>('upload')
-  const [file, setFile] = useState<File | null>(null)
-  const [preview, setPreview] = useState<ContactImportPreviewResponse | null>(null)
-  const [result, setResult] = useState<ContactImportResponse | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const [loading, setLoading] = useState(false)
-  const [updateExisting, setUpdateExisting] = useState(true)
-  const [createTags, setCreateTags] = useState(true)
-  const fileInputRef = useRef<HTMLInputElement>(null)
+export function ContactImport({
+  onImportComplete,
+  onClose,
+}: ContactImportProps) {
+  const [step, setStep] = useState<ImportStep>("upload");
+  const [file, setFile] = useState<File | null>(null);
+  const [preview, setPreview] = useState<ContactImportPreviewResponse | null>(
+    null,
+  );
+  const [result, setResult] = useState<ContactImportResponse | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [updateExisting, setUpdateExisting] = useState(true);
+  const [createTags, setCreateTags] = useState(true);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileSelect = async (selectedFile: File) => {
-    setFile(selectedFile)
-    setError(null)
-    setLoading(true)
+    setFile(selectedFile);
+    setError(null);
+    setLoading(true);
 
     try {
-      const previewData = await previewContactImport(selectedFile)
-      setPreview(previewData)
-      setStep('preview')
+      const previewData = await previewContactImport(selectedFile);
+      setPreview(previewData);
+      setStep("preview");
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to preview file')
+      setError(err instanceof Error ? err.message : "Failed to preview file");
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault()
-    const droppedFile = e.dataTransfer.files[0]
-    if (droppedFile?.name.endsWith('.csv')) {
-      handleFileSelect(droppedFile)
+    e.preventDefault();
+    const droppedFile = e.dataTransfer.files[0];
+    if (droppedFile?.name.endsWith(".csv")) {
+      handleFileSelect(droppedFile);
     } else {
-      setError('Please upload a CSV file')
+      setError("Please upload a CSV file");
     }
-  }
+  };
 
   const handleImport = async () => {
-    if (!file) return
+    if (!file) return;
 
-    setStep('importing')
-    setLoading(true)
-    setError(null)
+    setStep("importing");
+    setLoading(true);
+    setError(null);
 
     try {
       const importResult = await importContacts(file, {
         updateExisting,
         createTags,
-      })
-      setResult(importResult)
-      setStep('complete')
-      onImportComplete?.()
+      });
+      setResult(importResult);
+      setStep("complete");
+      onImportComplete?.();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Import failed')
-      setStep('preview')
+      setError(err instanceof Error ? err.message : "Import failed");
+      setStep("preview");
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   const handleReset = () => {
-    setStep('upload')
-    setFile(null)
-    setPreview(null)
-    setResult(null)
-    setError(null)
-  }
+    setStep("upload");
+    setFile(null);
+    setPreview(null);
+    setResult(null);
+    setError(null);
+  };
 
   return (
     <div className="bg-white dark:bg-dark-elevated rounded-lg shadow-lg dark:shadow-black/30 max-w-2xl w-full max-h-[80vh] overflow-hidden flex flex-col">
@@ -109,7 +122,7 @@ export function ContactImport({ onImportComplete, onClose }: ContactImportProps)
           </div>
         )}
 
-        {step === 'upload' && (
+        {step === "upload" && (
           <div className="space-y-6">
             {/* Upload area */}
             <div
@@ -124,8 +137,8 @@ export function ContactImport({ onImportComplete, onClose }: ContactImportProps)
                 accept=".csv"
                 className="hidden"
                 onChange={(e) => {
-                  const selectedFile = e.target.files?.[0]
-                  if (selectedFile) handleFileSelect(selectedFile)
+                  const selectedFile = e.target.files?.[0];
+                  if (selectedFile) handleFileSelect(selectedFile);
                 }}
               />
               {loading ? (
@@ -162,7 +175,8 @@ export function ContactImport({ onImportComplete, onClose }: ContactImportProps)
               </p>
               <ul className="text-sm text-gray-600 dark:text-dark-text-secondary space-y-1">
                 <li>
-                  <strong>phone_number</strong> (required) - Phone number with country code
+                  <strong>phone_number</strong> (required) - Phone number with
+                  country code
                 </li>
                 <li>
                   <strong>name</strong> - Contact display name
@@ -178,7 +192,7 @@ export function ContactImport({ onImportComplete, onClose }: ContactImportProps)
           </div>
         )}
 
-        {step === 'preview' && preview && (
+        {step === "preview" && preview && (
           <div className="space-y-6">
             {/* Summary */}
             <div className="grid grid-cols-3 gap-4">
@@ -186,19 +200,25 @@ export function ContactImport({ onImportComplete, onClose }: ContactImportProps)
                 <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
                   {preview.total}
                 </div>
-                <div className="text-sm text-blue-600 dark:text-blue-400">Total contacts</div>
+                <div className="text-sm text-blue-600 dark:text-blue-400">
+                  Total contacts
+                </div>
               </div>
               <div className="bg-green-50 dark:bg-green-900/30 rounded-lg p-4 text-center">
                 <div className="text-2xl font-bold text-green-600 dark:text-green-400">
                   {preview.newCount}
                 </div>
-                <div className="text-sm text-green-600 dark:text-green-400">New contacts</div>
+                <div className="text-sm text-green-600 dark:text-green-400">
+                  New contacts
+                </div>
               </div>
               <div className="bg-yellow-50 dark:bg-yellow-900/30 rounded-lg p-4 text-center">
                 <div className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">
                   {preview.existingCount}
                 </div>
-                <div className="text-sm text-yellow-600 dark:text-yellow-400">Already exist</div>
+                <div className="text-sm text-yellow-600 dark:text-yellow-400">
+                  Already exist
+                </div>
               </div>
             </div>
 
@@ -249,7 +269,10 @@ export function ContactImport({ onImportComplete, onClose }: ContactImportProps)
                 </thead>
                 <tbody className="divide-y divide-gray-200 dark:divide-dark-border">
                   {preview.preview.slice(0, 10).map((row) => (
-                    <tr key={row.row} className="hover:bg-gray-50 dark:hover:bg-dark-tertiary">
+                    <tr
+                      key={row.row}
+                      className="hover:bg-gray-50 dark:hover:bg-dark-tertiary"
+                    >
                       <td className="px-4 py-2 text-gray-500 dark:text-dark-text-tertiary">
                         {row.row}
                       </td>
@@ -257,7 +280,7 @@ export function ContactImport({ onImportComplete, onClose }: ContactImportProps)
                         {row.phoneNumber}
                       </td>
                       <td className="px-4 py-2 text-gray-900 dark:text-dark-text-primary">
-                        {row.name || '-'}
+                        {row.name || "-"}
                       </td>
                       <td className="px-4 py-2">
                         {row.exists ? (
@@ -285,7 +308,7 @@ export function ContactImport({ onImportComplete, onClose }: ContactImportProps)
           </div>
         )}
 
-        {step === 'importing' && (
+        {step === "importing" && (
           <div className="py-12 text-center">
             <Loader2 className="h-12 w-12 mx-auto text-blue-500 dark:text-blue-400 animate-spin" />
             <p className="mt-4 text-lg font-medium text-gray-700 dark:text-dark-text-primary">
@@ -297,7 +320,7 @@ export function ContactImport({ onImportComplete, onClose }: ContactImportProps)
           </div>
         )}
 
-        {step === 'complete' && result && (
+        {step === "complete" && result && (
           <div className="space-y-6">
             {/* Result summary */}
             <div className="text-center">
@@ -314,25 +337,33 @@ export function ContactImport({ onImportComplete, onClose }: ContactImportProps)
                 <div className="text-2xl font-bold text-green-600 dark:text-green-400">
                   {result.summary.created}
                 </div>
-                <div className="text-sm text-green-600 dark:text-green-400">Created</div>
+                <div className="text-sm text-green-600 dark:text-green-400">
+                  Created
+                </div>
               </div>
               <div className="bg-blue-50 dark:bg-blue-900/30 rounded-lg p-4 text-center">
                 <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
                   {result.summary.updated}
                 </div>
-                <div className="text-sm text-blue-600 dark:text-blue-400">Updated</div>
+                <div className="text-sm text-blue-600 dark:text-blue-400">
+                  Updated
+                </div>
               </div>
               <div className="bg-gray-50 dark:bg-dark-tertiary rounded-lg p-4 text-center">
                 <div className="text-2xl font-bold text-gray-600 dark:text-dark-text-secondary">
                   {result.summary.skipped}
                 </div>
-                <div className="text-sm text-gray-600 dark:text-dark-text-secondary">Skipped</div>
+                <div className="text-sm text-gray-600 dark:text-dark-text-secondary">
+                  Skipped
+                </div>
               </div>
               <div className="bg-red-50 dark:bg-red-900/30 rounded-lg p-4 text-center">
                 <div className="text-2xl font-bold text-red-600 dark:text-red-400">
                   {result.summary.errors}
                 </div>
-                <div className="text-sm text-red-600 dark:text-red-400">Errors</div>
+                <div className="text-sm text-red-600 dark:text-red-400">
+                  Errors
+                </div>
               </div>
             </div>
 
@@ -344,7 +375,7 @@ export function ContactImport({ onImportComplete, onClose }: ContactImportProps)
                 </div>
                 <div className="max-h-40 overflow-y-auto">
                   {result.results
-                    .filter((r) => r.status === 'error')
+                    .filter((r) => r.status === "error")
                     .map((r) => (
                       <div
                         key={r.row}
@@ -353,7 +384,9 @@ export function ContactImport({ onImportComplete, onClose }: ContactImportProps)
                         <span>
                           Row {r.row}: {r.phoneNumber}
                         </span>
-                        <span className="text-red-600 dark:text-red-400">{r.error}</span>
+                        <span className="text-red-600 dark:text-red-400">
+                          {r.error}
+                        </span>
                       </div>
                     ))}
                 </div>
@@ -365,14 +398,14 @@ export function ContactImport({ onImportComplete, onClose }: ContactImportProps)
 
       {/* Footer */}
       <div className="flex items-center justify-between px-6 py-4 border-t border-gray-200 dark:border-dark-border bg-gray-50 dark:bg-dark-secondary">
-        {step === 'upload' && (
+        {step === "upload" && (
           <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-dark-text-secondary">
             <FileText className="h-4 w-4" />
             Supported format: CSV
           </div>
         )}
 
-        {step === 'preview' && (
+        {step === "preview" && (
           <button
             onClick={handleReset}
             className="text-gray-600 dark:text-dark-text-secondary hover:text-gray-800 dark:hover:text-dark-text-primary"
@@ -381,7 +414,7 @@ export function ContactImport({ onImportComplete, onClose }: ContactImportProps)
           </button>
         )}
 
-        {step === 'complete' && (
+        {step === "complete" && (
           <button
             onClick={handleReset}
             className="text-gray-600 dark:text-dark-text-secondary hover:text-gray-800 dark:hover:text-dark-text-primary"
@@ -391,16 +424,16 @@ export function ContactImport({ onImportComplete, onClose }: ContactImportProps)
         )}
 
         <div className="flex gap-3">
-          {onClose && step !== 'importing' && (
+          {onClose && step !== "importing" && (
             <button
               onClick={onClose}
               className="px-4 py-2 text-gray-700 dark:text-dark-text-primary hover:bg-gray-100 dark:hover:bg-dark-tertiary rounded-lg"
             >
-              {step === 'complete' ? 'Done' : 'Cancel'}
+              {step === "complete" ? "Done" : "Cancel"}
             </button>
           )}
 
-          {step === 'preview' && (
+          {step === "preview" && (
             <button
               onClick={handleImport}
               disabled={loading}
@@ -412,5 +445,5 @@ export function ContactImport({ onImportComplete, onClose }: ContactImportProps)
         </div>
       </div>
     </div>
-  )
+  );
 }

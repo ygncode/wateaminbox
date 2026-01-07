@@ -1,5 +1,5 @@
-import { useQueryClient } from '@tanstack/react-query'
-import type { PaginatedMessages } from '@whatsapp-web/shared'
+import { useQueryClient } from "@tanstack/react-query";
+import type { PaginatedMessages } from "@whatsapp-web/shared";
 import {
   createContext,
   type ReactNode,
@@ -8,11 +8,11 @@ import {
   useEffect,
   useRef,
   useState,
-} from 'react'
-import { useAuth } from './auth-context'
-import { chatKeys } from '../hooks/useChats'
-import { infiniteMessageKeys } from '../hooks/useInfiniteMessages'
-import { getAccessToken, getCompanyId } from '../lib/api'
+} from "react";
+import { useAuth } from "./auth-context";
+import { chatKeys } from "../hooks/useChats";
+import { infiniteMessageKeys } from "../hooks/useInfiniteMessages";
+import { api, getAccessToken, getCompanyId } from "../lib/api";
 import {
   type ConnectionStatus,
   type ConversationReadPayload,
@@ -28,178 +28,211 @@ import {
   type TypingPayload,
   type WebSocketClient,
   type WebSocketEventType,
-} from '../lib/websocket'
-import { type TypingIndicator, useChatStore } from '../stores/chat-store'
-import { useWebSocketStore } from '../stores/websocket-store'
+} from "../lib/websocket";
+import { type TypingIndicator, useChatStore } from "../stores/chat-store";
+import { useWebSocketStore } from "../stores/websocket-store";
+
+// Type for the /api/whatsapp/sync-status response
+interface SyncStatusResponse {
+  syncing: boolean;
+  connections: Array<{
+    id: string;
+    name: string | null;
+    phone_number: string | null;
+    sync_status: string | null;
+  }>;
+}
 
 // Sync state type
 export interface SyncState {
-  connectionId: string
-  conversations: number
-  startedAt: Date
+  connectionId: string;
+  conversations: number;
+  startedAt: Date;
 }
 
 // Context value type
 interface WebSocketContextValue {
   // Connection state
-  status: ConnectionStatus
-  isConnected: boolean
-  isConnecting: boolean
-  error: string | null
+  status: ConnectionStatus;
+  isConnected: boolean;
+  isConnecting: boolean;
+  error: string | null;
 
   // Sync state
-  syncingConnections: Map<string, SyncState>
+  syncingConnections: Map<string, SyncState>;
+  clearSyncingConnections: () => void;
 
   // Connection methods
-  connect: () => void
-  disconnect: () => void
-  reconnect: () => void
+  connect: () => void;
+  disconnect: () => void;
+  reconnect: () => void;
 
   // Messaging methods
-  send: <T>(type: string, payload: T) => boolean
-  subscribe: <T>(event: WebSocketEventType, handler: EventHandler<T>) => () => void
+  send: <T>(type: string, payload: T) => boolean;
+  subscribe: <T>(
+    event: WebSocketEventType,
+    handler: EventHandler<T>,
+  ) => () => void;
 
   // Convenience methods
-  sendTypingStart: (conversationId: string) => void
-  sendTypingStop: (conversationId: string) => void
-  sendMarkAsRead: (conversationId: string, messageIds: string[]) => void
+  sendTypingStart: (conversationId: string) => void;
+  sendTypingStop: (conversationId: string) => void;
+  sendMarkAsRead: (conversationId: string, messageIds: string[]) => void;
 }
 
-const WebSocketContext = createContext<WebSocketContextValue | null>(null)
+const WebSocketContext = createContext<WebSocketContextValue | null>(null);
 
 // Typing timeout in milliseconds
-const TYPING_TIMEOUT = 5000
+const TYPING_TIMEOUT = 5000;
 
 interface WebSocketProviderProps {
-  children: ReactNode
-  autoConnect?: boolean
+  children: ReactNode;
+  autoConnect?: boolean;
 }
 
-export function WebSocketProvider({ children, autoConnect = true }: WebSocketProviderProps) {
-  const wsClientRef = useRef<WebSocketClient | null>(null)
-  const typingTimeoutsRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map())
-  const isInitializedRef = useRef(false)
+export function WebSocketProvider({
+  children,
+  autoConnect = true,
+}: WebSocketProviderProps) {
+  const wsClientRef = useRef<WebSocketClient | null>(null);
+  const typingTimeoutsRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(
+    new Map(),
+  );
+  const isInitializedRef = useRef(false);
   // Track handler unsubscribe functions so we can clean them up before re-registering
-  const handlerUnsubscribesRef = useRef<(() => void)[]>([])
+  const handlerUnsubscribesRef = useRef<(() => void)[]>([]);
   // Ref to store registerHandlers function for use in forceReconnectWithFreshCredentials
-  const registerHandlersRef = useRef<((client: WebSocketClient) => void) | null>(null)
+  const registerHandlersRef = useRef<
+    ((client: WebSocketClient) => void) | null
+  >(null);
 
   // Track previous company ID to detect changes
   // This is needed because WebSocket URL includes company ID for routing events
-  const previousCompanyIdRef = useRef<string | null>(null)
+  const previousCompanyIdRef = useRef<string | null>(null);
 
   // Get current company ID from auth context
   // When this changes (e.g., user creates first company), we need to reconnect WebSocket
-  const { currentCompanyId } = useAuth()
+  const { currentCompanyId } = useAuth();
 
   // Sync state - track which connections are currently syncing
-  const [syncingConnections, setSyncingConnections] = useState<Map<string, SyncState>>(new Map())
+  const [syncingConnections, setSyncingConnections] = useState<
+    Map<string, SyncState>
+  >(new Map());
+  // Track if we've fetched initial sync status to prevent double-fetch
+  const [syncStatusFetched, setSyncStatusFetched] = useState(false);
 
   // TanStack Query client for cache updates
-  const queryClient = useQueryClient()
-  const queryClientRef = useRef(queryClient)
-  queryClientRef.current = queryClient
+  const queryClient = useQueryClient();
+  const queryClientRef = useRef(queryClient);
+  queryClientRef.current = queryClient;
 
   // WebSocket store
-  const status = useWebSocketStore((state) => state.status)
-  const error = useWebSocketStore((state) => state.error)
-  const setStatus = useWebSocketStore((state) => state.setStatus)
-  const setError = useWebSocketStore((state) => state.setError)
-  const resetWsStore = useWebSocketStore((state) => state.reset)
+  const status = useWebSocketStore((state) => state.status);
+  const error = useWebSocketStore((state) => state.error);
+  const setStatus = useWebSocketStore((state) => state.setStatus);
+  const setError = useWebSocketStore((state) => state.setError);
+  const resetWsStore = useWebSocketStore((state) => state.reset);
 
   // Chat store
-  const addMessage = useChatStore((state) => state.addMessage)
-  const updateMessageStatus = useChatStore((state) => state.updateMessageStatus)
-  const addTypingIndicator = useChatStore((state) => state.addTypingIndicator)
-  const removeTypingIndicator = useChatStore((state) => state.removeTypingIndicator)
+  const addMessage = useChatStore((state) => state.addMessage);
+  const updateMessageStatus = useChatStore(
+    (state) => state.updateMessageStatus,
+  );
+  const addTypingIndicator = useChatStore((state) => state.addTypingIndicator);
+  const removeTypingIndicator = useChatStore(
+    (state) => state.removeTypingIndicator,
+  );
 
   // Initialize WebSocket client
   const initializeClient = useCallback(() => {
     if (!wsClientRef.current) {
-      const token = getAccessToken()
-      const companyId = getCompanyId()
+      const token = getAccessToken();
+      const companyId = getCompanyId();
 
       // Build WebSocket URL with token and company ID
-      const baseUrl = import.meta.env.VITE_WS_URL || 'ws://localhost:3000/ws'
-      const wsUrl = new URL(baseUrl)
+      const baseUrl = import.meta.env.VITE_WS_URL || "ws://localhost:3000/ws";
+      const wsUrl = new URL(baseUrl);
       if (token) {
-        wsUrl.searchParams.set('token', token)
+        wsUrl.searchParams.set("token", token);
       }
       if (companyId) {
-        wsUrl.searchParams.set('company', companyId)
+        wsUrl.searchParams.set("company", companyId);
       }
 
       wsClientRef.current = getWebSocketClient({
         url: wsUrl.toString(),
         token: token ?? undefined,
         onStatusChange: (newStatus) => {
-          setStatus(newStatus)
+          setStatus(newStatus);
         },
         onError: (err) => {
-          setError(err.message)
+          setError(err.message);
         },
-      })
+      });
     }
-    return wsClientRef.current
-  }, [setStatus, setError])
+    return wsClientRef.current;
+  }, [setStatus, setError]);
 
   // Helper to manage typing timeout
   const setTypingTimeout = useCallback(
     (conversationId: string, userId: string) => {
-      const key = `${conversationId}:${userId}`
+      const key = `${conversationId}:${userId}`;
 
       // Clear existing timeout
-      const existingTimeout = typingTimeoutsRef.current.get(key)
+      const existingTimeout = typingTimeoutsRef.current.get(key);
       if (existingTimeout) {
-        clearTimeout(existingTimeout)
+        clearTimeout(existingTimeout);
       }
 
       // Set new timeout
       const timeout = setTimeout(() => {
-        removeTypingIndicator(conversationId, userId)
-        typingTimeoutsRef.current.delete(key)
-      }, TYPING_TIMEOUT)
+        removeTypingIndicator(conversationId, userId);
+        typingTimeoutsRef.current.delete(key);
+      }, TYPING_TIMEOUT);
 
-      typingTimeoutsRef.current.set(key, timeout)
+      typingTimeoutsRef.current.set(key, timeout);
     },
-    [removeTypingIndicator]
-  )
+    [removeTypingIndicator],
+  );
 
   // Clear typing timeout
-  const clearTypingTimeout = useCallback((conversationId: string, userId: string) => {
-    const key = `${conversationId}:${userId}`
-    const timeout = typingTimeoutsRef.current.get(key)
-    if (timeout) {
-      clearTimeout(timeout)
-      typingTimeoutsRef.current.delete(key)
-    }
-  }, [])
+  const clearTypingTimeout = useCallback(
+    (conversationId: string, userId: string) => {
+      const key = `${conversationId}:${userId}`;
+      const timeout = typingTimeoutsRef.current.get(key);
+      if (timeout) {
+        clearTimeout(timeout);
+        typingTimeoutsRef.current.delete(key);
+      }
+    },
+    [],
+  );
 
   // Connect to WebSocket
   const connect = useCallback(() => {
-    const client = initializeClient()
-    const token = getAccessToken()
+    const client = initializeClient();
+    const token = getAccessToken();
 
     if (token) {
-      client.setToken(token)
+      client.setToken(token);
     }
 
-    client.connect()
-  }, [initializeClient])
+    client.connect();
+  }, [initializeClient]);
 
   // Disconnect from WebSocket
   const disconnect = useCallback(() => {
-    wsClientRef.current?.disconnect()
-  }, [])
+    wsClientRef.current?.disconnect();
+  }, []);
 
   // Reconnect (disconnect then connect)
   const reconnect = useCallback(() => {
-    disconnect()
+    disconnect();
     // Small delay before reconnecting
     setTimeout(() => {
-      connect()
-    }, 100)
-  }, [connect, disconnect])
+      connect();
+    }, 100);
+  }, [connect, disconnect]);
 
   /**
    * Force reconnect with fresh credentials
@@ -216,26 +249,90 @@ export function WebSocketProvider({ children, autoConnect = true }: WebSocketPro
    * 5. Re-register all event handlers on the new client
    */
   const forceReconnectWithFreshCredentials = useCallback(() => {
-    console.log('[WebSocket] 🔄 Force reconnecting with fresh credentials...')
-    wsClientRef.current?.disconnect()
-    resetWebSocketClient()
-    wsClientRef.current = null
+    console.log("[WebSocket] 🔄 Force reconnecting with fresh credentials...");
+    wsClientRef.current?.disconnect();
+    resetWebSocketClient();
+    wsClientRef.current = null;
     // Don't reset isInitializedRef here - we'll manually re-register handlers
 
     // Small delay before reconnecting to allow cleanup
     setTimeout(() => {
-      const token = getAccessToken()
+      const token = getAccessToken();
       if (token) {
-        const client = initializeClient()
+        const client = initializeClient();
         // Re-register handlers on the new client using ref
         if (registerHandlersRef.current) {
-          registerHandlersRef.current(client)
-          console.log('[WebSocket] ✅ Handlers re-registered after reconnect')
+          registerHandlersRef.current(client);
+          console.log("[WebSocket] ✅ Handlers re-registered after reconnect");
         }
-        client.connect()
+        client.connect();
       }
-    }, 100)
-  }, [initializeClient])
+    }, 100);
+  }, [initializeClient]);
+
+  /**
+   * Clear syncing connections state
+   * Used by SyncingOverlay's "Continue anyway" button
+   */
+  const clearSyncingConnections = useCallback(() => {
+    setSyncingConnections(new Map());
+  }, []);
+
+  /**
+   * Fetch initial sync status from API on mount
+   *
+   * This populates syncingConnections state from the database when:
+   * 1. User reloads the page during an active sync
+   * 2. User navigates to chat page while connections are syncing
+   *
+   * Without this, the overlay wouldn't appear on page reload because
+   * syncingConnections only gets populated from WebSocket events.
+   */
+  useEffect(() => {
+    // Only fetch once and only when we have a company ID
+    if (syncStatusFetched || !currentCompanyId) {
+      return;
+    }
+
+    const fetchSyncStatus = async () => {
+      try {
+        const response = await api.get<SyncStatusResponse>(
+          "/whatsapp/sync-status",
+        );
+
+        // Populate syncingConnections from API response
+        const newMap = new Map<string, SyncState>();
+        for (const connection of response.connections) {
+          if (connection.sync_status === "syncing") {
+            newMap.set(connection.id, {
+              connectionId: connection.id,
+              conversations: 0, // We don't have progress from DB, start at 0
+              startedAt: new Date(), // Use current time as startedAt
+            });
+          }
+        }
+
+        if (newMap.size > 0) {
+          console.log(
+            "[WebSocket] 🔄 Initialized syncing connections from API:",
+            newMap.size,
+          );
+          setSyncingConnections(newMap);
+        }
+
+        setSyncStatusFetched(true);
+      } catch (error) {
+        console.warn(
+          "[WebSocket] ⚠️ Failed to fetch initial sync status:",
+          error,
+        );
+        // Don't throw - this is a non-critical enhancement
+        setSyncStatusFetched(true); // Mark as fetched to avoid retrying
+      }
+    };
+
+    fetchSyncStatus();
+  }, [currentCompanyId, syncStatusFetched]);
 
   /**
    * Reconnect WebSocket when company ID changes
@@ -252,7 +349,7 @@ export function WebSocketProvider({ children, autoConnect = true }: WebSocketPro
   useEffect(() => {
     // Skip on initial mount when both are null
     if (previousCompanyIdRef.current === null && currentCompanyId === null) {
-      return
+      return;
     }
 
     // Case 1: Company switched to a different one
@@ -262,75 +359,84 @@ export function WebSocketProvider({ children, autoConnect = true }: WebSocketPro
       previousCompanyIdRef.current !== currentCompanyId
     ) {
       console.log(
-        '[WebSocket] Company changed, reconnecting with new company ID:',
-        currentCompanyId
-      )
-      forceReconnectWithFreshCredentials()
+        "[WebSocket] Company changed, reconnecting with new company ID:",
+        currentCompanyId,
+      );
+      forceReconnectWithFreshCredentials();
     }
 
     // Case 2: First company created (was null, now has value)
     if (previousCompanyIdRef.current === null && currentCompanyId !== null) {
-      console.log('[WebSocket] Company ID set, reconnecting:', currentCompanyId)
-      forceReconnectWithFreshCredentials()
+      console.log(
+        "[WebSocket] Company ID set, reconnecting:",
+        currentCompanyId,
+      );
+      forceReconnectWithFreshCredentials();
     }
 
-    previousCompanyIdRef.current = currentCompanyId
-  }, [currentCompanyId, forceReconnectWithFreshCredentials])
+    previousCompanyIdRef.current = currentCompanyId;
+  }, [currentCompanyId, forceReconnectWithFreshCredentials]);
 
   // Send a message through WebSocket
-  const send = useCallback(function sendMessage<T>(type: string, payload: T): boolean {
-    return wsClientRef.current?.send(type, payload) ?? false
-  }, [])
+  const send = useCallback(function sendMessage<T>(
+    type: string,
+    payload: T,
+  ): boolean {
+    return wsClientRef.current?.send(type, payload) ?? false;
+  }, []);
 
   // Subscribe to a specific event
   const subscribe = useCallback(
-    function subscribeToEvent<T>(event: WebSocketEventType, handler: EventHandler<T>): () => void {
-      const client = initializeClient()
-      return client.on(event, handler)
+    function subscribeToEvent<T>(
+      event: WebSocketEventType,
+      handler: EventHandler<T>,
+    ): () => void {
+      const client = initializeClient();
+      return client.on(event, handler);
     },
-    [initializeClient]
-  )
+    [initializeClient],
+  );
 
   // Send typing indicator
   const sendTypingStart = useCallback(
     (conversationId: string) => {
-      send('typing:start', { conversationId })
+      send("typing:start", { conversationId });
     },
-    [send]
-  )
+    [send],
+  );
 
   const sendTypingStop = useCallback(
     (conversationId: string) => {
-      send('typing:stop', { conversationId })
+      send("typing:stop", { conversationId });
     },
-    [send]
-  )
+    [send],
+  );
 
   // Mark messages as read
   const sendMarkAsRead = useCallback(
     (conversationId: string, messageIds: string[]) => {
-      send('message:read', { conversationId, messageIds })
+      send("message:read", { conversationId, messageIds });
     },
-    [send]
-  )
+    [send],
+  );
 
   // Store callbacks in refs to avoid dependency changes triggering reconnects
-  const addMessageRef = useRef(addMessage)
-  const updateMessageStatusRef = useRef(updateMessageStatus)
-  const addTypingIndicatorRef = useRef(addTypingIndicator)
-  const removeTypingIndicatorRef = useRef(removeTypingIndicator)
-  const setTypingTimeoutRef = useRef(setTypingTimeout)
-  const clearTypingTimeoutRef = useRef(clearTypingTimeout)
+  const addMessageRef = useRef(addMessage);
+  const updateMessageStatusRef = useRef(updateMessageStatus);
+  const addTypingIndicatorRef = useRef(addTypingIndicator);
+  const removeTypingIndicatorRef = useRef(removeTypingIndicator);
+  const setTypingTimeoutRef = useRef(setTypingTimeout);
+  const clearTypingTimeoutRef = useRef(clearTypingTimeout);
 
   // Update refs when callbacks change
   useEffect(() => {
-    addMessageRef.current = addMessage
-    updateMessageStatusRef.current = updateMessageStatus
-    addTypingIndicatorRef.current = addTypingIndicator
-    removeTypingIndicatorRef.current = removeTypingIndicator
-    setTypingTimeoutRef.current = setTypingTimeout
-    clearTypingTimeoutRef.current = clearTypingTimeout
-  })
+    addMessageRef.current = addMessage;
+    updateMessageStatusRef.current = updateMessageStatus;
+    addTypingIndicatorRef.current = addTypingIndicator;
+    removeTypingIndicatorRef.current = removeTypingIndicator;
+    setTypingTimeoutRef.current = setTypingTimeout;
+    clearTypingTimeoutRef.current = clearTypingTimeout;
+  });
 
   /**
    * Register all WebSocket event handlers on a client
@@ -341,150 +447,175 @@ export function WebSocketProvider({ children, autoConnect = true }: WebSocketPro
    *
    * It first cleans up any existing handlers, then registers fresh ones.
    */
-  const registerHandlers = useCallback(
-    (client: WebSocketClient) => {
-      // Clean up any existing handlers first
-      handlerUnsubscribesRef.current.forEach((unsub) => unsub())
-      handlerUnsubscribesRef.current = []
+  const registerHandlers = useCallback((client: WebSocketClient) => {
+    // Clean up any existing handlers first
+    handlerUnsubscribesRef.current.forEach((unsub) => unsub());
+    handlerUnsubscribesRef.current = [];
 
-      // New message handler
-      const unsubNewMessage = client.on<NewMessagePayload>('message:new', (payload) => {
-        console.log('[WebSocket] 💬 New message received in realtime:', {
+    // New message handler
+    const unsubNewMessage = client.on<NewMessagePayload>(
+      "message:new",
+      (payload) => {
+        console.log("[WebSocket] 💬 New message received in realtime:", {
           messageId: payload.message.id,
           conversationId: payload.conversationId,
           content: payload.message.content?.substring(0, 50),
           senderType: payload.message.senderType,
-        })
+        });
 
         // Update Zustand store (for legacy compatibility)
-        addMessageRef.current(payload.conversationId, payload.message)
+        addMessageRef.current(payload.conversationId, payload.message);
 
         // Update TanStack Query cache for real-time message updates
-        const queryKey = infiniteMessageKeys.list(payload.conversationId)
+        const queryKey = infiniteMessageKeys.list(payload.conversationId);
         queryClientRef.current.setQueryData<{
-          pages: PaginatedMessages[]
-          pageParams: (string | undefined)[]
+          pages: PaginatedMessages[];
+          pageParams: (string | undefined)[];
         }>(queryKey, (oldData) => {
-          if (!oldData) return oldData
+          if (!oldData) return oldData;
 
           // Check if message already exists to avoid duplicates
           const messageExists = oldData.pages.some((page) =>
-            page.messages.some((msg) => msg.id === payload.message.id)
-          )
+            page.messages.some((msg) => msg.id === payload.message.id),
+          );
           if (messageExists) {
-            console.log('[WebSocket] ⚠️ Duplicate message ignored:', payload.message.id)
-            return oldData
+            console.log(
+              "[WebSocket] ⚠️ Duplicate message ignored:",
+              payload.message.id,
+            );
+            return oldData;
           }
 
           // Add the new message to the first page (most recent)
-          const newPages = [...oldData.pages]
+          const newPages = [...oldData.pages];
           if (newPages.length > 0) {
             newPages[0] = {
               ...newPages[0],
               messages: [payload.message, ...newPages[0].messages],
-            }
+            };
             console.log(
-              '[WebSocket] ✅ Message added to cache, total messages:',
-              newPages.reduce((sum, page) => sum + page.messages.length, 0)
-            )
+              "[WebSocket] ✅ Message added to cache, total messages:",
+              newPages.reduce((sum, page) => sum + page.messages.length, 0),
+            );
           }
 
           return {
             ...oldData,
             pages: newPages,
-          }
-        })
+          };
+        });
 
         // Invalidate chat list queries to update unread count badges
         // This ensures the sidebar shows updated unread counts when new messages arrive
         queryClientRef.current.invalidateQueries({
           queryKey: chatKeys.lists(),
-        })
-      })
+        });
+      },
+    );
 
-      // Message status handler
-      const unsubMessageStatus = client.on<MessageStatusPayload>('message:status', (payload) => {
-        console.log('[WebSocket] 📬 Message status update:', {
+    // Message status handler
+    const unsubMessageStatus = client.on<MessageStatusPayload>(
+      "message:status",
+      (payload) => {
+        console.log("[WebSocket] 📬 Message status update:", {
           conversationId: payload.conversationId,
           messageId: payload.messageId,
           status: payload.status,
-        })
+        });
 
         // Update Zustand store (for legacy compatibility)
-        updateMessageStatusRef.current(payload.conversationId, payload.messageId, payload.status)
+        updateMessageStatusRef.current(
+          payload.conversationId,
+          payload.messageId,
+          payload.status,
+        );
 
         // Update TanStack Query cache for real-time status updates
-        const queryKey = infiniteMessageKeys.list(payload.conversationId)
+        const queryKey = infiniteMessageKeys.list(payload.conversationId);
         queryClientRef.current.setQueryData<{
-          pages: PaginatedMessages[]
-          pageParams: (string | undefined)[]
+          pages: PaginatedMessages[];
+          pageParams: (string | undefined)[];
         }>(queryKey, (oldData) => {
-          if (!oldData) return oldData
+          if (!oldData) return oldData;
 
           // Find and update the message status in all pages
           const newPages = oldData.pages.map((page) => ({
             ...page,
             messages: page.messages.map((msg) =>
-              msg.id === payload.messageId ? { ...msg, status: payload.status } : msg
+              msg.id === payload.messageId
+                ? { ...msg, status: payload.status }
+                : msg,
             ),
-          }))
+          }));
 
           return {
             ...oldData,
             pages: newPages,
-          }
-        })
-      })
+          };
+        });
+      },
+    );
 
-      // Typing start handler
-      const unsubTypingStart = client.on<TypingPayload>('typing:start', (payload) => {
+    // Typing start handler
+    const unsubTypingStart = client.on<TypingPayload>(
+      "typing:start",
+      (payload) => {
         const indicator: TypingIndicator = {
           conversationId: payload.conversationId,
           userId: payload.userId,
           userName: payload.userName,
           startedAt: new Date(),
-        }
-        addTypingIndicatorRef.current(indicator)
-        setTypingTimeoutRef.current(payload.conversationId, payload.userId)
-      })
+        };
+        addTypingIndicatorRef.current(indicator);
+        setTypingTimeoutRef.current(payload.conversationId, payload.userId);
+      },
+    );
 
-      // Typing stop handler
-      const unsubTypingStop = client.on<TypingPayload>('typing:stop', (payload) => {
-        removeTypingIndicatorRef.current(payload.conversationId, payload.userId)
-        clearTypingTimeoutRef.current(payload.conversationId, payload.userId)
-      })
+    // Typing stop handler
+    const unsubTypingStop = client.on<TypingPayload>(
+      "typing:stop",
+      (payload) => {
+        removeTypingIndicatorRef.current(
+          payload.conversationId,
+          payload.userId,
+        );
+        clearTypingTimeoutRef.current(payload.conversationId, payload.userId);
+      },
+    );
 
-      // Conversation updated handler (can be used by consumers)
-      const unsubConversationUpdated = client.on<ConversationUpdatedPayload>(
-        'conversation:updated',
-        () => {
-          // This event can be handled by individual components via subscribe
-        }
-      )
+    // Conversation updated handler (can be used by consumers)
+    const unsubConversationUpdated = client.on<ConversationUpdatedPayload>(
+      "conversation:updated",
+      () => {
+        // This event can be handled by individual components via subscribe
+      },
+    );
 
-      // Conversation read handler - invalidate chat list to update unread counts
-      const unsubConversationRead = client.on<ConversationReadPayload>(
-        'conversation:read',
-        (payload) => {
-          console.log('[WebSocket] 📖 Conversation marked as read:', {
-            contactId: payload.contactId,
-            readBy: payload.readBy,
-          })
+    // Conversation read handler - invalidate chat list to update unread counts
+    const unsubConversationRead = client.on<ConversationReadPayload>(
+      "conversation:read",
+      (payload) => {
+        console.log("[WebSocket] 📖 Conversation marked as read:", {
+          contactId: payload.contactId,
+          readBy: payload.readBy,
+        });
 
-          // Invalidate chat list queries to update unread count badges
-          queryClientRef.current.invalidateQueries({
-            queryKey: chatKeys.lists(),
-          })
-        }
-      )
+        // Invalidate chat list queries to update unread count badges
+        queryClientRef.current.invalidateQueries({
+          queryKey: chatKeys.lists(),
+        });
+      },
+    );
 
-      // Profile picture handler
-      const unsubProfilePicture = client.on<ProfilePicturePayload>(
-        'contact:profile_picture',
-        (payload) => {
-          // Update chat list cache
-          queryClientRef.current.setQueriesData({ queryKey: chatKeys.lists() }, (oldData: any) => {
-            if (!oldData) return oldData
+    // Profile picture handler
+    const unsubProfilePicture = client.on<ProfilePicturePayload>(
+      "contact:profile_picture",
+      (payload) => {
+        // Update chat list cache
+        queryClientRef.current.setQueriesData(
+          { queryKey: chatKeys.lists() },
+          (oldData: any) => {
+            if (!oldData) return oldData;
             // oldData is Chat[]
             return oldData.map((chat: any) => {
               // Check if this chat corresponds to the contact JID
@@ -495,35 +626,38 @@ export function WebSocketProvider({ children, autoConnect = true }: WebSocketPro
                     ...chat.contact,
                     avatarUrl: payload.profilePictureUrl,
                   },
-                }
+                };
               }
-              return chat
-            })
-          })
+              return chat;
+            });
+          },
+        );
 
-          // Update individual contact details cache
-          queryClientRef.current
-            .getQueriesData({ queryKey: ['contact'] })
-            .forEach(([queryKey, oldData]: [any, any]) => {
-              if (oldData && oldData.jid === payload.jid) {
-                queryClientRef.current.setQueryData(queryKey, {
-                  ...oldData,
-                  profilePictureUrl: payload.profilePictureUrl,
-                })
-              }
-            })
-        }
-      )
+        // Update individual contact details cache
+        queryClientRef.current
+          .getQueriesData({ queryKey: ["contact"] })
+          .forEach(([queryKey, oldData]: [any, any]) => {
+            if (oldData && oldData.jid === payload.jid) {
+              queryClientRef.current.setQueryData(queryKey, {
+                ...oldData,
+                profilePictureUrl: payload.profilePictureUrl,
+              });
+            }
+          });
+      },
+    );
 
-      // Message deleted handler
-      const unsubMessageDeleted = client.on<MessageDeletedPayload>('message:deleted', (payload) => {
+    // Message deleted handler
+    const unsubMessageDeleted = client.on<MessageDeletedPayload>(
+      "message:deleted",
+      (payload) => {
         // Update TanStack Query cache to mark the message as deleted
-        const queryKey = infiniteMessageKeys.list(payload.conversationId)
+        const queryKey = infiniteMessageKeys.list(payload.conversationId);
         queryClientRef.current.setQueryData<{
-          pages: PaginatedMessages[]
-          pageParams: (string | undefined)[]
+          pages: PaginatedMessages[];
+          pageParams: (string | undefined)[];
         }>(queryKey, (oldData) => {
-          if (!oldData) return oldData
+          if (!oldData) return oldData;
 
           // Find and update the message in all pages
           const newPages = oldData.pages.map((page) => ({
@@ -535,28 +669,31 @@ export function WebSocketProvider({ children, autoConnect = true }: WebSocketPro
                     deleted_by_sender: true,
                     deleted_at: new Date().toISOString(),
                   }
-                : msg
+                : msg,
             ),
-          }))
+          }));
 
           return {
             ...oldData,
             pages: newPages,
-          }
-        })
-      })
+          };
+        });
+      },
+    );
 
-      // Presence online handler
-      const unsubPresenceOnline = client.on<{
-        jid: string
-        isOnline: boolean
-        lastSeen?: string
-      }>('presence:online', (payload) => {
-        console.log('[WebSocket] ✅ Contact came online:', payload.jid)
+    // Presence online handler
+    const unsubPresenceOnline = client.on<{
+      jid: string;
+      isOnline: boolean;
+      lastSeen?: string;
+    }>("presence:online", (payload) => {
+      console.log("[WebSocket] ✅ Contact came online:", payload.jid);
 
-        // Update chat list cache
-        queryClientRef.current.setQueriesData({ queryKey: chatKeys.lists() }, (oldData: any) => {
-          if (!oldData) return oldData
+      // Update chat list cache
+      queryClientRef.current.setQueriesData(
+        { queryKey: chatKeys.lists() },
+        (oldData: any) => {
+          if (!oldData) return oldData;
           return oldData.map((chat: any) => {
             if (chat.contact?.jid === payload.jid) {
               return {
@@ -566,29 +703,32 @@ export function WebSocketProvider({ children, autoConnect = true }: WebSocketPro
                   isOnline: true,
                   lastSeen: null,
                 },
-              }
+              };
             }
-            return chat
-          })
-        })
-      })
+            return chat;
+          });
+        },
+      );
+    });
 
-      // Presence offline handler
-      const unsubPresenceOffline = client.on<{
-        jid: string
-        isOnline: boolean
-        lastSeen?: string
-      }>('presence:offline', (payload) => {
-        console.log(
-          '[WebSocket] 🔴 Contact went offline:',
-          payload.jid,
-          'last seen:',
-          payload.lastSeen
-        )
+    // Presence offline handler
+    const unsubPresenceOffline = client.on<{
+      jid: string;
+      isOnline: boolean;
+      lastSeen?: string;
+    }>("presence:offline", (payload) => {
+      console.log(
+        "[WebSocket] 🔴 Contact went offline:",
+        payload.jid,
+        "last seen:",
+        payload.lastSeen,
+      );
 
-        // Update chat list cache
-        queryClientRef.current.setQueriesData({ queryKey: chatKeys.lists() }, (oldData: any) => {
-          if (!oldData) return oldData
+      // Update chat list cache
+      queryClientRef.current.setQueriesData(
+        { queryKey: chatKeys.lists() },
+        (oldData: any) => {
+          if (!oldData) return oldData;
           return oldData.map((chat: any) => {
             if (chat.contact?.jid === payload.jid) {
               return {
@@ -596,249 +736,274 @@ export function WebSocketProvider({ children, autoConnect = true }: WebSocketPro
                 contact: {
                   ...chat.contact,
                   isOnline: false,
-                  lastSeen: payload.lastSeen ? new Date(payload.lastSeen) : undefined,
+                  lastSeen: payload.lastSeen
+                    ? new Date(payload.lastSeen)
+                    : undefined,
                 },
-              }
+              };
             }
-            return chat
-          })
-        })
-      })
+            return chat;
+          });
+        },
+      );
+    });
 
-      // Media downloaded handler - update message with downloaded media URL
-      const unsubMediaDownloaded = client.on<{
-        messageId: string
-        conversationId: string
-        mediaUrl: string
-        mediaSize?: number
-      }>('media:downloaded', (payload) => {
-        console.log('[WebSocket] 📥 Media downloaded:', {
-          messageId: payload.messageId,
-          conversationId: payload.conversationId,
-          mediaUrl: payload.mediaUrl,
-        })
+    // Media downloaded handler - update message with downloaded media URL
+    const unsubMediaDownloaded = client.on<{
+      messageId: string;
+      conversationId: string;
+      mediaUrl: string;
+      mediaSize?: number;
+    }>("media:downloaded", (payload) => {
+      console.log("[WebSocket] 📥 Media downloaded:", {
+        messageId: payload.messageId,
+        conversationId: payload.conversationId,
+        mediaUrl: payload.mediaUrl,
+      });
 
-        // Update TanStack Query cache with downloaded media
-        const queryKey = infiniteMessageKeys.list(payload.conversationId)
-        let messageFound = false
+      // Update TanStack Query cache with downloaded media
+      const queryKey = infiniteMessageKeys.list(payload.conversationId);
+      let messageFound = false;
 
-        queryClientRef.current.setQueryData<{
-          pages: PaginatedMessages[]
-          pageParams: (string | undefined)[]
-        }>(queryKey, (oldData) => {
-          if (!oldData) {
-            console.log('[WebSocket] ⚠️ No cached data for conversation:', payload.conversationId)
-            return oldData
-          }
+      queryClientRef.current.setQueryData<{
+        pages: PaginatedMessages[];
+        pageParams: (string | undefined)[];
+      }>(queryKey, (oldData) => {
+        if (!oldData) {
+          console.log(
+            "[WebSocket] ⚠️ No cached data for conversation:",
+            payload.conversationId,
+          );
+          return oldData;
+        }
 
-          // Find and update the message with the downloaded media URL
-          const newPages = oldData.pages.map((page) => ({
-            ...page,
-            messages: page.messages.map((msg) => {
-              if (msg.id === payload.messageId) {
-                messageFound = true
-                console.log(
-                  '[WebSocket] ✅ Found message to update:',
-                  msg.id,
-                  'old mediaUrl:',
-                  msg.metadata?.mediaUrl
-                )
-                return {
+        // Find and update the message with the downloaded media URL
+        const newPages = oldData.pages.map((page) => ({
+          ...page,
+          messages: page.messages.map((msg) => {
+            if (msg.id === payload.messageId) {
+              messageFound = true;
+              console.log(
+                "[WebSocket] ✅ Found message to update:",
+                msg.id,
+                "old mediaUrl:",
+                msg.metadata?.mediaUrl,
+              );
+              return {
+                ...msg,
+                metadata: {
+                  ...msg.metadata,
+                  mediaUrl: payload.mediaUrl,
+                  mediaPending: false,
+                  mediaDownloadStatus: "completed" as const,
+                  fileSize: payload.mediaSize || msg.metadata?.fileSize,
+                },
+              };
+            }
+            return msg;
+          }),
+        }));
+
+        if (!messageFound) {
+          console.log(
+            "[WebSocket] ⚠️ Message not found in cache:",
+            payload.messageId,
+          );
+        }
+
+        return {
+          ...oldData,
+          pages: newPages,
+        };
+      });
+
+      // Force refetch to ensure UI updates immediately
+      // invalidateQueries may not immediately refetch, but refetchQueries will
+      queryClientRef.current.refetchQueries({
+        queryKey: queryKey,
+        type: "active",
+      });
+    });
+
+    // Media download failed handler
+    const unsubMediaDownloadFailed = client.on<{
+      messageId: string;
+      conversationId: string;
+      error?: string;
+    }>("media:download_failed", (payload) => {
+      console.log("[WebSocket] ❌ Media download failed:", {
+        messageId: payload.messageId,
+        conversationId: payload.conversationId,
+        error: payload.error,
+      });
+
+      // Update TanStack Query cache with failed status
+      const queryKey = infiniteMessageKeys.list(payload.conversationId);
+      queryClientRef.current.setQueryData<{
+        pages: PaginatedMessages[];
+        pageParams: (string | undefined)[];
+      }>(queryKey, (oldData) => {
+        if (!oldData) {
+          console.log(
+            "[WebSocket] ⚠️ No cached data for conversation:",
+            payload.conversationId,
+          );
+          return oldData;
+        }
+
+        const newPages = oldData.pages.map((page) => ({
+          ...page,
+          messages: page.messages.map((msg) =>
+            msg.id === payload.messageId
+              ? {
                   ...msg,
                   metadata: {
                     ...msg.metadata,
-                    mediaUrl: payload.mediaUrl,
-                    mediaPending: false,
-                    mediaDownloadStatus: 'completed' as const,
-                    fileSize: payload.mediaSize || msg.metadata?.fileSize,
+                    mediaPending: true,
+                    mediaDownloadStatus: "failed" as const,
                   },
                 }
-              }
-              return msg
-            }),
-          }))
+              : msg,
+          ),
+        }));
 
-          if (!messageFound) {
-            console.log('[WebSocket] ⚠️ Message not found in cache:', payload.messageId)
-          }
+        return {
+          ...oldData,
+          pages: newPages,
+        };
+      });
 
-          return {
-            ...oldData,
-            pages: newPages,
-          }
-        })
+      // Force refetch to ensure UI updates immediately
+      queryClientRef.current.refetchQueries({
+        queryKey: queryKey,
+        type: "active",
+      });
+    });
 
-        // Force refetch to ensure UI updates immediately
-        // invalidateQueries may not immediately refetch, but refetchQueries will
-        queryClientRef.current.refetchQueries({
-          queryKey: queryKey,
-          type: 'active',
-        })
-      })
-
-      // Media download failed handler
-      const unsubMediaDownloadFailed = client.on<{
-        messageId: string
-        conversationId: string
-        error?: string
-      }>('media:download_failed', (payload) => {
-        console.log('[WebSocket] ❌ Media download failed:', {
-          messageId: payload.messageId,
-          conversationId: payload.conversationId,
-          error: payload.error,
-        })
-
-        // Update TanStack Query cache with failed status
-        const queryKey = infiniteMessageKeys.list(payload.conversationId)
-        queryClientRef.current.setQueryData<{
-          pages: PaginatedMessages[]
-          pageParams: (string | undefined)[]
-        }>(queryKey, (oldData) => {
-          if (!oldData) {
-            console.log('[WebSocket] ⚠️ No cached data for conversation:', payload.conversationId)
-            return oldData
-          }
-
-          const newPages = oldData.pages.map((page) => ({
-            ...page,
-            messages: page.messages.map((msg) =>
-              msg.id === payload.messageId
-                ? {
-                    ...msg,
-                    metadata: {
-                      ...msg.metadata,
-                      mediaPending: true,
-                      mediaDownloadStatus: 'failed' as const,
-                    },
-                  }
-                : msg
-            ),
-          }))
-
-          return {
-            ...oldData,
-            pages: newPages,
-          }
-        })
-
-        // Force refetch to ensure UI updates immediately
-        queryClientRef.current.refetchQueries({
-          queryKey: queryKey,
-          type: 'active',
-        })
-      })
-
-      // Sync event handlers
-      const unsubSyncStart = client.on<SyncStatusPayload>('sync:start', (payload) => {
-        console.log('[WebSocket] 🔄 Sync started', payload)
-        const connectionId = (payload as any).connectionId || 'unknown'
+    // Sync event handlers
+    const unsubSyncStart = client.on<SyncStatusPayload>(
+      "sync:start",
+      (payload) => {
+        console.log("[WebSocket] 🔄 Sync started", payload);
+        const connectionId = (payload as any).connectionId || "unknown";
         setSyncingConnections((prev) => {
-          const newMap = new Map(prev)
+          const newMap = new Map(prev);
           newMap.set(connectionId, {
             connectionId,
             conversations: 0,
             startedAt: new Date(),
-          })
-          return newMap
-        })
-      })
+          });
+          return newMap;
+        });
+      },
+    );
 
-      const unsubSyncProgress = client.on<SyncStatusPayload>('sync:progress', (payload) => {
-        console.log('[WebSocket] 🔄 Sync progress', payload)
-        const connectionId = (payload as any).connectionId || 'unknown'
+    const unsubSyncProgress = client.on<SyncStatusPayload>(
+      "sync:progress",
+      (payload) => {
+        console.log("[WebSocket] 🔄 Sync progress", payload);
+        const connectionId = (payload as any).connectionId || "unknown";
         setSyncingConnections((prev) => {
-          const newMap = new Map(prev)
-          const existing = newMap.get(connectionId)
+          const newMap = new Map(prev);
+          const existing = newMap.get(connectionId);
           if (existing) {
             newMap.set(connectionId, {
               ...existing,
               conversations: payload.conversations,
-            })
+            });
           }
-          return newMap
-        })
-      })
+          return newMap;
+        });
+      },
+    );
 
-      const unsubSyncComplete = client.on<SyncStatusPayload>('sync:complete', (payload) => {
-        console.log('[WebSocket] ✅ Sync completed', payload)
-        const connectionId = (payload as any).connectionId || 'unknown'
+    const unsubSyncComplete = client.on<SyncStatusPayload>(
+      "sync:complete",
+      (payload) => {
+        console.log("[WebSocket] ✅ Sync completed", payload);
+        const connectionId = (payload as any).connectionId || "unknown";
         setSyncingConnections((prev) => {
-          const newMap = new Map(prev)
-          newMap.delete(connectionId)
-          return newMap
-        })
+          const newMap = new Map(prev);
+          newMap.delete(connectionId);
+          return newMap;
+        });
         // Invalidate chat list to show new contacts
-        queryClientRef.current.invalidateQueries({ queryKey: chatKeys.lists() })
-      })
+        queryClientRef.current.invalidateQueries({
+          queryKey: chatKeys.lists(),
+        });
+      },
+    );
 
-      // Store all unsubscribe functions for cleanup
-      handlerUnsubscribesRef.current = [
-        unsubNewMessage,
-        unsubMessageStatus,
-        unsubMessageDeleted,
-        unsubTypingStart,
-        unsubTypingStop,
-        unsubConversationUpdated,
-        unsubConversationRead,
-        unsubProfilePicture,
-        unsubPresenceOnline,
-        unsubPresenceOffline,
-        unsubMediaDownloaded,
-        unsubMediaDownloadFailed,
-        unsubSyncStart,
-        unsubSyncProgress,
-        unsubSyncComplete,
-      ]
+    // Store all unsubscribe functions for cleanup
+    handlerUnsubscribesRef.current = [
+      unsubNewMessage,
+      unsubMessageStatus,
+      unsubMessageDeleted,
+      unsubTypingStart,
+      unsubTypingStop,
+      unsubConversationUpdated,
+      unsubConversationRead,
+      unsubProfilePicture,
+      unsubPresenceOnline,
+      unsubPresenceOffline,
+      unsubMediaDownloaded,
+      unsubMediaDownloadFailed,
+      unsubSyncStart,
+      unsubSyncProgress,
+      unsubSyncComplete,
+    ];
 
-      console.log('[WebSocket] ✅ Handlers registered:', handlerUnsubscribesRef.current.length)
-    },
-    []
-  )
+    console.log(
+      "[WebSocket] ✅ Handlers registered:",
+      handlerUnsubscribesRef.current.length,
+    );
+  }, []);
 
   // Update the ref so forceReconnectWithFreshCredentials can access registerHandlers
-  registerHandlersRef.current = registerHandlers
+  registerHandlersRef.current = registerHandlers;
 
   // Set up event handlers and auto-connect
   useEffect(() => {
-    if (isInitializedRef.current) return
-    isInitializedRef.current = true
+    if (isInitializedRef.current) return;
+    isInitializedRef.current = true;
 
-    const client = initializeClient()
+    const client = initializeClient();
 
     // Register all event handlers
-    registerHandlers(client)
+    registerHandlers(client);
 
     // Auto-connect if enabled and we have a token
     if (autoConnect && getAccessToken()) {
-      connect()
+      connect();
     }
 
     // Cleanup
     return () => {
       // Clean up all registered handlers
-      handlerUnsubscribesRef.current.forEach((unsub) => unsub())
-      handlerUnsubscribesRef.current = []
+      handlerUnsubscribesRef.current.forEach((unsub) => unsub());
+      handlerUnsubscribesRef.current = [];
 
       // Clear all typing timeouts
-      typingTimeoutsRef.current.forEach((timeout) => clearTimeout(timeout))
-      typingTimeoutsRef.current.clear()
+      typingTimeoutsRef.current.forEach((timeout) => clearTimeout(timeout));
+      typingTimeoutsRef.current.clear();
 
       // Disconnect and reset
-      wsClientRef.current?.disconnect()
-      resetWebSocketClient()
-      wsClientRef.current = null
-      resetWsStore()
-      isInitializedRef.current = false
-    }
-  }, [autoConnect, connect, initializeClient, registerHandlers, resetWsStore])
+      wsClientRef.current?.disconnect();
+      resetWebSocketClient();
+      wsClientRef.current = null;
+      resetWsStore();
+      isInitializedRef.current = false;
+    };
+  }, [autoConnect, connect, initializeClient, registerHandlers, resetWsStore]);
 
   // Context value
   const contextValue: WebSocketContextValue = {
     status,
-    isConnected: status === 'connected',
-    isConnecting: status === 'connecting',
+    isConnected: status === "connected",
+    isConnecting: status === "connecting",
     error,
     syncingConnections,
+    clearSyncingConnections,
     connect,
     disconnect,
     reconnect,
@@ -847,19 +1012,25 @@ export function WebSocketProvider({ children, autoConnect = true }: WebSocketPro
     sendTypingStart,
     sendTypingStop,
     sendMarkAsRead,
-  }
+  };
 
-  return <WebSocketContext.Provider value={contextValue}>{children}</WebSocketContext.Provider>
+  return (
+    <WebSocketContext.Provider value={contextValue}>
+      {children}
+    </WebSocketContext.Provider>
+  );
 }
 
 // Hook to use WebSocket context
 export function useWebSocketContext(): WebSocketContextValue {
-  const context = useContext(WebSocketContext)
+  const context = useContext(WebSocketContext);
   if (!context) {
-    throw new Error('useWebSocketContext must be used within a WebSocketProvider')
+    throw new Error(
+      "useWebSocketContext must be used within a WebSocketProvider",
+    );
   }
-  return context
+  return context;
 }
 
 // Re-export types
-export type { WebSocketContextValue }
+export type { WebSocketContextValue };

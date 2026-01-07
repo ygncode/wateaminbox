@@ -18,12 +18,18 @@ import {
   UserPlus,
   Users,
   Zap,
-} from 'lucide-react'
-import { useState } from 'react'
-import { getDateRange, toISOString } from '@whatsapp-web/shared'
-import { ExportDialog } from '@/components/export'
-import { Avatar, AvatarFallback, Badge, Button, Skeleton } from '@/components/ui'
-import { ScrollArea } from '@/components/ui/scroll-area'
+} from "lucide-react";
+import { useState } from "react";
+import { getDateRange, toISOString } from "@whatsapp-web/shared";
+import { ExportDialog } from "@/components/export";
+import {
+  Avatar,
+  AvatarFallback,
+  Badge,
+  Button,
+  Skeleton,
+} from "@/components/ui";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   formatDate,
   formatNumber,
@@ -37,75 +43,75 @@ import {
   useNewContactsTrend,
   useResolutionStats,
   useTeamActivityStats,
-} from '@/hooks/useAnalytics'
-import { cn } from '@/lib/utils'
-import { ResponseTimeAnalytics } from './ResponseTimeAnalytics'
+} from "@/hooks/useAnalytics";
+import { cn } from "@/lib/utils";
+import { ResponseTimeAnalytics } from "./ResponseTimeAnalytics";
 
 export interface DashboardProps {
-  companyId: string
-  isAdmin?: boolean
+  companyId: string;
+  isAdmin?: boolean;
 }
 
 /**
  * Analytics Dashboard component
  */
 export function Dashboard({ companyId, isAdmin = false }: DashboardProps) {
-  const [dateRange, setDateRange] = useState<'7d' | '30d' | '90d'>('30d')
-  const [exportType, setExportType] = useState<'contacts' | 'messages' | 'full-backup' | null>(null)
+  const [dateRange, setDateRange] = useState<"7d" | "30d" | "90d">("30d");
+  const [exportType, setExportType] = useState<
+    "contacts" | "messages" | "full-backup" | null
+  >(null);
 
   const getDates = () => {
-    const { start, end } = getDateRange(dateRange)
-    return { startDate: toISOString(start), endDate: toISOString(end) }
-  }
+    const { start, end } = getDateRange(dateRange);
+    return { startDate: toISOString(start), endDate: toISOString(end) };
+  };
 
-  const { startDate, endDate } = getDates()
+  const { startDate, endDate } = getDates();
 
-  const { data: dashboardStats, isLoading: isLoadingDashboard } = useDashboardStats(companyId)
+  const { data: dashboardStats, isLoading: isLoadingDashboard } =
+    useDashboardStats(companyId);
   const {
     data: messageData,
     isLoading: isLoadingMessages,
     isError: isMessagesError,
-  } = useMessageStats(companyId, startDate, endDate)
+  } = useMessageStats(companyId, startDate, endDate);
   const {
     data: contactStats,
     isLoading: isLoadingContacts,
     isError: isContactsError,
-  } = useContactStats(companyId)
+  } = useContactStats(companyId);
   const {
     data: messageTypes,
     isLoading: isLoadingTypes,
     isError: isTypesError,
-  } = useMessageTypeStats(companyId)
+  } = useMessageTypeStats(companyId);
   const {
     data: hourlyStats,
     isLoading: isLoadingHourly,
     isError: isHourlyError,
-  } = useHourlyStats(companyId)
+  } = useHourlyStats(companyId);
   const {
     data: teamStats,
     isLoading: isLoadingTeam,
     isError: isTeamError,
-  } = useTeamActivityStats(isAdmin ? companyId : null)
+  } = useTeamActivityStats(isAdmin ? companyId : null);
   const {
     data: contactsTrendData,
     isLoading: isLoadingContactsTrend,
     isError: isContactsTrendError,
-  } = useNewContactsTrend(companyId, startDate, endDate)
+  } = useNewContactsTrend(companyId, startDate, endDate);
   const {
     data: resolutionData,
     isLoading: isLoadingResolution,
     isError: isResolutionError,
-  } = useResolutionStats(companyId, startDate, endDate)
+  } = useResolutionStats(companyId, startDate, endDate);
   const {
     data: engagementData,
     isLoading: isLoadingEngagement,
     isError: isEngagementError,
-  } = useEngagementMetrics(companyId, startDate, endDate)
-  const { data: engagementTrendData, isLoading: isLoadingEngagementTrend } = useEngagementTrend(
-    companyId,
-    startDate,
-    endDate
-  )
+  } = useEngagementMetrics(companyId, startDate, endDate);
+  const { data: engagementTrendData, isLoading: isLoadingEngagementTrend } =
+    useEngagementTrend(companyId, startDate, endDate);
 
   return (
     <ScrollArea className="h-full">
@@ -120,7 +126,7 @@ export function Dashboard({ companyId, isAdmin = false }: DashboardProps) {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => setExportType('full-backup')}
+              onClick={() => setExportType("full-backup")}
               className="gap-1"
             >
               <Archive className="h-4 w-4" />
@@ -129,7 +135,7 @@ export function Dashboard({ companyId, isAdmin = false }: DashboardProps) {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => setExportType('contacts')}
+              onClick={() => setExportType("contacts")}
               className="gap-1"
             >
               <Download className="h-4 w-4" />
@@ -138,24 +144,29 @@ export function Dashboard({ companyId, isAdmin = false }: DashboardProps) {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => setExportType('messages')}
+              onClick={() => setExportType("messages")}
               className="gap-1"
             >
               <Download className="h-4 w-4" />
               Export Messages
             </Button>
             <div className="w-px bg-gray-200 dark:bg-dark-border mx-1" />
-            {(['7d', '30d', '90d'] as const).map((range) => (
+            {(["7d", "30d", "90d"] as const).map((range) => (
               <Button
                 key={range}
-                variant={dateRange === range ? 'default' : 'outline'}
+                variant={dateRange === range ? "default" : "outline"}
                 size="sm"
                 onClick={() => setDateRange(range)}
                 className={cn(
-                  dateRange === range && 'bg-whatsapp-teal-green hover:bg-whatsapp-dark-green'
+                  dateRange === range &&
+                    "bg-whatsapp-teal-green hover:bg-whatsapp-dark-green",
                 )}
               >
-                {range === '7d' ? '7 Days' : range === '30d' ? '30 Days' : '90 Days'}
+                {range === "7d"
+                  ? "7 Days"
+                  : range === "30d"
+                    ? "30 Days"
+                    : "90 Days"}
               </Button>
             ))}
           </div>
@@ -226,7 +237,9 @@ export function Dashboard({ companyId, isAdmin = false }: DashboardProps) {
             {isLoadingMessages ? (
               <Skeleton className="h-48 w-full" />
             ) : isMessagesError ? (
-              <p className="text-red-500 dark:text-red-400 text-center py-8">Failed to load data</p>
+              <p className="text-red-500 dark:text-red-400 text-center py-8">
+                Failed to load data
+              </p>
             ) : (
               <MessageChart data={messageData?.data || []} />
             )}
@@ -243,7 +256,9 @@ export function Dashboard({ companyId, isAdmin = false }: DashboardProps) {
             {isLoadingContactsTrend ? (
               <Skeleton className="h-48 w-full" />
             ) : isContactsTrendError ? (
-              <p className="text-red-500 dark:text-red-400 text-center py-8">Failed to load data</p>
+              <p className="text-red-500 dark:text-red-400 text-center py-8">
+                Failed to load data
+              </p>
             ) : (
               <NewContactsChart data={contactsTrendData?.data || []} />
             )}
@@ -260,7 +275,9 @@ export function Dashboard({ companyId, isAdmin = false }: DashboardProps) {
             {isLoadingHourly ? (
               <Skeleton className="h-48 w-full" />
             ) : isHourlyError ? (
-              <p className="text-red-500 dark:text-red-400 text-center py-8">Failed to load data</p>
+              <p className="text-red-500 dark:text-red-400 text-center py-8">
+                Failed to load data
+              </p>
             ) : (
               <HourlyChart data={hourlyStats || []} />
             )}
@@ -284,7 +301,9 @@ export function Dashboard({ companyId, isAdmin = false }: DashboardProps) {
                 <Skeleton className="h-6 w-full" />
               </div>
             ) : isContactsError ? (
-              <p className="text-red-500 dark:text-red-400 text-center py-4">Failed to load data</p>
+              <p className="text-red-500 dark:text-red-400 text-center py-4">
+                Failed to load data
+              </p>
             ) : contactStats ? (
               <div className="space-y-3">
                 <StatRow
@@ -329,11 +348,16 @@ export function Dashboard({ companyId, isAdmin = false }: DashboardProps) {
                 <Skeleton className="h-6 w-full" />
               </div>
             ) : isTypesError ? (
-              <p className="text-red-500 dark:text-red-400 text-center py-4">Failed to load data</p>
+              <p className="text-red-500 dark:text-red-400 text-center py-4">
+                Failed to load data
+              </p>
             ) : messageTypes && messageTypes.length > 0 ? (
               <div className="space-y-2">
                 {messageTypes.slice(0, 5).map((type) => (
-                  <div key={type.type} className="flex items-center justify-between">
+                  <div
+                    key={type.type}
+                    className="flex items-center justify-between"
+                  >
                     <Badge variant="secondary" className="capitalize">
                       {type.type}
                     </Badge>
@@ -371,7 +395,10 @@ export function Dashboard({ companyId, isAdmin = false }: DashboardProps) {
               ) : teamStats && teamStats.length > 0 ? (
                 <div className="space-y-3">
                   {teamStats.slice(0, 5).map((member) => (
-                    <div key={member.userId} className="flex items-center justify-between">
+                    <div
+                      key={member.userId}
+                      className="flex items-center justify-between"
+                    >
                       <div className="flex items-center gap-2">
                         <Avatar className="h-8 w-8">
                           <AvatarFallback className="text-xs bg-gray-100 dark:bg-dark-tertiary dark:text-dark-text-secondary">
@@ -382,7 +409,9 @@ export function Dashboard({ companyId, isAdmin = false }: DashboardProps) {
                           {member.email}
                         </span>
                       </div>
-                      <Badge variant="outline">{formatNumber(member.messagesSent)} sent</Badge>
+                      <Badge variant="outline">
+                        {formatNumber(member.messagesSent)} sent
+                      </Badge>
                     </div>
                   ))}
                 </div>
@@ -578,11 +607,15 @@ export function Dashboard({ companyId, isAdmin = false }: DashboardProps) {
 
         {/* Response Time Analytics */}
         <div className="bg-white dark:bg-dark-elevated rounded-lg border border-gray-200 dark:border-dark-border p-6">
-          <ResponseTimeAnalytics companyId={companyId} isAdmin={isAdmin} slaThreshold={60} />
+          <ResponseTimeAnalytics
+            companyId={companyId}
+            isAdmin={isAdmin}
+            slaThreshold={60}
+          />
         </div>
       </div>
     </ScrollArea>
-  )
+  );
 }
 
 /**
@@ -595,26 +628,28 @@ function StatCard({
   isLoading,
   accent,
 }: {
-  icon: React.ReactNode
-  label: string
-  value?: number
-  isLoading: boolean
-  accent?: 'green' | 'blue' | 'orange'
+  icon: React.ReactNode;
+  label: string;
+  value?: number;
+  isLoading: boolean;
+  accent?: "green" | "blue" | "orange";
 }) {
   const accentColors = {
-    green: 'text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/30',
-    blue: 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30',
-    orange: 'text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-900/30',
-  }
+    green:
+      "text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/30",
+    blue: "text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30",
+    orange:
+      "text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-900/30",
+  };
 
   return (
     <div className="bg-white dark:bg-dark-elevated rounded-lg border border-gray-200 dark:border-dark-border p-4">
       <div
         className={cn(
-          'w-10 h-10 rounded-full flex items-center justify-center mb-3',
+          "w-10 h-10 rounded-full flex items-center justify-center mb-3",
           accent
             ? accentColors[accent]
-            : 'text-gray-500 dark:text-dark-text-secondary bg-gray-100 dark:bg-dark-tertiary'
+            : "text-gray-500 dark:text-dark-text-secondary bg-gray-100 dark:bg-dark-tertiary",
         )}
       >
         {icon}
@@ -626,24 +661,36 @@ function StatCard({
         <Skeleton className="h-7 w-16 mt-1" />
       ) : (
         <p className="text-2xl font-semibold text-gray-900 dark:text-dark-text-primary">
-          {value !== undefined ? formatNumber(value) : '-'}
+          {value !== undefined ? formatNumber(value) : "-"}
         </p>
       )}
     </div>
-  )
+  );
 }
 
 /**
  * Stat row for bar-style display
  */
-function StatRow({ label, value, total }: { label: string; value: number; total: number }) {
-  const percentage = total > 0 ? (value / total) * 100 : 0
+function StatRow({
+  label,
+  value,
+  total,
+}: {
+  label: string;
+  value: number;
+  total: number;
+}) {
+  const percentage = total > 0 ? (value / total) * 100 : 0;
 
   return (
     <div>
       <div className="flex items-center justify-between text-sm mb-1">
-        <span className="text-gray-600 dark:text-dark-text-secondary">{label}</span>
-        <span className="font-medium text-gray-900 dark:text-dark-text-primary">{value}</span>
+        <span className="text-gray-600 dark:text-dark-text-secondary">
+          {label}
+        </span>
+        <span className="font-medium text-gray-900 dark:text-dark-text-primary">
+          {value}
+        </span>
       </div>
       <div className="h-2 bg-gray-100 dark:bg-dark-tertiary rounded-full overflow-hidden">
         <div
@@ -652,28 +699,33 @@ function StatRow({ label, value, total }: { label: string; value: number; total:
         />
       </div>
     </div>
-  )
+  );
 }
 
 /**
  * Simple message trend chart (bar chart)
  */
-function MessageChart({ data }: { data: { date: string; sent: number; received: number }[] }) {
+function MessageChart({
+  data,
+}: {
+  data: { date: string; sent: number; received: number }[];
+}) {
   if (data.length === 0) {
     return (
       <p className="text-gray-500 dark:text-dark-text-secondary text-center py-8">
         No data available
       </p>
-    )
+    );
   }
 
-  const maxValue = Math.max(...data.flatMap((d) => [d.sent, d.received]))
+  const maxValue = Math.max(...data.flatMap((d) => [d.sent, d.received]));
 
   return (
     <div className="h-48 flex items-end gap-1">
       {data.slice(-14).map((day, i) => {
-        const sentHeight = maxValue > 0 ? (day.sent / maxValue) * 100 : 0
-        const receivedHeight = maxValue > 0 ? (day.received / maxValue) * 100 : 0
+        const sentHeight = maxValue > 0 ? (day.sent / maxValue) * 100 : 0;
+        const receivedHeight =
+          maxValue > 0 ? (day.received / maxValue) * 100 : 0;
 
         return (
           <div
@@ -681,7 +733,10 @@ function MessageChart({ data }: { data: { date: string; sent: number; received: 
             className="flex-1 flex flex-col items-center gap-1"
             title={formatDate(day.date)}
           >
-            <div className="w-full flex gap-0.5 items-end" style={{ height: '160px' }}>
+            <div
+              className="w-full flex gap-0.5 items-end"
+              style={{ height: "160px" }}
+            >
               <div
                 className="flex-1 bg-green-400 dark:bg-green-500 rounded-t transition-all"
                 style={{ height: `${sentHeight}%` }}
@@ -697,10 +752,10 @@ function MessageChart({ data }: { data: { date: string; sent: number; received: 
               </span>
             ) : null}
           </div>
-        )
+        );
       })}
     </div>
-  )
+  );
 }
 
 /**
@@ -712,15 +767,15 @@ function HourlyChart({ data }: { data: { hour: number; count: number }[] }) {
       <p className="text-gray-500 dark:text-dark-text-secondary text-center py-8">
         No data available
       </p>
-    )
+    );
   }
 
-  const maxValue = Math.max(...data.map((d) => d.count))
+  const maxValue = Math.max(...data.map((d) => d.count));
 
   return (
     <div className="h-48 flex items-end gap-0.5">
       {data.map((hour) => {
-        const height = maxValue > 0 ? (hour.count / maxValue) * 100 : 0
+        const height = maxValue > 0 ? (hour.count / maxValue) * 100 : 0;
 
         return (
           <div
@@ -728,7 +783,7 @@ function HourlyChart({ data }: { data: { hour: number; count: number }[] }) {
             className="flex-1 flex flex-col items-center"
             title={`${hour.hour}:00 - ${hour.count} messages`}
           >
-            <div className="w-full flex items-end" style={{ height: '140px' }}>
+            <div className="w-full flex items-end" style={{ height: "140px" }}>
               <div
                 className="w-full bg-whatsapp-teal-green rounded-t transition-all hover:bg-whatsapp-dark-green"
                 style={{ height: `${height}%` }}
@@ -740,10 +795,10 @@ function HourlyChart({ data }: { data: { hour: number; count: number }[] }) {
               </span>
             )}
           </div>
-        )
+        );
       })}
     </div>
-  )
+  );
 }
 
 /**
@@ -752,31 +807,35 @@ function HourlyChart({ data }: { data: { hour: number; count: number }[] }) {
 function NewContactsChart({
   data,
 }: {
-  data: { date: string; count: number; cumulativeTotal: number }[]
+  data: { date: string; count: number; cumulativeTotal: number }[];
 }) {
   if (data.length === 0) {
     return (
       <p className="text-gray-500 dark:text-dark-text-secondary text-center py-8">
         No data available
       </p>
-    )
+    );
   }
 
   // Get last 14 days for display
-  const displayData = data.slice(-14)
-  const maxCount = Math.max(...displayData.map((d) => d.count))
-  const totalNew = displayData.reduce((sum, d) => sum + d.count, 0)
-  const latestCumulative = displayData[displayData.length - 1]?.cumulativeTotal || 0
+  const displayData = data.slice(-14);
+  const maxCount = Math.max(...displayData.map((d) => d.count));
+  const totalNew = displayData.reduce((sum, d) => sum + d.count, 0);
+  const latestCumulative =
+    displayData[displayData.length - 1]?.cumulativeTotal || 0;
 
   return (
     <div className="h-48">
       {/* Summary stats */}
       <div className="flex justify-between text-xs text-gray-500 dark:text-dark-text-secondary mb-2">
         <span>
-          <span className="font-medium text-purple-600 dark:text-purple-400">+{totalNew}</span> new
+          <span className="font-medium text-purple-600 dark:text-purple-400">
+            +{totalNew}
+          </span>{" "}
+          new
         </span>
         <span>
-          Total:{' '}
+          Total:{" "}
           <span className="font-medium text-gray-700 dark:text-dark-text-primary">
             {formatNumber(latestCumulative)}
           </span>
@@ -786,7 +845,7 @@ function NewContactsChart({
       {/* Bar chart */}
       <div className="flex items-end gap-1 h-36">
         {displayData.map((day, i) => {
-          const height = maxCount > 0 ? (day.count / maxCount) * 100 : 0
+          const height = maxCount > 0 ? (day.count / maxCount) * 100 : 0;
 
           return (
             <div
@@ -794,13 +853,16 @@ function NewContactsChart({
               className="flex-1 flex flex-col items-center"
               title={`${formatDate(day.date)}: ${day.count} new (Total: ${day.cumulativeTotal})`}
             >
-              <div className="w-full flex items-end" style={{ height: '120px' }}>
+              <div
+                className="w-full flex items-end"
+                style={{ height: "120px" }}
+              >
                 <div
                   className={cn(
-                    'w-full rounded-t transition-all',
+                    "w-full rounded-t transition-all",
                     day.count > 0
-                      ? 'bg-purple-400 dark:bg-purple-500 hover:bg-purple-500 dark:hover:bg-purple-600'
-                      : 'bg-gray-100 dark:bg-dark-tertiary'
+                      ? "bg-purple-400 dark:bg-purple-500 hover:bg-purple-500 dark:hover:bg-purple-600"
+                      : "bg-gray-100 dark:bg-dark-tertiary",
                   )}
                   style={{
                     height: `${Math.max(height, day.count > 0 ? 5 : 0)}%`,
@@ -813,11 +875,11 @@ function NewContactsChart({
                 </span>
               ) : null}
             </div>
-          )
+          );
         })}
       </div>
     </div>
-  )
+  );
 }
 
 /**
@@ -830,38 +892,43 @@ function ResolutionStatCard({
   suffix,
   color,
 }: {
-  icon: React.ReactNode
-  label: string
-  value: number
-  suffix?: string
-  color: 'blue' | 'yellow' | 'green' | 'purple'
+  icon: React.ReactNode;
+  label: string;
+  value: number;
+  suffix?: string;
+  color: "blue" | "yellow" | "green" | "purple";
 }) {
   const colorClasses = {
-    blue: 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30',
-    yellow: 'text-yellow-600 dark:text-yellow-400 bg-yellow-50 dark:bg-yellow-900/30',
-    green: 'text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/30',
-    purple: 'text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-900/30',
-  }
+    blue: "text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30",
+    yellow:
+      "text-yellow-600 dark:text-yellow-400 bg-yellow-50 dark:bg-yellow-900/30",
+    green:
+      "text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/30",
+    purple:
+      "text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-900/30",
+  };
 
   return (
     <div className="bg-gray-50 dark:bg-dark-tertiary rounded-lg p-4">
       <div className="flex items-center gap-2 mb-2">
         <div
           className={cn(
-            'w-8 h-8 rounded-full flex items-center justify-center',
-            colorClasses[color]
+            "w-8 h-8 rounded-full flex items-center justify-center",
+            colorClasses[color],
           )}
         >
           {icon}
         </div>
-        <span className="text-sm text-gray-600 dark:text-dark-text-secondary">{label}</span>
+        <span className="text-sm text-gray-600 dark:text-dark-text-secondary">
+          {label}
+        </span>
       </div>
       <p className="text-2xl font-semibold text-gray-900 dark:text-dark-text-primary">
         {formatNumber(value)}
         {suffix}
       </p>
     </div>
-  )
+  );
 }
 
 /**
@@ -875,42 +942,49 @@ function EngagementStatCard({
   detail,
   color,
 }: {
-  icon: React.ReactNode
-  label: string
-  value: number
-  suffix?: string
-  detail?: string
-  color: 'blue' | 'green' | 'purple' | 'orange'
+  icon: React.ReactNode;
+  label: string;
+  value: number;
+  suffix?: string;
+  detail?: string;
+  color: "blue" | "green" | "purple" | "orange";
 }) {
   const colorClasses = {
-    blue: 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30',
-    green: 'text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/30',
-    purple: 'text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-900/30',
-    orange: 'text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-900/30',
-  }
+    blue: "text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30",
+    green:
+      "text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/30",
+    purple:
+      "text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-900/30",
+    orange:
+      "text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-900/30",
+  };
 
   return (
     <div className="bg-gray-50 dark:bg-dark-tertiary rounded-lg p-4">
       <div className="flex items-center gap-2 mb-2">
         <div
           className={cn(
-            'w-8 h-8 rounded-full flex items-center justify-center',
-            colorClasses[color]
+            "w-8 h-8 rounded-full flex items-center justify-center",
+            colorClasses[color],
           )}
         >
           {icon}
         </div>
-        <span className="text-sm text-gray-600 dark:text-dark-text-secondary">{label}</span>
+        <span className="text-sm text-gray-600 dark:text-dark-text-secondary">
+          {label}
+        </span>
       </div>
       <p className="text-2xl font-semibold text-gray-900 dark:text-dark-text-primary">
         {value}
         {suffix}
       </p>
       {detail && (
-        <p className="text-xs text-gray-500 dark:text-dark-text-secondary mt-1">{detail}</p>
+        <p className="text-xs text-gray-500 dark:text-dark-text-secondary mt-1">
+          {detail}
+        </p>
       )}
     </div>
-  )
+  );
 }
 
 /**
@@ -920,39 +994,40 @@ function EngagementTrendChart({
   data,
 }: {
   data: {
-    date: string
-    engagementScore: number
-    activeContacts: number
-    messagesSent: number
-    messagesReceived: number
-    responseRate: number
-  }[]
+    date: string;
+    engagementScore: number;
+    activeContacts: number;
+    messagesSent: number;
+    messagesReceived: number;
+    responseRate: number;
+  }[];
 }) {
   if (data.length === 0) {
     return (
       <p className="text-gray-500 dark:text-dark-text-secondary text-center py-4">
         No trend data available
       </p>
-    )
+    );
   }
 
   // Show last 14 days
-  const displayData = data.slice(-14)
-  const maxScore = Math.max(...displayData.map((d) => d.engagementScore), 1)
+  const displayData = data.slice(-14);
+  const maxScore = Math.max(...displayData.map((d) => d.engagementScore), 1);
 
   return (
     <div className="h-40">
       <div className="flex items-end gap-1 h-32">
         {displayData.map((day, i) => {
-          const height = maxScore > 0 ? (day.engagementScore / maxScore) * 100 : 0
+          const height =
+            maxScore > 0 ? (day.engagementScore / maxScore) * 100 : 0;
           const scoreColor =
             day.engagementScore >= 70
-              ? 'bg-green-400 dark:bg-green-500 hover:bg-green-500 dark:hover:bg-green-600'
+              ? "bg-green-400 dark:bg-green-500 hover:bg-green-500 dark:hover:bg-green-600"
               : day.engagementScore >= 40
-                ? 'bg-yellow-400 dark:bg-yellow-500 hover:bg-yellow-500 dark:hover:bg-yellow-600'
+                ? "bg-yellow-400 dark:bg-yellow-500 hover:bg-yellow-500 dark:hover:bg-yellow-600"
                 : day.engagementScore > 0
-                  ? 'bg-red-400 dark:bg-red-500 hover:bg-red-500 dark:hover:bg-red-600'
-                  : 'bg-gray-100 dark:bg-dark-tertiary'
+                  ? "bg-red-400 dark:bg-red-500 hover:bg-red-500 dark:hover:bg-red-600"
+                  : "bg-gray-100 dark:bg-dark-tertiary";
 
           return (
             <div
@@ -960,9 +1035,12 @@ function EngagementTrendChart({
               className="flex-1 flex flex-col items-center"
               title={`${formatDate(day.date)}: Score ${day.engagementScore}, ${day.activeContacts} active, ${day.responseRate}% response rate`}
             >
-              <div className="w-full flex items-end" style={{ height: '100px' }}>
+              <div
+                className="w-full flex items-end"
+                style={{ height: "100px" }}
+              >
                 <div
-                  className={cn('w-full rounded-t transition-all', scoreColor)}
+                  className={cn("w-full rounded-t transition-all", scoreColor)}
                   style={{
                     height: `${Math.max(height, day.engagementScore > 0 ? 5 : 0)}%`,
                   }}
@@ -974,22 +1052,25 @@ function EngagementTrendChart({
                 </span>
               ) : null}
             </div>
-          )
+          );
         })}
       </div>
       <div className="flex justify-center gap-4 mt-2 text-xs text-gray-500 dark:text-dark-text-secondary">
         <span className="flex items-center gap-1">
-          <span className="w-3 h-3 rounded bg-green-400 dark:bg-green-500"></span> High (70+)
+          <span className="w-3 h-3 rounded bg-green-400 dark:bg-green-500"></span>{" "}
+          High (70+)
         </span>
         <span className="flex items-center gap-1">
-          <span className="w-3 h-3 rounded bg-yellow-400 dark:bg-yellow-500"></span> Medium (40-69)
+          <span className="w-3 h-3 rounded bg-yellow-400 dark:bg-yellow-500"></span>{" "}
+          Medium (40-69)
         </span>
         <span className="flex items-center gap-1">
-          <span className="w-3 h-3 rounded bg-red-400 dark:bg-red-500"></span> Low (&lt;40)
+          <span className="w-3 h-3 rounded bg-red-400 dark:bg-red-500"></span>{" "}
+          Low (&lt;40)
         </span>
       </div>
     </div>
-  )
+  );
 }
 
-export default Dashboard
+export default Dashboard;

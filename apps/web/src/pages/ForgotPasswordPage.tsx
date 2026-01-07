@@ -1,17 +1,20 @@
-import * as React from 'react'
-import { Link } from 'react-router-dom'
-import { useForm } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
-import { Button } from '../components/ui/button'
-import { FormField } from '../components/ui/form-field'
-import { forgotPasswordSchema, type ForgotPasswordFormData } from '../lib/schemas'
-import { forgotPassword } from '../lib/api'
+import * as React from "react";
+import { Link } from "react-router-dom";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { Button } from "../components/ui/button";
+import { FormField } from "../components/ui/form-field";
+import {
+  forgotPasswordSchema,
+  type ForgotPasswordFormData,
+} from "../lib/schemas";
+import { forgotPassword } from "../lib/api";
 
 export function ForgotPasswordPage() {
-  const [isLoading, setIsLoading] = React.useState(false)
-  const [isSubmitted, setIsSubmitted] = React.useState(false)
-  const [submittedEmail, setSubmittedEmail] = React.useState('')
-  const [serverError, setServerError] = React.useState<string | null>(null)
+  const [isLoading, setIsLoading] = React.useState(false);
+  const [isSubmitted, setIsSubmitted] = React.useState(false);
+  const [submittedEmail, setSubmittedEmail] = React.useState("");
+  const [serverError, setServerError] = React.useState<string | null>(null);
 
   const {
     register,
@@ -20,27 +23,27 @@ export function ForgotPasswordPage() {
   } = useForm<ForgotPasswordFormData>({
     resolver: zodResolver(forgotPasswordSchema),
     defaultValues: {
-      email: '',
+      email: "",
     },
-  })
+  });
 
   const onSubmit = async (data: ForgotPasswordFormData) => {
-    setServerError(null)
-    setIsLoading(true)
+    setServerError(null);
+    setIsLoading(true);
 
     try {
-      await forgotPassword(data.email)
-      setSubmittedEmail(data.email)
-      setIsSubmitted(true)
+      await forgotPassword(data.email);
+      setSubmittedEmail(data.email);
+      setIsSubmitted(true);
     } catch {
       // Backend always returns success to prevent email enumeration
       // but we show success anyway for the same reason
-      setSubmittedEmail(data.email)
-      setIsSubmitted(true)
+      setSubmittedEmail(data.email);
+      setIsSubmitted(true);
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }
+  };
 
   if (isSubmitted) {
     return (
@@ -67,10 +70,11 @@ export function ForgotPasswordPage() {
                 Check your email
               </h1>
               <p className="text-gray-600 dark:text-dark-text-secondary mt-2">
-                We've sent a password reset link to <span className="font-medium">{submittedEmail}</span>
+                We've sent a password reset link to{" "}
+                <span className="font-medium">{submittedEmail}</span>
               </p>
               <p className="text-sm text-gray-500 dark:text-dark-text-tertiary mt-4">
-                Didn't receive the email? Check your spam folder or{' '}
+                Didn't receive the email? Check your spam folder or{" "}
                 <button
                   onClick={() => setIsSubmitted(false)}
                   className="text-whatsapp-green-a11y-text dark:text-whatsapp-green hover:text-whatsapp-green-a11y-button dark:hover:text-whatsapp-green/80"
@@ -88,7 +92,7 @@ export function ForgotPasswordPage() {
           </div>
         </div>
       </div>
-    )
+    );
   }
 
   return (
@@ -131,7 +135,7 @@ export function ForgotPasswordPage() {
               id="email"
               type="email"
               placeholder="you@example.com"
-              registration={register('email')}
+              registration={register("email")}
               error={errors.email}
               autoComplete="email"
             />
@@ -141,17 +145,20 @@ export function ForgotPasswordPage() {
               className="w-full bg-whatsapp-green-a11y-button hover:bg-whatsapp-green-a11y-button/90 dark:bg-whatsapp-green-a11y-button dark:hover:bg-whatsapp-green-a11y-button/90 text-white"
               disabled={isLoading}
             >
-              {isLoading ? 'Sending...' : 'Reset password'}
+              {isLoading ? "Sending..." : "Reset password"}
             </Button>
           </form>
 
           <div className="mt-6 text-center">
-            <Link to="/login" className="text-sm text-whatsapp-green-a11y-text dark:text-whatsapp-green hover:text-whatsapp-green-a11y-button dark:hover:text-whatsapp-green/80 font-medium">
+            <Link
+              to="/login"
+              className="text-sm text-whatsapp-green-a11y-text dark:text-whatsapp-green hover:text-whatsapp-green-a11y-button dark:hover:text-whatsapp-green/80 font-medium"
+            >
               Back to sign in
             </Link>
           </div>
         </div>
       </div>
     </div>
-  )
+  );
 }

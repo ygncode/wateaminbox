@@ -8,7 +8,7 @@ export {
   useAuth,
   useHasRole,
   useIsAdmin,
-} from './auth-context'
+} from "./auth-context";
 export {
   type KeyboardShortcutsContextValue,
   KeyboardShortcutsProvider,
@@ -18,16 +18,16 @@ export {
   useRegisteredShortcuts,
   useRegisterShortcutAction,
   useShortcutsEnabled,
-} from './KeyboardShortcutsContext'
+} from "./KeyboardShortcutsContext";
 export {
   type ResolvedTheme,
   type Theme,
   type ThemeContextValue,
   ThemeProvider,
   useTheme,
-} from './theme-context'
+} from "./theme-context";
 export {
   useWebSocketContext,
   type WebSocketContextValue,
   WebSocketProvider,
-} from './WebSocketProvider'
+} from "./WebSocketProvider";

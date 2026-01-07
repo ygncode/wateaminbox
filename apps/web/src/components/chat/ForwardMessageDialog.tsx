@@ -1,19 +1,24 @@
-import { useVirtualizer } from '@tanstack/react-virtual'
-import { Loader2, Search, X } from 'lucide-react'
-import { memo, useCallback, useMemo, useRef, useState } from 'react'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui'
-import { useChats } from '../../hooks/useChats'
-import type { Chat } from '../../types/chat'
+import { useVirtualizer } from "@tanstack/react-virtual";
+import { Loader2, Search, X } from "lucide-react";
+import { memo, useCallback, useMemo, useRef, useState } from "react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui";
+import { useChats } from "../../hooks/useChats";
+import type { Chat } from "../../types/chat";
 
 interface ForwardMessageDialogProps {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  onForward: (targetContactId: string) => void
-  isForwarding?: boolean
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onForward: (targetContactId: string) => void;
+  isForwarding?: boolean;
 }
 
 // Fixed height for chat list items for virtualization
-const CHAT_ITEM_HEIGHT = 64
+const CHAT_ITEM_HEIGHT = 64;
 
 /**
  * Dialog for selecting a contact to forward a message to
@@ -24,41 +29,44 @@ export const ForwardMessageDialog = memo(function ForwardMessageDialog({
   onForward,
   isForwarding = false,
 }: ForwardMessageDialogProps) {
-  const [searchQuery, setSearchQuery] = useState('')
-  const scrollContainerRef = useRef<HTMLDivElement>(null)
+  const [searchQuery, setSearchQuery] = useState("");
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
 
-  const { data: chats, isLoading } = useChats(searchQuery, true, 'all')
+  const { data: chats, isLoading } = useChats(searchQuery, true, "all");
 
   // Filter to contacts that have a JID (can receive messages)
   const availableContacts = useMemo(() => {
-    return (chats || []).filter((chat) => !chat.isArchived)
-  }, [chats])
+    return (chats || []).filter((chat) => !chat.isArchived);
+  }, [chats]);
 
-  const handleSearchChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    setSearchQuery(e.target.value)
-  }, [])
+  const handleSearchChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      setSearchQuery(e.target.value);
+    },
+    [],
+  );
 
   const handleSearchClear = useCallback(() => {
-    setSearchQuery('')
-  }, [])
+    setSearchQuery("");
+  }, []);
 
   const handleSelectContact = useCallback(
     (contactId: string) => {
-      onForward(contactId)
+      onForward(contactId);
     },
-    [onForward]
-  )
+    [onForward],
+  );
 
   // Reset search when dialog closes
   const handleOpenChange = useCallback(
     (newOpen: boolean) => {
       if (!newOpen) {
-        setSearchQuery('')
+        setSearchQuery("");
       }
-      onOpenChange(newOpen)
+      onOpenChange(newOpen);
     },
-    [onOpenChange]
-  )
+    [onOpenChange],
+  );
 
   // Virtualizer for contact list
   const virtualizer = useVirtualizer({
@@ -66,7 +74,7 @@ export const ForwardMessageDialog = memo(function ForwardMessageDialog({
     getScrollElement: () => scrollContainerRef.current,
     estimateSize: () => CHAT_ITEM_HEIGHT,
     overscan: 5,
-  })
+  });
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -103,7 +111,7 @@ export const ForwardMessageDialog = memo(function ForwardMessageDialog({
         <div
           ref={scrollContainerRef}
           className="flex-1 overflow-auto min-h-0"
-          style={{ maxHeight: '50vh' }}
+          style={{ maxHeight: "50vh" }}
         >
           {isLoading ? (
             <div className="flex items-center justify-center py-8">
@@ -112,19 +120,21 @@ export const ForwardMessageDialog = memo(function ForwardMessageDialog({
           ) : availableContacts.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-8 px-4 text-center">
               <p className="text-sm text-gray-500 dark:text-dark-text-secondary">
-                {searchQuery ? 'No contacts found matching your search' : 'No contacts available'}
+                {searchQuery
+                  ? "No contacts found matching your search"
+                  : "No contacts available"}
               </p>
             </div>
           ) : (
             <div
               style={{
                 height: `${virtualizer.getTotalSize()}px`,
-                width: '100%',
-                position: 'relative',
+                width: "100%",
+                position: "relative",
               }}
             >
               {virtualizer.getVirtualItems().map((virtualRow) => {
-                const chat = availableContacts[virtualRow.index]
+                const chat = availableContacts[virtualRow.index];
                 return (
                   <ContactListItem
                     key={chat.id}
@@ -132,15 +142,15 @@ export const ForwardMessageDialog = memo(function ForwardMessageDialog({
                     onClick={() => handleSelectContact(chat.id)}
                     isDisabled={isForwarding}
                     style={{
-                      position: 'absolute',
+                      position: "absolute",
                       top: 0,
                       left: 0,
-                      width: '100%',
+                      width: "100%",
                       height: `${virtualRow.size}px`,
                       transform: `translateY(${virtualRow.start}px)`,
                     }}
                   />
-                )
+                );
               })}
             </div>
           )}
@@ -157,14 +167,14 @@ export const ForwardMessageDialog = memo(function ForwardMessageDialog({
         )}
       </DialogContent>
     </Dialog>
-  )
-})
+  );
+});
 
 interface ContactListItemProps {
-  chat: Chat
-  onClick: () => void
-  isDisabled?: boolean
-  style?: React.CSSProperties
+  chat: Chat;
+  onClick: () => void;
+  isDisabled?: boolean;
+  style?: React.CSSProperties;
 }
 
 const ContactListItem = memo(function ContactListItem({
@@ -173,8 +183,9 @@ const ContactListItem = memo(function ContactListItem({
   isDisabled,
   style,
 }: ContactListItemProps) {
-  const { contact } = chat
-  const displayName = contact.customName || contact.name || contact.jid || 'Unknown'
+  const { contact } = chat;
+  const displayName =
+    contact.customName || contact.name || contact.jid || "Unknown";
 
   return (
     <button
@@ -227,7 +238,7 @@ const ContactListItem = memo(function ContactListItem({
         )}
       </div>
     </button>
-  )
-})
+  );
+});
 
-export default ForwardMessageDialog
+export default ForwardMessageDialog;

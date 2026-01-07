@@ -15,17 +15,17 @@ import {
   UserPlus,
   Users,
   X,
-} from 'lucide-react'
-import { useEffect, useState } from 'react'
-import { formatPhoneNumber } from '@/lib/utils'
-import { formatShortDate, dayjs } from '@whatsapp-web/shared'
-import { ExportDialog } from '@/components/export'
+} from "lucide-react";
+import { useEffect, useState } from "react";
+import { formatPhoneNumber } from "@/lib/utils";
+import { formatShortDate, dayjs } from "@whatsapp-web/shared";
+import { ExportDialog } from "@/components/export";
 import {
   RightPanel,
   RightPanelContent,
   RightPanelHeader,
   RightPanelSection,
-} from '@/components/layout/right-panel'
+} from "@/components/layout/right-panel";
 import {
   Avatar,
   AvatarFallback,
@@ -34,8 +34,8 @@ import {
   Button,
   Input,
   Skeleton,
-} from '@/components/ui'
-import { useAuth } from '@/contexts/auth-context'
+} from "@/components/ui";
+import { useAuth } from "@/contexts/auth-context";
 import {
   type PrivateNote,
   type SharedNote,
@@ -55,24 +55,28 @@ import {
   useUpdateContact,
   useUpdatePrivateNote,
   useUpdateSharedNote,
-} from '@/hooks/useContact'
-import { cn } from '@/lib/utils'
+} from "@/hooks/useContact";
+import { cn } from "@/lib/utils";
 
 export interface ContactProfileProps {
-  contactId: string | null
-  isOpen: boolean
-  onClose: () => void
+  contactId: string | null;
+  isOpen: boolean;
+  onClose: () => void;
 }
 
 /**
  * Contact Profile Panel - shows detailed contact information
  * with editable fields for custom name, shared notes, and private notes
  */
-export function ContactProfile({ contactId, isOpen, onClose }: ContactProfileProps) {
-  const { data: contact, isLoading, error } = useContact(contactId)
-  const [showExportDialog, setShowExportDialog] = useState(false)
+export function ContactProfile({
+  contactId,
+  isOpen,
+  onClose,
+}: ContactProfileProps) {
+  const { data: contact, isLoading, error } = useContact(contactId);
+  const [showExportDialog, setShowExportDialog] = useState(false);
 
-  if (!contactId) return null
+  if (!contactId) return null;
 
   return (
     <RightPanel isOpen={isOpen} onClose={onClose}>
@@ -140,7 +144,7 @@ export function ContactProfile({ contactId, isOpen, onClose }: ContactProfilePro
         ) : null}
       </RightPanelContent>
     </RightPanel>
-  )
+  );
 }
 
 /**
@@ -158,7 +162,7 @@ function ContactProfileSkeleton() {
       <Skeleton className="h-20 w-full" />
       <Skeleton className="h-20 w-full" />
     </div>
-  )
+  );
 }
 
 /**
@@ -167,19 +171,22 @@ function ContactProfileSkeleton() {
 function ProfileHeader({
   contact,
 }: {
-  contact: NonNullable<ReturnType<typeof useContact>['data']>
+  contact: NonNullable<ReturnType<typeof useContact>["data"]>;
 }) {
   const initials = contact.displayName
-    .split(' ')
+    .split(" ")
     .map((n) => n[0])
-    .join('')
+    .join("")
     .toUpperCase()
-    .slice(0, 2)
+    .slice(0, 2);
 
   return (
     <div className="flex flex-col items-center gap-4 bg-gray-50 dark:bg-dark-elevated py-8">
       <Avatar className="h-32 w-32 border-4 border-white dark:border-dark-tertiary shadow-lg">
-        <AvatarImage src={contact.profilePictureUrl || undefined} alt={contact.displayName} />
+        <AvatarImage
+          src={contact.profilePictureUrl || undefined}
+          alt={contact.displayName}
+        />
         <AvatarFallback className="bg-whatsapp-teal-green text-3xl text-white">
           {initials}
         </AvatarFallback>
@@ -189,11 +196,13 @@ function ProfileHeader({
           {contact.displayName}
         </h3>
         {contact.customName && contact.pushName && (
-          <p className="text-sm text-gray-500 dark:text-dark-text-secondary">~{contact.pushName}</p>
+          <p className="text-sm text-gray-500 dark:text-dark-text-secondary">
+            ~{contact.pushName}
+          </p>
         )}
       </div>
     </div>
-  )
+  );
 }
 
 /**
@@ -202,7 +211,7 @@ function ProfileHeader({
 function ContactInfoSection({
   contact,
 }: {
-  contact: NonNullable<ReturnType<typeof useContact>['data']>
+  contact: NonNullable<ReturnType<typeof useContact>["data"]>;
 }) {
   return (
     <RightPanelSection>
@@ -214,7 +223,9 @@ function ContactInfoSection({
               <p className="text-sm font-medium text-gray-900 dark:text-dark-text-primary">
                 {formatPhoneNumber(contact.phoneNumber)}
               </p>
-              <p className="text-xs text-gray-500 dark:text-dark-text-tertiary">Phone</p>
+              <p className="text-xs text-gray-500 dark:text-dark-text-tertiary">
+                Phone
+              </p>
             </div>
           </div>
         )}
@@ -225,13 +236,15 @@ function ContactInfoSection({
               <p className="text-sm font-medium text-gray-900 dark:text-dark-text-primary">
                 {contact.pushName}
               </p>
-              <p className="text-xs text-gray-500 dark:text-dark-text-tertiary">WhatsApp Name</p>
+              <p className="text-xs text-gray-500 dark:text-dark-text-tertiary">
+                WhatsApp Name
+              </p>
             </div>
           </div>
         )}
       </div>
     </RightPanelSection>
-  )
+  );
 }
 
 /**
@@ -240,28 +253,28 @@ function ContactInfoSection({
 function EditableNameSection({
   contact,
 }: {
-  contact: NonNullable<ReturnType<typeof useContact>['data']>
+  contact: NonNullable<ReturnType<typeof useContact>["data"]>;
 }) {
-  const [isEditing, setIsEditing] = useState(false)
-  const [customName, setCustomName] = useState(contact.customName || '')
-  const updateContact = useUpdateContact()
+  const [isEditing, setIsEditing] = useState(false);
+  const [customName, setCustomName] = useState(contact.customName || "");
+  const updateContact = useUpdateContact();
 
   useEffect(() => {
-    setCustomName(contact.customName || '')
-  }, [contact.customName])
+    setCustomName(contact.customName || "");
+  }, [contact.customName]);
 
   const handleSave = async () => {
     await updateContact.mutateAsync({
       contactId: contact.id,
       customName: customName.trim() || undefined,
-    })
-    setIsEditing(false)
-  }
+    });
+    setIsEditing(false);
+  };
 
   const handleCancel = () => {
-    setCustomName(contact.customName || '')
-    setIsEditing(false)
-  }
+    setCustomName(contact.customName || "");
+    setIsEditing(false);
+  };
 
   return (
     <RightPanelSection title="Custom Name">
@@ -315,7 +328,7 @@ function EditableNameSection({
         Custom name is visible to all team members
       </p>
     </RightPanelSection>
-  )
+  );
 }
 
 /**
@@ -330,34 +343,34 @@ function NoteItem({
   isPending,
   showAuthor,
 }: {
-  note: SharedNote | PrivateNote
-  isOwner: boolean
-  isSystem: boolean
-  onEdit: (noteId: string, content: string) => void
-  onDelete: (noteId: string) => void
-  isPending: boolean
-  showAuthor: boolean
+  note: SharedNote | PrivateNote;
+  isOwner: boolean;
+  isSystem: boolean;
+  onEdit: (noteId: string, content: string) => void;
+  onDelete: (noteId: string) => void;
+  isPending: boolean;
+  showAuthor: boolean;
 }) {
-  const [isEditing, setIsEditing] = useState(false)
-  const [editContent, setEditContent] = useState(note.content || '')
+  const [isEditing, setIsEditing] = useState(false);
+  const [editContent, setEditContent] = useState(note.content || "");
 
   const handleSave = () => {
     if (editContent.trim()) {
-      onEdit(note.id, editContent.trim())
-      setIsEditing(false)
+      onEdit(note.id, editContent.trim());
+      setIsEditing(false);
     }
-  }
+  };
 
   const handleCancel = () => {
-    setEditContent(note.content || '')
-    setIsEditing(false)
-  }
+    setEditContent(note.content || "");
+    setIsEditing(false);
+  };
 
   const formatDate = (dateStr: string) => {
-    const parsed = dayjs(dateStr)
-    const showYear = parsed.year() !== dayjs().year()
-    return showYear ? parsed.format('MMM D, YYYY') : parsed.format('MMM D')
-  }
+    const parsed = dayjs(dateStr);
+    const showYear = parsed.year() !== dayjs().year();
+    return showYear ? parsed.format("MMM D, YYYY") : parsed.format("MMM D");
+  };
 
   if (isEditing) {
     return (
@@ -388,7 +401,7 @@ function NoteItem({
           </Button>
         </div>
       </div>
-    )
+    );
   }
 
   return (
@@ -420,9 +433,14 @@ function NoteItem({
         )}
       </div>
       <div className="mt-2 flex items-center gap-2 text-xs text-gray-500 dark:text-dark-text-tertiary">
-        {showAuthor && 'authorName' in note && (
+        {showAuthor && "authorName" in note && (
           <>
-            <span className={cn('font-medium', isSystem && 'text-blue-600 dark:text-blue-400')}>
+            <span
+              className={cn(
+                "font-medium",
+                isSystem && "text-blue-600 dark:text-blue-400",
+              )}
+            >
               {note.authorName}
             </span>
             <span>•</span>
@@ -437,47 +455,48 @@ function NoteItem({
         )}
       </div>
     </div>
-  )
+  );
 }
 
 /**
  * Shared notes list - visible to all team members
  */
 function SharedNotesList({ contactId }: { contactId: string }) {
-  const { user } = useAuth()
-  const { data, isLoading } = useSharedNotes(contactId)
-  const createNote = useCreateSharedNote()
-  const updateNote = useUpdateSharedNote()
-  const deleteNote = useDeleteSharedNote()
-  const [showAddForm, setShowAddForm] = useState(false)
-  const [newContent, setNewContent] = useState('')
-  const [isExpanded, setIsExpanded] = useState(true)
+  const { user } = useAuth();
+  const { data, isLoading } = useSharedNotes(contactId);
+  const createNote = useCreateSharedNote();
+  const updateNote = useUpdateSharedNote();
+  const deleteNote = useDeleteSharedNote();
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [newContent, setNewContent] = useState("");
+  const [isExpanded, setIsExpanded] = useState(true);
 
-  const notes = data?.data || []
-  const isPending = createNote.isPending || updateNote.isPending || deleteNote.isPending
+  const notes = data?.data || [];
+  const isPending =
+    createNote.isPending || updateNote.isPending || deleteNote.isPending;
 
   const handleCreate = async () => {
     if (newContent.trim()) {
-      await createNote.mutateAsync({ contactId, content: newContent.trim() })
-      setNewContent('')
-      setShowAddForm(false)
+      await createNote.mutateAsync({ contactId, content: newContent.trim() });
+      setNewContent("");
+      setShowAddForm(false);
     }
-  }
+  };
 
   const handleEdit = async (noteId: string, content: string) => {
-    await updateNote.mutateAsync({ contactId, noteId, content })
-  }
+    await updateNote.mutateAsync({ contactId, noteId, content });
+  };
 
   const handleDelete = async (noteId: string) => {
-    await deleteNote.mutateAsync({ contactId, noteId })
-  }
+    await deleteNote.mutateAsync({ contactId, noteId });
+  };
 
   if (isLoading) {
     return (
       <RightPanelSection title="Shared Notes">
         <Skeleton className="h-20 w-full" />
       </RightPanelSection>
-    )
+    );
   }
 
   return (
@@ -515,7 +534,7 @@ function SharedNotesList({ contactId }: { contactId: string }) {
               key={note.id}
               note={note}
               isOwner={note.userId === user?.id}
-              isSystem={note.authorName === 'System'}
+              isSystem={note.authorName === "System"}
               onEdit={handleEdit}
               onDelete={handleDelete}
               isPending={isPending}
@@ -537,8 +556,8 @@ function SharedNotesList({ contactId }: { contactId: string }) {
                   size="sm"
                   variant="outline"
                   onClick={() => {
-                    setShowAddForm(false)
-                    setNewContent('')
+                    setShowAddForm(false);
+                    setNewContent("");
                   }}
                   disabled={isPending}
                   className="dark:border-dark-border dark:text-dark-text-primary dark:hover:bg-dark-tertiary"
@@ -568,46 +587,47 @@ function SharedNotesList({ contactId }: { contactId: string }) {
         </div>
       )}
     </RightPanelSection>
-  )
+  );
 }
 
 /**
  * Private notes list - only visible to current user
  */
 function PrivateNotesList({ contactId }: { contactId: string }) {
-  const { data, isLoading } = usePrivateNotes(contactId)
-  const createNote = useCreatePrivateNote()
-  const updateNote = useUpdatePrivateNote()
-  const deleteNote = useDeletePrivateNote()
-  const [showAddForm, setShowAddForm] = useState(false)
-  const [newContent, setNewContent] = useState('')
-  const [isExpanded, setIsExpanded] = useState(true)
+  const { data, isLoading } = usePrivateNotes(contactId);
+  const createNote = useCreatePrivateNote();
+  const updateNote = useUpdatePrivateNote();
+  const deleteNote = useDeletePrivateNote();
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [newContent, setNewContent] = useState("");
+  const [isExpanded, setIsExpanded] = useState(true);
 
-  const notes = data?.data || []
-  const isPending = createNote.isPending || updateNote.isPending || deleteNote.isPending
+  const notes = data?.data || [];
+  const isPending =
+    createNote.isPending || updateNote.isPending || deleteNote.isPending;
 
   const handleCreate = async () => {
     if (newContent.trim()) {
-      await createNote.mutateAsync({ contactId, content: newContent.trim() })
-      setNewContent('')
-      setShowAddForm(false)
+      await createNote.mutateAsync({ contactId, content: newContent.trim() });
+      setNewContent("");
+      setShowAddForm(false);
     }
-  }
+  };
 
   const handleEdit = async (noteId: string, content: string) => {
-    await updateNote.mutateAsync({ contactId, noteId, content })
-  }
+    await updateNote.mutateAsync({ contactId, noteId, content });
+  };
 
   const handleDelete = async (noteId: string) => {
-    await deleteNote.mutateAsync({ contactId, noteId })
-  }
+    await deleteNote.mutateAsync({ contactId, noteId });
+  };
 
   if (isLoading) {
     return (
       <RightPanelSection title="Private Notes">
         <Skeleton className="h-20 w-full" />
       </RightPanelSection>
-    )
+    );
   }
 
   return (
@@ -667,8 +687,8 @@ function PrivateNotesList({ contactId }: { contactId: string }) {
                   size="sm"
                   variant="outline"
                   onClick={() => {
-                    setShowAddForm(false)
-                    setNewContent('')
+                    setShowAddForm(false);
+                    setNewContent("");
                   }}
                   disabled={isPending}
                   className="dark:border-dark-border dark:text-dark-text-primary dark:hover:bg-dark-tertiary"
@@ -698,29 +718,33 @@ function PrivateNotesList({ contactId }: { contactId: string }) {
         </div>
       )}
     </RightPanelSection>
-  )
+  );
 }
 
 /**
  * Tags section - display and manage contact tags
  */
-function TagsSection({ contact }: { contact: NonNullable<ReturnType<typeof useContact>['data']> }) {
-  const [showTagPicker, setShowTagPicker] = useState(false)
-  const { data: allTags, isLoading: isLoadingTags } = useTags()
-  const addTag = useAddContactTag()
-  const removeTag = useRemoveContactTag()
+function TagsSection({
+  contact,
+}: {
+  contact: NonNullable<ReturnType<typeof useContact>["data"]>;
+}) {
+  const [showTagPicker, setShowTagPicker] = useState(false);
+  const { data: allTags, isLoading: isLoadingTags } = useTags();
+  const addTag = useAddContactTag();
+  const removeTag = useRemoveContactTag();
 
-  const contactTagIds = new Set(contact.tags.map((t) => t.id))
-  const availableTags = allTags?.filter((t) => !contactTagIds.has(t.id)) || []
+  const contactTagIds = new Set(contact.tags.map((t) => t.id));
+  const availableTags = allTags?.filter((t) => !contactTagIds.has(t.id)) || [];
 
   const handleAddTag = async (tagId: string) => {
-    await addTag.mutateAsync({ contactId: contact.id, tagId })
-    setShowTagPicker(false)
-  }
+    await addTag.mutateAsync({ contactId: contact.id, tagId });
+    setShowTagPicker(false);
+  };
 
   const handleRemoveTag = async (tagId: string) => {
-    await removeTag.mutateAsync({ contactId: contact.id, tagId })
-  }
+    await removeTag.mutateAsync({ contactId: contact.id, tagId });
+  };
 
   return (
     <RightPanelSection title="Tags">
@@ -733,11 +757,13 @@ function TagsSection({ contact }: { contact: NonNullable<ReturnType<typeof useCo
                 key={tag.id}
                 variant="secondary"
                 className={cn(
-                  'group cursor-pointer pr-1',
-                  tag.color && `bg-${tag.color}-100 text-${tag.color}-700`
+                  "group cursor-pointer pr-1",
+                  tag.color && `bg-${tag.color}-100 text-${tag.color}-700`,
                 )}
                 style={
-                  tag.color ? { backgroundColor: `${tag.color}20`, color: tag.color } : undefined
+                  tag.color
+                    ? { backgroundColor: `${tag.color}20`, color: tag.color }
+                    : undefined
                 }
               >
                 {tag.name}
@@ -773,7 +799,11 @@ function TagsSection({ contact }: { contact: NonNullable<ReturnType<typeof useCo
                       key={tag.id}
                       variant="outline"
                       className="cursor-pointer hover:bg-gray-100 dark:hover:bg-dark-tertiary"
-                      style={tag.color ? { borderColor: tag.color, color: tag.color } : undefined}
+                      style={
+                        tag.color
+                          ? { borderColor: tag.color, color: tag.color }
+                          : undefined
+                      }
                       onClick={() => handleAddTag(tag.id)}
                     >
                       {tag.name}
@@ -786,7 +816,7 @@ function TagsSection({ contact }: { contact: NonNullable<ReturnType<typeof useCo
         </div>
       </div>
     </RightPanelSection>
-  )
+  );
 }
 
 /**
@@ -795,18 +825,18 @@ function TagsSection({ contact }: { contact: NonNullable<ReturnType<typeof useCo
 function AssignmentSection({
   contact,
 }: {
-  contact: NonNullable<ReturnType<typeof useContact>['data']>
+  contact: NonNullable<ReturnType<typeof useContact>["data"]>;
 }) {
-  const assignContact = useAssignContact()
-  const unassignContact = useUnassignContact()
+  const assignContact = useAssignContact();
+  const unassignContact = useUnassignContact();
 
   const handleAssign = async () => {
-    await assignContact.mutateAsync(contact.id)
-  }
+    await assignContact.mutateAsync(contact.id);
+  };
 
   const handleUnassign = async () => {
-    await unassignContact.mutateAsync(contact.id)
-  }
+    await unassignContact.mutateAsync(contact.id);
+  };
 
   return (
     <RightPanelSection title="Assignment">
@@ -815,8 +845,10 @@ function AssignmentSection({
           <>
             <div>
               <p className="text-sm text-gray-700 dark:text-dark-text-primary">
-                Assigned to:{' '}
-                <span className="font-medium">{contact.assignment.assignedToName}</span>
+                Assigned to:{" "}
+                <span className="font-medium">
+                  {contact.assignment.assignedToName}
+                </span>
               </p>
               <p className="text-xs text-gray-500 dark:text-dark-text-tertiary">
                 Since {formatShortDate(contact.assignment.assignedAt)}
@@ -851,22 +883,22 @@ function AssignmentSection({
         )}
       </div>
     </RightPanelSection>
-  )
+  );
 }
 
 /**
  * Assignment history section - shows past assignments
  */
 function AssignmentHistorySection({ contactId }: { contactId: string }) {
-  const [isExpanded, setIsExpanded] = useState(false)
-  const { data: history, isLoading } = useAssignmentHistory(contactId)
+  const [isExpanded, setIsExpanded] = useState(false);
+  const { data: history, isLoading } = useAssignmentHistory(contactId);
 
   if (isLoading) {
     return (
       <RightPanelSection title="Assignment History">
         <Skeleton className="h-12 w-full" />
       </RightPanelSection>
-    )
+    );
   }
 
   if (!history || history.length === 0) {
@@ -877,10 +909,10 @@ function AssignmentHistorySection({ contactId }: { contactId: string }) {
           <p className="text-sm italic">No assignment history</p>
         </div>
       </RightPanelSection>
-    )
+    );
   }
 
-  const displayedHistory = isExpanded ? history : history.slice(0, 3)
+  const displayedHistory = isExpanded ? history : history.slice(0, 3);
 
   return (
     <RightPanelSection title="Assignment History">
@@ -889,19 +921,19 @@ function AssignmentHistorySection({ contactId }: { contactId: string }) {
           <div
             key={entry.id}
             className={cn(
-              'flex items-start gap-3 rounded-lg p-2 text-sm',
+              "flex items-start gap-3 rounded-lg p-2 text-sm",
               entry.isActive
-                ? 'bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800'
-                : 'bg-gray-50 dark:bg-dark-elevated'
+                ? "bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800"
+                : "bg-gray-50 dark:bg-dark-elevated",
             )}
           >
             <div className="mt-0.5">
               <History
                 className={cn(
-                  'h-4 w-4',
+                  "h-4 w-4",
                   entry.isActive
-                    ? 'text-green-600 dark:text-green-400'
-                    : 'text-gray-400 dark:text-dark-text-tertiary'
+                    ? "text-green-600 dark:text-green-400"
+                    : "text-gray-400 dark:text-dark-text-tertiary",
                 )}
               />
             </div>
@@ -921,11 +953,13 @@ function AssignmentHistorySection({ contactId }: { contactId: string }) {
                 Assigned by {entry.assignedByName}
               </p>
               <p className="text-xs text-gray-400 dark:text-dark-text-tertiary">
-                {dayjs(entry.assignedAt).format('MMM D')} at {dayjs(entry.assignedAt).format('HH:mm')}
+                {dayjs(entry.assignedAt).format("MMM D")} at{" "}
+                {dayjs(entry.assignedAt).format("HH:mm")}
                 {entry.unassignedAt && (
                   <>
-                    {' → '}
-                    {dayjs(entry.unassignedAt).format('MMM D')} at {dayjs(entry.unassignedAt).format('HH:mm')}
+                    {" → "}
+                    {dayjs(entry.unassignedAt).format("MMM D")} at{" "}
+                    {dayjs(entry.unassignedAt).format("HH:mm")}
                   </>
                 )}
               </p>
@@ -954,7 +988,7 @@ function AssignmentHistorySection({ contactId }: { contactId: string }) {
         </button>
       )}
     </RightPanelSection>
-  )
+  );
 }
 
-export default ContactProfile
+export default ContactProfile;

@@ -8,11 +8,11 @@ import {
   Sparkles,
   Tag,
   Unlink,
-} from 'lucide-react'
-import { useState } from 'react'
-import { useTranslation } from 'react-i18next'
-import { formatStatusTime } from '@whatsapp-web/shared'
-import { Button } from '@/components/ui/button'
+} from "lucide-react";
+import { useState } from "react";
+import { useTranslation } from "react-i18next";
+import { formatStatusTime } from "@whatsapp-web/shared";
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -20,27 +20,29 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog'
+} from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select'
-import { useTags } from '@/hooks/useContact'
-import type { WhatsAppLabel } from '@/hooks/useLabels'
-import { useLabels } from '@/hooks/useLabels'
+} from "@/components/ui/select";
+import { useTags } from "@/hooks/useContact";
+import type { WhatsAppLabel } from "@/hooks/useLabels";
+import { useLabels } from "@/hooks/useLabels";
 
 /**
  * WhatsApp Labels Sync Manager Component
  * Allows users to sync WhatsApp Business labels with custom tags
  */
 export function LabelSyncManager() {
-  const { t } = useTranslation()
-  const [linkDialogOpen, setLinkDialogOpen] = useState(false)
-  const [selectedLabel, setSelectedLabel] = useState<WhatsAppLabel | null>(null)
-  const [selectedTagId, setSelectedTagId] = useState<string>('')
+  const { t } = useTranslation();
+  const [linkDialogOpen, setLinkDialogOpen] = useState(false);
+  const [selectedLabel, setSelectedLabel] = useState<WhatsAppLabel | null>(
+    null,
+  );
+  const [selectedTagId, setSelectedTagId] = useState<string>("");
 
   const {
     labels,
@@ -55,71 +57,74 @@ export function LabelSyncManager() {
     isSyncing,
     isLinking,
     isAutoCreating,
-  } = useLabels()
+  } = useLabels();
 
-  const { data: tagsData } = useTags()
-  const allTags = tagsData || []
+  const { data: tagsData } = useTags();
+  const allTags = tagsData || [];
 
   // Get unlinked tags for the select dropdown
   const unlinkedTags = allTags.filter(
-    (tag) => !tagsWithStatus.some((t) => t.id === tag.id && t.whatsappLabelId !== null)
-  )
+    (tag) =>
+      !tagsWithStatus.some(
+        (t) => t.id === tag.id && t.whatsappLabelId !== null,
+      ),
+  );
 
   const handleSync = async () => {
     try {
-      await sync()
+      await sync();
     } catch (err) {
-      console.error('Failed to sync labels:', err)
+      console.error("Failed to sync labels:", err);
     }
-  }
+  };
 
   const handleAutoCreate = async () => {
     try {
-      await autoCreateTags()
+      await autoCreateTags();
     } catch (err) {
-      console.error('Failed to auto-create tags:', err)
+      console.error("Failed to auto-create tags:", err);
     }
-  }
+  };
 
   const openLinkDialog = (label: WhatsAppLabel) => {
-    setSelectedLabel(label)
-    setSelectedTagId('')
-    setLinkDialogOpen(true)
-  }
+    setSelectedLabel(label);
+    setSelectedTagId("");
+    setLinkDialogOpen(true);
+  };
 
   const handleLink = async () => {
-    if (!selectedLabel || !selectedTagId) return
+    if (!selectedLabel || !selectedTagId) return;
 
     try {
-      await link(selectedLabel.labelId, selectedTagId)
-      setLinkDialogOpen(false)
-      setSelectedLabel(null)
-      setSelectedTagId('')
+      await link(selectedLabel.labelId, selectedTagId);
+      setLinkDialogOpen(false);
+      setSelectedLabel(null);
+      setSelectedTagId("");
     } catch (err) {
-      console.error('Failed to link tag:', err)
+      console.error("Failed to link tag:", err);
     }
-  }
+  };
 
   const handleUnlink = async (labelId: string) => {
     try {
-      await unlink(labelId)
+      await unlink(labelId);
     } catch (err) {
-      console.error('Failed to unlink tag:', err)
+      console.error("Failed to unlink tag:", err);
     }
-  }
+  };
 
   const formatLastSync = (dateString: string | null) => {
-    if (!dateString) return t('labels.neverSynced', 'Never synced')
-    return formatStatusTime(dateString)
-  }
+    if (!dateString) return t("labels.neverSynced", "Never synced");
+    return formatStatusTime(dateString);
+  };
 
   if (error) {
     return (
       <div className="flex items-center gap-2 text-red-600 dark:text-red-400 text-sm">
         <AlertCircle className="h-4 w-4" />
-        <span>{t('labels.errors.loadFailed', 'Failed to load labels')}</span>
+        <span>{t("labels.errors.loadFailed", "Failed to load labels")}</span>
       </div>
-    )
+    );
   }
 
   return (
@@ -127,8 +132,8 @@ export function LabelSyncManager() {
       {/* Description */}
       <p className="text-sm text-gray-600 dark:text-dark-text-secondary">
         {t(
-          'labels.description',
-          'Sync your WhatsApp Business labels with custom tags. This allows you to organize contacts consistently across both platforms.'
+          "labels.description",
+          "Sync your WhatsApp Business labels with custom tags. This allows you to organize contacts consistently across both platforms.",
         )}
       </p>
 
@@ -140,7 +145,7 @@ export function LabelSyncManager() {
               {status.totalLabels}
             </div>
             <div className="text-xs text-blue-600 dark:text-blue-300">
-              {t('labels.stats.whatsappLabels', 'WhatsApp Labels')}
+              {t("labels.stats.whatsappLabels", "WhatsApp Labels")}
             </div>
           </div>
           <div className="bg-green-50 dark:bg-green-900/30 rounded-lg p-3">
@@ -148,7 +153,7 @@ export function LabelSyncManager() {
               {status.linkedLabels}
             </div>
             <div className="text-xs text-green-600 dark:text-green-300">
-              {t('labels.stats.linked', 'Linked')}
+              {t("labels.stats.linked", "Linked")}
             </div>
           </div>
           <div className="bg-yellow-50 dark:bg-yellow-900/30 rounded-lg p-3">
@@ -156,7 +161,7 @@ export function LabelSyncManager() {
               {status.unlinkedLabels}
             </div>
             <div className="text-xs text-yellow-600 dark:text-yellow-300">
-              {t('labels.stats.unlinked', 'Unlinked')}
+              {t("labels.stats.unlinked", "Unlinked")}
             </div>
           </div>
           <div className="bg-purple-50 dark:bg-purple-900/30 rounded-lg p-3">
@@ -164,7 +169,7 @@ export function LabelSyncManager() {
               {status.totalTags}
             </div>
             <div className="text-xs text-purple-600 dark:text-purple-300">
-              {t('labels.stats.customTags', 'Custom Tags')}
+              {t("labels.stats.customTags", "Custom Tags")}
             </div>
           </div>
         </div>
@@ -184,7 +189,7 @@ export function LabelSyncManager() {
           ) : (
             <RefreshCw className="h-4 w-4" />
           )}
-          {t('labels.syncFromWhatsApp', 'Sync from WhatsApp')}
+          {t("labels.syncFromWhatsApp", "Sync from WhatsApp")}
         </Button>
 
         {status && status.unlinkedLabels > 0 && (
@@ -200,7 +205,7 @@ export function LabelSyncManager() {
             ) : (
               <Sparkles className="h-4 w-4" />
             )}
-            {t('labels.autoCreateTags', 'Auto-create Tags')}
+            {t("labels.autoCreateTags", "Auto-create Tags")}
           </Button>
         )}
 
@@ -220,18 +225,22 @@ export function LabelSyncManager() {
       ) : labels.length === 0 ? (
         <div className="text-center py-8 text-gray-500 dark:text-dark-text-secondary">
           <Tag className="h-12 w-12 mx-auto mb-3 text-gray-300 dark:text-dark-text-tertiary" />
-          <p className="font-medium">{t('labels.empty', 'No WhatsApp labels found')}</p>
+          <p className="font-medium">
+            {t("labels.empty", "No WhatsApp labels found")}
+          </p>
           <p className="text-sm mt-1">
             {t(
-              'labels.emptyHint',
-              "Create labels in WhatsApp Business and click 'Sync from WhatsApp' to import them"
+              "labels.emptyHint",
+              "Create labels in WhatsApp Business and click 'Sync from WhatsApp' to import them",
             )}
           </p>
         </div>
       ) : (
         <div className="space-y-2" data-testid="labels-list">
           {labels.map((label) => {
-            const linkedTag = tagsWithStatus.find((t) => t.whatsappLabelId === label.labelId)
+            const linkedTag = tagsWithStatus.find(
+              (t) => t.whatsappLabelId === label.labelId,
+            );
 
             return (
               <div
@@ -243,7 +252,7 @@ export function LabelSyncManager() {
                 <div
                   className="w-4 h-4 rounded-full flex-shrink-0"
                   style={{
-                    backgroundColor: label.color || '#6b7280',
+                    backgroundColor: label.color || "#6b7280",
                   }}
                 />
 
@@ -256,12 +265,12 @@ export function LabelSyncManager() {
                     <div className="flex items-center gap-1 text-xs text-green-600 dark:text-green-400 mt-0.5">
                       <Check className="h-3 w-3" />
                       <span>
-                        {t('labels.linkedTo', 'Linked to')} "{linkedTag.name}"
+                        {t("labels.linkedTo", "Linked to")} "{linkedTag.name}"
                       </span>
                     </div>
                   ) : (
                     <p className="text-xs text-gray-500 dark:text-dark-text-secondary mt-0.5">
-                      {t('labels.notLinked', 'Not linked to any tag')}
+                      {t("labels.notLinked", "Not linked to any tag")}
                     </p>
                   )}
                 </div>
@@ -277,7 +286,9 @@ export function LabelSyncManager() {
                       data-testid={`unlink-label-${label.labelId}`}
                     >
                       <Unlink className="h-4 w-4" />
-                      <span className="hidden sm:inline">{t('labels.unlink', 'Unlink')}</span>
+                      <span className="hidden sm:inline">
+                        {t("labels.unlink", "Unlink")}
+                      </span>
                     </Button>
                   ) : (
                     <Button
@@ -288,12 +299,14 @@ export function LabelSyncManager() {
                       data-testid={`link-label-${label.labelId}`}
                     >
                       <Link2 className="h-4 w-4" />
-                      <span className="hidden sm:inline">{t('labels.link', 'Link Tag')}</span>
+                      <span className="hidden sm:inline">
+                        {t("labels.link", "Link Tag")}
+                      </span>
                     </Button>
                   )}
                 </div>
               </div>
-            )
+            );
           })}
         </div>
       )}
@@ -302,12 +315,14 @@ export function LabelSyncManager() {
       <Dialog open={linkDialogOpen} onOpenChange={setLinkDialogOpen}>
         <DialogContent className="sm:max-w-[400px]">
           <DialogHeader>
-            <DialogTitle>{t('labels.linkDialog.title', 'Link Tag to Label')}</DialogTitle>
+            <DialogTitle>
+              {t("labels.linkDialog.title", "Link Tag to Label")}
+            </DialogTitle>
             <DialogDescription>
               {t(
-                'labels.linkDialog.description',
+                "labels.linkDialog.description",
                 "Select a tag to link with the WhatsApp label '{{labelName}}'.",
-                { labelName: selectedLabel?.name }
+                { labelName: selectedLabel?.name },
               )}
             </DialogDescription>
           </DialogHeader>
@@ -318,7 +333,7 @@ export function LabelSyncManager() {
                 <div
                   className="w-4 h-4 rounded-full"
                   style={{
-                    backgroundColor: selectedLabel.color || '#6b7280',
+                    backgroundColor: selectedLabel.color || "#6b7280",
                   }}
                 />
                 <span className="font-medium dark:text-dark-text-primary">
@@ -329,12 +344,17 @@ export function LabelSyncManager() {
 
             <Select value={selectedTagId} onValueChange={setSelectedTagId}>
               <SelectTrigger data-testid="select-tag-trigger">
-                <SelectValue placeholder={t('labels.linkDialog.selectTag', 'Select a tag')} />
+                <SelectValue
+                  placeholder={t("labels.linkDialog.selectTag", "Select a tag")}
+                />
               </SelectTrigger>
               <SelectContent>
                 {unlinkedTags.length === 0 ? (
                   <div className="p-2 text-sm text-gray-500 dark:text-dark-text-secondary text-center">
-                    {t('labels.linkDialog.noTags', 'No unlinked tags available')}
+                    {t(
+                      "labels.linkDialog.noTags",
+                      "No unlinked tags available",
+                    )}
                   </div>
                 ) : (
                   unlinkedTags.map((tag) => (
@@ -343,7 +363,7 @@ export function LabelSyncManager() {
                         <div
                           className="w-3 h-3 rounded-full"
                           style={{
-                            backgroundColor: tag.color || '#6b7280',
+                            backgroundColor: tag.color || "#6b7280",
                           }}
                         />
                         {tag.name}
@@ -356,15 +376,15 @@ export function LabelSyncManager() {
 
             <p className="text-xs text-gray-500 dark:text-dark-text-secondary mt-2">
               {t(
-                'labels.linkDialog.hint',
-                'When linked, applying this label in WhatsApp will also apply the tag in this app.'
+                "labels.linkDialog.hint",
+                "When linked, applying this label in WhatsApp will also apply the tag in this app.",
               )}
             </p>
           </div>
 
           <DialogFooter>
             <Button variant="outline" onClick={() => setLinkDialogOpen(false)}>
-              {t('common.cancel', 'Cancel')}
+              {t("common.cancel", "Cancel")}
             </Button>
             <Button
               onClick={handleLink}
@@ -373,13 +393,13 @@ export function LabelSyncManager() {
               data-testid="confirm-link-button"
             >
               {isLinking && <Loader2 className="h-4 w-4 animate-spin" />}
-              {t('labels.link', 'Link Tag')}
+              {t("labels.link", "Link Tag")}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
-  )
+  );
 }
 
-export default LabelSyncManager
+export default LabelSyncManager;

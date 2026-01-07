@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   applyLabelToContact,
   autoCreateTagsFromLabels,
@@ -12,15 +12,15 @@ import {
   triggerLabelSync,
   unlinkTagFromLabel,
   type WhatsAppLabel,
-} from '@/lib/api'
+} from "@/lib/api";
 
 // Query keys for labels
 export const labelKeys = {
-  all: ['labels'] as const,
-  list: () => [...labelKeys.all, 'list'] as const,
-  status: () => [...labelKeys.all, 'status'] as const,
-  tagsWithStatus: () => [...labelKeys.all, 'tags-with-status'] as const,
-}
+  all: ["labels"] as const,
+  list: () => [...labelKeys.all, "list"] as const,
+  status: () => [...labelKeys.all, "status"] as const,
+  tagsWithStatus: () => [...labelKeys.all, "tags-with-status"] as const,
+};
 
 /**
  * Hook for fetching WhatsApp labels
@@ -30,7 +30,7 @@ export function useWhatsAppLabels() {
     queryKey: labelKeys.list(),
     queryFn: getWhatsAppLabels,
     staleTime: 60 * 1000, // 1 minute
-  })
+  });
 }
 
 /**
@@ -41,7 +41,7 @@ export function useLabelSyncStatus() {
     queryKey: labelKeys.status(),
     queryFn: getLabelSyncStatus,
     staleTime: 30 * 1000, // 30 seconds
-  })
+  });
 }
 
 /**
@@ -52,121 +52,131 @@ export function useTagsWithLabelStatus() {
     queryKey: labelKeys.tagsWithStatus(),
     queryFn: getTagsWithLabelStatus,
     staleTime: 60 * 1000, // 1 minute
-  })
+  });
 }
 
 /**
  * Hook for triggering a label sync from WhatsApp
  */
 export function useTriggerLabelSync() {
-  const queryClient = useQueryClient()
+  const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: triggerLabelSync,
     onSuccess: () => {
       // Invalidate labels and status to refresh after sync completes
-      queryClient.invalidateQueries({ queryKey: labelKeys.all })
+      queryClient.invalidateQueries({ queryKey: labelKeys.all });
     },
-  })
+  });
 }
 
 /**
  * Hook for linking a tag to a WhatsApp label
  */
 export function useLinkTagToLabel() {
-  const queryClient = useQueryClient()
+  const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: ({ labelId, tagId }: { labelId: string; tagId: string }) =>
       linkTagToLabel(labelId, tagId),
     onSuccess: () => {
       // Invalidate labels, status, and tags queries
-      queryClient.invalidateQueries({ queryKey: labelKeys.all })
-      queryClient.invalidateQueries({ queryKey: ['tags'] })
+      queryClient.invalidateQueries({ queryKey: labelKeys.all });
+      queryClient.invalidateQueries({ queryKey: ["tags"] });
     },
-  })
+  });
 }
 
 /**
  * Hook for unlinking a tag from a WhatsApp label
  */
 export function useUnlinkTagFromLabel() {
-  const queryClient = useQueryClient()
+  const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: (labelId: string) => unlinkTagFromLabel(labelId),
     onSuccess: () => {
       // Invalidate labels, status, and tags queries
-      queryClient.invalidateQueries({ queryKey: labelKeys.all })
-      queryClient.invalidateQueries({ queryKey: ['tags'] })
+      queryClient.invalidateQueries({ queryKey: labelKeys.all });
+      queryClient.invalidateQueries({ queryKey: ["tags"] });
     },
-  })
+  });
 }
 
 /**
  * Hook for auto-creating tags from unlinked WhatsApp labels
  */
 export function useAutoCreateTagsFromLabels() {
-  const queryClient = useQueryClient()
+  const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: autoCreateTagsFromLabels,
     onSuccess: () => {
       // Invalidate labels, status, and tags queries
-      queryClient.invalidateQueries({ queryKey: labelKeys.all })
-      queryClient.invalidateQueries({ queryKey: ['tags'] })
+      queryClient.invalidateQueries({ queryKey: labelKeys.all });
+      queryClient.invalidateQueries({ queryKey: ["tags"] });
     },
-  })
+  });
 }
 
 /**
  * Hook for applying a WhatsApp label to a contact
  */
 export function useApplyLabelToContact() {
-  const queryClient = useQueryClient()
+  const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ labelId, contactId }: { labelId: string; contactId: string }) =>
-      applyLabelToContact(labelId, contactId),
+    mutationFn: ({
+      labelId,
+      contactId,
+    }: {
+      labelId: string;
+      contactId: string;
+    }) => applyLabelToContact(labelId, contactId),
     onSuccess: (_, { contactId }) => {
       // Invalidate contact data and contact tags
-      queryClient.invalidateQueries({ queryKey: ['contacts', contactId] })
-      queryClient.invalidateQueries({ queryKey: ['contact', contactId] })
+      queryClient.invalidateQueries({ queryKey: ["contacts", contactId] });
+      queryClient.invalidateQueries({ queryKey: ["contact", contactId] });
     },
-  })
+  });
 }
 
 /**
  * Hook for removing a WhatsApp label from a contact
  */
 export function useRemoveLabelFromContact() {
-  const queryClient = useQueryClient()
+  const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ labelId, contactId }: { labelId: string; contactId: string }) =>
-      removeLabelFromContact(labelId, contactId),
+    mutationFn: ({
+      labelId,
+      contactId,
+    }: {
+      labelId: string;
+      contactId: string;
+    }) => removeLabelFromContact(labelId, contactId),
     onSuccess: (_, { contactId }) => {
       // Invalidate contact data and contact tags
-      queryClient.invalidateQueries({ queryKey: ['contacts', contactId] })
-      queryClient.invalidateQueries({ queryKey: ['contact', contactId] })
+      queryClient.invalidateQueries({ queryKey: ["contacts", contactId] });
+      queryClient.invalidateQueries({ queryKey: ["contact", contactId] });
     },
-  })
+  });
 }
 
 /**
  * Combined hook for label management
  */
 export function useLabels() {
-  const queryClient = useQueryClient()
+  const queryClient = useQueryClient();
 
-  const labelsQuery = useWhatsAppLabels()
-  const statusQuery = useLabelSyncStatus()
-  const tagsWithStatusQuery = useTagsWithLabelStatus()
+  const labelsQuery = useWhatsAppLabels();
+  const statusQuery = useLabelSyncStatus();
+  const tagsWithStatusQuery = useTagsWithLabelStatus();
 
-  const syncMutation = useTriggerLabelSync()
-  const linkMutation = useLinkTagToLabel()
-  const unlinkMutation = useUnlinkTagFromLabel()
-  const autoCreateMutation = useAutoCreateTagsFromLabels()
+  const syncMutation = useTriggerLabelSync();
+  const linkMutation = useLinkTagToLabel();
+  const unlinkMutation = useUnlinkTagFromLabel();
+  const autoCreateMutation = useAutoCreateTagsFromLabels();
 
   return {
     // Data
@@ -175,7 +185,10 @@ export function useLabels() {
     tagsWithStatus: tagsWithStatusQuery.data || [],
 
     // Loading states
-    isLoading: labelsQuery.isLoading || statusQuery.isLoading || tagsWithStatusQuery.isLoading,
+    isLoading:
+      labelsQuery.isLoading ||
+      statusQuery.isLoading ||
+      tagsWithStatusQuery.isLoading,
     isLabelsLoading: labelsQuery.isLoading,
     isStatusLoading: statusQuery.isLoading,
     isTagsLoading: tagsWithStatusQuery.isLoading,
@@ -185,11 +198,12 @@ export function useLabels() {
 
     // Actions
     sync: () => syncMutation.mutateAsync(undefined),
-    link: (labelId: string, tagId: string) => linkMutation.mutateAsync({ labelId, tagId }),
+    link: (labelId: string, tagId: string) =>
+      linkMutation.mutateAsync({ labelId, tagId }),
     unlink: (labelId: string) => unlinkMutation.mutateAsync(labelId),
     autoCreateTags: () => autoCreateMutation.mutateAsync(undefined),
     refresh: () => {
-      queryClient.invalidateQueries({ queryKey: labelKeys.all })
+      queryClient.invalidateQueries({ queryKey: labelKeys.all });
     },
 
     // Mutation states
@@ -197,8 +211,8 @@ export function useLabels() {
     isLinking: linkMutation.isPending,
     isUnlinking: unlinkMutation.isPending,
     isAutoCreating: autoCreateMutation.isPending,
-  }
+  };
 }
 
 // Type exports
-export type { WhatsAppLabel, LabelSyncStatus, TagWithLabelStatus }
+export type { WhatsAppLabel, LabelSyncStatus, TagWithLabelStatus };
