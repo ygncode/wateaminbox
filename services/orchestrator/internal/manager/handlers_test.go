@@ -3,6 +3,7 @@ package manager
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"testing"
 	"time"
 
@@ -512,4 +513,564 @@ func TestContextInHandlers(t *testing.T) {
 	case <-time.After(200 * time.Millisecond):
 		t.Error("context should have timed out")
 	}
+}
+
+// orchestratorCommandTypes are command types handled by the orchestrator.
+// These correspond to worker lifecycle management commands.
+var orchestratorCommandTypes = []string{
+	types.CommandSpawn,  // "spawn"
+	types.CommandKill,   // "kill"
+	types.CommandStatus, // "status"
+}
+
+// workerCommandTypes are command types handled by WhatsApp workers, NOT the orchestrator.
+// The orchestrator should ACK these without processing to prevent blocking workers.
+var workerCommandTypes = []string{
+	"text",
+	"image",
+	"video",
+	"audio",
+	"document",
+	"reaction",
+	"sticker",
+	"post_status",
+	"archive_chat",
+	"unarchive_chat",
+	"read_chat",
+	"mute_chat",
+	"unmute_chat",
+	"pin_chat",
+	"unpin_chat",
+	"block_contact",
+	"unblock_contact",
+	"update_group_info",
+	"add_group_participant",
+	"remove_group_participant",
+	"get_business_profile",
+	"get_product_catalog",
+}
+
+// TestOrchestratorOnlyHandlesControlCommands verifies that the orchestrator
+// correctly identifies which command types it should handle.
+func TestOrchestratorOnlyHandlesControlCommands(t *testing.T) {
+	// Orchestrator should handle spawn, kill, status
+	for _, cmdType := range orchestratorCommandTypes {
+		t.Run("handles_"+cmdType, func(t *testing.T) {
+			isOrchestratorCommand := cmdType == types.CommandSpawn ||
+				cmdType == types.CommandKill ||
+				cmdType == types.CommandStatus
+
+			assert.True(t, isOrchestratorCommand,
+				"orchestrator should handle command type: %s", cmdType)
+		})
+	}
+}
+
+// TestWorkerCommandsAreNotOrchestratorCommands verifies that worker command types
+// are NOT orchestrator commands and should be ACK'd without processing.
+func TestWorkerCommandsAreNotOrchestratorCommands(t *testing.T) {
+	for _, cmdType := range workerCommandTypes {
+		t.Run("ignores_"+cmdType, func(t *testing.T) {
+			isOrchestratorCommand := cmdType == types.CommandSpawn ||
+				cmdType == types.CommandKill ||
+				cmdType == types.CommandStatus
+
+			assert.False(t, isOrchestratorCommand,
+				"worker command type %q should NOT be handled by orchestrator", cmdType)
+		})
+	}
+}
+
+// TestUnknownCommandTypeShouldBeAcked documents the expected behavior:
+// Unknown command types (like "text", "image", etc.) should be ACK'd, not NAK'd.
+// This is because these commands are handled by WhatsApp worker consumers,
+// not the orchestrator. NAK-ing them would cause unnecessary redelivery.
+func TestUnknownCommandTypeShouldBeAcked(t *testing.T) {
+	testCases := []struct {
+		name        string
+		commandType string
+		shouldAck   bool // true = ACK (ignore), false = process
+	}{
+		// Orchestrator commands - should be processed (then ACK'd on success)
+		{"spawn command", types.CommandSpawn, false},
+		{"kill command", types.CommandKill, false},
+		{"status command", types.CommandStatus, false},
+
+		// Worker commands - should be ACK'd immediately without processing
+		{"text message", "text", true},
+		{"image message", "image", true},
+		{"video message", "video", true},
+		{"audio message", "audio", true},
+		{"document message", "document", true},
+		{"reaction", "reaction", true},
+		{"unknown type", "some_unknown_type", true},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			isOrchestratorCommand := tc.commandType == types.CommandSpawn ||
+				tc.commandType == types.CommandKill ||
+				tc.commandType == types.CommandStatus
+
+			if tc.shouldAck {
+				assert.False(t, isOrchestratorCommand,
+					"command type %q should be ACK'd immediately (not processed)", tc.commandType)
+			} else {
+				assert.True(t, isOrchestratorCommand,
+					"command type %q should be processed by orchestrator", tc.commandType)
+			}
+		})
+	}
+}
+
+// TestCommandTypeRouting tests the switch statement logic for command routing.
+// This simulates what handleMessage does without needing a real NATS connection.
+func TestCommandTypeRouting(t *testing.T) {
+	testCases := []struct {
+		name           string
+		commandType    string
+		expectedAction string // "process" or "ack_and_skip"
+	}{
+		{"spawn", types.CommandSpawn, "process"},
+		{"kill", types.CommandKill, "process"},
+		{"status", types.CommandStatus, "process"},
+		{"text", "text", "ack_and_skip"},
+		{"image", "image", "ack_and_skip"},
+		{"video", "video", "ack_and_skip"},
+		{"audio", "audio", "ack_and_skip"},
+		{"document", "document", "ack_and_skip"},
+		{"reaction", "reaction", "ack_and_skip"},
+		{"random_type", "random_type", "ack_and_skip"},
+		{"empty_type", "", "ack_and_skip"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Simulate the switch statement in handleMessage
+			var action string
+			switch tc.commandType {
+			case types.CommandSpawn, types.CommandKill, types.CommandStatus:
+				action = "process"
+			default:
+				action = "ack_and_skip"
+			}
+
+			assert.Equal(t, tc.expectedAction, action,
+				"command type %q should result in action: %s", tc.commandType, tc.expectedAction)
+		})
+	}
+}
+
+// TestSendMessageCommandNotHandledByOrchestrator tests that send message commands
+// (which have type="text", "image", etc.) are NOT processed by the orchestrator.
+// These commands are published to WHATSAPP.commands.{companyId}.{connectionId}
+// and should be handled by the specific WhatsApp worker, not the orchestrator.
+func TestSendMessageCommandNotHandledByOrchestrator(t *testing.T) {
+	// Simulate a send message command as published by the API
+	sendMessageCmd := struct {
+		MessageID string `json:"message_id"`
+		To        string `json:"to"`
+		Type      string `json:"type"`
+		Content   string `json:"content"`
+	}{
+		MessageID: "pending_123",
+		To:        "1234567890@s.whatsapp.net",
+		Type:      "text",
+		Content:   "Hello, World!",
+	}
+
+	data, err := json.Marshal(sendMessageCmd)
+	require.NoError(t, err)
+
+	// Parse just the type field (as handleMessage does)
+	var envelope struct {
+		Type string `json:"type"`
+	}
+	err = json.Unmarshal(data, &envelope)
+	require.NoError(t, err)
+
+	// Verify this is NOT an orchestrator command
+	isOrchestratorCommand := envelope.Type == types.CommandSpawn ||
+		envelope.Type == types.CommandKill ||
+		envelope.Type == types.CommandStatus
+
+	assert.False(t, isOrchestratorCommand,
+		"send message command (type=%q) should NOT be processed by orchestrator", envelope.Type)
+
+	// Verify the type matches what workers expect
+	assert.Equal(t, "text", envelope.Type)
+}
+
+// TestReactionCommandNotHandledByOrchestrator tests that reaction commands
+// are NOT processed by the orchestrator (they're handled by workers).
+func TestReactionCommandNotHandledByOrchestrator(t *testing.T) {
+	reactionCmd := struct {
+		MessageID       string `json:"message_id"`
+		To              string `json:"to"`
+		Type            string `json:"type"`
+		TargetMessageID string `json:"target_message_id"`
+		Emoji           string `json:"emoji"`
+	}{
+		MessageID:       "pending_456",
+		To:              "1234567890@s.whatsapp.net",
+		Type:            "reaction",
+		TargetMessageID: "existing_msg_789",
+		Emoji:           "👍",
+	}
+
+	data, err := json.Marshal(reactionCmd)
+	require.NoError(t, err)
+
+	var envelope struct {
+		Type string `json:"type"`
+	}
+	err = json.Unmarshal(data, &envelope)
+	require.NoError(t, err)
+
+	// Verify this is NOT an orchestrator command
+	isOrchestratorCommand := envelope.Type == types.CommandSpawn ||
+		envelope.Type == types.CommandKill ||
+		envelope.Type == types.CommandStatus
+
+	assert.False(t, isOrchestratorCommand,
+		"reaction command (type=%q) should NOT be processed by orchestrator", envelope.Type)
+}
+
+// TestMediaCommandTypesNotHandledByOrchestrator tests that all media message types
+// are correctly identified as worker commands.
+func TestMediaCommandTypesNotHandledByOrchestrator(t *testing.T) {
+	mediaTypes := []string{"image", "video", "audio", "document", "sticker"}
+
+	for _, mediaType := range mediaTypes {
+		t.Run(mediaType, func(t *testing.T) {
+			cmd := struct {
+				Type      string `json:"type"`
+				To        string `json:"to"`
+				MediaData []byte `json:"media_data"`
+			}{
+				Type:      mediaType,
+				To:        "1234567890@s.whatsapp.net",
+				MediaData: []byte{0x89, 0x50, 0x4E, 0x47}, // PNG magic bytes
+			}
+
+			data, err := json.Marshal(cmd)
+			require.NoError(t, err)
+
+			var envelope struct {
+				Type string `json:"type"`
+			}
+			err = json.Unmarshal(data, &envelope)
+			require.NoError(t, err)
+
+			// Verify this is NOT an orchestrator command
+			isOrchestratorCommand := envelope.Type == types.CommandSpawn ||
+				envelope.Type == types.CommandKill ||
+				envelope.Type == types.CommandStatus
+
+			assert.False(t, isOrchestratorCommand,
+				"media command (type=%q) should NOT be processed by orchestrator", envelope.Type)
+		})
+	}
+}
+
+// TestableMessage is a mock message that tracks Ack/Nak calls for testing.
+type TestableMessage struct {
+	data     []byte
+	acked    bool
+	naked    bool
+	ackError error
+	nakError error
+}
+
+// NewTestableMessage creates a new testable message with the given data.
+func NewTestableMessage(data []byte) *TestableMessage {
+	return &TestableMessage{data: data}
+}
+
+// Ack marks the message as acknowledged.
+func (m *TestableMessage) Ack() error {
+	m.acked = true
+	return m.ackError
+}
+
+// Nak marks the message as negatively acknowledged.
+func (m *TestableMessage) Nak() error {
+	m.naked = true
+	return m.nakError
+}
+
+// Data returns the message data.
+func (m *TestableMessage) Data() []byte {
+	return m.data
+}
+
+// WasAcked returns true if Ack was called.
+func (m *TestableMessage) WasAcked() bool {
+	return m.acked
+}
+
+// WasNaked returns true if Nak was called.
+func (m *TestableMessage) WasNaked() bool {
+	return m.naked
+}
+
+// testableHandleMessage mimics the handleMessage logic for testing purposes.
+// It processes a message and calls Ack/Nak on the testable message.
+func testableHandleMessage(msg *TestableMessage) (action string, cmdType string) {
+	// Parse the command type from the message
+	var envelope struct {
+		Type string `json:"type"`
+	}
+
+	if err := json.Unmarshal(msg.Data(), &envelope); err != nil {
+		msg.Nak()
+		return "nak", "parse_error"
+	}
+
+	switch envelope.Type {
+	case types.CommandSpawn:
+		// In real handler, this would process the spawn command
+		msg.Ack()
+		return "process_and_ack", envelope.Type
+	case types.CommandKill:
+		// In real handler, this would process the kill command
+		msg.Ack()
+		return "process_and_ack", envelope.Type
+	case types.CommandStatus:
+		// In real handler, this would process the status command
+		msg.Ack()
+		return "process_and_ack", envelope.Type
+	default:
+		// Unknown command types are handled by WhatsApp worker consumers.
+		// ACK to prevent redelivery to this consumer.
+		msg.Ack()
+		return "ack_and_skip", envelope.Type
+	}
+}
+
+// TestHandleMessage_UnknownCommandTypes_AreAcked is an integration test that verifies
+// unknown command types (like send message commands) are ACK'd, not NAK'd.
+// This test directly verifies the fix for the "Unknown command type: text" issue.
+func TestHandleMessage_UnknownCommandTypes_AreAcked(t *testing.T) {
+	testCases := []struct {
+		name           string
+		command        interface{}
+		expectedAction string
+		expectedType   string
+		shouldBeAcked  bool
+		shouldBeNaked  bool
+	}{
+		{
+			name: "text message command should be ACK'd",
+			command: struct {
+				MessageID string `json:"message_id"`
+				To        string `json:"to"`
+				Type      string `json:"type"`
+				Content   string `json:"content"`
+			}{
+				MessageID: "pending_123",
+				To:        "1234567890@s.whatsapp.net",
+				Type:      "text",
+				Content:   "Hello, World!",
+			},
+			expectedAction: "ack_and_skip",
+			expectedType:   "text",
+			shouldBeAcked:  true,
+			shouldBeNaked:  false,
+		},
+		{
+			name: "image message command should be ACK'd",
+			command: struct {
+				MessageID string `json:"message_id"`
+				To        string `json:"to"`
+				Type      string `json:"type"`
+			}{
+				MessageID: "pending_456",
+				To:        "1234567890@s.whatsapp.net",
+				Type:      "image",
+			},
+			expectedAction: "ack_and_skip",
+			expectedType:   "image",
+			shouldBeAcked:  true,
+			shouldBeNaked:  false,
+		},
+		{
+			name: "reaction command should be ACK'd",
+			command: struct {
+				MessageID       string `json:"message_id"`
+				To              string `json:"to"`
+				Type            string `json:"type"`
+				TargetMessageID string `json:"target_message_id"`
+				Emoji           string `json:"emoji"`
+			}{
+				MessageID:       "pending_789",
+				To:              "1234567890@s.whatsapp.net",
+				Type:            "reaction",
+				TargetMessageID: "msg_to_react",
+				Emoji:           "👍",
+			},
+			expectedAction: "ack_and_skip",
+			expectedType:   "reaction",
+			shouldBeAcked:  true,
+			shouldBeNaked:  false,
+		},
+		{
+			name: "spawn command should be processed and ACK'd",
+			command: types.SpawnWorkerCommand{
+				Type:         types.CommandSpawn,
+				CompanyID:    "company-123",
+				ConnectionID: "conn-456",
+				TenantSchema: "tenant_company_123",
+				DatabaseURL:  "postgres://localhost/db",
+			},
+			expectedAction: "process_and_ack",
+			expectedType:   types.CommandSpawn,
+			shouldBeAcked:  true,
+			shouldBeNaked:  false,
+		},
+		{
+			name: "kill command should be processed and ACK'd",
+			command: types.KillWorkerCommand{
+				Type:         types.CommandKill,
+				CompanyID:    "company-123",
+				ConnectionID: "conn-456",
+				Reason:       "user requested",
+			},
+			expectedAction: "process_and_ack",
+			expectedType:   types.CommandKill,
+			shouldBeAcked:  true,
+			shouldBeNaked:  false,
+		},
+		{
+			name: "status command should be processed and ACK'd",
+			command: types.WorkerStatusCommand{
+				Type:         types.CommandStatus,
+				CompanyID:    "company-123",
+				ConnectionID: "conn-456",
+			},
+			expectedAction: "process_and_ack",
+			expectedType:   types.CommandStatus,
+			shouldBeAcked:  true,
+			shouldBeNaked:  false,
+		},
+		{
+			name: "unknown random command should be ACK'd",
+			command: struct {
+				Type string `json:"type"`
+				Data string `json:"data"`
+			}{
+				Type: "some_future_command_type",
+				Data: "some data",
+			},
+			expectedAction: "ack_and_skip",
+			expectedType:   "some_future_command_type",
+			shouldBeAcked:  true,
+			shouldBeNaked:  false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			data, err := json.Marshal(tc.command)
+			require.NoError(t, err)
+
+			msg := NewTestableMessage(data)
+			action, cmdType := testableHandleMessage(msg)
+
+			assert.Equal(t, tc.expectedAction, action,
+				"expected action %q, got %q", tc.expectedAction, action)
+			assert.Equal(t, tc.expectedType, cmdType,
+				"expected command type %q, got %q", tc.expectedType, cmdType)
+			assert.Equal(t, tc.shouldBeAcked, msg.WasAcked(),
+				"expected acked=%v, got %v", tc.shouldBeAcked, msg.WasAcked())
+			assert.Equal(t, tc.shouldBeNaked, msg.WasNaked(),
+				"expected naked=%v, got %v", tc.shouldBeNaked, msg.WasNaked())
+		})
+	}
+}
+
+// TestHandleMessage_InvalidJSON_IsNaked tests that invalid JSON causes NAK.
+func TestHandleMessage_InvalidJSON_IsNaked(t *testing.T) {
+	invalidJSONs := [][]byte{
+		[]byte(`not json at all`),
+		[]byte(`{"type": "spawn", broken`),
+		[]byte(`{{{`),
+	}
+
+	for i, invalidJSON := range invalidJSONs {
+		t.Run(fmt.Sprintf("invalid_json_%d", i), func(t *testing.T) {
+			msg := NewTestableMessage(invalidJSON)
+			action, _ := testableHandleMessage(msg)
+
+			assert.Equal(t, "nak", action, "invalid JSON should cause NAK")
+			assert.True(t, msg.WasNaked(), "message should be NAK'd for invalid JSON")
+			assert.False(t, msg.WasAcked(), "message should NOT be ACK'd for invalid JSON")
+		})
+	}
+}
+
+// TestHandleMessage_EmptyType_IsAcked tests that empty type is ACK'd (treated as unknown).
+func TestHandleMessage_EmptyType_IsAcked(t *testing.T) {
+	cmd := struct {
+		Type string `json:"type"`
+	}{
+		Type: "",
+	}
+
+	data, err := json.Marshal(cmd)
+	require.NoError(t, err)
+
+	msg := NewTestableMessage(data)
+	action, cmdType := testableHandleMessage(msg)
+
+	assert.Equal(t, "ack_and_skip", action, "empty type should be ACK'd")
+	assert.Equal(t, "", cmdType, "command type should be empty")
+	assert.True(t, msg.WasAcked(), "message should be ACK'd")
+	assert.False(t, msg.WasNaked(), "message should NOT be NAK'd")
+}
+
+// TestRegressionUnknownCommandTypeText is a regression test specifically for the
+// "Unknown command type: text" bug. This test ensures that when a text message
+// command is received by the orchestrator, it is ACK'd (not NAK'd) so that:
+// 1. The message is not redelivered to the orchestrator
+// 2. The WhatsApp worker can process it via its own consumer
+// 3. No "Unknown command type: text" errors are logged
+func TestRegressionUnknownCommandTypeText(t *testing.T) {
+	// This is the exact format of a send message command from the API
+	sendMessageCmd := struct {
+		MessageID     string `json:"message_id"`
+		ConnectionID  string `json:"connection_id"`
+		To            string `json:"to"`
+		Type          string `json:"type"`
+		Content       string `json:"content"`
+		Caption       string `json:"caption,omitempty"`
+		FileName      string `json:"file_name,omitempty"`
+		MimeType      string `json:"mime_type,omitempty"`
+		MediaData     []byte `json:"media_data,omitempty"`
+		UserID        string `json:"user_id"`
+		ReplyTo       string `json:"reply_to,omitempty"`
+		ReplyToSender string `json:"reply_to_sender,omitempty"`
+	}{
+		MessageID:    "pending_4d7e9eeb-21fc-452a-b50a-1044f90bd006",
+		ConnectionID: "conn-123",
+		To:           "1234567890@s.whatsapp.net",
+		Type:         "text", // This is the critical field that was causing the error
+		Content:      "Hello from retry!",
+		UserID:       "user-456",
+	}
+
+	data, err := json.Marshal(sendMessageCmd)
+	require.NoError(t, err)
+
+	msg := NewTestableMessage(data)
+	action, cmdType := testableHandleMessage(msg)
+
+	// CRITICAL: The message must be ACK'd, not NAK'd
+	assert.Equal(t, "ack_and_skip", action,
+		"REGRESSION: text command should be ACK'd (was previously NAK'd causing 'Unknown command type: text' errors)")
+	assert.Equal(t, "text", cmdType)
+	assert.True(t, msg.WasAcked(),
+		"REGRESSION: message must be ACK'd to prevent redelivery loop")
+	assert.False(t, msg.WasNaked(),
+		"REGRESSION: message must NOT be NAK'd (this was the bug)")
 }

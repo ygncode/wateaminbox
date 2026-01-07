@@ -114,8 +114,10 @@ func (h *Handlers) handleMessage(ctx context.Context, msg *nats.Msg) {
 	case types.CommandStatus:
 		handlerErr = h.handleStatusCommand(ctx, msg.Data)
 	default:
-		log.Printf("Unknown command type: %s", envelope.Type)
-		msg.Nak()
+		// Unknown command types (e.g., "text", "image", "reaction") are handled by
+		// WhatsApp worker consumers, not the orchestrator. ACK to prevent redelivery
+		// to this consumer while allowing the worker consumer to process them.
+		msg.Ack()
 		return
 	}
 
