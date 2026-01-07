@@ -27,8 +27,8 @@ test.describe("Chat Flow", () => {
   // ============================================
   test.describe("Chat List Display", () => {
     test("should display chat list after login", async () => {
-      // Verify the chat list header is visible
-      await expect(chatPage.chatListHeader).toBeVisible();
+      // Verify the chat list navigation is visible
+      await expect(chatPage.chatListNav).toBeVisible();
 
       // Verify the chat list container is visible
       await expect(chatPage.chatList).toBeVisible();
@@ -1494,31 +1494,5 @@ test.describe("Contact Reassignment (Takeover)", () => {
         expect(contactIdMatch[1]).toBeTruthy();
       }
     }
-  });
-});
-
-// ============================================
-// Authentication Flow Tests (kept from original)
-// ============================================
-test.describe("Authentication Flow", () => {
-  test("should redirect to login when not authenticated", async ({ page }) => {
-    // Try to access a protected route without authentication
-    await page.goto("/chat");
-
-    // Should be redirected to login
-    await expect(page).toHaveURL(/.*login.*/);
-  });
-
-  test("should show login form elements", async ({ page }) => {
-    await page.goto("/login");
-
-    // Check for email input
-    await expect(page.getByLabel(/email/i)).toBeVisible();
-
-    // Check for password input
-    await expect(page.getByLabel(/password/i)).toBeVisible();
-
-    // Check for login button
-    await expect(page.getByRole("button", { name: /login|sign in/i })).toBeVisible();
   });
 });

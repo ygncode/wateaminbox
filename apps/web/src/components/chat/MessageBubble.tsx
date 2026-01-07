@@ -1,8 +1,9 @@
-import type { Message, MessageType } from '@whatsapp-web/shared'
+import type { Message, MessageType, MediaDownloadStatus } from '@whatsapp-web/shared'
 import { formatMessageTime } from '@whatsapp-web/shared'
 import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { EmojiReactionPicker } from './EmojiReactionPicker'
+import { useRequestMediaDownload } from '../../hooks/useMessages'
 
 // Error code to human-readable message mapping
 const ERROR_MESSAGES: Record<string, string> = {
@@ -154,89 +155,314 @@ export const MessageBubble = memo(function MessageBubble({
       )
     }
 
-    const contentRenderer: Record<MessageType, () => React.ReactNode> = {
-      text: () => <p className="whitespace-pre-wrap break-words">{message.content}</p>,
-      image: () => (
-        <div className="max-w-xs">
-          <img
-            src={message.metadata?.mediaUrl}
-            alt={message.metadata?.caption || 'Image'}
-            className="rounded-lg max-w-full h-auto cursor-pointer"
-            loading="lazy"
-          />
-          {message.metadata?.caption && (
-            <p className="mt-1 whitespace-pre-wrap break-words">{message.metadata.caption}</p>
-          )}
-        </div>
-      ),
-      video: () => (
-        <div className="max-w-xs">
-          <video
-            src={message.metadata?.mediaUrl}
-            poster={message.metadata?.thumbnailUrl}
-            controls
-            className="rounded-lg max-w-full h-auto"
-          />
-          {message.metadata?.caption && (
-            <p className="mt-1 whitespace-pre-wrap break-words">{message.metadata.caption}</p>
-          )}
-        </div>
-      ),
-      audio: () => (
-        <div className="flex items-center gap-2 min-w-[200px]">
-          <audio src={message.metadata?.mediaUrl} controls className="w-full" />
-          {message.metadata?.duration && (
-            <span className="text-xs text-gray-500">
-              {Math.floor(message.metadata.duration / 60)}:
-              {String(message.metadata.duration % 60).padStart(2, '0')}
-            </span>
-          )}
-        </div>
-      ),
-      document: () => (
-        <a
-          href={message.metadata?.mediaUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex items-center gap-3 p-3 bg-gray-100 dark:bg-dark-tertiary rounded-lg hover:bg-gray-200 dark:hover:bg-dark-border transition-colors"
-        >
-          <div className="flex-shrink-0">
-            <svg
-              className="h-10 w-10 text-gray-500 dark:text-dark-text-secondary"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-              />
-            </svg>
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-gray-900 dark:text-dark-text-primary truncate">
-              {message.metadata?.fileName || 'Document'}
-            </p>
-            {message.metadata?.fileSize && (
-              <p className="text-xs text-gray-500 dark:text-dark-text-secondary">
-                {formatFileSize(message.metadata.fileSize)}
-              </p>
+    // Placeholder component for pending media with auto-download on scroll
+    const MediaPendingPlaceholder = ({
+      type,
+      caption,
+      downloadStatus,
+    }: {
+      type: 'image' | 'video' | 'audio' | 'document' | 'sticker'
+      caption?: string
+      downloadStatus?: MediaDownloadStatus
+    }) => {
+      const placeholderRef = useRef<HTMLDivElement>(null)
+      const hasTriggeredDownload = useRef(false)
+      const requestDownload = useRequestMediaDownload()
+
+      // Auto-download when placeholder enters viewport
+      useEffect(() => {
+        const element = placeholderRef.current
+        if (!element) return
+        // Don't trigger if already downloading or completed or failed
+        if (downloadStatus === 'downloading' || downloadStatus === 'completed' || downloadStatus === 'failed') {
+          return
+        }
+        // Don't trigger if we already requested download for this message
+        if (hasTriggeredDownload.current) return
+
+        const observer = new IntersectionObserver(
+          (entries) => {
+            const [entry] = entries
+            if (entry.isIntersecting && !hasTriggeredDownload.current) {
+              hasTriggeredDownload.current = true
+              requestDownload.mutate({
+                messageId: message.id,
+                conversationId: message.conversationId,
+              })
+            }
+          },
+          {
+            threshold: 0.5, // Trigger when 50% visible
+            rootMargin: '100px', // Start loading slightly before fully visible
+          }
+        )
+
+        observer.observe(element)
+        return () => observer.disconnect()
+      }, [downloadStatus, requestDownload, message.id, message.conversationId])
+
+      const isDownloading = downloadStatus === 'downloading' || requestDownload.isPending
+      const hasFailed = downloadStatus === 'failed'
+
+      const icons: Record<string, React.ReactNode> = {
+        image: (
+          <svg className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+            />
+          </svg>
+        ),
+        video: (
+          <svg className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"
+            />
+          </svg>
+        ),
+        audio: (
+          <svg className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"
+            />
+          </svg>
+        ),
+        document: (
+          <svg className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+            />
+          </svg>
+        ),
+        sticker: (
+          <svg className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+            />
+          </svg>
+        ),
+      }
+
+      const handleRetryDownload = useCallback(() => {
+        hasTriggeredDownload.current = true
+        requestDownload.mutate({
+          messageId: message.id,
+          conversationId: message.conversationId,
+        })
+      }, [requestDownload, message.id, message.conversationId])
+
+      return (
+        <div className="max-w-xs" ref={placeholderRef}>
+          <div
+            className={`flex flex-col items-center justify-center gap-2 p-6 rounded-lg ${
+              isOwn ? 'bg-whatsapp-dark-green/30' : 'bg-gray-100 dark:bg-dark-tertiary'
+            }`}
+          >
+            {isDownloading ? (
+              // Loading spinner
+              <>
+                <svg
+                  className={`animate-spin h-8 w-8 ${
+                    isOwn ? 'text-white/60' : 'text-gray-400 dark:text-dark-text-tertiary'
+                  }`}
+                  fill="none"
+                  viewBox="0 0 24 24"
+                >
+                  <circle
+                    className="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    strokeWidth="4"
+                  />
+                  <path
+                    className="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                  />
+                </svg>
+                <span
+                  className={`text-xs ${
+                    isOwn ? 'text-white/60' : 'text-gray-500 dark:text-dark-text-secondary'
+                  }`}
+                >
+                  {t('chat.downloadingMedia')}
+                </span>
+              </>
+            ) : hasFailed ? (
+              // Failed state with retry button
+              <>
+                <div className={isOwn ? 'text-red-300' : 'text-red-500'}>
+                  <svg className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                    />
+                  </svg>
+                </div>
+                <span
+                  className={`text-xs ${isOwn ? 'text-red-300' : 'text-red-500'}`}
+                >
+                  {t('chat.downloadFailed')}
+                </span>
+                <button
+                  onClick={handleRetryDownload}
+                  className={`text-xs px-2 py-1 rounded ${
+                    isOwn
+                      ? 'bg-white/20 hover:bg-white/30 text-white'
+                      : 'bg-gray-200 hover:bg-gray-300 dark:bg-dark-border dark:hover:bg-dark-tertiary text-gray-700 dark:text-dark-text-primary'
+                  }`}
+                >
+                  {t('chat.retryDownload')}
+                </button>
+              </>
+            ) : (
+              // Pending state
+              <>
+                <div className={isOwn ? 'text-white/60' : 'text-gray-400 dark:text-dark-text-tertiary'}>
+                  {icons[type]}
+                </div>
+                <span
+                  className={`text-xs ${
+                    isOwn ? 'text-white/60' : 'text-gray-500 dark:text-dark-text-secondary'
+                  }`}
+                >
+                  {t('chat.mediaNotDownloaded')}
+                </span>
+              </>
             )}
           </div>
-        </a>
-      ),
-      sticker: () => (
-        <div className="max-w-[200px]">
-          <img
-            src={message.metadata?.mediaUrl}
-            alt="Sticker"
-            className="w-full h-auto"
-            loading="lazy"
-          />
+          {caption && <p className="mt-1 whitespace-pre-wrap break-words">{caption}</p>}
         </div>
-      ),
+      )
+    }
+
+    const contentRenderer: Record<MessageType, () => React.ReactNode> = {
+      text: () => <p className="whitespace-pre-wrap break-words">{message.content}</p>,
+      image: () => {
+        // Show placeholder if media is pending download
+        if (message.metadata?.mediaPending && !message.metadata?.mediaUrl) {
+          return <MediaPendingPlaceholder type="image" caption={message.metadata?.caption} downloadStatus={message.metadata?.mediaDownloadStatus} />
+        }
+        return (
+          <div className="max-w-xs">
+            <img
+              src={message.metadata?.mediaUrl}
+              alt={message.metadata?.caption || 'Image'}
+              className="rounded-lg max-w-full h-auto cursor-pointer"
+              loading="lazy"
+            />
+            {message.metadata?.caption && (
+              <p className="mt-1 whitespace-pre-wrap break-words">{message.metadata.caption}</p>
+            )}
+          </div>
+        )
+      },
+      video: () => {
+        if (message.metadata?.mediaPending && !message.metadata?.mediaUrl) {
+          return <MediaPendingPlaceholder type="video" caption={message.metadata?.caption} downloadStatus={message.metadata?.mediaDownloadStatus} />
+        }
+        return (
+          <div className="max-w-xs">
+            <video
+              src={message.metadata?.mediaUrl}
+              poster={message.metadata?.thumbnailUrl}
+              controls
+              className="rounded-lg max-w-full h-auto"
+            />
+            {message.metadata?.caption && (
+              <p className="mt-1 whitespace-pre-wrap break-words">{message.metadata.caption}</p>
+            )}
+          </div>
+        )
+      },
+      audio: () => {
+        if (message.metadata?.mediaPending && !message.metadata?.mediaUrl) {
+          return <MediaPendingPlaceholder type="audio" downloadStatus={message.metadata?.mediaDownloadStatus} />
+        }
+        return (
+          <div className="flex items-center gap-2 min-w-[200px]">
+            <audio src={message.metadata?.mediaUrl} controls className="w-full" />
+            {message.metadata?.duration && (
+              <span className="text-xs text-gray-500">
+                {Math.floor(message.metadata.duration / 60)}:
+                {String(message.metadata.duration % 60).padStart(2, '0')}
+              </span>
+            )}
+          </div>
+        )
+      },
+      document: () => {
+        if (message.metadata?.mediaPending && !message.metadata?.mediaUrl) {
+          return <MediaPendingPlaceholder type="document" caption={message.metadata?.fileName} downloadStatus={message.metadata?.mediaDownloadStatus} />
+        }
+        return (
+          <a
+            href={message.metadata?.mediaUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-3 p-3 bg-gray-100 dark:bg-dark-tertiary rounded-lg hover:bg-gray-200 dark:hover:bg-dark-border transition-colors"
+          >
+            <div className="flex-shrink-0">
+              <svg
+                className="h-10 w-10 text-gray-500 dark:text-dark-text-secondary"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                />
+              </svg>
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-gray-900 dark:text-dark-text-primary truncate">
+                {message.metadata?.fileName || 'Document'}
+              </p>
+              {message.metadata?.fileSize && (
+                <p className="text-xs text-gray-500 dark:text-dark-text-secondary">
+                  {formatFileSize(message.metadata.fileSize)}
+                </p>
+              )}
+            </div>
+          </a>
+        )
+      },
+      sticker: () => {
+        if (message.metadata?.mediaPending && !message.metadata?.mediaUrl) {
+          return <MediaPendingPlaceholder type="sticker" downloadStatus={message.metadata?.mediaDownloadStatus} />
+        }
+        return (
+          <div className="max-w-[200px]">
+            <img
+              src={message.metadata?.mediaUrl}
+              alt="Sticker"
+              className="w-full h-auto"
+              loading="lazy"
+            />
+          </div>
+        )
+      },
       location: () => (
         <div className="max-w-xs">
           <div className="bg-gray-200 dark:bg-dark-tertiary rounded-lg h-32 flex items-center justify-center">

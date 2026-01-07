@@ -43,7 +43,7 @@ export async function up(db: Kysely<unknown>): Promise<void> {
         CREATE TABLE IF NOT EXISTS %I.whatsapp_connections (
           id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
           name VARCHAR(100),
-          phone_number VARCHAR(20),
+          phone_number VARCHAR(50),
           jid VARCHAR(100),
           status whatsapp_connection_status DEFAULT ''pending'' NOT NULL,
           connected_by UUID,
@@ -61,7 +61,7 @@ export async function up(db: Kysely<unknown>): Promise<void> {
           id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
           whatsapp_connection_id UUID,
           jid VARCHAR(100),
-          phone_number VARCHAR(20),
+          phone_number VARCHAR(50),
           push_name VARCHAR(255),
           custom_name VARCHAR(255),
           notes_shared TEXT,
@@ -131,7 +131,7 @@ export async function up(db: Kysely<unknown>): Promise<void> {
         )
       ', schema_name);
 
-      -- Messages table (with status and metadata columns)
+      -- Messages table (with status, metadata, and deferred media columns)
       EXECUTE format('
         CREATE TABLE IF NOT EXISTS %I.messages (
           id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -144,7 +144,15 @@ export async function up(db: Kysely<unknown>): Promise<void> {
           content TEXT,
           media_url TEXT,
           media_mime_type VARCHAR(100),
+          media_filename VARCHAR(255),
           media_size INTEGER,
+          media_direct_path TEXT,
+          media_key BYTEA,
+          media_file_sha256 BYTEA,
+          media_file_enc_sha256 BYTEA,
+          media_download_status VARCHAR(20),
+          media_download_error TEXT,
+          media_downloaded_at TIMESTAMPTZ,
           quoted_message_id VARCHAR(100),
           is_forwarded BOOLEAN DEFAULT false,
           is_starred BOOLEAN DEFAULT false,
@@ -395,6 +403,9 @@ export async function up(db: Kysely<unknown>): Promise<void> {
       -- Quick replies indexes
       EXECUTE format('CREATE INDEX IF NOT EXISTS %I ON %I.quick_replies (shortcut)', safe_schema_name || '_quick_replies_shortcut_idx', schema_name);
       EXECUTE format('CREATE INDEX IF NOT EXISTS %I ON %I.quick_replies (created_by)', safe_schema_name || '_quick_replies_user_idx', schema_name);
+
+      -- Deferred media download index
+      EXECUTE format('CREATE INDEX IF NOT EXISTS %I ON %I.messages (media_download_status, created_at) WHERE media_download_status = ''pending'' AND media_direct_path IS NOT NULL', safe_schema_name || '_idx_messages_media_pending', schema_name);
 
     END;
     $$ LANGUAGE plpgsql;

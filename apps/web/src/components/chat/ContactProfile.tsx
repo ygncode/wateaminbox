@@ -906,17 +906,17 @@ function AssignmentHistorySection({ contactId }: { contactId: string }) {
               />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="font-medium text-gray-800 dark:text-dark-text-primary truncate">
-                {entry.assignedToName}
+              <div className="flex items-center font-medium text-gray-800 dark:text-dark-text-primary">
+                <span className="truncate">{entry.assignedToName}</span>
                 {entry.isActive && (
                   <Badge
                     variant="secondary"
-                    className="ml-2 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 text-xs"
+                    className="ml-2 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 text-xs shrink-0"
                   >
                     Active
                   </Badge>
                 )}
-              </p>
+              </div>
               <p className="text-xs text-gray-500 dark:text-dark-text-secondary">
                 Assigned by {entry.assignedByName}
               </p>

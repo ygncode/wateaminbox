@@ -9,29 +9,15 @@
  */
 
 import { describe, it, expect, mock, beforeEach } from "bun:test";
-import { createMockMessage, createMockContact } from "../mocks";
+import {
+  createMockMessage,
+  createMockContact,
+  createMutableMockQueryBuilder,
+  resetMockQueryBuilder,
+} from "../mocks";
 
-// Mock query builder
-let mockQueryBuilder: Record<string, unknown>;
-
-function resetMockQueryBuilder(returnValue: unknown = undefined) {
-  mockQueryBuilder = {
-    selectFrom: mock(() => mockQueryBuilder),
-    select: mock(() => mockQueryBuilder),
-    selectAll: mock(() => mockQueryBuilder),
-    where: mock(() => mockQueryBuilder),
-    innerJoin: mock(() => mockQueryBuilder),
-    leftJoin: mock(() => mockQueryBuilder),
-    orderBy: mock(() => mockQueryBuilder),
-    groupBy: mock(() => mockQueryBuilder),
-    limit: mock(() => mockQueryBuilder),
-    offset: mock(() => mockQueryBuilder),
-    $if: mock(() => mockQueryBuilder),
-    or: mock(() => mockQueryBuilder),
-    execute: mock(() => Promise.resolve({ rows: Array.isArray(returnValue) ? returnValue : [] })),
-    executeTakeFirst: mock(() => Promise.resolve(returnValue)),
-  };
-}
+// Mock query builder - using centralized mock utilities
+let mockQueryBuilder = createMutableMockQueryBuilder();
 
 // Mock tenant database
 const mockTenantDb = {
@@ -81,7 +67,7 @@ import {
 
 describe("SearchService", () => {
   beforeEach(() => {
-    resetMockQueryBuilder();
+    resetMockQueryBuilder(mockQueryBuilder);
     mockGetTenantConnection.mockClear();
     mockTenantDb.selectFrom = mock(() => mockQueryBuilder);
     mockSql.mockClear();
@@ -295,7 +281,7 @@ describe("SearchService", () => {
         },
       ];
 
-      resetMockQueryBuilder(mockContacts);
+      resetMockQueryBuilder(mockQueryBuilder, mockContacts);
       mockQueryBuilder.execute = mock(() => Promise.resolve(mockContacts));
       mockTenantDb.selectFrom = mock(() => mockQueryBuilder);
 
@@ -314,7 +300,7 @@ describe("SearchService", () => {
         createMockContact({ phone_number: "+1234567890" }),
       ];
 
-      resetMockQueryBuilder(mockContacts);
+      resetMockQueryBuilder(mockQueryBuilder, mockContacts);
       mockQueryBuilder.execute = mock(() => Promise.resolve(mockContacts));
       mockTenantDb.selectFrom = mock(() => mockQueryBuilder);
 
@@ -327,7 +313,7 @@ describe("SearchService", () => {
 
     it("should apply pagination options", async () => {
       // Arrange
-      resetMockQueryBuilder([]);
+      resetMockQueryBuilder(mockQueryBuilder, []);
       mockQueryBuilder.execute = mock(() => Promise.resolve([]));
       mockTenantDb.selectFrom = mock(() => mockQueryBuilder);
 
@@ -341,7 +327,7 @@ describe("SearchService", () => {
 
     it("should include groups when specified", async () => {
       // Arrange
-      resetMockQueryBuilder([]);
+      resetMockQueryBuilder(mockQueryBuilder, []);
       mockQueryBuilder.execute = mock(() => Promise.resolve([]));
       mockTenantDb.selectFrom = mock(() => mockQueryBuilder);
 
@@ -354,7 +340,7 @@ describe("SearchService", () => {
 
     it("should exclude groups by default", async () => {
       // Arrange
-      resetMockQueryBuilder([]);
+      resetMockQueryBuilder(mockQueryBuilder, []);
       mockQueryBuilder.execute = mock(() => Promise.resolve([]));
       mockTenantDb.selectFrom = mock(() => mockQueryBuilder);
 
@@ -380,7 +366,7 @@ describe("SearchService", () => {
         },
       ];
 
-      resetMockQueryBuilder(mockContacts);
+      resetMockQueryBuilder(mockQueryBuilder, mockContacts);
       mockQueryBuilder.execute = mock(() => Promise.resolve(mockContacts));
       mockTenantDb.selectFrom = mock(() => mockQueryBuilder);
 
@@ -417,7 +403,7 @@ describe("SearchService", () => {
         },
       ];
 
-      resetMockQueryBuilder(mockContacts);
+      resetMockQueryBuilder(mockQueryBuilder, mockContacts);
       mockQueryBuilder.execute = mock(() => Promise.resolve(mockContacts));
       mockTenantDb.selectFrom = mock(() => mockQueryBuilder);
 
@@ -445,7 +431,7 @@ describe("SearchService", () => {
         },
       ];
 
-      resetMockQueryBuilder(mockContacts);
+      resetMockQueryBuilder(mockQueryBuilder, mockContacts);
       mockQueryBuilder.execute = mock(() => Promise.resolve(mockContacts));
       mockTenantDb.selectFrom = mock(() => mockQueryBuilder);
 
@@ -466,7 +452,7 @@ describe("SearchService", () => {
         execute: mock(() => Promise.resolve({ rows: [] })),
       }));
 
-      resetMockQueryBuilder([]);
+      resetMockQueryBuilder(mockQueryBuilder, []);
       mockQueryBuilder.execute = mock(() => Promise.resolve([]));
       mockTenantDb.selectFrom = mock(() => mockQueryBuilder);
 
@@ -486,7 +472,7 @@ describe("SearchService", () => {
         execute: mock(() => Promise.resolve({ rows: [] })),
       }));
 
-      resetMockQueryBuilder([]);
+      resetMockQueryBuilder(mockQueryBuilder, []);
       mockQueryBuilder.execute = mock(() => Promise.resolve([]));
       mockTenantDb.selectFrom = mock(() => mockQueryBuilder);
 
@@ -503,7 +489,7 @@ describe("SearchService", () => {
         execute: mock(() => Promise.resolve({ rows: [] })),
       }));
 
-      resetMockQueryBuilder([]);
+      resetMockQueryBuilder(mockQueryBuilder, []);
       mockQueryBuilder.execute = mock(() => Promise.resolve([]));
       mockTenantDb.selectFrom = mock(() => mockQueryBuilder);
 

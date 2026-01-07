@@ -11,6 +11,7 @@ export class RegisterPage {
   readonly confirmPasswordInput: Locator;
   readonly submitButton: Locator;
   readonly errorMessage: Locator;
+  readonly validationError: Locator;
   readonly signInLink: Locator;
   readonly successHeading: Locator;
   readonly goToLoginButton: Locator;
@@ -22,7 +23,8 @@ export class RegisterPage {
     this.passwordInput = page.locator("#password");
     this.confirmPasswordInput = page.locator("#confirmPassword");
     this.submitButton = page.getByRole("button", { name: /create account/i });
-    this.errorMessage = page.locator(".bg-red-50");
+    this.errorMessage = page.locator(".bg-red-50, .dark\\:bg-red-900\\/30").first();
+    this.validationError = page.locator('[role="alert"]').first();
     this.signInLink = page.getByRole("link", { name: /sign in/i });
     this.successHeading = page.getByRole("heading", { name: /check your email/i });
     this.goToLoginButton = page.getByRole("link", { name: /go to login/i });

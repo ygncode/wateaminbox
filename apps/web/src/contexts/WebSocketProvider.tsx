@@ -564,6 +564,96 @@ export function WebSocketProvider({ children, autoConnect = true }: WebSocketPro
       })
     })
 
+    // Media downloaded handler - update message with downloaded media URL
+    const unsubMediaDownloaded = client.on<{
+      messageId: string
+      conversationId: string
+      mediaUrl: string
+      mediaSize?: number
+    }>('media:downloaded', (payload) => {
+      console.log('[WebSocket] 📥 Media downloaded:', {
+        messageId: payload.messageId,
+        conversationId: payload.conversationId,
+        mediaUrl: payload.mediaUrl,
+      })
+
+      // Update TanStack Query cache with downloaded media
+      const queryKey = infiniteMessageKeys.list(payload.conversationId)
+      queryClientRef.current.setQueryData<{
+        pages: PaginatedMessages[]
+        pageParams: (string | undefined)[]
+      }>(queryKey, (oldData) => {
+        if (!oldData) return oldData
+
+        // Find and update the message with the downloaded media URL
+        const newPages = oldData.pages.map((page) => ({
+          ...page,
+          messages: page.messages.map((msg) =>
+            msg.id === payload.messageId
+              ? {
+                  ...msg,
+                  metadata: {
+                    ...msg.metadata,
+                    mediaUrl: payload.mediaUrl,
+                    mediaPending: false,
+                    mediaDownloadStatus: 'completed' as const,
+                    fileSize: payload.mediaSize || msg.metadata?.fileSize,
+                  },
+                }
+              : msg
+          ),
+        }))
+
+        return {
+          ...oldData,
+          pages: newPages,
+        }
+      })
+    })
+
+    // Media download failed handler
+    const unsubMediaDownloadFailed = client.on<{
+      messageId: string
+      conversationId: string
+      error?: string
+    }>('media:download_failed', (payload) => {
+      console.log('[WebSocket] ❌ Media download failed:', {
+        messageId: payload.messageId,
+        conversationId: payload.conversationId,
+        error: payload.error,
+      })
+
+      // Update TanStack Query cache with failed status
+      const queryKey = infiniteMessageKeys.list(payload.conversationId)
+      queryClientRef.current.setQueryData<{
+        pages: PaginatedMessages[]
+        pageParams: (string | undefined)[]
+      }>(queryKey, (oldData) => {
+        if (!oldData) return oldData
+
+        const newPages = oldData.pages.map((page) => ({
+          ...page,
+          messages: page.messages.map((msg) =>
+            msg.id === payload.messageId
+              ? {
+                  ...msg,
+                  metadata: {
+                    ...msg.metadata,
+                    mediaPending: true,
+                    mediaDownloadStatus: 'failed' as const,
+                  },
+                }
+              : msg
+          ),
+        }))
+
+        return {
+          ...oldData,
+          pages: newPages,
+        }
+      })
+    })
+
     // Auto-connect if enabled and we have a token
     if (autoConnect && getAccessToken()) {
       connect()
@@ -581,6 +671,8 @@ export function WebSocketProvider({ children, autoConnect = true }: WebSocketPro
       unsubProfilePicture()
       unsubPresenceOnline()
       unsubPresenceOffline()
+      unsubMediaDownloaded()
+      unsubMediaDownloadFailed()
 
       // Clear all typing timeouts
       typingTimeoutsRef.current.forEach((timeout) => clearTimeout(timeout))

@@ -99,7 +99,11 @@
       "sticker": "Sticker",
       "location": "Location",
       "contact": "Contact"
-    }
+    },
+    "mediaNotDownloaded": "Media not yet downloaded",
+    "downloadingMedia": "Downloading...",
+    "downloadFailed": "Download failed",
+    "retryDownload": "Retry"
   },
   "settings": {
     "title": "Settings",

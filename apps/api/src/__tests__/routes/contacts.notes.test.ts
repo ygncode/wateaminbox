@@ -8,56 +8,7 @@
 
 import { describe, it, expect, beforeEach, mock } from "bun:test";
 import { Hono } from "hono";
-
-// Mock query builder that supports chaining
-function createMockQueryBuilder(returnValue: unknown = undefined) {
-  const mockBuilder: Record<string, unknown> = {};
-
-  const chainMethods = [
-    "selectFrom",
-    "insertInto",
-    "updateTable",
-    "deleteFrom",
-    "select",
-    "selectAll",
-    "where",
-    "values",
-    "set",
-    "returning",
-    "innerJoin",
-    "leftJoin",
-    "orderBy",
-    "limit",
-    "offset",
-    "groupBy",
-    "having",
-    "on",
-    "onRef",
-    "filterWhere",
-    "as",
-  ];
-
-  const terminalMethods = {
-    execute: mock(() =>
-      Promise.resolve(Array.isArray(returnValue) ? returnValue : [])
-    ),
-    executeTakeFirst: mock(() => Promise.resolve(returnValue)),
-    executeTakeFirstOrThrow: mock(() => {
-      if (returnValue === undefined) throw new Error("no result");
-      return Promise.resolve(returnValue);
-    }),
-  };
-
-  chainMethods.forEach((method) => {
-    mockBuilder[method] = mock(() => mockBuilder);
-  });
-
-  Object.entries(terminalMethods).forEach(([method, fn]) => {
-    mockBuilder[method] = fn;
-  });
-
-  return mockBuilder;
-}
+import { createMockQueryBuilder } from "../mocks";
 
 // Helper to create mock shared note
 function createMockSharedNote(overrides: Partial<{

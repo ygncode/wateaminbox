@@ -280,6 +280,104 @@ export function useReactMessage() {
   })
 }
 
+interface MediaDownloadResponse {
+  status: 'downloading' | 'completed'
+  mediaUrl?: string
+}
+
+export function useRequestMediaDownload() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ messageId }: { messageId: string; conversationId: string }) =>
+      api.post<MediaDownloadResponse>(`/media/download/${messageId}`, {}),
+    onMutate: async ({ messageId, conversationId }) => {
+      // Optimistically update the message status to downloading
+      await queryClient.cancelQueries({
+        queryKey: infiniteMessageKeys.list(conversationId),
+      })
+
+      const previousData = queryClient.getQueryData(infiniteMessageKeys.list(conversationId))
+
+      queryClient.setQueryData<{
+        pages: {
+          messages: Message[]
+          hasMore: boolean
+          nextCursor: string | null
+        }[]
+        pageParams: (string | undefined)[]
+      }>(infiniteMessageKeys.list(conversationId), (oldData) => {
+        if (!oldData) return oldData
+
+        return {
+          ...oldData,
+          pages: oldData.pages.map((page) => ({
+            ...page,
+            messages: page.messages.map((msg) =>
+              msg.id === messageId
+                ? {
+                    ...msg,
+                    metadata: {
+                      ...msg.metadata,
+                      mediaDownloadStatus: 'downloading' as const,
+                    },
+                  }
+                : msg
+            ),
+          })),
+        }
+      })
+
+      return { previousData, conversationId }
+    },
+    onSuccess: (data, variables) => {
+      // If already completed, update the cache with the media URL
+      if (data.status === 'completed' && data.mediaUrl) {
+        queryClient.setQueryData<{
+          pages: {
+            messages: Message[]
+            hasMore: boolean
+            nextCursor: string | null
+          }[]
+          pageParams: (string | undefined)[]
+        }>(infiniteMessageKeys.list(variables.conversationId), (oldData) => {
+          if (!oldData) return oldData
+
+          return {
+            ...oldData,
+            pages: oldData.pages.map((page) => ({
+              ...page,
+              messages: page.messages.map((msg) =>
+                msg.id === variables.messageId
+                  ? {
+                      ...msg,
+                      metadata: {
+                        ...msg.metadata,
+                        mediaUrl: data.mediaUrl,
+                        mediaPending: false,
+                        mediaDownloadStatus: 'completed' as const,
+                      },
+                    }
+                  : msg
+              ),
+            })),
+          }
+        })
+      }
+      // If status is 'downloading', the WebSocket handler will update when download completes
+    },
+    onError: (_error, variables, context) => {
+      // Rollback on error
+      if (context?.previousData) {
+        queryClient.setQueryData(
+          infiniteMessageKeys.list(variables.conversationId),
+          context.previousData
+        )
+      }
+    },
+  })
+}
+
 interface ForwardMessageResponse {
   success: boolean
   forwardedMessageId: string

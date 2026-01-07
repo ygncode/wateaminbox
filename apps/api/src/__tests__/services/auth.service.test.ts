@@ -16,7 +16,12 @@ import {
   createMockSession,
   createUpdateResult,
   createDeleteResult,
+  createMutableMockQueryBuilder,
+  resetMockQueryBuilder,
 } from "../mocks";
+
+// Mock query builder - using centralized mock utilities
+let mockQueryBuilder = createMutableMockQueryBuilder();
 
 // Mock modules before importing the service
 const mockDb = {
@@ -28,30 +33,6 @@ const mockDb = {
     execute: mock((callback: (trx: unknown) => Promise<unknown>) => callback(mockDb)),
   })),
 };
-
-let mockQueryBuilder: Record<string, unknown>;
-
-function resetMockQueryBuilder(returnValue: unknown = undefined) {
-  mockQueryBuilder = {
-    selectFrom: mock(() => mockQueryBuilder),
-    insertInto: mock(() => mockQueryBuilder),
-    updateTable: mock(() => mockQueryBuilder),
-    deleteFrom: mock(() => mockQueryBuilder),
-    select: mock(() => mockQueryBuilder),
-    selectAll: mock(() => mockQueryBuilder),
-    where: mock(() => mockQueryBuilder),
-    values: mock(() => mockQueryBuilder),
-    set: mock(() => mockQueryBuilder),
-    returning: mock(() => mockQueryBuilder),
-    orderBy: mock(() => mockQueryBuilder),
-    execute: mock(() => Promise.resolve(Array.isArray(returnValue) ? returnValue : [])),
-    executeTakeFirst: mock(() => Promise.resolve(returnValue)),
-    executeTakeFirstOrThrow: mock(() => {
-      if (returnValue === undefined) throw new Error("no result");
-      return Promise.resolve(returnValue);
-    }),
-  };
-}
 
 function resetMockDb() {
   mockDb.selectFrom = mock(() => mockQueryBuilder);
@@ -115,7 +96,7 @@ import {
 describe("AuthService", () => {
   beforeEach(() => {
     // Reset all mocks before each test
-    resetMockQueryBuilder();
+    resetMockQueryBuilder(mockQueryBuilder);
     resetMockDb();
     mockHashPassword.mockClear();
     mockVerifyPassword.mockClear();
@@ -141,7 +122,7 @@ describe("AuthService", () => {
       });
 
       // First query checks if user exists - should return undefined
-      resetMockQueryBuilder(undefined);
+      resetMockQueryBuilder(mockQueryBuilder, undefined);
 
       // After checking, setup for insert
       const insertBuilder: Record<string, unknown> = {
@@ -165,7 +146,7 @@ describe("AuthService", () => {
     it("should throw error if email already exists", async () => {
       // Arrange
       const existingUser = createMockUser();
-      resetMockQueryBuilder(existingUser);
+      resetMockQueryBuilder(mockQueryBuilder, existingUser);
 
       // Act & Assert
       await expect(register("test@example.com", "Password123")).rejects.toThrow(AuthError);
@@ -180,7 +161,7 @@ describe("AuthService", () => {
         email: email.toLowerCase(),
       });
 
-      resetMockQueryBuilder(undefined);
+      resetMockQueryBuilder(mockQueryBuilder, undefined);
       const insertBuilder: Record<string, unknown> = {
         values: mock(() => insertBuilder),
         returning: mock(() => insertBuilder),
@@ -203,7 +184,7 @@ describe("AuthService", () => {
       const mockSession = createMockSession();
 
       // Setup mock for user lookup
-      resetMockQueryBuilder(mockUser);
+      resetMockQueryBuilder(mockQueryBuilder, mockUser);
 
       // Setup mock for session creation
       const insertBuilder: Record<string, unknown> = {
@@ -234,7 +215,7 @@ describe("AuthService", () => {
 
     it("should throw error for non-existent user", async () => {
       // Arrange
-      resetMockQueryBuilder(undefined);
+      resetMockQueryBuilder(mockQueryBuilder, undefined);
 
       // Act & Assert
       await expect(login("nonexistent@example.com", "Password123")).rejects.toThrow(AuthError);
@@ -244,7 +225,7 @@ describe("AuthService", () => {
     it("should throw error for invalid password", async () => {
       // Arrange
       const mockUser = createMockUser();
-      resetMockQueryBuilder(mockUser);
+      resetMockQueryBuilder(mockQueryBuilder, mockUser);
       mockVerifyPassword.mockImplementation(async () => false);
 
       // Act & Assert
@@ -257,7 +238,7 @@ describe("AuthService", () => {
       const mockUser = createMockUser();
       const mockSession = createMockSession();
 
-      resetMockQueryBuilder(mockUser);
+      resetMockQueryBuilder(mockQueryBuilder, mockUser);
 
       const insertBuilder: Record<string, unknown> = {
         values: mock(() => insertBuilder),
@@ -320,7 +301,7 @@ describe("AuthService", () => {
     it("should send password reset email for existing user", async () => {
       // Arrange
       const mockUser = createMockUser();
-      resetMockQueryBuilder(mockUser);
+      resetMockQueryBuilder(mockQueryBuilder, mockUser);
 
       const updateBuilder: Record<string, unknown> = {
         where: mock(() => updateBuilder),
@@ -340,7 +321,7 @@ describe("AuthService", () => {
 
     it("should return success even for non-existent email (prevent enumeration)", async () => {
       // Arrange
-      resetMockQueryBuilder(undefined);
+      resetMockQueryBuilder(mockQueryBuilder, undefined);
 
       // Act
       const result = await forgotPassword("nonexistent@example.com");
@@ -390,7 +371,7 @@ describe("AuthService", () => {
     it("should refresh session with valid refresh token", async () => {
       // Arrange
       const mockSession = createMockSession();
-      resetMockQueryBuilder(mockSession);
+      resetMockQueryBuilder(mockQueryBuilder, mockSession);
 
       mockVerifyRefreshToken.mockImplementation(async () => ({ sessionId: "session-123" }));
 
@@ -422,7 +403,7 @@ describe("AuthService", () => {
     it("should throw error for expired session", async () => {
       // Arrange
       mockVerifyRefreshToken.mockImplementation(async () => ({ sessionId: "expired-session" }));
-      resetMockQueryBuilder(undefined);
+      resetMockQueryBuilder(mockQueryBuilder, undefined);
 
       // Act & Assert
       await expect(refreshSession("expired-session-token")).rejects.toThrow(AuthError);
@@ -503,7 +484,7 @@ describe("AuthService", () => {
         createMockSession({ id: "session-1" }),
         createMockSession({ id: "session-2" }),
       ];
-      resetMockQueryBuilder(mockSessions);
+      resetMockQueryBuilder(mockQueryBuilder, mockSessions);
       mockQueryBuilder.execute = mock(() => Promise.resolve(mockSessions));
 
       // Act
@@ -516,7 +497,7 @@ describe("AuthService", () => {
 
     it("should return empty array if no sessions", async () => {
       // Arrange
-      resetMockQueryBuilder([]);
+      resetMockQueryBuilder(mockQueryBuilder, []);
       mockQueryBuilder.execute = mock(() => Promise.resolve([]));
 
       // Act
@@ -532,7 +513,7 @@ describe("AuthService", () => {
     it("should return user for valid ID", async () => {
       // Arrange
       const mockUser = createMockUser();
-      resetMockQueryBuilder(mockUser);
+      resetMockQueryBuilder(mockQueryBuilder, mockUser);
 
       // Act
       const result = await getUserById("user-123");
@@ -545,7 +526,7 @@ describe("AuthService", () => {
 
     it("should return null for non-existent user", async () => {
       // Arrange
-      resetMockQueryBuilder(undefined);
+      resetMockQueryBuilder(mockQueryBuilder, undefined);
 
       // Act
       const result = await getUserById("nonexistent-user");

@@ -8,15 +8,13 @@ export class ChatPage {
   readonly page: Page;
 
   // Chat List Sidebar
-  readonly chatListHeader: Locator;
-  readonly menuButton: Locator;
-  readonly logoutButton: Locator;
-  readonly userInfoSection: Locator;
+  readonly chatListNav: Locator;
+  readonly chatsTab: Locator;
+  readonly groupsTab: Locator;
+  readonly settingsLink: Locator;
   readonly chatList: Locator;
-  readonly newChatButton: Locator;
   readonly searchInput: Locator;
   readonly welcomeMessage: Locator;
-  readonly chatListNav: Locator;
 
   // Assignment Filter Buttons
   readonly filterAll: Locator;
@@ -72,15 +70,13 @@ export class ChatPage {
     this.page = page;
 
     // Chat List Sidebar Locators
-    this.chatListHeader = page.getByRole("tab", { name: "Chats" });
-    this.menuButton = page.getByRole("button", { name: "Menu" });
-    this.logoutButton = page.getByRole("button", { name: /log out/i });
-    this.userInfoSection = page.locator(".border-b.border-gray-100");
+    this.chatListNav = page.getByRole("navigation", { name: "Chat list" });
+    this.chatsTab = page.getByRole("tab").filter({ hasText: /chats/i });
+    this.groupsTab = page.getByRole("tab").filter({ hasText: /groups/i });
+    this.settingsLink = page.getByRole("link", { name: "Settings" });
     this.chatList = page.getByRole("listbox", { name: /conversations/i });
-    this.newChatButton = page.getByRole("button", { name: "New chat" });
     this.searchInput = page.getByPlaceholder(/search/i);
     this.welcomeMessage = page.getByText(/select a conversation/i);
-    this.chatListNav = page.getByRole("navigation", { name: "Chat list" });
 
     // Assignment Filter Buttons
     this.filterAll = page.getByRole("button", { name: "All", exact: true });
@@ -151,7 +147,7 @@ export class ChatPage {
    * Wait for the chat page to be fully loaded
    */
   async waitForLoad() {
-    await this.chatListHeader.waitFor({ state: "visible" });
+    await this.chatListNav.waitFor({ state: "visible" });
   }
 
   /**
@@ -159,29 +155,6 @@ export class ChatPage {
    */
   async waitForPageLoad() {
     await this.page.waitForLoadState("networkidle");
-  }
-
-  /**
-   * Open the user menu dropdown
-   */
-  async openMenu() {
-    await this.menuButton.click();
-    await this.logoutButton.waitFor({ state: "visible" });
-  }
-
-  /**
-   * Logout from the application
-   */
-  async logout() {
-    await this.openMenu();
-    await this.logoutButton.click();
-  }
-
-  /**
-   * Wait for redirect to login page after logout
-   */
-  async waitForLogoutRedirect() {
-    await this.page.waitForURL(/\/login/);
   }
 
   /**

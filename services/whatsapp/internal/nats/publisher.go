@@ -26,6 +26,10 @@ const (
 	SubjectSendConfirmation = "WHATSAPP.events.%s.%s.send_confirmation"
 	SubjectTyping           = "WHATSAPP.events.%s.%s.typing"
 	SubjectReaction         = "WHATSAPP.events.%s.%s.reaction"
+
+	// On-demand media download subjects
+	SubjectDownloadRequest  = "WHATSAPP.download.%s.%s.request"
+	SubjectDownloadResponse = "WHATSAPP.events.%s.%s.download_response"
 )
 
 // WhatsAppEvent is the wrapper format expected by the API.
@@ -85,6 +89,13 @@ type MessagePayload struct {
 	Caption         string `json:"caption,omitempty"`
 	FileName        string `json:"fileName,omitempty"`
 	MediaType       string `json:"mediaType,omitempty"`
+	MediaSize       int64  `json:"mediaSize,omitempty"`
+	// Deferred media download fields - for on-demand download
+	MediaDirectPath    string `json:"mediaDirectPath,omitempty"`
+	MediaKey           []byte `json:"mediaKey,omitempty"`
+	MediaFileSHA256    []byte `json:"mediaFileSha256,omitempty"`
+	MediaFileEncSHA256 []byte `json:"mediaFileEncSha256,omitempty"`
+	IsHistorySync      bool   `json:"isHistorySync,omitempty"`
 }
 
 // MessageRevokePayload is the payload for message revocation events.
@@ -113,6 +124,12 @@ type MessageEvent struct {
 	SenderName      string    `json:"sender_name,omitempty"`
 	QuotedMessageID string    `json:"quoted_message_id,omitempty"`
 	Timestamp       time.Time `json:"timestamp"`
+	// Deferred media download fields - for on-demand download
+	MediaDirectPath    string `json:"media_direct_path,omitempty"`
+	MediaKey           []byte `json:"media_key,omitempty"`
+	MediaFileSHA256    []byte `json:"media_file_sha256,omitempty"`
+	MediaFileEncSHA256 []byte `json:"media_file_enc_sha256,omitempty"`
+	IsHistorySync      bool   `json:"is_history_sync,omitempty"`
 }
 
 // ContactPayload is the payload for contact/conversation sync events.
@@ -335,21 +352,27 @@ func (p *Publisher) PublishMessage(msg MessageEvent) error {
 		CompanyID:    p.companyID,
 		ConnectionID: p.connectionID,
 		Payload: MessagePayload{
-			MessageID:       msg.MessageID,
-			From:            msg.From,
-			To:              msg.To,
-			FromMe:          msg.FromMe,
-			Content:         content,
-			MessageType:     msg.Type,
-			Timestamp:       msg.Timestamp.Format(time.RFC3339),
-			MediaURL:        msg.MediaURL,
-			QuotedMessageID: msg.QuotedMessageID,
-			IsGroup:         msg.IsGroup,
-			GroupID:         msg.GroupID,
-			SenderName:      msg.SenderName,
-			Caption:         msg.Caption,
-			FileName:        msg.FileName,
-			MediaType:       msg.MediaType,
+			MessageID:          msg.MessageID,
+			From:               msg.From,
+			To:                 msg.To,
+			FromMe:             msg.FromMe,
+			Content:            content,
+			MessageType:        msg.Type,
+			Timestamp:          msg.Timestamp.Format(time.RFC3339),
+			MediaURL:           msg.MediaURL,
+			QuotedMessageID:    msg.QuotedMessageID,
+			IsGroup:            msg.IsGroup,
+			GroupID:            msg.GroupID,
+			SenderName:         msg.SenderName,
+			Caption:            msg.Caption,
+			FileName:           msg.FileName,
+			MediaType:          msg.MediaType,
+			MediaSize:          msg.MediaSize,
+			MediaDirectPath:    msg.MediaDirectPath,
+			MediaKey:           msg.MediaKey,
+			MediaFileSHA256:    msg.MediaFileSHA256,
+			MediaFileEncSHA256: msg.MediaFileEncSHA256,
+			IsHistorySync:      msg.IsHistorySync,
 		},
 		Timestamp: time.Now().Format(time.RFC3339),
 	}
@@ -539,6 +562,46 @@ func (p *Publisher) PublishReaction(messageID, from, chatJID, emoji string, time
 	}
 
 	subject := fmt.Sprintf(SubjectReaction, p.companyID, p.connectionID)
+	return p.publish(subject, event)
+}
+
+// DownloadRequest is the payload for on-demand media download requests.
+type DownloadRequest struct {
+	MessageID      string `json:"messageId"`
+	DirectPath     string `json:"directPath"`
+	MediaKey       []byte `json:"mediaKey"`       // Base64 encoded
+	FileSHA256     []byte `json:"fileSha256"`     // Base64 encoded
+	FileEncSHA256  []byte `json:"fileEncSha256"`  // Base64 encoded
+	MediaType      string `json:"mediaType"`
+	FileName       string `json:"fileName,omitempty"`
+}
+
+// DownloadResponsePayload is the payload for media download response events.
+type DownloadResponsePayload struct {
+	MessageID string `json:"messageId"`
+	MediaURL  string `json:"mediaUrl,omitempty"`
+	MediaSize int64  `json:"mediaSize,omitempty"`
+	Success   bool   `json:"success"`
+	Error     string `json:"error,omitempty"`
+}
+
+// PublishDownloadResponse publishes a media download response event.
+func (p *Publisher) PublishDownloadResponse(messageID, mediaURL string, mediaSize int64, success bool, errMsg string) error {
+	event := WhatsAppEvent{
+		Type:         "download_response",
+		CompanyID:    p.companyID,
+		ConnectionID: p.connectionID,
+		Payload: DownloadResponsePayload{
+			MessageID: messageID,
+			MediaURL:  mediaURL,
+			MediaSize: mediaSize,
+			Success:   success,
+			Error:     errMsg,
+		},
+		Timestamp: time.Now().Format(time.RFC3339),
+	}
+
+	subject := fmt.Sprintf(SubjectDownloadResponse, p.companyID, p.connectionID)
 	return p.publish(subject, event)
 }
 

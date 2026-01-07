@@ -9,26 +9,13 @@
  */
 
 import { describe, it, expect, mock, beforeEach } from "bun:test";
+import {
+  createMutableMockQueryBuilder,
+  resetMockQueryBuilder,
+} from "../mocks";
 
-// Mock query builder
-let mockQueryBuilder: Record<string, unknown>;
-
-function resetMockQueryBuilder(returnValue: unknown = undefined) {
-  mockQueryBuilder = {
-    selectFrom: mock(() => mockQueryBuilder),
-    select: mock(() => mockQueryBuilder),
-    selectAll: mock(() => mockQueryBuilder),
-    where: mock(() => mockQueryBuilder),
-    innerJoin: mock(() => mockQueryBuilder),
-    leftJoin: mock(() => mockQueryBuilder),
-    orderBy: mock(() => mockQueryBuilder),
-    groupBy: mock(() => mockQueryBuilder),
-    limit: mock(() => mockQueryBuilder),
-    offset: mock(() => mockQueryBuilder),
-    execute: mock(() => Promise.resolve({ rows: Array.isArray(returnValue) ? returnValue : [] })),
-    executeTakeFirst: mock(() => Promise.resolve(returnValue)),
-  };
-}
+// Mock query builder - using centralized mock utilities
+let mockQueryBuilder = createMutableMockQueryBuilder();
 
 // Mock tenant database
 const mockTenantDb = {
@@ -116,7 +103,7 @@ import {
 
 describe("ExportService", () => {
   beforeEach(() => {
-    resetMockQueryBuilder();
+    resetMockQueryBuilder(mockQueryBuilder);
     resetCapturedFiles();
     mockGetTenantConnection.mockClear();
     mockTenantDb.selectFrom = mock(() => mockQueryBuilder);

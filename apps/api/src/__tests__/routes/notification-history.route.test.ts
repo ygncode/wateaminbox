@@ -13,46 +13,7 @@
 
 import { describe, it, expect, beforeEach, mock } from "bun:test";
 import { Hono } from "hono";
-import { createMockNotificationHistory } from "../mocks";
-
-// Create mock query builder for tenant database
-function createMockQueryBuilder(returnValue: unknown = undefined) {
-  const mockBuilder: Record<string, unknown> = {};
-
-  const chainMethods = [
-    "selectFrom",
-    "insertInto",
-    "updateTable",
-    "deleteFrom",
-    "select",
-    "selectAll",
-    "where",
-    "values",
-    "set",
-    "returning",
-    "returningAll",
-    "orderBy",
-    "limit",
-    "offset",
-  ];
-
-  const terminalMethods = {
-    execute: mock(() =>
-      Promise.resolve(Array.isArray(returnValue) ? returnValue : [])
-    ),
-    executeTakeFirst: mock(() => Promise.resolve(returnValue)),
-  };
-
-  chainMethods.forEach((method) => {
-    mockBuilder[method] = mock(() => mockBuilder);
-  });
-
-  Object.entries(terminalMethods).forEach(([method, fn]) => {
-    mockBuilder[method] = fn;
-  });
-
-  return mockBuilder;
-}
+import { createMockNotificationHistory, createMockQueryBuilder } from "../mocks";
 
 // Create mock tenant db for notification history
 function createMockTenantDb() {

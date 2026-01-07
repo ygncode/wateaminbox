@@ -30,6 +30,8 @@ export type MessageType = "text" | "image" | "video" | "audio" | "document" | "s
 
 export type MessageStatus = "pending" | "sent" | "delivered" | "read" | "failed";
 
+export type MediaDownloadStatus = "pending" | "downloading" | "completed" | "failed" | null;
+
 export interface MessageMetadata {
   mediaUrl?: string;
   mimeType?: string;
@@ -42,6 +44,9 @@ export interface MessageMetadata {
   thumbnailUrl?: string;
   duration?: number; // For audio/video in seconds
   caption?: string;
+  // Deferred media download fields
+  mediaPending?: boolean; // True if media needs to be downloaded on-demand
+  mediaDownloadStatus?: MediaDownloadStatus;
   // Error-related fields for failed messages
   error?: string; // Error code, e.g., "delivery_timeout", "network_error", "rate_limit"
   errorMessage?: string; // Human-readable error message

@@ -32,16 +32,22 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"sync"
 	"time"
 
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
 	"go.mau.fi/whatsmeow/proto/waE2E"
+	"go.mau.fi/whatsmeow/proto/waHistorySync"
+	"go.mau.fi/whatsmeow/proto/waWeb"
 
 	natsClient "github.com/ygncode-lab/whatsapp-web/services/whatsapp/internal/nats"
 	"github.com/ygncode-lab/whatsapp-web/services/whatsapp/internal/storage"
 )
+
+// Number of parallel workers for history sync processing
+const historySyncWorkers = 10
 
 // Media download retry configuration constants.
 const (
@@ -126,13 +132,14 @@ type WhatsAppClient interface {
 
 // Config holds handler configuration.
 type Config struct {
-	WorkerID  string
-	CompanyID string
-	NATSUrl   string
-	Client    WhatsAppClient
-	Publisher *natsClient.Publisher
-	Storage   *storage.Client
-	Ctx       context.Context
+	WorkerID     string
+	CompanyID    string
+	ConnectionID string
+	NATSUrl      string
+	Client       WhatsAppClient
+	Publisher    *natsClient.Publisher
+	Storage      *storage.Client
+	Ctx          context.Context
 }
 
 // Handler processes WhatsApp events.
@@ -567,196 +574,349 @@ func (h *Handler) handlePairSuccess(evt *events.PairSuccess) {
 	}
 }
 
+// historySyncConversation represents a conversation to process during history sync.
+type historySyncConversation struct {
+	conv      interface{} // *waHistorySync.Conversation
+	jid       string
+	isGroup   bool
+	name      string
+	displayName string
+	unreadCount int
+}
+
 // handleHistorySync is called when history sync is received.
+// Optimized for performance with:
+// - Parallel conversation processing using worker pool
+// - Deferred media downloads (stores references instead of downloading)
+// - Skipped profile picture fetching (fetched on-demand later)
 func (h *Handler) handleHistorySync(evt *events.HistorySync) {
 	conversations := evt.Data.GetConversations()
-	log.Printf("History sync received: %d conversations", len(conversations))
+	log.Printf("History sync received: %d conversations (optimized mode - media deferred)", len(conversations))
 
-	// Track stats for logging
-	var totalMessages, mediaDownloaded, mediaFailed int
+	startTime := time.Now()
 
-	for _, conv := range conversations {
-		rawJID := conv.GetID()
+	// Use channels for worker pool pattern
+	type conversationResult struct {
+		messages     int
+		mediaDeferred int
+	}
+
+	jobs := make(chan int, len(conversations))
+	results := make(chan conversationResult, len(conversations))
+
+	// Start worker pool
+	var wg sync.WaitGroup
+	for w := 0; w < historySyncWorkers; w++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for idx := range jobs {
+				conv := conversations[idx]
+				result := h.processHistorySyncConversation(conv)
+				results <- result
+			}
+		}()
+	}
+
+	// Send jobs to workers
+	for i := range conversations {
+		jobs <- i
+	}
+	close(jobs)
+
+	// Wait for workers to finish in background goroutine
+	go func() {
+		wg.Wait()
+		close(results)
+	}()
+
+	// Collect results
+	var totalMessages, totalMediaDeferred int
+	for result := range results {
+		totalMessages += result.messages
+		totalMediaDeferred += result.mediaDeferred
+	}
+
+	elapsed := time.Since(startTime)
+	log.Printf("History sync complete: %d messages, %d media deferred for on-demand download (took %v)",
+		totalMessages, totalMediaDeferred, elapsed.Round(time.Millisecond))
+}
+
+// processHistorySyncConversation processes a single conversation during history sync.
+// Returns the count of messages processed and media items deferred.
+func (h *Handler) processHistorySyncConversation(conv interface{}) (result struct{ messages, mediaDeferred int }) {
+	// Type assert to get conversation methods
+	type conversationGetter interface {
+		GetID() string
+		GetIsDefaultSubgroup() bool
+		GetParticipant() []interface{}
+		GetDisplayName() string
+		GetName() string
+		GetUnreadCount() uint32
+		GetMessages() []interface{}
+	}
+
+	c, ok := conv.(conversationGetter)
+	if !ok {
+		// Fallback: use reflection or direct type assertion
+		return h.processHistorySyncConversationDirect(conv)
+	}
+
+	rawJID := c.GetID()
+	if rawJID == "" {
+		return
+	}
+
+	// Parse and normalize JID to remove any device suffix
+	parsedJID, err := types.ParseJID(rawJID)
+	if err != nil {
+		log.Printf("Failed to parse JID %s: %v", rawJID, err)
+		return
+	}
+	normalizedJID := parsedJID.ToNonAD()
+	jid := normalizedJID.String()
+
+	// Determine if this is a group chat
+	isGroup := c.GetIsDefaultSubgroup() || len(c.GetParticipant()) > 0
+
+	// Get display name from conversation
+	displayName := c.GetDisplayName()
+	name := c.GetName()
+
+	// Get unread count
+	unreadCount := int(c.GetUnreadCount())
+
+	// OPTIMIZATION: Skip profile picture fetching during history sync
+	// Profile pictures will be fetched on-demand when viewing contacts
+	var profilePicURL string // Empty - will be fetched later
+
+	// Publish contact to NATS
+	if h.publisher != nil {
+		if err := h.publisher.PublishContact(jid, name, displayName, isGroup, unreadCount, profilePicURL); err != nil {
+			log.Printf("Failed to publish contact %s: %v", jid, err)
+		}
+	}
+
+	// Process messages
+	messages := c.GetMessages()
+	for _, historyMsg := range messages {
+		processed, hasMedia := h.processHistorySyncMessage(historyMsg, jid, isGroup)
+		if processed {
+			result.messages++
+			if hasMedia {
+				result.mediaDeferred++
+			}
+		}
+	}
+
+	return
+}
+
+// processHistorySyncConversationDirect processes a conversation using direct type assertion.
+func (h *Handler) processHistorySyncConversationDirect(conv interface{}) (result struct{ messages, mediaDeferred int }) {
+	// Use waHistorySync types directly
+	type waConversation interface {
+		GetID() string
+		GetDisplayName() string
+		GetName() string
+		GetUnreadCount() uint32
+		GetMessages() []*waHistorySync.HistorySyncMsg
+	}
+
+	// Try to use the actual proto type methods
+	if c, ok := conv.(interface{ GetID() string }); ok {
+		rawJID := c.GetID()
 		if rawJID == "" {
-			continue
+			return
 		}
 
-		// Parse and normalize JID to remove any device suffix
 		parsedJID, err := types.ParseJID(rawJID)
 		if err != nil {
-			log.Printf("Failed to parse JID %s: %v", rawJID, err)
-			continue
+			return
 		}
 		normalizedJID := parsedJID.ToNonAD()
 		jid := normalizedJID.String()
 
-		// Determine if this is a group chat
-		isGroup := conv.GetIsDefaultSubgroup() || len(conv.GetParticipant()) > 0
+		// Check for group (simplified)
+		isGroup := false
+		if g, ok := conv.(interface{ GetIsDefaultSubgroup() bool }); ok {
+			isGroup = g.GetIsDefaultSubgroup()
+		}
 
-		// Get display name from conversation
-		displayName := conv.GetDisplayName()
-		name := conv.GetName()
+		// Get names
+		var displayName, name string
+		if d, ok := conv.(interface{ GetDisplayName() string }); ok {
+			displayName = d.GetDisplayName()
+		}
+		if n, ok := conv.(interface{ GetName() string }); ok {
+			name = n.GetName()
+		}
 
 		// Get unread count
-		unreadCount := int(conv.GetUnreadCount())
-
-		// Fetch profile picture for individual contacts (not groups)
-		var profilePicURL string
-		if !isGroup {
-			profilePicURL = h.fetchProfilePicture(normalizedJID)
-			// Small delay to avoid rate limiting
-			if profilePicURL != "" {
-				time.Sleep(200 * time.Millisecond)
-			}
+		var unreadCount int
+		if u, ok := conv.(interface{ GetUnreadCount() uint32 }); ok {
+			unreadCount = int(u.GetUnreadCount())
 		}
 
-		// Publish contact to NATS
+		// Publish contact (no profile picture - deferred)
 		if h.publisher != nil {
-			if err := h.publisher.PublishContact(jid, name, displayName, isGroup, unreadCount, profilePicURL); err != nil {
-				log.Printf("Failed to publish contact %s: %v", jid, err)
-			}
+			h.publisher.PublishContact(jid, name, displayName, isGroup, unreadCount, "")
 		}
 
-		// Process messages in this conversation
-		messages := conv.GetMessages()
-		log.Printf("Processing %d messages for conversation %s", len(messages), jid)
-
-		for _, historyMsg := range messages {
-			msg := historyMsg.GetMessage()
-			if msg == nil || msg.Message == nil {
-				continue
-			}
-
-			totalMessages++
-
-			// Build message event
-			msgEvent := natsClient.MessageEvent{
-				MessageID: msg.GetKey().GetID(),
-				From:      jid,
-				To:        jid,
-				FromMe:    msg.GetKey().GetFromMe(),
-				IsGroup:   isGroup,
-				Timestamp: time.Unix(int64(msg.GetMessageTimestamp()), 0),
-			}
-
-			// Get push name
-			msgEvent.SenderName = msg.GetPushName()
-
-			// Extract content based on message type
-			waMsg := msg.GetMessage()
-			if waMsg == nil {
-				continue
-			}
-
-			// Text message
-			if waMsg.Conversation != nil {
-				msgEvent.Type = "text"
-				msgEvent.Content = *waMsg.Conversation
-			} else if waMsg.ExtendedTextMessage != nil {
-				msgEvent.Type = "text"
-				if waMsg.ExtendedTextMessage.Text != nil {
-					msgEvent.Content = *waMsg.ExtendedTextMessage.Text
-				}
-			}
-
-			// Image message
-			if waMsg.ImageMessage != nil {
-				msgEvent.Type = "image"
-				if waMsg.ImageMessage.Caption != nil {
-					msgEvent.Caption = *waMsg.ImageMessage.Caption
-				}
-				if waMsg.ImageMessage.Mimetype != nil {
-					msgEvent.MediaType = *waMsg.ImageMessage.Mimetype
-				}
-				// Download media with rate limiting
-				if h.downloadHistoryMedia(waMsg.ImageMessage, &msgEvent) {
-					mediaDownloaded++
-				} else {
-					mediaFailed++
-				}
-			}
-
-			// Video message
-			if waMsg.VideoMessage != nil {
-				msgEvent.Type = "video"
-				if waMsg.VideoMessage.Caption != nil {
-					msgEvent.Caption = *waMsg.VideoMessage.Caption
-				}
-				if waMsg.VideoMessage.Mimetype != nil {
-					msgEvent.MediaType = *waMsg.VideoMessage.Mimetype
-				}
-				// Download media with rate limiting
-				if h.downloadHistoryMedia(waMsg.VideoMessage, &msgEvent) {
-					mediaDownloaded++
-				} else {
-					mediaFailed++
-				}
-			}
-
-			// Audio message
-			if waMsg.AudioMessage != nil {
-				msgEvent.Type = "audio"
-				if waMsg.AudioMessage.Mimetype != nil {
-					msgEvent.MediaType = *waMsg.AudioMessage.Mimetype
-				}
-				// Download media with rate limiting
-				if h.downloadHistoryMedia(waMsg.AudioMessage, &msgEvent) {
-					mediaDownloaded++
-				} else {
-					mediaFailed++
-				}
-			}
-
-			// Document message
-			if waMsg.DocumentMessage != nil {
-				msgEvent.Type = "document"
-				if waMsg.DocumentMessage.Caption != nil {
-					msgEvent.Caption = *waMsg.DocumentMessage.Caption
-				}
-				if waMsg.DocumentMessage.FileName != nil {
-					msgEvent.FileName = *waMsg.DocumentMessage.FileName
-				}
-				if waMsg.DocumentMessage.Mimetype != nil {
-					msgEvent.MediaType = *waMsg.DocumentMessage.Mimetype
-				}
-				// Download media with rate limiting
-				if h.downloadHistoryMedia(waMsg.DocumentMessage, &msgEvent) {
-					mediaDownloaded++
-				} else {
-					mediaFailed++
-				}
-			}
-
-			// Sticker message
-			if waMsg.StickerMessage != nil {
-				msgEvent.Type = "sticker"
-				if waMsg.StickerMessage.Mimetype != nil {
-					msgEvent.MediaType = *waMsg.StickerMessage.Mimetype
-				}
-				// Download media with rate limiting
-				if h.downloadHistoryMedia(waMsg.StickerMessage, &msgEvent) {
-					mediaDownloaded++
-				} else {
-					mediaFailed++
-				}
-			}
-
-			// Skip if we couldn't determine message type
-			if msgEvent.Type == "" {
-				continue
-			}
-
-			// Publish message to NATS
-			if h.publisher != nil {
-				if err := h.publisher.PublishMessage(msgEvent); err != nil {
-					log.Printf("Failed to publish history message: %v", err)
+		// Process messages
+		if m, ok := conv.(interface{ GetMessages() []*waHistorySync.HistorySyncMsg }); ok {
+			for _, historyMsg := range m.GetMessages() {
+				processed, hasMedia := h.processHistorySyncMessage(historyMsg, jid, isGroup)
+				if processed {
+					result.messages++
+					if hasMedia {
+						result.mediaDeferred++
+					}
 				}
 			}
 		}
 	}
 
-	log.Printf("History sync complete: %d messages, %d media downloaded, %d media failed",
-		totalMessages, mediaDownloaded, mediaFailed)
+	return
+}
+
+// processHistorySyncMessage processes a single message from history sync.
+// Returns (processed, hasMedia) - whether the message was processed and if it had media.
+func (h *Handler) processHistorySyncMessage(historyMsg interface{}, jid string, isGroup bool) (bool, bool) {
+	// Type assert to get message
+	type messageGetter interface {
+		GetMessage() *waWeb.WebMessageInfo
+	}
+
+	hm, ok := historyMsg.(messageGetter)
+	if !ok {
+		return false, false
+	}
+
+	msg := hm.GetMessage()
+	if msg == nil || msg.Message == nil {
+		return false, false
+	}
+
+	// Build message event with history sync flag
+	msgEvent := natsClient.MessageEvent{
+		MessageID:     msg.GetKey().GetID(),
+		From:          jid,
+		To:            jid,
+		FromMe:        msg.GetKey().GetFromMe(),
+		IsGroup:       isGroup,
+		Timestamp:     time.Unix(int64(msg.GetMessageTimestamp()), 0),
+		IsHistorySync: true, // Mark as history sync for deferred media
+	}
+
+	// Get push name
+	msgEvent.SenderName = msg.GetPushName()
+
+	// Extract content based on message type
+	waMsg := msg.GetMessage()
+	if waMsg == nil {
+		return false, false
+	}
+
+	hasMedia := false
+
+	// Text message
+	if waMsg.Conversation != nil {
+		msgEvent.Type = "text"
+		msgEvent.Content = *waMsg.Conversation
+	} else if waMsg.ExtendedTextMessage != nil {
+		msgEvent.Type = "text"
+		if waMsg.ExtendedTextMessage.Text != nil {
+			msgEvent.Content = *waMsg.ExtendedTextMessage.Text
+		}
+	}
+
+	// Image message - extract reference, don't download
+	if waMsg.ImageMessage != nil {
+		msgEvent.Type = "image"
+		if waMsg.ImageMessage.Caption != nil {
+			msgEvent.Caption = *waMsg.ImageMessage.Caption
+		}
+		if waMsg.ImageMessage.Mimetype != nil {
+			msgEvent.MediaType = *waMsg.ImageMessage.Mimetype
+		}
+		extractMediaReference(waMsg.ImageMessage, &msgEvent)
+		hasMedia = true
+	}
+
+	// Video message - extract reference, don't download
+	if waMsg.VideoMessage != nil {
+		msgEvent.Type = "video"
+		if waMsg.VideoMessage.Caption != nil {
+			msgEvent.Caption = *waMsg.VideoMessage.Caption
+		}
+		if waMsg.VideoMessage.Mimetype != nil {
+			msgEvent.MediaType = *waMsg.VideoMessage.Mimetype
+		}
+		extractMediaReference(waMsg.VideoMessage, &msgEvent)
+		hasMedia = true
+	}
+
+	// Audio message - extract reference, don't download
+	if waMsg.AudioMessage != nil {
+		msgEvent.Type = "audio"
+		if waMsg.AudioMessage.Mimetype != nil {
+			msgEvent.MediaType = *waMsg.AudioMessage.Mimetype
+		}
+		extractMediaReference(waMsg.AudioMessage, &msgEvent)
+		hasMedia = true
+	}
+
+	// Document message - extract reference, don't download
+	if waMsg.DocumentMessage != nil {
+		msgEvent.Type = "document"
+		if waMsg.DocumentMessage.Caption != nil {
+			msgEvent.Caption = *waMsg.DocumentMessage.Caption
+		}
+		if waMsg.DocumentMessage.FileName != nil {
+			msgEvent.FileName = *waMsg.DocumentMessage.FileName
+		}
+		if waMsg.DocumentMessage.Mimetype != nil {
+			msgEvent.MediaType = *waMsg.DocumentMessage.Mimetype
+		}
+		extractMediaReference(waMsg.DocumentMessage, &msgEvent)
+		hasMedia = true
+	}
+
+	// Sticker message - extract reference, don't download
+	if waMsg.StickerMessage != nil {
+		msgEvent.Type = "sticker"
+		if waMsg.StickerMessage.Mimetype != nil {
+			msgEvent.MediaType = *waMsg.StickerMessage.Mimetype
+		}
+		extractMediaReference(waMsg.StickerMessage, &msgEvent)
+		hasMedia = true
+	}
+
+	// Skip if we couldn't determine message type
+	if msgEvent.Type == "" {
+		return false, false
+	}
+
+	// Publish message to NATS
+	if h.publisher != nil {
+		if err := h.publisher.PublishMessage(msgEvent); err != nil {
+			log.Printf("Failed to publish history message: %v", err)
+			return false, false
+		}
+	}
+
+	return true, hasMedia
+}
+
+// extractMediaReference extracts media download reference info for deferred processing.
+// Does NOT download the media - stores reference for on-demand download later.
+// This is used for history sync messages to speed up initial sync.
+func extractMediaReference(downloadable whatsmeow.DownloadableMessage, event *natsClient.MessageEvent) {
+	event.MediaDirectPath = downloadable.GetDirectPath()
+	event.MediaKey = downloadable.GetMediaKey()
+	event.MediaFileSHA256 = downloadable.GetFileSHA256()
+	event.MediaFileEncSHA256 = downloadable.GetFileEncSHA256()
 }
 
 // downloadHistoryMedia downloads media from history sync with rate limiting.

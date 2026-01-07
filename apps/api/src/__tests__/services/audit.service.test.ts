@@ -8,26 +8,14 @@
  */
 
 import { describe, it, expect, mock, beforeEach, spyOn } from "bun:test";
-import { createMockAuditLog } from "../mocks";
+import {
+  createMockAuditLog,
+  createMutableMockQueryBuilder,
+  resetMockQueryBuilder,
+} from "../mocks";
 
-// Mock query builder
-let mockQueryBuilder: Record<string, unknown>;
-
-function resetMockQueryBuilder(returnValue: unknown = undefined) {
-  mockQueryBuilder = {
-    insertInto: mock(() => mockQueryBuilder),
-    selectFrom: mock(() => mockQueryBuilder),
-    select: mock(() => mockQueryBuilder),
-    selectAll: mock(() => mockQueryBuilder),
-    where: mock(() => mockQueryBuilder),
-    values: mock(() => mockQueryBuilder),
-    orderBy: mock(() => mockQueryBuilder),
-    limit: mock(() => mockQueryBuilder),
-    offset: mock(() => mockQueryBuilder),
-    execute: mock(() => Promise.resolve(Array.isArray(returnValue) ? returnValue : [])),
-    executeTakeFirst: mock(() => Promise.resolve(returnValue)),
-  };
-}
+// Mock query builder - using centralized mock utilities
+let mockQueryBuilder = createMutableMockQueryBuilder();
 
 // Mock tenant database
 const mockTenantDb = {
@@ -56,7 +44,7 @@ import {
 
 describe("AuditService", () => {
   beforeEach(() => {
-    resetMockQueryBuilder();
+    resetMockQueryBuilder(mockQueryBuilder);
     mockGetTenantConnection.mockClear();
     mockTenantDb.insertInto = mock(() => mockQueryBuilder);
     mockTenantDb.selectFrom = mock(() => mockQueryBuilder);
@@ -159,7 +147,7 @@ describe("AuditService", () => {
         createMockAuditLog({ id: "log-2", action: "user.logout" }),
       ];
 
-      resetMockQueryBuilder(mockLogs);
+      resetMockQueryBuilder(mockQueryBuilder, mockLogs);
       mockQueryBuilder.execute = mock(() => Promise.resolve(mockLogs));
 
       // For count query
@@ -196,7 +184,7 @@ describe("AuditService", () => {
     it("should filter by userId", async () => {
       // Arrange
       const mockLogs = [createMockAuditLog({ user_id: "specific-user" })];
-      resetMockQueryBuilder(mockLogs);
+      resetMockQueryBuilder(mockQueryBuilder, mockLogs);
       mockQueryBuilder.execute = mock(() => Promise.resolve(mockLogs));
       mockTenantDb.selectFrom = mock(() => ({
         ...mockQueryBuilder,
@@ -220,7 +208,7 @@ describe("AuditService", () => {
     it("should filter by action", async () => {
       // Arrange
       const mockLogs = [createMockAuditLog({ action: "user.login" })];
-      resetMockQueryBuilder(mockLogs);
+      resetMockQueryBuilder(mockQueryBuilder, mockLogs);
       mockQueryBuilder.execute = mock(() => Promise.resolve(mockLogs));
       mockTenantDb.selectFrom = mock(() => ({
         ...mockQueryBuilder,
@@ -243,7 +231,7 @@ describe("AuditService", () => {
     it("should filter by entityType and entityId", async () => {
       // Arrange
       const mockLogs = [createMockAuditLog({ entity_type: "contact", entity_id: "contact-123" })];
-      resetMockQueryBuilder(mockLogs);
+      resetMockQueryBuilder(mockQueryBuilder, mockLogs);
       mockQueryBuilder.execute = mock(() => Promise.resolve(mockLogs));
       mockTenantDb.selectFrom = mock(() => ({
         ...mockQueryBuilder,
@@ -270,7 +258,7 @@ describe("AuditService", () => {
       const endDate = new Date("2024-01-31");
       const mockLogs = [createMockAuditLog()];
 
-      resetMockQueryBuilder(mockLogs);
+      resetMockQueryBuilder(mockQueryBuilder, mockLogs);
       mockQueryBuilder.execute = mock(() => Promise.resolve(mockLogs));
       mockTenantDb.selectFrom = mock(() => ({
         ...mockQueryBuilder,
@@ -293,7 +281,7 @@ describe("AuditService", () => {
 
     it("should use default pagination values", async () => {
       // Arrange
-      resetMockQueryBuilder([]);
+      resetMockQueryBuilder(mockQueryBuilder, []);
       mockQueryBuilder.execute = mock(() => Promise.resolve([]));
       mockTenantDb.selectFrom = mock(() => ({
         ...mockQueryBuilder,
@@ -316,7 +304,7 @@ describe("AuditService", () => {
 
     it("should return empty array when no logs found", async () => {
       // Arrange
-      resetMockQueryBuilder([]);
+      resetMockQueryBuilder(mockQueryBuilder, []);
       mockQueryBuilder.execute = mock(() => Promise.resolve([]));
       mockTenantDb.selectFrom = mock(() => ({
         ...mockQueryBuilder,
@@ -349,7 +337,7 @@ describe("AuditService", () => {
         created_at: new Date(),
       };
 
-      resetMockQueryBuilder([dbLog]);
+      resetMockQueryBuilder(mockQueryBuilder, [dbLog]);
       mockQueryBuilder.execute = mock(() => Promise.resolve([dbLog]));
       mockTenantDb.selectFrom = mock(() => ({
         ...mockQueryBuilder,

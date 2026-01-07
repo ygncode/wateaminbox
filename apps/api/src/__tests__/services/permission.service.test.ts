@@ -8,24 +8,14 @@
  */
 
 import { describe, it, expect, mock, beforeEach } from "bun:test"
-import { createMockCompanyMember } from "../mocks"
+import {
+  createMockCompanyMember,
+  createMutableMockQueryBuilder,
+  resetMockQueryBuilder,
+} from "../mocks"
 
-// Mock query builder
-let mockQueryBuilder: Record<string, unknown>
-
-function resetMockQueryBuilder(returnValue: unknown = undefined) {
-  mockQueryBuilder = {
-    selectFrom: mock(() => mockQueryBuilder),
-    updateTable: mock(() => mockQueryBuilder),
-    select: mock(() => mockQueryBuilder),
-    where: mock(() => mockQueryBuilder),
-    set: mock(() => mockQueryBuilder),
-    execute: mock(() =>
-      Promise.resolve(Array.isArray(returnValue) ? returnValue : [])
-    ),
-    executeTakeFirst: mock(() => Promise.resolve(returnValue)),
-  }
-}
+// Mock query builder - using centralized mock utilities
+let mockQueryBuilder = createMutableMockQueryBuilder()
 
 // Mock database
 const mockDb = {
@@ -54,7 +44,7 @@ import {
 
 describe("Permission Service", () => {
   beforeEach(() => {
-    resetMockQueryBuilder()
+    resetMockQueryBuilder(mockQueryBuilder)
   })
 
   describe("PERMISSIONS constant", () => {
@@ -149,7 +139,7 @@ describe("Permission Service", () => {
 
   describe("getMemberWithPermissions", () => {
     it("should return null if member not found", async () => {
-      resetMockQueryBuilder(undefined)
+      resetMockQueryBuilder(mockQueryBuilder, undefined)
       mockDb.selectFrom = mock(() => mockQueryBuilder)
 
       const result = await getMemberWithPermissions("company-1", "user-1")
@@ -161,7 +151,7 @@ describe("Permission Service", () => {
         role: "admin",
         permissions: { can_export: false },
       }
-      resetMockQueryBuilder(mockMember)
+      resetMockQueryBuilder(mockQueryBuilder, mockMember)
       mockDb.selectFrom = mock(() => mockQueryBuilder)
 
       const result = await getMemberWithPermissions("company-1", "user-1")
@@ -175,7 +165,7 @@ describe("Permission Service", () => {
 
   describe("hasFeaturePermission", () => {
     it("should return false if member not found", async () => {
-      resetMockQueryBuilder(undefined)
+      resetMockQueryBuilder(mockQueryBuilder, undefined)
       mockDb.selectFrom = mock(() => mockQueryBuilder)
 
       const result = await hasFeaturePermission(
@@ -188,7 +178,7 @@ describe("Permission Service", () => {
 
     it("should return true if member has permission", async () => {
       const mockMember = { role: "admin", permissions: {} }
-      resetMockQueryBuilder(mockMember)
+      resetMockQueryBuilder(mockQueryBuilder, mockMember)
       mockDb.selectFrom = mock(() => mockQueryBuilder)
 
       const result = await hasFeaturePermission(
@@ -201,7 +191,7 @@ describe("Permission Service", () => {
 
     it("should return false if member lacks permission", async () => {
       const mockMember = { role: "member", permissions: {} }
-      resetMockQueryBuilder(mockMember)
+      resetMockQueryBuilder(mockQueryBuilder, mockMember)
       mockDb.selectFrom = mock(() => mockQueryBuilder)
 
       const result = await hasFeaturePermission(
@@ -216,7 +206,7 @@ describe("Permission Service", () => {
   describe("hasAllPermissions", () => {
     it("should return true if member has all requested permissions", async () => {
       const mockMember = { role: "admin", permissions: {} }
-      resetMockQueryBuilder(mockMember)
+      resetMockQueryBuilder(mockQueryBuilder, mockMember)
       mockDb.selectFrom = mock(() => mockQueryBuilder)
 
       const result = await hasAllPermissions("company-1", "user-1", [
@@ -228,7 +218,7 @@ describe("Permission Service", () => {
 
     it("should return false if member lacks any requested permission", async () => {
       const mockMember = { role: "member", permissions: {} }
-      resetMockQueryBuilder(mockMember)
+      resetMockQueryBuilder(mockQueryBuilder, mockMember)
       mockDb.selectFrom = mock(() => mockQueryBuilder)
 
       const result = await hasAllPermissions("company-1", "user-1", [
@@ -242,7 +232,7 @@ describe("Permission Service", () => {
   describe("hasAnyPermission", () => {
     it("should return true if member has any of the requested permissions", async () => {
       const mockMember = { role: "member", permissions: {} }
-      resetMockQueryBuilder(mockMember)
+      resetMockQueryBuilder(mockQueryBuilder, mockMember)
       mockDb.selectFrom = mock(() => mockQueryBuilder)
 
       const result = await hasAnyPermission("company-1", "user-1", [
@@ -254,7 +244,7 @@ describe("Permission Service", () => {
 
     it("should return false if member has none of the requested permissions", async () => {
       const mockMember = { role: "member", permissions: {} }
-      resetMockQueryBuilder(mockMember)
+      resetMockQueryBuilder(mockQueryBuilder, mockMember)
       mockDb.selectFrom = mock(() => mockQueryBuilder)
 
       const result = await hasAnyPermission("company-1", "user-1", [
@@ -267,7 +257,7 @@ describe("Permission Service", () => {
 
   describe("updateMemberPermissions", () => {
     it("should throw error if member not found", async () => {
-      resetMockQueryBuilder(undefined)
+      resetMockQueryBuilder(mockQueryBuilder, undefined)
       mockDb.selectFrom = mock(() => mockQueryBuilder)
 
       await expect(
@@ -277,7 +267,7 @@ describe("Permission Service", () => {
 
     it("should throw error when trying to modify owner permissions", async () => {
       const mockMember = { role: "owner", permissions: {} }
-      resetMockQueryBuilder(mockMember)
+      resetMockQueryBuilder(mockQueryBuilder, mockMember)
       mockDb.selectFrom = mock(() => mockQueryBuilder)
 
       await expect(
@@ -287,7 +277,7 @@ describe("Permission Service", () => {
 
     it("should update and return effective permissions", async () => {
       const mockMember = { role: "admin", permissions: { can_view_all_chats: true } }
-      resetMockQueryBuilder(mockMember)
+      resetMockQueryBuilder(mockQueryBuilder, mockMember)
       mockDb.selectFrom = mock(() => mockQueryBuilder)
       mockDb.updateTable = mock(() => ({
         set: mock(() => ({
@@ -310,7 +300,7 @@ describe("Permission Service", () => {
 
   describe("resetMemberPermissions", () => {
     it("should throw error if member not found", async () => {
-      resetMockQueryBuilder(undefined)
+      resetMockQueryBuilder(mockQueryBuilder, undefined)
       mockDb.selectFrom = mock(() => mockQueryBuilder)
 
       await expect(
@@ -320,7 +310,7 @@ describe("Permission Service", () => {
 
     it("should reset permissions to role defaults", async () => {
       const mockMember = { role: "admin" }
-      resetMockQueryBuilder(mockMember)
+      resetMockQueryBuilder(mockQueryBuilder, mockMember)
       mockDb.selectFrom = mock(() => mockQueryBuilder)
       mockDb.updateTable = mock(() => ({
         set: mock(() => ({

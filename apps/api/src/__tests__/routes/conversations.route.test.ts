@@ -11,54 +11,7 @@
 
 import { describe, it, expect, beforeEach, mock } from "bun:test"
 import { Hono } from "hono"
-import { createMockConversationState, createMockContact } from "../mocks"
-
-// Create mock query builder for tenant database
-function createMockQueryBuilder(returnValue: unknown = undefined) {
-  const mockBuilder: Record<string, unknown> = {}
-
-  const chainMethods = [
-    "selectFrom",
-    "insertInto",
-    "updateTable",
-    "deleteFrom",
-    "select",
-    "selectAll",
-    "where",
-    "values",
-    "set",
-    "returning",
-    "returningAll",
-    "orderBy",
-    "limit",
-    "offset",
-    "or",
-    "groupBy",
-  ]
-
-  const terminalMethods = {
-    execute: mock(() =>
-      Promise.resolve(Array.isArray(returnValue) ? returnValue : [])
-    ),
-    executeTakeFirst: mock(() => Promise.resolve(returnValue)),
-    executeTakeFirstOrThrow: mock(() => {
-      if (returnValue === undefined) throw new Error("no result")
-      return Promise.resolve(returnValue)
-    }),
-  }
-
-  // Setup chainable methods
-  chainMethods.forEach((method) => {
-    mockBuilder[method] = mock(() => mockBuilder)
-  })
-
-  // Setup terminal methods
-  Object.entries(terminalMethods).forEach(([method, fn]) => {
-    mockBuilder[method] = fn
-  })
-
-  return mockBuilder
-}
+import { createMockConversationState, createMockContact, createMockQueryBuilder } from "../mocks"
 
 // Create a mock tenant db for conversation states
 function createMockTenantDb() {

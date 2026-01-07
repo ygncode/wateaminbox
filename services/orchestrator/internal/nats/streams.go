@@ -127,7 +127,7 @@ func (c *Client) createCommandsConsumer() error {
 		AckPolicy:     nats.AckExplicitPolicy,
 		AckWait:       30 * time.Second,
 		MaxDeliver:    5,
-		FilterSubject: "WHATSAPP.commands",
+		FilterSubject: "WHATSAPP.commands.>", // Match all company/connection specific subjects
 		MaxAckPending: 1000,
 	}
 
@@ -160,7 +160,7 @@ func consumerConfigMatches(existing, expected nats.ConsumerConfig) bool {
 // SubscribeToCommands creates a pull subscription for processing commands.
 func (c *Client) SubscribeToCommands(handler func(msg *nats.Msg)) (*nats.Subscription, error) {
 	sub, err := c.js.PullSubscribe(
-		"WHATSAPP.commands",
+		"WHATSAPP.commands.>", // Match all company/connection specific subjects
 		ConsumerCommands,
 		nats.ManualAck(),
 	)

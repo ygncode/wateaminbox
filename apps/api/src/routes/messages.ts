@@ -126,6 +126,11 @@ messageRoutes.get("/", async (c) => {
       mediaUrl: msg.media_url,
       mediaMimeType: msg.media_mime_type,
       mediaSize: msg.media_size,
+      // Deferred media download status
+      mediaPending:
+        msg.media_download_status === "pending" &&
+        msg.media_direct_path !== null,
+      mediaDownloadStatus: msg.media_download_status,
       quotedMessage: msg.quoted_message_id
         ? quotedMessages.get(msg.quoted_message_id) || null
         : null,

@@ -278,6 +278,18 @@ export interface MessageEvent extends WhatsAppEvent {
     timestamp: string;
     mediaUrl?: string;
     quotedMessageId?: string;
+    // Additional fields from Go worker
+    senderName?: string;
+    caption?: string;
+    fileName?: string;
+    mediaType?: string;
+    mediaSize?: number;
+    // Deferred media download fields
+    mediaDirectPath?: string;
+    mediaKey?: string; // Base64 encoded
+    mediaFileSha256?: string; // Base64 encoded
+    mediaFileEncSha256?: string; // Base64 encoded
+    isHistorySync?: boolean;
   };
 }
 
@@ -351,6 +363,17 @@ export interface ReactionEvent extends WhatsAppEvent {
     chatJid: string; // JID of the chat
     emoji: string; // Reaction emoji (empty string means removed)
     timestamp: string;
+  };
+}
+
+export interface DownloadResponseEvent extends WhatsAppEvent {
+  type: "download_response";
+  payload: {
+    messageId: string;
+    mediaUrl?: string;
+    mediaSize?: number;
+    success: boolean;
+    error?: string;
   };
 }
 
@@ -464,8 +487,9 @@ export async function publishCommand(
 /**
  * Builds the command subject with connectionId
  * Format: WHATSAPP.commands.{companyId}.{connectionId}
+ * Exported for testing purposes
  */
-function buildCommandSubject(companyId: string, connectionId: string): string {
+export function buildCommandSubject(companyId: string, connectionId: string): string {
   return `${NATS_SUBJECTS.WHATSAPP_COMMANDS}.${companyId}.${connectionId}`;
 }
 
@@ -494,7 +518,8 @@ export async function publishSpawnCommand(
     { databaseUrl: dbUrl.replace(/\/\/[^:]+:[^@]+@/, "//***:***@") },
     "Spawn command with redacted DATABASE_URL",
   );
-  await publishCommand(NATS_SUBJECTS.WHATSAPP_SPAWN, command);
+  const subject = buildCommandSubject(companyId, connectionId);
+  await publishCommand(subject, command);
 }
 
 /**
@@ -511,7 +536,8 @@ export async function publishKillCommand(
     connection_id: connectionId,
     reason,
   };
-  await publishCommand(NATS_SUBJECTS.WHATSAPP_KILL, command);
+  const subject = buildCommandSubject(companyId, connectionId);
+  await publishCommand(subject, command);
 }
 
 /**

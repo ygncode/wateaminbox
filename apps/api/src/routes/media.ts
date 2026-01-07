@@ -29,6 +29,116 @@ const uploadRateLimiter: MiddlewareHandler = rateLimitConfig.enabled
  * POST /media/upload - Upload media file
  * Multipart form upload with file field
  */
+/**
+ * POST /media/download/:messageId - Request on-demand media download
+ * Triggers download for deferred media from history sync
+ */
+mediaRoutes.post("/download/:messageId", async (c) => {
+  const companyId = c.get("companyId");
+  const { messageId } = c.req.param();
+
+  try {
+    const { getTenantConnection } = await import("../services/tenant.service.js");
+    const { getJetStreamClient } = await import("../lib/nats.js");
+    const { JSONCodec } = await import("nats");
+
+    const tenantDb = getTenantConnection(companyId);
+
+    // Get the message with media reference data
+    const message = await tenantDb
+      .selectFrom("messages")
+      .select([
+        "id",
+        "contact_id",
+        "whatsapp_connection_id",
+        "media_url",
+        "media_direct_path",
+        "media_key",
+        "media_file_sha256",
+        "media_file_enc_sha256",
+        "media_download_status",
+        "media_mime_type",
+        "media_filename",
+      ])
+      .where("id", "=", messageId)
+      .executeTakeFirst();
+
+    if (!message) {
+      return c.json({ error: "Message not found" }, 404);
+    }
+
+    // If already downloaded, return existing URL
+    if (message.media_url && message.media_download_status === "completed") {
+      return c.json({
+        status: "completed",
+        mediaUrl: message.media_url,
+      });
+    }
+
+    // If no media reference data, cannot download
+    if (!message.media_direct_path || !message.media_key) {
+      return c.json({ error: "No media reference available for this message" }, 400);
+    }
+
+    // If already downloading, return status
+    if (message.media_download_status === "downloading") {
+      return c.json({ status: "downloading" });
+    }
+
+    // Get the WhatsApp connection for this message
+    const connection = await tenantDb
+      .selectFrom("whatsapp_connections")
+      .select(["id", "status"])
+      .where("id", "=", message.whatsapp_connection_id)
+      .executeTakeFirst();
+
+    if (!connection || connection.status !== "connected") {
+      return c.json({ error: "WhatsApp connection not available" }, 503);
+    }
+
+    // Mark as downloading
+    await tenantDb
+      .updateTable("messages")
+      .set({ media_download_status: "downloading" })
+      .where("id", "=", messageId)
+      .execute();
+
+    // Determine media type from mime type
+    const mimeType = message.media_mime_type || "";
+    let mediaType = "document";
+    if (mimeType.startsWith("image/")) mediaType = "image";
+    else if (mimeType.startsWith("video/")) mediaType = "video";
+    else if (mimeType.startsWith("audio/")) mediaType = "audio";
+
+    // Publish download request to NATS
+    const js = await getJetStreamClient();
+    const jc = JSONCodec();
+
+    const downloadRequest = {
+      messageId: messageId,
+      directPath: message.media_direct_path,
+      mediaKey: message.media_key.toString("base64"),
+      fileSha256: message.media_file_sha256?.toString("base64") || "",
+      fileEncSha256: message.media_file_enc_sha256?.toString("base64") || "",
+      mediaType: mediaType,
+      fileName: message.media_filename || undefined,
+    };
+
+    const subject = `WHATSAPP.download.${companyId}.${connection.id}.request`;
+    await js.publish(subject, jc.encode(downloadRequest));
+
+    logger.info(
+      { messageId, companyId, connectionId: connection.id },
+      "Published download request"
+    );
+
+    return c.json({ status: "downloading" });
+  } catch (error) {
+    logger.error({ err: formatError(error) }, "Failed to request media download");
+    return c.json({ error: "Failed to request media download" }, 500);
+  }
+});
+
 mediaRoutes.post("/upload", uploadRateLimiter, async (c) => {
   const companyId = c.get("companyId");
 

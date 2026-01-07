@@ -10,28 +10,15 @@
  */
 
 import { describe, it, expect, mock, beforeEach } from "bun:test";
-import { createMockWhatsAppConnection, createMockContact } from "../mocks";
+import {
+  createMockWhatsAppConnection,
+  createMockContact,
+  createMutableMockQueryBuilder,
+  resetMockQueryBuilder,
+} from "../mocks";
 
-// Mock query builder
-let mockQueryBuilder: Record<string, unknown>;
-
-function resetMockQueryBuilder(returnValue: unknown = undefined) {
-  mockQueryBuilder = {
-    selectFrom: mock(() => mockQueryBuilder),
-    insertInto: mock(() => mockQueryBuilder),
-    updateTable: mock(() => mockQueryBuilder),
-    select: mock(() => mockQueryBuilder),
-    selectAll: mock(() => mockQueryBuilder),
-    where: mock(() => mockQueryBuilder),
-    values: mock(() => mockQueryBuilder),
-    set: mock(() => mockQueryBuilder),
-    returning: mock(() => mockQueryBuilder),
-    orderBy: mock(() => mockQueryBuilder),
-    limit: mock(() => mockQueryBuilder),
-    execute: mock(() => Promise.resolve([])),
-    executeTakeFirst: mock(() => Promise.resolve(returnValue)),
-  };
-}
+// Mock query builder - using centralized mock utilities
+let mockQueryBuilder = createMutableMockQueryBuilder();
 
 // Mock NATS publish functions
 const mockPublishSpawnCommand = mock(async () => {});
@@ -39,6 +26,8 @@ const mockPublishKillCommand = mock(async () => {});
 const mockPublishSendMessage = mock(async () => {});
 
 mock.module("../../lib/nats.js", () => ({
+  buildCommandSubject: (companyId: string, connectionId: string) =>
+    `WHATSAPP.commands.${companyId}.${connectionId}`,
   publishSpawnCommand: mockPublishSpawnCommand,
   publishKillCommand: mockPublishKillCommand,
   publishSendMessage: mockPublishSendMessage,
@@ -156,7 +145,7 @@ function createMockTenantDb() {
 
 describe("WhatsAppService", () => {
   beforeEach(() => {
-    resetMockQueryBuilder();
+    resetMockQueryBuilder(mockQueryBuilder);
     resetMockDbQueryBuilder({ max_whatsapp_connections: 5 });
     mockPublishSpawnCommand.mockClear();
     mockPublishKillCommand.mockClear();
@@ -241,7 +230,7 @@ describe("WhatsAppService", () => {
       const mockTenantDb = createMockTenantDb();
       const connectionId = "conn-123";
       const activeConnection = createMockWhatsAppConnection({ id: connectionId, status: "connected" });
-      resetMockQueryBuilder(activeConnection);
+      resetMockQueryBuilder(mockQueryBuilder, activeConnection);
       mockTenantDb.selectFrom = mock(() => mockQueryBuilder);
       mockTenantDb.updateTable = mock(() => ({
         ...mockQueryBuilder,
@@ -260,7 +249,7 @@ describe("WhatsAppService", () => {
     it("should throw error if no connection exists", async () => {
       // Arrange
       const mockTenantDb = createMockTenantDb();
-      resetMockQueryBuilder(undefined);
+      resetMockQueryBuilder(mockQueryBuilder, undefined);
       mockTenantDb.selectFrom = mock(() => mockQueryBuilder);
 
       // Act & Assert
@@ -279,7 +268,7 @@ describe("WhatsAppService", () => {
         connected_at: new Date(),
         last_sync_at: new Date(),
       });
-      resetMockQueryBuilder(connection);
+      resetMockQueryBuilder(mockQueryBuilder, connection);
       mockTenantDb.selectFrom = mock(() => mockQueryBuilder);
 
       // Act
@@ -295,7 +284,7 @@ describe("WhatsAppService", () => {
     it("should return not_found status when no connection exists", async () => {
       // Arrange
       const mockTenantDb = createMockTenantDb();
-      resetMockQueryBuilder(undefined);
+      resetMockQueryBuilder(mockQueryBuilder, undefined);
       mockTenantDb.selectFrom = mock(() => mockQueryBuilder);
 
       // Act
@@ -312,7 +301,7 @@ describe("WhatsAppService", () => {
         status: "disconnected",
         phone_number: "+1234567890",
       });
-      resetMockQueryBuilder(connection);
+      resetMockQueryBuilder(mockQueryBuilder, connection);
       mockTenantDb.selectFrom = mock(() => mockQueryBuilder);
 
       // Act
@@ -326,7 +315,7 @@ describe("WhatsAppService", () => {
       // Arrange
       const mockTenantDb = createMockTenantDb();
       const connection = createMockWhatsAppConnection({ status: "banned" });
-      resetMockQueryBuilder(connection);
+      resetMockQueryBuilder(mockQueryBuilder, connection);
       mockTenantDb.selectFrom = mock(() => mockQueryBuilder);
 
       // Act
@@ -346,7 +335,7 @@ describe("WhatsAppService", () => {
         connected_at: null,
         last_sync_at: null,
       });
-      resetMockQueryBuilder(connection);
+      resetMockQueryBuilder(mockQueryBuilder, connection);
       mockTenantDb.selectFrom = mock(() => mockQueryBuilder);
 
       // Act
@@ -372,11 +361,11 @@ describe("WhatsAppService", () => {
         selectCount++;
         if (selectCount === 1) {
           // Connection check
-          resetMockQueryBuilder(activeConnection);
+          resetMockQueryBuilder(mockQueryBuilder, activeConnection);
           return mockQueryBuilder;
         }
         // Contact lookup
-        resetMockQueryBuilder(existingContact);
+        resetMockQueryBuilder(mockQueryBuilder, existingContact);
         return mockQueryBuilder;
       });
 
@@ -414,7 +403,7 @@ describe("WhatsAppService", () => {
     it("should throw error when not connected", async () => {
       // Arrange
       const mockTenantDb = createMockTenantDb();
-      resetMockQueryBuilder(undefined); // No active connection
+      resetMockQueryBuilder(mockQueryBuilder, undefined); // No active connection
       mockTenantDb.selectFrom = mock(() => mockQueryBuilder);
 
       const input: SendMessageInput = {
@@ -437,11 +426,11 @@ describe("WhatsAppService", () => {
         selectCount++;
         if (selectCount === 1) {
           // Connection check
-          resetMockQueryBuilder(activeConnection);
+          resetMockQueryBuilder(mockQueryBuilder, activeConnection);
           return mockQueryBuilder;
         }
         // Contact lookup - not found
-        resetMockQueryBuilder(undefined);
+        resetMockQueryBuilder(mockQueryBuilder, undefined);
         return mockQueryBuilder;
       });
 
@@ -476,10 +465,10 @@ describe("WhatsAppService", () => {
       mockTenantDb.selectFrom = mock(() => {
         selectCount++;
         if (selectCount === 1) {
-          resetMockQueryBuilder(activeConnection);
+          resetMockQueryBuilder(mockQueryBuilder, activeConnection);
           return mockQueryBuilder;
         }
-        resetMockQueryBuilder(existingContact);
+        resetMockQueryBuilder(mockQueryBuilder, existingContact);
         return mockQueryBuilder;
       });
 
@@ -523,11 +512,11 @@ describe("WhatsAppService", () => {
       mockTenantDb.selectFrom = mock(() => {
         selectCount++;
         if (selectCount === 1) {
-          resetMockQueryBuilder(activeConnection);
+          resetMockQueryBuilder(mockQueryBuilder, activeConnection);
           return mockQueryBuilder;
         }
         // Contact lookup - not found, will create
-        resetMockQueryBuilder(undefined);
+        resetMockQueryBuilder(mockQueryBuilder, undefined);
         return mockQueryBuilder;
       });
 
@@ -555,7 +544,7 @@ describe("WhatsAppService", () => {
       // Arrange
       const mockTenantDb = createMockTenantDb();
       const pendingConnection = createMockWhatsAppConnection({ status: "pending" });
-      resetMockQueryBuilder(pendingConnection);
+      resetMockQueryBuilder(mockQueryBuilder, pendingConnection);
       mockTenantDb.selectFrom = mock(() => mockQueryBuilder);
       mockTenantDb.updateTable = mock(() => ({
         ...mockQueryBuilder,
@@ -577,7 +566,7 @@ describe("WhatsAppService", () => {
     it("should handle no connection to update", async () => {
       // Arrange
       const mockTenantDb = createMockTenantDb();
-      resetMockQueryBuilder(undefined);
+      resetMockQueryBuilder(mockQueryBuilder, undefined);
       mockTenantDb.selectFrom = mock(() => mockQueryBuilder);
 
       // Act & Assert - should not throw
@@ -588,7 +577,7 @@ describe("WhatsAppService", () => {
       // Arrange
       const mockTenantDb = createMockTenantDb();
       const pendingConnection = createMockWhatsAppConnection({ status: "pending" });
-      resetMockQueryBuilder(pendingConnection);
+      resetMockQueryBuilder(mockQueryBuilder, pendingConnection);
       mockTenantDb.selectFrom = mock(() => mockQueryBuilder);
       mockTenantDb.updateTable = mock(() => ({
         ...mockQueryBuilder,
@@ -625,7 +614,7 @@ describe("WhatsAppService", () => {
       // Arrange
       const mockTenantDb = createMockTenantDb();
       const activeConnection = createMockWhatsAppConnection({ status: "connected" });
-      resetMockQueryBuilder(activeConnection);
+      resetMockQueryBuilder(mockQueryBuilder, activeConnection);
       mockTenantDb.selectFrom = mock(() => mockQueryBuilder);
 
       // Act
@@ -639,7 +628,7 @@ describe("WhatsAppService", () => {
     it("should return null if no active connection", async () => {
       // Arrange
       const mockTenantDb = createMockTenantDb();
-      resetMockQueryBuilder(undefined);
+      resetMockQueryBuilder(mockQueryBuilder, undefined);
       mockTenantDb.selectFrom = mock(() => mockQueryBuilder);
 
       // Act
@@ -663,7 +652,7 @@ describe("WhatsAppService", () => {
         created_at: new Date(),
         updated_at: new Date(),
       };
-      resetMockQueryBuilder(activeConnection);
+      resetMockQueryBuilder(mockQueryBuilder, activeConnection);
       mockTenantDb.selectFrom = mock(() => mockQueryBuilder);
 
       // Act

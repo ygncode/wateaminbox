@@ -180,6 +180,8 @@ const mockSubscribeToAllEvents = mock(async () => ({}))
 
 mock.module('../../lib/nats.js', () => ({
   NATS_SUBJECTS: {},
+  buildCommandSubject: (companyId: string, connectionId: string) =>
+    `WHATSAPP.commands.${companyId}.${connectionId}`,
   getNatsConnection: mock(async () => ({})),
   getJetStreamClient: mock(async () => ({})),
   publishCommand: mock(async () => {}),

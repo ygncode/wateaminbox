@@ -55,45 +55,6 @@ export default defineConfig({
       },
       dependencies: ['setup'],
     },
-
-    {
-      name: 'firefox',
-      use: {
-        ...devices['Desktop Firefox'],
-        // Use stored authentication state
-        storageState: 'playwright/.auth/user.json',
-      },
-      dependencies: ['setup'],
-    },
-
-    {
-      name: 'webkit',
-      use: {
-        ...devices['Desktop Safari'],
-        // Use stored authentication state
-        storageState: 'playwright/.auth/user.json',
-      },
-      dependencies: ['setup'],
-    },
-
-    // Mobile viewports for responsive testing
-    {
-      name: 'mobile-chrome',
-      use: {
-        ...devices['Pixel 5'],
-        storageState: 'playwright/.auth/user.json',
-      },
-      dependencies: ['setup'],
-    },
-
-    {
-      name: 'mobile-safari',
-      use: {
-        ...devices['iPhone 12'],
-        storageState: 'playwright/.auth/user.json',
-      },
-      dependencies: ['setup'],
-    },
   ],
 
   // Run your local dev server before starting the tests

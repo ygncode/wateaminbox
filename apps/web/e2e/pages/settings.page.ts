@@ -6,6 +6,10 @@ import { BasePage } from "./base.page";
  * Represents the settings page with notification preferences
  */
 export class SettingsPage extends BasePage {
+  // User profile
+  readonly signOutButton: Locator;
+  readonly backToChatLink: Locator;
+
   // Notification settings locators
   readonly notificationSection: Locator;
   readonly desktopNotificationsToggle: Locator;
@@ -20,6 +24,10 @@ export class SettingsPage extends BasePage {
 
   constructor(page: Page) {
     super(page);
+
+    // User profile locators
+    this.signOutButton = page.getByRole("button", { name: /sign out/i });
+    this.backToChatLink = page.getByRole("link", { name: /back to chat/i });
 
     // Initialize locators using simpler, more robust selectors
     this.notificationSection = page.locator("text=Notification Settings").first();
@@ -173,5 +181,19 @@ export class SettingsPage extends BasePage {
    */
   async getCurrentSound(): Promise<string> {
     return await this.soundSelect.innerText();
+  }
+
+  /**
+   * Sign out from the application
+   */
+  async signOut(): Promise<void> {
+    await this.signOutButton.click();
+  }
+
+  /**
+   * Navigate back to chat page
+   */
+  async goBackToChat(): Promise<void> {
+    await this.backToChatLink.click();
   }
 }

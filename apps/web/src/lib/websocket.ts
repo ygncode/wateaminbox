@@ -15,6 +15,9 @@ export type WebSocketEventType =
   | 'conversation:read'
   | 'notification:new'
   | 'error'
+  // Media download events
+  | 'media:downloaded'
+  | 'media:download_failed'
   // WhatsApp connection events
   | 'qr'
   | 'connected'

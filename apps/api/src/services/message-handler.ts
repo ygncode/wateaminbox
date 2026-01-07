@@ -14,6 +14,7 @@ import {
   type PresenceEvent,
   type TypingEvent,
   type ReactionEvent,
+  type DownloadResponseEvent,
 } from "../lib/nats.js";
 import { db, type MessageType } from "@whatsapp-web/database";
 import { toDbDate, toDate, toISOString } from "@whatsapp-web/shared";
@@ -191,6 +192,10 @@ export async function handleWhatsAppEvent(event: WhatsAppEvent): Promise<void> {
         await handleReactionEvent(event as ReactionEvent);
         break;
 
+      case "download_response":
+        await handleDownloadResponseEvent(event as DownloadResponseEvent);
+        break;
+
       case "error":
         await handleErrorEvent(event);
         break;
@@ -358,6 +363,14 @@ async function handleMessageEvent(event: MessageEvent): Promise<void> {
     }
 
     // Store the message - also normalize sender_jid
+    // Determine media download status based on whether it's a history sync with deferred media
+    const hasMediaReference = payload.mediaDirectPath && payload.isHistorySync;
+    const mediaDownloadStatus = hasMediaReference
+      ? "pending"
+      : payload.mediaUrl
+        ? "completed"
+        : null;
+
     const messageId = crypto.randomUUID();
     await tenantDb
       .insertInto("messages")
@@ -371,6 +384,20 @@ async function handleMessageEvent(event: MessageEvent): Promise<void> {
         message_type: payload.messageType as MessageType,
         content: payload.content,
         media_url: payload.mediaUrl || null,
+        media_mime_type: payload.mediaType || null,
+        media_size: payload.mediaSize || null,
+        // Deferred media download fields
+        media_direct_path: payload.mediaDirectPath || null,
+        media_key: payload.mediaKey
+          ? Buffer.from(payload.mediaKey, "base64")
+          : null,
+        media_file_sha256: payload.mediaFileSha256
+          ? Buffer.from(payload.mediaFileSha256, "base64")
+          : null,
+        media_file_enc_sha256: payload.mediaFileEncSha256
+          ? Buffer.from(payload.mediaFileEncSha256, "base64")
+          : null,
+        media_download_status: mediaDownloadStatus,
         quoted_message_id: payload.quotedMessageId || null,
         is_forwarded: false,
         is_starred: false,
@@ -1143,6 +1170,107 @@ async function handleReactionEvent(event: ReactionEvent): Promise<void> {
     });
   } catch (error) {
     logger.error(formatError(error), "Error handling reaction event");
+  }
+}
+
+/**
+ * Handles download response events from the Go download handler
+ * Updates message with downloaded media URL and broadcasts to WebSocket clients
+ */
+async function handleDownloadResponseEvent(
+  event: DownloadResponseEvent,
+): Promise<void> {
+  const { companyId, connectionId, payload } = event;
+
+  logger.debug(
+    {
+      companyId,
+      messageId: payload.messageId,
+      success: payload.success,
+    },
+    "Download response received",
+  );
+
+  try {
+    const tenantDb = getTenantConnection(companyId);
+
+    if (payload.success && payload.mediaUrl) {
+      // Update message with downloaded media
+      const updatedMessage = await tenantDb
+        .updateTable("messages")
+        .set({
+          media_url: payload.mediaUrl,
+          media_size: payload.mediaSize || null,
+          media_download_status: "completed",
+          media_downloaded_at: toDbDate(),
+        })
+        .where("id", "=", payload.messageId)
+        .returning(["id", "contact_id"])
+        .executeTakeFirst();
+
+      if (updatedMessage) {
+        logger.info(
+          {
+            messageId: payload.messageId,
+            mediaUrl: payload.mediaUrl,
+          },
+          "Media download completed",
+        );
+
+        // Broadcast to WebSocket clients
+        broadcastToCompany(companyId, {
+          type: "media:downloaded",
+          connectionId,
+          payload: {
+            messageId: updatedMessage.id,
+            conversationId: updatedMessage.contact_id,
+            mediaUrl: payload.mediaUrl,
+            mediaSize: payload.mediaSize,
+          },
+          timestamp: event.timestamp,
+        });
+      }
+    } else {
+      // Update message with error status
+      await tenantDb
+        .updateTable("messages")
+        .set({
+          media_download_status: "failed",
+          media_download_error: payload.error || "Unknown error",
+        })
+        .where("id", "=", payload.messageId)
+        .execute();
+
+      logger.error(
+        {
+          messageId: payload.messageId,
+          error: payload.error,
+        },
+        "Media download failed",
+      );
+
+      // Broadcast failure to WebSocket clients
+      const message = await tenantDb
+        .selectFrom("messages")
+        .select(["id", "contact_id"])
+        .where("id", "=", payload.messageId)
+        .executeTakeFirst();
+
+      if (message) {
+        broadcastToCompany(companyId, {
+          type: "media:download_failed",
+          connectionId,
+          payload: {
+            messageId: message.id,
+            conversationId: message.contact_id,
+            error: payload.error,
+          },
+          timestamp: event.timestamp,
+        });
+      }
+    }
+  } catch (error) {
+    logger.error(formatError(error), "Failed to handle download response");
   }
 }
 

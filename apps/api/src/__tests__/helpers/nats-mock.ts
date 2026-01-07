@@ -8,6 +8,8 @@
 import { mock } from "bun:test";
 
 export const NATS_MOCK_EXPORTS = {
+  buildCommandSubject: (companyId: string, connectionId: string) =>
+    `WHATSAPP.commands.${companyId}.${connectionId}`,
   publishSpawnCommand: mock(async () => {}),
   publishKillCommand: mock(async () => {}),
   publishSendMessage: mock(async () => {}),

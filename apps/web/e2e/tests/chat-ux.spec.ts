@@ -233,17 +233,18 @@ test.describe("Chat UX Improvements", () => {
       const emojiButton = authenticatedPage.locator('[aria-label="Insert emoji"]');
       const isButtonVisible = await emojiButton.isVisible().catch(() => false);
 
-      if (isButtonVisible) {
-        await emojiButton.click();
-        await authenticatedPage.waitForTimeout(200);
+      // Skip if emoji button is not visible (may be hidden on small viewports)
+      test.skip(!isButtonVisible, "Emoji button not visible on this viewport");
 
-        // Look for emoji picker elements (category tabs or emoji grid)
-        const emojiPicker = authenticatedPage.locator('[role="grid"]');
-        const isPickerVisible = await emojiPicker.isVisible().catch(() => false);
+      await emojiButton.click();
+      await authenticatedPage.waitForTimeout(300);
 
-        // Picker should be visible after clicking button
-        expect(isPickerVisible).toBeTruthy();
-      }
+      // Look for emoji picker search input (unique identifier for the picker)
+      const emojiSearchInput = authenticatedPage.getByPlaceholder("Search emoji...");
+      const isPickerVisible = await emojiSearchInput.isVisible().catch(() => false);
+
+      // Picker should be visible after clicking button
+      expect(isPickerVisible).toBeTruthy();
     });
   });
 

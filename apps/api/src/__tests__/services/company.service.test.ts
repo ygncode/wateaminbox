@@ -15,37 +15,12 @@ import {
   createMockInvitation,
   createUpdateResult,
   createDeleteResult,
+  createMutableMockQueryBuilder,
+  resetMockQueryBuilder,
 } from "../mocks";
 
-// Mock query builder
-let mockQueryBuilder: Record<string, unknown>;
-
-function resetMockQueryBuilder(returnValue: unknown = undefined) {
-  mockQueryBuilder = {
-    selectFrom: mock(() => mockQueryBuilder),
-    insertInto: mock(() => mockQueryBuilder),
-    updateTable: mock(() => mockQueryBuilder),
-    deleteFrom: mock(() => mockQueryBuilder),
-    select: mock(() => mockQueryBuilder),
-    selectAll: mock(() => mockQueryBuilder),
-    where: mock(() => mockQueryBuilder),
-    values: mock(() => mockQueryBuilder),
-    set: mock(() => mockQueryBuilder),
-    returning: mock(() => mockQueryBuilder),
-    innerJoin: mock(() => mockQueryBuilder),
-    leftJoin: mock(() => mockQueryBuilder),
-    orderBy: mock(() => mockQueryBuilder),
-    limit: mock(() => mockQueryBuilder),
-    offset: mock(() => mockQueryBuilder),
-    groupBy: mock(() => mockQueryBuilder),
-    execute: mock(() => Promise.resolve(Array.isArray(returnValue) ? returnValue : [])),
-    executeTakeFirst: mock(() => Promise.resolve(returnValue)),
-    executeTakeFirstOrThrow: mock(() => {
-      if (returnValue === undefined) throw new Error("no result");
-      return Promise.resolve(returnValue);
-    }),
-  };
-}
+// Mock query builder - using centralized mock utilities
+let mockQueryBuilder = createMutableMockQueryBuilder();
 
 function resetMockDb() {
   mockDb.selectFrom = mock(() => mockQueryBuilder);
@@ -123,7 +98,7 @@ import {
 
 describe("CompanyService", () => {
   beforeEach(() => {
-    resetMockQueryBuilder();
+    resetMockQueryBuilder(mockQueryBuilder);
     resetMockDb();
     mockCreateTenantSchema.mockClear();
   });
@@ -161,7 +136,7 @@ describe("CompanyService", () => {
     it("should return company for valid ID", async () => {
       // Arrange
       const mockCompany = createMockCompany();
-      resetMockQueryBuilder(mockCompany);
+      resetMockQueryBuilder(mockQueryBuilder, mockCompany);
       mockDb.selectFrom = mock(() => mockQueryBuilder);
 
       // Act
@@ -175,7 +150,7 @@ describe("CompanyService", () => {
 
     it("should throw CompanyNotFoundError for non-existent company", async () => {
       // Arrange
-      resetMockQueryBuilder(undefined);
+      resetMockQueryBuilder(mockQueryBuilder, undefined);
       mockDb.selectFrom = mock(() => mockQueryBuilder);
 
       // Act & Assert
@@ -184,7 +159,7 @@ describe("CompanyService", () => {
 
     it("should not return deleted companies", async () => {
       // Arrange
-      resetMockQueryBuilder(undefined);
+      resetMockQueryBuilder(mockQueryBuilder, undefined);
       mockDb.selectFrom = mock(() => mockQueryBuilder);
 
       // Act & Assert
@@ -196,7 +171,7 @@ describe("CompanyService", () => {
     it("should update company name", async () => {
       // Arrange
       const updatedCompany = createMockCompany({ name: "Updated Name" });
-      resetMockQueryBuilder(updatedCompany);
+      resetMockQueryBuilder(mockQueryBuilder, updatedCompany);
       mockDb.updateTable = mock(() => mockQueryBuilder);
 
       // Act
@@ -209,7 +184,7 @@ describe("CompanyService", () => {
     it("should update company status", async () => {
       // Arrange
       const updatedCompany = createMockCompany({ status: "suspended" });
-      resetMockQueryBuilder(updatedCompany);
+      resetMockQueryBuilder(mockQueryBuilder, updatedCompany);
       mockDb.updateTable = mock(() => mockQueryBuilder);
 
       // Act
@@ -221,7 +196,7 @@ describe("CompanyService", () => {
 
     it("should throw CompanyNotFoundError when updating non-existent company", async () => {
       // Arrange
-      resetMockQueryBuilder(undefined);
+      resetMockQueryBuilder(mockQueryBuilder, undefined);
       mockDb.updateTable = mock(() => mockQueryBuilder);
 
       // Act & Assert
@@ -232,7 +207,7 @@ describe("CompanyService", () => {
   describe("deleteCompany", () => {
     it("should soft delete company", async () => {
       // Arrange
-      resetMockQueryBuilder(createUpdateResult(1));
+      resetMockQueryBuilder(mockQueryBuilder, createUpdateResult(1));
       mockDb.updateTable = mock(() => mockQueryBuilder);
 
       // Act & Assert - should not throw
@@ -241,7 +216,7 @@ describe("CompanyService", () => {
 
     it("should throw CompanyNotFoundError when deleting non-existent company", async () => {
       // Arrange
-      resetMockQueryBuilder(createUpdateResult(0));
+      resetMockQueryBuilder(mockQueryBuilder, createUpdateResult(0));
       mockDb.updateTable = mock(() => mockQueryBuilder);
 
       // Act & Assert
@@ -264,10 +239,10 @@ describe("CompanyService", () => {
       mockDb.selectFrom = mock(() => {
         callCount++;
         if (callCount === 1) {
-          resetMockQueryBuilder(mockCompany);
+          resetMockQueryBuilder(mockQueryBuilder, mockCompany);
           return mockQueryBuilder;
         }
-        resetMockQueryBuilder(mockMembers);
+        resetMockQueryBuilder(mockQueryBuilder, mockMembers);
         mockQueryBuilder.execute = mock(() => Promise.resolve(mockMembers));
         return mockQueryBuilder;
       });
@@ -282,7 +257,7 @@ describe("CompanyService", () => {
 
     it("should throw CompanyNotFoundError for non-existent company", async () => {
       // Arrange
-      resetMockQueryBuilder(undefined);
+      resetMockQueryBuilder(mockQueryBuilder, undefined);
       mockDb.selectFrom = mock(() => mockQueryBuilder);
 
       // Act & Assert
@@ -293,7 +268,7 @@ describe("CompanyService", () => {
   describe("getMemberRole", () => {
     it("should return role for existing member", async () => {
       // Arrange
-      resetMockQueryBuilder({ role: "admin" });
+      resetMockQueryBuilder(mockQueryBuilder, { role: "admin" });
       mockDb.selectFrom = mock(() => mockQueryBuilder);
 
       // Act
@@ -305,7 +280,7 @@ describe("CompanyService", () => {
 
     it("should return null for non-member", async () => {
       // Arrange
-      resetMockQueryBuilder(undefined);
+      resetMockQueryBuilder(mockQueryBuilder, undefined);
       mockDb.selectFrom = mock(() => mockQueryBuilder);
 
       // Act
@@ -319,7 +294,7 @@ describe("CompanyService", () => {
   describe("hasPermission", () => {
     it("should return true if user has required role or higher", async () => {
       // Owner has all permissions
-      resetMockQueryBuilder({ role: "owner" });
+      resetMockQueryBuilder(mockQueryBuilder, { role: "owner" });
       mockDb.selectFrom = mock(() => mockQueryBuilder);
       expect(await hasPermission("company-123", "user-123", "member")).toBe(true);
       expect(await hasPermission("company-123", "user-123", "admin")).toBe(true);
@@ -328,7 +303,7 @@ describe("CompanyService", () => {
 
     it("should return false if user has lower role than required", async () => {
       // Member cannot perform admin actions
-      resetMockQueryBuilder({ role: "member" });
+      resetMockQueryBuilder(mockQueryBuilder, { role: "member" });
       mockDb.selectFrom = mock(() => mockQueryBuilder);
       expect(await hasPermission("company-123", "user-123", "admin")).toBe(false);
       expect(await hasPermission("company-123", "user-123", "owner")).toBe(false);
@@ -336,7 +311,7 @@ describe("CompanyService", () => {
 
     it("should return false for non-members", async () => {
       // Arrange
-      resetMockQueryBuilder(undefined);
+      resetMockQueryBuilder(mockQueryBuilder, undefined);
       mockDb.selectFrom = mock(() => mockQueryBuilder);
 
       // Act
@@ -359,16 +334,16 @@ describe("CompanyService", () => {
         callCount++;
         if (callCount === 1) {
           // Company lookup
-          resetMockQueryBuilder(mockCompany);
+          resetMockQueryBuilder(mockQueryBuilder, mockCompany);
           return mockQueryBuilder;
         }
         if (callCount === 2) {
           // Check if user is already member - should be undefined
-          resetMockQueryBuilder(undefined);
+          resetMockQueryBuilder(mockQueryBuilder, undefined);
           return mockQueryBuilder;
         }
         // Check existing invitation
-        resetMockQueryBuilder(undefined);
+        resetMockQueryBuilder(mockQueryBuilder, undefined);
         return mockQueryBuilder;
       });
 
@@ -401,11 +376,11 @@ describe("CompanyService", () => {
       mockDb.selectFrom = mock(() => {
         callCount++;
         if (callCount === 1) {
-          resetMockQueryBuilder(mockCompany);
+          resetMockQueryBuilder(mockQueryBuilder, mockCompany);
           return mockQueryBuilder;
         }
         // User is already a member
-        resetMockQueryBuilder(existingMember);
+        resetMockQueryBuilder(mockQueryBuilder, existingMember);
         return mockQueryBuilder;
       });
 
@@ -417,7 +392,7 @@ describe("CompanyService", () => {
 
     it("should throw CompanyNotFoundError for non-existent company", async () => {
       // Arrange
-      resetMockQueryBuilder(undefined);
+      resetMockQueryBuilder(mockQueryBuilder, undefined);
       mockDb.selectFrom = mock(() => mockQueryBuilder);
 
       // Act & Assert
@@ -434,7 +409,7 @@ describe("CompanyService", () => {
         createMockInvitation({ id: "inv-1" }),
         createMockInvitation({ id: "inv-2" }),
       ];
-      resetMockQueryBuilder(mockInvitations);
+      resetMockQueryBuilder(mockQueryBuilder, mockInvitations);
       mockQueryBuilder.execute = mock(() => Promise.resolve(mockInvitations));
       mockDb.selectFrom = mock(() => mockQueryBuilder);
 
@@ -448,7 +423,7 @@ describe("CompanyService", () => {
 
     it("should not return expired invitations", async () => {
       // Arrange - expired invitations should be filtered by the query
-      resetMockQueryBuilder([]);
+      resetMockQueryBuilder(mockQueryBuilder, []);
       mockQueryBuilder.execute = mock(() => Promise.resolve([]));
       mockDb.selectFrom = mock(() => mockQueryBuilder);
 
@@ -464,7 +439,7 @@ describe("CompanyService", () => {
   describe("cancelInvitation", () => {
     it("should cancel pending invitation", async () => {
       // Arrange
-      resetMockQueryBuilder(createDeleteResult(1));
+      resetMockQueryBuilder(mockQueryBuilder, createDeleteResult(1));
       mockDb.deleteFrom = mock(() => mockQueryBuilder);
 
       // Act & Assert - should not throw
@@ -473,7 +448,7 @@ describe("CompanyService", () => {
 
     it("should throw InvitationNotFoundError for non-existent invitation", async () => {
       // Arrange
-      resetMockQueryBuilder(createDeleteResult(0));
+      resetMockQueryBuilder(mockQueryBuilder, createDeleteResult(0));
       mockDb.deleteFrom = mock(() => mockQueryBuilder);
 
       // Act & Assert
@@ -495,11 +470,11 @@ describe("CompanyService", () => {
         callCount++;
         if (callCount === 1) {
           // Find invitation
-          resetMockQueryBuilder(mockInvitation);
+          resetMockQueryBuilder(mockQueryBuilder, mockInvitation);
           return mockQueryBuilder;
         }
         // Get company
-        resetMockQueryBuilder(mockCompany);
+        resetMockQueryBuilder(mockQueryBuilder, mockCompany);
         return mockQueryBuilder;
       });
 
@@ -537,7 +512,7 @@ describe("CompanyService", () => {
 
     it("should throw InvitationNotFoundError for invalid token", async () => {
       // Arrange
-      resetMockQueryBuilder(undefined);
+      resetMockQueryBuilder(mockQueryBuilder, undefined);
       mockDb.selectFrom = mock(() => mockQueryBuilder);
 
       // Act & Assert
@@ -549,7 +524,7 @@ describe("CompanyService", () => {
       const expiredInvitation = createMockInvitation({
         expires_at: new Date(Date.now() - 86400000), // Past date
       });
-      resetMockQueryBuilder(expiredInvitation);
+      resetMockQueryBuilder(mockQueryBuilder, expiredInvitation);
       mockDb.selectFrom = mock(() => mockQueryBuilder);
 
       // Act & Assert
@@ -563,7 +538,7 @@ describe("CompanyService", () => {
       let callCount = 0;
       mockDb.selectFrom = mock(() => {
         callCount++;
-        resetMockQueryBuilder({ role: "member" });
+        resetMockQueryBuilder(mockQueryBuilder, { role: "member" });
         return mockQueryBuilder;
       });
 
@@ -587,7 +562,7 @@ describe("CompanyService", () => {
 
     it("should throw InsufficientPermissionsError when trying to remove owner", async () => {
       // Arrange
-      resetMockQueryBuilder({ role: "owner" });
+      resetMockQueryBuilder(mockQueryBuilder, { role: "owner" });
       mockDb.selectFrom = mock(() => mockQueryBuilder);
 
       // Act & Assert
@@ -598,11 +573,11 @@ describe("CompanyService", () => {
   describe("updateMemberRole", () => {
     it("should update member role to admin", async () => {
       // Arrange
-      resetMockQueryBuilder({ role: "member" });
+      resetMockQueryBuilder(mockQueryBuilder, { role: "member" });
       mockDb.selectFrom = mock(() => mockQueryBuilder);
 
       const updatedMember = createMockCompanyMember({ role: "admin" });
-      resetMockQueryBuilder(updatedMember);
+      resetMockQueryBuilder(mockQueryBuilder, updatedMember);
       mockDb.updateTable = mock(() => mockQueryBuilder);
 
       // Act
@@ -614,7 +589,7 @@ describe("CompanyService", () => {
 
     it("should throw InsufficientPermissionsError when changing owner role", async () => {
       // Arrange
-      resetMockQueryBuilder({ role: "owner" });
+      resetMockQueryBuilder(mockQueryBuilder, { role: "owner" });
       mockDb.selectFrom = mock(() => mockQueryBuilder);
 
       // Act & Assert
@@ -629,7 +604,7 @@ describe("CompanyService", () => {
         { ...createMockCompany({ id: "company-1" }), role: "owner" },
         { ...createMockCompany({ id: "company-2" }), role: "member" },
       ];
-      resetMockQueryBuilder(mockCompanies);
+      resetMockQueryBuilder(mockQueryBuilder, mockCompanies);
       mockQueryBuilder.execute = mock(() => Promise.resolve(mockCompanies));
       mockDb.selectFrom = mock(() => mockQueryBuilder);
 
@@ -643,7 +618,7 @@ describe("CompanyService", () => {
 
     it("should return empty array for user with no companies", async () => {
       // Arrange
-      resetMockQueryBuilder([]);
+      resetMockQueryBuilder(mockQueryBuilder, []);
       mockQueryBuilder.execute = mock(() => Promise.resolve([]));
       mockDb.selectFrom = mock(() => mockQueryBuilder);
 
@@ -668,7 +643,7 @@ describe("CompanyService", () => {
         company_name: "Test Company",
         inviter_email: "owner@example.com",
       };
-      resetMockQueryBuilder(mockResult);
+      resetMockQueryBuilder(mockQueryBuilder, mockResult);
       mockDb.selectFrom = mock(() => mockQueryBuilder);
 
       // Act
@@ -682,7 +657,7 @@ describe("CompanyService", () => {
 
     it("should throw InvitationNotFoundError for invalid token", async () => {
       // Arrange
-      resetMockQueryBuilder(undefined);
+      resetMockQueryBuilder(mockQueryBuilder, undefined);
       mockDb.selectFrom = mock(() => mockQueryBuilder);
 
       // Act & Assert
@@ -700,7 +675,7 @@ describe("CompanyService", () => {
         company_name: "Test Company",
         inviter_email: "owner@example.com",
       };
-      resetMockQueryBuilder(acceptedInvitation);
+      resetMockQueryBuilder(mockQueryBuilder, acceptedInvitation);
       mockDb.selectFrom = mock(() => mockQueryBuilder);
 
       // Act & Assert
@@ -718,7 +693,7 @@ describe("CompanyService", () => {
         company_name: "Test Company",
         inviter_email: "owner@example.com",
       };
-      resetMockQueryBuilder(expiredResult);
+      resetMockQueryBuilder(mockQueryBuilder, expiredResult);
       mockDb.selectFrom = mock(() => mockQueryBuilder);
 
       // Act & Assert

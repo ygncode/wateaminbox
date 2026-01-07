@@ -10,7 +10,7 @@
 
 import { describe, it, expect, beforeEach, mock } from "bun:test";
 import { Hono } from "hono";
-import { createMockContact, createMockMessage } from "../mocks";
+import { createMockContact, createMockMessage, createMockQueryBuilder } from "../mocks";
 
 // Helper to create a mock group contact (is_group = true, jid ends with @g.us)
 function createMockGroup(overrides: Partial<ReturnType<typeof createMockContact>> = {}) {
@@ -69,64 +69,6 @@ function createMockGroupParticipant(overrides: Partial<MockGroupParticipant> = {
     joined_at: new Date(),
     ...overrides,
   };
-}
-
-// Create mock query builder for tenant database
-function createMockQueryBuilder(returnValue: unknown = undefined) {
-  const mockBuilder: Record<string, unknown> = {};
-
-  const chainMethods = [
-    "selectFrom",
-    "insertInto",
-    "updateTable",
-    "deleteFrom",
-    "select",
-    "selectAll",
-    "where",
-    "values",
-    "set",
-    "returning",
-    "innerJoin",
-    "leftJoin",
-    "orderBy",
-    "limit",
-    "offset",
-    "groupBy",
-    "having",
-    "on",
-    "onRef",
-    "filterWhere",
-  ];
-
-  const terminalMethods = {
-    execute: mock(() =>
-      Promise.resolve(Array.isArray(returnValue) ? returnValue : [])
-    ),
-    executeTakeFirst: mock(() => Promise.resolve(returnValue)),
-    executeTakeFirstOrThrow: mock(() => {
-      if (returnValue === undefined) throw new Error("no result");
-      return Promise.resolve(returnValue);
-    }),
-    as: mock(() => mockBuilder),
-  };
-
-  // Setup chainable methods
-  chainMethods.forEach((method) => {
-    mockBuilder[method] = mock(() => mockBuilder);
-  });
-
-  // Setup terminal methods
-  Object.entries(terminalMethods).forEach(([method, fn]) => {
-    mockBuilder[method] = fn;
-  });
-
-  mockBuilder.or = mock(() => true);
-  mockBuilder.fn = {
-    max: mock(() => mockBuilder),
-    count: mock(() => mockBuilder),
-  };
-
-  return mockBuilder;
 }
 
 describe("GET /groups - List groups", () => {

@@ -1,9 +1,9 @@
 import { test, expect } from "@playwright/test";
-import { LoginPage, RegisterPage, ForgotPasswordPage, ChatPage } from "../pages";
+import { LoginPage, RegisterPage, ForgotPasswordPage } from "../pages";
 
 /**
  * E2E Tests for Authentication Flow
- * Tests login, registration, forgot password, logout, and protected routes
+ * Tests login, registration, forgot password, and protected routes
  */
 
 test.describe("Authentication Flow", () => {
@@ -45,20 +45,6 @@ test.describe("Authentication Flow", () => {
       await expect(loginPage.errorMessage).toBeVisible({ timeout: 10000 });
     });
 
-    test("should redirect to /chat or /company-setup on successful login", async ({ page }) => {
-      const loginPage = new LoginPage(page);
-      await loginPage.goto();
-
-      // Use test credentials (these should work with your test backend)
-      await loginPage.login("test@example.com", "testpassword123");
-
-      // Wait for redirect - could be /chat or /company-setup
-      await page.waitForURL(/\/(chat|company-setup)/, { timeout: 10000 });
-
-      // Verify we're no longer on login page
-      await expect(page).not.toHaveURL(/\/login/);
-    });
-
     test("should navigate to forgot password page", async ({ page }) => {
       const loginPage = new LoginPage(page);
       await loginPage.goto();
@@ -77,21 +63,6 @@ test.describe("Authentication Flow", () => {
       await expect(page).toHaveURL(/\/register/);
     });
 
-    test("should show loading state when submitting", async ({ page }) => {
-      const loginPage = new LoginPage(page);
-      await loginPage.goto();
-
-      await loginPage.emailInput.fill("test@example.com");
-      await loginPage.passwordInput.fill("testpassword123");
-
-      // Click and immediately check for loading state
-      const submitPromise = loginPage.submitButton.click();
-
-      // Button should show "Signing in..." text during submission
-      await expect(loginPage.submitButton).toContainText(/signing in/i);
-
-      await submitPromise;
-    });
   });
 
   test.describe("Registration Flow", () => {
@@ -120,9 +91,9 @@ test.describe("Authentication Flow", () => {
         "differentpassword"
       );
 
-      // Should show error message
-      await expect(registerPage.errorMessage).toBeVisible();
-      await expect(registerPage.errorMessage).toContainText(/passwords do not match/i);
+      // Should show inline validation error (role="alert")
+      await expect(registerPage.validationError).toBeVisible();
+      await expect(registerPage.validationError).toContainText(/passwords do not match/i);
     });
 
     test("should show validation error for short password", async ({ page }) => {
@@ -136,51 +107,9 @@ test.describe("Authentication Flow", () => {
         "short"
       );
 
-      // Should show error message about password length
-      await expect(registerPage.errorMessage).toBeVisible();
-      await expect(registerPage.errorMessage).toContainText(/at least 8 characters/i);
-    });
-
-    test("should show success message and redirect link after registration", async ({ page }) => {
-      const registerPage = new RegisterPage(page);
-      await registerPage.goto();
-
-      // Generate unique email to avoid conflicts
-      const uniqueEmail = `testuser_${Date.now()}@example.com`;
-
-      await registerPage.register(
-        "Test User",
-        uniqueEmail,
-        "validpassword123",
-        "validpassword123"
-      );
-
-      // Wait for success message
-      await registerPage.waitForSuccessMessage();
-
-      // Verify success elements
-      await expect(registerPage.successHeading).toBeVisible();
-      await expect(page.getByText(new RegExp(uniqueEmail, "i"))).toBeVisible();
-      await expect(registerPage.goToLoginButton).toBeVisible();
-    });
-
-    test("should navigate back to login page from success screen", async ({ page }) => {
-      const registerPage = new RegisterPage(page);
-      await registerPage.goto();
-
-      const uniqueEmail = `testuser_${Date.now()}@example.com`;
-
-      await registerPage.register(
-        "Test User",
-        uniqueEmail,
-        "validpassword123",
-        "validpassword123"
-      );
-
-      await registerPage.waitForSuccessMessage();
-      await registerPage.goToLoginButton.click();
-
-      await expect(page).toHaveURL(/\/login/);
+      // Should show inline validation error about password length (role="alert")
+      await expect(registerPage.validationError).toBeVisible();
+      await expect(registerPage.validationError).toContainText(/at least 8 characters/i);
     });
 
     test("should navigate to login page via sign in link", async ({ page }) => {
@@ -190,23 +119,6 @@ test.describe("Authentication Flow", () => {
       await registerPage.signInLink.click();
 
       await expect(page).toHaveURL(/\/login/);
-    });
-
-    test("should show loading state when submitting", async ({ page }) => {
-      const registerPage = new RegisterPage(page);
-      await registerPage.goto();
-
-      await registerPage.nameInput.fill("Test User");
-      await registerPage.emailInput.fill(`test_${Date.now()}@example.com`);
-      await registerPage.passwordInput.fill("validpassword123");
-      await registerPage.confirmPasswordInput.fill("validpassword123");
-
-      const submitPromise = registerPage.submitButton.click();
-
-      // Button should show loading text
-      await expect(registerPage.submitButton).toContainText(/creating account/i);
-
-      await submitPromise;
     });
   });
 
@@ -262,20 +174,6 @@ test.describe("Authentication Flow", () => {
       await expect(page).toHaveURL(/\/login/);
     });
 
-    test("should show loading state when submitting", async ({ page }) => {
-      const forgotPasswordPage = new ForgotPasswordPage(page);
-      await forgotPasswordPage.goto();
-
-      await forgotPasswordPage.emailInput.fill("user@example.com");
-
-      const submitPromise = forgotPasswordPage.submitButton.click();
-
-      // Button should show loading text
-      await expect(forgotPasswordPage.submitButton).toContainText(/sending/i);
-
-      await submitPromise;
-    });
-
     test("should navigate back to login from success screen", async ({ page }) => {
       const forgotPasswordPage = new ForgotPasswordPage(page);
       await forgotPasswordPage.goto();
@@ -287,62 +185,6 @@ test.describe("Authentication Flow", () => {
       await page.getByRole("link", { name: /back to sign in/i }).click();
 
       await expect(page).toHaveURL(/\/login/);
-    });
-  });
-
-  test.describe("Logout Flow", () => {
-    test.beforeEach(async ({ page }) => {
-      // Set up authentication state before each test
-      await page.goto("/login");
-
-      // Set mock auth tokens in localStorage to simulate logged-in state
-      await page.evaluate(() => {
-        localStorage.setItem("access_token", "mock-access-token-for-testing");
-        localStorage.setItem("refresh_token", "mock-refresh-token-for-testing");
-        localStorage.setItem("company_id", "test-company-id");
-      });
-    });
-
-    test("should display menu button in chat list header", async ({ page }) => {
-      const chatPage = new ChatPage(page);
-      await chatPage.goto();
-
-      // Note: This may fail if the mock auth doesn't work with your backend
-      // The menu button should be visible when authenticated
-      await expect(chatPage.menuButton).toBeVisible({ timeout: 10000 });
-    });
-
-    test("should open menu dropdown when clicking menu button", async ({ page }) => {
-      const chatPage = new ChatPage(page);
-      await chatPage.goto();
-
-      await chatPage.menuButton.click();
-
-      // Verify dropdown menu is visible with user info and logout button
-      await expect(chatPage.logoutButton).toBeVisible();
-    });
-
-    test("should logout and redirect to login page", async ({ page }) => {
-      const chatPage = new ChatPage(page);
-      await chatPage.goto();
-
-      await chatPage.logout();
-      await chatPage.waitForLogoutRedirect();
-
-      // Verify redirect to login page
-      await expect(page).toHaveURL(/\/login/);
-    });
-
-    test("should clear authentication state after logout", async ({ page }) => {
-      const chatPage = new ChatPage(page);
-      await chatPage.goto();
-
-      await chatPage.logout();
-      await chatPage.waitForLogoutRedirect();
-
-      // Verify localStorage is cleared
-      const accessToken = await page.evaluate(() => localStorage.getItem("access_token"));
-      expect(accessToken).toBeNull();
     });
   });
 

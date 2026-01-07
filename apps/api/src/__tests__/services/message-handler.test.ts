@@ -9,33 +9,20 @@
  */
 
 import { describe, it, expect, mock, beforeEach } from "bun:test";
-import { createUpdateResult, createMockMessage } from "../mocks/database.mock";
+import {
+  createUpdateResult,
+  createMockMessage,
+  createMutableMockQueryBuilder,
+  resetMockQueryBuilder,
+} from "../mocks/database.mock";
 import type { SendConfirmationEvent, MessageRevokeEvent } from "../../lib/nats";
 
-// Mock query builder
-let mockQueryBuilder: Record<string, unknown>;
+// Mock query builder - using centralized mock utilities
+let mockQueryBuilder = createMutableMockQueryBuilder();
 let mockTenantDb: Record<string, unknown>;
 
-function resetMockQueryBuilder(returnValue: unknown = undefined) {
-  mockQueryBuilder = {
-    selectFrom: mock(() => mockQueryBuilder),
-    insertInto: mock(() => mockQueryBuilder),
-    updateTable: mock(() => mockQueryBuilder),
-    select: mock(() => mockQueryBuilder),
-    selectAll: mock(() => mockQueryBuilder),
-    where: mock(() => mockQueryBuilder),
-    values: mock(() => mockQueryBuilder),
-    set: mock(() => mockQueryBuilder),
-    returning: mock(() => mockQueryBuilder),
-    orderBy: mock(() => mockQueryBuilder),
-    limit: mock(() => mockQueryBuilder),
-    execute: mock(() => Promise.resolve([])),
-    executeTakeFirst: mock(() => Promise.resolve(returnValue)),
-  };
-}
-
 function resetMockTenantDb() {
-  resetMockQueryBuilder();
+  resetMockQueryBuilder(mockQueryBuilder);
   mockTenantDb = {
     selectFrom: mock(() => mockQueryBuilder),
     insertInto: mock(() => mockQueryBuilder),
@@ -64,6 +51,8 @@ const mockUpdateConnectionStatus = mock(async () => {});
 mock.module("../../lib/nats.js", () => ({
   subscribeToAllEvents: mockSubscribeToAllEvents,
   // Provide complete mock to prevent module loading errors when tests run together
+  buildCommandSubject: (companyId: string, connectionId: string) =>
+    `WHATSAPP.commands.${companyId}.${connectionId}`,
   publishSpawnCommand: mock(async () => {}),
   publishKillCommand: mock(async () => {}),
   publishSendMessage: mock(async () => {}),

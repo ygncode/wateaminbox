@@ -20,6 +20,135 @@ const MOCK_REFRESH_TOKEN = "mock-refresh-token-for-testing";
 const MOCK_COMPANY_ID = "test-company-id";
 
 /**
+ * Mock contacts for testing chat functionality
+ */
+const MOCK_CONTACTS = [
+  {
+    id: "contact-1",
+    jid: "1234567890@s.whatsapp.net",
+    phoneNumber: "+1234567890",
+    pushName: "John Doe",
+    customName: null,
+    displayName: "John Doe",
+    isGroup: false,
+    profilePictureUrl: null,
+    notesShared: null,
+    lastMessageAt: new Date().toISOString(),
+    lastMessage: {
+      id: "msg-1",
+      messageId: "msg-1",
+      fromMe: false,
+      messageType: "text",
+      content: "Hey, how are you?",
+      status: "read",
+      timestamp: new Date().toISOString(),
+    },
+    unreadCount: 0,
+    assignedTo: TEST_USER.id,
+    isOnline: true,
+    lastSeen: new Date().toISOString(),
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: "contact-2",
+    jid: "0987654321@s.whatsapp.net",
+    phoneNumber: "+0987654321",
+    pushName: "Jane Smith",
+    customName: "Jane (Work)",
+    displayName: "Jane (Work)",
+    isGroup: false,
+    profilePictureUrl: null,
+    notesShared: "Important client",
+    lastMessageAt: new Date(Date.now() - 3600000).toISOString(),
+    lastMessage: {
+      id: "msg-2",
+      messageId: "msg-2",
+      fromMe: true,
+      messageType: "text",
+      content: "Thanks for the update!",
+      status: "delivered",
+      timestamp: new Date(Date.now() - 3600000).toISOString(),
+    },
+    unreadCount: 2,
+    assignedTo: null,
+    isOnline: false,
+    lastSeen: new Date(Date.now() - 7200000).toISOString(),
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: "contact-3",
+    jid: "5551234567@s.whatsapp.net",
+    phoneNumber: "+5551234567",
+    pushName: "Alice Johnson",
+    customName: null,
+    displayName: "Alice Johnson",
+    isGroup: false,
+    profilePictureUrl: null,
+    notesShared: null,
+    lastMessageAt: new Date(Date.now() - 86400000).toISOString(),
+    lastMessage: {
+      id: "msg-3",
+      messageId: "msg-3",
+      fromMe: false,
+      messageType: "text",
+      content: "See you tomorrow!",
+      status: "read",
+      timestamp: new Date(Date.now() - 86400000).toISOString(),
+    },
+    unreadCount: 0,
+    assignedTo: TEST_USER.id,
+    isOnline: false,
+    lastSeen: new Date(Date.now() - 86400000).toISOString(),
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+];
+
+/**
+ * Mock messages for testing message display
+ */
+const MOCK_MESSAGES = [
+  {
+    id: "msg-1",
+    messageId: "msg-1",
+    contactId: "contact-1",
+    fromMe: false,
+    senderJid: "1234567890@s.whatsapp.net",
+    messageType: "text",
+    content: "Hey, how are you?",
+    status: "read",
+    timestamp: new Date(Date.now() - 60000).toISOString(),
+    createdAt: new Date(Date.now() - 60000).toISOString(),
+  },
+  {
+    id: "msg-2",
+    messageId: "msg-2",
+    contactId: "contact-1",
+    fromMe: true,
+    senderJid: null,
+    messageType: "text",
+    content: "I'm doing great, thanks!",
+    status: "read",
+    timestamp: new Date(Date.now() - 30000).toISOString(),
+    createdAt: new Date(Date.now() - 30000).toISOString(),
+  },
+  {
+    id: "msg-3",
+    messageId: "msg-3",
+    contactId: "contact-1",
+    fromMe: false,
+    senderJid: "1234567890@s.whatsapp.net",
+    messageType: "text",
+    content: "Glad to hear that!",
+    status: "read",
+    timestamp: new Date().toISOString(),
+    createdAt: new Date().toISOString(),
+  },
+];
+
+/**
  * Extended test with authentication fixtures
  */
 export const test = base.extend<{
@@ -103,28 +232,52 @@ export const test = base.extend<{
       }
     });
 
-    // Mock contacts/chats endpoint with empty data
+    // Mock contacts/chats endpoint with test data
     await page.route("**/api/contacts**", (route) => {
-      route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({
-          success: true,
-          data: [],
-          meta: { total: 0, limit: 50, offset: 0 },
-        }),
-      });
+      const url = new URL(route.request().url());
+      const contactId = url.pathname.match(/\/api\/contacts\/([^/]+)/)?.[1];
+
+      if (contactId) {
+        // Single contact request
+        const contact = MOCK_CONTACTS.find(c => c.id === contactId);
+        route.fulfill({
+          status: contact ? 200 : 404,
+          contentType: "application/json",
+          body: JSON.stringify(contact
+            ? { success: true, data: contact }
+            : { success: false, error: "Contact not found" }
+          ),
+        });
+      } else {
+        // List contacts request
+        route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({
+            success: true,
+            data: MOCK_CONTACTS,
+            meta: { total: MOCK_CONTACTS.length, limit: 50, offset: 0 },
+          }),
+        });
+      }
     });
 
-    // Mock messages endpoint
+    // Mock messages endpoint with test data
     await page.route("**/api/messages**", (route) => {
+      const url = new URL(route.request().url());
+      const contactId = url.searchParams.get("contactId");
+
+      const messages = contactId
+        ? MOCK_MESSAGES.filter(m => m.contactId === contactId)
+        : MOCK_MESSAGES;
+
       route.fulfill({
         status: 200,
         contentType: "application/json",
         body: JSON.stringify({
           success: true,
-          data: [],
-          meta: { total: 0, limit: 50, offset: 0 },
+          data: messages,
+          meta: { total: messages.length, limit: 50, offset: 0 },
         }),
       });
     });

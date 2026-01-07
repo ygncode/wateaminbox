@@ -2,36 +2,54 @@
  * Mock database utilities for testing services
  *
  * These mocks simulate Kysely database operations without actual database connections.
+ *
+ * Usage patterns:
+ * 1. Simple mocking: Use createMockQueryBuilder(returnValue) for basic query mocking
+ * 2. Mutable pattern: Use createMutableMockQueryBuilder() with resetMockQueryBuilder() for tests
+ *    that need to change return values between test cases
+ * 3. Full DB mock: Use createMockDb(queryResults) for complete database instance mocking
  */
 
 import { mock } from "bun:test";
+
+/**
+ * All Kysely chainable methods supported by the mock
+ */
+const CHAIN_METHODS = [
+  "selectFrom",
+  "insertInto",
+  "updateTable",
+  "deleteFrom",
+  "select",
+  "selectAll",
+  "where",
+  "values",
+  "set",
+  "returning",
+  "returningAll",
+  "innerJoin",
+  "leftJoin",
+  "rightJoin",
+  "fullJoin",
+  "on",
+  "onRef",
+  "orderBy",
+  "limit",
+  "offset",
+  "groupBy",
+  "having",
+  "$if",
+  "$call",
+  "filterWhere",
+  "distinctOn",
+  "distinct",
+] as const;
 
 /**
  * Creates a mock query builder that chains method calls
  */
 export function createMockQueryBuilder(returnValue: unknown = undefined) {
   const mockBuilder: Record<string, unknown> = {};
-
-  const chainMethods = [
-    "selectFrom",
-    "insertInto",
-    "updateTable",
-    "deleteFrom",
-    "select",
-    "selectAll",
-    "where",
-    "values",
-    "set",
-    "returning",
-    "innerJoin",
-    "leftJoin",
-    "orderBy",
-    "limit",
-    "offset",
-    "groupBy",
-    "having",
-    "$if",
-  ];
 
   const terminalMethods = {
     execute: mock(() => Promise.resolve(Array.isArray(returnValue) ? returnValue : [])),
@@ -45,7 +63,7 @@ export function createMockQueryBuilder(returnValue: unknown = undefined) {
   };
 
   // Setup chainable methods
-  chainMethods.forEach((method) => {
+  CHAIN_METHODS.forEach((method) => {
     mockBuilder[method] = mock(() => mockBuilder);
   });
 
@@ -53,6 +71,72 @@ export function createMockQueryBuilder(returnValue: unknown = undefined) {
   Object.entries(terminalMethods).forEach(([method, fn]) => {
     mockBuilder[method] = fn;
   });
+
+  // Additional methods used by some tests
+  mockBuilder.as = mock(() => mockBuilder);
+  mockBuilder.or = mock(() => true);
+  mockBuilder.fn = {
+    max: mock(() => mockBuilder),
+    count: mock(() => mockBuilder),
+    sum: mock(() => mockBuilder),
+    avg: mock(() => mockBuilder),
+    min: mock(() => mockBuilder),
+  };
+
+  return mockBuilder;
+}
+
+/**
+ * Creates a mutable mock query builder for tests that need to change return values.
+ *
+ * Usage:
+ *   let mockQueryBuilder: ReturnType<typeof createMutableMockQueryBuilder>;
+ *   beforeEach(() => { mockQueryBuilder = createMutableMockQueryBuilder(); });
+ *
+ *   it('test case', () => {
+ *     resetMockQueryBuilder(mockQueryBuilder, { id: '123' });
+ *     // ... test code
+ *   });
+ */
+export function createMutableMockQueryBuilder() {
+  return createMockQueryBuilder(undefined);
+}
+
+/**
+ * Resets a mutable mock query builder with a new return value.
+ * Recreates all mock functions to ensure clean state between tests.
+ */
+export function resetMockQueryBuilder(
+  mockBuilder: Record<string, unknown>,
+  returnValue: unknown = undefined
+) {
+  // Reset chainable methods
+  CHAIN_METHODS.forEach((method) => {
+    mockBuilder[method] = mock(() => mockBuilder);
+  });
+
+  // Reset terminal methods with new return value
+  mockBuilder.execute = mock(() =>
+    Promise.resolve(Array.isArray(returnValue) ? returnValue : [])
+  );
+  mockBuilder.executeTakeFirst = mock(() => Promise.resolve(returnValue));
+  mockBuilder.executeTakeFirstOrThrow = mock(() => {
+    if (returnValue === undefined) {
+      throw new Error("no result");
+    }
+    return Promise.resolve(returnValue);
+  });
+
+  // Reset additional methods
+  mockBuilder.as = mock(() => mockBuilder);
+  mockBuilder.or = mock(() => true);
+  mockBuilder.fn = {
+    max: mock(() => mockBuilder),
+    count: mock(() => mockBuilder),
+    sum: mock(() => mockBuilder),
+    avg: mock(() => mockBuilder),
+    min: mock(() => mockBuilder),
+  };
 
   return mockBuilder;
 }

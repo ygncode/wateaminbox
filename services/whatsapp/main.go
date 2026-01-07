@@ -118,17 +118,28 @@ func main() {
 
 	// Initialize message handler with NATS publisher and storage
 	msgHandler := handler.New(handler.Config{
-		WorkerID:  workerID,
-		CompanyID: companyID,
-		NATSUrl:   natsURL,
-		Client:    waClient,
-		Publisher: publisher,
-		Storage:   storageClient,
-		Ctx:       ctx,
+		WorkerID:     workerID,
+		CompanyID:    companyID,
+		ConnectionID: connectionID,
+		NATSUrl:      natsURL,
+		Client:       waClient,
+		Publisher:    publisher,
+		Storage:      storageClient,
+		Ctx:          ctx,
 	})
 
 	// Register event handlers
 	waClient.RegisterEventHandler(msgHandler.HandleEvent)
+
+	// Initialize on-demand download handler
+	downloadHandler, err := handler.NewDownloadHandler(msgHandler)
+	if err != nil {
+		log.Printf("Warning: Failed to initialize download handler: %v", err)
+		log.Println("On-demand media downloads will not be available")
+	} else {
+		defer downloadHandler.Close()
+		log.Printf("Download handler initialized for on-demand media downloads")
+	}
 
 	// Initialize NATS subscriber for send commands
 	subscriber, err := natsClient.NewSubscriber(natsClient.SubscriberConfig{

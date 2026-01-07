@@ -11,28 +11,13 @@
  */
 
 import { describe, it, expect, mock, beforeEach } from "bun:test";
+import {
+  createMutableMockQueryBuilder,
+  resetMockQueryBuilder,
+} from "../mocks";
 
-// Mock query builder
-let mockQueryBuilder: Record<string, unknown>;
-
-function resetMockQueryBuilder(returnValue: unknown = undefined) {
-  mockQueryBuilder = {
-    selectFrom: mock(() => mockQueryBuilder),
-    select: mock(() => mockQueryBuilder),
-    selectAll: mock(() => mockQueryBuilder),
-    where: mock(() => mockQueryBuilder),
-    innerJoin: mock(() => mockQueryBuilder),
-    leftJoin: mock(() => mockQueryBuilder),
-    orderBy: mock(() => mockQueryBuilder),
-    groupBy: mock(() => mockQueryBuilder),
-    limit: mock(() => mockQueryBuilder),
-    offset: mock(() => mockQueryBuilder),
-    distinct: mock(() => mockQueryBuilder),
-    filterWhere: mock(() => mockQueryBuilder),
-    execute: mock(() => Promise.resolve(Array.isArray(returnValue) ? returnValue : [])),
-    executeTakeFirst: mock(() => Promise.resolve(returnValue)),
-  };
-}
+// Mock query builder - using centralized mock utilities
+let mockQueryBuilder = createMutableMockQueryBuilder();
 
 // Mock tenant database
 const mockTenantDb = {
@@ -70,7 +55,7 @@ import {
 
 describe("AnalyticsService", () => {
   beforeEach(() => {
-    resetMockQueryBuilder();
+    resetMockQueryBuilder(mockQueryBuilder);
     mockGetTenantConnection.mockClear();
     mockTenantDb.selectFrom = mock(() => mockQueryBuilder);
     mockDb.selectFrom = mock(() => mockQueryBuilder);
@@ -98,7 +83,7 @@ describe("AnalyticsService", () => {
       let mainDbCallCount = 0;
       mockDb.selectFrom = mock(() => {
         mainDbCallCount++;
-        resetMockQueryBuilder(mockCompanyStats);
+        resetMockQueryBuilder(mockQueryBuilder, mockCompanyStats);
         return mockQueryBuilder;
       });
 
@@ -107,10 +92,10 @@ describe("AnalyticsService", () => {
       mockTenantDb.selectFrom = mock(() => {
         tenantDbCallCount++;
         if (tenantDbCallCount === 1) {
-          resetMockQueryBuilder(mockTodayMessages);
+          resetMockQueryBuilder(mockQueryBuilder, mockTodayMessages);
           return mockQueryBuilder;
         }
-        resetMockQueryBuilder(mockUnreadCount);
+        resetMockQueryBuilder(mockQueryBuilder, mockUnreadCount);
         return mockQueryBuilder;
       });
 
@@ -129,7 +114,7 @@ describe("AnalyticsService", () => {
 
     it("should handle missing company stats gracefully", async () => {
       // Arrange
-      resetMockQueryBuilder(undefined);
+      resetMockQueryBuilder(mockQueryBuilder, undefined);
       mockDb.selectFrom = mock(() => mockQueryBuilder);
       mockTenantDb.selectFrom = mock(() => mockQueryBuilder);
 
@@ -152,7 +137,7 @@ describe("AnalyticsService", () => {
         { date: "2024-01-03", sent: 20, received: 30 },
       ];
 
-      resetMockQueryBuilder(mockStats);
+      resetMockQueryBuilder(mockQueryBuilder, mockStats);
       mockQueryBuilder.execute = mock(() => Promise.resolve(mockStats));
       mockTenantDb.selectFrom = mock(() => mockQueryBuilder);
 
@@ -172,7 +157,7 @@ describe("AnalyticsService", () => {
 
     it("should return empty array when no messages in range", async () => {
       // Arrange
-      resetMockQueryBuilder([]);
+      resetMockQueryBuilder(mockQueryBuilder, []);
       mockQueryBuilder.execute = mock(() => Promise.resolve([]));
       mockTenantDb.selectFrom = mock(() => mockQueryBuilder);
 
@@ -200,19 +185,19 @@ describe("AnalyticsService", () => {
         callCount++;
         switch (callCount) {
           case 1:
-            resetMockQueryBuilder(totalResult);
+            resetMockQueryBuilder(mockQueryBuilder, totalResult);
             break;
           case 2:
-            resetMockQueryBuilder(customNameResult);
+            resetMockQueryBuilder(mockQueryBuilder, customNameResult);
             break;
           case 3:
-            resetMockQueryBuilder(withTagsResult);
+            resetMockQueryBuilder(mockQueryBuilder, withTagsResult);
             break;
           case 4:
-            resetMockQueryBuilder(assignedResult);
+            resetMockQueryBuilder(mockQueryBuilder, assignedResult);
             break;
           default:
-            resetMockQueryBuilder(undefined);
+            resetMockQueryBuilder(mockQueryBuilder, undefined);
         }
         return mockQueryBuilder;
       });
@@ -231,7 +216,7 @@ describe("AnalyticsService", () => {
 
     it("should handle zero counts", async () => {
       // Arrange
-      resetMockQueryBuilder({ count: 0 });
+      resetMockQueryBuilder(mockQueryBuilder, { count: 0 });
       mockTenantDb.selectFrom = mock(() => mockQueryBuilder);
 
       // Act
@@ -253,7 +238,7 @@ describe("AnalyticsService", () => {
 
       // Setup main db for members query
       mockDb.selectFrom = mock(() => {
-        resetMockQueryBuilder(mockMembers);
+        resetMockQueryBuilder(mockQueryBuilder, mockMembers);
         mockQueryBuilder.execute = mock(() => Promise.resolve(mockMembers));
         return mockQueryBuilder;
       });
@@ -268,13 +253,13 @@ describe("AnalyticsService", () => {
         tenantCallCount++;
         switch (tenantCallCount % 3) {
           case 1:
-            resetMockQueryBuilder(mockMessageCount);
+            resetMockQueryBuilder(mockQueryBuilder, mockMessageCount);
             break;
           case 2:
-            resetMockQueryBuilder(mockContactCount);
+            resetMockQueryBuilder(mockQueryBuilder, mockContactCount);
             break;
           case 0:
-            resetMockQueryBuilder(mockLastMessage);
+            resetMockQueryBuilder(mockQueryBuilder, mockLastMessage);
             break;
         }
         return mockQueryBuilder;
@@ -302,7 +287,7 @@ describe("AnalyticsService", () => {
       ];
 
       mockDb.selectFrom = mock(() => {
-        resetMockQueryBuilder(mockMembers);
+        resetMockQueryBuilder(mockQueryBuilder, mockMembers);
         mockQueryBuilder.execute = mock(() => Promise.resolve(mockMembers));
         return mockQueryBuilder;
       });
@@ -314,13 +299,13 @@ describe("AnalyticsService", () => {
         const isUser2 = tenantCallCount > 3;
         switch (tenantCallCount % 3) {
           case 1:
-            resetMockQueryBuilder({ count: isUser2 ? 100 : 50 });
+            resetMockQueryBuilder(mockQueryBuilder, { count: isUser2 ? 100 : 50 });
             break;
           case 2:
-            resetMockQueryBuilder({ count: 10 });
+            resetMockQueryBuilder(mockQueryBuilder, { count: 10 });
             break;
           case 0:
-            resetMockQueryBuilder({ timestamp: new Date() });
+            resetMockQueryBuilder(mockQueryBuilder, { timestamp: new Date() });
             break;
         }
         return mockQueryBuilder;
@@ -340,13 +325,13 @@ describe("AnalyticsService", () => {
       const mockMembers = [{ user_id: "user-1", email: "user1@example.com" }];
 
       mockDb.selectFrom = mock(() => {
-        resetMockQueryBuilder(mockMembers);
+        resetMockQueryBuilder(mockQueryBuilder, mockMembers);
         mockQueryBuilder.execute = mock(() => Promise.resolve(mockMembers));
         return mockQueryBuilder;
       });
 
       mockTenantDb.selectFrom = mock(() => {
-        resetMockQueryBuilder(undefined);
+        resetMockQueryBuilder(mockQueryBuilder, undefined);
         return mockQueryBuilder;
       });
 
@@ -368,7 +353,7 @@ describe("AnalyticsService", () => {
         { message_type: "audio", count: 30 },
       ];
 
-      resetMockQueryBuilder(mockStats);
+      resetMockQueryBuilder(mockQueryBuilder, mockStats);
       mockQueryBuilder.execute = mock(() => Promise.resolve(mockStats));
       mockTenantDb.selectFrom = mock(() => mockQueryBuilder);
 
@@ -386,7 +371,7 @@ describe("AnalyticsService", () => {
       // Arrange
       const mockStats = [{ message_type: "text", count: 500 }];
 
-      resetMockQueryBuilder(mockStats);
+      resetMockQueryBuilder(mockQueryBuilder, mockStats);
       mockQueryBuilder.execute = mock(() => Promise.resolve(mockStats));
       mockTenantDb.selectFrom = mock(() => mockQueryBuilder);
 
@@ -403,7 +388,7 @@ describe("AnalyticsService", () => {
 
     it("should return empty array when no messages", async () => {
       // Arrange
-      resetMockQueryBuilder([]);
+      resetMockQueryBuilder(mockQueryBuilder, []);
       mockQueryBuilder.execute = mock(() => Promise.resolve([]));
       mockTenantDb.selectFrom = mock(() => mockQueryBuilder);
 
@@ -424,7 +409,7 @@ describe("AnalyticsService", () => {
         { hour: 14, count: 200 },
       ];
 
-      resetMockQueryBuilder(mockStats);
+      resetMockQueryBuilder(mockQueryBuilder, mockStats);
       mockQueryBuilder.execute = mock(() => Promise.resolve(mockStats));
       mockTenantDb.selectFrom = mock(() => mockQueryBuilder);
 
@@ -444,7 +429,7 @@ describe("AnalyticsService", () => {
       // Arrange
       const mockStats = [{ hour: 12, count: 100 }];
 
-      resetMockQueryBuilder(mockStats);
+      resetMockQueryBuilder(mockQueryBuilder, mockStats);
       mockQueryBuilder.execute = mock(() => Promise.resolve(mockStats));
       mockTenantDb.selectFrom = mock(() => mockQueryBuilder);
 
@@ -460,7 +445,7 @@ describe("AnalyticsService", () => {
 
     it("should use default 30 day period", async () => {
       // Arrange
-      resetMockQueryBuilder([]);
+      resetMockQueryBuilder(mockQueryBuilder, []);
       mockQueryBuilder.execute = mock(() => Promise.resolve([]));
       mockTenantDb.selectFrom = mock(() => mockQueryBuilder);
 
@@ -473,7 +458,7 @@ describe("AnalyticsService", () => {
 
     it("should accept custom day period", async () => {
       // Arrange
-      resetMockQueryBuilder([]);
+      resetMockQueryBuilder(mockQueryBuilder, []);
       mockQueryBuilder.execute = mock(() => Promise.resolve([]));
       mockTenantDb.selectFrom = mock(() => mockQueryBuilder);
 
@@ -486,7 +471,7 @@ describe("AnalyticsService", () => {
 
     it("should return ordered hours from 0 to 23", async () => {
       // Arrange
-      resetMockQueryBuilder([]);
+      resetMockQueryBuilder(mockQueryBuilder, []);
       mockQueryBuilder.execute = mock(() => Promise.resolve([]));
       mockTenantDb.selectFrom = mock(() => mockQueryBuilder);
 
@@ -503,7 +488,7 @@ describe("AnalyticsService", () => {
   describe("Type definitions", () => {
     it("DashboardStats should have correct structure", async () => {
       // Arrange
-      resetMockQueryBuilder({
+      resetMockQueryBuilder(mockQueryBuilder, {
         total_messages: 0,
         total_contacts: 0,
         active_users: 0,
@@ -526,7 +511,7 @@ describe("AnalyticsService", () => {
     it("MessageStats should have correct structure", async () => {
       // Arrange
       const mockStats = [{ date: "2024-01-01", sent: 10, received: 20 }];
-      resetMockQueryBuilder(mockStats);
+      resetMockQueryBuilder(mockQueryBuilder, mockStats);
       mockQueryBuilder.execute = mock(() => Promise.resolve(mockStats));
       mockTenantDb.selectFrom = mock(() => mockQueryBuilder);
 
@@ -543,7 +528,7 @@ describe("AnalyticsService", () => {
 
     it("ContactStats should have correct structure", async () => {
       // Arrange
-      resetMockQueryBuilder({ count: 0 });
+      resetMockQueryBuilder(mockQueryBuilder, { count: 0 });
       mockTenantDb.selectFrom = mock(() => mockQueryBuilder);
 
       // Act
@@ -572,11 +557,11 @@ describe("AnalyticsService", () => {
       mockTenantDb.selectFrom = mock(() => {
         callCount++;
         if (callCount === 1) {
-          resetMockQueryBuilder(mockDailyCounts);
+          resetMockQueryBuilder(mockQueryBuilder, mockDailyCounts);
           mockQueryBuilder.execute = mock(() => Promise.resolve(mockDailyCounts));
           return mockQueryBuilder;
         }
-        resetMockQueryBuilder(mockPreviousTotal);
+        resetMockQueryBuilder(mockQueryBuilder, mockPreviousTotal);
         return mockQueryBuilder;
       });
 
@@ -608,11 +593,11 @@ describe("AnalyticsService", () => {
       mockTenantDb.selectFrom = mock(() => {
         callCount++;
         if (callCount === 1) {
-          resetMockQueryBuilder(mockDailyCounts);
+          resetMockQueryBuilder(mockQueryBuilder, mockDailyCounts);
           mockQueryBuilder.execute = mock(() => Promise.resolve(mockDailyCounts));
           return mockQueryBuilder;
         }
-        resetMockQueryBuilder(mockPreviousTotal);
+        resetMockQueryBuilder(mockQueryBuilder, mockPreviousTotal);
         return mockQueryBuilder;
       });
 
@@ -638,11 +623,11 @@ describe("AnalyticsService", () => {
       mockTenantDb.selectFrom = mock(() => {
         callCount++;
         if (callCount === 1) {
-          resetMockQueryBuilder(mockDailyCounts);
+          resetMockQueryBuilder(mockQueryBuilder, mockDailyCounts);
           mockQueryBuilder.execute = mock(() => Promise.resolve(mockDailyCounts));
           return mockQueryBuilder;
         }
-        resetMockQueryBuilder(mockPreviousTotal);
+        resetMockQueryBuilder(mockQueryBuilder, mockPreviousTotal);
         return mockQueryBuilder;
       });
 
@@ -663,7 +648,7 @@ describe("AnalyticsService", () => {
 
     it("should return empty array for empty date range", async () => {
       // Arrange
-      resetMockQueryBuilder([]);
+      resetMockQueryBuilder(mockQueryBuilder, []);
       mockQueryBuilder.execute = mock(() => Promise.resolve([]));
       mockTenantDb.selectFrom = mock(() => mockQueryBuilder);
 
@@ -687,11 +672,11 @@ describe("AnalyticsService", () => {
       mockTenantDb.selectFrom = mock(() => {
         callCount++;
         if (callCount === 1) {
-          resetMockQueryBuilder(mockDailyCounts);
+          resetMockQueryBuilder(mockQueryBuilder, mockDailyCounts);
           mockQueryBuilder.execute = mock(() => Promise.resolve(mockDailyCounts));
           return mockQueryBuilder;
         }
-        resetMockQueryBuilder(mockPreviousTotal);
+        resetMockQueryBuilder(mockQueryBuilder, mockPreviousTotal);
         return mockQueryBuilder;
       });
 
@@ -708,7 +693,7 @@ describe("AnalyticsService", () => {
 
     it("should exclude groups from count", async () => {
       // Arrange - the mock setup will track that is_group = false filter is applied
-      resetMockQueryBuilder([]);
+      resetMockQueryBuilder(mockQueryBuilder, []);
       mockQueryBuilder.execute = mock(() => Promise.resolve([]));
       mockTenantDb.selectFrom = mock(() => mockQueryBuilder);
 
@@ -731,11 +716,11 @@ describe("AnalyticsService", () => {
       mockTenantDb.selectFrom = mock(() => {
         callCount++;
         if (callCount === 1) {
-          resetMockQueryBuilder(mockDailyCounts);
+          resetMockQueryBuilder(mockQueryBuilder, mockDailyCounts);
           mockQueryBuilder.execute = mock(() => Promise.resolve(mockDailyCounts));
           return mockQueryBuilder;
         }
-        resetMockQueryBuilder(mockPreviousTotal);
+        resetMockQueryBuilder(mockQueryBuilder, mockPreviousTotal);
         return mockQueryBuilder;
       });
 
