@@ -1,7 +1,7 @@
 import { nowMs } from "@whatsapp-web/shared";
 import { wsLogger } from "./websocket-logger";
 
-// Re-export all WebSocket types from the shared package
+// Re-export all types from the types module
 export type {
   WebSocketEventType,
   WebSocketMessage,
@@ -27,68 +27,32 @@ export type {
   PresencePayload,
   MediaDownloadedPayload,
   MediaDownloadFailedPayload,
-} from "@whatsapp-web/shared";
+  WebSocketMetrics,
+} from "./websocket/types";
 
-// Connection metrics interface
-export interface WebSocketMetrics {
-  /** Current latency in milliseconds (based on ping-pong round trip) */
-  latency: number | null;
-  /** Number of reconnections in current session */
-  reconnectCount: number;
-  /** Timestamp when connection was established (ms since epoch) */
-  connectedAt: number | null;
-  /** Connection uptime in milliseconds */
-  uptime: number | null;
-  /** Last error message and timestamp */
-  lastError: { message: string; timestamp: number } | null;
-  /** Connection status */
-  status: ConnectionStatus;
-  /** Number of messages sent in this session */
-  messagesSent: number;
-  /** Number of messages received in this session */
-  messagesReceived: number;
-}
-
-// Import types for use in this file
+// Import types and constants for use in this file
 import type {
   ConnectionStatus,
   EventHandler,
   WebSocketClientConfig,
   WebSocketEventType,
   WebSocketMessage,
-} from "@whatsapp-web/shared";
+  WebSocketMetrics,
+} from "./websocket/types";
+import { DEFAULT_CONFIG } from "./websocket/types";
 
-// Message queue item for messages sent while connecting
-interface QueuedMessage {
-  type: string;
-  payload: unknown;
-  resolve: (success: boolean) => void;
-}
-
-const DEFAULT_CONFIG: Required<
-  Omit<WebSocketClientConfig, "url" | "token" | "onStatusChange" | "onError">
-> = {
-  reconnectAttempts: 10,
-  reconnectBaseDelay: 1000,
-  reconnectMaxDelay: 30000,
-  heartbeatInterval: 30000,
-  pongTimeout: 10000,
-  connectionTimeout: 15000,
-};
+// Import extracted modules
+import { HeartbeatManager } from "./websocket/heartbeat";
+import { ReconnectManager } from "./websocket/reconnect";
+import { MessageQueue } from "./websocket/message-queue";
 
 export class WebSocketClient {
   private socket: WebSocket | null = null;
   private config: WebSocketClientConfig & typeof DEFAULT_CONFIG;
-  private reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
-  private heartbeatInterval: ReturnType<typeof setInterval> | null = null;
-  private pongTimeout: ReturnType<typeof setTimeout> | null = null;
   private connectionTimeout: ReturnType<typeof setTimeout> | null = null;
   private eventHandlers: Map<WebSocketEventType, Set<EventHandler>> = new Map();
   private _status: ConnectionStatus = "disconnected";
-  private manualDisconnect = false;
   private isCleaningUp = false;
-  private messageQueue: QueuedMessage[] = [];
-  private lastPongReceived: number = 0;
   private boundHandlers: {
     onOpen: () => void;
     onClose: (event: CloseEvent) => void;
@@ -96,17 +60,52 @@ export class WebSocketClient {
     onMessage: (event: MessageEvent) => void;
   } | null = null;
 
+  // Extracted managers
+  private heartbeat: HeartbeatManager;
+  private reconnect: ReconnectManager;
+  private messageQueue: MessageQueue;
+
   // Metrics tracking
-  private _reconnectCount = 0;
   private _connectedAt: number | null = null;
-  private _lastError: { message: string; timestamp: number } | null = null;
-  private _latency: number | null = null;
-  private _pingSentAt: number | null = null;
   private _messagesSent = 0;
   private _messagesReceived = 0;
 
   constructor(config: WebSocketClientConfig) {
     this.config = { ...DEFAULT_CONFIG, ...config };
+    this.messageQueue = new MessageQueue();
+
+    // Initialize heartbeat manager
+    this.heartbeat = new HeartbeatManager(
+      {
+        heartbeatInterval: this.config.heartbeatInterval,
+        pongTimeout: this.config.pongTimeout,
+      },
+      {
+        sendPing: () => this.sendImmediate("ping", {}),
+        onStaleConnection: () => {
+          this.cleanupSocket();
+          this.setStatus("disconnected");
+          this.reconnect.schedule();
+        },
+        isSocketReady: () => this.isSocketReady(),
+      }
+    );
+
+    // Initialize reconnect manager
+    this.reconnect = new ReconnectManager(
+      {
+        reconnectAttempts: this.config.reconnectAttempts,
+        reconnectBaseDelay: this.config.reconnectBaseDelay,
+        reconnectMaxDelay: this.config.reconnectMaxDelay,
+      },
+      {
+        onReconnect: () => this.connect(),
+        onMaxAttemptsReached: () => {
+          this.setStatus("error");
+          this.config.onError?.(new Error("Max reconnection attempts reached"));
+        },
+      }
+    );
   }
 
   // Getters
@@ -134,14 +133,14 @@ export class WebSocketClient {
   getMetrics(): WebSocketMetrics {
     const now = nowMs();
     return {
-      latency: this._latency,
-      reconnectCount: this._reconnectCount,
+      latency: this.heartbeat.getLatency(),
+      reconnectCount: this.reconnect.getReconnectCount(),
       connectedAt: this._connectedAt,
       uptime:
         this._connectedAt !== null && this._status === "connected"
           ? now - this._connectedAt
           : null,
-      lastError: this._lastError,
+      lastError: this.reconnect.getLastError(),
       status: this._status,
       messagesSent: this._messagesSent,
       messagesReceived: this._messagesReceived,
@@ -183,7 +182,7 @@ export class WebSocketClient {
       }
     }
 
-    this.manualDisconnect = false;
+    this.reconnect.setManualDisconnect(false);
     this.setStatus("connecting");
 
     try {
@@ -202,13 +201,13 @@ export class WebSocketClient {
       this.config.onError?.(
         error instanceof Error ? error : new Error(String(error)),
       );
-      this.scheduleReconnect();
+      this.reconnect.schedule();
     }
   }
 
   // Disconnect from WebSocket server
   disconnect(): void {
-    this.manualDisconnect = true;
+    this.reconnect.setManualDisconnect(true);
     this.cleanup();
     this.setStatus("disconnected");
   }
@@ -239,9 +238,7 @@ export class WebSocketClient {
 
     // If connecting, queue the message
     if (this.isConnecting) {
-      return new Promise((resolve) => {
-        this.messageQueue.push({ type, payload, resolve });
-      });
+      return this.messageQueue.enqueue(type, payload);
     }
 
     // Not connected and not connecting
@@ -266,27 +263,6 @@ export class WebSocketClient {
     } catch (error) {
       wsLogger.error("Send error:", error);
       return false;
-    }
-  }
-
-  // Process queued messages after connection established
-  private processMessageQueue(): void {
-    while (this.messageQueue.length > 0) {
-      const item = this.messageQueue.shift();
-      if (item) {
-        const success = this.sendImmediate(item.type, item.payload);
-        item.resolve(success);
-      }
-    }
-  }
-
-  // Clear message queue (on disconnect/error)
-  private clearMessageQueue(): void {
-    while (this.messageQueue.length > 0) {
-      const item = this.messageQueue.shift();
-      if (item) {
-        item.resolve(false);
-      }
     }
   }
 
@@ -386,16 +362,17 @@ export class WebSocketClient {
     this.clearConnectionTimeout();
     this.setStatus("connected");
     this._connectedAt = nowMs();
-    this.lastPongReceived = nowMs();
 
     // Process any queued messages
-    this.processMessageQueue();
+    this.messageQueue.processAll((type, payload) =>
+      this.sendImmediate(type, payload)
+    );
 
     // Start heartbeat after connection is stable
     // Small delay to ensure connection is fully established
     setTimeout(() => {
       if (this.isConnected) {
-        this.startHeartbeat();
+        this.heartbeat.start();
       }
     }, 100);
   }
@@ -404,14 +381,14 @@ export class WebSocketClient {
     wsLogger.debug("Disconnected:", event.code, event.reason);
 
     // Stop heartbeat and clear timeouts
-    this.stopHeartbeat();
+    this.heartbeat.stop();
     this.clearConnectionTimeout();
-    this.clearMessageQueue();
+    this.messageQueue.clearAll();
 
     // Only reconnect if not manually disconnected and not already cleaning up
-    if (!this.manualDisconnect && !this.isCleaningUp) {
+    if (!this.reconnect.isManuallyDisconnected() && !this.isCleaningUp) {
       this.setStatus("disconnected");
-      this.scheduleReconnect();
+      this.reconnect.schedule();
     }
   }
 
@@ -419,10 +396,7 @@ export class WebSocketClient {
     wsLogger.error("WebSocket error:", event);
 
     // Track the error in metrics
-    this._lastError = {
-      message: "WebSocket connection error",
-      timestamp: nowMs(),
-    };
+    this.reconnect.setError("WebSocket connection error");
 
     // Only set error status if we're not already disconnected/cleaning up
     if (!this.isCleaningUp && this._status !== "disconnected") {
@@ -447,13 +421,7 @@ export class WebSocketClient {
 
       // Handle pong response - calculate latency
       if (message.type === ("pong" as WebSocketEventType)) {
-        const now = nowMs();
-        this.lastPongReceived = now;
-        if (this._pingSentAt !== null) {
-          this._latency = now - this._pingSentAt;
-          wsLogger.debug("Latency:", this._latency, "ms");
-        }
-        this.clearPongTimeout();
+        this.heartbeat.handlePong();
         return;
       }
 
@@ -505,7 +473,7 @@ export class WebSocketClient {
         this.cleanupSocket();
         this.setStatus("error");
         this.config.onError?.(new Error("WebSocket connection timeout"));
-        this.scheduleReconnect();
+        this.reconnect.schedule();
       }
     }, this.config.connectionTimeout);
   }
@@ -515,89 +483,6 @@ export class WebSocketClient {
       clearTimeout(this.connectionTimeout);
       this.connectionTimeout = null;
     }
-  }
-
-  private startHeartbeat(): void {
-    this.stopHeartbeat();
-
-    this.heartbeatInterval = setInterval(() => {
-      // Double-check socket is truly ready before sending ping
-      if (this.isSocketReady()) {
-        this._pingSentAt = nowMs();
-        const sent = this.sendImmediate("ping", {});
-        if (sent) {
-          this.setPongTimeout();
-        }
-      } else {
-        // Socket not ready, stop heartbeat
-        this.stopHeartbeat();
-      }
-    }, this.config.heartbeatInterval);
-  }
-
-  private stopHeartbeat(): void {
-    if (this.heartbeatInterval) {
-      clearInterval(this.heartbeatInterval);
-      this.heartbeatInterval = null;
-    }
-    this.clearPongTimeout();
-  }
-
-  private setPongTimeout(): void {
-    this.clearPongTimeout();
-    this.pongTimeout = setTimeout(() => {
-      wsLogger.warn("Pong timeout - connection may be stale");
-
-      // Check if we've received any pong recently
-      const timeSinceLastPong = nowMs() - this.lastPongReceived;
-      if (timeSinceLastPong > this.config.pongTimeout * 2) {
-        wsLogger.warn("No recent pong - initiating reconnect");
-        // Clean up properly before reconnecting
-        this.cleanupSocket();
-        this.setStatus("disconnected");
-        this.scheduleReconnect();
-      }
-    }, this.config.pongTimeout);
-  }
-
-  private clearPongTimeout(): void {
-    if (this.pongTimeout) {
-      clearTimeout(this.pongTimeout);
-      this.pongTimeout = null;
-    }
-  }
-
-  private scheduleReconnect(): void {
-    if (this.manualDisconnect) return;
-    if (this.reconnectTimeout) return; // Already scheduled
-
-    if (this._reconnectCount >= this.config.reconnectAttempts) {
-      wsLogger.error("Max reconnection attempts reached");
-      this._lastError = {
-        message: "Max reconnection attempts reached",
-        timestamp: nowMs(),
-      };
-      this.setStatus("error");
-      this.config.onError?.(new Error("Max reconnection attempts reached"));
-      return;
-    }
-
-    // Exponential backoff with jitter
-    const delay = Math.min(
-      this.config.reconnectBaseDelay * 2 ** this._reconnectCount +
-        Math.random() * 1000,
-      this.config.reconnectMaxDelay,
-    );
-
-    wsLogger.info(
-      `Reconnecting in ${Math.round(delay)}ms (attempt ${this._reconnectCount + 1}/${this.config.reconnectAttempts})`,
-    );
-
-    this.reconnectTimeout = setTimeout(() => {
-      this.reconnectTimeout = null;
-      this._reconnectCount++;
-      this.connect();
-    }, delay);
   }
 
   private cleanupSocket(): void {
@@ -629,27 +514,23 @@ export class WebSocketClient {
 
     try {
       // Clear reconnect timeout
-      if (this.reconnectTimeout) {
-        clearTimeout(this.reconnectTimeout);
-        this.reconnectTimeout = null;
-      }
+      this.reconnect.cancel();
 
       // Clear connection timeout
       this.clearConnectionTimeout();
 
       // Stop heartbeat
-      this.stopHeartbeat();
+      this.heartbeat.stop();
 
       // Clear message queue
-      this.clearMessageQueue();
+      this.messageQueue.clearAll();
 
       // Close socket
       this.cleanupSocket();
 
-      // Reset metrics (keep reconnectCount for session tracking)
+      // Reset metrics
       this._connectedAt = null;
-      this._latency = null;
-      this._pingSentAt = null;
+      this.heartbeat.reset();
     } finally {
       this.isCleaningUp = false;
     }
@@ -660,22 +541,21 @@ export class WebSocketClient {
     this.disconnect();
     this.eventHandlers.clear();
     // Reset all metrics
-    this._reconnectCount = 0;
+    this.reconnect.reset();
     this._messagesSent = 0;
     this._messagesReceived = 0;
-    this._lastError = null;
   }
 
   // Force reconnect (useful for token refresh)
-  reconnect(): void {
+  forceReconnect(): void {
     this.cleanup();
-    this.manualDisconnect = false;
+    this.reconnect.setManualDisconnect(false);
     this.connect();
   }
 
   // Reset reconnect counter (useful after successful operations)
   resetReconnectCounter(): void {
-    this._reconnectCount = 0;
+    this.reconnect.resetCounter();
   }
 }
 

@@ -40,7 +40,7 @@ mock.module('../../services/tenant.service.js', () => ({
 // Mock WebSocket broadcast function
 const mockBroadcastToCompany = mock(() => {})
 
-mock.module('../../routes/ws.js', () => ({
+mock.module('../../routes/ws/index.js', () => ({
   broadcastToCompany: mockBroadcastToCompany,
 }))
 
