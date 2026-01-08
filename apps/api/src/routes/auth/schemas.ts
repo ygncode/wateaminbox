@@ -1,20 +1,24 @@
 import { z } from 'zod'
+import {
+  emailSchema,
+  passwordSchema,
+  tokenSchema,
+  optionalNameSchema,
+} from '../../lib/schemas.js'
+
+/**
+ * Auth route validation schemas
+ * Composes from atomic schemas in lib/schemas.ts for consistency
+ */
 
 export const registerSchema = z.object({
-  email: z.string().email('Invalid email address'),
-  password: z
-    .string()
-    .min(8, 'Password must be at least 8 characters')
-    .max(128, 'Password must be at most 128 characters'),
-  name: z
-    .string()
-    .min(1, 'Name is required')
-    .max(255, 'Name must be at most 255 characters')
-    .optional(),
+  email: emailSchema,
+  password: passwordSchema,
+  name: optionalNameSchema,
 })
 
 export const loginSchema = z.object({
-  email: z.string().email('Invalid email address'),
+  email: emailSchema,
   password: z.string().min(1, 'Password is required'),
   deviceInfo: z
     .object({
@@ -25,20 +29,17 @@ export const loginSchema = z.object({
 })
 
 export const verifyEmailSchema = z.object({
-  token: z.string().min(1, 'Token is required'),
+  token: tokenSchema,
 })
 
 export const forgotPasswordSchema = z.object({
-  email: z.string().email('Invalid email address'),
+  email: emailSchema,
 })
 
 export const resetPasswordSchema = z.object({
-  email: z.string().email('Invalid email address'),
-  token: z.string().min(1, 'Token is required'),
-  password: z
-    .string()
-    .min(8, 'Password must be at least 8 characters')
-    .max(128, 'Password must be at most 128 characters'),
+  email: emailSchema,
+  token: tokenSchema,
+  password: passwordSchema,
 })
 
 export const refreshTokenSchema = z.object({

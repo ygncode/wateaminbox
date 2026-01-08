@@ -161,7 +161,7 @@ const databaseMock = {
 
 mock.module('@whatsapp-web/database', () => databaseMock)
 
-mock.module('../routes/ws.js', () => ({
+mock.module('../../routes/ws/index.js', () => ({
   broadcastToCompany: mockBroadcastToCompany,
 }))
 
