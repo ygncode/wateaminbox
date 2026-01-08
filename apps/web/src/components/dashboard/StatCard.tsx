@@ -12,8 +12,7 @@ export interface StatCardProps {
 }
 
 const accentColors = {
-  green:
-    "text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/30",
+  green: "text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/30",
   blue: "text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30",
   orange:
     "text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-900/30",

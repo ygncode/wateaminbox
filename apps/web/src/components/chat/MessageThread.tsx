@@ -49,7 +49,7 @@ export function MessageThread({
   const retryMessage = useRetryMessage();
   const { resolvedTheme } = useTheme();
   const [retryingMessageId, setRetryingMessageId] = useState<string | null>(
-    null
+    null,
   );
   const [isAtBottom, setIsAtBottom] = useState(true);
   const prevItemsLengthRef = useRef(0);
@@ -62,7 +62,7 @@ export function MessageThread({
   const enterSelectionMode = useChatStore((state) => state.enterSelectionMode);
   const exitSelectionMode = useChatStore((state) => state.exitSelectionMode);
   const toggleMessageSelection = useChatStore(
-    (state) => state.toggleMessageSelection
+    (state) => state.toggleMessageSelection,
   );
 
   // Context menu state
@@ -123,12 +123,12 @@ export function MessageThread({
       if (item?.type === "date") return DATE_SEPARATOR_HEIGHT;
       return ESTIMATED_MESSAGE_HEIGHT;
     },
-    [items]
+    [items],
   );
 
   const getItemKey = useCallback(
     (index: number) => items[index]?.id || index.toString(),
-    [items]
+    [items],
   );
 
   // State for virtualizer total size to avoid flushSync warnings
@@ -225,7 +225,7 @@ export function MessageThread({
   useEffect(() => {
     if (highlightedMessageId && itemsRef.current.length > 0) {
       const messageIndex = itemsRef.current.findIndex(
-        (item) => item.type === "message" && item.id === highlightedMessageId
+        (item) => item.type === "message" && item.id === highlightedMessageId,
       );
       if (messageIndex !== -1) {
         virtualizerRef.current.scrollToIndex(messageIndex, {
@@ -256,7 +256,7 @@ export function MessageThread({
         },
       });
     },
-    [retryMessage]
+    [retryMessage],
   );
 
   // Handle background context menu (right-click on empty area)
@@ -278,7 +278,7 @@ export function MessageThread({
         toggleMessageSelection(messageId);
       }
     },
-    [selectionMode, toggleMessageSelection]
+    [selectionMode, toggleMessageSelection],
   );
 
   // ESC key to exit selection mode

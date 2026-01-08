@@ -1,26 +1,26 @@
-import { Edit2, Trash2 } from "lucide-react"
-import { useState } from "react"
-import { dayjs } from "@whatsapp-web/shared"
-import { Button } from "@/components/ui"
-import { cn } from "@/lib/utils"
+import { Edit2, Trash2 } from "lucide-react";
+import { useState } from "react";
+import { dayjs } from "@whatsapp-web/shared";
+import { Button } from "@/components/ui";
+import { cn } from "@/lib/utils";
 
 export interface NoteItemNote {
-  id: string
-  content: string | null
-  createdAt: string
-  updatedAt: string
-  authorName?: string
-  userId?: string
+  id: string;
+  content: string | null;
+  createdAt: string;
+  updatedAt: string;
+  authorName?: string;
+  userId?: string;
 }
 
 export interface NoteItemProps {
-  note: NoteItemNote
-  isOwner: boolean
-  isSystem?: boolean
-  onEdit: (noteId: string, content: string) => void
-  onDelete: (noteId: string) => void
-  isPending: boolean
-  showAuthor?: boolean
+  note: NoteItemNote;
+  isOwner: boolean;
+  isSystem?: boolean;
+  onEdit: (noteId: string, content: string) => void;
+  onDelete: (noteId: string) => void;
+  isPending: boolean;
+  showAuthor?: boolean;
 }
 
 /**
@@ -36,26 +36,26 @@ export function NoteItem({
   isPending,
   showAuthor = false,
 }: NoteItemProps) {
-  const [isEditing, setIsEditing] = useState(false)
-  const [editContent, setEditContent] = useState(note.content || "")
+  const [isEditing, setIsEditing] = useState(false);
+  const [editContent, setEditContent] = useState(note.content || "");
 
   const handleSave = () => {
     if (editContent.trim()) {
-      onEdit(note.id, editContent.trim())
-      setIsEditing(false)
+      onEdit(note.id, editContent.trim());
+      setIsEditing(false);
     }
-  }
+  };
 
   const handleCancel = () => {
-    setEditContent(note.content || "")
-    setIsEditing(false)
-  }
+    setEditContent(note.content || "");
+    setIsEditing(false);
+  };
 
   const formatDate = (dateStr: string) => {
-    const parsed = dayjs(dateStr)
-    const showYear = parsed.year() !== dayjs().year()
-    return showYear ? parsed.format("MMM D, YYYY") : parsed.format("MMM D")
-  }
+    const parsed = dayjs(dateStr);
+    const showYear = parsed.year() !== dayjs().year();
+    return showYear ? parsed.format("MMM D, YYYY") : parsed.format("MMM D");
+  };
 
   if (isEditing) {
     return (
@@ -86,7 +86,7 @@ export function NoteItem({
           </Button>
         </div>
       </div>
-    )
+    );
   }
 
   return (
@@ -140,5 +140,5 @@ export function NoteItem({
         )}
       </div>
     </div>
-  )
+  );
 }

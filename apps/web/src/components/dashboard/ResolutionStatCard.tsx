@@ -14,8 +14,7 @@ const colorClasses = {
   blue: "text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30",
   yellow:
     "text-yellow-600 dark:text-yellow-400 bg-yellow-50 dark:bg-yellow-900/30",
-  green:
-    "text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/30",
+  green: "text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/30",
   purple:
     "text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-900/30",
 };
