@@ -42,3 +42,7 @@ export {
   TooltipProvider,
   TooltipTrigger,
 } from "./tooltip";
+export {
+  AsyncDataRenderer,
+  type AsyncDataRendererProps,
+} from "./async-data-renderer";
