@@ -7,9 +7,14 @@
 import type {
   ConnectionStatus,
   EventHandler,
-  WebSocketClient,
   WebSocketEventType,
-} from "../../lib/websocket";
+} from "@whatsapp-web/shared";
+import type { Message, MessageStatus } from "@whatsapp-web/shared";
+import type { WebSocketClient, WebSocketMetrics } from "../../lib/websocket";
+import type { TypingIndicator } from "../../stores/chat-store";
+
+// Re-export WebSocketMetrics for consumers
+export type { WebSocketMetrics } from "../../lib/websocket";
 
 /**
  * Sync state for a connection
@@ -64,6 +69,9 @@ export interface WebSocketContextValue {
   sendTypingStart: (conversationId: string) => void;
   sendTypingStop: (conversationId: string) => void;
   sendMarkAsRead: (conversationId: string, messageIds: string[]) => void;
+
+  // Metrics
+  getMetrics: () => WebSocketMetrics | null;
 }
 
 /**
@@ -82,14 +90,16 @@ export interface EventHandlerDependencies {
   >;
   /** Chat store message adding function ref */
   addMessageRef: React.MutableRefObject<
-    (conversationId: string, message: any) => void
+    (conversationId: string, message: Message) => void
   >;
   /** Chat store message status updating function ref */
   updateMessageStatusRef: React.MutableRefObject<
-    (conversationId: string, messageId: string, status: string) => void
+    (conversationId: string, messageId: string, status: MessageStatus) => void
   >;
   /** Chat store typing indicator adding function ref */
-  addTypingIndicatorRef: React.MutableRefObject<(indicator: any) => void>;
+  addTypingIndicatorRef: React.MutableRefObject<
+    (indicator: TypingIndicator) => void
+  >;
   /** Chat store typing indicator removing function ref */
   removeTypingIndicatorRef: React.MutableRefObject<
     (conversationId: string, userId: string) => void

@@ -6,22 +6,27 @@
  */
 
 import type { QueryClient } from "@tanstack/react-query";
-import type { MessageStatus, PaginatedMessages } from "@whatsapp-web/shared";
-import { chatKeys } from "../../hooks/useChats";
-import { infiniteMessageKeys } from "../../hooks/useInfiniteMessages";
-import { markConversationAsRead } from "../../lib/api/conversations";
-import { useChatStore } from "../../stores/chat-store";
 import type {
   ConversationReadPayload,
-  ConversationUpdatedPayload,
+  MediaDownloadedPayload,
+  MediaDownloadFailedPayload,
+  Message,
   MessageDeletedPayload,
+  MessageStatus,
   MessageStatusPayload,
   NewMessagePayload,
+  PaginatedMessages,
+  PresencePayload,
   ProfilePicturePayload,
   SyncStatusPayload,
   TypingPayload,
-  WebSocketClient,
-} from "../../lib/websocket";
+} from "@whatsapp-web/shared";
+import { chatKeys } from "../../hooks/useChats";
+import { infiniteMessageKeys } from "../../hooks/useInfiniteMessages";
+import { markConversationAsRead } from "../../lib/api/conversations";
+import type { WebSocketClient } from "../../lib/websocket";
+import { wsLogger } from "../../lib/websocket-logger";
+import { useChatStore } from "../../stores/chat-store";
 import type { TypingIndicator } from "../../stores/chat-store";
 import type { SyncState } from "./types";
 
@@ -36,7 +41,7 @@ type InfiniteMessageData = {
  */
 interface HandlerCallbacks {
   addMessageRef: React.MutableRefObject<
-    (conversationId: string, message: any) => void
+    (conversationId: string, message: Message) => void
   >;
   updateMessageStatusRef: React.MutableRefObject<
     (conversationId: string, messageId: string, status: MessageStatus) => void
@@ -82,11 +87,12 @@ export function registerEventHandlers(
   } = callbacks;
 
   const unsubscribes: (() => void)[] = [];
+  const logger = wsLogger.child("EventHandlers");
 
   // New message handler
   unsubscribes.push(
     client.on<NewMessagePayload>("message:new", (payload) => {
-      console.log("[WebSocket] 💬 New message received in realtime:", {
+      logger.debug("New message received in realtime:", {
         messageId: payload.message.id,
         conversationId: payload.conversationId,
         content: payload.message.content?.substring(0, 50),
@@ -108,10 +114,7 @@ export function registerEventHandlers(
             page.messages.some((msg: any) => msg.id === payload.message.id),
           );
           if (messageExists) {
-            console.log(
-              "[WebSocket] ⚠️ Duplicate message ignored:",
-              payload.message.id,
-            );
+            logger.debug("Duplicate message ignored:", payload.message.id);
             return oldData;
           }
 
@@ -122,8 +125,8 @@ export function registerEventHandlers(
               ...newPages[0],
               messages: [payload.message, ...newPages[0].messages],
             };
-            console.log(
-              "[WebSocket] ✅ Message added to cache, total messages:",
+            logger.debug(
+              "Message added to cache, total messages:",
               newPages.reduce(
                 (sum: number, page: any) => sum + page.messages.length,
                 0,
@@ -153,10 +156,7 @@ export function registerEventHandlers(
       // Auto-mark as read if user was actively viewing this conversation
       if (shouldAutoMark) {
         markConversationAsRead(payload.conversationId).catch((error) => {
-          console.error(
-            "[WebSocket] Failed to auto-mark conversation as read:",
-            error,
-          );
+          logger.error("Failed to auto-mark conversation as read:", error);
         });
       }
     }),
@@ -165,7 +165,7 @@ export function registerEventHandlers(
   // Message status handler
   unsubscribes.push(
     client.on<MessageStatusPayload>("message:status", (payload) => {
-      console.log("[WebSocket] 📬 Message status update:", {
+      logger.debug("Message status update:", {
         conversationId: payload.conversationId,
         messageId: payload.messageId,
         status: payload.status,
@@ -226,17 +226,13 @@ export function registerEventHandlers(
     }),
   );
 
-  // Conversation updated handler (can be used by consumers)
-  unsubscribes.push(
-    client.on<ConversationUpdatedPayload>("conversation:updated", () => {
-      // This event can be handled by individual components via subscribe
-    }),
-  );
+  // Note: conversation:updated event is intentionally not handled here.
+  // Components can subscribe directly via the WebSocket client if needed.
 
   // Conversation read handler - invalidate chat list to update unread counts
   unsubscribes.push(
     client.on<ConversationReadPayload>("conversation:read", (payload) => {
-      console.log("[WebSocket] 📖 Conversation marked as read:", {
+      logger.debug("Conversation marked as read:", {
         contactId: payload.contactId,
         readBy: payload.readBy,
       });
@@ -320,12 +316,8 @@ export function registerEventHandlers(
 
   // Presence online handler
   unsubscribes.push(
-    client.on<{
-      jid: string;
-      isOnline: boolean;
-      lastSeen?: string;
-    }>("presence:online", (payload) => {
-      console.log("[WebSocket] ✅ Contact came online:", payload.jid);
+    client.on<PresencePayload>("presence:online", (payload) => {
+      logger.debug("Contact came online:", payload.jid);
 
       // Update chat list cache
       queryClientRef.current.setQueriesData(
@@ -352,13 +344,9 @@ export function registerEventHandlers(
 
   // Presence offline handler
   unsubscribes.push(
-    client.on<{
-      jid: string;
-      isOnline: boolean;
-      lastSeen?: string;
-    }>("presence:offline", (payload) => {
-      console.log(
-        "[WebSocket] 🔴 Contact went offline:",
+    client.on<PresencePayload>("presence:offline", (payload) => {
+      logger.debug(
+        "Contact went offline:",
         payload.jid,
         "last seen:",
         payload.lastSeen,
@@ -391,13 +379,8 @@ export function registerEventHandlers(
 
   // Media downloaded handler - update message with downloaded media URL
   unsubscribes.push(
-    client.on<{
-      messageId: string;
-      conversationId: string;
-      mediaUrl: string;
-      mediaSize?: number;
-    }>("media:downloaded", (payload) => {
-      console.log("[WebSocket] 📥 Media downloaded:", {
+    client.on<MediaDownloadedPayload>("media:downloaded", (payload) => {
+      logger.debug("Media downloaded:", {
         messageId: payload.messageId,
         conversationId: payload.conversationId,
         mediaUrl: payload.mediaUrl,
@@ -411,8 +394,8 @@ export function registerEventHandlers(
         queryKey,
         (oldData: InfiniteMessageData | undefined) => {
           if (!oldData) {
-            console.log(
-              "[WebSocket] ⚠️ No cached data for conversation:",
+            logger.debug(
+              "No cached data for conversation:",
               payload.conversationId,
             );
             return oldData;
@@ -424,8 +407,8 @@ export function registerEventHandlers(
             messages: page.messages.map((msg: any) => {
               if (msg.id === payload.messageId) {
                 messageFound = true;
-                console.log(
-                  "[WebSocket] ✅ Found message to update:",
+                logger.debug(
+                  "Found message to update:",
                   msg.id,
                   "old mediaUrl:",
                   msg.metadata?.mediaUrl,
@@ -446,10 +429,7 @@ export function registerEventHandlers(
           }));
 
           if (!messageFound) {
-            console.log(
-              "[WebSocket] ⚠️ Message not found in cache:",
-              payload.messageId,
-            );
+            logger.debug("Message not found in cache:", payload.messageId);
           }
 
           return {
@@ -469,12 +449,8 @@ export function registerEventHandlers(
 
   // Media download failed handler
   unsubscribes.push(
-    client.on<{
-      messageId: string;
-      conversationId: string;
-      error?: string;
-    }>("media:download_failed", (payload) => {
-      console.log("[WebSocket] ❌ Media download failed:", {
+    client.on<MediaDownloadFailedPayload>("media:download_failed", (payload) => {
+      logger.warn("Media download failed:", {
         messageId: payload.messageId,
         conversationId: payload.conversationId,
         error: payload.error,
@@ -486,8 +462,8 @@ export function registerEventHandlers(
         queryKey,
         (oldData: InfiniteMessageData | undefined) => {
           if (!oldData) {
-            console.log(
-              "[WebSocket] ⚠️ No cached data for conversation:",
+            logger.debug(
+              "No cached data for conversation:",
               payload.conversationId,
             );
             return oldData;
@@ -527,7 +503,7 @@ export function registerEventHandlers(
   // Sync event handlers
   unsubscribes.push(
     client.on<SyncStatusPayload>("sync:start", (payload) => {
-      console.log("[WebSocket] 🔄 Sync started", payload);
+      logger.info("Sync started", payload);
       const connectionId = payload.connectionId || "unknown";
       setSyncingConnections((prev) => {
         const newMap = new Map(prev);
@@ -543,7 +519,7 @@ export function registerEventHandlers(
 
   unsubscribes.push(
     client.on<SyncStatusPayload>("sync:progress", (payload) => {
-      console.log("[WebSocket] 🔄 Sync progress", payload);
+      logger.debug("Sync progress", payload);
       const connectionId = payload.connectionId || "unknown";
       setSyncingConnections((prev) => {
         const newMap = new Map(prev);
@@ -561,7 +537,7 @@ export function registerEventHandlers(
 
   unsubscribes.push(
     client.on<SyncStatusPayload>("sync:complete", (payload) => {
-      console.log("[WebSocket] ✅ Sync completed", payload);
+      logger.info("Sync completed", payload);
       const connectionId = payload.connectionId || "unknown";
       setSyncingConnections((prev) => {
         const newMap = new Map(prev);
@@ -578,11 +554,11 @@ export function registerEventHandlers(
   // Auth success handler (no-op, just acknowledges the event)
   unsubscribes.push(
     client.on("auth_success", () => {
-      console.log("[WebSocket] ✅ Authentication successful");
+      logger.info("Authentication successful");
     }),
   );
 
-  console.log("[WebSocket] ✅ Handlers registered:", unsubscribes.length);
+  logger.debug(`Handlers registered: ${unsubscribes.length}`);
 
   return unsubscribes;
 }

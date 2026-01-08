@@ -104,7 +104,9 @@ export interface TransformedContact {
  * @param contact - Raw contact from database
  * @returns Transformed contact for API response
  */
-export function transformContact(contact: RawContactFromDb): TransformedContact {
+export function transformContact(
+  contact: RawContactFromDb,
+): TransformedContact {
   return {
     id: contact.id,
     jid: contact.jid,
@@ -152,7 +154,9 @@ export function transformContact(contact: RawContactFromDb): TransformedContact 
  * @param contacts - Array of raw contacts from database
  * @returns Array of transformed contacts
  */
-export function transformContacts(contacts: RawContactFromDb[]): TransformedContact[] {
+export function transformContacts(
+  contacts: RawContactFromDb[],
+): TransformedContact[] {
   return contacts.map(transformContact);
 }
 

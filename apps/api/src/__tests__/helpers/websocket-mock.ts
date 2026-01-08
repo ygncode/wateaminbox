@@ -36,6 +36,9 @@ export class MockServerWebSocket {
     userId?: string
     companyId?: string
     authenticated?: boolean
+    // Heartbeat tracking (matches WSData interface in ws.ts)
+    lastPongReceived?: number
+    isAlive?: boolean
   } = {}
 
   private messageHandlers: ((data: string | Buffer) => void)[] = []
@@ -48,6 +51,15 @@ export class MockServerWebSocket {
       throw new Error('WebSocket is not open')
     }
     this.sentMessages.push(typeof data === 'string' ? data : data.toString())
+  }
+
+  // WebSocket protocol-level ping (used for heartbeat)
+  ping(): void {
+    if (this.readyState !== WebSocketReadyState.OPEN) {
+      throw new Error('WebSocket is not open')
+    }
+    // Protocol-level ping doesn't add to sentMessages
+    // But we can track it for testing purposes
   }
 
   close(code?: number, reason?: string): void {
@@ -116,14 +128,22 @@ export function createMockWebSocket(options?: {
   userId?: string
   companyId?: string
   authenticated?: boolean
+  lastPongReceived?: number
+  isAlive?: boolean
 }): MockServerWebSocket {
   const ws = new MockServerWebSocket()
+  const now = Date.now()
+  ws.data = {
+    userId: options?.userId || '',
+    companyId: options?.companyId || '',
+    authenticated: options?.authenticated || false,
+    lastPongReceived: options?.lastPongReceived ?? now,
+    isAlive: options?.isAlive ?? true,
+  }
   if (options?.authenticated) {
-    ws.data = {
-      userId: options.userId || 'test-user-id',
-      companyId: options.companyId || 'test-company-id',
-      authenticated: true,
-    }
+    ws.data.userId = options.userId || 'test-user-id'
+    ws.data.companyId = options.companyId || 'test-company-id'
+    ws.data.authenticated = true
   }
   return ws
 }

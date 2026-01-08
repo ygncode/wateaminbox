@@ -5,6 +5,7 @@
  */
 
 import { api } from "../../lib/api";
+import { wsLogger } from "../../lib/websocket-logger";
 import type { SyncState, SyncStatusResponse } from "./types";
 
 /**
@@ -41,13 +42,10 @@ export async function fetchSyncStatus(
     }
 
     // Always update state, even if empty, to clear stuck syncing states
-    console.log(
-      "[WebSocket] 🔄 Sync status fetched. Active syncs:",
-      newMap.size,
-    );
+    wsLogger.debug(`Sync status fetched. Active syncs: ${newMap.size}`);
     setSyncingConnections(newMap);
   } catch (error) {
-    console.warn("[WebSocket] ⚠️ Failed to fetch sync status:", error);
+    wsLogger.warn("Failed to fetch sync status:", error);
   }
 }
 

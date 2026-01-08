@@ -2,7 +2,10 @@ import { toDbDate, toISOString } from "@whatsapp-web/shared";
 import { Hono } from "hono";
 import { authMiddleware } from "../middleware/auth.js";
 import { getRouteContext } from "../middleware/context.js";
-import { extractPaginationParams, createPaginationMeta } from "../lib/route-helpers.js";
+import {
+  extractPaginationParams,
+  createPaginationMeta,
+} from "../lib/route-helpers.js";
 import { transformAuditLogs } from "../lib/data-transformers.js";
 import { tenantMiddleware } from "../middleware/tenant.js";
 import * as auditService from "../services/audit.service.js";
@@ -47,7 +50,10 @@ auditRoutes.get("/", async (c) => {
 
   return c.json({
     data: transformAuditLogs(result.logs),
-    pagination: createPaginationMeta(result.total, result.logs.length, { limit, offset }),
+    pagination: createPaginationMeta(result.total, result.logs.length, {
+      limit,
+      offset,
+    }),
   });
 });
 

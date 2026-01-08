@@ -21,6 +21,7 @@ import {
   resetWebSocketClient,
   type WebSocketClient,
   type WebSocketEventType,
+  type WebSocketMetrics,
 } from "../lib/websocket";
 import { useChatStore } from "../stores/chat-store";
 import { useWebSocketStore } from "../stores/websocket-store";
@@ -275,6 +276,11 @@ export function WebSocketProvider({
     [send],
   );
 
+  // Get connection metrics
+  const getMetrics = useCallback((): WebSocketMetrics | null => {
+    return wsClientRef.current?.getMetrics() ?? null;
+  }, []);
+
   // Store callbacks in refs to avoid dependency changes triggering reconnects
   const addMessageRef = useRef(addMessage);
   const updateMessageStatusRef = useRef(updateMessageStatus);
@@ -368,6 +374,7 @@ export function WebSocketProvider({
     sendTypingStart,
     sendTypingStop,
     sendMarkAsRead,
+    getMetrics,
   };
 
   return (
@@ -389,4 +396,16 @@ export function useWebSocketContext(): WebSocketContextValue {
 }
 
 // Re-export types
-export type { SyncState, WebSocketContextValue };
+export type { SyncState, WebSocketContextValue, WebSocketMetrics };
+
+/**
+ * Hook to access WebSocket connection metrics
+ * Returns null if no WebSocket client is available
+ */
+export function useWebSocketMetrics(): WebSocketMetrics | null {
+  const context = useContext(WebSocketContext);
+  if (!context) {
+    return null;
+  }
+  return context.getMetrics();
+}

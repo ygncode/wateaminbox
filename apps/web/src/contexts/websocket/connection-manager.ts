@@ -11,6 +11,7 @@ import {
   resetWebSocketClient,
   type WebSocketClient,
 } from "../../lib/websocket";
+import { wsLogger } from "../../lib/websocket-logger";
 
 /**
  * Initialize WebSocket client with current credentials
@@ -113,7 +114,7 @@ export function forceReconnectWithFreshCredentials(
   initializeFn: () => WebSocketClient,
   registerHandlersFn: (client: WebSocketClient) => void,
 ): void {
-  console.log("[WebSocket] 🔄 Force reconnecting with fresh credentials...");
+  wsLogger.info("Force reconnecting with fresh credentials...");
   wsClientRef.current?.disconnect();
   resetWebSocketClient();
   wsClientRef.current = null;
@@ -126,7 +127,7 @@ export function forceReconnectWithFreshCredentials(
       const client = initializeFn();
       // Re-register handlers on the new client
       registerHandlersFn(client);
-      console.log("[WebSocket] ✅ Handlers re-registered after reconnect");
+      wsLogger.debug("Handlers re-registered after reconnect");
       client.connect();
     }
   }, 100);
