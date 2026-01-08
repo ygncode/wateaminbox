@@ -6,9 +6,9 @@
  * standard rate limit headers.
  */
 
-import { Context, Next } from "hono";
-import type { RateLimitStore, RateLimitResult } from "../lib/rate-limit-store";
+import type { Context, Next } from "hono";
 import type { RateLimitTier } from "../config/rate-limit.config";
+import type { RateLimitResult, RateLimitStore } from "../lib/rate-limit-store";
 
 /**
  * Standard rate limit response headers
@@ -373,4 +373,51 @@ export function skipMethods(methods: string[]): (c: Context) => boolean {
   return (c: Context) => {
     return upperMethods.includes(c.req.method);
   };
+}
+
+/**
+ * No-op middleware that just continues to the next handler
+ * Used when rate limiting is disabled
+ */
+const noopMiddleware = async (_c: Context, next: Next) => await next();
+
+/**
+ * Factory function to create a conditional rate limiter
+ *
+ * Returns a rate limit middleware if rate limiting is enabled,
+ * otherwise returns a no-op middleware that passes through.
+ *
+ * This eliminates the need for conditional rate limiter creation in route files.
+ *
+ * @param options - Rate limit configuration options
+ * @param enabled - Whether rate limiting is enabled (typically from rateLimitConfig.enabled)
+ * @returns Hono middleware function
+ *
+ * @example
+ * ```ts
+ * import { createConditionalRateLimiter } from '../middleware/rate-limit.js'
+ * import { rateLimitConfig, rateLimitStore } from '../lib/rate-limit-store.js'
+ *
+ * // Replaces the verbose pattern:
+ * // const limiter: MiddlewareHandler = rateLimitConfig.enabled
+ * //   ? createRateLimitMiddleware({...})
+ * //   : async (_c, next) => await next();
+ *
+ * // With:
+ * const limiter = createConditionalRateLimiter({
+ *   store: rateLimitStore,
+ *   tier: rateLimitConfig.tiers.auth.login,
+ *   keyStrategy: 'ip',
+ *   keyPrefix: 'auth-login',
+ * }, rateLimitConfig.enabled)
+ * ```
+ */
+export function createConditionalRateLimiter(
+  options: RateLimitOptions,
+  enabled: boolean,
+) {
+  if (!enabled) {
+    return noopMiddleware;
+  }
+  return createRateLimitMiddleware(options);
 }

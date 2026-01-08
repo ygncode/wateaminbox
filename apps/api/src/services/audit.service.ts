@@ -79,7 +79,10 @@ export async function createAuditLog(
       .execute();
   } catch (error) {
     // Log error but don't throw - audit logging shouldn't break main functionality
-    logger.error({ err: formatError(error), action: input.action }, "Failed to create audit log");
+    logger.error(
+      { err: formatError(error), action: input.action },
+      "Failed to create audit log",
+    );
   }
 }
 

@@ -170,7 +170,10 @@ contactNotesRoutes.put("/:id/notes/shared/:noteId", async (c) => {
     existingNote.user_id !== user.id ||
     existingNote.author_name === "System"
   ) {
-    return forbidden(c, "Permission denied: Only the note author can edit this note");
+    return forbidden(
+      c,
+      "Permission denied: Only the note author can edit this note",
+    );
   }
 
   // Update the note
@@ -243,7 +246,10 @@ contactNotesRoutes.delete("/:id/notes/shared/:noteId", async (c) => {
     existingNote.user_id !== user.id ||
     existingNote.author_name === "System"
   ) {
-    return forbidden(c, "Permission denied: Only the note author can delete this note");
+    return forbidden(
+      c,
+      "Permission denied: Only the note author can delete this note",
+    );
   }
 
   // Delete the note

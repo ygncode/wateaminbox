@@ -97,7 +97,7 @@ export function getPartialRouteContext(c: Context): Partial<RouteContext> {
  * Type guard to check if a partial context has all required fields
  */
 export function isCompleteContext(
-  ctx: Partial<RouteContext>
+  ctx: Partial<RouteContext>,
 ): ctx is RouteContext {
   return (
     ctx.tenantDb !== undefined &&

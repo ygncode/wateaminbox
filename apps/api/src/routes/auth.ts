@@ -1,23 +1,29 @@
-import type { MiddlewareHandler } from "hono";
 import { Hono } from "hono";
 import { z } from "zod";
-import {
-  register,
-  login,
-  verifyEmail,
-  forgotPassword,
-  resetPassword,
-  refreshSession,
-  revokeSession,
-  revokeAllSessions,
-  getUserSessions,
-  AuthError,
-} from "../services/auth.service.js";
-import { validatePasswordStrength } from "../lib/password.js";
-import { authMiddleware } from "../middleware/auth.js";
-import { createRateLimitMiddleware } from "../middleware/rate-limit.js";
-import { rateLimitConfig, rateLimitStore } from "../lib/rate-limit-store.js";
+import { AuthError, badRequest, serverError } from "../lib/errors.js";
 import { createLogger, formatError } from "../lib/logger.js";
+import { validatePasswordStrength } from "../lib/password.js";
+import { rateLimitConfig, rateLimitStore } from "../lib/rate-limit-store.js";
+import {
+  createdWithMessage,
+  formatZodErrors,
+  successMessage,
+  successWithMessage,
+  validationError,
+} from "../lib/response.js";
+import { authMiddleware } from "../middleware/auth.js";
+import { createConditionalRateLimiter } from "../middleware/rate-limit.js";
+import {
+  forgotPassword,
+  getUserSessions,
+  login,
+  refreshSession,
+  register,
+  resetPassword,
+  revokeAllSessions,
+  revokeSession,
+  verifyEmail,
+} from "../services/auth.service.js";
 
 const logger = createLogger("AuthRoutes");
 
@@ -25,47 +31,50 @@ export const authRoutes = new Hono();
 
 // Endpoint-specific rate limiters for auth endpoints
 // These use IP-based keys since they're pre-authentication or token-based
-// Only apply rate limiting if enabled in config
 
 // Login rate limiter: 5 attempts per 15 minutes
-const loginRateLimiter: MiddlewareHandler = rateLimitConfig.enabled
-  ? createRateLimitMiddleware({
-      store: rateLimitStore,
-      tier: rateLimitConfig.tiers.auth.login,
-      keyStrategy: "ip",
-      keyPrefix: "auth-login",
-    })
-  : async (_c, next) => await next();
+const loginRateLimiter = createConditionalRateLimiter(
+  {
+    store: rateLimitStore,
+    tier: rateLimitConfig.tiers.auth.login,
+    keyStrategy: "ip",
+    keyPrefix: "auth-login",
+  },
+  rateLimitConfig.enabled,
+);
 
 // Register rate limiter: 3 attempts per hour
-const registerRateLimiter: MiddlewareHandler = rateLimitConfig.enabled
-  ? createRateLimitMiddleware({
-      store: rateLimitStore,
-      tier: rateLimitConfig.tiers.auth.register,
-      keyStrategy: "ip",
-      keyPrefix: "auth-register",
-    })
-  : async (_c, next) => await next();
+const registerRateLimiter = createConditionalRateLimiter(
+  {
+    store: rateLimitStore,
+    tier: rateLimitConfig.tiers.auth.register,
+    keyStrategy: "ip",
+    keyPrefix: "auth-register",
+  },
+  rateLimitConfig.enabled,
+);
 
 // Forgot password rate limiter: 3 attempts per hour
-const forgotPasswordRateLimiter: MiddlewareHandler = rateLimitConfig.enabled
-  ? createRateLimitMiddleware({
-      store: rateLimitStore,
-      tier: rateLimitConfig.tiers.auth.forgotPassword,
-      keyStrategy: "ip",
-      keyPrefix: "auth-forgot-password",
-    })
-  : async (_c, next) => await next();
+const forgotPasswordRateLimiter = createConditionalRateLimiter(
+  {
+    store: rateLimitStore,
+    tier: rateLimitConfig.tiers.auth.forgotPassword,
+    keyStrategy: "ip",
+    keyPrefix: "auth-forgot-password",
+  },
+  rateLimitConfig.enabled,
+);
 
 // Refresh token rate limiter: 20 attempts per minute
-const refreshRateLimiter: MiddlewareHandler = rateLimitConfig.enabled
-  ? createRateLimitMiddleware({
-      store: rateLimitStore,
-      tier: rateLimitConfig.tiers.auth.refresh,
-      keyStrategy: "ip",
-      keyPrefix: "auth-refresh",
-    })
-  : async (_c, next) => await next();
+const refreshRateLimiter = createConditionalRateLimiter(
+  {
+    store: rateLimitStore,
+    tier: rateLimitConfig.tiers.auth.refresh,
+    keyStrategy: "ip",
+    keyPrefix: "auth-refresh",
+  },
+  rateLimitConfig.enabled,
+);
 
 // Validation schemas
 const registerSchema = z.object({
@@ -139,28 +148,15 @@ authRoutes.post("/register", registerRateLimiter, async (c) => {
     const result = registerSchema.safeParse(body);
 
     if (!result.success) {
-      return c.json(
-        {
-          error: "Validation Error",
-          details: result.error.errors.map((e) => ({
-            field: e.path.join("."),
-            message: e.message,
-          })),
-        },
-        400,
-      );
+      return validationError(c, formatZodErrors(result.error.errors));
     }
 
     // Additional password strength validation
     const passwordCheck = validatePasswordStrength(result.data.password);
     if (!passwordCheck.isValid) {
-      return c.json(
-        {
-          error: "Validation Error",
-          details: [{ field: "password", message: passwordCheck.message }],
-        },
-        400,
-      );
+      return validationError(c, [
+        { field: "password", message: passwordCheck.message },
+      ]);
     }
 
     const { user } = await register(
@@ -169,10 +165,10 @@ authRoutes.post("/register", registerRateLimiter, async (c) => {
       result.data.name,
     );
 
-    return c.json(
+    return createdWithMessage(
+      c,
+      "Registration successful. Please check your email to verify your account.",
       {
-        message:
-          "Registration successful. Please check your email to verify your account.",
         user: {
           id: user.id,
           email: user.email,
@@ -181,7 +177,6 @@ authRoutes.post("/register", registerRateLimiter, async (c) => {
           createdAt: user.createdAt,
         },
       },
-      201,
     );
   } catch (error) {
     if (error instanceof AuthError) {
@@ -191,7 +186,7 @@ authRoutes.post("/register", registerRateLimiter, async (c) => {
       );
     }
     logger.error({ err: formatError(error) }, "Registration error");
-    return c.json({ error: "Internal Server Error" }, 500);
+    return serverError(c);
   }
 });
 
@@ -206,16 +201,7 @@ authRoutes.post("/login", loginRateLimiter, async (c) => {
     const result = loginSchema.safeParse(body);
 
     if (!result.success) {
-      return c.json(
-        {
-          error: "Validation Error",
-          details: result.error.errors.map((e) => ({
-            field: e.path.join("."),
-            message: e.message,
-          })),
-        },
-        400,
-      );
+      return validationError(c, formatZodErrors(result.error.errors));
     }
 
     const deviceInfo = {
@@ -229,8 +215,7 @@ authRoutes.post("/login", loginRateLimiter, async (c) => {
       deviceInfo,
     );
 
-    return c.json({
-      message: "Login successful",
+    return successWithMessage(c, "Login successful", {
       user: {
         id: user.id,
         email: user.email,
@@ -254,7 +239,7 @@ authRoutes.post("/login", loginRateLimiter, async (c) => {
       );
     }
     logger.error({ err: formatError(error) }, "Login error");
-    return c.json({ error: "Internal Server Error" }, 500);
+    return serverError(c);
   }
 });
 
@@ -269,7 +254,7 @@ authRoutes.post("/logout", authMiddleware, async (c) => {
 
     await revokeSession(session.id, user.id);
 
-    return c.json({ message: "Logged out successfully" });
+    return successMessage(c, "Logged out successfully");
   } catch (error) {
     if (error instanceof AuthError) {
       return c.json(
@@ -278,7 +263,7 @@ authRoutes.post("/logout", authMiddleware, async (c) => {
       );
     }
     logger.error({ err: formatError(error) }, "Logout error");
-    return c.json({ error: "Internal Server Error" }, 500);
+    return serverError(c);
   }
 });
 
@@ -292,23 +277,13 @@ authRoutes.post("/verify-email", authMiddleware, async (c) => {
     const result = verifyEmailSchema.safeParse(body);
 
     if (!result.success) {
-      return c.json(
-        {
-          error: "Validation Error",
-          details: result.error.errors.map((e) => ({
-            field: e.path.join("."),
-            message: e.message,
-          })),
-        },
-        400,
-      );
+      return validationError(c, formatZodErrors(result.error.errors));
     }
 
     const user = c.get("user");
     const updatedUser = await verifyEmail(user.id, result.data.token);
 
-    return c.json({
-      message: "Email verified successfully",
+    return successWithMessage(c, "Email verified successfully", {
       user: {
         id: updatedUser.id,
         email: updatedUser.email,
@@ -323,7 +298,7 @@ authRoutes.post("/verify-email", authMiddleware, async (c) => {
       );
     }
     logger.error({ err: formatError(error) }, "Email verification error");
-    return c.json({ error: "Internal Server Error" }, 500);
+    return serverError(c);
   }
 });
 
@@ -338,32 +313,23 @@ authRoutes.post("/forgot-password", forgotPasswordRateLimiter, async (c) => {
     const result = forgotPasswordSchema.safeParse(body);
 
     if (!result.success) {
-      return c.json(
-        {
-          error: "Validation Error",
-          details: result.error.errors.map((e) => ({
-            field: e.path.join("."),
-            message: e.message,
-          })),
-        },
-        400,
-      );
+      return validationError(c, formatZodErrors(result.error.errors));
     }
 
     await forgotPassword(result.data.email);
 
     // Always return success to prevent email enumeration
-    return c.json({
-      message:
-        "If an account exists with this email, you will receive a password reset link.",
-    });
+    return successMessage(
+      c,
+      "If an account exists with this email, you will receive a password reset link.",
+    );
   } catch (error) {
     logger.error({ err: formatError(error) }, "Forgot password error");
     // Always return success to prevent email enumeration
-    return c.json({
-      message:
-        "If an account exists with this email, you will receive a password reset link.",
-    });
+    return successMessage(
+      c,
+      "If an account exists with this email, you will receive a password reset link.",
+    );
   }
 });
 
@@ -377,28 +343,15 @@ authRoutes.post("/reset-password", async (c) => {
     const result = resetPasswordSchema.safeParse(body);
 
     if (!result.success) {
-      return c.json(
-        {
-          error: "Validation Error",
-          details: result.error.errors.map((e) => ({
-            field: e.path.join("."),
-            message: e.message,
-          })),
-        },
-        400,
-      );
+      return validationError(c, formatZodErrors(result.error.errors));
     }
 
     // Additional password strength validation
     const passwordCheck = validatePasswordStrength(result.data.password);
     if (!passwordCheck.isValid) {
-      return c.json(
-        {
-          error: "Validation Error",
-          details: [{ field: "password", message: passwordCheck.message }],
-        },
-        400,
-      );
+      return validationError(c, [
+        { field: "password", message: passwordCheck.message },
+      ]);
     }
 
     await resetPassword(
@@ -407,7 +360,7 @@ authRoutes.post("/reset-password", async (c) => {
       result.data.password,
     );
 
-    return c.json({ message: "Password reset successfully" });
+    return successMessage(c, "Password reset successfully");
   } catch (error) {
     if (error instanceof AuthError) {
       return c.json(
@@ -416,7 +369,7 @@ authRoutes.post("/reset-password", async (c) => {
       );
     }
     logger.error({ err: formatError(error) }, "Reset password error");
-    return c.json({ error: "Internal Server Error" }, 500);
+    return serverError(c);
   }
 });
 
@@ -431,22 +384,12 @@ authRoutes.post("/refresh", refreshRateLimiter, async (c) => {
     const result = refreshTokenSchema.safeParse(body);
 
     if (!result.success) {
-      return c.json(
-        {
-          error: "Validation Error",
-          details: result.error.errors.map((e) => ({
-            field: e.path.join("."),
-            message: e.message,
-          })),
-        },
-        400,
-      );
+      return validationError(c, formatZodErrors(result.error.errors));
     }
 
     const { tokens } = await refreshSession(result.data.refreshToken);
 
-    return c.json({
-      message: "Token refreshed successfully",
+    return successWithMessage(c, "Token refreshed successfully", {
       tokens: {
         accessToken: tokens.accessToken,
         refreshToken: tokens.refreshToken,
@@ -460,7 +403,7 @@ authRoutes.post("/refresh", refreshRateLimiter, async (c) => {
       );
     }
     logger.error({ err: formatError(error) }, "Token refresh error");
-    return c.json({ error: "Internal Server Error" }, 500);
+    return serverError(c);
   }
 });
 
@@ -489,7 +432,7 @@ authRoutes.get("/sessions", authMiddleware, async (c) => {
     });
   } catch (error) {
     logger.error({ err: formatError(error) }, "Get sessions error");
-    return c.json({ error: "Internal Server Error" }, 500);
+    return serverError(c);
   }
 });
 
@@ -504,18 +447,15 @@ authRoutes.delete("/sessions/:id", authMiddleware, async (c) => {
     const currentSession = c.get("session");
 
     if (sessionId === currentSession.id) {
-      return c.json(
-        {
-          error: "Bad Request",
-          message: "Cannot delete current session. Use /auth/logout instead.",
-        },
-        400,
+      return badRequest(
+        c,
+        "Cannot delete current session. Use /auth/logout instead.",
       );
     }
 
     await revokeSession(sessionId, user.id);
 
-    return c.json({ message: "Session deleted successfully" });
+    return successMessage(c, "Session deleted successfully");
   } catch (error) {
     if (error instanceof AuthError) {
       return c.json(
@@ -524,7 +464,7 @@ authRoutes.delete("/sessions/:id", authMiddleware, async (c) => {
       );
     }
     logger.error({ err: formatError(error) }, "Delete session error");
-    return c.json({ error: "Internal Server Error" }, 500);
+    return serverError(c);
   }
 });
 
@@ -539,13 +479,14 @@ authRoutes.delete("/sessions", authMiddleware, async (c) => {
 
     const { count } = await revokeAllSessions(user.id, currentSession.id);
 
-    return c.json({
-      message: `Successfully logged out of ${count} other session(s)`,
-      count,
-    });
+    return successWithMessage(
+      c,
+      `Successfully logged out of ${count} other session(s)`,
+      { count },
+    );
   } catch (error) {
     logger.error({ err: formatError(error) }, "Delete all sessions error");
-    return c.json({ error: "Internal Server Error" }, 500);
+    return serverError(c);
   }
 });
 
@@ -567,6 +508,6 @@ authRoutes.get("/me", authMiddleware, async (c) => {
     });
   } catch (error) {
     logger.error({ err: formatError(error) }, "Get user error");
-    return c.json({ error: "Internal Server Error" }, 500);
+    return serverError(c);
   }
 });

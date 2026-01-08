@@ -1,12 +1,11 @@
-import type { MiddlewareHandler } from "hono";
 import { Hono } from "hono";
-import { authMiddleware } from "../middleware/auth.js";
-import { tenantMiddleware, requirePermission } from "../middleware/tenant.js";
-import { PERMISSIONS } from "../services/permission.service.js";
-import { createRateLimitMiddleware } from "../middleware/rate-limit.js";
-import * as exportService from "../services/export.service.js";
-import { rateLimitConfig, rateLimitStore } from "../lib/rate-limit-store.js";
 import { createLogger, formatError } from "../lib/logger.js";
+import { rateLimitConfig, rateLimitStore } from "../lib/rate-limit-store.js";
+import { authMiddleware } from "../middleware/auth.js";
+import { createConditionalRateLimiter } from "../middleware/rate-limit.js";
+import { requirePermission, tenantMiddleware } from "../middleware/tenant.js";
+import * as exportService from "../services/export.service.js";
+import { PERMISSIONS } from "../services/permission.service.js";
 
 const logger = createLogger("ExportRoutes");
 
@@ -19,14 +18,15 @@ exportRoutes.use("/*", requirePermission(PERMISSIONS.CAN_EXPORT));
 
 // Export rate limiter: 10 requests per hour per user
 // Export operations are resource-intensive, so we use a strict limit
-const exportRateLimiter: MiddlewareHandler = rateLimitConfig.enabled
-  ? createRateLimitMiddleware({
-      store: rateLimitStore,
-      tier: rateLimitConfig.tiers.resource.export,
-      keyStrategy: "user",
-      keyPrefix: "resource-export",
-    })
-  : async (_c, next) => await next();
+const exportRateLimiter = createConditionalRateLimiter(
+  {
+    store: rateLimitStore,
+    tier: rateLimitConfig.tiers.resource.export,
+    keyStrategy: "user",
+    keyPrefix: "resource-export",
+  },
+  rateLimitConfig.enabled,
+);
 
 /**
  * GET /export/contacts - Export contacts

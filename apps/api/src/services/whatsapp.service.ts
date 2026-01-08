@@ -1,13 +1,18 @@
-import type { Kysely } from "kysely";
+import { db } from "@whatsapp-web/database";
 import { toDbDate } from "@whatsapp-web/shared";
-import type { TenantDatabase } from "./tenant.service.js";
+import type { Kysely } from "kysely";
+import { env } from "../lib/env.js";
 import {
-  publishSpawnCommand,
+  ConnectionNotFoundError,
+  InvalidConnectionStateError,
+  MaxConnectionsExceededError,
+} from "../lib/errors.js";
+import {
   publishKillCommand,
   publishSendMessage,
+  publishSpawnCommand,
 } from "../lib/nats/index.js";
-import { env } from "../lib/env.js";
-import { db } from "@whatsapp-web/database";
+import type { TenantDatabase } from "./tenant.service.js";
 
 // Default max connections if not specified in company settings
 const DEFAULT_MAX_CONNECTIONS = 5;
@@ -41,47 +46,13 @@ export interface SendMessageInput {
   mediaUrl?: string;
 }
 
-// Error classes
-export class ConnectionNotFoundError extends Error {
-  constructor(connectionId: string) {
-    super(`WhatsApp connection ${connectionId} not found`);
-    this.name = "ConnectionNotFoundError";
-    Object.setPrototypeOf(this, ConnectionNotFoundError.prototype);
-  }
-}
-
-export class ConnectionAlreadyExistsError extends Error {
-  constructor(companyId: string) {
-    super(`WhatsApp connection already exists for company ${companyId}`);
-    this.name = "ConnectionAlreadyExistsError";
-    Object.setPrototypeOf(this, ConnectionAlreadyExistsError.prototype);
-  }
-}
-
-export class InvalidConnectionStateError extends Error {
-  constructor(currentState: string, requiredState: string) {
-    super(`Connection is ${currentState}, but must be ${requiredState}`);
-    this.name = "InvalidConnectionStateError";
-    Object.setPrototypeOf(this, InvalidConnectionStateError.prototype);
-  }
-}
-
-export class MaxConnectionsExceededError extends Error {
-  code = "MAX_CONNECTIONS_EXCEEDED" as const;
-  currentCount: number;
-  maxAllowed: number;
-
-  constructor(currentCount: number, maxAllowed: number) {
-    super(
-      `Maximum WhatsApp connections exceeded. Current: ${currentCount}, Max allowed: ${maxAllowed}`,
-    );
-    this.name = "MaxConnectionsExceededError";
-    this.currentCount = currentCount;
-    this.maxAllowed = maxAllowed;
-    // Fix ES6 class inheritance issue with Error
-    Object.setPrototypeOf(this, MaxConnectionsExceededError.prototype);
-  }
-}
+// Re-export error classes for backward compatibility
+export {
+  ConnectionAlreadyExistsError,
+  ConnectionNotFoundError,
+  InvalidConnectionStateError,
+  MaxConnectionsExceededError,
+} from "../lib/errors.js";
 
 /**
  * Gets the maximum allowed WhatsApp connections for a company

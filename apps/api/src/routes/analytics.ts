@@ -1,11 +1,16 @@
-import type { MiddlewareHandler } from "hono";
+import {
+  now,
+  subtractDays,
+  toDate,
+  toDbDate,
+  toISOString,
+} from "@whatsapp-web/shared";
 import { Hono } from "hono";
-import { toDate, toDbDate, subtractDays, toISOString, now } from "@whatsapp-web/shared";
-import { authMiddleware } from "../middleware/auth.js";
-import { tenantMiddleware } from "../middleware/tenant.js";
-import { createRateLimitMiddleware } from "../middleware/rate-limit.js";
-import * as analyticsService from "../services/analytics.service.js";
 import { rateLimitConfig, rateLimitStore } from "../lib/rate-limit-store.js";
+import { authMiddleware } from "../middleware/auth.js";
+import { createConditionalRateLimiter } from "../middleware/rate-limit.js";
+import { tenantMiddleware } from "../middleware/tenant.js";
+import * as analyticsService from "../services/analytics.service.js";
 
 export const analyticsRoutes = new Hono();
 
@@ -15,14 +20,15 @@ analyticsRoutes.use("/*", tenantMiddleware());
 
 // Analytics rate limiter: 20 requests per minute per user
 // Analytics queries can be resource-intensive with aggregations
-const analyticsRateLimiter: MiddlewareHandler = rateLimitConfig.enabled
-  ? createRateLimitMiddleware({
-      store: rateLimitStore,
-      tier: rateLimitConfig.tiers.resource.analytics,
-      keyStrategy: "user",
-      keyPrefix: "resource-analytics",
-    })
-  : async (_c, next) => await next();
+const analyticsRateLimiter = createConditionalRateLimiter(
+  {
+    store: rateLimitStore,
+    tier: rateLimitConfig.tiers.resource.analytics,
+    keyStrategy: "user",
+    keyPrefix: "resource-analytics",
+  },
+  rateLimitConfig.enabled,
+);
 
 /**
  * GET /analytics/dashboard - Get dashboard overview stats

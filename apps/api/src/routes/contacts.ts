@@ -8,6 +8,7 @@ import {
 } from "@whatsapp-web/shared";
 import { authMiddleware } from "../middleware/auth.js";
 import { notFound, badRequest, serverError } from "../lib/errors.js";
+import { normalizePhoneNumber } from "../lib/schemas.js";
 import { tenantMiddleware } from "../middleware/tenant.js";
 import { getRouteContext } from "../middleware/context.js";
 import { getContactsWithLastMessage } from "../services/contact.service.js";
@@ -127,25 +128,33 @@ contactRoutes.get("/:id", async (c) => {
     .executeTakeFirst();
 
   // Fetch user names from public schema if we have an assignment
-  let assignment: {
-    assigned_to: string;
-    assigned_by: string;
-    assigned_at: Date;
-    assigned_to_name: string | null;
-    assigned_to_email: string | null;
-    assigned_by_name: string | null;
-    assigned_by_email: string | null;
-  } | undefined;
+  let assignment:
+    | {
+        assigned_to: string;
+        assigned_by: string;
+        assigned_at: Date;
+        assigned_to_name: string | null;
+        assigned_to_email: string | null;
+        assigned_by_name: string | null;
+        assigned_by_email: string | null;
+      }
+    | undefined;
 
   if (assignmentRecord) {
-    const userIds = [assignmentRecord.assigned_to, assignmentRecord.assigned_by].filter(Boolean);
-    const users = userIds.length > 0 ? await db
-      .selectFrom("users")
-      .select(["id", "name", "email"])
-      .where("id", "in", userIds)
-      .execute() : [];
+    const userIds = [
+      assignmentRecord.assigned_to,
+      assignmentRecord.assigned_by,
+    ].filter(Boolean);
+    const users =
+      userIds.length > 0
+        ? await db
+            .selectFrom("users")
+            .select(["id", "name", "email"])
+            .where("id", "in", userIds)
+            .execute()
+        : [];
 
-    const userMap = new Map(users.map(u => [u.id, u]));
+    const userMap = new Map(users.map((u) => [u.id, u]));
     const assignedToUser = userMap.get(assignmentRecord.assigned_to);
     const assignedByUser = userMap.get(assignmentRecord.assigned_by);
 
@@ -231,21 +240,13 @@ contactRoutes.post("/", async (c) => {
     return badRequest(c, "phoneNumber is required");
   }
 
-  // Normalize phone number
-  let cleanedPhone = phoneNumber.replace(/[^\d+]/g, "");
-  if (cleanedPhone.startsWith("+")) {
-    cleanedPhone = cleanedPhone.substring(1);
-  }
-  if (cleanedPhone.startsWith("00")) {
-    cleanedPhone = cleanedPhone.substring(2);
+  // Normalize and validate phone number
+  const phoneResult = normalizePhoneNumber(phoneNumber);
+  if (!phoneResult.isValid) {
+    return badRequest(c, phoneResult.error || "Invalid phone number");
   }
 
-  // Validate phone number length
-  if (cleanedPhone.length < 6 || cleanedPhone.length > 15) {
-    return badRequest(c, "Invalid phone number. Must be between 6 and 15 digits.");
-  }
-
-  const jid = `${cleanedPhone}@s.whatsapp.net`;
+  const { cleanedPhone, jid } = phoneResult;
 
   // Check if contact already exists
   const existingContact = await tenantDb

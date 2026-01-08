@@ -499,7 +499,10 @@ export async function publishCommand(
  * Format: WHATSAPP.commands.{companyId}.{connectionId}
  * Exported for testing purposes
  */
-export function buildCommandSubject(companyId: string, connectionId: string): string {
+export function buildCommandSubject(
+  companyId: string,
+  connectionId: string,
+): string {
   return `${NATS_SUBJECTS.WHATSAPP_COMMANDS}.${companyId}.${connectionId}`;
 }
 
@@ -874,10 +877,7 @@ export async function subscribe(
   // Create an ephemeral push consumer with a unique deliver subject
   // This allows receiving messages published to JetStream
   const inbox =
-    "_INBOX." +
-    nowMs() +
-    "." +
-    Math.random().toString(36).substring(7);
+    "_INBOX." + nowMs() + "." + Math.random().toString(36).substring(7);
 
   const subscription = await js.subscribe(subject, {
     config: {

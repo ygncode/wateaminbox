@@ -354,7 +354,9 @@ export async function exportConversation(
       tags: c.tags || "",
       assigned_to: c.assigned_to,
       created_at: toISOString(c.created_at),
-      last_message_at: c.last_message_at ? toISOString(c.last_message_at) : null,
+      last_message_at: c.last_message_at
+        ? toISOString(c.last_message_at)
+        : null,
     },
     messages: messages.reverse(), // Chronological order
   };
