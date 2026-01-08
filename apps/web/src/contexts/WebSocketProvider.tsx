@@ -1,8 +1,13 @@
+/**
+ * WebSocket Provider
+ *
+ * Provides WebSocket connectivity and real-time event handling for the application.
+ * Uses extracted modules for event handling, sync management, and connection lifecycle.
+ */
+
 import { useQueryClient } from "@tanstack/react-query";
-import type { PaginatedMessages } from "@whatsapp-web/shared";
 import {
   createContext,
-  type ReactNode,
   useCallback,
   useContext,
   useEffect,
@@ -10,86 +15,30 @@ import {
   useState,
 } from "react";
 import { useAuth } from "./auth-context";
-import { chatKeys } from "../hooks/useChats";
-import { infiniteMessageKeys } from "../hooks/useInfiniteMessages";
-import { api, getAccessToken, getCompanyId } from "../lib/api";
+import { getAccessToken } from "../lib/api";
 import {
-  type ConnectionStatus,
-  type ConversationReadPayload,
-  type ConversationUpdatedPayload,
   type EventHandler,
-  getWebSocketClient,
-  type MessageDeletedPayload,
-  type MessageStatusPayload,
-  type NewMessagePayload,
-  type ProfilePicturePayload,
   resetWebSocketClient,
-  type SyncStatusPayload,
-  type TypingPayload,
   type WebSocketClient,
   type WebSocketEventType,
 } from "../lib/websocket";
-import { type TypingIndicator, useChatStore } from "../stores/chat-store";
+import { useChatStore } from "../stores/chat-store";
 import { useWebSocketStore } from "../stores/websocket-store";
 
-// Type for the /api/whatsapp/sync-status response
-interface SyncStatusResponse {
-  syncing: boolean;
-  connections: Array<{
-    id: string;
-    name: string | null;
-    phone_number: string | null;
-    sync_status: string | null;
-    updated_at: string | null;
-  }>;
-}
-
-// Sync state type
-export interface SyncState {
-  connectionId: string;
-  conversations: number;
-  startedAt: Date;
-}
-
-// Context value type
-interface WebSocketContextValue {
-  // Connection state
-  status: ConnectionStatus;
-  isConnected: boolean;
-  isConnecting: boolean;
-  error: string | null;
-
-  // Sync state
-  syncingConnections: Map<string, SyncState>;
-  clearSyncingConnections: () => void;
-
-  // Connection methods
-  connect: () => void;
-  disconnect: () => void;
-  reconnect: () => void;
-
-  // Messaging methods
-  send: <T>(type: string, payload: T) => boolean;
-  subscribe: <T>(
-    event: WebSocketEventType,
-    handler: EventHandler<T>,
-  ) => () => void;
-
-  // Convenience methods
-  sendTypingStart: (conversationId: string) => void;
-  sendTypingStop: (conversationId: string) => void;
-  sendMarkAsRead: (conversationId: string, messageIds: string[]) => void;
-}
-
-const WebSocketContext = createContext<WebSocketContextValue | null>(null);
+// Import from extracted modules
+import {
+  type SyncState,
+  type WebSocketContextValue,
+  type WebSocketProviderProps,
+  registerEventHandlers,
+  fetchSyncStatus as fetchSyncStatusFn,
+  initializeClient as initializeClientFn,
+} from "./websocket";
 
 // Typing timeout in milliseconds
 const TYPING_TIMEOUT = 5000;
 
-interface WebSocketProviderProps {
-  children: ReactNode;
-  autoConnect?: boolean;
-}
+const WebSocketContext = createContext<WebSocketContextValue | null>(null);
 
 export function WebSocketProvider({
   children,
@@ -108,11 +57,9 @@ export function WebSocketProvider({
   >(null);
 
   // Track previous company ID to detect changes
-  // This is needed because WebSocket URL includes company ID for routing events
   const previousCompanyIdRef = useRef<string | null>(null);
 
   // Get current company ID from auth context
-  // When this changes (e.g., user creates first company), we need to reconnect WebSocket
   const { currentCompanyId } = useAuth();
 
   // Sync state - track which connections are currently syncing
@@ -144,32 +91,7 @@ export function WebSocketProvider({
 
   // Initialize WebSocket client
   const initializeClient = useCallback(() => {
-    if (!wsClientRef.current) {
-      const token = getAccessToken();
-      const companyId = getCompanyId();
-
-      // Build WebSocket URL with token and company ID
-      const baseUrl = import.meta.env.VITE_WS_URL || "ws://localhost:3000/ws";
-      const wsUrl = new URL(baseUrl);
-      if (token) {
-        wsUrl.searchParams.set("token", token);
-      }
-      if (companyId) {
-        wsUrl.searchParams.set("company", companyId);
-      }
-
-      wsClientRef.current = getWebSocketClient({
-        url: wsUrl.toString(),
-        token: token ?? undefined,
-        onStatusChange: (newStatus) => {
-          setStatus(newStatus);
-        },
-        onError: (err) => {
-          setError(err.message);
-        },
-      });
-    }
-    return wsClientRef.current;
+    return initializeClientFn(wsClientRef, setStatus, setError);
   }, [setStatus, setError]);
 
   // Helper to manage typing timeout
@@ -227,39 +149,22 @@ export function WebSocketProvider({
   // Reconnect (disconnect then connect)
   const reconnect = useCallback(() => {
     disconnect();
-    // Small delay before reconnecting
     setTimeout(() => {
       connect();
     }, 100);
   }, [connect, disconnect]);
 
-  /**
-   * Force reconnect with fresh credentials
-   *
-   * Unlike regular reconnect(), this completely destroys the existing WebSocket client
-   * and creates a new one. This is necessary when credentials change (e.g., company ID)
-   * because the WebSocket URL includes the company ID for server-side event routing.
-   *
-   * Flow:
-   * 1. Disconnect existing connection
-   * 2. Reset the singleton client instance
-   * 3. Clear local refs to force reinitialization
-   * 4. Create new client with fresh credentials from localStorage
-   * 5. Re-register all event handlers on the new client
-   */
+  // Force reconnect with fresh credentials
   const forceReconnectWithFreshCredentials = useCallback(() => {
     console.log("[WebSocket] 🔄 Force reconnecting with fresh credentials...");
     wsClientRef.current?.disconnect();
     resetWebSocketClient();
     wsClientRef.current = null;
-    // Don't reset isInitializedRef here - we'll manually re-register handlers
 
-    // Small delay before reconnecting to allow cleanup
     setTimeout(() => {
       const token = getAccessToken();
       if (token) {
         const client = initializeClient();
-        // Re-register handlers on the new client using ref
         if (registerHandlersRef.current) {
           registerHandlersRef.current(client);
           console.log("[WebSocket] ✅ Handlers re-registered after reconnect");
@@ -269,85 +174,30 @@ export function WebSocketProvider({
     }, 100);
   }, [initializeClient]);
 
-  /**
-   * Clear syncing connections state
-   * Used by SyncingOverlay's "Continue anyway" button
-   */
+  // Clear syncing connections state
   const clearSyncingConnections = useCallback(() => {
     setSyncingConnections(new Map());
   }, []);
 
-  /**
-   * Fetch sync status from API
-   *
-   * This populates syncingConnections state from the database.
-   * We call this on mount and on reconnect to ensure our local state matches the server.
-   */
+  // Fetch sync status from API
   const fetchSyncStatus = useCallback(async () => {
-    if (!currentCompanyId) return;
-
-    try {
-      const response = await api.get<SyncStatusResponse>(
-        "/whatsapp/sync-status",
-      );
-
-      // Populate syncingConnections from API response
-      const newMap = new Map<string, SyncState>();
-      for (const connection of response.connections) {
-        if (connection.sync_status === "syncing") {
-          newMap.set(connection.id, {
-            connectionId: connection.id,
-            conversations: 0, // We don't have progress from DB, start at 0
-            // Use updated_at from DB as sync start time, fallback to now
-            startedAt: connection.updated_at
-              ? new Date(connection.updated_at)
-              : new Date(),
-          });
-        }
-      }
-
-      // Always update state, even if empty, to clear stuck syncing states
-      console.log(
-        "[WebSocket] 🔄 Sync status fetched. Active syncs:",
-        newMap.size,
-      );
-      setSyncingConnections(newMap);
-    } catch (error) {
-      console.warn("[WebSocket] ⚠️ Failed to fetch sync status:", error);
-    }
+    await fetchSyncStatusFn(currentCompanyId, setSyncingConnections);
   }, [currentCompanyId]);
 
-  /**
-   * Fetch initial sync status on mount
-   */
+  // Fetch initial sync status on mount
   useEffect(() => {
     fetchSyncStatus();
   }, [fetchSyncStatus]);
 
-  /**
-   * Re-fetch sync status on reconnect
-   * This handles cases where we missed a "sync:complete" event while disconnected
-   */
+  // Re-fetch sync status on reconnect
   useEffect(() => {
     if (status === "connected") {
       fetchSyncStatus();
     }
   }, [status, fetchSyncStatus]);
 
-  /**
-   * Reconnect WebSocket when company ID changes
-   *
-   * This handles the case where:
-   * 1. User logs in without a company → WebSocket connects without company ID
-   * 2. User creates their first company → company ID is set
-   * 3. WebSocket needs to reconnect WITH the company ID so the server can route
-   *    events (like QR codes) to the correct client
-   *
-   * Without this, users would see "Pending" forever when creating their first
-   * WhatsApp connection because QR code events wouldn't reach their WebSocket.
-   */
+  // Reconnect WebSocket when company ID changes
   useEffect(() => {
-    // Skip if company ID hasn't changed
     if (previousCompanyIdRef.current === currentCompanyId) {
       return;
     }
@@ -355,15 +205,11 @@ export function WebSocketProvider({
     const previousCompanyId = previousCompanyIdRef.current;
     previousCompanyIdRef.current = currentCompanyId;
 
-    // Only reconnect if WebSocket is already connected.
-    // If it's still connecting/disconnected, the initial connection will use
-    // the correct company ID from localStorage (via getCompanyId()).
-    // This prevents unnecessary reconnects during initial auth context loading.
     if (status !== "connected") {
       return;
     }
 
-    // Case 1: Company switched to a different one
+    // Company switched to a different one
     if (
       previousCompanyId !== null &&
       currentCompanyId !== null &&
@@ -376,7 +222,7 @@ export function WebSocketProvider({
       forceReconnectWithFreshCredentials();
     }
 
-    // Case 2: First company created (was null, now has value)
+    // First company created (was null, now has value)
     if (previousCompanyId === null && currentCompanyId !== null) {
       console.log(
         "[WebSocket] Company ID set, reconnecting:",
@@ -447,530 +293,25 @@ export function WebSocketProvider({
     clearTypingTimeoutRef.current = clearTypingTimeout;
   });
 
-  /**
-   * Register all WebSocket event handlers on a client
-   *
-   * This function is called:
-   * 1. On initial mount by the setup useEffect
-   * 2. After forceReconnectWithFreshCredentials creates a new client
-   *
-   * It first cleans up any existing handlers, then registers fresh ones.
-   */
+  // Register all WebSocket event handlers on a client
   const registerHandlers = useCallback((client: WebSocketClient) => {
     // Clean up any existing handlers first
     handlerUnsubscribesRef.current.forEach((unsub) => unsub());
     handlerUnsubscribesRef.current = [];
 
-    // New message handler
-    const unsubNewMessage = client.on<NewMessagePayload>(
-      "message:new",
-      (payload) => {
-        console.log("[WebSocket] 💬 New message received in realtime:", {
-          messageId: payload.message.id,
-          conversationId: payload.conversationId,
-          content: payload.message.content?.substring(0, 50),
-          senderType: payload.message.senderType,
-        });
-
-        // Update Zustand store (for legacy compatibility)
-        addMessageRef.current(payload.conversationId, payload.message);
-
-        // Update TanStack Query cache for real-time message updates
-        const queryKey = infiniteMessageKeys.list(payload.conversationId);
-        queryClientRef.current.setQueryData<{
-          pages: PaginatedMessages[];
-          pageParams: (string | undefined)[];
-        }>(queryKey, (oldData) => {
-          if (!oldData) return oldData;
-
-          // Check if message already exists to avoid duplicates
-          const messageExists = oldData.pages.some((page) =>
-            page.messages.some((msg) => msg.id === payload.message.id),
-          );
-          if (messageExists) {
-            console.log(
-              "[WebSocket] ⚠️ Duplicate message ignored:",
-              payload.message.id,
-            );
-            return oldData;
-          }
-
-          // Add the new message to the first page (most recent)
-          const newPages = [...oldData.pages];
-          if (newPages.length > 0) {
-            newPages[0] = {
-              ...newPages[0],
-              messages: [payload.message, ...newPages[0].messages],
-            };
-            console.log(
-              "[WebSocket] ✅ Message added to cache, total messages:",
-              newPages.reduce((sum, page) => sum + page.messages.length, 0),
-            );
-          }
-
-          return {
-            ...oldData,
-            pages: newPages,
-          };
-        });
-
-        // Invalidate chat list queries to update unread count badges
-        // This ensures the sidebar shows updated unread counts when new messages arrive
-        queryClientRef.current.invalidateQueries({
-          queryKey: chatKeys.lists(),
-        });
+    // Register all handlers using extracted module
+    handlerUnsubscribesRef.current = registerEventHandlers(
+      client,
+      queryClientRef,
+      setSyncingConnections,
+      {
+        addMessageRef,
+        updateMessageStatusRef,
+        addTypingIndicatorRef,
+        removeTypingIndicatorRef,
+        setTypingTimeoutRef,
+        clearTypingTimeoutRef,
       },
-    );
-
-    // Message status handler
-    const unsubMessageStatus = client.on<MessageStatusPayload>(
-      "message:status",
-      (payload) => {
-        console.log("[WebSocket] 📬 Message status update:", {
-          conversationId: payload.conversationId,
-          messageId: payload.messageId,
-          status: payload.status,
-        });
-
-        // Update Zustand store (for legacy compatibility)
-        updateMessageStatusRef.current(
-          payload.conversationId,
-          payload.messageId,
-          payload.status,
-        );
-
-        // Update TanStack Query cache for real-time status updates
-        const queryKey = infiniteMessageKeys.list(payload.conversationId);
-        queryClientRef.current.setQueryData<{
-          pages: PaginatedMessages[];
-          pageParams: (string | undefined)[];
-        }>(queryKey, (oldData) => {
-          if (!oldData) return oldData;
-
-          // Find and update the message status in all pages
-          const newPages = oldData.pages.map((page) => ({
-            ...page,
-            messages: page.messages.map((msg) =>
-              msg.id === payload.messageId
-                ? { ...msg, status: payload.status }
-                : msg,
-            ),
-          }));
-
-          return {
-            ...oldData,
-            pages: newPages,
-          };
-        });
-      },
-    );
-
-    // Typing start handler
-    const unsubTypingStart = client.on<TypingPayload>(
-      "typing:start",
-      (payload) => {
-        const indicator: TypingIndicator = {
-          conversationId: payload.conversationId,
-          userId: payload.userId,
-          userName: payload.userName,
-          startedAt: new Date(),
-        };
-        addTypingIndicatorRef.current(indicator);
-        setTypingTimeoutRef.current(payload.conversationId, payload.userId);
-      },
-    );
-
-    // Typing stop handler
-    const unsubTypingStop = client.on<TypingPayload>(
-      "typing:stop",
-      (payload) => {
-        removeTypingIndicatorRef.current(
-          payload.conversationId,
-          payload.userId,
-        );
-        clearTypingTimeoutRef.current(payload.conversationId, payload.userId);
-      },
-    );
-
-    // Conversation updated handler (can be used by consumers)
-    const unsubConversationUpdated = client.on<ConversationUpdatedPayload>(
-      "conversation:updated",
-      () => {
-        // This event can be handled by individual components via subscribe
-      },
-    );
-
-    // Conversation read handler - invalidate chat list to update unread counts
-    const unsubConversationRead = client.on<ConversationReadPayload>(
-      "conversation:read",
-      (payload) => {
-        console.log("[WebSocket] 📖 Conversation marked as read:", {
-          contactId: payload.contactId,
-          readBy: payload.readBy,
-        });
-
-        // Invalidate chat list queries to update unread count badges
-        queryClientRef.current.invalidateQueries({
-          queryKey: chatKeys.lists(),
-        });
-      },
-    );
-
-    // Profile picture handler
-    const unsubProfilePicture = client.on<ProfilePicturePayload>(
-      "contact:profile_picture",
-      (payload) => {
-        // Update chat list cache
-        queryClientRef.current.setQueriesData(
-          { queryKey: chatKeys.lists() },
-          (oldData: any) => {
-            if (!oldData) return oldData;
-            // oldData is Chat[]
-            return oldData.map((chat: any) => {
-              // Check if this chat corresponds to the contact JID
-              if (chat.contact?.jid === payload.jid) {
-                return {
-                  ...chat,
-                  contact: {
-                    ...chat.contact,
-                    avatarUrl: payload.profilePictureUrl,
-                  },
-                };
-              }
-              return chat;
-            });
-          },
-        );
-
-        // Update individual contact details cache
-        queryClientRef.current
-          .getQueriesData({ queryKey: ["contact"] })
-          .forEach(([queryKey, oldData]: [any, any]) => {
-            if (oldData && oldData.jid === payload.jid) {
-              queryClientRef.current.setQueryData(queryKey, {
-                ...oldData,
-                profilePictureUrl: payload.profilePictureUrl,
-              });
-            }
-          });
-      },
-    );
-
-    // Message deleted handler
-    const unsubMessageDeleted = client.on<MessageDeletedPayload>(
-      "message:deleted",
-      (payload) => {
-        // Update TanStack Query cache to mark the message as deleted
-        const queryKey = infiniteMessageKeys.list(payload.conversationId);
-        queryClientRef.current.setQueryData<{
-          pages: PaginatedMessages[];
-          pageParams: (string | undefined)[];
-        }>(queryKey, (oldData) => {
-          if (!oldData) return oldData;
-
-          // Find and update the message in all pages
-          const newPages = oldData.pages.map((page) => ({
-            ...page,
-            messages: page.messages.map((msg) =>
-              msg.id === payload.messageId
-                ? {
-                    ...msg,
-                    deleted_by_sender: true,
-                    deleted_at: new Date().toISOString(),
-                  }
-                : msg,
-            ),
-          }));
-
-          return {
-            ...oldData,
-            pages: newPages,
-          };
-        });
-      },
-    );
-
-    // Presence online handler
-    const unsubPresenceOnline = client.on<{
-      jid: string;
-      isOnline: boolean;
-      lastSeen?: string;
-    }>("presence:online", (payload) => {
-      console.log("[WebSocket] ✅ Contact came online:", payload.jid);
-
-      // Update chat list cache
-      queryClientRef.current.setQueriesData(
-        { queryKey: chatKeys.lists() },
-        (oldData: any) => {
-          if (!oldData) return oldData;
-          return oldData.map((chat: any) => {
-            if (chat.contact?.jid === payload.jid) {
-              return {
-                ...chat,
-                contact: {
-                  ...chat.contact,
-                  isOnline: true,
-                  lastSeen: null,
-                },
-              };
-            }
-            return chat;
-          });
-        },
-      );
-    });
-
-    // Presence offline handler
-    const unsubPresenceOffline = client.on<{
-      jid: string;
-      isOnline: boolean;
-      lastSeen?: string;
-    }>("presence:offline", (payload) => {
-      console.log(
-        "[WebSocket] 🔴 Contact went offline:",
-        payload.jid,
-        "last seen:",
-        payload.lastSeen,
-      );
-
-      // Update chat list cache
-      queryClientRef.current.setQueriesData(
-        { queryKey: chatKeys.lists() },
-        (oldData: any) => {
-          if (!oldData) return oldData;
-          return oldData.map((chat: any) => {
-            if (chat.contact?.jid === payload.jid) {
-              return {
-                ...chat,
-                contact: {
-                  ...chat.contact,
-                  isOnline: false,
-                  lastSeen: payload.lastSeen
-                    ? new Date(payload.lastSeen)
-                    : undefined,
-                },
-              };
-            }
-            return chat;
-          });
-        },
-      );
-    });
-
-    // Media downloaded handler - update message with downloaded media URL
-    const unsubMediaDownloaded = client.on<{
-      messageId: string;
-      conversationId: string;
-      mediaUrl: string;
-      mediaSize?: number;
-    }>("media:downloaded", (payload) => {
-      console.log("[WebSocket] 📥 Media downloaded:", {
-        messageId: payload.messageId,
-        conversationId: payload.conversationId,
-        mediaUrl: payload.mediaUrl,
-      });
-
-      // Update TanStack Query cache with downloaded media
-      const queryKey = infiniteMessageKeys.list(payload.conversationId);
-      let messageFound = false;
-
-      queryClientRef.current.setQueryData<{
-        pages: PaginatedMessages[];
-        pageParams: (string | undefined)[];
-      }>(queryKey, (oldData) => {
-        if (!oldData) {
-          console.log(
-            "[WebSocket] ⚠️ No cached data for conversation:",
-            payload.conversationId,
-          );
-          return oldData;
-        }
-
-        // Find and update the message with the downloaded media URL
-        const newPages = oldData.pages.map((page) => ({
-          ...page,
-          messages: page.messages.map((msg) => {
-            if (msg.id === payload.messageId) {
-              messageFound = true;
-              console.log(
-                "[WebSocket] ✅ Found message to update:",
-                msg.id,
-                "old mediaUrl:",
-                msg.metadata?.mediaUrl,
-              );
-              return {
-                ...msg,
-                metadata: {
-                  ...msg.metadata,
-                  mediaUrl: payload.mediaUrl,
-                  mediaPending: false,
-                  mediaDownloadStatus: "completed" as const,
-                  fileSize: payload.mediaSize || msg.metadata?.fileSize,
-                },
-              };
-            }
-            return msg;
-          }),
-        }));
-
-        if (!messageFound) {
-          console.log(
-            "[WebSocket] ⚠️ Message not found in cache:",
-            payload.messageId,
-          );
-        }
-
-        return {
-          ...oldData,
-          pages: newPages,
-        };
-      });
-
-      // Force refetch to ensure UI updates immediately
-      // invalidateQueries may not immediately refetch, but refetchQueries will
-      queryClientRef.current.refetchQueries({
-        queryKey: queryKey,
-        type: "active",
-      });
-    });
-
-    // Media download failed handler
-    const unsubMediaDownloadFailed = client.on<{
-      messageId: string;
-      conversationId: string;
-      error?: string;
-    }>("media:download_failed", (payload) => {
-      console.log("[WebSocket] ❌ Media download failed:", {
-        messageId: payload.messageId,
-        conversationId: payload.conversationId,
-        error: payload.error,
-      });
-
-      // Update TanStack Query cache with failed status
-      const queryKey = infiniteMessageKeys.list(payload.conversationId);
-      queryClientRef.current.setQueryData<{
-        pages: PaginatedMessages[];
-        pageParams: (string | undefined)[];
-      }>(queryKey, (oldData) => {
-        if (!oldData) {
-          console.log(
-            "[WebSocket] ⚠️ No cached data for conversation:",
-            payload.conversationId,
-          );
-          return oldData;
-        }
-
-        const newPages = oldData.pages.map((page) => ({
-          ...page,
-          messages: page.messages.map((msg) =>
-            msg.id === payload.messageId
-              ? {
-                  ...msg,
-                  metadata: {
-                    ...msg.metadata,
-                    mediaPending: true,
-                    mediaDownloadStatus: "failed" as const,
-                  },
-                }
-              : msg,
-          ),
-        }));
-
-        return {
-          ...oldData,
-          pages: newPages,
-        };
-      });
-
-      // Force refetch to ensure UI updates immediately
-      queryClientRef.current.refetchQueries({
-        queryKey: queryKey,
-        type: "active",
-      });
-    });
-
-    // Sync event handlers
-    const unsubSyncStart = client.on<SyncStatusPayload>(
-      "sync:start",
-      (payload) => {
-        console.log("[WebSocket] 🔄 Sync started", payload);
-        const connectionId = payload.connectionId || "unknown";
-        setSyncingConnections((prev) => {
-          const newMap = new Map(prev);
-          newMap.set(connectionId, {
-            connectionId,
-            conversations: 0,
-            startedAt: new Date(),
-          });
-          return newMap;
-        });
-      },
-    );
-
-    const unsubSyncProgress = client.on<SyncStatusPayload>(
-      "sync:progress",
-      (payload) => {
-        console.log("[WebSocket] 🔄 Sync progress", payload);
-        const connectionId = payload.connectionId || "unknown";
-        setSyncingConnections((prev) => {
-          const newMap = new Map(prev);
-          const existing = newMap.get(connectionId);
-          // Create entry if it doesn't exist (in case sync:start was missed)
-          newMap.set(connectionId, {
-            connectionId,
-            conversations: payload.conversations,
-            startedAt: existing?.startedAt || new Date(),
-          });
-          return newMap;
-        });
-      },
-    );
-
-    const unsubSyncComplete = client.on<SyncStatusPayload>(
-      "sync:complete",
-      (payload) => {
-        console.log("[WebSocket] ✅ Sync completed", payload);
-        const connectionId = payload.connectionId || "unknown";
-        setSyncingConnections((prev) => {
-          const newMap = new Map(prev);
-          newMap.delete(connectionId);
-          return newMap;
-        });
-        // Invalidate chat list to show new contacts
-        queryClientRef.current.invalidateQueries({
-          queryKey: chatKeys.lists(),
-        });
-      },
-    );
-
-    // Auth success handler (no-op, just acknowledges the event)
-    const unsubAuthSuccess = client.on("auth_success", () => {
-      console.log("[WebSocket] ✅ Authentication successful");
-    });
-
-    // Store all unsubscribe functions for cleanup
-    handlerUnsubscribesRef.current = [
-      unsubNewMessage,
-      unsubMessageStatus,
-      unsubMessageDeleted,
-      unsubTypingStart,
-      unsubTypingStop,
-      unsubConversationUpdated,
-      unsubConversationRead,
-      unsubProfilePicture,
-      unsubPresenceOnline,
-      unsubPresenceOffline,
-      unsubMediaDownloaded,
-      unsubMediaDownloadFailed,
-      unsubSyncStart,
-      unsubSyncProgress,
-      unsubSyncComplete,
-      unsubAuthSuccess,
-    ];
-
-    console.log(
-      "[WebSocket] ✅ Handlers registered:",
-      handlerUnsubscribesRef.current.length,
     );
   }, []);
 
@@ -1048,4 +389,4 @@ export function useWebSocketContext(): WebSocketContextValue {
 }
 
 // Re-export types
-export type { WebSocketContextValue };
+export type { SyncState, WebSocketContextValue };
