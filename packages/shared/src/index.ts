@@ -14,3 +14,6 @@ export * from "./contact";
 
 // JID utilities
 export * from "./jid";
+
+// User utilities
+export * from "./user-utils";

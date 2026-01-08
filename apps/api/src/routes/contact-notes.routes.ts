@@ -1,10 +1,19 @@
 import { Hono } from "hono";
-import { db } from "@whatsapp-web/database";
 import { toDbDate } from "@whatsapp-web/shared";
 import { createAuditLog, getClientIp } from "../services/audit.service.js";
 import { getRouteContext } from "../middleware/context.js";
-import { extractPaginationParams, createPaginationMeta } from "../lib/route-helpers.js";
+import {
+  extractPaginationParams,
+  createPaginationMeta,
+} from "../lib/route-helpers.js";
 import { notFound, badRequest, forbidden, serverError } from "../lib/errors.js";
+import {
+  validateNoteContent,
+  transformSharedNoteResponse,
+  transformPrivateNoteResponse,
+  getAuthorName,
+  canModifySharedNote,
+} from "../services/note.service.js";
 
 export const contactNotesRoutes = new Hono();
 
@@ -36,15 +45,7 @@ contactNotesRoutes.get("/:id/notes/shared", async (c) => {
     .execute();
 
   return c.json({
-    data: notes.map((note) => ({
-      id: note.id,
-      contactId: note.contact_id,
-      userId: note.user_id,
-      authorName: note.author_name,
-      content: note.content,
-      createdAt: note.created_at,
-      updatedAt: note.updated_at,
-    })),
+    data: notes.map(transformSharedNoteResponse),
     pagination: createPaginationMeta(total, notes.length, { limit, offset }),
   });
 });
@@ -57,28 +58,12 @@ contactNotesRoutes.post("/:id/notes/shared", async (c) => {
   const contactId = c.req.param("id");
   const body = await c.req.json();
 
-  const { content } = body;
-
-  if (!content || content.trim().length === 0) {
-    return badRequest(c, "Content is required");
+  const validation = validateNoteContent(body.content);
+  if (!validation.valid) {
+    return badRequest(c, validation.error);
   }
 
-  // Get author name from public.users
-  const userInfo = await db
-    .selectFrom("users")
-    .select(["name", "email"])
-    .where("id", "=", user.id)
-    .executeTakeFirst();
-
-  // Use name if available, otherwise use email prefix
-  let authorName = user.id; // Fallback to ID
-  if (userInfo?.name) {
-    authorName = userInfo.name;
-  } else if (userInfo?.email) {
-    const atIndex = userInfo.email.indexOf("@");
-    authorName =
-      atIndex > 0 ? userInfo.email.substring(0, atIndex) : userInfo.email;
-  }
+  const authorName = await getAuthorName(user.id);
 
   // Create the note
   const note = await tenantDb
@@ -87,7 +72,7 @@ contactNotesRoutes.post("/:id/notes/shared", async (c) => {
       contact_id: contactId,
       user_id: user.id,
       author_name: authorName,
-      content: content.trim(),
+      content: validation.trimmed,
     })
     .returning([
       "id",
@@ -114,23 +99,12 @@ contactNotesRoutes.post("/:id/notes/shared", async (c) => {
     details: {
       contactId,
       noteType: "shared",
-      contentLength: content.trim().length,
+      contentLength: validation.trimmed.length,
     },
     ipAddress: getClientIp(c.req.raw.headers),
   });
 
-  return c.json(
-    {
-      id: note.id,
-      contactId: note.contact_id,
-      userId: note.user_id,
-      authorName: note.author_name,
-      content: note.content,
-      createdAt: note.created_at,
-      updatedAt: note.updated_at,
-    },
-    201,
-  );
+  return c.json(transformSharedNoteResponse(note), 201);
 });
 
 /**
@@ -142,10 +116,9 @@ contactNotesRoutes.put("/:id/notes/shared/:noteId", async (c) => {
   const noteId = c.req.param("noteId");
   const body = await c.req.json();
 
-  const { content } = body;
-
-  if (!content || content.trim().length === 0) {
-    return badRequest(c, "Content is required");
+  const validation = validateNoteContent(body.content);
+  if (!validation.valid) {
+    return badRequest(c, validation.error);
   }
 
   // Check if note exists and user is the author
@@ -160,22 +133,16 @@ contactNotesRoutes.put("/:id/notes/shared/:noteId", async (c) => {
     return notFound(c, "Note");
   }
 
-  // Only the author can edit (System notes are read-only)
-  if (
-    existingNote.user_id !== user.id ||
-    existingNote.author_name === "System"
-  ) {
-    return forbidden(
-      c,
-      "Permission denied: Only the note author can edit this note",
-    );
+  const permission = canModifySharedNote(existingNote, user.id);
+  if (!permission.allowed) {
+    return forbidden(c, `Permission denied: ${permission.reason}`);
   }
 
   // Update the note
   const updatedNote = await tenantDb
     .updateTable("contact_notes_shared")
     .set({
-      content: content.trim(),
+      content: validation.trimmed,
       updated_at: toDbDate(),
     })
     .where("id", "=", noteId)
@@ -200,20 +167,12 @@ contactNotesRoutes.put("/:id/notes/shared/:noteId", async (c) => {
     details: {
       contactId,
       noteType: "shared",
-      contentLength: content.trim().length,
+      contentLength: validation.trimmed.length,
     },
     ipAddress: getClientIp(c.req.raw.headers),
   });
 
-  return c.json({
-    id: updatedNote?.id,
-    contactId: updatedNote?.contact_id,
-    userId: updatedNote?.user_id,
-    authorName: updatedNote?.author_name,
-    content: updatedNote?.content,
-    createdAt: updatedNote?.created_at,
-    updatedAt: updatedNote?.updated_at,
-  });
+  return c.json(transformSharedNoteResponse(updatedNote!));
 });
 
 /**
@@ -236,15 +195,9 @@ contactNotesRoutes.delete("/:id/notes/shared/:noteId", async (c) => {
     return notFound(c, "Note");
   }
 
-  // Only the author can delete (System notes are read-only)
-  if (
-    existingNote.user_id !== user.id ||
-    existingNote.author_name === "System"
-  ) {
-    return forbidden(
-      c,
-      "Permission denied: Only the note author can delete this note",
-    );
+  const permission = canModifySharedNote(existingNote, user.id);
+  if (!permission.allowed) {
+    return forbidden(c, `Permission denied: ${permission.reason}`);
   }
 
   // Delete the note
@@ -300,14 +253,7 @@ contactNotesRoutes.get("/:id/notes/private", async (c) => {
     .execute();
 
   return c.json({
-    data: notes.map((note) => ({
-      id: note.id,
-      contactId: note.contact_id,
-      userId: note.user_id,
-      content: note.content,
-      createdAt: note.created_at,
-      updatedAt: note.updated_at,
-    })),
+    data: notes.map(transformPrivateNoteResponse),
     pagination: createPaginationMeta(total, notes.length, { limit, offset }),
   });
 });
@@ -320,10 +266,9 @@ contactNotesRoutes.post("/:id/notes/private", async (c) => {
   const contactId = c.req.param("id");
   const body = await c.req.json();
 
-  const { content } = body;
-
-  if (!content || content.trim().length === 0) {
-    return badRequest(c, "Content is required");
+  const validation = validateNoteContent(body.content);
+  if (!validation.valid) {
+    return badRequest(c, validation.error);
   }
 
   // Create new note
@@ -332,7 +277,7 @@ contactNotesRoutes.post("/:id/notes/private", async (c) => {
     .values({
       contact_id: contactId,
       user_id: user.id,
-      content: content.trim(),
+      content: validation.trimmed,
     })
     .returning([
       "id",
@@ -348,17 +293,7 @@ contactNotesRoutes.post("/:id/notes/private", async (c) => {
     return serverError(c, "Failed to create note");
   }
 
-  return c.json(
-    {
-      id: note.id,
-      contactId: note.contact_id,
-      userId: note.user_id,
-      content: note.content,
-      createdAt: note.created_at,
-      updatedAt: note.updated_at,
-    },
-    201,
-  );
+  return c.json(transformPrivateNoteResponse(note), 201);
 });
 
 /**
@@ -370,10 +305,9 @@ contactNotesRoutes.put("/:id/notes/private/:noteId", async (c) => {
   const noteId = c.req.param("noteId");
   const body = await c.req.json();
 
-  const { content } = body;
-
-  if (!content || content.trim().length === 0) {
-    return badRequest(c, "Content is required");
+  const validation = validateNoteContent(body.content);
+  if (!validation.valid) {
+    return badRequest(c, validation.error);
   }
 
   // Check if note exists and belongs to user
@@ -393,7 +327,7 @@ contactNotesRoutes.put("/:id/notes/private/:noteId", async (c) => {
   const updatedNote = await tenantDb
     .updateTable("contact_notes_private")
     .set({
-      content: content.trim(),
+      content: validation.trimmed,
       updated_at: toDbDate(),
     })
     .where("id", "=", noteId)
@@ -407,14 +341,7 @@ contactNotesRoutes.put("/:id/notes/private/:noteId", async (c) => {
     ])
     .executeTakeFirst();
 
-  return c.json({
-    id: updatedNote?.id,
-    contactId: updatedNote?.contact_id,
-    userId: updatedNote?.user_id,
-    content: updatedNote?.content,
-    createdAt: updatedNote?.created_at,
-    updatedAt: updatedNote?.updated_at,
-  });
+  return c.json(transformPrivateNoteResponse(updatedNote!));
 });
 
 /**

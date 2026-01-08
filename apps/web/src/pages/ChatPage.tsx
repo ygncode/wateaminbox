@@ -4,7 +4,7 @@ import * as React from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
 import { ChatSidebar } from "../components/chat/ChatSidebar";
-import { ContactProfile } from "../components/chat/ContactProfile";
+import { ContactProfile } from "../components/chat/contact-profile";
 import { ConversationSearch } from "../components/chat/ConversationSearch";
 import { DeleteMessageDialog } from "../components/chat/DeleteMessageDialog";
 import { ForwardMessageDialog } from "../components/chat/ForwardMessageDialog";

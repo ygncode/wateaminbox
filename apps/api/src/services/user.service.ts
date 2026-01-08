@@ -1,4 +1,5 @@
 import { db } from "@whatsapp-web/database";
+import { getEmailDisplayName } from "@whatsapp-web/shared";
 import { createLogger, formatError } from "../lib/logger.js";
 
 const logger = createLogger("UserService");
@@ -39,15 +40,7 @@ export async function getUserNames(
     const userMap = new Map<string, string>();
     for (const user of users) {
       // Use name if available, otherwise use email prefix as display name
-      let displayName: string;
-      if (user.name) {
-        displayName = user.name;
-      } else {
-        // Fallback to email prefix (before @)
-        const atIndex = user.email.indexOf("@");
-        displayName =
-          atIndex > 0 ? user.email.substring(0, atIndex) : user.email;
-      }
+      const displayName = user.name || getEmailDisplayName(user.email);
       userMap.set(user.id, displayName);
     }
 

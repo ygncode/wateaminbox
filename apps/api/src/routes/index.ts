@@ -1,9 +1,9 @@
 import { Hono } from "hono";
 import { healthRoutes } from "./health.js";
-import { authRoutes } from "./auth.js";
+import { authRoutes } from "./auth/index.js";
 import { companyRoutes, invitationRoutes } from "./companies.js";
 import { whatsappRoutes } from "./whatsapp/index.js";
-import { wsRoutes } from "./ws.js";
+import { wsRoutes } from "./ws/index.js";
 import { contactRoutes } from "./contacts.js";
 import { messageRoutes } from "./messages/index.js";
 import { conversationRoutes } from "./conversations.js";

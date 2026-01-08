@@ -2,6 +2,10 @@ import type { Kysely } from "kysely";
 import { sql } from "kysely";
 import { toDbDate } from "@whatsapp-web/shared";
 import type { TenantDatabase } from "./tenant.service.js";
+import {
+  buildContactWhereClause,
+  applyContactFilters,
+} from "./helpers/contact-query-builder.js";
 
 /**
  * Options for fetching contacts with last message
@@ -85,44 +89,16 @@ export async function getContactsWithLastMessage(
   // 1. Creates a CTE that ranks messages by timestamp per contact using ROW_NUMBER()
   // 2. Joins contacts with last messages (rank=1) and assignments
   // 3. Groups by contact to get unread counts
-  //
-  // WHERE clause conditions use parameterized queries via sql template tag
-  // to prevent SQL injection. Each ${value} is properly escaped by Kysely.
-  const searchValue = search ? `%${search}%` : "";
 
-  // Build WHERE clause conditions using parameterized SQL fragments
-  // Each condition uses Kysely's sql template tag with ${} interpolation
-  // which properly escapes parameters to prevent SQL injection
-  const searchClause = search
-    ? sql`(c.push_name ILIKE ${searchValue} OR c.custom_name ILIKE ${searchValue} OR c.phone_number ILIKE ${searchValue})`
-    : sql``;
-
-  const groupClause = !includeGroups ? sql`c.is_group = false` : sql``;
-
-  const assignmentClause =
-    assignedToMe && userId
-      ? sql`ca.assigned_to = ${userId}`
-      : unassigned
-        ? sql`ca.assigned_to IS NULL`
-        : sql``;
-
-  // Build WHERE clause by combining conditions with proper AND logic.
-  // We check the boolean flags directly (search, includeGroups, assignedToMe, unassigned)
-  // instead of the RawBuilder objects, because sql`` returns a truthy object even when empty.
-  const hasSearch = Boolean(search);
-  const hasGroupFilter = !includeGroups;
-  const hasAssignmentFilter = (assignedToMe && userId) || unassigned;
-
-  const whereClause = sql<unknown>`
-    ${hasSearch ? searchClause : sql``}
-    ${hasSearch && (hasGroupFilter || hasAssignmentFilter) ? sql`AND` : sql``}
-    ${hasGroupFilter ? groupClause : sql``}
-    ${hasGroupFilter && hasAssignmentFilter ? sql`AND` : sql``}
-    ${hasAssignmentFilter ? assignmentClause : sql``}
-  `;
-
-  const hasWhereCondition =
-    search || !includeGroups || assignedToMe || unassigned;
+  // Build WHERE clause using helper (uses parameterized SQL to prevent injection)
+  const { whereClause, hasConditions: hasWhereCondition } =
+    buildContactWhereClause({
+      search,
+      includeGroups,
+      assignedToMe,
+      unassigned,
+      userId,
+    });
 
   const result = await sql<{
     id: string;
@@ -237,7 +213,8 @@ export async function getContactsWithLastMessage(
   });
 
   // Get total count with same filters (separate query for counting)
-  let countQuery = tenantDb
+  // Uses the applyContactFilters helper to apply the same filters as the main query
+  const baseCountQuery = tenantDb
     .selectFrom("contacts")
     .leftJoin("contact_assignments", (join) =>
       join
@@ -246,33 +223,13 @@ export async function getContactsWithLastMessage(
     )
     .select((eb) => eb.fn.count("contacts.id").as("total"));
 
-  if (!includeGroups) {
-    countQuery = countQuery.where("contacts.is_group", "=", false);
-  }
-
-  if (search) {
-    countQuery = countQuery.where((eb) =>
-      eb.or([
-        eb("contacts.push_name", "ilike", `%${search}%`),
-        eb("contacts.custom_name", "ilike", `%${search}%`),
-        eb("contacts.phone_number", "ilike", `%${search}%`),
-      ]),
-    );
-  }
-
-  if (assignedToMe && userId) {
-    countQuery = countQuery.where(
-      "contact_assignments.assigned_to",
-      "=",
-      userId,
-    );
-  } else if (unassigned) {
-    countQuery = countQuery.where(
-      "contact_assignments.assigned_to",
-      "is",
-      null,
-    );
-  }
+  const countQuery = applyContactFilters(baseCountQuery, {
+    search,
+    includeGroups,
+    assignedToMe,
+    unassigned,
+    userId,
+  });
 
   const countResult = await countQuery.executeTakeFirst();
   const total = Number(countResult?.total || 0);

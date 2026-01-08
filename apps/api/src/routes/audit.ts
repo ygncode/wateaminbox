@@ -1,5 +1,6 @@
 import { toDbDate, toISOString } from "@whatsapp-web/shared";
 import { Hono } from "hono";
+import { forbidden } from "../lib/errors.js";
 import { authMiddleware } from "../middleware/auth.js";
 import { getRouteContext } from "../middleware/context.js";
 import {
@@ -25,7 +26,7 @@ auditRoutes.get("/", async (c) => {
 
   // Only admins and owners can view audit logs
   if (role === "member") {
-    return c.json({ error: "Insufficient permissions" }, 403);
+    return forbidden(c, "Insufficient permissions");
   }
 
   const userId = c.req.query("userId");
@@ -100,7 +101,7 @@ auditRoutes.get("/export", async (c) => {
 
   // Only admins and owners can export audit logs
   if (role === "member") {
-    return c.json({ error: "Insufficient permissions" }, 403);
+    return forbidden(c, "Insufficient permissions");
   }
 
   const startDateStr = c.req.query("startDate");

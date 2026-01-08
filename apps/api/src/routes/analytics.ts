@@ -1,5 +1,6 @@
 import { toISOString } from "@whatsapp-web/shared";
 import { Hono } from "hono";
+import { forbidden } from "../lib/errors.js";
 import { rateLimitConfig, rateLimitStore } from "../lib/rate-limit-store.js";
 import {
   extractDateRange,
@@ -91,7 +92,7 @@ analyticsRoutes.get("/team", analyticsRateLimiter, async (c) => {
 
   // Only admins and owners can view team stats
   if (role === "member") {
-    return c.json({ error: "Insufficient permissions" }, 403);
+    return forbidden(c, "Insufficient permissions");
   }
 
   const stats = await analyticsService.getTeamActivityStats(companyId);
@@ -202,7 +203,7 @@ analyticsRoutes.get("/response-time/team", analyticsRateLimiter, async (c) => {
 
   // Only admins and owners can view team stats
   if (role === "member") {
-    return c.json({ error: "Insufficient permissions" }, 403);
+    return forbidden(c, "Insufficient permissions");
   }
 
   const { startDate, endDate } = extractDateRange(c, 30);

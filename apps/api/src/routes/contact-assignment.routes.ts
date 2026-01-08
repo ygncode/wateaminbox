@@ -11,7 +11,7 @@ import { getCurrentAssignment } from "../services/contact.service.js";
 import { createNotification } from "../services/notification-history.service.js";
 import { createAuditLog, getClientIp } from "../services/audit.service.js";
 import { getUserNames } from "../services/user.service.js";
-import { broadcastToCompany } from "./ws.js";
+import { broadcastToCompany } from "./ws/index.js";
 import { notFound, forbidden } from "../lib/errors.js";
 
 export const contactAssignmentRoutes = new Hono();

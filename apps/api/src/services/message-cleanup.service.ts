@@ -5,7 +5,7 @@ import {
   type MessageCleanupConfig,
 } from "../config/cleanup.config.js";
 import { createLogger } from "../lib/logger.js";
-import { broadcastToCompany } from "../routes/ws.js";
+import { broadcastToCompany } from "../routes/ws/index.js";
 import { getTenantConnection, tenantSchemaExists } from "./tenant.service.js";
 
 const logger = createLogger("MessageCleanup");

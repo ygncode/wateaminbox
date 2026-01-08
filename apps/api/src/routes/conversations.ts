@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import { badRequest, notFound } from "../lib/errors.js";
 import { authMiddleware } from "../middleware/auth.js";
 import { tenantMiddleware, requirePermission } from "../middleware/tenant.js";
 import { getRouteContext } from "../middleware/context.js";
@@ -11,7 +12,7 @@ import {
   getResolutionTrend,
 } from "../services/conversation-state.service.js";
 import { createAuditLog, getClientIp } from "../services/audit.service.js";
-import { broadcastToCompany } from "./ws.js";
+import { broadcastToCompany } from "./ws/index.js";
 import { PERMISSIONS } from "../services/permission.service.js";
 import { publishSendMessage } from "../lib/nats/index.js";
 import { ensureContactAssignment } from "../services/contact.service.js";
@@ -111,7 +112,7 @@ conversationRoutes.post(
     const { content, messageType = "text", mediaUrl, replyToMessageId } = body;
 
     if (!content && messageType === "text") {
-      return c.json({ error: "content is required for text messages" }, 400);
+      return badRequest(c, "content is required for text messages");
     }
 
     // Get contact JID and connection ID
@@ -122,7 +123,7 @@ conversationRoutes.post(
       .executeTakeFirst();
 
     if (!contact || !contact.jid) {
-      return c.json({ error: "Contact not found or has no JID" }, 404);
+      return notFound(c, "Contact");
     }
 
     // Get active WhatsApp connection
@@ -133,7 +134,7 @@ conversationRoutes.post(
       .executeTakeFirst();
 
     if (!connection) {
-      return c.json({ error: "No active WhatsApp connection" }, 400);
+      return badRequest(c, "No active WhatsApp connection");
     }
 
     // Auto-assign contact to the user if unassigned
@@ -265,7 +266,7 @@ conversationRoutes.post("/:id/resolve", async (c) => {
     .executeTakeFirst();
 
   if (!contact) {
-    return c.json({ error: "Contact not found" }, 404);
+    return notFound(c, "Contact");
   }
 
   const state = await resolveConversation(tenantDb, contactId, user.id, notes);
@@ -319,7 +320,7 @@ conversationRoutes.post("/:id/reopen", async (c) => {
     .executeTakeFirst();
 
   if (!contact) {
-    return c.json({ error: "Contact not found" }, 404);
+    return notFound(c, "Contact");
   }
 
   const state = await reopenConversation(tenantDb, contactId, user.id);
@@ -372,7 +373,7 @@ conversationRoutes.post("/:id/pending", async (c) => {
     .executeTakeFirst();
 
   if (!contact) {
-    return c.json({ error: "Contact not found" }, 404);
+    return notFound(c, "Contact");
   }
 
   const state = await setConversationPending(tenantDb, contactId);
@@ -408,7 +409,7 @@ conversationRoutes.post("/:id/read", async (c) => {
     .executeTakeFirst();
 
   if (!contact) {
-    return c.json({ error: "Contact not found" }, 404);
+    return notFound(c, "Contact");
   }
 
   // Update conversation_states to reset unread count and record read time

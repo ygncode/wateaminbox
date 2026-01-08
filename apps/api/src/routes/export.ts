@@ -1,5 +1,6 @@
 import { toDbDate, toISOString } from "@whatsapp-web/shared";
 import { Hono } from "hono";
+import { notFound, serverError } from "../lib/errors.js";
 import { createLogger, formatError } from "../lib/logger.js";
 import { rateLimitConfig, rateLimitStore } from "../lib/rate-limit-store.js";
 import { authMiddleware } from "../middleware/auth.js";
@@ -148,7 +149,7 @@ exportRoutes.get("/conversation/:contactId", exportRateLimiter, async (c) => {
     );
     return c.body(csv);
   } catch {
-    return c.json({ error: "Contact not found" }, 404);
+    return notFound(c, "Contact");
   }
 });
 
@@ -178,7 +179,7 @@ exportRoutes.get("/full", exportRateLimiter, async (c) => {
     return c.body(Buffer.from(zipData));
   } catch (error) {
     logger.error({ err: formatError(error) }, "Full backup export error");
-    return c.json({ error: "Failed to create backup" }, 500);
+    return serverError(c, "Failed to create backup");
   }
 });
 

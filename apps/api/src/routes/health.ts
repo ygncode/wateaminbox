@@ -4,7 +4,7 @@ import {
   getTotalConnectionCount,
   isHeartbeatRunning,
   getConnectionMetrics,
-} from "./ws.js";
+} from "./ws/index.js";
 
 export const healthRoutes = new Hono();
 

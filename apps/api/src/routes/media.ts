@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import { badRequest, notFound, serverError, serviceUnavailable } from "../lib/errors.js";
 import { createLogger, formatError } from "../lib/logger.js";
 import { rateLimitConfig, rateLimitStore } from "../lib/rate-limit-store.js";
 import { uploadMedia } from "../lib/storage.js";
@@ -61,7 +62,7 @@ mediaRoutes.post("/download/:messageId", async (c) => {
       .executeTakeFirst();
 
     if (!message) {
-      return c.json({ error: "Message not found" }, 404);
+      return notFound(c, "Message");
     }
 
     // If already downloaded, return existing URL
@@ -74,10 +75,7 @@ mediaRoutes.post("/download/:messageId", async (c) => {
 
     // If no media reference data, cannot download
     if (!message.media_direct_path || !message.media_key) {
-      return c.json(
-        { error: "No media reference available for this message" },
-        400,
-      );
+      return badRequest(c, "No media reference available for this message");
     }
 
     // If already downloading, return status
@@ -93,7 +91,7 @@ mediaRoutes.post("/download/:messageId", async (c) => {
       .executeTakeFirst();
 
     if (!connection || connection.status !== "connected") {
-      return c.json({ error: "WhatsApp connection not available" }, 503);
+      return serviceUnavailable(c, "WhatsApp connection not available");
     }
 
     // Mark as downloading
@@ -137,7 +135,7 @@ mediaRoutes.post("/download/:messageId", async (c) => {
       { err: formatError(error) },
       "Failed to request media download",
     );
-    return c.json({ error: "Failed to request media download" }, 500);
+    return serverError(c, "Failed to request media download");
   }
 });
 
@@ -149,13 +147,13 @@ mediaRoutes.post("/upload", uploadRateLimiter, async (c) => {
   const file = body.file;
 
   if (!file || !(file instanceof File)) {
-    return c.json({ error: "No file provided" }, 400);
+    return badRequest(c, "No file provided");
   }
 
   // Validate file size (max 50MB)
   const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
   if (file.size > MAX_FILE_SIZE) {
-    return c.json({ error: "File too large. Maximum size is 50MB" }, 400);
+    return badRequest(c, "File too large. Maximum size is 50MB");
   }
 
   // Validate file type
@@ -187,11 +185,9 @@ mediaRoutes.post("/upload", uploadRateLimiter, async (c) => {
   ];
 
   if (!allowedTypes.includes(file.type)) {
-    return c.json(
-      {
-        error: `Unsupported file type: ${file.type}. Allowed types: images, videos, audio, PDF, Office documents, ZIP, TXT`,
-      },
-      400,
+    return badRequest(
+      c,
+      `Unsupported file type: ${file.type}. Allowed types: images, videos, audio, PDF, Office documents, ZIP, TXT`,
     );
   }
 
@@ -222,10 +218,10 @@ mediaRoutes.post("/upload", uploadRateLimiter, async (c) => {
     // Check for specific error types
     if (error instanceof Error) {
       if (error.message.includes("path traversal")) {
-        return c.json({ error: "Invalid filename" }, 400);
+        return badRequest(c, "Invalid filename");
       }
     }
 
-    return c.json({ error: "Failed to upload media" }, 500);
+    return serverError(c, "Failed to upload media");
   }
 });

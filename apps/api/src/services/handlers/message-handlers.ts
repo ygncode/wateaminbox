@@ -15,7 +15,7 @@ import {
   normalizeJid,
 } from "@whatsapp-web/shared";
 import { getTenantConnection } from "../tenant.service.js";
-import { broadcastToCompany } from "../../routes/ws.js";
+import { broadcastToCompany } from "../../routes/ws/index.js";
 import { updateMessageSearchVector } from "../search.service.js";
 import { indexMessage, type MessageDocument } from "../meilisearch.service.js";
 import { formatError } from "../../lib/logger.js";

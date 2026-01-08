@@ -1,4 +1,9 @@
 import { Hono } from "hono";
+import { badRequest, conflict, notFound } from "../lib/errors.js";
+import {
+  createPaginationMeta,
+  extractPaginationParams,
+} from "../lib/route-helpers.js";
 import { authMiddleware } from "../middleware/auth.js";
 import { tenantMiddleware } from "../middleware/tenant.js";
 import { getRouteContext } from "../middleware/context.js";
@@ -10,15 +15,27 @@ tagRoutes.use("/*", authMiddleware);
 tagRoutes.use("/*", tenantMiddleware());
 
 /**
- * GET /tags - List all tags
+ * GET /tags - List all tags with optional pagination
+ * Query params: limit (default 50), offset (default 0)
  */
 tagRoutes.get("/", async (c) => {
   const { tenantDb } = getRouteContext(c);
+  const { limit, offset } = extractPaginationParams(c);
 
+  // Get total count
+  const countResult = await tenantDb
+    .selectFrom("tags")
+    .select((eb) => eb.fn.countAll<string>().as("total"))
+    .executeTakeFirst();
+  const total = Number(countResult?.total || 0);
+
+  // Get paginated tags
   const tags = await tenantDb
     .selectFrom("tags")
     .selectAll()
     .orderBy("name", "asc")
+    .limit(limit)
+    .offset(offset)
     .execute();
 
   return c.json({
@@ -29,6 +46,7 @@ tagRoutes.get("/", async (c) => {
       createdBy: tag.created_by,
       createdAt: tag.created_at,
     })),
+    pagination: createPaginationMeta(total, tags.length, { limit, offset }),
   });
 });
 
@@ -42,7 +60,7 @@ tagRoutes.post("/", async (c) => {
   const { name, color } = body;
 
   if (!name) {
-    return c.json({ error: "name is required" }, 400);
+    return badRequest(c, "name is required");
   }
 
   // Check if tag with same name exists
@@ -53,7 +71,7 @@ tagRoutes.post("/", async (c) => {
     .executeTakeFirst();
 
   if (existingTag) {
-    return c.json({ error: "Tag with this name already exists" }, 409);
+    return conflict(c, "Tag with this name already exists");
   }
 
   const tag = await tenantDb
@@ -103,7 +121,7 @@ tagRoutes.patch("/:id", async (c) => {
     .executeTakeFirst();
 
   if (!tag) {
-    return c.json({ error: "Tag not found" }, 404);
+    return notFound(c, "Tag");
   }
 
   return c.json({
@@ -136,7 +154,7 @@ tagRoutes.delete("/:id", async (c) => {
     .executeTakeFirst();
 
   if (!deleted) {
-    return c.json({ error: "Tag not found" }, 404);
+    return notFound(c, "Tag");
   }
 
   return c.json({ success: true });
