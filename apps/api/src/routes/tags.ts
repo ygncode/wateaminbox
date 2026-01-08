@@ -1,6 +1,12 @@
 import { Hono } from "hono";
 import { badRequest, conflict, notFound } from "../lib/errors.js";
 import {
+  created,
+  successData,
+  successMessage,
+  successPaginated,
+} from "../lib/response.js";
+import {
   createPaginationMeta,
   extractPaginationParams,
 } from "../lib/route-helpers.js";
@@ -38,16 +44,17 @@ tagRoutes.get("/", async (c) => {
     .offset(offset)
     .execute();
 
-  return c.json({
-    data: tags.map((tag) => ({
+  return successPaginated(
+    c,
+    tags.map((tag) => ({
       id: tag.id,
       name: tag.name,
       color: tag.color,
       createdBy: tag.created_by,
       createdAt: tag.created_at,
     })),
-    pagination: createPaginationMeta(total, tags.length, { limit, offset }),
-  });
+    createPaginationMeta(total, tags.length, { limit, offset }),
+  );
 });
 
 /**
@@ -84,7 +91,7 @@ tagRoutes.post("/", async (c) => {
     .returning(["id", "name", "color", "created_by", "created_at"])
     .executeTakeFirst();
 
-  return c.json({
+  return created(c, {
     id: tag?.id,
     name: tag?.name,
     color: tag?.color,
@@ -124,7 +131,7 @@ tagRoutes.patch("/:id", async (c) => {
     return notFound(c, "Tag");
   }
 
-  return c.json({
+  return successData(c, {
     id: tag.id,
     name: tag.name,
     color: tag.color,
@@ -157,5 +164,5 @@ tagRoutes.delete("/:id", async (c) => {
     return notFound(c, "Tag");
   }
 
-  return c.json({ success: true });
+  return successMessage(c, "Tag deleted successfully");
 });

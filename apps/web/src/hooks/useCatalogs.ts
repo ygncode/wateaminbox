@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import {
   archiveCatalog,
   type CatalogProduct,
@@ -14,6 +14,7 @@ import {
   updateProductVisibility,
   type WhatsAppCatalog,
 } from "@/lib/api";
+import { useInvalidate, useQueryInvalidation } from "./query";
 
 // Query keys for catalogs
 export const catalogKeys = {
@@ -76,14 +77,11 @@ export function useCatalogProducts(catalogId: string) {
  * Hook for triggering a catalog sync from WhatsApp Business
  */
 export function useTriggerCatalogSync() {
-  const queryClient = useQueryClient();
+  const invalidateCatalogs = useInvalidate(catalogKeys.all);
 
   return useMutation({
     mutationFn: triggerCatalogSync,
-    onSuccess: () => {
-      // Invalidate catalogs and status to refresh after sync completes
-      queryClient.invalidateQueries({ queryKey: catalogKeys.all });
-    },
+    onSuccess: invalidateCatalogs,
   });
 }
 
@@ -91,18 +89,15 @@ export function useTriggerCatalogSync() {
  * Hook for triggering a product sync for a specific catalog
  */
 export function useTriggerCatalogProductsSync() {
-  const queryClient = useQueryClient();
+  const { invalidateMultiple } = useQueryInvalidation();
 
   return useMutation({
     mutationFn: (catalogId: string) => triggerCatalogProductsSync(catalogId),
     onSuccess: (_, catalogId) => {
-      // Invalidate products for the specific catalog
-      queryClient.invalidateQueries({
-        queryKey: catalogKeys.products(catalogId),
-      });
-      queryClient.invalidateQueries({
-        queryKey: catalogKeys.detail(catalogId),
-      });
+      invalidateMultiple([
+        catalogKeys.products(catalogId),
+        catalogKeys.detail(catalogId),
+      ]);
     },
   });
 }
@@ -111,13 +106,11 @@ export function useTriggerCatalogProductsSync() {
  * Hook for archiving a catalog
  */
 export function useArchiveCatalog() {
-  const queryClient = useQueryClient();
+  const invalidateCatalogs = useInvalidate(catalogKeys.all);
 
   return useMutation({
     mutationFn: (catalogId: string) => archiveCatalog(catalogId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: catalogKeys.all });
-    },
+    onSuccess: invalidateCatalogs,
   });
 }
 
@@ -125,13 +118,11 @@ export function useArchiveCatalog() {
  * Hook for restoring an archived catalog
  */
 export function useRestoreCatalog() {
-  const queryClient = useQueryClient();
+  const invalidateCatalogs = useInvalidate(catalogKeys.all);
 
   return useMutation({
     mutationFn: (catalogId: string) => restoreCatalog(catalogId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: catalogKeys.all });
-    },
+    onSuccess: invalidateCatalogs,
   });
 }
 
@@ -139,7 +130,7 @@ export function useRestoreCatalog() {
  * Hook for updating product visibility
  */
 export function useUpdateProductVisibility() {
-  const queryClient = useQueryClient();
+  const { invalidate } = useQueryInvalidation();
 
   return useMutation({
     mutationFn: ({
@@ -152,10 +143,7 @@ export function useUpdateProductVisibility() {
       visibility: ProductVisibility;
     }) => updateProductVisibility(catalogId, productId, visibility),
     onSuccess: (_, { catalogId }) => {
-      // Invalidate products for the specific catalog
-      queryClient.invalidateQueries({
-        queryKey: catalogKeys.products(catalogId),
-      });
+      invalidate(catalogKeys.products(catalogId));
     },
   });
 }
@@ -164,7 +152,7 @@ export function useUpdateProductVisibility() {
  * Combined hook for catalog management
  */
 export function useCatalogs() {
-  const queryClient = useQueryClient();
+  const invalidateCatalogs = useInvalidate(catalogKeys.all);
 
   const catalogsQuery = useWhatsAppCatalogs();
   const statusQuery = useCatalogSyncStatus();
@@ -190,9 +178,7 @@ export function useCatalogs() {
     sync: () => syncMutation.mutateAsync(undefined),
     archive: (catalogId: string) => archiveMutation.mutateAsync(catalogId),
     restore: (catalogId: string) => restoreMutation.mutateAsync(catalogId),
-    refresh: () => {
-      queryClient.invalidateQueries({ queryKey: catalogKeys.all });
-    },
+    refresh: invalidateCatalogs,
 
     // Mutation states
     isSyncing: syncMutation.isPending,

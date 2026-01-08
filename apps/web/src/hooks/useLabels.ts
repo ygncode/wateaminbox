@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import {
   applyLabelToContact,
   autoCreateTagsFromLabels,
@@ -14,6 +14,11 @@ import {
   type WhatsAppLabel,
 } from "@/lib/api";
 import { queryKeys } from "./query-keys";
+import {
+  useInvalidate,
+  useInvalidateMultiple,
+  useQueryInvalidation,
+} from "./query";
 
 // Query keys for labels
 export const labelKeys = {
@@ -60,14 +65,11 @@ export function useTagsWithLabelStatus() {
  * Hook for triggering a label sync from WhatsApp
  */
 export function useTriggerLabelSync() {
-  const queryClient = useQueryClient();
+  const invalidateLabels = useInvalidate(labelKeys.all);
 
   return useMutation({
     mutationFn: triggerLabelSync,
-    onSuccess: () => {
-      // Invalidate labels and status to refresh after sync completes
-      queryClient.invalidateQueries({ queryKey: labelKeys.all });
-    },
+    onSuccess: invalidateLabels,
   });
 }
 
@@ -75,16 +77,15 @@ export function useTriggerLabelSync() {
  * Hook for linking a tag to a WhatsApp label
  */
 export function useLinkTagToLabel() {
-  const queryClient = useQueryClient();
+  const invalidateLabelsAndTags = useInvalidateMultiple([
+    labelKeys.all,
+    queryKeys.tags.all,
+  ]);
 
   return useMutation({
     mutationFn: ({ labelId, tagId }: { labelId: string; tagId: string }) =>
       linkTagToLabel(labelId, tagId),
-    onSuccess: () => {
-      // Invalidate labels, status, and tags queries
-      queryClient.invalidateQueries({ queryKey: labelKeys.all });
-      queryClient.invalidateQueries({ queryKey: queryKeys.tags.all });
-    },
+    onSuccess: invalidateLabelsAndTags,
   });
 }
 
@@ -92,15 +93,14 @@ export function useLinkTagToLabel() {
  * Hook for unlinking a tag from a WhatsApp label
  */
 export function useUnlinkTagFromLabel() {
-  const queryClient = useQueryClient();
+  const invalidateLabelsAndTags = useInvalidateMultiple([
+    labelKeys.all,
+    queryKeys.tags.all,
+  ]);
 
   return useMutation({
     mutationFn: (labelId: string) => unlinkTagFromLabel(labelId),
-    onSuccess: () => {
-      // Invalidate labels, status, and tags queries
-      queryClient.invalidateQueries({ queryKey: labelKeys.all });
-      queryClient.invalidateQueries({ queryKey: queryKeys.tags.all });
-    },
+    onSuccess: invalidateLabelsAndTags,
   });
 }
 
@@ -108,15 +108,14 @@ export function useUnlinkTagFromLabel() {
  * Hook for auto-creating tags from unlinked WhatsApp labels
  */
 export function useAutoCreateTagsFromLabels() {
-  const queryClient = useQueryClient();
+  const invalidateLabelsAndTags = useInvalidateMultiple([
+    labelKeys.all,
+    queryKeys.tags.all,
+  ]);
 
   return useMutation({
     mutationFn: autoCreateTagsFromLabels,
-    onSuccess: () => {
-      // Invalidate labels, status, and tags queries
-      queryClient.invalidateQueries({ queryKey: labelKeys.all });
-      queryClient.invalidateQueries({ queryKey: queryKeys.tags.all });
-    },
+    onSuccess: invalidateLabelsAndTags,
   });
 }
 
@@ -124,7 +123,7 @@ export function useAutoCreateTagsFromLabels() {
  * Hook for applying a WhatsApp label to a contact
  */
 export function useApplyLabelToContact() {
-  const queryClient = useQueryClient();
+  const { invalidate } = useQueryInvalidation();
 
   return useMutation({
     mutationFn: ({
@@ -135,10 +134,7 @@ export function useApplyLabelToContact() {
       contactId: string;
     }) => applyLabelToContact(labelId, contactId),
     onSuccess: (_, { contactId }) => {
-      // Invalidate contact data and contact tags
-      queryClient.invalidateQueries({
-        queryKey: queryKeys.contacts.detail(contactId),
-      });
+      invalidate(queryKeys.contacts.detail(contactId));
     },
   });
 }
@@ -147,7 +143,7 @@ export function useApplyLabelToContact() {
  * Hook for removing a WhatsApp label from a contact
  */
 export function useRemoveLabelFromContact() {
-  const queryClient = useQueryClient();
+  const { invalidate } = useQueryInvalidation();
 
   return useMutation({
     mutationFn: ({
@@ -158,10 +154,7 @@ export function useRemoveLabelFromContact() {
       contactId: string;
     }) => removeLabelFromContact(labelId, contactId),
     onSuccess: (_, { contactId }) => {
-      // Invalidate contact data and contact tags
-      queryClient.invalidateQueries({
-        queryKey: queryKeys.contacts.detail(contactId),
-      });
+      invalidate(queryKeys.contacts.detail(contactId));
     },
   });
 }
@@ -170,7 +163,7 @@ export function useRemoveLabelFromContact() {
  * Combined hook for label management
  */
 export function useLabels() {
-  const queryClient = useQueryClient();
+  const invalidateLabels = useInvalidate(labelKeys.all);
 
   const labelsQuery = useWhatsAppLabels();
   const statusQuery = useLabelSyncStatus();
@@ -205,9 +198,7 @@ export function useLabels() {
       linkMutation.mutateAsync({ labelId, tagId }),
     unlink: (labelId: string) => unlinkMutation.mutateAsync(labelId),
     autoCreateTags: () => autoCreateMutation.mutateAsync(undefined),
-    refresh: () => {
-      queryClient.invalidateQueries({ queryKey: labelKeys.all });
-    },
+    refresh: invalidateLabels,
 
     // Mutation states
     isSyncing: syncMutation.isPending,

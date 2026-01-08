@@ -6,6 +6,7 @@ import { tenantMiddleware } from "../middleware/tenant.js";
 import { getRouteContext } from "../middleware/context.js";
 import * as quickRepliesService from "../services/quick-replies.service.js";
 import { conflict, isTableNotFoundError, notFound } from "../lib/errors.js";
+import { created, successData, successMessage, successPaginated, type PaginationMeta } from "../lib/response.js";
 
 export const quickReplyRoutes = new Hono();
 
@@ -61,25 +62,24 @@ quickReplyRoutes.get("/", zValidator("query", listQuerySchema), async (c) => {
       offset,
     });
 
-    return c.json({
-      data: result.quickReplies,
-      meta: {
-        total: result.total,
-        limit,
-        offset,
-      },
-    });
+    const pagination: PaginationMeta = {
+      total: result.total,
+      limit,
+      offset,
+      hasMore: offset + limit < result.total,
+    };
+
+    return successPaginated(c, result.quickReplies, pagination);
   } catch (error) {
     // Handle missing table gracefully - return empty array
     if (isTableNotFoundError(error)) {
-      return c.json({
-        data: [],
-        meta: {
-          total: 0,
-          limit,
-          offset,
-        },
-      });
+      const pagination: PaginationMeta = {
+        total: 0,
+        limit,
+        offset,
+        hasMore: false,
+      };
+      return successPaginated(c, [], pagination);
     }
     throw error;
   }
@@ -101,9 +101,7 @@ quickReplyRoutes.get("/search/:shortcut", async (c) => {
     return notFound(c, "Quick reply");
   }
 
-  return c.json({
-    data: quickReply,
-  });
+  return successData(c, quickReply);
 });
 
 /**
@@ -122,9 +120,7 @@ quickReplyRoutes.get("/:id", async (c) => {
     return notFound(c, "Quick reply");
   }
 
-  return c.json({
-    data: quickReply,
-  });
+  return successData(c, quickReply);
 });
 
 /**
@@ -144,12 +140,7 @@ quickReplyRoutes.post(
         input,
       );
 
-      return c.json(
-        {
-          data: quickReply,
-        },
-        201,
-      );
+      return created(c, quickReply);
     } catch (error) {
       if (error instanceof Error && error.message.includes("already exists")) {
         return conflict(c, error.message);
@@ -181,9 +172,7 @@ quickReplyRoutes.patch(
         return notFound(c, "Quick reply");
       }
 
-      return c.json({
-        data: quickReply,
-      });
+      return successData(c, quickReply);
     } catch (error) {
       if (error instanceof Error && error.message.includes("already exists")) {
         return conflict(c, error.message);
@@ -209,9 +198,5 @@ quickReplyRoutes.delete("/:id", async (c) => {
     return notFound(c, "Quick reply");
   }
 
-  return c.json({
-    data: {
-      deleted: true,
-    },
-  });
+  return successMessage(c, "Quick reply deleted successfully");
 });

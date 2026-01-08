@@ -10,7 +10,7 @@ import { describe, it, expect } from "bun:test"
 
 // Import the buildCommandSubject function directly - this is a pure function
 // that doesn't need mocking
-import { buildCommandSubject } from "../../lib/nats.js"
+import { buildCommandSubject } from "../../lib/nats/index.js"
 
 describe("buildCommandSubject", () => {
   it("should build correct subject with companyId and connectionId", () => {
