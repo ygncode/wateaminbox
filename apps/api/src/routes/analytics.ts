@@ -4,6 +4,7 @@ import { rateLimitConfig, rateLimitStore } from "../lib/rate-limit-store.js";
 import {
   extractDateRange,
   extractOptionalDateRange,
+  extractPaginationParams,
 } from "../lib/route-helpers.js";
 import { authMiddleware } from "../middleware/auth.js";
 import { getRouteContext } from "../middleware/context.js";
@@ -304,7 +305,7 @@ analyticsRoutes.get("/sla-breaches", analyticsRateLimiter, async (c) => {
   const { companyId } = getRouteContext(c);
   const { startDate, endDate } = extractDateRange(c, 7);
   const slaThreshold = parseInt(c.req.query("slaThreshold") || "60", 10);
-  const limit = parseInt(c.req.query("limit") || "50", 10);
+  const { limit } = extractPaginationParams(c);
 
   const breaches = await analyticsService.getSlaBreaches(
     companyId,

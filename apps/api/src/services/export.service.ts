@@ -1,6 +1,7 @@
 import { sql } from "kysely";
 import { toISOString, dayjs } from "@whatsapp-web/shared";
 import { getTenantConnection } from "./tenant.service.js";
+import { NotFoundError } from "../lib/errors.js";
 import * as fflate from "fflate";
 
 /**
@@ -333,7 +334,7 @@ export async function exportConversation(
   `.execute(tenantDb);
 
   if (contactResult.rows.length === 0) {
-    throw new Error("Contact not found");
+    throw new NotFoundError("Contact");
   }
 
   const c = contactResult.rows[0];

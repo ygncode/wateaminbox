@@ -20,6 +20,7 @@ import {
   buildQuotedMessageData,
   type MessageDbRow,
 } from "../lib/message-formatters.js";
+import { extractPaginationParams } from "../lib/route-helpers.js";
 
 export const conversationRoutes = new Hono();
 
@@ -34,7 +35,7 @@ conversationRoutes.use("/*", tenantMiddleware());
 conversationRoutes.get("/:id/messages", async (c) => {
   const { tenantDb } = getRouteContext(c);
   const contactId = c.req.param("id");
-  const limit = parseInt(c.req.query("limit") || "50", 10);
+  const { limit } = extractPaginationParams(c);
   const cursor = c.req.query("cursor"); // Message ID for cursor pagination
 
   let query = tenantDb

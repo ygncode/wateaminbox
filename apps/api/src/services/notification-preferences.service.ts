@@ -1,4 +1,5 @@
 import { getTenantConnection } from "./tenant.service.js";
+import { AppError } from "../lib/errors.js";
 
 /**
  * Sound choice options
@@ -107,7 +108,7 @@ export async function getNotificationPreferences(
     .executeTakeFirst();
 
   if (!created) {
-    throw new Error("Failed to create default notification preferences");
+    throw new AppError("Failed to create default notification preferences", 500);
   }
 
   return mapRowToPreferences(created);
@@ -159,7 +160,7 @@ export async function updateNotificationPreferences(
     .executeTakeFirst();
 
   if (!updated) {
-    throw new Error("Failed to update notification preferences");
+    throw new AppError("Failed to update notification preferences", 500);
   }
 
   return mapRowToPreferences(updated);

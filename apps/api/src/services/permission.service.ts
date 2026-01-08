@@ -1,4 +1,5 @@
 import { db } from "@whatsapp-web/database";
+import { NotFoundError, ForbiddenError } from "../lib/errors.js";
 
 /**
  * Feature-based permissions
@@ -198,14 +199,14 @@ export async function updateMemberPermissions(
     .executeTakeFirst();
 
   if (!member) {
-    throw new Error("Member not found");
+    throw new NotFoundError("Member");
   }
 
   const role = member.role as "owner" | "admin" | "member";
 
   // Cannot change owner's permissions
   if (role === "owner") {
-    throw new Error("Cannot modify owner's permissions");
+    throw new ForbiddenError("Cannot modify owner's permissions");
   }
 
   // Merge existing custom permissions with new ones
@@ -241,7 +242,7 @@ export async function resetMemberPermissions(
     .executeTakeFirst();
 
   if (!member) {
-    throw new Error("Member not found");
+    throw new NotFoundError("Member");
   }
 
   const role = member.role as "owner" | "admin" | "member";

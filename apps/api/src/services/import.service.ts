@@ -1,12 +1,14 @@
 import type { TenantDatabase } from "@whatsapp-web/database";
 import type { Kysely, Transaction } from "kysely";
 import { normalizePhoneNumber as sharedNormalizePhoneNumber } from "../lib/schemas.js";
+import { ValidationError, AppError } from "../lib/errors.js";
 
 /**
  * Validation error during import - doesn't abort transaction
  * Used for data validation issues like invalid phone numbers
+ * Extends ValidationError for consistent error handling
  */
-export class ImportValidationError extends Error {
+export class ImportValidationError extends ValidationError {
   constructor(message: string) {
     super(message);
     this.name = "ImportValidationError";
@@ -16,13 +18,14 @@ export class ImportValidationError extends Error {
 /**
  * Critical error during import - causes transaction rollback
  * Used for database errors and other critical failures
+ * Extends AppError for consistent error handling
  */
-export class ImportCriticalError extends Error {
+export class ImportCriticalError extends AppError {
   constructor(
     message: string,
     public readonly cause?: unknown,
   ) {
-    super(message);
+    super(message, 500);
     this.name = "ImportCriticalError";
   }
 }

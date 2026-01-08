@@ -1,4 +1,5 @@
 import { getTenantConnection } from "./tenant.service.js";
+import { AppError } from "../lib/errors.js";
 
 /**
  * Notification type enum
@@ -100,7 +101,7 @@ export async function createNotification(
     .executeTakeFirst();
 
   if (!created) {
-    throw new Error("Failed to create notification");
+    throw new AppError("Failed to create notification", 500);
   }
 
   return mapRowToNotification(created);

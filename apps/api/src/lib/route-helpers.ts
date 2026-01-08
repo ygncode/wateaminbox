@@ -73,3 +73,93 @@ export function extractOptionalDateRange(c: Context): OptionalDateRange {
     endDate: endDateStr ? toDbDate(endDateStr) : undefined,
   };
 }
+
+/**
+ * Pagination parameters extracted from query string
+ */
+export interface PaginationParams {
+  limit: number;
+  offset: number;
+}
+
+/**
+ * Extract pagination parameters from query string.
+ *
+ * Parses `limit` and `offset` query parameters with sensible defaults.
+ * The limit is capped at maxLimit to prevent excessive data fetching.
+ *
+ * @example
+ * ```ts
+ * // Default to limit=50, offset=0
+ * const { limit, offset } = extractPaginationParams(c)
+ *
+ * // Custom default limit
+ * const { limit, offset } = extractPaginationParams(c, 20)
+ *
+ * // With custom max limit
+ * const { limit, offset } = extractPaginationParams(c, 50, 200)
+ * ```
+ *
+ * @param c - The Hono context from a route handler
+ * @param defaultLimit - Default limit when not provided (default: 50)
+ * @param maxLimit - Maximum allowed limit (default: 1000)
+ * @returns The pagination parameters
+ */
+export function extractPaginationParams(
+  c: Context,
+  defaultLimit = 50,
+  maxLimit = 1000,
+): PaginationParams {
+  const limitParam = c.req.query("limit");
+  const offsetParam = c.req.query("offset");
+
+  const rawLimit = limitParam ? parseInt(limitParam, 10) : defaultLimit;
+  const rawOffset = offsetParam ? parseInt(offsetParam, 10) : 0;
+
+  return {
+    limit: Math.min(Math.max(1, isNaN(rawLimit) ? defaultLimit : rawLimit), maxLimit),
+    offset: Math.max(0, isNaN(rawOffset) ? 0 : rawOffset),
+  };
+}
+
+/**
+ * Pagination response metadata
+ */
+export interface PaginationMeta {
+  total: number;
+  limit: number;
+  offset: number;
+  hasMore: boolean;
+}
+
+/**
+ * Create pagination metadata for API responses.
+ *
+ * @example
+ * ```ts
+ * const { limit, offset } = extractPaginationParams(c)
+ * const { data, total } = await getContacts({ limit, offset })
+ *
+ * return c.json({
+ *   data,
+ *   pagination: createPaginationMeta(total, data.length, { limit, offset })
+ * })
+ * ```
+ *
+ * @param total - Total number of items available
+ * @param returnedCount - Number of items returned in this response
+ * @param params - The pagination parameters used for the query
+ * @returns Pagination metadata for the response
+ */
+export function createPaginationMeta(
+  total: number,
+  returnedCount: number,
+  params: PaginationParams,
+): PaginationMeta {
+  return {
+    total,
+    limit: params.limit,
+    offset: params.offset,
+    hasMore: params.offset + returnedCount < total,
+  };
+}
