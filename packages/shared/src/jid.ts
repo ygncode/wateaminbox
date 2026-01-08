@@ -11,7 +11,7 @@
  * Extract phone number from a JID, handling device suffix
  *
  * @param jid - WhatsApp JID (e.g., "1234567890@s.whatsapp.net" or "1234567890:3@s.whatsapp.net")
- * @returns Phone number or null if invalid
+ * @returns Phone number (cleaned, digits only) or null if invalid
  */
 export function extractPhoneFromJid(jid: string | null | undefined): string | null {
   if (!jid) return null
@@ -23,7 +23,12 @@ export function extractPhoneFromJid(jid: string | null | undefined): string | nu
   // Remove device suffix (the :N part, e.g., ":3")
   const phone = userPart.split(':')[0]
 
-  return phone || null
+  // Clean the phone number: remove all non-digit characters
+  // This handles cases where WhatsApp sends JIDs with spaces or special chars
+  // e.g., "445781 3665 799 0@s.whatsapp.net" becomes "445781366579990"
+  const cleanedPhone = phone.replace(/\D/g, '')
+
+  return cleanedPhone || null
 }
 
 /**
