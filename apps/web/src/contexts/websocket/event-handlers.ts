@@ -101,41 +101,42 @@ export function registerEventHandlers(
       queryClientRef.current.setQueryData(
         queryKey,
         (oldData: InfiniteMessageData | undefined) => {
-        if (!oldData) return oldData;
+          if (!oldData) return oldData;
 
-        // Check if message already exists to avoid duplicates
-        const messageExists = oldData.pages.some((page: any) =>
-          page.messages.some((msg: any) => msg.id === payload.message.id),
-        );
-        if (messageExists) {
-          console.log(
-            "[WebSocket] ⚠️ Duplicate message ignored:",
-            payload.message.id,
+          // Check if message already exists to avoid duplicates
+          const messageExists = oldData.pages.some((page: any) =>
+            page.messages.some((msg: any) => msg.id === payload.message.id),
           );
-          return oldData;
-        }
+          if (messageExists) {
+            console.log(
+              "[WebSocket] ⚠️ Duplicate message ignored:",
+              payload.message.id,
+            );
+            return oldData;
+          }
 
-        // Add the new message to the first page (most recent)
-        const newPages = [...oldData.pages];
-        if (newPages.length > 0) {
-          newPages[0] = {
-            ...newPages[0],
-            messages: [payload.message, ...newPages[0].messages],
+          // Add the new message to the first page (most recent)
+          const newPages = [...oldData.pages];
+          if (newPages.length > 0) {
+            newPages[0] = {
+              ...newPages[0],
+              messages: [payload.message, ...newPages[0].messages],
+            };
+            console.log(
+              "[WebSocket] ✅ Message added to cache, total messages:",
+              newPages.reduce(
+                (sum: number, page: any) => sum + page.messages.length,
+                0,
+              ),
+            );
+          }
+
+          return {
+            ...oldData,
+            pages: newPages,
           };
-          console.log(
-            "[WebSocket] ✅ Message added to cache, total messages:",
-            newPages.reduce(
-              (sum: number, page: any) => sum + page.messages.length,
-              0,
-            ),
-          );
-        }
-
-        return {
-          ...oldData,
-          pages: newPages,
-        };
-      });
+        },
+      );
 
       // Read store state FIRST before any async operations can change it
       const selectedConversationId =
@@ -182,23 +183,24 @@ export function registerEventHandlers(
       queryClientRef.current.setQueryData(
         queryKey,
         (oldData: InfiniteMessageData | undefined) => {
-        if (!oldData) return oldData;
+          if (!oldData) return oldData;
 
-        // Find and update the message status in all pages
-        const newPages = oldData.pages.map((page: any) => ({
-          ...page,
-          messages: page.messages.map((msg: any) =>
-            msg.id === payload.messageId
-              ? { ...msg, status: payload.status }
-              : msg,
-          ),
-        }));
+          // Find and update the message status in all pages
+          const newPages = oldData.pages.map((page: any) => ({
+            ...page,
+            messages: page.messages.map((msg: any) =>
+              msg.id === payload.messageId
+                ? { ...msg, status: payload.status }
+                : msg,
+            ),
+          }));
 
-        return {
-          ...oldData,
-          pages: newPages,
-        };
-      });
+          return {
+            ...oldData,
+            pages: newPages,
+          };
+        },
+      );
     }),
   );
 
@@ -291,27 +293,28 @@ export function registerEventHandlers(
       queryClientRef.current.setQueryData(
         queryKey,
         (oldData: InfiniteMessageData | undefined) => {
-        if (!oldData) return oldData;
+          if (!oldData) return oldData;
 
-        // Find and update the message in all pages
-        const newPages = oldData.pages.map((page: any) => ({
-          ...page,
-          messages: page.messages.map((msg: any) =>
-            msg.id === payload.messageId
-              ? {
-                  ...msg,
-                  deleted_by_sender: true,
-                  deleted_at: new Date().toISOString(),
-                }
-              : msg,
-          ),
-        }));
+          // Find and update the message in all pages
+          const newPages = oldData.pages.map((page: any) => ({
+            ...page,
+            messages: page.messages.map((msg: any) =>
+              msg.id === payload.messageId
+                ? {
+                    ...msg,
+                    deleted_by_sender: true,
+                    deleted_at: new Date().toISOString(),
+                  }
+                : msg,
+            ),
+          }));
 
-        return {
-          ...oldData,
-          pages: newPages,
-        };
-      });
+          return {
+            ...oldData,
+            pages: newPages,
+          };
+        },
+      );
     }),
   );
 
@@ -407,53 +410,54 @@ export function registerEventHandlers(
       queryClientRef.current.setQueryData(
         queryKey,
         (oldData: InfiniteMessageData | undefined) => {
-        if (!oldData) {
-          console.log(
-            "[WebSocket] ⚠️ No cached data for conversation:",
-            payload.conversationId,
-          );
-          return oldData;
-        }
+          if (!oldData) {
+            console.log(
+              "[WebSocket] ⚠️ No cached data for conversation:",
+              payload.conversationId,
+            );
+            return oldData;
+          }
 
-        // Find and update the message with the downloaded media URL
-        const newPages = oldData.pages.map((page: any) => ({
-          ...page,
-          messages: page.messages.map((msg: any) => {
-            if (msg.id === payload.messageId) {
-              messageFound = true;
-              console.log(
-                "[WebSocket] ✅ Found message to update:",
-                msg.id,
-                "old mediaUrl:",
-                msg.metadata?.mediaUrl,
-              );
-              return {
-                ...msg,
-                metadata: {
-                  ...msg.metadata,
-                  mediaUrl: payload.mediaUrl,
-                  mediaPending: false,
-                  mediaDownloadStatus: "completed" as const,
-                  fileSize: payload.mediaSize || msg.metadata?.fileSize,
-                },
-              };
-            }
-            return msg;
-          }),
-        }));
+          // Find and update the message with the downloaded media URL
+          const newPages = oldData.pages.map((page: any) => ({
+            ...page,
+            messages: page.messages.map((msg: any) => {
+              if (msg.id === payload.messageId) {
+                messageFound = true;
+                console.log(
+                  "[WebSocket] ✅ Found message to update:",
+                  msg.id,
+                  "old mediaUrl:",
+                  msg.metadata?.mediaUrl,
+                );
+                return {
+                  ...msg,
+                  metadata: {
+                    ...msg.metadata,
+                    mediaUrl: payload.mediaUrl,
+                    mediaPending: false,
+                    mediaDownloadStatus: "completed" as const,
+                    fileSize: payload.mediaSize || msg.metadata?.fileSize,
+                  },
+                };
+              }
+              return msg;
+            }),
+          }));
 
-        if (!messageFound) {
-          console.log(
-            "[WebSocket] ⚠️ Message not found in cache:",
-            payload.messageId,
-          );
-        }
+          if (!messageFound) {
+            console.log(
+              "[WebSocket] ⚠️ Message not found in cache:",
+              payload.messageId,
+            );
+          }
 
-        return {
-          ...oldData,
-          pages: newPages,
-        };
-      });
+          return {
+            ...oldData,
+            pages: newPages,
+          };
+        },
+      );
 
       // Force refetch to ensure UI updates immediately
       queryClientRef.current.refetchQueries({
@@ -481,35 +485,36 @@ export function registerEventHandlers(
       queryClientRef.current.setQueryData(
         queryKey,
         (oldData: InfiniteMessageData | undefined) => {
-        if (!oldData) {
-          console.log(
-            "[WebSocket] ⚠️ No cached data for conversation:",
-            payload.conversationId,
-          );
-          return oldData;
-        }
+          if (!oldData) {
+            console.log(
+              "[WebSocket] ⚠️ No cached data for conversation:",
+              payload.conversationId,
+            );
+            return oldData;
+          }
 
-        const newPages = oldData.pages.map((page: any) => ({
-          ...page,
-          messages: page.messages.map((msg: any) =>
-            msg.id === payload.messageId
-              ? {
-                  ...msg,
-                  metadata: {
-                    ...msg.metadata,
-                    mediaPending: true,
-                    mediaDownloadStatus: "failed" as const,
-                  },
-                }
-              : msg,
-          ),
-        }));
+          const newPages = oldData.pages.map((page: any) => ({
+            ...page,
+            messages: page.messages.map((msg: any) =>
+              msg.id === payload.messageId
+                ? {
+                    ...msg,
+                    metadata: {
+                      ...msg.metadata,
+                      mediaPending: true,
+                      mediaDownloadStatus: "failed" as const,
+                    },
+                  }
+                : msg,
+            ),
+          }));
 
-        return {
-          ...oldData,
-          pages: newPages,
-        };
-      });
+          return {
+            ...oldData,
+            pages: newPages,
+          };
+        },
+      );
 
       // Force refetch to ensure UI updates immediately
       queryClientRef.current.refetchQueries({

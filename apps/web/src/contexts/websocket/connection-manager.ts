@@ -5,10 +5,7 @@
  * and reconnection with fresh credentials.
  */
 
-import {
-  getAccessToken,
-  getCompanyId,
-} from "../../lib/api";
+import { getAccessToken, getCompanyId } from "../../lib/api";
 import {
   getWebSocketClient,
   resetWebSocketClient,

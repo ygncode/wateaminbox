@@ -374,6 +374,7 @@ export function ChatPage() {
               onStarMessage={handleStarMessage}
               onReactMessage={handleReactMessage}
               highlightedMessageId={highlightedMessageId}
+              onOpenContactInfo={handleOpenProfile}
             />
           </div>
           <MessageComposer
