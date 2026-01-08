@@ -1,5 +1,7 @@
+import { toDbDate, toISOString } from "@whatsapp-web/shared";
 import { Hono } from "hono";
 import { authMiddleware } from "../middleware/auth.js";
+import { getRouteContext } from "../middleware/context.js";
 import { tenantMiddleware } from "../middleware/tenant.js";
 import * as auditService from "../services/audit.service.js";
 
@@ -14,8 +16,7 @@ auditRoutes.use("/*", tenantMiddleware());
  * Query params: userId, action, entityType, entityId, startDate, endDate, limit, offset
  */
 auditRoutes.get("/", async (c) => {
-  const companyId = c.get("companyId");
-  const role = c.get("companyRole");
+  const { companyId, role } = getRouteContext(c);
 
   // Only admins and owners can view audit logs
   if (role === "member") {
@@ -26,8 +27,8 @@ auditRoutes.get("/", async (c) => {
   const action = c.req.query("action") as auditService.AuditAction | undefined;
   const entityType = c.req.query("entityType");
   const entityId = c.req.query("entityId");
-  const startDate = c.req.query("startDate");
-  const endDate = c.req.query("endDate");
+  const startDateStr = c.req.query("startDate");
+  const endDateStr = c.req.query("endDate");
   const limit = parseInt(c.req.query("limit") || "50", 10);
   const offset = parseInt(c.req.query("offset") || "0", 10);
 
@@ -37,8 +38,8 @@ auditRoutes.get("/", async (c) => {
     action: action || undefined,
     entityType: entityType || undefined,
     entityId: entityId || undefined,
-    startDate: startDate ? new Date(startDate) : undefined,
-    endDate: endDate ? new Date(endDate) : undefined,
+    startDate: startDateStr ? toDbDate(startDateStr) : undefined,
+    endDate: endDateStr ? toDbDate(endDateStr) : undefined,
     limit,
     offset,
   });
@@ -102,21 +103,20 @@ auditRoutes.get("/actions", async (c) => {
  * GET /audit/export - Export audit logs as CSV
  */
 auditRoutes.get("/export", async (c) => {
-  const companyId = c.get("companyId");
-  const role = c.get("companyRole");
+  const { companyId, role } = getRouteContext(c);
 
   // Only admins and owners can export audit logs
   if (role === "member") {
     return c.json({ error: "Insufficient permissions" }, 403);
   }
 
-  const startDate = c.req.query("startDate");
-  const endDate = c.req.query("endDate");
+  const startDateStr = c.req.query("startDate");
+  const endDateStr = c.req.query("endDate");
 
   const result = await auditService.getAuditLogs({
     companyId,
-    startDate: startDate ? new Date(startDate) : undefined,
-    endDate: endDate ? new Date(endDate) : undefined,
+    startDate: startDateStr ? toDbDate(startDateStr) : undefined,
+    endDate: endDateStr ? toDbDate(endDateStr) : undefined,
     limit: 10000, // Max export limit
     offset: 0,
   });
@@ -140,7 +140,7 @@ auditRoutes.get("/export", async (c) => {
     log.entityId || "",
     log.details ? JSON.stringify(log.details) : "",
     log.ipAddress || "",
-    log.createdAt.toISOString(),
+    toISOString(log.createdAt),
   ]);
 
   const csv = [
@@ -153,7 +153,7 @@ auditRoutes.get("/export", async (c) => {
   return new Response(csv, {
     headers: {
       "Content-Type": "text/csv",
-      "Content-Disposition": `attachment; filename="audit-logs-${new Date().toISOString().split("T")[0]}.csv"`,
+      "Content-Disposition": `attachment; filename="audit-logs-${toISOString(toDbDate()).split("T")[0]}.csv"`,
     },
   });
 });

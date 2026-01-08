@@ -1,11 +1,12 @@
+import { toDbDate } from "@whatsapp-web/shared";
 import { Hono } from "hono";
 import { rateLimitConfig, rateLimitStore } from "../lib/rate-limit-store.js";
 import { authMiddleware } from "../middleware/auth.js";
+import { getRouteContext } from "../middleware/context.js";
 import { createConditionalRateLimiter } from "../middleware/rate-limit.js";
 import { tenantMiddleware } from "../middleware/tenant.js";
 import * as meilisearchService from "../services/meilisearch.service.js";
 import * as searchService from "../services/search.service.js";
-import { getTenantConnection } from "../services/tenant.service.js";
 
 export const searchRoutes = new Hono();
 
@@ -31,7 +32,7 @@ const searchRateLimiter = createConditionalRateLimiter(
  * Rate limit: 30 requests per minute per user
  */
 searchRoutes.get("/", searchRateLimiter, async (c) => {
-  const companyId = c.get("companyId");
+  const { companyId } = getRouteContext(c);
   const query = c.req.query("q");
   const limit = parseInt(c.req.query("limit") || "10", 10);
 
@@ -59,7 +60,7 @@ searchRoutes.get("/", searchRateLimiter, async (c) => {
  * Rate limit: 30 requests per minute per user
  */
 searchRoutes.get("/messages", searchRateLimiter, async (c) => {
-  const companyId = c.get("companyId");
+  const { companyId } = getRouteContext(c);
   const query = c.req.query("q");
   const limit = parseInt(c.req.query("limit") || "50", 10);
   const offset = parseInt(c.req.query("offset") || "0", 10);
@@ -81,8 +82,8 @@ searchRoutes.get("/messages", searchRateLimiter, async (c) => {
     limit,
     offset,
     contactId: contactId || undefined,
-    startDate: startDateStr ? new Date(startDateStr) : undefined,
-    endDate: endDateStr ? new Date(endDateStr) : undefined,
+    startDate: startDateStr ? toDbDate(startDateStr) : undefined,
+    endDate: endDateStr ? toDbDate(endDateStr) : undefined,
     messageTypes: messageTypesStr
       ? messageTypesStr.split(",").filter(Boolean)
       : undefined,
@@ -111,7 +112,7 @@ searchRoutes.get("/messages", searchRateLimiter, async (c) => {
  * Rate limit: 30 requests per minute per user
  */
 searchRoutes.get("/contacts", searchRateLimiter, async (c) => {
-  const companyId = c.get("companyId");
+  const { companyId } = getRouteContext(c);
   const query = c.req.query("q");
   const limit = parseInt(c.req.query("limit") || "50", 10);
   const offset = parseInt(c.req.query("offset") || "0", 10);
@@ -147,7 +148,7 @@ searchRoutes.get("/contacts", searchRateLimiter, async (c) => {
  * GET /search/status - Get search engine status
  */
 searchRoutes.get("/status", async (c) => {
-  const companyId = c.get("companyId");
+  const { companyId } = getRouteContext(c);
 
   const meilisearchAvailable =
     await meilisearchService.isMeilisearchAvailable();
@@ -169,8 +170,7 @@ searchRoutes.get("/status", async (c) => {
  * POST /search/reindex - Rebuild search indexes (admin only)
  */
 searchRoutes.post("/reindex", async (c) => {
-  const companyId = c.get("companyId");
-  const role = c.get("companyRole");
+  const { companyId, role, tenantDb } = getRouteContext(c);
 
   // Only admins and owners can reindex
   if (role === "member") {
@@ -182,8 +182,6 @@ searchRoutes.post("/reindex", async (c) => {
   if (!meilisearchAvailable) {
     return c.json({ error: "Meilisearch is not available" }, 503);
   }
-
-  const tenantDb = getTenantConnection(companyId);
 
   // Index all messages
   const messages = await tenantDb
@@ -238,16 +236,20 @@ searchRoutes.post("/reindex", async (c) => {
     .execute();
 
   const contactDocuments: meilisearchService.ContactDocument[] = contacts.map(
-    (c) => ({
-      id: c.id,
+    (contact) => ({
+      id: contact.id,
       companyId,
-      jid: c.jid,
-      phoneNumber: c.phone_number,
-      pushName: c.push_name,
-      customName: c.custom_name,
-      displayName: c.custom_name || c.push_name || c.phone_number || "Unknown",
-      isGroup: c.is_group,
-      notesShared: c.notes_shared,
+      jid: contact.jid,
+      phoneNumber: contact.phone_number,
+      pushName: contact.push_name,
+      customName: contact.custom_name,
+      displayName:
+        contact.custom_name ||
+        contact.push_name ||
+        contact.phone_number ||
+        "Unknown",
+      isGroup: contact.is_group,
+      notesShared: contact.notes_shared,
     }),
   );
 

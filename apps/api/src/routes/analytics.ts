@@ -1,13 +1,12 @@
-import {
-  now,
-  subtractDays,
-  toDate,
-  toDbDate,
-  toISOString,
-} from "@whatsapp-web/shared";
+import { toISOString } from "@whatsapp-web/shared";
 import { Hono } from "hono";
 import { rateLimitConfig, rateLimitStore } from "../lib/rate-limit-store.js";
+import {
+  extractDateRange,
+  extractOptionalDateRange,
+} from "../lib/route-helpers.js";
 import { authMiddleware } from "../middleware/auth.js";
+import { getRouteContext } from "../middleware/context.js";
 import { createConditionalRateLimiter } from "../middleware/rate-limit.js";
 import { tenantMiddleware } from "../middleware/tenant.js";
 import * as analyticsService from "../services/analytics.service.js";
@@ -35,7 +34,7 @@ const analyticsRateLimiter = createConditionalRateLimiter(
  * Rate limit: 20 requests per minute per user
  */
 analyticsRoutes.get("/dashboard", analyticsRateLimiter, async (c) => {
-  const companyId = c.get("companyId");
+  const { companyId } = getRouteContext(c);
 
   const stats = await analyticsService.getDashboardStats(companyId);
 
@@ -50,15 +49,8 @@ analyticsRoutes.get("/dashboard", analyticsRateLimiter, async (c) => {
  * Rate limit: 20 requests per minute per user
  */
 analyticsRoutes.get("/messages", analyticsRateLimiter, async (c) => {
-  const companyId = c.get("companyId");
-  const startDateStr = c.req.query("startDate");
-  const endDateStr = c.req.query("endDate");
-
-  // Default to last 30 days
-  const endDate = endDateStr ? toDbDate(endDateStr) : toDbDate();
-  const startDate = startDateStr
-    ? toDbDate(startDateStr)
-    : subtractDays(endDate, 30).toDate();
+  const { companyId } = getRouteContext(c);
+  const { startDate, endDate } = extractDateRange(c, 30);
 
   const stats = await analyticsService.getMessageStats(
     companyId,
@@ -80,7 +72,7 @@ analyticsRoutes.get("/messages", analyticsRateLimiter, async (c) => {
  * Rate limit: 20 requests per minute per user
  */
 analyticsRoutes.get("/contacts", analyticsRateLimiter, async (c) => {
-  const companyId = c.get("companyId");
+  const { companyId } = getRouteContext(c);
 
   const stats = await analyticsService.getContactStats(companyId);
 
@@ -94,8 +86,7 @@ analyticsRoutes.get("/contacts", analyticsRateLimiter, async (c) => {
  * Rate limit: 20 requests per minute per user
  */
 analyticsRoutes.get("/team", analyticsRateLimiter, async (c) => {
-  const companyId = c.get("companyId");
-  const role = c.get("companyRole");
+  const { companyId, role } = getRouteContext(c);
 
   // Only admins and owners can view team stats
   if (role === "member") {
@@ -115,12 +106,8 @@ analyticsRoutes.get("/team", analyticsRateLimiter, async (c) => {
  * Rate limit: 20 requests per minute per user
  */
 analyticsRoutes.get("/message-types", analyticsRateLimiter, async (c) => {
-  const companyId = c.get("companyId");
-  const startDateStr = c.req.query("startDate");
-  const endDateStr = c.req.query("endDate");
-
-  const startDate = startDateStr ? toDbDate(startDateStr) : undefined;
-  const endDate = endDateStr ? toDbDate(endDateStr) : undefined;
+  const { companyId } = getRouteContext(c);
+  const { startDate, endDate } = extractOptionalDateRange(c);
 
   const stats = await analyticsService.getMessageTypeStats(
     companyId,
@@ -139,7 +126,7 @@ analyticsRoutes.get("/message-types", analyticsRateLimiter, async (c) => {
  * Rate limit: 20 requests per minute per user
  */
 analyticsRoutes.get("/hourly", analyticsRateLimiter, async (c) => {
-  const companyId = c.get("companyId");
+  const { companyId } = getRouteContext(c);
   const days = parseInt(c.req.query("days") || "30", 10);
 
   const stats = await analyticsService.getHourlyMessageStats(companyId, days);
@@ -155,16 +142,9 @@ analyticsRoutes.get("/hourly", analyticsRateLimiter, async (c) => {
  * Rate limit: 20 requests per minute per user
  */
 analyticsRoutes.get("/response-time", analyticsRateLimiter, async (c) => {
-  const companyId = c.get("companyId");
-  const startDateStr = c.req.query("startDate");
-  const endDateStr = c.req.query("endDate");
+  const { companyId } = getRouteContext(c);
+  const { startDate, endDate } = extractDateRange(c, 30);
   const slaThreshold = parseInt(c.req.query("slaThreshold") || "60", 10);
-
-  // Default to last 30 days
-  const endDate = endDateStr ? toDbDate(endDateStr) : toDbDate();
-  const startDate = startDateStr
-    ? toDbDate(startDateStr)
-    : subtractDays(endDate, 30).toDate();
 
   const stats = await analyticsService.getResponseTimeStats(
     companyId,
@@ -189,16 +169,9 @@ analyticsRoutes.get("/response-time", analyticsRateLimiter, async (c) => {
  * Rate limit: 20 requests per minute per user
  */
 analyticsRoutes.get("/response-time/trend", analyticsRateLimiter, async (c) => {
-  const companyId = c.get("companyId");
-  const startDateStr = c.req.query("startDate");
-  const endDateStr = c.req.query("endDate");
+  const { companyId } = getRouteContext(c);
+  const { startDate, endDate } = extractDateRange(c, 30);
   const slaThreshold = parseInt(c.req.query("slaThreshold") || "60", 10);
-
-  // Default to last 30 days
-  const endDate = endDateStr ? toDbDate(endDateStr) : toDbDate();
-  const startDate = startDateStr
-    ? toDbDate(startDateStr)
-    : subtractDays(endDate, 30).toDate();
 
   const trend = await analyticsService.getResponseTimeTrend(
     companyId,
@@ -223,10 +196,7 @@ analyticsRoutes.get("/response-time/trend", analyticsRateLimiter, async (c) => {
  * Rate limit: 20 requests per minute per user
  */
 analyticsRoutes.get("/response-time/team", analyticsRateLimiter, async (c) => {
-  const companyId = c.get("companyId");
-  const role = c.get("companyRole");
-  const startDateStr = c.req.query("startDate");
-  const endDateStr = c.req.query("endDate");
+  const { companyId, role } = getRouteContext(c);
   const slaThreshold = parseInt(c.req.query("slaThreshold") || "60", 10);
 
   // Only admins and owners can view team stats
@@ -234,11 +204,7 @@ analyticsRoutes.get("/response-time/team", analyticsRateLimiter, async (c) => {
     return c.json({ error: "Insufficient permissions" }, 403);
   }
 
-  // Default to last 30 days
-  const endDate = endDateStr ? toDbDate(endDateStr) : toDbDate();
-  const startDate = startDateStr
-    ? toDbDate(startDateStr)
-    : subtractDays(endDate, 30).toDate();
+  const { startDate, endDate } = extractDateRange(c, 30);
 
   const stats = await analyticsService.getTeamResponseTimeStats(
     companyId,
@@ -263,15 +229,8 @@ analyticsRoutes.get("/response-time/team", analyticsRateLimiter, async (c) => {
  * Rate limit: 20 requests per minute per user
  */
 analyticsRoutes.get("/contacts/trend", analyticsRateLimiter, async (c) => {
-  const companyId = c.get("companyId");
-  const startDateStr = c.req.query("startDate");
-  const endDateStr = c.req.query("endDate");
-
-  // Default to last 30 days
-  const endDate = endDateStr ? toDbDate(endDateStr) : toDbDate();
-  const startDate = startDateStr
-    ? toDbDate(startDateStr)
-    : subtractDays(endDate, 30).toDate();
+  const { companyId } = getRouteContext(c);
+  const { startDate, endDate } = extractDateRange(c, 30);
 
   const trend = await analyticsService.getNewContactsTrend(
     companyId,
@@ -294,15 +253,8 @@ analyticsRoutes.get("/contacts/trend", analyticsRateLimiter, async (c) => {
  * Rate limit: 20 requests per minute per user
  */
 analyticsRoutes.get("/engagement", analyticsRateLimiter, async (c) => {
-  const companyId = c.get("companyId");
-  const startDateStr = c.req.query("startDate");
-  const endDateStr = c.req.query("endDate");
-
-  // Default to last 30 days
-  const endDate = endDateStr ? toDbDate(endDateStr) : toDbDate();
-  const startDate = startDateStr
-    ? toDbDate(startDateStr)
-    : subtractDays(endDate, 30).toDate();
+  const { companyId } = getRouteContext(c);
+  const { startDate, endDate } = extractDateRange(c, 30);
 
   const metrics = await analyticsService.getEngagementMetrics(
     companyId,
@@ -325,15 +277,8 @@ analyticsRoutes.get("/engagement", analyticsRateLimiter, async (c) => {
  * Rate limit: 20 requests per minute per user
  */
 analyticsRoutes.get("/engagement/trend", analyticsRateLimiter, async (c) => {
-  const companyId = c.get("companyId");
-  const startDateStr = c.req.query("startDate");
-  const endDateStr = c.req.query("endDate");
-
-  // Default to last 30 days
-  const endDate = endDateStr ? toDbDate(endDateStr) : toDbDate();
-  const startDate = startDateStr
-    ? toDbDate(startDateStr)
-    : subtractDays(endDate, 30).toDate();
+  const { companyId } = getRouteContext(c);
+  const { startDate, endDate } = extractDateRange(c, 30);
 
   const trend = await analyticsService.getEngagementTrend(
     companyId,
@@ -356,17 +301,10 @@ analyticsRoutes.get("/engagement/trend", analyticsRateLimiter, async (c) => {
  * Rate limit: 20 requests per minute per user
  */
 analyticsRoutes.get("/sla-breaches", analyticsRateLimiter, async (c) => {
-  const companyId = c.get("companyId");
-  const startDateStr = c.req.query("startDate");
-  const endDateStr = c.req.query("endDate");
+  const { companyId } = getRouteContext(c);
+  const { startDate, endDate } = extractDateRange(c, 7);
   const slaThreshold = parseInt(c.req.query("slaThreshold") || "60", 10);
   const limit = parseInt(c.req.query("limit") || "50", 10);
-
-  // Default to last 7 days
-  const endDate = endDateStr ? toDbDate(endDateStr) : toDbDate();
-  const startDate = startDateStr
-    ? toDbDate(startDateStr)
-    : subtractDays(endDate, 7).toDate();
 
   const breaches = await analyticsService.getSlaBreaches(
     companyId,
