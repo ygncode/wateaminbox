@@ -105,7 +105,10 @@ export async function initializeMessageCleanup(
   try {
     const result = await runCleanupCycle();
     logger.info(
-      { totalExpired: result.totalExpired, companyCount: result.companies.length },
+      {
+        totalExpired: result.totalExpired,
+        companyCount: result.companies.length,
+      },
       "Initial cleanup complete",
     );
   } catch (error) {
@@ -121,7 +124,11 @@ export async function initializeMessageCleanup(
         logger.debug("Cleanup cycle skipped (no active companies)");
       } else {
         logger.info(
-          { totalExpired: result.totalExpired, companyCount: result.companies.length, durationMs: result.durationMs },
+          {
+            totalExpired: result.totalExpired,
+            companyCount: result.companies.length,
+            durationMs: result.durationMs,
+          },
           "Cleanup cycle complete",
         );
       }
@@ -238,10 +245,7 @@ export async function cleanupCompanyMessages(
   // Check if tenant schema exists
   const schemaExists = await tenantSchemaExists(companyId);
   if (!schemaExists) {
-    logger.warn(
-      { companyId },
-      "Tenant schema does not exist for company",
-    );
+    logger.warn({ companyId }, "Tenant schema does not exist for company");
     return 0;
   }
 

@@ -1,7 +1,7 @@
-import { db } from "@whatsapp-web/database"
-import { createLogger, formatError } from "../lib/logger.js"
+import { db } from "@whatsapp-web/database";
+import { createLogger, formatError } from "../lib/logger.js";
 
-const logger = createLogger("UserService")
+const logger = createLogger("UserService");
 
 /**
  * Helper function to get user display names by their IDs
@@ -15,18 +15,18 @@ export async function getUserNames(
   userIds: string[],
 ): Promise<Map<string, string>> {
   if (userIds.length === 0) {
-    return new Map()
+    return new Map();
   }
 
   // Validate and filter valid UUIDs
   const uuidRegex =
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   const validIds = Array.from(new Set(userIds)).filter((id) =>
     uuidRegex.test(id),
-  )
+  );
 
   if (validIds.length === 0) {
-    return new Map()
+    return new Map();
   }
 
   try {
@@ -34,27 +34,27 @@ export async function getUserNames(
       .selectFrom("users")
       .select(["id", "name", "email"])
       .where("id", "in", validIds)
-      .execute()
+      .execute();
 
-    const userMap = new Map<string, string>()
+    const userMap = new Map<string, string>();
     for (const user of users) {
       // Use name if available, otherwise use email prefix as display name
-      let displayName: string
+      let displayName: string;
       if (user.name) {
-        displayName = user.name
+        displayName = user.name;
       } else {
         // Fallback to email prefix (before @)
-        const atIndex = user.email.indexOf("@")
+        const atIndex = user.email.indexOf("@");
         displayName =
-          atIndex > 0 ? user.email.substring(0, atIndex) : user.email
+          atIndex > 0 ? user.email.substring(0, atIndex) : user.email;
       }
-      userMap.set(user.id, displayName)
+      userMap.set(user.id, displayName);
     }
 
-    return userMap
+    return userMap;
   } catch (error) {
-    logger.error({ err: formatError(error) }, "Error fetching user names")
+    logger.error({ err: formatError(error) }, "Error fetching user names");
     // Return empty map on error - callers will fall back to UUID
-    return new Map()
+    return new Map();
   }
 }

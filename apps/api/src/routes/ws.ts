@@ -132,7 +132,10 @@ export function broadcastToCompany(
         "Broadcast message:new to clients",
       );
     }
-    if (message.type === "media:downloaded" || message.type === "media:download_failed") {
+    if (
+      message.type === "media:downloaded" ||
+      message.type === "media:download_failed"
+    ) {
       logger.info(
         { sentCount, companyId, type: message.type, payload: message.payload },
         "Broadcast media event to clients",
@@ -232,10 +235,7 @@ async function authenticateConnection(
       timestamp: new Date().toISOString(),
     });
 
-    logger.info(
-      { userId: user.id, companyId },
-      "Client authenticated",
-    );
+    logger.info({ userId: user.id, companyId }, "Client authenticated");
     return true;
   } catch (error) {
     logger.error({ err: formatError(error) }, "Authentication error");

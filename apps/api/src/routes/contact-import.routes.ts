@@ -1,28 +1,28 @@
-import type { MiddlewareHandler } from "hono";
 import { Hono } from "hono";
-import {
-  parseCSV,
-  mapToContactRow,
-  importContacts,
-  generateImportTemplate,
-} from "../services/import.service.js";
-import { createRateLimitMiddleware } from "../middleware/rate-limit.js";
+import { badRequest } from "../lib/errors.js";
 import { rateLimitConfig, rateLimitStore } from "../lib/rate-limit-store.js";
 import { getRouteContext } from "../middleware/context.js";
-import { badRequest } from "../lib/errors.js";
+import { createConditionalRateLimiter } from "../middleware/rate-limit.js";
+import {
+  generateImportTemplate,
+  importContacts,
+  mapToContactRow,
+  parseCSV,
+} from "../services/import.service.js";
 
 export const contactImportRoutes = new Hono();
 
 // Import rate limiter: 5 requests per minute per user
 // Bulk contact import is resource-intensive, so we use a strict limit
-const importRateLimiter: MiddlewareHandler = rateLimitConfig.enabled
-  ? createRateLimitMiddleware({
-      store: rateLimitStore,
-      tier: rateLimitConfig.tiers.resource.import,
-      keyStrategy: "user",
-      keyPrefix: "resource-import",
-    })
-  : async (_c, next) => await next();
+const importRateLimiter = createConditionalRateLimiter(
+  {
+    store: rateLimitStore,
+    tier: rateLimitConfig.tiers.resource.import,
+    keyStrategy: "user",
+    keyPrefix: "resource-import",
+  },
+  rateLimitConfig.enabled,
+);
 
 /**
  * GET /contacts/import/template - Download CSV template for import

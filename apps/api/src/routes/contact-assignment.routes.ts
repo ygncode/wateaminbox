@@ -45,7 +45,10 @@ contactAssignmentRoutes.post("/:id/assign", async (c) => {
 
   // Check permission: can_assign_contacts required to assign to someone else
   if (targetUserId !== user.id && !permissions?.can_assign_contacts) {
-    return forbidden(c, "Permission denied: can_assign_contacts is required to assign contacts to other users");
+    return forbidden(
+      c,
+      "Permission denied: can_assign_contacts is required to assign contacts to other users",
+    );
   }
 
   // Check if contact exists

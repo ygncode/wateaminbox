@@ -1,7 +1,12 @@
 import { sql } from "kysely";
 import { getTenantConnection } from "./tenant.service.js";
 import { db } from "@whatsapp-web/database";
-import { startOfDay, subtractDays, toISOString, dayjs } from "@whatsapp-web/shared";
+import {
+  startOfDay,
+  subtractDays,
+  toISOString,
+  dayjs,
+} from "@whatsapp-web/shared";
 
 /**
  * Dashboard statistics
@@ -590,11 +595,14 @@ export async function getNewContactsTrend(
   // Fill in all days in the range and calculate cumulative totals
   const result: NewContactsTrend[] = [];
   let cumulativeTotal = baseTotal;
-  let currentDate = dayjs.utc(startDate).startOf('day');
-  const endDateNormalized = dayjs.utc(endDate).endOf('day');
+  let currentDate = dayjs.utc(startDate).startOf("day");
+  const endDateNormalized = dayjs.utc(endDate).endOf("day");
 
-  while (currentDate.isBefore(endDateNormalized) || currentDate.isSame(endDateNormalized, 'day')) {
-    const dateStr = currentDate.format('YYYY-MM-DD');
+  while (
+    currentDate.isBefore(endDateNormalized) ||
+    currentDate.isSame(endDateNormalized, "day")
+  ) {
+    const dateStr = currentDate.format("YYYY-MM-DD");
     const found = dailyCounts.find((d) => String(d.date) === dateStr);
     const count = found ? Number(found.count) : 0;
     cumulativeTotal += count;
@@ -605,7 +613,7 @@ export async function getNewContactsTrend(
       cumulativeTotal,
     });
 
-    currentDate = currentDate.add(1, 'day');
+    currentDate = currentDate.add(1, "day");
   }
 
   return result;
@@ -897,11 +905,14 @@ export async function getEngagementTrend(
 
   // Fill in missing dates and calculate engagement scores
   const result: EngagementTrend[] = [];
-  let currentDate = dayjs.utc(startDate).startOf('day');
-  const endDateNormalized = dayjs.utc(endDate).endOf('day');
+  let currentDate = dayjs.utc(startDate).startOf("day");
+  const endDateNormalized = dayjs.utc(endDate).endOf("day");
 
-  while (currentDate.isBefore(endDateNormalized) || currentDate.isSame(endDateNormalized, 'day')) {
-    const dateStr = currentDate.format('YYYY-MM-DD');
+  while (
+    currentDate.isBefore(endDateNormalized) ||
+    currentDate.isSame(endDateNormalized, "day")
+  ) {
+    const dateStr = currentDate.format("YYYY-MM-DD");
     const found = dailyStats.rows.find((d) => {
       const rowDate =
         d.date instanceof Date
@@ -947,7 +958,7 @@ export async function getEngagementTrend(
       });
     }
 
-    currentDate = currentDate.add(1, 'day');
+    currentDate = currentDate.add(1, "day");
   }
 
   return result;

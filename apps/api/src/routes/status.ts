@@ -211,7 +211,14 @@ statusRoutes.post("/", async (c) => {
     .execute();
 
   // Publish command to NATS for WhatsApp worker to post the status
-  await publishPostStatus(companyId, connection.id, type, user.id, content, mediaUrl);
+  await publishPostStatus(
+    companyId,
+    connection.id,
+    type,
+    user.id,
+    content,
+    mediaUrl,
+  );
 
   return c.json({
     success: true,

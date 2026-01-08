@@ -1,5 +1,6 @@
 import type { TenantDatabase } from "@whatsapp-web/database";
 import type { Kysely, Transaction } from "kysely";
+import { normalizePhoneNumber as sharedNormalizePhoneNumber } from "../lib/schemas.js";
 
 /**
  * Validation error during import - doesn't abort transaction
@@ -175,6 +176,7 @@ function parseCSVLine(line: string): string[] {
  * and formats the number for WhatsApp messaging.
  *
  * The JID (Jabber ID) format is required by WhatsApp's internal protocol.
+ * This is a re-export from lib/schemas.ts for backward compatibility.
  *
  * @param phone - Phone number in any format
  * @returns Object containing the JID and cleaned phone number
@@ -191,22 +193,10 @@ export function normalizePhoneNumber(phone: string): {
   /** Cleaned phone number (digits only) */
   phoneNumber: string;
 } {
-  // Remove all non-digit characters except +
-  let cleaned = phone.replace(/[^\d+]/g, "");
-
-  // Remove leading + if present
-  if (cleaned.startsWith("+")) {
-    cleaned = cleaned.substring(1);
-  }
-
-  // Remove leading zeros (some formats use 00 for international)
-  if (cleaned.startsWith("00")) {
-    cleaned = cleaned.substring(2);
-  }
-
+  const result = sharedNormalizePhoneNumber(phone);
   return {
-    jid: `${cleaned}@s.whatsapp.net`,
-    phoneNumber: cleaned,
+    jid: result.jid,
+    phoneNumber: result.cleanedPhone,
   };
 }
 

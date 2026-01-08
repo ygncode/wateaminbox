@@ -50,6 +50,7 @@ mock.module("../../lib/logger.js", () => ({
 // Mock rate limit middleware
 mock.module("../../middleware/rate-limit.js", () => ({
   createRateLimitMiddleware: () => async (c: any, next: any) => await next(),
+  createConditionalRateLimiter: () => async (c: any, next: any) => await next(),
 }));
 
 // Mock rate limit store

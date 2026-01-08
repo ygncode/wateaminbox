@@ -1,12 +1,19 @@
-import { sql } from "kysely";
-import type { Transaction } from "kysely";
-import { randomBytes } from "crypto";
-import { toDbDate, addDays } from "@whatsapp-web/shared";
-import { createTenantSchema, getSchemaName } from "./tenant.service.js";
-import { db } from "@whatsapp-web/database";
 import type { Database } from "@whatsapp-web/database";
+import { db } from "@whatsapp-web/database";
+import { addDays, toDbDate } from "@whatsapp-web/shared";
+import { randomBytes } from "crypto";
+import type { Transaction } from "kysely";
+import { sql } from "kysely";
 import { sendInvitationEmail } from "../lib/email.js";
+import {
+  CompanyNotFoundError,
+  InsufficientPermissionsError,
+  InvitationExpiredError,
+  InvitationNotFoundError,
+  UserAlreadyMemberError,
+} from "../lib/errors.js";
 import { createLogger } from "../lib/logger.js";
+import { createTenantSchema, getSchemaName } from "./tenant.service.js";
 
 const logger = createLogger("CompanyService");
 
@@ -57,40 +64,14 @@ export interface InviteMemberInput {
   role?: "admin" | "member";
 }
 
-export class CompanyNotFoundError extends Error {
-  constructor(companyId: string) {
-    super(`Company with ID ${companyId} not found`);
-    this.name = "CompanyNotFoundError";
-  }
-}
-
-export class InvitationNotFoundError extends Error {
-  constructor(token: string) {
-    super(`Invitation with token ${token} not found or expired`);
-    this.name = "InvitationNotFoundError";
-  }
-}
-
-export class InvitationExpiredError extends Error {
-  constructor() {
-    super("Invitation has expired");
-    this.name = "InvitationExpiredError";
-  }
-}
-
-export class UserAlreadyMemberError extends Error {
-  constructor(email: string) {
-    super(`User ${email} is already a member of this company`);
-    this.name = "UserAlreadyMemberError";
-  }
-}
-
-export class InsufficientPermissionsError extends Error {
-  constructor(action: string) {
-    super(`Insufficient permissions to ${action}`);
-    this.name = "InsufficientPermissionsError";
-  }
-}
+// Re-export error classes for backward compatibility
+export {
+  CompanyNotFoundError,
+  InsufficientPermissionsError,
+  InvitationExpiredError,
+  InvitationNotFoundError,
+  UserAlreadyMemberError,
+} from "../lib/errors.js";
 
 /**
  * Creates a new company with its tenant schema
@@ -104,54 +85,56 @@ export async function createCompany(
   const schemaName = getSchemaName(companyId);
 
   // Start a transaction
-  const result = await db.transaction().execute(async (trx: Transaction<Database>) => {
-    // Create the company record
-    const company = await trx
-      .insertInto("companies")
-      .values({
-        id: companyId,
-        name: input.name,
-        schema_name: schemaName,
-        status: "active",
-        created_at: toDbDate(),
-        updated_at: toDbDate(),
-      })
-      .returning([
-        "id",
-        "name",
-        "schema_name",
-        "status",
-        "created_at",
-        "updated_at",
-      ])
-      .executeTakeFirstOrThrow();
+  const result = await db
+    .transaction()
+    .execute(async (trx: Transaction<Database>) => {
+      // Create the company record
+      const company = await trx
+        .insertInto("companies")
+        .values({
+          id: companyId,
+          name: input.name,
+          schema_name: schemaName,
+          status: "active",
+          created_at: toDbDate(),
+          updated_at: toDbDate(),
+        })
+        .returning([
+          "id",
+          "name",
+          "schema_name",
+          "status",
+          "created_at",
+          "updated_at",
+        ])
+        .executeTakeFirstOrThrow();
 
-    // Create company stats record
-    await trx
-      .insertInto("company_stats")
-      .values({
-        company_id: companyId,
-        total_messages: 0,
-        total_contacts: 0,
-        active_users: 1,
-        updated_at: toDbDate(),
-      })
-      .execute();
+      // Create company stats record
+      await trx
+        .insertInto("company_stats")
+        .values({
+          company_id: companyId,
+          total_messages: 0,
+          total_contacts: 0,
+          active_users: 1,
+          updated_at: toDbDate(),
+        })
+        .execute();
 
-    // Add the owner as a member
-    await trx
-      .insertInto("company_members")
-      .values({
-        user_id: ownerId,
-        company_id: companyId,
-        role: "owner",
-        permissions: {},
-        joined_at: toDbDate(),
-      })
-      .execute();
+      // Add the owner as a member
+      await trx
+        .insertInto("company_members")
+        .values({
+          user_id: ownerId,
+          company_id: companyId,
+          role: "owner",
+          permissions: {},
+          joined_at: toDbDate(),
+        })
+        .execute();
 
-    return company;
-  });
+      return company;
+    });
 
   // Create the tenant schema
   await createTenantSchema(companyId);

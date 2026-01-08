@@ -1,14 +1,15 @@
 import { db } from "@whatsapp-web/database";
 import { toDbDate } from "@whatsapp-web/shared";
-import { hashPassword, verifyPassword } from "../lib/password.js";
+import crypto from "crypto";
+import { sendPasswordResetEmail, sendVerificationEmail } from "../lib/email.js";
+import { AuthError } from "../lib/errors.js";
 import {
   generateAccessToken,
   generateRefreshToken,
-  verifyRefreshToken,
   getRefreshTokenExpiry,
+  verifyRefreshToken,
 } from "../lib/jwt.js";
-import { sendVerificationEmail, sendPasswordResetEmail } from "../lib/email.js";
-import crypto from "crypto";
+import { hashPassword, verifyPassword } from "../lib/password.js";
 
 export interface DeviceInfo {
   deviceName?: string;
@@ -43,16 +44,8 @@ export interface AuthUser {
   updatedAt: Date;
 }
 
-export class AuthError extends Error {
-  constructor(
-    message: string,
-    public code: string,
-    public statusCode: number = 400,
-  ) {
-    super(message);
-    this.name = "AuthError";
-  }
-}
+// Re-export AuthError for backward compatibility with routes
+export { AuthError } from "../lib/errors.js";
 
 /**
  * Generate a secure random token
@@ -242,7 +235,14 @@ export async function verifyEmail(
       updated_at: toDbDate(),
     })
     .where("id", "=", userId)
-    .returning(["id", "email", "name", "email_verified_at", "created_at", "updated_at"])
+    .returning([
+      "id",
+      "email",
+      "name",
+      "email_verified_at",
+      "created_at",
+      "updated_at",
+    ])
     .executeTakeFirst();
 
   if (!user) {

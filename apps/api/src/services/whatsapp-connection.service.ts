@@ -14,7 +14,7 @@ export interface WhatsAppConnection {
  * @returns The active WhatsApp connection with id and status
  */
 export async function getActiveWhatsAppConnection(
-  tenantDb: Kysely<TenantDatabase>
+  tenantDb: Kysely<TenantDatabase>,
 ): Promise<WhatsAppConnection> {
   const connection = await tenantDb
     .selectFrom("whatsapp_connections")
@@ -24,7 +24,7 @@ export async function getActiveWhatsAppConnection(
 
   if (!connection) {
     throw new ServiceUnavailableError(
-      "WhatsApp is not connected. Please connect first."
+      "WhatsApp is not connected. Please connect first.",
     );
   }
 

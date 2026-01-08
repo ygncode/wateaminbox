@@ -1,12 +1,11 @@
-import type { MiddlewareHandler } from "hono";
 import { Hono } from "hono";
-import { authMiddleware } from "../middleware/auth.js";
-import { tenantMiddleware } from "../middleware/tenant.js";
-import { createRateLimitMiddleware } from "../middleware/rate-limit.js";
-import * as searchService from "../services/search.service.js";
-import * as meilisearchService from "../services/meilisearch.service.js";
-import { getTenantConnection } from "../services/tenant.service.js";
 import { rateLimitConfig, rateLimitStore } from "../lib/rate-limit-store.js";
+import { authMiddleware } from "../middleware/auth.js";
+import { createConditionalRateLimiter } from "../middleware/rate-limit.js";
+import { tenantMiddleware } from "../middleware/tenant.js";
+import * as meilisearchService from "../services/meilisearch.service.js";
+import * as searchService from "../services/search.service.js";
+import { getTenantConnection } from "../services/tenant.service.js";
 
 export const searchRoutes = new Hono();
 
@@ -16,14 +15,15 @@ searchRoutes.use("/*", tenantMiddleware());
 
 // Search rate limiter: 30 requests per minute per user
 // Uses user-based keys since these are authenticated routes
-const searchRateLimiter: MiddlewareHandler = rateLimitConfig.enabled
-  ? createRateLimitMiddleware({
-      store: rateLimitStore,
-      tier: rateLimitConfig.tiers.resource.search,
-      keyStrategy: "user",
-      keyPrefix: "resource-search",
-    })
-  : async (_c, next) => await next();
+const searchRateLimiter = createConditionalRateLimiter(
+  {
+    store: rateLimitStore,
+    tier: rateLimitConfig.tiers.resource.search,
+    keyStrategy: "user",
+    keyPrefix: "resource-search",
+  },
+  rateLimitConfig.enabled,
+);
 
 /**
  * GET /search - Global search across messages and contacts
@@ -124,7 +124,11 @@ searchRoutes.get("/contacts", searchRateLimiter, async (c) => {
   const { results, total } = await searchService.searchContacts(
     companyId,
     query.trim(),
-    { limit, offset, includeGroups },
+    {
+      limit,
+      offset,
+      includeGroups,
+    },
   );
 
   return c.json({
