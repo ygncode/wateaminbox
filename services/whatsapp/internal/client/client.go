@@ -727,3 +727,21 @@ func (c *Client) DownloadMedia(ctx context.Context, msg whatsmeow.DownloadableMe
 func (c *Client) DownloadMediaWithPath(ctx context.Context, directPath string, encFileHash, fileHash, mediaKey []byte, fileLength int, mediaType whatsmeow.MediaType, mmsType string) ([]byte, error) {
 	return c.client.DownloadMediaWithPath(ctx, directPath, encFileHash, fileHash, mediaKey, fileLength, mediaType, mmsType)
 }
+
+// SendPresence updates the user's presence status on WhatsApp.
+// Should be called after connecting to mark yourself as available so the server sends presence updates.
+func (c *Client) SendPresence(ctx context.Context, state waTypes.Presence) error {
+	if c.client == nil {
+		return fmt.Errorf("client not initialized")
+	}
+	return c.client.SendPresence(ctx, state)
+}
+
+// SubscribePresence subscribes to presence updates for a specific contact.
+// WhatsApp servers will send presence events for this contact after subscription.
+func (c *Client) SubscribePresence(ctx context.Context, jid waTypes.JID) error {
+	if c.client == nil {
+		return fmt.Errorf("client not initialized")
+	}
+	return c.client.SubscribePresence(ctx, jid)
+}

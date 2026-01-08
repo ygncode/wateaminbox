@@ -9,6 +9,7 @@ import (
 
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/proto/waE2E"
+	"go.mau.fi/whatsmeow/types"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -73,6 +74,16 @@ func (m *mockDownloader) GetClient() *whatsmeow.Client {
 
 func (m *mockDownloader) HandleReconnect(ctx context.Context) {
 	// No-op
+}
+
+func (m *mockDownloader) SendPresence(ctx context.Context, state types.Presence) error {
+	// No-op for unit tests
+	return nil
+}
+
+func (m *mockDownloader) SubscribePresence(ctx context.Context, jid types.JID) error {
+	// No-op for unit tests
+	return nil
 }
 
 func (m *mockDownloader) GetDownloadCallCount() int {

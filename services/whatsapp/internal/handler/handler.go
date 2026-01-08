@@ -128,6 +128,8 @@ type WhatsAppClient interface {
 	DownloadMedia(ctx context.Context, msg whatsmeow.DownloadableMessage) ([]byte, error)
 	GetClient() *whatsmeow.Client
 	HandleReconnect(ctx context.Context)
+	SendPresence(ctx context.Context, state types.Presence) error
+	SubscribePresence(ctx context.Context, jid types.JID) error
 }
 
 // Config holds handler configuration.
@@ -199,6 +201,21 @@ func (h *Handler) handleMessage(msg *events.Message) {
 	chatJID := msg.Info.Chat.ToNonAD()
 
 	log.Printf("Received message from %s", senderJID.String())
+
+	// Subscribe to presence updates for the sender (if not a group message)
+	// This ensures we get online/offline status for contacts we're chatting with
+	if !msg.Info.IsGroup && h.config.Client != nil {
+		// Use a background goroutine to avoid blocking message processing
+		go func() {
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+
+			if err := h.config.Client.SubscribePresence(ctx, senderJID); err != nil {
+				// Ignore errors - presence subscription is not critical
+				// Most common error is "already subscribed" which is fine
+			}
+		}()
+	}
 
 	// Extract message content
 	msgEvent := natsClient.MessageEvent{
@@ -507,6 +524,19 @@ func (h *Handler) handleConnected(evt *events.Connected) {
 		}
 	}
 
+	// Mark ourselves as available so WhatsApp servers send us presence updates
+	// This is required for receiving presence information from contacts
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	if h.config.Client != nil {
+		if err := h.config.Client.SendPresence(ctx, types.PresenceAvailable); err != nil {
+			log.Printf("Failed to send presence: %v", err)
+		} else {
+			log.Printf("Marked presence as available")
+		}
+	}
+
 	// Publish connection status to NATS
 	if h.publisher != nil {
 		if err := h.publisher.PublishConnectionStatus("connected", "", phoneNumber, jid); err != nil {
@@ -720,6 +750,18 @@ func (h *Handler) processHistorySyncConversation(conv interface{}) (result struc
 		}
 	}
 
+	// Subscribe to presence updates for this contact (skip groups)
+	// This allows us to receive online/offline status updates
+	if !isGroup && h.config.Client != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		if err := h.config.Client.SubscribePresence(ctx, normalizedJID); err != nil {
+			// Log but don't fail - presence subscription is not critical
+			log.Printf("Failed to subscribe to presence for %s: %v", jid, err)
+		}
+	}
+
 	// Process messages
 	messages := c.GetMessages()
 	for _, historyMsg := range messages {
@@ -790,6 +832,18 @@ func (h *Handler) processHistorySyncConversationDirect(conv interface{}) (result
 		// Publish contact to NATS
 		if h.publisher != nil {
 			h.publisher.PublishContact(jid, name, displayName, isGroup, unreadCount, profilePicURL)
+		}
+
+		// Subscribe to presence updates for this contact (skip groups)
+		// This allows us to receive online/offline status updates
+		if !isGroup && h.config.Client != nil {
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+
+			if err := h.config.Client.SubscribePresence(ctx, normalizedJID); err != nil {
+				// Log but don't fail - presence subscription is not critical
+				log.Printf("Failed to subscribe to presence for %s: %v", jid, err)
+			}
 		}
 
 		// Process messages
