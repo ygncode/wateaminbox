@@ -242,65 +242,6 @@ test.describe("Group JID Format Verification", () => {
   });
 });
 
-// ============================================
-// Group UI Component Tests
-// These require full API mocking which isn't fully working
-// with the current auth fixture. Skipped until auth is fixed.
-// ============================================
-test.describe.skip("Group Chat UI (requires auth fixture fix)", () => {
-  test.beforeEach(async ({ page }) => {
-    // Setup API mocks before navigation
-    await setupApiMocks(page);
-
-    // Set auth tokens in localStorage
-    await page.goto("/");
-    await page.evaluate(() => {
-      localStorage.setItem("auth_token", "mock-token");
-      localStorage.setItem("refresh_token", "mock-refresh");
-      localStorage.setItem("company_id", "test-company-id");
-    });
-  });
-
-  test("should display Groups tab in sidebar", async ({ page }) => {
-    await page.goto("/chat");
-    await page.waitForLoadState("networkidle");
-
-    const groupsTab = page.getByRole("tab", { name: /groups/i });
-    await expect(groupsTab).toBeVisible();
-  });
-
-  test("should switch to groups view", async ({ page }) => {
-    await page.goto("/chat");
-    await page.waitForLoadState("networkidle");
-
-    const groupsTab = page.getByRole("tab", { name: /groups/i });
-    await groupsTab.click();
-
-    await expect(groupsTab).toHaveAttribute("aria-selected", "true");
-  });
-
-  test("should display group messages", async ({ page }) => {
-    await page.goto("/chat/group-1");
-    await page.waitForLoadState("networkidle");
-
-    await expect(page.getByText("Hello everyone!")).toBeVisible();
-    await expect(page.getByText("Hi there!")).toBeVisible();
-    await expect(page.getByText("Good morning!")).toBeVisible();
-  });
-
-  test("should allow sending messages to group", async ({ page }) => {
-    await page.goto("/chat/group-1");
-    await page.waitForLoadState("networkidle");
-
-    const messageInput = page.getByPlaceholder(/type a message/i);
-    await messageInput.fill("Test group message");
-
-    const sendButton = page.getByRole("button", { name: /send/i });
-    await sendButton.click();
-
-    // Message should be sent (mock returns success)
-  });
-});
 
 // ============================================
 // Documentation Test

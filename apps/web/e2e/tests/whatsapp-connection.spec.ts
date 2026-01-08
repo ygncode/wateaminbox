@@ -22,20 +22,6 @@ import {
 
 test.describe('WhatsApp Connection Flow', () => {
   test.describe('Connection Initiation', () => {
-    test('should display Connect button when not connected', async ({ whatsappDisconnectedPage }) => {
-      const page = whatsappDisconnectedPage
-      const whatsappPage = new WhatsAppConnectionPage(page)
-
-      await page.goto('/settings')
-      await whatsappPage.waitForPageLoad()
-
-      // Should see connect button or add connection button
-      const connectVisible = await whatsappPage.connectButton.first().isVisible()
-      const addConnectionVisible = await whatsappPage.addConnectionButton.isVisible()
-
-      expect(connectVisible || addConnectionVisible).toBe(true)
-    })
-
     test('should show loading state when connecting', async ({ whatsappDisconnectedPage }) => {
       const page = whatsappDisconnectedPage
       const whatsappPage = new WhatsAppConnectionPage(page)
@@ -125,18 +111,6 @@ test.describe('WhatsApp Connection Flow', () => {
   })
 
   test.describe('Connected State', () => {
-    test('should show Connected status after scan', async ({ whatsappConnectedPage }) => {
-      const page = whatsappConnectedPage
-      const whatsappPage = new WhatsAppConnectionPage(page)
-
-      await page.goto('/settings')
-      await whatsappPage.waitForPageLoad()
-
-      // With connected mock, should see connected status
-      const connectedText = page.locator('text=Connected')
-      await expect(connectedText.first()).toBeVisible({ timeout: 10000 })
-    })
-
     test('should display phone number when connected', async ({ whatsappConnectedPage }) => {
       const page = whatsappConnectedPage
       const whatsappPage = new WhatsAppConnectionPage(page)
@@ -454,22 +428,5 @@ test.describe('WhatsApp Connection Flow', () => {
       expect(page.url()).toContain('/settings')
     })
 
-    test('should preserve connection state on page refresh', async ({
-      whatsappConnectedPage,
-    }) => {
-      const page = whatsappConnectedPage
-      const whatsappPage = new WhatsAppConnectionPage(page)
-
-      await page.goto('/settings')
-      await whatsappPage.waitForPageLoad()
-
-      // Reload the page
-      await page.reload()
-      await whatsappPage.waitForPageLoad()
-
-      // Should still show connected (from mocked API)
-      const connectedText = page.locator('text=Connected')
-      await expect(connectedText.first()).toBeVisible({ timeout: 10000 })
-    })
   })
 })

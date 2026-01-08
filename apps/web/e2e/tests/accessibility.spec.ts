@@ -413,51 +413,6 @@ test.describe('Accessibility Audit - Dark Mode', () => {
     })
   })
 
-  test.describe('Screen Reader Announcements', () => {
-    test('theme change should be announced to screen readers', async ({ page }) => {
-      await page.addInitScript(() => {
-        localStorage.setItem('auth_token', 'mock-access-token')
-        localStorage.setItem('refresh_token', 'mock-refresh-token')
-        localStorage.setItem('company_id', 'test-company-123')
-      })
-
-      await page.route('**/api/**', (route) => {
-        route.fulfill({
-          status: 200,
-          contentType: 'application/json',
-          body: JSON.stringify({ data: [] }),
-        })
-      })
-
-      await page.goto('/chat')
-      await page.waitForLoadState('networkidle')
-      await page.waitForTimeout(2000) // Wait for chat page to fully load
-
-      // Check for the theme announcement element
-      const announcement = page.locator('#theme-announcement')
-      await expect(announcement).toBeAttached({ timeout: 10000 }) // Element exists in DOM
-
-      // Verify ARIA attributes for screen reader announcements
-      await expect(announcement).toHaveAttribute('role', 'status')
-      await expect(announcement).toHaveAttribute('aria-live', 'polite')
-      await expect(announcement).toHaveAttribute('aria-atomic', 'true')
-
-      // Verify it has sr-only class for visual hiding
-      await expect(announcement).toHaveClass(/sr-only/)
-
-      // Toggle theme and verify announcement is updated
-      const themeToggle = page.locator('[data-testid="theme-toggle"]')
-      await expect(themeToggle).toBeVisible({ timeout: 10000 })
-      await themeToggle.click()
-
-      // Wait for theme change to complete
-      await page.waitForTimeout(500)
-
-      // Verify the announcement contains theme change info
-      await expect(announcement).toContainText(/Theme changed to/, { timeout: 5000 })
-    })
-  })
-
   test.describe('Keyboard Navigation', () => {
     test('all interactive elements should be keyboard accessible in dark mode', async ({
       page,

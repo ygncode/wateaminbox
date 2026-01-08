@@ -307,6 +307,21 @@ export const test = base.extend<{
       });
     });
 
+    // Mock WhatsApp sync-status endpoint
+    await page.route("**/api/whatsapp/sync-status**", (route) => {
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          success: true,
+          data: {
+            syncing: false,
+            connections: [],
+          },
+        }),
+      });
+    });
+
     // Mock notifications endpoint
     await page.route("**/api/notifications**", (route) => {
       const url = new URL(route.request().url());
