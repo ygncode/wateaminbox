@@ -97,7 +97,7 @@ export async function handleMessageEvent(event: MessageEvent): Promise<void> {
         : null;
 
     const messageId = crypto.randomUUID();
-    await tenantDb
+    const insertResult = await tenantDb
       .insertInto("messages")
       .values({
         id: messageId,
@@ -131,7 +131,20 @@ export async function handleMessageEvent(event: MessageEvent): Promise<void> {
         timestamp: toDbDate(payload.timestamp),
         created_at: toDbDate(),
       })
-      .execute();
+      .onConflict((oc) =>
+        oc.columns(["whatsapp_connection_id", "message_id"]).doNothing(),
+      )
+      .executeTakeFirst();
+
+    // If insert was skipped due to duplicate, skip all downstream processing
+    // This prevents duplicate search indexing and WebSocket broadcasts
+    if (insertResult.numInsertedOrUpdatedRows === BigInt(0)) {
+      logger.debug(
+        { messageId: payload.messageId, companyId },
+        "Skipped duplicate message",
+      );
+      return;
+    }
 
     logger.debug({ messageId, companyId }, "Stored message");
 
