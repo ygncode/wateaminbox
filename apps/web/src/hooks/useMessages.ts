@@ -12,8 +12,7 @@ import { queryKeys } from "./query-keys";
 export const messageKeys = {
   all: queryKeys.messages.all,
   lists: () => queryKeys.messages.lists(),
-  list: (conversationId: string) =>
-    queryKeys.messages.list({ conversationId }),
+  list: (conversationId: string) => queryKeys.messages.list({ conversationId }),
   details: () => queryKeys.messages.details(),
   detail: (id: string) => queryKeys.messages.detail(id),
 };
@@ -142,7 +141,9 @@ export function useUpdateMessage() {
     onSuccess: (updatedMessage) => {
       // Update the message in the cache
       queryClient.setQueryData<Message[]>(
-        queryKeys.messages.list({ conversationId: updatedMessage.conversationId }),
+        queryKeys.messages.list({
+          conversationId: updatedMessage.conversationId,
+        }),
         (old) =>
           old?.map((msg) =>
             msg.id === updatedMessage.id ? updatedMessage : msg,
@@ -304,7 +305,9 @@ export function useReactMessage() {
       });
       // Also invalidate regular message list
       queryClient.invalidateQueries({
-        queryKey: queryKeys.messages.list({ conversationId: variables.conversationId }),
+        queryKey: queryKeys.messages.list({
+          conversationId: variables.conversationId,
+        }),
       });
     },
   });

@@ -3,92 +3,92 @@
  * WhatsApp connection management API functions
  */
 
-import { fetchWithAuth } from "./client.js"
+import { fetchWithAuth } from "./client.js";
 import type {
   WhatsAppConnectionStatus,
   WhatsAppConnectResponse,
   WhatsAppConnection,
-} from "./types.js"
+} from "./types.js";
 
 // Single connection API (legacy)
 export async function connectWhatsApp(): Promise<WhatsAppConnectResponse> {
   return fetchWithAuth<WhatsAppConnectResponse>("/whatsapp/connect", {
     method: "POST",
-  })
+  });
 }
 
 export async function disconnectWhatsApp(): Promise<{ message: string }> {
   return fetchWithAuth<{ message: string }>("/whatsapp/disconnect", {
     method: "POST",
-  })
+  });
 }
 
 export async function getWhatsAppStatus(): Promise<WhatsAppConnectionStatus> {
-  return fetchWithAuth<WhatsAppConnectionStatus>("/whatsapp/status")
+  return fetchWithAuth<WhatsAppConnectionStatus>("/whatsapp/status");
 }
 
 // Multi-connection API
 export async function listWhatsAppConnections(): Promise<WhatsAppConnection[]> {
   // Note: fetchWithAuth already unwraps { success, data } format
   // So response is already the array of connections
-  return fetchWithAuth<WhatsAppConnection[]>("/whatsapp/connections")
+  return fetchWithAuth<WhatsAppConnection[]>("/whatsapp/connections");
 }
 
 export async function getWhatsAppConnection(
-  connectionId: string
+  connectionId: string,
 ): Promise<WhatsAppConnection> {
   // Note: fetchWithAuth already unwraps { success, data } format
   return fetchWithAuth<WhatsAppConnection>(
-    `/whatsapp/connections/${connectionId}`
-  )
+    `/whatsapp/connections/${connectionId}`,
+  );
 }
 
 export async function createWhatsAppConnection(
-  name?: string
+  name?: string,
 ): Promise<WhatsAppConnection> {
   // Note: fetchWithAuth already unwraps { success, data } format
   return fetchWithAuth<WhatsAppConnection>("/whatsapp/connections", {
     method: "POST",
     body: JSON.stringify({ name }),
-  })
+  });
 }
 
 export async function reconnectWhatsAppConnection(
-  connectionId: string
+  connectionId: string,
 ): Promise<{ message: string; websocketUrl: string }> {
   return fetchWithAuth<{ message: string; websocketUrl: string }>(
     `/whatsapp/connections/${connectionId}/reconnect`,
     {
       method: "POST",
-    }
-  )
+    },
+  );
 }
 
 export async function disconnectWhatsAppConnection(
-  connectionId: string
+  connectionId: string,
 ): Promise<{ message: string }> {
   return fetchWithAuth<{ message: string }>(
     `/whatsapp/connections/${connectionId}/disconnect`,
     {
       method: "POST",
-    }
-  )
+    },
+  );
 }
 
 export async function deleteWhatsAppConnection(
-  connectionId: string
+  connectionId: string,
 ): Promise<{ message: string }> {
   return fetchWithAuth<{ message: string }>(
     `/whatsapp/connections/${connectionId}`,
     {
       method: "DELETE",
-    }
-  )
+    },
+  );
 }
 
 export async function updateWhatsAppConnection(
   connectionId: string,
-  data: { name?: string }
+  data: { name?: string },
 ): Promise<WhatsAppConnection> {
   // Note: fetchWithAuth already unwraps { success, data } format
   return fetchWithAuth<WhatsAppConnection>(
@@ -96,21 +96,21 @@ export async function updateWhatsAppConnection(
     {
       method: "PATCH",
       body: JSON.stringify(data),
-    }
-  )
+    },
+  );
 }
 
 export async function sendWhatsAppMessage(
   jid: string,
   content: string,
   messageType: "text" | "image" | "video" | "audio" | "document" = "text",
-  mediaUrl?: string
+  mediaUrl?: string,
 ): Promise<{ message: string; messageId: string }> {
   return fetchWithAuth<{ message: string; messageId: string }>(
     "/whatsapp/send",
     {
       method: "POST",
       body: JSON.stringify({ jid, content, messageType, mediaUrl }),
-    }
-  )
+    },
+  );
 }

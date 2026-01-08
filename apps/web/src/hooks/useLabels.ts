@@ -136,7 +136,9 @@ export function useApplyLabelToContact() {
     }) => applyLabelToContact(labelId, contactId),
     onSuccess: (_, { contactId }) => {
       // Invalidate contact data and contact tags
-      queryClient.invalidateQueries({ queryKey: queryKeys.contacts.detail(contactId) });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.contacts.detail(contactId),
+      });
     },
   });
 }
@@ -157,7 +159,9 @@ export function useRemoveLabelFromContact() {
     }) => removeLabelFromContact(labelId, contactId),
     onSuccess: (_, { contactId }) => {
       // Invalidate contact data and contact tags
-      queryClient.invalidateQueries({ queryKey: queryKeys.contacts.detail(contactId) });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.contacts.detail(contactId),
+      });
     },
   });
 }

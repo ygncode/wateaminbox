@@ -98,11 +98,7 @@ export function MessageContent({ message, isOwn }: MessageContentProps) {
       }
       return (
         <div className="flex items-center gap-2 min-w-[200px]">
-          <audio
-            src={message.metadata?.mediaUrl}
-            controls
-            className="w-full"
-          />
+          <audio src={message.metadata?.mediaUrl} controls className="w-full" />
           {message.metadata?.duration && (
             <span className="text-xs text-gray-500">
               {Math.floor(message.metadata.duration / 60)}:

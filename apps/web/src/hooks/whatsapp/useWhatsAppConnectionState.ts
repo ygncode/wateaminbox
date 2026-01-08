@@ -76,21 +76,20 @@ export function useWhatsAppConnectionState() {
 
   // Set a QR expiration timeout
   const setQrTimeout = useCallback(
-    (
-      connectionId: string,
-      expiresIn: number,
-      onExpire: () => void,
-    ) => {
+    (connectionId: string, expiresIn: number, onExpire: () => void) => {
       // Clear existing timeout if any
       const existingTimeout = qrTimeoutsRef.current.get(connectionId);
       if (existingTimeout) {
         clearTimeout(existingTimeout);
       }
 
-      const timeout = setTimeout(() => {
-        onExpire();
-        qrTimeoutsRef.current.delete(connectionId);
-      }, Math.max(expiresIn, 0));
+      const timeout = setTimeout(
+        () => {
+          onExpire();
+          qrTimeoutsRef.current.delete(connectionId);
+        },
+        Math.max(expiresIn, 0),
+      );
 
       qrTimeoutsRef.current.set(connectionId, timeout);
     },
