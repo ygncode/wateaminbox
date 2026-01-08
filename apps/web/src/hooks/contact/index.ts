@@ -39,6 +39,7 @@ export {
   useAddContactTag,
   useRemoveContactTag,
   useTags,
+  useCreateTag,
   type Tag,
 } from "./useContactTags";
 

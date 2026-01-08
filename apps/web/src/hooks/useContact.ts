@@ -40,6 +40,7 @@ export {
   useAddContactTag,
   useRemoveContactTag,
   useTags,
+  useCreateTag,
   type Tag,
   // Assignment
   useAssignContact,
