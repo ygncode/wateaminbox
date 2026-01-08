@@ -8,7 +8,7 @@ import {
   importContacts,
   mapToContactRow,
   parseCSV,
-} from "../services/import.service.js";
+} from "../services/import/index.js";
 
 export const contactImportRoutes = new Hono();
 

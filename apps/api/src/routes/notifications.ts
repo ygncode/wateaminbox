@@ -6,7 +6,7 @@ import { tenantMiddleware } from "../middleware/tenant.js";
 import { getRouteContext } from "../middleware/context.js";
 import * as notificationPreferencesService from "../services/notification-preferences.service.js";
 import * as notificationHistoryService from "../services/notification-history.service.js";
-import { isTableNotFoundError } from "../lib/errors.js";
+import { isTableNotFoundError, notFound } from "../lib/errors.js";
 
 export const notificationRoutes = new Hono();
 
@@ -263,7 +263,7 @@ notificationRoutes.get("/:id", async (c) => {
   );
 
   if (!notification) {
-    return c.json({ error: "Notification not found" }, 404);
+    return notFound(c, "Notification");
   }
 
   return c.json({
@@ -312,7 +312,7 @@ notificationRoutes.patch("/:id/read", async (c) => {
   );
 
   if (!notification) {
-    return c.json({ error: "Notification not found" }, 404);
+    return notFound(c, "Notification");
   }
 
   return c.json({
@@ -352,7 +352,7 @@ notificationRoutes.delete("/:id", async (c) => {
   );
 
   if (!deleted) {
-    return c.json({ error: "Notification not found" }, 404);
+    return notFound(c, "Notification");
   }
 
   return c.json({

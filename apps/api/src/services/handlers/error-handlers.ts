@@ -3,7 +3,7 @@
  */
 
 import type { WhatsAppEvent } from "../../lib/nats/index.js";
-import { broadcastToCompany } from "../../routes/ws.js";
+import { broadcastToCompany } from "../../routes/ws/index.js";
 import { handlerLogger as logger } from "./types.js";
 
 /**

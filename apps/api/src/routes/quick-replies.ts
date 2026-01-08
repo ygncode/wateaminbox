@@ -5,7 +5,7 @@ import { authMiddleware } from "../middleware/auth.js";
 import { tenantMiddleware } from "../middleware/tenant.js";
 import { getRouteContext } from "../middleware/context.js";
 import * as quickRepliesService from "../services/quick-replies.service.js";
-import { isTableNotFoundError } from "../lib/errors.js";
+import { conflict, isTableNotFoundError, notFound } from "../lib/errors.js";
 
 export const quickReplyRoutes = new Hono();
 
@@ -98,7 +98,7 @@ quickReplyRoutes.get("/search/:shortcut", async (c) => {
   );
 
   if (!quickReply) {
-    return c.json({ error: "Quick reply not found" }, 404);
+    return notFound(c, "Quick reply");
   }
 
   return c.json({
@@ -119,7 +119,7 @@ quickReplyRoutes.get("/:id", async (c) => {
   );
 
   if (!quickReply) {
-    return c.json({ error: "Quick reply not found" }, 404);
+    return notFound(c, "Quick reply");
   }
 
   return c.json({
@@ -152,7 +152,7 @@ quickReplyRoutes.post(
       );
     } catch (error) {
       if (error instanceof Error && error.message.includes("already exists")) {
-        return c.json({ error: error.message }, 409);
+        return conflict(c, error.message);
       }
       throw error;
     }
@@ -178,7 +178,7 @@ quickReplyRoutes.patch(
       );
 
       if (!quickReply) {
-        return c.json({ error: "Quick reply not found" }, 404);
+        return notFound(c, "Quick reply");
       }
 
       return c.json({
@@ -186,7 +186,7 @@ quickReplyRoutes.patch(
       });
     } catch (error) {
       if (error instanceof Error && error.message.includes("already exists")) {
-        return c.json({ error: error.message }, 409);
+        return conflict(c, error.message);
       }
       throw error;
     }
@@ -206,7 +206,7 @@ quickReplyRoutes.delete("/:id", async (c) => {
   );
 
   if (!deleted) {
-    return c.json({ error: "Quick reply not found" }, 404);
+    return notFound(c, "Quick reply");
   }
 
   return c.json({

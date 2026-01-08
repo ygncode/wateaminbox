@@ -16,7 +16,7 @@ import {
   publishSyncCatalogs,
   publishSyncCatalogProducts,
 } from "../lib/nats/index.js";
-import { isTableNotFoundError } from "../lib/errors.js";
+import { badRequest, isTableNotFoundError, notFound } from "../lib/errors.js";
 // ProductVisibility type defined locally to avoid import issues
 type ProductVisibility = "visible" | "hidden";
 
@@ -83,7 +83,7 @@ catalogRoutes.get("/:catalogId", async (c) => {
   const catalog = await getWhatsAppCatalogByCatalogId(tenantDb, catalogId);
 
   if (!catalog) {
-    return c.json({ error: "Catalog not found" }, 404);
+    return notFound(c, "Catalog");
   }
 
   return c.json(catalog);
@@ -100,7 +100,7 @@ catalogRoutes.get("/:catalogId/products", async (c) => {
   const catalog = await getWhatsAppCatalogByCatalogId(tenantDb, catalogId);
 
   if (!catalog) {
-    return c.json({ error: "Catalog not found" }, 404);
+    return notFound(c, "Catalog");
   }
 
   const products = await getCatalogProducts(tenantDb, catalogId);
@@ -145,7 +145,7 @@ catalogRoutes.post("/:catalogId/sync-products", async (c) => {
   const catalog = await getWhatsAppCatalogByCatalogId(tenantDb, catalogId);
 
   if (!catalog) {
-    return c.json({ error: "Catalog not found" }, 404);
+    return notFound(c, "Catalog");
   }
 
   // Check if WhatsApp is connected (throws ServiceUnavailableError if not)
@@ -177,7 +177,7 @@ catalogRoutes.post("/:catalogId/archive", async (c) => {
   const result = await archiveCatalog(tenantDb, catalogId);
 
   if (!result.success) {
-    return c.json({ error: result.error }, 400);
+    return badRequest(c, result.error || "Failed to archive catalog");
   }
 
   return c.json({
@@ -196,7 +196,7 @@ catalogRoutes.post("/:catalogId/restore", async (c) => {
   const result = await restoreCatalog(tenantDb, catalogId);
 
   if (!result.success) {
-    return c.json({ error: result.error }, 400);
+    return badRequest(c, result.error || "Failed to restore catalog");
   }
 
   return c.json({
@@ -217,7 +217,7 @@ catalogRoutes.patch("/:catalogId/products/:productId/visibility", async (c) => {
   const { visibility } = body as { visibility: ProductVisibility };
 
   if (!visibility || !["visible", "hidden"].includes(visibility)) {
-    return c.json({ error: "visibility must be 'visible' or 'hidden'" }, 400);
+    return badRequest(c, "visibility must be 'visible' or 'hidden'");
   }
 
   const result = await updateProductVisibility(
@@ -228,7 +228,7 @@ catalogRoutes.patch("/:catalogId/products/:productId/visibility", async (c) => {
   );
 
   if (!result.success) {
-    return c.json({ error: result.error }, 400);
+    return badRequest(c, result.error || "Failed to update product visibility");
   }
 
   return c.json({

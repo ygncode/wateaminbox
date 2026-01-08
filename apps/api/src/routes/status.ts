@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import { badRequest, forbidden, notFound } from "../lib/errors.js";
 import { authMiddleware } from "../middleware/auth.js";
 import { tenantMiddleware } from "../middleware/tenant.js";
 import { getRouteContext } from "../middleware/context.js";
@@ -89,7 +90,7 @@ statusRoutes.get("/:jid", async (c) => {
     .execute();
 
   if (statuses.length === 0) {
-    return c.json({ error: "No status updates found" }, 404);
+    return notFound(c, "Status updates");
   }
 
   return c.json({
@@ -156,23 +157,17 @@ statusRoutes.post("/", async (c) => {
 
   // Validate status type
   if (!type || !["text", "image", "video"].includes(type)) {
-    return c.json(
-      { error: "type is required and must be 'text', 'image', or 'video'" },
-      400,
-    );
+    return badRequest(c, "type is required and must be 'text', 'image', or 'video'");
   }
 
   // Validate content for text status
   if (type === "text" && !content) {
-    return c.json({ error: "content is required for text status" }, 400);
+    return badRequest(c, "content is required for text status");
   }
 
   // Validate mediaUrl for image/video status
   if ((type === "image" || type === "video") && !mediaUrl) {
-    return c.json(
-      { error: "mediaUrl is required for image/video status" },
-      400,
-    );
+    return badRequest(c, "mediaUrl is required for image/video status");
   }
 
   // Get the WhatsApp connection to verify it's active (throws ServiceUnavailableError if not)
@@ -243,7 +238,7 @@ statusRoutes.delete("/:id", async (c) => {
     .executeTakeFirst();
 
   if (!status) {
-    return c.json({ error: "Status not found" }, 404);
+    return notFound(c, "Status");
   }
 
   // Get our connected JID
@@ -259,7 +254,7 @@ statusRoutes.delete("/:id", async (c) => {
     status.from_jid !== connection.jid &&
     status.from_jid !== "me"
   ) {
-    return c.json({ error: "Cannot delete other users' statuses" }, 403);
+    return forbidden(c, "Cannot delete other users' statuses");
   }
 
   // Delete the status from database

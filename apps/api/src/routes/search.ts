@@ -1,5 +1,6 @@
 import { toDbDate } from "@whatsapp-web/shared";
 import { Hono } from "hono";
+import { badRequest, forbidden, serviceUnavailable } from "../lib/errors.js";
 import { rateLimitConfig, rateLimitStore } from "../lib/rate-limit-store.js";
 import { extractPaginationParams, createPaginationMeta } from "../lib/route-helpers.js";
 import { authMiddleware } from "../middleware/auth.js";
@@ -38,11 +39,11 @@ searchRoutes.get("/", searchRateLimiter, async (c) => {
   const { limit } = extractPaginationParams(c, 10);
 
   if (!query || query.trim().length === 0) {
-    return c.json({ error: "Search query is required" }, 400);
+    return badRequest(c, "Search query is required");
   }
 
   if (query.trim().length < 2) {
-    return c.json({ error: "Search query must be at least 2 characters" }, 400);
+    return badRequest(c, "Search query must be at least 2 characters");
   }
 
   const results = await searchService.globalSearch(companyId, query.trim(), {
@@ -70,11 +71,11 @@ searchRoutes.get("/messages", searchRateLimiter, async (c) => {
   const messageTypesStr = c.req.query("messageTypes");
 
   if (!query || query.trim().length === 0) {
-    return c.json({ error: "Search query is required" }, 400);
+    return badRequest(c, "Search query is required");
   }
 
   if (query.trim().length < 2) {
-    return c.json({ error: "Search query must be at least 2 characters" }, 400);
+    return badRequest(c, "Search query must be at least 2 characters");
   }
 
   const options: searchService.SearchOptions = {
@@ -113,7 +114,7 @@ searchRoutes.get("/contacts", searchRateLimiter, async (c) => {
   const includeGroups = c.req.query("includeGroups") !== "false";
 
   if (!query || query.trim().length === 0) {
-    return c.json({ error: "Search query is required" }, 400);
+    return badRequest(c, "Search query is required");
   }
 
   const { results, total } = await searchService.searchContacts(
@@ -163,13 +164,13 @@ searchRoutes.post("/reindex", async (c) => {
 
   // Only admins and owners can reindex
   if (role === "member") {
-    return c.json({ error: "Insufficient permissions" }, 403);
+    return forbidden(c, "Insufficient permissions");
   }
 
   const meilisearchAvailable =
     await meilisearchService.isMeilisearchAvailable();
   if (!meilisearchAvailable) {
-    return c.json({ error: "Meilisearch is not available" }, 503);
+    return serviceUnavailable(c, "Meilisearch is not available");
   }
 
   // Index all messages

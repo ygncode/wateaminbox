@@ -5,6 +5,7 @@ import {
   getContactDisplayName,
   getContactName,
   extractPhoneFromJid,
+  getUserDisplayName,
 } from "@whatsapp-web/shared";
 import { authMiddleware } from "../middleware/auth.js";
 import { notFound, badRequest, serverError } from "../lib/errors.js";
@@ -137,27 +138,15 @@ contactRoutes.get("/:id", async (c) => {
   // Build assignment object with user names
   let assignmentWithNames = null;
   if (assignment) {
-    // Use name if available, otherwise fall back to email prefix
-    const getDisplayName = (
-      name: string | null,
-      email: string | null,
-      fallbackId: string,
-    ) => {
-      if (name) return name;
-      if (!email) return fallbackId;
-      const atIndex = email.indexOf("@");
-      return atIndex > 0 ? email.substring(0, atIndex) : email;
-    };
-
     assignmentWithNames = {
       assignedTo: assignment.assigned_to,
-      assignedToName: getDisplayName(
+      assignedToName: getUserDisplayName(
         assignment.assigned_to_name,
         assignment.assigned_to_email,
         assignment.assigned_to,
       ),
       assignedBy: assignment.assigned_by,
-      assignedByName: getDisplayName(
+      assignedByName: getUserDisplayName(
         assignment.assigned_by_name,
         assignment.assigned_by_email,
         assignment.assigned_by,

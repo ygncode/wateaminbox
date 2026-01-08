@@ -55,16 +55,22 @@ export interface LabelSyncResult {
 }
 
 /**
- * Get all WhatsApp labels from the database
+ * Get all WhatsApp labels from the database with optional pagination
  */
 export async function getWhatsAppLabels(
   tenantDb: Kysely<TenantDatabase>,
+  pagination?: { limit: number; offset: number },
 ): Promise<SyncedLabel[]> {
-  const labels = await tenantDb
+  let query = tenantDb
     .selectFrom("whatsapp_labels")
     .selectAll()
-    .orderBy("name", "asc")
-    .execute();
+    .orderBy("name", "asc");
+
+  if (pagination) {
+    query = query.limit(pagination.limit).offset(pagination.offset);
+  }
+
+  const labels = await query.execute();
 
   return labels.map((label) => ({
     id: label.id,
@@ -77,6 +83,20 @@ export async function getWhatsAppLabels(
     createdAt: label.created_at,
     updatedAt: label.updated_at,
   }));
+}
+
+/**
+ * Get total count of WhatsApp labels
+ */
+export async function getWhatsAppLabelsCount(
+  tenantDb: Kysely<TenantDatabase>,
+): Promise<number> {
+  const result = await tenantDb
+    .selectFrom("whatsapp_labels")
+    .select((eb) => eb.fn.countAll<string>().as("total"))
+    .executeTakeFirst();
+
+  return Number(result?.total || 0);
 }
 
 /**

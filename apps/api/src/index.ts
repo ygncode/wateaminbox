@@ -2,7 +2,7 @@ import { app } from './app.js'
 import { env } from './lib/env.js'
 import { createLogger, formatError } from './lib/logger.js'
 import { closeNatsConnection } from './lib/nats/index.js'
-import { websocket } from './routes/ws.js'
+import { websocket } from './routes/ws/index.js'
 import {
   initializeMessageCleanup,
   shutdownMessageCleanup,

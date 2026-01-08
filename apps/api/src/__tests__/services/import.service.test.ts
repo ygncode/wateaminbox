@@ -147,7 +147,7 @@ import {
   mapToContactRow,
   normalizePhoneNumber,
   parseCSV,
-} from '../../services/import.service'
+} from '../../services/import/index.js'
 
 describe('ImportService - Transaction Atomicity', () => {
   beforeEach(() => {

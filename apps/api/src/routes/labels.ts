@@ -1,23 +1,28 @@
 import { Hono } from "hono";
-import { authMiddleware } from "../middleware/auth.js";
-import { tenantMiddleware } from "../middleware/tenant.js";
-import { getRouteContext } from "../middleware/context.js";
+import { isTableNotFoundError, badRequest, notFound } from "../lib/errors.js";
 import {
-  getWhatsAppLabels,
-  getWhatsAppLabelByLabelId,
-  linkTagToLabel,
-  unlinkTagFromLabel,
-  getTagsWithLabelStatus,
-  autoCreateTagsFromLabels,
-  getLabelSyncStatus,
-} from "../services/label-sync.service.js";
-import { getActiveWhatsAppConnection } from "../services/whatsapp-connection.service.js";
-import {
-  publishSyncLabels,
   publishApplyLabel,
   publishRemoveLabel,
+  publishSyncLabels,
 } from "../lib/nats/index.js";
-import { isTableNotFoundError, TableNotFoundError } from "../lib/errors.js";
+import {
+  createPaginationMeta,
+  extractPaginationParams,
+} from "../lib/route-helpers.js";
+import { authMiddleware } from "../middleware/auth.js";
+import { getRouteContext } from "../middleware/context.js";
+import { tenantMiddleware } from "../middleware/tenant.js";
+import {
+  autoCreateTagsFromLabels,
+  getLabelSyncStatus,
+  getTagsWithLabelStatus,
+  getWhatsAppLabelByLabelId,
+  getWhatsAppLabels,
+  getWhatsAppLabelsCount,
+  linkTagToLabel,
+  unlinkTagFromLabel,
+} from "../services/label-sync.service.js";
+import { getActiveWhatsAppConnection } from "../services/whatsapp-connection.service.js";
 
 export const labelRoutes = new Hono();
 
@@ -26,22 +31,30 @@ labelRoutes.use("/*", authMiddleware);
 labelRoutes.use("/*", tenantMiddleware());
 
 /**
- * GET /labels - List all WhatsApp labels
+ * GET /labels - List all WhatsApp labels with optional pagination
+ * Query params: limit (default 50), offset (default 0)
  */
 labelRoutes.get("/", async (c) => {
   const { tenantDb } = getRouteContext(c);
+  const { limit, offset } = extractPaginationParams(c);
 
   try {
-    const labels = await getWhatsAppLabels(tenantDb);
+    // Get total count
+    const total = await getWhatsAppLabelsCount(tenantDb);
+
+    // Get paginated labels
+    const labels = await getWhatsAppLabels(tenantDb, { limit, offset });
 
     return c.json({
       data: labels,
+      pagination: createPaginationMeta(total, labels.length, { limit, offset }),
     });
   } catch (error) {
     // Handle missing table gracefully - return empty array
     if (isTableNotFoundError(error)) {
       return c.json({
         data: [],
+        pagination: createPaginationMeta(0, 0, { limit, offset }),
       });
     }
     throw error;
@@ -84,7 +97,7 @@ labelRoutes.get("/:labelId", async (c) => {
   const label = await getWhatsAppLabelByLabelId(tenantDb, labelId);
 
   if (!label) {
-    return c.json({ error: "Label not found" }, 404);
+    return notFound(c, "Label");
   }
 
   return c.json(label);
@@ -120,13 +133,13 @@ labelRoutes.post("/:labelId/link", async (c) => {
   const { tagId } = body;
 
   if (!tagId) {
-    return c.json({ error: "tagId is required" }, 400);
+    return badRequest(c, "tagId is required");
   }
 
   const result = await linkTagToLabel(tenantDb, tagId, labelId);
 
   if (!result.success) {
-    return c.json({ error: result.error }, 400);
+    return badRequest(c, result.error || "Failed to link tag to label");
   }
 
   return c.json({ success: true, message: "Tag linked to WhatsApp label" });
@@ -147,13 +160,13 @@ labelRoutes.delete("/:labelId/link", async (c) => {
     .executeTakeFirst();
 
   if (!tag) {
-    return c.json({ error: "No tag is linked to this label" }, 400);
+    return badRequest(c, "No tag is linked to this label");
   }
 
   const result = await unlinkTagFromLabel(tenantDb, tag.id);
 
   if (!result.success) {
-    return c.json({ error: result.error }, 400);
+    return badRequest(c, result.error || "Failed to unlink tag from label");
   }
 
   return c.json({ success: true, message: "Tag unlinked from WhatsApp label" });
@@ -215,14 +228,14 @@ labelRoutes.post("/:labelId/apply/:contactId", async (c) => {
     .executeTakeFirst();
 
   if (!contact || !contact.jid) {
-    return c.json({ error: "Contact not found or has no JID" }, 404);
+    return notFound(c, "Contact");
   }
 
   // Verify the label exists
   const label = await getWhatsAppLabelByLabelId(tenantDb, labelId);
 
   if (!label) {
-    return c.json({ error: "WhatsApp label not found" }, 404);
+    return notFound(c, "WhatsApp label");
   }
 
   // Check if WhatsApp is connected (throws ServiceUnavailableError if not)
@@ -281,14 +294,14 @@ labelRoutes.delete("/:labelId/apply/:contactId", async (c) => {
     .executeTakeFirst();
 
   if (!contact || !contact.jid) {
-    return c.json({ error: "Contact not found or has no JID" }, 404);
+    return notFound(c, "Contact");
   }
 
   // Verify the label exists
   const label = await getWhatsAppLabelByLabelId(tenantDb, labelId);
 
   if (!label) {
-    return c.json({ error: "WhatsApp label not found" }, 404);
+    return notFound(c, "WhatsApp label");
   }
 
   // Check if WhatsApp is connected (throws ServiceUnavailableError if not)
