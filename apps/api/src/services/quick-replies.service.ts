@@ -1,4 +1,5 @@
 import { getTenantConnection } from "./tenant.service.js";
+import { ConflictError, AppError } from "../lib/errors.js";
 
 /**
  * Quick reply interface
@@ -159,7 +160,7 @@ export async function createQuickReply(
   // Check for duplicate shortcut
   const existing = await getQuickReplyByShortcut(companyId, input.shortcut);
   if (existing) {
-    throw new Error(
+    throw new ConflictError(
       `Quick reply with shortcut "${input.shortcut}" already exists`,
     );
   }
@@ -176,7 +177,7 @@ export async function createQuickReply(
     .executeTakeFirst();
 
   if (!row) {
-    throw new Error("Failed to create quick reply");
+    throw new AppError("Failed to create quick reply", 500);
   }
 
   return mapRowToQuickReply(row);
@@ -205,7 +206,7 @@ export async function updateQuickReply(
       input.shortcut,
     );
     if (duplicateShortcut) {
-      throw new Error(
+      throw new ConflictError(
         `Quick reply with shortcut "${input.shortcut}" already exists`,
       );
     }

@@ -2,6 +2,8 @@ import { toDbDate, toISOString } from "@whatsapp-web/shared";
 import { Hono } from "hono";
 import { authMiddleware } from "../middleware/auth.js";
 import { getRouteContext } from "../middleware/context.js";
+import { extractPaginationParams, createPaginationMeta } from "../lib/route-helpers.js";
+import { transformAuditLogs } from "../lib/data-transformers.js";
 import { tenantMiddleware } from "../middleware/tenant.js";
 import * as auditService from "../services/audit.service.js";
 
@@ -29,8 +31,7 @@ auditRoutes.get("/", async (c) => {
   const entityId = c.req.query("entityId");
   const startDateStr = c.req.query("startDate");
   const endDateStr = c.req.query("endDate");
-  const limit = parseInt(c.req.query("limit") || "50", 10);
-  const offset = parseInt(c.req.query("offset") || "0", 10);
+  const { limit, offset } = extractPaginationParams(c);
 
   const result = await auditService.getAuditLogs({
     companyId,
@@ -45,22 +46,8 @@ auditRoutes.get("/", async (c) => {
   });
 
   return c.json({
-    data: result.logs.map((log) => ({
-      id: log.id,
-      userId: log.userId,
-      action: log.action,
-      entityType: log.entityType,
-      entityId: log.entityId,
-      details: log.details,
-      ipAddress: log.ipAddress,
-      createdAt: log.createdAt,
-    })),
-    pagination: {
-      total: result.total,
-      limit,
-      offset,
-      hasMore: offset + result.logs.length < result.total,
-    },
+    data: transformAuditLogs(result.logs),
+    pagination: createPaginationMeta(result.total, result.logs.length, { limit, offset }),
   });
 });
 

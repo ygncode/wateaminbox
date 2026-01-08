@@ -3,6 +3,7 @@ import { db } from "@whatsapp-web/database";
 import { toDbDate } from "@whatsapp-web/shared";
 import { createAuditLog, getClientIp } from "../services/audit.service.js";
 import { getRouteContext } from "../middleware/context.js";
+import { extractPaginationParams, createPaginationMeta } from "../lib/route-helpers.js";
 import { notFound, badRequest, forbidden, serverError } from "../lib/errors.js";
 
 export const contactNotesRoutes = new Hono();
@@ -13,8 +14,7 @@ export const contactNotesRoutes = new Hono();
 contactNotesRoutes.get("/:id/notes/shared", async (c) => {
   const { tenantDb } = getRouteContext(c);
   const contactId = c.req.param("id");
-  const limit = parseInt(c.req.query("limit") || "20", 10);
-  const offset = parseInt(c.req.query("offset") || "0", 10);
+  const { limit, offset } = extractPaginationParams(c, 20);
 
   // Get total count
   const countResult = await tenantDb
@@ -45,12 +45,7 @@ contactNotesRoutes.get("/:id/notes/shared", async (c) => {
       createdAt: note.created_at,
       updatedAt: note.updated_at,
     })),
-    pagination: {
-      total,
-      limit,
-      offset,
-      hasMore: offset + notes.length < total,
-    },
+    pagination: createPaginationMeta(total, notes.length, { limit, offset }),
   });
 });
 
@@ -281,8 +276,7 @@ contactNotesRoutes.delete("/:id/notes/shared/:noteId", async (c) => {
 contactNotesRoutes.get("/:id/notes/private", async (c) => {
   const { tenantDb, user } = getRouteContext(c);
   const contactId = c.req.param("id");
-  const limit = parseInt(c.req.query("limit") || "20", 10);
-  const offset = parseInt(c.req.query("offset") || "0", 10);
+  const { limit, offset } = extractPaginationParams(c, 20);
 
   // Get total count for this user's notes
   const countResult = await tenantDb
@@ -314,12 +308,7 @@ contactNotesRoutes.get("/:id/notes/private", async (c) => {
       createdAt: note.created_at,
       updatedAt: note.updated_at,
     })),
-    pagination: {
-      total,
-      limit,
-      offset,
-      hasMore: offset + notes.length < total,
-    },
+    pagination: createPaginationMeta(total, notes.length, { limit, offset }),
   });
 });
 

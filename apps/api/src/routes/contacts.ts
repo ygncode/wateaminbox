@@ -8,6 +8,8 @@ import {
 } from "@whatsapp-web/shared";
 import { authMiddleware } from "../middleware/auth.js";
 import { notFound, badRequest, serverError } from "../lib/errors.js";
+import { extractPaginationParams, createPaginationMeta } from "../lib/route-helpers.js";
+import { transformContacts } from "../lib/data-transformers.js";
 import { normalizePhoneNumber } from "../lib/schemas.js";
 import { tenantMiddleware } from "../middleware/tenant.js";
 import { getRouteContext } from "../middleware/context.js";
@@ -42,8 +44,7 @@ contactRoutes.route("/", contactAssignmentRoutes);
 contactRoutes.get("/", async (c) => {
   const { tenantDb, user } = getRouteContext(c);
   const search = c.req.query("search");
-  const limit = parseInt(c.req.query("limit") || "50", 10);
-  const offset = parseInt(c.req.query("offset") || "0", 10);
+  const { limit, offset } = extractPaginationParams(c);
   const includeGroups = c.req.query("includeGroups") === "true";
   const assignedToMe = c.req.query("assignedToMe") === "true";
   const unassigned = c.req.query("unassigned") === "true";
@@ -61,44 +62,8 @@ contactRoutes.get("/", async (c) => {
   });
 
   return c.json({
-    data: contacts.map((contact) => {
-      return {
-        id: contact.id,
-        jid: contact.jid,
-        phoneNumber: contact.phone_number || extractPhoneFromJid(contact.jid),
-        pushName: contact.push_name,
-        customName: contact.custom_name,
-        displayName: getContactDisplayName(contact),
-        name: getContactName(contact),
-        isGroup: contact.is_group,
-        profilePictureUrl: contact.profile_picture_url,
-        notesShared: contact.notes_shared,
-        lastMessageAt: contact.last_message_at,
-        lastMessage: contact.last_message
-          ? {
-              id: contact.last_message.id,
-              messageId: contact.last_message.messageId,
-              fromMe: contact.last_message.fromMe,
-              messageType: contact.last_message.messageType,
-              content: contact.last_message.content,
-              status: contact.last_message.status,
-              timestamp: contact.last_message.timestamp,
-            }
-          : null,
-        unreadCount: Number(contact.unread_count),
-        assignedTo: contact.assigned_to,
-        isOnline: contact.is_online,
-        lastSeen: contact.last_seen,
-        createdAt: contact.created_at,
-        updatedAt: contact.updated_at,
-      };
-    }),
-    pagination: {
-      total,
-      limit,
-      offset,
-      hasMore: offset + contacts.length < total,
-    },
+    data: transformContacts(contacts),
+    pagination: createPaginationMeta(total, contacts.length, { limit, offset }),
   });
 });
 

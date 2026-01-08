@@ -1,6 +1,7 @@
 import { toDbDate } from "@whatsapp-web/shared";
 import { Hono } from "hono";
 import { rateLimitConfig, rateLimitStore } from "../lib/rate-limit-store.js";
+import { extractPaginationParams, createPaginationMeta } from "../lib/route-helpers.js";
 import { authMiddleware } from "../middleware/auth.js";
 import { getRouteContext } from "../middleware/context.js";
 import { createConditionalRateLimiter } from "../middleware/rate-limit.js";
@@ -34,7 +35,7 @@ const searchRateLimiter = createConditionalRateLimiter(
 searchRoutes.get("/", searchRateLimiter, async (c) => {
   const { companyId } = getRouteContext(c);
   const query = c.req.query("q");
-  const limit = parseInt(c.req.query("limit") || "10", 10);
+  const { limit } = extractPaginationParams(c, 10);
 
   if (!query || query.trim().length === 0) {
     return c.json({ error: "Search query is required" }, 400);
@@ -62,8 +63,7 @@ searchRoutes.get("/", searchRateLimiter, async (c) => {
 searchRoutes.get("/messages", searchRateLimiter, async (c) => {
   const { companyId } = getRouteContext(c);
   const query = c.req.query("q");
-  const limit = parseInt(c.req.query("limit") || "50", 10);
-  const offset = parseInt(c.req.query("offset") || "0", 10);
+  const { limit, offset } = extractPaginationParams(c);
   const contactId = c.req.query("contactId");
   const startDateStr = c.req.query("startDate");
   const endDateStr = c.req.query("endDate");
@@ -97,12 +97,7 @@ searchRoutes.get("/messages", searchRateLimiter, async (c) => {
   return c.json({
     query: query.trim(),
     data: results,
-    pagination: {
-      total,
-      limit,
-      offset,
-      hasMore: offset + results.length < total,
-    },
+    pagination: createPaginationMeta(total, results.length, { limit, offset }),
   });
 });
 
@@ -114,8 +109,7 @@ searchRoutes.get("/messages", searchRateLimiter, async (c) => {
 searchRoutes.get("/contacts", searchRateLimiter, async (c) => {
   const { companyId } = getRouteContext(c);
   const query = c.req.query("q");
-  const limit = parseInt(c.req.query("limit") || "50", 10);
-  const offset = parseInt(c.req.query("offset") || "0", 10);
+  const { limit, offset } = extractPaginationParams(c);
   const includeGroups = c.req.query("includeGroups") !== "false";
 
   if (!query || query.trim().length === 0) {
@@ -135,12 +129,7 @@ searchRoutes.get("/contacts", searchRateLimiter, async (c) => {
   return c.json({
     query: query.trim(),
     data: results,
-    pagination: {
-      total,
-      limit,
-      offset,
-      hasMore: offset + results.length < total,
-    },
+    pagination: createPaginationMeta(total, results.length, { limit, offset }),
   });
 });
 

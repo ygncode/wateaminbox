@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { authMiddleware } from "../middleware/auth.js";
 import { tenantMiddleware } from "../middleware/tenant.js";
 import { getRouteContext } from "../middleware/context.js";
+import { extractPaginationParams, createPaginationMeta } from "../lib/route-helpers.js";
 import { publishPostStatus, type StatusType } from "../lib/nats/index.js";
 import { getActiveWhatsAppConnection } from "../services/whatsapp-connection.service.js";
 
@@ -17,8 +18,7 @@ statusRoutes.use("/*", tenantMiddleware());
  */
 statusRoutes.get("/", async (c) => {
   const { tenantDb } = getRouteContext(c);
-  const limit = parseInt(c.req.query("limit") || "50", 10);
-  const offset = parseInt(c.req.query("offset") || "0", 10);
+  const { limit, offset } = extractPaginationParams(c);
 
   const now = new Date();
 
@@ -68,12 +68,7 @@ statusRoutes.get("/", async (c) => {
 
   return c.json({
     data: contacts,
-    pagination: {
-      total,
-      limit,
-      offset,
-      hasMore: offset + statuses.length < total,
-    },
+    pagination: createPaginationMeta(total, statuses.length, { limit, offset }),
   });
 });
 
