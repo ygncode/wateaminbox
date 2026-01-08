@@ -74,3 +74,28 @@ export function useTags() {
     staleTime: 60_000, // 1 minute
   });
 }
+
+/**
+ * Hook to create a new tag
+ */
+export function useCreateTag() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      name,
+      color,
+    }: {
+      name: string;
+      color?: string | null;
+    }) => {
+      const response = await api.post<Tag>("/tags", { name, color });
+      return response;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.tags.all,
+      });
+    },
+  });
+}

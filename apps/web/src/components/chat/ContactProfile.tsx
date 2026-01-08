@@ -14,6 +14,7 @@ import {
   X,
 } from "lucide-react";
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
 import { formatPhoneNumber } from "@/lib/utils";
 import { formatShortDate, dayjs } from "@whatsapp-web/shared";
 import { ExportDialog } from "@/components/export";
@@ -40,6 +41,7 @@ import {
   useContact,
   useCreatePrivateNote,
   useCreateSharedNote,
+  useCreateTag,
   useDeletePrivateNote,
   useDeleteSharedNote,
   usePrivateNotes,
@@ -404,9 +406,12 @@ function TagsSection({
   contact: NonNullable<ReturnType<typeof useContact>["data"]>;
 }) {
   const [showTagPicker, setShowTagPicker] = useState(false);
+  const [showCreateTag, setShowCreateTag] = useState(false);
+  const [newTagName, setNewTagName] = useState("");
   const { data: allTags, isLoading: isLoadingTags } = useTags();
   const addTag = useAddContactTag();
   const removeTag = useRemoveContactTag();
+  const createTag = useCreateTag();
 
   const contactTagIds = new Set(contact.tags.map((t) => t.id));
   const availableTags = allTags?.filter((t) => !contactTagIds.has(t.id)) || [];
@@ -418,6 +423,27 @@ function TagsSection({
 
   const handleRemoveTag = async (tagId: string) => {
     await removeTag.mutateAsync({ contactId: contact.id, tagId });
+  };
+
+  const handleCreateTag = async () => {
+    if (!newTagName.trim()) return;
+
+    try {
+      const newTag = await createTag.mutateAsync({ name: newTagName.trim() });
+      setNewTagName("");
+      setShowCreateTag(false);
+      // Automatically add the newly created tag to the contact
+      await addTag.mutateAsync({ contactId: contact.id, tagId: newTag.id });
+      setShowTagPicker(false);
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : "Failed to create tag";
+      if (errorMessage.includes("already exists")) {
+        toast.error("A tag with this name already exists");
+      } else {
+        toast.error(errorMessage);
+      }
+    }
   };
 
   return (
@@ -462,28 +488,76 @@ function TagsSection({
             <div className="mt-2 rounded-md border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-elevated p-2 shadow-sm">
               {isLoadingTags ? (
                 <Skeleton className="h-8 w-full" />
-              ) : availableTags.length === 0 ? (
-                <p className="text-xs text-gray-500 dark:text-dark-text-tertiary">
-                  No more tags available
-                </p>
               ) : (
-                <div className="flex flex-wrap gap-1">
-                  {availableTags.map((tag) => (
-                    <Badge
-                      key={tag.id}
-                      variant="outline"
-                      className="cursor-pointer hover:bg-gray-100 dark:hover:bg-dark-tertiary"
-                      style={
-                        tag.color
-                          ? { borderColor: tag.color, color: tag.color }
-                          : undefined
-                      }
-                      onClick={() => handleAddTag(tag.id)}
+                <>
+                  {availableTags.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mb-2">
+                      {availableTags.map((tag) => (
+                        <Badge
+                          key={tag.id}
+                          variant="outline"
+                          className="cursor-pointer hover:bg-gray-100 dark:hover:bg-dark-tertiary"
+                          style={
+                            tag.color
+                              ? { borderColor: tag.color, color: tag.color }
+                              : undefined
+                          }
+                          onClick={() => handleAddTag(tag.id)}
+                        >
+                          {tag.name}
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
+
+                  {showCreateTag ? (
+                    <div className="flex items-center gap-2">
+                      <Input
+                        type="text"
+                        placeholder="Enter tag name..."
+                        value={newTagName}
+                        onChange={(e) => setNewTagName(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            handleCreateTag();
+                          } else if (e.key === "Escape") {
+                            setShowCreateTag(false);
+                            setNewTagName("");
+                          }
+                        }}
+                        className="h-7 text-xs flex-1"
+                        autoFocus
+                      />
+                      <Button
+                        size="sm"
+                        onClick={handleCreateTag}
+                        disabled={!newTagName.trim() || createTag.isPending}
+                        className="h-7 px-2 text-xs"
+                      >
+                        {createTag.isPending ? "..." : "Create"}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => {
+                          setShowCreateTag(false);
+                          setNewTagName("");
+                        }}
+                        className="h-7 px-2 text-xs"
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setShowCreateTag(true)}
+                      className="flex w-full items-center gap-1.5 rounded px-2 py-1.5 text-xs text-gray-600 dark:text-dark-text-secondary hover:bg-gray-100 dark:hover:bg-dark-tertiary transition-colors"
                     >
-                      {tag.name}
-                    </Badge>
-                  ))}
-                </div>
+                      <Plus className="h-3 w-3" />
+                      Create new tag
+                    </button>
+                  )}
+                </>
               )}
             </div>
           )}
