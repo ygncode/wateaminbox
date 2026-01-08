@@ -294,12 +294,101 @@ export function useReactMessage() {
       messageId: string;
       conversationId: string;
       emoji: string;
+      userJid?: string;
     }) =>
       api.post<{ success: boolean }>(`/messages/${messageId}/reaction`, {
         emoji,
       }),
+    onMutate: async (variables) => {
+      // Cancel outgoing refetches
+      await queryClient.cancelQueries({
+        queryKey: infiniteMessageKeys.list(variables.conversationId),
+      });
+
+      // Snapshot previous value for rollback
+      const previousData = queryClient.getQueryData(
+        infiniteMessageKeys.list(variables.conversationId),
+      );
+
+      // Optimistically update the reaction in the infinite messages cache
+      // Use userJid if provided, otherwise use 'current-user' as a placeholder
+      const reactorJid = variables.userJid || "current-user";
+
+      queryClient.setQueryData<{
+        pages: {
+          messages: Message[];
+          hasMore: boolean;
+          nextCursor: string | null;
+        }[];
+        pageParams: (string | undefined)[];
+      }>(infiniteMessageKeys.list(variables.conversationId), (oldData) => {
+        if (!oldData) return oldData;
+
+        return {
+          ...oldData,
+          pages: oldData.pages.map((page) => ({
+            ...page,
+            messages: page.messages.map((msg) => {
+              if (msg.id !== variables.messageId) return msg;
+
+              const currentReactions = msg.reactions || [];
+
+              // If emoji is empty, remove the reaction
+              if (!variables.emoji) {
+                return {
+                  ...msg,
+                  reactions: currentReactions.filter(
+                    (r) => r.reactorJid !== reactorJid,
+                  ),
+                };
+              }
+
+              // Check if user already has a reaction
+              const existingIndex = currentReactions.findIndex(
+                (r) => r.reactorJid === reactorJid,
+              );
+
+              if (existingIndex >= 0) {
+                // Update existing reaction
+                const updatedReactions = [...currentReactions];
+                updatedReactions[existingIndex] = {
+                  ...updatedReactions[existingIndex],
+                  emoji: variables.emoji,
+                  createdAt: new Date(),
+                };
+                return { ...msg, reactions: updatedReactions };
+              }
+
+              // Add new reaction
+              return {
+                ...msg,
+                reactions: [
+                  ...currentReactions,
+                  {
+                    emoji: variables.emoji,
+                    reactorJid,
+                    createdAt: new Date(),
+                  },
+                ],
+              };
+            }),
+          })),
+        };
+      });
+
+      return { previousData, conversationId: variables.conversationId };
+    },
+    onError: (_error, variables, context) => {
+      // Rollback on error
+      if (context?.previousData) {
+        queryClient.setQueryData(
+          infiniteMessageKeys.list(variables.conversationId),
+          context.previousData,
+        );
+      }
+    },
     onSuccess: (_data, variables) => {
-      // Invalidate the messages query to show the new reaction
+      // Invalidate to ensure we have the server's version
       queryClient.invalidateQueries({
         queryKey: infiniteMessageKeys.list(variables.conversationId),
       });

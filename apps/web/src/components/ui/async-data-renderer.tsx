@@ -82,7 +82,11 @@ export function AsyncDataRenderer<T>({
   }
 
   // Empty/null data state
-  if (data === undefined || data === null || (Array.isArray(data) && data.length === 0)) {
+  if (
+    data === undefined ||
+    data === null ||
+    (Array.isArray(data) && data.length === 0)
+  ) {
     if (emptyFallback) {
       return <>{emptyFallback}</>;
     }

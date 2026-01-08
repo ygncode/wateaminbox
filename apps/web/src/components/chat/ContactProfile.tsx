@@ -12,17 +12,17 @@ import {
   UserMinus,
   UserPlus,
   X,
-} from "lucide-react"
-import { useEffect, useState } from "react"
-import { formatPhoneNumber } from "@/lib/utils"
-import { formatShortDate, dayjs } from "@whatsapp-web/shared"
-import { ExportDialog } from "@/components/export"
+} from "lucide-react";
+import { useEffect, useState } from "react";
+import { formatPhoneNumber } from "@/lib/utils";
+import { formatShortDate, dayjs } from "@whatsapp-web/shared";
+import { ExportDialog } from "@/components/export";
 import {
   RightPanel,
   RightPanelContent,
   RightPanelHeader,
   RightPanelSection,
-} from "@/components/layout/right-panel"
+} from "@/components/layout/right-panel";
 import {
   Avatar,
   AvatarFallback,
@@ -31,8 +31,8 @@ import {
   Button,
   Input,
   Skeleton,
-} from "@/components/ui"
-import { useAuth } from "@/contexts/auth-context"
+} from "@/components/ui";
+import { useAuth } from "@/contexts/auth-context";
 import {
   useAddContactTag,
   useAssignContact,
@@ -50,14 +50,14 @@ import {
   useUpdateContact,
   useUpdatePrivateNote,
   useUpdateSharedNote,
-} from "@/hooks/useContact"
-import { cn } from "@/lib/utils"
-import { NotesList } from "./notes"
+} from "@/hooks/useContact";
+import { cn } from "@/lib/utils";
+import { NotesList } from "./notes";
 
 export interface ContactProfileProps {
-  contactId: string | null
-  isOpen: boolean
-  onClose: () => void
+  contactId: string | null;
+  isOpen: boolean;
+  onClose: () => void;
 }
 
 /**
@@ -69,10 +69,10 @@ export function ContactProfile({
   isOpen,
   onClose,
 }: ContactProfileProps) {
-  const { data: contact, isLoading, error } = useContact(contactId)
-  const [showExportDialog, setShowExportDialog] = useState(false)
+  const { data: contact, isLoading, error } = useContact(contactId);
+  const [showExportDialog, setShowExportDialog] = useState(false);
 
-  if (!contactId) return null
+  if (!contactId) return null;
 
   return (
     <RightPanel isOpen={isOpen} onClose={onClose}>
@@ -140,7 +140,7 @@ export function ContactProfile({
         ) : null}
       </RightPanelContent>
     </RightPanel>
-  )
+  );
 }
 
 /**
@@ -158,7 +158,7 @@ function ContactProfileSkeleton() {
       <Skeleton className="h-20 w-full" />
       <Skeleton className="h-20 w-full" />
     </div>
-  )
+  );
 }
 
 /**
@@ -167,14 +167,14 @@ function ContactProfileSkeleton() {
 function ProfileHeader({
   contact,
 }: {
-  contact: NonNullable<ReturnType<typeof useContact>["data"]>
+  contact: NonNullable<ReturnType<typeof useContact>["data"]>;
 }) {
   const initials = contact.displayName
     .split(" ")
     .map((n) => n[0])
     .join("")
     .toUpperCase()
-    .slice(0, 2)
+    .slice(0, 2);
 
   return (
     <div className="flex flex-col items-center gap-4 bg-gray-50 dark:bg-dark-elevated py-8">
@@ -198,7 +198,7 @@ function ProfileHeader({
         )}
       </div>
     </div>
-  )
+  );
 }
 
 /**
@@ -207,7 +207,7 @@ function ProfileHeader({
 function ContactInfoSection({
   contact,
 }: {
-  contact: NonNullable<ReturnType<typeof useContact>["data"]>
+  contact: NonNullable<ReturnType<typeof useContact>["data"]>;
 }) {
   return (
     <RightPanelSection>
@@ -240,7 +240,7 @@ function ContactInfoSection({
         )}
       </div>
     </RightPanelSection>
-  )
+  );
 }
 
 /**
@@ -249,28 +249,28 @@ function ContactInfoSection({
 function EditableNameSection({
   contact,
 }: {
-  contact: NonNullable<ReturnType<typeof useContact>["data"]>
+  contact: NonNullable<ReturnType<typeof useContact>["data"]>;
 }) {
-  const [isEditing, setIsEditing] = useState(false)
-  const [customName, setCustomName] = useState(contact.customName || "")
-  const updateContact = useUpdateContact()
+  const [isEditing, setIsEditing] = useState(false);
+  const [customName, setCustomName] = useState(contact.customName || "");
+  const updateContact = useUpdateContact();
 
   useEffect(() => {
-    setCustomName(contact.customName || "")
-  }, [contact.customName])
+    setCustomName(contact.customName || "");
+  }, [contact.customName]);
 
   const handleSave = async () => {
     await updateContact.mutateAsync({
       contactId: contact.id,
       customName: customName.trim() || undefined,
-    })
-    setIsEditing(false)
-  }
+    });
+    setIsEditing(false);
+  };
 
   const handleCancel = () => {
-    setCustomName(contact.customName || "")
-    setIsEditing(false)
-  }
+    setCustomName(contact.customName || "");
+    setIsEditing(false);
+  };
 
   return (
     <RightPanelSection title="Custom Name">
@@ -324,22 +324,22 @@ function EditableNameSection({
         Custom name is visible to all team members
       </p>
     </RightPanelSection>
-  )
+  );
 }
 
 /**
  * Shared notes section - wrapper around NotesList
  */
 function SharedNotesSection({ contactId }: { contactId: string }) {
-  const { user } = useAuth()
-  const { data, isLoading } = useSharedNotes(contactId)
-  const createNote = useCreateSharedNote()
-  const updateNote = useUpdateSharedNote()
-  const deleteNote = useDeleteSharedNote()
+  const { user } = useAuth();
+  const { data, isLoading } = useSharedNotes(contactId);
+  const createNote = useCreateSharedNote();
+  const updateNote = useUpdateSharedNote();
+  const deleteNote = useDeleteSharedNote();
 
-  const notes = data?.data || []
+  const notes = data?.data || [];
   const isPending =
-    createNote.isPending || updateNote.isPending || deleteNote.isPending
+    createNote.isPending || updateNote.isPending || deleteNote.isPending;
 
   return (
     <NotesList
@@ -350,30 +350,30 @@ function SharedNotesSection({ contactId }: { contactId: string }) {
       currentUserId={user?.id}
       isPending={isPending}
       onCreate={async (content) => {
-        await createNote.mutateAsync({ contactId, content })
+        await createNote.mutateAsync({ contactId, content });
       }}
       onEdit={async (noteId, content) => {
-        await updateNote.mutateAsync({ contactId, noteId, content })
+        await updateNote.mutateAsync({ contactId, noteId, content });
       }}
       onDelete={async (noteId) => {
-        await deleteNote.mutateAsync({ contactId, noteId })
+        await deleteNote.mutateAsync({ contactId, noteId });
       }}
     />
-  )
+  );
 }
 
 /**
  * Private notes section - wrapper around NotesList
  */
 function PrivateNotesSection({ contactId }: { contactId: string }) {
-  const { data, isLoading } = usePrivateNotes(contactId)
-  const createNote = useCreatePrivateNote()
-  const updateNote = useUpdatePrivateNote()
-  const deleteNote = useDeletePrivateNote()
+  const { data, isLoading } = usePrivateNotes(contactId);
+  const createNote = useCreatePrivateNote();
+  const updateNote = useUpdatePrivateNote();
+  const deleteNote = useDeletePrivateNote();
 
-  const notes = data?.data || []
+  const notes = data?.data || [];
   const isPending =
-    createNote.isPending || updateNote.isPending || deleteNote.isPending
+    createNote.isPending || updateNote.isPending || deleteNote.isPending;
 
   return (
     <NotesList
@@ -383,16 +383,16 @@ function PrivateNotesSection({ contactId }: { contactId: string }) {
       isPrivate={true}
       isPending={isPending}
       onCreate={async (content) => {
-        await createNote.mutateAsync({ contactId, content })
+        await createNote.mutateAsync({ contactId, content });
       }}
       onEdit={async (noteId, content) => {
-        await updateNote.mutateAsync({ contactId, noteId, content })
+        await updateNote.mutateAsync({ contactId, noteId, content });
       }}
       onDelete={async (noteId) => {
-        await deleteNote.mutateAsync({ contactId, noteId })
+        await deleteNote.mutateAsync({ contactId, noteId });
       }}
     />
-  )
+  );
 }
 
 /**
@@ -401,24 +401,24 @@ function PrivateNotesSection({ contactId }: { contactId: string }) {
 function TagsSection({
   contact,
 }: {
-  contact: NonNullable<ReturnType<typeof useContact>["data"]>
+  contact: NonNullable<ReturnType<typeof useContact>["data"]>;
 }) {
-  const [showTagPicker, setShowTagPicker] = useState(false)
-  const { data: allTags, isLoading: isLoadingTags } = useTags()
-  const addTag = useAddContactTag()
-  const removeTag = useRemoveContactTag()
+  const [showTagPicker, setShowTagPicker] = useState(false);
+  const { data: allTags, isLoading: isLoadingTags } = useTags();
+  const addTag = useAddContactTag();
+  const removeTag = useRemoveContactTag();
 
-  const contactTagIds = new Set(contact.tags.map((t) => t.id))
-  const availableTags = allTags?.filter((t) => !contactTagIds.has(t.id)) || []
+  const contactTagIds = new Set(contact.tags.map((t) => t.id));
+  const availableTags = allTags?.filter((t) => !contactTagIds.has(t.id)) || [];
 
   const handleAddTag = async (tagId: string) => {
-    await addTag.mutateAsync({ contactId: contact.id, tagId })
-    setShowTagPicker(false)
-  }
+    await addTag.mutateAsync({ contactId: contact.id, tagId });
+    setShowTagPicker(false);
+  };
 
   const handleRemoveTag = async (tagId: string) => {
-    await removeTag.mutateAsync({ contactId: contact.id, tagId })
-  }
+    await removeTag.mutateAsync({ contactId: contact.id, tagId });
+  };
 
   return (
     <RightPanelSection title="Tags">
@@ -490,7 +490,7 @@ function TagsSection({
         </div>
       </div>
     </RightPanelSection>
-  )
+  );
 }
 
 /**
@@ -499,18 +499,18 @@ function TagsSection({
 function AssignmentSection({
   contact,
 }: {
-  contact: NonNullable<ReturnType<typeof useContact>["data"]>
+  contact: NonNullable<ReturnType<typeof useContact>["data"]>;
 }) {
-  const assignContact = useAssignContact()
-  const unassignContact = useUnassignContact()
+  const assignContact = useAssignContact();
+  const unassignContact = useUnassignContact();
 
   const handleAssign = async () => {
-    await assignContact.mutateAsync(contact.id)
-  }
+    await assignContact.mutateAsync(contact.id);
+  };
 
   const handleUnassign = async () => {
-    await unassignContact.mutateAsync(contact.id)
-  }
+    await unassignContact.mutateAsync(contact.id);
+  };
 
   return (
     <RightPanelSection title="Assignment">
@@ -557,22 +557,22 @@ function AssignmentSection({
         )}
       </div>
     </RightPanelSection>
-  )
+  );
 }
 
 /**
  * Assignment history section - shows past assignments
  */
 function AssignmentHistorySection({ contactId }: { contactId: string }) {
-  const [isExpanded, setIsExpanded] = useState(false)
-  const { data: history, isLoading } = useAssignmentHistory(contactId)
+  const [isExpanded, setIsExpanded] = useState(false);
+  const { data: history, isLoading } = useAssignmentHistory(contactId);
 
   if (isLoading) {
     return (
       <RightPanelSection title="Assignment History">
         <Skeleton className="h-12 w-full" />
       </RightPanelSection>
-    )
+    );
   }
 
   if (!history || history.length === 0) {
@@ -583,10 +583,10 @@ function AssignmentHistorySection({ contactId }: { contactId: string }) {
           <p className="text-sm italic">No assignment history</p>
         </div>
       </RightPanelSection>
-    )
+    );
   }
 
-  const displayedHistory = isExpanded ? history : history.slice(0, 3)
+  const displayedHistory = isExpanded ? history : history.slice(0, 3);
 
   return (
     <RightPanelSection title="Assignment History">
@@ -662,7 +662,7 @@ function AssignmentHistorySection({ contactId }: { contactId: string }) {
         </button>
       )}
     </RightPanelSection>
-  )
+  );
 }
 
-export default ContactProfile
+export default ContactProfile;

@@ -6,6 +6,7 @@ export type WebSocketEventType =
   | "message:new"
   | "message:status"
   | "message:deleted"
+  | "message:reaction"
   | "typing:start"
   | "typing:stop"
   | "presence:online"
@@ -52,6 +53,14 @@ export interface MessageStatusPayload {
 export interface MessageDeletedPayload {
   messageId: string;
   conversationId: string;
+}
+
+export interface MessageReactionPayload {
+  messageId: string;
+  contactId: string;
+  from: string;
+  emoji: string;
+  timestamp: string;
 }
 
 export interface TypingPayload {

@@ -1,28 +1,28 @@
-import { ChevronDown, ChevronUp, Lock, Plus, Users } from "lucide-react"
-import { RightPanelSection } from "@/components/layout/right-panel"
-import { Button, Skeleton } from "@/components/ui"
-import { useNoteList } from "@/hooks/useNoteList"
-import { NoteItem, type NoteItemNote } from "./NoteItem"
+import { ChevronDown, ChevronUp, Lock, Plus, Users } from "lucide-react";
+import { RightPanelSection } from "@/components/layout/right-panel";
+import { Button, Skeleton } from "@/components/ui";
+import { useNoteList } from "@/hooks/useNoteList";
+import { NoteItem, type NoteItemNote } from "./NoteItem";
 
 export interface NotesListProps {
   /** Title for the section */
-  title: string
+  title: string;
   /** Notes to display */
-  notes: NoteItemNote[]
+  notes: NoteItemNote[];
   /** Whether notes are loading */
-  isLoading: boolean
+  isLoading: boolean;
   /** Whether this is private (only visible to user) or shared */
-  isPrivate: boolean
+  isPrivate: boolean;
   /** Current user ID for ownership check */
-  currentUserId?: string
+  currentUserId?: string;
   /** Whether any mutation is pending */
-  isPending: boolean
+  isPending: boolean;
   /** Handler for creating a new note */
-  onCreate: (content: string) => Promise<void>
+  onCreate: (content: string) => Promise<void>;
   /** Handler for editing a note */
-  onEdit: (noteId: string, content: string) => Promise<void>
+  onEdit: (noteId: string, content: string) => Promise<void>;
   /** Handler for deleting a note */
-  onDelete: (noteId: string) => Promise<void>
+  onDelete: (noteId: string) => Promise<void>;
 }
 
 /**
@@ -48,30 +48,32 @@ export function NotesList({
     isExpanded,
     toggleExpanded,
     handleCancel,
-  } = useNoteList({ onSave: onCreate })
+  } = useNoteList({ onSave: onCreate });
 
   const handleCreate = async () => {
     if (newContent.trim()) {
-      await onCreate(newContent.trim())
-      setNewContent("")
-      setShowAddForm(false)
+      await onCreate(newContent.trim());
+      setNewContent("");
+      setShowAddForm(false);
     }
-  }
+  };
 
   if (isLoading) {
     return (
       <RightPanelSection title={title}>
         <Skeleton className="h-20 w-full" />
       </RightPanelSection>
-    )
+    );
   }
 
-  const Icon = isPrivate ? Lock : Users
+  const Icon = isPrivate ? Lock : Users;
   const subtitle = isPrivate
     ? "Only you can see these"
-    : "Visible to all team members"
-  const placeholder = isPrivate ? "Add a private note..." : "Add a shared note..."
-  const addButtonText = isPrivate ? "Add private note" : "Add shared note"
+    : "Visible to all team members";
+  const placeholder = isPrivate
+    ? "Add a private note..."
+    : "Add a shared note...";
+  const addButtonText = isPrivate ? "Add private note" : "Add shared note";
 
   return (
     <RightPanelSection title={title}>
@@ -158,5 +160,5 @@ export function NotesList({
         </div>
       )}
     </RightPanelSection>
-  )
+  );
 }

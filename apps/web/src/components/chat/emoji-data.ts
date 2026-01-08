@@ -1193,6 +1193,6 @@ export const EMOJI_CATEGORIES = {
       "🇿🇼",
     ],
   },
-}
+};
 
-export type CategoryKey = keyof typeof EMOJI_CATEGORIES
+export type CategoryKey = keyof typeof EMOJI_CATEGORIES;

@@ -68,6 +68,12 @@ export interface ChatState {
     messageId: string,
     status: MessageStatus,
   ) => void;
+  updateMessageReaction: (
+    conversationId: string,
+    messageId: string,
+    reactorJid: string,
+    emoji: string,
+  ) => void;
   removeMessage: (conversationId: string, messageId: string) => void;
   prependMessages: (conversationId: string, messages: Message[]) => void;
 
@@ -240,6 +246,62 @@ export const useChatStore = create<ChatState>()(
             },
             false,
             "updateMessageStatus",
+          ),
+
+        updateMessageReaction: (conversationId, messageId, reactorJid, emoji) =>
+          set(
+            (state) => {
+              const newMap = new Map(state.messagesCache);
+              const existing = newMap.get(conversationId);
+
+              if (!existing) return state;
+
+              const updatedMessages = existing.map((msg) => {
+                if (msg.id !== messageId) return msg;
+
+                const currentReactions = msg.reactions || [];
+
+                // If emoji is empty, remove the reaction
+                if (!emoji) {
+                  return {
+                    ...msg,
+                    reactions: currentReactions.filter(
+                      (r) => r.reactorJid !== reactorJid,
+                    ),
+                  };
+                }
+
+                // Check if this reactor already has a reaction
+                const existingReactionIndex = currentReactions.findIndex(
+                  (r) => r.reactorJid === reactorJid,
+                );
+
+                if (existingReactionIndex >= 0) {
+                  // Update existing reaction
+                  const updatedReactions = [...currentReactions];
+                  updatedReactions[existingReactionIndex] = {
+                    ...updatedReactions[existingReactionIndex],
+                    emoji,
+                    createdAt: new Date(),
+                  };
+                  return { ...msg, reactions: updatedReactions };
+                }
+
+                // Add new reaction
+                return {
+                  ...msg,
+                  reactions: [
+                    ...currentReactions,
+                    { emoji, reactorJid, createdAt: new Date() },
+                  ],
+                };
+              });
+
+              newMap.set(conversationId, updatedMessages);
+              return { messagesCache: newMap };
+            },
+            false,
+            "updateMessageReaction",
           ),
 
         removeMessage: (conversationId, messageId) =>

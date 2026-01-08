@@ -5,6 +5,7 @@ import {
   type ErrorPayload,
   type EventHandler,
   getWebSocketClient,
+  type MessageReactionPayload,
   type MessageStatusPayload,
   type NewMessagePayload,
   type PresencePayload,
@@ -52,6 +53,9 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
   const addMessage = useChatStore((state) => state.addMessage);
   const updateMessageStatus = useChatStore(
     (state) => state.updateMessageStatus,
+  );
+  const updateMessageReaction = useChatStore(
+    (state) => state.updateMessageReaction,
   );
   const addTypingIndicator = useChatStore((state) => state.addTypingIndicator);
   const removeTypingIndicator = useChatStore(
@@ -170,6 +174,19 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
       },
     );
 
+    // Message reaction handler
+    const unsubMessageReaction = client.on<MessageReactionPayload>(
+      "message:reaction",
+      (payload) => {
+        updateMessageReaction(
+          payload.contactId,
+          payload.messageId,
+          payload.from,
+          payload.emoji,
+        );
+      },
+    );
+
     // Typing start handler - handles both internal typing events and WhatsApp typing events
     // WhatsApp events come with { jid, chatJid, mediaType }, internal events with { conversationId, userId, userName }
     const unsubTypingStart = client.on<TypingPayload | WhatsAppTypingPayload>(
@@ -262,6 +279,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
     return () => {
       unsubNewMessage();
       unsubMessageStatus();
+      unsubMessageReaction();
       unsubTypingStart();
       unsubTypingStop();
       unsubPresenceOnline();
@@ -273,6 +291,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
     initializeClient,
     addMessage,
     updateMessageStatus,
+    updateMessageReaction,
     addTypingIndicator,
     removeTypingIndicator,
     setTypingTimeout,
