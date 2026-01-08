@@ -7,7 +7,7 @@ import type {
   ReceiptEvent,
   SendConfirmationEvent,
 } from "../../lib/nats/index.js";
-import { db, type MessageType } from "@whatsapp-web/database";
+import { type MessageType } from "@whatsapp-web/database";
 import {
   toDbDate,
   toDate,
@@ -18,7 +18,6 @@ import { getTenantConnection } from "../tenant.service.js";
 import { broadcastToCompany } from "../../routes/ws.js";
 import { updateMessageSearchVector } from "../search.service.js";
 import { indexMessage, type MessageDocument } from "../meilisearch.service.js";
-import { createNotification } from "../notification-history.service.js";
 import { formatError } from "../../lib/logger.js";
 import { handlerLogger as logger } from "./types.js";
 
@@ -208,43 +207,10 @@ export async function handleMessageEvent(event: MessageEvent): Promise<void> {
           .execute();
       }
 
-      // Create in-app notification for the message (run in background to avoid blocking)
-      // Get all users in the company to notify them (from public schema)
-      const users = await db
-        .selectFrom("company_members")
-        .innerJoin("users", "users.id", "company_members.user_id")
-        .select(["users.id"])
-        .where("company_members.company_id", "=", companyId)
-        .execute();
-
-      // Create notification for each user
-      for (const user of users) {
-        createNotification(companyId, {
-          userId: user.id,
-          notificationType: "message",
-          title: contactName || contactJid.split("@")[0] || "New Message",
-          message: payload.content?.substring(0, 100) || "New message",
-          actionUrl: `/chat/${contact.id}`,
-          metadata: {
-            contactId: contact.id,
-            messageId,
-            contactJid,
-          },
-        }).catch((err) => {
-          logger.error(
-            { ...formatError(err), userId: user.id },
-            "Failed to create notification for user",
-          );
-        });
-      }
-
-      // Broadcast notification update to WebSocket clients
-      // Frontend will refetch the actual unread count per user
-      broadcastToCompany(companyId, {
-        type: "notification:new",
-        payload: {},
-        timestamp: event.timestamp,
-      });
+      // Note: We don't create notification_history entries for regular messages
+      // because the chat UI already shows unread counts via conversation_states
+      // and new messages appear in real-time via the message:new WebSocket event.
+      // notification_history is reserved for: assignments, mentions, team, system events
     }
 
     // Broadcast to WebSocket clients with proper format for frontend
