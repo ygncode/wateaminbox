@@ -4,6 +4,7 @@ import {
   type KeyboardEvent,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
 } from "react";
@@ -34,6 +35,9 @@ export function MessageComposer({
   const emojiPickerRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
+  // Track when we need to restore focus after sending a message
+  // (flushSync from TanStack Virtual can steal focus during re-renders)
+  const shouldRestoreFocusRef = useRef(false);
 
   // Auto-resize textarea
   const adjustTextareaHeight = useCallback(() => {
@@ -75,6 +79,15 @@ export function MessageComposer({
     }
   }, [replyToMessage]);
 
+  // Restore focus after renders if we just sent a message
+  // This runs after every render to catch focus loss from flushSync
+  useLayoutEffect(() => {
+    if (shouldRestoreFocusRef.current && textareaRef.current && !disabled) {
+      textareaRef.current.focus();
+      shouldRestoreFocusRef.current = false;
+    }
+  });
+
   const handleInputChange = (e: ChangeEvent<HTMLTextAreaElement>) => {
     setMessage(e.target.value);
   };
@@ -95,11 +108,23 @@ export function MessageComposer({
     setMessage("");
     onClearReply();
 
-    // Reset textarea height and maintain focus for continued typing
+    // Mark that we need to restore focus after re-renders
+    // (flushSync from TanStack Virtual steals focus during message list updates)
+    shouldRestoreFocusRef.current = true;
+
+    // Reset textarea height
     if (textareaRef.current) {
       textareaRef.current.style.height = "auto";
-      textareaRef.current.focus();
     }
+
+    // Fallback: restore focus after a delay to catch focus loss from sibling re-renders
+    // The flushSync from MessageThread can steal focus after MessageComposer has rendered
+    setTimeout(() => {
+      if (textareaRef.current && !disabled) {
+        textareaRef.current.focus();
+        shouldRestoreFocusRef.current = false;
+      }
+    }, 100);
   };
 
   const handleFileSelect = (

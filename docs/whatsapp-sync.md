@@ -1,93 +1,65 @@
 # WhatsApp Synchronization Mechanism
 
-This document outlines how WhatsApp synchronization works within the platform, specifically focusing on the **History Sync** mechanism which ensures local data consistency with the linked WhatsApp device.
+This document outlines the synchronization capabilities of the platform, detailing supported flows, data models, and current implementation gaps.
 
 ## Overview
 
-The platform primarily synchronizes data through **History Sync**, which occurs automatically when a WhatsApp session is established or reconnected. This process fetches historical messages and contacts from the phone to populate the platform's database.
+The platform ensures data consistency through three primary mechanisms:
+1.  **History Sync:** Fetches historical data upon initial connection (QR scan).
+2.  **Offline Sync:** Catches up on missed messages after a disconnect.
+3.  **Real-time Sync:** Processes incoming events (messages, receipts, presence) while connected.
 
-> **Note:** Infrastructure for **Label Sync** and **Catalog Sync** (for WhatsApp Business) exists in the codebase (API routes, services, NATS commands), but the end-to-end implementation is currently under development.
+## Synchronization Flows
 
-## Architecture
+### 1. History Sync (Initial Link)
+**Trigger:** Successful connection after QR code scan.
+- **Status:** Reports `starting` -> `completed` via NATS.
+- **Data:** Fetches conversations, messages, and contacts.
+- **Media:** Eagerly downloaded (images, video, docs, audio) with retry logic.
+- **Limitation:** Does not sync Status (Stories) or Call Logs.
 
-The synchronization process involves four main components:
+### 2. Offline Sync (Resume)
+**Trigger:** Reconnection after network interruption.
+- **Status:** Reports `starting` (with expected count) -> `completed`.
+- **Data:** Processes buffered messages from the downtime.
 
-1.  **WhatsApp Worker (Go Service):** Manages the direct connection to WhatsApp servers using the `whatsmeow` library.
-2.  **NATS (Message Broker):** Facilitates asynchronous communication between the Worker and the API.
-3.  **API Service (Node.js):** Consumes events, updates the PostgreSQL database, and manages WebSocket connections to the frontend.
-4.  **Frontend (React):** Displays real-time sync status to the user.
+## Feature Support Matrix
 
-## History Sync Flow
+| Feature | Status | Details |
+| :--- | :--- | :--- |
+| **Messages** | ✅ **Full** | Text, Image, Video, Audio, Document, Sticker, Location, Contact cards. |
+| **Contacts** | ✅ **Full** | Upsert logic (Create/Update). Syncs Name, PushName, Profile Picture, Online Status. |
+| **Receipts** | ✅ **Full** | Sent, Delivered, Read, Played status updates. |
+| **Presence** | ✅ **Full** | Online/Offline status and Last Seen. |
+| **Typing** | ✅ **Full** | "Typing..." indicators (ephemeral broadcast). |
+| **Revoke** | ✅ **Full** | Handles "Delete for Everyone" (Message Revocation). |
+| **Reactions** | ✅ **Full** | Emoji reactions to messages. |
+| **Groups** | ⚠️ **Partial** | Syncs group info (Name, JID) during history/message events. **MISSING:** Real-time participant changes (Join/Leave/Promote). |
+| **Stories** | ❌ **Missing** | WhatsApp Status (Stories) are **not** handled by the worker. |
+| **Calls** | ❌ **Missing** | Voice/Video call offers and logs are **ignored**. |
+| **Labels** | ❌ **Missing** | WhatsApp Business Labels sync is unimplemented. |
+| **Catalogs** | ❌ **Missing** | WhatsApp Business Catalog sync is unimplemented. |
 
-### 1. Trigger
-The process begins when the **WhatsApp Worker** successfully connects to the WhatsApp servers. This triggers a `HistorySync` event from the underlying `whatsmeow` library.
+## Event Architecture
 
-### 2. Synchronization Phases
+### Message Processing
+- **Subject:** `WHATSAPP.events.{companyId}.{connectionId}.message`
+- **Logic:**
+  - `IsHistorySync: true`: Notifications & Webhooks suppressed.
+  - `IsHistorySync: false`: Real-time processing (Notifications, Unread Counts).
 
-The sync process reports its status via NATS events (`WHATSAPP.events.{companyId}.{connectionId}.sync_status`).
+### Contact Upsert
+- **Subject:** `WHATSAPP.events.{companyId}.{connectionId}.contact`
+- **Logic:** Matches by normalized JID (e.g., `123@s.whatsapp.net`). Updates profile data if changed.
 
-#### Phase A: Starting
-- The Worker publishes a `sync:start` status.
-- **API:** Updates the connection's `sync_status` to `syncing` in the database.
-- **Frontend:** Receives a WebSocket event and displays the `SyncingOverlay`.
+### Known Issues & Limitations
 
-#### Phase B: Processing
-The Worker processes incoming history data with parallelization for performance:
+1.  **Subject Collision (Status):**
+    - The NATS subject `...status` is used by the Go service for **Connection Status** (Connected/Disconnected).
+    - The API expects **Story Status** on a similar channel. This confirms Stories are unimplemented and likely blocked by this naming collision.
 
-- **Batching:** Messages and conversations are processed in parallel workers (default: 10).
-- **Immediate Media Download:** Media (images, videos, documents) are downloaded immediately during sync with retry logic (exponential backoff).
-- **Profile Pictures:** Profile pictures are fetched during history sync for each contact.
-- **Flagging:** Messages are marked with `IsHistorySync: true`.
+2.  **Deferred Media:**
+    - The API supports "On-Demand Download" (storing `directPath`), but the Go service **eagerly downloads everything**. This increases bandwidth usage during initial sync.
 
-#### Phase C: Event Consumption (API)
-The API Service listens for incoming events and updates the tenant database:
-
-- **Contacts:** Incoming `contact` events trigger a "create or update" logic in `handleContactEvent`.
-  - New contacts are created with a UUID and normalized JID.
-  - Existing contacts have their `push_name` and `profile_picture_url` updated.
-- **Sync Status:** `sync_status` events update the `whatsapp_connections` table.
-  - `starting` or `progress` -> `syncing`
-  - `completed` -> `completed`
-- **Messages:** Incoming message events are stored in the `messages` table. Crucially, it checks the `isHistorySync` flag:
-  - **Notifications:** Skipped for history sync messages to prevent flooding the user with alerts for old messages.
-  - **Unread Counts:** Skipped to ensure the unread count reflects only *new* activity.
-  - **Webhooks:** Outgoing webhooks are typically suppressed for history sync messages.
-
-#### Phase D: Completion
-- Once all history data is processed, the Worker publishes a `sync:complete` status.
-- **API:** Updates `sync_status` to `completed` in the database.
-- **Frontend:** Removes the overlay and displays the chat interface.
-
-## Data Models & Events
-
-### Database Fields
-- `whatsapp_connections.sync_status`: Tracks the current sync state (`null`, `syncing`, `completed`).
-- `contacts.jid`: Primary identifier for WhatsApp contacts (normalized to remove device suffixes).
-- `messages.is_history_sync`: Boolean flag to distinguish historical messages from real-time ones.
-
-### NATS Subjects
-- **Sync Status:** `WHATSAPP.events.{companyId}.{connectionId}.sync_status`
-- **Contacts:** `WHATSAPP.events.{companyId}.{connectionId}.contact`
-- **Messages:** `WHATSAPP.events.{companyId}.{connectionId}.message`
-
-### WebSocket Events
-The Frontend subscribes to these events to update the UI:
-- `sync:start`
-- `sync:progress`
-- `sync:complete`
-- `contact` (to refresh contact list/details)
-
-## Label & Catalog Sync (Status)
-
-The codebase contains the following infrastructure for WhatsApp Business features:
-
-- **Services:** `LabelSyncService` and `CatalogSyncService` in the API.
-- **Routes:** Endpoints to trigger syncs (e.g., `POST /labels/sync`).
-- **Commands:** NATS commands `sync_labels` and `sync_catalogs` are defined.
-
-**Current State:** The WhatsApp Worker's NATS subscriber (`services/whatsapp/internal/nats/subscriber.go`) currently handles message sending (`text`, `media`, `reaction`) but does not yet process `sync_labels` or `sync_catalogs` commands. Consequently, the downstream logic to update the database (`syncLabelsFromWhatsApp`) is not currently invoked.
-
-## Known Limitations
-
-1.  **Last Sync Timestamp:** Although `whatsapp_connections` has a `last_sync_at` column and the API has an `updateLastSync` service function, it is currently **not invoked** upon sync completion. The `updated_at` column is used as a proxy for the last sync activity.
-2.  **Label/Catalog Sync:** End-to-end synchronization for labels and catalogs is not yet operational in the worker service.
+3.  **Group Participants:**
+    - Users added/removed from groups while the bot is online will not be reflected in the database until a full re-sync or message event carries the data.

@@ -9,6 +9,8 @@ import type { QueryClient } from "@tanstack/react-query";
 import type { MessageStatus, PaginatedMessages } from "@whatsapp-web/shared";
 import { chatKeys } from "../../hooks/useChats";
 import { infiniteMessageKeys } from "../../hooks/useInfiniteMessages";
+import { markConversationAsRead } from "../../lib/api/conversations";
+import { useChatStore } from "../../stores/chat-store";
 import type {
   ConversationReadPayload,
   ConversationUpdatedPayload,
@@ -135,10 +137,27 @@ export function registerEventHandlers(
         };
       });
 
+      // Read store state FIRST before any async operations can change it
+      const selectedConversationId =
+        useChatStore.getState().selectedConversationId;
+      const shouldAutoMark =
+        selectedConversationId === payload.conversationId &&
+        payload.message.senderType === "contact";
+
       // Invalidate chat list queries to update unread count badges
       queryClientRef.current.invalidateQueries({
         queryKey: chatKeys.lists(),
       });
+
+      // Auto-mark as read if user was actively viewing this conversation
+      if (shouldAutoMark) {
+        markConversationAsRead(payload.conversationId).catch((error) => {
+          console.error(
+            "[WebSocket] Failed to auto-mark conversation as read:",
+            error,
+          );
+        });
+      }
     }),
   );
 

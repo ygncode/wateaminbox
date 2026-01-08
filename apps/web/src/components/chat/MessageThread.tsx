@@ -49,10 +49,10 @@ export function MessageThread({
   const retryMessage = useRetryMessage();
   const { resolvedTheme } = useTheme();
   const [retryingMessageId, setRetryingMessageId] = useState<string | null>(
-    null,
+    null
   );
   const [isAtBottom, setIsAtBottom] = useState(true);
-  const prevMessagesLengthRef = useRef(0);
+  const prevItemsLengthRef = useRef(0);
   const isInitialScrollDone = useRef(false);
 
   // Selection mode state from store
@@ -62,7 +62,7 @@ export function MessageThread({
   const enterSelectionMode = useChatStore((state) => state.enterSelectionMode);
   const exitSelectionMode = useChatStore((state) => state.exitSelectionMode);
   const toggleMessageSelection = useChatStore(
-    (state) => state.toggleMessageSelection,
+    (state) => state.toggleMessageSelection
   );
 
   // Context menu state
@@ -123,12 +123,12 @@ export function MessageThread({
       if (item?.type === "date") return DATE_SEPARATOR_HEIGHT;
       return ESTIMATED_MESSAGE_HEIGHT;
     },
-    [items],
+    [items]
   );
 
   const getItemKey = useCallback(
     (index: number) => items[index]?.id || index.toString(),
-    [items],
+    [items]
   );
 
   // State for virtualizer total size to avoid flushSync warnings
@@ -176,44 +176,41 @@ export function MessageThread({
     // Only auto-scroll for new messages if initial scroll is done and user is at bottom
     if (
       isInitialScrollDone.current &&
-      messages.length > prevMessagesLengthRef.current &&
+      items.length > prevItemsLengthRef.current &&
       isAtBottom
     ) {
-      requestAnimationFrame(() => {
-        if (scrollContainerRef.current) {
-          scrollContainerRef.current.scrollTo({
-            top: scrollContainerRef.current.scrollHeight,
-            behavior: "smooth",
-          });
-        }
-      });
+      // Use setTimeout to avoid flushSync being called during React's render cycle
+      // (TanStack Virtual's scrollToIndex with smooth behavior triggers flushSync internally)
+      const timeoutId = setTimeout(() => {
+        virtualizer.scrollToIndex(items.length - 1, {
+          align: "end",
+          behavior: "smooth",
+        });
+      }, 0);
+      prevItemsLengthRef.current = items.length;
+      return () => clearTimeout(timeoutId);
     }
-    prevMessagesLengthRef.current = messages.length;
-  }, [messages.length, isAtBottom]);
+    prevItemsLengthRef.current = items.length;
+  }, [items.length, isAtBottom, virtualizer]);
 
   // Initial scroll to bottom when conversation loads
   useEffect(() => {
-    if (conversationId && messages.length > 0 && !isInitialScrollDone.current) {
+    if (conversationId && items.length > 0 && !isInitialScrollDone.current) {
       // Mark as done immediately to prevent duplicate scrolls
       isInitialScrollDone.current = true;
 
-      // Use requestAnimationFrame to ensure DOM is ready
-      requestAnimationFrame(() => {
-        if (scrollContainerRef.current) {
-          // Use instant scroll for initial load (no animation delay)
-          scrollContainerRef.current.scrollTo({
-            top: scrollContainerRef.current.scrollHeight,
-            behavior: "auto",
-          });
-        }
-      });
+      // Small delay to allow virtualizer measurements to stabilize
+      const timeoutId = setTimeout(() => {
+        virtualizer.scrollToIndex(items.length - 1, { align: "end" });
+      }, 50);
+      return () => clearTimeout(timeoutId);
     }
-  }, [conversationId, messages.length]);
+  }, [conversationId, items.length, virtualizer]);
 
-  // Reset initial scroll flag and message count when conversation changes
+  // Reset initial scroll flag and items count when conversation changes
   useEffect(() => {
     isInitialScrollDone.current = false;
-    prevMessagesLengthRef.current = 0;
+    prevItemsLengthRef.current = 0;
   }, []);
 
   // Store virtualizer in a ref to avoid dependency issues
@@ -228,7 +225,7 @@ export function MessageThread({
   useEffect(() => {
     if (highlightedMessageId && itemsRef.current.length > 0) {
       const messageIndex = itemsRef.current.findIndex(
-        (item) => item.type === "message" && item.id === highlightedMessageId,
+        (item) => item.type === "message" && item.id === highlightedMessageId
       );
       if (messageIndex !== -1) {
         virtualizerRef.current.scrollToIndex(messageIndex, {
@@ -241,13 +238,13 @@ export function MessageThread({
 
   // Scroll to bottom button click
   const scrollToBottom = useCallback(() => {
-    if (scrollContainerRef.current) {
-      scrollContainerRef.current.scrollTo({
-        top: scrollContainerRef.current.scrollHeight,
+    if (items.length > 0) {
+      virtualizer.scrollToIndex(items.length - 1, {
+        align: "end",
         behavior: "smooth",
       });
     }
-  }, []);
+  }, [items.length, virtualizer]);
 
   // Handle retry message
   const handleRetry = useCallback(
@@ -259,7 +256,7 @@ export function MessageThread({
         },
       });
     },
-    [retryMessage],
+    [retryMessage]
   );
 
   // Handle background context menu (right-click on empty area)
@@ -281,7 +278,7 @@ export function MessageThread({
         toggleMessageSelection(messageId);
       }
     },
-    [selectionMode, toggleMessageSelection],
+    [selectionMode, toggleMessageSelection]
   );
 
   // ESC key to exit selection mode

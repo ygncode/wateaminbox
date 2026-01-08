@@ -70,9 +70,10 @@ export function ChatPage() {
     ? mapContactDetailToContact(contactDetail)
     : undefined;
 
-  // Get typing indicators from store
+  // Get typing indicators and selectConversation action from store
   // WhatsApp typing events use jid as the key, so we check if the contact's jid has a typing indicator
   const typingIndicators = useChatStore((state) => state.typingIndicators);
+  const selectConversation = useChatStore((state) => state.selectConversation);
   const isContactTyping = React.useMemo(() => {
     if (!contactDetail?.jid) return false;
     // Check if there's a typing indicator for this contact's jid
@@ -91,6 +92,11 @@ export function ChatPage() {
   React.useEffect(() => {
     setSelectedChatId(contactId);
   }, [contactId]);
+
+  // Sync selected chat ID with the global store (for WebSocket event handlers to auto-mark as read)
+  React.useEffect(() => {
+    selectConversation(selectedChatId || null);
+  }, [selectedChatId, selectConversation]);
 
   // Mark conversation as read when chat is selected
   // Use ref to track last marked conversation to prevent duplicate calls
