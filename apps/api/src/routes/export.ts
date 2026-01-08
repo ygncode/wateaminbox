@@ -1,7 +1,9 @@
+import { toDbDate, toISOString } from "@whatsapp-web/shared";
 import { Hono } from "hono";
 import { createLogger, formatError } from "../lib/logger.js";
 import { rateLimitConfig, rateLimitStore } from "../lib/rate-limit-store.js";
 import { authMiddleware } from "../middleware/auth.js";
+import { getRouteContext } from "../middleware/context.js";
 import { createConditionalRateLimiter } from "../middleware/rate-limit.js";
 import { requirePermission, tenantMiddleware } from "../middleware/tenant.js";
 import * as exportService from "../services/export.service.js";
@@ -34,7 +36,7 @@ const exportRateLimiter = createConditionalRateLimiter(
  * Rate limit: 10 requests per hour per user
  */
 exportRoutes.get("/contacts", exportRateLimiter, async (c) => {
-  const companyId = c.get("companyId");
+  const { companyId } = getRouteContext(c);
   const format = (c.req.query("format") as "csv" | "json") || "csv";
   const tagIds = c.req.query("tagIds")?.split(",").filter(Boolean);
   const assignedTo = c.req.query("assignedTo");
@@ -57,7 +59,7 @@ exportRoutes.get("/contacts", exportRateLimiter, async (c) => {
   c.header("Content-Type", "text/csv");
   c.header(
     "Content-Disposition",
-    `attachment; filename="contacts-${new Date().toISOString().split("T")[0]}.csv"`,
+    `attachment; filename="contacts-${toISOString(toDbDate()).split("T")[0]}.csv"`,
   );
   return c.body(csv);
 });
@@ -68,7 +70,7 @@ exportRoutes.get("/contacts", exportRateLimiter, async (c) => {
  * Rate limit: 10 requests per hour per user
  */
 exportRoutes.get("/messages", exportRateLimiter, async (c) => {
-  const companyId = c.get("companyId");
+  const { companyId } = getRouteContext(c);
   const format = (c.req.query("format") as "csv" | "json") || "csv";
   const contactId = c.req.query("contactId");
   const startDateStr = c.req.query("startDate");
@@ -79,8 +81,8 @@ exportRoutes.get("/messages", exportRateLimiter, async (c) => {
 
   const messages = await exportService.exportMessages(companyId, {
     contactId: contactId || undefined,
-    startDate: startDateStr ? new Date(startDateStr) : undefined,
-    endDate: endDateStr ? new Date(endDateStr) : undefined,
+    startDate: startDateStr ? toDbDate(startDateStr) : undefined,
+    endDate: endDateStr ? toDbDate(endDateStr) : undefined,
     messageTypes,
     limit: limitStr ? parseInt(limitStr, 10) : undefined,
     offset: offsetStr ? parseInt(offsetStr, 10) : undefined,
@@ -104,7 +106,7 @@ exportRoutes.get("/messages", exportRateLimiter, async (c) => {
   c.header("Content-Type", "text/csv");
   c.header(
     "Content-Disposition",
-    `attachment; filename="messages-${new Date().toISOString().split("T")[0]}.csv"`,
+    `attachment; filename="messages-${toISOString(toDbDate()).split("T")[0]}.csv"`,
   );
   return c.body(csv);
 });
@@ -115,7 +117,7 @@ exportRoutes.get("/messages", exportRateLimiter, async (c) => {
  * Rate limit: 10 requests per hour per user
  */
 exportRoutes.get("/conversation/:contactId", exportRateLimiter, async (c) => {
-  const companyId = c.get("companyId");
+  const { companyId } = getRouteContext(c);
   const contactId = c.req.param("contactId");
   const format = (c.req.query("format") as "csv" | "json") || "json";
   const startDateStr = c.req.query("startDate");
@@ -126,8 +128,8 @@ exportRoutes.get("/conversation/:contactId", exportRateLimiter, async (c) => {
       companyId,
       contactId,
       {
-        startDate: startDateStr ? new Date(startDateStr) : undefined,
-        endDate: endDateStr ? new Date(endDateStr) : undefined,
+        startDate: startDateStr ? toDbDate(startDateStr) : undefined,
+        endDate: endDateStr ? toDbDate(endDateStr) : undefined,
       },
     );
 
@@ -142,7 +144,7 @@ exportRoutes.get("/conversation/:contactId", exportRateLimiter, async (c) => {
     c.header("Content-Type", "text/csv");
     c.header(
       "Content-Disposition",
-      `attachment; filename="conversation-${conversation.contact.whatsapp_id}-${new Date().toISOString().split("T")[0]}.csv"`,
+      `attachment; filename="conversation-${conversation.contact.whatsapp_id}-${toISOString(toDbDate()).split("T")[0]}.csv"`,
     );
     return c.body(csv);
   } catch {
@@ -156,17 +158,17 @@ exportRoutes.get("/conversation/:contactId", exportRateLimiter, async (c) => {
  * Rate limit: 10 requests per hour per user
  */
 exportRoutes.get("/full", exportRateLimiter, async (c) => {
-  const companyId = c.get("companyId");
+  const { companyId } = getRouteContext(c);
   const startDateStr = c.req.query("startDate");
   const endDateStr = c.req.query("endDate");
 
   try {
     const zipData = await exportService.exportFullBackup(companyId, {
-      startDate: startDateStr ? new Date(startDateStr) : undefined,
-      endDate: endDateStr ? new Date(endDateStr) : undefined,
+      startDate: startDateStr ? toDbDate(startDateStr) : undefined,
+      endDate: endDateStr ? toDbDate(endDateStr) : undefined,
     });
 
-    const filename = `whatsapp-backup-${new Date().toISOString().split("T")[0]}.zip`;
+    const filename = `whatsapp-backup-${toISOString(toDbDate()).split("T")[0]}.zip`;
 
     c.header("Content-Type", "application/zip");
     c.header("Content-Disposition", `attachment; filename="${filename}"`);
@@ -186,7 +188,7 @@ exportRoutes.get("/full", exportRateLimiter, async (c) => {
  * Rate limit: 10 requests per hour per user
  */
 exportRoutes.post("/bulk", exportRateLimiter, async (c) => {
-  const companyId = c.get("companyId");
+  const { companyId } = getRouteContext(c);
   const body = await c.req.json<{
     type: "contacts" | "messages";
     format?: "csv" | "json";
@@ -205,6 +207,7 @@ exportRoutes.post("/bulk", exportRateLimiter, async (c) => {
 
   const format = body.format || "csv";
   const filters = body.filters || {};
+  const datePrefix = toISOString(toDbDate()).split("T")[0];
 
   let data: unknown[];
   let filename: string;
@@ -215,17 +218,17 @@ exportRoutes.post("/bulk", exportRateLimiter, async (c) => {
       assignedTo: filters.assignedTo,
       hasCustomName: filters.hasCustomName,
     });
-    filename = `contacts-${new Date().toISOString().split("T")[0]}`;
+    filename = `contacts-${datePrefix}`;
   } else {
     data = await exportService.exportMessages(companyId, {
       contactId: filters.contactId,
-      startDate: filters.startDate ? new Date(filters.startDate) : undefined,
-      endDate: filters.endDate ? new Date(filters.endDate) : undefined,
+      startDate: filters.startDate ? toDbDate(filters.startDate) : undefined,
+      endDate: filters.endDate ? toDbDate(filters.endDate) : undefined,
       messageTypes: filters.messageTypes,
       limit: filters.limit,
       offset: filters.offset,
     });
-    filename = `messages-${new Date().toISOString().split("T")[0]}`;
+    filename = `messages-${datePrefix}`;
   }
 
   if (format === "json") {

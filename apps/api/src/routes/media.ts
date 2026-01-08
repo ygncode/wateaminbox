@@ -3,6 +3,7 @@ import { createLogger, formatError } from "../lib/logger.js";
 import { rateLimitConfig, rateLimitStore } from "../lib/rate-limit-store.js";
 import { uploadMedia } from "../lib/storage.js";
 import { authMiddleware } from "../middleware/auth.js";
+import { getRouteContext } from "../middleware/context.js";
 import { createConditionalRateLimiter } from "../middleware/rate-limit.js";
 import { tenantMiddleware } from "../middleware/tenant.js";
 
@@ -34,16 +35,12 @@ const uploadRateLimiter = createConditionalRateLimiter(
  * Triggers download for deferred media from history sync
  */
 mediaRoutes.post("/download/:messageId", async (c) => {
-  const companyId = c.get("companyId");
+  const { companyId, tenantDb } = getRouteContext(c);
   const { messageId } = c.req.param();
 
   try {
-    const { getTenantConnection } =
-      await import("../services/tenant.service.js");
     const { getJetStreamClient } = await import("../lib/nats.js");
     const { JSONCodec } = await import("nats");
-
-    const tenantDb = getTenantConnection(companyId);
 
     // Get the message with media reference data
     const message = await tenantDb
@@ -145,7 +142,7 @@ mediaRoutes.post("/download/:messageId", async (c) => {
 });
 
 mediaRoutes.post("/upload", uploadRateLimiter, async (c) => {
-  const companyId = c.get("companyId");
+  const { companyId } = getRouteContext(c);
 
   // Parse multipart form data
   const body = await c.req.parseBody();
