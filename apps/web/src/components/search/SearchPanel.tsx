@@ -13,7 +13,7 @@ import {
   Video,
   X,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   formatChatListTime,
   subtractDays,
@@ -26,6 +26,7 @@ import {
   AvatarImage,
   Badge,
   Button,
+  HighlightedText,
   Input,
   Label,
   ScrollArea,
@@ -44,6 +45,7 @@ import {
   useGlobalSearch,
   useMessageSearch,
 } from "@/hooks/useSearch";
+import { useDebounce } from "@/hooks/useDebounce";
 
 type SearchTab = "all" | "messages" | "contacts";
 
@@ -64,66 +66,6 @@ interface SearchPanelProps {
   onClose?: () => void;
   /** Additional class names */
   className?: string;
-}
-
-/**
- * Debounce hook for search input
- */
-function useDebounce<T>(value: T, delay: number): T {
-  const [debouncedValue, setDebouncedValue] = useState<T>(value);
-
-  useEffect(() => {
-    const handler = setTimeout(() => {
-      setDebouncedValue(value);
-    }, delay);
-
-    return () => {
-      clearTimeout(handler);
-    };
-  }, [value, delay]);
-
-  return debouncedValue;
-}
-
-/**
- * Highlight matching text in search results
- */
-function HighlightedText({
-  text,
-  query,
-}: {
-  text: string;
-  query: string;
-}): React.ReactElement {
-  if (!query.trim() || !text) {
-    return <>{text}</>;
-  }
-
-  const parts = text.split(new RegExp(`(${escapeRegExp(query)})`, "gi"));
-
-  return (
-    <>
-      {parts.map((part, index) =>
-        part.toLowerCase() === query.toLowerCase() ? (
-          <mark
-            key={index}
-            className="bg-yellow-200 dark:bg-yellow-500/30 text-gray-900 dark:text-yellow-200 rounded px-0.5"
-          >
-            {part}
-          </mark>
-        ) : (
-          <span key={index}>{part}</span>
-        ),
-      )}
-    </>
-  );
-}
-
-/**
- * Escape special regex characters
- */
-function escapeRegExp(string: string): string {
-  return string.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 /**

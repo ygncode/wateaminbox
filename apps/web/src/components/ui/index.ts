@@ -46,3 +46,8 @@ export {
   AsyncDataRenderer,
   type AsyncDataRendererProps,
 } from "./async-data-renderer";
+export {
+  HighlightedText,
+  type HighlightedTextProps,
+  escapeRegExp,
+} from "./highlighted-text";
