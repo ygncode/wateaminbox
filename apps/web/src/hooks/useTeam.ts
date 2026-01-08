@@ -1,5 +1,6 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
+import { useInvalidate, useQueryInvalidation } from "./query";
 
 /**
  * Company member types
@@ -61,7 +62,7 @@ export function usePendingInvitations(companyId: string | null) {
  * Hook to invite a new member
  */
 export function useInviteMember() {
-  const queryClient = useQueryClient();
+  const { invalidate } = useQueryInvalidation();
 
   return useMutation({
     mutationFn: async ({
@@ -80,9 +81,7 @@ export function useInviteMember() {
       return response.data;
     },
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({
-        queryKey: ["company", variables.companyId, "invitations"],
-      });
+      invalidate(["company", variables.companyId, "invitations"]);
     },
   });
 }
@@ -91,7 +90,7 @@ export function useInviteMember() {
  * Hook to cancel an invitation
  */
 export function useCancelInvitation() {
-  const queryClient = useQueryClient();
+  const { invalidate } = useQueryInvalidation();
 
   return useMutation({
     mutationFn: async ({
@@ -104,9 +103,7 @@ export function useCancelInvitation() {
       await api.delete(`/companies/${companyId}/invitations/${invitationId}`);
     },
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({
-        queryKey: ["company", variables.companyId, "invitations"],
-      });
+      invalidate(["company", variables.companyId, "invitations"]);
     },
   });
 }
@@ -115,7 +112,7 @@ export function useCancelInvitation() {
  * Hook to resend an invitation
  */
 export function useResendInvitation() {
-  const queryClient = useQueryClient();
+  const { invalidate } = useQueryInvalidation();
 
   return useMutation({
     mutationFn: async ({
@@ -132,9 +129,7 @@ export function useResendInvitation() {
       return response.data;
     },
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({
-        queryKey: ["company", variables.companyId, "invitations"],
-      });
+      invalidate(["company", variables.companyId, "invitations"]);
     },
   });
 }
@@ -143,7 +138,7 @@ export function useResendInvitation() {
  * Hook to update a member's role
  */
 export function useUpdateMemberRole() {
-  const queryClient = useQueryClient();
+  const { invalidate } = useQueryInvalidation();
 
   return useMutation({
     mutationFn: async ({
@@ -162,9 +157,7 @@ export function useUpdateMemberRole() {
       return response.data;
     },
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({
-        queryKey: ["company", variables.companyId, "members"],
-      });
+      invalidate(["company", variables.companyId, "members"]);
     },
   });
 }
@@ -173,7 +166,7 @@ export function useUpdateMemberRole() {
  * Hook to remove a member from the company
  */
 export function useRemoveMember() {
-  const queryClient = useQueryClient();
+  const { invalidate } = useQueryInvalidation();
 
   return useMutation({
     mutationFn: async ({
@@ -186,9 +179,7 @@ export function useRemoveMember() {
       await api.delete(`/companies/${companyId}/members/${userId}`);
     },
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({
-        queryKey: ["company", variables.companyId, "members"],
-      });
+      invalidate(["company", variables.companyId, "members"]);
     },
   });
 }
@@ -224,7 +215,7 @@ export function useInvitationByToken(token: string | null) {
  * Hook to accept an invitation
  */
 export function useAcceptInvitation() {
-  const queryClient = useQueryClient();
+  const invalidateCompanies = useInvalidate(["companies"]);
 
   return useMutation({
     mutationFn: async (token: string) => {
@@ -237,9 +228,6 @@ export function useAcceptInvitation() {
       }>(`/invitations/${token}/accept`, {});
       return response.data;
     },
-    onSuccess: () => {
-      // Invalidate user companies list
-      queryClient.invalidateQueries({ queryKey: ["companies"] });
-    },
+    onSuccess: invalidateCompanies,
   });
 }

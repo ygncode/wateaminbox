@@ -2,7 +2,12 @@ import { sql } from "kysely";
 import { toISOString, dayjs } from "@whatsapp-web/shared";
 import { getTenantConnection } from "./tenant.service.js";
 import { NotFoundError } from "../lib/errors.js";
-import * as fflate from "fflate";
+import { toCSV } from "./export/csv.js";
+import {
+  generateBackupZip,
+  type FullBackupData,
+  type BackupZipOptions,
+} from "./export/compression.js";
 
 /**
  * Export format types
@@ -363,52 +368,11 @@ export async function exportConversation(
   };
 }
 
-/**
- * Convert array of objects to CSV string
- */
-export function toCSV(
-  data: Record<string, unknown>[],
-  columns?: string[],
-): string {
-  if (data.length === 0) return "";
+// Re-export CSV function for backward compatibility
+export { toCSV } from "./export/csv.js";
 
-  const keys = columns || Object.keys(data[0]);
-  const header = keys.join(",");
-
-  const rows = data.map((row) =>
-    keys
-      .map((key) => {
-        const value = row[key];
-        if (value === null || value === undefined) return "";
-        const str = String(value);
-        // Escape quotes and wrap in quotes if contains comma or newline
-        if (str.includes(",") || str.includes("\n") || str.includes('"')) {
-          return `"${str.replace(/"/g, '""')}"`;
-        }
-        return str;
-      })
-      .join(","),
-  );
-
-  return [header, ...rows].join("\n");
-}
-
-/**
- * Full backup export data
- */
-export interface FullBackupExport {
-  exportedAt: string;
-  contacts: ContactExport[];
-  messages: MessageExport[];
-  stats: {
-    totalContacts: number;
-    totalMessages: number;
-    dateRange: {
-      start: string | null;
-      end: string | null;
-    };
-  };
-}
+// Re-export types for backward compatibility
+export type { FullBackupData as FullBackupExport } from "./export/compression.js";
 
 /**
  * Export full backup as ZIP file
@@ -417,11 +381,7 @@ export interface FullBackupExport {
  */
 export async function exportFullBackup(
   companyId: string,
-  options: {
-    startDate?: Date;
-    endDate?: Date;
-    includeMedia?: boolean;
-  } = {},
+  options: BackupZipOptions = {},
 ): Promise<Uint8Array> {
   // Get all contacts
   const contacts = await exportContacts(companyId);
@@ -458,104 +418,13 @@ export async function exportFullBackup(
   };
 
   // Create full backup data
-  const backupData: FullBackupExport = {
+  const backupData: FullBackupData = {
     exportedAt: toISOString(),
     contacts,
     messages: allMessages,
     stats,
   };
 
-  // Create README content
-  const readme = generateBackupReadme(stats, options);
-
-  // Create ZIP file using fflate with async compression
-  const encoder = new TextEncoder();
-
-  const files: Record<string, Uint8Array> = {
-    "README.txt": encoder.encode(readme),
-    "contacts.json": encoder.encode(JSON.stringify(contacts, null, 2)),
-    "contacts.csv": encoder.encode(
-      toCSV(contacts as unknown as Record<string, unknown>[]),
-    ),
-    "messages.json": encoder.encode(JSON.stringify(allMessages, null, 2)),
-    "messages.csv": encoder.encode(
-      toCSV(allMessages as unknown as Record<string, unknown>[]),
-    ),
-    "backup-summary.json": encoder.encode(JSON.stringify(backupData, null, 2)),
-  };
-
-  // Use async ZIP to avoid blocking the event loop for large files
-  const zipData = await new Promise<Uint8Array>((resolve, reject) => {
-    fflate.zip(files, { level: 6 }, (err, data) => {
-      if (err) {
-        reject(err);
-      } else {
-        resolve(data);
-      }
-    });
-  });
-
-  return zipData;
-}
-
-/**
- * Generate README content for backup
- */
-function generateBackupReadme(
-  stats: FullBackupExport["stats"],
-  options: { startDate?: Date; endDate?: Date; includeMedia?: boolean },
-): string {
-  const now = dayjs.utc();
-  const dateStr = now.format("YYYY-MM-DD");
-  const timeStr = now.format("HH:mm:ss");
-
-  let content = `WhatsApp Web Backup
-===================
-
-Export Date: ${dateStr} ${timeStr} UTC
-
-Backup Contents
----------------
-- contacts.json    : All contacts in JSON format
-- contacts.csv     : All contacts in CSV format
-- messages.json    : All messages in JSON format
-- messages.csv     : All messages in CSV format
-- backup-summary.json : Complete backup with metadata
-
-Statistics
-----------
-- Total Contacts: ${stats.totalContacts}
-- Total Messages: ${stats.totalMessages}
-`;
-
-  if (stats.dateRange.start && stats.dateRange.end) {
-    content += `- Message Date Range: ${stats.dateRange.start.split("T")[0]} to ${stats.dateRange.end.split("T")[0]}
-`;
-  }
-
-  if (options.startDate || options.endDate) {
-    content += `
-Filters Applied
----------------
-`;
-    if (options.startDate) {
-      content += `- Start Date: ${dayjs(options.startDate).format("YYYY-MM-DD")}
-`;
-    }
-    if (options.endDate) {
-      content += `- End Date: ${dayjs(options.endDate).format("YYYY-MM-DD")}
-`;
-    }
-  }
-
-  content += `
-File Formats
-------------
-JSON files can be opened with any text editor or JSON viewer.
-CSV files can be opened with Excel, Google Sheets, or any spreadsheet software.
-
-For more information, visit your WhatsApp Web dashboard.
-`;
-
-  return content;
+  // Generate ZIP file using compression module
+  return generateBackupZip(backupData, options);
 }

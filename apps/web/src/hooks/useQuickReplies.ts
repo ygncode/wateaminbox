@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import {
   type CreateQuickReplyInput,
   createQuickReply,
@@ -10,12 +10,13 @@ import {
   type UpdateQuickReplyInput,
   updateQuickReply,
 } from "@/lib/api";
+import { useQueryInvalidation } from "./query";
 
 /**
  * Hook for managing quick replies
  */
 export function useQuickReplies(params: QuickReplyListParams = {}) {
-  const queryClient = useQueryClient();
+  const { queryClient, invalidate } = useQueryInvalidation();
 
   // Fetch quick replies list
   const {
@@ -51,7 +52,7 @@ export function useQuickReplies(params: QuickReplyListParams = {}) {
         },
       );
       // Invalidate all quick-replies queries to ensure fresh data
-      queryClient.invalidateQueries({ queryKey: ["quick-replies"] });
+      invalidate(["quick-replies"]);
     },
   });
 
@@ -76,7 +77,7 @@ export function useQuickReplies(params: QuickReplyListParams = {}) {
         },
       );
       // Invalidate to ensure fresh data
-      queryClient.invalidateQueries({ queryKey: ["quick-replies"] });
+      invalidate(["quick-replies"]);
     },
   });
 
@@ -100,7 +101,7 @@ export function useQuickReplies(params: QuickReplyListParams = {}) {
         },
       );
       // Invalidate to ensure fresh data
-      queryClient.invalidateQueries({ queryKey: ["quick-replies"] });
+      invalidate(["quick-replies"]);
     },
   });
 

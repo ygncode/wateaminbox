@@ -1,20 +1,20 @@
-import { Hono } from "hono";
+import { Hono } from "hono"
 import {
   toDbDate,
   toISOString,
   getContactDisplayName,
-} from "@whatsapp-web/shared";
-import { requirePermission } from "../middleware/tenant.js";
-import { getRouteContext } from "../middleware/context.js";
-import { PERMISSIONS } from "../services/permission.service.js";
-import { getCurrentAssignment } from "../services/contact.service.js";
-import { createNotification } from "../services/notification-history.service.js";
-import { createAuditLog, getClientIp } from "../services/audit.service.js";
-import { getUserNames } from "../services/user.service.js";
-import { broadcastToCompany } from "./ws/index.js";
-import { notFound, forbidden } from "../lib/errors.js";
+} from "@whatsapp-web/shared"
+import { requirePermission } from "../../middleware/tenant.js"
+import { getRouteContext } from "../../middleware/context.js"
+import { PERMISSIONS } from "../../services/permission.service.js"
+import { getCurrentAssignment } from "../../services/contact.service.js"
+import { createNotification } from "../../services/notification-history.service.js"
+import { createAuditLog, getClientIp } from "../../services/audit.service.js"
+import { getUserNames } from "../../services/user.service.js"
+import { broadcastToCompany } from "../ws/index.js"
+import { notFound, forbidden } from "../../lib/errors.js"
 
-export const contactAssignmentRoutes = new Hono();
+export const assignmentRoutes = new Hono()
 
 /**
  * POST /contacts/:id/assign - Assign contact to a user (or self)
@@ -28,16 +28,16 @@ export const contactAssignmentRoutes = new Hono();
  * Permission: can_assign_contacts is required to assign to another user
  * Self-assignment (claiming unassigned contacts) is allowed for all members
  */
-contactAssignmentRoutes.post("/:id/assign", async (c) => {
-  const { tenantDb, user, companyId, permissions } = getRouteContext(c);
-  const contactId = c.req.param("id");
+assignmentRoutes.post("/:id/assign", async (c) => {
+  const { tenantDb, user, companyId, permissions } = getRouteContext(c)
+  const contactId = c.req.param("id")
 
   // Parse optional body for targetUserId
-  let targetUserId = user.id;
+  let targetUserId = user.id
   try {
-    const body = await c.req.json();
+    const body = await c.req.json()
     if (body.targetUserId) {
-      targetUserId = body.targetUserId;
+      targetUserId = body.targetUserId
     }
   } catch {
     // No body or invalid JSON - default to self-assignment
@@ -47,8 +47,8 @@ contactAssignmentRoutes.post("/:id/assign", async (c) => {
   if (targetUserId !== user.id && !permissions?.can_assign_contacts) {
     return forbidden(
       c,
-      "Permission denied: can_assign_contacts is required to assign contacts to other users",
-    );
+      "Permission denied: can_assign_contacts is required to assign contacts to other users"
+    )
   }
 
   // Check if contact exists
@@ -56,19 +56,19 @@ contactAssignmentRoutes.post("/:id/assign", async (c) => {
     .selectFrom("contacts")
     .select(["id", "custom_name", "push_name", "phone_number", "jid"])
     .where("id", "=", contactId)
-    .executeTakeFirst();
+    .executeTakeFirst()
 
   if (!contact) {
-    return notFound(c, "Contact");
+    return notFound(c, "Contact")
   }
 
   // Get contact display name
-  const contactDisplayName = getContactDisplayName(contact, "Unknown Contact");
+  const contactDisplayName = getContactDisplayName(contact, "Unknown Contact")
 
   // Get current assignment before updating
-  const previousAssignment = await getCurrentAssignment(tenantDb, contactId);
-  const previousAssigneeId = previousAssignment?.assigned_to;
-  const isTakeover = previousAssigneeId && previousAssigneeId !== targetUserId;
+  const previousAssignment = await getCurrentAssignment(tenantDb, contactId)
+  const previousAssigneeId = previousAssignment?.assigned_to
+  const isTakeover = previousAssigneeId && previousAssigneeId !== targetUserId
 
   // Unassign previous assignment
   await tenantDb
@@ -76,7 +76,7 @@ contactAssignmentRoutes.post("/:id/assign", async (c) => {
     .set({ unassigned_at: toDbDate() })
     .where("contact_id", "=", contactId)
     .where("unassigned_at", "is", null)
-    .execute();
+    .execute()
 
   // Create new assignment
   const assignment = await tenantDb
@@ -87,7 +87,7 @@ contactAssignmentRoutes.post("/:id/assign", async (c) => {
       assigned_by: user.id,
     })
     .returning(["id", "assigned_to", "assigned_by", "assigned_at"])
-    .executeTakeFirst();
+    .executeTakeFirst()
 
   // If this is a takeover (reassigning from another user), create notification
   if (isTakeover && previousAssigneeId) {
@@ -104,7 +104,7 @@ contactAssignmentRoutes.post("/:id/assign", async (c) => {
         reassignedBy: user.id,
         newAssignee: targetUserId,
       },
-    });
+    })
 
     // Broadcast WebSocket event for real-time update
     broadcastToCompany(companyId, {
@@ -118,7 +118,7 @@ contactAssignmentRoutes.post("/:id/assign", async (c) => {
         reassignedBy: user.id,
       },
       timestamp: toISOString(),
-    });
+    })
 
     // Create audit log
     await createAuditLog({
@@ -134,7 +134,7 @@ contactAssignmentRoutes.post("/:id/assign", async (c) => {
         contactName: contactDisplayName,
       },
       ipAddress: getClientIp(c.req.raw.headers),
-    });
+    })
   } else {
     // Regular assignment (not a takeover)
     await createAuditLog({
@@ -149,7 +149,7 @@ contactAssignmentRoutes.post("/:id/assign", async (c) => {
         contactName: contactDisplayName,
       },
       ipAddress: getClientIp(c.req.raw.headers),
-    });
+    })
   }
 
   return c.json({
@@ -162,47 +162,47 @@ contactAssignmentRoutes.post("/:id/assign", async (c) => {
     },
     wasTakeover: !!isTakeover,
     previousAssignee: previousAssigneeId || null,
-  });
-});
+  })
+})
 
 /**
  * DELETE /contacts/:id/assign - Unassign contact
  * Requires can_assign_contacts permission
  */
-contactAssignmentRoutes.delete(
+assignmentRoutes.delete(
   "/:id/assign",
   requirePermission(PERMISSIONS.CAN_ASSIGN_CONTACTS),
   async (c) => {
-    const { tenantDb } = getRouteContext(c);
-    const contactId = c.req.param("id");
+    const { tenantDb } = getRouteContext(c)
+    const contactId = c.req.param("id")
 
     await tenantDb
       .updateTable("contact_assignments")
       .set({ unassigned_at: toDbDate() })
       .where("contact_id", "=", contactId)
       .where("unassigned_at", "is", null)
-      .execute();
+      .execute()
 
-    return c.json({ success: true });
-  },
-);
+    return c.json({ success: true })
+  }
+)
 
 /**
  * GET /contacts/:id/assignments - Get assignment history for a contact
  */
-contactAssignmentRoutes.get("/:id/assignments", async (c) => {
-  const { tenantDb } = getRouteContext(c);
-  const contactId = c.req.param("id");
+assignmentRoutes.get("/:id/assignments", async (c) => {
+  const { tenantDb } = getRouteContext(c)
+  const contactId = c.req.param("id")
 
   // Check if contact exists
   const contact = await tenantDb
     .selectFrom("contacts")
     .select(["id"])
     .where("id", "=", contactId)
-    .executeTakeFirst();
+    .executeTakeFirst()
 
   if (!contact) {
-    return notFound(c, "Contact");
+    return notFound(c, "Contact")
   }
 
   // Get all assignments (including historical ones)
@@ -217,11 +217,11 @@ contactAssignmentRoutes.get("/:id/assignments", async (c) => {
     ])
     .where("contact_id", "=", contactId)
     .orderBy("assigned_at", "desc")
-    .execute();
+    .execute()
 
   // Collect all user IDs and fetch their names
-  const userIds = assignments.flatMap((a) => [a.assigned_to, a.assigned_by]);
-  const userNames = await getUserNames(userIds);
+  const userIds = assignments.flatMap((a) => [a.assigned_to, a.assigned_by])
+  const userNames = await getUserNames(userIds)
 
   return c.json({
     data: assignments.map((assignment) => ({
@@ -236,5 +236,5 @@ contactAssignmentRoutes.get("/:id/assignments", async (c) => {
       unassignedAt: assignment.unassigned_at,
       isActive: assignment.unassigned_at === null,
     })),
-  });
-});
+  })
+})

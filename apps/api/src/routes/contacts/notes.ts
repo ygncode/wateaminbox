@@ -1,38 +1,38 @@
-import { Hono } from "hono";
-import { toDbDate } from "@whatsapp-web/shared";
-import { createAuditLog, getClientIp } from "../services/audit.service.js";
-import { getRouteContext } from "../middleware/context.js";
+import { Hono } from "hono"
+import { toDbDate } from "@whatsapp-web/shared"
+import { createAuditLog, getClientIp } from "../../services/audit.service.js"
+import { getRouteContext } from "../../middleware/context.js"
 import {
   extractPaginationParams,
   createPaginationMeta,
-} from "../lib/route-helpers.js";
-import { notFound, badRequest, forbidden, serverError } from "../lib/errors.js";
+} from "../../lib/route-helpers.js"
+import { notFound, badRequest, forbidden, serverError } from "../../lib/errors.js"
 import {
   validateNoteContent,
   transformSharedNoteResponse,
   transformPrivateNoteResponse,
   getAuthorName,
   canModifySharedNote,
-} from "../services/note.service.js";
+} from "../../services/note.service.js"
 
-export const contactNotesRoutes = new Hono();
+export const notesRoutes = new Hono()
 
 /**
  * GET /contacts/:id/notes/shared - Get shared notes for a contact (paginated)
  */
-contactNotesRoutes.get("/:id/notes/shared", async (c) => {
-  const { tenantDb } = getRouteContext(c);
-  const contactId = c.req.param("id");
-  const { limit, offset } = extractPaginationParams(c, 20);
+notesRoutes.get("/:id/notes/shared", async (c) => {
+  const { tenantDb } = getRouteContext(c)
+  const contactId = c.req.param("id")
+  const { limit, offset } = extractPaginationParams(c, 20)
 
   // Get total count
   const countResult = await tenantDb
     .selectFrom("contact_notes_shared")
     .select((eb) => eb.fn.countAll().as("count"))
     .where("contact_id", "=", contactId)
-    .executeTakeFirst();
+    .executeTakeFirst()
 
-  const total = Number(countResult?.count || 0);
+  const total = Number(countResult?.count || 0)
 
   // Get notes with pagination
   const notes = await tenantDb
@@ -42,28 +42,28 @@ contactNotesRoutes.get("/:id/notes/shared", async (c) => {
     .orderBy("created_at", "desc")
     .limit(limit)
     .offset(offset)
-    .execute();
+    .execute()
 
   return c.json({
     data: notes.map(transformSharedNoteResponse),
     pagination: createPaginationMeta(total, notes.length, { limit, offset }),
-  });
-});
+  })
+})
 
 /**
  * POST /contacts/:id/notes/shared - Create a new shared note
  */
-contactNotesRoutes.post("/:id/notes/shared", async (c) => {
-  const { tenantDb, user, companyId } = getRouteContext(c);
-  const contactId = c.req.param("id");
-  const body = await c.req.json();
+notesRoutes.post("/:id/notes/shared", async (c) => {
+  const { tenantDb, user, companyId } = getRouteContext(c)
+  const contactId = c.req.param("id")
+  const body = await c.req.json()
 
-  const validation = validateNoteContent(body.content);
+  const validation = validateNoteContent(body.content)
   if (!validation.valid) {
-    return badRequest(c, validation.error);
+    return badRequest(c, validation.error)
   }
 
-  const authorName = await getAuthorName(user.id);
+  const authorName = await getAuthorName(user.id)
 
   // Create the note
   const note = await tenantDb
@@ -83,10 +83,10 @@ contactNotesRoutes.post("/:id/notes/shared", async (c) => {
       "created_at",
       "updated_at",
     ])
-    .executeTakeFirst();
+    .executeTakeFirst()
 
   if (!note) {
-    return serverError(c, "Failed to create note");
+    return serverError(c, "Failed to create note")
   }
 
   // Create audit log
@@ -102,23 +102,23 @@ contactNotesRoutes.post("/:id/notes/shared", async (c) => {
       contentLength: validation.trimmed.length,
     },
     ipAddress: getClientIp(c.req.raw.headers),
-  });
+  })
 
-  return c.json(transformSharedNoteResponse(note), 201);
-});
+  return c.json(transformSharedNoteResponse(note), 201)
+})
 
 /**
  * PUT /contacts/:id/notes/shared/:noteId - Update a shared note (author only)
  */
-contactNotesRoutes.put("/:id/notes/shared/:noteId", async (c) => {
-  const { tenantDb, user, companyId } = getRouteContext(c);
-  const contactId = c.req.param("id");
-  const noteId = c.req.param("noteId");
-  const body = await c.req.json();
+notesRoutes.put("/:id/notes/shared/:noteId", async (c) => {
+  const { tenantDb, user, companyId } = getRouteContext(c)
+  const contactId = c.req.param("id")
+  const noteId = c.req.param("noteId")
+  const body = await c.req.json()
 
-  const validation = validateNoteContent(body.content);
+  const validation = validateNoteContent(body.content)
   if (!validation.valid) {
-    return badRequest(c, validation.error);
+    return badRequest(c, validation.error)
   }
 
   // Check if note exists and user is the author
@@ -127,15 +127,15 @@ contactNotesRoutes.put("/:id/notes/shared/:noteId", async (c) => {
     .select(["id", "user_id", "author_name"])
     .where("id", "=", noteId)
     .where("contact_id", "=", contactId)
-    .executeTakeFirst();
+    .executeTakeFirst()
 
   if (!existingNote) {
-    return notFound(c, "Note");
+    return notFound(c, "Note")
   }
 
-  const permission = canModifySharedNote(existingNote, user.id);
+  const permission = canModifySharedNote(existingNote, user.id)
   if (!permission.allowed) {
-    return forbidden(c, `Permission denied: ${permission.reason}`);
+    return forbidden(c, `Permission denied: ${permission.reason}`)
   }
 
   // Update the note
@@ -155,7 +155,7 @@ contactNotesRoutes.put("/:id/notes/shared/:noteId", async (c) => {
       "created_at",
       "updated_at",
     ])
-    .executeTakeFirst();
+    .executeTakeFirst()
 
   // Create audit log
   await createAuditLog({
@@ -170,18 +170,18 @@ contactNotesRoutes.put("/:id/notes/shared/:noteId", async (c) => {
       contentLength: validation.trimmed.length,
     },
     ipAddress: getClientIp(c.req.raw.headers),
-  });
+  })
 
-  return c.json(transformSharedNoteResponse(updatedNote!));
-});
+  return c.json(transformSharedNoteResponse(updatedNote!))
+})
 
 /**
  * DELETE /contacts/:id/notes/shared/:noteId - Delete a shared note (author only)
  */
-contactNotesRoutes.delete("/:id/notes/shared/:noteId", async (c) => {
-  const { tenantDb, user, companyId } = getRouteContext(c);
-  const contactId = c.req.param("id");
-  const noteId = c.req.param("noteId");
+notesRoutes.delete("/:id/notes/shared/:noteId", async (c) => {
+  const { tenantDb, user, companyId } = getRouteContext(c)
+  const contactId = c.req.param("id")
+  const noteId = c.req.param("noteId")
 
   // Check if note exists and user is the author
   const existingNote = await tenantDb
@@ -189,22 +189,22 @@ contactNotesRoutes.delete("/:id/notes/shared/:noteId", async (c) => {
     .select(["id", "user_id", "author_name"])
     .where("id", "=", noteId)
     .where("contact_id", "=", contactId)
-    .executeTakeFirst();
+    .executeTakeFirst()
 
   if (!existingNote) {
-    return notFound(c, "Note");
+    return notFound(c, "Note")
   }
 
-  const permission = canModifySharedNote(existingNote, user.id);
+  const permission = canModifySharedNote(existingNote, user.id)
   if (!permission.allowed) {
-    return forbidden(c, `Permission denied: ${permission.reason}`);
+    return forbidden(c, `Permission denied: ${permission.reason}`)
   }
 
   // Delete the note
   await tenantDb
     .deleteFrom("contact_notes_shared")
     .where("id", "=", noteId)
-    .execute();
+    .execute()
 
   // Create audit log
   await createAuditLog({
@@ -218,18 +218,18 @@ contactNotesRoutes.delete("/:id/notes/shared/:noteId", async (c) => {
       noteType: "shared",
     },
     ipAddress: getClientIp(c.req.raw.headers),
-  });
+  })
 
-  return c.json({ success: true });
-});
+  return c.json({ success: true })
+})
 
 /**
  * GET /contacts/:id/notes/private - Get private notes for a contact (user's own notes only)
  */
-contactNotesRoutes.get("/:id/notes/private", async (c) => {
-  const { tenantDb, user } = getRouteContext(c);
-  const contactId = c.req.param("id");
-  const { limit, offset } = extractPaginationParams(c, 20);
+notesRoutes.get("/:id/notes/private", async (c) => {
+  const { tenantDb, user } = getRouteContext(c)
+  const contactId = c.req.param("id")
+  const { limit, offset } = extractPaginationParams(c, 20)
 
   // Get total count for this user's notes
   const countResult = await tenantDb
@@ -237,9 +237,9 @@ contactNotesRoutes.get("/:id/notes/private", async (c) => {
     .select((eb) => eb.fn.countAll().as("count"))
     .where("contact_id", "=", contactId)
     .where("user_id", "=", user.id)
-    .executeTakeFirst();
+    .executeTakeFirst()
 
-  const total = Number(countResult?.count || 0);
+  const total = Number(countResult?.count || 0)
 
   // Get notes for this user only
   const notes = await tenantDb
@@ -250,25 +250,30 @@ contactNotesRoutes.get("/:id/notes/private", async (c) => {
     .orderBy("created_at", "desc")
     .limit(limit)
     .offset(offset)
-    .execute();
+    .execute()
 
   return c.json({
-    data: notes.map(transformPrivateNoteResponse),
+    data: notes.map((note) =>
+      transformPrivateNoteResponse({
+        ...note,
+        content: note.content ?? "",
+      })
+    ),
     pagination: createPaginationMeta(total, notes.length, { limit, offset }),
-  });
-});
+  })
+})
 
 /**
  * POST /contacts/:id/notes/private - Create a new private note
  */
-contactNotesRoutes.post("/:id/notes/private", async (c) => {
-  const { tenantDb, user } = getRouteContext(c);
-  const contactId = c.req.param("id");
-  const body = await c.req.json();
+notesRoutes.post("/:id/notes/private", async (c) => {
+  const { tenantDb, user } = getRouteContext(c)
+  const contactId = c.req.param("id")
+  const body = await c.req.json()
 
-  const validation = validateNoteContent(body.content);
+  const validation = validateNoteContent(body.content)
   if (!validation.valid) {
-    return badRequest(c, validation.error);
+    return badRequest(c, validation.error)
   }
 
   // Create new note
@@ -287,27 +292,33 @@ contactNotesRoutes.post("/:id/notes/private", async (c) => {
       "created_at",
       "updated_at",
     ])
-    .executeTakeFirst();
+    .executeTakeFirst()
 
   if (!note) {
-    return serverError(c, "Failed to create note");
+    return serverError(c, "Failed to create note")
   }
 
-  return c.json(transformPrivateNoteResponse(note), 201);
-});
+  return c.json(
+    transformPrivateNoteResponse({
+      ...note,
+      content: note.content ?? "",
+    }),
+    201
+  )
+})
 
 /**
  * PUT /contacts/:id/notes/private/:noteId - Update a specific private note
  */
-contactNotesRoutes.put("/:id/notes/private/:noteId", async (c) => {
-  const { tenantDb, user } = getRouteContext(c);
-  const contactId = c.req.param("id");
-  const noteId = c.req.param("noteId");
-  const body = await c.req.json();
+notesRoutes.put("/:id/notes/private/:noteId", async (c) => {
+  const { tenantDb, user } = getRouteContext(c)
+  const contactId = c.req.param("id")
+  const noteId = c.req.param("noteId")
+  const body = await c.req.json()
 
-  const validation = validateNoteContent(body.content);
+  const validation = validateNoteContent(body.content)
   if (!validation.valid) {
-    return badRequest(c, validation.error);
+    return badRequest(c, validation.error)
   }
 
   // Check if note exists and belongs to user
@@ -317,10 +328,10 @@ contactNotesRoutes.put("/:id/notes/private/:noteId", async (c) => {
     .where("id", "=", noteId)
     .where("contact_id", "=", contactId)
     .where("user_id", "=", user.id)
-    .executeTakeFirst();
+    .executeTakeFirst()
 
   if (!existingNote) {
-    return notFound(c, "Note");
+    return notFound(c, "Note")
   }
 
   // Update the note
@@ -339,18 +350,23 @@ contactNotesRoutes.put("/:id/notes/private/:noteId", async (c) => {
       "created_at",
       "updated_at",
     ])
-    .executeTakeFirst();
+    .executeTakeFirst()
 
-  return c.json(transformPrivateNoteResponse(updatedNote!));
-});
+  return c.json(
+    transformPrivateNoteResponse({
+      ...updatedNote!,
+      content: updatedNote!.content ?? "",
+    })
+  )
+})
 
 /**
  * DELETE /contacts/:id/notes/private/:noteId - Delete a specific private note
  */
-contactNotesRoutes.delete("/:id/notes/private/:noteId", async (c) => {
-  const { tenantDb, user } = getRouteContext(c);
-  const contactId = c.req.param("id");
-  const noteId = c.req.param("noteId");
+notesRoutes.delete("/:id/notes/private/:noteId", async (c) => {
+  const { tenantDb, user } = getRouteContext(c)
+  const contactId = c.req.param("id")
+  const noteId = c.req.param("noteId")
 
   // Check if note exists and belongs to user
   const existingNote = await tenantDb
@@ -359,17 +375,17 @@ contactNotesRoutes.delete("/:id/notes/private/:noteId", async (c) => {
     .where("id", "=", noteId)
     .where("contact_id", "=", contactId)
     .where("user_id", "=", user.id)
-    .executeTakeFirst();
+    .executeTakeFirst()
 
   if (!existingNote) {
-    return notFound(c, "Note");
+    return notFound(c, "Note")
   }
 
   // Delete the note
   await tenantDb
     .deleteFrom("contact_notes_private")
     .where("id", "=", noteId)
-    .execute();
+    .execute()
 
-  return c.json({ success: true });
-});
+  return c.json({ success: true })
+})
