@@ -24,17 +24,17 @@
  */
 export interface QueryKeyFactory<TDomain extends string> {
   /** Base key for all queries in this domain */
-  all: readonly [TDomain]
+  all: readonly [TDomain];
   /** Key for list queries (without filters) */
-  lists: () => readonly [TDomain, 'list']
+  lists: () => readonly [TDomain, "list"];
   /** Key for list queries with filters */
   list: <TFilters extends Record<string, unknown>>(
-    filters: TFilters
-  ) => readonly [TDomain, 'list', TFilters]
+    filters: TFilters,
+  ) => readonly [TDomain, "list", TFilters];
   /** Key for detail queries (without id) */
-  details: () => readonly [TDomain, 'detail']
+  details: () => readonly [TDomain, "detail"];
   /** Key for a specific detail query */
-  detail: (id: string) => readonly [TDomain, 'detail', string]
+  detail: (id: string) => readonly [TDomain, "detail", string];
 }
 
 /**
@@ -56,16 +56,16 @@ export interface QueryKeyFactory<TDomain extends string> {
  * @returns A query key factory object with type-safe methods
  */
 export function createQueryKeyFactory<TDomain extends string>(
-  domain: TDomain
+  domain: TDomain,
 ): QueryKeyFactory<TDomain> {
   return {
     all: [domain] as const,
-    lists: () => [domain, 'list'] as const,
+    lists: () => [domain, "list"] as const,
     list: <TFilters extends Record<string, unknown>>(filters: TFilters) =>
-      [domain, 'list', filters] as const,
-    details: () => [domain, 'detail'] as const,
-    detail: (id: string) => [domain, 'detail', id] as const,
-  }
+      [domain, "list", filters] as const,
+    details: () => [domain, "detail"] as const,
+    detail: (id: string) => [domain, "detail", id] as const,
+  };
 }
 
 /**
@@ -73,16 +73,20 @@ export function createQueryKeyFactory<TDomain extends string>(
  * These can be imported directly instead of creating new factories.
  */
 export const queryKeys = {
-  contacts: createQueryKeyFactory('contacts'),
-  groups: createQueryKeyFactory('groups'),
-  messages: createQueryKeyFactory('messages'),
-  conversations: createQueryKeyFactory('conversations'),
-  tags: createQueryKeyFactory('tags'),
-  team: createQueryKeyFactory('team'),
-  analytics: createQueryKeyFactory('analytics'),
-  audit: createQueryKeyFactory('audit'),
-  whatsapp: createQueryKeyFactory('whatsapp'),
-  privateNotes: createQueryKeyFactory('privateNotes'),
-  sharedNotes: createQueryKeyFactory('sharedNotes'),
-  assignmentHistory: createQueryKeyFactory('assignmentHistory'),
-} as const
+  contacts: createQueryKeyFactory("contacts"),
+  groups: createQueryKeyFactory("groups"),
+  messages: createQueryKeyFactory("messages"),
+  conversations: createQueryKeyFactory("conversations"),
+  tags: createQueryKeyFactory("tags"),
+  team: createQueryKeyFactory("team"),
+  analytics: createQueryKeyFactory("analytics"),
+  audit: createQueryKeyFactory("audit"),
+  whatsapp: createQueryKeyFactory("whatsapp"),
+  privateNotes: createQueryKeyFactory("privateNotes"),
+  sharedNotes: createQueryKeyFactory("sharedNotes"),
+  assignmentHistory: createQueryKeyFactory("assignmentHistory"),
+  chats: createQueryKeyFactory("chats"),
+  search: createQueryKeyFactory("search"),
+  status: createQueryKeyFactory("status"),
+  export: createQueryKeyFactory("export"),
+} as const;

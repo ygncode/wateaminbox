@@ -3,7 +3,11 @@ export { WhatsAppConnectionPanel } from "./WhatsAppConnectionPanel";
 
 // Sub-components (for direct usage if needed)
 export { ConnectionCard } from "./ConnectionCard";
-export { StatusBadge, StatusIndicator, getStateLabel } from "./ConnectionStatus";
+export {
+  StatusBadge,
+  StatusIndicator,
+  getStateLabel,
+} from "./ConnectionStatus";
 export {
   ConnectedView,
   ConnectingView,

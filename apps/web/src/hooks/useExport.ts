@@ -1,6 +1,11 @@
 import { useMutation } from "@tanstack/react-query";
 import { dayjs } from "@whatsapp-web/shared";
-import { getAccessToken, getCompanyId } from "@/lib/api";
+import {
+  API_BASE_URL,
+  buildQueryString,
+  getAccessToken,
+  getCompanyId,
+} from "@/lib/api";
 
 /**
  * Export format types
@@ -27,14 +32,20 @@ export interface MessageExportFilters {
   limit?: number;
 }
 
-const API_BASE_URL =
-  import.meta.env.VITE_API_URL || "http://localhost:3000/api";
+/**
+ * Full backup export filters
+ */
+export interface FullBackupFilters {
+  startDate?: string;
+  endDate?: string;
+}
 
 /**
- * Get headers with auth and company ID
+ * Get headers with auth and company ID for export requests.
+ * Export requests need raw Response for blob handling, so we build headers manually.
  * @throws {Error} If token or company ID is missing
  */
-function getHeaders(): Record<string, string> {
+function getExportHeaders(): Record<string, string> {
   const headers: Record<string, string> = {};
 
   const token = getAccessToken();
@@ -69,6 +80,29 @@ function downloadBlob(blob: Blob, filename: string) {
 }
 
 /**
+ * Fetch with export handling (needs raw Response for blob)
+ */
+async function fetchExport(
+  endpoint: string,
+  options?: RequestInit,
+): Promise<Response> {
+  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+    ...options,
+    headers: {
+      ...getExportHeaders(),
+      ...options?.headers,
+    },
+    credentials: "include",
+  });
+
+  if (!response.ok) {
+    throw new Error("Export failed");
+  }
+
+  return response;
+}
+
+/**
  * Hook to export contacts
  */
 export function useExportContacts() {
@@ -80,24 +114,13 @@ export function useExportContacts() {
       format?: ExportFormat;
       filters?: ContactExportFilters;
     }) => {
-      const params = new URLSearchParams();
-      params.set("format", format);
-      if (filters.tagIds?.length)
-        params.set("tagIds", filters.tagIds.join(","));
-      if (filters.assignedTo) params.set("assignedTo", filters.assignedTo);
-      if (filters.hasCustomName) params.set("hasCustomName", "true");
+      const params: Record<string, unknown> = { format };
+      if (filters.tagIds?.length) params.tagIds = filters.tagIds.join(",");
+      if (filters.assignedTo) params.assignedTo = filters.assignedTo;
+      if (filters.hasCustomName) params.hasCustomName = "true";
 
-      const response = await fetch(
-        `${API_BASE_URL}/export/contacts?${params}`,
-        {
-          headers: getHeaders(),
-          credentials: "include",
-        },
-      );
-
-      if (!response.ok) {
-        throw new Error("Export failed");
-      }
+      const queryString = buildQueryString(params);
+      const response = await fetchExport(`/export/contacts${queryString}`);
 
       if (format === "json") {
         return response.json();
@@ -123,26 +146,16 @@ export function useExportMessages() {
       format?: ExportFormat;
       filters?: MessageExportFilters;
     }) => {
-      const params = new URLSearchParams();
-      params.set("format", format);
-      if (filters.contactId) params.set("contactId", filters.contactId);
-      if (filters.startDate) params.set("startDate", filters.startDate);
-      if (filters.endDate) params.set("endDate", filters.endDate);
+      const params: Record<string, unknown> = { format };
+      if (filters.contactId) params.contactId = filters.contactId;
+      if (filters.startDate) params.startDate = filters.startDate;
+      if (filters.endDate) params.endDate = filters.endDate;
       if (filters.messageTypes?.length)
-        params.set("messageTypes", filters.messageTypes.join(","));
-      if (filters.limit) params.set("limit", String(filters.limit));
+        params.messageTypes = filters.messageTypes.join(",");
+      if (filters.limit) params.limit = filters.limit;
 
-      const response = await fetch(
-        `${API_BASE_URL}/export/messages?${params}`,
-        {
-          headers: getHeaders(),
-          credentials: "include",
-        },
-      );
-
-      if (!response.ok) {
-        throw new Error("Export failed");
-      }
+      const queryString = buildQueryString(params);
+      const response = await fetchExport(`/export/messages${queryString}`);
 
       if (format === "json") {
         return response.json();
@@ -172,22 +185,14 @@ export function useExportConversation() {
       startDate?: string;
       endDate?: string;
     }) => {
-      const params = new URLSearchParams();
-      params.set("format", format);
-      if (startDate) params.set("startDate", startDate);
-      if (endDate) params.set("endDate", endDate);
+      const params: Record<string, unknown> = { format };
+      if (startDate) params.startDate = startDate;
+      if (endDate) params.endDate = endDate;
 
-      const response = await fetch(
-        `${API_BASE_URL}/export/conversation/${contactId}?${params}`,
-        {
-          headers: getHeaders(),
-          credentials: "include",
-        },
+      const queryString = buildQueryString(params);
+      const response = await fetchExport(
+        `/export/conversation/${contactId}${queryString}`,
       );
-
-      if (!response.ok) {
-        throw new Error("Export failed");
-      }
 
       if (format === "json") {
         return response.json();
@@ -215,19 +220,13 @@ export function useBulkExport() {
       format?: ExportFormat;
       filters?: ContactExportFilters & MessageExportFilters;
     }) => {
-      const response = await fetch(`${API_BASE_URL}/export/bulk`, {
+      const response = await fetchExport("/export/bulk", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          ...getHeaders(),
         },
-        credentials: "include",
         body: JSON.stringify({ type, format, filters }),
       });
-
-      if (!response.ok) {
-        throw new Error("Export failed");
-      }
 
       if (format === "json") {
         return response.json();
@@ -242,31 +241,17 @@ export function useBulkExport() {
 }
 
 /**
- * Full backup export filters
- */
-export interface FullBackupFilters {
-  startDate?: string;
-  endDate?: string;
-}
-
-/**
  * Hook for full backup export as ZIP
  */
 export function useFullBackupExport() {
   return useMutation({
     mutationFn: async (filters: FullBackupFilters = {}) => {
-      const params = new URLSearchParams();
-      if (filters.startDate) params.set("startDate", filters.startDate);
-      if (filters.endDate) params.set("endDate", filters.endDate);
+      const params: Record<string, unknown> = {};
+      if (filters.startDate) params.startDate = filters.startDate;
+      if (filters.endDate) params.endDate = filters.endDate;
 
-      const response = await fetch(`${API_BASE_URL}/export/full?${params}`, {
-        headers: getHeaders(),
-        credentials: "include",
-      });
-
-      if (!response.ok) {
-        throw new Error("Full backup export failed");
-      }
+      const queryString = buildQueryString(params);
+      const response = await fetchExport(`/export/full${queryString}`);
 
       const blob = await response.blob();
       const filename = `whatsapp-backup-${dayjs().format("YYYY-MM-DD")}.zip`;

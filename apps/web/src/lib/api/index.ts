@@ -6,7 +6,7 @@
  */
 
 // Re-export types
-export * from "./types.js"
+export * from "./types.js";
 
 // Re-export client utilities
 export {
@@ -24,7 +24,7 @@ export {
   buildQueryString,
   fetchApi,
   api,
-} from "./client.js"
+} from "./client.js";
 
 // Re-export auth functions
 export {
@@ -34,7 +34,7 @@ export {
   forgotPassword,
   getCurrentUser,
   healthCheck,
-} from "./auth.js"
+} from "./auth.js";
 
 // Re-export contacts functions
 export {
@@ -44,7 +44,7 @@ export {
   previewContactImport,
   importContacts,
   downloadImportTemplate,
-} from "./contacts.js"
+} from "./contacts.js";
 
 // Re-export conversations functions
 export {
@@ -52,7 +52,7 @@ export {
   getConversation,
   updateConversation,
   markConversationAsRead,
-} from "./conversations.js"
+} from "./conversations.js";
 
 // Re-export messages functions
 export {
@@ -60,7 +60,7 @@ export {
   sendMessage,
   deleteMessage,
   uploadMedia,
-} from "./messages.js"
+} from "./messages.js";
 
 // Re-export analytics functions
 export {
@@ -68,10 +68,10 @@ export {
   getResponseTimeTrend,
   getTeamResponseTimeStats,
   getSlaBreaches,
-} from "./analytics.js"
+} from "./analytics.js";
 
 // Re-export companies functions
-export { getUserCompanies } from "./companies.js"
+export { getUserCompanies } from "./companies.js";
 
 // Re-export whatsapp functions
 export {
@@ -86,7 +86,7 @@ export {
   deleteWhatsAppConnection,
   updateWhatsAppConnection,
   sendWhatsAppMessage,
-} from "./whatsapp.js"
+} from "./whatsapp.js";
 
 // Re-export notifications functions
 export {
@@ -101,7 +101,7 @@ export {
   markNotificationAsRead,
   markAllNotificationsAsRead,
   deleteNotification,
-} from "./notifications.js"
+} from "./notifications.js";
 
 // Re-export quick-replies functions
 export {
@@ -111,7 +111,7 @@ export {
   createQuickReply,
   updateQuickReply,
   deleteQuickReply,
-} from "./quick-replies.js"
+} from "./quick-replies.js";
 
 // Re-export labels functions
 export {
@@ -125,7 +125,7 @@ export {
   getTagsWithLabelStatus,
   applyLabelToContact,
   removeLabelFromContact,
-} from "./labels.js"
+} from "./labels.js";
 
 // Re-export catalogs functions
 export {
@@ -138,4 +138,4 @@ export {
   archiveCatalog,
   restoreCatalog,
   updateProductVisibility,
-} from "./catalogs.js"
+} from "./catalogs.js";

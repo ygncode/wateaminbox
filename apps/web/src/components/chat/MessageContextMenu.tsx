@@ -32,16 +32,7 @@ export const MessageContextMenu = forwardRef<
   HTMLDivElement,
   MessageContextMenuProps
 >(function MessageContextMenu(
-  {
-    message,
-    position,
-    onReply,
-    onForward,
-    onDelete,
-    onStar,
-    onReact,
-    onClose,
-  },
+  { message, position, onReply, onForward, onDelete, onStar, onReact, onClose },
   ref,
 ) {
   const menuItems: ContextMenuItem[] = [

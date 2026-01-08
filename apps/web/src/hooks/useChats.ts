@@ -1,12 +1,14 @@
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { toDate } from "@whatsapp-web/shared";
-import { getAccessToken, getCompanyId } from "../lib/api";
-import { fetchMockChats, searchMockChats } from "../lib/mock-data";
-import type { Chat } from "../types/chat";
-
-const API_BASE_URL =
-  import.meta.env.VITE_API_URL || "http://localhost:3001/api";
+import { api, buildQueryString, getAccessToken, getCompanyId } from "@/lib/api";
+import {
+  transformContactToChat,
+  type ContactsListResponse,
+} from "@/lib/api/transformers";
+import { fetchMockChats, searchMockChats } from "@/lib/mock-data";
+import type { Chat } from "@/types/chat";
+import { queryKeys } from "./query-keys";
 
 /**
  * Assignment filter type
@@ -14,60 +16,26 @@ const API_BASE_URL =
 export type AssignmentFilter = "all" | "assignedToMe" | "unassigned" | "unread";
 
 /**
- * Query key factory for chat-related queries
+ * Chat list filters for query keys
+ */
+interface ChatListFilters {
+  search?: string;
+  includeGroups?: boolean;
+  assignmentFilter?: AssignmentFilter;
+}
+
+/**
+ * Extended query keys for chats with custom patterns
+ * Uses the base queryKeys.chats and extends with chat-specific keys
  */
 export const chatKeys = {
-  all: ["chats"] as const,
-  lists: () => [...chatKeys.all, "list"] as const,
-  list: (filters: {
-    search?: string;
-    includeGroups?: boolean;
-    assignmentFilter?: AssignmentFilter;
-  }) => [...chatKeys.lists(), filters] as const,
-  details: () => [...chatKeys.all, "detail"] as const,
-  detail: (id: string) => [...chatKeys.details(), id] as const,
-  groups: () => [...chatKeys.all, "groups"] as const,
+  ...queryKeys.chats,
+  list: (filters: ChatListFilters) =>
+    [...queryKeys.chats.lists(), filters] as const,
+  groups: () => [...queryKeys.chats.all, "groups"] as const,
   groupList: (filters: { search?: string }) =>
-    [...chatKeys.groups(), filters] as const,
+    [...queryKeys.chats.all, "groups", filters] as const,
 };
-
-interface ContactApiResponse {
-  id: string;
-  jid: string;
-  phoneNumber: string;
-  pushName: string;
-  customName: string | null;
-  displayName: string;
-  isGroup: boolean;
-  profilePictureUrl: string | null;
-  notesShared: string | null;
-  lastMessageAt: string | null;
-  lastMessage: {
-    id: string;
-    messageId: string;
-    fromMe: boolean;
-    messageType: string;
-    content: string;
-    status: string;
-    timestamp: string;
-  } | null;
-  unreadCount: number;
-  assignedTo: string | null;
-  isOnline: boolean;
-  lastSeen: string | null;
-  createdAt: string;
-  updatedAt: string;
-}
-
-interface ContactsListResponse {
-  data: ContactApiResponse[];
-  pagination: {
-    total: number;
-    limit: number;
-    offset: number;
-    hasMore: boolean;
-  };
-}
 
 /**
  * Hook to fetch and manage chat list data
@@ -101,20 +69,6 @@ export function useChats(
         return fetchMockChats();
       }
 
-      const params = new URLSearchParams();
-      if (searchQuery.trim()) {
-        params.set("search", searchQuery);
-      }
-      if (includeGroups) {
-        params.set("includeGroups", "true");
-      }
-      if (assignmentFilter === "assignedToMe") {
-        params.set("assignedToMe", "true");
-      } else if (assignmentFilter === "unassigned") {
-        params.set("unassigned", "true");
-      }
-      params.set("limit", "100");
-
       const companyId = getCompanyId();
       if (!companyId) {
         // No company selected, fall back to mock data
@@ -124,57 +78,29 @@ export function useChats(
         return fetchMockChats();
       }
 
-      const response = await fetch(`${API_BASE_URL}/contacts?${params}`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "X-Company-ID": companyId,
-        },
-        credentials: "include",
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to fetch contacts");
+      // Build query params
+      const params: Record<string, unknown> = {
+        limit: 100,
+      };
+      if (searchQuery.trim()) {
+        params.search = searchQuery;
+      }
+      if (includeGroups) {
+        params.includeGroups = "true";
+      }
+      if (assignmentFilter === "assignedToMe") {
+        params.assignedToMe = "true";
+      } else if (assignmentFilter === "unassigned") {
+        params.unassigned = "true";
       }
 
-      const result: ContactsListResponse = await response.json();
-
-      // Transform API response to Chat format
-      let chats = result.data.map(
-        (contact): Chat => ({
-          id: contact.id,
-          contact: {
-            id: contact.id,
-            jid: contact.jid,
-            phoneNumber: contact.phoneNumber || "",
-            name: contact.displayName,
-            customName: contact.customName || undefined,
-            avatarUrl: contact.profilePictureUrl || undefined,
-            isOnline: contact.isOnline,
-            lastSeen: contact.lastSeen
-              ? (toDate(contact.lastSeen) ?? undefined)
-              : undefined,
-            isGroup: contact.isGroup,
-          },
-          lastMessage: contact.lastMessage
-            ? {
-                id: contact.lastMessage.id,
-                chatId: contact.id,
-                senderId: contact.lastMessage.fromMe ? "me" : contact.id,
-                content: contact.lastMessage.content || "",
-                type: contact.lastMessage.messageType as any,
-                status: contact.lastMessage.status as any,
-                timestamp: toDate(contact.lastMessage.timestamp) ?? new Date(),
-                isFromMe: contact.lastMessage.fromMe,
-              }
-            : undefined,
-          unreadCount: contact.unreadCount,
-          assignedTo: contact.assignedTo || undefined,
-          isPinned: false,
-          isMuted: false,
-          isArchived: false,
-          updatedAt: toDate(contact.updatedAt) ?? new Date(),
-        }),
+      const queryString = buildQueryString(params);
+      const result = await api.get<ContactsListResponse>(
+        `/contacts${queryString}`,
       );
+
+      // Transform API response to Chat format using centralized transformer
+      let chats = result.data.map(transformContactToChat);
 
       // Filter by unread if needed (client-side filter)
       if (assignmentFilter === "unread") {
@@ -201,34 +127,21 @@ export function useGroupsAsChats(searchQuery: string = "") {
         return [];
       }
 
-      const params = new URLSearchParams();
-      if (searchQuery.trim()) {
-        params.set("search", searchQuery);
-      }
-      params.set("limit", "100");
-
       const companyId = getCompanyId();
       if (!companyId) {
         return [];
       }
 
-      const response = await fetch(`${API_BASE_URL}/groups?${params}`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "X-Company-ID": companyId,
-        },
-        credentials: "include",
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to fetch groups");
+      const params: Record<string, unknown> = {
+        limit: 100,
+      };
+      if (searchQuery.trim()) {
+        params.search = searchQuery;
       }
 
-      const result = await response.json();
-
-      // Transform API response to Chat format
-      return result.data.map(
-        (group: {
+      const queryString = buildQueryString(params);
+      const result = await api.get<{
+        data: {
           id: string;
           jid: string;
           name: string;
@@ -239,7 +152,12 @@ export function useGroupsAsChats(searchQuery: string = "") {
           lastMessageAt?: string | null;
           unreadCount: number;
           createdAt: string;
-        }): Chat => ({
+        }[];
+      }>(`/groups${queryString}`);
+
+      // Transform API response to Chat format
+      return result.data.map(
+        (group): Chat => ({
           id: group.id,
           contact: {
             id: group.id,

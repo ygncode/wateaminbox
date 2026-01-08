@@ -159,10 +159,7 @@ export const MessageBubble = memo(function MessageBubble({
 
         {/* Reply preview */}
         {message.replyToMessage && !message.isDeleted && (
-          <ReplyPreview
-            replyToMessage={message.replyToMessage}
-            isOwn={isOwn}
-          />
+          <ReplyPreview replyToMessage={message.replyToMessage} isOwn={isOwn} />
         )}
 
         {/* Message content */}

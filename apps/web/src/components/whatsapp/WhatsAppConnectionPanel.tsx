@@ -16,7 +16,11 @@ import { useWhatsAppConnections } from "@/hooks/useWhatsAppConnections";
 import { cn } from "@/lib/utils";
 import { injectAnimationStyles, removeAnimationStyles } from "./animations";
 import { ConnectionCard } from "./ConnectionCard";
-import { StatusBadge, StatusIndicator, getStateLabel } from "./ConnectionStatus";
+import {
+  StatusBadge,
+  StatusIndicator,
+  getStateLabel,
+} from "./ConnectionStatus";
 import {
   ConnectedView,
   ConnectingView,

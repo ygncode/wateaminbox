@@ -1,8 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
-import { getAccessToken, getCompanyId } from "../lib/api";
-
-const API_BASE_URL =
-  import.meta.env.VITE_API_URL || "http://localhost:3000/api";
+import { api, buildQueryString } from "@/lib/api";
+import { queryKeys } from "./query-keys";
 
 export interface MessageSearchResult {
   id: string;
@@ -46,15 +44,17 @@ export interface MessageSearchOptions {
 }
 
 /**
- * Query keys for search-related queries
+ * Extended query keys for search with custom patterns
+ * Uses the base queryKeys.search and extends with search-specific keys
  */
 export const searchKeys = {
-  all: ["search"] as const,
-  global: (query: string) => [...searchKeys.all, "global", query] as const,
+  ...queryKeys.search,
+  global: (query: string) =>
+    [...queryKeys.search.all, "global", query] as const,
   messages: (query: string, options?: MessageSearchOptions) =>
-    [...searchKeys.all, "messages", query, options] as const,
+    [...queryKeys.search.all, "messages", query, options] as const,
   contacts: (query: string, includeGroups?: boolean) =>
-    [...searchKeys.all, "contacts", query, includeGroups] as const,
+    [...queryKeys.search.all, "contacts", query, includeGroups] as const,
 };
 
 /**
@@ -64,35 +64,8 @@ export function useGlobalSearch(query: string, enabled: boolean = true) {
   return useQuery<GlobalSearchResult, Error>({
     queryKey: searchKeys.global(query),
     queryFn: async () => {
-      const token = getAccessToken();
-      const companyId = getCompanyId();
-
-      if (!token) {
-        throw new Error("Not authenticated");
-      }
-
-      if (!companyId) {
-        throw new Error("No company selected");
-      }
-
-      const params = new URLSearchParams();
-      params.set("q", query);
-
-      const headers: HeadersInit = {
-        Authorization: `Bearer ${token}`,
-        "X-Company-ID": companyId,
-      };
-
-      const response = await fetch(`${API_BASE_URL}/search?${params}`, {
-        headers,
-        credentials: "include",
-      });
-
-      if (!response.ok) {
-        throw new Error("Search failed");
-      }
-
-      return response.json();
+      const queryString = buildQueryString({ q: query });
+      return api.get<GlobalSearchResult>(`/search${queryString}`);
     },
     enabled: enabled && query.trim().length >= 2,
     staleTime: 1000 * 30, // 30 seconds
@@ -123,46 +96,20 @@ export function useMessageSearch(
   >({
     queryKey: searchKeys.messages(query, options),
     queryFn: async () => {
-      const token = getAccessToken();
-      const companyId = getCompanyId();
-
-      if (!token) {
-        throw new Error("Not authenticated");
-      }
-
-      if (!companyId) {
-        throw new Error("No company selected");
-      }
-
-      const params = new URLSearchParams();
-      params.set("q", query);
-      if (options.limit) params.set("limit", String(options.limit));
-      if (options.offset) params.set("offset", String(options.offset));
-      if (options.contactId) params.set("contactId", options.contactId);
-      if (options.startDate) params.set("startDate", options.startDate);
-      if (options.endDate) params.set("endDate", options.endDate);
-      if (options.messageTypes?.length) {
-        params.set("messageTypes", options.messageTypes.join(","));
-      }
-
-      const headers: HeadersInit = {
-        Authorization: `Bearer ${token}`,
-        "X-Company-ID": companyId,
+      const params: Record<string, unknown> = {
+        q: query,
       };
-
-      const response = await fetch(
-        `${API_BASE_URL}/search/messages?${params}`,
-        {
-          headers,
-          credentials: "include",
-        },
-      );
-
-      if (!response.ok) {
-        throw new Error("Search failed");
+      if (options.limit) params.limit = options.limit;
+      if (options.offset) params.offset = options.offset;
+      if (options.contactId) params.contactId = options.contactId;
+      if (options.startDate) params.startDate = options.startDate;
+      if (options.endDate) params.endDate = options.endDate;
+      if (options.messageTypes?.length) {
+        params.messageTypes = options.messageTypes.join(",");
       }
 
-      return response.json();
+      const queryString = buildQueryString(params);
+      return api.get(`/search/messages${queryString}`);
     },
     enabled: enabled && query.trim().length >= 2,
     staleTime: 1000 * 30,
@@ -193,40 +140,14 @@ export function useConversationSearch(
   >({
     queryKey: searchKeys.messages(query, { contactId }),
     queryFn: async () => {
-      const token = getAccessToken();
-      const companyId = getCompanyId();
-
-      if (!token) {
-        throw new Error("Not authenticated");
-      }
-
-      if (!companyId) {
-        throw new Error("No company selected");
-      }
-
-      const params = new URLSearchParams();
-      params.set("q", query);
-      params.set("limit", "50");
-      if (contactId) params.set("contactId", contactId);
-
-      const headers: HeadersInit = {
-        Authorization: `Bearer ${token}`,
-        "X-Company-ID": companyId,
+      const params: Record<string, unknown> = {
+        q: query,
+        limit: 50,
       };
+      if (contactId) params.contactId = contactId;
 
-      const response = await fetch(
-        `${API_BASE_URL}/search/messages?${params}`,
-        {
-          headers,
-          credentials: "include",
-        },
-      );
-
-      if (!response.ok) {
-        throw new Error("Search failed");
-      }
-
-      return response.json();
+      const queryString = buildQueryString(params);
+      return api.get(`/search/messages${queryString}`);
     },
     enabled: enabled && query.trim().length >= 2 && !!contactId,
     staleTime: 1000 * 30,
@@ -257,39 +178,11 @@ export function useContactSearch(
   >({
     queryKey: searchKeys.contacts(query, includeGroups),
     queryFn: async () => {
-      const token = getAccessToken();
-      const companyId = getCompanyId();
-
-      if (!token) {
-        throw new Error("Not authenticated");
-      }
-
-      if (!companyId) {
-        throw new Error("No company selected");
-      }
-
-      const params = new URLSearchParams();
-      params.set("q", query);
-      params.set("includeGroups", String(includeGroups));
-
-      const headers: HeadersInit = {
-        Authorization: `Bearer ${token}`,
-        "X-Company-ID": companyId,
-      };
-
-      const response = await fetch(
-        `${API_BASE_URL}/search/contacts?${params}`,
-        {
-          headers,
-          credentials: "include",
-        },
-      );
-
-      if (!response.ok) {
-        throw new Error("Search failed");
-      }
-
-      return response.json();
+      const queryString = buildQueryString({
+        q: query,
+        includeGroups: String(includeGroups),
+      });
+      return api.get(`/search/contacts${queryString}`);
     },
     enabled: enabled && query.trim().length >= 2,
     staleTime: 1000 * 30,

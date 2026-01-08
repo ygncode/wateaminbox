@@ -1,8 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { getAccessToken, getCompanyId } from "../lib/api";
-
-const API_BASE_URL =
-  import.meta.env.VITE_API_URL || "http://localhost:3000/api";
+import { api, buildQueryString } from "@/lib/api";
+import { queryKeys } from "./query-keys";
 
 export interface StatusUpdate {
   id: string;
@@ -51,16 +49,16 @@ export interface MyStatusResponse {
 }
 
 /**
- * Query keys for status-related queries
+ * Extended query keys for status with custom patterns
+ * Uses the base queryKeys.status and extends with status-specific keys
  */
 export const statusKeys = {
-  all: ["status"] as const,
-  lists: () => [...statusKeys.all, "list"] as const,
+  ...queryKeys.status,
   list: (filters?: { limit?: number; offset?: number }) =>
-    [...statusKeys.lists(), filters] as const,
-  contact: (jid: string) => [...statusKeys.all, "contact", jid] as const,
-  stats: () => [...statusKeys.all, "stats"] as const,
-  my: () => [...statusKeys.all, "my"] as const,
+    [...queryKeys.status.lists(), filters] as const,
+  contact: (jid: string) => [...queryKeys.status.all, "contact", jid] as const,
+  stats: () => [...queryKeys.status.all, "stats"] as const,
+  my: () => [...queryKeys.status.all, "my"] as const,
 };
 
 /**
@@ -70,25 +68,10 @@ export function useStatusUpdates(limit: number = 50, offset: number = 0) {
   return useQuery<ContactStatus[], Error>({
     queryKey: statusKeys.list({ limit, offset }),
     queryFn: async () => {
-      const token = getAccessToken();
-      if (!token) {
-        return [];
-      }
-
-      const params = new URLSearchParams();
-      params.set("limit", String(limit));
-      params.set("offset", String(offset));
-
-      const response = await fetch(`${API_BASE_URL}/status?${params}`, {
-        headers: { Authorization: `Bearer ${token}` },
-        credentials: "include",
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to fetch status updates");
-      }
-
-      const result = await response.json();
+      const queryString = buildQueryString({ limit, offset });
+      const result = await api.get<{ data: ContactStatus[] }>(
+        `/status${queryString}`,
+      );
       return result.data;
     },
     staleTime: 1000 * 30, // 30 seconds
@@ -107,25 +90,7 @@ export function useContactStatus(jid: string | null) {
       if (!jid) {
         throw new Error("No JID provided");
       }
-
-      const token = getAccessToken();
-      if (!token) {
-        throw new Error("Not authenticated");
-      }
-
-      const response = await fetch(
-        `${API_BASE_URL}/status/${encodeURIComponent(jid)}`,
-        {
-          headers: { Authorization: `Bearer ${token}` },
-          credentials: "include",
-        },
-      );
-
-      if (!response.ok) {
-        throw new Error("Failed to fetch contact status");
-      }
-
-      return response.json();
+      return api.get<ContactStatus>(`/status/${encodeURIComponent(jid)}`);
     },
     enabled: !!jid,
     staleTime: 1000 * 30,
@@ -140,25 +105,7 @@ export function useStatusStats() {
   return useQuery<StatusStats, Error>({
     queryKey: statusKeys.stats(),
     queryFn: async () => {
-      const token = getAccessToken();
-      if (!token) {
-        return {
-          activeStatuses: 0,
-          contactsWithStatus: 0,
-          totalStatusesReceived: 0,
-        };
-      }
-
-      const response = await fetch(`${API_BASE_URL}/status/stats/overview`, {
-        headers: { Authorization: `Bearer ${token}` },
-        credentials: "include",
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to fetch status stats");
-      }
-
-      return response.json();
+      return api.get<StatusStats>("/status/stats/overview");
     },
     staleTime: 1000 * 60, // 1 minute
     gcTime: 1000 * 60 * 5,
@@ -172,25 +119,7 @@ export function useMyStatus() {
   return useQuery<MyStatusResponse, Error>({
     queryKey: statusKeys.my(),
     queryFn: async () => {
-      const token = getAccessToken();
-      const companyId = getCompanyId();
-      if (!token) {
-        return { data: [], count: 0 };
-      }
-
-      const response = await fetch(`${API_BASE_URL}/status/my`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          ...(companyId ? { "X-Company-ID": companyId } : {}),
-        },
-        credentials: "include",
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to fetch my status");
-      }
-
-      return response.json();
+      return api.get<MyStatusResponse>("/status/my");
     },
     staleTime: 1000 * 30, // 30 seconds
     gcTime: 1000 * 60 * 5,
@@ -205,33 +134,11 @@ export function usePostStatus() {
 
   return useMutation<PostStatusResponse, Error, PostStatusInput>({
     mutationFn: async (input: PostStatusInput) => {
-      const token = getAccessToken();
-      const companyId = getCompanyId();
-      if (!token) {
-        throw new Error("Not authenticated");
-      }
-
-      const response = await fetch(`${API_BASE_URL}/status`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-          ...(companyId ? { "X-Company-ID": companyId } : {}),
-        },
-        credentials: "include",
-        body: JSON.stringify(input),
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || "Failed to post status");
-      }
-
-      return response.json();
+      return api.post<PostStatusResponse>("/status", input);
     },
     onSuccess: () => {
       // Invalidate status queries to refetch
-      queryClient.invalidateQueries({ queryKey: statusKeys.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.status.all });
     },
   });
 }
@@ -244,31 +151,11 @@ export function useDeleteStatus() {
 
   return useMutation<{ success: boolean }, Error, string>({
     mutationFn: async (statusId: string) => {
-      const token = getAccessToken();
-      const companyId = getCompanyId();
-      if (!token) {
-        throw new Error("Not authenticated");
-      }
-
-      const response = await fetch(`${API_BASE_URL}/status/${statusId}`, {
-        method: "DELETE",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          ...(companyId ? { "X-Company-ID": companyId } : {}),
-        },
-        credentials: "include",
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || "Failed to delete status");
-      }
-
-      return response.json();
+      return api.delete<{ success: boolean }>(`/status/${statusId}`);
     },
     onSuccess: () => {
       // Invalidate status queries to refetch
-      queryClient.invalidateQueries({ queryKey: statusKeys.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.status.all });
     },
   });
 }
