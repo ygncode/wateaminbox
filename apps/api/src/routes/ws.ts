@@ -1,4 +1,12 @@
 import type { ServerWebSocket } from "bun";
+import {
+  type AuthPayload,
+  type ClientMessage,
+  type SendMessagePayload,
+  type ServerMessage,
+  isAuthPayload,
+  isSendMessagePayload,
+} from "@whatsapp-web/shared";
 import { Hono } from "hono";
 import { createBunWebSocket } from "hono/bun";
 import { verifyAccessToken } from "../lib/jwt.js";
@@ -11,7 +19,7 @@ import { getActiveConnection } from "../services/whatsapp.service.js";
 
 const logger = createLogger("WebSocket");
 
-// WebSocket data interface
+// WebSocket data interface (local to this file - contains Bun-specific types)
 interface WSData {
   userId: string;
   companyId: string;
@@ -22,65 +30,20 @@ interface WSData {
     onMessage?: unknown;
     onError?: unknown;
   };
+  // Heartbeat tracking
+  lastPongReceived: number;
+  isAlive: boolean;
 }
 
-// Client message types
-interface ClientMessage {
-  type: "auth" | "ping" | "send_message";
-  payload?: unknown;
-}
-
-interface AuthPayload {
-  token: string;
-  companyId: string;
-}
-
-interface SendMessagePayload {
-  jid: string;
-  content: string;
-  messageType: "text" | "image" | "video" | "audio" | "document" | "sticker";
-  mediaUrl?: string;
-}
-
-// Server message types
-interface ServerMessage {
-  type:
-    | "auth_success"
-    | "auth_error"
-    | "qr"
-    | "connected"
-    | "disconnected"
-    | "message"
-    | "message:new"
-    | "message:status"
-    | "message:deleted"
-    | "message:reaction"
-    | "receipt"
-    | "status"
-    | "contact"
-    | "assignment"
-    | "conversation"
-    | "error"
-    | "pong"
-    | "send_ack"
-    | "contact:profile_picture"
-    | "presence:online"
-    | "presence:offline"
-    | "typing:start"
-    | "typing:stop"
-    | "notification:new"
-    | "media:downloaded"
-    | "media:download_failed"
-    | "sync:start"
-    | "sync:progress"
-    | "sync:complete";
-  connectionId?: string;
-  payload?: unknown;
-  timestamp: string;
-}
+// Heartbeat configuration
+const PING_INTERVAL_MS = 45000; // Send ping every 45 seconds
+const PONG_TIMEOUT_MS = 15000; // Close connection if no pong within 15 seconds
 
 // Connection tracking
 const connections = new Map<string, Set<ServerWebSocket<WSData>>>();
+
+// Heartbeat interval reference
+let heartbeatIntervalId: ReturnType<typeof setInterval> | null = null;
 
 /**
  * Adds a WebSocket connection to the tracking map
@@ -161,6 +124,95 @@ function sendMessage(
   if (ws.readyState === 1) {
     ws.send(JSON.stringify(message));
   }
+}
+
+/**
+ * Sends a ping to a specific WebSocket for heartbeat
+ */
+function sendPing(ws: ServerWebSocket<WSData>): void {
+  if (ws.readyState === 1) {
+    // Use WebSocket protocol-level ping if available, otherwise send a custom ping message
+    try {
+      ws.ping();
+    } catch {
+      // Fallback to application-level ping if protocol ping fails
+      sendMessage(ws, {
+        type: "pong", // Server sends "pong" as a ping request (client should respond with "ping")
+        timestamp: new Date().toISOString(),
+      });
+    }
+  }
+}
+
+/**
+ * Starts the server-side heartbeat interval
+ * Periodically pings all connections and closes stale ones
+ */
+function startHeartbeat(): void {
+  if (heartbeatIntervalId) {
+    return; // Already running
+  }
+
+  logger.info("Starting server-side heartbeat");
+
+  heartbeatIntervalId = setInterval(() => {
+    const now = Date.now();
+    let pingsSent = 0;
+    let staleConnections = 0;
+
+    for (const [companyId, companyConnections] of connections) {
+      for (const ws of companyConnections) {
+        // Check if this connection has timed out
+        if (!ws.data.isAlive && now - ws.data.lastPongReceived > PONG_TIMEOUT_MS) {
+          // Connection is stale - close it
+          logger.warn(
+            { companyId, userId: ws.data.userId },
+            "Closing stale connection - no heartbeat response",
+          );
+          staleConnections++;
+          try {
+            ws.close(1001, "Connection timed out - no heartbeat response");
+          } catch {
+            // Ignore close errors
+          }
+          removeConnection(companyId, ws);
+          continue;
+        }
+
+        // Mark as not alive and send ping
+        // Will be marked alive again when pong is received
+        ws.data.isAlive = false;
+        sendPing(ws);
+        pingsSent++;
+      }
+    }
+
+    if (pingsSent > 0 || staleConnections > 0) {
+      logger.debug(
+        { pingsSent, staleConnections },
+        "Heartbeat cycle completed",
+      );
+    }
+  }, PING_INTERVAL_MS);
+}
+
+/**
+ * Stops the server-side heartbeat interval
+ */
+function stopHeartbeat(): void {
+  if (heartbeatIntervalId) {
+    clearInterval(heartbeatIntervalId);
+    heartbeatIntervalId = null;
+    logger.info("Stopped server-side heartbeat");
+  }
+}
+
+/**
+ * Records a pong response from a client
+ */
+function recordPong(ws: ServerWebSocket<WSData>): void {
+  ws.data.isAlive = true;
+  ws.data.lastPongReceived = Date.now();
 }
 
 /**
@@ -270,8 +322,7 @@ async function handleClientMessage(
 
   switch (parsed.type) {
     case "auth": {
-      const authPayload = parsed.payload as AuthPayload;
-      if (!authPayload?.token || !authPayload?.companyId) {
+      if (!isAuthPayload(parsed.payload)) {
         sendMessage(ws, {
           type: "auth_error",
           payload: { message: "Missing token or companyId" },
@@ -281,13 +332,15 @@ async function handleClientMessage(
       }
       await authenticateConnection(
         ws,
-        authPayload.token,
-        authPayload.companyId,
+        parsed.payload.token,
+        parsed.payload.companyId,
       );
       break;
     }
 
     case "ping":
+      // Client is alive - record the activity and respond with pong
+      recordPong(ws);
       sendMessage(ws, {
         type: "pong",
         timestamp: new Date().toISOString(),
@@ -304,8 +357,7 @@ async function handleClientMessage(
         return;
       }
 
-      const sendPayload = parsed.payload as SendMessagePayload;
-      if (!sendPayload?.jid || !sendPayload?.content) {
+      if (!isSendMessagePayload(parsed.payload)) {
         sendMessage(ws, {
           type: "error",
           payload: { message: "Missing jid or content" },
@@ -313,6 +365,8 @@ async function handleClientMessage(
         });
         return;
       }
+
+      const sendPayload = parsed.payload;
 
       try {
         // Get an active connection to send through
@@ -414,13 +468,19 @@ const wsUpgradeHandler = upgradeWebSocket((c) => {
   return {
     onOpen: async (_event, ws) => {
       const rawWs = ws.raw as unknown as ServerWebSocket<WSData>;
+      const now = Date.now();
       rawWs.data = {
         userId: "",
         companyId: "",
         authenticated: false,
+        lastPongReceived: now,
+        isAlive: true,
       };
 
       logger.debug("Client connected");
+
+      // Start heartbeat if not already running
+      startHeartbeat();
 
       // If token and company provided in query, auto-authenticate
       if (token && company) {
@@ -488,4 +548,46 @@ export function getTotalConnectionCount(): number {
     total += conns.size;
   }
   return total;
+}
+
+/**
+ * Gracefully shuts down the WebSocket heartbeat
+ * Should be called during server shutdown
+ */
+export function shutdownHeartbeat(): void {
+  stopHeartbeat();
+}
+
+/**
+ * Checks if the heartbeat is currently running
+ */
+export function isHeartbeatRunning(): boolean {
+  return heartbeatIntervalId !== null;
+}
+
+/**
+ * Gets detailed connection metrics
+ */
+export function getConnectionMetrics(): {
+  totalConnections: number;
+  companiesConnected: number;
+  connectionsPerCompany: { companyId: string; connections: number }[];
+  heartbeatRunning: boolean;
+} {
+  const connectionsPerCompany: { companyId: string; connections: number }[] =
+    [];
+  let totalConnections = 0;
+
+  for (const [companyId, conns] of connections) {
+    const count = conns.size;
+    totalConnections += count;
+    connectionsPerCompany.push({ companyId, connections: count });
+  }
+
+  return {
+    totalConnections,
+    companiesConnected: connections.size,
+    connectionsPerCompany,
+    heartbeatRunning: heartbeatIntervalId !== null,
+  };
 }

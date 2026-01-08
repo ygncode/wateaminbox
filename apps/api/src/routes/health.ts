@@ -1,5 +1,10 @@
 import { Hono } from "hono";
 import { getMessageCleanupStatus } from "../services/message-cleanup.service.js";
+import {
+  getTotalConnectionCount,
+  isHeartbeatRunning,
+  getConnectionMetrics,
+} from "./ws.js";
 
 export const healthRoutes = new Hono();
 
@@ -9,6 +14,10 @@ healthRoutes.get("/", (c) => {
     timestamp: new Date().toISOString(),
     services: {
       messageCleanup: getMessageCleanupStatus(),
+      websocket: {
+        totalConnections: getTotalConnectionCount(),
+        heartbeatRunning: isHeartbeatRunning(),
+      },
     },
   });
 });
@@ -25,5 +34,13 @@ healthRoutes.get("/live", (c) => {
   return c.json({
     status: "live",
     timestamp: new Date().toISOString(),
+  });
+});
+
+// Detailed WebSocket metrics endpoint
+healthRoutes.get("/ws-metrics", (c) => {
+  return c.json({
+    timestamp: new Date().toISOString(),
+    ...getConnectionMetrics(),
   });
 });

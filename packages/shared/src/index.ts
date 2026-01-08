@@ -3,6 +3,9 @@ export * from "./types/user";
 export * from "./types/company";
 export * from "./types/message";
 
+// WebSocket types
+export * from "./websocket-types";
+
 // Date utilities
 export * from "./date";
 

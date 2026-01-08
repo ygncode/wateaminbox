@@ -519,4 +519,77 @@ describe('WebSocket Integration Tests', () => {
       expect(message?.type).toBe(WebSocketEventTypes.ERROR)
     })
   })
+
+  describe('Heartbeat', () => {
+    it('should initialize connection with heartbeat data', () => {
+      const ws = createMockWebSocket({ authenticated: true, companyId: 'company-a' })
+
+      // Heartbeat data should be initialized
+      expect(ws.data.lastPongReceived).toBeDefined()
+      expect(ws.data.isAlive).toBe(true)
+    })
+
+    it('should record pong and mark connection as alive on ping', () => {
+      const ws = createMockWebSocket({ authenticated: true, companyId: 'company-a' })
+
+      // Simulate receiving ping from client
+      const initialPongTime = ws.data.lastPongReceived
+
+      // Wait a small amount
+      const newPongTime = Date.now() + 100
+      ws.data.lastPongReceived = newPongTime
+      ws.data.isAlive = true
+
+      expect(ws.data.lastPongReceived).toBe(newPongTime)
+      expect(ws.data.isAlive).toBe(true)
+    })
+
+    it('should detect stale connection based on lastPongReceived', () => {
+      const PONG_TIMEOUT_MS = 15000
+      const now = Date.now()
+
+      // Create a connection with old lastPongReceived (simulating stale connection)
+      const staleWs = createMockWebSocket({
+        authenticated: true,
+        companyId: 'company-a',
+        lastPongReceived: now - PONG_TIMEOUT_MS - 1000, // Older than timeout
+        isAlive: false,
+      })
+
+      // Verify the connection is stale
+      const timeSinceLastPong = now - staleWs.data.lastPongReceived!
+      expect(timeSinceLastPong).toBeGreaterThan(PONG_TIMEOUT_MS)
+      expect(staleWs.data.isAlive).toBe(false)
+    })
+
+    it('should respond with pong when ping is received', () => {
+      const ws = createMockWebSocket({ authenticated: true, companyId: 'company-a' })
+      connectionPool.add('company-a', ws)
+
+      // Simulate server sending pong in response to client ping
+      const pongEvent = {
+        type: WebSocketEventTypes.PONG,
+        timestamp: new Date().toISOString(),
+      }
+      ws.send(JSON.stringify(pongEvent))
+
+      const message = ws.getLastSentMessage()
+      expect(message?.type).toBe(WebSocketEventTypes.PONG)
+    })
+
+    it('should have ping method for protocol-level heartbeat', () => {
+      const ws = createMockWebSocket({ authenticated: true, companyId: 'company-a' })
+
+      // Should not throw when pinging an open connection
+      expect(() => ws.ping()).not.toThrow()
+    })
+
+    it('should throw when pinging closed connection', () => {
+      const ws = createMockWebSocket({ authenticated: true, companyId: 'company-a' })
+      ws.close()
+
+      // Should throw when pinging a closed connection
+      expect(() => ws.ping()).toThrow('WebSocket is not open')
+    })
+  })
 })

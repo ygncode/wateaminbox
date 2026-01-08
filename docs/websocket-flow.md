@@ -20,6 +20,40 @@ The WebSocket server is built using `hono/bun`'s `createBunWebSocket` adapter.
 3.  **Tracking**:
     -   Valid connections are stored in a `Map<string, Set<ServerWebSocket>>` where the key is `companyId`.
     -   This allows efficient O(1) lookup for broadcasting to a specific company.
+4.  **Heartbeat**:
+    -   Server sends pings every 45 seconds to all connections.
+    -   If no response within 15 seconds, the connection is marked as stale and closed.
+    -   This ensures dead connections are cleaned up promptly.
+
+### Server Connection Metrics
+
+The health endpoint (`/api/health`) includes WebSocket connection metrics:
+
+```typescript
+// Response structure
+{
+  status: "ok",
+  services: {
+    websocket: {
+      totalConnections: number,
+      heartbeatRunning: boolean
+    }
+  }
+}
+```
+
+For detailed metrics, use `/api/health/ws-metrics`:
+
+```typescript
+// Response structure
+{
+  timestamp: string,
+  totalConnections: number,
+  companiesConnected: number,
+  connectionsPerCompany: [{ companyId: string, connections: number }],
+  heartbeatRunning: boolean
+}
+```
 
 ### Broadcasting
 
@@ -50,6 +84,8 @@ The frontend uses a singleton `WebSocketClient` managed by a React Context Provi
     -   Heartbeats (ping/pong) to detect stale connections.
     -   Message queueing (buffers messages while connecting).
     -   Type-safe event subscription (`on`, `off`, `once`).
+    -   Connection metrics tracking (latency, reconnect count, uptime).
+    -   Structured logging via configurable log levels.
 -   **`WebSocketProvider` (`contexts/WebSocketProvider.tsx`)**:
     -   Initializes the client.
     -   Manages authentication tokens.
@@ -58,6 +94,46 @@ The frontend uses a singleton `WebSocketClient` managed by a React Context Provi
 -   **Event Handlers (`contexts/websocket/event-handlers.ts`)**:
     -   The "brain" of the realtime system.
     -   Centralizes logic for how the application state responds to events.
+
+### Client Connection Metrics
+
+The `WebSocketClient` tracks connection health metrics accessible via `getMetrics()`:
+
+```typescript
+interface WebSocketMetrics {
+  latency: number | null;        // Round-trip time (ms) based on ping-pong
+  reconnectCount: number;        // Number of reconnections this session
+  connectedAt: number | null;    // Timestamp when connection was established
+  uptime: number | null;         // Connection uptime (ms)
+  lastError: { message: string; timestamp: number } | null;
+  status: ConnectionStatus;      // 'connecting' | 'connected' | 'disconnected' | 'error'
+  messagesSent: number;          // Messages sent this session
+  messagesReceived: number;      // Messages received this session
+}
+
+// Usage in components
+import { useWebSocketMetrics } from '@/contexts/WebSocketProvider';
+
+function ConnectionStatus() {
+  const metrics = useWebSocketMetrics();
+  return <div>Latency: {metrics?.latency ?? 'N/A'}ms</div>;
+}
+```
+
+### Logging
+
+WebSocket logging uses a structured logger with configurable log levels:
+
+-   **Log Levels**: `debug`, `info`, `warn`, `error`, `none`
+-   **Configuration**: Set `VITE_WS_LOG_LEVEL` environment variable
+-   **Default**: `warn` in production, `info` in development
+
+```typescript
+// Example log output
+[WebSocket] [INFO] Connected - Realtime updates enabled
+[WebSocket] [DEBUG] Latency: 45 ms
+[WebSocket] [WARN] Pong timeout - connection may be stale
+```
 
 ### State Update Strategy
 

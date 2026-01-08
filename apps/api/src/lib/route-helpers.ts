@@ -117,7 +117,10 @@ export function extractPaginationParams(
   const rawOffset = offsetParam ? parseInt(offsetParam, 10) : 0;
 
   return {
-    limit: Math.min(Math.max(1, isNaN(rawLimit) ? defaultLimit : rawLimit), maxLimit),
+    limit: Math.min(
+      Math.max(1, isNaN(rawLimit) ? defaultLimit : rawLimit),
+      maxLimit,
+    ),
     offset: Math.max(0, isNaN(rawOffset) ? 0 : rawOffset),
   };
 }

@@ -9,63 +9,63 @@
  * Database message row type (from Kysely query)
  */
 export interface MessageDbRow {
-  id: string
-  message_id: string | null
-  contact_id: string
-  from_me: boolean
-  sender_jid: string | null
-  sent_by_user_id: string | null
-  message_type: string
-  content: string | null
-  media_url: string | null
-  media_mime_type: string | null
-  media_size: number | null
-  media_direct_path: string | null
-  media_download_status: string | null
-  quoted_message_id: string | null
-  is_forwarded: boolean
-  is_starred: boolean
-  deleted_by_sender: boolean
-  deleted_at: Date | null
-  status: string | null
-  timestamp: Date
-  created_at: Date
+  id: string;
+  message_id: string | null;
+  contact_id: string;
+  from_me: boolean;
+  sender_jid: string | null;
+  sent_by_user_id: string | null;
+  message_type: string;
+  content: string | null;
+  media_url: string | null;
+  media_mime_type: string | null;
+  media_size: number | null;
+  media_direct_path: string | null;
+  media_download_status: string | null;
+  quoted_message_id: string | null;
+  is_forwarded: boolean;
+  is_starred: boolean;
+  deleted_by_sender: boolean;
+  deleted_at: Date | null;
+  status: string | null;
+  timestamp: Date;
+  created_at: Date;
 }
 
 /**
  * Quoted message data for conversation format
  */
 export interface QuotedMessageData {
-  id: string
-  conversationId: string
-  senderId: string
-  senderType: 'user' | 'contact'
-  messageType: string
-  content: string
-  isDeleted: boolean
-  status: string
-  createdAt: Date
-  updatedAt: Date
+  id: string;
+  conversationId: string;
+  senderId: string;
+  senderType: "user" | "contact";
+  messageType: string;
+  content: string;
+  isDeleted: boolean;
+  status: string;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 /**
  * Reaction data
  */
 export interface ReactionData {
-  emoji: string
-  reactorJid: string
-  createdAt: Date
+  emoji: string;
+  reactorJid: string;
+  createdAt: Date;
 }
 
 /**
  * Message metadata object shared across formats
  */
 export interface MessageMetadata {
-  mediaUrl: string | null
-  mimeType: string | null
-  fileSize: number | null
-  mediaPending: boolean
-  mediaDownloadStatus: string | null
+  mediaUrl: string | null;
+  mimeType: string | null;
+  fileSize: number | null;
+  mediaPending: boolean;
+  mediaDownloadStatus: string | null;
 }
 
 /**
@@ -77,9 +77,9 @@ export function buildMessageMetadata(msg: MessageDbRow): MessageMetadata {
     mimeType: msg.media_mime_type,
     fileSize: msg.media_size,
     mediaPending:
-      msg.media_download_status === 'pending' && msg.media_direct_path !== null,
+      msg.media_download_status === "pending" && msg.media_direct_path !== null,
     mediaDownloadStatus: msg.media_download_status,
-  }
+  };
 }
 
 /**
@@ -89,18 +89,18 @@ export function buildMessageMetadata(msg: MessageDbRow): MessageMetadata {
  */
 export function formatMessageForConversation(
   msg: MessageDbRow,
-  quotedMessagesMap: Map<string, QuotedMessageData>
+  quotedMessagesMap: Map<string, QuotedMessageData>,
 ) {
   return {
     id: msg.id,
     messageId: msg.message_id,
     conversationId: msg.contact_id,
     contactId: msg.contact_id,
-    senderId: msg.sent_by_user_id || msg.sender_jid || '',
-    senderType: msg.from_me ? 'user' : 'contact',
+    senderId: msg.sent_by_user_id || msg.sender_jid || "",
+    senderType: msg.from_me ? "user" : "contact",
     senderJid: msg.sender_jid,
     messageType: msg.message_type,
-    content: msg.content || '',
+    content: msg.content || "",
     mediaUrl: msg.media_url,
     metadata: buildMessageMetadata(msg),
     replyToMessageId: msg.quoted_message_id || undefined,
@@ -112,11 +112,11 @@ export function formatMessageForConversation(
     isDeleted: msg.deleted_by_sender || !!msg.deleted_at,
     deletedAt: msg.deleted_at,
     sentByUserId: msg.sent_by_user_id,
-    status: msg.status || (msg.from_me ? 'sent' : 'delivered'),
+    status: msg.status || (msg.from_me ? "sent" : "delivered"),
     timestamp: msg.timestamp,
     createdAt: msg.created_at,
     updatedAt: msg.created_at,
-  }
+  };
 }
 
 /**
@@ -124,19 +124,21 @@ export function formatMessageForConversation(
  */
 export function formatMessagesForConversation(
   messages: MessageDbRow[],
-  quotedMessagesMap: Map<string, QuotedMessageData>
+  quotedMessagesMap: Map<string, QuotedMessageData>,
 ) {
-  return messages.map((msg) => formatMessageForConversation(msg, quotedMessagesMap))
+  return messages.map((msg) =>
+    formatMessageForConversation(msg, quotedMessagesMap),
+  );
 }
 
 /**
  * Quoted message data for fetch format (simpler structure)
  */
 export interface QuotedMessageSimple {
-  message_id: string | null
-  content: string | null
-  message_type: string
-  sender_jid: string | null
+  message_id: string | null;
+  content: string | null;
+  message_type: string;
+  sender_jid: string | null;
 }
 
 /**
@@ -148,7 +150,7 @@ export interface QuotedMessageSimple {
 export function formatMessageForFetch(
   msg: MessageDbRow,
   quotedMessages: Map<string, QuotedMessageSimple>,
-  reactionsMap: Map<string, ReactionData[]>
+  reactionsMap: Map<string, ReactionData[]>,
 ) {
   return {
     id: msg.id,
@@ -172,11 +174,11 @@ export function formatMessageForFetch(
     deletedBySender: msg.deleted_by_sender,
     deletedAt: msg.deleted_at,
     sentByUserId: msg.sent_by_user_id,
-    status: msg.status || 'sent',
+    status: msg.status || "sent",
     timestamp: msg.timestamp,
     createdAt: msg.created_at,
     reactions: reactionsMap.get(msg.id) || [],
-  }
+  };
 }
 
 /**
@@ -185,9 +187,11 @@ export function formatMessageForFetch(
 export function formatMessagesForFetch(
   messages: MessageDbRow[],
   quotedMessages: Map<string, QuotedMessageSimple>,
-  reactionsMap: Map<string, ReactionData[]>
+  reactionsMap: Map<string, ReactionData[]>,
 ) {
-  return messages.map((msg) => formatMessageForFetch(msg, quotedMessages, reactionsMap))
+  return messages.map((msg) =>
+    formatMessageForFetch(msg, quotedMessages, reactionsMap),
+  );
 }
 
 /**
@@ -197,13 +201,13 @@ export function buildQuotedMessageData(q: MessageDbRow): QuotedMessageData {
   return {
     id: q.id,
     conversationId: q.contact_id,
-    senderId: q.sent_by_user_id || q.sender_jid || '',
-    senderType: q.from_me ? 'user' : 'contact',
+    senderId: q.sent_by_user_id || q.sender_jid || "",
+    senderType: q.from_me ? "user" : "contact",
     messageType: q.message_type,
-    content: q.content || '',
+    content: q.content || "",
     isDeleted: q.deleted_by_sender || !!q.deleted_at,
-    status: q.status || (q.from_me ? 'sent' : 'delivered'),
+    status: q.status || (q.from_me ? "sent" : "delivered"),
     createdAt: q.created_at,
     updatedAt: q.created_at,
-  }
+  };
 }
