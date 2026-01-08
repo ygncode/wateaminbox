@@ -3,14 +3,14 @@
  */
 
 export interface ContactNameFields {
-  custom_name?: string | null
-  customName?: string | null
-  push_name?: string | null
-  pushName?: string | null
-  phone_number?: string | null
-  phoneNumber?: string | null
-  jid?: string | null
-  name?: string | null
+  custom_name?: string | null;
+  customName?: string | null;
+  push_name?: string | null;
+  pushName?: string | null;
+  phone_number?: string | null;
+  phoneNumber?: string | null;
+  jid?: string | null;
+  name?: string | null;
 }
 
 /**
@@ -23,13 +23,13 @@ export interface ContactNameFields {
  */
 export function getContactDisplayName(
   contact: ContactNameFields,
-  fallback: string = 'Unknown'
+  fallback: string = "Unknown",
 ): string {
   // Support both snake_case (backend) and camelCase (frontend) field names
-  const customName = contact.custom_name ?? contact.customName
-  const pushName = contact.push_name ?? contact.pushName
-  const phoneNumber = contact.phone_number ?? contact.phoneNumber
-  const phoneFromJid = contact.jid?.split('@')[0] ?? null
+  const customName = contact.custom_name ?? contact.customName;
+  const pushName = contact.push_name ?? contact.pushName;
+  const phoneNumber = contact.phone_number ?? contact.phoneNumber;
+  const phoneFromJid = contact.jid?.split("@")[0] ?? null;
 
   return (
     customName ||
@@ -38,7 +38,7 @@ export function getContactDisplayName(
     phoneFromJid ||
     contact.name ||
     fallback
-  )
+  );
 }
 
 /**
@@ -49,12 +49,19 @@ export function getContactDisplayName(
  * @returns The best available name or null
  */
 export function getContactName(contact: ContactNameFields): string | null {
-  const customName = contact.custom_name ?? contact.customName
-  const pushName = contact.push_name ?? contact.pushName
-  const phoneNumber = contact.phone_number ?? contact.phoneNumber
-  const phoneFromJid = contact.jid?.split('@')[0] ?? null
+  const customName = contact.custom_name ?? contact.customName;
+  const pushName = contact.push_name ?? contact.pushName;
+  const phoneNumber = contact.phone_number ?? contact.phoneNumber;
+  const phoneFromJid = contact.jid?.split("@")[0] ?? null;
 
-  return customName || pushName || phoneNumber || phoneFromJid || contact.name || null
+  return (
+    customName ||
+    pushName ||
+    phoneNumber ||
+    phoneFromJid ||
+    contact.name ||
+    null
+  );
 }
 
 /**
@@ -66,11 +73,17 @@ export function getContactName(contact: ContactNameFields): string | null {
  * @returns The best available display name
  */
 export function getGroupDisplayName(
-  group: { custom_name?: string | null; customName?: string | null; group_name?: string | null; groupName?: string | null; name?: string | null },
-  fallback: string = 'Unknown Group'
+  group: {
+    custom_name?: string | null;
+    customName?: string | null;
+    group_name?: string | null;
+    groupName?: string | null;
+    name?: string | null;
+  },
+  fallback: string = "Unknown Group",
 ): string {
-  const customName = group.custom_name ?? group.customName
-  const groupName = group.group_name ?? group.groupName ?? group.name
+  const customName = group.custom_name ?? group.customName;
+  const groupName = group.group_name ?? group.groupName ?? group.name;
 
-  return customName || groupName || fallback
+  return customName || groupName || fallback;
 }
