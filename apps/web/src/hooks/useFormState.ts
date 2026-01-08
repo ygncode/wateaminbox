@@ -1,17 +1,17 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback } from "react";
 
 /**
  * Options for the useFormState hook
  */
 interface UseFormStateOptions<T> {
   /** Initial value for the form content */
-  initialValue?: T
+  initialValue?: T;
   /** Callback when save is triggered */
-  onSave?: (content: T) => void | Promise<void>
+  onSave?: (content: T) => void | Promise<void>;
   /** Callback when cancel is triggered */
-  onCancel?: () => void
+  onCancel?: () => void;
   /** Reset content after save */
-  resetOnSave?: boolean
+  resetOnSave?: boolean;
 }
 
 /**
@@ -19,17 +19,17 @@ interface UseFormStateOptions<T> {
  */
 interface UseFormStateReturn<T> {
   /** Whether the form is in editing mode */
-  isEditing: boolean
+  isEditing: boolean;
   /** Current form content */
-  content: T
+  content: T;
   /** Set the form content */
-  setContent: (value: T | ((prev: T) => T)) => void
+  setContent: (value: T | ((prev: T) => T)) => void;
   /** Start editing mode */
-  startEdit: (initialValue?: T) => void
+  startEdit: (initialValue?: T) => void;
   /** Save and exit editing mode */
-  save: () => Promise<void>
+  save: () => Promise<void>;
   /** Cancel and exit editing mode */
-  cancel: () => void
+  cancel: () => void;
 }
 
 /**
@@ -49,38 +49,38 @@ export function useFormState<T = string>(
   options: UseFormStateOptions<T> = {},
 ): UseFormStateReturn<T> {
   const {
-    initialValue = '' as unknown as T,
+    initialValue = "" as unknown as T,
     onSave,
     onCancel,
     resetOnSave = true,
-  } = options
+  } = options;
 
-  const [isEditing, setIsEditing] = useState(false)
-  const [content, setContent] = useState<T>(initialValue)
+  const [isEditing, setIsEditing] = useState(false);
+  const [content, setContent] = useState<T>(initialValue);
 
   const startEdit = useCallback(
     (value?: T) => {
-      setContent(value ?? initialValue)
-      setIsEditing(true)
+      setContent(value ?? initialValue);
+      setIsEditing(true);
     },
     [initialValue],
-  )
+  );
 
   const save = useCallback(async () => {
     if (onSave) {
-      await onSave(content)
+      await onSave(content);
     }
-    setIsEditing(false)
+    setIsEditing(false);
     if (resetOnSave) {
-      setContent(initialValue)
+      setContent(initialValue);
     }
-  }, [content, initialValue, onSave, resetOnSave])
+  }, [content, initialValue, onSave, resetOnSave]);
 
   const cancel = useCallback(() => {
-    setIsEditing(false)
-    setContent(initialValue)
-    onCancel?.()
-  }, [initialValue, onCancel])
+    setIsEditing(false);
+    setContent(initialValue);
+    onCancel?.();
+  }, [initialValue, onCancel]);
 
   return {
     isEditing,
@@ -89,5 +89,5 @@ export function useFormState<T = string>(
     startEdit,
     save,
     cancel,
-  }
+  };
 }
