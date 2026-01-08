@@ -3,19 +3,24 @@ import type { Message, UpdateMessageInput } from "@whatsapp-web/shared";
 import { toDbDate, nowMs } from "@whatsapp-web/shared";
 import { api } from "../lib/api";
 import { infiniteMessageKeys } from "./useInfiniteMessages";
+import { queryKeys } from "./query-keys";
 
+/**
+ * @deprecated Use `queryKeys.messages` from `@/hooks/query-keys` instead.
+ * Kept for backward compatibility.
+ */
 export const messageKeys = {
-  all: ["messages"] as const,
-  lists: () => [...messageKeys.all, "list"] as const,
+  all: queryKeys.messages.all,
+  lists: () => queryKeys.messages.lists(),
   list: (conversationId: string) =>
-    [...messageKeys.lists(), conversationId] as const,
-  details: () => [...messageKeys.all, "detail"] as const,
-  detail: (id: string) => [...messageKeys.details(), id] as const,
+    queryKeys.messages.list({ conversationId }),
+  details: () => queryKeys.messages.details(),
+  detail: (id: string) => queryKeys.messages.detail(id),
 };
 
 export function useMessages(conversationId: string | undefined) {
   return useQuery({
-    queryKey: messageKeys.list(conversationId || ""),
+    queryKey: queryKeys.messages.list({ conversationId: conversationId ?? "" }),
     queryFn: () =>
       api.get<Message[]>(`/conversations/${conversationId}/messages`),
     enabled: !!conversationId,
@@ -25,7 +30,7 @@ export function useMessages(conversationId: string | undefined) {
 
 export function useMessage(messageId: string | undefined) {
   return useQuery({
-    queryKey: messageKeys.detail(messageId || ""),
+    queryKey: queryKeys.messages.detail(messageId ?? ""),
     queryFn: () => api.get<Message>(`/messages/${messageId}`),
     enabled: !!messageId,
   });
@@ -137,7 +142,7 @@ export function useUpdateMessage() {
     onSuccess: (updatedMessage) => {
       // Update the message in the cache
       queryClient.setQueryData<Message[]>(
-        messageKeys.list(updatedMessage.conversationId),
+        queryKeys.messages.list({ conversationId: updatedMessage.conversationId }),
         (old) =>
           old?.map((msg) =>
             msg.id === updatedMessage.id ? updatedMessage : msg,
@@ -193,7 +198,7 @@ export function useDeleteMessage() {
 
       // Also update legacy message list cache if it exists
       queryClient.setQueryData<Message[]>(
-        messageKeys.list(conversationId),
+        queryKeys.messages.list({ conversationId }),
         (old) =>
           old?.map((msg) =>
             msg.id === messageId ? { ...msg, isDeleted: true } : msg,
@@ -228,15 +233,15 @@ export function useStarMessage() {
     }) => api.patch<Message>(`/messages/${messageId}`, { isStarred }),
     onMutate: async ({ messageId, conversationId, isStarred }) => {
       await queryClient.cancelQueries({
-        queryKey: messageKeys.list(conversationId),
+        queryKey: queryKeys.messages.list({ conversationId }),
       });
 
       const previousMessages = queryClient.getQueryData<Message[]>(
-        messageKeys.list(conversationId),
+        queryKeys.messages.list({ conversationId }),
       );
 
       queryClient.setQueryData<Message[]>(
-        messageKeys.list(conversationId),
+        queryKeys.messages.list({ conversationId }),
         (old) =>
           old?.map((msg) =>
             msg.id === messageId ? { ...msg, isStarred } : msg,
@@ -248,7 +253,7 @@ export function useStarMessage() {
     onError: (_err, _variables, context) => {
       if (context?.previousMessages) {
         queryClient.setQueryData(
-          messageKeys.list(context.conversationId),
+          queryKeys.messages.list({ conversationId: context.conversationId }),
           context.previousMessages,
         );
       }
@@ -299,7 +304,7 @@ export function useReactMessage() {
       });
       // Also invalidate regular message list
       queryClient.invalidateQueries({
-        queryKey: messageKeys.list(variables.conversationId),
+        queryKey: queryKeys.messages.list({ conversationId: variables.conversationId }),
       });
     },
   });

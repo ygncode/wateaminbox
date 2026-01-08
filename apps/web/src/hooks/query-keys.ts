@@ -81,4 +81,8 @@ export const queryKeys = {
   team: createQueryKeyFactory('team'),
   analytics: createQueryKeyFactory('analytics'),
   audit: createQueryKeyFactory('audit'),
+  whatsapp: createQueryKeyFactory('whatsapp'),
+  privateNotes: createQueryKeyFactory('privateNotes'),
+  sharedNotes: createQueryKeyFactory('sharedNotes'),
+  assignmentHistory: createQueryKeyFactory('assignmentHistory'),
 } as const

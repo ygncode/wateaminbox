@@ -6,6 +6,12 @@
 import { Hono } from 'hono'
 import { badRequest } from '../../lib/errors.js'
 import { getRouteContext } from '../../middleware/context.js'
+import {
+  formatMessagesForFetch,
+  type MessageDbRow,
+  type QuotedMessageSimple,
+  type ReactionData,
+} from '../../lib/message-formatters.js'
 
 export const fetchRoutes = new Hono()
 
@@ -50,7 +56,7 @@ fetchRoutes.get('/', async (c) => {
     .filter((m) => m.quoted_message_id)
     .map((m) => m.quoted_message_id as string)
 
-  let quotedMessages: Map<string, unknown> = new Map()
+  let quotedMessages = new Map<string, QuotedMessageSimple>()
   if (quotedIds.length > 0) {
     const quoted = await tenantDb
       .selectFrom('messages')
@@ -65,10 +71,7 @@ fetchRoutes.get('/', async (c) => {
 
   // Get reactions for all messages
   const messageIds = messages.map((m) => m.id)
-  const reactionsMap: Map<
-    string,
-    Array<{ emoji: string; reactorJid: string; createdAt: Date }>
-  > = new Map()
+  const reactionsMap = new Map<string, ReactionData[]>()
   if (messageIds.length > 0) {
     const reactions = await tenantDb
       .selectFrom('message_reactions')
@@ -92,41 +95,15 @@ fetchRoutes.get('/', async (c) => {
   // Return in chronological order (oldest first for display)
   const sortedMessages = messages.reverse()
 
+  // Format messages using shared formatter
+  const formattedMessages = formatMessagesForFetch(
+    sortedMessages as MessageDbRow[],
+    quotedMessages,
+    reactionsMap
+  )
+
   return c.json({
-    data: sortedMessages.map((msg) => ({
-      id: msg.id,
-      messageId: msg.message_id,
-      contactId: msg.contact_id,
-      fromMe: msg.from_me,
-      senderJid: msg.sender_jid,
-      messageType: msg.message_type,
-      content: msg.content,
-      // Keep these at root for backwards compatibility
-      mediaUrl: msg.media_url,
-      mediaMimeType: msg.media_mime_type,
-      mediaSize: msg.media_size,
-      // Metadata object for frontend compatibility
-      metadata: {
-        mediaUrl: msg.media_url,
-        mimeType: msg.media_mime_type,
-        fileSize: msg.media_size,
-        // Deferred media download fields
-        mediaPending: msg.media_download_status === 'pending' && msg.media_direct_path !== null,
-        mediaDownloadStatus: msg.media_download_status,
-      },
-      quotedMessage: msg.quoted_message_id
-        ? quotedMessages.get(msg.quoted_message_id) || null
-        : null,
-      isForwarded: msg.is_forwarded,
-      isStarred: msg.is_starred,
-      deletedBySender: msg.deleted_by_sender,
-      deletedAt: msg.deleted_at,
-      sentByUserId: msg.sent_by_user_id,
-      status: msg.status || 'sent',
-      timestamp: msg.timestamp,
-      createdAt: msg.created_at,
-      reactions: reactionsMap.get(msg.id) || [],
-    })),
+    data: formattedMessages,
     pagination: {
       limit,
       hasMore: messages.length === limit,

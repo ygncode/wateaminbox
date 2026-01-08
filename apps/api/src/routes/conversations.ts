@@ -15,6 +15,11 @@ import { broadcastToCompany } from "./ws.js";
 import { PERMISSIONS } from "../services/permission.service.js";
 import { publishSendMessage } from "../lib/nats/index.js";
 import { ensureContactAssignment } from "../services/contact.service.js";
+import {
+  formatMessagesForConversation,
+  buildQuotedMessageData,
+  type MessageDbRow,
+} from "../lib/message-formatters.js";
 
 export const conversationRoutes = new Hono();
 
@@ -59,7 +64,7 @@ conversationRoutes.get("/:id/messages", async (c) => {
     .filter((m) => m.quoted_message_id)
     .map((m) => m.quoted_message_id as string);
 
-  let quotedMessagesMap: Map<string, any> = new Map();
+  let quotedMessagesMap = new Map<string, ReturnType<typeof buildQuotedMessageData>>();
   if (quotedIds.length > 0) {
     const quoted = await tenantDb
       .selectFrom("messages")
@@ -72,58 +77,16 @@ conversationRoutes.get("/:id/messages", async (c) => {
         .filter((q) => q.message_id !== null)
         .map((q) => [
           q.message_id as string,
-          {
-            id: q.id,
-            conversationId: q.contact_id,
-            senderId: q.sent_by_user_id || q.sender_jid || "",
-            senderType: q.from_me ? "user" : "contact",
-            messageType: q.message_type,
-            content: q.content || "",
-            isDeleted: q.deleted_by_sender || !!q.deleted_at,
-            status: q.status || (q.from_me ? "sent" : "delivered"),
-            createdAt: q.created_at,
-            updatedAt: q.created_at,
-          },
+          buildQuotedMessageData(q as MessageDbRow),
         ]),
     );
   }
 
-  // Map to frontend format
-  const formattedMessages = messages.map((msg) => ({
-    id: msg.id,
-    messageId: msg.message_id,
-    conversationId: msg.contact_id,
-    contactId: msg.contact_id,
-    senderId: msg.sent_by_user_id || msg.sender_jid || "",
-    senderType: msg.from_me ? "user" : "contact",
-    senderJid: msg.sender_jid,
-    messageType: msg.message_type,
-    content: msg.content || "",
-    mediaUrl: msg.media_url,
-    metadata: {
-      mediaUrl: msg.media_url,
-      mimeType: msg.media_mime_type,
-      fileSize: msg.media_size,
-      // Deferred media download fields
-      mediaPending:
-        msg.media_download_status === "pending" &&
-        msg.media_direct_path !== null,
-      mediaDownloadStatus: msg.media_download_status,
-    },
-    replyToMessageId: msg.quoted_message_id || undefined,
-    replyToMessage: msg.quoted_message_id
-      ? quotedMessagesMap.get(msg.quoted_message_id) || null
-      : undefined,
-    isForwarded: msg.is_forwarded,
-    isStarred: msg.is_starred,
-    isDeleted: msg.deleted_by_sender || !!msg.deleted_at,
-    deletedAt: msg.deleted_at,
-    sentByUserId: msg.sent_by_user_id,
-    status: msg.status || (msg.from_me ? "sent" : "delivered"),
-    timestamp: msg.timestamp,
-    createdAt: msg.created_at,
-    updatedAt: msg.created_at,
-  }));
+  // Map to frontend format using shared formatter
+  const formattedMessages = formatMessagesForConversation(
+    messages as MessageDbRow[],
+    quotedMessagesMap
+  );
 
   return c.json({
     messages: formattedMessages,

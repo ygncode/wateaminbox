@@ -13,6 +13,7 @@ import {
   unlinkTagFromLabel,
   type WhatsAppLabel,
 } from "@/lib/api";
+import { queryKeys } from "./query-keys";
 
 // Query keys for labels
 export const labelKeys = {
@@ -82,7 +83,7 @@ export function useLinkTagToLabel() {
     onSuccess: () => {
       // Invalidate labels, status, and tags queries
       queryClient.invalidateQueries({ queryKey: labelKeys.all });
-      queryClient.invalidateQueries({ queryKey: ["tags"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.tags.all });
     },
   });
 }
@@ -98,7 +99,7 @@ export function useUnlinkTagFromLabel() {
     onSuccess: () => {
       // Invalidate labels, status, and tags queries
       queryClient.invalidateQueries({ queryKey: labelKeys.all });
-      queryClient.invalidateQueries({ queryKey: ["tags"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.tags.all });
     },
   });
 }
@@ -114,7 +115,7 @@ export function useAutoCreateTagsFromLabels() {
     onSuccess: () => {
       // Invalidate labels, status, and tags queries
       queryClient.invalidateQueries({ queryKey: labelKeys.all });
-      queryClient.invalidateQueries({ queryKey: ["tags"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.tags.all });
     },
   });
 }
@@ -135,8 +136,7 @@ export function useApplyLabelToContact() {
     }) => applyLabelToContact(labelId, contactId),
     onSuccess: (_, { contactId }) => {
       // Invalidate contact data and contact tags
-      queryClient.invalidateQueries({ queryKey: ["contacts", contactId] });
-      queryClient.invalidateQueries({ queryKey: ["contact", contactId] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.contacts.detail(contactId) });
     },
   });
 }
@@ -157,8 +157,7 @@ export function useRemoveLabelFromContact() {
     }) => removeLabelFromContact(labelId, contactId),
     onSuccess: (_, { contactId }) => {
       // Invalidate contact data and contact tags
-      queryClient.invalidateQueries({ queryKey: ["contacts", contactId] });
-      queryClient.invalidateQueries({ queryKey: ["contact", contactId] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.contacts.detail(contactId) });
     },
   });
 }
