@@ -23,9 +23,11 @@ const (
 
 // Command types used across WhatsApp services.
 const (
-	CommandSpawn  = "spawn"
-	CommandKill   = "kill"
-	CommandStatus = "status"
+	CommandSpawn         = "spawn"
+	CommandKill          = "kill"
+	CommandStatus        = "status"
+	CommandBlockContact   = "block_contact"
+	CommandUnblockContact = "unblock_contact"
 )
 
 // Worker status constants.
@@ -213,6 +215,14 @@ type WorkerStatusResponse struct {
 	LastActivity time.Time `json:"last_activity,omitempty"`
 	PID          int       `json:"pid,omitempty"`
 	Error        string    `json:"error,omitempty"`
+}
+
+// BlockContactCommand requests blocking/unblocking a contact.
+type BlockContactCommand struct {
+	Type         string `json:"type"` // "block_contact" or "unblock_contact"
+	CompanyID    string `json:"company_id"`
+	ConnectionID string `json:"connection_id"`
+	ContactJID   string `json:"contact_jid"`
 }
 
 // CommandEnvelope wraps any command with its type for routing.

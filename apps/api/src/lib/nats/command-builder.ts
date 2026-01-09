@@ -19,6 +19,8 @@ import type {
   RemoveLabelCommand,
   SyncCatalogsCommand,
   SyncCatalogProductsCommand,
+  BlockContactCommand,
+  UnblockContactCommand,
 } from "./types/index.js";
 
 /**
@@ -264,6 +266,34 @@ export class NatsCommandPublisher {
       connection_id: this.connectionId,
       catalog_id: catalogId,
       user_id: userId,
+    };
+
+    await this.publish(command);
+  }
+
+  /**
+   * Publish block contact command
+   */
+  async blockContact(contactJid: string): Promise<void> {
+    const command: BlockContactCommand = {
+      type: "block_contact",
+      company_id: this.companyId,
+      connection_id: this.connectionId,
+      contact_jid: contactJid,
+    };
+
+    await this.publish(command);
+  }
+
+  /**
+   * Publish unblock contact command
+   */
+  async unblockContact(contactJid: string): Promise<void> {
+    const command: UnblockContactCommand = {
+      type: "unblock_contact",
+      company_id: this.companyId,
+      connection_id: this.connectionId,
+      contact_jid: contactJid,
     };
 
     await this.publish(command);

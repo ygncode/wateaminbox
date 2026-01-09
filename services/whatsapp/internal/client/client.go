@@ -13,6 +13,7 @@ import (
 	"go.mau.fi/whatsmeow/proto/waE2E"
 	waStore "go.mau.fi/whatsmeow/store"
 	waTypes "go.mau.fi/whatsmeow/types"
+	"go.mau.fi/whatsmeow/types/events"
 	waLog "go.mau.fi/whatsmeow/util/log"
 	"google.golang.org/protobuf/proto"
 
@@ -744,4 +745,81 @@ func (c *Client) SubscribePresence(ctx context.Context, jid waTypes.JID) error {
 		return fmt.Errorf("client not initialized")
 	}
 	return c.client.SubscribePresence(ctx, jid)
+}
+
+// Block operation constants.
+const (
+	blockMaxRetries = 3
+	blockBaseDelay  = 1 * time.Second
+)
+
+// BlockContact blocks a contact on WhatsApp.
+// Uses exponential backoff retry logic (3 attempts: 1s, 2s).
+func (c *Client) BlockContact(ctx context.Context, jid string) error {
+	return c.updateBlocklistWithRetry(ctx, jid, "block")
+}
+
+// UnblockContact unblocks a contact on WhatsApp.
+// Uses exponential backoff retry logic (3 attempts: 1s, 2s).
+func (c *Client) UnblockContact(ctx context.Context, jid string) error {
+	return c.updateBlocklistWithRetry(ctx, jid, "unblock")
+}
+
+// updateBlocklistWithRetry is the internal helper that handles blocklist updates with retry logic.
+func (c *Client) updateBlocklistWithRetry(ctx context.Context, jidStr string, action string) error {
+	if c.client == nil {
+		return fmt.Errorf("client not initialized")
+	}
+
+	// Parse the JID string
+	parsedJID, err := waTypes.ParseJID(jidStr)
+	if err != nil {
+		return fmt.Errorf("failed to parse JID %s: %w", jidStr, err)
+	}
+
+	// Determine the blocklist action
+	var blocklistAction events.BlocklistChangeAction
+	switch action {
+	case "block":
+		blocklistAction = events.BlocklistChangeActionBlock
+	case "unblock":
+		blocklistAction = events.BlocklistChangeActionUnblock
+	default:
+		return fmt.Errorf("unknown blocklist action: %s", action)
+	}
+
+	var lastErr error
+	for attempt := 0; attempt < blockMaxRetries; attempt++ {
+		// Check if context is cancelled
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
+
+		// Create a timeout context for this attempt
+		attemptCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+		_, err := c.client.UpdateBlocklist(attemptCtx, parsedJID, blocklistAction)
+		cancel()
+
+		if err == nil {
+			log.Printf("Successfully %sed contact %s (attempt %d)", action, jidStr, attempt+1)
+			return nil
+		}
+
+		lastErr = err
+		log.Printf("Failed to %s contact %s (attempt %d/%d): %v", action, jidStr, attempt+1, blockMaxRetries, err)
+
+		// Don't sleep on the last attempt
+		if attempt < blockMaxRetries-1 {
+			delay := blockBaseDelay * time.Duration(1<<uint(attempt)) // Exponential: 1s, 2s
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-time.After(delay):
+			}
+		}
+	}
+
+	return fmt.Errorf("failed to %s contact after %d attempts: %w", action, blockMaxRetries, lastErr)
 }

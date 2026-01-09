@@ -10,6 +10,7 @@ export {
   useContact,
   useUpdateContact,
   useCreateContact,
+  useBlockContact,
   type ContactDetail,
   type CreateContactInput,
   type CreateContactResponse,

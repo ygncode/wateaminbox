@@ -97,6 +97,16 @@ func (m *integrationTestClient) Reset() {
 	m.downloadCallCount = 0
 }
 
+func (m *integrationTestClient) BlockContact(ctx context.Context, jid string) error {
+	// No-op for integration tests
+	return nil
+}
+
+func (m *integrationTestClient) UnblockContact(ctx context.Context, jid string) error {
+	// No-op for integration tests
+	return nil
+}
+
 // Helper to create a handler with the test client
 func newIntegrationHandler(client *integrationTestClient) *Handler {
 	cfg := Config{

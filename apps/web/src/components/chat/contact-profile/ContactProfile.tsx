@@ -18,6 +18,7 @@ import { SharedNotesSection, PrivateNotesSection } from "./NotesPanel";
 import { TagsSection } from "./TagsSection";
 import { AssignmentSection } from "./AssignmentSection";
 import { AssignmentHistorySection } from "./AssignmentHistorySection";
+import { BlockStatusSection } from "./BlockStatusSection";
 
 /**
  * Contact Profile Panel - shows detailed contact information
@@ -68,6 +69,9 @@ export function ContactProfile({
 
             {/* Assignment History Section */}
             <AssignmentHistorySection contactId={contact.id} />
+
+            {/* Block Status Section - hidden for groups */}
+            <BlockStatusSection contact={contact} />
 
             {/* Export Conversation Section */}
             <RightPanelSection title="Export">

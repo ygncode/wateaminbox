@@ -19,6 +19,8 @@ export type AuditAction =
   | "contact.updated"
   | "contact.assigned"
   | "contact.unassigned"
+  | "contact.blocked"
+  | "contact.unblocked"
   | "contact.note.created"
   | "contact.note.updated"
   | "contact.note.deleted"

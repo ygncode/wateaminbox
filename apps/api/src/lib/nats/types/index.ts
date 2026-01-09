@@ -27,6 +27,8 @@ export type {
   RemoveLabelCommand,
   SyncCatalogsCommand,
   SyncCatalogProductsCommand,
+  BlockContactCommand,
+  UnblockContactCommand,
 } from "./commands.js"
 
 // Event types

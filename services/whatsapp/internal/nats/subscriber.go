@@ -24,6 +24,17 @@ const (
 	ConsumerSend = "whatsapp-send-%s-%s"
 )
 
+// commandType is used to extract the command type from a message for routing.
+type commandType struct {
+	Type string `json:"type"`
+}
+
+// BlockContactCommand represents a command to block or unblock a contact.
+type BlockContactCommand struct {
+	Type       string `json:"type"` // "block_contact" or "unblock_contact"
+	ContactJID string `json:"contact_jid"`
+}
+
 // SendMessageCommand represents a command to send a message.
 type SendMessageCommand struct {
 	MessageID     string `json:"message_id"`
@@ -49,6 +60,12 @@ type MessageSender interface {
 	SendReaction(ctx context.Context, chatJID string, messageID string, emoji string, fromMe bool) (types.SendResponse, error)
 }
 
+// ContactBlocker is the interface for blocking/unblocking contacts.
+type ContactBlocker interface {
+	BlockContact(ctx context.Context, jid string) error
+	UnblockContact(ctx context.Context, jid string) error
+}
+
 // Subscriber handles subscribing to NATS command subjects.
 type Subscriber struct {
 	nc           *nats.Conn
@@ -56,6 +73,7 @@ type Subscriber struct {
 	companyID    string
 	connectionID string
 	sender       MessageSender
+	blocker      ContactBlocker
 	publisher    *Publisher
 	sub          *nats.Subscription
 	ctx          context.Context
@@ -68,6 +86,7 @@ type SubscriberConfig struct {
 	CompanyID    string
 	ConnectionID string
 	Sender       MessageSender
+	Blocker      ContactBlocker
 	Publisher    *Publisher
 }
 
@@ -106,6 +125,7 @@ func NewSubscriber(cfg SubscriberConfig) (*Subscriber, error) {
 		companyID:    cfg.CompanyID,
 		connectionID: cfg.ConnectionID,
 		sender:       cfg.Sender,
+		blocker:      cfg.Blocker,
 		publisher:    cfg.Publisher,
 		ctx:          ctx,
 		cancel:       cancel,
@@ -196,9 +216,28 @@ func (s *Subscriber) processMessages() {
 
 			consecutiveErrors = 0 // Reset on success
 			for _, msg := range msgs {
-				s.handleSendCommand(msg)
+				s.handleCommand(msg)
 			}
 		}
+	}
+}
+
+// handleCommand routes commands to the appropriate handler based on type.
+func (s *Subscriber) handleCommand(msg *nats.Msg) {
+	// Extract command type first
+	var ct commandType
+	if err := json.Unmarshal(msg.Data, &ct); err != nil {
+		log.Printf("Failed to unmarshal command type: %v", err)
+		msg.Nak()
+		return
+	}
+
+	switch ct.Type {
+	case "block_contact", "unblock_contact":
+		s.handleBlockCommand(msg, ct.Type)
+	default:
+		// Delegate to send command handler for all other types
+		s.handleSendCommand(msg)
 	}
 }
 
@@ -267,6 +306,43 @@ func (s *Subscriber) handleSendCommand(msg *nats.Msg) {
 	}
 
 	log.Printf("Successfully sent message to %s", cmd.To)
+	msg.Ack()
+}
+
+// handleBlockCommand processes a block/unblock contact command.
+func (s *Subscriber) handleBlockCommand(msg *nats.Msg, cmdType string) {
+	var cmd BlockContactCommand
+	if err := json.Unmarshal(msg.Data, &cmd); err != nil {
+		log.Printf("Failed to unmarshal block command: %v", err)
+		msg.Nak()
+		return
+	}
+
+	if s.blocker == nil {
+		log.Printf("Block command received but blocker not configured")
+		msg.Nak()
+		return
+	}
+
+	log.Printf("Processing %s command for contact: %s", cmdType, cmd.ContactJID)
+
+	ctx, cancel := context.WithTimeout(s.ctx, 60*time.Second)
+	defer cancel()
+
+	var err error
+	if cmdType == "block_contact" {
+		err = s.blocker.BlockContact(ctx, cmd.ContactJID)
+	} else {
+		err = s.blocker.UnblockContact(ctx, cmd.ContactJID)
+	}
+
+	if err != nil {
+		log.Printf("Failed to %s contact %s: %v", cmdType, cmd.ContactJID, err)
+		msg.Nak()
+		return
+	}
+
+	log.Printf("Successfully executed %s for contact: %s", cmdType, cmd.ContactJID)
 	msg.Ack()
 }
 

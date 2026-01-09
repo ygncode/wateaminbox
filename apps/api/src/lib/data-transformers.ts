@@ -26,6 +26,7 @@ export interface RawContactFromDb {
   push_name: string | null;
   custom_name: string | null;
   is_group: boolean;
+  is_blocked?: boolean;
   profile_picture_url: string | null;
   notes_shared: string | null;
   last_message_at: Date | string | null;
@@ -60,6 +61,7 @@ export interface TransformedContact {
   displayName: string;
   name: string;
   isGroup: boolean;
+  isBlocked: boolean;
   profilePictureUrl: string | null;
   notesShared: string | null;
   lastMessageAt: Date | string | null;
@@ -116,6 +118,7 @@ export function transformContact(
     displayName: getContactDisplayName(contact),
     name: getContactName(contact),
     isGroup: contact.is_group,
+    isBlocked: contact.is_blocked ?? false,
     profilePictureUrl: contact.profile_picture_url,
     notesShared: contact.notes_shared,
     lastMessageAt: contact.last_message_at,

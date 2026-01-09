@@ -200,7 +200,7 @@ export async function up(db: Kysely<unknown>): Promise<void> {
         )
       ', schema_name);
 
-      -- Contacts table (with presence tracking from migration 017)
+      -- Contacts table (with presence tracking from migration 017, block status from migration 028)
       EXECUTE format('
         CREATE TABLE IF NOT EXISTS %I.contacts (
           id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -214,6 +214,7 @@ export async function up(db: Kysely<unknown>): Promise<void> {
           profile_picture_url TEXT,
           is_online BOOLEAN DEFAULT false NOT NULL,
           last_seen TIMESTAMPTZ,
+          is_blocked BOOLEAN DEFAULT false NOT NULL,
           created_at TIMESTAMPTZ DEFAULT now() NOT NULL,
           updated_at TIMESTAMPTZ DEFAULT now() NOT NULL
         )

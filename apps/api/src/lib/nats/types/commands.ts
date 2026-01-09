@@ -98,3 +98,15 @@ export interface SyncCatalogProductsCommand extends NatsCommand {
   catalog_id: string
   user_id: string
 }
+
+// Block contact command
+export interface BlockContactCommand extends NatsCommand {
+  type: "block_contact"
+  contact_jid: string
+}
+
+// Unblock contact command
+export interface UnblockContactCommand extends NatsCommand {
+  type: "unblock_contact"
+  contact_jid: string
+}
