@@ -5,21 +5,21 @@ import {
   Send,
   UserCheck,
   Users,
-} from "lucide-react"
-import { StatCard } from "./StatCard"
+} from "lucide-react";
+import { StatCard } from "./StatCard";
 
 export interface DashboardStatsData {
-  totalMessages?: number
-  totalContacts?: number
-  activeUsers?: number
-  messagesSentToday?: number
-  messagesReceivedToday?: number
-  unreadConversations?: number
+  totalMessages?: number;
+  totalContacts?: number;
+  activeUsers?: number;
+  messagesSentToday?: number;
+  messagesReceivedToday?: number;
+  unreadConversations?: number;
 }
 
 export interface DashboardStatsProps {
-  data: DashboardStatsData | undefined
-  isLoading: boolean
+  data: DashboardStatsData | undefined;
+  isLoading: boolean;
 }
 
 /**
@@ -69,5 +69,5 @@ export function DashboardStats({ data, isLoading }: DashboardStatsProps) {
         color="orange"
       />
     </div>
-  )
+  );
 }

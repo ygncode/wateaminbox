@@ -12,7 +12,11 @@ import {
   useTeamActivityStats,
 } from "@/hooks/analytics";
 import { CustomerEngagementSection } from "./CustomerEngagementSection";
-import { DashboardHeader, type DateRange, type ExportType } from "./DashboardHeader";
+import {
+  DashboardHeader,
+  type DateRange,
+  type ExportType,
+} from "./DashboardHeader";
 import { DashboardStats } from "./DashboardStats";
 import { TrendChartsRow, StatsCardsRow } from "./DashboardCharts";
 import { ResolutionRateSection } from "./ResolutionRateSection";

@@ -1,10 +1,5 @@
 import type { Message } from "@whatsapp-web/shared";
-import {
-  createContext,
-  type ReactNode,
-  useContext,
-  useMemo,
-} from "react";
+import { createContext, type ReactNode, useContext, useMemo } from "react";
 
 /**
  * Message action handlers that can be triggered from MessageBubble
@@ -25,7 +20,9 @@ export interface MessageActionsContextValue {
   onReact?: (message: Message, emoji: string) => void;
 }
 
-const MessageActionsContext = createContext<MessageActionsContextValue | undefined>(undefined);
+const MessageActionsContext = createContext<
+  MessageActionsContextValue | undefined
+>(undefined);
 
 export interface MessageActionsProviderProps {
   children: ReactNode;
@@ -85,7 +82,9 @@ export function useMessageActions(): MessageActionsContextValue {
 export function useMessageActionsStrict(): MessageActionsContextValue {
   const context = useContext(MessageActionsContext);
   if (context === undefined) {
-    throw new Error("useMessageActionsStrict must be used within a MessageActionsProvider");
+    throw new Error(
+      "useMessageActionsStrict must be used within a MessageActionsProvider",
+    );
   }
   return context;
 }

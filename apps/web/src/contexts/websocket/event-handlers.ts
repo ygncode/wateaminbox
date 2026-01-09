@@ -449,55 +449,58 @@ export function registerEventHandlers(
 
   // Media download failed handler
   unsubscribes.push(
-    client.on<MediaDownloadFailedPayload>("media:download_failed", (payload) => {
-      logger.warn("Media download failed:", {
-        messageId: payload.messageId,
-        conversationId: payload.conversationId,
-        error: payload.error,
-      });
+    client.on<MediaDownloadFailedPayload>(
+      "media:download_failed",
+      (payload) => {
+        logger.warn("Media download failed:", {
+          messageId: payload.messageId,
+          conversationId: payload.conversationId,
+          error: payload.error,
+        });
 
-      // Update TanStack Query cache with failed status
-      const queryKey = infiniteMessageKeys.list(payload.conversationId);
-      queryClientRef.current.setQueryData(
-        queryKey,
-        (oldData: InfiniteMessageData | undefined) => {
-          if (!oldData) {
-            logger.debug(
-              "No cached data for conversation:",
-              payload.conversationId,
-            );
-            return oldData;
-          }
+        // Update TanStack Query cache with failed status
+        const queryKey = infiniteMessageKeys.list(payload.conversationId);
+        queryClientRef.current.setQueryData(
+          queryKey,
+          (oldData: InfiniteMessageData | undefined) => {
+            if (!oldData) {
+              logger.debug(
+                "No cached data for conversation:",
+                payload.conversationId,
+              );
+              return oldData;
+            }
 
-          const newPages = oldData.pages.map((page: any) => ({
-            ...page,
-            messages: page.messages.map((msg: any) =>
-              msg.id === payload.messageId
-                ? {
-                    ...msg,
-                    metadata: {
-                      ...msg.metadata,
-                      mediaPending: true,
-                      mediaDownloadStatus: "failed" as const,
-                    },
-                  }
-                : msg,
-            ),
-          }));
+            const newPages = oldData.pages.map((page: any) => ({
+              ...page,
+              messages: page.messages.map((msg: any) =>
+                msg.id === payload.messageId
+                  ? {
+                      ...msg,
+                      metadata: {
+                        ...msg.metadata,
+                        mediaPending: true,
+                        mediaDownloadStatus: "failed" as const,
+                      },
+                    }
+                  : msg,
+              ),
+            }));
 
-          return {
-            ...oldData,
-            pages: newPages,
-          };
-        },
-      );
+            return {
+              ...oldData,
+              pages: newPages,
+            };
+          },
+        );
 
-      // Force refetch to ensure UI updates immediately
-      queryClientRef.current.refetchQueries({
-        queryKey: queryKey,
-        type: "active",
-      });
-    }),
+        // Force refetch to ensure UI updates immediately
+        queryClientRef.current.refetchQueries({
+          queryKey: queryKey,
+          type: "active",
+        });
+      },
+    ),
   );
 
   // Sync event handlers
@@ -507,10 +510,12 @@ export function registerEventHandlers(
       const connectionId = payload.connectionId || "unknown";
       setSyncingConnections((prev) => {
         const newMap = new Map(prev);
+        // Clear interrupted flag if sync is restarting
         newMap.set(connectionId, {
           connectionId,
           conversations: 0,
           startedAt: new Date(),
+          interrupted: false,
         });
         return newMap;
       });
@@ -547,6 +552,25 @@ export function registerEventHandlers(
       // Invalidate chat list to show new contacts
       queryClientRef.current.invalidateQueries({
         queryKey: chatKeys.lists(),
+      });
+    }),
+  );
+
+  unsubscribes.push(
+    client.on<SyncStatusPayload>("sync:interrupted", (payload) => {
+      logger.warn("Sync interrupted by disconnection", payload);
+      const connectionId = payload.connectionId || "unknown";
+      setSyncingConnections((prev) => {
+        const newMap = new Map(prev);
+        // Keep the sync state but mark it as interrupted
+        const existing = newMap.get(connectionId);
+        if (existing) {
+          newMap.set(connectionId, {
+            ...existing,
+            interrupted: true,
+          });
+        }
+        return newMap;
       });
     }),
   );

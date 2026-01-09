@@ -47,6 +47,7 @@ export type ServerToClientEventType =
   | 'sync:start'
   | 'sync:progress'
   | 'sync:complete'
+  | 'sync:interrupted'
   // Notification events
   | 'notification:new'
   // System events
@@ -304,9 +305,7 @@ export interface WebSocketClientConfig {
 /**
  * Check if a value is a valid server-to-client event type
  */
-export function isServerToClientEventType(
-  type: string
-): type is ServerToClientEventType {
+export function isServerToClientEventType(type: string): type is ServerToClientEventType {
   const validTypes: ServerToClientEventType[] = [
     'auth_success',
     'auth_error',
@@ -331,6 +330,7 @@ export function isServerToClientEventType(
     'sync:start',
     'sync:progress',
     'sync:complete',
+    'sync:interrupted',
     'notification:new',
     'error',
     'pong',
@@ -345,9 +345,7 @@ export function isServerToClientEventType(
 /**
  * Check if a value is a valid client-to-server message type
  */
-export function isClientToServerMessageType(
-  type: string
-): type is ClientToServerMessageType {
+export function isClientToServerMessageType(type: string): type is ClientToServerMessageType {
   return type === 'auth' || type === 'ping' || type === 'send_message'
 }
 
@@ -366,9 +364,7 @@ export function isNewMessagePayload(payload: unknown): payload is NewMessagePayl
 /**
  * Type guard for MessageStatusPayload
  */
-export function isMessageStatusPayload(
-  payload: unknown
-): payload is MessageStatusPayload {
+export function isMessageStatusPayload(payload: unknown): payload is MessageStatusPayload {
   return (
     typeof payload === 'object' &&
     payload !== null &&
@@ -383,10 +379,7 @@ export function isMessageStatusPayload(
  */
 export function isAuthPayload(payload: unknown): payload is AuthPayload {
   return (
-    typeof payload === 'object' &&
-    payload !== null &&
-    'token' in payload &&
-    'companyId' in payload
+    typeof payload === 'object' && payload !== null && 'token' in payload && 'companyId' in payload
   )
 }
 
@@ -394,10 +387,5 @@ export function isAuthPayload(payload: unknown): payload is AuthPayload {
  * Type guard for SendMessagePayload
  */
 export function isSendMessagePayload(payload: unknown): payload is SendMessagePayload {
-  return (
-    typeof payload === 'object' &&
-    payload !== null &&
-    'jid' in payload &&
-    'content' in payload
-  )
+  return typeof payload === 'object' && payload !== null && 'jid' in payload && 'content' in payload
 }

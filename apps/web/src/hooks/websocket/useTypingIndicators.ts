@@ -1,6 +1,10 @@
-import { useCallback, useRef } from "react"
-import { type TypingIndicator, useChatStore } from "../../stores/chat-store"
-import { TYPING_TIMEOUT, type TypingPayload, type WhatsAppTypingPayload } from "./types"
+import { useCallback, useRef } from "react";
+import { type TypingIndicator, useChatStore } from "../../stores/chat-store";
+import {
+  TYPING_TIMEOUT,
+  type TypingPayload,
+  type WhatsAppTypingPayload,
+} from "./types";
 
 /**
  * Hook for managing typing indicator state and timeouts.
@@ -9,47 +13,47 @@ import { TYPING_TIMEOUT, type TypingPayload, type WhatsAppTypingPayload } from "
 export function useTypingIndicators() {
   const typingTimeoutsRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(
     new Map(),
-  )
+  );
 
-  const addTypingIndicator = useChatStore((state) => state.addTypingIndicator)
+  const addTypingIndicator = useChatStore((state) => state.addTypingIndicator);
   const removeTypingIndicator = useChatStore(
     (state) => state.removeTypingIndicator,
-  )
+  );
 
   // Set a timeout to automatically clear typing indicator
   const setTypingTimeout = useCallback(
     (conversationId: string, userId: string) => {
-      const key = `${conversationId}:${userId}`
+      const key = `${conversationId}:${userId}`;
 
       // Clear existing timeout
-      const existingTimeout = typingTimeoutsRef.current.get(key)
+      const existingTimeout = typingTimeoutsRef.current.get(key);
       if (existingTimeout) {
-        clearTimeout(existingTimeout)
+        clearTimeout(existingTimeout);
       }
 
       // Set new timeout
       const timeout = setTimeout(() => {
-        removeTypingIndicator(conversationId, userId)
-        typingTimeoutsRef.current.delete(key)
-      }, TYPING_TIMEOUT)
+        removeTypingIndicator(conversationId, userId);
+        typingTimeoutsRef.current.delete(key);
+      }, TYPING_TIMEOUT);
 
-      typingTimeoutsRef.current.set(key, timeout)
+      typingTimeoutsRef.current.set(key, timeout);
     },
     [removeTypingIndicator],
-  )
+  );
 
   // Clear a typing timeout
   const clearTypingTimeout = useCallback(
     (conversationId: string, userId: string) => {
-      const key = `${conversationId}:${userId}`
-      const timeout = typingTimeoutsRef.current.get(key)
+      const key = `${conversationId}:${userId}`;
+      const timeout = typingTimeoutsRef.current.get(key);
       if (timeout) {
-        clearTimeout(timeout)
-        typingTimeoutsRef.current.delete(key)
+        clearTimeout(timeout);
+        typingTimeoutsRef.current.delete(key);
       }
     },
     [],
-  )
+  );
 
   // Handle typing start event
   const handleTypingStart = useCallback(
@@ -66,14 +70,14 @@ export function useTypingIndicators() {
           userId: payload.jid,
           userName: "", // Contact name will be displayed from context
           startedAt: new Date(),
-        }
-        addTypingIndicator(indicator)
-        setTypingTimeout(payload.jid, payload.jid)
+        };
+        addTypingIndicator(indicator);
+        setTypingTimeout(payload.jid, payload.jid);
         onTypingStart?.({
           conversationId: payload.jid,
           userId: payload.jid,
           userName: "",
-        })
+        });
       } else {
         // Handle internal typing events (from team members)
         const indicator: TypingIndicator = {
@@ -81,14 +85,14 @@ export function useTypingIndicators() {
           userId: payload.userId,
           userName: payload.userName,
           startedAt: new Date(),
-        }
-        addTypingIndicator(indicator)
-        setTypingTimeout(payload.conversationId, payload.userId)
-        onTypingStart?.(payload)
+        };
+        addTypingIndicator(indicator);
+        setTypingTimeout(payload.conversationId, payload.userId);
+        onTypingStart?.(payload);
       }
     },
     [addTypingIndicator, setTypingTimeout],
-  )
+  );
 
   // Handle typing stop event
   const handleTypingStop = useCallback(
@@ -98,28 +102,28 @@ export function useTypingIndicators() {
     ) => {
       if ("jid" in payload) {
         // Handle WhatsApp typing events
-        removeTypingIndicator(payload.jid, payload.jid)
-        clearTypingTimeout(payload.jid, payload.jid)
+        removeTypingIndicator(payload.jid, payload.jid);
+        clearTypingTimeout(payload.jid, payload.jid);
         onTypingStop?.({
           conversationId: payload.jid,
           userId: payload.jid,
           userName: "",
-        })
+        });
       } else {
         // Handle internal typing events
-        removeTypingIndicator(payload.conversationId, payload.userId)
-        clearTypingTimeout(payload.conversationId, payload.userId)
-        onTypingStop?.(payload)
+        removeTypingIndicator(payload.conversationId, payload.userId);
+        clearTypingTimeout(payload.conversationId, payload.userId);
+        onTypingStop?.(payload);
       }
     },
     [removeTypingIndicator, clearTypingTimeout],
-  )
+  );
 
   // Cleanup all typing timeouts
   const cleanup = useCallback(() => {
-    typingTimeoutsRef.current.forEach((timeout) => clearTimeout(timeout))
-    typingTimeoutsRef.current.clear()
-  }, [])
+    typingTimeoutsRef.current.forEach((timeout) => clearTimeout(timeout));
+    typingTimeoutsRef.current.clear();
+  }, []);
 
   return {
     handleTypingStart,
@@ -127,5 +131,5 @@ export function useTypingIndicators() {
     setTypingTimeout,
     clearTypingTimeout,
     cleanup,
-  }
+  };
 }

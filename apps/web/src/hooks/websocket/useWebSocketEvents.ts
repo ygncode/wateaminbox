@@ -1,6 +1,6 @@
-import { useEffect } from "react"
-import type { MessageReactionPayload } from "../../lib/websocket"
-import { useChatStore } from "../../stores/chat-store"
+import { useEffect } from "react";
+import type { MessageReactionPayload } from "../../lib/websocket";
+import { useChatStore } from "../../stores/chat-store";
 import type {
   ConversationUpdatedPayload,
   ErrorPayload,
@@ -10,29 +10,29 @@ import type {
   TypingPayload,
   WebSocketClient,
   WhatsAppTypingPayload,
-} from "./types"
+} from "./types";
 
 interface UseWebSocketEventsOptions {
-  onNewMessage?: (payload: NewMessagePayload) => void
-  onMessageStatus?: (payload: MessageStatusPayload) => void
-  onTypingStart?: (payload: TypingPayload) => void
-  onTypingStop?: (payload: TypingPayload) => void
-  onPresenceChange?: (payload: PresencePayload) => void
-  onConversationUpdated?: (payload: ConversationUpdatedPayload) => void
-  onError?: (payload: ErrorPayload) => void
+  onNewMessage?: (payload: NewMessagePayload) => void;
+  onMessageStatus?: (payload: MessageStatusPayload) => void;
+  onTypingStart?: (payload: TypingPayload) => void;
+  onTypingStop?: (payload: TypingPayload) => void;
+  onPresenceChange?: (payload: PresencePayload) => void;
+  onConversationUpdated?: (payload: ConversationUpdatedPayload) => void;
+  onError?: (payload: ErrorPayload) => void;
 }
 
 interface UseWebSocketEventsDeps {
-  getClient: () => WebSocketClient
+  getClient: () => WebSocketClient;
   handleTypingStart: (
     payload: TypingPayload | WhatsAppTypingPayload,
     onTypingStart?: (payload: TypingPayload) => void,
-  ) => void
+  ) => void;
   handleTypingStop: (
     payload: TypingPayload | WhatsAppTypingPayload,
     onTypingStop?: (payload: TypingPayload) => void,
-  ) => void
-  setError: (error: string | null) => void
+  ) => void;
+  setError: (error: string | null) => void;
 }
 
 /**
@@ -43,27 +43,27 @@ export function useWebSocketEvents(
   options: UseWebSocketEventsOptions,
   deps: UseWebSocketEventsDeps,
 ) {
-  const { getClient, handleTypingStart, handleTypingStop, setError } = deps
+  const { getClient, handleTypingStart, handleTypingStop, setError } = deps;
 
-  const addMessage = useChatStore((state) => state.addMessage)
+  const addMessage = useChatStore((state) => state.addMessage);
   const updateMessageStatus = useChatStore(
     (state) => state.updateMessageStatus,
-  )
+  );
   const updateMessageReaction = useChatStore(
     (state) => state.updateMessageReaction,
-  )
+  );
 
   useEffect(() => {
-    const client = getClient()
+    const client = getClient();
 
     // New message handler
     const unsubNewMessage = client.on<NewMessagePayload>(
       "message:new",
       (payload) => {
-        addMessage(payload.conversationId, payload.message)
-        options.onNewMessage?.(payload)
+        addMessage(payload.conversationId, payload.message);
+        options.onNewMessage?.(payload);
       },
-    )
+    );
 
     // Message status handler
     const unsubMessageStatus = client.on<MessageStatusPayload>(
@@ -73,10 +73,10 @@ export function useWebSocketEvents(
           payload.conversationId,
           payload.messageId,
           payload.status,
-        )
-        options.onMessageStatus?.(payload)
+        );
+        options.onMessageStatus?.(payload);
       },
-    )
+    );
 
     // Message reaction handler
     const unsubMessageReaction = client.on<MessageReactionPayload>(
@@ -87,67 +87,67 @@ export function useWebSocketEvents(
           payload.messageId,
           payload.from,
           payload.emoji,
-        )
+        );
       },
-    )
+    );
 
     // Typing start handler
     const unsubTypingStart = client.on<TypingPayload | WhatsAppTypingPayload>(
       "typing:start",
       (payload) => {
-        handleTypingStart(payload, options.onTypingStart)
+        handleTypingStart(payload, options.onTypingStart);
       },
-    )
+    );
 
     // Typing stop handler
     const unsubTypingStop = client.on<TypingPayload | WhatsAppTypingPayload>(
       "typing:stop",
       (payload) => {
-        handleTypingStop(payload, options.onTypingStop)
+        handleTypingStop(payload, options.onTypingStop);
       },
-    )
+    );
 
     // Presence handlers
     const unsubPresenceOnline = client.on<PresencePayload>(
       "presence:online",
       (payload) => {
-        options.onPresenceChange?.(payload)
+        options.onPresenceChange?.(payload);
       },
-    )
+    );
 
     const unsubPresenceOffline = client.on<PresencePayload>(
       "presence:offline",
       (payload) => {
-        options.onPresenceChange?.(payload)
+        options.onPresenceChange?.(payload);
       },
-    )
+    );
 
     // Conversation updated handler
     const unsubConversationUpdated = client.on<ConversationUpdatedPayload>(
       "conversation:updated",
       (payload) => {
-        options.onConversationUpdated?.(payload)
+        options.onConversationUpdated?.(payload);
       },
-    )
+    );
 
     // Error handler
     const unsubError = client.on<ErrorPayload>("error", (payload) => {
-      setError(payload.message)
-      options.onError?.(payload)
-    })
+      setError(payload.message);
+      options.onError?.(payload);
+    });
 
     // Cleanup
     return () => {
-      unsubNewMessage()
-      unsubMessageStatus()
-      unsubMessageReaction()
-      unsubTypingStart()
-      unsubTypingStop()
-      unsubPresenceOnline()
-      unsubPresenceOffline()
-      unsubConversationUpdated()
-      unsubError()
-    }
+      unsubNewMessage();
+      unsubMessageStatus();
+      unsubMessageReaction();
+      unsubTypingStart();
+      unsubTypingStop();
+      unsubPresenceOnline();
+      unsubPresenceOffline();
+      unsubConversationUpdated();
+      unsubError();
+    };
   }, [
     getClient,
     addMessage,
@@ -157,5 +157,5 @@ export function useWebSocketEvents(
     handleTypingStop,
     setError,
     options,
-  ])
+  ]);
 }

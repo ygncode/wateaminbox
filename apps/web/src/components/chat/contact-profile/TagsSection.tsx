@@ -3,7 +3,12 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { RightPanelSection } from "@/components/layout/right-panel";
 import { Badge, Button, Input, Skeleton } from "@/components/ui";
-import { useAddContactTag, useCreateTag, useRemoveContactTag, useTags } from "@/hooks/useContact";
+import {
+  useAddContactTag,
+  useCreateTag,
+  useRemoveContactTag,
+  useTags,
+} from "@/hooks/useContact";
 import { cn } from "@/lib/utils";
 import type { ContactData } from "./types";
 

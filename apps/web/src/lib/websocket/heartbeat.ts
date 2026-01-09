@@ -5,60 +5,60 @@
  * This module manages the heartbeat interval and pong timeout logic.
  */
 
-import { nowMs } from "@whatsapp-web/shared"
-import { wsLogger } from "../websocket-logger"
+import { nowMs } from "@whatsapp-web/shared";
+import { wsLogger } from "../websocket-logger";
 
 export interface HeartbeatConfig {
   /** Interval between ping messages in milliseconds */
-  heartbeatInterval: number
+  heartbeatInterval: number;
   /** Timeout waiting for pong response in milliseconds */
-  pongTimeout: number
+  pongTimeout: number;
 }
 
 export interface HeartbeatCallbacks {
   /** Called to send a ping message. Returns true if sent successfully */
-  sendPing: () => boolean
+  sendPing: () => boolean;
   /** Called when connection appears stale (no pong received) */
-  onStaleConnection: () => void
+  onStaleConnection: () => void;
   /** Check if socket is ready for ping */
-  isSocketReady: () => boolean
+  isSocketReady: () => boolean;
 }
 
 /**
  * Heartbeat manager for WebSocket connections
  */
 export class HeartbeatManager {
-  private heartbeatInterval: ReturnType<typeof setInterval> | null = null
-  private pongTimeout: ReturnType<typeof setTimeout> | null = null
-  private lastPongReceived = 0
-  private pingSentAt: number | null = null
-  private latency: number | null = null
-  private config: HeartbeatConfig
-  private callbacks: HeartbeatCallbacks
+  private heartbeatInterval: ReturnType<typeof setInterval> | null = null;
+  private pongTimeout: ReturnType<typeof setTimeout> | null = null;
+  private lastPongReceived = 0;
+  private pingSentAt: number | null = null;
+  private latency: number | null = null;
+  private config: HeartbeatConfig;
+  private callbacks: HeartbeatCallbacks;
 
   constructor(config: HeartbeatConfig, callbacks: HeartbeatCallbacks) {
-    this.config = config
-    this.callbacks = callbacks
+    this.config = config;
+    this.callbacks = callbacks;
   }
 
   /**
    * Start the heartbeat interval
    */
   start(): void {
-    this.stop()
-    this.lastPongReceived = nowMs()
+    this.stop();
+    this.lastPongReceived = nowMs();
 
     this.heartbeatInterval = setInterval(() => {
       if (this.callbacks.isSocketReady()) {
-        this.pingSentAt = nowMs()
-        const sent = this.callbacks.sendPing()
+        this.pingSentAt = nowMs();
+        const sent = this.callbacks.sendPing();
         if (sent) {
-          this.setPongTimeout()
+          this.setPongTimeout();
         }
       } else {
-        this.stop()
+        this.stop();
       }
-    }, this.config.heartbeatInterval)
+    }, this.config.heartbeatInterval);
   }
 
   /**
@@ -66,58 +66,58 @@ export class HeartbeatManager {
    */
   stop(): void {
     if (this.heartbeatInterval) {
-      clearInterval(this.heartbeatInterval)
-      this.heartbeatInterval = null
+      clearInterval(this.heartbeatInterval);
+      this.heartbeatInterval = null;
     }
-    this.clearPongTimeout()
+    this.clearPongTimeout();
   }
 
   /**
    * Handle pong received - calculate latency
    */
   handlePong(): void {
-    const now = nowMs()
-    this.lastPongReceived = now
+    const now = nowMs();
+    this.lastPongReceived = now;
     if (this.pingSentAt !== null) {
-      this.latency = now - this.pingSentAt
-      wsLogger.debug("Latency:", this.latency, "ms")
+      this.latency = now - this.pingSentAt;
+      wsLogger.debug("Latency:", this.latency, "ms");
     }
-    this.clearPongTimeout()
+    this.clearPongTimeout();
   }
 
   /**
    * Get current latency measurement
    */
   getLatency(): number | null {
-    return this.latency
+    return this.latency;
   }
 
   /**
    * Reset state for new connection
    */
   reset(): void {
-    this.latency = null
-    this.pingSentAt = null
-    this.lastPongReceived = 0
+    this.latency = null;
+    this.pingSentAt = null;
+    this.lastPongReceived = 0;
   }
 
   private setPongTimeout(): void {
-    this.clearPongTimeout()
+    this.clearPongTimeout();
     this.pongTimeout = setTimeout(() => {
-      wsLogger.warn("Pong timeout - connection may be stale")
+      wsLogger.warn("Pong timeout - connection may be stale");
 
-      const timeSinceLastPong = nowMs() - this.lastPongReceived
+      const timeSinceLastPong = nowMs() - this.lastPongReceived;
       if (timeSinceLastPong > this.config.pongTimeout * 2) {
-        wsLogger.warn("No recent pong - initiating reconnect")
-        this.callbacks.onStaleConnection()
+        wsLogger.warn("No recent pong - initiating reconnect");
+        this.callbacks.onStaleConnection();
       }
-    }, this.config.pongTimeout)
+    }, this.config.pongTimeout);
   }
 
   private clearPongTimeout(): void {
     if (this.pongTimeout) {
-      clearTimeout(this.pongTimeout)
-      this.pongTimeout = null
+      clearTimeout(this.pongTimeout);
+      this.pongTimeout = null;
     }
   }
 }

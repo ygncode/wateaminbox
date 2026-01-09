@@ -199,8 +199,7 @@ export const createMessagesSlice: StateCreator<
         newOptimistic.delete(tempId);
 
         const newMessages = new Map(state.messagesCache);
-        const existing =
-          newMessages.get(confirmedMessage.conversationId) ?? [];
+        const existing = newMessages.get(confirmedMessage.conversationId) ?? [];
 
         // Replace optimistic message with confirmed one
         const updatedMessages = existing.map((msg) =>

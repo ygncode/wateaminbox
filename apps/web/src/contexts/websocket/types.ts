@@ -23,6 +23,7 @@ export interface SyncState {
   connectionId: string;
   conversations: number;
   startedAt: Date;
+  interrupted?: boolean;
 }
 
 /**

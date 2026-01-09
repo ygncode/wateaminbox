@@ -5,59 +5,50 @@ import {
   UserCheck,
   UserPlus,
   Users,
-} from "lucide-react"
-import {
-  Avatar,
-  AvatarFallback,
-  Badge,
-  Skeleton,
-} from "@/components/ui"
-import { formatNumber } from "@/hooks/analytics"
-import { StatRow } from "./StatRow"
-import {
-  MessageChart,
-  HourlyChart,
-  NewContactsChart,
-} from "./charts"
+} from "lucide-react";
+import { Avatar, AvatarFallback, Badge, Skeleton } from "@/components/ui";
+import { formatNumber } from "@/hooks/analytics";
+import { StatRow } from "./StatRow";
+import { MessageChart, HourlyChart, NewContactsChart } from "./charts";
 
 // =====================
 // Types
 // =====================
 
 export interface MessageDataPoint {
-  date: string
-  sent: number
-  received: number
+  date: string;
+  sent: number;
+  received: number;
 }
 
 export interface ContactTrendDataPoint {
-  date: string
-  count: number
-  cumulativeTotal: number
+  date: string;
+  count: number;
+  cumulativeTotal: number;
 }
 
 export interface HourlyDataPoint {
-  hour: number
-  count: number
+  hour: number;
+  count: number;
 }
 
 export interface ContactStatsData {
-  total: number
-  withCustomName: number
-  withTags: number
-  assigned: number
-  unassigned: number
+  total: number;
+  withCustomName: number;
+  withTags: number;
+  assigned: number;
+  unassigned: number;
 }
 
 export interface MessageTypeData {
-  type: string
-  count: number
+  type: string;
+  count: number;
 }
 
 export interface TeamMemberData {
-  userId: string
-  email: string
-  messagesSent: number
+  userId: string;
+  email: string;
+  messagesSent: number;
 }
 
 // =====================
@@ -65,11 +56,11 @@ export interface TeamMemberData {
 // =====================
 
 interface ChartPanelProps {
-  icon: React.ReactNode
-  title: string
-  isLoading: boolean
-  isError?: boolean
-  children: React.ReactNode
+  icon: React.ReactNode;
+  title: string;
+  isLoading: boolean;
+  isError?: boolean;
+  children: React.ReactNode;
 }
 
 function ChartPanel({
@@ -99,7 +90,7 @@ function ChartPanel({
         children
       )}
     </div>
-  )
+  );
 }
 
 // =====================
@@ -107,15 +98,15 @@ function ChartPanel({
 // =====================
 
 export interface TrendChartsRowProps {
-  messageData: MessageDataPoint[] | undefined
-  isLoadingMessages: boolean
-  isMessagesError: boolean
-  contactsTrendData: ContactTrendDataPoint[] | undefined
-  isLoadingContactsTrend: boolean
-  isContactsTrendError: boolean
-  hourlyStats: HourlyDataPoint[] | undefined
-  isLoadingHourly: boolean
-  isHourlyError: boolean
+  messageData: MessageDataPoint[] | undefined;
+  isLoadingMessages: boolean;
+  isMessagesError: boolean;
+  contactsTrendData: ContactTrendDataPoint[] | undefined;
+  isLoadingContactsTrend: boolean;
+  isContactsTrendError: boolean;
+  hourlyStats: HourlyDataPoint[] | undefined;
+  isLoadingHourly: boolean;
+  isHourlyError: boolean;
 }
 
 export function TrendChartsRow({
@@ -158,7 +149,7 @@ export function TrendChartsRow({
         <HourlyChart data={hourlyStats || []} />
       </ChartPanel>
     </div>
-  )
+  );
 }
 
 // =====================
@@ -166,16 +157,16 @@ export function TrendChartsRow({
 // =====================
 
 export interface StatsCardsRowProps {
-  contactStats: ContactStatsData | undefined
-  isLoadingContacts: boolean
-  isContactsError: boolean
-  messageTypes: MessageTypeData[] | undefined
-  isLoadingTypes: boolean
-  isTypesError: boolean
-  teamStats: TeamMemberData[] | undefined
-  isLoadingTeam: boolean
-  isTeamError: boolean
-  isAdmin: boolean
+  contactStats: ContactStatsData | undefined;
+  isLoadingContacts: boolean;
+  isContactsError: boolean;
+  messageTypes: MessageTypeData[] | undefined;
+  isLoadingTypes: boolean;
+  isTypesError: boolean;
+  teamStats: TeamMemberData[] | undefined;
+  isLoadingTeam: boolean;
+  isTeamError: boolean;
+  isAdmin: boolean;
 }
 
 export function StatsCardsRow({
@@ -329,5 +320,5 @@ export function StatsCardsRow({
         </div>
       )}
     </div>
-  )
+  );
 }

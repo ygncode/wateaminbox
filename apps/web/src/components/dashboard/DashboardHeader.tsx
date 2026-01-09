@@ -1,14 +1,14 @@
-import { Archive, Download } from "lucide-react"
-import { Button } from "@/components/ui"
-import { cn } from "@/lib/utils"
+import { Archive, Download } from "lucide-react";
+import { Button } from "@/components/ui";
+import { cn } from "@/lib/utils";
 
-export type DateRange = "7d" | "30d" | "90d"
-export type ExportType = "contacts" | "messages" | "full-backup"
+export type DateRange = "7d" | "30d" | "90d";
+export type ExportType = "contacts" | "messages" | "full-backup";
 
 export interface DashboardHeaderProps {
-  dateRange: DateRange
-  onDateRangeChange: (range: DateRange) => void
-  onExport: (type: ExportType) => void
+  dateRange: DateRange;
+  onDateRangeChange: (range: DateRange) => void;
+  onExport: (type: ExportType) => void;
 }
 
 /**
@@ -74,5 +74,5 @@ export function DashboardHeader({
         ))}
       </div>
     </div>
-  )
+  );
 }

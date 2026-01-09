@@ -1,13 +1,13 @@
-import { CheckCircle, CircleDot, Clock, Target } from 'lucide-react'
-import { Skeleton } from '@/components/ui'
-import { useAsyncData } from '@/hooks'
-import { useResolutionStats } from '@/hooks/analytics'
-import { StatCard } from './StatCard'
+import { CheckCircle, CircleDot, Clock, Target } from "lucide-react";
+import { Skeleton } from "@/components/ui";
+import { useAsyncData } from "@/hooks";
+import { useResolutionStats } from "@/hooks/analytics";
+import { StatCard } from "./StatCard";
 
 interface ResolutionRateSectionProps {
-  companyId: string
-  startDate: string
-  endDate: string
+  companyId: string;
+  startDate: string;
+  endDate: string;
 }
 
 /**
@@ -19,8 +19,8 @@ export function ResolutionRateSection({
   startDate,
   endDate,
 }: ResolutionRateSectionProps) {
-  const resolutionQuery = useResolutionStats(companyId, startDate, endDate)
-  const { renderState } = useAsyncData(resolutionQuery)
+  const resolutionQuery = useResolutionStats(companyId, startDate, endDate);
+  const { renderState } = useAsyncData(resolutionQuery);
 
   return (
     <div className="bg-white dark:bg-dark-elevated rounded-lg border border-gray-200 dark:border-dark-border p-6">
@@ -51,7 +51,7 @@ export function ResolutionRateSection({
           </p>
         ),
         success: (response) => {
-          const data = response.data
+          const data = response.data;
           return (
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <StatCard
@@ -84,9 +84,9 @@ export function ResolutionRateSection({
                 color="purple"
               />
             </div>
-          )
+          );
         },
       })}
     </div>
-  )
+  );
 }

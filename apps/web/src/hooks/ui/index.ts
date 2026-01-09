@@ -47,7 +47,10 @@ export {
 export { useFormState } from "./useFormState";
 
 // Click outside detection
-export { useClickOutside, type UseClickOutsideOptions } from "./useClickOutside";
+export {
+  useClickOutside,
+  type UseClickOutsideOptions,
+} from "./useClickOutside";
 
 // Textarea auto-resize
 export {

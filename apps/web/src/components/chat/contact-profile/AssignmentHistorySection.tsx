@@ -13,7 +13,9 @@ interface AssignmentHistorySectionProps {
 /**
  * Assignment history section - shows past assignments
  */
-export function AssignmentHistorySection({ contactId }: AssignmentHistorySectionProps) {
+export function AssignmentHistorySection({
+  contactId,
+}: AssignmentHistorySectionProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const { data: history, isLoading } = useAssignmentHistory(contactId);
 

@@ -80,11 +80,22 @@ export function MessageThread({
   // Enhanced scroll handler that includes infinite loading logic
   const handleScroll = useCallback(() => {
     const container = scrollContainerRef.current;
-    if (container && container.scrollTop < 200 && hasNextPage && !isFetchingNextPage) {
+    if (
+      container &&
+      container.scrollTop < 200 &&
+      hasNextPage &&
+      !isFetchingNextPage
+    ) {
       fetchNextPage();
     }
     handleVirtualScroll();
-  }, [scrollContainerRef, hasNextPage, isFetchingNextPage, fetchNextPage, handleVirtualScroll]);
+  }, [
+    scrollContainerRef,
+    hasNextPage,
+    isFetchingNextPage,
+    fetchNextPage,
+    handleVirtualScroll,
+  ]);
 
   // Handle retry message
   const handleRetry = useCallback(
