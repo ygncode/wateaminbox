@@ -1,5 +1,6 @@
 import type { Kysely } from "kysely";
 import type { TenantDatabase } from "@whatsapp-web/database";
+import { syncEntities } from "../lib/sync-helper.js";
 
 // WhatsApp Business label colors mapping (predefined_id to color)
 export const WHATSAPP_LABEL_COLORS: Record<
@@ -135,86 +136,74 @@ export async function syncLabelsFromWhatsApp(
   tenantDb: Kysely<TenantDatabase>,
   labels: WhatsAppLabel[],
 ): Promise<LabelSyncResult> {
-  let added = 0;
-  let updated = 0;
-
   // Get existing labels
   const existingLabels = await tenantDb
     .selectFrom("whatsapp_labels")
     .select(["id", "label_id", "name", "color"])
     .execute();
 
-  const existingMap = new Map(existingLabels.map((l) => [l.label_id, l]));
-  const incomingLabelIds = new Set(labels.map((l) => l.labelId));
-
-  // Process incoming labels
-  for (const label of labels) {
-    const existing = existingMap.get(label.labelId);
-    const color =
+  // Helper to resolve color from predefined ID
+  const resolveColor = (label: WhatsAppLabel): string | null => {
+    return (
       label.color ||
       (label.predefinedId !== null
         ? WHATSAPP_LABEL_COLORS[label.predefinedId]?.hex
-        : null);
+        : null) ||
+      null
+    );
+  };
 
-    if (existing) {
-      // Update if name or color changed
-      if (existing.name !== label.name || existing.color !== color) {
+  return syncEntities(
+    {
+      getId: (label) => label.labelId,
+      getExistingId: (label) => label.label_id,
+      insert: async (label) => {
+        await tenantDb
+          .insertInto("whatsapp_labels")
+          .values({
+            label_id: label.labelId,
+            name: label.name,
+            color: resolveColor(label),
+            predefined_id: label.predefinedId,
+            last_synced_at: new Date(),
+          })
+          .execute();
+      },
+      update: async (label) => {
         await tenantDb
           .updateTable("whatsapp_labels")
           .set({
             name: label.name,
-            color,
+            color: resolveColor(label),
             predefined_id: label.predefinedId,
             last_synced_at: new Date(),
             updated_at: new Date(),
           })
           .where("label_id", "=", label.labelId)
           .execute();
-        updated++;
-      }
-    } else {
-      // Insert new label
-      await tenantDb
-        .insertInto("whatsapp_labels")
-        .values({
-          label_id: label.labelId,
-          name: label.name,
-          color,
-          predefined_id: label.predefinedId,
-          last_synced_at: new Date(),
-        })
-        .execute();
-      added++;
-    }
-  }
+      },
+      remove: async (label) => {
+        // Clear whatsapp_label_id reference in tags before deleting
+        await tenantDb
+          .updateTable("tags")
+          .set({ whatsapp_label_id: null, synced_at: null })
+          .where("whatsapp_label_id", "=", label.label_id)
+          .execute();
 
-  // Remove labels that no longer exist in WhatsApp
-  const toRemove = existingLabels.filter(
-    (l) => !incomingLabelIds.has(l.label_id),
+        await tenantDb
+          .deleteFrom("whatsapp_labels")
+          .where("label_id", "=", label.label_id)
+          .execute();
+      },
+      // Only update if name or color actually changed
+      isUnchanged: (incoming, existing) => {
+        const color = resolveColor(incoming);
+        return existing.name === incoming.name && existing.color === color;
+      },
+    },
+    existingLabels,
+    labels,
   );
-  let removed = 0;
-
-  for (const label of toRemove) {
-    // Clear synced_tag_id reference in tags before deleting
-    await tenantDb
-      .updateTable("tags")
-      .set({ whatsapp_label_id: null, synced_at: null })
-      .where("whatsapp_label_id", "=", label.label_id)
-      .execute();
-
-    await tenantDb
-      .deleteFrom("whatsapp_labels")
-      .where("label_id", "=", label.label_id)
-      .execute();
-    removed++;
-  }
-
-  return {
-    added,
-    updated,
-    removed,
-    total: labels.length,
-  };
 }
 
 /**
