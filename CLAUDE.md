@@ -594,6 +594,257 @@ const response = await fetch('/api/upload', {
 const result = await fetchFormDataWithAuth('/api/upload', { body: formData })
 ```
 
+## Frontend Async Data Handling
+
+### useAsyncData Hook
+
+The `useAsyncData<T>()` hook wraps TanStack Query results with built-in state helpers and a `renderState()` function for cleaner component code.
+
+```typescript
+import { useAsyncData, combineAsyncData } from '@/hooks'
+
+// Basic usage - wrap any TanStack Query result
+const { data, isLoading, isError, isEmpty, hasData, renderState } = useAsyncData(useUser(userId))
+
+// Use renderState() helper for declarative rendering
+return renderState({
+  loading: () => <Skeleton />,
+  error: (error) => <ErrorMessage error={error} />,
+  empty: () => <EmptyState />,
+  success: (user) => <UserProfile user={user} />,
+})
+
+// Or check states manually
+if (isLoading) return <Spinner />
+if (isError) return <Error />
+if (isEmpty) return <Empty />
+if (hasData) return <Content data={data} />
+
+// Combine multiple async states
+const userData = useAsyncData(useUser(userId))
+const postsData = useAsyncData(usePosts(userId))
+const combined = combineAsyncData([userData, postsData])
+
+if (combined.isLoading) return <Spinner />
+if (combined.allHaveData) return <UserWithPosts />
+```
+
+**State helpers**:
+- `isLoading` - Query is in loading state
+- `isError` - Query has errored
+- `isEmpty` - Data is null, undefined, or empty array
+- `hasData` - Data is available and not empty
+- `renderState()` - Declarative render helper with default renderers
+
+### Anti-Patterns (Avoid)
+
+```typescript
+// ❌ WRONG - Repetitive state checks in each component
+const { data, isLoading, isError } = useQuery(...)
+if (isLoading) return <Loading />
+if (isError) return <Error />
+if (!data || data.length === 0) return <Empty />
+return <Content data={data} />
+
+// ✅ CORRECT - Use useAsyncData with renderState()
+const asyncData = useAsyncData(useQuery(...))
+return asyncData.renderState({
+  success: (data) => <Content data={data} />,
+})
+```
+
+## Frontend UI Hooks
+
+The frontend provides reusable UI hooks in `apps/web/src/hooks/ui/` for common interaction patterns.
+
+### useClickOutside
+
+Detect clicks outside a referenced element:
+
+```typescript
+import { useClickOutside } from '@/hooks/ui'
+
+function Dropdown({ onClose }: { onClose: () => void }) {
+  const ref = useRef<HTMLDivElement>(null)
+
+  // Close when clicking outside
+  useClickOutside(ref, onClose)
+
+  // Only listen when open
+  useClickOutside(ref, onClose, { enabled: isOpen })
+
+  // Use different event type
+  useClickOutside(ref, onClose, { eventType: 'mouseup' })
+
+  return <div ref={ref}>Content</div>
+}
+```
+
+### useTextareaAutoResize
+
+Auto-resize textarea based on content:
+
+```typescript
+import { useTextareaAutoResize } from '@/hooks/ui'
+
+function MessageInput() {
+  const ref = useRef<HTMLTextAreaElement>(null)
+  const [value, setValue] = useState('')
+
+  const { resize, reset } = useTextareaAutoResize(ref, {
+    maxHeight: 150,  // Max height before scrolling
+    minHeight: 40,   // Minimum height
+    deps: [value],   // Deps that trigger resize
+  })
+
+  const handleSend = () => {
+    sendMessage(value)
+    setValue('')
+    reset() // Reset height after clearing
+  }
+
+  return <textarea ref={ref} value={value} onChange={(e) => setValue(e.target.value)} />
+}
+```
+
+### useRelativePosition
+
+Calculate position relative to a container (for context menus, tooltips):
+
+```typescript
+import { useRelativePosition } from '@/hooks/ui'
+
+function MessageBubble() {
+  const ref = useRef<HTMLDivElement>(null)
+  const { position, calculateFromMouseEvent, calculateReactionPickerPosition } = useRelativePosition(ref)
+
+  const handleContextMenu = (e: React.MouseEvent) => {
+    e.preventDefault()
+    calculateFromMouseEvent(e) // Position at mouse cursor
+    setShowMenu(true)
+  }
+
+  // Or position reaction picker relative to element
+  calculateReactionPickerPosition(isOwn, -50) // isOwn affects horizontal placement
+
+  return (
+    <div ref={ref} onContextMenu={handleContextMenu}>
+      {showMenu && <Menu style={{ left: position.x, top: position.y }} />}
+    </div>
+  )
+}
+```
+
+### usePopoverPosition
+
+Calculate popover position with viewport boundary awareness:
+
+```typescript
+import { usePopoverPosition } from '@/hooks/ui'
+
+function Tooltip({ content }: { content: string }) {
+  const ref = useRef<HTMLButtonElement>(null)
+  const { x, y, placement, calculate } = usePopoverPosition(ref, {
+    placement: 'top',     // Preferred placement
+    gap: 8,               // Gap between trigger and popover
+    viewportPadding: 8,   // Padding from viewport edges
+  })
+
+  // Call calculate() when showing popover with popover dimensions
+  useEffect(() => {
+    if (visible) calculate(200, 50) // popoverWidth, popoverHeight
+  }, [visible])
+
+  // placement will flip if not enough space (e.g., 'top' -> 'bottom')
+  return <div style={{ left: x, top: y }}>{content}</div>
+}
+```
+
+## Frontend Hook Organization
+
+Hooks are organized by feature domain in `apps/web/src/hooks/`:
+
+```
+hooks/
+├── index.ts              # Barrel export for all hooks
+├── useAsyncData.tsx      # Async data wrapper utility
+│
+├── ui/                   # UI interaction hooks
+│   ├── useClickOutside.ts
+│   ├── useTextareaAutoResize.ts
+│   ├── useElementPosition.ts  # useRelativePosition, usePopoverPosition
+│   ├── useDebounce.ts
+│   ├── useMediaQuery.ts
+│   ├── useSwipeGesture.ts
+│   ├── useKeyboardShortcuts.ts
+│   └── useFormState.ts
+│
+├── notification/         # Notification hooks
+│   ├── useNotifications.ts
+│   └── useNotificationCenter.ts
+│
+├── analytics/            # Analytics hooks
+│   └── useAnalytics.ts
+│
+├── chat/                 # Chat feature hooks
+├── contact/              # Contact feature hooks
+├── messages/             # Message feature hooks
+├── websocket/            # WebSocket hooks
+└── whatsapp/             # WhatsApp connection hooks
+```
+
+**Import pattern**:
+```typescript
+// Import from main barrel (recommended)
+import { useClickOutside, useAsyncData, useNotifications } from '@/hooks'
+
+// Or import from feature directory
+import { useClickOutside } from '@/hooks/ui'
+import { useNotifications } from '@/hooks/notification'
+```
+
+## Frontend Composable Props
+
+Reusable Props interface utilities are available in `apps/web/src/types/component-props.ts`:
+
+```typescript
+import type {
+  WithChildrenProps,
+  WithClassNameProps,
+  WithLoadingProps,
+  WithErrorProps,
+  WithOnChangeProps,
+  FormInputProps,
+  DialogProps,
+  CardProps,
+  ComposableProps,
+  MergeWithHTML,
+} from '@/types/component-props'
+
+// Compose interfaces for your components
+interface MyButtonProps extends WithClassNameProps, WithLoadingProps {
+  label: string
+  onClick: () => void
+}
+
+// Use pre-built compound interfaces
+interface MyDialogProps extends DialogProps {
+  title: string
+}
+
+// Merge with HTML element props
+interface MyInputProps extends MergeWithHTML<WithErrorProps, HTMLInputElement> {}
+
+// Pick specific composable props
+type MyProps = ComposableProps<'className' | 'loading' | 'error'>
+```
+
+**Available interfaces**:
+- Base: `WithChildrenProps`, `WithClassNameProps`, `WithStyleProps`, `WithIdProps`, `WithTestIdProps`
+- State: `WithLoadingProps`, `WithErrorProps`, `WithDisabledProps`, `WithSelectedProps`, `WithExpandedProps`
+- Handlers: `WithOnChangeProps<T>`, `WithOnClickProps`, `WithOnSubmitProps`, `WithOnCloseProps`
+- Compound: `FormInputProps`, `ListItemProps`, `DialogProps`, `ActionButtonProps`, `CardProps`
+
 ## Frontend Context Patterns
 
 ### Message Actions Context

@@ -116,18 +116,18 @@ export interface Conversation {
   updatedAt: Date;
 }
 
-// Company types
-export interface Company {
-  id: string;
-  name: string;
-  status: "active" | "suspended";
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface CompanyWithRole extends Company {
-  role: "owner" | "admin" | "member";
-}
+// Company types - re-export from shared package
+export type {
+  Company,
+  CompanyWithRole,
+  CompanyMember,
+  CompanyInvitation,
+  CompanyStatus,
+  CompanyMemberRole,
+  CreateCompanyInput,
+  UpdateCompanyInput,
+  InviteMemberInput,
+} from "@whatsapp-web/shared";
 
 // Media types
 export interface UploadMediaResponse {
