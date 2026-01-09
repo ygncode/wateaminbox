@@ -12,7 +12,7 @@ import {
   Badge,
   Skeleton,
 } from "@/components/ui"
-import { formatNumber } from "@/hooks/useAnalytics"
+import { formatNumber } from "@/hooks/analytics"
 import { StatRow } from "./StatRow"
 import {
   MessageChart,

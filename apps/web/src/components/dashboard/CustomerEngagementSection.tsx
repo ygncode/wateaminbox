@@ -11,8 +11,8 @@ import {
   formatNumber,
   useEngagementMetrics,
   useEngagementTrend,
-} from '@/hooks/useAnalytics'
-import { EngagementStatCard } from './EngagementStatCard'
+} from '@/hooks/analytics'
+import { StatCard } from './StatCard'
 import { EngagementTrendChart } from './charts'
 
 interface CustomerEngagementSectionProps {
@@ -97,7 +97,8 @@ export function CustomerEngagementSection({
 
               {/* Key Metrics */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <EngagementStatCard
+                <StatCard
+                  variant="compact"
                   icon={<Activity className="h-5 w-5" />}
                   label="Active Contacts"
                   value={data.activeContactsRate}
@@ -105,7 +106,8 @@ export function CustomerEngagementSection({
                   detail={`${data.activeContacts} of ${data.totalContacts}`}
                   color="blue"
                 />
-                <EngagementStatCard
+                <StatCard
+                  variant="compact"
                   icon={<ArrowRightLeft className="h-5 w-5" />}
                   label="Two-Way Chats"
                   value={data.twoWayConversationRate}
@@ -113,7 +115,8 @@ export function CustomerEngagementSection({
                   detail={`${data.twoWayConversations} conversations`}
                   color="green"
                 />
-                <EngagementStatCard
+                <StatCard
+                  variant="compact"
                   icon={<Reply className="h-5 w-5" />}
                   label="Response Rate"
                   value={data.responseRate}
@@ -121,7 +124,8 @@ export function CustomerEngagementSection({
                   detail={`${formatNumber(data.messagesReceived)} inbound`}
                   color="purple"
                 />
-                <EngagementStatCard
+                <StatCard
+                  variant="compact"
                   icon={<Image className="h-5 w-5" />}
                   label="Media Engagement"
                   value={data.mediaEngagementRate}

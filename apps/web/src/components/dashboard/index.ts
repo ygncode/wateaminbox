@@ -3,16 +3,14 @@ export { Dashboard } from "./Dashboard";
 export { ResponseTimeAnalytics } from "./ResponseTimeAnalytics";
 
 // Utility components
-export { StatCard, type StatCardProps } from "./StatCard";
+export {
+  StatCard,
+  type StatCardProps,
+  type StatCardOverviewProps,
+  type StatCardCompactProps,
+  type StatCardColor,
+} from "./StatCard";
 export { StatRow, type StatRowProps } from "./StatRow";
-export {
-  ResolutionStatCard,
-  type ResolutionStatCardProps,
-} from "./ResolutionStatCard";
-export {
-  EngagementStatCard,
-  type EngagementStatCardProps,
-} from "./EngagementStatCard";
 
 // Chart components
 export {

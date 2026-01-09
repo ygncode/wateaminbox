@@ -1,5 +1,5 @@
 import { cn } from "@/lib/utils";
-import { formatDate, formatNumber } from "@/hooks/useAnalytics";
+import { formatDate, formatNumber } from "@/hooks/analytics";
 
 export interface NewContactsChartProps {
   data: { date: string; count: number; cumulativeTotal: number }[];

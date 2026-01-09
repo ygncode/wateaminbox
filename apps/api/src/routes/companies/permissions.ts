@@ -5,7 +5,6 @@
  */
 
 import { Hono } from "hono";
-import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
 import { HTTPException } from "hono/http-exception";
 import { authMiddleware } from "../../middleware/auth.js";
@@ -19,16 +18,7 @@ import {
   resetMemberPermissions,
   getPermissionDescriptions,
 } from "../../services/permission.service.js";
-
-const updateMemberPermissionsSchema = z.object({
-  can_view_all_chats: z.boolean().optional(),
-  can_send_messages: z.boolean().optional(),
-  can_assign_contacts: z.boolean().optional(),
-  can_manage_team: z.boolean().optional(),
-  can_invite: z.boolean().optional(),
-  can_export: z.boolean().optional(),
-  can_delete: z.boolean().optional(),
-});
+import { updateMemberPermissionsSchema } from "../../lib/schemas/index.js";
 
 export const permissionRoutes = new Hono();
 

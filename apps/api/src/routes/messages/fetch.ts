@@ -5,6 +5,7 @@
  */
 import { Hono } from 'hono'
 import { badRequest } from '../../lib/errors.js'
+import { extractPaginationParams } from '../../lib/route-helpers.js'
 import { getRouteContext } from '../../middleware/context.js'
 import {
   formatMessagesForFetch,
@@ -22,7 +23,7 @@ export const fetchRoutes = new Hono()
 fetchRoutes.get('/', async (c) => {
   const { tenantDb } = getRouteContext(c)
   const contactId = c.req.query('contactId')
-  const limit = parseInt(c.req.query('limit') || '50', 10)
+  const { limit } = extractPaginationParams(c, 50)
   const before = c.req.query('before') // Message ID for cursor pagination
 
   if (!contactId) {
@@ -117,8 +118,7 @@ fetchRoutes.get('/', async (c) => {
  */
 fetchRoutes.get('/starred', async (c) => {
   const { tenantDb } = getRouteContext(c)
-  const limit = parseInt(c.req.query('limit') || '50', 10)
-  const offset = parseInt(c.req.query('offset') || '0', 10)
+  const { limit, offset } = extractPaginationParams(c, 50)
 
   const messages = await tenantDb
     .selectFrom('messages')

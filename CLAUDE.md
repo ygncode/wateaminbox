@@ -65,6 +65,34 @@ Browser <--WebSocket/REST--> Hono API <--NATS JetStream--> Go Services <--whatsm
 3. Auth middleware (JWT validation)
 4. Tenant middleware (schema switching based on X-Company-ID)
 
+## Shared Types
+
+The `packages/shared` package is the **single source of truth** for TypeScript enums and types. The database package re-exports these types for convenience.
+
+### Core Enums
+
+```typescript
+import {
+  MessageType,       // "text" | "image" | "video" | "audio" | "document" | "sticker" | "location" | "contact" | "reaction" | "template"
+  MessageStatus,     // "pending" | "sent" | "delivered" | "read" | "failed"
+  CompanyStatus,     // "active" | "suspended" | "deleted"
+  CompanyMemberRole, // "owner" | "admin" | "member"
+} from "@whatsapp-web/shared";
+
+// Also available from database package (re-exports from shared)
+import { MessageType, CompanyMemberRole } from "@whatsapp-web/database";
+```
+
+### Anti-Patterns (Avoid)
+
+```typescript
+// ❌ WRONG - Defining local type unions
+type MessageType = "text" | "image" | "video";
+
+// ✅ CORRECT - Import from shared package
+import { MessageType } from "@whatsapp-web/shared";
+```
+
 ## Tech Stack
 
 | Layer       | Technology                                                      |
@@ -369,7 +397,6 @@ import {
   // Checks
   isToday, // Check if date is today
   isYesterday, // Check if date is yesterday
-  isWithinDays, // Check if within last N days
 
   // Direct dayjs access (only when needed)
   dayjs,
@@ -523,7 +550,10 @@ Validation schemas are centralized in `apps/api/src/lib/schemas/`. Use Zod for s
 ```
 apps/api/src/lib/schemas/
 ├── index.ts           # Barrel exports
+├── company.ts         # Company, member, invitation schemas
+├── notification.ts    # Notification preference schemas
 ├── quick-replies.ts   # Quick reply schemas
+├── whatsapp.ts        # Message sending schemas
 └── [domain].ts        # Add new domain schemas here
 ```
 
@@ -760,6 +790,37 @@ function Tooltip({ content }: { content: string }) {
 }
 ```
 
+## Frontend Shared UI Components
+
+Shared UI components are in `apps/web/src/components/ui/`:
+
+### LoadingSpinner
+
+A reusable loading indicator with configurable sizes:
+
+```typescript
+import { LoadingSpinner } from '@/components/ui/loading-spinner'
+
+// Available sizes: xs, sm, md (default), lg
+<LoadingSpinner />                          // Medium (h-8 w-8)
+<LoadingSpinner size="sm" />                // Small (h-5 w-5)
+<LoadingSpinner size="lg" />                // Large (h-12 w-12)
+<LoadingSpinner className="text-blue-500" /> // Custom color
+```
+
+### Anti-Patterns (Avoid)
+
+```typescript
+// ❌ WRONG - Local spinner definitions
+const Spinner = () => (
+  <svg className="animate-spin h-5 w-5">...</svg>
+)
+
+// ✅ CORRECT - Use shared component
+import { LoadingSpinner } from '@/components/ui/loading-spinner'
+<LoadingSpinner size="sm" />
+```
+
 ## Frontend Hook Organization
 
 Hooks are organized by feature domain in `apps/web/src/hooks/`:
@@ -768,8 +829,11 @@ Hooks are organized by feature domain in `apps/web/src/hooks/`:
 hooks/
 ├── index.ts              # Barrel export for all hooks
 ├── useAsyncData.tsx      # Async data wrapper utility
+├── query.ts              # TanStack Query utilities
+├── query-keys.ts         # Query key factories
 │
 ├── ui/                   # UI interaction hooks
+│   ├── index.ts          # Barrel export
 │   ├── useClickOutside.ts
 │   ├── useTextareaAutoResize.ts
 │   ├── useElementPosition.ts  # useRelativePosition, usePopoverPosition
@@ -780,17 +844,20 @@ hooks/
 │   └── useFormState.ts
 │
 ├── notification/         # Notification hooks
+│   ├── index.ts          # Barrel export
 │   ├── useNotifications.ts
 │   └── useNotificationCenter.ts
 │
 ├── analytics/            # Analytics hooks
+│   ├── index.ts          # Barrel export
 │   └── useAnalytics.ts
 │
-├── chat/                 # Chat feature hooks
-├── contact/              # Contact feature hooks
-├── messages/             # Message feature hooks
-├── websocket/            # WebSocket hooks
-└── whatsapp/             # WhatsApp connection hooks
+├── useChats.ts           # Chat list hooks
+├── useContact.ts         # Contact hooks
+├── useMessages.ts        # Message hooks
+├── useInfiniteMessages.ts # Infinite scroll messages
+├── useWebSocket.ts       # WebSocket hooks
+└── ...                   # Other feature hooks
 ```
 
 **Import pattern**:

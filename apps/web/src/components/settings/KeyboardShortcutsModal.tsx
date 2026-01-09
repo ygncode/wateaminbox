@@ -13,7 +13,7 @@ import {
   formatShortcut,
   isMac,
   type KeyboardShortcut,
-} from "@/hooks/useKeyboardShortcuts";
+} from "@/hooks/ui";
 
 /**
  * Category configuration for grouping shortcuts

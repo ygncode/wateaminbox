@@ -8,7 +8,6 @@
 import { zValidator } from '@hono/zod-validator'
 import { Hono } from 'hono'
 import { HTTPException } from 'hono/http-exception'
-import { z } from 'zod'
 import {
   ConnectionAlreadyExistsError,
   ConnectionNotFoundError,
@@ -21,22 +20,9 @@ import { authMiddleware } from '../../middleware/auth.js'
 import { createConditionalRateLimiter } from '../../middleware/rate-limit.js'
 import { tenantFromHeader } from '../../middleware/tenant.js'
 import * as whatsappService from '../../services/whatsapp.service.js'
+import { sendMessageSchema } from '../../lib/schemas/index.js'
 
 const logger = createLogger('WhatsAppLegacyRoutes')
-
-// Validation schemas
-const sendMessageSchema = z.object({
-  jid: z
-    .string()
-    .min(1, 'JID is required')
-    .regex(
-      /^[0-9]+@(s\.whatsapp\.net|g\.us)$/,
-      'Invalid JID format. Expected format: number@s.whatsapp.net or groupid@g.us'
-    ),
-  content: z.string().min(1, 'Message content is required'),
-  messageType: z.enum(['text', 'image', 'video', 'audio', 'document', 'sticker']).default('text'),
-  mediaUrl: z.string().url().optional(),
-})
 
 // WhatsApp operations rate limiter: 30 requests per minute per user
 const whatsappRateLimiter = createConditionalRateLimiter(

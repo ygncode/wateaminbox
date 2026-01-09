@@ -1,4 +1,4 @@
-import { formatDate } from "@/hooks/useAnalytics";
+import { formatDate } from "@/hooks/analytics";
 
 export interface MessageChartProps {
   data: { date: string; sent: number; received: number }[];

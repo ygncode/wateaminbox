@@ -1,4 +1,8 @@
 export { db, createDatabase, createTenantDatabase, getTenantSchemaName } from "./client";
+
+// Re-export types from shared package for convenience
+export type { CompanyStatus, CompanyMemberRole, MessageType, MessageStatus } from "@whatsapp-web/shared";
+
 export type {
   Database,
   TenantDatabase,
@@ -9,7 +13,7 @@ export type {
   InvitationsTable,
   CompanyStatsTable,
   UserSessionsTable,
-  CompanyStatus,
+  /** @deprecated Use CompanyMemberRole from @whatsapp-web/shared instead */
   MemberRole,
   // Tenant schema types
   WhatsAppConnectionsTable,
@@ -33,8 +37,6 @@ export type {
   WhatsAppCatalogsTable,
   CatalogProductsTable,
   WhatsAppConnectionStatus,
-  MessageType,
-  MessageStatus,
   NotificationType,
   ConversationStatus,
   CatalogStatus,

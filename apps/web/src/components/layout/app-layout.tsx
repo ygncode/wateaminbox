@@ -1,5 +1,5 @@
 import type * as React from "react";
-import { useIsMobile, useIsTablet } from "@/hooks/useMediaQuery";
+import { useIsMobile, useIsTablet } from "@/hooks/ui";
 import { cn } from "@/lib/utils";
 
 export interface AppLayoutProps extends React.HTMLAttributes<HTMLDivElement> {

@@ -6,6 +6,7 @@
 import { toDbDate } from '@whatsapp-web/shared'
 import { Hono } from 'hono'
 import { notFound } from '../../lib/errors.js'
+import { successData, successMessage } from '../../lib/response.js'
 import { getRouteContext } from '../../middleware/context.js'
 
 export const actionRoutes = new Hono()
@@ -28,7 +29,7 @@ actionRoutes.post('/:id/star', async (c) => {
     return notFound(c, 'Message')
   }
 
-  return c.json({ success: true, isStarred: true })
+  return successData(c, { isStarred: true })
 })
 
 /**
@@ -49,7 +50,7 @@ actionRoutes.delete('/:id/star', async (c) => {
     return notFound(c, 'Message')
   }
 
-  return c.json({ success: true, isStarred: false })
+  return successData(c, { isStarred: false })
 })
 
 /**
@@ -70,8 +71,5 @@ actionRoutes.delete('/:id', async (c) => {
     return notFound(c, 'Message')
   }
 
-  return c.json({
-    success: true,
-    message: { id: updated.id, deletedAt: updated.deleted_at },
-  })
+  return successData(c, { id: updated.id, deletedAt: updated.deleted_at })
 })

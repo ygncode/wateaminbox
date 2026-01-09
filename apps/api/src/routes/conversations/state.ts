@@ -1,5 +1,6 @@
 import { Hono } from "hono"
 import { notFound } from "../../lib/errors.js"
+import { successData } from "../../lib/response.js"
 import { getRouteContext } from "../../middleware/context.js"
 import { createAuditLog, getClientIp } from "../../services/audit.service.js"
 import {
@@ -22,7 +23,7 @@ stateRoutes.get("/:id/state", async (c) => {
   const state = await getConversationState(tenantDb, contactId)
 
   if (!state) {
-    return c.json({
+    return successData(c, {
       contactId,
       status: "open",
       resolvedAt: null,
@@ -33,7 +34,7 @@ stateRoutes.get("/:id/state", async (c) => {
     })
   }
 
-  return c.json(state)
+  return successData(c, state)
 })
 
 /**
@@ -92,10 +93,7 @@ stateRoutes.post("/:id/resolve", async (c) => {
     timestamp: new Date().toISOString(),
   })
 
-  return c.json({
-    success: true,
-    state,
-  })
+  return successData(c, state)
 })
 
 /**
@@ -145,10 +143,7 @@ stateRoutes.post("/:id/reopen", async (c) => {
     timestamp: new Date().toISOString(),
   })
 
-  return c.json({
-    success: true,
-    state,
-  })
+  return successData(c, state)
 })
 
 /**
@@ -181,10 +176,7 @@ stateRoutes.post("/:id/pending", async (c) => {
     timestamp: new Date().toISOString(),
   })
 
-  return c.json({
-    success: true,
-    state,
-  })
+  return successData(c, state)
 })
 
 /**
@@ -242,8 +234,5 @@ stateRoutes.post("/:id/read", async (c) => {
     timestamp: new Date().toISOString(),
   })
 
-  return c.json({
-    success: true,
-    unreadCount: 0,
-  })
+  return successData(c, { unreadCount: 0 })
 })

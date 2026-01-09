@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import { createLogger, formatError } from '../../lib/logger.js'
-import { formatZodErrors, successWithMessage, validationError } from '../../lib/response.js'
+import { formatZodErrors, successMessage, successWithMessage, validationError } from '../../lib/response.js'
 import { authMiddleware } from '../../middleware/auth.js'
 import { login, refreshSession, revokeSession } from '../../services/auth.service.js'
 import { loginRateLimiter, refreshRateLimiter } from './rate-limiters.js'
@@ -68,7 +68,7 @@ loginRoutes.post('/logout', authMiddleware, async (c) => {
 
     await revokeSession(session.id, user.id)
 
-    return c.json({ message: 'Logged out successfully' })
+    return successMessage(c, 'Logged out successfully')
   } catch (error) {
     return handleAuthError(c, error, logger, formatError, 'Logout error')
   }

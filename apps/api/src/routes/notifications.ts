@@ -1,5 +1,4 @@
 import { Hono } from "hono";
-import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
 import { authMiddleware } from "../middleware/auth.js";
 import { tenantMiddleware } from "../middleware/tenant.js";
@@ -7,57 +6,18 @@ import { getRouteContext } from "../middleware/context.js";
 import * as notificationPreferencesService from "../services/notification-preferences.service.js";
 import * as notificationHistoryService from "../services/notification-history.service.js";
 import { isTableNotFoundError, notFound } from "../lib/errors.js";
+import {
+  updatePreferencesSchema,
+  muteContactSchema,
+  listNotificationsQuerySchema,
+  createNotificationSchema,
+} from "../lib/schemas/index.js";
 
 export const notificationRoutes = new Hono();
 
 // All notification routes require authentication and tenant context
 notificationRoutes.use("/*", authMiddleware);
 notificationRoutes.use("/*", tenantMiddleware());
-
-// Validation schemas
-const soundChoiceSchema = z.enum(["default", "chime", "bell", "pop", "none"]);
-
-const updatePreferencesSchema = z.object({
-  soundEnabled: z.boolean().optional(),
-  soundChoice: soundChoiceSchema.optional(),
-  quietHoursStart: z
-    .string()
-    .regex(/^([01]\d|2[0-3]):([0-5]\d)$/)
-    .nullable()
-    .optional(),
-  quietHoursEnd: z
-    .string()
-    .regex(/^([01]\d|2[0-3]):([0-5]\d)$/)
-    .nullable()
-    .optional(),
-  mutedContacts: z.array(z.string()).optional(),
-});
-
-const muteContactSchema = z.object({
-  contactJid: z.string().min(1),
-});
-
-const notificationTypeSchema = z.enum([
-  "message",
-  "mention",
-  "assignment",
-  "team",
-  "system",
-]);
-
-const listNotificationsQuerySchema = z.object({
-  limit: z.coerce.number().int().min(1).max(100).optional().default(20),
-  offset: z.coerce.number().int().min(0).optional().default(0),
-  unreadOnly: z.coerce.boolean().optional().default(false),
-});
-
-const createNotificationSchema = z.object({
-  notificationType: notificationTypeSchema,
-  title: z.string().min(1).max(255),
-  message: z.string().optional(),
-  actionUrl: z.string().url().optional(),
-  metadata: z.record(z.unknown()).optional(),
-});
 
 /**
  * GET /notifications/preferences - Get notification preferences

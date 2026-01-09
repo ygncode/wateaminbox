@@ -13,6 +13,7 @@ import { createAuditLog, getClientIp } from "../../services/audit.service.js"
 import { getUserNames } from "../../services/user.service.js"
 import { broadcastToCompany } from "../ws/index.js"
 import { notFound, forbidden } from "../../lib/errors.js"
+import { successMessage } from "../../lib/response.js"
 
 export const assignmentRoutes = new Hono()
 
@@ -183,7 +184,7 @@ assignmentRoutes.delete(
       .where("unassigned_at", "is", null)
       .execute()
 
-    return c.json({ success: true })
+    return successMessage(c, "Contact unassigned")
   }
 )
 

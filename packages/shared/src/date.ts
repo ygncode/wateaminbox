@@ -308,26 +308,6 @@ export function isYesterday(input: DateInput): boolean {
   return parsed.local().isSame(yesterday, 'day')
 }
 
-/**
- * Check if date is within last N days
- */
-export function isWithinDays(input: DateInput, days: number): boolean {
-  const parsed = parseDate(input)
-  if (!parsed) return false
-  const cutoff = dayjs.utc().subtract(days, 'day')
-  return parsed.isAfter(cutoff)
-}
-
-/**
- * Check if two dates are on the same day (in local time)
- */
-export function isSameDay(date1: DateInput, date2: DateInput): boolean {
-  const parsed1 = parseDate(date1)
-  const parsed2 = parseDate(date2)
-  if (!parsed1 || !parsed2) return false
-  return parsed1.local().isSame(parsed2.local(), 'day')
-}
-
 // ============================================
 // EXPORT-SPECIFIC FORMATTING
 // ============================================
@@ -344,36 +324,6 @@ export function formatForFilename(input?: DateInput): string {
 }
 
 /**
- * Format date range for display (e.g., "Jan 1 - Jan 31, 2024")
- */
-export function formatDateRange(start: DateInput, end: DateInput): string {
-  const startParsed = parseDate(start)
-  const endParsed = parseDate(end)
-  if (!startParsed || !endParsed) return ''
-
-  const startLocal = startParsed.local()
-  const endLocal = endParsed.local()
-
-  if (startLocal.year() === endLocal.year()) {
-    return `${startLocal.format('MMM D')} - ${endLocal.format('MMM D, YYYY')}`
-  }
-  return `${startLocal.format('MMM D, YYYY')} - ${endLocal.format('MMM D, YYYY')}`
-}
-
-// ============================================
-// ANALYTICS FORMATTING
-// ============================================
-
-/**
- * Format date for analytics charts (e.g., "Mon 15")
- */
-export function formatChartDate(input: DateInput): string {
-  const parsed = parseDate(input)
-  if (!parsed) return ''
-  return parsed.local().format('ddd D')
-}
-
-/**
  * Format date for analytics with short month (e.g., "Jan 15")
  */
 export function formatShortDate(input: DateInput): string {
@@ -385,30 +335,6 @@ export function formatShortDate(input: DateInput): string {
 // ============================================
 // DATABASE HELPERS
 // ============================================
-
-/**
- * Calculate expiry date from a duration string
- * Supports: s (seconds), m (minutes), h (hours), d (days)
- * Example: "7d" returns date 7 days from now
- */
-export function getExpiryDate(duration: string): Date {
-  const match = duration.match(/^(\d+)([smhd])$/)
-  if (!match) {
-    throw new Error(`Invalid duration format: ${duration}`)
-  }
-
-  const value = parseInt(match[1], 10)
-  const unit = match[2] as 's' | 'm' | 'h' | 'd'
-
-  const unitMap: Record<string, dayjs.ManipulateType> = {
-    s: 'second',
-    m: 'minute',
-    h: 'hour',
-    d: 'day',
-  }
-
-  return dayjs.utc().add(value, unitMap[unit]).toDate()
-}
 
 /**
  * Get Unix timestamp in seconds (for JWT)

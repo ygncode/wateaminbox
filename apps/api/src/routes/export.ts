@@ -3,6 +3,7 @@ import { Hono } from "hono";
 import { notFound, serverError } from "../lib/errors.js";
 import { createLogger, formatError } from "../lib/logger.js";
 import { rateLimitConfig, rateLimitStore } from "../lib/rate-limit-store.js";
+import { extractPaginationParams } from "../lib/route-helpers.js";
 import { authMiddleware } from "../middleware/auth.js";
 import { getRouteContext } from "../middleware/context.js";
 import { createConditionalRateLimiter } from "../middleware/rate-limit.js";
@@ -77,16 +78,18 @@ exportRoutes.get("/messages", exportRateLimiter, async (c) => {
   const startDateStr = c.req.query("startDate");
   const endDateStr = c.req.query("endDate");
   const messageTypes = c.req.query("messageTypes")?.split(",").filter(Boolean);
-  const limitStr = c.req.query("limit");
-  const offsetStr = c.req.query("offset");
+
+  // Only use pagination if limit is explicitly provided
+  const hasLimitParam = c.req.query("limit") !== undefined;
+  const { limit, offset } = extractPaginationParams(c, 1000);
 
   const messages = await exportService.exportMessages(companyId, {
     contactId: contactId || undefined,
     startDate: startDateStr ? toDbDate(startDateStr) : undefined,
     endDate: endDateStr ? toDbDate(endDateStr) : undefined,
     messageTypes,
-    limit: limitStr ? parseInt(limitStr, 10) : undefined,
-    offset: offsetStr ? parseInt(offsetStr, 10) : undefined,
+    limit: hasLimitParam ? limit : undefined,
+    offset: hasLimitParam ? offset : undefined,
   });
 
   if (format === "json") {
@@ -94,8 +97,8 @@ exportRoutes.get("/messages", exportRateLimiter, async (c) => {
       data: messages,
       pagination: {
         count: messages.length,
-        limit: limitStr ? parseInt(limitStr, 10) : null,
-        offset: offsetStr ? parseInt(offsetStr, 10) : 0,
+        limit: hasLimitParam ? limit : null,
+        offset: hasLimitParam ? offset : 0,
       },
     });
   }

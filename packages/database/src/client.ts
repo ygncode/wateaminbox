@@ -1,5 +1,6 @@
 import { Kysely, PostgresDialect, Generated } from "kysely";
 import { Pool } from "pg";
+import type { CompanyStatus, CompanyMemberRole, MessageType, MessageStatus } from "@whatsapp-web/shared";
 
 // ============================================================================
 // Public Schema Database Types (multi-tenant management)
@@ -17,8 +18,9 @@ export interface Database {
   user_sessions: UserSessionsTable;
 }
 
-export type CompanyStatus = "active" | "suspended" | "deleted";
-export type MemberRole = "owner" | "admin" | "member";
+// Type alias for backward compatibility (deprecated - import from @whatsapp-web/shared instead)
+/** @deprecated Use CompanyMemberRole from @whatsapp-web/shared instead */
+export type MemberRole = CompanyMemberRole;
 
 export interface CompaniesTable {
   id: Generated<string>;
@@ -44,7 +46,7 @@ export interface CompanyMembersTable {
   id: Generated<string>;
   user_id: string;
   company_id: string;
-  role: Generated<MemberRole>;
+  role: Generated<CompanyMemberRole>;
   permissions: Generated<Record<string, unknown>>;
   invited_by: string | null;
   joined_at: Generated<Date>;
@@ -88,8 +90,6 @@ export interface UserSessionsTable {
 // ============================================================================
 
 export type WhatsAppConnectionStatus = "connected" | "disconnected" | "banned" | "pending";
-export type MessageType = "text" | "image" | "video" | "audio" | "document" | "sticker" | "location" | "contact" | "reaction";
-export type MessageStatus = "pending" | "sent" | "delivered" | "read" | "failed";
 export type NotificationType = "message" | "mention" | "assignment" | "team" | "system";
 export type ConversationStatus = "open" | "pending" | "resolved";
 export type CatalogStatus = "active" | "inactive" | "archived";

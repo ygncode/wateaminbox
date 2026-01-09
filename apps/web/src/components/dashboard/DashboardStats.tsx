@@ -52,21 +52,21 @@ export function DashboardStats({ data, isLoading }: DashboardStatsProps) {
         label="Sent Today"
         value={data?.messagesSentToday}
         isLoading={isLoading}
-        accent="green"
+        color="green"
       />
       <StatCard
         icon={<Inbox className="h-5 w-5" />}
         label="Received Today"
         value={data?.messagesReceivedToday}
         isLoading={isLoading}
-        accent="blue"
+        color="blue"
       />
       <StatCard
         icon={<Clock className="h-5 w-5" />}
         label="Unread"
         value={data?.unreadConversations}
         isLoading={isLoading}
-        accent="orange"
+        color="orange"
       />
     </div>
   )

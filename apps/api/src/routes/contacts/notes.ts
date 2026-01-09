@@ -7,6 +7,7 @@ import {
   createPaginationMeta,
 } from "../../lib/route-helpers.js"
 import { notFound, badRequest, forbidden, serverError } from "../../lib/errors.js"
+import { successMessage } from "../../lib/response.js"
 import {
   validateNoteContent,
   transformSharedNoteResponse,
@@ -220,7 +221,7 @@ notesRoutes.delete("/:id/notes/shared/:noteId", async (c) => {
     ipAddress: getClientIp(c.req.raw.headers),
   })
 
-  return c.json({ success: true })
+  return successMessage(c, "Note deleted")
 })
 
 /**
@@ -387,5 +388,5 @@ notesRoutes.delete("/:id/notes/private/:noteId", async (c) => {
     .where("id", "=", noteId)
     .execute()
 
-  return c.json({ success: true })
+  return successMessage(c, "Note deleted")
 })

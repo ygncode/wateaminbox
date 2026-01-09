@@ -10,7 +10,7 @@ import {
   useMessageTypeStats,
   useNewContactsTrend,
   useTeamActivityStats,
-} from "@/hooks/useAnalytics";
+} from "@/hooks/analytics";
 import { CustomerEngagementSection } from "./CustomerEngagementSection";
 import { DashboardHeader, type DateRange, type ExportType } from "./DashboardHeader";
 import { DashboardStats } from "./DashboardStats";

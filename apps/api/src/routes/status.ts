@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { badRequest, forbidden, notFound } from "../lib/errors.js";
+import { successMessage } from "../lib/response.js";
 import { authMiddleware } from "../middleware/auth.js";
 import { tenantMiddleware } from "../middleware/tenant.js";
 import { getRouteContext } from "../middleware/context.js";
@@ -269,7 +270,7 @@ statusRoutes.delete("/:id", async (c) => {
     .where("id", "=", statusId)
     .execute();
 
-  return c.json({ success: true });
+  return successMessage(c, "Status deleted");
 });
 
 /**

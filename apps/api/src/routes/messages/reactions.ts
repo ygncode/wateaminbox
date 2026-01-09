@@ -7,6 +7,7 @@ import { Hono } from 'hono'
 import { badRequest, notFound } from '../../lib/errors.js'
 import { createLogger, formatError } from '../../lib/logger.js'
 import { publishSendReaction } from '../../lib/nats/index.js'
+import { successData, successMessage } from '../../lib/response.js'
 import { getRouteContext } from '../../middleware/context.js'
 
 const logger = createLogger('MessageReactionRoutes')
@@ -94,7 +95,7 @@ reactionRoutes.post('/:id/reaction', async (c) => {
     // Don't fail the request - the reaction is stored in DB
   }
 
-  return c.json({ success: true, emoji })
+  return successData(c, { emoji })
 })
 
 /**
@@ -156,5 +157,5 @@ reactionRoutes.delete('/:id/reaction', async (c) => {
     }
   }
 
-  return c.json({ success: true })
+  return successMessage(c, 'Reaction removed')
 })
