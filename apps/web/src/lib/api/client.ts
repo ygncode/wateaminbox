@@ -205,6 +205,48 @@ export async function fetchWithAuth<T>(
   return handleResponse<T>(response);
 }
 
+// Fetch wrapper for FormData requests (file uploads)
+// Does not set Content-Type header - browser will set it with boundary
+export async function fetchFormDataWithAuth<T>(
+  endpoint: string,
+  formData: FormData,
+  method: "POST" | "PUT" | "PATCH" = "POST",
+): Promise<T> {
+  const url = `${API_BASE_URL}${endpoint}`;
+
+  const headers: Record<string, string> = {};
+
+  if (accessToken) {
+    headers.Authorization = `Bearer ${accessToken}`;
+  }
+
+  if (companyId) {
+    headers["X-Company-ID"] = companyId;
+  }
+
+  const response = await fetch(url, {
+    method,
+    headers,
+    body: formData,
+  });
+
+  // Handle 401 - attempt token refresh
+  if (response.status === 401 && refreshToken) {
+    const refreshed = await attemptTokenRefresh();
+    if (refreshed) {
+      headers.Authorization = `Bearer ${accessToken}`;
+      const retryResponse = await fetch(url, {
+        method,
+        headers,
+        body: formData,
+      });
+      return handleResponse<T>(retryResponse);
+    }
+  }
+
+  return handleResponse<T>(response);
+}
+
 // Build query string from params
 export function buildQueryString(params: Record<string, unknown>): string {
   const searchParams = new URLSearchParams();

@@ -1,4 +1,3 @@
-import type { Message } from "@whatsapp-web/shared";
 import { formatDateSeparator as formatDateSep } from "@whatsapp-web/shared";
 import type { VirtualItem } from "../../hooks/chat/useMessageVirtualization";
 import { MessageBubble } from "./MessageBubble";
@@ -13,11 +12,7 @@ interface VirtualMessageListProps {
   selectionMode: boolean;
   selectedMessageIds: Set<string>;
   onMessageClick: (messageId: string) => void;
-  onReplyToMessage?: (message: Message) => void;
-  onForwardMessage?: (message: Message) => void;
-  onDeleteMessage?: (message: Message) => void;
-  onStarMessage?: (message: Message) => void;
-  onReactMessage?: (message: Message, emoji: string) => void;
+  /** Retry handler is local to MessageThread so passed directly */
   onRetryMessage?: (messageId: string) => void;
   isFetchingNextPage?: boolean;
   hasNextPage?: boolean;
@@ -36,11 +31,6 @@ export function VirtualMessageList({
   selectionMode,
   selectedMessageIds,
   onMessageClick,
-  onReplyToMessage,
-  onForwardMessage,
-  onDeleteMessage,
-  onStarMessage,
-  onReactMessage,
   onRetryMessage,
   isFetchingNextPage,
   hasNextPage,
@@ -124,11 +114,6 @@ export function VirtualMessageList({
               <MessageBubble
                 message={item.message}
                 isOwn={item.message.senderType === "user"}
-                onReply={selectionMode ? undefined : onReplyToMessage}
-                onForward={selectionMode ? undefined : onForwardMessage}
-                onDelete={selectionMode ? undefined : onDeleteMessage}
-                onStar={selectionMode ? undefined : onStarMessage}
-                onReact={selectionMode ? undefined : onReactMessage}
                 onRetry={selectionMode ? undefined : onRetryMessage}
                 isHighlighted={highlightedMessageId === item.message.id}
                 isRetrying={retryingMessageId === item.message.id}

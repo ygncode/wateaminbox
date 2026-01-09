@@ -327,13 +327,13 @@ func TestQRCodeEvent(t *testing.T) {
 func TestMessageEvent(t *testing.T) {
 	now := time.Now()
 	event := types.MessageEvent{
-		CompanyID:    "company-123",
-		ConnectionID: "conn-456",
-		MessageID:    "msg-789",
-		From:         "1234567890@s.whatsapp.net",
-		Content:      "Hello, World!",
-		Type:         "text",
-		Timestamp:    now,
+		MessageID: "msg-789",
+		From:      "1234567890@s.whatsapp.net",
+		To:        "recipient@s.whatsapp.net",
+		FromMe:    false,
+		Content:   "Hello, World!",
+		Type:      "text",
+		Timestamp: now,
 	}
 
 	data, err := json.Marshal(event)
@@ -343,10 +343,9 @@ func TestMessageEvent(t *testing.T) {
 	err = json.Unmarshal(data, &parsed)
 	require.NoError(t, err)
 
-	assert.Equal(t, event.CompanyID, parsed.CompanyID)
-	assert.Equal(t, event.ConnectionID, parsed.ConnectionID)
 	assert.Equal(t, event.MessageID, parsed.MessageID)
 	assert.Equal(t, event.From, parsed.From)
+	assert.Equal(t, event.To, parsed.To)
 	assert.Equal(t, event.Content, parsed.Content)
 	assert.Equal(t, event.Type, parsed.Type)
 }

@@ -7,6 +7,7 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/ygncode-lab/whatsapp-web/services/shared/config"
 	"github.com/ygncode-lab/whatsapp-web/services/whatsapp/internal/client"
 	"github.com/ygncode-lab/whatsapp-web/services/whatsapp/internal/handler"
 	natsClient "github.com/ygncode-lab/whatsapp-web/services/whatsapp/internal/nats"
@@ -17,22 +18,22 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	// Get worker configuration from environment
-	workerID := getEnv("WORKER_ID", "default")
-	companyID := getEnv("COMPANY_ID", "")
-	connectionID := getEnv("CONNECTION_ID", "")
-	tenantSchema := getEnv("TENANT_SCHEMA", "")
-	databaseURL := getEnv("DATABASE_URL", "")
-	natsURL := getEnv("NATS_URL", "nats://localhost:4222")
-	logLevel := getEnv("LOG_LEVEL", "info")
+	// Get worker configuration from environment using shared config utilities
+	workerID := config.GetEnv("WORKER_ID", "default")
+	companyID := config.GetEnv("COMPANY_ID", "")
+	connectionID := config.GetEnv("CONNECTION_ID", "")
+	tenantSchema := config.GetEnv("TENANT_SCHEMA", "")
+	databaseURL := config.GetEnv("DATABASE_URL", "")
+	natsURL := config.GetEnv("NATS_URL", "nats://localhost:4222")
+	logLevel := config.GetEnv("LOG_LEVEL", "info")
 
 	// Storage configuration (S3-compatible - works with MinIO and Cloudflare R2)
-	storageEndpoint := getEnv("STORAGE_ENDPOINT", "http://localhost:9000")
-	storageAccessKey := getEnv("STORAGE_ACCESS_KEY", "minioadmin")
-	storageSecretKey := getEnv("STORAGE_SECRET_KEY", "minioadmin")
-	storageBucket := getEnv("STORAGE_BUCKET", "whatsapp-media")
-	storageRegion := getEnv("STORAGE_REGION", "us-east-1")
-	storagePublicURL := getEnv("STORAGE_PUBLIC_URL", "")
+	storageEndpoint := config.GetEnv("STORAGE_ENDPOINT", "http://localhost:9000")
+	storageAccessKey := config.GetEnv("STORAGE_ACCESS_KEY", "minioadmin")
+	storageSecretKey := config.GetEnv("STORAGE_SECRET_KEY", "minioadmin")
+	storageBucket := config.GetEnv("STORAGE_BUCKET", "whatsapp-media")
+	storageRegion := config.GetEnv("STORAGE_REGION", "us-east-1")
+	storagePublicURL := config.GetEnv("STORAGE_PUBLIC_URL", "")
 
 	// Validate required configuration
 	if companyID == "" {
@@ -179,11 +180,4 @@ func main() {
 
 	// Explicitly stop reconnection loop (in case it's still active)
 	waClient.StopReconnect()
-}
-
-func getEnv(key, defaultValue string) string {
-	if value := os.Getenv(key); value != "" {
-		return value
-	}
-	return defaultValue
 }

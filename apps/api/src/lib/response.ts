@@ -4,12 +4,36 @@ import type { ContentfulStatusCode } from "hono/utils/http-status";
 /**
  * Standard API response structure
  *
+ * ## IMPORTANT: Always use these helpers instead of raw `c.json()`
+ *
  * Response format conventions:
- * - Success with data: { data: T, pagination?: PaginationMeta }
- * - Success with message: { message: string }
- * - Success with both: { message: string, ...data }
- * - Validation error: { error: string, details: Array<{ field: string, message: string }> }
- * - Error: { error: string, message?: string }
+ * - Success with data: `successData(c, data)` → `{ data: T }`
+ * - Success with pagination: `successPaginated(c, data, pagination)` → `{ data: T[], pagination }`
+ * - Success message only: `successMessage(c, "message")` → `{ message: string }`
+ * - Success with message + data: `successWithMessage(c, "message", data)` → `{ message, ...data }`
+ * - Created resource: `created(c, data)` → `{ data: T }` (201 status)
+ * - Validation error: `validationError(c, details)` → `{ error, details }`
+ *
+ * ## Anti-patterns to AVOID:
+ * - `c.json({ success: true, ... })` - Don't use `success` field
+ * - `c.json(data)` - Always wrap in `{ data }` for GET responses
+ * - `c.json({ data, pagination })` - Use `successPaginated()` instead
+ *
+ * @example
+ * // GET single resource
+ * return successData(c, user);
+ *
+ * @example
+ * // GET paginated list
+ * return successPaginated(c, users, createPaginationMeta(total, users.length, { limit, offset }));
+ *
+ * @example
+ * // POST create
+ * return created(c, newUser);
+ *
+ * @example
+ * // DELETE or action
+ * return successMessage(c, "Resource deleted successfully");
  */
 
 /**

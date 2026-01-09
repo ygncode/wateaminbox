@@ -1,4 +1,3 @@
-import type { Message } from "@whatsapp-web/shared";
 import { useCallback, useState } from "react";
 import { useTheme } from "../../contexts";
 import { useMessageSelection } from "../../hooks/chat/useMessageSelection";
@@ -12,12 +11,6 @@ import { VirtualMessageList } from "./VirtualMessageList";
 interface MessageThreadProps {
   conversationId: string | undefined;
   currentUserId: string;
-  onReplyToMessage?: (message: Message) => void;
-  onForwardMessage?: (message: Message) => void;
-  onDeleteMessage?: (message: Message) => void;
-  onStarMessage?: (message: Message) => void;
-  onReactMessage?: (message: Message, emoji: string) => void;
-  onRetryMessage?: (messageId: string) => void;
   /** ID of message to highlight and scroll to */
   highlightedMessageId?: string | null;
   /** Callback when user clicks "Contact info" in context menu */
@@ -27,12 +20,6 @@ interface MessageThreadProps {
 export function MessageThread({
   conversationId,
   currentUserId: _currentUserId,
-  onReplyToMessage,
-  onForwardMessage,
-  onDeleteMessage,
-  onStarMessage,
-  onReactMessage,
-  onRetryMessage,
   highlightedMessageId,
   onOpenContactInfo,
 }: MessageThreadProps) {
@@ -274,12 +261,7 @@ export function MessageThread({
         selectionMode={selectionMode}
         selectedMessageIds={selectedMessageIds}
         onMessageClick={handleMessageClick}
-        onReplyToMessage={onReplyToMessage}
-        onForwardMessage={onForwardMessage}
-        onDeleteMessage={onDeleteMessage}
-        onStarMessage={onStarMessage}
-        onReactMessage={onReactMessage}
-        onRetryMessage={onRetryMessage || handleRetry}
+        onRetryMessage={handleRetry}
         isFetchingNextPage={isFetchingNextPage}
         hasNextPage={hasNextPage}
         fetchNextPage={fetchNextPage}

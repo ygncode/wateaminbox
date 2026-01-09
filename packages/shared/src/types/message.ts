@@ -80,6 +80,28 @@ export interface Contact {
   customName?: string;
   isOnline?: boolean;
   lastSeen?: Date;
+  about?: string;
+  isGroup?: boolean;
+}
+
+export interface GroupParticipant {
+  jid: string;
+  isAdmin: boolean;
+  joinedAt: Date;
+}
+
+export interface GroupInfo {
+  id: string;
+  jid: string;
+  name: string;
+  displayName: string;
+  customName?: string;
+  description?: string;
+  profilePictureUrl?: string;
+  participantCount: number;
+  createdBy?: string;
+  createdAt: Date;
+  participants: GroupParticipant[];
 }
 
 export interface Conversation {

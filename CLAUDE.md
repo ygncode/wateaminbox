@@ -422,3 +422,297 @@ If you need date functionality not covered by existing helpers:
 1. Add the function to `packages/shared/src/date.ts`
 2. Export it from `packages/shared/src/index.ts`
 3. Document it in this section
+
+## Backend Route Helpers
+
+The backend provides utility helpers in `apps/api/src/lib/route-helpers.ts` for common route patterns.
+
+### Pagination Helpers
+
+```typescript
+import {
+  extractPaginationParams,
+  createPaginationMeta,
+} from '@/lib/route-helpers.js'
+
+// Extract pagination from query params
+const { limit, offset } = extractPaginationParams(c.req.query())
+// Defaults: limit=20, offset=0
+// Custom defaults: extractPaginationParams(query, { defaultLimit: 50 })
+
+// Create pagination metadata for responses
+const meta = createPaginationMeta(totalCount, limit, offset)
+// Returns: { total, limit, offset, hasMore }
+```
+
+### Entity Existence Helper
+
+Use `requireEntity<T>()` to check if an entity exists and throw a 404 error if not:
+
+```typescript
+import { requireEntity } from '@/lib/route-helpers.js'
+
+// Before (verbose):
+const contact = await tenantDb
+  .selectFrom('contacts')
+  .where('id', '=', contactId)
+  .executeTakeFirst()
+if (!contact) {
+  return notFound(c, 'Contact')
+}
+// contact is possibly undefined here
+
+// After (concise):
+const contact = requireEntity(
+  await tenantDb
+    .selectFrom('contacts')
+    .where('id', '=', contactId)
+    .executeTakeFirst(),
+  'Contact'
+)
+// contact is guaranteed to exist here, or NotFoundError is thrown
+```
+
+The helper throws `NotFoundError` which is caught by the global error handler in `app.ts` and returns a proper 404 response.
+
+## Backend Response Helpers
+
+Always use response helpers from `apps/api/src/lib/response.ts` for consistent API responses.
+
+### Usage
+
+```typescript
+import {
+  successData,        // Single entity: { data: T }
+  successPaginated,   // Paginated list: { data: T[], pagination: PaginationMeta }
+  created,            // Created entity (201): { data: T }
+  successMessage,     // Success message: { message: string }
+  successWithMessage, // Data with message: { data: T, message: string }
+  noContent,          // No content (204)
+  notFound,           // Not found (404)
+  badRequest,         // Bad request (400)
+} from '@/lib/response.js'
+
+// Examples:
+return successData(c, user)
+return successPaginated(c, contacts, paginationMeta)
+return created(c, newContact)
+return successMessage(c, 'Contact deleted successfully')
+return notFound(c, 'Contact')
+```
+
+### Anti-Patterns (Avoid)
+
+```typescript
+// ❌ WRONG - Raw c.json() with inconsistent formats
+return c.json({ success: true, data: user })
+return c.json({ user })
+return c.json({ message: 'OK', status: 200 })
+
+// ✅ CORRECT - Use response helpers
+return successData(c, user)
+return successMessage(c, 'OK')
+```
+
+## Backend Validation Schemas
+
+Validation schemas are centralized in `apps/api/src/lib/schemas/`. Use Zod for schema validation.
+
+### Organization
+
+```
+apps/api/src/lib/schemas/
+├── index.ts           # Barrel exports
+├── quick-replies.ts   # Quick reply schemas
+└── [domain].ts        # Add new domain schemas here
+```
+
+### Usage Pattern
+
+```typescript
+// In apps/api/src/lib/schemas/quick-replies.ts
+import { z } from 'zod'
+
+export const createQuickReplySchema = z.object({
+  shortcut: z.string().min(1).max(50).regex(/^[a-zA-Z0-9_-]+$/),
+  title: z.string().min(1).max(200),
+  content: z.string().min(1),
+})
+
+export type CreateQuickReplyInput = z.infer<typeof createQuickReplySchema>
+
+// In route file
+import { createQuickReplySchema } from '@/lib/schemas/index.js'
+import { zValidator } from '@hono/zod-validator'
+
+app.post('/', zValidator('json', createQuickReplySchema), async (c) => {
+  const input = c.req.valid('json')
+  // input is typed as CreateQuickReplyInput
+})
+```
+
+## Frontend API Client
+
+### FormData Upload Utility
+
+For file uploads with authentication, use `fetchFormDataWithAuth()` from `apps/web/src/lib/api/client.ts`:
+
+```typescript
+import { fetchFormDataWithAuth } from '@/lib/api/client'
+
+// Upload a file with automatic auth headers
+const formData = new FormData()
+formData.append('file', file)
+
+const result = await fetchFormDataWithAuth<UploadResponse>('/api/upload', {
+  method: 'POST',
+  body: formData,
+})
+```
+
+This utility:
+- Automatically adds the access token header
+- Adds the company ID header
+- Handles token refresh on 401 errors
+- Does NOT set Content-Type (lets browser set multipart boundary)
+
+### Anti-Patterns (Avoid)
+
+```typescript
+// ❌ WRONG - Manual FormData auth handling
+const response = await fetch('/api/upload', {
+  method: 'POST',
+  headers: {
+    Authorization: `Bearer ${accessToken}`,
+    'X-Company-ID': companyId,
+    // Don't set Content-Type for FormData!
+  },
+  body: formData,
+})
+
+// ✅ CORRECT - Use the utility
+const result = await fetchFormDataWithAuth('/api/upload', { body: formData })
+```
+
+## Frontend Context Patterns
+
+### Message Actions Context
+
+Message action callbacks (reply, forward, delete, star, react) are provided via `MessageActionsContext` to avoid prop drilling:
+
+```typescript
+// In ChatPage.tsx - Provides the context
+import { MessageActionsProvider } from '@/contexts'
+
+<MessageActionsProvider value={{ onReply, onForward, onDelete, onStar, onReact }}>
+  <MessageThread />
+</MessageActionsProvider>
+
+// In MessageBubble.tsx - Consumes the context
+import { useMessageActions } from '@/contexts'
+
+function MessageBubble({ message }) {
+  const { onReply, onDelete, onStar } = useMessageActions()
+
+  return (
+    <button onClick={() => onReply(message)}>Reply</button>
+  )
+}
+```
+
+**Note**: `onRetry` is NOT in the context - it's passed as a prop because it's local to `MessageThread` and uses local state for retry status.
+
+## Go Services Shared Module
+
+Go services share common utilities through `services/shared/`. Both `orchestrator` and `whatsapp` services import from this module.
+
+### Config Utilities
+
+```go
+import "github.com/ygncode-lab/whatsapp-web/services/shared/config"
+
+// Get environment variables with defaults
+natsURL := config.GetEnv("NATS_URL", "nats://localhost:4222")
+timeout := config.GetDurationEnv("TIMEOUT", 30*time.Second)
+port := config.GetIntEnv("PORT", 8080)
+debug := config.GetBoolEnv("DEBUG", false)
+
+// Required env var (panics if not set)
+dbURL := config.GetEnvRequired("DATABASE_URL")
+```
+
+### NATS Connection
+
+```go
+import sharednats "github.com/ygncode-lab/whatsapp-web/services/shared/nats"
+
+// Create a connection
+conn, err := sharednats.NewConnection(ctx, sharednats.ConnectionConfig{
+    URL:  natsURL,
+    Name: "my-service",
+})
+if err != nil {
+    log.Fatal(err)
+}
+defer conn.Close()
+
+// Access JetStream
+js := conn.JetStream()
+
+// Ensure streams exist
+err = sharednats.EnsureStream(js, sharednats.DefaultEventsStreamConfig())
+```
+
+### NATS Event Types
+
+All event types are defined in `services/shared/nats/events.go`:
+
+```go
+import sharednats "github.com/ygncode-lab/whatsapp-web/services/shared/nats"
+
+// Event payload types
+event := sharednats.WhatsAppEvent{
+    Type:         sharednats.EventTypeMessage,
+    CompanyID:    companyID,
+    ConnectionID: connectionID,
+    Payload: sharednats.MessagePayload{
+        MessageID:   msg.ID,
+        From:        msg.From,
+        Content:     msg.Content,
+        MessageType: msg.Type,
+    },
+    Timestamp: time.Now().Format(time.RFC3339),
+}
+
+// Command types
+cmd := sharednats.SpawnWorkerCommand{
+    Type:         sharednats.CommandSpawn,
+    CompanyID:    companyID,
+    ConnectionID: connectionID,
+}
+
+// Status constants
+if status == sharednats.StatusConnected {
+    // ...
+}
+```
+
+### Module Setup
+
+Both services use a `replace` directive in their `go.mod` for local development:
+
+```go
+// In services/orchestrator/go.mod and services/whatsapp/go.mod
+require github.com/ygncode-lab/whatsapp-web/services/shared v0.0.0
+
+replace github.com/ygncode-lab/whatsapp-web/services/shared => ../shared
+```
+
+### Building Go Services
+
+```bash
+# Build all services
+cd services/shared && go build ./...
+cd services/orchestrator && go build ./...
+cd services/whatsapp && go build ./...
+```

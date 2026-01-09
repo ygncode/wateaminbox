@@ -2,6 +2,7 @@ import type { Message } from "@whatsapp-web/shared";
 import { formatMessageTime } from "@whatsapp-web/shared";
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useMessageActions } from "../../contexts";
 import { EmojiReactionPicker } from "./EmojiReactionPicker";
 import { MessageContent } from "./MessageContent";
 import { MessageContextMenu } from "./MessageContextMenu";
@@ -12,11 +13,7 @@ import { MessageStatusIcon, getErrorMessage } from "./MessageStatusIcon";
 interface MessageBubbleProps {
   message: Message;
   isOwn: boolean;
-  onReply?: (message: Message) => void;
-  onForward?: (message: Message) => void;
-  onDelete?: (message: Message) => void;
-  onStar?: (message: Message) => void;
-  onReact?: (message: Message, emoji: string) => void;
+  /** Retry handler passed directly (local to MessageThread) */
   onRetry?: (messageId: string) => void;
   /** Highlight this message (e.g., from search) */
   isHighlighted?: boolean;
@@ -32,11 +29,6 @@ interface MessageBubbleProps {
 export const MessageBubble = memo(function MessageBubble({
   message,
   isOwn,
-  onReply,
-  onForward,
-  onDelete,
-  onStar,
-  onReact,
   onRetry,
   isHighlighted = false,
   isRetrying = false,
@@ -44,6 +36,14 @@ export const MessageBubble = memo(function MessageBubble({
   isSelected = false,
   onSelectionToggle,
 }: MessageBubbleProps) {
+  // Get message actions from context (eliminates prop drilling)
+  const {
+    onReply,
+    onForward,
+    onDelete,
+    onStar,
+    onReact,
+  } = useMessageActions();
   const { t } = useTranslation();
   const [showContextMenu, setShowContextMenu] = useState(false);
   const [showReactionPicker, setShowReactionPicker] = useState(false);

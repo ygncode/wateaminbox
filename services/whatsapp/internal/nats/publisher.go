@@ -7,222 +7,55 @@ import (
 	"time"
 
 	"github.com/nats-io/nats.go"
+	sharednats "github.com/ygncode-lab/whatsapp-web/services/shared/nats"
 )
 
+// Stream and subject constants - re-exported from shared module
 const (
-	// Stream name for WhatsApp events
-	StreamName = "WHATSAPP_EVENTS"
+	StreamName = sharednats.StreamEvents
 
-	// Subject prefixes (uppercase to match orchestrator's stream)
-	// Format: WHATSAPP.events.{companyId}.{connectionId}.{type}
-	SubjectQR              = "WHATSAPP.events.%s.%s.qr"
-	SubjectStatus          = "WHATSAPP.events.%s.%s.status"
-	SubjectMessage         = "WHATSAPP.events.%s.%s.message"
-	SubjectReceipt         = "WHATSAPP.events.%s.%s.receipt"
-	SubjectPresence        = "WHATSAPP.events.%s.%s.presence"
-	SubjectContact         = "WHATSAPP.events.%s.%s.contact"
-	SubjectProfilePicture   = "WHATSAPP.events.%s.%s.profile_picture"
-	SubjectMessageRevoke    = "WHATSAPP.events.%s.%s.message_revoke"
-	SubjectSendConfirmation = "WHATSAPP.events.%s.%s.send_confirmation"
-	SubjectTyping           = "WHATSAPP.events.%s.%s.typing"
-	SubjectReaction         = "WHATSAPP.events.%s.%s.reaction"
-	SubjectSyncStatus       = "WHATSAPP.events.%s.%s.sync_status"
-
-	// On-demand media download subjects
-	SubjectDownloadRequest  = "WHATSAPP.download.%s.%s.request"
-	SubjectDownloadResponse = "WHATSAPP.events.%s.%s.download_response"
+	SubjectQR              = sharednats.SubjectQR
+	SubjectStatus          = sharednats.SubjectStatus
+	SubjectMessage         = sharednats.SubjectMessage
+	SubjectReceipt         = sharednats.SubjectReceipt
+	SubjectPresence        = sharednats.SubjectPresence
+	SubjectContact         = sharednats.SubjectContact
+	SubjectProfilePicture  = sharednats.SubjectProfilePicture
+	SubjectMessageRevoke   = sharednats.SubjectMessageRevoke
+	SubjectSendConfirmation = sharednats.SubjectSendConfirm
+	SubjectTyping          = sharednats.SubjectTyping
+	SubjectReaction        = sharednats.SubjectReaction
+	SubjectSyncStatus      = sharednats.SubjectSyncStatus
+	SubjectDownloadRequest  = sharednats.SubjectDownloadRequest
+	SubjectDownloadResponse = sharednats.SubjectDownloadResponse
 )
 
-// WhatsAppEvent is the wrapper format expected by the API.
-// This matches the TypeScript WhatsAppEvent interface in apps/api/src/lib/nats.ts
-type WhatsAppEvent struct {
-	Type         string      `json:"type"`
-	CompanyID    string      `json:"companyId"`
-	ConnectionID string      `json:"connectionId"`
-	Payload      interface{} `json:"payload"`
-	Timestamp    string      `json:"timestamp"`
-}
-
-// QRPayload is the payload for QR code events.
-type QRPayload struct {
-	QRCode    string `json:"qrCode"`
-	ExpiresAt string `json:"expiresAt"`
-}
-
-// ConnectionPayload is the payload for connection status events.
-type ConnectionPayload struct {
-	PhoneNumber string `json:"phoneNumber,omitempty"`
-	JID         string `json:"jid,omitempty"`
-	Reason      string `json:"reason,omitempty"`
-}
-
-// QRCodeEvent represents a QR code event for device pairing (internal use).
-type QRCodeEvent struct {
-	CompanyID    string    `json:"company_id"`
-	ConnectionID string    `json:"connection_id"`
-	QRData       string    `json:"qr_data"`
-	Timestamp    time.Time `json:"timestamp"`
-}
-
-// ConnectionStatusEvent represents a connection status change (internal use).
-type ConnectionStatusEvent struct {
-	CompanyID    string    `json:"company_id"`
-	ConnectionID string    `json:"connection_id"`
-	Status       string    `json:"status"` // "connected", "disconnected", "logged_out"
-	Reason       string    `json:"reason,omitempty"`
-	Timestamp    time.Time `json:"timestamp"`
-}
-
-// MessagePayload is the payload for message events (matches API MessageEvent.payload).
-type MessagePayload struct {
-	MessageID       string `json:"messageId"`
-	From            string `json:"from"`
-	To              string `json:"to"`
-	FromMe          bool   `json:"fromMe"`
-	Content         string `json:"content"`
-	MessageType     string `json:"messageType"`
-	Timestamp       string `json:"timestamp"`
-	MediaURL        string `json:"mediaUrl,omitempty"`
-	QuotedMessageID string `json:"quotedMessageId,omitempty"`
-	IsGroup         bool   `json:"isGroup,omitempty"`
-	GroupID         string `json:"groupId,omitempty"`
-	SenderName      string `json:"senderName,omitempty"`
-	Caption         string `json:"caption,omitempty"`
-	FileName        string `json:"fileName,omitempty"`
-	MediaType       string `json:"mediaType,omitempty"`
-	MediaSize       int64  `json:"mediaSize,omitempty"`
-	// Deferred media download fields - for on-demand download
-	MediaDirectPath    string `json:"mediaDirectPath,omitempty"`
-	MediaKey           []byte `json:"mediaKey,omitempty"`
-	MediaFileSHA256    []byte `json:"mediaFileSha256,omitempty"`
-	MediaFileEncSHA256 []byte `json:"mediaFileEncSha256,omitempty"`
-	IsHistorySync      bool   `json:"isHistorySync,omitempty"`
-}
-
-// MessageRevokePayload is the payload for message revocation events.
-type MessageRevokePayload struct {
-	MessageID string `json:"messageId"`
-	From      string `json:"from"`
-	To        string `json:"to"`
-	Timestamp string `json:"timestamp"`
-}
-
-// MessageEvent represents an incoming WhatsApp message (internal use).
-type MessageEvent struct {
-	MessageID       string    `json:"message_id"`
-	From            string    `json:"from"`
-	To              string    `json:"to"`
-	FromMe          bool      `json:"from_me"`
-	Type            string    `json:"type"` // "text", "image", "video", "audio", "document"
-	Content         string    `json:"content,omitempty"`
-	MediaURL        string    `json:"media_url,omitempty"`
-	MediaType       string    `json:"media_type,omitempty"`
-	MediaSize       int64     `json:"media_size,omitempty"`
-	FileName        string    `json:"file_name,omitempty"`
-	Caption         string    `json:"caption,omitempty"`
-	IsGroup         bool      `json:"is_group"`
-	GroupID         string    `json:"group_id,omitempty"`
-	SenderName      string    `json:"sender_name,omitempty"`
-	QuotedMessageID string    `json:"quoted_message_id,omitempty"`
-	Timestamp       time.Time `json:"timestamp"`
-	// Deferred media download fields - for on-demand download
-	MediaDirectPath    string `json:"media_direct_path,omitempty"`
-	MediaKey           []byte `json:"media_key,omitempty"`
-	MediaFileSHA256    []byte `json:"media_file_sha256,omitempty"`
-	MediaFileEncSHA256 []byte `json:"media_file_enc_sha256,omitempty"`
-	IsHistorySync      bool   `json:"is_history_sync,omitempty"`
-}
-
-// ContactPayload is the payload for contact/conversation sync events.
-type ContactPayload struct {
-	JID                string `json:"jid"`
-	Name               string `json:"name,omitempty"`
-	DisplayName        string `json:"displayName,omitempty"`
-	IsGroup            bool   `json:"isGroup"`
-	UnreadCount        int    `json:"unreadCount,omitempty"`
-	ProfilePictureURL  string `json:"profilePictureUrl,omitempty"`
-}
-
-// ProfilePicturePayload is the payload for profile picture update events.
-type ProfilePicturePayload struct {
-	JID               string `json:"jid"`
-	ProfilePictureURL string `json:"profilePictureUrl"`
-	Timestamp         string `json:"timestamp"`
-	Remove            bool   `json:"remove,omitempty"`
-}
-
-// ReceiptPayload is the payload for receipt events (matches API MessageEvent.payload).
-type ReceiptPayload struct {
-	MessageID string `json:"messageId"`
-	Status    string `json:"status"` // "sent", "delivered", "read"
-	Timestamp string `json:"timestamp"`
-}
-
-// SendConfirmationPayload is the payload for send confirmation events.
-// This maps a pending message ID to the real WhatsApp message ID.
-type SendConfirmationPayload struct {
-	PendingMessageID string `json:"pendingMessageId"` // The temporary ID assigned by the API
-	MessageID        string `json:"messageId"`        // The real WhatsApp message ID
-	Timestamp        string `json:"timestamp"`
-}
-
-// ReceiptEvent represents a message receipt (delivered, read, etc.) (internal use).
-type ReceiptEvent struct {
-	MessageIDs  []string  `json:"message_ids"`
-	ReceiptType string    `json:"receipt_type"` // "delivered", "read", "played"
-	From        string    `json:"from"`
-	Timestamp   time.Time `json:"timestamp"`
-}
-
-// PresenceEvent represents a presence update (internal use).
-type PresenceEvent struct {
-	From        string    `json:"from"`
-	Unavailable bool      `json:"unavailable"`
-	LastSeen    time.Time `json:"last_seen,omitempty"`
-	Timestamp   time.Time `json:"timestamp"`
-}
-
-// TypingPayload is the payload for typing indicator events.
-type TypingPayload struct {
-	From      string `json:"from"`
-	ChatJID   string `json:"chatJid"`
-	IsTyping  bool   `json:"isTyping"`
-	MediaType string `json:"mediaType,omitempty"` // "text" or "audio"
-}
-
-// TypingEvent represents a typing indicator event (internal use).
-type TypingEvent struct {
-	From      string    `json:"from"`
-	ChatJID   string    `json:"chat_jid"`
-	IsTyping  bool      `json:"is_typing"`
-	MediaType string    `json:"media_type,omitempty"`
-	Timestamp time.Time `json:"timestamp"`
-}
-
-// ReactionPayload is the payload for reaction events.
-type ReactionPayload struct {
-	MessageID string `json:"messageId"` // ID of the message being reacted to
-	From      string `json:"from"`      // JID of the user who reacted
-	ChatJID   string `json:"chatJid"`   // JID of the chat
-	Emoji     string `json:"emoji"`     // Reaction emoji (empty string means removed)
-	Timestamp string `json:"timestamp"`
-}
-
-// ReactionEvent represents a reaction event (internal use).
-type ReactionEvent struct {
-	MessageID string    `json:"message_id"`
-	From      string    `json:"from"`
-	ChatJID   string    `json:"chat_jid"`
-	Emoji     string    `json:"emoji"`
-	Timestamp time.Time `json:"timestamp"`
-}
-
-// SyncStatusPayload is the payload for sync status events.
-type SyncStatusPayload struct {
-	Status        string `json:"status"`        // "starting", "progress", "completed"
-	MessageCount  int    `json:"messageCount"`  // Total messages synced
-	Conversations int    `json:"conversations"` // Number of conversations processed
-}
+// Type aliases for shared types (for backwards compatibility within this package)
+type (
+	WhatsAppEvent           = sharednats.WhatsAppEvent
+	QRPayload               = sharednats.QRPayload
+	ConnectionPayload       = sharednats.ConnectionPayload
+	MessagePayload          = sharednats.MessagePayload
+	MessageRevokePayload    = sharednats.MessageRevokePayload
+	ReceiptPayload          = sharednats.ReceiptPayload
+	PresencePayload         = sharednats.PresencePayload
+	TypingPayload           = sharednats.TypingPayload
+	ContactPayload          = sharednats.ContactPayload
+	ProfilePicturePayload   = sharednats.ProfilePicturePayload
+	SendConfirmationPayload = sharednats.SendConfirmationPayload
+	ReactionPayload         = sharednats.ReactionPayload
+	SyncStatusPayload       = sharednats.SyncStatusPayload
+	DownloadRequest         = sharednats.DownloadRequest
+	DownloadResponsePayload = sharednats.DownloadResponsePayload
+	// Internal event types
+	QRCodeEvent           = sharednats.QRCodeEvent
+	ConnectionStatusEvent = sharednats.ConnectionStatusEvent
+	MessageEvent          = sharednats.MessageEvent
+	ReceiptEvent          = sharednats.ReceiptEvent
+	PresenceEvent         = sharednats.PresenceEvent
+	TypingEvent           = sharednats.TypingEvent
+	ReactionEvent         = sharednats.ReactionEvent
+)
 
 // Publisher handles publishing events to NATS.
 type Publisher struct {
@@ -266,8 +99,8 @@ func NewPublisher(cfg PublisherConfig) (*Publisher, error) {
 		return nil, fmt.Errorf("failed to get JetStream context: %w", err)
 	}
 
-	// Ensure the stream exists
-	if err := ensureStream(js); err != nil {
+	// Ensure the stream exists using shared helper
+	if err := sharednats.EnsureStream(js, sharednats.DefaultEventsStreamConfig()); err != nil {
 		nc.Close()
 		return nil, fmt.Errorf("failed to ensure stream: %w", err)
 	}
@@ -278,31 +111,6 @@ func NewPublisher(cfg PublisherConfig) (*Publisher, error) {
 		companyID:    cfg.CompanyID,
 		connectionID: cfg.ConnectionID,
 	}, nil
-}
-
-// ensureStream creates the WHATSAPP_EVENTS stream if it doesn't exist.
-func ensureStream(js nats.JetStreamContext) error {
-	_, err := js.StreamInfo(StreamName)
-	if err != nil {
-		if err == nats.ErrStreamNotFound {
-			// Create the stream (matching orchestrator's pattern)
-			_, err = js.AddStream(&nats.StreamConfig{
-				Name:      StreamName,
-				Subjects:  []string{"WHATSAPP.events", "WHATSAPP.events.>"},
-				Retention: nats.LimitsPolicy,
-				MaxAge:    24 * time.Hour * 7, // Keep messages for 7 days
-				Storage:   nats.FileStorage,
-				Replicas:  1,
-			})
-			if err != nil {
-				return fmt.Errorf("failed to create stream: %w", err)
-			}
-			log.Printf("Created JetStream stream: %s", StreamName)
-		} else {
-			return fmt.Errorf("failed to get stream info: %w", err)
-		}
-	}
-	return nil
 }
 
 // PublishQRCode publishes a QR code event.
@@ -416,13 +224,6 @@ func (p *Publisher) PublishReceipt(receipt ReceiptEvent) error {
 	}
 
 	return nil
-}
-
-// PresencePayload is the payload for presence events.
-type PresencePayload struct {
-	From        string `json:"from"`
-	Unavailable bool   `json:"unavailable"`
-	LastSeen    string `json:"lastSeen,omitempty"`
 }
 
 // PublishPresence publishes a presence update event.
@@ -571,26 +372,6 @@ func (p *Publisher) PublishReaction(messageID, from, chatJID, emoji string, time
 
 	subject := fmt.Sprintf(SubjectReaction, p.companyID, p.connectionID)
 	return p.publish(subject, event)
-}
-
-// DownloadRequest is the payload for on-demand media download requests.
-type DownloadRequest struct {
-	MessageID      string `json:"messageId"`
-	DirectPath     string `json:"directPath"`
-	MediaKey       []byte `json:"mediaKey"`       // Base64 encoded
-	FileSHA256     []byte `json:"fileSha256"`     // Base64 encoded
-	FileEncSHA256  []byte `json:"fileEncSha256"`  // Base64 encoded
-	MediaType      string `json:"mediaType"`
-	FileName       string `json:"fileName,omitempty"`
-}
-
-// DownloadResponsePayload is the payload for media download response events.
-type DownloadResponsePayload struct {
-	MessageID string `json:"messageId"`
-	MediaURL  string `json:"mediaUrl,omitempty"`
-	MediaSize int64  `json:"mediaSize,omitempty"`
-	Success   bool   `json:"success"`
-	Error     string `json:"error,omitempty"`
 }
 
 // PublishDownloadResponse publishes a media download response event.

@@ -1,5 +1,6 @@
 import type { Context } from "hono";
 import { subtractDays, toDbDate } from "@whatsapp-web/shared";
+import { NotFoundError } from "./errors.js";
 
 /**
  * Date range result type
@@ -165,4 +166,54 @@ export function createPaginationMeta(
     offset: params.offset,
     hasMore: params.offset + returnedCount < total,
   };
+}
+
+// =============================================================================
+// Entity Helpers
+// =============================================================================
+
+/**
+ * Require an entity to exist, throwing NotFoundError if null/undefined.
+ *
+ * This helper simplifies the common pattern of checking if an entity exists
+ * and returning a 404 response if not. It throws a `NotFoundError` which
+ * should be caught by the global error handler.
+ *
+ * @example
+ * ```ts
+ * // Before:
+ * const contact = await tenantDb
+ *   .selectFrom("contacts")
+ *   .select(["id"])
+ *   .where("id", "=", contactId)
+ *   .executeTakeFirst();
+ *
+ * if (!contact) {
+ *   return notFound(c, "Contact");
+ * }
+ *
+ * // After:
+ * const contact = requireEntity(
+ *   await tenantDb
+ *     .selectFrom("contacts")
+ *     .select(["id"])
+ *     .where("id", "=", contactId)
+ *     .executeTakeFirst(),
+ *   "Contact"
+ * );
+ * ```
+ *
+ * @param entity - The entity to check (result of a database query)
+ * @param resourceName - Name of the resource for the error message (e.g., "Contact", "Tag")
+ * @returns The entity if it exists
+ * @throws NotFoundError if the entity is null or undefined
+ */
+export function requireEntity<T>(
+  entity: T | null | undefined,
+  resourceName: string,
+): T {
+  if (entity === null || entity === undefined) {
+    throw new NotFoundError(resourceName);
+  }
+  return entity;
 }
