@@ -3,7 +3,10 @@ import { badRequest, forbidden, notFound } from "../lib/errors.js";
 import { authMiddleware } from "../middleware/auth.js";
 import { tenantMiddleware } from "../middleware/tenant.js";
 import { getRouteContext } from "../middleware/context.js";
-import { extractPaginationParams, createPaginationMeta } from "../lib/route-helpers.js";
+import {
+  extractPaginationParams,
+  createPaginationMeta,
+} from "../lib/route-helpers.js";
 import { publishPostStatus, type StatusType } from "../lib/nats/index.js";
 import { getActiveWhatsAppConnection } from "../services/whatsapp-connection.service.js";
 
@@ -157,7 +160,10 @@ statusRoutes.post("/", async (c) => {
 
   // Validate status type
   if (!type || !["text", "image", "video"].includes(type)) {
-    return badRequest(c, "type is required and must be 'text', 'image', or 'video'");
+    return badRequest(
+      c,
+      "type is required and must be 'text', 'image', or 'video'",
+    );
   }
 
   // Validate content for text status

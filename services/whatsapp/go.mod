@@ -13,6 +13,7 @@ require (
 	github.com/lib/pq v1.10.9
 	github.com/nats-io/nats.go v1.31.0
 	github.com/stretchr/testify v1.11.1
+	github.com/ygncode-lab/whatsapp-web/services/shared v0.0.0
 	go.mau.fi/whatsmeow v0.0.0-20251217143725-11cf47c62d32
 	google.golang.org/protobuf v1.36.11
 )
@@ -54,3 +55,5 @@ require (
 	golang.org/x/text v0.32.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
+
+replace github.com/ygncode-lab/whatsapp-web/services/shared => ../shared

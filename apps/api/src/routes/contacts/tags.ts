@@ -1,6 +1,7 @@
 import { Hono } from "hono"
 import { getRouteContext } from "../../middleware/context.js"
-import { notFound, badRequest, conflict } from "../../lib/errors.js"
+import { badRequest, conflict } from "../../lib/errors.js"
+import { requireEntity } from "../../lib/route-helpers.js"
 
 export const tagsRoutes = new Hono()
 
@@ -18,27 +19,25 @@ tagsRoutes.post("/:id/tags", async (c) => {
     return badRequest(c, "tagId is required")
   }
 
-  // Check if contact exists
-  const contact = await tenantDb
-    .selectFrom("contacts")
-    .select(["id"])
-    .where("id", "=", contactId)
-    .executeTakeFirst()
+  // Check if contact exists (throws NotFoundError if not)
+  requireEntity(
+    await tenantDb
+      .selectFrom("contacts")
+      .select(["id"])
+      .where("id", "=", contactId)
+      .executeTakeFirst(),
+    "Contact"
+  )
 
-  if (!contact) {
-    return notFound(c, "Contact")
-  }
-
-  // Check if tag exists
-  const tag = await tenantDb
-    .selectFrom("tags")
-    .select(["id", "name", "color"])
-    .where("id", "=", tagId)
-    .executeTakeFirst()
-
-  if (!tag) {
-    return notFound(c, "Tag")
-  }
+  // Check if tag exists (throws NotFoundError if not)
+  const tag = requireEntity(
+    await tenantDb
+      .selectFrom("tags")
+      .select(["id", "name", "color"])
+      .where("id", "=", tagId)
+      .executeTakeFirst(),
+    "Tag"
+  )
 
   // Check if already tagged
   const existingTag = await tenantDb

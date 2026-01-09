@@ -6,6 +6,12 @@ import {
   publishSyncLabels,
 } from "../lib/nats/index.js";
 import {
+  successData,
+  successMessage,
+  successPaginated,
+  successWithMessage,
+} from "../lib/response.js";
+import {
   createPaginationMeta,
   extractPaginationParams,
 } from "../lib/route-helpers.js";
@@ -45,17 +51,19 @@ labelRoutes.get("/", async (c) => {
     // Get paginated labels
     const labels = await getWhatsAppLabels(tenantDb, { limit, offset });
 
-    return c.json({
-      data: labels,
-      pagination: createPaginationMeta(total, labels.length, { limit, offset }),
-    });
+    return successPaginated(
+      c,
+      labels,
+      createPaginationMeta(total, labels.length, { limit, offset }),
+    );
   } catch (error) {
     // Handle missing table gracefully - return empty array
     if (isTableNotFoundError(error)) {
-      return c.json({
-        data: [],
-        pagination: createPaginationMeta(0, 0, { limit, offset }),
-      });
+      return successPaginated(
+        c,
+        [],
+        createPaginationMeta(0, 0, { limit, offset }),
+      );
     }
     throw error;
   }
@@ -70,11 +78,11 @@ labelRoutes.get("/status", async (c) => {
   try {
     const status = await getLabelSyncStatus(tenantDb);
 
-    return c.json(status);
+    return successData(c, status);
   } catch (error) {
     // Handle missing table gracefully - return empty status
     if (isTableNotFoundError(error)) {
-      return c.json({
+      return successData(c, {
         totalLabels: 0,
         linkedLabels: 0,
         unlinkedLabels: 0,
@@ -100,7 +108,7 @@ labelRoutes.get("/:labelId", async (c) => {
     return notFound(c, "Label");
   }
 
-  return c.json(label);
+  return successData(c, label);
 });
 
 /**
@@ -116,10 +124,11 @@ labelRoutes.post("/sync", async (c) => {
   // Publish sync command to NATS
   await publishSyncLabels(companyId, connection.id, user.id);
 
-  return c.json({
-    message: "Label sync initiated. Labels will be updated shortly.",
-    status: "syncing",
-  });
+  return successWithMessage(
+    c,
+    "Label sync initiated. Labels will be updated shortly.",
+    { status: "syncing" },
+  );
 });
 
 /**
@@ -142,7 +151,7 @@ labelRoutes.post("/:labelId/link", async (c) => {
     return badRequest(c, result.error || "Failed to link tag to label");
   }
 
-  return c.json({ success: true, message: "Tag linked to WhatsApp label" });
+  return successMessage(c, "Tag linked to WhatsApp label");
 });
 
 /**
@@ -169,7 +178,7 @@ labelRoutes.delete("/:labelId/link", async (c) => {
     return badRequest(c, result.error || "Failed to unlink tag from label");
   }
 
-  return c.json({ success: true, message: "Tag unlinked from WhatsApp label" });
+  return successMessage(c, "Tag unlinked from WhatsApp label");
 });
 
 /**
@@ -180,12 +189,11 @@ labelRoutes.post("/auto-create", async (c) => {
 
   const result = await autoCreateTagsFromLabels(tenantDb, user.id);
 
-  return c.json({
-    success: true,
-    message: `Created ${result.created} tags and linked ${result.linked} existing tags`,
-    created: result.created,
-    linked: result.linked,
-  });
+  return successWithMessage(
+    c,
+    `Created ${result.created} tags and linked ${result.linked} existing tags`,
+    { created: result.created, linked: result.linked },
+  );
 });
 
 /**
@@ -197,15 +205,11 @@ labelRoutes.get("/tags/with-status", async (c) => {
   try {
     const tags = await getTagsWithLabelStatus(tenantDb);
 
-    return c.json({
-      data: tags,
-    });
+    return successData(c, tags);
   } catch (error) {
     // Handle missing table gracefully - return empty array
     if (isTableNotFoundError(error)) {
-      return c.json({
-        data: [],
-      });
+      return successData(c, []);
     }
     throw error;
   }
@@ -271,10 +275,7 @@ labelRoutes.post("/:labelId/apply/:contactId", async (c) => {
     }
   }
 
-  return c.json({
-    success: true,
-    message: "Label applied to contact",
-  });
+  return successMessage(c, "Label applied to contact");
 });
 
 /**
@@ -325,8 +326,5 @@ labelRoutes.delete("/:labelId/apply/:contactId", async (c) => {
       .execute();
   }
 
-  return c.json({
-    success: true,
-    message: "Label removed from contact",
-  });
+  return successMessage(c, "Label removed from contact");
 });

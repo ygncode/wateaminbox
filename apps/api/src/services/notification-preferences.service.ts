@@ -108,7 +108,10 @@ export async function getNotificationPreferences(
     .executeTakeFirst();
 
   if (!created) {
-    throw new AppError("Failed to create default notification preferences", 500);
+    throw new AppError(
+      "Failed to create default notification preferences",
+      500,
+    );
   }
 
   return mapRowToPreferences(created);

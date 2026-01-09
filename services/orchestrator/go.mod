@@ -7,6 +7,7 @@ toolchain go1.24.2
 require (
 	github.com/nats-io/nats.go v1.31.0
 	github.com/stretchr/testify v1.11.1
+	github.com/ygncode-lab/whatsapp-web/services/shared v0.0.0
 )
 
 require (
@@ -19,3 +20,5 @@ require (
 	golang.org/x/sys v0.5.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
+
+replace github.com/ygncode-lab/whatsapp-web/services/shared => ../shared

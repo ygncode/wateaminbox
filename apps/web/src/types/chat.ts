@@ -1,7 +1,19 @@
 /**
  * Chat-related type definitions for the WhatsApp Web application
+ *
+ * This file provides frontend-specific view models and re-exports shared types.
  */
 
+import type {
+  Contact as SharedContact,
+  GroupInfo as SharedGroupInfo,
+  GroupParticipant as SharedGroupParticipant,
+  MessageType as SharedMessageType,
+} from "@whatsapp-web/shared";
+
+/**
+ * Message status with frontend-specific "sending" state
+ */
 export type MessageStatus =
   | "sending"
   | "sent"
@@ -9,48 +21,25 @@ export type MessageStatus =
   | "read"
   | "failed";
 
-export type MessageType =
-  | "text"
-  | "image"
-  | "video"
-  | "audio"
-  | "document"
-  | "sticker"
-  | "location"
-  | "contact";
+/**
+ * Re-export Contact from shared (now includes about and isGroup fields)
+ */
+export type Contact = SharedContact;
 
-export interface Contact {
-  id: string;
-  phoneNumber: string;
-  jid?: string;
-  name: string;
-  customName?: string;
-  avatarUrl?: string;
-  isOnline: boolean;
-  lastSeen?: Date;
-  about?: string;
-  isGroup?: boolean;
-}
+/**
+ * Re-export GroupInfo from shared
+ */
+export type GroupInfo = SharedGroupInfo;
 
-export interface GroupInfo {
-  id: string;
-  jid: string;
-  name: string;
-  displayName: string;
-  customName?: string;
-  description?: string;
-  profilePictureUrl?: string;
-  participantCount: number;
-  createdBy?: string;
-  createdAt: Date;
-  participants: GroupParticipant[];
-}
+/**
+ * Re-export GroupParticipant from shared
+ */
+export type GroupParticipant = SharedGroupParticipant;
 
-export interface GroupParticipant {
-  jid: string;
-  isAdmin: boolean;
-  joinedAt: Date;
-}
+/**
+ * Message type - extends shared type with "contact"
+ */
+export type MessageType = SharedMessageType | "contact";
 
 export interface Message {
   id: string;

@@ -6,11 +6,8 @@
 import type { CreateMessageInput, Message } from "@whatsapp-web/shared";
 import {
   fetchWithAuth,
+  fetchFormDataWithAuth,
   buildQueryString,
-  API_BASE_URL,
-  getAccessToken,
-  getCompanyId,
-  handleResponse,
 } from "./client.js";
 import type {
   ApiResponse,
@@ -55,23 +52,5 @@ export async function deleteMessage(
 export async function uploadMedia(file: File): Promise<UploadMediaResponse> {
   const formData = new FormData();
   formData.append("file", file);
-
-  const accessToken = getAccessToken();
-  const companyId = getCompanyId();
-
-  const headers: Record<string, string> = {};
-  if (accessToken) {
-    headers.Authorization = `Bearer ${accessToken}`;
-  }
-  if (companyId) {
-    headers["X-Company-ID"] = companyId;
-  }
-
-  const response = await fetch(`${API_BASE_URL}/media/upload`, {
-    method: "POST",
-    headers,
-    body: formData,
-  });
-
-  return handleResponse<UploadMediaResponse>(response);
+  return fetchFormDataWithAuth<UploadMediaResponse>("/media/upload", formData);
 }

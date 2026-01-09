@@ -16,6 +16,7 @@ import { AppLayout, ResponsiveLayout } from "../components/layout/app-layout";
 import { MainContent } from "../components/layout/main-content";
 import { Sidebar } from "../components/layout/sidebar";
 import { useAuth } from "../contexts/auth-context";
+import { MessageActionsProvider } from "../contexts/message-actions-context";
 import { chatKeys } from "../hooks/useChats";
 import { type ContactDetail, useContact } from "../hooks/useContact";
 import {
@@ -365,17 +366,20 @@ export function ChatPage() {
             />
           )}
           <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-            <MessageThread
-              conversationId={selectedChatId}
-              currentUserId={user?.id || ""}
-              onReplyToMessage={handleReplyToMessage}
-              onForwardMessage={handleForwardMessage}
-              onDeleteMessage={handleDeleteMessage}
-              onStarMessage={handleStarMessage}
-              onReactMessage={handleReactMessage}
-              highlightedMessageId={highlightedMessageId}
-              onOpenContactInfo={handleOpenProfile}
-            />
+            <MessageActionsProvider
+              onReply={handleReplyToMessage}
+              onForward={handleForwardMessage}
+              onDelete={handleDeleteMessage}
+              onStar={handleStarMessage}
+              onReact={handleReactMessage}
+            >
+              <MessageThread
+                conversationId={selectedChatId}
+                currentUserId={user?.id || ""}
+                highlightedMessageId={highlightedMessageId}
+                onOpenContactInfo={handleOpenProfile}
+              />
+            </MessageActionsProvider>
           </div>
           <MessageComposer
             conversationId={selectedChatId}

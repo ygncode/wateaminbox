@@ -5,11 +5,9 @@
 
 import {
   fetchWithAuth,
+  fetchFormDataWithAuth,
   buildQueryString,
   API_BASE_URL,
-  getAccessToken,
-  getCompanyId,
-  handleResponse,
 } from "./client.js";
 import type {
   Contact,
@@ -47,25 +45,10 @@ export async function previewContactImport(
 ): Promise<ContactImportPreviewResponse> {
   const formData = new FormData();
   formData.append("file", file);
-
-  const accessToken = getAccessToken();
-  const companyId = getCompanyId();
-
-  const headers: HeadersInit = {};
-  if (accessToken) {
-    headers.Authorization = `Bearer ${accessToken}`;
-  }
-  if (companyId) {
-    headers["X-Company-ID"] = companyId;
-  }
-
-  const response = await fetch(`${API_BASE_URL}/contacts/import/preview`, {
-    method: "POST",
-    headers,
-    body: formData,
-  });
-
-  return handleResponse<ContactImportPreviewResponse>(response);
+  return fetchFormDataWithAuth<ContactImportPreviewResponse>(
+    "/contacts/import/preview",
+    formData,
+  );
 }
 
 export async function importContacts(
@@ -80,25 +63,10 @@ export async function importContacts(
   if (options.createTags !== undefined) {
     formData.append("createTags", String(options.createTags));
   }
-
-  const accessToken = getAccessToken();
-  const companyId = getCompanyId();
-
-  const headers: HeadersInit = {};
-  if (accessToken) {
-    headers.Authorization = `Bearer ${accessToken}`;
-  }
-  if (companyId) {
-    headers["X-Company-ID"] = companyId;
-  }
-
-  const response = await fetch(`${API_BASE_URL}/contacts/import`, {
-    method: "POST",
-    headers,
-    body: formData,
-  });
-
-  return handleResponse<ContactImportResponse>(response);
+  return fetchFormDataWithAuth<ContactImportResponse>(
+    "/contacts/import",
+    formData,
+  );
 }
 
 export function downloadImportTemplate(): void {
