@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Skeleton } from "@/components/ui";
+import { useAsyncData } from "@/hooks";
 import { useContactStatus } from "@/hooks/useStatus";
 
 export interface StatusViewerProps {
@@ -21,7 +22,7 @@ export interface StatusViewerProps {
  * Shows status updates with progress bar and navigation
  */
 export function StatusViewer({ jid, onClose }: StatusViewerProps) {
-  const { data: contactStatus, isLoading, isError } = useContactStatus(jid);
+  const { data: contactStatus, renderState } = useAsyncData(useContactStatus(jid));
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
@@ -190,61 +191,74 @@ export function StatusViewer({ jid, onClose }: StatusViewerProps) {
 
       {/* Content area */}
       <div className="flex-1 flex items-center justify-center relative">
-        {/* Loading state */}
-        {isLoading && (
-          <div className="flex flex-col items-center">
-            <Skeleton className="w-96 h-96 rounded-lg" />
-            <Skeleton className="w-48 h-6 mt-4" />
-          </div>
-        )}
+        {renderState({
+          loading: () => (
+            <div className="flex flex-col items-center">
+              <Skeleton className="w-96 h-96 rounded-lg" />
+              <Skeleton className="w-48 h-6 mt-4" />
+            </div>
+          ),
+          error: () => (
+            <div className="text-center text-white">
+              <p className="text-xl font-medium">Failed to load status</p>
+              <button
+                onClick={onClose}
+                className="mt-4 px-4 py-2 bg-white/20 rounded-lg hover:bg-white/30"
+              >
+                Close
+              </button>
+            </div>
+          ),
+          empty: () => (
+            <div className="text-center text-white">
+              <p className="text-xl font-medium">No status available</p>
+              <button
+                onClick={onClose}
+                className="mt-4 px-4 py-2 bg-white/20 rounded-lg hover:bg-white/30"
+              >
+                Close
+              </button>
+            </div>
+          ),
+          success: (contactStatus) => {
+            const currentStatus = contactStatus.statuses[currentIndex];
+            if (!currentStatus) return null;
 
-        {/* Error state */}
-        {isError && (
-          <div className="text-center text-white">
-            <p className="text-xl font-medium">Failed to load status</p>
-            <button
-              onClick={onClose}
-              className="mt-4 px-4 py-2 bg-white/20 rounded-lg hover:bg-white/30"
-            >
-              Close
-            </button>
-          </div>
-        )}
+            return (
+              <div className="max-w-lg mx-auto text-center">
+                {currentStatus.mediaUrl ? (
+                  currentStatus.mediaType === "video" ? (
+                    <video
+                      src={currentStatus.mediaUrl}
+                      className="max-h-[70vh] rounded-lg"
+                      autoPlay
+                      muted={isMuted}
+                      loop={false}
+                    />
+                  ) : (
+                    <img
+                      src={currentStatus.mediaUrl}
+                      alt="Status"
+                      className="max-h-[70vh] rounded-lg object-contain"
+                    />
+                  )
+                ) : (
+                  // Text-only status
+                  <div className="p-8 bg-gradient-to-br from-whatsapp-teal-green to-whatsapp-dark-green rounded-lg">
+                    <p className="text-white text-2xl font-medium">
+                      {currentStatus.caption || "No content"}
+                    </p>
+                  </div>
+                )}
 
-        {/* Status content */}
-        {!isLoading && !isError && currentStatus && (
-          <div className="max-w-lg mx-auto text-center">
-            {currentStatus.mediaUrl ? (
-              currentStatus.mediaType === "video" ? (
-                <video
-                  src={currentStatus.mediaUrl}
-                  className="max-h-[70vh] rounded-lg"
-                  autoPlay
-                  muted={isMuted}
-                  loop={false}
-                />
-              ) : (
-                <img
-                  src={currentStatus.mediaUrl}
-                  alt="Status"
-                  className="max-h-[70vh] rounded-lg object-contain"
-                />
-              )
-            ) : (
-              // Text-only status
-              <div className="p-8 bg-gradient-to-br from-whatsapp-teal-green to-whatsapp-dark-green rounded-lg">
-                <p className="text-white text-2xl font-medium">
-                  {currentStatus.caption || "No content"}
-                </p>
+                {/* Caption */}
+                {currentStatus.mediaUrl && currentStatus.caption && (
+                  <p className="mt-4 text-white text-lg">{currentStatus.caption}</p>
+                )}
               </div>
-            )}
-
-            {/* Caption */}
-            {currentStatus.mediaUrl && currentStatus.caption && (
-              <p className="mt-4 text-white text-lg">{currentStatus.caption}</p>
-            )}
-          </div>
-        )}
+            );
+          },
+        })}
 
         {/* Navigation areas */}
         <button

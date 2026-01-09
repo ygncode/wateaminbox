@@ -12,6 +12,7 @@
 export * from "./ui";
 export * from "./notification";
 export * from "./analytics";
+export * from "./chat";
 
 // Query utilities
 export * from "./query";

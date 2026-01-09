@@ -52,3 +52,28 @@ export {
   type HighlightedTextProps,
   escapeRegExp,
 } from "./highlighted-text";
+export {
+  ConfirmationDialog,
+  type ConfirmationDialogProps,
+} from "./confirmation-dialog";
+export {
+  Tabs,
+  TabsList,
+  TabsTrigger,
+  TabsContent,
+  type TabsProps,
+  type TabsListProps,
+  type TabsTriggerProps,
+  type TabsContentProps,
+} from "./tabs";
+export {
+  EllipsisMenu,
+  type EllipsisMenuItem,
+  type EllipsisMenuProps,
+} from "./ellipsis-menu";
+export {
+  StepWizard,
+  StepProgress,
+  StepContent,
+  type StepWizardStep,
+} from "./step-wizard";

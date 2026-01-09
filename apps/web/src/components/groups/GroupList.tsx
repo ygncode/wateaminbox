@@ -1,6 +1,7 @@
 import { MessageSquare, Search, Users, X } from "lucide-react";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useState } from "react";
 import { Avatar, AvatarFallback, AvatarImage, Skeleton } from "@/components/ui";
+import { useAsyncData } from "@/hooks";
 import { type GroupListItem, useGroups } from "@/hooks/useGroups";
 import { cn } from "@/lib/utils";
 import { formatChatListTime } from "@whatsapp-web/shared";
@@ -21,7 +22,7 @@ export function GroupList({
   className = "",
 }: GroupListProps) {
   const [searchQuery, setSearchQuery] = useState("");
-  const { data, isLoading, isError, error } = useGroups(searchQuery, 100);
+  const { data, renderState, error } = useAsyncData(useGroups(searchQuery, 100));
 
   const handleSearchChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -49,8 +50,6 @@ export function GroupList({
     },
     [onGroupSelect],
   );
-
-  const groups = useMemo(() => data?.data ?? [], [data]);
 
   return (
     <div
@@ -98,73 +97,67 @@ export function GroupList({
         role="listbox"
         aria-label="Groups"
       >
-        {/* Loading State */}
-        {isLoading && (
-          <div className="divide-y divide-gray-100 dark:divide-dark-border">
-            {Array.from({ length: 8 }).map((_, index) => (
-              <GroupListItemSkeleton key={index} />
-            ))}
-          </div>
-        )}
-
-        {/* Error State */}
-        {isError && (
-          <div className="flex flex-col items-center justify-center h-full px-4 py-8 text-center">
-            <MessageSquare className="w-12 h-12 text-red-400 dark:text-red-500 mb-4" />
-            <p className="text-gray-600 dark:text-dark-text-primary font-medium">
-              Failed to load groups
-            </p>
-            <p className="text-sm text-gray-500 dark:text-dark-text-secondary mt-1">
-              {error?.message || "Please try again later"}
-            </p>
-          </div>
-        )}
-
-        {/* Empty State - No Search Results */}
-        {!isLoading && !isError && groups.length === 0 && searchQuery && (
-          <div className="flex flex-col items-center justify-center h-full px-4 py-8 text-center">
-            <Search className="w-12 h-12 text-gray-400 dark:text-dark-text-tertiary mb-4" />
-            <p className="text-gray-600 dark:text-dark-text-primary font-medium">
-              No groups found
-            </p>
-            <p className="text-sm text-gray-500 dark:text-dark-text-secondary mt-1">
-              No results for "{searchQuery}"
-            </p>
-          </div>
-        )}
-
-        {/* Empty State - No Groups */}
-        {!isLoading && !isError && groups.length === 0 && !searchQuery && (
-          <div className="flex flex-col items-center justify-center h-full px-4 py-8 text-center">
-            <Users className="w-12 h-12 text-gray-400 dark:text-dark-text-tertiary mb-4" />
-            <p className="text-gray-600 dark:text-dark-text-primary font-medium">
-              No groups yet
-            </p>
-            <p className="text-sm text-gray-500 dark:text-dark-text-secondary mt-1">
-              Groups you join will appear here
-            </p>
-          </div>
-        )}
-
-        {/* Group List Items */}
-        {!isLoading && !isError && groups.length > 0 && (
-          <div>
-            {groups.map((group) => (
-              <GroupListItem
-                key={group.id}
-                group={group}
-                isSelected={group.id === selectedGroupId}
-                onClick={() => handleGroupClick(group.id)}
-              />
-            ))}
-          </div>
-        )}
+        {renderState({
+          loading: () => (
+            <div className="divide-y divide-gray-100 dark:divide-dark-border">
+              {Array.from({ length: 8 }).map((_, index) => (
+                <GroupListItemSkeleton key={index} />
+              ))}
+            </div>
+          ),
+          error: () => (
+            <div className="flex flex-col items-center justify-center h-full px-4 py-8 text-center">
+              <MessageSquare className="w-12 h-12 text-red-400 dark:text-red-500 mb-4" />
+              <p className="text-gray-600 dark:text-dark-text-primary font-medium">
+                Failed to load groups
+              </p>
+              <p className="text-sm text-gray-500 dark:text-dark-text-secondary mt-1">
+                {error?.message || "Please try again later"}
+              </p>
+            </div>
+          ),
+          empty: () => (
+            searchQuery ? (
+              <div className="flex flex-col items-center justify-center h-full px-4 py-8 text-center">
+                <Search className="w-12 h-12 text-gray-400 dark:text-dark-text-tertiary mb-4" />
+                <p className="text-gray-600 dark:text-dark-text-primary font-medium">
+                  No groups found
+                </p>
+                <p className="text-sm text-gray-500 dark:text-dark-text-secondary mt-1">
+                  No results for "{searchQuery}"
+                </p>
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center h-full px-4 py-8 text-center">
+                <Users className="w-12 h-12 text-gray-400 dark:text-dark-text-tertiary mb-4" />
+                <p className="text-gray-600 dark:text-dark-text-primary font-medium">
+                  No groups yet
+                </p>
+                <p className="text-sm text-gray-500 dark:text-dark-text-secondary mt-1">
+                  Groups you join will appear here
+                </p>
+              </div>
+            )
+          ),
+          success: (data) => (
+            <div>
+              {data.data.map((group) => (
+                <GroupListItemComponent
+                  key={group.id}
+                  group={group}
+                  isSelected={group.id === selectedGroupId}
+                  onClick={() => handleGroupClick(group.id)}
+                />
+              ))}
+            </div>
+          ),
+        })}
       </div>
     </div>
   );
 }
 
-interface GroupListItemProps {
+interface GroupListItemComponentProps {
   group: GroupListItem;
   isSelected: boolean;
   onClick: () => void;
@@ -173,7 +166,7 @@ interface GroupListItemProps {
 /**
  * Individual group list item component
  */
-function GroupListItem({ group, isSelected, onClick }: GroupListItemProps) {
+function GroupListItemComponent({ group, isSelected, onClick }: GroupListItemComponentProps) {
   const initials = group.displayName
     .split(" ")
     .map((n) => n[0])
