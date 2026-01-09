@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/proto/waHistorySync"
 	"go.mau.fi/whatsmeow/proto/waWeb"
 	"go.mau.fi/whatsmeow/types"
@@ -391,5 +392,68 @@ func (h *Handler) processHistorySyncMessage(historyMsg interface{}, jid string, 
 		}
 	}
 
+	// Extract and publish reactions from history sync
+	// Reactions in history come as ReactionMessage within the message structure
+	if waMsg.ReactionMessage != nil && waMsg.ReactionMessage.Key != nil {
+		h.processHistorySyncReaction(waMsg.ReactionMessage, msg, jid)
+	}
+
 	return true, hasMedia
+}
+
+// processHistorySyncReaction processes a reaction found during history sync
+func (h *Handler) processHistorySyncReaction(reactionMsg *waE2E.ReactionMessage, msg *waWeb.WebMessageInfo, chatJID string) {
+	if reactionMsg == nil || reactionMsg.Key == nil {
+		return
+	}
+
+	targetMsgID := reactionMsg.Key.GetID()
+	if targetMsgID == "" {
+		return
+	}
+
+	emoji := reactionMsg.GetText()
+
+	// Parse and normalize sender JID from the message key
+	var senderJID string
+	if msg.GetKey().GetParticipant() != "" {
+		// Group message - use participant field
+		if parsedJID, err := types.ParseJID(msg.GetKey().GetParticipant()); err == nil {
+			senderJID = parsedJID.ToNonAD().String()
+		}
+	} else if msg.GetKey().GetFromMe() {
+		// Message from current user - use own JID
+		// For fromMe messages, the sender is the account owner
+		// We'll use the chat JID format but this will be handled by the API
+		senderJID = chatJID
+	} else if msg.GetKey().GetRemoteJID() != "" {
+		// Direct message - use remote JID
+		if parsedJID, err := types.ParseJID(msg.GetKey().GetRemoteJID()); err == nil {
+			senderJID = parsedJID.ToNonAD().String()
+		}
+	}
+
+	if senderJID == "" {
+		log.Printf("Could not determine sender JID for reaction on message %s", targetMsgID)
+		return
+	}
+
+	// Get timestamp from the message
+	timestamp := time.Unix(int64(msg.GetMessageTimestamp()), 0)
+
+	log.Printf("Processing history sync reaction from %s: %s on message %s",
+		senderJID, emoji, targetMsgID)
+
+	// Publish reaction to NATS using existing publisher
+	if h.publisher != nil {
+		if err := h.publisher.PublishReaction(
+			targetMsgID,
+			senderJID,
+			chatJID,
+			emoji,
+			timestamp,
+		); err != nil {
+			log.Printf("Failed to publish history reaction: %v", err)
+		}
+	}
 }
