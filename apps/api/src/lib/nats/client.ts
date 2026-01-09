@@ -655,3 +655,60 @@ export async function publishSendReaction(
     "Published send reaction"
   )
 }
+
+/**
+ * Publishes a block contact command to WhatsApp service
+ * Fire-and-forget: errors are logged but don't fail the request
+ */
+export async function publishBlockContact(
+  companyId: string,
+  connectionId: string,
+  contactJid: string
+): Promise<void> {
+  try {
+    const publisher = forConnection(
+      companyId,
+      connectionId,
+      publishCommand,
+      buildCommandSubject
+    )
+    await publisher.blockContact(contactJid)
+    logger.debug(
+      { companyId, connectionId, contactJid },
+      "Published block contact command"
+    )
+  } catch (error) {
+    logger.error(formatError(error), "Failed to publish block contact command")
+    // Fire-and-forget: don't throw, just log the error
+  }
+}
+
+/**
+ * Publishes an unblock contact command to WhatsApp service
+ * Fire-and-forget: errors are logged but don't fail the request
+ */
+export async function publishUnblockContact(
+  companyId: string,
+  connectionId: string,
+  contactJid: string
+): Promise<void> {
+  try {
+    const publisher = forConnection(
+      companyId,
+      connectionId,
+      publishCommand,
+      buildCommandSubject
+    )
+    await publisher.unblockContact(contactJid)
+    logger.debug(
+      { companyId, connectionId, contactJid },
+      "Published unblock contact command"
+    )
+  } catch (error) {
+    logger.error(
+      formatError(error),
+      "Failed to publish unblock contact command"
+    )
+    // Fire-and-forget: don't throw, just log the error
+  }
+}

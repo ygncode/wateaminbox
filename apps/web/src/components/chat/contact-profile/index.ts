@@ -10,3 +10,4 @@ export { SharedNotesSection, PrivateNotesSection } from "./NotesPanel";
 export { TagsSection } from "./TagsSection";
 export { AssignmentSection } from "./AssignmentSection";
 export { AssignmentHistorySection } from "./AssignmentHistorySection";
+export { BlockStatusSection } from "./BlockStatusSection";

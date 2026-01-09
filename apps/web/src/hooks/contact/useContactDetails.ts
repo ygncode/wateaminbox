@@ -13,6 +13,7 @@ export interface ContactDetail {
   customName: string | null;
   displayName: string;
   isGroup: boolean;
+  isBlocked: boolean;
   profilePictureUrl: string | null;
   notesShared: string | null;
   createdAt: string;
@@ -127,6 +128,80 @@ export function useCreateContact() {
     },
     onSuccess: () => {
       // Invalidate contacts list to show the new contact
+      queryClient.invalidateQueries({ queryKey: queryKeys.contacts.all });
+    },
+  });
+}
+
+/**
+ * Response from block/unblock contact API
+ */
+interface BlockContactResponse {
+  id: string;
+  isBlocked: boolean;
+  updatedAt: string;
+}
+
+/**
+ * Hook to block or unblock a contact
+ *
+ * Uses optimistic updates for instant UI feedback.
+ * On error, reverts to previous state.
+ */
+export function useBlockContact() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      contactId,
+      isBlocked,
+    }: {
+      contactId: string;
+      isBlocked: boolean;
+    }) => {
+      const response = await api.patch<BlockContactResponse>(
+        `/contacts/${contactId}`,
+        { isBlocked },
+      );
+      return response;
+    },
+    onMutate: async ({ contactId, isBlocked }) => {
+      // Cancel any outgoing refetches
+      await queryClient.cancelQueries({
+        queryKey: queryKeys.contacts.detail(contactId),
+      });
+
+      // Snapshot the previous value
+      const previousContact = queryClient.getQueryData<ContactDetail>(
+        queryKeys.contacts.detail(contactId),
+      );
+
+      // Optimistically update to the new value
+      if (previousContact) {
+        queryClient.setQueryData(queryKeys.contacts.detail(contactId), {
+          ...previousContact,
+          isBlocked,
+        });
+      }
+
+      // Return a context object with the snapshotted value
+      return { previousContact };
+    },
+    onError: (_error, variables, context) => {
+      // Rollback to the previous value on error
+      if (context?.previousContact) {
+        queryClient.setQueryData(
+          queryKeys.contacts.detail(variables.contactId),
+          context.previousContact,
+        );
+      }
+    },
+    onSettled: (_data, _error, variables) => {
+      // Always refetch after error or success to ensure data is in sync
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.contacts.detail(variables.contactId),
+      });
+      // Also invalidate the contacts list to update block status there
       queryClient.invalidateQueries({ queryKey: queryKeys.contacts.all });
     },
   });

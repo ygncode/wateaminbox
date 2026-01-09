@@ -146,6 +146,7 @@ export interface ContactsTable {
   is_group: Generated<boolean>;
   is_online: Generated<boolean>;
   last_seen: Date | null;
+  is_blocked: Generated<boolean>;
   profile_picture_url: string | null;
   created_at: Generated<Date>;
   updated_at: Generated<Date>;

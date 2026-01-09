@@ -98,6 +98,16 @@ func (m *mockDownloader) ResetCallCount() {
 	m.downloadCallCount = 0
 }
 
+func (m *mockDownloader) BlockContact(ctx context.Context, jid string) error {
+	// No-op for unit tests
+	return nil
+}
+
+func (m *mockDownloader) UnblockContact(ctx context.Context, jid string) error {
+	// No-op for unit tests
+	return nil
+}
+
 // mockDownloadableMessage implements whatsmeow.DownloadableMessage for testing.
 type mockDownloadableMessage struct {
 	directPath    string

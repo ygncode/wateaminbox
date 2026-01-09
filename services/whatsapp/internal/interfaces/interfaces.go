@@ -149,6 +149,10 @@ type WhatsAppClient interface {
 	SetStatusCallback(cb func(status string, reason string))
 	// DownloadMediaWithPath downloads media using its direct path and keys.
 	DownloadMediaWithPath(ctx context.Context, directPath string, encFileHash, fileHash, mediaKey []byte, fileLength int, mediaType whatsmeow.MediaType, mmsType string) ([]byte, error)
+	// BlockContact blocks a contact on WhatsApp.
+	BlockContact(ctx context.Context, jid string) error
+	// UnblockContact unblocks a contact on WhatsApp.
+	UnblockContact(ctx context.Context, jid string) error
 }
 
 // Clock provides an interface for time operations.

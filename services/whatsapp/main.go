@@ -148,6 +148,7 @@ func main() {
 		CompanyID:    companyID,
 		ConnectionID: connectionID,
 		Sender:       waClient,
+		Blocker:      waClient,
 		Publisher:    publisher,
 	})
 	if err != nil {

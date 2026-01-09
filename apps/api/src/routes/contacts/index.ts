@@ -13,6 +13,7 @@ import { Hono } from "hono"
 import { db } from "@whatsapp-web/database"
 import {
   toDbDate,
+  toISOString,
   getContactDisplayName,
   getContactName,
   extractPhoneFromJid,
@@ -29,6 +30,12 @@ import { normalizePhoneNumber } from "../../lib/schemas.js"
 import { tenantMiddleware } from "../../middleware/tenant.js"
 import { getRouteContext } from "../../middleware/context.js"
 import { getContactsWithLastMessage } from "../../services/contact.service.js"
+import { createAuditLog, getClientIp } from "../../services/audit.service.js"
+import { broadcastToCompany } from "../ws/index.js"
+import {
+  publishBlockContact,
+  publishUnblockContact,
+} from "../../lib/nats/client.js"
 
 // Import sub-routes
 import { notesRoutes } from "./notes.js"
@@ -185,6 +192,7 @@ contactRoutes.get("/:id", async (c) => {
     displayName: getContactDisplayName(contact),
     name: getContactName(contact),
     isGroup: contact.is_group,
+    isBlocked: contact.is_blocked,
     profilePictureUrl: contact.profile_picture_url,
     notesShared: contact.notes_shared,
     createdAt: contact.created_at,
@@ -282,13 +290,30 @@ contactRoutes.post("/", async (c) => {
 
 /**
  * PATCH /contacts/:id - Update a contact
+ * Supports: customName, notesShared, isBlocked
+ *
+ * When isBlocked changes:
+ * - Updates the is_blocked field in the database
+ * - Creates an audit log entry (contact.blocked or contact.unblocked)
+ * - Broadcasts a WebSocket event for real-time updates
  */
 contactRoutes.patch("/:id", async (c) => {
-  const { tenantDb } = getRouteContext(c)
+  const { tenantDb, user, companyId } = getRouteContext(c)
   const contactId = c.req.param("id")
   const body = await c.req.json()
 
-  const { customName, notesShared } = body
+  const { customName, notesShared, isBlocked } = body
+
+  // First, check if the contact exists and get current block status
+  const existingContact = await tenantDb
+    .selectFrom("contacts")
+    .select(["id", "jid", "custom_name", "push_name", "phone_number", "is_blocked", "is_group"])
+    .where("id", "=", contactId)
+    .executeTakeFirst()
+
+  if (!existingContact) {
+    return notFound(c, "Contact")
+  }
 
   const updateData: Record<string, unknown> = {
     updated_at: toDbDate(),
@@ -302,21 +327,84 @@ contactRoutes.patch("/:id", async (c) => {
     updateData.notes_shared = notesShared
   }
 
+  // Handle block status change
+  const blockStatusChanged =
+    isBlocked !== undefined && isBlocked !== existingContact.is_blocked
+
+  if (blockStatusChanged) {
+    // Groups cannot be blocked
+    if (existingContact.is_group) {
+      return badRequest(c, "Cannot block group contacts")
+    }
+    updateData.is_blocked = isBlocked
+  }
+
   const updated = await tenantDb
     .updateTable("contacts")
     .set(updateData)
     .where("id", "=", contactId)
-    .returning(["id", "custom_name", "notes_shared", "updated_at"])
+    .returning(["id", "custom_name", "notes_shared", "is_blocked", "updated_at"])
     .executeTakeFirst()
 
   if (!updated) {
     return notFound(c, "Contact")
   }
 
+  // If block status changed, create audit log and broadcast event
+  if (blockStatusChanged) {
+    const contactDisplayName = getContactDisplayName(existingContact, "Unknown Contact")
+
+    // Create audit log
+    await createAuditLog({
+      companyId,
+      userId: user.id,
+      action: isBlocked ? "contact.blocked" : "contact.unblocked",
+      entityType: "contact",
+      entityId: contactId,
+      details: {
+        contactName: contactDisplayName,
+        contactJid: existingContact.jid,
+      },
+      ipAddress: getClientIp(c.req.raw.headers),
+    })
+
+    // Broadcast WebSocket event for real-time update
+    broadcastToCompany(companyId, {
+      type: "contact",
+      payload: {
+        event: isBlocked ? "blocked" : "unblocked",
+        contactId,
+        contactName: contactDisplayName,
+        isBlocked,
+      },
+      timestamp: toISOString(),
+    })
+
+    // Publish NATS command to WhatsApp service (fire-and-forget)
+    // Only if we have a contact JID to block/unblock
+    if (existingContact.jid) {
+      // Get active WhatsApp connection for this company
+      const connection = await tenantDb
+        .selectFrom("whatsapp_connections")
+        .select(["id"])
+        .where("status", "=", "connected")
+        .executeTakeFirst()
+
+      if (connection) {
+        if (isBlocked) {
+          await publishBlockContact(companyId, connection.id, existingContact.jid)
+        } else {
+          await publishUnblockContact(companyId, connection.id, existingContact.jid)
+        }
+      }
+    }
+  }
+
   return c.json({
     id: updated.id,
     customName: updated.custom_name,
     notesShared: updated.notes_shared,
+    isBlocked: updated.is_blocked,
     updatedAt: updated.updated_at,
   })
 })

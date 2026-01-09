@@ -64,6 +64,8 @@ type WhatsAppClient interface {
 	HandleReconnect(ctx context.Context)
 	SendPresence(ctx context.Context, state types.Presence) error
 	SubscribePresence(ctx context.Context, jid types.JID) error
+	BlockContact(ctx context.Context, jid string) error
+	UnblockContact(ctx context.Context, jid string) error
 }
 
 // Config holds handler configuration.
