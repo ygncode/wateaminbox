@@ -1,5 +1,6 @@
 import type { Kysely } from "kysely";
 import type { TenantDatabase } from "@whatsapp-web/database";
+import { syncEntities } from "../lib/sync-helper.js";
 
 // Types defined locally to avoid import issues
 export type CatalogStatus = "active" | "inactive" | "archived";
@@ -218,87 +219,66 @@ export async function syncCatalogsFromWhatsApp(
   tenantDb: Kysely<TenantDatabase>,
   catalogs: WhatsAppCatalog[],
 ): Promise<CatalogSyncResult> {
-  let added = 0;
-  let updated = 0;
-
   // Get existing catalogs
   const existingCatalogs = await tenantDb
     .selectFrom("whatsapp_catalogs")
     .select(["id", "catalog_id", "name", "description"])
     .execute();
 
-  const existingMap = new Map(existingCatalogs.map((c) => [c.catalog_id, c]));
-  const incomingCatalogIds = new Set(catalogs.map((c) => c.catalogId));
+  return syncEntities(
+    {
+      getId: (catalog) => catalog.catalogId,
+      getExistingId: (catalog) => catalog.catalog_id,
+      insert: async (catalog) => {
+        await tenantDb
+          .insertInto("whatsapp_catalogs")
+          .values({
+            catalog_id: catalog.catalogId,
+            name: catalog.name,
+            description: catalog.description ?? null,
+            currency: catalog.currency ?? "USD",
+            status: catalog.status ?? "active",
+            business_jid: catalog.businessJid ?? null,
+            header_image_url: catalog.headerImageUrl ?? null,
+            product_count: catalog.productCount ?? 0,
+            last_synced_at: new Date(),
+          })
+          .execute();
+      },
+      update: async (catalog) => {
+        await tenantDb
+          .updateTable("whatsapp_catalogs")
+          .set({
+            name: catalog.name,
+            description: catalog.description ?? null,
+            currency: catalog.currency ?? "USD",
+            status: catalog.status ?? "active",
+            business_jid: catalog.businessJid ?? null,
+            header_image_url: catalog.headerImageUrl ?? null,
+            product_count: catalog.productCount ?? 0,
+            last_synced_at: new Date(),
+            updated_at: new Date(),
+          })
+          .where("catalog_id", "=", catalog.catalogId)
+          .execute();
+      },
+      remove: async (catalog) => {
+        // Delete products first (cascade delete)
+        await tenantDb
+          .deleteFrom("catalog_products")
+          .where("catalog_id", "=", catalog.catalog_id)
+          .execute();
 
-  // Process incoming catalogs
-  for (const catalog of catalogs) {
-    const existing = existingMap.get(catalog.catalogId);
-
-    if (existing) {
-      // Update existing catalog
-      await tenantDb
-        .updateTable("whatsapp_catalogs")
-        .set({
-          name: catalog.name,
-          description: catalog.description ?? null,
-          currency: catalog.currency ?? "USD",
-          status: catalog.status ?? "active",
-          business_jid: catalog.businessJid ?? null,
-          header_image_url: catalog.headerImageUrl ?? null,
-          product_count: catalog.productCount ?? 0,
-          last_synced_at: new Date(),
-          updated_at: new Date(),
-        })
-        .where("catalog_id", "=", catalog.catalogId)
-        .execute();
-      updated++;
-    } else {
-      // Insert new catalog
-      await tenantDb
-        .insertInto("whatsapp_catalogs")
-        .values({
-          catalog_id: catalog.catalogId,
-          name: catalog.name,
-          description: catalog.description ?? null,
-          currency: catalog.currency ?? "USD",
-          status: catalog.status ?? "active",
-          business_jid: catalog.businessJid ?? null,
-          header_image_url: catalog.headerImageUrl ?? null,
-          product_count: catalog.productCount ?? 0,
-          last_synced_at: new Date(),
-        })
-        .execute();
-      added++;
-    }
-  }
-
-  // Remove catalogs that no longer exist in WhatsApp
-  const toRemove = existingCatalogs.filter(
-    (c) => !incomingCatalogIds.has(c.catalog_id),
+        // Then delete catalog
+        await tenantDb
+          .deleteFrom("whatsapp_catalogs")
+          .where("catalog_id", "=", catalog.catalog_id)
+          .execute();
+      },
+    },
+    existingCatalogs,
+    catalogs,
   );
-  let removed = 0;
-
-  for (const catalog of toRemove) {
-    // Delete products first
-    await tenantDb
-      .deleteFrom("catalog_products")
-      .where("catalog_id", "=", catalog.catalog_id)
-      .execute();
-
-    // Then delete catalog
-    await tenantDb
-      .deleteFrom("whatsapp_catalogs")
-      .where("catalog_id", "=", catalog.catalog_id)
-      .execute();
-    removed++;
-  }
-
-  return {
-    added,
-    updated,
-    removed,
-    total: catalogs.length,
-  };
 }
 
 /**

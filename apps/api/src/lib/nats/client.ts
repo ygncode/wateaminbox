@@ -20,19 +20,8 @@ import {
   type WhatsAppEvent,
   type MessageType,
   type StatusType,
-  type SpawnCommand,
-  type KillCommand,
-  type PostStatusCommand,
-  type GroupPromoteAdminCommand,
-  type GroupDemoteAdminCommand,
-  type GroupRemoveParticipantCommand,
-  type GroupUpdateSettingsCommand,
-  type SyncLabelsCommand,
-  type ApplyLabelCommand,
-  type RemoveLabelCommand,
-  type SyncCatalogsCommand,
-  type SyncCatalogProductsCommand,
 } from "./types/index.js"
+import { forConnection } from "./command-builder.js"
 
 const logger = createLogger("NATS")
 
@@ -163,25 +152,17 @@ export async function publishSpawnCommand(
   connectionId: string,
   databaseUrl: string
 ): Promise<void> {
-  // Ensure sslmode is set for local development
-  let dbUrl = databaseUrl
-  if (dbUrl && !dbUrl.includes("sslmode=")) {
-    dbUrl += dbUrl.includes("?") ? "&sslmode=disable" : "?sslmode=disable"
-  }
-
-  const command: SpawnCommand = {
-    type: "spawn",
-    company_id: companyId,
-    connection_id: connectionId,
-    tenant_schema: `tenant_${companyId.replace(/-/g, "_")}`,
-    database_url: dbUrl,
-  }
   logger.debug(
-    { databaseUrl: dbUrl.replace(/\/\/[^:]+:[^@]+@/, "//***:***@") },
+    { databaseUrl: databaseUrl.replace(/\/\/[^:]+:[^@]+@/, "//***:***@") },
     "Spawn command with redacted DATABASE_URL"
   )
-  const subject = buildCommandSubject(companyId, connectionId)
-  await publishCommand(subject, command)
+  const publisher = forConnection(
+    companyId,
+    connectionId,
+    publishCommand,
+    buildCommandSubject
+  )
+  await publisher.spawn(databaseUrl)
 }
 
 /**
@@ -192,14 +173,13 @@ export async function publishKillCommand(
   connectionId: string,
   reason?: string
 ): Promise<void> {
-  const command: KillCommand = {
-    type: "kill",
-    company_id: companyId,
-    connection_id: connectionId,
-    reason,
-  }
-  const subject = buildCommandSubject(companyId, connectionId)
-  await publishCommand(subject, command)
+  const publisher = forConnection(
+    companyId,
+    connectionId,
+    publishCommand,
+    buildCommandSubject
+  )
+  await publisher.kill(reason)
 }
 
 /**
@@ -345,18 +325,13 @@ export async function publishPostStatus(
   content?: string,
   mediaUrl?: string
 ): Promise<void> {
-  const command: PostStatusCommand = {
-    type: "post_status",
-    company_id: companyId,
-    connection_id: connectionId,
-    status_type: statusType,
-    content,
-    media_url: mediaUrl,
-    user_id: userId,
-  }
-  // Publish to company/connection-specific subject so worker can filter
-  const subject = buildCommandSubject(companyId, connectionId)
-  await publishCommand(subject, command)
+  const publisher = forConnection(
+    companyId,
+    connectionId,
+    publishCommand,
+    buildCommandSubject
+  )
+  await publisher.postStatus(statusType, content || "", userId, mediaUrl)
 }
 
 /**
@@ -369,16 +344,13 @@ export async function publishGroupPromoteAdmin(
   participantJid: string,
   userId: string
 ): Promise<void> {
-  const command: GroupPromoteAdminCommand = {
-    type: "group_promote_admin",
-    company_id: companyId,
-    connection_id: connectionId,
-    group_jid: groupJid,
-    participant_jid: participantJid,
-    user_id: userId,
-  }
-  const subject = buildCommandSubject(companyId, connectionId)
-  await publishCommand(subject, command)
+  const publisher = forConnection(
+    companyId,
+    connectionId,
+    publishCommand,
+    buildCommandSubject
+  )
+  await publisher.groupPromoteAdmin(groupJid, participantJid, userId)
 }
 
 /**
@@ -391,16 +363,13 @@ export async function publishGroupDemoteAdmin(
   participantJid: string,
   userId: string
 ): Promise<void> {
-  const command: GroupDemoteAdminCommand = {
-    type: "group_demote_admin",
-    company_id: companyId,
-    connection_id: connectionId,
-    group_jid: groupJid,
-    participant_jid: participantJid,
-    user_id: userId,
-  }
-  const subject = buildCommandSubject(companyId, connectionId)
-  await publishCommand(subject, command)
+  const publisher = forConnection(
+    companyId,
+    connectionId,
+    publishCommand,
+    buildCommandSubject
+  )
+  await publisher.groupDemoteAdmin(groupJid, participantJid, userId)
 }
 
 /**
@@ -413,16 +382,13 @@ export async function publishGroupRemoveParticipant(
   participantJid: string,
   userId: string
 ): Promise<void> {
-  const command: GroupRemoveParticipantCommand = {
-    type: "group_remove_participant",
-    company_id: companyId,
-    connection_id: connectionId,
-    group_jid: groupJid,
-    participant_jid: participantJid,
-    user_id: userId,
-  }
-  const subject = buildCommandSubject(companyId, connectionId)
-  await publishCommand(subject, command)
+  const publisher = forConnection(
+    companyId,
+    connectionId,
+    publishCommand,
+    buildCommandSubject
+  )
+  await publisher.groupRemoveParticipant(groupJid, participantJid, userId)
 }
 
 /**
@@ -436,17 +402,13 @@ export async function publishGroupUpdateSettings(
   name?: string,
   description?: string
 ): Promise<void> {
-  const command: GroupUpdateSettingsCommand = {
-    type: "group_update_settings",
-    company_id: companyId,
-    connection_id: connectionId,
-    group_jid: groupJid,
-    user_id: userId,
-    name,
-    description,
-  }
-  const subject = buildCommandSubject(companyId, connectionId)
-  await publishCommand(subject, command)
+  const publisher = forConnection(
+    companyId,
+    connectionId,
+    publishCommand,
+    buildCommandSubject
+  )
+  await publisher.groupUpdateSettings(groupJid, userId, name, description)
 }
 
 /**
@@ -457,14 +419,13 @@ export async function publishSyncLabels(
   connectionId: string,
   userId: string
 ): Promise<void> {
-  const command: SyncLabelsCommand = {
-    type: "sync_labels",
-    company_id: companyId,
-    connection_id: connectionId,
-    user_id: userId,
-  }
-  const subject = buildCommandSubject(companyId, connectionId)
-  await publishCommand(subject, command)
+  const publisher = forConnection(
+    companyId,
+    connectionId,
+    publishCommand,
+    buildCommandSubject
+  )
+  await publisher.syncLabels(userId)
 }
 
 /**
@@ -477,16 +438,13 @@ export async function publishApplyLabel(
   contactJid: string,
   userId: string
 ): Promise<void> {
-  const command: ApplyLabelCommand = {
-    type: "apply_label",
-    company_id: companyId,
-    connection_id: connectionId,
-    label_id: labelId,
-    contact_jid: contactJid,
-    user_id: userId,
-  }
-  const subject = buildCommandSubject(companyId, connectionId)
-  await publishCommand(subject, command)
+  const publisher = forConnection(
+    companyId,
+    connectionId,
+    publishCommand,
+    buildCommandSubject
+  )
+  await publisher.applyLabel(labelId, contactJid, userId)
 }
 
 /**
@@ -499,16 +457,13 @@ export async function publishRemoveLabel(
   contactJid: string,
   userId: string
 ): Promise<void> {
-  const command: RemoveLabelCommand = {
-    type: "remove_label",
-    company_id: companyId,
-    connection_id: connectionId,
-    label_id: labelId,
-    contact_jid: contactJid,
-    user_id: userId,
-  }
-  const subject = buildCommandSubject(companyId, connectionId)
-  await publishCommand(subject, command)
+  const publisher = forConnection(
+    companyId,
+    connectionId,
+    publishCommand,
+    buildCommandSubject
+  )
+  await publisher.removeLabel(labelId, contactJid, userId)
 }
 
 /**
@@ -635,14 +590,13 @@ export async function publishSyncCatalogs(
   connectionId: string,
   userId: string
 ): Promise<void> {
-  const command: SyncCatalogsCommand = {
-    type: "sync_catalogs",
-    company_id: companyId,
-    connection_id: connectionId,
-    user_id: userId,
-  }
-  const subject = buildCommandSubject(companyId, connectionId)
-  await publishCommand(subject, command)
+  const publisher = forConnection(
+    companyId,
+    connectionId,
+    publishCommand,
+    buildCommandSubject
+  )
+  await publisher.syncCatalogs(userId)
 }
 
 /**
@@ -654,15 +608,13 @@ export async function publishSyncCatalogProducts(
   catalogId: string,
   userId: string
 ): Promise<void> {
-  const command: SyncCatalogProductsCommand = {
-    type: "sync_catalog_products",
-    company_id: companyId,
-    connection_id: connectionId,
-    catalog_id: catalogId,
-    user_id: userId,
-  }
-  const subject = buildCommandSubject(companyId, connectionId)
-  await publishCommand(subject, command)
+  const publisher = forConnection(
+    companyId,
+    connectionId,
+    publishCommand,
+    buildCommandSubject
+  )
+  await publisher.syncCatalogProducts(catalogId, userId)
 }
 
 /**
