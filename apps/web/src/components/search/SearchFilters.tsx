@@ -15,7 +15,15 @@ import {
   Music,
   Video,
 } from "lucide-react";
-import { Badge, Label, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui";
+import {
+  Badge,
+  Label,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui";
 import type { DateRange, MessageType } from "./types";
 
 interface SearchFiltersProps {

@@ -1,4 +1,4 @@
-import { useEffect, type RefObject } from 'react'
+import { useEffect, type RefObject } from "react";
 
 /**
  * Options for useClickOutside hook
@@ -8,12 +8,12 @@ export interface UseClickOutsideOptions {
    * Whether the hook is enabled. When false, no event listeners are attached.
    * @default true
    */
-  enabled?: boolean
+  enabled?: boolean;
   /**
    * Event type to listen for
    * @default 'mousedown'
    */
-  eventType?: 'mousedown' | 'mouseup' | 'click'
+  eventType?: "mousedown" | "mouseup" | "click";
 }
 
 /**
@@ -51,24 +51,24 @@ export interface UseClickOutsideOptions {
 export function useClickOutside<T extends HTMLElement>(
   ref: RefObject<T | null>,
   callback: () => void,
-  options: UseClickOutsideOptions = {}
+  options: UseClickOutsideOptions = {},
 ): void {
-  const { enabled = true, eventType = 'mousedown' } = options
+  const { enabled = true, eventType = "mousedown" } = options;
 
   useEffect(() => {
     if (!enabled) {
-      return
+      return;
     }
 
     function handleClickOutside(event: MouseEvent) {
       if (ref.current && !ref.current.contains(event.target as Node)) {
-        callback()
+        callback();
       }
     }
 
-    document.addEventListener(eventType, handleClickOutside)
+    document.addEventListener(eventType, handleClickOutside);
     return () => {
-      document.removeEventListener(eventType, handleClickOutside)
-    }
-  }, [ref, callback, enabled, eventType])
+      document.removeEventListener(eventType, handleClickOutside);
+    };
+  }, [ref, callback, enabled, eventType]);
 }

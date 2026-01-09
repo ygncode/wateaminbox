@@ -9,11 +9,7 @@ import {
 } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useKeyboardShortcutsContext } from "@/contexts/KeyboardShortcutsContext";
-import {
-  formatShortcut,
-  isMac,
-  type KeyboardShortcut,
-} from "@/hooks/ui";
+import { formatShortcut, isMac, type KeyboardShortcut } from "@/hooks/ui";
 
 /**
  * Category configuration for grouping shortcuts

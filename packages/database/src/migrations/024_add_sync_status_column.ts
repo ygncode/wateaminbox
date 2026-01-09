@@ -10,10 +10,11 @@ import { addColumnToAllTenants, executeOnAllTenants } from './migration-helpers.
  * history sync completes.
  *
  * New column on whatsapp_connections table:
- * - sync_status: 'syncing' | 'completed' | null
+ * - sync_status: 'syncing' | 'completed' | 'interrupted' | null
  *   - null: Not started or unknown
  *   - 'syncing': Currently syncing history
  *   - 'completed': History sync completed
+ *   - 'interrupted': Sync was interrupted by disconnection
  */
 export async function up(db: Kysely<unknown>): Promise<void> {
   console.log('Migration 024: Adding sync_status column to whatsapp_connections...')

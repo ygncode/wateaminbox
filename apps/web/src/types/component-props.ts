@@ -24,7 +24,12 @@
  * ```
  */
 
-import type { ReactNode, CSSProperties, HTMLAttributes, RefObject } from 'react'
+import type {
+  ReactNode,
+  CSSProperties,
+  HTMLAttributes,
+  RefObject,
+} from "react";
 
 // ============================================================================
 // Base Props Interfaces
@@ -45,14 +50,14 @@ import type { ReactNode, CSSProperties, HTMLAttributes, RefObject } from 'react'
  * ```
  */
 export interface WithChildrenProps {
-  children?: ReactNode
+  children?: ReactNode;
 }
 
 /**
  * Props for components that accept required children
  */
 export interface WithRequiredChildrenProps {
-  children: ReactNode
+  children: ReactNode;
 }
 
 /**
@@ -70,14 +75,14 @@ export interface WithRequiredChildrenProps {
  * ```
  */
 export interface WithClassNameProps {
-  className?: string
+  className?: string;
 }
 
 /**
  * Props for components that accept inline styles
  */
 export interface WithStyleProps {
-  style?: CSSProperties
+  style?: CSSProperties;
 }
 
 /**
@@ -97,7 +102,7 @@ export interface WithStyleProps {
  * ```
  */
 export interface WithLoadingProps {
-  isLoading?: boolean
+  isLoading?: boolean;
 }
 
 /**
@@ -120,21 +125,21 @@ export interface WithLoadingProps {
  * ```
  */
 export interface WithErrorProps {
-  error?: string | null
+  error?: string | null;
 }
 
 /**
  * Props for components that can be disabled
  */
 export interface WithDisabledProps {
-  disabled?: boolean
+  disabled?: boolean;
 }
 
 /**
  * Props for components that can be read-only
  */
 export interface WithReadOnlyProps {
-  readOnly?: boolean
+  readOnly?: boolean;
 }
 
 /**
@@ -149,28 +154,28 @@ export interface WithReadOnlyProps {
  * ```
  */
 export interface WithOnChangeProps<T> {
-  onChange?: (value: T) => void
+  onChange?: (value: T) => void;
 }
 
 /**
  * Props for components with a required onChange handler
  */
 export interface WithRequiredOnChangeProps<T> {
-  onChange: (value: T) => void
+  onChange: (value: T) => void;
 }
 
 /**
  * Props for components with click handler
  */
 export interface WithOnClickProps {
-  onClick?: () => void
+  onClick?: () => void;
 }
 
 /**
  * Props for components with required click handler
  */
 export interface WithRequiredOnClickProps {
-  onClick: () => void
+  onClick: () => void;
 }
 
 /**
@@ -189,88 +194,88 @@ export interface WithRequiredOnClickProps {
  * ```
  */
 export interface WithOpenProps {
-  open?: boolean
-  onOpenChange?: (open: boolean) => void
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
 /**
  * Props for components with required open/close state
  */
 export interface WithRequiredOpenProps {
-  open: boolean
-  onOpenChange: (open: boolean) => void
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
 }
 
 /**
  * Props for components with a label
  */
 export interface WithLabelProps {
-  label?: string
+  label?: string;
 }
 
 /**
  * Props for components with a required label
  */
 export interface WithRequiredLabelProps {
-  label: string
+  label: string;
 }
 
 /**
  * Props for components with placeholder text
  */
 export interface WithPlaceholderProps {
-  placeholder?: string
+  placeholder?: string;
 }
 
 /**
  * Props for components with a description or helper text
  */
 export interface WithDescriptionProps {
-  description?: string
+  description?: string;
 }
 
 /**
  * Props for components that accept a ref
  */
 export interface WithRefProps<T extends HTMLElement> {
-  ref?: RefObject<T>
+  ref?: RefObject<T>;
 }
 
 /**
  * Props for components with testId for testing
  */
 export interface WithTestIdProps {
-  'data-testid'?: string
+  "data-testid"?: string;
 }
 
 /**
  * Props for components that are selectable
  */
 export interface WithSelectionProps {
-  isSelected?: boolean
-  onSelect?: () => void
+  isSelected?: boolean;
+  onSelect?: () => void;
 }
 
 /**
  * Props for components that are required selection
  */
 export interface WithRequiredSelectionProps {
-  isSelected: boolean
-  onSelect: () => void
+  isSelected: boolean;
+  onSelect: () => void;
 }
 
 /**
  * Props for components with a value
  */
 export interface WithValueProps<T> {
-  value?: T
+  value?: T;
 }
 
 /**
  * Props for components with a required value
  */
 export interface WithRequiredValueProps<T> {
-  value: T
+  value: T;
 }
 
 /**
@@ -284,33 +289,33 @@ export interface WithRequiredValueProps<T> {
  * ```
  */
 export interface WithControlledValueProps<T> {
-  value: T
-  onChange: (value: T) => void
+  value: T;
+  onChange: (value: T) => void;
 }
 
 /**
  * Props for components with async submission
  */
 export interface WithAsyncSubmitProps {
-  isSubmitting?: boolean
-  onSubmit?: () => Promise<void> | void
+  isSubmitting?: boolean;
+  onSubmit?: () => Promise<void> | void;
 }
 
 /**
  * Props for components with async submission (required)
  */
 export interface WithRequiredAsyncSubmitProps {
-  isSubmitting: boolean
-  onSubmit: () => Promise<void> | void
+  isSubmitting: boolean;
+  onSubmit: () => Promise<void> | void;
 }
 
 /**
  * Props for components that can be archived or hidden
  */
 export interface WithArchiveProps {
-  isArchived?: boolean
-  onArchive?: () => void
-  onUnarchive?: () => void
+  isArchived?: boolean;
+  onArchive?: () => void;
+  onUnarchive?: () => void;
 }
 
 // ============================================================================
@@ -321,7 +326,8 @@ export interface WithArchiveProps {
  * Common props for form input components
  */
 export interface FormInputProps
-  extends WithClassNameProps,
+  extends
+    WithClassNameProps,
     WithLabelProps,
     WithPlaceholderProps,
     WithErrorProps,
@@ -333,23 +339,20 @@ export interface FormInputProps
  * Common props for list item components
  */
 export interface ListItemProps
-  extends WithClassNameProps,
-    WithSelectionProps,
-    WithOnClickProps {}
+  extends WithClassNameProps, WithSelectionProps, WithOnClickProps {}
 
 /**
  * Common props for dialog/modal components
  */
 export interface DialogProps
-  extends WithRequiredOpenProps,
-    WithChildrenProps,
-    WithClassNameProps {}
+  extends WithRequiredOpenProps, WithChildrenProps, WithClassNameProps {}
 
 /**
  * Common props for action button components
  */
 export interface ActionButtonProps
-  extends WithClassNameProps,
+  extends
+    WithClassNameProps,
     WithLoadingProps,
     WithDisabledProps,
     WithRequiredOnClickProps {}
@@ -358,9 +361,7 @@ export interface ActionButtonProps
  * Common props for card components
  */
 export interface CardProps
-  extends WithChildrenProps,
-    WithClassNameProps,
-    WithOnClickProps {}
+  extends WithChildrenProps, WithClassNameProps, WithOnClickProps {}
 
 // ============================================================================
 // Utility Types
@@ -381,46 +382,46 @@ export interface CardProps
 export type ComposableProps<
   K extends ComposablePropKey,
   AdditionalProps = object,
-> = (K extends 'children' ? WithChildrenProps : object) &
-  (K extends 'className' ? WithClassNameProps : object) &
-  (K extends 'style' ? WithStyleProps : object) &
-  (K extends 'loading' ? WithLoadingProps : object) &
-  (K extends 'error' ? WithErrorProps : object) &
-  (K extends 'disabled' ? WithDisabledProps : object) &
-  (K extends 'onClick' ? WithOnClickProps : object) &
-  (K extends 'open' ? WithOpenProps : object) &
-  (K extends 'label' ? WithLabelProps : object) &
-  (K extends 'placeholder' ? WithPlaceholderProps : object) &
-  (K extends 'description' ? WithDescriptionProps : object) &
-  (K extends 'testId' ? WithTestIdProps : object) &
-  (K extends 'selection' ? WithSelectionProps : object) &
-  AdditionalProps
+> = (K extends "children" ? WithChildrenProps : object) &
+  (K extends "className" ? WithClassNameProps : object) &
+  (K extends "style" ? WithStyleProps : object) &
+  (K extends "loading" ? WithLoadingProps : object) &
+  (K extends "error" ? WithErrorProps : object) &
+  (K extends "disabled" ? WithDisabledProps : object) &
+  (K extends "onClick" ? WithOnClickProps : object) &
+  (K extends "open" ? WithOpenProps : object) &
+  (K extends "label" ? WithLabelProps : object) &
+  (K extends "placeholder" ? WithPlaceholderProps : object) &
+  (K extends "description" ? WithDescriptionProps : object) &
+  (K extends "testId" ? WithTestIdProps : object) &
+  (K extends "selection" ? WithSelectionProps : object) &
+  AdditionalProps;
 
 /**
  * Available keys for ComposableProps utility
  */
 export type ComposablePropKey =
-  | 'children'
-  | 'className'
-  | 'style'
-  | 'loading'
-  | 'error'
-  | 'disabled'
-  | 'onClick'
-  | 'open'
-  | 'label'
-  | 'placeholder'
-  | 'description'
-  | 'testId'
-  | 'selection'
+  | "children"
+  | "className"
+  | "style"
+  | "loading"
+  | "error"
+  | "disabled"
+  | "onClick"
+  | "open"
+  | "label"
+  | "placeholder"
+  | "description"
+  | "testId"
+  | "selection";
 
 /**
  * Extract HTML attributes for a specific element type, excluding ref
  */
 export type HTMLProps<T extends HTMLElement> = Omit<
   HTMLAttributes<T>,
-  'ref' | 'className' | 'style'
->
+  "ref" | "className" | "style"
+>;
 
 /**
  * Merge component props with HTML element props
@@ -436,4 +437,4 @@ export type HTMLProps<T extends HTMLElement> = Omit<
 export type MergeWithHTML<
   ComponentProps,
   Element extends HTMLElement,
-> = ComponentProps & Omit<HTMLProps<Element>, keyof ComponentProps>
+> = ComponentProps & Omit<HTMLProps<Element>, keyof ComponentProps>;

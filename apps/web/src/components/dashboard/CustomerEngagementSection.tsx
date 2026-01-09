@@ -1,24 +1,18 @@
-import {
-  Activity,
-  ArrowRightLeft,
-  Image,
-  Reply,
-  Zap,
-} from 'lucide-react'
-import { Skeleton } from '@/components/ui'
-import { useAsyncData } from '@/hooks'
+import { Activity, ArrowRightLeft, Image, Reply, Zap } from "lucide-react";
+import { Skeleton } from "@/components/ui";
+import { useAsyncData } from "@/hooks";
 import {
   formatNumber,
   useEngagementMetrics,
   useEngagementTrend,
-} from '@/hooks/analytics'
-import { StatCard } from './StatCard'
-import { EngagementTrendChart } from './charts'
+} from "@/hooks/analytics";
+import { StatCard } from "./StatCard";
+import { EngagementTrendChart } from "./charts";
 
 interface CustomerEngagementSectionProps {
-  companyId: string
-  startDate: string
-  endDate: string
+  companyId: string;
+  startDate: string;
+  endDate: string;
 }
 
 /**
@@ -30,11 +24,11 @@ export function CustomerEngagementSection({
   startDate,
   endDate,
 }: CustomerEngagementSectionProps) {
-  const engagementQuery = useEngagementMetrics(companyId, startDate, endDate)
-  const trendQuery = useEngagementTrend(companyId, startDate, endDate)
+  const engagementQuery = useEngagementMetrics(companyId, startDate, endDate);
+  const trendQuery = useEngagementTrend(companyId, startDate, endDate);
 
-  const engagementState = useAsyncData(engagementQuery)
-  const trendState = useAsyncData(trendQuery)
+  const engagementState = useAsyncData(engagementQuery);
+  const trendState = useAsyncData(trendQuery);
 
   return (
     <div className="bg-white dark:bg-dark-elevated rounded-lg border border-gray-200 dark:border-dark-border p-6">
@@ -68,8 +62,8 @@ export function CustomerEngagementSection({
           </p>
         ),
         success: (response) => {
-          const data = response.data
-          const trendData = trendState.data?.data
+          const data = response.data;
+          const trendData = trendState.data?.data;
 
           return (
             <div className="space-y-6">
@@ -173,9 +167,9 @@ export function CustomerEngagementSection({
                 </div>
               )}
             </div>
-          )
+          );
         },
       })}
     </div>
-  )
+  );
 }

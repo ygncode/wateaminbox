@@ -1,7 +1,11 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../../lib/api";
 import { infiniteMessageKeys } from "../useInfiniteMessages";
-import type { MediaDownloadResponse, ForwardMessageResponse, InfiniteMessagesData } from "./types";
+import type {
+  MediaDownloadResponse,
+  ForwardMessageResponse,
+  InfiniteMessagesData,
+} from "./types";
 
 /**
  * Request media download for a message

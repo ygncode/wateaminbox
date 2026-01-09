@@ -31,31 +31,31 @@ export type {
   PresencePayload,
   MediaDownloadedPayload,
   MediaDownloadFailedPayload,
-} from "@whatsapp-web/shared"
+} from "@whatsapp-web/shared";
 
 // Import for use in local type definitions
-import type { ConnectionStatus } from "@whatsapp-web/shared"
+import type { ConnectionStatus } from "@whatsapp-web/shared";
 
 /**
  * Connection metrics for monitoring WebSocket health
  */
 export interface WebSocketMetrics {
   /** Current latency in milliseconds (based on ping-pong round trip) */
-  latency: number | null
+  latency: number | null;
   /** Number of reconnections in current session */
-  reconnectCount: number
+  reconnectCount: number;
   /** Timestamp when connection was established (ms since epoch) */
-  connectedAt: number | null
+  connectedAt: number | null;
   /** Connection uptime in milliseconds */
-  uptime: number | null
+  uptime: number | null;
   /** Last error message and timestamp */
-  lastError: { message: string; timestamp: number } | null
+  lastError: { message: string; timestamp: number } | null;
   /** Connection status */
-  status: ConnectionStatus
+  status: ConnectionStatus;
   /** Number of messages sent in this session */
-  messagesSent: number
+  messagesSent: number;
   /** Number of messages received in this session */
-  messagesReceived: number
+  messagesReceived: number;
 }
 
 /**
@@ -63,13 +63,13 @@ export interface WebSocketMetrics {
  * @internal
  */
 export interface QueuedMessage {
-  type: string
-  payload: unknown
-  resolve: (success: boolean) => void
+  type: string;
+  payload: unknown;
+  resolve: (success: boolean) => void;
 }
 
 // Import WebSocketClientConfig for the DefaultConfig type
-import type { WebSocketClientConfig as SharedConfig } from "@whatsapp-web/shared"
+import type { WebSocketClientConfig as SharedConfig } from "@whatsapp-web/shared";
 
 /**
  * Default configuration values for WebSocket client
@@ -83,6 +83,6 @@ export const DEFAULT_CONFIG: Required<
   heartbeatInterval: 30000,
   pongTimeout: 10000,
   connectionTimeout: 15000,
-}
+};
 
-export type DefaultConfigType = typeof DEFAULT_CONFIG
+export type DefaultConfigType = typeof DEFAULT_CONFIG;

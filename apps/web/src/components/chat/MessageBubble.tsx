@@ -38,13 +38,7 @@ export const MessageBubble = memo(function MessageBubble({
   onSelectionToggle,
 }: MessageBubbleProps) {
   // Get message actions from context (eliminates prop drilling)
-  const {
-    onReply,
-    onForward,
-    onDelete,
-    onStar,
-    onReact,
-  } = useMessageActions();
+  const { onReply, onForward, onDelete, onStar, onReact } = useMessageActions();
   const { t } = useTranslation();
   const [showContextMenu, setShowContextMenu] = useState(false);
   const [showReactionPicker, setShowReactionPicker] = useState(false);
@@ -56,10 +50,8 @@ export const MessageBubble = memo(function MessageBubble({
     position: contextMenuPosition,
     calculateFromMouseEvent: calculateContextMenuPosition,
   } = useRelativePosition(bubbleRef);
-  const {
-    position: reactionPickerPosition,
-    calculateReactionPickerPosition,
-  } = useRelativePosition(bubbleRef);
+  const { position: reactionPickerPosition, calculateReactionPickerPosition } =
+    useRelativePosition(bubbleRef);
 
   // Close context menu when clicking outside
   useClickOutside(contextMenuRef, () => setShowContextMenu(false), {

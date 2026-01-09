@@ -1,17 +1,17 @@
-import { useCallback, useEffect } from "react"
-import { getAccessToken } from "../lib/api"
-import { useWebSocketStore } from "../stores/websocket-store"
-import type { UseWebSocketOptions } from "./websocket/types"
-import { useTypingIndicators } from "./websocket/useTypingIndicators"
-import { useWebSocketConnection } from "./websocket/useWebSocketConnection"
-import { useWebSocketEvents } from "./websocket/useWebSocketEvents"
+import { useCallback, useEffect } from "react";
+import { getAccessToken } from "../lib/api";
+import { useWebSocketStore } from "../stores/websocket-store";
+import type { UseWebSocketOptions } from "./websocket/types";
+import { useTypingIndicators } from "./websocket/useTypingIndicators";
+import { useWebSocketConnection } from "./websocket/useWebSocketConnection";
+import { useWebSocketEvents } from "./websocket/useWebSocketEvents";
 
 export function useWebSocket(options: UseWebSocketOptions = {}) {
-  const { autoConnect = true } = options
+  const { autoConnect = true } = options;
 
   // Use sub-hooks
-  const connection = useWebSocketConnection()
-  const typingIndicators = useTypingIndicators()
+  const connection = useWebSocketConnection();
+  const typingIndicators = useTypingIndicators();
 
   // Set up event handlers
   useWebSocketEvents(options, {
@@ -19,42 +19,42 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
     handleTypingStart: typingIndicators.handleTypingStart,
     handleTypingStop: typingIndicators.handleTypingStop,
     setError: connection.setError,
-  })
+  });
 
   // Auto-connect on mount if enabled and we have a token
   useEffect(() => {
     if (autoConnect && getAccessToken()) {
-      connection.connect()
+      connection.connect();
     }
 
     return () => {
       // Clear all typing timeouts on unmount
-      typingIndicators.cleanup()
-    }
-  }, [autoConnect, connection.connect, typingIndicators.cleanup])
+      typingIndicators.cleanup();
+    };
+  }, [autoConnect, connection.connect, typingIndicators.cleanup]);
 
   // Send typing indicator
   const sendTypingStart = useCallback(
     (conversationId: string) => {
-      connection.send("typing:start", { conversationId })
+      connection.send("typing:start", { conversationId });
     },
     [connection.send],
-  )
+  );
 
   const sendTypingStop = useCallback(
     (conversationId: string) => {
-      connection.send("typing:stop", { conversationId })
+      connection.send("typing:stop", { conversationId });
     },
     [connection.send],
-  )
+  );
 
   // Mark messages as read
   const sendMarkAsRead = useCallback(
     (conversationId: string, messageIds: string[]) => {
-      connection.send("message:read", { conversationId, messageIds })
+      connection.send("message:read", { conversationId, messageIds });
     },
     [connection.send],
-  )
+  );
 
   return {
     // Connection state
@@ -72,7 +72,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
     sendTypingStart,
     sendTypingStop,
     sendMarkAsRead,
-  }
+  };
 }
 
 // Hook for using WebSocket in components that don't need the full API
@@ -84,11 +84,11 @@ export function useWebSocketStatus() {
     error: state.error,
     lastConnectedAt: state.lastConnectedAt,
     lastDisconnectedAt: state.lastDisconnectedAt,
-  }))
+  }));
 }
 
 // Re-export types and sub-hooks for direct usage
-export type { UseWebSocketOptions } from "./websocket/types"
-export { useTypingIndicators } from "./websocket/useTypingIndicators"
-export { useWebSocketConnection } from "./websocket/useWebSocketConnection"
-export { useWebSocketEvents } from "./websocket/useWebSocketEvents"
+export type { UseWebSocketOptions } from "./websocket/types";
+export { useTypingIndicators } from "./websocket/useTypingIndicators";
+export { useWebSocketConnection } from "./websocket/useWebSocketConnection";
+export { useWebSocketEvents } from "./websocket/useWebSocketEvents";

@@ -48,9 +48,7 @@ export function useInvalidateMultiple(queryKeys: QueryKey[]) {
 
   return useCallback(() => {
     return Promise.all(
-      queryKeys.map((queryKey) =>
-        queryClient.invalidateQueries({ queryKey })
-      )
+      queryKeys.map((queryKey) => queryClient.invalidateQueries({ queryKey })),
     );
   }, [queryClient, queryKeys]);
 }
@@ -87,25 +85,25 @@ export function useQueryInvalidation() {
     (queryKey: QueryKey) => {
       return queryClient.invalidateQueries({ queryKey });
     },
-    [queryClient]
+    [queryClient],
   );
 
   const invalidateMultiple = useCallback(
     (queryKeys: QueryKey[]) => {
       return Promise.all(
         queryKeys.map((queryKey) =>
-          queryClient.invalidateQueries({ queryKey })
-        )
+          queryClient.invalidateQueries({ queryKey }),
+        ),
       );
     },
-    [queryClient]
+    [queryClient],
   );
 
   const invalidateExact = useCallback(
     (queryKey: QueryKey) => {
       return queryClient.invalidateQueries({ queryKey, exact: true });
     },
-    [queryClient]
+    [queryClient],
   );
 
   return {
@@ -165,7 +163,7 @@ export function withInvalidation(
  */
 export function withDynamicInvalidation<TData = unknown, TVariables = void>(
   queryClient: ReturnType<typeof useQueryClient>,
-  getQueryKeys: (data: TData, variables: TVariables) => QueryKey[]
+  getQueryKeys: (data: TData, variables: TVariables) => QueryKey[],
 ) {
   return {
     onSuccess: (data: TData, variables: TVariables) => {

@@ -1,11 +1,11 @@
-import { useCallback, useState, type RefObject } from 'react'
+import { useCallback, useState, type RefObject } from "react";
 
 /**
  * Position coordinates
  */
 export interface Position {
-  x: number
-  y: number
+  x: number;
+  y: number;
 }
 
 /**
@@ -15,7 +15,7 @@ export interface PositionOptions {
   /**
    * Fixed offset to apply (e.g., for alignment adjustments)
    */
-  offset?: Position
+  offset?: Position;
 }
 
 /**
@@ -49,43 +49,45 @@ export interface PositionOptions {
  * @param ref - RefObject of the container element
  * @returns Object with position state and calculation functions
  */
-export function useRelativePosition<T extends HTMLElement>(ref: RefObject<T | null>) {
-  const [position, setPosition] = useState<Position>({ x: 0, y: 0 })
+export function useRelativePosition<T extends HTMLElement>(
+  ref: RefObject<T | null>,
+) {
+  const [position, setPosition] = useState<Position>({ x: 0, y: 0 });
 
   /**
    * Calculate position from a mouse event relative to the ref element
    */
   const calculateFromMouseEvent = useCallback(
     (event: React.MouseEvent, options: PositionOptions = {}) => {
-      const rect = ref.current?.getBoundingClientRect()
-      if (!rect) return
+      const rect = ref.current?.getBoundingClientRect();
+      if (!rect) return;
 
-      const { offset = { x: 0, y: 0 } } = options
+      const { offset = { x: 0, y: 0 } } = options;
 
       setPosition({
         x: event.clientX - rect.left + offset.x,
         y: event.clientY - rect.top + offset.y,
-      })
+      });
     },
-    [ref]
-  )
+    [ref],
+  );
 
   /**
    * Set a fixed position (e.g., for popovers that open at a specific location)
    */
   const setFixedPosition = useCallback(
     (pos: Position | ((rect: DOMRect) => Position)) => {
-      if (typeof pos === 'function') {
-        const rect = ref.current?.getBoundingClientRect()
+      if (typeof pos === "function") {
+        const rect = ref.current?.getBoundingClientRect();
         if (rect) {
-          setPosition(pos(rect))
+          setPosition(pos(rect));
         }
       } else {
-        setPosition(pos)
+        setPosition(pos);
       }
     },
-    [ref]
-  )
+    [ref],
+  );
 
   /**
    * Calculate position for a reaction picker relative to bubble
@@ -94,16 +96,16 @@ export function useRelativePosition<T extends HTMLElement>(ref: RefObject<T | nu
    */
   const calculateReactionPickerPosition = useCallback(
     (isOwn: boolean, verticalOffset: number = -50) => {
-      const rect = ref.current?.getBoundingClientRect()
-      if (!rect) return
+      const rect = ref.current?.getBoundingClientRect();
+      if (!rect) return;
 
       setPosition({
         x: isOwn ? -20 : rect.width - 20,
         y: verticalOffset,
-      })
+      });
     },
-    [ref]
-  )
+    [ref],
+  );
 
   return {
     position,
@@ -111,7 +113,7 @@ export function useRelativePosition<T extends HTMLElement>(ref: RefObject<T | nu
     setFixedPosition,
     calculateReactionPickerPosition,
     setPosition,
-  }
+  };
 }
 
 /**
@@ -122,17 +124,17 @@ export interface PopoverPositionOptions {
    * Preferred placement of the popover
    * @default 'bottom'
    */
-  placement?: 'top' | 'bottom' | 'left' | 'right'
+  placement?: "top" | "bottom" | "left" | "right";
   /**
    * Gap between trigger and popover
    * @default 8
    */
-  gap?: number
+  gap?: number;
   /**
    * Padding from viewport edges
    * @default 8
    */
-  viewportPadding?: number
+  viewportPadding?: number;
 }
 
 /**
@@ -167,80 +169,86 @@ export interface PopoverPositionOptions {
  */
 export function usePopoverPosition<T extends HTMLElement>(
   triggerRef: RefObject<T | null>,
-  options: PopoverPositionOptions = {}
-): Position & { placement: 'top' | 'bottom' | 'left' | 'right' } {
-  const { placement = 'bottom', gap = 8, viewportPadding = 8 } = options
-  const [position, setPosition] = useState<Position>({ x: 0, y: 0 })
-  const [actualPlacement, setActualPlacement] = useState(placement)
+  options: PopoverPositionOptions = {},
+): Position & { placement: "top" | "bottom" | "left" | "right" } {
+  const { placement = "bottom", gap = 8, viewportPadding = 8 } = options;
+  const [position, setPosition] = useState<Position>({ x: 0, y: 0 });
+  const [actualPlacement, setActualPlacement] = useState(placement);
 
   const calculate = useCallback(
     (popoverWidth: number = 200, popoverHeight: number = 100) => {
-      const rect = triggerRef.current?.getBoundingClientRect()
-      if (!rect) return
+      const rect = triggerRef.current?.getBoundingClientRect();
+      if (!rect) return;
 
       const viewport = {
         width: window.innerWidth,
         height: window.innerHeight,
-      }
+      };
 
-      let x = 0
-      let y = 0
-      let finalPlacement = placement
+      let x = 0;
+      let y = 0;
+      let finalPlacement = placement;
 
       // Calculate position based on placement
       switch (placement) {
-        case 'top':
-          x = rect.left + rect.width / 2 - popoverWidth / 2
-          y = rect.top - popoverHeight - gap
+        case "top":
+          x = rect.left + rect.width / 2 - popoverWidth / 2;
+          y = rect.top - popoverHeight - gap;
           // Flip to bottom if not enough space at top
           if (y < viewportPadding) {
-            y = rect.bottom + gap
-            finalPlacement = 'bottom'
+            y = rect.bottom + gap;
+            finalPlacement = "bottom";
           }
-          break
-        case 'bottom':
-          x = rect.left + rect.width / 2 - popoverWidth / 2
-          y = rect.bottom + gap
+          break;
+        case "bottom":
+          x = rect.left + rect.width / 2 - popoverWidth / 2;
+          y = rect.bottom + gap;
           // Flip to top if not enough space at bottom
           if (y + popoverHeight > viewport.height - viewportPadding) {
-            y = rect.top - popoverHeight - gap
-            finalPlacement = 'top'
+            y = rect.top - popoverHeight - gap;
+            finalPlacement = "top";
           }
-          break
-        case 'left':
-          x = rect.left - popoverWidth - gap
-          y = rect.top + rect.height / 2 - popoverHeight / 2
+          break;
+        case "left":
+          x = rect.left - popoverWidth - gap;
+          y = rect.top + rect.height / 2 - popoverHeight / 2;
           // Flip to right if not enough space at left
           if (x < viewportPadding) {
-            x = rect.right + gap
-            finalPlacement = 'right'
+            x = rect.right + gap;
+            finalPlacement = "right";
           }
-          break
-        case 'right':
-          x = rect.right + gap
-          y = rect.top + rect.height / 2 - popoverHeight / 2
+          break;
+        case "right":
+          x = rect.right + gap;
+          y = rect.top + rect.height / 2 - popoverHeight / 2;
           // Flip to left if not enough space at right
           if (x + popoverWidth > viewport.width - viewportPadding) {
-            x = rect.left - popoverWidth - gap
-            finalPlacement = 'left'
+            x = rect.left - popoverWidth - gap;
+            finalPlacement = "left";
           }
-          break
+          break;
       }
 
       // Clamp horizontal position to viewport
-      x = Math.max(viewportPadding, Math.min(x, viewport.width - popoverWidth - viewportPadding))
+      x = Math.max(
+        viewportPadding,
+        Math.min(x, viewport.width - popoverWidth - viewportPadding),
+      );
 
       // Clamp vertical position to viewport
-      y = Math.max(viewportPadding, Math.min(y, viewport.height - popoverHeight - viewportPadding))
+      y = Math.max(
+        viewportPadding,
+        Math.min(y, viewport.height - popoverHeight - viewportPadding),
+      );
 
-      setPosition({ x, y })
-      setActualPlacement(finalPlacement)
+      setPosition({ x, y });
+      setActualPlacement(finalPlacement);
     },
-    [triggerRef, placement, gap, viewportPadding]
-  )
+    [triggerRef, placement, gap, viewportPadding],
+  );
 
   return { ...position, placement: actualPlacement, calculate } as Position & {
-    placement: 'top' | 'bottom' | 'left' | 'right'
-    calculate: typeof calculate
-  }
+    placement: "top" | "bottom" | "left" | "right";
+    calculate: typeof calculate;
+  };
 }

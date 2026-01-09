@@ -20,7 +20,10 @@ import { useDebounce } from "@/hooks/ui";
 // Sub-components
 import { ContactSearchResults } from "./ContactSearchResults";
 import { EmptyState } from "./EmptyState";
-import { MessageSearchResults, SearchResultSkeletons } from "./MessageSearchResults";
+import {
+  MessageSearchResults,
+  SearchResultSkeletons,
+} from "./MessageSearchResults";
 import { SearchFilters } from "./SearchFilters";
 import { SearchTabs } from "./SearchTabs";
 import type { DateRange, MessageType, SearchTab } from "./types";
@@ -52,7 +55,9 @@ export function SearchPanel({
 
   // Message filter state
   const [dateRange, setDateRange] = useState<DateRange>("all");
-  const [selectedMessageTypes, setSelectedMessageTypes] = useState<MessageType[]>([]);
+  const [selectedMessageTypes, setSelectedMessageTypes] = useState<
+    MessageType[]
+  >([]);
 
   // Debounced query
   const debouncedQuery = useDebounce(query, 300);

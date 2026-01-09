@@ -4,21 +4,21 @@
  * Manages queued messages while connection is being established.
  */
 
-import type { QueuedMessage } from "./types"
+import type { QueuedMessage } from "./types";
 
 /**
  * Message queue for WebSocket
  */
 export class MessageQueue {
-  private queue: QueuedMessage[] = []
+  private queue: QueuedMessage[] = [];
 
   /**
    * Add a message to the queue
    */
   enqueue(type: string, payload: unknown): Promise<boolean> {
     return new Promise((resolve) => {
-      this.queue.push({ type, payload, resolve })
-    })
+      this.queue.push({ type, payload, resolve });
+    });
   }
 
   /**
@@ -27,10 +27,10 @@ export class MessageQueue {
    */
   processAll(sendFn: (type: string, payload: unknown) => boolean): void {
     while (this.queue.length > 0) {
-      const item = this.queue.shift()
+      const item = this.queue.shift();
       if (item) {
-        const success = sendFn(item.type, item.payload)
-        item.resolve(success)
+        const success = sendFn(item.type, item.payload);
+        item.resolve(success);
       }
     }
   }
@@ -40,9 +40,9 @@ export class MessageQueue {
    */
   clearAll(): void {
     while (this.queue.length > 0) {
-      const item = this.queue.shift()
+      const item = this.queue.shift();
       if (item) {
-        item.resolve(false)
+        item.resolve(false);
       }
     }
   }
@@ -51,6 +51,6 @@ export class MessageQueue {
    * Get number of queued messages
    */
   get length(): number {
-    return this.queue.length
+    return this.queue.length;
   }
 }

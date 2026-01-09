@@ -42,7 +42,8 @@ export function useMessageVirtualization({
   const [isAtBottom, setIsAtBottom] = useState(true);
   const prevItemsLengthRef = useRef(0);
   const isInitialScrollDone = useRef(false);
-  const [isLoadingHighlightedMessage, setIsLoadingHighlightedMessage] = useState(false);
+  const [isLoadingHighlightedMessage, setIsLoadingHighlightedMessage] =
+    useState(false);
   const pendingHighlightedMessageIdRef = useRef<string | null>(null);
 
   // Group messages by date and flatten into virtual items - memoized to prevent re-renders

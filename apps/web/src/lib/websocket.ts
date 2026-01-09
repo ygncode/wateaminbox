@@ -88,7 +88,7 @@ export class WebSocketClient {
           this.reconnect.schedule();
         },
         isSocketReady: () => this.isSocketReady(),
-      }
+      },
     );
 
     // Initialize reconnect manager
@@ -104,7 +104,7 @@ export class WebSocketClient {
           this.setStatus("error");
           this.config.onError?.(new Error("Max reconnection attempts reached"));
         },
-      }
+      },
     );
   }
 
@@ -365,7 +365,7 @@ export class WebSocketClient {
 
     // Process any queued messages
     this.messageQueue.processAll((type, payload) =>
-      this.sendImmediate(type, payload)
+      this.sendImmediate(type, payload),
     );
 
     // Start heartbeat after connection is stable

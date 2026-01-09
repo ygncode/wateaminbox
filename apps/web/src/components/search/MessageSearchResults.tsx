@@ -6,7 +6,12 @@
 
 import { FileText, Image, MapPin, Music, Users, Video } from "lucide-react";
 import { formatChatListTime } from "@whatsapp-web/shared";
-import { Avatar, AvatarFallback, HighlightedText, Skeleton } from "@/components/ui";
+import {
+  Avatar,
+  AvatarFallback,
+  HighlightedText,
+  Skeleton,
+} from "@/components/ui";
 import type { MessageSearchResult } from "@/hooks/useSearch";
 
 /**
