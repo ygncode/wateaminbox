@@ -86,10 +86,12 @@ export function buildMessageMetadata(msg: MessageDbRow): MessageMetadata {
  * Format a message for the conversations route (GET /conversations/:id/messages)
  *
  * Uses `replyToMessage`/`replyToMessageId` and `senderType`/`senderId` format.
+ * Includes `reactions` array.
  */
 export function formatMessageForConversation(
   msg: MessageDbRow,
   quotedMessagesMap: Map<string, QuotedMessageData>,
+  reactionsMap: Map<string, ReactionData[]>,
 ) {
   return {
     id: msg.id,
@@ -116,6 +118,7 @@ export function formatMessageForConversation(
     timestamp: msg.timestamp,
     createdAt: msg.created_at,
     updatedAt: msg.created_at,
+    reactions: reactionsMap.get(msg.id) || [],
   };
 }
 
@@ -125,9 +128,10 @@ export function formatMessageForConversation(
 export function formatMessagesForConversation(
   messages: MessageDbRow[],
   quotedMessagesMap: Map<string, QuotedMessageData>,
+  reactionsMap: Map<string, ReactionData[]>,
 ) {
   return messages.map((msg) =>
-    formatMessageForConversation(msg, quotedMessagesMap),
+    formatMessageForConversation(msg, quotedMessagesMap, reactionsMap),
   );
 }
 
