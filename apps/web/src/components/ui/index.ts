@@ -17,6 +17,7 @@ export {
 } from "./dialog";
 export { Input, type InputProps } from "./input";
 export { Label } from "./label";
+export { LoadingSpinner, type LoadingSpinnerProps } from "./loading-spinner";
 export {
   Popover,
   PopoverAnchor,

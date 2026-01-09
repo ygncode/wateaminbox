@@ -23,7 +23,7 @@ import {
   ScrollArea,
   Skeleton,
 } from "@/components/ui";
-import { useNotificationCenter } from "@/hooks/useNotificationCenter";
+import { useNotificationCenter } from "@/hooks/notification";
 import type { InAppNotification, NotificationType } from "@/lib/api";
 import { cn } from "@/lib/utils";
 

@@ -12,6 +12,40 @@
  * ```
  */
 
+// Company
+export {
+  createCompanySchema,
+  updateCompanySchema,
+  updateMemberRoleSchema,
+  inviteMemberSchema,
+  updateMemberPermissionsSchema,
+  type CreateCompanyInput,
+  type UpdateCompanyInput,
+  type UpdateMemberRoleInput,
+  type InviteMemberInput,
+  type UpdateMemberPermissionsInput,
+} from "./company.js";
+
+// WhatsApp
+export {
+  sendMessageSchema,
+  type SendMessageInput,
+} from "./whatsapp.js";
+
+// Notifications
+export {
+  soundChoiceSchema,
+  notificationTypeSchema,
+  updatePreferencesSchema,
+  muteContactSchema,
+  listNotificationsQuerySchema,
+  createNotificationSchema,
+  type UpdatePreferencesInput,
+  type MuteContactInput,
+  type ListNotificationsQuery,
+  type CreateNotificationInput,
+} from "./notification.js";
+
 // Quick Replies
 export {
   createQuickReplySchema,

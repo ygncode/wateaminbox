@@ -15,7 +15,7 @@ import {
   useGlobalSearch,
   useMessageSearch,
 } from "@/hooks/useSearch";
-import { useDebounce } from "@/hooks/useDebounce";
+import { useDebounce } from "@/hooks/ui";
 
 // Sub-components
 import { ContactSearchResults } from "./ContactSearchResults";

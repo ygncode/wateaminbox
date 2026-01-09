@@ -5,34 +5,16 @@
  */
 
 import { Hono } from "hono";
-import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
 import { HTTPException } from "hono/http-exception";
 import { authMiddleware } from "../../middleware/auth.js";
 import { tenantFromParam } from "../../middleware/tenant.js";
 import * as companyService from "../../services/company.service.js";
 import { createLogger, formatError } from "../../lib/logger.js";
+import { created, successData, successMessage } from "../../lib/response.js";
+import { createCompanySchema, updateCompanySchema } from "../../lib/schemas/index.js";
 
 const logger = createLogger("CompanyRoutes:CRUD");
-
-// Validation schemas
-const createCompanySchema = z.object({
-  name: z
-    .string()
-    .min(1, "Company name is required")
-    .max(255, "Company name must be less than 255 characters")
-    .trim(),
-});
-
-const updateCompanySchema = z.object({
-  name: z
-    .string()
-    .min(1, "Company name is required")
-    .max(255, "Company name must be less than 255 characters")
-    .trim()
-    .optional(),
-  status: z.enum(["active", "suspended"]).optional(),
-});
 
 export const crudRoutes = new Hono();
 
@@ -44,10 +26,7 @@ crudRoutes.get("/", authMiddleware, async (c) => {
 
   try {
     const companies = await companyService.getUserCompanies(user.id);
-    return c.json({
-      success: true,
-      data: companies,
-    });
+    return successData(c, companies);
   } catch (error) {
     logger.error({ err: formatError(error) }, "Failed to get user companies");
     throw new HTTPException(500, {
@@ -72,13 +51,7 @@ crudRoutes.post(
         { name: input.name },
         user.id,
       );
-      return c.json(
-        {
-          success: true,
-          data: company,
-        },
-        201,
-      );
+      return created(c, company);
     } catch (error) {
       logger.error({ err: formatError(error) }, "Failed to create company");
       throw new HTTPException(500, {
@@ -97,12 +70,9 @@ crudRoutes.get("/:id", authMiddleware, tenantFromParam("id"), async (c) => {
 
   try {
     const company = await companyService.getCompany(companyId);
-    return c.json({
-      success: true,
-      data: {
-        ...company,
-        role, // Include user's role in response
-      },
+    return successData(c, {
+      ...company,
+      role, // Include user's role in response
     });
   } catch (error) {
     if (error instanceof companyService.CompanyNotFoundError) {
@@ -137,10 +107,7 @@ crudRoutes.patch(
 
     try {
       const company = await companyService.updateCompany(companyId, input);
-      return c.json({
-        success: true,
-        data: company,
-      });
+      return successData(c, company);
     } catch (error) {
       if (error instanceof companyService.CompanyNotFoundError) {
         throw new HTTPException(404, { message: error.message });
@@ -163,10 +130,7 @@ crudRoutes.delete(
 
     try {
       await companyService.deleteCompany(companyId);
-      return c.json({
-        success: true,
-        message: "Company deleted successfully",
-      });
+      return successMessage(c, "Company deleted successfully");
     } catch (error) {
       if (error instanceof companyService.CompanyNotFoundError) {
         throw new HTTPException(404, { message: error.message });

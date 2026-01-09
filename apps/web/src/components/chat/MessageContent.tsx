@@ -215,6 +215,22 @@ export function MessageContent({ message, isOwn }: MessageContentProps) {
         <p className="whitespace-pre-wrap break-words">{message.content}</p>
       </div>
     ),
+    contact: () => (
+      <div className="p-3 bg-gray-50 dark:bg-dark-tertiary rounded-lg border border-gray-200 dark:border-dark-border">
+        <p className="text-xs text-gray-500 dark:text-dark-text-secondary mb-1">
+          Contact Card
+        </p>
+        <p className="whitespace-pre-wrap break-words">{message.content}</p>
+      </div>
+    ),
+    reaction: () => (
+      <div className="flex items-center gap-2">
+        <span className="text-2xl">{message.content}</span>
+        <span className="text-xs text-gray-500 dark:text-dark-text-secondary">
+          Reaction
+        </span>
+      </div>
+    ),
   };
 
   return (

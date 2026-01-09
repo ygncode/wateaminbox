@@ -20,17 +20,13 @@ export * from "./query-keys";
 // Async data utility
 export * from "./useAsyncData";
 
-// Backward-compatible re-exports (deprecated - use feature directories)
-export * from "./useAnalytics";
+// Feature-specific hooks
 export * from "./useAudit";
 export * from "./useChats";
 export * from "./useContact";
 export * from "./useExport";
 export * from "./useGroups";
 export * from "./useInfiniteMessages";
-export * from "./useKeyboardShortcuts";
-export * from "./useMediaQuery";
 export * from "./useMessages";
-export * from "./useSwipeGesture";
 export * from "./useTeam";
 export * from "./useWebSocket";

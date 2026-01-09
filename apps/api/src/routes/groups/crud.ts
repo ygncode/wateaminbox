@@ -6,6 +6,7 @@
 import { toDbDate, getGroupDisplayName } from '@whatsapp-web/shared'
 import { Hono } from 'hono'
 import { notFound } from '../../lib/errors.js'
+import { extractPaginationParams } from '../../lib/route-helpers.js'
 import { getRouteContext } from '../../middleware/context.js'
 
 export const crudRoutes = new Hono()
@@ -17,8 +18,7 @@ export const crudRoutes = new Hono()
 crudRoutes.get('/', async (c) => {
   const { tenantDb } = getRouteContext(c)
   const search = c.req.query('search')
-  const limit = parseInt(c.req.query('limit') || '50', 10)
-  const offset = parseInt(c.req.query('offset') || '0', 10)
+  const { limit, offset } = extractPaginationParams(c, 50)
 
   let query = tenantDb
     .selectFrom('contacts')

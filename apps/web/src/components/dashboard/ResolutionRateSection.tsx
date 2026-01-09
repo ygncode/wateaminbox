@@ -1,8 +1,8 @@
 import { CheckCircle, CircleDot, Clock, Target } from 'lucide-react'
 import { Skeleton } from '@/components/ui'
 import { useAsyncData } from '@/hooks'
-import { useResolutionStats } from '@/hooks/useAnalytics'
-import { ResolutionStatCard } from './ResolutionStatCard'
+import { useResolutionStats } from '@/hooks/analytics'
+import { StatCard } from './StatCard'
 
 interface ResolutionRateSectionProps {
   companyId: string
@@ -54,25 +54,29 @@ export function ResolutionRateSection({
           const data = response.data
           return (
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <ResolutionStatCard
+              <StatCard
+                variant="compact"
                 icon={<CircleDot className="h-5 w-5" />}
                 label="Open"
                 value={data.openConversations}
                 color="blue"
               />
-              <ResolutionStatCard
+              <StatCard
+                variant="compact"
                 icon={<Clock className="h-5 w-5" />}
                 label="Pending"
                 value={data.pendingConversations}
                 color="yellow"
               />
-              <ResolutionStatCard
+              <StatCard
+                variant="compact"
                 icon={<CheckCircle className="h-5 w-5" />}
                 label="Resolved"
                 value={data.resolvedConversations}
                 color="green"
               />
-              <ResolutionStatCard
+              <StatCard
+                variant="compact"
                 icon={<Target className="h-5 w-5" />}
                 label="Resolution Rate"
                 value={data.resolutionRate}

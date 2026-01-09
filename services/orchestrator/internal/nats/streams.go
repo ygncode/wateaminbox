@@ -6,79 +6,32 @@ import (
 	"time"
 
 	"github.com/nats-io/nats.go"
+	sharednats "github.com/ygncode-lab/whatsapp-web/services/shared/nats"
 )
 
-// Stream and consumer names
+// Consumer names (orchestrator-specific)
 const (
-	StreamCommands  = "WHATSAPP_COMMANDS"
-	StreamEvents    = "WHATSAPP_EVENTS"
-	StreamDownloads = "WHATSAPP_DOWNLOADS"
-
 	ConsumerCommands = "orchestrator-commands"
 )
 
-// StreamConfig holds configuration for a JetStream stream.
-type StreamConfig struct {
-	Name        string
-	Subjects    []string
-	Description string
-	MaxAge      time.Duration
-	MaxMsgs     int64
-	MaxBytes    int64
-}
-
-// DefaultCommandsStreamConfig returns the default configuration for the commands stream.
-func DefaultCommandsStreamConfig() StreamConfig {
-	return StreamConfig{
-		Name:        StreamCommands,
-		Subjects:    []string{"WHATSAPP.commands", "WHATSAPP.commands.>"},
-		Description: "Orchestrator commands for managing WhatsApp workers (spawn, kill, status)",
-		MaxAge:      24 * time.Hour,
-		MaxMsgs:     100000,
-		MaxBytes:    100 * 1024 * 1024, // 100MB
-	}
-}
-
-// DefaultEventsStreamConfig returns the default configuration for the events stream.
-func DefaultEventsStreamConfig() StreamConfig {
-	return StreamConfig{
-		Name:        StreamEvents,
-		Subjects:    []string{"WHATSAPP.events", "WHATSAPP.events.>"},
-		Description: "WhatsApp events (connected, disconnected, message, qr)",
-		MaxAge:      7 * 24 * time.Hour,
-		MaxMsgs:     1000000,
-		MaxBytes:    1024 * 1024 * 1024, // 1GB
-	}
-}
-
-// DefaultDownloadsStreamConfig returns the default configuration for the downloads stream.
-func DefaultDownloadsStreamConfig() StreamConfig {
-	return StreamConfig{
-		Name:        StreamDownloads,
-		Subjects:    []string{"WHATSAPP.download", "WHATSAPP.download.>"},
-		Description: "On-demand media download requests from API to WhatsApp workers",
-		MaxAge:      1 * time.Hour,  // Download requests expire after 1 hour
-		MaxMsgs:     10000,
-		MaxBytes:    10 * 1024 * 1024, // 10MB - requests are small
-	}
-}
-
 // CreateStreams creates the required JetStream streams for the orchestrator.
+// Uses shared stream configurations from the shared/nats package.
 func (c *Client) CreateStreams() error {
 	log.Println("Setting up JetStream streams...")
+	js := c.conn.JetStream()
 
-	// Create commands stream
-	if err := c.createOrUpdateStream(DefaultCommandsStreamConfig()); err != nil {
+	// Create commands stream using shared config
+	if err := sharednats.EnsureStream(js, sharednats.DefaultCommandsStreamConfig()); err != nil {
 		return fmt.Errorf("failed to create commands stream: %w", err)
 	}
 
-	// Create events stream
-	if err := c.createOrUpdateStream(DefaultEventsStreamConfig()); err != nil {
+	// Create events stream using shared config
+	if err := sharednats.EnsureStream(js, sharednats.DefaultEventsStreamConfig()); err != nil {
 		return fmt.Errorf("failed to create events stream: %w", err)
 	}
 
-	// Create downloads stream
-	if err := c.createOrUpdateStream(DefaultDownloadsStreamConfig()); err != nil {
+	// Create downloads stream using shared config
+	if err := sharednats.EnsureStream(js, sharednats.DefaultDownloadsStreamConfig()); err != nil {
 		return fmt.Errorf("failed to create downloads stream: %w", err)
 	}
 
@@ -91,53 +44,11 @@ func (c *Client) CreateStreams() error {
 	return nil
 }
 
-// createOrUpdateStream creates a stream or updates it if it exists.
-func (c *Client) createOrUpdateStream(cfg StreamConfig) error {
-	streamCfg := &nats.StreamConfig{
-		Name:        cfg.Name,
-		Subjects:    cfg.Subjects,
-		Description: cfg.Description,
-		MaxAge:      cfg.MaxAge,
-		MaxMsgs:     cfg.MaxMsgs,
-		MaxBytes:    cfg.MaxBytes,
-		Storage:     nats.FileStorage,
-		Retention:   nats.LimitsPolicy,
-		Replicas:    1,
-		Discard:     nats.DiscardOld,
-	}
-
-	// Try to get existing stream
-	stream, err := c.js.StreamInfo(cfg.Name)
-	if err != nil {
-		if err == nats.ErrStreamNotFound {
-			// Create new stream
-			_, err = c.js.AddStream(streamCfg)
-			if err != nil {
-				return fmt.Errorf("failed to add stream %s: %w", cfg.Name, err)
-			}
-			log.Printf("Created stream: %s", cfg.Name)
-			return nil
-		}
-		return fmt.Errorf("failed to get stream info for %s: %w", cfg.Name, err)
-	}
-
-	// Update existing stream if needed
-	if !streamsEqual(stream.Config, *streamCfg) {
-		_, err = c.js.UpdateStream(streamCfg)
-		if err != nil {
-			return fmt.Errorf("failed to update stream %s: %w", cfg.Name, err)
-		}
-		log.Printf("Updated stream: %s", cfg.Name)
-	} else {
-		log.Printf("Stream already exists: %s", cfg.Name)
-	}
-
-	return nil
-}
-
 // createCommandsConsumer creates a durable consumer for the commands stream.
 // Always deletes and recreates the consumer on startup to ensure clean state.
 func (c *Client) createCommandsConsumer() error {
+	js := c.conn.JetStream()
+
 	consumerCfg := &nats.ConsumerConfig{
 		Durable:       ConsumerCommands,
 		Description:   "Orchestrator consumer for processing worker commands",
@@ -151,16 +62,16 @@ func (c *Client) createCommandsConsumer() error {
 
 	// Always delete existing consumer to ensure clean state on startup
 	// This prevents issues with stale delivery positions
-	_, err := c.js.ConsumerInfo(StreamCommands, ConsumerCommands)
+	_, err := js.ConsumerInfo(sharednats.StreamCommands, ConsumerCommands)
 	if err == nil {
 		log.Printf("Deleting existing consumer %s to ensure clean state...", ConsumerCommands)
-		if err := c.js.DeleteConsumer(StreamCommands, ConsumerCommands); err != nil {
+		if err := js.DeleteConsumer(sharednats.StreamCommands, ConsumerCommands); err != nil {
 			log.Printf("Warning: failed to delete existing consumer: %v", err)
 		}
 	}
 
 	// Create fresh consumer
-	_, err = c.js.AddConsumer(StreamCommands, consumerCfg)
+	_, err = js.AddConsumer(sharednats.StreamCommands, consumerCfg)
 	if err != nil {
 		return fmt.Errorf("failed to add consumer %s: %w", ConsumerCommands, err)
 	}
@@ -168,16 +79,11 @@ func (c *Client) createCommandsConsumer() error {
 	return nil
 }
 
-// consumerConfigMatches checks if critical consumer config settings match.
-func consumerConfigMatches(existing, expected nats.ConsumerConfig) bool {
-	return existing.FilterSubject == expected.FilterSubject &&
-		existing.DeliverPolicy == expected.DeliverPolicy &&
-		existing.AckPolicy == expected.AckPolicy
-}
-
 // SubscribeToCommands creates a pull subscription for processing commands.
 func (c *Client) SubscribeToCommands(handler func(msg *nats.Msg)) (*nats.Subscription, error) {
-	sub, err := c.js.PullSubscribe(
+	js := c.conn.JetStream()
+
+	sub, err := js.PullSubscribe(
 		"WHATSAPP.commands.>", // Match all company/connection specific subjects
 		ConsumerCommands,
 		nats.ManualAck(),
@@ -191,7 +97,7 @@ func (c *Client) SubscribeToCommands(handler func(msg *nats.Msg)) (*nats.Subscri
 
 // PublishEvent publishes an event to the events stream.
 func (c *Client) PublishEvent(subject string, data []byte) error {
-	_, err := c.js.Publish(subject, data)
+	_, err := c.conn.JetStream().Publish(subject, data)
 	if err != nil {
 		return fmt.Errorf("failed to publish event: %w", err)
 	}
@@ -200,39 +106,25 @@ func (c *Client) PublishEvent(subject string, data []byte) error {
 
 // PublishCommand publishes a command to the commands stream.
 func (c *Client) PublishCommand(data []byte) error {
-	_, err := c.js.Publish("WHATSAPP.commands", data)
+	_, err := c.conn.JetStream().Publish("WHATSAPP.commands", data)
 	if err != nil {
 		return fmt.Errorf("failed to publish command: %w", err)
 	}
 	return nil
 }
 
-// streamsEqual compares two stream configs for equality (simplified comparison).
-func streamsEqual(a, b nats.StreamConfig) bool {
-	if a.Name != b.Name {
-		return false
-	}
-	if len(a.Subjects) != len(b.Subjects) {
-		return false
-	}
-	for i, s := range a.Subjects {
-		if s != b.Subjects[i] {
-			return false
-		}
-	}
-	return a.MaxAge == b.MaxAge && a.MaxMsgs == b.MaxMsgs && a.MaxBytes == b.MaxBytes
-}
-
 // DeleteStreams removes the JetStream streams (useful for cleanup/testing).
 func (c *Client) DeleteStreams() error {
-	if err := c.js.DeleteStream(StreamCommands); err != nil && err != nats.ErrStreamNotFound {
-		return fmt.Errorf("failed to delete commands stream: %w", err)
+	js := c.conn.JetStream()
+
+	if err := sharednats.DeleteStream(js, sharednats.StreamCommands); err != nil {
+		return err
 	}
-	if err := c.js.DeleteStream(StreamEvents); err != nil && err != nats.ErrStreamNotFound {
-		return fmt.Errorf("failed to delete events stream: %w", err)
+	if err := sharednats.DeleteStream(js, sharednats.StreamEvents); err != nil {
+		return err
 	}
-	if err := c.js.DeleteStream(StreamDownloads); err != nil && err != nats.ErrStreamNotFound {
-		return fmt.Errorf("failed to delete downloads stream: %w", err)
+	if err := sharednats.DeleteStream(js, sharednats.StreamDownloads); err != nil {
+		return err
 	}
 	return nil
 }

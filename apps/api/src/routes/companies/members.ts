@@ -5,17 +5,14 @@
  */
 
 import { Hono } from "hono";
-import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
 import { HTTPException } from "hono/http-exception";
 import { authMiddleware } from "../../middleware/auth.js";
 import { tenantFromParam } from "../../middleware/tenant.js";
 import * as companyService from "../../services/company.service.js";
 import { getEffectivePermissions } from "../../services/permission.service.js";
-
-const updateMemberRoleSchema = z.object({
-  role: z.enum(["admin", "member"]),
-});
+import { successData, successMessage } from "../../lib/response.js";
+import { updateMemberRoleSchema } from "../../lib/schemas/index.js";
 
 export const memberRoutes = new Hono();
 
@@ -39,10 +36,7 @@ memberRoutes.get(
           member.permissions as Record<string, boolean>,
         ),
       }));
-      return c.json({
-        success: true,
-        data: membersWithPermissions,
-      });
+      return successData(c, membersWithPermissions);
     } catch (error) {
       if (error instanceof companyService.CompanyNotFoundError) {
         throw new HTTPException(404, { message: error.message });
@@ -72,10 +66,7 @@ memberRoutes.patch(
         userId,
         role,
       );
-      return c.json({
-        success: true,
-        data: member,
-      });
+      return successData(c, member);
     } catch (error) {
       if (error instanceof companyService.CompanyNotFoundError) {
         throw new HTTPException(404, { message: error.message });
@@ -110,10 +101,7 @@ memberRoutes.delete(
 
     try {
       await companyService.removeMember(companyId, userId);
-      return c.json({
-        success: true,
-        message: "Member removed successfully",
-      });
+      return successMessage(c, "Member removed successfully");
     } catch (error) {
       if (error instanceof companyService.CompanyNotFoundError) {
         throw new HTTPException(404, { message: error.message });

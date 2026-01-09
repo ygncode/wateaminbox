@@ -2,9 +2,10 @@ package nats
 
 import (
 	"context"
-	"log"
+	"fmt"
 
 	"github.com/nats-io/nats.go"
+	sharednats "github.com/ygncode-lab/whatsapp-web/services/shared/nats"
 )
 
 // Config holds NATS client configuration.
@@ -12,48 +13,30 @@ type Config struct {
 	URL string
 }
 
-// Client wraps the NATS connection.
+// Client wraps the shared NATS connection with orchestrator-specific functionality.
 type Client struct {
-	conn *nats.Conn
-	js   nats.JetStreamContext
+	conn *sharednats.Connection
 }
 
-// NewClient creates a new NATS client connection.
+// NewClient creates a new NATS client connection using the shared connection utilities.
 func NewClient(ctx context.Context, cfg Config) (*Client, error) {
-	log.Printf("Connecting to NATS at %s...", cfg.URL)
-
-	conn, err := nats.Connect(cfg.URL,
-		nats.RetryOnFailedConnect(true),
-		nats.MaxReconnects(-1),
-		nats.DisconnectErrHandler(func(_ *nats.Conn, err error) {
-			log.Printf("NATS disconnected: %v", err)
-		}),
-		nats.ReconnectHandler(func(_ *nats.Conn) {
-			log.Println("NATS reconnected")
-		}),
-	)
+	conn, err := sharednats.NewConnection(ctx, sharednats.ConnectionConfig{
+		URL:  cfg.URL,
+		Name: "orchestrator",
+	})
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create NATS connection: %w", err)
 	}
-
-	js, err := conn.JetStream()
-	if err != nil {
-		conn.Close()
-		return nil, err
-	}
-
-	log.Println("Connected to NATS successfully")
 
 	return &Client{
 		conn: conn,
-		js:   js,
 	}, nil
 }
 
 // Close closes the NATS connection.
 func (c *Client) Close() {
 	if c.conn != nil {
-		c.conn.Drain()
+		c.conn.Close()
 	}
 }
 
@@ -74,10 +57,10 @@ func (c *Client) QueueSubscribe(subject, queue string, handler nats.MsgHandler) 
 
 // JetStream returns the JetStream context.
 func (c *Client) JetStream() nats.JetStreamContext {
-	return c.js
+	return c.conn.JetStream()
 }
 
 // Connection returns the underlying NATS connection.
 func (c *Client) Connection() *nats.Conn {
-	return c.conn
+	return c.conn.Conn()
 }

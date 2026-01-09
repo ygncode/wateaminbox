@@ -5,18 +5,13 @@
  */
 
 import { Hono } from "hono";
-import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
 import { HTTPException } from "hono/http-exception";
 import { authMiddleware } from "../../middleware/auth.js";
 import { tenantFromParam, requirePermission } from "../../middleware/tenant.js";
 import * as companyService from "../../services/company.service.js";
 import { PERMISSIONS } from "../../services/permission.service.js";
-
-const inviteMemberSchema = z.object({
-  email: z.string().email("Invalid email address"),
-  role: z.enum(["admin", "member"]).optional().default("member"),
-});
+import { inviteMemberSchema } from "../../lib/schemas/index.js";
 
 export const invitationRoutes = new Hono();
 

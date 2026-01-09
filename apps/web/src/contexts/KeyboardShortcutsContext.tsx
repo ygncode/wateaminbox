@@ -3,7 +3,7 @@ import {
   getPrimaryModifier,
   type KeyboardShortcut,
   useKeyboardShortcuts,
-} from "@/hooks/useKeyboardShortcuts";
+} from "@/hooks/ui";
 
 /**
  * State for the keyboard shortcuts context

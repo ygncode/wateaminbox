@@ -51,6 +51,21 @@ type WorkerProcess struct {
 	healthCancel context.CancelFunc
 }
 
+// Copy returns a shallow copy of the worker process without internal fields.
+// Use this to safely return worker info outside of mutex-protected code.
+func (w *WorkerProcess) Copy() *WorkerProcess {
+	return &WorkerProcess{
+		ID:           w.ID,
+		CompanyID:    w.CompanyID,
+		ConnectionID: w.ConnectionID,
+		TenantSchema: w.TenantSchema,
+		Status:       w.Status,
+		PID:          w.PID,
+		StartedAt:    w.StartedAt,
+		LastActivity: w.LastActivity,
+	}
+}
+
 // New creates a new process manager.
 func New(cfg Config) *Manager {
 	if cfg.HealthCheckInterval == 0 {
@@ -318,17 +333,7 @@ func (m *Manager) GetWorkerStatus(connectionID string) (*WorkerProcess, bool) {
 	}
 
 	// Return a copy to avoid race conditions
-	workerCopy := &WorkerProcess{
-		ID:           worker.ID,
-		CompanyID:    worker.CompanyID,
-		ConnectionID: worker.ConnectionID,
-		TenantSchema: worker.TenantSchema,
-		Status:       worker.Status,
-		PID:          worker.PID,
-		StartedAt:    worker.StartedAt,
-		LastActivity: worker.LastActivity,
-	}
-	return workerCopy, true
+	return worker.Copy(), true
 }
 
 // ListWorkers returns all managed workers.
@@ -338,17 +343,7 @@ func (m *Manager) ListWorkers() []*WorkerProcess {
 
 	workers := make([]*WorkerProcess, 0, len(m.workers))
 	for _, w := range m.workers {
-		workerCopy := &WorkerProcess{
-			ID:           w.ID,
-			CompanyID:    w.CompanyID,
-			ConnectionID: w.ConnectionID,
-			TenantSchema: w.TenantSchema,
-			Status:       w.Status,
-			PID:          w.PID,
-			StartedAt:    w.StartedAt,
-			LastActivity: w.LastActivity,
-		}
-		workers = append(workers, workerCopy)
+		workers = append(workers, w.Copy())
 	}
 	return workers
 }
@@ -361,17 +356,7 @@ func (m *Manager) ListWorkersByCompany(companyID string) []*WorkerProcess {
 	workers := make([]*WorkerProcess, 0)
 	for _, w := range m.workers {
 		if w.CompanyID == companyID {
-			workerCopy := &WorkerProcess{
-				ID:           w.ID,
-				CompanyID:    w.CompanyID,
-				ConnectionID: w.ConnectionID,
-				TenantSchema: w.TenantSchema,
-				Status:       w.Status,
-				PID:          w.PID,
-				StartedAt:    w.StartedAt,
-				LastActivity: w.LastActivity,
-			}
-			workers = append(workers, workerCopy)
+			workers = append(workers, w.Copy())
 		}
 	}
 	return workers

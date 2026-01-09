@@ -18,7 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui";
-import { useNotifications } from "@/hooks/useNotifications";
+import { useNotifications } from "@/hooks/notification";
 import { NOTIFICATION_SOUNDS } from "@/lib/notifications";
 
 export function NotificationSettings() {

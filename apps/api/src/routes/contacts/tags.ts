@@ -1,6 +1,7 @@
 import { Hono } from "hono"
 import { getRouteContext } from "../../middleware/context.js"
 import { badRequest, conflict } from "../../lib/errors.js"
+import { successData, successMessage } from "../../lib/response.js"
 import { requireEntity } from "../../lib/route-helpers.js"
 
 export const tagsRoutes = new Hono()
@@ -60,8 +61,7 @@ tagsRoutes.post("/:id/tags", async (c) => {
     })
     .execute()
 
-  return c.json({
-    success: true,
+  return successData(c, {
     tag: {
       id: tag.id,
       name: tag.name,
@@ -84,5 +84,5 @@ tagsRoutes.delete("/:id/tags/:tagId", async (c) => {
     .where("tag_id", "=", tagId)
     .execute()
 
-  return c.json({ success: true })
+  return successMessage(c, 'Tag removed')
 })
