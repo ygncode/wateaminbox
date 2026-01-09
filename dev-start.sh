@@ -83,9 +83,9 @@ cleanup_ports() {
     print_status "Cleaning up app ports..."
 
     # App ports
-    kill_port 5173   # Frontend
-    kill_port 3001   # API
-    kill_port 4321   # Marketing
+    kill_port 4444   # Frontend
+    kill_port 4445   # API
+    kill_port 4446   # Marketing
     kill_port 8080   # Orchestrator
 
     print_success "Ports cleaned up"
@@ -144,23 +144,23 @@ start_docker_services() {
     done
     print_success "  PostgreSQL is ready"
 
-    # Wait for NATS (check if port 4222 is accepting connections)
+    # Wait for NATS (check if port 4448 is accepting connections)
     print_status "  Waiting for NATS..."
-    until nc -z localhost 4222 &> /dev/null; do
+    until nc -z localhost 4448 &> /dev/null; do
         sleep 1
     done
     print_success "  NATS is ready"
 
     # Wait for Meilisearch
     print_status "  Waiting for Meilisearch..."
-    until curl -s http://localhost:7700/health &> /dev/null; do
+    until curl -s http://localhost:4449/health &> /dev/null; do
         sleep 1
     done
     print_success "  Meilisearch is ready"
 
     # Wait for MinIO
     print_status "  Waiting for MinIO..."
-    until curl -s http://localhost:9000/minio/health/live &> /dev/null; do
+    until curl -s http://localhost:4450/minio/health/live &> /dev/null; do
         sleep 1
     done
     print_success "  MinIO is ready"
@@ -194,6 +194,19 @@ build_go_services() {
     mkdir -p services/orchestrator/tmp
     (cd services/orchestrator && go build -o tmp/orchestrator main.go)
     print_success "  Orchestrator built"
+}
+
+# Load environment variables from .env file
+load_env() {
+    if [ -f .env ]; then
+        print_status "Loading environment variables from .env..."
+        set -a  # automatically export all variables
+        source .env
+        set +a
+        print_success "Environment variables loaded"
+    else
+        print_warning ".env file not found, using defaults"
+    fi
 }
 
 # Start development servers
@@ -239,16 +252,16 @@ start_dev_servers() {
 
     echo ""
     echo -e "${GREEN}Service URLs:${NC}"
-    echo -e "  Frontend:    ${BLUE}http://localhost:5173${NC}"
-    echo -e "  API:         ${BLUE}http://localhost:3001${NC}"
-    echo -e "  Marketing:   ${BLUE}http://localhost:4321${NC}"
+    echo -e "  Frontend:    ${BLUE}http://localhost:4444${NC}"
+    echo -e "  API:         ${BLUE}http://localhost:4445${NC}"
+    echo -e "  Marketing:   ${BLUE}http://localhost:4446${NC}"
     echo -e "  Orchestrator:${BLUE}http://localhost:8080${NC}"
     echo ""
     echo -e "${GREEN}Infrastructure:${NC}"
-    echo -e "  PostgreSQL:  ${BLUE}localhost:5433${NC}"
-    echo -e "  NATS:        ${BLUE}localhost:4222${NC} (monitoring: ${BLUE}localhost:8222${NC})"
-    echo -e "  Meilisearch: ${BLUE}http://localhost:7700${NC}"
-    echo -e "  MinIO:       ${BLUE}http://localhost:9000${NC} (console: ${BLUE}http://localhost:9001${NC})"
+    echo -e "  PostgreSQL:  ${BLUE}localhost:4447${NC}"
+    echo -e "  NATS:        ${BLUE}localhost:4448${NC} (monitoring: ${BLUE}localhost:8222${NC})"
+    echo -e "  Meilisearch: ${BLUE}http://localhost:4449${NC}"
+    echo -e "  MinIO:       ${BLUE}http://localhost:4450${NC} (console: ${BLUE}http://localhost:9001${NC})"
     echo ""
     print_success "All services started!"
     print_status "Press Ctrl+C to stop all services"
@@ -266,6 +279,7 @@ main() {
     echo ""
 
     check_prerequisites
+    load_env
     cleanup_ports
     start_docker_services
     install_dependencies
