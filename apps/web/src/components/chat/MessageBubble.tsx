@@ -1,8 +1,9 @@
 import type { Message } from "@whatsapp-web/shared";
 import { formatMessageTime } from "@whatsapp-web/shared";
-import { memo, useCallback, useEffect, useRef, useState } from "react";
+import { memo, useCallback, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useMessageActions } from "../../contexts";
+import { useClickOutside, useRelativePosition } from "../../hooks/ui";
 import { EmojiReactionPicker } from "./EmojiReactionPicker";
 import { MessageContent } from "./MessageContent";
 import { MessageContextMenu } from "./MessageContextMenu";
@@ -47,63 +48,40 @@ export const MessageBubble = memo(function MessageBubble({
   const { t } = useTranslation();
   const [showContextMenu, setShowContextMenu] = useState(false);
   const [showReactionPicker, setShowReactionPicker] = useState(false);
-  const [contextMenuPosition, setContextMenuPosition] = useState({
-    x: 0,
-    y: 0,
-  });
-  const [reactionPickerPosition, setReactionPickerPosition] = useState({
-    x: 0,
-    y: 0,
-  });
   const bubbleRef = useRef<HTMLDivElement>(null);
   const contextMenuRef = useRef<HTMLDivElement>(null);
+
+  // Position hooks for context menu and reaction picker
+  const {
+    position: contextMenuPosition,
+    calculateFromMouseEvent: calculateContextMenuPosition,
+  } = useRelativePosition(bubbleRef);
+  const {
+    position: reactionPickerPosition,
+    calculateReactionPickerPosition,
+  } = useRelativePosition(bubbleRef);
+
+  // Close context menu when clicking outside
+  useClickOutside(contextMenuRef, () => setShowContextMenu(false), {
+    enabled: showContextMenu,
+  });
 
   const handleContextMenu = useCallback(
     (e: React.MouseEvent) => {
       e.preventDefault();
       if (message.isDeleted) return;
 
-      const rect = bubbleRef.current?.getBoundingClientRect();
-      if (rect) {
-        setContextMenuPosition({
-          x: e.clientX - rect.left,
-          y: e.clientY - rect.top,
-        });
-      }
+      calculateContextMenuPosition(e);
       setShowContextMenu(true);
     },
-    [message.isDeleted],
+    [message.isDeleted, calculateContextMenuPosition],
   );
 
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (
-        contextMenuRef.current &&
-        !contextMenuRef.current.contains(event.target as Node)
-      ) {
-        setShowContextMenu(false);
-      }
-    }
-
-    if (showContextMenu) {
-      document.addEventListener("mousedown", handleClickOutside);
-    }
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
-  }, [showContextMenu]);
-
   const handleReactionClick = useCallback(() => {
-    const rect = bubbleRef.current?.getBoundingClientRect();
-    if (rect) {
-      setReactionPickerPosition({
-        x: isOwn ? -20 : rect.width - 20,
-        y: -50,
-      });
-    }
+    calculateReactionPickerPosition(isOwn, -50);
     setShowReactionPicker(true);
     setShowContextMenu(false);
-  }, [isOwn]);
+  }, [isOwn, calculateReactionPickerPosition]);
 
   const handleSelectReaction = useCallback(
     (emoji: string) => {

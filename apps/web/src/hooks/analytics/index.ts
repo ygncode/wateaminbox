@@ -1,7 +1,10 @@
 /**
- * @deprecated Import from '@/hooks/analytics' instead: import { useDashboardStats, formatNumber } from '@/hooks/analytics'
- * This file is kept for backward compatibility.
+ * Analytics-related hooks
+ *
+ * Hooks for dashboard statistics, message analytics, contact trends,
+ * resolution metrics, and engagement tracking.
  */
+
 export {
   // Hooks
   useDashboardStats,
@@ -30,4 +33,4 @@ export {
   type ResolutionTrend,
   type EngagementMetrics,
   type EngagementTrend,
-} from "./analytics/useAnalytics";
+} from "./useAnalytics";

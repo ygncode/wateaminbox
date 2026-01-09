@@ -1,32 +1,15 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
+import type { CompanyMember, CompanyInvitation } from "@whatsapp-web/shared";
 import { api } from "@/lib/api";
 import { useInvalidate, useQueryInvalidation } from "./query";
 
-/**
- * Company member types
- */
-export interface CompanyMember {
-  id: string;
-  userId: string;
-  companyId: string;
-  role: "owner" | "admin" | "member";
-  email: string;
-  joinedAt: string;
-  invitedBy: string | null;
-}
+// Re-export types for backward compatibility
+export type { CompanyMember } from "@whatsapp-web/shared";
 
 /**
- * Invitation types
+ * Invitation types - alias for backward compatibility
  */
-export interface Invitation {
-  id: string;
-  companyId: string;
-  email: string;
-  token: string;
-  invitedBy: string;
-  expiresAt: string;
-  createdAt: string;
-}
+export type Invitation = CompanyInvitation;
 
 /**
  * Hook to fetch company members

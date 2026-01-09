@@ -8,6 +8,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { useClickOutside, useTextareaAutoResize } from "../../hooks/ui";
 import { EmojiInputPicker } from "./EmojiInputPicker";
 
 interface MessageComposerProps {
@@ -39,38 +40,16 @@ export function MessageComposer({
   // (flushSync from TanStack Virtual can steal focus during re-renders)
   const shouldRestoreFocusRef = useRef(false);
 
-  // Auto-resize textarea
-  const adjustTextareaHeight = useCallback(() => {
-    const textarea = textareaRef.current;
-    if (textarea) {
-      textarea.style.height = "auto";
-      const newHeight = Math.min(textarea.scrollHeight, 150);
-      textarea.style.height = `${newHeight}px`;
-    }
-  }, []);
-
-  useEffect(() => {
-    adjustTextareaHeight();
-  }, [adjustTextareaHeight]);
+  // Auto-resize textarea using the hook
+  const { reset: resetTextareaHeight } = useTextareaAutoResize(textareaRef, {
+    maxHeight: 150,
+    deps: [message],
+  });
 
   // Close attachment menu when clicking outside
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (
-        attachmentMenuRef.current &&
-        !attachmentMenuRef.current.contains(event.target as Node)
-      ) {
-        setShowAttachmentMenu(false);
-      }
-    }
-
-    if (showAttachmentMenu) {
-      document.addEventListener("mousedown", handleClickOutside);
-    }
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
-  }, [showAttachmentMenu]);
+  useClickOutside(attachmentMenuRef, () => setShowAttachmentMenu(false), {
+    enabled: showAttachmentMenu,
+  });
 
   // Focus textarea when reply is set
   useEffect(() => {
@@ -113,9 +92,7 @@ export function MessageComposer({
     shouldRestoreFocusRef.current = true;
 
     // Reset textarea height
-    if (textareaRef.current) {
-      textareaRef.current.style.height = "auto";
-    }
+    resetTextareaHeight();
 
     // Fallback: restore focus after a delay to catch focus loss from sibling re-renders
     // The flushSync from MessageThread can steal focus after MessageComposer has rendered
