@@ -3,6 +3,7 @@ import { useState } from "react";
 import { Avatar, AvatarFallback, Skeleton } from "@/components/ui";
 import { formatStatusTime } from "@whatsapp-web/shared";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { useAsyncData } from "@/hooks";
 import {
   type ContactStatus,
   useMyStatus,
@@ -21,7 +22,7 @@ export interface StatusListProps {
  * Displays contacts with active status updates
  */
 export function StatusList({ onStatusSelect, selectedJid }: StatusListProps) {
-  const { data: statuses, isLoading, isError } = useStatusUpdates();
+  const { data: statuses, hasData, renderState } = useAsyncData(useStatusUpdates());
   const { data: stats } = useStatusStats();
   const { data: myStatus } = useMyStatus();
   const [postDialogOpen, setPostDialogOpen] = useState(false);
@@ -80,7 +81,7 @@ export function StatusList({ onStatusSelect, selectedJid }: StatusListProps) {
       </button>
 
       {/* Recent Updates Header */}
-      {statuses && statuses.length > 0 && (
+      {hasData && statuses && statuses.length > 0 && (
         <div className="flex items-center justify-between px-4 py-2">
           <p className="text-xs font-medium text-gray-500 dark:text-dark-text-tertiary uppercase tracking-wider">
             Recent updates
@@ -95,54 +96,49 @@ export function StatusList({ onStatusSelect, selectedJid }: StatusListProps) {
 
       {/* Status List */}
       <ScrollArea className="flex-1">
-        {/* Loading State */}
-        {isLoading && (
-          <div className="p-4 space-y-4">
-            {Array.from({ length: 5 }).map((_, index) => (
-              <StatusItemSkeleton key={index} />
-            ))}
-          </div>
-        )}
-
-        {/* Error State */}
-        {isError && (
-          <div className="flex flex-col items-center justify-center h-48 px-4 text-center">
-            <Circle className="w-12 h-12 text-gray-400 dark:text-dark-text-tertiary mb-4" />
-            <p className="text-gray-600 dark:text-dark-text-primary font-medium">
-              Failed to load status
-            </p>
-            <p className="text-sm text-gray-500 dark:text-dark-text-secondary mt-1">
-              Please try again later
-            </p>
-          </div>
-        )}
-
-        {/* Empty State */}
-        {!isLoading && !isError && (!statuses || statuses.length === 0) && (
-          <div className="flex flex-col items-center justify-center h-48 px-4 text-center">
-            <Circle className="w-12 h-12 text-gray-400 dark:text-dark-text-tertiary mb-4" />
-            <p className="text-gray-600 dark:text-dark-text-primary font-medium">
-              No status updates
-            </p>
-            <p className="text-sm text-gray-500 dark:text-dark-text-secondary mt-1">
-              Status updates from your contacts will appear here
-            </p>
-          </div>
-        )}
-
-        {/* Status Items */}
-        {!isLoading && !isError && statuses && statuses.length > 0 && (
-          <div>
-            {statuses.map((contactStatus) => (
-              <StatusItem
-                key={contactStatus.jid}
-                contactStatus={contactStatus}
-                isSelected={contactStatus.jid === selectedJid}
-                onClick={() => onStatusSelect(contactStatus.jid)}
-              />
-            ))}
-          </div>
-        )}
+        {renderState({
+          loading: () => (
+            <div className="p-4 space-y-4">
+              {Array.from({ length: 5 }).map((_, index) => (
+                <StatusItemSkeleton key={index} />
+              ))}
+            </div>
+          ),
+          error: () => (
+            <div className="flex flex-col items-center justify-center h-48 px-4 text-center">
+              <Circle className="w-12 h-12 text-gray-400 dark:text-dark-text-tertiary mb-4" />
+              <p className="text-gray-600 dark:text-dark-text-primary font-medium">
+                Failed to load status
+              </p>
+              <p className="text-sm text-gray-500 dark:text-dark-text-secondary mt-1">
+                Please try again later
+              </p>
+            </div>
+          ),
+          empty: () => (
+            <div className="flex flex-col items-center justify-center h-48 px-4 text-center">
+              <Circle className="w-12 h-12 text-gray-400 dark:text-dark-text-tertiary mb-4" />
+              <p className="text-gray-600 dark:text-dark-text-primary font-medium">
+                No status updates
+              </p>
+              <p className="text-sm text-gray-500 dark:text-dark-text-secondary mt-1">
+                Status updates from your contacts will appear here
+              </p>
+            </div>
+          ),
+          success: (statuses) => (
+            <div>
+              {statuses.map((contactStatus) => (
+                <StatusItem
+                  key={contactStatus.jid}
+                  contactStatus={contactStatus}
+                  isSelected={contactStatus.jid === selectedJid}
+                  onClick={() => onStatusSelect(contactStatus.jid)}
+                />
+              ))}
+            </div>
+          ),
+        })}
       </ScrollArea>
     </div>
   );

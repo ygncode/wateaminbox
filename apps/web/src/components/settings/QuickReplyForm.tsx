@@ -1,4 +1,6 @@
+import { zodResolver } from "@hookform/resolvers/zod";
 import { AlertCircle, Check, Loader2, Zap } from "lucide-react";
+import { useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import {
@@ -9,41 +11,53 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { quickReplySchema, type QuickReplyFormData } from "@/lib/schemas";
 
 interface QuickReplyFormProps {
   isEditing: boolean;
-  shortcut: string;
-  title: string;
-  content: string;
-  formError: string | null;
+  defaultValues?: Partial<QuickReplyFormData>;
+  serverError: string | null;
   success: boolean;
   isSubmitting: boolean;
-  onShortcutChange: (value: string) => void;
-  onTitleChange: (value: string) => void;
-  onContentChange: (value: string) => void;
-  onSubmit: () => void;
+  onSubmit: (data: QuickReplyFormData) => void;
   onClose: () => void;
 }
 
 /**
  * Quick Reply Form Component
  * Form for creating or editing a quick reply template
+ * Uses react-hook-form with Zod validation
  */
 export function QuickReplyForm({
   isEditing,
-  shortcut,
-  title,
-  content,
-  formError,
+  defaultValues,
+  serverError,
   success,
   isSubmitting,
-  onShortcutChange,
-  onTitleChange,
-  onContentChange,
   onSubmit,
   onClose,
 }: QuickReplyFormProps) {
   const { t } = useTranslation();
+
+  const {
+    register,
+    handleSubmit,
+    watch,
+    setValue,
+    formState: { errors, isValid },
+  } = useForm<QuickReplyFormData>({
+    resolver: zodResolver(quickReplySchema),
+    defaultValues: {
+      shortcut: defaultValues?.shortcut ?? "",
+      title: defaultValues?.title ?? "",
+      content: defaultValues?.content ?? "",
+    },
+    mode: "onChange",
+  });
+
+  const shortcut = watch("shortcut");
+  const title = watch("title");
+  const content = watch("content");
 
   // Success view - only for CREATE operations
   if (success && !isEditing) {
@@ -86,18 +100,12 @@ export function QuickReplyForm({
         </DialogDescription>
       </DialogHeader>
 
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          onSubmit();
-        }}
-        className="space-y-4 py-4"
-      >
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 py-4">
         {/* Server error message */}
-        {formError && (
+        {serverError && (
           <div className="flex items-center gap-2 p-3 text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 rounded-lg">
             <AlertCircle className="h-4 w-4 flex-shrink-0" />
-            <span>{formError}</span>
+            <span>{serverError}</span>
           </div>
         )}
 
@@ -113,29 +121,39 @@ export function QuickReplyForm({
             </span>
             <Input
               id="shortcut"
-              value={shortcut}
-              onChange={(e) =>
-                onShortcutChange(
-                  e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, ""),
-                )
-              }
+              {...register("shortcut", {
+                onChange: (e) => {
+                  // Transform to lowercase and remove invalid characters
+                  const value = e.target.value
+                    .toLowerCase()
+                    .replace(/[^a-z0-9_-]/g, "");
+                  setValue("shortcut", value, { shouldValidate: true });
+                },
+              })}
               placeholder={t("quickReplies.shortcutPlaceholder", "greeting")}
               className="pl-7 font-mono"
               maxLength={50}
               autoFocus
               data-testid="quick-reply-shortcut-input"
               aria-describedby="shortcut-hint"
+              aria-invalid={errors.shortcut ? "true" : "false"}
             />
           </div>
-          <p
-            id="shortcut-hint"
-            className="text-xs text-gray-500 dark:text-dark-text-tertiary"
-          >
-            {t(
-              "quickReplies.shortcutHelp",
-              "Letters, numbers, underscores, and hyphens only",
-            )}
-          </p>
+          {errors.shortcut ? (
+            <p className="text-xs text-red-500 dark:text-red-400" role="alert">
+              {errors.shortcut.message}
+            </p>
+          ) : (
+            <p
+              id="shortcut-hint"
+              className="text-xs text-gray-500 dark:text-dark-text-tertiary"
+            >
+              {t(
+                "quickReplies.shortcutHelp",
+                "Letters, numbers, underscores, and hyphens only",
+              )}
+            </p>
+          )}
         </div>
 
         {/* Title Input */}
@@ -146,18 +164,24 @@ export function QuickReplyForm({
           </Label>
           <Input
             id="title"
-            value={title}
-            onChange={(e) => onTitleChange(e.target.value)}
+            {...register("title")}
             placeholder={t("quickReplies.titlePlaceholder", "Welcome Message")}
-            maxLength={255}
+            maxLength={200}
             data-testid="quick-reply-title-input"
+            aria-invalid={errors.title ? "true" : "false"}
           />
-          <p className="text-xs text-gray-500 dark:text-dark-text-tertiary">
-            {t(
-              "quickReplies.titleHint",
-              "A descriptive name to identify this quick reply",
-            )}
-          </p>
+          {errors.title ? (
+            <p className="text-xs text-red-500 dark:text-red-400" role="alert">
+              {errors.title.message}
+            </p>
+          ) : (
+            <p className="text-xs text-gray-500 dark:text-dark-text-tertiary">
+              {t(
+                "quickReplies.titleHint",
+                "A descriptive name to identify this quick reply",
+              )}
+            </p>
+          )}
         </div>
 
         {/* Content Input */}
@@ -168,8 +192,7 @@ export function QuickReplyForm({
           </Label>
           <Textarea
             id="content"
-            value={content}
-            onChange={(e) => onContentChange(e.target.value)}
+            {...register("content")}
             placeholder={t(
               "quickReplies.contentPlaceholder",
               "Hello! Thank you for reaching out. How can I help you today?",
@@ -178,16 +201,23 @@ export function QuickReplyForm({
             className="resize-none"
             data-testid="quick-reply-content-input"
             aria-describedby="content-hint"
+            aria-invalid={errors.content ? "true" : "false"}
           />
-          <p
-            id="content-hint"
-            className="text-xs text-gray-500 dark:text-dark-text-tertiary"
-          >
-            {t(
-              "quickReplies.contentHint",
-              "This message will be sent when you use this quick reply",
-            )}
-          </p>
+          {errors.content ? (
+            <p className="text-xs text-red-500 dark:text-red-400" role="alert">
+              {errors.content.message}
+            </p>
+          ) : (
+            <p
+              id="content-hint"
+              className="text-xs text-gray-500 dark:text-dark-text-tertiary"
+            >
+              {t(
+                "quickReplies.contentHint",
+                "This message will be sent when you use this quick reply",
+              )}
+            </p>
+          )}
         </div>
 
         {/* Live Preview - only show when ALL fields have content */}
@@ -226,12 +256,7 @@ export function QuickReplyForm({
           </Button>
           <Button
             type="submit"
-            disabled={
-              isSubmitting ||
-              !shortcut.trim() ||
-              !title.trim() ||
-              !content.trim()
-            }
+            disabled={isSubmitting || !isValid}
             className="bg-whatsapp-teal-green hover:bg-whatsapp-dark-green"
             data-testid="save-quick-reply-button"
           >

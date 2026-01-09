@@ -66,3 +66,14 @@ export {
   type PositionOptions,
   type PopoverPositionOptions,
 } from "./useElementPosition";
+
+// Viewport-bounded position (for floating elements)
+export {
+  useViewportBoundedPosition,
+  useAutoAdjustedPosition,
+  type ViewportBoundedPosition,
+  type ViewportBoundedPositionOptions,
+  type ViewportBoundedPositionResult,
+  type UseAutoAdjustedPositionOptions,
+  type Placement,
+} from "./useViewportBoundedPosition";

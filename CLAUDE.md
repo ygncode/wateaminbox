@@ -450,6 +450,34 @@ If you need date functionality not covered by existing helpers:
 2. Export it from `packages/shared/src/index.ts`
 3. Document it in this section
 
+## Phone Number Utilities
+
+Phone number utilities are available in `@whatsapp-web/shared` for formatting and parsing WhatsApp phone numbers:
+
+```typescript
+import {
+  formatPhoneNumber,          // Format with + prefix: "1234567890" → "+1234567890"
+  formatPhoneNumberWithGroups, // Group digits: "12345678901" → "+1 234 567 8901"
+  parsePhoneFromJid,          // Extract from JID: "1234567890@s.whatsapp.net" → "1234567890"
+  isValidPhoneNumber,         // Basic validation
+} from '@whatsapp-web/shared'
+
+// Common usage: displaying participant phone numbers
+const phoneNumber = parsePhoneFromJid(participant.jid)
+const displayName = formatPhoneNumber(phoneNumber)
+```
+
+### Anti-Patterns (Avoid)
+
+```typescript
+// ❌ WRONG - Local phone formatting
+const formatPhone = (jid: string) => '+' + jid.split('@')[0]
+
+// ✅ CORRECT - Use shared utilities
+import { formatPhoneNumber, parsePhoneFromJid } from '@whatsapp-web/shared'
+formatPhoneNumber(parsePhoneFromJid(jid))
+```
+
 ## Backend Route Helpers
 
 The backend provides utility helpers in `apps/api/src/lib/route-helpers.ts` for common route patterns.
@@ -808,6 +836,123 @@ import { LoadingSpinner } from '@/components/ui/loading-spinner'
 <LoadingSpinner className="text-blue-500" /> // Custom color
 ```
 
+### ConfirmationDialog
+
+A reusable confirmation dialog for destructive or important actions:
+
+```typescript
+import { ConfirmationDialog } from '@/components/ui'
+
+<ConfirmationDialog
+  open={isOpen}
+  onOpenChange={setIsOpen}
+  title="Delete Contact"
+  description="Are you sure you want to delete this contact? This action cannot be undone."
+  confirmLabel="Delete"
+  cancelLabel="Cancel"
+  isDestructive        // Red confirm button
+  isLoading={isPending} // Shows spinner in confirm button
+  onConfirm={handleDelete}
+  onCancel={() => setIsOpen(false)}
+/>
+```
+
+### Tabs
+
+A reusable tabs component with controlled and uncontrolled modes:
+
+```typescript
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui'
+
+// Uncontrolled mode
+<Tabs defaultValue="members">
+  <TabsList>
+    <TabsTrigger value="members">Members</TabsTrigger>
+    <TabsTrigger value="invitations">Invitations</TabsTrigger>
+  </TabsList>
+  <TabsContent value="members">...</TabsContent>
+  <TabsContent value="invitations">...</TabsContent>
+</Tabs>
+
+// Controlled mode
+<Tabs value={activeTab} onValueChange={setActiveTab}>
+  ...
+</Tabs>
+```
+
+Features:
+- Keyboard navigation (Arrow keys, Home/End)
+- ARIA-compliant roles
+- WhatsApp-style underline indicator
+- Dark mode support
+
+### EllipsisMenu
+
+A vertical dots menu for item actions:
+
+```typescript
+import { EllipsisMenu } from '@/components/ui'
+
+<EllipsisMenu
+  items={[
+    { id: 'edit', label: 'Edit', icon: Edit, onClick: handleEdit },
+    { id: 'delete', label: 'Delete', icon: Trash2, onClick: handleDelete, destructive: true },
+  ]}
+  // Optional: controlled mode
+  open={isOpen}
+  onOpenChange={setIsOpen}
+/>
+```
+
+Features:
+- MoreVertical trigger icon
+- Keyboard navigation
+- Destructive action styling
+- Click outside to close
+- Dark mode support
+
+### StepWizard
+
+A multi-step wizard component for guided workflows:
+
+```typescript
+import { StepWizard, StepProgress, StepContent, type StepWizardStep } from '@/components/ui'
+
+const STEPS: StepWizardStep[] = [
+  { id: 'upload', label: 'Upload' },
+  { id: 'preview', label: 'Preview' },
+  { id: 'complete', label: 'Done' },
+]
+
+function ImportWizard() {
+  const [step, setStep] = useState<string>('upload')
+
+  return (
+    <StepWizard steps={STEPS} currentStep={step} showProgress>
+      <StepContent stepId="upload" currentStep={step}>
+        <UploadStep onNext={() => setStep('preview')} />
+      </StepContent>
+      <StepContent stepId="preview" currentStep={step}>
+        <PreviewStep onNext={() => setStep('complete')} />
+      </StepContent>
+      <StepContent stepId="complete" currentStep={step}>
+        <CompleteStep />
+      </StepContent>
+    </StepWizard>
+  )
+}
+
+// Use StepProgress standalone for custom layouts
+<StepProgress steps={STEPS} currentStepIndex={1} />
+```
+
+Features:
+- `StepWizard` - wrapper with optional progress indicator
+- `StepProgress` - visual progress with completed/current/pending states
+- `StepContent` - conditional renderer based on current step
+- Dark mode support
+- Completed steps show checkmarks
+
 ### Anti-Patterns (Avoid)
 
 ```typescript
@@ -837,6 +982,7 @@ hooks/
 │   ├── useClickOutside.ts
 │   ├── useTextareaAutoResize.ts
 │   ├── useElementPosition.ts  # useRelativePosition, usePopoverPosition
+│   ├── useViewportBoundedPosition.ts  # useViewportBoundedPosition, useAutoAdjustedPosition
 │   ├── useDebounce.ts
 │   ├── useMediaQuery.ts
 │   ├── useSwipeGesture.ts
@@ -851,6 +997,10 @@ hooks/
 ├── analytics/            # Analytics hooks
 │   ├── index.ts          # Barrel export
 │   └── useAnalytics.ts
+│
+├── chat/                 # Chat page hooks
+│   ├── index.ts          # Barrel export
+│   └── useChatPageState.ts  # ChatPage state management
 │
 ├── useChats.ts           # Chat list hooks
 ├── useContact.ts         # Contact hooks

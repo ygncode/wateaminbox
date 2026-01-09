@@ -17,3 +17,6 @@ export * from "./jid";
 
 // User utilities
 export * from "./user-utils";
+
+// Phone utilities
+export * from "./phone";

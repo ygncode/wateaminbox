@@ -13,6 +13,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { useQuickReplies } from "@/hooks/useQuickReplies";
 import type { QuickReply } from "@/lib/api";
+import type { QuickReplyFormData } from "@/lib/schemas";
 import { QuickRepliesList } from "./QuickRepliesList";
 import { QuickReplyForm } from "./QuickReplyForm";
 
@@ -28,12 +29,7 @@ export function QuickRepliesManager() {
     null,
   );
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
-
-  // Form state
-  const [shortcut, setShortcut] = useState("");
-  const [title, setTitle] = useState("");
-  const [content, setContent] = useState("");
-  const [formError, setFormError] = useState<string | null>(null);
+  const [serverError, setServerError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
 
   const {
@@ -57,84 +53,43 @@ export function QuickRepliesManager() {
       )
     : quickReplies;
 
-  const resetForm = () => {
-    setShortcut("");
-    setTitle("");
-    setContent("");
-    setFormError(null);
-    setSuccess(false);
-    setEditingQuickReply(null);
-  };
-
   const openCreateDialog = () => {
-    resetForm();
+    setEditingQuickReply(null);
+    setServerError(null);
+    setSuccess(false);
     setIsDialogOpen(true);
   };
 
   const openEditDialog = (qr: QuickReply) => {
     setEditingQuickReply(qr);
-    setShortcut(qr.shortcut);
-    setTitle(qr.title);
-    setContent(qr.content);
-    setFormError(null);
+    setServerError(null);
+    setSuccess(false);
     setIsDialogOpen(true);
   };
 
   const closeDialog = () => {
     setIsDialogOpen(false);
-    resetForm();
+    setEditingQuickReply(null);
+    setServerError(null);
+    setSuccess(false);
   };
 
-  const validateShortcut = (value: string): boolean => {
-    return /^[a-zA-Z0-9_-]+$/.test(value);
-  };
-
-  const handleSubmit = async () => {
-    setFormError(null);
-
-    // Validation
-    if (!shortcut.trim()) {
-      setFormError(
-        t("quickReplies.errors.shortcutRequired", "Shortcut is required"),
-      );
-      return;
-    }
-
-    if (!validateShortcut(shortcut)) {
-      setFormError(
-        t(
-          "quickReplies.errors.shortcutInvalid",
-          "Shortcut can only contain letters, numbers, underscores, and hyphens",
-        ),
-      );
-      return;
-    }
-
-    if (!title.trim()) {
-      setFormError(t("quickReplies.errors.titleRequired", "Title is required"));
-      return;
-    }
-
-    if (!content.trim()) {
-      setFormError(
-        t("quickReplies.errors.contentRequired", "Content is required"),
-      );
-      return;
-    }
+  const handleSubmit = async (data: QuickReplyFormData) => {
+    setServerError(null);
 
     try {
       if (editingQuickReply) {
         await update(editingQuickReply.id, {
-          shortcut: shortcut.trim(),
-          title: title.trim(),
-          content: content.trim(),
+          shortcut: data.shortcut.trim(),
+          title: data.title.trim(),
+          content: data.content.trim(),
         });
         closeDialog();
       } else {
         await create({
-          shortcut: shortcut.trim(),
-          title: title.trim(),
-          content: content.trim(),
+          shortcut: data.shortcut.trim(),
+          title: data.title.trim(),
+          content: data.content.trim(),
         });
         setSuccess(true);
         // Auto-close after showing success
@@ -145,14 +100,14 @@ export function QuickRepliesManager() {
     } catch (err) {
       if (err instanceof Error) {
         if (err.message.includes("already exists")) {
-          setFormError(
+          setServerError(
             t(
               "quickReplies.errors.shortcutExists",
               "A quick reply with this shortcut already exists",
             ),
           );
         } else {
-          setFormError(err.message);
+          setServerError(err.message);
         }
       }
     }
@@ -230,16 +185,20 @@ export function QuickRepliesManager() {
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="sm:max-w-md">
           <QuickReplyForm
+            key={editingQuickReply?.id ?? "create"}
             isEditing={!!editingQuickReply}
-            shortcut={shortcut}
-            title={title}
-            content={content}
-            formError={formError}
+            defaultValues={
+              editingQuickReply
+                ? {
+                    shortcut: editingQuickReply.shortcut,
+                    title: editingQuickReply.title,
+                    content: editingQuickReply.content,
+                  }
+                : undefined
+            }
+            serverError={serverError}
             success={success}
             isSubmitting={isCreating || isUpdating}
-            onShortcutChange={setShortcut}
-            onTitleChange={setTitle}
-            onContentChange={setContent}
             onSubmit={handleSubmit}
             onClose={closeDialog}
           />
