@@ -1,13 +1,13 @@
-import { useState } from 'react'
-import { useAsyncData } from '@/hooks'
+import { useState } from "react";
+import { useAsyncData } from "@/hooks";
 import {
   useCompanyMembers,
   useRemoveMember,
   useUpdateMemberRole,
-} from '@/hooks/useTeam'
-import { MemberCard } from './MemberCard'
-import { MemberSkeleton } from './MemberSkeleton'
-import type { MembersListProps } from './types'
+} from "@/hooks/useTeam";
+import { MemberCard } from "./MemberCard";
+import { MemberSkeleton } from "./MemberSkeleton";
+import type { MembersListProps } from "./types";
 
 /**
  * Members list component
@@ -17,27 +17,27 @@ export function MembersList({
   currentUserId,
   currentUserRole,
 }: MembersListProps) {
-  const { renderState } = useAsyncData(useCompanyMembers(companyId))
-  const updateRole = useUpdateMemberRole()
-  const removeMember = useRemoveMember()
-  const [menuOpenFor, setMenuOpenFor] = useState<string | null>(null)
+  const { renderState } = useAsyncData(useCompanyMembers(companyId));
+  const updateRole = useUpdateMemberRole();
+  const removeMember = useRemoveMember();
+  const [menuOpenFor, setMenuOpenFor] = useState<string | null>(null);
 
-  const isAdmin = currentUserRole === 'owner' || currentUserRole === 'admin'
+  const isAdmin = currentUserRole === "owner" || currentUserRole === "admin";
 
   const handleRoleChange = async (
     userId: string,
-    newRole: 'admin' | 'member',
+    newRole: "admin" | "member",
   ) => {
-    await updateRole.mutateAsync({ companyId, userId, role: newRole })
-    setMenuOpenFor(null)
-  }
+    await updateRole.mutateAsync({ companyId, userId, role: newRole });
+    setMenuOpenFor(null);
+  };
 
   const handleRemove = async (userId: string) => {
-    if (confirm('Are you sure you want to remove this member?')) {
-      await removeMember.mutateAsync({ companyId, userId })
+    if (confirm("Are you sure you want to remove this member?")) {
+      await removeMember.mutateAsync({ companyId, userId });
     }
-    setMenuOpenFor(null)
-  }
+    setMenuOpenFor(null);
+  };
 
   return renderState({
     loading: () => (
@@ -66,7 +66,7 @@ export function MembersList({
             isCurrentUser={member.userId === currentUserId}
             canManage={
               isAdmin &&
-              member.role !== 'owner' &&
+              member.role !== "owner" &&
               member.userId !== currentUserId
             }
             isMenuOpen={menuOpenFor === member.id}
@@ -79,5 +79,5 @@ export function MembersList({
         ))}
       </div>
     ),
-  })
+  });
 }

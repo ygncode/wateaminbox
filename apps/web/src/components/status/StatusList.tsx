@@ -22,7 +22,11 @@ export interface StatusListProps {
  * Displays contacts with active status updates
  */
 export function StatusList({ onStatusSelect, selectedJid }: StatusListProps) {
-  const { data: statuses, hasData, renderState } = useAsyncData(useStatusUpdates());
+  const {
+    data: statuses,
+    hasData,
+    renderState,
+  } = useAsyncData(useStatusUpdates());
   const { data: stats } = useStatusStats();
   const { data: myStatus } = useMyStatus();
   const [postDialogOpen, setPostDialogOpen] = useState(false);

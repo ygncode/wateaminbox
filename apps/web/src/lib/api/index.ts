@@ -11,7 +11,7 @@ export {
   getResponseTimeTrend,
   getSlaBreaches,
   getTeamResponseTimeStats,
-} from './analytics.js'
+} from "./analytics.js";
 // Re-export auth functions
 export {
   forgotPassword,
@@ -20,7 +20,7 @@ export {
   login,
   logout,
   register,
-} from './auth.js'
+} from "./auth.js";
 // Re-export catalogs functions
 export {
   archiveCatalog,
@@ -32,7 +32,7 @@ export {
   triggerCatalogProductsSync,
   triggerCatalogSync,
   updateProductVisibility,
-} from './catalogs.js'
+} from "./catalogs.js";
 // Re-export client utilities
 export {
   API_BASE_URL,
@@ -50,9 +50,9 @@ export {
   initializeAuth,
   setAuthTokens,
   setCompanyId,
-} from './client.js'
+} from "./client.js";
 // Re-export companies functions
-export { getUserCompanies } from './companies.js'
+export { getUserCompanies } from "./companies.js";
 // Re-export contacts functions
 export {
   downloadImportTemplate,
@@ -61,14 +61,14 @@ export {
   importContacts,
   previewContactImport,
   updateContact,
-} from './contacts.js'
+} from "./contacts.js";
 // Re-export conversations functions
 export {
   getConversation,
   getConversations,
   markConversationAsRead,
   updateConversation,
-} from './conversations.js'
+} from "./conversations.js";
 // Re-export labels functions
 export {
   applyLabelToContact,
@@ -81,14 +81,14 @@ export {
   removeLabelFromContact,
   triggerLabelSync,
   unlinkTagFromLabel,
-} from './labels.js'
+} from "./labels.js";
 // Re-export messages functions
 export {
   deleteMessage,
   getMessages,
   sendMessage,
   uploadMedia,
-} from './messages.js'
+} from "./messages.js";
 
 // Re-export notifications functions
 export {
@@ -103,7 +103,7 @@ export {
   muteContactApi,
   unmuteContactApi,
   updateNotificationPreferences,
-} from './notifications.js'
+} from "./notifications.js";
 
 // Re-export quick-replies functions
 export {
@@ -113,9 +113,9 @@ export {
   getQuickReplyById,
   getQuickReplyByShortcut,
   updateQuickReply,
-} from './quick-replies.js'
+} from "./quick-replies.js";
 // Re-export types
-export * from './types.js'
+export * from "./types.js";
 // Re-export whatsapp functions
 export {
   connectWhatsApp,
@@ -129,4 +129,4 @@ export {
   reconnectWhatsAppConnection,
   sendWhatsAppMessage,
   updateWhatsAppConnection,
-} from './whatsapp.js'
+} from "./whatsapp.js";

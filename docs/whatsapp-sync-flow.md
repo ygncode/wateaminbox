@@ -46,11 +46,11 @@ This document describes how WhatsApp data (messages, contacts, groups, reactions
 
 ### Streams
 
-| Stream | Purpose |
-|--------|---------|
-| `WHATSAPP.events.*` | WhatsApp events (messages, presence, reactions, etc.) |
-| `WHATSAPP.commands.*` | Commands (spawn, kill, send message, etc.) |
-| `WHATSAPP.download.*` | On-demand media download requests |
+| Stream                | Purpose                                               |
+| --------------------- | ----------------------------------------------------- |
+| `WHATSAPP.events.*`   | WhatsApp events (messages, presence, reactions, etc.) |
+| `WHATSAPP.commands.*` | Commands (spawn, kill, send message, etc.)            |
+| `WHATSAPP.download.*` | On-demand media download requests                     |
 
 ### Event Subject Pattern
 
@@ -60,21 +60,21 @@ WHATSAPP.events.{companyId}.{connectionId}.{eventType}
 
 ### Event Types
 
-| Event Type | Description |
-|------------|-------------|
-| `qr` | QR code for pairing |
-| `status` | Connection status (connected/disconnected) |
-| `message` | Incoming/outgoing messages |
-| `receipt` | Message delivery status (sent/delivered/read) |
-| `presence` | Online/offline status |
-| `contact` | Contact sync from history |
-| `profile_picture` | Profile picture updates |
-| `message_revoke` | Message deletion |
-| `send_confirmation` | Real WhatsApp message ID mapping |
-| `typing` | Typing indicators |
-| `reaction` | Message reactions |
-| `sync_status` | History sync progress (starting/progress/completed) |
-| `download_response` | Media download completion |
+| Event Type          | Description                                         |
+| ------------------- | --------------------------------------------------- |
+| `qr`                | QR code for pairing                                 |
+| `status`            | Connection status (connected/disconnected)          |
+| `message`           | Incoming/outgoing messages                          |
+| `receipt`           | Message delivery status (sent/delivered/read)       |
+| `presence`          | Online/offline status                               |
+| `contact`           | Contact sync from history                           |
+| `profile_picture`   | Profile picture updates                             |
+| `message_revoke`    | Message deletion                                    |
+| `send_confirmation` | Real WhatsApp message ID mapping                    |
+| `typing`            | Typing indicators                                   |
+| `reaction`          | Message reactions                                   |
+| `sync_status`       | History sync progress (starting/progress/completed) |
+| `download_response` | Media download completion                           |
 
 ---
 
@@ -217,21 +217,21 @@ handleContactEvent(event: ContactEvent)
 
 **Table:** `contacts` (per-tenant schema)
 
-| Column | Type | Description |
-|--------|------|-------------|
-| `id` | UUID | Primary key |
-| `jid` | VARCHAR | WhatsApp JID (normalized) |
-| `phone_number` | VARCHAR | Phone number (from JID) |
-| `push_name` | VARCHAR | Display name from WhatsApp |
-| `custom_name` | VARCHAR | User-defined name |
-| `is_group` | BOOLEAN | Is this a group chat |
-| `is_online` | BOOLEAN | Current online status |
-| `last_seen` | TIMESTAMPTZ | Last seen timestamp |
-| `is_blocked` | BOOLEAN | Block status |
-| `profile_picture_url` | VARCHAR | S3 URL of profile picture |
-| `whatsapp_connection_id` | UUID | FK to whatsapp_connections |
-| `created_at` | TIMESTAMPTZ | Creation timestamp |
-| `updated_at` | TIMESTAMPTZ | Last update timestamp |
+| Column                   | Type        | Description                |
+| ------------------------ | ----------- | -------------------------- |
+| `id`                     | UUID        | Primary key                |
+| `jid`                    | VARCHAR     | WhatsApp JID (normalized)  |
+| `phone_number`           | VARCHAR     | Phone number (from JID)    |
+| `push_name`              | VARCHAR     | Display name from WhatsApp |
+| `custom_name`            | VARCHAR     | User-defined name          |
+| `is_group`               | BOOLEAN     | Is this a group chat       |
+| `is_online`              | BOOLEAN     | Current online status      |
+| `last_seen`              | TIMESTAMPTZ | Last seen timestamp        |
+| `is_blocked`             | BOOLEAN     | Block status               |
+| `profile_picture_url`    | VARCHAR     | S3 URL of profile picture  |
+| `whatsapp_connection_id` | UUID        | FK to whatsapp_connections |
+| `created_at`             | TIMESTAMPTZ | Creation timestamp         |
+| `updated_at`             | TIMESTAMPTZ | Last update timestamp      |
 
 ---
 
@@ -324,28 +324,28 @@ handleMessageEvent(event: MessageEvent)
 
 **Table:** `messages` (per-tenant schema)
 
-| Column | Type | Description |
-|--------|------|-------------|
-| `id` | UUID | Primary key |
-| `message_id` | VARCHAR | WhatsApp message ID |
-| `contact_id` | UUID | FK to contacts |
-| `whatsapp_connection_id` | UUID | FK to whatsapp_connections |
-| `content` | TEXT | Message text/caption |
-| `message_type` | VARCHAR | text, image, video, audio, document, sticker, location, contact, reaction |
-| `from_me` | BOOLEAN | Sent by us |
-| `sender_jid` | VARCHAR | Sender JID (for groups) |
-| `status` | VARCHAR | pending, sent, delivered, read, failed |
-| `timestamp` | TIMESTAMPTZ | Message timestamp |
-| `media_url` | VARCHAR | S3 URL of media |
-| `media_type` | VARCHAR | MIME type |
-| `media_size` | INTEGER | File size in bytes |
-| `media_download_status` | VARCHAR | pending, completed, failed |
-| `media_direct_path` | VARCHAR | WhatsApp CDN path (deferred) |
-| `media_key` | VARCHAR | Encryption key (deferred) |
-| `media_file_sha256` | VARCHAR | File hash (deferred) |
-| `deleted_by_sender` | BOOLEAN | Message was deleted |
-| `deleted_at` | TIMESTAMPTZ | When deleted |
-| `created_at` | TIMESTAMPTZ | DB insertion time |
+| Column                   | Type        | Description                                                               |
+| ------------------------ | ----------- | ------------------------------------------------------------------------- |
+| `id`                     | UUID        | Primary key                                                               |
+| `message_id`             | VARCHAR     | WhatsApp message ID                                                       |
+| `contact_id`             | UUID        | FK to contacts                                                            |
+| `whatsapp_connection_id` | UUID        | FK to whatsapp_connections                                                |
+| `content`                | TEXT        | Message text/caption                                                      |
+| `message_type`           | VARCHAR     | text, image, video, audio, document, sticker, location, contact, reaction |
+| `from_me`                | BOOLEAN     | Sent by us                                                                |
+| `sender_jid`             | VARCHAR     | Sender JID (for groups)                                                   |
+| `status`                 | VARCHAR     | pending, sent, delivered, read, failed                                    |
+| `timestamp`              | TIMESTAMPTZ | Message timestamp                                                         |
+| `media_url`              | VARCHAR     | S3 URL of media                                                           |
+| `media_type`             | VARCHAR     | MIME type                                                                 |
+| `media_size`             | INTEGER     | File size in bytes                                                        |
+| `media_download_status`  | VARCHAR     | pending, completed, failed                                                |
+| `media_direct_path`      | VARCHAR     | WhatsApp CDN path (deferred)                                              |
+| `media_key`              | VARCHAR     | Encryption key (deferred)                                                 |
+| `media_file_sha256`      | VARCHAR     | File hash (deferred)                                                      |
+| `deleted_by_sender`      | BOOLEAN     | Message was deleted                                                       |
+| `deleted_at`             | TIMESTAMPTZ | When deleted                                                              |
+| `created_at`             | TIMESTAMPTZ | DB insertion time                                                         |
 
 ---
 
@@ -360,6 +360,7 @@ isGroup := c.GetIsDefaultSubgroup() || len(c.GetParticipant()) > 0
 ```
 
 JID formats:
+
 - **Contacts:** `{phoneNumber}@s.whatsapp.net`
 - **Groups:** `{groupId}@g.us`
 
@@ -367,21 +368,21 @@ JID formats:
 
 Groups are stored in the `contacts` table with `is_group = true`:
 
-| Field | Value |
-|-------|-------|
-| `jid` | `{groupId}@g.us` |
-| `is_group` | `true` |
-| `push_name` | Group name |
-| `profile_picture_url` | Group picture |
+| Field                 | Value            |
+| --------------------- | ---------------- |
+| `jid`                 | `{groupId}@g.us` |
+| `is_group`            | `true`           |
+| `push_name`           | Group name       |
+| `profile_picture_url` | Group picture    |
 
 ### 4.3 Group Message Handling
 
 For messages in groups, additional fields are stored:
 
-| Field | Description |
-|-------|-------------|
+| Field        | Description                       |
+| ------------ | --------------------------------- |
 | `sender_jid` | Who sent the message in the group |
-| `from_me` | Is it our own message |
+| `from_me`    | Is it our own message             |
 
 ---
 
@@ -436,13 +437,13 @@ handleReactionEvent(event: ReactionEvent)
 
 **Table:** `message_reactions` (per-tenant schema)
 
-| Column | Type | Description |
-|--------|------|-------------|
-| `id` | UUID | Primary key |
-| `message_id` | UUID | FK to messages (internal ID) |
-| `reactor_jid` | VARCHAR | JID of person who reacted |
-| `emoji` | VARCHAR | The reaction emoji |
-| `created_at` | TIMESTAMPTZ | When reaction was added |
+| Column        | Type        | Description                  |
+| ------------- | ----------- | ---------------------------- |
+| `id`          | UUID        | Primary key                  |
+| `message_id`  | UUID        | FK to messages (internal ID) |
+| `reactor_jid` | VARCHAR     | JID of person who reacted    |
+| `emoji`       | VARCHAR     | The reaction emoji           |
+| `created_at`  | TIMESTAMPTZ | When reaction was added      |
 
 ---
 
@@ -453,11 +454,11 @@ handleReactionEvent(event: ReactionEvent)
 WhatsApp sends receipt events for message status updates:
 
 | WhatsApp Receipt | Database Status |
-|------------------|-----------------|
-| `sender` | `sent` |
-| `delivered` | `delivered` |
-| `read` | `read` |
-| `played` | `read` |
+| ---------------- | --------------- |
+| `sender`         | `sent`          |
+| `delivered`      | `delivered`     |
+| `read`           | `read`          |
+| `played`         | `read`          |
 
 ### 6.2 Receipt Processing
 
@@ -557,6 +558,7 @@ handleProfilePictureEvent(event)
 ### 9.1 Problem
 
 History sync can contain thousands of media messages. Downloading all media during sync would be:
+
 - Too slow
 - Consume excessive bandwidth
 - Block the sync process
@@ -565,12 +567,12 @@ History sync can contain thousands of media messages. Downloading all media duri
 
 Store media metadata instead of downloading immediately:
 
-| Field | Purpose |
-|-------|---------|
-| `media_direct_path` | WhatsApp's CDN path |
-| `media_key` | Encryption key (base64) |
-| `media_file_sha256` | File hash for verification |
-| `media_file_enc_sha256` | Encrypted file hash |
+| Field                   | Purpose                            |
+| ----------------------- | ---------------------------------- |
+| `media_direct_path`     | WhatsApp's CDN path                |
+| `media_key`             | Encryption key (base64)            |
+| `media_file_sha256`     | File hash for verification         |
+| `media_file_enc_sha256` | Encrypted file hash                |
 | `media_download_status` | `pending` / `completed` / `failed` |
 
 ### 9.3 On-Demand Download Flow
@@ -680,13 +682,13 @@ initializeMessageHandler()
 
 ### Core Tables (per-tenant schema)
 
-| Table | Purpose |
-|-------|---------|
-| `whatsapp_connections` | Connection metadata & status |
-| `contacts` | Contact list (including groups) |
-| `messages` | Message storage |
-| `message_reactions` | Reaction data |
-| `conversation_states` | Unread counts, last message |
+| Table                  | Purpose                         |
+| ---------------------- | ------------------------------- |
+| `whatsapp_connections` | Connection metadata & status    |
+| `contacts`             | Contact list (including groups) |
+| `messages`             | Message storage                 |
+| `message_reactions`    | Reaction data                   |
+| `conversation_states`  | Unread counts, last message     |
 
 ### Key Foreign Keys
 
@@ -731,19 +733,19 @@ broadcastToCompany(companyId, {
 
 ### WebSocket Event Types
 
-| Event | Description |
-|-------|-------------|
-| `message:new` | New message received |
-| `message:status` | Message status update (sent/delivered/read) |
-| `message:deleted` | Message was revoked |
-| `message:reaction` | Reaction added/removed |
-| `media:downloaded` | Deferred media download completed |
-| `contact` | Contact created/updated |
-| `presence:online` | Contact came online |
-| `presence:offline` | Contact went offline |
-| `typing:start` | Contact started typing |
-| `typing:stop` | Contact stopped typing |
-| `sync:status` | History sync progress |
+| Event              | Description                                 |
+| ------------------ | ------------------------------------------- |
+| `message:new`      | New message received                        |
+| `message:status`   | Message status update (sent/delivered/read) |
+| `message:deleted`  | Message was revoked                         |
+| `message:reaction` | Reaction added/removed                      |
+| `media:downloaded` | Deferred media download completed           |
+| `contact`          | Contact created/updated                     |
+| `presence:online`  | Contact came online                         |
+| `presence:offline` | Contact went offline                        |
+| `typing:start`     | Contact started typing                      |
+| `typing:stop`      | Contact stopped typing                      |
+| `sync:status`      | History sync progress                       |
 
 ---
 
@@ -751,41 +753,41 @@ broadcastToCompany(companyId, {
 
 ### Go WhatsApp Service
 
-| File | Purpose |
-|------|---------|
-| `services/whatsapp/internal/handler/handler.go` | Main event dispatcher |
+| File                                                 | Purpose                    |
+| ---------------------------------------------------- | -------------------------- |
+| `services/whatsapp/internal/handler/handler.go`      | Main event dispatcher      |
 | `services/whatsapp/internal/handler/history_sync.go` | History sync orchestration |
-| `services/whatsapp/internal/handler/messages.go` | Message handling |
-| `services/whatsapp/internal/handler/media.go` | Media download/upload |
-| `services/whatsapp/internal/handler/connection.go` | Presence/typing events |
-| `services/whatsapp/internal/nats/publisher.go` | NATS event publishing |
+| `services/whatsapp/internal/handler/messages.go`     | Message handling           |
+| `services/whatsapp/internal/handler/media.go`        | Media download/upload      |
+| `services/whatsapp/internal/handler/connection.go`   | Presence/typing events     |
+| `services/whatsapp/internal/nats/publisher.go`       | NATS event publishing      |
 
 ### API Event Handlers
 
-| File | Purpose |
-|------|---------|
-| `apps/api/src/services/message-handler.ts` | Event router |
-| `apps/api/src/services/handlers/message-handlers.ts` | Message storage |
-| `apps/api/src/services/handlers/contact-handlers.ts` | Contact storage |
-| `apps/api/src/services/handlers/reaction-handlers.ts` | Reactions & revokes |
-| `apps/api/src/services/handlers/status-handlers.ts` | Sync status & downloads |
-| `apps/api/src/services/handlers/connection-handlers.ts` | Connection events |
+| File                                                    | Purpose                 |
+| ------------------------------------------------------- | ----------------------- |
+| `apps/api/src/services/message-handler.ts`              | Event router            |
+| `apps/api/src/services/handlers/message-handlers.ts`    | Message storage         |
+| `apps/api/src/services/handlers/contact-handlers.ts`    | Contact storage         |
+| `apps/api/src/services/handlers/reaction-handlers.ts`   | Reactions & revokes     |
+| `apps/api/src/services/handlers/status-handlers.ts`     | Sync status & downloads |
+| `apps/api/src/services/handlers/connection-handlers.ts` | Connection events       |
 
 ### Shared Types
 
-| File | Purpose |
-|------|---------|
-| `services/shared/nats/events.go` | Go event type definitions |
-| `services/shared/nats/subjects.go` | NATS subject patterns |
-| `apps/api/src/lib/nats/types/index.ts` | TypeScript event types |
+| File                                   | Purpose                   |
+| -------------------------------------- | ------------------------- |
+| `services/shared/nats/events.go`       | Go event type definitions |
+| `services/shared/nats/subjects.go`     | NATS subject patterns     |
+| `apps/api/src/lib/nats/types/index.ts` | TypeScript event types    |
 
 ### Database
 
-| File | Purpose |
-|------|---------|
-| `packages/database/src/migrations/015_fix_tenant_schema_baseline.ts` | Core schema |
+| File                                                                  | Purpose        |
+| --------------------------------------------------------------------- | -------------- |
+| `packages/database/src/migrations/015_fix_tenant_schema_baseline.ts`  | Core schema    |
 | `packages/database/src/migrations/023_add_deferred_media_download.ts` | Deferred media |
-| `packages/database/src/migrations/024_add_sync_status_column.ts` | Sync tracking |
+| `packages/database/src/migrations/024_add_sync_status_column.ts`      | Sync tracking  |
 
 ---
 
@@ -805,16 +807,17 @@ broadcastToCompany(companyId, {
 
 ### Retry Mechanisms
 
-| Operation | Strategy |
-|-----------|----------|
-| Media Downloads | Exponential backoff: 1s, 2s, 4s (max 4 attempts) |
-| NATS Connection | Automatic reconnect |
-| API Event Subscription | Retry on stream not found |
-| History Sync | Worker pool continues on individual failures |
+| Operation              | Strategy                                         |
+| ---------------------- | ------------------------------------------------ |
+| Media Downloads        | Exponential backoff: 1s, 2s, 4s (max 4 attempts) |
+| NATS Connection        | Automatic reconnect                              |
+| API Event Subscription | Retry on stream not found                        |
+| History Sync           | Worker pool continues on individual failures     |
 
 ### Deduplication
 
 Messages have unique constraint:
+
 ```sql
 UNIQUE (whatsapp_connection_id, message_id)
 ```

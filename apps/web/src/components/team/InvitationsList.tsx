@@ -1,31 +1,31 @@
-import { Mail } from 'lucide-react'
-import { useAsyncData } from '@/hooks'
+import { Mail } from "lucide-react";
+import { useAsyncData } from "@/hooks";
 import {
   useCancelInvitation,
   usePendingInvitations,
   useResendInvitation,
-} from '@/hooks/useTeam'
-import { InvitationCard } from './InvitationCard'
-import { MemberSkeleton } from './MemberSkeleton'
-import type { InvitationsListProps } from './types'
+} from "@/hooks/useTeam";
+import { InvitationCard } from "./InvitationCard";
+import { MemberSkeleton } from "./MemberSkeleton";
+import type { InvitationsListProps } from "./types";
 
 /**
  * Invitations list component
  */
 export function InvitationsList({ companyId }: InvitationsListProps) {
-  const { renderState } = useAsyncData(usePendingInvitations(companyId))
-  const cancelInvitation = useCancelInvitation()
-  const resendInvitation = useResendInvitation()
+  const { renderState } = useAsyncData(usePendingInvitations(companyId));
+  const cancelInvitation = useCancelInvitation();
+  const resendInvitation = useResendInvitation();
 
   const handleCancel = async (invitationId: string) => {
-    if (confirm('Are you sure you want to cancel this invitation?')) {
-      await cancelInvitation.mutateAsync({ companyId, invitationId })
+    if (confirm("Are you sure you want to cancel this invitation?")) {
+      await cancelInvitation.mutateAsync({ companyId, invitationId });
     }
-  }
+  };
 
   const handleResend = async (invitationId: string) => {
-    await resendInvitation.mutateAsync({ companyId, invitationId })
-  }
+    await resendInvitation.mutateAsync({ companyId, invitationId });
+  };
 
   return renderState({
     loading: () => (
@@ -60,5 +60,5 @@ export function InvitationsList({ companyId }: InvitationsListProps) {
         ))}
       </div>
     ),
-  })
+  });
 }

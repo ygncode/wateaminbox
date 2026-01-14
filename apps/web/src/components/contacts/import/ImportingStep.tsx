@@ -1,4 +1,4 @@
-import { Loader2 } from 'lucide-react'
+import { Loader2 } from "lucide-react";
 
 export function ImportingStep() {
   return (
@@ -11,5 +11,5 @@ export function ImportingStep() {
         This may take a moment
       </p>
     </div>
-  )
+  );
 }

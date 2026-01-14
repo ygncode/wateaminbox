@@ -1,4 +1,4 @@
-import { Skeleton } from '@/components/ui'
+import { Skeleton } from "@/components/ui";
 
 /**
  * Loading skeleton for the group info panel
@@ -15,5 +15,5 @@ export function GroupInfoPanelSkeleton() {
       <Skeleton className="h-20 w-full" />
       <Skeleton className="h-40 w-full" />
     </div>
-  )
+  );
 }

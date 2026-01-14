@@ -10,7 +10,7 @@ export {
   SingleConnectionPanel,
   GlobalErrorBanner,
   AddConnectionDialog,
-} from './connection-panel'
+} from "./connection-panel";
 
 export type {
   WhatsAppConnectionPanelProps,
@@ -18,4 +18,4 @@ export type {
   SingleConnectionPanelProps,
   GlobalErrorBannerProps,
   AddConnectionDialogProps,
-} from './connection-panel'
+} from "./connection-panel";

@@ -166,7 +166,9 @@ export function TabsTrigger({
     if (!tabList) return;
 
     const tabs = Array.from(
-      tabList.querySelectorAll<HTMLButtonElement>('[role="tab"]:not([disabled])'),
+      tabList.querySelectorAll<HTMLButtonElement>(
+        '[role="tab"]:not([disabled])',
+      ),
     );
     const currentIndex = tabs.findIndex((tab) => tab === tabRef.current);
 

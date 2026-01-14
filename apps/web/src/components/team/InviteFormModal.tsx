@@ -1,17 +1,20 @@
-import { zodResolver } from '@hookform/resolvers/zod'
-import { Shield, ShieldCheck, X } from 'lucide-react'
-import { useForm } from 'react-hook-form'
-import { Button, FormField } from '@/components/ui'
-import { useInviteMember } from '@/hooks/useTeam'
-import { inviteTeamMemberSchema, type InviteTeamMemberFormData } from '@/lib/schemas'
-import { cn } from '@/lib/utils'
-import type { InviteFormModalProps } from './types'
+import { zodResolver } from "@hookform/resolvers/zod";
+import { Shield, ShieldCheck, X } from "lucide-react";
+import { useForm } from "react-hook-form";
+import { Button, FormField } from "@/components/ui";
+import { useInviteMember } from "@/hooks/useTeam";
+import {
+  inviteTeamMemberSchema,
+  type InviteTeamMemberFormData,
+} from "@/lib/schemas";
+import { cn } from "@/lib/utils";
+import type { InviteFormModalProps } from "./types";
 
 /**
  * Invite form modal
  */
 export function InviteFormModal({ companyId, onClose }: InviteFormModalProps) {
-  const inviteMember = useInviteMember()
+  const inviteMember = useInviteMember();
 
   const {
     register,
@@ -22,18 +25,22 @@ export function InviteFormModal({ companyId, onClose }: InviteFormModalProps) {
   } = useForm<InviteTeamMemberFormData>({
     resolver: zodResolver(inviteTeamMemberSchema),
     defaultValues: {
-      email: '',
-      role: 'member',
+      email: "",
+      role: "member",
     },
-    mode: 'onChange',
-  })
+    mode: "onChange",
+  });
 
-  const role = watch('role')
+  const role = watch("role");
 
   const onSubmit = async (data: InviteTeamMemberFormData) => {
-    await inviteMember.mutateAsync({ companyId, email: data.email, role: data.role })
-    onClose()
-  }
+    await inviteMember.mutateAsync({
+      companyId,
+      email: data.email,
+      role: data.role,
+    });
+    onClose();
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 dark:bg-black/70">
@@ -56,7 +63,7 @@ export function InviteFormModal({ companyId, onClose }: InviteFormModalProps) {
             label="Email address"
             type="email"
             placeholder="colleague@company.com"
-            registration={register('email')}
+            registration={register("email")}
             error={errors.email}
           />
 
@@ -67,12 +74,14 @@ export function InviteFormModal({ companyId, onClose }: InviteFormModalProps) {
             <div className="flex gap-2">
               <button
                 type="button"
-                onClick={() => setValue('role', 'member', { shouldValidate: true })}
+                onClick={() =>
+                  setValue("role", "member", { shouldValidate: true })
+                }
                 className={cn(
-                  'flex-1 rounded-lg border px-4 py-2 text-sm font-medium transition-colors',
-                  role === 'member'
-                    ? 'border-whatsapp-teal-green bg-whatsapp-light-green text-whatsapp-dark-green'
-                    : 'border-gray-300 dark:border-dark-border text-gray-700 dark:text-dark-text-primary hover:bg-gray-50 dark:hover:bg-dark-tertiary',
+                  "flex-1 rounded-lg border px-4 py-2 text-sm font-medium transition-colors",
+                  role === "member"
+                    ? "border-whatsapp-teal-green bg-whatsapp-light-green text-whatsapp-dark-green"
+                    : "border-gray-300 dark:border-dark-border text-gray-700 dark:text-dark-text-primary hover:bg-gray-50 dark:hover:bg-dark-tertiary",
                 )}
               >
                 <Shield className="mx-auto mb-1 h-5 w-5" />
@@ -80,12 +89,14 @@ export function InviteFormModal({ companyId, onClose }: InviteFormModalProps) {
               </button>
               <button
                 type="button"
-                onClick={() => setValue('role', 'admin', { shouldValidate: true })}
+                onClick={() =>
+                  setValue("role", "admin", { shouldValidate: true })
+                }
                 className={cn(
-                  'flex-1 rounded-lg border px-4 py-2 text-sm font-medium transition-colors',
-                  role === 'admin'
-                    ? 'border-whatsapp-teal-green bg-whatsapp-light-green text-whatsapp-dark-green'
-                    : 'border-gray-300 dark:border-dark-border text-gray-700 dark:text-dark-text-primary hover:bg-gray-50 dark:hover:bg-dark-tertiary',
+                  "flex-1 rounded-lg border px-4 py-2 text-sm font-medium transition-colors",
+                  role === "admin"
+                    ? "border-whatsapp-teal-green bg-whatsapp-light-green text-whatsapp-dark-green"
+                    : "border-gray-300 dark:border-dark-border text-gray-700 dark:text-dark-text-primary hover:bg-gray-50 dark:hover:bg-dark-tertiary",
                 )}
               >
                 <ShieldCheck className="mx-auto mb-1 h-5 w-5" />
@@ -93,7 +104,10 @@ export function InviteFormModal({ companyId, onClose }: InviteFormModalProps) {
               </button>
             </div>
             {errors.role && (
-              <p className="mt-1 text-xs text-red-500 dark:text-red-400" role="alert">
+              <p
+                className="mt-1 text-xs text-red-500 dark:text-red-400"
+                role="alert"
+              >
                 {errors.role.message}
               </p>
             )}
@@ -113,11 +127,11 @@ export function InviteFormModal({ companyId, onClose }: InviteFormModalProps) {
               disabled={inviteMember.isPending || !isValid}
               className="flex-1 bg-whatsapp-teal-green hover:bg-whatsapp-dark-green"
             >
-              {inviteMember.isPending ? 'Sending...' : 'Send Invitation'}
+              {inviteMember.isPending ? "Sending..." : "Send Invitation"}
             </Button>
           </div>
         </form>
       </div>
     </div>
-  )
+  );
 }

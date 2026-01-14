@@ -1,18 +1,18 @@
-import { Download, Loader2, Upload } from 'lucide-react'
-import { useRef } from 'react'
-import { downloadImportTemplate } from '../../../lib/api'
-import type { UploadStepProps } from './types'
+import { Download, Loader2, Upload } from "lucide-react";
+import { useRef } from "react";
+import { downloadImportTemplate } from "../../../lib/api";
+import type { UploadStepProps } from "./types";
 
 export function UploadStep({ loading, onFileSelect }: UploadStepProps) {
-  const fileInputRef = useRef<HTMLInputElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault()
-    const droppedFile = e.dataTransfer.files[0]
-    if (droppedFile?.name.endsWith('.csv')) {
-      onFileSelect(droppedFile)
+    e.preventDefault();
+    const droppedFile = e.dataTransfer.files[0];
+    if (droppedFile?.name.endsWith(".csv")) {
+      onFileSelect(droppedFile);
     }
-  }
+  };
 
   return (
     <div className="space-y-6">
@@ -29,8 +29,8 @@ export function UploadStep({ loading, onFileSelect }: UploadStepProps) {
           accept=".csv"
           className="hidden"
           onChange={(e) => {
-            const selectedFile = e.target.files?.[0]
-            if (selectedFile) onFileSelect(selectedFile)
+            const selectedFile = e.target.files?.[0];
+            if (selectedFile) onFileSelect(selectedFile);
           }}
         />
         {loading ? (
@@ -41,7 +41,9 @@ export function UploadStep({ loading, onFileSelect }: UploadStepProps) {
         <p className="mt-4 text-lg font-medium text-gray-700 dark:text-dark-text-primary">
           Drop your CSV file here
         </p>
-        <p className="mt-1 text-sm text-gray-500 dark:text-dark-text-secondary">or click to browse</p>
+        <p className="mt-1 text-sm text-gray-500 dark:text-dark-text-secondary">
+          or click to browse
+        </p>
       </div>
 
       {/* Download template */}
@@ -57,13 +59,16 @@ export function UploadStep({ loading, onFileSelect }: UploadStepProps) {
 
       {/* Instructions */}
       <div className="bg-gray-50 dark:bg-dark-tertiary rounded-lg p-4">
-        <h3 className="font-medium text-gray-900 dark:text-dark-text-primary mb-2">CSV Format</h3>
+        <h3 className="font-medium text-gray-900 dark:text-dark-text-primary mb-2">
+          CSV Format
+        </h3>
         <p className="text-sm text-gray-600 dark:text-dark-text-secondary mb-3">
           Your CSV file should include a header row with these columns:
         </p>
         <ul className="text-sm text-gray-600 dark:text-dark-text-secondary space-y-1">
           <li>
-            <strong>phone_number</strong> (required) - Phone number with country code
+            <strong>phone_number</strong> (required) - Phone number with country
+            code
           </li>
           <li>
             <strong>name</strong> - Contact display name
@@ -77,5 +82,5 @@ export function UploadStep({ loading, onFileSelect }: UploadStepProps) {
         </ul>
       </div>
     </div>
-  )
+  );
 }

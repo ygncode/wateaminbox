@@ -1,15 +1,15 @@
-import { Loader2, Plus, RefreshCw, Smartphone } from 'lucide-react'
-import { useCallback, useEffect, useState } from 'react'
-import { Button, Skeleton } from '@/components/ui'
-import { useWhatsAppConnections } from '@/hooks/useWhatsAppConnections'
-import { cn } from '@/lib/utils'
-import { injectAnimationStyles, removeAnimationStyles } from '../animations'
-import { ConnectionCard } from '../ConnectionCard'
-import { EmptyConnectionsView } from '../EmptyConnectionsView'
-import { QRCodeDisplay } from '../QRCodeDisplay'
-import { AddConnectionDialog } from './AddConnectionDialog'
-import { GlobalErrorBanner } from './GlobalErrorBanner'
-import type { MultiConnectionPanelProps } from './types'
+import { Loader2, Plus, RefreshCw, Smartphone } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import { Button, Skeleton } from "@/components/ui";
+import { useWhatsAppConnections } from "@/hooks/useWhatsAppConnections";
+import { cn } from "@/lib/utils";
+import { injectAnimationStyles, removeAnimationStyles } from "../animations";
+import { ConnectionCard } from "../ConnectionCard";
+import { EmptyConnectionsView } from "../EmptyConnectionsView";
+import { QRCodeDisplay } from "../QRCodeDisplay";
+import { AddConnectionDialog } from "./AddConnectionDialog";
+import { GlobalErrorBanner } from "./GlobalErrorBanner";
+import type { MultiConnectionPanelProps } from "./types";
 
 /**
  * Multi-connection panel for managing multiple WhatsApp connections
@@ -36,64 +36,66 @@ export function MultiConnectionPanel({
     clearGlobalError,
     connectedCount,
     totalCount,
-  } = useWhatsAppConnections()
+  } = useWhatsAppConnections();
 
-  const [showAddDialog, setShowAddDialog] = useState(false)
-  const [newConnectionName, setNewConnectionName] = useState('')
-  const [editingConnection, setEditingConnection] = useState<string | null>(null)
-  const [editName, setEditName] = useState('')
+  const [showAddDialog, setShowAddDialog] = useState(false);
+  const [newConnectionName, setNewConnectionName] = useState("");
+  const [editingConnection, setEditingConnection] = useState<string | null>(
+    null,
+  );
+  const [editName, setEditName] = useState("");
 
   // Inject animation styles into document head
   useEffect(() => {
-    injectAnimationStyles()
-    return () => removeAnimationStyles()
-  }, [])
+    injectAnimationStyles();
+    return () => removeAnimationStyles();
+  }, []);
 
   // Handle add new connection
   const handleAddConnection = useCallback(async () => {
     try {
-      await create(newConnectionName || undefined)
-      setNewConnectionName('')
-      setShowAddDialog(false)
+      await create(newConnectionName || undefined);
+      setNewConnectionName("");
+      setShowAddDialog(false);
     } catch (_error) {
       // Error is handled by the hook
     }
-  }, [create, newConnectionName])
+  }, [create, newConnectionName]);
 
   // Handle rename connection
   const handleRename = useCallback(
     async (connectionId: string) => {
       if (editName.trim()) {
-        await rename(connectionId, editName.trim())
-        setEditingConnection(null)
-        setEditName('')
+        await rename(connectionId, editName.trim());
+        setEditingConnection(null);
+        setEditName("");
       }
     },
     [rename, editName],
-  )
+  );
 
   if (isLoading) {
     return (
-      <div className={cn('p-6', className)}>
+      <div className={cn("p-6", className)}>
         <Skeleton className="h-8 w-48 mb-4" />
         <div className="space-y-3">
           <Skeleton className="h-20 w-full" />
           <Skeleton className="h-20 w-full" />
         </div>
       </div>
-    )
+    );
   }
 
   if (compact) {
     return (
-      <div className={cn('flex items-center gap-2', className)}>
+      <div className={cn("flex items-center gap-2", className)}>
         <div className="flex items-center gap-1">
           <div
             className={cn(
-              'w-2 h-2 rounded-full',
+              "w-2 h-2 rounded-full",
               connectedCount > 0
-                ? 'bg-green-500'
-                : 'bg-gray-400 dark:bg-gray-500',
+                ? "bg-green-500"
+                : "bg-gray-400 dark:bg-gray-500",
             )}
           />
           <span className="text-sm text-gray-600 dark:text-dark-text-secondary">
@@ -101,15 +103,15 @@ export function MultiConnectionPanel({
           </span>
         </div>
       </div>
-    )
+    );
   }
 
   return (
     <div
       className={cn(
         hideHeader
-          ? 'p-4'
-          : 'bg-white dark:bg-dark-elevated rounded-lg border border-gray-200 dark:border-dark-border p-6',
+          ? "p-4"
+          : "bg-white dark:bg-dark-elevated rounded-lg border border-gray-200 dark:border-dark-border p-6",
         className,
       )}
     >
@@ -193,8 +195,8 @@ export function MultiConnectionPanel({
           onNameChange={setNewConnectionName}
           onSubmit={handleAddConnection}
           onCancel={() => {
-            setShowAddDialog(false)
-            setNewConnectionName('')
+            setShowAddDialog(false);
+            setNewConnectionName("");
           }}
           isCreating={isCreating}
         />
@@ -251,12 +253,12 @@ export function MultiConnectionPanel({
               editName={editName}
               onEditNameChange={setEditName}
               onStartEdit={() => {
-                setEditingConnection(connection.id)
-                setEditName(connection.name)
+                setEditingConnection(connection.id);
+                setEditName(connection.name);
               }}
               onCancelEdit={() => {
-                setEditingConnection(null)
-                setEditName('')
+                setEditingConnection(null);
+                setEditName("");
               }}
               onSaveEdit={() => handleRename(connection.id)}
               onReconnect={() => reconnect(connection.id)}
@@ -268,5 +270,5 @@ export function MultiConnectionPanel({
         </div>
       )}
     </div>
-  )
+  );
 }

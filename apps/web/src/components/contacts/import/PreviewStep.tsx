@@ -1,26 +1,38 @@
-import { AlertCircle, Check } from 'lucide-react'
-import type { PreviewStepProps } from './types'
+import { AlertCircle, Check } from "lucide-react";
+import type { PreviewStepProps } from "./types";
 
-export function PreviewStep({ preview, options, onOptionsChange }: PreviewStepProps) {
+export function PreviewStep({
+  preview,
+  options,
+  onOptionsChange,
+}: PreviewStepProps) {
   return (
     <div className="space-y-6">
       {/* Summary */}
       <div className="grid grid-cols-3 gap-4">
         <div className="bg-blue-50 dark:bg-blue-900/30 rounded-lg p-4 text-center">
-          <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">{preview.total}</div>
-          <div className="text-sm text-blue-600 dark:text-blue-400">Total contacts</div>
+          <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+            {preview.total}
+          </div>
+          <div className="text-sm text-blue-600 dark:text-blue-400">
+            Total contacts
+          </div>
         </div>
         <div className="bg-green-50 dark:bg-green-900/30 rounded-lg p-4 text-center">
           <div className="text-2xl font-bold text-green-600 dark:text-green-400">
             {preview.newCount}
           </div>
-          <div className="text-sm text-green-600 dark:text-green-400">New contacts</div>
+          <div className="text-sm text-green-600 dark:text-green-400">
+            New contacts
+          </div>
         </div>
         <div className="bg-yellow-50 dark:bg-yellow-900/30 rounded-lg p-4 text-center">
           <div className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">
             {preview.existingCount}
           </div>
-          <div className="text-sm text-yellow-600 dark:text-yellow-400">Already exist</div>
+          <div className="text-sm text-yellow-600 dark:text-yellow-400">
+            Already exist
+          </div>
         </div>
       </div>
 
@@ -30,7 +42,9 @@ export function PreviewStep({ preview, options, onOptionsChange }: PreviewStepPr
           <input
             type="checkbox"
             checked={options.updateExisting}
-            onChange={(e) => onOptionsChange({ ...options, updateExisting: e.target.checked })}
+            onChange={(e) =>
+              onOptionsChange({ ...options, updateExisting: e.target.checked })
+            }
             className="h-4 w-4 rounded border-gray-300 dark:border-dark-border text-blue-600 focus:ring-blue-500 dark:bg-dark-tertiary"
           />
           <span className="text-sm text-gray-700 dark:text-dark-text-primary">
@@ -41,7 +55,9 @@ export function PreviewStep({ preview, options, onOptionsChange }: PreviewStepPr
           <input
             type="checkbox"
             checked={options.createTags}
-            onChange={(e) => onOptionsChange({ ...options, createTags: e.target.checked })}
+            onChange={(e) =>
+              onOptionsChange({ ...options, createTags: e.target.checked })
+            }
             className="h-4 w-4 rounded border-gray-300 dark:border-dark-border text-blue-600 focus:ring-blue-500 dark:bg-dark-tertiary"
           />
           <span className="text-sm text-gray-700 dark:text-dark-text-primary">
@@ -71,13 +87,18 @@ export function PreviewStep({ preview, options, onOptionsChange }: PreviewStepPr
           </thead>
           <tbody className="divide-y divide-gray-200 dark:divide-dark-border">
             {preview.preview.slice(0, 10).map((row) => (
-              <tr key={row.row} className="hover:bg-gray-50 dark:hover:bg-dark-tertiary">
-                <td className="px-4 py-2 text-gray-500 dark:text-dark-text-tertiary">{row.row}</td>
+              <tr
+                key={row.row}
+                className="hover:bg-gray-50 dark:hover:bg-dark-tertiary"
+              >
+                <td className="px-4 py-2 text-gray-500 dark:text-dark-text-tertiary">
+                  {row.row}
+                </td>
                 <td className="px-4 py-2 text-gray-900 dark:text-dark-text-primary">
                   {row.phoneNumber}
                 </td>
                 <td className="px-4 py-2 text-gray-900 dark:text-dark-text-primary">
-                  {row.name || '-'}
+                  {row.name || "-"}
                 </td>
                 <td className="px-4 py-2">
                   {row.exists ? (
@@ -103,5 +124,5 @@ export function PreviewStep({ preview, options, onOptionsChange }: PreviewStepPr
         )}
       </div>
     </div>
-  )
+  );
 }

@@ -11,15 +11,18 @@
  * - AddConnectionDialog: Dialog for adding new connections
  */
 
-export { WhatsAppConnectionPanel, WhatsAppConnectionPanel as default } from './WhatsAppConnectionPanel'
-export { MultiConnectionPanel } from './MultiConnectionPanel'
-export { SingleConnectionPanel } from './SingleConnectionPanel'
-export { GlobalErrorBanner } from './GlobalErrorBanner'
-export { AddConnectionDialog } from './AddConnectionDialog'
+export {
+  WhatsAppConnectionPanel,
+  WhatsAppConnectionPanel as default,
+} from "./WhatsAppConnectionPanel";
+export { MultiConnectionPanel } from "./MultiConnectionPanel";
+export { SingleConnectionPanel } from "./SingleConnectionPanel";
+export { GlobalErrorBanner } from "./GlobalErrorBanner";
+export { AddConnectionDialog } from "./AddConnectionDialog";
 export type {
   WhatsAppConnectionPanelProps,
   MultiConnectionPanelProps,
   SingleConnectionPanelProps,
   GlobalErrorBannerProps,
   AddConnectionDialogProps,
-} from './types'
+} from "./types";

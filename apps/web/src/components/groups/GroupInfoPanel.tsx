@@ -2,8 +2,8 @@ import {
   RightPanel,
   RightPanelContent,
   RightPanelHeader,
-} from '@/components/layout/right-panel'
-import { useGroup, useGroupAdminStatus } from '@/hooks/useGroups'
+} from "@/components/layout/right-panel";
+import { useGroup, useGroupAdminStatus } from "@/hooks/useGroups";
 import {
   DescriptionSection,
   EditableNameSection,
@@ -13,12 +13,12 @@ import {
   GroupSettingsSection,
   ParticipantsSection,
   TagsSection,
-} from './info-panel'
+} from "./info-panel";
 
 export interface GroupInfoPanelProps {
-  groupId: string | null
-  isOpen: boolean
-  onClose: () => void
+  groupId: string | null;
+  isOpen: boolean;
+  onClose: () => void;
 }
 
 /**
@@ -30,13 +30,13 @@ export function GroupInfoPanel({
   isOpen,
   onClose,
 }: GroupInfoPanelProps) {
-  const { data: group, isLoading, error } = useGroup(groupId)
-  const { data: adminStatus } = useGroupAdminStatus(groupId)
+  const { data: group, isLoading, error } = useGroup(groupId);
+  const { data: adminStatus } = useGroupAdminStatus(groupId);
 
-  const isAdmin = adminStatus?.isAdmin ?? false
-  const connectionJid = adminStatus?.connectionJid
+  const isAdmin = adminStatus?.isAdmin ?? false;
+  const connectionJid = adminStatus?.connectionJid;
 
-  if (!groupId) return null
+  if (!groupId) return null;
 
   return (
     <RightPanel isOpen={isOpen} onClose={onClose}>
@@ -80,7 +80,7 @@ export function GroupInfoPanel({
         ) : null}
       </RightPanelContent>
     </RightPanel>
-  )
+  );
 }
 
-export default GroupInfoPanel
+export default GroupInfoPanel;

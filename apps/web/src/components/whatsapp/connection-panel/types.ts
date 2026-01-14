@@ -3,32 +3,32 @@
  */
 
 export interface WhatsAppConnectionPanelProps {
-  className?: string
-  compact?: boolean
-  multiConnection?: boolean
-  hideHeader?: boolean
+  className?: string;
+  compact?: boolean;
+  multiConnection?: boolean;
+  hideHeader?: boolean;
 }
 
 export interface MultiConnectionPanelProps {
-  className?: string
-  compact?: boolean
-  hideHeader?: boolean
+  className?: string;
+  compact?: boolean;
+  hideHeader?: boolean;
 }
 
 export interface SingleConnectionPanelProps {
-  className?: string
-  compact?: boolean
+  className?: string;
+  compact?: boolean;
 }
 
 export interface GlobalErrorBannerProps {
-  error: string
-  onDismiss: () => void
+  error: string;
+  onDismiss: () => void;
 }
 
 export interface AddConnectionDialogProps {
-  name: string
-  onNameChange: (name: string) => void
-  onSubmit: () => void
-  onCancel: () => void
-  isCreating: boolean
+  name: string;
+  onNameChange: (name: string) => void;
+  onSubmit: () => void;
+  onCancel: () => void;
+  isCreating: boolean;
 }

@@ -146,7 +146,11 @@ export function EllipsisMenu({
   const handleKeyDown = React.useCallback(
     (event: React.KeyboardEvent) => {
       if (!isOpen) {
-        if (event.key === "Enter" || event.key === " " || event.key === "ArrowDown") {
+        if (
+          event.key === "Enter" ||
+          event.key === " " ||
+          event.key === "ArrowDown"
+        ) {
           event.preventDefault();
           setOpen(true);
         }

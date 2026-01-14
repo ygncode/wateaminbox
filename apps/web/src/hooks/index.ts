@@ -25,6 +25,7 @@ export * from "./useAsyncData";
 export * from "./useAudit";
 export * from "./useChats";
 export * from "./useContact";
+export * from "./useForwardContacts";
 export * from "./useExport";
 export * from "./useGroups";
 export * from "./useInfiniteMessages";

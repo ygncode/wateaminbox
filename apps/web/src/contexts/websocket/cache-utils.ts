@@ -6,16 +6,16 @@
  * to reduce code duplication and improve maintainability.
  */
 
-import type { QueryClient } from '@tanstack/react-query'
-import type { Message, PaginatedMessages } from '@whatsapp-web/shared'
-import { chatKeys } from '../../hooks/useChats'
-import { infiniteMessageKeys } from '../../hooks/useInfiniteMessages'
+import type { QueryClient } from "@tanstack/react-query";
+import type { Message, PaginatedMessages } from "@whatsapp-web/shared";
+import { chatKeys } from "../../hooks/useChats";
+import { infiniteMessageKeys } from "../../hooks/useInfiniteMessages";
 
 /** Typed infinite query data structure */
 export type InfiniteMessageData = {
-  pages: PaginatedMessages[]
-  pageParams: (string | undefined)[]
-}
+  pages: PaginatedMessages[];
+  pageParams: (string | undefined)[];
+};
 
 /**
  * Update a specific message in the infinite messages cache.
@@ -33,33 +33,33 @@ export function updateMessageInCache(
   messageId: string,
   updater: (message: Message) => Message,
 ): boolean {
-  const queryKey = infiniteMessageKeys.list(conversationId)
-  let messageFound = false
+  const queryKey = infiniteMessageKeys.list(conversationId);
+  let messageFound = false;
 
   queryClient.setQueryData(
     queryKey,
     (oldData: InfiniteMessageData | undefined) => {
-      if (!oldData) return oldData
+      if (!oldData) return oldData;
 
       const newPages = oldData.pages.map((page) => ({
         ...page,
         messages: page.messages.map((msg) => {
           if (msg.id === messageId) {
-            messageFound = true
-            return updater(msg)
+            messageFound = true;
+            return updater(msg);
           }
-          return msg
+          return msg;
         }),
-      }))
+      }));
 
       return {
         ...oldData,
         pages: newPages,
-      }
+      };
     },
-  )
+  );
 
-  return messageFound
+  return messageFound;
 }
 
 /**
@@ -79,44 +79,44 @@ export function addMessageToCache(
   message: Message,
   options: { skipDuplicateCheck?: boolean } = {},
 ): { added: boolean; isDuplicate: boolean } {
-  const queryKey = infiniteMessageKeys.list(conversationId)
-  let isDuplicate = false
-  let added = false
+  const queryKey = infiniteMessageKeys.list(conversationId);
+  let isDuplicate = false;
+  let added = false;
 
   queryClient.setQueryData(
     queryKey,
     (oldData: InfiniteMessageData | undefined) => {
-      if (!oldData) return oldData
+      if (!oldData) return oldData;
 
       // Check for duplicates unless explicitly skipped
       if (!options.skipDuplicateCheck) {
         const messageExists = oldData.pages.some((page) =>
           page.messages.some((msg) => msg.id === message.id),
-        )
+        );
         if (messageExists) {
-          isDuplicate = true
-          return oldData
+          isDuplicate = true;
+          return oldData;
         }
       }
 
       // Add the new message to the first page (most recent)
-      const newPages = [...oldData.pages]
+      const newPages = [...oldData.pages];
       if (newPages.length > 0) {
         newPages[0] = {
           ...newPages[0],
           messages: [message, ...newPages[0].messages],
-        }
-        added = true
+        };
+        added = true;
       }
 
       return {
         ...oldData,
         pages: newPages,
-      }
+      };
     },
-  )
+  );
 
-  return { added, isDuplicate }
+  return { added, isDuplicate };
 }
 
 /**
@@ -135,19 +135,19 @@ export function updateContactInChatList(
   queryClient.setQueriesData(
     { queryKey: chatKeys.lists() },
     (oldData: unknown) => {
-      if (!oldData || !Array.isArray(oldData)) return oldData
+      if (!oldData || !Array.isArray(oldData)) return oldData;
       return oldData.map((chat: Record<string, unknown>) => {
-        const contact = chat.contact as Record<string, unknown> | undefined
+        const contact = chat.contact as Record<string, unknown> | undefined;
         if (contact?.jid === jid) {
           return {
             ...chat,
             contact: updater(contact),
-          }
+          };
         }
-        return chat
-      })
+        return chat;
+      });
     },
-  )
+  );
 }
 
 /**
@@ -159,7 +159,7 @@ export function updateContactInChatList(
 export function invalidateChatList(queryClient: QueryClient): void {
   queryClient.invalidateQueries({
     queryKey: chatKeys.lists(),
-  })
+  });
 }
 
 /**
@@ -175,6 +175,6 @@ export function refetchConversationMessages(
 ): void {
   queryClient.refetchQueries({
     queryKey: infiniteMessageKeys.list(conversationId),
-    type: 'active',
-  })
+    type: "active",
+  });
 }

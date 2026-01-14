@@ -1,9 +1,7 @@
-import { useState } from 'react'
-import {
-  RightPanelSection,
-} from '@/components/layout/right-panel'
-import { ParticipantItem } from './ParticipantItem'
-import type { ParticipantsSectionProps } from './types'
+import { useState } from "react";
+import { RightPanelSection } from "@/components/layout/right-panel";
+import { ParticipantItem } from "./ParticipantItem";
+import type { ParticipantsSectionProps } from "./types";
 
 /**
  * Participants section with admin badges
@@ -15,19 +13,19 @@ export function ParticipantsSection({
   isAdmin,
   connectionJid,
 }: ParticipantsSectionProps) {
-  const [showAll, setShowAll] = useState(false)
-  const displayLimit = 10
+  const [showAll, setShowAll] = useState(false);
+  const displayLimit = 10;
   const displayedParticipants = showAll
     ? participants
-    : participants.slice(0, displayLimit)
-  const hasMore = participants.length > displayLimit
+    : participants.slice(0, displayLimit);
+  const hasMore = participants.length > displayLimit;
 
   // Sort admins first
   const sortedParticipants = [...displayedParticipants].sort((a, b) => {
-    if (a.isAdmin && !b.isAdmin) return -1
-    if (!a.isAdmin && b.isAdmin) return 1
-    return 0
-  })
+    if (a.isAdmin && !b.isAdmin) return -1;
+    if (!a.isAdmin && b.isAdmin) return 1;
+    return 0;
+  });
 
   return (
     <RightPanelSection title={`${participantCount} Participants`}>
@@ -61,5 +59,5 @@ export function ParticipantsSection({
         )}
       </div>
     </RightPanelSection>
-  )
+  );
 }

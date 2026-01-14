@@ -14,7 +14,10 @@ export const postStatusSchema = z
     type: z.enum(statusTypeValues, {
       errorMap: () => ({ message: "Please select a status type" }),
     }),
-    content: z.string().max(700, "Content must be less than 700 characters").optional(),
+    content: z
+      .string()
+      .max(700, "Content must be less than 700 characters")
+      .optional(),
     mediaUrl: z.string().optional(),
   })
   .superRefine((data, ctx) => {

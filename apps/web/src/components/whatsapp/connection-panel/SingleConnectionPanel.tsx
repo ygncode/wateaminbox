@@ -1,22 +1,22 @@
-import { AlertCircle, Loader2, Smartphone } from 'lucide-react'
-import { useEffect, useState } from 'react'
-import { Button, Skeleton } from '@/components/ui'
-import { useWhatsAppConnection } from '@/hooks/useWhatsAppConnection'
-import { cn } from '@/lib/utils'
-import { nowMs } from '@whatsapp-web/shared'
+import { AlertCircle, Loader2, Smartphone } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Button, Skeleton } from "@/components/ui";
+import { useWhatsAppConnection } from "@/hooks/useWhatsAppConnection";
+import { cn } from "@/lib/utils";
+import { nowMs } from "@whatsapp-web/shared";
 import {
   StatusBadge,
   StatusIndicator,
   getStateLabel,
-} from '../ConnectionStatus'
+} from "../ConnectionStatus";
 import {
   ConnectedView,
   ConnectingView,
   DisconnectedView,
   ErrorView,
   LegacyQRCodeView,
-} from '../ConnectionViews'
-import type { SingleConnectionPanelProps } from './types'
+} from "../ConnectionViews";
+import type { SingleConnectionPanelProps } from "./types";
 
 /**
  * Single connection panel for legacy mode (one WhatsApp connection)
@@ -38,50 +38,50 @@ export function SingleConnectionPanel({
     isConnecting,
     isDisconnecting,
     isLoading,
-  } = useWhatsAppConnection()
+  } = useWhatsAppConnection();
 
   // Countdown for QR expiry
-  const [countdown, setCountdown] = useState<number>(0)
+  const [countdown, setCountdown] = useState<number>(0);
 
   useEffect(() => {
     if (!qrExpiresAt) {
-      setCountdown(0)
-      return
+      setCountdown(0);
+      return;
     }
 
     const updateCountdown = () => {
       const remaining = Math.max(
         0,
         Math.floor((qrExpiresAt.getTime() - nowMs()) / 1000),
-      )
-      setCountdown(remaining)
-    }
+      );
+      setCountdown(remaining);
+    };
 
-    updateCountdown()
-    const interval = setInterval(updateCountdown, 1000)
-    return () => clearInterval(interval)
-  }, [qrExpiresAt])
+    updateCountdown();
+    const interval = setInterval(updateCountdown, 1000);
+    return () => clearInterval(interval);
+  }, [qrExpiresAt]);
 
   if (isLoading) {
     return (
-      <div className={cn('p-6', className)}>
+      <div className={cn("p-6", className)}>
         <Skeleton className="h-8 w-48 mb-4" />
         <Skeleton className="h-64 w-64 mx-auto" />
       </div>
-    )
+    );
   }
 
   // Compact view for sidebar/header
   if (compact) {
     return (
-      <div className={cn('flex items-center gap-2', className)}>
+      <div className={cn("flex items-center gap-2", className)}>
         <StatusIndicator state={state} />
         <span className="text-sm text-gray-600">
-          {state === 'connected'
-            ? phoneNumber || 'Connected'
+          {state === "connected"
+            ? phoneNumber || "Connected"
             : getStateLabel(state)}
         </span>
-        {state === 'disconnected' && (
+        {state === "disconnected" && (
           <Button
             size="sm"
             variant="outline"
@@ -91,18 +91,18 @@ export function SingleConnectionPanel({
             {isConnecting ? (
               <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
-              'Connect'
+              "Connect"
             )}
           </Button>
         )}
       </div>
-    )
+    );
   }
 
   return (
     <div
       className={cn(
-        'bg-white dark:bg-dark-elevated rounded-lg border border-gray-200 dark:border-dark-border p-6',
+        "bg-white dark:bg-dark-elevated rounded-lg border border-gray-200 dark:border-dark-border p-6",
         className,
       )}
     >
@@ -133,13 +133,13 @@ export function SingleConnectionPanel({
       )}
 
       {/* Content based on state */}
-      {state === 'disconnected' && (
+      {state === "disconnected" && (
         <DisconnectedView onConnect={connect} isConnecting={isConnecting} />
       )}
 
-      {(state === 'connecting' || state === 'waiting_qr') && <ConnectingView />}
+      {(state === "connecting" || state === "waiting_qr") && <ConnectingView />}
 
-      {state === 'scanning' && qrCode && (
+      {state === "scanning" && qrCode && (
         <LegacyQRCodeView
           qrCode={qrCode}
           countdown={countdown}
@@ -148,7 +148,7 @@ export function SingleConnectionPanel({
         />
       )}
 
-      {state === 'connected' && (
+      {state === "connected" && (
         <ConnectedView
           phoneNumber={phoneNumber}
           lastSync={lastSync}
@@ -158,9 +158,9 @@ export function SingleConnectionPanel({
         />
       )}
 
-      {state === 'error' && (
+      {state === "error" && (
         <ErrorView error={error} onRetry={connect} isRetrying={isConnecting} />
       )}
     </div>
-  )
+  );
 }

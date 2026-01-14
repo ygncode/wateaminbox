@@ -1,22 +1,17 @@
-import { Shield, Users } from 'lucide-react'
-import {
-  Avatar,
-  AvatarFallback,
-  AvatarImage,
-  Badge,
-} from '@/components/ui'
-import type { GroupHeaderProps } from './types'
+import { Shield, Users } from "lucide-react";
+import { Avatar, AvatarFallback, AvatarImage, Badge } from "@/components/ui";
+import type { GroupHeaderProps } from "./types";
 
 /**
  * Group header with avatar and display name
  */
 export function GroupHeader({ group, isAdmin }: GroupHeaderProps) {
   const initials = group.displayName
-    .split(' ')
+    .split(" ")
     .map((n) => n[0])
-    .join('')
+    .join("")
     .toUpperCase()
-    .slice(0, 2)
+    .slice(0, 2);
 
   return (
     <div className="flex flex-col items-center gap-4 bg-gray-50 dark:bg-dark-secondary py-8">
@@ -34,7 +29,9 @@ export function GroupHeader({ group, isAdmin }: GroupHeaderProps) {
           {group.displayName}
         </h3>
         {group.customName && group.name && group.customName !== group.name && (
-          <p className="text-sm text-gray-500 dark:text-dark-text-secondary">~{group.name}</p>
+          <p className="text-sm text-gray-500 dark:text-dark-text-secondary">
+            ~{group.name}
+          </p>
         )}
         <p className="text-sm text-gray-500 dark:text-dark-text-secondary mt-1">
           <Users className="inline h-4 w-4 mr-1" />
@@ -51,5 +48,5 @@ export function GroupHeader({ group, isAdmin }: GroupHeaderProps) {
         )}
       </div>
     </div>
-  )
+  );
 }

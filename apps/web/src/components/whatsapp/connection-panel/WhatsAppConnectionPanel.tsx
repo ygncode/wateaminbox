@@ -1,6 +1,6 @@
-import { MultiConnectionPanel } from './MultiConnectionPanel'
-import { SingleConnectionPanel } from './SingleConnectionPanel'
-import type { WhatsAppConnectionPanelProps } from './types'
+import { MultiConnectionPanel } from "./MultiConnectionPanel";
+import { SingleConnectionPanel } from "./SingleConnectionPanel";
+import type { WhatsAppConnectionPanelProps } from "./types";
 
 /**
  * WhatsApp Connection Panel
@@ -21,11 +21,11 @@ export function WhatsAppConnectionPanel({
         compact={compact}
         hideHeader={hideHeader}
       />
-    )
+    );
   }
 
   // Legacy single-connection mode
-  return <SingleConnectionPanel className={className} compact={compact} />
+  return <SingleConnectionPanel className={className} compact={compact} />;
 }
 
-export default WhatsAppConnectionPanel
+export default WhatsAppConnectionPanel;

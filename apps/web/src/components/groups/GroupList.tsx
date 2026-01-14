@@ -22,7 +22,9 @@ export function GroupList({
   className = "",
 }: GroupListProps) {
   const [searchQuery, setSearchQuery] = useState("");
-  const { data, renderState, error } = useAsyncData(useGroups(searchQuery, 100));
+  const { data, renderState, error } = useAsyncData(
+    useGroups(searchQuery, 100),
+  );
 
   const handleSearchChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -116,7 +118,7 @@ export function GroupList({
               </p>
             </div>
           ),
-          empty: () => (
+          empty: () =>
             searchQuery ? (
               <div className="flex flex-col items-center justify-center h-full px-4 py-8 text-center">
                 <Search className="w-12 h-12 text-gray-400 dark:text-dark-text-tertiary mb-4" />
@@ -137,8 +139,7 @@ export function GroupList({
                   Groups you join will appear here
                 </p>
               </div>
-            )
-          ),
+            ),
           success: (data) => (
             <div>
               {data.data.map((group) => (
@@ -166,7 +167,11 @@ interface GroupListItemComponentProps {
 /**
  * Individual group list item component
  */
-function GroupListItemComponent({ group, isSelected, onClick }: GroupListItemComponentProps) {
+function GroupListItemComponent({
+  group,
+  isSelected,
+  onClick,
+}: GroupListItemComponentProps) {
   const initials = group.displayName
     .split(" ")
     .map((n) => n[0])

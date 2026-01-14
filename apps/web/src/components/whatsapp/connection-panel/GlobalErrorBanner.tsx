@@ -1,10 +1,13 @@
-import { Sparkles, X, Zap } from 'lucide-react'
-import type { GlobalErrorBannerProps } from './types'
+import { Sparkles, X, Zap } from "lucide-react";
+import type { GlobalErrorBannerProps } from "./types";
 
 /**
  * Global error banner for connection limit and other critical errors
  */
-export function GlobalErrorBanner({ error, onDismiss }: GlobalErrorBannerProps) {
+export function GlobalErrorBanner({
+  error,
+  onDismiss,
+}: GlobalErrorBannerProps) {
   return (
     <div className="mb-6 animate-slide-down">
       <div className="relative overflow-hidden rounded-xl border border-amber-300/50 dark:border-amber-700/50 bg-gradient-to-r from-amber-50 via-orange-50 to-amber-50 dark:from-amber-900/30 dark:via-orange-900/30 dark:to-amber-900/30 p-4 shadow-lg shadow-amber-100/50 dark:shadow-amber-900/20">
@@ -52,5 +55,5 @@ export function GlobalErrorBanner({ error, onDismiss }: GlobalErrorBannerProps) 
         </div>
       </div>
     </div>
-  )
+  );
 }

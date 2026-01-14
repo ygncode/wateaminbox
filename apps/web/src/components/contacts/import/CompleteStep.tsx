@@ -1,5 +1,5 @@
-import { Check } from 'lucide-react'
-import type { CompleteStepProps } from './types'
+import { Check } from "lucide-react";
+import type { CompleteStepProps } from "./types";
 
 export function CompleteStep({ result }: CompleteStepProps) {
   return (
@@ -19,19 +19,25 @@ export function CompleteStep({ result }: CompleteStepProps) {
           <div className="text-2xl font-bold text-green-600 dark:text-green-400">
             {result.summary.created}
           </div>
-          <div className="text-sm text-green-600 dark:text-green-400">Created</div>
+          <div className="text-sm text-green-600 dark:text-green-400">
+            Created
+          </div>
         </div>
         <div className="bg-blue-50 dark:bg-blue-900/30 rounded-lg p-4 text-center">
           <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
             {result.summary.updated}
           </div>
-          <div className="text-sm text-blue-600 dark:text-blue-400">Updated</div>
+          <div className="text-sm text-blue-600 dark:text-blue-400">
+            Updated
+          </div>
         </div>
         <div className="bg-gray-50 dark:bg-dark-tertiary rounded-lg p-4 text-center">
           <div className="text-2xl font-bold text-gray-600 dark:text-dark-text-secondary">
             {result.summary.skipped}
           </div>
-          <div className="text-sm text-gray-600 dark:text-dark-text-secondary">Skipped</div>
+          <div className="text-sm text-gray-600 dark:text-dark-text-secondary">
+            Skipped
+          </div>
         </div>
         <div className="bg-red-50 dark:bg-red-900/30 rounded-lg p-4 text-center">
           <div className="text-2xl font-bold text-red-600 dark:text-red-400">
@@ -49,7 +55,7 @@ export function CompleteStep({ result }: CompleteStepProps) {
           </div>
           <div className="max-h-40 overflow-y-auto">
             {result.results
-              .filter((r) => r.status === 'error')
+              .filter((r) => r.status === "error")
               .map((r) => (
                 <div
                   key={r.row}
@@ -58,12 +64,14 @@ export function CompleteStep({ result }: CompleteStepProps) {
                   <span>
                     Row {r.row}: {r.phoneNumber}
                   </span>
-                  <span className="text-red-600 dark:text-red-400">{r.error}</span>
+                  <span className="text-red-600 dark:text-red-400">
+                    {r.error}
+                  </span>
                 </div>
               ))}
           </div>
         </div>
       )}
     </div>
-  )
+  );
 }

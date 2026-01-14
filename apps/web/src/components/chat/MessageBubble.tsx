@@ -47,8 +47,14 @@ export const MessageBubble = memo(function MessageBubble({
   const contextMenuRef = useRef<HTMLDivElement>(null);
 
   // Both context menu and reaction picker use fixed positioning with viewport coordinates
-  const [contextMenuPosition, setContextMenuPosition] = useState({ x: 0, y: 0 });
-  const [reactionPickerPosition, setReactionPickerPosition] = useState({ x: 0, y: 0 });
+  const [contextMenuPosition, setContextMenuPosition] = useState({
+    x: 0,
+    y: 0,
+  });
+  const [reactionPickerPosition, setReactionPickerPosition] = useState({
+    x: 0,
+    y: 0,
+  });
 
   // Close context menu when clicking outside
   useClickOutside(contextMenuRef, () => setShowContextMenu(false), {

@@ -1,4 +1,10 @@
-import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type RefObject,
+} from "react";
 
 /**
  * Position coordinates
@@ -252,7 +258,8 @@ export function useAutoAdjustedPosition<T extends HTMLElement>({
 
     // Check right boundary
     if (rect.right > viewportWidth - viewportPadding) {
-      adjustedX = initialPosition.x - (rect.right - viewportWidth) - viewportPadding;
+      adjustedX =
+        initialPosition.x - (rect.right - viewportWidth) - viewportPadding;
     }
 
     // Check left boundary

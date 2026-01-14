@@ -1,8 +1,8 @@
-import { Clock, Mail, RefreshCw, X } from 'lucide-react'
-import { dayjs, nowMs } from '@whatsapp-web/shared'
-import { Button } from '@/components/ui'
-import { cn } from '@/lib/utils'
-import type { InvitationCardProps } from './types'
+import { Clock, Mail, RefreshCw, X } from "lucide-react";
+import { dayjs, nowMs } from "@whatsapp-web/shared";
+import { Button } from "@/components/ui";
+import { cn } from "@/lib/utils";
+import type { InvitationCardProps } from "./types";
 
 /**
  * Individual invitation card
@@ -14,8 +14,8 @@ export function InvitationCard({
   isCancelling,
   isResending,
 }: InvitationCardProps) {
-  const expiresAt = dayjs(invitation.expiresAt)
-  const isExpiringSoon = expiresAt.valueOf() - nowMs() < 24 * 60 * 60 * 1000
+  const expiresAt = dayjs(invitation.expiresAt);
+  const isExpiringSoon = expiresAt.valueOf() - nowMs() < 24 * 60 * 60 * 1000;
 
   return (
     <div className="flex items-center justify-between rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-elevated p-4">
@@ -31,10 +31,10 @@ export function InvitationCard({
             <Clock className="h-3 w-3" />
             <span
               className={
-                isExpiringSoon ? 'text-orange-500 dark:text-orange-400' : ''
+                isExpiringSoon ? "text-orange-500 dark:text-orange-400" : ""
               }
             >
-              Expires {expiresAt.format('MMM D, YYYY')}
+              Expires {expiresAt.format("MMM D, YYYY")}
             </span>
           </div>
         </div>
@@ -48,7 +48,7 @@ export function InvitationCard({
           disabled={isResending}
           className="gap-1"
         >
-          <RefreshCw className={cn('h-4 w-4', isResending && 'animate-spin')} />
+          <RefreshCw className={cn("h-4 w-4", isResending && "animate-spin")} />
           Resend
         </Button>
         <Button
@@ -62,5 +62,5 @@ export function InvitationCard({
         </Button>
       </div>
     </div>
-  )
+  );
 }

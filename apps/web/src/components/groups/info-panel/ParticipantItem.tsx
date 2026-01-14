@@ -5,9 +5,9 @@ import {
   ShieldPlus,
   User,
   UserMinus,
-} from 'lucide-react'
-import { useState } from 'react'
-import { dayjs, formatPhoneNumber } from '@whatsapp-web/shared'
+} from "lucide-react";
+import { useState } from "react";
+import { dayjs, formatPhoneNumber } from "@whatsapp-web/shared";
 import {
   Avatar,
   AvatarFallback,
@@ -22,13 +22,13 @@ import {
   Popover,
   PopoverContent,
   PopoverTrigger,
-} from '@/components/ui'
+} from "@/components/ui";
 import {
   useDemoteParticipant,
   usePromoteParticipant,
   useRemoveParticipant,
-} from '@/hooks/useGroups'
-import type { ParticipantItemProps } from './types'
+} from "@/hooks/useGroups";
+import type { ParticipantItemProps } from "./types";
 
 /**
  * Individual participant item with admin actions
@@ -39,46 +39,46 @@ export function ParticipantItem({
   isAdmin,
   isSelf,
 }: ParticipantItemProps) {
-  const [isMenuOpen, setIsMenuOpen] = useState(false)
-  const [confirmRemove, setConfirmRemove] = useState(false)
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [confirmRemove, setConfirmRemove] = useState(false);
 
-  const promoteParticipant = usePromoteParticipant()
-  const demoteParticipant = useDemoteParticipant()
-  const removeParticipant = useRemoveParticipant()
+  const promoteParticipant = usePromoteParticipant();
+  const demoteParticipant = useDemoteParticipant();
+  const removeParticipant = useRemoveParticipant();
 
   // Extract phone number from JID
-  const phoneNumber = participant.jid.split('@')[0]
-  const displayName = formatPhoneNumber(phoneNumber)
+  const phoneNumber = participant.jid.split("@")[0];
+  const displayName = formatPhoneNumber(phoneNumber);
 
   const handlePromote = async () => {
     await promoteParticipant.mutateAsync({
       groupId,
       participantJid: participant.jid,
-    })
-    setIsMenuOpen(false)
-  }
+    });
+    setIsMenuOpen(false);
+  };
 
   const handleDemote = async () => {
     await demoteParticipant.mutateAsync({
       groupId,
       participantJid: participant.jid,
-    })
-    setIsMenuOpen(false)
-  }
+    });
+    setIsMenuOpen(false);
+  };
 
   const handleRemove = async () => {
     await removeParticipant.mutateAsync({
       groupId,
       participantJid: participant.jid,
-    })
-    setConfirmRemove(false)
-    setIsMenuOpen(false)
-  }
+    });
+    setConfirmRemove(false);
+    setIsMenuOpen(false);
+  };
 
   const isPending =
     promoteParticipant.isPending ||
     demoteParticipant.isPending ||
-    removeParticipant.isPending
+    removeParticipant.isPending;
 
   return (
     <>
@@ -92,7 +92,11 @@ export function ParticipantItem({
           <div className="flex items-center gap-2">
             <p className="text-sm font-medium text-gray-900 dark:text-dark-text-primary truncate">
               {displayName}
-              {isSelf && <span className="text-gray-500 dark:text-dark-text-secondary ml-1">(You)</span>}
+              {isSelf && (
+                <span className="text-gray-500 dark:text-dark-text-secondary ml-1">
+                  (You)
+                </span>
+              )}
             </p>
             {participant.isAdmin && (
               <Badge
@@ -106,7 +110,7 @@ export function ParticipantItem({
           </div>
           {participant.joinedAt && (
             <p className="text-xs text-gray-500 dark:text-dark-text-secondary">
-              Joined {dayjs(participant.joinedAt).format('MMM D, YYYY')}
+              Joined {dayjs(participant.joinedAt).format("MMM D, YYYY")}
             </p>
           )}
         </div>
@@ -147,8 +151,8 @@ export function ParticipantItem({
                 )}
                 <button
                   onClick={() => {
-                    setConfirmRemove(true)
-                    setIsMenuOpen(false)
+                    setConfirmRemove(true);
+                    setIsMenuOpen(false);
                   }}
                   disabled={isPending}
                   className="flex items-center gap-2 px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-md disabled:opacity-50"
@@ -181,11 +185,11 @@ export function ParticipantItem({
               onClick={handleRemove}
               disabled={removeParticipant.isPending}
             >
-              {removeParticipant.isPending ? 'Removing...' : 'Remove'}
+              {removeParticipant.isPending ? "Removing..." : "Remove"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
     </>
-  )
+  );
 }

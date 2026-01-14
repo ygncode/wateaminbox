@@ -1,5 +1,7 @@
+import { useQueryClient } from "@tanstack/react-query";
 import type { Message } from "@whatsapp-web/shared";
-import { forwardRef, useMemo } from "react";
+import { forwardRef, useEffect, useMemo } from "react";
+import { prefetchForwardContacts } from "@/hooks/useForwardContacts";
 import {
   DeleteIcon,
   EmojiIcon,
@@ -41,6 +43,14 @@ export const MessageContextMenu = forwardRef<
   { message, position, onReply, onForward, onDelete, onStar, onReact, onClose },
   ref,
 ) {
+  const queryClient = useQueryClient();
+
+  // Prefetch forward contacts when context menu opens
+  // This gives us a head start before user clicks "Forward"
+  useEffect(() => {
+    prefetchForwardContacts(queryClient);
+  }, [queryClient]);
+
   // Calculate adjusted position synchronously during render
   const adjustedPosition = useMemo(() => {
     const viewportWidth = window.innerWidth;

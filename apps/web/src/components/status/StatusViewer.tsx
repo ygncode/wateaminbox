@@ -22,7 +22,9 @@ export interface StatusViewerProps {
  * Shows status updates with progress bar and navigation
  */
 export function StatusViewer({ jid, onClose }: StatusViewerProps) {
-  const { data: contactStatus, renderState } = useAsyncData(useContactStatus(jid));
+  const { data: contactStatus, renderState } = useAsyncData(
+    useContactStatus(jid),
+  );
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
@@ -253,7 +255,9 @@ export function StatusViewer({ jid, onClose }: StatusViewerProps) {
 
                 {/* Caption */}
                 {currentStatus.mediaUrl && currentStatus.caption && (
-                  <p className="mt-4 text-white text-lg">{currentStatus.caption}</p>
+                  <p className="mt-4 text-white text-lg">
+                    {currentStatus.caption}
+                  </p>
                 )}
               </div>
             );

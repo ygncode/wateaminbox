@@ -1,17 +1,6 @@
-import {
-  Crown,
-  MoreVertical,
-  Shield,
-  ShieldCheck,
-  Trash2,
-} from 'lucide-react'
-import {
-  Avatar,
-  AvatarFallback,
-  Badge,
-  Button,
-} from '@/components/ui'
-import type { MemberCardProps } from './types'
+import { Crown, MoreVertical, Shield, ShieldCheck, Trash2 } from "lucide-react";
+import { Avatar, AvatarFallback, Badge, Button } from "@/components/ui";
+import type { MemberCardProps } from "./types";
 
 /**
  * Individual member card with role management
@@ -25,15 +14,15 @@ export function MemberCard({
   onRoleChange,
   onRemove,
 }: MemberCardProps) {
-  const initials = member.email.slice(0, 2).toUpperCase()
+  const initials = member.email.slice(0, 2).toUpperCase();
 
   const RoleIcon =
-    member.role === 'owner'
+    member.role === "owner"
       ? Crown
-      : member.role === 'admin'
+      : member.role === "admin"
         ? ShieldCheck
-        : Shield
-  const roleLabel = member.role.charAt(0).toUpperCase() + member.role.slice(1)
+        : Shield;
+  const roleLabel = member.role.charAt(0).toUpperCase() + member.role.slice(1);
 
   return (
     <div className="flex items-center justify-between rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-elevated p-4 hover:bg-gray-50 dark:hover:bg-dark-tertiary">
@@ -74,9 +63,9 @@ export function MemberCard({
 
           {isMenuOpen && (
             <div className="absolute right-0 top-full z-10 mt-1 w-48 rounded-md border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-elevated py-1 shadow-lg">
-              {member.role === 'member' ? (
+              {member.role === "member" ? (
                 <button
-                  onClick={() => onRoleChange('admin')}
+                  onClick={() => onRoleChange("admin")}
                   className="flex w-full items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-dark-text-primary hover:bg-gray-100 dark:hover:bg-dark-tertiary"
                 >
                   <ShieldCheck className="h-4 w-4" />
@@ -84,7 +73,7 @@ export function MemberCard({
                 </button>
               ) : (
                 <button
-                  onClick={() => onRoleChange('member')}
+                  onClick={() => onRoleChange("member")}
                   className="flex w-full items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-dark-text-primary hover:bg-gray-100 dark:hover:bg-dark-tertiary"
                 >
                   <Shield className="h-4 w-4" />
@@ -103,5 +92,5 @@ export function MemberCard({
         </div>
       )}
     </div>
-  )
+  );
 }

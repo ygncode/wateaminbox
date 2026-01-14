@@ -1,8 +1,6 @@
-import { Settings } from 'lucide-react'
-import { useEffect, useState } from 'react'
-import {
-  RightPanelSection,
-} from '@/components/layout/right-panel'
+import { Settings } from "lucide-react";
+import { useEffect, useState } from "react";
+import { RightPanelSection } from "@/components/layout/right-panel";
 import {
   Button,
   Dialog,
@@ -13,38 +11,38 @@ import {
   DialogTitle,
   Input,
   Textarea,
-} from '@/components/ui'
-import { useUpdateGroupSettings } from '@/hooks/useGroups'
-import type { GroupSettingsSectionProps } from './types'
+} from "@/components/ui";
+import { useUpdateGroupSettings } from "@/hooks/useGroups";
+import type { GroupSettingsSectionProps } from "./types";
 
 /**
  * Group settings section for admins
  */
 export function GroupSettingsSection({ group }: GroupSettingsSectionProps) {
-  const [isOpen, setIsOpen] = useState(false)
-  const [name, setName] = useState(group.name || '')
-  const [description, setDescription] = useState(group.description || '')
-  const updateSettings = useUpdateGroupSettings()
+  const [isOpen, setIsOpen] = useState(false);
+  const [name, setName] = useState(group.name || "");
+  const [description, setDescription] = useState(group.description || "");
+  const updateSettings = useUpdateGroupSettings();
 
   useEffect(() => {
-    setName(group.name || '')
-    setDescription(group.description || '')
-  }, [group.name, group.description])
+    setName(group.name || "");
+    setDescription(group.description || "");
+  }, [group.name, group.description]);
 
   const handleSave = async () => {
     await updateSettings.mutateAsync({
       groupId: group.id,
       name: name.trim() || undefined,
       description: description.trim() || undefined,
-    })
-    setIsOpen(false)
-  }
+    });
+    setIsOpen(false);
+  };
 
   const handleCancel = () => {
-    setName(group.name || '')
-    setDescription(group.description || '')
-    setIsOpen(false)
-  }
+    setName(group.name || "");
+    setDescription(group.description || "");
+    setIsOpen(false);
+  };
 
   return (
     <>
@@ -74,7 +72,9 @@ export function GroupSettingsSection({ group }: GroupSettingsSectionProps) {
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <label className="text-sm font-medium text-gray-900 dark:text-dark-text-primary">Group Name</label>
+              <label className="text-sm font-medium text-gray-900 dark:text-dark-text-primary">
+                Group Name
+              </label>
               <Input
                 value={name}
                 onChange={(e) => setName(e.target.value)}
@@ -83,7 +83,9 @@ export function GroupSettingsSection({ group }: GroupSettingsSectionProps) {
               />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium text-gray-900 dark:text-dark-text-primary">Description</label>
+              <label className="text-sm font-medium text-gray-900 dark:text-dark-text-primary">
+                Description
+              </label>
               <Textarea
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
@@ -98,11 +100,11 @@ export function GroupSettingsSection({ group }: GroupSettingsSectionProps) {
               Cancel
             </Button>
             <Button onClick={handleSave} disabled={updateSettings.isPending}>
-              {updateSettings.isPending ? 'Saving...' : 'Save Changes'}
+              {updateSettings.isPending ? "Saving..." : "Save Changes"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
     </>
-  )
+  );
 }

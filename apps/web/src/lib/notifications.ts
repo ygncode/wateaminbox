@@ -39,27 +39,104 @@ const DEFAULT_SETTINGS: NotificationSettings = {
 
 const SETTINGS_KEY = "notification_settings";
 
-// Available notification sounds
+// Available notification sound types
 export const NOTIFICATION_SOUNDS: Record<string, string> = {
-  default: "/sounds/notification.mp3",
-  chime: "/sounds/chime.mp3",
-  bell: "/sounds/bell.mp3",
-  pop: "/sounds/pop.mp3",
+  default: "default",
+  chime: "chime",
+  bell: "bell",
+  pop: "pop",
   none: "",
 };
 
-// Audio element for playing sounds
-let audioElement: HTMLAudioElement | null = null;
+// Audio context for Web Audio API
+let audioContext: AudioContext | null = null;
 
 /**
- * Initialize audio element for notifications
+ * Get or create AudioContext for Web Audio API
  */
-function getAudioElement(): HTMLAudioElement {
-  if (!audioElement) {
-    audioElement = new Audio();
-    audioElement.volume = 0.5;
+function getAudioContext(): AudioContext {
+  if (!audioContext) {
+    audioContext = new AudioContext();
   }
-  return audioElement;
+  // Resume context if suspended (browsers require user interaction)
+  if (audioContext.state === "suspended") {
+    audioContext.resume();
+  }
+  return audioContext;
+}
+
+/**
+ * Sound generator configurations
+ */
+interface SoundConfig {
+  frequencies: number[];
+  durations: number[];
+  type: OscillatorType;
+  gainStart: number;
+  gainEnd: number;
+}
+
+const SOUND_CONFIGS: Record<string, SoundConfig> = {
+  default: {
+    frequencies: [880, 1108.73], // A5 to C#6
+    durations: [0.1, 0.15],
+    type: "sine",
+    gainStart: 0.3,
+    gainEnd: 0,
+  },
+  chime: {
+    frequencies: [523.25, 659.25, 783.99], // C5-E5-G5 (C major chord)
+    durations: [0.15, 0.15, 0.2],
+    type: "sine",
+    gainStart: 0.25,
+    gainEnd: 0,
+  },
+  bell: {
+    frequencies: [1046.5, 1318.5], // C6-E6
+    durations: [0.08, 0.25],
+    type: "triangle",
+    gainStart: 0.35,
+    gainEnd: 0,
+  },
+  pop: {
+    frequencies: [600, 900],
+    durations: [0.05, 0.08],
+    type: "sine",
+    gainStart: 0.4,
+    gainEnd: 0,
+  },
+};
+
+/**
+ * Play a synthesized notification sound using Web Audio API
+ */
+async function playSynthSound(soundType: string): Promise<void> {
+  const config = SOUND_CONFIGS[soundType] || SOUND_CONFIGS.default;
+  const ctx = getAudioContext();
+
+  let currentTime = ctx.currentTime;
+
+  for (let i = 0; i < config.frequencies.length; i++) {
+    const oscillator = ctx.createOscillator();
+    const gainNode = ctx.createGain();
+
+    oscillator.type = config.type;
+    oscillator.frequency.setValueAtTime(config.frequencies[i], currentTime);
+
+    gainNode.gain.setValueAtTime(config.gainStart, currentTime);
+    gainNode.gain.exponentialRampToValueAtTime(
+      0.001,
+      currentTime + config.durations[i]
+    );
+
+    oscillator.connect(gainNode);
+    gainNode.connect(ctx.destination);
+
+    oscillator.start(currentTime);
+    oscillator.stop(currentTime + config.durations[i]);
+
+    currentTime += config.durations[i] * 0.7; // Slight overlap for smoother sound
+  }
 }
 
 /**
@@ -192,7 +269,7 @@ export function unmuteContact(jid: string): void {
 }
 
 /**
- * Play notification sound
+ * Play notification sound using Web Audio API
  */
 export async function playNotificationSound(): Promise<void> {
   const settings = getNotificationSettings();
@@ -201,17 +278,15 @@ export async function playNotificationSound(): Promise<void> {
     return;
   }
 
-  const soundUrl =
+  const soundType =
     NOTIFICATION_SOUNDS[settings.soundChoice] || NOTIFICATION_SOUNDS.default;
 
-  if (!soundUrl) {
+  if (!soundType) {
     return;
   }
 
   try {
-    const audio = getAudioElement();
-    audio.src = soundUrl;
-    await audio.play();
+    await playSynthSound(soundType);
   } catch (error) {
     // Audio play may be blocked by browser autoplay policies
     console.warn("[Notifications] Failed to play sound:", error);

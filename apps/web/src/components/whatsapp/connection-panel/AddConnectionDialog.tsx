@@ -1,6 +1,6 @@
-import { Link2, Loader2, Plus } from 'lucide-react'
-import { Button } from '@/components/ui'
-import type { AddConnectionDialogProps } from './types'
+import { Link2, Loader2, Plus } from "lucide-react";
+import { Button } from "@/components/ui";
+import type { AddConnectionDialogProps } from "./types";
 
 /**
  * Dialog for adding a new WhatsApp connection
@@ -45,8 +45,8 @@ export function AddConnectionDialog({
                 placeholder="e.g., Support Team, Sales Phone..."
                 className="w-full px-4 py-2.5 bg-white dark:bg-dark-tertiary border border-gray-200 dark:border-dark-border rounded-lg text-sm text-gray-900 dark:text-dark-text-primary placeholder:text-gray-400 dark:placeholder:text-dark-text-tertiary focus:outline-none focus:ring-2 focus:ring-whatsapp-teal-green/50 focus:border-whatsapp-teal-green transition-all duration-200"
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter') onSubmit()
-                  if (e.key === 'Escape') onCancel()
+                  if (e.key === "Enter") onSubmit();
+                  if (e.key === "Escape") onCancel();
                 }}
               />
               <p className="text-xs text-gray-400 dark:text-dark-text-tertiary mt-1.5">
@@ -84,5 +84,5 @@ export function AddConnectionDialog({
         </div>
       </div>
     </div>
-  )
+  );
 }

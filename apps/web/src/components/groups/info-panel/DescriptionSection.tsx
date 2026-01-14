@@ -1,8 +1,6 @@
-import { FileText } from 'lucide-react'
-import {
-  RightPanelSection,
-} from '@/components/layout/right-panel'
-import type { DescriptionSectionProps } from './types'
+import { FileText } from "lucide-react";
+import { RightPanelSection } from "@/components/layout/right-panel";
+import type { DescriptionSectionProps } from "./types";
 
 /**
  * Group description section
@@ -17,5 +15,5 @@ export function DescriptionSection({ group }: DescriptionSectionProps) {
         </p>
       </div>
     </RightPanelSection>
-  )
+  );
 }

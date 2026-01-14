@@ -1,4 +1,4 @@
-import { Skeleton } from '@/components/ui'
+import { Skeleton } from "@/components/ui";
 
 /**
  * Member loading skeleton
@@ -14,5 +14,5 @@ export function MemberSkeleton() {
         </div>
       </div>
     </div>
-  )
+  );
 }

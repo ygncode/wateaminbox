@@ -1,43 +1,43 @@
-import type { GroupDetail, GroupParticipant } from '@/hooks/useGroups'
+import type { GroupDetail, GroupParticipant } from "@/hooks/useGroups";
 
-export type { GroupDetail, GroupParticipant }
+export type { GroupDetail, GroupParticipant };
 
 export interface GroupHeaderProps {
-  group: GroupDetail
-  isAdmin: boolean
+  group: GroupDetail;
+  isAdmin: boolean;
 }
 
 export interface EditableNameSectionProps {
-  group: GroupDetail
+  group: GroupDetail;
 }
 
 export interface GroupSettingsSectionProps {
-  group: GroupDetail
+  group: GroupDetail;
 }
 
 export interface DescriptionSectionProps {
-  group: GroupDetail
+  group: GroupDetail;
 }
 
 export interface GroupInfoSectionProps {
-  group: GroupDetail
+  group: GroupDetail;
 }
 
 export interface ParticipantsSectionProps {
-  groupId: string
-  participants: GroupParticipant[]
-  participantCount: number
-  isAdmin: boolean
-  connectionJid: string | null | undefined
+  groupId: string;
+  participants: GroupParticipant[];
+  participantCount: number;
+  isAdmin: boolean;
+  connectionJid: string | null | undefined;
 }
 
 export interface ParticipantItemProps {
-  groupId: string
-  participant: GroupParticipant
-  isAdmin: boolean
-  isSelf: boolean
+  groupId: string;
+  participant: GroupParticipant;
+  isAdmin: boolean;
+  isSelf: boolean;
 }
 
 export interface TagsSectionProps {
-  tags: { id: string; name: string; color: string | null }[]
+  tags: { id: string; name: string; color: string | null }[];
 }

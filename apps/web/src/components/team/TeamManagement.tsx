@@ -1,11 +1,11 @@
-import { Mail, UserPlus, Users } from 'lucide-react'
-import { useState } from 'react'
-import { Button } from '@/components/ui'
-import { cn } from '@/lib/utils'
-import { InvitationsList } from './InvitationsList'
-import { InviteFormModal } from './InviteFormModal'
-import { MembersList } from './MembersList'
-import type { TeamManagementProps } from './types'
+import { Mail, UserPlus, Users } from "lucide-react";
+import { useState } from "react";
+import { Button } from "@/components/ui";
+import { cn } from "@/lib/utils";
+import { InvitationsList } from "./InvitationsList";
+import { InviteFormModal } from "./InviteFormModal";
+import { MembersList } from "./MembersList";
+import type { TeamManagementProps } from "./types";
 
 /**
  * Team Management component for managing members and invitations
@@ -15,12 +15,12 @@ export function TeamManagement({
   currentUserId,
   currentUserRole,
 }: TeamManagementProps) {
-  const [activeTab, setActiveTab] = useState<'members' | 'invitations'>(
-    'members',
-  )
-  const [showInviteForm, setShowInviteForm] = useState(false)
+  const [activeTab, setActiveTab] = useState<"members" | "invitations">(
+    "members",
+  );
+  const [showInviteForm, setShowInviteForm] = useState(false);
 
-  const isAdmin = currentUserRole === 'owner' || currentUserRole === 'admin'
+  const isAdmin = currentUserRole === "owner" || currentUserRole === "admin";
 
   return (
     <div className="flex h-full flex-col">
@@ -43,12 +43,12 @@ export function TeamManagement({
       {/* Tabs */}
       <div className="flex border-b border-gray-200 dark:border-dark-border">
         <button
-          onClick={() => setActiveTab('members')}
+          onClick={() => setActiveTab("members")}
           className={cn(
-            'flex items-center gap-2 px-6 py-3 text-sm font-medium transition-colors',
-            activeTab === 'members'
-              ? 'border-b-2 border-whatsapp-teal-green text-whatsapp-teal-green'
-              : 'text-gray-500 dark:text-dark-text-secondary hover:text-gray-700 dark:hover:text-dark-text-primary',
+            "flex items-center gap-2 px-6 py-3 text-sm font-medium transition-colors",
+            activeTab === "members"
+              ? "border-b-2 border-whatsapp-teal-green text-whatsapp-teal-green"
+              : "text-gray-500 dark:text-dark-text-secondary hover:text-gray-700 dark:hover:text-dark-text-primary",
           )}
         >
           <Users className="h-4 w-4" />
@@ -56,12 +56,12 @@ export function TeamManagement({
         </button>
         {isAdmin && (
           <button
-            onClick={() => setActiveTab('invitations')}
+            onClick={() => setActiveTab("invitations")}
             className={cn(
-              'flex items-center gap-2 px-6 py-3 text-sm font-medium transition-colors',
-              activeTab === 'invitations'
-                ? 'border-b-2 border-whatsapp-teal-green text-whatsapp-teal-green'
-                : 'text-gray-500 dark:text-dark-text-secondary hover:text-gray-700 dark:hover:text-dark-text-primary',
+              "flex items-center gap-2 px-6 py-3 text-sm font-medium transition-colors",
+              activeTab === "invitations"
+                ? "border-b-2 border-whatsapp-teal-green text-whatsapp-teal-green"
+                : "text-gray-500 dark:text-dark-text-secondary hover:text-gray-700 dark:hover:text-dark-text-primary",
             )}
           >
             <Mail className="h-4 w-4" />
@@ -72,7 +72,7 @@ export function TeamManagement({
 
       {/* Content */}
       <div className="flex-1 overflow-auto p-6">
-        {activeTab === 'members' ? (
+        {activeTab === "members" ? (
           <MembersList
             companyId={companyId}
             currentUserId={currentUserId}
@@ -91,7 +91,7 @@ export function TeamManagement({
         />
       )}
     </div>
-  )
+  );
 }
 
-export default TeamManagement
+export default TeamManagement;

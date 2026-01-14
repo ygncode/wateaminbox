@@ -1,294 +1,305 @@
-import { useQueryClient } from '@tanstack/react-query'
-import type { Contact, Message } from '@whatsapp-web/shared'
-import * as React from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
-import { toast } from 'sonner'
-import { chatKeys } from '../useChats'
-import { type ContactDetail, useContact } from '../useContact'
+import { useQueryClient } from "@tanstack/react-query";
+import type { Contact, Message } from "@whatsapp-web/shared";
+import * as React from "react";
+import { useNavigate, useParams } from "react-router-dom";
+import { toast } from "sonner";
+import { chatKeys } from "../useChats";
+import { type ContactDetail, useContact } from "../useContact";
 import {
   useDeleteMessage,
   useForwardMessage,
   useReactMessage,
   useSendMessage,
   useStarMessage,
-} from '../useMessages'
-import { markConversationAsRead, uploadMedia } from '../../lib/api'
-import { useChatStore } from '../../stores/chat-store'
+} from "../useMessages";
+import { markConversationAsRead, uploadMedia } from "../../lib/api";
+import { useChatStore } from "../../stores/chat-store";
 
 // Helper to map ContactDetail to Contact type expected by MessageHeader
 function mapContactDetailToContact(detail: ContactDetail): Contact {
   return {
     id: detail.id,
     name: detail.displayName,
-    phoneNumber: detail.phoneNumber || '',
+    phoneNumber: detail.phoneNumber || "",
     avatarUrl: detail.profilePictureUrl || undefined,
     customName: detail.customName || undefined,
-  }
+  };
 }
 
 export interface ChatPageState {
   // Chat selection
-  selectedChatId: string | undefined
-  selectedContact: Contact | undefined
-  isContactTyping: boolean
+  selectedChatId: string | undefined;
+  selectedContact: Contact | undefined;
+  isContactTyping: boolean;
 
   // Panel visibility
-  isProfileOpen: boolean
-  isSearchOpen: boolean
-  highlightedMessageId: string | null
+  isProfileOpen: boolean;
+  isSearchOpen: boolean;
+  highlightedMessageId: string | null;
 
   // Reply state
-  replyToMessage: Message | null
+  replyToMessage: Message | null;
 
   // Forward dialog state
-  forwardDialogOpen: boolean
-  messageToForward: Message | null
-  isForwarding: boolean
+  forwardDialogOpen: boolean;
+  messageToForward: Message | null;
+  isForwarding: boolean;
 
   // Delete dialog state
-  deleteDialogOpen: boolean
-  messageToDelete: Message | null
-  isDeleting: boolean
+  deleteDialogOpen: boolean;
+  messageToDelete: Message | null;
+  isDeleting: boolean;
 
   // Send state
-  isSending: boolean
+  isSending: boolean;
 }
 
 export interface ChatPageActions {
   // Chat selection
-  handleChatSelect: (chatId: string | null) => void
+  handleChatSelect: (chatId: string | null) => void;
 
   // Profile panel
-  handleOpenProfile: () => void
-  handleCloseProfile: () => void
+  handleOpenProfile: () => void;
+  handleCloseProfile: () => void;
 
   // Search panel
-  handleOpenSearch: () => void
-  handleCloseSearch: () => void
-  handleNavigateToMessage: (messageId: string) => void
+  handleOpenSearch: () => void;
+  handleCloseSearch: () => void;
+  handleNavigateToMessage: (messageId: string) => void;
 
   // Reply
-  handleReplyToMessage: (message: Message) => void
-  handleClearReply: () => void
+  handleReplyToMessage: (message: Message) => void;
+  handleClearReply: () => void;
 
   // Send message
-  handleSendMessage: (content: string, replyToMessageId?: string) => void
-  handleAttachFile: (file: File, type: 'image' | 'document') => Promise<void>
+  handleSendMessage: (content: string, replyToMessageId?: string) => void;
+  handleAttachFile: (file: File, type: "image" | "document") => Promise<void>;
 
   // Delete message
-  handleDeleteMessage: (message: Message) => void
-  handleConfirmDelete: () => void
-  handleCloseDeleteDialog: () => void
+  handleDeleteMessage: (message: Message) => void;
+  handleConfirmDelete: () => void;
+  handleCloseDeleteDialog: () => void;
 
   // Star message
-  handleStarMessage: (message: Message) => void
+  handleStarMessage: (message: Message) => void;
 
   // React to message
-  handleReactMessage: (message: Message, emoji: string) => void
+  handleReactMessage: (message: Message, emoji: string) => void;
 
   // Forward message
-  handleForwardMessage: (message: Message) => void
-  handleForwardToContact: (targetContactId: string) => void
-  handleCloseForwardDialog: () => void
+  handleForwardMessage: (message: Message) => void;
+  handleForwardToContact: (targetContactId: string) => void;
+  handleCloseForwardDialog: () => void;
 }
 
 export function useChatPageState(): ChatPageState & ChatPageActions {
-  const { contactId } = useParams<{ contactId?: string }>()
-  const navigate = useNavigate()
-  const queryClient = useQueryClient()
+  const { contactId } = useParams<{ contactId?: string }>();
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   // Chat selection state
-  const [selectedChatId, setSelectedChatId] = React.useState<string | undefined>(contactId)
+  const [selectedChatId, setSelectedChatId] = React.useState<
+    string | undefined
+  >(contactId);
 
   // Panel visibility state
-  const [isProfileOpen, setIsProfileOpen] = React.useState(false)
-  const [isSearchOpen, setIsSearchOpen] = React.useState(false)
-  const [highlightedMessageId, setHighlightedMessageId] = React.useState<string | null>(null)
+  const [isProfileOpen, setIsProfileOpen] = React.useState(false);
+  const [isSearchOpen, setIsSearchOpen] = React.useState(false);
+  const [highlightedMessageId, setHighlightedMessageId] = React.useState<
+    string | null
+  >(null);
 
   // Reply state
-  const [replyToMessage, setReplyToMessage] = React.useState<Message | null>(null)
+  const [replyToMessage, setReplyToMessage] = React.useState<Message | null>(
+    null,
+  );
 
   // Forward dialog state
-  const [forwardDialogOpen, setForwardDialogOpen] = React.useState(false)
-  const [messageToForward, setMessageToForward] = React.useState<Message | null>(null)
+  const [forwardDialogOpen, setForwardDialogOpen] = React.useState(false);
+  const [messageToForward, setMessageToForward] =
+    React.useState<Message | null>(null);
 
   // Delete dialog state
-  const [deleteDialogOpen, setDeleteDialogOpen] = React.useState(false)
-  const [messageToDelete, setMessageToDelete] = React.useState<Message | null>(null)
+  const [deleteDialogOpen, setDeleteDialogOpen] = React.useState(false);
+  const [messageToDelete, setMessageToDelete] = React.useState<Message | null>(
+    null,
+  );
 
   // Fetch contact data for the selected chat
-  const { data: contactDetail } = useContact(selectedChatId || null)
-  const selectedContact = contactDetail ? mapContactDetailToContact(contactDetail) : undefined
+  const { data: contactDetail } = useContact(selectedChatId || null);
+  const selectedContact = contactDetail
+    ? mapContactDetailToContact(contactDetail)
+    : undefined;
 
   // Get typing indicators from store
-  const typingIndicators = useChatStore((state) => state.typingIndicators)
-  const selectConversation = useChatStore((state) => state.selectConversation)
+  const typingIndicators = useChatStore((state) => state.typingIndicators);
+  const selectConversation = useChatStore((state) => state.selectConversation);
   const isContactTyping = React.useMemo(() => {
-    if (!contactDetail?.jid) return false
-    const indicators = typingIndicators.get(contactDetail.jid)
-    return Boolean(indicators && indicators.length > 0)
-  }, [contactDetail?.jid, typingIndicators])
+    if (!contactDetail?.jid) return false;
+    const indicators = typingIndicators.get(contactDetail.jid);
+    return Boolean(indicators && indicators.length > 0);
+  }, [contactDetail?.jid, typingIndicators]);
 
   // Message mutations
-  const sendMessage = useSendMessage()
-  const deleteMessage = useDeleteMessage()
-  const starMessage = useStarMessage()
-  const reactMessage = useReactMessage()
-  const forwardMessage = useForwardMessage()
+  const sendMessage = useSendMessage();
+  const deleteMessage = useDeleteMessage();
+  const starMessage = useStarMessage();
+  const reactMessage = useReactMessage();
+  const forwardMessage = useForwardMessage();
 
   // Sync URL with selected chat
   React.useEffect(() => {
-    setSelectedChatId(contactId)
-  }, [contactId])
+    setSelectedChatId(contactId);
+  }, [contactId]);
 
   // Sync selected chat ID with the global store
   React.useEffect(() => {
-    selectConversation(selectedChatId || null)
-  }, [selectedChatId, selectConversation])
+    selectConversation(selectedChatId || null);
+  }, [selectedChatId, selectConversation]);
 
   // Mark conversation as read when chat is selected
-  const lastMarkedRef = React.useRef<string | null>(null)
+  const lastMarkedRef = React.useRef<string | null>(null);
 
   React.useEffect(() => {
     if (selectedChatId && lastMarkedRef.current !== selectedChatId) {
-      lastMarkedRef.current = selectedChatId
+      lastMarkedRef.current = selectedChatId;
 
       const timeoutId = setTimeout(() => {
         if (lastMarkedRef.current === selectedChatId) {
           markConversationAsRead(selectedChatId)
             .then(() => {
-              queryClient.invalidateQueries({ queryKey: chatKeys.lists() })
+              queryClient.invalidateQueries({ queryKey: chatKeys.lists() });
             })
             .catch((error) => {
-              console.error('Failed to mark conversation as read:', error)
-            })
+              console.error("Failed to mark conversation as read:", error);
+            });
         }
-      }, 300)
+      }, 300);
 
-      return () => clearTimeout(timeoutId)
+      return () => clearTimeout(timeoutId);
     }
-  }, [selectedChatId, queryClient])
+  }, [selectedChatId, queryClient]);
 
   // Chat selection handlers
   const handleChatSelect = React.useCallback(
     (chatId: string | null) => {
-      setSelectedChatId(chatId || undefined)
-      setIsProfileOpen(false)
-      setIsSearchOpen(false)
-      setHighlightedMessageId(null)
+      setSelectedChatId(chatId || undefined);
+      setIsProfileOpen(false);
+      setIsSearchOpen(false);
+      setHighlightedMessageId(null);
       if (chatId) {
-        navigate(`/chat/${chatId}`)
+        navigate(`/chat/${chatId}`);
       } else {
-        navigate('/chat')
+        navigate("/chat");
       }
     },
-    [navigate]
-  )
+    [navigate],
+  );
 
   // Profile panel handlers
   const handleOpenProfile = React.useCallback(() => {
-    setIsProfileOpen(true)
-  }, [])
+    setIsProfileOpen(true);
+  }, []);
 
   const handleCloseProfile = React.useCallback(() => {
-    setIsProfileOpen(false)
-  }, [])
+    setIsProfileOpen(false);
+  }, []);
 
   // Search panel handlers
   const handleOpenSearch = React.useCallback(() => {
-    setIsSearchOpen(true)
-  }, [])
+    setIsSearchOpen(true);
+  }, []);
 
   const handleCloseSearch = React.useCallback(() => {
-    setIsSearchOpen(false)
-    setHighlightedMessageId(null)
-  }, [])
+    setIsSearchOpen(false);
+    setHighlightedMessageId(null);
+  }, []);
 
   const handleNavigateToMessage = React.useCallback((messageId: string) => {
-    setHighlightedMessageId(messageId)
-  }, [])
+    setHighlightedMessageId(messageId);
+  }, []);
 
   // Reply handlers
   const handleReplyToMessage = React.useCallback((message: Message) => {
-    setReplyToMessage(message)
-  }, [])
+    setReplyToMessage(message);
+  }, []);
 
   const handleClearReply = React.useCallback(() => {
-    setReplyToMessage(null)
-  }, [])
+    setReplyToMessage(null);
+  }, []);
 
   // Send message handler
   const handleSendMessage = React.useCallback(
     (content: string, replyToMessageId?: string) => {
-      if (!selectedChatId) return
+      if (!selectedChatId) return;
 
       sendMessage.mutate({
         contactId: selectedChatId,
         content,
-        messageType: 'text',
+        messageType: "text",
         replyToMessageId,
-      })
-      setReplyToMessage(null)
+      });
+      setReplyToMessage(null);
     },
-    [selectedChatId, sendMessage]
-  )
+    [selectedChatId, sendMessage],
+  );
 
   // File attachment handler
   const handleAttachFile = React.useCallback(
-    async (file: File, type: 'image' | 'document') => {
-      if (!selectedChatId) return
+    async (file: File, type: "image" | "document") => {
+      if (!selectedChatId) return;
 
       try {
-        console.log('Uploading file:', file.name, type)
-        const uploadingToastId = toast.loading(`Uploading ${file.name}...`)
+        console.log("Uploading file:", file.name, type);
+        const uploadingToastId = toast.loading(`Uploading ${file.name}...`);
 
-        const uploadResponse = await uploadMedia(file)
+        const uploadResponse = await uploadMedia(file);
 
-        console.log('File uploaded successfully:', uploadResponse.mediaUrl)
+        console.log("File uploaded successfully:", uploadResponse.mediaUrl);
 
-        let messageType: 'image' | 'video' | 'audio' | 'document' = 'document'
-        if (uploadResponse.mimeType.startsWith('image/')) {
-          messageType = 'image'
-        } else if (uploadResponse.mimeType.startsWith('video/')) {
-          messageType = 'video'
-        } else if (uploadResponse.mimeType.startsWith('audio/')) {
-          messageType = 'audio'
+        let messageType: "image" | "video" | "audio" | "document" = "document";
+        if (uploadResponse.mimeType.startsWith("image/")) {
+          messageType = "image";
+        } else if (uploadResponse.mimeType.startsWith("video/")) {
+          messageType = "video";
+        } else if (uploadResponse.mimeType.startsWith("audio/")) {
+          messageType = "audio";
         }
 
-        toast.dismiss(uploadingToastId)
-        toast.success('File uploaded successfully')
+        toast.dismiss(uploadingToastId);
+        toast.success("File uploaded successfully");
 
         sendMessage.mutate({
           contactId: selectedChatId,
           content: uploadResponse.fileName,
           messageType,
           mediaUrl: uploadResponse.mediaUrl,
-        })
+        });
       } catch (error) {
-        console.error('Failed to upload file:', error)
+        console.error("Failed to upload file:", error);
 
         if (error instanceof Error) {
-          toast.error(`Failed to upload file: ${error.message}`)
+          toast.error(`Failed to upload file: ${error.message}`);
         } else {
-          toast.error('Failed to upload file. Please try again.')
+          toast.error("Failed to upload file. Please try again.");
         }
       }
     },
-    [selectedChatId, sendMessage]
-  )
+    [selectedChatId, sendMessage],
+  );
 
   // Delete message handlers
   const handleDeleteMessage = React.useCallback(
     (message: Message) => {
-      if (!selectedChatId) return
-      setMessageToDelete(message)
-      setDeleteDialogOpen(true)
+      if (!selectedChatId) return;
+      setMessageToDelete(message);
+      setDeleteDialogOpen(true);
     },
-    [selectedChatId]
-  )
+    [selectedChatId],
+  );
 
   const handleConfirmDelete = React.useCallback(() => {
-    if (!selectedChatId || !messageToDelete) return
+    if (!selectedChatId || !messageToDelete) return;
 
     deleteMessage.mutate(
       {
@@ -297,62 +308,62 @@ export function useChatPageState(): ChatPageState & ChatPageActions {
       },
       {
         onSuccess: () => {
-          setDeleteDialogOpen(false)
-          setMessageToDelete(null)
+          setDeleteDialogOpen(false);
+          setMessageToDelete(null);
         },
         onError: (error) => {
-          toast.error(`Failed to delete message: ${error.message}`)
+          toast.error(`Failed to delete message: ${error.message}`);
         },
-      }
-    )
-  }, [selectedChatId, messageToDelete, deleteMessage])
+      },
+    );
+  }, [selectedChatId, messageToDelete, deleteMessage]);
 
   const handleCloseDeleteDialog = React.useCallback(() => {
-    setDeleteDialogOpen(false)
-    setMessageToDelete(null)
-  }, [])
+    setDeleteDialogOpen(false);
+    setMessageToDelete(null);
+  }, []);
 
   // Star message handler
   const handleStarMessage = React.useCallback(
     (message: Message) => {
-      if (!selectedChatId) return
+      if (!selectedChatId) return;
 
       starMessage.mutate({
         messageId: message.id,
         conversationId: selectedChatId,
         isStarred: !message.isStarred,
-      })
+      });
     },
-    [selectedChatId, starMessage]
-  )
+    [selectedChatId, starMessage],
+  );
 
   // React to message handler
   const handleReactMessage = React.useCallback(
     (message: Message, emoji: string) => {
-      if (!selectedChatId) return
+      if (!selectedChatId) return;
 
       reactMessage.mutate({
         messageId: message.id,
         conversationId: selectedChatId,
         emoji,
-      })
+      });
     },
-    [selectedChatId, reactMessage]
-  )
+    [selectedChatId, reactMessage],
+  );
 
   // Forward message handlers
   const handleForwardMessage = React.useCallback(
     (message: Message) => {
-      if (!selectedChatId) return
-      setMessageToForward(message)
-      setForwardDialogOpen(true)
+      if (!selectedChatId) return;
+      setMessageToForward(message);
+      setForwardDialogOpen(true);
     },
-    [selectedChatId]
-  )
+    [selectedChatId],
+  );
 
   const handleForwardToContact = React.useCallback(
     (targetContactId: string) => {
-      if (!selectedChatId || !messageToForward) return
+      if (!selectedChatId || !messageToForward) return;
 
       forwardMessage.mutate(
         {
@@ -362,26 +373,26 @@ export function useChatPageState(): ChatPageState & ChatPageActions {
         },
         {
           onSuccess: (data) => {
-            toast.success('Message forwarded successfully')
+            toast.success("Message forwarded successfully");
             if (data.autoAssigned) {
-              toast.info('Contact was automatically assigned to you')
+              toast.info("Contact was automatically assigned to you");
             }
-            setForwardDialogOpen(false)
-            setMessageToForward(null)
+            setForwardDialogOpen(false);
+            setMessageToForward(null);
           },
           onError: (error) => {
-            toast.error(`Failed to forward message: ${error.message}`)
+            toast.error(`Failed to forward message: ${error.message}`);
           },
-        }
-      )
+        },
+      );
     },
-    [selectedChatId, messageToForward, forwardMessage]
-  )
+    [selectedChatId, messageToForward, forwardMessage],
+  );
 
   const handleCloseForwardDialog = React.useCallback(() => {
-    setForwardDialogOpen(false)
-    setMessageToForward(null)
-  }, [])
+    setForwardDialogOpen(false);
+    setMessageToForward(null);
+  }, []);
 
   return {
     // State
@@ -419,5 +430,5 @@ export function useChatPageState(): ChatPageState & ChatPageActions {
     handleForwardMessage,
     handleForwardToContact,
     handleCloseForwardDialog,
-  }
+  };
 }

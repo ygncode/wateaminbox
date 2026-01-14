@@ -1,13 +1,12 @@
-import { useVirtualizer } from "@tanstack/react-virtual";
-import { Loader2, Search, X } from "lucide-react";
-import { memo, useCallback, useMemo, useRef, useState } from "react";
+import { ArrowRight, Loader2, RefreshCw, Search, Users, X } from "lucide-react";
+import { memo, useCallback, useMemo, useState } from "react";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui";
-import { useChats } from "../../hooks/useChats";
+import { useForwardContacts } from "../../hooks/useForwardContacts";
 import type { Chat } from "../../types/chat";
 
 interface ForwardMessageDialogProps {
@@ -17,8 +16,22 @@ interface ForwardMessageDialogProps {
   isForwarding?: boolean;
 }
 
-// Fixed height for chat list items for virtualization
-const CHAT_ITEM_HEIGHT = 64;
+/**
+ * Skeleton loading item with pulse animation
+ */
+const ContactSkeleton = memo(function ContactSkeleton() {
+  return (
+    <div className="flex items-center gap-3 px-4 py-3 animate-pulse">
+      {/* Avatar skeleton */}
+      <div className="w-12 h-12 rounded-full bg-gray-200 dark:bg-dark-tertiary" />
+      {/* Text skeleton */}
+      <div className="flex-1 space-y-2">
+        <div className="h-4 w-32 rounded bg-gray-200 dark:bg-dark-tertiary" />
+        <div className="h-3 w-24 rounded bg-gray-200 dark:bg-dark-tertiary" />
+      </div>
+    </div>
+  );
+});
 
 /**
  * Dialog for selecting a contact to forward a message to
@@ -30,9 +43,8 @@ export const ForwardMessageDialog = memo(function ForwardMessageDialog({
   isForwarding = false,
 }: ForwardMessageDialogProps) {
   const [searchQuery, setSearchQuery] = useState("");
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
 
-  const { data: chats, isLoading } = useChats(searchQuery, true, "all");
+  const { data: chats, isLoading, isFetching, error, refetch } = useForwardContacts(searchQuery);
 
   // Filter to contacts that have a JID (can receive messages)
   const availableContacts = useMemo(() => {
@@ -68,38 +80,48 @@ export const ForwardMessageDialog = memo(function ForwardMessageDialog({
     [onOpenChange],
   );
 
-  // Virtualizer for contact list
-  const virtualizer = useVirtualizer({
-    count: availableContacts.length,
-    getScrollElement: () => scrollContainerRef.current,
-    estimateSize: () => CHAT_ITEM_HEIGHT,
-    overscan: 5,
-  });
+  // Show loading only when we have no data at all (including placeholder)
+  // isLoading is true on initial load, isFetching is true during any fetch
+  const showSkeletons = (isLoading || isFetching) && availableContacts.length === 0;
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="sm:max-w-md max-h-[80vh] flex flex-col p-0">
-        <DialogHeader className="px-4 pt-4 pb-2">
-          <DialogTitle>Forward message to</DialogTitle>
+      <DialogContent className="sm:max-w-md max-h-[80vh] flex flex-col p-0 gap-0 overflow-hidden bg-white dark:bg-dark-elevated border-gray-200 dark:border-dark-border">
+        {/* Header */}
+        <DialogHeader className="px-5 pt-5 pb-3 border-b border-gray-100 dark:border-dark-border/50">
+          <div className="flex items-center justify-between">
+            <DialogTitle className="text-base font-semibold text-gray-900 dark:text-dark-text-primary">
+              Forward message
+            </DialogTitle>
+            {/* Updating indicator - show when fetching with existing data */}
+            {isFetching && availableContacts.length > 0 && (
+              <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-whatsapp-teal-green/10 dark:bg-whatsapp-teal-green/20">
+                <RefreshCw className="h-3 w-3 text-whatsapp-teal-green animate-spin" />
+                <span className="text-xs font-medium text-whatsapp-teal-green">
+                  Updating
+                </span>
+              </div>
+            )}
+          </div>
         </DialogHeader>
 
         {/* Search Input */}
-        <div className="px-4 pb-2">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 dark:text-dark-text-tertiary" />
+        <div className="px-4 py-3 bg-gray-50/50 dark:bg-dark-primary/30">
+          <div className="relative group">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 dark:text-dark-text-tertiary transition-colors group-focus-within:text-whatsapp-teal-green" />
             <input
               type="text"
               placeholder="Search contacts..."
               value={searchQuery}
               onChange={handleSearchChange}
-              className="w-full pl-9 pr-9 py-2 text-sm bg-gray-100 dark:bg-dark-tertiary border-0 rounded-lg text-gray-900 dark:text-dark-text-primary placeholder-gray-500 dark:placeholder-dark-text-tertiary focus:outline-none focus:ring-2 focus:ring-whatsapp-teal-green"
+              className="w-full pl-10 pr-10 py-2.5 text-sm bg-white dark:bg-dark-tertiary border border-gray-200 dark:border-dark-border rounded-xl text-gray-900 dark:text-dark-text-primary placeholder-gray-400 dark:placeholder-dark-text-tertiary focus:outline-none focus:ring-2 focus:ring-whatsapp-teal-green/30 focus:border-whatsapp-teal-green transition-all duration-200"
               autoFocus
             />
             {searchQuery && (
               <button
                 type="button"
                 onClick={handleSearchClear}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-dark-text-tertiary hover:text-gray-600 dark:hover:text-dark-text-secondary"
+                className="absolute right-3 top-1/2 -translate-y-1/2 p-0.5 rounded-full text-gray-400 dark:text-dark-text-tertiary hover:text-gray-600 dark:hover:text-dark-text-secondary hover:bg-gray-100 dark:hover:bg-dark-border transition-all duration-150"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -109,63 +131,81 @@ export const ForwardMessageDialog = memo(function ForwardMessageDialog({
 
         {/* Contact List */}
         <div
-          ref={scrollContainerRef}
-          className="flex-1 overflow-auto min-h-0"
+          className="flex-1 overflow-auto min-h-0 scroll-smooth"
           style={{ maxHeight: "50vh" }}
         >
-          {isLoading ? (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 className="h-6 w-6 animate-spin text-gray-400 dark:text-dark-text-tertiary" />
+          {error ? (
+            // Error state
+            <div className="flex flex-col items-center justify-center py-12 px-6 text-center">
+              <div className="w-16 h-16 rounded-full bg-red-50 dark:bg-red-900/20 flex items-center justify-center mb-4">
+                <X className="h-8 w-8 text-red-500 dark:text-red-400" />
+              </div>
+              <p className="text-sm font-medium text-gray-700 dark:text-dark-text-primary mb-1">
+                Failed to load contacts
+              </p>
+              <p className="text-xs text-gray-500 dark:text-dark-text-secondary mb-4">
+                {error.message || "Please try again"}
+              </p>
+              <button
+                type="button"
+                onClick={() => refetch()}
+                className="px-4 py-2 text-sm font-medium text-white bg-whatsapp-teal-green hover:bg-whatsapp-green rounded-lg transition-colors"
+              >
+                Try again
+              </button>
+            </div>
+          ) : showSkeletons ? (
+            // Skeleton loading state
+            <div className="divide-y divide-gray-50 dark:divide-dark-border/30">
+              {[0, 1, 2, 3, 4, 5].map((i) => (
+                <ContactSkeleton key={i} />
+              ))}
             </div>
           ) : availableContacts.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-8 px-4 text-center">
-              <p className="text-sm text-gray-500 dark:text-dark-text-secondary">
+            // Empty state
+            <div className="flex flex-col items-center justify-center py-12 px-6 text-center">
+              <div className="w-16 h-16 rounded-full bg-gray-100 dark:bg-dark-tertiary flex items-center justify-center mb-4">
+                <Users className="h-8 w-8 text-gray-400 dark:text-dark-text-tertiary" />
+              </div>
+              <p className="text-sm font-medium text-gray-700 dark:text-dark-text-primary mb-1">
+                {searchQuery ? "No contacts found" : "No contacts available"}
+              </p>
+              <p className="text-xs text-gray-500 dark:text-dark-text-secondary max-w-[200px]">
                 {searchQuery
-                  ? "No contacts found matching your search"
-                  : "No contacts available"}
+                  ? `No results for "${searchQuery}"`
+                  : "Start a conversation to see contacts here"}
               </p>
             </div>
           ) : (
-            <div
-              style={{
-                height: `${virtualizer.getTotalSize()}px`,
-                width: "100%",
-                position: "relative",
-              }}
-            >
-              {virtualizer.getVirtualItems().map((virtualRow) => {
-                const chat = availableContacts[virtualRow.index];
-                return (
-                  <ContactListItem
-                    key={chat.id}
-                    chat={chat}
-                    onClick={() => handleSelectContact(chat.id)}
-                    isDisabled={isForwarding}
-                    style={{
-                      position: "absolute",
-                      top: 0,
-                      left: 0,
-                      width: "100%",
-                      height: `${virtualRow.size}px`,
-                      transform: `translateY(${virtualRow.start}px)`,
-                    }}
-                  />
-                );
-              })}
+            // Contact list - use simple scroll for reliability
+            <div className="divide-y divide-gray-50 dark:divide-dark-border/30">
+              {availableContacts.map((chat) => (
+                <ContactListItem
+                  key={chat.id}
+                  chat={chat}
+                  onClick={() => handleSelectContact(chat.id)}
+                  isDisabled={isForwarding}
+                />
+              ))}
             </div>
           )}
         </div>
 
-        {/* Forwarding indicator */}
+        {/* Forwarding overlay */}
         {isForwarding && (
-          <div className="absolute inset-0 bg-white/80 dark:bg-dark-elevated/80 flex items-center justify-center rounded-lg">
-            <div className="flex items-center gap-2 text-gray-600 dark:text-dark-text-secondary">
-              <Loader2 className="h-5 w-5 animate-spin" />
-              <span>Forwarding...</span>
+          <div className="absolute inset-0 bg-white/90 dark:bg-dark-elevated/90 backdrop-blur-sm flex items-center justify-center rounded-lg z-10">
+            <div className="flex flex-col items-center gap-3">
+              <div className="w-12 h-12 rounded-full bg-whatsapp-teal-green/10 dark:bg-whatsapp-teal-green/20 flex items-center justify-center">
+                <Loader2 className="h-6 w-6 text-whatsapp-teal-green animate-spin" />
+              </div>
+              <span className="text-sm font-medium text-gray-700 dark:text-dark-text-primary">
+                Forwarding message...
+              </span>
             </div>
           </div>
         )}
       </DialogContent>
+
     </Dialog>
   );
 });
@@ -174,14 +214,12 @@ interface ContactListItemProps {
   chat: Chat;
   onClick: () => void;
   isDisabled?: boolean;
-  style?: React.CSSProperties;
 }
 
 const ContactListItem = memo(function ContactListItem({
   chat,
   onClick,
   isDisabled,
-  style,
 }: ContactListItemProps) {
   const { contact } = chat;
   const displayName =
@@ -192,12 +230,11 @@ const ContactListItem = memo(function ContactListItem({
       type="button"
       onClick={onClick}
       disabled={isDisabled}
-      style={style}
-      className="w-full flex items-center gap-3 px-4 py-2 text-left transition-colors hover:bg-gray-50 dark:hover:bg-dark-tertiary disabled:opacity-50 disabled:cursor-not-allowed"
+      className="group w-full flex items-center gap-3 px-4 py-3 text-left transition-all duration-150 hover:bg-gray-50 dark:hover:bg-dark-tertiary/50 active:bg-gray-100 dark:active:bg-dark-tertiary disabled:opacity-50 disabled:cursor-not-allowed"
     >
       {/* Avatar */}
       <div className="relative flex-shrink-0">
-        <div className="w-10 h-10 rounded-full overflow-hidden bg-gray-200 dark:bg-dark-tertiary">
+        <div className="w-12 h-12 rounded-full overflow-hidden bg-gray-100 dark:bg-dark-tertiary ring-2 ring-transparent group-hover:ring-whatsapp-teal-green/20 transition-all duration-200">
           {contact.avatarUrl ? (
             <img
               src={contact.avatarUrl}
@@ -206,13 +243,11 @@ const ContactListItem = memo(function ContactListItem({
               loading="lazy"
             />
           ) : contact.isGroup ? (
-            <div className="w-full h-full flex items-center justify-center bg-gray-400 dark:bg-dark-text-tertiary text-white">
-              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M12 12.75c1.63 0 3.07.39 4.24.9 1.08.48 1.76 1.56 1.76 2.73V18H6v-1.62c0-1.17.68-2.25 1.76-2.73 1.17-.51 2.61-.9 4.24-.9zM4 13c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm1.13 1.1c-.37-.06-.74-.1-1.13-.1-.99 0-1.93.21-2.78.58A2.01 2.01 0 000 16.43V18h4.5v-1.62c0-.83.23-1.61.63-2.28zM20 13c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm4 3.43c0-.81-.48-1.53-1.22-1.85A6.95 6.95 0 0020 14c-.39 0-.76.04-1.13.1.4.67.63 1.45.63 2.28V18H24v-1.57zM12 6c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3z" />
-              </svg>
+            <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-400 to-gray-500 dark:from-dark-text-tertiary dark:to-dark-text-secondary text-white">
+              <Users className="w-5 h-5" />
             </div>
           ) : (
-            <div className="w-full h-full flex items-center justify-center bg-whatsapp-teal-green text-white text-sm font-medium">
+            <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-whatsapp-teal-green to-whatsapp-green text-white text-base font-semibold">
               {displayName.charAt(0).toUpperCase()}
             </div>
           )}
@@ -220,7 +255,7 @@ const ContactListItem = memo(function ContactListItem({
         {/* Online Indicator */}
         {!contact.isGroup && contact.isOnline && (
           <span
-            className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-whatsapp-green border-2 border-white dark:border-dark-elevated rounded-full"
+            className="absolute bottom-0.5 right-0.5 w-3 h-3 bg-whatsapp-green border-2 border-white dark:border-dark-elevated rounded-full shadow-sm"
             aria-label="Online"
           />
         )}
@@ -228,14 +263,26 @@ const ContactListItem = memo(function ContactListItem({
 
       {/* Contact Info */}
       <div className="flex-1 min-w-0">
-        <span className="text-sm font-medium text-gray-900 dark:text-dark-text-primary truncate block">
-          {displayName}
-        </span>
-        {contact.phoneNumber && (
-          <span className="text-xs text-gray-500 dark:text-dark-text-secondary truncate block">
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-medium text-gray-900 dark:text-dark-text-primary truncate">
+            {displayName}
+          </span>
+          {contact.isGroup && (
+            <span className="flex-shrink-0 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-gray-500 dark:text-dark-text-tertiary bg-gray-100 dark:bg-dark-tertiary rounded">
+              Group
+            </span>
+          )}
+        </div>
+        {contact.phoneNumber && !contact.isGroup && (
+          <span className="text-xs text-gray-500 dark:text-dark-text-secondary truncate block mt-0.5">
             {contact.phoneNumber}
           </span>
         )}
+      </div>
+
+      {/* Forward arrow indicator */}
+      <div className="flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
+        <ArrowRight className="h-4 w-4 text-whatsapp-teal-green" />
       </div>
     </button>
   );

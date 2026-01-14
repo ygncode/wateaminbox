@@ -1,10 +1,8 @@
-import { Tag } from 'lucide-react'
-import {
-  RightPanelSection,
-} from '@/components/layout/right-panel'
-import { Badge } from '@/components/ui'
-import { cn } from '@/lib/utils'
-import type { TagsSectionProps } from './types'
+import { Tag } from "lucide-react";
+import { RightPanelSection } from "@/components/layout/right-panel";
+import { Badge } from "@/components/ui";
+import { cn } from "@/lib/utils";
+import type { TagsSectionProps } from "./types";
 
 /**
  * Tags section
@@ -15,10 +13,12 @@ export function TagsSection({ tags }: TagsSectionProps) {
       <RightPanelSection title="Tags">
         <div className="flex items-start gap-2">
           <Tag className="mt-0.5 h-4 w-4 text-gray-400 dark:text-dark-text-tertiary" />
-          <p className="text-sm text-gray-400 dark:text-dark-text-tertiary italic">No tags assigned</p>
+          <p className="text-sm text-gray-400 dark:text-dark-text-tertiary italic">
+            No tags assigned
+          </p>
         </div>
       </RightPanelSection>
-    )
+    );
   }
 
   return (
@@ -30,7 +30,7 @@ export function TagsSection({ tags }: TagsSectionProps) {
             <Badge
               key={tag.id}
               variant="secondary"
-              className={cn('cursor-default')}
+              className={cn("cursor-default")}
               style={
                 tag.color
                   ? { backgroundColor: `${tag.color}20`, color: tag.color }
@@ -43,5 +43,5 @@ export function TagsSection({ tags }: TagsSectionProps) {
         </div>
       </div>
     </RightPanelSection>
-  )
+  );
 }
