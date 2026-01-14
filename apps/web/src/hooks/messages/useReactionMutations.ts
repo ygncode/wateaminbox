@@ -1,7 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../../lib/api";
 import { infiniteMessageKeys } from "../useInfiniteMessages";
-import { queryKeys } from "../query-keys";
 import type { RetryMessageResponse, InfiniteMessagesData } from "./types";
 
 /**
@@ -125,17 +124,8 @@ export function useReactMessage() {
         );
       }
     },
-    onSuccess: (_data, variables) => {
-      // Invalidate to ensure we have the server's version
-      queryClient.invalidateQueries({
-        queryKey: infiniteMessageKeys.list(variables.conversationId),
-      });
-      // Also invalidate regular message list
-      queryClient.invalidateQueries({
-        queryKey: queryKeys.messages.list({
-          conversationId: variables.conversationId,
-        }),
-      });
-    },
+    // Note: No onSuccess handler needed - the WebSocket event handler in
+    // event-handlers.ts will update the cache with the correct reactorJid
+    // when the server broadcasts the message:reaction event
   });
 }

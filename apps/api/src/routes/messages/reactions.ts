@@ -4,11 +4,13 @@
  * Routes for adding and removing reactions from messages.
  */
 import { Hono } from 'hono'
+import { nowMs } from '@whatsapp-web/shared'
 import { badRequest, notFound } from '../../lib/errors.js'
 import { createLogger, formatError } from '../../lib/logger.js'
 import { publishSendReaction } from '../../lib/nats/index.js'
 import { successData, successMessage } from '../../lib/response.js'
 import { getRouteContext } from '../../middleware/context.js'
+import { broadcastToCompany } from '../ws/index.js'
 
 const logger = createLogger('MessageReactionRoutes')
 
@@ -89,6 +91,20 @@ reactionRoutes.post('/:id/reaction', async (c) => {
     )
     .execute()
 
+  // Broadcast reaction to all connected WebSocket clients for real-time updates
+  broadcastToCompany(companyId, {
+    type: 'message:reaction',
+    connectionId: connection.id,
+    payload: {
+      messageId,
+      contactId: message.contact_id,
+      from: connection.jid,
+      emoji,
+      timestamp: nowMs(),
+    },
+    timestamp: new Date().toISOString(),
+  })
+
   // Send reaction to WhatsApp via NATS
   try {
     await publishSendReaction(
@@ -105,7 +121,7 @@ reactionRoutes.post('/:id/reaction', async (c) => {
     // Don't fail the request - the reaction is stored in DB
   }
 
-  return successData(c, { emoji })
+  return successData(c, { emoji, reactorJid: connection.jid })
 })
 
 /**
@@ -140,6 +156,22 @@ reactionRoutes.delete('/:id/reaction', async (c) => {
     .where('message_id', '=', messageId)
     .where('reactor_jid', '=', reactorJid)
     .execute()
+
+  // Broadcast reaction removal to all connected WebSocket clients for real-time updates
+  if (connection) {
+    broadcastToCompany(companyId, {
+      type: 'message:reaction',
+      connectionId: connection.id,
+      payload: {
+        messageId,
+        contactId: message.contact_id,
+        from: reactorJid,
+        emoji: '', // Empty emoji indicates removal
+        timestamp: nowMs(),
+      },
+      timestamp: new Date().toISOString(),
+    })
+  }
 
   // Send empty emoji to WhatsApp to remove reaction (if we have contact info)
   if (message.contact_id && message.message_id && connection) {

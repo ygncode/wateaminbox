@@ -1,5 +1,4 @@
 import { useEffect } from "react";
-import type { MessageReactionPayload } from "../../lib/websocket";
 import { useChatStore } from "../../stores/chat-store";
 import type {
   ConversationUpdatedPayload,
@@ -49,9 +48,6 @@ export function useWebSocketEvents(
   const updateMessageStatus = useChatStore(
     (state) => state.updateMessageStatus,
   );
-  const updateMessageReaction = useChatStore(
-    (state) => state.updateMessageReaction,
-  );
 
   useEffect(() => {
     const client = getClient();
@@ -78,18 +74,8 @@ export function useWebSocketEvents(
       },
     );
 
-    // Message reaction handler
-    const unsubMessageReaction = client.on<MessageReactionPayload>(
-      "message:reaction",
-      (payload) => {
-        updateMessageReaction(
-          payload.contactId,
-          payload.messageId,
-          payload.from,
-          payload.emoji,
-        );
-      },
-    );
+    // Note: message:reaction is handled in event-handlers.ts which updates
+    // the TanStack Query cache directly for proper real-time updates
 
     // Typing start handler
     const unsubTypingStart = client.on<TypingPayload | WhatsAppTypingPayload>(
@@ -140,7 +126,6 @@ export function useWebSocketEvents(
     return () => {
       unsubNewMessage();
       unsubMessageStatus();
-      unsubMessageReaction();
       unsubTypingStart();
       unsubTypingStop();
       unsubPresenceOnline();
@@ -152,7 +137,6 @@ export function useWebSocketEvents(
     getClient,
     addMessage,
     updateMessageStatus,
-    updateMessageReaction,
     handleTypingStart,
     handleTypingStop,
     setError,
