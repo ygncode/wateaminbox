@@ -75,12 +75,28 @@ export async function getMaxConnections(companyId: string): Promise<number> {
   return company?.max_whatsapp_connections ?? DEFAULT_MAX_CONNECTIONS;
 }
 
+// Pending connection timeout (2 minutes) - if pending longer, mark as disconnected
+const PENDING_TIMEOUT_MS = 2 * 60 * 1000;
+
 /**
  * Lists all WhatsApp connections for a company
+ * Also cleans up stale pending connections (older than 2 minutes)
  */
 export async function listConnections(
   tenantDb: Kysely<TenantDatabase>,
 ): Promise<WhatsAppConnection[]> {
+  // Clean up stale pending connections (pending for more than 2 minutes)
+  const staleThreshold = new Date(Date.now() - PENDING_TIMEOUT_MS);
+  await tenantDb
+    .updateTable("whatsapp_connections")
+    .set({
+      status: "disconnected",
+      updated_at: toDbDate(),
+    })
+    .where("status", "=", "pending")
+    .where("updated_at", "<", staleThreshold)
+    .execute();
+
   const connections = await tenantDb
     .selectFrom("whatsapp_connections")
     .select([

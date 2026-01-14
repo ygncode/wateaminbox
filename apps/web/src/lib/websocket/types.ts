@@ -80,8 +80,8 @@ export const DEFAULT_CONFIG: Required<
   reconnectAttempts: 10,
   reconnectBaseDelay: 1000,
   reconnectMaxDelay: 30000,
-  heartbeatInterval: 30000,
-  pongTimeout: 10000,
+  heartbeatInterval: 45000, // Match server-side interval
+  pongTimeout: 20000, // Increased to reduce false positives
   connectionTimeout: 15000,
 };
 

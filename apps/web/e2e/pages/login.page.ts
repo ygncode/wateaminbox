@@ -18,7 +18,8 @@ export class LoginPage {
     this.emailInput = page.locator("#email");
     this.passwordInput = page.locator("#password");
     this.submitButton = page.getByRole("button", { name: /sign in/i });
-    this.errorMessage = page.locator(".bg-red-50");
+    // Error messages should use role="alert" - fallback to class if not present
+    this.errorMessage = page.locator('[role="alert"], .bg-red-50').first();
     this.forgotPasswordLink = page.getByRole("link", { name: /forgot password/i });
     this.signUpLink = page.getByRole("link", { name: /sign up/i });
     this.rememberMeCheckbox = page.getByRole("checkbox");

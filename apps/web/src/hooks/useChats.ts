@@ -1,27 +1,23 @@
-import { useQuery } from "@tanstack/react-query";
-import { useMemo } from "react";
-import { toDate } from "@whatsapp-web/shared";
-import { api, buildQueryString, getAccessToken, getCompanyId } from "@/lib/api";
-import {
-  transformContactToChat,
-  type ContactsListResponse,
-} from "@/lib/api/transformers";
-import { fetchMockChats, searchMockChats } from "@/lib/mock-data";
-import type { Chat } from "@/types/chat";
-import { queryKeys } from "./query-keys";
+import { useQuery } from '@tanstack/react-query'
+import { toDate } from '@whatsapp-web/shared'
+import { useMemo } from 'react'
+import { api, buildQueryString, getAccessToken, getCompanyId } from '@/lib/api'
+import { type ContactsListResponse, transformContactToChat } from '@/lib/api/transformers'
+import type { Chat } from '@/types/chat'
+import { queryKeys } from './query-keys'
 
 /**
  * Assignment filter type
  */
-export type AssignmentFilter = "all" | "assignedToMe" | "unassigned" | "unread";
+export type AssignmentFilter = 'all' | 'assignedToMe' | 'unassigned' | 'unread'
 
 /**
  * Chat list filters for query keys
  */
 interface ChatListFilters {
-  search?: string;
-  includeGroups?: boolean;
-  assignmentFilter?: AssignmentFilter;
+  search?: string
+  includeGroups?: boolean
+  assignmentFilter?: AssignmentFilter
 }
 
 /**
@@ -30,21 +26,19 @@ interface ChatListFilters {
  */
 export const chatKeys = {
   ...queryKeys.chats,
-  list: (filters: ChatListFilters) =>
-    [...queryKeys.chats.lists(), filters] as const,
-  groups: () => [...queryKeys.chats.all, "groups"] as const,
-  groupList: (filters: { search?: string }) =>
-    [...queryKeys.chats.all, "groups", filters] as const,
-};
+  list: (filters: ChatListFilters) => [...queryKeys.chats.lists(), filters] as const,
+  groups: () => [...queryKeys.chats.all, 'groups'] as const,
+  groupList: (filters: { search?: string }) => [...queryKeys.chats.all, 'groups', filters] as const,
+}
 
 /**
  * Hook to fetch and manage chat list data
  * Supports search filtering, group inclusion, and assignment filtering
  */
 export function useChats(
-  searchQuery: string = "",
+  searchQuery: string = '',
   includeGroups: boolean = true,
-  assignmentFilter: AssignmentFilter = "all",
+  assignmentFilter: AssignmentFilter = 'all'
 ) {
   // Memoize the query key to prevent unnecessary re-renders
   const queryKey = useMemo(
@@ -54,106 +48,100 @@ export function useChats(
         includeGroups,
         assignmentFilter,
       }),
-    [searchQuery, includeGroups, assignmentFilter],
-  );
+    [searchQuery, includeGroups, assignmentFilter]
+  )
 
   return useQuery<Chat[], Error>({
     queryKey,
     queryFn: async () => {
-      const token = getAccessToken();
+      const token = getAccessToken()
       if (!token) {
-        // Fall back to mock data if not authenticated
-        if (searchQuery.trim()) {
-          return searchMockChats(searchQuery);
-        }
-        return fetchMockChats();
+        // Not authenticated - return empty array
+        // The ProtectedRoute will handle redirect to login
+        return []
       }
 
-      const companyId = getCompanyId();
+      const companyId = getCompanyId()
       if (!companyId) {
-        // No company selected, fall back to mock data
-        if (searchQuery.trim()) {
-          return searchMockChats(searchQuery);
-        }
-        return fetchMockChats();
+        // No company selected - return empty array
+        // The ProtectedRoute will handle redirect to company-setup
+        return []
       }
 
       // Build query params
       const params: Record<string, unknown> = {
         limit: 100,
-      };
+      }
       if (searchQuery.trim()) {
-        params.search = searchQuery;
+        params.search = searchQuery
       }
       if (includeGroups) {
-        params.includeGroups = "true";
+        params.includeGroups = 'true'
       }
-      if (assignmentFilter === "assignedToMe") {
-        params.assignedToMe = "true";
-      } else if (assignmentFilter === "unassigned") {
-        params.unassigned = "true";
+      if (assignmentFilter === 'assignedToMe') {
+        params.assignedToMe = 'true'
+      } else if (assignmentFilter === 'unassigned') {
+        params.unassigned = 'true'
       }
 
-      const queryString = buildQueryString(params);
-      const result = await api.get<ContactsListResponse>(
-        `/contacts${queryString}`,
-      );
+      const queryString = buildQueryString(params)
+      const result = await api.get<ContactsListResponse>(`/contacts${queryString}`)
 
       // Transform API response to Chat format using centralized transformer
-      let chats = result.data.map(transformContactToChat);
+      let chats = result.data.map(transformContactToChat)
 
       // Filter by unread if needed (client-side filter)
-      if (assignmentFilter === "unread") {
-        chats = chats.filter((chat) => chat.unreadCount > 0);
+      if (assignmentFilter === 'unread') {
+        chats = chats.filter((chat) => chat.unreadCount > 0)
       }
 
-      return chats;
+      return chats
     },
     staleTime: 1000 * 30, // 30 seconds
     gcTime: 1000 * 60 * 5, // 5 minutes
-  });
+  })
 }
 
 /**
  * Hook to fetch groups only (returns data as Chat format for chat list compatibility)
  * @deprecated Use useGroups from useGroups.ts for the proper GroupListItem format
  */
-export function useGroupsAsChats(searchQuery: string = "") {
+export function useGroupsAsChats(searchQuery: string = '') {
   return useQuery<Chat[], Error>({
     queryKey: chatKeys.groupList({ search: searchQuery }),
     queryFn: async () => {
-      const token = getAccessToken();
+      const token = getAccessToken()
       if (!token) {
-        return [];
+        return []
       }
 
-      const companyId = getCompanyId();
+      const companyId = getCompanyId()
       if (!companyId) {
-        return [];
+        return []
       }
 
       const params: Record<string, unknown> = {
         limit: 100,
-      };
+      }
       if (searchQuery.trim()) {
-        params.search = searchQuery;
+        params.search = searchQuery
       }
 
-      const queryString = buildQueryString(params);
+      const queryString = buildQueryString(params)
       const result = await api.get<{
         data: {
-          id: string;
-          jid: string;
-          name: string;
-          displayName: string;
-          description?: string;
-          participantCount?: number;
-          profilePictureUrl?: string | null;
-          lastMessageAt?: string | null;
-          unreadCount: number;
-          createdAt: string;
-        }[];
-      }>(`/groups${queryString}`);
+          id: string
+          jid: string
+          name: string
+          displayName: string
+          description?: string
+          participantCount?: number
+          profilePictureUrl?: string | null
+          lastMessageAt?: string | null
+          unreadCount: number
+          createdAt: string
+        }[]
+      }>(`/groups${queryString}`)
 
       // Transform API response to Chat format
       return result.data.map(
@@ -161,10 +149,9 @@ export function useGroupsAsChats(searchQuery: string = "") {
           id: group.id,
           contact: {
             id: group.id,
-            phoneNumber: "",
+            phoneNumber: '',
             name: group.displayName,
-            customName:
-              group.name !== group.displayName ? group.name : undefined,
+            customName: group.name !== group.displayName ? group.name : undefined,
             avatarUrl: group.profilePictureUrl || undefined,
             isOnline: false,
             isGroup: true,
@@ -172,12 +159,12 @@ export function useGroupsAsChats(searchQuery: string = "") {
           },
           lastMessage: group.lastMessageAt
             ? {
-                id: "",
+                id: '',
                 chatId: group.id,
-                senderId: "",
-                content: "",
-                type: "text",
-                status: "delivered",
+                senderId: '',
+                content: '',
+                type: 'text',
+                status: 'delivered',
                 timestamp: toDate(group.lastMessageAt) ?? new Date(),
                 isFromMe: false,
               }
@@ -187,12 +174,12 @@ export function useGroupsAsChats(searchQuery: string = "") {
           isMuted: false,
           isArchived: false,
           updatedAt: toDate(group.createdAt) ?? new Date(),
-        }),
-      );
+        })
+      )
     },
     staleTime: 1000 * 30,
     gcTime: 1000 * 60 * 5,
-  });
+  })
 }
 
 /**
@@ -202,10 +189,17 @@ export function useChat(chatId: string) {
   return useQuery<Chat | undefined, Error>({
     queryKey: chatKeys.detail(chatId),
     queryFn: async () => {
-      const chats = await fetchMockChats();
-      return chats.find((chat) => chat.id === chatId);
+      const token = getAccessToken()
+      const companyId = getCompanyId()
+      if (!token || !companyId) {
+        return undefined
+      }
+
+      // Fetch single contact and transform to Chat format
+      const result = await api.get<ContactsListResponse['data'][0]>(`/contacts/${chatId}`)
+      return transformContactToChat(result)
     },
     enabled: !!chatId,
     staleTime: 1000 * 60 * 5,
-  });
+  })
 }

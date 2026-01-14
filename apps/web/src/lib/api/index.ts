@@ -5,137 +5,128 @@
  * Usage: import { ... } from "@/lib/api"
  */
 
-// Re-export types
-export * from "./types.js";
-
-// Re-export client utilities
-export {
-  API_BASE_URL,
-  ApiRequestError,
-  initializeAuth,
-  setAuthTokens,
-  setCompanyId,
-  getCompanyId,
-  clearAuthTokens,
-  getAccessToken,
-  getRefreshToken,
-  handleResponse,
-  fetchWithAuth,
-  buildQueryString,
-  fetchApi,
-  api,
-} from "./client.js";
-
-// Re-export auth functions
-export {
-  login,
-  register,
-  logout,
-  forgotPassword,
-  getCurrentUser,
-  healthCheck,
-} from "./auth.js";
-
-// Re-export contacts functions
-export {
-  getContacts,
-  getContact,
-  updateContact,
-  previewContactImport,
-  importContacts,
-  downloadImportTemplate,
-} from "./contacts.js";
-
-// Re-export conversations functions
-export {
-  getConversations,
-  getConversation,
-  updateConversation,
-  markConversationAsRead,
-} from "./conversations.js";
-
-// Re-export messages functions
-export {
-  getMessages,
-  sendMessage,
-  deleteMessage,
-  uploadMedia,
-} from "./messages.js";
-
 // Re-export analytics functions
 export {
   getResponseTimeStats,
   getResponseTimeTrend,
-  getTeamResponseTimeStats,
   getSlaBreaches,
-} from "./analytics.js";
-
-// Re-export companies functions
-export { getUserCompanies } from "./companies.js";
-
-// Re-export whatsapp functions
+  getTeamResponseTimeStats,
+} from './analytics.js'
+// Re-export auth functions
 export {
-  connectWhatsApp,
-  disconnectWhatsApp,
-  getWhatsAppStatus,
-  listWhatsAppConnections,
-  getWhatsAppConnection,
-  createWhatsAppConnection,
-  reconnectWhatsAppConnection,
-  disconnectWhatsAppConnection,
-  deleteWhatsAppConnection,
-  updateWhatsAppConnection,
-  sendWhatsAppMessage,
-} from "./whatsapp.js";
+  forgotPassword,
+  getCurrentUser,
+  healthCheck,
+  login,
+  logout,
+  register,
+} from './auth.js'
+// Re-export catalogs functions
+export {
+  archiveCatalog,
+  getCatalogProducts,
+  getCatalogSyncStatus,
+  getWhatsAppCatalog,
+  getWhatsAppCatalogs,
+  restoreCatalog,
+  triggerCatalogProductsSync,
+  triggerCatalogSync,
+  updateProductVisibility,
+} from './catalogs.js'
+// Re-export client utilities
+export {
+  API_BASE_URL,
+  ApiRequestError,
+  api,
+  buildQueryString,
+  clearAuthTokens,
+  clearCompanyId,
+  fetchApi,
+  fetchWithAuth,
+  getAccessToken,
+  getCompanyId,
+  getRefreshToken,
+  handleResponse,
+  initializeAuth,
+  setAuthTokens,
+  setCompanyId,
+} from './client.js'
+// Re-export companies functions
+export { getUserCompanies } from './companies.js'
+// Re-export contacts functions
+export {
+  downloadImportTemplate,
+  getContact,
+  getContacts,
+  importContacts,
+  previewContactImport,
+  updateContact,
+} from './contacts.js'
+// Re-export conversations functions
+export {
+  getConversation,
+  getConversations,
+  markConversationAsRead,
+  updateConversation,
+} from './conversations.js'
+// Re-export labels functions
+export {
+  applyLabelToContact,
+  autoCreateTagsFromLabels,
+  getLabelSyncStatus,
+  getTagsWithLabelStatus,
+  getWhatsAppLabel,
+  getWhatsAppLabels,
+  linkTagToLabel,
+  removeLabelFromContact,
+  triggerLabelSync,
+  unlinkTagFromLabel,
+} from './labels.js'
+// Re-export messages functions
+export {
+  deleteMessage,
+  getMessages,
+  sendMessage,
+  uploadMedia,
+} from './messages.js'
 
 // Re-export notifications functions
 export {
+  createNotification,
+  deleteNotification,
+  getNotificationById,
   getNotificationPreferences,
-  updateNotificationPreferences,
+  getNotifications,
+  getUnreadNotificationCount,
+  markAllNotificationsAsRead,
+  markNotificationAsRead,
   muteContactApi,
   unmuteContactApi,
-  getNotifications,
-  getNotificationById,
-  getUnreadNotificationCount,
-  createNotification,
-  markNotificationAsRead,
-  markAllNotificationsAsRead,
-  deleteNotification,
-} from "./notifications.js";
+  updateNotificationPreferences,
+} from './notifications.js'
 
 // Re-export quick-replies functions
 export {
+  createQuickReply,
+  deleteQuickReply,
   getQuickReplies,
   getQuickReplyById,
   getQuickReplyByShortcut,
-  createQuickReply,
   updateQuickReply,
-  deleteQuickReply,
-} from "./quick-replies.js";
-
-// Re-export labels functions
+} from './quick-replies.js'
+// Re-export types
+export * from './types.js'
+// Re-export whatsapp functions
 export {
-  getWhatsAppLabels,
-  getLabelSyncStatus,
-  getWhatsAppLabel,
-  triggerLabelSync,
-  linkTagToLabel,
-  unlinkTagFromLabel,
-  autoCreateTagsFromLabels,
-  getTagsWithLabelStatus,
-  applyLabelToContact,
-  removeLabelFromContact,
-} from "./labels.js";
-
-// Re-export catalogs functions
-export {
-  getWhatsAppCatalogs,
-  getCatalogSyncStatus,
-  getWhatsAppCatalog,
-  getCatalogProducts,
-  triggerCatalogSync,
-  triggerCatalogProductsSync,
-  archiveCatalog,
-  restoreCatalog,
-  updateProductVisibility,
-} from "./catalogs.js";
+  connectWhatsApp,
+  createWhatsAppConnection,
+  deleteWhatsAppConnection,
+  disconnectWhatsApp,
+  disconnectWhatsAppConnection,
+  getWhatsAppConnection,
+  getWhatsAppStatus,
+  listWhatsAppConnections,
+  reconnectWhatsAppConnection,
+  sendWhatsAppMessage,
+  updateWhatsAppConnection,
+} from './whatsapp.js'

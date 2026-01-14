@@ -12,9 +12,9 @@ Enables businesses to manage WhatsApp communications with team collaboration, co
 - **Monorepo Tooling:** Turbo, Bun Workspaces, Biome.
 
 ## Architecture
-- **apps/web:** Frontend application (Port 5173).
-- **apps/api:** Backend API (Port 3001).
-- **apps/marketing:** Astro marketing site (Port 4321).
+- **apps/web:** Frontend application (Port 4444).
+- **apps/api:** Backend API (Port 4445).
+- **apps/marketing:** Astro marketing site (Port 4446).
 - **services/orchestrator:** Go service managing worker lifecycle (Port 8080).
 - **services/whatsapp:** Go WhatsApp client (one process per account).
 - **packages/database:** Shared Kysely client & migrations.

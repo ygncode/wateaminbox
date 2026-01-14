@@ -33,8 +33,8 @@ print_error() {
 check_nats_running() {
     print_status "Checking if NATS is running..."
 
-    if ! nc -z localhost 4222 2>/dev/null; then
-        print_error "NATS is not running on port 4222"
+    if ! nc -z localhost 4448 2>/dev/null; then
+        print_error "NATS is not running on port 4448"
         print_status "Start NATS with: docker-compose up -d nats"
         exit 1
     fi

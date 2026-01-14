@@ -29,42 +29,39 @@ export class SettingsPage extends BasePage {
     this.signOutButton = page.getByRole("button", { name: /sign out/i });
     this.backToChatLink = page.getByRole("link", { name: /back to chat/i });
 
-    // Initialize locators using simpler, more robust selectors
-    this.notificationSection = page.locator("text=Notification Settings").first();
+    // Notification section - use heading or landmark
+    this.notificationSection = page.getByRole("region", { name: /notification/i }).or(page.getByText("Notification Settings").first());
 
-    // Find checkboxes by their adjacent label text
-    // The checkboxes are in the same row as the label
-    this.desktopNotificationsToggle = page
-      .getByText("Desktop Notifications", { exact: false })
-      .locator("..") // parent div
-      .locator("..") // outer row
-      .locator("..") // flex container
-      .locator('button[role="checkbox"]');
+    // Use getByLabel for form controls (most robust)
+    // If labels aren't properly associated, use getByTestId as fallback
+    this.desktopNotificationsToggle = page.getByLabel(/desktop notification/i)
+      .or(page.getByTestId("desktop-notifications-toggle"))
+      .or(page.getByRole("switch", { name: /desktop notification/i }));
 
-    this.soundEnabledToggle = page
-      .getByText("Notification Sound", { exact: false })
-      .locator("..") // parent div
-      .locator("..") // outer row
-      .locator("..") // flex container
-      .locator('button[role="checkbox"]');
+    this.soundEnabledToggle = page.getByLabel(/notification sound/i)
+      .or(page.getByTestId("sound-enabled-toggle"))
+      .or(page.getByRole("switch", { name: /sound/i }));
 
-    // Sound select - find the row with "Sound" label (not "Notification Sound")
-    // The select is in a div with className containing "flex items-center justify-between"
-    // Use a more targeted approach - get all comboboxes and filter
-    this.soundSelect = page.getByRole("combobox").first();
+    // Sound select - use label association
+    this.soundSelect = page.getByLabel(/^sound$/i)
+      .or(page.getByTestId("sound-select"))
+      .or(page.getByRole("combobox").first());
 
-    this.quietHoursToggle = page
-      .getByText("Quiet Hours", { exact: true })
-      .locator("..") // parent div
-      .locator("..") // outer row
-      .locator("..") // flex container
-      .locator('button[role="checkbox"]');
+    this.quietHoursToggle = page.getByLabel(/quiet hours/i)
+      .or(page.getByTestId("quiet-hours-toggle"))
+      .or(page.getByRole("switch", { name: /quiet hours/i }));
 
-    this.quietHoursStartInput = page.locator('input[type="time"]').first();
-    this.quietHoursEndInput = page.locator('input[type="time"]').last();
+    this.quietHoursStartInput = page.getByLabel(/start time/i)
+      .or(page.getByTestId("quiet-hours-start"))
+      .or(page.locator('input[type="time"]').first());
+
+    this.quietHoursEndInput = page.getByLabel(/end time/i)
+      .or(page.getByTestId("quiet-hours-end"))
+      .or(page.locator('input[type="time"]').last());
+
     this.testNotificationButton = page.getByRole("button", { name: /send test notification/i });
-    this.loadingIndicator = page.locator("text=Loading preferences...");
-    this.syncingIndicator = page.locator("text=Syncing...");
+    this.loadingIndicator = page.getByText("Loading preferences...");
+    this.syncingIndicator = page.getByText("Syncing...");
   }
 
   /**

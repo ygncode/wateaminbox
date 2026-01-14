@@ -285,7 +285,7 @@ connectionRoutes.post(
         .execute()
 
       // Publish spawn command to NATS
-      const { publishSpawnCommand } = await import('../../lib/nats.js')
+      const { publishSpawnCommand } = await import('../../lib/nats/index.js')
       const { env } = await import('../../lib/env.js')
       await publishSpawnCommand(companyId, connectionId, env.DATABASE_URL)
 

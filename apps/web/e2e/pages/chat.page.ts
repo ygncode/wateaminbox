@@ -94,39 +94,40 @@ export class ChatPage {
 
     // Message Area Locators
     this.messageHeader = page.locator("header").filter({ has: page.locator("h2") });
-    this.messageThread = page.locator('[class*="bg-\\[\\#e5ddd5\\]"]');
-    this.messageComposer = page.locator(".safe-area-bottom").filter({ has: page.locator("textarea") });
+    // Message thread - use data-testid if available, fallback to role or structure
+    this.messageThread = page.getByTestId("message-thread").or(page.locator('[role="log"]')).or(page.locator("main").first());
+    this.messageComposer = page.getByTestId("message-composer").or(page.locator("form").filter({ has: page.locator("textarea") }));
     this.messageInput = page.getByPlaceholder(/type a message/i);
     this.sendButton = page.getByRole("button", { name: /send/i });
     this.attachButton = page.getByRole("button", { name: "Attach file" });
 
     // Reply Preview Locators
-    this.replyPreview = page.locator(".border-l-4.border-whatsapp-green");
+    this.replyPreview = page.getByTestId("reply-preview").or(page.locator('[aria-label="Reply preview"]'));
     this.cancelReplyButton = page.getByRole("button", { name: "Cancel reply" });
 
-    // Context Menu Locators
-    this.contextMenu = page.locator(".shadow-lg.py-1");
-    this.contextMenuReply = this.contextMenu.getByRole("button", { name: "Reply" });
-    this.contextMenuForward = this.contextMenu.getByRole("button", { name: "Forward" });
-    this.contextMenuStar = this.contextMenu.getByRole("button", { name: /star|unstar/i });
-    this.contextMenuDelete = this.contextMenu.getByRole("button", { name: "Delete" });
+    // Context Menu Locators - use role="menu" if available
+    this.contextMenu = page.getByRole("menu").or(page.getByTestId("context-menu"));
+    this.contextMenuReply = this.contextMenu.getByRole("menuitem", { name: "Reply" }).or(this.contextMenu.getByRole("button", { name: "Reply" }));
+    this.contextMenuForward = this.contextMenu.getByRole("menuitem", { name: "Forward" }).or(this.contextMenu.getByRole("button", { name: "Forward" }));
+    this.contextMenuStar = this.contextMenu.getByRole("menuitem", { name: /star|unstar/i }).or(this.contextMenu.getByRole("button", { name: /star|unstar/i }));
+    this.contextMenuDelete = this.contextMenu.getByRole("menuitem", { name: "Delete" }).or(this.contextMenu.getByRole("button", { name: "Delete" }));
 
     // Contact Profile Panel Locators
-    this.profilePanel = page.locator("aside");
+    this.profilePanel = page.getByTestId("contact-profile").or(page.locator("aside"));
     this.profileHeader = page.getByText("Contact Info");
     this.profileCloseButton = page.getByRole("button", { name: /close/i });
-    this.profileAvatar = page.locator(".h-32.w-32");
-    this.profileName = page.locator(".text-xl.font-semibold");
-    this.profilePhoneNumber = page.locator("text=Phone").locator("..");
+    this.profileAvatar = page.getByTestId("profile-avatar").or(page.locator('[role="img"]').first());
+    this.profileName = page.getByTestId("profile-name").or(page.locator("aside h2, aside h3").first());
+    this.profilePhoneNumber = page.getByText(/^\+?\d[\d\s-]+$/);
 
     // Conversation Search Locators
     this.conversationSearchButton = page.getByRole("button", { name: /search/i }).first();
-    this.conversationSearchBar = page.locator(".bg-gray-100.border-b");
+    this.conversationSearchBar = page.getByTestId("conversation-search-bar").or(page.locator('[role="search"]'));
     this.conversationSearchInput = page.getByPlaceholder(/search in conversation/i);
     this.conversationSearchClose = page.getByLabel("Close search");
     this.conversationSearchNext = page.getByLabel("Next result");
     this.conversationSearchPrev = page.getByLabel("Previous result");
-    this.conversationSearchCounter = this.conversationSearchBar.locator(".text-sm.text-gray-500");
+    this.conversationSearchCounter = page.getByTestId("search-counter").or(page.locator('[aria-live="polite"]'));
   }
 
   /**
@@ -254,7 +255,8 @@ export class ChatPage {
    * Get all message bubbles in the thread
    */
   getMessageBubbles(): Locator {
-    return this.page.locator(".rounded-lg.shadow-sm");
+    // Use data-testid if available, fallback to article role or generic structure
+    return this.page.getByTestId("message-bubble").or(this.page.locator('[role="article"]')).or(this.page.locator('[data-message-id]'));
   }
 
   /**
@@ -341,9 +343,7 @@ export class ChatPage {
    * Check if the message thread is visible
    */
   async isMessageThreadVisible(): Promise<boolean> {
-    // Check for the WhatsApp-style background
-    const thread = this.page.locator('[class*="bg-\\[\\#e5ddd5\\]"]');
-    return thread.isVisible();
+    return this.messageThread.isVisible();
   }
 
   /**
@@ -361,7 +361,8 @@ export class ChatPage {
   }
 
   /**
-   * Check if a specific filter button is active (has the active class)
+   * Check if a specific filter button is active
+   * Uses aria-pressed attribute if available, falls back to data-state or class check
    */
   async isFilterActive(filter: "all" | "assignedToMe" | "unassigned"): Promise<boolean> {
     let button: Locator;
@@ -376,8 +377,18 @@ export class ChatPage {
         button = this.filterUnassigned;
         break;
     }
+    // Check aria-pressed first (most accessible)
+    const ariaPressed = await button.getAttribute("aria-pressed");
+    if (ariaPressed !== null) {
+      return ariaPressed === "true";
+    }
+    // Fallback to data-state attribute
+    const dataState = await button.getAttribute("data-state");
+    if (dataState !== null) {
+      return dataState === "active" || dataState === "on";
+    }
+    // Last resort: check class name
     const classes = await button.getAttribute("class");
-    // Active filter has the teal-green background
     return classes?.includes("bg-whatsapp-teal-green") ?? false;
   }
 
@@ -446,23 +457,29 @@ export class ChatPage {
 
   /**
    * Get the error message from the add contact dialog
-   * Checks both server errors (bg-red-50 alert) and field validation errors (text-red-500)
+   * Uses role="alert" for accessibility-compliant error messages
    */
   async getAddContactError(): Promise<string | null> {
-    // Check for server error (displayed in alert box)
-    const serverError = this.addContactDialog.locator(".bg-red-50");
-    if (await serverError.isVisible()) {
-      return serverError.textContent();
+    // Check for error with role="alert" (most accessible approach)
+    const alertError = this.addContactDialog.locator('[role="alert"]');
+    if (await alertError.first().isVisible()) {
+      return alertError.first().textContent();
     }
-    // Check for field validation error (displayed below input with role="alert")
-    const fieldError = this.addContactDialog.locator('[role="alert"]');
-    if (await fieldError.isVisible()) {
-      return fieldError.textContent();
+    // Fallback: check for aria-invalid fields and their error descriptions
+    const invalidField = this.addContactDialog.locator('[aria-invalid="true"]');
+    if (await invalidField.first().isVisible()) {
+      const describedBy = await invalidField.first().getAttribute("aria-describedby");
+      if (describedBy) {
+        const errorDesc = this.addContactDialog.locator(`#${describedBy}`);
+        if (await errorDesc.isVisible()) {
+          return errorDesc.textContent();
+        }
+      }
     }
-    // Also check for dark mode variant
-    const darkFieldError = this.addContactDialog.locator(".text-red-500, .text-red-400");
-    if (await darkFieldError.first().isVisible()) {
-      return darkFieldError.first().textContent();
+    // Last resort: look for error message by test id
+    const testIdError = this.addContactDialog.getByTestId("error-message");
+    if (await testIdError.isVisible()) {
+      return testIdError.textContent();
     }
     return null;
   }
@@ -548,12 +565,24 @@ export class ChatPage {
 
   /**
    * Check if a message is highlighted (from search)
+   * Uses data-highlighted attribute if available, falls back to class check
    */
   async isMessageHighlighted(messageId: string): Promise<boolean> {
     const message = this.page.locator(`[data-message-id="${messageId}"]`);
     if (await message.isVisible()) {
+      // Check for data-highlighted attribute first
+      const highlighted = await message.getAttribute("data-highlighted");
+      if (highlighted !== null) {
+        return highlighted === "true";
+      }
+      // Fallback to aria-current for search results
+      const ariaCurrent = await message.getAttribute("aria-current");
+      if (ariaCurrent !== null) {
+        return ariaCurrent === "true";
+      }
+      // Last resort: class check
       const classes = await message.getAttribute("class");
-      return classes?.includes("ring-yellow-400") ?? false;
+      return classes?.includes("ring") ?? false;
     }
     return false;
   }

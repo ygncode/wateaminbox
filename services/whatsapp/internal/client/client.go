@@ -172,6 +172,13 @@ func (c *Client) Connect(ctx context.Context) (err error) {
 
 // connectWithQR starts the QR code pairing flow.
 func (c *Client) connectWithQR(ctx context.Context) error {
+	// Check context state before proceeding
+	select {
+	case <-ctx.Done():
+		return fmt.Errorf("context cancelled before QR flow: %w", ctx.Err())
+	default:
+	}
+
 	// Get QR channel
 	qrChan, err := c.client.GetQRChannel(ctx)
 	if err != nil {

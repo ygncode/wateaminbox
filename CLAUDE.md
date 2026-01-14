@@ -39,9 +39,9 @@ cd services/whatsapp && go run main.go
 
 ### Monorepo Structure
 
-- `apps/api` - Hono + Bun backend API (port 3001)
-- `apps/web` - React + Vite frontend (port 5173)
-- `apps/marketing` - Astro marketing site (port 4321)
+- `apps/api` - Hono + Bun backend API (port 4445)
+- `apps/web` - React + Vite frontend (port 4444)
+- `apps/marketing` - Astro marketing site (port 4446)
 - `packages/database` - Kysely database client & migrations
 - `packages/shared` - Shared TypeScript types
 - `packages/ui` - Shared React components
@@ -73,9 +73,9 @@ The `packages/shared` package is the **single source of truth** for TypeScript e
 
 ```typescript
 import {
-  MessageType,       // "text" | "image" | "video" | "audio" | "document" | "sticker" | "location" | "contact" | "reaction" | "template"
-  MessageStatus,     // "pending" | "sent" | "delivered" | "read" | "failed"
-  CompanyStatus,     // "active" | "suspended" | "deleted"
+  MessageType, // "text" | "image" | "video" | "audio" | "document" | "sticker" | "location" | "contact" | "reaction" | "template"
+  MessageStatus, // "pending" | "sent" | "delivered" | "read" | "failed"
+  CompanyStatus, // "active" | "suspended" | "deleted"
   CompanyMemberRole, // "owner" | "admin" | "member"
 } from "@whatsapp-web/shared";
 
@@ -127,7 +127,7 @@ Tests in `apps/web/e2e/tests/`. Page Object Model pattern in `e2e/pages/`. Auth 
 ## Environment Setup
 
 1. Copy `.env.example` to `.env`
-2. `docker-compose up -d` (PostgreSQL:5433, NATS:4222, Meilisearch:7700, MinIO:9000)
+2. `docker-compose up -d` (PostgreSQL:4447, NATS:4448, Meilisearch:4449, MinIO:4450)
 3. `bun install`
 4. `bun run db:migrate`
 5. `bun run dev`
@@ -456,26 +456,26 @@ Phone number utilities are available in `@whatsapp-web/shared` for formatting an
 
 ```typescript
 import {
-  formatPhoneNumber,          // Format with + prefix: "1234567890" → "+1234567890"
+  formatPhoneNumber, // Format with + prefix: "1234567890" → "+1234567890"
   formatPhoneNumberWithGroups, // Group digits: "12345678901" → "+1 234 567 8901"
-  parsePhoneFromJid,          // Extract from JID: "1234567890@s.whatsapp.net" → "1234567890"
-  isValidPhoneNumber,         // Basic validation
-} from '@whatsapp-web/shared'
+  parsePhoneFromJid, // Extract from JID: "1234567890@s.whatsapp.net" → "1234567890"
+  isValidPhoneNumber, // Basic validation
+} from "@whatsapp-web/shared";
 
 // Common usage: displaying participant phone numbers
-const phoneNumber = parsePhoneFromJid(participant.jid)
-const displayName = formatPhoneNumber(phoneNumber)
+const phoneNumber = parsePhoneFromJid(participant.jid);
+const displayName = formatPhoneNumber(phoneNumber);
 ```
 
 ### Anti-Patterns (Avoid)
 
 ```typescript
 // ❌ WRONG - Local phone formatting
-const formatPhone = (jid: string) => '+' + jid.split('@')[0]
+const formatPhone = (jid: string) => "+" + jid.split("@")[0];
 
 // ✅ CORRECT - Use shared utilities
-import { formatPhoneNumber, parsePhoneFromJid } from '@whatsapp-web/shared'
-formatPhoneNumber(parsePhoneFromJid(jid))
+import { formatPhoneNumber, parsePhoneFromJid } from "@whatsapp-web/shared";
+formatPhoneNumber(parsePhoneFromJid(jid));
 ```
 
 ## Backend Route Helpers
@@ -488,15 +488,15 @@ The backend provides utility helpers in `apps/api/src/lib/route-helpers.ts` for 
 import {
   extractPaginationParams,
   createPaginationMeta,
-} from '@/lib/route-helpers.js'
+} from "@/lib/route-helpers.js";
 
 // Extract pagination from query params
-const { limit, offset } = extractPaginationParams(c.req.query())
+const { limit, offset } = extractPaginationParams(c.req.query());
 // Defaults: limit=20, offset=0
 // Custom defaults: extractPaginationParams(query, { defaultLimit: 50 })
 
 // Create pagination metadata for responses
-const meta = createPaginationMeta(totalCount, limit, offset)
+const meta = createPaginationMeta(totalCount, limit, offset);
 // Returns: { total, limit, offset, hasMore }
 ```
 
@@ -505,26 +505,26 @@ const meta = createPaginationMeta(totalCount, limit, offset)
 Use `requireEntity<T>()` to check if an entity exists and throw a 404 error if not:
 
 ```typescript
-import { requireEntity } from '@/lib/route-helpers.js'
+import { requireEntity } from "@/lib/route-helpers.js";
 
 // Before (verbose):
 const contact = await tenantDb
-  .selectFrom('contacts')
-  .where('id', '=', contactId)
-  .executeTakeFirst()
+  .selectFrom("contacts")
+  .where("id", "=", contactId)
+  .executeTakeFirst();
 if (!contact) {
-  return notFound(c, 'Contact')
+  return notFound(c, "Contact");
 }
 // contact is possibly undefined here
 
 // After (concise):
 const contact = requireEntity(
   await tenantDb
-    .selectFrom('contacts')
-    .where('id', '=', contactId)
+    .selectFrom("contacts")
+    .where("id", "=", contactId)
     .executeTakeFirst(),
-  'Contact'
-)
+  "Contact"
+);
 // contact is guaranteed to exist here, or NotFoundError is thrown
 ```
 
@@ -538,35 +538,35 @@ Always use response helpers from `apps/api/src/lib/response.ts` for consistent A
 
 ```typescript
 import {
-  successData,        // Single entity: { data: T }
-  successPaginated,   // Paginated list: { data: T[], pagination: PaginationMeta }
-  created,            // Created entity (201): { data: T }
-  successMessage,     // Success message: { message: string }
+  successData, // Single entity: { data: T }
+  successPaginated, // Paginated list: { data: T[], pagination: PaginationMeta }
+  created, // Created entity (201): { data: T }
+  successMessage, // Success message: { message: string }
   successWithMessage, // Data with message: { data: T, message: string }
-  noContent,          // No content (204)
-  notFound,           // Not found (404)
-  badRequest,         // Bad request (400)
-} from '@/lib/response.js'
+  noContent, // No content (204)
+  notFound, // Not found (404)
+  badRequest, // Bad request (400)
+} from "@/lib/response.js";
 
 // Examples:
-return successData(c, user)
-return successPaginated(c, contacts, paginationMeta)
-return created(c, newContact)
-return successMessage(c, 'Contact deleted successfully')
-return notFound(c, 'Contact')
+return successData(c, user);
+return successPaginated(c, contacts, paginationMeta);
+return created(c, newContact);
+return successMessage(c, "Contact deleted successfully");
+return notFound(c, "Contact");
 ```
 
 ### Anti-Patterns (Avoid)
 
 ```typescript
 // ❌ WRONG - Raw c.json() with inconsistent formats
-return c.json({ success: true, data: user })
-return c.json({ user })
-return c.json({ message: 'OK', status: 200 })
+return c.json({ success: true, data: user });
+return c.json({ user });
+return c.json({ message: "OK", status: 200 });
 
 // ✅ CORRECT - Use response helpers
-return successData(c, user)
-return successMessage(c, 'OK')
+return successData(c, user);
+return successMessage(c, "OK");
 ```
 
 ## Backend Validation Schemas
@@ -589,24 +589,28 @@ apps/api/src/lib/schemas/
 
 ```typescript
 // In apps/api/src/lib/schemas/quick-replies.ts
-import { z } from 'zod'
+import { z } from "zod";
 
 export const createQuickReplySchema = z.object({
-  shortcut: z.string().min(1).max(50).regex(/^[a-zA-Z0-9_-]+$/),
+  shortcut: z
+    .string()
+    .min(1)
+    .max(50)
+    .regex(/^[a-zA-Z0-9_-]+$/),
   title: z.string().min(1).max(200),
   content: z.string().min(1),
-})
+});
 
-export type CreateQuickReplyInput = z.infer<typeof createQuickReplySchema>
+export type CreateQuickReplyInput = z.infer<typeof createQuickReplySchema>;
 
 // In route file
-import { createQuickReplySchema } from '@/lib/schemas/index.js'
-import { zValidator } from '@hono/zod-validator'
+import { createQuickReplySchema } from "@/lib/schemas/index.js";
+import { zValidator } from "@hono/zod-validator";
 
-app.post('/', zValidator('json', createQuickReplySchema), async (c) => {
-  const input = c.req.valid('json')
+app.post("/", zValidator("json", createQuickReplySchema), async (c) => {
+  const input = c.req.valid("json");
   // input is typed as CreateQuickReplyInput
-})
+});
 ```
 
 ## Frontend API Client
@@ -616,19 +620,20 @@ app.post('/', zValidator('json', createQuickReplySchema), async (c) => {
 For file uploads with authentication, use `fetchFormDataWithAuth()` from `apps/web/src/lib/api/client.ts`:
 
 ```typescript
-import { fetchFormDataWithAuth } from '@/lib/api/client'
+import { fetchFormDataWithAuth } from "@/lib/api/client";
 
 // Upload a file with automatic auth headers
-const formData = new FormData()
-formData.append('file', file)
+const formData = new FormData();
+formData.append("file", file);
 
-const result = await fetchFormDataWithAuth<UploadResponse>('/api/upload', {
-  method: 'POST',
+const result = await fetchFormDataWithAuth<UploadResponse>("/api/upload", {
+  method: "POST",
   body: formData,
-})
+});
 ```
 
 This utility:
+
 - Automatically adds the access token header
 - Adds the company ID header
 - Handles token refresh on 401 errors
@@ -638,18 +643,18 @@ This utility:
 
 ```typescript
 // ❌ WRONG - Manual FormData auth handling
-const response = await fetch('/api/upload', {
-  method: 'POST',
+const response = await fetch("/api/upload", {
+  method: "POST",
   headers: {
     Authorization: `Bearer ${accessToken}`,
-    'X-Company-ID': companyId,
+    "X-Company-ID": companyId,
     // Don't set Content-Type for FormData!
   },
   body: formData,
-})
+});
 
 // ✅ CORRECT - Use the utility
-const result = await fetchFormDataWithAuth('/api/upload', { body: formData })
+const result = await fetchFormDataWithAuth("/api/upload", { body: formData });
 ```
 
 ## Frontend Async Data Handling
@@ -688,6 +693,7 @@ if (combined.allHaveData) return <UserWithPosts />
 ```
 
 **State helpers**:
+
 - `isLoading` - Query is in loading state
 - `isError` - Query has errored
 - `isEmpty` - Data is null, undefined, or empty array
@@ -881,6 +887,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui'
 ```
 
 Features:
+
 - Keyboard navigation (Arrow keys, Home/End)
 - ARIA-compliant roles
 - WhatsApp-style underline indicator
@@ -905,6 +912,7 @@ import { EllipsisMenu } from '@/components/ui'
 ```
 
 Features:
+
 - MoreVertical trigger icon
 - Keyboard navigation
 - Destructive action styling
@@ -947,6 +955,7 @@ function ImportWizard() {
 ```
 
 Features:
+
 - `StepWizard` - wrapper with optional progress indicator
 - `StepProgress` - visual progress with completed/current/pending states
 - `StepContent` - conditional renderer based on current step
@@ -1011,13 +1020,14 @@ hooks/
 ```
 
 **Import pattern**:
+
 ```typescript
 // Import from main barrel (recommended)
-import { useClickOutside, useAsyncData, useNotifications } from '@/hooks'
+import { useClickOutside, useAsyncData, useNotifications } from "@/hooks";
 
 // Or import from feature directory
-import { useClickOutside } from '@/hooks/ui'
-import { useNotifications } from '@/hooks/notification'
+import { useClickOutside } from "@/hooks/ui";
+import { useNotifications } from "@/hooks/notification";
 ```
 
 ## Frontend Composable Props
@@ -1036,27 +1046,31 @@ import type {
   CardProps,
   ComposableProps,
   MergeWithHTML,
-} from '@/types/component-props'
+} from "@/types/component-props";
 
 // Compose interfaces for your components
 interface MyButtonProps extends WithClassNameProps, WithLoadingProps {
-  label: string
-  onClick: () => void
+  label: string;
+  onClick: () => void;
 }
 
 // Use pre-built compound interfaces
 interface MyDialogProps extends DialogProps {
-  title: string
+  title: string;
 }
 
 // Merge with HTML element props
-interface MyInputProps extends MergeWithHTML<WithErrorProps, HTMLInputElement> {}
+interface MyInputProps extends MergeWithHTML<
+  WithErrorProps,
+  HTMLInputElement
+> {}
 
 // Pick specific composable props
-type MyProps = ComposableProps<'className' | 'loading' | 'error'>
+type MyProps = ComposableProps<"className" | "loading" | "error">;
 ```
 
 **Available interfaces**:
+
 - Base: `WithChildrenProps`, `WithClassNameProps`, `WithStyleProps`, `WithIdProps`, `WithTestIdProps`
 - State: `WithLoadingProps`, `WithErrorProps`, `WithDisabledProps`, `WithSelectedProps`, `WithExpandedProps`
 - Handlers: `WithOnChangeProps<T>`, `WithOnClickProps`, `WithOnSubmitProps`, `WithOnCloseProps`
@@ -1100,7 +1114,7 @@ Go services share common utilities through `services/shared/`. Both `orchestrato
 import "github.com/ygncode-lab/whatsapp-web/services/shared/config"
 
 // Get environment variables with defaults
-natsURL := config.GetEnv("NATS_URL", "nats://localhost:4222")
+natsURL := config.GetEnv("NATS_URL", "nats://localhost:4448")
 timeout := config.GetDurationEnv("TIMEOUT", 30*time.Second)
 port := config.GetIntEnv("PORT", 8080)
 debug := config.GetBoolEnv("DEBUG", false)

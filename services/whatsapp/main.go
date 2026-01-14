@@ -28,12 +28,13 @@ func main() {
 	logLevel := config.GetEnv("LOG_LEVEL", "info")
 
 	// Storage configuration (S3-compatible - works with MinIO and Cloudflare R2)
-	storageEndpoint := config.GetEnv("STORAGE_ENDPOINT", "http://localhost:9000")
-	storageAccessKey := config.GetEnv("STORAGE_ACCESS_KEY", "minioadmin")
-	storageSecretKey := config.GetEnv("STORAGE_SECRET_KEY", "minioadmin")
-	storageBucket := config.GetEnv("STORAGE_BUCKET", "whatsapp-media")
-	storageRegion := config.GetEnv("STORAGE_REGION", "us-east-1")
-	storagePublicURL := config.GetEnv("STORAGE_PUBLIC_URL", "")
+	// Check both STORAGE_* and S3_* env vars for compatibility with .env convention
+	storageEndpoint := config.GetEnv("STORAGE_ENDPOINT", config.GetEnv("S3_ENDPOINT", "http://localhost:4450"))
+	storageAccessKey := config.GetEnv("STORAGE_ACCESS_KEY", config.GetEnv("S3_ACCESS_KEY", "minioadmin"))
+	storageSecretKey := config.GetEnv("STORAGE_SECRET_KEY", config.GetEnv("S3_SECRET_KEY", "minioadmin"))
+	storageBucket := config.GetEnv("STORAGE_BUCKET", config.GetEnv("S3_BUCKET", "whatsapp-media"))
+	storageRegion := config.GetEnv("STORAGE_REGION", config.GetEnv("S3_REGION", "us-east-1"))
+	storagePublicURL := config.GetEnv("STORAGE_PUBLIC_URL", config.GetEnv("S3_PUBLIC_URL", ""))
 
 	// Validate required configuration
 	if companyID == "" {
@@ -52,7 +53,7 @@ func main() {
 	}
 	log.Printf("Database URL configured")
 
-	// Initialize storage client
+	// Initialize storage client (non-blocking - bucket check runs in background)
 	var storageClient *storage.Client
 	if storageEndpoint != "" {
 		var err error
@@ -69,12 +70,14 @@ func main() {
 			log.Printf("Warning: Failed to initialize storage client: %v", err)
 			log.Println("Media files will not be persisted")
 		} else {
-			// Ensure bucket exists
-			if err := storageClient.EnsureBucketExists(ctx); err != nil {
-				log.Printf("Warning: Failed to ensure bucket exists: %v", err)
-			} else {
-				log.Printf("Storage client connected to %s, bucket: %s", storageEndpoint, storageBucket)
-			}
+			// Ensure bucket exists in background to not delay QR code flow
+			go func() {
+				if err := storageClient.EnsureBucketExists(ctx); err != nil {
+					log.Printf("Warning: Failed to ensure bucket exists: %v", err)
+				} else {
+					log.Printf("Storage client connected to %s, bucket: %s", storageEndpoint, storageBucket)
+				}
+			}()
 		}
 	}
 

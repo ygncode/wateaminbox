@@ -68,9 +68,19 @@ export function broadcastToCompany(companyId: string, message: ServerMessage): v
         'Broadcast media event to clients'
       )
     }
+    if (message.type === 'qr') {
+      logger.debug(
+        { sentCount, companyId, connectionId: (message as { connectionId?: string }).connectionId },
+        'Broadcast QR code to clients'
+      )
+    }
   } else {
     if (message.type === 'message:new') {
       logger.debug({ companyId }, 'No active connections for company to broadcast message')
+    }
+    // Log when no connections exist for QR broadcast
+    if (message.type === 'qr') {
+      logger.warn({ companyId }, 'No active WebSocket connections for company to broadcast QR code')
     }
   }
 }
