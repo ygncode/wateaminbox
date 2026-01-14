@@ -167,9 +167,10 @@ export async function up(db: Kysely<unknown>): Promise<void> {
           metadata JSONB,
           timestamp TIMESTAMPTZ NOT NULL,
           created_at TIMESTAMPTZ DEFAULT now() NOT NULL,
-          search_vector TSVECTOR
+          search_vector TSVECTOR,
+          CONSTRAINT %I UNIQUE (whatsapp_connection_id, message_id)
         )
-      ', schema_name);
+      ', schema_name, safe_schema_name || '_messages_unique_wa_message');
 
       -- Message reactions table
       EXECUTE format('
