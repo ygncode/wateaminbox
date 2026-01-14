@@ -1,7 +1,0 @@
-export { BasePage } from "./base.page"
-export { LoginPage } from "./login.page"
-export { RegisterPage } from "./register.page"
-export { ForgotPasswordPage } from "./forgot-password.page"
-export { ChatPage } from "./chat.page"
-export { SettingsPage } from "./settings.page"
-export { WhatsAppConnectionPage } from "./whatsapp-connection.page"
