@@ -1,9 +1,10 @@
 import type { Message } from "@whatsapp-web/shared";
 import { formatMessageTime } from "@whatsapp-web/shared";
 import { memo, useCallback, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 import { useMessageActions } from "../../contexts";
-import { useClickOutside, useRelativePosition } from "../../hooks/ui";
+import { useClickOutside } from "../../hooks/ui";
 import { EmojiReactionPicker } from "./EmojiReactionPicker";
 import { MessageContent } from "./MessageContent";
 import { MessageContextMenu } from "./MessageContextMenu";
@@ -45,13 +46,9 @@ export const MessageBubble = memo(function MessageBubble({
   const bubbleRef = useRef<HTMLDivElement>(null);
   const contextMenuRef = useRef<HTMLDivElement>(null);
 
-  // Position hooks for context menu and reaction picker
-  const {
-    position: contextMenuPosition,
-    calculateFromMouseEvent: calculateContextMenuPosition,
-  } = useRelativePosition(bubbleRef);
-  const { position: reactionPickerPosition, calculateReactionPickerPosition } =
-    useRelativePosition(bubbleRef);
+  // Both context menu and reaction picker use fixed positioning with viewport coordinates
+  const [contextMenuPosition, setContextMenuPosition] = useState({ x: 0, y: 0 });
+  const [reactionPickerPosition, setReactionPickerPosition] = useState({ x: 0, y: 0 });
 
   // Close context menu when clicking outside
   useClickOutside(contextMenuRef, () => setShowContextMenu(false), {
@@ -63,17 +60,52 @@ export const MessageBubble = memo(function MessageBubble({
       e.preventDefault();
       if (message.isDeleted) return;
 
-      calculateContextMenuPosition(e);
+      // Use viewport coordinates (clientX/clientY) for fixed positioning
+      setContextMenuPosition({
+        x: e.clientX,
+        y: e.clientY,
+      });
       setShowContextMenu(true);
     },
-    [message.isDeleted, calculateContextMenuPosition],
+    [message.isDeleted],
   );
 
   const handleReactionClick = useCallback(() => {
-    calculateReactionPickerPosition(isOwn, -50);
+    // Calculate viewport coordinates for fixed positioning
+    const rect = bubbleRef.current?.getBoundingClientRect();
+    if (rect) {
+      // Calculate picker width (approximately 350px for the quick reactions bar)
+      const PICKER_WIDTH = 350;
+      const PICKER_HEIGHT = 50;
+      const VIEWPORT_PADDING = 10;
+      const viewportWidth = window.innerWidth;
+      const viewportHeight = window.innerHeight;
+
+      // Position picker above the bubble, aligned with the bubble
+      let x = isOwn ? rect.right - PICKER_WIDTH : rect.left;
+      let y = rect.top - PICKER_HEIGHT - 10;
+
+      // Adjust for viewport boundaries
+      if (x + PICKER_WIDTH > viewportWidth - VIEWPORT_PADDING) {
+        x = viewportWidth - PICKER_WIDTH - VIEWPORT_PADDING;
+      }
+      if (x < VIEWPORT_PADDING) {
+        x = VIEWPORT_PADDING;
+      }
+      // If no room above, position below the bubble
+      if (y < VIEWPORT_PADDING) {
+        y = rect.bottom + 10;
+      }
+      // If still no room, center vertically
+      if (y + PICKER_HEIGHT > viewportHeight - VIEWPORT_PADDING) {
+        y = Math.max(VIEWPORT_PADDING, (viewportHeight - PICKER_HEIGHT) / 2);
+      }
+
+      setReactionPickerPosition({ x, y });
+    }
     setShowReactionPicker(true);
     setShowContextMenu(false);
-  }, [isOwn, calculateReactionPickerPosition]);
+  }, [isOwn]);
 
   const handleSelectReaction = useCallback(
     (emoji: string) => {
@@ -165,29 +197,33 @@ export const MessageBubble = memo(function MessageBubble({
           <MessageReactions reactions={message.reactions!} isOwn={isOwn} />
         )}
 
-        {/* Context menu */}
-        {showContextMenu && (
-          <MessageContextMenu
-            ref={contextMenuRef}
-            message={message}
-            position={contextMenuPosition}
-            onReply={onReply}
-            onForward={onForward}
-            onDelete={onDelete}
-            onStar={onStar}
-            onReact={handleReactionClick}
-            onClose={() => setShowContextMenu(false)}
-          />
-        )}
+        {/* Context menu - rendered via portal to escape overflow:hidden containers */}
+        {showContextMenu &&
+          createPortal(
+            <MessageContextMenu
+              ref={contextMenuRef}
+              message={message}
+              position={contextMenuPosition}
+              onReply={onReply}
+              onForward={onForward}
+              onDelete={onDelete}
+              onStar={onStar}
+              onReact={handleReactionClick}
+              onClose={() => setShowContextMenu(false)}
+            />,
+            document.body,
+          )}
 
-        {/* Reaction picker */}
-        {showReactionPicker && (
-          <EmojiReactionPicker
-            position={reactionPickerPosition}
-            onSelectReaction={handleSelectReaction}
-            onClose={() => setShowReactionPicker(false)}
-          />
-        )}
+        {/* Reaction picker - rendered via portal to escape overflow:hidden containers */}
+        {showReactionPicker &&
+          createPortal(
+            <EmojiReactionPicker
+              position={reactionPickerPosition}
+              onSelectReaction={handleSelectReaction}
+              onClose={() => setShowReactionPicker(false)}
+            />,
+            document.body,
+          )}
       </div>
     </div>
   );

@@ -315,7 +315,7 @@ export function EmojiReactionPicker({
   return (
     <div
       ref={pickerRef}
-      className="absolute z-50 animate-in fade-in zoom-in-95 duration-150"
+      className="fixed z-[9999] animate-in fade-in zoom-in-95 duration-150"
       style={{
         left: adjustedPosition.x,
         top: adjustedPosition.y,

@@ -1,5 +1,5 @@
 import type { Message } from "@whatsapp-web/shared";
-import { forwardRef } from "react";
+import { forwardRef, useMemo } from "react";
 import {
   DeleteIcon,
   EmojiIcon,
@@ -25,8 +25,14 @@ interface MessageContextMenuProps {
   onClose: () => void;
 }
 
+// Menu dimensions for boundary calculations
+const MENU_WIDTH = 140;
+const MENU_HEIGHT = 200; // Approximate height for 5 items
+const VIEWPORT_PADDING = 10;
+
 /**
  * Context menu for message actions
+ * Uses fixed positioning with viewport boundary detection
  */
 export const MessageContextMenu = forwardRef<
   HTMLDivElement,
@@ -35,6 +41,37 @@ export const MessageContextMenu = forwardRef<
   { message, position, onReply, onForward, onDelete, onStar, onReact, onClose },
   ref,
 ) {
+  // Calculate adjusted position synchronously during render
+  const adjustedPosition = useMemo(() => {
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+
+    let x = position.x;
+    let y = position.y;
+
+    // Check right boundary
+    if (x + MENU_WIDTH > viewportWidth - VIEWPORT_PADDING) {
+      x = viewportWidth - MENU_WIDTH - VIEWPORT_PADDING;
+    }
+
+    // Check left boundary
+    if (x < VIEWPORT_PADDING) {
+      x = VIEWPORT_PADDING;
+    }
+
+    // Check bottom boundary
+    if (y + MENU_HEIGHT > viewportHeight - VIEWPORT_PADDING) {
+      y = viewportHeight - MENU_HEIGHT - VIEWPORT_PADDING;
+    }
+
+    // Check top boundary
+    if (y < VIEWPORT_PADDING) {
+      y = VIEWPORT_PADDING;
+    }
+
+    return { x, y };
+  }, [position.x, position.y]);
+
   const menuItems: ContextMenuItem[] = [
     { label: "React", icon: EmojiIcon, action: onReact },
     { label: "Reply", icon: ReplyIcon, action: () => onReply?.(message) },
@@ -50,10 +87,10 @@ export const MessageContextMenu = forwardRef<
   return (
     <div
       ref={ref}
-      className="absolute z-50 bg-white dark:bg-dark-elevated rounded-lg shadow-lg py-1 min-w-[140px]"
+      className="fixed z-[9999] bg-white dark:bg-dark-elevated rounded-lg shadow-xl py-1 min-w-[140px] border border-gray-200 dark:border-dark-border"
       style={{
-        left: position.x,
-        top: position.y,
+        left: adjustedPosition.x,
+        top: adjustedPosition.y,
       }}
     >
       {menuItems.map((item) => (
