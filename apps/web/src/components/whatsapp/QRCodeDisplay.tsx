@@ -1,5 +1,6 @@
-import { Loader2, RefreshCw } from "lucide-react";
-import { useEffect, useState } from "react";
+import { AlertCircle, Loader2, RefreshCw } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import QRCode from "qrcode";
 import { nowMs } from "@whatsapp-web/shared";
 import { Button } from "@/components/ui";
 import { cn } from "@/lib/utils";
@@ -26,6 +27,11 @@ export function QRCodeDisplay({
   small = false,
 }: QRCodeDisplayProps) {
   const [localCountdown, setLocalCountdown] = useState<number>(0);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [qrError, setQrError] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(true);
+
+  const size = small ? 128 : 200;
 
   // Calculate countdown if not provided
   useEffect(() => {
@@ -52,8 +58,26 @@ export function QRCodeDisplay({
     return () => clearInterval(interval);
   }, [expiresAt, countdown]);
 
+  // Generate QR code locally using canvas
+  useEffect(() => {
+    if (!qrCode || !canvasRef.current) return;
+
+    setIsGenerating(true);
+    setQrError(false);
+
+    QRCode.toCanvas(canvasRef.current, qrCode, {
+      width: size,
+      margin: 1,
+      errorCorrectionLevel: "M",
+    })
+      .then(() => setIsGenerating(false))
+      .catch(() => {
+        setQrError(true);
+        setIsGenerating(false);
+      });
+  }, [qrCode, size]);
+
   const displayCountdown = countdown !== undefined ? countdown : localCountdown;
-  const size = small ? 128 : 200;
 
   return (
     <div className="relative inline-block">
@@ -63,12 +87,40 @@ export function QRCodeDisplay({
           small ? "border-gray-200" : "border-2 border-gray-200",
         )}
       >
-        <img
-          src={`https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${encodeURIComponent(qrCode)}`}
-          alt="WhatsApp QR Code"
-          className={small ? "w-32 h-32" : "w-48 h-48"}
+        {isGenerating && !qrError && (
+          <div
+            className={cn(
+              "flex items-center justify-center",
+              small ? "w-32 h-32" : "w-48 h-48",
+            )}
+          >
+            <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+          </div>
+        )}
+        {qrError && (
+          <div
+            className={cn(
+              "flex flex-col items-center justify-center gap-2",
+              small ? "w-32 h-32" : "w-48 h-48",
+            )}
+          >
+            <AlertCircle className="h-8 w-8 text-red-500" />
+            <p className="text-xs text-red-600 text-center">
+              Failed to generate QR
+            </p>
+            <Button size="sm" variant="outline" onClick={onRefresh}>
+              Retry
+            </Button>
+          </div>
+        )}
+        <canvas
+          ref={canvasRef}
+          className={cn(
+            small ? "w-32 h-32" : "w-48 h-48",
+            (isGenerating || qrError) && "hidden",
+          )}
         />
-        {displayCountdown <= 30 && displayCountdown > 0 && (
+        {displayCountdown <= 30 && displayCountdown > 0 && !qrError && (
           <div className="absolute inset-0 bg-white/80 flex items-center justify-center rounded-lg">
             <div className="text-center">
               <p className="text-orange-600 font-medium text-sm">Expiring</p>
