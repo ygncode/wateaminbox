@@ -553,6 +553,29 @@ func (c *Client) SendReaction(ctx context.Context, chatJID string, messageID str
 	}, nil
 }
 
+// SendChatPresence sends a typing indicator to a chat.
+// isTyping=true shows "typing...", isTyping=false shows "paused" (stopped typing).
+func (c *Client) SendChatPresence(ctx context.Context, jidStr string, isTyping bool) error {
+	jid, err := waTypes.ParseJID(jidStr)
+	if err != nil {
+		return fmt.Errorf("invalid JID %s: %w", jidStr, err)
+	}
+
+	var state waTypes.ChatPresence
+	if isTyping {
+		state = waTypes.ChatPresenceComposing
+	} else {
+		state = waTypes.ChatPresencePaused
+	}
+
+	if err := c.client.SendChatPresence(ctx, jid, state, waTypes.ChatPresenceMediaText); err != nil {
+		return fmt.Errorf("failed to send chat presence: %w", err)
+	}
+
+	log.Printf("Chat presence sent: jid=%s, isTyping=%v", jidStr, isTyping)
+	return nil
+}
+
 // createImageMessage creates an image message.
 func (c *Client) createImageMessage(ctx context.Context, data []byte, caption string, mimeType string, jid string, replyTo string) (*waE2E.Message, error) {
 	if mimeType == "" {

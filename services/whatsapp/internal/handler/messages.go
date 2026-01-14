@@ -6,16 +6,56 @@ import (
 	"time"
 
 	"go.mau.fi/whatsmeow/proto/waE2E"
+	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
 
 	natsClient "github.com/ygncode-lab/whatsapp-web/services/whatsapp/internal/nats"
 )
 
+// getPreferredSenderJID returns the phone number JID if available, otherwise the sender JID.
+// This handles the case where AddressingMode is "lid" and Sender is a LID JID.
+// We prefer phone number JIDs because:
+// 1. They're consistent with how contacts are stored (from history sync)
+// 2. whatsmeow expects PN JIDs for message sending and looks up LID internally
+func getPreferredSenderJID(info types.MessageInfo) types.JID {
+	sender := info.Sender.ToNonAD()
+
+	// If sender is LID and we have a PN alternative, use the PN
+	if sender.Server == types.HiddenUserServer && !info.SenderAlt.IsEmpty() {
+		return info.SenderAlt.ToNonAD()
+	}
+	return sender
+}
+
+// getPreferredChatJID returns the phone number JID for the chat if available.
+// For direct messages where AddressingMode is "lid", the chat JID may be LID.
+func getPreferredChatJID(info types.MessageInfo) types.JID {
+	chat := info.Chat.ToNonAD()
+
+	// If chat is LID and we have a PN alternative, use the PN
+	if chat.Server == types.HiddenUserServer && !info.RecipientAlt.IsEmpty() {
+		return info.RecipientAlt.ToNonAD()
+	}
+	return chat
+}
+
+// getPreferredSenderFromSource returns the phone number JID if available from MessageSource.
+// MessageSource is embedded in both MessageInfo and Receipt.
+func getPreferredSenderFromSource(source types.MessageSource) types.JID {
+	sender := source.Sender.ToNonAD()
+
+	// If sender is LID and we have a PN alternative, use the PN
+	if sender.Server == types.HiddenUserServer && !source.SenderAlt.IsEmpty() {
+		return source.SenderAlt.ToNonAD()
+	}
+	return sender
+}
+
 // handleMessage processes incoming messages.
 func (h *Handler) handleMessage(msg *events.Message) {
-	// Normalize JIDs to remove device suffix (e.g., ":3" from "44578136657990:3@s.whatsapp.net")
-	senderJID := msg.Info.Sender.ToNonAD()
-	chatJID := msg.Info.Chat.ToNonAD()
+	// Get preferred JIDs (PN over LID) to ensure consistency with stored contacts
+	senderJID := getPreferredSenderJID(msg.Info)
+	chatJID := getPreferredChatJID(msg.Info)
 
 	log.Printf("Received message from %s", senderJID.String())
 
@@ -177,9 +217,9 @@ func (h *Handler) handleProtocolMessage(msg *events.Message) {
 			return
 		}
 
-		// Normalize JIDs to remove device suffix
-		senderJID := msg.Info.Sender.ToNonAD()
-		chatJID := msg.Info.Chat.ToNonAD()
+		// Get preferred JIDs (PN over LID)
+		senderJID := getPreferredSenderJID(msg.Info)
+		chatJID := getPreferredChatJID(msg.Info)
 
 		log.Printf("Message revoke received from %s for message %s", senderJID.String(), revokedID)
 
@@ -201,9 +241,9 @@ func (h *Handler) handleReactionMessage(msg *events.Message) {
 		return
 	}
 
-	// Normalize JIDs to remove device suffix
-	senderJID := msg.Info.Sender.ToNonAD()
-	chatJID := msg.Info.Chat.ToNonAD()
+	// Get preferred JIDs (PN over LID)
+	senderJID := getPreferredSenderJID(msg.Info)
+	chatJID := getPreferredChatJID(msg.Info)
 
 	// Get the target message ID
 	targetMsgID := reactionMsg.Key.GetID()
@@ -228,8 +268,8 @@ func (h *Handler) handleReactionMessage(msg *events.Message) {
 
 // handleReceipt processes message receipts.
 func (h *Handler) handleReceipt(receipt *events.Receipt) {
-	// Normalize JID to remove device suffix
-	senderJID := receipt.Sender.ToNonAD()
+	// Get preferred JID (PN over LID)
+	senderJID := getPreferredSenderFromSource(receipt.MessageSource)
 
 	log.Printf("Received receipt: %s from %s", receipt.Type, senderJID.String())
 

@@ -66,6 +66,17 @@ type ContactBlocker interface {
 	UnblockContact(ctx context.Context, jid string) error
 }
 
+// TypingSender is the interface for sending typing indicators.
+type TypingSender interface {
+	SendChatPresence(ctx context.Context, jid string, isTyping bool) error
+}
+
+// TypingCommand represents a command to send typing indicator.
+type TypingCommand struct {
+	Type string `json:"type"` // "typing_start" or "typing_stop"
+	JID  string `json:"jid"`
+}
+
 // Subscriber handles subscribing to NATS command subjects.
 type Subscriber struct {
 	nc           *nats.Conn

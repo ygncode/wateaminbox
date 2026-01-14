@@ -106,7 +106,17 @@ func (h *Handler) processHistorySyncConversation(conv *waHistorySync.Conversatio
 		return
 	}
 
-	rawJID := conv.GetID()
+	// Prefer pnJID (phone number JID) over ID (which can be LID).
+	// whatsmeow expects phone number JIDs for sending messages and looks up LID mappings internally.
+	// Sending directly to LID JIDs causes encryption failures (error 479).
+	rawJID := conv.GetPnJID()
+	lidJID := conv.GetLidJID()
+
+	// Fall back to ID if pnJID is not available (e.g., for groups or older sync data)
+	if rawJID == "" {
+		rawJID = conv.GetID()
+	}
+
 	if rawJID == "" {
 		return
 	}
@@ -117,8 +127,33 @@ func (h *Handler) processHistorySyncConversation(conv *waHistorySync.Conversatio
 		log.Printf("Failed to parse JID %s: %v", rawJID, err)
 		return
 	}
+
+	// Skip LID-only contacts - they can't be used for sending messages.
+	// LID JIDs have Server == "lid" (types.HiddenUserServer).
+	// This happens when pnJID is empty and ID is a LID.
+	if parsedJID.Server == types.HiddenUserServer {
+		log.Printf("Skipping LID-only contact %s (no phone number available)", rawJID)
+		return
+	}
+
 	normalizedJID := parsedJID.ToNonAD()
 	jid := normalizedJID.String()
+
+	// Store LID mapping if both pnJID and lidJID are available.
+	// This allows whatsmeow to look up the LID for encryption when sending to the phone number JID.
+	if lidJID != "" && h.config.Client != nil {
+		parsedLID, err := types.ParseJID(lidJID)
+		if err == nil {
+			client := h.config.Client.GetClient()
+			if client != nil && client.Store != nil && client.Store.LIDs != nil {
+				ctx := context.Background()
+				normalizedLID := parsedLID.ToNonAD()
+				if err := client.Store.LIDs.PutLIDMapping(ctx, normalizedLID, normalizedJID); err != nil {
+					log.Printf("Failed to store LID mapping %s -> %s: %v", normalizedLID.String(), jid, err)
+				}
+			}
+		}
+	}
 
 	// Determine if this is a group chat using multiple indicators:
 	// 1. JID suffix (@g.us for groups, @s.whatsapp.net for users) - most reliable
