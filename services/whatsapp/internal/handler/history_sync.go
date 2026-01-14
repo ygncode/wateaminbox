@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"log"
+	"strings"
 	"sync"
 	"time"
 
@@ -99,25 +100,13 @@ func (h *Handler) handleHistorySync(evt *events.HistorySync) {
 
 // processHistorySyncConversation processes a single conversation during history sync.
 // Returns the count of messages processed and media items downloaded.
-func (h *Handler) processHistorySyncConversation(conv interface{}) (result struct{ messages, mediaDownloaded int }) {
-	// Type assert to get conversation methods
-	type conversationGetter interface {
-		GetID() string
-		GetIsDefaultSubgroup() bool
-		GetParticipant() []interface{}
-		GetDisplayName() string
-		GetName() string
-		GetUnreadCount() uint32
-		GetMessages() []interface{}
+// Uses concrete proto type *waHistorySync.Conversation for reliable type handling.
+func (h *Handler) processHistorySyncConversation(conv *waHistorySync.Conversation) (result struct{ messages, mediaDownloaded int }) {
+	if conv == nil {
+		return
 	}
 
-	c, ok := conv.(conversationGetter)
-	if !ok {
-		// Fallback: use reflection or direct type assertion
-		return h.processHistorySyncConversationDirect(conv)
-	}
-
-	rawJID := c.GetID()
+	rawJID := conv.GetID()
 	if rawJID == "" {
 		return
 	}
@@ -131,15 +120,20 @@ func (h *Handler) processHistorySyncConversation(conv interface{}) (result struc
 	normalizedJID := parsedJID.ToNonAD()
 	jid := normalizedJID.String()
 
-	// Determine if this is a group chat
-	isGroup := c.GetIsDefaultSubgroup() || len(c.GetParticipant()) > 0
+	// Determine if this is a group chat using multiple indicators:
+	// 1. JID suffix (@g.us for groups, @s.whatsapp.net for users) - most reliable
+	// 2. IsDefaultSubgroup flag (for community subgroups)
+	// 3. Participant list presence (groups have participants)
+	isGroup := strings.HasSuffix(jid, "@g.us") ||
+		conv.GetIsDefaultSubgroup() ||
+		len(conv.GetParticipant()) > 0
 
 	// Get display name from conversation
-	displayName := c.GetDisplayName()
-	name := c.GetName()
+	displayName := conv.GetDisplayName()
+	name := conv.GetName()
 
 	// Get unread count
-	unreadCount := int(c.GetUnreadCount())
+	unreadCount := int(conv.GetUnreadCount())
 
 	// Fetch profile picture during history sync
 	var profilePicURL string
@@ -166,9 +160,8 @@ func (h *Handler) processHistorySyncConversation(conv interface{}) (result struc
 		}
 	}
 
-	// Process messages
-	messages := c.GetMessages()
-	for _, historyMsg := range messages {
+	// Process messages using concrete type
+	for _, historyMsg := range conv.GetMessages() {
 		processed, hasMedia := h.processHistorySyncMessage(historyMsg, jid, isGroup)
 		if processed {
 			result.messages++
@@ -181,102 +174,28 @@ func (h *Handler) processHistorySyncConversation(conv interface{}) (result struc
 	return
 }
 
-// processHistorySyncConversationDirect processes a conversation using direct type assertion.
-func (h *Handler) processHistorySyncConversationDirect(conv interface{}) (result struct{ messages, mediaDownloaded int }) {
-	// Try to use the actual proto type methods
-	c, ok := conv.(interface{ GetID() string })
-	if !ok {
-		return
-	}
-
-	rawJID := c.GetID()
-	if rawJID == "" {
-		return
-	}
-
-	parsedJID, err := types.ParseJID(rawJID)
-	if err != nil {
-		return
-	}
-	normalizedJID := parsedJID.ToNonAD()
-	jid := normalizedJID.String()
-
-	// Check for group (simplified)
-	isGroup := false
-	if g, ok := conv.(interface{ GetIsDefaultSubgroup() bool }); ok {
-		isGroup = g.GetIsDefaultSubgroup()
-	}
-
-	// Get names
-	var displayName, name string
-	if d, ok := conv.(interface{ GetDisplayName() string }); ok {
-		displayName = d.GetDisplayName()
-	}
-	if n, ok := conv.(interface{ GetName() string }); ok {
-		name = n.GetName()
-	}
-
-	// Get unread count
-	var unreadCount int
-	if u, ok := conv.(interface{ GetUnreadCount() uint32 }); ok {
-		unreadCount = int(u.GetUnreadCount())
-	}
-
-	// Fetch profile picture during history sync
-	var profilePicURL string
-	if h.config.Client != nil && h.config.Storage != nil {
-		profilePicURL = h.fetchProfilePicture(normalizedJID)
-	}
-
-	// Publish contact to NATS
-	if h.publisher != nil {
-		h.publisher.PublishContact(jid, name, displayName, isGroup, unreadCount, profilePicURL)
-	}
-
-	// Subscribe to presence updates for this contact (skip groups)
-	// This allows us to receive online/offline status updates
-	if !isGroup && h.config.Client != nil {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-
-		if err := h.config.Client.SubscribePresence(ctx, normalizedJID); err != nil {
-			// Log but don't fail - presence subscription is not critical
-			log.Printf("Failed to subscribe to presence for %s: %v", jid, err)
-		}
-	}
-
-	// Process messages
-	if m, ok := conv.(interface{ GetMessages() []*waHistorySync.HistorySyncMsg }); ok {
-		for _, historyMsg := range m.GetMessages() {
-			processed, hasMedia := h.processHistorySyncMessage(historyMsg, jid, isGroup)
-			if processed {
-				result.messages++
-				if hasMedia {
-					result.mediaDownloaded++
-				}
-			}
-		}
-	}
-
-	return
-}
-
 // processHistorySyncMessage processes a single message from history sync.
 // Returns (processed, hasMedia) - whether the message was processed and if it had media.
-func (h *Handler) processHistorySyncMessage(historyMsg interface{}, jid string, isGroup bool) (bool, bool) {
-	// Type assert to get message
-	type messageGetter interface {
-		GetMessage() *waWeb.WebMessageInfo
-	}
-
-	hm, ok := historyMsg.(messageGetter)
-	if !ok {
+// Uses concrete proto type *waHistorySync.HistorySyncMsg for reliable type handling.
+func (h *Handler) processHistorySyncMessage(historyMsg *waHistorySync.HistorySyncMsg, jid string, isGroup bool) (bool, bool) {
+	if historyMsg == nil {
 		return false, false
 	}
 
-	msg := hm.GetMessage()
+	msg := historyMsg.GetMessage()
 	if msg == nil || msg.Message == nil {
 		return false, false
+	}
+
+	// Extract timestamp with proper handling for zero/missing values
+	var timestamp time.Time
+	msgTimestamp := msg.GetMessageTimestamp()
+	if msgTimestamp > 0 {
+		timestamp = time.Unix(int64(msgTimestamp), 0)
+	} else {
+		// Log missing timestamp for debugging - this should be rare
+		log.Printf("Missing timestamp for message %s in chat %s, using current time", msg.GetKey().GetID(), jid)
+		timestamp = time.Now()
 	}
 
 	// Build message event with history sync flag
@@ -286,7 +205,7 @@ func (h *Handler) processHistorySyncMessage(historyMsg interface{}, jid string, 
 		To:            jid,
 		FromMe:        msg.GetKey().GetFromMe(),
 		IsGroup:       isGroup,
-		Timestamp:     time.Unix(int64(msg.GetMessageTimestamp()), 0),
+		Timestamp:     timestamp,
 		IsHistorySync: true, // Mark as history sync message
 	}
 
@@ -393,10 +312,14 @@ func (h *Handler) processHistorySyncMessage(historyMsg interface{}, jid string, 
 	}
 
 	// Extract and publish reactions from history sync
-	// Reactions in history come as ReactionMessage within the message structure
+	// Source 1: ReactionMessage within the message structure (when the message IS a reaction)
 	if waMsg.ReactionMessage != nil && waMsg.ReactionMessage.Key != nil {
 		h.processHistorySyncReaction(waMsg.ReactionMessage, msg, jid)
 	}
+
+	// Source 2: Reactions array on WebMessageInfo (reactions ON this message from other users)
+	// This is the primary source for reactions during history sync
+	h.processMessageReactions(msg, jid)
 
 	return true, hasMedia
 }
@@ -454,6 +377,83 @@ func (h *Handler) processHistorySyncReaction(reactionMsg *waE2E.ReactionMessage,
 			timestamp,
 		); err != nil {
 			log.Printf("Failed to publish history reaction: %v", err)
+		}
+	}
+}
+
+// processMessageReactions processes the Reactions array on a WebMessageInfo.
+// This array contains all reactions ON the message from other users (received during history sync).
+// This is distinct from ReactionMessage which is when the message itself IS a reaction.
+func (h *Handler) processMessageReactions(msg *waWeb.WebMessageInfo, chatJID string) {
+	if msg == nil || h.publisher == nil {
+		return
+	}
+
+	reactions := msg.GetReactions()
+	if len(reactions) == 0 {
+		return
+	}
+
+	// Get the target message ID (the message these reactions are on)
+	targetMsgID := msg.GetKey().GetID()
+	if targetMsgID == "" {
+		return
+	}
+
+	for _, reaction := range reactions {
+		if reaction == nil || reaction.Key == nil {
+			continue
+		}
+
+		// Get reactor JID from the reaction key
+		// The reactor can be in Participant (for groups) or RemoteJID (for direct chats)
+		var reactorJID string
+		if reaction.Key.GetParticipant() != "" {
+			// Group - reactor is in Participant field
+			if parsed, err := types.ParseJID(reaction.Key.GetParticipant()); err == nil {
+				reactorJID = parsed.ToNonAD().String()
+			}
+		} else if reaction.Key.GetRemoteJID() != "" {
+			// Direct chat - reactor is in RemoteJID
+			if parsed, err := types.ParseJID(reaction.Key.GetRemoteJID()); err == nil {
+				reactorJID = parsed.ToNonAD().String()
+			}
+		} else if reaction.Key.GetFromMe() {
+			// The reaction is from the current user
+			// Use a placeholder that the API will interpret as "self"
+			reactorJID = chatJID
+		}
+
+		if reactorJID == "" {
+			continue
+		}
+
+		// Get emoji text
+		emoji := reaction.GetText()
+		if emoji == "" {
+			continue // Skip empty reactions (reaction removals)
+		}
+
+		// Get timestamp from reaction (milliseconds)
+		var timestamp time.Time
+		if ts := reaction.GetSenderTimestampMS(); ts > 0 {
+			timestamp = time.UnixMilli(ts)
+		} else {
+			// Fallback to message timestamp
+			timestamp = time.Unix(int64(msg.GetMessageTimestamp()), 0)
+		}
+
+		log.Printf("Processing reaction on message %s from %s: %s", targetMsgID, reactorJID, emoji)
+
+		// Publish reaction to NATS
+		if err := h.publisher.PublishReaction(
+			targetMsgID,
+			reactorJID,
+			chatJID,
+			emoji,
+			timestamp,
+		); err != nil {
+			log.Printf("Failed to publish message reaction: %v", err)
 		}
 	}
 }
