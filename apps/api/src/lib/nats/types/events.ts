@@ -227,3 +227,21 @@ export interface SyncStatusEvent extends WhatsAppEvent {
     conversations: number
   }
 }
+
+// Send failed event (message failed after max retries)
+export interface SendFailedEvent extends WhatsAppEvent {
+  type: "send_failed"
+  payload: {
+    pendingMessageId: string
+    reason: string
+  }
+}
+
+// Worker connection status event (from orchestrator)
+export interface WorkerConnectionStatusEvent extends WhatsAppEvent {
+  type: "connection_status"
+  payload: {
+    status: "error" | "failed" | "connecting" | "connected"
+    reason: string
+  }
+}

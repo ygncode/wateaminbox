@@ -7,6 +7,7 @@ import {
   type MessageEvent,
   type ReceiptEvent,
   type SendConfirmationEvent,
+  type SendFailedEvent,
   type StatusEvent,
   type ContactEvent,
   type ProfilePictureEvent,
@@ -16,6 +17,7 @@ import {
   type ReactionEvent,
   type DownloadResponseEvent,
   type SyncStatusEvent,
+  type WorkerConnectionStatusEvent,
 } from "../lib/nats/index.js";
 import { createLogger, formatError } from "../lib/logger.js";
 
@@ -24,9 +26,11 @@ import {
   handleQREvent,
   handleConnectedEvent,
   handleDisconnectedEvent,
+  handleWorkerConnectionStatusEvent,
   handleMessageEvent,
   handleReceiptEvent,
   handleSendConfirmationEvent,
+  handleSendFailedEvent,
   handleStatusEvent,
   handleContactEvent,
   handleProfilePictureEvent,
@@ -135,6 +139,14 @@ export async function handleWhatsAppEvent(event: WhatsAppEvent): Promise<void> {
 
       case "send_confirmation":
         await handleSendConfirmationEvent(event as SendConfirmationEvent);
+        break;
+
+      case "send_failed":
+        await handleSendFailedEvent(event as SendFailedEvent);
+        break;
+
+      case "connection_status":
+        await handleWorkerConnectionStatusEvent(event as WorkerConnectionStatusEvent);
         break;
 
       case "status":

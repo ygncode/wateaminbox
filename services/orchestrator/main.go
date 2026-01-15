@@ -26,6 +26,12 @@ func main() {
 	whatsappBinaryPath := config.GetEnv("WHATSAPP_BINARY_PATH", "/usr/local/bin/whatsapp-worker")
 	healthCheckInterval := config.GetDurationEnv("HEALTH_CHECK_INTERVAL", 30*time.Second)
 
+	// Auto-restart configuration
+	databaseURL := config.GetEnv("DATABASE_URL", "")
+	autoRestartEnabled := config.GetBoolEnv("AUTO_RESTART_ENABLED", true)
+	autoRestartMaxRetries := config.GetIntEnv("AUTO_RESTART_MAX_RETRIES", 5)
+	autoRestartBackoff := config.GetDurationEnv("AUTO_RESTART_BACKOFF", 5*time.Second)
+
 	// Initialize NATS client
 	natsClient, err := nats.NewClient(ctx, nats.Config{
 		URL: natsURL,
@@ -42,10 +48,14 @@ func main() {
 
 	// Initialize process manager
 	mgr := manager.New(manager.Config{
-		NATSClient:          natsClient,
-		WhatsAppBinaryPath:  whatsappBinaryPath,
-		DefaultNATSURL:      natsURL,
-		HealthCheckInterval: healthCheckInterval,
+		NATSClient:            natsClient,
+		WhatsAppBinaryPath:    whatsappBinaryPath,
+		DefaultNATSURL:        natsURL,
+		HealthCheckInterval:   healthCheckInterval,
+		DatabaseURL:           databaseURL,
+		AutoRestartEnabled:    autoRestartEnabled,
+		AutoRestartMaxRetries: autoRestartMaxRetries,
+		AutoRestartBackoff:    autoRestartBackoff,
 	})
 
 	// Start the manager

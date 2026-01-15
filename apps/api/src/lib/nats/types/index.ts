@@ -50,4 +50,6 @@ export type {
   ReactionEvent,
   DownloadResponseEvent,
   SyncStatusEvent,
+  SendFailedEvent,
+  WorkerConnectionStatusEvent,
 } from "./events.js"

@@ -1,11 +1,14 @@
 import { useEffect } from "react";
+import { toast } from "sonner";
 import { useChatStore } from "../../stores/chat-store";
 import type {
   ConversationUpdatedPayload,
   ErrorPayload,
+  MessageFailedPayload,
   MessageStatusPayload,
   NewMessagePayload,
   PresencePayload,
+  ToastNotificationPayload,
   TypingPayload,
   WebSocketClient,
   WhatsAppTypingPayload,
@@ -74,6 +77,40 @@ export function useWebSocketEvents(
       },
     );
 
+    // Message failed handler - when message fails after max retries
+    const unsubMessageFailed = client.on<MessageFailedPayload>(
+      "message:failed",
+      (payload) => {
+        updateMessageStatus(
+          payload.conversationId,
+          payload.messageId,
+          "failed",
+        );
+      },
+    );
+
+    // Toast notification handler - server-sent toast messages
+    const unsubToast = client.on<ToastNotificationPayload>(
+      "notification:toast",
+      (payload) => {
+        switch (payload.type) {
+          case "error":
+            toast.error(payload.message, { description: payload.title });
+            break;
+          case "success":
+            toast.success(payload.message, { description: payload.title });
+            break;
+          case "warning":
+            toast.warning(payload.message, { description: payload.title });
+            break;
+          case "info":
+          default:
+            toast.info(payload.message, { description: payload.title });
+            break;
+        }
+      },
+    );
+
     // Note: message:reaction is handled in event-handlers.ts which updates
     // the TanStack Query cache directly for proper real-time updates
 
@@ -126,6 +163,8 @@ export function useWebSocketEvents(
     return () => {
       unsubNewMessage();
       unsubMessageStatus();
+      unsubMessageFailed();
+      unsubToast();
       unsubTypingStart();
       unsubTypingStop();
       unsubPresenceOnline();

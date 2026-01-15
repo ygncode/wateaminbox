@@ -5,20 +5,22 @@ import "time"
 
 // Event types used across WhatsApp services.
 const (
-	EventTypeQR              = "qr"
-	EventTypeConnected       = "connected"
-	EventTypeDisconnected    = "disconnected"
-	EventTypeMessage         = "message"
-	EventTypeReceipt         = "receipt"
-	EventTypePresence        = "presence"
-	EventTypeContact         = "contact"
-	EventTypeProfilePicture  = "profile_picture"
-	EventTypeMessageRevoke   = "message_revoke"
-	EventTypeSendConfirm     = "send_confirmation"
-	EventTypeTyping          = "typing"
-	EventTypeReaction        = "reaction"
-	EventTypeSyncStatus      = "sync_status"
-	EventTypeDownloadResp    = "download_response"
+	EventTypeQR               = "qr"
+	EventTypeConnected        = "connected"
+	EventTypeDisconnected     = "disconnected"
+	EventTypeMessage          = "message"
+	EventTypeReceipt          = "receipt"
+	EventTypePresence         = "presence"
+	EventTypeContact          = "contact"
+	EventTypeProfilePicture   = "profile_picture"
+	EventTypeMessageRevoke    = "message_revoke"
+	EventTypeSendConfirm      = "send_confirmation"
+	EventTypeSendFailed       = "send_failed"       // Message send failed after max retries
+	EventTypeTyping           = "typing"
+	EventTypeReaction         = "reaction"
+	EventTypeSyncStatus       = "sync_status"
+	EventTypeDownloadResp     = "download_response"
+	EventTypeConnectionStatus = "connection_status" // Worker connection status change (from orchestrator)
 )
 
 // Command types used across WhatsApp services.
@@ -160,6 +162,20 @@ type SyncStatusPayload struct {
 	Status        string `json:"status"`        // "starting", "progress", "completed"
 	MessageCount  int    `json:"messageCount"`  // Total messages synced
 	Conversations int    `json:"conversations"` // Number of conversations processed
+}
+
+// SendFailedPayload is the payload for message send failure events.
+// Sent when a message fails to send after all retry attempts.
+type SendFailedPayload struct {
+	PendingMessageID string `json:"pendingMessageId"` // The temporary message ID
+	Reason           string `json:"reason"`           // Failure reason
+}
+
+// ConnectionStatusPayload is the payload for worker connection status events.
+// Sent by the orchestrator when a worker's status changes (e.g., crash, restart, recovery).
+type ConnectionStatusPayload struct {
+	Status string `json:"status"` // "error", "failed", "connecting", "connected"
+	Reason string `json:"reason"` // Human-readable reason for the status change
 }
 
 // DownloadRequest is the payload for on-demand media download requests.

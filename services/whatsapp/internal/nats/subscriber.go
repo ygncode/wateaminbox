@@ -285,10 +285,21 @@ func (s *Subscriber) handleSendCommand(msg *nats.Msg) {
 		return
 	}
 
-	log.Printf("Processing send command: type=%s, to=%s, reply_to=%s, reply_to_sender=%s", cmd.Type, cmd.To, cmd.ReplyTo, cmd.ReplyToSender)
+	// Check delivery count from message metadata
+	meta, err := msg.Metadata()
+	if err != nil {
+		log.Printf("Failed to get message metadata: %v", err)
+	}
+
+	// MaxDeliver is set to 3 in consumer config, so NumDelivered starts at 1
+	deliveryCount := uint64(1)
+	if meta != nil {
+		deliveryCount = meta.NumDelivered
+	}
+
+	log.Printf("Processing send command: type=%s, to=%s, delivery=%d/3", cmd.Type, cmd.To, deliveryCount)
 
 	var resp types.SendResponse
-	var err error
 	ctx, cancel := context.WithTimeout(s.ctx, 30*time.Second)
 	defer cancel()
 
@@ -306,7 +317,25 @@ func (s *Subscriber) handleSendCommand(msg *nats.Msg) {
 	}
 
 	if err != nil {
-		log.Printf("Failed to send message: %v", err)
+		log.Printf("Failed to send message (attempt %d/3): %v", deliveryCount, err)
+
+		// Check if this is the final retry attempt
+		if deliveryCount >= 3 {
+			log.Printf("Message %s exceeded max delivery attempts, marking as failed", cmd.MessageID)
+			// Publish failure event
+			if s.publisher != nil {
+				if pubErr := s.publisher.PublishSendFailed(cmd.MessageID, err.Error()); pubErr != nil {
+					log.Printf("Failed to publish send_failed event: %v", pubErr)
+				} else {
+					log.Printf("Published send_failed for message: %s", cmd.MessageID)
+				}
+			}
+			// Acknowledge to stop redelivery
+			msg.Ack()
+			return
+		}
+
+		// Still have retries left, NAK to trigger redelivery
 		msg.Nak()
 		return
 	}

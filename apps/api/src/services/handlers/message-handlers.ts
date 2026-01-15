@@ -6,6 +6,7 @@ import type {
   MessageEvent,
   ReceiptEvent,
   SendConfirmationEvent,
+  SendFailedEvent,
 } from "../../lib/nats/index.js";
 import { type MessageType } from "@whatsapp-web/database";
 import {
@@ -405,5 +406,82 @@ export async function handleSendConfirmationEvent(
     }
   } catch (error) {
     logger.error(formatError(error), "Failed to handle send confirmation");
+  }
+}
+
+/**
+ * Handles send failed events
+ * Updates a message to failed status when max delivery attempts exceeded
+ */
+export async function handleSendFailedEvent(
+  event: SendFailedEvent,
+): Promise<void> {
+  const { companyId, connectionId, payload } = event;
+
+  logger.warn(
+    {
+      pendingMessageId: payload.pendingMessageId,
+      reason: payload.reason,
+      connectionId,
+    },
+    "Message send failed after max retries",
+  );
+
+  try {
+    const tenantDb = getTenantConnection(companyId);
+
+    // Update message status to failed
+    const updatedMessage = await tenantDb
+      .updateTable("messages")
+      .set({
+        status: "failed",
+      })
+      .where("message_id", "=", payload.pendingMessageId)
+      .returning(["id", "contact_id"])
+      .executeTakeFirst();
+
+    if (!updatedMessage) {
+      logger.warn(
+        { pendingMessageId: payload.pendingMessageId },
+        "Message not found for send_failed event",
+      );
+      return;
+    }
+
+    logger.debug(
+      {
+        pendingMessageId: payload.pendingMessageId,
+        internalId: updatedMessage.id,
+        contactId: updatedMessage.contact_id,
+      },
+      "Marked message as failed",
+    );
+
+    // Broadcast message:failed event to WebSocket clients
+    // Frontend can show retry option
+    broadcastToCompany(companyId, {
+      type: "message:failed",
+      connectionId,
+      payload: {
+        conversationId: updatedMessage.contact_id,
+        messageId: updatedMessage.id,
+        reason: payload.reason,
+      },
+      timestamp: event.timestamp,
+    });
+
+    // Also broadcast a toast notification for user visibility
+    broadcastToCompany(companyId, {
+      type: "notification:toast",
+      connectionId,
+      payload: {
+        type: "error",
+        title: "Message failed",
+        message: `Failed to send message: ${payload.reason}`,
+      },
+      timestamp: event.timestamp,
+    });
+  } catch (error) {
+    logger.error(formatError(error), "Failed to handle send_failed event");
   }
 }

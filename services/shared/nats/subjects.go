@@ -23,4 +23,7 @@ const (
 	// On-demand media download subjects
 	SubjectDownloadRequest  = "WHATSAPP.download.%s.%s.request"
 	SubjectDownloadResponse = "WHATSAPP.events.%s.%s.download_response"
+
+	// Connection status subject - used by orchestrator to notify API of worker status changes
+	SubjectConnectionStatus = "WHATSAPP.events.%s.%s.connection_status"
 )

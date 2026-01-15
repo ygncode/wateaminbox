@@ -9,6 +9,7 @@ export {
   handleQREvent,
   handleConnectedEvent,
   handleDisconnectedEvent,
+  handleWorkerConnectionStatusEvent,
 } from "./connection-handlers.js";
 
 // Message handlers
@@ -16,6 +17,7 @@ export {
   handleMessageEvent,
   handleReceiptEvent,
   handleSendConfirmationEvent,
+  handleSendFailedEvent,
 } from "./message-handlers.js";
 
 // Status handlers

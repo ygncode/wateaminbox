@@ -3,6 +3,7 @@ package manager
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log"
 	"strings"
 	"time"
@@ -10,6 +11,7 @@ import (
 	"github.com/nats-io/nats.go"
 	natsclient "github.com/ygncode-lab/whatsapp-web/services/orchestrator/internal/nats"
 	"github.com/ygncode-lab/whatsapp-web/services/orchestrator/internal/types"
+	sharednats "github.com/ygncode-lab/whatsapp-web/services/shared/nats"
 )
 
 // Handlers handles NATS command messages for worker management.
@@ -228,14 +230,19 @@ func (h *Handlers) publishStatusResponse(companyID, connectionID, status, errorM
 	}
 }
 
-// PublishConnectionStatus publishes a connection status event.
+// PublishConnectionStatus publishes a connection status event using WhatsAppEvent format.
+// This format matches what the whatsapp worker uses and what the API expects.
 func (h *Handlers) PublishConnectionStatus(companyID, connectionID, status, reason string) {
-	event := types.ConnectionStatusEvent{
+	// Use WhatsAppEvent format (same as whatsapp worker) for API compatibility
+	event := sharednats.WhatsAppEvent{
+		Type:         sharednats.EventTypeConnectionStatus, // "connection_status"
 		CompanyID:    companyID,
 		ConnectionID: connectionID,
-		Status:       status,
-		Reason:       reason,
-		Timestamp:    time.Now(),
+		Payload: sharednats.ConnectionStatusPayload{
+			Status: status,
+			Reason: reason,
+		},
+		Timestamp: time.Now().Format(time.RFC3339),
 	}
 
 	data, err := json.Marshal(event)
@@ -244,8 +251,13 @@ func (h *Handlers) PublishConnectionStatus(companyID, connectionID, status, reas
 		return
 	}
 
-	if err := h.nats.PublishEvent(types.SubjectEvents, data); err != nil {
-		log.Printf("Failed to publish connection status event: %v", err)
+	// Use correct subject format: WHATSAPP.events.{companyId}.{connectionId}.connection_status
+	// This matches the API's subscription pattern: WHATSAPP.events.>
+	subject := fmt.Sprintf(sharednats.SubjectConnectionStatus, companyID, connectionID)
+	if err := h.nats.PublishEvent(subject, data); err != nil {
+		log.Printf("Failed to publish connection status event to %s: %v", subject, err)
+	} else {
+		log.Printf("Published connection status event: company=%s connection=%s status=%s", companyID, connectionID, status)
 	}
 }
 

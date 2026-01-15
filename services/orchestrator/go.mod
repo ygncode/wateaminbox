@@ -5,6 +5,7 @@ go 1.24.0
 toolchain go1.24.2
 
 require (
+	github.com/lib/pq v1.10.9
 	github.com/nats-io/nats.go v1.31.0
 	github.com/stretchr/testify v1.11.1
 	github.com/ygncode-lab/whatsapp-web/services/shared v0.0.0

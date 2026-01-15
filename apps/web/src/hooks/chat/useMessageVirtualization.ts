@@ -133,12 +133,11 @@ export function useMessageVirtualization({
       items.length > prevItemsLengthRef.current &&
       isAtBottom
     ) {
-      // Use setTimeout to avoid flushSync being called during React's render cycle
-      // (TanStack Virtual's scrollToIndex with smooth behavior triggers flushSync internally)
+      // Use setTimeout to ensure scroll happens after render cycle completes
       const timeoutId = setTimeout(() => {
         virtualizer.scrollToIndex(items.length - 1, {
           align: "end",
-          behavior: "smooth",
+          behavior: "auto",
         });
       }, 0);
       prevItemsLengthRef.current = items.length;
@@ -194,7 +193,7 @@ export function useMessageVirtualization({
       pendingHighlightedMessageIdRef.current = null;
       virtualizerRef.current.scrollToIndex(messageIndex, {
         align: "center",
-        behavior: "smooth",
+        behavior: "auto",
       });
     } else if (hasNextPage && !isFetchingNextPage && fetchNextPage) {
       // Message not found but more pages available - load next page
@@ -220,7 +219,7 @@ export function useMessageVirtualization({
     if (items.length > 0) {
       virtualizer.scrollToIndex(items.length - 1, {
         align: "end",
-        behavior: "smooth",
+        behavior: "auto",
       });
     }
   }, [items.length, virtualizer]);

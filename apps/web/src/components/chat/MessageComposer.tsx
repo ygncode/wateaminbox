@@ -28,6 +28,7 @@ interface MessageComposerProps {
   onSendMessage: (content: string, replyToMessageId?: string) => void;
   onAttachFile: (file: File, type: "image" | "document") => void;
   disabled?: boolean;
+  connectionStatus?: string;
 }
 
 export function MessageComposer({
@@ -37,7 +38,11 @@ export function MessageComposer({
   onSendMessage,
   onAttachFile,
   disabled = false,
+  connectionStatus,
 }: MessageComposerProps) {
+  // Disable input when connection is not "connected"
+  const isDisconnected = connectionStatus && connectionStatus !== "connected";
+  const isInputDisabled = disabled || isDisconnected;
   const [message, setMessage] = useState("");
   const [showAttachmentMenu, setShowAttachmentMenu] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
@@ -92,7 +97,7 @@ export function MessageComposer({
   // Restore focus after renders if we just sent a message
   // This runs after every render to catch focus loss from flushSync
   useLayoutEffect(() => {
-    if (shouldRestoreFocusRef.current && textareaRef.current && !disabled) {
+    if (shouldRestoreFocusRef.current && textareaRef.current && !isInputDisabled) {
       textareaRef.current.focus();
       shouldRestoreFocusRef.current = false;
     }
@@ -157,7 +162,7 @@ export function MessageComposer({
 
   const handleSend = () => {
     const trimmedMessage = message.trim();
-    if (!trimmedMessage || disabled || !conversationId) return;
+    if (!trimmedMessage || isInputDisabled || !conversationId) return;
 
     // Just clear typing state - don't send typing:stop to avoid WhatsApp cooldown
     // WhatsApp will auto-dismiss the indicator
@@ -177,7 +182,7 @@ export function MessageComposer({
     // Fallback: restore focus after a delay to catch focus loss from sibling re-renders
     // The flushSync from MessageThread can steal focus after MessageComposer has rendered
     setTimeout(() => {
-      if (textareaRef.current && !disabled) {
+      if (textareaRef.current && !isInputDisabled) {
         textareaRef.current.focus();
         shouldRestoreFocusRef.current = false;
       }
@@ -236,6 +241,13 @@ export function MessageComposer({
 
   return (
     <div className="bg-gray-100 dark:bg-dark-secondary border-t border-gray-200 dark:border-dark-border safe-area-bottom">
+      {/* Disconnected banner */}
+      {isDisconnected && (
+        <div className="bg-yellow-50 dark:bg-yellow-900/20 text-yellow-800 dark:text-yellow-200 text-sm px-4 py-2 text-center border-b border-yellow-200 dark:border-yellow-800/30">
+          WhatsApp is disconnected. Messages cannot be sent.
+        </div>
+      )}
+
       {/* Reply preview */}
       {replyToMessage && (
         <div className="px-4 pt-2">
@@ -394,16 +406,22 @@ export function MessageComposer({
         </div>
 
         {/* Text input */}
-        <div className="flex-1 bg-white dark:bg-dark-tertiary rounded-xl border border-gray-200 dark:border-dark-border focus-within:border-whatsapp-green transition-colors">
+        <div className={`flex-1 rounded-xl border transition-colors ${
+          isInputDisabled
+            ? "bg-gray-100 dark:bg-dark-tertiary border-gray-200 dark:border-dark-border opacity-60"
+            : "bg-white dark:bg-dark-tertiary border-gray-200 dark:border-dark-border focus-within:border-whatsapp-green"
+        }`}>
           <textarea
             ref={textareaRef}
             value={message}
             onChange={handleInputChange}
             onKeyDown={handleKeyDown}
-            placeholder="Type a message"
-            disabled={disabled}
+            placeholder={isDisconnected ? "Disconnected..." : "Type a message"}
+            disabled={isInputDisabled}
             rows={1}
-            className="w-full px-4 py-2 bg-transparent resize-none focus:outline-none text-gray-900 dark:text-dark-text-primary placeholder-gray-500 dark:placeholder-dark-text-tertiary max-h-[150px]"
+            className={`w-full px-4 py-2 bg-transparent resize-none focus:outline-none text-gray-900 dark:text-dark-text-primary placeholder-gray-500 dark:placeholder-dark-text-tertiary max-h-[150px] ${
+              isInputDisabled ? "cursor-not-allowed" : ""
+            }`}
             style={{ minHeight: "40px" }}
           />
         </div>
@@ -411,9 +429,9 @@ export function MessageComposer({
         {/* Send button */}
         <button
           onClick={handleSend}
-          disabled={!message.trim() || disabled}
+          disabled={!message.trim() || isInputDisabled}
           className={`flex-shrink-0 flex h-11 w-11 md:h-10 md:w-10 items-center justify-center rounded-full transition-colors touch-manipulation ${
-            message.trim() && !disabled
+            message.trim() && !isInputDisabled
               ? "bg-whatsapp-green text-white hover:bg-whatsapp-dark-green active:bg-whatsapp-dark-green"
               : "bg-gray-200 dark:bg-dark-tertiary text-gray-400 dark:text-dark-text-tertiary cursor-not-allowed"
           }`}

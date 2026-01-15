@@ -43,6 +43,7 @@ type (
 	ContactPayload          = sharednats.ContactPayload
 	ProfilePicturePayload   = sharednats.ProfilePicturePayload
 	SendConfirmationPayload = sharednats.SendConfirmationPayload
+	SendFailedPayload       = sharednats.SendFailedPayload
 	ReactionPayload         = sharednats.ReactionPayload
 	SyncStatusPayload       = sharednats.SyncStatusPayload
 	DownloadRequest         = sharednats.DownloadRequest
@@ -350,6 +351,25 @@ func (p *Publisher) PublishSendConfirmation(pendingMessageID, messageID string, 
 		Timestamp: time.Now().Format(time.RFC3339),
 	}
 
+	subject := fmt.Sprintf(SubjectSendConfirmation, p.companyID, p.connectionID)
+	return p.publish(subject, event)
+}
+
+// PublishSendFailed publishes a send failure event.
+// This is called when a message fails to send after all retry attempts.
+func (p *Publisher) PublishSendFailed(pendingMessageID, reason string) error {
+	event := WhatsAppEvent{
+		Type:         sharednats.EventTypeSendFailed,
+		CompanyID:    p.companyID,
+		ConnectionID: p.connectionID,
+		Payload: SendFailedPayload{
+			PendingMessageID: pendingMessageID,
+			Reason:           reason,
+		},
+		Timestamp: time.Now().Format(time.RFC3339),
+	}
+
+	// Use the same subject pattern as send_confirmation
 	subject := fmt.Sprintf(SubjectSendConfirmation, p.companyID, p.connectionID)
 	return p.publish(subject, event)
 }

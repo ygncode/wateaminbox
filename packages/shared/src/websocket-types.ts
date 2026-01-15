@@ -22,12 +22,14 @@ export type ServerToClientEventType =
   | 'qr'
   | 'connected'
   | 'disconnected'
+  | 'connection:status'
   // Message events
   | 'message'
   | 'message:new'
   | 'message:status'
   | 'message:deleted'
   | 'message:reaction'
+  | 'message:failed'
   // Conversation events
   | 'conversation:updated'
   | 'conversation:read'
@@ -50,6 +52,7 @@ export type ServerToClientEventType =
   | 'sync:interrupted'
   // Notification events
   | 'notification:new'
+  | 'notification:toast'
   // System events
   | 'error'
   | 'pong'
@@ -162,6 +165,12 @@ export interface WhatsAppDisconnectedPayload {
   connectionId?: string
 }
 
+export interface WorkerConnectionStatusPayload {
+  status: 'error' | 'failed' | 'connecting' | 'connected'
+  reason: string
+  connectionId?: string
+}
+
 // --- Message Payloads ---
 
 export interface NewMessagePayload {
@@ -186,6 +195,13 @@ export interface MessageReactionPayload {
   from: string
   emoji: string
   timestamp: string
+}
+
+export interface MessageFailedPayload {
+  messageId: string
+  conversationId: string
+  reason: string
+  connectionId?: string
 }
 
 // --- Conversation Payloads ---
@@ -254,6 +270,13 @@ export interface NotificationPayload {
   // Empty payload - frontend will refetch notification count
 }
 
+export interface ToastNotificationPayload {
+  type: 'success' | 'error' | 'warning' | 'info'
+  title: string
+  message: string
+  connectionId?: string
+}
+
 // --- Error Payloads ---
 
 export interface ErrorPayload {
@@ -317,11 +340,13 @@ export function isServerToClientEventType(type: string): type is ServerToClientE
     'qr',
     'connected',
     'disconnected',
+    'connection:status',
     'message',
     'message:new',
     'message:status',
     'message:deleted',
     'message:reaction',
+    'message:failed',
     'conversation:updated',
     'conversation:read',
     'contact',
@@ -337,6 +362,7 @@ export function isServerToClientEventType(type: string): type is ServerToClientE
     'sync:complete',
     'sync:interrupted',
     'notification:new',
+    'notification:toast',
     'error',
     'pong',
     'send_ack',

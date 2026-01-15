@@ -7,6 +7,11 @@ import type {
   TypingPayload,
   WebSocketClient,
 } from "../../lib/websocket";
+import type {
+  MessageFailedPayload,
+  ToastNotificationPayload,
+  WorkerConnectionStatusPayload,
+} from "@whatsapp-web/shared";
 
 // WhatsApp typing payload (different from internal TypingPayload)
 export interface WhatsAppTypingPayload {
@@ -36,7 +41,10 @@ export type {
   ConversationUpdatedPayload,
   ErrorPayload,
   MessageStatusPayload,
+  MessageFailedPayload,
   NewMessagePayload,
   PresencePayload,
+  ToastNotificationPayload,
   TypingPayload,
+  WorkerConnectionStatusPayload,
 };

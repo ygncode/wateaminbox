@@ -20,6 +20,10 @@ type Config struct {
 	WhatsAppBinaryPath  string
 	DefaultNATSURL      string
 	HealthCheckInterval time.Duration
+	DatabaseURL         string        // Database URL for worker registry persistence
+	AutoRestartEnabled  bool          // Enable auto-restart on crash
+	AutoRestartMaxRetries int         // Max restart attempts (default: 5)
+	AutoRestartBackoff  time.Duration // Base backoff between restarts (default: 5s)
 }
 
 // Manager handles WhatsApp worker process lifecycle.
@@ -32,7 +36,8 @@ type Manager struct {
 	wg           sync.WaitGroup
 	handlers     *Handlers
 	startedAt    time.Time
-	shuttingDown bool // prevents NATS publishes during shutdown
+	shuttingDown bool            // prevents NATS publishes during shutdown
+	registry     *WorkerRegistry // persistent storage for worker state
 }
 
 // WorkerProcess represents a managed WhatsApp worker.
@@ -46,6 +51,8 @@ type WorkerProcess struct {
 	PID          int
 	StartedAt    time.Time
 	LastActivity time.Time
+	RestartCount int       // Number of restart attempts
+	LastCrashAt  time.Time // When last crash occurred
 	cmd          *exec.Cmd
 	cancelFunc   context.CancelFunc
 	healthCancel context.CancelFunc
@@ -59,10 +66,13 @@ func (w *WorkerProcess) Copy() *WorkerProcess {
 		CompanyID:    w.CompanyID,
 		ConnectionID: w.ConnectionID,
 		TenantSchema: w.TenantSchema,
+		DatabaseURL:  w.DatabaseURL,
 		Status:       w.Status,
 		PID:          w.PID,
 		StartedAt:    w.StartedAt,
 		LastActivity: w.LastActivity,
+		RestartCount: w.RestartCount,
+		LastCrashAt:  w.LastCrashAt,
 	}
 }
 
@@ -76,6 +86,13 @@ func New(cfg Config) *Manager {
 	}
 	if cfg.DefaultNATSURL == "" {
 		cfg.DefaultNATSURL = "nats://localhost:4222"
+	}
+	// Auto-restart defaults
+	if cfg.AutoRestartMaxRetries == 0 {
+		cfg.AutoRestartMaxRetries = 5
+	}
+	if cfg.AutoRestartBackoff == 0 {
+		cfg.AutoRestartBackoff = 5 * time.Second
 	}
 
 	return &Manager{
@@ -91,8 +108,27 @@ func (m *Manager) Start(ctx context.Context) error {
 
 	m.ctx, m.cancel = context.WithCancel(ctx)
 
-	// Initialize handlers
+	// Initialize handlers FIRST so we can publish events during recovery
 	m.handlers = NewHandlers(m, m.config.NATSClient)
+
+	// Initialize worker registry for persistence (optional - works without it)
+	if m.config.DatabaseURL != "" {
+		registry, err := NewWorkerRegistry(m.config.DatabaseURL)
+		if err != nil {
+			log.Printf("Warning: failed to initialize worker registry: %v", err)
+			log.Println("Continuing without persistence - workers will not survive orchestrator restart")
+		} else {
+			m.registry = registry
+			log.Println("Worker registry initialized successfully")
+
+			// Recover existing workers from database
+			if err := m.recoverOrphanedWorkers(m.ctx); err != nil {
+				log.Printf("Warning: failed to recover workers: %v", err)
+			}
+		}
+	} else {
+		log.Println("No database URL configured - worker persistence disabled")
+	}
 
 	// Start command subscription
 	if err := m.handlers.StartSubscription(m.ctx); err != nil {
@@ -145,6 +181,13 @@ func (m *Manager) Stop(ctx context.Context) error {
 
 	// Wait for all goroutines to finish
 	m.wg.Wait()
+
+	// Close the worker registry
+	if m.registry != nil {
+		if err := m.registry.Close(); err != nil {
+			log.Printf("Error closing worker registry: %v", err)
+		}
+	}
 
 	log.Println("Process manager stopped")
 	return nil
@@ -224,6 +267,13 @@ func (m *Manager) SpawnWorker(ctx context.Context, companyID, connectionID, tena
 	m.workers[connectionID] = worker
 
 	log.Printf("Worker spawned for company %s, connection %s with PID %d", companyID, connectionID, worker.PID)
+
+	// Register worker in persistent storage
+	if m.registry != nil {
+		if err := m.registry.RegisterWorker(ctx, worker); err != nil {
+			log.Printf("Warning: failed to register worker in registry: %v", err)
+		}
+	}
 
 	// Start health check goroutine
 	healthCtx, healthCancel := context.WithCancel(m.ctx)
@@ -311,6 +361,13 @@ func (m *Manager) stopWorkerInternal(ctx context.Context, companyID, connectionI
 	// Cancel worker context
 	if worker.cancelFunc != nil {
 		worker.cancelFunc()
+	}
+
+	// Remove from persistent storage
+	if m.registry != nil {
+		if err := m.registry.RemoveWorker(ctx, connectionID); err != nil {
+			log.Printf("Warning: failed to remove worker from registry: %v", err)
+		}
 	}
 
 	// Update status
@@ -416,12 +473,12 @@ func (m *Manager) healthCheckWorker(ctx context.Context, connectionID string) {
 				return
 			}
 
-			// Check if process is still running
-			if worker.cmd != nil && worker.cmd.Process != nil {
-				// Try to get process state
+			// Check if process is still running using PID
+			// This works for both spawned workers (with cmd) and recovered workers (without cmd)
+			if worker.PID > 0 {
 				process, err := os.FindProcess(worker.PID)
 				if err != nil {
-					log.Printf("Health check: worker %s process not found", connectionID)
+					log.Printf("Health check: worker %s process not found (PID %d)", connectionID, worker.PID)
 					m.handleWorkerFailure(connectionID, "process not found")
 					return
 				}
@@ -429,7 +486,7 @@ func (m *Manager) healthCheckWorker(ctx context.Context, connectionID string) {
 				// Send signal 0 to check if process exists
 				err = process.Signal(syscall.Signal(0))
 				if err != nil {
-					log.Printf("Health check: worker %s process dead: %v", connectionID, err)
+					log.Printf("Health check: worker %s process dead (PID %d): %v", connectionID, worker.PID, err)
 					m.handleWorkerFailure(connectionID, "process dead")
 					return
 				}
@@ -468,23 +525,191 @@ func (m *Manager) monitorWorkerProcess(ctx context.Context, connectionID string,
 
 // handleWorkerFailure handles a worker failure.
 func (m *Manager) handleWorkerFailure(connectionID, reason string) {
+	log.Printf("handleWorkerFailure called for %s: %s", connectionID, reason)
 	m.mu.Lock()
 	worker, exists := m.workers[connectionID]
-	var companyID string
-	if exists {
-		companyID = worker.CompanyID
-		worker.Status = types.StatusError
-		// Cancel health check if running
-		if worker.healthCancel != nil {
-			worker.healthCancel()
+	if !exists {
+		log.Printf("Worker %s not found in workers map, cannot handle failure", connectionID)
+		m.mu.Unlock()
+		return
+	}
+	log.Printf("Worker %s found in map, processing failure...", connectionID)
+
+	companyID := worker.CompanyID
+	worker.Status = types.StatusError
+	worker.LastCrashAt = time.Now()
+
+	// Cancel health check if running
+	if worker.healthCancel != nil {
+		worker.healthCancel()
+	}
+
+	// Get restart count from registry or use in-memory count
+	restartCount := worker.RestartCount
+	if m.registry != nil {
+		if count, err := m.registry.GetRestartCount(m.ctx, connectionID); err == nil {
+			restartCount = count
 		}
 	}
+
+	// Copy worker info for restart (before releasing lock)
+	workerCopy := worker.Copy()
+	workerCopy.RestartCount = restartCount
 	m.mu.Unlock()
 
 	// Publish error event
-	if companyID != "" {
-		m.publishConnectionStatus(companyID, connectionID, types.StatusError, reason)
+	m.publishConnectionStatus(companyID, connectionID, types.StatusError, reason)
+
+	// Check if auto-restart is enabled and under retry limit
+	if m.config.AutoRestartEnabled && restartCount < m.config.AutoRestartMaxRetries {
+		log.Printf("Auto-restart enabled for %s (attempt %d/%d)", connectionID, restartCount+1, m.config.AutoRestartMaxRetries)
+		go m.scheduleRestart(workerCopy, reason)
+	} else if restartCount >= m.config.AutoRestartMaxRetries {
+		log.Printf("Worker %s exceeded max restart attempts (%d)", connectionID, m.config.AutoRestartMaxRetries)
+		// Publish permanent failure event
+		m.publishConnectionStatus(companyID, connectionID, "failed", "max restart attempts exceeded")
+
+		// Clean up from registry since we're not restarting
+		if m.registry != nil {
+			if err := m.registry.RemoveWorker(m.ctx, connectionID); err != nil {
+				log.Printf("Warning: failed to remove worker from registry: %v", err)
+			}
+		}
+
+		// Remove from in-memory tracking
+		m.mu.Lock()
+		delete(m.workers, connectionID)
+		m.mu.Unlock()
 	}
+}
+
+// scheduleRestart schedules a worker restart with exponential backoff.
+func (m *Manager) scheduleRestart(worker *WorkerProcess, reason string) {
+	// Exponential backoff: 5s, 10s, 20s, 40s, 80s (capped at 2 minutes)
+	backoff := m.config.AutoRestartBackoff * time.Duration(1<<worker.RestartCount)
+	if backoff > 2*time.Minute {
+		backoff = 2 * time.Minute
+	}
+
+	log.Printf("Scheduling restart for %s in %v (attempt %d/%d, reason: %s)",
+		worker.ConnectionID, backoff, worker.RestartCount+1, m.config.AutoRestartMaxRetries, reason)
+
+	time.Sleep(backoff)
+
+	// Check if we're still supposed to restart (not shutting down)
+	m.mu.RLock()
+	shuttingDown := m.shuttingDown
+	m.mu.RUnlock()
+
+	if shuttingDown {
+		log.Printf("Skipping restart for %s - orchestrator is shutting down", worker.ConnectionID)
+		return
+	}
+
+	// Increment restart count in registry
+	if m.registry != nil {
+		if err := m.registry.IncrementRestartCount(m.ctx, worker.ConnectionID); err != nil {
+			log.Printf("Warning: failed to increment restart count: %v", err)
+		}
+	}
+
+	// Respawn the worker
+	log.Printf("Restarting worker %s...", worker.ConnectionID)
+	err := m.SpawnWorker(m.ctx, worker.CompanyID, worker.ConnectionID, worker.TenantSchema, worker.DatabaseURL)
+	if err != nil {
+		log.Printf("Auto-restart failed for %s: %v", worker.ConnectionID, err)
+		// The next failure will trigger another restart attempt if under limit
+	}
+}
+
+// recoverOrphanedWorkers recovers workers from the database after orchestrator restart.
+func (m *Manager) recoverOrphanedWorkers(ctx context.Context) error {
+	if m.registry == nil {
+		return nil
+	}
+
+	workers, err := m.registry.GetAllWorkers(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get workers from registry: %w", err)
+	}
+
+	if len(workers) == 0 {
+		log.Println("No workers to recover from registry")
+		return nil
+	}
+
+	log.Printf("Found %d workers in registry, checking status...", len(workers))
+
+	for _, w := range workers {
+		// Check if process is still running
+		process, err := os.FindProcess(w.PID)
+		if err != nil {
+			// Process doesn't exist - clean up registry and notify API
+			log.Printf("Worker %s (PID %d) not found, cleaning up and notifying API", w.ConnectionID, w.PID)
+			m.registry.RemoveWorker(ctx, w.ConnectionID)
+			// Publish disconnected status so the API updates the database
+			m.publishConnectionStatus(w.CompanyID, w.ConnectionID, types.StatusError, "worker process not found after orchestrator restart")
+			continue
+		}
+
+		// Signal 0 checks if process exists without affecting it
+		err = process.Signal(syscall.Signal(0))
+		if err != nil {
+			// Process is dead - clean up, notify API, and optionally respawn
+			log.Printf("Worker %s (PID %d) is dead, cleaning up and notifying API", w.ConnectionID, w.PID)
+			m.registry.RemoveWorker(ctx, w.ConnectionID)
+			// Publish error status so the API updates the database
+			m.publishConnectionStatus(w.CompanyID, w.ConnectionID, types.StatusError, "worker process died")
+
+			// Trigger respawn if auto-restart enabled
+			if m.config.AutoRestartEnabled && w.RestartCount < m.config.AutoRestartMaxRetries {
+				workerProcess := &WorkerProcess{
+					ConnectionID: w.ConnectionID,
+					CompanyID:    w.CompanyID,
+					TenantSchema: w.TenantSchema,
+					DatabaseURL:  w.DatabaseURL,
+					RestartCount: w.RestartCount,
+				}
+				go m.scheduleRestart(workerProcess, "recovered after orchestrator restart")
+			}
+			continue
+		}
+
+		// Process is alive - re-add to in-memory tracking
+		log.Printf("Recovered worker %s (PID %d)", w.ConnectionID, w.PID)
+
+		// Create a WorkerProcess from the record
+		// Note: We don't have the cmd handle, so we can't cleanly stop this worker
+		// But we can track it and monitor its health
+		worker := &WorkerProcess{
+			ID:           w.ConnectionID,
+			CompanyID:    w.CompanyID,
+			ConnectionID: w.ConnectionID,
+			TenantSchema: w.TenantSchema,
+			DatabaseURL:  w.DatabaseURL,
+			Status:       w.Status,
+			PID:          w.PID,
+			StartedAt:    w.StartedAt,
+			LastActivity: w.LastHeartbeat,
+			RestartCount: w.RestartCount,
+		}
+
+		m.mu.Lock()
+		m.workers[w.ConnectionID] = worker
+		m.mu.Unlock()
+
+		// Start health check goroutine for this recovered worker
+		healthCtx, healthCancel := context.WithCancel(m.ctx)
+		worker.healthCancel = healthCancel
+
+		m.wg.Add(1)
+		go m.healthCheckWorker(healthCtx, w.ConnectionID)
+
+		// Publish status to notify API that this connection is alive
+		m.publishConnectionStatus(w.CompanyID, w.ConnectionID, w.Status, "recovered after orchestrator restart")
+	}
+
+	return nil
 }
 
 // publishConnectionStatus publishes a connection status event.
