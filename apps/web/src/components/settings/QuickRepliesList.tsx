@@ -1,6 +1,6 @@
 import { Loader2, Zap } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import type { QuickReply } from "@/lib/api";
+import type { QuickReply } from "@/lib/api/types";
 import { QuickReplyCard } from "./QuickReplyCard";
 
 interface QuickRepliesListProps {

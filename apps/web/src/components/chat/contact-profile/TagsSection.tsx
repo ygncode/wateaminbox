@@ -2,7 +2,10 @@ import { Plus, Tag, X } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { RightPanelSection } from "@/components/layout/right-panel";
-import { Badge, Button, Input, Skeleton } from "@/components/ui";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   useAddContactTag,
   useCreateTag,

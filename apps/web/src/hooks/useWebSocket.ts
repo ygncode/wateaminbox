@@ -1,4 +1,5 @@
 import { useCallback, useEffect } from "react";
+import { useShallow } from "zustand/react/shallow";
 import { getAccessToken } from "../lib/api";
 import { useWebSocketStore } from "../stores/websocket-store";
 import type { UseWebSocketOptions } from "./websocket/types";
@@ -76,15 +77,18 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
 }
 
 // Hook for using WebSocket in components that don't need the full API
+// Uses useShallow to prevent unnecessary re-renders when object reference changes
 export function useWebSocketStatus() {
-  return useWebSocketStore((state) => ({
-    status: state.status,
-    isConnected: state.status === "connected",
-    isConnecting: state.status === "connecting",
-    error: state.error,
-    lastConnectedAt: state.lastConnectedAt,
-    lastDisconnectedAt: state.lastDisconnectedAt,
-  }));
+  return useWebSocketStore(
+    useShallow((state) => ({
+      status: state.status,
+      isConnected: state.status === "connected",
+      isConnecting: state.status === "connecting",
+      error: state.error,
+      lastConnectedAt: state.lastConnectedAt,
+      lastDisconnectedAt: state.lastDisconnectedAt,
+    })),
+  );
 }
 
 // Re-export types and sub-hooks for direct usage

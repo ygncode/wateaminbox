@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Skeleton } from "@/components/ui";
+import { Skeleton } from "@/components/ui/skeleton";
 import { formatNumber } from "@/hooks/analytics";
 import { cn } from "@/lib/utils";
 

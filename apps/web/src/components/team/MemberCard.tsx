@@ -1,6 +1,8 @@
 import { Crown, Shield, ShieldCheck, Trash2 } from "lucide-react";
 import { useMemo } from "react";
-import { Avatar, AvatarFallback, Badge, EllipsisMenu } from "@/components/ui";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
+import { EllipsisMenu } from "@/components/ui/ellipsis-menu";
 import type { EllipsisMenuItem } from "@/components/ui/ellipsis-menu";
 import type { MemberCardProps } from "./types";
 

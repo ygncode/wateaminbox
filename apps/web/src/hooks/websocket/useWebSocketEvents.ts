@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useCallback, useEffect } from "react";
 import { toast } from "sonner";
 import { useChatStore } from "../../stores/chat-store";
 import type {
@@ -47,9 +47,16 @@ export function useWebSocketEvents(
 ) {
   const { getClient, handleTypingStart, handleTypingStop, setError } = deps;
 
-  const addMessage = useChatStore((state) => state.addMessage);
-  const updateMessageStatus = useChatStore(
-    (state) => state.updateMessageStatus,
+  // Access actions via getState() to avoid unnecessary subscriptions
+  const addMessage = useCallback(
+    (...args: Parameters<ReturnType<typeof useChatStore.getState>["addMessage"]>) =>
+      useChatStore.getState().addMessage(...args),
+    [],
+  );
+  const updateMessageStatus = useCallback(
+    (...args: Parameters<ReturnType<typeof useChatStore.getState>["updateMessageStatus"]>) =>
+      useChatStore.getState().updateMessageStatus(...args),
+    [],
   );
 
   useEffect(() => {

@@ -5,11 +5,13 @@ import {
   deleteNotification,
   getNotifications,
   getUnreadNotificationCount,
-  type InAppNotification,
   markAllNotificationsAsRead,
   markNotificationAsRead,
-  type NotificationListParams,
-} from "@/lib/api";
+} from "@/lib/api/notifications";
+import type {
+  InAppNotification,
+  NotificationListParams,
+} from "@/lib/api/types";
 import { useWebSocketContext } from "@/contexts/WebSocketProvider";
 import type { NotificationPayload } from "@/lib/websocket";
 
@@ -35,6 +37,7 @@ export function useNotificationCenter(params?: NotificationListParams) {
     queryKey: ["notifications", effectiveParams],
     queryFn: () => getNotifications(effectiveParams),
     staleTime: 30 * 1000, // 30 seconds
+    gcTime: 5 * 60 * 1000, // 5 minutes
     refetchInterval: 60 * 1000, // Refetch every minute
   });
 
@@ -47,6 +50,7 @@ export function useNotificationCenter(params?: NotificationListParams) {
     queryKey: ["notifications", "count"],
     queryFn: getUnreadNotificationCount,
     staleTime: 30 * 1000,
+    gcTime: 5 * 60 * 1000, // 5 minutes
     refetchInterval: 30 * 1000, // Refetch count more frequently
   });
 

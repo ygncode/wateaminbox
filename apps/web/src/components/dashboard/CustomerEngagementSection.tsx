@@ -1,6 +1,6 @@
 import { Activity, ArrowRightLeft, Image, Reply, Zap } from "lucide-react";
-import { Skeleton } from "@/components/ui";
-import { useAsyncData } from "@/hooks";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useAsyncData } from "@/hooks/useAsyncData";
 import {
   formatNumber,
   useEngagementMetrics,

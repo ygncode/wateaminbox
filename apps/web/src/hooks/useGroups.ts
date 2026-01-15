@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { api } from "@/lib/api";
+import { api } from "@/lib/api/client";
 import { createQueryKeyFactory } from "./query-keys";
 
 /**
@@ -99,6 +99,7 @@ export function useGroups(search?: string, limit?: number, offset?: number) {
       return response;
     },
     staleTime: 30_000, // 30 seconds
+    gcTime: 300_000, // 5 minutes
   });
 }
 
@@ -115,6 +116,7 @@ export function useGroup(groupId: string | null) {
     },
     enabled: !!groupId,
     staleTime: 30_000, // 30 seconds
+    gcTime: 300_000, // 5 minutes
   });
 }
 
@@ -183,6 +185,7 @@ export function useGroupAdminStatus(groupId: string | null) {
     },
     enabled: !!groupId,
     staleTime: 30_000, // 30 seconds
+    gcTime: 300_000, // 5 minutes
   });
 }
 

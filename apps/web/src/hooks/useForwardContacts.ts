@@ -4,7 +4,7 @@
 
 import { useQuery, type QueryClient } from "@tanstack/react-query";
 import { useMemo } from "react";
-import { api, buildQueryString, getAccessToken, getCompanyId } from "@/lib/api";
+import { api, buildQueryString, getAccessToken, getCompanyId } from "@/lib/api/client";
 import {
   type ContactsListResponse,
   transformContactToChat,

@@ -1,5 +1,5 @@
 import { Loader2, MessageCircle, Plus } from "lucide-react";
-import { Button } from "@/components/ui";
+import { Button } from "@/components/ui/button";
 
 interface EmptyConnectionsViewProps {
   onAdd: () => void;

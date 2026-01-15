@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { api, buildQueryString } from "@/lib/api";
+import { api, buildQueryString } from "@/lib/api/client";
 import { queryKeys } from "./query-keys";
 
 export interface MessageSearchResult {

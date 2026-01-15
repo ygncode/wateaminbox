@@ -1,15 +1,17 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import {
-  type CreateQuickReplyInput,
   createQuickReply,
   deleteQuickReply,
   getQuickReplies,
   getQuickReplyByShortcut,
-  type QuickReply,
-  type QuickReplyListParams,
-  type UpdateQuickReplyInput,
   updateQuickReply,
-} from "@/lib/api";
+} from "@/lib/api/quick-replies";
+import type {
+  CreateQuickReplyInput,
+  QuickReply,
+  QuickReplyListParams,
+  UpdateQuickReplyInput,
+} from "@/lib/api/types";
 import { useQueryInvalidation } from "./query";
 
 /**
@@ -28,6 +30,7 @@ export function useQuickReplies(params: QuickReplyListParams = {}) {
     queryKey: ["quick-replies", params],
     queryFn: () => getQuickReplies(params),
     staleTime: 5 * 60 * 1000, // 5 minutes
+    gcTime: 15 * 60 * 1000, // 15 minutes
   });
 
   // Create quick reply
@@ -143,6 +146,7 @@ export function useQuickReplySearch(shortcut: string) {
     queryFn: () => getQuickReplyByShortcut(shortcut),
     enabled: shortcut.length >= 1,
     staleTime: 30 * 1000, // 30 seconds
+    gcTime: 5 * 60 * 1000, // 5 minutes
   });
 
   return {

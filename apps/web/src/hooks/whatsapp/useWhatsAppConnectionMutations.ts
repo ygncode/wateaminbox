@@ -1,15 +1,15 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useCallback } from "react";
 import { nowMs } from "@whatsapp-web/shared";
+import { ApiRequestError } from "@/lib/api/client";
 import {
-  ApiRequestError,
   createWhatsAppConnection,
   deleteWhatsAppConnection,
   disconnectWhatsAppConnection,
   reconnectWhatsAppConnection,
   updateWhatsAppConnection,
-  type WhatsAppConnection,
-} from "@/lib/api";
+} from "@/lib/api/whatsapp";
+import type { WhatsAppConnection } from "@/lib/api/types";
 import { queryKeys } from "../query-keys";
 import type { ConnectionState } from "./types";
 

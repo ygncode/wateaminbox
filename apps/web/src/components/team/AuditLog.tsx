@@ -10,7 +10,10 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { formatAuditTime } from "@whatsapp-web/shared";
-import { Badge, Button, Input, Skeleton } from "@/components/ui";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   type AuditAction,

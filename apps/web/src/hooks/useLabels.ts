@@ -5,14 +5,16 @@ import {
   getLabelSyncStatus,
   getTagsWithLabelStatus,
   getWhatsAppLabels,
-  type LabelSyncStatus,
   linkTagToLabel,
   removeLabelFromContact,
-  type TagWithLabelStatus,
   triggerLabelSync,
   unlinkTagFromLabel,
-  type WhatsAppLabel,
-} from "@/lib/api";
+} from "@/lib/api/labels";
+import type {
+  LabelSyncStatus,
+  TagWithLabelStatus,
+  WhatsAppLabel,
+} from "@/lib/api/types";
 import { queryKeys } from "./query-keys";
 import {
   useInvalidate,
@@ -36,6 +38,7 @@ export function useWhatsAppLabels() {
     queryKey: labelKeys.list(),
     queryFn: getWhatsAppLabels,
     staleTime: 60 * 1000, // 1 minute
+    gcTime: 5 * 60 * 1000, // 5 minutes
   });
 }
 
@@ -47,6 +50,7 @@ export function useLabelSyncStatus() {
     queryKey: labelKeys.status(),
     queryFn: getLabelSyncStatus,
     staleTime: 30 * 1000, // 30 seconds
+    gcTime: 5 * 60 * 1000, // 5 minutes
   });
 }
 
@@ -58,6 +62,7 @@ export function useTagsWithLabelStatus() {
     queryKey: labelKeys.tagsWithStatus(),
     queryFn: getTagsWithLabelStatus,
     staleTime: 60 * 1000, // 1 minute
+    gcTime: 5 * 60 * 1000, // 5 minutes
   });
 }
 

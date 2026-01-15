@@ -1,6 +1,7 @@
 import { Loader2, Plus, RefreshCw, Smartphone } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
-import { Button, Skeleton } from "@/components/ui";
+import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useWhatsAppConnections } from "@/hooks/useWhatsAppConnections";
 import { cn } from "@/lib/utils";
 import { injectAnimationStyles, removeAnimationStyles } from "../animations";

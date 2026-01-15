@@ -1,12 +1,13 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Shield, ShieldCheck, X } from "lucide-react";
 import { useForm } from "react-hook-form";
-import { Button, FormField } from "@/components/ui";
+import { Button } from "@/components/ui/button";
+import { FormField } from "@/components/ui/form-field";
 import { useInviteMember } from "@/hooks/useTeam";
 import {
   inviteTeamMemberSchema,
   type InviteTeamMemberFormData,
-} from "@/lib/schemas";
+} from "@/lib/schemas/team";
 import { cn } from "@/lib/utils";
 import type { InviteFormModalProps } from "./types";
 

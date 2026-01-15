@@ -72,6 +72,7 @@ export function useWhatsAppConnection(): WhatsAppConnection {
     queryKey: ["whatsapp", "status"],
     queryFn: getWhatsAppStatus,
     staleTime: 30000, // 30 seconds
+    gcTime: 300000, // 5 minutes
     refetchInterval: 60000, // Refetch every minute
   });
 

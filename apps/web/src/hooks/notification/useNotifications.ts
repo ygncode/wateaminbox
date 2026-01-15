@@ -119,6 +119,7 @@ export function useNotifications(): UseNotificationsReturn {
     queryFn: getNotificationPreferences,
     enabled: isAuthenticated,
     staleTime: 60_000, // 1 minute
+    gcTime: 300_000, // 5 minutes
     retry: 1,
   });
 

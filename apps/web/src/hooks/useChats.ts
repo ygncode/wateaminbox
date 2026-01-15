@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { toDate } from "@whatsapp-web/shared";
 import { useMemo } from "react";
-import { api, buildQueryString, getAccessToken, getCompanyId } from "@/lib/api";
+import { api, buildQueryString, getAccessToken, getCompanyId } from "@/lib/api/client";
 import {
   type ContactsListResponse,
   transformContactToChat,

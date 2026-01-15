@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { api } from "@/lib/api";
+import { api } from "@/lib/api/client";
 import { queryKeys } from "../query-keys";
 
 /**
@@ -35,6 +35,7 @@ export function usePrivateNotes(contactId: string | null) {
     },
     enabled: !!contactId,
     staleTime: 30_000,
+    gcTime: 300_000, // 5 minutes
   });
 }
 

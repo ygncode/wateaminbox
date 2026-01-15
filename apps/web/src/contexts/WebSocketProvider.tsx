@@ -73,21 +73,45 @@ export function WebSocketProvider({
   const queryClientRef = useRef(queryClient);
   queryClientRef.current = queryClient;
 
-  // WebSocket store
+  // WebSocket store - only subscribe to state values, access actions via getState()
   const status = useWebSocketStore((state) => state.status);
   const error = useWebSocketStore((state) => state.error);
-  const setStatus = useWebSocketStore((state) => state.setStatus);
-  const setError = useWebSocketStore((state) => state.setError);
-  const resetWsStore = useWebSocketStore((state) => state.reset);
 
-  // Chat store
-  const addMessage = useChatStore((state) => state.addMessage);
-  const updateMessageStatus = useChatStore(
-    (state) => state.updateMessageStatus,
+  // Actions accessed via getState() to avoid unnecessary subscriptions
+  const setStatus = useCallback(
+    (newStatus: ReturnType<typeof useWebSocketStore.getState>["status"]) =>
+      useWebSocketStore.getState().setStatus(newStatus),
+    [],
   );
-  const addTypingIndicator = useChatStore((state) => state.addTypingIndicator);
-  const removeTypingIndicator = useChatStore(
-    (state) => state.removeTypingIndicator,
+  const setError = useCallback(
+    (e: string | null) => useWebSocketStore.getState().setError(e),
+    [],
+  );
+  const resetWsStore = useCallback(
+    () => useWebSocketStore.getState().reset(),
+    [],
+  );
+
+  // Chat store actions via getState()
+  const addMessage = useCallback(
+    (...args: Parameters<ReturnType<typeof useChatStore.getState>["addMessage"]>) =>
+      useChatStore.getState().addMessage(...args),
+    [],
+  );
+  const updateMessageStatus = useCallback(
+    (...args: Parameters<ReturnType<typeof useChatStore.getState>["updateMessageStatus"]>) =>
+      useChatStore.getState().updateMessageStatus(...args),
+    [],
+  );
+  const addTypingIndicator = useCallback(
+    (...args: Parameters<ReturnType<typeof useChatStore.getState>["addTypingIndicator"]>) =>
+      useChatStore.getState().addTypingIndicator(...args),
+    [],
+  );
+  const removeTypingIndicator = useCallback(
+    (...args: Parameters<ReturnType<typeof useChatStore.getState>["removeTypingIndicator"]>) =>
+      useChatStore.getState().removeTypingIndicator(...args),
+    [],
   );
 
   // Initialize WebSocket client
