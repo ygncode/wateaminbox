@@ -137,10 +137,10 @@ export const ChatList = memo(function ChatList({
           type="button"
           onClick={() => setIsAddContactOpen(true)}
           className="ml-auto p-1.5 text-whatsapp-teal-green hover:bg-whatsapp-teal-green/10 dark:hover:bg-whatsapp-teal-green/20 rounded-full transition-colors flex-shrink-0"
-          title="Add new contact"
+          aria-label="Add new contact"
           data-testid="add-contact-button"
         >
-          <UserPlus className="h-4 w-4" />
+          <UserPlus className="h-4 w-4" aria-hidden="true" />
         </button>
       </div>
 
@@ -156,6 +156,8 @@ export const ChatList = memo(function ChatList({
         className="flex-1 overflow-y-auto"
         role="listbox"
         aria-label="Conversations"
+        aria-live="polite"
+        aria-busy={isLoading}
       >
         {/* Loading State */}
         {isLoading && (

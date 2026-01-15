@@ -109,7 +109,7 @@ export function ConversationSearch({
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="Search in conversation..."
+          placeholder="Search in conversation…"
           className="flex-1 bg-transparent text-sm outline-none text-gray-900 dark:text-dark-text-primary placeholder:text-gray-400 dark:placeholder:text-dark-text-tertiary"
           aria-label="Search messages in conversation"
         />
@@ -136,7 +136,7 @@ export function ConversationSearch({
                 {currentIndex + 1} of {total}
               </>
             ) : isLoading ? (
-              "..."
+              "…"
             ) : (
               "No results"
             )}

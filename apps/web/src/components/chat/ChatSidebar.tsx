@@ -61,11 +61,11 @@ export const ChatSidebar = memo(function ChatSidebar({
           <Link
             to="/settings"
             className="p-2 text-gray-500 dark:text-dark-text-secondary hover:text-gray-700 dark:hover:text-dark-text-primary hover:bg-gray-200 dark:hover:bg-dark-tertiary rounded-full transition-colors"
-            title="Settings"
+            aria-label="Settings"
             onMouseEnter={() => preloadRoute("settings")}
             onFocus={() => preloadRoute("settings")}
           >
-            <Settings className="h-5 w-5" />
+            <Settings className="h-5 w-5" aria-hidden="true" />
           </Link>
         </div>
       </div>

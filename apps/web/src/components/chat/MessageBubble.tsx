@@ -147,7 +147,7 @@ export const MessageBubble = memo(function MessageBubble({
 
       <div
         ref={bubbleRef}
-        className={`relative max-w-[70%] px-3 py-2 rounded-lg shadow-sm transition-all duration-300 ${
+        className={`relative max-w-[70%] px-3 py-2 rounded-lg shadow-sm transition-[background-color,box-shadow] duration-300 ${
           isOwn
             ? "bg-whatsapp-green text-white rounded-br-none"
             : "bg-white dark:bg-dark-elevated text-gray-900 dark:text-dark-text-primary rounded-bl-none"
@@ -407,7 +407,7 @@ function FailedMessageBanner({
               ? "bg-white/20 hover:bg-white/30 text-white"
               : "bg-red-200 hover:bg-red-300 text-red-800"
           } ${isRetrying ? "opacity-50 cursor-not-allowed" : ""}`}
-          title="Retry sending this message"
+          aria-label="Retry sending this message"
         >
           {isRetrying ? (
             <>
@@ -430,7 +430,7 @@ function FailedMessageBanner({
                   d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
                 />
               </svg>
-              <span>Sending...</span>
+              <span>Sending…</span>
             </>
           ) : (
             <>

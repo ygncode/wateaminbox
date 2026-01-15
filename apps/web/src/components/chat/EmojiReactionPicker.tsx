@@ -370,7 +370,7 @@ export function EmojiReactionPicker({
             <button
               onClick={() => setShowExtended(false)}
               className="p-1 hover:bg-gray-100 dark:hover:bg-dark-tertiary rounded-full transition-colors"
-              title="Back to quick reactions"
+              aria-label="Back to quick reactions"
             >
               <svg
                 className="w-5 h-5 text-gray-600 dark:text-dark-text-secondary"
@@ -392,7 +392,7 @@ export function EmojiReactionPicker({
             <button
               onClick={onClose}
               className="p-1 hover:bg-gray-100 dark:hover:bg-dark-tertiary rounded-full transition-colors"
-              title="Close"
+              aria-label="Close"
             >
               <svg
                 className="w-5 h-5 text-gray-600 dark:text-dark-text-secondary"

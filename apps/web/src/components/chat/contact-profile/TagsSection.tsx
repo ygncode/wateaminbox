@@ -132,7 +132,7 @@ export function TagsSection({ contact }: TagsSectionProps) {
                     <div className="flex items-center gap-2">
                       <Input
                         type="text"
-                        placeholder="Enter tag name..."
+                        placeholder="Enter tag name…"
                         value={newTagName}
                         onChange={(e) => setNewTagName(e.target.value)}
                         onKeyDown={(e) => {
@@ -152,7 +152,7 @@ export function TagsSection({ contact }: TagsSectionProps) {
                         disabled={!newTagName.trim() || createTag.isPending}
                         className="h-7 px-2 text-xs"
                       >
-                        {createTag.isPending ? "..." : "Create"}
+                        {createTag.isPending ? "…" : "Create"}
                       </Button>
                       <Button
                         size="sm"
