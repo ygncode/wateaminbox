@@ -1,12 +1,14 @@
 import type { Message } from "@whatsapp-web/shared";
 import { formatMessageTime } from "@whatsapp-web/shared";
-import { memo, useCallback, useRef, useState } from "react";
+import { lazy, memo, Suspense, useCallback, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 import { useMessageActions } from "../../contexts";
 import { useClickOutside } from "../../hooks/ui";
-import { EmojiReactionPicker } from "./EmojiReactionPicker";
 import { MessageContent } from "./MessageContent";
+
+// Lazy load emoji reaction picker - only loaded when user opens it
+const EmojiReactionPicker = lazy(() => import("./EmojiReactionPicker"));
 import { MessageContextMenu } from "./MessageContextMenu";
 import { ForwardIcon, ReplyIcon, StarFilledIcon } from "./MessageIcons";
 import { MessageReactions } from "./MessageReactions";
@@ -220,20 +222,50 @@ export const MessageBubble = memo(function MessageBubble({
             document.body,
           )}
 
-        {/* Reaction picker - rendered via portal to escape overflow:hidden containers */}
+        {/* Reaction picker - lazy loaded and rendered via portal to escape overflow:hidden containers */}
         {showReactionPicker &&
           createPortal(
-            <EmojiReactionPicker
-              position={reactionPickerPosition}
-              onSelectReaction={handleSelectReaction}
-              onClose={() => setShowReactionPicker(false)}
-            />,
+            <Suspense
+              fallback={
+                <ReactionPickerSkeleton position={reactionPickerPosition} />
+              }
+            >
+              <EmojiReactionPicker
+                position={reactionPickerPosition}
+                onSelectReaction={handleSelectReaction}
+                onClose={() => setShowReactionPicker(false)}
+              />
+            </Suspense>,
             document.body,
           )}
       </div>
     </div>
   );
 });
+
+/**
+ * Skeleton loading state for the reaction picker
+ * Shows a placeholder while the reaction picker chunk loads
+ */
+function ReactionPickerSkeleton({
+  position,
+}: {
+  position: { x: number; y: number };
+}) {
+  return (
+    <div
+      className="fixed z-50 bg-white dark:bg-dark-elevated rounded-full shadow-lg px-3 py-2 flex items-center gap-2"
+      style={{ left: position.x, top: position.y }}
+    >
+      {Array.from({ length: 6 }).map((_, i) => (
+        <div
+          key={i}
+          className="w-8 h-8 bg-gray-100 dark:bg-dark-tertiary rounded-full animate-pulse"
+        />
+      ))}
+    </div>
+  );
+}
 
 /**
  * Selection checkbox component

@@ -20,7 +20,8 @@ export function ChatPage() {
   const { connections } = useWhatsAppConnections();
 
   // Get the status of the active (first connected or first) connection
-  const activeConnection = connections.find((c) => c.status === "connected") || connections[0];
+  const activeConnection =
+    connections.find((c) => c.status === "connected") || connections[0];
   const connectionStatus = activeConnection?.status;
 
   const {

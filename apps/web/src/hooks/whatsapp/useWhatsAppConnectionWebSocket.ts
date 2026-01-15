@@ -161,35 +161,37 @@ export function useWhatsAppConnectionWebSocket({
 
     // Handle worker connection status events (from orchestrator)
     // This is for worker crash/recovery notifications
-    const unsubConnectionStatus = subscribeRef.current<WorkerConnectionStatusPayload>(
-      "connection:status",
-      (payload) => {
-        const connectionId = payload.connectionId;
-        if (connectionId) {
-          const isError = payload.status === "error" || payload.status === "failed";
+    const unsubConnectionStatus =
+      subscribeRef.current<WorkerConnectionStatusPayload>(
+        "connection:status",
+        (payload) => {
+          const connectionId = payload.connectionId;
+          if (connectionId) {
+            const isError =
+              payload.status === "error" || payload.status === "failed";
 
-          updateConnectionStateRef.current(connectionId, {
-            qrCode: null,
-            qrExpiresAt: null,
-            error: isError ? payload.reason : null,
-            isConnecting: payload.status === "connecting",
-            isDisconnecting: false,
-          });
+            updateConnectionStateRef.current(connectionId, {
+              qrCode: null,
+              qrExpiresAt: null,
+              error: isError ? payload.reason : null,
+              isConnecting: payload.status === "connecting",
+              isDisconnecting: false,
+            });
 
-          // Show toast for error/failed states
-          if (isError) {
-            toast.error(payload.reason || "WhatsApp connection lost", {
-              description: "Worker connection status",
+            // Show toast for error/failed states
+            if (isError) {
+              toast.error(payload.reason || "WhatsApp connection lost", {
+                description: "Worker connection status",
+              });
+            }
+
+            // Refetch connections to update status
+            queryClientRef.current.invalidateQueries({
+              queryKey: queryKeys.whatsapp.lists(),
             });
           }
-
-          // Refetch connections to update status
-          queryClientRef.current.invalidateQueries({
-            queryKey: queryKeys.whatsapp.lists(),
-          });
-        }
-      },
-    );
+        },
+      );
 
     return () => {
       unsubQr();

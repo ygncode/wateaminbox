@@ -2,6 +2,7 @@ import { MessageSquare, Settings, Users } from "lucide-react";
 import { memo, useCallback, useState } from "react";
 import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
+import { preloadRoute } from "@/lib/route-preload";
 import { GroupList } from "../groups/GroupList";
 import { NotificationCenter } from "../notifications/NotificationCenter";
 import { ChatList } from "./ChatList";
@@ -61,6 +62,8 @@ export const ChatSidebar = memo(function ChatSidebar({
             to="/settings"
             className="p-2 text-gray-500 dark:text-dark-text-secondary hover:text-gray-700 dark:hover:text-dark-text-primary hover:bg-gray-200 dark:hover:bg-dark-tertiary rounded-full transition-colors"
             title="Settings"
+            onMouseEnter={() => preloadRoute("settings")}
+            onFocus={() => preloadRoute("settings")}
           >
             <Settings className="h-5 w-5" />
           </Link>

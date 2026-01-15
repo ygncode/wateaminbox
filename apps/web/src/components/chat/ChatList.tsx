@@ -2,6 +2,7 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { UserPlus } from "lucide-react";
 import { memo, useCallback, useMemo, useRef, useState } from "react";
 import { type AssignmentFilter, useChats } from "../../hooks/useChats";
+import { usePrefetchContact } from "../../hooks/usePrefetch";
 import type { ChatListProps } from "../../types/chat";
 import { AddContactDialog } from "../contacts/AddContactDialog";
 import { ChatListItem, ChatListItemSkeleton } from "./ChatListItem";
@@ -46,6 +47,9 @@ export const ChatList = memo(function ChatList({
     },
     [onChatSelect],
   );
+
+  // Prefetch contact data on hover for faster navigation
+  const prefetchContact = usePrefetchContact();
 
   // Filter archived chats for main view
   const visibleChats = useMemo(() => {
@@ -297,6 +301,7 @@ export const ChatList = memo(function ChatList({
                     chat={chat}
                     isSelected={chat.id === selectedChatId}
                     onClick={() => handleChatClick(chat.id)}
+                    onPrefetch={prefetchContact}
                   />
                 </div>
               );

@@ -16,7 +16,6 @@ export function EmptyConnectionsView({
 }: EmptyConnectionsViewProps) {
   return (
     <div className="relative py-12 px-4 dark:bg-dark-elevated rounded-lg">
-
       <div className="relative text-center">
         {/* Animated illustration */}
         <div className="relative w-28 h-28 mx-auto mb-6">

@@ -15,7 +15,6 @@ export function AddConnectionDialog({
   return (
     <div className="mb-6 animate-slide-down">
       <div className="relative overflow-hidden rounded-xl border border-whatsapp-teal-green/20 dark:border-whatsapp-teal-green/30 bg-white dark:bg-dark-elevated p-5 shadow-xl">
-
         <div className="relative">
           <div className="flex items-center gap-3 mb-4">
             <div className="w-10 h-10 rounded-xl bg-whatsapp-teal-green flex items-center justify-center shadow-lg">

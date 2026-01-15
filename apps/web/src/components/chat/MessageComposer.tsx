@@ -2,6 +2,8 @@ import type { Message } from "@whatsapp-web/shared";
 import {
   type ChangeEvent,
   type KeyboardEvent,
+  lazy,
+  Suspense,
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -10,10 +12,65 @@ import {
 } from "react";
 import { useClickOutside, useTextareaAutoResize } from "../../hooks/ui";
 import { useWebSocket } from "../../hooks/useWebSocket";
-import { EmojiInputPicker } from "./EmojiInputPicker";
+
+// Lazy load emoji picker - only loaded when user opens it
+// This keeps the emoji data (~1200 lines) out of the initial bundle
+const EmojiInputPicker = lazy(() => import("./EmojiInputPicker"));
 
 // JID suffix for WhatsApp individual chats
 const WHATSAPP_JID_SUFFIX = "@s.whatsapp.net";
+
+/**
+ * Skeleton loading state for the emoji picker
+ * Shows a placeholder while the emoji picker chunk loads
+ */
+function EmojiPickerSkeleton() {
+  return (
+    <div className="absolute bottom-full mb-2 left-0 w-80 bg-white dark:bg-dark-elevated rounded-xl shadow-lg border border-gray-200 dark:border-dark-border overflow-hidden z-20">
+      {/* Search placeholder */}
+      <div className="p-2 border-b border-gray-200 dark:border-dark-border">
+        <div className="h-8 bg-gray-100 dark:bg-dark-tertiary rounded-lg animate-pulse" />
+      </div>
+      {/* Category tabs placeholder */}
+      <div className="flex gap-1 p-2 border-b border-gray-200 dark:border-dark-border">
+        {Array.from({ length: 7 }).map((_, i) => (
+          <div
+            key={i}
+            className="h-8 w-8 bg-gray-100 dark:bg-dark-tertiary rounded animate-pulse"
+          />
+        ))}
+      </div>
+      {/* Emoji grid placeholder */}
+      <div className="h-64 p-2 flex items-center justify-center">
+        <div className="flex flex-col items-center gap-2">
+          <svg
+            className="animate-spin h-6 w-6 text-whatsapp-green"
+            xmlns="http://www.w3.org/2000/svg"
+            fill="none"
+            viewBox="0 0 24 24"
+          >
+            <circle
+              className="opacity-25"
+              cx="12"
+              cy="12"
+              r="10"
+              stroke="currentColor"
+              strokeWidth="4"
+            />
+            <path
+              className="opacity-75"
+              fill="currentColor"
+              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+            />
+          </svg>
+          <span className="text-sm text-gray-500 dark:text-dark-text-secondary">
+            Loading emojis...
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // Typing indicator timing constants
 // Based on research: WhatsApp auto-dismisses on receiver side when it stops receiving composing states
@@ -41,7 +98,9 @@ export function MessageComposer({
   connectionStatus,
 }: MessageComposerProps) {
   // Disable input when connection is not "connected"
-  const isDisconnected = Boolean(connectionStatus && connectionStatus !== "connected");
+  const isDisconnected = Boolean(
+    connectionStatus && connectionStatus !== "connected",
+  );
   const isInputDisabled = disabled || isDisconnected;
   const [message, setMessage] = useState("");
   const [showAttachmentMenu, setShowAttachmentMenu] = useState(false);
@@ -97,7 +156,11 @@ export function MessageComposer({
   // Restore focus after renders if we just sent a message
   // This runs after every render to catch focus loss from flushSync
   useLayoutEffect(() => {
-    if (shouldRestoreFocusRef.current && textareaRef.current && !isInputDisabled) {
+    if (
+      shouldRestoreFocusRef.current &&
+      textareaRef.current &&
+      !isInputDisabled
+    ) {
       textareaRef.current.focus();
       shouldRestoreFocusRef.current = false;
     }
@@ -309,12 +372,14 @@ export function MessageComposer({
             </svg>
           </button>
 
-          {/* Emoji Picker */}
+          {/* Emoji Picker - lazy loaded */}
           {showEmojiPicker && (
-            <EmojiInputPicker
-              onSelectEmoji={insertEmoji}
-              onClose={() => setShowEmojiPicker(false)}
-            />
+            <Suspense fallback={<EmojiPickerSkeleton />}>
+              <EmojiInputPicker
+                onSelectEmoji={insertEmoji}
+                onClose={() => setShowEmojiPicker(false)}
+              />
+            </Suspense>
           )}
         </div>
 
@@ -406,11 +471,13 @@ export function MessageComposer({
         </div>
 
         {/* Text input */}
-        <div className={`flex-1 rounded-xl border transition-colors ${
-          isInputDisabled
-            ? "bg-gray-100 dark:bg-dark-tertiary border-gray-200 dark:border-dark-border opacity-60"
-            : "bg-white dark:bg-dark-tertiary border-gray-200 dark:border-dark-border focus-within:border-whatsapp-green"
-        }`}>
+        <div
+          className={`flex-1 rounded-xl border transition-colors ${
+            isInputDisabled
+              ? "bg-gray-100 dark:bg-dark-tertiary border-gray-200 dark:border-dark-border opacity-60"
+              : "bg-white dark:bg-dark-tertiary border-gray-200 dark:border-dark-border focus-within:border-whatsapp-green"
+          }`}
+        >
           <textarea
             ref={textareaRef}
             value={message}

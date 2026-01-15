@@ -161,6 +161,126 @@ Protected routes redirect to `/login` if unauthenticated, to `/company-setup` if
 - `/audit` - Audit log
 - `/invite/:token` - Accept invitation
 
+## Code Splitting & Lazy Loading
+
+The frontend uses route-based code splitting for optimal bundle sizes. Each page is lazy-loaded as a separate chunk.
+
+### Adding New Routes
+
+When adding a new page route:
+
+```tsx
+// In App.tsx - use React.lazy() with Suspense
+const NewPage = lazy(() => import("./pages/NewPage").then(m => ({ default: m.NewPage })))
+
+<Route
+  path="/new-page"
+  element={
+    <ProtectedRoute>
+      <Suspense fallback={<PageSkeleton variant="default" />}>
+        <NewPage />
+      </Suspense>
+    </ProtectedRoute>
+  }
+/>
+```
+
+### PageSkeleton Variants
+
+Use the appropriate skeleton variant for loading states:
+
+```tsx
+import { PageSkeleton } from "@/components/ui"
+
+// Available variants: "default" | "chat" | "settings" | "dashboard" | "auth" | "team"
+<Suspense fallback={<PageSkeleton variant="chat" />}>
+  <ChatPage />
+</Suspense>
+```
+
+### Route Preloading
+
+Preload routes on hover for instant navigation:
+
+```tsx
+import { preloadRoute } from "@/lib/route-preload"
+
+// In navigation components
+<Link
+  to="/settings"
+  onMouseEnter={() => preloadRoute("settings")}
+  onFocus={() => preloadRoute("settings")}
+>
+  Settings
+</Link>
+
+// Available route names: login, register, forgotPassword, companySetup, chat, team, settings, audit, dashboard, acceptInvitation
+```
+
+### Data Prefetching
+
+Prefetch query data on hover for faster content loading:
+
+```tsx
+import { usePrefetchContact } from "@/hooks/usePrefetch"
+
+function ChatListItem({ chat, onClick }) {
+  const prefetchContact = usePrefetchContact()
+
+  return (
+    <button
+      onClick={onClick}
+      onMouseEnter={() => prefetchContact(chat.id)}
+    >
+      {chat.contact.name}
+    </button>
+  )
+}
+```
+
+### Bundle Analysis
+
+Analyze bundle composition with:
+
+```bash
+cd apps/web && bun run analyze
+```
+
+This generates `stats.html` showing chunk sizes and dependencies.
+
+### Vite Manual Chunks
+
+The build splits vendor libraries into separate chunks (configured in `vite.config.ts`):
+
+- `react-vendor` - React core
+- `router` - React Router
+- `tanstack` - TanStack Query & Virtual
+- `form` - React Hook Form + Zod
+- `radix-ui` - Radix primitives
+- `zustand` - State management
+- `motion` - Animation library
+- `i18n` - Internationalization
+
+### Anti-Patterns (Avoid)
+
+```tsx
+// ❌ WRONG - Import from pages barrel (breaks code splitting)
+import { ChatPage, SettingsPage } from "./pages"
+
+// ✅ CORRECT - Use lazy imports for routes
+const ChatPage = lazy(() => import("./pages/ChatPage").then(m => ({ default: m.ChatPage })))
+
+// ❌ WRONG - No Suspense boundary
+<Route path="/chat" element={<ChatPage />} />
+
+// ✅ CORRECT - Wrap in Suspense with skeleton
+<Route path="/chat" element={
+  <Suspense fallback={<PageSkeleton variant="chat" />}>
+    <ChatPage />
+  </Suspense>
+} />
+```
+
 ## Code Style
 
 Biome handles linting and formatting. Single quotes, no semicolons, 2-space indent. Run `bun run format` before commits.
