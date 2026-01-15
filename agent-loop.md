@@ -89,79 +89,37 @@ This document describes the flow of `agent-loop.sh` - an autonomous AI-driven co
                               └────────┬─────────┘
                                        │
                               ┌────────▼─────────┐
-                              │ Classify Worktree│
-                              │ Need (Sonnet AI) │
+                              │ Create Worktree  │
+                              │ (always)         │
                               └────────┬─────────┘
                                        │
-                         ┌─────────────┴─────────────┐
-                         │                           │
-                   ┌─────▼─────┐              ┌──────▼──────┐
-                   │ worktree  │              │  inplace    │
-                   │ (isolated)│              │ (in repo)   │
-                   └─────┬─────┘              └──────┬──────┘
-                         │                           │
-                         │    ┌───────────────┐      │
-                         └────► Create Branch │◄─────┘
-                              └───────┬───────┘
-                                      │
-                              ┌───────▼───────┐
-                              │ Run Workflow  │
-                              └───────────────┘
+                              ┌────────▼─────────┐
+                              │ Run Workflow     │
+                              └──────────────────┘
 ```
 
 ## Workflow Types
 
-### FULL Workflow (Features)
+### FULL Workflow (Features/Refactors)
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                          FULL WORKFLOW                                       │
-│                      (for "feature" type tasks)                             │
+│                      (for "feature" and "refactor" type tasks)              │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                             │
 │  ┌─────────────┐    ┌─────────────┐    ┌─────────────┐    ┌─────────────┐  │
 │  │   Phase 1   │───►│   Phase 2   │───►│   Phase 3   │───►│   Phase 4   │  │
-│  │Requirements │    │Review Reqs  │    │   Specs     │    │Review Specs │  │
-│  │ (generate)  │    │ (AI loop)   │    │ (generate)  │    │ (AI loop)   │  │
-│  └─────────────┘    └─────────────┘    └─────────────┘    └─────────────┘  │
-│                                                                     │       │
-│                                                                     ▼       │
-│  ┌─────────────┐    ┌─────────────┐    ┌─────────────┐    ┌─────────────┐  │
-│  │   Phase 8   │◄───│   Phase 7   │◄───│   Phase 6   │◄───│   Phase 5   │  │
-│  │  Testing    │    │Code Review  │    │  Execute    │    │  Subtasks   │  │
-│  │             │    │ (AI loop)   │    │ (max 10)    │    │ (generate)  │  │
-│  └──────┬──────┘    └─────────────┘    └─────────────┘    └─────────────┘  │
-│         │                                                                   │
-│         ▼                                                                   │
-│  ┌─────────────┐                                                            │
-│  │   Phase 9   │                                                            │
-│  │  PR/Merge   │                                                            │
-│  └─────────────┘                                                            │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
-```
-
-### MEDIUM Workflow (Refactors)
-
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                          MEDIUM WORKFLOW                                     │
-│                      (for "refactor" type tasks)                            │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                             │
-│  ┌─────────────┐    ┌─────────────┐    ┌─────────────┐    ┌─────────────┐  │
-│  │   Phase 1   │───►│   Phase 5   │───►│   Phase 6   │───►│   Phase 7   │  │
-│  │Requirements │    │  Subtasks   │    │  Execute    │    │Code Review  │  │
-│  │ (generate)  │    │ (generate)  │    │ (max 10)    │    │ (AI loop)   │  │
+│  │  Planning   │    │   Execute   │    │Code Review  │    │   Testing   │  │
+│  │             │    │ (max 10)    │    │ (max 5)     │    │ (max 5)     │  │
 │  └─────────────┘    └─────────────┘    └─────────────┘    └──────┬──────┘  │
 │                                                                  │          │
-│       ┌──────────────────────────────────────────────────────────┘          │
-│       ▼                                                                     │
-│  ┌─────────────┐    ┌─────────────┐                                         │
-│  │   Testing   │───►│  PR/Merge   │                                         │
-│  └─────────────┘    └─────────────┘                                         │
+│                                                                  ▼          │
+│                                                           ┌─────────────┐   │
+│                                                           │   Phase 5   │   │
+│                                                           │  PR/Merge   │   │
+│                                                           └─────────────┘   │
 │                                                                             │
-│  Note: Skips requirement review and specs phases                            │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -175,7 +133,7 @@ This document describes the flow of `agent-loop.sh` - an autonomous AI-driven co
 │                                                                             │
 │  ┌─────────────┐    ┌─────────────┐    ┌─────────────┐    ┌─────────────┐  │
 │  │ Direct Fix  │───►│Code Review  │───►│   Testing   │───►│  PR/Merge   │  │
-│  │ (AI impl)   │    │ (AI loop)   │    │             │    │             │  │
+│  │ (AI impl)   │    │ (max 5)     │    │ (max 5)     │    │             │  │
 │  └─────────────┘    └─────────────┘    └─────────────┘    └─────────────┘  │
 │                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -191,7 +149,7 @@ This document describes the flow of `agent-loop.sh` - an autonomous AI-driven co
 │                                                                             │
 │  ┌─────────────┐    ┌─────────────┐    ┌─────────────┐                      │
 │  │ Direct Fix  │───►│   Testing   │───►│  PR/Merge   │                      │
-│  │ (AI impl)   │    │             │    │             │                      │
+│  │ (AI impl)   │    │ (max 5)     │    │             │                      │
 │  └─────────────┘    └─────────────┘    └─────────────┘                      │
 │                                                                             │
 │  Note: Skips code review phase                                              │
@@ -200,71 +158,34 @@ This document describes the flow of `agent-loop.sh` - an autonomous AI-driven co
 
 ## Phase Details
 
-### Phase: Requirements Generation
+### Phase: Planning
 
 ```
 ┌───────────────────────────────────────────┐
-│         REQUIREMENTS PHASE                │
+│           PLANNING PHASE                  │
 ├───────────────────────────────────────────┤
 │                                           │
 │  Input:  CURRENT_TASK                     │
-│  Output: .loop/{slug}/requirement.md      │
+│  Output: .loop/{slug}/plan.md             │
 │                                           │
 │  AI Actions:                              │
 │  1. Analyze task thoroughly               │
 │  2. Research codebase                     │
 │  3. Update context.md with discoveries    │
-│  4. Generate requirement document         │
+│  4. Generate implementation plan          │
 │                                           │
 │  Format:                                  │
 │  - Overview                               │
 │  - Current State                          │
-│  - Functional Requirements                │
-│  - Non-Functional Requirements            │
-│  - Constraints                            │
+│  - Requirements (Functional/Non-func)     │
+│  - Implementation Steps (with status)     │
+│  - Testing Strategy                       │
 │  - Out of Scope                           │
-│  - Success Criteria                       │
 │                                           │
 └───────────────────────────────────────────┘
 ```
 
-### Phase: Review (Requirements/Specs)
-
-```
-┌───────────────────────────────────────────┐
-│           REVIEW PHASE                    │
-│        (AI Self-Review Loop)              │
-├───────────────────────────────────────────┤
-│                                           │
-│  ┌─────────────┐                          │
-│  │ Read File   │                          │
-│  └──────┬──────┘                          │
-│         │                                 │
-│         ▼                                 │
-│  ┌─────────────┐                          │
-│  │   Review    │                          │
-│  │  Criteria:  │                          │
-│  │- Scalability│                          │
-│  │- Security   │                          │
-│  │- Completeness                          │
-│  │- Clarity    │                          │
-│  └──────┬──────┘                          │
-│         │                                 │
-│    ┌────┴────┐                            │
-│    │ Issues? │                            │
-│    └────┬────┘                            │
-│    YES  │  NO                             │
-│    ▼    └────────►  APPROVED              │
-│  ┌──────────┐                             │
-│  │Fix Issues│                             │
-│  └────┬─────┘                             │
-│       │                                   │
-│       └────────► (loop back to Review)    │
-│                                           │
-└───────────────────────────────────────────┘
-```
-
-### Phase: Execute Subtasks
+### Phase: Execute
 
 ```
 ┌───────────────────────────────────────────┐
@@ -277,7 +198,7 @@ This document describes the flow of `agent-loop.sh` - an autonomous AI-driven co
 │  └───────────────┬────────────────┘       │
 │                  │                        │
 │      ┌───────────▼───────────┐            │
-│      │ Check pending tasks   │            │
+│      │ Check pending steps   │            │
 │      │ (Sonnet quick check)  │            │
 │      └───────────┬───────────┘            │
 │                  │                        │
@@ -288,7 +209,7 @@ This document describes the flow of `agent-loop.sh` - an autonomous AI-driven co
 │           │      └────────► DONE          │
 │           ▼                               │
 │  ┌────────────────────────────────┐       │
-│  │ AI implements batch of tasks   │       │
+│  │ AI implements batch of steps   │       │
 │  │ - Marks [x] when done          │       │
 │  │ - Marks [!] if blocked         │       │
 │  │ - Updates context.md           │       │
@@ -394,7 +315,6 @@ This document describes the flow of `agent-loop.sh` - an autonomous AI-driven co
 │           ▼                               │
 │  ┌─────────────────┐                      │
 │  │ Cleanup worktree│                      │
-│  │ (if used)       │                      │
 │  └─────────────────┘                      │
 │                                           │
 └───────────────────────────────────────────┘
@@ -414,7 +334,7 @@ This document describes the flow of `agent-loop.sh` - an autonomous AI-driven co
 │    "current_task_index": 1,               │
 │    "slug": "api-rate-limiting",           │
 │    "task_type": "feature",                │
-│    "phase": "6",                          │
+│    "phase": "2",                          │
 │    "phase_name": "execute",               │
 │    "review_iteration": 2,                 │
 │    "last_updated": "2024-..."             │
@@ -433,16 +353,12 @@ This document describes the flow of `agent-loop.sh` - an autonomous AI-driven co
 ├── .system-prompt.md       # Optional system prompt
 └── {slug}/                 # Per-task artifacts
     ├── context.md          # Shared discoveries & decisions
-    ├── requirement.md      # Requirements document
-    ├── requirement-review.md
-    ├── specs.md            # Technical specifications
-    ├── specs-review.md
-    ├── subtasks.md         # Breakdown of work
+    ├── plan.md             # Implementation plan
     ├── execution-log.md    # Implementation log
     ├── code-review.md      # Review results
     └── test-log.md         # Test results
 
-.worktrees/                 # Git worktrees (if used)
+.worktrees/                 # Git worktrees (always used)
 └── {slug}/                 # Isolated working copy
 ```
 
@@ -454,21 +370,22 @@ This document describes the flow of `agent-loop.sh` - an autonomous AI-driven co
 ├───────────────────────────────────────────┤
 │                                           │
 │  Task Classification  ──► Sonnet (always) │
+│  Slug Generation      ──► Sonnet (always) │
 │                                           │
-│  Complexity Check:                        │
+│  Execution Phases:                        │
 │  ┌─────────────────────────────────────┐  │
-│  │ SIMPLE (Sonnet)     COMPLEX (Opus)  │  │
-│  │ - Single file       - Multi-file    │  │
-│  │ - Clear bug fix     - Architecture  │  │
-│  │ - Config changes    - Security      │  │
-│  │ - Following pattern - Optimization  │  │
-│  │ - Documentation     - DB migrations │  │
+│  │ Quick Checks (Sonnet)               │  │
+│  │ - Pending task check                │  │
+│  │ - Review approval check             │  │
+│  │ - Test status check                 │  │
+│  │                                     │  │
+│  │ Heavy Lifting (Opus)                │  │
+│  │ - Planning                          │  │
+│  │ - Execution                         │  │
+│  │ - Code review                       │  │
+│  │ - Testing                           │  │
+│  │ - PR creation                       │  │
 │  └─────────────────────────────────────┘  │
-│                                           │
-│  run_cyolo() behavior:                    │
-│  - force_model="auto" → AI decides        │
-│  - force_model="sonnet" → use Sonnet      │
-│  - force_model="opus" → use Opus          │
 │                                           │
 └───────────────────────────────────────────┘
 ```
@@ -477,8 +394,8 @@ This document describes the flow of `agent-loop.sh` - an autonomous AI-driven co
 
 | Task Type | Workflow | Phases |
 |-----------|----------|--------|
-| feature   | FULL     | Requirements → Review → Specs → Review → Subtasks → Execute → Code Review → Testing → PR/Merge |
-| refactor  | MEDIUM   | Requirements → Subtasks → Execute → Code Review → Testing → PR/Merge |
+| feature   | FULL     | Planning → Execute → Code Review → Testing → PR/Merge |
+| refactor  | MEDIUM   | Planning → Execute → Code Review → Testing → PR/Merge |
 | bug       | LIGHT    | Direct Fix → Code Review → Testing → PR/Merge |
 | chore     | LIGHT    | Direct Fix → Code Review → Testing → PR/Merge |
 | docs      | MINIMAL  | Direct Fix → Testing → PR/Merge |

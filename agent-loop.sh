@@ -17,11 +17,11 @@
 # For each task, the script will:
 #   1. Classify task type (feature/bug/chore/refactor/docs) using Sonnet
 #   2. Route to appropriate workflow:
-#      - FEATURE:  Full (requirements → specs → subtasks → execute → review → merge)
-#      - REFACTOR: Medium (requirements → subtasks → execute → review → merge)
-#      - BUG:      Light (direct fix → code review → merge)
-#      - CHORE:    Light (direct fix → code review → merge)
-#      - DOCS:     Minimal (direct fix → merge)
+#      - FEATURE:  Full (planning → execute → code review → testing → merge)
+#      - REFACTOR: Medium (planning → execute → code review → testing → merge)
+#      - BUG:      Light (direct fix → code review → testing → merge)
+#      - CHORE:    Light (direct fix → code review → testing → merge)
+#      - DOCS:     Minimal (direct fix → testing → merge)
 #   3. Auto squash-merge and sync main
 #   4. Mark task as [x] done in tasks.md
 #   5. Move to next task
@@ -136,8 +136,8 @@ For each task, the AI will:
   1. Classify task type (feature/bug/chore/refactor/docs)
   2. Route to appropriate workflow:
 
-     FEATURE  → Full    (requirements → specs → subtasks → execute → review → test → merge)
-     REFACTOR → Medium  (requirements → subtasks → execute → review → test → merge)
+     FEATURE  → Full    (planning → execute → code review → test → merge)
+     REFACTOR → Medium  (planning → execute → code review → test → merge)
      BUG      → Light   (direct fix → code review → test → merge)
      CHORE    → Light   (direct fix → code review → test → merge)
      DOCS     → Minimal (direct fix → test → merge)
@@ -147,13 +147,14 @@ For each task, the AI will:
   5. Move to next task
 
 AI handles ALL decisions:
-  - Picks model: Sonnet classifies → Sonnet (simple) or Opus (complex)
+  - Uses Opus for execution, Sonnet for quick checks
   - Reviews until approved (max 5 iterations)
   - Tests until pass or blocked (max 5 iterations)
   - Execution loops until done (max 10 iterations)
   - Resolves git conflicts
   - Waits for CI, retries merges
   - Fixes errors and retries
+  - Always uses git worktree for isolation
 
 Options:
   --dry-run               Print commands without executing
@@ -189,122 +190,23 @@ log_verbose() {
 # Core Functions
 # =============================================================================
 
-# Classify task complexity using Sonnet
-# Returns: "simple" or "complex"
-classify_complexity() {
-    local task_description="$1"
-
-    if [ "$DRY_RUN" = true ]; then
-        echo "complex"
-        return
-    fi
-
-    local classify_prompt="Classify this task's complexity for an AI coding assistant:
-
-TASK: $task_description
-
-SIMPLE tasks (use Sonnet):
-- Single file changes
-- Bug fixes with clear cause
-- Adding simple functions
-- Config changes
-- Documentation updates
-- Straightforward refactors
-- Code that follows existing patterns
-
-COMPLEX tasks (use Opus):
-- Multi-file architectural changes
-- Designing new systems/features
-- Complex debugging requiring deep analysis
-- Security-sensitive code
-- Performance optimization
-- Database migrations
-- API design decisions
-- Anything requiring creative problem-solving
-
-Output ONLY one word: 'simple' or 'complex'. Nothing else."
-
-    local result
-    result=$(claude --dangerously-skip-permissions --model sonnet -p "$classify_prompt" 2>/dev/null | tr '[:upper:]' '[:lower:]' | grep -o -E '(simple|complex)' | head -1)
-
-    echo "${result:-complex}"
-}
-
-# Classify if task needs worktree (isolated environment) using Sonnet
-# Returns: "worktree" or "inplace"
-classify_worktree_need() {
-    local task_description="$1"
-    local task_type="$2"
-
-    if [ "$DRY_RUN" = true ]; then
-        echo "inplace"
-        return
-    fi
-
-    local classify_prompt="Decide if this coding task should use a git worktree (isolated directory) or work in-place.
-
-TASK: $task_description
-TASK TYPE: $task_type
-
-Use WORKTREE when:
-- Heavy/disruptive changes that would interrupt someone testing the main code
-- Multi-file refactoring that touches many parts of the codebase
-- New feature implementation with many new files
-- Database migrations or schema changes
-- Changes that require significant build/compile time
-- Risky changes that might break the build temporarily
-
-Use INPLACE when:
-- Small bug fixes (1-3 files)
-- Documentation updates
-- Config changes
-- Simple chores (dependency updates)
-- Quick fixes that won't disrupt testing
-- Changes that are low-risk and fast to implement
-
-Output ONLY one word: 'worktree' or 'inplace'. Nothing else."
-
-    local result
-    result=$(claude --dangerously-skip-permissions --model sonnet -p "$classify_prompt" 2>/dev/null | tr '[:upper:]' '[:lower:]' | grep -o -E '(worktree|inplace)' | head -1)
-
-    echo "${result:-inplace}"
-}
-
-# Run cyolo with smart model selection
-# AI (Sonnet) decides whether to use Sonnet (simple) or Opus (complex)
+# Run claude with specified model
+# Default to opus for execution, use sonnet for quick checks
 run_cyolo() {
     local prompt="$1"
     local description="${2:-Running agent}"
-    local force_model="${3:-auto}"  # auto, sonnet, or opus
+    local model="${3:-opus}"  # Default to opus, pass "sonnet" for quick checks
 
     log_agent "$description"
 
     if [ "$DRY_RUN" = true ]; then
-        echo "[DRY-RUN] claude --dangerously-skip-permissions --model <auto> -p <prompt>" >&2
+        echo "[DRY-RUN] claude --dangerously-skip-permissions --model $model -p <prompt>" >&2
         return 0
     fi
 
-    # Determine model to use
-    local model="opus"
-    if [ "$force_model" = "auto" ]; then
-        local complexity
-        complexity=$(classify_complexity "$description")
-        if [ "$complexity" = "simple" ]; then
-            model="sonnet"
-            log_verbose "Complexity: SIMPLE → using Sonnet"
-        else
-            model="opus"
-            log_verbose "Complexity: COMPLEX → using Opus"
-        fi
-    elif [ "$force_model" = "sonnet" ]; then
-        model="sonnet"
-    else
-        model="opus"
-    fi
-
     # Load system prompt if exists
-    local system_prompt=""
     if [ -f "$LOOP_DIR/.system-prompt.md" ]; then
+        local system_prompt
         system_prompt=$(cat "$LOOP_DIR/.system-prompt.md")
         prompt="$system_prompt
 
@@ -661,34 +563,13 @@ Run these git commands now and ensure we're on a clean, up-to-date main branch."
     log_success "Synced with main"
 }
 
-# Create branch for current task (with optional worktree)
+# Create branch for current task (always uses worktree)
 create_branch() {
     local branch_name="improvement/$CURRENT_SLUG"
 
-    # Classify if worktree is needed
-    local worktree_decision
-    worktree_decision=$(classify_worktree_need "$CURRENT_TASK" "$CURRENT_TASK_TYPE")
-
-    if [ "$worktree_decision" = "worktree" ]; then
-        USE_WORKTREE=true
-        log_info "Using git worktree for isolation"
-        setup_worktree "$branch_name"
-    else
-        USE_WORKTREE=false
-        WORKTREE_PATH=""
-        log_info "Working in-place (low disruption task)"
-
-        # Standard branch creation
-        log_info "Creating branch: $branch_name"
-        run_cmd git checkout main
-
-        if git show-ref --verify --quiet "refs/heads/$branch_name"; then
-            log_warn "Branch $branch_name already exists, checking out..."
-            run_cmd git checkout "$branch_name"
-        else
-            run_cmd git checkout -b "$branch_name"
-        fi
-    fi
+    USE_WORKTREE=true
+    log_info "Creating worktree for task: $branch_name"
+    setup_worktree "$branch_name"
 
     echo "$branch_name"
 }
@@ -761,19 +642,21 @@ cleanup_worktree() {
 }
 
 # =============================================================================
-# Phase 1: Generate Requirements
+# Phase 1: Planning (merged requirements + specs + subtasks)
 # =============================================================================
-phase_requirements() {
-    log_step "Phase 1: Generating requirements..."
+phase_planning() {
+    log_step "Phase 1: Creating implementation plan..."
 
     local work_dir="$LOOP_DIR/$CURRENT_SLUG"
     mkdir -p "$work_dir"
 
-    local req_file="$work_dir/requirement.md"
+    local plan_file="$work_dir/plan.md"
     local context_instruction
     context_instruction=$(build_context_instruction "read_write")
 
-    local prompt="You are analyzing a task and creating a detailed requirements document.
+    save_state "1" "planning"
+
+    local prompt="You are analyzing a task and creating a comprehensive implementation plan.
 
 PROJECT CONTEXT:
 - This is a WhatsApp Web business messaging platform
@@ -790,10 +673,10 @@ YOUR TASK:
 1. Analyze the task thoroughly
 2. Research the codebase to understand current state
 3. Update context.md with discoveries (files found, patterns, architecture insights)
-4. Create a comprehensive requirements document at: $req_file
+4. Create a comprehensive implementation plan at: $plan_file
 
-FORMAT for $req_file:
-# Requirements: <Title>
+FORMAT for $plan_file:
+# Implementation Plan: <Title>
 
 ## Overview
 <Brief summary of what needs to be done>
@@ -802,319 +685,63 @@ FORMAT for $req_file:
 <What exists currently, based on codebase analysis>
 
 ## Requirements
-
 ### Functional Requirements
-- FR1: <requirement>
-- FR2: <requirement>
+- <requirement 1>
+- <requirement 2>
 
 ### Non-Functional Requirements
-- NFR1: <scalability, maintainability, etc.>
+- <scalability, maintainability, etc.>
 
-## Constraints
-- <any technical constraints or limitations>
+## Implementation Steps
 
-## Out of Scope
-- <what is NOT included in this task>
+### Step 1: <Title>
+- [ ] Status: Pending
+- Files: <paths to modify>
+- Changes: <specific changes to make>
+- Acceptance: <how to verify it's done>
 
-## Success Criteria
-- <how to verify the task is complete>
+### Step 2: <Title>
+- [ ] Status: Pending
+- Files: <paths to modify>
+- Changes: <specific changes to make>
+- Acceptance: <how to verify it's done>
 
-IMPORTANT: Write the file now. Be thorough and specific. Update context.md with your discoveries."
-
-    run_cyolo "$prompt" "Generating requirements..."
-    save_state "1" "requirements"
-
-    if [ ! -f "$req_file" ]; then
-        log_error "Requirements file was not created: $req_file"
-        return 1
-    fi
-
-    log_success "Requirements generated: $req_file"
-}
-
-# =============================================================================
-# Phase 2: Review Requirements (AI handles entire review loop)
-# =============================================================================
-phase_review_requirements() {
-    log_step "Phase 2: Reviewing requirements..."
-
-    local work_dir="$LOOP_DIR/$CURRENT_SLUG"
-    local req_file="$work_dir/requirement.md"
-    local review_file="$work_dir/requirement-review.md"
-
-    save_state "2" "requirements-review"
-
-    local review_prompt="You are reviewing requirements and iterating until they are APPROVED.
-
-REQUIREMENTS FILE: $req_file
-REVIEW FILE: $review_file
-
-YOUR TASK - KEEP ITERATING UNTIL APPROVED:
-
-1. Read the requirements from $req_file
-
-2. Review against these criteria:
-   - Scalability - Will this scale?
-   - Maintainability - Easy to maintain?
-   - Security - Any security implications?
-   - Completeness - All edge cases covered?
-   - Clarity - Clear and testable?
-   - Feasibility - Technically achievable?
-
-3. Write your review to $review_file with format:
-   # Requirements Review
-   ## Verdict: APPROVED | NEEDS_REVISION
-   ## Issues Found
-   ### Critical (Must Fix)
-   - [ ] issue
-   ## Summary
-
-4. If NEEDS_REVISION:
-   - Fix ALL critical issues in $req_file
-   - Mark fixed items [x] in $review_file
-   - Review again
-   - REPEAT until APPROVED
-
-5. If APPROVED:
-   - Write final 'APPROVED' verdict
-   - You're done!
-
-RULES:
-- Do NOT stop until requirements are APPROVED
-- Be thorough but practical
-- Fix issues yourself, don't just list them
-
-Start reviewing now and keep iterating until APPROVED."
-
-    run_cyolo "$review_prompt" "Reviewing requirements until approved..."
-    log_success "Requirements review completed"
-}
-
-# =============================================================================
-# Phase 3: Generate Specifications
-# =============================================================================
-phase_specs() {
-    log_step "Phase 3: Generating specifications..."
-
-    local work_dir="$LOOP_DIR/$CURRENT_SLUG"
-    local req_file="$work_dir/requirement.md"
-    local specs_file="$work_dir/specs.md"
-    local context_instruction
-    context_instruction=$(build_context_instruction "read_write")
-
-    save_state "3" "specs"
-
-    local req_content
-    req_content=$(cat "$req_file")
-
-    local specs_prompt="You are a senior software architect creating detailed technical specifications.
-
-REQUIREMENTS:
-$req_content
-
-$context_instruction
-
-YOUR TASK:
-1. Read context.md FIRST - leverage discoveries from requirements phase
-2. Analyze the requirements
-3. Research codebase further if needed (update context.md with new discoveries)
-4. Create detailed technical specifications at: $specs_file
-5. Update context.md with architecture decisions made
-
-FORMAT for $specs_file:
-# Technical Specification: <Title>
-
-## Overview
-<Brief summary of what we're building/fixing>
-
-## Architecture Changes
-<Diagrams or descriptions of architectural changes if any>
-
-## Implementation Details
-
-### Component 1: <Name>
-- File: <path>
-- Changes:
-  - <specific change 1>
-  - <specific change 2>
-- New functions/methods:
-  - \`functionName(params)\`: <description>
-
-### Component 2: <Name>
-...
-
-## Database Changes
-<If any migrations needed>
-
-## API Changes
-<If any API endpoints change>
+...continue for all steps...
 
 ## Testing Strategy
 - Unit tests: <what to test>
 - Integration tests: <what to test>
-- E2E tests: <what to test>
 
-## Error Handling
-<How errors should be handled>
+## Out of Scope
+- <what is NOT included in this task>
 
-## Rollback Plan
-<How to revert if issues arise>
+RULES:
+1. Be thorough in codebase research
+2. Each step should be completable in one focused session
+3. Steps should be ordered by dependency
+4. Maximum 15 steps
+5. Be specific about files and changes
 
-IMPORTANT: Write the file now. Be thorough but practical. Update context.md with your decisions."
+IMPORTANT: Write the plan file now. This is the ONLY planning phase - be comprehensive."
 
-    run_cyolo "$specs_prompt" "Generating specifications..."
+    run_cyolo "$prompt" "Creating implementation plan..."
 
-    if [ ! -f "$specs_file" ]; then
-        log_error "Specs file was not created: $specs_file"
+    if [ ! -f "$plan_file" ]; then
+        log_error "Plan file was not created: $plan_file"
         return 1
     fi
 
-    log_success "Specifications generated: $specs_file"
+    log_success "Implementation plan created: $plan_file"
 }
 
 # =============================================================================
-# Phase 4: Review Specifications (AI handles entire review loop)
-# =============================================================================
-phase_review_specs() {
-    log_step "Phase 4: Reviewing specifications..."
-
-    local work_dir="$LOOP_DIR/$CURRENT_SLUG"
-    local specs_file="$work_dir/specs.md"
-    local review_file="$work_dir/specs-review.md"
-
-    save_state "4" "specs-review"
-
-    local review_prompt="You are reviewing technical specifications and iterating until APPROVED.
-
-SPECS FILE: $specs_file
-REVIEW FILE: $review_file
-
-YOUR TASK - KEEP ITERATING UNTIL APPROVED:
-
-1. Read the specifications from $specs_file
-
-2. Review against these criteria:
-   - Technical Accuracy - Is the approach correct?
-   - Completeness - All requirements addressed?
-   - Code Quality - Will this produce maintainable code?
-   - Performance - Any performance concerns?
-   - Security - Any security issues?
-   - Testing - Adequate testing strategy?
-
-3. Write your review to $review_file with format:
-   # Specifications Review
-   ## Verdict: APPROVED | NEEDS_REVISION
-   ## Issues Found
-   ### Critical (Must Fix)
-   - [ ] issue
-   ## Summary
-
-4. If NEEDS_REVISION:
-   - Fix ALL critical issues in $specs_file
-   - Mark fixed items [x] in $review_file
-   - Review again
-   - REPEAT until APPROVED
-
-5. If APPROVED:
-   - Write final 'APPROVED' verdict
-   - You're done!
-
-RULES:
-- Do NOT stop until specs are APPROVED
-- Be thorough but practical
-- Fix issues yourself, don't just list them
-
-Start reviewing now and keep iterating until APPROVED."
-
-    run_cyolo "$review_prompt" "Reviewing specifications until approved..."
-    log_success "Specifications review completed"
-}
-
-# =============================================================================
-# Phase 5: Generate Sub-Tasks
-# =============================================================================
-phase_subtasks() {
-    log_step "Phase 5: Generating sub-tasks..."
-
-    local work_dir="$LOOP_DIR/$CURRENT_SLUG"
-    local req_file="$work_dir/requirement.md"
-    local specs_file="$work_dir/specs.md"
-    local subtasks_file="$work_dir/subtasks.md"
-    local context_instruction
-    context_instruction=$(build_context_instruction "read")
-
-    save_state "5" "subtasks"
-
-    local tasks_prompt="You are a project manager breaking down technical work into actionable tasks.
-
-REQUIREMENTS:
-$(cat "$req_file")
-
-SPECIFICATIONS:
-$(cat "$specs_file")
-
-$context_instruction
-
-YOUR TASK:
-1. Read context.md FIRST - it has file locations and architecture decisions
-2. Create a detailed task list at: $subtasks_file
-3. Use discoveries from context.md to be specific about file paths
-
-FORMAT:
-# Sub-Tasks: <Title>
-
-## Status Legend
-- [ ] Pending
-- [x] Completed
-- [~] In Progress
-- [!] Blocked
-
-## Tasks
-
-### 1. <Task Title>
-- [ ] Status: Pending
-- Description: <what needs to be done>
-- Files: <files to modify>
-- Acceptance: <how to verify it's done>
-
-### 2. <Task Title>
-- [ ] Status: Pending
-- Description: <what needs to be done>
-- Files: <files to modify>
-- Acceptance: <how to verify it's done>
-
-...
-
-## Notes
-- <any important notes for implementation>
-
-RULES:
-1. Each task should be completable in one focused session
-2. Tasks should be ordered by dependency
-3. Include testing tasks for each component
-4. Maximum 15 tasks
-5. Be specific about files and changes - use paths from context.md
-
-IMPORTANT: Write the file now."
-
-    run_cyolo "$tasks_prompt" "Generating sub-tasks..."
-
-    if [ ! -f "$subtasks_file" ]; then
-        log_error "Sub-tasks file was not created: $subtasks_file"
-        return 1
-    fi
-
-    log_success "Sub-tasks generated: $subtasks_file"
-}
-
-# =============================================================================
-# Phase 6: Execute Sub-Tasks (AI decides batch, script loops)
+# Phase 2: Execute Implementation Steps (AI decides batch, script loops)
 # =============================================================================
 phase_execute() {
-    log_step "Phase 6: Executing sub-tasks..."
+    log_step "Phase 2: Executing implementation steps..."
 
     local work_dir="$LOOP_DIR/$CURRENT_SLUG"
-    local subtasks_file="$work_dir/subtasks.md"
+    local plan_file="$work_dir/plan.md"
     local log_file="$work_dir/execution-log.md"
     local max_iterations=10
     local iteration=0
@@ -1122,52 +749,52 @@ phase_execute() {
     # Outer loop - script keeps calling AI until all done (with safety limit)
     while [ $iteration -lt $max_iterations ]; do
         ((iteration++))
-        save_state "6" "execute" "$iteration"
+        save_state "2" "execute" "$iteration"
 
-        # Check if there are pending subtasks
+        # Check if there are pending steps
         if [ "$DRY_RUN" = true ]; then
-            log_info "[DRY-RUN] Executing subtasks..."
+            log_info "[DRY-RUN] Executing implementation steps..."
             break
         fi
 
         # Quick check using sonnet
         local pending_check
-        pending_check=$(claude --dangerously-skip-permissions --model sonnet -p "Read $subtasks_file and output ONLY 'pending' if there are tasks marked [ ], or 'done' if all are [x] or [!]. One word only." 2>/dev/null | tr '[:upper:]' '[:lower:]' | grep -o -E '(pending|done)' | head -1)
+        pending_check=$(claude --dangerously-skip-permissions --model sonnet -p "Read $plan_file and output ONLY 'pending' if there are steps marked [ ], or 'done' if all are [x] or [!]. One word only." 2>/dev/null | tr '[:upper:]' '[:lower:]' | grep -o -E '(pending|done)' | head -1)
 
         if [ "$pending_check" = "done" ]; then
-            log_success "All sub-tasks completed!"
+            log_success "All implementation steps completed!"
             break
         fi
 
-        log_info "Executing subtasks (iteration $iteration of $max_iterations)..."
+        log_info "Executing steps (iteration $iteration of $max_iterations)..."
 
         local context_instruction
         context_instruction=$(build_context_instruction "read_write")
 
-        local exec_prompt="You are implementing sub-tasks for a WhatsApp Web business platform.
+        local exec_prompt="You are implementing steps from the plan for a WhatsApp Web business platform.
 
-TASKS FILE: $subtasks_file
+PLAN FILE: $plan_file
 LOG FILE: $log_file
 
 $context_instruction
 
 YOUR TASK:
 
-1. Read context.md FIRST - it has file locations, patterns, and decisions from earlier phases
-2. Read the tasks file $subtasks_file
-3. Find pending tasks (marked with [ ])
+1. Read context.md FIRST - it has file locations, patterns, and decisions from planning
+2. Read the plan file $plan_file
+3. Find pending steps (marked with [ ])
 4. Implement AS MANY as you can in this session:
    - You decide the batch size based on complexity
-   - Simple related tasks → do multiple together
-   - Complex task → focus on just that one
-   - For each completed task: mark [x] in $subtasks_file
+   - Simple related steps → do multiple together
+   - Complex step → focus on just that one
+   - For each completed step: mark [x] in $plan_file
    - Log what you did in $log_file
    - Update context.md with new discoveries and progress
 
-5. If you get BLOCKED on a task:
-   - Mark it with [!] in $subtasks_file
+5. If you get BLOCKED on a step:
+   - Mark it with [!] in $plan_file
    - Document why in $log_file and context.md
-   - Continue with other tasks if possible
+   - Continue with other steps if possible
 
 6. When you've done a reasonable batch OR hit a good stopping point:
    - Make sure all completed work is saved
@@ -1175,7 +802,7 @@ YOUR TASK:
    - The script will check and call you again if more remain
 
 RULES:
-- Be thorough - each task should be fully done before marking [x]
+- Be thorough - each step should be fully done before marking [x]
 - Follow existing code patterns and style
 - Document everything in the log file
 - Update context.md with discoveries and progress
@@ -1183,28 +810,26 @@ RULES:
 
 Start implementing now."
 
-        run_cyolo "$exec_prompt" "Executing subtasks..."
+        run_cyolo "$exec_prompt" "Executing implementation steps..."
 
         # Small delay before next check
         sleep 2
     done
 
     if [ $iteration -ge $max_iterations ]; then
-        log_warn "Max iterations ($max_iterations) reached - some tasks may be incomplete or require manual work"
+        log_warn "Max iterations ($max_iterations) reached - some steps may be incomplete or require manual work"
     fi
 
-    log_success "Sub-tasks execution completed"
+    log_success "Implementation execution completed"
 }
 
 # =============================================================================
-# Phase 7: Code Review (with safety loop)
+# Phase 3: Code Review (with safety loop)
 # =============================================================================
 phase_code_review() {
-    log_step "Phase 7: Code review..."
+    log_step "Phase 3: Code review..."
 
     local work_dir="$LOOP_DIR/$CURRENT_SLUG"
-    local specs_file="$work_dir/specs.md"
-    local subtasks_file="$work_dir/subtasks.md"
     local review_file="$work_dir/code-review.md"
     local max_iterations=5
     local iteration=0
@@ -1222,7 +847,7 @@ phase_code_review() {
 
     while [ $iteration -lt $max_iterations ]; do
         ((iteration++))
-        save_state "7" "code-review" "$iteration"
+        save_state "3" "code-review" "$iteration"
 
         # Check if already approved
         if [ -f "$review_file" ]; then
@@ -1262,10 +887,10 @@ Fix issues yourself rather than just listing them. Approve when ready."
 }
 
 # =============================================================================
-# Phase: Testing (with safety loop)
+# Phase 4: Testing (with safety loop)
 # =============================================================================
 phase_testing() {
-    log_step "Testing: Running tests and fixing issues..."
+    log_step "Phase 4: Running tests and fixing issues..."
 
     local work_dir="$LOOP_DIR/$CURRENT_SLUG"
     mkdir -p "$work_dir"
@@ -1281,7 +906,7 @@ phase_testing() {
 
     while [ $iteration -lt $max_iterations ]; do
         ((iteration++))
-        save_state "testing" "testing" "$iteration"
+        save_state "4" "testing" "$iteration"
 
         # Check if already passed or blocked
         if [ -f "$test_log" ]; then
@@ -1392,16 +1017,16 @@ IMPORTANT: Start working on this task now. Document your progress in the log fil
 }
 
 # =============================================================================
-# Phase 8: Create PR and Merge
+# Phase 5: Create PR and Merge
 # =============================================================================
 phase_create_pr_and_merge() {
-    log_step "Creating PR and merging..."
+    log_step "Phase 5: Creating PR and merging..."
 
     local work_dir="$LOOP_DIR/$CURRENT_SLUG"
     local branch_name="improvement/$CURRENT_SLUG"
     local skip_merge_flag="$SKIP_MERGE"
 
-    save_state "8" "pr-merge"
+    save_state "5" "pr-merge"
 
     local pr_prompt="You are creating a git commit, PR, and merging for the completed work.
 
@@ -1452,101 +1077,78 @@ Run these commands now."
 
 # =============================================================================
 # Workflow: FULL (for features)
-# Requirements → Review → Specs → Review → Subtasks → Execute → Code Review → Merge
+# Planning → Execute → Code Review → Testing → PR/Merge
 # =============================================================================
 workflow_full() {
     local start_phase="${1:-1}"
 
     log_info "Running FULL workflow (feature)"
 
-    # Create branch
+    # Create branch (always uses worktree)
     if [ "$start_phase" -le 1 ]; then
         create_branch
     fi
 
-    # Phase 1: Requirements
+    # Phase 1: Planning
     if [ "$start_phase" -le 1 ]; then
-        phase_requirements
+        phase_planning
     fi
 
-    # Phase 2: Review Requirements
+    # Phase 2: Execute
     if [ "$start_phase" -le 2 ]; then
-        phase_review_requirements
-    fi
-
-    # Phase 3: Specifications
-    if [ "$start_phase" -le 3 ]; then
-        phase_specs
-    fi
-
-    # Phase 4: Review Specifications
-    if [ "$start_phase" -le 4 ]; then
-        phase_review_specs
-    fi
-
-    # Phase 5: Sub-Tasks
-    if [ "$start_phase" -le 5 ]; then
-        phase_subtasks
-    fi
-
-    # Phase 6: Execute
-    if [ "$start_phase" -le 6 ]; then
         phase_execute
     fi
 
-    # Phase 7: Code Review
-    if [ "$start_phase" -le 7 ]; then
+    # Phase 3: Code Review
+    if [ "$start_phase" -le 3 ]; then
         phase_code_review
     fi
 
-    # Phase 8: Testing
-    phase_testing
+    # Phase 4: Testing
+    if [ "$start_phase" -le 4 ]; then
+        phase_testing
+    fi
 
-    # Phase 9: Create PR and Merge
+    # Phase 5: Create PR and Merge
     phase_create_pr_and_merge
 }
 
 # =============================================================================
 # Workflow: MEDIUM (for refactors)
-# Requirements → Subtasks → Execute → Code Review → Testing → Merge
-# (skips requirement review and specs)
+# Planning → Execute → Code Review → Testing → PR/Merge
+# (same as FULL, just uses same simplified flow)
 # =============================================================================
 workflow_medium() {
     local start_phase="${1:-1}"
 
     log_info "Running MEDIUM workflow (refactor)"
 
-    # Create branch
+    # Create branch (always uses worktree)
     if [ "$start_phase" -le 1 ]; then
         create_branch
     fi
 
-    # Phase 1: Requirements (brief, no review)
+    # Phase 1: Planning
     if [ "$start_phase" -le 1 ]; then
-        phase_requirements
+        phase_planning
     fi
 
-    # Skip requirement review and specs for refactors
-
-    # Phase 5: Sub-Tasks
-    if [ "$start_phase" -le 5 ]; then
-        phase_subtasks
-    fi
-
-    # Phase 6: Execute
-    if [ "$start_phase" -le 6 ]; then
+    # Phase 2: Execute
+    if [ "$start_phase" -le 2 ]; then
         phase_execute
     fi
 
-    # Phase 7: Code Review
-    if [ "$start_phase" -le 7 ]; then
+    # Phase 3: Code Review
+    if [ "$start_phase" -le 3 ]; then
         phase_code_review
     fi
 
-    # Phase 8: Testing
-    phase_testing
+    # Phase 4: Testing
+    if [ "$start_phase" -le 4 ]; then
+        phase_testing
+    fi
 
-    # Phase 9: Create PR and Merge
+    # Phase 5: Create PR and Merge
     phase_create_pr_and_merge
 }
 
@@ -1640,7 +1242,7 @@ run_task_workflow() {
         return
     fi
 
-    if [ "$start_phase" = "code-review" ] || [ "$start_phase" = "7" ]; then
+    if [ "$start_phase" = "code-review" ] || [ "$start_phase" = "3" ]; then
         log_info "Resuming from code-review phase..."
         ensure_branch
         phase_code_review
@@ -1703,18 +1305,14 @@ main() {
         # load_state sets global variables directly (no subshell)
         load_state
 
-        # Convert phase string to number
+        # Convert phase string to number (new simplified phases)
         local start_phase=1
         case "$LOADED_PHASE" in
-            "1"|"requirements") start_phase=1 ;;
-            "2"|"requirements-review") start_phase=2 ;;
-            "3"|"specs") start_phase=3 ;;
-            "4"|"specs-review") start_phase=4 ;;
-            "5"|"subtasks") start_phase=5 ;;
-            "6"|"execute") start_phase=6 ;;
-            "7"|"code-review") start_phase=7 ;;
-            "testing") start_phase="testing" ;;
-            "8"|"pr-merge") start_phase=8 ;;
+            "1"|"planning") start_phase=1 ;;
+            "2"|"execute") start_phase=2 ;;
+            "3"|"code-review") start_phase=3 ;;
+            "4"|"testing") start_phase=4 ;;
+            "5"|"pr-merge") start_phase=5 ;;
             "direct-fix") start_phase="direct-fix" ;;
             *) start_phase=1 ;;
         esac
