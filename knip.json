@@ -7,7 +7,7 @@
       "ignore": ["src/__tests__/**"]
     },
     "apps/web": {
-      "entry": ["src/main.tsx", "e2e/**/*.ts"],
+      "entry": ["src/main.tsx"],
       "project": ["src/**/*.{ts,tsx}"],
       "ignore": ["e2e/**"]
     },
@@ -34,15 +34,8 @@
       "ignore": ["**/*.go"]
     }
   },
-  "ignoreDependencies": [
-    "@tailwindcss/vite",
-    "tailwindcss",
-    "@types/bun",
-    "typescript",
-    "eslint",
-    "prettier",
-    "biome"
-  ],
+  "ignoreDependencies": ["kysely", "pg", "ioredis"],
+  "ignoreBinaries": ["eslint", "prettier", "go"],
   "ignoreExportsUsedInFile": true,
-  "exclude": ["duplicates", "enumMembers"]
+  "exclude": ["duplicates", "enumMembers", "unresolved"]
 }

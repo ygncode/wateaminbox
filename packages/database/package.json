@@ -19,6 +19,7 @@
     "db:generate": "bunx kysely-codegen --out-file ./src/types/database.ts"
   },
   "dependencies": {
+    "@whatsapp-web/shared": "workspace:*",
     "kysely": "^0.28.9",
     "pg": "^8.11.3"
   },

@@ -45,7 +45,7 @@ mediaRoutes.post("/download/:messageId", async (c) => {
   const { messageId } = c.req.param();
 
   try {
-    const { getJetStreamClient } = await import("../lib/nats.js");
+    const { getJetStreamClient } = await import("../lib/nats/index.js");
     const { JSONCodec } = await import("nats");
 
     // Get the message with media reference data
