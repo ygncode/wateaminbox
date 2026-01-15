@@ -13,7 +13,10 @@
 
 import { describe, it, expect, beforeEach, mock } from "bun:test";
 import { Hono } from "hono";
-import { createMockNotificationHistory, createMockQueryBuilder } from "../mocks";
+import {
+  createMockNotificationHistory,
+  createMockQueryBuilder,
+} from "../mocks";
 
 // Create mock tenant db for notification history
 function createMockTenantDb() {
@@ -37,21 +40,23 @@ function createMockTenantDb() {
         ];
 
         chainMethods.forEach((method) => {
-          builder[method] = mock((arg1?: unknown, _arg2?: unknown, arg3?: unknown) => {
-            if (method === "where" && arg1 === "user_id") {
-              const userId = arg3 as string;
-              filtered = (notifications as Array<{ user_id: string }>).filter(
-                (n) => n.user_id === userId
-              );
-            }
-            if (method === "where" && arg1 === "is_read") {
-              const isRead = arg3 as boolean;
-              filtered = (filtered as Array<{ is_read: boolean }>).filter(
-                (n) => n.is_read === isRead
-              );
-            }
-            return builder;
-          });
+          builder[method] = mock(
+            (arg1?: unknown, _arg2?: unknown, arg3?: unknown) => {
+              if (method === "where" && arg1 === "user_id") {
+                const userId = arg3 as string;
+                filtered = (notifications as Array<{ user_id: string }>).filter(
+                  (n) => n.user_id === userId,
+                );
+              }
+              if (method === "where" && arg1 === "is_read") {
+                const isRead = arg3 as boolean;
+                filtered = (filtered as Array<{ is_read: boolean }>).filter(
+                  (n) => n.is_read === isRead,
+                );
+              }
+              return builder;
+            },
+          );
         });
 
         builder.execute = mock(() => Promise.resolve(filtered));
@@ -70,7 +75,7 @@ function createMockTenantDb() {
         builder.values = mock((values: unknown) => {
           insertedNotif = {
             id: "new-notif-123",
-            ...values as object,
+            ...(values as object),
             is_read: false,
             read_at: null,
             created_at: new Date(),
@@ -100,7 +105,7 @@ function createMockTenantDb() {
         builder.returningAll = mock(() => builder);
         builder.executeTakeFirst = mock(() => {
           const found = (notifications as Array<{ id: string }>).find(
-            (n) => n.id === targetId
+            (n) => n.id === targetId,
           );
           if (found) {
             updatedNotif = { ...found, ...updateData };
@@ -123,7 +128,7 @@ function createMockTenantDb() {
         });
         builder.executeTakeFirst = mock(() => {
           const found = (notifications as Array<{ id: string }>).find(
-            (n) => n.id === targetId
+            (n) => n.id === targetId,
           );
           return Promise.resolve({
             numDeletedRows: found ? BigInt(1) : BigInt(0),
@@ -160,7 +165,9 @@ describe("GET /notifications - List notifications", () => {
     });
 
     app.get("/notifications", async (c) => {
-      const tenantDb = c.get("tenantDb") as ReturnType<typeof createMockTenantDb>;
+      const tenantDb = c.get("tenantDb") as ReturnType<
+        typeof createMockTenantDb
+      >;
       const user = c.get("user") as { id: string };
 
       const notifications = await tenantDb
@@ -251,7 +258,9 @@ describe("GET /notifications/count - Get unread count", () => {
     });
 
     app.get("/notifications/count", async (c) => {
-      const tenantDb = c.get("tenantDb") as ReturnType<typeof createMockTenantDb>;
+      const tenantDb = c.get("tenantDb") as ReturnType<
+        typeof createMockTenantDb
+      >;
       const user = c.get("user") as { id: string };
 
       const unreadNotifs = await tenantDb
@@ -274,7 +283,9 @@ describe("GET /notifications/count - Get unread count", () => {
       createMockNotificationHistory({ is_read: true }),
     ]);
 
-    const response = await app.request("/notifications/count", { method: "GET" });
+    const response = await app.request("/notifications/count", {
+      method: "GET",
+    });
 
     expect(response.status).toBe(200);
     const data = await response.json();
@@ -288,7 +299,9 @@ describe("GET /notifications/count - Get unread count", () => {
       createMockNotificationHistory({ id: "3", is_read: true }),
     ]);
 
-    const response = await app.request("/notifications/count", { method: "GET" });
+    const response = await app.request("/notifications/count", {
+      method: "GET",
+    });
 
     expect(response.status).toBe(200);
     const data = await response.json();
@@ -313,12 +326,17 @@ describe("POST /notifications - Create notification", () => {
     });
 
     app.post("/notifications", async (c) => {
-      const tenantDb = c.get("tenantDb") as ReturnType<typeof createMockTenantDb>;
+      const tenantDb = c.get("tenantDb") as ReturnType<
+        typeof createMockTenantDb
+      >;
       const user = c.get("user") as { id: string };
       const body = await c.req.json();
 
       if (!body.notificationType || !body.title) {
-        return c.json({ error: "notificationType and title are required" }, 400);
+        return c.json(
+          { error: "notificationType and title are required" },
+          400,
+        );
       }
 
       const notification = await tenantDb
@@ -354,7 +372,7 @@ describe("POST /notifications - Create notification", () => {
             createdAt: n.created_at,
           },
         },
-        201
+        201,
       );
     });
   });
@@ -408,7 +426,9 @@ describe("PATCH /notifications/:id/read - Mark as read", () => {
     });
 
     app.patch("/notifications/:id/read", async (c) => {
-      const tenantDb = c.get("tenantDb") as ReturnType<typeof createMockTenantDb>;
+      const tenantDb = c.get("tenantDb") as ReturnType<
+        typeof createMockTenantDb
+      >;
       const user = c.get("user") as { id: string };
       const notificationId = c.req.param("id");
 
@@ -488,7 +508,9 @@ describe("DELETE /notifications/:id - Delete notification", () => {
     });
 
     app.delete("/notifications/:id", async (c) => {
-      const tenantDb = c.get("tenantDb") as ReturnType<typeof createMockTenantDb>;
+      const tenantDb = c.get("tenantDb") as ReturnType<
+        typeof createMockTenantDb
+      >;
       const user = c.get("user") as { id: string };
       const notificationId = c.req.param("id");
 
@@ -498,7 +520,8 @@ describe("DELETE /notifications/:id - Delete notification", () => {
         .where("user_id", "=", user.id)
         .executeTakeFirst();
 
-      const deleted = Number((result as { numDeletedRows: bigint }).numDeletedRows) > 0;
+      const deleted =
+        Number((result as { numDeletedRows: bigint }).numDeletedRows) > 0;
 
       if (!deleted) {
         return c.json({ error: "Notification not found" }, 404);

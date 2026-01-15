@@ -7,13 +7,13 @@
  */
 export interface ContactImportRow {
   /** Phone number in any format (will be normalized) */
-  phone_number: string
+  phone_number: string;
   /** Optional custom display name */
-  custom_name?: string
+  custom_name?: string;
   /** Optional notes/shared notes */
-  notes?: string
+  notes?: string;
   /** Comma-separated tag names (e.g., "VIP,Lead,Customer") */
-  tags?: string
+  tags?: string;
 }
 
 /**
@@ -25,15 +25,15 @@ export interface ContactImportRow {
  */
 export interface ContactImportResult {
   /** Row number in the original import (1-indexed) */
-  row: number
+  row: number;
   /** Original phone number from the import */
-  phoneNumber: string
+  phoneNumber: string;
   /** Import status for this contact */
-  status: 'created' | 'updated' | 'skipped' | 'error'
+  status: "created" | "updated" | "skipped" | "error";
   /** Error message if status is 'error' */
-  error?: string
+  error?: string;
   /** Database ID of the contact (if created/updated) */
-  contactId?: string
+  contactId?: string;
 }
 
 /**
@@ -45,15 +45,15 @@ export interface ContactImportResult {
  */
 export interface ImportSummary {
   /** Total number of rows processed */
-  total: number
+  total: number;
   /** Number of new contacts created */
-  created: number
+  created: number;
   /** Number of existing contacts updated */
-  updated: number
+  updated: number;
   /** Number of contacts skipped (not currently used, reserved for future) */
-  skipped: number
+  skipped: number;
   /** Number of rows with validation errors (these don't cause rollback) */
-  errors: number
+  errors: number;
   /** Detailed results for each row */
-  results: ContactImportResult[]
+  results: ContactImportResult[];
 }

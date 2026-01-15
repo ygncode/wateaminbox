@@ -7,6 +7,7 @@ import {
 } from "../lib/errors.js";
 import { createLogger, formatError } from "../lib/logger.js";
 import { rateLimitConfig, rateLimitStore } from "../lib/rate-limit-store.js";
+import { successData } from "../lib/response.js";
 import { uploadMedia } from "../lib/storage.js";
 import { authMiddleware } from "../middleware/auth.js";
 import { getRouteContext } from "../middleware/context.js";
@@ -72,7 +73,7 @@ mediaRoutes.post("/download/:messageId", async (c) => {
 
     // If already downloaded, return existing URL
     if (message.media_url && message.media_download_status === "completed") {
-      return c.json({
+      return successData(c, {
         status: "completed",
         mediaUrl: message.media_url,
       });
@@ -85,7 +86,7 @@ mediaRoutes.post("/download/:messageId", async (c) => {
 
     // If already downloading, return status
     if (message.media_download_status === "downloading") {
-      return c.json({ status: "downloading" });
+      return successData(c, { status: "downloading" });
     }
 
     // Get the WhatsApp connection for this message
@@ -134,7 +135,7 @@ mediaRoutes.post("/download/:messageId", async (c) => {
       "Published download request",
     );
 
-    return c.json({ status: "downloading" });
+    return successData(c, { status: "downloading" });
   } catch (error) {
     logger.error(
       { err: formatError(error) },
@@ -209,8 +210,7 @@ mediaRoutes.post("/upload", uploadRateLimiter, async (c) => {
       file.name,
     );
 
-    return c.json({
-      success: true,
+    return successData(c, {
       mediaUrl: uploadResult.url, // Presigned URL for frontend
       fileName: file.name,
       fileSize: file.size,

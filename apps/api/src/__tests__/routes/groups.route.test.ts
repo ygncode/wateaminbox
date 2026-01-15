@@ -10,10 +10,16 @@
 
 import { describe, it, expect, beforeEach, mock } from "bun:test";
 import { Hono } from "hono";
-import { createMockContact, createMockMessage, createMockQueryBuilder } from "../mocks";
+import {
+  createMockContact,
+  createMockMessage,
+  createMockQueryBuilder,
+} from "../mocks";
 
 // Helper to create a mock group contact (is_group = true, jid ends with @g.us)
-function createMockGroup(overrides: Partial<ReturnType<typeof createMockContact>> = {}) {
+function createMockGroup(
+  overrides: Partial<ReturnType<typeof createMockContact>> = {},
+) {
   return createMockContact({
     id: "group-123",
     jid: "123456789@g.us", // Group JID format
@@ -37,7 +43,9 @@ interface MockGroupInfo {
   participant_count: number;
 }
 
-function createMockGroupInfo(overrides: Partial<MockGroupInfo> = {}): MockGroupInfo {
+function createMockGroupInfo(
+  overrides: Partial<MockGroupInfo> = {},
+): MockGroupInfo {
   return {
     id: "group-info-123",
     contact_id: "group-123",
@@ -60,7 +68,9 @@ interface MockGroupParticipant {
   joined_at: Date;
 }
 
-function createMockGroupParticipant(overrides: Partial<MockGroupParticipant> = {}): MockGroupParticipant {
+function createMockGroupParticipant(
+  overrides: Partial<MockGroupParticipant> = {},
+): MockGroupParticipant {
   return {
     id: "participant-123",
     group_id: "group-info-123",
@@ -139,9 +149,10 @@ describe("GET /groups - List groups", () => {
 
       // Apply search filter if needed
       if (search) {
-        groups = groups.filter((g: { custom_name: string | null; group_name: string | null }) =>
-          g.custom_name?.toLowerCase().includes(search.toLowerCase()) ||
-          g.group_name?.toLowerCase().includes(search.toLowerCase())
+        groups = groups.filter(
+          (g: { custom_name: string | null; group_name: string | null }) =>
+            g.custom_name?.toLowerCase().includes(search.toLowerCase()) ||
+            g.group_name?.toLowerCase().includes(search.toLowerCase()),
         );
       }
 
@@ -154,27 +165,29 @@ describe("GET /groups - List groups", () => {
       const total = 2;
 
       return c.json({
-        data: groups.map((g: {
-          id: string;
-          jid: string;
-          custom_name: string | null;
-          group_name: string | null;
-          description: string | null;
-          participant_count: number;
-          profile_picture_url: string | null;
-          last_message_at: Date | null;
-          unread_count: bigint;
-        }) => ({
-          id: g.id,
-          jid: g.jid,
-          name: g.custom_name || g.group_name,
-          displayName: g.custom_name || g.group_name || "Unknown Group",
-          description: g.description,
-          participantCount: g.participant_count,
-          profilePictureUrl: g.profile_picture_url,
-          lastMessageAt: g.last_message_at,
-          unreadCount: Number(g.unread_count),
-        })),
+        data: groups.map(
+          (g: {
+            id: string;
+            jid: string;
+            custom_name: string | null;
+            group_name: string | null;
+            description: string | null;
+            participant_count: number;
+            profile_picture_url: string | null;
+            last_message_at: Date | null;
+            unread_count: bigint;
+          }) => ({
+            id: g.id,
+            jid: g.jid,
+            name: g.custom_name || g.group_name,
+            displayName: g.custom_name || g.group_name || "Unknown Group",
+            description: g.description,
+            participantCount: g.participant_count,
+            profilePictureUrl: g.profile_picture_url,
+            lastMessageAt: g.last_message_at,
+            unreadCount: Number(g.unread_count),
+          }),
+        ),
         pagination: {
           total,
           limit,
@@ -213,7 +226,9 @@ describe("GET /groups - List groups", () => {
   });
 
   it("should include pagination info", async () => {
-    const response = await app.request("/groups?limit=10&offset=0", { method: "GET" });
+    const response = await app.request("/groups?limit=10&offset=0", {
+      method: "GET",
+    });
 
     expect(response.status).toBe(200);
     const data = await response.json();
@@ -233,9 +248,20 @@ describe("GET /groups/:id - Get group details", () => {
     const mockGroup = createMockGroup({ id: "group-123" });
     const mockGroupInfo = createMockGroupInfo();
     const mockParticipants = [
-      createMockGroupParticipant({ participant_jid: "admin@s.whatsapp.net", is_admin: true }),
-      createMockGroupParticipant({ id: "p2", participant_jid: "member1@s.whatsapp.net", is_admin: false }),
-      createMockGroupParticipant({ id: "p3", participant_jid: "member2@s.whatsapp.net", is_admin: false }),
+      createMockGroupParticipant({
+        participant_jid: "admin@s.whatsapp.net",
+        is_admin: true,
+      }),
+      createMockGroupParticipant({
+        id: "p2",
+        participant_jid: "member1@s.whatsapp.net",
+        is_admin: false,
+      }),
+      createMockGroupParticipant({
+        id: "p3",
+        participant_jid: "member2@s.whatsapp.net",
+        is_admin: false,
+      }),
     ];
     const mockTags = [
       { id: "tag-1", name: "VIP", color: "#ff0000" },
@@ -346,8 +372,12 @@ describe("GET /groups/:id - Get group details", () => {
     expect(response.status).toBe(200);
     const data = await response.json();
 
-    const admins = data.participants.filter((p: { isAdmin: boolean }) => p.isAdmin);
-    const members = data.participants.filter((p: { isAdmin: boolean }) => !p.isAdmin);
+    const admins = data.participants.filter(
+      (p: { isAdmin: boolean }) => p.isAdmin,
+    );
+    const members = data.participants.filter(
+      (p: { isAdmin: boolean }) => !p.isAdmin,
+    );
 
     expect(admins.length).toBe(1);
     expect(members.length).toBe(2);
@@ -392,7 +422,7 @@ describe("PATCH /groups/:id - Update group custom name", () => {
                       id: "group-123",
                       custom_name: "New Group Name",
                       updated_at: new Date(),
-                    })
+                    }),
                   ),
                 })),
               })),
@@ -476,7 +506,9 @@ describe("POST /messages - Send message to group", () => {
           return {
             select: mock(() => ({
               where: mock(() => ({
-                executeTakeFirst: mock(() => Promise.resolve({ id: mockGroup.id, jid: mockGroup.jid })),
+                executeTakeFirst: mock(() =>
+                  Promise.resolve({ id: mockGroup.id, jid: mockGroup.jid }),
+                ),
               })),
             })),
           };
@@ -498,7 +530,9 @@ describe("POST /messages - Send message to group", () => {
         values: mock(() => ({
           execute: mock(() => Promise.resolve([])),
           returning: mock(() => ({
-            executeTakeFirstOrThrow: mock(() => Promise.resolve({ id: "new-assignment" })),
+            executeTakeFirstOrThrow: mock(() =>
+              Promise.resolve({ id: "new-assignment" }),
+            ),
           })),
         })),
       })),
@@ -514,10 +548,12 @@ describe("POST /messages - Send message to group", () => {
     };
 
     // Mock NATS publish function
-    const mockPublishSendMessage = mock(async (companyId: string, jid: string) => {
-      publishSendMessageCalled = true;
-      publishedJid = jid;
-    });
+    const mockPublishSendMessage = mock(
+      async (companyId: string, jid: string) => {
+        publishSendMessageCalled = true;
+        publishedJid = jid;
+      },
+    );
 
     app = new Hono();
 
@@ -735,7 +771,9 @@ describe("GET /messages - Get messages from group", () => {
   });
 
   it("should return group messages with different sender JIDs", async () => {
-    const response = await app.request("/messages?contactId=group-123", { method: "GET" });
+    const response = await app.request("/messages?contactId=group-123", {
+      method: "GET",
+    });
 
     expect(response.status).toBe(200);
     const data = await response.json();
@@ -750,7 +788,9 @@ describe("GET /messages - Get messages from group", () => {
   });
 
   it("should include senderJid for identifying message authors in group", async () => {
-    const response = await app.request("/messages?contactId=group-123", { method: "GET" });
+    const response = await app.request("/messages?contactId=group-123", {
+      method: "GET",
+    });
 
     expect(response.status).toBe(200);
     const data = await response.json();
@@ -763,13 +803,17 @@ describe("GET /messages - Get messages from group", () => {
   });
 
   it("should distinguish own messages from other members", async () => {
-    const response = await app.request("/messages?contactId=group-123", { method: "GET" });
+    const response = await app.request("/messages?contactId=group-123", {
+      method: "GET",
+    });
 
     expect(response.status).toBe(200);
     const data = await response.json();
 
     const ownMessages = data.data.filter((m: { fromMe: boolean }) => m.fromMe);
-    const otherMessages = data.data.filter((m: { fromMe: boolean }) => !m.fromMe);
+    const otherMessages = data.data.filter(
+      (m: { fromMe: boolean }) => !m.fromMe,
+    );
 
     expect(ownMessages.length).toBe(1);
     expect(otherMessages.length).toBe(2);
@@ -908,7 +952,9 @@ describe("GET /groups/:id/admin-status - Check admin status", () => {
   });
 
   it("should return admin status for connected user", async () => {
-    const response = await app.request("/groups/group-123/admin-status", { method: "GET" });
+    const response = await app.request("/groups/group-123/admin-status", {
+      method: "GET",
+    });
 
     expect(response.status).toBe(200);
     const data = await response.json();
@@ -947,7 +993,9 @@ describe("GET /groups/:id/admin-status - Check admin status", () => {
       return c.json({ isAdmin: false, connectionJid: null });
     });
 
-    const response = await app2.request("/groups/non-existent/admin-status", { method: "GET" });
+    const response = await app2.request("/groups/non-existent/admin-status", {
+      method: "GET",
+    });
     expect(response.status).toBe(404);
   });
 });
@@ -986,7 +1034,9 @@ describe("POST /groups/:id/participants/:participantJid/promote - Promote to adm
           // Return different values based on context
           const builder = createMockQueryBuilder(mockTargetParticipant);
           // Override to return admin for admin check, target for target check
-          builder.executeTakeFirst = mock(() => Promise.resolve(mockTargetParticipant));
+          builder.executeTakeFirst = mock(() =>
+            Promise.resolve(mockTargetParticipant),
+          );
           return builder;
         }
         return createMockQueryBuilder();
@@ -1088,7 +1138,7 @@ describe("POST /groups/:id/participants/:participantJid/promote - Promote to adm
   it("should promote participant to admin", async () => {
     const response = await app.request(
       "/groups/group-123/participants/member1@s.whatsapp.net/promote",
-      { method: "POST" }
+      { method: "POST" },
     );
 
     expect(response.status).toBe(200);
@@ -1102,7 +1152,7 @@ describe("POST /groups/:id/participants/:participantJid/promote - Promote to adm
   it("should publish NATS command on promote", async () => {
     await app.request(
       "/groups/group-123/participants/member1@s.whatsapp.net/promote",
-      { method: "POST" }
+      { method: "POST" },
     );
 
     expect(publishCalled).toBe(true);
@@ -1119,7 +1169,11 @@ describe("POST /groups/:id/participants/:participantJid/promote - Promote to adm
             is_admin: true, // Already admin
           });
         }
-        return createMockQueryBuilder({ id: "group-123", jid: "123@g.us", name: "Test" });
+        return createMockQueryBuilder({
+          id: "group-123",
+          jid: "123@g.us",
+          name: "Test",
+        });
       }),
     };
 
@@ -1137,7 +1191,9 @@ describe("POST /groups/:id/participants/:participantJid/promote - Promote to adm
 
       const contact = await tenantDb.selectFrom("contacts").executeTakeFirst();
       const group = await tenantDb.selectFrom("groups").executeTakeFirst();
-      const participant = await tenantDb.selectFrom("group_participants").executeTakeFirst();
+      const participant = await tenantDb
+        .selectFrom("group_participants")
+        .executeTakeFirst();
 
       if (participant.is_admin) {
         return c.json({ error: "Participant is already an admin" }, 400);
@@ -1148,7 +1204,7 @@ describe("POST /groups/:id/participants/:participantJid/promote - Promote to adm
 
     const response = await app2.request(
       "/groups/group-123/participants/admin@s.whatsapp.net/promote",
-      { method: "POST" }
+      { method: "POST" },
     );
 
     expect(response.status).toBe(400);
@@ -1275,7 +1331,7 @@ describe("POST /groups/:id/participants/:participantJid/demote - Demote admin", 
   it("should demote admin to regular participant", async () => {
     const response = await app.request(
       "/groups/group-123/participants/admin2@s.whatsapp.net/demote",
-      { method: "POST" }
+      { method: "POST" },
     );
 
     expect(response.status).toBe(200);
@@ -1289,7 +1345,7 @@ describe("POST /groups/:id/participants/:participantJid/demote - Demote admin", 
   it("should publish NATS command on demote", async () => {
     await app.request(
       "/groups/group-123/participants/admin2@s.whatsapp.net/demote",
-      { method: "POST" }
+      { method: "POST" },
     );
 
     expect(publishCalled).toBe(true);
@@ -1305,7 +1361,11 @@ describe("POST /groups/:id/participants/:participantJid/demote - Demote admin", 
             is_admin: false, // Not admin
           });
         }
-        return createMockQueryBuilder({ id: "group-123", jid: "123@g.us", name: "Test" });
+        return createMockQueryBuilder({
+          id: "group-123",
+          jid: "123@g.us",
+          name: "Test",
+        });
       }),
     };
 
@@ -1318,7 +1378,9 @@ describe("POST /groups/:id/participants/:participantJid/demote - Demote admin", 
 
     app2.post("/groups/:id/participants/:participantJid/demote", async (c) => {
       const tenantDb = c.get("tenantDb");
-      const participant = await tenantDb.selectFrom("group_participants").executeTakeFirst();
+      const participant = await tenantDb
+        .selectFrom("group_participants")
+        .executeTakeFirst();
 
       if (!participant.is_admin) {
         return c.json({ error: "Participant is not an admin" }, 400);
@@ -1329,7 +1391,7 @@ describe("POST /groups/:id/participants/:participantJid/demote - Demote admin", 
 
     const response = await app2.request(
       "/groups/group-123/participants/member@s.whatsapp.net/demote",
-      { method: "POST" }
+      { method: "POST" },
     );
 
     expect(response.status).toBe(400);
@@ -1470,7 +1532,9 @@ describe("DELETE /groups/:id/participants/:participantJid - Remove participant",
       // Update participant count
       await tenantDb
         .updateTable("groups")
-        .set({ participant_count: Math.max(0, (group.participant_count || 1) - 1) })
+        .set({
+          participant_count: Math.max(0, (group.participant_count || 1) - 1),
+        })
         .where("id", "=", group.id)
         .execute();
 
@@ -1487,7 +1551,7 @@ describe("DELETE /groups/:id/participants/:participantJid - Remove participant",
   it("should remove participant from group", async () => {
     const response = await app.request(
       "/groups/group-123/participants/member1@s.whatsapp.net",
-      { method: "DELETE" }
+      { method: "DELETE" },
     );
 
     expect(response.status).toBe(200);
@@ -1499,19 +1563,17 @@ describe("DELETE /groups/:id/participants/:participantJid - Remove participant",
   });
 
   it("should delete participant from database", async () => {
-    await app.request(
-      "/groups/group-123/participants/member1@s.whatsapp.net",
-      { method: "DELETE" }
-    );
+    await app.request("/groups/group-123/participants/member1@s.whatsapp.net", {
+      method: "DELETE",
+    });
 
     expect(deleteExecuted).toBe(true);
   });
 
   it("should publish NATS command on remove", async () => {
-    await app.request(
-      "/groups/group-123/participants/member1@s.whatsapp.net",
-      { method: "DELETE" }
-    );
+    await app.request("/groups/group-123/participants/member1@s.whatsapp.net", {
+      method: "DELETE",
+    });
 
     expect(publishCalled).toBe(true);
   });
@@ -1519,7 +1581,7 @@ describe("DELETE /groups/:id/participants/:participantJid - Remove participant",
   it("should return 400 when trying to remove self", async () => {
     const response = await app.request(
       "/groups/group-123/participants/me@s.whatsapp.net",
-      { method: "DELETE" }
+      { method: "DELETE" },
     );
 
     expect(response.status).toBe(400);
@@ -1602,7 +1664,10 @@ describe("PATCH /groups/:id/settings - Update group settings", () => {
       const { name, description } = body;
 
       if (!name && description === undefined) {
-        return c.json({ error: "At least one of name or description is required" }, 400);
+        return c.json(
+          { error: "At least one of name or description is required" },
+          400,
+        );
       }
 
       const contact = await tenantDb

@@ -10,7 +10,11 @@ import { toDbDate } from "@whatsapp-web/shared";
 import type { Transaction } from "kysely";
 import { CompanyNotFoundError } from "../../lib/errors.js";
 import { createTenantSchema, getSchemaName } from "../tenant.service.js";
-import type { Company, CreateCompanyInput, UpdateCompanyInput } from "./types.js";
+import type {
+  Company,
+  CreateCompanyInput,
+  UpdateCompanyInput,
+} from "./types.js";
 
 /**
  * Creates a new company with its tenant schema

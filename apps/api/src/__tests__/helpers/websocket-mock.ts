@@ -5,7 +5,7 @@
  * utilities for simulating WebSocket events in tests.
  */
 
-import { mock } from 'bun:test'
+import { mock } from "bun:test";
 
 /**
  * WebSocket ready states
@@ -15,81 +15,81 @@ export const WebSocketReadyState = {
   OPEN: 1,
   CLOSING: 2,
   CLOSED: 3,
-} as const
+} as const;
 
 /**
  * Mock WebSocket message for testing
  */
 export interface MockWebSocketMessage {
-  type: string
-  payload?: unknown
-  connectionId?: string
-  timestamp?: string
+  type: string;
+  payload?: unknown;
+  connectionId?: string;
+  timestamp?: string;
 }
 
 /**
  * Mock ServerWebSocket implementation for testing
  */
 export class MockServerWebSocket {
-  readyState: number = WebSocketReadyState.OPEN
+  readyState: number = WebSocketReadyState.OPEN;
   data: {
-    userId?: string
-    companyId?: string
-    authenticated?: boolean
+    userId?: string;
+    companyId?: string;
+    authenticated?: boolean;
     // Heartbeat tracking (matches WSData interface in ws.ts)
-    lastPongReceived?: number
-    isAlive?: boolean
-  } = {}
+    lastPongReceived?: number;
+    isAlive?: boolean;
+  } = {};
 
-  private messageHandlers: ((data: string | Buffer) => void)[] = []
-  private closeHandlers: (() => void)[] = []
-  private errorHandlers: ((error: Error) => void)[] = []
-  public sentMessages: string[] = []
+  private messageHandlers: ((data: string | Buffer) => void)[] = [];
+  private closeHandlers: (() => void)[] = [];
+  private errorHandlers: ((error: Error) => void)[] = [];
+  public sentMessages: string[] = [];
 
   send(data: string | Buffer): void {
     if (this.readyState !== WebSocketReadyState.OPEN) {
-      throw new Error('WebSocket is not open')
+      throw new Error("WebSocket is not open");
     }
-    this.sentMessages.push(typeof data === 'string' ? data : data.toString())
+    this.sentMessages.push(typeof data === "string" ? data : data.toString());
   }
 
   // WebSocket protocol-level ping (used for heartbeat)
   ping(): void {
     if (this.readyState !== WebSocketReadyState.OPEN) {
-      throw new Error('WebSocket is not open')
+      throw new Error("WebSocket is not open");
     }
     // Protocol-level ping doesn't add to sentMessages
     // But we can track it for testing purposes
   }
 
   close(code?: number, reason?: string): void {
-    this.readyState = WebSocketReadyState.CLOSED
-    this.closeHandlers.forEach((handler) => handler())
+    this.readyState = WebSocketReadyState.CLOSED;
+    this.closeHandlers.forEach((handler) => handler());
   }
 
   // For simulating incoming messages in tests
   simulateMessage(data: string | Buffer): void {
-    this.messageHandlers.forEach((handler) => handler(data))
+    this.messageHandlers.forEach((handler) => handler(data));
   }
 
   // For simulating connection close in tests
   simulateClose(): void {
-    this.readyState = WebSocketReadyState.CLOSED
-    this.closeHandlers.forEach((handler) => handler())
+    this.readyState = WebSocketReadyState.CLOSED;
+    this.closeHandlers.forEach((handler) => handler());
   }
 
   // For simulating errors in tests
   simulateError(error: Error): void {
-    this.errorHandlers.forEach((handler) => handler(error))
+    this.errorHandlers.forEach((handler) => handler(error));
   }
 
   // Get the last sent message
   getLastSentMessage(): MockWebSocketMessage | null {
-    if (this.sentMessages.length === 0) return null
+    if (this.sentMessages.length === 0) return null;
     try {
-      return JSON.parse(this.sentMessages[this.sentMessages.length - 1])
+      return JSON.parse(this.sentMessages[this.sentMessages.length - 1]);
     } catch {
-      return null
+      return null;
     }
   }
 
@@ -98,17 +98,17 @@ export class MockServerWebSocket {
     return this.sentMessages
       .map((msg) => {
         try {
-          return JSON.parse(msg)
+          return JSON.parse(msg);
         } catch {
-          return null
+          return null;
         }
       })
-      .filter((msg): msg is MockWebSocketMessage => msg !== null)
+      .filter((msg): msg is MockWebSocketMessage => msg !== null);
   }
 
   // Clear sent messages (for test cleanup)
   clearSentMessages(): void {
-    this.sentMessages = []
+    this.sentMessages = [];
   }
 
   // Authenticate the mock connection
@@ -117,7 +117,7 @@ export class MockServerWebSocket {
       userId,
       companyId,
       authenticated: true,
-    }
+    };
   }
 }
 
@@ -125,80 +125,80 @@ export class MockServerWebSocket {
  * Creates a mock WebSocket for testing
  */
 export function createMockWebSocket(options?: {
-  userId?: string
-  companyId?: string
-  authenticated?: boolean
-  lastPongReceived?: number
-  isAlive?: boolean
+  userId?: string;
+  companyId?: string;
+  authenticated?: boolean;
+  lastPongReceived?: number;
+  isAlive?: boolean;
 }): MockServerWebSocket {
-  const ws = new MockServerWebSocket()
-  const now = Date.now()
+  const ws = new MockServerWebSocket();
+  const now = Date.now();
   ws.data = {
-    userId: options?.userId || '',
-    companyId: options?.companyId || '',
+    userId: options?.userId || "",
+    companyId: options?.companyId || "",
     authenticated: options?.authenticated || false,
     lastPongReceived: options?.lastPongReceived ?? now,
     isAlive: options?.isAlive ?? true,
-  }
+  };
   if (options?.authenticated) {
-    ws.data.userId = options.userId || 'test-user-id'
-    ws.data.companyId = options.companyId || 'test-company-id'
-    ws.data.authenticated = true
+    ws.data.userId = options.userId || "test-user-id";
+    ws.data.companyId = options.companyId || "test-company-id";
+    ws.data.authenticated = true;
   }
-  return ws
+  return ws;
 }
 
 /**
  * Mock connection pool for tracking WebSocket connections by company
  */
 export class MockConnectionPool {
-  private connections: Map<string, Set<MockServerWebSocket>> = new Map()
+  private connections: Map<string, Set<MockServerWebSocket>> = new Map();
 
   add(companyId: string, ws: MockServerWebSocket): void {
     if (!this.connections.has(companyId)) {
-      this.connections.set(companyId, new Set())
+      this.connections.set(companyId, new Set());
     }
-    this.connections.get(companyId)!.add(ws)
+    this.connections.get(companyId)!.add(ws);
   }
 
   remove(companyId: string, ws: MockServerWebSocket): void {
-    const company = this.connections.get(companyId)
+    const company = this.connections.get(companyId);
     if (company) {
-      company.delete(ws)
+      company.delete(ws);
       if (company.size === 0) {
-        this.connections.delete(companyId)
+        this.connections.delete(companyId);
       }
     }
   }
 
   getConnections(companyId: string): Set<MockServerWebSocket> {
-    return this.connections.get(companyId) || new Set()
+    return this.connections.get(companyId) || new Set();
   }
 
   broadcast(companyId: string, message: MockWebSocketMessage): void {
-    const connections = this.getConnections(companyId)
-    const data = JSON.stringify(message)
+    const connections = this.getConnections(companyId);
+    const data = JSON.stringify(message);
     connections.forEach((ws) => {
       if (ws.readyState === WebSocketReadyState.OPEN) {
-        ws.send(data)
+        ws.send(data);
       }
-    })
+    });
   }
 
   getAllCompanyIds(): string[] {
-    return Array.from(this.connections.keys())
+    return Array.from(this.connections.keys());
   }
 
   getTotalConnectionCount(): number {
-    let count = 0
+    let count = 0;
     this.connections.forEach((set) => {
-      count += set.size
-    })
-    return count
+      count += set.size;
+    });
+    return count;
   }
 
   clear(): void {
-    this.connections.clear()
+    this.connections.clear();
   }
 }
 
@@ -206,7 +206,7 @@ export class MockConnectionPool {
  * Creates a mock connection pool for testing
  */
 export function createMockConnectionPool(): MockConnectionPool {
-  return new MockConnectionPool()
+  return new MockConnectionPool();
 }
 
 /**
@@ -214,34 +214,34 @@ export function createMockConnectionPool(): MockConnectionPool {
  */
 export const WebSocketEventTypes = {
   // Authentication
-  AUTH: 'auth',
-  AUTH_SUCCESS: 'auth_success',
-  AUTH_ERROR: 'auth_error',
+  AUTH: "auth",
+  AUTH_SUCCESS: "auth_success",
+  AUTH_ERROR: "auth_error",
 
   // Connection
-  QR: 'qr',
-  CONNECTED: 'connected',
-  DISCONNECTED: 'disconnected',
+  QR: "qr",
+  CONNECTED: "connected",
+  DISCONNECTED: "disconnected",
 
   // Messages
-  MESSAGE_NEW: 'message:new',
-  MESSAGE_STATUS: 'message:status',
-  MESSAGE_DELETED: 'message:deleted',
-  MESSAGE_REACTION: 'message:reaction',
+  MESSAGE_NEW: "message:new",
+  MESSAGE_STATUS: "message:status",
+  MESSAGE_DELETED: "message:deleted",
+  MESSAGE_REACTION: "message:reaction",
 
   // Presence
-  PRESENCE_ONLINE: 'presence:online',
-  PRESENCE_OFFLINE: 'presence:offline',
-  TYPING_START: 'typing:start',
-  TYPING_STOP: 'typing:stop',
+  PRESENCE_ONLINE: "presence:online",
+  PRESENCE_OFFLINE: "presence:offline",
+  TYPING_START: "typing:start",
+  TYPING_STOP: "typing:stop",
 
   // Other
-  PING: 'ping',
-  PONG: 'pong',
-  ERROR: 'error',
-  NOTIFICATION_NEW: 'notification:new',
-  CONTACT_PROFILE_PICTURE: 'contact:profile_picture',
-} as const
+  PING: "ping",
+  PONG: "pong",
+  ERROR: "error",
+  NOTIFICATION_NEW: "notification:new",
+  CONTACT_PROFILE_PICTURE: "contact:profile_picture",
+} as const;
 
 /**
  * Creates a QR code WebSocket event
@@ -249,7 +249,7 @@ export const WebSocketEventTypes = {
 export function createQREvent(
   connectionId: string,
   qrCode: string,
-  expiresAt?: Date
+  expiresAt?: Date,
 ): MockWebSocketMessage {
   return {
     type: WebSocketEventTypes.QR,
@@ -259,7 +259,7 @@ export function createQREvent(
       expiresAt: (expiresAt || new Date(Date.now() + 60000)).toISOString(),
     },
     timestamp: new Date().toISOString(),
-  }
+  };
 }
 
 /**
@@ -268,7 +268,7 @@ export function createQREvent(
 export function createConnectedEvent(
   connectionId: string,
   phoneNumber: string,
-  jid: string
+  jid: string,
 ): MockWebSocketMessage {
   return {
     type: WebSocketEventTypes.CONNECTED,
@@ -278,7 +278,7 @@ export function createConnectedEvent(
       jid,
     },
     timestamp: new Date().toISOString(),
-  }
+  };
 }
 
 /**
@@ -286,16 +286,16 @@ export function createConnectedEvent(
  */
 export function createDisconnectedEvent(
   connectionId: string,
-  reason?: string
+  reason?: string,
 ): MockWebSocketMessage {
   return {
     type: WebSocketEventTypes.DISCONNECTED,
     connectionId,
     payload: {
-      reason: reason || 'User disconnected',
+      reason: reason || "User disconnected",
     },
     timestamp: new Date().toISOString(),
-  }
+  };
 }
 
 /**
@@ -304,12 +304,12 @@ export function createDisconnectedEvent(
 export function createMessageNewEvent(
   connectionId: string,
   message: {
-    id: string
-    conversationId: string
-    senderId: string
-    content: string
-    status: string
-  }
+    id: string;
+    conversationId: string;
+    senderId: string;
+    content: string;
+    status: string;
+  },
 ): MockWebSocketMessage {
   return {
     type: WebSocketEventTypes.MESSAGE_NEW,
@@ -319,7 +319,7 @@ export function createMessageNewEvent(
       conversationId: message.conversationId,
     },
     timestamp: new Date().toISOString(),
-  }
+  };
 }
 
 /**
@@ -329,7 +329,7 @@ export function createMessageStatusEvent(
   connectionId: string,
   messageId: string,
   conversationId: string,
-  status: 'sent' | 'delivered' | 'read'
+  status: "sent" | "delivered" | "read",
 ): MockWebSocketMessage {
   return {
     type: WebSocketEventTypes.MESSAGE_STATUS,
@@ -340,7 +340,7 @@ export function createMessageStatusEvent(
       status,
     },
     timestamp: new Date().toISOString(),
-  }
+  };
 }
 
 /**
@@ -350,7 +350,7 @@ export function createPresenceEvent(
   connectionId: string,
   jid: string,
   isOnline: boolean,
-  lastSeen?: Date
+  lastSeen?: Date,
 ): MockWebSocketMessage {
   return {
     type: isOnline
@@ -363,7 +363,7 @@ export function createPresenceEvent(
       lastSeen: lastSeen?.toISOString(),
     },
     timestamp: new Date().toISOString(),
-  }
+  };
 }
 
 /**
@@ -373,7 +373,7 @@ export function createTypingEvent(
   connectionId: string,
   jid: string,
   chatJid: string,
-  isTyping: boolean
+  isTyping: boolean,
 ): MockWebSocketMessage {
   return {
     type: isTyping
@@ -385,7 +385,7 @@ export function createTypingEvent(
       chatJid,
     },
     timestamp: new Date().toISOString(),
-  }
+  };
 }
 
 /**
@@ -393,17 +393,17 @@ export function createTypingEvent(
  */
 export function createAuthSuccessEvent(
   userId: string,
-  companyId: string
+  companyId: string,
 ): MockWebSocketMessage {
   return {
     type: WebSocketEventTypes.AUTH_SUCCESS,
     payload: {
       userId,
       companyId,
-      message: 'Authenticated successfully',
+      message: "Authenticated successfully",
     },
     timestamp: new Date().toISOString(),
-  }
+  };
 }
 
 /**
@@ -416,7 +416,7 @@ export function createAuthErrorEvent(message: string): MockWebSocketMessage {
       message,
     },
     timestamp: new Date().toISOString(),
-  }
+  };
 }
 
 /**
@@ -425,24 +425,24 @@ export function createAuthErrorEvent(message: string): MockWebSocketMessage {
 export async function waitForWebSocketMessage(
   ws: MockServerWebSocket,
   type: string,
-  timeout: number = 1000
+  timeout: number = 1000,
 ): Promise<MockWebSocketMessage | null> {
-  const start = Date.now()
+  const start = Date.now();
   while (Date.now() - start < timeout) {
-    const messages = ws.getAllSentMessages()
-    const found = messages.find((msg) => msg.type === type)
-    if (found) return found
-    await new Promise((resolve) => setTimeout(resolve, 10))
+    const messages = ws.getAllSentMessages();
+    const found = messages.find((msg) => msg.type === type);
+    if (found) return found;
+    await new Promise((resolve) => setTimeout(resolve, 10));
   }
-  return null
+  return null;
 }
 
 /**
  * Mock broadcast function that can be used to replace the real broadcast
  */
 export const mockBroadcastToCompany = mock(
-  (companyId: string, message: MockWebSocketMessage) => {}
-)
+  (companyId: string, message: MockWebSocketMessage) => {},
+);
 
 /**
  * Creates mock WebSocket exports for module mocking
@@ -452,5 +452,5 @@ export function createWebSocketMock(overrides: Record<string, unknown> = {}) {
     broadcastToCompany: mockBroadcastToCompany,
     connections: new Map<string, Set<MockServerWebSocket>>(),
     ...overrides,
-  }
+  };
 }

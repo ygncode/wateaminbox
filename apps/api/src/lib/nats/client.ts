@@ -3,43 +3,43 @@
  * Connection management and operations for NATS/JetStream
  */
 
-import * as nats from "nats"
+import * as nats from "nats";
 import {
   connect,
   NatsConnection,
   JetStreamClient,
   JetStreamSubscription,
   JSONCodec,
-} from "nats"
-import { nowMs } from "@whatsapp-web/shared"
-import { env } from "../env.js"
-import { createLogger, formatError } from "../logger.js"
+} from "nats";
+import { nowMs } from "@whatsapp-web/shared";
+import { env } from "../env.js";
+import { createLogger, formatError } from "../logger.js";
 import {
   NATS_SUBJECTS,
   type NatsCommand,
   type WhatsAppEvent,
   type MessageType,
   type StatusType,
-} from "./types/index.js"
-import { forConnection } from "./command-builder.js"
+} from "./types/index.js";
+import { forConnection } from "./command-builder.js";
 
-const logger = createLogger("NATS")
+const logger = createLogger("NATS");
 
 // Singleton NATS client
-let natsConnection: NatsConnection | null = null
-let jetStreamClient: JetStreamClient | null = null
-let reconnectAttempts = 0
-const MAX_RECONNECT_ATTEMPTS = 10
-const RECONNECT_DELAY_MS = 1000
+let natsConnection: NatsConnection | null = null;
+let jetStreamClient: JetStreamClient | null = null;
+let reconnectAttempts = 0;
+const MAX_RECONNECT_ATTEMPTS = 10;
+const RECONNECT_DELAY_MS = 1000;
 
-const jc = JSONCodec<unknown>()
+const jc = JSONCodec<unknown>();
 
 /**
  * Gets or creates the NATS connection
  */
 export async function getNatsConnection(): Promise<NatsConnection> {
   if (natsConnection && !natsConnection.isClosed()) {
-    return natsConnection
+    return natsConnection;
   }
 
   try {
@@ -51,18 +51,18 @@ export async function getNatsConnection(): Promise<NatsConnection> {
       reconnectTimeWait: RECONNECT_DELAY_MS,
       pingInterval: 30000,
       maxPingOut: 3,
-    })
+    });
 
     // Set up connection event handlers
-    setupConnectionHandlers(natsConnection)
+    setupConnectionHandlers(natsConnection);
 
-    reconnectAttempts = 0
-    logger.info({ url: env.NATS_URL }, "Connected to NATS")
+    reconnectAttempts = 0;
+    logger.info({ url: env.NATS_URL }, "Connected to NATS");
 
-    return natsConnection
+    return natsConnection;
   } catch (error) {
-    logger.error(formatError(error), "Failed to connect to NATS")
-    throw error
+    logger.error(formatError(error), "Failed to connect to NATS");
+    throw error;
   }
 }
 
@@ -70,31 +70,31 @@ export async function getNatsConnection(): Promise<NatsConnection> {
  * Sets up NATS connection event handlers
  */
 function setupConnectionHandlers(nc: NatsConnection): void {
-  ;(async () => {
+  (async () => {
     for await (const status of nc.status()) {
       switch (status.type) {
         case "disconnect":
-          logger.warn("Disconnected from server")
-          break
+          logger.warn("Disconnected from server");
+          break;
         case "reconnect":
-          logger.info("Reconnected to server")
-          reconnectAttempts = 0
-          break
+          logger.info("Reconnected to server");
+          reconnectAttempts = 0;
+          break;
         case "reconnecting":
-          reconnectAttempts++
-          logger.info({ attempt: reconnectAttempts }, "Reconnecting to NATS")
-          break
+          reconnectAttempts++;
+          logger.info({ attempt: reconnectAttempts }, "Reconnecting to NATS");
+          break;
         case "error":
-          logger.error({ error: status.data }, "Connection error")
-          break
+          logger.error({ error: status.data }, "Connection error");
+          break;
         case "update":
-          logger.debug("Connection updated")
-          break
+          logger.debug("Connection updated");
+          break;
       }
     }
   })().catch((err) => {
-    logger.error(formatError(err), "Status monitoring error")
-  })
+    logger.error(formatError(err), "Status monitoring error");
+  });
 }
 
 /**
@@ -102,12 +102,12 @@ function setupConnectionHandlers(nc: NatsConnection): void {
  */
 export async function getJetStreamClient(): Promise<JetStreamClient> {
   if (jetStreamClient) {
-    return jetStreamClient
+    return jetStreamClient;
   }
 
-  const nc = await getNatsConnection()
-  jetStreamClient = nc.jetstream()
-  return jetStreamClient
+  const nc = await getNatsConnection();
+  jetStreamClient = nc.jetstream();
+  return jetStreamClient;
 }
 
 /**
@@ -116,11 +116,11 @@ export async function getJetStreamClient(): Promise<JetStreamClient> {
  */
 export async function publishCommand(
   subject: string,
-  command: NatsCommand
+  command: NatsCommand,
 ): Promise<void> {
-  const js = await getJetStreamClient()
-  const data = jc.encode(command)
-  await js.publish(subject, data)
+  const js = await getJetStreamClient();
+  const data = jc.encode(command);
+  await js.publish(subject, data);
   logger.debug(
     {
       subject,
@@ -128,8 +128,8 @@ export async function publishCommand(
       companyId: command.company_id,
       connectionId: command.connection_id,
     },
-    "Published command to NATS"
-  )
+    "Published command to NATS",
+  );
 }
 
 /**
@@ -139,9 +139,9 @@ export async function publishCommand(
  */
 export function buildCommandSubject(
   companyId: string,
-  connectionId: string
+  connectionId: string,
 ): string {
-  return `${NATS_SUBJECTS.WHATSAPP_COMMANDS}.${companyId}.${connectionId}`
+  return `${NATS_SUBJECTS.WHATSAPP_COMMANDS}.${companyId}.${connectionId}`;
 }
 
 /**
@@ -150,19 +150,19 @@ export function buildCommandSubject(
 export async function publishSpawnCommand(
   companyId: string,
   connectionId: string,
-  databaseUrl: string
+  databaseUrl: string,
 ): Promise<void> {
   logger.debug(
     { databaseUrl: databaseUrl.replace(/\/\/[^:]+:[^@]+@/, "//***:***@") },
-    "Spawn command with redacted DATABASE_URL"
-  )
+    "Spawn command with redacted DATABASE_URL",
+  );
   const publisher = forConnection(
     companyId,
     connectionId,
     publishCommand,
-    buildCommandSubject
-  )
-  await publisher.spawn(databaseUrl)
+    buildCommandSubject,
+  );
+  await publisher.spawn(databaseUrl);
 }
 
 /**
@@ -171,15 +171,15 @@ export async function publishSpawnCommand(
 export async function publishKillCommand(
   companyId: string,
   connectionId: string,
-  reason?: string
+  reason?: string,
 ): Promise<void> {
   const publisher = forConnection(
     companyId,
     connectionId,
     publishCommand,
-    buildCommandSubject
-  )
-  await publisher.kill(reason)
+    buildCommandSubject,
+  );
+  await publisher.kill(reason);
 }
 
 /**
@@ -205,12 +205,12 @@ export async function publishSendMessage(
   pendingMessageId: string,
   mediaUrl?: string,
   replyTo?: string,
-  replyToSender?: string
+  replyToSender?: string,
 ): Promise<void> {
-  let mediaData: number[] | undefined
-  let caption: string | undefined
-  let fileName: string | undefined
-  let mimeType: string | undefined
+  let mediaData: number[] | undefined;
+  let caption: string | undefined;
+  let fileName: string | undefined;
+  let mimeType: string | undefined;
 
   // For media messages, download the file and prepare media data
   // NOTE: Performance optimization opportunity - we currently re-download from S3 here.
@@ -226,57 +226,57 @@ export async function publishSendMessage(
   ) {
     try {
       // SSRF Protection: Only allow downloads from our S3 endpoint
-      const s3Endpoint = new URL(env.S3_ENDPOINT)
-      const mediaUrlObj = new URL(mediaUrl)
+      const s3Endpoint = new URL(env.S3_ENDPOINT);
+      const mediaUrlObj = new URL(mediaUrl);
 
       // Check if URL is from our S3 endpoint (presigned URLs will have same hostname)
       if (mediaUrlObj.hostname !== s3Endpoint.hostname) {
         throw new Error(
-          `SSRF protection: Media URL hostname ${mediaUrlObj.hostname} does not match S3 endpoint ${s3Endpoint.hostname}`
-        )
+          `SSRF protection: Media URL hostname ${mediaUrlObj.hostname} does not match S3 endpoint ${s3Endpoint.hostname}`,
+        );
       }
 
-      logger.debug({ mediaUrl }, "Downloading media from URL")
-      const response = await fetch(mediaUrl)
+      logger.debug({ mediaUrl }, "Downloading media from URL");
+      const response = await fetch(mediaUrl);
 
       if (!response.ok) {
-        throw new Error(`Failed to download media: ${response.statusText}`)
+        throw new Error(`Failed to download media: ${response.statusText}`);
       }
 
       // Get MIME type from response headers
       mimeType =
-        response.headers.get("content-type") || "application/octet-stream"
+        response.headers.get("content-type") || "application/octet-stream";
 
       // Extract filename from URL or Content-Disposition header
-      const contentDisposition = response.headers.get("content-disposition")
+      const contentDisposition = response.headers.get("content-disposition");
       if (contentDisposition) {
-        const match = contentDisposition.match(/filename="?(.+)"?/)
+        const match = contentDisposition.match(/filename="?(.+)"?/);
         if (match) {
-          fileName = match[1]
+          fileName = match[1];
         }
       }
       if (!fileName) {
         // Extract from URL
-        const urlPath = new URL(mediaUrl).pathname
-        fileName = urlPath.split("/").pop() || "file"
+        const urlPath = new URL(mediaUrl).pathname;
+        fileName = urlPath.split("/").pop() || "file";
       }
 
       // Convert to byte array
-      const arrayBuffer = await response.arrayBuffer()
-      const uint8Array = new Uint8Array(arrayBuffer)
-      mediaData = Array.from(uint8Array)
+      const arrayBuffer = await response.arrayBuffer();
+      const uint8Array = new Uint8Array(arrayBuffer);
+      mediaData = Array.from(uint8Array);
 
       // For media messages, content becomes the caption
-      caption = content || undefined
-      content = "" // Clear content field for media messages
+      caption = content || undefined;
+      content = ""; // Clear content field for media messages
 
       logger.debug(
         { bytes: mediaData.length, mimeType, fileName },
-        "Downloaded media"
-      )
+        "Downloaded media",
+      );
     } catch (error) {
-      logger.error(formatError(error), "Failed to download media")
-      throw new Error("Failed to download media for sending")
+      logger.error(formatError(error), "Failed to download media");
+      throw new Error("Failed to download media for sending");
     }
   }
 
@@ -294,13 +294,13 @@ export async function publishSendMessage(
     user_id: userId,
     reply_to: replyTo,
     reply_to_sender: replyToSender,
-  }
+  };
 
   // Publish directly to JetStream (not through publishCommand which adds NatsCommand envelope)
-  const js = await getJetStreamClient()
-  const subject = buildCommandSubject(companyId, connectionId)
-  const data = jc.encode(sendCommand)
-  await js.publish(subject, data)
+  const js = await getJetStreamClient();
+  const subject = buildCommandSubject(companyId, connectionId);
+  const data = jc.encode(sendCommand);
+  await js.publish(subject, data);
   logger.debug(
     {
       subject,
@@ -310,8 +310,8 @@ export async function publishSendMessage(
       replyTo: replyTo || null,
       replyToSender: replyToSender || null,
     },
-    "Published send message"
-  )
+    "Published send message",
+  );
 }
 
 /**
@@ -323,15 +323,15 @@ export async function publishPostStatus(
   statusType: StatusType,
   userId: string,
   content?: string,
-  mediaUrl?: string
+  mediaUrl?: string,
 ): Promise<void> {
   const publisher = forConnection(
     companyId,
     connectionId,
     publishCommand,
-    buildCommandSubject
-  )
-  await publisher.postStatus(statusType, content || "", userId, mediaUrl)
+    buildCommandSubject,
+  );
+  await publisher.postStatus(statusType, content || "", userId, mediaUrl);
 }
 
 /**
@@ -342,15 +342,15 @@ export async function publishGroupPromoteAdmin(
   connectionId: string,
   groupJid: string,
   participantJid: string,
-  userId: string
+  userId: string,
 ): Promise<void> {
   const publisher = forConnection(
     companyId,
     connectionId,
     publishCommand,
-    buildCommandSubject
-  )
-  await publisher.groupPromoteAdmin(groupJid, participantJid, userId)
+    buildCommandSubject,
+  );
+  await publisher.groupPromoteAdmin(groupJid, participantJid, userId);
 }
 
 /**
@@ -361,15 +361,15 @@ export async function publishGroupDemoteAdmin(
   connectionId: string,
   groupJid: string,
   participantJid: string,
-  userId: string
+  userId: string,
 ): Promise<void> {
   const publisher = forConnection(
     companyId,
     connectionId,
     publishCommand,
-    buildCommandSubject
-  )
-  await publisher.groupDemoteAdmin(groupJid, participantJid, userId)
+    buildCommandSubject,
+  );
+  await publisher.groupDemoteAdmin(groupJid, participantJid, userId);
 }
 
 /**
@@ -380,15 +380,15 @@ export async function publishGroupRemoveParticipant(
   connectionId: string,
   groupJid: string,
   participantJid: string,
-  userId: string
+  userId: string,
 ): Promise<void> {
   const publisher = forConnection(
     companyId,
     connectionId,
     publishCommand,
-    buildCommandSubject
-  )
-  await publisher.groupRemoveParticipant(groupJid, participantJid, userId)
+    buildCommandSubject,
+  );
+  await publisher.groupRemoveParticipant(groupJid, participantJid, userId);
 }
 
 /**
@@ -400,15 +400,15 @@ export async function publishGroupUpdateSettings(
   groupJid: string,
   userId: string,
   name?: string,
-  description?: string
+  description?: string,
 ): Promise<void> {
   const publisher = forConnection(
     companyId,
     connectionId,
     publishCommand,
-    buildCommandSubject
-  )
-  await publisher.groupUpdateSettings(groupJid, userId, name, description)
+    buildCommandSubject,
+  );
+  await publisher.groupUpdateSettings(groupJid, userId, name, description);
 }
 
 /**
@@ -417,15 +417,15 @@ export async function publishGroupUpdateSettings(
 export async function publishSyncLabels(
   companyId: string,
   connectionId: string,
-  userId: string
+  userId: string,
 ): Promise<void> {
   const publisher = forConnection(
     companyId,
     connectionId,
     publishCommand,
-    buildCommandSubject
-  )
-  await publisher.syncLabels(userId)
+    buildCommandSubject,
+  );
+  await publisher.syncLabels(userId);
 }
 
 /**
@@ -436,15 +436,15 @@ export async function publishApplyLabel(
   connectionId: string,
   labelId: string,
   contactJid: string,
-  userId: string
+  userId: string,
 ): Promise<void> {
   const publisher = forConnection(
     companyId,
     connectionId,
     publishCommand,
-    buildCommandSubject
-  )
-  await publisher.applyLabel(labelId, contactJid, userId)
+    buildCommandSubject,
+  );
+  await publisher.applyLabel(labelId, contactJid, userId);
 }
 
 /**
@@ -455,15 +455,15 @@ export async function publishRemoveLabel(
   connectionId: string,
   labelId: string,
   contactJid: string,
-  userId: string
+  userId: string,
 ): Promise<void> {
   const publisher = forConnection(
     companyId,
     connectionId,
     publishCommand,
-    buildCommandSubject
-  )
-  await publisher.removeLabel(labelId, contactJid, userId)
+    buildCommandSubject,
+  );
+  await publisher.removeLabel(labelId, contactJid, userId);
 }
 
 /**
@@ -472,16 +472,16 @@ export async function publishRemoveLabel(
  */
 export async function subscribe(
   subject: string,
-  callback: (event: WhatsAppEvent) => void | Promise<void>
+  callback: (event: WhatsAppEvent) => void | Promise<void>,
 ): Promise<JetStreamSubscription> {
-  const js = await getJetStreamClient()
+  const js = await getJetStreamClient();
   // Note: We used to get the nats connection for inbox prefix, but now use static prefix
-  await getNatsConnection() // Ensure connection is established
+  await getNatsConnection(); // Ensure connection is established
 
   // Create an ephemeral push consumer with a unique deliver subject
   // This allows receiving messages published to JetStream
   const inbox =
-    "_INBOX." + nowMs() + "." + Math.random().toString(36).substring(7)
+    "_INBOX." + nowMs() + "." + Math.random().toString(36).substring(7);
 
   const subscription = await js.subscribe(subject, {
     config: {
@@ -490,26 +490,26 @@ export async function subscribe(
       replay_policy: "instant",
       deliver_subject: inbox,
     },
-  } as unknown as nats.ConsumerOptsBuilder)
+  } as unknown as nats.ConsumerOptsBuilder);
 
-  ;(async () => {
+  (async () => {
     for await (const msg of subscription) {
       try {
-        const event = jc.decode(msg.data) as WhatsAppEvent
-        await callback(event)
+        const event = jc.decode(msg.data) as WhatsAppEvent;
+        await callback(event);
       } catch (error) {
         logger.error(
           { ...formatError(error), subject },
-          "Error processing message"
-        )
+          "Error processing message",
+        );
       }
     }
   })().catch((err) => {
-    logger.error({ ...formatError(err), subject }, "Subscription error")
-  })
+    logger.error({ ...formatError(err), subject }, "Subscription error");
+  });
 
-  logger.info({ subject }, "Subscribed to subject via JetStream")
-  return subscription
+  logger.info({ subject }, "Subscribed to subject via JetStream");
+  return subscription;
 }
 
 /**
@@ -518,10 +518,10 @@ export async function subscribe(
  */
 export async function subscribeToCompanyEvents(
   companyId: string,
-  callback: (event: WhatsAppEvent) => void | Promise<void>
+  callback: (event: WhatsAppEvent) => void | Promise<void>,
 ): Promise<JetStreamSubscription> {
   // Subscribe to WHATSAPP.events.{companyId}.> to match all connections and event types
-  return subscribe(`${NATS_SUBJECTS.WHATSAPP_EVENTS}.${companyId}.>`, callback)
+  return subscribe(`${NATS_SUBJECTS.WHATSAPP_EVENTS}.${companyId}.>`, callback);
 }
 
 /**
@@ -530,23 +530,23 @@ export async function subscribeToCompanyEvents(
 export async function subscribeToConnectionEvents(
   companyId: string,
   connectionId: string,
-  callback: (event: WhatsAppEvent) => void | Promise<void>
+  callback: (event: WhatsAppEvent) => void | Promise<void>,
 ): Promise<JetStreamSubscription> {
   // Subscribe to WHATSAPP.events.{companyId}.{connectionId}.> to match all event types for this connection
   return subscribe(
     `${NATS_SUBJECTS.WHATSAPP_EVENTS}.${companyId}.${connectionId}.>`,
-    callback
-  )
+    callback,
+  );
 }
 
 /**
  * Subscribes to all WhatsApp events (for message handler)
  */
 export async function subscribeToAllEvents(
-  callback: (event: WhatsAppEvent) => void | Promise<void>
+  callback: (event: WhatsAppEvent) => void | Promise<void>,
 ): Promise<JetStreamSubscription> {
   // Use > wildcard to match all companies, connections and event types
-  return subscribe(`${NATS_SUBJECTS.WHATSAPP_EVENTS}.>`, callback)
+  return subscribe(`${NATS_SUBJECTS.WHATSAPP_EVENTS}.>`, callback);
 }
 
 /**
@@ -554,11 +554,11 @@ export async function subscribeToAllEvents(
  */
 export async function closeNatsConnection(): Promise<void> {
   if (natsConnection) {
-    await natsConnection.drain()
-    await natsConnection.close()
-    natsConnection = null
-    jetStreamClient = null
-    logger.info("Connection closed")
+    await natsConnection.drain();
+    await natsConnection.close();
+    natsConnection = null;
+    jetStreamClient = null;
+    logger.info("Connection closed");
   }
 }
 
@@ -566,7 +566,7 @@ export async function closeNatsConnection(): Promise<void> {
  * Checks if NATS is connected
  */
 export function isNatsConnected(): boolean {
-  return natsConnection !== null && !natsConnection.isClosed()
+  return natsConnection !== null && !natsConnection.isClosed();
 }
 
 /**
@@ -575,11 +575,11 @@ export function isNatsConnected(): boolean {
 export async function request<T>(
   subject: string,
   data: unknown,
-  timeout: number = 5000
+  timeout: number = 5000,
 ): Promise<T> {
-  const nc = await getNatsConnection()
-  const msg = await nc.request(subject, jc.encode(data), { timeout })
-  return jc.decode(msg.data) as T
+  const nc = await getNatsConnection();
+  const msg = await nc.request(subject, jc.encode(data), { timeout });
+  return jc.decode(msg.data) as T;
 }
 
 /**
@@ -588,15 +588,15 @@ export async function request<T>(
 export async function publishSyncCatalogs(
   companyId: string,
   connectionId: string,
-  userId: string
+  userId: string,
 ): Promise<void> {
   const publisher = forConnection(
     companyId,
     connectionId,
     publishCommand,
-    buildCommandSubject
-  )
-  await publisher.syncCatalogs(userId)
+    buildCommandSubject,
+  );
+  await publisher.syncCatalogs(userId);
 }
 
 /**
@@ -606,15 +606,15 @@ export async function publishSyncCatalogProducts(
   companyId: string,
   connectionId: string,
   catalogId: string,
-  userId: string
+  userId: string,
 ): Promise<void> {
   const publisher = forConnection(
     companyId,
     connectionId,
     publishCommand,
-    buildCommandSubject
-  )
-  await publisher.syncCatalogProducts(catalogId, userId)
+    buildCommandSubject,
+  );
+  await publisher.syncCatalogProducts(catalogId, userId);
 }
 
 /**
@@ -627,7 +627,7 @@ export async function publishSendReaction(
   targetMessageId: string,
   emoji: string,
   userId: string,
-  fromMe: boolean
+  fromMe: boolean,
 ): Promise<void> {
   const sendCommand = {
     message_id: `reaction_${nowMs()}`, // Temporary ID for tracking
@@ -638,12 +638,12 @@ export async function publishSendReaction(
     emoji,
     user_id: userId,
     from_me: fromMe, // Add from_me flag
-  }
+  };
 
-  const js = await getJetStreamClient()
-  const subject = buildCommandSubject(companyId, connectionId)
-  const data = jc.encode(sendCommand)
-  await js.publish(subject, data)
+  const js = await getJetStreamClient();
+  const subject = buildCommandSubject(companyId, connectionId);
+  const data = jc.encode(sendCommand);
+  await js.publish(subject, data);
   logger.debug(
     {
       subject,
@@ -652,8 +652,8 @@ export async function publishSendReaction(
       emoji,
       fromMe,
     },
-    "Published send reaction"
-  )
+    "Published send reaction",
+  );
 }
 
 /**
@@ -663,22 +663,22 @@ export async function publishSendReaction(
 export async function publishBlockContact(
   companyId: string,
   connectionId: string,
-  contactJid: string
+  contactJid: string,
 ): Promise<void> {
   try {
     const publisher = forConnection(
       companyId,
       connectionId,
       publishCommand,
-      buildCommandSubject
-    )
-    await publisher.blockContact(contactJid)
+      buildCommandSubject,
+    );
+    await publisher.blockContact(contactJid);
     logger.debug(
       { companyId, connectionId, contactJid },
-      "Published block contact command"
-    )
+      "Published block contact command",
+    );
   } catch (error) {
-    logger.error(formatError(error), "Failed to publish block contact command")
+    logger.error(formatError(error), "Failed to publish block contact command");
     // Fire-and-forget: don't throw, just log the error
   }
 }
@@ -690,25 +690,25 @@ export async function publishBlockContact(
 export async function publishUnblockContact(
   companyId: string,
   connectionId: string,
-  contactJid: string
+  contactJid: string,
 ): Promise<void> {
   try {
     const publisher = forConnection(
       companyId,
       connectionId,
       publishCommand,
-      buildCommandSubject
-    )
-    await publisher.unblockContact(contactJid)
+      buildCommandSubject,
+    );
+    await publisher.unblockContact(contactJid);
     logger.debug(
       { companyId, connectionId, contactJid },
-      "Published unblock contact command"
-    )
+      "Published unblock contact command",
+    );
   } catch (error) {
     logger.error(
       formatError(error),
-      "Failed to publish unblock contact command"
-    )
+      "Failed to publish unblock contact command",
+    );
     // Fire-and-forget: don't throw, just log the error
   }
 }
@@ -721,24 +721,24 @@ export async function publishTypingCommand(
   companyId: string,
   connectionId: string,
   jid: string,
-  isTyping: boolean
+  isTyping: boolean,
 ): Promise<void> {
   try {
     const typingCommand = {
       type: isTyping ? "typing_start" : "typing_stop",
       jid,
-    }
+    };
 
-    const js = await getJetStreamClient()
-    const subject = buildCommandSubject(companyId, connectionId)
-    const data = jc.encode(typingCommand)
-    await js.publish(subject, data)
+    const js = await getJetStreamClient();
+    const subject = buildCommandSubject(companyId, connectionId);
+    const data = jc.encode(typingCommand);
+    await js.publish(subject, data);
     logger.debug(
       { companyId, connectionId, jid, isTyping },
-      "Published typing command"
-    )
+      "Published typing command",
+    );
   } catch (error) {
-    logger.error(formatError(error), "Failed to publish typing command")
+    logger.error(formatError(error), "Failed to publish typing command");
     // Fire-and-forget: don't throw, just log the error
   }
 }

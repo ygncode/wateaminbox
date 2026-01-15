@@ -1,13 +1,14 @@
 import { toDbDate, toISOString } from "@whatsapp-web/shared";
 import { Hono } from "hono";
 import { forbidden } from "../lib/errors.js";
-import { authMiddleware } from "../middleware/auth.js";
-import { getRouteContext } from "../middleware/context.js";
+import { successData, successPaginated } from "../lib/response.js";
 import {
   extractPaginationParams,
   createPaginationMeta,
 } from "../lib/route-helpers.js";
 import { transformAuditLogs } from "../lib/data-transformers.js";
+import { authMiddleware } from "../middleware/auth.js";
+import { getRouteContext } from "../middleware/context.js";
 import { tenantMiddleware } from "../middleware/tenant.js";
 import * as auditService from "../services/audit.service.js";
 
@@ -49,13 +50,14 @@ auditRoutes.get("/", async (c) => {
     offset,
   });
 
-  return c.json({
-    data: transformAuditLogs(result.logs),
-    pagination: createPaginationMeta(result.total, result.logs.length, {
+  return successPaginated(
+    c,
+    transformAuditLogs(result.logs),
+    createPaginationMeta(result.total, result.logs.length, {
       limit,
       offset,
     }),
-  });
+  );
 });
 
 /**
@@ -82,15 +84,16 @@ auditRoutes.get("/actions", async (c) => {
     "company.updated",
   ];
 
-  return c.json({
-    data: actions.map((action) => ({
+  return successData(
+    c,
+    actions.map((action) => ({
       value: action,
       label: action
         .split(".")
         .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
         .join(" - "),
     })),
-  });
+  );
 });
 
 /**

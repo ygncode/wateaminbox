@@ -9,10 +9,7 @@
  */
 
 import { describe, it, expect, mock, beforeEach } from "bun:test";
-import {
-  createMutableMockQueryBuilder,
-  resetMockQueryBuilder,
-} from "../mocks";
+import { createMutableMockQueryBuilder, resetMockQueryBuilder } from "../mocks";
 
 // Mock query builder - using centralized mock utilities
 let mockQueryBuilder = createMutableMockQueryBuilder();
@@ -24,18 +21,22 @@ const mockTenantDb = {
 
 // Mock sql template with sql.raw support
 const createMockSql = () => {
-  const mockSqlFn = mock((_strings: TemplateStringsArray, ..._values: unknown[]) => ({
-    execute: mock(() =>
-      Promise.resolve({
-        rows: [],
-      })
-    ),
-  }));
+  const mockSqlFn = mock(
+    (_strings: TemplateStringsArray, ..._values: unknown[]) => ({
+      execute: mock(() =>
+        Promise.resolve({
+          rows: [],
+        }),
+      ),
+    }),
+  );
 
   // Add sql.raw method
-  (mockSqlFn as unknown as { raw: typeof mock }).raw = mock((value: string) => ({
-    __raw: value,
-  }));
+  (mockSqlFn as unknown as { raw: typeof mock }).raw = mock(
+    (value: string) => ({
+      __raw: value,
+    }),
+  );
 
   return mockSqlFn;
 };
@@ -65,15 +66,21 @@ const mockZipSync = mock((files: Record<string, Uint8Array>) => {
 let lastCapturedFiles: Record<string, Uint8Array> | null = null;
 
 // Async zip mock for the Promise-based API
-const mockZip = mock((files: Record<string, Uint8Array>, _options: unknown, callback: (err: Error | null, data: Uint8Array) => void) => {
-  // Capture files for test inspection
-  lastCapturedFiles = files;
-  const encoder = new TextEncoder();
-  const fileNames = Object.keys(files).join(",");
-  const result = encoder.encode(`mock-zip:${fileNames}`);
-  // Call callback asynchronously to simulate real behavior
-  setTimeout(() => callback(null, result), 0);
-});
+const mockZip = mock(
+  (
+    files: Record<string, Uint8Array>,
+    _options: unknown,
+    callback: (err: Error | null, data: Uint8Array) => void,
+  ) => {
+    // Capture files for test inspection
+    lastCapturedFiles = files;
+    const encoder = new TextEncoder();
+    const fileNames = Object.keys(files).join(",");
+    const result = encoder.encode(`mock-zip:${fileNames}`);
+    // Call callback asynchronously to simulate real behavior
+    setTimeout(() => callback(null, result), 0);
+  },
+);
 
 // Helper to get captured files in tests
 function getLastCapturedFiles(): Record<string, Uint8Array> | null {
@@ -510,7 +517,9 @@ describe("ExportService", () => {
       }));
 
       // Act & Assert
-      await expect(exportConversation("company-123", "non-existent")).rejects.toThrow("Contact not found");
+      await expect(
+        exportConversation("company-123", "non-existent"),
+      ).rejects.toThrow("Contact not found");
     });
 
     it("should apply date filters to messages", async () => {
@@ -565,8 +574,28 @@ describe("ExportService", () => {
 
       // Messages are returned in reverse order from the query
       const mockMessages = [
-        { message_id: "msg-2", contact_whatsapp_id: "123", contact_name: null, from_me: true, message_type: "text", text_content: "Second", timestamp: new Date("2024-01-02"), sent_by_user: null, media_url: null },
-        { message_id: "msg-1", contact_whatsapp_id: "123", contact_name: null, from_me: false, message_type: "text", text_content: "First", timestamp: new Date("2024-01-01"), sent_by_user: null, media_url: null },
+        {
+          message_id: "msg-2",
+          contact_whatsapp_id: "123",
+          contact_name: null,
+          from_me: true,
+          message_type: "text",
+          text_content: "Second",
+          timestamp: new Date("2024-01-02"),
+          sent_by_user: null,
+          media_url: null,
+        },
+        {
+          message_id: "msg-1",
+          contact_whatsapp_id: "123",
+          contact_name: null,
+          from_me: false,
+          message_type: "text",
+          text_content: "First",
+          timestamp: new Date("2024-01-01"),
+          sent_by_user: null,
+          media_url: null,
+        },
       ];
 
       let sqlCallCount = 0;
@@ -625,9 +654,7 @@ describe("ExportService", () => {
 
     it("should use provided columns", () => {
       // Arrange
-      const data = [
-        { a: "1", b: "2", c: "3" },
-      ];
+      const data = [{ a: "1", b: "2", c: "3" }];
 
       // Act
       const result = toCSV(data, ["a", "c"]);
@@ -640,9 +667,7 @@ describe("ExportService", () => {
 
     it("should escape values containing commas", () => {
       // Arrange
-      const data = [
-        { name: "Doe, John", id: "123" },
-      ];
+      const data = [{ name: "Doe, John", id: "123" }];
 
       // Act
       const result = toCSV(data);
@@ -653,9 +678,7 @@ describe("ExportService", () => {
 
     it("should escape values containing newlines", () => {
       // Arrange
-      const data = [
-        { notes: "Line 1\nLine 2", id: "123" },
-      ];
+      const data = [{ notes: "Line 1\nLine 2", id: "123" }];
 
       // Act
       const result = toCSV(data);
@@ -666,9 +689,7 @@ describe("ExportService", () => {
 
     it("should escape quotes within values", () => {
       // Arrange
-      const data = [
-        { text: 'He said "hello"', id: "123" },
-      ];
+      const data = [{ text: 'He said "hello"', id: "123" }];
 
       // Act
       const result = toCSV(data);
@@ -679,9 +700,7 @@ describe("ExportService", () => {
 
     it("should handle null and undefined values", () => {
       // Arrange
-      const data = [
-        { a: null, b: undefined, c: "value" },
-      ];
+      const data = [{ a: null, b: undefined, c: "value" }];
 
       // Act
       const result = toCSV(data as Record<string, unknown>[]);
@@ -900,13 +919,53 @@ describe("ExportService", () => {
     it("should include correct stats in backup", async () => {
       // Arrange
       const mockContacts = [
-        { whatsapp_id: "1", phone_number: null, push_name: null, custom_name: null, shared_notes: null, tags: null, assigned_to: null, created_at: new Date(), last_message_at: null },
-        { whatsapp_id: "2", phone_number: null, push_name: null, custom_name: null, shared_notes: null, tags: null, assigned_to: null, created_at: new Date(), last_message_at: null },
+        {
+          whatsapp_id: "1",
+          phone_number: null,
+          push_name: null,
+          custom_name: null,
+          shared_notes: null,
+          tags: null,
+          assigned_to: null,
+          created_at: new Date(),
+          last_message_at: null,
+        },
+        {
+          whatsapp_id: "2",
+          phone_number: null,
+          push_name: null,
+          custom_name: null,
+          shared_notes: null,
+          tags: null,
+          assigned_to: null,
+          created_at: new Date(),
+          last_message_at: null,
+        },
       ];
 
       const mockMessages = [
-        { message_id: "m1", contact_whatsapp_id: "1", contact_name: null, from_me: true, message_type: "text", text_content: "Hi", timestamp: new Date("2024-01-01"), sent_by_user: null, media_url: null },
-        { message_id: "m2", contact_whatsapp_id: "1", contact_name: null, from_me: false, message_type: "text", text_content: "Hello", timestamp: new Date("2024-01-15"), sent_by_user: null, media_url: null },
+        {
+          message_id: "m1",
+          contact_whatsapp_id: "1",
+          contact_name: null,
+          from_me: true,
+          message_type: "text",
+          text_content: "Hi",
+          timestamp: new Date("2024-01-01"),
+          sent_by_user: null,
+          media_url: null,
+        },
+        {
+          message_id: "m2",
+          contact_whatsapp_id: "1",
+          contact_name: null,
+          from_me: false,
+          message_type: "text",
+          text_content: "Hello",
+          timestamp: new Date("2024-01-15"),
+          sent_by_user: null,
+          media_url: null,
+        },
       ];
 
       let sqlCallCount = 0;

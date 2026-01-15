@@ -12,7 +12,11 @@
  */
 
 import { describe, it, expect, beforeEach, mock } from "bun:test";
-import { createMockWhatsAppLabel, createMockTag, createMockQueryBuilder } from "../mocks";
+import {
+  createMockWhatsAppLabel,
+  createMockTag,
+  createMockQueryBuilder,
+} from "../mocks";
 
 // Create a mock tenant db for labels
 function createMockTenantDb() {
@@ -49,8 +53,8 @@ function createMockTenantDb() {
             return Promise.resolve(
               labels.filter(
                 (l: unknown) =>
-                  (l as Record<string, unknown>).synced_tag_id !== null
-              )
+                  (l as Record<string, unknown>).synced_tag_id !== null,
+              ),
             );
           }
           return Promise.resolve(labels);
@@ -60,8 +64,8 @@ function createMockTenantDb() {
             return Promise.resolve(
               tags.filter(
                 (t: unknown) =>
-                  (t as Record<string, unknown>).whatsapp_label_id !== null
-              )
+                  (t as Record<string, unknown>).whatsapp_label_id !== null,
+              ),
             );
           }
           return Promise.resolve(tags);
@@ -74,7 +78,7 @@ function createMockTenantDb() {
           const found = labels.find(
             (l: unknown) =>
               (l as Record<string, unknown>).label_id === currentFilter ||
-              (l as Record<string, unknown>).id === currentFilter
+              (l as Record<string, unknown>).id === currentFilter,
           );
           return Promise.resolve(found);
         }
@@ -82,7 +86,7 @@ function createMockTenantDb() {
           const found = tags.find(
             (t: unknown) =>
               (t as Record<string, unknown>).id === currentFilter ||
-              (t as Record<string, unknown>).name === currentFilter
+              (t as Record<string, unknown>).name === currentFilter,
           );
           return Promise.resolve(found);
         }
@@ -141,7 +145,9 @@ function createMockTenantDb() {
 
       builder.set = mock(() => builder);
       builder.where = mock(() => builder);
-      builder.execute = mock(() => Promise.resolve({ numUpdatedRows: BigInt(1) }));
+      builder.execute = mock(() =>
+        Promise.resolve({ numUpdatedRows: BigInt(1) }),
+      );
 
       return builder;
     }),
@@ -150,7 +156,9 @@ function createMockTenantDb() {
       const builder: Record<string, unknown> = {};
 
       builder.where = mock(() => builder);
-      builder.execute = mock(() => Promise.resolve({ numDeletedRows: BigInt(1) }));
+      builder.execute = mock(() =>
+        Promise.resolve({ numDeletedRows: BigInt(1) }),
+      );
 
       return builder;
     }),
@@ -249,7 +257,10 @@ describe("label-sync.service", () => {
         last_synced_at: new Date(),
       };
 
-      await mockTenantDb.insertInto("whatsapp_labels").values(newLabelData).execute();
+      await mockTenantDb
+        .insertInto("whatsapp_labels")
+        .values(newLabelData)
+        .execute();
 
       const labels = mockTenantDb._getLabels();
       expect(labels).toHaveLength(1);
@@ -438,13 +449,14 @@ describe("label-sync.service", () => {
 
       // Count linked labels
       const linkedLabels = allLabels.filter(
-        (l: unknown) => (l as Record<string, unknown>).synced_tag_id !== null
+        (l: unknown) => (l as Record<string, unknown>).synced_tag_id !== null,
       );
       expect(linkedLabels).toHaveLength(1);
 
       // Count linked tags
       const linkedTags = allTags.filter(
-        (t: unknown) => (t as Record<string, unknown>).whatsapp_label_id !== null
+        (t: unknown) =>
+          (t as Record<string, unknown>).whatsapp_label_id !== null,
       );
       expect(linkedTags).toHaveLength(1);
     });

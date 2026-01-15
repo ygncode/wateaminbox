@@ -146,7 +146,9 @@ export async function handleWhatsAppEvent(event: WhatsAppEvent): Promise<void> {
         break;
 
       case "connection_status":
-        await handleWorkerConnectionStatusEvent(event as WorkerConnectionStatusEvent);
+        await handleWorkerConnectionStatusEvent(
+          event as WorkerConnectionStatusEvent,
+        );
         break;
 
       case "status":

@@ -12,7 +12,11 @@
 
 import { describe, it, expect, beforeEach, mock } from "bun:test";
 import { Hono } from "hono";
-import { createMockStatusUpdate, createMockWhatsAppConnection, createMockQueryBuilder } from "../mocks";
+import {
+  createMockStatusUpdate,
+  createMockWhatsAppConnection,
+  createMockQueryBuilder,
+} from "../mocks";
 
 // Mock publishPostStatus function
 const mockPublishPostStatus = mock(() => Promise.resolve());
@@ -37,8 +41,8 @@ mock.module("../../lib/nats.js", () => ({
   publishSyncCatalogProducts: mock(async () => {}),
   publishSendReaction: mock(async () => {}),
   publishCommand: mock(async () => {}),
-  getNatsConnection: mock(async () => ({ status: 'ok' })),
-  getJetStreamClient: mock(async () => ({ status: 'ok' })),
+  getNatsConnection: mock(async () => ({ status: "ok" })),
+  getJetStreamClient: mock(async () => ({ status: "ok" })),
   subscribe: mock(async () => {}),
   subscribeToCompanyEvents: mock(async () => {}),
   subscribeToConnectionEvents: mock(async () => {}),
@@ -47,35 +51,35 @@ mock.module("../../lib/nats.js", () => ({
   isNatsConnected: mock(() => true),
   request: mock(async () => ({})),
   NATS_SUBJECTS: {
-    SPAWN: 'whatsapp.spawn',
-    KILL: 'whatsapp.kill',
-    SEND_MESSAGE: 'whatsapp.send-message',
-    POST_STATUS: 'whatsapp.post-status',
-    GROUP_PROMOTE_ADMIN: 'whatsapp.group.promote-admin',
-    GROUP_DEMOTE_ADMIN: 'whatsapp.group.demote-admin',
-    GROUP_REMOVE_PARTICIPANT: 'whatsapp.group.remove-participant',
-    GROUP_UPDATE_SETTINGS: 'whatsapp.group.update-settings',
-    SYNC_LABELS: 'whatsapp.sync-labels',
-    APPLY_LABEL: 'whatsapp.apply-label',
-    REMOVE_LABEL: 'whatsapp.remove-label',
-    SEND_REACTION: 'whatsapp.send-reaction',
-    SYNC_CATALOGS: 'whatsapp.sync-catalogs',
-    SYNC_CATALOG_PRODUCTS: 'whatsapp.sync-catalog-products',
-    QR_CODE: 'whatsapp.events.qr',
-    CONNECTION_UPDATE: 'whatsapp.events.connection',
-    MESSAGE: 'whatsapp.events.message',
-    RECEIPT: 'whatsapp.events.receipt',
-    SEND_CONFIRMATION: 'whatsapp.events.send-confirmation',
-    STATUS_UPDATE: 'whatsapp.events.status',
-    CONTACT_UPDATE: 'whatsapp.events.contact',
-    PRESENCE: 'whatsapp.events.presence',
-    TYPING: 'whatsapp.events.typing',
-    MESSAGE_REVOKE: 'whatsapp.events.message-revoke',
-    REACTION: 'whatsapp.events.reaction',
-    PROFILE_PICTURE: 'whatsapp.events.profile-picture',
-    LABELS: 'whatsapp.events.labels',
-    CATALOGS: 'whatsapp.events.catalogs',
-    CATALOG_PRODUCTS: 'whatsapp.events.catalog-products',
+    SPAWN: "whatsapp.spawn",
+    KILL: "whatsapp.kill",
+    SEND_MESSAGE: "whatsapp.send-message",
+    POST_STATUS: "whatsapp.post-status",
+    GROUP_PROMOTE_ADMIN: "whatsapp.group.promote-admin",
+    GROUP_DEMOTE_ADMIN: "whatsapp.group.demote-admin",
+    GROUP_REMOVE_PARTICIPANT: "whatsapp.group.remove-participant",
+    GROUP_UPDATE_SETTINGS: "whatsapp.group.update-settings",
+    SYNC_LABELS: "whatsapp.sync-labels",
+    APPLY_LABEL: "whatsapp.apply-label",
+    REMOVE_LABEL: "whatsapp.remove-label",
+    SEND_REACTION: "whatsapp.send-reaction",
+    SYNC_CATALOGS: "whatsapp.sync-catalogs",
+    SYNC_CATALOG_PRODUCTS: "whatsapp.sync-catalog-products",
+    QR_CODE: "whatsapp.events.qr",
+    CONNECTION_UPDATE: "whatsapp.events.connection",
+    MESSAGE: "whatsapp.events.message",
+    RECEIPT: "whatsapp.events.receipt",
+    SEND_CONFIRMATION: "whatsapp.events.send-confirmation",
+    STATUS_UPDATE: "whatsapp.events.status",
+    CONTACT_UPDATE: "whatsapp.events.contact",
+    PRESENCE: "whatsapp.events.presence",
+    TYPING: "whatsapp.events.typing",
+    MESSAGE_REVOKE: "whatsapp.events.message-revoke",
+    REACTION: "whatsapp.events.reaction",
+    PROFILE_PICTURE: "whatsapp.events.profile-picture",
+    LABELS: "whatsapp.events.labels",
+    CATALOGS: "whatsapp.events.catalogs",
+    CATALOG_PRODUCTS: "whatsapp.events.catalog-products",
   },
 }));
 
@@ -92,7 +96,13 @@ function createMockTenantDb() {
         const builder: Record<string, unknown> = {};
         let currentFilters: { field: string; value: unknown }[] = [];
 
-        const chainMethods = ["selectAll", "select", "orderBy", "limit", "offset"];
+        const chainMethods = [
+          "selectAll",
+          "select",
+          "orderBy",
+          "limit",
+          "offset",
+        ];
         chainMethods.forEach((method) => {
           builder[method] = mock(() => builder);
         });
@@ -119,19 +129,21 @@ function createMockTenantDb() {
             if (filter.field === "expires_at") {
               result = result.filter(
                 (s: unknown) =>
-                  new Date((s as Record<string, unknown>).expires_at as string) >
-                  (filter.value as Date)
+                  new Date(
+                    (s as Record<string, unknown>).expires_at as string,
+                  ) > (filter.value as Date),
               );
             }
             if (filter.field === "from_jid") {
               result = result.filter(
                 (s: unknown) =>
-                  (s as Record<string, unknown>).from_jid === filter.value
+                  (s as Record<string, unknown>).from_jid === filter.value,
               );
             }
             if (filter.field === "id") {
               result = result.filter(
-                (s: unknown) => (s as Record<string, unknown>).id === filter.value
+                (s: unknown) =>
+                  (s as Record<string, unknown>).id === filter.value,
               );
             }
           });
@@ -143,7 +155,8 @@ function createMockTenantDb() {
           currentFilters.forEach((filter) => {
             if (filter.field === "id") {
               result = result.filter(
-                (s: unknown) => (s as Record<string, unknown>).id === filter.value
+                (s: unknown) =>
+                  (s as Record<string, unknown>).id === filter.value,
               );
             }
           });
@@ -177,14 +190,20 @@ function createMockTenantDb() {
 
       if (table === "whatsapp_connections") {
         const builder: Record<string, unknown> = {};
-        const chainMethods = ["selectAll", "select", "orderBy", "limit", "offset"];
+        const chainMethods = [
+          "selectAll",
+          "select",
+          "orderBy",
+          "limit",
+          "offset",
+        ];
         chainMethods.forEach((method) => {
           builder[method] = mock(() => builder);
         });
 
         builder.where = mock(() => builder);
         builder.execute = mock(() =>
-          Promise.resolve(connection ? [connection] : [])
+          Promise.resolve(connection ? [connection] : []),
         );
         builder.executeTakeFirst = mock(() => Promise.resolve(connection));
 
@@ -201,9 +220,7 @@ function createMockTenantDb() {
           return builder;
         });
         builder.execute = mock(() => Promise.resolve([]));
-        builder.executeTakeFirst = mock(() =>
-          Promise.resolve(insertedStatus)
-        );
+        builder.executeTakeFirst = mock(() => Promise.resolve(insertedStatus));
         return builder;
       }
       return createMockQueryBuilder();
@@ -298,7 +315,7 @@ describe("Status Routes", () => {
             timestamp: s.timestamp,
             expiresAt: s.expires_at,
           })),
-        })
+        }),
       );
 
       return c.json({
@@ -361,7 +378,7 @@ describe("Status Routes", () => {
       return c.json({
         activeStatuses: statuses.length,
         contactsWithStatus: new Set(
-          statuses.map((s: Record<string, unknown>) => s.from_jid)
+          statuses.map((s: Record<string, unknown>) => s.from_jid),
         ).size,
         totalStatusesReceived: statuses.length,
       });
@@ -409,7 +426,7 @@ describe("Status Routes", () => {
       if (!type || !["text", "image", "video"].includes(type)) {
         return c.json(
           { error: "type is required and must be 'text', 'image', or 'video'" },
-          400
+          400,
         );
       }
 
@@ -420,7 +437,7 @@ describe("Status Routes", () => {
       if ((type === "image" || type === "video") && !mediaUrl) {
         return c.json(
           { error: "mediaUrl is required for image/video status" },
-          400
+          400,
         );
       }
 
@@ -433,7 +450,7 @@ describe("Status Routes", () => {
       if (!connection) {
         return c.json(
           { error: "WhatsApp is not connected. Please connect first." },
-          400
+          400,
         );
       }
 

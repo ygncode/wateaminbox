@@ -6,15 +6,16 @@
 
 import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
-import { HTTPException } from "hono/http-exception";
+import { ForbiddenError } from "../../lib/errors.js";
 import { authMiddleware } from "../../middleware/auth.js";
 import { tenantFromParam } from "../../middleware/tenant.js";
 import * as companyService from "../../services/company.service.js";
-import { createLogger, formatError } from "../../lib/logger.js";
 import { created, successData, successMessage } from "../../lib/response.js";
-import { createCompanySchema, updateCompanySchema } from "../../lib/schemas/index.js";
-
-const logger = createLogger("CompanyRoutes:CRUD");
+import {
+  createCompanySchema,
+  updateCompanySchema,
+  type CreateCompanyInput,
+} from "../../lib/schemas/index.js";
 
 export const crudRoutes = new Hono();
 
@@ -23,16 +24,8 @@ export const crudRoutes = new Hono();
  */
 crudRoutes.get("/", authMiddleware, async (c) => {
   const user = c.get("user");
-
-  try {
-    const companies = await companyService.getUserCompanies(user.id);
-    return successData(c, companies);
-  } catch (error) {
-    logger.error({ err: formatError(error) }, "Failed to get user companies");
-    throw new HTTPException(500, {
-      message: "Failed to get companies",
-    });
-  }
+  const companies = await companyService.getUserCompanies(user.id);
+  return successData(c, companies);
 });
 
 /**
@@ -44,20 +37,12 @@ crudRoutes.post(
   zValidator("json", createCompanySchema),
   async (c) => {
     const user = c.get("user");
-    const input = c.req.valid("json") as z.infer<typeof createCompanySchema>;
-
-    try {
-      const company = await companyService.createCompany(
-        { name: input.name },
-        user.id,
-      );
-      return created(c, company);
-    } catch (error) {
-      logger.error({ err: formatError(error) }, "Failed to create company");
-      throw new HTTPException(500, {
-        message: "Failed to create company",
-      });
-    }
+    const input = c.req.valid("json") as CreateCompanyInput;
+    const company = await companyService.createCompany(
+      { name: input.name },
+      user.id,
+    );
+    return created(c, company);
   },
 );
 
@@ -68,18 +53,11 @@ crudRoutes.get("/:id", authMiddleware, tenantFromParam("id"), async (c) => {
   const companyId = c.get("companyId");
   const role = c.get("companyRole");
 
-  try {
-    const company = await companyService.getCompany(companyId);
-    return successData(c, {
-      ...company,
-      role, // Include user's role in response
-    });
-  } catch (error) {
-    if (error instanceof companyService.CompanyNotFoundError) {
-      throw new HTTPException(404, { message: error.message });
-    }
-    throw error;
-  }
+  const company = await companyService.getCompany(companyId);
+  return successData(c, {
+    ...company,
+    role, // Include user's role in response
+  });
 });
 
 /**
@@ -99,21 +77,12 @@ crudRoutes.patch(
     if (input.status !== undefined) {
       const role = c.get("companyRole");
       if (role !== "owner") {
-        throw new HTTPException(403, {
-          message: "Only the owner can change company status",
-        });
+        throw new ForbiddenError("Only the owner can change company status");
       }
     }
 
-    try {
-      const company = await companyService.updateCompany(companyId, input);
-      return successData(c, company);
-    } catch (error) {
-      if (error instanceof companyService.CompanyNotFoundError) {
-        throw new HTTPException(404, { message: error.message });
-      }
-      throw error;
-    }
+    const company = await companyService.updateCompany(companyId, input);
+    return successData(c, company);
   },
 );
 
@@ -128,14 +97,7 @@ crudRoutes.delete(
   async (c) => {
     const companyId = c.get("companyId");
 
-    try {
-      await companyService.deleteCompany(companyId);
-      return successMessage(c, "Company deleted successfully");
-    } catch (error) {
-      if (error instanceof companyService.CompanyNotFoundError) {
-        throw new HTTPException(404, { message: error.message });
-      }
-      throw error;
-    }
+    await companyService.deleteCompany(companyId);
+    return successMessage(c, "Company deleted successfully");
   },
 );

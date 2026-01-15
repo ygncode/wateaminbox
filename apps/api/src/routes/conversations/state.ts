@@ -1,26 +1,28 @@
-import { Hono } from "hono"
-import { notFound } from "../../lib/errors.js"
-import { successData } from "../../lib/response.js"
-import { getRouteContext } from "../../middleware/context.js"
-import { createAuditLog, getClientIp } from "../../services/audit.service.js"
+import { zValidator } from "@hono/zod-validator";
+import { Hono } from "hono";
+import { notFound } from "../../lib/errors.js";
+import { successData } from "../../lib/response.js";
+import { resolveConversationSchema } from "../../lib/schemas/index.js";
+import { getRouteContext } from "../../middleware/context.js";
+import { createAuditLog, getClientIp } from "../../services/audit.service.js";
 import {
   getConversationState,
   reopenConversation,
   resolveConversation,
   setConversationPending,
-} from "../../services/conversation-state.service.js"
-import { broadcastToCompany } from "../ws/index.js"
+} from "../../services/conversation-state.service.js";
+import { broadcastToCompany } from "../ws/index.js";
 
-export const stateRoutes = new Hono()
+export const stateRoutes = new Hono();
 
 /**
  * GET /conversations/:id/state - Get the conversation state for a contact
  */
 stateRoutes.get("/:id/state", async (c) => {
-  const { tenantDb } = getRouteContext(c)
-  const contactId = c.req.param("id")
+  const { tenantDb } = getRouteContext(c);
+  const contactId = c.req.param("id");
 
-  const state = await getConversationState(tenantDb, contactId)
+  const state = await getConversationState(tenantDb, contactId);
 
   if (!state) {
     return successData(c, {
@@ -31,90 +33,92 @@ stateRoutes.get("/:id/state", async (c) => {
       reopenedAt: null,
       reopenedBy: null,
       resolutionNotes: null,
-    })
+    });
   }
 
-  return successData(c, state)
-})
+  return successData(c, state);
+});
 
 /**
  * POST /conversations/:id/resolve - Mark a conversation as resolved
  */
-stateRoutes.post("/:id/resolve", async (c) => {
-  const { tenantDb, user, companyId } = getRouteContext(c)
-  const contactId = c.req.param("id")
+stateRoutes.post(
+  "/:id/resolve",
+  zValidator("json", resolveConversationSchema),
+  async (c) => {
+    const { tenantDb, user, companyId } = getRouteContext(c);
+    const contactId = c.req.param("id");
+    const { notes } = c.req.valid("json");
 
-  let notes: string | undefined
-  try {
-    const body = await c.req.json()
-    notes = body.notes
-  } catch {
-    // No body
-  }
+    // Verify contact exists
+    const contact = await tenantDb
+      .selectFrom("contacts")
+      .select(["id", "custom_name", "push_name", "phone_number"])
+      .where("id", "=", contactId)
+      .executeTakeFirst();
 
-  // Verify contact exists
-  const contact = await tenantDb
-    .selectFrom("contacts")
-    .select(["id", "custom_name", "push_name", "phone_number"])
-    .where("id", "=", contactId)
-    .executeTakeFirst()
+    if (!contact) {
+      return notFound(c, "Contact");
+    }
 
-  if (!contact) {
-    return notFound(c, "Contact")
-  }
-
-  const state = await resolveConversation(tenantDb, contactId, user.id, notes)
-
-  // Create audit log
-  await createAuditLog({
-    companyId,
-    userId: user.id,
-    action: "conversation.resolved",
-    entityType: "conversation",
-    entityId: contactId,
-    details: {
+    const state = await resolveConversation(
+      tenantDb,
       contactId,
-      contactName:
-        contact.custom_name || contact.push_name || contact.phone_number,
+      user.id,
       notes,
-    },
-    ipAddress: getClientIp(c.req.raw.headers),
-  })
+    );
 
-  // Broadcast WebSocket event
-  broadcastToCompany(companyId, {
-    type: "conversation",
-    payload: {
-      event: "resolved",
-      contactId,
-      resolvedBy: user.id,
-      resolvedAt: state.resolvedAt?.toISOString(),
-    },
-    timestamp: new Date().toISOString(),
-  })
+    // Create audit log
+    await createAuditLog({
+      companyId,
+      userId: user.id,
+      action: "conversation.resolved",
+      entityType: "conversation",
+      entityId: contactId,
+      details: {
+        contactId,
+        contactName:
+          contact.custom_name || contact.push_name || contact.phone_number,
+        notes,
+      },
+      ipAddress: getClientIp(c.req.raw.headers),
+    });
 
-  return successData(c, state)
-})
+    // Broadcast WebSocket event
+    broadcastToCompany(companyId, {
+      type: "conversation",
+      payload: {
+        event: "resolved",
+        contactId,
+        resolvedBy: user.id,
+        resolvedAt: state.resolvedAt?.toISOString(),
+      },
+      timestamp: new Date().toISOString(),
+    });
+
+    return successData(c, state);
+  },
+);
 
 /**
  * POST /conversations/:id/reopen - Reopen a resolved conversation
  */
 stateRoutes.post("/:id/reopen", async (c) => {
-  const { tenantDb, user, companyId } = getRouteContext(c)
-  const contactId = c.req.param("id")
+  const { tenantDb, user, companyId } = getRouteContext(c);
+  const contactId = c.req.param("id");
 
   // Verify contact exists
   const contact = await tenantDb
     .selectFrom("contacts")
     .select(["id", "custom_name", "push_name", "phone_number"])
     .where("id", "=", contactId)
-    .executeTakeFirst()
+    .executeTakeFirst();
 
   if (!contact) {
-    return notFound(c, "Contact")
+    return notFound(c, "Contact");
   }
 
-  const state = await reopenConversation(tenantDb, contactId, user.id)
+  const state = await reopenConversation(tenantDb, contactId, user.id);
 
   // Create audit log
   await createAuditLog({
@@ -129,7 +133,7 @@ stateRoutes.post("/:id/reopen", async (c) => {
         contact.custom_name || contact.push_name || contact.phone_number,
     },
     ipAddress: getClientIp(c.req.raw.headers),
-  })
+  });
 
   // Broadcast WebSocket event
   broadcastToCompany(companyId, {
@@ -141,30 +145,30 @@ stateRoutes.post("/:id/reopen", async (c) => {
       reopenedAt: state.reopenedAt?.toISOString(),
     },
     timestamp: new Date().toISOString(),
-  })
+  });
 
-  return successData(c, state)
-})
+  return successData(c, state);
+});
 
 /**
  * POST /conversations/:id/pending - Set a conversation to pending status
  */
 stateRoutes.post("/:id/pending", async (c) => {
-  const { tenantDb, companyId } = getRouteContext(c)
-  const contactId = c.req.param("id")
+  const { tenantDb, companyId } = getRouteContext(c);
+  const contactId = c.req.param("id");
 
   // Verify contact exists
   const contact = await tenantDb
     .selectFrom("contacts")
     .select(["id"])
     .where("id", "=", contactId)
-    .executeTakeFirst()
+    .executeTakeFirst();
 
   if (!contact) {
-    return notFound(c, "Contact")
+    return notFound(c, "Contact");
   }
 
-  const state = await setConversationPending(tenantDb, contactId)
+  const state = await setConversationPending(tenantDb, contactId);
 
   // Broadcast WebSocket event
   broadcastToCompany(companyId, {
@@ -174,27 +178,27 @@ stateRoutes.post("/:id/pending", async (c) => {
       contactId,
     },
     timestamp: new Date().toISOString(),
-  })
+  });
 
-  return successData(c, state)
-})
+  return successData(c, state);
+});
 
 /**
  * POST /conversations/:id/read - Mark a conversation as read (reset unread count)
  */
 stateRoutes.post("/:id/read", async (c) => {
-  const { tenantDb, user, companyId } = getRouteContext(c)
-  const contactId = c.req.param("id")
+  const { tenantDb, user, companyId } = getRouteContext(c);
+  const contactId = c.req.param("id");
 
   // Verify contact exists
   const contact = await tenantDb
     .selectFrom("contacts")
     .select(["id"])
     .where("id", "=", contactId)
-    .executeTakeFirst()
+    .executeTakeFirst();
 
   if (!contact) {
-    return notFound(c, "Contact")
+    return notFound(c, "Contact");
   }
 
   // Update conversation_states to reset unread count and record read time
@@ -207,7 +211,7 @@ stateRoutes.post("/:id/read", async (c) => {
       updated_at: new Date(),
     })
     .where("contact_id", "=", contactId)
-    .executeTakeFirst()
+    .executeTakeFirst();
 
   // If no row exists, create one with unread_count = 0
   if (updateResult.numUpdatedRows === BigInt(0)) {
@@ -219,7 +223,7 @@ stateRoutes.post("/:id/read", async (c) => {
         read_at: new Date(),
         read_by_user_id: user.id,
       })
-      .execute()
+      .execute();
   }
 
   // Broadcast WebSocket event to update other clients
@@ -232,7 +236,7 @@ stateRoutes.post("/:id/read", async (c) => {
       readBy: user.id,
     },
     timestamp: new Date().toISOString(),
-  })
+  });
 
-  return successData(c, { unreadCount: 0 })
-})
+  return successData(c, { unreadCount: 0 });
+});

@@ -287,7 +287,9 @@ describe("Route Helpers", () => {
         expect.unreachable("Should have thrown");
       } catch (error) {
         expect(error).toBeInstanceOf(NotFoundError);
-        expect((error as NotFoundError).message).toBe("CustomResource not found");
+        expect((error as NotFoundError).message).toBe(
+          "CustomResource not found",
+        );
       }
     });
 

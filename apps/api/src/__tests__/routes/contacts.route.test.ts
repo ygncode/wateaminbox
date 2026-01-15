@@ -42,8 +42,8 @@ function createMockTenantDb() {
                   created_at: new Date(),
                   updated_at: new Date(),
                 }
-              : null
-          )
+              : null,
+          ),
         );
         return builder;
       }
@@ -76,7 +76,9 @@ describe("POST /contacts - Create contact by phone number", () => {
 
     // Mount the route handler (simplified version for testing)
     app.post("/contacts", async (c) => {
-      const tenantDb = c.get("tenantDb") as ReturnType<typeof createMockTenantDb>;
+      const tenantDb = c.get("tenantDb") as ReturnType<
+        typeof createMockTenantDb
+      >;
       const body = await c.req.json();
 
       const { phoneNumber, customName, notesShared } = body;
@@ -98,7 +100,7 @@ describe("POST /contacts - Create contact by phone number", () => {
       if (cleanedPhone.length < 6 || cleanedPhone.length > 15) {
         return c.json(
           { error: "Invalid phone number. Must be between 6 and 15 digits." },
-          400
+          400,
         );
       }
 
@@ -109,7 +111,7 @@ describe("POST /contacts - Create contact by phone number", () => {
         .selectFrom("contacts")
         .select(["id", "jid", "phone_number", "custom_name", "push_name"])
         .where((eb: { or: (conds: boolean[]) => boolean }) =>
-          eb.or([true, true])
+          eb.or([true, true]),
         )
         .executeTakeFirst();
 
@@ -127,7 +129,7 @@ describe("POST /contacts - Create contact by phone number", () => {
                 (existingContact as Record<string, unknown>).phone_number,
             },
           },
-          409
+          409,
         );
       }
 
@@ -171,7 +173,7 @@ describe("POST /contacts - Create contact by phone number", () => {
           createdAt: (newContact as Record<string, unknown>).created_at,
           updatedAt: (newContact as Record<string, unknown>).updated_at,
         },
-        201
+        201,
       );
     });
   });
@@ -235,7 +237,7 @@ describe("POST /contacts - Create contact by phone number", () => {
     expect(response.status).toBe(400);
     const data = await response.json();
     expect(data.error).toBe(
-      "Invalid phone number. Must be between 6 and 15 digits."
+      "Invalid phone number. Must be between 6 and 15 digits.",
     );
   });
 
@@ -251,7 +253,7 @@ describe("POST /contacts - Create contact by phone number", () => {
     expect(response.status).toBe(400);
     const data = await response.json();
     expect(data.error).toBe(
-      "Invalid phone number. Must be between 6 and 15 digits."
+      "Invalid phone number. Must be between 6 and 15 digits.",
     );
   });
 
@@ -262,7 +264,7 @@ describe("POST /contacts - Create contact by phone number", () => {
         id: "existing-contact-123",
         phone_number: "1234567890",
         custom_name: "Existing Contact",
-      })
+      }),
     );
 
     const response = await app.request("/contacts", {
@@ -389,7 +391,7 @@ const mockCreateNotification = mock(
   (_companyId: string, input: Record<string, unknown>) => {
     notificationCreated = input;
     return Promise.resolve({ id: "notification-123", ...input });
-  }
+  },
 );
 
 // Mock for broadcastToCompany
@@ -397,7 +399,7 @@ let broadcastPayload: Record<string, unknown> | null = null;
 const mockBroadcastToCompany = mock(
   (_companyId: string, message: Record<string, unknown>) => {
     broadcastPayload = message;
-  }
+  },
 );
 
 // Mock for createAuditLog
@@ -829,17 +831,26 @@ function createMockPreviewDb() {
       builder.where = mock((cb: (eb: unknown) => unknown) => {
         // Capture the where clause params by simulating the eb callback
         const mockEb = {
-          or: mock((conds: Array<{ _type: string; column: string; op: string; value: string[] }>) => {
-            // Extract values from the conditions to verify batch query
-            conds.forEach((cond) => {
-              if (cond.column === "jid") {
-                lastQueryParams.jids = cond.value;
-              } else if (cond.column === "phone_number") {
-                lastQueryParams.phoneNumbers = cond.value;
-              }
-            });
-            return true;
-          }),
+          or: mock(
+            (
+              conds: Array<{
+                _type: string;
+                column: string;
+                op: string;
+                value: string[];
+              }>,
+            ) => {
+              // Extract values from the conditions to verify batch query
+              conds.forEach((cond) => {
+                if (cond.column === "jid") {
+                  lastQueryParams.jids = cond.value;
+                } else if (cond.column === "phone_number") {
+                  lastQueryParams.phoneNumbers = cond.value;
+                }
+              });
+              return true;
+            },
+          ),
         };
         cb(mockEb);
         return builder;
@@ -854,12 +865,14 @@ function createMockPreviewDb() {
       lastQueryParams = {};
     },
     getLastQueryParams: () => lastQueryParams,
-    setExistingContacts: (contacts: Array<{
-      jid: string;
-      phone_number: string | null;
-      custom_name: string | null;
-      push_name: string | null;
-    }>) => {
+    setExistingContacts: (
+      contacts: Array<{
+        jid: string;
+        phone_number: string | null;
+        custom_name: string | null;
+        push_name: string | null;
+      }>,
+    ) => {
       // Override execute to return the provided contacts
       mockDb.selectFrom = mock((table: string) => {
         queryCount++;
@@ -899,7 +912,9 @@ describe("POST /contacts/import/preview - Batch lookup optimization", () => {
 
     // Import preview route - simplified version for testing
     app.post("/contacts/import/preview", async (c) => {
-      const tenantDb = c.get("tenantDb") as ReturnType<typeof createMockPreviewDb>;
+      const tenantDb = c.get("tenantDb") as ReturnType<
+        typeof createMockPreviewDb
+      >;
 
       const body = await c.req.json();
       const { csvContent } = body;
@@ -914,7 +929,9 @@ describe("POST /contacts/import/preview - Batch lookup optimization", () => {
         return c.json({ error: "No valid data found in CSV" }, 400);
       }
 
-      const header = lines[0].split(",").map((h) => h.toLowerCase().trim().replace(/\s+/g, "_"));
+      const header = lines[0]
+        .split(",")
+        .map((h) => h.toLowerCase().trim().replace(/\s+/g, "_"));
 
       const contactRows: Array<{
         phone_number: string;
@@ -957,22 +974,24 @@ describe("POST /contacts/import/preview - Batch lookup optimization", () => {
       });
 
       // Single query to find all existing contacts at once
-      const existingContacts = await (tenantDb as unknown as {
-        selectFrom: (table: string) => {
-          select: (cols: string[]) => {
-            where: (cb: (eb: unknown) => unknown) => {
-              execute: () => Promise<
-                Array<{
-                  jid: string;
-                  phone_number: string | null;
-                  custom_name: string | null;
-                  push_name: string | null;
-                }>
-              >;
+      const existingContacts = await (
+        tenantDb as unknown as {
+          selectFrom: (table: string) => {
+            select: (cols: string[]) => {
+              where: (cb: (eb: unknown) => unknown) => {
+                execute: () => Promise<
+                  Array<{
+                    jid: string;
+                    phone_number: string | null;
+                    custom_name: string | null;
+                    push_name: string | null;
+                  }>
+                >;
+              };
             };
           };
-        };
-      })
+        }
+      )
         .selectFrom("contacts")
         .select(["jid", "phone_number", "custom_name", "push_name"])
         .where(() => true)
@@ -1120,7 +1139,9 @@ describe("POST /contacts/import/preview - Batch lookup optimization", () => {
     expect(data.total).toBe(3);
     expect(data.existingCount).toBe(0);
     expect(data.newCount).toBe(3);
-    expect(data.preview.every((p: { exists: boolean }) => p.exists === false)).toBe(true);
+    expect(
+      data.preview.every((p: { exists: boolean }) => p.exists === false),
+    ).toBe(true);
   });
 
   it("should correctly classify all existing contacts", async () => {
@@ -1162,7 +1183,9 @@ describe("POST /contacts/import/preview - Batch lookup optimization", () => {
     expect(data.total).toBe(3);
     expect(data.existingCount).toBe(3);
     expect(data.newCount).toBe(0);
-    expect(data.preview.every((p: { exists: boolean }) => p.exists === true)).toBe(true);
+    expect(
+      data.preview.every((p: { exists: boolean }) => p.exists === true),
+    ).toBe(true);
   });
 
   it("should handle duplicate phone numbers correctly", async () => {
@@ -1297,7 +1320,9 @@ describe("POST /contacts/import/preview - Batch lookup optimization", () => {
     const data = await response.json();
 
     // All should normalize to the same contact
-    expect(data.preview.every((p: { exists: boolean }) => p.exists === true)).toBe(true);
+    expect(
+      data.preview.every((p: { exists: boolean }) => p.exists === true),
+    ).toBe(true);
     expect(data.preview[0].existingName).toBe("Formatted Contact");
     expect(data.preview[1].existingName).toBe("Formatted Contact");
     expect(data.preview[2].existingName).toBe("Formatted Contact");

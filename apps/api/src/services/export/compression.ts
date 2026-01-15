@@ -76,9 +76,7 @@ export async function generateBackupZip(
     "messages.csv": encoder.encode(
       toCSV(backupData.messages as unknown as Record<string, unknown>[]),
     ),
-    "backup-summary.json": encoder.encode(
-      JSON.stringify(backupData, null, 2),
-    ),
+    "backup-summary.json": encoder.encode(JSON.stringify(backupData, null, 2)),
   };
 
   // Use async ZIP to avoid blocking the event loop for large files

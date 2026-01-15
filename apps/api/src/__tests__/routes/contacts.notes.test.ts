@@ -11,15 +11,17 @@ import { Hono } from "hono";
 import { createMockQueryBuilder } from "../mocks";
 
 // Helper to create mock shared note
-function createMockSharedNote(overrides: Partial<{
-  id: string;
-  contact_id: string;
-  user_id: string;
-  author_name: string;
-  content: string;
-  created_at: string;
-  updated_at: string;
-}> = {}) {
+function createMockSharedNote(
+  overrides: Partial<{
+    id: string;
+    contact_id: string;
+    user_id: string;
+    author_name: string;
+    content: string;
+    created_at: string;
+    updated_at: string;
+  }> = {},
+) {
   return {
     id: overrides.id ?? "note-123",
     contact_id: overrides.contact_id ?? "contact-456",
@@ -32,14 +34,16 @@ function createMockSharedNote(overrides: Partial<{
 }
 
 // Helper to create mock private note
-function createMockPrivateNote(overrides: Partial<{
-  id: string;
-  contact_id: string;
-  user_id: string;
-  content: string;
-  created_at: string;
-  updated_at: string;
-}> = {}) {
+function createMockPrivateNote(
+  overrides: Partial<{
+    id: string;
+    contact_id: string;
+    user_id: string;
+    content: string;
+    created_at: string;
+    updated_at: string;
+  }> = {},
+) {
   return {
     id: overrides.id ?? "private-note-123",
     contact_id: overrides.contact_id ?? "contact-456",

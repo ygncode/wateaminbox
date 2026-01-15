@@ -41,7 +41,9 @@ const mockDb = {
         insertInto: mock(() => ({
           values: mock(() => ({
             returning: mock(() => ({
-              executeTakeFirstOrThrow: mock(() => Promise.resolve(createMockCompany())),
+              executeTakeFirstOrThrow: mock(() =>
+                Promise.resolve(createMockCompany()),
+              ),
             })),
             execute: mock(() => Promise.resolve()),
           })),
@@ -68,7 +70,9 @@ const mockCreateTenantSchema = mock(async () => {});
 
 mock.module("../../services/tenant.service.js", () => ({
   createTenantSchema: mockCreateTenantSchema,
-  getSchemaName: mock((companyId: string) => `tenant_${companyId.replace(/-/g, "_")}`),
+  getSchemaName: mock(
+    (companyId: string) => `tenant_${companyId.replace(/-/g, "_")}`,
+  ),
 }));
 
 // Import the service after mocking
@@ -154,7 +158,9 @@ describe("CompanyService", () => {
       mockDb.selectFrom = mock(() => mockQueryBuilder);
 
       // Act & Assert
-      await expect(getCompany("non-existent")).rejects.toThrow(CompanyNotFoundError);
+      await expect(getCompany("non-existent")).rejects.toThrow(
+        CompanyNotFoundError,
+      );
     });
 
     it("should not return deleted companies", async () => {
@@ -163,7 +169,9 @@ describe("CompanyService", () => {
       mockDb.selectFrom = mock(() => mockQueryBuilder);
 
       // Act & Assert
-      await expect(getCompany("deleted-company")).rejects.toThrow(CompanyNotFoundError);
+      await expect(getCompany("deleted-company")).rejects.toThrow(
+        CompanyNotFoundError,
+      );
     });
   });
 
@@ -175,7 +183,9 @@ describe("CompanyService", () => {
       mockDb.updateTable = mock(() => mockQueryBuilder);
 
       // Act
-      const result = await updateCompany("company-123", { name: "Updated Name" });
+      const result = await updateCompany("company-123", {
+        name: "Updated Name",
+      });
 
       // Assert
       expect(result.name).toBe("Updated Name");
@@ -188,7 +198,9 @@ describe("CompanyService", () => {
       mockDb.updateTable = mock(() => mockQueryBuilder);
 
       // Act
-      const result = await updateCompany("company-123", { status: "suspended" });
+      const result = await updateCompany("company-123", {
+        status: "suspended",
+      });
 
       // Assert
       expect(result.status).toBe("suspended");
@@ -200,7 +212,9 @@ describe("CompanyService", () => {
       mockDb.updateTable = mock(() => mockQueryBuilder);
 
       // Act & Assert
-      await expect(updateCompany("non-existent", { name: "New Name" })).rejects.toThrow(CompanyNotFoundError);
+      await expect(
+        updateCompany("non-existent", { name: "New Name" }),
+      ).rejects.toThrow(CompanyNotFoundError);
     });
   });
 
@@ -220,7 +234,9 @@ describe("CompanyService", () => {
       mockDb.updateTable = mock(() => mockQueryBuilder);
 
       // Act & Assert
-      await expect(deleteCompany("non-existent")).rejects.toThrow(CompanyNotFoundError);
+      await expect(deleteCompany("non-existent")).rejects.toThrow(
+        CompanyNotFoundError,
+      );
     });
   });
 
@@ -261,7 +277,9 @@ describe("CompanyService", () => {
       mockDb.selectFrom = mock(() => mockQueryBuilder);
 
       // Act & Assert
-      await expect(getMembers("non-existent")).rejects.toThrow(CompanyNotFoundError);
+      await expect(getMembers("non-existent")).rejects.toThrow(
+        CompanyNotFoundError,
+      );
     });
   });
 
@@ -296,17 +314,27 @@ describe("CompanyService", () => {
       // Owner has all permissions
       resetMockQueryBuilder(mockQueryBuilder, { role: "owner" });
       mockDb.selectFrom = mock(() => mockQueryBuilder);
-      expect(await hasPermission("company-123", "user-123", "member")).toBe(true);
-      expect(await hasPermission("company-123", "user-123", "admin")).toBe(true);
-      expect(await hasPermission("company-123", "user-123", "owner")).toBe(true);
+      expect(await hasPermission("company-123", "user-123", "member")).toBe(
+        true,
+      );
+      expect(await hasPermission("company-123", "user-123", "admin")).toBe(
+        true,
+      );
+      expect(await hasPermission("company-123", "user-123", "owner")).toBe(
+        true,
+      );
     });
 
     it("should return false if user has lower role than required", async () => {
       // Member cannot perform admin actions
       resetMockQueryBuilder(mockQueryBuilder, { role: "member" });
       mockDb.selectFrom = mock(() => mockQueryBuilder);
-      expect(await hasPermission("company-123", "user-123", "admin")).toBe(false);
-      expect(await hasPermission("company-123", "user-123", "owner")).toBe(false);
+      expect(await hasPermission("company-123", "user-123", "admin")).toBe(
+        false,
+      );
+      expect(await hasPermission("company-123", "user-123", "owner")).toBe(
+        false,
+      );
     });
 
     it("should return false for non-members", async () => {
@@ -358,7 +386,7 @@ describe("CompanyService", () => {
       const result = await inviteMember(
         "company-123",
         { email: "new@example.com", role: "member" },
-        "inviter-123"
+        "inviter-123",
       );
 
       // Assert
@@ -386,7 +414,11 @@ describe("CompanyService", () => {
 
       // Act & Assert
       await expect(
-        inviteMember("company-123", { email: "existing@example.com" }, "inviter-123")
+        inviteMember(
+          "company-123",
+          { email: "existing@example.com" },
+          "inviter-123",
+        ),
       ).rejects.toThrow(UserAlreadyMemberError);
     });
 
@@ -397,7 +429,11 @@ describe("CompanyService", () => {
 
       // Act & Assert
       await expect(
-        inviteMember("non-existent", { email: "new@example.com" }, "inviter-123")
+        inviteMember(
+          "non-existent",
+          { email: "new@example.com" },
+          "inviter-123",
+        ),
       ).rejects.toThrow(CompanyNotFoundError);
     });
   });
@@ -443,7 +479,9 @@ describe("CompanyService", () => {
       mockDb.deleteFrom = mock(() => mockQueryBuilder);
 
       // Act & Assert - should not throw
-      await expect(cancelInvitation("company-123", "invitation-123")).resolves.toBeUndefined();
+      await expect(
+        cancelInvitation("company-123", "invitation-123"),
+      ).resolves.toBeUndefined();
     });
 
     it("should throw InvitationNotFoundError for non-existent invitation", async () => {
@@ -452,7 +490,9 @@ describe("CompanyService", () => {
       mockDb.deleteFrom = mock(() => mockQueryBuilder);
 
       // Act & Assert
-      await expect(cancelInvitation("company-123", "non-existent")).rejects.toThrow(InvitationNotFoundError);
+      await expect(
+        cancelInvitation("company-123", "non-existent"),
+      ).rejects.toThrow(InvitationNotFoundError);
     });
   });
 
@@ -492,7 +532,9 @@ describe("CompanyService", () => {
             insertInto: mock(() => ({
               values: mock(() => ({
                 returning: mock(() => ({
-                  executeTakeFirstOrThrow: mock(() => Promise.resolve(mockMember)),
+                  executeTakeFirstOrThrow: mock(() =>
+                    Promise.resolve(mockMember),
+                  ),
                 })),
               })),
             })),
@@ -516,7 +558,9 @@ describe("CompanyService", () => {
       mockDb.selectFrom = mock(() => mockQueryBuilder);
 
       // Act & Assert
-      await expect(acceptInvitation("invalid-token", "user-123")).rejects.toThrow(InvitationNotFoundError);
+      await expect(
+        acceptInvitation("invalid-token", "user-123"),
+      ).rejects.toThrow(InvitationNotFoundError);
     });
 
     it("should throw InvitationExpiredError for expired invitation", async () => {
@@ -528,7 +572,9 @@ describe("CompanyService", () => {
       mockDb.selectFrom = mock(() => mockQueryBuilder);
 
       // Act & Assert
-      await expect(acceptInvitation("expired-token", "user-123")).rejects.toThrow(InvitationExpiredError);
+      await expect(
+        acceptInvitation("expired-token", "user-123"),
+      ).rejects.toThrow(InvitationExpiredError);
     });
   });
 
@@ -557,7 +603,9 @@ describe("CompanyService", () => {
       mockDb.updateTable = mock(() => updateBuilder);
 
       // Act & Assert - should not throw
-      await expect(removeMember("company-123", "member-123")).resolves.toBeUndefined();
+      await expect(
+        removeMember("company-123", "member-123"),
+      ).resolves.toBeUndefined();
     });
 
     it("should throw InsufficientPermissionsError when trying to remove owner", async () => {
@@ -566,7 +614,9 @@ describe("CompanyService", () => {
       mockDb.selectFrom = mock(() => mockQueryBuilder);
 
       // Act & Assert
-      await expect(removeMember("company-123", "owner-123")).rejects.toThrow(InsufficientPermissionsError);
+      await expect(removeMember("company-123", "owner-123")).rejects.toThrow(
+        InsufficientPermissionsError,
+      );
     });
   });
 
@@ -593,7 +643,9 @@ describe("CompanyService", () => {
       mockDb.selectFrom = mock(() => mockQueryBuilder);
 
       // Act & Assert
-      await expect(updateMemberRole("company-123", "owner-123", "member")).rejects.toThrow(InsufficientPermissionsError);
+      await expect(
+        updateMemberRole("company-123", "owner-123", "member"),
+      ).rejects.toThrow(InsufficientPermissionsError);
     });
   });
 
@@ -661,7 +713,9 @@ describe("CompanyService", () => {
       mockDb.selectFrom = mock(() => mockQueryBuilder);
 
       // Act & Assert
-      await expect(getInvitationByToken("invalid-token")).rejects.toThrow(InvitationNotFoundError);
+      await expect(getInvitationByToken("invalid-token")).rejects.toThrow(
+        InvitationNotFoundError,
+      );
     });
 
     it("should throw InvitationNotFoundError for already accepted invitation", async () => {
@@ -679,7 +733,9 @@ describe("CompanyService", () => {
       mockDb.selectFrom = mock(() => mockQueryBuilder);
 
       // Act & Assert
-      await expect(getInvitationByToken("accepted-token")).rejects.toThrow(InvitationNotFoundError);
+      await expect(getInvitationByToken("accepted-token")).rejects.toThrow(
+        InvitationNotFoundError,
+      );
     });
 
     it("should throw InvitationExpiredError for expired invitation", async () => {
@@ -697,7 +753,9 @@ describe("CompanyService", () => {
       mockDb.selectFrom = mock(() => mockQueryBuilder);
 
       // Act & Assert
-      await expect(getInvitationByToken("expired-token")).rejects.toThrow(InvitationExpiredError);
+      await expect(getInvitationByToken("expired-token")).rejects.toThrow(
+        InvitationExpiredError,
+      );
     });
   });
 
@@ -735,12 +793,18 @@ describe("CompanyService", () => {
       updateMockBuilder.set = mock(() => updateMockBuilder);
       updateMockBuilder.where = mock(() => updateMockBuilder);
       updateMockBuilder.returning = mock(() => updateMockBuilder);
-      updateMockBuilder.executeTakeFirstOrThrow = mock(() => Promise.resolve(updatedInvitation));
+      updateMockBuilder.executeTakeFirstOrThrow = mock(() =>
+        Promise.resolve(updatedInvitation),
+      );
 
       mockDb.updateTable = mock(() => updateMockBuilder);
 
       // Act
-      const result = await resendInvitation("company-123", "invitation-123", "user-123");
+      const result = await resendInvitation(
+        "company-123",
+        "invitation-123",
+        "user-123",
+      );
 
       // Assert
       expect(result).toBeDefined();
@@ -769,7 +833,9 @@ describe("CompanyService", () => {
       mockDb.selectFrom = mock(() => selectMockBuilder);
 
       // Act & Assert
-      await expect(resendInvitation("company-123", "non-existent", "user-123")).rejects.toThrow(InvitationNotFoundError);
+      await expect(
+        resendInvitation("company-123", "non-existent", "user-123"),
+      ).rejects.toThrow(InvitationNotFoundError);
     });
   });
 

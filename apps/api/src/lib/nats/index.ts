@@ -6,7 +6,7 @@
  */
 
 // Re-export all types
-export * from "./types/index.js"
+export * from "./types/index.js";
 
 // Re-export all client operations
 export {
@@ -36,4 +36,4 @@ export {
   publishSyncCatalogProducts,
   publishSendReaction,
   publishTypingCommand,
-} from "./client.js"
+} from "./client.js";

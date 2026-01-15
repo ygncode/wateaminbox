@@ -18,6 +18,7 @@ import {
   resetMemberPermissions,
   getPermissionDescriptions,
 } from "../../services/permission.service.js";
+import { successData, successWithMessage } from "../../lib/response.js";
 import { updateMemberPermissionsSchema } from "../../lib/schemas/index.js";
 
 export const permissionRoutes = new Hono();
@@ -30,12 +31,9 @@ permissionRoutes.get(
   authMiddleware,
   tenantFromParam("id"),
   async (c) => {
-    return c.json({
-      success: true,
-      data: {
-        permissions: getPermissionDescriptions(),
-        rolePresets: ROLE_PRESETS,
-      },
+    return successData(c, {
+      permissions: getPermissionDescriptions(),
+      rolePresets: ROLE_PRESETS,
     });
   },
 );
@@ -65,13 +63,10 @@ permissionRoutes.get(
         member.permissions as Record<string, boolean>,
       );
 
-      return c.json({
-        success: true,
-        data: {
-          role: member.role,
-          customPermissions: member.permissions,
-          effectivePermissions,
-        },
+      return successData(c, {
+        role: member.role,
+        customPermissions: member.permissions,
+        effectivePermissions,
       });
     } catch (error) {
       if (error instanceof companyService.CompanyNotFoundError) {
@@ -102,13 +97,11 @@ permissionRoutes.patch(
         userId,
         newPermissions,
       );
-      return c.json({
-        success: true,
-        data: {
-          effectivePermissions,
-        },
-        message: "Permissions updated successfully",
-      });
+      return successWithMessage(
+        c,
+        { effectivePermissions },
+        "Permissions updated successfully",
+      );
     } catch (error) {
       if (error instanceof Error) {
         if (error.message === "Member not found") {
@@ -140,13 +133,11 @@ permissionRoutes.post(
         companyId,
         userId,
       );
-      return c.json({
-        success: true,
-        data: {
-          effectivePermissions,
-        },
-        message: "Permissions reset to role defaults",
-      });
+      return successWithMessage(
+        c,
+        { effectivePermissions },
+        "Permissions reset to role defaults",
+      );
     } catch (error) {
       if (error instanceof Error && error.message === "Member not found") {
         throw new HTTPException(404, { message: error.message });

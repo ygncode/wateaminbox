@@ -10,7 +10,9 @@ import type { ContactStats, NewContactsTrend } from "./types.js";
 /**
  * Get contact statistics
  */
-export async function getContactStats(companyId: string): Promise<ContactStats> {
+export async function getContactStats(
+  companyId: string,
+): Promise<ContactStats> {
   const tenantDb = getTenantConnection(companyId);
 
   // Total contacts

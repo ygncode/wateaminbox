@@ -1,15 +1,18 @@
 import { Hono } from "hono";
-import { badRequest, conflict, notFound } from "../lib/errors.js";
+import { zValidator } from "@hono/zod-validator";
+import { conflict, notFound } from "../lib/errors.js";
 import {
   created,
   successData,
   successMessage,
   successPaginated,
 } from "../lib/response.js";
+import { createPaginationMeta } from "../lib/route-helpers.js";
 import {
-  createPaginationMeta,
-  extractPaginationParams,
-} from "../lib/route-helpers.js";
+  createTagSchema,
+  updateTagSchema,
+  listTagsQuerySchema,
+} from "../lib/schemas/index.js";
 import { authMiddleware } from "../middleware/auth.js";
 import { tenantMiddleware } from "../middleware/tenant.js";
 import { getRouteContext } from "../middleware/context.js";
@@ -24,9 +27,9 @@ tagRoutes.use("/*", tenantMiddleware());
  * GET /tags - List all tags with optional pagination
  * Query params: limit (default 50), offset (default 0)
  */
-tagRoutes.get("/", async (c) => {
+tagRoutes.get("/", zValidator("query", listTagsQuerySchema), async (c) => {
   const { tenantDb } = getRouteContext(c);
-  const { limit, offset } = extractPaginationParams(c);
+  const query = c.req.valid("query");
 
   // Get total count
   const countResult = await tenantDb
@@ -40,8 +43,8 @@ tagRoutes.get("/", async (c) => {
     .selectFrom("tags")
     .selectAll()
     .orderBy("name", "asc")
-    .limit(limit)
-    .offset(offset)
+    .limit(query.limit)
+    .offset(query.offset)
     .execute();
 
   return successPaginated(
@@ -53,28 +56,25 @@ tagRoutes.get("/", async (c) => {
       createdBy: tag.created_by,
       createdAt: tag.created_at,
     })),
-    createPaginationMeta(total, tags.length, { limit, offset }),
+    createPaginationMeta(total, tags.length, {
+      limit: query.limit,
+      offset: query.offset,
+    }),
   );
 });
 
 /**
  * POST /tags - Create a new tag
  */
-tagRoutes.post("/", async (c) => {
+tagRoutes.post("/", zValidator("json", createTagSchema), async (c) => {
   const { tenantDb, user } = getRouteContext(c);
-  const body = await c.req.json();
-
-  const { name, color } = body;
-
-  if (!name) {
-    return badRequest(c, "name is required");
-  }
+  const body = c.req.valid("json");
 
   // Check if tag with same name exists
   const existingTag = await tenantDb
     .selectFrom("tags")
     .select(["id"])
-    .where("name", "ilike", name)
+    .where("name", "ilike", body.name)
     .executeTakeFirst();
 
   if (existingTag) {
@@ -84,8 +84,8 @@ tagRoutes.post("/", async (c) => {
   const tag = await tenantDb
     .insertInto("tags")
     .values({
-      name,
-      color: color || null,
+      name: body.name,
+      color: body.color || null,
       created_by: user.id,
     })
     .returning(["id", "name", "color", "created_by", "created_at"])
@@ -103,21 +103,19 @@ tagRoutes.post("/", async (c) => {
 /**
  * PATCH /tags/:id - Update a tag
  */
-tagRoutes.patch("/:id", async (c) => {
+tagRoutes.patch("/:id", zValidator("json", updateTagSchema), async (c) => {
   const { tenantDb } = getRouteContext(c);
   const tagId = c.req.param("id");
-  const body = await c.req.json();
-
-  const { name, color } = body;
+  const body = c.req.valid("json");
 
   const updateData: Record<string, unknown> = {};
 
-  if (name !== undefined) {
-    updateData.name = name;
+  if (body.name !== undefined) {
+    updateData.name = body.name;
   }
 
-  if (color !== undefined) {
-    updateData.color = color;
+  if (body.color !== undefined) {
+    updateData.color = body.color;
   }
 
   const tag = await tenantDb

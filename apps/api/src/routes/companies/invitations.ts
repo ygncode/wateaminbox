@@ -6,12 +6,19 @@
 
 import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
-import { HTTPException } from "hono/http-exception";
 import { authMiddleware } from "../../middleware/auth.js";
 import { tenantFromParam, requirePermission } from "../../middleware/tenant.js";
 import * as companyService from "../../services/company.service.js";
 import { PERMISSIONS } from "../../services/permission.service.js";
-import { inviteMemberSchema } from "../../lib/schemas/index.js";
+import {
+  successData,
+  successMessage,
+  successWithMessage,
+} from "../../lib/response.js";
+import {
+  inviteMemberSchema,
+  type InviteMemberInput,
+} from "../../lib/schemas/index.js";
 
 export const invitationRoutes = new Hono();
 
@@ -38,10 +45,7 @@ invitationRoutes.get(
       expiresAt: inv.expires_at,
       createdAt: inv.created_at,
     }));
-    return c.json({
-      success: true,
-      data: transformedInvitations,
-    });
+    return successData(c, transformedInvitations);
   },
 );
 
@@ -58,28 +62,19 @@ invitationRoutes.post(
   async (c) => {
     const companyId = c.get("companyId");
     const user = c.get("user");
-    const input = c.req.valid("json") as z.infer<typeof inviteMemberSchema>;
+    const input = c.req.valid("json") as InviteMemberInput;
 
-    try {
-      const invitation = await companyService.inviteMember(
-        companyId,
-        { email: input.email, role: input.role },
-        user.id,
-      );
-      return c.json(
-        {
-          success: true,
-          data: invitation,
-          message: `Invitation sent to ${input.email}`,
-        },
-        201,
-      );
-    } catch (error) {
-      if (error instanceof companyService.UserAlreadyMemberError) {
-        throw new HTTPException(400, { message: error.message });
-      }
-      throw error;
-    }
+    const invitation = await companyService.inviteMember(
+      companyId,
+      { email: input.email, role: input.role },
+      user.id,
+    );
+    return successWithMessage(
+      c,
+      `Invitation sent to ${input.email}`,
+      { invitation },
+      201,
+    );
   },
 );
 
@@ -96,18 +91,8 @@ invitationRoutes.delete(
     const companyId = c.get("companyId");
     const invitationId = c.req.param("invitationId");
 
-    try {
-      await companyService.cancelInvitation(companyId, invitationId);
-      return c.json({
-        success: true,
-        message: "Invitation cancelled successfully",
-      });
-    } catch (error) {
-      if (error instanceof companyService.InvitationNotFoundError) {
-        throw new HTTPException(404, { message: error.message });
-      }
-      throw error;
-    }
+    await companyService.cancelInvitation(companyId, invitationId);
+    return successMessage(c, "Invitation cancelled successfully");
   },
 );
 
@@ -125,23 +110,14 @@ invitationRoutes.post(
     const invitationId = c.req.param("invitationId");
     const user = c.get("user");
 
-    try {
-      const invitation = await companyService.resendInvitation(
-        companyId,
-        invitationId,
-        user.id,
-      );
-      return c.json({
-        success: true,
-        data: invitation,
-        message: `Invitation resent to ${invitation.email}`,
-      });
-    } catch (error) {
-      if (error instanceof companyService.InvitationNotFoundError) {
-        throw new HTTPException(404, { message: error.message });
-      }
-      throw error;
-    }
+    const invitation = await companyService.resendInvitation(
+      companyId,
+      invitationId,
+      user.id,
+    );
+    return successWithMessage(c, `Invitation resent to ${invitation.email}`, {
+      invitation,
+    });
   },
 );
 
@@ -155,25 +131,11 @@ tokenInvitationRoutes.post("/:token/accept", authMiddleware, async (c) => {
   const token = c.req.param("token");
   const user = c.get("user");
 
-  try {
-    const result = await companyService.acceptInvitation(token, user.id);
-    return c.json({
-      success: true,
-      data: {
-        company: result.company,
-        member: result.member,
-      },
-      message: `Successfully joined ${result.company.name}`,
-    });
-  } catch (error) {
-    if (error instanceof companyService.InvitationNotFoundError) {
-      throw new HTTPException(404, { message: error.message });
-    }
-    if (error instanceof companyService.InvitationExpiredError) {
-      throw new HTTPException(400, { message: error.message });
-    }
-    throw error;
-  }
+  const result = await companyService.acceptInvitation(token, user.id);
+  return successWithMessage(c, `Successfully joined ${result.company.name}`, {
+    company: result.company,
+    member: result.member,
+  });
 });
 
 /**
@@ -182,19 +144,6 @@ tokenInvitationRoutes.post("/:token/accept", authMiddleware, async (c) => {
 tokenInvitationRoutes.get("/:token", async (c) => {
   const token = c.req.param("token");
 
-  try {
-    const invitation = await companyService.getInvitationByToken(token);
-    return c.json({
-      success: true,
-      data: invitation,
-    });
-  } catch (error) {
-    if (error instanceof companyService.InvitationNotFoundError) {
-      throw new HTTPException(404, { message: error.message });
-    }
-    if (error instanceof companyService.InvitationExpiredError) {
-      throw new HTTPException(400, { message: error.message });
-    }
-    throw error;
-  }
+  const invitation = await companyService.getInvitationByToken(token);
+  return successData(c, invitation);
 });

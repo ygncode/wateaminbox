@@ -13,7 +13,10 @@ import {
   ConnectionNotFoundError,
   MaxConnectionsExceededError,
 } from "../../lib/errors.js";
-import { publishKillCommand, publishSpawnCommand } from "../../lib/nats/index.js";
+import {
+  publishKillCommand,
+  publishSpawnCommand,
+} from "../../lib/nats/index.js";
 import type { TenantDatabase } from "../tenant.service.js";
 
 // Default max connections if not specified in company settings

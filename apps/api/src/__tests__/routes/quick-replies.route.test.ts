@@ -27,7 +27,13 @@ function createMockTenantDb() {
         const builder: Record<string, unknown> = {};
         let currentFilter: unknown = null;
 
-        const chainMethods = ["selectAll", "select", "orderBy", "limit", "offset"];
+        const chainMethods = [
+          "selectAll",
+          "select",
+          "orderBy",
+          "limit",
+          "offset",
+        ];
         chainMethods.forEach((method) => {
           builder[method] = mock(() => builder);
         });
@@ -43,7 +49,7 @@ function createMockTenantDb() {
             const filtered = quickReplies.filter(
               (qr: unknown) =>
                 (qr as Record<string, unknown>).id === currentFilter ||
-                (qr as Record<string, unknown>).shortcut === currentFilter
+                (qr as Record<string, unknown>).shortcut === currentFilter,
             );
             return Promise.resolve(filtered);
           }
@@ -55,7 +61,7 @@ function createMockTenantDb() {
             const found = quickReplies.find(
               (qr: unknown) =>
                 (qr as Record<string, unknown>).id === currentFilter ||
-                (qr as Record<string, unknown>).shortcut === currentFilter
+                (qr as Record<string, unknown>).shortcut === currentFilter,
             );
             return Promise.resolve(found);
           }
@@ -104,8 +110,8 @@ function createMockTenantDb() {
                   created_at: new Date(),
                   updated_at: new Date(),
                 }
-              : null
-          )
+              : null,
+          ),
         );
         return builder;
       }
@@ -130,7 +136,7 @@ function createMockTenantDb() {
 
         builder.executeTakeFirst = mock(() => {
           const existing = quickReplies.find(
-            (qr: unknown) => (qr as Record<string, unknown>).id === updateId
+            (qr: unknown) => (qr as Record<string, unknown>).id === updateId,
           );
           if (existing) {
             return Promise.resolve({
@@ -157,7 +163,7 @@ function createMockTenantDb() {
 
         builder.executeTakeFirst = mock(() => {
           const existingIndex = quickReplies.findIndex(
-            (qr: unknown) => (qr as Record<string, unknown>).id === deletedId
+            (qr: unknown) => (qr as Record<string, unknown>).id === deletedId,
           );
           if (existingIndex !== -1) {
             quickReplies.splice(existingIndex, 1);
@@ -199,7 +205,9 @@ describe("GET /quick-replies - List quick replies", () => {
 
     // Simplified route handler for testing
     app.get("/quick-replies", async (c) => {
-      const tenantDb = c.get("tenantDb") as ReturnType<typeof createMockTenantDb>;
+      const tenantDb = c.get("tenantDb") as ReturnType<
+        typeof createMockTenantDb
+      >;
 
       const rows = await tenantDb
         .selectFrom("quick_replies")
@@ -244,7 +252,11 @@ describe("GET /quick-replies - List quick replies", () => {
   it("should return list of quick replies", async () => {
     const quickReplies = [
       createMockQuickReply({ id: "qr-1", shortcut: "bye", title: "Goodbye" }),
-      createMockQuickReply({ id: "qr-2", shortcut: "greeting", title: "Hello" }),
+      createMockQuickReply({
+        id: "qr-2",
+        shortcut: "greeting",
+        title: "Hello",
+      }),
     ];
     mockTenantDb.setQuickReplies(quickReplies);
 
@@ -277,7 +289,9 @@ describe("GET /quick-replies/:id - Get quick reply by ID", () => {
     });
 
     app.get("/quick-replies/:id", async (c) => {
-      const tenantDb = c.get("tenantDb") as ReturnType<typeof createMockTenantDb>;
+      const tenantDb = c.get("tenantDb") as ReturnType<
+        typeof createMockTenantDb
+      >;
       const quickReplyId = c.req.param("id");
 
       const row = await tenantDb
@@ -349,7 +363,9 @@ describe("GET /quick-replies/search/:shortcut - Search by shortcut", () => {
     });
 
     app.get("/quick-replies/search/:shortcut", async (c) => {
-      const tenantDb = c.get("tenantDb") as ReturnType<typeof createMockTenantDb>;
+      const tenantDb = c.get("tenantDb") as ReturnType<
+        typeof createMockTenantDb
+      >;
       const shortcut = c.req.param("shortcut");
 
       const row = await tenantDb
@@ -420,7 +436,9 @@ describe("POST /quick-replies - Create quick reply", () => {
     });
 
     app.post("/quick-replies", async (c) => {
-      const tenantDb = c.get("tenantDb") as ReturnType<typeof createMockTenantDb>;
+      const tenantDb = c.get("tenantDb") as ReturnType<
+        typeof createMockTenantDb
+      >;
       const user = c.get("user") as { id: string };
       const body = await c.req.json();
 
@@ -444,8 +462,10 @@ describe("POST /quick-replies - Create quick reply", () => {
 
       if (existing) {
         return c.json(
-          { error: `Quick reply with shortcut "${body.shortcut}" already exists` },
-          409
+          {
+            error: `Quick reply with shortcut "${body.shortcut}" already exists`,
+          },
+          409,
         );
       }
 
@@ -477,7 +497,7 @@ describe("POST /quick-replies - Create quick reply", () => {
             updatedAt: r.updated_at,
           },
         },
-        201
+        201,
       );
     });
   });
@@ -550,7 +570,9 @@ describe("POST /quick-replies - Create quick reply", () => {
 
     expect(response.status).toBe(409);
     const data = await response.json();
-    expect(data.error).toBe('Quick reply with shortcut "greeting" already exists');
+    expect(data.error).toBe(
+      'Quick reply with shortcut "greeting" already exists',
+    );
   });
 });
 
@@ -571,7 +593,9 @@ describe("PATCH /quick-replies/:id - Update quick reply", () => {
     });
 
     app.patch("/quick-replies/:id", async (c) => {
-      const tenantDb = c.get("tenantDb") as ReturnType<typeof createMockTenantDb>;
+      const tenantDb = c.get("tenantDb") as ReturnType<
+        typeof createMockTenantDb
+      >;
       const quickReplyId = c.req.param("id");
       const body = await c.req.json();
 
@@ -598,8 +622,10 @@ describe("PATCH /quick-replies/:id - Update quick reply", () => {
 
         if (duplicate) {
           return c.json(
-            { error: `Quick reply with shortcut "${body.shortcut}" already exists` },
-            409
+            {
+              error: `Quick reply with shortcut "${body.shortcut}" already exists`,
+            },
+            409,
           );
         }
       }
@@ -691,7 +717,9 @@ describe("PATCH /quick-replies/:id - Update quick reply", () => {
 
     expect(response.status).toBe(409);
     const data = await response.json();
-    expect(data.error).toBe('Quick reply with shortcut "second" already exists');
+    expect(data.error).toBe(
+      'Quick reply with shortcut "second" already exists',
+    );
   });
 });
 
@@ -712,7 +740,9 @@ describe("DELETE /quick-replies/:id - Delete quick reply", () => {
     });
 
     app.delete("/quick-replies/:id", async (c) => {
-      const tenantDb = c.get("tenantDb") as ReturnType<typeof createMockTenantDb>;
+      const tenantDb = c.get("tenantDb") as ReturnType<
+        typeof createMockTenantDb
+      >;
       const quickReplyId = c.req.param("id");
 
       const result = await tenantDb
@@ -734,9 +764,7 @@ describe("DELETE /quick-replies/:id - Delete quick reply", () => {
   });
 
   it("should delete quick reply", async () => {
-    mockTenantDb.setQuickReplies([
-      createMockQuickReply({ id: "qr-123" }),
-    ]);
+    mockTenantDb.setQuickReplies([createMockQuickReply({ id: "qr-123" })]);
 
     const response = await app.request("/quick-replies/qr-123", {
       method: "DELETE",

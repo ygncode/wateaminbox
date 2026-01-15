@@ -3,73 +3,73 @@
  *
  * Routes for individual message actions: star, delete.
  */
-import { toDbDate } from '@whatsapp-web/shared'
-import { Hono } from 'hono'
-import { notFound } from '../../lib/errors.js'
-import { successData, successMessage } from '../../lib/response.js'
-import { getRouteContext } from '../../middleware/context.js'
+import { toDbDate } from "@whatsapp-web/shared";
+import { Hono } from "hono";
+import { notFound } from "../../lib/errors.js";
+import { successData, successMessage } from "../../lib/response.js";
+import { getRouteContext } from "../../middleware/context.js";
 
-export const actionRoutes = new Hono()
+export const actionRoutes = new Hono();
 
 /**
  * POST /:id/star - Star a message
  */
-actionRoutes.post('/:id/star', async (c) => {
-  const { tenantDb } = getRouteContext(c)
-  const messageId = c.req.param('id')
+actionRoutes.post("/:id/star", async (c) => {
+  const { tenantDb } = getRouteContext(c);
+  const messageId = c.req.param("id");
 
   const updated = await tenantDb
-    .updateTable('messages')
+    .updateTable("messages")
     .set({ is_starred: true })
-    .where('id', '=', messageId)
-    .returning(['id', 'is_starred'])
-    .executeTakeFirst()
+    .where("id", "=", messageId)
+    .returning(["id", "is_starred"])
+    .executeTakeFirst();
 
   if (!updated) {
-    return notFound(c, 'Message')
+    return notFound(c, "Message");
   }
 
-  return successData(c, { isStarred: true })
-})
+  return successData(c, { isStarred: true });
+});
 
 /**
  * DELETE /:id/star - Unstar a message
  */
-actionRoutes.delete('/:id/star', async (c) => {
-  const { tenantDb } = getRouteContext(c)
-  const messageId = c.req.param('id')
+actionRoutes.delete("/:id/star", async (c) => {
+  const { tenantDb } = getRouteContext(c);
+  const messageId = c.req.param("id");
 
   const updated = await tenantDb
-    .updateTable('messages')
+    .updateTable("messages")
     .set({ is_starred: false })
-    .where('id', '=', messageId)
-    .returning(['id', 'is_starred'])
-    .executeTakeFirst()
+    .where("id", "=", messageId)
+    .returning(["id", "is_starred"])
+    .executeTakeFirst();
 
   if (!updated) {
-    return notFound(c, 'Message')
+    return notFound(c, "Message");
   }
 
-  return successData(c, { isStarred: false })
-})
+  return successData(c, { isStarred: false });
+});
 
 /**
  * DELETE /:id - Soft delete a message
  */
-actionRoutes.delete('/:id', async (c) => {
-  const { tenantDb } = getRouteContext(c)
-  const messageId = c.req.param('id')
+actionRoutes.delete("/:id", async (c) => {
+  const { tenantDb } = getRouteContext(c);
+  const messageId = c.req.param("id");
 
   const updated = await tenantDb
-    .updateTable('messages')
+    .updateTable("messages")
     .set({ deleted_at: toDbDate() })
-    .where('id', '=', messageId)
-    .returning(['id', 'deleted_at'])
-    .executeTakeFirst()
+    .where("id", "=", messageId)
+    .returning(["id", "deleted_at"])
+    .executeTakeFirst();
 
   if (!updated) {
-    return notFound(c, 'Message')
+    return notFound(c, "Message");
   }
 
-  return successData(c, { id: updated.id, deletedAt: updated.deleted_at })
-})
+  return successData(c, { id: updated.id, deletedAt: updated.deleted_at });
+});

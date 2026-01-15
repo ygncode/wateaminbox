@@ -6,11 +6,28 @@
  *
  * Usage:
  * ```ts
- * import { createQuickReplySchema } from '../lib/schemas/index.js'
+ * import { createQuickReplySchema, loginSchema } from '../lib/schemas/index.js'
  * // or import directly:
  * import { createQuickReplySchema } from '../lib/schemas/quick-replies.js'
  * ```
  */
+
+// Auth
+export {
+  registerSchema,
+  loginSchema,
+  deviceInfoSchema,
+  verifyEmailSchema,
+  forgotPasswordSchema,
+  resetPasswordSchema,
+  refreshTokenSchema,
+  type RegisterInput,
+  type LoginInput,
+  type VerifyEmailInput,
+  type ForgotPasswordInput,
+  type ResetPasswordInput,
+  type RefreshTokenInput,
+} from "./auth.js";
 
 // Company
 export {
@@ -26,10 +43,58 @@ export {
   type UpdateMemberPermissionsInput,
 } from "./company.js";
 
-// WhatsApp
+// Contact
+export {
+  createContactSchema,
+  updateContactSchema,
+  listContactsQuerySchema,
+  createContactNoteSchema,
+  updateContactNoteSchema,
+  assignContactSchema,
+  importContactsOptionsSchema,
+  addContactTagSchema,
+  type CreateContactInput,
+  type UpdateContactInput,
+  type ListContactsQuery,
+  type CreateContactNoteInput,
+  type UpdateContactNoteInput,
+  type AssignContactInput,
+  type ImportContactsOptions,
+  type AddContactTagInput,
+} from "./contact.js";
+
+// Message
 export {
   sendMessageSchema,
+  forwardMessageSchema,
+  listMessagesQuerySchema,
+  addReactionSchema,
+  batchStarSchema,
+  batchDeleteSchema,
+  batchMessageOperationSchema,
   type SendMessageInput,
+  type ForwardMessageInput,
+  type ListMessagesQuery,
+  type AddReactionInput,
+  type BatchStarInput,
+  type BatchDeleteInput,
+  type BatchMessageOperationInput,
+} from "./message.js";
+
+// Tag
+export {
+  createTagSchema,
+  updateTagSchema,
+  listTagsQuerySchema,
+  type CreateTagInput,
+  type UpdateTagInput,
+  type ListTagsQuery,
+} from "./tag.js";
+
+// WhatsApp
+export {
+  sendMessageSchema as sendWhatsAppMessageSchema,
+  type SendMessageInput as SendWhatsAppMessageInput,
 } from "./whatsapp.js";
 
 // Notifications
@@ -55,3 +120,25 @@ export {
   type UpdateQuickReplyInput,
   type ListQuickRepliesQuery,
 } from "./quick-replies.js";
+
+// Group
+export {
+  listGroupsQuerySchema,
+  updateGroupSchema,
+  updateGroupSettingsSchema,
+  type ListGroupsQuery,
+  type UpdateGroupInput,
+  type UpdateGroupSettingsInput,
+} from "./group.js";
+
+// Conversation
+export {
+  listConversationMessagesQuerySchema,
+  sendConversationMessageSchema,
+  resolveConversationSchema,
+  resolutionTrendQuerySchema,
+  type ListConversationMessagesQuery,
+  type SendConversationMessageInput,
+  type ResolveConversationInput,
+  type ResolutionTrendQuery,
+} from "./conversation.js";

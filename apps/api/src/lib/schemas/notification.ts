@@ -3,7 +3,13 @@ import { z } from "zod";
 /**
  * Sound choice for notifications
  */
-export const soundChoiceSchema = z.enum(["default", "chime", "bell", "pop", "none"]);
+export const soundChoiceSchema = z.enum([
+  "default",
+  "chime",
+  "bell",
+  "pop",
+  "none",
+]);
 
 /**
  * Notification type
@@ -55,7 +61,9 @@ export const listNotificationsQuerySchema = z.object({
   unreadOnly: z.coerce.boolean().optional().default(false),
 });
 
-export type ListNotificationsQuery = z.infer<typeof listNotificationsQuerySchema>;
+export type ListNotificationsQuery = z.infer<
+  typeof listNotificationsQuerySchema
+>;
 
 /**
  * Schema for creating a notification
