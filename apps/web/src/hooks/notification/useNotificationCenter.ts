@@ -14,6 +14,7 @@ import type {
 } from "@/lib/api/types";
 import { useWebSocketContext } from "@/contexts/WebSocketProvider";
 import type { NotificationPayload } from "@/lib/websocket";
+import { queryKeys } from "../query-keys";
 
 // Stable empty params object to prevent query key instability
 const EMPTY_PARAMS: NotificationListParams = {};
@@ -34,7 +35,7 @@ export function useNotificationCenter(params?: NotificationListParams) {
     error: notificationsError,
     refetch: refetchNotifications,
   } = useQuery({
-    queryKey: ["notifications", effectiveParams],
+    queryKey: queryKeys.notifications.list(effectiveParams),
     queryFn: () => getNotifications(effectiveParams),
     staleTime: 30 * 1000, // 30 seconds
     gcTime: 5 * 60 * 1000, // 5 minutes
@@ -47,7 +48,7 @@ export function useNotificationCenter(params?: NotificationListParams) {
     isLoading: isLoadingCount,
     refetch: refetchCount,
   } = useQuery({
-    queryKey: ["notifications", "count"],
+    queryKey: queryKeys.notifications.count(),
     queryFn: getUnreadNotificationCount,
     staleTime: 30 * 1000,
     gcTime: 5 * 60 * 1000, // 5 minutes
@@ -60,7 +61,7 @@ export function useNotificationCenter(params?: NotificationListParams) {
     onSuccess: (updatedNotification) => {
       // Update the notifications list
       queryClient.setQueryData(
-        ["notifications", effectiveParams],
+        queryKeys.notifications.list(effectiveParams),
         (old: { data: InAppNotification[]; meta: unknown } | undefined) => {
           if (!old) return old;
           return {
@@ -73,7 +74,7 @@ export function useNotificationCenter(params?: NotificationListParams) {
       );
       // Decrement the unread count
       queryClient.setQueryData(
-        ["notifications", "count"],
+        queryKeys.notifications.count(),
         (old: number | undefined) => (old ? Math.max(0, old - 1) : 0),
       );
     },
@@ -85,7 +86,7 @@ export function useNotificationCenter(params?: NotificationListParams) {
     onSuccess: () => {
       // Update the notifications list - mark all as read
       queryClient.setQueryData(
-        ["notifications", effectiveParams],
+        queryKeys.notifications.list(effectiveParams),
         (old: { data: InAppNotification[]; meta: unknown } | undefined) => {
           if (!old) return old;
           return {
@@ -99,7 +100,7 @@ export function useNotificationCenter(params?: NotificationListParams) {
         },
       );
       // Reset unread count to 0
-      queryClient.setQueryData(["notifications", "count"], 0);
+      queryClient.setQueryData(queryKeys.notifications.count(), 0);
     },
   });
 
@@ -109,7 +110,7 @@ export function useNotificationCenter(params?: NotificationListParams) {
     onSuccess: (_, notificationId) => {
       // Remove from the notifications list
       queryClient.setQueryData(
-        ["notifications", effectiveParams],
+        queryKeys.notifications.list(effectiveParams),
         (
           old:
             | {
