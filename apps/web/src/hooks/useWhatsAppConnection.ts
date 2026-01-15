@@ -11,6 +11,7 @@ import type {
   WhatsAppConnectedPayload,
   WhatsAppDisconnectedPayload,
 } from "../lib/websocket";
+import { queryKeys } from "./query-keys";
 
 export type WhatsAppConnectionState =
   | "disconnected"
@@ -69,7 +70,7 @@ export function useWhatsAppConnection(): WhatsAppConnection {
     isLoading: isStatusLoading,
     refetch: refetchStatus,
   } = useQuery({
-    queryKey: ["whatsapp", "status"],
+    queryKey: queryKeys.whatsapp.detail("status"),
     queryFn: getWhatsAppStatus,
     staleTime: 30000, // 30 seconds
     gcTime: 300000, // 5 minutes
@@ -102,7 +103,9 @@ export function useWhatsAppConnection(): WhatsAppConnection {
       setError(null);
       setConnectionState("disconnected");
       isConnectingRef.current = false;
-      queryClient.invalidateQueries({ queryKey: ["whatsapp", "status"] });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.whatsapp.detail("status"),
+      });
     },
     onError: (err: Error) => {
       setError(err.message);
@@ -130,7 +133,9 @@ export function useWhatsAppConnection(): WhatsAppConnection {
         setConnectionState("connected");
         setError(null);
         isConnectingRef.current = false;
-        queryClient.invalidateQueries({ queryKey: ["whatsapp", "status"] });
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.whatsapp.detail("status"),
+        });
       },
     );
 
@@ -146,7 +151,9 @@ export function useWhatsAppConnection(): WhatsAppConnection {
         if (payload.reason) {
           setError(`Disconnected: ${payload.reason}`);
         }
-        queryClient.invalidateQueries({ queryKey: ["whatsapp", "status"] });
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.whatsapp.detail("status"),
+        });
       },
     );
 

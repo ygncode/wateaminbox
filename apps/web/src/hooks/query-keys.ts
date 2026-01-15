@@ -155,4 +155,28 @@ export const queryKeys = {
       ["audit", companyId, params] as const,
     actions: () => ["audit", "actions"] as const,
   },
+
+  // Quick replies - custom keys for quick reply management
+  quickReplies: {
+    all: ["quick-replies"] as const,
+    lists: () => ["quick-replies", "list"] as const,
+    list: <T extends object>(params?: T) =>
+      ["quick-replies", "list", params] as const,
+    search: (shortcut: string) =>
+      ["quick-replies", "search", shortcut] as const,
+  },
+
+  // Notifications - custom keys for in-app notifications
+  notifications: {
+    all: ["notifications"] as const,
+    lists: () => ["notifications", "list"] as const,
+    list: <T extends object>(params?: T) =>
+      ["notifications", "list", params] as const,
+    count: () => ["notifications", "count"] as const,
+  },
+
+  // Notification preferences - for settings
+  notificationPreferences: {
+    all: ["notificationPreferences"] as const,
+  },
 } as const;

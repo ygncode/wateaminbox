@@ -13,6 +13,7 @@ import type {
   UpdateQuickReplyInput,
 } from "@/lib/api/types";
 import { useQueryInvalidation } from "./query";
+import { queryKeys } from "./query-keys";
 
 /**
  * Hook for managing quick replies
@@ -27,7 +28,7 @@ export function useQuickReplies(params: QuickReplyListParams = {}) {
     error,
     refetch,
   } = useQuery({
-    queryKey: ["quick-replies", params],
+    queryKey: queryKeys.quickReplies.list(params),
     queryFn: () => getQuickReplies(params),
     staleTime: 5 * 60 * 1000, // 5 minutes
     gcTime: 15 * 60 * 1000, // 15 minutes
@@ -39,7 +40,7 @@ export function useQuickReplies(params: QuickReplyListParams = {}) {
     onSuccess: (newQuickReply) => {
       // Add to the list
       queryClient.setQueryData(
-        ["quick-replies", params],
+        queryKeys.quickReplies.list(params),
         (old: { data: QuickReply[]; meta: { total: number } } | undefined) => {
           if (!old) return old;
           return {
@@ -55,7 +56,7 @@ export function useQuickReplies(params: QuickReplyListParams = {}) {
         },
       );
       // Invalidate all quick-replies queries to ensure fresh data
-      invalidate(["quick-replies"]);
+      invalidate(queryKeys.quickReplies.all);
     },
   });
 
@@ -66,7 +67,7 @@ export function useQuickReplies(params: QuickReplyListParams = {}) {
     onSuccess: (updatedQuickReply) => {
       // Update in the list
       queryClient.setQueryData(
-        ["quick-replies", params],
+        queryKeys.quickReplies.list(params),
         (old: { data: QuickReply[]; meta: unknown } | undefined) => {
           if (!old) return old;
           return {
@@ -80,7 +81,7 @@ export function useQuickReplies(params: QuickReplyListParams = {}) {
         },
       );
       // Invalidate to ensure fresh data
-      invalidate(["quick-replies"]);
+      invalidate(queryKeys.quickReplies.all);
     },
   });
 
@@ -90,7 +91,7 @@ export function useQuickReplies(params: QuickReplyListParams = {}) {
     onSuccess: (_, quickReplyId) => {
       // Remove from the list
       queryClient.setQueryData(
-        ["quick-replies", params],
+        queryKeys.quickReplies.list(params),
         (old: { data: QuickReply[]; meta: { total: number } } | undefined) => {
           if (!old) return old;
           return {
@@ -104,7 +105,7 @@ export function useQuickReplies(params: QuickReplyListParams = {}) {
         },
       );
       // Invalidate to ensure fresh data
-      invalidate(["quick-replies"]);
+      invalidate(queryKeys.quickReplies.all);
     },
   });
 
@@ -142,7 +143,7 @@ export function useQuickReplies(params: QuickReplyListParams = {}) {
  */
 export function useQuickReplySearch(shortcut: string) {
   const { data: quickReply, isLoading } = useQuery({
-    queryKey: ["quick-replies", "search", shortcut],
+    queryKey: queryKeys.quickReplies.search(shortcut),
     queryFn: () => getQuickReplyByShortcut(shortcut),
     enabled: shortcut.length >= 1,
     staleTime: 30 * 1000, // 30 seconds
