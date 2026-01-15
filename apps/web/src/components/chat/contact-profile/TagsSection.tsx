@@ -2,7 +2,10 @@ import { Plus, Tag, X } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { RightPanelSection } from "@/components/layout/right-panel";
-import { Badge, Button, Input, Skeleton } from "@/components/ui";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   useAddContactTag,
   useCreateTag,
@@ -129,7 +132,7 @@ export function TagsSection({ contact }: TagsSectionProps) {
                     <div className="flex items-center gap-2">
                       <Input
                         type="text"
-                        placeholder="Enter tag name..."
+                        placeholder="Enter tag name…"
                         value={newTagName}
                         onChange={(e) => setNewTagName(e.target.value)}
                         onKeyDown={(e) => {
@@ -149,7 +152,7 @@ export function TagsSection({ contact }: TagsSectionProps) {
                         disabled={!newTagName.trim() || createTag.isPending}
                         className="h-7 px-2 text-xs"
                       >
-                        {createTag.isPending ? "..." : "Create"}
+                        {createTag.isPending ? "…" : "Create"}
                       </Button>
                       <Button
                         size="sm"

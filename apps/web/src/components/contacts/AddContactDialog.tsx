@@ -4,19 +4,19 @@ import { useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
 import {
-  Button,
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
-  Input,
-  Label,
-  Textarea,
-} from "@/components/ui";
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { useCreateContact } from "@/hooks/useContact";
-import { addContactSchema, type AddContactFormData } from "@/lib/schemas";
+import { addContactSchema, type AddContactFormData } from "@/lib/schemas/contact";
 
 export interface AddContactDialogProps {
   open: boolean;
@@ -195,7 +195,7 @@ export function AddContactDialog({
               <Label htmlFor="notes">Notes (Optional)</Label>
               <Textarea
                 id="notes"
-                placeholder="Add notes about this contact..."
+                placeholder="Add notes about this contact…"
                 rows={3}
                 data-testid="add-contact-notes"
                 aria-invalid={errors.notes ? "true" : "false"}

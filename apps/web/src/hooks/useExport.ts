@@ -5,7 +5,7 @@ import {
   buildQueryString,
   getAccessToken,
   getCompanyId,
-} from "@/lib/api";
+} from "@/lib/api/client";
 
 /**
  * Export format types

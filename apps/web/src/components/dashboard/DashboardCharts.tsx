@@ -6,7 +6,9 @@ import {
   UserPlus,
   Users,
 } from "lucide-react";
-import { Avatar, AvatarFallback, Badge, Skeleton } from "@/components/ui";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 import { formatNumber } from "@/hooks/analytics";
 import { StatRow } from "./StatRow";
 import { MessageChart, HourlyChart, NewContactsChart } from "./charts";

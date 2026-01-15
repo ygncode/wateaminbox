@@ -1,6 +1,6 @@
 import { Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import type { QuickReply } from "@/lib/api";
+import type { QuickReply } from "@/lib/api/types";
 
 interface QuickReplyCardProps {
   quickReply: QuickReply;

@@ -1,7 +1,8 @@
 import { MessageSquare, Search, Users, X } from "lucide-react";
 import { useCallback, useState } from "react";
-import { Avatar, AvatarFallback, AvatarImage, Skeleton } from "@/components/ui";
-import { useAsyncData } from "@/hooks";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useAsyncData } from "@/hooks/useAsyncData";
 import { type GroupListItem, useGroups } from "@/hooks/useGroups";
 import { cn } from "@/lib/utils";
 import { formatChatListTime } from "@whatsapp-web/shared";

@@ -2,8 +2,9 @@ import { ChevronDown, ChevronUp, History } from "lucide-react";
 import { useState } from "react";
 import { dayjs } from "@whatsapp-web/shared";
 import { RightPanelSection } from "@/components/layout/right-panel";
-import { Badge, Skeleton } from "@/components/ui";
-import { useAsyncData } from "@/hooks";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useAsyncData } from "@/hooks/useAsyncData";
 import { useAssignmentHistory } from "@/hooks/useContact";
 import { cn } from "@/lib/utils";
 

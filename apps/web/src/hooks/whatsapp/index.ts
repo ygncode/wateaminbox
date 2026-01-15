@@ -19,4 +19,4 @@ export { useWhatsAppConnectionState } from "./useWhatsAppConnectionState";
 export { useWhatsAppConnectionWebSocket } from "./useWhatsAppConnectionWebSocket";
 
 // Re-export WhatsAppConnection type from API
-export type { WhatsAppConnection } from "@/lib/api";
+export type { WhatsAppConnection } from "@/lib/api/types";

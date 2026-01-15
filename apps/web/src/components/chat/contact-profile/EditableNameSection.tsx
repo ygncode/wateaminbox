@@ -1,7 +1,8 @@
 import { Check, Edit2, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { RightPanelSection } from "@/components/layout/right-panel";
-import { Button, Input } from "@/components/ui";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { useUpdateContact } from "@/hooks/useContact";
 import type { ContactData } from "./types";
 

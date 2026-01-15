@@ -4,17 +4,16 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Button } from "../components/ui/button";
 import { FormField } from "../components/ui/form-field";
+import { useForgotPassword } from "../hooks/useAuthMutations";
 import {
   forgotPasswordSchema,
   type ForgotPasswordFormData,
-} from "../lib/schemas";
-import { forgotPassword } from "../lib/api";
+} from "../lib/schemas/auth";
 
 export function ForgotPasswordPage() {
-  const [isLoading, setIsLoading] = React.useState(false);
   const [isSubmitted, setIsSubmitted] = React.useState(false);
   const [submittedEmail, setSubmittedEmail] = React.useState("");
-  const [serverError, setServerError] = React.useState<string | null>(null);
+  const forgotPasswordMutation = useForgotPassword();
 
   const {
     register,
@@ -27,22 +26,22 @@ export function ForgotPasswordPage() {
     },
   });
 
-  const onSubmit = async (data: ForgotPasswordFormData) => {
-    setServerError(null);
-    setIsLoading(true);
-
-    try {
-      await forgotPassword(data.email);
-      setSubmittedEmail(data.email);
-      setIsSubmitted(true);
-    } catch {
-      // Backend always returns success to prevent email enumeration
-      // but we show success anyway for the same reason
-      setSubmittedEmail(data.email);
-      setIsSubmitted(true);
-    } finally {
-      setIsLoading(false);
-    }
+  const onSubmit = (data: ForgotPasswordFormData) => {
+    forgotPasswordMutation.mutate(
+      { email: data.email },
+      {
+        onSuccess: () => {
+          setSubmittedEmail(data.email);
+          setIsSubmitted(true);
+        },
+        onError: () => {
+          // Backend always returns success to prevent email enumeration
+          // but we show success anyway for the same reason
+          setSubmittedEmail(data.email);
+          setIsSubmitted(true);
+        },
+      },
+    );
   };
 
   if (isSubmitted) {
@@ -124,12 +123,6 @@ export function ForgotPasswordPage() {
           </div>
 
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-            {serverError && (
-              <div className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 px-4 py-3 rounded-lg text-sm">
-                {serverError}
-              </div>
-            )}
-
             <FormField
               label="Email"
               id="email"
@@ -143,9 +136,9 @@ export function ForgotPasswordPage() {
             <Button
               type="submit"
               className="w-full bg-whatsapp-green-a11y-button hover:bg-whatsapp-green-a11y-button/90 dark:bg-whatsapp-green-a11y-button dark:hover:bg-whatsapp-green-a11y-button/90 text-white"
-              disabled={isLoading}
+              disabled={forgotPasswordMutation.isPending}
             >
-              {isLoading ? "Sending…" : "Reset password"}
+              {forgotPasswordMutation.isPending ? "Sending…" : "Reset password"}
             </Button>
           </form>
 

@@ -17,7 +17,8 @@ import {
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { formatAuditTime, nowMs } from "@whatsapp-web/shared";
-import { Badge, Button } from "@/components/ui";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import type { ConnectionWithState } from "@/hooks/useWhatsAppConnections";
 import { cn } from "@/lib/utils";
 import { QRCodeDisplay } from "./QRCodeDisplay";

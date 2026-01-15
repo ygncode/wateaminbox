@@ -7,7 +7,7 @@ import {
   XCircle,
 } from "lucide-react";
 import { formatAuditTime } from "@whatsapp-web/shared";
-import { Button } from "@/components/ui";
+import { Button } from "@/components/ui/button";
 
 /**
  * Disconnected View

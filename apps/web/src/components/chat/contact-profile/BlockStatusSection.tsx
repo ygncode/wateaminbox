@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { Ban, CheckCircle } from "lucide-react";
 import { RightPanelSection } from "@/components/layout/right-panel";
-import { Button, ConfirmationDialog } from "@/components/ui";
+import { Button } from "@/components/ui/button";
+import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 import { useBlockContact } from "@/hooks/useContact";
 import type { ContactData } from "./types";
 

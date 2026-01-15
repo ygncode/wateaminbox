@@ -1,7 +1,8 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import type { CompanyMember, CompanyInvitation } from "@whatsapp-web/shared";
-import { api } from "@/lib/api";
+import { api } from "@/lib/api/client";
 import { useInvalidate, useQueryInvalidation } from "./query";
+import { queryKeys } from "./query-keys";
 
 // Re-export types for backward compatibility
 export type { CompanyMember } from "@whatsapp-web/shared";
@@ -16,13 +17,14 @@ export type Invitation = CompanyInvitation;
  */
 export function useCompanyMembers(companyId: string | null) {
   return useQuery({
-    queryKey: ["company", companyId, "members"],
+    queryKey: queryKeys.team.members(companyId),
     queryFn: async () => {
       if (!companyId) throw new Error("No company ID provided");
       return api.get<CompanyMember[]>(`/companies/${companyId}/members`);
     },
     enabled: !!companyId,
     staleTime: 30_000,
+    gcTime: 300_000, // 5 minutes
   });
 }
 
@@ -31,13 +33,14 @@ export function useCompanyMembers(companyId: string | null) {
  */
 export function usePendingInvitations(companyId: string | null) {
   return useQuery({
-    queryKey: ["company", companyId, "invitations"],
+    queryKey: queryKeys.team.invitations(companyId),
     queryFn: async () => {
       if (!companyId) throw new Error("No company ID provided");
       return api.get<Invitation[]>(`/companies/${companyId}/invitations`);
     },
     enabled: !!companyId,
     staleTime: 30_000,
+    gcTime: 300_000, // 5 minutes
   });
 }
 
@@ -63,7 +66,7 @@ export function useInviteMember() {
       });
     },
     onSuccess: (_, variables) => {
-      invalidate(["company", variables.companyId, "invitations"]);
+      invalidate(queryKeys.team.invitations(variables.companyId));
     },
   });
 }
@@ -85,7 +88,7 @@ export function useCancelInvitation() {
       await api.delete(`/companies/${companyId}/invitations/${invitationId}`);
     },
     onSuccess: (_, variables) => {
-      invalidate(["company", variables.companyId, "invitations"]);
+      invalidate(queryKeys.team.invitations(variables.companyId));
     },
   });
 }
@@ -110,7 +113,7 @@ export function useResendInvitation() {
       );
     },
     onSuccess: (_, variables) => {
-      invalidate(["company", variables.companyId, "invitations"]);
+      invalidate(queryKeys.team.invitations(variables.companyId));
     },
   });
 }
@@ -137,7 +140,7 @@ export function useUpdateMemberRole() {
       );
     },
     onSuccess: (_, variables) => {
-      invalidate(["company", variables.companyId, "members"]);
+      invalidate(queryKeys.team.members(variables.companyId));
     },
   });
 }
@@ -159,7 +162,7 @@ export function useRemoveMember() {
       await api.delete(`/companies/${companyId}/members/${userId}`);
     },
     onSuccess: (_, variables) => {
-      invalidate(["company", variables.companyId, "members"]);
+      invalidate(queryKeys.team.members(variables.companyId));
     },
   });
 }
@@ -169,7 +172,7 @@ export function useRemoveMember() {
  */
 export function useInvitationByToken(token: string | null) {
   return useQuery({
-    queryKey: ["invitation", token],
+    queryKey: queryKeys.team.invitation(token),
     queryFn: async () => {
       if (!token) throw new Error("No token provided");
       return api.get<{
@@ -183,6 +186,7 @@ export function useInvitationByToken(token: string | null) {
     },
     enabled: !!token,
     staleTime: 60_000,
+    gcTime: 300_000, // 5 minutes
     retry: false,
   });
 }
@@ -191,7 +195,7 @@ export function useInvitationByToken(token: string | null) {
  * Hook to accept an invitation
  */
 export function useAcceptInvitation() {
-  const invalidateCompanies = useInvalidate(["companies"]);
+  const invalidateCompanies = useInvalidate(queryKeys.team.companies());
 
   return useMutation({
     mutationFn: async (token: string) => {
@@ -199,6 +203,20 @@ export function useAcceptInvitation() {
         company: { id: string; name: string };
         member: CompanyMember;
       }>(`/invitations/${token}/accept`, {});
+    },
+    onSuccess: invalidateCompanies,
+  });
+}
+
+/**
+ * Hook to create a new company
+ */
+export function useCreateCompany() {
+  const invalidateCompanies = useInvalidate(queryKeys.team.companies());
+
+  return useMutation({
+    mutationFn: async ({ name }: { name: string }) => {
+      return api.post<{ id: string; name: string }>("/companies", { name });
     },
     onSuccess: invalidateCompanies,
   });

@@ -7,7 +7,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui";
+} from "@/components/ui/dialog";
 
 interface DeleteMessageDialogProps {
   open: boolean;

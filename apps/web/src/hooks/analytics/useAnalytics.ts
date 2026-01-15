@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { dayjs } from "@whatsapp-web/shared";
-import { api } from "@/lib/api";
+import { api } from "@/lib/api/client";
+import { queryKeys } from "../query-keys";
 
 /**
  * Dashboard statistics
@@ -127,7 +128,7 @@ export interface EngagementTrend {
  */
 export function useDashboardStats(companyId: string | null) {
   return useQuery({
-    queryKey: ["analytics", "dashboard", companyId],
+    queryKey: queryKeys.analytics.dashboard(companyId),
     queryFn: async () => {
       if (!companyId) throw new Error("No company ID provided");
       const response = await api.get<{ data: DashboardStats }>(
@@ -137,6 +138,7 @@ export function useDashboardStats(companyId: string | null) {
     },
     enabled: !!companyId,
     staleTime: 60_000, // 1 minute
+    gcTime: 300_000, // 5 minutes
     refetchInterval: 60_000, // Refresh every minute
   });
 }
@@ -155,7 +157,7 @@ export function useMessageStats(
   const queryString = params.toString();
 
   return useQuery({
-    queryKey: ["analytics", "messages", companyId, startDate, endDate],
+    queryKey: queryKeys.analytics.messages(companyId, startDate, endDate),
     queryFn: async () => {
       if (!companyId) throw new Error("No company ID provided");
       const url = `/analytics/messages${queryString ? `?${queryString}` : ""}`;
@@ -167,6 +169,7 @@ export function useMessageStats(
     },
     enabled: !!companyId,
     staleTime: 300_000, // 5 minutes
+    gcTime: 600_000, // 10 minutes
   });
 }
 
@@ -175,7 +178,7 @@ export function useMessageStats(
  */
 export function useContactStats(companyId: string | null) {
   return useQuery({
-    queryKey: ["analytics", "contacts", companyId],
+    queryKey: queryKeys.analytics.contacts(companyId),
     queryFn: async () => {
       if (!companyId) throw new Error("No company ID provided");
       const response = await api.get<{ data: ContactStats }>(
@@ -185,6 +188,7 @@ export function useContactStats(companyId: string | null) {
     },
     enabled: !!companyId,
     staleTime: 300_000, // 5 minutes
+    gcTime: 600_000, // 10 minutes
   });
 }
 
@@ -193,7 +197,7 @@ export function useContactStats(companyId: string | null) {
  */
 export function useTeamActivityStats(companyId: string | null) {
   return useQuery({
-    queryKey: ["analytics", "team", companyId],
+    queryKey: queryKeys.analytics.team(companyId),
     queryFn: async () => {
       if (!companyId) throw new Error("No company ID provided");
       const response = await api.get<{ data: TeamActivityStats[] }>(
@@ -203,6 +207,7 @@ export function useTeamActivityStats(companyId: string | null) {
     },
     enabled: !!companyId,
     staleTime: 300_000, // 5 minutes
+    gcTime: 600_000, // 10 minutes
   });
 }
 
@@ -220,7 +225,7 @@ export function useMessageTypeStats(
   const queryString = params.toString();
 
   return useQuery({
-    queryKey: ["analytics", "message-types", companyId, startDate, endDate],
+    queryKey: queryKeys.analytics.messageTypes(companyId, startDate, endDate),
     queryFn: async () => {
       if (!companyId) throw new Error("No company ID provided");
       const url = `/analytics/message-types${queryString ? `?${queryString}` : ""}`;
@@ -229,6 +234,7 @@ export function useMessageTypeStats(
     },
     enabled: !!companyId,
     staleTime: 300_000, // 5 minutes
+    gcTime: 600_000, // 10 minutes
   });
 }
 
@@ -237,7 +243,7 @@ export function useMessageTypeStats(
  */
 export function useHourlyStats(companyId: string | null, days: number = 30) {
   return useQuery({
-    queryKey: ["analytics", "hourly", companyId, days],
+    queryKey: queryKeys.analytics.hourly(companyId, days),
     queryFn: async () => {
       if (!companyId) throw new Error("No company ID provided");
       const response = await api.get<{ data: HourlyStats[] }>(
@@ -247,6 +253,7 @@ export function useHourlyStats(companyId: string | null, days: number = 30) {
     },
     enabled: !!companyId,
     staleTime: 300_000, // 5 minutes
+    gcTime: 600_000, // 10 minutes
   });
 }
 
@@ -264,7 +271,7 @@ export function useNewContactsTrend(
   const queryString = params.toString();
 
   return useQuery({
-    queryKey: ["analytics", "contacts-trend", companyId, startDate, endDate],
+    queryKey: queryKeys.analytics.contactsTrend(companyId, startDate, endDate),
     queryFn: async () => {
       if (!companyId) throw new Error("No company ID provided");
       const url = `/analytics/contacts/trend${queryString ? `?${queryString}` : ""}`;
@@ -276,6 +283,7 @@ export function useNewContactsTrend(
     },
     enabled: !!companyId,
     staleTime: 300_000, // 5 minutes
+    gcTime: 600_000, // 10 minutes
   });
 }
 
@@ -313,7 +321,7 @@ export function useResolutionStats(
   const queryString = params.toString();
 
   return useQuery({
-    queryKey: ["analytics", "resolution", companyId, startDate, endDate],
+    queryKey: queryKeys.analytics.resolution(companyId, startDate, endDate),
     queryFn: async () => {
       if (!companyId) throw new Error("No company ID provided");
       const url = `/conversations/stats/resolution${queryString ? `?${queryString}` : ""}`;
@@ -325,6 +333,7 @@ export function useResolutionStats(
     },
     enabled: !!companyId,
     staleTime: 60_000, // 1 minute
+    gcTime: 300_000, // 5 minutes
   });
 }
 
@@ -342,7 +351,7 @@ export function useResolutionTrend(
   const queryString = params.toString();
 
   return useQuery({
-    queryKey: ["analytics", "resolution-trend", companyId, startDate, endDate],
+    queryKey: queryKeys.analytics.resolutionTrend(companyId, startDate, endDate),
     queryFn: async () => {
       if (!companyId) throw new Error("No company ID provided");
       const url = `/conversations/stats/resolution-trend${queryString ? `?${queryString}` : ""}`;
@@ -354,6 +363,7 @@ export function useResolutionTrend(
     },
     enabled: !!companyId,
     staleTime: 300_000, // 5 minutes
+    gcTime: 600_000, // 10 minutes
   });
 }
 
@@ -371,7 +381,7 @@ export function useEngagementMetrics(
   const queryString = params.toString();
 
   return useQuery({
-    queryKey: ["analytics", "engagement", companyId, startDate, endDate],
+    queryKey: queryKeys.analytics.engagement(companyId, startDate, endDate),
     queryFn: async () => {
       if (!companyId) throw new Error("No company ID provided");
       const url = `/analytics/engagement${queryString ? `?${queryString}` : ""}`;
@@ -383,6 +393,7 @@ export function useEngagementMetrics(
     },
     enabled: !!companyId,
     staleTime: 300_000, // 5 minutes
+    gcTime: 600_000, // 10 minutes
   });
 }
 
@@ -400,7 +411,7 @@ export function useEngagementTrend(
   const queryString = params.toString();
 
   return useQuery({
-    queryKey: ["analytics", "engagement-trend", companyId, startDate, endDate],
+    queryKey: queryKeys.analytics.engagementTrend(companyId, startDate, endDate),
     queryFn: async () => {
       if (!companyId) throw new Error("No company ID provided");
       const url = `/analytics/engagement/trend${queryString ? `?${queryString}` : ""}`;
@@ -412,5 +423,6 @@ export function useEngagementTrend(
     },
     enabled: !!companyId,
     staleTime: 300_000, // 5 minutes
+    gcTime: 600_000, // 10 minutes
   });
 }

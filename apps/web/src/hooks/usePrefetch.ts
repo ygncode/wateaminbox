@@ -87,6 +87,24 @@ export function usePrefetchQuery<TData>(queryOptions: {
 }
 
 /**
+ * Standard domains that use the QueryKeyFactory pattern with detail() method
+ */
+type StandardDomain =
+  | "contacts"
+  | "groups"
+  | "messages"
+  | "conversations"
+  | "tags"
+  | "whatsapp"
+  | "privateNotes"
+  | "sharedNotes"
+  | "assignmentHistory"
+  | "chats"
+  | "search"
+  | "status"
+  | "export";
+
+/**
  * Prefetches data for a list of entity IDs in batch
  * Useful for preloading data visible in a virtualized list
  *
@@ -94,7 +112,7 @@ export function usePrefetchQuery<TData>(queryOptions: {
  * const prefetchBatch = usePrefetchBatch('contacts')
  * prefetchBatch(['id1', 'id2', 'id3'])
  */
-export function usePrefetchBatch(domain: keyof typeof queryKeys) {
+export function usePrefetchBatch(domain: StandardDomain) {
   const queryClient = useQueryClient();
   const prefetchedIdsRef = useRef<Set<string>>(new Set());
 

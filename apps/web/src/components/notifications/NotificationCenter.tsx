@@ -13,9 +13,12 @@ import {
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { formatStatusTime } from "@whatsapp-web/shared";
-import { Badge, Button, ScrollArea, Skeleton } from "@/components/ui";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useNotificationCenter } from "@/hooks/notification";
-import type { InAppNotification, NotificationType } from "@/lib/api";
+import type { InAppNotification, NotificationType } from "@/lib/api/types";
 import { cn } from "@/lib/utils";
 
 /**
