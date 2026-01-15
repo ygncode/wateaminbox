@@ -169,10 +169,6 @@ Biome handles linting and formatting. Single quotes, no semicolons, 2-space inde
 
 Located in `/services/`. Each has its own `go.mod`. Use `golangci-lint` for linting (config in `.golangci.yml`).
 
-## Codebase Exploration
-
-When you need to explore or understand the codebase, use the `check-code-base` skill instead of manually searching through files.
-
 ## Database Schema Fixes
 
 When fixing database schema issues (missing columns, wrong types, etc.):
