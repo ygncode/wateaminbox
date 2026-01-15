@@ -86,6 +86,26 @@ export function broadcastToCompany(companyId: string, message: ServerMessage): v
 }
 
 /**
+ * Broadcasts a message to all connections for a company except the specified one
+ * Used for typing indicators to avoid echo back to the sender
+ */
+export function broadcastToCompanyExcept(
+  companyId: string,
+  excludeWs: WebSocketConnection,
+  message: ServerMessage
+): void {
+  const companyConnections = connections.get(companyId)
+  if (!companyConnections) return
+
+  const payload = JSON.stringify(message)
+  for (const ws of companyConnections) {
+    if (ws !== excludeWs && ws.readyState === 1) {
+      ws.send(payload)
+    }
+  }
+}
+
+/**
  * Sends a message to a specific WebSocket
  */
 export function sendMessage(ws: WebSocketConnection, message: ServerMessage): void {

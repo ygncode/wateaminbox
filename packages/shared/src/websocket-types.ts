@@ -70,7 +70,12 @@ export type WebSocketEventType = ServerToClientEventType
 /**
  * All possible message types sent from client to server
  */
-export type ClientToServerMessageType = 'auth' | 'ping' | 'send_message'
+export type ClientToServerMessageType =
+  | 'auth'
+  | 'ping'
+  | 'send_message'
+  | 'typing:start'
+  | 'typing:stop'
 
 /**
  * Client message structure
@@ -346,7 +351,13 @@ export function isServerToClientEventType(type: string): type is ServerToClientE
  * Check if a value is a valid client-to-server message type
  */
 export function isClientToServerMessageType(type: string): type is ClientToServerMessageType {
-  return type === 'auth' || type === 'ping' || type === 'send_message'
+  return (
+    type === 'auth' ||
+    type === 'ping' ||
+    type === 'send_message' ||
+    type === 'typing:start' ||
+    type === 'typing:stop'
+  )
 }
 
 /**

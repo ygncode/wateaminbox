@@ -1,6 +1,6 @@
 import { type ClientMessage, isAuthPayload, isSendMessagePayload } from '@whatsapp-web/shared'
 import { createLogger, formatError } from '../../lib/logger.js'
-import { publishSendMessage } from '../../lib/nats/index.js'
+import { publishSendMessage, publishTypingCommand } from '../../lib/nats/index.js'
 import { getTenantConnection } from '../../services/tenant.service.js'
 import { getActiveConnection } from '../../services/whatsapp.service.js'
 import { authenticateConnection } from './auth.js'
@@ -82,6 +82,47 @@ async function handleSendMessage(ws: WebSocketConnection, payload: unknown): Pro
 }
 
 /**
+ * Handles typing indicator messages from clients
+ * Forwards typing state to WhatsApp via NATS command
+ */
+async function handleTypingMessage(
+  ws: WebSocketConnection,
+  payload: unknown,
+  isTyping: boolean
+): Promise<void> {
+  if (!ws.data.authenticated) {
+    logger.debug('Typing: connection not authenticated')
+    return
+  }
+
+  // Validate payload has conversationId
+  const typingPayload = payload as { conversationId?: string }
+  if (!typingPayload?.conversationId) {
+    logger.debug('Typing message missing conversationId')
+    return
+  }
+
+  try {
+    const tenantDb = getTenantConnection(ws.data.companyId)
+    const connection = await getActiveConnection(tenantDb)
+
+    if (!connection) {
+      logger.debug({ companyId: ws.data.companyId }, 'Typing: no active WhatsApp connection')
+      return
+    }
+
+    await publishTypingCommand(
+      ws.data.companyId,
+      connection.id,
+      typingPayload.conversationId,
+      isTyping
+    )
+  } catch (error) {
+    logger.error({ err: formatError(error) }, 'Failed to handle typing message')
+  }
+}
+
+/**
  * Handles client messages
  */
 export async function handleClientMessage(ws: WebSocketConnection, message: string): Promise<void> {
@@ -125,6 +166,14 @@ export async function handleClientMessage(ws: WebSocketConnection, message: stri
       await handleSendMessage(ws, parsed.payload)
       break
     }
+
+    case 'typing:start':
+      await handleTypingMessage(ws, parsed.payload, true)
+      break
+
+    case 'typing:stop':
+      await handleTypingMessage(ws, parsed.payload, false)
+      break
 
     default:
       sendMessage(ws, {

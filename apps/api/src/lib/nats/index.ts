@@ -35,4 +35,5 @@ export {
   publishSyncCatalogs,
   publishSyncCatalogProducts,
   publishSendReaction,
+  publishTypingCommand,
 } from "./client.js"

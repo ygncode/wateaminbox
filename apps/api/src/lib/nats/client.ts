@@ -712,3 +712,33 @@ export async function publishUnblockContact(
     // Fire-and-forget: don't throw, just log the error
   }
 }
+
+/**
+ * Publishes a typing indicator command to WhatsApp service
+ * Fire-and-forget: errors are logged but don't fail the request
+ */
+export async function publishTypingCommand(
+  companyId: string,
+  connectionId: string,
+  jid: string,
+  isTyping: boolean
+): Promise<void> {
+  try {
+    const typingCommand = {
+      type: isTyping ? "typing_start" : "typing_stop",
+      jid,
+    }
+
+    const js = await getJetStreamClient()
+    const subject = buildCommandSubject(companyId, connectionId)
+    const data = jc.encode(typingCommand)
+    await js.publish(subject, data)
+    logger.debug(
+      { companyId, connectionId, jid, isTyping },
+      "Published typing command"
+    )
+  } catch (error) {
+    logger.error(formatError(error), "Failed to publish typing command")
+    // Fire-and-forget: don't throw, just log the error
+  }
+}

@@ -6,6 +6,9 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
+
+	"go.mau.fi/whatsmeow/types"
 
 	"github.com/ygncode-lab/whatsapp-web/services/shared/config"
 	"github.com/ygncode-lab/whatsapp-web/services/whatsapp/internal/client"
@@ -152,6 +155,7 @@ func main() {
 		ConnectionID: connectionID,
 		Sender:       waClient,
 		Blocker:      waClient,
+		TypingSender: waClient,
 		Publisher:    publisher,
 	})
 	if err != nil {
@@ -169,6 +173,18 @@ func main() {
 	if err := waClient.Connect(ctx); err != nil {
 		log.Fatalf("Failed to connect to WhatsApp: %v", err)
 	}
+
+	// Explicitly mark as available to receive typing indicators (ChatPresence events)
+	// This is a fallback - the Connected event handler also calls this, but we do it here
+	// to ensure it happens even if the Connected event fires before handlers are registered
+	go func() {
+		time.Sleep(2 * time.Second) // Wait for connection to stabilize
+		if err := waClient.SendPresence(ctx, types.PresenceAvailable); err != nil {
+			log.Printf("Warning: Failed to send presence available: %v", err)
+		} else {
+			log.Printf("Sent presence available after connect (fallback)")
+		}
+	}()
 
 	log.Printf("WhatsApp worker %s is running for company %s, connection %s", workerID, companyID, connectionID)
 

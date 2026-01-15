@@ -85,6 +85,7 @@ type Subscriber struct {
 	connectionID string
 	sender       MessageSender
 	blocker      ContactBlocker
+	typingSender TypingSender
 	publisher    *Publisher
 	sub          *nats.Subscription
 	ctx          context.Context
@@ -98,6 +99,7 @@ type SubscriberConfig struct {
 	ConnectionID string
 	Sender       MessageSender
 	Blocker      ContactBlocker
+	TypingSender TypingSender
 	Publisher    *Publisher
 }
 
@@ -137,6 +139,7 @@ func NewSubscriber(cfg SubscriberConfig) (*Subscriber, error) {
 		connectionID: cfg.ConnectionID,
 		sender:       cfg.Sender,
 		blocker:      cfg.Blocker,
+		typingSender: cfg.TypingSender,
 		publisher:    cfg.Publisher,
 		ctx:          ctx,
 		cancel:       cancel,
@@ -246,6 +249,8 @@ func (s *Subscriber) handleCommand(msg *nats.Msg) {
 	switch ct.Type {
 	case "block_contact", "unblock_contact":
 		s.handleBlockCommand(msg, ct.Type)
+	case "typing_start", "typing_stop":
+		s.handleTypingCommand(msg, ct.Type)
 	default:
 		// Delegate to send command handler for all other types
 		s.handleSendCommand(msg)
@@ -354,6 +359,37 @@ func (s *Subscriber) handleBlockCommand(msg *nats.Msg, cmdType string) {
 	}
 
 	log.Printf("Successfully executed %s for contact: %s", cmdType, cmd.ContactJID)
+	msg.Ack()
+}
+
+// handleTypingCommand processes a typing indicator command.
+func (s *Subscriber) handleTypingCommand(msg *nats.Msg, cmdType string) {
+	var cmd TypingCommand
+	if err := json.Unmarshal(msg.Data, &cmd); err != nil {
+		log.Printf("Failed to unmarshal typing command: %v", err)
+		msg.Nak()
+		return
+	}
+
+	if s.typingSender == nil {
+		log.Printf("Typing command received but typingSender not configured")
+		msg.Ack() // Ack to avoid redelivery - typing is best-effort
+		return
+	}
+
+	isTyping := cmdType == "typing_start"
+	log.Printf("Processing typing command: jid=%s, isTyping=%v", cmd.JID, isTyping)
+
+	ctx, cancel := context.WithTimeout(s.ctx, 5*time.Second)
+	defer cancel()
+
+	if err := s.typingSender.SendChatPresence(ctx, cmd.JID, isTyping); err != nil {
+		log.Printf("Failed to send chat presence: %v", err)
+		// Still ack - typing is best-effort, don't retry
+	} else {
+		log.Printf("Typing indicator sent: jid=%s, isTyping=%v", cmd.JID, isTyping)
+	}
+
 	msg.Ack()
 }
 

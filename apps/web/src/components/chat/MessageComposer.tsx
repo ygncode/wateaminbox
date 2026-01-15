@@ -9,7 +9,17 @@ import {
   useState,
 } from "react";
 import { useClickOutside, useTextareaAutoResize } from "../../hooks/ui";
+import { useWebSocket } from "../../hooks/useWebSocket";
 import { EmojiInputPicker } from "./EmojiInputPicker";
+
+// JID suffix for WhatsApp individual chats
+const WHATSAPP_JID_SUFFIX = "@s.whatsapp.net";
+
+// Typing indicator timing constants
+// Based on research: WhatsApp auto-dismisses on receiver side when it stops receiving composing states
+// We refresh every 2 seconds to keep indicator alive, and clear state after 3 seconds of no typing
+const TYPING_REFRESH_MS = 2000; // Send typing:start every 2 seconds while typing
+const TYPING_IDLE_MS = 3000; // Clear state after 3 seconds of no typing (no typing:stop sent)
 
 interface MessageComposerProps {
   conversationId: string | undefined;
@@ -40,6 +50,16 @@ export function MessageComposer({
   // (flushSync from TanStack Virtual can steal focus during re-renders)
   const shouldRestoreFocusRef = useRef(false);
 
+  // Typing indicator refs
+  const typingIdleTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
+  const currentTypingJidRef = useRef<string | null>(null);
+  const lastTypingSentTimeRef = useRef<number>(0);
+
+  // Get typing indicator methods from WebSocket
+  const { sendTypingStart, sendTypingStop } = useWebSocket();
+
   // Auto-resize textarea using the hook
   const { reset: resetTextareaHeight } = useTextareaAutoResize(textareaRef, {
     maxHeight: 150,
@@ -58,6 +78,15 @@ export function MessageComposer({
     }
   }, [replyToMessage]);
 
+  // Cleanup typing timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (typingIdleTimeoutRef.current) {
+        clearTimeout(typingIdleTimeoutRef.current);
+      }
+    };
+  }, []);
+
   // Restore focus after renders if we just sent a message
   // This runs after every render to catch focus loss from flushSync
   useLayoutEffect(() => {
@@ -67,8 +96,53 @@ export function MessageComposer({
     }
   });
 
+  // Clear typing state - does NOT send typing:stop (let WhatsApp auto-dismiss)
+  // Only clears internal state so next keystroke triggers fresh typing:start
+  const clearTypingState = useCallback(() => {
+    if (typingIdleTimeoutRef.current) {
+      clearTimeout(typingIdleTimeoutRef.current);
+      typingIdleTimeoutRef.current = null;
+    }
+    currentTypingJidRef.current = null;
+    lastTypingSentTimeRef.current = 0;
+  }, []);
+
   const handleInputChange = (e: ChangeEvent<HTMLTextAreaElement>) => {
-    setMessage(e.target.value);
+    const newValue = e.target.value;
+    setMessage(newValue);
+
+    // Only emit typing if we have a conversationId and content
+    if (!conversationId || !newValue.trim()) {
+      // User cleared input - just clear state (don't send typing:stop to avoid cooldown)
+      if (currentTypingJidRef.current) {
+        clearTypingState();
+      }
+      return;
+    }
+
+    // Build the JID for typing indicator
+    const jid = conversationId.includes("@")
+      ? conversationId
+      : `${conversationId}${WHATSAPP_JID_SUFFIX}`;
+
+    const now = Date.now();
+    const timeSinceLastSent = now - lastTypingSentTimeRef.current;
+    const isNewJid = currentTypingJidRef.current !== jid;
+
+    // Send typing:start if: new JID, or 2+ seconds since last send
+    if (isNewJid || timeSinceLastSent >= TYPING_REFRESH_MS) {
+      sendTypingStart(jid);
+      currentTypingJidRef.current = jid;
+      lastTypingSentTimeRef.current = now;
+    }
+
+    // Reset idle timeout on every keystroke
+    if (typingIdleTimeoutRef.current) {
+      clearTimeout(typingIdleTimeoutRef.current);
+    }
+    typingIdleTimeoutRef.current = setTimeout(() => {
+      clearTypingState(); // Just clear state, no typing:stop sent
+    }, TYPING_IDLE_MS);
   };
 
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -82,6 +156,10 @@ export function MessageComposer({
   const handleSend = () => {
     const trimmedMessage = message.trim();
     if (!trimmedMessage || disabled || !conversationId) return;
+
+    // Just clear typing state - don't send typing:stop to avoid WhatsApp cooldown
+    // WhatsApp will auto-dismiss the indicator
+    clearTypingState();
 
     onSendMessage(trimmedMessage, replyToMessage?.id);
     setMessage("");

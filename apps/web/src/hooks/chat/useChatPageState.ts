@@ -21,6 +21,7 @@ function mapContactDetailToContact(detail: ContactDetail): Contact {
     id: detail.id,
     name: detail.displayName,
     phoneNumber: detail.phoneNumber || "",
+    jid: detail.jid || undefined,
     avatarUrl: detail.profilePictureUrl || undefined,
     customName: detail.customName || undefined,
   };

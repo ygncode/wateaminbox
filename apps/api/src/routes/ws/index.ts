@@ -19,26 +19,10 @@ const logger = createLogger('WebSocket')
 // Create Bun WebSocket handler
 const { upgradeWebSocket, websocket: honoWebsocket } = createBunWebSocket<WSData>()
 
-// Wrap the websocket handler with null checks to prevent crashes
-export const websocket: typeof honoWebsocket = {
-  ...honoWebsocket,
-  close(ws: Parameters<typeof honoWebsocket.close>[0], code?: number, reason?: string) {
-    // Guard against undefined data.events (happens when connection closes before full setup)
-    if (ws.data?.events?.onClose) {
-      honoWebsocket.close(ws, code, reason)
-    } else {
-      logger.debug('Connection closed before initialization')
-    }
-  },
-  message(ws: Parameters<typeof honoWebsocket.message>[0], message: string | Buffer) {
-    // Guard against undefined data.events
-    if (ws.data?.events?.onMessage) {
-      honoWebsocket.message(ws, message)
-    } else {
-      logger.debug('Message received before initialization')
-    }
-  },
-}
+// Use the Hono websocket handler directly
+// Previous wrapper was checking for ws.data.events which doesn't exist,
+// causing all messages to be dropped
+export const websocket = honoWebsocket
 
 // WebSocket route
 export const wsRoutes = new Hono()
@@ -52,12 +36,22 @@ const wsUpgradeHandler = upgradeWebSocket((c) => {
     onOpen: async (_event, ws) => {
       const rawWs = ws.raw as unknown as WebSocketConnection
       const now = Date.now()
-      rawWs.data = {
-        userId: '',
-        companyId: '',
-        authenticated: false,
-        lastPongReceived: now,
-        isAlive: true,
+      // Modify existing ws.data object in-place to preserve Hono's internal references
+      // Don't replace the object - just add our properties to it
+      if (rawWs.data) {
+        rawWs.data.userId = ''
+        rawWs.data.companyId = ''
+        rawWs.data.authenticated = false
+        rawWs.data.lastPongReceived = now
+        rawWs.data.isAlive = true
+      } else {
+        rawWs.data = {
+          userId: '',
+          companyId: '',
+          authenticated: false,
+          lastPongReceived: now,
+          isAlive: true,
+        }
       }
 
       logger.debug('Client connected')
