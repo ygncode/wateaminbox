@@ -18,7 +18,7 @@ export function ProtectedRoute({
       <div className="min-h-dvh flex items-center justify-center bg-gray-100">
         <div className="flex flex-col items-center">
           <div className="w-12 h-12 border-4 border-[#25D366] border-t-transparent rounded-full animate-spin" />
-          <p className="mt-4 text-gray-600">Loading...</p>
+          <p className="mt-4 text-gray-600">Loading…</p>
         </div>
       </div>
     );

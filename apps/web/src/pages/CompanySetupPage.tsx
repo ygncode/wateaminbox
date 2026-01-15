@@ -109,7 +109,7 @@ export function CompanySetupPage() {
               disabled={isLoading}
               className="w-full bg-green-500 text-white py-2 px-4 rounded-lg hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
-              {isLoading ? "Creating..." : "Create Company"}
+              {isLoading ? "Creating…" : "Create Company"}
             </button>
           </form>
 

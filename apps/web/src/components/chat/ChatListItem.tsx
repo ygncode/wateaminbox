@@ -93,13 +93,15 @@ export const ChatListItem = memo(function ChatListItem({
             <img
               src={contact.avatarUrl}
               alt={displayName}
+              width={48}
+              height={48}
               className="w-full h-full object-cover"
               loading="lazy"
             />
           ) : contact.isGroup ? (
             // Group avatar - show group icon
             <div className="w-full h-full flex items-center justify-center bg-gray-400 dark:bg-dark-text-tertiary text-white">
-              <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+              <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                 <path d="M12 12.75c1.63 0 3.07.39 4.24.9 1.08.48 1.76 1.56 1.76 2.73V18H6v-1.62c0-1.17.68-2.25 1.76-2.73 1.17-.51 2.61-.9 4.24-.9zM4 13c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm1.13 1.1c-.37-.06-.74-.1-1.13-.1-.99 0-1.93.21-2.78.58A2.01 2.01 0 000 16.43V18h4.5v-1.62c0-.83.23-1.61.63-2.28zM20 13c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm4 3.43c0-.81-.48-1.53-1.22-1.85A6.95 6.95 0 0020 14c-.39 0-.76.04-1.13.1.4.67.63 1.45.63 2.28V18H24v-1.57zM12 6c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3z" />
               </svg>
             </div>
@@ -148,7 +150,7 @@ export const ChatListItem = memo(function ChatListItem({
           <div className="flex items-center gap-1 min-w-0 flex-1">
             {/* Message Status Icon for sent messages */}
             {lastMessage?.isFromMe && !lastMessage.isDeleted && (
-              <span className="flex-shrink-0">
+              <span className="flex-shrink-0" aria-hidden="true">
                 {lastMessage.status === "read" && (
                   <svg
                     className="w-4 h-4 text-blue-500"
@@ -207,6 +209,7 @@ export const ChatListItem = memo(function ChatListItem({
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
+                aria-hidden="true"
               >
                 <path
                   strokeLinecap="round"
@@ -229,6 +232,7 @@ export const ChatListItem = memo(function ChatListItem({
                 className="w-4 h-4 text-gray-400 dark:text-dark-text-tertiary"
                 fill="currentColor"
                 viewBox="0 0 24 24"
+                aria-hidden="true"
               >
                 <path d="M16 12V4h1V2H7v2h1v8l-2 2v2h5.2v6h1.6v-6H18v-2l-2-2z" />
               </svg>
@@ -238,7 +242,7 @@ export const ChatListItem = memo(function ChatListItem({
             {unreadCount > 0 && (
               <span
                 className="flex items-center justify-center min-w-[20px] h-5 px-1.5
-                           text-xs font-medium text-white bg-whatsapp-green rounded-full"
+                           text-xs font-medium text-white bg-whatsapp-green rounded-full tabular-nums"
               >
                 {unreadCount > 99 ? "99+" : unreadCount}
               </span>

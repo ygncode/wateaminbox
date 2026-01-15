@@ -124,7 +124,7 @@ export function ErrorFallback({
         </div>
 
         {/* Error Title */}
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-dark-text-primary mb-2">
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-dark-text-primary mb-2 text-balance">
           Something went wrong
         </h1>
 

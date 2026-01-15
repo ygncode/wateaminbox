@@ -1,10 +1,10 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" style="color-scheme: light">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-    <!-- Mobile viewport with safe area support -->
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no" />
+    <!-- Mobile viewport with safe area support - zoom enabled for accessibility -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <!-- PWA theme color - updated dynamically by ThemeProvider -->
     <meta name="theme-color" content="#075E54" />
     <!-- iOS specific -->
@@ -39,6 +39,7 @@
 
         if (isDark) {
           document.documentElement.classList.add('dark');
+          document.documentElement.style.colorScheme = 'dark';
           // Update theme-color meta for dark mode
           var meta = document.querySelector('meta[name="theme-color"]');
           if (meta) meta.setAttribute('content', '#111B21');

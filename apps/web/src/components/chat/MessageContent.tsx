@@ -44,6 +44,8 @@ export function MessageContent({ message, isOwn }: MessageContentProps) {
           <img
             src={message.metadata?.mediaUrl}
             alt={message.metadata?.caption || "Image"}
+            width={320}
+            height={240}
             className="rounded-lg max-w-full h-auto cursor-pointer"
             loading="lazy"
           />
@@ -74,7 +76,10 @@ export function MessageContent({ message, isOwn }: MessageContentProps) {
             src={message.metadata?.mediaUrl}
             poster={message.metadata?.thumbnailUrl}
             controls
+            width={320}
             className="rounded-lg max-w-full h-auto"
+            aria-label={message.metadata?.caption || "Video message"}
+            title={message.metadata?.caption || "Video message"}
           />
           {message.metadata?.caption && (
             <p className="mt-1 whitespace-pre-wrap break-words">
@@ -98,9 +103,14 @@ export function MessageContent({ message, isOwn }: MessageContentProps) {
       }
       return (
         <div className="flex items-center gap-2 min-w-[200px]">
-          <audio src={message.metadata?.mediaUrl} controls className="w-full" />
+          <audio
+            src={message.metadata?.mediaUrl}
+            controls
+            className="w-full"
+            aria-label="Audio message"
+          />
           {message.metadata?.duration && (
-            <span className="text-xs text-gray-500">
+            <span className="text-xs text-gray-500 tabular-nums" aria-hidden="true">
               {Math.floor(message.metadata.duration / 60)}:
               {String(message.metadata.duration % 60).padStart(2, "0")}
             </span>
@@ -134,6 +144,7 @@ export function MessageContent({ message, isOwn }: MessageContentProps) {
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
+              aria-hidden="true"
             >
               <path
                 strokeLinecap="round"
@@ -173,6 +184,8 @@ export function MessageContent({ message, isOwn }: MessageContentProps) {
           <img
             src={message.metadata?.mediaUrl}
             alt="Sticker"
+            width={200}
+            height={200}
             className="w-full h-auto"
             loading="lazy"
           />
@@ -187,6 +200,7 @@ export function MessageContent({ message, isOwn }: MessageContentProps) {
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
+            aria-hidden="true"
           >
             <path
               strokeLinecap="round"
@@ -202,7 +216,7 @@ export function MessageContent({ message, isOwn }: MessageContentProps) {
             />
           </svg>
         </div>
-        <p className="mt-1 text-sm">
+        <p className="mt-1 text-sm tabular-nums">
           {message.metadata?.latitude}, {message.metadata?.longitude}
         </p>
       </div>

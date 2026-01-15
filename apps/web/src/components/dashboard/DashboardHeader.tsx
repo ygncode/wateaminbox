@@ -21,7 +21,7 @@ export function DashboardHeader({
 }: DashboardHeaderProps) {
   return (
     <div className="flex items-center justify-between">
-      <h1 className="text-2xl font-semibold text-gray-900 dark:text-dark-text-primary">
+      <h1 className="text-2xl font-semibold text-gray-900 dark:text-dark-text-primary text-balance">
         Dashboard
       </h1>
       <div className="flex gap-2">

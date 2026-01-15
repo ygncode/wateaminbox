@@ -168,6 +168,28 @@
     white-space: nowrap;
     border-width: 0;
   }
+
+  /* Skip to main content link - visible only on focus for keyboard navigation */
+  .skip-link {
+    position: absolute;
+    top: -100%;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 9999;
+    padding: 0.75rem 1.5rem;
+    background-color: theme("colors.whatsapp-teal-green");
+    color: white;
+    font-weight: 600;
+    border-radius: 0 0 0.5rem 0.5rem;
+    text-decoration: none;
+    transition: top 0.2s ease-in-out;
+  }
+
+  .skip-link:focus {
+    top: 0;
+    outline: 2px solid theme("colors.whatsapp-green");
+    outline-offset: 2px;
+  }
 }
 
 /* Typing indicator animation */
