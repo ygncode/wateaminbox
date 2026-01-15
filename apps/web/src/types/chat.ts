@@ -80,6 +80,8 @@ export interface ChatListItemProps {
   chat: Chat;
   isSelected: boolean;
   onClick: () => void;
+  /** Optional callback to prefetch chat data on hover */
+  onPrefetch?: (chatId: string) => void;
 }
 
 export interface ChatListSearchProps {

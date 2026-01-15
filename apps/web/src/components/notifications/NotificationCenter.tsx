@@ -13,12 +13,7 @@ import {
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { formatStatusTime } from "@whatsapp-web/shared";
-import {
-  Badge,
-  Button,
-  ScrollArea,
-  Skeleton,
-} from "@/components/ui";
+import { Badge, Button, ScrollArea, Skeleton } from "@/components/ui";
 import { useNotificationCenter } from "@/hooks/notification";
 import type { InAppNotification, NotificationType } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -204,7 +199,8 @@ function EmptyState({ onNavigate }: { onNavigate?: (path: string) => void }) {
         You're all caught up
       </p>
       <p className="mt-1 text-sm text-gray-500 dark:text-dark-text-secondary text-center text-pretty max-w-[220px]">
-        No new notifications right now. Check back later or adjust your preferences.
+        No new notifications right now. Check back later or adjust your
+        preferences.
       </p>
       {/* Clear next action */}
       {onNavigate && (
@@ -368,7 +364,12 @@ function NotificationPanel({
         {isLoading ? (
           <LoadingSkeleton />
         ) : notifications.length === 0 ? (
-          <EmptyState onNavigate={(path) => { onClose(); navigate(path); }} />
+          <EmptyState
+            onNavigate={(path) => {
+              onClose();
+              navigate(path);
+            }}
+          />
         ) : (
           <div className="py-1">
             {notifications.map((notification) => (

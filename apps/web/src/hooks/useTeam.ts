@@ -57,10 +57,10 @@ export function useInviteMember() {
       email: string;
       role?: "admin" | "member";
     }) => {
-      return api.post<Invitation>(
-        `/companies/${companyId}/invitations`,
-        { email, role },
-      );
+      return api.post<Invitation>(`/companies/${companyId}/invitations`, {
+        email,
+        role,
+      });
     },
     onSuccess: (_, variables) => {
       invalidate(["company", variables.companyId, "invitations"]);

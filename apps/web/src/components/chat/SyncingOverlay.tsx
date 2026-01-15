@@ -1,14 +1,20 @@
-import React, { useEffect, useState } from 'react'
-import { motion, AnimatePresence } from 'motion/react'
-import { useWebSocketContext } from '../../contexts/WebSocketProvider'
+import React, { useEffect, useState } from "react";
+import { motion, AnimatePresence } from "motion/react";
+import { useWebSocketContext } from "../../contexts/WebSocketProvider";
 
 // Floating message bubble component
-const FloatingBubble = ({ delay, size }: { delay: number; size: 'sm' | 'md' | 'lg' }) => {
+const FloatingBubble = ({
+  delay,
+  size,
+}: {
+  delay: number;
+  size: "sm" | "md" | "lg";
+}) => {
   const sizeClasses = {
-    sm: 'w-6 h-5',
-    md: 'w-8 h-6',
-    lg: 'w-10 h-7',
-  }
+    sm: "w-6 h-5",
+    md: "w-8 h-6",
+    lg: "w-10 h-7",
+  };
 
   return (
     <motion.div
@@ -23,7 +29,7 @@ const FloatingBubble = ({ delay, size }: { delay: number; size: 'sm' | 'md' | 'l
         duration: 2.5,
         delay,
         repeat: Infinity,
-        ease: 'easeOut',
+        ease: "easeOut",
       }}
     >
       {/* Message lines */}
@@ -32,27 +38,27 @@ const FloatingBubble = ({ delay, size }: { delay: number; size: 'sm' | 'md' | 'l
         <div className="h-0.5 w-2/3 bg-whatsapp-green/30 rounded" />
       </div>
     </motion.div>
-  )
-}
+  );
+};
 
 export const SyncingOverlay = React.memo(function SyncingOverlay() {
-  const { syncingConnections } = useWebSocketContext()
-  const [isVisible, setIsVisible] = useState(false)
+  const { syncingConnections } = useWebSocketContext();
+  const [isVisible, setIsVisible] = useState(false);
 
   const totalConversations = Array.from(syncingConnections.values()).reduce(
     (sum, s) => sum + s.conversations,
-    0
-  )
+    0,
+  );
 
   useEffect(() => {
     if (syncingConnections.size > 0) {
-      requestAnimationFrame(() => setIsVisible(true))
+      requestAnimationFrame(() => setIsVisible(true));
     } else {
-      setIsVisible(false)
+      setIsVisible(false);
     }
-  }, [syncingConnections.size])
+  }, [syncingConnections.size]);
 
-  if (syncingConnections.size === 0) return null
+  if (syncingConnections.size === 0) return null;
 
   return (
     <AnimatePresence>
@@ -72,7 +78,7 @@ export const SyncingOverlay = React.memo(function SyncingOverlay() {
           <motion.div
             initial={{ opacity: 0, scale: 0.95, y: 10 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
-            transition={{ duration: 0.4, ease: 'easeOut' }}
+            transition={{ duration: 0.4, ease: "easeOut" }}
             className="relative z-10 text-center"
           >
             {/* Animated sync visualization */}
@@ -87,7 +93,7 @@ export const SyncingOverlay = React.memo(function SyncingOverlay() {
                 transition={{
                   duration: 2,
                   repeat: Infinity,
-                  ease: 'easeInOut',
+                  ease: "easeInOut",
                 }}
               />
 
@@ -110,7 +116,7 @@ export const SyncingOverlay = React.memo(function SyncingOverlay() {
                 transition={{
                   duration: 3,
                   repeat: Infinity,
-                  ease: 'linear',
+                  ease: "linear",
                 }}
               >
                 <circle
@@ -154,7 +160,7 @@ export const SyncingOverlay = React.memo(function SyncingOverlay() {
                     {totalConversations}
                   </motion.span>
                   <span className="text-gray-600 dark:text-dark-text-secondary">
-                    conversation{totalConversations !== 1 ? 's' : ''} synced
+                    conversation{totalConversations !== 1 ? "s" : ""} synced
                   </span>
                 </div>
               ) : (
@@ -177,5 +183,5 @@ export const SyncingOverlay = React.memo(function SyncingOverlay() {
         </motion.div>
       )}
     </AnimatePresence>
-  )
-})
+  );
+});

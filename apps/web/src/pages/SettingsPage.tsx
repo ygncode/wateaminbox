@@ -18,6 +18,7 @@ import {
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
+import { preloadRoute, type RouteName } from "@/lib/route-preload";
 import { ContactImport } from "../components/contacts";
 import { AppLayout } from "../components/layout/app-layout";
 import {
@@ -56,6 +57,8 @@ export function SettingsPage() {
               <Link
                 to="/chat"
                 className="flex items-center gap-2 text-sm font-medium text-gray-600 dark:text-dark-text-secondary hover:text-gray-900 dark:hover:text-dark-text-primary transition-colors group"
+                onMouseEnter={() => preloadRoute("chat")}
+                onFocus={() => preloadRoute("chat")}
               >
                 <ArrowLeft className="h-4 w-4 group-hover:-translate-x-1 transition-transform" />
                 <span>Back to Chat</span>
@@ -238,6 +241,7 @@ export function SettingsPage() {
                         "settings.dashboardDescription",
                         "View analytics and statistics",
                       )}
+                      preloadRouteName="dashboard"
                     />
                     <QuickLink
                       to="/team"
@@ -250,6 +254,7 @@ export function SettingsPage() {
                         "settings.teamManagementDescription",
                         "Manage team members and invitations",
                       )}
+                      preloadRouteName="team"
                     />
                     <QuickLink
                       to="/audit"
@@ -261,6 +266,7 @@ export function SettingsPage() {
                         "settings.auditLogDescription",
                         "View activity and security logs",
                       )}
+                      preloadRouteName="audit"
                     />
                   </div>
                 </SettingsCard>
@@ -343,6 +349,7 @@ interface QuickLinkProps {
   title: string;
   description: string;
   state?: Record<string, unknown>;
+  preloadRouteName?: RouteName;
 }
 
 function QuickLink({
@@ -353,12 +360,19 @@ function QuickLink({
   title,
   description,
   state,
+  preloadRouteName,
 }: QuickLinkProps) {
+  const handlePreload = preloadRouteName
+    ? () => preloadRoute(preloadRouteName)
+    : undefined;
+
   return (
     <Link
       to={to}
       state={state}
       className="flex items-center gap-4 px-5 py-4 hover:bg-gray-50 dark:hover:bg-dark-tertiary transition-colors group"
+      onMouseEnter={handlePreload}
+      onFocus={handlePreload}
     >
       <div className={`p-2.5 rounded-lg ${iconBg} dark:bg-dark-tertiary`}>
         <span className={iconColor}>{icon}</span>

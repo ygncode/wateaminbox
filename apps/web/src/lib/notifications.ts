@@ -126,7 +126,7 @@ async function playSynthSound(soundType: string): Promise<void> {
     gainNode.gain.setValueAtTime(config.gainStart, currentTime);
     gainNode.gain.exponentialRampToValueAtTime(
       0.001,
-      currentTime + config.durations[i]
+      currentTime + config.durations[i],
     );
 
     oscillator.connect(gainNode);

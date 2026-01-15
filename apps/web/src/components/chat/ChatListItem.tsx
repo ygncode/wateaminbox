@@ -1,4 +1,4 @@
-import { memo, useMemo } from "react";
+import { memo, useCallback, useMemo } from "react";
 import type { ChatListItemProps } from "../../types/chat";
 import { extractPhoneFromJID, formatPhoneNumber } from "@/lib/utils";
 import { formatChatListTime } from "@whatsapp-web/shared";
@@ -19,8 +19,14 @@ export const ChatListItem = memo(function ChatListItem({
   chat,
   isSelected,
   onClick,
+  onPrefetch,
 }: ChatListItemProps) {
   const { contact, lastMessage, unreadCount } = chat;
+
+  // Memoize prefetch handler to prevent unnecessary re-renders
+  const handlePrefetch = useCallback(() => {
+    onPrefetch?.(chat.id);
+  }, [onPrefetch, chat.id]);
 
   // Display priority: customName > pushName > formatted phone number > 'Unknown'
   const displayName = useMemo(() => {
@@ -71,6 +77,7 @@ export const ChatListItem = memo(function ChatListItem({
     <button
       type="button"
       onClick={onClick}
+      onMouseEnter={handlePrefetch}
       className={`w-full flex items-center gap-3 px-3 text-left
                   transition-colors duration-150 border-b border-gray-100 dark:border-dark-border
                   touch-manipulation active:bg-gray-200 dark:active:bg-dark-border

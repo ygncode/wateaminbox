@@ -44,7 +44,13 @@ export const ForwardMessageDialog = memo(function ForwardMessageDialog({
 }: ForwardMessageDialogProps) {
   const [searchQuery, setSearchQuery] = useState("");
 
-  const { data: chats, isLoading, isFetching, error, refetch } = useForwardContacts(searchQuery);
+  const {
+    data: chats,
+    isLoading,
+    isFetching,
+    error,
+    refetch,
+  } = useForwardContacts(searchQuery);
 
   // Filter to contacts that have a JID (can receive messages)
   const availableContacts = useMemo(() => {
@@ -82,7 +88,8 @@ export const ForwardMessageDialog = memo(function ForwardMessageDialog({
 
   // Show loading only when we have no data at all (including placeholder)
   // isLoading is true on initial load, isFetching is true during any fetch
-  const showSkeletons = (isLoading || isFetching) && availableContacts.length === 0;
+  const showSkeletons =
+    (isLoading || isFetching) && availableContacts.length === 0;
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -205,7 +212,6 @@ export const ForwardMessageDialog = memo(function ForwardMessageDialog({
           </div>
         )}
       </DialogContent>
-
     </Dialog>
   );
 });

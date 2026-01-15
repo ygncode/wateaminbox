@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "analyze": "ANALYZE=true vite build",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "format": "prettier --write \"src/**/*.{ts,tsx,css,json}\"",
     "preview": "vite preview",
@@ -57,6 +58,7 @@
     "eslint-plugin-react-refresh": "^0.4.16",
     "prettier": "^3.4.2",
     "react-scan": "^0.4.3",
+    "rollup-plugin-visualizer": "^5.14.0",
     "tailwindcss": "^4.0.0",
     "typescript": "^5.7.2",
     "vite": "^6.0.5"

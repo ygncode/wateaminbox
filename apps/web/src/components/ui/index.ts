@@ -77,3 +77,8 @@ export {
   StepContent,
   type StepWizardStep,
 } from "./step-wizard";
+export {
+  PageSkeleton,
+  type PageSkeletonProps,
+  type PageSkeletonVariant,
+} from "./page-skeleton";
