@@ -104,15 +104,19 @@ export function LoginPage() {
             />
 
             <div className="flex items-center justify-between">
-              <label className="flex items-center">
+              <div className="flex items-center">
                 <input
+                  id="remember-me"
                   type="checkbox"
                   className="h-4 w-4 text-whatsapp-green-a11y-button border-gray-300 dark:border-dark-border dark:bg-dark-elevated rounded focus:ring-whatsapp-green-a11y-button"
                 />
-                <span className="ml-2 text-sm text-gray-600 dark:text-dark-text-secondary">
+                <label
+                  htmlFor="remember-me"
+                  className="ml-2 text-sm text-gray-600 dark:text-dark-text-secondary cursor-pointer"
+                >
                   Remember me
-                </span>
-              </label>
+                </label>
+              </div>
               <Link
                 to="/forgot-password"
                 className="text-sm text-whatsapp-green-a11y-text dark:text-whatsapp-green hover:text-whatsapp-green-a11y-button dark:hover:text-whatsapp-green/80"

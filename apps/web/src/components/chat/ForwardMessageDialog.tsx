@@ -118,7 +118,7 @@ export const ForwardMessageDialog = memo(function ForwardMessageDialog({
             <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 dark:text-dark-text-tertiary transition-colors group-focus-within:text-whatsapp-teal-green" />
             <input
               type="text"
-              placeholder="Search contacts..."
+              placeholder="Search contacts…"
               value={searchQuery}
               onChange={handleSearchChange}
               className="w-full pl-10 pr-10 py-2.5 text-sm bg-white dark:bg-dark-tertiary border border-gray-200 dark:border-dark-border rounded-xl text-gray-900 dark:text-dark-text-primary placeholder-gray-400 dark:placeholder-dark-text-tertiary focus:outline-none focus:ring-2 focus:ring-whatsapp-teal-green/30 focus:border-whatsapp-teal-green transition-all duration-200"

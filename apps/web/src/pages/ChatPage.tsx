@@ -149,6 +149,7 @@ export function ChatPage() {
 
   return (
     <AppLayout>
+      <h1 className="sr-only">WhatsApp Web - Conversations</h1>
       <SyncingOverlay />
       <ResponsiveLayout
         sidebar={sidebar}

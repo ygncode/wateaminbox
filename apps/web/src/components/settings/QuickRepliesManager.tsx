@@ -153,7 +153,7 @@ export function QuickRepliesManager() {
             type="text"
             placeholder={t(
               "quickReplies.searchPlaceholder",
-              "Search quick replies...",
+              "Search quick replies…",
             )}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}

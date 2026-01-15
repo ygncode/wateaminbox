@@ -241,7 +241,7 @@
   "quickReplies": {
     "title": "Quick Replies",
     "description": "Create predefined message templates for quick responses. Type / followed by the shortcut in the message composer to use them.",
-    "searchPlaceholder": "Search quick replies...",
+    "searchPlaceholder": "Search quick replies…",
     "addNew": "Add New",
     "empty": "No quick replies yet",
     "noResults": "No quick replies found",
@@ -295,7 +295,7 @@
     "importContacts": "Import Contacts",
     "exportContacts": "Export Contacts",
     "noContacts": "No contacts found",
-    "searchContacts": "Search contacts...",
+    "searchContacts": "Search contacts…",
     "filterByTag": "Filter by tag",
     "allContacts": "All Contacts",
     "errors": {
@@ -394,7 +394,7 @@
   },
   "search": {
     "title": "Search",
-    "placeholder": "Search messages, contacts...",
+    "placeholder": "Search messages, contacts…",
     "noResults": "No results found",
     "tryDifferent": "Try a different search term",
     "searching": "Searching…",

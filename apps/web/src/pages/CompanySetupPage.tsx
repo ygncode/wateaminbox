@@ -82,6 +82,7 @@ export function CompanySetupPage() {
                 id="companyName"
                 type="text"
                 placeholder="Enter your company name"
+                autoComplete="organization"
                 className="w-full px-4 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent dark:bg-dark-tertiary dark:text-dark-text-primary dark:placeholder:text-dark-text-tertiary"
                 disabled={createCompany.isPending}
                 aria-invalid={errors.name ? "true" : "false"}

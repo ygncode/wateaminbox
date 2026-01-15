@@ -249,7 +249,7 @@ export function EllipsisMenu({
                 disabled={item.disabled}
                 onClick={() => handleItemClick(item)}
                 className={cn(
-                  "flex w-full items-center gap-2 px-4 py-2 text-sm transition-colors focus:outline-none focus:bg-gray-100 dark:focus:bg-dark-tertiary",
+                  "flex w-full items-center gap-2 px-4 py-2 text-sm transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-whatsapp-green focus:bg-gray-100 dark:focus:bg-dark-tertiary",
                   item.destructive
                     ? "text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30"
                     : "text-gray-700 dark:text-dark-text-primary hover:bg-gray-100 dark:hover:bg-dark-tertiary",

@@ -195,7 +195,7 @@ export function AddContactDialog({
               <Label htmlFor="notes">Notes (Optional)</Label>
               <Textarea
                 id="notes"
-                placeholder="Add notes about this contact..."
+                placeholder="Add notes about this contact…"
                 rows={3}
                 data-testid="add-contact-notes"
                 aria-invalid={errors.notes ? "true" : "false"}
