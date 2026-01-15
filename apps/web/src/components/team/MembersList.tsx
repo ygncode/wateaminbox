@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useAsyncData } from "@/hooks";
+import { useAsyncData } from "@/hooks/useAsyncData";
 import {
   useCompanyMembers,
   useRemoveMember,

@@ -1,6 +1,7 @@
 import { ChevronDown, ChevronUp, Lock, Plus, Users } from "lucide-react";
 import { RightPanelSection } from "@/components/layout/right-panel";
-import { Button, Skeleton } from "@/components/ui";
+import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useNoteList } from "@/hooks/useNoteList";
 import { NoteItem, type NoteItemNote } from "./NoteItem";
 

@@ -1,6 +1,7 @@
 import { AlertCircle, Loader2, Smartphone } from "lucide-react";
 import { useEffect, useState } from "react";
-import { Button, Skeleton } from "@/components/ui";
+import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useWhatsAppConnection } from "@/hooks/useWhatsAppConnection";
 import { cn } from "@/lib/utils";
 import { nowMs } from "@whatsapp-web/shared";

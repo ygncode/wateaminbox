@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { api } from "@/lib/api";
+import { api } from "@/lib/api/client";
 import { queryKeys } from "../query-keys";
 
 /**
@@ -69,6 +69,7 @@ export function useContact(contactId: string | null) {
     },
     enabled: !!contactId,
     staleTime: 30_000, // 30 seconds
+    gcTime: 300_000, // 5 minutes
   });
 }
 

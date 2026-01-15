@@ -1,5 +1,5 @@
 import { Archive, Download } from "lucide-react";
-import { Button } from "@/components/ui";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 export type DateRange = "7d" | "30d" | "90d";

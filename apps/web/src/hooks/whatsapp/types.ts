@@ -1,4 +1,4 @@
-import type { WhatsAppConnection } from "@/lib/api";
+import type { WhatsAppConnection } from "@/lib/api/types";
 
 /**
  * Per-connection state tracked in the hook

@@ -1,7 +1,7 @@
 import { UserMinus, UserPlus } from "lucide-react";
 import { formatShortDate } from "@whatsapp-web/shared";
 import { RightPanelSection } from "@/components/layout/right-panel";
-import { Button } from "@/components/ui";
+import { Button } from "@/components/ui/button";
 import { useAssignContact, useUnassignContact } from "@/hooks/useContact";
 import type { ContactData } from "./types";
 

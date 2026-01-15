@@ -1,16 +1,14 @@
-import * as React from "react";
 import { useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useAuth } from "../contexts/auth-context";
-import { api } from "../lib/api";
-import { companySetupSchema, type CompanySetupFormData } from "../lib/schemas";
+import { useCreateCompany } from "../hooks/useTeam";
+import { companySetupSchema, type CompanySetupFormData } from "../lib/schemas/auth";
 
 export function CompanySetupPage() {
   const navigate = useNavigate();
   const { refreshSession, logout } = useAuth();
-  const [isLoading, setIsLoading] = React.useState(false);
-  const [serverError, setServerError] = React.useState<string | null>(null);
+  const createCompany = useCreateCompany();
 
   const {
     register,
@@ -24,21 +22,16 @@ export function CompanySetupPage() {
   });
 
   const onSubmit = async (data: CompanySetupFormData) => {
-    setIsLoading(true);
-    setServerError(null);
-
-    try {
-      await api.post("/companies", { name: data.name.trim() });
-      // Refresh session to get the new company
-      await refreshSession();
-      navigate("/chat");
-    } catch (err) {
-      setServerError(
-        err instanceof Error ? err.message : "Failed to create company",
-      );
-    } finally {
-      setIsLoading(false);
-    }
+    createCompany.mutate(
+      { name: data.name.trim() },
+      {
+        onSuccess: async () => {
+          // Refresh session to get the new company
+          await refreshSession();
+          navigate("/chat");
+        },
+      },
+    );
   };
 
   return (
@@ -69,9 +62,11 @@ export function CompanySetupPage() {
             </p>
           </div>
 
-          {serverError && (
+          {createCompany.error && (
             <div className="mb-4 p-3 bg-red-100 dark:bg-red-900/30 border border-red-400 dark:border-red-800 text-red-700 dark:text-red-400 rounded">
-              {serverError}
+              {createCompany.error instanceof Error
+                ? createCompany.error.message
+                : "Failed to create company"}
             </div>
           )}
 
@@ -88,7 +83,7 @@ export function CompanySetupPage() {
                 type="text"
                 placeholder="Enter your company name"
                 className="w-full px-4 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent dark:bg-dark-tertiary dark:text-dark-text-primary dark:placeholder:text-dark-text-tertiary"
-                disabled={isLoading}
+                disabled={createCompany.isPending}
                 aria-invalid={errors.name ? "true" : "false"}
                 aria-describedby={errors.name ? "companyName-error" : undefined}
                 {...register("name")}
@@ -106,10 +101,10 @@ export function CompanySetupPage() {
 
             <button
               type="submit"
-              disabled={isLoading}
+              disabled={createCompany.isPending}
               className="w-full bg-green-500 text-white py-2 px-4 rounded-lg hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
-              {isLoading ? "Creating…" : "Create Company"}
+              {createCompany.isPending ? "Creating…" : "Create Company"}
             </button>
           </form>
 

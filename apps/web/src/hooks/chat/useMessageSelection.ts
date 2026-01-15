@@ -19,14 +19,24 @@ interface UseMessageSelectionReturn {
 export function useMessageSelection(
   conversationId: string | undefined,
 ): UseMessageSelectionReturn {
-  // Selection mode state from store
+  // Selection mode state from store - subscribe to state values only
   const selectionMode = useChatStore(selectSelectionMode);
   const selectedMessageIds = useChatStore(selectSelectedMessageIds);
   const selectedCount = useChatStore(selectSelectedMessageCount);
-  const enterSelectionMode = useChatStore((state) => state.enterSelectionMode);
-  const exitSelectionMode = useChatStore((state) => state.exitSelectionMode);
-  const toggleMessageSelection = useChatStore(
-    (state) => state.toggleMessageSelection,
+
+  // Access actions via getState() to avoid unnecessary subscriptions
+  const enterSelectionMode = useCallback(
+    () => useChatStore.getState().enterSelectionMode(),
+    [],
+  );
+  const exitSelectionMode = useCallback(
+    () => useChatStore.getState().exitSelectionMode(),
+    [],
+  );
+  const toggleMessageSelection = useCallback(
+    (messageId: string) =>
+      useChatStore.getState().toggleMessageSelection(messageId),
+    [],
   );
 
   // Handle message click in selection mode

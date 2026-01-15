@@ -78,9 +78,6 @@ export const queryKeys = {
   messages: createQueryKeyFactory("messages"),
   conversations: createQueryKeyFactory("conversations"),
   tags: createQueryKeyFactory("tags"),
-  team: createQueryKeyFactory("team"),
-  analytics: createQueryKeyFactory("analytics"),
-  audit: createQueryKeyFactory("audit"),
   whatsapp: createQueryKeyFactory("whatsapp"),
   privateNotes: createQueryKeyFactory("privateNotes"),
   sharedNotes: createQueryKeyFactory("sharedNotes"),
@@ -89,4 +86,73 @@ export const queryKeys = {
   search: createQueryKeyFactory("search"),
   status: createQueryKeyFactory("status"),
   export: createQueryKeyFactory("export"),
+
+  // Analytics - custom keys for different analytics queries
+  analytics: {
+    all: ["analytics"] as const,
+    dashboard: (companyId: string | null) =>
+      ["analytics", "dashboard", companyId] as const,
+    messages: (
+      companyId: string | null,
+      startDate?: string,
+      endDate?: string,
+    ) => ["analytics", "messages", companyId, startDate, endDate] as const,
+    contacts: (companyId: string | null) =>
+      ["analytics", "contacts", companyId] as const,
+    contactsTrend: (
+      companyId: string | null,
+      startDate?: string,
+      endDate?: string,
+    ) => ["analytics", "contacts-trend", companyId, startDate, endDate] as const,
+    team: (companyId: string | null) =>
+      ["analytics", "team", companyId] as const,
+    messageTypes: (
+      companyId: string | null,
+      startDate?: string,
+      endDate?: string,
+    ) => ["analytics", "message-types", companyId, startDate, endDate] as const,
+    hourly: (companyId: string | null, days: number) =>
+      ["analytics", "hourly", companyId, days] as const,
+    resolution: (
+      companyId: string | null,
+      startDate?: string,
+      endDate?: string,
+    ) => ["analytics", "resolution", companyId, startDate, endDate] as const,
+    resolutionTrend: (
+      companyId: string | null,
+      startDate?: string,
+      endDate?: string,
+    ) =>
+      ["analytics", "resolution-trend", companyId, startDate, endDate] as const,
+    engagement: (
+      companyId: string | null,
+      startDate?: string,
+      endDate?: string,
+    ) => ["analytics", "engagement", companyId, startDate, endDate] as const,
+    engagementTrend: (
+      companyId: string | null,
+      startDate?: string,
+      endDate?: string,
+    ) =>
+      ["analytics", "engagement-trend", companyId, startDate, endDate] as const,
+  },
+
+  // Team/Company - custom keys for company resources
+  team: {
+    all: ["company"] as const,
+    members: (companyId: string | null) =>
+      ["company", companyId, "members"] as const,
+    invitations: (companyId: string | null) =>
+      ["company", companyId, "invitations"] as const,
+    invitation: (token: string | null) => ["invitation", token] as const,
+    companies: () => ["companies"] as const,
+  },
+
+  // Audit - custom keys for audit logs
+  audit: {
+    all: ["audit"] as const,
+    logs: <T extends object>(companyId: string | null, params?: T) =>
+      ["audit", companyId, params] as const,
+    actions: () => ["audit", "actions"] as const,
+  },
 } as const;

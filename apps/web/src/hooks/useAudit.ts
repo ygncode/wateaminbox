@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
-import { api } from "@/lib/api";
+import { api } from "@/lib/api/client";
+import { queryKeys } from "./query-keys";
 
 /**
  * Audit log action types
@@ -71,7 +72,7 @@ export function useAuditLogs(
   const queryString = queryParams.toString();
 
   return useQuery({
-    queryKey: ["audit", companyId, params],
+    queryKey: queryKeys.audit.logs(companyId, params),
     queryFn: async () => {
       if (!companyId) throw new Error("No company ID provided");
       const url = `/audit${queryString ? `?${queryString}` : ""}`;
@@ -88,6 +89,7 @@ export function useAuditLogs(
     },
     enabled: !!companyId,
     staleTime: 30_000,
+    gcTime: 300_000, // 5 minutes
   });
 }
 
@@ -96,7 +98,7 @@ export function useAuditLogs(
  */
 export function useAuditActions() {
   return useQuery({
-    queryKey: ["audit", "actions"],
+    queryKey: queryKeys.audit.actions(),
     queryFn: async () => {
       const response = await api.get<{
         data: Array<{ value: AuditAction; label: string }>;
@@ -104,6 +106,7 @@ export function useAuditActions() {
       return response.data;
     },
     staleTime: 300_000, // 5 minutes
+    gcTime: 600_000, // 10 minutes
   });
 }
 

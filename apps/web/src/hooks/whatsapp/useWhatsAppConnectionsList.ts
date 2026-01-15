@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
-import { listWhatsAppConnections, type WhatsAppConnection } from "@/lib/api";
+import { listWhatsAppConnections } from "@/lib/api/whatsapp";
+import type { WhatsAppConnection } from "@/lib/api/types";
 import { queryKeys } from "../query-keys";
 
 /**
@@ -10,6 +11,7 @@ export function useWhatsAppConnectionsList() {
     queryKey: queryKeys.whatsapp.lists(),
     queryFn: listWhatsAppConnections,
     staleTime: 30000, // 30 seconds
+    gcTime: 300000, // 5 minutes
     refetchInterval: 60000, // Refetch every minute
   });
 }

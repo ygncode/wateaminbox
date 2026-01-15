@@ -13,6 +13,7 @@ export function useMessages(conversationId: string | undefined) {
       api.get<Message[]>(`/conversations/${conversationId}/messages`),
     enabled: !!conversationId,
     staleTime: 1000 * 30, // 30 seconds
+    gcTime: 1000 * 60 * 5, // 5 minutes
   });
 }
 

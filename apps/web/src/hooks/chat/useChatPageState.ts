@@ -132,14 +132,16 @@ export function useChatPageState(): ChatPageState & ChatPageActions {
     ? mapContactDetailToContact(contactDetail)
     : undefined;
 
-  // Get typing indicators from store
-  const typingIndicators = useChatStore((state) => state.typingIndicators);
-  const selectConversation = useChatStore((state) => state.selectConversation);
-  const isContactTyping = React.useMemo(() => {
-    if (!contactDetail?.jid) return false;
-    const indicators = typingIndicators.get(contactDetail.jid);
-    return Boolean(indicators && indicators.length > 0);
-  }, [contactDetail?.jid, typingIndicators]);
+  // Get typing indicators from store - use selector with specific conversation ID
+  // to avoid re-renders on typing changes in other conversations
+  const jid = contactDetail?.jid;
+  const typingIndicators = useChatStore(
+    React.useCallback(
+      (state) => (jid ? state.typingIndicators.get(jid) : undefined),
+      [jid],
+    ),
+  );
+  const isContactTyping = Boolean(typingIndicators && typingIndicators.length > 0);
 
   // Message mutations
   const sendMessage = useSendMessage();
@@ -154,9 +156,10 @@ export function useChatPageState(): ChatPageState & ChatPageActions {
   }, [contactId]);
 
   // Sync selected chat ID with the global store
+  // Access action via getState() to avoid unnecessary subscription
   React.useEffect(() => {
-    selectConversation(selectedChatId || null);
-  }, [selectedChatId, selectConversation]);
+    useChatStore.getState().selectConversation(selectedChatId || null);
+  }, [selectedChatId]);
 
   // Mark conversation as read when chat is selected
   const lastMarkedRef = React.useRef<string | null>(null);

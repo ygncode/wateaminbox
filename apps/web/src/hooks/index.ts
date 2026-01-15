@@ -22,6 +22,7 @@ export * from "./query-keys";
 export * from "./useAsyncData";
 
 // Feature-specific hooks
+export * from "./useAuthMutations";
 export * from "./useAudit";
 export * from "./useChats";
 export * from "./useContact";

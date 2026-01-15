@@ -12,8 +12,8 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { useQuickReplies } from "@/hooks/useQuickReplies";
-import type { QuickReply } from "@/lib/api";
-import type { QuickReplyFormData } from "@/lib/schemas";
+import type { QuickReply } from "@/lib/api/types";
+import type { QuickReplyFormData } from "@/lib/schemas/quick-reply";
 import { QuickRepliesList } from "./QuickRepliesList";
 import { QuickReplyForm } from "./QuickReplyForm";
 

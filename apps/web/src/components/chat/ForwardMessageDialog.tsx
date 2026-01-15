@@ -5,7 +5,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui";
+} from "@/components/ui/dialog";
 import { useForwardContacts } from "../../hooks/useForwardContacts";
 import type { Chat } from "../../types/chat";
 

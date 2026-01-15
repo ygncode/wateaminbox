@@ -1,5 +1,5 @@
 import { Link2, Loader2, Plus } from "lucide-react";
-import { Button } from "@/components/ui";
+import { Button } from "@/components/ui/button";
 import type { AddConnectionDialogProps } from "./types";
 
 /**

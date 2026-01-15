@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { api } from "@/lib/api";
+import { api } from "@/lib/api/client";
 import { queryKeys } from "../query-keys";
 
 /**
@@ -75,6 +75,7 @@ export function useTags() {
       return response.data;
     },
     staleTime: 60_000, // 1 minute
+    gcTime: 300_000, // 5 minutes
   });
 }
 
