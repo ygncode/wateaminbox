@@ -34,7 +34,7 @@ export const ChatSidebar = memo(function ChatSidebar({
   return (
     <div
       className={cn(
-        "flex flex-col h-full bg-white dark:bg-dark-secondary",
+        "relative flex flex-col h-full bg-white dark:bg-dark-secondary",
         className,
       )}
     >
