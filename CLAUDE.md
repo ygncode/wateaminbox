@@ -526,6 +526,119 @@ const contact = requireEntity(
 
 The helper throws `NotFoundError` which is caught by the global error handler in `app.ts` and returns a proper 404 response.
 
+## Backend Error Handling
+
+The backend uses a centralized error handling pattern with custom error classes that extend `AppError`. All errors are caught by the global error handler in `apps/api/src/app.ts`.
+
+### Error Class Hierarchy
+
+```typescript
+// Base error class
+export class AppError extends Error {
+  constructor(message: string, statusCode: number = 500, details?: unknown);
+}
+
+// HTTP-specific errors
+export class ValidationError extends AppError {}      // 400
+export class UnauthorizedError extends AppError {}    // 401
+export class ForbiddenError extends AppError {}       // 403
+export class NotFoundError extends AppError {}        // 404
+export class ConflictError extends AppError {}        // 409
+export class TooManyRequestsError extends AppError {} // 429
+export class ServiceUnavailableError extends AppError {} // 503
+
+// Domain-specific errors (extend the above)
+export class CompanyNotFoundError extends NotFoundError {}
+export class InvitationExpiredError extends ValidationError {}
+export class AuthError extends AppError { code: string }
+```
+
+### Usage in Routes
+
+**Throw errors and let the global handler catch them:**
+
+```typescript
+import { NotFoundError, ForbiddenError } from "@/lib/errors.js";
+
+app.get("/:id", async (c) => {
+  const item = await service.getItem(id);
+  if (!item) {
+    throw new NotFoundError("Item");
+  }
+  if (!canAccess(item)) {
+    throw new ForbiddenError("You cannot access this item");
+  }
+  return successData(c, item);
+});
+```
+
+### Anti-Patterns (Avoid)
+
+```typescript
+// ❌ WRONG - Manual try/catch with HTTPException
+try {
+  const item = await service.getItem(id);
+  return successData(c, item);
+} catch (error) {
+  if (error instanceof ItemNotFoundError) {
+    throw new HTTPException(404, { message: error.message });
+  }
+  throw error;
+}
+
+// ✅ CORRECT - Let errors bubble up to global handler
+const item = await service.getItem(id); // Throws NotFoundError if not found
+return successData(c, item);
+```
+
+### Error Response Formats
+
+The global error handler returns consistent error responses:
+
+```json
+// Standard error
+{ "error": "Resource not found" }
+
+// Validation error (from Zod)
+{ "error": "Validation Error", "details": [{ "field": "email", "message": "Invalid email" }] }
+
+// Auth error (includes code for frontend handling)
+{ "error": "INVALID_CREDENTIALS", "message": "Invalid email or password" }
+
+// Error with details
+{ "error": "Rate limit exceeded", "details": { "retryAfter": 60 } }
+```
+
+## Backend Type Safety with AppType
+
+The backend exports `AppType` for type-safe RPC client usage with Hono Client.
+
+### Export Location
+
+```typescript
+// apps/api/src/routes/index.ts
+export type AppType = typeof routes;
+
+// Also re-exported from main entry
+// apps/api/src/index.ts
+export type { AppType } from './routes/index.js'
+```
+
+### Usage with Hono Client
+
+```typescript
+// In frontend or other TypeScript client
+import { hc } from 'hono/client'
+import type { AppType } from '@whatsapp-web/api'
+
+const client = hc<AppType>('http://localhost:4445/api')
+
+// Type-safe API calls
+const response = await client.contacts.$get()
+```
+
+**Note:** Due to the use of `routes.route()` for modular organization, full type inference for nested routes is limited. For complete type inference, individual route files would need to use method chaining.
+
 ## Backend Response Helpers
 
 Always use response helpers from `apps/api/src/lib/response.ts` for consistent API responses.
@@ -567,46 +680,86 @@ return successMessage(c, "OK");
 
 ## Backend Validation Schemas
 
-Validation schemas are centralized in `apps/api/src/lib/schemas/`. Use Zod for schema validation.
+Validation schemas are centralized in `apps/api/src/lib/schemas/`. Use Zod with `@hono/zod-validator` for request validation.
 
 ### Organization
 
 ```
 apps/api/src/lib/schemas/
 ├── index.ts           # Barrel exports
-├── company.ts         # Company, member, invitation schemas
-├── notification.ts    # Notification preference schemas
-├── quick-replies.ts   # Quick reply schemas
+├── auth.ts            # Register, login, verify-email, password reset, refresh
+├── contact.ts         # Create, update, list query, notes, assignment, import, tags
+├── message.ts         # Send, forward, list query, reactions, batch operations
+├── tag.ts             # Create, update, list query
+├── company.ts         # Create, update, member roles, invitations, permissions
+├── conversation.ts    # List messages query, send message, resolve, analytics
+├── group.ts           # List query, update, update settings
+├── notification.ts    # Preferences, mute, list query
+├── quick-replies.ts   # Create, update, list query
 ├── whatsapp.ts        # Message sending schemas
 └── [domain].ts        # Add new domain schemas here
 ```
 
 ### Usage Pattern
 
+**ALWAYS use `zValidator` from `@hono/zod-validator` for request validation:**
+
 ```typescript
 // In apps/api/src/lib/schemas/quick-replies.ts
 import { z } from "zod";
 
 export const createQuickReplySchema = z.object({
-  shortcut: z
-    .string()
-    .min(1)
-    .max(50)
-    .regex(/^[a-zA-Z0-9_-]+$/),
+  shortcut: z.string().min(1).max(50).regex(/^[a-zA-Z0-9_-]+$/),
   title: z.string().min(1).max(200),
   content: z.string().min(1),
 });
 
 export type CreateQuickReplyInput = z.infer<typeof createQuickReplySchema>;
 
-// In route file
+// In route file - use zValidator in the route chain
 import { createQuickReplySchema } from "@/lib/schemas/index.js";
 import { zValidator } from "@hono/zod-validator";
 
+// JSON body validation
 app.post("/", zValidator("json", createQuickReplySchema), async (c) => {
   const input = c.req.valid("json");
   // input is typed as CreateQuickReplyInput
 });
+
+// Query parameter validation
+app.get("/", zValidator("query", listQuerySchema), async (c) => {
+  const { limit, offset } = c.req.valid("query");
+});
+```
+
+### Anti-Patterns (Avoid)
+
+```typescript
+// ❌ WRONG - Manual safeParse validation
+const body = await c.req.json();
+const result = schema.safeParse(body);
+if (!result.success) {
+  return c.json({ error: result.error }, 400);
+}
+
+// ✅ CORRECT - Use zValidator
+app.post("/", zValidator("json", schema), async (c) => {
+  const data = c.req.valid("json"); // Validated and typed
+});
+```
+
+### Error Response Format
+
+Zod validation errors are automatically formatted by the global error handler in `app.ts`:
+
+```json
+{
+  "error": "Validation Error",
+  "details": [
+    { "field": "email", "message": "Invalid email format" },
+    { "field": "password", "message": "String must contain at least 8 character(s)" }
+  ]
+}
 ```
 
 ## Frontend API Client

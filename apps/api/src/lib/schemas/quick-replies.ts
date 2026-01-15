@@ -34,12 +34,7 @@ export const createQuickReplySchema = z.object({
  * All fields are optional
  */
 export const updateQuickReplySchema = z.object({
-  shortcut: z
-    .string()
-    .min(1)
-    .max(50)
-    .regex(shortcutPattern)
-    .optional(),
+  shortcut: z.string().min(1).max(50).regex(shortcutPattern).optional(),
   title: z.string().min(1).max(255).optional(),
   content: z.string().min(1).optional(),
 });

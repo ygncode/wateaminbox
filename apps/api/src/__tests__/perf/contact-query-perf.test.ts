@@ -68,7 +68,9 @@ let queryCount = 0;
 let originalExecute: any = null;
 
 // Track query execution
-async function trackQueries<T>(fn: () => Promise<T>): Promise<{ result: T; count: number }> {
+async function trackQueries<T>(
+  fn: () => Promise<T>,
+): Promise<{ result: T; count: number }> {
   queryCount = 0;
   const result = await fn();
   return { result, count: queryCount };
@@ -82,8 +84,12 @@ beforeAll(async () => {
     await pool.query("SELECT 1");
     isDatabaseAvailable = true;
   } catch (error) {
-    console.warn("⚠️  Performance tests skipped: PostgreSQL database not available");
-    console.warn("   To run performance tests, ensure PostgreSQL is running on localhost:5433");
+    console.warn(
+      "⚠️  Performance tests skipped: PostgreSQL database not available",
+    );
+    console.warn(
+      "   To run performance tests, ensure PostgreSQL is running on localhost:5433",
+    );
     isDatabaseAvailable = false;
   }
 });
@@ -206,158 +212,187 @@ describe("Performance: Contact Query Optimization", () => {
     await pool.end();
   });
 
-  it.skipIf(!isDatabaseAvailable)("should fetch 50 contacts with <200ms response time", async () => {
-    const startTime = performance.now();
-    queryCount = 0;
+  it.skipIf(!isDatabaseAvailable)(
+    "should fetch 50 contacts with <200ms response time",
+    async () => {
+      const startTime = performance.now();
+      queryCount = 0;
 
-    const { contacts, total } = await getContactsWithLastMessage(tenantDb, {
-      limit: 50,
-      offset: 0,
-    });
+      const { contacts, total } = await getContactsWithLastMessage(tenantDb, {
+        limit: 50,
+        offset: 0,
+      });
 
-    const endTime = performance.now();
-    const responseTime = endTime - startTime;
+      const endTime = performance.now();
+      const responseTime = endTime - startTime;
 
-    expect(contacts.length).toBeGreaterThan(0);
-    expect(total).toBeGreaterThanOrEqual(50);
-    expect(responseTime).toBeLessThan(200);
-    expect(queryCount).toBeLessThanOrEqual(3); // Main query + count query
+      expect(contacts.length).toBeGreaterThan(0);
+      expect(total).toBeGreaterThanOrEqual(50);
+      expect(responseTime).toBeLessThan(200);
+      expect(queryCount).toBeLessThanOrEqual(3); // Main query + count query
 
-    console.log(`  Response time for 50 contacts: ${responseTime.toFixed(2)}ms`);
-    console.log(`  Query count: ${queryCount}`);
-    console.log(`  Contacts returned: ${contacts.length}`);
-    console.log(`  Total contacts: ${total}`);
-  });
+      console.log(
+        `  Response time for 50 contacts: ${responseTime.toFixed(2)}ms`,
+      );
+      console.log(`  Query count: ${queryCount}`);
+      console.log(`  Contacts returned: ${contacts.length}`);
+      console.log(`  Total contacts: ${total}`);
+    },
+  );
 
-  it.skipIf(!isDatabaseAvailable)("should fetch 100 contacts with <300ms response time", async () => {
-    const startTime = performance.now();
-    queryCount = 0;
+  it.skipIf(!isDatabaseAvailable)(
+    "should fetch 100 contacts with <300ms response time",
+    async () => {
+      const startTime = performance.now();
+      queryCount = 0;
 
-    const { contacts, total } = await getContactsWithLastMessage(tenantDb, {
-      limit: 100,
-      offset: 0,
-    });
+      const { contacts, total } = await getContactsWithLastMessage(tenantDb, {
+        limit: 100,
+        offset: 0,
+      });
 
-    const endTime = performance.now();
-    const responseTime = endTime - startTime;
+      const endTime = performance.now();
+      const responseTime = endTime - startTime;
 
-    expect(contacts.length).toBeGreaterThan(0);
-    expect(responseTime).toBeLessThan(300);
-    expect(queryCount).toBeLessThanOrEqual(3);
+      expect(contacts.length).toBeGreaterThan(0);
+      expect(responseTime).toBeLessThan(300);
+      expect(queryCount).toBeLessThanOrEqual(3);
 
-    console.log(`  Response time for 100 contacts: ${responseTime.toFixed(2)}ms`);
-    console.log(`  Query count: ${queryCount}`);
-  });
+      console.log(
+        `  Response time for 100 contacts: ${responseTime.toFixed(2)}ms`,
+      );
+      console.log(`  Query count: ${queryCount}`);
+    },
+  );
 
-  it.skipIf(!isDatabaseAvailable)("should handle pagination efficiently", async () => {
-    const startTime = performance.now();
-    queryCount = 0;
+  it.skipIf(!isDatabaseAvailable)(
+    "should handle pagination efficiently",
+    async () => {
+      const startTime = performance.now();
+      queryCount = 0;
 
-    // First page
-    const page1 = await getContactsWithLastMessage(tenantDb, {
-      limit: 25,
-      offset: 0,
-    });
+      // First page
+      const page1 = await getContactsWithLastMessage(tenantDb, {
+        limit: 25,
+        offset: 0,
+      });
 
-    const page1Time = performance.now();
+      const page1Time = performance.now();
 
-    // Second page
-    const page2 = await getContactsWithLastMessage(tenantDb, {
-      limit: 25,
-      offset: 25,
-    });
+      // Second page
+      const page2 = await getContactsWithLastMessage(tenantDb, {
+        limit: 25,
+        offset: 25,
+      });
 
-    const endTime = performance.now();
-    const totalTime = endTime - startTime;
-    const page1TimeMs = page1Time - startTime;
+      const endTime = performance.now();
+      const totalTime = endTime - startTime;
+      const page1TimeMs = page1Time - startTime;
 
-    expect(page1.contacts.length).toBe(25);
-    expect(page2.contacts.length).toBe(25);
-    expect(totalTime).toBeLessThan(400); // Both pages combined
-    expect(queryCount).toBeLessThanOrEqual(4); // 2 queries per page
+      expect(page1.contacts.length).toBe(25);
+      expect(page2.contacts.length).toBe(25);
+      expect(totalTime).toBeLessThan(400); // Both pages combined
+      expect(queryCount).toBeLessThanOrEqual(4); // 2 queries per page
 
-    console.log(`  Page 1 time: ${page1TimeMs.toFixed(2)}ms`);
-    console.log(`  Total time for 2 pages: ${totalTime.toFixed(2)}ms`);
-    console.log(`  Query count: ${queryCount}`);
-  });
+      console.log(`  Page 1 time: ${page1TimeMs.toFixed(2)}ms`);
+      console.log(`  Total time for 2 pages: ${totalTime.toFixed(2)}ms`);
+      console.log(`  Query count: ${queryCount}`);
+    },
+  );
 
-  it.skipIf(!isDatabaseAvailable)("should handle search filter efficiently", async () => {
-    const startTime = performance.now();
-    queryCount = 0;
+  it.skipIf(!isDatabaseAvailable)(
+    "should handle search filter efficiently",
+    async () => {
+      const startTime = performance.now();
+      queryCount = 0;
 
-    const { contacts, total } = await getContactsWithLastMessage(tenantDb, {
-      search: "Test",
-      limit: 50,
-    });
+      const { contacts, total } = await getContactsWithLastMessage(tenantDb, {
+        search: "Test",
+        limit: 50,
+      });
 
-    const endTime = performance.now();
-    const responseTime = endTime - startTime;
+      const endTime = performance.now();
+      const responseTime = endTime - startTime;
 
-    expect(responseTime).toBeLessThan(200);
-    expect(queryCount).toBeLessThanOrEqual(3);
+      expect(responseTime).toBeLessThan(200);
+      expect(queryCount).toBeLessThanOrEqual(3);
 
-    console.log(`  Search response time: ${responseTime.toFixed(2)}ms`);
-    console.log(`  Results found: ${contacts.length} of ${total}`);
-  });
+      console.log(`  Search response time: ${responseTime.toFixed(2)}ms`);
+      console.log(`  Results found: ${contacts.length} of ${total}`);
+    },
+  );
 
-  it.skipIf(!isDatabaseAvailable)("should handle assignedToMe filter efficiently", async () => {
-    const startTime = performance.now();
-    queryCount = 0;
+  it.skipIf(!isDatabaseAvailable)(
+    "should handle assignedToMe filter efficiently",
+    async () => {
+      const startTime = performance.now();
+      queryCount = 0;
 
-    const { contacts, total } = await getContactsWithLastMessage(tenantDb, {
-      assignedToMe: true,
-      userId: "00000000-0000-0000-0000-000000000001", // Must match the userId used in test data
-      limit: 50,
-    });
+      const { contacts, total } = await getContactsWithLastMessage(tenantDb, {
+        assignedToMe: true,
+        userId: "00000000-0000-0000-0000-000000000001", // Must match the userId used in test data
+        limit: 50,
+      });
 
-    const endTime = performance.now();
-    const responseTime = endTime - startTime;
+      const endTime = performance.now();
+      const responseTime = endTime - startTime;
 
-    expect(responseTime).toBeLessThan(200);
-    expect(queryCount).toBeLessThanOrEqual(3);
+      expect(responseTime).toBeLessThan(200);
+      expect(queryCount).toBeLessThanOrEqual(3);
 
-    console.log(`  assignedToMe response time: ${responseTime.toFixed(2)}ms`);
-    console.log(`  Assigned contacts: ${contacts.length} of ${total}`);
-  });
+      console.log(`  assignedToMe response time: ${responseTime.toFixed(2)}ms`);
+      console.log(`  Assigned contacts: ${contacts.length} of ${total}`);
+    },
+  );
 
-  it.skipIf(!isDatabaseAvailable)("should handle unassigned filter efficiently", async () => {
-    const startTime = performance.now();
-    queryCount = 0;
+  it.skipIf(!isDatabaseAvailable)(
+    "should handle unassigned filter efficiently",
+    async () => {
+      const startTime = performance.now();
+      queryCount = 0;
 
-    const { contacts, total } = await getContactsWithLastMessage(tenantDb, {
-      unassigned: true,
-      limit: 50,
-    });
+      const { contacts, total } = await getContactsWithLastMessage(tenantDb, {
+        unassigned: true,
+        limit: 50,
+      });
 
-    const endTime = performance.now();
-    const responseTime = endTime - startTime;
+      const endTime = performance.now();
+      const responseTime = endTime - startTime;
 
-    expect(responseTime).toBeLessThan(200);
-    expect(queryCount).toBeLessThanOrEqual(3);
+      expect(responseTime).toBeLessThan(200);
+      expect(queryCount).toBeLessThanOrEqual(3);
 
-    console.log(`  Unassigned response time: ${responseTime.toFixed(2)}ms`);
-    console.log(`  Unassigned contacts: ${contacts.length} of ${total}`);
-  });
+      console.log(`  Unassigned response time: ${responseTime.toFixed(2)}ms`);
+      console.log(`  Unassigned contacts: ${contacts.length} of ${total}`);
+    },
+  );
 
-  it.skipIf(!isDatabaseAvailable)("should verify lastMessage data is included", async () => {
-    const { contacts } = await getContactsWithLastMessage(tenantDb, {
-      limit: 10,
-    });
+  it.skipIf(!isDatabaseAvailable)(
+    "should verify lastMessage data is included",
+    async () => {
+      const { contacts } = await getContactsWithLastMessage(tenantDb, {
+        limit: 10,
+      });
 
-    // Check that at least some contacts have last message data
-    const contactsWithMessages = contacts.filter((c) => c.last_message !== null);
-    expect(contactsWithMessages.length).toBeGreaterThan(0);
+      // Check that at least some contacts have last message data
+      const contactsWithMessages = contacts.filter(
+        (c) => c.last_message !== null,
+      );
+      expect(contactsWithMessages.length).toBeGreaterThan(0);
 
-    // Verify last message structure
-    const firstWithMessage = contactsWithMessages[0];
-    expect(firstWithMessage.last_message).toBeDefined();
-    expect(firstWithMessage.last_message?.id).toBeDefined();
-    expect(firstWithMessage.last_message?.messageId).toBeDefined();
-    expect(firstWithMessage.last_message?.fromMe).toBeDefined();
-    expect(firstWithMessage.last_message?.content).toBeDefined();
+      // Verify last message structure
+      const firstWithMessage = contactsWithMessages[0];
+      expect(firstWithMessage.last_message).toBeDefined();
+      expect(firstWithMessage.last_message?.id).toBeDefined();
+      expect(firstWithMessage.last_message?.messageId).toBeDefined();
+      expect(firstWithMessage.last_message?.fromMe).toBeDefined();
+      expect(firstWithMessage.last_message?.content).toBeDefined();
 
-    console.log(`  Contacts with messages: ${contactsWithMessages.length}/${contacts.length}`);
-  });
+      console.log(
+        `  Contacts with messages: ${contactsWithMessages.length}/${contacts.length}`,
+      );
+    },
+  );
 });
 
 /**
@@ -401,7 +436,8 @@ async function generateTestData(tenantDb: Kysely<any>): Promise<void> {
       profile_picture_url: null,
       notes_shared: null,
       is_online: i % 5 === 0, // Every 5th contact is online
-      last_seen: i % 5 === 0 ? null : new Date(now - Math.random() * 60 * 60 * 1000), // Last seen within last hour if offline
+      last_seen:
+        i % 5 === 0 ? null : new Date(now - Math.random() * 60 * 60 * 1000), // Last seen within last hour if offline
       created_at: new Date(now - 90 * 24 * 60 * 60 * 1000), // 90 days ago
       updated_at: new Date(now - Math.random() * 7 * 24 * 60 * 60 * 1000), // Within last week
       last_message_at: new Date(now - Math.random() * 24 * 60 * 60 * 1000), // Within last day
@@ -436,7 +472,9 @@ async function generateTestData(tenantDb: Kysely<any>): Promise<void> {
         content:
           Math.random() > 0.8
             ? null
-            : `Test message ${j} from contact ${i}`.repeat(Math.floor(Math.random() * 5) + 1),
+            : `Test message ${j} from contact ${i}`.repeat(
+                Math.floor(Math.random() * 5) + 1,
+              ),
         status: "read",
         timestamp: new Date(baseTimestamp + timestampOffset),
         created_at: new Date(baseTimestamp + timestampOffset),
@@ -468,5 +506,7 @@ async function generateTestData(tenantDb: Kysely<any>): Promise<void> {
       .execute();
   }
 
-  console.log(`  Created ${contacts.length} contacts with ${messages.length} messages`);
+  console.log(
+    `  Created ${contacts.length} contacts with ${messages.length} messages`,
+  );
 }

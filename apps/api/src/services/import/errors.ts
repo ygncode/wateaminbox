@@ -1,4 +1,4 @@
-import { AppError, ValidationError } from '../../lib/errors.js'
+import { AppError, ValidationError } from "../../lib/errors.js";
 
 /**
  * Validation error during import - doesn't abort transaction
@@ -7,8 +7,8 @@ import { AppError, ValidationError } from '../../lib/errors.js'
  */
 export class ImportValidationError extends ValidationError {
   constructor(message: string) {
-    super(message)
-    this.name = 'ImportValidationError'
+    super(message);
+    this.name = "ImportValidationError";
   }
 }
 
@@ -20,9 +20,9 @@ export class ImportValidationError extends ValidationError {
 export class ImportCriticalError extends AppError {
   constructor(
     message: string,
-    public readonly cause?: unknown
+    public readonly cause?: unknown,
   ) {
-    super(message, 500)
-    this.name = 'ImportCriticalError'
+    super(message, 500);
+    this.name = "ImportCriticalError";
   }
 }

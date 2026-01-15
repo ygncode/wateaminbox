@@ -3,6 +3,11 @@ import { Hono } from "hono";
 import { badRequest, forbidden, serviceUnavailable } from "../lib/errors.js";
 import { rateLimitConfig, rateLimitStore } from "../lib/rate-limit-store.js";
 import {
+  successData,
+  successPaginated,
+  successWithMessage,
+} from "../lib/response.js";
+import {
   extractPaginationParams,
   createPaginationMeta,
 } from "../lib/route-helpers.js";
@@ -53,7 +58,7 @@ searchRoutes.get("/", searchRateLimiter, async (c) => {
     limit,
   });
 
-  return c.json({
+  return successData(c, {
     query: query.trim(),
     ...results,
   });
@@ -98,6 +103,7 @@ searchRoutes.get("/messages", searchRateLimiter, async (c) => {
     options,
   );
 
+  // Custom response includes query for search context
   return c.json({
     query: query.trim(),
     data: results,
@@ -149,7 +155,7 @@ searchRoutes.get("/status", async (c) => {
     ? await meilisearchService.getIndexStats(companyId)
     : null;
 
-  return c.json({
+  return successData(c, {
     engine: meilisearchAvailable ? "meilisearch" : "postgresql",
     meilisearch: {
       available: meilisearchAvailable,
@@ -248,11 +254,14 @@ searchRoutes.post("/reindex", async (c) => {
 
   await meilisearchService.indexContacts(companyId, contactDocuments);
 
-  return c.json({
-    success: true,
-    indexed: {
-      messages: messageDocuments.length,
-      contacts: contactDocuments.length,
+  return successWithMessage(
+    c,
+    {
+      indexed: {
+        messages: messageDocuments.length,
+        contacts: contactDocuments.length,
+      },
     },
-  });
+    "Search indexes rebuilt successfully",
+  );
 });

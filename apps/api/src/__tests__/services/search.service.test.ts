@@ -25,13 +25,15 @@ const mockTenantDb = {
 };
 
 // Mock sql template
-const mockSql = mock((strings: TemplateStringsArray, ..._values: unknown[]) => ({
-  execute: mock(() =>
-    Promise.resolve({
-      rows: [],
-    })
-  ),
-}));
+const mockSql = mock(
+  (strings: TemplateStringsArray, ..._values: unknown[]) => ({
+    execute: mock(() =>
+      Promise.resolve({
+        rows: [],
+      }),
+    ),
+  }),
+);
 
 // Mock getTenantConnection
 const mockGetTenantConnection = mock((_companyId: string) => mockTenantDb);
@@ -46,8 +48,12 @@ mock.module("kysely", () => ({
 
 // Mock Meilisearch service to prevent it from being used during tests
 const mockIsMeilisearchAvailable = mock(() => Promise.resolve(false));
-const mockSearchMessagesWithMeilisearch = mock(() => Promise.resolve({ results: [], total: 0 }));
-const mockSearchContactsWithMeilisearch = mock(() => Promise.resolve({ results: [], total: 0 }));
+const mockSearchMessagesWithMeilisearch = mock(() =>
+  Promise.resolve({ results: [], total: 0 }),
+);
+const mockSearchContactsWithMeilisearch = mock(() =>
+  Promise.resolve({ results: [], total: 0 }),
+);
 
 mock.module("../../services/meilisearch.service.js", () => ({
   isMeilisearchAvailable: mockIsMeilisearchAvailable,
@@ -76,8 +82,12 @@ describe("SearchService", () => {
     mockSearchContactsWithMeilisearch.mockClear();
     // Reset Meilisearch mocks to default behavior
     mockIsMeilisearchAvailable.mockImplementation(() => Promise.resolve(false));
-    mockSearchMessagesWithMeilisearch.mockImplementation(() => Promise.resolve({ results: [], total: 0 }));
-    mockSearchContactsWithMeilisearch.mockImplementation(() => Promise.resolve({ results: [], total: 0 }));
+    mockSearchMessagesWithMeilisearch.mockImplementation(() =>
+      Promise.resolve({ results: [], total: 0 }),
+    );
+    mockSearchContactsWithMeilisearch.mockImplementation(() =>
+      Promise.resolve({ results: [], total: 0 }),
+    );
     // Reset the Meilisearch cache
     resetMeilisearchCache();
   });
@@ -296,9 +306,7 @@ describe("SearchService", () => {
 
     it("should search by phone number", async () => {
       // Arrange
-      const mockContacts = [
-        createMockContact({ phone_number: "+1234567890" }),
-      ];
+      const mockContacts = [createMockContact({ phone_number: "+1234567890" })];
 
       resetMockQueryBuilder(mockQueryBuilder, mockContacts);
       mockQueryBuilder.execute = mock(() => Promise.resolve(mockContacts));
@@ -526,7 +534,9 @@ describe("SearchService", () => {
       }));
 
       // Act
-      const result = await searchMessages("company-123", { query: "nonexistent" });
+      const result = await searchMessages("company-123", {
+        query: "nonexistent",
+      });
 
       // Assert
       expect(result.results).toEqual([]);
@@ -594,15 +604,18 @@ describe("SearchService", () => {
       const result = await searchMessages("company-123", { query: "Hello" });
 
       // Assert
-      expect(mockSearchMessagesWithMeilisearch).toHaveBeenCalledWith("company-123", {
-        query: "Hello",
-        limit: 50,
-        offset: 0,
-        contactId: undefined,
-        startDate: undefined,
-        endDate: undefined,
-        messageTypes: undefined,
-      });
+      expect(mockSearchMessagesWithMeilisearch).toHaveBeenCalledWith(
+        "company-123",
+        {
+          query: "Hello",
+          limit: 50,
+          offset: 0,
+          contactId: undefined,
+          startDate: undefined,
+          endDate: undefined,
+          messageTypes: undefined,
+        },
+      );
       expect(result.results).toHaveLength(1);
       expect(result.results[0].content).toBe("Hello from Meilisearch");
       expect(result.total).toBe(1);
@@ -621,7 +634,9 @@ describe("SearchService", () => {
       });
 
       // Act
-      const result = await searchMessages("company-123", { query: "nonexistent" });
+      const result = await searchMessages("company-123", {
+        query: "nonexistent",
+      });
 
       // Assert
       expect(mockSearchMessagesWithMeilisearch).toHaveBeenCalled();
@@ -656,11 +671,15 @@ describe("SearchService", () => {
       const result = await searchContacts("company-123", "John");
 
       // Assert
-      expect(mockSearchContactsWithMeilisearch).toHaveBeenCalledWith("company-123", "John", {
-        limit: 50,
-        offset: 0,
-        includeGroups: true,
-      });
+      expect(mockSearchContactsWithMeilisearch).toHaveBeenCalledWith(
+        "company-123",
+        "John",
+        {
+          limit: 50,
+          offset: 0,
+          includeGroups: true,
+        },
+      );
       expect(result.results).toHaveLength(1);
       expect(result.results[0].displayName).toBe("John Doe");
       expect(result.total).toBe(1);
@@ -719,7 +738,7 @@ describe("SearchService", () => {
       // Act
       const result = await searchMessages("company-123", {
         query: "test",
-        useMeilisearch: false // Force PostgreSQL
+        useMeilisearch: false, // Force PostgreSQL
       });
 
       // Assert

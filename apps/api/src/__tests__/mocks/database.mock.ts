@@ -52,7 +52,9 @@ export function createMockQueryBuilder(returnValue: unknown = undefined) {
   const mockBuilder: Record<string, unknown> = {};
 
   const terminalMethods = {
-    execute: mock(() => Promise.resolve(Array.isArray(returnValue) ? returnValue : [])),
+    execute: mock(() =>
+      Promise.resolve(Array.isArray(returnValue) ? returnValue : []),
+    ),
     executeTakeFirst: mock(() => Promise.resolve(returnValue)),
     executeTakeFirstOrThrow: mock(() => {
       if (returnValue === undefined) {
@@ -108,7 +110,7 @@ export function createMutableMockQueryBuilder() {
  */
 export function resetMockQueryBuilder(
   mockBuilder: Record<string, unknown>,
-  returnValue: unknown = undefined
+  returnValue: unknown = undefined,
 ) {
   // Reset chainable methods
   CHAIN_METHODS.forEach((method) => {
@@ -117,7 +119,7 @@ export function resetMockQueryBuilder(
 
   // Reset terminal methods with new return value
   mockBuilder.execute = mock(() =>
-    Promise.resolve(Array.isArray(returnValue) ? returnValue : [])
+    Promise.resolve(Array.isArray(returnValue) ? returnValue : []),
   );
   mockBuilder.executeTakeFirst = mock(() => Promise.resolve(returnValue));
   mockBuilder.executeTakeFirstOrThrow = mock(() => {
@@ -148,10 +150,18 @@ export function createMockDb(queryResults: Record<string, unknown> = {}) {
   const defaultResult = undefined;
 
   return {
-    selectFrom: mock((table: string) => createMockQueryBuilder(queryResults[table] ?? defaultResult)),
-    insertInto: mock((table: string) => createMockQueryBuilder(queryResults[`insert_${table}`] ?? defaultResult)),
-    updateTable: mock((table: string) => createMockQueryBuilder(queryResults[`update_${table}`] ?? defaultResult)),
-    deleteFrom: mock((table: string) => createMockQueryBuilder(queryResults[`delete_${table}`] ?? defaultResult)),
+    selectFrom: mock((table: string) =>
+      createMockQueryBuilder(queryResults[table] ?? defaultResult),
+    ),
+    insertInto: mock((table: string) =>
+      createMockQueryBuilder(queryResults[`insert_${table}`] ?? defaultResult),
+    ),
+    updateTable: mock((table: string) =>
+      createMockQueryBuilder(queryResults[`update_${table}`] ?? defaultResult),
+    ),
+    deleteFrom: mock((table: string) =>
+      createMockQueryBuilder(queryResults[`delete_${table}`] ?? defaultResult),
+    ),
     transaction: mock(() => ({
       execute: mock((callback: (trx: unknown) => Promise<unknown>) => {
         const trxDb = createMockDb(queryResults);
@@ -184,7 +194,8 @@ export function createMockUser(overrides: Partial<MockUser> = {}): MockUser {
   return {
     id: "user-123",
     email: "test@example.com",
-    password_hash: "$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/X4.VTtYVX7.lB2mKu", // "Password123"
+    password_hash:
+      "$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/X4.VTtYVX7.lB2mKu", // "Password123"
     email_verified_at: null,
     created_at: new Date(),
     updated_at: new Date(),
@@ -195,7 +206,9 @@ export function createMockUser(overrides: Partial<MockUser> = {}): MockUser {
 /**
  * Helper to create mock session data
  */
-export function createMockSession(overrides: Partial<MockSession> = {}): MockSession {
+export function createMockSession(
+  overrides: Partial<MockSession> = {},
+): MockSession {
   return {
     id: "session-123",
     user_id: "user-123",
@@ -214,7 +227,9 @@ export function createMockSession(overrides: Partial<MockSession> = {}): MockSes
 /**
  * Helper to create mock company data
  */
-export function createMockCompany(overrides: Partial<MockCompany> = {}): MockCompany {
+export function createMockCompany(
+  overrides: Partial<MockCompany> = {},
+): MockCompany {
   return {
     id: "company-123",
     name: "Test Company",
@@ -229,7 +244,9 @@ export function createMockCompany(overrides: Partial<MockCompany> = {}): MockCom
 /**
  * Helper to create mock company member data
  */
-export function createMockCompanyMember(overrides: Partial<MockCompanyMember> = {}): MockCompanyMember {
+export function createMockCompanyMember(
+  overrides: Partial<MockCompanyMember> = {},
+): MockCompanyMember {
   return {
     id: "member-123",
     user_id: "user-123",
@@ -245,7 +262,9 @@ export function createMockCompanyMember(overrides: Partial<MockCompanyMember> = 
 /**
  * Helper to create mock invitation data
  */
-export function createMockInvitation(overrides: Partial<MockInvitation> = {}): MockInvitation {
+export function createMockInvitation(
+  overrides: Partial<MockInvitation> = {},
+): MockInvitation {
   return {
     id: "invitation-123",
     company_id: "company-123",
@@ -262,7 +281,9 @@ export function createMockInvitation(overrides: Partial<MockInvitation> = {}): M
 /**
  * Helper to create mock audit log data
  */
-export function createMockAuditLog(overrides: Partial<MockAuditLog> = {}): MockAuditLog {
+export function createMockAuditLog(
+  overrides: Partial<MockAuditLog> = {},
+): MockAuditLog {
   return {
     id: "audit-123",
     user_id: "user-123",
@@ -279,7 +300,9 @@ export function createMockAuditLog(overrides: Partial<MockAuditLog> = {}): MockA
 /**
  * Helper to create mock WhatsApp connection data
  */
-export function createMockWhatsAppConnection(overrides: Partial<MockWhatsAppConnection> = {}): MockWhatsAppConnection {
+export function createMockWhatsAppConnection(
+  overrides: Partial<MockWhatsAppConnection> = {},
+): MockWhatsAppConnection {
   return {
     id: "connection-123",
     phone_number: "+1234567890",
@@ -298,7 +321,9 @@ export function createMockWhatsAppConnection(overrides: Partial<MockWhatsAppConn
 /**
  * Helper to create mock contact data
  */
-export function createMockContact(overrides: Partial<MockContact> = {}): MockContact {
+export function createMockContact(
+  overrides: Partial<MockContact> = {},
+): MockContact {
   return {
     id: "contact-123",
     whatsapp_connection_id: "connection-123",
@@ -318,7 +343,9 @@ export function createMockContact(overrides: Partial<MockContact> = {}): MockCon
 /**
  * Helper to create mock message data
  */
-export function createMockMessage(overrides: Partial<MockMessage> = {}): MockMessage {
+export function createMockMessage(
+  overrides: Partial<MockMessage> = {},
+): MockMessage {
   return {
     id: "message-123",
     whatsapp_connection_id: "connection-123",
@@ -444,7 +471,16 @@ export interface MockMessage {
   message_id: string | null;
   from_me: boolean;
   sender_jid: string | null;
-  message_type: "text" | "image" | "video" | "audio" | "document" | "sticker" | "location" | "contact" | "reaction";
+  message_type:
+    | "text"
+    | "image"
+    | "video"
+    | "audio"
+    | "document"
+    | "sticker"
+    | "location"
+    | "contact"
+    | "reaction";
   content: string | null;
   media_url: string | null;
   media_mime_type: string | null;
@@ -477,7 +513,9 @@ export interface MockNotificationPreferences {
 /**
  * Helper to create mock notification preferences data
  */
-export function createMockNotificationPreferences(overrides: Partial<MockNotificationPreferences> = {}): MockNotificationPreferences {
+export function createMockNotificationPreferences(
+  overrides: Partial<MockNotificationPreferences> = {},
+): MockNotificationPreferences {
   return {
     id: "notification-pref-123",
     user_id: "user-123",
@@ -508,7 +546,9 @@ export interface MockNotificationHistory {
 /**
  * Helper to create mock notification history data
  */
-export function createMockNotificationHistory(overrides: Partial<MockNotificationHistory> = {}): MockNotificationHistory {
+export function createMockNotificationHistory(
+  overrides: Partial<MockNotificationHistory> = {},
+): MockNotificationHistory {
   return {
     id: "notification-123",
     user_id: "user-123",
@@ -537,7 +577,9 @@ export interface MockQuickReply {
 /**
  * Helper to create mock quick reply data
  */
-export function createMockQuickReply(overrides: Partial<MockQuickReply> = {}): MockQuickReply {
+export function createMockQuickReply(
+  overrides: Partial<MockQuickReply> = {},
+): MockQuickReply {
   return {
     id: "quick-reply-123",
     shortcut: "greeting",
@@ -565,7 +607,9 @@ export interface MockStatusUpdate {
 /**
  * Helper to create mock status update data
  */
-export function createMockStatusUpdate(overrides: Partial<MockStatusUpdate> = {}): MockStatusUpdate {
+export function createMockStatusUpdate(
+  overrides: Partial<MockStatusUpdate> = {},
+): MockStatusUpdate {
   const now = new Date();
   return {
     id: "status-123",
@@ -597,7 +641,9 @@ export interface MockConversationState {
 /**
  * Helper to create mock conversation state data
  */
-export function createMockConversationState(overrides: Partial<MockConversationState> = {}): MockConversationState {
+export function createMockConversationState(
+  overrides: Partial<MockConversationState> = {},
+): MockConversationState {
   return {
     id: "conv-state-123",
     contact_id: "contact-123",
@@ -628,7 +674,9 @@ export interface MockWhatsAppLabel {
 /**
  * Helper to create mock WhatsApp label data
  */
-export function createMockWhatsAppLabel(overrides: Partial<MockWhatsAppLabel> = {}): MockWhatsAppLabel {
+export function createMockWhatsAppLabel(
+  overrides: Partial<MockWhatsAppLabel> = {},
+): MockWhatsAppLabel {
   const now = new Date();
   return {
     id: "wa-label-123",

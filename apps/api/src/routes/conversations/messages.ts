@@ -1,3 +1,4 @@
+import { zValidator } from "@hono/zod-validator";
 import { Hono } from "hono";
 import { badRequest, notFound } from "../../lib/errors.js";
 import {
@@ -7,7 +8,11 @@ import {
   type ReactionData,
 } from "../../lib/message-formatters.js";
 import { publishSendMessage } from "../../lib/nats/index.js";
-import { extractPaginationParams } from "../../lib/route-helpers.js";
+import { successData, successWithMessage } from "../../lib/response.js";
+import {
+  listConversationMessagesQuerySchema,
+  sendConversationMessageSchema,
+} from "../../lib/schemas/index.js";
 import { getRouteContext } from "../../middleware/context.js";
 import { requirePermission } from "../../middleware/tenant.js";
 import { ensureContactAssignment } from "../../services/contact.service.js";
@@ -19,96 +24,99 @@ export const messageRoutes = new Hono();
  * GET /conversations/:id/messages - Get messages for a conversation/contact
  * Query params: limit, cursor (for pagination)
  */
-messageRoutes.get("/:id/messages", async (c) => {
-  const { tenantDb } = getRouteContext(c);
-  const contactId = c.req.param("id");
-  const { limit } = extractPaginationParams(c);
-  const cursor = c.req.query("cursor"); // Message ID for cursor pagination
+messageRoutes.get(
+  "/:id/messages",
+  zValidator("query", listConversationMessagesQuerySchema),
+  async (c) => {
+    const { tenantDb } = getRouteContext(c);
+    const contactId = c.req.param("id");
+    const { limit, cursor } = c.req.valid("query");
 
-  let query = tenantDb
-    .selectFrom("messages")
-    .selectAll()
-    .where("contact_id", "=", contactId)
-    .orderBy("timestamp", "desc")
-    .limit(limit);
-
-  // Cursor pagination - get messages before a specific message
-  if (cursor) {
-    const cursorMessage = await tenantDb
-      .selectFrom("messages")
-      .select(["timestamp"])
-      .where("id", "=", cursor)
-      .executeTakeFirst();
-
-    if (cursorMessage) {
-      query = query.where("timestamp", "<", cursorMessage.timestamp);
-    }
-  }
-
-  const messages = await query.execute();
-
-  // Get quoted messages if any (for reply functionality)
-  const quotedIds = messages
-    .filter((m) => m.quoted_message_id)
-    .map((m) => m.quoted_message_id as string);
-
-  let quotedMessagesMap = new Map<
-    string,
-    ReturnType<typeof buildQuotedMessageData>
-  >();
-  if (quotedIds.length > 0) {
-    const quoted = await tenantDb
+    let query = tenantDb
       .selectFrom("messages")
       .selectAll()
-      .where("message_id", "in", quotedIds)
-      .execute();
+      .where("contact_id", "=", contactId)
+      .orderBy("timestamp", "desc")
+      .limit(limit);
 
-    quotedMessagesMap = new Map(
-      quoted
-        .filter((q) => q.message_id !== null)
-        .map((q) => [
-          q.message_id as string,
-          buildQuotedMessageData(q as MessageDbRow),
-        ]),
-    );
-  }
+    // Cursor pagination - get messages before a specific message
+    if (cursor) {
+      const cursorMessage = await tenantDb
+        .selectFrom("messages")
+        .select(["timestamp"])
+        .where("id", "=", cursor)
+        .executeTakeFirst();
 
-  // Get reactions for all messages
-  const messageIds = messages.map((m) => m.id);
-  const reactionsMap = new Map<string, ReactionData[]>();
-  if (messageIds.length > 0) {
-    const reactions = await tenantDb
-      .selectFrom("message_reactions")
-      .select(["message_id", "emoji", "reactor_jid", "created_at"])
-      .where("message_id", "in", messageIds)
-      .orderBy("created_at", "asc")
-      .execute();
-
-    // Group reactions by message ID
-    for (const reaction of reactions) {
-      const existing = reactionsMap.get(reaction.message_id) || [];
-      existing.push({
-        emoji: reaction.emoji,
-        reactorJid: reaction.reactor_jid,
-        createdAt: reaction.created_at,
-      });
-      reactionsMap.set(reaction.message_id, existing);
+      if (cursorMessage) {
+        query = query.where("timestamp", "<", cursorMessage.timestamp);
+      }
     }
-  }
 
-  // Map to frontend format using shared formatter
-  const formattedMessages = formatMessagesForConversation(
-    messages as MessageDbRow[],
-    quotedMessagesMap,
-    reactionsMap,
-  );
+    const messages = await query.execute();
 
-  return c.json({
-    messages: formattedMessages,
-    hasMore: messages.length === limit,
-    nextCursor: messages.length > 0 ? messages[messages.length - 1].id : null,
-  });
-});
+    // Get quoted messages if any (for reply functionality)
+    const quotedIds = messages
+      .filter((m) => m.quoted_message_id)
+      .map((m) => m.quoted_message_id as string);
+
+    let quotedMessagesMap = new Map<
+      string,
+      ReturnType<typeof buildQuotedMessageData>
+    >();
+    if (quotedIds.length > 0) {
+      const quoted = await tenantDb
+        .selectFrom("messages")
+        .selectAll()
+        .where("message_id", "in", quotedIds)
+        .execute();
+
+      quotedMessagesMap = new Map(
+        quoted
+          .filter((q) => q.message_id !== null)
+          .map((q) => [
+            q.message_id as string,
+            buildQuotedMessageData(q as MessageDbRow),
+          ]),
+      );
+    }
+
+    // Get reactions for all messages
+    const messageIds = messages.map((m) => m.id);
+    const reactionsMap = new Map<string, ReactionData[]>();
+    if (messageIds.length > 0) {
+      const reactions = await tenantDb
+        .selectFrom("message_reactions")
+        .select(["message_id", "emoji", "reactor_jid", "created_at"])
+        .where("message_id", "in", messageIds)
+        .orderBy("created_at", "asc")
+        .execute();
+
+      // Group reactions by message ID
+      for (const reaction of reactions) {
+        const existing = reactionsMap.get(reaction.message_id) || [];
+        existing.push({
+          emoji: reaction.emoji,
+          reactorJid: reaction.reactor_jid,
+          createdAt: reaction.created_at,
+        });
+        reactionsMap.set(reaction.message_id, existing);
+      }
+    }
+
+    // Map to frontend format using shared formatter
+    const formattedMessages = formatMessagesForConversation(
+      messages as MessageDbRow[],
+      quotedMessagesMap,
+      reactionsMap,
+    );
+
+    return successData(c, {
+      messages: formattedMessages,
+      hasMore: messages.length === limit,
+      nextCursor: messages.length > 0 ? messages[messages.length - 1].id : null,
+    });
+  },
+);
 
 /**
  * POST /conversations/:id/messages - Send a new message
@@ -117,12 +125,12 @@ messageRoutes.get("/:id/messages", async (c) => {
 messageRoutes.post(
   "/:id/messages",
   requirePermission(PERMISSIONS.CAN_SEND_MESSAGES),
+  zValidator("json", sendConversationMessageSchema),
   async (c) => {
     const { tenantDb, user, companyId } = getRouteContext(c);
     const contactId = c.req.param("id");
-    const body = await c.req.json();
-
-    const { content, messageType = "text", mediaUrl, replyToMessageId } = body;
+    const { content, messageType, mediaUrl, replyToMessageId } =
+      c.req.valid("json");
 
     if (!content && messageType === "text") {
       return badRequest(c, "content is required for text messages");
@@ -212,8 +220,7 @@ messageRoutes.post(
       quotedSenderJid,
     );
 
-    return c.json({
-      success: true,
+    return successWithMessage(c, "Message queued", {
       message: {
         id: messageId,
         messageId: waMessageId,

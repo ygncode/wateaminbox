@@ -60,4 +60,6 @@ export const updateMemberPermissionsSchema = z.object({
   can_delete: z.boolean().optional(),
 });
 
-export type UpdateMemberPermissionsInput = z.infer<typeof updateMemberPermissionsSchema>;
+export type UpdateMemberPermissionsInput = z.infer<
+  typeof updateMemberPermissionsSchema
+>;

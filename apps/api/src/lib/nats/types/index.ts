@@ -10,7 +10,7 @@ export {
   type StatusType,
   type NatsCommand,
   type WhatsAppEvent,
-} from "./base.js"
+} from "./base.js";
 
 // Command types
 export type {
@@ -29,7 +29,7 @@ export type {
   SyncCatalogProductsCommand,
   BlockContactCommand,
   UnblockContactCommand,
-} from "./commands.js"
+} from "./commands.js";
 
 // Event types
 export type {
@@ -52,4 +52,4 @@ export type {
   SyncStatusEvent,
   SendFailedEvent,
   WorkerConnectionStatusEvent,
-} from "./events.js"
+} from "./events.js";

@@ -1,5 +1,5 @@
-import { normalizePhoneNumber as sharedNormalizePhoneNumber } from '../../lib/schemas.js'
-import type { ContactImportRow } from './types.js'
+import { normalizePhoneNumber as sharedNormalizePhoneNumber } from "../../lib/schemas.js";
+import type { ContactImportRow } from "./types.js";
 
 /**
  * Normalize phone number to WhatsApp JID format
@@ -22,15 +22,15 @@ import type { ContactImportRow } from './types.js'
  */
 export function normalizePhoneNumber(phone: string): {
   /** WhatsApp JID format for messaging */
-  jid: string
+  jid: string;
   /** Cleaned phone number (digits only) */
-  phoneNumber: string
+  phoneNumber: string;
 } {
-  const result = sharedNormalizePhoneNumber(phone)
+  const result = sharedNormalizePhoneNumber(phone);
   return {
     jid: result.jid,
     phoneNumber: result.cleanedPhone,
-  }
+  };
 }
 
 /**
@@ -54,7 +54,9 @@ export function normalizePhoneNumber(phone: string): {
  * // => { phone_number: '+1234567890', custom_name: 'John Doe', tags: 'VIP,Lead' }
  * ```
  */
-export function mapToContactRow(row: Record<string, string>): ContactImportRow | null {
+export function mapToContactRow(
+  row: Record<string, string>,
+): ContactImportRow | null {
   // Look for phone number in various column names
   const phoneNumber =
     row.phone_number ||
@@ -64,9 +66,9 @@ export function mapToContactRow(row: Record<string, string>): ContactImportRow |
     row.cell ||
     row.whatsapp ||
     row.number ||
-    ''
+    "";
 
-  if (!phoneNumber) return null
+  if (!phoneNumber) return null;
 
   // Look for name in various column names
   const customName =
@@ -77,18 +79,19 @@ export function mapToContactRow(row: Record<string, string>): ContactImportRow |
     row.display_name ||
     row.displayname ||
     row.contact_name ||
-    ''
+    "";
 
   // Look for notes
-  const notes = row.notes || row.note || row.shared_notes || row.description || ''
+  const notes =
+    row.notes || row.note || row.shared_notes || row.description || "";
 
   // Look for tags
-  const tags = row.tags || row.tag || row.labels || row.label || ''
+  const tags = row.tags || row.tag || row.labels || row.label || "";
 
   return {
     phone_number: phoneNumber,
     custom_name: customName || undefined,
     notes: notes || undefined,
     tags: tags || undefined,
-  }
+  };
 }

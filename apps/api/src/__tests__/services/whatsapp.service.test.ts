@@ -44,8 +44,8 @@ mock.module("../../lib/nats/index.js", () => ({
   publishSyncCatalogProducts: mock(async () => {}),
   publishSendReaction: mock(async () => {}),
   publishCommand: mock(async () => {}),
-  getNatsConnection: mock(async () => ({ status: 'ok' })),
-  getJetStreamClient: mock(async () => ({ status: 'ok' })),
+  getNatsConnection: mock(async () => ({ status: "ok" })),
+  getJetStreamClient: mock(async () => ({ status: "ok" })),
   subscribe: mock(async () => {}),
   subscribeToCompanyEvents: mock(async () => {}),
   subscribeToConnectionEvents: mock(async () => {}),
@@ -54,35 +54,35 @@ mock.module("../../lib/nats/index.js", () => ({
   isNatsConnected: mock(() => true),
   request: mock(async () => ({})),
   NATS_SUBJECTS: {
-    SPAWN: 'whatsapp.spawn',
-    KILL: 'whatsapp.kill',
-    SEND_MESSAGE: 'whatsapp.send-message',
-    POST_STATUS: 'whatsapp.post-status',
-    GROUP_PROMOTE_ADMIN: 'whatsapp.group.promote-admin',
-    GROUP_DEMOTE_ADMIN: 'whatsapp.group.demote-admin',
-    GROUP_REMOVE_PARTICIPANT: 'whatsapp.group.remove-participant',
-    GROUP_UPDATE_SETTINGS: 'whatsapp.group.update-settings',
-    SYNC_LABELS: 'whatsapp.sync-labels',
-    APPLY_LABEL: 'whatsapp.apply-label',
-    REMOVE_LABEL: 'whatsapp.remove-label',
-    SEND_REACTION: 'whatsapp.send-reaction',
-    SYNC_CATALOGS: 'whatsapp.sync-catalogs',
-    SYNC_CATALOG_PRODUCTS: 'whatsapp.sync-catalog-products',
-    QR_CODE: 'whatsapp.events.qr',
-    CONNECTION_UPDATE: 'whatsapp.events.connection',
-    MESSAGE: 'whatsapp.events.message',
-    RECEIPT: 'whatsapp.events.receipt',
-    SEND_CONFIRMATION: 'whatsapp.events.send-confirmation',
-    STATUS_UPDATE: 'whatsapp.events.status',
-    CONTACT_UPDATE: 'whatsapp.events.contact',
-    PRESENCE: 'whatsapp.events.presence',
-    TYPING: 'whatsapp.events.typing',
-    MESSAGE_REVOKE: 'whatsapp.events.message-revoke',
-    REACTION: 'whatsapp.events.reaction',
-    PROFILE_PICTURE: 'whatsapp.events.profile-picture',
-    LABELS: 'whatsapp.events.labels',
-    CATALOGS: 'whatsapp.events.catalogs',
-    CATALOG_PRODUCTS: 'whatsapp.events.catalog-products',
+    SPAWN: "whatsapp.spawn",
+    KILL: "whatsapp.kill",
+    SEND_MESSAGE: "whatsapp.send-message",
+    POST_STATUS: "whatsapp.post-status",
+    GROUP_PROMOTE_ADMIN: "whatsapp.group.promote-admin",
+    GROUP_DEMOTE_ADMIN: "whatsapp.group.demote-admin",
+    GROUP_REMOVE_PARTICIPANT: "whatsapp.group.remove-participant",
+    GROUP_UPDATE_SETTINGS: "whatsapp.group.update-settings",
+    SYNC_LABELS: "whatsapp.sync-labels",
+    APPLY_LABEL: "whatsapp.apply-label",
+    REMOVE_LABEL: "whatsapp.remove-label",
+    SEND_REACTION: "whatsapp.send-reaction",
+    SYNC_CATALOGS: "whatsapp.sync-catalogs",
+    SYNC_CATALOG_PRODUCTS: "whatsapp.sync-catalog-products",
+    QR_CODE: "whatsapp.events.qr",
+    CONNECTION_UPDATE: "whatsapp.events.connection",
+    MESSAGE: "whatsapp.events.message",
+    RECEIPT: "whatsapp.events.receipt",
+    SEND_CONFIRMATION: "whatsapp.events.send-confirmation",
+    STATUS_UPDATE: "whatsapp.events.status",
+    CONTACT_UPDATE: "whatsapp.events.contact",
+    PRESENCE: "whatsapp.events.presence",
+    TYPING: "whatsapp.events.typing",
+    MESSAGE_REVOKE: "whatsapp.events.message-revoke",
+    REACTION: "whatsapp.events.reaction",
+    PROFILE_PICTURE: "whatsapp.events.profile-picture",
+    LABELS: "whatsapp.events.labels",
+    CATALOGS: "whatsapp.events.catalogs",
+    CATALOG_PRODUCTS: "whatsapp.events.catalog-products",
   },
 }));
 
@@ -172,13 +172,21 @@ describe("WhatsAppService", () => {
       mockTenantDb.insertInto = mock(() => insertQueryBuilder);
 
       // Act
-      const result = await spawnConnection(mockTenantDb as never, "company-123", "user-123");
+      const result = await spawnConnection(
+        mockTenantDb as never,
+        "company-123",
+        "user-123",
+      );
 
       // Assert
       expect(result.connectionId).toBeDefined();
       expect(result.wsUrl).toContain("company=company-123");
       expect(result.wsUrl).toContain(`connection=${result.connectionId}`);
-      expect(mockPublishSpawnCommand).toHaveBeenCalledWith("company-123", result.connectionId, TEST_DATABASE_URL);
+      expect(mockPublishSpawnCommand).toHaveBeenCalledWith(
+        "company-123",
+        result.connectionId,
+        TEST_DATABASE_URL,
+      );
     });
 
     it("should throw error if max connections exceeded", async () => {
@@ -194,7 +202,9 @@ describe("WhatsAppService", () => {
       mockTenantDb.selectFrom = mock(() => countQueryBuilder);
 
       // Act & Assert
-      await expect(spawnConnection(mockTenantDb as never, "company-123", "user-123")).rejects.toThrow("Maximum WhatsApp connections exceeded");
+      await expect(
+        spawnConnection(mockTenantDb as never, "company-123", "user-123"),
+      ).rejects.toThrow("Maximum WhatsApp connections exceeded");
     });
 
     it("should allow connection when under limit", async () => {
@@ -216,7 +226,11 @@ describe("WhatsAppService", () => {
       mockTenantDb.insertInto = mock(() => insertQueryBuilder);
 
       // Act
-      const result = await spawnConnection(mockTenantDb as never, "company-123", "user-123");
+      const result = await spawnConnection(
+        mockTenantDb as never,
+        "company-123",
+        "user-123",
+      );
 
       // Assert
       expect(result.connectionId).toBeDefined();
@@ -229,7 +243,10 @@ describe("WhatsAppService", () => {
       // Arrange
       const mockTenantDb = createMockTenantDb();
       const connectionId = "conn-123";
-      const activeConnection = createMockWhatsAppConnection({ id: connectionId, status: "connected" });
+      const activeConnection = createMockWhatsAppConnection({
+        id: connectionId,
+        status: "connected",
+      });
       resetMockQueryBuilder(mockQueryBuilder, activeConnection);
       mockTenantDb.selectFrom = mock(() => mockQueryBuilder);
       mockTenantDb.updateTable = mock(() => ({
@@ -243,7 +260,10 @@ describe("WhatsAppService", () => {
       await killConnection(mockTenantDb as never, "company-123", connectionId);
 
       // Assert
-      expect(mockPublishKillCommand).toHaveBeenCalledWith("company-123", connectionId);
+      expect(mockPublishKillCommand).toHaveBeenCalledWith(
+        "company-123",
+        connectionId,
+      );
     });
 
     it("should throw error if no connection exists", async () => {
@@ -253,7 +273,9 @@ describe("WhatsAppService", () => {
       mockTenantDb.selectFrom = mock(() => mockQueryBuilder);
 
       // Act & Assert
-      await expect(killConnection(mockTenantDb as never, "company-123", "non-existent")).rejects.toThrow(ConnectionNotFoundError);
+      await expect(
+        killConnection(mockTenantDb as never, "company-123", "non-existent"),
+      ).rejects.toThrow(ConnectionNotFoundError);
     });
   });
 
@@ -353,7 +375,10 @@ describe("WhatsAppService", () => {
       // Arrange
       const mockTenantDb = createMockTenantDb();
       const connectionId = "conn-123";
-      const activeConnection = createMockWhatsAppConnection({ id: connectionId, status: "connected" });
+      const activeConnection = createMockWhatsAppConnection({
+        id: connectionId,
+        status: "connected",
+      });
       const existingContact = createMockContact();
 
       let selectCount = 0;
@@ -382,7 +407,12 @@ describe("WhatsAppService", () => {
       };
 
       // Act
-      const result = await sendMessage(mockTenantDb as never, "company-123", "user-123", input);
+      const result = await sendMessage(
+        mockTenantDb as never,
+        "company-123",
+        "user-123",
+        input,
+      );
 
       // Assert
       expect(result.messageId).toBeDefined();
@@ -396,7 +426,7 @@ describe("WhatsAppService", () => {
         input.messageType,
         "user-123",
         result.messageId, // pendingMessageId
-        undefined // mediaUrl
+        undefined, // mediaUrl
       );
     });
 
@@ -413,13 +443,17 @@ describe("WhatsAppService", () => {
       };
 
       // Act & Assert
-      await expect(sendMessage(mockTenantDb as never, "company-123", "user-123", input)).rejects.toThrow(InvalidConnectionStateError);
+      await expect(
+        sendMessage(mockTenantDb as never, "company-123", "user-123", input),
+      ).rejects.toThrow(InvalidConnectionStateError);
     });
 
     it("should create new contact if not exists", async () => {
       // Arrange
       const mockTenantDb = createMockTenantDb();
-      const activeConnection = createMockWhatsAppConnection({ status: "connected" });
+      const activeConnection = createMockWhatsAppConnection({
+        status: "connected",
+      });
 
       let selectCount = 0;
       mockTenantDb.selectFrom = mock(() => {
@@ -446,7 +480,12 @@ describe("WhatsAppService", () => {
       };
 
       // Act
-      const result = await sendMessage(mockTenantDb as never, "company-123", "user-123", input);
+      const result = await sendMessage(
+        mockTenantDb as never,
+        "company-123",
+        "user-123",
+        input,
+      );
 
       // Assert
       expect(result.messageId).toBeDefined();
@@ -458,7 +497,10 @@ describe("WhatsAppService", () => {
       // Arrange
       const mockTenantDb = createMockTenantDb();
       const connectionId = "conn-123";
-      const activeConnection = createMockWhatsAppConnection({ id: connectionId, status: "connected" });
+      const activeConnection = createMockWhatsAppConnection({
+        id: connectionId,
+        status: "connected",
+      });
       const existingContact = createMockContact();
 
       let selectCount = 0;
@@ -486,7 +528,12 @@ describe("WhatsAppService", () => {
       };
 
       // Act
-      const result = await sendMessage(mockTenantDb as never, "company-123", "user-123", input);
+      const result = await sendMessage(
+        mockTenantDb as never,
+        "company-123",
+        "user-123",
+        input,
+      );
 
       // Assert
       expect(result.messageId).toBeDefined();
@@ -499,14 +546,16 @@ describe("WhatsAppService", () => {
         input.messageType,
         "user-123",
         result.messageId, // pendingMessageId
-        input.mediaUrl
+        input.mediaUrl,
       );
     });
 
     it("should detect group JIDs", async () => {
       // Arrange
       const mockTenantDb = createMockTenantDb();
-      const activeConnection = createMockWhatsAppConnection({ status: "connected" });
+      const activeConnection = createMockWhatsAppConnection({
+        status: "connected",
+      });
 
       let selectCount = 0;
       mockTenantDb.selectFrom = mock(() => {
@@ -532,7 +581,12 @@ describe("WhatsAppService", () => {
       };
 
       // Act
-      const result = await sendMessage(mockTenantDb as never, "company-123", "user-123", input);
+      const result = await sendMessage(
+        mockTenantDb as never,
+        "company-123",
+        "user-123",
+        input,
+      );
 
       // Assert
       expect(result.messageId).toBeDefined();
@@ -543,7 +597,9 @@ describe("WhatsAppService", () => {
     it("should update status to connected", async () => {
       // Arrange
       const mockTenantDb = createMockTenantDb();
-      const pendingConnection = createMockWhatsAppConnection({ status: "pending" });
+      const pendingConnection = createMockWhatsAppConnection({
+        status: "pending",
+      });
       resetMockQueryBuilder(mockQueryBuilder, pendingConnection);
       mockTenantDb.selectFrom = mock(() => mockQueryBuilder);
       mockTenantDb.updateTable = mock(() => ({
@@ -556,7 +612,7 @@ describe("WhatsAppService", () => {
         mockTenantDb as never,
         "connected",
         "+1234567890",
-        "1234567890@s.whatsapp.net"
+        "1234567890@s.whatsapp.net",
       );
 
       // Assert
@@ -570,13 +626,17 @@ describe("WhatsAppService", () => {
       mockTenantDb.selectFrom = mock(() => mockQueryBuilder);
 
       // Act & Assert - should not throw
-      await expect(updateConnectionStatus(mockTenantDb as never, "connected")).resolves.toBeUndefined();
+      await expect(
+        updateConnectionStatus(mockTenantDb as never, "connected"),
+      ).resolves.toBeUndefined();
     });
 
     it("should set connected_at when status is connected", async () => {
       // Arrange
       const mockTenantDb = createMockTenantDb();
-      const pendingConnection = createMockWhatsAppConnection({ status: "pending" });
+      const pendingConnection = createMockWhatsAppConnection({
+        status: "pending",
+      });
       resetMockQueryBuilder(mockQueryBuilder, pendingConnection);
       mockTenantDb.selectFrom = mock(() => mockQueryBuilder);
       mockTenantDb.updateTable = mock(() => ({
@@ -613,7 +673,9 @@ describe("WhatsAppService", () => {
     it("should return active connection", async () => {
       // Arrange
       const mockTenantDb = createMockTenantDb();
-      const activeConnection = createMockWhatsAppConnection({ status: "connected" });
+      const activeConnection = createMockWhatsAppConnection({
+        status: "connected",
+      });
       resetMockQueryBuilder(mockQueryBuilder, activeConnection);
       mockTenantDb.selectFrom = mock(() => mockQueryBuilder);
 
@@ -681,7 +743,10 @@ describe("WhatsAppService", () => {
     });
 
     it("InvalidConnectionStateError should have correct properties", () => {
-      const error = new InvalidConnectionStateError("disconnected", "connected");
+      const error = new InvalidConnectionStateError(
+        "disconnected",
+        "connected",
+      );
       expect(error.name).toBe("InvalidConnectionStateError");
       expect(error.message).toContain("disconnected");
       expect(error.message).toContain("connected");

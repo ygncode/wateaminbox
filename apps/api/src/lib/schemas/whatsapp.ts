@@ -9,7 +9,7 @@ export const sendMessageSchema = z.object({
     .min(1, "JID is required")
     .regex(
       /^[0-9]+@(s\.whatsapp\.net|g\.us)$/,
-      "Invalid JID format. Expected format: number@s.whatsapp.net or groupid@g.us"
+      "Invalid JID format. Expected format: number@s.whatsapp.net or groupid@g.us",
     ),
   content: z.string().min(1, "Message content is required"),
   messageType: z

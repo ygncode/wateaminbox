@@ -9,7 +9,9 @@ import { Hono } from "hono";
 import { createMockMessage, createMockQueryBuilder } from "../mocks";
 
 // Create a mock tenant db for messages
-function createMockTenantDb(messages: ReturnType<typeof createMockMessage>[] = []) {
+function createMockTenantDb(
+  messages: ReturnType<typeof createMockMessage>[] = [],
+) {
   const mockDb = {
     selectFrom: mock((table: string) => {
       if (table === "messages") {
@@ -30,7 +32,7 @@ function createMockTenantDb(messages: ReturnType<typeof createMockMessage>[] = [
           id: "new-message-123",
           status: "pending",
           timestamp: new Date(),
-        })
+        }),
       );
       return builder;
     }),
@@ -42,7 +44,7 @@ function createMockTenantDb(messages: ReturnType<typeof createMockMessage>[] = [
       });
       builder.execute = mock(() => Promise.resolve({ numUpdatedRows: 1n }));
       builder.executeTakeFirst = mock(() =>
-        Promise.resolve({ numUpdatedRows: 1n })
+        Promise.resolve({ numUpdatedRows: 1n }),
       );
       return builder;
     }),
@@ -106,7 +108,9 @@ describe("GET /conversations/:id/messages - Message status in response", () => {
 
     // Mount a simplified route handler for testing
     app.get("/conversations/:id/messages", async (c) => {
-      const tenantDb = c.get("tenantDb") as ReturnType<typeof createMockTenantDb>;
+      const tenantDb = c.get("tenantDb") as ReturnType<
+        typeof createMockTenantDb
+      >;
       const contactId = c.req.param("id");
       const limit = parseInt(c.req.query("limit") || "50", 10);
 
@@ -119,7 +123,9 @@ describe("GET /conversations/:id/messages - Message status in response", () => {
         .execute();
 
       // Map to frontend format with status
-      const formattedMessages = (messages as ReturnType<typeof createMockMessage>[]).map((msg) => ({
+      const formattedMessages = (
+        messages as ReturnType<typeof createMockMessage>[]
+      ).map((msg) => ({
         id: msg.id,
         messageId: msg.message_id,
         conversationId: msg.contact_id,
@@ -141,7 +147,10 @@ describe("GET /conversations/:id/messages - Message status in response", () => {
       return c.json({
         messages: formattedMessages,
         hasMore: messages.length === limit,
-        nextCursor: messages.length > 0 ? (messages as { id: string }[])[messages.length - 1].id : null,
+        nextCursor:
+          messages.length > 0
+            ? (messages as { id: string }[])[messages.length - 1].id
+            : null,
       });
     });
   });
@@ -159,7 +168,9 @@ describe("GET /conversations/:id/messages - Message status in response", () => {
     // Check that all messages have status field
     data.messages.forEach((msg: { status: string }) => {
       expect(msg.status).toBeDefined();
-      expect(["pending", "sent", "delivered", "read", "failed"]).toContain(msg.status);
+      expect(["pending", "sent", "delivered", "read", "failed"]).toContain(
+        msg.status,
+      );
     });
   });
 
@@ -172,18 +183,24 @@ describe("GET /conversations/:id/messages - Message status in response", () => {
     const data = await response.json();
 
     // Find the message with "read" status
-    const readMessage = data.messages.find((m: { id: string }) => m.id === "msg-1");
+    const readMessage = data.messages.find(
+      (m: { id: string }) => m.id === "msg-1",
+    );
     expect(readMessage).toBeDefined();
     expect(readMessage.status).toBe("read");
     expect(readMessage.senderType).toBe("user");
 
     // Find the message with "delivered" status
-    const deliveredMessage = data.messages.find((m: { id: string }) => m.id === "msg-2");
+    const deliveredMessage = data.messages.find(
+      (m: { id: string }) => m.id === "msg-2",
+    );
     expect(deliveredMessage).toBeDefined();
     expect(deliveredMessage.status).toBe("delivered");
 
     // Find the pending message
-    const pendingMessage = data.messages.find((m: { id: string }) => m.id === "msg-4");
+    const pendingMessage = data.messages.find(
+      (m: { id: string }) => m.id === "msg-4",
+    );
     expect(pendingMessage).toBeDefined();
     expect(pendingMessage.status).toBe("pending");
   });
@@ -197,11 +214,15 @@ describe("GET /conversations/:id/messages - Message status in response", () => {
     const data = await response.json();
 
     // Check own messages have senderType "user"
-    const ownMessages = data.messages.filter((m: { senderType: string }) => m.senderType === "user");
+    const ownMessages = data.messages.filter(
+      (m: { senderType: string }) => m.senderType === "user",
+    );
     expect(ownMessages.length).toBe(3); // msg-1, msg-2, msg-4
 
     // Check received messages have senderType "contact"
-    const receivedMessages = data.messages.filter((m: { senderType: string }) => m.senderType === "contact");
+    const receivedMessages = data.messages.filter(
+      (m: { senderType: string }) => m.senderType === "contact",
+    );
     expect(receivedMessages.length).toBe(1); // msg-3
   });
 });
@@ -224,7 +245,9 @@ describe("POST /messages - New message status", () => {
 
     // Simplified send message route
     app.post("/messages", async (c) => {
-      const tenantDb = c.get("tenantDb") as ReturnType<typeof createMockTenantDb>;
+      const tenantDb = c.get("tenantDb") as ReturnType<
+        typeof createMockTenantDb
+      >;
       const body = await c.req.json();
 
       const { contactId, content, messageType = "text" } = body;
@@ -367,9 +390,12 @@ describe("POST /messages - Auto-assign on first reply", () => {
                     executeTakeFirst: mock(() =>
                       Promise.resolve(
                         hasExistingAssignment
-                          ? { id: "existing-assignment", assigned_to: "other-user" }
-                          : undefined
-                      )
+                          ? {
+                              id: "existing-assignment",
+                              assigned_to: "other-user",
+                            }
+                          : undefined,
+                      ),
                     ),
                   })),
                 })),
@@ -392,7 +418,7 @@ describe("POST /messages - Auto-assign on first reply", () => {
                         assigned_to: vals.assigned_to,
                         assigned_by: vals.assigned_to,
                         assigned_at: new Date(),
-                      })
+                      }),
                     ),
                   })),
                 };

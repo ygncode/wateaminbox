@@ -13,7 +13,8 @@ import { describe, it, expect, mock, beforeEach } from "bun:test";
 
 // Query execution counter to track number of queries
 let queryCount = 0;
-let mockSqlExecutor: ((db: unknown) => Promise<{ rows: unknown[] }>) | null = null;
+let mockSqlExecutor: ((db: unknown) => Promise<{ rows: unknown[] }>) | null =
+  null;
 
 function resetQueryCount() {
   queryCount = 0;

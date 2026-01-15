@@ -11,10 +11,7 @@
  */
 
 import { describe, it, expect, mock, beforeEach } from "bun:test";
-import {
-  createMutableMockQueryBuilder,
-  resetMockQueryBuilder,
-} from "../mocks";
+import { createMutableMockQueryBuilder, resetMockQueryBuilder } from "../mocks";
 
 // Mock query builder - using centralized mock utilities
 let mockQueryBuilder = createMutableMockQueryBuilder();
@@ -299,7 +296,9 @@ describe("AnalyticsService", () => {
         const isUser2 = tenantCallCount > 3;
         switch (tenantCallCount % 3) {
           case 1:
-            resetMockQueryBuilder(mockQueryBuilder, { count: isUser2 ? 100 : 50 });
+            resetMockQueryBuilder(mockQueryBuilder, {
+              count: isUser2 ? 100 : 50,
+            });
             break;
           case 2:
             resetMockQueryBuilder(mockQueryBuilder, { count: 10 });
@@ -316,7 +315,9 @@ describe("AnalyticsService", () => {
 
       // Assert
       if (result.length >= 2) {
-        expect(result[0].messagesSent).toBeGreaterThanOrEqual(result[1].messagesSent);
+        expect(result[0].messagesSent).toBeGreaterThanOrEqual(
+          result[1].messagesSent,
+        );
       }
     });
 
@@ -379,7 +380,11 @@ describe("AnalyticsService", () => {
       const endDate = new Date("2024-01-31");
 
       // Act
-      const result = await getMessageTypeStats("company-123", startDate, endDate);
+      const result = await getMessageTypeStats(
+        "company-123",
+        startDate,
+        endDate,
+      );
 
       // Assert
       expect(result.length).toBe(1);
@@ -516,7 +521,11 @@ describe("AnalyticsService", () => {
       mockTenantDb.selectFrom = mock(() => mockQueryBuilder);
 
       // Act
-      const result = await getMessageStats("company-123", new Date(), new Date());
+      const result = await getMessageStats(
+        "company-123",
+        new Date(),
+        new Date(),
+      );
 
       // Assert
       if (result.length > 0) {
@@ -558,7 +567,9 @@ describe("AnalyticsService", () => {
         callCount++;
         if (callCount === 1) {
           resetMockQueryBuilder(mockQueryBuilder, mockDailyCounts);
-          mockQueryBuilder.execute = mock(() => Promise.resolve(mockDailyCounts));
+          mockQueryBuilder.execute = mock(() =>
+            Promise.resolve(mockDailyCounts),
+          );
           return mockQueryBuilder;
         }
         resetMockQueryBuilder(mockQueryBuilder, mockPreviousTotal);
@@ -569,7 +580,11 @@ describe("AnalyticsService", () => {
       const endDate = new Date("2024-01-05");
 
       // Act
-      const result = await getNewContactsTrend("company-123", startDate, endDate);
+      const result = await getNewContactsTrend(
+        "company-123",
+        startDate,
+        endDate,
+      );
 
       // Assert
       expect(Array.isArray(result)).toBe(true);
@@ -594,7 +609,9 @@ describe("AnalyticsService", () => {
         callCount++;
         if (callCount === 1) {
           resetMockQueryBuilder(mockQueryBuilder, mockDailyCounts);
-          mockQueryBuilder.execute = mock(() => Promise.resolve(mockDailyCounts));
+          mockQueryBuilder.execute = mock(() =>
+            Promise.resolve(mockDailyCounts),
+          );
           return mockQueryBuilder;
         }
         resetMockQueryBuilder(mockQueryBuilder, mockPreviousTotal);
@@ -605,7 +622,11 @@ describe("AnalyticsService", () => {
       const endDate = new Date("2024-01-03");
 
       // Act
-      const result = await getNewContactsTrend("company-123", startDate, endDate);
+      const result = await getNewContactsTrend(
+        "company-123",
+        startDate,
+        endDate,
+      );
 
       // Assert
       expect(result[0].cumulativeTotal).toBe(15); // 10 + 5
@@ -624,7 +645,9 @@ describe("AnalyticsService", () => {
         callCount++;
         if (callCount === 1) {
           resetMockQueryBuilder(mockQueryBuilder, mockDailyCounts);
-          mockQueryBuilder.execute = mock(() => Promise.resolve(mockDailyCounts));
+          mockQueryBuilder.execute = mock(() =>
+            Promise.resolve(mockDailyCounts),
+          );
           return mockQueryBuilder;
         }
         resetMockQueryBuilder(mockQueryBuilder, mockPreviousTotal);
@@ -635,7 +658,11 @@ describe("AnalyticsService", () => {
       const endDate = new Date("2024-01-03");
 
       // Act
-      const result = await getNewContactsTrend("company-123", startDate, endDate);
+      const result = await getNewContactsTrend(
+        "company-123",
+        startDate,
+        endDate,
+      );
 
       // Assert
       expect(result[0].date).toBe("2024-01-01");
@@ -657,7 +684,11 @@ describe("AnalyticsService", () => {
       const endDate = new Date("2024-01-01");
 
       // Act
-      const result = await getNewContactsTrend("company-123", startDate, endDate);
+      const result = await getNewContactsTrend(
+        "company-123",
+        startDate,
+        endDate,
+      );
 
       // Assert
       expect(result).toEqual([]);
@@ -673,7 +704,9 @@ describe("AnalyticsService", () => {
         callCount++;
         if (callCount === 1) {
           resetMockQueryBuilder(mockQueryBuilder, mockDailyCounts);
-          mockQueryBuilder.execute = mock(() => Promise.resolve(mockDailyCounts));
+          mockQueryBuilder.execute = mock(() =>
+            Promise.resolve(mockDailyCounts),
+          );
           return mockQueryBuilder;
         }
         resetMockQueryBuilder(mockQueryBuilder, mockPreviousTotal);
@@ -684,7 +717,11 @@ describe("AnalyticsService", () => {
       const endDate = new Date("2024-01-01");
 
       // Act
-      const result = await getNewContactsTrend("company-123", startDate, endDate);
+      const result = await getNewContactsTrend(
+        "company-123",
+        startDate,
+        endDate,
+      );
 
       // Assert
       expect(result.length).toBe(1);
@@ -717,7 +754,9 @@ describe("AnalyticsService", () => {
         callCount++;
         if (callCount === 1) {
           resetMockQueryBuilder(mockQueryBuilder, mockDailyCounts);
-          mockQueryBuilder.execute = mock(() => Promise.resolve(mockDailyCounts));
+          mockQueryBuilder.execute = mock(() =>
+            Promise.resolve(mockDailyCounts),
+          );
           return mockQueryBuilder;
         }
         resetMockQueryBuilder(mockQueryBuilder, mockPreviousTotal);
@@ -728,7 +767,11 @@ describe("AnalyticsService", () => {
       const endDate = new Date("2024-01-01");
 
       // Act
-      const result = await getNewContactsTrend("company-123", startDate, endDate);
+      const result = await getNewContactsTrend(
+        "company-123",
+        startDate,
+        endDate,
+      );
 
       // Assert
       expect(result.length).toBeGreaterThan(0);
@@ -820,8 +863,8 @@ describe("AnalyticsService", () => {
       const weights = {
         activeContactsRate: 0.25,
         twoWayConversationRate: 0.25,
-        responseRate: 0.30,
-        mediaEngagementRate: 0.20,
+        responseRate: 0.3,
+        mediaEngagementRate: 0.2,
       };
 
       const totalWeight = Object.values(weights).reduce((sum, w) => sum + w, 0);
@@ -835,12 +878,15 @@ describe("AnalyticsService", () => {
         mediaEngagementRate: 100, // max
       };
 
-      const score = Math.min(100, Math.round(
-        (rates.activeContactsRate * weights.activeContactsRate) +
-        (rates.twoWayConversationRate * weights.twoWayConversationRate) +
-        (rates.responseRate * weights.responseRate) +
-        (rates.mediaEngagementRate * weights.mediaEngagementRate)
-      ));
+      const score = Math.min(
+        100,
+        Math.round(
+          rates.activeContactsRate * weights.activeContactsRate +
+            rates.twoWayConversationRate * weights.twoWayConversationRate +
+            rates.responseRate * weights.responseRate +
+            rates.mediaEngagementRate * weights.mediaEngagementRate,
+        ),
+      );
 
       expect(score).toBe(100);
     });

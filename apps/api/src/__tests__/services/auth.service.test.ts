@@ -30,7 +30,9 @@ const mockDb = {
   updateTable: mock(() => mockQueryBuilder),
   deleteFrom: mock(() => mockQueryBuilder),
   transaction: mock(() => ({
-    execute: mock((callback: (trx: unknown) => Promise<unknown>) => callback(mockDb)),
+    execute: mock((callback: (trx: unknown) => Promise<unknown>) =>
+      callback(mockDb),
+    ),
   })),
 };
 
@@ -48,7 +50,9 @@ mock.module("@whatsapp-web/database", () => ({
 
 // Mock password utilities
 const mockHashPassword = mock(async (password: string) => `hashed_${password}`);
-const mockVerifyPassword = mock(async (_password: string, _hash: string) => true);
+const mockVerifyPassword = mock(
+  async (_password: string, _hash: string) => true,
+);
 
 mock.module("../../lib/password.js", () => ({
   hashPassword: mockHashPassword,
@@ -59,7 +63,9 @@ mock.module("../../lib/password.js", () => ({
 const mockGenerateAccessToken = mock(async () => "mock-access-token");
 const mockGenerateRefreshToken = mock(async () => "mock-refresh-token");
 const mockVerifyRefreshToken = mock(async () => ({ sessionId: "session-123" }));
-const mockGetRefreshTokenExpiry = mock(() => new Date(Date.now() + 7 * 24 * 60 * 60 * 1000));
+const mockGetRefreshTokenExpiry = mock(
+  () => new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+);
 
 mock.module("../../lib/jwt.js", () => ({
   generateAccessToken: mockGenerateAccessToken,
@@ -149,8 +155,12 @@ describe("AuthService", () => {
       resetMockQueryBuilder(mockQueryBuilder, existingUser);
 
       // Act & Assert
-      await expect(register("test@example.com", "Password123")).rejects.toThrow(AuthError);
-      await expect(register("test@example.com", "Password123")).rejects.toThrow("An account with this email already exists");
+      await expect(register("test@example.com", "Password123")).rejects.toThrow(
+        AuthError,
+      );
+      await expect(register("test@example.com", "Password123")).rejects.toThrow(
+        "An account with this email already exists",
+      );
     });
 
     it("should normalize email to lowercase", async () => {
@@ -218,8 +228,12 @@ describe("AuthService", () => {
       resetMockQueryBuilder(mockQueryBuilder, undefined);
 
       // Act & Assert
-      await expect(login("nonexistent@example.com", "Password123")).rejects.toThrow(AuthError);
-      await expect(login("nonexistent@example.com", "Password123")).rejects.toThrow("Invalid email or password");
+      await expect(
+        login("nonexistent@example.com", "Password123"),
+      ).rejects.toThrow(AuthError);
+      await expect(
+        login("nonexistent@example.com", "Password123"),
+      ).rejects.toThrow("Invalid email or password");
     });
 
     it("should throw error for invalid password", async () => {
@@ -229,8 +243,12 @@ describe("AuthService", () => {
       mockVerifyPassword.mockImplementation(async () => false);
 
       // Act & Assert
-      await expect(login("test@example.com", "WrongPassword")).rejects.toThrow(AuthError);
-      await expect(login("test@example.com", "WrongPassword")).rejects.toThrow("Invalid email or password");
+      await expect(login("test@example.com", "WrongPassword")).rejects.toThrow(
+        AuthError,
+      );
+      await expect(login("test@example.com", "WrongPassword")).rejects.toThrow(
+        "Invalid email or password",
+      );
     });
 
     it("should normalize email to lowercase during login", async () => {
@@ -292,8 +310,12 @@ describe("AuthService", () => {
       mockDb.updateTable = mock(() => updateBuilder);
 
       // Act & Assert
-      await expect(verifyEmail("invalid-user", "invalid-token")).rejects.toThrow(AuthError);
-      await expect(verifyEmail("invalid-user", "invalid-token")).rejects.toThrow("Invalid verification token");
+      await expect(
+        verifyEmail("invalid-user", "invalid-token"),
+      ).rejects.toThrow(AuthError);
+      await expect(
+        verifyEmail("invalid-user", "invalid-token"),
+      ).rejects.toThrow("Invalid verification token");
     });
   });
 
@@ -344,7 +366,11 @@ describe("AuthService", () => {
       mockDb.updateTable = mock(() => updateBuilder);
 
       // Act
-      const result = await resetPassword("test@example.com", "reset-token", "NewPassword123");
+      const result = await resetPassword(
+        "test@example.com",
+        "reset-token",
+        "NewPassword123",
+      );
 
       // Assert
       expect(result.success).toBe(true);
@@ -362,8 +388,12 @@ describe("AuthService", () => {
       mockDb.updateTable = mock(() => updateBuilder);
 
       // Act & Assert
-      await expect(resetPassword("test@example.com", "invalid-token", "NewPassword123")).rejects.toThrow(AuthError);
-      await expect(resetPassword("test@example.com", "invalid-token", "NewPassword123")).rejects.toThrow("Invalid reset token");
+      await expect(
+        resetPassword("test@example.com", "invalid-token", "NewPassword123"),
+      ).rejects.toThrow(AuthError);
+      await expect(
+        resetPassword("test@example.com", "invalid-token", "NewPassword123"),
+      ).rejects.toThrow("Invalid reset token");
     });
   });
 
@@ -373,7 +403,9 @@ describe("AuthService", () => {
       const mockSession = createMockSession();
       resetMockQueryBuilder(mockQueryBuilder, mockSession);
 
-      mockVerifyRefreshToken.mockImplementation(async () => ({ sessionId: "session-123" }));
+      mockVerifyRefreshToken.mockImplementation(async () => ({
+        sessionId: "session-123",
+      }));
 
       const updateBuilder: Record<string, unknown> = {
         where: mock(() => updateBuilder),
@@ -397,17 +429,25 @@ describe("AuthService", () => {
 
       // Act & Assert
       await expect(refreshSession("invalid-token")).rejects.toThrow(AuthError);
-      await expect(refreshSession("invalid-token")).rejects.toThrow("Invalid refresh token");
+      await expect(refreshSession("invalid-token")).rejects.toThrow(
+        "Invalid refresh token",
+      );
     });
 
     it("should throw error for expired session", async () => {
       // Arrange
-      mockVerifyRefreshToken.mockImplementation(async () => ({ sessionId: "expired-session" }));
+      mockVerifyRefreshToken.mockImplementation(async () => ({
+        sessionId: "expired-session",
+      }));
       resetMockQueryBuilder(mockQueryBuilder, undefined);
 
       // Act & Assert
-      await expect(refreshSession("expired-session-token")).rejects.toThrow(AuthError);
-      await expect(refreshSession("expired-session-token")).rejects.toThrow("Session not found or expired");
+      await expect(refreshSession("expired-session-token")).rejects.toThrow(
+        AuthError,
+      );
+      await expect(refreshSession("expired-session-token")).rejects.toThrow(
+        "Session not found or expired",
+      );
     });
   });
 
@@ -438,8 +478,12 @@ describe("AuthService", () => {
       mockDb.deleteFrom = mock(() => deleteBuilder);
 
       // Act & Assert
-      await expect(revokeSession("invalid-session", "user-123")).rejects.toThrow(AuthError);
-      await expect(revokeSession("invalid-session", "user-123")).rejects.toThrow("Session not found");
+      await expect(
+        revokeSession("invalid-session", "user-123"),
+      ).rejects.toThrow(AuthError);
+      await expect(
+        revokeSession("invalid-session", "user-123"),
+      ).rejects.toThrow("Session not found");
     });
   });
 
@@ -546,7 +590,9 @@ describe("AuthService", () => {
       mockDb.updateTable = mock(() => updateBuilder);
 
       // Act & Assert - should not throw
-      await expect(updateSessionActivity("session-123")).resolves.toBeUndefined();
+      await expect(
+        updateSessionActivity("session-123"),
+      ).resolves.toBeUndefined();
     });
   });
 

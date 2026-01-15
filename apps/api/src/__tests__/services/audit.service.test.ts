@@ -230,7 +230,12 @@ describe("AuditService", () => {
 
     it("should filter by entityType and entityId", async () => {
       // Arrange
-      const mockLogs = [createMockAuditLog({ entity_type: "contact", entity_id: "contact-123" })];
+      const mockLogs = [
+        createMockAuditLog({
+          entity_type: "contact",
+          entity_id: "contact-123",
+        }),
+      ];
       resetMockQueryBuilder(mockQueryBuilder, mockLogs);
       mockQueryBuilder.execute = mock(() => Promise.resolve(mockLogs));
       mockTenantDb.selectFrom = mock(() => ({

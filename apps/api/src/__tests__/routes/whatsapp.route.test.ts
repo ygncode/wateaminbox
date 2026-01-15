@@ -1,4 +1,3 @@
-
 import { describe, it, expect, beforeEach, mock } from "bun:test";
 import { Hono } from "hono";
 import { createMockQueryBuilder } from "../mocks";
@@ -33,7 +32,7 @@ mock.module("../../lib/nats.js", () => ({
   publishSpawnCommand: mock(async () => {}),
   publishKillCommand: mock(async () => {}),
   publishSendMessage: mock(async () => {}),
-  getNatsConnection: mock(async () => ({ status: 'ok' })),
+  getNatsConnection: mock(async () => ({ status: "ok" })),
 }));
 
 // Mock logger
@@ -69,7 +68,7 @@ describe("WhatsApp Route", () => {
 
     // Reset mocks
     mockTenantDb.selectFrom = mock(() => createMockQueryBuilder([]));
-    
+
     // Setup updateTable mock to handle the chain
     // .updateTable().set().where().execute()
     const mockExecute = mock(() => Promise.resolve());
@@ -121,11 +120,11 @@ describe("WhatsApp Route", () => {
       headers: { "X-Company-ID": "company-123" },
     });
     const res = await app.request(req);
-    const body = await res.json() as any;
+    const body = (await res.json()) as any;
 
     expect(res.status).toBe(200);
     expect(body.success).toBe(true);
-    
+
     // Should only contain the active connection
     expect(body.data.connections).toHaveLength(1);
     expect(body.data.connections[0].id).toBe("conn-active");
@@ -162,7 +161,7 @@ describe("WhatsApp Route", () => {
       headers: { "X-Company-ID": "company-123" },
     });
     const res = await app.request(req);
-    const body = await res.json() as any;
+    const body = (await res.json()) as any;
 
     expect(body.data.connections).toHaveLength(0);
     expect(body.data.syncing).toBe(false);

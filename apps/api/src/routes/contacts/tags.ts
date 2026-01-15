@@ -1,88 +1,88 @@
-import { Hono } from "hono"
-import { getRouteContext } from "../../middleware/context.js"
-import { badRequest, conflict } from "../../lib/errors.js"
-import { successData, successMessage } from "../../lib/response.js"
-import { requireEntity } from "../../lib/route-helpers.js"
+import { Hono } from "hono";
+import { zValidator } from "@hono/zod-validator";
+import { getRouteContext } from "../../middleware/context.js";
+import { conflict } from "../../lib/errors.js";
+import { successData, successMessage } from "../../lib/response.js";
+import { requireEntity } from "../../lib/route-helpers.js";
+import { addContactTagSchema } from "../../lib/schemas/index.js";
 
-export const tagsRoutes = new Hono()
+export const tagsRoutes = new Hono();
 
 /**
  * POST /contacts/:id/tags - Add a tag to a contact
  */
-tagsRoutes.post("/:id/tags", async (c) => {
-  const { tenantDb } = getRouteContext(c)
-  const contactId = c.req.param("id")
-  const body = await c.req.json()
+tagsRoutes.post(
+  "/:id/tags",
+  zValidator("json", addContactTagSchema),
+  async (c) => {
+    const { tenantDb } = getRouteContext(c);
+    const contactId = c.req.param("id");
+    const body = c.req.valid("json");
 
-  const { tagId } = body
+    // Check if contact exists (throws NotFoundError if not)
+    requireEntity(
+      await tenantDb
+        .selectFrom("contacts")
+        .select(["id"])
+        .where("id", "=", contactId)
+        .executeTakeFirst(),
+      "Contact",
+    );
 
-  if (!tagId) {
-    return badRequest(c, "tagId is required")
-  }
+    // Check if tag exists (throws NotFoundError if not)
+    const tag = requireEntity(
+      await tenantDb
+        .selectFrom("tags")
+        .select(["id", "name", "color"])
+        .where("id", "=", body.tagId)
+        .executeTakeFirst(),
+      "Tag",
+    );
 
-  // Check if contact exists (throws NotFoundError if not)
-  requireEntity(
+    // Check if already tagged
+    const existingTag = await tenantDb
+      .selectFrom("contact_tags")
+      .select(["contact_id", "tag_id"])
+      .where("contact_id", "=", contactId)
+      .where("tag_id", "=", body.tagId)
+      .executeTakeFirst();
+
+    if (existingTag) {
+      return conflict(c, "Tag already exists on contact");
+    }
+
+    // Add tag
     await tenantDb
-      .selectFrom("contacts")
-      .select(["id"])
-      .where("id", "=", contactId)
-      .executeTakeFirst(),
-    "Contact"
-  )
+      .insertInto("contact_tags")
+      .values({
+        contact_id: contactId,
+        tag_id: body.tagId,
+      })
+      .execute();
 
-  // Check if tag exists (throws NotFoundError if not)
-  const tag = requireEntity(
-    await tenantDb
-      .selectFrom("tags")
-      .select(["id", "name", "color"])
-      .where("id", "=", tagId)
-      .executeTakeFirst(),
-    "Tag"
-  )
-
-  // Check if already tagged
-  const existingTag = await tenantDb
-    .selectFrom("contact_tags")
-    .select(["contact_id", "tag_id"])
-    .where("contact_id", "=", contactId)
-    .where("tag_id", "=", tagId)
-    .executeTakeFirst()
-
-  if (existingTag) {
-    return conflict(c, "Tag already exists on contact")
-  }
-
-  // Add tag
-  await tenantDb
-    .insertInto("contact_tags")
-    .values({
-      contact_id: contactId,
-      tag_id: tagId,
-    })
-    .execute()
-
-  return successData(c, {
-    tag: {
-      id: tag.id,
-      name: tag.name,
-      color: tag.color,
-    },
-  })
-})
+    return successData(c, {
+      tag: {
+        id: tag.id,
+        name: tag.name,
+        color: tag.color,
+      },
+    });
+  },
+);
 
 /**
  * DELETE /contacts/:id/tags/:tagId - Remove a tag from a contact
  */
 tagsRoutes.delete("/:id/tags/:tagId", async (c) => {
-  const { tenantDb } = getRouteContext(c)
-  const contactId = c.req.param("id")
-  const tagId = c.req.param("tagId")
+  const { tenantDb } = getRouteContext(c);
+  const contactId = c.req.param("id");
+  const tagId = c.req.param("tagId");
 
   await tenantDb
     .deleteFrom("contact_tags")
     .where("contact_id", "=", contactId)
     .where("tag_id", "=", tagId)
-    .execute()
+    .execute();
 
-  return successMessage(c, 'Tag removed')
-})
+  return successMessage(c, "Tag removed");
+});

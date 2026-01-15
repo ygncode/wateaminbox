@@ -10,7 +10,10 @@
 
 import { describe, it, expect, beforeEach, mock } from "bun:test";
 import { Hono } from "hono";
-import { createMockNotificationPreferences, createMockQueryBuilder } from "../mocks";
+import {
+  createMockNotificationPreferences,
+  createMockQueryBuilder,
+} from "../mocks";
 
 // Create a mock tenant db for notification preferences
 function createMockTenantDb() {
@@ -47,8 +50,8 @@ function createMockTenantDb() {
                   created_at: new Date(),
                   updated_at: new Date(),
                 }
-              : null
-          )
+              : null,
+          ),
         );
         return builder;
       }
@@ -74,8 +77,8 @@ function createMockTenantDb() {
                   ...(updatedPrefs as object),
                   updated_at: new Date(),
                 }
-              : null
-          )
+              : null,
+          ),
         );
         return builder;
       }
@@ -110,7 +113,9 @@ describe("GET /notifications/preferences - Get notification preferences", () => 
 
     // Simplified route handler for testing
     app.get("/notifications/preferences", async (c) => {
-      const tenantDb = c.get("tenantDb") as ReturnType<typeof createMockTenantDb>;
+      const tenantDb = c.get("tenantDb") as ReturnType<
+        typeof createMockTenantDb
+      >;
       const user = c.get("user") as { id: string };
 
       let prefs = await tenantDb
@@ -213,7 +218,9 @@ describe("PATCH /notifications/preferences - Update notification preferences", (
     });
 
     app.patch("/notifications/preferences", async (c) => {
-      const tenantDb = c.get("tenantDb") as ReturnType<typeof createMockTenantDb>;
+      const tenantDb = c.get("tenantDb") as ReturnType<
+        typeof createMockTenantDb
+      >;
       const user = c.get("user") as { id: string };
       const body = await c.req.json();
 
@@ -412,7 +419,9 @@ describe("POST /notifications/mute - Mute a contact", () => {
     });
 
     app.post("/notifications/mute", async (c) => {
-      const tenantDb = c.get("tenantDb") as ReturnType<typeof createMockTenantDb>;
+      const tenantDb = c.get("tenantDb") as ReturnType<
+        typeof createMockTenantDb
+      >;
       const user = c.get("user") as { id: string };
       const body = await c.req.json();
 
@@ -441,7 +450,8 @@ describe("POST /notifications/mute - Mute a contact", () => {
           .executeTakeFirst();
       }
 
-      const currentMuted = (prefs as Record<string, unknown>).muted_contacts as string[] || [];
+      const currentMuted =
+        ((prefs as Record<string, unknown>).muted_contacts as string[]) || [];
       if (currentMuted.includes(body.contactJid)) {
         return c.json({ data: { mutedContacts: currentMuted } });
       }
@@ -455,7 +465,8 @@ describe("POST /notifications/mute - Mute a contact", () => {
         .returningAll()
         .executeTakeFirst();
 
-      const mutedContacts = (updated as Record<string, unknown>).muted_contacts || [];
+      const mutedContacts =
+        (updated as Record<string, unknown>).muted_contacts || [];
       return c.json({ data: { mutedContacts } });
     });
   });
@@ -528,7 +539,9 @@ describe("POST /notifications/unmute - Unmute a contact", () => {
     });
 
     app.post("/notifications/unmute", async (c) => {
-      const tenantDb = c.get("tenantDb") as ReturnType<typeof createMockTenantDb>;
+      const tenantDb = c.get("tenantDb") as ReturnType<
+        typeof createMockTenantDb
+      >;
       const user = c.get("user") as { id: string };
       const body = await c.req.json();
 
@@ -546,7 +559,8 @@ describe("POST /notifications/unmute - Unmute a contact", () => {
         return c.json({ data: { mutedContacts: [] } });
       }
 
-      const currentMuted = (prefs as Record<string, unknown>).muted_contacts as string[] || [];
+      const currentMuted =
+        ((prefs as Record<string, unknown>).muted_contacts as string[]) || [];
       if (!currentMuted.includes(body.contactJid)) {
         return c.json({ data: { mutedContacts: currentMuted } });
       }
@@ -560,7 +574,8 @@ describe("POST /notifications/unmute - Unmute a contact", () => {
         .returningAll()
         .executeTakeFirst();
 
-      const mutedContacts = (updated as Record<string, unknown>).muted_contacts || [];
+      const mutedContacts =
+        (updated as Record<string, unknown>).muted_contacts || [];
       return c.json({ data: { mutedContacts } });
     });
   });

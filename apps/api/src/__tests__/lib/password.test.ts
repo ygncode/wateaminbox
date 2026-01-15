@@ -233,7 +233,10 @@ describe("Password Utilities", () => {
         { password: "abcdefgh", reason: "no uppercase or number" },
         { password: "ABCDEFGH", reason: "no lowercase or number" },
         { password: "12345678", reason: "no letters" },
-        { password: "abcdefG1", reason: "exactly 8 chars is valid, but 7 is not" },
+        {
+          password: "abcdefG1",
+          reason: "exactly 8 chars is valid, but 7 is not",
+        },
       ];
 
       invalidCases.forEach(({ password, reason }) => {
@@ -242,7 +245,12 @@ describe("Password Utilities", () => {
           const result = validatePasswordStrength(password);
 
           // Assert
-          if (password.length >= 8 && /[a-z]/.test(password) && /[A-Z]/.test(password) && /\d/.test(password)) {
+          if (
+            password.length >= 8 &&
+            /[a-z]/.test(password) &&
+            /[A-Z]/.test(password) &&
+            /\d/.test(password)
+          ) {
             expect(result.isValid).toBe(true);
           } else {
             expect(result.isValid).toBe(false);

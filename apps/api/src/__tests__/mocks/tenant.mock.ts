@@ -10,12 +10,18 @@ import { createMockDb } from "./database.mock";
 /**
  * Store for mock tenant connections
  */
-const mockTenantConnections = new Map<string, ReturnType<typeof createMockDb>>();
+const mockTenantConnections = new Map<
+  string,
+  ReturnType<typeof createMockDb>
+>();
 
 /**
  * Gets or creates a mock tenant connection
  */
-export function getMockTenantConnection(companyId: string, queryResults: Record<string, unknown> = {}) {
+export function getMockTenantConnection(
+  companyId: string,
+  queryResults: Record<string, unknown> = {},
+) {
   const existing = mockTenantConnections.get(companyId);
   if (existing) {
     return existing;
@@ -36,7 +42,9 @@ export function clearMockTenantConnections() {
 /**
  * Creates a mock for the getTenantConnection function
  */
-export function createMockGetTenantConnection(queryResults: Record<string, Record<string, unknown>> = {}) {
+export function createMockGetTenantConnection(
+  queryResults: Record<string, Record<string, unknown>> = {},
+) {
   return mock((companyId: string) => {
     return getMockTenantConnection(companyId, queryResults[companyId] || {});
   });
@@ -83,10 +91,12 @@ export function createMockGetSchemaName() {
 /**
  * Full mock tenant service module
  */
-export function createMockTenantService(options: {
-  schemaExists?: boolean;
-  queryResults?: Record<string, Record<string, unknown>>;
-} = {}) {
+export function createMockTenantService(
+  options: {
+    schemaExists?: boolean;
+    queryResults?: Record<string, Record<string, unknown>>;
+  } = {},
+) {
   const { schemaExists = true, queryResults = {} } = options;
 
   return {
@@ -95,7 +105,9 @@ export function createMockTenantService(options: {
     dropTenantSchema: createMockDropTenantSchema(),
     tenantSchemaExists: createMockTenantSchemaExists(schemaExists),
     getSchemaName: createMockGetSchemaName(),
-    clearTenantConnection: mock(async (_companyId: string) => Promise.resolve()),
+    clearTenantConnection: mock(async (_companyId: string) =>
+      Promise.resolve(),
+    ),
     clearAllTenantConnections: mock(async () => Promise.resolve()),
   };
 }
@@ -110,7 +122,9 @@ export interface MockTenantContext {
   tenantDb: ReturnType<typeof createMockDb>;
 }
 
-export function createMockTenantContext(overrides: Partial<MockTenantContext> = {}): MockTenantContext {
+export function createMockTenantContext(
+  overrides: Partial<MockTenantContext> = {},
+): MockTenantContext {
   const companyId = overrides.companyId || "test-company-123";
   const tenantDb = overrides.tenantDb || createMockDb();
 

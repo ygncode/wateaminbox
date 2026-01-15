@@ -90,3 +90,21 @@ routes.get("/", (c) => {
     version: "0.1.0",
   });
 });
+
+/**
+ * Export AppType for type-safe RPC client usage.
+ *
+ * Note: Due to the use of route mounting with `routes.route()`, full type inference
+ * is limited. For complete type inference, individual route files would need to
+ * use method chaining. This export provides basic type safety for the main router.
+ *
+ * @example
+ * ```typescript
+ * // In frontend client
+ * import { hc } from 'hono/client'
+ * import type { AppType } from '@whatsapp-web/api'
+ *
+ * const client = hc<AppType>('http://localhost:4445/api')
+ * ```
+ */
+export type AppType = typeof routes;

@@ -20,7 +20,7 @@ export const NATS_SUBJECTS = {
   WHATSAPP_CONNECTION: "WHATSAPP.events",
   WHATSAPP_MESSAGE: "WHATSAPP.events",
   WHATSAPP_RECEIPT: "WHATSAPP.events",
-} as const
+} as const;
 
 // Message type discriminator for commands
 export type MessageType =
@@ -32,10 +32,10 @@ export type MessageType =
   | "sticker"
   | "location"
   | "contact"
-  | "reaction"
+  | "reaction";
 
 // Status type discriminator
-export type StatusType = "text" | "image" | "video"
+export type StatusType = "text" | "image" | "video";
 
 // Base command interface (snake_case to match Go orchestrator)
 export interface NatsCommand {
@@ -52,10 +52,10 @@ export interface NatsCommand {
     | "apply_label"
     | "remove_label"
     | "sync_catalogs"
-    | "sync_catalog_products"
-  company_id: string
-  connection_id: string
-  timestamp?: string
+    | "sync_catalog_products";
+  company_id: string;
+  connection_id: string;
+  timestamp?: string;
 }
 
 // Base event interface
@@ -78,9 +78,9 @@ export interface WhatsAppEvent {
     | "typing"
     | "reaction"
     | "sync_status"
-    | "error"
-  companyId: string
-  connectionId: string
-  payload: unknown
-  timestamp: string
+    | "error";
+  companyId: string;
+  connectionId: string;
+  payload: unknown;
+  timestamp: string;
 }

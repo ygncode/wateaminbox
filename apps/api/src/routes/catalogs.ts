@@ -1,7 +1,17 @@
 import { Hono } from "hono";
+import { badRequest, isTableNotFoundError, notFound } from "../lib/errors.js";
+import {
+  publishSyncCatalogs,
+  publishSyncCatalogProducts,
+} from "../lib/nats/index.js";
+import {
+  successData,
+  successMessage,
+  successWithMessage,
+} from "../lib/response.js";
 import { authMiddleware } from "../middleware/auth.js";
-import { tenantMiddleware } from "../middleware/tenant.js";
 import { getRouteContext } from "../middleware/context.js";
+import { tenantMiddleware } from "../middleware/tenant.js";
 import {
   getWhatsAppCatalogs,
   getWhatsAppCatalogByCatalogId,
@@ -12,11 +22,7 @@ import {
   updateProductVisibility,
 } from "../services/catalog-sync.service.js";
 import { getActiveWhatsAppConnection } from "../services/whatsapp-connection.service.js";
-import {
-  publishSyncCatalogs,
-  publishSyncCatalogProducts,
-} from "../lib/nats/index.js";
-import { badRequest, isTableNotFoundError, notFound } from "../lib/errors.js";
+
 // ProductVisibility type defined locally to avoid import issues
 type ProductVisibility = "visible" | "hidden";
 
@@ -34,16 +40,11 @@ catalogRoutes.get("/", async (c) => {
 
   try {
     const catalogs = await getWhatsAppCatalogs(tenantDb);
-
-    return c.json({
-      data: catalogs,
-    });
+    return successData(c, catalogs);
   } catch (error) {
     // Handle missing table gracefully - return empty array
     if (isTableNotFoundError(error)) {
-      return c.json({
-        data: [],
-      });
+      return successData(c, []);
     }
     throw error;
   }
@@ -57,12 +58,11 @@ catalogRoutes.get("/status", async (c) => {
 
   try {
     const status = await getCatalogSyncStatus(tenantDb);
-
-    return c.json(status);
+    return successData(c, status);
   } catch (error) {
     // Handle missing table gracefully - return empty status
     if (isTableNotFoundError(error)) {
-      return c.json({
+      return successData(c, {
         totalCatalogs: 0,
         activeCatalogs: 0,
         totalProducts: 0,
@@ -86,7 +86,7 @@ catalogRoutes.get("/:catalogId", async (c) => {
     return notFound(c, "Catalog");
   }
 
-  return c.json(catalog);
+  return successData(c, catalog);
 });
 
 /**
@@ -105,8 +105,8 @@ catalogRoutes.get("/:catalogId/products", async (c) => {
 
   const products = await getCatalogProducts(tenantDb, catalogId);
 
-  return c.json({
-    data: products,
+  return successData(c, {
+    products,
     meta: {
       catalogId,
       catalogName: catalog.name,
@@ -128,10 +128,11 @@ catalogRoutes.post("/sync", async (c) => {
   // Publish sync command to NATS
   await publishSyncCatalogs(companyId, connection.id, user.id);
 
-  return c.json({
-    message: "Catalog sync initiated. Catalogs will be updated shortly.",
-    status: "syncing",
-  });
+  return successWithMessage(
+    c,
+    { status: "syncing" },
+    "Catalog sync initiated. Catalogs will be updated shortly.",
+  );
 });
 
 /**
@@ -159,12 +160,11 @@ catalogRoutes.post("/:catalogId/sync-products", async (c) => {
     user.id,
   );
 
-  return c.json({
-    message:
-      "Product sync initiated for catalog. Products will be updated shortly.",
-    status: "syncing",
-    catalogId,
-  });
+  return successWithMessage(
+    c,
+    { status: "syncing", catalogId },
+    "Product sync initiated for catalog. Products will be updated shortly.",
+  );
 });
 
 /**
@@ -180,10 +180,7 @@ catalogRoutes.post("/:catalogId/archive", async (c) => {
     return badRequest(c, result.error || "Failed to archive catalog");
   }
 
-  return c.json({
-    success: true,
-    message: "Catalog archived successfully",
-  });
+  return successMessage(c, "Catalog archived successfully");
 });
 
 /**
@@ -199,10 +196,7 @@ catalogRoutes.post("/:catalogId/restore", async (c) => {
     return badRequest(c, result.error || "Failed to restore catalog");
   }
 
-  return c.json({
-    success: true,
-    message: "Catalog restored successfully",
-  });
+  return successMessage(c, "Catalog restored successfully");
 });
 
 /**
@@ -231,8 +225,5 @@ catalogRoutes.patch("/:catalogId/products/:productId/visibility", async (c) => {
     return badRequest(c, result.error || "Failed to update product visibility");
   }
 
-  return c.json({
-    success: true,
-    message: `Product visibility updated to ${visibility}`,
-  });
+  return successMessage(c, `Product visibility updated to ${visibility}`);
 });

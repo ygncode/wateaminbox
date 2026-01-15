@@ -78,8 +78,13 @@ export function buildContactWhereClause(options: ContactFilterOptions): {
   whereClause: RawBuilder<unknown>;
   hasConditions: boolean;
 } {
-  const { search, includeGroups = false, assignedToMe, unassigned, userId } =
-    options;
+  const {
+    search,
+    includeGroups = false,
+    assignedToMe,
+    unassigned,
+    userId,
+  } = options;
 
   const searchClause = buildSearchClause(search);
   const groupClause = buildGroupClause(includeGroups);
@@ -115,10 +120,9 @@ export function buildContactWhereClause(options: ContactFilterOptions): {
  * @param search - Search term
  * @returns Modified query builder
  */
-export function applySearchFilter<T extends SelectQueryBuilder<TenantDatabase, "contacts", object>>(
-  query: T,
-  search?: string,
-): T {
+export function applySearchFilter<
+  T extends SelectQueryBuilder<TenantDatabase, "contacts", object>,
+>(query: T, search?: string): T {
   if (!search) return query;
 
   return query.where((eb) =>
@@ -137,10 +141,9 @@ export function applySearchFilter<T extends SelectQueryBuilder<TenantDatabase, "
  * @param includeGroups - Whether to include groups
  * @returns Modified query builder
  */
-export function applyGroupFilter<T extends SelectQueryBuilder<TenantDatabase, "contacts", object>>(
-  query: T,
-  includeGroups: boolean,
-): T {
+export function applyGroupFilter<
+  T extends SelectQueryBuilder<TenantDatabase, "contacts", object>,
+>(query: T, includeGroups: boolean): T {
   if (includeGroups) return query;
   return query.where("contacts.is_group", "=", false) as T;
 }
@@ -153,7 +156,13 @@ export function applyGroupFilter<T extends SelectQueryBuilder<TenantDatabase, "c
  * @param options - Filter options
  * @returns Modified query builder
  */
-export function applyAssignmentFilter<T extends SelectQueryBuilder<TenantDatabase, "contacts" | "contact_assignments", object>>(
+export function applyAssignmentFilter<
+  T extends SelectQueryBuilder<
+    TenantDatabase,
+    "contacts" | "contact_assignments",
+    object
+  >,
+>(
   query: T,
   options: { assignedToMe?: boolean; unassigned?: boolean; userId?: string },
 ): T {
@@ -178,10 +187,13 @@ export function applyAssignmentFilter<T extends SelectQueryBuilder<TenantDatabas
  * @param options - Filter options
  * @returns Modified query builder
  */
-export function applyContactFilters<T extends SelectQueryBuilder<TenantDatabase, "contacts" | "contact_assignments", object>>(
-  query: T,
-  options: ContactFilterOptions,
-): T {
+export function applyContactFilters<
+  T extends SelectQueryBuilder<
+    TenantDatabase,
+    "contacts" | "contact_assignments",
+    object
+  >,
+>(query: T, options: ContactFilterOptions): T {
   let result = query;
   result = applyGroupFilter(result, options.includeGroups ?? false);
   result = applySearchFilter(result, options.search);

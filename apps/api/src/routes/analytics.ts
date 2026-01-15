@@ -2,6 +2,7 @@ import { toISOString } from "@whatsapp-web/shared";
 import { Hono } from "hono";
 import { forbidden } from "../lib/errors.js";
 import { rateLimitConfig, rateLimitStore } from "../lib/rate-limit-store.js";
+import { successData } from "../lib/response.js";
 import {
   extractDateRange,
   extractOptionalDateRange,
@@ -40,9 +41,7 @@ analyticsRoutes.get("/dashboard", analyticsRateLimiter, async (c) => {
 
   const stats = await analyticsService.getDashboardStats(companyId);
 
-  return c.json({
-    data: stats,
-  });
+  return successData(c, stats);
 });
 
 /**
@@ -60,8 +59,8 @@ analyticsRoutes.get("/messages", analyticsRateLimiter, async (c) => {
     endDate,
   );
 
-  return c.json({
-    data: stats,
+  return successData(c, {
+    ...stats,
     meta: {
       startDate: toISOString(startDate),
       endDate: toISOString(endDate),
@@ -78,9 +77,7 @@ analyticsRoutes.get("/contacts", analyticsRateLimiter, async (c) => {
 
   const stats = await analyticsService.getContactStats(companyId);
 
-  return c.json({
-    data: stats,
-  });
+  return successData(c, stats);
 });
 
 /**
@@ -97,9 +94,7 @@ analyticsRoutes.get("/team", analyticsRateLimiter, async (c) => {
 
   const stats = await analyticsService.getTeamActivityStats(companyId);
 
-  return c.json({
-    data: stats,
-  });
+  return successData(c, stats);
 });
 
 /**
@@ -117,9 +112,7 @@ analyticsRoutes.get("/message-types", analyticsRateLimiter, async (c) => {
     endDate,
   );
 
-  return c.json({
-    data: stats,
-  });
+  return successData(c, stats);
 });
 
 /**
@@ -133,9 +126,7 @@ analyticsRoutes.get("/hourly", analyticsRateLimiter, async (c) => {
 
   const stats = await analyticsService.getHourlyMessageStats(companyId, days);
 
-  return c.json({
-    data: stats,
-  });
+  return successData(c, stats);
 });
 
 /**
@@ -155,8 +146,8 @@ analyticsRoutes.get("/response-time", analyticsRateLimiter, async (c) => {
     slaThreshold,
   );
 
-  return c.json({
-    data: stats,
+  return successData(c, {
+    ...stats,
     meta: {
       startDate: toISOString(startDate),
       endDate: toISOString(endDate),
@@ -182,8 +173,8 @@ analyticsRoutes.get("/response-time/trend", analyticsRateLimiter, async (c) => {
     slaThreshold,
   );
 
-  return c.json({
-    data: trend,
+  return successData(c, {
+    trend,
     meta: {
       startDate: toISOString(startDate),
       endDate: toISOString(endDate),
@@ -215,8 +206,8 @@ analyticsRoutes.get("/response-time/team", analyticsRateLimiter, async (c) => {
     slaThreshold,
   );
 
-  return c.json({
-    data: stats,
+  return successData(c, {
+    stats,
     meta: {
       startDate: toISOString(startDate),
       endDate: toISOString(endDate),
@@ -240,8 +231,8 @@ analyticsRoutes.get("/contacts/trend", analyticsRateLimiter, async (c) => {
     endDate,
   );
 
-  return c.json({
-    data: trend,
+  return successData(c, {
+    trend,
     meta: {
       startDate: toISOString(startDate),
       endDate: toISOString(endDate),
@@ -264,8 +255,8 @@ analyticsRoutes.get("/engagement", analyticsRateLimiter, async (c) => {
     endDate,
   );
 
-  return c.json({
-    data: metrics,
+  return successData(c, {
+    ...metrics,
     meta: {
       startDate: toISOString(startDate),
       endDate: toISOString(endDate),
@@ -288,8 +279,8 @@ analyticsRoutes.get("/engagement/trend", analyticsRateLimiter, async (c) => {
     endDate,
   );
 
-  return c.json({
-    data: trend,
+  return successData(c, {
+    trend,
     meta: {
       startDate: toISOString(startDate),
       endDate: toISOString(endDate),
@@ -316,8 +307,8 @@ analyticsRoutes.get("/sla-breaches", analyticsRateLimiter, async (c) => {
     limit,
   );
 
-  return c.json({
-    data: breaches,
+  return successData(c, {
+    breaches,
     meta: {
       startDate: toISOString(startDate),
       endDate: toISOString(endDate),
