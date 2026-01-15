@@ -97,7 +97,7 @@ import { MessageType } from "@whatsapp-web/shared";
 
 | Layer       | Technology                                                      |
 | ----------- | --------------------------------------------------------------- |
-| Frontend    | React 18, Vite, TanStack Query, Zustand, Tailwind v4, shadcn/ui |
+| Frontend    | React 19, Vite, TanStack Query, Zustand, Tailwind v4, shadcn/ui |
 | Backend     | Hono, Bun, Kysely, PostgreSQL 16                                |
 | Go Services | Go 1.24, whatsmeow, NATS                                        |
 | Search      | Meilisearch                                                     |
