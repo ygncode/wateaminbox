@@ -193,7 +193,7 @@ export const ForwardMessageDialog = memo(function ForwardMessageDialog({
 
         {/* Forwarding overlay */}
         {isForwarding && (
-          <div className="absolute inset-0 bg-white/90 dark:bg-dark-elevated/90 backdrop-blur-sm flex items-center justify-center rounded-lg z-10">
+          <div className="absolute inset-0 bg-white dark:bg-dark-elevated flex items-center justify-center rounded-lg z-10">
             <div className="flex flex-col items-center gap-3">
               <div className="w-12 h-12 rounded-full bg-whatsapp-teal-green/10 dark:bg-whatsapp-teal-green/20 flex items-center justify-center">
                 <Loader2 className="h-6 w-6 text-whatsapp-teal-green animate-spin" />
@@ -243,11 +243,11 @@ const ContactListItem = memo(function ContactListItem({
               loading="lazy"
             />
           ) : contact.isGroup ? (
-            <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-400 to-gray-500 dark:from-dark-text-tertiary dark:to-dark-text-secondary text-white">
+            <div className="w-full h-full flex items-center justify-center bg-gray-400 dark:bg-dark-text-tertiary text-white">
               <Users className="w-5 h-5" />
             </div>
           ) : (
-            <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-whatsapp-teal-green to-whatsapp-green text-white text-base font-semibold">
+            <div className="w-full h-full flex items-center justify-center bg-whatsapp-teal-green text-white text-base font-semibold">
               {displayName.charAt(0).toUpperCase()}
             </div>
           )}
@@ -268,7 +268,7 @@ const ContactListItem = memo(function ContactListItem({
             {displayName}
           </span>
           {contact.isGroup && (
-            <span className="flex-shrink-0 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-gray-500 dark:text-dark-text-tertiary bg-gray-100 dark:bg-dark-tertiary rounded">
+            <span className="flex-shrink-0 px-1.5 py-0.5 text-[10px] font-medium uppercase text-gray-500 dark:text-dark-text-tertiary bg-gray-100 dark:bg-dark-tertiary rounded">
               Group
             </span>
           )}

@@ -97,7 +97,7 @@ export const MessageContextMenu = forwardRef<
   return (
     <div
       ref={ref}
-      className="fixed z-[9999] bg-white dark:bg-dark-elevated rounded-lg shadow-xl py-1 min-w-[140px] border border-gray-200 dark:border-dark-border"
+      className="fixed z-50 bg-white dark:bg-dark-elevated rounded-lg shadow-xl py-1 min-w-[140px] border border-gray-200 dark:border-dark-border"
       style={{
         left: adjustedPosition.x,
         top: adjustedPosition.y,

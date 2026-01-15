@@ -179,9 +179,9 @@ export function ConnectionCard({
             {/* Error Message */}
             {localState.error && (
               <div className="mt-3 animate-fade-in">
-                <div className="relative overflow-hidden rounded-lg border border-red-200/60 dark:border-red-800/60 bg-gradient-to-r from-red-50 to-rose-50 dark:from-red-900/30 dark:to-rose-900/30 p-3 shadow-sm">
+                <div className="relative overflow-hidden rounded-lg border border-red-200/60 dark:border-red-800/60 bg-red-50 dark:bg-red-900/30 p-3 shadow-sm">
                   {/* Decorative accent line */}
-                  <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-red-400 to-rose-500" />
+                  <div className="absolute left-0 top-0 bottom-0 w-1 bg-red-400" />
 
                   <div className="flex items-start gap-2.5 pl-2">
                     <div className="flex-shrink-0 w-7 h-7 rounded-full bg-red-100 dark:bg-red-900/50 flex items-center justify-center">

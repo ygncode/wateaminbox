@@ -68,7 +68,7 @@ export function CustomerEngagementSection({
           return (
             <div className="space-y-6">
               {/* Engagement Score Highlight */}
-              <div className="flex items-center gap-4 p-4 bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-indigo-900/30 dark:to-purple-900/30 rounded-lg">
+              <div className="flex items-center gap-4 p-4 bg-gray-50 dark:bg-dark-tertiary rounded-lg">
                 <div className="relative">
                   <div className="w-20 h-20 rounded-full bg-white dark:bg-dark-secondary flex items-center justify-center shadow-sm">
                     <span className="text-2xl font-bold text-indigo-600 dark:text-indigo-400">

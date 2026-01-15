@@ -21,7 +21,7 @@ export function AppLayout({ className, children, ...props }: AppLayoutProps) {
   return (
     <div
       className={cn(
-        "flex h-screen w-screen overflow-hidden bg-gray-200 dark:bg-dark-primary",
+        "flex h-dvh w-screen overflow-hidden bg-gray-200 dark:bg-dark-primary",
         // Safe area insets for mobile devices (notch, home indicator)
         "safe-area-inset",
         className,

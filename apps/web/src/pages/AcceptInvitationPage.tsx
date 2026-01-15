@@ -73,7 +73,7 @@ export function AcceptInvitationPage() {
   // Show loading state
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-100 dark:bg-dark-primary">
+      <div className="min-h-dvh flex items-center justify-center bg-gray-100 dark:bg-dark-primary">
         <div className="w-full max-w-md rounded-lg bg-white dark:bg-dark-elevated p-8 shadow-lg">
           <div className="space-y-4">
             <Skeleton className="h-8 w-48 mx-auto" />
@@ -89,7 +89,7 @@ export function AcceptInvitationPage() {
   // Show error state for invalid/not found invitation
   if (fetchError || !invitation) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-100 dark:bg-dark-primary">
+      <div className="min-h-dvh flex items-center justify-center bg-gray-100 dark:bg-dark-primary">
         <div className="w-full max-w-md rounded-lg bg-white dark:bg-dark-elevated p-8 shadow-lg text-center">
           <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/30">
             <XCircle className="h-8 w-8 text-red-600 dark:text-red-400" />
@@ -113,7 +113,7 @@ export function AcceptInvitationPage() {
   // Show success state after accepting
   if (accepted) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-100 dark:bg-dark-primary">
+      <div className="min-h-dvh flex items-center justify-center bg-gray-100 dark:bg-dark-primary">
         <div className="w-full max-w-md rounded-lg bg-white dark:bg-dark-elevated p-8 shadow-lg text-center">
           <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/30">
             <CheckCircle className="h-8 w-8 text-green-600 dark:text-green-400" />
@@ -135,7 +135,7 @@ export function AcceptInvitationPage() {
 
   // Main invitation view
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100 dark:bg-dark-primary">
+    <div className="min-h-dvh flex items-center justify-center bg-gray-100 dark:bg-dark-primary">
       <div className="w-full max-w-md rounded-lg bg-white dark:bg-dark-elevated p-8 shadow-lg">
         {/* Header */}
         <div className="text-center mb-6">

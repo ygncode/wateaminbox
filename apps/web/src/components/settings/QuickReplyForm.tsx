@@ -223,7 +223,7 @@ export function QuickReplyForm({
         {/* Live Preview - only show when ALL fields have content */}
         {shortcut && title && content && (
           <div className="p-3 rounded-lg bg-gray-50 dark:bg-dark-tertiary">
-            <p className="text-xs font-medium text-gray-500 dark:text-dark-text-tertiary uppercase tracking-wider mb-2">
+            <p className="text-xs font-medium text-gray-500 dark:text-dark-text-tertiary uppercase mb-2">
               Preview
             </p>
             <div className="flex items-start gap-3">

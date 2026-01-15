@@ -248,7 +248,7 @@ export function SearchPanel({
                 {contacts.length > 0 && (
                   <div>
                     <div className="px-4 py-2 bg-gray-50 dark:bg-dark-tertiary border-b border-gray-200 dark:border-dark-border">
-                      <h3 className="text-xs font-semibold text-gray-500 dark:text-dark-text-tertiary uppercase tracking-wider">
+                      <h3 className="text-xs font-semibold text-gray-500 dark:text-dark-text-tertiary uppercase">
                         Contacts ({contacts.length})
                       </h3>
                     </div>
@@ -266,7 +266,7 @@ export function SearchPanel({
                 {messages.length > 0 && (
                   <div>
                     <div className="px-4 py-2 bg-gray-50 dark:bg-dark-tertiary border-b border-gray-200 dark:border-dark-border">
-                      <h3 className="text-xs font-semibold text-gray-500 dark:text-dark-text-tertiary uppercase tracking-wider">
+                      <h3 className="text-xs font-semibold text-gray-500 dark:text-dark-text-tertiary uppercase">
                         Messages ({messages.length})
                       </h3>
                     </div>

@@ -246,7 +246,7 @@ export function StatusViewer({ jid, onClose }: StatusViewerProps) {
                   )
                 ) : (
                   // Text-only status
-                  <div className="p-8 bg-gradient-to-br from-whatsapp-teal-green to-whatsapp-dark-green rounded-lg">
+                  <div className="p-8 bg-whatsapp-teal-green rounded-lg">
                     <p className="text-white text-2xl font-medium">
                       {currentStatus.caption || "No content"}
                     </p>
@@ -281,7 +281,7 @@ export function StatusViewer({ jid, onClose }: StatusViewerProps) {
       </div>
 
       {/* Footer with reply */}
-      <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/50 to-transparent">
+      <div className="absolute bottom-0 left-0 right-0 p-4 bg-black/50">
         <div className="max-w-lg mx-auto">
           <input
             type="text"

@@ -48,9 +48,9 @@ export function SettingsPage() {
 
   return (
     <AppLayout>
-      <div className="flex h-full w-full flex-col bg-gradient-to-br from-gray-50 to-gray-100 dark:from-dark-primary dark:to-dark-secondary">
+      <div className="flex h-full w-full flex-col bg-gray-50 dark:bg-dark-primary">
         {/* Top Navigation Bar */}
-        <header className="sticky top-0 z-10 bg-white/80 dark:bg-dark-secondary/80 backdrop-blur-sm border-b border-gray-200 dark:border-dark-border">
+        <header className="sticky top-0 z-10 bg-white dark:bg-dark-secondary border-b border-gray-200 dark:border-dark-border">
           <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex items-center justify-between h-14">
               <Link
@@ -74,9 +74,9 @@ export function SettingsPage() {
             {/* User Profile Card */}
             <div className="mb-8">
               <div className="bg-white dark:bg-dark-elevated rounded-2xl shadow-sm border border-gray-200 dark:border-dark-border overflow-hidden">
-                <div className="bg-gradient-to-r from-[#25D366] to-[#128C7E] px-6 py-5">
+                <div className="bg-whatsapp-green px-6 py-5">
                   <div className="flex items-center gap-4">
-                    <div className="w-16 h-16 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center border-2 border-white/30">
+                    <div className="w-16 h-16 rounded-full bg-white/30 flex items-center justify-center border-2 border-white/30">
                       <User className="w-8 h-8 text-white" />
                     </div>
                     <div className="flex-1">
@@ -283,7 +283,7 @@ export function SettingsPage() {
         />
 
         {showContactImport && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
             <ContactImport
               onClose={() => setShowContactImport(false)}
               onImportComplete={() => {

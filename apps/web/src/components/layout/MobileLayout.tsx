@@ -127,7 +127,7 @@ export function MobileLayout({
   return (
     <div
       className={cn(
-        "flex h-screen w-screen overflow-hidden bg-gray-200 dark:bg-dark-primary",
+        "flex h-dvh w-screen overflow-hidden bg-gray-200 dark:bg-dark-primary",
         className,
       )}
       {...props}

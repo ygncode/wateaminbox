@@ -87,7 +87,7 @@ export function StatusList({ onStatusSelect, selectedJid }: StatusListProps) {
       {/* Recent Updates Header */}
       {hasData && statuses && statuses.length > 0 && (
         <div className="flex items-center justify-between px-4 py-2">
-          <p className="text-xs font-medium text-gray-500 dark:text-dark-text-tertiary uppercase tracking-wider">
+          <p className="text-xs font-medium text-gray-500 dark:text-dark-text-tertiary uppercase">
             Recent updates
           </p>
           {stats && (
@@ -173,13 +173,7 @@ function StatusItem({ contactStatus, isSelected, onClick }: StatusItemProps) {
       {/* Avatar with status ring */}
       <div className="relative">
         <div
-          className="w-12 h-12 rounded-full p-0.5"
-          style={{
-            background:
-              totalStatuses > 0
-                ? `conic-gradient(from 0deg, #25D366 0deg, #25D366 ${360 / totalStatuses}deg, #e5e7eb ${360 / totalStatuses}deg)`
-                : "#e5e7eb",
-          }}
+          className="w-12 h-12 rounded-full p-0.5 border-2 border-whatsapp-green"
         >
           <Avatar className="h-full w-full border-2 border-white dark:border-dark-secondary">
             <AvatarFallback className="bg-gray-400 dark:bg-dark-text-tertiary text-white">

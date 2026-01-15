@@ -40,8 +40,8 @@ export const animationStyles = `
   }
 
   @keyframes shimmer {
-    0% { background-position: -200% 0; }
-    100% { background-position: 200% 0; }
+    0%, 100% { opacity: 0.3; }
+    50% { opacity: 0.6; }
   }
 
   .animate-slide-down {
@@ -61,8 +61,6 @@ export const animationStyles = `
   }
 
   .animate-shimmer {
-    background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.4) 50%, transparent 100%);
-    background-size: 200% 100%;
     animation: shimmer 2s infinite;
   }
 `;

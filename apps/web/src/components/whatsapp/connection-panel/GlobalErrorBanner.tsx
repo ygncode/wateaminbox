@@ -10,7 +10,7 @@ export function GlobalErrorBanner({
 }: GlobalErrorBannerProps) {
   return (
     <div className="mb-6 animate-slide-down">
-      <div className="relative overflow-hidden rounded-xl border border-amber-300/50 dark:border-amber-700/50 bg-gradient-to-r from-amber-50 via-orange-50 to-amber-50 dark:from-amber-900/30 dark:via-orange-900/30 dark:to-amber-900/30 p-4 shadow-lg shadow-amber-100/50 dark:shadow-amber-900/20">
+      <div className="relative overflow-hidden rounded-xl border border-amber-300/50 dark:border-amber-700/50 bg-amber-50 dark:bg-amber-900/30 p-4 shadow-lg">
         {/* Decorative shimmer overlay */}
         <div className="absolute inset-0 animate-shimmer opacity-30 pointer-events-none" />
 
@@ -18,13 +18,13 @@ export function GlobalErrorBanner({
           {/* Animated icon with pulse ring */}
           <div className="relative flex-shrink-0">
             <div className="absolute inset-0 rounded-full bg-amber-400/20 animate-pulse-ring" />
-            <div className="relative w-12 h-12 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center shadow-lg shadow-amber-400/30">
+            <div className="relative w-12 h-12 rounded-full bg-amber-500 flex items-center justify-center shadow-lg">
               <Zap className="h-6 w-6 text-white" />
             </div>
           </div>
 
           <div className="flex-1 pt-1">
-            <h3 className="text-base font-semibold text-amber-900 dark:text-amber-300 tracking-tight">
+            <h3 className="text-base font-semibold text-amber-900 dark:text-amber-300">
               Connection Limit Reached
             </h3>
             <p className="text-sm text-amber-700/90 dark:text-amber-400/90 mt-1 leading-relaxed">

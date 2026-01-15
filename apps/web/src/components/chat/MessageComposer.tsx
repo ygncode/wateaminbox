@@ -41,7 +41,7 @@ export function MessageComposer({
   connectionStatus,
 }: MessageComposerProps) {
   // Disable input when connection is not "connected"
-  const isDisconnected = connectionStatus && connectionStatus !== "connected";
+  const isDisconnected = Boolean(connectionStatus && connectionStatus !== "connected");
   const isInputDisabled = disabled || isDisconnected;
   const [message, setMessage] = useState("");
   const [showAttachmentMenu, setShowAttachmentMenu] = useState(false);

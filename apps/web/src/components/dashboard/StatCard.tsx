@@ -91,13 +91,13 @@ function OverviewStatCard({
       >
         {icon}
       </div>
-      <p className="text-xs text-gray-500 dark:text-dark-text-secondary uppercase tracking-wider">
+      <p className="text-xs text-gray-500 dark:text-dark-text-secondary uppercase">
         {label}
       </p>
       {isLoading ? (
         <Skeleton className="h-7 w-16 mt-1" />
       ) : (
-        <p className="text-2xl font-semibold text-gray-900 dark:text-dark-text-primary">
+        <p className="text-2xl font-semibold text-gray-900 dark:text-dark-text-primary tabular-nums">
           {value !== undefined ? formatNumber(value) : "-"}
         </p>
       )}
@@ -131,7 +131,7 @@ function CompactStatCard({
           {label}
         </span>
       </div>
-      <p className="text-2xl font-semibold text-gray-900 dark:text-dark-text-primary">
+      <p className="text-2xl font-semibold text-gray-900 dark:text-dark-text-primary tabular-nums">
         {formatNumber(value)}
         {suffix}
       </p>

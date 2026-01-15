@@ -37,7 +37,7 @@ export function DashboardPage() {
         {/* Unified Dashboard Header */}
         <header className="relative bg-white dark:bg-dark-secondary border-b border-gray-200 dark:border-dark-border">
           {/* Subtle accent line */}
-          <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-[#25D366] via-[#128C7E] to-[#075E54]" />
+          <div className="absolute top-0 left-0 right-0 h-0.5 bg-whatsapp-green" />
 
           <div className="flex items-center justify-between px-6 py-4">
             {/* Left: Back navigation */}
@@ -53,11 +53,11 @@ export function DashboardPage() {
 
             {/* Center: Title with icon */}
             <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-3">
-              <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-br from-[#25D366] to-[#128C7E] shadow-sm">
+              <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-whatsapp-green shadow-sm">
                 <LayoutDashboard className="h-5 w-5 text-white" />
               </div>
               <div className="hidden sm:block">
-                <h1 className="text-lg font-semibold text-gray-900 dark:text-dark-text-primary tracking-tight">
+                <h1 className="text-lg font-semibold text-gray-900 dark:text-dark-text-primary">
                   {t("dashboard.title", "Dashboard")}
                 </h1>
                 <p className="text-xs text-gray-500 dark:text-dark-text-secondary -mt-0.5">
