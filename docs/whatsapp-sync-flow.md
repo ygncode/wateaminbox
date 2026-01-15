@@ -64,6 +64,7 @@ WHATSAPP.events.{companyId}.{connectionId}.{eventType}
 | ------------------- | --------------------------------------------------- |
 | `qr`                | QR code for pairing                                 |
 | `status`            | Connection status (connected/disconnected)          |
+| `connection_status` | Worker crash/recovery status (from orchestrator)    |
 | `message`           | Incoming/outgoing messages                          |
 | `receipt`           | Message delivery status (sent/delivered/read)       |
 | `presence`          | Online/offline status                               |
@@ -653,7 +654,8 @@ initializeMessageHandler()
                 ├─ Connection Events:
                 │   ├─ "qr" → handleQREvent()
                 │   ├─ "connected" → handleConnectedEvent()
-                │   └─ "disconnected" → handleDisconnectedEvent()
+                │   ├─ "disconnected" → handleDisconnectedEvent()
+                │   └─ "connection_status" → handleWorkerConnectionStatusEvent()
                 │
                 ├─ Message Events:
                 │   ├─ "message" → handleMessageEvent()

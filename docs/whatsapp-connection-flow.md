@@ -542,7 +542,9 @@ The connection is now fully operational for sending and receiving messages.
 ```
 pending → (QR generated) → (user scans) → connected
                                              ↓
-                                        disconnected ← (logout/ban/error)
+                                        disconnected ← (logout/ban/error/worker crash)
+                                             ↓
+                                        (auto-restart) → connected (if successful)
 ```
 
 **Status Values:**
@@ -551,6 +553,78 @@ pending → (QR generated) → (user scans) → connected
 - `connected` - WhatsApp account linked and active
 - `disconnected` - Connection was active but is now offline
 - `banned` - WhatsApp account was banned
+
+---
+
+## Worker Auto-Recovery
+
+When a WhatsApp worker process crashes or becomes unresponsive, the orchestrator automatically detects and handles the failure.
+
+### Recovery Flow
+
+```
+1. Worker process crashes/exits
+       │
+       ▼
+2. Health check detects dead process (every 10s)
+       │
+       ▼
+3. Orchestrator publishes connection_status event
+   Subject: WHATSAPP.events.{companyId}.{connectionId}.connection_status
+   Payload: { status: "error", reason: "process dead" }
+       │
+       ▼
+4. API receives event → Updates DB to "disconnected"
+       │
+       ▼
+5. API broadcasts to WebSocket clients:
+   - connection:status event (updates UI state)
+   - notification:toast event (shows error toast)
+       │
+       ▼
+6. Frontend shows disconnected banner in MessageComposer
+       │
+       ▼
+7. Auto-restart triggers (if enabled and under retry limit)
+   - Exponential backoff: 5s → 10s → 20s → 40s → 80s
+   - Max retries: 5 (configurable)
+       │
+       ▼
+8. New worker spawned → Reconnects to WhatsApp
+```
+
+### Configuration
+
+| Environment Variable | Default | Description |
+|---------------------|---------|-------------|
+| `AUTO_RESTART_ENABLED` | `true` | Enable auto-restart on crash |
+| `AUTO_RESTART_MAX_RETRIES` | `5` | Max restart attempts |
+| `AUTO_RESTART_BACKOFF` | `5s` | Base backoff delay |
+
+### Worker Registry
+
+The orchestrator persists worker state to the `worker_registry` table for recovery across orchestrator restarts:
+
+```sql
+CREATE TABLE public.worker_registry (
+  id UUID PRIMARY KEY,
+  connection_id UUID NOT NULL UNIQUE,
+  company_id UUID NOT NULL,
+  tenant_schema VARCHAR(100) NOT NULL,
+  pid INTEGER NOT NULL,
+  status VARCHAR(20) NOT NULL DEFAULT 'starting',
+  started_at TIMESTAMPTZ NOT NULL,
+  last_heartbeat TIMESTAMPTZ NOT NULL,
+  restart_count INTEGER NOT NULL DEFAULT 0,
+  database_url TEXT NOT NULL
+)
+```
+
+When orchestrator starts, it:
+1. Reads all workers from registry
+2. Checks if each process is still alive (signal 0)
+3. Dead workers: publishes error event, optionally auto-restarts
+4. Live workers: re-adds to in-memory tracking, starts health check
 
 ---
 

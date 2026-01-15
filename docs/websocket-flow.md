@@ -303,11 +303,12 @@ Context provider that:
 
 **Connection:**
 
-| Event          | Payload                          | Description           |
-| -------------- | -------------------------------- | --------------------- |
-| `qr`           | `{ qrCode, expiration }`         | QR code for pairing   |
-| `connected`    | `{ phoneNumber }`                | WhatsApp connected    |
-| `disconnected` | `{ reason }`                     | WhatsApp disconnected |
+| Event              | Payload                              | Description                       |
+| ------------------ | ------------------------------------ | --------------------------------- |
+| `qr`               | `{ qrCode, expiration }`             | QR code for pairing               |
+| `connected`        | `{ phoneNumber }`                    | WhatsApp connected                |
+| `disconnected`     | `{ reason }`                         | WhatsApp disconnected             |
+| `connection:status`| `{ connectionId, status, reason }`   | Worker connection status changed  |
 
 **Messages:**
 
@@ -371,6 +372,14 @@ Context provider that:
 | `pong`    | `{ timestamp }`              | Heartbeat response      |
 | `status`  | `{ status }`                 | Connection status       |
 
+**Notifications:**
+
+| Event               | Payload                          | Description             |
+| ------------------- | -------------------------------- | ----------------------- |
+| `notification:toast`| `{ type, title, message }`       | Show toast notification |
+
+The `notification:toast` event is used to display toast notifications to the user, e.g., when a worker crashes or recovers. The `type` field can be `error`, `success`, `warning`, or `info`.
+
 ### 4.3 Client → Server Messages
 
 | Message Type   | Payload                          | Description              |
@@ -414,7 +423,9 @@ WHATSAPP.download.{companyId}.{connectionId}.*     # Media download requests
 **Orchestrator** (`services/orchestrator/`)
 - Manages WhatsApp worker lifecycle
 - Spawns/kills workers on demand
-- Health monitoring
+- Health monitoring (detects dead workers)
+- Publishes `connection_status` events when workers crash or recover
+- Auto-restart with exponential backoff
 
 **WhatsApp Worker** (`services/whatsapp/`)
 - Uses whatsmeow library
@@ -425,11 +436,32 @@ WHATSAPP.download.{companyId}.{connectionId}.*     # Media download requests
 
 ```go
 // services/whatsapp/internal/nats/publisher.go
+// WhatsApp worker publishes message events
 
 func (p *Publisher) PublishMessage(msg MessagePayload) error {
     subject := fmt.Sprintf("WHATSAPP.events.%s.%s.message",
         p.companyID, p.connectionID)
     return p.js.Publish(subject, msg)
+}
+```
+
+```go
+// services/orchestrator/internal/manager/handlers.go
+// Orchestrator publishes connection_status events on worker failure/recovery
+
+func (h *Handlers) PublishConnectionStatus(companyID, connectionID, status, reason string) {
+    event := sharednats.WhatsAppEvent{
+        Type:         sharednats.EventTypeConnectionStatus,
+        CompanyID:    companyID,
+        ConnectionID: connectionID,
+        Payload: sharednats.ConnectionStatusPayload{
+            Status: status,
+            Reason: reason,
+        },
+        Timestamp: time.Now().Format(time.RFC3339),
+    }
+    subject := fmt.Sprintf(sharednats.SubjectConnectionStatus, companyID, connectionID)
+    h.nats.PublishEvent(subject, data)
 }
 ```
 
@@ -592,6 +624,51 @@ type WhatsAppEvent struct {
 7. Update connection status
 ```
 
+### 6.5 Worker Crash & Auto-Recovery Flow
+
+```
+1. WhatsApp worker process crashes/dies
+       │
+       ▼
+2. Orchestrator health check detects dead process
+   (checks every 30 seconds via signal 0)
+       │
+       ▼
+3. Orchestrator calls handleWorkerFailure():
+   ├─ Update worker status to "error"
+   └─ Publish connection_status event to NATS
+       │
+       ▼
+4. Backend API receives NATS event:
+   Subject: WHATSAPP.events.{companyId}.{connectionId}.connection_status
+       │
+       ▼
+5. handleWorkerConnectionStatusEvent():
+   ├─ Update whatsapp_connections.status = "disconnected"
+   └─ broadcastToCompany("connection:status")
+       │
+       ▼
+6. Frontend receives WebSocket event
+       │
+       ▼
+7. useWhatsAppConnectionWebSocket handles event:
+   ├─ Show toast notification: "WhatsApp disconnected"
+   ├─ Show yellow banner in MessageComposer
+   └─ Disable message input
+       │
+       ▼
+8. If AUTO_RESTART_ENABLED:
+   ├─ Wait backoff (5s → 10s → 20s → 40s → 80s)
+   ├─ Increment restart_count in worker_registry
+   └─ Spawn new worker process
+       │
+       ▼
+9. New worker connects to WhatsApp
+       │
+       ▼
+10. Status updates to "connected", UI recovers
+```
+
 ---
 
 ## 7. Multi-Tenancy
@@ -707,4 +784,5 @@ client.getMetrics()
 
 ## Related Documentation
 
+- [WhatsApp Connection Flow](./whatsapp-connection-flow.md) - Connection lifecycle and worker auto-recovery
 - [WhatsApp Sync Flow](./whatsapp-sync-flow.md) - History sync and data persistence
