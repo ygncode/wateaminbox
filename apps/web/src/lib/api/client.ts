@@ -136,9 +136,18 @@ export async function handleResponse<T>(response: Response): Promise<T> {
   }
 
   const json = await response.json();
-  // Unwrap the data field if the response has the standard { success, data } format
-  if (json && typeof json === "object" && "success" in json && "data" in json) {
-    return json.data as T;
+  // Unwrap the data field in these cases:
+  // 1. Pure wrapper: { data } - only field is data
+  // 2. Legacy format: { success, data } or { success, data, ... } - has success flag
+  // Don't unwrap: { data, pagination } - no success flag, multiple fields
+  if (json && typeof json === "object" && "data" in json) {
+    const keys = Object.keys(json);
+    const hasSuccessFlag = "success" in json;
+    const isOnlyDataField = keys.length === 1 && keys[0] === "data";
+
+    if (isOnlyDataField || hasSuccessFlag) {
+      return json.data as T;
+    }
   }
   return json as T;
 }

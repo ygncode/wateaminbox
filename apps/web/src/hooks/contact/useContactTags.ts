@@ -68,7 +68,10 @@ export function useTags() {
   return useQuery({
     queryKey: queryKeys.tags.all,
     queryFn: async () => {
-      const response = await api.get<{ data: Tag[] }>("/tags");
+      // Tags endpoint returns paginated response { data, pagination }
+      const response = await api.get<{ data: Tag[]; pagination: unknown }>(
+        "/tags",
+      );
       return response.data;
     },
     staleTime: 60_000, // 1 minute

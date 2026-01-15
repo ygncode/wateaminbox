@@ -57,11 +57,10 @@ export function useInviteMember() {
       email: string;
       role?: "admin" | "member";
     }) => {
-      const response = await api.post<{ success: boolean; data: Invitation }>(
+      return api.post<Invitation>(
         `/companies/${companyId}/invitations`,
         { email, role },
       );
-      return response.data;
     },
     onSuccess: (_, variables) => {
       invalidate(["company", variables.companyId, "invitations"]);
@@ -105,11 +104,10 @@ export function useResendInvitation() {
       companyId: string;
       invitationId: string;
     }) => {
-      const response = await api.post<{ success: boolean; data: Invitation }>(
+      return api.post<Invitation>(
         `/companies/${companyId}/invitations/${invitationId}/resend`,
         {},
       );
-      return response.data;
     },
     onSuccess: (_, variables) => {
       invalidate(["company", variables.companyId, "invitations"]);
@@ -133,11 +131,10 @@ export function useUpdateMemberRole() {
       userId: string;
       role: "admin" | "member";
     }) => {
-      const response = await api.patch<{
-        success: boolean;
-        data: CompanyMember;
-      }>(`/companies/${companyId}/members/${userId}`, { role });
-      return response.data;
+      return api.patch<CompanyMember>(
+        `/companies/${companyId}/members/${userId}`,
+        { role },
+      );
     },
     onSuccess: (_, variables) => {
       invalidate(["company", variables.companyId, "members"]);
@@ -175,18 +172,14 @@ export function useInvitationByToken(token: string | null) {
     queryKey: ["invitation", token],
     queryFn: async () => {
       if (!token) throw new Error("No token provided");
-      const response = await api.get<{
-        success: boolean;
-        data: {
-          id: string;
-          email: string;
-          companyName: string;
-          invitedBy: string;
-          expiresAt: string;
-          createdAt: string;
-        };
+      return api.get<{
+        id: string;
+        email: string;
+        companyName: string;
+        invitedBy: string;
+        expiresAt: string;
+        createdAt: string;
       }>(`/invitations/${token}`);
-      return response.data;
     },
     enabled: !!token,
     staleTime: 60_000,
@@ -202,14 +195,10 @@ export function useAcceptInvitation() {
 
   return useMutation({
     mutationFn: async (token: string) => {
-      const response = await api.post<{
-        success: boolean;
-        data: {
-          company: { id: string; name: string };
-          member: CompanyMember;
-        };
+      return api.post<{
+        company: { id: string; name: string };
+        member: CompanyMember;
       }>(`/invitations/${token}/accept`, {});
-      return response.data;
     },
     onSuccess: invalidateCompanies,
   });

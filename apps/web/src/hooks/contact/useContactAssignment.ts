@@ -66,10 +66,9 @@ export function useAssignmentHistory(contactId: string | null) {
     queryKey: queryKeys.assignmentHistory.detail(contactId ?? ""),
     queryFn: async () => {
       if (!contactId) throw new Error("No contact ID provided");
-      const response = await api.get<{ data: AssignmentHistoryEntry[] }>(
+      return api.get<AssignmentHistoryEntry[]>(
         `/contacts/${contactId}/assignments`,
       );
-      return response.data;
     },
     enabled: !!contactId,
     staleTime: 30_000, // 30 seconds

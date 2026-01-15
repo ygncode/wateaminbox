@@ -7,12 +7,31 @@
 import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { HTTPException } from "hono/http-exception";
+import type { CompanyMember } from "@whatsapp-web/shared";
 import { authMiddleware } from "../../middleware/auth.js";
 import { tenantFromParam } from "../../middleware/tenant.js";
 import * as companyService from "../../services/company.service.js";
 import { getEffectivePermissions } from "../../services/permission.service.js";
 import { successData, successMessage } from "../../lib/response.js";
 import { updateMemberRoleSchema } from "../../lib/schemas/index.js";
+
+/**
+ * Transform internal member to API response format
+ */
+function toApiMember(
+  member: companyService.CompanyMember,
+): CompanyMember & { permissions: Record<string, boolean> } {
+  return {
+    id: member.id,
+    userId: member.user_id,
+    companyId: member.company_id,
+    role: member.role,
+    permissions: member.permissions as Record<string, boolean>,
+    invitedBy: member.invited_by,
+    joinedAt: member.joined_at.toISOString(),
+    email: member.email || "",
+  };
+}
 
 export const memberRoutes = new Hono();
 
@@ -28,14 +47,17 @@ memberRoutes.get(
 
     try {
       const members = await companyService.getMembers(companyId);
-      // Add effective permissions to each member
-      const membersWithPermissions = members.map((member) => ({
-        ...member,
-        effectivePermissions: getEffectivePermissions(
-          member.role,
-          member.permissions as Record<string, boolean>,
-        ),
-      }));
+      // Transform to API format and add effective permissions
+      const membersWithPermissions = members.map((member) => {
+        const apiMember = toApiMember(member);
+        return {
+          ...apiMember,
+          effectivePermissions: getEffectivePermissions(
+            apiMember.role,
+            apiMember.permissions,
+          ),
+        };
+      });
       return successData(c, membersWithPermissions);
     } catch (error) {
       if (error instanceof companyService.CompanyNotFoundError) {
@@ -66,7 +88,17 @@ memberRoutes.patch(
         userId,
         role,
       );
-      return successData(c, member);
+      // Transform to API format (email not available from update, use empty string)
+      const apiMember: CompanyMember = {
+        id: member.id,
+        userId: member.user_id,
+        companyId: member.company_id,
+        role: member.role,
+        invitedBy: member.invited_by,
+        joinedAt: member.joined_at.toISOString(),
+        email: "",
+      };
+      return successData(c, apiMember);
     } catch (error) {
       if (error instanceof companyService.CompanyNotFoundError) {
         throw new HTTPException(404, { message: error.message });

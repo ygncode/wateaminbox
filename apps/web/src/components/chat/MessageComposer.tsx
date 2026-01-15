@@ -58,7 +58,9 @@ export function MessageComposer({
   const lastTypingSentTimeRef = useRef<number>(0);
 
   // Get typing indicator methods from WebSocket
-  const { sendTypingStart, sendTypingStop } = useWebSocket();
+  // Note: sendTypingStop is intentionally unused - we let WhatsApp auto-dismiss typing indicators
+  // to avoid hitting WhatsApp's rate limits/cooldowns
+  const { sendTypingStart, sendTypingStop: _sendTypingStop } = useWebSocket();
 
   // Auto-resize textarea using the hook
   const { reset: resetTextareaHeight } = useTextareaAutoResize(textareaRef, {

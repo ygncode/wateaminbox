@@ -8,15 +8,13 @@ import type {
   WhatsAppCatalog,
   CatalogSyncStatus,
   CatalogProductsResponse,
-  CatalogListResponse,
   SyncCatalogsResponse,
   CatalogActionResponse,
   ProductVisibility,
 } from "./types.js";
 
 export async function getWhatsAppCatalogs(): Promise<WhatsAppCatalog[]> {
-  const response = await fetchWithAuth<CatalogListResponse>("/catalogs");
-  return response.data;
+  return fetchWithAuth<WhatsAppCatalog[]>("/catalogs");
 }
 
 export async function getCatalogSyncStatus(): Promise<CatalogSyncStatus> {

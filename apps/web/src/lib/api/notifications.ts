@@ -15,48 +15,39 @@ import type {
 
 // Notification Preferences
 export async function getNotificationPreferences(): Promise<NotificationPreferencesResponse> {
-  const response = await fetchWithAuth<{
-    data: NotificationPreferencesResponse;
-  }>("/notifications/preferences");
-  return response.data;
+  return fetchWithAuth<NotificationPreferencesResponse>(
+    "/notifications/preferences",
+  );
 }
 
 export async function updateNotificationPreferences(
   input: UpdateNotificationPreferencesInput,
 ): Promise<NotificationPreferencesResponse> {
-  const response = await fetchWithAuth<{
-    data: NotificationPreferencesResponse;
-  }>("/notifications/preferences", {
-    method: "PATCH",
-    body: JSON.stringify(input),
-  });
-  return response.data;
+  return fetchWithAuth<NotificationPreferencesResponse>(
+    "/notifications/preferences",
+    {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    },
+  );
 }
 
 export async function muteContactApi(
   contactJid: string,
 ): Promise<{ mutedContacts: string[] }> {
-  const response = await fetchWithAuth<{ data: { mutedContacts: string[] } }>(
-    "/notifications/mute",
-    {
-      method: "POST",
-      body: JSON.stringify({ contactJid }),
-    },
-  );
-  return response.data;
+  return fetchWithAuth<{ mutedContacts: string[] }>("/notifications/mute", {
+    method: "POST",
+    body: JSON.stringify({ contactJid }),
+  });
 }
 
 export async function unmuteContactApi(
   contactJid: string,
 ): Promise<{ mutedContacts: string[] }> {
-  const response = await fetchWithAuth<{ data: { mutedContacts: string[] } }>(
-    "/notifications/unmute",
-    {
-      method: "POST",
-      body: JSON.stringify({ contactJid }),
-    },
-  );
-  return response.data;
+  return fetchWithAuth<{ mutedContacts: string[] }>("/notifications/unmute", {
+    method: "POST",
+    body: JSON.stringify({ contactJid }),
+  });
 }
 
 // Notification History (In-App Notification Center)
@@ -70,62 +61,54 @@ export async function getNotifications(
 export async function getNotificationById(
   notificationId: string,
 ): Promise<InAppNotification> {
-  const response = await fetchWithAuth<{ data: InAppNotification }>(
-    `/notifications/${notificationId}`,
-  );
-  return response.data;
+  return fetchWithAuth<InAppNotification>(`/notifications/${notificationId}`);
 }
 
 export async function getUnreadNotificationCount(): Promise<number> {
-  const response = await fetchWithAuth<{ data: { unreadCount: number } }>(
+  const response = await fetchWithAuth<{ unreadCount: number }>(
     "/notifications/count",
   );
-  return response.data.unreadCount;
+  return response.unreadCount;
 }
 
 export async function createNotification(
   input: CreateNotificationInput,
 ): Promise<InAppNotification> {
-  const response = await fetchWithAuth<{ data: InAppNotification }>(
-    "/notifications",
-    {
-      method: "POST",
-      body: JSON.stringify(input),
-    },
-  );
-  return response.data;
+  return fetchWithAuth<InAppNotification>("/notifications", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
 }
 
 export async function markNotificationAsRead(
   notificationId: string,
 ): Promise<InAppNotification> {
-  const response = await fetchWithAuth<{ data: InAppNotification }>(
+  return fetchWithAuth<InAppNotification>(
     `/notifications/${notificationId}/read`,
     {
       method: "PATCH",
     },
   );
-  return response.data;
 }
 
 export async function markAllNotificationsAsRead(): Promise<number> {
-  const response = await fetchWithAuth<{ data: { markedAsRead: number } }>(
+  const response = await fetchWithAuth<{ markedAsRead: number }>(
     "/notifications/read-all",
     {
       method: "POST",
     },
   );
-  return response.data.markedAsRead;
+  return response.markedAsRead;
 }
 
 export async function deleteNotification(
   notificationId: string,
 ): Promise<boolean> {
-  const response = await fetchWithAuth<{ data: { deleted: boolean } }>(
+  const response = await fetchWithAuth<{ deleted: boolean }>(
     `/notifications/${notificationId}`,
     {
       method: "DELETE",
     },
   );
-  return response.data.deleted;
+  return response.deleted;
 }

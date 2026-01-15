@@ -8,15 +8,17 @@ import type {
   WhatsAppLabel,
   LabelSyncStatus,
   TagWithLabelStatus,
-  LabelListResponse,
-  TagsWithStatusResponse,
   SyncLabelsResponse,
   LinkTagResponse,
   AutoCreateTagsResponse,
 } from "./types.js";
 
 export async function getWhatsAppLabels(): Promise<WhatsAppLabel[]> {
-  const response = await fetchWithAuth<LabelListResponse>("/labels");
+  // Labels endpoint returns paginated response { data, pagination }
+  const response = await fetchWithAuth<{
+    data: WhatsAppLabel[];
+    pagination: unknown;
+  }>("/labels");
   return response.data;
 }
 
@@ -61,10 +63,7 @@ export async function autoCreateTagsFromLabels(): Promise<AutoCreateTagsResponse
 }
 
 export async function getTagsWithLabelStatus(): Promise<TagWithLabelStatus[]> {
-  const response = await fetchWithAuth<TagsWithStatusResponse>(
-    "/labels/tags/with-status",
-  );
-  return response.data;
+  return fetchWithAuth<TagWithLabelStatus[]>("/labels/tags/with-status");
 }
 
 export async function applyLabelToContact(

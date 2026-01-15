@@ -24,20 +24,16 @@ export async function getQuickReplies(
 export async function getQuickReplyById(
   quickReplyId: string,
 ): Promise<QuickReply> {
-  const response = await fetchWithAuth<{ data: QuickReply }>(
-    `/quick-replies/${quickReplyId}`,
-  );
-  return response.data;
+  return fetchWithAuth<QuickReply>(`/quick-replies/${quickReplyId}`);
 }
 
 export async function getQuickReplyByShortcut(
   shortcut: string,
 ): Promise<QuickReply | null> {
   try {
-    const response = await fetchWithAuth<{ data: QuickReply }>(
+    return await fetchWithAuth<QuickReply>(
       `/quick-replies/search/${encodeURIComponent(shortcut)}`,
     );
-    return response.data;
   } catch (error) {
     if (error instanceof ApiRequestError && error.statusCode === 404) {
       return null;
@@ -49,33 +45,28 @@ export async function getQuickReplyByShortcut(
 export async function createQuickReply(
   input: CreateQuickReplyInput,
 ): Promise<QuickReply> {
-  const response = await fetchWithAuth<{ data: QuickReply }>("/quick-replies", {
+  return fetchWithAuth<QuickReply>("/quick-replies", {
     method: "POST",
     body: JSON.stringify(input),
   });
-  return response.data;
 }
 
 export async function updateQuickReply(
   quickReplyId: string,
   input: UpdateQuickReplyInput,
 ): Promise<QuickReply> {
-  const response = await fetchWithAuth<{ data: QuickReply }>(
-    `/quick-replies/${quickReplyId}`,
-    {
-      method: "PATCH",
-      body: JSON.stringify(input),
-    },
-  );
-  return response.data;
+  return fetchWithAuth<QuickReply>(`/quick-replies/${quickReplyId}`, {
+    method: "PATCH",
+    body: JSON.stringify(input),
+  });
 }
 
 export async function deleteQuickReply(quickReplyId: string): Promise<boolean> {
-  const response = await fetchWithAuth<{ data: { deleted: boolean } }>(
+  const response = await fetchWithAuth<{ deleted: boolean }>(
     `/quick-replies/${quickReplyId}`,
     {
       method: "DELETE",
     },
   );
-  return response.data.deleted;
+  return response.deleted;
 }
