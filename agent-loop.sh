@@ -4,6 +4,9 @@
 # Agent Loop - Autonomous AI-driven code workflow
 # =============================================================================
 #
+# IMPORTANT: When modifying this script, update agent-loop.md to keep the
+# flow diagrams in sync with the implementation.
+#
 # Usage: ./agent-loop.sh <tasks.md> [OPTIONS]
 #
 # The tasks.md file contains a list of high-level tasks:
