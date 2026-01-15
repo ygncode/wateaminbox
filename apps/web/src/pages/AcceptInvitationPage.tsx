@@ -253,7 +253,7 @@ export function AcceptInvitationPage() {
               className="w-full bg-whatsapp-teal-green hover:bg-whatsapp-dark-green"
             >
               {acceptInvitation.isPending
-                ? "Accepting..."
+                ? "Accepting…"
                 : "Accept Invitation"}
             </Button>
             <Link to="/chat">

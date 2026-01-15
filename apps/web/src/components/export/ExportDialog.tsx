@@ -273,7 +273,7 @@ export function ExportDialog({
             {isLoading ? (
               <>
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                {type === "full-backup" ? "Creating Backup..." : "Exporting..."}
+                {type === "full-backup" ? "Creating Backup…" : "Exporting…"}
               </>
             ) : (
               <>

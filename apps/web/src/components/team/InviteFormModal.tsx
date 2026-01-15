@@ -127,7 +127,7 @@ export function InviteFormModal({ companyId, onClose }: InviteFormModalProps) {
               disabled={inviteMember.isPending || !isValid}
               className="flex-1 bg-whatsapp-teal-green hover:bg-whatsapp-dark-green"
             >
-              {inviteMember.isPending ? "Sending..." : "Send Invitation"}
+              {inviteMember.isPending ? "Sending…" : "Send Invitation"}
             </Button>
           </div>
         </form>

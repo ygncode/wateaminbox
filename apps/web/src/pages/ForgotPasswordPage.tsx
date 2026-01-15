@@ -145,7 +145,7 @@ export function ForgotPasswordPage() {
               className="w-full bg-whatsapp-green-a11y-button hover:bg-whatsapp-green-a11y-button/90 dark:bg-whatsapp-green-a11y-button dark:hover:bg-whatsapp-green-a11y-button/90 text-white"
               disabled={isLoading}
             >
-              {isLoading ? "Sending..." : "Reset password"}
+              {isLoading ? "Sending…" : "Reset password"}
             </Button>
           </form>
 

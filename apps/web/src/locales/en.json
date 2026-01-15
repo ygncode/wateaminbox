@@ -5,7 +5,7 @@
     "delete": "Delete",
     "edit": "Edit",
     "search": "Search",
-    "loading": "Loading...",
+    "loading": "Loading…",
     "error": "An error occurred",
     "create": "Create",
     "backToChat": "Back to Chat",
@@ -59,7 +59,7 @@
   "chat": {
     "newMessage": "New Message",
     "sendMessage": "Send Message",
-    "typing": "typing...",
+    "typing": "typing…",
     "online": "Online",
     "offline": "Offline",
     "searchPlaceholder": "Search or start new chat",
@@ -101,7 +101,7 @@
       "contact": "Contact"
     },
     "mediaNotDownloaded": "Media not yet downloaded",
-    "downloadingMedia": "Downloading...",
+    "downloadingMedia": "Downloading…",
     "downloadFailed": "Download failed",
     "retryDownload": "Retry"
   },
@@ -388,7 +388,7 @@
     "customRange": "Custom Range",
     "startDate": "Start Date",
     "endDate": "End Date",
-    "exporting": "Exporting...",
+    "exporting": "Exporting…",
     "exportComplete": "Export complete",
     "downloadReady": "Your download is ready"
   },
@@ -397,7 +397,7 @@
     "placeholder": "Search messages, contacts...",
     "noResults": "No results found",
     "tryDifferent": "Try a different search term",
-    "searching": "Searching...",
+    "searching": "Searching…",
     "resultsCount": "{{count}} results",
     "filters": "Filters",
     "filterByType": "Filter by Type",
@@ -426,8 +426,8 @@
   "whatsapp": {
     "connected": "Connected",
     "disconnected": "Disconnected",
-    "connecting": "Connecting...",
-    "reconnecting": "Reconnecting...",
+    "connecting": "Connecting…",
+    "reconnecting": "Reconnecting…",
     "scanQR": "Scan QR Code",
     "scanInstructions": "Open WhatsApp on your phone, go to Settings > Linked Devices > Link a Device",
     "connectionStatus": "Connection Status",

@@ -264,8 +264,8 @@ export function QuickReplyForm({
               <>
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                 {isEditing
-                  ? t("common.saving", "Saving...")
-                  : t("common.creating", "Creating...")}
+                  ? t("common.saving", "Saving…")
+                  : t("common.creating", "Creating…")}
               </>
             ) : (
               <>

@@ -51,16 +51,18 @@ export function EditableNameSection({ contact }: EditableNameSectionProps) {
             onClick={handleSave}
             disabled={updateContact.isPending}
             className="h-8 w-8 dark:hover:bg-dark-tertiary"
+            aria-label="Save custom name"
           >
-            <Check className="h-4 w-4 text-green-600 dark:text-green-400" />
+            <Check className="h-4 w-4 text-green-600 dark:text-green-400" aria-hidden="true" />
           </Button>
           <Button
             size="icon"
             variant="ghost"
             onClick={handleCancel}
             className="h-8 w-8 dark:hover:bg-dark-tertiary"
+            aria-label="Cancel editing"
           >
-            <X className="h-4 w-4 text-red-600 dark:text-red-400" />
+            <X className="h-4 w-4 text-red-600 dark:text-red-400" aria-hidden="true" />
           </Button>
         </div>
       ) : (
@@ -77,8 +79,9 @@ export function EditableNameSection({ contact }: EditableNameSectionProps) {
             variant="ghost"
             onClick={() => setIsEditing(true)}
             className="h-8 w-8 dark:hover:bg-dark-tertiary"
+            aria-label="Edit custom name"
           >
-            <Edit2 className="h-4 w-4 text-gray-500 dark:text-dark-text-secondary" />
+            <Edit2 className="h-4 w-4 text-gray-500 dark:text-dark-text-secondary" aria-hidden="true" />
           </Button>
         </div>
       )}

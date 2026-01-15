@@ -81,8 +81,8 @@ export function StatusBadge({ state }: { state: WhatsAppConnectionState }) {
 export function getStateLabel(state: WhatsAppConnectionState): string {
   const labels: Record<WhatsAppConnectionState, string> = {
     disconnected: "Not connected",
-    connecting: "Connecting...",
-    waiting_qr: "Waiting for QR...",
+    connecting: "Connecting…",
+    waiting_qr: "Waiting for QR…",
     scanning: "Scan QR code",
     connected: "Connected",
     error: "Connection error",

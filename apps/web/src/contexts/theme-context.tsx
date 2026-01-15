@@ -72,6 +72,9 @@ function applyThemeToDOM(resolvedTheme: ResolvedTheme): void {
     root.classList.remove("dark");
   }
 
+  // Update color-scheme for native elements (scrollbars, inputs, etc.)
+  root.style.colorScheme = resolvedTheme;
+
   // Update theme-color meta tag for mobile browsers
   const metaThemeColor = document.querySelector('meta[name="theme-color"]');
   if (metaThemeColor) {
