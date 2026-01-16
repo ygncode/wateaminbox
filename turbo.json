@@ -8,6 +8,7 @@
       "outputs": ["dist/**", ".next/**", "!.next/cache/**", "whatsapp-worker", "orchestrator"]
     },
     "dev": {
+      "dependsOn": ["^build"],
       "cache": false,
       "persistent": true
     },
