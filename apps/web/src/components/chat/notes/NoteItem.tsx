@@ -104,7 +104,10 @@ export function NoteItem({
               className="h-6 w-6 dark:hover:bg-dark-tertiary"
               aria-label="Edit note"
             >
-              <Edit2 className="h-3 w-3 text-gray-500 dark:text-dark-text-secondary" aria-hidden="true" />
+              <Edit2
+                className="h-3 w-3 text-gray-500 dark:text-dark-text-secondary"
+                aria-hidden="true"
+              />
             </Button>
             <Button
               size="icon"
@@ -114,7 +117,10 @@ export function NoteItem({
               className="h-6 w-6 hover:bg-red-50 dark:hover:bg-red-900/20"
               aria-label="Delete note"
             >
-              <Trash2 className="h-3 w-3 text-red-500 dark:text-red-400" aria-hidden="true" />
+              <Trash2
+                className="h-3 w-3 text-red-500 dark:text-red-400"
+                aria-hidden="true"
+              />
             </Button>
           </div>
         )}

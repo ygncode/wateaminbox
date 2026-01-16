@@ -148,11 +148,11 @@ export function ConnectionCard({
               </div>
             ) : (
               <>
-                <div className="flex items-center gap-2">
-                  <h3 className="text-sm font-medium text-gray-900 dark:text-dark-text-primary truncate">
+                <div className="flex items-center gap-2 min-w-0">
+                  <h3 className="text-sm font-medium text-gray-900 dark:text-dark-text-primary truncate min-w-0 flex-1">
                     {connection.name}
                   </h3>
-                  <Badge className={cn("text-xs", statusColor)}>
+                  <Badge className={cn("text-xs flex-shrink-0", statusColor)}>
                     {statusIcon}
                     <span className="ml-1 capitalize">{connection.status}</span>
                   </Badge>

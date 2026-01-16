@@ -32,45 +32,57 @@ export function MessageStatusIcon({ message, isOwn }: MessageStatusIconProps) {
   switch (message.status) {
     case "pending":
       return (
-        <svg
-          className="h-4 w-4 text-white/60"
-          viewBox="0 0 16 16"
-          fill="currentColor"
-        >
-          <circle cx="8" cy="8" r="6" stroke="currentColor" fill="none" />
-        </svg>
+        <span className="inline-flex" role="img" aria-label="Sending">
+          <svg
+            className="h-4 w-4 text-white/60"
+            viewBox="0 0 16 16"
+            fill="currentColor"
+            aria-hidden="true"
+          >
+            <circle cx="8" cy="8" r="6" stroke="currentColor" fill="none" />
+          </svg>
+        </span>
       );
     case "sent":
       return (
-        <svg
-          className="h-4 w-4 text-white/60"
-          viewBox="0 0 16 16"
-          fill="currentColor"
-        >
-          <path d="M5.5 11.5L2 8l1-1 2.5 2.5L11 4l1 1-6.5 6.5z" />
-        </svg>
+        <span className="inline-flex" role="img" aria-label="Sent">
+          <svg
+            className="h-4 w-4 text-white/60"
+            viewBox="0 0 16 16"
+            fill="currentColor"
+            aria-hidden="true"
+          >
+            <path d="M5.5 11.5L2 8l1-1 2.5 2.5L11 4l1 1-6.5 6.5z" />
+          </svg>
+        </span>
       );
     case "delivered":
       return (
-        <svg
-          className="h-4 w-4 text-white/60"
-          viewBox="0 0 16 16"
-          fill="currentColor"
-        >
-          <path d="M5.5 11.5L2 8l1-1 2.5 2.5L11 4l1 1-6.5 6.5z" />
-          <path d="M8.5 11.5L5 8l1-1 2.5 2.5L14 4l1 1-6.5 6.5z" />
-        </svg>
+        <span className="inline-flex" role="img" aria-label="Delivered">
+          <svg
+            className="h-4 w-4 text-white/60"
+            viewBox="0 0 16 16"
+            fill="currentColor"
+            aria-hidden="true"
+          >
+            <path d="M5.5 11.5L2 8l1-1 2.5 2.5L11 4l1 1-6.5 6.5z" />
+            <path d="M8.5 11.5L5 8l1-1 2.5 2.5L14 4l1 1-6.5 6.5z" />
+          </svg>
+        </span>
       );
     case "read":
       return (
-        <svg
-          className="h-4 w-4 text-blue-500"
-          viewBox="0 0 16 16"
-          fill="currentColor"
-        >
-          <path d="M5.5 11.5L2 8l1-1 2.5 2.5L11 4l1 1-6.5 6.5z" />
-          <path d="M8.5 11.5L5 8l1-1 2.5 2.5L14 4l1 1-6.5 6.5z" />
-        </svg>
+        <span className="inline-flex" role="img" aria-label="Read">
+          <svg
+            className="h-4 w-4 text-blue-500"
+            viewBox="0 0 16 16"
+            fill="currentColor"
+            aria-hidden="true"
+          >
+            <path d="M5.5 11.5L2 8l1-1 2.5 2.5L11 4l1 1-6.5 6.5z" />
+            <path d="M8.5 11.5L5 8l1-1 2.5 2.5L14 4l1 1-6.5 6.5z" />
+          </svg>
+        </span>
       );
     case "failed": {
       const errorMsg = getErrorMessage(
@@ -78,17 +90,25 @@ export function MessageStatusIcon({ message, isOwn }: MessageStatusIconProps) {
         message.metadata?.errorMessage,
       );
       return (
-        <div className="group/tooltip relative flex items-center">
+        <div
+          className="group/tooltip relative flex items-center"
+          role="img"
+          aria-label={`Failed: ${errorMsg}`}
+        >
           <svg
             className="h-4 w-4 text-red-500"
             viewBox="0 0 16 16"
             fill="currentColor"
+            aria-hidden="true"
           >
             <circle cx="8" cy="8" r="6" stroke="currentColor" fill="none" />
             <path d="M8 4v5M8 11v1" />
           </svg>
           {/* Tooltip for failed messages */}
-          <div className="absolute bottom-full right-0 mb-2 px-2 py-1 bg-gray-900 dark:bg-dark-tertiary text-white text-xs rounded whitespace-nowrap opacity-0 group-hover/tooltip:opacity-100 transition-opacity pointer-events-none z-10">
+          <div
+            className="absolute bottom-full right-0 mb-2 px-2 py-1 bg-gray-900 dark:bg-dark-tertiary text-white text-xs rounded whitespace-nowrap opacity-0 group-hover/tooltip:opacity-100 transition-opacity pointer-events-none z-10"
+            aria-hidden="true"
+          >
             {errorMsg}
           </div>
         </div>

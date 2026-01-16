@@ -22,19 +22,29 @@ export function MessageReactions({ reactions, isOwn }: MessageReactionsProps) {
     {} as Record<string, number>,
   );
 
+  // Build accessible description for all reactions
+  const reactionSummary = Object.entries(groupedReactions)
+    .map(([emoji, count]) => `${emoji} ${count}`)
+    .join(", ");
+
   return (
     <div
       className={`absolute -bottom-3 ${isOwn ? "left-2" : "right-2"} flex gap-0.5`}
+      role="group"
+      aria-label={`Reactions: ${reactionSummary}`}
     >
       {Object.entries(groupedReactions).map(([emoji, count]) => (
         <span
           key={emoji}
-          className="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-white dark:bg-dark-elevated rounded-full shadow-md text-xs border border-gray-200 dark:border-dark-border"
-          title={`${count} reaction${count > 1 ? "s" : ""}`}
+          className="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-white dark:bg-dark-elevated rounded-full shadow-md text-xs border border-gray-200 dark:border-dark-border tabular-nums"
+          aria-label={`${emoji} reaction, ${count} ${count > 1 ? "people" : "person"}`}
         >
-          <span>{emoji}</span>
+          <span aria-hidden="true">{emoji}</span>
           {count > 1 && (
-            <span className="text-gray-600 dark:text-dark-text-secondary">
+            <span
+              className="text-gray-600 dark:text-dark-text-secondary"
+              aria-hidden="true"
+            >
               {count}
             </span>
           )}

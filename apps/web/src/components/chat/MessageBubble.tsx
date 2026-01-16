@@ -278,7 +278,12 @@ function SelectionCheckbox({
   isSelected: boolean;
 }) {
   return (
-    <div className={`flex items-center ${isOwn ? "order-2 ml-2" : "mr-2"}`}>
+    <div
+      className={`flex items-center ${isOwn ? "order-2 ml-2" : "mr-2"}`}
+      role="checkbox"
+      aria-checked={isSelected}
+      aria-label={isSelected ? "Message selected" : "Select message"}
+    >
       <div
         className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${
           isSelected
@@ -293,6 +298,7 @@ function SelectionCheckbox({
             viewBox="0 0 24 24"
             stroke="currentColor"
             strokeWidth={3}
+            aria-hidden="true"
           >
             <path
               strokeLinecap="round"

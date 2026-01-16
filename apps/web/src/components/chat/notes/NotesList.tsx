@@ -71,9 +71,7 @@ export function NotesList({
   const subtitle = isPrivate
     ? "Only you can see these"
     : "Visible to all team members";
-  const placeholder = isPrivate
-    ? "Add a private note…"
-    : "Add a shared note…";
+  const placeholder = isPrivate ? "Add a private note…" : "Add a shared note…";
   const addButtonText = isPrivate ? "Add private note" : "Add shared note";
 
   return (

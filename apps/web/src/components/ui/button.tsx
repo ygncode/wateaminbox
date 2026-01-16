@@ -35,16 +35,58 @@ const buttonVariants = cva(
   },
 );
 
-export interface ButtonProps
+/** Base button props without accessibility requirements */
+interface BaseButtonProps
   extends
     React.ButtonHTMLAttributes<HTMLButtonElement>,
     VariantProps<typeof buttonVariants> {
   asChild?: boolean;
 }
 
+/**
+ * Icon-only buttons MUST have an aria-label for accessibility.
+ * This type enforces that requirement at compile time.
+ */
+type IconButtonProps = BaseButtonProps & {
+  size: "icon";
+  "aria-label": string;
+};
+
+/**
+ * Non-icon buttons don't require aria-label (though it can still be provided).
+ */
+type NonIconButtonProps = BaseButtonProps & {
+  size?: Exclude<BaseButtonProps["size"], "icon">;
+};
+
+/**
+ * Button component props - enforces aria-label for icon-only buttons.
+ *
+ * @example
+ * // Icon button - aria-label required
+ * <Button size="icon" aria-label="Close menu"><X /></Button>
+ *
+ * // Regular button - aria-label optional
+ * <Button>Click me</Button>
+ */
+export type ButtonProps = IconButtonProps | NonIconButtonProps;
+
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
   ({ className, variant, size, asChild = false, ...props }, ref) => {
     const Comp: React.ElementType = asChild ? Slot : "button";
+
+    // Development-only warning for icon buttons without aria-label
+    if (
+      process.env.NODE_ENV === "development" &&
+      size === "icon" &&
+      !props["aria-label"]
+    ) {
+      console.warn(
+        "[Button] Icon-only buttons should have an aria-label for accessibility. " +
+          "Add aria-label prop to describe the button's action.",
+      );
+    }
+
     return (
       <Comp
         className={cn(buttonVariants({ variant, size, className }))}

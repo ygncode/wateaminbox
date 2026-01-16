@@ -351,7 +351,11 @@ export function useResolutionTrend(
   const queryString = params.toString();
 
   return useQuery({
-    queryKey: queryKeys.analytics.resolutionTrend(companyId, startDate, endDate),
+    queryKey: queryKeys.analytics.resolutionTrend(
+      companyId,
+      startDate,
+      endDate,
+    ),
     queryFn: async () => {
       if (!companyId) throw new Error("No company ID provided");
       const url = `/conversations/stats/resolution-trend${queryString ? `?${queryString}` : ""}`;
@@ -411,7 +415,11 @@ export function useEngagementTrend(
   const queryString = params.toString();
 
   return useQuery({
-    queryKey: queryKeys.analytics.engagementTrend(companyId, startDate, endDate),
+    queryKey: queryKeys.analytics.engagementTrend(
+      companyId,
+      startDate,
+      endDate,
+    ),
     queryFn: async () => {
       if (!companyId) throw new Error("No company ID provided");
       const url = `/analytics/engagement/trend${queryString ? `?${queryString}` : ""}`;

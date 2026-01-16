@@ -103,7 +103,8 @@ export const queryKeys = {
       companyId: string | null,
       startDate?: string,
       endDate?: string,
-    ) => ["analytics", "contacts-trend", companyId, startDate, endDate] as const,
+    ) =>
+      ["analytics", "contacts-trend", companyId, startDate, endDate] as const,
     team: (companyId: string | null) =>
       ["analytics", "team", companyId] as const,
     messageTypes: (

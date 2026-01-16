@@ -13,6 +13,7 @@ import {
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { formatStatusTime } from "@whatsapp-web/shared";
+import { AriaLive } from "@/components/ui/aria-live";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -414,11 +415,40 @@ function NotificationPanel({
  */
 export const NotificationCenter = memo(function NotificationCenter() {
   const [isOpen, setIsOpen] = useState(false);
+  const [announcement, setAnnouncement] = useState("");
+  const prevUnreadCountRef = useRef<number | null>(null);
 
   const { unreadCount } = useNotificationCenter();
 
+  // Announce when new notifications arrive
+  useEffect(() => {
+    // Skip initial render
+    if (prevUnreadCountRef.current === null) {
+      prevUnreadCountRef.current = unreadCount;
+      return;
+    }
+
+    const prevCount = prevUnreadCountRef.current;
+    prevUnreadCountRef.current = unreadCount;
+
+    // Announce when unread count increases
+    if (unreadCount > prevCount) {
+      const newCount = unreadCount - prevCount;
+      setAnnouncement(
+        newCount === 1 ? "New notification" : `${newCount} new notifications`,
+      );
+
+      // Clear announcement after screen reader has time to read it
+      const timer = setTimeout(() => setAnnouncement(""), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [unreadCount]);
+
   return (
     <>
+      {/* ARIA live region for new notification announcements */}
+      <AriaLive politeness="polite">{announcement}</AriaLive>
+
       <Button
         variant="ghost"
         size="sm"
@@ -428,7 +458,11 @@ export const NotificationCenter = memo(function NotificationCenter() {
           isOpen && "bg-whatsapp-green/10 text-whatsapp-dark-green",
         )}
         onClick={() => setIsOpen(!isOpen)}
-        aria-label="Notifications"
+        aria-label={
+          unreadCount > 0
+            ? `Notifications, ${unreadCount} unread`
+            : "Notifications"
+        }
         aria-expanded={isOpen}
         data-testid="notification-bell"
       >

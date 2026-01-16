@@ -110,7 +110,10 @@ export function MessageContent({ message, isOwn }: MessageContentProps) {
             aria-label="Audio message"
           />
           {message.metadata?.duration && (
-            <span className="text-xs text-gray-500 tabular-nums" aria-hidden="true">
+            <span
+              className="text-xs text-gray-500 tabular-nums"
+              aria-hidden="true"
+            >
               {Math.floor(message.metadata.duration / 60)}:
               {String(message.metadata.duration % 60).padStart(2, "0")}
             </span>

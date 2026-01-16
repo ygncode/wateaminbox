@@ -141,7 +141,9 @@ export function useChatPageState(): ChatPageState & ChatPageActions {
       [jid],
     ),
   );
-  const isContactTyping = Boolean(typingIndicators && typingIndicators.length > 0);
+  const isContactTyping = Boolean(
+    typingIndicators && typingIndicators.length > 0,
+  );
 
   // Message mutations
   const sendMessage = useSendMessage();

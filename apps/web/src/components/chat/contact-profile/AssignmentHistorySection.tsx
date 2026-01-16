@@ -64,12 +64,14 @@ export function AssignmentHistorySection({
                       />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center font-medium text-gray-800 dark:text-dark-text-primary">
-                        <span className="truncate">{entry.assignedToName}</span>
+                      <div className="flex items-center gap-2 font-medium text-gray-800 dark:text-dark-text-primary min-w-0">
+                        <span className="truncate min-w-0 flex-1">
+                          {entry.assignedToName}
+                        </span>
                         {entry.isActive && (
                           <Badge
                             variant="secondary"
-                            className="ml-2 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 text-xs shrink-0"
+                            className="bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 text-xs flex-shrink-0"
                           >
                             Active
                           </Badge>

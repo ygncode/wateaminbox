@@ -296,15 +296,15 @@ export function StatsCardsRow({
               {teamStats.slice(0, 5).map((member) => (
                 <div
                   key={member.userId}
-                  className="flex items-center justify-between"
+                  className="flex items-center justify-between gap-2"
                 >
-                  <div className="flex items-center gap-2">
-                    <Avatar className="h-8 w-8">
+                  <div className="flex items-center gap-2 min-w-0 flex-1">
+                    <Avatar className="h-8 w-8 flex-shrink-0">
                       <AvatarFallback className="text-xs bg-gray-100 dark:bg-dark-tertiary dark:text-dark-text-secondary">
                         {member.email.slice(0, 2).toUpperCase()}
                       </AvatarFallback>
                     </Avatar>
-                    <span className="text-sm text-gray-700 dark:text-dark-text-primary truncate max-w-[120px]">
+                    <span className="text-sm text-gray-700 dark:text-dark-text-primary truncate">
                       {member.email}
                     </span>
                   </div>

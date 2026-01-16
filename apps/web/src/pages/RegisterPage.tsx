@@ -121,7 +121,10 @@ export function RegisterPage() {
 
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
             {error && (
-              <div className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 px-4 py-3 rounded-lg text-sm">
+              <div
+                role="alert"
+                className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 px-4 py-3 rounded-lg text-sm"
+              >
                 {error}
               </div>
             )}
@@ -150,7 +153,7 @@ export function RegisterPage() {
               label="Password"
               id="password"
               type="password"
-              placeholder="At least 8 characters"
+              placeholder="At least 8 characters…"
               registration={register("password")}
               error={errors.password}
               autoComplete="new-password"
@@ -160,7 +163,7 @@ export function RegisterPage() {
               label="Confirm password"
               id="confirmPassword"
               type="password"
-              placeholder="Confirm your password"
+              placeholder="Confirm your password…"
               registration={register("confirmPassword")}
               error={errors.confirmPassword}
               autoComplete="new-password"
