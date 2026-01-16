@@ -35,7 +35,7 @@ function getEnvBoolean(key: string, defaultValue?: boolean): boolean {
 export const env = {
   // Server
   NODE_ENV: getEnv("NODE_ENV", "development"),
-  PORT: getEnvNumber("PORT", 3001),
+  PORT: getEnvNumber("PORT", 4445),
 
   // Database
   DATABASE_URL: getEnv("DATABASE_URL", ""),
@@ -50,13 +50,13 @@ export const env = {
   EMAIL_FROM: getEnv("EMAIL_FROM", "noreply@example.com"),
 
   // App
-  APP_URL: getEnv("APP_URL", "http://localhost:3000"),
+  APP_URL: getEnv("APP_URL", "http://localhost:4444"),
 
   // NATS
-  NATS_URL: getEnv("NATS_URL", "nats://localhost:4222"),
+  NATS_URL: getEnv("NATS_URL", "nats://localhost:4448"),
 
   // S3 Storage
-  S3_ENDPOINT: getEnv("S3_ENDPOINT", "http://localhost:9000"),
+  S3_ENDPOINT: getEnv("S3_ENDPOINT", "http://localhost:4450"),
   S3_ACCESS_KEY: getEnv("S3_ACCESS_KEY", "minioadmin"),
   S3_SECRET_KEY: getEnv("S3_SECRET_KEY", "minioadmin"),
   S3_BUCKET: getEnv("S3_BUCKET", "whatsapp-media"),

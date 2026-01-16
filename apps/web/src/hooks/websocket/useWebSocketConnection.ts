@@ -34,7 +34,7 @@ export function useWebSocketConnection() {
     if (!wsClientRef.current) {
       const token = getAccessToken();
       wsClientRef.current = getWebSocketClient({
-        url: import.meta.env.VITE_WS_URL || "ws://localhost:3000/ws",
+        url: import.meta.env.VITE_WS_URL || "ws://localhost:4445/api/ws",
         token: token ?? undefined,
         onStatusChange: (newStatus) => {
           setStatus(newStatus);

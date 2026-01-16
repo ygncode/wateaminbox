@@ -567,7 +567,7 @@ export function getWebSocketClient(
 ): WebSocketClient {
   if (!wsClientInstance) {
     wsClientInstance = new WebSocketClient({
-      url: config?.url ?? "ws://localhost:3000/ws",
+      url: config?.url ?? "ws://localhost:4445/api/ws",
       ...config,
     });
   }

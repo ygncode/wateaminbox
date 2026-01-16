@@ -31,7 +31,7 @@ export function initializeClient(
     const companyId = getCompanyId();
 
     // Build WebSocket URL with token and company ID
-    const baseUrl = import.meta.env.VITE_WS_URL || "ws://localhost:3000/ws";
+    const baseUrl = import.meta.env.VITE_WS_URL || "ws://localhost:4445/api/ws";
     const wsUrl = new URL(baseUrl);
     if (token) {
       wsUrl.searchParams.set("token", token);

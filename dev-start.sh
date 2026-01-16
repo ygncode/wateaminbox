@@ -81,13 +81,13 @@ kill_port() {
 # Clean up app ports before starting
 cleanup_ports() {
     print_status "Cleaning up app ports..."
-
+    
     # App ports
     kill_port 4444   # Frontend
     kill_port 4445   # API
     kill_port 4446   # Marketing
     kill_port 8080   # Orchestrator
-
+    
     print_success "Ports cleaned up"
 }
 
@@ -96,37 +96,37 @@ trap cleanup SIGINT SIGTERM
 # Check prerequisites
 check_prerequisites() {
     print_status "Checking prerequisites..."
-
+    
     # Check Docker
     if ! command -v docker &> /dev/null; then
         print_error "Docker is not installed. Please install Docker first."
         exit 1
     fi
-
+    
     if ! docker info &> /dev/null; then
         print_error "Docker is not running. Please start Docker first."
         exit 1
     fi
-
+    
     # Check bun
     if ! command -v bun &> /dev/null; then
         print_error "Bun is not installed. Please install Bun first: https://bun.sh"
         exit 1
     fi
-
+    
     # Check Go
     if ! command -v go &> /dev/null; then
         print_error "Go is not installed. Please install Go first."
         exit 1
     fi
-
+    
     # Check air (for Go hot-reload)
     if ! command -v air &> /dev/null; then
         print_warning "Air is not installed. Installing for Go hot-reload..."
         go install github.com/air-verse/air@latest
         print_success "Air installed"
     fi
-
+    
     print_success "Prerequisites OK (Docker, Bun, Go, Air installed)"
 }
 
@@ -134,37 +134,37 @@ check_prerequisites() {
 start_docker_services() {
     print_status "Starting Docker services..."
     docker-compose up -d
-
+    
     print_status "Waiting for services to be healthy..."
-
+    
     # Wait for PostgreSQL
     print_status "  Waiting for PostgreSQL..."
     until docker exec whatsapp-web-postgres pg_isready -U postgres &> /dev/null; do
         sleep 1
     done
     print_success "  PostgreSQL is ready"
-
+    
     # Wait for NATS (check if port 4448 is accepting connections)
     print_status "  Waiting for NATS..."
     until nc -z localhost 4448 &> /dev/null; do
         sleep 1
     done
     print_success "  NATS is ready"
-
+    
     # Wait for Meilisearch
     print_status "  Waiting for Meilisearch..."
     until curl -s http://localhost:4449/health &> /dev/null; do
         sleep 1
     done
     print_success "  Meilisearch is ready"
-
+    
     # Wait for MinIO
     print_status "  Waiting for MinIO..."
     until curl -s http://localhost:4450/minio/health/live &> /dev/null; do
         sleep 1
     done
     print_success "  MinIO is ready"
-
+    
     print_success "All Docker services are running"
 }
 
@@ -185,11 +185,11 @@ run_migrations() {
 # Build Go services (initial build before air takes over)
 build_go_services() {
     print_status "Building Go services..."
-
+    
     # Build WhatsApp worker
     (cd services/whatsapp && go build -o whatsapp-worker main.go)
     print_success "  WhatsApp worker built"
-
+    
     # Build orchestrator (create tmp dir for air)
     mkdir -p services/orchestrator/tmp
     (cd services/orchestrator && go build -o tmp/orchestrator main.go)
@@ -214,42 +214,42 @@ start_dev_servers() {
     echo ""
     print_success "Starting development servers..."
     echo ""
-
+    
     # Get absolute path for more robust directory handling
     local ROOT_DIR="$(pwd)"
-
+    
     # Start API server using subshell with cd to avoid --cwd issues
     # This is more robust when other processes run in the same directory
     print_status "  Starting API server..."
     (cd "$ROOT_DIR/apps/api" && bun run --watch src/index.ts) &
     PIDS+=($!)
     sleep 2
-
+    
     # Start Frontend using subshell for isolation
     print_status "  Starting Frontend..."
     (cd "$ROOT_DIR/apps/web" && bun run dev) &
     PIDS+=($!)
     sleep 3
-
+    
     # Start Marketing site using subshell for isolation
     print_status "  Starting Marketing site..."
     (cd "$ROOT_DIR/apps/marketing" && bun run dev) &
     PIDS+=($!)
     sleep 1
-
+    
     # Start WhatsApp worker watcher (rebuilds binary on changes)
     print_status "  Starting WhatsApp worker watcher (hot-reload)..."
     (cd services/whatsapp && air) &
     PIDS+=($!)
     sleep 1
-
+    
     # Start Orchestrator with hot-reload
     print_status "  Starting Orchestrator (hot-reload)..."
     WHATSAPP_BINARY_PATH="$(pwd)/services/whatsapp/whatsapp-worker"
     export WHATSAPP_BINARY_PATH
     (cd services/orchestrator && air) &
     PIDS+=($!)
-
+    
     echo ""
     echo -e "${GREEN}Service URLs:${NC}"
     echo -e "  Frontend:    ${BLUE}http://localhost:4444${NC}"
@@ -266,7 +266,7 @@ start_dev_servers() {
     print_success "All services started!"
     print_status "Press Ctrl+C to stop all services"
     echo ""
-
+    
     # Wait for any process to exit
     wait
 }
@@ -277,7 +277,7 @@ main() {
     echo -e "${GREEN}WhatsApp Web - Development Environment${NC}"
     echo "========================================"
     echo ""
-
+    
     check_prerequisites
     load_env
     cleanup_ports
