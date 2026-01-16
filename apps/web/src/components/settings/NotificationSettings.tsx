@@ -210,10 +210,14 @@ export function NotificationSettings() {
           {settings.quietHoursEnabled && (
             <div className="flex items-center gap-4 ml-8 mt-3">
               <div className="flex items-center gap-2">
-                <Label className="text-sm text-gray-500 dark:text-dark-text-secondary">
+                <Label
+                  htmlFor="quiet-hours-start"
+                  className="text-sm text-gray-500 dark:text-dark-text-secondary"
+                >
                   From
                 </Label>
                 <input
+                  id="quiet-hours-start"
                   type="time"
                   value={settings.quietHoursStart}
                   onChange={(e) =>
@@ -223,10 +227,14 @@ export function NotificationSettings() {
                 />
               </div>
               <div className="flex items-center gap-2">
-                <Label className="text-sm text-gray-500 dark:text-dark-text-secondary">
+                <Label
+                  htmlFor="quiet-hours-end"
+                  className="text-sm text-gray-500 dark:text-dark-text-secondary"
+                >
                   To
                 </Label>
                 <input
+                  id="quiet-hours-end"
                   type="time"
                   value={settings.quietHoursEnd}
                   onChange={(e) =>

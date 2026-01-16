@@ -138,6 +138,7 @@ export function AddContactDialog({
                 type="tel"
                 placeholder="+1234567890"
                 className="font-mono"
+                autoComplete="tel"
                 autoFocus
                 data-testid="add-contact-phone"
                 aria-invalid={errors.phoneNumber ? "true" : "false"}
@@ -172,6 +173,7 @@ export function AddContactDialog({
                 id="customName"
                 type="text"
                 placeholder="John Doe"
+                autoComplete="name"
                 data-testid="add-contact-name"
                 aria-invalid={errors.customName ? "true" : "false"}
                 aria-describedby={
@@ -197,6 +199,7 @@ export function AddContactDialog({
                 id="notes"
                 placeholder="Add notes about this contact…"
                 rows={3}
+                autoComplete="off"
                 data-testid="add-contact-notes"
                 aria-invalid={errors.notes ? "true" : "false"}
                 aria-describedby={errors.notes ? "notes-error" : "notes-hint"}
@@ -239,7 +242,7 @@ export function AddContactDialog({
                 {createContact.isPending ? (
                   <>
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Creating...
+                    Creating…
                   </>
                 ) : (
                   <>
