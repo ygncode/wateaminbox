@@ -148,3 +148,6 @@ export {
   postStatusSchema,
   type PostStatusInput,
 } from "./status.js";
+
+// Note
+export { noteContentSchema, type NoteContentInput } from "./note.js";

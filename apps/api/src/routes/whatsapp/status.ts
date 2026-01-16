@@ -3,7 +3,7 @@
  *
  * Routes for checking connection limits, sync status, and resetting stale syncs.
  */
-import { toDbDate } from "@whatsapp-web/shared";
+import { nowMs, parseDate, toDbDate } from "@whatsapp-web/shared";
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { createLogger, formatError } from "../../lib/logger.js";
@@ -68,15 +68,15 @@ statusRoutes.get(
 
       // Filter out stale syncs (older than 5 minutes) and auto-correct DB
       const STALE_THRESHOLD_MS = 5 * 60 * 1000;
-      const now = new Date().getTime();
+      const currentMs = nowMs();
       const activeConnections = [];
       const staleConnectionIds: string[] = [];
 
       for (const conn of syncingConnections) {
         const updatedAt = conn.updated_at
-          ? new Date(conn.updated_at).getTime()
+          ? parseDate(conn.updated_at).valueOf()
           : 0;
-        if (!updatedAt || now - updatedAt > STALE_THRESHOLD_MS) {
+        if (!updatedAt || currentMs - updatedAt > STALE_THRESHOLD_MS) {
           staleConnectionIds.push(conn.id);
         } else {
           activeConnections.push(conn);

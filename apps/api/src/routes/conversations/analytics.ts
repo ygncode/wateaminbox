@@ -1,4 +1,5 @@
 import { zValidator } from "@hono/zod-validator";
+import { now, parseDate, subtractDays, toISOString } from "@whatsapp-web/shared";
 import { Hono } from "hono";
 import { successData } from "../../lib/response.js";
 import { resolutionTrendQuerySchema } from "../../lib/schemas/index.js";
@@ -33,18 +34,22 @@ analyticsRoutes.get(
       c.req.valid("query");
 
     // Default to last 30 days if not specified
-    const endDate = endDateStr ? new Date(endDateStr) : new Date();
-    const startDate = startDateStr
-      ? new Date(startDateStr)
-      : new Date(endDate.getTime() - 30 * 24 * 60 * 60 * 1000);
+    const endDateDayjs = endDateStr ? parseDate(endDateStr) : now();
+    const startDateDayjs = startDateStr
+      ? parseDate(startDateStr)
+      : subtractDays(endDateDayjs, 30);
 
-    const trend = await getResolutionTrend(tenantDb, startDate, endDate);
+    const trend = await getResolutionTrend(
+      tenantDb,
+      startDateDayjs.toDate(),
+      endDateDayjs.toDate(),
+    );
 
     return successData(c, {
       trend,
       meta: {
-        startDate: startDate.toISOString(),
-        endDate: endDate.toISOString(),
+        startDate: toISOString(startDateDayjs),
+        endDate: toISOString(endDateDayjs),
       },
     });
   },

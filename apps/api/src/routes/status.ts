@@ -79,7 +79,11 @@ statusRoutes.get("/", async (c) => {
     .executeTakeFirst();
   const total = Number(countResult?.total || 0);
 
-  return successPaginated(c, contacts, createPaginationMeta(total, statuses.length, { limit, offset }));
+  return successPaginated(
+    c,
+    contacts,
+    createPaginationMeta(total, statuses.length, { limit, offset }),
+  );
 });
 
 /**

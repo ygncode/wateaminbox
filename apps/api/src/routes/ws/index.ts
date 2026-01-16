@@ -1,3 +1,4 @@
+import { toISOString } from "@whatsapp-web/shared";
 import { Hono } from "hono";
 import { createBunWebSocket } from "hono/bun";
 import { createLogger, formatError } from "../../lib/logger.js";
@@ -75,7 +76,7 @@ const wsUpgradeHandler = upgradeWebSocket((c) => {
             message:
               "Authentication required. Send auth message with token and companyId.",
           },
-          timestamp: new Date().toISOString(),
+          timestamp: toISOString(),
         });
       }
     },
