@@ -143,6 +143,7 @@ export interface SendConfirmationEvent extends WhatsAppEvent {
     pendingMessageId: string;
     messageId: string;
     timestamp: string;
+    correlationId?: string; // For end-to-end message flow tracing
   };
 }
 
@@ -234,6 +235,7 @@ export interface SendFailedEvent extends WhatsAppEvent {
   payload: {
     pendingMessageId: string;
     reason: string;
+    correlationId?: string; // For end-to-end message flow tracing
   };
 }
 

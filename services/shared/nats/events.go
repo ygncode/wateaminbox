@@ -46,11 +46,12 @@ const (
 // WhatsAppEvent is the wrapper format for all WhatsApp events published to NATS.
 // This matches the TypeScript WhatsAppEvent interface in apps/api/src/lib/nats.ts
 type WhatsAppEvent struct {
-	Type         string      `json:"type"`
-	CompanyID    string      `json:"companyId"`
-	ConnectionID string      `json:"connectionId"`
-	Payload      interface{} `json:"payload"`
-	Timestamp    string      `json:"timestamp"`
+	Type          string      `json:"type"`
+	CompanyID     string      `json:"companyId"`
+	ConnectionID  string      `json:"connectionId"`
+	Payload       interface{} `json:"payload"`
+	Timestamp     string      `json:"timestamp"`
+	CorrelationID string      `json:"correlationId,omitempty"` // For end-to-end message tracing
 }
 
 // QRPayload is the payload for QR code events.
@@ -146,6 +147,7 @@ type SendConfirmationPayload struct {
 	PendingMessageID string `json:"pendingMessageId"` // The temporary ID assigned by the API
 	MessageID        string `json:"messageId"`        // The real WhatsApp message ID
 	Timestamp        string `json:"timestamp"`
+	CorrelationID    string `json:"correlationId,omitempty"` // For tracing the original command
 }
 
 // ReactionPayload is the payload for reaction events.
@@ -167,8 +169,9 @@ type SyncStatusPayload struct {
 // SendFailedPayload is the payload for message send failure events.
 // Sent when a message fails to send after all retry attempts.
 type SendFailedPayload struct {
-	PendingMessageID string `json:"pendingMessageId"` // The temporary message ID
-	Reason           string `json:"reason"`           // Failure reason
+	PendingMessageID string `json:"pendingMessageId"`        // The temporary message ID
+	Reason           string `json:"reason"`                  // Failure reason
+	CorrelationID    string `json:"correlationId,omitempty"` // For tracing the original command
 }
 
 // ConnectionStatusPayload is the payload for worker connection status events.

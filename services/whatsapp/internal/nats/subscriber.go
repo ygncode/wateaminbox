@@ -51,6 +51,8 @@ type SendMessageCommand struct {
 	TargetMessageID string `json:"target_message_id"` // Message ID to react to (for reaction type)
 	Emoji           string `json:"emoji"`             // Emoji for reaction (for reaction type)
 	FromMe          bool   `json:"from_me"`           // Whether the target message is from us (for reaction type)
+	// Debugging/tracing
+	CorrelationID string `json:"correlation_id,omitempty"` // For end-to-end message flow tracing
 }
 
 // MessageSender is the interface for sending WhatsApp messages.
@@ -293,11 +295,20 @@ func (s *Subscriber) handleSendCommand(msg *nats.Msg) {
 
 	// MaxDeliver is set to 3 in consumer config, so NumDelivered starts at 1
 	deliveryCount := uint64(1)
+	streamSeq := uint64(0)
+	consumerSeq := uint64(0)
+	numPending := uint64(0)
 	if meta != nil {
 		deliveryCount = meta.NumDelivered
+		streamSeq = meta.Sequence.Stream
+		consumerSeq = meta.Sequence.Consumer
+		numPending = meta.NumPending
 	}
 
-	log.Printf("Processing send command: type=%s, to=%s, delivery=%d/3", cmd.Type, cmd.To, deliveryCount)
+	// Enhanced logging with correlation ID and metadata
+	correlationID := cmd.CorrelationID
+	log.Printf("[NATS] Processing command: type=%s to=%s msg_id=%s corr_id=%s delivery=%d/3 stream_seq=%d consumer_seq=%d pending=%d",
+		cmd.Type, cmd.To, cmd.MessageID, correlationID, deliveryCount, streamSeq, consumerSeq, numPending)
 
 	var resp types.SendResponse
 	ctx, cancel := context.WithTimeout(s.ctx, 30*time.Second)
@@ -311,23 +322,23 @@ func (s *Subscriber) handleSendCommand(msg *nats.Msg) {
 	case "reaction":
 		resp, err = s.sender.SendReaction(ctx, cmd.To, cmd.TargetMessageID, cmd.Emoji, cmd.FromMe)
 	default:
-		log.Printf("Unknown message type: %s", cmd.Type)
+		log.Printf("[NATS] Unknown message type: %s (corr_id=%s)", cmd.Type, correlationID)
 		msg.Nak()
 		return
 	}
 
 	if err != nil {
-		log.Printf("Failed to send message (attempt %d/3): %v", deliveryCount, err)
+		log.Printf("[NATS] Send failed: msg_id=%s corr_id=%s attempt=%d/3 error=%v", cmd.MessageID, correlationID, deliveryCount, err)
 
 		// Check if this is the final retry attempt
 		if deliveryCount >= 3 {
-			log.Printf("Message %s exceeded max delivery attempts, marking as failed", cmd.MessageID)
+			log.Printf("[NATS] Max retries exceeded: msg_id=%s corr_id=%s - marking as failed", cmd.MessageID, correlationID)
 			// Publish failure event
 			if s.publisher != nil {
-				if pubErr := s.publisher.PublishSendFailed(cmd.MessageID, err.Error()); pubErr != nil {
-					log.Printf("Failed to publish send_failed event: %v", pubErr)
+				if pubErr := s.publisher.PublishSendFailed(cmd.MessageID, err.Error(), correlationID); pubErr != nil {
+					log.Printf("[NATS] Failed to publish send_failed: msg_id=%s corr_id=%s error=%v", cmd.MessageID, correlationID, pubErr)
 				} else {
-					log.Printf("Published send_failed for message: %s", cmd.MessageID)
+					log.Printf("[NATS] Published send_failed: msg_id=%s corr_id=%s", cmd.MessageID, correlationID)
 				}
 			}
 			// Acknowledge to stop redelivery
@@ -336,21 +347,22 @@ func (s *Subscriber) handleSendCommand(msg *nats.Msg) {
 		}
 
 		// Still have retries left, NAK to trigger redelivery
+		log.Printf("[NATS] Scheduling retry: msg_id=%s corr_id=%s next_attempt=%d/3", cmd.MessageID, correlationID, deliveryCount+1)
 		msg.Nak()
 		return
 	}
 
 	// Publish send confirmation event with the real WhatsApp message ID
 	if s.publisher != nil {
-		if err := s.publisher.PublishSendConfirmation(cmd.MessageID, resp.ID, resp.Timestamp); err != nil {
-			log.Printf("Failed to publish send confirmation: %v", err)
+		if err := s.publisher.PublishSendConfirmation(cmd.MessageID, resp.ID, resp.Timestamp, correlationID); err != nil {
+			log.Printf("[NATS] Failed to publish confirmation: msg_id=%s corr_id=%s error=%v", cmd.MessageID, correlationID, err)
 			// Don't Nak - the message was sent successfully, we just failed to notify
 		} else {
-			log.Printf("Published send confirmation: %s -> %s", cmd.MessageID, resp.ID)
+			log.Printf("[NATS] Published confirmation: pending_id=%s -> real_id=%s corr_id=%s", cmd.MessageID, resp.ID, correlationID)
 		}
 	}
 
-	log.Printf("Successfully sent message to %s", cmd.To)
+	log.Printf("[NATS] Send success: msg_id=%s corr_id=%s to=%s real_id=%s", cmd.MessageID, correlationID, cmd.To, resp.ID)
 	msg.Ack()
 }
 

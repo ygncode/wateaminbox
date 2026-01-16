@@ -19,6 +19,7 @@ import { quickReplyRoutes } from "./quick-replies.js";
 import { labelRoutes } from "./labels.js";
 import { catalogRoutes } from "./catalogs.js";
 import { mediaRoutes } from "./media.js";
+import { debugRoutes } from "./debug.js";
 
 export const routes = new Hono();
 
@@ -79,6 +80,9 @@ routes.route("/catalogs", catalogRoutes);
 
 // Media upload routes
 routes.route("/media", mediaRoutes);
+
+// Debug routes (development only)
+routes.route("/debug", debugRoutes);
 
 // WebSocket routes
 routes.route("/ws", wsRoutes);

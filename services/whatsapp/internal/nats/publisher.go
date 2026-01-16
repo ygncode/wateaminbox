@@ -338,15 +338,17 @@ func (p *Publisher) PublishMessageRevoke(messageID, from, to string, timestamp t
 
 // PublishSendConfirmation publishes a send confirmation event.
 // This maps a pending message ID to the real WhatsApp message ID.
-func (p *Publisher) PublishSendConfirmation(pendingMessageID, messageID string, timestamp time.Time) error {
+func (p *Publisher) PublishSendConfirmation(pendingMessageID, messageID string, timestamp time.Time, correlationID string) error {
 	event := WhatsAppEvent{
-		Type:         "send_confirmation",
-		CompanyID:    p.companyID,
-		ConnectionID: p.connectionID,
+		Type:          "send_confirmation",
+		CompanyID:     p.companyID,
+		ConnectionID:  p.connectionID,
+		CorrelationID: correlationID,
 		Payload: SendConfirmationPayload{
 			PendingMessageID: pendingMessageID,
 			MessageID:        messageID,
 			Timestamp:        timestamp.Format(time.RFC3339),
+			CorrelationID:    correlationID,
 		},
 		Timestamp: time.Now().Format(time.RFC3339),
 	}
@@ -357,14 +359,16 @@ func (p *Publisher) PublishSendConfirmation(pendingMessageID, messageID string, 
 
 // PublishSendFailed publishes a send failure event.
 // This is called when a message fails to send after all retry attempts.
-func (p *Publisher) PublishSendFailed(pendingMessageID, reason string) error {
+func (p *Publisher) PublishSendFailed(pendingMessageID, reason string, correlationID string) error {
 	event := WhatsAppEvent{
-		Type:         sharednats.EventTypeSendFailed,
-		CompanyID:    p.companyID,
-		ConnectionID: p.connectionID,
+		Type:          sharednats.EventTypeSendFailed,
+		CompanyID:     p.companyID,
+		ConnectionID:  p.connectionID,
+		CorrelationID: correlationID,
 		Payload: SendFailedPayload{
 			PendingMessageID: pendingMessageID,
 			Reason:           reason,
+			CorrelationID:    correlationID,
 		},
 		Timestamp: time.Now().Format(time.RFC3339),
 	}

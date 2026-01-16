@@ -67,6 +67,7 @@ export interface WhatsAppEvent {
     | "message"
     | "receipt"
     | "send_confirmation"
+    | "send_failed"
     | "status"
     | "contact"
     | "labels"
@@ -78,9 +79,12 @@ export interface WhatsAppEvent {
     | "typing"
     | "reaction"
     | "sync_status"
+    | "download_response"
+    | "connection_status"
     | "error";
   companyId: string;
   connectionId: string;
   payload: unknown;
   timestamp: string;
+  correlationId?: string; // For end-to-end message flow tracing
 }

@@ -20,7 +20,7 @@ services:
   nats:
     image: nats:2.10-alpine
     container_name: whatsapp-web-nats
-    command: ["--jetstream", "--store_dir", "/data"]
+    command: ["--jetstream", "--store_dir", "/data", "-m", "8222"]
     ports:
       - "4448:4222"
       - "8222:8222"
@@ -80,6 +80,17 @@ services:
       mc anonymous set download local/whatsapp-media;
       exit 0;
       "
+
+  # NATS debugging tools
+  nats-box:
+    image: natsio/nats-box:latest
+    container_name: whatsapp-web-nats-box
+    command: ["tail", "-f", "/dev/null"]
+    depends_on:
+      nats:
+        condition: service_healthy
+    profiles:
+      - debug
 
 volumes:
   postgres_data:

@@ -25,6 +25,16 @@ import { forConnection } from "./command-builder.js";
 
 const logger = createLogger("NATS");
 
+/**
+ * Generates a correlation ID for end-to-end message flow tracing
+ * Format: timestamp-randomHex (e.g., "1705520000000-a1b2c3d4")
+ */
+function generateCorrelationId(): string {
+  const timestamp = Date.now();
+  const random = Math.random().toString(16).substring(2, 10);
+  return `${timestamp}-${random}`;
+}
+
 // Singleton NATS client
 let natsConnection: NatsConnection | null = null;
 let jetStreamClient: JetStreamClient | null = null;
@@ -280,6 +290,9 @@ export async function publishSendMessage(
     }
   }
 
+  // Generate correlation ID for end-to-end tracing
+  const correlationId = generateCorrelationId();
+
   // Format command to match Go worker's SendMessageCommand struct
   const sendCommand = {
     message_id: pendingMessageId,
@@ -294,6 +307,7 @@ export async function publishSendMessage(
     user_id: userId,
     reply_to: replyTo,
     reply_to_sender: replyToSender,
+    correlation_id: correlationId,
   };
 
   // Publish directly to JetStream (not through publishCommand which adds NatsCommand envelope)
@@ -309,6 +323,8 @@ export async function publishSendMessage(
       mediaBytes: mediaData ? mediaData.length : 0,
       replyTo: replyTo || null,
       replyToSender: replyToSender || null,
+      correlationId,
+      pendingMessageId,
     },
     "Published send message",
   );
