@@ -142,3 +142,9 @@ export {
   type ResolveConversationInput,
   type ResolutionTrendQuery,
 } from "./conversation.js";
+
+// Status
+export {
+  postStatusSchema,
+  type PostStatusInput,
+} from "./status.js";

@@ -1,3 +1,13 @@
+/**
+ * Health Check Routes
+ *
+ * These endpoints use raw `c.json()` responses intentionally.
+ * They are infrastructure endpoints designed for Kubernetes/Docker health probes,
+ * not API endpoints. Monitoring tools expect specific simple JSON formats.
+ *
+ * Do NOT refactor these to use response helpers like `successData()`.
+ */
+import { toISOString } from "@whatsapp-web/shared";
 import { Hono } from "hono";
 import { getMessageCleanupStatus } from "../services/message-cleanup.service.js";
 import {
@@ -8,10 +18,14 @@ import {
 
 export const healthRoutes = new Hono();
 
+/**
+ * GET /health - Overall system health
+ * Used by orchestrators to check if the service is functioning
+ */
 healthRoutes.get("/", (c) => {
   return c.json({
     status: "ok",
-    timestamp: new Date().toISOString(),
+    timestamp: toISOString(),
     services: {
       messageCleanup: getMessageCleanupStatus(),
       websocket: {
@@ -22,25 +36,36 @@ healthRoutes.get("/", (c) => {
   });
 });
 
+/**
+ * GET /health/ready - Readiness probe
+ * Kubernetes uses this to determine if the pod is ready to receive traffic
+ */
 healthRoutes.get("/ready", (c) => {
   // Add readiness checks here (e.g., database connection)
   return c.json({
     status: "ready",
-    timestamp: new Date().toISOString(),
+    timestamp: toISOString(),
   });
 });
 
+/**
+ * GET /health/live - Liveness probe
+ * Kubernetes uses this to determine if the pod should be restarted
+ */
 healthRoutes.get("/live", (c) => {
   return c.json({
     status: "live",
-    timestamp: new Date().toISOString(),
+    timestamp: toISOString(),
   });
 });
 
-// Detailed WebSocket metrics endpoint
+/**
+ * GET /health/ws-metrics - Detailed WebSocket metrics
+ * Used for monitoring and debugging WebSocket connections
+ */
 healthRoutes.get("/ws-metrics", (c) => {
   return c.json({
-    timestamp: new Date().toISOString(),
+    timestamp: toISOString(),
     ...getConnectionMetrics(),
   });
 });

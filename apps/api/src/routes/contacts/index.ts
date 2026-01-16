@@ -22,6 +22,7 @@ import {
 } from "@whatsapp-web/shared";
 import { authMiddleware } from "../../middleware/auth.js";
 import { notFound, badRequest, serverError } from "../../lib/errors.js";
+import { successData, successPaginated, created } from "../../lib/response.js";
 import { createPaginationMeta } from "../../lib/route-helpers.js";
 import {
   transformContacts,
@@ -87,13 +88,14 @@ contactRoutes.get(
 
     // Type assertion needed because ContactWithLastMessage has slightly looser types than RawContactFromDb
     // (e.g., jid can be null in the service but the transformer expects it to be string)
-    return c.json({
-      data: transformContacts(contacts as unknown as RawContactFromDb[]),
-      pagination: createPaginationMeta(total, contacts.length, {
+    return successPaginated(
+      c,
+      transformContacts(contacts as unknown as RawContactFromDb[]),
+      createPaginationMeta(total, contacts.length, {
         limit: query.limit,
         offset: query.offset,
       }),
-    });
+    );
   },
 );
 
@@ -192,7 +194,7 @@ contactRoutes.get("/:id", async (c) => {
     .where("contact_tags.contact_id", "=", contactId)
     .execute();
 
-  return c.json({
+  return successData(c, {
     id: contact.id,
     jid: contact.jid,
     phoneNumber: contact.phone_number || extractPhoneFromJid(contact.jid),
@@ -275,20 +277,17 @@ contactRoutes.post("/", zValidator("json", createContactSchema), async (c) => {
     return serverError(c, "Failed to create contact");
   }
 
-  return c.json(
-    {
-      id: newContact.id,
-      jid: newContact.jid,
-      phoneNumber: newContact.phone_number,
-      customName: newContact.custom_name,
-      displayName: getContactDisplayName(newContact),
-      notesShared: newContact.notes_shared,
-      isGroup: newContact.is_group,
-      createdAt: newContact.created_at,
-      updatedAt: newContact.updated_at,
-    },
-    201,
-  );
+  return created(c, {
+    id: newContact.id,
+    jid: newContact.jid,
+    phoneNumber: newContact.phone_number,
+    customName: newContact.custom_name,
+    displayName: getContactDisplayName(newContact),
+    notesShared: newContact.notes_shared,
+    isGroup: newContact.is_group,
+    createdAt: newContact.created_at,
+    updatedAt: newContact.updated_at,
+  });
 });
 
 /**
@@ -430,7 +429,7 @@ contactRoutes.patch(
       }
     }
 
-    return c.json({
+    return successData(c, {
       id: updated.id,
       customName: updated.custom_name,
       notesShared: updated.notes_shared,

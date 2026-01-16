@@ -798,6 +798,30 @@ return successData(c, user);
 return successMessage(c, "OK");
 ```
 
+### Intentional Exceptions
+
+Some routes use raw `c.json()` intentionally for backward compatibility or specific requirements:
+
+1. **Health endpoints** (`/routes/health.ts`): Infrastructure endpoints for Kubernetes/Docker probes. Use simple JSON format expected by monitoring tools.
+
+2. **WhatsApp routes** (`/routes/whatsapp/*`): Use `{ success: true, data }` pattern for backward compatibility with frontend WebSocket handlers. This is documented technical debt.
+
+3. **Search endpoints** (`/routes/search.ts`): Include `query` field at top level for debugging. Format: `{ query, data, pagination }`.
+
+4. **Export endpoints** (`/routes/export.ts`): Use custom pagination format (`count` instead of `total`) for export consumers.
+
+### WhatsApp Routes Technical Debt
+
+The following routes use `{ success: true, data }` pattern instead of standard response helpers:
+
+- `routes/whatsapp/connections.ts`
+- `routes/whatsapp/legacy.ts`
+- `routes/whatsapp/status.ts`
+
+**Reason:** Backward compatibility with frontend WebSocket handlers and existing integrations.
+
+**Fix required:** Coordinate with frontend team to update response parsing before migrating these routes. This should be done as a separate task with proper testing.
+
 ## Backend Validation Schemas
 
 Validation schemas are centralized in `apps/api/src/lib/schemas/`. Use Zod with `@hono/zod-validator` for request validation.
