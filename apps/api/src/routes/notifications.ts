@@ -6,6 +6,7 @@ import { getRouteContext } from "../middleware/context.js";
 import * as notificationPreferencesService from "../services/notification-preferences.service.js";
 import * as notificationHistoryService from "../services/notification-history.service.js";
 import { isTableNotFoundError, notFound } from "../lib/errors.js";
+import { successData, created } from "../lib/response.js";
 import {
   updatePreferencesSchema,
   muteContactSchema,
@@ -31,18 +32,16 @@ notificationRoutes.get("/preferences", async (c) => {
       user.id,
     );
 
-  return c.json({
-    data: {
-      id: preferences.id,
-      userId: preferences.userId,
-      soundEnabled: preferences.soundEnabled,
-      soundChoice: preferences.soundChoice,
-      quietHoursStart: preferences.quietHoursStart,
-      quietHoursEnd: preferences.quietHoursEnd,
-      mutedContacts: preferences.mutedContacts,
-      createdAt: preferences.createdAt,
-      updatedAt: preferences.updatedAt,
-    },
+  return successData(c, {
+    id: preferences.id,
+    userId: preferences.userId,
+    soundEnabled: preferences.soundEnabled,
+    soundChoice: preferences.soundChoice,
+    quietHoursStart: preferences.quietHoursStart,
+    quietHoursEnd: preferences.quietHoursEnd,
+    mutedContacts: preferences.mutedContacts,
+    createdAt: preferences.createdAt,
+    updatedAt: preferences.updatedAt,
   });
 });
 
@@ -63,18 +62,16 @@ notificationRoutes.patch(
         input,
       );
 
-    return c.json({
-      data: {
-        id: preferences.id,
-        userId: preferences.userId,
-        soundEnabled: preferences.soundEnabled,
-        soundChoice: preferences.soundChoice,
-        quietHoursStart: preferences.quietHoursStart,
-        quietHoursEnd: preferences.quietHoursEnd,
-        mutedContacts: preferences.mutedContacts,
-        createdAt: preferences.createdAt,
-        updatedAt: preferences.updatedAt,
-      },
+    return successData(c, {
+      id: preferences.id,
+      userId: preferences.userId,
+      soundEnabled: preferences.soundEnabled,
+      soundChoice: preferences.soundChoice,
+      quietHoursStart: preferences.quietHoursStart,
+      quietHoursEnd: preferences.quietHoursEnd,
+      mutedContacts: preferences.mutedContacts,
+      createdAt: preferences.createdAt,
+      updatedAt: preferences.updatedAt,
     });
   },
 );
@@ -95,10 +92,8 @@ notificationRoutes.post(
       contactJid,
     );
 
-    return c.json({
-      data: {
-        mutedContacts: preferences.mutedContacts,
-      },
+    return successData(c, {
+      mutedContacts: preferences.mutedContacts,
     });
   },
 );
@@ -119,10 +114,8 @@ notificationRoutes.post(
       contactJid,
     );
 
-    return c.json({
-      data: {
-        mutedContacts: preferences.mutedContacts,
-      },
+    return successData(c, {
+      mutedContacts: preferences.mutedContacts,
     });
   },
 );
@@ -191,19 +184,11 @@ notificationRoutes.get("/count", async (c) => {
       user.id,
     );
 
-    return c.json({
-      data: {
-        unreadCount,
-      },
-    });
+    return successData(c, { unreadCount });
   } catch (error) {
     // Handle missing table gracefully - return zero count
     if (isTableNotFoundError(error)) {
-      return c.json({
-        data: {
-          unreadCount: 0,
-        },
-      });
+      return successData(c, { unreadCount: 0 });
     }
     throw error;
   }
@@ -226,9 +211,7 @@ notificationRoutes.get("/:id", async (c) => {
     return notFound(c, "Notification");
   }
 
-  return c.json({
-    data: notification,
-  });
+  return successData(c, notification);
 });
 
 /**
@@ -249,12 +232,7 @@ notificationRoutes.post(
       },
     );
 
-    return c.json(
-      {
-        data: notification,
-      },
-      201,
-    );
+    return created(c, notification);
   },
 );
 
@@ -275,9 +253,7 @@ notificationRoutes.patch("/:id/read", async (c) => {
     return notFound(c, "Notification");
   }
 
-  return c.json({
-    data: notification,
-  });
+  return successData(c, notification);
 });
 
 /**
@@ -291,11 +267,7 @@ notificationRoutes.post("/read-all", async (c) => {
     user.id,
   );
 
-  return c.json({
-    data: {
-      markedAsRead: count,
-    },
-  });
+  return successData(c, { markedAsRead: count });
 });
 
 /**
@@ -315,9 +287,5 @@ notificationRoutes.delete("/:id", async (c) => {
     return notFound(c, "Notification");
   }
 
-  return c.json({
-    data: {
-      deleted: true,
-    },
-  });
+  return successData(c, { deleted: true });
 });

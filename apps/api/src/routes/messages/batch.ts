@@ -6,6 +6,7 @@
 import { toDbDate } from "@whatsapp-web/shared";
 import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
+import { successData } from "../../lib/response.js";
 import { batchStarSchema, batchDeleteSchema } from "../../lib/schemas/index.js";
 import { getRouteContext } from "../../middleware/context.js";
 
@@ -27,8 +28,7 @@ batchRoutes.post("/star", zValidator("json", batchStarSchema), async (c) => {
     .where("id", "in", body.messageIds)
     .execute();
 
-  return c.json({
-    success: true,
+  return successData(c, {
     updated: Number(result[0]?.numUpdatedRows || 0),
     isStarred: body.star,
   });
@@ -54,8 +54,7 @@ batchRoutes.post(
       .where("deleted_at", "is", null) // Don't re-delete already deleted messages
       .execute();
 
-    return c.json({
-      success: true,
+    return successData(c, {
       deleted: Number(result[0]?.numUpdatedRows || 0),
     });
   },

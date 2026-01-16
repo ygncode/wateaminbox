@@ -1,6 +1,13 @@
+import { now, toDbDate, toISOString } from "@whatsapp-web/shared";
 import { Hono } from "hono";
-import { badRequest, forbidden, notFound } from "../lib/errors.js";
-import { successMessage } from "../lib/response.js";
+import { zValidator } from "@hono/zod-validator";
+import { forbidden, notFound } from "../lib/errors.js";
+import {
+  successData,
+  successPaginated,
+  successMessage,
+  created,
+} from "../lib/response.js";
 import { authMiddleware } from "../middleware/auth.js";
 import { tenantMiddleware } from "../middleware/tenant.js";
 import { getRouteContext } from "../middleware/context.js";
@@ -8,6 +15,7 @@ import {
   extractPaginationParams,
   createPaginationMeta,
 } from "../lib/route-helpers.js";
+import { postStatusSchema } from "../lib/schemas/index.js";
 import { publishPostStatus, type StatusType } from "../lib/nats/index.js";
 import { getActiveWhatsAppConnection } from "../services/whatsapp-connection.service.js";
 
@@ -25,13 +33,13 @@ statusRoutes.get("/", async (c) => {
   const { tenantDb } = getRouteContext(c);
   const { limit, offset } = extractPaginationParams(c);
 
-  const now = new Date();
+  const currentTime = toDbDate();
 
   // Get non-expired status updates
   const statuses = await tenantDb
     .selectFrom("status_updates")
     .selectAll()
-    .where("expires_at", ">", now)
+    .where("expires_at", ">", currentTime)
     .orderBy("timestamp", "desc")
     .limit(limit)
     .offset(offset)
@@ -67,14 +75,11 @@ statusRoutes.get("/", async (c) => {
   const countResult = await tenantDb
     .selectFrom("status_updates")
     .select((eb) => eb.fn.countAll().as("total"))
-    .where("expires_at", ">", now)
+    .where("expires_at", ">", currentTime)
     .executeTakeFirst();
   const total = Number(countResult?.total || 0);
 
-  return c.json({
-    data: contacts,
-    pagination: createPaginationMeta(total, statuses.length, { limit, offset }),
-  });
+  return successPaginated(c, contacts, createPaginationMeta(total, statuses.length, { limit, offset }));
 });
 
 /**
@@ -83,13 +88,13 @@ statusRoutes.get("/", async (c) => {
 statusRoutes.get("/:jid", async (c) => {
   const { tenantDb } = getRouteContext(c);
   const jid = c.req.param("jid");
-  const now = new Date();
+  const currentTime = toDbDate();
 
   const statuses = await tenantDb
     .selectFrom("status_updates")
     .selectAll()
     .where("from_jid", "=", jid)
-    .where("expires_at", ">", now)
+    .where("expires_at", ">", currentTime)
     .orderBy("timestamp", "asc")
     .execute();
 
@@ -97,7 +102,7 @@ statusRoutes.get("/:jid", async (c) => {
     return notFound(c, "Status updates");
   }
 
-  return c.json({
+  return successData(c, {
     jid,
     statuses: statuses.map((s) => ({
       id: s.id,
@@ -116,20 +121,20 @@ statusRoutes.get("/:jid", async (c) => {
  */
 statusRoutes.get("/stats/overview", async (c) => {
   const { tenantDb } = getRouteContext(c);
-  const now = new Date();
+  const currentTime = toDbDate();
 
   // Get active status count
   const activeResult = await tenantDb
     .selectFrom("status_updates")
     .select((eb) => eb.fn.countAll().as("count"))
-    .where("expires_at", ">", now)
+    .where("expires_at", ">", currentTime)
     .executeTakeFirst();
 
   // Get unique contacts with status
   const contactsResult = await tenantDb
     .selectFrom("status_updates")
     .select((eb) => eb.fn.count("from_jid").distinct().as("count"))
-    .where("expires_at", ">", now)
+    .where("expires_at", ">", currentTime)
     .executeTakeFirst();
 
   // Get total status ever received
@@ -138,7 +143,7 @@ statusRoutes.get("/stats/overview", async (c) => {
     .select((eb) => eb.fn.countAll().as("count"))
     .executeTakeFirst();
 
-  return c.json({
+  return successData(c, {
     activeStatuses: Number(activeResult?.count || 0),
     contactsWithStatus: Number(contactsResult?.count || 0),
     totalStatusesReceived: Number(totalResult?.count || 0),
@@ -149,33 +154,9 @@ statusRoutes.get("/stats/overview", async (c) => {
  * POST /status - Post a new status update
  * Body: { type: "text" | "image" | "video", content?: string, mediaUrl?: string }
  */
-statusRoutes.post("/", async (c) => {
+statusRoutes.post("/", zValidator("json", postStatusSchema), async (c) => {
   const { tenantDb, user, companyId } = getRouteContext(c);
-  const body = await c.req.json();
-
-  const { type, content, mediaUrl } = body as {
-    type: StatusType;
-    content?: string;
-    mediaUrl?: string;
-  };
-
-  // Validate status type
-  if (!type || !["text", "image", "video"].includes(type)) {
-    return badRequest(
-      c,
-      "type is required and must be 'text', 'image', or 'video'",
-    );
-  }
-
-  // Validate content for text status
-  if (type === "text" && !content) {
-    return badRequest(c, "content is required for text status");
-  }
-
-  // Validate mediaUrl for image/video status
-  if ((type === "image" || type === "video") && !mediaUrl) {
-    return badRequest(c, "mediaUrl is required for image/video status");
-  }
+  const { type, content, mediaUrl } = c.req.valid("json");
 
   // Get the WhatsApp connection to verify it's active (throws ServiceUnavailableError if not)
   const connection = await getActiveWhatsAppConnection(tenantDb);
@@ -189,8 +170,8 @@ statusRoutes.post("/", async (c) => {
 
   // Create status record with pending state
   const statusId = crypto.randomUUID();
-  const now = new Date();
-  const expiresAt = new Date(now.getTime() + 24 * 60 * 60 * 1000); // 24 hours
+  const currentTime = now();
+  const expiresAt = currentTime.add(24, "hour");
 
   await tenantDb
     .insertInto("status_updates")
@@ -202,8 +183,8 @@ statusRoutes.post("/", async (c) => {
       media_type: type === "text" ? null : type,
       media_url: mediaUrl || null,
       caption: content || null,
-      timestamp: now,
-      expires_at: expiresAt,
+      timestamp: currentTime.toDate(),
+      expires_at: expiresAt.toDate(),
     })
     .execute();
 
@@ -211,22 +192,19 @@ statusRoutes.post("/", async (c) => {
   await publishPostStatus(
     companyId,
     connection.id,
-    type,
+    type as StatusType,
     user.id,
     content,
     mediaUrl,
   );
 
-  return c.json({
-    success: true,
-    status: {
-      id: statusId,
-      type,
-      content: content || null,
-      mediaUrl: mediaUrl || null,
-      timestamp: now.toISOString(),
-      expiresAt: expiresAt.toISOString(),
-    },
+  return created(c, {
+    id: statusId,
+    type,
+    content: content || null,
+    mediaUrl: mediaUrl || null,
+    timestamp: toISOString(currentTime),
+    expiresAt: toISOString(expiresAt),
   });
 });
 
@@ -278,7 +256,7 @@ statusRoutes.delete("/:id", async (c) => {
  */
 statusRoutes.get("/my", async (c) => {
   const { tenantDb } = getRouteContext(c);
-  const now = new Date();
+  const currentTime = toDbDate();
 
   // Get connected JID
   const connection = await tenantDb
@@ -288,7 +266,7 @@ statusRoutes.get("/my", async (c) => {
     .executeTakeFirst();
 
   if (!connection?.jid) {
-    return c.json({ data: [], count: 0 });
+    return successData(c, { statuses: [], count: 0 });
   }
 
   // Get my active statuses
@@ -298,12 +276,12 @@ statusRoutes.get("/my", async (c) => {
     .where((eb) =>
       eb.or([eb("from_jid", "=", connection.jid!), eb("from_jid", "=", "me")]),
     )
-    .where("expires_at", ">", now)
+    .where("expires_at", ">", currentTime)
     .orderBy("timestamp", "desc")
     .execute();
 
-  return c.json({
-    data: myStatuses.map((s) => ({
+  return successData(c, {
+    statuses: myStatuses.map((s) => ({
       id: s.id,
       statusId: s.status_id,
       mediaType: s.media_type,

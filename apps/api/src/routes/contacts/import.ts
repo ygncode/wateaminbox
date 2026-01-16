@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { badRequest } from "../../lib/errors.js";
+import { successData, created } from "../../lib/response.js";
 import { rateLimitConfig, rateLimitStore } from "../../lib/rate-limit-store.js";
 import { getRouteContext } from "../../middleware/context.js";
 import { createConditionalRateLimiter } from "../../middleware/rate-limit.js";
@@ -101,12 +102,7 @@ importRoutes.post("/import", importRateLimiter, async (c) => {
     .filter((row): row is NonNullable<typeof row> => row !== null);
 
   if (contactRows.length === 0) {
-    return c.json(
-      {
-        error: "No valid contacts found. Ensure CSV has a phone_number column.",
-      },
-      400,
-    );
+    return badRequest(c, "No valid contacts found. Ensure CSV has a phone_number column.");
   }
 
   // Import contacts
@@ -115,8 +111,7 @@ importRoutes.post("/import", importRateLimiter, async (c) => {
     createTags,
   });
 
-  return c.json({
-    success: true,
+  return created(c, {
     summary: {
       total: summary.total,
       created: summary.created,
@@ -240,7 +235,7 @@ importRoutes.post("/import/preview", importRateLimiter, async (c) => {
   const existingCount = preview.filter((p) => p.exists).length;
   const newCount = preview.filter((p) => !p.exists).length;
 
-  return c.json({
+  return successData(c, {
     total: preview.length,
     existingCount,
     newCount,

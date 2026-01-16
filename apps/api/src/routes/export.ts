@@ -3,6 +3,7 @@ import { Hono } from "hono";
 import { notFound, serverError } from "../lib/errors.js";
 import { createLogger, formatError } from "../lib/logger.js";
 import { rateLimitConfig, rateLimitStore } from "../lib/rate-limit-store.js";
+import { successData } from "../lib/response.js";
 import { extractPaginationParams } from "../lib/route-helpers.js";
 import { authMiddleware } from "../middleware/auth.js";
 import { getRouteContext } from "../middleware/context.js";
@@ -51,7 +52,7 @@ exportRoutes.get("/contacts", exportRateLimiter, async (c) => {
   });
 
   if (format === "json") {
-    return c.json({ data: contacts });
+    return successData(c, contacts);
   }
 
   // CSV format
@@ -93,6 +94,8 @@ exportRoutes.get("/messages", exportRateLimiter, async (c) => {
   });
 
   if (format === "json") {
+    // Export uses a custom pagination format (count instead of total, no hasMore)
+    // This is intentional for backward compatibility with export consumers
     return c.json({
       data: messages,
       pagination: {
@@ -138,7 +141,7 @@ exportRoutes.get("/conversation/:contactId", exportRateLimiter, async (c) => {
     );
 
     if (format === "json") {
-      return c.json({ data: conversation });
+      return successData(c, conversation);
     }
 
     // CSV format - just the messages
@@ -236,6 +239,7 @@ exportRoutes.post("/bulk", exportRateLimiter, async (c) => {
   }
 
   if (format === "json") {
+    // Export uses a custom pagination format for backward compatibility
     return c.json({
       data,
       pagination:

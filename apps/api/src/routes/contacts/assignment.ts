@@ -13,7 +13,7 @@ import { createAuditLog, getClientIp } from "../../services/audit.service.js";
 import { getUserNames } from "../../services/user.service.js";
 import { broadcastToCompany } from "../ws/index.js";
 import { notFound, forbidden } from "../../lib/errors.js";
-import { successMessage } from "../../lib/response.js";
+import { successData, successMessage, created } from "../../lib/response.js";
 
 export const assignmentRoutes = new Hono();
 
@@ -153,8 +153,7 @@ assignmentRoutes.post("/:id/assign", async (c) => {
     });
   }
 
-  return c.json({
-    success: true,
+  return created(c, {
     assignment: {
       id: assignment?.id,
       assignedTo: assignment?.assigned_to,
@@ -224,18 +223,16 @@ assignmentRoutes.get("/:id/assignments", async (c) => {
   const userIds = assignments.flatMap((a) => [a.assigned_to, a.assigned_by]);
   const userNames = await getUserNames(userIds);
 
-  return c.json({
-    data: assignments.map((assignment) => ({
-      id: assignment.id,
-      assignedTo: assignment.assigned_to,
-      assignedToName:
-        userNames.get(assignment.assigned_to) || assignment.assigned_to,
-      assignedBy: assignment.assigned_by,
-      assignedByName:
-        userNames.get(assignment.assigned_by) || assignment.assigned_by,
-      assignedAt: assignment.assigned_at,
-      unassignedAt: assignment.unassigned_at,
-      isActive: assignment.unassigned_at === null,
-    })),
-  });
+  return successData(c, assignments.map((assignment) => ({
+    id: assignment.id,
+    assignedTo: assignment.assigned_to,
+    assignedToName:
+      userNames.get(assignment.assigned_to) || assignment.assigned_to,
+    assignedBy: assignment.assigned_by,
+    assignedByName:
+      userNames.get(assignment.assigned_by) || assignment.assigned_by,
+    assignedAt: assignment.assigned_at,
+    unassignedAt: assignment.unassigned_at,
+    isActive: assignment.unassigned_at === null,
+  })));
 });

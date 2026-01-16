@@ -103,7 +103,9 @@ searchRoutes.get("/messages", searchRateLimiter, async (c) => {
     options,
   );
 
-  // Custom response includes query for search context
+  // Search endpoints use a custom response format that includes `query` at top level
+  // for debugging and UI display. This is intentional and differs from standard
+  // successPaginated which only has { data, pagination }.
   return c.json({
     query: query.trim(),
     data: results,
@@ -136,6 +138,8 @@ searchRoutes.get("/contacts", searchRateLimiter, async (c) => {
     },
   );
 
+  // Search endpoints use a custom response format that includes `query` at top level
+  // for debugging and UI display. See /search/messages for details.
   return c.json({
     query: query.trim(),
     data: results,
