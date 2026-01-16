@@ -7,6 +7,7 @@ set -e
 #
 # USAGE:
 #   ./dev-start.sh                    # Run in foreground (logs to terminal)
+#   ./dev-start.sh --skip-docker      # Run without starting Docker services
 #   ./dev-start.sh &                  # Run in background
 #   ./dev-start.sh > dev-server.log 2>&1 &   # Run in background with logs to file
 #
@@ -25,6 +26,17 @@ set -e
 #           New workers spawned by orchestrator will use the updated binary.
 #
 # =============================================================================
+
+# Parse arguments
+SKIP_DOCKER=false
+for arg in "$@"; do
+    case $arg in
+        --skip-docker)
+            SKIP_DOCKER=true
+            shift
+            ;;
+    esac
+done
 
 # Colors for output
 RED='\033[0;31m'
@@ -281,7 +293,11 @@ main() {
     check_prerequisites
     load_env
     cleanup_ports
-    start_docker_services
+    if [ "$SKIP_DOCKER" = false ]; then
+        start_docker_services
+    else
+        print_status "Skipping Docker services (--skip-docker flag)"
+    fi
     install_dependencies
     run_migrations
     build_go_services
