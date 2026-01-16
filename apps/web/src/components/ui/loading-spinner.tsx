@@ -5,6 +5,12 @@ export interface LoadingSpinnerProps {
   size?: "xs" | "sm" | "md" | "lg";
   /** Additional CSS class names */
   className?: string;
+  /**
+   * Accessible label for the spinner.
+   * When provided, adds role="status" and aria-label.
+   * When not provided, the spinner is decorative (aria-hidden="true").
+   */
+  label?: string;
 }
 
 const sizeClasses = {
@@ -34,7 +40,13 @@ const sizeClasses = {
 export function LoadingSpinner({
   size = "md",
   className,
+  label,
 }: LoadingSpinnerProps) {
+  // When label is provided, the spinner is accessible; otherwise decorative
+  const accessibilityProps = label
+    ? { role: "status" as const, "aria-label": label }
+    : { "aria-hidden": true as const };
+
   return (
     <svg
       className={cn(
@@ -45,7 +57,7 @@ export function LoadingSpinner({
       xmlns="http://www.w3.org/2000/svg"
       fill="none"
       viewBox="0 0 24 24"
-      aria-hidden="true"
+      {...accessibilityProps}
     >
       <circle
         className="opacity-25"

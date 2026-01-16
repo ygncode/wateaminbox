@@ -37,7 +37,8 @@ const DialogContent = React.forwardRef<
         <DialogPrimitive.Content
           ref={ref}
           className={cn(
-            "relative grid w-full max-w-lg gap-4 border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-elevated p-6 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 sm:rounded-lg",
+            // Added overscroll-contain to prevent background scroll when dialog content is scrollable
+            "relative grid w-full max-w-lg gap-4 border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-elevated p-6 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 sm:rounded-lg overscroll-contain",
             className,
           )}
           {...props}
@@ -89,7 +90,8 @@ const DialogTitle = React.forwardRef<
   <DialogPrimitive.Title
     ref={ref}
     className={cn(
-      "text-lg font-semibold leading-none text-gray-900 dark:text-dark-text-primary",
+      // text-balance for better line wrapping on headings
+      "text-lg font-semibold leading-none text-gray-900 dark:text-dark-text-primary text-balance",
       className,
     )}
     {...props}

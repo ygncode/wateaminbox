@@ -97,7 +97,7 @@ export function LoginPage() {
               label="Password"
               id="password"
               type="password"
-              placeholder="Enter your password"
+              placeholder="Enter your password…"
               registration={register("password")}
               error={errors.password}
               autoComplete="current-password"

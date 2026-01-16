@@ -65,7 +65,7 @@ export function ForgotPasswordPage() {
                   />
                 </svg>
               </div>
-              <h1 className="text-2xl font-bold text-gray-900 dark:text-dark-text-primary">
+              <h1 className="text-2xl font-bold text-gray-900 dark:text-dark-text-primary text-balance">
                 Check your email
               </h1>
               <p className="text-gray-600 dark:text-dark-text-secondary mt-2">
@@ -114,7 +114,7 @@ export function ForgotPasswordPage() {
                 />
               </svg>
             </div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-dark-text-primary">
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-dark-text-primary text-balance">
               Forgot password?
             </h1>
             <p className="text-gray-600 dark:text-dark-text-secondary mt-2">

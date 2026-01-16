@@ -1,6 +1,10 @@
 import { Monitor, Moon, Sun } from "lucide-react";
 import { type Theme, useTheme } from "../../contexts";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 const THEME_CONFIG: Record<
   Theme,

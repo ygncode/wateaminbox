@@ -214,12 +214,12 @@ export function CatalogManager() {
 
               {/* Catalog info */}
               <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <p className="font-medium text-gray-900 dark:text-dark-text-primary truncate">
+                <div className="flex items-center gap-2 min-w-0">
+                  <p className="font-medium text-gray-900 dark:text-dark-text-primary truncate flex-1 min-w-0">
                     {catalog.name}
                   </p>
                   {catalog.status === "archived" && (
-                    <span className="text-xs bg-gray-100 dark:bg-dark-tertiary text-gray-600 dark:text-dark-text-secondary px-1.5 py-0.5 rounded">
+                    <span className="text-xs bg-gray-100 dark:bg-dark-tertiary text-gray-600 dark:text-dark-text-secondary px-1.5 py-0.5 rounded flex-shrink-0">
                       {t("catalogs.archived", "Archived")}
                     </span>
                   )}

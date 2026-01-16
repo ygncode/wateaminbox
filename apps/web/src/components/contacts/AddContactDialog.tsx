@@ -16,7 +16,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useCreateContact } from "@/hooks/useContact";
-import { addContactSchema, type AddContactFormData } from "@/lib/schemas/contact";
+import {
+  addContactSchema,
+  type AddContactFormData,
+} from "@/lib/schemas/contact";
 
 export interface AddContactDialogProps {
   open: boolean;
@@ -136,7 +139,8 @@ export function AddContactDialog({
               <Input
                 id="phoneNumber"
                 type="tel"
-                placeholder="+1234567890"
+                inputMode="tel"
+                placeholder="+1234567890…"
                 className="font-mono"
                 autoComplete="tel"
                 autoFocus

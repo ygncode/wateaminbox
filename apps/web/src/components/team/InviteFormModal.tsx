@@ -53,8 +53,9 @@ export function InviteFormModal({ companyId, onClose }: InviteFormModalProps) {
           <button
             onClick={onClose}
             className="rounded-full p-1 text-gray-400 dark:text-dark-text-tertiary hover:bg-gray-100 dark:hover:bg-dark-tertiary hover:text-gray-600 dark:hover:text-dark-text-secondary"
+            aria-label="Close invite form"
           >
-            <X className="h-5 w-5" />
+            <X className="h-5 w-5" aria-hidden="true" />
           </button>
         </div>
 
@@ -63,18 +64,29 @@ export function InviteFormModal({ companyId, onClose }: InviteFormModalProps) {
             id="email"
             label="Email address"
             type="email"
-            placeholder="colleague@company.com"
+            inputMode="email"
+            placeholder="colleague@company.com…"
+            autoComplete="email"
             registration={register("email")}
             error={errors.email}
           />
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-dark-text-secondary mb-1">
+            <label
+              id="role-label"
+              className="block text-sm font-medium text-gray-700 dark:text-dark-text-secondary mb-1"
+            >
               Role
             </label>
-            <div className="flex gap-2">
+            <div
+              className="flex gap-2"
+              role="radiogroup"
+              aria-labelledby="role-label"
+            >
               <button
                 type="button"
+                role="radio"
+                aria-checked={role === "member"}
                 onClick={() =>
                   setValue("role", "member", { shouldValidate: true })
                 }
@@ -85,11 +97,13 @@ export function InviteFormModal({ companyId, onClose }: InviteFormModalProps) {
                     : "border-gray-300 dark:border-dark-border text-gray-700 dark:text-dark-text-primary hover:bg-gray-50 dark:hover:bg-dark-tertiary",
                 )}
               >
-                <Shield className="mx-auto mb-1 h-5 w-5" />
+                <Shield className="mx-auto mb-1 h-5 w-5" aria-hidden="true" />
                 Member
               </button>
               <button
                 type="button"
+                role="radio"
+                aria-checked={role === "admin"}
                 onClick={() =>
                   setValue("role", "admin", { shouldValidate: true })
                 }
@@ -100,7 +114,10 @@ export function InviteFormModal({ companyId, onClose }: InviteFormModalProps) {
                     : "border-gray-300 dark:border-dark-border text-gray-700 dark:text-dark-text-primary hover:bg-gray-50 dark:hover:bg-dark-tertiary",
                 )}
               >
-                <ShieldCheck className="mx-auto mb-1 h-5 w-5" />
+                <ShieldCheck
+                  className="mx-auto mb-1 h-5 w-5"
+                  aria-hidden="true"
+                />
                 Admin
               </button>
             </div>

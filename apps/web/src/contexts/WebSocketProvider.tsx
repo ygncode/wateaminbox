@@ -94,23 +94,35 @@ export function WebSocketProvider({
 
   // Chat store actions via getState()
   const addMessage = useCallback(
-    (...args: Parameters<ReturnType<typeof useChatStore.getState>["addMessage"]>) =>
-      useChatStore.getState().addMessage(...args),
+    (
+      ...args: Parameters<
+        ReturnType<typeof useChatStore.getState>["addMessage"]
+      >
+    ) => useChatStore.getState().addMessage(...args),
     [],
   );
   const updateMessageStatus = useCallback(
-    (...args: Parameters<ReturnType<typeof useChatStore.getState>["updateMessageStatus"]>) =>
-      useChatStore.getState().updateMessageStatus(...args),
+    (
+      ...args: Parameters<
+        ReturnType<typeof useChatStore.getState>["updateMessageStatus"]
+      >
+    ) => useChatStore.getState().updateMessageStatus(...args),
     [],
   );
   const addTypingIndicator = useCallback(
-    (...args: Parameters<ReturnType<typeof useChatStore.getState>["addTypingIndicator"]>) =>
-      useChatStore.getState().addTypingIndicator(...args),
+    (
+      ...args: Parameters<
+        ReturnType<typeof useChatStore.getState>["addTypingIndicator"]
+      >
+    ) => useChatStore.getState().addTypingIndicator(...args),
     [],
   );
   const removeTypingIndicator = useCallback(
-    (...args: Parameters<ReturnType<typeof useChatStore.getState>["removeTypingIndicator"]>) =>
-      useChatStore.getState().removeTypingIndicator(...args),
+    (
+      ...args: Parameters<
+        ReturnType<typeof useChatStore.getState>["removeTypingIndicator"]
+      >
+    ) => useChatStore.getState().removeTypingIndicator(...args),
     [],
   );
 

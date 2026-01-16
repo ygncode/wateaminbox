@@ -49,13 +49,19 @@ export function useWebSocketEvents(
 
   // Access actions via getState() to avoid unnecessary subscriptions
   const addMessage = useCallback(
-    (...args: Parameters<ReturnType<typeof useChatStore.getState>["addMessage"]>) =>
-      useChatStore.getState().addMessage(...args),
+    (
+      ...args: Parameters<
+        ReturnType<typeof useChatStore.getState>["addMessage"]
+      >
+    ) => useChatStore.getState().addMessage(...args),
     [],
   );
   const updateMessageStatus = useCallback(
-    (...args: Parameters<ReturnType<typeof useChatStore.getState>["updateMessageStatus"]>) =>
-      useChatStore.getState().updateMessageStatus(...args),
+    (
+      ...args: Parameters<
+        ReturnType<typeof useChatStore.getState>["updateMessageStatus"]
+      >
+    ) => useChatStore.getState().updateMessageStatus(...args),
     [],
   );
 

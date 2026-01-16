@@ -73,6 +73,25 @@ export const ChatListItem = memo(function ChatListItem({
     }
   }, [lastMessage]);
 
+  // Build accessible label with contact name, message preview, and status
+  const accessibleLabel = useMemo(() => {
+    const parts = [displayName];
+    if (messagePreview) parts.push(messagePreview);
+    if (formattedTime) parts.push(formattedTime);
+    if (unreadCount > 0)
+      parts.push(`${unreadCount} unread message${unreadCount > 1 ? "s" : ""}`);
+    if (chat.isMuted) parts.push("muted");
+    if (chat.isPinned) parts.push("pinned");
+    return parts.join(", ");
+  }, [
+    displayName,
+    messagePreview,
+    formattedTime,
+    unreadCount,
+    chat.isMuted,
+    chat.isPinned,
+  ]);
+
   return (
     <button
       type="button"
@@ -84,6 +103,8 @@ export const ChatListItem = memo(function ChatListItem({
                   ${isSelected ? "bg-gray-200 dark:bg-dark-tertiary" : "hover:bg-gray-50 dark:hover:bg-dark-elevated"}
                   py-3 md:py-3 min-h-[72px] md:min-h-0`}
       aria-selected={isSelected}
+      aria-current={isSelected ? "true" : undefined}
+      aria-label={accessibleLabel}
       role="option"
     >
       {/* Avatar with Online Indicator */}
@@ -101,7 +122,12 @@ export const ChatListItem = memo(function ChatListItem({
           ) : contact.isGroup ? (
             // Group avatar - show group icon
             <div className="w-full h-full flex items-center justify-center bg-gray-400 dark:bg-dark-text-tertiary text-white">
-              <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <svg
+                className="w-6 h-6"
+                fill="currentColor"
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+              >
                 <path d="M12 12.75c1.63 0 3.07.39 4.24.9 1.08.48 1.76 1.56 1.76 2.73V18H6v-1.62c0-1.17.68-2.25 1.76-2.73 1.17-.51 2.61-.9 4.24-.9zM4 13c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm1.13 1.1c-.37-.06-.74-.1-1.13-.1-.99 0-1.93.21-2.78.58A2.01 2.01 0 000 16.43V18h4.5v-1.62c0-.83.23-1.61.63-2.28zM20 13c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm4 3.43c0-.81-.48-1.53-1.22-1.85A6.95 6.95 0 0020 14c-.39 0-.76.04-1.13.1.4.67.63 1.45.63 2.28V18H24v-1.57zM12 6c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3z" />
               </svg>
             </div>
