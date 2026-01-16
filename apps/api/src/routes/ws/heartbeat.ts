@@ -1,3 +1,4 @@
+import { toISOString } from "@whatsapp-web/shared";
 import { createLogger } from "../../lib/logger.js";
 import {
   getAllConnections,
@@ -27,7 +28,7 @@ function sendPing(ws: WebSocketConnection): void {
       // Fallback to application-level ping if protocol ping fails
       sendMessage(ws, {
         type: "pong", // Server sends "pong" as a ping request (client should respond with "ping")
-        timestamp: new Date().toISOString(),
+        timestamp: toISOString(),
       });
     }
   }

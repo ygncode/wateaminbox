@@ -1,3 +1,4 @@
+import { toISOString } from "@whatsapp-web/shared";
 import { verifyAccessToken } from "../../lib/jwt.js";
 import { createLogger, formatError } from "../../lib/logger.js";
 import { getUserById } from "../../services/auth.service.js";
@@ -23,7 +24,7 @@ export async function authenticateConnection(
       sendMessage(ws, {
         type: "auth_error",
         payload: { message: "Invalid company ID format" },
-        timestamp: new Date().toISOString(),
+        timestamp: toISOString(),
       });
       return false;
     }
@@ -34,7 +35,7 @@ export async function authenticateConnection(
       sendMessage(ws, {
         type: "auth_error",
         payload: { message: "Invalid or expired token" },
-        timestamp: new Date().toISOString(),
+        timestamp: toISOString(),
       });
       return false;
     }
@@ -45,7 +46,7 @@ export async function authenticateConnection(
       sendMessage(ws, {
         type: "auth_error",
         payload: { message: "User not found" },
-        timestamp: new Date().toISOString(),
+        timestamp: toISOString(),
       });
       return false;
     }
@@ -56,7 +57,7 @@ export async function authenticateConnection(
       sendMessage(ws, {
         type: "auth_error",
         payload: { message: "You are not a member of this company" },
-        timestamp: new Date().toISOString(),
+        timestamp: toISOString(),
       });
       return false;
     }
@@ -76,7 +77,7 @@ export async function authenticateConnection(
         companyId,
         message: "Successfully authenticated",
       },
-      timestamp: new Date().toISOString(),
+      timestamp: toISOString(),
     });
 
     logger.info({ userId: user.id, companyId }, "Client authenticated");
@@ -86,7 +87,7 @@ export async function authenticateConnection(
     sendMessage(ws, {
       type: "auth_error",
       payload: { message: "Authentication failed" },
-      timestamp: new Date().toISOString(),
+      timestamp: toISOString(),
     });
     return false;
   }

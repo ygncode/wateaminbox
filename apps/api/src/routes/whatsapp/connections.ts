@@ -4,6 +4,7 @@
  * CRUD operations for managing multiple WhatsApp connections per company.
  */
 import { zValidator } from "@hono/zod-validator";
+import { toDbDate, toISOString } from "@whatsapp-web/shared";
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import {
@@ -111,8 +112,8 @@ connectionRoutes.post(
             id: result.connectionId,
             name: name || null,
             status: "pending" as const,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
+            createdAt: toISOString(),
+            updatedAt: toISOString(),
           },
           message:
             "Connection initiated. Connect to the WebSocket URL to receive the QR code.",
@@ -314,7 +315,7 @@ connectionRoutes.post(
         .updateTable("whatsapp_connections")
         .set({
           status: "pending",
-          updated_at: new Date(),
+          updated_at: toDbDate(),
         })
         .where("id", "=", connectionId)
         .execute();

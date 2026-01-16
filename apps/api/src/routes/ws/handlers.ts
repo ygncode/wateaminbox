@@ -2,6 +2,7 @@ import {
   type ClientMessage,
   isAuthPayload,
   isSendMessagePayload,
+  toISOString,
 } from "@whatsapp-web/shared";
 import { createLogger, formatError } from "../../lib/logger.js";
 import {
@@ -28,7 +29,7 @@ async function handleSendMessage(
     sendMessage(ws, {
       type: "error",
       payload: { message: "Not authenticated" },
-      timestamp: new Date().toISOString(),
+      timestamp: toISOString(),
     });
     return;
   }
@@ -37,7 +38,7 @@ async function handleSendMessage(
     sendMessage(ws, {
       type: "error",
       payload: { message: "Missing jid or content" },
-      timestamp: new Date().toISOString(),
+      timestamp: toISOString(),
     });
     return;
   }
@@ -53,7 +54,7 @@ async function handleSendMessage(
       sendMessage(ws, {
         type: "error",
         payload: { message: "No active WhatsApp connection" },
-        timestamp: new Date().toISOString(),
+        timestamp: toISOString(),
       });
       return;
     }
@@ -79,14 +80,14 @@ async function handleSendMessage(
         connectionId: connection.id,
         status: "queued",
       },
-      timestamp: new Date().toISOString(),
+      timestamp: toISOString(),
     });
   } catch (error) {
     logger.error({ err: formatError(error) }, "Failed to send message");
     sendMessage(ws, {
       type: "error",
       payload: { message: "Failed to send message" },
-      timestamp: new Date().toISOString(),
+      timestamp: toISOString(),
     });
   }
 }
@@ -153,7 +154,7 @@ export async function handleClientMessage(
     sendMessage(ws, {
       type: "error",
       payload: { message: "Invalid JSON" },
-      timestamp: new Date().toISOString(),
+      timestamp: toISOString(),
     });
     return;
   }
@@ -164,7 +165,7 @@ export async function handleClientMessage(
         sendMessage(ws, {
           type: "auth_error",
           payload: { message: "Missing token or companyId" },
-          timestamp: new Date().toISOString(),
+          timestamp: toISOString(),
         });
         return;
       }
@@ -181,7 +182,7 @@ export async function handleClientMessage(
       recordPong(ws);
       sendMessage(ws, {
         type: "pong",
-        timestamp: new Date().toISOString(),
+        timestamp: toISOString(),
       });
       break;
 
@@ -202,7 +203,7 @@ export async function handleClientMessage(
       sendMessage(ws, {
         type: "error",
         payload: { message: `Unknown message type: ${parsed.type}` },
-        timestamp: new Date().toISOString(),
+        timestamp: toISOString(),
       });
   }
 }

@@ -1,4 +1,5 @@
 import { zValidator } from "@hono/zod-validator";
+import { toDbDate, toISOString } from "@whatsapp-web/shared";
 import { Hono } from "hono";
 import { notFound } from "../../lib/errors.js";
 import { successData } from "../../lib/response.js";
@@ -93,7 +94,7 @@ stateRoutes.post(
         resolvedBy: user.id,
         resolvedAt: state.resolvedAt?.toISOString(),
       },
-      timestamp: new Date().toISOString(),
+      timestamp: toISOString(),
     });
 
     return successData(c, state);
@@ -144,7 +145,7 @@ stateRoutes.post("/:id/reopen", async (c) => {
       reopenedBy: user.id,
       reopenedAt: state.reopenedAt?.toISOString(),
     },
-    timestamp: new Date().toISOString(),
+    timestamp: toISOString(),
   });
 
   return successData(c, state);
@@ -177,7 +178,7 @@ stateRoutes.post("/:id/pending", async (c) => {
       event: "pending",
       contactId,
     },
-    timestamp: new Date().toISOString(),
+    timestamp: toISOString(),
   });
 
   return successData(c, state);
@@ -206,9 +207,9 @@ stateRoutes.post("/:id/read", async (c) => {
     .updateTable("conversation_states")
     .set({
       unread_count: 0,
-      read_at: new Date(),
+      read_at: toDbDate(),
       read_by_user_id: user.id,
-      updated_at: new Date(),
+      updated_at: toDbDate(),
     })
     .where("contact_id", "=", contactId)
     .executeTakeFirst();
@@ -220,7 +221,7 @@ stateRoutes.post("/:id/read", async (c) => {
       .values({
         contact_id: contactId,
         unread_count: 0,
-        read_at: new Date(),
+        read_at: toDbDate(),
         read_by_user_id: user.id,
       })
       .execute();
@@ -235,7 +236,7 @@ stateRoutes.post("/:id/read", async (c) => {
       unreadCount: 0,
       readBy: user.id,
     },
-    timestamp: new Date().toISOString(),
+    timestamp: toISOString(),
   });
 
   return successData(c, { unreadCount: 0 });
