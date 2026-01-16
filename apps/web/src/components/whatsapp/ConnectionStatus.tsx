@@ -1,5 +1,5 @@
 import { Loader2, QrCode, Wifi, WifiOff, XCircle } from "lucide-react";
-import { Badge } from "@/components/ui";
+import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import type { WhatsAppConnectionState } from "@/hooks/useWhatsAppConnection";
 

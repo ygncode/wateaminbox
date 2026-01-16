@@ -483,9 +483,10 @@ export function MessageComposer({
             value={message}
             onChange={handleInputChange}
             onKeyDown={handleKeyDown}
-            placeholder={isDisconnected ? "Disconnected..." : "Type a message"}
+            placeholder={isDisconnected ? "Disconnected…" : "Type a message"}
             disabled={isInputDisabled}
             rows={1}
+            aria-label="Message input"
             className={`w-full px-4 py-2 bg-transparent resize-none focus:outline-none text-gray-900 dark:text-dark-text-primary placeholder-gray-500 dark:placeholder-dark-text-tertiary max-h-[150px] ${
               isInputDisabled ? "cursor-not-allowed" : ""
             }`}

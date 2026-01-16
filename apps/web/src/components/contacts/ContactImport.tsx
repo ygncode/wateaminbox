@@ -5,7 +5,7 @@ import type {
   ContactImportResponse,
 } from "../../lib/api";
 import { importContacts, previewContactImport } from "../../lib/api";
-import { StepWizard, StepContent, type StepWizardStep } from "../ui";
+import { StepWizard, StepContent, type StepWizardStep } from "@/components/ui/step-wizard";
 import {
   UploadStep,
   PreviewStep,

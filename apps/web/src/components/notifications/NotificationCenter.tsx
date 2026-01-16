@@ -13,9 +13,12 @@ import {
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { formatStatusTime } from "@whatsapp-web/shared";
-import { Badge, Button, ScrollArea, Skeleton } from "@/components/ui";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useNotificationCenter } from "@/hooks/notification";
-import type { InAppNotification, NotificationType } from "@/lib/api";
+import type { InAppNotification, NotificationType } from "@/lib/api/types";
 import { cn } from "@/lib/utils";
 
 /**
@@ -24,17 +27,17 @@ import { cn } from "@/lib/utils";
 function getNotificationIcon(type: NotificationType) {
   switch (type) {
     case "message":
-      return <MessageSquare className="size-4" />;
+      return <MessageSquare className="size-4" aria-hidden="true" />;
     case "mention":
-      return <AtSign className="size-4" />;
+      return <AtSign className="size-4" aria-hidden="true" />;
     case "assignment":
-      return <UserPlus className="size-4" />;
+      return <UserPlus className="size-4" aria-hidden="true" />;
     case "team":
-      return <Users className="size-4" />;
+      return <Users className="size-4" aria-hidden="true" />;
     case "system":
-      return <Info className="size-4" />;
+      return <Info className="size-4" aria-hidden="true" />;
     default:
-      return <Bell className="size-4" />;
+      return <Bell className="size-4" aria-hidden="true" />;
   }
 }
 
@@ -99,9 +102,10 @@ function NotificationItem({
   const colors = getNotificationColors(notification.notificationType);
 
   return (
-    <div
+    <button
+      type="button"
       className={cn(
-        "group relative flex items-start gap-3 p-3.5 cursor-pointer transition-all duration-200",
+        "group relative flex items-start gap-3 p-3.5 w-full text-left cursor-pointer transition-all duration-200",
         "border-l-2 hover:bg-gray-50/80 dark:hover:bg-dark-tertiary/80",
         !notification.isRead ? colors.accent : "border-l-transparent",
         !notification.isRead && "bg-white dark:bg-dark-elevated",
@@ -175,7 +179,7 @@ function NotificationItem({
           <Trash2 className="size-3.5" />
         </Button>
       </div>
-    </div>
+    </button>
   );
 }
 

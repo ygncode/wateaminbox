@@ -8,7 +8,7 @@ import { formatChatListTime } from "@whatsapp-web/shared";
  */
 function truncateMessage(content: string, maxLength: number = 45): string {
   if (content.length <= maxLength) return content;
-  return `${content.substring(0, maxLength).trim()}...`;
+  return `${content.substring(0, maxLength).trim()}…`;
 }
 
 /**

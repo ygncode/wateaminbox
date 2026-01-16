@@ -15,9 +15,17 @@ export function useTypingIndicators() {
     new Map(),
   );
 
-  const addTypingIndicator = useChatStore((state) => state.addTypingIndicator);
-  const removeTypingIndicator = useChatStore(
-    (state) => state.removeTypingIndicator,
+  // Access actions via getState() to avoid unnecessary subscriptions
+  // Actions are stable references and don't need to trigger re-renders
+  const addTypingIndicator = useCallback(
+    (indicator: TypingIndicator) =>
+      useChatStore.getState().addTypingIndicator(indicator),
+    [],
+  );
+  const removeTypingIndicator = useCallback(
+    (conversationId: string, userId: string) =>
+      useChatStore.getState().removeTypingIndicator(conversationId, userId),
+    [],
   );
 
   // Set a timeout to automatically clear typing indicator

@@ -1,6 +1,6 @@
 import { CheckCircle, CircleDot, Clock, Target } from "lucide-react";
-import { Skeleton } from "@/components/ui";
-import { useAsyncData } from "@/hooks";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useAsyncData } from "@/hooks/useAsyncData";
 import { useResolutionStats } from "@/hooks/analytics";
 import { StatCard } from "./StatCard";
 

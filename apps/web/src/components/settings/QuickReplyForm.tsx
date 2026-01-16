@@ -11,7 +11,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { quickReplySchema, type QuickReplyFormData } from "@/lib/schemas";
+import { quickReplySchema, type QuickReplyFormData } from "@/lib/schemas/quick-reply";
 
 interface QuickReplyFormProps {
   isEditing: boolean;

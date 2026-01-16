@@ -7,7 +7,7 @@ import {
   RightPanelHeader,
   RightPanelSection,
 } from "@/components/layout/right-panel";
-import { Button } from "@/components/ui";
+import { Button } from "@/components/ui/button";
 import { useContact } from "@/hooks/useContact";
 import type { ContactProfileProps } from "./types";
 import { ContactProfileSkeleton } from "./ContactProfileSkeleton";

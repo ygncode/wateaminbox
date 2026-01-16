@@ -7,7 +7,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui";
+} from "@/components/ui/dialog";
 
 interface DeleteMessageDialogProps {
   open: boolean;
@@ -57,7 +57,7 @@ export const DeleteMessageDialog = memo(function DeleteMessageDialog({
             {isDeleting ? (
               <>
                 <Loader2 className="h-4 w-4 animate-spin" />
-                Deleting...
+                Deleting…
               </>
             ) : (
               "Delete"

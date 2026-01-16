@@ -1,5 +1,5 @@
 import { Link2, Loader2, Plus } from "lucide-react";
-import { Button } from "@/components/ui";
+import { Button } from "@/components/ui/button";
 import type { AddConnectionDialogProps } from "./types";
 
 /**
@@ -39,7 +39,8 @@ export function AddConnectionDialog({
                 type="text"
                 value={name}
                 onChange={(e) => onNameChange(e.target.value)}
-                placeholder="e.g., Support Team, Sales Phone..."
+                placeholder="e.g., Support Team, Sales Phone…"
+                autoComplete="off"
                 className="w-full px-4 py-2.5 bg-white dark:bg-dark-tertiary border border-gray-200 dark:border-dark-border rounded-lg text-sm text-gray-900 dark:text-dark-text-primary placeholder:text-gray-400 dark:placeholder:text-dark-text-tertiary focus:outline-none focus:ring-2 focus:ring-whatsapp-teal-green/50 focus:border-whatsapp-teal-green transition-all duration-200"
                 onKeyDown={(e) => {
                   if (e.key === "Enter") onSubmit();
@@ -60,7 +61,7 @@ export function AddConnectionDialog({
                 {isCreating ? (
                   <>
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Creating...
+                    Creating…
                   </>
                 ) : (
                   <>

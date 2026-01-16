@@ -1,19 +1,21 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import {
   archiveCatalog,
-  type CatalogProduct,
-  type CatalogSyncStatus,
   getCatalogProducts,
   getCatalogSyncStatus,
   getWhatsAppCatalog,
   getWhatsAppCatalogs,
-  type ProductVisibility,
   restoreCatalog,
   triggerCatalogProductsSync,
   triggerCatalogSync,
   updateProductVisibility,
-  type WhatsAppCatalog,
-} from "@/lib/api";
+} from "@/lib/api/catalogs";
+import type {
+  CatalogProduct,
+  CatalogSyncStatus,
+  ProductVisibility,
+  WhatsAppCatalog,
+} from "@/lib/api/types";
 import { useInvalidate, useQueryInvalidation } from "./query";
 
 // Query keys for catalogs
@@ -35,6 +37,7 @@ export function useWhatsAppCatalogs() {
     queryKey: catalogKeys.list(),
     queryFn: getWhatsAppCatalogs,
     staleTime: 60 * 1000, // 1 minute
+    gcTime: 5 * 60 * 1000, // 5 minutes
   });
 }
 
@@ -46,6 +49,7 @@ export function useCatalogSyncStatus() {
     queryKey: catalogKeys.status(),
     queryFn: getCatalogSyncStatus,
     staleTime: 30 * 1000, // 30 seconds
+    gcTime: 5 * 60 * 1000, // 5 minutes
   });
 }
 
@@ -57,6 +61,7 @@ export function useWhatsAppCatalog(catalogId: string) {
     queryKey: catalogKeys.detail(catalogId),
     queryFn: () => getWhatsAppCatalog(catalogId),
     staleTime: 60 * 1000, // 1 minute
+    gcTime: 5 * 60 * 1000, // 5 minutes
     enabled: !!catalogId,
   });
 }
@@ -69,6 +74,7 @@ export function useCatalogProducts(catalogId: string) {
     queryKey: catalogKeys.products(catalogId),
     queryFn: () => getCatalogProducts(catalogId),
     staleTime: 60 * 1000, // 1 minute
+    gcTime: 5 * 60 * 1000, // 5 minutes
     enabled: !!catalogId,
   });
 }

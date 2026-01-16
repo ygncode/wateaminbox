@@ -22,6 +22,7 @@ import {
   showMessageNotification,
 } from "../../lib/notifications";
 import type { NewMessagePayload } from "../../lib/websocket";
+import { queryKeys } from "../query-keys";
 
 export interface UseNotificationsReturn {
   // State
@@ -115,10 +116,11 @@ export function useNotifications(): UseNotificationsReturn {
 
   // Fetch preferences from API (only when authenticated)
   const { data: apiPreferences, isLoading } = useQuery({
-    queryKey: ["notificationPreferences"],
+    queryKey: queryKeys.notificationPreferences.all,
     queryFn: getNotificationPreferences,
     enabled: isAuthenticated,
     staleTime: 60_000, // 1 minute
+    gcTime: 300_000, // 5 minutes
     retry: 1,
   });
 
@@ -136,7 +138,9 @@ export function useNotifications(): UseNotificationsReturn {
     mutationFn: (input: UpdateNotificationPreferencesInput) =>
       updateNotificationPreferences(input),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["notificationPreferences"] });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.notificationPreferences.all,
+      });
     },
   });
 
@@ -144,7 +148,9 @@ export function useNotifications(): UseNotificationsReturn {
   const muteMutation = useMutation({
     mutationFn: muteContactApi,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["notificationPreferences"] });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.notificationPreferences.all,
+      });
     },
   });
 
@@ -152,7 +158,9 @@ export function useNotifications(): UseNotificationsReturn {
   const unmuteMutation = useMutation({
     mutationFn: unmuteContactApi,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["notificationPreferences"] });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.notificationPreferences.all,
+      });
     },
   });
 

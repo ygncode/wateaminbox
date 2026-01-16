@@ -15,10 +15,19 @@ import type { WebSocketClient } from "./types";
 export function useWebSocketConnection() {
   const wsClientRef = useRef<WebSocketClient | null>(null);
 
-  // Store actions
-  const setStatus = useWebSocketStore((state) => state.setStatus);
-  const setError = useWebSocketStore((state) => state.setError);
+  // Subscribe only to status state value
   const status = useWebSocketStore((state) => state.status);
+
+  // Access actions via getState() to avoid unnecessary subscriptions
+  const setStatus = useCallback(
+    (newStatus: ReturnType<typeof useWebSocketStore.getState>["status"]) =>
+      useWebSocketStore.getState().setStatus(newStatus),
+    [],
+  );
+  const setError = useCallback(
+    (error: string | null) => useWebSocketStore.getState().setError(error),
+    [],
+  );
 
   // Initialize WebSocket client
   const initializeClient = useCallback(() => {

@@ -8,16 +8,16 @@ import {
   Volume2,
   VolumeX,
 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 import {
-  Button,
-  Checkbox,
-  Label,
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui";
+} from "@/components/ui/select";
 import { useNotifications } from "@/hooks/notification";
 import { NOTIFICATION_SOUNDS } from "@/lib/notifications";
 
@@ -210,10 +210,14 @@ export function NotificationSettings() {
           {settings.quietHoursEnabled && (
             <div className="flex items-center gap-4 ml-8 mt-3">
               <div className="flex items-center gap-2">
-                <Label className="text-sm text-gray-500 dark:text-dark-text-secondary">
+                <Label
+                  htmlFor="quiet-hours-start"
+                  className="text-sm text-gray-500 dark:text-dark-text-secondary"
+                >
                   From
                 </Label>
                 <input
+                  id="quiet-hours-start"
                   type="time"
                   value={settings.quietHoursStart}
                   onChange={(e) =>
@@ -223,10 +227,14 @@ export function NotificationSettings() {
                 />
               </div>
               <div className="flex items-center gap-2">
-                <Label className="text-sm text-gray-500 dark:text-dark-text-secondary">
+                <Label
+                  htmlFor="quiet-hours-end"
+                  className="text-sm text-gray-500 dark:text-dark-text-secondary"
+                >
                   To
                 </Label>
                 <input
+                  id="quiet-hours-end"
                   type="time"
                   value={settings.quietHoursEnd}
                   onChange={(e) =>

@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../../lib/api";
 import { infiniteMessageKeys } from "../useInfiniteMessages";
+import { queryKeys } from "../query-keys";
 import type {
   MediaDownloadResponse,
   ForwardMessageResponse,
@@ -129,7 +130,7 @@ export function useForwardMessage() {
       });
       // Also invalidate chat list to update last message
       queryClient.invalidateQueries({
-        queryKey: ["chats"],
+        queryKey: queryKeys.chats.all,
       });
     },
   });

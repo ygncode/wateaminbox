@@ -49,6 +49,7 @@ export function useInfiniteMessages(
     initialPageParam: undefined as string | undefined,
     enabled: !!conversationId,
     staleTime: 1000 * 30, // 30 seconds
+    gcTime: 1000 * 60 * 5, // 5 minutes
     // Messages are fetched in reverse chronological order
     // So the first page is the most recent messages
     select: (data) => ({

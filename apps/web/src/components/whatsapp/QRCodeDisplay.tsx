@@ -2,7 +2,7 @@ import { AlertCircle, Loader2, RefreshCw } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import QRCode from "qrcode";
 import { nowMs } from "@whatsapp-web/shared";
-import { Button } from "@/components/ui";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 interface QRCodeDisplayProps {

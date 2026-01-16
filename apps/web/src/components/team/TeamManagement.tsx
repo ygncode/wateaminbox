@@ -1,6 +1,6 @@
 import { Mail, UserPlus, Users } from "lucide-react";
 import { useState } from "react";
-import { Button } from "@/components/ui";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { InvitationsList } from "./InvitationsList";
 import { InviteFormModal } from "./InviteFormModal";

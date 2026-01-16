@@ -18,12 +18,22 @@ const Avatar = React.forwardRef<
 ));
 Avatar.displayName = AvatarPrimitive.Root.displayName;
 
+interface AvatarImageProps
+  extends React.ComponentPropsWithoutRef<typeof AvatarPrimitive.Image> {
+  /** Width in pixels - prevents layout shift when image loads */
+  width?: number;
+  /** Height in pixels - prevents layout shift when image loads */
+  height?: number;
+}
+
 const AvatarImage = React.forwardRef<
   React.ElementRef<typeof AvatarPrimitive.Image>,
-  React.ComponentPropsWithoutRef<typeof AvatarPrimitive.Image>
->(({ className, ...props }, ref) => (
+  AvatarImageProps
+>(({ className, width = 40, height = 40, ...props }, ref) => (
   <AvatarPrimitive.Image
     ref={ref}
+    width={width}
+    height={height}
     className={cn("aspect-square h-full w-full", className)}
     {...props}
   />

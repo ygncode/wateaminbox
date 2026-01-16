@@ -1,5 +1,5 @@
 import { Mail } from "lucide-react";
-import { useAsyncData } from "@/hooks";
+import { useAsyncData } from "@/hooks/useAsyncData";
 import {
   useCancelInvitation,
   usePendingInvitations,
