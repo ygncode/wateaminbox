@@ -1,4 +1,4 @@
-import { toISOString } from "@whatsapp-web/shared";
+import { toISOString } from "@wateaminbox/shared";
 import { verifyAccessToken } from "../../lib/jwt.js";
 import { createLogger, formatError } from "../../lib/logger.js";
 import { getUserById } from "../../services/auth.service.js";

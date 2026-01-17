@@ -127,7 +127,7 @@ export function ChatPage() {
               </svg>
             </div>
             <h2 className="text-xl font-semibold text-gray-700 dark:text-dark-text-primary mb-2">
-              WhatsApp Web
+              WATeamInbox
             </h2>
             <p className="text-gray-500 dark:text-dark-text-secondary">
               Select a conversation from the list to start messaging
@@ -149,7 +149,7 @@ export function ChatPage() {
 
   return (
     <AppLayout>
-      <h1 className="sr-only">WhatsApp Web - Conversations</h1>
+      <h1 className="sr-only">WATeamInbox - Conversations</h1>
       <SyncingOverlay />
       <ResponsiveLayout
         sidebar={sidebar}

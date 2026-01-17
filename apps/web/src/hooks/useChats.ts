@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { toDate } from "@whatsapp-web/shared";
+import { toDate } from "@wateaminbox/shared";
 import { useMemo } from "react";
 import {
   api,

@@ -5,8 +5,8 @@
  * Supports multiple connections per company with configurable limits.
  */
 
-import { db } from "@whatsapp-web/database";
-import { toDbDate } from "@whatsapp-web/shared";
+import { db } from "@wateaminbox/database";
+import { toDbDate } from "@wateaminbox/shared";
 import type { Kysely } from "kysely";
 import { env } from "../../lib/env.js";
 import {

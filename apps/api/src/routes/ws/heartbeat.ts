@@ -1,4 +1,4 @@
-import { toISOString } from "@whatsapp-web/shared";
+import { toISOString } from "@wateaminbox/shared";
 import { createLogger } from "../../lib/logger.js";
 import {
   getAllConnections,

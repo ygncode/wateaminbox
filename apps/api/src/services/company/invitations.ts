@@ -4,8 +4,8 @@
  * Operations for managing company invitations: create, list, accept, cancel, resend.
  */
 
-import { db } from "@whatsapp-web/database";
-import { addDays, toDbDate } from "@whatsapp-web/shared";
+import { db } from "@wateaminbox/database";
+import { addDays, toDbDate } from "@wateaminbox/shared";
 import { randomBytes } from "crypto";
 import { sql } from "kysely";
 import { sendInvitationEmail } from "../../lib/email.js";

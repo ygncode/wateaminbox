@@ -1,5 +1,5 @@
 import { sql } from "kysely";
-import { toISOString, dayjs } from "@whatsapp-web/shared";
+import { toISOString, dayjs } from "@wateaminbox/shared";
 import { getTenantConnection } from "./tenant.service.js";
 import { NotFoundError } from "../lib/errors.js";
 import { toCSV } from "./export/csv.js";

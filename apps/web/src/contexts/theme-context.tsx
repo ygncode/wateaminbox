@@ -25,7 +25,7 @@ export interface ThemeContextValue {
   toggleTheme: () => void;
 }
 
-const STORAGE_KEY = "whatsapp-web-theme";
+const STORAGE_KEY = "wateaminbox-theme";
 const THEMES: Theme[] = ["light", "dark", "system"];
 
 const ThemeContext = createContext<ThemeContextValue | undefined>(undefined);

@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
-import { toISOString } from "@whatsapp-web/shared";
+import { toISOString } from "@wateaminbox/shared";
 import {
   deleteNotification,
   getNotifications,

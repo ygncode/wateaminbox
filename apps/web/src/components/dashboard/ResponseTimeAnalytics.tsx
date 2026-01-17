@@ -7,7 +7,7 @@ import {
   Users,
 } from "lucide-react";
 import { useMemo, useState } from "react";
-import { dayjs, getDateRange } from "@whatsapp-web/shared";
+import { dayjs, getDateRange } from "@wateaminbox/shared";
 import {
   getResponseTimeStats,
   getResponseTimeTrend,

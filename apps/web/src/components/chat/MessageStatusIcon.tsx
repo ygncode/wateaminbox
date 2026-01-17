@@ -1,4 +1,4 @@
-import type { Message } from "@whatsapp-web/shared";
+import type { Message } from "@wateaminbox/shared";
 
 // Error code to human-readable message mapping
 const ERROR_MESSAGES: Record<string, string> = {

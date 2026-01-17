@@ -3,7 +3,7 @@
  *
  * Routes for sending, forwarding, and retrying messages.
  */
-import { toDbDate, toISOString } from "@whatsapp-web/shared";
+import { toDbDate, toISOString } from "@wateaminbox/shared";
 import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { badRequest, notFound } from "../../lib/errors.js";

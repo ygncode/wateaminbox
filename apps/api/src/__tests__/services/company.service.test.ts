@@ -61,7 +61,7 @@ const mockDb = {
   })),
 };
 
-mock.module("@whatsapp-web/database", () => ({
+mock.module("@wateaminbox/database", () => ({
   db: mockDb,
 }));
 

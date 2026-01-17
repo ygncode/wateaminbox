@@ -1,4 +1,4 @@
-import type { Message, MessageType } from "@whatsapp-web/shared";
+import type { Message, MessageType } from "@wateaminbox/shared";
 import { useTranslation } from "react-i18next";
 import { MediaPendingPlaceholder } from "./MediaPendingPlaceholder";
 

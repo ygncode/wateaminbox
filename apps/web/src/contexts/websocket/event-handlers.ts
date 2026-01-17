@@ -20,7 +20,7 @@ import type {
   ProfilePicturePayload,
   SyncStatusPayload,
   TypingPayload,
-} from "@whatsapp-web/shared";
+} from "@wateaminbox/shared";
 import { markConversationAsRead } from "../../lib/api/conversations";
 import type { WebSocketClient } from "../../lib/websocket";
 import { wsLogger } from "../../lib/websocket-logger";

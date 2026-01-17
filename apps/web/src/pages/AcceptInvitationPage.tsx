@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { dayjs, now } from "@whatsapp-web/shared";
+import { dayjs, now } from "@wateaminbox/shared";
 import { Button, Skeleton } from "../components/ui";
 import { useAuth } from "../contexts/auth-context";
 import { useAcceptInvitation, useInvitationByToken } from "../hooks/useTeam";

@@ -1,4 +1,4 @@
-import type { Message, MessageStatus } from "@whatsapp-web/shared";
+import type { Message, MessageStatus } from "@wateaminbox/shared";
 import type { StateCreator } from "zustand";
 import type { ChatState, MessagesSlice, OptimisticMessage } from "./types";
 

@@ -12,8 +12,8 @@
       "cache": false,
       "persistent": true
     },
-    "@whatsapp-web/orchestrator#dev": {
-      "dependsOn": ["@whatsapp-web/whatsapp#build"],
+    "@wateaminbox/orchestrator#dev": {
+      "dependsOn": ["@wateaminbox/whatsapp#build"],
       "cache": false,
       "persistent": true
     },

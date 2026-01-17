@@ -1,4 +1,4 @@
-import { toDbDate, toISOString } from "@whatsapp-web/shared";
+import { toDbDate, toISOString } from "@wateaminbox/shared";
 import { Hono } from "hono";
 import { forbidden } from "../lib/errors.js";
 import { successData, successPaginated } from "../lib/response.js";

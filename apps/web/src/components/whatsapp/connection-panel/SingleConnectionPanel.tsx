@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useWhatsAppConnection } from "@/hooks/useWhatsAppConnection";
 import { cn } from "@/lib/utils";
-import { nowMs } from "@whatsapp-web/shared";
+import { nowMs } from "@wateaminbox/shared";
 import {
   StatusBadge,
   StatusIndicator,

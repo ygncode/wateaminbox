@@ -5,7 +5,7 @@
  */
 import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
-import { nowMs } from "@whatsapp-web/shared";
+import { nowMs } from "@wateaminbox/shared";
 import { badRequest, notFound } from "../../lib/errors.js";
 import { createLogger, formatError } from "../../lib/logger.js";
 import { publishSendReaction } from "../../lib/nats/index.js";

@@ -20,6 +20,7 @@ import { labelRoutes } from "./labels.js";
 import { catalogRoutes } from "./catalogs.js";
 import { mediaRoutes } from "./media.js";
 import { debugRoutes } from "./debug.js";
+import { feedbackRoutes } from "./feedback.js";
 
 export const routes = new Hono();
 
@@ -84,13 +85,16 @@ routes.route("/media", mediaRoutes);
 // Debug routes (development only)
 routes.route("/debug", debugRoutes);
 
+// Feedback routes (public)
+routes.route("/feedback", feedbackRoutes);
+
 // WebSocket routes
 routes.route("/ws", wsRoutes);
 
 // API v1 routes
 routes.get("/", (c) => {
   return c.json({
-    name: "@whatsapp-web/api",
+    name: "@wateaminbox/api",
     version: "0.1.0",
   });
 });
@@ -106,7 +110,7 @@ routes.get("/", (c) => {
  * ```typescript
  * // In frontend client
  * import { hc } from 'hono/client'
- * import type { AppType } from '@whatsapp-web/api'
+ * import type { AppType } from '@wateaminbox/api'
  *
  * const client = hc<AppType>('http://localhost:4445/api')
  * ```

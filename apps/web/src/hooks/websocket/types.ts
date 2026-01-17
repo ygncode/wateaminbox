@@ -11,7 +11,7 @@ import type {
   MessageFailedPayload,
   ToastNotificationPayload,
   WorkerConnectionStatusPayload,
-} from "@whatsapp-web/shared";
+} from "@wateaminbox/shared";
 
 // WhatsApp typing payload (different from internal TypingPayload)
 export interface WhatsAppTypingPayload {

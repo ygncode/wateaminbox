@@ -3,7 +3,7 @@
  *
  * Routes for individual message actions: star, delete.
  */
-import { toDbDate } from "@whatsapp-web/shared";
+import { toDbDate } from "@wateaminbox/shared";
 import { Hono } from "hono";
 import { notFound } from "../../lib/errors.js";
 import { successData, successMessage } from "../../lib/response.js";

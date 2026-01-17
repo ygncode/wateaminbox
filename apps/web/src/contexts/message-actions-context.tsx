@@ -1,4 +1,4 @@
-import type { Message } from "@whatsapp-web/shared";
+import type { Message } from "@wateaminbox/shared";
 import { createContext, type ReactNode, useContext, useMemo } from "react";
 
 /**

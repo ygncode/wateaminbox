@@ -1,6 +1,6 @@
 import type { Kysely } from "kysely";
 import { sql } from "kysely";
-import { toDbDate } from "@whatsapp-web/shared";
+import { toDbDate } from "@wateaminbox/shared";
 import type { TenantDatabase } from "./tenant.service.js";
 import {
   buildContactWhereClause,

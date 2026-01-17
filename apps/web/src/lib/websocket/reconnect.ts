@@ -4,7 +4,7 @@
  * Implements exponential backoff with jitter for reconnection attempts.
  */
 
-import { nowMs } from "@whatsapp-web/shared";
+import { nowMs } from "@wateaminbox/shared";
 import { wsLogger } from "../websocket-logger";
 
 export interface ReconnectConfig {

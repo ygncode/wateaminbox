@@ -16,7 +16,7 @@ import {
   XCircle,
 } from "lucide-react";
 import { useEffect, useState } from "react";
-import { formatAuditTime, nowMs } from "@whatsapp-web/shared";
+import { formatAuditTime, nowMs } from "@wateaminbox/shared";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { ConnectionWithState } from "@/hooks/useWhatsAppConnections";

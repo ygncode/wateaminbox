@@ -4,7 +4,7 @@
  * Handles connection status queries and updates.
  */
 
-import { toDbDate } from "@whatsapp-web/shared";
+import { toDbDate } from "@wateaminbox/shared";
 import type { Kysely } from "kysely";
 import type { TenantDatabase } from "../tenant.service.js";
 

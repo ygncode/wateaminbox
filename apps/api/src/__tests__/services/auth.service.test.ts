@@ -43,8 +43,8 @@ function resetMockDb() {
   mockDb.deleteFrom = mock(() => mockQueryBuilder);
 }
 
-// Mock @whatsapp-web/database
-mock.module("@whatsapp-web/database", () => ({
+// Mock @wateaminbox/database
+mock.module("@wateaminbox/database", () => ({
   db: mockDb,
 }));
 

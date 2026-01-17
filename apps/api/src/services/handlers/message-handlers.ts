@@ -8,13 +8,13 @@ import type {
   SendConfirmationEvent,
   SendFailedEvent,
 } from "../../lib/nats/index.js";
-import { type MessageType } from "@whatsapp-web/database";
+import { type MessageType } from "@wateaminbox/database";
 import {
   toDbDate,
   toDate,
   extractPhoneFromJid,
   normalizeJid,
-} from "@whatsapp-web/shared";
+} from "@wateaminbox/shared";
 import { getTenantConnection } from "../tenant.service.js";
 import { broadcastToCompany } from "../../routes/ws/index.js";
 import { updateMessageSearchVector } from "../search.service.js";

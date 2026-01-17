@@ -1,7 +1,7 @@
 import { defineConfig, devices } from '@playwright/test'
 
 /**
- * Playwright configuration for WhatsApp Web React app
+ * Playwright configuration for wateaminbox React app
  * @see https://playwright.dev/docs/test-configuration
  */
 export default defineConfig({

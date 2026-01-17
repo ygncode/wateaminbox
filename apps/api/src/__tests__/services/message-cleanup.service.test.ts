@@ -112,7 +112,7 @@ const databaseMock = {
   db: mockDb,
 };
 
-mock.module("@whatsapp-web/database", () => databaseMock);
+mock.module("@wateaminbox/database", () => databaseMock);
 
 mock.module("../../routes/ws/index.js", () => ({
   broadcastToCompany: mockBroadcastToCompany,

@@ -4,8 +4,8 @@
  * Operations for managing company members: listing, roles, permissions, removal.
  */
 
-import { db } from "@whatsapp-web/database";
-import { toDbDate } from "@whatsapp-web/shared";
+import { db } from "@wateaminbox/database";
+import { toDbDate } from "@wateaminbox/shared";
 import { sql } from "kysely";
 import {
   CompanyNotFoundError,

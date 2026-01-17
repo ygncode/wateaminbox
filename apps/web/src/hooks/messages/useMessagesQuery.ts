@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import type { Message } from "@whatsapp-web/shared";
+import type { Message } from "@wateaminbox/shared";
 import { api } from "../../lib/api";
 import { queryKeys } from "../query-keys";
 

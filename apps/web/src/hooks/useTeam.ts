@@ -1,11 +1,11 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
-import type { CompanyMember, CompanyInvitation } from "@whatsapp-web/shared";
+import type { CompanyMember, CompanyInvitation } from "@wateaminbox/shared";
 import { api } from "@/lib/api/client";
 import { useInvalidate, useQueryInvalidation } from "./query";
 import { queryKeys } from "./query-keys";
 
 // Re-export types for backward compatibility
-export type { CompanyMember } from "@whatsapp-web/shared";
+export type { CompanyMember } from "@wateaminbox/shared";
 
 /**
  * Invitation types - alias for backward compatibility

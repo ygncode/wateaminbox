@@ -115,7 +115,7 @@ export function RegisterPage() {
               Create account
             </h1>
             <p className="text-gray-600 dark:text-dark-text-secondary mt-2">
-              Get started with WhatsApp Web
+              Get started with WATeamInbox
             </p>
           </div>
 

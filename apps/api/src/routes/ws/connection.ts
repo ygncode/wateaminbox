@@ -1,4 +1,4 @@
-import type { ServerMessage } from "@whatsapp-web/shared";
+import type { ServerMessage } from "@wateaminbox/shared";
 import { createLogger } from "../../lib/logger.js";
 import type { WebSocketConnection } from "./types.js";
 

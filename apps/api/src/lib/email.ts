@@ -1,4 +1,4 @@
-import { nowMs } from "@whatsapp-web/shared";
+import { nowMs } from "@wateaminbox/shared";
 import { env } from "./env.js";
 import { createLogger } from "./logger.js";
 

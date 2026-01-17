@@ -31,10 +31,10 @@ export type {
   PresencePayload,
   MediaDownloadedPayload,
   MediaDownloadFailedPayload,
-} from "@whatsapp-web/shared";
+} from "@wateaminbox/shared";
 
 // Import for use in local type definitions
-import type { ConnectionStatus } from "@whatsapp-web/shared";
+import type { ConnectionStatus } from "@wateaminbox/shared";
 
 /**
  * Connection metrics for monitoring WebSocket health
@@ -69,7 +69,7 @@ export interface QueuedMessage {
 }
 
 // Import WebSocketClientConfig for the DefaultConfig type
-import type { WebSocketClientConfig as SharedConfig } from "@whatsapp-web/shared";
+import type { WebSocketClientConfig as SharedConfig } from "@wateaminbox/shared";
 
 /**
  * Default configuration values for WebSocket client

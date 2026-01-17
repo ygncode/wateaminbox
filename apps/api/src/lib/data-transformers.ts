@@ -9,7 +9,7 @@ import {
   extractPhoneFromJid,
   getContactDisplayName,
   getContactName,
-} from "@whatsapp-web/shared";
+} from "@wateaminbox/shared";
 
 // ============================================================================
 // Contact Types

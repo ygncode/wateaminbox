@@ -8,8 +8,8 @@ import type {
   ConnectionStatus,
   EventHandler,
   WebSocketEventType,
-} from "@whatsapp-web/shared";
-import type { Message, MessageStatus } from "@whatsapp-web/shared";
+} from "@wateaminbox/shared";
+import type { Message, MessageStatus } from "@wateaminbox/shared";
 import type { WebSocketClient, WebSocketMetrics } from "../../lib/websocket";
 import type { TypingIndicator } from "../../stores/chat-store";
 

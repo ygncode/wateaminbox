@@ -2,7 +2,9 @@
 <html lang="en" style="color-scheme: light">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
     <!-- Mobile viewport with safe area support - zoom enabled for accessibility -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <!-- PWA theme color - updated dynamically by ThemeProvider -->
@@ -10,14 +12,14 @@
     <!-- iOS specific -->
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <meta name="apple-mobile-web-app-title" content="WhatsApp Web" />
+    <meta name="apple-mobile-web-app-title" content="WATeamInbox" />
     <!-- Android specific -->
     <meta name="mobile-web-app-capable" content="yes" />
-    <title>WhatsApp Web</title>
+    <title>WATeamInbox</title>
     <!-- FOUC Prevention: Apply dark mode before React renders -->
     <script>
       (function() {
-        var STORAGE_KEY = 'whatsapp-web-theme';
+        var STORAGE_KEY = 'wateaminbox-theme';
         var VALID_THEMES = ['light', 'dark', 'system'];
         var theme = 'system';
 

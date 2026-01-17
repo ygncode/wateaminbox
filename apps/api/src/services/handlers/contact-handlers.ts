@@ -7,7 +7,7 @@ import {
   normalizeJid,
   toDbDate,
   toISOString,
-} from "@whatsapp-web/shared";
+} from "@wateaminbox/shared";
 import { formatError } from "../../lib/logger.js";
 import type {
   ContactEvent,

@@ -1,6 +1,6 @@
 import { Edit2, Trash2 } from "lucide-react";
 import { useState } from "react";
-import { dayjs } from "@whatsapp-web/shared";
+import { dayjs } from "@wateaminbox/shared";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 

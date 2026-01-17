@@ -1,5 +1,5 @@
-import type { Contact } from "@whatsapp-web/shared";
-import { formatLastSeen } from "@whatsapp-web/shared";
+import type { Contact } from "@wateaminbox/shared";
+import { formatLastSeen } from "@wateaminbox/shared";
 import { ArrowLeft } from "lucide-react";
 import { ThemeToggle } from "./ThemeToggle";
 

@@ -3,7 +3,7 @@
  */
 
 import { sql } from "kysely";
-import { dayjs } from "@whatsapp-web/shared";
+import { dayjs } from "@wateaminbox/shared";
 import { getTenantConnection } from "../tenant.service.js";
 import type { ContactStats, NewContactsTrend } from "./types.js";
 

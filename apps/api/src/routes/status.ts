@@ -1,4 +1,4 @@
-import { now, toDbDate, toISOString } from "@whatsapp-web/shared";
+import { now, toDbDate, toISOString } from "@wateaminbox/shared";
 import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { forbidden, notFound } from "../lib/errors.js";

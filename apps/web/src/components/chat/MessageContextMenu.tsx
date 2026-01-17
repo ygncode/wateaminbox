@@ -1,5 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
-import type { Message } from "@whatsapp-web/shared";
+import type { Message } from "@wateaminbox/shared";
 import { forwardRef, useEffect, useMemo } from "react";
 import { prefetchForwardContacts } from "@/hooks/useForwardContacts";
 import {

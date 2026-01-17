@@ -1,5 +1,5 @@
 import { useInfiniteQuery } from "@tanstack/react-query";
-import type { PaginatedMessages } from "@whatsapp-web/shared";
+import type { PaginatedMessages } from "@wateaminbox/shared";
 import { api } from "../lib/api";
 
 export const infiniteMessageKeys = {
@@ -70,7 +70,7 @@ export function useInfiniteMessagesUtils() {
         typeof import("@tanstack/react-query").useQueryClient
       >,
     ) => {
-      return (newMessage: import("@whatsapp-web/shared").Message) => {
+      return (newMessage: import("@wateaminbox/shared").Message) => {
         queryClient.setQueryData(
           infiniteMessageKeys.list(conversationId),
           (oldData: ReturnType<typeof useInfiniteMessages>["data"]) => {

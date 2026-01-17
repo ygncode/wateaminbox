@@ -1,7 +1,7 @@
 import { memo, useCallback, useMemo } from "react";
 import type { ChatListItemProps } from "../../types/chat";
 import { extractPhoneFromJID, formatPhoneNumber } from "@/lib/utils";
-import { formatChatListTime } from "@whatsapp-web/shared";
+import { formatChatListTime } from "@wateaminbox/shared";
 
 /**
  * Truncate message content for preview display

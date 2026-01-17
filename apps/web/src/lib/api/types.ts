@@ -3,7 +3,7 @@
  * Shared type definitions for API requests and responses
  */
 
-import type { Message } from "@whatsapp-web/shared";
+import type { Message } from "@wateaminbox/shared";
 
 // Common types
 export interface ApiError {
@@ -127,7 +127,7 @@ export type {
   CreateCompanyInput,
   UpdateCompanyInput,
   InviteMemberInput,
-} from "@whatsapp-web/shared";
+} from "@wateaminbox/shared";
 
 // Media types
 export interface UploadMediaResponse {

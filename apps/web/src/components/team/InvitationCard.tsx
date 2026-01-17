@@ -1,5 +1,5 @@
 import { Clock, Mail, RefreshCw, X } from "lucide-react";
-import { dayjs, nowMs } from "@whatsapp-web/shared";
+import { dayjs, nowMs } from "@wateaminbox/shared";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { InvitationCardProps } from "./types";

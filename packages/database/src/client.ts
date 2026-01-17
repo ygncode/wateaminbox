@@ -1,6 +1,6 @@
 import { Kysely, PostgresDialect, Generated } from "kysely";
 import { Pool } from "pg";
-import type { CompanyStatus, CompanyMemberRole, MessageType, MessageStatus } from "@whatsapp-web/shared";
+import type { CompanyStatus, CompanyMemberRole, MessageType, MessageStatus } from "@wateaminbox/shared";
 
 // ============================================================================
 // Public Schema Database Types (multi-tenant management)
@@ -18,8 +18,8 @@ export interface Database {
   user_sessions: UserSessionsTable;
 }
 
-// Type alias for backward compatibility (deprecated - import from @whatsapp-web/shared instead)
-/** @deprecated Use CompanyMemberRole from @whatsapp-web/shared instead */
+// Type alias for backward compatibility (deprecated - import from @wateaminbox/shared instead)
+/** @deprecated Use CompanyMemberRole from @wateaminbox/shared instead */
 export type MemberRole = CompanyMemberRole;
 
 export interface CompaniesTable {

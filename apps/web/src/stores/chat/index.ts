@@ -11,7 +11,7 @@
  * The store maintains backward compatibility with the original API.
  */
 
-import { nowMs } from "@whatsapp-web/shared";
+import { nowMs } from "@wateaminbox/shared";
 import { create } from "zustand";
 import { devtools, persist } from "zustand/middleware";
 

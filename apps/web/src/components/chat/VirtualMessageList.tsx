@@ -1,4 +1,4 @@
-import { formatDateSeparator as formatDateSep } from "@whatsapp-web/shared";
+import { formatDateSeparator as formatDateSep } from "@wateaminbox/shared";
 import type { useVirtualizer } from "@tanstack/react-virtual";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import type { VirtualItem } from "../../hooks/chat/useMessageVirtualization";

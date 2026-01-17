@@ -4,9 +4,9 @@
  * Core operations for creating, reading, updating, and deleting companies.
  */
 
-import type { Database } from "@whatsapp-web/database";
-import { db } from "@whatsapp-web/database";
-import { toDbDate } from "@whatsapp-web/shared";
+import type { Database } from "@wateaminbox/database";
+import { db } from "@wateaminbox/database";
+import { toDbDate } from "@wateaminbox/shared";
 import type { Transaction } from "kysely";
 import { CompanyNotFoundError } from "../../lib/errors.js";
 import { createTenantSchema, getSchemaName } from "../tenant.service.js";
