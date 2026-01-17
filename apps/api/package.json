@@ -8,12 +8,7 @@
     "build": "bun build src/index.ts --outdir dist --target bun",
     "start": "bun run dist/index.js",
     "lint": "eslint src --ext .ts",
-    "format": "prettier --write src/**/*.ts",
-    "test": "bun test src/__tests__/services/*.test.ts && bun test src/__tests__/integration/*.test.ts && bun test src/__tests__/routes/*.test.ts && bun test src/__tests__/lib/*.test.ts && bun test src/__tests__/perf/*.test.ts",
-    "test:all": "bun test",
-    "test:services": "bun test src/__tests__/services/*.test.ts",
-    "test:integration": "bun test src/__tests__/integration/*.test.ts",
-    "test:routes": "bun test src/__tests__/routes/*.test.ts"
+    "format": "prettier --write src/**/*.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.962.0",
