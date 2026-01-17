@@ -1,4 +1,4 @@
-import { nowMs } from "@whatsapp-web/shared";
+import { nowMs } from "@wateaminbox/shared";
 import { wsLogger } from "./websocket-logger";
 
 // Re-export all types from the types module

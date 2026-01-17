@@ -4,7 +4,7 @@
  * Routes for listing, getting, and updating groups.
  */
 import { zValidator } from "@hono/zod-validator";
-import { toDbDate, getGroupDisplayName } from "@whatsapp-web/shared";
+import { toDbDate, getGroupDisplayName } from "@wateaminbox/shared";
 import { Hono } from "hono";
 import { notFound } from "../../lib/errors.js";
 import { successData, successPaginated } from "../../lib/response.js";

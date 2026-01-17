@@ -3,8 +3,8 @@
  */
 
 import { sql } from "kysely";
-import { db } from "@whatsapp-web/database";
-import { toISOString } from "@whatsapp-web/shared";
+import { db } from "@wateaminbox/database";
+import { toISOString } from "@wateaminbox/shared";
 import { getTenantConnection } from "../tenant.service.js";
 import type {
   ResponseTimeStats,

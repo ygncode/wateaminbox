@@ -1,5 +1,5 @@
 import type { Context } from "hono";
-import { subtractDays, toDbDate } from "@whatsapp-web/shared";
+import { subtractDays, toDbDate } from "@wateaminbox/shared";
 import { NotFoundError } from "./errors.js";
 
 /**

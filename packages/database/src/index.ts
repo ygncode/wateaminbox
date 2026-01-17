@@ -1,7 +1,7 @@
 export { db, createDatabase, createTenantDatabase, getTenantSchemaName } from "./client";
 
 // Re-export types from shared package for convenience
-export type { CompanyStatus, CompanyMemberRole, MessageType, MessageStatus } from "@whatsapp-web/shared";
+export type { CompanyStatus, CompanyMemberRole, MessageType, MessageStatus } from "@wateaminbox/shared";
 
 export type {
   Database,
@@ -13,7 +13,7 @@ export type {
   InvitationsTable,
   CompanyStatsTable,
   UserSessionsTable,
-  /** @deprecated Use CompanyMemberRole from @whatsapp-web/shared instead */
+  /** @deprecated Use CompanyMemberRole from @wateaminbox/shared instead */
   MemberRole,
   // Tenant schema types
   WhatsAppConnectionsTable,

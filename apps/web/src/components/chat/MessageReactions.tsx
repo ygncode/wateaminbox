@@ -1,4 +1,4 @@
-import type { MessageReaction } from "@whatsapp-web/shared";
+import type { MessageReaction } from "@wateaminbox/shared";
 
 interface MessageReactionsProps {
   reactions: MessageReaction[];

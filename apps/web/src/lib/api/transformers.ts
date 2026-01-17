@@ -6,7 +6,7 @@
  * across different hooks and components.
  */
 
-import { toDate } from "@whatsapp-web/shared";
+import { toDate } from "@wateaminbox/shared";
 import type { Chat, MessageStatus, MessageType } from "@/types/chat";
 
 /**

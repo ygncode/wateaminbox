@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useCallback } from "react";
-import { nowMs } from "@whatsapp-web/shared";
+import { nowMs } from "@wateaminbox/shared";
 import { ApiRequestError } from "@/lib/api/client";
 import {
   createWhatsAppConnection,

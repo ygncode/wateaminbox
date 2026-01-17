@@ -1,4 +1,4 @@
-import { toDbDate, toISOString } from "@whatsapp-web/shared";
+import { toDbDate, toISOString } from "@wateaminbox/shared";
 import { Hono } from "hono";
 import { notFound, serverError } from "../lib/errors.js";
 import { createLogger, formatError } from "../lib/logger.js";

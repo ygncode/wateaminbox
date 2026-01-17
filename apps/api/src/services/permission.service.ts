@@ -1,4 +1,4 @@
-import { db } from "@whatsapp-web/database";
+import { db } from "@wateaminbox/database";
 import { NotFoundError, ForbiddenError } from "../lib/errors.js";
 
 /**

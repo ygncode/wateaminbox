@@ -3,7 +3,7 @@ import { Pool as PgPool } from "pg";
 import {
   TenantDatabase as TenantDatabaseType,
   getTenantSchemaName,
-} from "@whatsapp-web/database";
+} from "@wateaminbox/database";
 
 export type TenantDatabase = TenantDatabaseType;
 

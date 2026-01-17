@@ -1,5 +1,5 @@
 import * as jose from "jose";
-import { nowMs, toDbDate } from "@whatsapp-web/shared";
+import { nowMs, toDbDate } from "@wateaminbox/shared";
 import { env } from "./env.js";
 
 const SECRET = new TextEncoder().encode(env.JWT_SECRET);

@@ -1,6 +1,6 @@
 import { zValidator } from "@hono/zod-validator";
 import { Hono } from "hono";
-import { toDbDate } from "@whatsapp-web/shared";
+import { toDbDate } from "@wateaminbox/shared";
 import { createAuditLog, getClientIp } from "../../services/audit.service.js";
 import { getRouteContext } from "../../middleware/context.js";
 import {

@@ -276,7 +276,7 @@ export function SettingsPage() {
             {/* Footer */}
             <div className="mt-8 text-center">
               <p className="text-xs text-gray-400 dark:text-dark-text-tertiary">
-                WhatsApp Web &middot; Built with care
+                WATeamInbox &middot; Built with care
               </p>
             </div>
           </div>

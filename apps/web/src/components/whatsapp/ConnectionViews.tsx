@@ -6,7 +6,7 @@ import {
   Smartphone,
   XCircle,
 } from "lucide-react";
-import { formatAuditTime } from "@whatsapp-web/shared";
+import { formatAuditTime } from "@wateaminbox/shared";
 import { Button } from "@/components/ui/button";
 
 /**

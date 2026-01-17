@@ -1,4 +1,4 @@
-import { db } from "@whatsapp-web/database";
+import { db } from "@wateaminbox/database";
 import { sql } from "kysely";
 import {
   getCleanupConfig,

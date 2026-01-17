@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { formatStatusTime } from "@whatsapp-web/shared";
+import { formatStatusTime } from "@wateaminbox/shared";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,

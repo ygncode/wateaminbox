@@ -1,4 +1,4 @@
-import type { TenantDatabase } from "@whatsapp-web/database";
+import type { TenantDatabase } from "@wateaminbox/database";
 import type { Kysely, Transaction } from "kysely";
 import { ImportCriticalError, ImportValidationError } from "./errors.js";
 import type {

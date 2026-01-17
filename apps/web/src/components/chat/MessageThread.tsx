@@ -143,7 +143,7 @@ export function MessageThread({
             </svg>
           </div>
           <h2 className="text-xl font-semibold text-gray-600 dark:text-dark-text-secondary mb-2">
-            WhatsApp Web
+            WATeamInbox
           </h2>
           <p className="text-gray-500 dark:text-dark-text-tertiary">
             Select a conversation to start messaging

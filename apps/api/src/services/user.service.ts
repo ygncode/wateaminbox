@@ -1,5 +1,5 @@
-import { db } from "@whatsapp-web/database";
-import { getEmailDisplayName } from "@whatsapp-web/shared";
+import { db } from "@wateaminbox/database";
+import { getEmailDisplayName } from "@wateaminbox/shared";
 import { createLogger, formatError } from "../lib/logger.js";
 
 const logger = createLogger("UserService");

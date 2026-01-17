@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { nowMs, toDate } from "@whatsapp-web/shared";
-import type { WorkerConnectionStatusPayload } from "@whatsapp-web/shared";
+import { nowMs, toDate } from "@wateaminbox/shared";
+import type { WorkerConnectionStatusPayload } from "@wateaminbox/shared";
 import { toast } from "sonner";
 import { useWebSocketContext } from "@/contexts/WebSocketProvider";
 import type {

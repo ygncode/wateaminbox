@@ -1,5 +1,5 @@
-import { db } from "@whatsapp-web/database";
-import { toDbDate } from "@whatsapp-web/shared";
+import { db } from "@wateaminbox/database";
+import { toDbDate } from "@wateaminbox/shared";
 import crypto from "crypto";
 import { sendPasswordResetEmail, sendVerificationEmail } from "../lib/email.js";
 import { AuthError } from "../lib/errors.js";

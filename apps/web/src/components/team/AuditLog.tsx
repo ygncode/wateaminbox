@@ -9,7 +9,7 @@ import {
   User,
 } from "lucide-react";
 import { useState } from "react";
-import { formatAuditTime } from "@whatsapp-web/shared";
+import { formatAuditTime } from "@wateaminbox/shared";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";

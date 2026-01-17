@@ -1,5 +1,5 @@
 import type { Kysely } from "kysely";
-import type { TenantDatabase } from "@whatsapp-web/database";
+import type { TenantDatabase } from "@wateaminbox/database";
 import { syncEntities } from "../lib/sync-helper.js";
 
 // WhatsApp Business label colors mapping (predefined_id to color)

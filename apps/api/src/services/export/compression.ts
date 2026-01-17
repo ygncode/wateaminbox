@@ -5,7 +5,7 @@
  */
 
 import * as fflate from "fflate";
-import { dayjs } from "@whatsapp-web/shared";
+import { dayjs } from "@wateaminbox/shared";
 import type { ContactExport, MessageExport } from "../export.service.js";
 import { toCSV } from "./csv.js";
 

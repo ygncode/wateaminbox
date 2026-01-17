@@ -1,6 +1,6 @@
 import { ChevronDown, ChevronUp, History } from "lucide-react";
 import { useState } from "react";
-import { dayjs } from "@whatsapp-web/shared";
+import { dayjs } from "@wateaminbox/shared";
 import { RightPanelSection } from "@/components/layout/right-panel";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";

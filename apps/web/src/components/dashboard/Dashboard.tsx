@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { getDateRange, toISOString } from "@whatsapp-web/shared";
+import { getDateRange, toISOString } from "@wateaminbox/shared";
 import { ExportDialog } from "@/components/export";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {

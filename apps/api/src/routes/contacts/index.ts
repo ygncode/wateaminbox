@@ -11,7 +11,7 @@
 
 import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
-import { db } from "@whatsapp-web/database";
+import { db } from "@wateaminbox/database";
 import {
   toDbDate,
   toISOString,
@@ -19,7 +19,7 @@ import {
   getContactName,
   extractPhoneFromJid,
   getUserDisplayName,
-} from "@whatsapp-web/shared";
+} from "@wateaminbox/shared";
 import { authMiddleware } from "../../middleware/auth.js";
 import { notFound, badRequest, serverError } from "../../lib/errors.js";
 import { successData, successPaginated, created } from "../../lib/response.js";

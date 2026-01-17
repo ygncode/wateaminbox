@@ -1,4 +1,4 @@
-import type { Message } from "@whatsapp-web/shared";
+import type { Message } from "@wateaminbox/shared";
 
 export interface SendMessageInput {
   contactId: string;

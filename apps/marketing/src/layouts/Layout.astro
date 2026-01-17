@@ -4,7 +4,7 @@ interface Props {
   description?: string;
 }
 
-const { title, description = 'WhatsApp Web - Connect with anyone, anywhere' } = Astro.props;
+const { title, description = 'WATeamInbox - WhatsApp for Teams' } = Astro.props;
 ---
 
 <!doctype html>
@@ -14,13 +14,15 @@ const { title, description = 'WhatsApp Web - Connect with anyone, anywhere' } = 
     <meta name="description" content={description} />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
     <meta name="generator" content={Astro.generator} />
     <title>{title}</title>
   </head>
   <body class="min-h-screen bg-white text-gray-900 antialiased">
     <header class="sticky top-0 z-50 border-b border-gray-200 bg-white/80 backdrop-blur-sm">
       <nav class="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
-        <a href="/" class="text-xl font-bold text-primary-600">WhatsApp Web</a>
+        <a href="/" class="text-xl font-bold text-primary-600">WATeamInbox</a>
         <ul class="flex items-center gap-6">
           <li><a href="/pricing" class="text-gray-600 hover:text-gray-900">Pricing</a></li>
           <li><a href="/docs" class="text-gray-600 hover:text-gray-900">Docs</a></li>
@@ -36,7 +38,7 @@ const { title, description = 'WhatsApp Web - Connect with anyone, anywhere' } = 
 
     <footer class="border-t border-gray-200 bg-gray-50">
       <div class="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
-        <p class="text-center text-gray-500">&copy; {new Date().getFullYear()} WhatsApp Web. All rights reserved.</p>
+        <p class="text-center text-gray-500">&copy; {new Date().getFullYear()} WATeamInbox. All rights reserved.</p>
       </div>
     </footer>
   </body>

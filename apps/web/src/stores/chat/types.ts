@@ -1,4 +1,4 @@
-import type { Message, MessageStatus } from "@whatsapp-web/shared";
+import type { Message, MessageStatus } from "@wateaminbox/shared";
 import type { Contact, Conversation } from "../../lib/api";
 
 // Typing indicator type

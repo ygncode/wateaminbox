@@ -1,5 +1,5 @@
 import { zValidator } from "@hono/zod-validator";
-import { now, parseDate, subtractDays, toISOString } from "@whatsapp-web/shared";
+import { now, parseDate, subtractDays, toISOString } from "@wateaminbox/shared";
 import { Hono } from "hono";
 import { successData } from "../../lib/response.js";
 import { resolutionTrendQuerySchema } from "../../lib/schemas/index.js";

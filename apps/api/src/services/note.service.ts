@@ -1,5 +1,5 @@
-import { db } from "@whatsapp-web/database";
-import { getUserDisplayName } from "@whatsapp-web/shared";
+import { db } from "@wateaminbox/database";
+import { getUserDisplayName } from "@wateaminbox/shared";
 
 /**
  * Shared and private note types for response transformation

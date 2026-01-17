@@ -6,7 +6,7 @@ import type {
   ReactionEvent,
   MessageRevokeEvent,
 } from "../../lib/nats/index.js";
-import { toDbDate } from "@whatsapp-web/shared";
+import { toDbDate } from "@wateaminbox/shared";
 import { getTenantConnection } from "../tenant.service.js";
 import { broadcastToCompany } from "../../routes/ws/index.js";
 import { formatError } from "../../lib/logger.js";

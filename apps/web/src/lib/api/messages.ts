@@ -3,7 +3,7 @@
  * Message related API functions
  */
 
-import type { CreateMessageInput, Message } from "@whatsapp-web/shared";
+import type { CreateMessageInput, Message } from "@wateaminbox/shared";
 import {
   fetchWithAuth,
   fetchFormDataWithAuth,

@@ -1,6 +1,6 @@
 import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
-import { extractPhoneFromJid } from "@whatsapp-web/shared";
+import { extractPhoneFromJid } from "@wateaminbox/shared";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));

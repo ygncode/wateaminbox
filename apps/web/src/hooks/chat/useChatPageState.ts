@@ -1,5 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
-import type { Contact, Message } from "@whatsapp-web/shared";
+import type { Contact, Message } from "@wateaminbox/shared";
 import * as React from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";

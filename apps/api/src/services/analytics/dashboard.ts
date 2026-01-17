@@ -2,8 +2,8 @@
  * Dashboard analytics
  */
 
-import { db } from "@whatsapp-web/database";
-import { startOfDay, subtractDays, dayjs } from "@whatsapp-web/shared";
+import { db } from "@wateaminbox/database";
+import { startOfDay, subtractDays, dayjs } from "@wateaminbox/shared";
 import { getTenantConnection } from "../tenant.service.js";
 import type { DashboardStats } from "./types.js";
 

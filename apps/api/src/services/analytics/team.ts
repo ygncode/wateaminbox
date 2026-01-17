@@ -2,7 +2,7 @@
  * Team analytics
  */
 
-import { db } from "@whatsapp-web/database";
+import { db } from "@wateaminbox/database";
 import { getTenantConnection } from "../tenant.service.js";
 import type { TeamActivityStats } from "./types.js";
 

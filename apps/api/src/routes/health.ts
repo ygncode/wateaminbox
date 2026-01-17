@@ -7,7 +7,7 @@
  *
  * Do NOT refactor these to use response helpers like `successData()`.
  */
-import { toISOString } from "@whatsapp-web/shared";
+import { toISOString } from "@wateaminbox/shared";
 import { Hono } from "hono";
 import { getMessageCleanupStatus } from "../services/message-cleanup.service.js";
 import {

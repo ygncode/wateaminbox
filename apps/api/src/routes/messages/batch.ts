@@ -3,7 +3,7 @@
  *
  * Routes for batch operations on messages.
  */
-import { toDbDate } from "@whatsapp-web/shared";
+import { toDbDate } from "@wateaminbox/shared";
 import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { successData } from "../../lib/response.js";

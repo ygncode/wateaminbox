@@ -3,7 +3,7 @@ import {
   isAuthPayload,
   isSendMessagePayload,
   toISOString,
-} from "@whatsapp-web/shared";
+} from "@wateaminbox/shared";
 import { createLogger, formatError } from "../../lib/logger.js";
 import {
   publishSendMessage,

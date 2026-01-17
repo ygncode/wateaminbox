@@ -1,6 +1,6 @@
 import { sql, type ExpressionBuilder } from "kysely";
 import { getTenantConnection } from "./tenant.service.js";
-import type { TenantDatabase } from "@whatsapp-web/database";
+import type { TenantDatabase } from "@wateaminbox/database";
 import {
   isMeilisearchAvailable,
   searchMessagesWithMeilisearch,

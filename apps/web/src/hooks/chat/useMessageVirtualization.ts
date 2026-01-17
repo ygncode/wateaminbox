@@ -1,5 +1,5 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
-import type { Message } from "@whatsapp-web/shared";
+import type { Message } from "@wateaminbox/shared";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 // Estimated row heights for virtualization

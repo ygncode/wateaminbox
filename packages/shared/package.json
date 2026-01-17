@@ -1,5 +1,5 @@
 {
-  "name": "@whatsapp-web/shared",
+  "name": "@wateaminbox/shared",
   "version": "0.0.1",
   "private": true,
   "description": "Types and utilities shared across apps",

@@ -1,5 +1,5 @@
-import type { Message } from "@whatsapp-web/shared";
-import { formatMessageTime } from "@whatsapp-web/shared";
+import type { Message } from "@wateaminbox/shared";
+import { formatMessageTime } from "@wateaminbox/shared";
 import { lazy, memo, Suspense, useCallback, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";

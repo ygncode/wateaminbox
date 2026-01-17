@@ -3,7 +3,7 @@ import {
   toDbDate,
   toISOString,
   getContactDisplayName,
-} from "@whatsapp-web/shared";
+} from "@wateaminbox/shared";
 import { requirePermission } from "../../middleware/tenant.js";
 import { getRouteContext } from "../../middleware/context.js";
 import { PERMISSIONS } from "../../services/permission.service.js";

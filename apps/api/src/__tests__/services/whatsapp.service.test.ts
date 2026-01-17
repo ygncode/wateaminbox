@@ -94,7 +94,7 @@ mock.module("../../lib/env.js", () => ({
   },
 }));
 
-// Mock the shared database from @whatsapp-web/database
+// Mock the shared database from @wateaminbox/database
 // This is used by getMaxConnections() to check company limits
 let mockDbQueryBuilder: Record<string, unknown> = {};
 
@@ -115,7 +115,7 @@ function resetMockDbQueryBuilder(returnValue: unknown = undefined) {
 }
 resetMockDbQueryBuilder({ max_whatsapp_connections: 5 });
 
-mock.module("@whatsapp-web/database", () => ({
+mock.module("@wateaminbox/database", () => ({
   db: mockDb,
 }));
 

@@ -1,5 +1,5 @@
 import { zValidator } from "@hono/zod-validator";
-import { toDbDate, toISOString } from "@whatsapp-web/shared";
+import { toDbDate, toISOString } from "@wateaminbox/shared";
 import { Hono } from "hono";
 import { notFound } from "../../lib/errors.js";
 import { successData } from "../../lib/response.js";

@@ -9,7 +9,7 @@ import { useState } from "react";
 import {
   getDateRange as getDateRangeHelper,
   toISOString,
-} from "@whatsapp-web/shared";
+} from "@wateaminbox/shared";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {

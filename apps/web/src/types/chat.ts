@@ -1,5 +1,5 @@
 /**
- * Chat-related type definitions for the WhatsApp Web application
+ * Chat-related type definitions for the wateaminbox application
  *
  * This file provides frontend-specific view models and re-exports shared types.
  */
@@ -9,7 +9,7 @@ import type {
   GroupInfo as SharedGroupInfo,
   GroupParticipant as SharedGroupParticipant,
   MessageType as SharedMessageType,
-} from "@whatsapp-web/shared";
+} from "@wateaminbox/shared";
 
 /**
  * Message status with frontend-specific "sending" state

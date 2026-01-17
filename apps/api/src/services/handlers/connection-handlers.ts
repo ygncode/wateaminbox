@@ -7,7 +7,7 @@ import type {
   ConnectionEvent,
   WorkerConnectionStatusEvent,
 } from "../../lib/nats/index.js";
-import { toDbDate } from "@whatsapp-web/shared";
+import { toDbDate } from "@wateaminbox/shared";
 import { getTenantConnection } from "../tenant.service.js";
 import { updateConnectionStatus } from "../whatsapp.service.js";
 import { broadcastToCompany } from "../../routes/ws/index.js";

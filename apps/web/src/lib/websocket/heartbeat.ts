@@ -5,7 +5,7 @@
  * This module manages the heartbeat interval and pong timeout logic.
  */
 
-import { nowMs } from "@whatsapp-web/shared";
+import { nowMs } from "@wateaminbox/shared";
 import { wsLogger } from "../websocket-logger";
 
 export interface HeartbeatConfig {

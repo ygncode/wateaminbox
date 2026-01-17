@@ -5,7 +5,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useAsyncData } from "@/hooks/useAsyncData";
 import { type GroupListItem, useGroups } from "@/hooks/useGroups";
 import { cn } from "@/lib/utils";
-import { formatChatListTime } from "@whatsapp-web/shared";
+import { formatChatListTime } from "@wateaminbox/shared";
 
 export interface GroupListProps {
   selectedGroupId?: string | null;

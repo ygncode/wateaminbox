@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import type { Message, UpdateMessageInput } from "@whatsapp-web/shared";
-import { toDbDate, nowMs } from "@whatsapp-web/shared";
+import type { Message, UpdateMessageInput } from "@wateaminbox/shared";
+import { toDbDate, nowMs } from "@wateaminbox/shared";
 import { api } from "../../lib/api";
 import { infiniteMessageKeys } from "../useInfiniteMessages";
 import { queryKeys } from "../query-keys";

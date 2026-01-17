@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { formatStatusTime } from "@whatsapp-web/shared";
+import { formatStatusTime } from "@wateaminbox/shared";
 import { AriaLive } from "@/components/ui/aria-live";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";

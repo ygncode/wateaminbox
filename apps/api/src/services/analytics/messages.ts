@@ -3,7 +3,7 @@
  */
 
 import { sql } from "kysely";
-import { subtractDays, dayjs } from "@whatsapp-web/shared";
+import { subtractDays, dayjs } from "@wateaminbox/shared";
 import { getTenantConnection } from "../tenant.service.js";
 import type { MessageStats } from "./types.js";
 

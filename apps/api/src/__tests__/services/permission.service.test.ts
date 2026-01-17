@@ -23,7 +23,7 @@ const mockDb = {
   updateTable: mock(() => mockQueryBuilder),
 };
 
-mock.module("@whatsapp-web/database", () => ({
+mock.module("@wateaminbox/database", () => ({
   db: mockDb,
 }));
 

@@ -4,7 +4,7 @@
  * Handles sending messages via WhatsApp connections.
  */
 
-import { toDbDate } from "@whatsapp-web/shared";
+import { toDbDate } from "@wateaminbox/shared";
 import type { Kysely } from "kysely";
 import {
   ConnectionNotFoundError,

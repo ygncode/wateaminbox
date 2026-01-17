@@ -7,7 +7,7 @@
  */
 
 import type { QueryClient } from "@tanstack/react-query";
-import type { Message, PaginatedMessages } from "@whatsapp-web/shared";
+import type { Message, PaginatedMessages } from "@wateaminbox/shared";
 import { chatKeys } from "../../hooks/useChats";
 import { infiniteMessageKeys } from "../../hooks/useInfiniteMessages";
 

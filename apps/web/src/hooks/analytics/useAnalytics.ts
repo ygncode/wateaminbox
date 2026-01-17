@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { dayjs } from "@whatsapp-web/shared";
+import { dayjs } from "@wateaminbox/shared";
 import { api } from "@/lib/api/client";
 import { queryKeys } from "../query-keys";
 

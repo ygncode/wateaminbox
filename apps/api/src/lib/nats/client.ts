@@ -11,7 +11,7 @@ import {
   JetStreamSubscription,
   JSONCodec,
 } from "nats";
-import { nowMs } from "@whatsapp-web/shared";
+import { nowMs } from "@wateaminbox/shared";
 import { env } from "../env.js";
 import { createLogger, formatError } from "../logger.js";
 import {

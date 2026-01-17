@@ -1,4 +1,4 @@
-import { toISOString } from "@whatsapp-web/shared";
+import { toISOString } from "@wateaminbox/shared";
 import { Hono } from "hono";
 import { createBunWebSocket } from "hono/bun";
 import { createLogger, formatError } from "../../lib/logger.js";

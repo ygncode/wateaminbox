@@ -2,7 +2,7 @@
 import Layout from '../../layouts/Layout.astro';
 ---
 
-<Layout title="Documentation - WhatsApp Web">
+<Layout title="Documentation - WATeamInbox">
   <div class="mx-auto max-w-7xl px-4 py-24 sm:px-6 lg:px-8">
     <div class="lg:grid lg:grid-cols-4 lg:gap-8">
       <!-- Sidebar -->
@@ -42,14 +42,14 @@ import Layout from '../../layouts/Layout.astro';
       <main class="lg:col-span-3">
         <h1 class="text-4xl font-bold tracking-tight text-gray-900">Documentation</h1>
         <p class="mt-4 text-lg text-gray-600">
-          Welcome to the WhatsApp Web documentation. Learn how to set up, configure, and make the most of our collaborative business messaging platform.
+          Welcome to the WATeamInbox documentation. Learn how to set up, configure, and make the most of our collaborative business messaging platform.
         </p>
 
         <!-- Getting Started -->
         <section id="getting-started" class="mt-12 scroll-mt-24">
           <h2 class="text-2xl font-bold text-gray-900">Getting Started</h2>
           <p class="mt-4 text-gray-600">
-            WhatsApp Web is a multi-tenant collaborative platform that enables businesses to manage WhatsApp communications with team collaboration, contact assignment, and comprehensive audit logging.
+            WATeamInbox is a multi-tenant collaborative platform that enables businesses to manage WhatsApp communications with team collaboration, contact assignment, and comprehensive audit logging.
           </p>
 
           <div class="mt-6 rounded-lg bg-gray-50 p-6">
@@ -85,7 +85,7 @@ import Layout from '../../layouts/Layout.astro';
         <section id="installation" class="mt-16 scroll-mt-24">
           <h2 class="text-2xl font-bold text-gray-900">Installation</h2>
           <p class="mt-4 text-gray-600">
-            Follow these steps to set up WhatsApp Web for local development or self-hosted deployment.
+            Follow these steps to set up WATeamInbox for local development or self-hosted deployment.
           </p>
 
           <div class="mt-6">
@@ -102,8 +102,8 @@ import Layout from '../../layouts/Layout.astro';
             <h3 class="text-lg font-semibold text-gray-900">Quick Start</h3>
             <div class="mt-4 rounded-lg bg-gray-900 p-4 overflow-x-auto">
               <pre class="text-sm text-gray-100"><code># Clone the repository
-git clone https://github.com/your-org/whatsapp-web.git
-cd whatsapp-web
+git clone https://github.com/your-org/wateaminbox.git
+cd wateaminbox
 
 # Install dependencies
 bun install
@@ -382,7 +382,7 @@ STORAGE_BUCKET=whatsapp-media</code></pre>
         <section id="features" class="mt-16 scroll-mt-24">
           <h2 class="text-2xl font-bold text-gray-900">Features</h2>
           <p class="mt-4 text-gray-600">
-            Explore the key features of WhatsApp Web for business messaging.
+            Explore the key features of WATeamInbox for business messaging.
           </p>
 
           <div class="mt-8 grid gap-6 sm:grid-cols-2">
@@ -529,7 +529,7 @@ STORAGE_BUCKET=whatsapp-media</code></pre>
         <section id="api-reference" class="mt-16 scroll-mt-24">
           <h2 class="text-2xl font-bold text-gray-900">API Reference</h2>
           <p class="mt-4 text-gray-600">
-            The WhatsApp Web API uses REST endpoints with JSON responses. All authenticated routes require a JWT token in the Authorization header.
+            The WATeamInbox API uses REST endpoints with JSON responses. All authenticated routes require a JWT token in the Authorization header.
           </p>
 
           <div class="mt-6 rounded-lg bg-gray-50 p-6">
@@ -686,21 +686,93 @@ X-Company-ID: &lt;company-uuid&gt;</code></pre>
           </div>
         </section>
 
-        <!-- Need Help -->
+        <!-- Feedback -->
         <section class="mt-16">
-          <h2 class="text-2xl font-bold text-gray-900">Need Help?</h2>
+          <h2 class="text-2xl font-bold text-gray-900">Feedback</h2>
           <p class="mt-4 text-gray-600">
-            If you have questions not covered here, please check the <a href="#faq" class="text-primary-600 hover:underline">FAQ</a> section or reach out to our support team.
+            We read every message. A real human will respond. You can also reach us at <a href="mailto:contact@wateaminbox.com" class="text-primary-600 hover:underline">contact@wateaminbox.com</a>
           </p>
-          <div class="mt-6 flex gap-4">
-            <a href="mailto:support@whatsapp-web.com" class="inline-flex items-center rounded-md bg-primary-600 px-4 py-2 text-sm font-semibold text-white hover:bg-primary-500">
-              Contact Support
-            </a>
-            <a href="https://github.com/your-org/whatsapp-web/issues" class="inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50">
-              Report an Issue
-            </a>
-          </div>
+          <form id="feedback-form" class="mt-6 space-y-4">
+            <div>
+              <label for="feedback-email" class="block text-sm font-medium text-gray-700">Email (optional)</label>
+              <input
+                type="email"
+                id="feedback-email"
+                name="email"
+                placeholder="your@email.com"
+                class="mt-1 block w-full rounded-md border border-gray-300 px-4 py-2 text-gray-900 placeholder-gray-400 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+              />
+            </div>
+            <div>
+              <label for="feedback-message" class="block text-sm font-medium text-gray-700">Message</label>
+              <textarea
+                id="feedback-message"
+                name="message"
+                rows="4"
+                required
+                minlength="10"
+                placeholder="Tell us about your experience, bugs you've found, or features you'd like to see..."
+                class="mt-1 block w-full rounded-md border border-gray-300 px-4 py-2 text-gray-900 placeholder-gray-400 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+              ></textarea>
+            </div>
+            <div class="flex items-center gap-4">
+              <button
+                type="submit"
+                class="inline-flex items-center rounded-md bg-primary-600 px-4 py-2 text-sm font-semibold text-white hover:bg-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Send feedback
+              </button>
+              <span id="feedback-status" class="text-sm"></span>
+            </div>
+          </form>
         </section>
+
+        <script>
+          const form = document.getElementById('feedback-form');
+          const status = document.getElementById('feedback-status');
+          const submitBtn = form.querySelector('button[type="submit"]');
+
+          form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const email = document.getElementById('feedback-email').value;
+            const message = document.getElementById('feedback-message').value;
+
+            if (message.length < 10) {
+              status.textContent = 'Message must be at least 10 characters';
+              status.className = 'text-sm text-red-600';
+              return;
+            }
+
+            submitBtn.disabled = true;
+            status.textContent = 'Sending...';
+            status.className = 'text-sm text-gray-600';
+
+            try {
+              const response = await fetch('/api/feedback', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ message, ...(email && { email }) }),
+              });
+
+              const data = await response.json();
+
+              if (response.ok) {
+                status.textContent = 'Thank you for your feedback!';
+                status.className = 'text-sm text-green-600';
+                form.reset();
+              } else {
+                status.textContent = data.error || 'Failed to send feedback. Please try again.';
+                status.className = 'text-sm text-red-600';
+              }
+            } catch (error) {
+              status.textContent = 'Failed to send feedback. Please try again.';
+              status.className = 'text-sm text-red-600';
+            } finally {
+              submitBtn.disabled = false;
+            }
+          });
+        </script>
       </main>
     </div>
   </div>
