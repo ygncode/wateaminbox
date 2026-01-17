@@ -6,14 +6,15 @@ set -e
 # =============================================================================
 #
 # USAGE:
-#   ./dev-start.sh                    # Run in foreground (logs to terminal)
+#   ./dev-start.sh                    # Run services (logs written to logs/ directory)
 #   ./dev-start.sh --skip-docker      # Run without starting Docker services
 #   ./dev-start.sh &                  # Run in background
-#   ./dev-start.sh > dev-server.log 2>&1 &   # Run in background with logs to file
 #
 # MONITORING LOGS:
-#   tail -f dev-server.log            # Follow logs in real-time
-#   tail -100 dev-server.log          # View last 100 lines
+#   tail -f logs/api.log              # Follow API logs
+#   tail -f logs/web.log              # Follow Frontend logs
+#   tail -f logs/orchestrator.log     # Follow Orchestrator logs
+#   tail -f logs/*.log                # Follow all service logs
 #
 # STOPPING:
 #   - If running in foreground: Press Ctrl+C
@@ -47,6 +48,9 @@ NC='\033[0m' # No Color
 
 # Store PIDs for cleanup
 PIDS=()
+
+# Logs directory
+LOGS_DIR="$(pwd)/logs"
 
 # Print colored message
 print_status() {
@@ -197,15 +201,35 @@ run_migrations() {
 # Build Go services (initial build before air takes over)
 build_go_services() {
     print_status "Building Go services..."
-    
+
     # Build WhatsApp worker
     (cd services/whatsapp && go build -o whatsapp-worker main.go)
     print_success "  WhatsApp worker built"
-    
+
     # Build orchestrator (create tmp dir for air)
     mkdir -p services/orchestrator/tmp
     (cd services/orchestrator && go build -o tmp/orchestrator main.go)
     print_success "  Orchestrator built"
+}
+
+# Build internal packages (required for app imports)
+build_packages() {
+    print_status "Building internal packages..."
+
+    # Build in dependency order: shared -> database -> ui
+    print_status "  Building shared package..."
+    (cd packages/shared && bun run build)
+    print_success "  Shared package built"
+
+    print_status "  Building database package..."
+    (cd packages/database && bun run build)
+    print_success "  Database package built"
+
+    print_status "  Building UI package..."
+    (cd packages/ui && bun run build)
+    print_success "  UI package built"
+
+    print_success "All internal packages built"
 }
 
 # Load environment variables from .env file
@@ -232,34 +256,34 @@ start_dev_servers() {
     
     # Start API server using subshell with cd to avoid --cwd issues
     # This is more robust when other processes run in the same directory
-    print_status "  Starting API server..."
-    (cd "$ROOT_DIR/apps/api" && bun run --watch src/index.ts) &
+    print_status "  Starting API server (→ logs/api.log)..."
+    (cd "$ROOT_DIR/apps/api" && bun run --watch src/index.ts) > "$LOGS_DIR/api.log" 2>&1 &
     PIDS+=($!)
     sleep 2
-    
+
     # Start Frontend using subshell for isolation
-    print_status "  Starting Frontend..."
-    (cd "$ROOT_DIR/apps/web" && bun run dev) &
+    print_status "  Starting Frontend (→ logs/web.log)..."
+    (cd "$ROOT_DIR/apps/web" && bun run dev) > "$LOGS_DIR/web.log" 2>&1 &
     PIDS+=($!)
     sleep 3
-    
+
     # Start Marketing site using subshell for isolation
-    print_status "  Starting Marketing site..."
-    (cd "$ROOT_DIR/apps/marketing" && bun run dev) &
+    print_status "  Starting Marketing site (→ logs/marketing.log)..."
+    (cd "$ROOT_DIR/apps/marketing" && bun run dev) > "$LOGS_DIR/marketing.log" 2>&1 &
     PIDS+=($!)
     sleep 1
-    
+
     # Start WhatsApp worker watcher (rebuilds binary on changes)
-    print_status "  Starting WhatsApp worker watcher (hot-reload)..."
-    (cd services/whatsapp && air) &
+    print_status "  Starting WhatsApp worker watcher (→ logs/whatsapp-worker.log)..."
+    (cd services/whatsapp && air) > "$LOGS_DIR/whatsapp-worker.log" 2>&1 &
     PIDS+=($!)
     sleep 1
-    
+
     # Start Orchestrator with hot-reload
-    print_status "  Starting Orchestrator (hot-reload)..."
+    print_status "  Starting Orchestrator (→ logs/orchestrator.log)..."
     WHATSAPP_BINARY_PATH="$(pwd)/services/whatsapp/whatsapp-worker"
     export WHATSAPP_BINARY_PATH
-    (cd services/orchestrator && air) &
+    (cd services/orchestrator && air) > "$LOGS_DIR/orchestrator.log" 2>&1 &
     PIDS+=($!)
     
     echo ""
@@ -274,6 +298,12 @@ start_dev_servers() {
     echo -e "  NATS:        ${BLUE}localhost:4448${NC} (monitoring: ${BLUE}localhost:8222${NC})"
     echo -e "  Meilisearch: ${BLUE}http://localhost:4449${NC}"
     echo -e "  MinIO:       ${BLUE}http://localhost:4450${NC} (console: ${BLUE}http://localhost:9001${NC})"
+    echo ""
+    echo -e "${GREEN}View logs:${NC}"
+    echo -e "  tail -f logs/api.log          ${BLUE}# API only${NC}"
+    echo -e "  tail -f logs/web.log          ${BLUE}# Frontend only${NC}"
+    echo -e "  tail -f logs/orchestrator.log ${BLUE}# Orchestrator only${NC}"
+    echo -e "  tail -f logs/*.log            ${BLUE}# All services${NC}"
     echo ""
     print_success "All services started!"
     print_status "Press Ctrl+C to stop all services"
@@ -292,6 +322,7 @@ main() {
     
     check_prerequisites
     load_env
+    mkdir -p "$LOGS_DIR"
     cleanup_ports
     if [ "$SKIP_DOCKER" = false ]; then
         start_docker_services
@@ -301,6 +332,7 @@ main() {
     install_dependencies
     run_migrations
     build_go_services
+    build_packages
     start_dev_servers
 }
 
