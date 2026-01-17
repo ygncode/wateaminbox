@@ -197,15 +197,35 @@ run_migrations() {
 # Build Go services (initial build before air takes over)
 build_go_services() {
     print_status "Building Go services..."
-    
+
     # Build WhatsApp worker
     (cd services/whatsapp && go build -o whatsapp-worker main.go)
     print_success "  WhatsApp worker built"
-    
+
     # Build orchestrator (create tmp dir for air)
     mkdir -p services/orchestrator/tmp
     (cd services/orchestrator && go build -o tmp/orchestrator main.go)
     print_success "  Orchestrator built"
+}
+
+# Build internal packages (required for app imports)
+build_packages() {
+    print_status "Building internal packages..."
+
+    # Build in dependency order: shared -> database -> ui
+    print_status "  Building shared package..."
+    (cd packages/shared && bun run build)
+    print_success "  Shared package built"
+
+    print_status "  Building database package..."
+    (cd packages/database && bun run build)
+    print_success "  Database package built"
+
+    print_status "  Building UI package..."
+    (cd packages/ui && bun run build)
+    print_success "  UI package built"
+
+    print_success "All internal packages built"
 }
 
 # Load environment variables from .env file
@@ -301,6 +321,7 @@ main() {
     install_dependencies
     run_migrations
     build_go_services
+    build_packages
     start_dev_servers
 }
 
