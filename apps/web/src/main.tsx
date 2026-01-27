@@ -9,8 +9,8 @@ import {
   AuthProvider,
   KeyboardShortcutsProvider,
   ThemeProvider,
-  WebSocketProvider,
 } from "./contexts";
+import { PusherProvider } from "./contexts/PusherProvider";
 import "./index.css";
 
 // Initialize i18n
@@ -32,13 +32,13 @@ createRoot(document.getElementById("root")!).render(
         <ErrorBoundary>
           <AuthProvider>
             <ThemeProvider>
-              <WebSocketProvider>
+              <PusherProvider>
                 <KeyboardShortcutsProvider>
                   <TooltipProvider>
                     <App />
                   </TooltipProvider>
                 </KeyboardShortcutsProvider>
-              </WebSocketProvider>
+              </PusherProvider>
             </ThemeProvider>
           </AuthProvider>
         </ErrorBoundary>

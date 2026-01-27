@@ -5,7 +5,7 @@ import {
   type MessageCleanupConfig,
 } from "../config/cleanup.config.js";
 import { createLogger } from "../lib/logger.js";
-import { broadcastToCompany } from "../routes/ws/index.js";
+import { broadcastToCompany } from "../lib/pusher.js";
 import { getTenantConnection, tenantSchemaExists } from "./tenant.service.js";
 
 const logger = createLogger("MessageCleanup");
@@ -311,17 +311,17 @@ export async function cleanupCompanyMessages(
 
     // Send notification per contact (conversation)
     for (const [contactId, messages] of messagesByContact) {
-      broadcastToCompany(companyId, {
-        type: "message:status",
-        payload: {
+      await broadcastToCompany(
+        companyId,
+        "message:status",
+        {
           messageIds: messages.map((m) => m.message_id || m.id),
           status: "failed",
           error: "delivery_timeout",
           errorMessage: `Message delivery timed out after ${timeoutMinutes} minutes`,
           conversationId: contactId,
         },
-        timestamp: new Date().toISOString(),
-      });
+      );
       logger.debug(
         { messageCount: messages.length, contactId },
         "Broadcast timeout notification for messages in conversation",

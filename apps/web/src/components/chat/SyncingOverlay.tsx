@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { useWebSocketContext } from "../../contexts/WebSocketProvider";
+import { useWebSocketContext } from "../../contexts";
 
 // Floating message bubble component
 const FloatingBubble = ({

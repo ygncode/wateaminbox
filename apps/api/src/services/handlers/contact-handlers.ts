@@ -15,7 +15,7 @@ import type {
   ProfilePictureEvent,
   TypingEvent,
 } from "../../lib/nats/index.js";
-import { broadcastToCompany } from "../../routes/ws/index.js";
+import { broadcastToCompany } from "../../lib/pusher.js";
 import { getTenantConnection } from "../tenant.service.js";
 import { handlerLogger as logger } from "./types.js";
 
@@ -104,13 +104,8 @@ export async function handleContactEvent(event: ContactEvent): Promise<void> {
       logger.debug({ jid: contactJid, companyId }, "Created contact");
     }
 
-    // Broadcast to WebSocket clients with connectionId
-    broadcastToCompany(companyId, {
-      type: "contact",
-      connectionId,
-      payload,
-      timestamp: event.timestamp,
-    });
+    // Broadcast to clients with connectionId
+    await broadcastToCompany(companyId, "contact:profile_picture", payload, connectionId);
   } catch (error) {
     logger.error(formatError(error), "Failed to handle contact event");
   }
@@ -156,16 +151,16 @@ export async function handleProfilePictureEvent(
         "Updated profile picture for contact",
       );
 
-      // Broadcast to WebSocket clients with normalized JID
-      broadcastToCompany(companyId, {
-        type: "contact:profile_picture", // Specific event type for frontend
-        connectionId,
-        payload: {
+      // Broadcast to clients with normalized JID
+      await broadcastToCompany(
+        companyId,
+        "contact:profile_picture",
+        {
           jid: contactJid,
           profilePictureUrl,
         },
-        timestamp: event.timestamp,
-      });
+        connectionId,
+      );
     } else {
       logger.warn(
         { jid: contactJid },
@@ -220,17 +215,17 @@ export async function handlePresenceEvent(event: PresenceEvent): Promise<void> {
         "Updated presence for contact",
       );
 
-      // Broadcast to WebSocket clients with normalized JID
-      broadcastToCompany(companyId, {
-        type: isOnline ? "presence:online" : "presence:offline",
-        connectionId,
-        payload: {
+      // Broadcast to clients with normalized JID
+      await broadcastToCompany(
+        companyId,
+        isOnline ? "presence:online" : "presence:offline",
+        {
           jid: contactJid,
           isOnline,
           lastSeen: lastSeen ? toISOString(lastSeen) : undefined,
         },
-        timestamp: event.timestamp,
-      });
+        connectionId,
+      );
     } else {
       // Contact not found - this is normal for contacts we haven't seen messages from yet
       // Don't log a warning as this is expected behavior
@@ -262,16 +257,16 @@ export async function handleTypingEvent(event: TypingEvent): Promise<void> {
     "Typing event received",
   );
 
-  // Broadcast to WebSocket clients
+  // Broadcast to clients
   // Frontend expects conversationId (JID) to match against active chat
-  broadcastToCompany(companyId, {
-    type: payload.isTyping ? "typing:start" : "typing:stop",
-    connectionId,
-    payload: {
+  await broadcastToCompany(
+    companyId,
+    payload.isTyping ? "typing:start" : "typing:stop",
+    {
       conversationId: payload.chatJid || payload.from,
       userId: payload.from,
       userName: payload.from, // JID as fallback, could lookup contact name
     },
-    timestamp: event.timestamp,
-  });
+    connectionId,
+  );
 }

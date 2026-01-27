@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useWebSocketContext } from "../contexts/WebSocketProvider";
+import { useWebSocketContext } from "../contexts";
 import {
   connectWhatsApp,
   disconnectWhatsApp,

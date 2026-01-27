@@ -12,7 +12,7 @@ import type {
   InAppNotification,
   NotificationListParams,
 } from "@/lib/api/types";
-import { useWebSocketContext } from "@/contexts/WebSocketProvider";
+import { useWebSocketContext } from "@/contexts";
 import type { NotificationPayload } from "@/lib/websocket";
 import { queryKeys } from "../query-keys";
 

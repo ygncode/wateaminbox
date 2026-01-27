@@ -8,7 +8,7 @@ import type {
 } from "../../lib/nats/index.js";
 import { toDbDate } from "@wateaminbox/shared";
 import { getTenantConnection } from "../tenant.service.js";
-import { broadcastToCompany } from "../../routes/ws/index.js";
+import { broadcastToCompany } from "../../lib/pusher.js";
 import { formatError } from "../../lib/logger.js";
 import { handlerLogger as logger } from "./types.js";
 
@@ -72,19 +72,19 @@ export async function handleReactionEvent(event: ReactionEvent): Promise<void> {
         .execute();
     }
 
-    // Broadcast to WebSocket clients
-    broadcastToCompany(companyId, {
-      type: "message:reaction",
-      connectionId,
-      payload: {
+    // Broadcast to clients
+    await broadcastToCompany(
+      companyId,
+      "message:reaction",
+      {
         messageId: message.id, // Use internal message ID
         contactId: message.contact_id, // Use contact_id instead of conversationId
         from: payload.from,
         emoji: payload.emoji,
         timestamp: payload.timestamp,
       },
-      timestamp: event.timestamp,
-    });
+      connectionId,
+    );
   } catch (error) {
     logger.error(formatError(error), "Error handling reaction event");
   }
@@ -135,17 +135,17 @@ export async function handleMessageRevokeEvent(
         .executeTakeFirst();
 
       if (message) {
-        // Broadcast to WebSocket clients
-        broadcastToCompany(companyId, {
-          type: "message:deleted",
-          connectionId,
-          payload: {
+        // Broadcast to clients
+        await broadcastToCompany(
+          companyId,
+          "message:deleted",
+          {
             messageId: message.id,
             conversationId: message.contact_id,
             whatsappMessageId: payload.messageId,
           },
-          timestamp: event.timestamp,
-        });
+          connectionId,
+        );
       }
     } else {
       // Message not found - this could happen if:

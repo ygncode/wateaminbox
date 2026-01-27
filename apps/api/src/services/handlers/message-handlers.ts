@@ -16,7 +16,7 @@ import {
   normalizeJid,
 } from "@wateaminbox/shared";
 import { getTenantConnection } from "../tenant.service.js";
-import { broadcastToCompany } from "../../routes/ws/index.js";
+import { broadcastToCompany } from "../../lib/pusher.js";
 import { updateMessageSearchVector } from "../search.service.js";
 import { indexMessage, type MessageDocument } from "../meilisearch.service.js";
 import { formatError } from "../../lib/logger.js";
@@ -227,14 +227,14 @@ export async function handleMessageEvent(event: MessageEvent): Promise<void> {
       // notification_history is reserved for: assignments, mentions, team, system events
     }
 
-    // Broadcast to WebSocket clients with proper format for frontend
+    // Broadcast to clients with proper format for frontend
     // Frontend expects { message: Message, conversationId: string }
-    // Skip for history sync messages to avoid flooding WebSocket during initial sync
+    // Skip for history sync messages to avoid flooding during initial sync
     if (!payload.isHistorySync) {
-      broadcastToCompany(companyId, {
-        type: "message:new",
-        connectionId,
-        payload: {
+      await broadcastToCompany(
+        companyId,
+        "message:new",
+        {
           message: {
             id: messageId,
             conversationId: contact.id,
@@ -256,8 +256,8 @@ export async function handleMessageEvent(event: MessageEvent): Promise<void> {
           },
           conversationId: contact.id,
         },
-        timestamp: event.timestamp,
-      });
+        connectionId,
+      );
     }
   } catch (error) {
     logger.error(formatError(error), "Failed to store message");
@@ -328,19 +328,19 @@ export async function handleReceiptEvent(event: ReceiptEvent): Promise<void> {
       "Updated message status",
     );
 
-    // Broadcast to WebSocket clients with correct message:status format
+    // Broadcast to clients with correct message:status format
     // Frontend expects: { conversationId, messageId (internal), status }
     if (updatedMessage?.id && updatedMessage?.contact_id) {
-      broadcastToCompany(companyId, {
-        type: "message:status",
-        connectionId,
-        payload: {
+      await broadcastToCompany(
+        companyId,
+        "message:status",
+        {
           conversationId: updatedMessage.contact_id,
           messageId: updatedMessage.id,
           status: dbStatus,
         },
-        timestamp: event.timestamp,
-      });
+        connectionId,
+      );
     }
   } catch (error) {
     logger.error(formatError(error), "Failed to handle receipt");
@@ -390,19 +390,19 @@ export async function handleSendConfirmationEvent(
       "Updated message with real ID",
     );
 
-    // Broadcast to WebSocket clients with the correct payload format
+    // Broadcast to clients with the correct payload format
     // Frontend expects: { conversationId, messageId (internal), status }
     if (updatedMessage?.id && updatedMessage?.contact_id) {
-      broadcastToCompany(companyId, {
-        type: "message:status",
-        connectionId,
-        payload: {
+      await broadcastToCompany(
+        companyId,
+        "message:status",
+        {
           conversationId: updatedMessage.contact_id,
           messageId: updatedMessage.id,
           status: "sent",
         },
-        timestamp: event.timestamp,
-      });
+        connectionId,
+      );
     }
   } catch (error) {
     logger.error(formatError(error), "Failed to handle send confirmation");
@@ -457,30 +457,30 @@ export async function handleSendFailedEvent(
       "Marked message as failed",
     );
 
-    // Broadcast message:failed event to WebSocket clients
+    // Broadcast message:failed event to clients
     // Frontend can show retry option
-    broadcastToCompany(companyId, {
-      type: "message:failed",
-      connectionId,
-      payload: {
+    await broadcastToCompany(
+      companyId,
+      "message:failed",
+      {
         conversationId: updatedMessage.contact_id,
         messageId: updatedMessage.id,
         reason: payload.reason,
       },
-      timestamp: event.timestamp,
-    });
+      connectionId,
+    );
 
     // Also broadcast a toast notification for user visibility
-    broadcastToCompany(companyId, {
-      type: "notification:toast",
-      connectionId,
-      payload: {
+    await broadcastToCompany(
+      companyId,
+      "notification:toast",
+      {
         type: "error",
         title: "Message failed",
         message: `Failed to send message: ${payload.reason}`,
       },
-      timestamp: event.timestamp,
-    });
+      connectionId,
+    );
   } catch (error) {
     logger.error(formatError(error), "Failed to handle send_failed event");
   }

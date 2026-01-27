@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useWebSocketContext } from "../../contexts/WebSocketProvider";
+import { useWebSocketContext } from "../../contexts";
 import {
   getAccessToken,
   getNotificationPreferences,

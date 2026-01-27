@@ -28,7 +28,9 @@ healthRoutes.get("/", (c) => {
     timestamp: toISOString(),
     services: {
       messageCleanup: getMessageCleanupStatus(),
+      realtime: "pusher", // Primary real-time transport
       websocket: {
+        // Legacy WebSocket connections (kept for backward compatibility)
         totalConnections: getTotalConnectionCount(),
         heartbeatRunning: isHeartbeatRunning(),
       },

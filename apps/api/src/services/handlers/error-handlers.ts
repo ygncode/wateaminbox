@@ -3,7 +3,7 @@
  */
 
 import type { WhatsAppEvent } from "../../lib/nats/index.js";
-import { broadcastToCompany } from "../../routes/ws/index.js";
+import { broadcastToCompany } from "../../lib/pusher.js";
 import { handlerLogger as logger } from "./types.js";
 
 /**
@@ -17,11 +17,6 @@ export async function handleErrorEvent(event: WhatsAppEvent): Promise<void> {
     "Error event from WhatsApp worker",
   );
 
-  // Broadcast error to WebSocket clients with connectionId
-  broadcastToCompany(companyId, {
-    type: "error",
-    connectionId,
-    payload,
-    timestamp: event.timestamp,
-  });
+  // Broadcast error to clients with connectionId
+  await broadcastToCompany(companyId, "notification:toast", payload, connectionId);
 }

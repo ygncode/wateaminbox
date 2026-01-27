@@ -9,7 +9,7 @@ import type {
 } from "../../lib/nats/index.js";
 import { toDbDate } from "@wateaminbox/shared";
 import { getTenantConnection } from "../tenant.service.js";
-import { broadcastToCompany } from "../../routes/ws/index.js";
+import { broadcastToCompany } from "../../lib/pusher.js";
 import { formatError } from "../../lib/logger.js";
 import { handlerLogger as logger } from "./types.js";
 
@@ -70,16 +70,16 @@ export async function handleStatusEvent(event: StatusEvent): Promise<void> {
 
     logger.debug({ statusId, companyId }, "Stored status update");
 
-    // Broadcast to WebSocket clients with connectionId
-    broadcastToCompany(companyId, {
-      type: "status",
-      connectionId,
-      payload: {
+    // Broadcast to clients with connectionId
+    await broadcastToCompany(
+      companyId,
+      "status",
+      {
         id: statusId,
         ...payload,
       },
-      timestamp: event.timestamp,
-    });
+      connectionId,
+    );
   } catch (error) {
     logger.error(formatError(error), "Failed to store status");
   }
@@ -143,30 +143,30 @@ export async function handleSyncStatusEvent(
       );
     }
 
-    // Map NATS status to WebSocket event type
-    const wsTypeMap = {
+    // Map NATS status to event type
+    const eventTypeMap = {
       starting: "sync:start" as const,
       progress: "sync:progress" as const,
       completed: "sync:complete" as const,
     };
 
-    // Broadcast to WebSocket clients
-    broadcastToCompany(companyId, {
-      type: wsTypeMap[payload.status],
-      connectionId,
-      payload: {
+    // Broadcast to clients
+    await broadcastToCompany(
+      companyId,
+      eventTypeMap[payload.status],
+      {
         messageCount: payload.messageCount,
         conversations: payload.conversations,
       },
-      timestamp: event.timestamp,
-    });
+      connectionId,
+    );
 
     logger.debug(
       {
-        type: wsTypeMap[payload.status],
+        type: eventTypeMap[payload.status],
         connectionId,
       },
-      "Broadcasted sync status to WebSocket clients",
+      "Broadcasted sync status to clients",
     );
   } catch (error) {
     logger.error(formatError(error), "Failed to handle sync status event");
@@ -221,18 +221,18 @@ export async function handleDownloadResponseEvent(
           "Media download completed",
         );
 
-        // Broadcast to WebSocket clients
-        broadcastToCompany(companyId, {
-          type: "media:downloaded",
-          connectionId,
-          payload: {
+        // Broadcast to clients
+        await broadcastToCompany(
+          companyId,
+          "media:downloaded",
+          {
             messageId: updatedMessage.id,
             conversationId: updatedMessage.contact_id,
             mediaUrl: payload.mediaUrl,
             mediaSize: payload.mediaSize,
           },
-          timestamp: event.timestamp,
-        });
+          connectionId,
+        );
       }
     } else {
       // Update message with error status
@@ -253,7 +253,7 @@ export async function handleDownloadResponseEvent(
         "Media download failed",
       );
 
-      // Broadcast failure to WebSocket clients
+      // Broadcast failure to clients
       const message = await tenantDb
         .selectFrom("messages")
         .select(["id", "contact_id"])
@@ -261,16 +261,16 @@ export async function handleDownloadResponseEvent(
         .executeTakeFirst();
 
       if (message) {
-        broadcastToCompany(companyId, {
-          type: "media:download_failed",
-          connectionId,
-          payload: {
+        await broadcastToCompany(
+          companyId,
+          "media:download_failed",
+          {
             messageId: message.id,
             conversationId: message.contact_id,
             error: payload.error,
           },
-          timestamp: event.timestamp,
-        });
+          connectionId,
+        );
       }
     }
   } catch (error) {

@@ -3,7 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { nowMs, toDate } from "@wateaminbox/shared";
 import type { WorkerConnectionStatusPayload } from "@wateaminbox/shared";
 import { toast } from "sonner";
-import { useWebSocketContext } from "@/contexts/WebSocketProvider";
+import { useWebSocketContext } from "@/contexts";
 import type {
   QRCodePayload,
   WhatsAppConnectedPayload,
