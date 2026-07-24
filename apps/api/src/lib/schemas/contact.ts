@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { paginationSchema, phoneNumberSchema } from "../schemas.js";
+import { paginationSchema } from "../schemas.js";
 
 /**
  * Contact route validation schemas

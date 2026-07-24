@@ -15,14 +15,12 @@
   },
   "scripts": {
     "build": "tsup src/index.ts --format cjs,esm --dts",
-    "lint": "eslint src/",
-    "format": "prettier --write src/"
+    "lint": "bunx biome lint src",
+    "format": "bunx biome format --write src"
   },
   "devDependencies": {
     "typescript": "^5.3.3",
-    "tsup": "^8.0.1",
-    "eslint": "^8.56.0",
-    "prettier": "^3.2.4"
+    "tsup": "^8.0.1"
   },
   "dependencies": {
     "dayjs": "^1.11.19"

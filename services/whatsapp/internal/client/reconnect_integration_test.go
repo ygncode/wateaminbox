@@ -1,3 +1,5 @@
+//go:build integration
+
 package client
 
 import (
@@ -21,7 +23,7 @@ type mockWhatsAppClient struct {
 	mu               sync.Mutex
 	connectAttempts  int
 	connectDelay     time.Duration
-	shouldFailUntil  int // Number of attempts before success
+	shouldFailUntil  int  // Number of attempts before success
 	failAfterConnect bool // Whether to disconnect after a successful connect
 	isConnected      bool
 }
@@ -111,7 +113,7 @@ func (n *testLogger) Debugf(format string, v ...interface{}) {}
 func (n *testLogger) Infof(format string, v ...interface{})  {}
 func (n *testLogger) Warnf(format string, v ...interface{})  {}
 func (n *testLogger) Errorf(format string, v ...interface{}) {}
-func (n *testLogger) Sub(module string) waLog.Logger        { return n }
+func (n *testLogger) Sub(module string) waLog.Logger         { return n }
 
 // TestShortNetworkOutage_Recovery tests recovery from a short (30s) network outage.
 // This simulates a temporary network glitch where the connection should recover
@@ -126,8 +128,8 @@ func TestShortNetworkOutage_Recovery(t *testing.T) {
 	// So 4-5 failed attempts should put us around 30 seconds
 	mockWA := &mockWhatsAppClient{
 		shouldFailUntil: 4, // Fail first 4 attempts, succeed on 5th
-		connectDelay:     100 * time.Millisecond,
-		isConnected:      false,
+		connectDelay:    100 * time.Millisecond,
+		isConnected:     false,
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
@@ -321,8 +323,8 @@ func TestGracefulShutdown_DuringReconnect(t *testing.T) {
 	// Create a mock that always fails (simulating continuous outage)
 	mockWA := &mockWhatsAppClient{
 		shouldFailUntil: 9999, // Always fail
-		connectDelay:     50 * time.Millisecond,
-		isConnected:      false,
+		connectDelay:    50 * time.Millisecond,
+		isConnected:     false,
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -412,8 +414,8 @@ func TestGracefulShutdown_DuringReconnect(t *testing.T) {
 // context cancellation at various points in the loop.
 func TestHandleReconnect_ContextCancellation(t *testing.T) {
 	tests := []struct {
-		name               string
-		cancelAfter        time.Duration
+		name                string
+		cancelAfter         time.Duration
 		expectedMinAttempts int
 		expectedMaxAttempts int
 	}{
@@ -441,8 +443,8 @@ func TestHandleReconnect_ContextCancellation(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			mockWA := &mockWhatsAppClient{
 				shouldFailUntil: 9999,
-				connectDelay:     10 * time.Millisecond,
-				isConnected:      false,
+				connectDelay:    10 * time.Millisecond,
+				isConnected:     false,
 			}
 
 			ctx, cancel := context.WithCancel(context.Background())
@@ -521,12 +523,12 @@ func TestCalculateBackoff_PersistentPhaseTransition(t *testing.T) {
 	// Note: Phase check is `elapsed < transientPhaseDuration`, so exactly 5:00
 	// is in persistent phase (not transient).
 	tests := []struct {
-		name                string
-		elapsed             time.Duration
-		attemptNum          int
-		expectTransient     bool
-		expectedMinBackoff  time.Duration
-		expectedMaxBackoff  time.Duration
+		name               string
+		elapsed            time.Duration
+		attemptNum         int
+		expectTransient    bool
+		expectedMinBackoff time.Duration
+		expectedMaxBackoff time.Duration
 	}{
 		{
 			name:               "4:59 - transient",
@@ -867,7 +869,7 @@ func TestReconnectState_Transitions(t *testing.T) {
 		reconnectMu:     sync.Mutex{},
 		logger:          &testLogger{},
 		connected:       true,
-		reconnecting:     false,
+		reconnecting:    false,
 	}
 
 	// Initial state: connected, not reconnecting
@@ -920,12 +922,12 @@ func TestCalculateBackoff_AllAttempts(t *testing.T) {
 		min     time.Duration
 		max     time.Duration
 	}{
-		{0, 1800 * time.Millisecond, 2200 * time.Millisecond},  // 2s ±10%
-		{1, 3600 * time.Millisecond, 4400 * time.Millisecond},  // 4s ±10%
-		{2, 7200 * time.Millisecond, 8800 * time.Millisecond},  // 8s ±10%
-		{3, 14400 * time.Millisecond, 17600 * time.Millisecond}, // 16s ±10%
-		{4, 27000 * time.Millisecond, 33000 * time.Millisecond}, // 30s ±10%
-		{5, 27000 * time.Millisecond, 33000 * time.Millisecond}, // 30s capped
+		{0, 1800 * time.Millisecond, 2200 * time.Millisecond},    // 2s ±10%
+		{1, 3600 * time.Millisecond, 4400 * time.Millisecond},    // 4s ±10%
+		{2, 7200 * time.Millisecond, 8800 * time.Millisecond},    // 8s ±10%
+		{3, 14400 * time.Millisecond, 17600 * time.Millisecond},  // 16s ±10%
+		{4, 27000 * time.Millisecond, 33000 * time.Millisecond},  // 30s ±10%
+		{5, 27000 * time.Millisecond, 33000 * time.Millisecond},  // 30s capped
 		{10, 27000 * time.Millisecond, 33000 * time.Millisecond}, // 30s capped
 	}
 
@@ -1036,8 +1038,8 @@ func TestContextCancellation_Integration(t *testing.T) {
 func TestHandleReconnect_ConcurrentCancellation(t *testing.T) {
 	mockWA := &mockWhatsAppClient{
 		shouldFailUntil: 9999,
-		connectDelay:     50 * time.Millisecond,
-		isConnected:      false,
+		connectDelay:    50 * time.Millisecond,
+		isConnected:     false,
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -1117,12 +1119,12 @@ func TestTwoPhaseBackoff_FullSimulation(t *testing.T) {
 	}()
 
 	tests := []struct {
-		name                string
-		simulatedElapsed    time.Duration
-		attemptNum          int
-		expectedPhase       string
-		expectedMinBackoff  time.Duration
-		expectedMaxBackoff  time.Duration
+		name               string
+		simulatedElapsed   time.Duration
+		attemptNum         int
+		expectedPhase      string
+		expectedMinBackoff time.Duration
+		expectedMaxBackoff time.Duration
 	}{
 		{
 			name:               "Early transient phase",
@@ -1204,7 +1206,7 @@ func BenchmarkHandleReconnect_LoopOverhead(b *testing.B) {
 
 	mockWA := &mockWhatsAppClient{
 		connectDelay: 10 * time.Millisecond,
-		isConnected:   false,
+		isConnected:  false,
 	}
 
 	b.ResetTimer()
@@ -1225,8 +1227,8 @@ func BenchmarkHandleReconnect_LoopOverhead(b *testing.B) {
 func TestReconnectError_Metrics(t *testing.T) {
 	mockWA := &mockWhatsAppClient{
 		shouldFailUntil: 2, // Only fail first 2 attempts (faster test)
-		connectDelay:     1 * time.Millisecond,
-		isConnected:      false,
+		connectDelay:    1 * time.Millisecond,
+		isConnected:     false,
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)

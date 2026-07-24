@@ -124,7 +124,7 @@ export function useReactMessage() {
         );
       }
     },
-    // Note: No onSuccess handler needed - the WebSocket event handler in
+    // Note: No onSuccess handler needed - the realtime event handler in
     // event-handlers.ts will update the cache with the correct reactorJid
     // when the server broadcasts the message:reaction event
   });

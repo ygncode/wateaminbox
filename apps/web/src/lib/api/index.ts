@@ -20,6 +20,8 @@ export {
   login,
   logout,
   register,
+  resetPassword,
+  verifyEmail,
 } from "./auth.js";
 // Re-export catalogs functions
 export {
@@ -38,6 +40,7 @@ export {
   API_BASE_URL,
   ApiRequestError,
   api,
+  attemptTokenRefresh,
   buildQueryString,
   clearAuthTokens,
   clearCompanyId,
@@ -45,10 +48,9 @@ export {
   fetchWithAuth,
   getAccessToken,
   getCompanyId,
-  getRefreshToken,
   handleResponse,
   initializeAuth,
-  setAuthTokens,
+  setAuthToken,
   setCompanyId,
 } from "./client.js";
 // Re-export companies functions

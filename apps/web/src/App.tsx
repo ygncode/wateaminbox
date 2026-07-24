@@ -18,6 +18,16 @@ const ForgotPasswordPage = lazy(() =>
     default: m.ForgotPasswordPage,
   })),
 );
+const ResetPasswordPage = lazy(() =>
+  import("./pages/ResetPasswordPage").then((m) => ({
+    default: m.ResetPasswordPage,
+  })),
+);
+const VerifyEmailPage = lazy(() =>
+  import("./pages/VerifyEmailPage").then((m) => ({
+    default: m.VerifyEmailPage,
+  })),
+);
 const CompanySetupPage = lazy(() =>
   import("./pages/CompanySetupPage").then((m) => ({
     default: m.CompanySetupPage,
@@ -70,6 +80,22 @@ function App() {
           element={
             <Suspense fallback={<PageSkeleton variant="auth" />}>
               <ForgotPasswordPage />
+            </Suspense>
+          }
+        />
+        <Route
+          path="/reset-password"
+          element={
+            <Suspense fallback={<PageSkeleton variant="auth" />}>
+              <ResetPasswordPage />
+            </Suspense>
+          }
+        />
+        <Route
+          path="/verify-email"
+          element={
+            <Suspense fallback={<PageSkeleton variant="auth" />}>
+              <VerifyEmailPage />
             </Suspense>
           }
         />

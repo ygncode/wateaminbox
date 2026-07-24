@@ -62,7 +62,21 @@ export async function handleMessageEvent(event: MessageEvent): Promise<void> {
 
     // Get or create contact - normalize JID first to remove device suffix
     const rawContactJid = payload.fromMe ? payload.to : payload.from;
+    if (!rawContactJid) {
+      logger.warn(
+        { companyId, messageId: payload.messageId },
+        "Message has no contact JID",
+      );
+      return;
+    }
     const contactJid = normalizeJid(rawContactJid);
+    if (!contactJid) {
+      logger.warn(
+        { companyId, rawContactJid },
+        "Message contact JID is invalid",
+      );
+      return;
+    }
     let contact = await tenantDb
       .selectFrom("contacts")
       .select(["id"])
@@ -138,7 +152,7 @@ export async function handleMessageEvent(event: MessageEvent): Promise<void> {
       .executeTakeFirst();
 
     // If insert was skipped due to duplicate, skip all downstream processing
-    // This prevents duplicate search indexing and WebSocket broadcasts
+    // This prevents duplicate search indexing and realtime broadcasts
     if (insertResult.numInsertedOrUpdatedRows === BigInt(0)) {
       logger.debug(
         { messageId: payload.messageId, companyId },
@@ -223,7 +237,7 @@ export async function handleMessageEvent(event: MessageEvent): Promise<void> {
 
       // Note: We don't create notification_history entries for regular messages
       // because the chat UI already shows unread counts via conversation_states
-      // and new messages appear in real-time via the message:new WebSocket event.
+      // and new messages appear in real-time via the message:new realtime event.
       // notification_history is reserved for: assignments, mentions, team, system events
     }
 

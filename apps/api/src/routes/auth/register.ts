@@ -8,7 +8,6 @@ import {
   validationError,
 } from "../../lib/response.js";
 import { registerSchema, verifyEmailSchema } from "../../lib/schemas/index.js";
-import { authMiddleware } from "../../middleware/auth.js";
 import { register, verifyEmail } from "../../services/auth.service.js";
 import { registerRateLimiter } from "./rate-limiters.js";
 import { handleAuthError } from "./utils.js";
@@ -34,7 +33,10 @@ registerRoutes.post(
       const passwordCheck = validatePasswordStrength(body.password);
       if (!passwordCheck.isValid) {
         return validationError(c, [
-          { field: "password", message: passwordCheck.message },
+          {
+            field: "password",
+            message: passwordCheck.message ?? "Password is not strong enough",
+          },
         ]);
       }
 
@@ -71,13 +73,11 @@ registerRoutes.post(
  */
 registerRoutes.post(
   "/verify-email",
-  authMiddleware,
   zValidator("json", verifyEmailSchema),
   async (c) => {
     try {
       const body = c.req.valid("json");
-      const user = c.get("user");
-      const updatedUser = await verifyEmail(user.id, body.token);
+      const updatedUser = await verifyEmail(body.token);
 
       return successWithMessage(c, "Email verified successfully", {
         user: {

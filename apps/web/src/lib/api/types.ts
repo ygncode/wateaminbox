@@ -49,7 +49,6 @@ export interface LoginResponse {
   };
   tokens: {
     accessToken: string;
-    refreshToken: string;
   };
   session: {
     id: string;
@@ -78,7 +77,6 @@ export interface RefreshResponse {
   message: string;
   tokens: {
     accessToken: string;
-    refreshToken: string;
   };
 }
 
@@ -149,7 +147,6 @@ export interface WhatsAppConnectionStatus {
 
 export interface WhatsAppConnectResponse {
   message: string;
-  websocketUrl: string;
 }
 
 export type WhatsAppConnectionStatusType =
@@ -181,7 +178,6 @@ export interface WhatsAppConnectionsListResponse {
 export interface CreateWhatsAppConnectionResponse {
   data: WhatsAppConnection;
   message: string;
-  websocketUrl: string;
 }
 
 export interface WhatsAppConnectionDetailResponse {

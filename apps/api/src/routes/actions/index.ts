@@ -38,7 +38,9 @@ const messagingRateLimiter = createConditionalRateLimiter(
 const sendMessageSchema = z.object({
   jid: z.string().min(1),
   content: z.string().optional(),
-  messageType: z.enum(["text", "image", "audio", "video", "document"]).default("text"),
+  messageType: z
+    .enum(["text", "image", "audio", "video", "document"])
+    .default("text"),
   mediaUrl: z.string().optional(),
 });
 
@@ -81,7 +83,7 @@ actionsRoutes.post(
         user.id,
         {
           jid: input.jid,
-          content: input.content,
+          content: input.content ?? "",
           messageType: input.messageType,
           mediaUrl: input.mediaUrl,
         },
@@ -138,12 +140,7 @@ actionsRoutes.post(
 
     try {
       // Broadcast to other clients (excluding the sender if socketId provided)
-      await broadcastToCompanyExcept(
-        companyId,
-        eventType,
-        payload,
-        socketId,
-      );
+      await broadcastToCompanyExcept(companyId, eventType, payload, socketId);
 
       return c.json({
         success: true,

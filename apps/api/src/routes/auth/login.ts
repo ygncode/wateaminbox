@@ -1,14 +1,20 @@
 import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
+import { AuthError } from "../../lib/errors.js";
 import { createLogger, formatError } from "../../lib/logger.js";
 import { successMessage, successWithMessage } from "../../lib/response.js";
-import { loginSchema, refreshTokenSchema } from "../../lib/schemas/index.js";
+import { loginSchema } from "../../lib/schemas/index.js";
 import { authMiddleware } from "../../middleware/auth.js";
 import {
   login,
   refreshSession,
   revokeSession,
 } from "../../services/auth.service.js";
+import {
+  clearRefreshTokenCookie,
+  getRefreshTokenCookie,
+  setRefreshTokenCookie,
+} from "./cookies.js";
 import { loginRateLimiter, refreshRateLimiter } from "./rate-limiters.js";
 import { getDeviceInfo, handleAuthError } from "./utils.js";
 
@@ -40,6 +46,8 @@ loginRoutes.post(
         deviceInfo,
       );
 
+      setRefreshTokenCookie(c, tokens.refreshToken);
+
       return successWithMessage(c, "Login successful", {
         user: {
           id: user.id,
@@ -49,7 +57,6 @@ loginRoutes.post(
         },
         tokens: {
           accessToken: tokens.accessToken,
-          refreshToken: tokens.refreshToken,
         },
         session: {
           id: session.id,
@@ -72,9 +79,11 @@ loginRoutes.post("/logout", authMiddleware, async (c) => {
     const session = c.get("session");
 
     await revokeSession(session.id, user.id);
+    clearRefreshTokenCookie(c);
 
     return successMessage(c, "Logged out successfully");
   } catch (error) {
+    clearRefreshTokenCookie(c);
     return handleAuthError(c, error, logger, formatError, "Logout error");
   }
 });
@@ -84,23 +93,23 @@ loginRoutes.post("/logout", authMiddleware, async (c) => {
  * Refresh access token using refresh token
  * Rate limit: 20 attempts per minute per IP
  */
-loginRoutes.post(
-  "/refresh",
-  refreshRateLimiter,
-  zValidator("json", refreshTokenSchema),
-  async (c) => {
+loginRoutes.post("/refresh", refreshRateLimiter, async (c) => {
     try {
-      const body = c.req.valid("json");
+    const refreshToken = getRefreshTokenCookie(c);
+    if (!refreshToken) {
+      throw new AuthError("Refresh cookie is missing", "INVALID_TOKEN", 401);
+    }
 
-      const { tokens } = await refreshSession(body.refreshToken);
+    const { tokens } = await refreshSession(refreshToken);
+    setRefreshTokenCookie(c, tokens.refreshToken);
 
       return successWithMessage(c, "Token refreshed successfully", {
         tokens: {
           accessToken: tokens.accessToken,
-          refreshToken: tokens.refreshToken,
         },
       });
     } catch (error) {
+    clearRefreshTokenCookie(c);
       return handleAuthError(
         c,
         error,
@@ -109,5 +118,4 @@ loginRoutes.post(
         "Token refresh error",
       );
     }
-  },
-);
+});

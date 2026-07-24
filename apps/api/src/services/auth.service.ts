@@ -1,6 +1,7 @@
-import { db } from "@wateaminbox/database";
+import { db, type AuthTokenType, type Database } from "@wateaminbox/database";
 import { toDbDate } from "@wateaminbox/shared";
-import crypto from "crypto";
+import crypto from "node:crypto";
+import type { Kysely, Transaction } from "kysely";
 import { sendPasswordResetEmail, sendVerificationEmail } from "../lib/email.js";
 import { AuthError } from "../lib/errors.js";
 import {
@@ -10,6 +11,7 @@ import {
   verifyRefreshToken,
 } from "../lib/jwt.js";
 import { hashPassword, verifyPassword } from "../lib/password.js";
+import { hashToken } from "../lib/security.js";
 
 export interface DeviceInfo {
   deviceName?: string;
@@ -54,6 +56,40 @@ function generateToken(): string {
   return crypto.randomBytes(32).toString("hex");
 }
 
+const EMAIL_VERIFICATION_TTL_MS = 24 * 60 * 60 * 1000;
+const PASSWORD_RESET_TTL_MS = 60 * 60 * 1000;
+
+type AuthDatabase = Kysely<Database> | Transaction<Database>;
+
+async function issueAuthToken(
+  database: AuthDatabase,
+  userId: string,
+  type: AuthTokenType,
+  ttlMs: number,
+): Promise<string> {
+  const token = generateToken();
+
+  // Only the newest token of each type remains valid for a user.
+  await database
+    .deleteFrom("auth_tokens")
+    .where("user_id", "=", userId)
+    .where("type", "=", type)
+    .execute();
+
+  await database
+    .insertInto("auth_tokens")
+    .values({
+      user_id: userId,
+      type,
+      token_hash: hashToken(token),
+      expires_at: toDbDate(Date.now() + ttlMs),
+      used_at: null,
+    })
+    .execute();
+
+  return token;
+}
+
 /**
  * Register a new user with email and password
  */
@@ -61,12 +97,12 @@ export async function register(
   email: string,
   password: string,
   name?: string,
-): Promise<{ user: AuthUser; verificationToken: string }> {
-  // Check if user already exists
+): Promise<{ user: AuthUser }> {
+  const normalizedEmail = email.toLowerCase();
   const existingUser = await db
     .selectFrom("users")
-    .where("email", "=", email.toLowerCase())
-    .selectAll()
+    .where("email", "=", normalizedEmail)
+    .select("id")
     .executeTakeFirst();
 
   if (existingUser) {
@@ -77,17 +113,15 @@ export async function register(
     );
   }
 
-  // Hash the password
   const passwordHash = await hashPassword(password);
 
-  // Generate email verification token
-  const verificationToken = generateToken();
-
-  // Create the user
-  const user = await db
+  const { user, verificationToken } = await db
+    .transaction()
+    .execute(async (trx) => {
+      const createdUser = await trx
     .insertInto("users")
     .values({
-      email: email.toLowerCase(),
+          email: normalizedEmail,
       password_hash: passwordHash,
       name: name || null,
     })
@@ -101,12 +135,17 @@ export async function register(
     ])
     .executeTakeFirstOrThrow();
 
-  // Store the verification token (we'll use a simple approach - store in invitations table or separate tokens table)
-  // For now, we'll embed it in the email directly
-  // In production, you'd want a separate email_verification_tokens table
+      const token = await issueAuthToken(
+        trx,
+        createdUser.id,
+        "email_verification",
+        EMAIL_VERIFICATION_TTL_MS,
+      );
 
-  // Send verification email
-  await sendVerificationEmail(email, verificationToken);
+      return { user: createdUser, verificationToken: token };
+    });
+
+  await sendVerificationEmail(user.email, verificationToken);
 
   return {
     user: {
@@ -117,7 +156,6 @@ export async function register(
       createdAt: user.created_at,
       updatedAt: user.updated_at,
     },
-    verificationToken, // Return for testing purposes
   };
 }
 
@@ -154,8 +192,8 @@ export async function login(
     );
   }
 
-  // Generate refresh token string (for database storage)
-  const refreshTokenString = generateToken();
+  // Insert a unique placeholder until the signed refresh token can include the session ID.
+  const refreshTokenPlaceholder = hashToken(generateToken());
 
   // Create session
   const session = await db
@@ -166,7 +204,7 @@ export async function login(
       device_type: deviceInfo?.deviceType ?? null,
       ip_address: deviceInfo?.ipAddress ?? null,
       user_agent: deviceInfo?.userAgent ?? null,
-      refresh_token: refreshTokenString,
+      refresh_token: refreshTokenPlaceholder,
       expires_at: getRefreshTokenExpiry(),
     })
     .returning([
@@ -187,6 +225,12 @@ export async function login(
     generateAccessToken(user.id, session.id),
     generateRefreshToken(session.id),
   ]);
+
+  await db
+    .updateTable("user_sessions")
+    .set({ refresh_token: hashToken(refreshToken) })
+    .where("id", "=", session.id)
+    .execute();
 
   return {
     user: {
@@ -216,25 +260,35 @@ export async function login(
 }
 
 /**
- * Verify email with token
- * Note: This is a simplified implementation. In production, you'd want a separate tokens table.
+ * Verify an email using a hashed, expiring, single-use token.
  */
-export async function verifyEmail(
-  userId: string,
-  _token: string,
-): Promise<AuthUser> {
-  // In a full implementation, you would:
-  // 1. Look up the token in a verification_tokens table
-  // 2. Verify the token hasn't expired
-  // 3. Mark the user as verified
+export async function verifyEmail(token: string): Promise<AuthUser> {
+  const tokenHash = hashToken(token);
 
-  const user = await db
+  return db.transaction().execute(async (trx) => {
+    const storedToken = await trx
+      .selectFrom("auth_tokens")
+      .where("token_hash", "=", tokenHash)
+      .where("type", "=", "email_verification")
+      .where("used_at", "is", null)
+      .where("expires_at", ">", toDbDate())
+      .select(["id", "user_id"])
+      .forUpdate()
+      .executeTakeFirst();
+
+    if (!storedToken) {
+      throw new AuthError(
+        "Invalid or expired verification token",
+        "INVALID_TOKEN",
+        400,
+      );
+    }
+
+    const now = toDbDate();
+    const user = await trx
     .updateTable("users")
-    .set({
-      email_verified_at: toDbDate(),
-      updated_at: toDbDate(),
-    })
-    .where("id", "=", userId)
+      .set({ email_verified_at: now, updated_at: now })
+      .where("id", "=", storedToken.user_id)
     .returning([
       "id",
       "email",
@@ -243,11 +297,13 @@ export async function verifyEmail(
       "created_at",
       "updated_at",
     ])
-    .executeTakeFirst();
+      .executeTakeFirstOrThrow();
 
-  if (!user) {
-    throw new AuthError("Invalid verification token", "INVALID_TOKEN", 400);
-  }
+    await trx
+      .updateTable("auth_tokens")
+      .set({ used_at: now })
+      .where("id", "=", storedToken.id)
+      .execute();
 
   return {
     id: user.id,
@@ -257,6 +313,7 @@ export async function verifyEmail(
     createdAt: user.created_at,
     updatedAt: user.updated_at,
   };
+  });
 }
 
 /**
@@ -264,56 +321,77 @@ export async function verifyEmail(
  */
 export async function forgotPassword(
   email: string,
-): Promise<{ success: boolean; token?: string }> {
+): Promise<{ success: boolean }> {
   const user = await db
     .selectFrom("users")
     .where("email", "=", email.toLowerCase())
     .select(["id", "email"])
     .executeTakeFirst();
 
-  // Always return success to prevent email enumeration
+  // Always return success to prevent email enumeration.
   if (!user) {
     return { success: true };
   }
 
-  const resetToken = generateToken();
+  const resetToken = await issueAuthToken(
+    db,
+    user.id,
+    "password_reset",
+    PASSWORD_RESET_TTL_MS,
+  );
+  await sendPasswordResetEmail(user.email, resetToken);
 
-  // In production, store this token in a password_reset_tokens table
-  // For now, we'll just send it directly
-  await sendPasswordResetEmail(email, resetToken);
-
-  return { success: true, token: resetToken }; // Token returned for testing
+  return { success: true };
 }
 
 /**
- * Reset password with token
+ * Reset a password using a hashed, expiring, single-use token.
  */
 export async function resetPassword(
-  email: string,
-  _token: string,
+  token: string,
   newPassword: string,
 ): Promise<{ success: boolean }> {
-  // In production, you would:
-  // 1. Look up the token in password_reset_tokens table
-  // 2. Verify it hasn't expired
-  // 3. Update the password
-  // 4. Delete the token
-  // 5. Optionally revoke all sessions
-
+  const tokenHash = hashToken(token);
   const passwordHash = await hashPassword(newPassword);
 
-  const result = await db
-    .updateTable("users")
-    .set({
-      password_hash: passwordHash,
-      updated_at: toDbDate(),
-    })
-    .where("email", "=", email.toLowerCase())
+  await db.transaction().execute(async (trx) => {
+    const storedToken = await trx
+      .selectFrom("auth_tokens")
+      .where("auth_tokens.token_hash", "=", tokenHash)
+      .where("auth_tokens.type", "=", "password_reset")
+      .where("auth_tokens.used_at", "is", null)
+      .where("auth_tokens.expires_at", ">", toDbDate())
+      .select(["auth_tokens.id", "auth_tokens.user_id"])
+      .forUpdate("auth_tokens")
     .executeTakeFirst();
 
-  if (!result.numUpdatedRows) {
-    throw new AuthError("Invalid reset token", "INVALID_TOKEN", 400);
+    if (!storedToken) {
+      throw new AuthError(
+        "Invalid or expired reset token",
+        "INVALID_TOKEN",
+        400,
+      );
   }
+
+    const now = toDbDate();
+    await trx
+      .updateTable("users")
+      .set({ password_hash: passwordHash, updated_at: now })
+      .where("id", "=", storedToken.user_id)
+      .execute();
+
+    await trx
+      .updateTable("auth_tokens")
+      .set({ used_at: now })
+      .where("id", "=", storedToken.id)
+      .execute();
+
+    // A password reset invalidates every existing device session.
+    await trx
+      .deleteFrom("user_sessions")
+      .where("user_id", "=", storedToken.user_id)
+      .execute();
+  });
 
   return { success: true };
 }
@@ -324,42 +402,43 @@ export async function resetPassword(
 export async function refreshSession(
   refreshToken: string,
 ): Promise<{ tokens: AuthTokens }> {
-  // Verify the JWT refresh token
   const payload = await verifyRefreshToken(refreshToken);
   if (!payload) {
     throw new AuthError("Invalid refresh token", "INVALID_TOKEN", 401);
   }
 
-  // Find the session
-  const session = await db
+  return db.transaction().execute(async (trx) => {
+    const session = await trx
     .selectFrom("user_sessions")
     .where("id", "=", payload.sessionId)
+      .where("refresh_token", "=", hashToken(refreshToken))
     .where("expires_at", ">", toDbDate())
     .selectAll()
+      .forUpdate()
     .executeTakeFirst();
 
   if (!session) {
-    throw new AuthError("Session not found or expired", "SESSION_EXPIRED", 401);
+      throw new AuthError(
+        "Session not found, expired, or refresh token already used",
+        "SESSION_EXPIRED",
+        401,
+      );
   }
 
-  // Update last active time and generate new refresh token
-  const newRefreshTokenString = generateToken();
+    const [accessToken, newRefreshToken] = await Promise.all([
+      generateAccessToken(session.user_id, session.id),
+      generateRefreshToken(session.id),
+    ]);
 
-  await db
+    await trx
     .updateTable("user_sessions")
     .set({
-      refresh_token: newRefreshTokenString,
+        refresh_token: hashToken(newRefreshToken),
       last_active_at: toDbDate(),
       expires_at: getRefreshTokenExpiry(),
     })
     .where("id", "=", session.id)
     .execute();
-
-  // Generate new tokens
-  const [accessToken, newRefreshToken] = await Promise.all([
-    generateAccessToken(session.user_id, session.id),
-    generateRefreshToken(session.id),
-  ]);
 
   return {
     tokens: {
@@ -367,6 +446,7 @@ export async function refreshSession(
       refreshToken: newRefreshToken,
     },
   };
+  });
 }
 
 /**
@@ -471,6 +551,24 @@ export async function getUserById(userId: string): Promise<AuthUser | null> {
     createdAt: user.created_at,
     updatedAt: user.updated_at,
   };
+}
+
+/**
+ * Confirm that an access token still references an active, non-revoked session.
+ */
+export async function hasActiveSession(
+  sessionId: string,
+  userId: string,
+): Promise<boolean> {
+  const session = await db
+    .selectFrom("user_sessions")
+    .where("id", "=", sessionId)
+    .where("user_id", "=", userId)
+    .where("expires_at", ">", toDbDate())
+    .select("id")
+    .executeTakeFirst();
+
+  return Boolean(session);
 }
 
 /**

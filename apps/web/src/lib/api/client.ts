@@ -11,11 +11,9 @@ export const API_BASE_URL =
 
 // Token storage
 let accessToken: string | null = null;
-let refreshToken: string | null = null;
 let companyId: string | null = null;
+let refreshPromise: Promise<boolean> | null = null;
 
-const TOKEN_STORAGE_KEY = "auth_token";
-const REFRESH_TOKEN_STORAGE_KEY = "refresh_token";
 const COMPANY_ID_STORAGE_KEY = "company_id";
 
 // Custom error class
@@ -31,26 +29,18 @@ export class ApiRequestError extends Error {
   }
 }
 
-// Initialize tokens from storage
+// Access tokens intentionally remain in memory. The refresh token is held in
+// an HttpOnly cookie and therefore cannot be read by injected JavaScript.
 export function initializeAuth(): void {
   try {
-    accessToken = localStorage.getItem(TOKEN_STORAGE_KEY);
-    refreshToken = localStorage.getItem(REFRESH_TOKEN_STORAGE_KEY);
     companyId = localStorage.getItem(COMPANY_ID_STORAGE_KEY);
   } catch {
     // localStorage not available
   }
 }
 
-export function setAuthTokens(access: string, refresh: string): void {
+export function setAuthToken(access: string): void {
   accessToken = access;
-  refreshToken = refresh;
-  try {
-    localStorage.setItem(TOKEN_STORAGE_KEY, access);
-    localStorage.setItem(REFRESH_TOKEN_STORAGE_KEY, refresh);
-  } catch {
-    // localStorage not available
-  }
 }
 
 export function setCompanyId(id: string): void {
@@ -77,11 +67,8 @@ export function clearCompanyId(): void {
 
 export function clearAuthTokens(): void {
   accessToken = null;
-  refreshToken = null;
   companyId = null;
   try {
-    localStorage.removeItem(TOKEN_STORAGE_KEY);
-    localStorage.removeItem(REFRESH_TOKEN_STORAGE_KEY);
     localStorage.removeItem(COMPANY_ID_STORAGE_KEY);
   } catch {
     // localStorage not available
@@ -90,10 +77,6 @@ export function clearAuthTokens(): void {
 
 export function getAccessToken(): string | null {
   return accessToken;
-}
-
-export function getRefreshToken(): string | null {
-  return refreshToken;
 }
 
 // Response handler
@@ -152,31 +135,35 @@ export async function handleResponse<T>(response: Response): Promise<T> {
   return json as T;
 }
 
-// Token refresh attempt
-async function attemptTokenRefresh(): Promise<boolean> {
-  if (!refreshToken) return false;
-
+async function performTokenRefresh(): Promise<boolean> {
   try {
     const response = await fetch(`${API_BASE_URL}/auth/refresh`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ refreshToken }),
+      credentials: "include",
     });
 
     if (response.ok) {
       const data = (await response.json()) as RefreshResponse;
-      setAuthTokens(data.tokens.accessToken, data.tokens.refreshToken);
+      setAuthToken(data.tokens.accessToken);
       return true;
     }
   } catch (error) {
     console.error("[API] Token refresh failed:", error);
   }
 
-  // Clear tokens on refresh failure
   clearAuthTokens();
   return false;
+}
+
+// Coalesce simultaneous 401 responses so a single-use refresh cookie is only
+// rotated once.
+export function attemptTokenRefresh(): Promise<boolean> {
+  if (!refreshPromise) {
+    refreshPromise = performTokenRefresh().finally(() => {
+      refreshPromise = null;
+    });
+  }
+  return refreshPromise;
 }
 
 // Fetch wrapper with authentication
@@ -203,10 +190,11 @@ export async function fetchWithAuth<T>(
   const response = await fetch(url, {
     ...options,
     headers,
+    credentials: "include",
   });
 
-  // Handle 401 - attempt token refresh
-  if (response.status === 401 && refreshToken) {
+  // Handle 401 - attempt token refresh via the HttpOnly cookie.
+  if (response.status === 401 && endpoint !== "/auth/refresh") {
     const refreshed = await attemptTokenRefresh();
     if (refreshed) {
       // Retry the request with new token
@@ -215,6 +203,7 @@ export async function fetchWithAuth<T>(
       const retryResponse = await fetch(url, {
         ...options,
         headers,
+        credentials: "include",
       });
       return handleResponse<T>(retryResponse);
     }
@@ -246,10 +235,11 @@ export async function fetchFormDataWithAuth<T>(
     method,
     headers,
     body: formData,
+    credentials: "include",
   });
 
-  // Handle 401 - attempt token refresh
-  if (response.status === 401 && refreshToken) {
+  // Handle 401 - attempt token refresh via the HttpOnly cookie.
+  if (response.status === 401) {
     const refreshed = await attemptTokenRefresh();
     if (refreshed) {
       headers.Authorization = `Bearer ${accessToken}`;
@@ -257,6 +247,7 @@ export async function fetchFormDataWithAuth<T>(
         method,
         headers,
         body: formData,
+        credentials: "include",
       });
       return handleResponse<T>(retryResponse);
     }

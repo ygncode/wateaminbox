@@ -88,7 +88,7 @@ export function useRequestMediaDownload() {
           },
         );
       }
-      // If status is 'downloading', the WebSocket handler will update when download completes
+      // If status is 'downloading', the realtime handler will update when download completes
     },
     onError: (_error, variables, context) => {
       // Rollback on error

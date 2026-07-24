@@ -1,7 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import type { NewMessagePayload } from "@wateaminbox/shared";
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useWebSocketContext } from "../../contexts";
+import { useRealtimeContext } from "../../contexts";
 import {
   getAccessToken,
   getNotificationPreferences,
@@ -21,7 +22,6 @@ import {
   sendTestNotification,
   showMessageNotification,
 } from "../../lib/notifications";
-import type { NewMessagePayload } from "../../lib/websocket";
 import { queryKeys } from "../query-keys";
 
 export interface UseNotificationsReturn {
@@ -103,7 +103,7 @@ function mapLocalToApi(
 export function useNotifications(): UseNotificationsReturn {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { subscribe, isConnected } = useWebSocketContext();
+  const { subscribe, isConnected } = useRealtimeContext();
 
   const [settings, setSettings] = useState<NotificationSettings>(
     getNotificationSettings(),

@@ -186,8 +186,9 @@ bun run dev</code></pre>
             <h3 class="text-lg font-semibold text-gray-900">Web App Configuration</h3>
             <div class="mt-4 rounded-lg bg-gray-900 p-4 overflow-x-auto">
               <pre class="text-sm text-gray-100"><code># apps/web/.env
-VITE_API_URL=http://localhost:3001/api
-VITE_WS_URL=ws://localhost:3001/ws</code></pre>
+VITE_API_URL=http://localhost:4445/api
+VITE_PUSHER_KEY=your-public-pusher-key
+VITE_PUSHER_CLUSTER=ap1</code></pre>
             </div>
           </div>
 
@@ -197,15 +198,21 @@ VITE_WS_URL=ws://localhost:3001/ws</code></pre>
               <pre class="text-sm text-gray-100"><code># apps/api/.env
 
 # Database
-DATABASE_URL=postgresql://postgres:postgres@localhost:5433/whatsapp_web
+DATABASE_URL=postgresql://postgres:postgres@localhost:4447/wateaminbox
 
 # Authentication
-JWT_SECRET=your-secure-secret-key-change-in-production
-JWT_EXPIRES_IN=15m
-REFRESH_TOKEN_EXPIRES_IN=7d
+JWT_SECRET=replace-with-at-least-32-random-characters
+JWT_ACCESS_EXPIRES_IN=15m
+JWT_REFRESH_EXPIRES_IN=7d
 
 # NATS Message Queue
-NATS_URL=nats://localhost:4222
+NATS_URL=nats://localhost:4448
+
+# Realtime
+PUSHER_APP_ID=your-app-id
+PUSHER_KEY=your-public-key
+PUSHER_SECRET=your-server-secret
+PUSHER_CLUSTER=ap1
 
 # Meilisearch (optional, falls back to PostgreSQL FTS)
 MEILISEARCH_URL=http://localhost:7700
@@ -611,14 +618,14 @@ X-Company-ID: &lt;company-uuid&gt;</code></pre>
           </div>
 
           <div class="mt-8">
-            <h3 class="text-lg font-semibold text-gray-900">WebSocket Events</h3>
-            <p class="mt-2 text-gray-600">Connect to <code class="bg-gray-100 px-1 py-0.5 rounded">/ws</code> for real-time updates:</p>
+            <h3 class="text-lg font-semibold text-gray-900">Pusher Realtime Events</h3>
+            <p class="mt-2 text-gray-600">Authenticated users subscribe to the private company channel after authorization through <code class="bg-gray-100 px-1 py-0.5 rounded">/api/pusher/auth</code>:</p>
             <ul class="mt-4 list-disc pl-6 text-gray-600 space-y-2">
               <li><code class="bg-gray-100 px-1 py-0.5 rounded">message:new</code> - New message received</li>
               <li><code class="bg-gray-100 px-1 py-0.5 rounded">message:status</code> - Message delivery status update</li>
-              <li><code class="bg-gray-100 px-1 py-0.5 rounded">contact:update</code> - Contact information changed</li>
-              <li><code class="bg-gray-100 px-1 py-0.5 rounded">whatsapp:status</code> - Connection status changed</li>
-              <li><code class="bg-gray-100 px-1 py-0.5 rounded">notification</code> - In-app notification</li>
+              <li><code class="bg-gray-100 px-1 py-0.5 rounded">contact:updated</code> - Contact information changed</li>
+              <li><code class="bg-gray-100 px-1 py-0.5 rounded">connection:status</code> - WhatsApp connection status changed</li>
+              <li><code class="bg-gray-100 px-1 py-0.5 rounded">notification:new</code> - In-app notification</li>
             </ul>
           </div>
         </section>
@@ -728,50 +735,53 @@ X-Company-ID: &lt;company-uuid&gt;</code></pre>
         </section>
 
         <script>
-          const form = document.getElementById('feedback-form');
-          const status = document.getElementById('feedback-status');
-          const submitBtn = form.querySelector('button[type="submit"]');
+          const form = document.querySelector<HTMLFormElement>('#feedback-form');
+          const status = document.querySelector<HTMLElement>('#feedback-status');
+          const emailInput = document.querySelector<HTMLInputElement>('#feedback-email');
+          const messageInput = document.querySelector<HTMLTextAreaElement>('#feedback-message');
+          const submitBtn = form?.querySelector<HTMLButtonElement>('button[type="submit"]');
 
-          form.addEventListener('submit', async (e) => {
-            e.preventDefault();
+          if (form && status && emailInput && messageInput && submitBtn) {
+            form.addEventListener('submit', async (event) => {
+              event.preventDefault();
 
-            const email = document.getElementById('feedback-email').value;
-            const message = document.getElementById('feedback-message').value;
+              const email = emailInput.value;
+              const message = messageInput.value;
 
-            if (message.length < 10) {
-              status.textContent = 'Message must be at least 10 characters';
-              status.className = 'text-sm text-red-600';
-              return;
-            }
-
-            submitBtn.disabled = true;
-            status.textContent = 'Sending...';
-            status.className = 'text-sm text-gray-600';
-
-            try {
-              const response = await fetch('/api/feedback', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ message, ...(email && { email }) }),
-              });
-
-              const data = await response.json();
-
-              if (response.ok) {
-                status.textContent = 'Thank you for your feedback!';
-                status.className = 'text-sm text-green-600';
-                form.reset();
-              } else {
-                status.textContent = data.error || 'Failed to send feedback. Please try again.';
+              if (message.length < 10) {
+                status.textContent = 'Message must be at least 10 characters';
                 status.className = 'text-sm text-red-600';
+                return;
               }
-            } catch (error) {
-              status.textContent = 'Failed to send feedback. Please try again.';
-              status.className = 'text-sm text-red-600';
-            } finally {
-              submitBtn.disabled = false;
-            }
-          });
+
+              submitBtn.disabled = true;
+              status.textContent = 'Sending...';
+              status.className = 'text-sm text-gray-600';
+
+              try {
+                const response = await fetch('/api/feedback', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ message, ...(email && { email }) }),
+                });
+                const data = await response.json();
+
+                if (response.ok) {
+                  status.textContent = 'Thank you for your feedback!';
+                  status.className = 'text-sm text-green-600';
+                  form.reset();
+                } else {
+                  status.textContent = data.error || 'Failed to send feedback. Please try again.';
+                  status.className = 'text-sm text-red-600';
+                }
+              } catch {
+                status.textContent = 'Failed to send feedback. Please try again.';
+                status.className = 'text-sm text-red-600';
+              } finally {
+                submitBtn.disabled = false;
+              }
+            });
+          }
         </script>
       </main>
     </div>

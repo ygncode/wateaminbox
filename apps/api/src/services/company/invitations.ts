@@ -200,8 +200,7 @@ export async function acceptInvitation(
   }
 
   // Start a transaction
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const result = await db.transaction().execute(async (trx: any) => {
+  const result = await db.transaction().execute(async (trx) => {
     // Mark invitation as accepted
     await trx
       .updateTable("invitations")

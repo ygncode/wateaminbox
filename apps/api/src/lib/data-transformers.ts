@@ -116,7 +116,7 @@ export function transformContact(
     pushName: contact.push_name,
     customName: contact.custom_name,
     displayName: getContactDisplayName(contact),
-    name: getContactName(contact),
+    name: getContactName(contact) ?? getContactDisplayName(contact),
     isGroup: contact.is_group,
     isBlocked: contact.is_blocked ?? false,
     profilePictureUrl: contact.profile_picture_url,

@@ -14,7 +14,7 @@ import { handlerLogger as logger } from "./types.js";
 
 /**
  * Handles reaction events from WhatsApp
- * Stores reactions in database and broadcasts to WebSocket clients
+ * Stores reactions in database and broadcasts to realtime clients
  */
 export async function handleReactionEvent(event: ReactionEvent): Promise<void> {
   const { companyId, connectionId, payload } = event;
@@ -93,7 +93,7 @@ export async function handleReactionEvent(event: ReactionEvent): Promise<void> {
 /**
  * Handles message revoke (deletion) events from WhatsApp
  * When a user deletes a message for everyone, this updates the database
- * and notifies WebSocket clients
+ * and notifies realtime clients
  */
 export async function handleMessageRevokeEvent(
   event: MessageRevokeEvent,

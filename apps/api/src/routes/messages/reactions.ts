@@ -12,7 +12,7 @@ import { publishSendReaction } from "../../lib/nats/index.js";
 import { successData, successMessage } from "../../lib/response.js";
 import { addReactionSchema } from "../../lib/schemas/index.js";
 import { getRouteContext } from "../../middleware/context.js";
-import { broadcastToCompany } from "../ws/index.js";
+import { broadcastToCompany } from "../../lib/pusher.js";
 
 const logger = createLogger("MessageReactionRoutes");
 
@@ -90,19 +90,18 @@ reactionRoutes.post(
       )
       .execute();
 
-    // Broadcast reaction to all connected WebSocket clients for real-time updates
-    broadcastToCompany(companyId, {
-      type: "message:reaction",
-      connectionId: connection.id,
-      payload: {
+    await broadcastToCompany(
+      companyId,
+      "message:reaction",
+      {
         messageId,
         contactId: message.contact_id,
         from: connection.jid,
         emoji: body.emoji,
         timestamp: nowMs(),
       },
-      timestamp: new Date().toISOString(),
-    });
+      connection.id,
+    );
 
     // Send reaction to WhatsApp via NATS
     try {
@@ -160,20 +159,20 @@ reactionRoutes.delete("/:id/reaction", async (c) => {
     .where("reactor_jid", "=", reactorJid)
     .execute();
 
-  // Broadcast reaction removal to all connected WebSocket clients for real-time updates
+  // Broadcast reaction removal to all connected realtime clients for real-time updates
   if (connection) {
-    broadcastToCompany(companyId, {
-      type: "message:reaction",
-      connectionId: connection.id,
-      payload: {
+    await broadcastToCompany(
+      companyId,
+      "message:reaction",
+      {
         messageId,
         contactId: message.contact_id,
         from: reactorJid,
         emoji: "", // Empty emoji indicates removal
         timestamp: nowMs(),
       },
-      timestamp: new Date().toISOString(),
-    });
+      connection.id,
+    );
   }
 
   // Send empty emoji to WhatsApp to remove reaction (if we have contact info)

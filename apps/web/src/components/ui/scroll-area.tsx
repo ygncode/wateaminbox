@@ -3,10 +3,11 @@ import * as React from "react";
 
 import { cn } from "@/lib/utils";
 
-interface ScrollAreaProps extends Omit<
-  React.ComponentPropsWithoutRef<typeof ScrollAreaPrimitive.Root>,
-  "children"
-> {
+interface ScrollAreaProps
+  extends Omit<
+    React.ComponentPropsWithoutRef<typeof ScrollAreaPrimitive.Root>,
+    "children"
+  > {
   children?: React.ReactNode;
 }
 
@@ -20,8 +21,7 @@ const ScrollArea = React.forwardRef<
     {...props}
   >
     <ScrollAreaPrimitive.Viewport className="h-full w-full rounded-[inherit]">
-      {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-      {children as any}
+      {children}
     </ScrollAreaPrimitive.Viewport>
     <ScrollBar />
     <ScrollAreaPrimitive.Corner />

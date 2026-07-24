@@ -10,11 +10,6 @@
 import { toISOString } from "@wateaminbox/shared";
 import { Hono } from "hono";
 import { getMessageCleanupStatus } from "../services/message-cleanup.service.js";
-import {
-  getTotalConnectionCount,
-  isHeartbeatRunning,
-  getConnectionMetrics,
-} from "./ws/index.js";
 
 export const healthRoutes = new Hono();
 
@@ -28,12 +23,7 @@ healthRoutes.get("/", (c) => {
     timestamp: toISOString(),
     services: {
       messageCleanup: getMessageCleanupStatus(),
-      realtime: "pusher", // Primary real-time transport
-      websocket: {
-        // Legacy WebSocket connections (kept for backward compatibility)
-        totalConnections: getTotalConnectionCount(),
-        heartbeatRunning: isHeartbeatRunning(),
-      },
+      realtime: "pusher",
     },
   });
 });
@@ -58,16 +48,5 @@ healthRoutes.get("/live", (c) => {
   return c.json({
     status: "live",
     timestamp: toISOString(),
-  });
-});
-
-/**
- * GET /health/ws-metrics - Detailed WebSocket metrics
- * Used for monitoring and debugging WebSocket connections
- */
-healthRoutes.get("/ws-metrics", (c) => {
-  return c.json({
-    timestamp: toISOString(),
-    ...getConnectionMetrics(),
   });
 });

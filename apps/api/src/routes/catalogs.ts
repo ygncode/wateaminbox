@@ -130,8 +130,8 @@ catalogRoutes.post("/sync", async (c) => {
 
   return successWithMessage(
     c,
-    { status: "syncing" },
     "Catalog sync initiated. Catalogs will be updated shortly.",
+    { status: "syncing" },
   );
 });
 
@@ -162,8 +162,8 @@ catalogRoutes.post("/:catalogId/sync-products", async (c) => {
 
   return successWithMessage(
     c,
-    { status: "syncing", catalogId },
     "Product sync initiated for catalog. Products will be updated shortly.",
+    { status: "syncing", catalogId },
   );
 });
 

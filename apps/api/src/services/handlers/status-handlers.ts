@@ -87,7 +87,7 @@ export async function handleStatusEvent(event: StatusEvent): Promise<void> {
 
 /**
  * Handles sync status events from WhatsApp history sync
- * Updates database sync_status and broadcasts progress to WebSocket clients
+ * Updates database sync_status and broadcasts progress to realtime clients
  */
 export async function handleSyncStatusEvent(
   event: SyncStatusEvent,
@@ -175,7 +175,7 @@ export async function handleSyncStatusEvent(
 
 /**
  * Handles download response events from the Go download handler
- * Updates message with downloaded media URL and broadcasts to WebSocket clients
+ * Updates message with downloaded media URL and broadcasts to realtime clients
  */
 export async function handleDownloadResponseEvent(
   event: DownloadResponseEvent,

@@ -1,9 +1,5 @@
 import { Hono } from "hono";
-import {
-  toDbDate,
-  toISOString,
-  getContactDisplayName,
-} from "@wateaminbox/shared";
+import { toDbDate, getContactDisplayName } from "@wateaminbox/shared";
 import { requirePermission } from "../../middleware/tenant.js";
 import { getRouteContext } from "../../middleware/context.js";
 import { PERMISSIONS } from "../../services/permission.service.js";
@@ -11,7 +7,7 @@ import { getCurrentAssignment } from "../../services/contact.service.js";
 import { createNotification } from "../../services/notification-history.service.js";
 import { createAuditLog, getClientIp } from "../../services/audit.service.js";
 import { getUserNames } from "../../services/user.service.js";
-import { broadcastToCompany } from "../ws/index.js";
+import { broadcastToCompany } from "../../lib/pusher.js";
 import { notFound, forbidden } from "../../lib/errors.js";
 import { successData, successMessage, created } from "../../lib/response.js";
 
@@ -23,7 +19,7 @@ export const assignmentRoutes = new Hono();
  *
  * When reassigning from another user (takeover):
  * - Creates notification for previous assignee
- * - Broadcasts WebSocket event for real-time update
+ * - Broadcasts realtime event for real-time update
  * - Logs to audit trail
  *
  * Permission: can_assign_contacts is required to assign to another user
@@ -107,19 +103,19 @@ assignmentRoutes.post("/:id/assign", async (c) => {
       },
     });
 
-    // Broadcast WebSocket event for real-time update
-    broadcastToCompany(companyId, {
-      type: "contact",
-      payload: {
+    await Promise.all([
+      broadcastToCompany(companyId, "contact:updated", {
         event: "reassigned",
         contactId,
         contactName: contactDisplayName,
         previousAssignee: previousAssigneeId,
         newAssignee: targetUserId,
         reassignedBy: user.id,
-      },
-      timestamp: toISOString(),
-    });
+      }),
+      broadcastToCompany(companyId, "notification:new", {
+        userId: previousAssigneeId,
+      }),
+    ]);
 
     // Create audit log
     await createAuditLog({
@@ -223,7 +219,9 @@ assignmentRoutes.get("/:id/assignments", async (c) => {
   const userIds = assignments.flatMap((a) => [a.assigned_to, a.assigned_by]);
   const userNames = await getUserNames(userIds);
 
-  return successData(c, assignments.map((assignment) => ({
+  return successData(
+    c,
+    assignments.map((assignment) => ({
     id: assignment.id,
     assignedTo: assignment.assigned_to,
     assignedToName:
@@ -234,5 +232,6 @@ assignmentRoutes.get("/:id/assignments", async (c) => {
     assignedAt: assignment.assigned_at,
     unassignedAt: assignment.unassigned_at,
     isActive: assignment.unassigned_at === null,
-  })));
+    })),
+  );
 });

@@ -2,7 +2,6 @@ import { sql } from "kysely";
 import { toISOString, dayjs } from "@wateaminbox/shared";
 import { getTenantConnection } from "./tenant.service.js";
 import { NotFoundError } from "../lib/errors.js";
-import { toCSV } from "./export/csv.js";
 import {
   generateBackupZip,
   type FullBackupData,

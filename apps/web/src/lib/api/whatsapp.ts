@@ -55,8 +55,8 @@ export async function createWhatsAppConnection(
 
 export async function reconnectWhatsAppConnection(
   connectionId: string,
-): Promise<{ message: string; websocketUrl: string }> {
-  return fetchWithAuth<{ message: string; websocketUrl: string }>(
+): Promise<{ message: string }> {
+  return fetchWithAuth<{ message: string }>(
     `/whatsapp/connections/${connectionId}/reconnect`,
     {
       method: "POST",

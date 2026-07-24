@@ -4,13 +4,14 @@
  * Handles connection status queries and updates.
  */
 
+import type { WhatsAppConnectionStatus } from "@wateaminbox/database";
 import { toDbDate } from "@wateaminbox/shared";
 import type { Kysely } from "kysely";
 import type { TenantDatabase } from "../tenant.service.js";
 
 // Types
 export interface ConnectionStatus {
-  status: "connected" | "disconnected" | "banned" | "pending" | "not_found";
+  status: WhatsAppConnectionStatus | "not_found";
   phoneNumber?: string;
   jid?: string;
   connectedAt?: Date;
@@ -62,7 +63,7 @@ export async function getConnectionStatus(
  */
 export async function updateConnectionStatus(
   tenantDb: Kysely<TenantDatabase>,
-  status: "connected" | "disconnected" | "banned" | "pending",
+  status: WhatsAppConnectionStatus,
   connectionId?: string,
   phoneNumber?: string,
   jid?: string,

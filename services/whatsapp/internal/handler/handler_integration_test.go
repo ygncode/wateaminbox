@@ -1,3 +1,5 @@
+//go:build integration
+
 package handler
 
 import (
@@ -191,7 +193,7 @@ func TestDownloadWithRetryIntegration_AllAttemptsFail(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	
+
 	_, err := h.downloadWithRetry(ctx, imgMsg)
 
 	if err == nil {
@@ -582,7 +584,7 @@ func TestDownloadWithRetryIntegration_PerAttemptTimeout(t *testing.T) {
 	if err == nil {
 		t.Log("Note: Success despite timeouts (simulated client might return success after delay)")
 	}
-	
+
 	callCount := testClient.GetDownloadCallCount()
 	if callCount != mediaDownloadMaxRetries {
 		t.Logf("Note: Made %d calls (expected %d with timeouts)", callCount, mediaDownloadMaxRetries)
@@ -597,7 +599,7 @@ func TestDownloadWithRetryIntegration_ConcurrentDownloads(t *testing.T) {
 
 	var wg sync.WaitGroup
 	results := make(chan struct {
-		success bool
+		success  bool
 		attempts int
 	}, numConcurrent)
 
@@ -619,7 +621,7 @@ func TestDownloadWithRetryIntegration_ConcurrentDownloads(t *testing.T) {
 			})
 
 			results <- struct {
-				success bool
+				success  bool
 				attempts int
 			}{err == nil, testClient.GetDownloadCallCount()}
 		}(i)

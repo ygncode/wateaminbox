@@ -14,18 +14,18 @@ import (
 const (
 	StreamName = sharednats.StreamEvents
 
-	SubjectQR              = sharednats.SubjectQR
-	SubjectStatus          = sharednats.SubjectStatus
-	SubjectMessage         = sharednats.SubjectMessage
-	SubjectReceipt         = sharednats.SubjectReceipt
-	SubjectPresence        = sharednats.SubjectPresence
-	SubjectContact         = sharednats.SubjectContact
-	SubjectProfilePicture  = sharednats.SubjectProfilePicture
-	SubjectMessageRevoke   = sharednats.SubjectMessageRevoke
+	SubjectQR               = sharednats.SubjectQR
+	SubjectStatus           = sharednats.SubjectStatus
+	SubjectMessage          = sharednats.SubjectMessage
+	SubjectReceipt          = sharednats.SubjectReceipt
+	SubjectPresence         = sharednats.SubjectPresence
+	SubjectContact          = sharednats.SubjectContact
+	SubjectProfilePicture   = sharednats.SubjectProfilePicture
+	SubjectMessageRevoke    = sharednats.SubjectMessageRevoke
 	SubjectSendConfirmation = sharednats.SubjectSendConfirm
-	SubjectTyping          = sharednats.SubjectTyping
-	SubjectReaction        = sharednats.SubjectReaction
-	SubjectSyncStatus      = sharednats.SubjectSyncStatus
+	SubjectTyping           = sharednats.SubjectTyping
+	SubjectReaction         = sharednats.SubjectReaction
+	SubjectSyncStatus       = sharednats.SubjectSyncStatus
 	SubjectDownloadRequest  = sharednats.SubjectDownloadRequest
 	SubjectDownloadResponse = sharednats.SubjectDownloadResponse
 )

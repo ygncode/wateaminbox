@@ -6,7 +6,7 @@
 import { toDbDate } from "@wateaminbox/shared";
 import { Hono } from "hono";
 import { notFound } from "../../lib/errors.js";
-import { successData, successMessage } from "../../lib/response.js";
+import { successData } from "../../lib/response.js";
 import { getRouteContext } from "../../middleware/context.js";
 
 export const actionRoutes = new Hono();

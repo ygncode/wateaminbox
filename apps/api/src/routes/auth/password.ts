@@ -61,11 +61,14 @@ passwordRoutes.post(
       const passwordCheck = validatePasswordStrength(body.password);
       if (!passwordCheck.isValid) {
         return validationError(c, [
-          { field: "password", message: passwordCheck.message },
+          {
+            field: "password",
+            message: passwordCheck.message ?? "Password is not strong enough",
+          },
         ]);
       }
 
-      await resetPassword(body.email, body.token, body.password);
+      await resetPassword(body.token, body.password);
 
       return successMessage(c, "Password reset successfully");
     } catch (error) {

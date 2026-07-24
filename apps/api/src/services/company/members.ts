@@ -12,7 +12,7 @@ import {
   InsufficientPermissionsError,
 } from "../../lib/errors.js";
 import { getCompany } from "./core.js";
-import type { Company, CompanyMember, CompanyWithRole } from "./types.js";
+import type { CompanyMember, CompanyWithRole } from "./types.js";
 
 /**
  * Gets all members of a company

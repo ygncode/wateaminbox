@@ -15,7 +15,7 @@ const (
 	EventTypeProfilePicture   = "profile_picture"
 	EventTypeMessageRevoke    = "message_revoke"
 	EventTypeSendConfirm      = "send_confirmation"
-	EventTypeSendFailed       = "send_failed"       // Message send failed after max retries
+	EventTypeSendFailed       = "send_failed" // Message send failed after max retries
 	EventTypeTyping           = "typing"
 	EventTypeReaction         = "reaction"
 	EventTypeSyncStatus       = "sync_status"
@@ -25,9 +25,9 @@ const (
 
 // Command types used across WhatsApp services.
 const (
-	CommandSpawn         = "spawn"
-	CommandKill          = "kill"
-	CommandStatus        = "status"
+	CommandSpawn          = "spawn"
+	CommandKill           = "kill"
+	CommandStatus         = "status"
 	CommandBlockContact   = "block_contact"
 	CommandUnblockContact = "unblock_contact"
 )

@@ -1,6 +1,6 @@
-import type { Kysely } from 'kysely'
-import { sql } from 'kysely'
-import { executeOnAllTenants } from './migration-helpers.js'
+import type { Kysely } from "kysely";
+import { sql } from "kysely";
+import { executeOnAllTenants } from "./migration-helpers.js";
 
 /**
  * Migration 021: Fix phone numbers with device suffix
@@ -34,18 +34,20 @@ export async function up(db: Kysely<unknown>): Promise<void> {
         updated_at = now()
       WHERE phone_number LIKE '%:%'
          OR jid LIKE '%:%@%'
-    `.execute(db)
+    `.execute(db);
 
-    const rowsAffected = (result as any).numAffectedRows || 0
+    const rowsAffected = result.numAffectedRows || 0n;
     if (rowsAffected > 0) {
-      console.log(`Fixed ${rowsAffected} contacts with device suffix in ${schemaName}`)
+      console.log(
+        `Fixed ${rowsAffected} contacts with device suffix in ${schemaName}`,
+      );
     }
-  })
+  });
 
-  console.log('Migration 021: Fixed phone numbers with device suffix')
+  console.log("Migration 021: Fixed phone numbers with device suffix");
 }
 
 export async function down(db: Kysely<unknown>): Promise<void> {
   // Cannot restore original malformed data - this is a one-way data fix
-  console.log('Migration 021 is a one-way data fix and cannot be rolled back')
+  console.log("Migration 021 is a one-way data fix and cannot be rolled back");
 }

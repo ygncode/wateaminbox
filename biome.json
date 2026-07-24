@@ -6,12 +6,12 @@
     "useIgnoreFile": true
   },
   "files": {
-    "ignoreUnknown": false,
+    "ignoreUnknown": true,
     "includes": [
       "**",
       "!**/node_modules",
       "!**/dist",
-      "!**/.next",
+      "!**/.astro",
       "!**/.turbo",
       "!**/coverage",
       "!**/*.gen.ts"
@@ -21,13 +21,12 @@
     "enabled": true,
     "indentStyle": "space",
     "indentWidth": 2,
-    "lineWidth": 100
+    "lineWidth": 80
   },
-  "assist": { "actions": { "source": { "organizeImports": "on" } } },
   "linter": {
     "enabled": true,
     "rules": {
-      "recommended": true,
+      "recommended": false,
       "complexity": {
         "noUselessTypeConstraint": "error"
       },
@@ -36,7 +35,6 @@
         "noUnusedVariables": "warn"
       },
       "style": {
-        "noNonNullAssertion": "warn",
         "useConst": "error"
       },
       "suspicious": {
@@ -44,11 +42,16 @@
       }
     }
   },
+  "css": {
+    "parser": {
+      "tailwindDirectives": true
+    }
+  },
   "javascript": {
     "formatter": {
-      "quoteStyle": "single",
-      "semicolons": "asNeeded",
-      "trailingCommas": "es5"
+      "quoteStyle": "double",
+      "semicolons": "always",
+      "trailingCommas": "all"
     }
   }
 }

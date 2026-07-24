@@ -7,6 +7,7 @@ import { zValidator } from "@hono/zod-validator";
 import { toDbDate, toISOString } from "@wateaminbox/shared";
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
+import { z } from "zod";
 import {
   ConnectionNotFoundError,
   InvalidConnectionStateError,
@@ -18,7 +19,15 @@ import { authMiddleware } from "../../middleware/auth.js";
 import { createConditionalRateLimiter } from "../../middleware/rate-limit.js";
 import { tenantFromHeader } from "../../middleware/tenant.js";
 import * as whatsappService from "../../services/whatsapp.service.js";
-import { sendMessageSchema } from "../../lib/schemas/index.js";
+
+const connectionSendMessageSchema = z.object({
+  jid: z.string().min(1),
+  content: z.string().default(""),
+  messageType: z
+    .enum(["text", "image", "video", "audio", "document", "sticker"])
+    .default("text"),
+  mediaUrl: z.string().url().optional(),
+});
 
 const logger = createLogger("WhatsAppConnectionRoutes");
 
@@ -115,9 +124,7 @@ connectionRoutes.post(
             createdAt: toISOString(),
             updatedAt: toISOString(),
           },
-          message:
-            "Connection initiated. Connect to the WebSocket URL to receive the QR code.",
-          websocketUrl: result.wsUrl,
+          message: "Connection initiated. The QR code will arrive via Pusher.",
         },
         201,
       );
@@ -328,7 +335,6 @@ connectionRoutes.post(
       return c.json({
         success: true,
         message: "Reconnection initiated",
-        websocketUrl: `/ws?company=${companyId}&connection=${connectionId}`,
       });
     } catch (error) {
       if (error instanceof ConnectionNotFoundError) {
@@ -390,7 +396,7 @@ connectionRoutes.post(
   authMiddleware,
   tenantFromHeader("X-Company-ID"),
   whatsappRateLimiter,
-  zValidator("json", sendMessageSchema),
+  zValidator("json", connectionSendMessageSchema),
   async (c) => {
     const companyId = c.get("companyId");
     const connectionId = c.req.param("connectionId");

@@ -61,7 +61,6 @@ export const forgotPasswordSchema = z.object({
 export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>;
 
 export const resetPasswordSchema = z.object({
-  email: emailSchema,
   token: tokenSchema,
   password: passwordSchema,
 });

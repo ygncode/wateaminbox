@@ -6,7 +6,7 @@
     "dev": "astro dev",
     "build": "astro build",
     "preview": "astro preview",
-    "lint": "eslint src --ext .astro,.ts,.tsx,.js,.jsx",
+    "lint": "astro check",
     "format": "prettier --write \"src/**/*.{astro,ts,tsx,js,jsx,css,md}\""
   },
   "dependencies": {
@@ -15,8 +15,12 @@
     "tailwindcss": "^3.4.0"
   },
   "devDependencies": {
-    "eslint": "^8.57.0",
+    "@astrojs/check": "^0.9.9",
     "prettier": "^3.2.0",
-    "prettier-plugin-astro": "^0.13.0"
+    "prettier-plugin-astro": "^0.13.0",
+    "typescript": "^5.7.2"
+  },
+  "prettier": {
+    "plugins": ["prettier-plugin-astro"]
   }
 }

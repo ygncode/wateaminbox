@@ -57,19 +57,19 @@ type StatusCallback func(status string, reason string)
 
 // Client wraps the whatsmeow client.
 type Client struct {
-	config         Config
-	client         *whatsmeow.Client
-	container      *store.PGContainer
-	device         *waStore.Device
-	handlers       []func(interface{})
-	qrCallback     QRCallback
-	statusCb       StatusCallback
-	logger         waLog.Logger
-	mu             sync.RWMutex
+	config              Config
+	client              *whatsmeow.Client
+	container           *store.PGContainer
+	device              *waStore.Device
+	handlers            []func(interface{})
+	qrCallback          QRCallback
+	statusCb            StatusCallback
+	logger              waLog.Logger
+	mu                  sync.RWMutex
 	connected           bool
-	reconnecting         bool
+	reconnecting        bool
 	ctx                 context.Context
-	cancelReconnect      context.CancelFunc
+	cancelReconnect     context.CancelFunc
 	reconnectMu         sync.Mutex
 	reconnectStartTime  time.Time
 	reconnectAttemptNum int

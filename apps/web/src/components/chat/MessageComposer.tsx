@@ -10,8 +10,8 @@ import {
   useRef,
   useState,
 } from "react";
+import { usePusherContext } from "../../contexts/PusherProvider";
 import { useClickOutside, useTextareaAutoResize } from "../../hooks/ui";
-import { useWebSocket } from "../../hooks/useWebSocket";
 
 // Lazy load emoji picker - only loaded when user opens it
 // This keeps the emoji data (~1200 lines) out of the initial bundle
@@ -121,10 +121,8 @@ export function MessageComposer({
   const currentTypingJidRef = useRef<string | null>(null);
   const lastTypingSentTimeRef = useRef<number>(0);
 
-  // Get typing indicator methods from WebSocket
-  // Note: sendTypingStop is intentionally unused - we let WhatsApp auto-dismiss typing indicators
-  // to avoid hitting WhatsApp's rate limits/cooldowns
-  const { sendTypingStart, sendTypingStop: _sendTypingStop } = useWebSocket();
+  // Typing actions use REST and are broadcast to teammates through Pusher.
+  const { sendTypingStart } = usePusherContext();
 
   // Auto-resize textarea using the hook
   const { reset: resetTextareaHeight } = useTextareaAutoResize(textareaRef, {

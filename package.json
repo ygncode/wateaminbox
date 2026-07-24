@@ -7,19 +7,23 @@
     "services/*"
   ],
   "scripts": {
-    "build": "turbo build",
+    "build": "turbo build --concurrency=3",
     "dev": "turbo dev",
-    "lint": "turbo lint",
-    "format": "turbo format",
-    "test": "turbo test",
+    "lint": "biome lint apps/api apps/web packages && (cd apps/marketing && bun run lint) && ./scripts/lint-go.sh",
+    "typecheck": "bun run --filter @wateaminbox/shared build && bun run --filter @wateaminbox/database build && tsc -p apps/api/tsconfig.json --noEmit && tsc -p apps/web/tsconfig.json --noEmit",
+    "check:unused": "knip",
+    "format": "biome format --write apps/api apps/web packages",
+    "test": "./scripts/run-tests.sh",
+    "test:integration": "cd services/whatsapp && go test -tags=integration -timeout 20m ./...",
     "clean": "turbo clean",
     "db:migrate": "turbo db:migrate",
     "db:generate": "turbo db:generate"
   },
   "devDependencies": {
+    "@biomejs/biome": "2.3.10",
     "knip": "^5.80.0",
-    "sharp": "^0.34.5",
-    "turbo": "^2.3.3"
+    "turbo": "^2.3.3",
+    "typescript": "^5.7.2"
   },
-  "packageManager": "bun@1.1.38"
+  "packageManager": "bun@1.2.18"
 }

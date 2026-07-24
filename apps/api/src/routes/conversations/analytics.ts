@@ -34,10 +34,10 @@ analyticsRoutes.get(
       c.req.valid("query");
 
     // Default to last 30 days if not specified
-    const endDateDayjs = endDateStr ? parseDate(endDateStr) : now();
-    const startDateDayjs = startDateStr
-      ? parseDate(startDateStr)
-      : subtractDays(endDateDayjs, 30);
+    const endDateDayjs = (endDateStr ? parseDate(endDateStr) : null) ?? now();
+    const startDateDayjs =
+      (startDateStr ? parseDate(startDateStr) : null) ??
+      subtractDays(endDateDayjs, 30);
 
     const trend = await getResolutionTrend(
       tenantDb,

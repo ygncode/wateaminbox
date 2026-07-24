@@ -105,7 +105,12 @@ export async function handleContactEvent(event: ContactEvent): Promise<void> {
     }
 
     // Broadcast to clients with connectionId
-    await broadcastToCompany(companyId, "contact:profile_picture", payload, connectionId);
+    await broadcastToCompany(
+      companyId,
+      "contact:profile_picture",
+      payload,
+      connectionId,
+    );
   } catch (error) {
     logger.error(formatError(error), "Failed to handle contact event");
   }
@@ -174,7 +179,7 @@ export async function handleProfilePictureEvent(
 
 /**
  * Handles presence (online/offline status) events from WhatsApp
- * Updates contact status in database and broadcasts to WebSocket clients
+ * Updates contact status in database and broadcasts to realtime clients
  */
 export async function handlePresenceEvent(event: PresenceEvent): Promise<void> {
   const { companyId, connectionId, payload } = event;
@@ -241,7 +246,7 @@ export async function handlePresenceEvent(event: PresenceEvent): Promise<void> {
 
 /**
  * Handles typing indicator events from WhatsApp
- * Broadcasts directly to WebSocket clients without storing in database
+ * Broadcasts directly to realtime clients without storing in database
  * (typing state is ephemeral and doesn't need persistence)
  */
 export async function handleTypingEvent(event: TypingEvent): Promise<void> {

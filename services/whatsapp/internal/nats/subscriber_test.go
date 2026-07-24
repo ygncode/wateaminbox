@@ -15,9 +15,9 @@ import (
 
 // mockMessageSender is a mock implementation of MessageSender for testing.
 type mockMessageSender struct {
-	sendMessageFunc       func(ctx context.Context, jid string, text string, replyTo string, replyToSender string) (types.SendResponse, error)
-	sendMediaMessageFunc  func(ctx context.Context, jid string, mediaType string, data []byte, caption string, fileName string, mimeType string, replyTo string, replyToSender string) (types.SendResponse, error)
-	sendReactionFunc      func(ctx context.Context, chatJID string, messageID string, emoji string, fromMe bool) (types.SendResponse, error)
+	sendMessageFunc      func(ctx context.Context, jid string, text string, replyTo string, replyToSender string) (types.SendResponse, error)
+	sendMediaMessageFunc func(ctx context.Context, jid string, mediaType string, data []byte, caption string, fileName string, mimeType string, replyTo string, replyToSender string) (types.SendResponse, error)
+	sendReactionFunc     func(ctx context.Context, chatJID string, messageID string, emoji string, fromMe bool) (types.SendResponse, error)
 }
 
 func (m *mockMessageSender) SendMessage(ctx context.Context, jid string, text string, replyTo string, replyToSender string) (types.SendResponse, error) {
@@ -275,9 +275,9 @@ func TestSubscriber_HasPublisherField(t *testing.T) {
 // TestSendConfirmationIDMapping tests the ID mapping that happens during send confirmation.
 func TestSendConfirmationIDMapping(t *testing.T) {
 	tests := []struct {
-		name         string
-		pendingID    string
-		realID       string
+		name      string
+		pendingID string
+		realID    string
 	}{
 		{
 			name:      "Standard mapping",

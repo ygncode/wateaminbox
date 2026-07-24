@@ -96,9 +96,9 @@ func (dh *DownloadHandler) subscribe() error {
 				log.Printf("Failed to ack download request: %v", err)
 			}
 		},
-		nats.DeliverNew(),           // Only receive new messages
-		nats.AckExplicit(),          // Require explicit acknowledgment
-		nats.MaxDeliver(3),          // Retry up to 3 times on failure
+		nats.DeliverNew(),             // Only receive new messages
+		nats.AckExplicit(),            // Require explicit acknowledgment
+		nats.MaxDeliver(3),            // Retry up to 3 times on failure
 		nats.AckWait(120*time.Second), // Wait up to 2 minutes for ack (downloads can be slow)
 	)
 	if err != nil {

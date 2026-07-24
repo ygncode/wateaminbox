@@ -3,7 +3,6 @@ import { healthRoutes } from "./health.js";
 import { authRoutes } from "./auth/index.js";
 import { companyRoutes, invitationRoutes } from "./companies.js";
 import { whatsappRoutes } from "./whatsapp/index.js";
-import { wsRoutes } from "./ws/index.js";
 import { contactRoutes } from "./contacts/index.js";
 import { messageRoutes } from "./messages/index.js";
 import { conversationRoutes } from "./conversations/index.js";
@@ -95,9 +94,6 @@ routes.route("/pusher", pusherRoutes);
 
 // Client action routes (REST endpoints for real-time actions)
 routes.route("/actions", actionsRoutes);
-
-// WebSocket routes (legacy - kept for backward compatibility)
-routes.route("/ws", wsRoutes);
 
 // API v1 routes
 routes.get("/", (c) => {

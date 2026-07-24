@@ -4,6 +4,7 @@ import {
   logout as apiLogout,
   register as apiRegister,
   type CompanyWithRole,
+  attemptTokenRefresh,
   clearAuthTokens,
   clearCompanyId,
   getAccessToken,
@@ -95,8 +96,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
     const checkSession = async () => {
       try {
         initializeAuth();
-        const token = getAccessToken();
-        if (token) {
+        if (!getAccessToken()) {
+          await attemptTokenRefresh();
+        }
+        if (getAccessToken()) {
           // Validate token by fetching current user
           const apiUser = await getCurrentUser();
 
@@ -263,8 +266,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
     setState((prev) => ({ ...prev, isLoading: true }));
 
     try {
-      const token = getAccessToken();
-      if (token) {
+      if (!getAccessToken()) {
+        await attemptTokenRefresh();
+      }
+      if (getAccessToken()) {
         const apiUser = await getCurrentUser();
         const companies = await getUserCompanies();
         const storedCompanyId = getCompanyId();

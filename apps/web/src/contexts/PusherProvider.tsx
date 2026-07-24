@@ -2,7 +2,7 @@
  * Pusher Provider
  *
  * Provides real-time communication via Pusher.
- * Replaces WebSocketProvider for better scalability and reliability.
+ * Central realtime provider for scalable company-scoped events.
  */
 
 import { useQueryClient } from "@tanstack/react-query";
@@ -26,7 +26,7 @@ import type {
   ProfilePicturePayload,
   SyncStatusPayload,
   TypingPayload,
-} from "@whatsapp-web/shared";
+} from "@wateaminbox/shared";
 import { useAuth } from "./auth-context";
 import {
   bindEvent,
@@ -51,7 +51,7 @@ import {
   refetchConversationMessages,
   updateContactInChatList,
   updateMessageInCache,
-} from "./websocket/cache-utils";
+} from "./realtime/cache-utils";
 
 // Typing timeout in milliseconds
 const TYPING_TIMEOUT = 5000;
@@ -90,7 +90,7 @@ export interface PusherContextValue {
   disconnect: () => void;
   reconnect: () => void;
 
-  // Event subscription (backward compatibility with WebSocket hooks)
+  // Event subscription
   subscribe: <T>(eventType: string, handler: EventHandler<T>) => () => void;
 
   // Messaging methods
@@ -120,7 +120,6 @@ export function PusherProvider({
     new Map(),
   );
   const isInitializedRef = useRef(false);
-  const previousCompanyIdRef = useRef<string | null>(null);
   const eventUnsubscribesRef = useRef<(() => void)[]>([]);
 
   // Get current company ID from auth context
@@ -232,10 +231,15 @@ export function PusherProvider({
           payload.messageId,
           payload.status,
         );
-        updateMessageInCache(qc, payload.conversationId, payload.messageId, (msg) => ({
+        updateMessageInCache(
+          qc,
+          payload.conversationId,
+          payload.messageId,
+          (msg) => ({
           ...msg,
           status: payload.status,
-        }));
+          }),
+        );
       }),
     );
 
@@ -243,12 +247,18 @@ export function PusherProvider({
     eventUnsubscribesRef.current.push(
       bindEvent<MessageReactionPayload>("message:reaction", (data) => {
         const payload = data.payload;
-        updateMessageInCache(qc, payload.contactId, payload.messageId, (msg) => {
+        updateMessageInCache(
+          qc,
+          payload.contactId,
+          payload.messageId,
+          (msg) => {
           const reactions = msg.reactions || [];
           if (!payload.emoji) {
             return {
               ...msg,
-              reactions: reactions.filter((r) => r.reactorJid !== payload.from),
+                reactions: reactions.filter(
+                  (r) => r.reactorJid !== payload.from,
+                ),
             };
           }
           const existingIdx = reactions.findIndex(
@@ -267,10 +277,15 @@ export function PusherProvider({
             ...msg,
             reactions: [
               ...reactions,
-              { emoji: payload.emoji, reactorJid: payload.from, createdAt: new Date() },
+                {
+                  emoji: payload.emoji,
+                  reactorJid: payload.from,
+                  createdAt: new Date(),
+                },
             ],
           };
-        });
+          },
+        );
       }),
     );
 
@@ -292,14 +307,24 @@ export function PusherProvider({
     eventUnsubscribesRef.current.push(
       bindEvent<TypingPayload>("typing:stop", (data) => {
         const payload = data.payload;
-        removeTypingIndicatorRef.current(payload.conversationId, payload.userId);
+        removeTypingIndicatorRef.current(
+          payload.conversationId,
+          payload.userId,
+        );
         clearTypingTimeout(payload.conversationId, payload.userId);
       }),
     );
 
-    // Conversation read handler
+    // Conversation/contact changes can affect filters, assignments, unread
+    // counts, and sidebar previews, so refresh the chat list.
     eventUnsubscribesRef.current.push(
       bindEvent<ConversationReadPayload>("conversation:read", () => {
+        invalidateChatList(qc);
+      }),
+      bindEvent("conversation:updated", () => {
+        invalidateChatList(qc);
+      }),
+      bindEvent("contact:updated", () => {
         invalidateChatList(qc);
       }),
     );
@@ -319,11 +344,16 @@ export function PusherProvider({
     eventUnsubscribesRef.current.push(
       bindEvent<MessageDeletedPayload>("message:deleted", (data) => {
         const payload = data.payload;
-        updateMessageInCache(qc, payload.conversationId, payload.messageId, (msg) => ({
+        updateMessageInCache(
+          qc,
+          payload.conversationId,
+          payload.messageId,
+          (msg) => ({
           ...msg,
           deleted_by_sender: true,
           deleted_at: new Date().toISOString(),
-        }));
+          }),
+        );
       }),
     );
 
@@ -353,7 +383,11 @@ export function PusherProvider({
     eventUnsubscribesRef.current.push(
       bindEvent<MediaDownloadedPayload>("media:downloaded", (data) => {
         const payload = data.payload;
-        updateMessageInCache(qc, payload.conversationId, payload.messageId, (msg) => ({
+        updateMessageInCache(
+          qc,
+          payload.conversationId,
+          payload.messageId,
+          (msg) => ({
           ...msg,
           metadata: {
             ...(msg.metadata || {}),
@@ -362,7 +396,8 @@ export function PusherProvider({
             mediaDownloadStatus: "completed" as const,
             fileSize: payload.mediaSize || msg.metadata?.fileSize,
           },
-        }));
+          }),
+        );
         refetchConversationMessages(qc, payload.conversationId);
       }),
     );
@@ -370,14 +405,19 @@ export function PusherProvider({
     eventUnsubscribesRef.current.push(
       bindEvent<MediaDownloadFailedPayload>("media:download_failed", (data) => {
         const payload = data.payload;
-        updateMessageInCache(qc, payload.conversationId, payload.messageId, (msg) => ({
+        updateMessageInCache(
+          qc,
+          payload.conversationId,
+          payload.messageId,
+          (msg) => ({
           ...msg,
           metadata: {
             ...(msg.metadata || {}),
             mediaPending: true,
             mediaDownloadStatus: "failed" as const,
           },
-        }));
+          }),
+        );
         refetchConversationMessages(qc, payload.conversationId);
       }),
     );
@@ -452,9 +492,19 @@ export function PusherProvider({
       return;
     }
 
+    try {
     initializePusher();
     subscribeToCompany(currentCompanyId);
     registerEventHandlers();
+    } catch (connectionError) {
+      setStatus("failed");
+      setError(
+        connectionError instanceof Error
+          ? connectionError.message
+          : "Realtime connection failed",
+      );
+      return;
+    }
 
     // Set up connection state listener
     const unsub = onConnectionStateChange((state) => {
@@ -523,19 +573,13 @@ export function PusherProvider({
   }, [currentCompanyId]);
 
   // Send typing indicator via REST
-  const sendTypingStart = useCallback(
-    (conversationId: string) => {
+  const sendTypingStart = useCallback((conversationId: string) => {
       sendTypingIndicator(conversationId, true).catch(console.error);
-    },
-    [],
-  );
+  }, []);
 
-  const sendTypingStop = useCallback(
-    (conversationId: string) => {
+  const sendTypingStop = useCallback((conversationId: string) => {
       sendTypingIndicator(conversationId, false).catch(console.error);
-    },
-    [],
-  );
+  }, []);
 
   // Mark messages as read
   const sendMarkAsRead = useCallback(
@@ -545,13 +589,12 @@ export function PusherProvider({
     [],
   );
 
-  // Subscribe to events (backward compatibility with WebSocket hooks)
-  // This allows external hooks to listen for specific events
+  // Allow feature hooks to listen for specific company events.
   const subscribe = useCallback(
     <T,>(eventType: string, handler: EventHandler<T>): (() => void) => {
       // Wrap the handler to extract payload from PusherEventData
       const wrappedHandler = (data: PusherEventData<T>) => {
-        // Merge connectionId into payload for backward compatibility
+        // Include the connection ID in payloads consumed by connection hooks.
         const payload = {
           ...data.payload,
           connectionId: data.connectionId,
@@ -583,34 +626,6 @@ export function PusherProvider({
       isInitializedRef.current = false;
     };
   }, [autoConnect, connect, currentCompanyId, fetchSyncStatus]);
-
-  // Handle company ID changes
-  useEffect(() => {
-    if (previousCompanyIdRef.current === currentCompanyId) {
-      return;
-    }
-
-    const previousCompanyId = previousCompanyIdRef.current;
-    previousCompanyIdRef.current = currentCompanyId;
-
-    // Company changed - reconnect
-    if (
-      previousCompanyId !== null &&
-      currentCompanyId !== null &&
-      previousCompanyId !== currentCompanyId
-    ) {
-      console.log("[Pusher] Company changed, reconnecting:", currentCompanyId);
-      reconnect();
-      fetchSyncStatus();
-    }
-
-    // First company set
-    if (previousCompanyId === null && currentCompanyId !== null) {
-      console.log("[Pusher] Company ID set, connecting:", currentCompanyId);
-      connect();
-      fetchSyncStatus();
-    }
-  }, [currentCompanyId, connect, reconnect, fetchSyncStatus]);
 
   // Re-fetch sync status on reconnect
   useEffect(() => {
@@ -653,7 +668,6 @@ export function usePusherContext(): PusherContextValue {
   return context;
 }
 
-// Re-export for backward compatibility with WebSocket interface
 export { PusherProvider as RealtimeProvider };
 export { usePusherContext as useRealtimeContext };
 export type { PusherContextValue as RealtimeContextValue };

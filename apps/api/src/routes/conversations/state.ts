@@ -1,5 +1,5 @@
 import { zValidator } from "@hono/zod-validator";
-import { toDbDate, toISOString } from "@wateaminbox/shared";
+import { toDbDate } from "@wateaminbox/shared";
 import { Hono } from "hono";
 import { notFound } from "../../lib/errors.js";
 import { successData } from "../../lib/response.js";
@@ -12,7 +12,7 @@ import {
   resolveConversation,
   setConversationPending,
 } from "../../services/conversation-state.service.js";
-import { broadcastToCompany } from "../ws/index.js";
+import { broadcastToCompany } from "../../lib/pusher.js";
 
 export const stateRoutes = new Hono();
 
@@ -85,16 +85,11 @@ stateRoutes.post(
       ipAddress: getClientIp(c.req.raw.headers),
     });
 
-    // Broadcast WebSocket event
-    broadcastToCompany(companyId, {
-      type: "conversation",
-      payload: {
+    await broadcastToCompany(companyId, "conversation:updated", {
         event: "resolved",
         contactId,
         resolvedBy: user.id,
         resolvedAt: state.resolvedAt?.toISOString(),
-      },
-      timestamp: toISOString(),
     });
 
     return successData(c, state);
@@ -136,16 +131,11 @@ stateRoutes.post("/:id/reopen", async (c) => {
     ipAddress: getClientIp(c.req.raw.headers),
   });
 
-  // Broadcast WebSocket event
-  broadcastToCompany(companyId, {
-    type: "conversation",
-    payload: {
+  await broadcastToCompany(companyId, "conversation:updated", {
       event: "reopened",
       contactId,
       reopenedBy: user.id,
       reopenedAt: state.reopenedAt?.toISOString(),
-    },
-    timestamp: toISOString(),
   });
 
   return successData(c, state);
@@ -171,14 +161,9 @@ stateRoutes.post("/:id/pending", async (c) => {
 
   const state = await setConversationPending(tenantDb, contactId);
 
-  // Broadcast WebSocket event
-  broadcastToCompany(companyId, {
-    type: "conversation",
-    payload: {
+  await broadcastToCompany(companyId, "conversation:updated", {
       event: "pending",
       contactId,
-    },
-    timestamp: toISOString(),
   });
 
   return successData(c, state);
@@ -227,16 +212,10 @@ stateRoutes.post("/:id/read", async (c) => {
       .execute();
   }
 
-  // Broadcast WebSocket event to update other clients
-  broadcastToCompany(companyId, {
-    type: "conversation",
-    payload: {
-      event: "read",
+  await broadcastToCompany(companyId, "conversation:read", {
       contactId,
       unreadCount: 0,
       readBy: user.id,
-    },
-    timestamp: toISOString(),
   });
 
   return successData(c, { unreadCount: 0 });

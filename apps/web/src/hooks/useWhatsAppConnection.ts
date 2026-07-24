@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useWebSocketContext } from "../contexts";
+import { useRealtimeContext } from "../contexts";
 import {
   connectWhatsApp,
   disconnectWhatsApp,
@@ -10,7 +10,7 @@ import type {
   QRCodePayload,
   WhatsAppConnectedPayload,
   WhatsAppDisconnectedPayload,
-} from "../lib/websocket";
+} from "@wateaminbox/shared";
 import { queryKeys } from "./query-keys";
 
 export type WhatsAppConnectionState =
@@ -44,7 +44,7 @@ export interface WhatsAppConnection {
 
 export function useWhatsAppConnection(): WhatsAppConnection {
   const queryClient = useQueryClient();
-  const { subscribe, isConnected: wsConnected } = useWebSocketContext();
+  const { subscribe, isConnected: realtimeConnected } = useRealtimeContext();
 
   // Local state for QR code and connection events
   const [qrCode, setQrCode] = useState<string | null>(null);
@@ -112,9 +112,9 @@ export function useWhatsAppConnection(): WhatsAppConnection {
     },
   });
 
-  // Handle QR code events from WebSocket
+  // Handle QR code events from realtime
   useEffect(() => {
-    if (!wsConnected) return;
+    if (!realtimeConnected) return;
 
     const unsubQr = subscribe<QRCodePayload>("qr", (payload) => {
       setQrCode(payload.qrCode);
@@ -162,7 +162,7 @@ export function useWhatsAppConnection(): WhatsAppConnection {
       unsubConnected();
       unsubDisconnected();
     };
-  }, [wsConnected, subscribe, queryClient]);
+  }, [realtimeConnected, subscribe, queryClient]);
 
   // Sync state from initial status query
   useEffect(() => {
@@ -177,7 +177,7 @@ export function useWhatsAppConnection(): WhatsAppConnection {
         // If pending, trigger connect to ensure spawn command is published
         // This handles the case where the worker isn't running
         if (
-          wsConnected &&
+          realtimeConnected &&
           !connectMutation.isPending &&
           !hasTriggeredAutoConnectRef.current
         ) {
@@ -189,7 +189,7 @@ export function useWhatsAppConnection(): WhatsAppConnection {
         hasTriggeredAutoConnectRef.current = false;
       }
     }
-  }, [status, wsConnected, connectMutation]);
+  }, [status, realtimeConnected, connectMutation]);
 
   // Timeout for waiting_qr state - if QR code doesn't arrive in 30 seconds, show error
   useEffect(() => {

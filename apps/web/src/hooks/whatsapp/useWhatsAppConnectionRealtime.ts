@@ -1,18 +1,18 @@
 import { useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { nowMs, toDate } from "@wateaminbox/shared";
-import type { WorkerConnectionStatusPayload } from "@wateaminbox/shared";
-import { toast } from "sonner";
-import { useWebSocketContext } from "@/contexts";
 import type {
   QRCodePayload,
   WhatsAppConnectedPayload,
   WhatsAppDisconnectedPayload,
-} from "@/lib/websocket";
+  WorkerConnectionStatusPayload,
+} from "@wateaminbox/shared";
+import { toast } from "sonner";
+import { useRealtimeContext } from "@/contexts";
 import { queryKeys } from "../query-keys";
 import type { ConnectionState } from "./types";
 
-interface UseWebSocketOptions {
+interface UseRealtimeOptions {
   updateConnectionState: (
     connectionId: string,
     updates: Partial<ConnectionState>,
@@ -34,19 +34,19 @@ interface UseWebSocketOptions {
 }
 
 /**
- * Hook for handling WebSocket events for WhatsApp connections
+ * Hook for handling realtime events for WhatsApp connections
  */
-export function useWhatsAppConnectionWebSocket({
+export function useWhatsAppConnectionRealtime({
   updateConnectionState,
   setPendingConnection,
   setQrTimeout,
   clearQrTimeout,
-}: UseWebSocketOptions) {
+}: UseRealtimeOptions) {
   const queryClient = useQueryClient();
-  const { subscribe, isConnected: wsConnected } = useWebSocketContext();
+  const { subscribe, isConnected: realtimeConnected } = useRealtimeContext();
 
   /**
-   * Use refs to stabilize callback references for WebSocket subscriptions
+   * Use refs to stabilize callback references for realtime subscriptions
    */
   const subscribeRef = useRef(subscribe);
   subscribeRef.current = subscribe;
@@ -63,9 +63,9 @@ export function useWhatsAppConnectionWebSocket({
   const clearQrTimeoutRef = useRef(clearQrTimeout);
   clearQrTimeoutRef.current = clearQrTimeout;
 
-  // Handle WebSocket events for multi-connection
+  // Handle realtime events for multi-connection
   useEffect(() => {
-    if (!wsConnected) return;
+    if (!realtimeConnected) return;
 
     // Handle QR code events
     const unsubQr = subscribeRef.current<QRCodePayload>("qr", (payload) => {
@@ -199,7 +199,7 @@ export function useWhatsAppConnectionWebSocket({
       unsubDisconnected();
       unsubConnectionStatus();
     };
-  }, [wsConnected, setPendingConnection]);
+  }, [realtimeConnected, setPendingConnection]);
 
-  return { wsConnected };
+  return { realtimeConnected };
 }

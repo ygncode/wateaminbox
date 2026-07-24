@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
-import { toISOString } from "@wateaminbox/shared";
+import { toISOString, type NotificationPayload } from "@wateaminbox/shared";
 import {
   deleteNotification,
   getNotifications,
@@ -12,8 +12,7 @@ import type {
   InAppNotification,
   NotificationListParams,
 } from "@/lib/api/types";
-import { useWebSocketContext } from "@/contexts";
-import type { NotificationPayload } from "@/lib/websocket";
+import { useRealtimeContext } from "@/contexts";
 import { queryKeys } from "../query-keys";
 
 // Stable empty params object to prevent query key instability
@@ -26,7 +25,7 @@ export function useNotificationCenter(params?: NotificationListParams) {
   // Use stable empty params when none provided
   const effectiveParams = params ?? EMPTY_PARAMS;
   const queryClient = useQueryClient();
-  const { subscribe, isConnected } = useWebSocketContext();
+  const { subscribe, isConnected } = useRealtimeContext();
 
   // Fetch notifications list
   const {
@@ -148,7 +147,7 @@ export function useNotificationCenter(params?: NotificationListParams) {
     offset: 0,
   };
 
-  // Listen for new notifications via WebSocket
+  // Listen for new notifications via realtime
   useEffect(() => {
     if (!isConnected) return;
 

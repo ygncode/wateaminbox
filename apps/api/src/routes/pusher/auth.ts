@@ -41,7 +41,12 @@ pusherAuthRoutes.post(
     const { socket_id, channel_name } = c.req.valid("form");
 
     logger.debug(
-      { userId: user.id, companyId, channelName: channel_name, socketId: socket_id },
+      {
+        userId: user.id,
+        companyId,
+        channelName: channel_name,
+        socketId: socket_id,
+      },
       "Pusher auth request",
     );
 
@@ -78,11 +83,7 @@ pusherAuthRoutes.post(
 
     // Generate Pusher auth signature
     try {
-      const authResponse = authenticateChannel(
-        socket_id,
-        channel_name,
-        user.id,
-      );
+      const authResponse = authenticateChannel(socket_id, channel_name);
 
       logger.debug(
         { userId: user.id, companyId, channelName: channel_name },

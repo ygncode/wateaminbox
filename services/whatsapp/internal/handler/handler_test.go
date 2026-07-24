@@ -332,6 +332,10 @@ func TestDownloadWithRetry_ContextCancellationDuringBackoff(t *testing.T) {
 
 // TestDownloadWithRetry_PerAttemptTimeout tests per-attempt timeout.
 func TestDownloadWithRetry_PerAttemptTimeout(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping 2+ minute timeout verification in short mode")
+	}
+
 	mock := &mockDownloader{
 		// Simulate a download that takes longer than the per-attempt timeout
 		downloadDelay: mediaDownloadAttemptTimeout + 100*time.Millisecond,
@@ -436,7 +440,7 @@ func TestDownloadWithRetry_BackoffTimingVerification(t *testing.T) {
 				delays[1], minDelay2, maxDelay2)
 		}
 	}
-	
+
 	// Third delay should be approximately 4 * mediaDownloadBaseDelay (4s)
 	if len(delays) > 2 {
 		expectedDelay3 := mediaDownloadBaseDelay * 4

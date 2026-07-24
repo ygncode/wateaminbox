@@ -4,7 +4,6 @@
  * Schemas for conversation-related API endpoints.
  */
 import { z } from "zod";
-import { MessageType } from "@wateaminbox/shared";
 
 /**
  * Query params for listing messages in a conversation

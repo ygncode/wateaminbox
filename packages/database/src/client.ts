@@ -1,6 +1,11 @@
 import { Kysely, PostgresDialect, Generated } from "kysely";
 import { Pool } from "pg";
-import type { CompanyStatus, CompanyMemberRole, MessageType, MessageStatus } from "@wateaminbox/shared";
+import type {
+  CompanyStatus,
+  CompanyMemberRole,
+  MessageType,
+  MessageStatus,
+} from "@wateaminbox/shared";
 
 // ============================================================================
 // Public Schema Database Types (multi-tenant management)
@@ -16,6 +21,7 @@ export interface Database {
   invitations: InvitationsTable;
   company_stats: CompanyStatsTable;
   user_sessions: UserSessionsTable;
+  auth_tokens: AuthTokensTable;
 }
 
 // Type alias for backward compatibility (deprecated - import from @wateaminbox/shared instead)
@@ -79,18 +85,42 @@ export interface UserSessionsTable {
   device_type: string | null;
   ip_address: string | null;
   user_agent: string | null;
+  /** SHA-256 hash of the current refresh token. */
   refresh_token: string;
   last_active_at: Generated<Date>;
   created_at: Generated<Date>;
   expires_at: Date;
 }
 
+export type AuthTokenType = "email_verification" | "password_reset";
+
+export interface AuthTokensTable {
+  id: Generated<string>;
+  user_id: string;
+  type: AuthTokenType;
+  token_hash: string;
+  expires_at: Date;
+  used_at: Date | null;
+  created_at: Generated<Date>;
+}
+
 // ============================================================================
 // Tenant Schema Database Types (per-company data)
 // ============================================================================
 
-export type WhatsAppConnectionStatus = "connected" | "disconnected" | "banned" | "pending";
-export type NotificationType = "message" | "mention" | "assignment" | "team" | "system";
+export type WhatsAppConnectionStatus =
+  | "connected"
+  | "connecting"
+  | "disconnected"
+  | "banned"
+  | "pending"
+  | "error";
+export type NotificationType =
+  | "message"
+  | "mention"
+  | "assignment"
+  | "team"
+  | "system";
 export type ConversationStatus = "open" | "pending" | "resolved";
 export type CatalogStatus = "active" | "inactive" | "archived";
 export type ProductVisibility = "visible" | "hidden";
@@ -130,6 +160,7 @@ export interface WhatsAppConnectionsTable {
   connected_by: string | null;
   connected_at: Date | null;
   last_sync_at: Date | null;
+  sync_status: "syncing" | "completed" | "interrupted" | null;
   session_data: Buffer | null;
   created_at: Generated<Date>;
   updated_at: Generated<Date>;
@@ -253,6 +284,18 @@ export interface TenantMessagesTable {
   media_url: string | null;
   media_mime_type: string | null;
   media_size: number | null;
+  media_direct_path: string | null;
+  media_key: Buffer | null;
+  media_file_sha256: Buffer | null;
+  media_file_enc_sha256: Buffer | null;
+  media_download_status:
+    | "pending"
+    | "downloading"
+    | "completed"
+    | "failed"
+    | null;
+  media_download_error: string | null;
+  media_downloaded_at: Date | null;
   quoted_message_id: string | null;
   is_forwarded: Generated<boolean>;
   is_starred: Generated<boolean>;
@@ -388,7 +431,7 @@ export function createDatabase(connectionString: string): Kysely<Database> {
  */
 export function createTenantDatabase(
   connectionString: string,
-  schemaName: string
+  schemaName: string,
 ): Kysely<TenantDatabase> {
   const dialect = new PostgresDialect({
     pool: new Pool({

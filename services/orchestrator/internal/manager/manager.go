@@ -16,14 +16,14 @@ import (
 
 // Config holds the configuration for the process manager.
 type Config struct {
-	NATSClient          *nats.Client
-	WhatsAppBinaryPath  string
-	DefaultNATSURL      string
-	HealthCheckInterval time.Duration
-	DatabaseURL         string        // Database URL for worker registry persistence
-	AutoRestartEnabled  bool          // Enable auto-restart on crash
-	AutoRestartMaxRetries int         // Max restart attempts (default: 5)
-	AutoRestartBackoff  time.Duration // Base backoff between restarts (default: 5s)
+	NATSClient            *nats.Client
+	WhatsAppBinaryPath    string
+	DefaultNATSURL        string
+	HealthCheckInterval   time.Duration
+	DatabaseURL           string        // Database URL for worker registry persistence
+	AutoRestartEnabled    bool          // Enable auto-restart on crash
+	AutoRestartMaxRetries int           // Max restart attempts (default: 5)
+	AutoRestartBackoff    time.Duration // Base backoff between restarts (default: 5s)
 }
 
 // Manager handles WhatsApp worker process lifecycle.

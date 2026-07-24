@@ -14,7 +14,6 @@ import { zValidator } from "@hono/zod-validator";
 import { db } from "@wateaminbox/database";
 import {
   toDbDate,
-  toISOString,
   getContactDisplayName,
   getContactName,
   extractPhoneFromJid,
@@ -38,7 +37,7 @@ import { tenantMiddleware } from "../../middleware/tenant.js";
 import { getRouteContext } from "../../middleware/context.js";
 import { getContactsWithLastMessage } from "../../services/contact.service.js";
 import { createAuditLog, getClientIp } from "../../services/audit.service.js";
-import { broadcastToCompany } from "../ws/index.js";
+import { broadcastToCompany } from "../../lib/pusher.js";
 import {
   publishBlockContact,
   publishUnblockContact,
@@ -297,7 +296,7 @@ contactRoutes.post("/", zValidator("json", createContactSchema), async (c) => {
  * When isBlocked changes:
  * - Updates the is_blocked field in the database
  * - Creates an audit log entry (contact.blocked or contact.unblocked)
- * - Broadcasts a WebSocket event for real-time updates
+ * - Broadcasts a realtime event for real-time updates
  */
 contactRoutes.patch(
   "/:id",
@@ -389,16 +388,11 @@ contactRoutes.patch(
         ipAddress: getClientIp(c.req.raw.headers),
       });
 
-      // Broadcast WebSocket event for real-time update
-      broadcastToCompany(companyId, {
-        type: "contact",
-        payload: {
+      await broadcastToCompany(companyId, "contact:updated", {
           event: body.isBlocked ? "blocked" : "unblocked",
           contactId,
           contactName: contactDisplayName,
           isBlocked: body.isBlocked,
-        },
-        timestamp: toISOString(),
       });
 
       // Publish NATS command to WhatsApp service (fire-and-forget)

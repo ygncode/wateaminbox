@@ -16,7 +16,7 @@ export type {
 export { useWhatsAppConnectionsList } from "./useWhatsAppConnectionsList";
 export { useWhatsAppConnectionMutations } from "./useWhatsAppConnectionMutations";
 export { useWhatsAppConnectionState } from "./useWhatsAppConnectionState";
-export { useWhatsAppConnectionWebSocket } from "./useWhatsAppConnectionWebSocket";
+export { useWhatsAppConnectionRealtime } from "./useWhatsAppConnectionRealtime";
 
 // Re-export WhatsAppConnection type from API
 export type { WhatsAppConnection } from "@/lib/api/types";

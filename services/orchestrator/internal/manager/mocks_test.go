@@ -30,12 +30,12 @@ type MockProcessExecutor struct {
 	KillProcessGroupFunc func(pgid int, sig syscall.Signal) error
 
 	// Call tracking
-	StartCalls           []exec.Cmd
-	WaitCalls            []exec.Cmd
-	SignalCalls          []signalCall
-	KillCalls            []int
-	FindProcessCalls     []int
-	GetProcessGroupCalls []int
+	StartCalls            []exec.Cmd
+	WaitCalls             []exec.Cmd
+	SignalCalls           []signalCall
+	KillCalls             []int
+	FindProcessCalls      []int
+	GetProcessGroupCalls  []int
 	KillProcessGroupCalls []killPgCall
 }
 

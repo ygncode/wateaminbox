@@ -231,7 +231,7 @@ export async function runCleanupCycle(): Promise<CleanupCycleResult> {
 /**
  * Clean up stale pending messages for a specific company
  * Updates messages that have been pending for longer than the timeout
- * and broadcasts WebSocket notifications for affected messages
+ * and broadcasts realtime notifications for affected messages
  */
 export async function cleanupCompanyMessages(
   companyId: string,
@@ -251,7 +251,7 @@ export async function cleanupCompanyMessages(
 
   const tenantDb = getTenantConnection(companyId);
 
-  // First, fetch the messages that will be expired (for WebSocket notifications)
+  // First, fetch the messages that will be expired (for realtime notifications)
   // We need to get these before the update so we can include their details in the notification
   const messagesToExpire = await tenantDb
     .selectFrom("messages")
@@ -298,7 +298,7 @@ export async function cleanupCompanyMessages(
       "Expired pending messages for company",
     );
 
-    // Broadcast WebSocket notifications for each expired message
+    // Broadcast realtime notifications for each expired message
     // Group by contact_id to minimize broadcasts
     const messagesByContact = new Map<string, typeof messagesToExpire>();
     for (const message of messagesToExpire) {
@@ -311,17 +311,13 @@ export async function cleanupCompanyMessages(
 
     // Send notification per contact (conversation)
     for (const [contactId, messages] of messagesByContact) {
-      await broadcastToCompany(
-        companyId,
-        "message:status",
-        {
+      await broadcastToCompany(companyId, "message:status", {
           messageIds: messages.map((m) => m.message_id || m.id),
           status: "failed",
           error: "delivery_timeout",
           errorMessage: `Message delivery timed out after ${timeoutMinutes} minutes`,
           conversationId: contactId,
-        },
-      );
+      });
       logger.debug(
         { messageCount: messages.length, contactId },
         "Broadcast timeout notification for messages in conversation",

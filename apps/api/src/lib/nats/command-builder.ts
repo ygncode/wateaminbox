@@ -5,7 +5,6 @@
 
 import type {
   NatsCommand,
-  MessageType,
   StatusType,
   SpawnCommand,
   KillCommand,

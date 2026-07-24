@@ -2,6 +2,7 @@ import { Context, Next } from "hono";
 import { verifyAccessToken } from "../lib/jwt.js";
 import {
   getUserById,
+  hasActiveSession,
   updateSessionActivity,
 } from "../services/auth.service.js";
 
@@ -66,13 +67,17 @@ export const authMiddleware = async (c: Context, next: Next) => {
     );
   }
 
-  // Get the user from database
-  const user = await getUserById(payload.userId);
-  if (!user) {
+  // Confirm both the user and referenced session still exist. This makes
+  // logout/session revocation effective immediately rather than at JWT expiry.
+  const [user, sessionIsActive] = await Promise.all([
+    getUserById(payload.userId),
+    hasActiveSession(payload.sessionId, payload.userId),
+  ]);
+  if (!user || !sessionIsActive) {
     return c.json(
       {
         error: "Unauthorized",
-        message: "User not found",
+        message: "User session is no longer active",
       },
       401,
     );
@@ -108,8 +113,11 @@ export const optionalAuthMiddleware = async (c: Context, next: Next) => {
   if (token) {
     const payload = await verifyAccessToken(token);
     if (payload) {
-      const user = await getUserById(payload.userId);
-      if (user) {
+      const [user, sessionIsActive] = await Promise.all([
+        getUserById(payload.userId),
+        hasActiveSession(payload.sessionId, payload.userId),
+      ]);
+      if (user && sessionIsActive) {
         c.set("user", {
           id: user.id,
           email: user.email,

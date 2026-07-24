@@ -393,7 +393,6 @@ export async function sendTestNotification(): Promise<boolean> {
 
   return notification !== null;
 }
-
 export default {
   isNotificationSupported,
   getNotificationPermission,

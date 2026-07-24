@@ -1,7 +1,17 @@
-export { db, createDatabase, createTenantDatabase, getTenantSchemaName } from "./client";
+export {
+  db,
+  createDatabase,
+  createTenantDatabase,
+  getTenantSchemaName,
+} from "./client";
 
 // Re-export types from shared package for convenience
-export type { CompanyStatus, CompanyMemberRole, MessageType, MessageStatus } from "@wateaminbox/shared";
+export type {
+  CompanyStatus,
+  CompanyMemberRole,
+  MessageType,
+  MessageStatus,
+} from "@wateaminbox/shared";
 
 export type {
   Database,
@@ -13,6 +23,8 @@ export type {
   InvitationsTable,
   CompanyStatsTable,
   UserSessionsTable,
+  AuthTokensTable,
+  AuthTokenType,
   /** @deprecated Use CompanyMemberRole from @wateaminbox/shared instead */
   MemberRole,
   // Tenant schema types

@@ -7,8 +7,9 @@
     "dev": "bun run --watch src/index.ts",
     "build": "bun build src/index.ts --outdir dist --target bun",
     "start": "bun run dist/index.js",
-    "lint": "eslint src --ext .ts",
-    "format": "prettier --write src/**/*.ts"
+    "lint": "bunx biome lint src",
+    "format": "bunx biome format --write src",
+    "test": "bun test"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.962.0",
@@ -17,6 +18,7 @@
     "@wateaminbox/database": "workspace:*",
     "@wateaminbox/shared": "workspace:*",
     "bcrypt": "^6.0.0",
+    "dayjs": "^1.11.19",
     "fflate": "^0.8.2",
     "hono": "^4.11.4",
     "jose": "^6.1.3",

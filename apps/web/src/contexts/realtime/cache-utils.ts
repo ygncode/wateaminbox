@@ -1,8 +1,8 @@
 /**
- * WebSocket cache update utilities
+ * realtime cache update utilities
  *
  * Provides reusable functions for updating TanStack Query cache
- * in response to WebSocket events. Extracted from event-handlers.ts
+ * in response to realtime events. Extracted from event-handlers.ts
  * to reduce code duplication and improve maintainability.
  */
 

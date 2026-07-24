@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { useWebSocketContext } from "../../contexts";
+import { useRealtimeContext } from "../../contexts";
 
 // Floating message bubble component
 const FloatingBubble = ({
@@ -42,7 +42,7 @@ const FloatingBubble = ({
 };
 
 export const SyncingOverlay = React.memo(function SyncingOverlay() {
-  const { syncingConnections } = useWebSocketContext();
+  const { syncingConnections } = useRealtimeContext();
   const [isVisible, setIsVisible] = useState(false);
 
   const totalConversations = Array.from(syncingConnections.values()).reduce(

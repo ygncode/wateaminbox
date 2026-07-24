@@ -8,6 +8,7 @@
 import { zValidator } from "@hono/zod-validator";
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
+import { z } from "zod";
 import {
   ConnectionAlreadyExistsError,
   ConnectionNotFoundError,
@@ -20,7 +21,15 @@ import { authMiddleware } from "../../middleware/auth.js";
 import { createConditionalRateLimiter } from "../../middleware/rate-limit.js";
 import { tenantFromHeader } from "../../middleware/tenant.js";
 import * as whatsappService from "../../services/whatsapp.service.js";
-import { sendMessageSchema } from "../../lib/schemas/index.js";
+
+const legacySendMessageSchema = z.object({
+  jid: z.string().min(1),
+  content: z.string().default(""),
+  messageType: z
+    .enum(["text", "image", "video", "audio", "document", "sticker"])
+    .default("text"),
+  mediaUrl: z.string().url().optional(),
+});
 
 const logger = createLogger("WhatsAppLegacyRoutes");
 
@@ -39,7 +48,7 @@ export const legacyRoutes = new Hono();
 
 /**
  * POST /connect - Start WhatsApp connection flow (backward compatible)
- * Returns a WebSocket URL for QR code streaming
+ * QR codes are delivered on the authenticated company Pusher channel.
  */
 legacyRoutes.post(
   "/connect",
@@ -61,9 +70,7 @@ legacyRoutes.post(
         success: true,
         data: {
           connectionId: result.connectionId,
-          wsUrl: result.wsUrl,
-          message:
-            "Connection initiated. Connect to the WebSocket URL to receive the QR code.",
+          message: "Connection initiated. The QR code will arrive via Pusher.",
         },
       });
     } catch (error) {
@@ -167,7 +174,7 @@ legacyRoutes.post(
   authMiddleware,
   tenantFromHeader("X-Company-ID"),
   whatsappRateLimiter,
-  zValidator("json", sendMessageSchema),
+  zValidator("json", legacySendMessageSchema),
   async (c) => {
     const companyId = c.get("companyId");
     const user = c.get("user");

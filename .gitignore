@@ -6,6 +6,8 @@ node_modules
 # Build outputs
 dist
 build
+stats.html
+*.tsbuildinfo
 .next
 out
 .turbo
@@ -36,6 +38,7 @@ Thumbs.db
 
 # Testing
 coverage
+coverage.out
 .nyc_output
 
 # Playwright

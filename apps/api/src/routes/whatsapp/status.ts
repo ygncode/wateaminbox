@@ -73,9 +73,7 @@ statusRoutes.get(
       const staleConnectionIds: string[] = [];
 
       for (const conn of syncingConnections) {
-        const updatedAt = conn.updated_at
-          ? parseDate(conn.updated_at).valueOf()
-          : 0;
+        const updatedAt = parseDate(conn.updated_at)?.valueOf() ?? 0;
         if (!updatedAt || currentMs - updatedAt > STALE_THRESHOLD_MS) {
           staleConnectionIds.push(conn.id);
         } else {

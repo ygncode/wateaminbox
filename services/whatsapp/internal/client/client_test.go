@@ -228,34 +228,34 @@ func TestCalculateBackoff_JitterDistribution(t *testing.T) {
 // TestCalculateBackoff_EdgeCases tests edge cases for calculateBackoff.
 func TestCalculateBackoff_EdgeCases(t *testing.T) {
 	tests := []struct {
-		name                string
-		attemptNum          int
-		elapsedTime         time.Duration
-		shouldCap           bool
+		name        string
+		attemptNum  int
+		elapsedTime time.Duration
+		shouldCap   bool
 	}{
 		{
-			name:      "Zero attempts",
-			attemptNum: 0,
+			name:        "Zero attempts",
+			attemptNum:  0,
 			elapsedTime: 1 * time.Minute,
-			shouldCap:  false,
+			shouldCap:   false,
 		},
 		{
-			name:      "Large attempt number that triggers cap (but not overflow)",
-			attemptNum: 10,
+			name:        "Large attempt number that triggers cap (but not overflow)",
+			attemptNum:  10,
 			elapsedTime: 1 * time.Minute,
-			shouldCap:  true,
+			shouldCap:   true,
 		},
 		{
-			name:      "Exactly at phase boundary",
-			attemptNum: 50,
+			name:        "Exactly at phase boundary",
+			attemptNum:  50,
 			elapsedTime: transientPhaseDuration,
-			shouldCap:  false,
+			shouldCap:   false,
 		},
 		{
-			name:      "Just over phase boundary",
-			attemptNum: 50,
+			name:        "Just over phase boundary",
+			attemptNum:  50,
 			elapsedTime: transientPhaseDuration + 1*time.Millisecond,
-			shouldCap:  false,
+			shouldCap:   false,
 		},
 	}
 
@@ -578,8 +578,8 @@ func TestSendResponse_Structure(t *testing.T) {
 
 // MockMessageSender is a mock implementation of MessageSender for testing.
 type MockMessageSender struct {
-	SendMessageFunc       func(ctx context.Context, jid string, text string, replyTo string, replyToSender string) (interface{}, error)
-	SendMediaMessageFunc  func(ctx context.Context, jid string, mediaType string, data []byte, caption string, fileName string, mimeType string, replyTo string, replyToSender string) (interface{}, error)
+	SendMessageFunc      func(ctx context.Context, jid string, text string, replyTo string, replyToSender string) (interface{}, error)
+	SendMediaMessageFunc func(ctx context.Context, jid string, mediaType string, data []byte, caption string, fileName string, mimeType string, replyTo string, replyToSender string) (interface{}, error)
 }
 
 // TestSendMessage_InvalidJID tests that SendMessage returns error for invalid JID.

@@ -4,7 +4,7 @@ import {
   useWhatsAppConnectionsList,
   useWhatsAppConnectionMutations,
   useWhatsAppConnectionState,
-  useWhatsAppConnectionWebSocket,
+  useWhatsAppConnectionRealtime,
   type ConnectionState,
   type ConnectionWithState,
 } from "./whatsapp";
@@ -29,7 +29,7 @@ export type { ConnectionState, ConnectionWithState };
  * - useWhatsAppConnectionsList: Query for connections list
  * - useWhatsAppConnectionState: Local state management (QR codes, errors, pending)
  * - useWhatsAppConnectionMutations: Create/delete/reconnect/disconnect/rename
- * - useWhatsAppConnectionWebSocket: WebSocket event handlers
+ * - useWhatsAppConnectionRealtime: realtime event handlers
  */
 export function useWhatsAppConnections() {
   // Query for list of connections
@@ -74,8 +74,8 @@ export function useWhatsAppConnections() {
     clearQrTimeout,
   });
 
-  // WebSocket handlers
-  useWhatsAppConnectionWebSocket({
+  // realtime handlers
+  useWhatsAppConnectionRealtime({
     updateConnectionState,
     setPendingConnection,
     setQrTimeout,

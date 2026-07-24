@@ -27,10 +27,11 @@ export {
   useTheme,
 } from "./theme-context";
 export {
-  usePusherContext as useWebSocketContext,
-  type PusherContextValue as WebSocketContextValue,
-  PusherProvider as WebSocketProvider,
+  PusherProvider,
+  type PusherContextValue,
   type SyncState,
+  usePusherContext,
+  useRealtimeContext,
 } from "./PusherProvider";
 export {
   type MessageActionsContextValue,

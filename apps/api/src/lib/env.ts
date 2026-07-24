@@ -51,6 +51,16 @@ export const env = {
 
   // App
   APP_URL: getEnv("APP_URL", "http://localhost:4444"),
+  CORS_ORIGINS: getEnv(
+    "CORS_ORIGINS",
+    "http://localhost:4444,http://localhost:3000",
+  ),
+
+  // Pusher
+  PUSHER_APP_ID: getEnv("PUSHER_APP_ID", ""),
+  PUSHER_KEY: getEnv("PUSHER_KEY", ""),
+  PUSHER_SECRET: getEnv("PUSHER_SECRET", ""),
+  PUSHER_CLUSTER: getEnv("PUSHER_CLUSTER", "ap1"),
 
   // NATS
   NATS_URL: getEnv("NATS_URL", "nats://localhost:4448"),
@@ -77,6 +87,38 @@ export const env = {
     "RATE_LIMIT_MEMORY_MAX_ITEMS",
     10000,
   ),
+
+  // Database pooling
+  TENANT_DB_POOL_MAX: getEnvNumber("TENANT_DB_POOL_MAX", 20),
 } as const;
+
+function validateProductionEnv(): void {
+  if (env.NODE_ENV !== "production") return;
+
+  const required = {
+    DATABASE_URL: env.DATABASE_URL,
+    JWT_SECRET: env.JWT_SECRET,
+    PUSHER_APP_ID: env.PUSHER_APP_ID,
+    PUSHER_KEY: env.PUSHER_KEY,
+    PUSHER_SECRET: env.PUSHER_SECRET,
+  };
+  const missing = Object.entries(required)
+    .filter(([, value]) => !value)
+    .map(([key]) => key);
+
+  if (missing.length > 0) {
+    throw new Error(
+      `Missing required production environment variables: ${missing.join(", ")}`,
+    );
+  }
+
+  if (env.JWT_SECRET.length < 32) {
+    throw new Error(
+      "JWT_SECRET must contain at least 32 characters in production",
+    );
+  }
+}
+
+validateProductionEnv();
 
 export type Env = typeof env;

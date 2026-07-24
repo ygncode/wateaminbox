@@ -238,7 +238,7 @@ interface RedisPipeline {
   expire(key: string, seconds: number): RedisPipeline;
   incr(key: string): RedisPipeline;
   del(...keys: string[]): RedisPipeline;
-  exec(): Promise<Array<[Error | null, any] | null>>;
+  exec(): Promise<Array<[Error | null, unknown] | null>>;
   length: number;
 }
 
@@ -276,8 +276,13 @@ export class RedisRateLimitStore implements RateLimitStore {
         );
       });
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const Redis = redisModule.default as any;
+      const Redis = redisModule.default as unknown as new (
+        url: string,
+        options: {
+          maxRetriesPerRequest: number;
+          retryStrategy: (times: number) => number | null;
+        },
+      ) => RedisClient;
       this.client = new Redis(this.redisUrl, {
         maxRetriesPerRequest: 3,
         retryStrategy: (times: number) => {

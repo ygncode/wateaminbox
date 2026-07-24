@@ -6,11 +6,11 @@
  */
 
 import Pusher, { type Channel } from "pusher-js";
-import { API_BASE_URL, getAccessToken, getCompanyId } from "./api/client";
+import { API_BASE_URL, fetchWithAuth, getCompanyId } from "./api/client";
 
-// Pusher configuration
-const PUSHER_KEY = "511067b05774daa116b5";
-const PUSHER_CLUSTER = "ap1";
+// The public Pusher key is safe to expose, but it must be supplied per environment.
+const PUSHER_KEY = import.meta.env.VITE_PUSHER_KEY;
+const PUSHER_CLUSTER = import.meta.env.VITE_PUSHER_CLUSTER || "ap1";
 
 // Singleton Pusher instance
 let pusherInstance: Pusher | null = null;
@@ -38,8 +38,10 @@ export type PusherEventType =
   | "sync:interrupted"
   | "media:downloaded"
   | "media:download_failed"
+  | "notification:new"
   | "notification:toast"
   | "status"
+  | "contact:updated"
   | "contact:profile_picture"
   | "presence:online"
   | "presence:offline"
@@ -84,22 +86,59 @@ export function initializePusher(): Pusher {
     return pusherInstance;
   }
 
+  if (!PUSHER_KEY) {
+    throw new Error("VITE_PUSHER_KEY is required for realtime communication");
+  }
+
   pusherInstance = new Pusher(PUSHER_KEY, {
     cluster: PUSHER_CLUSTER,
-    authEndpoint: `${API_BASE_URL}/pusher/auth`,
-    auth: {
+    channelAuthorization: {
+      endpoint: `${API_BASE_URL}/pusher/auth`,
+      transport: "ajax",
+      // Use the shared API client so an expired access token is refreshed via
+      // the HttpOnly cookie before a reconnecting channel is authorized.
+      customHandler: async (params, callback) => {
+        try {
+          const body = new URLSearchParams({
+            socket_id: params.socketId,
+            channel_name: params.channelName,
+          });
+          const authData = await fetchWithAuth<{
+            auth: string;
+            channel_data?: string;
+          }>("/pusher/auth", {
+            method: "POST",
       headers: {
-        Authorization: `Bearer ${getAccessToken()}`,
-        "X-Company-ID": getCompanyId() || "",
+              "Content-Type": "application/x-www-form-urlencoded",
+            },
+            body,
+          });
+          callback(null, authData);
+        } catch (authorizationError) {
+          callback(
+            authorizationError instanceof Error
+              ? authorizationError
+              : new Error("Pusher channel authorization failed"),
+            null,
+          );
+        }
       },
     },
   });
 
   // Debug logging in development
   if (import.meta.env.DEV) {
-    pusherInstance.connection.bind("state_change", (states: { previous: string; current: string }) => {
-      console.log("[Pusher] Connection state changed:", states.previous, "->", states.current);
-    });
+    pusherInstance.connection.bind(
+      "state_change",
+      (states: { previous: string; current: string }) => {
+        console.log(
+          "[Pusher] Connection state changed:",
+          states.previous,
+          "->",
+          states.current,
+        );
+      },
+    );
 
     pusherInstance.connection.bind("error", (err: Error) => {
       console.error("[Pusher] Connection error:", err);
@@ -190,7 +229,10 @@ export function bindEvent<T = unknown>(
   handler: PusherEventHandler<T>,
 ): () => void {
   if (!currentChannel) {
-    console.warn("[Pusher] No channel subscribed, cannot bind event:", eventType);
+    console.warn(
+      "[Pusher] No channel subscribed, cannot bind event:",
+      eventType,
+    );
     return () => {};
   }
 

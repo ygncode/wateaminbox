@@ -97,11 +97,9 @@ permissionRoutes.patch(
         userId,
         newPermissions,
       );
-      return successWithMessage(
-        c,
-        { effectivePermissions },
-        "Permissions updated successfully",
-      );
+      return successWithMessage(c, "Permissions updated successfully", {
+        effectivePermissions,
+      });
     } catch (error) {
       if (error instanceof Error) {
         if (error.message === "Member not found") {
@@ -133,11 +131,9 @@ permissionRoutes.post(
         companyId,
         userId,
       );
-      return successWithMessage(
-        c,
-        { effectivePermissions },
-        "Permissions reset to role defaults",
-      );
+      return successWithMessage(c, "Permissions reset to role defaults", {
+        effectivePermissions,
+      });
     } catch (error) {
       if (error instanceof Error && error.message === "Member not found") {
         throw new HTTPException(404, { message: error.message });

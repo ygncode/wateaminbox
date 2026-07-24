@@ -9,6 +9,7 @@ import { createRateLimitMiddleware } from "./middleware/rate-limit.js";
 import { createLogger, formatError } from "./lib/logger.js";
 import { AppError, AuthError } from "./lib/errors.js";
 import { formatZodErrors } from "./lib/response.js";
+import { env } from "./lib/env.js";
 
 const appLogger = createLogger("App");
 
@@ -19,7 +20,7 @@ app.use("*", logger());
 app.use(
   "*",
   cors({
-    origin: ["http://localhost:4444", "http://localhost:3000"],
+    origin: env.CORS_ORIGINS.split(",").map((origin) => origin.trim()),
     credentials: true,
     allowMethods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
     allowHeaders: ["Content-Type", "Authorization", "X-Company-Id"],

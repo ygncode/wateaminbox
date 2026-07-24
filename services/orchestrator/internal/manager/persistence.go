@@ -18,16 +18,16 @@ type WorkerRegistry struct {
 
 // WorkerRecord represents a worker record in the database.
 type WorkerRecord struct {
-	ID           string
-	ConnectionID string
-	CompanyID    string
-	TenantSchema string
-	DatabaseURL  string
-	PID          int
-	Status       string
-	StartedAt    time.Time
+	ID            string
+	ConnectionID  string
+	CompanyID     string
+	TenantSchema  string
+	DatabaseURL   string
+	PID           int
+	Status        string
+	StartedAt     time.Time
 	LastHeartbeat time.Time
-	RestartCount int
+	RestartCount  int
 }
 
 // NewWorkerRegistry creates a new worker registry connected to the database.

@@ -5,7 +5,7 @@
  * Supports multiple connections per company with configurable limits.
  */
 
-import { db } from "@wateaminbox/database";
+import { db, type WhatsAppConnectionStatus } from "@wateaminbox/database";
 import { toDbDate } from "@wateaminbox/shared";
 import type { Kysely } from "kysely";
 import { env } from "../../lib/env.js";
@@ -28,7 +28,7 @@ export interface WhatsAppConnection {
   name: string | null;
   phoneNumber: string | null;
   jid: string | null;
-  status: "connected" | "disconnected" | "banned" | "pending";
+  status: WhatsAppConnectionStatus;
   connectedBy: string | null;
   connectedAt: Date | null;
   lastSyncAt: Date | null;
@@ -44,7 +44,7 @@ function mapConnectionRow(conn: {
   name: string | null;
   phone_number: string | null;
   jid: string | null;
-  status: "connected" | "disconnected" | "banned" | "pending";
+  status: WhatsAppConnectionStatus;
   connected_by: string | null;
   connected_at: Date | null;
   last_sync_at: Date | null;
@@ -161,7 +161,7 @@ export async function spawnConnection(
   companyId: string,
   userId: string,
   name?: string,
-): Promise<{ connectionId: string; wsUrl: string }> {
+): Promise<{ connectionId: string }> {
   // Get max connections limit for this company
   const maxConnections = await getMaxConnections(companyId);
 
@@ -197,10 +197,7 @@ export async function spawnConnection(
   // Publish spawn command to NATS with connectionId
   await publishSpawnCommand(companyId, connectionId, env.DATABASE_URL);
 
-  return {
-    connectionId,
-    wsUrl: `/ws?company=${companyId}&connection=${connectionId}`,
-  };
+  return { connectionId };
 }
 
 /**

@@ -32,7 +32,8 @@ export type MessageType =
   | "sticker"
   | "location"
   | "contact"
-  | "reaction";
+  | "reaction"
+  | "template";
 
 // Status type discriminator
 export type StatusType = "text" | "image" | "video";
@@ -52,7 +53,9 @@ export interface NatsCommand {
     | "apply_label"
     | "remove_label"
     | "sync_catalogs"
-    | "sync_catalog_products";
+    | "sync_catalog_products"
+    | "block_contact"
+    | "unblock_contact";
   company_id: string;
   connection_id: string;
   timestamp?: string;

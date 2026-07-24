@@ -1,10 +1,11 @@
+import { randomUUID } from "node:crypto";
 import * as jose from "jose";
 import { nowMs, toDbDate } from "@wateaminbox/shared";
 import { env } from "./env.js";
 
 const SECRET = new TextEncoder().encode(env.JWT_SECRET);
-const ISSUER = "whatsapp-web-api";
-const AUDIENCE = "whatsapp-web";
+const ISSUER = "wateaminbox-api";
+const AUDIENCE = "wateaminbox";
 
 export interface AccessTokenPayload {
   userId: string;
@@ -13,6 +14,7 @@ export interface AccessTokenPayload {
 
 export interface RefreshTokenPayload {
   sessionId: string;
+  tokenId: string;
 }
 
 /**
@@ -74,6 +76,7 @@ export async function generateRefreshToken(sessionId: string): Promise<string> {
 
   return await new jose.SignJWT({ sessionId })
     .setProtectedHeader({ alg: "HS256", typ: "JWT" })
+    .setJti(randomUUID())
     .setIssuedAt()
     .setIssuer(ISSUER)
     .setAudience(AUDIENCE)
@@ -125,12 +128,16 @@ export async function verifyRefreshToken(
       audience: AUDIENCE,
     });
 
-    if (typeof payload.sessionId !== "string") {
+    if (
+      typeof payload.sessionId !== "string" ||
+      typeof payload.jti !== "string"
+    ) {
       return null;
     }
 
     return {
       sessionId: payload.sessionId,
+      tokenId: payload.jti,
     };
   } catch {
     return null;

@@ -1,5 +1,3 @@
-import type { Kysely } from "kysely";
-
 /**
  * Configuration for sync operation
  */

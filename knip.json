@@ -4,7 +4,8 @@
     "apps/api": {
       "entry": ["src/index.ts", "src/**/*.test.ts"],
       "project": ["src/**/*.ts"],
-      "ignore": ["src/__tests__/**"]
+      "ignore": ["src/__tests__/**"],
+      "ignoreDependencies": ["pino-pretty"]
     },
     "apps/web": {
       "entry": ["src/main.tsx"],
@@ -16,15 +17,13 @@
       "project": ["src/**/*.{ts,tsx,astro}"]
     },
     "packages/database": {
-      "entry": ["src/index.ts", "src/migrations/*.ts"],
+      "entry": ["src/migrations/*.ts"],
       "project": ["src/**/*.ts"]
     },
     "packages/shared": {
-      "entry": ["src/index.ts"],
       "project": ["src/**/*.ts"]
     },
     "packages/ui": {
-      "entry": ["src/index.ts"],
       "project": ["src/**/*.{ts,tsx}"]
     },
     "services/orchestrator": {
@@ -35,7 +34,7 @@
     }
   },
   "ignoreDependencies": ["kysely", "pg", "ioredis"],
-  "ignoreBinaries": ["eslint", "prettier", "go"],
+  "ignoreBinaries": ["go"],
   "ignoreExportsUsedInFile": true,
-  "exclude": ["duplicates", "enumMembers", "unresolved"]
+  "exclude": ["duplicates", "enumMembers", "exports", "types", "unresolved"]
 }

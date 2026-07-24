@@ -2,10 +2,7 @@ import type { Kysely } from "kysely";
 import { sql } from "kysely";
 import { toDbDate } from "@wateaminbox/shared";
 import type { TenantDatabase } from "./tenant.service.js";
-import {
-  buildContactWhereClause,
-  applyContactFilters,
-} from "./helpers/contact-query-builder.js";
+import { buildContactWhereClause } from "./helpers/contact-query-builder.js";
 
 /**
  * Options for fetching contacts with last message
@@ -223,13 +220,32 @@ export async function getContactsWithLastMessage(
     )
     .select((eb) => eb.fn.count("contacts.id").as("total"));
 
-  const countQuery = applyContactFilters(baseCountQuery, {
-    search,
-    includeGroups,
-    assignedToMe,
-    unassigned,
+  let countQuery = baseCountQuery;
+  if (!includeGroups) {
+    countQuery = countQuery.where("contacts.is_group", "=", false);
+  }
+  if (search) {
+    countQuery = countQuery.where((eb) =>
+      eb.or([
+        eb("contacts.push_name", "ilike", `%${search}%`),
+        eb("contacts.custom_name", "ilike", `%${search}%`),
+        eb("contacts.phone_number", "ilike", `%${search}%`),
+      ]),
+    );
+  }
+  if (assignedToMe && userId) {
+    countQuery = countQuery.where(
+      "contact_assignments.assigned_to",
+      "=",
     userId,
-  });
+    );
+  } else if (unassigned) {
+    countQuery = countQuery.where(
+      "contact_assignments.assigned_to",
+      "is",
+      null,
+    );
+  }
 
   const countResult = await countQuery.executeTakeFirst();
   const total = Number(countResult?.total || 0);

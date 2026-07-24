@@ -6,18 +6,31 @@
  */
 
 import Pusher from "pusher";
+import { env } from "./env.js";
 import { createLogger } from "./logger.js";
 
 const logger = createLogger("Pusher");
+let pusher: Pusher | null = null;
 
-// Initialize Pusher with credentials
-const pusher = new Pusher({
-  appId: "2107214",
-  key: "511067b05774daa116b5",
-  secret: "a1bc44a25c20f83b737b",
-  cluster: "ap1",
-  useTLS: true,
-});
+function requirePusher(): Pusher {
+  if (pusher) return pusher;
+
+  if (!env.PUSHER_APP_ID || !env.PUSHER_KEY || !env.PUSHER_SECRET) {
+    throw new Error(
+      "Pusher is not configured. Set PUSHER_APP_ID, PUSHER_KEY, and PUSHER_SECRET.",
+    );
+  }
+
+  pusher = new Pusher({
+    appId: env.PUSHER_APP_ID,
+    key: env.PUSHER_KEY,
+    secret: env.PUSHER_SECRET,
+    cluster: env.PUSHER_CLUSTER,
+    useTLS: true,
+  });
+
+  return pusher;
+}
 
 /**
  * Event types that can be broadcast to clients
@@ -40,8 +53,10 @@ export type PusherEventType =
   | "sync:interrupted"
   | "media:downloaded"
   | "media:download_failed"
+  | "notification:new"
   | "notification:toast"
   | "status"
+  | "contact:updated"
   | "contact:profile_picture"
   | "presence:online"
   | "presence:offline"
@@ -71,11 +86,14 @@ export async function broadcastToCompany(
       timestamp: new Date().toISOString(),
     };
 
-    await pusher.trigger(channelName, eventType, eventData);
+    await requirePusher().trigger(channelName, eventType, eventData);
 
     // Log specific event types for debugging
     if (eventType === "message:new") {
-      logger.debug({ companyId, eventType }, "Broadcast message:new to channel");
+      logger.debug(
+        { companyId, eventType },
+        "Broadcast message:new to channel",
+      );
     }
     if (
       eventType === "media:downloaded" ||
@@ -126,11 +144,12 @@ export async function broadcastToCompanyExcept(
     };
 
     // Use Pusher's socket_id exclusion feature
-    const params: Parameters<typeof pusher.trigger>[3] = excludeSocketId
+    const client = requirePusher();
+    const params: Pusher.TriggerParams | undefined = excludeSocketId
       ? { socket_id: excludeSocketId }
       : undefined;
 
-    await pusher.trigger(channelName, eventType, eventData, params);
+    await client.trigger(channelName, eventType, eventData, params);
   } catch (error) {
     logger.error(
       { error, companyId, eventType },
@@ -154,18 +173,18 @@ export function authenticateChannel(
 ): Pusher.AuthResponse {
   if (userId) {
     // For presence channels (not currently used, but available)
-    return pusher.authorizeChannel(socketId, channelName, {
+    return requirePusher().authorizeChannel(socketId, channelName, {
       user_id: userId,
     });
   }
 
   // For private channels
-  return pusher.authorizeChannel(socketId, channelName);
+  return requirePusher().authorizeChannel(socketId, channelName);
 }
 
 /**
  * Get the Pusher instance for advanced usage
  */
 export function getPusherInstance(): Pusher {
-  return pusher;
+  return requirePusher();
 }

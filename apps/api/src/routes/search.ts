@@ -2,11 +2,7 @@ import { toDbDate } from "@wateaminbox/shared";
 import { Hono } from "hono";
 import { badRequest, forbidden, serviceUnavailable } from "../lib/errors.js";
 import { rateLimitConfig, rateLimitStore } from "../lib/rate-limit-store.js";
-import {
-  successData,
-  successPaginated,
-  successWithMessage,
-} from "../lib/response.js";
+import { successData, successWithMessage } from "../lib/response.js";
 import {
   extractPaginationParams,
   createPaginationMeta,
@@ -258,14 +254,10 @@ searchRoutes.post("/reindex", async (c) => {
 
   await meilisearchService.indexContacts(companyId, contactDocuments);
 
-  return successWithMessage(
-    c,
-    {
+  return successWithMessage(c, "Search indexes rebuilt successfully", {
       indexed: {
         messages: messageDocuments.length,
         contacts: contactDocuments.length,
       },
-    },
-    "Search indexes rebuilt successfully",
-  );
+  });
 });

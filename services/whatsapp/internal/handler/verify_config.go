@@ -1,3 +1,4 @@
+//go:build ignore
 // +build ignore
 
 // Package main provides a verification tool for media download retry configuration.
@@ -13,10 +14,10 @@ import (
 )
 
 func main() {
-        // Expected values (these should match handler.go)
-        expectedMaxRetries := 4
-        expectedBaseDelay := 1 * time.Second
-        expectedAttemptTimeout := 30 * time.Second
+	// Expected values (these should match handler.go)
+	expectedMaxRetries := 4
+	expectedBaseDelay := 1 * time.Second
+	expectedAttemptTimeout := 30 * time.Second
 	fmt.Println("=== Media Download Retry Configuration Verification ===\n")
 
 	// Display configuration
