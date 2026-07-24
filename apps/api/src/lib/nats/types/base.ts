@@ -85,6 +85,7 @@ export interface WhatsAppEvent {
     | "sync_status"
     | "download_response"
     | "connection_status"
+    | "command_result"
     | "error";
   companyId: string;
   connectionId: string;

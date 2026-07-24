@@ -1,9 +1,6 @@
 import { Hono } from "hono";
 import { badRequest, isTableNotFoundError, notFound } from "../lib/errors.js";
-import {
-  publishSyncCatalogs,
-  publishSyncCatalogProducts,
-} from "../lib/nats/index.js";
+import { enqueueConnectionCommand } from "../services/command-outbox.service.js";
 import {
   successData,
   successMessage,
@@ -125,8 +122,11 @@ catalogRoutes.post("/sync", async (c) => {
   // Check if WhatsApp is connected (throws ServiceUnavailableError if not)
   const connection = await getActiveWhatsAppConnection(tenantDb);
 
-  // Publish sync command to NATS
-  await publishSyncCatalogs(companyId, connection.id, user.id);
+  await tenantDb.transaction().execute((trx) =>
+    enqueueConnectionCommand(trx, companyId, connection.id, (publisher) =>
+      publisher.syncCatalogs(user.id),
+    ),
+  );
 
   return successWithMessage(
     c,
@@ -152,12 +152,10 @@ catalogRoutes.post("/:catalogId/sync-products", async (c) => {
   // Check if WhatsApp is connected (throws ServiceUnavailableError if not)
   const connection = await getActiveWhatsAppConnection(tenantDb);
 
-  // Publish sync command to NATS
-  await publishSyncCatalogProducts(
-    companyId,
-    connection.id,
-    catalogId,
-    user.id,
+  await tenantDb.transaction().execute((trx) =>
+    enqueueConnectionCommand(trx, companyId, connection.id, (publisher) =>
+      publisher.syncCatalogProducts(catalogId, user.id),
+    ),
   );
 
   return successWithMessage(

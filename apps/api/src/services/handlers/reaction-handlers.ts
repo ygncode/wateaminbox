@@ -87,6 +87,7 @@ export async function handleReactionEvent(event: ReactionEvent): Promise<void> {
     );
   } catch (error) {
     logger.error(formatError(error), "Error handling reaction event");
+    throw error;
   }
 }
 
@@ -159,6 +160,6 @@ export async function handleMessageRevokeEvent(
     }
   } catch (error) {
     logger.error(formatError(error), "Failed to handle message revoke");
-    // Don't throw - we want to continue processing other events
+    throw error;
   }
 }

@@ -35,7 +35,11 @@ export type ServerToClientEventType =
   | 'conversation:read'
   // Contact events
   | 'contact'
+  | 'contact:updated'
   | 'contact:profile_picture'
+  | 'labels:updated'
+  | 'catalogs:updated'
+  | 'command:failed'
   // Presence events
   | 'presence:online'
   | 'presence:offline'
@@ -350,7 +354,11 @@ export function isServerToClientEventType(type: string): type is ServerToClientE
     'conversation:updated',
     'conversation:read',
     'contact',
+    'contact:updated',
     'contact:profile_picture',
+    'labels:updated',
+    'catalogs:updated',
+    'command:failed',
     'presence:online',
     'presence:offline',
     'typing:start',

@@ -9,6 +9,7 @@ const phoneNumberRegex = /^\+?[\d\s-]{7,16}$/;
  * Add contact form validation schema
  */
 export const addContactSchema = z.object({
+  connectionId: z.string().uuid().optional(),
   phoneNumber: z
     .string()
     .min(1, "Phone number is required")

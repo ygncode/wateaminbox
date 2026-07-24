@@ -16,7 +16,8 @@ import {
   createPaginationMeta,
 } from "../lib/route-helpers.js";
 import { postStatusSchema } from "../lib/schemas/index.js";
-import { publishPostStatus, type StatusType } from "../lib/nats/index.js";
+import { enqueueConnectionCommand } from "../services/command-outbox.service.js";
+import { env } from "../lib/env.js";
 import { getActiveWhatsAppConnection } from "../services/whatsapp-connection.service.js";
 
 export const statusRoutes = new Hono();
@@ -173,34 +174,40 @@ statusRoutes.post("/", zValidator("json", postStatusSchema), async (c) => {
     .executeTakeFirst();
 
   // Create status record with pending state
+  if (mediaUrl) {
+    const allowedOrigin = new URL(env.S3_ENDPOINT).origin;
+    if (new URL(mediaUrl).origin !== allowedOrigin) {
+      return forbidden(c, "Status media must come from configured storage");
+    }
+  }
+
   const statusId = crypto.randomUUID();
   const currentTime = now();
   const expiresAt = currentTime.add(24, "hour");
 
-  await tenantDb
-    .insertInto("status_updates")
-    .values({
-      id: statusId,
-      whatsapp_connection_id: connection.id,
-      status_id: `pending_${statusId}`,
-      from_jid: connectionDetails?.jid || "me",
-      media_type: type === "text" ? null : type,
-      media_url: mediaUrl || null,
-      caption: content || null,
-      timestamp: currentTime.toDate(),
-      expires_at: expiresAt.toDate(),
-    })
-    .execute();
-
-  // Publish command to NATS for WhatsApp worker to post the status
-  await publishPostStatus(
-    companyId,
-    connection.id,
-    type as StatusType,
-    user.id,
-    content,
-    mediaUrl,
-  );
+  await tenantDb.transaction().execute(async (trx) => {
+    await trx
+      .insertInto("status_updates")
+      .values({
+        id: statusId,
+        whatsapp_connection_id: connection.id,
+        status_id: `pending_${statusId}`,
+        from_jid: connectionDetails?.jid || "me",
+        media_type: type === "text" ? null : type,
+        media_url: mediaUrl || null,
+        caption: content || null,
+        timestamp: currentTime.toDate(),
+        expires_at: expiresAt.toDate(),
+      })
+      .execute();
+    await enqueueConnectionCommand(
+      trx,
+      companyId,
+      connection.id,
+      (publisher) =>
+        publisher.postStatus(type, content || "", user.id, mediaUrl),
+    );
+  });
 
   return created(c, {
     id: statusId,

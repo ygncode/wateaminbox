@@ -74,6 +74,35 @@ export async function createTenantSchema(companyId: string): Promise<void> {
     ADD COLUMN IF NOT EXISTS sender_name TEXT,
     ADD COLUMN IF NOT EXISTS sender_avatar_url TEXT
   `.execute(baseTenantDb);
+
+  // Keep schemas created after the baseline setup function aligned with the
+  // durable command pipeline introduced in migration 038.
+  await sql`
+    CREATE TABLE IF NOT EXISTS ${sql.raw(`"${schemaName}".nats_outbox`)} (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      subject TEXT NOT NULL,
+      payload JSONB NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending'
+        CHECK (status IN ('pending', 'published', 'failed')),
+      attempts INTEGER NOT NULL DEFAULT 0,
+      next_attempt_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      last_error TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      published_at TIMESTAMPTZ
+    )
+  `.execute(baseTenantDb);
+  await sql`
+    CREATE UNIQUE INDEX IF NOT EXISTS ${sql.ref(
+      `${schemaName}_contacts_connection_jid_uidx`,
+    )}
+    ON ${sql.raw(`"${schemaName}".contacts`)} (whatsapp_connection_id, jid)
+    WHERE whatsapp_connection_id IS NOT NULL AND jid IS NOT NULL
+  `.execute(baseTenantDb);
+  await sql`
+    CREATE INDEX IF NOT EXISTS ${sql.ref(`${schemaName}_nats_outbox_pending_idx`)}
+    ON ${sql.raw(`"${schemaName}".nats_outbox`)}
+      (status, next_attempt_at, created_at)
+  `.execute(baseTenantDb);
 }
 
 export async function dropTenantSchema(companyId: string): Promise<void> {

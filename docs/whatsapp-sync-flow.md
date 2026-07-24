@@ -24,7 +24,7 @@ WhatsApp
   -> React Query and Zustand caches
 ```
 
-Outgoing messages take the reverse command path: REST API -> tenant persistence -> NATS command -> worker -> WhatsApp. Delivery receipts return through the event path and produce `message:status` updates.
+Outgoing messages take the reverse command path: REST API -> atomic tenant persistence and command outbox -> NATS command -> worker -> WhatsApp. Delivery receipts return through the durable event path and produce `message:status` updates.
 
 ## Deferred media
 
@@ -32,7 +32,8 @@ History messages may be stored before large media is downloaded. The UI requests
 
 ## Delivery guarantees
 
-- JetStream provides at-least-once event delivery.
+- Durable JetStream consumers with explicit acknowledgements provide at-least-once event delivery.
+- Tenant-local command outboxes close the database/NATS crash window and use JetStream message IDs for deduplication.
 - Database uniqueness constraints deduplicate WhatsApp message IDs and reactions.
 - PostgreSQL is the source of truth; Pusher is a realtime update signal.
 - Clients refetch affected queries after reconnect or sync completion.

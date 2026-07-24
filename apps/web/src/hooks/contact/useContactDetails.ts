@@ -39,6 +39,7 @@ export interface ContactDetail {
  */
 export interface CreateContactInput {
   phoneNumber: string;
+  connectionId?: string;
   customName?: string;
   notesShared?: string;
 }

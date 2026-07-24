@@ -159,6 +159,7 @@ export async function handleContactEvent(event: ContactEvent): Promise<void> {
     }
   } catch (error) {
     logger.error(formatError(error), "Failed to handle contact event");
+    throw error;
   }
 }
 
@@ -191,6 +192,9 @@ export async function handleProfilePictureEvent(
         updated_at: toDbDate(),
       })
       .where("jid", "=", contactJid)
+      .$if(Boolean(connectionId), (query) =>
+        query.where("whatsapp_connection_id", "=", connectionId),
+      )
       .executeTakeFirst();
 
     // Group participants may not have a standalone contact conversation. Cache
@@ -199,6 +203,9 @@ export async function handleProfilePictureEvent(
       .updateTable("messages")
       .set({ sender_avatar_url: profilePictureUrl })
       .where("sender_jid", "=", contactJid)
+      .$if(Boolean(connectionId), (query) =>
+        query.where("whatsapp_connection_id", "=", connectionId),
+      )
       .executeTakeFirst();
 
     if (result.numUpdatedRows > 0 || messageResult.numUpdatedRows > 0) {
@@ -230,6 +237,7 @@ export async function handleProfilePictureEvent(
     }
   } catch (error) {
     logger.error(formatError(error), "Failed to handle profile picture event");
+    throw error;
   }
 }
 
@@ -264,6 +272,9 @@ export async function handlePresenceEvent(event: PresenceEvent): Promise<void> {
         updated_at: toDbDate(),
       })
       .where("jid", "=", contactJid)
+      .$if(Boolean(connectionId), (query) =>
+        query.where("whatsapp_connection_id", "=", connectionId),
+      )
       .executeTakeFirst();
 
     if (result.numUpdatedRows > 0) {
@@ -297,6 +308,7 @@ export async function handlePresenceEvent(event: PresenceEvent): Promise<void> {
     }
   } catch (error) {
     logger.error(formatError(error), "Failed to handle presence event");
+    throw error;
   }
 }
 

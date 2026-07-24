@@ -8,7 +8,11 @@ import { zValidator } from "@hono/zod-validator";
 import { toDbDate, toISOString } from "@wateaminbox/shared";
 import { Hono } from "hono";
 import { badRequest, notFound } from "../../lib/errors.js";
-import { publishSendMessage } from "../../lib/nats/index.js";
+import {
+  buildCommandSubject,
+  buildSendMessageCommand,
+} from "../../lib/nats/index.js";
+import { enqueueCommand } from "../../services/command-outbox.service.js";
 import { rateLimitConfig, rateLimitStore } from "../../lib/rate-limit-store.js";
 import {
   forwardMessageSchema,
@@ -70,11 +74,7 @@ sendRoutes.post(
           .where("id", "=", contact.whatsapp_connection_id)
           .where("status", "=", "connected")
           .executeTakeFirst()
-      : await tenantDb
-          .selectFrom("whatsapp_connections")
-          .select(["id", "jid"])
-          .where("status", "=", "connected")
-          .executeTakeFirst();
+      : null;
 
     if (!connection) {
       return badRequest(c, "The contact's WhatsApp connection is not active");
@@ -109,29 +109,7 @@ sendRoutes.post(
     const messageId = crypto.randomUUID();
     const waMessageId = `pending_${messageId}`;
 
-    await tenantDb
-      .insertInto("messages")
-      .values({
-        id: messageId,
-        whatsapp_connection_id: connection.id,
-        contact_id: body.contactId,
-        message_id: waMessageId,
-        from_me: true,
-        sender_jid: connection.jid,
-        message_type: body.messageType,
-        content: body.content,
-        media_url: body.mediaUrl || null,
-        quoted_message_id: quotedWaMessageId || null,
-        sent_by_user_id: user.id,
-        status: "pending",
-        timestamp: toDbDate(),
-        created_at: toDbDate(),
-      })
-      .execute();
-
-    // Publish send command to NATS
-    await publishSendMessage(
-      companyId,
+    const sendCommand = await buildSendMessageCommand(
       connection.id,
       contact.jid,
       body.content || "",
@@ -142,6 +120,33 @@ sendRoutes.post(
       quotedWaMessageId,
       quotedSenderJid,
     );
+
+    await tenantDb.transaction().execute(async (trx) => {
+      await trx
+        .insertInto("messages")
+        .values({
+          id: messageId,
+          whatsapp_connection_id: connection.id,
+          contact_id: body.contactId,
+          message_id: waMessageId,
+          from_me: true,
+          sender_jid: connection.jid,
+          message_type: body.messageType,
+          content: body.content,
+          media_url: body.mediaUrl || null,
+          quoted_message_id: quotedWaMessageId || null,
+          sent_by_user_id: user.id,
+          status: "pending",
+          timestamp: toDbDate(),
+          created_at: toDbDate(),
+        })
+        .execute();
+      await enqueueCommand(
+        trx,
+        buildCommandSubject(companyId, connection.id),
+        sendCommand,
+      );
+    });
 
     return c.json({
       success: true,
@@ -205,11 +210,7 @@ sendRoutes.post(
           .where("id", "=", targetContact.whatsapp_connection_id)
           .where("status", "=", "connected")
           .executeTakeFirst()
-      : await tenantDb
-          .selectFrom("whatsapp_connections")
-          .select(["id"])
-          .where("status", "=", "connected")
-          .executeTakeFirst();
+      : null;
 
     if (!connection) {
       return badRequest(c, "The contact's WhatsApp connection is not active");
@@ -226,28 +227,7 @@ sendRoutes.post(
     const newMessageId = crypto.randomUUID();
     const waMessageId = `pending_${newMessageId}`;
 
-    await tenantDb
-      .insertInto("messages")
-      .values({
-        id: newMessageId,
-        whatsapp_connection_id: connection.id,
-        contact_id: body.targetContactId,
-        message_id: waMessageId,
-        from_me: true,
-        sender_jid: null,
-        message_type: originalMessage.message_type,
-        content: originalMessage.content,
-        media_url: originalMessage.media_url,
-        is_forwarded: true,
-        sent_by_user_id: user.id,
-        status: "pending",
-        timestamp: toDbDate(),
-      })
-      .execute();
-
-    // Publish send command
-    await publishSendMessage(
-      companyId,
+    const sendCommand = await buildSendMessageCommand(
       connection.id,
       targetContact.jid,
       originalMessage.content || "",
@@ -255,9 +235,33 @@ sendRoutes.post(
       user.id,
       waMessageId,
       originalMessage.media_url || undefined,
-      undefined, // replyTo - forwards don't have reply context
-      undefined, // replyToSender - forwards don't have reply context
     );
+
+    await tenantDb.transaction().execute(async (trx) => {
+      await trx
+        .insertInto("messages")
+        .values({
+          id: newMessageId,
+          whatsapp_connection_id: connection.id,
+          contact_id: body.targetContactId,
+          message_id: waMessageId,
+          from_me: true,
+          sender_jid: null,
+          message_type: originalMessage.message_type,
+          content: originalMessage.content,
+          media_url: originalMessage.media_url,
+          is_forwarded: true,
+          sent_by_user_id: user.id,
+          status: "pending",
+          timestamp: toDbDate(),
+        })
+        .execute();
+      await enqueueCommand(
+        trx,
+        buildCommandSubject(companyId, connection.id),
+        sendCommand,
+      );
+    });
 
     return c.json({
       success: true,
@@ -321,11 +325,7 @@ sendRoutes.post(
           .where("id", "=", contact.whatsapp_connection_id)
           .where("status", "=", "connected")
           .executeTakeFirst()
-      : await tenantDb
-          .selectFrom("whatsapp_connections")
-          .select(["id", "jid"])
-          .where("status", "=", "connected")
-          .executeTakeFirst();
+      : null;
 
     if (!connection) {
       return badRequest(c, "The contact's WhatsApp connection is not active");
@@ -334,26 +334,6 @@ sendRoutes.post(
     // Create a new message entry for the retry
     const newMessageId = crypto.randomUUID();
     const waMessageId = `pending_${newMessageId}`;
-
-    await tenantDb
-      .insertInto("messages")
-      .values({
-        id: newMessageId,
-        whatsapp_connection_id: connection.id,
-        contact_id: originalMessage.contact_id,
-        message_id: waMessageId,
-        from_me: true,
-        sender_jid: null,
-        message_type: originalMessage.message_type,
-        content: originalMessage.content,
-        media_url: originalMessage.media_url,
-        media_mime_type: originalMessage.media_mime_type,
-        quoted_message_id: originalMessage.quoted_message_id,
-        sent_by_user_id: user.id,
-        status: "pending",
-        timestamp: toDbDate(),
-      })
-      .execute();
 
     // Look up the sender JID for reply context
     let quotedSenderJid: string | undefined;
@@ -370,9 +350,7 @@ sendRoutes.post(
       }
     }
 
-    // Publish send command to NATS
-    await publishSendMessage(
-      companyId,
+    const sendCommand = await buildSendMessageCommand(
       connection.id,
       contact.jid,
       originalMessage.content || "",
@@ -383,6 +361,33 @@ sendRoutes.post(
       originalMessage.quoted_message_id || undefined,
       quotedSenderJid,
     );
+
+    await tenantDb.transaction().execute(async (trx) => {
+      await trx
+        .insertInto("messages")
+        .values({
+          id: newMessageId,
+          whatsapp_connection_id: connection.id,
+          contact_id: originalMessage.contact_id,
+          message_id: waMessageId,
+          from_me: true,
+          sender_jid: null,
+          message_type: originalMessage.message_type,
+          content: originalMessage.content,
+          media_url: originalMessage.media_url,
+          media_mime_type: originalMessage.media_mime_type,
+          quoted_message_id: originalMessage.quoted_message_id,
+          sent_by_user_id: user.id,
+          status: "pending",
+          timestamp: toDbDate(),
+        })
+        .execute();
+      await enqueueCommand(
+        trx,
+        buildCommandSubject(companyId, connection.id),
+        sendCommand,
+      );
+    });
 
     return c.json({
       success: true,

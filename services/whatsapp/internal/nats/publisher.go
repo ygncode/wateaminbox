@@ -8,6 +8,7 @@ import (
 
 	"github.com/nats-io/nats.go"
 	sharednats "github.com/ygncode-lab/whatsapp-web/services/shared/nats"
+	internaltypes "github.com/ygncode-lab/whatsapp-web/services/whatsapp/internal/types"
 )
 
 // Stream and subject constants - re-exported from shared module
@@ -26,6 +27,10 @@ const (
 	SubjectTyping           = sharednats.SubjectTyping
 	SubjectReaction         = sharednats.SubjectReaction
 	SubjectSyncStatus       = sharednats.SubjectSyncStatus
+	SubjectLabels           = sharednats.SubjectLabels
+	SubjectCatalogs         = sharednats.SubjectCatalogs
+	SubjectCatalogProducts  = sharednats.SubjectCatalogProducts
+	SubjectCommandResult    = sharednats.SubjectCommandResult
 	SubjectDownloadRequest  = sharednats.SubjectDownloadRequest
 	SubjectDownloadResponse = sharednats.SubjectDownloadResponse
 )
@@ -473,6 +478,76 @@ func (p *Publisher) PublishSyncStatus(status string, messageCount int, conversat
 
 	subject := fmt.Sprintf(SubjectSyncStatus, p.companyID, p.connectionID)
 	return p.publish(subject, event)
+}
+
+func labelColorHex(color int32) string {
+	colors := []string{"#00a884", "#ffa500", "#fed859", "#a855f7", "#3b82f6", "#ec4899", "#14b8a6", "#ef4444", "#6b7280", "#38bdf8", "#22c55e", "#a16207", "#06b6d4", "#d946ef", "#84cc16", "#1e40af", "#f43f5e", "#f59e0b", "#6366f1", "#475569"}
+	if color >= 0 && int(color) < len(colors) {
+		return colors[color]
+	}
+	return ""
+}
+
+func (p *Publisher) PublishLabels(labels []internaltypes.WhatsAppLabel) error {
+	items := make([]map[string]interface{}, 0, len(labels))
+	for _, label := range labels {
+		items = append(items, map[string]interface{}{
+			"labelId": label.ID, "name": label.Name, "color": labelColorHex(label.Color), "predefinedId": label.PredefinedID,
+		})
+	}
+	event := WhatsAppEvent{
+		Type: sharednats.EventTypeLabels, CompanyID: p.companyID, ConnectionID: p.connectionID,
+		Payload: map[string]interface{}{"labels": items}, Timestamp: time.Now().Format(time.RFC3339),
+	}
+	return p.publish(fmt.Sprintf(SubjectLabels, p.companyID, p.connectionID), event)
+}
+
+func catalogMap(catalog internaltypes.Catalog) map[string]interface{} {
+	return map[string]interface{}{
+		"catalogId": catalog.ID, "name": catalog.Name, "description": catalog.Description,
+		"currency": catalog.Currency, "businessJid": "", "productCount": len(catalog.Products),
+	}
+}
+
+func productMaps(products []internaltypes.Product) []map[string]interface{} {
+	items := make([]map[string]interface{}, 0, len(products))
+	for _, product := range products {
+		items = append(items, map[string]interface{}{
+			"productId": product.ID, "name": product.Name, "description": product.Description,
+			"price": product.Price, "currency": product.Currency, "imageUrls": product.ImageURLs,
+			"sku": product.SKU, "availability": product.Availability, "url": product.URL,
+			"retailerId": product.RetailerID,
+		})
+	}
+	return items
+}
+
+func (p *Publisher) PublishCatalog(catalog internaltypes.Catalog) error {
+	event := WhatsAppEvent{
+		Type: sharednats.EventTypeCatalogs, CompanyID: p.companyID, ConnectionID: p.connectionID,
+		Payload:   map[string]interface{}{"catalogs": []map[string]interface{}{catalogMap(catalog)}},
+		Timestamp: time.Now().Format(time.RFC3339),
+	}
+	if err := p.publish(fmt.Sprintf(SubjectCatalogs, p.companyID, p.connectionID), event); err != nil {
+		return err
+	}
+	productsEvent := WhatsAppEvent{
+		Type: sharednats.EventTypeCatalogProducts, CompanyID: p.companyID, ConnectionID: p.connectionID,
+		Payload:   map[string]interface{}{"catalogId": catalog.ID, "products": productMaps(catalog.Products)},
+		Timestamp: time.Now().Format(time.RFC3339),
+	}
+	return p.publish(fmt.Sprintf(SubjectCatalogProducts, p.companyID, p.connectionID), productsEvent)
+}
+
+func (p *Publisher) PublishCommandResult(commandID, commandType string, success bool, errorMessage string) error {
+	event := WhatsAppEvent{
+		Type: sharednats.EventTypeCommandResult, CompanyID: p.companyID, ConnectionID: p.connectionID,
+		Payload: sharednats.CommandResultPayload{
+			CommandID: commandID, CommandType: commandType, Success: success, Error: errorMessage,
+		},
+		Timestamp: time.Now().Format(time.RFC3339),
+	}
+	return p.publish(fmt.Sprintf(SubjectCommandResult, p.companyID, p.connectionID), event)
 }
 
 // Close closes the NATS connection.

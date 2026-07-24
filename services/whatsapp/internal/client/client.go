@@ -3,12 +3,18 @@ package client
 import (
 	"context"
 	"fmt"
+	"io"
 	"log"
 	"math/rand"
+	"net/http"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
 	"go.mau.fi/whatsmeow"
+	"go.mau.fi/whatsmeow/appstate"
+	waBinary "go.mau.fi/whatsmeow/binary"
 	"go.mau.fi/whatsmeow/proto/waCommon"
 	"go.mau.fi/whatsmeow/proto/waE2E"
 	waStore "go.mau.fi/whatsmeow/store"
@@ -494,6 +500,8 @@ func (c *Client) SendMediaMessage(ctx context.Context, jid string, mediaType str
 		msg, err = c.createVideoMessage(ctx, data, caption, mimeType, participant, replyTo)
 	case "audio":
 		msg, err = c.createAudioMessage(ctx, data, mimeType, participant, replyTo)
+	case "sticker":
+		msg, err = c.createStickerMessage(ctx, data, mimeType, participant, replyTo)
 	default:
 		return types.SendResponse{}, fmt.Errorf("unsupported media type: %s", mediaType)
 	}
@@ -714,6 +722,243 @@ func (c *Client) createAudioMessage(ctx context.Context, data []byte, mimeType s
 	}
 
 	return &waE2E.Message{AudioMessage: audioMsg}, nil
+}
+
+func (c *Client) createStickerMessage(ctx context.Context, data []byte, mimeType string, jid string, replyTo string) (*waE2E.Message, error) {
+	if mimeType == "" {
+		mimeType = "image/webp"
+	}
+	uploaded, err := c.client.Upload(ctx, data, whatsmeow.MediaImage)
+	if err != nil {
+		return nil, fmt.Errorf("failed to upload sticker: %w", err)
+	}
+	sticker := &waE2E.StickerMessage{
+		URL:           proto.String(uploaded.URL),
+		DirectPath:    proto.String(uploaded.DirectPath),
+		MediaKey:      uploaded.MediaKey,
+		Mimetype:      proto.String(mimeType),
+		FileEncSHA256: uploaded.FileEncSHA256,
+		FileSHA256:    uploaded.FileSHA256,
+		FileLength:    proto.Uint64(uint64(len(data))),
+	}
+	if replyTo != "" {
+		sticker.ContextInfo = &waE2E.ContextInfo{
+			StanzaID: proto.String(replyTo), Participant: proto.String(jid),
+		}
+	}
+	return &waE2E.Message{StickerMessage: sticker}, nil
+}
+
+// PostStatus sends a text or media update to WhatsApp's status broadcast.
+func (c *Client) PostStatus(ctx context.Context, statusType, content, mediaURL string) (types.SendResponse, error) {
+	var msg *waE2E.Message
+	var err error
+	if statusType == "text" {
+		msg = &waE2E.Message{Conversation: proto.String(content)}
+	} else {
+		req, reqErr := http.NewRequestWithContext(ctx, http.MethodGet, mediaURL, nil)
+		if reqErr != nil {
+			return types.SendResponse{}, fmt.Errorf("invalid status media URL: %w", reqErr)
+		}
+		resp, reqErr := http.DefaultClient.Do(req)
+		if reqErr != nil {
+			return types.SendResponse{}, fmt.Errorf("failed to download status media: %w", reqErr)
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+			return types.SendResponse{}, fmt.Errorf("status media download returned HTTP %d", resp.StatusCode)
+		}
+		data, readErr := io.ReadAll(io.LimitReader(resp.Body, 32*1024*1024+1))
+		if readErr != nil {
+			return types.SendResponse{}, fmt.Errorf("failed to read status media: %w", readErr)
+		}
+		if len(data) > 32*1024*1024 {
+			return types.SendResponse{}, fmt.Errorf("status media exceeds 32 MiB")
+		}
+		mimeType := resp.Header.Get("Content-Type")
+		switch statusType {
+		case "image":
+			msg, err = c.createImageMessage(ctx, data, content, mimeType, "", "")
+		case "video":
+			msg, err = c.createVideoMessage(ctx, data, content, mimeType, "", "")
+		case "audio":
+			msg, err = c.createAudioMessage(ctx, data, mimeType, "", "")
+		default:
+			return types.SendResponse{}, fmt.Errorf("unsupported status type %q", statusType)
+		}
+		if err != nil {
+			return types.SendResponse{}, err
+		}
+	}
+	result, err := c.client.SendMessage(ctx, waTypes.StatusBroadcastJID, msg)
+	if err != nil {
+		return types.SendResponse{}, fmt.Errorf("failed to post status: %w", err)
+	}
+	return types.SendResponse{ID: string(result.ID), Timestamp: result.Timestamp}, nil
+}
+
+func (c *Client) UpdateGroupParticipant(ctx context.Context, groupJID, participantJID, action string) error {
+	group, err := waTypes.ParseJID(groupJID)
+	if err != nil {
+		return fmt.Errorf("invalid group JID: %w", err)
+	}
+	participant, err := waTypes.ParseJID(participantJID)
+	if err != nil {
+		return fmt.Errorf("invalid participant JID: %w", err)
+	}
+	_, err = c.client.UpdateGroupParticipants(ctx, group, []waTypes.JID{participant}, whatsmeow.ParticipantChange(action))
+	return err
+}
+
+func (c *Client) UpdateGroupSettings(ctx context.Context, groupJID string, name, description *string) error {
+	group, err := waTypes.ParseJID(groupJID)
+	if err != nil {
+		return fmt.Errorf("invalid group JID: %w", err)
+	}
+	if name != nil {
+		if err = c.client.SetGroupName(ctx, group, *name); err != nil {
+			return fmt.Errorf("failed to update group name: %w", err)
+		}
+	}
+	if description != nil {
+		if err = c.client.SetGroupDescription(ctx, group, *description); err != nil {
+			return fmt.Errorf("failed to update group description: %w", err)
+		}
+	}
+	return nil
+}
+
+func (c *Client) ApplyLabel(ctx context.Context, contactJID, labelID string, labeled bool) error {
+	jid, err := waTypes.ParseJID(contactJID)
+	if err != nil {
+		return fmt.Errorf("invalid contact JID: %w", err)
+	}
+	return c.client.SendAppState(ctx, appstate.BuildLabelChat(jid, labelID, labeled))
+}
+
+func (c *Client) SyncLabels(ctx context.Context) ([]types.WhatsAppLabel, error) {
+	c.mu.Lock()
+	previousEmitSetting := c.client.EmitAppStateEventsOnFullSync
+	c.client.EmitAppStateEventsOnFullSync = true
+	defer func() {
+		c.client.EmitAppStateEventsOnFullSync = previousEmitSetting
+		c.mu.Unlock()
+	}()
+
+	eventsToProcess, err := c.client.DangerousInternals().FetchAppState(ctx, appstate.WAPatchRegular, true, false)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch labels app state: %w", err)
+	}
+	labels := make([]types.WhatsAppLabel, 0)
+	for _, evt := range eventsToProcess {
+		label, ok := evt.(*events.LabelEdit)
+		if !ok || label.Action == nil || label.Action.GetDeleted() {
+			continue
+		}
+		labels = append(labels, types.WhatsAppLabel{
+			ID: label.LabelID, Name: label.Action.GetName(), Color: label.Action.GetColor(), PredefinedID: label.Action.GetPredefinedID(),
+		})
+	}
+	return labels, nil
+}
+
+func nodeText(node waBinary.Node, tags ...string) string {
+	current := node
+	if len(tags) > 0 {
+		var ok bool
+		current, ok = node.GetOptionalChildByTag(tags...)
+		if !ok {
+			return ""
+		}
+	}
+	if data, ok := current.Content.([]byte); ok {
+		return string(data)
+	}
+	return ""
+}
+
+func nodeAttr(node waBinary.Node, keys ...string) string {
+	for _, key := range keys {
+		if value, ok := node.Attrs[key]; ok {
+			return fmt.Sprint(value)
+		}
+	}
+	return ""
+}
+
+func collectNodes(node waBinary.Node, tag string, out *[]waBinary.Node) {
+	if node.Tag == tag {
+		*out = append(*out, node)
+	}
+	for _, child := range node.GetChildren() {
+		collectNodes(child, tag, out)
+	}
+}
+
+// SyncCatalog queries the linked business account's product catalog. This uses
+// the same w:biz:catalog IQ namespace as WhatsApp Web.
+func (c *Client) SyncCatalog(ctx context.Context, catalogID string) (types.Catalog, error) {
+	if c.client.Store.ID == nil {
+		return types.Catalog{}, fmt.Errorf("client is not logged in")
+	}
+	owner := c.client.Store.ID.ToNonAD()
+	response, err := c.client.DangerousInternals().SendIQ(ctx, whatsmeow.DangerousInfoQuery{
+		Namespace: "w:biz:catalog",
+		Type:      whatsmeow.DangerousInfoQueryType("get"),
+		To:        waTypes.ServerJID,
+		Content: []waBinary.Node{{
+			Tag:     "product_catalog",
+			Attrs:   waBinary.Attrs{"jid": owner},
+			Content: []waBinary.Node{{Tag: "limit", Content: []byte("500")}},
+		}},
+	})
+	if err != nil {
+		return types.Catalog{}, fmt.Errorf("failed to query business catalog: %w", err)
+	}
+	if catalogID == "" {
+		catalogID = owner.String()
+	}
+	catalog := types.Catalog{ID: catalogID, Name: "WhatsApp Catalog", Products: []types.Product{}}
+	var catalogNodes []waBinary.Node
+	collectNodes(*response, "product_catalog", &catalogNodes)
+	if len(catalogNodes) == 0 {
+		return types.Catalog{}, fmt.Errorf("catalog response did not contain product_catalog")
+	}
+	catalogNode := catalogNodes[0]
+	if id := nodeAttr(catalogNode, "id", "catalog_id"); id != "" {
+		catalog.ID = id
+	}
+	if name := nodeText(catalogNode, "name"); name != "" {
+		catalog.Name = name
+	}
+	catalog.Description = nodeText(catalogNode, "description")
+	catalog.Currency = nodeText(catalogNode, "currency")
+	var productNodes []waBinary.Node
+	collectNodes(*response, "product", &productNodes)
+	for _, productNode := range productNodes {
+		price, _ := strconv.ParseInt(strings.TrimSpace(nodeText(productNode, "price")), 10, 64)
+		product := types.Product{
+			ID:           nodeAttr(productNode, "id", "product_id"),
+			RetailerID:   nodeAttr(productNode, "retailer_id"),
+			Name:         nodeText(productNode, "name"),
+			Description:  nodeText(productNode, "description"),
+			Price:        price,
+			Currency:     nodeText(productNode, "currency"),
+			Availability: nodeText(productNode, "availability"),
+			URL:          nodeText(productNode, "url"),
+		}
+		var imageNodes []waBinary.Node
+		collectNodes(productNode, "image", &imageNodes)
+		for _, image := range imageNodes {
+			if imageURL := nodeText(image); imageURL != "" {
+				product.ImageURLs = append(product.ImageURLs, imageURL)
+			}
+		}
+		if product.ID != "" {
+			catalog.Products = append(catalog.Products, product)
+		}
+	}
+	return catalog, nil
 }
 
 // GetQRCode returns the QR code for device pairing (deprecated, use Connect with callback).

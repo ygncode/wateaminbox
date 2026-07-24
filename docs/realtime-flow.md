@@ -28,7 +28,7 @@ WhatsApp -> Go worker -> NATS JetStream -> Bun API -> PostgreSQL
                                                   -> React Query/Zustand
 ```
 
-Client-originated actions use authenticated REST endpoints. For example, typing and read-state actions go through `/api/actions/messages/*`; the API then publishes the corresponding Pusher event.
+Client-originated actions use authenticated REST endpoints. Durable WhatsApp commands are committed to a tenant-local transactional outbox in the same transaction as application state. Typing and read-state actions remain ephemeral.
 
 ## Main files
 
@@ -45,4 +45,4 @@ The shared type filename is retained for API compatibility; it describes realtim
 
 ## Reliability
 
-Pusher delivery is used as an invalidation/update signal, not the sole source of truth. Durable state is committed to PostgreSQL before broadcasting. Clients invalidate or update React Query caches and can refetch after reconnecting.
+Pusher delivery is used as an invalidation/update signal, not the sole source of truth. The API consumes WhatsApp events through the shared `whatsapp-api-events-v1` durable queue consumer and explicitly acknowledges only successful handlers. Failed handlers are negatively acknowledged for redelivery. Clients invalidate or update React Query caches and can refetch after reconnecting.

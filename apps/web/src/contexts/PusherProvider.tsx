@@ -98,8 +98,8 @@ export interface PusherContextValue {
   subscribe: <T>(eventType: string, handler: EventHandler<T>) => () => void;
 
   // Messaging methods
-  sendTypingStart: (conversationId: string) => void;
-  sendTypingStop: (conversationId: string) => void;
+  sendTypingStart: (conversationId: string, contactId: string) => void;
+  sendTypingStop: (conversationId: string, contactId: string) => void;
   sendMarkAsRead: (conversationId: string, messageIds: string[]) => void;
 }
 
@@ -351,6 +351,20 @@ export function PusherProvider({
       }),
       bindEvent("contact:updated", () => {
         invalidateChatList(qc);
+      }),
+      bindEvent("labels:updated", () => {
+        qc.invalidateQueries({ queryKey: ["labels"] });
+      }),
+      bindEvent("catalogs:updated", () => {
+        qc.invalidateQueries({ queryKey: ["catalogs"] });
+      }),
+      bindEvent("command:failed", () => {
+        invalidateChatList(qc);
+        const selectedId = useChatStore.getState().selectedConversationId;
+        if (selectedId) refetchConversationMessages(qc, selectedId);
+        qc.invalidateQueries({ queryKey: ["labels"] });
+        qc.invalidateQueries({ queryKey: ["catalogs"] });
+        qc.invalidateQueries({ queryKey: ["groups"] });
       }),
     );
 
@@ -609,13 +623,19 @@ export function PusherProvider({
   }, [currentCompanyId]);
 
   // Send typing indicator via REST
-  const sendTypingStart = useCallback((conversationId: string) => {
-      sendTypingIndicator(conversationId, true).catch(console.error);
-  }, []);
+  const sendTypingStart = useCallback(
+    (conversationId: string, contactId: string) => {
+      sendTypingIndicator(conversationId, contactId, true).catch(console.error);
+    },
+    [],
+  );
 
-  const sendTypingStop = useCallback((conversationId: string) => {
-      sendTypingIndicator(conversationId, false).catch(console.error);
-  }, []);
+  const sendTypingStop = useCallback(
+    (conversationId: string, contactId: string) => {
+      sendTypingIndicator(conversationId, contactId, false).catch(console.error);
+    },
+    [],
+  );
 
   // Mark messages as read
   const sendMarkAsRead = useCallback(

@@ -61,7 +61,10 @@ export type PusherEventType =
   | "presence:online"
   | "presence:offline"
   | "conversation:read"
-  | "conversation:updated";
+  | "conversation:updated"
+  | "labels:updated"
+  | "catalogs:updated"
+  | "command:failed";
 
 /**
  * Broadcasts an event to all subscribers of a company's private channel

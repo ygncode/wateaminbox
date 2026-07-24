@@ -1,10 +1,6 @@
 import { Hono } from "hono";
 import { isTableNotFoundError, badRequest, notFound } from "../lib/errors.js";
-import {
-  publishApplyLabel,
-  publishRemoveLabel,
-  publishSyncLabels,
-} from "../lib/nats/index.js";
+import { enqueueConnectionCommand } from "../services/command-outbox.service.js";
 import {
   successData,
   successMessage,
@@ -121,8 +117,11 @@ labelRoutes.post("/sync", async (c) => {
   // Check if WhatsApp is connected (throws ServiceUnavailableError if not)
   const connection = await getActiveWhatsAppConnection(tenantDb);
 
-  // Publish sync command to NATS
-  await publishSyncLabels(companyId, connection.id, user.id);
+  await tenantDb.transaction().execute((trx) =>
+    enqueueConnectionCommand(trx, companyId, connection.id, (publisher) =>
+      publisher.syncLabels(user.id),
+    ),
+  );
 
   return successWithMessage(
     c,
@@ -224,56 +223,45 @@ labelRoutes.post("/:labelId/apply/:contactId", async (c) => {
   const labelId = c.req.param("labelId");
   const contactId = c.req.param("contactId");
 
-  // Get the contact's JID
   const contact = await tenantDb
     .selectFrom("contacts")
-    .select(["id", "jid"])
+    .select(["id", "jid", "whatsapp_connection_id"])
     .where("id", "=", contactId)
     .executeTakeFirst();
 
-  if (!contact || !contact.jid) {
-    return notFound(c, "Contact");
+  if (!contact?.jid) return notFound(c, "Contact");
+  if (!contact.whatsapp_connection_id) {
+    return badRequest(c, "Contact is not associated with a WhatsApp connection");
   }
 
-  // Verify the label exists
   const label = await getWhatsAppLabelByLabelId(tenantDb, labelId);
+  if (!label) return notFound(c, "WhatsApp label");
 
-  if (!label) {
-    return notFound(c, "WhatsApp label");
-  }
+  const connection = await tenantDb
+    .selectFrom("whatsapp_connections")
+    .select("id")
+    .where("id", "=", contact.whatsapp_connection_id)
+    .where("status", "=", "connected")
+    .executeTakeFirst();
+  if (!connection) return badRequest(c, "Contact's connection is not active");
 
-  // Check if WhatsApp is connected (throws ServiceUnavailableError if not)
-  const connection = await getActiveWhatsAppConnection(tenantDb);
-
-  // Publish apply label command to NATS
-  await publishApplyLabel(
-    companyId,
-    connection.id,
-    labelId,
-    contact.jid,
-    user.id,
-  );
-
-  // If the label is linked to a tag, also add the tag to the contact locally
-  if (label.syncedTagId) {
-    // Check if contact already has this tag
-    const existingTag = await tenantDb
-      .selectFrom("contact_tags")
-      .select(["contact_id"])
-      .where("contact_id", "=", contactId)
-      .where("tag_id", "=", label.syncedTagId)
-      .executeTakeFirst();
-
-    if (!existingTag) {
-      await tenantDb
+  await tenantDb.transaction().execute(async (trx) => {
+    await enqueueConnectionCommand(
+      trx,
+      companyId,
+      connection.id,
+      (publisher) => publisher.applyLabel(labelId, contact.jid!, user.id),
+    );
+    if (label.syncedTagId) {
+      await trx
         .insertInto("contact_tags")
-        .values({
-          contact_id: contactId,
-          tag_id: label.syncedTagId,
-        })
+        .values({ contact_id: contactId, tag_id: label.syncedTagId })
+        .onConflict((conflict) =>
+          conflict.columns(["contact_id", "tag_id"]).doNothing(),
+        )
         .execute();
     }
-  }
+  });
 
   return successMessage(c, "Label applied to contact");
 });
@@ -287,44 +275,43 @@ labelRoutes.delete("/:labelId/apply/:contactId", async (c) => {
   const labelId = c.req.param("labelId");
   const contactId = c.req.param("contactId");
 
-  // Get the contact's JID
   const contact = await tenantDb
     .selectFrom("contacts")
-    .select(["id", "jid"])
+    .select(["id", "jid", "whatsapp_connection_id"])
     .where("id", "=", contactId)
     .executeTakeFirst();
 
-  if (!contact || !contact.jid) {
-    return notFound(c, "Contact");
+  if (!contact?.jid) return notFound(c, "Contact");
+  if (!contact.whatsapp_connection_id) {
+    return badRequest(c, "Contact is not associated with a WhatsApp connection");
   }
 
-  // Verify the label exists
   const label = await getWhatsAppLabelByLabelId(tenantDb, labelId);
+  if (!label) return notFound(c, "WhatsApp label");
 
-  if (!label) {
-    return notFound(c, "WhatsApp label");
-  }
+  const connection = await tenantDb
+    .selectFrom("whatsapp_connections")
+    .select("id")
+    .where("id", "=", contact.whatsapp_connection_id)
+    .where("status", "=", "connected")
+    .executeTakeFirst();
+  if (!connection) return badRequest(c, "Contact's connection is not active");
 
-  // Check if WhatsApp is connected (throws ServiceUnavailableError if not)
-  const connection = await getActiveWhatsAppConnection(tenantDb);
-
-  // Publish remove label command to NATS
-  await publishRemoveLabel(
-    companyId,
-    connection.id,
-    labelId,
-    contact.jid,
-    user.id,
-  );
-
-  // If the label is linked to a tag, also remove the tag from the contact locally
-  if (label.syncedTagId) {
-    await tenantDb
-      .deleteFrom("contact_tags")
-      .where("contact_id", "=", contactId)
-      .where("tag_id", "=", label.syncedTagId)
-      .execute();
-  }
+  await tenantDb.transaction().execute(async (trx) => {
+    await enqueueConnectionCommand(
+      trx,
+      companyId,
+      connection.id,
+      (publisher) => publisher.removeLabel(labelId, contact.jid!, user.id),
+    );
+    if (label.syncedTagId) {
+      await trx
+        .deleteFrom("contact_tags")
+        .where("contact_id", "=", contactId)
+        .where("tag_id", "=", label.syncedTagId)
+        .execute();
+    }
+  });
 
   return successMessage(c, "Label removed from contact");
 });

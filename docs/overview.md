@@ -65,7 +65,7 @@ See [Realtime Architecture](realtime-flow.md).
 
 The API sends commands through NATS. The orchestrator manages one isolated worker process per WhatsApp connection. Workers use whatsmeow, persist session state in PostgreSQL, upload media to S3-compatible storage, and publish normalized events back to the API.
 
-JetStream provides at-least-once delivery, so message and reaction constraints enforce idempotency.
+JetStream uses durable, explicitly acknowledged consumers for at-least-once delivery. API commands are first committed to a tenant-local transactional outbox and published with the outbox ID as the JetStream deduplication ID. Message, contact, and reaction constraints make redelivery safe.
 
 ## Local development
 

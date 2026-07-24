@@ -14,6 +14,7 @@ import { paginationSchema } from "../schemas.js";
  */
 export const createContactSchema = z.object({
   phoneNumber: z.string().min(1, "Phone number is required"),
+  connectionId: z.string().uuid().optional(),
   customName: z.string().max(255).optional(),
   notesShared: z.string().optional(),
 });

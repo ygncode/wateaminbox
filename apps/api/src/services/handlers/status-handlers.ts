@@ -82,6 +82,7 @@ export async function handleStatusEvent(event: StatusEvent): Promise<void> {
     );
   } catch (error) {
     logger.error(formatError(error), "Failed to store status");
+    throw error;
   }
 }
 
@@ -170,6 +171,7 @@ export async function handleSyncStatusEvent(
     );
   } catch (error) {
     logger.error(formatError(error), "Failed to handle sync status event");
+    throw error;
   }
 }
 
@@ -275,5 +277,6 @@ export async function handleDownloadResponseEvent(
     }
   } catch (error) {
     logger.error(formatError(error), "Failed to handle download response");
+    throw error;
   }
 }

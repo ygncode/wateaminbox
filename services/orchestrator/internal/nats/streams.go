@@ -44,39 +44,39 @@ func (c *Client) CreateStreams() error {
 	return nil
 }
 
-// createCommandsConsumer creates a durable consumer for the commands stream.
-// Always deletes and recreates the consumer on startup to ensure clean state.
+// createCommandsConsumer creates the durable orchestrator consumer.
+// Existing state is retained so commands published while the orchestrator is
+// offline are delivered after restart.
 func (c *Client) createCommandsConsumer() error {
 	js := c.conn.JetStream()
 
-	consumerCfg := &nats.ConsumerConfig{
+	if _, err := js.ConsumerInfo(sharednats.StreamCommands, ConsumerCommands); err == nil {
+		log.Printf("Reusing durable consumer %s", ConsumerCommands)
+		return nil
+	} else if err != nats.ErrConsumerNotFound {
+		return fmt.Errorf("failed to inspect consumer %s: %w", ConsumerCommands, err)
+	}
+
+	consumerCfg := commandsConsumerConfig()
+
+	if _, err := js.AddConsumer(sharednats.StreamCommands, consumerCfg); err != nil {
+		return fmt.Errorf("failed to add consumer %s: %w", ConsumerCommands, err)
+	}
+	log.Printf("Created durable consumer: %s (DeliverPolicy: All)", ConsumerCommands)
+	return nil
+}
+
+func commandsConsumerConfig() *nats.ConsumerConfig {
+	return &nats.ConsumerConfig{
 		Durable:       ConsumerCommands,
 		Description:   "Orchestrator consumer for processing worker commands",
-		DeliverPolicy: nats.DeliverNewPolicy, // Only deliver NEW messages (avoid replaying old ones)
+		DeliverPolicy: nats.DeliverAllPolicy,
 		AckPolicy:     nats.AckExplicitPolicy,
 		AckWait:       30 * time.Second,
 		MaxDeliver:    5,
-		FilterSubject: "WHATSAPP.commands.>", // Match all company/connection specific subjects
+		FilterSubject: "WHATSAPP.commands.>",
 		MaxAckPending: 1000,
 	}
-
-	// Always delete existing consumer to ensure clean state on startup
-	// This prevents issues with stale delivery positions
-	_, err := js.ConsumerInfo(sharednats.StreamCommands, ConsumerCommands)
-	if err == nil {
-		log.Printf("Deleting existing consumer %s to ensure clean state...", ConsumerCommands)
-		if err := js.DeleteConsumer(sharednats.StreamCommands, ConsumerCommands); err != nil {
-			log.Printf("Warning: failed to delete existing consumer: %v", err)
-		}
-	}
-
-	// Create fresh consumer
-	_, err = js.AddConsumer(sharednats.StreamCommands, consumerCfg)
-	if err != nil {
-		return fmt.Errorf("failed to add consumer %s: %w", ConsumerCommands, err)
-	}
-	log.Printf("Created consumer: %s (DeliverPolicy: New)", ConsumerCommands)
-	return nil
 }
 
 // SubscribeToCommands creates a pull subscription for processing commands.

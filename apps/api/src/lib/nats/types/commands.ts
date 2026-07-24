@@ -9,7 +9,6 @@ import type { NatsCommand, MessageType, StatusType } from "./base.js";
 export interface SpawnCommand extends NatsCommand {
   type: "spawn";
   tenant_schema: string;
-  database_url: string;
 }
 
 // Kill command to disconnect WhatsApp

@@ -109,7 +109,8 @@ export function ChatPage() {
             </MessageActionsProvider>
           </div>
           <MessageComposer
-            conversationId={selectedContact?.jid || selectedChatId}
+            conversationId={selectedContact?.jid}
+            contactId={selectedChatId}
             replyToMessage={replyToMessage}
             onClearReply={handleClearReply}
             onSendMessage={handleSendMessage}

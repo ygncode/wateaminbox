@@ -51,5 +51,6 @@ export type {
   DownloadResponseEvent,
   SyncStatusEvent,
   SendFailedEvent,
+  CommandResultEvent,
   WorkerConnectionStatusEvent,
 } from "./events.js";

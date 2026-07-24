@@ -1,5 +1,5 @@
 import { AlertCircle, Check, Loader2, UserPlus } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -16,6 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useCreateContact } from "@/hooks/useContact";
+import { useWhatsAppConnections } from "@/hooks/useWhatsAppConnections";
 import {
   addContactSchema,
   type AddContactFormData,
@@ -38,20 +39,32 @@ export function AddContactDialog({
 
   const navigate = useNavigate();
   const createContact = useCreateContact();
+  const { connections } = useWhatsAppConnections();
+  const activeConnections = connections.filter(
+    (connection) => connection.status === "connected",
+  );
+  const soleConnectionId =
+    activeConnections.length === 1 ? activeConnections[0].id : undefined;
 
   const {
     register,
     handleSubmit,
     reset,
+    setValue,
     formState: { errors },
   } = useForm<AddContactFormData>({
     resolver: zodResolver(addContactSchema),
     defaultValues: {
+      connectionId: undefined,
       phoneNumber: "",
       customName: "",
       notes: "",
     },
   });
+
+  useEffect(() => {
+    if (soleConnectionId) setValue("connectionId", soleConnectionId);
+  }, [soleConnectionId, setValue]);
 
   const resetForm = () => {
     reset();
@@ -70,6 +83,7 @@ export function AddContactDialog({
     try {
       const contact = await createContact.mutateAsync({
         phoneNumber: data.phoneNumber,
+        connectionId: data.connectionId || activeConnections[0]?.id,
         customName: data.customName || undefined,
         notesShared: data.notes || undefined,
       });
@@ -128,6 +142,27 @@ export function AddContactDialog({
               <div className="flex items-center gap-2 p-3 text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 rounded-lg">
                 <AlertCircle className="h-4 w-4 flex-shrink-0" />
                 <span>{serverError}</span>
+              </div>
+            )}
+
+            {activeConnections.length > 1 && (
+              <div className="space-y-2">
+                <Label htmlFor="connectionId">
+                  WhatsApp account <span className="text-red-500">*</span>
+                </Label>
+                <select
+                  id="connectionId"
+                  required
+                  className="flex h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm dark:border-dark-border dark:bg-dark-elevated"
+                  {...register("connectionId")}
+                >
+                  <option value="">Select an account</option>
+                  {activeConnections.map((connection) => (
+                    <option key={connection.id} value={connection.id}>
+                      {connection.name || connection.phoneNumber || connection.id}
+                    </option>
+                  ))}
+                </select>
               </div>
             )}
 
@@ -239,7 +274,9 @@ export function AddContactDialog({
               </Button>
               <Button
                 type="submit"
-                disabled={createContact.isPending}
+                disabled={
+                  createContact.isPending || activeConnections.length === 0
+                }
                 className="bg-whatsapp-teal-green hover:bg-whatsapp-dark-green"
                 data-testid="add-contact-submit"
               >

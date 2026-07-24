@@ -6,7 +6,7 @@
 import { zValidator } from "@hono/zod-validator";
 import { Hono } from "hono";
 import { notFound, badRequest, forbidden } from "../../lib/errors.js";
-import { publishGroupUpdateSettings } from "../../lib/nats/index.js";
+import { enqueueConnectionCommand } from "../../services/command-outbox.service.js";
 import { successData, successWithMessage } from "../../lib/response.js";
 import { updateGroupSettingsSchema } from "../../lib/schemas/index.js";
 import { getRouteContext } from "../../middleware/context.js";
@@ -79,24 +79,27 @@ settingsRoutes.patch(
       updates.description = description;
     }
 
-    // Update local database
-    if (Object.keys(updates).length > 0) {
-      await tenantDb
-        .updateTable("groups")
-        .set(updates)
-        .where("id", "=", group.id)
-        .execute();
-    }
-
-    // Publish NATS command to WhatsApp service
-    await publishGroupUpdateSettings(
-      companyId,
-      contact.whatsapp_connection_id,
-      contact.jid,
-      userId,
-      name,
-      description,
-    );
+    await tenantDb.transaction().execute(async (trx) => {
+      if (Object.keys(updates).length > 0) {
+        await trx
+          .updateTable("groups")
+          .set(updates)
+          .where("id", "=", group.id)
+          .execute();
+      }
+      await enqueueConnectionCommand(
+        trx,
+        companyId,
+        contact.whatsapp_connection_id!,
+        (publisher) =>
+          publisher.groupUpdateSettings(
+            contact.jid!,
+            userId,
+            name,
+            description,
+          ),
+      );
+    });
 
     // Create audit log
     await createAuditLog({

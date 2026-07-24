@@ -17,7 +17,7 @@ import {
   setCompanyId,
 } from "../lib/api";
 
-export type UserRole = "admin" | "agent" | "viewer";
+export type UserRole = "owner" | "admin" | "member";
 
 export interface AuthUser {
   id: string;
@@ -76,7 +76,7 @@ function mapApiUserToAuthUser(
     name: apiUser.name || apiUser.email.split("@")[0],
     avatarUrl: undefined,
     companyId: companyId || "",
-    role: (role as UserRole) || "agent",
+    role: (role as UserRole) || "member",
   };
 }
 
@@ -256,6 +256,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
         setState((prev) => ({
           ...prev,
           currentCompanyId: companyId,
+          user: prev.user
+            ? {
+                ...prev.user,
+                companyId,
+                role: membership.role,
+              }
+            : null,
         }));
       }
     },
@@ -366,5 +373,5 @@ export function useHasRole(allowedRoles: UserRole[]): boolean {
 
 // Hook for checking if user is admin
 export function useIsAdmin(): boolean {
-  return useHasRole(["admin"]);
+  return useHasRole(["owner", "admin"]);
 }

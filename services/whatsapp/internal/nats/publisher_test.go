@@ -9,6 +9,12 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func TestLabelColorHex(t *testing.T) {
+	assert.Equal(t, "#00a884", labelColorHex(0))
+	assert.Equal(t, "#475569", labelColorHex(19))
+	assert.Empty(t, labelColorHex(99))
+}
+
 // TestPublishSendConfirmation_PayloadFormat tests that the payload is correctly formatted.
 func TestPublishSendConfirmation_PayloadFormat(t *testing.T) {
 	pendingID := "pending_abc123-def456"

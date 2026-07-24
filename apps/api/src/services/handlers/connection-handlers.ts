@@ -76,6 +76,7 @@ export async function handleConnectedEvent(
     );
   } catch (error) {
     logger.error(formatError(error), "Failed to handle connected event");
+    throw error;
   }
 }
 
@@ -141,6 +142,7 @@ export async function handleDisconnectedEvent(
     );
   } catch (error) {
     logger.error(formatError(error), "Failed to handle disconnected event");
+    throw error;
   }
 }
 
@@ -209,5 +211,6 @@ export async function handleWorkerConnectionStatusEvent(
       formatError(error),
       "Failed to handle worker connection status event",
     );
+    throw error;
   }
 }

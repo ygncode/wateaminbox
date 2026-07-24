@@ -7,14 +7,15 @@ import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { nowMs } from "@wateaminbox/shared";
 import { badRequest, notFound } from "../../lib/errors.js";
-import { createLogger, formatError } from "../../lib/logger.js";
-import { publishSendReaction } from "../../lib/nats/index.js";
+import {
+  buildCommandSubject,
+  buildSendReactionCommand,
+} from "../../lib/nats/index.js";
+import { enqueueCommand } from "../../services/command-outbox.service.js";
 import { successData, successMessage } from "../../lib/response.js";
 import { addReactionSchema } from "../../lib/schemas/index.js";
 import { getRouteContext } from "../../middleware/context.js";
 import { broadcastToCompany } from "../../lib/pusher.js";
-
-const logger = createLogger("MessageReactionRoutes");
 
 export const reactionRoutes = new Hono();
 
@@ -32,7 +33,13 @@ reactionRoutes.post(
     // Check message exists and get WhatsApp message_id, from_me, and contact ID
     const message = await tenantDb
       .selectFrom("messages")
-      .select(["id", "contact_id", "message_id", "from_me"])
+      .select([
+        "id",
+        "contact_id",
+        "message_id",
+        "from_me",
+        "whatsapp_connection_id",
+      ])
       .where("id", "=", messageId)
       .executeTakeFirst();
 
@@ -59,12 +66,14 @@ reactionRoutes.post(
       return notFound(c, "Contact or JID");
     }
 
-    // Get active WhatsApp connection (need jid to match sync events)
-    const connection = await tenantDb
-      .selectFrom("whatsapp_connections")
-      .select(["id", "status", "jid"])
-      .where("status", "=", "connected")
-      .executeTakeFirst();
+    const connection = message.whatsapp_connection_id
+      ? await tenantDb
+          .selectFrom("whatsapp_connections")
+          .select(["id", "status", "jid"])
+          .where("id", "=", message.whatsapp_connection_id)
+          .where("status", "=", "connected")
+          .executeTakeFirst()
+      : null;
 
     if (!connection) {
       return badRequest(c, "No active WhatsApp connection");
@@ -74,21 +83,34 @@ reactionRoutes.post(
       return badRequest(c, "WhatsApp connection has no JID");
     }
 
-    // Upsert reaction in database (replace if user already reacted)
-    // Use connection.jid to match WhatsApp sync events (not user.id)
-    await tenantDb
-      .insertInto("message_reactions")
-      .values({
-        message_id: messageId,
-        reactor_jid: connection.jid, // Use WhatsApp JID to match sync events
-        emoji: body.emoji,
-      })
-      .onConflict((oc) =>
-        oc.columns(["message_id", "reactor_jid"]).doUpdateSet({
+    const reactionCommand = buildSendReactionCommand(
+      connection.id,
+      contact.jid,
+      message.message_id,
+      body.emoji,
+      user.id,
+      message.from_me,
+    );
+    await tenantDb.transaction().execute(async (trx) => {
+      await trx
+        .insertInto("message_reactions")
+        .values({
+          message_id: messageId,
+          reactor_jid: connection.jid!,
           emoji: body.emoji,
-        }),
-      )
-      .execute();
+        })
+        .onConflict((oc) =>
+          oc.columns(["message_id", "reactor_jid"]).doUpdateSet({
+            emoji: body.emoji,
+          }),
+        )
+        .execute();
+      await enqueueCommand(
+        trx,
+        buildCommandSubject(companyId, connection.id),
+        reactionCommand,
+      );
+    });
 
     await broadcastToCompany(
       companyId,
@@ -102,25 +124,6 @@ reactionRoutes.post(
       },
       connection.id,
     );
-
-    // Send reaction to WhatsApp via NATS
-    try {
-      await publishSendReaction(
-        companyId,
-        connection.id,
-        contact.jid,
-        message.message_id, // Use WhatsApp message_id
-        body.emoji,
-        user.id,
-        message.from_me, // Pass from_me flag
-      );
-    } catch (error) {
-      logger.error(
-        { err: formatError(error) },
-        "Failed to send reaction to WhatsApp",
-      );
-      // Don't fail the request - the reaction is stored in DB
-    }
 
     return successData(c, { emoji: body.emoji, reactorJid: connection.jid });
   },
@@ -136,7 +139,13 @@ reactionRoutes.delete("/:id/reaction", async (c) => {
   // Get message with WhatsApp message_id, from_me, and contact info
   const message = await tenantDb
     .selectFrom("messages")
-    .select(["id", "contact_id", "message_id", "from_me"])
+    .select([
+      "id",
+      "contact_id",
+      "message_id",
+      "from_me",
+      "whatsapp_connection_id",
+    ])
     .where("id", "=", messageId)
     .executeTakeFirst();
 
@@ -144,38 +153,19 @@ reactionRoutes.delete("/:id/reaction", async (c) => {
     return notFound(c, "Message");
   }
 
-  // Get active WhatsApp connection (need jid to match sync events)
-  const connection = await tenantDb
-    .selectFrom("whatsapp_connections")
-    .select(["id", "status", "jid"])
-    .where("status", "=", "connected")
-    .executeTakeFirst();
+  const connection = message.whatsapp_connection_id
+    ? await tenantDb
+        .selectFrom("whatsapp_connections")
+        .select(["id", "status", "jid"])
+        .where("id", "=", message.whatsapp_connection_id)
+        .where("status", "=", "connected")
+        .executeTakeFirst()
+    : null;
 
-  // Delete reaction from database using connection.jid (to match sync events)
   const reactorJid = connection?.jid || user.id;
-  await tenantDb
-    .deleteFrom("message_reactions")
-    .where("message_id", "=", messageId)
-    .where("reactor_jid", "=", reactorJid)
-    .execute();
-
-  // Broadcast reaction removal to all connected realtime clients for real-time updates
-  if (connection) {
-    await broadcastToCompany(
-      companyId,
-      "message:reaction",
-      {
-        messageId,
-        contactId: message.contact_id,
-        from: reactorJid,
-        emoji: "", // Empty emoji indicates removal
-        timestamp: nowMs(),
-      },
-      connection.id,
-    );
-  }
 
   // Send empty emoji to WhatsApp to remove reaction (if we have contact info)
+  let deletedInTransaction = false;
   if (message.contact_id && message.message_id && connection) {
     const contact = await tenantDb
       .selectFrom("contacts")
@@ -184,24 +174,51 @@ reactionRoutes.delete("/:id/reaction", async (c) => {
       .executeTakeFirst();
 
     if (contact?.jid) {
-      try {
-        await publishSendReaction(
-          companyId,
-          connection.id,
-          contact.jid,
-          message.message_id, // Use WhatsApp message_id
-          "", // Empty emoji removes the reaction
-          user.id,
-          message.from_me, // Pass from_me flag
+      const reactionCommand = buildSendReactionCommand(
+        connection.id,
+        contact.jid,
+        message.message_id,
+        "",
+        user.id,
+        message.from_me,
+      );
+      await tenantDb.transaction().execute(async (trx) => {
+        await trx
+          .deleteFrom("message_reactions")
+          .where("message_id", "=", messageId)
+          .where("reactor_jid", "=", reactorJid)
+          .execute();
+        await enqueueCommand(
+          trx,
+          buildCommandSubject(companyId, connection.id),
+          reactionCommand,
         );
-      } catch (error) {
-        logger.error(
-          { err: formatError(error) },
-          "Failed to remove reaction from WhatsApp",
-        );
-        // Don't fail the request - the reaction is removed from DB
-      }
+      });
+      deletedInTransaction = true;
     }
+  }
+
+  if (!deletedInTransaction) {
+    await tenantDb
+      .deleteFrom("message_reactions")
+      .where("message_id", "=", messageId)
+      .where("reactor_jid", "=", reactorJid)
+      .execute();
+  }
+
+  if (connection) {
+    await broadcastToCompany(
+      companyId,
+      "message:reaction",
+      {
+        messageId,
+        contactId: message.contact_id,
+        from: reactorJid,
+        emoji: "",
+        timestamp: nowMs(),
+      },
+      connection.id,
+    );
   }
 
   return successMessage(c, "Reaction removed");

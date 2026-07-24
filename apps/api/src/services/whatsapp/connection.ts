@@ -8,15 +8,16 @@
 import { db, type WhatsAppConnectionStatus } from "@wateaminbox/database";
 import { toDbDate } from "@wateaminbox/shared";
 import type { Kysely } from "kysely";
-import { env } from "../../lib/env.js";
 import {
   ConnectionNotFoundError,
   MaxConnectionsExceededError,
 } from "../../lib/errors.js";
 import {
-  publishKillCommand,
-  publishSpawnCommand,
+  buildCommandSubject,
+  type NatsCommand,
 } from "../../lib/nats/index.js";
+import { forConnection } from "../../lib/nats/command-builder.js";
+import { enqueueCommand } from "../command-outbox.service.js";
 import type { TenantDatabase } from "../tenant.service.js";
 
 // Default max connections if not specified in company settings
@@ -190,20 +191,33 @@ export async function spawnConnection(
   // Create a new pending connection record
   const connectionId = crypto.randomUUID();
 
-  await tenantDb
-    .insertInto("whatsapp_connections")
-    .values({
-      id: connectionId,
-      name: name || null,
-      status: "pending",
-      connected_by: userId,
-      created_at: toDbDate(),
-      updated_at: toDbDate(),
-    })
-    .execute();
+  await tenantDb.transaction().execute(async (trx) => {
+    await trx
+      .insertInto("whatsapp_connections")
+      .values({
+        id: connectionId,
+        name: name || null,
+        status: "pending",
+        connected_by: userId,
+        created_at: toDbDate(),
+        updated_at: toDbDate(),
+      })
+      .execute();
 
-  // Publish spawn command to NATS with connectionId
-  await publishSpawnCommand(companyId, connectionId, env.DATABASE_URL);
+    const publisher = forConnection(
+      companyId,
+      connectionId,
+      async (subject, command: NatsCommand) => {
+        await enqueueCommand(
+          trx,
+          subject,
+          command as unknown as Record<string, unknown>,
+        );
+      },
+      buildCommandSubject,
+    );
+    await publisher.spawn();
+  });
 
   return { connectionId };
 }
@@ -228,18 +242,30 @@ export async function killConnection(
     throw new ConnectionNotFoundError(connectionId);
   }
 
-  // Update status to disconnected
-  await tenantDb
-    .updateTable("whatsapp_connections")
-    .set({
-      status: "disconnected",
-      updated_at: toDbDate(),
-    })
-    .where("id", "=", connectionId)
-    .execute();
+  await tenantDb.transaction().execute(async (trx) => {
+    await trx
+      .updateTable("whatsapp_connections")
+      .set({
+        status: "disconnected",
+        updated_at: toDbDate(),
+      })
+      .where("id", "=", connectionId)
+      .execute();
 
-  // Publish kill command to NATS with connectionId
-  await publishKillCommand(companyId, connectionId);
+    const publisher = forConnection(
+      companyId,
+      connectionId,
+      async (subject, command: NatsCommand) => {
+        await enqueueCommand(
+          trx,
+          subject,
+          command as unknown as Record<string, unknown>,
+        );
+      },
+      buildCommandSubject,
+    );
+    await publisher.kill();
+  });
 }
 
 /**

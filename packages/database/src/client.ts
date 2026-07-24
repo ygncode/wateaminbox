@@ -149,6 +149,7 @@ export interface TenantDatabase {
   notification_history: NotificationHistoryTable;
   quick_replies: QuickRepliesTable;
   conversation_states: ConversationStatesTable;
+  nats_outbox: NatsOutboxTable;
 }
 
 export interface WhatsAppConnectionsTable {
@@ -408,6 +409,20 @@ export interface ConversationStatesTable {
   unread_count: Generated<number>;
   created_at: Generated<Date>;
   updated_at: Generated<Date>;
+}
+
+export type NatsOutboxStatus = "pending" | "published" | "failed";
+
+export interface NatsOutboxTable {
+  id: Generated<string>;
+  subject: string;
+  payload: Record<string, unknown>;
+  status: Generated<NatsOutboxStatus>;
+  attempts: Generated<number>;
+  next_attempt_at: Generated<Date>;
+  last_error: string | null;
+  created_at: Generated<Date>;
+  published_at: Date | null;
 }
 
 // ============================================================================

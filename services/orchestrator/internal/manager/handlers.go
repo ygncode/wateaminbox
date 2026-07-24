@@ -153,8 +153,17 @@ func (h *Handlers) handleSpawnCommand(ctx context.Context, data []byte) error {
 		}
 	}
 
-	// Spawn the worker
-	err := h.manager.SpawnWorker(ctx, cmd.CompanyID, cmd.ConnectionID, cmd.TenantSchema, cmd.DatabaseURL)
+	databaseURL := cmd.DatabaseURL
+	if databaseURL == "" {
+		databaseURL = h.manager.config.DatabaseURL
+	}
+	if databaseURL == "" {
+		return fmt.Errorf("orchestrator DATABASE_URL is required to spawn workers")
+	}
+
+	// Spawn the worker. Database credentials come from orchestrator
+	// configuration rather than the persisted NATS command payload.
+	err := h.manager.SpawnWorker(ctx, cmd.CompanyID, cmd.ConnectionID, cmd.TenantSchema, databaseURL)
 	if err != nil {
 		log.Printf("Failed to spawn worker for company %s, connection %s: %v", cmd.CompanyID, cmd.ConnectionID, err)
 

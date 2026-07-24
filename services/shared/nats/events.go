@@ -21,6 +21,10 @@ const (
 	EventTypeSyncStatus       = "sync_status"
 	EventTypeDownloadResp     = "download_response"
 	EventTypeConnectionStatus = "connection_status" // Worker connection status change (from orchestrator)
+	EventTypeLabels           = "labels"
+	EventTypeCatalogs         = "catalogs"
+	EventTypeCatalogProducts  = "catalog_products"
+	EventTypeCommandResult    = "command_result"
 )
 
 // Command types used across WhatsApp services.
@@ -185,6 +189,31 @@ type SendFailedPayload struct {
 type ConnectionStatusPayload struct {
 	Status string `json:"status"` // "error", "failed", "connecting", "connected"
 	Reason string `json:"reason"` // Human-readable reason for the status change
+}
+
+type LabelsPayload struct {
+	Labels []struct {
+		LabelID      string `json:"labelId"`
+		Name         string `json:"name"`
+		Color        int32  `json:"color"`
+		PredefinedID int32  `json:"predefinedId"`
+	} `json:"labels"`
+}
+
+type CatalogsPayload struct {
+	Catalogs []map[string]interface{} `json:"catalogs"`
+}
+
+type CatalogProductsPayload struct {
+	CatalogID string                   `json:"catalogId"`
+	Products  []map[string]interface{} `json:"products"`
+}
+
+type CommandResultPayload struct {
+	CommandID   string `json:"commandId"`
+	CommandType string `json:"commandType"`
+	Success     bool   `json:"success"`
+	Error       string `json:"error,omitempty"`
 }
 
 // DownloadRequest is the payload for on-demand media download requests.

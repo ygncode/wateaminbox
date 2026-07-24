@@ -628,6 +628,10 @@ func (m *Manager) recoverOrphanedWorkers(ctx context.Context) error {
 	log.Printf("Found %d workers in registry, checking status...", len(workers))
 
 	for _, w := range workers {
+		databaseURL := m.config.DatabaseURL
+		if databaseURL == "" {
+			databaseURL = w.DatabaseURL // Backward compatibility with old registry rows.
+		}
 		// Check if process is still running
 		process, err := os.FindProcess(w.PID)
 		if err != nil {
@@ -654,7 +658,7 @@ func (m *Manager) recoverOrphanedWorkers(ctx context.Context) error {
 					ConnectionID: w.ConnectionID,
 					CompanyID:    w.CompanyID,
 					TenantSchema: w.TenantSchema,
-					DatabaseURL:  w.DatabaseURL,
+					DatabaseURL:  databaseURL,
 					RestartCount: w.RestartCount,
 				}
 				go m.scheduleRestart(workerProcess, "recovered after orchestrator restart")
@@ -673,7 +677,7 @@ func (m *Manager) recoverOrphanedWorkers(ctx context.Context) error {
 			CompanyID:    w.CompanyID,
 			ConnectionID: w.ConnectionID,
 			TenantSchema: w.TenantSchema,
-			DatabaseURL:  w.DatabaseURL,
+			DatabaseURL:  databaseURL,
 			Status:       w.Status,
 			PID:          w.PID,
 			StartedAt:    w.StartedAt,

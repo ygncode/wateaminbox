@@ -20,6 +20,7 @@ import {
   ConnectionNotFoundError,
   InvalidConnectionStateError,
 } from "../../lib/errors.js";
+import { publishTypingCommand } from "../../lib/nats/index.js";
 
 const logger = createLogger("ActionsRoutes");
 
@@ -47,6 +48,7 @@ const sendMessageSchema = z.object({
 // Schema for typing indicator request
 const typingSchema = z.object({
   conversationId: z.string().min(1),
+  contactId: z.string().uuid(),
   isTyping: z.boolean(),
 });
 
@@ -126,7 +128,7 @@ actionsRoutes.post(
   async (c) => {
     const companyId = c.get("companyId");
     const user = c.get("user");
-    const { conversationId, isTyping } = c.req.valid("json");
+    const { conversationId, contactId, isTyping } = c.req.valid("json");
 
     // Get socket_id from header if provided (Pusher sends this)
     const socketId = c.req.header("X-Pusher-Socket-Id");
@@ -139,8 +141,28 @@ actionsRoutes.post(
     };
 
     try {
-      // Broadcast to other clients (excluding the sender if socketId provided)
-      await broadcastToCompanyExcept(companyId, eventType, payload, socketId);
+      const tenantDb = c.get("tenantDb");
+      const contact = await tenantDb
+        .selectFrom("contacts")
+        .select(["jid", "whatsapp_connection_id"])
+        .where("id", "=", contactId)
+        .executeTakeFirst();
+      if (!contact?.jid || !contact.whatsapp_connection_id) {
+        throw new HTTPException(404, { message: "Contact not found" });
+      }
+      if (contact.jid !== conversationId) {
+        throw new HTTPException(400, { message: "Conversation JID mismatch" });
+      }
+
+      await Promise.all([
+        broadcastToCompanyExcept(companyId, eventType, payload, socketId),
+        publishTypingCommand(
+          companyId,
+          contact.whatsapp_connection_id,
+          contact.jid,
+          isTyping,
+        ),
+      ]);
 
       return c.json({
         success: true,
@@ -150,6 +172,7 @@ actionsRoutes.post(
         },
       });
     } catch (error) {
+      if (error instanceof HTTPException) throw error;
       logger.error(
         { err: formatError(error) },
         "Failed to broadcast typing indicator",

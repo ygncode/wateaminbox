@@ -156,6 +156,7 @@ func main() {
 		Sender:         waClient,
 		Blocker:        waClient,
 		TypingSender:   waClient,
+		Executor:       waClient,
 		ProfileFetcher: msgHandler,
 		Publisher:      publisher,
 	})

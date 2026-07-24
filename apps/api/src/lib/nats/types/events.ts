@@ -257,6 +257,16 @@ export interface SendFailedEvent extends WhatsAppEvent {
   };
 }
 
+export interface CommandResultEvent extends WhatsAppEvent {
+  type: "command_result";
+  payload: {
+    commandId: string;
+    commandType: string;
+    success: boolean;
+    error?: string;
+  };
+}
+
 // Worker connection status event (from orchestrator)
 export interface WorkerConnectionStatusEvent extends WhatsAppEvent {
   type: "connection_status";

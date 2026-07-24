@@ -44,6 +44,7 @@ export async function sendMessage(
  */
 export async function sendTypingIndicator(
   conversationId: string,
+  contactId: string,
   isTyping: boolean,
 ): Promise<void> {
   const socketId = getSocketId();
@@ -59,6 +60,7 @@ export async function sendTypingIndicator(
     headers,
     body: JSON.stringify({
       conversationId,
+      contactId,
       isTyping,
     }),
   });

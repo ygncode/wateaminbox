@@ -10,7 +10,11 @@ import {
   ConnectionNotFoundError,
   InvalidConnectionStateError,
 } from "../../lib/errors.js";
-import { publishSendMessage } from "../../lib/nats/index.js";
+import {
+  buildCommandSubject,
+  buildSendMessageCommand,
+} from "../../lib/nats/index.js";
+import { enqueueCommand } from "../command-outbox.service.js";
 import type { TenantDatabase } from "../tenant.service.js";
 
 // Types
@@ -59,64 +63,70 @@ export async function sendMessage(
     }
   }
 
-  // Create a pending message record
   const messageId = crypto.randomUUID();
-
-  // Get or create contact for this JID
-  let contact = await tenantDb
-    .selectFrom("contacts")
-    .select(["id"])
-    .where("jid", "=", input.jid)
-    .executeTakeFirst();
-
-  if (!contact) {
-    const contactId = crypto.randomUUID();
-    await tenantDb
-      .insertInto("contacts")
-      .values({
-        id: contactId,
-        whatsapp_connection_id: connection.id,
-        jid: input.jid,
-        is_group: input.jid.includes("@g.us"),
-        created_at: new Date(),
-        updated_at: toDbDate(),
-      })
-      .execute();
-    contact = { id: contactId };
-  }
-
-  // Create the message record
-  await tenantDb
-    .insertInto("messages")
-    .values({
-      id: messageId,
-      whatsapp_connection_id: connection.id,
-      contact_id: contact.id,
-      from_me: true,
-      sender_jid: null, // Will be filled by worker
-      message_type: input.messageType,
-      content: input.content,
-      media_url: input.mediaUrl || null,
-      is_forwarded: false,
-      is_starred: false,
-      deleted_by_sender: false,
-      sent_by_user_id: userId,
-      timestamp: toDbDate(),
-      created_at: toDbDate(),
-    })
-    .execute();
-
-  // Publish send command to NATS with connectionId
-  await publishSendMessage(
-    companyId,
+  const pendingMessageId = `pending_${messageId}`;
+  const sendCommand = await buildSendMessageCommand(
     connection.id,
     input.jid,
     input.content,
     input.messageType,
     userId,
-    messageId, // Pass the pending message ID so worker can update correct record
+    pendingMessageId,
     input.mediaUrl,
   );
+
+  await tenantDb.transaction().execute(async (trx) => {
+    let contact = await trx
+      .selectFrom("contacts")
+      .select(["id"])
+      .where("jid", "=", input.jid)
+      .where("whatsapp_connection_id", "=", connection.id)
+      .executeTakeFirst();
+
+    if (!contact) {
+      const contactId = crypto.randomUUID();
+      await trx
+        .insertInto("contacts")
+        .values({
+          id: contactId,
+          whatsapp_connection_id: connection.id,
+          jid: input.jid,
+          is_group: input.jid.includes("@g.us"),
+          created_at: toDbDate(),
+          updated_at: toDbDate(),
+        })
+        .execute();
+      contact = { id: contactId };
+    }
+
+    await trx
+      .insertInto("messages")
+      .values({
+        id: messageId,
+        whatsapp_connection_id: connection.id,
+        contact_id: contact.id,
+        message_id: pendingMessageId,
+        from_me: true,
+        sender_jid: null,
+        message_type: input.messageType,
+        content: input.content,
+        media_url: input.mediaUrl || null,
+        is_forwarded: false,
+        is_starred: false,
+        deleted_by_sender: false,
+        sent_by_user_id: userId,
+        status: "pending",
+        timestamp: toDbDate(),
+        created_at: toDbDate(),
+      })
+      .execute();
+
+    await enqueueCommand(
+      trx,
+      buildCommandSubject(companyId, connection.id),
+      sendCommand,
+    );
+  });
 
   return { messageId };
 }

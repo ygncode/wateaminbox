@@ -38,10 +38,7 @@ import { getRouteContext } from "../../middleware/context.js";
 import { getContactsWithLastMessage } from "../../services/contact.service.js";
 import { createAuditLog, getClientIp } from "../../services/audit.service.js";
 import { broadcastToCompany } from "../../lib/pusher.js";
-import {
-  publishBlockContact,
-  publishUnblockContact,
-} from "../../lib/nats/client.js";
+import { enqueueConnectionCommand } from "../../services/command-outbox.service.js";
 
 // Import sub-routes
 import { notesRoutes } from "./notes.js";
@@ -229,10 +226,27 @@ contactRoutes.post("/", zValidator("json", createContactSchema), async (c) => {
 
   const { cleanedPhone, jid } = phoneResult;
 
-  // Check if contact already exists
+  const activeConnections = await tenantDb
+    .selectFrom("whatsapp_connections")
+    .select("id")
+    .where("status", "=", "connected")
+    .$if(Boolean(body.connectionId), (query) =>
+      query.where("id", "=", body.connectionId!),
+    )
+    .limit(2)
+    .execute();
+  if (activeConnections.length === 0) {
+    return badRequest(c, "No matching active WhatsApp connection");
+  }
+  if (!body.connectionId && activeConnections.length !== 1) {
+    return badRequest(c, "connectionId is required when multiple accounts are active");
+  }
+  const connectionId = activeConnections[0].id;
+
   const existingContact = await tenantDb
     .selectFrom("contacts")
     .select(["id", "jid", "phone_number", "custom_name", "push_name"])
+    .where("whatsapp_connection_id", "=", connectionId)
     .where((eb) =>
       eb.or([eb("jid", "=", jid), eb("phone_number", "=", cleanedPhone)]),
     )
@@ -256,6 +270,7 @@ contactRoutes.post("/", zValidator("json", createContactSchema), async (c) => {
   const newContact = await tenantDb
     .insertInto("contacts")
     .values({
+      whatsapp_connection_id: connectionId,
       jid,
       phone_number: cleanedPhone,
       custom_name: body.customName || null,
@@ -319,6 +334,7 @@ contactRoutes.patch(
         "phone_number",
         "is_blocked",
         "is_group",
+        "whatsapp_connection_id",
       ])
       .where("id", "=", contactId)
       .executeTakeFirst();
@@ -352,18 +368,48 @@ contactRoutes.patch(
       updateData.is_blocked = body.isBlocked;
     }
 
-    const updated = await tenantDb
-      .updateTable("contacts")
-      .set(updateData)
-      .where("id", "=", contactId)
-      .returning([
-        "id",
-        "custom_name",
-        "notes_shared",
-        "is_blocked",
-        "updated_at",
-      ])
-      .executeTakeFirst();
+    let blockConnectionId: string | null = null;
+    if (blockStatusChanged) {
+      if (!existingContact.jid || !existingContact.whatsapp_connection_id) {
+        return badRequest(c, "Contact is not associated with a WhatsApp connection");
+      }
+      const connection = await tenantDb
+        .selectFrom("whatsapp_connections")
+        .select("id")
+        .where("id", "=", existingContact.whatsapp_connection_id)
+        .where("status", "=", "connected")
+        .executeTakeFirst();
+      if (!connection) return badRequest(c, "Contact's connection is not active");
+      blockConnectionId = connection.id;
+    }
+
+    const updated = await tenantDb.transaction().execute(async (trx) => {
+      const row = await trx
+        .updateTable("contacts")
+        .set(updateData)
+        .where("id", "=", contactId)
+        .returning([
+          "id",
+          "custom_name",
+          "notes_shared",
+          "is_blocked",
+          "updated_at",
+        ])
+        .executeTakeFirst();
+
+      if (blockStatusChanged && blockConnectionId && existingContact.jid) {
+        await enqueueConnectionCommand(
+          trx,
+          companyId,
+          blockConnectionId,
+          (publisher) =>
+            body.isBlocked
+              ? publisher.blockContact(existingContact.jid!)
+              : publisher.unblockContact(existingContact.jid!),
+        );
+      }
+      return row;
+    });
 
     if (!updated) {
       return notFound(c, "Contact");
@@ -397,32 +443,6 @@ contactRoutes.patch(
           isBlocked: body.isBlocked,
       });
 
-      // Publish NATS command to WhatsApp service (fire-and-forget)
-      // Only if we have a contact JID to block/unblock
-      if (existingContact.jid) {
-        // Get active WhatsApp connection for this company
-        const connection = await tenantDb
-          .selectFrom("whatsapp_connections")
-          .select(["id"])
-          .where("status", "=", "connected")
-          .executeTakeFirst();
-
-        if (connection) {
-          if (body.isBlocked) {
-            await publishBlockContact(
-              companyId,
-              connection.id,
-              existingContact.jid,
-            );
-          } else {
-            await publishUnblockContact(
-              companyId,
-              connection.id,
-              existingContact.jid,
-            );
-          }
-        }
-      }
     }
 
     return successData(c, {

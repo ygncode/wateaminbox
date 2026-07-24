@@ -118,6 +118,7 @@ export async function handleMessageEvent(event: MessageEvent): Promise<void> {
       .selectFrom("contacts")
       .select(["id"])
       .where("jid", "=", contactJid)
+      .where("whatsapp_connection_id", "=", connection.id)
       .executeTakeFirst();
 
     if (!contact) {
@@ -212,6 +213,7 @@ export async function handleMessageEvent(event: MessageEvent): Promise<void> {
         .selectFrom("contacts")
         .select(["custom_name", "push_name", "phone_number"])
         .where("jid", "=", normalizedSenderJid)
+        .where("whatsapp_connection_id", "=", connection.id)
         .executeTakeFirst();
       senderName =
         senderContact?.custom_name ||
@@ -452,6 +454,7 @@ export async function handleMessageEvent(event: MessageEvent): Promise<void> {
     }
   } catch (error) {
     logger.error(formatError(error), "Failed to store message");
+    throw error;
   }
 }
 
@@ -553,6 +556,7 @@ export async function handleReceiptEvent(event: ReceiptEvent): Promise<void> {
     }
   } catch (error) {
     logger.error(formatError(error), "Failed to handle receipt");
+    throw error;
   }
 }
 
@@ -618,6 +622,7 @@ export async function handleSendConfirmationEvent(
     }
   } catch (error) {
     logger.error(formatError(error), "Failed to handle send confirmation");
+    throw error;
   }
 }
 
@@ -694,5 +699,6 @@ export async function handleSendFailedEvent(
     );
   } catch (error) {
     logger.error(formatError(error), "Failed to handle send_failed event");
+    throw error;
   }
 }

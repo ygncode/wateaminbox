@@ -11,6 +11,10 @@ import {
   shutdownMessageHandler,
 } from "./services/message-handler.js";
 import { shutdownTenantConnections } from "./services/tenant.service.js";
+import {
+  initializeCommandOutbox,
+  shutdownCommandOutbox,
+} from "./services/command-outbox.service.js";
 
 const logger = createLogger("Startup");
 
@@ -52,6 +56,8 @@ if (!isTestEnvironment) {
       // Continue running even if cleanup service fails to initialize
     });
 
+  initializeCommandOutbox();
+
   logger.info(
     { port },
     `Server is accepting connections on http://localhost:${port}`,
@@ -65,6 +71,7 @@ async function shutdown() {
   logger.info("Gracefully shutting down...");
   await shutdownMessageHandler();
   await shutdownMessageCleanup();
+  await shutdownCommandOutbox();
   await closeNatsConnection();
   await shutdownTenantConnections();
   process.exit(0);

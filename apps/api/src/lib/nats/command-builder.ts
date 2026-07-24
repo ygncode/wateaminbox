@@ -51,19 +51,12 @@ export class NatsCommandPublisher {
   /**
    * Publish spawn command to start WhatsApp connection
    */
-  async spawn(databaseUrl: string): Promise<void> {
-    // Ensure sslmode is set for local development
-    let dbUrl = databaseUrl;
-    if (dbUrl && !dbUrl.includes("sslmode=")) {
-      dbUrl += dbUrl.includes("?") ? "&sslmode=disable" : "?sslmode=disable";
-    }
-
+  async spawn(): Promise<void> {
     const command: SpawnCommand = {
       type: "spawn",
       company_id: this.companyId,
       connection_id: this.connectionId,
       tenant_schema: `tenant_${this.companyId.replace(/-/g, "_")}`,
-      database_url: dbUrl,
     };
 
     await this.publish(command);
@@ -304,7 +297,7 @@ export class NatsCommandPublisher {
  * @example
  * ```typescript
  * const publisher = forConnection(companyId, connectionId, publishCommand, buildCommandSubject)
- * await publisher.spawn(databaseUrl)
+ * await publisher.spawn()
  * await publisher.syncLabels(userId)
  * ```
  */

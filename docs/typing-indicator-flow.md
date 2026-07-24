@@ -7,8 +7,8 @@ Typing indicators use REST for client commands, NATS for WhatsApp presence, and 
 1. `MessageComposer` calls `sendTypingStart()` from `PusherProvider`.
 2. The browser posts `{ conversationId, isTyping: true }` to `/api/actions/messages/typing`.
 3. The API authenticates the user and tenant.
-4. The API broadcasts `typing:start` to the company's private Pusher channel, excluding the caller when its socket ID is supplied.
-5. The WhatsApp command path publishes the corresponding presence command through NATS where applicable.
+4. The API verifies the contact and its owning WhatsApp connection.
+5. It broadcasts `typing:start` to the company's private Pusher channel, excluding the caller when its socket ID is supplied, and publishes the corresponding presence command to that connection's worker.
 
 The composer refreshes the typing state while the user is active. Receivers automatically clear stale indicators after five seconds.
 

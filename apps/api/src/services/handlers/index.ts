@@ -41,6 +41,14 @@ export {
   handleMessageRevokeEvent,
 } from "./reaction-handlers.js";
 
+// WhatsApp Business handlers
+export {
+  handleLabelsEvent,
+  handleCatalogsEvent,
+  handleCatalogProductsEvent,
+  handleCommandResultEvent,
+} from "./business-handlers.js";
+
 // Error handlers
 export { handleErrorEvent } from "./error-handlers.js";
 

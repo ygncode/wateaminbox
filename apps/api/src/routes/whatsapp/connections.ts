@@ -19,6 +19,7 @@ import { authMiddleware } from "../../middleware/auth.js";
 import { createConditionalRateLimiter } from "../../middleware/rate-limit.js";
 import { tenantFromHeader } from "../../middleware/tenant.js";
 import * as whatsappService from "../../services/whatsapp.service.js";
+import { enqueueConnectionCommand } from "../../services/command-outbox.service.js";
 
 const connectionSendMessageSchema = z.object({
   jid: z.string().min(1),
@@ -321,23 +322,24 @@ connectionRoutes.post(
         await whatsappService.killConnection(tenantDb, companyId, connectionId);
       }
 
-      // Clear the old QR immediately. It is no longer valid once a fresh
-      // pairing attempt has been requested.
-      await tenantDb
-        .updateTable("whatsapp_connections")
-        .set({
-          status: "pending",
-          qr_code: null,
-          qr_expires_at: null,
-          updated_at: toDbDate(),
-        })
-        .where("id", "=", connectionId)
-        .execute();
-
-      // Publish spawn command to NATS
-      const { publishSpawnCommand } = await import("../../lib/nats/index.js");
-      const { env } = await import("../../lib/env.js");
-      await publishSpawnCommand(companyId, connectionId, env.DATABASE_URL);
+      await tenantDb.transaction().execute(async (trx) => {
+        await trx
+          .updateTable("whatsapp_connections")
+          .set({
+            status: "pending",
+            qr_code: null,
+            qr_expires_at: null,
+            updated_at: toDbDate(),
+          })
+          .where("id", "=", connectionId)
+          .execute();
+        await enqueueConnectionCommand(
+          trx,
+          companyId,
+          connectionId,
+          (publisher) => publisher.spawn(),
+        );
+      });
 
       return c.json({
         success: true,

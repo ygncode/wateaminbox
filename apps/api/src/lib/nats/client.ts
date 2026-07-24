@@ -3,13 +3,14 @@
  * Connection management and operations for NATS/JetStream
  */
 
-import * as nats from "nats";
 import {
   connect,
   NatsConnection,
   JetStreamClient,
   JetStreamSubscription,
   JSONCodec,
+  consumerOpts,
+  type ConsumerOptsBuilder,
 } from "nats";
 import { nowMs } from "@wateaminbox/shared";
 import { env } from "../env.js";
@@ -128,15 +129,29 @@ export async function publishCommand(
   subject: string,
   command: NatsCommand,
 ): Promise<void> {
+  await publishOutboxCommand(subject, command);
+}
+
+/**
+ * Publishes a serialized outbox command. The outbox row ID is used as the
+ * JetStream message ID so a dispatcher crash between publish and commit does
+ * not create a second stream message within JetStream's deduplication window.
+ */
+export async function publishOutboxCommand(
+  subject: string,
+  command: NatsCommand | Record<string, unknown>,
+  outboxId?: string,
+): Promise<void> {
   const js = await getJetStreamClient();
   const data = jc.encode(command);
-  await js.publish(subject, data);
+  await js.publish(subject, data, outboxId ? { msgID: outboxId } : undefined);
   logger.debug(
     {
       subject,
       type: command.type,
       companyId: command.company_id,
       connectionId: command.connection_id,
+      outboxId,
     },
     "Published command to NATS",
   );
@@ -160,19 +175,14 @@ export function buildCommandSubject(
 export async function publishSpawnCommand(
   companyId: string,
   connectionId: string,
-  databaseUrl: string,
 ): Promise<void> {
-  logger.debug(
-    { databaseUrl: databaseUrl.replace(/\/\/[^:]+:[^@]+@/, "//***:***@") },
-    "Spawn command with redacted DATABASE_URL",
-  );
   const publisher = forConnection(
     companyId,
     connectionId,
     publishCommand,
     buildCommandSubject,
   );
-  await publisher.spawn(databaseUrl);
+  await publisher.spawn();
 }
 
 /**
@@ -205,8 +215,7 @@ export async function publishKillCommand(
  *                           This ID is passed through to the Go worker and returned in the confirmation
  *                           event, allowing us to update the correct database record when the message is sent.
  */
-export async function publishSendMessage(
-  companyId: string,
+export async function buildSendMessageCommand(
   connectionId: string,
   jid: string,
   content: string,
@@ -216,7 +225,7 @@ export async function publishSendMessage(
   mediaUrl?: string,
   replyTo?: string,
   replyToSender?: string,
-): Promise<void> {
+): Promise<Record<string, unknown>> {
   let mediaData: number[] | undefined;
   let caption: string | undefined;
   let fileName: string | undefined;
@@ -232,7 +241,8 @@ export async function publishSendMessage(
     (messageType === "image" ||
       messageType === "video" ||
       messageType === "audio" ||
-      messageType === "document")
+      messageType === "document" ||
+      messageType === "sticker")
   ) {
     try {
       // SSRF Protection: Only allow downloads from our S3 endpoint
@@ -310,20 +320,45 @@ export async function publishSendMessage(
     correlation_id: correlationId,
   };
 
-  // Publish directly to JetStream (not through publishCommand which adds NatsCommand envelope)
-  const js = await getJetStreamClient();
+  return sendCommand;
+}
+
+export async function publishSendMessage(
+  companyId: string,
+  connectionId: string,
+  jid: string,
+  content: string,
+  messageType: MessageType,
+  userId: string,
+  pendingMessageId: string,
+  mediaUrl?: string,
+  replyTo?: string,
+  replyToSender?: string,
+): Promise<void> {
+  const command = await buildSendMessageCommand(
+    connectionId,
+    jid,
+    content,
+    messageType,
+    userId,
+    pendingMessageId,
+    mediaUrl,
+    replyTo,
+    replyToSender,
+  );
   const subject = buildCommandSubject(companyId, connectionId);
-  const data = jc.encode(sendCommand);
-  await js.publish(subject, data);
+  await publishOutboxCommand(subject, command);
   logger.debug(
     {
       subject,
       to: jid,
       type: messageType,
-      mediaBytes: mediaData ? mediaData.length : 0,
+      mediaBytes: Array.isArray(command.media_data)
+        ? command.media_data.length
+        : 0,
       replyTo: replyTo || null,
       replyToSender: replyToSender || null,
-      correlationId,
+      correlationId: command.correlation_id,
       pendingMessageId,
     },
     "Published send message",
@@ -486,45 +521,67 @@ export async function publishRemoveLabel(
  * Subscribes to a NATS subject using JetStream for event streams
  * This ensures we receive messages published via JetStream
  */
+export const API_EVENTS_CONSUMER = "whatsapp-api-events-v1";
+export const API_EVENTS_DELIVER_SUBJECT = "WHATSAPP.api.events.delivery";
+export const API_EVENTS_QUEUE = "whatsapp-api-events";
+
+/**
+ * Build the durable consumer used by every API replica.
+ *
+ * A stable durable name retains events while the API is offline. The queue
+ * group ensures that horizontally-scaled API instances process each event
+ * once, while explicit acknowledgements only advance after persistence.
+ */
+export function buildEventConsumerOptions(
+  subject: string,
+): ConsumerOptsBuilder {
+  const opts = consumerOpts();
+  opts.durable(API_EVENTS_CONSUMER);
+  opts.deliverTo(API_EVENTS_DELIVER_SUBJECT);
+  opts.queue(API_EVENTS_QUEUE);
+  opts.deliverAll();
+  opts.manualAck();
+  opts.ackExplicit();
+  opts.ackWait(60_000);
+  opts.maxDeliver(10);
+  opts.maxAckPending(128);
+  opts.filterSubject(subject);
+  opts.replayInstantly();
+  return opts;
+}
+
 export async function subscribe(
   subject: string,
   callback: (event: WhatsAppEvent) => void | Promise<void>,
 ): Promise<JetStreamSubscription> {
   const js = await getJetStreamClient();
-  // Note: We used to get the nats connection for inbox prefix, but now use static prefix
-  await getNatsConnection(); // Ensure connection is established
-
-  // Create an ephemeral push consumer with a unique deliver subject
-  // This allows receiving messages published to JetStream
-  const inbox =
-    "_INBOX." + nowMs() + "." + Math.random().toString(36).substring(7);
-
-  const subscription = await js.subscribe(subject, {
-    config: {
-      deliver_policy: "new",
-      ack_policy: "none",
-      replay_policy: "instant",
-      deliver_subject: inbox,
-    },
-  } as unknown as nats.ConsumerOptsBuilder);
+  const subscription = await js.subscribe(
+    subject,
+    buildEventConsumerOptions(subject),
+  );
 
   (async () => {
     for await (const msg of subscription) {
       try {
         const event = jc.decode(msg.data) as WhatsAppEvent;
         await callback(event);
+        msg.ack();
       } catch (error) {
         logger.error(
           { ...formatError(error), subject },
-          "Error processing message",
+          "Error processing message; scheduling redelivery",
         );
+        msg.nak(1_000);
       }
     }
   })().catch((err) => {
     logger.error({ ...formatError(err), subject }, "Subscription error");
   });
 
-  logger.info({ subject }, "Subscribed to subject via JetStream");
+  logger.info(
+    { subject, durable: API_EVENTS_CONSUMER },
+    "Subscribed to subject via durable JetStream consumer",
+  );
   return subscription;
 }
 
@@ -636,6 +693,26 @@ export async function publishSyncCatalogProducts(
 /**
  * Publishes a send reaction command
  */
+export function buildSendReactionCommand(
+  connectionId: string,
+  chatJid: string,
+  targetMessageId: string,
+  emoji: string,
+  userId: string,
+  fromMe: boolean,
+): Record<string, unknown> {
+  return {
+    message_id: `reaction_${nowMs()}`, // Temporary ID for tracking
+    connection_id: connectionId,
+    to: chatJid,
+    type: "reaction" as MessageType,
+    target_message_id: targetMessageId,
+    emoji,
+    user_id: userId,
+    from_me: fromMe,
+  };
+}
+
 export async function publishSendReaction(
   companyId: string,
   connectionId: string,
@@ -645,29 +722,18 @@ export async function publishSendReaction(
   userId: string,
   fromMe: boolean,
 ): Promise<void> {
-  const sendCommand = {
-    message_id: `reaction_${nowMs()}`, // Temporary ID for tracking
-    connection_id: connectionId,
-    to: chatJid,
-    type: "reaction" as MessageType,
-    target_message_id: targetMessageId,
+  const sendCommand = buildSendReactionCommand(
+    connectionId,
+    chatJid,
+    targetMessageId,
     emoji,
-    user_id: userId,
-    from_me: fromMe, // Add from_me flag
-  };
-
-  const js = await getJetStreamClient();
+    userId,
+    fromMe,
+  );
   const subject = buildCommandSubject(companyId, connectionId);
-  const data = jc.encode(sendCommand);
-  await js.publish(subject, data);
+  await publishOutboxCommand(subject, sendCommand);
   logger.debug(
-    {
-      subject,
-      chatJid,
-      targetMessageId,
-      emoji,
-      fromMe,
-    },
+    { subject, chatJid, targetMessageId, emoji, fromMe },
     "Published send reaction",
   );
 }

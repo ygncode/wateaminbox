@@ -59,6 +59,7 @@ type SendMessageCommand struct {
 	FromMe          bool   `json:"from_me"`           // Whether the target message is from us (for reaction type)
 	// Debugging/tracing
 	CorrelationID string `json:"correlation_id,omitempty"` // For end-to-end message flow tracing
+	CommandID     string `json:"command_id,omitempty"`
 }
 
 // MessageSender is the interface for sending WhatsApp messages.
@@ -79,6 +80,15 @@ type TypingSender interface {
 	SendChatPresence(ctx context.Context, jid string, isTyping bool) error
 }
 
+type CommandExecutor interface {
+	PostStatus(ctx context.Context, statusType, content, mediaURL string) (types.SendResponse, error)
+	UpdateGroupParticipant(ctx context.Context, groupJID, participantJID, action string) error
+	UpdateGroupSettings(ctx context.Context, groupJID string, name, description *string) error
+	SyncLabels(ctx context.Context) ([]types.WhatsAppLabel, error)
+	ApplyLabel(ctx context.Context, contactJID, labelID string, labeled bool) error
+	SyncCatalog(ctx context.Context, catalogID string) (types.Catalog, error)
+}
+
 // ProfilePictureFetcher fetches and stores a WhatsApp profile picture.
 type ProfilePictureFetcher interface {
 	FetchProfilePicture(jid string) string
@@ -90,6 +100,32 @@ type TypingCommand struct {
 	JID  string `json:"jid"`
 }
 
+type PostStatusCommand struct {
+	Type       string `json:"type"`
+	StatusType string `json:"status_type"`
+	Content    string `json:"content"`
+	MediaURL   string `json:"media_url"`
+}
+
+type GroupCommand struct {
+	Type           string  `json:"type"`
+	GroupJID       string  `json:"group_jid"`
+	ParticipantJID string  `json:"participant_jid"`
+	Name           *string `json:"name"`
+	Description    *string `json:"description"`
+}
+
+type LabelCommand struct {
+	Type       string `json:"type"`
+	LabelID    string `json:"label_id"`
+	ContactJID string `json:"contact_jid"`
+}
+
+type CatalogCommand struct {
+	Type      string `json:"type"`
+	CatalogID string `json:"catalog_id"`
+}
+
 // Subscriber handles subscribing to NATS command subjects.
 type Subscriber struct {
 	nc             *nats.Conn
@@ -99,6 +135,7 @@ type Subscriber struct {
 	sender         MessageSender
 	blocker        ContactBlocker
 	typingSender   TypingSender
+	executor       CommandExecutor
 	profileFetcher ProfilePictureFetcher
 	publisher      *Publisher
 	sub            *nats.Subscription
@@ -114,6 +151,7 @@ type SubscriberConfig struct {
 	Sender         MessageSender
 	Blocker        ContactBlocker
 	TypingSender   TypingSender
+	Executor       CommandExecutor
 	ProfileFetcher ProfilePictureFetcher
 	Publisher      *Publisher
 }
@@ -155,6 +193,7 @@ func NewSubscriber(cfg SubscriberConfig) (*Subscriber, error) {
 		sender:         cfg.Sender,
 		blocker:        cfg.Blocker,
 		typingSender:   cfg.TypingSender,
+		executor:       cfg.Executor,
 		profileFetcher: cfg.ProfileFetcher,
 		publisher:      cfg.Publisher,
 		ctx:            ctx,
@@ -168,17 +207,16 @@ func (s *Subscriber) Start() error {
 	consumerName := fmt.Sprintf(ConsumerSend, s.companyID, s.connectionID)
 
 	// Ensure the consumer exists
-	_, err := s.js.ConsumerInfo(CommandsStreamName, consumerName)
+	info, err := s.js.ConsumerInfo(CommandsStreamName, consumerName)
 	if err != nil {
 		if err == nats.ErrConsumerNotFound {
-			// Create durable consumer
 			_, err = s.js.AddConsumer(CommandsStreamName, &nats.ConsumerConfig{
 				Durable:       consumerName,
 				FilterSubject: subject,
 				AckPolicy:     nats.AckExplicitPolicy,
 				DeliverPolicy: nats.DeliverNewPolicy,
-				MaxDeliver:    3, // Retry up to 3 times
-				AckWait:       30 * time.Second,
+				MaxDeliver:    3,
+				AckWait:       2 * time.Minute,
 			})
 			if err != nil {
 				return fmt.Errorf("failed to create consumer: %w", err)
@@ -186,6 +224,12 @@ func (s *Subscriber) Start() error {
 			log.Printf("Created consumer: %s", consumerName)
 		} else {
 			return fmt.Errorf("failed to get consumer info: %w", err)
+		}
+	} else if info.Config.AckWait < 2*time.Minute {
+		config := info.Config
+		config.AckWait = 2 * time.Minute
+		if _, err = s.js.UpdateConsumer(CommandsStreamName, &config); err != nil {
+			return fmt.Errorf("failed to update consumer ack wait: %w", err)
 		}
 	}
 
@@ -269,6 +313,14 @@ func (s *Subscriber) handleCommand(msg *nats.Msg) {
 		s.handleTypingCommand(msg, ct.Type)
 	case "fetch_profile_picture":
 		s.handleFetchProfilePictureCommand(msg)
+	case "post_status":
+		s.handlePostStatusCommand(msg)
+	case "group_promote_admin", "group_demote_admin", "group_remove_participant", "group_update_settings":
+		s.handleGroupCommand(msg, ct.Type)
+	case "sync_labels", "apply_label", "remove_label":
+		s.handleLabelCommand(msg, ct.Type)
+	case "sync_catalogs", "sync_catalog_products":
+		s.handleCatalogCommand(msg, ct.Type)
 	case "spawn", "kill", "status":
 		// These commands are consumed by the orchestrator. A worker can also see
 		// them because both consumers subscribe to its connection subject; ACK so
@@ -357,7 +409,11 @@ func (s *Subscriber) handleSendCommand(msg *nats.Msg) {
 			log.Printf("[NATS] Max retries exceeded: msg_id=%s corr_id=%s - marking as failed", cmd.MessageID, correlationID)
 			// Publish failure event
 			if s.publisher != nil {
-				if pubErr := s.publisher.PublishSendFailed(cmd.MessageID, err.Error(), correlationID); pubErr != nil {
+				if cmd.Type == "reaction" {
+					if pubErr := s.publisher.PublishCommandResult(cmd.CommandID, cmd.Type, false, err.Error()); pubErr != nil {
+						log.Printf("[NATS] Failed to publish reaction failure: %v", pubErr)
+					}
+				} else if pubErr := s.publisher.PublishSendFailed(cmd.MessageID, err.Error(), correlationID); pubErr != nil {
 					log.Printf("[NATS] Failed to publish send_failed: msg_id=%s corr_id=%s error=%v", cmd.MessageID, correlationID, pubErr)
 				} else {
 					log.Printf("[NATS] Published send_failed: msg_id=%s corr_id=%s", cmd.MessageID, correlationID)
@@ -398,8 +454,7 @@ func (s *Subscriber) handleBlockCommand(msg *nats.Msg, cmdType string) {
 	}
 
 	if s.blocker == nil {
-		log.Printf("Block command received but blocker not configured")
-		msg.Nak()
+		s.retryCommand(msg, cmdType, fmt.Errorf("blocker not configured"))
 		return
 	}
 
@@ -416,8 +471,7 @@ func (s *Subscriber) handleBlockCommand(msg *nats.Msg, cmdType string) {
 	}
 
 	if err != nil {
-		log.Printf("Failed to %s contact %s: %v", cmdType, cmd.ContactJID, err)
-		msg.Nak()
+		s.retryCommand(msg, cmdType, err)
 		return
 	}
 
@@ -478,6 +532,143 @@ func (s *Subscriber) handleFetchProfilePictureCommand(msg *nats.Msg) {
 	); err != nil {
 		log.Printf("Failed to publish participant profile picture: %v", err)
 		msg.Nak()
+		return
+	}
+	msg.Ack()
+}
+
+func commandDeliveryCount(msg *nats.Msg) uint64 {
+	metadata, err := msg.Metadata()
+	if err != nil || metadata == nil {
+		return 1
+	}
+	return metadata.NumDelivered
+}
+
+func (s *Subscriber) retryCommand(msg *nats.Msg, commandType string, err error) {
+	attempt := commandDeliveryCount(msg)
+	if attempt >= 3 {
+		log.Printf("[NATS] Command %s failed permanently after %d attempts: %v", commandType, attempt, err)
+		var envelope struct {
+			CommandID string `json:"command_id"`
+		}
+		_ = json.Unmarshal(msg.Data, &envelope)
+		if s.publisher != nil {
+			if publishErr := s.publisher.PublishCommandResult(envelope.CommandID, commandType, false, err.Error()); publishErr != nil {
+				log.Printf("[NATS] Failed to publish command failure result: %v", publishErr)
+			}
+		}
+		msg.Ack()
+		return
+	}
+	log.Printf("[NATS] Command %s failed on attempt %d/3: %v", commandType, attempt, err)
+	msg.Nak()
+}
+
+func (s *Subscriber) handlePostStatusCommand(msg *nats.Msg) {
+	var cmd PostStatusCommand
+	if err := json.Unmarshal(msg.Data, &cmd); err != nil {
+		s.retryCommand(msg, "post_status", err)
+		return
+	}
+	if s.executor == nil {
+		s.retryCommand(msg, cmd.Type, fmt.Errorf("command executor not configured"))
+		return
+	}
+	ctx, cancel := context.WithTimeout(s.ctx, 90*time.Second)
+	defer cancel()
+	if _, err := s.executor.PostStatus(ctx, cmd.StatusType, cmd.Content, cmd.MediaURL); err != nil {
+		s.retryCommand(msg, cmd.Type, err)
+		return
+	}
+	msg.Ack()
+}
+
+func (s *Subscriber) handleGroupCommand(msg *nats.Msg, commandType string) {
+	var cmd GroupCommand
+	if err := json.Unmarshal(msg.Data, &cmd); err != nil {
+		s.retryCommand(msg, commandType, err)
+		return
+	}
+	if s.executor == nil {
+		s.retryCommand(msg, commandType, fmt.Errorf("command executor not configured"))
+		return
+	}
+	ctx, cancel := context.WithTimeout(s.ctx, 60*time.Second)
+	defer cancel()
+	var err error
+	switch commandType {
+	case "group_promote_admin":
+		err = s.executor.UpdateGroupParticipant(ctx, cmd.GroupJID, cmd.ParticipantJID, "promote")
+	case "group_demote_admin":
+		err = s.executor.UpdateGroupParticipant(ctx, cmd.GroupJID, cmd.ParticipantJID, "demote")
+	case "group_remove_participant":
+		err = s.executor.UpdateGroupParticipant(ctx, cmd.GroupJID, cmd.ParticipantJID, "remove")
+	case "group_update_settings":
+		err = s.executor.UpdateGroupSettings(ctx, cmd.GroupJID, cmd.Name, cmd.Description)
+	}
+	if err != nil {
+		s.retryCommand(msg, commandType, err)
+		return
+	}
+	msg.Ack()
+}
+
+func (s *Subscriber) handleLabelCommand(msg *nats.Msg, commandType string) {
+	var cmd LabelCommand
+	if err := json.Unmarshal(msg.Data, &cmd); err != nil {
+		s.retryCommand(msg, commandType, err)
+		return
+	}
+	if s.executor == nil {
+		s.retryCommand(msg, commandType, fmt.Errorf("command executor not configured"))
+		return
+	}
+	ctx, cancel := context.WithTimeout(s.ctx, 90*time.Second)
+	defer cancel()
+	if commandType == "sync_labels" {
+		labels, err := s.executor.SyncLabels(ctx)
+		if err != nil {
+			s.retryCommand(msg, commandType, err)
+			return
+		}
+		if s.publisher == nil {
+			s.retryCommand(msg, commandType, fmt.Errorf("publisher not configured"))
+			return
+		}
+		if err = s.publisher.PublishLabels(labels); err != nil {
+			s.retryCommand(msg, commandType, err)
+			return
+		}
+		msg.Ack()
+		return
+	}
+	if err := s.executor.ApplyLabel(ctx, cmd.ContactJID, cmd.LabelID, commandType == "apply_label"); err != nil {
+		s.retryCommand(msg, commandType, err)
+		return
+	}
+	msg.Ack()
+}
+
+func (s *Subscriber) handleCatalogCommand(msg *nats.Msg, commandType string) {
+	var cmd CatalogCommand
+	if err := json.Unmarshal(msg.Data, &cmd); err != nil {
+		s.retryCommand(msg, commandType, err)
+		return
+	}
+	if s.executor == nil || s.publisher == nil {
+		s.retryCommand(msg, commandType, fmt.Errorf("catalog executor or publisher not configured"))
+		return
+	}
+	ctx, cancel := context.WithTimeout(s.ctx, 90*time.Second)
+	defer cancel()
+	catalog, err := s.executor.SyncCatalog(ctx, cmd.CatalogID)
+	if err != nil {
+		s.retryCommand(msg, commandType, err)
+		return
+	}
+	if err = s.publisher.PublishCatalog(catalog); err != nil {
+		s.retryCommand(msg, commandType, err)
 		return
 	}
 	msg.Ack()

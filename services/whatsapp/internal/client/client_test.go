@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	waBinary "go.mau.fi/whatsmeow/binary"
 )
 
 // TestCalculateBackoff_TransientPhase tests the exponential backoff in transient phase.
@@ -517,6 +519,19 @@ func TestIsConnected(t *testing.T) {
 
 	// Note: c.IsConnected() would also require c.client to be non-nil and IsConnected() on the client
 	// which requires full whatsmeow client setup
+}
+
+func TestCatalogNodeHelpers(t *testing.T) {
+	node := waBinary.Node{
+		Tag:     "product",
+		Attrs:   waBinary.Attrs{"id": "product-1"},
+		Content: []waBinary.Node{{Tag: "name", Content: []byte("Tea")}},
+	}
+	assert.Equal(t, "product-1", nodeAttr(node, "id"))
+	assert.Equal(t, "Tea", nodeText(node, "name"))
+	var products []waBinary.Node
+	collectNodes(waBinary.Node{Tag: "catalog", Content: []waBinary.Node{node}}, "product", &products)
+	require.Len(t, products, 1)
 }
 
 // TestSetStatusCallback tests the status callback setter.

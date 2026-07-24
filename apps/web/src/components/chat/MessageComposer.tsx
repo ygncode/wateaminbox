@@ -17,9 +17,6 @@ import { useClickOutside, useTextareaAutoResize } from "../../hooks/ui";
 // This keeps the emoji data (~1200 lines) out of the initial bundle
 const EmojiInputPicker = lazy(() => import("./EmojiInputPicker"));
 
-// JID suffix for WhatsApp individual chats
-const WHATSAPP_JID_SUFFIX = "@s.whatsapp.net";
-
 /**
  * Skeleton loading state for the emoji picker
  * Shows a placeholder while the emoji picker chunk loads
@@ -80,6 +77,7 @@ const TYPING_IDLE_MS = 3000; // Clear state after 3 seconds of no typing (no typ
 
 interface MessageComposerProps {
   conversationId: string | undefined;
+  contactId: string | undefined;
   replyToMessage: Message | null;
   onClearReply: () => void;
   onSendMessage: (content: string, replyToMessageId?: string) => void;
@@ -90,6 +88,7 @@ interface MessageComposerProps {
 
 export function MessageComposer({
   conversationId,
+  contactId,
   replyToMessage,
   onClearReply,
   onSendMessage,
@@ -180,7 +179,7 @@ export function MessageComposer({
     setMessage(newValue);
 
     // Only emit typing if we have a conversationId and content
-    if (!conversationId || !newValue.trim()) {
+    if (!conversationId || !contactId || !newValue.trim()) {
       // User cleared input - just clear state (don't send typing:stop to avoid cooldown)
       if (currentTypingJidRef.current) {
         clearTypingState();
@@ -188,10 +187,7 @@ export function MessageComposer({
       return;
     }
 
-    // Build the JID for typing indicator
-    const jid = conversationId.includes("@")
-      ? conversationId
-      : `${conversationId}${WHATSAPP_JID_SUFFIX}`;
+    const jid = conversationId;
 
     const now = Date.now();
     const timeSinceLastSent = now - lastTypingSentTimeRef.current;
@@ -199,7 +195,7 @@ export function MessageComposer({
 
     // Send typing:start if: new JID, or 2+ seconds since last send
     if (isNewJid || timeSinceLastSent >= TYPING_REFRESH_MS) {
-      sendTypingStart(jid);
+      sendTypingStart(jid, contactId);
       currentTypingJidRef.current = jid;
       lastTypingSentTimeRef.current = now;
     }

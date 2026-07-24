@@ -18,6 +18,10 @@ import {
   type DownloadResponseEvent,
   type SyncStatusEvent,
   type WorkerConnectionStatusEvent,
+  type LabelsEvent,
+  type CatalogsEvent,
+  type CatalogProductsEvent,
+  type CommandResultEvent,
 } from "../lib/nats/index.js";
 import { createLogger, formatError } from "../lib/logger.js";
 
@@ -41,6 +45,10 @@ import {
   handleDownloadResponseEvent,
   handleSyncStatusEvent,
   handleErrorEvent,
+  handleLabelsEvent,
+  handleCatalogsEvent,
+  handleCatalogProductsEvent,
+  handleCommandResultEvent,
 } from "./handlers/index.js";
 
 const logger = createLogger("MessageHandler");
@@ -48,6 +56,7 @@ const logger = createLogger("MessageHandler");
 // Subscription handle
 let eventSubscription: JetStreamSubscription | null = null;
 let isInitialized = false;
+let isShuttingDown = false;
 
 /**
  * Initializes the message event handler
@@ -60,32 +69,30 @@ export async function initializeMessageHandler(): Promise<void> {
     return;
   }
 
-  const maxRetries = 10;
   const retryDelayMs = 3000;
+  let attempt = 0;
+  isShuttingDown = false;
 
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+  // Keep trying for the lifetime of the API process. Starting the HTTP server
+  // without an event consumer is acceptable briefly, but silently remaining
+  // disconnected until the next process restart is not.
+  while (!isShuttingDown) {
+    attempt++;
     try {
       eventSubscription = await subscribeToAllEvents(handleWhatsAppEvent);
       isInitialized = true;
-      logger.info("Initialized and subscribed to WhatsApp events");
+      logger.info({ attempt }, "Initialized and subscribed to WhatsApp events");
       return;
     } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
-      const isStreamNotFound = errorMessage.includes(
-        "no stream matches subject",
+      logger.warn(
+        {
+          ...formatError(error),
+          attempt,
+          retryDelaySeconds: retryDelayMs / 1000,
+        },
+        "Failed to initialize event consumer; retrying",
       );
-
-      if (isStreamNotFound && attempt < maxRetries) {
-        logger.info(
-          { attempt, maxRetries, retryDelaySeconds: retryDelayMs / 1000 },
-          "Streams not ready, retrying...",
-        );
-        await new Promise((resolve) => setTimeout(resolve, retryDelayMs));
-      } else {
-        logger.error(formatError(error), "Failed to initialize");
-        throw error;
-      }
+      await new Promise((resolve) => setTimeout(resolve, retryDelayMs));
     }
   }
 }
@@ -94,6 +101,7 @@ export async function initializeMessageHandler(): Promise<void> {
  * Shuts down the message event handler
  */
 export async function shutdownMessageHandler(): Promise<void> {
+  isShuttingDown = true;
   if (eventSubscription) {
     eventSubscription.unsubscribe();
     eventSubscription = null;
@@ -187,6 +195,22 @@ export async function handleWhatsAppEvent(event: WhatsAppEvent): Promise<void> {
         await handleSyncStatusEvent(event as SyncStatusEvent);
         break;
 
+      case "labels":
+        await handleLabelsEvent(event as LabelsEvent);
+        break;
+
+      case "catalogs":
+        await handleCatalogsEvent(event as CatalogsEvent);
+        break;
+
+      case "catalog_products":
+        await handleCatalogProductsEvent(event as CatalogProductsEvent);
+        break;
+
+      case "command_result":
+        await handleCommandResultEvent(event as CommandResultEvent);
+        break;
+
       case "error":
         await handleErrorEvent(event);
         break;
@@ -196,6 +220,7 @@ export async function handleWhatsAppEvent(event: WhatsAppEvent): Promise<void> {
     }
   } catch (error) {
     logger.error({ ...formatError(error), type }, "Error processing event");
+    throw error;
   }
 }
 

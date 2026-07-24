@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	natsgo "github.com/nats-io/nats.go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -41,9 +42,50 @@ func (m *mockMessageSender) SendReaction(ctx context.Context, chatJID string, me
 	return types.SendResponse{}, nil
 }
 
+type mockCommandExecutor struct {
+	groupAction string
+	groupJID    string
+	participant string
+	statusType  string
+}
+
+func (m *mockCommandExecutor) PostStatus(_ context.Context, statusType, _, _ string) (types.SendResponse, error) {
+	m.statusType = statusType
+	return types.SendResponse{}, nil
+}
+func (m *mockCommandExecutor) UpdateGroupParticipant(_ context.Context, groupJID, participantJID, action string) error {
+	m.groupJID, m.participant, m.groupAction = groupJID, participantJID, action
+	return nil
+}
+func (m *mockCommandExecutor) UpdateGroupSettings(context.Context, string, *string, *string) error {
+	return nil
+}
+func (m *mockCommandExecutor) SyncLabels(context.Context) ([]types.WhatsAppLabel, error) {
+	return nil, nil
+}
+func (m *mockCommandExecutor) ApplyLabel(context.Context, string, string, bool) error {
+	return nil
+}
+func (m *mockCommandExecutor) SyncCatalog(context.Context, string) (types.Catalog, error) {
+	return types.Catalog{}, nil
+}
+
+func TestCommandHandlersInvokeExecutor(t *testing.T) {
+	executor := &mockCommandExecutor{}
+	subscriber := &Subscriber{ctx: context.Background(), executor: executor}
+
+	subscriber.handleGroupCommand(&natsgo.Msg{Data: []byte(`{"type":"group_promote_admin","group_jid":"1@g.us","participant_jid":"2@s.whatsapp.net"}`)}, "group_promote_admin")
+	assert.Equal(t, "promote", executor.groupAction)
+	assert.Equal(t, "1@g.us", executor.groupJID)
+	assert.Equal(t, "2@s.whatsapp.net", executor.participant)
+
+	subscriber.handlePostStatusCommand(&natsgo.Msg{Data: []byte(`{"type":"post_status","status_type":"text","content":"hello"}`)})
+	assert.Equal(t, "text", executor.statusType)
+}
+
 // TestSendMessageCommand_AllTypes tests that all message types are recognized.
 func TestSendMessageCommand_AllTypes(t *testing.T) {
-	validTypes := []string{"text", "image", "video", "audio", "document"}
+	validTypes := []string{"text", "image", "video", "audio", "document", "sticker"}
 
 	for _, msgType := range validTypes {
 		t.Run(msgType, func(t *testing.T) {
@@ -210,6 +252,7 @@ func TestMessageSender_SendMediaMessage_AllTypes(t *testing.T) {
 		{"video", "video/mp4"},
 		{"audio", "audio/ogg; codecs=opus"},
 		{"document", "application/pdf"},
+		{"sticker", "image/webp"},
 	}
 
 	for _, mt := range mediaTypes {
@@ -232,6 +275,25 @@ func TestMessageSender_SendMediaMessage_AllTypes(t *testing.T) {
 			assert.NoError(t, err)
 			assert.Equal(t, mt.mediaType, receivedType)
 			assert.NotEmpty(t, resp.ID)
+		})
+	}
+}
+
+func TestBusinessCommandContracts(t *testing.T) {
+	tests := []struct {
+		name    string
+		payload string
+		target  interface{}
+	}{
+		{"post status", `{"type":"post_status","status_type":"text","content":"hello"}`, &PostStatusCommand{}},
+		{"promote group member", `{"type":"group_promote_admin","group_jid":"1@g.us","participant_jid":"2@s.whatsapp.net"}`, &GroupCommand{}},
+		{"sync labels", `{"type":"sync_labels"}`, &LabelCommand{}},
+		{"apply label", `{"type":"apply_label","label_id":"7","contact_jid":"2@s.whatsapp.net"}`, &LabelCommand{}},
+		{"sync catalog", `{"type":"sync_catalog_products","catalog_id":"catalog-1"}`, &CatalogCommand{}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.NoError(t, json.Unmarshal([]byte(tt.payload), tt.target))
 		})
 	}
 }

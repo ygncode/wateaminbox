@@ -71,7 +71,7 @@ func (r *WorkerRegistry) RegisterWorker(ctx context.Context, w *WorkerProcess) e
 			status = EXCLUDED.status,
 			started_at = EXCLUDED.started_at,
 			last_heartbeat = EXCLUDED.last_heartbeat
-	`, w.ConnectionID, w.CompanyID, w.TenantSchema, w.DatabaseURL, w.PID, w.Status, now, w.RestartCount)
+	`, w.ConnectionID, w.CompanyID, w.TenantSchema, "", w.PID, w.Status, now, w.RestartCount)
 	if err != nil {
 		return fmt.Errorf("failed to register worker: %w", err)
 	}

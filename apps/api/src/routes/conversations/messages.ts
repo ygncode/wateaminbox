@@ -7,7 +7,11 @@ import {
   type MessageDbRow,
   type ReactionData,
 } from "../../lib/message-formatters.js";
-import { publishSendMessage } from "../../lib/nats/index.js";
+import {
+  buildCommandSubject,
+  buildSendMessageCommand,
+} from "../../lib/nats/index.js";
+import { enqueueCommand } from "../../services/command-outbox.service.js";
 import { successData, successWithMessage } from "../../lib/response.js";
 import {
   listConversationMessagesQuerySchema,
@@ -147,15 +151,17 @@ messageRoutes.post(
       return notFound(c, "Contact");
     }
 
-    // Get active WhatsApp connection
-    const connection = await tenantDb
-      .selectFrom("whatsapp_connections")
-      .select(["id", "jid"])
-      .where("status", "=", "connected")
-      .executeTakeFirst();
+    const connection = contact.whatsapp_connection_id
+      ? await tenantDb
+          .selectFrom("whatsapp_connections")
+          .select(["id", "jid"])
+          .where("id", "=", contact.whatsapp_connection_id)
+          .where("status", "=", "connected")
+          .executeTakeFirst()
+      : null;
 
     if (!connection) {
-      return badRequest(c, "No active WhatsApp connection");
+      return badRequest(c, "The contact's WhatsApp connection is not active");
     }
 
     // Auto-assign contact to the user if unassigned
@@ -187,39 +193,43 @@ messageRoutes.post(
     const messageId = crypto.randomUUID();
     const waMessageId = `pending_${messageId}`;
 
-    await tenantDb
-      .insertInto("messages")
-      .values({
-        id: messageId,
-        contact_id: contactId,
-        whatsapp_connection_id: connection.id,
-        message_id: waMessageId,
-        from_me: true,
-        sender_jid: null,
-        message_type: messageType,
-        content,
-        media_url: mediaUrl || null,
-        quoted_message_id: quotedWaMessageId || null,
-        sent_by_user_id: user.id,
-        status: "pending",
-        timestamp: new Date(),
-        created_at: new Date(),
-      })
-      .execute();
-
-    // Publish send command to NATS
-    await publishSendMessage(
-      companyId,
+    const sendCommand = await buildSendMessageCommand(
       connection.id,
       contact.jid,
       content ?? "",
       messageType,
       user.id,
-      messageId,
+      waMessageId,
       mediaUrl,
       quotedWaMessageId,
       quotedSenderJid,
     );
+    await tenantDb.transaction().execute(async (trx) => {
+      await trx
+        .insertInto("messages")
+        .values({
+          id: messageId,
+          contact_id: contactId,
+          whatsapp_connection_id: connection.id,
+          message_id: waMessageId,
+          from_me: true,
+          sender_jid: null,
+          message_type: messageType,
+          content,
+          media_url: mediaUrl || null,
+          quoted_message_id: quotedWaMessageId || null,
+          sent_by_user_id: user.id,
+          status: "pending",
+          timestamp: new Date(),
+          created_at: new Date(),
+        })
+        .execute();
+      await enqueueCommand(
+        trx,
+        buildCommandSubject(companyId, connection.id),
+        sendCommand,
+      );
+    });
 
     return successWithMessage(c, "Message queued", {
       message: {

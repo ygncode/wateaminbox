@@ -5,11 +5,7 @@
  */
 import { Hono } from "hono";
 import { notFound, badRequest, forbidden } from "../../lib/errors.js";
-import {
-  publishGroupPromoteAdmin,
-  publishGroupDemoteAdmin,
-  publishGroupRemoveParticipant,
-} from "../../lib/nats/index.js";
+import { enqueueConnectionCommand } from "../../services/command-outbox.service.js";
 import { successWithMessage } from "../../lib/response.js";
 import { getRouteContext } from "../../middleware/context.js";
 import { createAuditLog, getClientIp } from "../../services/audit.service.js";
@@ -80,21 +76,20 @@ memberRoutes.post("/:id/participants/:participantJid/promote", async (c) => {
     return badRequest(c, "Participant is already an admin");
   }
 
-  // Update local database
-  await tenantDb
-    .updateTable("group_participants")
-    .set({ is_admin: true })
-    .where("id", "=", participant.id)
-    .execute();
-
-  // Publish NATS command to WhatsApp service
-  await publishGroupPromoteAdmin(
-    companyId,
-    contact.whatsapp_connection_id,
-    contact.jid,
-    participantJid,
-    userId,
-  );
+  await tenantDb.transaction().execute(async (trx) => {
+    await trx
+      .updateTable("group_participants")
+      .set({ is_admin: true })
+      .where("id", "=", participant.id)
+      .execute();
+    await enqueueConnectionCommand(
+      trx,
+      companyId,
+      contact.whatsapp_connection_id!,
+      (publisher) =>
+        publisher.groupPromoteAdmin(contact.jid!, participantJid, userId),
+    );
+  });
 
   // Create audit log
   await createAuditLog({
@@ -180,21 +175,20 @@ memberRoutes.post("/:id/participants/:participantJid/demote", async (c) => {
     return badRequest(c, "Participant is not an admin");
   }
 
-  // Update local database
-  await tenantDb
-    .updateTable("group_participants")
-    .set({ is_admin: false })
-    .where("id", "=", participant.id)
-    .execute();
-
-  // Publish NATS command to WhatsApp service
-  await publishGroupDemoteAdmin(
-    companyId,
-    contact.whatsapp_connection_id,
-    contact.jid,
-    participantJid,
-    userId,
-  );
+  await tenantDb.transaction().execute(async (trx) => {
+    await trx
+      .updateTable("group_participants")
+      .set({ is_admin: false })
+      .where("id", "=", participant.id)
+      .execute();
+    await enqueueConnectionCommand(
+      trx,
+      companyId,
+      contact.whatsapp_connection_id!,
+      (publisher) =>
+        publisher.groupDemoteAdmin(contact.jid!, participantJid, userId),
+    );
+  });
 
   // Create audit log
   await createAuditLog({
@@ -281,27 +275,26 @@ memberRoutes.delete("/:id/participants/:participantJid", async (c) => {
     return badRequest(c, "Cannot remove yourself from the group");
   }
 
-  // Remove from local database
-  await tenantDb
-    .deleteFrom("group_participants")
-    .where("id", "=", participant.id)
-    .execute();
-
-  // Update participant count
-  await tenantDb
-    .updateTable("groups")
-    .set({ participant_count: Math.max(0, (group.participant_count || 1) - 1) })
-    .where("id", "=", group.id)
-    .execute();
-
-  // Publish NATS command to WhatsApp service
-  await publishGroupRemoveParticipant(
-    companyId,
-    contact.whatsapp_connection_id,
-    contact.jid,
-    participantJid,
-    userId,
-  );
+  await tenantDb.transaction().execute(async (trx) => {
+    await trx
+      .deleteFrom("group_participants")
+      .where("id", "=", participant.id)
+      .execute();
+    await trx
+      .updateTable("groups")
+      .set({
+        participant_count: Math.max(0, (group.participant_count || 1) - 1),
+      })
+      .where("id", "=", group.id)
+      .execute();
+    await enqueueConnectionCommand(
+      trx,
+      companyId,
+      contact.whatsapp_connection_id!,
+      (publisher) =>
+        publisher.groupRemoveParticipant(contact.jid!, participantJid, userId),
+    );
+  });
 
   // Create audit log
   await createAuditLog({

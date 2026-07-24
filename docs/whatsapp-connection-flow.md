@@ -5,7 +5,7 @@
 1. An admin posts to `/api/whatsapp/connections`.
 2. The API validates tenant membership, role, and the company's connection limit.
 3. A pending `whatsapp_connections` row is created in the tenant schema.
-4. The API publishes a spawn command to `WHATSAPP.commands.{companyId}.{connectionId}`.
+4. In the same transaction, the API writes a spawn command to the tenant command outbox. The dispatcher publishes it to `WHATSAPP.commands.{companyId}.{connectionId}` with a stable deduplication ID.
 5. The Go orchestrator starts a dedicated WhatsApp worker.
 6. The worker initializes whatsmeow and requests a QR code.
 7. QR and connection events travel from the worker through NATS to the API.
@@ -28,7 +28,7 @@ pending -> connecting -> connected
           disconnected
 ```
 
-The orchestrator persists worker metadata and handles process lifecycle. Disconnect and delete operations publish kill commands before updating tenant state.
+The orchestrator persists non-secret worker metadata and handles process lifecycle. Its durable consumer retains commands published while it is offline. Disconnect and delete operations commit the state change and kill command atomically through the tenant outbox.
 
 ## Main files
 
