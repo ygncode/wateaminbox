@@ -66,6 +66,15 @@ export async function createTenantSchema(companyId: string): Promise<void> {
   const schemaName = getSchemaName(companyId);
   await sql`SELECT setup_tenant_schema(${schemaName})`.execute(baseTenantDb);
 
+  // setup_tenant_schema predates persisted QR state. Keep newly-created tenant
+  // schemas aligned with migration 033 so connection reads and QR events do not
+  // fail for companies created after that migration ran.
+  await sql`
+    ALTER TABLE ${sql.raw(`"${schemaName}".whatsapp_connections`)}
+    ADD COLUMN IF NOT EXISTS qr_code TEXT,
+    ADD COLUMN IF NOT EXISTS qr_expires_at TIMESTAMPTZ
+  `.execute(baseTenantDb);
+
   // setup_tenant_schema predates participant display names. Keep newly-created
   // tenant schemas aligned with migration 034 without redefining that large
   // database function in every additive migration.

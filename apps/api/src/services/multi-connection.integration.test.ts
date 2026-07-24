@@ -40,6 +40,20 @@ describe("PostgreSQL tenant and connection isolation", () => {
             .where("id", "=", sharedConnectionId)
             .executeTakeFirst(),
         ).toBeUndefined();
+
+        const qrExpiresAt = new Date(Date.now() + 60_000);
+        await tenantA
+          .updateTable("whatsapp_connections")
+          .set({ qr_code: "test-qr", qr_expires_at: qrExpiresAt })
+          .where("id", "=", sharedConnectionId)
+          .execute();
+        const connection = await tenantA
+          .selectFrom("whatsapp_connections")
+          .select(["qr_code", "qr_expires_at"])
+          .where("id", "=", sharedConnectionId)
+          .executeTakeFirstOrThrow();
+        expect(connection.qr_code).toBe("test-qr");
+        expect(connection.qr_expires_at?.getTime()).toBe(qrExpiresAt.getTime());
       } finally {
         await Promise.all([
           clearTenantConnection(companyA),
