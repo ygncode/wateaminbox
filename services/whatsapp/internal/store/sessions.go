@@ -86,9 +86,17 @@ func (s *PGSQLStore) GetSession(ctx context.Context, address string) ([]byte, er
 
 // GetManySessions retrieves multiple sessions.
 func (s *PGSQLStore) GetManySessions(ctx context.Context, addresses []string) (map[string][]byte, error) {
-	result := make(map[string][]byte)
 	if len(addresses) == 0 {
-		return result, nil
+		return nil, nil
+	}
+
+	// The whatsmeow session cache requires an entry for every requested
+	// address. A nil value means the session is missing and causes whatsmeow to
+	// fetch a pre-key bundle before encrypting. Omitting missing addresses makes
+	// it skip pre-key fetches and send messages that recipients cannot decrypt.
+	result := make(map[string][]byte, len(addresses))
+	for _, address := range addresses {
+		result[address] = nil
 	}
 
 	// Build query with placeholders

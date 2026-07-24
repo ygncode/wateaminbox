@@ -175,6 +175,24 @@ func (c *PGContainer) NewDevice() *store.Device {
 	return device
 }
 
+// hasCompleteDeviceIdentity verifies the cryptographic identity that must be
+// included when establishing new Signal sessions. These values cannot be
+// reconstructed from a linked device after they have been lost.
+func hasCompleteDeviceIdentity(device *store.Device) bool {
+	return device != nil &&
+		device.ID != nil &&
+		device.NoiseKey != nil &&
+		device.IdentityKey != nil &&
+		device.SignedPreKey != nil &&
+		device.SignedPreKey.Signature != nil &&
+		len(device.AdvSecretKey) == 32 &&
+		device.Account != nil &&
+		len(device.Account.Details) > 0 &&
+		len(device.Account.AccountSignature) == 64 &&
+		len(device.Account.AccountSignatureKey) == 32 &&
+		len(device.Account.DeviceSignature) == 64
+}
+
 // GetFirstDevice retrieves the first device for this connection or creates one.
 func (c *PGContainer) GetFirstDevice(ctx context.Context) (*store.Device, error) {
 	devices, err := c.GetAllDevices(ctx)
@@ -186,7 +204,16 @@ func (c *PGContainer) GetFirstDevice(ctx context.Context) (*store.Device, error)
 		return c.NewDevice(), nil
 	}
 
-	return devices[0], nil
+	device := devices[0]
+	if !hasCompleteDeviceIdentity(device) {
+		c.log.Warnf("Stored device identity is incomplete; removing the unsafe session and requiring QR re-pairing")
+		if err = c.DeleteDevice(ctx, device); err != nil {
+			return nil, fmt.Errorf("failed to remove incomplete device identity: %w", err)
+		}
+		return c.NewDevice(), nil
+	}
+
+	return device, nil
 }
 
 // GetDevice retrieves a device by JID.

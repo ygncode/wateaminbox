@@ -3,6 +3,8 @@ package store
 import (
 	"testing"
 
+	"go.mau.fi/whatsmeow/proto/waAdv"
+	"go.mau.fi/whatsmeow/store"
 	"go.mau.fi/whatsmeow/types"
 	waLog "go.mau.fi/whatsmeow/util/log"
 )
@@ -15,6 +17,51 @@ func TestNewDeviceInitializesCurrentWhatsmeowStores(t *testing.T) {
 	}
 	if device.EventBuffer == nil {
 		t.Fatal("event buffer must be initialized to prevent retry/decryption panics")
+	}
+}
+
+func completeTestDevice(t *testing.T) *store.Device {
+	t.Helper()
+	device := (&PGContainer{log: waLog.Noop}).NewDevice()
+	jid, err := types.ParseJID("959428203611:47@s.whatsapp.net")
+	if err != nil {
+		t.Fatal(err)
+	}
+	device.ID = &jid
+	device.Account = &waAdv.ADVSignedDeviceIdentity{
+		Details:             []byte{1},
+		AccountSignature:    make([]byte, 64),
+		AccountSignatureKey: make([]byte, 32),
+		DeviceSignature:     make([]byte, 64),
+	}
+	return device
+}
+
+func TestCompleteDeviceIdentityValidation(t *testing.T) {
+	if !hasCompleteDeviceIdentity(completeTestDevice(t)) {
+		t.Fatal("expected complete device identity to be accepted")
+	}
+
+	tests := map[string]func(*store.Device){
+		"missing device id":         func(device *store.Device) { device.ID = nil },
+		"missing noise key":         func(device *store.Device) { device.NoiseKey = nil },
+		"missing identity key":      func(device *store.Device) { device.IdentityKey = nil },
+		"missing signed pre-key":    func(device *store.Device) { device.SignedPreKey = nil },
+		"missing ADV secret":        func(device *store.Device) { device.AdvSecretKey = nil },
+		"missing signed identity":   func(device *store.Device) { device.Account = nil },
+		"missing account details":   func(device *store.Device) { device.Account.Details = nil },
+		"missing account signature": func(device *store.Device) { device.Account.AccountSignature = nil },
+		"missing account key":       func(device *store.Device) { device.Account.AccountSignatureKey = nil },
+		"missing device signature":  func(device *store.Device) { device.Account.DeviceSignature = nil },
+	}
+	for name, invalidate := range tests {
+		t.Run(name, func(t *testing.T) {
+			device := completeTestDevice(t)
+			invalidate(device)
+			if hasCompleteDeviceIdentity(device) {
+				t.Fatal("expected incomplete device identity to be rejected")
+			}
+		})
 	}
 }
 
