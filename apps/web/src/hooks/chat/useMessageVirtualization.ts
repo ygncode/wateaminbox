@@ -96,6 +96,9 @@ export function useMessageVirtualization({
 
   // Virtualizer setup
   const virtualizer = useVirtualizer({
+    // React 19 can invoke this render while another lifecycle update is active.
+    // Let React schedule TanStack's notification instead of forcing flushSync.
+    useFlushSync: false,
     count: items.length,
     getScrollElement: () => scrollContainerRef.current,
     estimateSize,
