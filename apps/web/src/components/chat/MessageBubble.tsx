@@ -9,14 +9,17 @@ import { MessageContent } from "./MessageContent";
 
 // Lazy load emoji reaction picker - only loaded when user opens it
 const EmojiReactionPicker = lazy(() => import("./EmojiReactionPicker"));
+
 import { MessageContextMenu } from "./MessageContextMenu";
 import { ForwardIcon, ReplyIcon, StarFilledIcon } from "./MessageIcons";
 import { MessageReactions } from "./MessageReactions";
-import { MessageStatusIcon, getErrorMessage } from "./MessageStatusIcon";
+import { getErrorMessage, MessageStatusIcon } from "./MessageStatusIcon";
 
 interface MessageBubbleProps {
   message: Message;
   isOwn: boolean;
+  /** Whether the active conversation is a WhatsApp group. */
+  isGroup?: boolean;
   /** Retry handler passed directly (local to MessageThread) */
   onRetry?: (messageId: string) => void;
   /** Highlight this message (e.g., from search) */
@@ -33,6 +36,7 @@ interface MessageBubbleProps {
 export const MessageBubble = memo(function MessageBubble({
   message,
   isOwn,
+  isGroup = false,
   onRetry,
   isHighlighted = false,
   isRetrying = false,
@@ -145,6 +149,8 @@ export const MessageBubble = memo(function MessageBubble({
         <SelectionCheckbox isOwn={isOwn} isSelected={isSelected} />
       )}
 
+      {isGroup && !isOwn && <GroupParticipantAvatar message={message} />}
+
       <div
         ref={bubbleRef}
         className={`relative max-w-[70%] px-3 py-2 rounded-lg shadow-sm transition-[background-color,box-shadow] duration-300 ${
@@ -159,6 +165,11 @@ export const MessageBubble = memo(function MessageBubble({
         onContextMenu={selectionMode ? undefined : handleContextMenu}
         data-message-id={message.id}
       >
+        {/* Group participant identity */}
+        {isGroup && !isOwn && !message.isDeleted && (
+          <GroupParticipantLabel message={message} />
+        )}
+
         {/* Forwarded indicator */}
         {message.isForwarded && !message.isDeleted && (
           <div className="flex items-center gap-1 text-xs opacity-70 mb-1">
@@ -344,7 +355,9 @@ function ReplyPreview({
                 : "text-gray-900 dark:text-dark-text-primary"
             }`}
           >
-            {replyToMessage.senderType === "user" ? "You" : "Contact"}
+            {replyToMessage.senderType === "user"
+              ? "You"
+              : replyToMessage.senderName || "Contact"}
           </p>
           <p
             className={`text-xs line-clamp-2 ${
@@ -458,6 +471,77 @@ function FailedMessageBanner({
           )}
         </button>
       )}
+    </div>
+  );
+}
+
+const participantColors = [
+  "text-emerald-700 dark:text-emerald-400",
+  "text-cyan-700 dark:text-cyan-400",
+  "text-blue-700 dark:text-blue-400",
+  "text-violet-700 dark:text-violet-400",
+  "text-fuchsia-700 dark:text-fuchsia-400",
+  "text-rose-700 dark:text-rose-400",
+  "text-orange-700 dark:text-orange-400",
+] as const;
+
+function getParticipantLabel(message: Message): string {
+  const senderIdentity = message.senderJid || message.senderId;
+  const senderName = message.senderName?.trim();
+  if (senderName) return senderName;
+  if (!senderIdentity || senderIdentity.endsWith("@g.us")) {
+    return "Unknown participant";
+  }
+  const identifier = senderIdentity.split("@")[0]?.split(":")[0] || "";
+  return /^\d+$/.test(identifier) ? `+${identifier}` : identifier;
+}
+
+function GroupParticipantAvatar({ message }: { message: Message }) {
+  const [imageFailed, setImageFailed] = useState(false);
+  const label = getParticipantLabel(message);
+  const initials = label
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part[0])
+    .join("")
+    .toUpperCase();
+
+  return (
+    <div
+      className="mr-2 mb-1 flex h-8 w-8 shrink-0 self-end items-center justify-center overflow-hidden rounded-full bg-slate-300 text-[11px] font-bold text-slate-700 shadow-sm ring-1 ring-black/5 dark:bg-slate-700 dark:text-slate-200 dark:ring-white/10"
+      title={label}
+      aria-label={`${label}'s profile picture`}
+    >
+      {message.senderAvatarUrl && !imageFailed ? (
+        <img
+          src={message.senderAvatarUrl}
+          alt=""
+          className="h-full w-full object-cover"
+          onError={() => setImageFailed(true)}
+        />
+      ) : (
+        <span aria-hidden="true">{initials || "?"}</span>
+      )}
+    </div>
+  );
+}
+
+function GroupParticipantLabel({ message }: { message: Message }) {
+  const senderIdentity = message.senderJid || message.senderId;
+  const label = getParticipantLabel(message);
+
+  let hash = 0;
+  for (const character of senderIdentity || label) {
+    hash = (hash * 31 + character.charCodeAt(0)) | 0;
+  }
+  const color = participantColors[Math.abs(hash) % participantColors.length];
+
+  return (
+    <div
+      className={`mb-1 truncate text-[13px] font-semibold leading-4 ${color}`}
+      title={senderIdentity || label}
+    >
+      {label}
     </div>
   );
 }

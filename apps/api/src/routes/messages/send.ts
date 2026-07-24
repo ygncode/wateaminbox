@@ -3,15 +3,16 @@
  *
  * Routes for sending, forwarding, and retrying messages.
  */
+
+import { zValidator } from "@hono/zod-validator";
 import { toDbDate, toISOString } from "@wateaminbox/shared";
 import { Hono } from "hono";
-import { zValidator } from "@hono/zod-validator";
 import { badRequest, notFound } from "../../lib/errors.js";
 import { publishSendMessage } from "../../lib/nats/index.js";
 import { rateLimitConfig, rateLimitStore } from "../../lib/rate-limit-store.js";
 import {
-  sendMessageSchema,
   forwardMessageSchema,
+  sendMessageSchema,
 } from "../../lib/schemas/index.js";
 import { getRouteContext } from "../../middleware/context.js";
 import { createConditionalRateLimiter } from "../../middleware/rate-limit.js";
@@ -60,15 +61,23 @@ sendRoutes.post(
       return notFound(c, "Contact or JID");
     }
 
-    // Get active WhatsApp connection
-    const connection = await tenantDb
-      .selectFrom("whatsapp_connections")
-      .select(["id", "jid"])
-      .where("status", "=", "connected")
-      .executeTakeFirst();
+    // Send through the connection that owns this contact. Picking an arbitrary
+    // connected account routes multi-account chats through the wrong worker.
+    const connection = contact.whatsapp_connection_id
+      ? await tenantDb
+          .selectFrom("whatsapp_connections")
+          .select(["id", "jid"])
+          .where("id", "=", contact.whatsapp_connection_id)
+          .where("status", "=", "connected")
+          .executeTakeFirst()
+      : await tenantDb
+          .selectFrom("whatsapp_connections")
+          .select(["id", "jid"])
+          .where("status", "=", "connected")
+          .executeTakeFirst();
 
     if (!connection) {
-      return badRequest(c, "No active WhatsApp connection");
+      return badRequest(c, "The contact's WhatsApp connection is not active");
     }
 
     // Auto-assign contact to the user if unassigned
@@ -181,7 +190,7 @@ sendRoutes.post(
     // Get target contact
     const targetContact = await tenantDb
       .selectFrom("contacts")
-      .select(["id", "jid"])
+      .select(["id", "jid", "whatsapp_connection_id"])
       .where("id", "=", body.targetContactId)
       .executeTakeFirst();
 
@@ -189,15 +198,21 @@ sendRoutes.post(
       return notFound(c, "Target contact or JID");
     }
 
-    // Get active WhatsApp connection
-    const connection = await tenantDb
-      .selectFrom("whatsapp_connections")
-      .select(["id"])
-      .where("status", "=", "connected")
-      .executeTakeFirst();
+    const connection = targetContact.whatsapp_connection_id
+      ? await tenantDb
+          .selectFrom("whatsapp_connections")
+          .select(["id"])
+          .where("id", "=", targetContact.whatsapp_connection_id)
+          .where("status", "=", "connected")
+          .executeTakeFirst()
+      : await tenantDb
+          .selectFrom("whatsapp_connections")
+          .select(["id"])
+          .where("status", "=", "connected")
+          .executeTakeFirst();
 
     if (!connection) {
-      return badRequest(c, "No active WhatsApp connection");
+      return badRequest(c, "The contact's WhatsApp connection is not active");
     }
 
     // Auto-assign target contact to the user if unassigned
@@ -215,6 +230,7 @@ sendRoutes.post(
       .insertInto("messages")
       .values({
         id: newMessageId,
+        whatsapp_connection_id: connection.id,
         contact_id: body.targetContactId,
         message_id: waMessageId,
         from_me: true,
@@ -290,7 +306,7 @@ sendRoutes.post(
     // Get contact JID
     const contact = await tenantDb
       .selectFrom("contacts")
-      .select(["id", "jid"])
+      .select(["id", "jid", "whatsapp_connection_id"])
       .where("id", "=", originalMessage.contact_id)
       .executeTakeFirst();
 
@@ -298,15 +314,21 @@ sendRoutes.post(
       return notFound(c, "Contact or JID");
     }
 
-    // Get active WhatsApp connection
-    const connection = await tenantDb
-      .selectFrom("whatsapp_connections")
-      .select(["id", "jid"])
-      .where("status", "=", "connected")
-      .executeTakeFirst();
+    const connection = contact.whatsapp_connection_id
+      ? await tenantDb
+          .selectFrom("whatsapp_connections")
+          .select(["id", "jid"])
+          .where("id", "=", contact.whatsapp_connection_id)
+          .where("status", "=", "connected")
+          .executeTakeFirst()
+      : await tenantDb
+          .selectFrom("whatsapp_connections")
+          .select(["id", "jid"])
+          .where("status", "=", "connected")
+          .executeTakeFirst();
 
     if (!connection) {
-      return badRequest(c, "No active WhatsApp connection");
+      return badRequest(c, "The contact's WhatsApp connection is not active");
     }
 
     // Create a new message entry for the retry
@@ -317,6 +339,7 @@ sendRoutes.post(
       .insertInto("messages")
       .values({
         id: newMessageId,
+        whatsapp_connection_id: connection.id,
         contact_id: originalMessage.contact_id,
         message_id: waMessageId,
         from_me: true,

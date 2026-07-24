@@ -2,25 +2,52 @@
  * Message event handlers - incoming messages, receipts, send confirmations
  */
 
-import type {
-  MessageEvent,
-  ReceiptEvent,
-  SendConfirmationEvent,
-  SendFailedEvent,
-} from "../../lib/nats/index.js";
 import { type MessageType } from "@wateaminbox/database";
 import {
-  toDbDate,
-  toDate,
   extractPhoneFromJid,
   normalizeJid,
+  toDate,
+  toDbDate,
 } from "@wateaminbox/shared";
-import { getTenantConnection } from "../tenant.service.js";
-import { broadcastToCompany } from "../../lib/pusher.js";
-import { updateMessageSearchVector } from "../search.service.js";
-import { indexMessage, type MessageDocument } from "../meilisearch.service.js";
+import { sql } from "kysely";
 import { formatError } from "../../lib/logger.js";
+import {
+  buildCommandSubject,
+  type MessageEvent,
+  type NatsCommand,
+  publishCommand,
+  type ReceiptEvent,
+  type SendConfirmationEvent,
+  type SendFailedEvent,
+} from "../../lib/nats/index.js";
+import { broadcastToCompany } from "../../lib/pusher.js";
+import { indexMessage, type MessageDocument } from "../meilisearch.service.js";
+import { updateMessageSearchVector } from "../search.service.js";
+import { getTenantConnection } from "../tenant.service.js";
 import { handlerLogger as logger } from "./types.js";
+
+const participantProfileRequests = new Map<string, number>();
+const participantProfileRequestCooldownMs = 10 * 60 * 1000;
+
+async function requestParticipantProfile(
+  companyId: string,
+  connectionId: string,
+  jid: string,
+): Promise<void> {
+  const requestKey = `${connectionId}:${jid}`;
+  const lastRequestedAt = participantProfileRequests.get(requestKey) || 0;
+  if (Date.now() - lastRequestedAt < participantProfileRequestCooldownMs) {
+    return;
+  }
+  participantProfileRequests.set(requestKey, Date.now());
+
+  await publishCommand(buildCommandSubject(companyId, connectionId), {
+    type: "fetch_profile_picture",
+    company_id: companyId,
+    connection_id: connectionId,
+    jid,
+  } as NatsCommand & { jid: string });
+}
 
 /**
  * Handles incoming WhatsApp messages
@@ -60,8 +87,18 @@ export async function handleMessageEvent(event: MessageEvent): Promise<void> {
       return;
     }
 
-    // Get or create contact - normalize JID first to remove device suffix
-    const rawContactJid = payload.fromMe ? payload.to : payload.from;
+    // Group messages belong to the group conversation, while `from` identifies
+    // the participant who authored the message. Direct chats continue to use
+    // the remote party as the conversation identity.
+    const isGroupMessage =
+      payload.isGroup === true ||
+      Boolean(payload.groupId) ||
+      payload.to?.includes("@g.us");
+    const rawContactJid = isGroupMessage
+      ? payload.groupId || payload.to
+      : payload.fromMe
+        ? payload.to
+        : payload.from;
     if (!rawContactJid) {
       logger.warn(
         { companyId, messageId: payload.messageId },
@@ -94,12 +131,97 @@ export async function handleMessageEvent(event: MessageEvent): Promise<void> {
           whatsapp_connection_id: connection.id,
           jid: contactJid,
           phone_number: phoneNumber,
-          is_group: contactJid.includes("@g.us"),
+          is_group: isGroupMessage || contactJid.includes("@g.us"),
           created_at: toDbDate(),
           updated_at: toDbDate(),
         })
         .execute();
       contact = { id: contactId };
+    }
+
+    // Preserve the participant separately from the group conversation. Push
+    // names are carried by WhatsApp history/live events; fall back to an
+    // existing contact name when WhatsApp omits one.
+    let normalizedSenderJid = normalizeJid(payload.from);
+    let senderName = payload.senderName?.trim() || null;
+
+    // Some history syncs omit MessageKey.Participant and report the group as
+    // `from`. Whatsmeow's message-secret store still retains the actual author.
+    if (isGroupMessage && normalizedSenderJid?.includes("@g.us")) {
+      const resolvedParticipant = await sql<{
+        sender_jid: string;
+        sender_name: string | null;
+      }>`
+        SELECT
+          regexp_replace(
+            coalesce(mapping.jid, secret.sender_jid),
+            ':[0-9]+@',
+            '@'
+          ) AS sender_jid,
+          coalesce(
+            nullif(stored_contact.full_name, ''),
+            nullif(stored_contact.push_name, ''),
+            nullif(stored_contact.first_name, '')
+          ) AS sender_name
+        FROM whatsapp_sessions.whatsmeow_message_secrets AS secret
+        LEFT JOIN whatsapp_sessions.whatsmeow_lid_mappings AS mapping
+          ON mapping.connection_id::text = secret.connection_id::text
+          AND regexp_replace(mapping.lid, ':[0-9]+@', '@') =
+              regexp_replace(secret.sender_jid, ':[0-9]+@', '@')
+        LEFT JOIN whatsapp_sessions.whatsmeow_contacts AS stored_contact
+          ON stored_contact.connection_id::text = secret.connection_id::text
+          AND regexp_replace(stored_contact.their_jid, ':[0-9]+@', '@') =
+              regexp_replace(
+                coalesce(mapping.jid, secret.sender_jid),
+                ':[0-9]+@',
+                '@'
+              )
+        WHERE secret.connection_id::text = ${connection.id}
+          AND secret.message_id = ${payload.messageId}
+        ORDER BY mapping.created_at DESC NULLS LAST
+        LIMIT 1
+      `.execute(tenantDb);
+      const participant = resolvedParticipant.rows[0];
+      if (participant) {
+        normalizedSenderJid = participant.sender_jid;
+        senderName ||= participant.sender_name;
+      }
+    }
+
+    if (
+      isGroupMessage &&
+      !payload.fromMe &&
+      !senderName &&
+      normalizedSenderJid &&
+      !normalizedSenderJid.includes("@g.us")
+    ) {
+      const storedWhatsAppContact = await sql<{
+        full_name: string | null;
+        push_name: string | null;
+        first_name: string | null;
+      }>`
+        SELECT full_name, push_name, first_name
+        FROM whatsapp_sessions.whatsmeow_contacts
+        WHERE connection_id::text = ${connection.id}
+          AND regexp_replace(their_jid, ':[0-9]+@', '@') = ${normalizedSenderJid}
+        LIMIT 1
+      `.execute(tenantDb);
+      const whatsappName = storedWhatsAppContact.rows[0];
+
+      const senderContact = await tenantDb
+        .selectFrom("contacts")
+        .select(["custom_name", "push_name", "phone_number"])
+        .where("jid", "=", normalizedSenderJid)
+        .executeTakeFirst();
+      senderName =
+        senderContact?.custom_name ||
+        senderContact?.push_name ||
+        whatsappName?.full_name ||
+        whatsappName?.push_name ||
+        whatsappName?.first_name ||
+        senderContact?.phone_number ||
+        extractPhoneFromJid(normalizedSenderJid) ||
+        null;
     }
 
     // Store the message - also normalize sender_jid
@@ -112,48 +234,64 @@ export async function handleMessageEvent(event: MessageEvent): Promise<void> {
         : null;
 
     const messageId = crypto.randomUUID();
-    const insertResult = await tenantDb
-      .insertInto("messages")
-      .values({
-        id: messageId,
-        whatsapp_connection_id: connection.id,
-        contact_id: contact.id,
-        message_id: payload.messageId,
-        from_me: payload.fromMe,
-        sender_jid: normalizeJid(payload.from),
-        message_type: payload.messageType as MessageType,
-        content: payload.content,
-        media_url: payload.mediaUrl || null,
-        media_mime_type: payload.mediaType || null,
-        media_size: payload.mediaSize || null,
-        // Deferred media download fields
-        media_direct_path: payload.mediaDirectPath || null,
-        media_key: payload.mediaKey
-          ? Buffer.from(payload.mediaKey, "base64")
-          : null,
-        media_file_sha256: payload.mediaFileSha256
-          ? Buffer.from(payload.mediaFileSha256, "base64")
-          : null,
-        media_file_enc_sha256: payload.mediaFileEncSha256
-          ? Buffer.from(payload.mediaFileEncSha256, "base64")
-          : null,
-        media_download_status: mediaDownloadStatus,
-        quoted_message_id: payload.quotedMessageId || null,
-        is_forwarded: false,
-        is_starred: false,
-        deleted_by_sender: false,
-        status: payload.fromMe ? "sent" : "delivered",
-        timestamp: toDbDate(payload.timestamp),
-        created_at: toDbDate(),
-      })
-      .onConflict((oc) =>
-        oc.columns(["whatsapp_connection_id", "message_id"]).doNothing(),
-      )
-      .executeTakeFirst();
+    const insertQuery = tenantDb.insertInto("messages").values({
+      id: messageId,
+      whatsapp_connection_id: connection.id,
+      contact_id: contact.id,
+      message_id: payload.messageId,
+      from_me: payload.fromMe,
+      sender_jid: normalizedSenderJid,
+      sender_name: senderName,
+      sender_avatar_url: null,
+      message_type: payload.messageType as MessageType,
+      content: payload.content,
+      media_url: payload.mediaUrl || null,
+      media_mime_type: payload.mediaType || null,
+      media_size: payload.mediaSize || null,
+      // Deferred media download fields
+      media_direct_path: payload.mediaDirectPath || null,
+      media_key: payload.mediaKey
+        ? Buffer.from(payload.mediaKey, "base64")
+        : null,
+      media_file_sha256: payload.mediaFileSha256
+        ? Buffer.from(payload.mediaFileSha256, "base64")
+        : null,
+      media_file_enc_sha256: payload.mediaFileEncSha256
+        ? Buffer.from(payload.mediaFileEncSha256, "base64")
+        : null,
+      media_download_status: mediaDownloadStatus,
+      quoted_message_id: payload.quotedMessageId || null,
+      is_forwarded: false,
+      is_starred: false,
+      deleted_by_sender: false,
+      status: payload.fromMe ? "sent" : "delivered",
+      timestamp: toDbDate(payload.timestamp),
+      created_at: toDbDate(),
+    });
 
-    // If insert was skipped due to duplicate, skip all downstream processing
-    // This prevents duplicate search indexing and realtime broadcasts
-    if (insertResult.numInsertedOrUpdatedRows === BigInt(0)) {
+    // A reconnect can resend history that was previously imported without its
+    // group participant. Update just the sender fields so that a new history
+    // sync repairs those existing rows without duplicating messages.
+    const insertResult = payload.isHistorySync
+      ? await insertQuery
+          .onConflict((oc) =>
+            oc.columns(["whatsapp_connection_id", "message_id"]).doUpdateSet({
+              from_me: payload.fromMe,
+              sender_jid: normalizedSenderJid,
+              sender_name: senderName,
+            }),
+          )
+          .returning("id")
+          .executeTakeFirst()
+      : await insertQuery
+          .onConflict((oc) =>
+            oc.columns(["whatsapp_connection_id", "message_id"]).doNothing(),
+          )
+          .returning("id")
+          .executeTakeFirst();
+
+    // If insert was skipped due to duplicate, skip all downstream processing.
+    if (!insertResult) {
       logger.debug(
         { messageId: payload.messageId, companyId },
         "Skipped duplicate message",
@@ -161,7 +299,26 @@ export async function handleMessageEvent(event: MessageEvent): Promise<void> {
       return;
     }
 
-    logger.debug({ messageId, companyId }, "Stored message");
+    const storedMessageId = insertResult.id;
+    logger.debug({ messageId: storedMessageId, companyId }, "Stored message");
+
+    if (
+      isGroupMessage &&
+      !payload.fromMe &&
+      normalizedSenderJid &&
+      !normalizedSenderJid.includes("@g.us")
+    ) {
+      requestParticipantProfile(
+        companyId,
+        connection.id,
+        normalizedSenderJid,
+      ).catch((error) => {
+        logger.warn(
+          { error: formatError(error), jid: normalizedSenderJid },
+          "Failed to request group participant profile",
+        );
+      });
+    }
 
     // Index message for search (run in background, don't block message processing)
     // Get contact name for search indexing
@@ -175,13 +332,13 @@ export async function handleMessageEvent(event: MessageEvent): Promise<void> {
       contactForSearch?.custom_name || contactForSearch?.push_name || null;
 
     // Update PostgreSQL full-text search vector
-    updateMessageSearchVector(companyId, messageId).catch((err) => {
+    updateMessageSearchVector(companyId, storedMessageId).catch((err) => {
       logger.error(formatError(err), "Failed to update search vector");
     });
 
     // Index in Meilisearch for better search experience
     const messageDoc: MessageDocument = {
-      id: messageId,
+      id: storedMessageId,
       companyId,
       contactId: contact.id,
       contactName,
@@ -202,7 +359,7 @@ export async function handleMessageEvent(event: MessageEvent): Promise<void> {
     // History sync imports hundreds of old messages - we don't want to flood the notification system
     if (payload.isHistorySync) {
       logger.debug(
-        { messageId, companyId, contactId: contact.id },
+        { messageId: storedMessageId, companyId, contactId: contact.id },
         "Skipping notifications for history sync message",
       );
     }
@@ -250,10 +407,13 @@ export async function handleMessageEvent(event: MessageEvent): Promise<void> {
         "message:new",
         {
           message: {
-            id: messageId,
+            id: storedMessageId,
             conversationId: contact.id,
             senderId: payload.from,
             senderType: payload.fromMe ? "user" : "contact",
+            senderJid: normalizedSenderJid,
+            senderName,
+            senderAvatarUrl: null,
             content: payload.content || "",
             messageType: payload.messageType || "text",
             status: payload.fromMe ? "sent" : "delivered",

@@ -12,50 +12,71 @@ import (
 	natsClient "github.com/ygncode-lab/whatsapp-web/services/whatsapp/internal/nats"
 )
 
-// getPreferredSenderJID returns the phone number JID if available, otherwise the sender JID.
-// This handles the case where AddressingMode is "lid" and Sender is a LID JID.
-// We prefer phone number JIDs because:
-// 1. They're consistent with how contacts are stored (from history sync)
-// 2. whatsmeow expects PN JIDs for message sending and looks up LID internally
-func getPreferredSenderJID(info types.MessageInfo) types.JID {
-	sender := info.Sender.ToNonAD()
-
-	// If sender is LID and we have a PN alternative, use the PN
-	if sender.Server == types.HiddenUserServer && !info.SenderAlt.IsEmpty() {
-		return info.SenderAlt.ToNonAD()
+// resolvePreferredJID converts WhatsApp's private LID identity to its stable
+// phone-number JID. Some message stanzas omit SenderAlt/RecipientAlt even though
+// whatsmeow has already persisted the mapping, so checking only the event's Alt
+// field creates a second conversation for the same person.
+func (h *Handler) resolvePreferredJID(primary, alternative types.JID) types.JID {
+	if primary.Server != types.HiddenUserServer && primary.Server != types.HostedLIDServer {
+		return primary.ToNonAD()
 	}
-	return sender
+	if !alternative.IsEmpty() && alternative.Server == types.DefaultUserServer {
+		return alternative.ToNonAD()
+	}
+
+	if h.config.Client != nil {
+		client := h.config.Client.GetClient()
+		if client != nil && client.Store != nil && client.Store.LIDs != nil {
+			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			defer cancel()
+
+			// Live-message mappings retain the device suffix, so resolve the full
+			// JID first. History-sync mappings may use the non-device form.
+			pn, err := client.Store.LIDs.GetPNForLID(ctx, primary)
+			if err == nil && !pn.IsEmpty() {
+				return pn.ToNonAD()
+			}
+			if primary.Device != 0 {
+				pn, err = client.Store.LIDs.GetPNForLID(ctx, primary.ToNonAD())
+				if err == nil && !pn.IsEmpty() {
+					return pn.ToNonAD()
+				}
+			}
+		}
+	}
+
+	return primary.ToNonAD()
 }
 
-// getPreferredChatJID returns the phone number JID for the chat if available.
-// For direct messages where AddressingMode is "lid", the chat JID may be LID.
-func getPreferredChatJID(info types.MessageInfo) types.JID {
-	chat := info.Chat.ToNonAD()
-
-	// If chat is LID and we have a PN alternative, use the PN
-	if chat.Server == types.HiddenUserServer && !info.RecipientAlt.IsEmpty() {
-		return info.RecipientAlt.ToNonAD()
-	}
-	return chat
+func (h *Handler) getPreferredSenderJID(info types.MessageInfo) types.JID {
+	return h.resolvePreferredJID(info.Sender, info.SenderAlt)
 }
 
-// getPreferredSenderFromSource returns the phone number JID if available from MessageSource.
-// MessageSource is embedded in both MessageInfo and Receipt.
-func getPreferredSenderFromSource(source types.MessageSource) types.JID {
-	sender := source.Sender.ToNonAD()
+func (h *Handler) getPreferredChatJID(info types.MessageInfo) types.JID {
+	return h.resolvePreferredJID(info.Chat, info.RecipientAlt)
+}
 
-	// If sender is LID and we have a PN alternative, use the PN
-	if sender.Server == types.HiddenUserServer && !source.SenderAlt.IsEmpty() {
-		return source.SenderAlt.ToNonAD()
+func (h *Handler) getPreferredSenderFromSource(source types.MessageSource) types.JID {
+	return h.resolvePreferredJID(source.Sender, source.SenderAlt)
+}
+
+func newMessageEvent(msg *events.Message, senderJID, chatJID types.JID) natsClient.MessageEvent {
+	return natsClient.MessageEvent{
+		MessageID:  msg.Info.ID,
+		From:       senderJID.String(),
+		To:         chatJID.String(),
+		FromMe:     msg.Info.IsFromMe,
+		IsGroup:    msg.Info.IsGroup,
+		SenderName: msg.Info.PushName,
+		Timestamp:  msg.Info.Timestamp,
 	}
-	return sender
 }
 
 // handleMessage processes incoming messages.
 func (h *Handler) handleMessage(msg *events.Message) {
 	// Get preferred JIDs (PN over LID) to ensure consistency with stored contacts
-	senderJID := getPreferredSenderJID(msg.Info)
-	chatJID := getPreferredChatJID(msg.Info)
+	senderJID := h.getPreferredSenderJID(msg.Info)
+	chatJID := h.getPreferredChatJID(msg.Info)
 
 	log.Printf("Received message from %s", senderJID.String())
 
@@ -75,14 +96,7 @@ func (h *Handler) handleMessage(msg *events.Message) {
 	}
 
 	// Extract message content
-	msgEvent := natsClient.MessageEvent{
-		MessageID:  msg.Info.ID,
-		From:       senderJID.String(),
-		To:         chatJID.String(),
-		IsGroup:    msg.Info.IsGroup,
-		SenderName: msg.Info.PushName,
-		Timestamp:  msg.Info.Timestamp,
-	}
+	msgEvent := newMessageEvent(msg, senderJID, chatJID)
 
 	if msg.Info.IsGroup {
 		msgEvent.GroupID = chatJID.String()
@@ -218,8 +232,8 @@ func (h *Handler) handleProtocolMessage(msg *events.Message) {
 		}
 
 		// Get preferred JIDs (PN over LID)
-		senderJID := getPreferredSenderJID(msg.Info)
-		chatJID := getPreferredChatJID(msg.Info)
+		senderJID := h.getPreferredSenderJID(msg.Info)
+		chatJID := h.getPreferredChatJID(msg.Info)
 
 		log.Printf("Message revoke received from %s for message %s", senderJID.String(), revokedID)
 
@@ -242,8 +256,8 @@ func (h *Handler) handleReactionMessage(msg *events.Message) {
 	}
 
 	// Get preferred JIDs (PN over LID)
-	senderJID := getPreferredSenderJID(msg.Info)
-	chatJID := getPreferredChatJID(msg.Info)
+	senderJID := h.getPreferredSenderJID(msg.Info)
+	chatJID := h.getPreferredChatJID(msg.Info)
 
 	// Get the target message ID
 	targetMsgID := reactionMsg.Key.GetID()
@@ -269,7 +283,7 @@ func (h *Handler) handleReactionMessage(msg *events.Message) {
 // handleReceipt processes message receipts.
 func (h *Handler) handleReceipt(receipt *events.Receipt) {
 	// Get preferred JID (PN over LID)
-	senderJID := getPreferredSenderFromSource(receipt.MessageSource)
+	senderJID := h.getPreferredSenderFromSource(receipt.MessageSource)
 
 	log.Printf("Received receipt: %s from %s", receipt.Type, senderJID.String())
 

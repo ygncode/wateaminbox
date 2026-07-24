@@ -131,6 +131,8 @@ func (c *PGContainer) NewDevice() *store.Device {
 	device.LIDs = sqlStore
 	device.MsgSecrets = sqlStore
 	device.PrivacyTokens = sqlStore
+	device.NCTSalt = sqlStore
+	device.EventBuffer = sqlStore
 
 	return device
 }
@@ -314,6 +316,8 @@ func (c *PGContainer) scanDevice(device *store.Device, jidStr string, registrati
 	device.LIDs = sqlStore
 	device.MsgSecrets = sqlStore
 	device.PrivacyTokens = sqlStore
+	device.NCTSalt = sqlStore
+	device.EventBuffer = sqlStore
 
 	device.Initialized = true
 
@@ -407,6 +411,8 @@ func (c *PGContainer) PutDevice(ctx context.Context, device *store.Device) error
 	device.LIDs = sqlStore
 	device.MsgSecrets = sqlStore
 	device.PrivacyTokens = sqlStore
+	device.NCTSalt = sqlStore
+	device.EventBuffer = sqlStore
 	device.Container = c
 
 	return nil
@@ -420,18 +426,28 @@ func (c *PGContainer) DeleteDevice(ctx context.Context, device *store.Device) er
 
 	jid := device.ID.String()
 
-	// Delete in order to avoid foreign key issues (if any)
-	tables := []string{
-		"whatsmeow_chat_settings",
-		"whatsmeow_contacts",
-		"whatsmeow_app_state_mutation_macs",
-		"whatsmeow_app_state_version",
-		"whatsmeow_app_state_sync_keys",
-		"whatsmeow_sender_keys",
-		"whatsmeow_pre_keys",
-		"whatsmeow_sessions",
-		"whatsmeow_identity_keys",
-		"whatsmeow_device",
+	// Delete in order to avoid foreign key issues (if any). Store tables do
+	// not use one consistent device-JID column name, so keep the column next
+	// to the table instead of assuming every table uses our_jid.
+	tables := []struct {
+		name      string
+		jidColumn string
+	}{
+		{"whatsmeow_chat_settings", "our_jid"},
+		{"whatsmeow_contacts", "our_jid"},
+		{"whatsmeow_message_secrets", "our_jid"},
+		{"whatsmeow_privacy_tokens", "our_jid"},
+		{"whatsmeow_nct_salt", "our_jid"},
+		{"whatsmeow_event_buffer", "our_jid"},
+		{"whatsmeow_retry_buffer", "our_jid"},
+		{"whatsmeow_app_state_mutation_macs", "jid"},
+		{"whatsmeow_app_state_version", "jid"},
+		{"whatsmeow_app_state_sync_keys", "jid"},
+		{"whatsmeow_sender_keys", "our_jid"},
+		{"whatsmeow_pre_keys", "jid"},
+		{"whatsmeow_sessions", "our_jid"},
+		{"whatsmeow_identity_keys", "our_jid"},
+		{"whatsmeow_device", "jid"},
 	}
 
 	tx, err := c.db.BeginTx(ctx, nil)
@@ -441,14 +457,13 @@ func (c *PGContainer) DeleteDevice(ctx context.Context, device *store.Device) er
 	defer tx.Rollback()
 
 	for _, table := range tables {
-		var query string
-		if table == "whatsmeow_device" || table == "whatsmeow_pre_keys" {
-			query = fmt.Sprintf("DELETE FROM %s WHERE connection_id = $1 AND jid = $2", table)
-		} else {
-			query = fmt.Sprintf("DELETE FROM %s WHERE connection_id = $1 AND our_jid = $2", table)
-		}
+		query := fmt.Sprintf(
+			"DELETE FROM %s WHERE connection_id = $1 AND %s = $2",
+			table.name,
+			table.jidColumn,
+		)
 		if _, err := tx.ExecContext(ctx, query, c.connectionID, jid); err != nil {
-			return fmt.Errorf("failed to delete from %s: %w", table, err)
+			return fmt.Errorf("failed to delete from %s: %w", table.name, err)
 		}
 	}
 
@@ -460,3 +475,6 @@ type PGSQLStore struct {
 	*PGContainer
 	JID string
 }
+
+var _ store.NCTSaltStore = (*PGSQLStore)(nil)
+var _ store.EventBuffer = (*PGSQLStore)(nil)

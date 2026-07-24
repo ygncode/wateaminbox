@@ -147,13 +147,23 @@ export async function handleProfilePictureEvent(
       .where("jid", "=", contactJid)
       .executeTakeFirst();
 
-    if (result.numUpdatedRows > 0) {
+    // Group participants may not have a standalone contact conversation. Cache
+    // their avatar directly on existing messages so the chat can still render it.
+    const messageResult = await tenantDb
+      .updateTable("messages")
+      .set({ sender_avatar_url: profilePictureUrl })
+      .where("sender_jid", "=", contactJid)
+      .executeTakeFirst();
+
+    if (result.numUpdatedRows > 0 || messageResult.numUpdatedRows > 0) {
       logger.debug(
         {
           jid: contactJid,
-          rowsAffected: result.numUpdatedRows.toString(),
+          rowsAffected: (
+            result.numUpdatedRows + messageResult.numUpdatedRows
+          ).toString(),
         },
-        "Updated profile picture for contact",
+        "Updated profile picture for contact or group participant",
       );
 
       // Broadcast to clients with normalized JID

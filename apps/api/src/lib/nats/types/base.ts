@@ -55,7 +55,8 @@ export interface NatsCommand {
     | "sync_catalogs"
     | "sync_catalog_products"
     | "block_contact"
-    | "unblock_contact";
+    | "unblock_contact"
+    | "fetch_profile_picture";
   company_id: string;
   connection_id: string;
   timestamp?: string;

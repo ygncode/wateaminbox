@@ -150,13 +150,14 @@ func main() {
 
 	// Initialize NATS subscriber for send commands
 	subscriber, err := natsClient.NewSubscriber(natsClient.SubscriberConfig{
-		NATSURL:      natsURL,
-		CompanyID:    companyID,
-		ConnectionID: connectionID,
-		Sender:       waClient,
-		Blocker:      waClient,
-		TypingSender: waClient,
-		Publisher:    publisher,
+		NATSURL:        natsURL,
+		CompanyID:      companyID,
+		ConnectionID:   connectionID,
+		Sender:         waClient,
+		Blocker:        waClient,
+		TypingSender:   waClient,
+		ProfileFetcher: msgHandler,
+		Publisher:      publisher,
 	})
 	if err != nil {
 		log.Fatalf("Failed to initialize NATS subscriber: %v", err)

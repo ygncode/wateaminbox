@@ -12,7 +12,12 @@ export function useWhatsAppConnectionsList() {
     queryFn: listWhatsAppConnections,
     staleTime: 30000, // 30 seconds
     gcTime: 300000, // 5 minutes
-    refetchInterval: 60000, // Refetch every minute
+    // Realtime may be unavailable locally; poll rapidly only while a QR
+    // pairing is pending so the pairing code appears without a manual refresh.
+    refetchInterval: (query) =>
+      query.state.data?.some((connection) => connection.status === "pending")
+        ? 3000
+        : 60000,
   });
 }
 

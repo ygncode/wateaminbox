@@ -111,8 +111,8 @@ export function MultiConnectionPanel({
     <div
       className={cn(
         hideHeader
-          ? "p-4"
-          : "bg-white dark:bg-dark-elevated rounded-lg border border-gray-200 dark:border-dark-border p-6",
+          ? "p-5 sm:p-6"
+          : "rounded-2xl border border-gray-200 bg-white p-6 dark:border-white/[0.08] dark:bg-[#132126]",
         className,
       )}
     >
@@ -157,26 +157,45 @@ export function MultiConnectionPanel({
 
       {/* Minimal action bar when header is hidden */}
       {hideHeader && (
-        <div className="flex items-center justify-between mb-4">
-          <p className="text-sm text-gray-500 dark:text-dark-text-secondary">
-            {connectedCount} of {totalCount} connections active
-          </p>
+        <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-2.5">
+            <span
+              className={cn(
+                "h-2 w-2 rounded-full",
+                connectedCount > 0
+                  ? "bg-emerald-400 shadow-[0_0_10px_rgba(74,222,128,.8)]"
+                  : "bg-slate-400",
+              )}
+            />
+            <p className="text-sm font-medium text-slate-600 dark:text-[#a9bab4]">
+              <span className="font-semibold text-slate-900 dark:text-[#eef8f3]">
+                {connectedCount}
+              </span>{" "}
+              active of {totalCount} connection{totalCount === 1 ? "" : "s"}
+            </p>
+          </div>
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={() => refresh()}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => refresh()}
+              className="h-9 w-9 border-slate-200 p-0 hover:border-emerald-500 hover:text-emerald-700 dark:border-white/10 dark:bg-white/[0.03] dark:hover:border-emerald-400/50 dark:hover:text-emerald-300"
+              aria-label="Refresh connections"
+            >
               <RefreshCw className="h-4 w-4" />
             </Button>
             <Button
               size="sm"
               onClick={() => setShowAddDialog(true)}
               disabled={isCreating}
-              className="bg-whatsapp-teal-green hover:bg-whatsapp-dark-green"
+              className="h-9 bg-[#087a5c] px-3.5 font-semibold text-white shadow-sm hover:bg-[#06674e] dark:bg-[#159b73] dark:hover:bg-[#20ad83]"
             >
               {isCreating ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
                 <>
-                  <Plus className="h-4 w-4 mr-1" />
-                  Add Connection
+                  <Plus className="mr-1.5 h-4 w-4" />
+                  Add connection
                 </>
               )}
             </Button>

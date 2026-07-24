@@ -1,5 +1,5 @@
-import { formatDateSeparator as formatDateSep } from "@wateaminbox/shared";
 import type { useVirtualizer } from "@tanstack/react-virtual";
+import { formatDateSeparator as formatDateSep } from "@wateaminbox/shared";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import type { VirtualItem } from "../../hooks/chat/useMessageVirtualization";
 import { MessageBubble } from "./MessageBubble";
@@ -8,6 +8,7 @@ interface VirtualMessageListProps {
   virtualizer: ReturnType<typeof useVirtualizer<HTMLDivElement, Element>>;
   items: VirtualItem[];
   totalSize: number;
+  isGroup?: boolean;
   highlightedMessageId?: string | null;
   retryingMessageId: string | null;
   selectionMode: boolean;
@@ -27,6 +28,7 @@ export function VirtualMessageList({
   virtualizer,
   items,
   totalSize,
+  isGroup = false,
   highlightedMessageId,
   retryingMessageId,
   selectionMode,
@@ -115,6 +117,7 @@ export function VirtualMessageList({
               <MessageBubble
                 message={item.message}
                 isOwn={item.message.senderType === "user"}
+                isGroup={isGroup}
                 onRetry={selectionMode ? undefined : onRetryMessage}
                 isHighlighted={highlightedMessageId === item.message.id}
                 isRetrying={retryingMessageId === item.message.id}

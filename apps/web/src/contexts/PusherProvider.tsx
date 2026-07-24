@@ -19,6 +19,7 @@ import type {
   MediaDownloadedPayload,
   MediaDownloadFailedPayload,
   MessageDeletedPayload,
+  MessageFailedPayload,
   MessageReactionPayload,
   MessageStatusPayload,
   NewMessagePayload,
@@ -239,6 +240,24 @@ export function PusherProvider({
           ...msg,
           status: payload.status,
           }),
+        );
+      }),
+    );
+
+    // Failed sends use a separate event so the pending bubble can expose retry.
+    eventUnsubscribesRef.current.push(
+      bindEvent<MessageFailedPayload>("message:failed", (data) => {
+        const payload = data.payload;
+        updateMessageStatusRef.current(
+          payload.conversationId,
+          payload.messageId,
+          "failed",
+        );
+        updateMessageInCache(
+          qc,
+          payload.conversationId,
+          payload.messageId,
+          (msg) => ({ ...msg, status: "failed" }),
         );
       }),
     );
@@ -627,10 +646,17 @@ export function PusherProvider({
     };
   }, [autoConnect, connect, currentCompanyId, fetchSyncStatus]);
 
-  // Re-fetch sync status on reconnect
+  // Pusher is an update signal rather than the source of truth. Reconcile all
+  // active chat state after a reconnect in case events arrived while offline.
   useEffect(() => {
     if (status === "connected") {
       fetchSyncStatus();
+      const qc = queryClientRef.current;
+      invalidateChatList(qc);
+      const selectedId = useChatStore.getState().selectedConversationId;
+      if (selectedId) {
+        refetchConversationMessages(qc, selectedId);
+      }
     }
   }, [status, fetchSyncStatus]);
 

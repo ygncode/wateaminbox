@@ -81,11 +81,16 @@ export function ConnectionCard({
   }, [localState.qrExpiresAt]);
 
   const statusColor = {
-    connected: "bg-green-100 text-green-800 border-green-200",
-    pending: "bg-yellow-100 text-yellow-800 border-yellow-200",
-    disconnected: "bg-gray-100 text-gray-800 border-gray-200",
-    banned: "bg-red-100 text-red-800 border-red-200",
-    error: "bg-red-100 text-red-800 border-red-200",
+    connected:
+      "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-400/20 dark:bg-emerald-400/10 dark:text-emerald-200",
+    pending:
+      "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-400/20 dark:bg-amber-400/10 dark:text-amber-200",
+    disconnected:
+      "border-slate-200 bg-slate-50 text-slate-700 dark:border-white/10 dark:bg-white/[0.05] dark:text-[#b7c8c1]",
+    banned:
+      "border-red-200 bg-red-50 text-red-800 dark:border-red-400/20 dark:bg-red-400/10 dark:text-red-200",
+    error:
+      "border-red-200 bg-red-50 text-red-800 dark:border-red-400/20 dark:bg-red-400/10 dark:text-red-200",
   }[connection.status];
 
   const statusIcon = {
@@ -99,10 +104,10 @@ export function ConnectionCard({
   return (
     <div
       className={cn(
-        "border rounded-lg p-4 transition-colors overflow-visible",
+        "overflow-visible rounded-xl border p-4 transition-all duration-200",
         connection.status === "connected"
-          ? "border-green-200 dark:border-green-800 bg-green-50/50 dark:bg-green-900/20"
-          : "border-gray-200 dark:border-dark-border bg-white dark:bg-dark-elevated",
+          ? "border-emerald-200 bg-emerald-50/60 shadow-[inset_3px_0_0_#34d399] dark:border-emerald-400/20 dark:bg-emerald-400/[0.055] dark:shadow-[inset_3px_0_0_#34d399]"
+          : "border-slate-200 bg-slate-50/50 hover:border-slate-300 dark:border-white/[0.08] dark:bg-white/[0.025] dark:hover:border-white/[0.14]",
       )}
     >
       <div className="flex items-start justify-between overflow-visible">
@@ -110,10 +115,10 @@ export function ConnectionCard({
           {/* Status Icon */}
           <div
             className={cn(
-              "w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0",
+              "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl",
               connection.status === "connected"
-                ? "bg-green-100 dark:bg-green-900/50"
-                : "bg-gray-100 dark:bg-dark-tertiary",
+                ? "bg-emerald-100 dark:bg-emerald-400/10"
+                : "bg-slate-200/80 dark:bg-white/[0.07]",
             )}
           >
             {connection.status === "connected" ? (
@@ -149,22 +154,27 @@ export function ConnectionCard({
             ) : (
               <>
                 <div className="flex items-center gap-2 min-w-0">
-                  <h3 className="text-sm font-medium text-gray-900 dark:text-dark-text-primary truncate min-w-0 flex-1">
+                  <h3 className="min-w-0 flex-1 truncate text-sm font-semibold tracking-tight text-slate-900 dark:text-[#eff7f3]">
                     {connection.name}
                   </h3>
-                  <Badge className={cn("text-xs flex-shrink-0", statusColor)}>
+                  <Badge
+                    className={cn(
+                      "shrink-0 rounded-full border px-2 py-1 text-[11px] font-semibold",
+                      statusColor,
+                    )}
+                  >
                     {statusIcon}
                     <span className="ml-1 capitalize">{connection.status}</span>
                   </Badge>
                 </div>
                 {connection.phoneNumber && (
-                  <p className="text-sm text-gray-500 dark:text-dark-text-secondary mt-0.5 flex items-center gap-1.5">
+                  <p className="mt-1 flex items-center gap-1.5 text-xs text-slate-500 dark:text-[#9cafA8]">
                     <span>Phone</span>
                     <span className="text-gray-400 dark:text-dark-text-tertiary">
                       -
                     </span>
                     <Phone className="h-3.5 w-3.5 text-whatsapp-teal-green" />
-                    <span className="text-whatsapp-teal-green font-medium">
+                    <span className="font-medium text-emerald-700 dark:text-emerald-300">
                       {connection.phoneNumber}
                     </span>
                   </p>
@@ -248,7 +258,7 @@ export function ConnectionCard({
                 size="sm"
                 onClick={onDisconnect}
                 disabled={localState.isDisconnecting}
-                className="text-orange-600 border-orange-200 hover:bg-orange-50 hover:border-orange-300"
+                className="border-amber-200 text-amber-700 hover:border-amber-300 hover:bg-amber-50 dark:border-amber-400/20 dark:text-amber-300 dark:hover:bg-amber-400/10"
               >
                 {localState.isDisconnecting ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -265,7 +275,7 @@ export function ConnectionCard({
                 size="sm"
                 onClick={onReconnect}
                 disabled={localState.isConnecting}
-                className="text-whatsapp-teal-green border-emerald-200 hover:bg-emerald-50 hover:border-emerald-300"
+                className="border-emerald-200 text-emerald-700 hover:border-emerald-300 hover:bg-emerald-50 dark:border-emerald-400/20 dark:text-emerald-300 dark:hover:bg-emerald-400/10"
               >
                 {localState.isConnecting ? (
                   <Loader2 className="h-4 w-4 animate-spin" />

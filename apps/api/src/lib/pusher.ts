@@ -7,7 +7,7 @@
 
 import Pusher from "pusher";
 import { env } from "./env.js";
-import { createLogger } from "./logger.js";
+import { createLogger, formatError } from "./logger.js";
 
 const logger = createLogger("Pusher");
 let pusher: Pusher | null = null;
@@ -112,7 +112,7 @@ export async function broadcastToCompany(
     }
   } catch (error) {
     logger.error(
-      { error, companyId, eventType },
+      { error: formatError(error), companyId, eventType },
       "Failed to broadcast event to Pusher",
     );
     // Don't throw - we don't want to break the main flow if Pusher fails
@@ -152,7 +152,7 @@ export async function broadcastToCompanyExcept(
     await client.trigger(channelName, eventType, eventData, params);
   } catch (error) {
     logger.error(
-      { error, companyId, eventType },
+      { error: formatError(error), companyId, eventType },
       "Failed to broadcast event to Pusher",
     );
   }

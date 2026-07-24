@@ -14,6 +14,8 @@ export interface MessageDbRow {
   contact_id: string;
   from_me: boolean;
   sender_jid: string | null;
+  sender_name: string | null;
+  sender_avatar_url: string | null;
   sent_by_user_id: string | null;
   message_type: string;
   content: string | null;
@@ -40,6 +42,8 @@ export interface QuotedMessageData {
   conversationId: string;
   senderId: string;
   senderType: "user" | "contact";
+  senderJid: string | null;
+  senderName: string | null;
   messageType: string;
   content: string;
   isDeleted: boolean;
@@ -101,6 +105,8 @@ export function formatMessageForConversation(
     senderId: msg.sent_by_user_id || msg.sender_jid || "",
     senderType: msg.from_me ? "user" : "contact",
     senderJid: msg.sender_jid,
+    senderName: msg.sender_name,
+    senderAvatarUrl: msg.sender_avatar_url,
     messageType: msg.message_type,
     content: msg.content || "",
     mediaUrl: msg.media_url,
@@ -162,6 +168,8 @@ export function formatMessageForFetch(
     contactId: msg.contact_id,
     fromMe: msg.from_me,
     senderJid: msg.sender_jid,
+    senderName: msg.sender_name,
+    senderAvatarUrl: msg.sender_avatar_url,
     messageType: msg.message_type,
     content: msg.content,
     // Keep these at root for backwards compatibility
@@ -207,6 +215,8 @@ export function buildQuotedMessageData(q: MessageDbRow): QuotedMessageData {
     conversationId: q.contact_id,
     senderId: q.sent_by_user_id || q.sender_jid || "",
     senderType: q.from_me ? "user" : "contact",
+    senderJid: q.sender_jid,
+    senderName: q.sender_name,
     messageType: q.message_type,
     content: q.content || "",
     isDeleted: q.deleted_by_sender || !!q.deleted_at,

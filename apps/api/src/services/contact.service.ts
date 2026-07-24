@@ -1,7 +1,7 @@
 import type { Kysely } from "kysely";
 import { sql } from "kysely";
 import { toDbDate } from "@wateaminbox/shared";
-import type { TenantDatabase } from "./tenant.service.js";
+import { getSchemaName, type TenantDatabase } from "./tenant.service.js";
 import { buildContactWhereClause } from "./helpers/contact-query-builder.js";
 
 /**
@@ -68,6 +68,7 @@ export interface ContactWithLastMessage {
  */
 export async function getContactsWithLastMessage(
   tenantDb: Kysely<TenantDatabase>,
+  companyId: string,
   options: GetContactsWithLastMessageOptions = {},
 ): Promise<{ contacts: ContactWithLastMessage[]; total: number }> {
   const {
@@ -96,6 +97,10 @@ export async function getContactsWithLastMessage(
       unassigned,
       userId,
     });
+
+  // `withSchema()` qualifies Kysely query-builder calls, but raw SQL has to
+  // qualify identifiers itself. The tenant schema comes from trusted middleware.
+  const schema = sql.ref(getSchemaName(companyId));
 
   const result = await sql<{
     id: string;
@@ -132,7 +137,7 @@ export async function getContactsWithLastMessage(
         status,
         timestamp,
         ROW_NUMBER() OVER (PARTITION BY contact_id ORDER BY timestamp DESC, id DESC) as rn
-      FROM messages
+      FROM ${schema}.${sql.ref("messages")}
     )
     SELECT
       c.id,
@@ -157,14 +162,14 @@ export async function getContactsWithLastMessage(
       lm.status as last_message_status,
       lm.timestamp as last_message_timestamp,
       COALESCE(cs.unread_count, 0)::bigint as unread_count
-    FROM contacts c
-    LEFT JOIN contact_assignments ca
+    FROM ${schema}.${sql.ref("contacts")} c
+    LEFT JOIN ${schema}.${sql.ref("contact_assignments")} ca
       ON ca.contact_id = c.id
       AND ca.unassigned_at IS NULL
     LEFT JOIN last_messages lm
       ON lm.contact_id = c.id
       AND lm.rn = 1
-    LEFT JOIN conversation_states cs
+    LEFT JOIN ${schema}.${sql.ref("conversation_states")} cs
       ON cs.contact_id = c.id
     ${hasWhereCondition ? sql`WHERE ${whereClause}` : sql``}
     ORDER BY last_message_at DESC NULLS LAST

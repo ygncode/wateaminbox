@@ -209,6 +209,17 @@ func (h *Handler) processHistorySyncConversation(conv *waHistorySync.Conversatio
 	return
 }
 
+func (h *Handler) getHistorySenderJID(chatJID, participant string, isGroup bool) string {
+	if !isGroup || participant == "" {
+		return chatJID
+	}
+	parsedParticipant, err := types.ParseJID(participant)
+	if err != nil {
+		return chatJID
+	}
+	return h.resolvePreferredJID(parsedParticipant, types.EmptyJID).String()
+}
+
 // processHistorySyncMessage processes a single message from history sync.
 // Returns (processed, hasMedia) - whether the message was processed and if it had media.
 // Uses concrete proto type *waHistorySync.HistorySyncMsg for reliable type handling.
@@ -233,13 +244,23 @@ func (h *Handler) processHistorySyncMessage(historyMsg *waHistorySync.HistorySyn
 		timestamp = time.Now()
 	}
 
+	// Group history keys carry the actual author in Participant while the
+	// conversation JID is the group. Keeping From as the group loses who sent
+	// every imported message.
+	senderJID := h.getHistorySenderJID(
+		jid,
+		msg.GetKey().GetParticipant(),
+		isGroup,
+	)
+
 	// Build message event with history sync flag
 	msgEvent := natsClient.MessageEvent{
 		MessageID:     msg.GetKey().GetID(),
-		From:          jid,
+		From:          senderJID,
 		To:            jid,
 		FromMe:        msg.GetKey().GetFromMe(),
 		IsGroup:       isGroup,
+		GroupID:       jid,
 		Timestamp:     timestamp,
 		IsHistorySync: true, // Mark as history sync message
 	}

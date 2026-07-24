@@ -35,6 +35,12 @@ type BlockContactCommand struct {
 	ContactJID string `json:"contact_jid"`
 }
 
+// FetchProfilePictureCommand requests a cached public avatar for a participant.
+type FetchProfilePictureCommand struct {
+	Type string `json:"type"`
+	JID  string `json:"jid"`
+}
+
 // SendMessageCommand represents a command to send a message.
 type SendMessageCommand struct {
 	MessageID     string `json:"message_id"`
@@ -73,6 +79,11 @@ type TypingSender interface {
 	SendChatPresence(ctx context.Context, jid string, isTyping bool) error
 }
 
+// ProfilePictureFetcher fetches and stores a WhatsApp profile picture.
+type ProfilePictureFetcher interface {
+	FetchProfilePicture(jid string) string
+}
+
 // TypingCommand represents a command to send typing indicator.
 type TypingCommand struct {
 	Type string `json:"type"` // "typing_start" or "typing_stop"
@@ -81,28 +92,30 @@ type TypingCommand struct {
 
 // Subscriber handles subscribing to NATS command subjects.
 type Subscriber struct {
-	nc           *nats.Conn
-	js           nats.JetStreamContext
-	companyID    string
-	connectionID string
-	sender       MessageSender
-	blocker      ContactBlocker
-	typingSender TypingSender
-	publisher    *Publisher
-	sub          *nats.Subscription
-	ctx          context.Context
-	cancel       context.CancelFunc
+	nc             *nats.Conn
+	js             nats.JetStreamContext
+	companyID      string
+	connectionID   string
+	sender         MessageSender
+	blocker        ContactBlocker
+	typingSender   TypingSender
+	profileFetcher ProfilePictureFetcher
+	publisher      *Publisher
+	sub            *nats.Subscription
+	ctx            context.Context
+	cancel         context.CancelFunc
 }
 
 // SubscriberConfig holds configuration for the subscriber.
 type SubscriberConfig struct {
-	NATSURL      string
-	CompanyID    string
-	ConnectionID string
-	Sender       MessageSender
-	Blocker      ContactBlocker
-	TypingSender TypingSender
-	Publisher    *Publisher
+	NATSURL        string
+	CompanyID      string
+	ConnectionID   string
+	Sender         MessageSender
+	Blocker        ContactBlocker
+	TypingSender   TypingSender
+	ProfileFetcher ProfilePictureFetcher
+	Publisher      *Publisher
 }
 
 // NewSubscriber creates a new NATS subscriber.
@@ -135,16 +148,17 @@ func NewSubscriber(cfg SubscriberConfig) (*Subscriber, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	return &Subscriber{
-		nc:           nc,
-		js:           js,
-		companyID:    cfg.CompanyID,
-		connectionID: cfg.ConnectionID,
-		sender:       cfg.Sender,
-		blocker:      cfg.Blocker,
-		typingSender: cfg.TypingSender,
-		publisher:    cfg.Publisher,
-		ctx:          ctx,
-		cancel:       cancel,
+		nc:             nc,
+		js:             js,
+		companyID:      cfg.CompanyID,
+		connectionID:   cfg.ConnectionID,
+		sender:         cfg.Sender,
+		blocker:        cfg.Blocker,
+		typingSender:   cfg.TypingSender,
+		profileFetcher: cfg.ProfileFetcher,
+		publisher:      cfg.Publisher,
+		ctx:            ctx,
+		cancel:         cancel,
 	}, nil
 }
 
@@ -253,6 +267,14 @@ func (s *Subscriber) handleCommand(msg *nats.Msg) {
 		s.handleBlockCommand(msg, ct.Type)
 	case "typing_start", "typing_stop":
 		s.handleTypingCommand(msg, ct.Type)
+	case "fetch_profile_picture":
+		s.handleFetchProfilePictureCommand(msg)
+	case "spawn", "kill", "status":
+		// These commands are consumed by the orchestrator. A worker can also see
+		// them because both consumers subscribe to its connection subject; ACK so
+		// JetStream does not repeatedly redeliver a control-plane command to it.
+		log.Printf("Ignoring orchestrator command: %s", ct.Type)
+		msg.Ack()
 	default:
 		// Delegate to send command handler for all other types
 		s.handleSendCommand(msg)
@@ -431,6 +453,33 @@ func (s *Subscriber) handleTypingCommand(msg *nats.Msg, cmdType string) {
 		log.Printf("Typing indicator sent: jid=%s, isTyping=%v", cmd.JID, isTyping)
 	}
 
+	msg.Ack()
+}
+
+func (s *Subscriber) handleFetchProfilePictureCommand(msg *nats.Msg) {
+	var cmd FetchProfilePictureCommand
+	if err := json.Unmarshal(msg.Data, &cmd); err != nil {
+		log.Printf("Failed to unmarshal profile picture command: %v", err)
+		msg.Nak()
+		return
+	}
+	if s.profileFetcher == nil || s.publisher == nil {
+		log.Printf("Profile picture command received without required handlers")
+		msg.Ack()
+		return
+	}
+
+	profilePictureURL := s.profileFetcher.FetchProfilePicture(cmd.JID)
+	if err := s.publisher.PublishProfilePicture(
+		cmd.JID,
+		profilePictureURL,
+		profilePictureURL == "",
+		time.Now(),
+	); err != nil {
+		log.Printf("Failed to publish participant profile picture: %v", err)
+		msg.Nak()
+		return
+	}
 	msg.Ack()
 }
 

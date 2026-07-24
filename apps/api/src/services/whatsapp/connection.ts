@@ -32,6 +32,8 @@ export interface WhatsAppConnection {
   connectedBy: string | null;
   connectedAt: Date | null;
   lastSyncAt: Date | null;
+  qrCode: string | null;
+  qrExpiresAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -48,6 +50,8 @@ function mapConnectionRow(conn: {
   connected_by: string | null;
   connected_at: Date | null;
   last_sync_at: Date | null;
+  qr_code?: string | null;
+  qr_expires_at?: Date | null;
   created_at: Date;
   updated_at: Date;
 }): WhatsAppConnection {
@@ -60,6 +64,8 @@ function mapConnectionRow(conn: {
     connectedBy: conn.connected_by,
     connectedAt: conn.connected_at,
     lastSyncAt: conn.last_sync_at,
+    qrCode: conn.qr_code ?? null,
+    qrExpiresAt: conn.qr_expires_at ?? null,
     createdAt: conn.created_at,
     updatedAt: conn.updated_at,
   };
@@ -111,6 +117,8 @@ export async function listConnections(
       "connected_by",
       "connected_at",
       "last_sync_at",
+      "qr_code",
+      "qr_expires_at",
       "created_at",
       "updated_at",
     ])

@@ -157,17 +157,16 @@ func (dh *DownloadHandler) handleDownloadRequest(msg *nats.Msg) {
 	}
 
 	// Use DownloadMediaWithPath which takes raw parameters directly
-	// This avoids the type assertion issue with custom DownloadableMessage implementations
-	// Pass -1 for fileLength to skip length validation (whatsmeow validates when >= 0)
+	// This avoids the type assertion issue with custom DownloadableMessage implementations.
 	data, err := client.DownloadMediaWithPath(
 		ctx,
 		req.DirectPath,
 		req.FileEncSHA256,
 		req.FileSHA256,
 		req.MediaKey,
-		-1, // fileLength - pass -1 to skip length validation
 		mediaType,
 		mmsType,
+		true, // permit downloads when a message does not include a file hash
 	)
 	if err != nil {
 		log.Printf("Failed to download media for message %s: %v", req.MessageID, err)

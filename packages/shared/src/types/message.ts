@@ -9,6 +9,12 @@ export interface Message {
   conversationId: string;
   senderId: string;
   senderType: SenderType;
+  /** WhatsApp participant identity for group messages. */
+  senderJid?: string | null;
+  /** WhatsApp push name or resolved contact name for group messages. */
+  senderName?: string | null;
+  /** Cached WhatsApp profile picture for a group participant. */
+  senderAvatarUrl?: string | null;
   content: string;
   messageType: MessageType;
   status: MessageStatus;
@@ -26,11 +32,31 @@ export interface Message {
 
 export type SenderType = "user" | "contact" | "system";
 
-export type MessageType = "text" | "image" | "video" | "audio" | "document" | "sticker" | "location" | "contact" | "reaction" | "template";
+export type MessageType =
+  | "text"
+  | "image"
+  | "video"
+  | "audio"
+  | "document"
+  | "sticker"
+  | "location"
+  | "contact"
+  | "reaction"
+  | "template";
 
-export type MessageStatus = "pending" | "sent" | "delivered" | "read" | "failed";
+export type MessageStatus =
+  | "pending"
+  | "sent"
+  | "delivered"
+  | "read"
+  | "failed";
 
-export type MediaDownloadStatus = "pending" | "downloading" | "completed" | "failed" | null;
+export type MediaDownloadStatus =
+  | "pending"
+  | "downloading"
+  | "completed"
+  | "failed"
+  | null;
 
 export interface MessageMetadata {
   mediaUrl?: string;

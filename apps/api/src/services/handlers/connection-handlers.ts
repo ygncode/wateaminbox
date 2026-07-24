@@ -20,10 +20,22 @@ import { handlerLogger as logger } from "./types.js";
 export async function handleQREvent(event: QREvent): Promise<void> {
   const { companyId, connectionId } = event;
 
-  // Just log for monitoring
   logger.info({ companyId, connectionId }, "QR code generated");
 
-  // Broadcast to connected clients with connectionId
+  // Persist briefly so clients that missed the realtime event can recover QR
+  // pairing by polling the normal connections endpoint.
+  const tenantDb = getTenantConnection(companyId);
+  await tenantDb
+    .updateTable("whatsapp_connections")
+    .set({
+      status: "pending",
+      qr_code: event.payload.qrCode,
+      qr_expires_at: new Date(event.payload.expiresAt),
+      updated_at: toDbDate(),
+    })
+    .where("id", "=", connectionId)
+    .execute();
+
   await broadcastToCompany(companyId, "qr", event.payload, connectionId);
 }
 
@@ -149,12 +161,14 @@ export async function handleWorkerConnectionStatusEvent(
   try {
     const tenantDb = getTenantConnection(companyId);
 
-    // Update connection status in database based on worker status
-    // "error" and "failed" map to "disconnected" in DB
+    // Worker lifecycle names are broader than the persisted connection enum.
+    // Never write transient control-plane states (stopped/connecting) directly.
     const dbStatus =
-      payload.status === "error" || payload.status === "failed"
-        ? "disconnected"
-        : payload.status;
+      payload.status === "connected"
+        ? "connected"
+        : payload.status === "connecting"
+          ? "pending"
+          : "disconnected";
 
     await tenantDb
       .updateTable("whatsapp_connections")

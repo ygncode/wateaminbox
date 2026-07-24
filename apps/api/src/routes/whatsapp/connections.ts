@@ -75,6 +75,8 @@ connectionRoutes.get(
           lastSync: conn.lastSyncAt,
           createdAt: conn.createdAt,
           updatedAt: conn.updatedAt,
+          qrCode: conn.qrCode,
+          qrExpiresAt: conn.qrExpiresAt,
         })),
         meta: {
           total: connections.length,
@@ -311,17 +313,22 @@ connectionRoutes.post(
         });
       }
 
+      // A pending worker owns a QR session that must be replaced before a new
+      // pairing attempt. A disconnected connection has no active worker;
+      // killConnection intentionally rejects it, so do not turn a valid retry
+      // into a misleading "connection not found" error.
       if (connection.status === "pending") {
-        throw new HTTPException(400, {
-          message: "Connection is already pending",
-        });
+        await whatsappService.killConnection(tenantDb, companyId, connectionId);
       }
 
-      // Update status to pending
+      // Clear the old QR immediately. It is no longer valid once a fresh
+      // pairing attempt has been requested.
       await tenantDb
         .updateTable("whatsapp_connections")
         .set({
           status: "pending",
+          qr_code: null,
+          qr_expires_at: null,
           updated_at: toDbDate(),
         })
         .where("id", "=", connectionId)

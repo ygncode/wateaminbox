@@ -29,11 +29,13 @@ package handler
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
+	"golang.org/x/sync/singleflight"
 
 	natsClient "github.com/ygncode-lab/whatsapp-web/services/whatsapp/internal/nats"
 	"github.com/ygncode-lab/whatsapp-web/services/whatsapp/internal/storage"
@@ -82,8 +84,10 @@ type Config struct {
 
 // Handler processes WhatsApp events.
 type Handler struct {
-	config    Config
-	publisher *natsClient.Publisher
+	config                 Config
+	publisher              *natsClient.Publisher
+	profilePictureCache    sync.Map
+	profilePictureRequests singleflight.Group
 }
 
 // New creates a new message handler.

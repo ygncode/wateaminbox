@@ -91,16 +91,25 @@ export function useWhatsAppConnections() {
 
   // Combine connections with their local state
   const connectionsWithState: ConnectionWithState[] = connections.map(
-    (connection) => ({
-      ...connection,
-      localState: connectionStates[connection.id] || {
-        qrCode: null,
-        qrExpiresAt: null,
-        error: null,
-        isConnecting: false,
-        isDisconnecting: false,
-      },
-    }),
+    (connection) => {
+      const local = connectionStates[connection.id];
+      const persistedQrExpiresAt = connection.qrExpiresAt
+        ? new Date(connection.qrExpiresAt)
+        : null;
+
+      return {
+        ...connection,
+        // Realtime state wins when it has a QR. Otherwise fall back to the
+        // persisted QR returned by polling, which covers missed Pusher events.
+        localState: {
+          qrCode: local?.qrCode ?? connection.qrCode ?? null,
+          qrExpiresAt: local?.qrExpiresAt ?? persistedQrExpiresAt,
+          error: local?.error ?? null,
+          isConnecting: local?.isConnecting ?? connection.status === "pending",
+          isDisconnecting: local?.isDisconnecting ?? false,
+        },
+      };
+    },
   );
 
   return {

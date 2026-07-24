@@ -196,7 +196,6 @@ func (m *Manager) Stop(ctx context.Context) error {
 // SpawnWorker creates and starts a new WhatsApp worker process.
 func (m *Manager) SpawnWorker(ctx context.Context, companyID, connectionID, tenantSchema, databaseURL string) error {
 	m.mu.Lock()
-	defer m.mu.Unlock()
 
 	// Check if worker already exists (keyed by connectionID)
 	if existing, exists := m.workers[connectionID]; exists {
@@ -204,11 +203,12 @@ func (m *Manager) SpawnWorker(ctx context.Context, companyID, connectionID, tena
 			// Worker already running - republish current status instead of returning error
 			status := existing.Status
 			log.Printf("Worker for connection %s already exists with status %s, republishing status", connectionID, status)
-			// Use "connected" for any running state since the worker is functional
-			if status == types.StatusConnecting {
-				status = types.StatusConnected
-			}
-			// Schedule status publish after releasing lock
+			// Preserve the actual lifecycle state. A running worker may still be
+			// negotiating a QR pairing or protocol handshake and is not connected
+			// until it emits a confirmed connected event.
+			// publishConnectionStatus also reads manager state, so release the
+			// write lock before calling it.
+			m.mu.Unlock()
 			go m.publishConnectionStatus(companyID, connectionID, status, "worker already running")
 			return nil
 		}
@@ -259,12 +259,14 @@ func (m *Manager) SpawnWorker(ctx context.Context, companyID, connectionID, tena
 	log.Printf("Spawning worker for company %s, connection %s...", companyID, connectionID)
 	if err := cmd.Start(); err != nil {
 		workerCancel()
+		m.mu.Unlock()
 		return fmt.Errorf("failed to start worker process: %w", err)
 	}
 
 	worker.PID = cmd.Process.Pid
 	worker.Status = types.StatusConnecting
 	m.workers[connectionID] = worker
+	m.mu.Unlock()
 
 	log.Printf("Worker spawned for company %s, connection %s with PID %d", companyID, connectionID, worker.PID)
 
@@ -335,27 +337,10 @@ func (m *Manager) stopWorkerInternal(ctx context.Context, companyID, connectionI
 			worker.cmd.Process.Signal(syscall.SIGTERM)
 		}
 
-		// Wait for process to exit with timeout
-		done := make(chan error, 1)
-		go func() {
-			done <- worker.cmd.Wait()
-		}()
-
-		select {
-		case <-done:
-			log.Printf("Worker %s terminated gracefully", connectionID)
-		case <-time.After(10 * time.Second):
-			// Force kill if graceful shutdown fails
-			log.Printf("Worker %s did not terminate gracefully, forcing kill", connectionID)
-			if worker.cmd.Process != nil {
-				pgid, err := syscall.Getpgid(worker.cmd.Process.Pid)
-				if err == nil {
-					syscall.Kill(-pgid, syscall.SIGKILL)
-				} else {
-					worker.cmd.Process.Kill()
-				}
-			}
-		}
+		// monitorWorkerProcess owns cmd.Wait(). Calling Wait here as well races
+		// with that monitor and can leave the command consumer blocked forever.
+		// Signal the worker and let the monitor reap it exactly once.
+		log.Printf("Sent shutdown signal to worker %s", connectionID)
 	}
 
 	// Cancel worker context
@@ -544,18 +529,20 @@ func (m *Manager) handleWorkerFailure(connectionID, reason string) {
 		worker.healthCancel()
 	}
 
-	// Get restart count from registry or use in-memory count
-	restartCount := worker.RestartCount
+	// Copy the state before releasing the manager lock. Database calls must not
+	// happen while this lock is held: a stalled database operation would block
+	// command handling and prevent every subsequent reconnect request.
+	workerCopy := worker.Copy()
+	m.mu.Unlock()
+
+	// Get restart count from registry or use in-memory count.
+	restartCount := workerCopy.RestartCount
 	if m.registry != nil {
 		if count, err := m.registry.GetRestartCount(m.ctx, connectionID); err == nil {
 			restartCount = count
 		}
 	}
-
-	// Copy worker info for restart (before releasing lock)
-	workerCopy := worker.Copy()
 	workerCopy.RestartCount = restartCount
-	m.mu.Unlock()
 
 	// Publish error event
 	m.publishConnectionStatus(companyID, connectionID, types.StatusError, reason)

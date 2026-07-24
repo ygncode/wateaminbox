@@ -164,6 +164,8 @@ export interface WhatsAppConnection {
   jid?: string;
   connectedAt?: string;
   lastSync?: string;
+  qrCode?: string | null;
+  qrExpiresAt?: string | null;
   createdAt: string;
   updatedAt: string;
 }

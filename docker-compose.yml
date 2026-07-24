@@ -9,7 +9,8 @@ services:
     ports:
       - "4447:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      # PostgreSQL 18 stores clusters in versioned subdirectories; mount its parent.
+      - postgres_data:/var/lib/postgresql
       - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init.sql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]

@@ -70,12 +70,12 @@ contactRoutes.get(
   "/",
   zValidator("query", listContactsQuerySchema),
   async (c) => {
-    const { tenantDb, user } = getRouteContext(c);
+    const { tenantDb, user, companyId } = getRouteContext(c);
     const query = c.req.valid("query");
 
     // Use optimized service function that fetches contacts with last message in a single query
     // This replaces the N+1 pattern where we fetched contacts first, then queried each contact's last message
-    const { contacts, total } = await getContactsWithLastMessage(tenantDb, {
+    const { contacts, total } = await getContactsWithLastMessage(tenantDb, companyId, {
       search: query.search,
       limit: query.limit,
       offset: query.offset,

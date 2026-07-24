@@ -256,6 +256,29 @@ func (s *PGSQLStore) GetAppStateSyncKey(ctx context.Context, id []byte) (*store.
 	}, nil
 }
 
+// GetAllAppStateSyncKeys returns every sync key for the current device.
+func (s *PGSQLStore) GetAllAppStateSyncKeys(ctx context.Context) ([]*store.AppStateSyncKey, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT key_data, timestamp, fingerprint FROM whatsmeow_app_state_sync_keys
+		WHERE connection_id = $1 AND jid = $2
+		ORDER BY timestamp DESC
+	`, s.connectionID, s.JID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	keys := make([]*store.AppStateSyncKey, 0)
+	for rows.Next() {
+		key := &store.AppStateSyncKey{}
+		if err := rows.Scan(&key.Data, &key.Timestamp, &key.Fingerprint); err != nil {
+			return nil, err
+		}
+		keys = append(keys, key)
+	}
+	return keys, rows.Err()
+}
+
 // GetLatestAppStateSyncKeyID retrieves the latest app state sync key ID.
 func (s *PGSQLStore) GetLatestAppStateSyncKeyID(ctx context.Context) ([]byte, error) {
 	var keyID []byte

@@ -373,11 +373,11 @@ func (c *Client) HandleReconnect(ctx context.Context) {
 		c.connected = true
 		c.mu.Unlock()
 
-		log.Printf("Reconnection successful after %d attempts (elapsed: %v)",
+		log.Printf("Reconnect socket established after %d attempts (elapsed: %v); awaiting Connected event",
 			c.reconnectAttemptNum, time.Since(c.reconnectStartTime).Round(time.Millisecond))
-		if c.statusCb != nil {
-			c.statusCb("connected", "reconnected")
-		}
+		// Connect() only establishes the socket. The WhatsApp protocol handshake
+		// completes asynchronously, so the Connected event is the only reliable
+		// point at which the connection may be reported as usable.
 		return
 	}
 }
@@ -756,7 +756,10 @@ func (c *Client) DownloadMedia(ctx context.Context, msg whatsmeow.DownloadableMe
 
 // DownloadMediaWithPath downloads media using its direct path and keys.
 func (c *Client) DownloadMediaWithPath(ctx context.Context, directPath string, encFileHash, fileHash, mediaKey []byte, fileLength int, mediaType whatsmeow.MediaType, mmsType string) ([]byte, error) {
-	return c.client.DownloadMediaWithPath(ctx, directPath, encFileHash, fileHash, mediaKey, fileLength, mediaType, mmsType)
+	// fileLength is retained in this wrapper for compatibility with callers;
+	// current whatsmeow validates downloads using hashes rather than this value.
+	_ = fileLength
+	return c.client.DownloadMediaWithPath(ctx, directPath, encFileHash, fileHash, mediaKey, mediaType, mmsType, true)
 }
 
 // SendPresence updates the user's presence status on WhatsApp.

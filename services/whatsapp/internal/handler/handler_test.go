@@ -21,6 +21,7 @@ type mockDownloader struct {
 	downloadErrors    []error // Errors to return on each call (nil means success)
 	downloadData      []byte  // Data to return on success
 	onDownload        func()  // Callback invoked on each download
+	client            *whatsmeow.Client
 }
 
 func (m *mockDownloader) DownloadMedia(ctx context.Context, msg whatsmeow.DownloadableMessage) ([]byte, error) {
@@ -69,7 +70,7 @@ func (m *mockDownloader) DownloadMedia(ctx context.Context, msg whatsmeow.Downlo
 }
 
 func (m *mockDownloader) GetClient() *whatsmeow.Client {
-	return nil
+	return m.client
 }
 
 func (m *mockDownloader) HandleReconnect(ctx context.Context) {

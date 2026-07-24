@@ -11,6 +11,7 @@ import { VirtualMessageList } from "./VirtualMessageList";
 interface MessageThreadProps {
   conversationId: string | undefined;
   currentUserId: string;
+  isGroup?: boolean;
   /** ID of message to highlight and scroll to */
   highlightedMessageId?: string | null;
   /** Callback when user clicks "Contact info" in context menu */
@@ -20,6 +21,7 @@ interface MessageThreadProps {
 export function MessageThread({
   conversationId,
   currentUserId: _currentUserId,
+  isGroup = false,
   highlightedMessageId,
   onOpenContactInfo,
 }: MessageThreadProps) {
@@ -271,6 +273,7 @@ export function MessageThread({
         virtualizer={virtualizer}
         items={items}
         totalSize={totalSize}
+        isGroup={isGroup}
         highlightedMessageId={highlightedMessageId}
         retryingMessageId={retryingMessageId}
         selectionMode={selectionMode}

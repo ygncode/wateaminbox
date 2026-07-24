@@ -1,11 +1,11 @@
-import { Kysely, PostgresDialect, Generated } from "kysely";
-import { Pool } from "pg";
 import type {
-  CompanyStatus,
   CompanyMemberRole,
-  MessageType,
+  CompanyStatus,
   MessageStatus,
+  MessageType,
 } from "@wateaminbox/shared";
+import { Generated, Kysely, PostgresDialect } from "kysely";
+import { Pool } from "pg";
 
 // ============================================================================
 // Public Schema Database Types (multi-tenant management)
@@ -161,6 +161,8 @@ export interface WhatsAppConnectionsTable {
   connected_at: Date | null;
   last_sync_at: Date | null;
   sync_status: "syncing" | "completed" | "interrupted" | null;
+  qr_code: string | null;
+  qr_expires_at: Date | null;
   session_data: Buffer | null;
   created_at: Generated<Date>;
   updated_at: Generated<Date>;
@@ -279,6 +281,8 @@ export interface TenantMessagesTable {
   message_id: string | null;
   from_me: boolean;
   sender_jid: string | null;
+  sender_name: string | null;
+  sender_avatar_url: string | null;
   message_type: MessageType;
   content: string | null;
   media_url: string | null;

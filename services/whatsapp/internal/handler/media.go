@@ -170,6 +170,31 @@ func (h *Handler) downloadHistoryMedia(downloadable whatsmeow.DownloadableMessag
 	return true
 }
 
+// FetchProfilePicture resolves and caches a profile picture for command-driven
+// group participant lookups. Empty results are cached too, because privacy
+// settings commonly make profile pictures unavailable.
+func (h *Handler) FetchProfilePicture(rawJID string) string {
+	parsedJID, err := types.ParseJID(rawJID)
+	if err != nil {
+		return ""
+	}
+	jid := h.resolvePreferredJID(parsedJID, types.EmptyJID)
+	cacheKey := jid.String()
+	if cached, ok := h.profilePictureCache.Load(cacheKey); ok {
+		return cached.(string)
+	}
+
+	result, _, _ := h.profilePictureRequests.Do(cacheKey, func() (interface{}, error) {
+		if cached, ok := h.profilePictureCache.Load(cacheKey); ok {
+			return cached.(string), nil
+		}
+		profilePictureURL := h.fetchProfilePicture(jid)
+		h.profilePictureCache.Store(cacheKey, profilePictureURL)
+		return profilePictureURL, nil
+	})
+	return result.(string)
+}
+
 // fetchProfilePicture downloads and uploads a contact's profile picture.
 // Returns the public URL if successful, empty string otherwise.
 func (h *Handler) fetchProfilePicture(jid types.JID) string {

@@ -1,9 +1,9 @@
+import {
+  getTenantSchemaName,
+  type TenantDatabase as TenantDatabaseType,
+} from "@wateaminbox/database";
 import { Kysely, PostgresDialect, sql } from "kysely";
 import { Pool as PgPool } from "pg";
-import {
-  type TenantDatabase as TenantDatabaseType,
-  getTenantSchemaName,
-} from "@wateaminbox/database";
 import { env } from "../lib/env.js";
 
 export type TenantDatabase = TenantDatabaseType;
@@ -65,6 +65,15 @@ export async function tenantSchemaExists(companyId: string): Promise<boolean> {
 export async function createTenantSchema(companyId: string): Promise<void> {
   const schemaName = getSchemaName(companyId);
   await sql`SELECT setup_tenant_schema(${schemaName})`.execute(baseTenantDb);
+
+  // setup_tenant_schema predates participant display names. Keep newly-created
+  // tenant schemas aligned with migration 034 without redefining that large
+  // database function in every additive migration.
+  await sql`
+    ALTER TABLE ${sql.raw(`"${schemaName}".messages`)}
+    ADD COLUMN IF NOT EXISTS sender_name TEXT,
+    ADD COLUMN IF NOT EXISTS sender_avatar_url TEXT
+  `.execute(baseTenantDb);
 }
 
 export async function dropTenantSchema(companyId: string): Promise<void> {

@@ -1,10 +1,6 @@
-import { useAuth } from "../contexts/auth-context";
-import { MessageActionsProvider } from "../contexts/message-actions-context";
-import { useChatPageState } from "../hooks/chat";
-import { useWhatsAppConnections } from "../hooks/useWhatsAppConnections";
 import { ChatSidebar } from "../components/chat/ChatSidebar";
-import { ContactProfile } from "../components/chat/contact-profile";
 import { ConversationSearch } from "../components/chat/ConversationSearch";
+import { ContactProfile } from "../components/chat/contact-profile";
 import { DeleteMessageDialog } from "../components/chat/DeleteMessageDialog";
 import { ForwardMessageDialog } from "../components/chat/ForwardMessageDialog";
 import { MessageComposer } from "../components/chat/MessageComposer";
@@ -14,6 +10,10 @@ import { SyncingOverlay } from "../components/chat/SyncingOverlay";
 import { AppLayout, ResponsiveLayout } from "../components/layout/app-layout";
 import { MainContent } from "../components/layout/main-content";
 import { Sidebar } from "../components/layout/sidebar";
+import { useAuth } from "../contexts/auth-context";
+import { MessageActionsProvider } from "../contexts/message-actions-context";
+import { useChatPageState } from "../hooks/chat";
+import { useWhatsAppConnections } from "../hooks/useWhatsAppConnections";
 
 export function ChatPage() {
   const { user } = useAuth();
@@ -99,6 +99,10 @@ export function ChatPage() {
               <MessageThread
                 conversationId={selectedChatId}
                 currentUserId={user?.id || ""}
+                isGroup={
+                  selectedContact.isGroup ||
+                  selectedContact.jid?.endsWith("@g.us")
+                }
                 highlightedMessageId={highlightedMessageId}
                 onOpenContactInfo={handleOpenProfile}
               />

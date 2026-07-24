@@ -144,6 +144,15 @@ func (h *Handlers) handleSpawnCommand(ctx context.Context, data []byte) error {
 
 	log.Printf("Received spawn command for company %s, connection %s", cmd.CompanyID, cmd.ConnectionID)
 
+	// A reconnect is an explicit request for a fresh pairing attempt. Replace a
+	// worker that is still starting/erroring rather than reporting it as active:
+	// an unpaired worker cannot generate a new QR from a duplicate spawn alone.
+	if worker, exists := h.manager.GetWorkerStatus(cmd.ConnectionID); exists && worker.Status != types.StatusConnected {
+		if err := h.manager.StopWorker(ctx, cmd.CompanyID, cmd.ConnectionID, "restart requested for pairing"); err != nil {
+			log.Printf("Warning: failed to stop stale worker %s: %v", cmd.ConnectionID, err)
+		}
+	}
+
 	// Spawn the worker
 	err := h.manager.SpawnWorker(ctx, cmd.CompanyID, cmd.ConnectionID, cmd.TenantSchema, cmd.DatabaseURL)
 	if err != nil {

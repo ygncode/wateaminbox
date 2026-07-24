@@ -115,8 +115,16 @@ func (h *Handler) handleDisconnected(evt *events.Disconnected) {
 		}
 	}
 
-	// Attempt reconnection with the handler's context (if available)
+	// An unpaired device has no session to reconnect. Retrying its socket can
+	// return before the protocol handshake fails and incorrectly mark it as
+	// connected. Leave it disconnected so the user can deliberately restart QR
+	// pairing; paired devices continue with automatic recovery.
 	if h.config.Client != nil {
+		client := h.config.Client.GetClient()
+		if client == nil || client.Store == nil || client.Store.ID == nil {
+			log.Printf("Worker %s lost an unpaired QR session; waiting for a new pairing attempt", h.config.WorkerID)
+			return
+		}
 		go h.config.Client.HandleReconnect(h.config.Ctx)
 	}
 }
