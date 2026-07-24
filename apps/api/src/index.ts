@@ -1,7 +1,12 @@
 import { app } from "./app.js";
+import { setVerifiedRequestIp } from "./lib/client-ip.js";
 import { env } from "./lib/env.js";
 import { createLogger, formatError } from "./lib/logger.js";
 import { closeNatsConnection } from "./lib/nats/index.js";
+import {
+  initializeCommandOutbox,
+  shutdownCommandOutbox,
+} from "./services/command-outbox.service.js";
 import {
   initializeMessageCleanup,
   shutdownMessageCleanup,
@@ -11,10 +16,6 @@ import {
   shutdownMessageHandler,
 } from "./services/message-handler.js";
 import { shutdownTenantConnections } from "./services/tenant.service.js";
-import {
-  initializeCommandOutbox,
-  shutdownCommandOutbox,
-} from "./services/command-outbox.service.js";
 
 const logger = createLogger("Startup");
 
@@ -82,7 +83,11 @@ process.on("SIGINT", shutdown);
 
 export default {
   port,
-  fetch: app.fetch,
+  fetch(request: Request, server: Bun.Server<unknown>) {
+    const address = server.requestIP(request)?.address;
+    if (address) setVerifiedRequestIp(request, address);
+    return app.fetch(request);
+  },
 };
 
 // Re-export types for RPC client usage

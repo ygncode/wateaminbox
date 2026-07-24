@@ -1,28 +1,31 @@
 import { zValidator } from "@hono/zod-validator";
-import { Hono } from "hono";
 import { toDbDate } from "@wateaminbox/shared";
-import { createAuditLog, getClientIp } from "../../services/audit.service.js";
-import { getRouteContext } from "../../middleware/context.js";
+import { Hono } from "hono";
+import { forbidden, notFound, serverError } from "../../lib/errors.js";
 import {
-  extractPaginationParams,
-  createPaginationMeta,
-} from "../../lib/route-helpers.js";
-import { notFound, forbidden, serverError } from "../../lib/errors.js";
-import {
+  created,
+  successData,
   successMessage,
   successPaginated,
-  successData,
-  created,
 } from "../../lib/response.js";
-import { noteContentSchema } from "../../lib/schemas/index.js";
 import {
-  transformSharedNoteResponse,
-  transformPrivateNoteResponse,
-  getAuthorName,
+  createPaginationMeta,
+  extractPaginationParams,
+} from "../../lib/route-helpers.js";
+import { noteContentSchema } from "../../lib/schemas/index.js";
+import { getRouteContext } from "../../middleware/context.js";
+import { requireContactVisibility } from "../../middleware/resource-visibility.js";
+import { createAuditLog, getClientIp } from "../../services/audit.service.js";
+import {
   canModifySharedNote,
+  getAuthorName,
+  transformPrivateNoteResponse,
+  transformSharedNoteResponse,
 } from "../../services/note.service.js";
 
 export const notesRoutes = new Hono();
+
+notesRoutes.use("/:id/*", requireContactVisibility());
 
 /**
  * GET /contacts/:id/notes/shared - Get shared notes for a contact (paginated)

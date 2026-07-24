@@ -10,40 +10,16 @@ import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
 import { createLogger, formatError } from "../../lib/logger.js";
-import { broadcastToCompanyExcept } from "../../lib/pusher.js";
-import { rateLimitConfig, rateLimitStore } from "../../lib/rate-limit-store.js";
-import { authMiddleware } from "../../middleware/auth.js";
-import { createConditionalRateLimiter } from "../../middleware/rate-limit.js";
-import { tenantFromHeader } from "../../middleware/tenant.js";
-import * as whatsappService from "../../services/whatsapp.service.js";
-import {
-  ConnectionNotFoundError,
-  InvalidConnectionStateError,
-} from "../../lib/errors.js";
 import { publishTypingCommand } from "../../lib/nats/index.js";
+import { broadcastToCompanyExcept } from "../../lib/pusher.js";
+import { authMiddleware } from "../../middleware/auth.js";
+import {
+  legacyMessageSendRemoved,
+  requireMessageSendPermission,
+} from "../../middleware/message-send-policy.js";
+import { tenantFromHeader } from "../../middleware/tenant.js";
 
 const logger = createLogger("ActionsRoutes");
-
-// Rate limiter for messaging actions
-const messagingRateLimiter = createConditionalRateLimiter(
-  {
-    store: rateLimitStore,
-    tier: rateLimitConfig.tiers.messaging.whatsapp,
-    keyStrategy: "user",
-    keyPrefix: "actions-msg",
-  },
-  rateLimitConfig.enabled,
-);
-
-// Schema for send message request
-const sendMessageSchema = z.object({
-  jid: z.string().min(1),
-  content: z.string().optional(),
-  messageType: z
-    .enum(["text", "image", "audio", "video", "document"])
-    .default("text"),
-  mediaUrl: z.string().optional(),
-});
 
 // Schema for typing indicator request
 const typingSchema = z.object({
@@ -63,55 +39,8 @@ actionsRoutes.post(
   "/messages/send",
   authMiddleware,
   tenantFromHeader("X-Company-ID"),
-  messagingRateLimiter,
-  zValidator("json", sendMessageSchema),
-  async (c) => {
-    const companyId = c.get("companyId");
-    const user = c.get("user");
-    const tenantDb = c.get("tenantDb");
-    const input = c.req.valid("json");
-
-    // Validate that mediaUrl is provided for non-text messages
-    if (input.messageType !== "text" && !input.mediaUrl) {
-      throw new HTTPException(400, {
-        message: `mediaUrl is required for ${input.messageType} messages`,
-      });
-    }
-
-    try {
-      const result = await whatsappService.sendMessage(
-        tenantDb,
-        companyId,
-        user.id,
-        {
-          jid: input.jid,
-          content: input.content ?? "",
-          messageType: input.messageType,
-          mediaUrl: input.mediaUrl,
-        },
-      );
-
-      return c.json({
-        success: true,
-        data: {
-          messageId: result.messageId,
-          status: "pending",
-          message: "Message queued for sending",
-        },
-      });
-    } catch (error) {
-      if (error instanceof InvalidConnectionStateError) {
-        throw new HTTPException(400, { message: error.message });
-      }
-      if (error instanceof ConnectionNotFoundError) {
-        throw new HTTPException(404, { message: error.message });
-      }
-      logger.error({ err: formatError(error) }, "Failed to send message");
-      throw new HTTPException(500, {
-        message: "Failed to send message",
-      });
-    }
-  },
+  requireMessageSendPermission,
+  legacyMessageSendRemoved,
 );
 
 /**

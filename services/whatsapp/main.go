@@ -159,6 +159,8 @@ func main() {
 		Executor:       waClient,
 		ProfileFetcher: msgHandler,
 		Publisher:      publisher,
+		Storage:        storageClient,
+		Ledger:         waClient.CommandLedger(),
 	})
 	if err != nil {
 		log.Fatalf("Failed to initialize NATS subscriber: %v", err)

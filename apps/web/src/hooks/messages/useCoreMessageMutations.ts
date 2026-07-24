@@ -1,10 +1,14 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import type { Message, UpdateMessageInput } from "@wateaminbox/shared";
-import { toDbDate, nowMs } from "@wateaminbox/shared";
 import { api } from "../../lib/api";
-import { infiniteMessageKeys } from "../useInfiniteMessages";
 import { queryKeys } from "../query-keys";
-import type { SendMessageInput, InfiniteMessagesData } from "./types";
+import { infiniteMessageKeys } from "../useInfiniteMessages";
+import {
+  createOptimisticMessage,
+  prependOptimisticMessage,
+  reconcileOptimisticMessage,
+} from "./optimistic-message";
+import type { InfiniteMessagesData, SendMessageInput } from "./types";
 
 /**
  * Send a new message
@@ -21,52 +25,33 @@ export function useSendMessage() {
         queryKey: infiniteMessageKeys.list(newMessage.contactId),
       });
 
-      // Create an optimistic message
-      const now = toDbDate();
-      const optimisticMessage: Message = {
-        id: `optimistic-${nowMs()}`,
-        conversationId: newMessage.contactId,
-        senderId: "current-user",
-        senderType: "user",
-        messageType: newMessage.messageType || "text",
-        content: newMessage.content,
-        metadata: newMessage.mediaUrl
-          ? { mediaUrl: newMessage.mediaUrl }
-          : undefined,
-        replyToMessageId: newMessage.replyToMessageId,
-        isStarred: false,
-        isDeleted: false,
-        status: "pending",
-        createdAt: now,
-        updatedAt: now,
-      };
+      const optimisticMessage = createOptimisticMessage(newMessage);
 
       // Optimistically add the message to the cache
       const queryKey = infiniteMessageKeys.list(newMessage.contactId);
       const previousData = queryClient.getQueryData(queryKey);
 
-      queryClient.setQueryData<InfiniteMessagesData>(queryKey, (oldData) => {
-        if (!oldData) return oldData;
-
-        const newPages = [...oldData.pages];
-        if (newPages.length > 0) {
-          newPages[0] = {
-            ...newPages[0],
-            messages: [optimisticMessage, ...newPages[0].messages],
-          };
-        }
-
-        return {
-          ...oldData,
-          pages: newPages,
-        };
-      });
+      queryClient.setQueryData<InfiniteMessagesData>(queryKey, (oldData) =>
+        prependOptimisticMessage(oldData, optimisticMessage),
+      );
 
       return {
         contactId: newMessage.contactId,
         previousData,
         optimisticId: optimisticMessage.id,
       };
+    },
+    onSuccess: (response, variables, context) => {
+      if (!context?.optimisticId) return;
+      queryClient.setQueryData<InfiniteMessagesData>(
+        infiniteMessageKeys.list(variables.contactId),
+        (oldData) =>
+          reconcileOptimisticMessage(
+            oldData,
+            context.optimisticId,
+            response.message,
+          ),
+      );
     },
     onError: (_error, variables, context) => {
       // Rollback on error

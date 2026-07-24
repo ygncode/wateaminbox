@@ -4,8 +4,8 @@ import { badRequest, forbidden, serviceUnavailable } from "../lib/errors.js";
 import { rateLimitConfig, rateLimitStore } from "../lib/rate-limit-store.js";
 import { successData, successWithMessage } from "../lib/response.js";
 import {
-  extractPaginationParams,
   createPaginationMeta,
+  extractPaginationParams,
 } from "../lib/route-helpers.js";
 import { authMiddleware } from "../middleware/auth.js";
 import { getRouteContext } from "../middleware/context.js";
@@ -38,7 +38,7 @@ const searchRateLimiter = createConditionalRateLimiter(
  * Rate limit: 30 requests per minute per user
  */
 searchRoutes.get("/", searchRateLimiter, async (c) => {
-  const { companyId } = getRouteContext(c);
+  const { companyId, user, permissions } = getRouteContext(c);
   const query = c.req.query("q");
   const { limit } = extractPaginationParams(c, 10);
 
@@ -52,6 +52,7 @@ searchRoutes.get("/", searchRateLimiter, async (c) => {
 
   const results = await searchService.globalSearch(companyId, query.trim(), {
     limit,
+    assignedUserId: permissions.can_view_all_chats ? undefined : user.id,
   });
 
   return successData(c, {
@@ -66,7 +67,7 @@ searchRoutes.get("/", searchRateLimiter, async (c) => {
  * Rate limit: 30 requests per minute per user
  */
 searchRoutes.get("/messages", searchRateLimiter, async (c) => {
-  const { companyId } = getRouteContext(c);
+  const { companyId, user, permissions } = getRouteContext(c);
   const query = c.req.query("q");
   const { limit, offset } = extractPaginationParams(c);
   const contactId = c.req.query("contactId");
@@ -92,6 +93,7 @@ searchRoutes.get("/messages", searchRateLimiter, async (c) => {
     messageTypes: messageTypesStr
       ? messageTypesStr.split(",").filter(Boolean)
       : undefined,
+    assignedUserId: permissions.can_view_all_chats ? undefined : user.id,
   };
 
   const { results, total } = await searchService.searchMessages(
@@ -115,7 +117,7 @@ searchRoutes.get("/messages", searchRateLimiter, async (c) => {
  * Rate limit: 30 requests per minute per user
  */
 searchRoutes.get("/contacts", searchRateLimiter, async (c) => {
-  const { companyId } = getRouteContext(c);
+  const { companyId, user, permissions } = getRouteContext(c);
   const query = c.req.query("q");
   const { limit, offset } = extractPaginationParams(c);
   const includeGroups = c.req.query("includeGroups") !== "false";
@@ -131,6 +133,7 @@ searchRoutes.get("/contacts", searchRateLimiter, async (c) => {
       limit,
       offset,
       includeGroups,
+      assignedUserId: permissions.can_view_all_chats ? undefined : user.id,
     },
   );
 
@@ -255,9 +258,9 @@ searchRoutes.post("/reindex", async (c) => {
   await meilisearchService.indexContacts(companyId, contactDocuments);
 
   return successWithMessage(c, "Search indexes rebuilt successfully", {
-      indexed: {
-        messages: messageDocuments.length,
-        contacts: contactDocuments.length,
-      },
+    indexed: {
+      messages: messageDocuments.length,
+      contacts: contactDocuments.length,
+    },
   });
 });

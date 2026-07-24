@@ -1,9 +1,10 @@
 import { Hono } from "hono";
 import { badRequest } from "../../lib/errors.js";
-import { successData, created } from "../../lib/response.js";
 import { rateLimitConfig, rateLimitStore } from "../../lib/rate-limit-store.js";
+import { created, successData } from "../../lib/response.js";
 import { getRouteContext } from "../../middleware/context.js";
 import { createConditionalRateLimiter } from "../../middleware/rate-limit.js";
+import { requireAdmin } from "../../middleware/role.js";
 import {
   generateImportTemplate,
   importContacts,
@@ -44,7 +45,7 @@ importRoutes.get("/import/template", async (c) => {
  * Accepts: multipart/form-data with file field, or JSON with csvContent field
  * Rate limit: 5 requests per minute per user
  */
-importRoutes.post("/import", importRateLimiter, async (c) => {
+importRoutes.post("/import", requireAdmin(), importRateLimiter, async (c) => {
   const { tenantDb, user } = getRouteContext(c);
 
   let csvContent: string;
@@ -102,7 +103,10 @@ importRoutes.post("/import", importRateLimiter, async (c) => {
     .filter((row): row is NonNullable<typeof row> => row !== null);
 
   if (contactRows.length === 0) {
-    return badRequest(c, "No valid contacts found. Ensure CSV has a phone_number column.");
+    return badRequest(
+      c,
+      "No valid contacts found. Ensure CSV has a phone_number column.",
+    );
   }
 
   // Import contacts

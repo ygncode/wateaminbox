@@ -154,13 +154,15 @@ func TestSendMessageCommand_WithReply(t *testing.T) {
 // TestSendMessageCommand_WithMedia tests media message fields.
 func TestSendMessageCommand_WithMedia(t *testing.T) {
 	cmd := SendMessageCommand{
-		MessageID: "pending_media_001",
-		To:        "1234567890@s.whatsapp.net",
-		Type:      "image",
-		MediaData: []byte("fake image data"),
-		Caption:   "Test image",
-		FileName:  "test.jpg",
-		MimeType:  "image/jpeg",
+		MessageID:      "pending_media_001",
+		To:             "1234567890@s.whatsapp.net",
+		Type:           "image",
+		MediaObjectKey: "media/company-1/test.jpg",
+		MediaSize:      1024,
+		MediaChecksum:  "abc123",
+		Caption:        "Test image",
+		FileName:       "test.jpg",
+		MimeType:       "image/jpeg",
 	}
 
 	data, err := json.Marshal(cmd)
@@ -171,10 +173,29 @@ func TestSendMessageCommand_WithMedia(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, "image", unmarshaled.Type)
-	assert.NotEmpty(t, unmarshaled.MediaData, "media data should be preserved")
+	assert.Equal(t, "media/company-1/test.jpg", unmarshaled.MediaObjectKey)
+	assert.Equal(t, int64(1024), unmarshaled.MediaSize)
+	assert.Equal(t, "abc123", unmarshaled.MediaChecksum)
 	assert.Equal(t, "Test image", unmarshaled.Caption)
 	assert.Equal(t, "test.jpg", unmarshaled.FileName)
 	assert.Equal(t, "image/jpeg", unmarshaled.MimeType)
+}
+
+func TestMediaCommandPayloadStaysBelowDefaultNATSLimit(t *testing.T) {
+	cmd := SendMessageCommand{
+		MessageID:      "pending-realistic-document",
+		To:             "123@s.whatsapp.net",
+		Type:           "document",
+		MediaObjectKey: "media/company-1/large.pdf",
+		MediaSize:      maxSendMediaBytes,
+		MediaChecksum:  "0123456789abcdef",
+		FileName:       "large.pdf",
+		MimeType:       "application/pdf",
+	}
+	data, err := json.Marshal(cmd)
+	require.NoError(t, err)
+	assert.Less(t, len(data), 1024)
+	assert.NotContains(t, string(data), "media_data")
 }
 
 // TestSendResponse_Structure tests the SendResponse structure.
@@ -420,6 +441,77 @@ func TestHandleSendCommand_PublishConfirmationFlow(t *testing.T) {
 }
 
 // TestSubjectConstants_SendConfirmation tests the send confirmation subject format.
+type memoryCommandLedger struct {
+	results   map[string][]byte
+	saves     int
+	published int
+}
+
+func (ledger *memoryCommandLedger) GetProcessedCommand(_ context.Context, commandID string) ([]byte, bool, error) {
+	result, found := ledger.results[commandID]
+	return result, found, nil
+}
+func (ledger *memoryCommandLedger) SaveProcessedCommand(_ context.Context, commandID, _ string, result []byte) error {
+	ledger.saves++
+	ledger.results[commandID] = result
+	return nil
+}
+func (ledger *memoryCommandLedger) MarkCommandEventPublished(context.Context, string) error {
+	ledger.published++
+	return nil
+}
+
+type recordingCommandPublisher struct {
+	confirmationAttempts int
+	failConfirmation     bool
+}
+
+func (publisher *recordingCommandPublisher) PublishSendConfirmation(string, string, time.Time, string) error {
+	publisher.confirmationAttempts++
+	if publisher.failConfirmation {
+		return errors.New("confirmation transport unavailable")
+	}
+	return nil
+}
+func (*recordingCommandPublisher) PublishSendFailed(string, string, string) error { return nil }
+func (*recordingCommandPublisher) PublishCommandResult(string, string, bool, string) error {
+	return nil
+}
+func (*recordingCommandPublisher) PublishProfilePicture(string, string, bool, time.Time) error {
+	return nil
+}
+func (*recordingCommandPublisher) PublishLabels([]types.WhatsAppLabel) error { return nil }
+func (*recordingCommandPublisher) PublishCatalog(types.Catalog) error        { return nil }
+
+func TestSendResultReplayPreventsDuplicateSideEffect(t *testing.T) {
+	sendCalls := 0
+	sender := &mockMessageSender{sendMessageFunc: func(context.Context, string, string, string, string) (types.SendResponse, error) {
+		sendCalls++
+		return types.SendResponse{ID: "wa-real-id", Timestamp: time.Now()}, nil
+	}}
+	ledger := &memoryCommandLedger{results: make(map[string][]byte)}
+	publisher := &recordingCommandPublisher{failConfirmation: true}
+	subscriber := &Subscriber{
+		ctx: context.Background(), sender: sender, ledger: ledger, publisher: publisher,
+	}
+	command := []byte(`{"type":"text","command_id":"command-1","message_id":"pending-1","to":"1@s.whatsapp.net","content":"hello"}`)
+
+	// WhatsApp accepts the send and the ledger commits, but publication fails.
+	subscriber.handleSendCommand(&natsgo.Msg{Data: command})
+	require.Equal(t, 1, sendCalls)
+	require.Equal(t, 1, ledger.saves)
+	require.Equal(t, 1, publisher.confirmationAttempts)
+
+	// Redelivery after publication failure (or a worker crash before ACK) replays
+	// the ledger result and never executes the external side effect again.
+	publisher.failConfirmation = false
+	subscriber.handleSendCommand(&natsgo.Msg{Data: command})
+	assert.Equal(t, 1, sendCalls)
+	assert.Equal(t, 1, ledger.saves)
+	assert.Equal(t, 2, publisher.confirmationAttempts)
+	assert.Equal(t, 1, ledger.published)
+}
+
 func TestSubjectConstants_SendConfirmation(t *testing.T) {
 	companyID := "test-company"
 	connectionID := "test-connection"

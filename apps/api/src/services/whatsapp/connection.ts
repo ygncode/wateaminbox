@@ -7,18 +7,42 @@
 
 import { db, type WhatsAppConnectionStatus } from "@wateaminbox/database";
 import { toDbDate } from "@wateaminbox/shared";
-import type { Kysely } from "kysely";
+import { type Kysely, sql, type Transaction } from "kysely";
 import {
   ConnectionNotFoundError,
   MaxConnectionsExceededError,
 } from "../../lib/errors.js";
-import {
-  buildCommandSubject,
-  type NatsCommand,
-} from "../../lib/nats/index.js";
 import { forConnection } from "../../lib/nats/command-builder.js";
-import { enqueueCommand } from "../command-outbox.service.js";
+import { buildCommandSubject, type NatsCommand } from "../../lib/nats/index.js";
+import {
+  enqueueCommand,
+  enqueueConnectionCommand,
+} from "../command-outbox.service.js";
 import type { TenantDatabase } from "../tenant.service.js";
+
+export async function deleteConnectionWithKill(
+  trx: Transaction<TenantDatabase>,
+  companyId: string,
+  connectionId: string,
+  enqueueKill: typeof enqueueConnectionCommand = enqueueConnectionCommand,
+): Promise<boolean> {
+  const connection = await trx
+    .selectFrom("whatsapp_connections")
+    .select(["id", "status"])
+    .where("id", "=", connectionId)
+    .forUpdate()
+    .executeTakeFirst();
+  if (!connection) return false;
+
+  await enqueueKill(trx, companyId, connectionId, (publisher) =>
+    publisher.kill("connection deleted"),
+  );
+  await trx
+    .deleteFrom("whatsapp_connections")
+    .where("id", "=", connectionId)
+    .execute();
+  return true;
+}
 
 // Default max connections if not specified in company settings
 const DEFAULT_MAX_CONNECTIONS = 5;
@@ -174,24 +198,25 @@ export async function spawnConnection(
   // Get max connections limit for this company
   const maxConnections = await getMaxConnections(companyId);
 
-  // Count current active connections (connected or pending)
-  const activeConnections = await tenantDb
-    .selectFrom("whatsapp_connections")
-    .select(({ fn }) => [fn.count<number>("id").as("count")])
-    .where("status", "in", ["connected", "pending"])
-    .executeTakeFirst();
-
-  const currentCount = Number(activeConnections?.count ?? 0);
-
-  // Check if we've reached the limit
-  if (currentCount >= maxConnections) {
-    throw new MaxConnectionsExceededError(currentCount, maxConnections);
-  }
-
-  // Create a new pending connection record
+  // Create a new pending connection record. A company-scoped transaction
+  // advisory lock serializes the count+insert sequence across API replicas.
   const connectionId = crypto.randomUUID();
 
   await tenantDb.transaction().execute(async (trx) => {
+    await sql`SELECT pg_advisory_xact_lock(hashtextextended(${companyId}, 0))`.execute(
+      trx,
+    );
+
+    const activeConnections = await trx
+      .selectFrom("whatsapp_connections")
+      .select(({ fn }) => [fn.count<number>("id").as("count")])
+      .where("status", "in", ["connected", "pending"])
+      .executeTakeFirst();
+    const currentCount = Number(activeConnections?.count ?? 0);
+    if (currentCount >= maxConnections) {
+      throw new MaxConnectionsExceededError(currentCount, maxConnections);
+    }
+
     await trx
       .insertInto("whatsapp_connections")
       .values({

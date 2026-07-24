@@ -14,61 +14,32 @@ import {
   useRef,
   useState,
 } from "react";
-import { advanceMessageStatus } from "@wateaminbox/shared";
-import type {
-  ConversationReadPayload,
-  MediaDownloadedPayload,
-  MediaDownloadFailedPayload,
-  MessageDeletedPayload,
-  MessageFailedPayload,
-  MessageReactionPayload,
-  MessageStatusPayload,
-  NewMessagePayload,
-  PresencePayload,
-  ProfilePicturePayload,
-  SyncStatusPayload,
-  TypingPayload,
-} from "@wateaminbox/shared";
-import { useAuth } from "./auth-context";
+import { api } from "../lib/api";
+import { broadcastMessagesRead, sendTypingIndicator } from "../lib/api/actions";
 import {
   bindEvent,
   disconnectPusher,
   getConnectionState,
   initializePusher,
   onConnectionStateChange,
-  subscribeToCompany,
-  unsubscribeFromCompany,
   type PusherConnectionStatus,
   type PusherEventData,
   type PusherEventType,
+  subscribeToCompany,
+  unsubscribeFromCompany,
 } from "../lib/pusher";
-import { sendTypingIndicator, broadcastMessagesRead } from "../lib/api/actions";
-import { markConversationAsRead } from "../lib/api/conversations";
-import { queryKeys } from "../hooks/query-keys";
-import { api } from "../lib/api";
 import { useChatStore } from "../stores/chat-store";
-import type { TypingIndicator } from "../stores/chat-store";
+import { useAuth } from "./auth-context";
 import {
-  addMessageToCache,
-  invalidateChatList,
-  refetchConversationMessages,
-  updateContactDetailsByJid,
-  updateContactInChatList,
-  updateMessageInCache,
-} from "./realtime/cache-utils";
+  reconcileRealtimeState,
+  registerRealtimeEventHandlers,
+  type SyncState,
+} from "./realtime/event-handlers";
 
 // Typing timeout in milliseconds
 const TYPING_TIMEOUT = 5000;
 
-/**
- * Sync state for a connection
- */
-export interface SyncState {
-  connectionId: string;
-  conversations: number;
-  startedAt: Date;
-  interrupted?: boolean;
-}
+export type { SyncState } from "./realtime/event-handlers";
 
 /**
  * Event handler type for subscribe function (backward compatibility)
@@ -134,11 +105,7 @@ export function PusherProvider({
   const queryClientRef = useRef(queryClient);
   queryClientRef.current = queryClient;
 
-  // Chat store callbacks - use refs to avoid dependency cycles
-  const addMessageRef = useRef(useChatStore.getState().addMessage);
-  const updateMessageStatusRef = useRef(
-    useChatStore.getState().updateMessageStatus,
-  );
+  // Chat store callbacks are limited to ephemeral typing state.
   const addTypingIndicatorRef = useRef(
     useChatStore.getState().addTypingIndicator,
   );
@@ -149,8 +116,6 @@ export function PusherProvider({
   // Update refs when store changes
   useEffect(() => {
     const unsub = useChatStore.subscribe((state) => {
-      addMessageRef.current = state.addMessage;
-      updateMessageStatusRef.current = state.updateMessageStatus;
       addTypingIndicatorRef.current = state.addTypingIndicator;
       removeTypingIndicatorRef.current = state.removeTypingIndicator;
     });
@@ -192,360 +157,32 @@ export function PusherProvider({
     [],
   );
 
-  // Register all Pusher event handlers
+  // Register all company-scoped Pusher event handlers.
   const registerEventHandlers = useCallback(() => {
-    // Clean up existing handlers
-    eventUnsubscribesRef.current.forEach((unsub) => unsub());
-    eventUnsubscribesRef.current = [];
-
-    const qc = queryClientRef.current;
-
-    // New message handler
-    eventUnsubscribesRef.current.push(
-      bindEvent<NewMessagePayload>("message:new", (data) => {
-        const payload = data.payload;
-        console.log("[Pusher] message:new received:", payload.message.id);
-
-        // Update Zustand store
-        addMessageRef.current(payload.conversationId, payload.message);
-
-        // Update TanStack Query cache
-        addMessageToCache(qc, payload.conversationId, payload.message);
-
-        // Invalidate chat list for unread counts
-        invalidateChatList(qc);
-
-        // Auto-mark as read if viewing this conversation
-        const selectedId = useChatStore.getState().selectedConversationId;
-        if (
-          selectedId === payload.conversationId &&
-          payload.message.senderType === "contact"
-        ) {
-          markConversationAsRead(payload.conversationId).catch(console.error);
-        }
-      }),
-    );
-
-    // Message status handler
-    eventUnsubscribesRef.current.push(
-      bindEvent<MessageStatusPayload>("message:status", (data) => {
-        const payload = data.payload;
-        updateMessageStatusRef.current(
-          payload.conversationId,
-          payload.messageId,
-          payload.status,
-        );
-        updateMessageInCache(
-          qc,
-          payload.conversationId,
-          payload.messageId,
-          (msg) => ({
-            ...msg,
-            status: advanceMessageStatus(msg.status, payload.status),
-          }),
-        );
-      }),
-    );
-
-    // Failed sends use a separate event so the pending bubble can expose retry.
-    eventUnsubscribesRef.current.push(
-      bindEvent<MessageFailedPayload>("message:failed", (data) => {
-        const payload = data.payload;
-        updateMessageStatusRef.current(
-          payload.conversationId,
-          payload.messageId,
-          "failed",
-        );
-        updateMessageInCache(
-          qc,
-          payload.conversationId,
-          payload.messageId,
-          (msg) => ({
-            ...msg,
-            status: advanceMessageStatus(msg.status, "failed"),
-          }),
-        );
-      }),
-    );
-
-    // Message reaction handler
-    eventUnsubscribesRef.current.push(
-      bindEvent<MessageReactionPayload>("message:reaction", (data) => {
-        const payload = data.payload;
-        updateMessageInCache(
-          qc,
-          payload.contactId,
-          payload.messageId,
-          (msg) => {
-          const reactions = msg.reactions || [];
-          if (!payload.emoji) {
-            return {
-              ...msg,
-                reactions: reactions.filter(
-                  (r) => r.reactorJid !== payload.from,
-                ),
-            };
-          }
-          const existingIdx = reactions.findIndex(
-            (r) => r.reactorJid === payload.from,
-          );
-          if (existingIdx >= 0) {
-            const updated = [...reactions];
-            updated[existingIdx] = {
-              ...updated[existingIdx],
-              emoji: payload.emoji,
-              createdAt: new Date(),
-            };
-            return { ...msg, reactions: updated };
-          }
-          return {
-            ...msg,
-            reactions: [
-              ...reactions,
-                {
-                  emoji: payload.emoji,
-                  reactorJid: payload.from,
-                  createdAt: new Date(),
-                },
-            ],
-          };
-          },
-        );
-      }),
-    );
-
-    // Typing handlers
-    eventUnsubscribesRef.current.push(
-      bindEvent<TypingPayload>("typing:start", (data) => {
-        const payload = data.payload;
-        const indicator: TypingIndicator = {
-          conversationId: payload.conversationId,
-          userId: payload.userId,
-          userName: payload.userName,
-          startedAt: new Date(),
-        };
-        addTypingIndicatorRef.current(indicator);
-        setTypingTimeout(payload.conversationId, payload.userId);
-      }),
-    );
-
-    eventUnsubscribesRef.current.push(
-      bindEvent<TypingPayload>("typing:stop", (data) => {
-        const payload = data.payload;
-        removeTypingIndicatorRef.current(
-          payload.conversationId,
-          payload.userId,
-        );
-        clearTypingTimeout(payload.conversationId, payload.userId);
-      }),
-    );
-
-    // Conversation/contact changes can affect filters, assignments, unread
-    // counts, and sidebar previews, so refresh the chat list.
-    eventUnsubscribesRef.current.push(
-      bindEvent<ConversationReadPayload>("conversation:read", () => {
-        invalidateChatList(qc);
-      }),
-      bindEvent("conversation:updated", () => {
-        invalidateChatList(qc);
-      }),
-      bindEvent("contact:updated", () => {
-        invalidateChatList(qc);
-      }),
-      bindEvent("labels:updated", () => {
-        qc.invalidateQueries({ queryKey: ["labels"] });
-      }),
-      bindEvent("catalogs:updated", () => {
-        qc.invalidateQueries({ queryKey: ["catalogs"] });
-      }),
-      bindEvent("command:failed", () => {
-        invalidateChatList(qc);
-        const selectedId = useChatStore.getState().selectedConversationId;
-        if (selectedId) refetchConversationMessages(qc, selectedId);
-        qc.invalidateQueries({ queryKey: ["labels"] });
-        qc.invalidateQueries({ queryKey: ["catalogs"] });
-        qc.invalidateQueries({ queryKey: ["groups"] });
-      }),
-    );
-
-    // Profile picture handler
-    eventUnsubscribesRef.current.push(
-      bindEvent<ProfilePicturePayload>("contact:profile_picture", (data) => {
-        const payload = data.payload;
-        updateContactInChatList(qc, payload.jid, (contact) => ({
-          ...contact,
-          avatarUrl: payload.profilePictureUrl,
-        }));
-      }),
-    );
-
-    // Message deleted handler
-    eventUnsubscribesRef.current.push(
-      bindEvent<MessageDeletedPayload>("message:deleted", (data) => {
-        const payload = data.payload;
-        updateMessageInCache(
-          qc,
-          payload.conversationId,
-          payload.messageId,
-          (msg) => ({
-          ...msg,
-          deleted_by_sender: true,
-          deleted_at: new Date().toISOString(),
-          }),
-        );
-      }),
-    );
-
-    // Presence handlers
-    eventUnsubscribesRef.current.push(
-      bindEvent<PresencePayload>("presence:online", (data) => {
-        const { jid } = data.payload;
-        updateContactInChatList(qc, jid, (contact) => ({
-          ...contact,
-          isOnline: true,
-          lastSeen: undefined,
-        }));
-        updateContactDetailsByJid(qc, jid, (contact) => ({
-          ...contact,
-          isOnline: true,
-          lastSeen: null,
-        }));
-      }),
-    );
-
-    eventUnsubscribesRef.current.push(
-      bindEvent<PresencePayload>("presence:offline", (data) => {
-        const payload = data.payload;
-        updateContactInChatList(qc, payload.jid, (contact) => ({
-          ...contact,
-          isOnline: false,
-          lastSeen: payload.lastSeen ? new Date(payload.lastSeen) : undefined,
-        }));
-        updateContactDetailsByJid(qc, payload.jid, (contact) => ({
-          ...contact,
-          isOnline: false,
-          lastSeen: payload.lastSeen ?? null,
-        }));
-      }),
-    );
-
-    // Media handlers
-    eventUnsubscribesRef.current.push(
-      bindEvent<MediaDownloadedPayload>("media:downloaded", (data) => {
-        const payload = data.payload;
-        updateMessageInCache(
-          qc,
-          payload.conversationId,
-          payload.messageId,
-          (msg) => ({
-          ...msg,
-          metadata: {
-            ...(msg.metadata || {}),
-            mediaUrl: payload.mediaUrl,
-            mediaPending: false,
-            mediaDownloadStatus: "completed" as const,
-            fileSize: payload.mediaSize || msg.metadata?.fileSize,
-          },
-          }),
-        );
-        refetchConversationMessages(qc, payload.conversationId);
-      }),
-    );
-
-    eventUnsubscribesRef.current.push(
-      bindEvent<MediaDownloadFailedPayload>("media:download_failed", (data) => {
-        const payload = data.payload;
-        updateMessageInCache(
-          qc,
-          payload.conversationId,
-          payload.messageId,
-          (msg) => ({
-          ...msg,
-          metadata: {
-            ...(msg.metadata || {}),
-            mediaPending: true,
-            mediaDownloadStatus: "failed" as const,
-          },
-          }),
-        );
-        refetchConversationMessages(qc, payload.conversationId);
-      }),
-    );
-
-    // Sync handlers
-    eventUnsubscribesRef.current.push(
-      bindEvent<SyncStatusPayload>("sync:start", (data) => {
-        const connectionId = data.connectionId || "unknown";
-        setSyncingConnections((prev) => {
-          const newMap = new Map(prev);
-          newMap.set(connectionId, {
-            connectionId,
-            conversations: 0,
-            startedAt: new Date(),
-            interrupted: false,
-          });
-          return newMap;
-        });
-      }),
-    );
-
-    eventUnsubscribesRef.current.push(
-      bindEvent<SyncStatusPayload>("sync:progress", (data) => {
-        const payload = data.payload;
-        const connectionId = data.connectionId || "unknown";
-        setSyncingConnections((prev) => {
-          const newMap = new Map(prev);
-          const existing = newMap.get(connectionId);
-          newMap.set(connectionId, {
-            connectionId,
-            conversations: payload.conversations,
-            startedAt: existing?.startedAt || new Date(),
-          });
-          return newMap;
-        });
-      }),
-    );
-
-    eventUnsubscribesRef.current.push(
-      bindEvent<SyncStatusPayload>("sync:complete", (data) => {
-        const connectionId = data.connectionId || "unknown";
-        setSyncingConnections((prev) => {
-          const newMap = new Map(prev);
-          newMap.delete(connectionId);
-          return newMap;
-        });
-        invalidateChatList(qc);
-      }),
-    );
-
-    eventUnsubscribesRef.current.push(
-      bindEvent<SyncStatusPayload>("sync:interrupted", (data) => {
-        const connectionId = data.connectionId || "unknown";
-        setSyncingConnections((prev) => {
-          const newMap = new Map(prev);
-          const existing = newMap.get(connectionId);
-          if (existing) {
-            newMap.set(connectionId, { ...existing, interrupted: true });
-          }
-          return newMap;
-        });
-      }),
-    );
-
-    console.log("[Pusher] Event handlers registered");
-  }, [setTypingTimeout, clearTypingTimeout]);
+    eventUnsubscribesRef.current.forEach((unsubscribe) => unsubscribe());
+    eventUnsubscribesRef.current = registerRealtimeEventHandlers({
+      queryClient: queryClientRef.current,
+      companyId: currentCompanyId!,
+      setSyncingConnections,
+      addTypingIndicator: (indicator) =>
+        addTypingIndicatorRef.current(indicator),
+      removeTypingIndicator: (conversationId, userId) =>
+        removeTypingIndicatorRef.current(conversationId, userId),
+      setTypingTimeout,
+      clearTypingTimeout,
+    });
+  }, [setTypingTimeout, clearTypingTimeout, currentCompanyId]);
 
   // Connect to Pusher
   const connect = useCallback(() => {
     if (!currentCompanyId) {
-      console.warn("[Pusher] Cannot connect: no company ID");
       return;
     }
 
     try {
-    initializePusher();
-    subscribeToCompany(currentCompanyId);
-    registerEventHandlers();
+      initializePusher();
+      subscribeToCompany(currentCompanyId);
+      registerEventHandlers();
     } catch (connectionError) {
       setStatus("failed");
       setError(
@@ -618,21 +255,23 @@ export function PusherProvider({
       }
       setSyncingConnections(newMap);
     } catch (err) {
-      console.warn("[Pusher] Failed to fetch sync status:", err);
+      setError(
+        err instanceof Error ? err.message : "Failed to fetch sync status",
+      );
     }
   }, [currentCompanyId]);
 
   // Send typing indicator via REST
   const sendTypingStart = useCallback(
     (conversationId: string, contactId: string) => {
-      sendTypingIndicator(conversationId, contactId, true).catch(console.error);
+      sendTypingIndicator(conversationId, contactId, true).catch(() => {});
     },
     [],
   );
 
   const sendTypingStop = useCallback(
     (conversationId: string, contactId: string) => {
-      sendTypingIndicator(conversationId, contactId, false).catch(console.error);
+      sendTypingIndicator(conversationId, contactId, false).catch(() => {});
     },
     [],
   );
@@ -640,7 +279,7 @@ export function PusherProvider({
   // Mark messages as read
   const sendMarkAsRead = useCallback(
     (conversationId: string, messageIds: string[]) => {
-      broadcastMessagesRead(conversationId, messageIds).catch(console.error);
+      broadcastMessagesRead(conversationId, messageIds).catch(() => {});
     },
     [],
   );
@@ -688,13 +327,10 @@ export function PusherProvider({
   useEffect(() => {
     if (status === "connected") {
       fetchSyncStatus();
-      const qc = queryClientRef.current;
-      invalidateChatList(qc);
-      qc.invalidateQueries({ queryKey: queryKeys.contacts.details() });
-      const selectedId = useChatStore.getState().selectedConversationId;
-      if (selectedId) {
-        refetchConversationMessages(qc, selectedId);
-      }
+      reconcileRealtimeState(
+        queryClientRef.current,
+        useChatStore.getState().selectedConversationId,
+      );
     }
   }, [status, fetchSyncStatus]);
 

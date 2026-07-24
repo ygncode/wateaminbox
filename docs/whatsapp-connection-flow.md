@@ -30,6 +30,10 @@ pending -> connecting -> connected
 
 The orchestrator persists non-secret worker metadata and handles process lifecycle. Its durable consumer retains commands published while it is offline. Disconnect and delete operations commit the state change and kill command atomically through the tenant outbox.
 
+## Deletion lifecycle
+
+Connection deletion takes a row lock and writes the idempotent worker `kill` command to the tenant command outbox in the same transaction that deletes the connection row. A crash therefore commits both intents or neither; repeated DELETE requests return success when the row is already absent. The orchestrator verifies recovered process identity, waits for termination, and only then removes its worker-registry entry.
+
 ## Main files
 
 | Area | File |

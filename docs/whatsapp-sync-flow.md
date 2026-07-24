@@ -21,10 +21,19 @@ WhatsApp
   -> API validation and tenant persistence
   -> Meilisearch indexing
   -> Pusher message:new
-  -> React Query and Zustand caches
+  -> React Query message cache and ephemeral Zustand UI state
 ```
 
 Outgoing messages take the reverse command path: REST API -> atomic tenant persistence and command outbox -> NATS command -> worker -> WhatsApp. Delivery receipts return through the durable event path and produce `message:status` updates.
+
+### Outgoing media transport
+
+1. `/api/media/upload` validates the file and writes it below `media/{companyId}/` in S3/R2/MinIO.
+2. The send endpoint resolves the API-issued URL to that tenant-prefixed key and uses `HeadObject` to validate MIME type, filename, size (maximum 50 MiB), and SHA-256 metadata.
+3. The NATS command contains only the object key and validated metadata; it never contains media bytes or an arbitrary client URL.
+4. The owning WhatsApp worker verifies the tenant prefix, streams the object with the same size cap, verifies its checksum, and passes the bytes directly to whatsmeow.
+
+This keeps realistic documents below the default NATS payload limit and avoids the previous S3 → API → PostgreSQL outbox → NATS byte-array copy.
 
 ## Deferred media
 
@@ -34,6 +43,8 @@ History messages may be stored before large media is downloaded. The UI requests
 
 - Durable JetStream consumers with explicit acknowledgements provide at-least-once event delivery.
 - Tenant-local command outboxes close the database/NATS crash window and use JetStream message IDs for deduplication.
+- Workers persist successful command results by `command_id` before ACK. Redelivery republishes that result instead of repeating the WhatsApp side effect; publication failure is retried through NAK/redelivery.
+- The irreducible crash window is after WhatsApp accepts a send but before its result reaches the worker ledger. Such commands remain unacknowledged and are observable by command/message ID for reconciliation.
 - Database uniqueness constraints deduplicate WhatsApp message IDs and reactions.
 - PostgreSQL is the source of truth; Pusher is a realtime update signal.
 - Clients refetch affected queries after reconnect or sync completion.

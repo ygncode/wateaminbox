@@ -2,14 +2,14 @@
  * Reaction and message revoke event handlers
  */
 
-import type {
-  ReactionEvent,
-  MessageRevokeEvent,
-} from "../../lib/nats/index.js";
 import { toDbDate } from "@wateaminbox/shared";
-import { getTenantConnection } from "../tenant.service.js";
-import { broadcastToCompany } from "../../lib/pusher.js";
 import { formatError } from "../../lib/logger.js";
+import type {
+  MessageRevokeEvent,
+  ReactionEvent,
+} from "../../lib/nats/index.js";
+import { broadcastToCompany } from "../../lib/pusher.js";
+import { getTenantConnection } from "../tenant.service.js";
 import { handlerLogger as logger } from "./types.js";
 
 /**
@@ -38,6 +38,7 @@ export async function handleReactionEvent(event: ReactionEvent): Promise<void> {
       .selectFrom("messages")
       .select(["id", "contact_id"])
       .where("message_id", "=", payload.messageId)
+      .where("whatsapp_connection_id", "=", connectionId)
       .executeTakeFirst();
 
     if (!message) {
@@ -117,6 +118,7 @@ export async function handleMessageRevokeEvent(
         deleted_at: toDbDate(),
       })
       .where("message_id", "=", payload.messageId)
+      .where("whatsapp_connection_id", "=", connectionId)
       .executeTakeFirst();
 
     if (result.numUpdatedRows > 0) {
@@ -133,6 +135,7 @@ export async function handleMessageRevokeEvent(
         .selectFrom("messages")
         .select(["id", "contact_id"])
         .where("message_id", "=", payload.messageId)
+        .where("whatsapp_connection_id", "=", connectionId)
         .executeTakeFirst();
 
       if (message) {

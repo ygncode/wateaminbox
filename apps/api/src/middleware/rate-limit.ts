@@ -8,6 +8,8 @@
 
 import type { Context, Next } from "hono";
 import type { RateLimitTier } from "../config/rate-limit.config";
+import { getVerifiedRequestIp } from "../lib/client-ip.js";
+import { env } from "../lib/env.js";
 import type { RateLimitResult, RateLimitStore } from "../lib/rate-limit-store";
 
 /**
@@ -82,31 +84,22 @@ export interface RateLimitOptions {
   setHeaders?: boolean;
 }
 
-/**
- * Get client IP address from request
- * Checks multiple headers for proxy scenarios
- */
-function getClientIp(c: Context): string {
-  // Check common proxy headers first
-  const forwardedFor = c.req.header("x-forwarded-for");
-  if (forwardedFor) {
-    // Take the first IP from the comma-separated list
-    return forwardedFor.split(",")[0].trim();
-  }
+/** Resolve an IP from the socket, accepting one configured forwarding header
+ * only when the direct peer is an explicitly trusted proxy. */
+export function getClientIp(c: Context): string {
+  const remoteIp = getVerifiedRequestIp(c.req.raw);
+  if (!remoteIp) return "unknown";
 
-  const realIp = c.req.header("x-real-ip");
-  if (realIp) {
-    return realIp.trim();
-  }
+  const trustedProxies = new Set(
+    env.TRUSTED_PROXY_IPS.split(",")
+      .map((ip) => ip.trim())
+      .filter(Boolean),
+  );
+  if (!trustedProxies.has(remoteIp)) return remoteIp;
 
-  const cfConnectingIp = c.req.header("cf-connecting-ip");
-  if (cfConnectingIp) {
-    return cfConnectingIp.trim();
-  }
-
-  // Fall back to the remote address (may not be available in all setups)
-  // @ts-expect-error - Hono doesn't expose this in types but it's available at runtime
-  return c.req.raw?.header?.["x-forwarded-for"] || "unknown";
+  const forwarded = c.req.header(env.TRUSTED_PROXY_IP_HEADER);
+  const clientIp = forwarded?.split(",")[0]?.trim();
+  return clientIp || remoteIp;
 }
 
 /**

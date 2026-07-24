@@ -2,6 +2,7 @@ package nats
 
 import (
 	"encoding/json"
+	"os"
 	"testing"
 	"time"
 )
@@ -449,6 +450,31 @@ func TestDownloadRequestSerialization(t *testing.T) {
 	}
 	if parsed.MediaType != req.MediaType {
 		t.Errorf("MediaType = %v, want %v", parsed.MediaType, req.MediaType)
+	}
+}
+
+func TestSharedMessageEventFixture(t *testing.T) {
+	data, err := os.ReadFile("testdata/message-event-v1.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var event WhatsAppEvent
+	if err := json.Unmarshal(data, &event); err != nil {
+		t.Fatal(err)
+	}
+	if event.ContractVersion != ContractVersion || event.Type != EventTypeMessage {
+		t.Fatalf("unexpected fixture envelope: %+v", event)
+	}
+	payload, err := json.Marshal(event.Payload)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var message MessagePayload
+	if err := json.Unmarshal(payload, &message); err != nil {
+		t.Fatal(err)
+	}
+	if message.MessageID != "wa-message-1" {
+		t.Fatalf("unexpected fixture message: %+v", message)
 	}
 }
 

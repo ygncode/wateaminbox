@@ -1,11 +1,14 @@
 import { useInfiniteQuery } from "@tanstack/react-query";
 import type { PaginatedMessages } from "@wateaminbox/shared";
 import { api } from "../lib/api";
+import { getCompanyId } from "../lib/api/client";
 
 export const infiniteMessageKeys = {
-  all: ["infinite-messages"] as const,
+  get all() {
+    return ["infinite-messages", getCompanyId()] as const;
+  },
   list: (conversationId: string) =>
-    [...infiniteMessageKeys.all, conversationId] as const,
+    ["infinite-messages", getCompanyId(), conversationId] as const,
 };
 
 interface FetchMessagesParams {

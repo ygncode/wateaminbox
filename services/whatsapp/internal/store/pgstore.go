@@ -81,6 +81,43 @@ func NewPGContainer(ctx context.Context, cfg PGConfig) (*PGContainer, error) {
 	return container, nil
 }
 
+// GetProcessedCommand returns a durable command result for safe redelivery.
+func (c *PGContainer) GetProcessedCommand(ctx context.Context, commandID string) ([]byte, bool, error) {
+	var result []byte
+	err := c.db.QueryRowContext(ctx, `
+		SELECT result FROM processed_commands
+		WHERE connection_id = $1 AND command_id = $2
+	`, c.connectionID, commandID).Scan(&result)
+	if err == sql.ErrNoRows {
+		return nil, false, nil
+	}
+	if err != nil {
+		return nil, false, fmt.Errorf("get processed command: %w", err)
+	}
+	return result, true, nil
+}
+
+// SaveProcessedCommand persists the external side-effect result before ACK.
+func (c *PGContainer) SaveProcessedCommand(ctx context.Context, commandID, commandType string, result []byte) error {
+	_, err := c.db.ExecContext(ctx, `
+		INSERT INTO processed_commands (connection_id, command_id, command_type, result)
+		VALUES ($1, $2, $3, $4)
+		ON CONFLICT (connection_id, command_id) DO NOTHING
+	`, c.connectionID, commandID, commandType, result)
+	if err != nil {
+		return fmt.Errorf("save processed command: %w", err)
+	}
+	return nil
+}
+
+func (c *PGContainer) MarkCommandEventPublished(ctx context.Context, commandID string) error {
+	_, err := c.db.ExecContext(ctx, `
+		UPDATE processed_commands SET event_published = true
+		WHERE connection_id = $1 AND command_id = $2
+	`, c.connectionID, commandID)
+	return err
+}
+
 // Close closes the database connection.
 func (c *PGContainer) Close() error {
 	return c.db.Close()

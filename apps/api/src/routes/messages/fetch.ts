@@ -4,15 +4,16 @@
  * Routes for fetching and listing messages.
  */
 import { Hono } from "hono";
-import { badRequest } from "../../lib/errors.js";
-import { extractPaginationParams } from "../../lib/route-helpers.js";
-import { getRouteContext } from "../../middleware/context.js";
+import { badRequest, notFound } from "../../lib/errors.js";
 import {
   formatMessagesForFetch,
   type MessageDbRow,
   type QuotedMessageSimple,
   type ReactionData,
 } from "../../lib/message-formatters.js";
+import { extractPaginationParams } from "../../lib/route-helpers.js";
+import { getRouteContext } from "../../middleware/context.js";
+import { hasContactVisibility } from "../../middleware/resource-visibility.js";
 
 export const fetchRoutes = new Hono();
 
@@ -28,6 +29,9 @@ fetchRoutes.get("/", async (c) => {
 
   if (!contactId) {
     return badRequest(c, "contactId is required");
+  }
+  if (!(await hasContactVisibility(c, contactId))) {
+    return notFound(c, "Contact");
   }
 
   let query = tenantDb
@@ -59,10 +63,14 @@ fetchRoutes.get("/", async (c) => {
 
   let quotedMessages = new Map<string, QuotedMessageSimple>();
   if (quotedIds.length > 0) {
+    const connectionIds = [
+      ...new Set(messages.map((message) => message.whatsapp_connection_id)),
+    ];
     const quoted = await tenantDb
       .selectFrom("messages")
       .select(["message_id", "content", "message_type", "sender_jid"])
       .where("message_id", "in", quotedIds)
+      .where("whatsapp_connection_id", "in", connectionIds)
       .execute();
 
     quotedMessages = new Map(
@@ -119,10 +127,10 @@ fetchRoutes.get("/", async (c) => {
  * GET /starred - Get all starred messages
  */
 fetchRoutes.get("/starred", async (c) => {
-  const { tenantDb } = getRouteContext(c);
+  const { tenantDb, user, permissions } = getRouteContext(c);
   const { limit, offset } = extractPaginationParams(c, 50);
 
-  const messages = await tenantDb
+  let query = tenantDb
     .selectFrom("messages")
     .innerJoin("contacts", "contacts.id", "messages.contact_id")
     .select([
@@ -137,7 +145,18 @@ fetchRoutes.get("/starred", async (c) => {
       "contacts.custom_name",
       "contacts.phone_number",
     ])
-    .where("messages.is_starred", "=", true)
+    .where("messages.is_starred", "=", true);
+
+  if (!permissions.can_view_all_chats) {
+    query = query.innerJoin("contact_assignments", (join) =>
+      join
+        .onRef("contact_assignments.contact_id", "=", "messages.contact_id")
+        .on("contact_assignments.assigned_to", "=", user.id)
+        .on("contact_assignments.unassigned_at", "is", null),
+    );
+  }
+
+  const messages = await query
     .orderBy("messages.timestamp", "desc")
     .limit(limit)
     .offset(offset)

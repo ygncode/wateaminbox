@@ -2,10 +2,13 @@ package manager
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"os"
 	"os/exec"
+	"path/filepath"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -327,41 +330,111 @@ func (m *Manager) stopWorkerInternal(ctx context.Context, companyID, connectionI
 		worker.healthCancel()
 	}
 
-	// Try graceful shutdown first with SIGTERM
-	if worker.cmd != nil && worker.cmd.Process != nil {
-		// Send SIGTERM to the process group
-		pgid, err := syscall.Getpgid(worker.cmd.Process.Pid)
-		if err == nil {
-			syscall.Kill(-pgid, syscall.SIGTERM)
-		} else {
-			worker.cmd.Process.Signal(syscall.SIGTERM)
-		}
-
-		// monitorWorkerProcess owns cmd.Wait(). Calling Wait here as well races
-		// with that monitor and can leave the command consumer blocked forever.
-		// Signal the worker and let the monitor reap it exactly once.
-		log.Printf("Sent shutdown signal to worker %s", connectionID)
+	pid := worker.PID
+	if pid <= 0 {
+		return fmt.Errorf("worker %s has no process ID", connectionID)
 	}
 
-	// Cancel worker context
+	// Recovered workers have no exec.Cmd. Verify the PID still belongs to the
+	// configured worker binary before signaling it, mitigating PID reuse.
+	if worker.cmd == nil {
+		matches, err := m.isExpectedWorkerProcess(pid)
+		if err != nil {
+			return fmt.Errorf("verify recovered worker %s: %w", connectionID, err)
+		}
+		if !matches {
+			return fmt.Errorf("refusing to signal reused PID %d for worker %s", pid, connectionID)
+		}
+	}
+
+	process, err := os.FindProcess(pid)
+	if err != nil {
+		return fmt.Errorf("find worker %s process: %w", connectionID, err)
+	}
+	if pgid, pgErr := syscall.Getpgid(pid); pgErr == nil && pgid == pid {
+		err = syscall.Kill(-pgid, syscall.SIGTERM)
+	} else {
+		err = process.Signal(syscall.SIGTERM)
+	}
+	if err != nil && !errors.Is(err, os.ErrProcessDone) && !errors.Is(err, syscall.ESRCH) {
+		return fmt.Errorf("signal worker %s: %w", connectionID, err)
+	}
+	log.Printf("Sent shutdown signal to worker %s", connectionID)
+
 	if worker.cancelFunc != nil {
 		worker.cancelFunc()
 	}
-
-	// Remove from persistent storage
-	if m.registry != nil {
-		if err := m.registry.RemoveWorker(ctx, connectionID); err != nil {
-			log.Printf("Warning: failed to remove worker from registry: %v", err)
+	if err := waitForProcessExit(ctx, pid, 5*time.Second); err != nil {
+		_ = process.Signal(syscall.SIGKILL)
+		if killErr := waitForProcessExit(ctx, pid, 2*time.Second); killErr != nil {
+			return fmt.Errorf("worker %s did not exit: %w", connectionID, killErr)
 		}
 	}
 
-	// Update status
+	// Delete durable/in-memory state only after process termination is confirmed.
+	if m.registry != nil {
+		if err := m.registry.RemoveWorker(ctx, connectionID); err != nil {
+			return fmt.Errorf("remove worker %s from registry: %w", connectionID, err)
+		}
+	}
+
 	m.mu.Lock()
 	worker.Status = types.StatusStopped
 	delete(m.workers, connectionID)
 	m.mu.Unlock()
 
 	return nil
+}
+
+func (m *Manager) isExpectedWorkerProcess(pid int) (bool, error) {
+	procExecutable := fmt.Sprintf("/proc/%d/exe", pid)
+	if executable, err := os.Readlink(procExecutable); err == nil {
+		expected, expectedErr := filepath.EvalSymlinks(m.config.WhatsAppBinaryPath)
+		if expectedErr != nil {
+			expected = m.config.WhatsAppBinaryPath
+		}
+		actual, actualErr := filepath.EvalSymlinks(executable)
+		if actualErr != nil {
+			actual = executable
+		}
+		return actual == expected, nil
+	}
+
+	output, err := exec.Command("ps", "-p", fmt.Sprint(pid), "-o", "command=").Output()
+	if err != nil {
+		return false, err
+	}
+	fields := strings.Fields(string(output))
+	if len(fields) == 0 {
+		return false, nil
+	}
+	actual := fields[0]
+	return actual == m.config.WhatsAppBinaryPath || filepath.Base(actual) == filepath.Base(m.config.WhatsAppBinaryPath), nil
+}
+
+func waitForProcessExit(ctx context.Context, pid int, timeout time.Duration) error {
+	deadline := time.NewTimer(timeout)
+	defer deadline.Stop()
+	ticker := time.NewTicker(25 * time.Millisecond)
+	defer ticker.Stop()
+
+	for {
+		process, err := os.FindProcess(pid)
+		if err != nil {
+			return nil
+		}
+		err = process.Signal(syscall.Signal(0))
+		if errors.Is(err, os.ErrProcessDone) || errors.Is(err, syscall.ESRCH) {
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-deadline.C:
+			return fmt.Errorf("timed out waiting for PID %d", pid)
+		case <-ticker.C:
+		}
+	}
 }
 
 // GetWorkerStatus returns the status of a specific worker by connectionID.
@@ -632,22 +705,11 @@ func (m *Manager) recoverOrphanedWorkers(ctx context.Context) error {
 		if databaseURL == "" {
 			databaseURL = w.DatabaseURL // Backward compatibility with old registry rows.
 		}
-		// Check if process is still running
-		process, err := os.FindProcess(w.PID)
-		if err != nil {
-			// Process doesn't exist - clean up registry and notify API
-			log.Printf("Worker %s (PID %d) not found, cleaning up and notifying API", w.ConnectionID, w.PID)
-			m.registry.RemoveWorker(ctx, w.ConnectionID)
-			// Publish disconnected status so the API updates the database
-			m.publishConnectionStatus(w.CompanyID, w.ConnectionID, types.StatusError, "worker process not found after orchestrator restart")
-			continue
-		}
-
-		// Signal 0 checks if process exists without affecting it
-		err = process.Signal(syscall.Signal(0))
-		if err != nil {
-			// Process is dead - clean up, notify API, and optionally respawn
-			log.Printf("Worker %s (PID %d) is dead, cleaning up and notifying API", w.ConnectionID, w.PID)
+		// Check that the process exists and still belongs to the worker binary.
+		// A stale registry PID may have been reused by an unrelated process.
+		processMatches, processErr := m.isExpectedWorkerProcess(w.PID)
+		if processErr != nil || !processMatches {
+			log.Printf("Worker %s (PID %d) is dead or has a reused PID, cleaning up and notifying API", w.ConnectionID, w.PID)
 			m.registry.RemoveWorker(ctx, w.ConnectionID)
 			// Publish error status so the API updates the database
 			m.publishConnectionStatus(w.CompanyID, w.ConnectionID, types.StatusError, "worker process died")

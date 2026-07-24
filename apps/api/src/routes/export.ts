@@ -8,6 +8,7 @@ import { extractPaginationParams } from "../lib/route-helpers.js";
 import { authMiddleware } from "../middleware/auth.js";
 import { getRouteContext } from "../middleware/context.js";
 import { createConditionalRateLimiter } from "../middleware/rate-limit.js";
+import { requireContactVisibility } from "../middleware/resource-visibility.js";
 import { requirePermission, tenantMiddleware } from "../middleware/tenant.js";
 import * as exportService from "../services/export.service.js";
 import { PERMISSIONS } from "../services/permission.service.js";
@@ -39,7 +40,7 @@ const exportRateLimiter = createConditionalRateLimiter(
  * Rate limit: 10 requests per hour per user
  */
 exportRoutes.get("/contacts", exportRateLimiter, async (c) => {
-  const { companyId } = getRouteContext(c);
+  const { companyId, user, permissions } = getRouteContext(c);
   const format = (c.req.query("format") as "csv" | "json") || "csv";
   const tagIds = c.req.query("tagIds")?.split(",").filter(Boolean);
   const assignedTo = c.req.query("assignedTo");
@@ -49,6 +50,7 @@ exportRoutes.get("/contacts", exportRateLimiter, async (c) => {
     tagIds,
     assignedTo: assignedTo || undefined,
     hasCustomName: hasCustomName || undefined,
+    assignedUserId: permissions.can_view_all_chats ? undefined : user.id,
   });
 
   if (format === "json") {
@@ -73,7 +75,7 @@ exportRoutes.get("/contacts", exportRateLimiter, async (c) => {
  * Rate limit: 10 requests per hour per user
  */
 exportRoutes.get("/messages", exportRateLimiter, async (c) => {
-  const { companyId } = getRouteContext(c);
+  const { companyId, user, permissions } = getRouteContext(c);
   const format = (c.req.query("format") as "csv" | "json") || "csv";
   const contactId = c.req.query("contactId");
   const startDateStr = c.req.query("startDate");
@@ -91,6 +93,7 @@ exportRoutes.get("/messages", exportRateLimiter, async (c) => {
     messageTypes,
     limit: hasLimitParam ? limit : undefined,
     offset: hasLimitParam ? offset : undefined,
+    assignedUserId: permissions.can_view_all_chats ? undefined : user.id,
   });
 
   if (format === "json") {
@@ -123,71 +126,82 @@ exportRoutes.get("/messages", exportRateLimiter, async (c) => {
  * Query params: format (csv|json), startDate, endDate
  * Rate limit: 10 requests per hour per user
  */
-exportRoutes.get("/conversation/:contactId", exportRateLimiter, async (c) => {
-  const { companyId } = getRouteContext(c);
-  const contactId = c.req.param("contactId");
-  const format = (c.req.query("format") as "csv" | "json") || "json";
-  const startDateStr = c.req.query("startDate");
-  const endDateStr = c.req.query("endDate");
+exportRoutes.get(
+  "/conversation/:contactId",
+  requireContactVisibility("contactId"),
+  exportRateLimiter,
+  async (c) => {
+    const { companyId, user, permissions } = getRouteContext(c);
+    const contactId = c.req.param("contactId");
+    const format = (c.req.query("format") as "csv" | "json") || "json";
+    const startDateStr = c.req.query("startDate");
+    const endDateStr = c.req.query("endDate");
 
-  try {
-    const conversation = await exportService.exportConversation(
-      companyId,
-      contactId,
-      {
-        startDate: startDateStr ? toDbDate(startDateStr) : undefined,
-        endDate: endDateStr ? toDbDate(endDateStr) : undefined,
-      },
-    );
+    try {
+      const conversation = await exportService.exportConversation(
+        companyId,
+        contactId,
+        {
+          startDate: startDateStr ? toDbDate(startDateStr) : undefined,
+          endDate: endDateStr ? toDbDate(endDateStr) : undefined,
+          assignedUserId: permissions.can_view_all_chats ? undefined : user.id,
+        },
+      );
 
-    if (format === "json") {
-      return successData(c, conversation);
+      if (format === "json") {
+        return successData(c, conversation);
+      }
+
+      // CSV format - just the messages
+      const csv = exportService.toCSV(
+        conversation.messages as unknown as Record<string, unknown>[],
+      );
+      c.header("Content-Type", "text/csv");
+      c.header(
+        "Content-Disposition",
+        `attachment; filename="conversation-${conversation.contact.whatsapp_id}-${toISOString(toDbDate()).split("T")[0]}.csv"`,
+      );
+      return c.body(csv);
+    } catch {
+      return notFound(c, "Contact");
     }
-
-    // CSV format - just the messages
-    const csv = exportService.toCSV(
-      conversation.messages as unknown as Record<string, unknown>[],
-    );
-    c.header("Content-Type", "text/csv");
-    c.header(
-      "Content-Disposition",
-      `attachment; filename="conversation-${conversation.contact.whatsapp_id}-${toISOString(toDbDate()).split("T")[0]}.csv"`,
-    );
-    return c.body(csv);
-  } catch {
-    return notFound(c, "Contact");
-  }
-});
+  },
+);
 
 /**
  * GET /export/full - Full backup as ZIP file
  * Query params: startDate, endDate
  * Rate limit: 10 requests per hour per user
  */
-exportRoutes.get("/full", exportRateLimiter, async (c) => {
-  const { companyId } = getRouteContext(c);
-  const startDateStr = c.req.query("startDate");
-  const endDateStr = c.req.query("endDate");
+exportRoutes.get(
+  "/full",
+  requirePermission(PERMISSIONS.CAN_VIEW_ALL_CHATS),
+  exportRateLimiter,
+  async (c) => {
+    const { companyId } = getRouteContext(c);
+    const startDateStr = c.req.query("startDate");
+    const endDateStr = c.req.query("endDate");
 
-  try {
-    const zipData = await exportService.exportFullBackup(companyId, {
-      startDate: startDateStr ? toDbDate(startDateStr) : undefined,
-      endDate: endDateStr ? toDbDate(endDateStr) : undefined,
-    });
+    try {
+      const zipData = await exportService.exportFullBackup(companyId, {
+        startDate: startDateStr ? toDbDate(startDateStr) : undefined,
+        endDate: endDateStr ? toDbDate(endDateStr) : undefined,
+      });
 
-    const filename = `whatsapp-backup-${toISOString(toDbDate()).split("T")[0]}.zip`;
+      const filename = `whatsapp-backup-${toISOString(toDbDate()).split("T")[0]}.zip`;
 
-    c.header("Content-Type", "application/zip");
-    c.header("Content-Disposition", `attachment; filename="${filename}"`);
-    c.header("Content-Length", String(zipData.length));
+      c.header("Content-Type", "application/zip");
+      c.header("Content-Disposition", `attachment; filename="${filename}"`);
+      c.header("Content-Length", String(zipData.length));
 
-    // Return as Buffer for proper binary response
-    return c.body(Buffer.from(zipData));
-  } catch (error) {
-    logger.error({ err: formatError(error) }, "Full backup export error");
-    return serverError(c, "Failed to create backup");
-  }
-});
+      // Return as Buffer for proper binary response
+      return c.body(Buffer.from(zipData));
+    } catch (error) {
+      logger.error({ err: formatError(error) }, "Full backup export error");
+      return serverError(c, "Failed to create backup");
+    }
+  },
+);
 
 /**
  * POST /export/bulk - Bulk export with custom filters
@@ -195,7 +209,7 @@ exportRoutes.get("/full", exportRateLimiter, async (c) => {
  * Rate limit: 10 requests per hour per user
  */
 exportRoutes.post("/bulk", exportRateLimiter, async (c) => {
-  const { companyId } = getRouteContext(c);
+  const { companyId, user, permissions } = getRouteContext(c);
   const body = await c.req.json<{
     type: "contacts" | "messages";
     format?: "csv" | "json";
@@ -224,6 +238,7 @@ exportRoutes.post("/bulk", exportRateLimiter, async (c) => {
       tagIds: filters.tagIds,
       assignedTo: filters.assignedTo,
       hasCustomName: filters.hasCustomName,
+      assignedUserId: permissions.can_view_all_chats ? undefined : user.id,
     });
     filename = `contacts-${datePrefix}`;
   } else {
@@ -234,6 +249,7 @@ exportRoutes.post("/bulk", exportRateLimiter, async (c) => {
       messageTypes: filters.messageTypes,
       limit: filters.limit,
       offset: filters.offset,
+      assignedUserId: permissions.can_view_all_chats ? undefined : user.id,
     });
     filename = `messages-${datePrefix}`;
   }

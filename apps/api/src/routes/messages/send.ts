@@ -12,17 +12,17 @@ import {
   buildCommandSubject,
   buildSendMessageCommand,
 } from "../../lib/nats/index.js";
-import { enqueueCommand } from "../../services/command-outbox.service.js";
 import { rateLimitConfig, rateLimitStore } from "../../lib/rate-limit-store.js";
 import {
   forwardMessageSchema,
   sendMessageSchema,
 } from "../../lib/schemas/index.js";
 import { getRouteContext } from "../../middleware/context.js";
+import { requireMessageSendPermission } from "../../middleware/message-send-policy.js";
 import { createConditionalRateLimiter } from "../../middleware/rate-limit.js";
-import { requirePermission } from "../../middleware/tenant.js";
+import { requireMessageVisibility } from "../../middleware/resource-visibility.js";
+import { enqueueCommand } from "../../services/command-outbox.service.js";
 import { ensureContactAssignment } from "../../services/contact.service.js";
-import { PERMISSIONS } from "../../services/permission.service.js";
 
 // Message send rate limiter: 60 requests per minute per user
 const messageSendRateLimiter = createConditionalRateLimiter(
@@ -43,8 +43,8 @@ export const sendRoutes = new Hono();
  */
 sendRoutes.post(
   "/",
+  requireMessageSendPermission,
   messageSendRateLimiter,
-  requirePermission(PERMISSIONS.CAN_SEND_MESSAGES),
   zValidator("json", sendMessageSchema),
   async (c) => {
     const { tenantDb, user, companyId } = getRouteContext(c);
@@ -95,6 +95,8 @@ sendRoutes.post(
         .selectFrom("messages")
         .select(["message_id", "sender_jid", "from_me"])
         .where("id", "=", body.replyToMessageId)
+        .where("contact_id", "=", body.contactId)
+        .where("whatsapp_connection_id", "=", connection.id)
         .executeTakeFirst();
       quotedWaMessageId = quotedMessage?.message_id || undefined;
 
@@ -110,6 +112,7 @@ sendRoutes.post(
     const waMessageId = `pending_${messageId}`;
 
     const sendCommand = await buildSendMessageCommand(
+      companyId,
       connection.id,
       contact.jid,
       body.content || "",
@@ -173,8 +176,9 @@ sendRoutes.post(
  */
 sendRoutes.post(
   "/:id/forward",
+  requireMessageSendPermission,
+  requireMessageVisibility(),
   messageSendRateLimiter,
-  requirePermission(PERMISSIONS.CAN_SEND_MESSAGES),
   zValidator("json", forwardMessageSchema),
   async (c) => {
     const { tenantDb, user, companyId } = getRouteContext(c);
@@ -228,6 +232,7 @@ sendRoutes.post(
     const waMessageId = `pending_${newMessageId}`;
 
     const sendCommand = await buildSendMessageCommand(
+      companyId,
       connection.id,
       targetContact.jid,
       originalMessage.content || "",
@@ -281,8 +286,9 @@ sendRoutes.post(
  */
 sendRoutes.post(
   "/:id/retry",
+  requireMessageSendPermission,
+  requireMessageVisibility(),
   messageSendRateLimiter,
-  requirePermission(PERMISSIONS.CAN_SEND_MESSAGES),
   async (c) => {
     const { tenantDb, user, companyId } = getRouteContext(c);
     const messageId = c.req.param("id");
@@ -342,6 +348,7 @@ sendRoutes.post(
         .selectFrom("messages")
         .select(["from_me", "sender_jid"])
         .where("message_id", "=", originalMessage.quoted_message_id)
+        .where("whatsapp_connection_id", "=", connection.id)
         .executeTakeFirst();
       if (quotedMessage?.from_me) {
         quotedSenderJid = connection.jid || undefined;
@@ -351,6 +358,7 @@ sendRoutes.post(
     }
 
     const sendCommand = await buildSendMessageCommand(
+      companyId,
       connection.id,
       contact.jid,
       originalMessage.content || "",

@@ -1,10 +1,11 @@
+import { useQueryClient } from "@tanstack/react-query";
 import * as React from "react";
 import {
   login as apiLogin,
   logout as apiLogout,
   register as apiRegister,
-  type CompanyWithRole,
   attemptTokenRefresh,
+  type CompanyWithRole,
   clearAuthTokens,
   clearCompanyId,
   getAccessToken,
@@ -16,6 +17,7 @@ import {
   type RegisterResponse,
   setCompanyId,
 } from "../lib/api";
+import { useChatStore } from "../stores/chat-store";
 
 export type UserRole = "owner" | "admin" | "member";
 
@@ -81,6 +83,7 @@ function mapApiUserToAuthUser(
 }
 
 export function AuthProvider({ children }: AuthProviderProps) {
+  const queryClient = useQueryClient();
   const [state, setState] = React.useState<AuthState>({
     user: null,
     isAuthenticated: false,
@@ -236,6 +239,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
       // Ignore logout errors, clear local state anyway
     } finally {
       clearAuthTokens();
+      queryClient.clear();
+      useChatStore.getState().reset();
       setState({
         user: null,
         isAuthenticated: false,
@@ -246,12 +251,16 @@ export function AuthProvider({ children }: AuthProviderProps) {
         needsCompanySetup: false,
       });
     }
-  }, []);
+  }, [queryClient]);
 
   const selectCompany = React.useCallback(
     (companyId: string) => {
       const membership = state.companies.find((c) => c.id === companyId);
-      if (membership) {
+      if (membership && companyId !== state.currentCompanyId) {
+        // Clear synchronously before publishing the new tenant ID so no render
+        // can observe server/UI state belonging to the previous company.
+        queryClient.clear();
+        useChatStore.getState().reset();
         setCompanyId(companyId);
         setState((prev) => ({
           ...prev,
@@ -266,7 +275,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         }));
       }
     },
-    [state.companies],
+    [queryClient, state.companies, state.currentCompanyId],
   );
 
   const refreshSession = React.useCallback(async () => {
@@ -324,6 +333,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
       }
     } catch {
       clearAuthTokens();
+      queryClient.clear();
+      useChatStore.getState().reset();
       setState({
         user: null,
         isAuthenticated: false,
@@ -334,7 +345,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         needsCompanySetup: false,
       });
     }
-  }, []);
+  }, [queryClient]);
 
   const clearError = React.useCallback(() => {
     setState((prev) => ({ ...prev, error: null }));

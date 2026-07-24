@@ -64,6 +64,7 @@ export interface NatsCommand {
 
 // Base event interface
 export interface WhatsAppEvent {
+  contractVersion: 1;
   type:
     | "qr"
     | "connected"

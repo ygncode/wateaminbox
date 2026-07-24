@@ -18,23 +18,25 @@
  * ```
  */
 
+import { getCompanyId } from "../lib/api/client";
+
 /**
  * Type for the query key factory return value.
  * Provides type-safe query key generation with proper tuple types.
  */
 export interface QueryKeyFactory<TDomain extends string> {
   /** Base key for all queries in this domain */
-  all: readonly [TDomain];
+  all: readonly [TDomain, string | null];
   /** Key for list queries (without filters) */
-  lists: () => readonly [TDomain, "list"];
+  lists: () => readonly [TDomain, string | null, "list"];
   /** Key for list queries with filters */
   list: <TFilters extends Record<string, unknown>>(
     filters: TFilters,
-  ) => readonly [TDomain, "list", TFilters];
+  ) => readonly [TDomain, string | null, "list", TFilters];
   /** Key for detail queries (without id) */
-  details: () => readonly [TDomain, "detail"];
+  details: () => readonly [TDomain, string | null, "detail"];
   /** Key for a specific detail query */
-  detail: (id: string) => readonly [TDomain, "detail", string];
+  detail: (id: string) => readonly [TDomain, string | null, "detail", string];
 }
 
 /**
@@ -59,12 +61,14 @@ export function createQueryKeyFactory<TDomain extends string>(
   domain: TDomain,
 ): QueryKeyFactory<TDomain> {
   return {
-    all: [domain] as const,
-    lists: () => [domain, "list"] as const,
+    get all() {
+      return [domain, getCompanyId()] as const;
+    },
+    lists: () => [domain, getCompanyId(), "list"] as const,
     list: <TFilters extends Record<string, unknown>>(filters: TFilters) =>
-      [domain, "list", filters] as const,
-    details: () => [domain, "detail"] as const,
-    detail: (id: string) => [domain, "detail", id] as const,
+      [domain, getCompanyId(), "list", filters] as const,
+    details: () => [domain, getCompanyId(), "detail"] as const,
+    detail: (id: string) => [domain, getCompanyId(), "detail", id] as const,
   };
 }
 
@@ -154,30 +158,36 @@ export const queryKeys = {
     all: ["audit"] as const,
     logs: <T extends object>(companyId: string | null, params?: T) =>
       ["audit", companyId, params] as const,
-    actions: () => ["audit", "actions"] as const,
+    actions: () => ["audit", getCompanyId(), "actions"] as const,
   },
 
   // Quick replies - custom keys for quick reply management
   quickReplies: {
-    all: ["quick-replies"] as const,
-    lists: () => ["quick-replies", "list"] as const,
+    get all() {
+      return ["quick-replies", getCompanyId()] as const;
+    },
+    lists: () => ["quick-replies", getCompanyId(), "list"] as const,
     list: <T extends object>(params?: T) =>
-      ["quick-replies", "list", params] as const,
+      ["quick-replies", getCompanyId(), "list", params] as const,
     search: (shortcut: string) =>
-      ["quick-replies", "search", shortcut] as const,
+      ["quick-replies", getCompanyId(), "search", shortcut] as const,
   },
 
   // Notifications - custom keys for in-app notifications
   notifications: {
-    all: ["notifications"] as const,
-    lists: () => ["notifications", "list"] as const,
+    get all() {
+      return ["notifications", getCompanyId()] as const;
+    },
+    lists: () => ["notifications", getCompanyId(), "list"] as const,
     list: <T extends object>(params?: T) =>
-      ["notifications", "list", params] as const,
-    count: () => ["notifications", "count"] as const,
+      ["notifications", getCompanyId(), "list", params] as const,
+    count: () => ["notifications", getCompanyId(), "count"] as const,
   },
 
   // Notification preferences - for settings
   notificationPreferences: {
-    all: ["notificationPreferences"] as const,
+    get all() {
+      return ["notificationPreferences", getCompanyId()] as const;
+    },
   },
 } as const;

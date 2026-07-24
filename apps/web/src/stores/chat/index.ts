@@ -4,26 +4,23 @@
  * This store is composed of multiple slices:
  * - conversation-slice: Selected conversation state
  * - typing-slice: Typing indicators
- * - messages-slice: Message cache and optimistic updates
  * - drafts-slice: Draft messages and read status
  * - selection-slice: Message selection mode
  *
  * The store maintains backward compatibility with the original API.
  */
 
-import { nowMs } from "@wateaminbox/shared";
 import { create } from "zustand";
 import { devtools, persist } from "zustand/middleware";
 
 import { createConversationSlice } from "./conversation-slice";
 import { createDraftsSlice } from "./drafts-slice";
-import { createMessagesSlice } from "./messages-slice";
 import { createSelectionSlice } from "./selection-slice";
-import { createTypingSlice } from "./typing-slice";
 import type { ChatState } from "./types";
+import { createTypingSlice } from "./typing-slice";
 
 // Re-export types for backward compatibility
-export type { ChatState, OptimisticMessage, TypingIndicator } from "./types";
+export type { ChatState, TypingIndicator } from "./types";
 
 // Initial state for reset
 const getInitialState = () => ({
@@ -31,8 +28,6 @@ const getInitialState = () => ({
   selectedConversation: null,
   selectedContact: null,
   typingIndicators: new Map(),
-  messagesCache: new Map(),
-  optimisticMessages: new Map(),
   lastReadMessageId: new Map(),
   draftMessages: new Map(),
   selectionMode: false,
@@ -45,7 +40,6 @@ export const useChatStore = create<ChatState>()(
       (...args) => ({
         ...createConversationSlice(...args),
         ...createTypingSlice(...args),
-        ...createMessagesSlice(...args),
         ...createDraftsSlice(...args),
         ...createSelectionSlice(...args),
 
@@ -111,9 +105,6 @@ export const selectTypingIndicators =
   (conversationId: string) => (state: ChatState) =>
     state.typingIndicators.get(conversationId) ?? [];
 
-export const selectMessages = (conversationId: string) => (state: ChatState) =>
-  state.messagesCache.get(conversationId) ?? [];
-
 export const selectDraftMessage =
   (conversationId: string) => (state: ChatState) =>
     state.draftMessages.get(conversationId) ?? "";
@@ -121,9 +112,6 @@ export const selectDraftMessage =
 export const selectLastReadMessageId =
   (conversationId: string) => (state: ChatState) =>
     state.lastReadMessageId.get(conversationId);
-
-export const selectHasOptimisticMessages = (state: ChatState) =>
-  state.optimisticMessages.size > 0;
 
 // Selection mode selectors
 export const selectSelectionMode = (state: ChatState) => state.selectionMode;
@@ -134,8 +122,3 @@ export const selectSelectedMessageCount = (state: ChatState) =>
 export const selectIsMessageSelected =
   (messageId: string) => (state: ChatState) =>
     state.selectedMessageIds.has(messageId);
-
-// Helper to generate temp IDs
-export function generateTempId(): string {
-  return `temp_${nowMs()}_${Math.random().toString(36).substring(2, 9)}`;
-}

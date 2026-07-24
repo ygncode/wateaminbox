@@ -8,7 +8,7 @@
       "ignoreDependencies": ["pino-pretty"]
     },
     "apps/web": {
-      "entry": ["src/main.tsx"],
+      "entry": ["src/main.tsx", "src/**/*.test.ts"],
       "project": ["src/**/*.{ts,tsx}"],
       "ignore": ["e2e/**"]
     },

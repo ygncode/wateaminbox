@@ -2,15 +2,15 @@
  * Status event handlers - status updates, sync status, media downloads
  */
 
+import { toDbDate } from "@wateaminbox/shared";
+import { formatError } from "../../lib/logger.js";
 import type {
+  DownloadResponseEvent,
   StatusEvent,
   SyncStatusEvent,
-  DownloadResponseEvent,
 } from "../../lib/nats/index.js";
-import { toDbDate } from "@wateaminbox/shared";
-import { getTenantConnection } from "../tenant.service.js";
 import { broadcastToCompany } from "../../lib/pusher.js";
-import { formatError } from "../../lib/logger.js";
+import { getTenantConnection } from "../tenant.service.js";
 import { handlerLogger as logger } from "./types.js";
 
 /**
@@ -27,27 +27,21 @@ export async function handleStatusEvent(event: StatusEvent): Promise<void> {
   try {
     const tenantDb = getTenantConnection(companyId);
 
-    // Get the connection by ID if provided
-    let connection;
-    if (connectionId) {
-      connection = await tenantDb
-        .selectFrom("whatsapp_connections")
-        .select(["id"])
-        .where("id", "=", connectionId)
-        .executeTakeFirst();
+    if (!connectionId) {
+      logger.error({ companyId }, "Quarantining status without connection ID");
+      return;
     }
+    const connection = await tenantDb
+      .selectFrom("whatsapp_connections")
+      .select(["id"])
+      .where("id", "=", connectionId)
+      .executeTakeFirst();
 
     if (!connection) {
-      // Fallback: get any active connection
-      connection = await tenantDb
-        .selectFrom("whatsapp_connections")
-        .select(["id"])
-        .where("status", "=", "connected")
-        .executeTakeFirst();
-    }
-
-    if (!connection) {
-      logger.warn({ companyId }, "No active connection for company");
+      logger.error(
+        { companyId, connectionId },
+        "Quarantining status for unknown connection",
+      );
       return;
     }
 
@@ -211,6 +205,7 @@ export async function handleDownloadResponseEvent(
           media_downloaded_at: toDbDate(),
         })
         .where("id", "=", payload.messageId)
+        .where("whatsapp_connection_id", "=", connectionId)
         .returning(["id", "contact_id"])
         .executeTakeFirst();
 
@@ -245,6 +240,7 @@ export async function handleDownloadResponseEvent(
           media_download_error: payload.error || "Unknown error",
         })
         .where("id", "=", payload.messageId)
+        .where("whatsapp_connection_id", "=", connectionId)
         .execute();
 
       logger.error(
@@ -260,6 +256,7 @@ export async function handleDownloadResponseEvent(
         .selectFrom("messages")
         .select(["id", "contact_id"])
         .where("id", "=", payload.messageId)
+        .where("whatsapp_connection_id", "=", connectionId)
         .executeTakeFirst();
 
       if (message) {

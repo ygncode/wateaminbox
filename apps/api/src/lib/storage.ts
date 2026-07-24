@@ -1,7 +1,9 @@
+import { createHash } from "node:crypto";
 import {
-  S3Client,
-  PutObjectCommand,
   GetObjectCommand,
+  HeadObjectCommand,
+  PutObjectCommand,
+  S3Client,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { nowMs } from "@wateaminbox/shared";
@@ -98,6 +100,7 @@ export async function uploadMedia(
     ? filename.replace(/[^a-zA-Z0-9._-]/g, "_")
     : `file.${ext}`;
 
+  const checksum = createHash("sha256").update(data).digest("hex");
   const command = new PutObjectCommand({
     Bucket: BUCKET,
     Key: key,
@@ -105,6 +108,7 @@ export async function uploadMedia(
     ContentType: mimeType,
     ContentLength: data.length,
     ContentDisposition: `inline; filename="${safeFilename}"`,
+    Metadata: { sha256: checksum, original_filename: safeFilename },
   });
 
   await s3Client.send(command);
@@ -129,6 +133,58 @@ export async function getPresignedUrl(
   });
 
   return await getSignedUrl(s3Client, command, { expiresIn });
+}
+
+export interface MediaObjectReference {
+  key: string;
+  mimeType: string;
+  filename: string;
+  size: number;
+  checksum?: string;
+}
+
+/** Resolve and authorize an API-issued path-style presigned media URL. */
+export async function getMediaObjectReference(
+  mediaUrl: string,
+  companyId: string,
+): Promise<MediaObjectReference> {
+  const url = new URL(mediaUrl);
+  const endpoint = new URL(env.S3_ENDPOINT);
+  if (url.origin !== endpoint.origin) {
+    throw new Error("Media URL is not from configured object storage");
+  }
+
+  const pathParts = decodeURIComponent(url.pathname).split("/").filter(Boolean);
+  const bucketIndex = pathParts.indexOf(BUCKET);
+  if (bucketIndex < 0)
+    throw new Error("Media URL does not reference the media bucket");
+  const key = pathParts.slice(bucketIndex + 1).join("/");
+  const tenantPrefix = `media/${companyId}/`;
+  if (!key.startsWith(tenantPrefix) || key.includes("..")) {
+    throw new Error("Media object does not belong to the active tenant");
+  }
+
+  const object = await s3Client.send(
+    new HeadObjectCommand({ Bucket: BUCKET, Key: key }),
+  );
+  const size = object.ContentLength ?? 0;
+  if (size <= 0 || size > 50 * 1024 * 1024) {
+    throw new Error("Media object size is outside the supported limit");
+  }
+  const dispositionName = object.ContentDisposition?.match(
+    /filename="?([^";]+)"?/i,
+  )?.[1];
+  return {
+    key,
+    mimeType: object.ContentType || "application/octet-stream",
+    filename:
+      object.Metadata?.original_filename ||
+      dispositionName ||
+      key.split("/").pop() ||
+      "file",
+    size,
+    checksum: object.Metadata?.sha256,
+  };
 }
 
 /**

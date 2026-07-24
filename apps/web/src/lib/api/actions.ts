@@ -5,36 +5,8 @@
  * These functions call the server to trigger Pusher events.
  */
 
-import { fetchWithAuth } from "./client";
 import { getSocketId } from "../pusher";
-
-/**
- * Send a WhatsApp message
- *
- * @param jid - The WhatsApp JID to send to
- * @param content - The message content
- * @param messageType - The type of message (default: "text")
- * @param mediaUrl - Optional media URL for non-text messages
- */
-export async function sendMessage(
-  jid: string,
-  content?: string,
-  messageType: "text" | "image" | "audio" | "video" | "document" = "text",
-  mediaUrl?: string,
-): Promise<{ messageId: string; status: string }> {
-  return fetchWithAuth<{ messageId: string; status: string }>(
-    "/actions/messages/send",
-    {
-      method: "POST",
-      body: JSON.stringify({
-        jid,
-        content,
-        messageType,
-        mediaUrl,
-      }),
-    },
-  );
-}
+import { fetchWithAuth } from "./client";
 
 /**
  * Send typing indicator

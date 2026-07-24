@@ -10,6 +10,7 @@ import {
   triggerCatalogSync,
   updateProductVisibility,
 } from "@/lib/api/catalogs";
+import { getCompanyId } from "@/lib/api/client";
 import type {
   CatalogProduct,
   CatalogSyncStatus,
@@ -20,13 +21,15 @@ import { useInvalidate, useQueryInvalidation } from "./query";
 
 // Query keys for catalogs
 export const catalogKeys = {
-  all: ["catalogs"] as const,
-  list: () => [...catalogKeys.all, "list"] as const,
-  status: () => [...catalogKeys.all, "status"] as const,
+  get all() {
+    return ["catalogs", getCompanyId()] as const;
+  },
+  list: () => ["catalogs", getCompanyId(), "list"] as const,
+  status: () => ["catalogs", getCompanyId(), "status"] as const,
   detail: (catalogId: string) =>
-    [...catalogKeys.all, "detail", catalogId] as const,
+    ["catalogs", getCompanyId(), "detail", catalogId] as const,
   products: (catalogId: string) =>
-    [...catalogKeys.all, "products", catalogId] as const,
+    ["catalogs", getCompanyId(), "products", catalogId] as const,
 };
 
 /**

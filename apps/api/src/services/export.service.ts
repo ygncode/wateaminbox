@@ -1,12 +1,12 @@
+import { dayjs, toISOString } from "@wateaminbox/shared";
 import { sql } from "kysely";
-import { toISOString, dayjs } from "@wateaminbox/shared";
-import { getTenantConnection } from "./tenant.service.js";
 import { NotFoundError } from "../lib/errors.js";
 import {
-  generateBackupZip,
-  type FullBackupData,
   type BackupZipOptions,
+  type FullBackupData,
+  generateBackupZip,
 } from "./export/compression.js";
+import { getTenantConnection } from "./tenant.service.js";
 
 /**
  * Export format types
@@ -52,6 +52,7 @@ export async function exportContacts(
     tagIds?: string[];
     assignedTo?: string;
     hasCustomName?: boolean;
+    assignedUserId?: string;
   } = {},
 ): Promise<ContactExport[]> {
   const tenantDb = getTenantConnection(companyId);
@@ -67,6 +68,11 @@ export async function exportContacts(
   if (options.assignedTo) {
     conditions.push(`ca.assigned_to = $${params.length + 1}`);
     params.push(options.assignedTo);
+  }
+  if (options.assignedUserId) {
+    conditions.push(
+      `ca.assigned_to = '${options.assignedUserId.replaceAll("'", "''")}'`,
+    );
   }
   if (options.hasCustomName) {
     conditions.push("c.custom_name IS NOT NULL");
@@ -157,6 +163,7 @@ export async function exportMessages(
     messageTypes?: string[];
     limit?: number;
     offset?: number;
+    assignedUserId?: string;
   } = {},
 ): Promise<MessageExport[]> {
   const tenantDb = getTenantConnection(companyId);
@@ -212,6 +219,14 @@ export async function exportMessages(
       m.media_url
     FROM messages m
     INNER JOIN contacts c ON c.id = m.contact_id
+    ${
+      options.assignedUserId
+        ? sql`INNER JOIN contact_assignments ca
+            ON ca.contact_id = c.id
+            AND ca.assigned_to = ${options.assignedUserId}
+            AND ca.unassigned_at IS NULL`
+        : sql``
+    }
     WHERE 1=1
       ${contactIdFilter}
       ${startDateFilter}
@@ -248,6 +263,7 @@ export async function exportMessagesInBatches(
     messageTypes?: string[];
     batchSize?: number;
     onBatch?: (messages: MessageExport[], batchNumber: number) => Promise<void>;
+    assignedUserId?: string;
   } = {},
 ): Promise<{ totalExported: number; batches: number }> {
   const batchSize = Math.min(
@@ -267,6 +283,7 @@ export async function exportMessagesInBatches(
       messageTypes: options.messageTypes,
       limit: batchSize,
       offset,
+      assignedUserId: options.assignedUserId,
     });
 
     if (messages.length === 0) {
@@ -299,6 +316,7 @@ export async function exportConversation(
   options: {
     startDate?: Date;
     endDate?: Date;
+    assignedUserId?: string;
   } = {},
 ): Promise<{
   contact: ContactExport;
@@ -333,6 +351,11 @@ export async function exportConversation(
     LEFT JOIN tags t ON t.id = ct.tag_id
     LEFT JOIN contact_assignments ca ON ca.contact_id = c.id AND ca.unassigned_at IS NULL
     WHERE c.id = ${contactId}
+      ${
+        options.assignedUserId
+          ? sql`AND ca.assigned_to = ${options.assignedUserId}`
+          : sql``
+      }
     GROUP BY c.id, c.whatsapp_id, c.phone_number, c.push_name, c.custom_name,
              c.shared_notes, c.created_at, c.last_message_at, ca.assigned_to
   `.execute(tenantDb);
@@ -367,11 +390,10 @@ export async function exportConversation(
   };
 }
 
-// Re-export CSV function for backward compatibility
-export { toCSV } from "./export/csv.js";
-
 // Re-export types for backward compatibility
 export type { FullBackupData as FullBackupExport } from "./export/compression.js";
+// Re-export CSV function for backward compatibility
+export { toCSV } from "./export/csv.js";
 
 /**
  * Export full backup as ZIP file

@@ -411,7 +411,7 @@ export interface ConversationStatesTable {
   updated_at: Generated<Date>;
 }
 
-export type NatsOutboxStatus = "pending" | "published" | "failed";
+export type NatsOutboxStatus = "pending" | "claimed" | "published" | "failed";
 
 export interface NatsOutboxTable {
   id: Generated<string>;

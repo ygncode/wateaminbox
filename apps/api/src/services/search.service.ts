@@ -1,11 +1,11 @@
-import { sql, type ExpressionBuilder } from "kysely";
-import { getTenantConnection } from "./tenant.service.js";
 import type { TenantDatabase } from "@wateaminbox/database";
+import { type ExpressionBuilder, sql } from "kysely";
 import {
   isMeilisearchAvailable,
-  searchMessagesWithMeilisearch,
   searchContactsWithMeilisearch,
+  searchMessagesWithMeilisearch,
 } from "./meilisearch.service.js";
+import { getTenantConnection } from "./tenant.service.js";
 
 // Cache Meilisearch availability status (refresh every 30 seconds)
 let meilisearchAvailable: boolean | null = null;
@@ -58,6 +58,7 @@ export interface SearchOptions {
   endDate?: Date;
   messageTypes?: string[];
   useMeilisearch?: boolean; // Force using/not using Meilisearch
+  assignedUserId?: string;
 }
 
 /**
@@ -76,11 +77,15 @@ export async function searchMessages(
     endDate,
     messageTypes,
     useMeilisearch,
+    assignedUserId,
   } = options;
 
-  // Try Meilisearch first if available
+  // The external index is tenant-scoped but not assignment-scoped. Restricted
+  // users therefore use PostgreSQL, where authorization is part of the query.
   const shouldUseMeilisearch =
-    useMeilisearch !== false && (await checkMeilisearchAvailable());
+    !assignedUserId &&
+    useMeilisearch !== false &&
+    (await checkMeilisearchAvailable());
 
   if (shouldUseMeilisearch) {
     const meiliResult = await searchMessagesWithMeilisearch(companyId, {
@@ -154,6 +159,14 @@ export async function searchMessages(
         COUNT(*) OVER() as total_count
       FROM messages m
       INNER JOIN contacts c ON c.id = m.contact_id
+      ${
+        assignedUserId
+          ? sql`INNER JOIN contact_assignments ca
+              ON ca.contact_id = c.id
+              AND ca.assigned_to = ${assignedUserId}
+              AND ca.unassigned_at IS NULL`
+          : sql``
+      }
       WHERE
         (m.search_vector @@ plainto_tsquery('english', ${query})
          OR m.content ILIKE '%' || ${query} || '%')
@@ -198,6 +211,7 @@ export async function searchContacts(
     offset?: number;
     includeGroups?: boolean;
     useMeilisearch?: boolean;
+    assignedUserId?: string;
   } = {},
 ): Promise<{ results: ContactSearchResult[]; total: number }> {
   const {
@@ -205,11 +219,13 @@ export async function searchContacts(
     offset = 0,
     includeGroups = true,
     useMeilisearch,
+    assignedUserId,
   } = options;
 
-  // Try Meilisearch first if available
   const shouldUseMeilisearch =
-    useMeilisearch !== false && (await checkMeilisearchAvailable());
+    !assignedUserId &&
+    useMeilisearch !== false &&
+    (await checkMeilisearchAvailable());
 
   if (shouldUseMeilisearch) {
     const meiliResult = await searchContactsWithMeilisearch(companyId, query, {
@@ -241,7 +257,7 @@ export async function searchContacts(
 
   const searchPattern = `%${query}%`;
 
-  const result = await tenantDb
+  let resultQuery = tenantDb
     .selectFrom("contacts")
     .select([
       "id",
@@ -260,7 +276,16 @@ export async function searchContacts(
         eb("phone_number", "ilike", searchPattern),
         eb("notes_shared", "ilike", searchPattern),
       ]),
-    )
+    );
+  if (assignedUserId) {
+    resultQuery = resultQuery.innerJoin("contact_assignments", (join) =>
+      join
+        .onRef("contact_assignments.contact_id", "=", "contacts.id")
+        .on("contact_assignments.assigned_to", "=", assignedUserId)
+        .on("contact_assignments.unassigned_at", "is", null),
+    );
+  }
+  const result = await resultQuery
     .$if(!includeGroups, (qb) => qb.where("is_group", "=", false))
     .orderBy("custom_name", "asc")
     .orderBy("push_name", "asc")
@@ -283,6 +308,14 @@ export async function searchContacts(
       ]),
     );
 
+  if (assignedUserId) {
+    countQuery = countQuery.innerJoin("contact_assignments", (join) =>
+      join
+        .onRef("contact_assignments.contact_id", "=", "contacts.id")
+        .on("contact_assignments.assigned_to", "=", assignedUserId)
+        .on("contact_assignments.unassigned_at", "is", null),
+    );
+  }
   if (!includeGroups) {
     countQuery = countQuery.where("is_group", "=", false);
   }
@@ -324,16 +357,16 @@ export interface ContactSearchResult {
 export async function globalSearch(
   companyId: string,
   query: string,
-  options: { limit?: number } = {},
+  options: { limit?: number; assignedUserId?: string } = {},
 ): Promise<{
   messages: SearchResult[];
   contacts: ContactSearchResult[];
 }> {
-  const { limit = 10 } = options;
+  const { limit = 10, assignedUserId } = options;
 
   const [messageResults, contactResults] = await Promise.all([
-    searchMessages(companyId, { query, limit }),
-    searchContacts(companyId, query, { limit }),
+    searchMessages(companyId, { query, limit, assignedUserId }),
+    searchContacts(companyId, query, { limit, assignedUserId }),
   ]);
 
   return {

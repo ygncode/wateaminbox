@@ -87,6 +87,12 @@ export const env = {
     "RATE_LIMIT_MEMORY_MAX_ITEMS",
     10000,
   ),
+  // Forwarded client IP headers are accepted only from these exact proxy IPs.
+  TRUSTED_PROXY_IPS: getEnv("TRUSTED_PROXY_IPS", ""),
+  TRUSTED_PROXY_IP_HEADER: getEnv(
+    "TRUSTED_PROXY_IP_HEADER",
+    "x-forwarded-for",
+  ).toLowerCase(),
 
   // Database pooling
   TENANT_DB_POOL_MAX: getEnvNumber("TENANT_DB_POOL_MAX", 20),

@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { readFileSync } from "node:fs";
 import { buildSendMessageCommand } from "../lib/nats/client.js";
 import {
   getOutboxRetryDelayMs,
@@ -21,8 +22,24 @@ describe("command outbox", () => {
     expect(command).toEqual({ type: "kill" });
   });
 
+  test("preserves the multi-dispatcher lease and crash replay contract", () => {
+    const source = readFileSync(
+      new URL("./command-outbox.service.ts", import.meta.url),
+      "utf8",
+    );
+    expect(source).toContain(".forUpdate()");
+    expect(source).toContain(".skipLocked()");
+    expect(source).toContain('status: "claimed"');
+    expect(source).toContain("publish(row.subject, row.payload, row.id)");
+    expect(source).toContain('.where("status", "=", "claimed")');
+    expect(source.indexOf("await publish(")).toBeLessThan(
+      source.indexOf('status: "published"'),
+    );
+  });
+
   test("preserves the temporary WhatsApp ID in queued sends", async () => {
     const command = await buildSendMessageCommand(
+      "company-id",
       "connection-id",
       "15551234567@s.whatsapp.net",
       "hello",

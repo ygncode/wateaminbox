@@ -48,7 +48,13 @@ export interface MessageSearchOptions {
  * Uses the base queryKeys.search and extends with search-specific keys
  */
 export const searchKeys = {
-  ...queryKeys.search,
+  get all() {
+    return queryKeys.search.all;
+  },
+  lists: queryKeys.search.lists,
+  list: queryKeys.search.list,
+  details: queryKeys.search.details,
+  detail: queryKeys.search.detail,
   global: (query: string) =>
     [...queryKeys.search.all, "global", query] as const,
   messages: (query: string, options?: MessageSearchOptions) =>

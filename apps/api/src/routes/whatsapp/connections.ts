@@ -10,38 +10,28 @@ import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
 import {
   ConnectionNotFoundError,
-  InvalidConnectionStateError,
   MaxConnectionsExceededError,
 } from "../../lib/errors.js";
 import { createLogger, formatError } from "../../lib/logger.js";
-import { rateLimitConfig, rateLimitStore } from "../../lib/rate-limit-store.js";
 import { authMiddleware } from "../../middleware/auth.js";
-import { createConditionalRateLimiter } from "../../middleware/rate-limit.js";
+import {
+  legacyMessageSendRemoved,
+  requireMessageSendPermission,
+} from "../../middleware/message-send-policy.js";
 import { tenantFromHeader } from "../../middleware/tenant.js";
-import * as whatsappService from "../../services/whatsapp.service.js";
 import { enqueueConnectionCommand } from "../../services/command-outbox.service.js";
+import * as whatsappService from "../../services/whatsapp.service.js";
+import { deleteConnectionWithKill } from "../../services/whatsapp/connection.js";
 
-const connectionSendMessageSchema = z.object({
-  jid: z.string().min(1),
-  content: z.string().default(""),
-  messageType: z
-    .enum(["text", "image", "video", "audio", "document", "sticker"])
-    .default("text"),
-  mediaUrl: z.string().url().optional(),
+const connectionNameSchema = z.string().trim().min(1).max(80);
+const createConnectionSchema = z.object({
+  name: connectionNameSchema.optional(),
+});
+const updateConnectionSchema = z.object({
+  name: connectionNameSchema,
 });
 
 const logger = createLogger("WhatsAppConnectionRoutes");
-
-// WhatsApp operations rate limiter
-const whatsappRateLimiter = createConditionalRateLimiter(
-  {
-    store: rateLimitStore,
-    tier: rateLimitConfig.tiers.messaging.whatsapp,
-    keyStrategy: "user",
-    keyPrefix: "whatsapp-ops",
-  },
-  rateLimitConfig.enabled,
-);
 
 export const connectionRoutes = new Hono();
 
@@ -100,15 +90,14 @@ connectionRoutes.post(
   "/",
   authMiddleware,
   tenantFromHeader("X-Company-ID", "admin"),
+  zValidator("json", createConnectionSchema),
   async (c) => {
     const companyId = c.get("companyId");
     const user = c.get("user");
     const tenantDb = c.get("tenantDb");
 
     try {
-      // Read name from request body
-      const body = await c.req.json().catch(() => ({}));
-      const name = body.name as string | undefined;
+      const { name } = c.req.valid("json");
 
       const result = await whatsappService.spawnConnection(
         tenantDb,
@@ -201,24 +190,30 @@ connectionRoutes.get(
 connectionRoutes.patch(
   "/:connectionId",
   authMiddleware,
-  tenantFromHeader("X-Company-ID"),
+  tenantFromHeader("X-Company-ID", "admin"),
+  zValidator("json", updateConnectionSchema),
   async (c) => {
     const connectionId = c.req.param("connectionId");
     const tenantDb = c.get("tenantDb");
+    const { name } = c.req.valid("json");
 
     try {
-      // Verify connection exists
+      await whatsappService.getConnection(tenantDb, connectionId);
+      await tenantDb
+        .updateTable("whatsapp_connections")
+        .set({ name, updated_at: toDbDate() })
+        .where("id", "=", connectionId)
+        .execute();
       const connection = await whatsappService.getConnection(
         tenantDb,
         connectionId,
       );
 
-      // Note: Name is auto-generated from phone number, not stored separately
       return c.json({
         success: true,
         data: {
           id: connection.id,
-          name: connection.phoneNumber || `Connection`,
+          name: connection.name,
           phoneNumber: connection.phoneNumber,
           jid: connection.jid,
           status: connection.status,
@@ -253,28 +248,23 @@ connectionRoutes.delete(
     const tenantDb = c.get("tenantDb");
 
     try {
-      // First disconnect if connected
-      const connection = await whatsappService.getConnection(
-        tenantDb,
-        connectionId,
-      );
-
-      if (
-        connection.status === "connected" ||
-        connection.status === "pending"
-      ) {
-        await whatsappService.killConnection(tenantDb, companyId, connectionId);
-      }
-
-      // Delete from database
-      await tenantDb
-        .deleteFrom("whatsapp_connections")
-        .where("id", "=", connectionId)
-        .execute();
+      // The kill intent and row deletion commit together. JetStream receives
+      // an idempotent kill command from the durable outbox after commit.
+      const deleted = await tenantDb
+        .transaction()
+        .execute((trx) =>
+          deleteConnectionWithKill(
+            trx,
+            companyId,
+            connectionId,
+          ),
+        );
 
       return c.json({
         success: true,
-        message: "Connection deleted successfully",
+        message: deleted
+          ? "Connection deletion queued"
+          : "Connection was already deleted",
       });
     } catch (error) {
       if (error instanceof ConnectionNotFoundError) {
@@ -294,7 +284,7 @@ connectionRoutes.delete(
 connectionRoutes.post(
   "/:connectionId/reconnect",
   authMiddleware,
-  tenantFromHeader("X-Company-ID"),
+  tenantFromHeader("X-Company-ID", "admin"),
   async (c) => {
     const companyId = c.get("companyId");
     const connectionId = c.req.param("connectionId");
@@ -404,58 +394,8 @@ connectionRoutes.post(
   "/:connectionId/send",
   authMiddleware,
   tenantFromHeader("X-Company-ID"),
-  whatsappRateLimiter,
-  zValidator("json", connectionSendMessageSchema),
-  async (c) => {
-    const companyId = c.get("companyId");
-    const connectionId = c.req.param("connectionId");
-    const user = c.get("user");
-    const tenantDb = c.get("tenantDb");
-    const input = c.req.valid("json");
-
-    // Validate that mediaUrl is provided for non-text messages
-    if (input.messageType !== "text" && !input.mediaUrl) {
-      throw new HTTPException(400, {
-        message: `mediaUrl is required for ${input.messageType} messages`,
-      });
-    }
-
-    try {
-      const result = await whatsappService.sendMessage(
-        tenantDb,
-        companyId,
-        user.id,
-        {
-          jid: input.jid,
-          content: input.content,
-          messageType: input.messageType,
-          mediaUrl: input.mediaUrl,
-        },
-        connectionId,
-      );
-
-      return c.json({
-        success: true,
-        data: {
-          messageId: result.messageId,
-          connectionId,
-          status: "pending",
-          message: "Message queued for sending",
-        },
-      });
-    } catch (error) {
-      if (error instanceof InvalidConnectionStateError) {
-        throw new HTTPException(400, { message: error.message });
-      }
-      if (error instanceof ConnectionNotFoundError) {
-        throw new HTTPException(404, { message: error.message });
-      }
-      logger.error({ err: formatError(error) }, "Failed to send message");
-      throw new HTTPException(500, {
-        message: "Failed to send message",
-      });
-    }
-  },
+  requireMessageSendPermission,
+  legacyMessageSendRemoved,
 );
 
 /**

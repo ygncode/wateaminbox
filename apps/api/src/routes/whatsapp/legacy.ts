@@ -5,44 +5,23 @@
  * These routes work with the first/only active connection for
  * clients that don't support multi-connection.
  */
-import { zValidator } from "@hono/zod-validator";
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
-import { z } from "zod";
 import {
   ConnectionAlreadyExistsError,
   ConnectionNotFoundError,
-  InvalidConnectionStateError,
   MaxConnectionsExceededError,
 } from "../../lib/errors.js";
 import { createLogger, formatError } from "../../lib/logger.js";
-import { rateLimitConfig, rateLimitStore } from "../../lib/rate-limit-store.js";
 import { authMiddleware } from "../../middleware/auth.js";
-import { createConditionalRateLimiter } from "../../middleware/rate-limit.js";
+import {
+  legacyMessageSendRemoved,
+  requireMessageSendPermission,
+} from "../../middleware/message-send-policy.js";
 import { tenantFromHeader } from "../../middleware/tenant.js";
 import * as whatsappService from "../../services/whatsapp.service.js";
 
-const legacySendMessageSchema = z.object({
-  jid: z.string().min(1),
-  content: z.string().default(""),
-  messageType: z
-    .enum(["text", "image", "video", "audio", "document", "sticker"])
-    .default("text"),
-  mediaUrl: z.string().url().optional(),
-});
-
 const logger = createLogger("WhatsAppLegacyRoutes");
-
-// WhatsApp operations rate limiter: 30 requests per minute per user
-const whatsappRateLimiter = createConditionalRateLimiter(
-  {
-    store: rateLimitStore,
-    tier: rateLimitConfig.tiers.messaging.whatsapp,
-    keyStrategy: "user",
-    keyPrefix: "whatsapp-ops",
-  },
-  rateLimitConfig.enabled,
-);
 
 export const legacyRoutes = new Hono();
 
@@ -173,55 +152,8 @@ legacyRoutes.post(
   "/send",
   authMiddleware,
   tenantFromHeader("X-Company-ID"),
-  whatsappRateLimiter,
-  zValidator("json", legacySendMessageSchema),
-  async (c) => {
-    const companyId = c.get("companyId");
-    const user = c.get("user");
-    const tenantDb = c.get("tenantDb");
-    const input = c.req.valid("json");
-
-    // Validate that mediaUrl is provided for non-text messages
-    if (input.messageType !== "text" && !input.mediaUrl) {
-      throw new HTTPException(400, {
-        message: `mediaUrl is required for ${input.messageType} messages`,
-      });
-    }
-
-    try {
-      const result = await whatsappService.sendMessage(
-        tenantDb,
-        companyId,
-        user.id,
-        {
-          jid: input.jid,
-          content: input.content,
-          messageType: input.messageType,
-          mediaUrl: input.mediaUrl,
-        },
-      );
-
-      return c.json({
-        success: true,
-        data: {
-          messageId: result.messageId,
-          status: "pending",
-          message: "Message queued for sending",
-        },
-      });
-    } catch (error) {
-      if (error instanceof InvalidConnectionStateError) {
-        throw new HTTPException(400, { message: error.message });
-      }
-      if (error instanceof ConnectionNotFoundError) {
-        throw new HTTPException(404, { message: error.message });
-      }
-      logger.error({ err: formatError(error) }, "Failed to send message");
-      throw new HTTPException(500, {
-        message: "Failed to send message",
-      });
-    }
-  },
+  requireMessageSendPermission,
+  legacyMessageSendRemoved,
 );
 
 /**

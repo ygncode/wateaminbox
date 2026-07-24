@@ -3,7 +3,7 @@
  * Command interfaces for WhatsApp worker communication
  */
 
-import type { NatsCommand, MessageType, StatusType } from "./base.js";
+import type { MessageType, NatsCommand, StatusType } from "./base.js";
 
 // Spawn command to start WhatsApp connection
 export interface SpawnCommand extends NatsCommand {
@@ -23,7 +23,11 @@ export interface SendMessageCommand extends NatsCommand {
   jid: string;
   content: string;
   message_type: MessageType;
-  media_url?: string;
+  media_object_key?: string;
+  media_size?: number;
+  media_checksum?: string;
+  mime_type?: string;
+  file_name?: string;
   user_id: string;
 }
 

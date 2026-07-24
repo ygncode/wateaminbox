@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"strings"
 	"time"
 
 	"github.com/nats-io/nats.go"
@@ -43,16 +44,18 @@ type FetchProfilePictureCommand struct {
 
 // SendMessageCommand represents a command to send a message.
 type SendMessageCommand struct {
-	MessageID     string `json:"message_id"`
-	To            string `json:"to"`              // JID of the recipient
-	Type          string `json:"type"`            // "text", "image", "document", "video", "audio", "reaction"
-	Content       string `json:"content"`         // Text content or media URL
-	Caption       string `json:"caption"`         // Caption for media messages
-	FileName      string `json:"file_name"`       // File name for documents
-	MimeType      string `json:"mime_type"`       // MIME type for media
-	MediaData     []byte `json:"media_data"`      // Base64 decoded media data
-	ReplyTo       string `json:"reply_to"`        // Message ID to reply to
-	ReplyToSender string `json:"reply_to_sender"` // JID of the sender of the quoted message
+	MessageID      string `json:"message_id"`
+	To             string `json:"to"`               // JID of the recipient
+	Type           string `json:"type"`             // "text", "image", "document", "video", "audio", "reaction"
+	Content        string `json:"content"`          // Text content or media URL
+	Caption        string `json:"caption"`          // Caption for media messages
+	FileName       string `json:"file_name"`        // File name for documents
+	MimeType       string `json:"mime_type"`        // MIME type for media
+	MediaObjectKey string `json:"media_object_key"` // Tenant-scoped storage key
+	MediaSize      int64  `json:"media_size"`
+	MediaChecksum  string `json:"media_checksum"`
+	ReplyTo        string `json:"reply_to"`        // Message ID to reply to
+	ReplyToSender  string `json:"reply_to_sender"` // JID of the sender of the quoted message
 	// Reaction-specific fields
 	TargetMessageID string `json:"target_message_id"` // Message ID to react to (for reaction type)
 	Emoji           string `json:"emoji"`             // Emoji for reaction (for reaction type)
@@ -63,6 +66,25 @@ type SendMessageCommand struct {
 }
 
 // MessageSender is the interface for sending WhatsApp messages.
+const maxSendMediaBytes int64 = 50 * 1024 * 1024
+
+type MediaObjectStore interface {
+	DownloadMediaObject(ctx context.Context, key string, maxBytes int64, expectedChecksum string) ([]byte, error)
+}
+
+type CommandLedger interface {
+	GetProcessedCommand(ctx context.Context, commandID string) ([]byte, bool, error)
+	SaveProcessedCommand(ctx context.Context, commandID, commandType string, result []byte) error
+	MarkCommandEventPublished(ctx context.Context, commandID string) error
+}
+
+type storedCommandResult struct {
+	PendingMessageID string             `json:"pending_message_id"`
+	CommandType      string             `json:"command_type"`
+	Response         types.SendResponse `json:"response"`
+	CorrelationID    string             `json:"correlation_id"`
+}
+
 type MessageSender interface {
 	SendMessage(ctx context.Context, jid string, text string, replyTo string, replyToSender string) (types.SendResponse, error)
 	SendMediaMessage(ctx context.Context, jid string, mediaType string, data []byte, caption string, fileName string, mimeType string, replyTo string, replyToSender string) (types.SendResponse, error)
@@ -126,6 +148,17 @@ type CatalogCommand struct {
 	CatalogID string `json:"catalog_id"`
 }
 
+// CommandEventPublisher publishes durable outcomes produced by commands.
+// The interface keeps command execution independently testable from NATS.
+type CommandEventPublisher interface {
+	PublishSendConfirmation(pendingMessageID, messageID string, timestamp time.Time, correlationID string) error
+	PublishSendFailed(pendingMessageID, errorMessage, correlationID string) error
+	PublishCommandResult(commandID, commandType string, success bool, errorMessage string) error
+	PublishProfilePicture(contactJID, profilePictureURL string, remove bool, timestamp time.Time) error
+	PublishLabels(labels []types.WhatsAppLabel) error
+	PublishCatalog(catalog types.Catalog) error
+}
+
 // Subscriber handles subscribing to NATS command subjects.
 type Subscriber struct {
 	nc             *nats.Conn
@@ -137,7 +170,9 @@ type Subscriber struct {
 	typingSender   TypingSender
 	executor       CommandExecutor
 	profileFetcher ProfilePictureFetcher
-	publisher      *Publisher
+	publisher      CommandEventPublisher
+	storage        MediaObjectStore
+	ledger         CommandLedger
 	sub            *nats.Subscription
 	ctx            context.Context
 	cancel         context.CancelFunc
@@ -153,7 +188,9 @@ type SubscriberConfig struct {
 	TypingSender   TypingSender
 	Executor       CommandExecutor
 	ProfileFetcher ProfilePictureFetcher
-	Publisher      *Publisher
+	Publisher      CommandEventPublisher
+	Storage        MediaObjectStore
+	Ledger         CommandLedger
 }
 
 // NewSubscriber creates a new NATS subscriber.
@@ -196,6 +233,8 @@ func NewSubscriber(cfg SubscriberConfig) (*Subscriber, error) {
 		executor:       cfg.Executor,
 		profileFetcher: cfg.ProfileFetcher,
 		publisher:      cfg.Publisher,
+		storage:        cfg.Storage,
+		ledger:         cfg.Ledger,
 		ctx:            ctx,
 		cancel:         cancel,
 	}, nil
@@ -352,6 +391,27 @@ func (s *Subscriber) recreateSubscription() error {
 	return nil
 }
 
+func (s *Subscriber) publishStoredCommandResult(result storedCommandResult, commandID string) error {
+	if s.publisher == nil {
+		return fmt.Errorf("publisher is not configured")
+	}
+	var err error
+	if result.CommandType == "reaction" {
+		err = s.publisher.PublishCommandResult(commandID, result.CommandType, true, "")
+	} else {
+		err = s.publisher.PublishSendConfirmation(
+			result.PendingMessageID,
+			result.Response.ID,
+			result.Response.Timestamp,
+			result.CorrelationID,
+		)
+	}
+	if err == nil && s.ledger != nil {
+		err = s.ledger.MarkCommandEventPublished(s.ctx, commandID)
+	}
+	return err
+}
+
 // handleSendCommand processes a send message command.
 func (s *Subscriber) handleSendCommand(msg *nats.Msg) {
 	var cmd SendMessageCommand
@@ -359,6 +419,32 @@ func (s *Subscriber) handleSendCommand(msg *nats.Msg) {
 		log.Printf("Failed to unmarshal send command: %v", err)
 		msg.Nak() // Negative acknowledgment, will be redelivered
 		return
+	}
+
+	// Redelivery after a successful external side effect replays the durable
+	// result instead of executing WhatsApp a second time.
+	if cmd.CommandID != "" && s.ledger != nil {
+		resultJSON, found, ledgerErr := s.ledger.GetProcessedCommand(s.ctx, cmd.CommandID)
+		if ledgerErr != nil {
+			log.Printf("[NATS] Failed to read command ledger: %v", ledgerErr)
+			msg.Nak()
+			return
+		}
+		if found {
+			var stored storedCommandResult
+			if err := json.Unmarshal(resultJSON, &stored); err != nil {
+				log.Printf("[NATS] Invalid stored command result: %v", err)
+				msg.Term()
+				return
+			}
+			if err := s.publishStoredCommandResult(stored, cmd.CommandID); err != nil {
+				log.Printf("[NATS] Failed to replay stored result: %v", err)
+				msg.Nak()
+				return
+			}
+			msg.Ack()
+			return
+		}
 	}
 
 	// Check delivery count from message metadata
@@ -391,8 +477,28 @@ func (s *Subscriber) handleSendCommand(msg *nats.Msg) {
 	switch cmd.Type {
 	case "text":
 		resp, err = s.sender.SendMessage(ctx, cmd.To, cmd.Content, cmd.ReplyTo, cmd.ReplyToSender)
-	case "image", "video", "audio", "document":
-		resp, err = s.sender.SendMediaMessage(ctx, cmd.To, cmd.Type, cmd.MediaData, cmd.Caption, cmd.FileName, cmd.MimeType, cmd.ReplyTo, cmd.ReplyToSender)
+	case "image", "video", "audio", "document", "sticker":
+		if s.storage == nil {
+			err = fmt.Errorf("object storage is not configured")
+			break
+		}
+		tenantPrefix := fmt.Sprintf("media/%s/", s.companyID)
+		if !strings.HasPrefix(cmd.MediaObjectKey, tenantPrefix) || strings.Contains(cmd.MediaObjectKey, "..") {
+			err = fmt.Errorf("media object key is outside tenant prefix")
+			break
+		}
+		if cmd.MediaSize <= 0 || cmd.MediaSize > maxSendMediaBytes {
+			err = fmt.Errorf("invalid media size %d", cmd.MediaSize)
+			break
+		}
+		var mediaData []byte
+		mediaData, err = s.storage.DownloadMediaObject(ctx, cmd.MediaObjectKey, maxSendMediaBytes, cmd.MediaChecksum)
+		if err == nil && int64(len(mediaData)) != cmd.MediaSize {
+			err = fmt.Errorf("media size mismatch: expected %d, got %d", cmd.MediaSize, len(mediaData))
+		}
+		if err == nil {
+			resp, err = s.sender.SendMediaMessage(ctx, cmd.To, cmd.Type, mediaData, cmd.Caption, cmd.FileName, cmd.MimeType, cmd.ReplyTo, cmd.ReplyToSender)
+		}
 	case "reaction":
 		resp, err = s.sender.SendReaction(ctx, cmd.To, cmd.TargetMessageID, cmd.Emoji, cmd.FromMe)
 	default:
@@ -430,14 +536,27 @@ func (s *Subscriber) handleSendCommand(msg *nats.Msg) {
 		return
 	}
 
-	// Publish send confirmation event with the real WhatsApp message ID
-	if s.publisher != nil {
-		if err := s.publisher.PublishSendConfirmation(cmd.MessageID, resp.ID, resp.Timestamp, correlationID); err != nil {
-			log.Printf("[NATS] Failed to publish confirmation: msg_id=%s corr_id=%s error=%v", cmd.MessageID, correlationID, err)
-			// Don't Nak - the message was sent successfully, we just failed to notify
-		} else {
-			log.Printf("[NATS] Published confirmation: pending_id=%s -> real_id=%s corr_id=%s", cmd.MessageID, resp.ID, correlationID)
+	stored := storedCommandResult{
+		PendingMessageID: cmd.MessageID,
+		CommandType:      cmd.Type,
+		Response:         resp,
+		CorrelationID:    correlationID,
+	}
+	if cmd.CommandID != "" && s.ledger != nil {
+		resultJSON, marshalErr := json.Marshal(stored)
+		if marshalErr != nil || s.ledger.SaveProcessedCommand(s.ctx, cmd.CommandID, cmd.Type, resultJSON) != nil {
+			// This is the unavoidable external-side-effect/local-persistence crash
+			// window. Do not ACK; operators can reconcile by command/message ID.
+			log.Printf("[NATS] Failed to persist successful command result: msg_id=%s", cmd.MessageID)
+			msg.Nak()
+			return
 		}
+	}
+
+	if err := s.publishStoredCommandResult(stored, cmd.CommandID); err != nil {
+		log.Printf("[NATS] Failed to publish confirmation; result will replay: msg_id=%s error=%v", cmd.MessageID, err)
+		msg.Nak()
+		return
 	}
 
 	log.Printf("[NATS] Send success: msg_id=%s corr_id=%s to=%s real_id=%s", cmd.MessageID, correlationID, cmd.To, resp.ID)

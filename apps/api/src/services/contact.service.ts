@@ -1,8 +1,8 @@
+import { toDbDate } from "@wateaminbox/shared";
 import type { Kysely } from "kysely";
 import { sql } from "kysely";
-import { toDbDate } from "@wateaminbox/shared";
-import { getSchemaName, type TenantDatabase } from "./tenant.service.js";
 import { buildContactWhereClause } from "./helpers/contact-query-builder.js";
+import { getSchemaName, type TenantDatabase } from "./tenant.service.js";
 
 /**
  * Options for fetching contacts with last message
@@ -22,6 +22,8 @@ export interface GetContactsWithLastMessageOptions {
   unassigned?: boolean;
   /** User ID for assignment filters */
   userId?: string;
+  /** Enforce assignment visibility regardless of client-provided filters. */
+  restrictToAssigned?: boolean;
 }
 
 /**
@@ -79,6 +81,7 @@ export async function getContactsWithLastMessage(
     assignedToMe = false,
     unassigned = false,
     userId,
+    restrictToAssigned = false,
   } = options;
 
   // Use raw SQL for the complex CTE query with window function
@@ -96,6 +99,7 @@ export async function getContactsWithLastMessage(
       assignedToMe,
       unassigned,
       userId,
+      restrictToAssigned,
     });
 
   // `withSchema()` qualifies Kysely query-builder calls, but raw SQL has to
@@ -242,7 +246,7 @@ export async function getContactsWithLastMessage(
     countQuery = countQuery.where(
       "contact_assignments.assigned_to",
       "=",
-    userId,
+      userId,
     );
   } else if (unassigned) {
     countQuery = countQuery.where(

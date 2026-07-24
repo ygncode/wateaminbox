@@ -63,27 +63,23 @@ export async function handleMessageEvent(event: MessageEvent): Promise<void> {
   try {
     const tenantDb = getTenantConnection(companyId);
 
-    // Get the connection by ID if provided, otherwise get any connected one
-    let connection;
-    if (connectionId) {
-      connection = await tenantDb
-        .selectFrom("whatsapp_connections")
-        .select(["id"])
-        .where("id", "=", connectionId)
-        .executeTakeFirst();
+    // Durable events must identify their owning connection. Falling back to a
+    // different active account can corrupt contacts/messages when IDs collide.
+    if (!connectionId) {
+      logger.error({ companyId }, "Quarantining message without connection ID");
+      return;
     }
+    const connection = await tenantDb
+      .selectFrom("whatsapp_connections")
+      .select(["id"])
+      .where("id", "=", connectionId)
+      .executeTakeFirst();
 
     if (!connection) {
-      // Fallback: get any active connection
-      connection = await tenantDb
-        .selectFrom("whatsapp_connections")
-        .select(["id"])
-        .where("status", "=", "connected")
-        .executeTakeFirst();
-    }
-
-    if (!connection) {
-      logger.warn({ companyId }, "No active connection for company");
+      logger.error(
+        { companyId, connectionId },
+        "Quarantining message for unknown connection",
+      );
       return;
     }
 
@@ -520,6 +516,7 @@ export async function handleReceiptEvent(event: ReceiptEvent): Promise<void> {
       .updateTable("messages")
       .set({ status: dbStatus })
       .where("message_id", "=", payload.messageId)
+      .where("whatsapp_connection_id", "=", connectionId)
       .where("from_me", "=", true)
       .where((eb) =>
         eb.or([
@@ -593,6 +590,7 @@ export async function handleSendConfirmationEvent(
         END`,
       })
       .where("message_id", "=", payload.pendingMessageId)
+      .where("whatsapp_connection_id", "=", connectionId)
       .returning(["id", "contact_id", "status"])
       .executeTakeFirst();
 
@@ -652,6 +650,7 @@ export async function handleSendFailedEvent(
       .updateTable("messages")
       .set({ status: "failed" })
       .where("message_id", "=", payload.pendingMessageId)
+      .where("whatsapp_connection_id", "=", connectionId)
       .where("status", "=", "pending")
       .returning(["id", "contact_id"])
       .executeTakeFirst();

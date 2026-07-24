@@ -67,6 +67,12 @@ The API sends commands through NATS. The orchestrator manages one isolated worke
 
 JetStream uses durable, explicitly acknowledged consumers for at-least-once delivery. API commands are first committed to a tenant-local transactional outbox and published with the outbox ID as the JetStream deduplication ID. Message, contact, and reaction constraints make redelivery safe.
 
+## Sending messages
+
+`POST /api/messages` is the canonical send endpoint. It accepts a tenant contact ID, resolves that contact's owning WhatsApp connection, and commits the pending message and command outbox entry in one transaction. Every send, forward, and retry route requires `can_send_messages`.
+
+`POST /api/conversations/:id/messages` remains temporarily available with HTTP deprecation headers. The old JID-based action, legacy WhatsApp, and connection-specific send endpoints return `410 Gone` with a link to `/api/messages`; they cannot fall back to an arbitrary active connection.
+
 ## Local development
 
 ```bash

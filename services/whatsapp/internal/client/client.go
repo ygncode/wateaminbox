@@ -994,6 +994,11 @@ func (c *Client) GetJID() string {
 	return c.client.Store.ID.String()
 }
 
+// CommandLedger exposes the connection-scoped durable command result store.
+func (c *Client) CommandLedger() *store.PGContainer {
+	return c.container
+}
+
 // DownloadMedia downloads media from a message.
 func (c *Client) DownloadMedia(ctx context.Context, msg whatsmeow.DownloadableMessage) ([]byte, error) {
 	return c.client.Download(ctx, msg)

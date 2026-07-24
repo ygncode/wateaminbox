@@ -33,7 +33,12 @@ interface ChatListFilters {
  * Uses the base queryKeys.chats and extends with chat-specific keys
  */
 export const chatKeys = {
-  ...queryKeys.chats,
+  get all() {
+    return queryKeys.chats.all;
+  },
+  lists: queryKeys.chats.lists,
+  details: queryKeys.chats.details,
+  detail: queryKeys.chats.detail,
   list: (filters: ChatListFilters) =>
     [...queryKeys.chats.lists(), filters] as const,
   groups: () => [...queryKeys.chats.all, "groups"] as const,

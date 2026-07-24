@@ -2,6 +2,9 @@ package manager
 
 import (
 	"context"
+	"os"
+	"os/exec"
+	"syscall"
 	"testing"
 	"time"
 
@@ -420,6 +423,61 @@ func TestStatusConstants(t *testing.T) {
 	assert.Equal(t, "stopping", types.StatusStopping)
 	assert.Equal(t, "stopped", types.StatusStopped)
 	assert.Equal(t, "error", types.StatusError)
+}
+
+func startRecoveredTestWorker(t *testing.T) (*exec.Cmd, *Manager) {
+	t.Helper()
+	cmd := exec.Command("/bin/sleep", "30")
+	require.NoError(t, cmd.Start())
+	go func() { _ = cmd.Wait() }()
+
+	m := New(Config{WhatsAppBinaryPath: "/bin/sleep"})
+	m.ctx, m.cancel = context.WithCancel(context.Background())
+	m.workers["recovered"] = &WorkerProcess{
+		ID:           "recovered",
+		CompanyID:    "company",
+		ConnectionID: "recovered",
+		Status:       types.StatusConnected,
+		PID:          cmd.Process.Pid,
+	}
+	return cmd, m
+}
+
+func TestStopWorker_RecoveredProcess(t *testing.T) {
+	cmd, m := startRecoveredTestWorker(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	require.NoError(t, m.StopWorker(ctx, "company", "recovered", "test disconnect"))
+	_, exists := m.GetWorkerStatus("recovered")
+	assert.False(t, exists)
+	assert.Error(t, cmd.Process.Signal(os.Signal(syscall.Signal(0))))
+}
+
+func TestStopWorker_RefusesReusedPID(t *testing.T) {
+	m := New(Config{WhatsAppBinaryPath: "/definitely/not-the-test-process"})
+	m.workers["recovered"] = &WorkerProcess{
+		ID:           "recovered",
+		CompanyID:    "company",
+		ConnectionID: "recovered",
+		PID:          os.Getpid(),
+	}
+
+	err := m.StopWorker(context.Background(), "company", "recovered", "test")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "refusing to signal reused PID")
+	_, exists := m.GetWorkerStatus("recovered")
+	assert.True(t, exists)
+}
+
+func TestStop_ShutsDownRecoveredProcess(t *testing.T) {
+	cmd, m := startRecoveredTestWorker(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	require.NoError(t, m.Stop(ctx))
+	assert.Zero(t, m.WorkerCount())
+	assert.Error(t, cmd.Process.Signal(os.Signal(syscall.Signal(0))))
 }
 
 // BenchmarkListWorkers benchmarks the ListWorkers operation.

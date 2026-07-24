@@ -12,32 +12,24 @@
 
 // Re-export everything from the modular structure
 export {
-  // Types
-  type WhatsAppConnection,
-  type SendMessageInput,
-  type ConnectionStatus,
-
-  // Connection management
-  getMaxConnections,
-  listConnections,
-  getConnection,
-  spawnConnection,
-  killConnection,
-  getActiveConnection,
-  getActiveConnections,
-  getConnectionLimits,
-
-  // Messaging
-  sendMessage,
-
-  // Status tracking
-  getConnectionStatus,
-  updateConnectionStatus,
-  updateLastSync,
-
   // Error classes
   ConnectionAlreadyExistsError,
   ConnectionNotFoundError,
-  InvalidConnectionStateError,
+  type ConnectionStatus,
+  getActiveConnection,
+  getActiveConnections,
+  getConnection,
+  getConnectionLimits,
+  // Status tracking
+  getConnectionStatus,
+  // Connection management
+  getMaxConnections,
+  killConnection,
+  listConnections,
   MaxConnectionsExceededError,
+  spawnConnection,
+  updateConnectionStatus,
+  updateLastSync,
+  // Types
+  type WhatsAppConnection,
 } from "./whatsapp/index.js";

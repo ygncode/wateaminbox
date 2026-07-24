@@ -89,7 +89,7 @@ export type UpdateContactNoteInput = z.infer<typeof updateContactNoteSchema>;
  * Schema for assigning a contact to a user
  */
 export const assignContactSchema = z.object({
-  userId: z.string().uuid("Invalid user ID"),
+  targetUserId: z.string().uuid("Invalid user ID").optional(),
 });
 
 export type AssignContactInput = z.infer<typeof assignContactSchema>;

@@ -5,9 +5,9 @@
 
 import { fetchWithAuth } from "./client.js";
 import type {
+  WhatsAppConnection,
   WhatsAppConnectionStatus,
   WhatsAppConnectResponse,
-  WhatsAppConnection,
 } from "./types.js";
 
 // Single connection API (legacy)
@@ -96,21 +96,6 @@ export async function updateWhatsAppConnection(
     {
       method: "PATCH",
       body: JSON.stringify(data),
-    },
-  );
-}
-
-export async function sendWhatsAppMessage(
-  jid: string,
-  content: string,
-  messageType: "text" | "image" | "video" | "audio" | "document" = "text",
-  mediaUrl?: string,
-): Promise<{ message: string; messageId: string }> {
-  return fetchWithAuth<{ message: string; messageId: string }>(
-    "/whatsapp/send",
-    {
-      method: "POST",
-      body: JSON.stringify({ jid, content, messageType, mediaUrl }),
     },
   );
 }

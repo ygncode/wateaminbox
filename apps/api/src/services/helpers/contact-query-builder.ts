@@ -1,4 +1,4 @@
-import { sql, type RawBuilder } from "kysely";
+import { type RawBuilder, sql } from "kysely";
 
 /**
  * Options for building contact query filters
@@ -14,6 +14,8 @@ export interface ContactFilterOptions {
   unassigned?: boolean;
   /** User ID for assignment filters */
   userId?: string;
+  /** Force results to active assignments owned by userId. */
+  restrictToAssigned?: boolean;
 }
 
 /**
@@ -51,8 +53,13 @@ export function buildAssignmentClause(options: {
   assignedToMe?: boolean;
   unassigned?: boolean;
   userId?: string;
+  restrictToAssigned?: boolean;
 }): RawBuilder<unknown> {
-  const { assignedToMe, unassigned, userId } = options;
+  const { assignedToMe, unassigned, userId, restrictToAssigned } = options;
+
+  if (restrictToAssigned && userId) {
+    return sql`ca.assigned_to = ${userId}`;
+  }
 
   if (assignedToMe && userId) {
     return sql`ca.assigned_to = ${userId}`;
@@ -82,6 +89,7 @@ export function buildContactWhereClause(options: ContactFilterOptions): {
     assignedToMe,
     unassigned,
     userId,
+    restrictToAssigned,
   } = options;
 
   const searchClause = buildSearchClause(search);
@@ -90,12 +98,15 @@ export function buildContactWhereClause(options: ContactFilterOptions): {
     assignedToMe,
     unassigned,
     userId,
+    restrictToAssigned,
   });
 
   // Check boolean flags directly (not RawBuilder objects which are always truthy)
   const hasSearch = Boolean(search);
   const hasGroupFilter = !includeGroups;
-  const hasAssignmentFilter = Boolean((assignedToMe && userId) || unassigned);
+  const hasAssignmentFilter = Boolean(
+    (restrictToAssigned && userId) || (assignedToMe && userId) || unassigned,
+  );
   const hasConditions = hasSearch || hasGroupFilter || hasAssignmentFilter;
 
   // Build WHERE clause by combining conditions with proper AND logic

@@ -1,12 +1,15 @@
-import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
-import { getRouteContext } from "../../middleware/context.js";
+import { Hono } from "hono";
 import { conflict } from "../../lib/errors.js";
 import { successData, successMessage } from "../../lib/response.js";
 import { requireEntity } from "../../lib/route-helpers.js";
 import { addContactTagSchema } from "../../lib/schemas/index.js";
+import { getRouteContext } from "../../middleware/context.js";
+import { requireContactVisibility } from "../../middleware/resource-visibility.js";
 
 export const tagsRoutes = new Hono();
+
+tagsRoutes.use("/:id/*", requireContactVisibility());
 
 /**
  * POST /contacts/:id/tags - Add a tag to a contact

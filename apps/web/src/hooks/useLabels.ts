@@ -1,4 +1,5 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
+import { getCompanyId } from "@/lib/api/client";
 import {
   applyLabelToContact,
   autoCreateTagsFromLabels,
@@ -15,19 +16,21 @@ import type {
   TagWithLabelStatus,
   WhatsAppLabel,
 } from "@/lib/api/types";
-import { queryKeys } from "./query-keys";
 import {
   useInvalidate,
   useInvalidateMultiple,
   useQueryInvalidation,
 } from "./query";
+import { queryKeys } from "./query-keys";
 
 // Query keys for labels
 export const labelKeys = {
-  all: ["labels"] as const,
-  list: () => [...labelKeys.all, "list"] as const,
-  status: () => [...labelKeys.all, "status"] as const,
-  tagsWithStatus: () => [...labelKeys.all, "tags-with-status"] as const,
+  get all() {
+    return ["labels", getCompanyId()] as const;
+  },
+  list: () => ["labels", getCompanyId(), "list"] as const,
+  status: () => ["labels", getCompanyId(), "status"] as const,
+  tagsWithStatus: () => ["labels", getCompanyId(), "tags-with-status"] as const,
 };
 
 /**

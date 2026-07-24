@@ -3,28 +3,70 @@
  * Connection management and operations for NATS/JetStream
  */
 
+import { nowMs } from "@wateaminbox/shared";
 import {
+  type ConsumerOptsBuilder,
   connect,
-  NatsConnection,
+  consumerOpts,
   JetStreamClient,
   JetStreamSubscription,
   JSONCodec,
-  consumerOpts,
-  type ConsumerOptsBuilder,
+  NatsConnection,
 } from "nats";
-import { nowMs } from "@wateaminbox/shared";
+import { z } from "zod";
 import { env } from "../env.js";
 import { createLogger, formatError } from "../logger.js";
+import { getMediaObjectReference } from "../storage.js";
+import { forConnection } from "./command-builder.js";
 import {
+  type MessageType,
   NATS_SUBJECTS,
   type NatsCommand,
-  type WhatsAppEvent,
-  type MessageType,
   type StatusType,
+  type WhatsAppEvent,
 } from "./types/index.js";
-import { forConnection } from "./command-builder.js";
 
 const logger = createLogger("NATS");
+export const API_EVENTS_DEAD_LETTER_SUBJECT = "WHATSAPP.dead_letter.api_events";
+
+export const whatsAppEventEnvelopeSchema = z.object({
+  // Version 0 (field absent) is accepted during rolling upgrades from workers
+  // deployed before envelope versioning. Explicit unknown versions still fail.
+  contractVersion: z.literal(1).optional().default(1),
+  type: z.enum([
+    "qr",
+    "connected",
+    "disconnected",
+    "message",
+    "receipt",
+    "send_confirmation",
+    "send_failed",
+    "status",
+    "contact",
+    "labels",
+    "catalogs",
+    "catalog_products",
+    "profile_picture",
+    "message_revoke",
+    "presence",
+    "typing",
+    "reaction",
+    "sync_status",
+    "download_response",
+    "connection_status",
+    "command_result",
+    "error",
+  ]),
+  companyId: z.string().uuid(),
+  connectionId: z.string().uuid(),
+  payload: z.record(z.unknown()),
+  timestamp: z.string(),
+  correlationId: z.string().optional(),
+});
+
+export function parseWhatsAppEvent(value: unknown): WhatsAppEvent {
+  return whatsAppEventEnvelopeSchema.parse(value) as WhatsAppEvent;
+}
 
 /**
  * Generates a correlation ID for end-to-end message flow tracing
@@ -208,7 +250,7 @@ export async function publishKillCommand(
  * - to: JID of recipient
  * - type: message type (text, image, etc.)
  * - content: message content or caption for media
- * - media_data: byte array of media file (for images, videos, etc.)
+ * - media_object_key: tenant-scoped object-storage key for media
  * - reply_to: optional message ID to reply to
  * - reply_to_sender: JID of the sender of the quoted message
  * @param pendingMessageId - The message ID created when saving the pending message to the database.
@@ -216,6 +258,7 @@ export async function publishKillCommand(
  *                           event, allowing us to update the correct database record when the message is sent.
  */
 export async function buildSendMessageCommand(
+  companyId: string,
   connectionId: string,
   jid: string,
   content: string,
@@ -226,77 +269,24 @@ export async function buildSendMessageCommand(
   replyTo?: string,
   replyToSender?: string,
 ): Promise<Record<string, unknown>> {
-  let mediaData: number[] | undefined;
   let caption: string | undefined;
-  let fileName: string | undefined;
-  let mimeType: string | undefined;
+  let mediaReference:
+    | Awaited<ReturnType<typeof getMediaObjectReference>>
+    | undefined;
 
-  // For media messages, download the file and prepare media data
-  // NOTE: Performance optimization opportunity - we currently re-download from S3 here.
-  // Future improvement: Pass media data directly from upload endpoint to avoid this extra fetch.
-  // Current flow: Browser → API → S3 → API downloads → NATS → Go
-  // Optimized flow: Browser → API → (S3 + NATS simultaneously) → Go
   if (
     mediaUrl &&
-    (messageType === "image" ||
-      messageType === "video" ||
-      messageType === "audio" ||
-      messageType === "document" ||
-      messageType === "sticker")
+    ["image", "video", "audio", "document", "sticker"].includes(messageType)
   ) {
     try {
-      // SSRF Protection: Only allow downloads from our S3 endpoint
-      const s3Endpoint = new URL(env.S3_ENDPOINT);
-      const mediaUrlObj = new URL(mediaUrl);
-
-      // Check if URL is from our S3 endpoint (presigned URLs will have same hostname)
-      if (mediaUrlObj.hostname !== s3Endpoint.hostname) {
-        throw new Error(
-          `SSRF protection: Media URL hostname ${mediaUrlObj.hostname} does not match S3 endpoint ${s3Endpoint.hostname}`,
-        );
-      }
-
-      logger.debug({ mediaUrl }, "Downloading media from URL");
-      const response = await fetch(mediaUrl);
-
-      if (!response.ok) {
-        throw new Error(`Failed to download media: ${response.statusText}`);
-      }
-
-      // Get MIME type from response headers
-      mimeType =
-        response.headers.get("content-type") || "application/octet-stream";
-
-      // Extract filename from URL or Content-Disposition header
-      const contentDisposition = response.headers.get("content-disposition");
-      if (contentDisposition) {
-        const match = contentDisposition.match(/filename="?(.+)"?/);
-        if (match) {
-          fileName = match[1];
-        }
-      }
-      if (!fileName) {
-        // Extract from URL
-        const urlPath = new URL(mediaUrl).pathname;
-        fileName = urlPath.split("/").pop() || "file";
-      }
-
-      // Convert to byte array
-      const arrayBuffer = await response.arrayBuffer();
-      const uint8Array = new Uint8Array(arrayBuffer);
-      mediaData = Array.from(uint8Array);
-
-      // For media messages, content becomes the caption
+      // HEAD validates ownership and metadata without moving object bytes
+      // through the API process or JetStream.
+      mediaReference = await getMediaObjectReference(mediaUrl, companyId);
       caption = content || undefined;
-      content = ""; // Clear content field for media messages
-
-      logger.debug(
-        { bytes: mediaData.length, mimeType, fileName },
-        "Downloaded media",
-      );
+      content = "";
     } catch (error) {
-      logger.error(formatError(error), "Failed to download media");
-      throw new Error("Failed to download media for sending");
+      logger.error(formatError(error), "Invalid media object reference");
+      throw new Error("Invalid media object for sending");
     }
   }
 
@@ -311,9 +301,11 @@ export async function buildSendMessageCommand(
     type: messageType, // Go worker expects "text", "image", etc. directly
     content,
     caption,
-    file_name: fileName,
-    mime_type: mimeType,
-    media_data: mediaData,
+    file_name: mediaReference?.filename,
+    mime_type: mediaReference?.mimeType,
+    media_object_key: mediaReference?.key,
+    media_size: mediaReference?.size,
+    media_checksum: mediaReference?.checksum,
     user_id: userId,
     reply_to: replyTo,
     reply_to_sender: replyToSender,
@@ -336,6 +328,7 @@ export async function publishSendMessage(
   replyToSender?: string,
 ): Promise<void> {
   const command = await buildSendMessageCommand(
+    companyId,
     connectionId,
     jid,
     content,
@@ -353,9 +346,8 @@ export async function publishSendMessage(
       subject,
       to: jid,
       type: messageType,
-      mediaBytes: Array.isArray(command.media_data)
-        ? command.media_data.length
-        : 0,
+      mediaObjectKey: command.media_object_key || null,
+      mediaSize: command.media_size || 0,
       replyTo: replyTo || null,
       replyToSender: replyToSender || null,
       correlationId: command.correlation_id,
@@ -563,15 +555,50 @@ export async function subscribe(
   (async () => {
     for await (const msg of subscription) {
       try {
-        const event = jc.decode(msg.data) as WhatsAppEvent;
+        let event: WhatsAppEvent;
+        try {
+          event = parseWhatsAppEvent(jc.decode(msg.data));
+        } catch (error) {
+          logger.error(
+            { ...formatError(error), subject },
+            "Terminating invalid NATS event",
+          );
+          natsConnection?.publish(
+            API_EVENTS_DEAD_LETTER_SUBJECT,
+            jc.encode({
+              sourceSubject: msg.subject,
+              deliveries: 1,
+              error: error instanceof Error ? error.message : String(error),
+              payloadBase64: Buffer.from(msg.data).toString("base64"),
+              failedAt: new Date().toISOString(),
+            }),
+          );
+          msg.term();
+          continue;
+        }
         await callback(event);
         msg.ack();
       } catch (error) {
+        const deliveries = msg.info?.redeliveryCount ?? 0;
         logger.error(
-          { ...formatError(error), subject },
+          { ...formatError(error), subject, deliveries },
           "Error processing message; scheduling redelivery",
         );
-        msg.nak(1_000);
+        if (deliveries >= 9) {
+          natsConnection?.publish(
+            API_EVENTS_DEAD_LETTER_SUBJECT,
+            jc.encode({
+              sourceSubject: msg.subject,
+              deliveries: deliveries + 1,
+              error: error instanceof Error ? error.message : String(error),
+              payloadBase64: Buffer.from(msg.data).toString("base64"),
+              failedAt: new Date().toISOString(),
+            }),
+          );
+          msg.term();
+        } else {
+          msg.nak(1_000);
+        }
       }
     }
   })().catch((err) => {

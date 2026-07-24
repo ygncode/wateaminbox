@@ -9,42 +9,42 @@
  * - /contacts/import/* - CSV import
  */
 
-import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { db } from "@wateaminbox/database";
 import {
-  toDbDate,
+  extractPhoneFromJid,
   getContactDisplayName,
   getContactName,
-  extractPhoneFromJid,
   getUserDisplayName,
+  toDbDate,
 } from "@wateaminbox/shared";
-import { authMiddleware } from "../../middleware/auth.js";
-import { notFound, badRequest, serverError } from "../../lib/errors.js";
-import { successData, successPaginated, created } from "../../lib/response.js";
+import { Hono } from "hono";
+import {
+  type RawContactFromDb,
+  transformContacts,
+} from "../../lib/data-transformers.js";
+import { badRequest, notFound, serverError } from "../../lib/errors.js";
+import { broadcastToCompany } from "../../lib/pusher.js";
+import { created, successData, successPaginated } from "../../lib/response.js";
 import { createPaginationMeta } from "../../lib/route-helpers.js";
 import {
-  transformContacts,
-  type RawContactFromDb,
-} from "../../lib/data-transformers.js";
-import { normalizePhoneNumber } from "../../lib/schemas.js";
-import {
   createContactSchema,
-  updateContactSchema,
   listContactsQuerySchema,
+  updateContactSchema,
 } from "../../lib/schemas/index.js";
-import { tenantMiddleware } from "../../middleware/tenant.js";
+import { normalizePhoneNumber } from "../../lib/schemas.js";
+import { authMiddleware } from "../../middleware/auth.js";
 import { getRouteContext } from "../../middleware/context.js";
-import { getContactsWithLastMessage } from "../../services/contact.service.js";
+import { requireContactVisibility } from "../../middleware/resource-visibility.js";
+import { tenantMiddleware } from "../../middleware/tenant.js";
 import { createAuditLog, getClientIp } from "../../services/audit.service.js";
-import { broadcastToCompany } from "../../lib/pusher.js";
 import { enqueueConnectionCommand } from "../../services/command-outbox.service.js";
-
+import { getContactsWithLastMessage } from "../../services/contact.service.js";
+import { assignmentRoutes } from "./assignment.js";
+import { importRoutes } from "./import.js";
 // Import sub-routes
 import { notesRoutes } from "./notes.js";
 import { tagsRoutes } from "./tags.js";
-import { assignmentRoutes } from "./assignment.js";
-import { importRoutes } from "./import.js";
 
 export const contactRoutes = new Hono();
 
@@ -59,6 +59,9 @@ contactRoutes.route("/", notesRoutes);
 contactRoutes.route("/", tagsRoutes);
 contactRoutes.route("/", assignmentRoutes);
 
+// Direct contact resources must honor assignment visibility.
+contactRoutes.use("/:id", requireContactVisibility());
+
 /**
  * GET /contacts - List all contacts
  * Query params: search, limit, offset, includeGroups, assignedToMe, unassigned
@@ -67,20 +70,25 @@ contactRoutes.get(
   "/",
   zValidator("query", listContactsQuerySchema),
   async (c) => {
-    const { tenantDb, user, companyId } = getRouteContext(c);
+    const { tenantDb, user, companyId, permissions } = getRouteContext(c);
     const query = c.req.valid("query");
 
     // Use optimized service function that fetches contacts with last message in a single query
     // This replaces the N+1 pattern where we fetched contacts first, then queried each contact's last message
-    const { contacts, total } = await getContactsWithLastMessage(tenantDb, companyId, {
-      search: query.search,
-      limit: query.limit,
-      offset: query.offset,
-      includeGroups: query.includeGroups,
-      assignedToMe: query.assignedToMe,
-      unassigned: query.unassigned,
-      userId: user.id,
-    });
+    const { contacts, total } = await getContactsWithLastMessage(
+      tenantDb,
+      companyId,
+      {
+        search: query.search,
+        limit: query.limit,
+        offset: query.offset,
+        includeGroups: query.includeGroups,
+        assignedToMe: query.assignedToMe,
+        unassigned: query.unassigned,
+        userId: user.id,
+        restrictToAssigned: !permissions.can_view_all_chats,
+      },
+    );
 
     // Type assertion needed because ContactWithLastMessage has slightly looser types than RawContactFromDb
     // (e.g., jid can be null in the service but the transformer expects it to be string)
@@ -239,7 +247,10 @@ contactRoutes.post("/", zValidator("json", createContactSchema), async (c) => {
     return badRequest(c, "No matching active WhatsApp connection");
   }
   if (!body.connectionId && activeConnections.length !== 1) {
-    return badRequest(c, "connectionId is required when multiple accounts are active");
+    return badRequest(
+      c,
+      "connectionId is required when multiple accounts are active",
+    );
   }
   const connectionId = activeConnections[0].id;
 
@@ -371,7 +382,10 @@ contactRoutes.patch(
     let blockConnectionId: string | null = null;
     if (blockStatusChanged) {
       if (!existingContact.jid || !existingContact.whatsapp_connection_id) {
-        return badRequest(c, "Contact is not associated with a WhatsApp connection");
+        return badRequest(
+          c,
+          "Contact is not associated with a WhatsApp connection",
+        );
       }
       const connection = await tenantDb
         .selectFrom("whatsapp_connections")
@@ -379,7 +393,8 @@ contactRoutes.patch(
         .where("id", "=", existingContact.whatsapp_connection_id)
         .where("status", "=", "connected")
         .executeTakeFirst();
-      if (!connection) return badRequest(c, "Contact's connection is not active");
+      if (!connection)
+        return badRequest(c, "Contact's connection is not active");
       blockConnectionId = connection.id;
     }
 
@@ -437,12 +452,11 @@ contactRoutes.patch(
       });
 
       await broadcastToCompany(companyId, "contact:updated", {
-          event: body.isBlocked ? "blocked" : "unblocked",
-          contactId,
-          contactName: contactDisplayName,
-          isBlocked: body.isBlocked,
+        event: body.isBlocked ? "blocked" : "unblocked",
+        contactId,
+        contactName: contactDisplayName,
+        isBlocked: body.isBlocked,
       });
-
     }
 
     return successData(c, {

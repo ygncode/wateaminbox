@@ -2,8 +2,8 @@ import { zValidator } from "@hono/zod-validator";
 import { Hono } from "hono";
 import { badRequest, notFound } from "../../lib/errors.js";
 import {
-  formatMessagesForConversation,
   buildQuotedMessageData,
+  formatMessagesForConversation,
   type MessageDbRow,
   type ReactionData,
 } from "../../lib/message-formatters.js";
@@ -11,16 +11,18 @@ import {
   buildCommandSubject,
   buildSendMessageCommand,
 } from "../../lib/nats/index.js";
-import { enqueueCommand } from "../../services/command-outbox.service.js";
 import { successData, successWithMessage } from "../../lib/response.js";
 import {
   listConversationMessagesQuerySchema,
   sendConversationMessageSchema,
 } from "../../lib/schemas/index.js";
 import { getRouteContext } from "../../middleware/context.js";
-import { requirePermission } from "../../middleware/tenant.js";
+import {
+  markDeprecatedMessageSend,
+  requireMessageSendPermission,
+} from "../../middleware/message-send-policy.js";
+import { enqueueCommand } from "../../services/command-outbox.service.js";
 import { ensureContactAssignment } from "../../services/contact.service.js";
-import { PERMISSIONS } from "../../services/permission.service.js";
 
 export const messageRoutes = new Hono();
 
@@ -68,10 +70,14 @@ messageRoutes.get(
       ReturnType<typeof buildQuotedMessageData>
     >();
     if (quotedIds.length > 0) {
+      const connectionIds = [
+        ...new Set(messages.map((message) => message.whatsapp_connection_id)),
+      ];
       const quoted = await tenantDb
         .selectFrom("messages")
         .selectAll()
         .where("message_id", "in", quotedIds)
+        .where("whatsapp_connection_id", "in", connectionIds)
         .execute();
 
       quotedMessagesMap = new Map(
@@ -128,7 +134,8 @@ messageRoutes.get(
  */
 messageRoutes.post(
   "/:id/messages",
-  requirePermission(PERMISSIONS.CAN_SEND_MESSAGES),
+  requireMessageSendPermission,
+  markDeprecatedMessageSend,
   zValidator("json", sendConversationMessageSchema),
   async (c) => {
     const { tenantDb, user, companyId } = getRouteContext(c);
@@ -179,6 +186,8 @@ messageRoutes.post(
         .selectFrom("messages")
         .select(["message_id", "sender_jid", "from_me"])
         .where("id", "=", replyToMessageId)
+        .where("contact_id", "=", contactId)
+        .where("whatsapp_connection_id", "=", connection.id)
         .executeTakeFirst();
       quotedWaMessageId = quotedMessage?.message_id || undefined;
 
@@ -194,6 +203,7 @@ messageRoutes.post(
     const waMessageId = `pending_${messageId}`;
 
     const sendCommand = await buildSendMessageCommand(
+      companyId,
       connection.id,
       contact.jid,
       content ?? "",

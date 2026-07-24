@@ -3,7 +3,10 @@ package storage
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
+	"io"
 	"net/url"
 	"path"
 	"time"
@@ -128,6 +131,36 @@ func (c *Client) UploadMediaWithFilename(ctx context.Context, data []byte, mimeT
 	publicURL := c.getPublicURL(key)
 
 	return publicURL, nil
+}
+
+// DownloadMediaObject streams an object with a strict size cap and optional checksum verification.
+func (c *Client) DownloadMediaObject(ctx context.Context, key string, maxBytes int64, expectedChecksum string) ([]byte, error) {
+	object, err := c.s3Client.GetObject(ctx, &s3.GetObjectInput{
+		Bucket: aws.String(c.bucket),
+		Key:    aws.String(key),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to get media object: %w", err)
+	}
+	defer object.Body.Close()
+
+	if object.ContentLength != nil && (*object.ContentLength <= 0 || *object.ContentLength > maxBytes) {
+		return nil, fmt.Errorf("media object size %d exceeds limit %d", *object.ContentLength, maxBytes)
+	}
+	data, err := io.ReadAll(io.LimitReader(object.Body, maxBytes+1))
+	if err != nil {
+		return nil, fmt.Errorf("failed to read media object: %w", err)
+	}
+	if int64(len(data)) > maxBytes {
+		return nil, fmt.Errorf("media object exceeds limit %d", maxBytes)
+	}
+	if expectedChecksum != "" {
+		digest := sha256.Sum256(data)
+		if hex.EncodeToString(digest[:]) != expectedChecksum {
+			return nil, fmt.Errorf("media object checksum mismatch")
+		}
+	}
+	return data, nil
 }
 
 // DeleteMedia deletes a media file by its key.

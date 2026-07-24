@@ -83,7 +83,7 @@ export async function createTenantSchema(companyId: string): Promise<void> {
       subject TEXT NOT NULL,
       payload JSONB NOT NULL,
       status TEXT NOT NULL DEFAULT 'pending'
-        CHECK (status IN ('pending', 'published', 'failed')),
+        CHECK (status IN ('pending', 'claimed', 'published', 'failed')),
       attempts INTEGER NOT NULL DEFAULT 0,
       next_attempt_at TIMESTAMPTZ NOT NULL DEFAULT now(),
       last_error TEXT,

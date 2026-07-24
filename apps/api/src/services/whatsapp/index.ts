@@ -5,22 +5,24 @@
  * Import from this index for all WhatsApp operations.
  */
 
+// Re-export error classes for convenience
+export {
+  ConnectionAlreadyExistsError,
+  ConnectionNotFoundError,
+  MaxConnectionsExceededError,
+} from "../../lib/errors.js";
 // Connection management
 export {
-  type WhatsAppConnection,
-  getMaxConnections,
-  listConnections,
-  getConnection,
-  spawnConnection,
-  killConnection,
   getActiveConnection,
   getActiveConnections,
+  getConnection,
   getConnectionLimits,
+  getMaxConnections,
+  killConnection,
+  listConnections,
+  spawnConnection,
+  type WhatsAppConnection,
 } from "./connection.js";
-
-// Messaging
-export { type SendMessageInput, sendMessage } from "./messaging.js";
-
 // Status tracking
 export {
   type ConnectionStatus,
@@ -28,11 +30,3 @@ export {
   updateConnectionStatus,
   updateLastSync,
 } from "./status.js";
-
-// Re-export error classes for convenience
-export {
-  ConnectionAlreadyExistsError,
-  ConnectionNotFoundError,
-  InvalidConnectionStateError,
-  MaxConnectionsExceededError,
-} from "../../lib/errors.js";

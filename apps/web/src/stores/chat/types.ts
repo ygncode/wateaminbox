@@ -1,4 +1,3 @@
-import type { Message, MessageStatus } from "@wateaminbox/shared";
 import type { Contact, Conversation } from "../../lib/api";
 
 // Typing indicator type
@@ -7,12 +6,6 @@ export interface TypingIndicator {
   userId: string;
   userName: string;
   startedAt: Date;
-}
-
-// Optimistic message for pending sends
-export interface OptimisticMessage extends Message {
-  isOptimistic: true;
-  tempId: string;
 }
 
 // Slice state interfaces
@@ -32,34 +25,6 @@ export interface TypingSlice {
   addTypingIndicator: (indicator: TypingIndicator) => void;
   removeTypingIndicator: (conversationId: string, userId: string) => void;
   clearTypingIndicators: (conversationId: string) => void;
-}
-
-export interface MessagesSlice {
-  messagesCache: Map<string, Message[]>;
-  optimisticMessages: Map<string, OptimisticMessage>;
-  setMessages: (conversationId: string, messages: Message[]) => void;
-  addMessage: (conversationId: string, message: Message) => void;
-  updateMessage: (
-    conversationId: string,
-    messageId: string,
-    updates: Partial<Message>,
-  ) => void;
-  updateMessageStatus: (
-    conversationId: string,
-    messageId: string,
-    status: MessageStatus,
-  ) => void;
-  updateMessageReaction: (
-    conversationId: string,
-    messageId: string,
-    reactorJid: string,
-    emoji: string,
-  ) => void;
-  removeMessage: (conversationId: string, messageId: string) => void;
-  prependMessages: (conversationId: string, messages: Message[]) => void;
-  addOptimisticMessage: (message: OptimisticMessage) => void;
-  confirmOptimisticMessage: (tempId: string, confirmedMessage: Message) => void;
-  failOptimisticMessage: (tempId: string) => void;
 }
 
 export interface DraftsSlice {
@@ -83,7 +48,6 @@ export interface SelectionSlice {
 // Combined state type
 export type ChatState = ConversationSlice &
   TypingSlice &
-  MessagesSlice &
   DraftsSlice &
   SelectionSlice & {
     reset: () => void;

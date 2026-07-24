@@ -1,7 +1,12 @@
 // Package nats provides shared NATS types and utilities for WhatsApp services.
 package nats
 
-import "time"
+import (
+	"encoding/json"
+	"time"
+)
+
+const ContractVersion = 1
 
 // Event types used across WhatsApp services.
 const (
@@ -50,12 +55,21 @@ const (
 // WhatsAppEvent is the wrapper format for all WhatsApp events published to NATS.
 // This matches the TypeScript WhatsAppEvent interface in apps/api/src/lib/nats.ts
 type WhatsAppEvent struct {
-	Type          string      `json:"type"`
-	CompanyID     string      `json:"companyId"`
-	ConnectionID  string      `json:"connectionId"`
-	Payload       interface{} `json:"payload"`
-	Timestamp     string      `json:"timestamp"`
-	CorrelationID string      `json:"correlationId,omitempty"` // For end-to-end message tracing
+	ContractVersion int         `json:"contractVersion"`
+	Type            string      `json:"type"`
+	CompanyID       string      `json:"companyId"`
+	ConnectionID    string      `json:"connectionId"`
+	Payload         interface{} `json:"payload"`
+	Timestamp       string      `json:"timestamp"`
+	CorrelationID   string      `json:"correlationId,omitempty"` // For end-to-end message tracing
+}
+
+func (event WhatsAppEvent) MarshalJSON() ([]byte, error) {
+	type eventAlias WhatsAppEvent
+	if event.ContractVersion == 0 {
+		event.ContractVersion = ContractVersion
+	}
+	return json.Marshal(eventAlias(event))
 }
 
 // QRPayload is the payload for QR code events.

@@ -55,27 +55,21 @@ export async function handleContactEvent(event: ContactEvent): Promise<void> {
   try {
     const tenantDb = getTenantConnection(companyId);
 
-    // Get the connection by ID if provided
-    let connection;
-    if (connectionId) {
-      connection = await tenantDb
-        .selectFrom("whatsapp_connections")
-        .select(["id"])
-        .where("id", "=", connectionId)
-        .executeTakeFirst();
+    if (!connectionId) {
+      logger.error({ companyId }, "Quarantining contact without connection ID");
+      return;
     }
+    const connection = await tenantDb
+      .selectFrom("whatsapp_connections")
+      .select(["id"])
+      .where("id", "=", connectionId)
+      .executeTakeFirst();
 
     if (!connection) {
-      // Fallback: get any active connection
-      connection = await tenantDb
-        .selectFrom("whatsapp_connections")
-        .select(["id"])
-        .where("status", "=", "connected")
-        .executeTakeFirst();
-    }
-
-    if (!connection) {
-      logger.warn({ companyId }, "No active connection for company");
+      logger.error(
+        { companyId, connectionId },
+        "Quarantining contact for unknown connection",
+      );
       return;
     }
 
@@ -97,7 +91,9 @@ export async function handleContactEvent(event: ContactEvent): Promise<void> {
       const shouldClearRedactedName =
         !syncedName &&
         isRedactedContactLabel(existingContact.push_name ?? undefined) &&
-        [payload.name, payload.displayName].some((value) => value !== undefined);
+        [payload.name, payload.displayName].some(
+          (value) => value !== undefined,
+        );
 
       await tenantDb
         .updateTable("contacts")
@@ -192,9 +188,7 @@ export async function handleProfilePictureEvent(
         updated_at: toDbDate(),
       })
       .where("jid", "=", contactJid)
-      .$if(Boolean(connectionId), (query) =>
-        query.where("whatsapp_connection_id", "=", connectionId),
-      )
+      .where("whatsapp_connection_id", "=", connectionId)
       .executeTakeFirst();
 
     // Group participants may not have a standalone contact conversation. Cache
@@ -203,9 +197,7 @@ export async function handleProfilePictureEvent(
       .updateTable("messages")
       .set({ sender_avatar_url: profilePictureUrl })
       .where("sender_jid", "=", contactJid)
-      .$if(Boolean(connectionId), (query) =>
-        query.where("whatsapp_connection_id", "=", connectionId),
-      )
+      .where("whatsapp_connection_id", "=", connectionId)
       .executeTakeFirst();
 
     if (result.numUpdatedRows > 0 || messageResult.numUpdatedRows > 0) {
@@ -272,9 +264,7 @@ export async function handlePresenceEvent(event: PresenceEvent): Promise<void> {
         updated_at: toDbDate(),
       })
       .where("jid", "=", contactJid)
-      .$if(Boolean(connectionId), (query) =>
-        query.where("whatsapp_connection_id", "=", connectionId),
-      )
+      .where("whatsapp_connection_id", "=", connectionId)
       .executeTakeFirst();
 
     if (result.numUpdatedRows > 0) {
