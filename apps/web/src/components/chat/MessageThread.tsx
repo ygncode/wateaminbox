@@ -1,3 +1,4 @@
+import type { Message } from "@wateaminbox/shared";
 import { useCallback, useState } from "react";
 import { useTheme } from "../../contexts";
 import { useMessageSelection } from "../../hooks/chat/useMessageSelection";
@@ -7,6 +8,8 @@ import { useRetryMessage } from "../../hooks/useMessages";
 import { ChatContextMenu } from "./ChatContextMenu";
 import { MessageSelectionToolbar } from "./MessageSelectionToolbar";
 import { VirtualMessageList } from "./VirtualMessageList";
+
+const EMPTY_MESSAGES: Message[] = [];
 
 interface MessageThreadProps {
   conversationId: string | undefined;
@@ -48,7 +51,7 @@ export function MessageThread({
     isFetchingNextPage,
   } = useInfiniteMessages(conversationId);
 
-  const messages = data?.messages || [];
+  const messages = data?.messages ?? EMPTY_MESSAGES;
 
   // Use selection hook
   const {

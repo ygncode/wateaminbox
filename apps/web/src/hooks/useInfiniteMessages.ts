@@ -1,4 +1,4 @@
-import { useInfiniteQuery } from "@tanstack/react-query";
+import { type InfiniteData, useInfiniteQuery } from "@tanstack/react-query";
 import type { PaginatedMessages } from "@wateaminbox/shared";
 import { api } from "../lib/api";
 import { getCompanyId } from "../lib/api/client";
@@ -10,6 +10,17 @@ export const infiniteMessageKeys = {
   list: (conversationId: string) =>
     ["infinite-messages", getCompanyId(), conversationId] as const,
 };
+
+function selectInfiniteMessages(
+  data: InfiniteData<PaginatedMessages, string | undefined>,
+) {
+  return {
+    pages: data.pages,
+    pageParams: data.pageParams,
+    // Flatten and reverse to get chronological order
+    messages: data.pages.flatMap((page) => page.messages).reverse(),
+  };
+}
 
 interface FetchMessagesParams {
   conversationId: string;
@@ -53,14 +64,9 @@ export function useInfiniteMessages(
     enabled: !!conversationId,
     staleTime: 1000 * 30, // 30 seconds
     gcTime: 1000 * 60 * 5, // 5 minutes
-    // Messages are fetched in reverse chronological order
-    // So the first page is the most recent messages
-    select: (data) => ({
-      pages: data.pages,
-      pageParams: data.pageParams,
-      // Flatten and reverse to get chronological order
-      messages: data.pages.flatMap((page) => page.messages).reverse(),
-    }),
+    // Keep the selector stable so unchanged query data retains its selected
+    // message array across component renders.
+    select: selectInfiniteMessages,
   });
 }
 
