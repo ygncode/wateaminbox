@@ -5,7 +5,7 @@
 
 set -e
 
-CONTAINER="whatsapp-web-nats-box"
+CONTAINER="wateaminbox-nats-box"
 NATS_SERVER="nats://nats:4222"
 
 # Colors for output

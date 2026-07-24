@@ -1,16 +1,16 @@
 services:
   postgres:
     image: postgres:18-alpine
-    container_name: whatsapp-web-postgres
+    container_name: wateaminbox-postgres
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: whatsapp_web
+      POSTGRES_DB: wateaminbox
     ports:
       - "4447:5432"
     volumes:
       # PostgreSQL 18 stores clusters in versioned subdirectories; mount its parent.
-      - postgres_data:/var/lib/postgresql
+      - wateaminbox_postgres_data:/var/lib/postgresql
       - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init.sql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
@@ -20,13 +20,13 @@ services:
 
   nats:
     image: nats:2.10-alpine
-    container_name: whatsapp-web-nats
+    container_name: wateaminbox-nats
     command: ["--jetstream", "--store_dir", "/data", "-m", "8222"]
     ports:
       - "4448:4222"
       - "8222:8222"
     volumes:
-      - nats_data:/data
+      - wateaminbox_nats_data:/data
     healthcheck:
       test: ["CMD", "nats-server", "--help"]
       interval: 5s
@@ -35,14 +35,14 @@ services:
 
   meilisearch:
     image: getmeili/meilisearch:v1.11
-    container_name: whatsapp-web-meilisearch
+    container_name: wateaminbox-meilisearch
     environment:
       MEILI_ENV: development
       MEILI_MASTER_KEY: development_master_key
     ports:
       - "4449:7700"
     volumes:
-      - meilisearch_data:/meili_data
+      - wateaminbox_meilisearch_data:/meili_data
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:7700/health"]
       interval: 5s
@@ -51,7 +51,7 @@ services:
 
   minio:
     image: minio/minio:latest
-    container_name: whatsapp-web-minio
+    container_name: wateaminbox-minio
     command: server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: minioadmin
@@ -60,7 +60,7 @@ services:
       - "4450:9000"
       - "9001:9001"
     volumes:
-      - minio_data:/data
+      - wateaminbox_minio_data:/data
     healthcheck:
       test: ["CMD", "mc", "ready", "local"]
       interval: 5s
@@ -70,7 +70,7 @@ services:
   # Create default bucket on startup
   minio-init:
     image: minio/mc:latest
-    container_name: whatsapp-web-minio-init
+    container_name: wateaminbox-minio-init
     depends_on:
       minio:
         condition: service_healthy
@@ -85,7 +85,7 @@ services:
   # NATS debugging tools
   nats-box:
     image: natsio/nats-box:latest
-    container_name: whatsapp-web-nats-box
+    container_name: wateaminbox-nats-box
     command: ["tail", "-f", "/dev/null"]
     depends_on:
       nats:
@@ -94,7 +94,11 @@ services:
       - debug
 
 volumes:
-  postgres_data:
-  nats_data:
-  meilisearch_data:
-  minio_data:
+  wateaminbox_postgres_data:
+    name: wateaminbox_postgres_data
+  wateaminbox_nats_data:
+    name: wateaminbox_nats_data
+  wateaminbox_meilisearch_data:
+    name: wateaminbox_meilisearch_data
+  wateaminbox_minio_data:
+    name: wateaminbox_minio_data

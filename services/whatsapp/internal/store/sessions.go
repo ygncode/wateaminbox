@@ -182,19 +182,61 @@ func (s *PGSQLStore) DeleteAllSessions(ctx context.Context, phone string) error 
 	return err
 }
 
-// MigratePNToLID migrates sessions from phone number to LID.
+// MigratePNToLID migrates all Signal state from a phone-number identity to a
+// LID identity. LID Signal addresses include the `_1` namespace suffix, so
+// using JID.User directly creates invalid session keys.
 func (s *PGSQLStore) MigratePNToLID(ctx context.Context, pn, lid types.JID) error {
-	pnUser := pn.User
-	lidUser := lid.User
+	pnSignal := pn.SignalAddressUser()
+	lidSignal := lid.SignalAddressUser()
+	if pnSignal == "" || lidSignal == "" || pnSignal == lidSignal {
+		return nil
+	}
 
-	// Migrate sessions
-	_, err := s.db.ExecContext(ctx, `
-		INSERT INTO whatsmeow_sessions (connection_id, our_jid, their_id, session)
-		SELECT connection_id, our_jid, REPLACE(their_id, $2, $3), session
-		FROM whatsmeow_sessions
-		WHERE connection_id = $1 AND our_jid = $4 AND their_id LIKE $2 || ':%'
-		ON CONFLICT (connection_id, our_jid, their_id) DO UPDATE SET session = EXCLUDED.session
-	`, s.connectionID, pnUser, lidUser, s.JID)
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
 
-	return err
+	queries := []string{
+		`INSERT INTO whatsmeow_sessions (connection_id, our_jid, their_id, session)
+		 SELECT connection_id, our_jid, replace(their_id, $3, $4), session
+		 FROM whatsmeow_sessions
+		 WHERE connection_id = $1 AND our_jid = $2 AND their_id LIKE $3 || ':%'
+		 ON CONFLICT (connection_id, our_jid, their_id)
+		 DO UPDATE SET session = EXCLUDED.session`,
+		`INSERT INTO whatsmeow_identity_keys (connection_id, our_jid, their_id, identity)
+		 SELECT connection_id, our_jid, replace(their_id, $3, $4), identity
+		 FROM whatsmeow_identity_keys
+		 WHERE connection_id = $1 AND our_jid = $2 AND their_id LIKE $3 || ':%'
+		 ON CONFLICT (connection_id, our_jid, their_id)
+		 DO UPDATE SET identity = EXCLUDED.identity`,
+		`INSERT INTO whatsmeow_sender_keys (connection_id, our_jid, chat_id, sender_id, sender_key)
+		 SELECT connection_id, our_jid, chat_id, replace(sender_id, $3, $4), sender_key
+		 FROM whatsmeow_sender_keys
+		 WHERE connection_id = $1 AND our_jid = $2 AND sender_id LIKE $3 || ':%'
+		 ON CONFLICT (connection_id, our_jid, chat_id, sender_id)
+		 DO UPDATE SET sender_key = EXCLUDED.sender_key`,
+	}
+	for _, query := range queries {
+		if _, err = tx.ExecContext(ctx, query, s.connectionID, s.JID, pnSignal, lidSignal); err != nil {
+			return err
+		}
+	}
+
+	deletes := []string{
+		`DELETE FROM whatsmeow_sessions
+		 WHERE connection_id = $1 AND our_jid = $2 AND their_id LIKE $3 || ':%'`,
+		`DELETE FROM whatsmeow_identity_keys
+		 WHERE connection_id = $1 AND our_jid = $2 AND their_id LIKE $3 || ':%'`,
+		`DELETE FROM whatsmeow_sender_keys
+		 WHERE connection_id = $1 AND our_jid = $2 AND sender_id LIKE $3 || ':%'`,
+	}
+	for _, query := range deletes {
+		if _, err = tx.ExecContext(ctx, query, s.connectionID, s.JID, pnSignal); err != nil {
+			return err
+		}
+	}
+
+	return tx.Commit()
 }

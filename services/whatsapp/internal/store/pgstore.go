@@ -10,6 +10,7 @@ import (
 	"sync"
 
 	"github.com/google/uuid"
+	"go.mau.fi/whatsmeow/proto/waAdv"
 	"go.mau.fi/whatsmeow/store"
 	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/util/keys"
@@ -156,27 +157,31 @@ func (c *PGContainer) GetDevice(ctx context.Context, jid types.JID) (*store.Devi
 	device := c.NewDevice()
 
 	row := c.db.QueryRowContext(ctx, `
-		SELECT jid, registration_id, noise_key, identity_key,
+		SELECT jid, lid, registration_id, noise_key, identity_key,
 			   signed_pre_key, signed_pre_key_id, signed_pre_key_sig,
-			   adv_key, adv_details, adv_account_sig, adv_device_sig,
-			   platform, business_name, push_name, facebook_uuid
+			   adv_key, adv_details, adv_account_sig, adv_account_sig_key,
+			   adv_device_sig, platform, business_name, push_name,
+			   facebook_uuid, lid_migration_ts
 		FROM whatsmeow_device
 		WHERE connection_id = $1 AND jid = $2
 	`, c.connectionID, jid.String())
 
 	var jidStr string
+	var lid sql.NullString
 	var registrationID uint32
 	var noiseKey, identityKey, signedPreKey, signedPreKeySig []byte
 	var signedPreKeyID int32
-	var advKey, advDetails, advAccountSig, advDeviceSig []byte
+	var advKey, advDetails, advAccountSig, advAccountSigKey, advDeviceSig []byte
 	var platform, businessName, pushName string
 	var facebookUUID *string
+	var lidMigrationTimestamp int64
 
 	err := row.Scan(
-		&jidStr, &registrationID, &noiseKey, &identityKey,
+		&jidStr, &lid, &registrationID, &noiseKey, &identityKey,
 		&signedPreKey, &signedPreKeyID, &signedPreKeySig,
-		&advKey, &advDetails, &advAccountSig, &advDeviceSig,
-		&platform, &businessName, &pushName, &facebookUUID,
+		&advKey, &advDetails, &advAccountSig, &advAccountSigKey,
+		&advDeviceSig, &platform, &businessName, &pushName, &facebookUUID,
+		&lidMigrationTimestamp,
 	)
 
 	if err == sql.ErrNoRows {
@@ -186,19 +191,20 @@ func (c *PGContainer) GetDevice(ctx context.Context, jid types.JID) (*store.Devi
 		return nil, fmt.Errorf("failed to scan device: %w", err)
 	}
 
-	return c.scanDevice(device, jidStr, registrationID, noiseKey, identityKey,
+	return c.scanDevice(device, jidStr, lid, registrationID, noiseKey, identityKey,
 		signedPreKey, signedPreKeyID, signedPreKeySig,
-		advKey, advDetails, advAccountSig, advDeviceSig,
-		platform, businessName, pushName, facebookUUID)
+		advKey, advDetails, advAccountSig, advAccountSigKey, advDeviceSig,
+		platform, businessName, pushName, facebookUUID, lidMigrationTimestamp)
 }
 
 // GetAllDevices retrieves all devices for this connection.
 func (c *PGContainer) GetAllDevices(ctx context.Context) ([]*store.Device, error) {
 	rows, err := c.db.QueryContext(ctx, `
-		SELECT jid, registration_id, noise_key, identity_key,
+		SELECT jid, lid, registration_id, noise_key, identity_key,
 			   signed_pre_key, signed_pre_key_id, signed_pre_key_sig,
-			   adv_key, adv_details, adv_account_sig, adv_device_sig,
-			   platform, business_name, push_name, facebook_uuid
+			   adv_key, adv_details, adv_account_sig, adv_account_sig_key,
+			   adv_device_sig, platform, business_name, push_name,
+			   facebook_uuid, lid_migration_ts
 		FROM whatsmeow_device
 		WHERE connection_id = $1
 	`, c.connectionID)
@@ -213,27 +219,30 @@ func (c *PGContainer) GetAllDevices(ctx context.Context) ([]*store.Device, error
 		device := c.NewDevice()
 
 		var jidStr string
+		var lid sql.NullString
 		var registrationID uint32
 		var noiseKey, identityKey, signedPreKey, signedPreKeySig []byte
 		var signedPreKeyID int32
-		var advKey, advDetails, advAccountSig, advDeviceSig []byte
+		var advKey, advDetails, advAccountSig, advAccountSigKey, advDeviceSig []byte
 		var platform, businessName, pushName string
 		var facebookUUID *string
+		var lidMigrationTimestamp int64
 
 		err := rows.Scan(
-			&jidStr, &registrationID, &noiseKey, &identityKey,
+			&jidStr, &lid, &registrationID, &noiseKey, &identityKey,
 			&signedPreKey, &signedPreKeyID, &signedPreKeySig,
-			&advKey, &advDetails, &advAccountSig, &advDeviceSig,
-			&platform, &businessName, &pushName, &facebookUUID,
+			&advKey, &advDetails, &advAccountSig, &advAccountSigKey,
+			&advDeviceSig, &platform, &businessName, &pushName, &facebookUUID,
+			&lidMigrationTimestamp,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan device row: %w", err)
 		}
 
-		device, err = c.scanDevice(device, jidStr, registrationID, noiseKey, identityKey,
+		device, err = c.scanDevice(device, jidStr, lid, registrationID, noiseKey, identityKey,
 			signedPreKey, signedPreKeyID, signedPreKeySig,
-			advKey, advDetails, advAccountSig, advDeviceSig,
-			platform, businessName, pushName, facebookUUID)
+			advKey, advDetails, advAccountSig, advAccountSigKey, advDeviceSig,
+			platform, businessName, pushName, facebookUUID, lidMigrationTimestamp)
 		if err != nil {
 			return nil, err
 		}
@@ -245,20 +254,28 @@ func (c *PGContainer) GetAllDevices(ctx context.Context) ([]*store.Device, error
 }
 
 // scanDevice populates a device from scanned row data.
-func (c *PGContainer) scanDevice(device *store.Device, jidStr string, registrationID uint32,
+func (c *PGContainer) scanDevice(device *store.Device, jidStr string, lid sql.NullString, registrationID uint32,
 	noiseKey, identityKey, signedPreKey []byte, signedPreKeyID int32, signedPreKeySig []byte,
-	advKey, advDetails, advAccountSig, advDeviceSig []byte,
-	platform, businessName, pushName string, facebookUUID *string) (*store.Device, error) {
+	advKey, advDetails, advAccountSig, advAccountSigKey, advDeviceSig []byte,
+	platform, businessName, pushName string, facebookUUID *string, lidMigrationTimestamp int64) (*store.Device, error) {
 
 	jid, err := types.ParseJID(jidStr)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse JID %s: %w", jidStr, err)
 	}
 	device.ID = &jid
+	if lid.Valid && lid.String != "" {
+		parsedLID, parseErr := types.ParseJID(lid.String)
+		if parseErr != nil {
+			return nil, fmt.Errorf("failed to parse LID %s: %w", lid.String, parseErr)
+		}
+		device.LID = parsedLID
+	}
 	device.RegistrationID = registrationID
 	device.Platform = platform
 	device.BusinessName = businessName
 	device.PushName = pushName
+	device.LIDMigrationTimestamp = lidMigrationTimestamp
 
 	// Set noise key - use NewKeyPairFromPrivateKey to properly derive public key
 	if len(noiseKey) == 32 {
@@ -287,9 +304,17 @@ func (c *PGContainer) scanDevice(device *store.Device, jidStr string, registrati
 		copy(device.SignedPreKey.Signature[:], signedPreKeySig)
 	}
 
-	// Set ADV secret key
+	// Restore the complete device identity. Whatsmeow includes this when a new
+	// Signal session is established, so dropping any field can produce messages
+	// that other WhatsApp devices cannot decrypt.
 	if len(advKey) > 0 {
 		device.AdvSecretKey = advKey
+	}
+	device.Account = &waAdv.ADVSignedDeviceIdentity{
+		Details:             advDetails,
+		AccountSignature:    advAccountSig,
+		AccountSignatureKey: advAccountSigKey,
+		DeviceSignature:     advDeviceSig,
 	}
 
 	// Parse Facebook UUID
@@ -334,7 +359,8 @@ func (c *PGContainer) PutDevice(ctx context.Context, device *store.Device) error
 
 	var noiseKey, identityKey, signedPreKey, signedPreKeySig []byte
 	var signedPreKeyID int32
-	var advKey, advDetails, advAccountSig, advDeviceSig []byte
+	var advKey, advDetails, advAccountSig, advAccountSigKey, advDeviceSig []byte
+	var lid *string
 
 	if device.NoiseKey != nil {
 		noiseKey = device.NoiseKey.Priv[:]
@@ -353,7 +379,12 @@ func (c *PGContainer) PutDevice(ctx context.Context, device *store.Device) error
 	if device.Account != nil {
 		advDetails = device.Account.Details
 		advAccountSig = device.Account.AccountSignature
+		advAccountSigKey = device.Account.AccountSignatureKey
 		advDeviceSig = device.Account.DeviceSignature
+	}
+	if !device.LID.IsEmpty() {
+		value := device.LID.String()
+		lid = &value
 	}
 
 	var facebookUUID *string
@@ -364,30 +395,27 @@ func (c *PGContainer) PutDevice(ctx context.Context, device *store.Device) error
 
 	_, err := c.db.ExecContext(ctx, `
 		INSERT INTO whatsmeow_device (
-			connection_id, jid, registration_id, noise_key, identity_key,
+			connection_id, jid, lid, registration_id, noise_key, identity_key,
 			signed_pre_key, signed_pre_key_id, signed_pre_key_sig,
-			adv_key, adv_details, adv_account_sig, adv_device_sig,
-			platform, business_name, push_name, facebook_uuid
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+			adv_key, adv_details, adv_account_sig, adv_account_sig_key,
+			adv_device_sig, platform, business_name, push_name, facebook_uuid,
+			lid_migration_ts
+		) VALUES (
+			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
+			$11, $12, $13, $14, $15, $16, $17, $18, $19
+		)
 		ON CONFLICT (connection_id, jid) DO UPDATE SET
-			registration_id = EXCLUDED.registration_id,
-			noise_key = EXCLUDED.noise_key,
-			identity_key = EXCLUDED.identity_key,
-			signed_pre_key = EXCLUDED.signed_pre_key,
-			signed_pre_key_id = EXCLUDED.signed_pre_key_id,
-			signed_pre_key_sig = EXCLUDED.signed_pre_key_sig,
-			adv_key = EXCLUDED.adv_key,
-			adv_details = EXCLUDED.adv_details,
-			adv_account_sig = EXCLUDED.adv_account_sig,
-			adv_device_sig = EXCLUDED.adv_device_sig,
+			lid = EXCLUDED.lid,
 			platform = EXCLUDED.platform,
 			business_name = EXCLUDED.business_name,
 			push_name = EXCLUDED.push_name,
-			facebook_uuid = EXCLUDED.facebook_uuid
-	`, c.connectionID, jid, device.RegistrationID, noiseKey, identityKey,
+			facebook_uuid = EXCLUDED.facebook_uuid,
+			lid_migration_ts = EXCLUDED.lid_migration_ts
+	`, c.connectionID, jid, lid, device.RegistrationID, noiseKey, identityKey,
 		signedPreKey, signedPreKeyID, signedPreKeySig,
-		advKey, advDetails, advAccountSig, advDeviceSig,
+		advKey, advDetails, advAccountSig, advAccountSigKey, advDeviceSig,
 		device.Platform, device.BusinessName, device.PushName, facebookUUID,
+		device.LIDMigrationTimestamp,
 	)
 
 	if err != nil {

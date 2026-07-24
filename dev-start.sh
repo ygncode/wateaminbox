@@ -155,7 +155,7 @@ start_docker_services() {
     
     # Wait for PostgreSQL
     print_status "  Waiting for PostgreSQL..."
-    until docker exec whatsapp-web-postgres pg_isready -U postgres &> /dev/null; do
+    until docker exec wateaminbox-postgres pg_isready -U postgres &> /dev/null; do
         sleep 1
     done
     print_success "  PostgreSQL is ready"

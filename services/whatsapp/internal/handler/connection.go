@@ -71,7 +71,12 @@ func (h *Handler) handleChatPresence(presence *events.ChatPresence) {
 func (h *Handler) handleConnected(evt *events.Connected) {
 	log.Printf("Worker %s connected to WhatsApp", h.config.WorkerID)
 
-	// Extract phone number and JID from the client
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// Extract phone number and JID from the client. Existing installations may
+	// still have own-device Signal sessions under their phone-number identity;
+	// migrate them before the first outbound message uses LID addressing.
 	var phoneNumber, jid string
 	if h.config.Client != nil {
 		client := h.config.Client.GetClient()
@@ -80,13 +85,21 @@ func (h *Handler) handleConnected(evt *events.Connected) {
 			// ID.User contains just the phone number (e.g., "6594603306")
 			phoneNumber = client.Store.ID.User
 			log.Printf("Connected with JID: %s, Phone: %s", jid, phoneNumber)
+
+			if !client.Store.LID.IsEmpty() && client.Store.Sessions != nil {
+				if err := client.Store.Sessions.MigratePNToLID(
+					ctx,
+					client.Store.ID.ToNonAD(),
+					client.Store.LID.ToNonAD(),
+				); err != nil {
+					log.Printf("Failed to migrate own Signal sessions to LID: %v", err)
+				}
+			}
 		}
 	}
 
 	// Mark ourselves as available so WhatsApp servers send us presence updates
 	// This is required for receiving presence information from contacts
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
 
 	if h.config.Client != nil {
 		if err := h.config.Client.SendPresence(ctx, types.PresenceAvailable); err != nil {

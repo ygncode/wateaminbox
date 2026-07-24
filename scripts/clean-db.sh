@@ -10,19 +10,19 @@ NC='\033[0m' # No Color
 
 # Docker volume names (from docker-compose.yml)
 VOLUMES=(
-    "whatsapp-web_postgres_data"
-    "whatsapp-web_nats_data"
-    "whatsapp-web_meilisearch_data"
-    "whatsapp-web_minio_data"
+    "wateaminbox_postgres_data"
+    "wateaminbox_nats_data"
+    "wateaminbox_meilisearch_data"
+    "wateaminbox_minio_data"
 )
 
 # Container names
 CONTAINERS=(
-    "whatsapp-web-postgres"
-    "whatsapp-web-nats"
-    "whatsapp-web-meilisearch"
-    "whatsapp-web-minio"
-    "whatsapp-web-minio-init"
+    "wateaminbox-postgres"
+    "wateaminbox-nats"
+    "wateaminbox-meilisearch"
+    "wateaminbox-minio"
+    "wateaminbox-minio-init"
 )
 
 # Get script directory
@@ -107,7 +107,7 @@ start_fresh() {
     print_status "Waiting for PostgreSQL to be ready..."
     sleep 3
     for i in {1..30}; do
-        if docker exec whatsapp-web-postgres pg_isready -U postgres >/dev/null 2>&1; then
+        if docker exec wateaminbox-postgres pg_isready -U postgres >/dev/null 2>&1; then
             print_success "PostgreSQL is ready"
             break
         fi

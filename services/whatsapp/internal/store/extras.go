@@ -14,7 +14,21 @@ import (
 // LIDStore interface implementation
 // ============================================
 
-// PutManyLIDMappings stores multiple LID to JID mappings.
+func normalizedMappingJID(jid types.JID) string {
+	return jid.ToNonAD().String()
+}
+
+func mappedDeviceJID(stored string, source types.JID) (types.JID, error) {
+	mapped, err := types.ParseJID(stored)
+	if err != nil {
+		return types.EmptyJID, err
+	}
+	mapped.Device = source.Device
+	return mapped, nil
+}
+
+// PutManyLIDMappings stores identity-level mappings. Device numbers are applied
+// when a mapping is read, matching whatsmeow's built-in SQL store behavior.
 func (s *PGSQLStore) PutManyLIDMappings(ctx context.Context, mappings []store.LIDMapping) error {
 	if len(mappings) == 0 {
 		return nil
@@ -36,8 +50,13 @@ func (s *PGSQLStore) PutManyLIDMappings(ctx context.Context, mappings []store.LI
 	}
 	defer stmt.Close()
 
-	for _, m := range mappings {
-		_, err = stmt.ExecContext(ctx, s.connectionID, m.LID.String(), m.PN.String())
+	for _, mapping := range mappings {
+		_, err = stmt.ExecContext(
+			ctx,
+			s.connectionID,
+			normalizedMappingJID(mapping.LID),
+			normalizedMappingJID(mapping.PN),
+		)
 		if err != nil {
 			return err
 		}
@@ -46,23 +65,24 @@ func (s *PGSQLStore) PutManyLIDMappings(ctx context.Context, mappings []store.LI
 	return tx.Commit()
 }
 
-// PutLIDMapping stores a single LID to JID mapping.
+// PutLIDMapping stores a single identity-level LID to phone-number mapping.
 func (s *PGSQLStore) PutLIDMapping(ctx context.Context, lid, jid types.JID) error {
 	_, err := s.db.ExecContext(ctx, `
 		INSERT INTO whatsmeow_lid_mappings (connection_id, lid, jid)
 		VALUES ($1, $2, $3)
 		ON CONFLICT (connection_id, lid) DO UPDATE SET jid = EXCLUDED.jid
-	`, s.connectionID, lid.String(), jid.String())
+	`, s.connectionID, normalizedMappingJID(lid), normalizedMappingJID(jid))
 	return err
 }
 
-// GetPNForLID retrieves the phone number JID for a LID.
+// GetPNForLID retrieves the phone number JID for a LID and preserves the
+// requested device number.
 func (s *PGSQLStore) GetPNForLID(ctx context.Context, lid types.JID) (types.JID, error) {
 	var jidStr string
 	err := s.db.QueryRowContext(ctx, `
 		SELECT jid FROM whatsmeow_lid_mappings
 		WHERE connection_id = $1 AND lid = $2
-	`, s.connectionID, lid.String()).Scan(&jidStr)
+	`, s.connectionID, normalizedMappingJID(lid)).Scan(&jidStr)
 
 	if err == sql.ErrNoRows {
 		return types.EmptyJID, nil
@@ -71,16 +91,17 @@ func (s *PGSQLStore) GetPNForLID(ctx context.Context, lid types.JID) (types.JID,
 		return types.EmptyJID, err
 	}
 
-	return types.ParseJID(jidStr)
+	return mappedDeviceJID(jidStr, lid)
 }
 
-// GetLIDForPN retrieves the LID for a phone number JID.
+// GetLIDForPN retrieves the LID for a phone number JID and preserves the
+// requested device number.
 func (s *PGSQLStore) GetLIDForPN(ctx context.Context, pn types.JID) (types.JID, error) {
 	var lidStr string
 	err := s.db.QueryRowContext(ctx, `
 		SELECT lid FROM whatsmeow_lid_mappings
 		WHERE connection_id = $1 AND jid = $2
-	`, s.connectionID, pn.String()).Scan(&lidStr)
+	`, s.connectionID, normalizedMappingJID(pn)).Scan(&lidStr)
 
 	if err == sql.ErrNoRows {
 		return types.EmptyJID, nil
@@ -89,25 +110,30 @@ func (s *PGSQLStore) GetLIDForPN(ctx context.Context, pn types.JID) (types.JID, 
 		return types.EmptyJID, err
 	}
 
-	return types.ParseJID(lidStr)
+	return mappedDeviceJID(lidStr, pn)
 }
 
-// GetManyLIDsForPNs retrieves LIDs for multiple phone number JIDs.
+// GetManyLIDsForPNs retrieves LIDs for multiple phone-number devices.
 func (s *PGSQLStore) GetManyLIDsForPNs(ctx context.Context, pns []types.JID) (map[types.JID]types.JID, error) {
 	result := make(map[types.JID]types.JID)
 	if len(pns) == 0 {
 		return result, nil
 	}
 
-	// Build query with placeholders
-	query := `SELECT lid, jid FROM whatsmeow_lid_mappings WHERE connection_id = $1 AND jid = ANY($2)`
-
-	pnStrs := make([]string, len(pns))
-	for i, pn := range pns {
-		pnStrs[i] = pn.String()
+	devicesByPN := make(map[string][]types.JID)
+	pnStrs := make([]string, 0, len(pns))
+	for _, pn := range pns {
+		normalized := normalizedMappingJID(pn)
+		if _, exists := devicesByPN[normalized]; !exists {
+			pnStrs = append(pnStrs, normalized)
+		}
+		devicesByPN[normalized] = append(devicesByPN[normalized], pn)
 	}
 
-	rows, err := s.db.QueryContext(ctx, query, s.connectionID, pq.Array(pnStrs))
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT lid, jid FROM whatsmeow_lid_mappings
+		WHERE connection_id = $1 AND jid = ANY($2)
+	`, s.connectionID, pq.Array(pnStrs))
 	if err != nil {
 		return nil, err
 	}
@@ -118,17 +144,12 @@ func (s *PGSQLStore) GetManyLIDsForPNs(ctx context.Context, pns []types.JID) (ma
 		if err := rows.Scan(&lidStr, &jidStr); err != nil {
 			return nil, err
 		}
-
-		lid, err := types.ParseJID(lidStr)
-		if err != nil {
-			continue
+		for _, pn := range devicesByPN[jidStr] {
+			lid, parseErr := mappedDeviceJID(lidStr, pn)
+			if parseErr == nil {
+				result[pn] = lid
+			}
 		}
-		jid, err := types.ParseJID(jidStr)
-		if err != nil {
-			continue
-		}
-
-		result[jid] = lid
 	}
 
 	return result, rows.Err()

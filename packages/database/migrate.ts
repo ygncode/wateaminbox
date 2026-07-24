@@ -2,7 +2,7 @@ import { Pool } from 'pg'
 import { Kysely, PostgresDialect } from 'kysely'
 import { runMigrations } from './src/migrator'
 
-const databaseUrl = process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:4447/whatsapp_web'
+const databaseUrl = process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:4447/wateaminbox'
 
 async function main() {
   const pool = new Pool({
