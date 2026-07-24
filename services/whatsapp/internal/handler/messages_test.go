@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"go.mau.fi/whatsmeow"
+	"go.mau.fi/whatsmeow/proto/waWeb"
 	"go.mau.fi/whatsmeow/store"
 	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
@@ -87,6 +88,48 @@ func TestGetHistorySenderJIDUsesGroupParticipant(t *testing.T) {
 	)
 	if resolved != "6582239810@s.whatsapp.net" {
 		t.Fatalf("expected group participant JID, got %s", resolved)
+	}
+}
+
+func TestNormalizeHistoryMessageStatus(t *testing.T) {
+	tests := []struct {
+		status   waWeb.WebMessageInfo_Status
+		expected string
+	}{
+		{status: waWeb.WebMessageInfo_PENDING, expected: "pending"},
+		{status: waWeb.WebMessageInfo_SERVER_ACK, expected: "sent"},
+		{status: waWeb.WebMessageInfo_DELIVERY_ACK, expected: "delivered"},
+		{status: waWeb.WebMessageInfo_READ, expected: "read"},
+		{status: waWeb.WebMessageInfo_PLAYED, expected: "read"},
+		{status: waWeb.WebMessageInfo_ERROR, expected: "failed"},
+	}
+
+	for _, tt := range tests {
+		if actual := normalizeHistoryMessageStatus(tt.status); actual != tt.expected {
+			t.Fatalf("status %s: expected %q, got %q", tt.status, tt.expected, actual)
+		}
+	}
+}
+
+func TestNormalizeReceiptStatus(t *testing.T) {
+	tests := []struct {
+		name     string
+		receipt  types.ReceiptType
+		expected string
+	}{
+		{name: "empty means delivered", receipt: types.ReceiptTypeDelivered, expected: "delivered"},
+		{name: "sender means sent", receipt: types.ReceiptTypeSender, expected: "sent"},
+		{name: "read", receipt: types.ReceiptTypeRead, expected: "read"},
+		{name: "played means read", receipt: types.ReceiptTypePlayed, expected: "read"},
+		{name: "unsupported is preserved", receipt: types.ReceiptTypeInactive, expected: "inactive"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if actual := normalizeReceiptStatus(tt.receipt); actual != tt.expected {
+				t.Fatalf("expected %q, got %q", tt.expected, actual)
+			}
+		})
 	}
 }
 

@@ -31,7 +31,9 @@ export function MessageHeader({
 
   const displayName =
     contact.customName || contact.name || contact.jid || "Unknown";
-  const lastSeenText = formatLastSeen(contact.lastSeen, contact.isOnline);
+  const lastSeenText = contact.isGroup
+    ? ""
+    : formatLastSeen(contact.lastSeen, contact.isOnline);
   const statusText = isTyping ? "typing" : lastSeenText;
 
   return (
@@ -78,18 +80,20 @@ export function MessageHeader({
           <h2 className="text-base font-medium text-gray-900 dark:text-dark-text-primary truncate">
             {displayName}
           </h2>
-          <p
-            className={`text-xs truncate ${isTyping ? "text-whatsapp-green" : "text-gray-500 dark:text-dark-text-secondary"}`}
-          >
-            {isTyping ? (
-              <span className="typing-indicator">
-                typing
-                <span className="typing-dots" />
-              </span>
-            ) : (
-              statusText
-            )}
-          </p>
+          {statusText && (
+            <p
+              className={`text-xs truncate ${isTyping ? "text-whatsapp-green" : "text-gray-500 dark:text-dark-text-secondary"}`}
+            >
+              {isTyping ? (
+                <span className="typing-indicator">
+                  typing
+                  <span className="typing-dots" />
+                </span>
+              ) : (
+                statusText
+              )}
+            </p>
+          )}
         </div>
       </button>
 

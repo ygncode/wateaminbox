@@ -19,6 +19,28 @@ import { broadcastToCompany } from "../../lib/pusher.js";
 import { getTenantConnection } from "../tenant.service.js";
 import { handlerLogger as logger } from "./types.js";
 
+function isRedactedContactLabel(value: string | undefined): boolean {
+  if (!value) return false;
+  const digits = [...value].filter((char) => /\p{N}/u.test(char)).length;
+  const redactions = [...value].filter((char) => "∙•·*".includes(char)).length;
+  return digits >= 2 && redactions >= 2;
+}
+
+function getSyncedContactName(payload: ContactEvent["payload"]): string | null {
+  for (const value of [
+    payload.fullName,
+    payload.firstName,
+    payload.businessName,
+    payload.pushName,
+    payload.displayName,
+    payload.name,
+  ]) {
+    const trimmed = value?.trim();
+    if (trimmed && !isRedactedContactLabel(trimmed)) return trimmed;
+  }
+  return null;
+}
+
 /**
  * Handles contact sync events from history sync
  */
@@ -60,31 +82,45 @@ export async function handleContactEvent(event: ContactEvent): Promise<void> {
     // Normalize JID to remove device suffix
     const contactJid = normalizeJid(payload.jid);
 
-    // Check if contact already exists
+    const syncedName = getSyncedContactName(payload);
+
+    // Check if contact already exists for this WhatsApp connection.
     const existingContact = await tenantDb
       .selectFrom("contacts")
-      .select(["id"])
+      .select(["id", "push_name"])
       .where("jid", "=", contactJid)
+      .where("whatsapp_connection_id", "=", connection.id)
       .executeTakeFirst();
 
+    let contactChanged = false;
     if (existingContact) {
-      // Update existing contact
+      const shouldClearRedactedName =
+        !syncedName &&
+        isRedactedContactLabel(existingContact.push_name ?? undefined) &&
+        [payload.name, payload.displayName].some((value) => value !== undefined);
+
       await tenantDb
         .updateTable("contacts")
         .set({
-          push_name: payload.displayName || payload.name || null,
-          is_group: payload.isGroup,
-          profile_picture_url: payload.profilePictureUrl || null,
+          ...(syncedName ? { push_name: syncedName } : {}),
+          ...(shouldClearRedactedName ? { push_name: null } : {}),
+          ...(payload.isGroup !== undefined
+            ? { is_group: payload.isGroup }
+            : {}),
+          ...(payload.profilePictureUrl !== undefined
+            ? { profile_picture_url: payload.profilePictureUrl || null }
+            : {}),
           updated_at: toDbDate(),
         })
         .where("id", "=", existingContact.id)
         .execute();
 
+      contactChanged = true;
       logger.debug({ jid: contactJid, companyId }, "Updated contact");
-    } else {
-      // Create new contact
+    } else if (!payload.nameOnly) {
+      // Name-only events may include the entire address book. Do not create an
+      // inbox conversation until WhatsApp supplies conversation history.
       const contactId = crypto.randomUUID();
-      // Extract phone number from JID (removes device suffix like ":3")
       const phoneNumber = extractPhoneFromJid(contactJid);
       await tenantDb
         .insertInto("contacts")
@@ -93,24 +129,34 @@ export async function handleContactEvent(event: ContactEvent): Promise<void> {
           whatsapp_connection_id: connection.id,
           jid: contactJid,
           phone_number: phoneNumber,
-          push_name: payload.displayName || payload.name || null,
-          is_group: payload.isGroup,
+          push_name: syncedName,
+          is_group: payload.isGroup ?? false,
           profile_picture_url: payload.profilePictureUrl || null,
           created_at: toDbDate(),
           updated_at: toDbDate(),
         })
         .execute();
 
+      contactChanged = true;
       logger.debug({ jid: contactJid, companyId }, "Created contact");
     }
 
-    // Broadcast to clients with connectionId
-    await broadcastToCompany(
-      companyId,
-      "contact:profile_picture",
-      payload,
-      connectionId,
-    );
+    if (syncedName && contactChanged) {
+      await broadcastToCompany(
+        companyId,
+        "contact:updated",
+        { jid: contactJid, pushName: syncedName },
+        connectionId,
+      );
+    }
+    if (payload.profilePictureUrl !== undefined && contactChanged) {
+      await broadcastToCompany(
+        companyId,
+        "contact:profile_picture",
+        payload,
+        connectionId,
+      );
+    }
   } catch (error) {
     logger.error(formatError(error), "Failed to handle contact event");
   }

@@ -203,6 +203,8 @@ contactRoutes.get("/:id", async (c) => {
     name: getContactName(contact),
     isGroup: contact.is_group,
     isBlocked: contact.is_blocked,
+    isOnline: contact.is_online,
+    lastSeen: contact.last_seen,
     profilePictureUrl: contact.profile_picture_url,
     notesShared: contact.notes_shared,
     createdAt: contact.created_at,

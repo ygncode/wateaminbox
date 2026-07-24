@@ -108,6 +108,7 @@ export interface MessageEvent extends WhatsAppEvent {
     fromMe: boolean;
     content: string;
     messageType: string;
+    status?: "pending" | "sent" | "delivered" | "read" | "failed";
     timestamp: string;
     mediaUrl?: string;
     quotedMessageId?: string;
@@ -133,7 +134,17 @@ export interface ReceiptEvent extends WhatsAppEvent {
   type: "receipt";
   payload: {
     messageId: string;
-    status: "sent" | "delivered" | "read";
+    // Canonical statuses plus legacy/raw whatsmeow receipt values.
+    status:
+      | ""
+      | "sender"
+      | "sent"
+      | "delivered"
+      | "read"
+      | "played"
+      | "read-self"
+      | "played-self"
+      | "inactive";
     timestamp: string;
   };
 }
@@ -170,7 +181,12 @@ export interface ContactEvent extends WhatsAppEvent {
     jid: string;
     name?: string;
     displayName?: string;
-    isGroup: boolean;
+    firstName?: string;
+    fullName?: string;
+    pushName?: string;
+    businessName?: string;
+    isGroup?: boolean;
+    nameOnly?: boolean;
     unreadCount?: number;
     profilePictureUrl?: string;
   };

@@ -51,6 +51,31 @@ export type MessageStatus =
   | "read"
   | "failed";
 
+const MESSAGE_STATUS_RANK: Record<Exclude<MessageStatus, "failed">, number> = {
+  pending: 0,
+  sent: 1,
+  delivered: 2,
+  read: 3,
+};
+
+/**
+ * Advance a message status without allowing out-of-order receipts to regress
+ * read/delivered messages. A definitive receipt can recover a failed message.
+ */
+export function advanceMessageStatus(
+  current: MessageStatus,
+  incoming: MessageStatus,
+): MessageStatus {
+  if (incoming === "failed") {
+    return current === "pending" ? "failed" : current;
+  }
+  if (current === "failed") return incoming;
+
+  return MESSAGE_STATUS_RANK[incoming] > MESSAGE_STATUS_RANK[current]
+    ? incoming
+    : current;
+}
+
 export type MediaDownloadStatus =
   | "pending"
   | "downloading"

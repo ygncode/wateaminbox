@@ -69,6 +69,7 @@ type MessageEvent struct {
 	To                 string
 	FromMe             bool
 	Type               string
+	Status             string
 	Content            string
 	MediaURL           string
 	MediaType          string

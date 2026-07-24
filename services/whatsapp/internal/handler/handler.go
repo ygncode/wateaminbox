@@ -33,6 +33,7 @@ import (
 	"time"
 
 	"go.mau.fi/whatsmeow"
+	"go.mau.fi/whatsmeow/appstate"
 	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
 	"golang.org/x/sync/singleflight"
@@ -121,6 +122,16 @@ func (h *Handler) HandleEvent(evt interface{}) {
 		h.handlePairSuccess(v)
 	case *events.HistorySync:
 		h.handleHistorySync(v)
+	case *events.Contact:
+		h.handleContactName(v)
+	case *events.PushName:
+		h.handlePushName(v)
+	case *events.BusinessName:
+		h.handleBusinessName(v)
+	case *events.AppStateSyncComplete:
+		if v.Name == appstate.WAPatchCriticalUnblockLow {
+			go h.syncKnownContactNames()
+		}
 	case *events.StreamReplaced:
 		h.handleStreamReplaced(v)
 	case *events.Picture:

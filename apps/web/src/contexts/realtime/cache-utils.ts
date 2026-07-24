@@ -8,6 +8,7 @@
 
 import type { QueryClient } from "@tanstack/react-query";
 import type { Message, PaginatedMessages } from "@wateaminbox/shared";
+import { queryKeys } from "../../hooks/query-keys";
 import { chatKeys } from "../../hooks/useChats";
 import { infiniteMessageKeys } from "../../hooks/useInfiniteMessages";
 
@@ -146,6 +147,27 @@ export function updateContactInChatList(
         }
         return chat;
       });
+    },
+  );
+}
+
+/**
+ * Update contact detail caches matching a JID. The conversation header reads
+ * from this cache rather than the chat-list cache.
+ */
+export function updateContactDetailsByJid(
+  queryClient: QueryClient,
+  jid: string,
+  updater: (
+    contact: Record<string, unknown>,
+  ) => Record<string, unknown>,
+): void {
+  queryClient.setQueriesData(
+    { queryKey: queryKeys.contacts.details() },
+    (oldData: unknown) => {
+      if (!oldData || typeof oldData !== "object") return oldData;
+      const contact = oldData as Record<string, unknown>;
+      return contact.jid === jid ? updater(contact) : oldData;
     },
   );
 }

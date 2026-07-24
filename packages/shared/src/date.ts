@@ -110,6 +110,7 @@ export function formatStatusTime(input: DateInput): string {
 /**
  * Format for "last seen" display with WhatsApp-style logic
  * - "online" if currently online
+ * - empty if presence/last seen is unavailable (for example due to privacy settings)
  * - "last seen just now" if < 1 minute
  * - "last seen X minutes ago" if < 1 hour
  * - "last seen X hours ago" if < 24 hours
@@ -121,7 +122,7 @@ export function formatLastSeen(input: DateInput, isOnline?: boolean): string {
   if (isOnline) return 'online'
 
   const parsed = parseDate(input)
-  if (!parsed) return 'offline'
+  if (!parsed) return ''
 
   const nowTime = dayjs.utc()
   const local = parsed.local()

@@ -175,6 +175,7 @@ func (p *Publisher) PublishMessage(msg MessageEvent) error {
 			FromMe:             msg.FromMe,
 			Content:            content,
 			MessageType:        msg.Type,
+			Status:             msg.Status,
 			Timestamp:          msg.Timestamp.Format(time.RFC3339),
 			MediaURL:           msg.MediaURL,
 			QuotedMessageID:    msg.QuotedMessageID,
@@ -290,6 +291,28 @@ func (p *Publisher) PublishContact(jid, name, displayName string, isGroup bool, 
 			IsGroup:           isGroup,
 			UnreadCount:       unreadCount,
 			ProfilePictureURL: profilePictureURL,
+		},
+		Timestamp: time.Now().Format(time.RFC3339),
+	}
+
+	subject := fmt.Sprintf(SubjectContact, p.companyID, p.connectionID)
+	return p.publish(subject, event)
+}
+
+// PublishContactName publishes names learned from WhatsApp's contact and push-name stores.
+// NameOnly prevents the API from creating chats for address-book entries that have no conversation.
+func (p *Publisher) PublishContactName(jid, firstName, fullName, pushName, businessName string) error {
+	event := WhatsAppEvent{
+		Type:         "contact",
+		CompanyID:    p.companyID,
+		ConnectionID: p.connectionID,
+		Payload: ContactPayload{
+			JID:          jid,
+			FirstName:    firstName,
+			FullName:     fullName,
+			PushName:     pushName,
+			BusinessName: businessName,
+			NameOnly:     true,
 		},
 		Timestamp: time.Now().Format(time.RFC3339),
 	}

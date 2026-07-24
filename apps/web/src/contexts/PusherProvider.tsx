@@ -14,6 +14,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { advanceMessageStatus } from "@wateaminbox/shared";
 import type {
   ConversationReadPayload,
   MediaDownloadedPayload,
@@ -43,6 +44,7 @@ import {
 } from "../lib/pusher";
 import { sendTypingIndicator, broadcastMessagesRead } from "../lib/api/actions";
 import { markConversationAsRead } from "../lib/api/conversations";
+import { queryKeys } from "../hooks/query-keys";
 import { api } from "../lib/api";
 import { useChatStore } from "../stores/chat-store";
 import type { TypingIndicator } from "../stores/chat-store";
@@ -50,6 +52,7 @@ import {
   addMessageToCache,
   invalidateChatList,
   refetchConversationMessages,
+  updateContactDetailsByJid,
   updateContactInChatList,
   updateMessageInCache,
 } from "./realtime/cache-utils";
@@ -237,8 +240,8 @@ export function PusherProvider({
           payload.conversationId,
           payload.messageId,
           (msg) => ({
-          ...msg,
-          status: payload.status,
+            ...msg,
+            status: advanceMessageStatus(msg.status, payload.status),
           }),
         );
       }),
@@ -257,7 +260,10 @@ export function PusherProvider({
           qc,
           payload.conversationId,
           payload.messageId,
-          (msg) => ({ ...msg, status: "failed" }),
+          (msg) => ({
+            ...msg,
+            status: advanceMessageStatus(msg.status, "failed"),
+          }),
         );
       }),
     );
@@ -379,7 +385,13 @@ export function PusherProvider({
     // Presence handlers
     eventUnsubscribesRef.current.push(
       bindEvent<PresencePayload>("presence:online", (data) => {
-        updateContactInChatList(qc, data.payload.jid, (contact) => ({
+        const { jid } = data.payload;
+        updateContactInChatList(qc, jid, (contact) => ({
+          ...contact,
+          isOnline: true,
+          lastSeen: undefined,
+        }));
+        updateContactDetailsByJid(qc, jid, (contact) => ({
           ...contact,
           isOnline: true,
           lastSeen: null,
@@ -394,6 +406,11 @@ export function PusherProvider({
           ...contact,
           isOnline: false,
           lastSeen: payload.lastSeen ? new Date(payload.lastSeen) : undefined,
+        }));
+        updateContactDetailsByJid(qc, payload.jid, (contact) => ({
+          ...contact,
+          isOnline: false,
+          lastSeen: payload.lastSeen ?? null,
         }));
       }),
     );
@@ -653,6 +670,7 @@ export function PusherProvider({
       fetchSyncStatus();
       const qc = queryClientRef.current;
       invalidateChatList(qc);
+      qc.invalidateQueries({ queryKey: queryKeys.contacts.details() });
       const selectedId = useChatStore.getState().selectedConversationId;
       if (selectedId) {
         refetchConversationMessages(qc, selectedId);

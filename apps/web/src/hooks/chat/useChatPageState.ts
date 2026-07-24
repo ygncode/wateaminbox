@@ -24,6 +24,9 @@ function mapContactDetailToContact(detail: ContactDetail): Contact {
     jid: detail.jid || undefined,
     avatarUrl: detail.profilePictureUrl || undefined,
     customName: detail.customName || undefined,
+    isOnline: detail.isOnline,
+    lastSeen: detail.lastSeen ? new Date(detail.lastSeen) : undefined,
+    isGroup: detail.isGroup,
   };
 }
 

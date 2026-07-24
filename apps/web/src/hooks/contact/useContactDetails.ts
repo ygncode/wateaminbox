@@ -14,6 +14,8 @@ export interface ContactDetail {
   displayName: string;
   isGroup: boolean;
   isBlocked: boolean;
+  isOnline: boolean;
+  lastSeen: string | null;
   profilePictureUrl: string | null;
   notesShared: string | null;
   createdAt: string;

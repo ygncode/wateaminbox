@@ -2,7 +2,7 @@
  * Message event handlers - incoming messages, receipts, send confirmations
  */
 
-import { type MessageType } from "@wateaminbox/database";
+import { type MessageStatus, type MessageType } from "@wateaminbox/database";
 import {
   extractPhoneFromJid,
   normalizeJid,
@@ -232,6 +232,9 @@ export async function handleMessageEvent(event: MessageEvent): Promise<void> {
       : payload.mediaUrl
         ? "completed"
         : null;
+    const messageStatus: MessageStatus = payload.fromMe
+      ? (payload.status ?? "sent")
+      : "delivered";
 
     const messageId = crypto.randomUUID();
     const insertQuery = tenantDb.insertInto("messages").values({
@@ -264,7 +267,7 @@ export async function handleMessageEvent(event: MessageEvent): Promise<void> {
       is_forwarded: false,
       is_starred: false,
       deleted_by_sender: false,
-      status: payload.fromMe ? "sent" : "delivered",
+      status: messageStatus,
       timestamp: toDbDate(payload.timestamp),
       created_at: toDbDate(),
     });
@@ -279,6 +282,20 @@ export async function handleMessageEvent(event: MessageEvent): Promise<void> {
               from_me: payload.fromMe,
               sender_jid: normalizedSenderJid,
               sender_name: senderName,
+              // History sync contains the original WhatsApp status. Merge it
+              // monotonically so imported messages get their old double ticks
+              // without regressing newer realtime receipt state.
+              status: sql<MessageStatus>`CASE
+                WHEN messages.status = 'read' OR excluded.status = 'read'
+                  THEN 'read'::message_status
+                WHEN messages.status = 'delivered' OR excluded.status = 'delivered'
+                  THEN 'delivered'::message_status
+                WHEN messages.status = 'sent' OR excluded.status = 'sent'
+                  THEN 'sent'::message_status
+                WHEN messages.status = 'pending' OR excluded.status = 'pending'
+                  THEN 'pending'::message_status
+                ELSE 'failed'::message_status
+              END`,
             }),
           )
           .returning("id")
@@ -416,7 +433,7 @@ export async function handleMessageEvent(event: MessageEvent): Promise<void> {
             senderAvatarUrl: null,
             content: payload.content || "",
             messageType: payload.messageType || "text",
-            status: payload.fromMe ? "sent" : "delivered",
+            status: messageStatus,
             whatsappMessageId: payload.messageId,
             metadata: payload.mediaUrl
               ? { mediaUrl: payload.mediaUrl }
@@ -448,8 +465,11 @@ function mapReceiptStatus(
 ): "sent" | "delivered" | "read" | null {
   switch (waStatus) {
     case "sender":
+    case "sent":
       return "sent";
+    case "":
     case "delivered":
+      // WhatsApp represents a normal delivery receipt as an empty string.
       return "delivered";
     case "read":
     case "played":
@@ -481,15 +501,30 @@ export async function handleReceiptEvent(event: ReceiptEvent): Promise<void> {
   try {
     const tenantDb = getTenantConnection(companyId);
 
-    // Update message status in database and return the message info
-    // Note: We store the WhatsApp message ID in message_id column
+    // Delivery receipts can arrive out of order. In particular, WhatsApp may
+    // emit a "sender" receipt after a "read" receipt when a linked device
+    // receives a new message. Only advance the persisted status so read ticks
+    // never regress to sent/delivered.
+    const eligibleCurrentStatuses: MessageStatus[] =
+      dbStatus === "sent"
+        ? ["pending", "failed"]
+        : dbStatus === "delivered"
+          ? ["pending", "sent", "failed"]
+          : ["pending", "sent", "delivered", "failed"];
+
+    // Note: We store the WhatsApp message ID in message_id column.
     const updatedMessage = await tenantDb
       .updateTable("messages")
-      .set({
-        status: dbStatus,
-      })
+      .set({ status: dbStatus })
       .where("message_id", "=", payload.messageId)
-      .returning(["id", "contact_id"])
+      .where("from_me", "=", true)
+      .where((eb) =>
+        eb.or([
+          eb("status", "in", eligibleCurrentStatuses),
+          eb("status", "is", null),
+        ]),
+      )
+      .returning(["id", "contact_id", "status"])
       .executeTakeFirst();
 
     logger.debug(
@@ -542,16 +577,19 @@ export async function handleSendConfirmationEvent(
   try {
     const tenantDb = getTenantConnection(companyId);
 
-    // Update the message with the real WhatsApp ID and set status to sent
-    // Also return the updated message to get internal ID and contact_id
+    // Always replace the temporary WhatsApp ID, but preserve a higher status
+    // if an unusually fast delivery/read receipt was processed first.
     const updatedMessage = await tenantDb
       .updateTable("messages")
       .set({
         message_id: payload.messageId,
-        status: "sent",
+        status: sql<MessageStatus>`CASE
+          WHEN status IN ('delivered', 'read') THEN status
+          ELSE 'sent'::message_status
+        END`,
       })
       .where("message_id", "=", payload.pendingMessageId)
-      .returning(["id", "contact_id"])
+      .returning(["id", "contact_id", "status"])
       .executeTakeFirst();
 
     logger.debug(
@@ -573,7 +611,7 @@ export async function handleSendConfirmationEvent(
         {
           conversationId: updatedMessage.contact_id,
           messageId: updatedMessage.id,
-          status: "sent",
+          status: updatedMessage.status ?? "sent",
         },
         connectionId,
       );
@@ -604,13 +642,12 @@ export async function handleSendFailedEvent(
   try {
     const tenantDb = getTenantConnection(companyId);
 
-    // Update message status to failed
+    // A late failure must not overwrite a confirmed delivery/read status.
     const updatedMessage = await tenantDb
       .updateTable("messages")
-      .set({
-        status: "failed",
-      })
+      .set({ status: "failed" })
       .where("message_id", "=", payload.pendingMessageId)
+      .where("status", "=", "pending")
       .returning(["id", "contact_id"])
       .executeTakeFirst();
 

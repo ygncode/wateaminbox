@@ -75,6 +75,7 @@ type MessagePayload struct {
 	FromMe          bool   `json:"fromMe"`
 	Content         string `json:"content"`
 	MessageType     string `json:"messageType"`
+	Status          string `json:"status,omitempty"`
 	Timestamp       string `json:"timestamp"`
 	MediaURL        string `json:"mediaUrl,omitempty"`
 	QuotedMessageID string `json:"quotedMessageId,omitempty"`
@@ -128,7 +129,12 @@ type ContactPayload struct {
 	JID               string `json:"jid"`
 	Name              string `json:"name,omitempty"`
 	DisplayName       string `json:"displayName,omitempty"`
-	IsGroup           bool   `json:"isGroup"`
+	FirstName         string `json:"firstName,omitempty"`
+	FullName          string `json:"fullName,omitempty"`
+	PushName          string `json:"pushName,omitempty"`
+	BusinessName      string `json:"businessName,omitempty"`
+	IsGroup           bool   `json:"isGroup,omitempty"`
+	NameOnly          bool   `json:"nameOnly,omitempty"`
 	UnreadCount       int    `json:"unreadCount,omitempty"`
 	ProfilePictureURL string `json:"profilePictureUrl,omitempty"`
 }
@@ -276,6 +282,7 @@ type MessageEvent struct {
 	To              string    `json:"to"`
 	FromMe          bool      `json:"from_me"`
 	Type            string    `json:"type"` // "text", "image", "video", "audio", "document"
+	Status          string    `json:"status,omitempty"`
 	Content         string    `json:"content,omitempty"`
 	MediaURL        string    `json:"media_url,omitempty"`
 	MediaType       string    `json:"media_type,omitempty"`

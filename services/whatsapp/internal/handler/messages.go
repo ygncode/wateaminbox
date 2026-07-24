@@ -280,6 +280,19 @@ func (h *Handler) handleReactionMessage(msg *events.Message) {
 	}
 }
 
+func normalizeReceiptStatus(receiptType types.ReceiptType) string {
+	switch receiptType {
+	case types.ReceiptTypeDelivered:
+		return "delivered"
+	case types.ReceiptTypeSender:
+		return "sent"
+	case types.ReceiptTypeRead, types.ReceiptTypePlayed:
+		return "read"
+	default:
+		return string(receiptType)
+	}
+}
+
 // handleReceipt processes message receipts.
 func (h *Handler) handleReceipt(receipt *events.Receipt) {
 	// Get preferred JID (PN over LID)
@@ -293,8 +306,9 @@ func (h *Handler) handleReceipt(receipt *events.Receipt) {
 		messageIDs[i] = id
 	}
 
-	// Map receipt type
-	receiptType := string(receipt.Type)
+	// Publish canonical status names. WhatsApp uses an empty receipt type for
+	// normal delivery, which would otherwise be mistaken for an unknown status.
+	receiptType := normalizeReceiptStatus(receipt.Type)
 
 	receiptEvent := natsClient.ReceiptEvent{
 		MessageIDs:  messageIDs,

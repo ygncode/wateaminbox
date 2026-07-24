@@ -22,6 +22,24 @@ import (
 // - Immediate media downloads with retry logic
 // - Profile picture fetching for each contact
 func (h *Handler) handleHistorySync(evt *events.HistorySync) {
+	pushNames := evt.Data.GetPushnames()
+	if len(pushNames) > 0 {
+		log.Printf("Push-name history sync received: %d contacts", len(pushNames))
+		for _, entry := range pushNames {
+			jid, err := types.ParseJID(entry.GetID())
+			if err != nil || jid.IsEmpty() {
+				continue
+			}
+			h.publishContactInfo(jid, types.EmptyJID, types.ContactInfo{PushName: entry.GetPushname()})
+		}
+		// whatsmeow persists this history chunk asynchronously. Re-read the
+		// durable store shortly afterwards to merge LID aliases and saved names.
+		go func() {
+			time.Sleep(2 * time.Second)
+			h.syncKnownContactNames()
+		}()
+	}
+
 	conversations := evt.Data.GetConversations()
 	log.Printf("History sync received: %d conversations", len(conversations))
 
@@ -163,9 +181,16 @@ func (h *Handler) processHistorySyncConversation(conv *waHistorySync.Conversatio
 		conv.GetIsDefaultSubgroup() ||
 		len(conv.GetParticipant()) > 0
 
-	// Get display name from conversation
+	// Get display name from conversation. WhatsApp sometimes returns a privacy
+	// placeholder such as "+65∙∙∙∙∙∙06"; it is not a contact name.
 	displayName := conv.GetDisplayName()
 	name := conv.GetName()
+	if !isGroup && isRedactedContactLabel(displayName) {
+		displayName = ""
+	}
+	if !isGroup && isRedactedContactLabel(name) {
+		name = ""
+	}
 
 	// Get unread count
 	unreadCount := int(conv.GetUnreadCount())
@@ -180,6 +205,20 @@ func (h *Handler) processHistorySyncConversation(conv *waHistorySync.Conversatio
 	if h.publisher != nil {
 		if err := h.publisher.PublishContact(jid, name, displayName, isGroup, unreadCount, profilePicURL); err != nil {
 			log.Printf("Failed to publish contact %s: %v", jid, err)
+		}
+	}
+
+	// Saved address-book names and push names live in whatsmeow's contact store,
+	// not reliably in the conversation's displayName field.
+	if !isGroup && h.config.Client != nil {
+		client := h.config.Client.GetClient()
+		if client != nil && client.Store != nil && client.Store.Contacts != nil {
+			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			contactInfo, err := client.Store.Contacts.GetContact(ctx, normalizedJID)
+			cancel()
+			if err == nil {
+				h.publishContactInfo(normalizedJID, types.EmptyJID, contactInfo)
+			}
 		}
 	}
 
@@ -218,6 +257,23 @@ func (h *Handler) getHistorySenderJID(chatJID, participant string, isGroup bool)
 		return chatJID
 	}
 	return h.resolvePreferredJID(parsedParticipant, types.EmptyJID).String()
+}
+
+func normalizeHistoryMessageStatus(status waWeb.WebMessageInfo_Status) string {
+	switch status {
+	case waWeb.WebMessageInfo_PENDING:
+		return "pending"
+	case waWeb.WebMessageInfo_SERVER_ACK:
+		return "sent"
+	case waWeb.WebMessageInfo_DELIVERY_ACK:
+		return "delivered"
+	case waWeb.WebMessageInfo_READ, waWeb.WebMessageInfo_PLAYED:
+		return "read"
+	case waWeb.WebMessageInfo_ERROR:
+		return "failed"
+	default:
+		return ""
+	}
 }
 
 // processHistorySyncMessage processes a single message from history sync.
@@ -263,6 +319,9 @@ func (h *Handler) processHistorySyncMessage(historyMsg *waHistorySync.HistorySyn
 		GroupID:       jid,
 		Timestamp:     timestamp,
 		IsHistorySync: true, // Mark as history sync message
+	}
+	if msg.GetKey().GetFromMe() && msg.Status != nil {
+		msgEvent.Status = normalizeHistoryMessageStatus(msg.GetStatus())
 	}
 
 	// Get push name

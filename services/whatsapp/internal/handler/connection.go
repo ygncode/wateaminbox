@@ -13,8 +13,10 @@ import (
 
 // handlePresence processes presence updates.
 func (h *Handler) handlePresence(presence *events.Presence) {
-	// Normalize JID to remove device suffix
-	fromJID := presence.From.ToNonAD()
+	// Presence events are commonly emitted with a LID even when contacts are
+	// stored by phone-number JID. Resolve the persisted mapping before
+	// publishing so the API can match the event to the contact.
+	fromJID := h.resolvePreferredJID(presence.From, types.EmptyJID)
 
 	log.Printf("Presence update from %s: unavailable=%v", fromJID.String(), presence.Unavailable)
 
@@ -35,9 +37,10 @@ func (h *Handler) handlePresence(presence *events.Presence) {
 
 // handleChatPresence processes typing indicator events.
 func (h *Handler) handleChatPresence(presence *events.ChatPresence) {
-	// Normalize JIDs to remove device suffix
-	senderJID := presence.Sender.ToNonAD()
-	chatJID := presence.Chat.ToNonAD()
+	// Resolve LIDs for the same reason as regular presence events. Without this,
+	// typing updates use a different JID than the selected conversation.
+	senderJID := h.resolvePreferredJID(presence.Sender, presence.SenderAlt)
+	chatJID := h.resolvePreferredJID(presence.Chat, presence.RecipientAlt)
 
 	// ChatPresence.State is "composing" when typing, "paused" when stopped
 	isTyping := presence.State == types.ChatPresenceComposing
@@ -107,6 +110,12 @@ func (h *Handler) handleConnected(evt *events.Connected) {
 		} else {
 			log.Printf("Marked presence as available")
 		}
+
+		// WhatsApp presence subscriptions are connection-scoped. Restore them
+		// after every reconnect rather than waiting for another history sync or
+		// an incoming message.
+		go h.subscribeToKnownContacts()
+		go h.syncKnownContactNames()
 	}
 
 	// Publish connection status to NATS
@@ -115,6 +124,61 @@ func (h *Handler) handleConnected(evt *events.Connected) {
 			log.Printf("Failed to publish connected status: %v", err)
 		}
 	}
+}
+
+// subscribeToKnownContacts restores presence subscriptions after a connection
+// is established. The contacts store survives worker restarts, while server
+// subscriptions do not.
+func (h *Handler) subscribeToKnownContacts() {
+	client := h.config.Client.GetClient()
+	if client == nil || client.Store == nil || client.Store.Contacts == nil {
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+
+	contacts, err := client.Store.Contacts.GetAllContacts(ctx)
+	if err != nil {
+		log.Printf("Failed to load contacts for presence subscriptions: %v", err)
+		return
+	}
+
+	ownJID := types.EmptyJID
+	if client.Store.ID != nil {
+		ownJID = client.Store.ID.ToNonAD()
+	}
+
+	seen := make(map[string]struct{}, len(contacts))
+	subscribed := 0
+	for jid := range contacts {
+		resolved := h.resolvePreferredJID(jid, types.EmptyJID)
+		if resolved.Server != types.DefaultUserServer || resolved.User == "" || resolved == ownJID {
+			continue
+		}
+
+		key := resolved.String()
+		if _, exists := seen[key]; exists {
+			continue
+		}
+		seen[key] = struct{}{}
+
+		if err := h.config.Client.SubscribePresence(ctx, resolved); err != nil {
+			log.Printf("Failed to restore presence subscription for %s: %v", key, err)
+		} else {
+			subscribed++
+		}
+
+		// Avoid sending a large contact list as a burst to WhatsApp.
+		select {
+		case <-ctx.Done():
+			log.Printf("Presence subscription restore stopped after %d contacts: %v", subscribed, ctx.Err())
+			return
+		case <-time.After(25 * time.Millisecond):
+		}
+	}
+
+	log.Printf("Restored presence subscriptions for %d contacts", subscribed)
 }
 
 // handleDisconnected is called when connection is lost.

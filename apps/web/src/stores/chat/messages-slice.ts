@@ -1,4 +1,8 @@
-import type { Message, MessageStatus } from "@wateaminbox/shared";
+import {
+  advanceMessageStatus,
+  type Message,
+  type MessageStatus,
+} from "@wateaminbox/shared";
 import type { StateCreator } from "zustand";
 import type { ChatState, MessagesSlice, OptimisticMessage } from "./types";
 
@@ -68,7 +72,9 @@ export const createMessagesSlice: StateCreator<
         if (!existing) return state;
 
         const updatedMessages = existing.map((msg) =>
-          msg.id === messageId ? { ...msg, status } : msg,
+          msg.id === messageId
+            ? { ...msg, status: advanceMessageStatus(msg.status, status) }
+            : msg,
         );
 
         newMap.set(conversationId, updatedMessages);
