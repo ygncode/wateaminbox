@@ -1,7 +1,14 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../../lib/api";
 import { infiniteMessageKeys } from "../useInfiniteMessages";
-import type { RetryMessageResponse, InfiniteMessagesData } from "./types";
+import type { InfiniteMessagesData, RetryMessageResponse } from "./types";
+
+const OPTIMISTIC_REACTOR_JID = "current-user";
+
+interface ReactionResponse {
+  emoji: string;
+  reactorJid: string;
+}
 
 /**
  * Retry sending a failed message
@@ -37,7 +44,7 @@ export function useReactMessage() {
       emoji: string;
       userJid?: string;
     }) =>
-      api.post<{ success: boolean }>(`/messages/${messageId}/reaction`, {
+      api.post<ReactionResponse>(`/messages/${messageId}/reaction`, {
         emoji,
       }),
     onMutate: async (variables) => {
@@ -51,9 +58,9 @@ export function useReactMessage() {
         infiniteMessageKeys.list(variables.conversationId),
       );
 
-      // Optimistically update the reaction in the infinite messages cache
-      // Use userJid if provided, otherwise use 'current-user' as a placeholder
-      const reactorJid = variables.userJid || "current-user";
+      // Optimistically update the reaction in the infinite messages cache.
+      // The API response replaces this placeholder with the WhatsApp JID.
+      const reactorJid = variables.userJid || OPTIMISTIC_REACTOR_JID;
 
       queryClient.setQueryData<InfiniteMessagesData>(
         infiniteMessageKeys.list(variables.conversationId),
@@ -124,8 +131,44 @@ export function useReactMessage() {
         );
       }
     },
-    // Note: No onSuccess handler needed - the realtime event handler in
-    // event-handlers.ts will update the cache with the correct reactorJid
-    // when the server broadcasts the message:reaction event
+    onSuccess: (reaction, variables) => {
+      // The realtime event can arrive before the HTTP response. Reconcile the
+      // optimistic placeholder with the real JID so both entries are not
+      // rendered as two reactions from different users.
+      queryClient.setQueryData<InfiniteMessagesData>(
+        infiniteMessageKeys.list(variables.conversationId),
+        (oldData) => {
+          if (!oldData) return oldData;
+
+          return {
+            ...oldData,
+            pages: oldData.pages.map((page) => ({
+              ...page,
+              messages: page.messages.map((msg) => {
+                if (msg.id !== variables.messageId) return msg;
+
+                const otherReactions = (msg.reactions || []).filter(
+                  (item) =>
+                    item.reactorJid !== OPTIMISTIC_REACTOR_JID &&
+                    item.reactorJid !== reaction.reactorJid,
+                );
+
+                return {
+                  ...msg,
+                  reactions: [
+                    ...otherReactions,
+                    {
+                      emoji: reaction.emoji,
+                      reactorJid: reaction.reactorJid,
+                      createdAt: new Date(),
+                    },
+                  ],
+                };
+              }),
+            })),
+          };
+        },
+      );
+    },
   });
 }
