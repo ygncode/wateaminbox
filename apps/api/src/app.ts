@@ -1,15 +1,15 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
-import { logger } from "hono/logger";
 import { HTTPException } from "hono/http-exception";
+import { logger } from "hono/logger";
 import type { ZodError } from "zod";
-import { routes } from "./routes/index.js";
-import { rateLimitConfig, rateLimitStore } from "./lib/rate-limit-store.js";
-import { createRateLimitMiddleware } from "./middleware/rate-limit.js";
-import { createLogger, formatError } from "./lib/logger.js";
-import { AppError, AuthError } from "./lib/errors.js";
-import { formatZodErrors } from "./lib/response.js";
 import { env } from "./lib/env.js";
+import { AppError, AuthError } from "./lib/errors.js";
+import { createLogger, formatError } from "./lib/logger.js";
+import { rateLimitConfig, rateLimitStore } from "./lib/rate-limit-store.js";
+import { formatZodErrors } from "./lib/response.js";
+import { createRateLimitMiddleware } from "./middleware/rate-limit.js";
+import { routes } from "./routes/index.js";
 
 const appLogger = createLogger("App");
 
@@ -23,7 +23,12 @@ app.use(
     origin: env.CORS_ORIGINS.split(",").map((origin) => origin.trim()),
     credentials: true,
     allowMethods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
-    allowHeaders: ["Content-Type", "Authorization", "X-Company-Id"],
+    allowHeaders: [
+      "Content-Type",
+      "Authorization",
+      "X-Company-Id",
+      "X-Pusher-Socket-Id",
+    ],
   }),
 );
 
