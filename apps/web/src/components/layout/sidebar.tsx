@@ -11,8 +11,8 @@ export function Sidebar({ className, children, ...props }: SidebarProps) {
     <aside
       className={cn(
         "flex h-full flex-col border-r border-gray-200 dark:border-dark-border bg-white dark:bg-dark-secondary",
-        // Responsive width
-        "w-full md:w-[320px] lg:w-[400px]",
+        // Width is controlled by the responsive layout or desktop resize handle.
+        "w-full",
         // Mobile: full width, no border
         "max-md:border-r-0",
         className,
@@ -24,7 +24,8 @@ export function Sidebar({ className, children, ...props }: SidebarProps) {
   );
 }
 
-export interface SidebarHeaderProps extends React.HTMLAttributes<HTMLDivElement> {
+export interface SidebarHeaderProps
+  extends React.HTMLAttributes<HTMLDivElement> {
   children: React.ReactNode;
 }
 
@@ -50,7 +51,8 @@ export function SidebarHeader({
   );
 }
 
-export interface SidebarSearchProps extends React.HTMLAttributes<HTMLDivElement> {
+export interface SidebarSearchProps
+  extends React.HTMLAttributes<HTMLDivElement> {
   children: React.ReactNode;
 }
 

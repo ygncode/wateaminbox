@@ -99,8 +99,10 @@ export function MessageHeader({
 
       {/* Action buttons - hide search on very small screens */}
       <div className="flex items-center gap-0 md:gap-1">
-        {/* Theme toggle */}
-        <ThemeToggle />
+        {/* The desktop theme control lives in the navigation rail. */}
+        <div className="lg:hidden">
+          <ThemeToggle />
+        </div>
 
         {/* Search button - hidden on small mobile */}
         <button

@@ -1,17 +1,19 @@
 import { MessageSquare, Settings, Users } from "lucide-react";
-import { memo, useCallback, useState } from "react";
+import { memo, useCallback } from "react";
 import { Link } from "react-router-dom";
-import { cn } from "@/lib/utils";
 import { preloadRoute } from "@/lib/route-preload";
+import { cn } from "@/lib/utils";
 import { GroupList } from "../groups/GroupList";
 import { NotificationCenter } from "../notifications/NotificationCenter";
 import { ChatList } from "./ChatList";
 
-type SidebarView = "chats" | "groups";
+export type SidebarView = "chats" | "groups";
 
 export interface ChatSidebarProps {
   selectedChatId?: string;
   onChatSelect: (chatId: string | null) => void;
+  activeView: SidebarView;
+  onActiveViewChange: (view: SidebarView) => void;
   className?: string;
 }
 
@@ -21,10 +23,10 @@ export interface ChatSidebarProps {
 export const ChatSidebar = memo(function ChatSidebar({
   selectedChatId,
   onChatSelect,
+  activeView,
+  onActiveViewChange,
   className,
 }: ChatSidebarProps) {
-  const [activeView, setActiveView] = useState<SidebarView>("chats");
-
   const handleGroupSelect = useCallback(
     (groupId: string) => {
       onChatSelect(groupId);
@@ -40,17 +42,17 @@ export const ChatSidebar = memo(function ChatSidebar({
       )}
     >
       {/* Navigation Tabs */}
-      <div className="flex items-center border-b border-gray-200 dark:border-dark-border bg-gray-50 dark:bg-dark-secondary">
+      <div className="flex h-14 min-h-[56px] items-stretch border-b border-gray-200 bg-gray-50 dark:border-dark-border dark:bg-dark-secondary md:h-[60px] md:min-h-[60px]">
         <nav className="flex flex-1">
           <TabButton
             isActive={activeView === "chats"}
-            onClick={() => setActiveView("chats")}
+            onClick={() => onActiveViewChange("chats")}
             icon={<MessageSquare className="h-4 w-4" />}
             label="Chats"
           />
           <TabButton
             isActive={activeView === "groups"}
-            onClick={() => setActiveView("groups")}
+            onClick={() => onActiveViewChange("groups")}
             icon={<Users className="h-4 w-4" />}
             label="Groups"
           />
@@ -60,7 +62,7 @@ export const ChatSidebar = memo(function ChatSidebar({
           <NotificationCenter />
           <Link
             to="/settings"
-            className="p-2 text-gray-500 dark:text-dark-text-secondary hover:text-gray-700 dark:hover:text-dark-text-primary hover:bg-gray-200 dark:hover:bg-dark-tertiary rounded-full transition-colors"
+            className="p-2 text-gray-500 dark:text-dark-text-secondary hover:text-gray-700 dark:hover:text-dark-text-primary hover:bg-gray-200 dark:hover:bg-dark-tertiary rounded-full transition-colors lg:hidden"
             aria-label="Settings"
             onMouseEnter={() => preloadRoute("settings")}
             onFocus={() => preloadRoute("settings")}
@@ -109,7 +111,7 @@ const TabButton = memo(function TabButton({
       aria-selected={isActive}
       onClick={onClick}
       className={cn(
-        "flex-1 flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium transition-colors",
+        "flex h-full flex-1 items-center justify-center gap-2 px-4 text-sm font-medium transition-colors",
         "border-b-2 -mb-px",
         isActive
           ? "text-whatsapp-teal-green border-whatsapp-teal-green bg-white dark:bg-dark-elevated"

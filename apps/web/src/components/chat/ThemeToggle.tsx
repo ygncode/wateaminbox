@@ -1,10 +1,11 @@
 import { Monitor, Moon, Sun } from "lucide-react";
-import { type Theme, useTheme } from "../../contexts";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { cn } from "@/lib/utils";
+import { type Theme, useTheme } from "../../contexts";
 
 const THEME_CONFIG: Record<
   Theme,
@@ -15,7 +16,11 @@ const THEME_CONFIG: Record<
   system: { icon: Monitor, label: "Follow System", nextTheme: "light" },
 };
 
-export function ThemeToggle() {
+interface ThemeToggleProps {
+  className?: string;
+}
+
+export function ThemeToggle({ className }: ThemeToggleProps) {
   const { theme, toggleTheme } = useTheme();
   const config = THEME_CONFIG[theme];
   const Icon = config.icon;
@@ -27,7 +32,10 @@ export function ThemeToggle() {
           <button
             data-testid="theme-toggle"
             onClick={toggleTheme}
-            className="flex h-11 w-11 md:h-10 md:w-10 items-center justify-center text-gray-500 hover:text-gray-700 dark:text-dark-text-secondary dark:hover:text-dark-text-primary rounded-full hover:bg-gray-200 dark:hover:bg-dark-tertiary active:bg-gray-300 dark:active:bg-dark-border transition-colors touch-manipulation"
+            className={cn(
+              "flex h-11 w-11 md:h-10 md:w-10 items-center justify-center text-gray-500 hover:text-gray-700 dark:text-dark-text-secondary dark:hover:text-dark-text-primary rounded-full hover:bg-gray-200 dark:hover:bg-dark-tertiary active:bg-gray-300 dark:active:bg-dark-border transition-colors touch-manipulation",
+              className,
+            )}
             aria-label={`Current theme: ${config.label}. Click to switch to ${THEME_CONFIG[config.nextTheme].label}`}
           >
             <Icon className="h-5 w-5" />
@@ -40,7 +48,6 @@ export function ThemeToggle() {
 
       {/* Screen reader announcement for theme changes */}
       <div
-        id="theme-announcement"
         role="status"
         aria-live="polite"
         aria-atomic="true"

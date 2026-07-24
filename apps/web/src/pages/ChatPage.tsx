@@ -1,4 +1,6 @@
-import { ChatSidebar } from "../components/chat/ChatSidebar";
+import { useState } from "react";
+import { ChatNavigationRail } from "../components/chat/ChatNavigationRail";
+import { ChatSidebar, type SidebarView } from "../components/chat/ChatSidebar";
 import { ConversationSearch } from "../components/chat/ConversationSearch";
 import { ContactProfile } from "../components/chat/contact-profile";
 import { DeleteMessageDialog } from "../components/chat/DeleteMessageDialog";
@@ -17,6 +19,7 @@ import { useWhatsAppConnections } from "../hooks/useWhatsAppConnections";
 
 export function ChatPage() {
   const { user } = useAuth();
+  const [sidebarView, setSidebarView] = useState<SidebarView>("chats");
   const { connections } = useWhatsAppConnections();
 
   // Get the status of the active (first connected or first) connection
@@ -62,17 +65,23 @@ export function ChatPage() {
 
   // Build the sidebar component
   const sidebar = (
-    <Sidebar className="w-full md:w-[350px] lg:w-[400px] flex-shrink-0">
+    <Sidebar className="flex-shrink-0">
       <ChatSidebar
         selectedChatId={selectedChatId}
         onChatSelect={handleChatSelect}
+        activeView={sidebarView}
+        onActiveViewChange={setSidebarView}
       />
     </Sidebar>
   );
 
+  const desktopRail = (
+    <ChatNavigationRail onChatsClick={() => setSidebarView("chats")} />
+  );
+
   // Build the main content component
   const main = (
-    <MainContent className="flex-1 flex flex-col">
+    <MainContent className="min-w-0 flex-1 flex flex-col">
       {selectedChatId && selectedContact ? (
         <>
           <MessageHeader
@@ -158,6 +167,7 @@ export function ChatPage() {
       <SyncingOverlay />
       <ResponsiveLayout
         sidebar={sidebar}
+        desktopRail={desktopRail}
         main={main}
         rightPanel={rightPanel}
         isRightPanelOpen={isProfileOpen}

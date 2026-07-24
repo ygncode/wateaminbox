@@ -1,6 +1,13 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { UserPlus } from "lucide-react";
-import { memo, useCallback, useMemo, useRef, useState } from "react";
+import {
+  memo,
+  useCallback,
+  useMemo,
+  useRef,
+  useState,
+  type WheelEvent,
+} from "react";
 import { type AssignmentFilter, useChats } from "../../hooks/useChats";
 import { usePrefetchContact } from "../../hooks/usePrefetch";
 import type { ChatListProps } from "../../types/chat";
@@ -48,6 +55,14 @@ export const ChatList = memo(function ChatList({
     [onChatSelect],
   );
 
+  const handleFilterWheel = useCallback((event: WheelEvent<HTMLDivElement>) => {
+    const filterList = event.currentTarget;
+    if (filterList.scrollWidth <= filterList.clientWidth) return;
+    if (Math.abs(event.deltaX) >= Math.abs(event.deltaY)) return;
+
+    filterList.scrollLeft += event.deltaY;
+  }, []);
+
   // Prefetch contact data on hover for faster navigation
   const prefetchContact = usePrefetchContact();
 
@@ -86,57 +101,64 @@ export const ChatList = memo(function ChatList({
         />
       </div>
 
-      {/* Assignment Filter */}
-      <div className="flex items-center gap-1 px-2 py-1.5 border-b border-gray-200 dark:border-dark-border bg-gray-50 dark:bg-dark-secondary overflow-x-auto">
-        <button
-          type="button"
-          onClick={() => setAssignmentFilter("all")}
-          className={`px-3 py-1 text-xs font-medium rounded-full transition-colors whitespace-nowrap ${
-            assignmentFilter === "all"
-              ? "bg-whatsapp-teal-green text-white"
-              : "bg-white dark:bg-dark-tertiary text-gray-600 dark:text-dark-text-secondary hover:bg-gray-100 dark:hover:bg-dark-border border border-gray-200 dark:border-dark-border"
-          }`}
+      {/* Assignment filters remain horizontally reachable at narrow widths. */}
+      <div className="flex items-center border-b border-gray-200 bg-gray-50 dark:border-dark-border dark:bg-dark-secondary">
+        <div
+          className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto overscroll-x-contain px-2 py-1.5 [scrollbar-width:thin]"
+          aria-label="Conversation filters"
+          onWheel={handleFilterWheel}
         >
-          All
-        </button>
-        <button
-          type="button"
-          onClick={() => setAssignmentFilter("unread")}
-          className={`px-3 py-1 text-xs font-medium rounded-full transition-colors whitespace-nowrap ${
-            assignmentFilter === "unread"
-              ? "bg-whatsapp-teal-green text-white"
-              : "bg-white dark:bg-dark-tertiary text-gray-600 dark:text-dark-text-secondary hover:bg-gray-100 dark:hover:bg-dark-border border border-gray-200 dark:border-dark-border"
-          }`}
-        >
-          Unread
-        </button>
-        <button
-          type="button"
-          onClick={() => setAssignmentFilter("assignedToMe")}
-          className={`px-3 py-1 text-xs font-medium rounded-full transition-colors whitespace-nowrap ${
-            assignmentFilter === "assignedToMe"
-              ? "bg-whatsapp-teal-green text-white"
-              : "bg-white dark:bg-dark-tertiary text-gray-600 dark:text-dark-text-secondary hover:bg-gray-100 dark:hover:bg-dark-border border border-gray-200 dark:border-dark-border"
-          }`}
-        >
-          Assigned to me
-        </button>
-        <button
-          type="button"
-          onClick={() => setAssignmentFilter("unassigned")}
-          className={`px-3 py-1 text-xs font-medium rounded-full transition-colors whitespace-nowrap ${
-            assignmentFilter === "unassigned"
-              ? "bg-whatsapp-teal-green text-white"
-              : "bg-white dark:bg-dark-tertiary text-gray-600 dark:text-dark-text-secondary hover:bg-gray-100 dark:hover:bg-dark-border border border-gray-200 dark:border-dark-border"
-          }`}
-        >
-          Unassigned
-        </button>
-        {/* Add Contact Button */}
+          <button
+            type="button"
+            onClick={() => setAssignmentFilter("all")}
+            className={`flex-shrink-0 whitespace-nowrap rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+              assignmentFilter === "all"
+                ? "bg-whatsapp-teal-green text-white"
+                : "border border-gray-200 bg-white text-gray-600 hover:bg-gray-100 dark:border-dark-border dark:bg-dark-tertiary dark:text-dark-text-secondary dark:hover:bg-dark-border"
+            }`}
+          >
+            All
+          </button>
+          <button
+            type="button"
+            onClick={() => setAssignmentFilter("unread")}
+            className={`flex-shrink-0 whitespace-nowrap rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+              assignmentFilter === "unread"
+                ? "bg-whatsapp-teal-green text-white"
+                : "border border-gray-200 bg-white text-gray-600 hover:bg-gray-100 dark:border-dark-border dark:bg-dark-tertiary dark:text-dark-text-secondary dark:hover:bg-dark-border"
+            }`}
+          >
+            Unread
+          </button>
+          <button
+            type="button"
+            onClick={() => setAssignmentFilter("assignedToMe")}
+            className={`flex-shrink-0 whitespace-nowrap rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+              assignmentFilter === "assignedToMe"
+                ? "bg-whatsapp-teal-green text-white"
+                : "border border-gray-200 bg-white text-gray-600 hover:bg-gray-100 dark:border-dark-border dark:bg-dark-tertiary dark:text-dark-text-secondary dark:hover:bg-dark-border"
+            }`}
+          >
+            Assigned to me
+          </button>
+          <button
+            type="button"
+            onClick={() => setAssignmentFilter("unassigned")}
+            className={`flex-shrink-0 whitespace-nowrap rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+              assignmentFilter === "unassigned"
+                ? "bg-whatsapp-teal-green text-white"
+                : "border border-gray-200 bg-white text-gray-600 hover:bg-gray-100 dark:border-dark-border dark:bg-dark-tertiary dark:text-dark-text-secondary dark:hover:bg-dark-border"
+            }`}
+          >
+            Unassigned
+          </button>
+        </div>
+
+        {/* Keep the primary action visible while the filters scroll. */}
         <button
           type="button"
           onClick={() => setIsAddContactOpen(true)}
-          className="ml-auto p-1.5 text-whatsapp-teal-green hover:bg-whatsapp-teal-green/10 dark:hover:bg-whatsapp-teal-green/20 rounded-full transition-colors flex-shrink-0"
+          className="mx-1 flex-shrink-0 rounded-full p-1.5 text-whatsapp-teal-green transition-colors hover:bg-whatsapp-teal-green/10 dark:hover:bg-whatsapp-teal-green/20"
           aria-label="Add new contact"
           data-testid="add-contact-button"
         >

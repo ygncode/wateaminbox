@@ -1,6 +1,7 @@
 import type * as React from "react";
 import { useIsMobile, useIsTablet } from "@/hooks/ui";
 import { cn } from "@/lib/utils";
+import { ResizableSidebar } from "./resizable-sidebar";
 
 export interface AppLayoutProps extends React.HTMLAttributes<HTMLDivElement> {
   children: React.ReactNode;
@@ -54,6 +55,8 @@ export function AppLayout({ className, children, ...props }: AppLayoutProps) {
 export interface ResponsiveLayoutProps {
   /** Content for the left sidebar (chat list) */
   sidebar: React.ReactNode;
+  /** Content for the fixed desktop navigation rail */
+  desktopRail?: React.ReactNode;
   /** Content for the main area (message thread) */
   main: React.ReactNode;
   /** Content for the right panel (contact info) - optional */
@@ -74,6 +77,7 @@ export interface ResponsiveLayoutProps {
  */
 export function ResponsiveLayout({
   sidebar,
+  desktopRail,
   main,
   rightPanel,
   isRightPanelOpen = false,
@@ -115,7 +119,8 @@ export function ResponsiveLayout({
   // Desktop layout - three columns
   return (
     <>
-      {sidebar}
+      {desktopRail}
+      <ResizableSidebar>{sidebar}</ResizableSidebar>
       {main}
       {rightPanel}
     </>
