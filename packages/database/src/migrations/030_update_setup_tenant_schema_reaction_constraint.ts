@@ -1,6 +1,6 @@
-import type { Kysely } from 'kysely'
-import { sql } from 'kysely'
-import { executeOnAllTenants } from './migration-helpers.js'
+import type { Kysely } from "kysely";
+import { sql } from "kysely";
+import { executeOnAllTenants } from "./migration-helpers.js";
 
 /**
  * Migration 030: Update setup_tenant_schema function with reaction UNIQUE constraint
@@ -16,7 +16,7 @@ import { executeOnAllTenants } from './migration-helpers.js'
 export async function up(db: Kysely<unknown>): Promise<void> {
   // First, ensure all existing tenants have the constraint
   await executeOnAllTenants(db, async (schemaName) => {
-    const safeSchemaName = schemaName.replace(/-/g, '_')
+    const safeSchemaName = schemaName.replace(/-/g, "_");
 
     // Check if constraint already exists
     const constraintExists = await sql<{ exists: boolean }>`
@@ -27,15 +27,17 @@ export async function up(db: Kysely<unknown>): Promise<void> {
         AND table_name = 'message_reactions'
         AND constraint_type = 'UNIQUE'
       ) as exists
-    `.execute(db)
+    `.execute(db);
 
     if (constraintExists.rows[0]?.exists) {
-      console.log(`UNIQUE constraint already exists in ${schemaName}, skipping...`)
-      return
+      console.log(
+        `UNIQUE constraint already exists in ${schemaName}, skipping...`,
+      );
+      return;
     }
 
     // Remove duplicate reactions, keeping the most recent one
-    console.log(`Removing duplicate reactions in ${schemaName}...`)
+    console.log(`Removing duplicate reactions in ${schemaName}...`);
     await sql`
       DELETE FROM ${sql.raw(`"${schemaName}".message_reactions`)} mr
       WHERE mr.id NOT IN (
@@ -43,22 +45,22 @@ export async function up(db: Kysely<unknown>): Promise<void> {
         FROM ${sql.raw(`"${schemaName}".message_reactions`)}
         ORDER BY message_id, reactor_jid, created_at DESC
       )
-    `.execute(db)
+    `.execute(db);
 
     // Add the UNIQUE constraint
-    console.log(`Adding UNIQUE constraint in ${schemaName}...`)
+    console.log(`Adding UNIQUE constraint in ${schemaName}...`);
     await sql`
       ALTER TABLE ${sql.raw(`"${schemaName}".message_reactions`)}
       ADD CONSTRAINT ${sql.raw(`"${safeSchemaName}_message_reactions_unique"`)}
       UNIQUE (message_id, reactor_jid)
-    `.execute(db)
+    `.execute(db);
 
-    console.log(`Added UNIQUE constraint to ${schemaName}.message_reactions`)
-  })
+    console.log(`Added UNIQUE constraint to ${schemaName}.message_reactions`);
+  });
 
   // Now update the setup_tenant_schema function
   // This is the critical fix - the function in the database must have the constraint
-  console.log('Updating setup_tenant_schema function...')
+  console.log("Updating setup_tenant_schema function...");
 
   await sql`
     CREATE OR REPLACE FUNCTION setup_tenant_schema(schema_name TEXT)
@@ -80,6 +82,8 @@ export async function up(db: Kysely<unknown>): Promise<void> {
           connected_at TIMESTAMPTZ,
           last_sync_at TIMESTAMPTZ,
           sync_status VARCHAR(20),
+          sync_message_count INTEGER DEFAULT 0 NOT NULL,
+          sync_conversation_count INTEGER DEFAULT 0 NOT NULL,
           connection_order INTEGER DEFAULT 0,
           created_at TIMESTAMPTZ DEFAULT now() NOT NULL,
           updated_at TIMESTAMPTZ DEFAULT now() NOT NULL
@@ -405,13 +409,13 @@ export async function up(db: Kysely<unknown>): Promise<void> {
       EXECUTE format('CREATE INDEX IF NOT EXISTS %I ON %I.contacts (is_online, last_seen DESC NULLS LAST)', safe_schema_name || '_contacts_presence_idx', schema_name);
     END;
     $$ LANGUAGE plpgsql
-  `.execute(db)
+  `.execute(db);
 
-  console.log('setup_tenant_schema function updated successfully')
+  console.log("setup_tenant_schema function updated successfully");
 }
 
 export async function down(db: Kysely<unknown>): Promise<void> {
   // This migration only adds constraints and updates the function
   // Rolling back would mean removing the constraint, but that's not recommended
-  console.log('Migration 030 adds constraints - rollback not implemented')
+  console.log("Migration 030 adds constraints - rollback not implemented");
 }

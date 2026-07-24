@@ -62,12 +62,21 @@ statusRoutes.get(
       // Get all connections that are currently syncing
       const syncingConnections = await tenantDb
         .selectFrom("whatsapp_connections")
-        .select(["id", "name", "phone_number", "sync_status", "updated_at"])
+        .select([
+          "id",
+          "name",
+          "phone_number",
+          "sync_status",
+          "sync_message_count",
+          "sync_conversation_count",
+          "updated_at",
+        ])
         .where("sync_status", "=", "syncing")
         .execute();
 
-      // Filter out stale syncs (older than 5 minutes) and auto-correct DB
-      const STALE_THRESHOLD_MS = 5 * 60 * 1000;
+      // Progress updates `updated_at` as a heartbeat. Keep a generous fallback
+      // for imports containing slow media downloads.
+      const STALE_THRESHOLD_MS = 30 * 60 * 1000;
       const currentMs = nowMs();
       const activeConnections = [];
       const staleConnectionIds: string[] = [];

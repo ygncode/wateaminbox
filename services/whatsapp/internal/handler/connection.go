@@ -281,27 +281,14 @@ func (h *Handler) handlePicture(evt *events.Picture) {
 	}
 }
 
-// handleOfflineSyncPreview handles the sync starting event.
+// Offline sync is WhatsApp's short catch-up of missed live events. It is
+// independent from the downloadable history transfer, so these events must not
+// drive the history-sync overlay lifecycle.
 func (h *Handler) handleOfflineSyncPreview(evt *events.OfflineSyncPreview) {
-	log.Printf("Offline sync starting: %d messages, %d notifications expected",
+	log.Printf("Offline catch-up starting: %d messages, %d notifications expected",
 		evt.Messages, evt.Notifications)
-
-	// Publish sync:starting event
-	if h.publisher != nil {
-		if err := h.publisher.PublishSyncStatus("starting", evt.Messages, 0); err != nil {
-			log.Printf("Failed to publish sync start: %v", err)
-		}
-	}
 }
 
-// handleOfflineSyncCompleted handles the sync completion event.
 func (h *Handler) handleOfflineSyncCompleted(evt *events.OfflineSyncCompleted) {
-	log.Printf("Offline sync completed")
-
-	// Publish sync:completed event
-	if h.publisher != nil {
-		if err := h.publisher.PublishSyncStatus("completed", 0, 0); err != nil {
-			log.Printf("Failed to publish sync complete: %v", err)
-		}
-	}
+	log.Printf("Offline catch-up completed: %d events", evt.Count)
 }

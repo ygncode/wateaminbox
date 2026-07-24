@@ -35,6 +35,7 @@ import {
   registerRealtimeEventHandlers,
   type SyncState,
 } from "./realtime/event-handlers";
+import { reconcileSyncState } from "./realtime/sync-state";
 
 // Typing timeout in milliseconds
 const TYPING_TIMEOUT = 5000;
@@ -239,27 +240,44 @@ export function PusherProvider({
         connections: Array<{
           id: string;
           sync_status: string | null;
+          sync_message_count: number;
+          sync_conversation_count: number;
           updated_at: string | null;
         }>;
       }>("/whatsapp/sync-status");
 
-      const newMap = new Map<string, SyncState>();
-      for (const conn of response.connections) {
-        if (conn.sync_status === "syncing") {
-          newMap.set(conn.id, {
-            connectionId: conn.id,
-            conversations: 0,
-            startedAt: conn.updated_at ? new Date(conn.updated_at) : new Date(),
-          });
-        }
-      }
-      setSyncingConnections(newMap);
+      const activeConnections = response.connections
+        .filter((connection) => connection.sync_status === "syncing")
+        .map(
+          ({
+            id,
+            updated_at,
+            sync_message_count,
+            sync_conversation_count,
+          }) => ({
+            id,
+            updated_at,
+            sync_message_count,
+            sync_conversation_count,
+          }),
+        );
+      setSyncingConnections((previous) =>
+        reconcileSyncState(previous, activeConnections),
+      );
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Failed to fetch sync status",
       );
     }
   }, [currentCompanyId]);
+
+  // Pusher is only an update signal. While an overlay is active, periodically
+  // reconcile with PostgreSQL so a missed completion can never strand the UI.
+  useEffect(() => {
+    if (syncingConnections.size === 0) return;
+    const interval = setInterval(fetchSyncStatus, 15_000);
+    return () => clearInterval(interval);
+  }, [fetchSyncStatus, syncingConnections.size]);
 
   // Send typing indicator via REST
   const sendTypingStart = useCallback(

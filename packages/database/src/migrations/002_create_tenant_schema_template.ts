@@ -1,4 +1,4 @@
-import { Kysely, sql } from 'kysely'
+import { Kysely, sql } from "kysely";
 
 /**
  * This migration creates the tenant schema template.
@@ -12,7 +12,7 @@ export async function up(db: Kysely<unknown>): Promise<void> {
     EXCEPTION
       WHEN duplicate_object THEN null;
     END $$
-  `.execute(db)
+  `.execute(db);
 
   await sql`
     DO $$ BEGIN
@@ -20,7 +20,7 @@ export async function up(db: Kysely<unknown>): Promise<void> {
     EXCEPTION
       WHEN duplicate_object THEN null;
     END $$
-  `.execute(db)
+  `.execute(db);
 
   // Create function to setup tenant schema with all required tables
   await sql`
@@ -40,6 +40,8 @@ export async function up(db: Kysely<unknown>): Promise<void> {
           connected_by UUID,
           connected_at TIMESTAMPTZ,
           last_sync_at TIMESTAMPTZ,
+          sync_message_count INTEGER DEFAULT 0 NOT NULL,
+          sync_conversation_count INTEGER DEFAULT 0 NOT NULL,
           session_data BYTEA,
           created_at TIMESTAMPTZ DEFAULT now() NOT NULL,
           updated_at TIMESTAMPTZ DEFAULT now() NOT NULL
@@ -223,7 +225,7 @@ export async function up(db: Kysely<unknown>): Promise<void> {
       EXECUTE format('CREATE INDEX IF NOT EXISTS %I ON %I.audit_logs (created_at)', schema_name || '_audit_created_idx', schema_name);
     END;
     $$ LANGUAGE plpgsql;
-  `.execute(db)
+  `.execute(db);
 
   // Create function to drop tenant schema
   await sql`
@@ -233,12 +235,12 @@ export async function up(db: Kysely<unknown>): Promise<void> {
       EXECUTE format('DROP SCHEMA IF EXISTS %I CASCADE', schema_name);
     END;
     $$ LANGUAGE plpgsql;
-  `.execute(db)
+  `.execute(db);
 }
 
 export async function down(db: Kysely<unknown>): Promise<void> {
-  await sql`DROP FUNCTION IF EXISTS drop_tenant_schema`.execute(db)
-  await sql`DROP FUNCTION IF EXISTS setup_tenant_schema`.execute(db)
-  await sql`DROP TYPE IF EXISTS message_type`.execute(db)
-  await sql`DROP TYPE IF EXISTS whatsapp_connection_status`.execute(db)
+  await sql`DROP FUNCTION IF EXISTS drop_tenant_schema`.execute(db);
+  await sql`DROP FUNCTION IF EXISTS setup_tenant_schema`.execute(db);
+  await sql`DROP TYPE IF EXISTS message_type`.execute(db);
+  await sql`DROP TYPE IF EXISTS whatsapp_connection_status`.execute(db);
 }

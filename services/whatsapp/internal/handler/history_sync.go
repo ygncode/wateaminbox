@@ -41,13 +41,16 @@ func (h *Handler) handleHistorySync(evt *events.HistorySync) {
 	}
 
 	conversations := evt.Data.GetConversations()
-	log.Printf("History sync received: %d conversations", len(conversations))
-
-	// Publish initial progress to trigger sync overlay (in case OfflineSyncPreview didn't fire)
-	if h.publisher != nil && len(conversations) > 0 {
-		if err := h.publisher.PublishSyncStatus("progress", 0, 0); err != nil {
-			log.Printf("Failed to publish initial sync progress: %v", err)
-		}
+	trackedSync := isTrackedHistorySyncType(evt.Data.GetSyncType())
+	log.Printf(
+		"History sync received: type=%s chunk=%d progress=%d conversations=%d",
+		evt.Data.GetSyncType(),
+		evt.Data.GetChunkOrder(),
+		evt.Data.GetProgress(),
+		len(conversations),
+	)
+	if trackedSync {
+		h.beginHistorySyncChunk()
 	}
 
 	startTime := time.Now()
@@ -93,22 +96,23 @@ func (h *Handler) handleHistorySync(evt *events.HistorySync) {
 		totalMessages += result.messages
 		totalMediaDownloaded += result.mediaDownloaded
 		conversationsProcessed++
+		if trackedSync {
+			h.addHistorySyncProgress(result.messages, 1)
+		}
 
-		// Publish progress every 10 conversations to avoid flooding
-		if conversationsProcessed%10 == 0 {
-			if h.publisher != nil {
-				if err := h.publisher.PublishSyncStatus("progress", totalMessages, conversationsProcessed); err != nil {
-					log.Printf("Failed to publish sync progress: %v", err)
-				}
-			}
+		// Publish cumulative progress every 10 conversations to avoid flooding.
+		if trackedSync && conversationsProcessed%10 == 0 {
+			h.publishHistorySyncProgress()
 		}
 	}
 
-	// Publish final progress if not on 10-conversation boundary
-	if conversationsProcessed%10 != 0 && h.publisher != nil {
-		if err := h.publisher.PublishSyncStatus("progress", totalMessages, conversationsProcessed); err != nil {
-			log.Printf("Failed to publish final sync progress: %v", err)
-		}
+	// Ensure every chunk has a final cumulative progress event, including empty
+	// chunks. Completion is published after it, preserving JetStream ordering.
+	if trackedSync && (conversationsProcessed%10 != 0 || conversationsProcessed == 0) {
+		h.publishHistorySyncProgress()
+	}
+	if trackedSync {
+		h.finishHistorySyncChunk(isFinalHistorySyncChunk(evt.Data))
 	}
 
 	elapsed := time.Since(startTime)

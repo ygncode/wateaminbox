@@ -3,6 +3,7 @@
  */
 
 import { toDbDate } from "@wateaminbox/shared";
+import { sql } from "kysely";
 import { formatError } from "../../lib/logger.js";
 import type {
   DownloadResponseEvent,
@@ -80,6 +81,35 @@ export async function handleStatusEvent(event: StatusEvent): Promise<void> {
   }
 }
 
+type StoredSyncStatus = "syncing" | "completed" | "interrupted" | null;
+type IncomingSyncStatus = SyncStatusEvent["payload"]["status"];
+
+/**
+ * Progress/completion may be redelivered after a lifecycle has ended. Requiring
+ * an active `starting` transition prevents any late progress event from
+ * resurrecting a completed sync in either PostgreSQL or the browser.
+ */
+export function shouldApplySyncStatusEvent(
+  current: StoredSyncStatus,
+  incoming: IncomingSyncStatus,
+): boolean {
+  return incoming === "starting" || current === "syncing";
+}
+
+export function getPersistedSyncCounters(
+  status: IncomingSyncStatus,
+  messageCount: number,
+  conversations: number,
+): { sync_message_count: number; sync_conversation_count: number } {
+  if (status === "starting") {
+    return { sync_message_count: 0, sync_conversation_count: 0 };
+  }
+  return {
+    sync_message_count: Math.max(0, messageCount),
+    sync_conversation_count: Math.max(0, conversations),
+  };
+}
+
 /**
  * Handles sync status events from WhatsApp history sync
  * Updates database sync_status and broadcasts progress to realtime clients
@@ -103,39 +133,79 @@ export async function handleSyncStatusEvent(
   try {
     const tenantDb = getTenantConnection(companyId);
 
-    // Update database sync_status for starting/completed (not progress to avoid excessive updates)
-    if (payload.status === "starting" || payload.status === "completed") {
-      const dbStatus = payload.status === "starting" ? "syncing" : "completed";
+    const connection = await tenantDb
+      .selectFrom("whatsapp_connections")
+      .select(["sync_status"])
+      .where("id", "=", connectionId)
+      .executeTakeFirst();
 
-      // Check if previous sync was interrupted
-      if (payload.status === "starting") {
-        const connection = await tenantDb
-          .selectFrom("whatsapp_connections")
-          .select(["sync_status"])
-          .where("id", "=", connectionId)
-          .executeTakeFirst();
+    if (!connection) {
+      logger.warn(
+        { connectionId },
+        "Ignoring sync event for missing connection",
+      );
+      return;
+    }
+    if (!shouldApplySyncStatusEvent(connection.sync_status, payload.status)) {
+      logger.warn(
+        {
+          connectionId,
+          current: connection.sync_status,
+          incoming: payload.status,
+        },
+        "Ignoring out-of-order sync event",
+      );
+      return;
+    }
+    if (
+      payload.status === "starting" &&
+      connection.sync_status === "interrupted"
+    ) {
+      logger.info({ connectionId }, "Resuming interrupted sync");
+    }
 
-        if (connection?.sync_status === "interrupted") {
-          logger.info({ connectionId }, "Resuming interrupted sync");
-        }
-      }
-
+    const now = toDbDate();
+    const counters = getPersistedSyncCounters(
+      payload.status,
+      payload.messageCount,
+      payload.conversations,
+    );
+    if (payload.status === "starting") {
       await tenantDb
         .updateTable("whatsapp_connections")
         .set({
-          sync_status: dbStatus,
-          updated_at: toDbDate(),
+          sync_status: "syncing",
+          ...counters,
+          updated_at: now,
         })
         .where("id", "=", connectionId)
         .execute();
-
-      logger.info(
-        {
-          connectionId,
-          status: dbStatus,
-        },
-        "Updated connection sync_status",
-      );
+    } else if (payload.status === "progress") {
+      // Progress is also a heartbeat. This prevents a legitimate long-running
+      // media import from being mistaken for an abandoned sync.
+      await tenantDb
+        .updateTable("whatsapp_connections")
+        .set({
+          sync_message_count: sql<number>`GREATEST(sync_message_count, ${counters.sync_message_count})`,
+          sync_conversation_count: sql<number>`GREATEST(sync_conversation_count, ${counters.sync_conversation_count})`,
+          updated_at: now,
+        })
+        .where("id", "=", connectionId)
+        .where("sync_status", "=", "syncing")
+        .execute();
+    } else {
+      await tenantDb
+        .updateTable("whatsapp_connections")
+        .set({
+          sync_status: "completed",
+          sync_message_count: sql<number>`GREATEST(sync_message_count, ${counters.sync_message_count})`,
+          sync_conversation_count: sql<number>`GREATEST(sync_conversation_count, ${counters.sync_conversation_count})`,
+          last_sync_at: now,
+          updated_at: now,
+        })
+        .where("id", "=", connectionId)
+        .where("sync_status", "=", "syncing")
+        .execute();
     }
 
     // Map NATS status to event type

@@ -162,6 +162,8 @@ export interface WhatsAppConnectionsTable {
   connected_at: Date | null;
   last_sync_at: Date | null;
   sync_status: "syncing" | "completed" | "interrupted" | null;
+  sync_message_count: Generated<number>;
+  sync_conversation_count: Generated<number>;
   qr_code: string | null;
   qr_expires_at: Date | null;
   session_data: Buffer | null;

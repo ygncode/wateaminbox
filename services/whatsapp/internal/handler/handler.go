@@ -45,6 +45,11 @@ import (
 // Number of parallel workers for history sync processing
 const historySyncWorkers = 10
 
+// historySyncIdleTimeout is a fallback for protocol variants that don't send a
+// final RECENT chunk. Normal initial syncs complete immediately when the final
+// chunk reaches 100%; this timeout only prevents an orphaned sync lifecycle.
+const historySyncIdleTimeout = 2 * time.Minute
+
 // Media download retry configuration constants.
 const (
 	// mediaDownloadMaxRetries is the maximum number of total attempts (initial + retries)
@@ -71,31 +76,55 @@ type WhatsAppClient interface {
 	UnblockContact(ctx context.Context, jid string) error
 }
 
+// SyncStatusPublisher is the small part of the event publisher used by the
+// history-sync lifecycle. Keeping it separate makes lifecycle ordering directly
+// testable without a running NATS server.
+type SyncStatusPublisher interface {
+	PublishSyncStatus(status string, messageCount int, conversations int) error
+}
+
 // Config holds handler configuration.
 type Config struct {
-	WorkerID     string
-	CompanyID    string
-	ConnectionID string
-	NATSUrl      string
-	Client       WhatsAppClient
-	Publisher    *natsClient.Publisher
-	Storage      *storage.Client
-	Ctx          context.Context
+	WorkerID            string
+	CompanyID           string
+	ConnectionID        string
+	NATSUrl             string
+	Client              WhatsAppClient
+	Publisher           *natsClient.Publisher
+	SyncStatusPublisher SyncStatusPublisher
+	Storage             *storage.Client
+	Ctx                 context.Context
 }
 
 // Handler processes WhatsApp events.
 type Handler struct {
-	config                 Config
-	publisher              *natsClient.Publisher
+	config              Config
+	publisher           *natsClient.Publisher
+	syncStatusPublisher SyncStatusPublisher
+
+	historySyncMu            sync.Mutex
+	historySyncActive        bool
+	historySyncMessages      int
+	historySyncConversations int
+	historySyncActivity      uint64
+	historySyncTimer         *time.Timer
+	historySyncIdleTimeout   time.Duration
+
 	profilePictureCache    sync.Map
 	profilePictureRequests singleflight.Group
 }
 
 // New creates a new message handler.
 func New(cfg Config) *Handler {
+	syncPublisher := cfg.SyncStatusPublisher
+	if syncPublisher == nil {
+		syncPublisher = cfg.Publisher
+	}
 	return &Handler{
-		config:    cfg,
-		publisher: cfg.Publisher,
+		config:                 cfg,
+		publisher:              cfg.Publisher,
+		syncStatusPublisher:    syncPublisher,
+		historySyncIdleTimeout: historySyncIdleTimeout,
 	}
 }
 

@@ -75,6 +75,14 @@ export async function createTenantSchema(companyId: string): Promise<void> {
     ADD COLUMN IF NOT EXISTS qr_expires_at TIMESTAMPTZ
   `.execute(baseTenantDb);
 
+  // Persist history-sync counters for schemas created after migration 043 ran.
+  // This additive guard avoids redefining the large setup function.
+  await sql`
+    ALTER TABLE ${sql.raw(`"${schemaName}".whatsapp_connections`)}
+    ADD COLUMN IF NOT EXISTS sync_message_count INTEGER NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS sync_conversation_count INTEGER NOT NULL DEFAULT 0
+  `.execute(baseTenantDb);
+
   // setup_tenant_schema predates participant display names. Keep newly-created
   // tenant schemas aligned with migration 034 without redefining that large
   // database function in every additive migration.

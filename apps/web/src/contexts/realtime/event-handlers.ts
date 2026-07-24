@@ -28,13 +28,14 @@ import {
   updateContactInChatList,
   updateMessageInCache,
 } from "./cache-utils";
+import {
+  endSync,
+  type SyncState,
+  startSync,
+  updateSyncProgress,
+} from "./sync-state";
 
-export interface SyncState {
-  connectionId: string;
-  conversations: number;
-  startedAt: Date;
-  interrupted?: boolean;
-}
+export type { SyncState } from "./sync-state";
 
 interface RealtimeEventHandlerOptions {
   queryClient: QueryClient;
@@ -253,48 +254,29 @@ export function registerRealtimeEventHandlers({
     }),
     bindEvent<SyncStatusPayload>("sync:start", (data) => {
       const connectionId = data.connectionId || "unknown";
-      setSyncingConnections((previous) => {
-        const next = new Map(previous);
-        next.set(connectionId, {
-          connectionId,
-          conversations: 0,
-          startedAt: new Date(),
-          interrupted: false,
-        });
-        return next;
-      });
+      setSyncingConnections((previous) => startSync(previous, connectionId));
     }),
     bindEvent<SyncStatusPayload>("sync:progress", (data) => {
       const connectionId = data.connectionId || "unknown";
-      setSyncingConnections((previous) => {
-        const next = new Map(previous);
-        const existing = next.get(connectionId);
-        next.set(connectionId, {
+      setSyncingConnections((previous) =>
+        updateSyncProgress(
+          previous,
           connectionId,
-          conversations: data.payload.conversations,
-          startedAt: existing?.startedAt || new Date(),
-        });
-        return next;
-      });
+          data.payload.conversations,
+          data.payload.messageCount,
+        ),
+      );
     }),
     bindEvent<SyncStatusPayload>("sync:complete", (data) => {
       const connectionId = data.connectionId || "unknown";
-      setSyncingConnections((previous) => {
-        const next = new Map(previous);
-        next.delete(connectionId);
-        return next;
-      });
+      setSyncingConnections((previous) => endSync(previous, connectionId));
       invalidateChatList(qc);
+      const selectedId = useChatStore.getState().selectedConversationId;
+      if (selectedId) refetchConversationMessages(qc, selectedId);
     }),
     bindEvent<SyncStatusPayload>("sync:interrupted", (data) => {
       const connectionId = data.connectionId || "unknown";
-      setSyncingConnections((previous) => {
-        const next = new Map(previous);
-        const existing = next.get(connectionId);
-        if (existing)
-          next.set(connectionId, { ...existing, interrupted: true });
-        return next;
-      });
+      setSyncingConnections((previous) => endSync(previous, connectionId));
     }),
   ];
 }
