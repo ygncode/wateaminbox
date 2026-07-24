@@ -65,6 +65,7 @@ export function MessageThread({
     virtualizer,
     scrollContainerRef,
     items,
+    virtualRows,
     totalSize,
     handleScroll: handleVirtualScroll,
     scrollToBottom,
@@ -270,7 +271,8 @@ export function MessageThread({
 
       {/* Virtualized message list */}
       <VirtualMessageList
-        virtualizer={virtualizer}
+        virtualRows={virtualRows}
+        measureElement={virtualizer.measureElement}
         items={items}
         totalSize={totalSize}
         isGroup={isGroup}

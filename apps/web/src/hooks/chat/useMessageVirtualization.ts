@@ -1,4 +1,7 @@
-import { useVirtualizer } from "@tanstack/react-virtual";
+import {
+  useVirtualizer,
+  type VirtualItem as VirtualRow,
+} from "@tanstack/react-virtual";
 import type { Message } from "@wateaminbox/shared";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -23,6 +26,7 @@ interface UseMessageVirtualizationReturn {
   virtualizer: ReturnType<typeof useVirtualizer<HTMLDivElement, Element>>;
   scrollContainerRef: React.RefObject<HTMLDivElement | null>;
   items: VirtualItem[];
+  virtualRows: VirtualRow[];
   totalSize: number;
   handleScroll: () => void;
   scrollToBottom: () => void;
@@ -90,9 +94,6 @@ export function useMessageVirtualization({
     [items],
   );
 
-  // State for virtualizer total size to avoid flushSync warnings
-  const [totalSize, setTotalSize] = useState(0);
-
   // Virtualizer setup
   const virtualizer = useVirtualizer({
     count: items.length,
@@ -100,18 +101,13 @@ export function useMessageVirtualization({
     estimateSize,
     overscan: 10,
     getItemKey,
-    onChange: (instance) => {
-      // Update total size asynchronously to avoid flushSync during render
-      requestAnimationFrame(() => {
-        setTotalSize(instance.getTotalSize());
-      });
-    },
   });
 
-  // Initialize total size
-  useEffect(() => {
-    setTotalSize(virtualizer.getTotalSize());
-  }, [virtualizer]);
+  // TanStack's getters may notify the React adapter when their memoized inputs
+  // change. Read them in the component that owns useVirtualizer instead of in a
+  // child render to avoid cross-component render updates.
+  const virtualRows = virtualizer.getVirtualItems();
+  const totalSize = virtualizer.getTotalSize();
 
   // Handle scroll to detect when we're near the top (for loading more) and bottom
   const handleScroll = useCallback(() => {
@@ -228,6 +224,7 @@ export function useMessageVirtualization({
     virtualizer,
     scrollContainerRef,
     items,
+    virtualRows,
     totalSize,
     handleScroll,
     scrollToBottom,

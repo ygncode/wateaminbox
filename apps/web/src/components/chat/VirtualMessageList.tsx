@@ -1,12 +1,17 @@
-import type { useVirtualizer } from "@tanstack/react-virtual";
+import type { useVirtualizer, VirtualItem } from "@tanstack/react-virtual";
 import { formatDateSeparator as formatDateSep } from "@wateaminbox/shared";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
-import type { VirtualItem } from "../../hooks/chat/useMessageVirtualization";
+import type { VirtualItem as MessageListItem } from "../../hooks/chat/useMessageVirtualization";
 import { MessageBubble } from "./MessageBubble";
 
+type MessageVirtualizer = ReturnType<
+  typeof useVirtualizer<HTMLDivElement, Element>
+>;
+
 interface VirtualMessageListProps {
-  virtualizer: ReturnType<typeof useVirtualizer<HTMLDivElement, Element>>;
-  items: VirtualItem[];
+  virtualRows: VirtualItem[];
+  measureElement: MessageVirtualizer["measureElement"];
+  items: MessageListItem[];
   totalSize: number;
   isGroup?: boolean;
   highlightedMessageId?: string | null;
@@ -25,7 +30,8 @@ interface VirtualMessageListProps {
 }
 
 export function VirtualMessageList({
-  virtualizer,
+  virtualRows,
+  measureElement,
   items,
   totalSize,
   isGroup = false,
@@ -76,7 +82,7 @@ export function VirtualMessageList({
           position: "relative",
         }}
       >
-        {virtualizer.getVirtualItems().map((virtualRow) => {
+        {virtualRows.map((virtualRow) => {
           const item = items[virtualRow.index];
 
           if (item.type === "date") {
@@ -105,7 +111,7 @@ export function VirtualMessageList({
             <div
               key={virtualRow.key}
               data-index={virtualRow.index}
-              ref={virtualizer.measureElement}
+              ref={measureElement}
               style={{
                 position: "absolute",
                 top: 0,
