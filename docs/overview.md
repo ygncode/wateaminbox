@@ -6,10 +6,10 @@ WATeamInbox is a multi-tenant collaborative WhatsApp inbox. Teams can manage con
 
 ```text
 React 19 + Vite
-    | authenticated REST                 Pusher private channels
-    v                                             ^
-Hono API on Bun ---------------------------------+
-    | Kysely                 | NATS JetStream
+    | authenticated REST                    | Centrifugo WebSocket
+    v                                       v
+Hono API on Bun ---- publish API ----> Centrifugo
+    | Kysely                 | NATS JetStream / broker
     v                        v
 PostgreSQL             Go orchestrator -> WhatsApp worker -> WhatsApp
     |
@@ -23,7 +23,7 @@ Supporting services: Meilisearch, R2/MinIO, Resend
 | Path | Responsibility |
 | --- | --- |
 | `apps/web` | React inbox and administration UI |
-| `apps/api` | Hono REST API, auth, business services, NATS consumers, Pusher publishing |
+| `apps/api` | Hono REST API, auth, business services, NATS consumers, Centrifugo publishing |
 | `apps/marketing` | Astro marketing and documentation site |
 | `packages/database` | Kysely types, clients, and migrations |
 | `packages/shared` | Shared TypeScript types and utilities |
@@ -51,13 +51,13 @@ Tenant schemas contain contacts, messages, reactions, groups, connection state, 
 - Email verification and password reset use hashed, expiring, single-use `auth_tokens` rows.
 - Password reset revokes all existing sessions.
 
-Production startup validates database, JWT, and Pusher configuration.
+Production startup validates database, JWT, and Centrifugo configuration.
 
 ## Realtime
 
-The API publishes company-scoped events to `private-company-{companyId}`. `/api/pusher/auth` verifies the user, active session, company membership, and channel name before authorizing a subscription.
+The API publishes company-scoped events to `company:{companyId}`. `/api/realtime/token` verifies the user, active session, and company membership before issuing a short-lived JWT containing server-side company and user subscriptions.
 
-PostgreSQL remains the source of truth. Pusher updates local caches or triggers refetches; it is not used as durable storage.
+PostgreSQL remains the source of truth. Centrifugo updates local caches or triggers refetches; it is not used as durable storage.
 
 See [Realtime Architecture](realtime-flow.md).
 
@@ -94,6 +94,7 @@ Default ports:
 | NATS | 4448 |
 | Meilisearch | 4449 |
 | MinIO | 4450 |
+| Centrifugo | 4451 |
 
 ## Validation
 

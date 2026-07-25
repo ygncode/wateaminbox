@@ -27,7 +27,7 @@ export const legacyRoutes = new Hono();
 
 /**
  * POST /connect - Start WhatsApp connection flow (backward compatible)
- * QR codes are delivered on the authenticated company Pusher channel.
+ * QR codes are delivered on the authenticated company Centrifugo channel.
  */
 legacyRoutes.post(
   "/connect",
@@ -49,7 +49,8 @@ legacyRoutes.post(
         success: true,
         data: {
           connectionId: result.connectionId,
-          message: "Connection initiated. The QR code will arrive via Pusher.",
+          message:
+            "Connection initiated. The QR code will arrive via Centrifugo.",
         },
       });
     } catch (error) {

@@ -1,7 +1,7 @@
 /**
- * Pusher Provider
+ * Realtime Provider
  *
- * Provides real-time communication via Pusher.
+ * Provides real-time communication through Centrifugo.
  * Central realtime provider for scalable company-scoped events.
  */
 
@@ -19,17 +19,18 @@ import { broadcastMessagesRead, sendTypingIndicator } from "../lib/api/actions";
 import {
   bindEvent,
   bindUserEvent,
-  disconnectPusher,
+  connectRealtime,
+  disconnectRealtime,
   getConnectionState,
-  initializePusher,
+  initializeRealtime,
   onConnectionStateChange,
-  type PusherConnectionStatus,
-  type CompanyPusherEventType,
-  type PusherEventData,
+  type RealtimeConnectionStatus,
+  type CompanyRealtimeEventType,
+  type RealtimeEventData,
   subscribeToCompany,
   subscribeToUser,
   unsubscribeFromCompany,
-} from "../lib/pusher";
+} from "../lib/realtime";
 import { useChatStore } from "../stores/chat-store";
 import { useAuth } from "./auth-context";
 import {
@@ -50,11 +51,11 @@ export type { SyncState } from "./realtime/event-handlers";
 type EventHandler<T = unknown> = (payload: T) => void;
 
 /**
- * Context value for Pusher provider
+ * Context value for Realtime provider
  */
-export interface PusherContextValue {
+export interface RealtimeContextValue {
   // Connection state
-  status: PusherConnectionStatus;
+  status: RealtimeConnectionStatus;
   isConnected: boolean;
   isConnecting: boolean;
   error: string | null;
@@ -81,18 +82,19 @@ export interface PusherContextValue {
   sendMarkAsRead: (conversationId: string, messageIds: string[]) => void;
 }
 
-interface PusherProviderProps {
+interface RealtimeProviderProps {
   children: React.ReactNode;
   autoConnect?: boolean;
 }
 
-const PusherContext = createContext<PusherContextValue | null>(null);
+const RealtimeContext = createContext<RealtimeContextValue | null>(null);
 
-export function PusherProvider({
+export function RealtimeProvider({
   children,
   autoConnect = true,
-}: PusherProviderProps) {
-  const [status, setStatus] = useState<PusherConnectionStatus>("disconnected");
+}: RealtimeProviderProps) {
+  const [status, setStatus] =
+    useState<RealtimeConnectionStatus>("disconnected");
   const [error, setError] = useState<string | null>(null);
   const [syncingConnections, setSyncingConnections] = useState<
     Map<string, SyncState>
@@ -164,7 +166,7 @@ export function PusherProvider({
     [],
   );
 
-  // Register all company-scoped Pusher event handlers.
+  // Register all company-scoped Realtime event handlers.
   const registerEventHandlers = useCallback(() => {
     eventUnsubscribesRef.current.forEach((unsubscribe) => unsubscribe());
     eventUnsubscribesRef.current = registerRealtimeEventHandlers({
@@ -180,19 +182,19 @@ export function PusherProvider({
     });
   }, [setTypingTimeout, clearTypingTimeout, currentCompanyId]);
 
-  // Connect to Pusher
+  // Connect to Realtime
   const connect = useCallback(() => {
     if (!currentCompanyId) {
       return;
     }
 
     try {
-      initializePusher();
+      initializeRealtime();
       subscribeToCompany(currentCompanyId);
       if (user) subscribeToUser(currentCompanyId, user.id);
       registerEventHandlers();
     } catch (connectionError) {
-      setStatus("failed");
+      setStatus("disconnected");
       setError(
         connectionError instanceof Error
           ? connectionError.message
@@ -206,26 +208,28 @@ export function PusherProvider({
       setStatus(state);
       if (state === "connected") {
         setError(null);
-      } else if (state === "failed" || state === "unavailable") {
-        setError("Connection failed");
+      } else if (state === "disconnected") {
+        setError("Realtime connection disconnected");
       }
     });
 
     eventUnsubscribesRef.current.push(unsub);
+    connectRealtime();
 
     // Set initial state
     setStatus(getConnectionState());
   }, [currentCompanyId, registerEventHandlers, user]);
 
-  // Disconnect from Pusher
+  // Disconnect from Realtime
   const disconnect = useCallback(() => {
     eventUnsubscribesRef.current.forEach((unsub) => unsub());
     eventUnsubscribesRef.current = [];
     unsubscribeFromCompany();
+    disconnectRealtime();
     setStatus("disconnected");
   }, []);
 
-  // Reconnect to Pusher
+  // Reconnect to Realtime
   const reconnect = useCallback(() => {
     disconnect();
     setTimeout(() => {
@@ -278,7 +282,7 @@ export function PusherProvider({
     }
   }, [currentCompanyId]);
 
-  // Pusher is only an update signal. While an overlay is active, periodically
+  // Realtime is only an update signal. While an overlay is active, periodically
   // reconcile with PostgreSQL so a missed completion can never strand the UI.
   useEffect(() => {
     if (syncingConnections.size === 0) return;
@@ -312,14 +316,14 @@ export function PusherProvider({
   // Allow feature hooks to listen for specific company events.
   const subscribe = useCallback(
     <T,>(eventType: string, handler: EventHandler<T>): (() => void) => {
-      const wrappedHandler = (data: PusherEventData<T>) => {
+      const wrappedHandler = (data: RealtimeEventData<T>) => {
         const payload = {
           ...data.payload,
           connectionId: data.connectionId,
         } as T;
         handler(payload);
       };
-      return bindEvent(eventType as CompanyPusherEventType, wrappedHandler);
+      return bindEvent(eventType as CompanyRealtimeEventType, wrappedHandler);
     },
     [],
   );
@@ -329,7 +333,7 @@ export function PusherProvider({
       eventType: "notification:new",
       handler: EventHandler<T>,
     ): (() => void) =>
-      bindUserEvent(eventType, (data: PusherEventData<T>) =>
+      bindUserEvent(eventType, (data: RealtimeEventData<T>) =>
         handler(data.payload),
       ),
     [],
@@ -350,12 +354,12 @@ export function PusherProvider({
       eventUnsubscribesRef.current = [];
       typingTimeoutsRef.current.forEach((timeout) => clearTimeout(timeout));
       typingTimeoutsRef.current.clear();
-      disconnectPusher();
+      disconnectRealtime();
       isInitializedRef.current = false;
     };
   }, [autoConnect, connect, currentCompanyId, fetchSyncStatus]);
 
-  // Pusher is an update signal rather than the source of truth. Reconcile all
+  // Realtime is an update signal rather than the source of truth. Reconcile all
   // active chat state after a reconnect in case events arrived while offline.
   useEffect(() => {
     if (status === "connected") {
@@ -367,7 +371,7 @@ export function PusherProvider({
     }
   }, [status, fetchSyncStatus]);
 
-  const contextValue: PusherContextValue = {
+  const contextValue: RealtimeContextValue = {
     status,
     isConnected: status === "connected",
     isConnecting: status === "connecting",
@@ -385,23 +389,21 @@ export function PusherProvider({
   };
 
   return (
-    <PusherContext.Provider value={contextValue}>
+    <RealtimeContext.Provider value={contextValue}>
       {children}
-    </PusherContext.Provider>
+    </RealtimeContext.Provider>
   );
 }
 
 /**
- * Hook to use Pusher context
+ * Hook to use Realtime context
  */
-export function usePusherContext(): PusherContextValue {
-  const context = useContext(PusherContext);
+export function useRealtimeContext(): RealtimeContextValue {
+  const context = useContext(RealtimeContext);
   if (!context) {
-    throw new Error("usePusherContext must be used within a PusherProvider");
+    throw new Error(
+      "useRealtimeContext must be used within a RealtimeProvider",
+    );
   }
   return context;
 }
-
-export { PusherProvider as RealtimeProvider };
-export { usePusherContext as useRealtimeContext };
-export type { PusherContextValue as RealtimeContextValue };

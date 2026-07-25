@@ -9,7 +9,7 @@
 5. Message uniqueness constraints make redelivery safe.
 6. Searchable records are indexed in Meilisearch.
 7. The worker opens the lifecycle on the first tracked history chunk, aggregates progress across bootstrap/full/recent chunks, and completes only after the final `RECENT` chunk reaches 100%. WhatsApp's separate offline catch-up events do not control history-sync state. A two-minute inter-chunk idle fallback closes protocol variants that omit the final marker.
-8. The API persists cumulative message/conversation counters on the connection and broadcasts progress through Pusher (`sync:start`, `sync:progress`, `sync:complete`, or `sync:interrupted`).
+8. The API persists cumulative message/conversation counters on the connection and publishes progress through Centrifugo (`sync:start`, `sync:progress`, `sync:complete`, or `sync:interrupted`).
 9. React displays sync state, rejects progress without an active start, restores persisted counters after refresh, polls PostgreSQL while syncing, and invalidates chat queries when synchronization completes.
 
 ## Live messages
@@ -21,7 +21,7 @@ WhatsApp
   -> NATS JetStream
   -> API validation and tenant persistence
   -> Meilisearch indexing
-  -> Pusher message:new
+  -> Centrifugo message:new
   -> React Query message cache and ephemeral Zustand UI state
 ```
 
@@ -47,7 +47,7 @@ History messages may be stored before large media is downloaded. The UI requests
 - Workers persist successful command results by `command_id` before ACK. Redelivery republishes that result instead of repeating the WhatsApp side effect; publication failure is retried through NAK/redelivery.
 - The irreducible crash window is after WhatsApp accepts a send but before its result reaches the worker ledger. Such commands remain unacknowledged and are observable by command/message ID for reconciliation.
 - Database uniqueness constraints deduplicate WhatsApp message IDs and reactions.
-- PostgreSQL is the source of truth; Pusher is a realtime update signal.
+- PostgreSQL is the source of truth; Centrifugo is a realtime update signal.
 - Clients refetch affected queries after reconnect or sync completion.
 
 ## Main files
@@ -57,5 +57,5 @@ History messages may be stored before large media is downloaded. The UI requests
 | Worker history sync | `services/whatsapp/internal/handler/history_sync.go` |
 | API NATS consumer | `apps/api/src/services/message-handler.ts` |
 | Message handlers | `apps/api/src/services/handlers/message-handlers.ts` |
-| Realtime provider | `apps/web/src/contexts/PusherProvider.tsx` |
+| Realtime provider | `apps/web/src/contexts/RealtimeProvider.tsx` |
 | Database constraints | `packages/database/src/migrations/` |

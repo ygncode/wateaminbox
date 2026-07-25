@@ -5,7 +5,7 @@ const healthy: ReadinessChecks = {
   postgres: true,
   nats: true,
   eventConsumer: true,
-  pusher: { configured: true },
+  centrifugo: { configured: true, reachable: true },
 };
 
 describe("readiness policy", () => {
@@ -19,7 +19,16 @@ describe("readiness policy", () => {
       "degraded",
     );
     expect(
-      evaluateReadiness({ ...healthy, pusher: { configured: false } }),
+      evaluateReadiness({
+        ...healthy,
+        centrifugo: { configured: false, reachable: false },
+      }),
+    ).toBe("degraded");
+    expect(
+      evaluateReadiness({
+        ...healthy,
+        centrifugo: { configured: true, reachable: false },
+      }),
     ).toBe("degraded");
   });
 

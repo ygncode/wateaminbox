@@ -27,7 +27,7 @@ app.use(
       "Content-Type",
       "Authorization",
       "X-Company-Id",
-      "X-Pusher-Socket-Id",
+      "X-Realtime-Client-Id",
     ],
   }),
 );

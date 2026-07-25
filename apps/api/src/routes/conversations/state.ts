@@ -12,7 +12,7 @@ import {
   resolveConversation,
   setConversationPending,
 } from "../../services/conversation-state.service.js";
-import { broadcastToCompany } from "../../lib/pusher.js";
+import { broadcastToCompany } from "../../lib/realtime.js";
 
 export const stateRoutes = new Hono();
 
@@ -86,10 +86,10 @@ stateRoutes.post(
     });
 
     await broadcastToCompany(companyId, "conversation:updated", {
-        event: "resolved",
-        contactId,
-        resolvedBy: user.id,
-        resolvedAt: state.resolvedAt?.toISOString(),
+      event: "resolved",
+      contactId,
+      resolvedBy: user.id,
+      resolvedAt: state.resolvedAt?.toISOString(),
     });
 
     return successData(c, state);
@@ -132,10 +132,10 @@ stateRoutes.post("/:id/reopen", async (c) => {
   });
 
   await broadcastToCompany(companyId, "conversation:updated", {
-      event: "reopened",
-      contactId,
-      reopenedBy: user.id,
-      reopenedAt: state.reopenedAt?.toISOString(),
+    event: "reopened",
+    contactId,
+    reopenedBy: user.id,
+    reopenedAt: state.reopenedAt?.toISOString(),
   });
 
   return successData(c, state);
@@ -162,8 +162,8 @@ stateRoutes.post("/:id/pending", async (c) => {
   const state = await setConversationPending(tenantDb, contactId);
 
   await broadcastToCompany(companyId, "conversation:updated", {
-      event: "pending",
-      contactId,
+    event: "pending",
+    contactId,
   });
 
   return successData(c, state);
@@ -213,9 +213,9 @@ stateRoutes.post("/:id/read", async (c) => {
   }
 
   await broadcastToCompany(companyId, "conversation:read", {
-      contactId,
-      unreadCount: 0,
-      readBy: user.id,
+    contactId,
+    unreadCount: 0,
+    readBy: user.id,
   });
 
   return successData(c, { unreadCount: 0 });

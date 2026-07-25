@@ -11,7 +11,7 @@ import {
   ThemeProvider,
 } from "./contexts";
 import { NotificationProvider } from "./contexts/NotificationProvider";
-import { PusherProvider } from "./contexts/PusherProvider";
+import { RealtimeProvider } from "./contexts/RealtimeProvider";
 import "./index.css";
 
 // Initialize i18n
@@ -33,7 +33,7 @@ createRoot(document.getElementById("root")!).render(
         <ErrorBoundary>
           <AuthProvider>
             <ThemeProvider>
-              <PusherProvider>
+              <RealtimeProvider>
                 <NotificationProvider>
                   <KeyboardShortcutsProvider>
                     <TooltipProvider>
@@ -41,7 +41,7 @@ createRoot(document.getElementById("root")!).render(
                     </TooltipProvider>
                   </KeyboardShortcutsProvider>
                 </NotificationProvider>
-              </PusherProvider>
+              </RealtimeProvider>
             </ThemeProvider>
           </AuthProvider>
         </ErrorBoundary>

@@ -9,14 +9,14 @@
 5. The Go orchestrator starts a dedicated WhatsApp worker.
 6. The worker initializes whatsmeow and requests a QR code.
 7. QR and connection events travel from the worker through NATS to the API.
-8. The API persists state changes and broadcasts them on the company's private Pusher channel.
+8. The API persists state changes and publishes them to the company's Centrifugo channel.
 9. React connection hooks display the QR code and update connection state.
 
-The create endpoint returns the connection record. There is no WebSocket URL; realtime events are delivered through the already-authorized Pusher subscription.
+The create endpoint returns the connection record. Realtime events arrive through the authenticated Centrifugo connection.
 
 ## Channel security
 
-The browser can only subscribe to `private-company-{companyId}` after `/api/pusher/auth` verifies its access token, active session, tenant membership, and requested channel name.
+`POST /api/realtime/token` verifies the access token, active session, and tenant membership before placing `company:{companyId}` in the short-lived Centrifugo connection token.
 
 ## Lifecycle states
 

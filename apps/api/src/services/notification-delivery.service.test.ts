@@ -42,14 +42,14 @@ describe("notification delivery orchestration", () => {
     expect(calls).toEqual(["persist", "publish"]);
   });
 
-  test("returns persisted data when Pusher fails", async () => {
+  test("returns persisted data when Centrifugo fails", async () => {
     const result = await createAndPublishNotification(
       "company-id",
       { userId: "user-id", notificationType: "assignment", title: "Assigned" },
       {
         persist: async () => [persisted],
         publish: async () => {
-          throw new Error("Pusher unavailable");
+          throw new Error("Centrifugo unavailable");
         },
       },
     );

@@ -17,7 +17,7 @@ import { advanceMessageStatus } from "@wateaminbox/shared";
 import type { Dispatch, SetStateAction } from "react";
 import { queryKeys } from "../../hooks/query-keys";
 import { markConversationAsRead } from "../../lib/api/conversations";
-import { bindEvent } from "../../lib/pusher";
+import { bindEvent } from "../../lib/realtime";
 import { showRealtimeToast } from "../../lib/toast-notifications";
 import type { TypingIndicator } from "../../stores/chat-store";
 import { useChatStore } from "../../stores/chat-store";

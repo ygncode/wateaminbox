@@ -2,10 +2,10 @@
  * Actions API
  *
  * REST endpoints for real-time actions that were previously handled via WebSocket.
- * These functions call the server to trigger Pusher events.
+ * These functions call the server to trigger realtime events.
  */
 
-import { getSocketId } from "../pusher";
+import { getRealtimeClientId } from "../realtime";
 import { fetchWithAuth } from "./client";
 
 /**
@@ -19,12 +19,12 @@ export async function sendTypingIndicator(
   contactId: string,
   isTyping: boolean,
 ): Promise<void> {
-  const socketId = getSocketId();
+  const clientId = getRealtimeClientId();
   const headers: Record<string, string> = {};
 
-  // Include socket ID to exclude self from receiving the event
-  if (socketId) {
-    headers["X-Pusher-Socket-Id"] = socketId;
+  // Include the Centrifugo client ID to exclude this connection.
+  if (clientId) {
+    headers["X-Realtime-Client-Id"] = clientId;
   }
 
   await fetchWithAuth<void>("/actions/messages/typing", {
@@ -48,11 +48,11 @@ export async function broadcastMessagesRead(
   conversationId: string,
   messageIds?: string[],
 ): Promise<void> {
-  const socketId = getSocketId();
+  const clientId = getRealtimeClientId();
   const headers: Record<string, string> = {};
 
-  if (socketId) {
-    headers["X-Pusher-Socket-Id"] = socketId;
+  if (clientId) {
+    headers["X-Realtime-Client-Id"] = clientId;
   }
 
   await fetchWithAuth<void>("/actions/messages/read", {

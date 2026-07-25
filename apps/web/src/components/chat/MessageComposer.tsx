@@ -10,7 +10,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { usePusherContext } from "../../contexts/PusherProvider";
+import { useRealtimeContext } from "../../contexts/RealtimeProvider";
 import { useClickOutside, useTextareaAutoResize } from "../../hooks/ui";
 
 // Lazy load emoji picker - only loaded when user opens it
@@ -120,8 +120,8 @@ export function MessageComposer({
   const currentTypingJidRef = useRef<string | null>(null);
   const lastTypingSentTimeRef = useRef<number>(0);
 
-  // Typing actions use REST and are broadcast to teammates through Pusher.
-  const { sendTypingStart } = usePusherContext();
+  // Typing actions use REST and are broadcast to teammates through Centrifugo.
+  const { sendTypingStart } = useRealtimeContext();
 
   // Auto-resize textarea using the hook
   const { reset: resetTextareaHeight } = useTextareaAutoResize(textareaRef, {

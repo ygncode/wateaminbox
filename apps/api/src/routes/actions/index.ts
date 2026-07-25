@@ -11,7 +11,7 @@ import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
 import { createLogger, formatError } from "../../lib/logger.js";
 import { publishTypingCommand } from "../../lib/nats/index.js";
-import { broadcastToCompanyExcept } from "../../lib/pusher.js";
+import { broadcastToCompanyExcept } from "../../lib/realtime.js";
 import { authMiddleware } from "../../middleware/auth.js";
 import {
   legacyMessageSendRemoved,
@@ -47,7 +47,7 @@ actionsRoutes.post(
  * POST /messages/typing - Send typing indicator
  *
  * Broadcasts typing status to other clients in the company channel.
- * The caller's socket_id can be passed to exclude them from receiving the event.
+ * The caller's realtime client ID can be passed to exclude it from the event.
  */
 actionsRoutes.post(
   "/messages/typing",
@@ -59,8 +59,7 @@ actionsRoutes.post(
     const user = c.get("user");
     const { conversationId, contactId, isTyping } = c.req.valid("json");
 
-    // Get socket_id from header if provided (Pusher sends this)
-    const socketId = c.req.header("X-Pusher-Socket-Id");
+    const clientId = c.req.header("X-Realtime-Client-Id");
 
     const eventType = isTyping ? "typing:start" : "typing:stop";
     const payload = {
@@ -84,7 +83,7 @@ actionsRoutes.post(
       }
 
       await Promise.all([
-        broadcastToCompanyExcept(companyId, eventType, payload, socketId),
+        broadcastToCompanyExcept(companyId, eventType, payload, clientId),
         publishTypingCommand(
           companyId,
           contact.whatsapp_connection_id,
@@ -133,7 +132,7 @@ actionsRoutes.post(
     const companyId = c.get("companyId");
     const user = c.get("user");
     const { conversationId, messageIds } = c.req.valid("json");
-    const socketId = c.req.header("X-Pusher-Socket-Id");
+    const clientId = c.req.header("X-Realtime-Client-Id");
 
     try {
       // Broadcast read event to other clients
@@ -145,7 +144,7 @@ actionsRoutes.post(
           readBy: user.id,
           messageIds,
         },
-        socketId,
+        clientId,
       );
 
       return c.json({

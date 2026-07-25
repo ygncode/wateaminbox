@@ -11,7 +11,7 @@ import {
   type NatsCommand,
   publishOutboxCommand,
 } from "../lib/nats/index.js";
-import { broadcastToCompany } from "../lib/pusher.js";
+import { broadcastToCompany } from "../lib/realtime.js";
 import { getTenantConnection, type TenantDatabase } from "./tenant.service.js";
 
 const logger = createLogger("CommandOutbox");

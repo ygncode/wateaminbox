@@ -116,7 +116,8 @@ connectionRoutes.post(
             createdAt: toISOString(),
             updatedAt: toISOString(),
           },
-          message: "Connection initiated. The QR code will arrive via Pusher.",
+          message:
+            "Connection initiated. The QR code will arrive via Centrifugo.",
         },
         201,
       );
@@ -253,11 +254,7 @@ connectionRoutes.delete(
       const deleted = await tenantDb
         .transaction()
         .execute((trx) =>
-          deleteConnectionWithKill(
-            trx,
-            companyId,
-            connectionId,
-          ),
+          deleteConnectionWithKill(trx, companyId, connectionId),
         );
 
       return c.json({

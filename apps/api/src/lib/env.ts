@@ -32,9 +32,12 @@ function getEnvBoolean(key: string, defaultValue?: boolean): boolean {
   return value.toLowerCase() === "true" || value === "1";
 }
 
+const nodeEnv = getEnv("NODE_ENV", "development");
+const isProduction = nodeEnv === "production";
+
 export const env = {
   // Server
-  NODE_ENV: getEnv("NODE_ENV", "development"),
+  NODE_ENV: nodeEnv,
   PORT: getEnvNumber("PORT", 4445),
 
   // Database
@@ -56,11 +59,27 @@ export const env = {
     "http://localhost:4444,http://localhost:3000",
   ),
 
-  // Pusher
-  PUSHER_APP_ID: getEnv("PUSHER_APP_ID", ""),
-  PUSHER_KEY: getEnv("PUSHER_KEY", ""),
-  PUSHER_SECRET: getEnv("PUSHER_SECRET", ""),
-  PUSHER_CLUSTER: getEnv("PUSHER_CLUSTER", "ap1"),
+  // Centrifugo realtime transport
+  CENTRIFUGO_API_URL: getEnv(
+    "CENTRIFUGO_API_URL",
+    isProduction ? "" : "http://localhost:4451/api",
+  ),
+  CENTRIFUGO_HEALTH_URL: getEnv(
+    "CENTRIFUGO_HEALTH_URL",
+    isProduction ? "" : "http://localhost:4451/health",
+  ),
+  CENTRIFUGO_API_KEY: getEnv(
+    "CENTRIFUGO_API_KEY",
+    isProduction ? "" : "development-centrifugo-api-key",
+  ),
+  CENTRIFUGO_TOKEN_HMAC_SECRET: getEnv(
+    "CENTRIFUGO_TOKEN_HMAC_SECRET",
+    isProduction ? "" : "development-centrifugo-token-secret-change-me",
+  ),
+  CENTRIFUGO_REQUEST_TIMEOUT_MS: getEnvNumber(
+    "CENTRIFUGO_REQUEST_TIMEOUT_MS",
+    3000,
+  ),
 
   // Web Push (optional; loaded-app fallback remains active when omitted)
   VAPID_PUBLIC_KEY: getEnv("VAPID_PUBLIC_KEY", ""),
@@ -109,9 +128,10 @@ function validateProductionEnv(): void {
   const required = {
     DATABASE_URL: env.DATABASE_URL,
     JWT_SECRET: env.JWT_SECRET,
-    PUSHER_APP_ID: env.PUSHER_APP_ID,
-    PUSHER_KEY: env.PUSHER_KEY,
-    PUSHER_SECRET: env.PUSHER_SECRET,
+    CENTRIFUGO_API_URL: env.CENTRIFUGO_API_URL,
+    CENTRIFUGO_HEALTH_URL: env.CENTRIFUGO_HEALTH_URL,
+    CENTRIFUGO_API_KEY: env.CENTRIFUGO_API_KEY,
+    CENTRIFUGO_TOKEN_HMAC_SECRET: env.CENTRIFUGO_TOKEN_HMAC_SECRET,
   };
   const missing = Object.entries(required)
     .filter(([, value]) => !value)
@@ -126,6 +146,11 @@ function validateProductionEnv(): void {
   if (env.JWT_SECRET.length < 32) {
     throw new Error(
       "JWT_SECRET must contain at least 32 characters in production",
+    );
+  }
+  if (env.CENTRIFUGO_TOKEN_HMAC_SECRET.length < 32) {
+    throw new Error(
+      "CENTRIFUGO_TOKEN_HMAC_SECRET must contain at least 32 characters in production",
     );
   }
 }

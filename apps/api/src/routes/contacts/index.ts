@@ -24,7 +24,7 @@ import {
   transformContacts,
 } from "../../lib/data-transformers.js";
 import { badRequest, notFound, serverError } from "../../lib/errors.js";
-import { broadcastToCompany } from "../../lib/pusher.js";
+import { broadcastToCompany } from "../../lib/realtime.js";
 import { created, successData, successPaginated } from "../../lib/response.js";
 import { createPaginationMeta } from "../../lib/route-helpers.js";
 import {

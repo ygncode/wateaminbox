@@ -3,7 +3,7 @@
  */
 
 import type { WhatsAppEvent } from "../../lib/nats/index.js";
-import { broadcastToCompany } from "../../lib/pusher.js";
+import { broadcastToCompany } from "../../lib/realtime.js";
 import { normalizeWorkerErrorToast } from "../toast-notification.service.js";
 import { handlerLogger as logger } from "./types.js";
 

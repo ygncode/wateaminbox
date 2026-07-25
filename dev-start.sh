@@ -89,7 +89,9 @@ kill_port() {
     local pid
     pid=$(lsof -ti tcp:"$port" 2>/dev/null || true)
     if [ -n "$pid" ]; then
-        kill -9 $pid 2>/dev/null || true
+        while IFS= read -r process_id; do
+            kill -9 "$process_id" 2>/dev/null || true
+        done <<< "$pid"
         print_success "  Killed process on port $port (PID: $pid)"
     fi
 }
@@ -166,6 +168,13 @@ start_docker_services() {
         sleep 1
     done
     print_success "  NATS is ready"
+
+    # Wait for Centrifugo
+    print_status "  Waiting for Centrifugo..."
+    until curl -fsS http://localhost:4451/health &> /dev/null; do
+        sleep 1
+    done
+    print_success "  Centrifugo is ready"
     
     # Wait for Meilisearch
     print_status "  Waiting for Meilisearch..."
@@ -237,6 +246,7 @@ load_env() {
     if [ -f .env ]; then
         print_status "Loading environment variables from .env..."
         set -a  # automatically export all variables
+        # shellcheck source=/dev/null
         source .env
         set +a
         print_success "Environment variables loaded"
@@ -252,7 +262,8 @@ start_dev_servers() {
     echo ""
     
     # Get absolute path for more robust directory handling
-    local ROOT_DIR="$(pwd)"
+    local ROOT_DIR
+    ROOT_DIR="$(pwd)"
     
     # Start API server using subshell with cd to avoid --cwd issues
     # This is more robust when other processes run in the same directory
@@ -296,6 +307,7 @@ start_dev_servers() {
     echo -e "${GREEN}Infrastructure:${NC}"
     echo -e "  PostgreSQL:  ${BLUE}localhost:4447${NC}"
     echo -e "  NATS:        ${BLUE}localhost:4448${NC} (monitoring: ${BLUE}localhost:8222${NC})"
+    echo -e "  Centrifugo:  ${BLUE}http://localhost:4451${NC}"
     echo -e "  Meilisearch: ${BLUE}http://localhost:4449${NC}"
     echo -e "  MinIO:       ${BLUE}http://localhost:4450${NC} (console: ${BLUE}http://localhost:9001${NC})"
     echo ""

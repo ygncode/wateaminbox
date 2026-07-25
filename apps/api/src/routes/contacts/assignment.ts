@@ -2,7 +2,7 @@ import { zValidator } from "@hono/zod-validator";
 import { getContactDisplayName, toDbDate } from "@wateaminbox/shared";
 import { Hono } from "hono";
 import { forbidden, notFound } from "../../lib/errors.js";
-import { broadcastToCompany } from "../../lib/pusher.js";
+import { broadcastToCompany } from "../../lib/realtime.js";
 import { created, successData, successMessage } from "../../lib/response.js";
 import { assignContactSchema } from "../../lib/schemas/index.js";
 import { getRouteContext } from "../../middleware/context.js";

@@ -20,7 +20,7 @@ import { catalogRoutes } from "./catalogs.js";
 import { mediaRoutes } from "./media.js";
 import { debugRoutes } from "./debug.js";
 import { feedbackRoutes } from "./feedback.js";
-import { pusherRoutes } from "./pusher/index.js";
+import { realtimeRoutes } from "./realtime/index.js";
 import { actionsRoutes } from "./actions/index.js";
 
 export const routes = new Hono();
@@ -89,8 +89,8 @@ routes.route("/debug", debugRoutes);
 // Feedback routes (public)
 routes.route("/feedback", feedbackRoutes);
 
-// Pusher authentication routes
-routes.route("/pusher", pusherRoutes);
+// Realtime connection token route
+routes.route("/realtime", realtimeRoutes);
 
 // Client action routes (REST endpoints for real-time actions)
 routes.route("/actions", actionsRoutes);

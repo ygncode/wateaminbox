@@ -4,7 +4,7 @@ import type {
   LabelsEvent,
   CommandResultEvent,
 } from "../../lib/nats/index.js";
-import { broadcastToCompany } from "../../lib/pusher.js";
+import { broadcastToCompany } from "../../lib/realtime.js";
 import {
   syncCatalogProductsFromWhatsApp,
   syncCatalogsFromWhatsApp,
@@ -16,23 +16,21 @@ import { getTenantConnection } from "../tenant.service.js";
 
 export async function handleLabelsEvent(event: LabelsEvent): Promise<void> {
   const tenantDb = getTenantConnection(event.companyId);
-  const result = await tenantDb.transaction().execute((trx) =>
-    syncLabelsFromWhatsApp(trx, event.payload.labels),
-  );
+  const result = await tenantDb
+    .transaction()
+    .execute((trx) => syncLabelsFromWhatsApp(trx, event.payload.labels));
   await broadcastToCompany(event.companyId, "labels:updated", { result });
 }
 
-export async function handleCatalogsEvent(
-  event: CatalogsEvent,
-): Promise<void> {
+export async function handleCatalogsEvent(event: CatalogsEvent): Promise<void> {
   const tenantDb = getTenantConnection(event.companyId);
   const catalogs = event.payload.catalogs.map((catalog) => ({
     ...catalog,
     status: catalog.status as CatalogStatus | undefined,
   }));
-  const result = await tenantDb.transaction().execute((trx) =>
-    syncCatalogsFromWhatsApp(trx, catalogs),
-  );
+  const result = await tenantDb
+    .transaction()
+    .execute((trx) => syncCatalogsFromWhatsApp(trx, catalogs));
   await broadcastToCompany(event.companyId, "catalogs:updated", { result });
 }
 
@@ -67,9 +65,11 @@ export async function handleCatalogProductsEvent(
     catalogId: event.payload.catalogId,
     visibility: product.visibility as ProductVisibility | undefined,
   }));
-  await tenantDb.transaction().execute((trx) =>
-    syncCatalogProductsFromWhatsApp(trx, event.payload.catalogId, products),
-  );
+  await tenantDb
+    .transaction()
+    .execute((trx) =>
+      syncCatalogProductsFromWhatsApp(trx, event.payload.catalogId, products),
+    );
   await broadcastToCompany(event.companyId, "catalogs:updated", {
     catalogId: event.payload.catalogId,
   });

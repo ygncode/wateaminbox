@@ -8,7 +8,7 @@ import type {
   MessageRevokeEvent,
   ReactionEvent,
 } from "../../lib/nats/index.js";
-import { broadcastToCompany } from "../../lib/pusher.js";
+import { broadcastToCompany } from "../../lib/realtime.js";
 import { getTenantConnection } from "../tenant.service.js";
 import { handlerLogger as logger } from "./types.js";
 

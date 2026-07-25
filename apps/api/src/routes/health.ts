@@ -13,6 +13,7 @@ import { Hono } from "hono";
 import { sql } from "kysely";
 import { env } from "../lib/env.js";
 import { isNatsConnected } from "../lib/nats/index.js";
+import { isCentrifugoReachable } from "../lib/realtime.js";
 import {
   getCommandOutboxBacklog,
   getCommandOutboxHealth,
@@ -26,14 +27,17 @@ export type ReadinessChecks = {
   postgres: boolean;
   nats: boolean;
   eventConsumer: boolean;
-  pusher: { configured: boolean };
+  centrifugo: { configured: boolean; reachable: boolean };
 };
 
 export function evaluateReadiness(
   checks: ReadinessChecks,
 ): "ready" | "degraded" | "unready" {
   if (!checks.postgres) return "unready";
-  return !checks.nats || !checks.eventConsumer || !checks.pusher.configured
+  return !checks.nats ||
+    !checks.eventConsumer ||
+    !checks.centrifugo.configured ||
+    !checks.centrifugo.reachable
     ? "degraded"
     : "ready";
 }
@@ -48,7 +52,7 @@ healthRoutes.get("/", (c) => {
     timestamp: toISOString(),
     services: {
       messageCleanup: getMessageCleanupStatus(),
-      realtime: "pusher",
+      realtime: "centrifugo",
     },
   });
 });
@@ -64,10 +68,13 @@ healthRoutes.get("/ready", async (c) => {
     eventConsumer: isMessageHandlerInitialized(),
     outbox: getCommandOutboxHealth(),
     outboxBacklog: { pending: 0, oldestPendingAt: null as Date | null },
-    pusher: {
+    centrifugo: {
       configured: Boolean(
-        env.PUSHER_APP_ID && env.PUSHER_KEY && env.PUSHER_SECRET,
+        env.CENTRIFUGO_API_URL &&
+          env.CENTRIFUGO_API_KEY &&
+          env.CENTRIFUGO_TOKEN_HMAC_SECRET,
       ),
+      reachable: false,
     },
   };
 
@@ -79,14 +86,18 @@ healthRoutes.get("/ready", async (c) => {
     // PostgreSQL is the source of truth and therefore gates readiness.
   }
 
+  if (checks.centrifugo.configured) {
+    checks.centrifugo.reachable = await isCentrifugoReachable();
+  }
+
   const status = evaluateReadiness(checks);
   if (status === "unready") {
     return c.json({ status, timestamp: toISOString(), checks }, 503);
   }
 
-  // NATS, the consumer, and Pusher are reported as degraded without removing
-  // the API from service; persisted REST operations remain available and the
-  // command outbox recovers delivery when NATS returns.
+  // NATS, the consumer, and Centrifugo are reported as degraded without
+  // removing the API from service; persisted REST operations remain available
+  // and the command outbox recovers delivery when NATS returns.
   return c.json({ status, timestamp: toISOString(), checks });
 });
 

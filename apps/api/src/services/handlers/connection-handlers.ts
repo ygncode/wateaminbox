@@ -10,7 +10,7 @@ import type {
 import { toDbDate } from "@wateaminbox/shared";
 import { getTenantConnection } from "../tenant.service.js";
 import { updateConnectionStatus } from "../whatsapp.service.js";
-import { broadcastToCompany } from "../../lib/pusher.js";
+import { broadcastToCompany } from "../../lib/realtime.js";
 import { formatError } from "../../lib/logger.js";
 import { handlerLogger as logger } from "./types.js";
 

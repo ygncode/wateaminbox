@@ -27,12 +27,11 @@ export {
   useTheme,
 } from "./theme-context";
 export {
-  PusherProvider,
-  type PusherContextValue,
+  RealtimeProvider,
+  type RealtimeContextValue,
   type SyncState,
-  usePusherContext,
   useRealtimeContext,
-} from "./PusherProvider";
+} from "./RealtimeProvider";
 export {
   type MessageActionsContextValue,
   type MessageActionsProviderProps,

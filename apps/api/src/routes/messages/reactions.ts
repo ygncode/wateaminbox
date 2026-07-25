@@ -15,7 +15,7 @@ import { enqueueCommand } from "../../services/command-outbox.service.js";
 import { successData, successMessage } from "../../lib/response.js";
 import { addReactionSchema } from "../../lib/schemas/index.js";
 import { getRouteContext } from "../../middleware/context.js";
-import { broadcastToCompany } from "../../lib/pusher.js";
+import { broadcastToCompany } from "../../lib/realtime.js";
 
 export const reactionRoutes = new Hono();
 

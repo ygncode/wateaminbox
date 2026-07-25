@@ -46,7 +46,7 @@ import {
   showMessageNotification,
 } from "../lib/notifications";
 import { useAuth } from "./auth-context";
-import { useRealtimeContext } from "./PusherProvider";
+import { useRealtimeContext } from "./RealtimeProvider";
 
 export interface NotificationContextValue {
   settings: NotificationSettings;

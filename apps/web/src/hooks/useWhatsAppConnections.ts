@@ -100,7 +100,7 @@ export function useWhatsAppConnections() {
       return {
         ...connection,
         // Realtime state wins when it has a QR. Otherwise fall back to the
-        // persisted QR returned by polling, which covers missed Pusher events.
+        // persisted QR returned by polling, which covers missed realtime events.
         localState: {
           qrCode: local?.qrCode ?? connection.qrCode ?? null,
           qrExpiresAt: local?.qrExpiresAt ?? persistedQrExpiresAt,

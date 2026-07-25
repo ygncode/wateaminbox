@@ -108,7 +108,7 @@ cd wateaminbox
 # Install dependencies
 bun install
 
-# Start Docker services (PostgreSQL, NATS, Meilisearch, MinIO)
+# Start Docker services (PostgreSQL, NATS, Centrifugo, Meilisearch, MinIO)
 docker-compose up -d
 
 # Copy environment files
@@ -169,6 +169,11 @@ bun run dev</code></pre>
                     <td class="px-3 py-3 text-sm text-gray-600">9000</td>
                     <td class="px-3 py-3 text-sm text-gray-600">Media storage (S3-compatible)</td>
                   </tr>
+                  <tr>
+                    <td class="py-3 pl-0 pr-3 text-sm text-gray-900">Centrifugo</td>
+                    <td class="px-3 py-3 text-sm text-gray-600">4451</td>
+                    <td class="px-3 py-3 text-sm text-gray-600">Realtime WebSocket gateway</td>
+                  </tr>
                 </tbody>
               </table>
             </div>
@@ -187,8 +192,7 @@ bun run dev</code></pre>
             <div class="mt-4 rounded-lg bg-gray-900 p-4 overflow-x-auto">
               <pre class="text-sm text-gray-100"><code># apps/web/.env
 VITE_API_URL=http://localhost:4445/api
-VITE_PUSHER_KEY=your-public-pusher-key
-VITE_PUSHER_CLUSTER=ap1</code></pre>
+VITE_CENTRIFUGO_URL=ws://localhost:4451/connection/websocket</code></pre>
             </div>
           </div>
 
@@ -209,10 +213,10 @@ JWT_REFRESH_EXPIRES_IN=7d
 NATS_URL=nats://localhost:4448
 
 # Realtime
-PUSHER_APP_ID=your-app-id
-PUSHER_KEY=your-public-key
-PUSHER_SECRET=your-server-secret
-PUSHER_CLUSTER=ap1
+CENTRIFUGO_API_URL=http://localhost:4451/api
+CENTRIFUGO_HEALTH_URL=http://localhost:4451/health
+CENTRIFUGO_API_KEY=replace-with-a-random-api-key
+CENTRIFUGO_TOKEN_HMAC_SECRET=replace-with-at-least-32-random-characters
 
 # Meilisearch (optional, falls back to PostgreSQL FTS)
 MEILISEARCH_URL=http://localhost:7700
@@ -618,8 +622,8 @@ X-Company-ID: &lt;company-uuid&gt;</code></pre>
           </div>
 
           <div class="mt-8">
-            <h3 class="text-lg font-semibold text-gray-900">Pusher Realtime Events</h3>
-            <p class="mt-2 text-gray-600">Authenticated users subscribe to the private company channel after authorization through <code class="bg-gray-100 px-1 py-0.5 rounded">/api/pusher/auth</code>:</p>
+            <h3 class="text-lg font-semibold text-gray-900">Centrifugo Realtime Events</h3>
+            <p class="mt-2 text-gray-600">Authenticated users receive short-lived connection tokens from <code class="bg-gray-100 px-1 py-0.5 rounded">/api/realtime/token</code> with tenant-scoped server subscriptions:</p>
             <ul class="mt-4 list-disc pl-6 text-gray-600 space-y-2">
               <li><code class="bg-gray-100 px-1 py-0.5 rounded">message:new</code> - New message received</li>
               <li><code class="bg-gray-100 px-1 py-0.5 rounded">message:status</code> - Message delivery status update</li>

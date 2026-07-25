@@ -1,48 +1,63 @@
 # Realtime Architecture
 
-WATeamInbox uses Pusher private channels for server-to-client events. The former Bun/Hono WebSocket server and browser WebSocket client have been removed.
+WATeamInbox uses self-hosted Centrifugo for server-to-browser realtime events. Centrifugo uses the existing NATS server as its horizontal PUB/SUB broker.
 
-## Channel isolation
+## Authentication and channel isolation
 
-Each company has one private channel:
+Every authenticated browser requests a short-lived connection JWT from:
 
 ```text
-private-company-{companyId}
+POST /api/realtime/token
 ```
 
-The browser authorizes a subscription through `POST /api/pusher/auth`. The endpoint requires:
+The endpoint validates the access token, active session, `X-Company-ID`, and company membership. The API—not the browser—places these server-side subscriptions in the JWT:
 
-- A valid access token
-- An active user session
-- `X-Company-ID`
-- Membership in the requested company
-- A channel name matching that company
+```text
+company:{companyId}
+user:{companyId}:{userId}
+```
 
-Pusher credentials are supplied through environment variables. The secret is server-only.
+Centrifugo verifies the JWT signature, audience, issuer, and expiry. The browser never receives the HMAC secret or Centrifugo API key.
 
 ## Event flow
 
 ```text
 WhatsApp -> Go worker -> NATS JetStream -> Bun API -> PostgreSQL
-                                                  -> Pusher private channel
+                                                  -> Centrifugo HTTP API
+                                                  -> NATS broker
+                                                  -> Centrifugo WebSocket
                                                   -> React Query/Zustand
 ```
 
-Client-originated actions use authenticated REST endpoints. Durable WhatsApp commands are committed to a tenant-local transactional outbox in the same transaction as application state. Typing and read-state actions remain ephemeral.
+Client-originated actions use authenticated REST endpoints. The browser includes its Centrifugo client ID when an ephemeral event should be hidden from the originating connection. The API places that ID in the publication and the client transport filters it.
+
+Durable WhatsApp commands are committed to a tenant-local transactional outbox in the same transaction as application state. Typing and read-state actions remain ephemeral.
 
 ## Main files
 
 | Responsibility | File |
 | --- | --- |
-| Server Pusher client | `apps/api/src/lib/pusher.ts` |
-| Channel authorization | `apps/api/src/routes/pusher/auth.ts` |
+| Server publisher and token signer | `apps/api/src/lib/realtime.ts` |
+| Connection token endpoint | `apps/api/src/routes/realtime/index.ts` |
 | REST realtime actions | `apps/api/src/routes/actions/index.ts` |
-| Browser Pusher client | `apps/web/src/lib/pusher.ts` |
-| React provider and cache updates | `apps/web/src/contexts/PusherProvider.tsx` |
+| Browser Centrifugo client | `apps/web/src/lib/realtime.ts` |
+| React provider and cache updates | `apps/web/src/contexts/RealtimeProvider.tsx` |
+| Centrifugo configuration | `infrastructure/centrifugo/config.json` |
 | Shared payload types | `packages/shared/src/websocket-types.ts` |
 
 The shared type filename is retained for API compatibility; it describes realtime event payloads rather than a transport implementation.
 
 ## Reliability
 
-Pusher delivery is used as an invalidation/update signal, not the sole source of truth. The API consumes WhatsApp events through the shared `whatsapp-api-events-v1` durable queue consumer and explicitly acknowledges only successful handlers. Failed handlers are negatively acknowledged for redelivery. Clients invalidate or update React Query caches and can refetch after reconnecting.
+Realtime delivery is an invalidation/update signal, not the sole source of truth. The NATS broker path is at-most-once and does not provide Centrifugo history or recovery. Clients reconcile PostgreSQL-backed state after reconnecting and while long-running synchronization overlays are active.
+
+The API consumes WhatsApp events through the durable `whatsapp-api-events-v1` JetStream consumer. It acknowledges only successful handlers and negatively acknowledges failures for redelivery.
+
+## Production deployment
+
+- Expose only the Centrifugo WebSocket endpoint publicly through TLS (`wss://`).
+- Keep `/api`, `/metrics`, and `/health` private or protected by ingress rules.
+- Give `CENTRIFUGO_API_KEY` and `CENTRIFUGO_TOKEN_HMAC_SECRET` independent random values.
+- Configure `client.allowed_origins` for the production web origin.
+- Run multiple Centrifugo nodes behind a WebSocket-capable load balancer when high availability is required; the NATS broker distributes publications between nodes.
+- Monitor Centrifugo metrics and API readiness.

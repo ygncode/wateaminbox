@@ -16,20 +16,23 @@ A multi-user WhatsApp team inbox for managing customer conversations, assignment
 ## Architecture
 
 ```text
-┌──────────────────┐       HTTP/Pusher       ┌──────────────────┐
-│ React web app    │◀───────────────────────▶│ Hono API (Bun)   │
-└──────────────────┘                         └────────┬─────────┘
-                                                    │
-                                      PostgreSQL / NATS JetStream
-                                                    │
-                                            ┌───────▼────────┐
-                                            │ Go orchestrator │
-                                            └───────┬────────┘
-                                                    │ manages
-                                            ┌───────▼────────┐
-                                            │ WhatsApp worker │
-                                            │   (whatsmeow)   │
-                                            └────────────────┘
+┌──────────────────┐         HTTP          ┌──────────────────┐
+│ React web app    │◀─────────────────────▶│ Hono API (Bun)   │
+└────────┬─────────┘                       └────────┬─────────┘
+         │ WebSocket                                │ publish API
+         ▼                                          ▼
+┌──────────────────┐◀────── NATS broker ──▶┌──────────────────┐
+│   Centrifugo     │                        │ NATS JetStream   │
+└──────────────────┘                        └────────┬─────────┘
+                                                   │
+                                           ┌───────▼────────┐
+                                           │ Go orchestrator │
+                                           └───────┬────────┘
+                                                   │ manages
+                                           ┌───────▼────────┐
+                                           │ WhatsApp worker │
+                                           │   (whatsmeow)   │
+                                           └────────────────┘
 ```
 
 ### Repository layout
@@ -51,7 +54,6 @@ A multi-user WhatsApp team inbox for managing customer conversations, assignment
 - [Bun](https://bun.sh/) 1.2.18 or newer
 - [Go](https://go.dev/) 1.25 or newer
 - [Docker](https://www.docker.com/) with Docker Compose
-- A [Pusher Channels](https://pusher.com/channels) application for realtime communication
 - A [Resend](https://resend.com/) API key for production transactional email (local development uses a log-only transport)
 
 ## Local development
@@ -72,28 +74,21 @@ Create the root environment file:
 cp .env.example .env
 ```
 
-At minimum, replace `JWT_SECRET` with a random value of at least 32 characters and configure Pusher:
+At minimum, replace `JWT_SECRET`, `CENTRIFUGO_API_KEY`, and `CENTRIFUGO_TOKEN_HMAC_SECRET` with independent random values. The token secret must contain at least 32 characters:
 
 ```env
 JWT_SECRET=replace-with-a-random-secret-at-least-32-characters
-
-PUSHER_APP_ID=your-app-id
-PUSHER_KEY=your-key
-PUSHER_SECRET=your-secret
-PUSHER_CLUSTER=ap1
-
-VITE_PUSHER_KEY=your-key
-VITE_PUSHER_CLUSTER=ap1
+CENTRIFUGO_API_KEY=replace-with-a-random-api-key
+CENTRIFUGO_TOKEN_HMAC_SECRET=replace-with-a-random-secret-at-least-32-characters
 ```
 
-The browser key is public; the Pusher secret must only be available to the API.
+Both Centrifugo values are server secrets and must never be exposed to the browser.
 
 Bun loads the root `.env` when commands are run from the repository root. If you run an app directly from its workspace directory, create an app-local ignored `.env` or export the required variables first. Common frontend values are:
 
 ```env
 VITE_API_URL=http://localhost:4445/api
-VITE_PUSHER_KEY=your-key
-VITE_PUSHER_CLUSTER=ap1
+VITE_CENTRIFUGO_URL=ws://localhost:4451/connection/websocket
 ```
 
 ### 3. Start infrastructure
@@ -109,6 +104,8 @@ This starts:
 | PostgreSQL | `localhost:4447` |
 | NATS | `localhost:4448` |
 | NATS monitoring | <http://localhost:8222> |
+| Centrifugo WebSocket/API | <http://localhost:4451> |
+| Centrifugo metrics | <http://localhost:4451/metrics> |
 | Meilisearch | <http://localhost:4449> |
 | MinIO S3 API | <http://localhost:4450> |
 | MinIO console | <http://localhost:9001> |
@@ -209,17 +206,18 @@ The API exposes:
 
 - `GET /api/health` — overall service status
 - `GET /api/health/live` — liveness probe
-- `GET /api/health/ready` — PostgreSQL, NATS, event consumer, outbox, and Pusher readiness
+- `GET /api/health/ready` — PostgreSQL, NATS, event consumer, outbox, and Centrifugo readiness
 
-A missing NATS connection or Pusher configuration reports degraded readiness, while PostgreSQL failure reports the service as unready.
+An unavailable NATS connection or Centrifugo instance reports degraded readiness, while PostgreSQL failure reports the service as unready.
 
 ## Troubleshooting
 
 ### Realtime events do not arrive
 
-- Verify all Pusher server and browser values use the same application and cluster.
-- Check `GET /api/health/ready` for Pusher and NATS status.
-- Confirm the browser successfully authorizes and subscribes to its private company/user channels.
+- Check that `VITE_CENTRIFUGO_URL` is reachable from the browser.
+- Check `GET /api/health/ready` for Centrifugo and NATS status.
+- Confirm the API and Centrifugo use the same token HMAC secret, audience, and issuer.
+- Confirm the browser receives a token from `POST /api/realtime/token`.
 
 ### Web Push does not arrive
 
@@ -243,7 +241,7 @@ docker compose --profile debug up -d nats-box
 
 ## Security notes
 
-- Never commit `.env` files, JWT secrets, Pusher secrets, VAPID private keys, Resend keys, or production storage credentials.
+- Never commit `.env` files, JWT/Centrifugo secrets, VAPID private keys, Resend keys, or production storage credentials.
 - Keep `VITE_*` variables limited to values safe for browsers.
 - Use HTTPS in production.
 - Notification and conversation access is scoped by company membership, permissions, and tenant schema.

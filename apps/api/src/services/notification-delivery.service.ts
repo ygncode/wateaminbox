@@ -1,4 +1,4 @@
-import { broadcastToUser } from "../lib/pusher.js";
+import { broadcastToUser } from "../lib/realtime.js";
 import { createLogger, formatError } from "../lib/logger.js";
 import {
   createNotifications,
@@ -66,7 +66,7 @@ export async function createAndPublishNotifications(
           userId: notification.userId,
           notificationId: notification.id,
           type: notification.notificationType,
-          transport: "pusher",
+          transport: "centrifugo",
           outcome: "failed",
         },
         "Notification persisted but realtime invalidation failed",
@@ -78,7 +78,7 @@ export async function createAndPublishNotifications(
           userId: notification.userId,
           notificationId: notification.id,
           type: notification.notificationType,
-          transport: "pusher",
+          transport: "centrifugo",
           outcome: "published",
         },
         "Notification created",

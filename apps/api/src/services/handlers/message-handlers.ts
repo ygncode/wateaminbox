@@ -20,7 +20,7 @@ import {
   type SendConfirmationEvent,
   type SendFailedEvent,
 } from "../../lib/nats/index.js";
-import { broadcastToCompany } from "../../lib/pusher.js";
+import { broadcastToCompany } from "../../lib/realtime.js";
 import { indexMessage, type MessageDocument } from "../meilisearch.service.js";
 import { sendPushToUsers } from "../notification-delivery.service.js";
 import { resolveIncomingMessageRecipients } from "../notification-recipient.service.js";
