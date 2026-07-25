@@ -126,6 +126,12 @@ export function registerRealtimeEventHandlers({
             updated[existingIndex] = {
               ...updated[existingIndex],
               emoji: payload.emoji,
+              reactorName:
+                payload.reactorName ?? updated[existingIndex].reactorName,
+              reactorAvatarUrl:
+                payload.reactorAvatarUrl ??
+                updated[existingIndex].reactorAvatarUrl,
+              isOwn: payload.isOwn ?? updated[existingIndex].isOwn,
               createdAt: new Date(),
             };
             return { ...message, reactions: updated };
@@ -137,6 +143,9 @@ export function registerRealtimeEventHandlers({
               {
                 emoji: payload.emoji,
                 reactorJid: payload.from,
+                reactorName: payload.reactorName,
+                reactorAvatarUrl: payload.reactorAvatarUrl,
+                isOwn: payload.isOwn,
                 createdAt: new Date(),
               },
             ],

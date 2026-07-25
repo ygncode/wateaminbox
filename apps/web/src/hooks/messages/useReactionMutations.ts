@@ -8,6 +8,7 @@ const OPTIMISTIC_REACTOR_JID = "current-user";
 interface ReactionResponse {
   emoji: string;
   reactorJid: string;
+  isOwn: boolean;
 }
 
 /**
@@ -110,6 +111,7 @@ export function useReactMessage() {
                     {
                       emoji: variables.emoji,
                       reactorJid,
+                      isOwn: true,
                       createdAt: new Date(),
                     },
                   ],
@@ -160,6 +162,7 @@ export function useReactMessage() {
                     {
                       emoji: reaction.emoji,
                       reactorJid: reaction.reactorJid,
+                      isOwn: reaction.isOwn,
                       createdAt: new Date(),
                     },
                   ],

@@ -5,8 +5,8 @@ import {
   buildQuotedMessageData,
   formatMessagesForConversation,
   type MessageDbRow,
-  type ReactionData,
 } from "../../lib/message-formatters.js";
+import { loadMessageReactions } from "../../lib/message-reactions.js";
 import {
   buildCommandSubject,
   buildSendMessageCommand,
@@ -90,28 +90,10 @@ messageRoutes.get(
       );
     }
 
-    // Get reactions for all messages
-    const messageIds = messages.map((m) => m.id);
-    const reactionsMap = new Map<string, ReactionData[]>();
-    if (messageIds.length > 0) {
-      const reactions = await tenantDb
-        .selectFrom("message_reactions")
-        .select(["message_id", "emoji", "reactor_jid", "created_at"])
-        .where("message_id", "in", messageIds)
-        .orderBy("created_at", "asc")
-        .execute();
-
-      // Group reactions by message ID
-      for (const reaction of reactions) {
-        const existing = reactionsMap.get(reaction.message_id) || [];
-        existing.push({
-          emoji: reaction.emoji,
-          reactorJid: reaction.reactor_jid,
-          createdAt: reaction.created_at,
-        });
-        reactionsMap.set(reaction.message_id, existing);
-      }
-    }
+    const reactionsMap = await loadMessageReactions(
+      tenantDb,
+      messages as MessageDbRow[],
+    );
 
     // Map to frontend format using shared formatter
     const formattedMessages = formatMessagesForConversation(

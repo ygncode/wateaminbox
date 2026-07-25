@@ -12,6 +12,7 @@ export interface MessageDbRow {
   id: string;
   message_id: string | null;
   contact_id: string;
+  whatsapp_connection_id: string | null;
   from_me: boolean;
   sender_jid: string | null;
   sender_name: string | null;
@@ -58,6 +59,9 @@ export interface QuotedMessageData {
 export interface ReactionData {
   emoji: string;
   reactorJid: string;
+  reactorName?: string | null;
+  reactorAvatarUrl?: string | null;
+  isOwn?: boolean;
   createdAt: Date;
 }
 

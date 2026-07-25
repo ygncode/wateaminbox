@@ -120,12 +120,17 @@ reactionRoutes.post(
         contactId: message.contact_id,
         from: connection.jid,
         emoji: body.emoji,
+        isOwn: true,
         timestamp: nowMs(),
       },
       connection.id,
     );
 
-    return successData(c, { emoji: body.emoji, reactorJid: connection.jid });
+    return successData(c, {
+      emoji: body.emoji,
+      reactorJid: connection.jid,
+      isOwn: true,
+    });
   },
 );
 

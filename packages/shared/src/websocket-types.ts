@@ -198,6 +198,9 @@ export interface MessageReactionPayload {
   contactId: string;
   from: string;
   emoji: string;
+  reactorName?: string | null;
+  reactorAvatarUrl?: string | null;
+  isOwn?: boolean;
   timestamp: string;
 }
 

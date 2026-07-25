@@ -1,6 +1,12 @@
 export interface MessageReaction {
   emoji: string;
   reactorJid: string;
+  /** Best available saved contact or WhatsApp push name. */
+  reactorName?: string | null;
+  /** Best available WhatsApp profile picture. */
+  reactorAvatarUrl?: string | null;
+  /** Whether the reaction came from the connected WhatsApp account. */
+  isOwn?: boolean;
   createdAt: Date;
 }
 

@@ -4,6 +4,7 @@
 
 import { toDbDate } from "@wateaminbox/shared";
 import { formatError } from "../../lib/logger.js";
+import { loadMessageReactions } from "../../lib/message-reactions.js";
 import type {
   MessageRevokeEvent,
   ReactionEvent,
@@ -36,7 +37,7 @@ export async function handleReactionEvent(event: ReactionEvent): Promise<void> {
     // Find the message being reacted to (by WhatsApp message_id field, not the internal id)
     const message = await tenantDb
       .selectFrom("messages")
-      .select(["id", "contact_id"])
+      .select(["id", "contact_id", "whatsapp_connection_id"])
       .where("message_id", "=", payload.messageId)
       .where("whatsapp_connection_id", "=", connectionId)
       .executeTakeFirst();
@@ -73,6 +74,12 @@ export async function handleReactionEvent(event: ReactionEvent): Promise<void> {
         .execute();
     }
 
+    const reactionDetails = payload.emoji
+      ? (await loadMessageReactions(tenantDb, [message]))
+          .get(message.id)
+          ?.find((reaction) => reaction.reactorJid === payload.from)
+      : undefined;
+
     // Broadcast to clients
     await broadcastToCompany(
       companyId,
@@ -82,6 +89,9 @@ export async function handleReactionEvent(event: ReactionEvent): Promise<void> {
         contactId: message.contact_id, // Use contact_id instead of conversationId
         from: payload.from,
         emoji: payload.emoji,
+        reactorName: reactionDetails?.reactorName,
+        reactorAvatarUrl: reactionDetails?.reactorAvatarUrl,
+        isOwn: reactionDetails?.isOwn,
         timestamp: payload.timestamp,
       },
       connectionId,
