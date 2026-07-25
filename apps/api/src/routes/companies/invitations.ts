@@ -40,6 +40,7 @@ invitationRoutes.get(
       id: inv.id,
       companyId: inv.company_id,
       email: inv.email,
+      role: inv.role,
       token: inv.token,
       invitedBy: inv.invited_by,
       expiresAt: inv.expires_at,

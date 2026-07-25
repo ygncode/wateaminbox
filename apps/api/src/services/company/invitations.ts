@@ -10,6 +10,8 @@ import { randomBytes } from "crypto";
 import { sql } from "kysely";
 import { sendInvitationEmail } from "../../lib/email.js";
 import {
+  InvitationDeliveryError,
+  InvitationEmailMismatchError,
   InvitationExpiredError,
   InvitationNotFoundError,
   UserAlreadyMemberError,
@@ -26,6 +28,22 @@ import type {
 
 const logger = createLogger("CompanyInvitations");
 
+type InvitationEmailSender = typeof sendInvitationEmail;
+
+export function normalizeInvitationEmail(email: string): string {
+  return email.trim().toLowerCase();
+}
+
+export function invitationEmailMatches(
+  invitationEmail: string,
+  userEmail: string,
+): boolean {
+  return (
+    normalizeInvitationEmail(invitationEmail) ===
+    normalizeInvitationEmail(userEmail)
+  );
+}
+
 /**
  * Creates an invitation to join a company
  */
@@ -33,60 +51,45 @@ export async function inviteMember(
   companyId: string,
   input: InviteMemberInput,
   invitedBy: string,
+  emailSender: InvitationEmailSender = sendInvitationEmail,
 ): Promise<Invitation> {
-  // Verify company exists and get company name
   const company = await getCompany(companyId);
+  const email = normalizeInvitationEmail(input.email);
+  const role = input.role ?? "member";
 
-  // Get inviter email
   const inviter = await db
     .selectFrom("users")
     .select(["email"])
     .where("id", "=", invitedBy)
     .executeTakeFirst();
-
   const inviterEmail = inviter?.email || "A team member";
 
-  // Check if user is already a member
   const existingUser = await db
     .selectFrom("users as u")
     .innerJoin("company_members as cm", "cm.user_id", "u.id")
-    .where("u.email", "=", input.email)
+    .where(sql`lower(u.email)`, "=", email)
     .where("cm.company_id", "=", companyId)
     .executeTakeFirst();
+  if (existingUser) throw new UserAlreadyMemberError(email);
 
-  if (existingUser) {
-    throw new UserAlreadyMemberError(input.email);
-  }
-
-  // Check if there's already a pending invitation
+  // Keep an existing valid invitation until replacement delivery succeeds.
   const existingInvitation = await db
     .selectFrom("invitations")
     .select(["id"])
     .where("company_id", "=", companyId)
-    .where("email", "=", input.email)
+    .where(sql`lower(email)`, "=", email)
     .where("accepted_at", "is", null)
     .where("expires_at", ">", toDbDate())
     .executeTakeFirst();
 
-  if (existingInvitation) {
-    // Cancel existing invitation and create new one
-    await db
-      .deleteFrom("invitations")
-      .where("id", "=", existingInvitation.id)
-      .execute();
-  }
-
-  // Generate a secure token
   const token = randomBytes(32).toString("hex");
-
-  // Set expiration to 7 days from now
   const expiresAt = addDays(toDbDate(), 7).toDate();
-
   const invitation = await db
     .insertInto("invitations")
     .values({
       company_id: companyId,
-      email: input.email,
+      email,
+      role,
       token,
       invited_by: invitedBy,
       expires_at: expiresAt,
@@ -96,6 +99,7 @@ export async function inviteMember(
       "id",
       "company_id",
       "email",
+      "role",
       "token",
       "invited_by",
       "expires_at",
@@ -104,22 +108,37 @@ export async function inviteMember(
     ])
     .executeTakeFirstOrThrow();
 
-  // Send invitation email (fire and forget, don't block on email delivery)
-  sendInvitationEmail(input.email, token, company.name, inviterEmail)
-    .then((result) => {
-      if (!result.success) {
-        logger.warn(
-          { email: input.email, error: result.error },
-          "Failed to send invitation email",
-        );
-      }
-    })
-    .catch((err) => {
-      logger.error(
-        { email: input.email, error: err },
-        "Error sending invitation email",
-      );
-    });
+  let deliveryError: string | undefined;
+  try {
+    const delivery = await emailSender(
+      email,
+      token,
+      company.name,
+      inviterEmail,
+    );
+    if (!delivery.success) deliveryError = delivery.error || "Unknown error";
+  } catch (error) {
+    deliveryError = error instanceof Error ? error.message : "Unknown error";
+  }
+
+  if (deliveryError) {
+    await db
+      .deleteFrom("invitations")
+      .where("id", "=", invitation.id)
+      .execute();
+    logger.warn(
+      { email, error: deliveryError },
+      "Invitation was rolled back because email delivery failed",
+    );
+    throw new InvitationDeliveryError(email);
+  }
+
+  if (existingInvitation) {
+    await db
+      .deleteFrom("invitations")
+      .where("id", "=", existingInvitation.id)
+      .execute();
+  }
 
   return invitation as unknown as Invitation;
 }
@@ -136,6 +155,7 @@ export async function getPendingInvitations(
       "id",
       "company_id",
       "email",
+      "role",
       "token",
       "invited_by",
       "expires_at",
@@ -183,6 +203,7 @@ export async function acceptInvitation(
       "id",
       "company_id",
       "email",
+      "role",
       "invited_by",
       "expires_at",
       "accepted_at",
@@ -199,14 +220,40 @@ export async function acceptInvitation(
     throw new InvitationExpiredError();
   }
 
+  const recipient = await db
+    .selectFrom("users")
+    .select("email")
+    .where("id", "=", userId)
+    .executeTakeFirst();
+  if (
+    !recipient ||
+    !invitationEmailMatches(invitation.email, recipient.email)
+  ) {
+    throw new InvitationEmailMismatchError();
+  }
+
+  const existingMembership = await db
+    .selectFrom("company_members")
+    .select("id")
+    .where("company_id", "=", invitation.company_id)
+    .where("user_id", "=", userId)
+    .executeTakeFirst();
+  if (existingMembership) {
+    throw new UserAlreadyMemberError(recipient.email);
+  }
+
   // Start a transaction
   const result = await db.transaction().execute(async (trx) => {
-    // Mark invitation as accepted
-    await trx
+    // Atomically claim the invitation so concurrent acceptance cannot add
+    // duplicate memberships or increment company statistics twice.
+    const claimedInvitation = await trx
       .updateTable("invitations")
       .set({ accepted_at: toDbDate() })
       .where("id", "=", invitation.id)
-      .execute();
+      .where("accepted_at", "is", null)
+      .returning("id")
+      .executeTakeFirst();
+    if (!claimedInvitation) throw new InvitationNotFoundError(token);
 
     // Add user as a member
     const member = await trx
@@ -214,7 +261,7 @@ export async function acceptInvitation(
       .values({
         user_id: userId,
         company_id: invitation.company_id,
-        role: "member",
+        role: invitation.role,
         permissions: {},
         invited_by: invitation.invited_by,
         joined_at: toDbDate(),
@@ -269,6 +316,7 @@ export async function getInvitationByToken(
       "i.created_at",
       "c.name as company_name",
       "u.email as inviter_email",
+      "i.role",
     ])
     .where("i.token", "=", token)
     .executeTakeFirst();
@@ -290,6 +338,7 @@ export async function getInvitationByToken(
     email: result.email,
     companyName: result.company_name,
     invitedBy: result.inviter_email,
+    role: result.role,
     expiresAt: result.expires_at,
     createdAt: result.created_at,
   };
@@ -302,26 +351,23 @@ export async function resendInvitation(
   companyId: string,
   invitationId: string,
   userId: string,
+  emailSender: InvitationEmailSender = sendInvitationEmail,
 ): Promise<Invitation> {
-  // Get company name
   const company = await getCompany(companyId);
-
-  // Get resender email
   const resender = await db
     .selectFrom("users")
     .select(["email"])
     .where("id", "=", userId)
     .executeTakeFirst();
-
   const resenderEmail = resender?.email || "A team member";
 
-  // Find the invitation
   const invitation = await db
     .selectFrom("invitations")
     .select([
       "id",
       "company_id",
       "email",
+      "role",
       "token",
       "invited_by",
       "expires_at",
@@ -332,27 +378,19 @@ export async function resendInvitation(
     .where("company_id", "=", companyId)
     .where("accepted_at", "is", null)
     .executeTakeFirst();
+  if (!invitation) throw new InvitationNotFoundError(invitationId);
 
-  if (!invitation) {
-    throw new InvitationNotFoundError(invitationId);
-  }
-
-  // Generate new token and extend expiry
   const newToken = randomBytes(32).toString("hex");
   const expiresAt = addDays(toDbDate(), 7).toDate();
-
   const updated = await db
     .updateTable("invitations")
-    .set({
-      token: newToken,
-      expires_at: expiresAt,
-      invited_by: userId, // Update to current resender
-    })
+    .set({ token: newToken, expires_at: expiresAt, invited_by: userId })
     .where("id", "=", invitationId)
     .returning([
       "id",
       "company_id",
       "email",
+      "role",
       "token",
       "invited_by",
       "expires_at",
@@ -361,22 +399,37 @@ export async function resendInvitation(
     ])
     .executeTakeFirstOrThrow();
 
-  // Send invitation email (fire and forget, don't block on email delivery)
-  sendInvitationEmail(updated.email, newToken, company.name, resenderEmail)
-    .then((result) => {
-      if (!result.success) {
-        logger.warn(
-          { email: updated.email, error: result.error },
-          "Failed to send invitation email on resend",
-        );
-      }
-    })
-    .catch((err) => {
-      logger.error(
-        { email: updated.email, error: err },
-        "Error sending invitation email on resend",
-      );
-    });
+  let deliveryError: string | undefined;
+  try {
+    const delivery = await emailSender(
+      updated.email,
+      newToken,
+      company.name,
+      resenderEmail,
+    );
+    if (!delivery.success) deliveryError = delivery.error || "Unknown error";
+  } catch (error) {
+    deliveryError = error instanceof Error ? error.message : "Unknown error";
+  }
+
+  if (deliveryError) {
+    // Preserve the previously valid invitation when a resend cannot be delivered.
+    await db
+      .updateTable("invitations")
+      .set({
+        token: invitation.token,
+        expires_at: invitation.expires_at,
+        invited_by: invitation.invited_by,
+      })
+      .where("id", "=", invitationId)
+      .where("token", "=", newToken)
+      .execute();
+    logger.warn(
+      { email: invitation.email, error: deliveryError },
+      "Invitation resend was rolled back because email delivery failed",
+    );
+    throw new InvitationDeliveryError(invitation.email);
+  }
 
   return updated as unknown as Invitation;
 }

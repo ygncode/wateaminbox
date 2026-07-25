@@ -52,7 +52,7 @@ A multi-user WhatsApp team inbox for managing customer conversations, assignment
 - [Go](https://go.dev/) 1.25 or newer
 - [Docker](https://www.docker.com/) with Docker Compose
 - A [Pusher Channels](https://pusher.com/channels) application for realtime communication
-- Optional: a [Resend](https://resend.com/) API key for transactional email
+- A [Resend](https://resend.com/) API key for production transactional email (local development uses a log-only transport)
 
 ## Local development
 

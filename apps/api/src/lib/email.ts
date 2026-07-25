@@ -22,14 +22,22 @@ export interface EmailResult {
  * This is a placeholder implementation - integrate with Resend API
  */
 export async function sendEmail(options: EmailOptions): Promise<EmailResult> {
-  // In development, just log the email
-  if (env.NODE_ENV === "development" || !env.RESEND_API_KEY) {
+  // Development and tests deliberately use a local log-only transport.
+  if (env.NODE_ENV === "development" || env.NODE_ENV === "test") {
     logger.info(
       { to: options.to, subject: options.subject },
-      "Email (dev mode) - not sending",
+      "Email (local mode) - not sending",
     );
     logger.debug({ body: options.text || options.html }, "Email body");
-    return { success: true, messageId: "dev-" + nowMs() };
+    return { success: true, messageId: "local-" + nowMs() };
+  }
+
+  if (!env.RESEND_API_KEY) {
+    logger.error(
+      { to: options.to, subject: options.subject },
+      "Email delivery is not configured",
+    );
+    return { success: false, error: "Email delivery is not configured" };
   }
 
   try {
@@ -147,7 +155,7 @@ export async function sendInvitationEmail(
     html: `
       <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
         <h1 style="color: #333;">You're invited to join ${companyName}</h1>
-        <p>${inviterEmail} has invited you to join their team on WhatsApp Web.</p>
+        <p>${inviterEmail} has invited you to join their team on WATeamInbox.</p>
         <p>Click the button below to accept the invitation and get started.</p>
         <a href="${inviteUrl}" style="display: inline-block; background-color: #22c55e; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; margin: 16px 0;">
           Accept Invitation

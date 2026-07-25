@@ -38,6 +38,7 @@ export interface Invitation {
   id: string;
   company_id: string;
   email: string;
+  role: "admin" | "member";
   token: string;
   invited_by: string;
   expires_at: Date;
@@ -84,6 +85,7 @@ export interface InvitationPreview {
   email: string;
   companyName: string;
   invitedBy: string;
+  role: "admin" | "member";
   expiresAt: Date;
   createdAt: Date;
 }

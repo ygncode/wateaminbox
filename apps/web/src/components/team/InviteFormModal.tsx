@@ -1,5 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Shield, ShieldCheck, X } from "lucide-react";
+import { AlertCircle, Shield, ShieldCheck, X } from "lucide-react";
+import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
@@ -16,6 +17,7 @@ import type { InviteFormModalProps } from "./types";
  */
 export function InviteFormModal({ companyId, onClose }: InviteFormModalProps) {
   const inviteMember = useInviteMember();
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const {
     register,
@@ -35,12 +37,19 @@ export function InviteFormModal({ companyId, onClose }: InviteFormModalProps) {
   const role = watch("role");
 
   const onSubmit = async (data: InviteTeamMemberFormData) => {
-    await inviteMember.mutateAsync({
-      companyId,
-      email: data.email,
-      role: data.role,
-    });
-    onClose();
+    setSubmitError(null);
+    try {
+      await inviteMember.mutateAsync({
+        companyId,
+        email: data.email,
+        role: data.role,
+      });
+      onClose();
+    } catch (error) {
+      setSubmitError(
+        error instanceof Error ? error.message : "Could not send invitation",
+      );
+    }
   };
 
   return (
@@ -130,6 +139,16 @@ export function InviteFormModal({ companyId, onClose }: InviteFormModalProps) {
               </p>
             )}
           </div>
+
+          {submitError && (
+            <div
+              role="alert"
+              className="flex items-start gap-2 rounded-lg bg-red-50 p-3 text-sm text-red-700 dark:bg-red-950/30 dark:text-red-300"
+            >
+              <AlertCircle className="mt-0.5 size-4 shrink-0" />
+              <span>{submitError}</span>
+            </div>
+          )}
 
           <div className="flex gap-2 pt-2">
             <Button

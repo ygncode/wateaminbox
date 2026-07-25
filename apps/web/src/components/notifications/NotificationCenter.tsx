@@ -10,7 +10,16 @@ import {
   Users,
   X,
 } from "lucide-react";
-import { memo, useCallback, useEffect, useRef, useState } from "react";
+import {
+  memo,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type HTMLAttributes,
+  type RefObject,
+} from "react";
+import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import { formatStatusTime } from "@wateaminbox/shared";
 import { AriaLive } from "@/components/ui/aria-live";
@@ -256,10 +265,14 @@ function NotificationPanel({
   isOpen,
   onClose,
   controller,
+  triggerRef,
+  embedded = false,
 }: {
   isOpen: boolean;
   onClose: () => void;
   controller: ReturnType<typeof useNotificationCenter>;
+  triggerRef: RefObject<HTMLButtonElement | null>;
+  embedded?: boolean;
 }) {
   const navigate = useNavigate();
   const panelRef = useRef<HTMLDivElement>(null);
@@ -293,9 +306,11 @@ function NotificationPanel({
     if (!isOpen) return;
 
     function handleClickOutside(event: MouseEvent) {
+      const target = event.target as Node;
       if (
         panelRef.current &&
-        !panelRef.current.contains(event.target as Node)
+        !panelRef.current.contains(target) &&
+        !triggerRef.current?.contains(target)
       ) {
         onClose();
       }
@@ -310,7 +325,7 @@ function NotificationPanel({
       clearTimeout(timer);
       document.removeEventListener("mousedown", handleClickOutside);
     };
-  }, [isOpen, onClose]);
+  }, [isOpen, onClose, triggerRef]);
 
   // Close on Escape
   useEffect(() => {
@@ -332,8 +347,10 @@ function NotificationPanel({
     <div
       ref={panelRef}
       className={cn(
-        "fixed right-3 top-16 z-50 flex h-[min(680px,calc(100dvh-5rem))] w-[min(400px,calc(100vw-1.5rem))] flex-col overflow-hidden rounded-2xl border border-gray-200 shadow-2xl md:right-5",
-        "bg-white dark:border-dark-border dark:bg-dark-secondary",
+        "z-50 flex flex-col overflow-hidden bg-white dark:bg-dark-secondary",
+        embedded
+          ? "absolute inset-0 h-full w-full animate-in border-0 fade-in-0 slide-in-from-left-2 duration-200"
+          : "fixed right-3 top-16 h-[min(680px,calc(100dvh-5rem))] w-[min(400px,calc(100vw-1.5rem))] rounded-2xl border border-gray-200 shadow-2xl dark:border-dark-border md:right-5",
       )}
       data-testid="notification-panel"
     >
@@ -423,9 +440,20 @@ function NotificationPanel({
 /**
  * Main NotificationCenter component - Bell trigger + full panel overlay
  */
-export const NotificationCenter = memo(function NotificationCenter() {
+interface NotificationCenterProps {
+  /** Optional trigger styling for navigation rails and compact headers. */
+  className?: HTMLAttributes<HTMLButtonElement>["className"];
+  /** When provided, the panel fills this element instead of floating. */
+  panelContainer?: HTMLElement | null;
+}
+
+export const NotificationCenter = memo(function NotificationCenter({
+  className,
+  panelContainer,
+}: NotificationCenterProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [announcement, setAnnouncement] = useState("");
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const prevUnreadCountRef = useRef<number | null>(null);
 
   const controller = useNotificationCenter(undefined, { listEnabled: isOpen });
@@ -461,14 +489,17 @@ export const NotificationCenter = memo(function NotificationCenter() {
       <AriaLive politeness="polite">{announcement}</AriaLive>
 
       <Button
+        ref={triggerRef}
         variant="ghost"
         size="sm"
         className={cn(
           "relative size-9 p-0 rounded-full",
           "hover:bg-whatsapp-green/10 hover:text-whatsapp-dark-green",
           isOpen && "bg-whatsapp-green/10 text-whatsapp-dark-green",
+          className,
         )}
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={() => setIsOpen((open) => !open)}
+        title="Notifications"
         aria-label={
           unreadCount > 0
             ? `Notifications, ${unreadCount} unread`
@@ -489,11 +520,25 @@ export const NotificationCenter = memo(function NotificationCenter() {
         )}
       </Button>
 
-      <NotificationPanel
-        isOpen={isOpen}
-        onClose={() => setIsOpen(false)}
-        controller={controller}
-      />
+      {panelContainer ? (
+        createPortal(
+          <NotificationPanel
+            isOpen={isOpen}
+            onClose={() => setIsOpen(false)}
+            controller={controller}
+            triggerRef={triggerRef}
+            embedded
+          />,
+          panelContainer,
+        )
+      ) : (
+        <NotificationPanel
+          isOpen={isOpen}
+          onClose={() => setIsOpen(false)}
+          controller={controller}
+          triggerRef={triggerRef}
+        />
+      )}
     </>
   );
 });

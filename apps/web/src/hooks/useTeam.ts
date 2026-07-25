@@ -60,10 +60,11 @@ export function useInviteMember() {
       email: string;
       role?: "admin" | "member";
     }) => {
-      return api.post<Invitation>(`/companies/${companyId}/invitations`, {
-        email,
-        role,
-      });
+      const response = await api.post<{ invitation: Invitation }>(
+        `/companies/${companyId}/invitations`,
+        { email, role },
+      );
+      return response.invitation;
     },
     onSuccess: (_, variables) => {
       invalidate(queryKeys.team.invitations(variables.companyId));
@@ -107,10 +108,11 @@ export function useResendInvitation() {
       companyId: string;
       invitationId: string;
     }) => {
-      return api.post<Invitation>(
+      const response = await api.post<{ invitation: Invitation }>(
         `/companies/${companyId}/invitations/${invitationId}/resend`,
         {},
       );
+      return response.invitation;
     },
     onSuccess: (_, variables) => {
       invalidate(queryKeys.team.invitations(variables.companyId));
@@ -180,6 +182,7 @@ export function useInvitationByToken(token: string | null) {
         email: string;
         companyName: string;
         invitedBy: string;
+        role: "admin" | "member";
         expiresAt: string;
         createdAt: string;
       }>(`/invitations/${token}`);
@@ -200,6 +203,7 @@ export function useAcceptInvitation() {
   return useMutation({
     mutationFn: async (token: string) => {
       return api.post<{
+        message: string;
         company: { id: string; name: string };
         member: CompanyMember;
       }>(`/invitations/${token}/accept`, {});

@@ -214,6 +214,20 @@ export class InvitationExpiredError extends ValidationError {
   }
 }
 
+export class InvitationEmailMismatchError extends ForbiddenError {
+  constructor() {
+    super("This invitation was sent to a different email address");
+    this.name = "InvitationEmailMismatchError";
+  }
+}
+
+export class InvitationDeliveryError extends ServiceUnavailableError {
+  constructor(email: string) {
+    super(`Could not send the invitation email to ${email}`);
+    this.name = "InvitationDeliveryError";
+  }
+}
+
 export class UserAlreadyMemberError extends ConflictError {
   constructor(email: string) {
     super(`User ${email} is already a member of this company`);

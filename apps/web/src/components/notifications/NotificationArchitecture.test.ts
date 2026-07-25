@@ -4,15 +4,18 @@ const readSource = async (relativePath: string) =>
   Bun.file(new URL(relativePath, import.meta.url)).text();
 
 describe("global notification architecture", () => {
-  test("mounts one provider and one protected notification center", async () => {
-    const [main, layout, sidebar] = await Promise.all([
+  test("mounts one provider and docks the chat notification center", async () => {
+    const [main, layout, chatPage, sidebar] = await Promise.all([
       readSource("../../main.tsx"),
       readSource("../layout/ProtectedAppLayout.tsx"),
+      readSource("../../pages/ChatPage.tsx"),
       readSource("../chat/ChatSidebar.tsx"),
     ]);
     expect(main.match(/<NotificationProvider>/g)?.length).toBe(1);
-    expect(layout.match(/<NotificationCenter\s*\/>/g)?.length).toBe(1);
-    expect(sidebar).not.toContain("NotificationCenter");
+    expect(layout).toContain("!isChatRoute");
+    expect(chatPage.match(/<NotificationCenter/g)?.length).toBe(1);
+    expect(chatPage).toContain("panelContainer={notificationPanelHost}");
+    expect(sidebar).toContain("{notificationAction}");
   });
 
   test("the bell and panel share one notification controller", async () => {

@@ -62,6 +62,7 @@ export interface InvitationsTable {
   id: Generated<string>;
   company_id: string;
   email: string;
+  role: Generated<Exclude<CompanyMemberRole, "owner">>;
   token: string;
   invited_by: string;
   expires_at: Date;

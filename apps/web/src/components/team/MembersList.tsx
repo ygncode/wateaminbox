@@ -25,13 +25,18 @@ export function MembersList({
   const [pendingRemove, setPendingRemove] = useState<string | null>(null);
 
   const isAdmin = currentUserRole === "owner" || currentUserRole === "admin";
+  const actionError = updateRole.error || removeMember.error;
 
   const handleRoleChange = async (
     userId: string,
     newRole: "admin" | "member",
   ) => {
-    await updateRole.mutateAsync({ companyId, userId, role: newRole });
-    setMenuOpenFor(null);
+    try {
+      await updateRole.mutateAsync({ companyId, userId, role: newRole });
+      setMenuOpenFor(null);
+    } catch {
+      // React Query exposes the error in the action banner below.
+    }
   };
 
   const handleRemove = (userId: string) => {
@@ -40,9 +45,12 @@ export function MembersList({
   };
 
   const handleConfirmRemove = async () => {
-    if (pendingRemove) {
+    if (!pendingRemove) return;
+    try {
       await removeMember.mutateAsync({ companyId, userId: pendingRemove });
       setPendingRemove(null);
+    } catch {
+      // Keep the confirmation open and show the API error.
     }
   };
 
@@ -74,6 +82,14 @@ export function MembersList({
     ),
     success: (members) => (
       <>
+        {actionError && (
+          <div
+            role="alert"
+            className="mb-4 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700 dark:bg-red-950/30 dark:text-red-300"
+          >
+            {actionError.message || "Could not update this team member"}
+          </div>
+        )}
         <div className="space-y-2">
           {members.map((member) => (
             <MemberCard

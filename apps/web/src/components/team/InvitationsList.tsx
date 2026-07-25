@@ -16,15 +16,23 @@ export function InvitationsList({ companyId }: InvitationsListProps) {
   const { renderState } = useAsyncData(usePendingInvitations(companyId));
   const cancelInvitation = useCancelInvitation();
   const resendInvitation = useResendInvitation();
+  const actionError = cancelInvitation.error || resendInvitation.error;
 
   const handleCancel = async (invitationId: string) => {
-    if (confirm("Are you sure you want to cancel this invitation?")) {
+    if (!confirm("Are you sure you want to cancel this invitation?")) return;
+    try {
       await cancelInvitation.mutateAsync({ companyId, invitationId });
+    } catch {
+      // React Query exposes the error in the action banner below.
     }
   };
 
   const handleResend = async (invitationId: string) => {
-    await resendInvitation.mutateAsync({ companyId, invitationId });
+    try {
+      await resendInvitation.mutateAsync({ companyId, invitationId });
+    } catch {
+      // React Query exposes the error in the action banner below.
+    }
   };
 
   return renderState({
@@ -48,6 +56,14 @@ export function InvitationsList({ companyId }: InvitationsListProps) {
     ),
     success: (invitations) => (
       <div className="space-y-2">
+        {actionError && (
+          <div
+            role="alert"
+            className="mb-4 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700 dark:bg-red-950/30 dark:text-red-300"
+          >
+            {actionError.message || "Could not update this invitation"}
+          </div>
+        )}
         {invitations.map((invitation) => (
           <InvitationCard
             key={invitation.id}

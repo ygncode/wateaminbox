@@ -3,6 +3,7 @@ import {
   CheckCircle,
   Clock,
   Mail,
+  ShieldCheck,
   User,
   XCircle,
 } from "lucide-react";
@@ -11,6 +12,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { dayjs, now } from "@wateaminbox/shared";
 import { Button, Skeleton } from "../components/ui";
 import { useAuth } from "../contexts/auth-context";
+import { setCompanyId } from "../lib/api";
 import { useAcceptInvitation, useInvitationByToken } from "../hooks/useTeam";
 
 /**
@@ -49,10 +51,12 @@ export function AcceptInvitationPage() {
 
     try {
       setError(null);
-      await acceptInvitation.mutateAsync(token);
-      setAccepted(true);
-      // Refresh the session to update companies list
+      const result = await acceptInvitation.mutateAsync(token);
+      // Select the newly joined workspace before refreshing auth state so the
+      // redirect opens the company that issued the invitation.
+      setCompanyId(result.company.id);
       await refreshSession();
+      setAccepted(true);
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Failed to accept invitation",
@@ -184,6 +188,18 @@ export function AcceptInvitationPage() {
               </p>
               <p className="font-medium text-gray-900 dark:text-dark-text-primary">
                 {invitation.invitedBy}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3 p-3 rounded-lg bg-gray-50 dark:bg-dark-tertiary">
+            <ShieldCheck className="h-5 w-5 text-gray-500 dark:text-dark-text-tertiary flex-shrink-0" />
+            <div>
+              <p className="text-xs text-gray-500 dark:text-dark-text-tertiary">
+                Role
+              </p>
+              <p className="font-medium capitalize text-gray-900 dark:text-dark-text-primary">
+                {invitation.role}
               </p>
             </div>
           </div>

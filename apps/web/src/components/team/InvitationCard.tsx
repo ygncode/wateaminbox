@@ -24,9 +24,14 @@ export function InvitationCard({
           <Mail className="h-5 w-5 text-gray-500 dark:text-dark-text-secondary" />
         </div>
         <div>
-          <p className="font-medium text-gray-900 dark:text-dark-text-primary">
-            {invitation.email}
-          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="font-medium text-gray-900 dark:text-dark-text-primary">
+              {invitation.email}
+            </p>
+            <span className="rounded-full bg-whatsapp-green/10 px-2 py-0.5 text-[11px] font-semibold capitalize text-whatsapp-dark-green dark:text-whatsapp-green">
+              {invitation.role}
+            </span>
+          </div>
           <div className="flex items-center gap-1 text-sm text-gray-500 dark:text-dark-text-secondary">
             <Clock className="h-3 w-3" />
             <span
