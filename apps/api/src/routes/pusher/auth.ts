@@ -24,6 +24,38 @@ const pusherAuthSchema = z.object({
 
 export const pusherAuthRoutes = new Hono();
 
+const UUID_PATTERN =
+  "[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}";
+const CHANNEL_PATTERN = new RegExp(
+  `^private-company-(${UUID_PATTERN})(?:-user-(${UUID_PATTERN}))?$`,
+  "i",
+);
+
+export function parsePusherChannel(channelName: string): {
+  companyId: string;
+  userId: string | null;
+} | null {
+  const match = CHANNEL_PATTERN.exec(channelName);
+  if (!match) return null;
+  return {
+    companyId: match[1].toLowerCase(),
+    userId: match[2]?.toLowerCase() ?? null,
+  };
+}
+
+export function canAuthorizePusherChannel(input: {
+  channelName: string;
+  companyId: string;
+  userId: string;
+}): boolean {
+  const channel = parsePusherChannel(input.channelName);
+  return Boolean(
+    channel &&
+      channel.companyId === input.companyId.toLowerCase() &&
+      (!channel.userId || channel.userId === input.userId.toLowerCase()),
+  );
+}
+
 /**
  * POST /auth - Authenticate Pusher channel subscription
  *
@@ -50,11 +82,9 @@ pusherAuthRoutes.post(
       "Pusher auth request",
     );
 
-    // Validate channel name format
-    // Expected format: private-company-{companyId}
-    const channelMatch = channel_name.match(/^private-company-(.+)$/);
+    const requestedChannel = parsePusherChannel(channel_name);
 
-    if (!channelMatch) {
+    if (!requestedChannel) {
       logger.warn(
         { channelName: channel_name, userId: user.id },
         "Invalid channel name format",
@@ -64,13 +94,19 @@ pusherAuthRoutes.post(
       });
     }
 
-    const requestedCompanyId = channelMatch[1];
-
-    // Verify user belongs to the requested company
-    if (requestedCompanyId !== companyId) {
+    // tenantFromHeader already verified current membership. A user channel also
+    // has to match the authenticated user, never merely another tenant member.
+    if (
+      !canAuthorizePusherChannel({
+        channelName: channel_name,
+        companyId,
+        userId: user.id,
+      })
+    ) {
       logger.warn(
         {
-          requestedCompanyId,
+          requestedCompanyId: requestedChannel.companyId,
+          requestedUserId: requestedChannel.userId,
           userCompanyId: companyId,
           userId: user.id,
         },

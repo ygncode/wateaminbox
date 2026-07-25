@@ -4,6 +4,7 @@
 
 import type { WhatsAppEvent } from "../../lib/nats/index.js";
 import { broadcastToCompany } from "../../lib/pusher.js";
+import { normalizeWorkerErrorToast } from "../toast-notification.service.js";
 import { handlerLogger as logger } from "./types.js";
 
 /**
@@ -13,10 +14,15 @@ export async function handleErrorEvent(event: WhatsAppEvent): Promise<void> {
   const { companyId, connectionId, payload } = event;
 
   logger.error(
-    { companyId, connectionId, payload },
+    { companyId, connectionId, workerEvent: event.type },
     "Error event from WhatsApp worker",
   );
 
   // Broadcast error to clients with connectionId
-  await broadcastToCompany(companyId, "notification:toast", payload, connectionId);
+  await broadcastToCompany(
+    companyId,
+    "notification:toast",
+    normalizeWorkerErrorToast(payload, connectionId),
+    connectionId,
+  );
 }

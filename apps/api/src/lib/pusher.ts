@@ -35,7 +35,7 @@ function requirePusher(): Pusher {
 /**
  * Event types that can be broadcast to clients
  */
-export type PusherEventType =
+export type CompanyPusherEventType =
   | "message:new"
   | "message:status"
   | "message:deleted"
@@ -53,7 +53,6 @@ export type PusherEventType =
   | "sync:interrupted"
   | "media:downloaded"
   | "media:download_failed"
-  | "notification:new"
   | "notification:toast"
   | "status"
   | "contact:updated"
@@ -66,6 +65,17 @@ export type PusherEventType =
   | "catalogs:updated"
   | "command:failed";
 
+export type UserPusherEventType = "notification:new";
+export type PusherEventType = CompanyPusherEventType | UserPusherEventType;
+
+export function getCompanyChannelName(companyId: string): string {
+  return `private-company-${companyId}`;
+}
+
+export function getUserChannelName(companyId: string, userId: string): string {
+  return `${getCompanyChannelName(companyId)}-user-${userId}`;
+}
+
 /**
  * Broadcasts an event to all subscribers of a company's private channel
  *
@@ -76,11 +86,11 @@ export type PusherEventType =
  */
 export async function broadcastToCompany(
   companyId: string,
-  eventType: PusherEventType,
+  eventType: CompanyPusherEventType,
   payload: unknown,
   connectionId?: string,
 ): Promise<void> {
-  const channelName = `private-company-${companyId}`;
+  const channelName = getCompanyChannelName(companyId);
 
   try {
     const eventData = {
@@ -133,11 +143,11 @@ export async function broadcastToCompany(
  */
 export async function broadcastToCompanyExcept(
   companyId: string,
-  eventType: PusherEventType,
+  eventType: CompanyPusherEventType,
   payload: unknown,
   excludeSocketId?: string,
 ): Promise<void> {
-  const channelName = `private-company-${companyId}`;
+  const channelName = getCompanyChannelName(companyId);
 
   try {
     const eventData = {
@@ -159,6 +169,23 @@ export async function broadcastToCompanyExcept(
       "Failed to broadcast event to Pusher",
     );
   }
+}
+
+/** Publish a non-sensitive signal to exactly one authenticated user channel. */
+export async function broadcastToUser(
+  companyId: string,
+  userId: string,
+  eventType: UserPusherEventType,
+  payload: unknown,
+): Promise<void> {
+  await requirePusher().trigger(
+    getUserChannelName(companyId, userId),
+    eventType,
+    {
+      payload,
+      timestamp: new Date().toISOString(),
+    },
+  );
 }
 
 /**

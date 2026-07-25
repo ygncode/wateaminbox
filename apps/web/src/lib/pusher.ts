@@ -15,12 +15,14 @@ const PUSHER_CLUSTER = import.meta.env.VITE_PUSHER_CLUSTER || "ap1";
 // Singleton Pusher instance
 let pusherInstance: Pusher | null = null;
 let currentChannel: Channel | null = null;
+let currentUserChannel: Channel | null = null;
 let currentCompanyId: string | null = null;
+let currentUserId: string | null = null;
 
 /**
  * Event types that can be received from Pusher
  */
-export type PusherEventType =
+export type CompanyPusherEventType =
   | "message:new"
   | "message:status"
   | "message:deleted"
@@ -38,7 +40,6 @@ export type PusherEventType =
   | "sync:interrupted"
   | "media:downloaded"
   | "media:download_failed"
-  | "notification:new"
   | "notification:toast"
   | "status"
   | "contact:updated"
@@ -50,6 +51,9 @@ export type PusherEventType =
   | "labels:updated"
   | "catalogs:updated"
   | "command:failed";
+
+export type UserPusherEventType = "notification:new";
+export type PusherEventType = CompanyPusherEventType | UserPusherEventType;
 
 /**
  * Payload wrapper from Pusher events
@@ -111,7 +115,7 @@ export function initializePusher(): Pusher {
             channel_data?: string;
           }>("/pusher/auth", {
             method: "POST",
-      headers: {
+            headers: {
               "Content-Type": "application/x-www-form-urlencoded",
             },
             body,
@@ -179,8 +183,9 @@ export function subscribeToCompany(companyId: string): Channel {
     return currentChannel;
   }
 
-  // Unsubscribe from previous channel if any
+  // Unsubscribe both old scopes before changing the company identifier.
   if (currentChannel && currentCompanyId) {
+    unsubscribeFromUser();
     pusher.unsubscribe(`private-company-${currentCompanyId}`);
     currentChannel = null;
   }
@@ -205,12 +210,43 @@ export function subscribeToCompany(companyId: string): Channel {
 /**
  * Unsubscribe from the current company channel
  */
+export function subscribeToUser(companyId: string, userId: string): Channel {
+  const pusher = initializePusher();
+  if (
+    currentUserChannel &&
+    currentCompanyId === companyId &&
+    currentUserId === userId
+  )
+    return currentUserChannel;
+  unsubscribeFromUser();
+  const channelName = `private-company-${companyId}-user-${userId}`;
+  currentUserChannel = pusher.subscribe(channelName);
+  currentUserId = userId;
+  return currentUserChannel;
+}
+
+export function unsubscribeFromUser(): void {
+  if (
+    currentUserChannel &&
+    currentCompanyId &&
+    currentUserId &&
+    pusherInstance
+  ) {
+    pusherInstance.unsubscribe(
+      `private-company-${currentCompanyId}-user-${currentUserId}`,
+    );
+  }
+  currentUserChannel = null;
+  currentUserId = null;
+}
+
 export function unsubscribeFromCompany(): void {
+  unsubscribeFromUser();
   if (currentChannel && currentCompanyId && pusherInstance) {
     pusherInstance.unsubscribe(`private-company-${currentCompanyId}`);
-    currentChannel = null;
-    currentCompanyId = null;
   }
+  currentChannel = null;
+  currentCompanyId = null;
 }
 
 /**
@@ -228,7 +264,7 @@ export function getCurrentChannel(): Channel | null {
  * @returns Unsubscribe function
  */
 export function bindEvent<T = unknown>(
-  eventType: PusherEventType,
+  eventType: CompanyPusherEventType,
   handler: PusherEventHandler<T>,
 ): () => void {
   if (!currentChannel) {
@@ -239,11 +275,23 @@ export function bindEvent<T = unknown>(
     return () => {};
   }
 
-  currentChannel.bind(eventType, handler);
+  const channel = currentChannel;
+  channel.bind(eventType, handler);
 
   return () => {
-    currentChannel?.unbind(eventType, handler);
+    channel.unbind(eventType, handler);
   };
+}
+
+/** Bind an event that is authorized for only the current user. */
+export function bindUserEvent<T = unknown>(
+  eventType: UserPusherEventType,
+  handler: PusherEventHandler<T>,
+): () => void {
+  const channel = currentUserChannel;
+  if (!channel) return () => {};
+  channel.bind(eventType, handler);
+  return () => channel.unbind(eventType, handler);
 }
 
 /**

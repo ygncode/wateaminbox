@@ -18,14 +18,16 @@ import { api } from "../lib/api";
 import { broadcastMessagesRead, sendTypingIndicator } from "../lib/api/actions";
 import {
   bindEvent,
+  bindUserEvent,
   disconnectPusher,
   getConnectionState,
   initializePusher,
   onConnectionStateChange,
   type PusherConnectionStatus,
+  type CompanyPusherEventType,
   type PusherEventData,
-  type PusherEventType,
   subscribeToCompany,
+  subscribeToUser,
   unsubscribeFromCompany,
 } from "../lib/pusher";
 import { useChatStore } from "../stores/chat-store";
@@ -68,6 +70,10 @@ export interface PusherContextValue {
 
   // Event subscription
   subscribe: <T>(eventType: string, handler: EventHandler<T>) => () => void;
+  subscribeUser: <T>(
+    eventType: "notification:new",
+    handler: EventHandler<T>,
+  ) => () => void;
 
   // Messaging methods
   sendTypingStart: (conversationId: string, contactId: string) => void;
@@ -99,7 +105,7 @@ export function PusherProvider({
   const eventUnsubscribesRef = useRef<(() => void)[]>([]);
 
   // Get current company ID from auth context
-  const { currentCompanyId } = useAuth();
+  const { currentCompanyId, user } = useAuth();
 
   // TanStack Query client for cache updates
   const queryClient = useQueryClient();
@@ -183,6 +189,7 @@ export function PusherProvider({
     try {
       initializePusher();
       subscribeToCompany(currentCompanyId);
+      if (user) subscribeToUser(currentCompanyId, user.id);
       registerEventHandlers();
     } catch (connectionError) {
       setStatus("failed");
@@ -208,7 +215,7 @@ export function PusherProvider({
 
     // Set initial state
     setStatus(getConnectionState());
-  }, [currentCompanyId, registerEventHandlers]);
+  }, [currentCompanyId, registerEventHandlers, user]);
 
   // Disconnect from Pusher
   const disconnect = useCallback(() => {
@@ -305,18 +312,26 @@ export function PusherProvider({
   // Allow feature hooks to listen for specific company events.
   const subscribe = useCallback(
     <T,>(eventType: string, handler: EventHandler<T>): (() => void) => {
-      // Wrap the handler to extract payload from PusherEventData
       const wrappedHandler = (data: PusherEventData<T>) => {
-        // Include the connection ID in payloads consumed by connection hooks.
         const payload = {
           ...data.payload,
           connectionId: data.connectionId,
         } as T;
         handler(payload);
       };
-
-      return bindEvent(eventType as PusherEventType, wrappedHandler);
+      return bindEvent(eventType as CompanyPusherEventType, wrappedHandler);
     },
+    [],
+  );
+
+  const subscribeUser = useCallback(
+    <T,>(
+      eventType: "notification:new",
+      handler: EventHandler<T>,
+    ): (() => void) =>
+      bindUserEvent(eventType, (data: PusherEventData<T>) =>
+        handler(data.payload),
+      ),
     [],
   );
 
@@ -363,6 +378,7 @@ export function PusherProvider({
     disconnect,
     reconnect,
     subscribe,
+    subscribeUser,
     sendTypingStart,
     sendTypingStop,
     sendMarkAsRead,

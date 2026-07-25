@@ -11,6 +11,8 @@ import type {
   NotificationListParams,
   NotificationListResponse,
   CreateNotificationInput,
+  PushStatusResponse,
+  PushSubscriptionInput,
 } from "./types.js";
 
 // Notification Preferences
@@ -47,6 +49,40 @@ export async function unmuteContactApi(
   return fetchWithAuth<{ mutedContacts: string[] }>("/notifications/unmute", {
     method: "POST",
     body: JSON.stringify({ contactJid }),
+  });
+}
+
+export async function getPushStatus(): Promise<PushStatusResponse> {
+  return fetchWithAuth<PushStatusResponse>("/notifications/push/status");
+}
+
+export async function subscribeToPush(
+  subscription: PushSubscriptionInput,
+): Promise<{ subscribed: boolean }> {
+  return fetchWithAuth<{ subscribed: boolean }>(
+    "/notifications/push/subscribe",
+    {
+      method: "POST",
+      body: JSON.stringify(subscription),
+    },
+  );
+}
+
+export async function unsubscribeAllPush(): Promise<{ deleted: number }> {
+  return fetchWithAuth<{ deleted: number }>(
+    "/notifications/push/subscriptions",
+    {
+      method: "DELETE",
+    },
+  );
+}
+
+export async function unsubscribeFromPush(
+  endpoint: string,
+): Promise<{ deleted: boolean }> {
+  return fetchWithAuth<{ deleted: boolean }>("/notifications/push/subscribe", {
+    method: "DELETE",
+    body: JSON.stringify({ endpoint }),
   });
 }
 

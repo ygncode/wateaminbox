@@ -5,7 +5,7 @@
  * and frontend (React client) for WebSocket communication.
  */
 
-import type { Message, MessageStatus } from './types/message'
+import type { Message, MessageStatus } from "./types/message";
 
 // ============================================================================
 // Server-to-Client Event Types
@@ -16,59 +16,59 @@ import type { Message, MessageStatus } from './types/message'
  */
 export type ServerToClientEventType =
   // Authentication events
-  | 'auth_success'
-  | 'auth_error'
+  | "auth_success"
+  | "auth_error"
   // WhatsApp connection events
-  | 'qr'
-  | 'connected'
-  | 'disconnected'
-  | 'connection:status'
+  | "qr"
+  | "connected"
+  | "disconnected"
+  | "connection:status"
   // Message events
-  | 'message'
-  | 'message:new'
-  | 'message:status'
-  | 'message:deleted'
-  | 'message:reaction'
-  | 'message:failed'
+  | "message"
+  | "message:new"
+  | "message:status"
+  | "message:deleted"
+  | "message:reaction"
+  | "message:failed"
   // Conversation events
-  | 'conversation:updated'
-  | 'conversation:read'
+  | "conversation:updated"
+  | "conversation:read"
   // Contact events
-  | 'contact'
-  | 'contact:updated'
-  | 'contact:profile_picture'
-  | 'labels:updated'
-  | 'catalogs:updated'
-  | 'command:failed'
+  | "contact"
+  | "contact:updated"
+  | "contact:profile_picture"
+  | "labels:updated"
+  | "catalogs:updated"
+  | "command:failed"
   // Presence events
-  | 'presence:online'
-  | 'presence:offline'
+  | "presence:online"
+  | "presence:offline"
   // Typing events
-  | 'typing:start'
-  | 'typing:stop'
+  | "typing:start"
+  | "typing:stop"
   // Media events
-  | 'media:downloaded'
-  | 'media:download_failed'
+  | "media:downloaded"
+  | "media:download_failed"
   // Sync events
-  | 'sync:start'
-  | 'sync:progress'
-  | 'sync:complete'
-  | 'sync:interrupted'
+  | "sync:start"
+  | "sync:progress"
+  | "sync:complete"
+  | "sync:interrupted"
   // Notification events
-  | 'notification:new'
-  | 'notification:toast'
+  | "notification:new"
+  | "notification:toast"
   // System events
-  | 'error'
-  | 'pong'
-  | 'send_ack'
-  | 'receipt'
-  | 'status'
-  | 'assignment'
+  | "error"
+  | "pong"
+  | "send_ack"
+  | "receipt"
+  | "status"
+  | "assignment";
 
 /**
  * Alias for frontend compatibility
  */
-export type WebSocketEventType = ServerToClientEventType
+export type WebSocketEventType = ServerToClientEventType;
 
 // ============================================================================
 // Client-to-Server Message Types
@@ -78,36 +78,36 @@ export type WebSocketEventType = ServerToClientEventType
  * All possible message types sent from client to server
  */
 export type ClientToServerMessageType =
-  | 'auth'
-  | 'ping'
-  | 'send_message'
-  | 'typing:start'
-  | 'typing:stop'
+  | "auth"
+  | "ping"
+  | "send_message"
+  | "typing:start"
+  | "typing:stop";
 
 /**
  * Client message structure
  */
 export interface ClientMessage {
-  type: ClientToServerMessageType
-  payload?: unknown
+  type: ClientToServerMessageType;
+  payload?: unknown;
 }
 
 /**
  * Authentication payload sent by client
  */
 export interface AuthPayload {
-  token: string
-  companyId: string
+  token: string;
+  companyId: string;
 }
 
 /**
  * Send message payload sent by client
  */
 export interface SendMessagePayload {
-  jid: string
-  content: string
-  messageType: 'text' | 'image' | 'video' | 'audio' | 'document' | 'sticker'
-  mediaUrl?: string
+  jid: string;
+  content: string;
+  messageType: "text" | "image" | "video" | "audio" | "document" | "sticker";
+  mediaUrl?: string;
 }
 
 // ============================================================================
@@ -118,20 +118,20 @@ export interface SendMessagePayload {
  * Generic server message structure
  */
 export interface ServerMessage<T = unknown> {
-  type: ServerToClientEventType
-  payload?: T
-  timestamp: string
-  connectionId?: string
+  type: ServerToClientEventType;
+  payload?: T;
+  timestamp: string;
+  connectionId?: string;
 }
 
 /**
  * Frontend-compatible WebSocket message (uses number timestamp)
  */
 export interface WebSocketMessage<T = unknown> {
-  type: WebSocketEventType
-  payload: T
-  timestamp: number
-  connectionId?: string
+  type: WebSocketEventType;
+  payload: T;
+  timestamp: number;
+  connectionId?: string;
 }
 
 // ============================================================================
@@ -141,159 +141,161 @@ export interface WebSocketMessage<T = unknown> {
 // --- Authentication Payloads ---
 
 export interface AuthSuccessPayload {
-  userId: string
-  companyId: string
-  message: string
+  userId: string;
+  companyId: string;
+  message: string;
 }
 
 export interface AuthErrorPayload {
-  message: string
+  message: string;
 }
 
 // --- WhatsApp Connection Payloads ---
 
 export interface QRCodePayload {
-  qrCode: string
-  expiresAt: string
-  connectionId?: string
+  qrCode: string;
+  expiresAt: string;
+  connectionId?: string;
 }
 
 export interface WhatsAppConnectedPayload {
-  phoneNumber: string
-  jid: string
-  connectionId?: string
+  phoneNumber: string;
+  jid: string;
+  connectionId?: string;
 }
 
 export interface WhatsAppDisconnectedPayload {
-  reason?: string
-  connectionId?: string
+  reason?: string;
+  connectionId?: string;
 }
 
 export interface WorkerConnectionStatusPayload {
-  status: 'error' | 'failed' | 'connecting' | 'connected'
-  reason: string
-  connectionId?: string
+  status: "error" | "failed" | "connecting" | "connected";
+  reason: string;
+  connectionId?: string;
 }
 
 // --- Message Payloads ---
 
 export interface NewMessagePayload {
-  message: Message
-  conversationId: string
+  message: Message;
+  conversationId: string;
 }
 
 export interface MessageStatusPayload {
-  messageId: string
-  conversationId: string
-  status: MessageStatus
+  messageId: string;
+  conversationId: string;
+  status: MessageStatus;
 }
 
 export interface MessageDeletedPayload {
-  messageId: string
-  conversationId: string
+  messageId: string;
+  conversationId: string;
 }
 
 export interface MessageReactionPayload {
-  messageId: string
-  contactId: string
-  from: string
-  emoji: string
-  timestamp: string
+  messageId: string;
+  contactId: string;
+  from: string;
+  emoji: string;
+  timestamp: string;
 }
 
 export interface MessageFailedPayload {
-  messageId: string
-  conversationId: string
-  reason: string
-  connectionId?: string
+  messageId: string;
+  conversationId: string;
+  reason: string;
+  connectionId?: string;
 }
 
 // --- Conversation Payloads ---
 
 export interface ConversationUpdatedPayload {
-  conversationId: string
-  lastMessage?: Message
-  unreadCount?: number
+  conversationId: string;
+  lastMessage?: Message;
+  unreadCount?: number;
 }
 
 export interface ConversationReadPayload {
-  contactId: string
-  unreadCount: number
-  readBy: string
+  contactId: string;
+  unreadCount: number;
+  readBy: string;
 }
 
 // --- Contact Payloads ---
 
 export interface ProfilePicturePayload {
-  jid: string
-  profilePictureUrl: string | null
+  jid: string;
+  profilePictureUrl: string | null;
 }
 
 // --- Presence Payloads ---
 
 export interface PresencePayload {
-  jid: string
-  isOnline: boolean
-  lastSeen?: string
+  jid: string;
+  isOnline: boolean;
+  lastSeen?: string;
 }
 
 // --- Typing Payloads ---
 
 export interface TypingPayload {
-  conversationId: string
-  userId: string
-  userName: string
+  conversationId: string;
+  userId: string;
+  userName: string;
 }
 
 // --- Media Payloads ---
 
 export interface MediaDownloadedPayload {
-  messageId: string
-  conversationId: string
-  mediaUrl: string
-  mediaSize?: number
+  messageId: string;
+  conversationId: string;
+  mediaUrl: string;
+  mediaSize?: number;
 }
 
 export interface MediaDownloadFailedPayload {
-  messageId: string
-  conversationId: string
-  error?: string
+  messageId: string;
+  conversationId: string;
+  error?: string;
 }
 
 // --- Sync Payloads ---
 
 export interface SyncStatusPayload {
-  messageCount: number
-  conversations: number
-  connectionId?: string
+  messageCount: number;
+  conversations: number;
+  connectionId?: string;
 }
 
 // --- Notification Payloads ---
 
 export interface NotificationPayload {
-  // Empty payload - frontend will refetch notification count
+  notificationId: string;
+  userId: string;
+  type: "message" | "mention" | "assignment" | "team" | "system";
 }
 
 export interface ToastNotificationPayload {
-  type: 'success' | 'error' | 'warning' | 'info'
-  title: string
-  message: string
-  connectionId?: string
+  type: "success" | "error" | "warning" | "info";
+  title: string;
+  message: string;
+  connectionId?: string;
 }
 
 // --- Error Payloads ---
 
 export interface ErrorPayload {
-  code?: string
-  message: string
+  code?: string;
+  message: string;
 }
 
 // --- Send Acknowledgment Payload ---
 
 export interface SendAckPayload {
-  jid: string
-  connectionId: string
-  status: 'queued' | 'sent' | 'failed'
+  jid: string;
+  connectionId: string;
+  status: "queued" | "sent" | "failed";
 }
 
 // ============================================================================
@@ -303,12 +305,16 @@ export interface SendAckPayload {
 /**
  * WebSocket connection status
  */
-export type ConnectionStatus = 'connecting' | 'connected' | 'disconnected' | 'error'
+export type ConnectionStatus =
+  | "connecting"
+  | "connected"
+  | "disconnected"
+  | "error";
 
 /**
  * Event handler type
  */
-export type EventHandler<T = unknown> = (payload: T) => void
+export type EventHandler<T = unknown> = (payload: T) => void;
 
 // ============================================================================
 // Client Configuration Types
@@ -318,16 +324,16 @@ export type EventHandler<T = unknown> = (payload: T) => void
  * WebSocket client configuration options
  */
 export interface WebSocketClientConfig {
-  url: string
-  token?: string
-  reconnectAttempts?: number
-  reconnectBaseDelay?: number
-  reconnectMaxDelay?: number
-  heartbeatInterval?: number
-  pongTimeout?: number
-  connectionTimeout?: number
-  onStatusChange?: (status: ConnectionStatus) => void
-  onError?: (error: Error) => void
+  url: string;
+  token?: string;
+  reconnectAttempts?: number;
+  reconnectBaseDelay?: number;
+  reconnectMaxDelay?: number;
+  heartbeatInterval?: number;
+  pongTimeout?: number;
+  connectionTimeout?: number;
+  onStatusChange?: (status: ConnectionStatus) => void;
+  onError?: (error: Error) => void;
 }
 
 // ============================================================================
@@ -337,86 +343,94 @@ export interface WebSocketClientConfig {
 /**
  * Check if a value is a valid server-to-client event type
  */
-export function isServerToClientEventType(type: string): type is ServerToClientEventType {
+export function isServerToClientEventType(
+  type: string,
+): type is ServerToClientEventType {
   const validTypes: ServerToClientEventType[] = [
-    'auth_success',
-    'auth_error',
-    'qr',
-    'connected',
-    'disconnected',
-    'connection:status',
-    'message',
-    'message:new',
-    'message:status',
-    'message:deleted',
-    'message:reaction',
-    'message:failed',
-    'conversation:updated',
-    'conversation:read',
-    'contact',
-    'contact:updated',
-    'contact:profile_picture',
-    'labels:updated',
-    'catalogs:updated',
-    'command:failed',
-    'presence:online',
-    'presence:offline',
-    'typing:start',
-    'typing:stop',
-    'media:downloaded',
-    'media:download_failed',
-    'sync:start',
-    'sync:progress',
-    'sync:complete',
-    'sync:interrupted',
-    'notification:new',
-    'notification:toast',
-    'error',
-    'pong',
-    'send_ack',
-    'receipt',
-    'status',
-    'assignment',
-  ]
-  return validTypes.includes(type as ServerToClientEventType)
+    "auth_success",
+    "auth_error",
+    "qr",
+    "connected",
+    "disconnected",
+    "connection:status",
+    "message",
+    "message:new",
+    "message:status",
+    "message:deleted",
+    "message:reaction",
+    "message:failed",
+    "conversation:updated",
+    "conversation:read",
+    "contact",
+    "contact:updated",
+    "contact:profile_picture",
+    "labels:updated",
+    "catalogs:updated",
+    "command:failed",
+    "presence:online",
+    "presence:offline",
+    "typing:start",
+    "typing:stop",
+    "media:downloaded",
+    "media:download_failed",
+    "sync:start",
+    "sync:progress",
+    "sync:complete",
+    "sync:interrupted",
+    "notification:new",
+    "notification:toast",
+    "error",
+    "pong",
+    "send_ack",
+    "receipt",
+    "status",
+    "assignment",
+  ];
+  return validTypes.includes(type as ServerToClientEventType);
 }
 
 /**
  * Check if a value is a valid client-to-server message type
  */
-export function isClientToServerMessageType(type: string): type is ClientToServerMessageType {
+export function isClientToServerMessageType(
+  type: string,
+): type is ClientToServerMessageType {
   return (
-    type === 'auth' ||
-    type === 'ping' ||
-    type === 'send_message' ||
-    type === 'typing:start' ||
-    type === 'typing:stop'
-  )
+    type === "auth" ||
+    type === "ping" ||
+    type === "send_message" ||
+    type === "typing:start" ||
+    type === "typing:stop"
+  );
 }
 
 /**
  * Type guard for NewMessagePayload
  */
-export function isNewMessagePayload(payload: unknown): payload is NewMessagePayload {
+export function isNewMessagePayload(
+  payload: unknown,
+): payload is NewMessagePayload {
   return (
-    typeof payload === 'object' &&
+    typeof payload === "object" &&
     payload !== null &&
-    'message' in payload &&
-    'conversationId' in payload
-  )
+    "message" in payload &&
+    "conversationId" in payload
+  );
 }
 
 /**
  * Type guard for MessageStatusPayload
  */
-export function isMessageStatusPayload(payload: unknown): payload is MessageStatusPayload {
+export function isMessageStatusPayload(
+  payload: unknown,
+): payload is MessageStatusPayload {
   return (
-    typeof payload === 'object' &&
+    typeof payload === "object" &&
     payload !== null &&
-    'messageId' in payload &&
-    'conversationId' in payload &&
-    'status' in payload
-  )
+    "messageId" in payload &&
+    "conversationId" in payload &&
+    "status" in payload
+  );
 }
 
 /**
@@ -424,13 +438,23 @@ export function isMessageStatusPayload(payload: unknown): payload is MessageStat
  */
 export function isAuthPayload(payload: unknown): payload is AuthPayload {
   return (
-    typeof payload === 'object' && payload !== null && 'token' in payload && 'companyId' in payload
-  )
+    typeof payload === "object" &&
+    payload !== null &&
+    "token" in payload &&
+    "companyId" in payload
+  );
 }
 
 /**
  * Type guard for SendMessagePayload
  */
-export function isSendMessagePayload(payload: unknown): payload is SendMessagePayload {
-  return typeof payload === 'object' && payload !== null && 'jid' in payload && 'content' in payload
+export function isSendMessagePayload(
+  payload: unknown,
+): payload is SendMessagePayload {
+  return (
+    typeof payload === "object" &&
+    payload !== null &&
+    "jid" in payload &&
+    "content" in payload
+  );
 }

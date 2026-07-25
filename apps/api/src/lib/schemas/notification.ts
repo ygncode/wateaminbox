@@ -26,6 +26,8 @@ export const notificationTypeSchema = z.enum([
  * Schema for updating notification preferences
  */
 export const updatePreferencesSchema = z.object({
+  notificationsEnabled: z.boolean().optional(),
+  timezone: z.string().trim().min(1).max(100).nullable().optional(),
   soundEnabled: z.boolean().optional(),
   soundChoice: soundChoiceSchema.optional(),
   quietHoursStart: z
@@ -38,7 +40,10 @@ export const updatePreferencesSchema = z.object({
     .regex(/^([01]\d|2[0-3]):([0-5]\d)$/)
     .nullable()
     .optional(),
-  mutedContacts: z.array(z.string()).optional(),
+  mutedContacts: z
+    .array(z.string().trim().min(1).max(255))
+    .max(1000)
+    .optional(),
 });
 
 export type UpdatePreferencesInput = z.infer<typeof updatePreferencesSchema>;
@@ -47,7 +52,7 @@ export type UpdatePreferencesInput = z.infer<typeof updatePreferencesSchema>;
  * Schema for muting a contact
  */
 export const muteContactSchema = z.object({
-  contactJid: z.string().min(1),
+  contactJid: z.string().trim().min(1).max(255),
 });
 
 export type MuteContactInput = z.infer<typeof muteContactSchema>;
@@ -72,7 +77,15 @@ export const createNotificationSchema = z.object({
   notificationType: notificationTypeSchema,
   title: z.string().min(1).max(255),
   message: z.string().optional(),
-  actionUrl: z.string().url().optional(),
+  actionUrl: z
+    .string()
+    .max(2048)
+    .regex(/^\/(?!\/)/, "Action URL must be a safe application-relative path")
+    .refine(
+      (value) => !/[\u0000-\u001f\u007f\\]/.test(value),
+      "Action URL contains invalid characters",
+    )
+    .optional(),
   metadata: z.record(z.unknown()).optional(),
 });
 

@@ -18,6 +18,7 @@ import type { Dispatch, SetStateAction } from "react";
 import { queryKeys } from "../../hooks/query-keys";
 import { markConversationAsRead } from "../../lib/api/conversations";
 import { bindEvent } from "../../lib/pusher";
+import { showRealtimeToast } from "../../lib/toast-notifications";
 import type { TypingIndicator } from "../../stores/chat-store";
 import { useChatStore } from "../../stores/chat-store";
 import {
@@ -58,6 +59,13 @@ export function registerRealtimeEventHandlers({
   clearTypingTimeout,
 }: RealtimeEventHandlerOptions): (() => void)[] {
   return [
+    bindEvent("notification:toast", (data) => {
+      const payload =
+        data.payload && typeof data.payload === "object"
+          ? { connectionId: data.connectionId, ...data.payload }
+          : data.payload;
+      showRealtimeToast(payload);
+    }),
     bindEvent<NewMessagePayload>("message:new", (data) => {
       const payload = data.payload;
       addMessageToCache(qc, payload.conversationId, payload.message);

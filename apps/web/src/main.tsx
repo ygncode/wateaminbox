@@ -10,6 +10,7 @@ import {
   KeyboardShortcutsProvider,
   ThemeProvider,
 } from "./contexts";
+import { NotificationProvider } from "./contexts/NotificationProvider";
 import { PusherProvider } from "./contexts/PusherProvider";
 import "./index.css";
 
@@ -33,11 +34,13 @@ createRoot(document.getElementById("root")!).render(
           <AuthProvider>
             <ThemeProvider>
               <PusherProvider>
-                <KeyboardShortcutsProvider>
-                  <TooltipProvider>
-                    <App />
-                  </TooltipProvider>
-                </KeyboardShortcutsProvider>
+                <NotificationProvider>
+                  <KeyboardShortcutsProvider>
+                    <TooltipProvider>
+                      <App />
+                    </TooltipProvider>
+                  </KeyboardShortcutsProvider>
+                </NotificationProvider>
               </PusherProvider>
             </ThemeProvider>
           </AuthProvider>

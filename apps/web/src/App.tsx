@@ -2,6 +2,7 @@ import { Suspense, lazy } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 import { Toaster } from "sonner";
 import { ProtectedRoute } from "./components/auth";
+import { ProtectedAppLayout } from "./components/layout/ProtectedAppLayout";
 import { KeyboardShortcutsModal } from "./components/settings";
 import { PageSkeleton } from "./components/ui";
 
@@ -47,6 +48,11 @@ const AuditPage = lazy(() =>
 );
 const DashboardPage = lazy(() =>
   import("./pages/DashboardPage").then((m) => ({ default: m.DashboardPage })),
+);
+const NotificationsPage = lazy(() =>
+  import("./pages/NotificationsPage").then((m) => ({
+    default: m.NotificationsPage,
+  })),
 );
 const AcceptInvitationPage = lazy(() =>
   import("./pages/AcceptInvitationPage").then((m) => ({
@@ -112,67 +118,71 @@ function App() {
           }
         />
 
-        {/* Protected routes (require company) */}
+        {/* Protected company application shell: one global notification center. */}
         <Route
-          path="/chat"
           element={
             <ProtectedRoute>
+              <ProtectedAppLayout />
+            </ProtectedRoute>
+          }
+        >
+          <Route
+            path="/chat"
+            element={
               <Suspense fallback={<PageSkeleton variant="chat" />}>
                 <ChatPage />
               </Suspense>
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/chat/:contactId"
-          element={
-            <ProtectedRoute>
+            }
+          />
+          <Route
+            path="/chat/:contactId"
+            element={
               <Suspense fallback={<PageSkeleton variant="chat" />}>
                 <ChatPage />
               </Suspense>
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/team"
-          element={
-            <ProtectedRoute>
+            }
+          />
+          <Route
+            path="/team"
+            element={
               <Suspense fallback={<PageSkeleton variant="team" />}>
                 <TeamPage />
               </Suspense>
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/settings"
-          element={
-            <ProtectedRoute>
+            }
+          />
+          <Route
+            path="/settings"
+            element={
               <Suspense fallback={<PageSkeleton variant="settings" />}>
                 <SettingsPage />
               </Suspense>
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/audit"
-          element={
-            <ProtectedRoute>
+            }
+          />
+          <Route
+            path="/audit"
+            element={
               <Suspense fallback={<PageSkeleton variant="default" />}>
                 <AuditPage />
               </Suspense>
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/dashboard"
-          element={
-            <ProtectedRoute>
+            }
+          />
+          <Route
+            path="/dashboard"
+            element={
               <Suspense fallback={<PageSkeleton variant="dashboard" />}>
                 <DashboardPage />
               </Suspense>
-            </ProtectedRoute>
-          }
-        />
+            }
+          />
+          <Route
+            path="/notifications"
+            element={
+              <Suspense fallback={<PageSkeleton variant="default" />}>
+                <NotificationsPage />
+              </Suspense>
+            }
+          />
+        </Route>
 
         {/* Accept invitation (protected but doesn't require company) */}
         <Route

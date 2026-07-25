@@ -4,7 +4,6 @@ import { Link } from "react-router-dom";
 import { preloadRoute } from "@/lib/route-preload";
 import { cn } from "@/lib/utils";
 import { GroupList } from "../groups/GroupList";
-import { NotificationCenter } from "../notifications/NotificationCenter";
 import { ChatList } from "./ChatList";
 
 export type SidebarView = "chats" | "groups";
@@ -57,9 +56,8 @@ export const ChatSidebar = memo(function ChatSidebar({
             label="Groups"
           />
         </nav>
-        {/* Notifications & Settings */}
+        {/* Settings */}
         <div className="flex items-center gap-1 mr-2">
-          <NotificationCenter />
           <Link
             to="/settings"
             className="p-2 text-gray-500 dark:text-dark-text-secondary hover:text-gray-700 dark:hover:text-dark-text-primary hover:bg-gray-200 dark:hover:bg-dark-tertiary rounded-full transition-colors lg:hidden"

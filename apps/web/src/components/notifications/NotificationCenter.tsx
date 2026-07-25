@@ -20,6 +20,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useNotificationCenter } from "@/hooks/notification";
 import type { InAppNotification, NotificationType } from "@/lib/api/types";
+import { navigateToNotificationTarget } from "@/lib/notification-navigation";
 import { cn } from "@/lib/utils";
 
 /**
@@ -103,8 +104,9 @@ function NotificationItem({
   const colors = getNotificationColors(notification.notificationType);
 
   return (
-    <button
-      type="button"
+    <div
+      role="button"
+      tabIndex={0}
       className={cn(
         "group relative flex items-start gap-3 p-3.5 w-full text-left cursor-pointer transition-all duration-200",
         "border-l-2 hover:bg-gray-50/80 dark:hover:bg-dark-tertiary/80",
@@ -112,6 +114,12 @@ function NotificationItem({
         !notification.isRead && "bg-white dark:bg-dark-elevated",
       )}
       onClick={() => onClick(notification)}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onClick(notification);
+        }
+      }}
       data-testid="notification-item"
     >
       {/* Type Icon */}
@@ -180,7 +188,7 @@ function NotificationItem({
           <Trash2 className="size-3.5" />
         </Button>
       </div>
-    </button>
+    </div>
   );
 }
 
@@ -247,9 +255,11 @@ function LoadingSkeleton() {
 function NotificationPanel({
   isOpen,
   onClose,
+  controller,
 }: {
   isOpen: boolean;
   onClose: () => void;
+  controller: ReturnType<typeof useNotificationCenter>;
 }) {
   const navigate = useNavigate();
   const panelRef = useRef<HTMLDivElement>(null);
@@ -262,7 +272,7 @@ function NotificationPanel({
     markAllAsRead,
     deleteNotification,
     isMarkingAllAsRead,
-  } = useNotificationCenter();
+  } = controller;
 
   const handleNotificationClick = useCallback(
     (notification: InAppNotification) => {
@@ -272,7 +282,7 @@ function NotificationPanel({
 
       if (notification.actionUrl) {
         onClose();
-        navigate(notification.actionUrl);
+        navigateToNotificationTarget(notification.actionUrl, navigate);
       }
     },
     [markAsRead, navigate, onClose],
@@ -322,8 +332,8 @@ function NotificationPanel({
     <div
       ref={panelRef}
       className={cn(
-        "absolute inset-0 z-50 flex flex-col",
-        "bg-white dark:bg-dark-secondary",
+        "fixed right-3 top-16 z-50 flex h-[min(680px,calc(100dvh-5rem))] w-[min(400px,calc(100vw-1.5rem))] flex-col overflow-hidden rounded-2xl border border-gray-200 shadow-2xl md:right-5",
+        "bg-white dark:border-dark-border dark:bg-dark-secondary",
       )}
       data-testid="notification-panel"
     >
@@ -418,7 +428,8 @@ export const NotificationCenter = memo(function NotificationCenter() {
   const [announcement, setAnnouncement] = useState("");
   const prevUnreadCountRef = useRef<number | null>(null);
 
-  const { unreadCount } = useNotificationCenter();
+  const controller = useNotificationCenter(undefined, { listEnabled: isOpen });
+  const { unreadCount } = controller;
 
   // Announce when new notifications arrive
   useEffect(() => {
@@ -478,7 +489,11 @@ export const NotificationCenter = memo(function NotificationCenter() {
         )}
       </Button>
 
-      <NotificationPanel isOpen={isOpen} onClose={() => setIsOpen(false)} />
+      <NotificationPanel
+        isOpen={isOpen}
+        onClose={() => setIsOpen(false)}
+        controller={controller}
+      />
     </>
   );
 });

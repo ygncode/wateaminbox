@@ -16,6 +16,7 @@ import {
   type RegisterRequest,
   type RegisterResponse,
   setCompanyId,
+  unsubscribeAllPush,
 } from "../lib/api";
 import { useChatStore } from "../stores/chat-store";
 
@@ -234,6 +235,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     setState((prev) => ({ ...prev, isLoading: true }));
 
     try {
+      await unsubscribeAllPush().catch(() => undefined);
       await apiLogout();
     } catch {
       // Ignore logout errors, clear local state anyway
@@ -261,6 +263,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
         // can observe server/UI state belonging to the previous company.
         queryClient.clear();
         useChatStore.getState().reset();
+        // Start removal while the API client still holds the previous tenant ID.
+        void unsubscribeAllPush().catch(() => undefined);
         setCompanyId(companyId);
         setState((prev) => ({
           ...prev,

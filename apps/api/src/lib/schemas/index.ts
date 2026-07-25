@@ -110,6 +110,10 @@ export {
   type ListNotificationsQuery,
   type CreateNotificationInput,
 } from "./notification.js";
+export {
+  pushSubscriptionSchema,
+  deletePushSubscriptionSchema,
+} from "./push-subscription.js";
 
 // Quick Replies
 export {

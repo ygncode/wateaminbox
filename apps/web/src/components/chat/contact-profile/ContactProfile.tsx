@@ -19,6 +19,7 @@ import { TagsSection } from "./TagsSection";
 import { AssignmentSection } from "./AssignmentSection";
 import { AssignmentHistorySection } from "./AssignmentHistorySection";
 import { BlockStatusSection } from "./BlockStatusSection";
+import { NotificationMuteSection } from "./NotificationMuteSection";
 
 /**
  * Contact Profile Panel - shows detailed contact information
@@ -69,6 +70,8 @@ export function ContactProfile({
 
             {/* Assignment History Section */}
             <AssignmentHistorySection contactId={contact.id} />
+
+            <NotificationMuteSection contact={contact} />
 
             {/* Block Status Section - hidden for groups */}
             <BlockStatusSection contact={contact} />

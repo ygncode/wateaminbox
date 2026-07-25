@@ -27,7 +27,7 @@ export interface NotificationSettings {
 }
 
 // Default settings
-const DEFAULT_SETTINGS: NotificationSettings = {
+export const DEFAULT_NOTIFICATION_SETTINGS: NotificationSettings = {
   enabled: true,
   soundEnabled: true,
   soundChoice: "default",
@@ -38,6 +38,24 @@ const DEFAULT_SETTINGS: NotificationSettings = {
 };
 
 const SETTINGS_KEY = "notification_settings";
+let settingsScope: string | null = null;
+
+export function setNotificationSettingsScope(
+  companyId: string | null,
+  userId: string | null,
+): void {
+  settingsScope = companyId && userId ? `${companyId}:${userId}` : null;
+}
+
+function getSettingsKey(): string {
+  if (settingsScope) return `${SETTINGS_KEY}:${settingsScope}`;
+  try {
+    const companyId = localStorage.getItem("company_id");
+    return companyId ? `${SETTINGS_KEY}:${companyId}` : SETTINGS_KEY;
+  } catch {
+    return SETTINGS_KEY;
+  }
+}
 
 // Available notification sound types
 export const NOTIFICATION_SOUNDS: Record<string, string> = {
@@ -144,14 +162,14 @@ async function playSynthSound(soundType: string): Promise<void> {
  */
 export function getNotificationSettings(): NotificationSettings {
   try {
-    const stored = localStorage.getItem(SETTINGS_KEY);
+    const stored = localStorage.getItem(getSettingsKey());
     if (stored) {
-      return { ...DEFAULT_SETTINGS, ...JSON.parse(stored) };
+      return { ...DEFAULT_NOTIFICATION_SETTINGS, ...JSON.parse(stored) };
     }
   } catch {
     // Ignore parse errors
   }
-  return DEFAULT_SETTINGS;
+  return { ...DEFAULT_NOTIFICATION_SETTINGS };
 }
 
 /**
@@ -163,7 +181,7 @@ export function saveNotificationSettings(
   const current = getNotificationSettings();
   const updated = { ...current, ...settings };
   try {
-    localStorage.setItem(SETTINGS_KEY, JSON.stringify(updated));
+    localStorage.setItem(getSettingsKey(), JSON.stringify(updated));
   } catch {
     // Ignore storage errors
   }
@@ -357,6 +375,7 @@ export async function showMessageNotification(
   conversationId: string,
   options?: {
     avatarUrl?: string;
+    messageId?: string;
     onClick?: () => void;
   },
 ): Promise<Notification | null> {
@@ -369,7 +388,7 @@ export async function showMessageNotification(
     title: senderName,
     body: messagePreview,
     icon: options?.avatarUrl,
-    tag: `message-${conversationId}`,
+    tag: `message-${options?.messageId || conversationId}`,
     data: { conversationId, senderJid },
     onClick: options?.onClick,
   });

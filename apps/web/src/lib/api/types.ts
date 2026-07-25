@@ -265,6 +265,8 @@ export type SoundChoice = "default" | "chime" | "bell" | "pop" | "none";
 export interface NotificationPreferencesResponse {
   id: string;
   userId: string;
+  notificationsEnabled: boolean;
+  timezone: string | null;
   soundEnabled: boolean;
   soundChoice: SoundChoice;
   quietHoursStart: string | null;
@@ -275,6 +277,8 @@ export interface NotificationPreferencesResponse {
 }
 
 export interface UpdateNotificationPreferencesInput {
+  notificationsEnabled?: boolean;
+  timezone?: string | null;
   soundEnabled?: boolean;
   soundChoice?: SoundChoice;
   quietHoursStart?: string | null;
@@ -316,6 +320,17 @@ export interface NotificationListResponse {
     limit: number;
     offset: number;
   };
+}
+
+export interface PushStatusResponse {
+  configured: boolean;
+  subscribed: boolean;
+  publicKey: string | null;
+}
+
+export interface PushSubscriptionInput {
+  endpoint: string;
+  keys: { p256dh: string; auth: string };
 }
 
 export interface CreateNotificationInput {

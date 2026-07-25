@@ -147,6 +147,7 @@ export interface TenantDatabase {
   audit_logs: AuditLogsTable;
   notification_preferences: NotificationPreferencesTable;
   notification_history: NotificationHistoryTable;
+  push_subscriptions: PushSubscriptionsTable;
   quick_replies: QuickRepliesTable;
   conversation_states: ConversationStatesTable;
   nats_outbox: NatsOutboxTable;
@@ -373,7 +374,9 @@ export interface NotificationPreferencesTable {
   sound_choice: Generated<string>;
   quiet_hours_start: string | null;
   quiet_hours_end: string | null;
-  muted_contacts: string[] | null;
+  muted_contacts: Generated<string[]>;
+  notifications_enabled: Generated<boolean>;
+  timezone: string | null;
   created_at: Generated<Date>;
   updated_at: Generated<Date>;
 }
@@ -389,6 +392,18 @@ export interface NotificationHistoryTable {
   is_read: Generated<boolean>;
   read_at: Date | null;
   created_at: Generated<Date>;
+}
+
+export interface PushSubscriptionsTable {
+  id: string;
+  user_id: string;
+  endpoint: string;
+  p256dh: string;
+  auth: string;
+  user_agent: string | null;
+  created_at: Generated<Date>;
+  updated_at: Generated<Date>;
+  last_used_at: Date | null;
 }
 
 export interface QuickRepliesTable {

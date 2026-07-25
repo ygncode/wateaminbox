@@ -85,26 +85,35 @@ export async function createNotification(
   companyId: string,
   input: CreateNotificationInput,
 ): Promise<Notification> {
-  const tenantDb = getTenantConnection(companyId);
+  const [created] = await createNotifications(companyId, [input]);
+  if (!created) throw new AppError("Failed to create notification", 500);
+  return created;
+}
 
-  const created = await tenantDb
+/** Insert an entire notification batch atomically before any transport runs. */
+export async function createNotifications(
+  companyId: string,
+  inputs: CreateNotificationInput[],
+): Promise<Notification[]> {
+  if (inputs.length === 0) return [];
+  const rows = await getTenantConnection(companyId)
     .insertInto("notification_history")
-    .values({
-      user_id: input.userId,
-      notification_type: input.notificationType,
-      title: input.title,
-      message: input.message || null,
-      action_url: input.actionUrl || null,
-      metadata: input.metadata || null,
-    })
+    .values(
+      inputs.map((input) => ({
+        user_id: input.userId,
+        notification_type: input.notificationType,
+        title: input.title,
+        message: input.message || null,
+        action_url: input.actionUrl || null,
+        metadata: input.metadata || null,
+      })),
+    )
     .returningAll()
-    .executeTakeFirst();
-
-  if (!created) {
-    throw new AppError("Failed to create notification", 500);
+    .execute();
+  if (rows.length !== inputs.length) {
+    throw new AppError("Failed to create notifications", 500);
   }
-
-  return mapRowToNotification(created);
+  return rows.map(mapRowToNotification);
 }
 
 /**

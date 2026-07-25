@@ -62,6 +62,11 @@ export const env = {
   PUSHER_SECRET: getEnv("PUSHER_SECRET", ""),
   PUSHER_CLUSTER: getEnv("PUSHER_CLUSTER", "ap1"),
 
+  // Web Push (optional; loaded-app fallback remains active when omitted)
+  VAPID_PUBLIC_KEY: getEnv("VAPID_PUBLIC_KEY", ""),
+  VAPID_PRIVATE_KEY: getEnv("VAPID_PRIVATE_KEY", ""),
+  VAPID_SUBJECT: getEnv("VAPID_SUBJECT", ""),
+
   // NATS
   NATS_URL: getEnv("NATS_URL", "nats://localhost:4448"),
 

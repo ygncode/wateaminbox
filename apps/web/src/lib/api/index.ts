@@ -99,11 +99,15 @@ export {
   getNotificationById,
   getNotificationPreferences,
   getNotifications,
+  getPushStatus,
   getUnreadNotificationCount,
   markAllNotificationsAsRead,
   markNotificationAsRead,
   muteContactApi,
+  subscribeToPush,
   unmuteContactApi,
+  unsubscribeAllPush,
+  unsubscribeFromPush,
   updateNotificationPreferences,
 } from "./notifications.js";
 

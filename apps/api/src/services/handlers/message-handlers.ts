@@ -22,6 +22,8 @@ import {
 } from "../../lib/nats/index.js";
 import { broadcastToCompany } from "../../lib/pusher.js";
 import { indexMessage, type MessageDocument } from "../meilisearch.service.js";
+import { sendPushToUsers } from "../notification-delivery.service.js";
+import { resolveIncomingMessageRecipients } from "../notification-recipient.service.js";
 import { updateMessageSearchVector } from "../search.service.js";
 import { getTenantConnection } from "../tenant.service.js";
 import { handlerLogger as logger } from "./types.js";
@@ -448,9 +450,68 @@ export async function handleMessageEvent(event: MessageEvent): Promise<void> {
         connectionId,
       );
     }
+
+    if (!payload.fromMe && !payload.isHistorySync) {
+      const pushTitle =
+        senderName ||
+        extractPhoneFromJid(normalizedSenderJid) ||
+        contactName ||
+        "New message";
+      resolveIncomingMessageRecipients({
+        companyId,
+        contactId: contact.id,
+        contactJid,
+        fromMe: payload.fromMe,
+        isHistorySync: Boolean(payload.isHistorySync),
+      })
+        .then((recipientIds) =>
+          sendPushToUsers(companyId, recipientIds, {
+            version: 1,
+            type: "message",
+            title: pushTitle,
+            body: getPushMessagePreview(payload.messageType, payload.content),
+            tag: `message-${storedMessageId}`,
+            actionUrl: `/chat/${contact.id}`,
+            icon: "/apple-touch-icon.png",
+            badge: "/favicon-32x32.png",
+          }),
+        )
+        .catch((pushError) => {
+          logger.warn(
+            {
+              error: formatError(pushError),
+              companyId,
+              contactId: contact.id,
+              messageId: storedMessageId,
+              transport: "web-push",
+            },
+            "Incoming message persisted but push delivery failed",
+          );
+        });
+    }
   } catch (error) {
     logger.error(formatError(error), "Failed to store message");
     throw error;
+  }
+}
+
+export function getPushMessagePreview(
+  messageType: string | undefined,
+  content: string | null | undefined,
+): string {
+  switch (messageType) {
+    case "image":
+      return "Sent an image";
+    case "video":
+      return "Sent a video";
+    case "audio":
+      return "Sent an audio message";
+    case "document":
+      return "Sent a document";
+    case "location":
+      return "Shared a location";
+    default:
+      return content?.slice(0, 100) || "New message";
   }
 }
 

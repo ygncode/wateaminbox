@@ -105,7 +105,11 @@ export function NotificationSettings() {
               <Button
                 size="sm"
                 className="mt-3"
-                onClick={() => requestPermission()}
+                onClick={async () => {
+                  if ((await requestPermission()) === "granted") {
+                    updateSettings({ enabled: true });
+                  }
+                }}
               >
                 Enable Notifications
               </Button>

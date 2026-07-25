@@ -5,6 +5,8 @@ import { tenantMiddleware } from "../middleware/tenant.js";
 import { getRouteContext } from "../middleware/context.js";
 import * as notificationPreferencesService from "../services/notification-preferences.service.js";
 import * as notificationHistoryService from "../services/notification-history.service.js";
+import { createAndPublishNotification } from "../services/notification-delivery.service.js";
+import * as webPushService from "../services/web-push.service.js";
 import { isTableNotFoundError, notFound } from "../lib/errors.js";
 import { successData, created } from "../lib/response.js";
 import {
@@ -12,6 +14,8 @@ import {
   muteContactSchema,
   listNotificationsQuerySchema,
   createNotificationSchema,
+  deletePushSubscriptionSchema,
+  pushSubscriptionSchema,
 } from "../lib/schemas/index.js";
 
 export const notificationRoutes = new Hono();
@@ -35,6 +39,8 @@ notificationRoutes.get("/preferences", async (c) => {
   return successData(c, {
     id: preferences.id,
     userId: preferences.userId,
+    notificationsEnabled: preferences.notificationsEnabled,
+    timezone: preferences.timezone,
     soundEnabled: preferences.soundEnabled,
     soundChoice: preferences.soundChoice,
     quietHoursStart: preferences.quietHoursStart,
@@ -65,6 +71,8 @@ notificationRoutes.patch(
     return successData(c, {
       id: preferences.id,
       userId: preferences.userId,
+      notificationsEnabled: preferences.notificationsEnabled,
+      timezone: preferences.timezone,
       soundEnabled: preferences.soundEnabled,
       soundChoice: preferences.soundChoice,
       quietHoursStart: preferences.quietHoursStart,
@@ -117,6 +125,51 @@ notificationRoutes.post(
     return successData(c, {
       mutedContacts: preferences.mutedContacts,
     });
+  },
+);
+
+// ============================================================================
+// Web Push subscription routes
+// ============================================================================
+
+notificationRoutes.get("/push/status", async (c) => {
+  const { user, companyId } = getRouteContext(c);
+  return successData(c, await webPushService.getPushStatus(companyId, user.id));
+});
+
+notificationRoutes.post(
+  "/push/subscribe",
+  zValidator("json", pushSubscriptionSchema),
+  async (c) => {
+    const { user, companyId } = getRouteContext(c);
+    await webPushService.upsertPushSubscription(companyId, user.id, {
+      ...c.req.valid("json"),
+      userAgent: c.req.header("user-agent") ?? null,
+    });
+    return successData(c, { subscribed: true });
+  },
+);
+
+notificationRoutes.delete("/push/subscriptions", async (c) => {
+  const { user, companyId } = getRouteContext(c);
+  const deleted = await webPushService.deleteAllPushSubscriptionsForUser(
+    companyId,
+    user.id,
+  );
+  return successData(c, { deleted });
+});
+
+notificationRoutes.delete(
+  "/push/subscribe",
+  zValidator("json", deletePushSubscriptionSchema),
+  async (c) => {
+    const { user, companyId } = getRouteContext(c);
+    const deleted = await webPushService.deletePushSubscription(
+      companyId,
+      user.id,
+      c.req.valid("json").endpoint,
+    );
+    return successData(c, { deleted });
   },
 );
 
@@ -224,13 +277,10 @@ notificationRoutes.post(
     const { user, companyId } = getRouteContext(c);
     const input = c.req.valid("json");
 
-    const notification = await notificationHistoryService.createNotification(
-      companyId,
-      {
-        userId: user.id,
-        ...input,
-      },
-    );
+    const notification = await createAndPublishNotification(companyId, {
+      userId: user.id,
+      ...input,
+    });
 
     return created(c, notification);
   },

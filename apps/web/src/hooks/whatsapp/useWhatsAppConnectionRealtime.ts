@@ -7,7 +7,6 @@ import type {
   WhatsAppDisconnectedPayload,
   WorkerConnectionStatusPayload,
 } from "@wateaminbox/shared";
-import { toast } from "sonner";
 import { useRealtimeContext } from "@/contexts";
 import { queryKeys } from "../query-keys";
 import type { ConnectionState } from "./types";
@@ -177,13 +176,6 @@ export function useWhatsAppConnectionRealtime({
               isConnecting: payload.status === "connecting",
               isDisconnecting: false,
             });
-
-            // Show toast for error/failed states
-            if (isError) {
-              toast.error(payload.reason || "WhatsApp connection lost", {
-                description: "Worker connection status",
-              });
-            }
 
             // Refetch connections to update status
             queryClientRef.current.invalidateQueries({

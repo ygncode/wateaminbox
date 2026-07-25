@@ -1,5 +1,6 @@
-import { getTenantConnection } from "./tenant.service.js";
+import { normalizeJid } from "@wateaminbox/shared";
 import { AppError } from "../lib/errors.js";
+import { getTenantConnection } from "./tenant.service.js";
 
 /**
  * Sound choice options
@@ -12,6 +13,8 @@ export type SoundChoice = "default" | "chime" | "bell" | "pop" | "none";
 export interface NotificationPreferences {
   id: string;
   userId: string;
+  notificationsEnabled: boolean;
+  timezone: string | null;
   soundEnabled: boolean;
   soundChoice: SoundChoice;
   quietHoursStart: string | null;
@@ -25,6 +28,8 @@ export interface NotificationPreferences {
  * Input for updating notification preferences
  */
 export interface UpdateNotificationPreferencesInput {
+  notificationsEnabled?: boolean;
+  timezone?: string | null;
   soundEnabled?: boolean;
   soundChoice?: SoundChoice;
   quietHoursStart?: string | null;
@@ -35,10 +40,12 @@ export interface UpdateNotificationPreferencesInput {
 /**
  * Default notification preferences
  */
-const DEFAULT_PREFERENCES: Omit<
+export const DEFAULT_PREFERENCES: Omit<
   NotificationPreferences,
   "id" | "userId" | "createdAt" | "updatedAt"
 > = {
+  notificationsEnabled: true,
+  timezone: null,
   soundEnabled: true,
   soundChoice: "default",
   quietHoursStart: null,
@@ -52,6 +59,8 @@ const DEFAULT_PREFERENCES: Omit<
 function mapRowToPreferences(row: {
   id: string;
   user_id: string;
+  notifications_enabled: boolean;
+  timezone: string | null;
   sound_enabled: boolean;
   sound_choice: string;
   quiet_hours_start: string | null;
@@ -63,6 +72,8 @@ function mapRowToPreferences(row: {
   return {
     id: row.id,
     userId: row.user_id,
+    notificationsEnabled: row.notifications_enabled,
+    timezone: row.timezone,
     soundEnabled: row.sound_enabled,
     soundChoice: row.sound_choice as SoundChoice,
     quietHoursStart: row.quiet_hours_start,
@@ -98,6 +109,8 @@ export async function getNotificationPreferences(
     .insertInto("notification_preferences")
     .values({
       user_id: userId,
+      notifications_enabled: DEFAULT_PREFERENCES.notificationsEnabled,
+      timezone: DEFAULT_PREFERENCES.timezone,
       sound_enabled: DEFAULT_PREFERENCES.soundEnabled,
       sound_choice: DEFAULT_PREFERENCES.soundChoice,
       quiet_hours_start: DEFAULT_PREFERENCES.quietHoursStart,
@@ -130,30 +143,7 @@ export async function updateNotificationPreferences(
   // Ensure preferences exist first
   await getNotificationPreferences(companyId, userId);
 
-  // Build update object with only provided fields
-  const updateData: Record<string, unknown> = {
-    updated_at: new Date(),
-  };
-
-  if (input.soundEnabled !== undefined) {
-    updateData.sound_enabled = input.soundEnabled;
-  }
-
-  if (input.soundChoice !== undefined) {
-    updateData.sound_choice = input.soundChoice;
-  }
-
-  if (input.quietHoursStart !== undefined) {
-    updateData.quiet_hours_start = input.quietHoursStart;
-  }
-
-  if (input.quietHoursEnd !== undefined) {
-    updateData.quiet_hours_end = input.quietHoursEnd;
-  }
-
-  if (input.mutedContacts !== undefined) {
-    updateData.muted_contacts = input.mutedContacts;
-  }
+  const updateData = buildPreferenceUpdateData(input);
 
   const updated = await tenantDb
     .updateTable("notification_preferences")
@@ -169,6 +159,30 @@ export async function updateNotificationPreferences(
   return mapRowToPreferences(updated);
 }
 
+export function buildPreferenceUpdateData(
+  input: UpdateNotificationPreferencesInput,
+  updatedAt: Date = new Date(),
+): Record<string, unknown> {
+  const updateData: Record<string, unknown> = { updated_at: updatedAt };
+  if (input.notificationsEnabled !== undefined)
+    updateData.notifications_enabled = input.notificationsEnabled;
+  if (input.timezone !== undefined) updateData.timezone = input.timezone;
+  if (input.soundEnabled !== undefined)
+    updateData.sound_enabled = input.soundEnabled;
+  if (input.soundChoice !== undefined)
+    updateData.sound_choice = input.soundChoice;
+  if (input.quietHoursStart !== undefined)
+    updateData.quiet_hours_start = input.quietHoursStart;
+  if (input.quietHoursEnd !== undefined)
+    updateData.quiet_hours_end = input.quietHoursEnd;
+  if (input.mutedContacts !== undefined) {
+    updateData.muted_contacts = [
+      ...new Set(input.mutedContacts.map(normalizeContactJid)),
+    ];
+  }
+  return updateData;
+}
+
 /**
  * Mutes a contact for a user
  */
@@ -177,14 +191,15 @@ export async function muteContact(
   userId: string,
   contactJid: string,
 ): Promise<NotificationPreferences> {
+  const normalizedJid = normalizeContactJid(contactJid);
   const preferences = await getNotificationPreferences(companyId, userId);
 
-  if (preferences.mutedContacts.includes(contactJid)) {
+  if (preferences.mutedContacts.includes(normalizedJid)) {
     return preferences;
   }
 
   return updateNotificationPreferences(companyId, userId, {
-    mutedContacts: [...preferences.mutedContacts, contactJid],
+    mutedContacts: [...preferences.mutedContacts, normalizedJid],
   });
 }
 
@@ -196,15 +211,24 @@ export async function unmuteContact(
   userId: string,
   contactJid: string,
 ): Promise<NotificationPreferences> {
+  const normalizedJid = normalizeContactJid(contactJid);
   const preferences = await getNotificationPreferences(companyId, userId);
 
-  if (!preferences.mutedContacts.includes(contactJid)) {
+  if (!preferences.mutedContacts.includes(normalizedJid)) {
     return preferences;
   }
 
   return updateNotificationPreferences(companyId, userId, {
     mutedContacts: preferences.mutedContacts.filter(
-      (jid) => jid !== contactJid,
+      (jid) => jid !== normalizedJid,
     ),
   });
+}
+
+export function normalizeContactJid(contactJid: string): string {
+  const normalized = normalizeJid(contactJid.trim());
+  if (!normalized) {
+    throw new AppError("Invalid contact JID", 400);
+  }
+  return normalized;
 }

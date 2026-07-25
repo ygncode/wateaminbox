@@ -11,7 +11,8 @@ import { requirePermission } from "../../middleware/tenant.js";
 import { decideContactAssignment } from "../../services/assignment-policy.js";
 import { createAuditLog, getClientIp } from "../../services/audit.service.js";
 import { getCurrentAssignment } from "../../services/contact.service.js";
-import { createNotification } from "../../services/notification-history.service.js";
+import { getAssignmentNotificationInputs } from "../../services/assignment-notification.service.js";
+import { createAndPublishNotifications } from "../../services/notification-delivery.service.js";
 import {
   getMemberWithPermissions,
   PERMISSIONS,
@@ -101,6 +102,7 @@ assignmentRoutes.post(
           assignment: previousAssignment!,
           previousAssigneeId,
           isTakeover: false,
+          isNoop: true,
         };
       }
 
@@ -121,7 +123,13 @@ assignmentRoutes.post(
         .returning(["id", "assigned_to", "assigned_by", "assigned_at"])
         .executeTakeFirstOrThrow();
 
-      return { contact, assignment, previousAssigneeId, isTakeover };
+      return {
+        contact,
+        assignment,
+        previousAssigneeId,
+        isTakeover,
+        isNoop: false,
+      };
     });
 
     if (!result) return notFound(c, "Contact");
@@ -132,40 +140,33 @@ assignmentRoutes.post(
       );
     }
 
-    const { contact, assignment, previousAssigneeId, isTakeover } = result;
+    const { contact, assignment, previousAssigneeId, isTakeover, isNoop } =
+      result;
     const contactDisplayName = getContactDisplayName(
       contact,
       "Unknown Contact",
     );
 
-    if (isTakeover && previousAssigneeId) {
-      await createNotification(companyId, {
-        userId: previousAssigneeId,
-        notificationType: "assignment",
-        title: "Contact Reassigned",
-        message: `"${contactDisplayName}" has been reassigned to another team member`,
-        actionUrl: `/chat/${contactId}`,
-        metadata: {
-          contactId,
-          contactName: contactDisplayName,
-          reassignedBy: user.id,
-          newAssignee: targetUserId,
-        },
-      });
+    const notificationInputs = getAssignmentNotificationInputs({
+      actorUserId: user.id,
+      targetUserId,
+      previousAssigneeId,
+      contactId,
+      contactName: contactDisplayName,
+      isNoop,
+    });
+    // Persist the complete recipient batch before publishing targeted signals.
+    await createAndPublishNotifications(companyId, notificationInputs);
 
-      await Promise.all([
-        broadcastToCompany(companyId, "contact:updated", {
-          event: "reassigned",
-          contactId,
-          contactName: contactDisplayName,
-          previousAssignee: previousAssigneeId,
-          newAssignee: targetUserId,
-          reassignedBy: user.id,
-        }),
-        broadcastToCompany(companyId, "notification:new", {
-          userId: previousAssigneeId,
-        }),
-      ]);
+    if (isTakeover && previousAssigneeId) {
+      await broadcastToCompany(companyId, "contact:updated", {
+        event: "reassigned",
+        contactId,
+        contactName: contactDisplayName,
+        previousAssignee: previousAssigneeId,
+        newAssignee: targetUserId,
+        reassignedBy: user.id,
+      });
     }
 
     await createAuditLog({
