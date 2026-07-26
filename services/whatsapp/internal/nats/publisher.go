@@ -46,6 +46,7 @@ type (
 	PresencePayload         = sharednats.PresencePayload
 	TypingPayload           = sharednats.TypingPayload
 	ContactPayload          = sharednats.ContactPayload
+	GroupParticipantPayload = sharednats.GroupParticipantPayload
 	ProfilePicturePayload   = sharednats.ProfilePicturePayload
 	SendConfirmationPayload = sharednats.SendConfirmationPayload
 	SendFailedPayload       = sharednats.SendFailedPayload
@@ -284,7 +285,12 @@ func (p *Publisher) PublishTyping(typing TypingEvent) error {
 }
 
 // PublishContact publishes a contact sync event.
-func (p *Publisher) PublishContact(jid, name, displayName string, isGroup bool, unreadCount int, profilePictureURL string) error {
+func (p *Publisher) PublishContact(jid, name, displayName string, isGroup bool, unreadCount int, participants []GroupParticipantPayload, profilePictureURL string) error {
+	var participantCount *int
+	if len(participants) > 0 {
+		count := len(participants)
+		participantCount = &count
+	}
 	event := WhatsAppEvent{
 		Type:         "contact",
 		CompanyID:    p.companyID,
@@ -294,8 +300,38 @@ func (p *Publisher) PublishContact(jid, name, displayName string, isGroup bool, 
 			Name:              name,
 			DisplayName:       displayName,
 			IsGroup:           isGroup,
-			UnreadCount:       unreadCount,
+			UnreadCount:       &unreadCount,
+			Participants:      participants,
+			ParticipantCount:  participantCount,
 			ProfilePictureURL: profilePictureURL,
+		},
+		Timestamp: time.Now().Format(time.RFC3339),
+	}
+
+	subject := fmt.Sprintf(SubjectContact, p.companyID, p.connectionID)
+	return p.publish(subject, event)
+}
+
+// PublishGroupMetadata refreshes joined-group data without changing unread
+// state, which is only authoritative when supplied by a history conversation.
+func (p *Publisher) PublishGroupMetadata(jid, name string, participantCount int, participants []GroupParticipantPayload) error {
+	if participantCount <= 0 && len(participants) > 0 {
+		participantCount = len(participants)
+	}
+	var participantCountSnapshot *int
+	if participantCount > 0 {
+		participantCountSnapshot = &participantCount
+	}
+	event := WhatsAppEvent{
+		Type:         "contact",
+		CompanyID:    p.companyID,
+		ConnectionID: p.connectionID,
+		Payload: ContactPayload{
+			JID:              jid,
+			DisplayName:      name,
+			IsGroup:          true,
+			Participants:     participants,
+			ParticipantCount: participantCountSnapshot,
 		},
 		Timestamp: time.Now().Format(time.RFC3339),
 	}

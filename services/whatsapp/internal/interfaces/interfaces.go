@@ -10,6 +10,7 @@ import (
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/types"
 
+	sharednats "github.com/ygncode-lab/whatsapp-web/services/shared/nats"
 	intTypes "github.com/ygncode-lab/whatsapp-web/services/whatsapp/internal/types"
 )
 
@@ -44,7 +45,9 @@ type Publisher interface {
 	// PublishTyping publishes a typing indicator event.
 	PublishTyping(typing TypingEvent) error
 	// PublishContact publishes a contact sync event.
-	PublishContact(jid, name, displayName string, isGroup bool, unreadCount int, profilePictureURL string) error
+	PublishContact(jid, name, displayName string, isGroup bool, unreadCount int, participants []sharednats.GroupParticipantPayload, profilePictureURL string) error
+	// PublishGroupMetadata refreshes joined-group names and participants without changing unread state.
+	PublishGroupMetadata(jid, name string, participantCount int, participants []sharednats.GroupParticipantPayload) error
 	// PublishProfilePicture publishes a profile picture update event.
 	PublishProfilePicture(jid, profilePictureURL string, remove bool, timestamp time.Time) error
 	// PublishMessageRevoke publishes a message revocation event.

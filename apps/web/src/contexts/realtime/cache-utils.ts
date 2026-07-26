@@ -158,9 +158,7 @@ export function updateContactInChatList(
 export function updateContactDetailsByJid(
   queryClient: QueryClient,
   jid: string,
-  updater: (
-    contact: Record<string, unknown>,
-  ) => Record<string, unknown>,
+  updater: (contact: Record<string, unknown>) => Record<string, unknown>,
 ): void {
   queryClient.setQueriesData(
     { queryKey: queryKeys.contacts.details() },
@@ -181,6 +179,11 @@ export function updateContactDetailsByJid(
 export function invalidateChatList(queryClient: QueryClient): void {
   queryClient.invalidateQueries({
     queryKey: chatKeys.lists(),
+  });
+  // The Groups tab is a second projection of the same conversations. New
+  // messages and read events must refresh both projections together.
+  queryClient.invalidateQueries({
+    queryKey: queryKeys.groups.lists(),
   });
 }
 

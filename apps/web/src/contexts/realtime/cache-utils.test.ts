@@ -1,12 +1,14 @@
 import { describe, expect, test } from "bun:test";
 import { QueryClient } from "@tanstack/react-query";
 import type { Message } from "@wateaminbox/shared";
+import { queryKeys } from "../../hooks/query-keys";
 import { chatKeys } from "../../hooks/useChats";
 import { infiniteMessageKeys } from "../../hooks/useInfiniteMessages";
 import { setCompanyId } from "../../lib/api/client";
 import {
   addMessageToCache,
   type InfiniteMessageData,
+  invalidateChatList,
   updateMessageInCache,
 } from "./cache-utils";
 import { reconcileRealtimeState } from "./event-handlers";
@@ -31,12 +33,14 @@ function seed(client: QueryClient, companyId: string) {
   setCompanyId(companyId);
   const messageKey = infiniteMessageKeys.list("conversation-1");
   const chatKey = chatKeys.list({});
+  const groupKey = queryKeys.groups.list({});
   client.setQueryData<InfiniteMessageData>(messageKey, {
     pages: [{ messages: [message("pending-1")], hasMore: false }],
     pageParams: [undefined],
   });
   client.setQueryData(chatKey, []);
-  return { messageKey, chatKey };
+  client.setQueryData(groupKey, { data: [] });
+  return { messageKey, chatKey, groupKey };
 }
 
 describe("realtime React Query reconciliation", () => {
@@ -69,6 +73,18 @@ describe("realtime React Query reconciliation", () => {
     reconcileRealtimeState(client, "conversation-1");
 
     expect(client.getQueryState(companyB.chatKey)?.isInvalidated).toBe(true);
+    expect(client.getQueryState(companyB.groupKey)?.isInvalidated).toBe(true);
     expect(client.getQueryState(companyA.chatKey)?.isInvalidated).toBe(false);
+    expect(client.getQueryState(companyA.groupKey)?.isInvalidated).toBe(false);
+  });
+
+  test("message and read updates invalidate chat and group projections together", () => {
+    const client = new QueryClient();
+    const current = seed(client, "company-a");
+
+    invalidateChatList(client);
+
+    expect(client.getQueryState(current.chatKey)?.isInvalidated).toBe(true);
+    expect(client.getQueryState(current.groupKey)?.isInvalidated).toBe(true);
   });
 });

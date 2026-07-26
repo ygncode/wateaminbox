@@ -38,6 +38,56 @@ func TestEventTypeConstants(t *testing.T) {
 	}
 }
 
+func TestContactPayloadAlwaysSerializesUnreadSnapshot(t *testing.T) {
+	unreadCount := 0
+	data, err := json.Marshal(ContactPayload{
+		JID:         "123@g.us",
+		IsGroup:     true,
+		UnreadCount: &unreadCount,
+		Participants: []GroupParticipantPayload{
+			{JID: "1@s.whatsapp.net", IsAdmin: true},
+		},
+	})
+	if err != nil {
+		t.Fatalf("failed to marshal contact payload: %v", err)
+	}
+
+	var payload map[string]any
+	if err := json.Unmarshal(data, &payload); err != nil {
+		t.Fatalf("failed to unmarshal contact payload: %v", err)
+	}
+	if unread, ok := payload["unreadCount"]; !ok || unread != float64(0) {
+		t.Fatalf("expected an explicit zero unread snapshot, got %#v", payload["unreadCount"])
+	}
+	participants, ok := payload["participants"].([]any)
+	if !ok || len(participants) != 1 {
+		t.Fatalf("expected one serialized group participant, got %#v", payload["participants"])
+	}
+}
+
+func TestGroupMetadataCanRefreshWithoutResettingUnread(t *testing.T) {
+	participantCount := 42
+	data, err := json.Marshal(ContactPayload{
+		JID:              "123@g.us",
+		IsGroup:          true,
+		ParticipantCount: &participantCount,
+	})
+	if err != nil {
+		t.Fatalf("failed to marshal group metadata: %v", err)
+	}
+
+	var payload map[string]any
+	if err := json.Unmarshal(data, &payload); err != nil {
+		t.Fatalf("failed to unmarshal group metadata: %v", err)
+	}
+	if _, exists := payload["unreadCount"]; exists {
+		t.Fatalf("metadata-only refresh must not reset unread state: %#v", payload)
+	}
+	if payload["participantCount"] != float64(42) {
+		t.Fatalf("expected participant count snapshot, got %#v", payload["participantCount"])
+	}
+}
+
 func TestCommandTypeConstants(t *testing.T) {
 	if CommandSpawn != "spawn" {
 		t.Errorf("CommandSpawn = %q, want 'spawn'", CommandSpawn)

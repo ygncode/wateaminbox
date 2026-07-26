@@ -142,19 +142,27 @@ type TypingPayload struct {
 	MediaType string `json:"mediaType,omitempty"` // "text" or "audio"
 }
 
+// GroupParticipantPayload is a group member included in a conversation sync.
+type GroupParticipantPayload struct {
+	JID     string `json:"jid"`
+	IsAdmin bool   `json:"isAdmin"`
+}
+
 // ContactPayload is the payload for contact/conversation sync events.
 type ContactPayload struct {
-	JID               string `json:"jid"`
-	Name              string `json:"name,omitempty"`
-	DisplayName       string `json:"displayName,omitempty"`
-	FirstName         string `json:"firstName,omitempty"`
-	FullName          string `json:"fullName,omitempty"`
-	PushName          string `json:"pushName,omitempty"`
-	BusinessName      string `json:"businessName,omitempty"`
-	IsGroup           bool   `json:"isGroup,omitempty"`
-	NameOnly          bool   `json:"nameOnly,omitempty"`
-	UnreadCount       int    `json:"unreadCount,omitempty"`
-	ProfilePictureURL string `json:"profilePictureUrl,omitempty"`
+	JID               string                    `json:"jid"`
+	Name              string                    `json:"name,omitempty"`
+	DisplayName       string                    `json:"displayName,omitempty"`
+	FirstName         string                    `json:"firstName,omitempty"`
+	FullName          string                    `json:"fullName,omitempty"`
+	PushName          string                    `json:"pushName,omitempty"`
+	BusinessName      string                    `json:"businessName,omitempty"`
+	IsGroup           bool                      `json:"isGroup,omitempty"`
+	NameOnly          bool                      `json:"nameOnly,omitempty"`
+	UnreadCount       *int                      `json:"unreadCount,omitempty"`
+	Participants      []GroupParticipantPayload `json:"participants,omitempty"`
+	ParticipantCount  *int                      `json:"participantCount,omitempty"`
+	ProfilePictureURL string                    `json:"profilePictureUrl,omitempty"`
 }
 
 // ProfilePicturePayload is the payload for profile picture update events.

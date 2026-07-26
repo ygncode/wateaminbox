@@ -116,6 +116,7 @@ func (h *Handler) handleConnected(evt *events.Connected) {
 		// an incoming message.
 		go h.subscribeToKnownContacts()
 		go h.syncKnownContactNames()
+		go h.syncJoinedGroups()
 	}
 
 	// Publish connection status to NATS
@@ -124,6 +125,57 @@ func (h *Handler) handleConnected(evt *events.Connected) {
 			log.Printf("Failed to publish connected status: %v", err)
 		}
 	}
+}
+
+// syncJoinedGroups repairs group metadata after every worker restart. Unlike
+// history sync, GetJoinedGroups is available for established sessions, so
+// existing workspaces do not need to re-pair to recover names and participants.
+func (h *Handler) syncJoinedGroups() {
+	if h.config.Client == nil || h.publisher == nil {
+		return
+	}
+	client := h.config.Client.GetClient()
+	if client == nil {
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+	groups, err := client.GetJoinedGroups(ctx)
+	if err != nil {
+		log.Printf("Failed to refresh joined groups: %v", err)
+		return
+	}
+
+	for _, group := range groups {
+		if group == nil || group.JID.IsEmpty() {
+			continue
+		}
+		participants := make([]natsClient.GroupParticipantPayload, 0, len(group.Participants))
+		for _, participant := range group.Participants {
+			primary := participant.JID
+			if primary.IsEmpty() {
+				primary = participant.PhoneNumber
+			}
+			resolved := h.resolvePreferredJID(primary, participant.PhoneNumber)
+			if resolved.User == "" || resolved.Server == "" {
+				continue
+			}
+			participants = append(participants, natsClient.GroupParticipantPayload{
+				JID:     resolved.String(),
+				IsAdmin: participant.IsAdmin || participant.IsSuperAdmin,
+			})
+		}
+		if err := h.publisher.PublishGroupMetadata(
+			group.JID.ToNonAD().String(),
+			group.Name,
+			group.ParticipantCount,
+			participants,
+		); err != nil {
+			log.Printf("Failed to publish metadata for group %s: %v", group.JID.String(), err)
+		}
+	}
+	log.Printf("Refreshed metadata for %d joined groups", len(groups))
 }
 
 // subscribeToKnownContacts restores presence subscriptions after a connection

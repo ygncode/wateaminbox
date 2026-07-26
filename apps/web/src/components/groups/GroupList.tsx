@@ -242,7 +242,9 @@ function GroupListItemComponent({
           <div className="flex items-center gap-1 min-w-0 flex-1">
             <Users className="h-3.5 w-3.5 text-gray-400 dark:text-dark-text-tertiary flex-shrink-0" />
             <span className="text-sm text-gray-500 dark:text-dark-text-secondary truncate">
-              {group.participantCount ?? 0} participants
+              {group.participantCount === null
+                ? "Participant count unavailable"
+                : `${group.participantCount} participants`}
             </span>
           </div>
 

@@ -188,6 +188,11 @@ export interface ContactEvent extends WhatsAppEvent {
     isGroup?: boolean;
     nameOnly?: boolean;
     unreadCount?: number;
+    participants?: Array<{
+      jid: string;
+      isAdmin: boolean;
+    }>;
+    participantCount?: number;
     profilePictureUrl?: string;
   };
 }

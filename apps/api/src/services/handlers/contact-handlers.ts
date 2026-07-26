@@ -87,6 +87,7 @@ export async function handleContactEvent(event: ContactEvent): Promise<void> {
       .executeTakeFirst();
 
     let contactChanged = false;
+    let contactId = existingContact?.id ?? null;
     if (existingContact) {
       const shouldClearRedactedName =
         !syncedName &&
@@ -116,7 +117,7 @@ export async function handleContactEvent(event: ContactEvent): Promise<void> {
     } else if (!payload.nameOnly) {
       // Name-only events may include the entire address book. Do not create an
       // inbox conversation until WhatsApp supplies conversation history.
-      const contactId = crypto.randomUUID();
+      contactId = crypto.randomUUID();
       const phoneNumber = extractPhoneFromJid(contactJid);
       await tenantDb
         .insertInto("contacts")
@@ -135,6 +136,107 @@ export async function handleContactEvent(event: ContactEvent): Promise<void> {
 
       contactChanged = true;
       logger.debug({ jid: contactJid, companyId }, "Created contact");
+    }
+
+    // A full conversation event carries WhatsApp's unread snapshot. Persist it
+    // in the same table used by both sidebar views instead of deriving unread
+    // badges from the number of historical incoming messages.
+    if (contactId && !payload.nameOnly && payload.unreadCount !== undefined) {
+      await tenantDb
+        .insertInto("conversation_states")
+        .values({
+          contact_id: contactId,
+          unread_count: Math.max(0, payload.unreadCount),
+          updated_at: toDbDate(),
+        })
+        .onConflict((oc) =>
+          oc.column("contact_id").doUpdateSet({
+            unread_count: Math.max(0, payload.unreadCount ?? 0),
+            updated_at: toDbDate(),
+          }),
+        )
+        .execute();
+    }
+
+    // History sync also carries the group title and current participant list.
+    // Keep the legacy contacts.push_name copy for chat compatibility, while
+    // filling the dedicated group tables used by the Groups tab and details.
+    if (contactId && !payload.nameOnly && payload.isGroup === true) {
+      const participants = payload.participants
+        ? [
+            ...new Map(
+              payload.participants
+                .map((participant) => ({
+                  jid: normalizeJid(participant.jid),
+                  isAdmin: participant.isAdmin,
+                }))
+                .filter(
+                  (
+                    participant,
+                  ): participant is {
+                    jid: string;
+                    isAdmin: boolean;
+                  } => Boolean(participant.jid),
+                )
+                .map((participant) => [participant.jid, participant]),
+            ).values(),
+          ]
+        : undefined;
+      const participantCount =
+        payload.participantCount !== undefined
+          ? Math.max(0, payload.participantCount)
+          : participants?.length;
+
+      let group = await tenantDb
+        .selectFrom("groups")
+        .select("id")
+        .where("contact_id", "=", contactId)
+        .executeTakeFirst();
+
+      if (group) {
+        await tenantDb
+          .updateTable("groups")
+          .set({
+            ...(syncedName ? { name: syncedName } : {}),
+            ...(participantCount !== undefined
+              ? { participant_count: participantCount }
+              : {}),
+          })
+          .where("id", "=", group.id)
+          .execute();
+      } else {
+        group = await tenantDb
+          .insertInto("groups")
+          .values({
+            contact_id: contactId,
+            jid: contactJid,
+            name: syncedName,
+            participant_count: participantCount ?? 0,
+          })
+          .returning("id")
+          .executeTakeFirstOrThrow();
+      }
+
+      if (participants) {
+        await tenantDb.transaction().execute(async (trx) => {
+          await trx
+            .deleteFrom("group_participants")
+            .where("group_id", "=", group.id)
+            .execute();
+          if (participants.length > 0) {
+            await trx
+              .insertInto("group_participants")
+              .values(
+                participants.map((participant) => ({
+                  group_id: group.id,
+                  participant_jid: participant.jid,
+                  is_admin: participant.isAdmin,
+                })),
+              )
+              .execute();
+          }
+        });
+      }
     }
 
     if (syncedName && contactChanged) {

@@ -120,6 +120,26 @@ func (h *Handler) handleHistorySync(evt *events.HistorySync) {
 		totalMessages, totalMediaDownloaded, elapsed.Round(time.Millisecond))
 }
 
+func (h *Handler) getHistoryGroupParticipants(conv *waHistorySync.Conversation) []natsClient.GroupParticipantPayload {
+	participants := make([]natsClient.GroupParticipantPayload, 0, len(conv.GetParticipant()))
+	for _, participant := range conv.GetParticipant() {
+		if participant == nil || participant.GetUserJID() == "" {
+			continue
+		}
+		participantJID, err := types.ParseJID(participant.GetUserJID())
+		if err != nil || participantJID.User == "" || participantJID.Server == "" {
+			log.Printf("Skipping invalid participant JID %s: %v", participant.GetUserJID(), err)
+			continue
+		}
+		preferredJID := h.resolvePreferredJID(participantJID.ToNonAD(), types.EmptyJID)
+		participants = append(participants, natsClient.GroupParticipantPayload{
+			JID:     preferredJID.String(),
+			IsAdmin: participant.GetRank() != waHistorySync.GroupParticipant_REGULAR,
+		})
+	}
+	return participants
+}
+
 // processHistorySyncConversation processes a single conversation during history sync.
 // Returns the count of messages processed and media items downloaded.
 // Uses concrete proto type *waHistorySync.Conversation for reliable type handling.
@@ -196,8 +216,14 @@ func (h *Handler) processHistorySyncConversation(conv *waHistorySync.Conversatio
 		name = ""
 	}
 
-	// Get unread count
+	// Get unread count and group membership from WhatsApp's conversation
+	// snapshot. The API persists both so Chats and Groups render one coherent
+	// name/count state instead of inferring metadata from message history.
 	unreadCount := int(conv.GetUnreadCount())
+	var participants []natsClient.GroupParticipantPayload
+	if isGroup {
+		participants = h.getHistoryGroupParticipants(conv)
+	}
 
 	// Fetch profile picture during history sync
 	var profilePicURL string
@@ -207,7 +233,7 @@ func (h *Handler) processHistorySyncConversation(conv *waHistorySync.Conversatio
 
 	// Publish contact to NATS
 	if h.publisher != nil {
-		if err := h.publisher.PublishContact(jid, name, displayName, isGroup, unreadCount, profilePicURL); err != nil {
+		if err := h.publisher.PublishContact(jid, name, displayName, isGroup, unreadCount, participants, profilePicURL); err != nil {
 			log.Printf("Failed to publish contact %s: %v", jid, err)
 		}
 	}

@@ -4,7 +4,7 @@
  * Routes for listing, getting, and updating groups.
  */
 import { zValidator } from "@hono/zod-validator";
-import { toDbDate, getGroupDisplayName } from "@wateaminbox/shared";
+import { getGroupDisplayName, toDbDate } from "@wateaminbox/shared";
 import { Hono } from "hono";
 import { notFound } from "../../lib/errors.js";
 import { successData, successPaginated } from "../../lib/response.js";
@@ -13,6 +13,7 @@ import {
   updateGroupSchema,
 } from "../../lib/schemas/index.js";
 import { getRouteContext } from "../../middleware/context.js";
+import { getGroupsList } from "../../services/group.service.js";
 
 export const crudRoutes = new Hono();
 
@@ -24,104 +25,20 @@ crudRoutes.get("/", zValidator("query", listGroupsQuerySchema), async (c) => {
   const { tenantDb, user, permissions } = getRouteContext(c);
   const { search, limit, offset } = c.req.valid("query");
 
-  let query = tenantDb
-    .selectFrom("contacts")
-    .leftJoin("groups", "groups.contact_id", "contacts.id")
-    .leftJoin("messages", "messages.contact_id", "contacts.id")
-    .select([
-      "contacts.id",
-      "contacts.jid",
-      "contacts.custom_name",
-      "contacts.profile_picture_url",
-      "contacts.created_at",
-      "groups.name as group_name",
-      "groups.description",
-      "groups.participant_count",
-    ])
-    .select((eb) => [
-      eb.fn.max("messages.timestamp").as("last_message_at"),
-      eb.fn
-        .count("messages.id")
-        .filterWhere("messages.from_me", "=", false)
-        .as("unread_count"),
-    ])
-    .where("contacts.is_group", "=", true)
-    .groupBy(["contacts.id", "groups.id"]);
+  const { groups, total } = await getGroupsList(tenantDb, {
+    search,
+    limit,
+    offset,
+    userId: user.id,
+    canViewAllChats: permissions.can_view_all_chats,
+  });
 
-  if (!permissions.can_view_all_chats) {
-    query = query
-      .innerJoin("contact_assignments", (join) =>
-        join
-          .onRef("contact_assignments.contact_id", "=", "contacts.id")
-          .on("contact_assignments.unassigned_at", "is", null),
-      )
-      .where("contact_assignments.assigned_to", "=", user.id);
-  }
-
-  // Filter by search term
-  if (search) {
-    query = query.where((eb) =>
-      eb.or([
-        eb("contacts.custom_name", "ilike", `%${search}%`),
-        eb("groups.name", "ilike", `%${search}%`),
-      ]),
-    );
-  }
-
-  // Order by last message time
-  query = query.orderBy("last_message_at", "desc");
-
-  // Pagination
-  const groups = await query.limit(limit).offset(offset).execute();
-
-  // Get total count
-  let countQuery = tenantDb
-    .selectFrom("contacts")
-    .select((eb) => eb.fn.count("contacts.id").as("total"))
-    .where("contacts.is_group", "=", true);
-
-  if (!permissions.can_view_all_chats) {
-    countQuery = countQuery
-      .innerJoin("contact_assignments", (join) =>
-        join
-          .onRef("contact_assignments.contact_id", "=", "contacts.id")
-          .on("contact_assignments.unassigned_at", "is", null),
-      )
-      .where("contact_assignments.assigned_to", "=", user.id);
-  }
-
-  if (search) {
-    countQuery = countQuery.where(
-      "contacts.custom_name",
-      "ilike",
-      `%${search}%`,
-    );
-  }
-
-  const countResult = await countQuery.executeTakeFirst();
-  const total = Number(countResult?.total || 0);
-
-  return successPaginated(
-    c,
-    groups.map((group) => ({
-      id: group.id,
-      jid: group.jid,
-      name: group.custom_name || group.group_name,
-      displayName: getGroupDisplayName(group),
-      description: group.description,
-      participantCount: group.participant_count,
-      profilePictureUrl: group.profile_picture_url,
-      lastMessageAt: group.last_message_at,
-      unreadCount: Number(group.unread_count),
-      createdAt: group.created_at,
-    })),
-    {
-      total,
-      limit,
-      offset,
-      hasMore: offset + groups.length < total,
-    },
-  );
+  return successPaginated(c, groups, {
+    total,
+    limit,
+    offset,
+    hasMore: offset + groups.length < total,
+  });
 });
 
 /**
@@ -172,10 +89,10 @@ crudRoutes.get("/:id", async (c) => {
   return successData(c, {
     id: contact.id,
     jid: contact.jid,
-    name: contact.custom_name || group?.name,
+    name: contact.custom_name || group?.name || contact.push_name,
     displayName: getGroupDisplayName({
       custom_name: contact.custom_name,
-      name: group?.name,
+      name: group?.name || contact.push_name,
     }),
     customName: contact.custom_name,
     description: group?.description,
