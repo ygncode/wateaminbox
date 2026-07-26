@@ -1,4 +1,5 @@
 import { AlertCircle, Check } from "lucide-react";
+import { formatPhoneNumber } from "@/lib/utils";
 import type { PreviewStepProps } from "./types";
 
 export function PreviewStep({
@@ -95,7 +96,7 @@ export function PreviewStep({
                   {row.row}
                 </td>
                 <td className="px-4 py-2 text-gray-900 dark:text-dark-text-primary">
-                  {row.phoneNumber}
+                  {formatPhoneNumber(row.phoneNumber)}
                 </td>
                 <td className="px-4 py-2 text-gray-900 dark:text-dark-text-primary">
                   {row.name || "-"}

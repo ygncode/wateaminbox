@@ -1,5 +1,9 @@
-import { getGroupDisplayName } from "@wateaminbox/shared";
-import type { Kysely } from "kysely";
+import {
+  extractPhoneFromJid,
+  getGroupDisplayName,
+  normalizeJid,
+} from "@wateaminbox/shared";
+import { type Kysely, sql } from "kysely";
 import type { TenantDatabase } from "./tenant.service.js";
 
 export interface ListGroupsOptions {
@@ -21,6 +25,16 @@ export interface GroupListItem {
   lastMessageAt: Date | null;
   unreadCount: number;
   createdAt: Date;
+}
+
+export interface EnrichedGroupParticipant {
+  jid: string;
+  phoneNumber: string | null;
+  displayName: string;
+  profilePictureUrl: string | null;
+  isAdmin: boolean;
+  isSelf: boolean;
+  joinedAt: Date;
 }
 
 /**
@@ -89,7 +103,10 @@ export async function getGroupsList(
   }
 
   const rows = await query
-    .orderBy("message_summary.last_message_at", "desc")
+    // PostgreSQL puts NULL values first for DESC unless explicitly told not
+    // to. That made groups without messages appear above active groups.
+    .orderBy(sql`message_summary.last_message_at DESC NULLS LAST`)
+    .orderBy("contacts.id", "asc")
     .limit(limit)
     .offset(offset)
     .execute();
@@ -147,4 +164,135 @@ export async function getGroupsList(
     }),
     total: Number(countResult?.total || 0),
   };
+}
+
+/** Resolve group members to the same names and avatars shown in message bubbles. */
+export async function getEnrichedGroupParticipants(
+  tenantDb: Kysely<TenantDatabase>,
+  options: {
+    groupId: string;
+    contactId: string;
+    connectionId: string | null;
+    connectionJid: string | null;
+  },
+): Promise<EnrichedGroupParticipant[]> {
+  const participantRows = await tenantDb
+    .selectFrom("group_participants")
+    .select(["participant_jid", "is_admin", "joined_at"])
+    .where("group_id", "=", options.groupId)
+    .execute();
+  if (participantRows.length === 0) return [];
+
+  const participantJids = [
+    ...new Set(
+      participantRows
+        .map((participant) => normalizeJid(participant.participant_jid))
+        .filter((jid): jid is string => Boolean(jid)),
+    ),
+  ];
+  if (participantJids.length === 0) return [];
+
+  const [contacts, messageSenders, storedNames] = await Promise.all([
+    options.connectionId
+      ? tenantDb
+          .selectFrom("contacts")
+          .select(["jid", "custom_name", "push_name", "profile_picture_url"])
+          .where("whatsapp_connection_id", "=", options.connectionId)
+          .where("jid", "in", participantJids)
+          .execute()
+      : Promise.resolve([]),
+    tenantDb
+      .selectFrom("messages")
+      .select(["sender_jid", "sender_name", "sender_avatar_url", "timestamp"])
+      .where("contact_id", "=", options.contactId)
+      .where("sender_jid", "in", participantJids)
+      .orderBy("timestamp", "desc")
+      .execute(),
+    options.connectionId
+      ? sql<{ jid: string; name: string | null }>`
+          SELECT DISTINCT ON (normalized_jid)
+            normalized_jid AS jid,
+            coalesce(
+              nullif(stored.full_name, ''),
+              nullif(stored.push_name, ''),
+              nullif(stored.first_name, ''),
+              nullif(stored.business_name, '')
+            ) AS name
+          FROM (
+            SELECT
+              contacts.*,
+              regexp_replace(
+                coalesce(mapping.jid, contacts.their_jid),
+                ':[0-9]+@',
+                '@'
+              ) AS normalized_jid
+            FROM whatsapp_sessions.whatsmeow_contacts AS contacts
+            LEFT JOIN whatsapp_sessions.whatsmeow_lid_mappings AS mapping
+              ON mapping.connection_id::text = contacts.connection_id::text
+              AND regexp_replace(mapping.lid, ':[0-9]+@', '@') =
+                  regexp_replace(contacts.their_jid, ':[0-9]+@', '@')
+            WHERE contacts.connection_id::text = ${options.connectionId}
+          ) AS stored
+          WHERE normalized_jid IN (${sql.join(
+            participantJids.map((jid) => sql`${jid}`),
+          )})
+          ORDER BY normalized_jid
+        `.execute(tenantDb)
+      : Promise.resolve({ rows: [] }),
+  ]);
+
+  const contactByJid = new Map(
+    contacts.map((contact) => [contact.jid, contact]),
+  );
+  const senderByJid = new Map<
+    string,
+    { sender_name: string | null; sender_avatar_url: string | null }
+  >();
+  for (const sender of messageSenders) {
+    const jid = normalizeJid(sender.sender_jid);
+    if (jid && !senderByJid.has(jid)) senderByJid.set(jid, sender);
+  }
+  const storedNameByJid = new Map(
+    storedNames.rows.map((stored) => [stored.jid, stored.name]),
+  );
+  const ownJid = normalizeJid(options.connectionJid);
+
+  return participantRows
+    .map((participant) => {
+      const jid = normalizeJid(participant.participant_jid);
+      if (!jid) return null;
+      const contact = contactByJid.get(jid);
+      const sender = senderByJid.get(jid);
+      const phoneNumber = jid.endsWith("@s.whatsapp.net")
+        ? extractPhoneFromJid(jid)
+        : null;
+      const displayName =
+        contact?.custom_name ||
+        contact?.push_name ||
+        storedNameByJid.get(jid) ||
+        sender?.sender_name ||
+        (phoneNumber ? `+${phoneNumber}` : jid.split("@")[0]) ||
+        "Unknown participant";
+
+      return {
+        jid,
+        phoneNumber,
+        displayName,
+        profilePictureUrl:
+          contact?.profile_picture_url || sender?.sender_avatar_url || null,
+        isAdmin: participant.is_admin,
+        isSelf: jid === ownJid,
+        joinedAt: participant.joined_at,
+      };
+    })
+    .filter(
+      (participant): participant is EnrichedGroupParticipant =>
+        participant !== null,
+    )
+    .sort(
+      (left, right) =>
+        Number(right.isSelf) - Number(left.isSelf) ||
+        Number(right.isAdmin) - Number(left.isAdmin) ||
+        left.displayName.localeCompare(right.displayName),
+    );
 }

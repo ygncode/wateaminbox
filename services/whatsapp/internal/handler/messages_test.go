@@ -5,10 +5,12 @@ import (
 	"testing"
 
 	"go.mau.fi/whatsmeow"
+	"go.mau.fi/whatsmeow/proto/waHistorySync"
 	"go.mau.fi/whatsmeow/proto/waWeb"
 	"go.mau.fi/whatsmeow/store"
 	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
+	"google.golang.org/protobuf/proto"
 )
 
 type fakeLIDStore struct {
@@ -19,7 +21,11 @@ func (s *fakeLIDStore) PutManyLIDMappings(context.Context, []store.LIDMapping) e
 	return nil
 }
 
-func (s *fakeLIDStore) PutLIDMapping(context.Context, types.JID, types.JID) error {
+func (s *fakeLIDStore) PutLIDMapping(_ context.Context, lid, pn types.JID) error {
+	if s.pnByLID == nil {
+		s.pnByLID = make(map[string]types.JID)
+	}
+	s.pnByLID[lid.String()] = pn
 	return nil
 }
 
@@ -75,6 +81,24 @@ func TestResolvePreferredJIDKeepsUnmappedLID(t *testing.T) {
 	resolved := handler.resolvePreferredJID(lid, types.EmptyJID)
 	if resolved.String() != "190288643534904@lid" {
 		t.Fatalf("expected normalized LID fallback, got %s", resolved.String())
+	}
+}
+
+func TestHistorySyncPersistsMappingsBeforeResolvingReactionIdentity(t *testing.T) {
+	lidStore := &fakeLIDStore{}
+	waClient := &whatsmeow.Client{Store: &store.Device{LIDs: lidStore}}
+	handler := New(Config{Client: &mockDownloader{client: waClient}})
+
+	handler.storeHistoryLIDMappings([]*waHistorySync.PhoneNumberToLIDMapping{
+		{
+			PnJID:  proto.String("841665247989@s.whatsapp.net"),
+			LidJID: proto.String("277905926004845@lid"),
+		},
+	})
+
+	resolved := handler.resolveHistoryIdentity("277905926004845@lid")
+	if resolved != "841665247989@s.whatsapp.net" {
+		t.Fatalf("expected canonical reaction identity, got %s", resolved)
 	}
 }
 

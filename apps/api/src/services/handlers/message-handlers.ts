@@ -5,6 +5,7 @@
 import { type MessageStatus, type MessageType } from "@wateaminbox/database";
 import {
   extractPhoneFromJid,
+  formatPhoneLikeText,
   normalizeJid,
   toDate,
   toDbDate,
@@ -452,11 +453,11 @@ export async function handleMessageEvent(event: MessageEvent): Promise<void> {
     }
 
     if (!payload.fromMe && !payload.isHistorySync) {
-      const pushTitle =
-        senderName ||
-        extractPhoneFromJid(normalizedSenderJid) ||
-        contactName ||
-        "New message";
+      const senderLabel =
+        senderName || extractPhoneFromJid(normalizedSenderJid);
+      const pushTitle = senderLabel
+        ? formatPhoneLikeText(senderLabel)
+        : contactName || "New message";
       resolveIncomingMessageRecipients({
         companyId,
         contactId: contact.id,

@@ -1,6 +1,8 @@
 import type { Contact } from "@wateaminbox/shared";
 import { formatLastSeen } from "@wateaminbox/shared";
 import { ArrowLeft } from "lucide-react";
+import { useGroup } from "@/hooks/useGroups";
+import { formatPhoneLikeText } from "@/lib/utils";
 import { ThemeToggle } from "./ThemeToggle";
 
 interface MessageHeaderProps {
@@ -25,14 +27,19 @@ export function MessageHeader({
   onBack,
   isTyping = false,
 }: MessageHeaderProps) {
+  const { data: group } = useGroup(contact?.isGroup ? contact.id : null);
+
   if (!contact) {
     return null;
   }
 
-  const displayName =
-    contact.customName || contact.name || contact.jid || "Unknown";
+  const displayName = formatPhoneLikeText(
+    contact.customName || contact.name || contact.jid || "Unknown",
+  );
   const lastSeenText = contact.isGroup
-    ? ""
+    ? group?.participantCount
+      ? `${group.participantCount} participants`
+      : "Group"
     : formatLastSeen(contact.lastSeen, contact.isOnline);
   const statusText = isTyping ? "typing" : lastSeenText;
 

@@ -1,5 +1,6 @@
 import { extractPhoneFromJid, normalizeJid } from "@wateaminbox/shared";
 import type { NotificationSettings } from "./notifications";
+import { formatPhoneLikeText, formatPhoneNumber } from "./utils";
 
 export interface DesktopNotificationDecisionInput {
   settings: NotificationSettings;
@@ -55,9 +56,12 @@ export function getDesktopSenderName(input: {
   senderJid?: string | null;
   senderId?: string | null;
 }): string {
-  if (input.senderName?.trim()) return input.senderName.trim();
+  if (input.senderName?.trim()) {
+    return formatPhoneLikeText(input.senderName);
+  }
   const jid = normalizeJid(input.senderJid || input.senderId);
-  return extractPhoneFromJid(jid) || jid || "Unknown contact";
+  const phone = extractPhoneFromJid(jid);
+  return phone ? formatPhoneNumber(phone) : jid || "Unknown contact";
 }
 
 export function getMessagePreview(message: {

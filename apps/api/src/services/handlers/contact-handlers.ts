@@ -198,6 +198,9 @@ export async function handleContactEvent(event: ContactEvent): Promise<void> {
           .updateTable("groups")
           .set({
             ...(syncedName ? { name: syncedName } : {}),
+            ...(payload.description !== undefined
+              ? { description: payload.description || null }
+              : {}),
             ...(participantCount !== undefined
               ? { participant_count: participantCount }
               : {}),
@@ -211,6 +214,7 @@ export async function handleContactEvent(event: ContactEvent): Promise<void> {
             contact_id: contactId,
             jid: contactJid,
             name: syncedName,
+            description: payload.description || null,
             participant_count: participantCount ?? 0,
           })
           .returning("id")
@@ -239,7 +243,10 @@ export async function handleContactEvent(event: ContactEvent): Promise<void> {
       }
     }
 
-    if (syncedName && contactChanged) {
+    if (
+      contactChanged &&
+      (Boolean(syncedName) || (payload.isGroup === true && !payload.nameOnly))
+    ) {
       await broadcastToCompany(
         companyId,
         "contact:updated",

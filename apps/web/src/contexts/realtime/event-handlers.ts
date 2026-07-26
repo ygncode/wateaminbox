@@ -135,6 +135,9 @@ export function registerRealtimeEventHandlers({
             updated[existingIndex] = {
               ...updated[existingIndex],
               emoji: payload.emoji,
+              reactorPhoneNumber:
+                payload.reactorPhoneNumber ??
+                updated[existingIndex].reactorPhoneNumber,
               reactorName:
                 payload.reactorName ?? updated[existingIndex].reactorName,
               reactorAvatarUrl:
@@ -152,6 +155,7 @@ export function registerRealtimeEventHandlers({
               {
                 emoji: payload.emoji,
                 reactorJid: payload.from,
+                reactorPhoneNumber: payload.reactorPhoneNumber,
                 reactorName: payload.reactorName,
                 reactorAvatarUrl: payload.reactorAvatarUrl,
                 isOwn: payload.isOwn,
@@ -181,7 +185,10 @@ export function registerRealtimeEventHandlers({
       invalidateChatList(qc);
     }),
     bindEvent("conversation:updated", () => invalidateChatList(qc)),
-    bindEvent("contact:updated", () => invalidateChatList(qc)),
+    bindEvent("contact:updated", () => {
+      invalidateChatList(qc);
+      qc.invalidateQueries({ queryKey: queryKeys.groups.details() });
+    }),
     bindEvent("labels:updated", () => {
       qc.invalidateQueries({ queryKey: ["labels", companyId] });
     }),
@@ -297,6 +304,7 @@ export function registerRealtimeEventHandlers({
       const connectionId = data.connectionId || "unknown";
       setSyncingConnections((previous) => endSync(previous, connectionId));
       invalidateChatList(qc);
+      qc.invalidateQueries({ queryKey: queryKeys.groups.details() });
       const selectedId = useChatStore.getState().selectedConversationId;
       if (selectedId) refetchConversationMessages(qc, selectedId);
     }),
@@ -314,6 +322,7 @@ export function reconcileRealtimeState(
 ): void {
   invalidateChatList(queryClient);
   queryClient.invalidateQueries({ queryKey: queryKeys.contacts.details() });
+  queryClient.invalidateQueries({ queryKey: queryKeys.groups.details() });
   if (selectedConversationId) {
     refetchConversationMessages(queryClient, selectedConversationId);
   }

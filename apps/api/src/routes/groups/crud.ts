@@ -13,7 +13,10 @@ import {
   updateGroupSchema,
 } from "../../lib/schemas/index.js";
 import { getRouteContext } from "../../middleware/context.js";
-import { getGroupsList } from "../../services/group.service.js";
+import {
+  getEnrichedGroupParticipants,
+  getGroupsList,
+} from "../../services/group.service.js";
 
 export const crudRoutes = new Hono();
 
@@ -67,15 +70,23 @@ crudRoutes.get("/:id", async (c) => {
     .where("contact_id", "=", contactId)
     .executeTakeFirst();
 
-  // Get participants
-  const participants = group
+  const connection = contact.whatsapp_connection_id
     ? await tenantDb
-        .selectFrom("group_participants")
-        .select(["participant_jid", "is_admin", "joined_at"])
-        .where("group_id", "=", group.id)
-        .orderBy("is_admin", "desc")
-        .orderBy("joined_at", "asc")
-        .execute()
+        .selectFrom("whatsapp_connections")
+        .select("jid")
+        .where("id", "=", contact.whatsapp_connection_id)
+        .executeTakeFirst()
+    : null;
+
+  // Resolve every member to a saved WhatsApp/contact name when possible. Phone
+  // numbers remain available as the privacy-safe fallback.
+  const participants = group
+    ? await getEnrichedGroupParticipants(tenantDb, {
+        groupId: group.id,
+        contactId,
+        connectionId: contact.whatsapp_connection_id,
+        connectionJid: connection?.jid ?? null,
+      })
     : [];
 
   // Get tags
@@ -97,15 +108,14 @@ crudRoutes.get("/:id", async (c) => {
     customName: contact.custom_name,
     description: group?.description,
     profilePictureUrl: contact.profile_picture_url,
-    participantCount: group?.participant_count || 0,
+    participantCount: Math.max(
+      group?.participant_count || 0,
+      participants.length,
+    ),
     createdBy: group?.created_by,
     createdAt: contact.created_at,
     updatedAt: contact.updated_at,
-    participants: participants.map((p) => ({
-      jid: p.participant_jid,
-      isAdmin: p.is_admin,
-      joinedAt: p.joined_at,
-    })),
+    participants,
     tags,
   });
 });

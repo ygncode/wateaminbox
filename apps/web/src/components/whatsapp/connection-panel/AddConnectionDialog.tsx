@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import type { ConnectionWithState } from "@/hooks/useWhatsAppConnections";
+import { formatPhoneLikeText } from "@/lib/utils";
 import { QRCodeDisplay } from "../QRCodeDisplay";
 import { getConnectionSetupStage } from "./setup-state";
 import type { AddConnectionDialogProps } from "./types";
@@ -156,7 +157,9 @@ export function AddConnectionDialog({
                     <CheckCircle2 className="h-8 w-8" aria-hidden="true" />
                   </div>
                   <p className="mt-4 font-semibold">
-                    {connection?.phoneNumber || connection?.name}
+                    {formatPhoneLikeText(
+                      connection?.phoneNumber || connection?.name,
+                    )}
                   </p>
                   <p className="mt-1 text-sm text-[#65736d] dark:text-dark-text-secondary">
                     Connected and ready to receive conversations.

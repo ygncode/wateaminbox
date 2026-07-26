@@ -153,6 +153,7 @@ type ContactPayload struct {
 	JID               string                    `json:"jid"`
 	Name              string                    `json:"name,omitempty"`
 	DisplayName       string                    `json:"displayName,omitempty"`
+	Description       string                    `json:"description,omitempty"`
 	FirstName         string                    `json:"firstName,omitempty"`
 	FullName          string                    `json:"fullName,omitempty"`
 	PushName          string                    `json:"pushName,omitempty"`

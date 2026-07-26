@@ -89,6 +89,7 @@ export async function handleReactionEvent(event: ReactionEvent): Promise<void> {
         contactId: message.contact_id, // Use contact_id instead of conversationId
         from: payload.from,
         emoji: payload.emoji,
+        reactorPhoneNumber: reactionDetails?.reactorPhoneNumber,
         reactorName: reactionDetails?.reactorName,
         reactorAvatarUrl: reactionDetails?.reactorAvatarUrl,
         isOwn: reactionDetails?.isOwn,

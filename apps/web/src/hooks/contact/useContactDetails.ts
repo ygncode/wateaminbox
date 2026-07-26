@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api/client";
+import { formatPhoneLikeText } from "@/lib/utils";
 import { queryKeys } from "../query-keys";
 
 /**
@@ -70,6 +71,13 @@ export function useContact(contactId: string | null) {
       const response = await api.get<ContactDetail>(`/contacts/${contactId}`);
       return response;
     },
+    select: (contact) => ({
+      ...contact,
+      displayName: formatPhoneLikeText(contact.displayName),
+      pushName: contact.pushName
+        ? formatPhoneLikeText(contact.pushName)
+        : contact.pushName,
+    }),
     enabled: !!contactId,
     staleTime: 30_000, // 30 seconds
     gcTime: 300_000, // 5 minutes

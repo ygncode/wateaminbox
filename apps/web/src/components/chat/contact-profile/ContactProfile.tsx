@@ -9,6 +9,8 @@ import {
 } from "@/components/layout/right-panel";
 import { Button } from "@/components/ui/button";
 import { useContact } from "@/hooks/useContact";
+import { useGroup } from "@/hooks/useGroups";
+import { GroupInfoSections } from "./GroupInfoSections";
 import type { ContactProfileProps } from "./types";
 import { ContactProfileSkeleton } from "./ContactProfileSkeleton";
 import { ProfileHeader } from "./ProfileHeader";
@@ -31,13 +33,21 @@ export function ContactProfile({
   onClose,
 }: ContactProfileProps) {
   const { data: contact, isLoading, error } = useContact(contactId);
+  const {
+    data: group,
+    isLoading: isGroupLoading,
+    error: groupError,
+  } = useGroup(contact?.isGroup ? contactId : null);
   const [showExportDialog, setShowExportDialog] = useState(false);
 
   if (!contactId) return null;
 
   return (
     <RightPanel isOpen={isOpen} onClose={onClose}>
-      <RightPanelHeader title="Contact Info" onClose={onClose} />
+      <RightPanelHeader
+        title={contact?.isGroup ? "Group Info" : "Contact Info"}
+        onClose={onClose}
+      />
       <RightPanelContent>
         {isLoading ? (
           <ContactProfileSkeleton />
@@ -52,6 +62,14 @@ export function ContactProfile({
 
             {/* Contact Info Section */}
             <ContactInfoSection contact={contact} />
+
+            {contact.isGroup && (
+              <GroupInfoSections
+                group={group}
+                isLoading={isGroupLoading}
+                error={groupError}
+              />
+            )}
 
             {/* Custom Name Section */}
             <EditableNameSection contact={contact} />

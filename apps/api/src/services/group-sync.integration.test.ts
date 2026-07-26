@@ -3,7 +3,10 @@ import { db } from "@wateaminbox/database";
 import { sql } from "kysely";
 import type { ContactEvent } from "../lib/nats/index.js";
 import { handleContactEvent } from "./handlers/contact-handlers.js";
-import { getGroupsList } from "./group.service.js";
+import {
+  getEnrichedGroupParticipants,
+  getGroupsList,
+} from "./group.service.js";
 import {
   clearTenantConnection,
   createTenantSchema,
@@ -28,7 +31,12 @@ describe("group synchronization", () => {
         const tenantDb = getTenantConnection(companyId);
         await tenantDb
           .insertInto("whatsapp_connections")
-          .values({ id: connectionId, name: "Primary", status: "connected" })
+          .values({
+            id: connectionId,
+            name: "Primary",
+            jid: "999@s.whatsapp.net",
+            status: "connected",
+          })
           .execute();
 
         const contactEvent: ContactEvent = {
@@ -63,6 +71,8 @@ describe("group synchronization", () => {
               contact_id: contact.id,
               message_id: "history-1",
               from_me: false,
+              sender_jid: "111@s.whatsapp.net",
+              sender_name: "Bob from messages",
               message_type: "text",
               content: "old one",
               timestamp: new Date("2026-01-01T00:00:00Z"),
@@ -72,12 +82,52 @@ describe("group synchronization", () => {
               contact_id: contact.id,
               message_id: "history-2",
               from_me: false,
+              sender_jid: "222@s.whatsapp.net",
+              sender_name: "Old Alice name",
               message_type: "text",
               content: "old two",
               timestamp: new Date("2026-01-02T00:00:00Z"),
             },
           ])
           .execute();
+        await tenantDb
+          .insertInto("contacts")
+          .values({
+            whatsapp_connection_id: connectionId,
+            jid: "222@s.whatsapp.net",
+            phone_number: "222",
+            push_name: "Alice from contacts",
+          })
+          .execute();
+
+        const groupRecord = await tenantDb
+          .selectFrom("groups")
+          .select("id")
+          .where("contact_id", "=", contact.id)
+          .executeTakeFirstOrThrow();
+        const enrichedParticipants = await getEnrichedGroupParticipants(
+          tenantDb,
+          {
+            groupId: groupRecord.id,
+            contactId: contact.id,
+            connectionId,
+            connectionJid: "999@s.whatsapp.net",
+          },
+        );
+        expect(enrichedParticipants).toMatchObject([
+          {
+            jid: "111@s.whatsapp.net",
+            phoneNumber: "111",
+            displayName: "Bob from messages",
+            isAdmin: true,
+          },
+          {
+            jid: "222@s.whatsapp.net",
+            phoneNumber: "222",
+            displayName: "Alice from contacts",
+            isAdmin: false,
+          },
+        ]);
 
         let result = await getGroupsList(tenantDb, {
           limit: 100,
@@ -137,6 +187,81 @@ describe("group synchronization", () => {
           .execute();
         expect(participants).toEqual([
           { participant_jid: "222@s.whatsapp.net", is_admin: true },
+        ]);
+      } finally {
+        await clearTenantConnection(companyId);
+        await sql.raw(`DROP SCHEMA IF EXISTS "${schema}" CASCADE`).execute(db);
+      }
+    },
+    30_000,
+  );
+
+  integrationTest(
+    "sorts active groups by their latest message and puts empty groups last",
+    async () => {
+      const companyId = crypto.randomUUID();
+      const schema = getSchemaName(companyId);
+      try {
+        await createTenantSchema(companyId);
+        const tenantDb = getTenantConnection(companyId);
+        const newestId = crypto.randomUUID();
+        const olderId = crypto.randomUUID();
+        const emptyId = crypto.randomUUID();
+        await tenantDb
+          .insertInto("contacts")
+          .values([
+            {
+              id: olderId,
+              jid: "older@g.us",
+              push_name: "Older group",
+              is_group: true,
+            },
+            {
+              id: emptyId,
+              jid: "empty@g.us",
+              push_name: "Empty group",
+              is_group: true,
+            },
+            {
+              id: newestId,
+              jid: "newest@g.us",
+              push_name: "Newest group",
+              is_group: true,
+            },
+          ])
+          .execute();
+        await tenantDb
+          .insertInto("messages")
+          .values([
+            {
+              contact_id: olderId,
+              message_id: "older-message",
+              from_me: false,
+              message_type: "text",
+              content: "older",
+              timestamp: new Date("2026-01-01T00:00:00Z"),
+            },
+            {
+              contact_id: newestId,
+              message_id: "newest-message",
+              from_me: false,
+              message_type: "text",
+              content: "newest",
+              timestamp: new Date("2026-02-01T00:00:00Z"),
+            },
+          ])
+          .execute();
+
+        const result = await getGroupsList(tenantDb, {
+          limit: 100,
+          offset: 0,
+          userId: crypto.randomUUID(),
+          canViewAllChats: true,
+        });
+        expect(result.groups.map((group) => group.displayName)).toEqual([
+          "Newest group",
+          "Older group",
+          "Empty group",
         ]);
       } finally {
         await clearTenantConnection(companyId);

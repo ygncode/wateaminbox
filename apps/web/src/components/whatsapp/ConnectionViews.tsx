@@ -1,3 +1,4 @@
+import { formatAuditTime } from "@wateaminbox/shared";
 import {
   CheckCircle2,
   Loader2,
@@ -6,8 +7,8 @@ import {
   Smartphone,
   XCircle,
 } from "lucide-react";
-import { formatAuditTime } from "@wateaminbox/shared";
 import { Button } from "@/components/ui/button";
+import { formatPhoneNumber } from "@/lib/utils";
 
 /**
  * Disconnected View
@@ -176,7 +177,7 @@ export function ConnectedView({
       </h3>
       {phoneNumber && (
         <p className="text-xl font-semibold text-whatsapp-teal-green mb-2">
-          {phoneNumber}
+          {formatPhoneNumber(phoneNumber)}
         </p>
       )}
       {lastSync && (

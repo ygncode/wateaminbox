@@ -1,6 +1,8 @@
 export interface MessageReaction {
   emoji: string;
   reactorJid: string;
+  /** Canonical phone number resolved from the reactor's WhatsApp identity. */
+  reactorPhoneNumber?: string | null;
   /** Best available saved contact or WhatsApp push name. */
   reactorName?: string | null;
   /** Best available WhatsApp profile picture. */

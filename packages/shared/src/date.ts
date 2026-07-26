@@ -166,7 +166,8 @@ export function formatMessageTime(input: DateInput): string {
  * - Today: HH:mm (e.g., "14:30")
  * - Yesterday: "Yesterday"
  * - This week: Day name (e.g., "Mon", "Tue")
- * - Older: Short date (e.g., "Jan 5")
+ * - Older this year: Short date (e.g., "Jan 5")
+ * - Previous years: Date with year (e.g., "Jan 5, 2025")
  */
 export function formatChatListTime(input: DateInput): string {
   const parsed = parseDate(input)
@@ -187,7 +188,11 @@ export function formatChatListTime(input: DateInput): string {
     // This week - show day name
     return local.format('ddd')
   }
-  // Older - show date
+  // Include the year for older conversations so a list spanning multiple
+  // years does not look chronologically incorrect (e.g. Mar above Aug).
+  if (local.year() !== nowLocal.year()) {
+    return local.format('MMM D, YYYY')
+  }
   return local.format('MMM D')
 }
 

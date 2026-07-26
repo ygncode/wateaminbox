@@ -1,8 +1,8 @@
+import { zodResolver } from "@hookform/resolvers/zod";
 import { AlertCircle, Check, Loader2, UserPlus } from "lucide-react";
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
+import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -18,9 +18,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { useCreateContact } from "@/hooks/useContact";
 import { useWhatsAppConnections } from "@/hooks/useWhatsAppConnections";
 import {
-  addContactSchema,
   type AddContactFormData,
+  addContactSchema,
 } from "@/lib/schemas/contact";
+import { formatPhoneLikeText } from "@/lib/utils";
 
 export interface AddContactDialogProps {
   open: boolean;
@@ -159,7 +160,11 @@ export function AddContactDialog({
                   <option value="">Select an account</option>
                   {activeConnections.map((connection) => (
                     <option key={connection.id} value={connection.id}>
-                      {connection.name || connection.phoneNumber || connection.id}
+                      {formatPhoneLikeText(
+                        connection.name ||
+                          connection.phoneNumber ||
+                          connection.id,
+                      )}
                     </option>
                   ))}
                 </select>

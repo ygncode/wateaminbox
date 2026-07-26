@@ -285,7 +285,7 @@ func (p *Publisher) PublishTyping(typing TypingEvent) error {
 }
 
 // PublishContact publishes a contact sync event.
-func (p *Publisher) PublishContact(jid, name, displayName string, isGroup bool, unreadCount int, participants []GroupParticipantPayload, profilePictureURL string) error {
+func (p *Publisher) PublishContact(jid, name, displayName, description string, isGroup bool, unreadCount int, participants []GroupParticipantPayload, profilePictureURL string) error {
 	var participantCount *int
 	if len(participants) > 0 {
 		count := len(participants)
@@ -299,6 +299,7 @@ func (p *Publisher) PublishContact(jid, name, displayName string, isGroup bool, 
 			JID:               jid,
 			Name:              name,
 			DisplayName:       displayName,
+			Description:       description,
 			IsGroup:           isGroup,
 			UnreadCount:       &unreadCount,
 			Participants:      participants,
@@ -314,7 +315,7 @@ func (p *Publisher) PublishContact(jid, name, displayName string, isGroup bool, 
 
 // PublishGroupMetadata refreshes joined-group data without changing unread
 // state, which is only authoritative when supplied by a history conversation.
-func (p *Publisher) PublishGroupMetadata(jid, name string, participantCount int, participants []GroupParticipantPayload) error {
+func (p *Publisher) PublishGroupMetadata(jid, name, description string, participantCount int, participants []GroupParticipantPayload) error {
 	if participantCount <= 0 && len(participants) > 0 {
 		participantCount = len(participants)
 	}
@@ -329,6 +330,7 @@ func (p *Publisher) PublishGroupMetadata(jid, name string, participantCount int,
 		Payload: ContactPayload{
 			JID:              jid,
 			DisplayName:      name,
+			Description:      description,
 			IsGroup:          true,
 			Participants:     participants,
 			ParticipantCount: participantCountSnapshot,

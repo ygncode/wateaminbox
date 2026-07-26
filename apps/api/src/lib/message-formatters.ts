@@ -59,6 +59,7 @@ export interface QuotedMessageData {
 export interface ReactionData {
   emoji: string;
   reactorJid: string;
+  reactorPhoneNumber?: string | null;
   reactorName?: string | null;
   reactorAvatarUrl?: string | null;
   isOwn?: boolean;

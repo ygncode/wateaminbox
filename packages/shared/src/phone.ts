@@ -3,29 +3,37 @@
  */
 
 /**
- * Format a phone number for display
- * Adds "+" prefix for international numbers (>10 digits)
- *
- * @param phone - Phone number (digits only, without country code prefix)
- * @returns Formatted phone number for display
- *
- * @example
- * ```ts
- * formatPhoneNumber("1234567890")     // "1234567890"
- * formatPhoneNumber("11234567890")    // "+11234567890"
- * formatPhoneNumber("44123456789")    // "+44123456789"
- * ```
+ * Format a WhatsApp phone number in E.164-style display form.
+ * WhatsApp identities contain country-code digits, so every non-empty number
+ * must have a `+` prefix regardless of its digit count.
  */
-export function formatPhoneNumber(phone: string): string {
-  // Ensure we have a clean number (digits only)
+export function formatPhoneNumber(phone: string | null | undefined): string {
+  if (!phone) return ''
   const cleanPhone = phone.replace(/\D/g, '')
+  return cleanPhone ? `+${cleanPhone}` : ''
+}
 
-  // Add + prefix for international numbers (more than 10 digits suggests country code)
-  if (cleanPhone.length > 10) {
-    return `+${cleanPhone}`
+/**
+ * Format a value that may be a name, numeric fallback, or individual JID.
+ * Real names and non-individual JIDs are preserved.
+ */
+export function formatPhoneLikeText(
+  value: string | null | undefined,
+): string {
+  if (!value) return ''
+  const trimmed = value.trim()
+  if (!trimmed) return ''
+
+  if (trimmed.endsWith('@s.whatsapp.net')) {
+    return formatPhoneNumber(parsePhoneFromJid(trimmed))
   }
 
-  return cleanPhone
+  const digits = trimmed.replace(/\D/g, '')
+  const isPhoneLike =
+    /^[+\d][\d\s().-]*$/.test(trimmed) &&
+    digits.length >= 7 &&
+    digits.length <= 15
+  return isPhoneLike ? formatPhoneNumber(digits) : trimmed
 }
 
 /**
@@ -44,9 +52,9 @@ export function formatPhoneNumber(phone: string): string {
 export function formatPhoneNumberWithGroups(phone: string): string {
   const cleanPhone = phone.replace(/\D/g, '')
 
-  // For very short numbers, don't format
+  // Keep the international marker even when grouping is not useful.
   if (cleanPhone.length < 7) {
-    return cleanPhone
+    return formatPhoneNumber(cleanPhone)
   }
 
   // For US/Canada numbers (11 digits starting with 1)
@@ -56,7 +64,7 @@ export function formatPhoneNumberWithGroups(phone: string): string {
 
   // For 10-digit numbers (likely US without country code)
   if (cleanPhone.length === 10) {
-    return `${cleanPhone.slice(0, 3)} ${cleanPhone.slice(3, 6)} ${cleanPhone.slice(6)}`
+    return `+${cleanPhone.slice(0, 3)} ${cleanPhone.slice(3, 6)} ${cleanPhone.slice(6)}`
   }
 
   // For international numbers, add + and group in chunks of 3-4
@@ -80,7 +88,7 @@ export function formatPhoneNumberWithGroups(phone: string): string {
     return parts.join(' ')
   }
 
-  return cleanPhone
+  return formatPhoneNumber(cleanPhone)
 }
 
 /**

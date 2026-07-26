@@ -3,6 +3,7 @@ import { formatMessageTime } from "@wateaminbox/shared";
 import { lazy, memo, Suspense, useCallback, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
+import { formatPhoneLikeText } from "@/lib/utils";
 import { useMessageActions } from "../../contexts";
 import { useClickOutside } from "../../hooks/ui";
 import { MessageContent } from "./MessageContent";
@@ -357,7 +358,7 @@ function ReplyPreview({
           >
             {replyToMessage.senderType === "user"
               ? "You"
-              : replyToMessage.senderName || "Contact"}
+              : formatPhoneLikeText(replyToMessage.senderName) || "Contact"}
           </p>
           <p
             className={`text-xs line-clamp-2 ${
@@ -488,7 +489,7 @@ const participantColors = [
 function getParticipantLabel(message: Message): string {
   const senderIdentity = message.senderJid || message.senderId;
   const senderName = message.senderName?.trim();
-  if (senderName) return senderName;
+  if (senderName) return formatPhoneLikeText(senderName);
   if (!senderIdentity || senderIdentity.endsWith("@g.us")) {
     return "Unknown participant";
   }

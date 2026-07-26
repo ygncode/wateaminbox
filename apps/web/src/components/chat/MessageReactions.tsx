@@ -1,6 +1,7 @@
 import type { MessageReaction } from "@wateaminbox/shared";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { formatPhoneNumber } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar";
 import {
   Dialog,
@@ -23,6 +24,15 @@ function formatReactorJid(jid: string): string {
   const identifier = localPart?.split(":")[0] || jid;
   const isPhoneJid = server !== "lid" && server !== "lid.whatsapp.net";
   return /^\d+$/.test(identifier) && isPhoneJid ? `+${identifier}` : identifier;
+}
+
+export function getReactorIdentityLabel(
+  reaction: Pick<MessageReaction, "reactorJid" | "reactorPhoneNumber">,
+): string {
+  const phone =
+    reaction.reactorPhoneNumber?.trim() ||
+    formatReactorJid(reaction.reactorJid);
+  return phone.startsWith("+") ? formatPhoneNumber(phone) : phone;
 }
 
 function getInitials(name: string): string {
@@ -197,7 +207,7 @@ function ReactionTab({
 
 function ReactorRow({ reaction }: { reaction: MessageReaction }) {
   const { t } = useTranslation();
-  const jidLabel = formatReactorJid(reaction.reactorJid);
+  const jidLabel = getReactorIdentityLabel(reaction);
   const displayName = reaction.isOwn
     ? t("chat.you")
     : reaction.reactorName?.trim() || jidLabel || t("chat.unknownContact");

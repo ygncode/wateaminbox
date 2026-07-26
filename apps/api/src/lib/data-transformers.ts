@@ -86,6 +86,16 @@ export interface TransformedContact {
 // Contact Transformers
 // ============================================================================
 
+export function getContactPhoneNumber(contact: {
+  is_group: boolean;
+  phone_number: string | null;
+  jid: string;
+}): string | null {
+  return contact.is_group
+    ? null
+    : contact.phone_number || extractPhoneFromJid(contact.jid);
+}
+
 /**
  * Transform a raw database contact record to API response format.
  *
@@ -112,7 +122,7 @@ export function transformContact(
   return {
     id: contact.id,
     jid: contact.jid,
-    phoneNumber: contact.phone_number || extractPhoneFromJid(contact.jid),
+    phoneNumber: getContactPhoneNumber(contact),
     pushName: contact.push_name,
     customName: contact.custom_name,
     displayName: getContactDisplayName(contact),

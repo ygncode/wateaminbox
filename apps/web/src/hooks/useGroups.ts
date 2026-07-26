@@ -8,7 +8,11 @@ import { createQueryKeyFactory } from "./query-keys";
  */
 export interface GroupParticipant {
   jid: string;
+  phoneNumber: string | null;
+  displayName: string;
+  profilePictureUrl: string | null;
   isAdmin: boolean;
+  isSelf: boolean;
   joinedAt: string | null;
 }
 

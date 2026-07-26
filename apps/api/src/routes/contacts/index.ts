@@ -12,7 +12,6 @@
 import { zValidator } from "@hono/zod-validator";
 import { db } from "@wateaminbox/database";
 import {
-  extractPhoneFromJid,
   getContactDisplayName,
   getContactName,
   getUserDisplayName,
@@ -20,6 +19,7 @@ import {
 } from "@wateaminbox/shared";
 import { Hono } from "hono";
 import {
+  getContactPhoneNumber,
   type RawContactFromDb,
   transformContacts,
 } from "../../lib/data-transformers.js";
@@ -201,7 +201,11 @@ contactRoutes.get("/:id", async (c) => {
   return successData(c, {
     id: contact.id,
     jid: contact.jid,
-    phoneNumber: contact.phone_number || extractPhoneFromJid(contact.jid),
+    phoneNumber: getContactPhoneNumber({
+      is_group: contact.is_group,
+      phone_number: contact.phone_number,
+      jid: contact.jid || "",
+    }),
     pushName: contact.push_name,
     customName: contact.custom_name,
     displayName: getContactDisplayName(contact),

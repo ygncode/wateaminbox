@@ -22,6 +22,11 @@ import (
 // - Immediate media downloads with retry logic
 // - Profile picture fetching for each contact
 func (h *Handler) handleHistorySync(evt *events.HistorySync) {
+	// Persist PN↔LID mappings before conversations are processed in parallel.
+	// Group participants and reactions frequently use LIDs in the same first-sync
+	// chunk, so waiting for whatsmeow's asynchronous persistence leaks opaque IDs.
+	h.storeHistoryLIDMappings(evt.Data.GetPhoneNumberToLidMappings())
+
 	pushNames := evt.Data.GetPushnames()
 	if len(pushNames) > 0 {
 		log.Printf("Push-name history sync received: %d contacts", len(pushNames))
@@ -118,6 +123,42 @@ func (h *Handler) handleHistorySync(evt *events.HistorySync) {
 	elapsed := time.Since(startTime)
 	log.Printf("History sync complete: %d messages, %d media downloaded (took %v)",
 		totalMessages, totalMediaDownloaded, elapsed.Round(time.Millisecond))
+}
+
+func (h *Handler) storeHistoryLIDMappings(mappings []*waHistorySync.PhoneNumberToLIDMapping) {
+	if len(mappings) == 0 || h.config.Client == nil {
+		return
+	}
+	client := h.config.Client.GetClient()
+	if client == nil || client.Store == nil || client.Store.LIDs == nil {
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	stored := 0
+	for _, mapping := range mappings {
+		if mapping == nil {
+			continue
+		}
+		pnJID, pnErr := types.ParseJID(mapping.GetPnJID())
+		lidJID, lidErr := types.ParseJID(mapping.GetLidJID())
+		if pnErr != nil || lidErr != nil || pnJID.IsEmpty() || lidJID.IsEmpty() {
+			continue
+		}
+		if err := client.Store.LIDs.PutLIDMapping(
+			ctx,
+			lidJID.ToNonAD(),
+			pnJID.ToNonAD(),
+		); err != nil {
+			log.Printf("Failed to persist history LID mapping %s -> %s: %v", lidJID.String(), pnJID.String(), err)
+			continue
+		}
+		stored++
+	}
+	if stored > 0 {
+		log.Printf("Persisted %d PN/LID mappings before history processing", stored)
+	}
 }
 
 func (h *Handler) getHistoryGroupParticipants(conv *waHistorySync.Conversation) []natsClient.GroupParticipantPayload {
@@ -233,7 +274,7 @@ func (h *Handler) processHistorySyncConversation(conv *waHistorySync.Conversatio
 
 	// Publish contact to NATS
 	if h.publisher != nil {
-		if err := h.publisher.PublishContact(jid, name, displayName, isGroup, unreadCount, participants, profilePicURL); err != nil {
+		if err := h.publisher.PublishContact(jid, name, displayName, conv.GetDescription(), isGroup, unreadCount, participants, profilePicURL); err != nil {
 			log.Printf("Failed to publish contact %s: %v", jid, err)
 		}
 	}
@@ -469,6 +510,25 @@ func (h *Handler) processHistorySyncMessage(historyMsg *waHistorySync.HistorySyn
 	return true, hasMedia
 }
 
+func (h *Handler) resolveHistoryIdentity(rawJID string) string {
+	parsedJID, err := types.ParseJID(rawJID)
+	if err != nil || parsedJID.IsEmpty() {
+		return ""
+	}
+	return h.resolvePreferredJID(parsedJID, types.EmptyJID).String()
+}
+
+func (h *Handler) ownHistoryIdentity() string {
+	if h.config.Client == nil {
+		return ""
+	}
+	client := h.config.Client.GetClient()
+	if client == nil || client.Store == nil || client.Store.ID == nil {
+		return ""
+	}
+	return client.Store.ID.ToNonAD().String()
+}
+
 // processHistorySyncReaction processes a reaction found during history sync
 func (h *Handler) processHistorySyncReaction(reactionMsg *waE2E.ReactionMessage, msg *waWeb.WebMessageInfo, chatJID string) {
 	if reactionMsg == nil || reactionMsg.Key == nil {
@@ -485,20 +545,13 @@ func (h *Handler) processHistorySyncReaction(reactionMsg *waE2E.ReactionMessage,
 	// Parse and normalize sender JID from the message key
 	var senderJID string
 	if msg.GetKey().GetParticipant() != "" {
-		// Group message - use participant field
-		if parsedJID, err := types.ParseJID(msg.GetKey().GetParticipant()); err == nil {
-			senderJID = parsedJID.ToNonAD().String()
-		}
+		// Group message - use participant field and resolve private LIDs.
+		senderJID = h.resolveHistoryIdentity(msg.GetKey().GetParticipant())
 	} else if msg.GetKey().GetFromMe() {
-		// Message from current user - use own JID
-		// For fromMe messages, the sender is the account owner
-		// We'll use the chat JID format but this will be handled by the API
-		senderJID = chatJID
+		senderJID = h.ownHistoryIdentity()
 	} else if msg.GetKey().GetRemoteJID() != "" {
-		// Direct message - use remote JID
-		if parsedJID, err := types.ParseJID(msg.GetKey().GetRemoteJID()); err == nil {
-			senderJID = parsedJID.ToNonAD().String()
-		}
+		// Direct message - use remote JID.
+		senderJID = h.resolveHistoryIdentity(msg.GetKey().GetRemoteJID())
 	}
 
 	if senderJID == "" {
@@ -554,19 +607,14 @@ func (h *Handler) processMessageReactions(msg *waWeb.WebMessageInfo, chatJID str
 		// The reactor can be in Participant (for groups) or RemoteJID (for direct chats)
 		var reactorJID string
 		if reaction.Key.GetParticipant() != "" {
-			// Group - reactor is in Participant field
-			if parsed, err := types.ParseJID(reaction.Key.GetParticipant()); err == nil {
-				reactorJID = parsed.ToNonAD().String()
-			}
-		} else if reaction.Key.GetRemoteJID() != "" {
-			// Direct chat - reactor is in RemoteJID
-			if parsed, err := types.ParseJID(reaction.Key.GetRemoteJID()); err == nil {
-				reactorJID = parsed.ToNonAD().String()
-			}
+			// Group - reactor is in Participant field. Resolve private LIDs before
+			// publishing so first-sync reactions use the same identity as members.
+			reactorJID = h.resolveHistoryIdentity(reaction.Key.GetParticipant())
 		} else if reaction.Key.GetFromMe() {
-			// The reaction is from the current user
-			// Use a placeholder that the API will interpret as "self"
-			reactorJID = chatJID
+			reactorJID = h.ownHistoryIdentity()
+		} else if reaction.Key.GetRemoteJID() != "" {
+			// Direct chat - reactor is in RemoteJID.
+			reactorJID = h.resolveHistoryIdentity(reaction.Key.GetRemoteJID())
 		}
 
 		if reactorJID == "" {

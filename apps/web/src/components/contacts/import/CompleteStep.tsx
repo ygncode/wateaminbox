@@ -1,4 +1,5 @@
 import { Check } from "lucide-react";
+import { formatPhoneNumber } from "@/lib/utils";
 import type { CompleteStepProps } from "./types";
 
 export function CompleteStep({ result }: CompleteStepProps) {
@@ -62,7 +63,7 @@ export function CompleteStep({ result }: CompleteStepProps) {
                   className="px-4 py-2 border-t border-red-100 dark:border-red-900 text-sm flex justify-between text-gray-700 dark:text-dark-text-primary"
                 >
                   <span>
-                    Row {r.row}: {r.phoneNumber}
+                    Row {r.row}: {formatPhoneNumber(r.phoneNumber)}
                   </span>
                   <span className="text-red-600 dark:text-red-400">
                     {r.error}

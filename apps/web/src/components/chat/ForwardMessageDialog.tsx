@@ -6,6 +6,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { formatPhoneLikeText, formatPhoneNumber } from "@/lib/utils";
 import { useForwardContacts } from "../../hooks/useForwardContacts";
 import type { Chat } from "../../types/chat";
 
@@ -228,8 +229,9 @@ const ContactListItem = memo(function ContactListItem({
   isDisabled,
 }: ContactListItemProps) {
   const { contact } = chat;
-  const displayName =
-    contact.customName || contact.name || contact.jid || "Unknown";
+  const displayName = formatPhoneLikeText(
+    contact.customName || contact.name || contact.jid || "Unknown",
+  );
 
   return (
     <button
@@ -281,7 +283,7 @@ const ContactListItem = memo(function ContactListItem({
         </div>
         {contact.phoneNumber && !contact.isGroup && (
           <span className="text-xs text-gray-500 dark:text-dark-text-secondary truncate block mt-0.5">
-            {contact.phoneNumber}
+            {formatPhoneNumber(contact.phoneNumber)}
           </span>
         )}
       </div>

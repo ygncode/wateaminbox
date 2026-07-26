@@ -23,7 +23,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 import type { ConnectionWithState } from "@/hooks/useWhatsAppConnections";
-import { cn } from "@/lib/utils";
+import { cn, formatPhoneNumber } from "@/lib/utils";
 
 interface ConnectionCardProps {
   connection: ConnectionWithState;
@@ -155,7 +155,7 @@ export function ConnectionCard({
                     <span className="flex items-center gap-1.5">
                       <Phone className="h-3.5 w-3.5 text-[#829089]" />
                       <span className="font-medium tabular-nums text-[#315348] dark:text-[#c9d8d2]">
-                        {connection.phoneNumber}
+                        {formatPhoneNumber(connection.phoneNumber)}
                       </span>
                     </span>
                   )}

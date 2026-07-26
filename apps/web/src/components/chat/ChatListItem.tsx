@@ -1,7 +1,11 @@
-import { memo, useCallback, useMemo } from "react";
-import type { ChatListItemProps } from "../../types/chat";
-import { extractPhoneFromJID, formatPhoneNumber } from "@/lib/utils";
 import { formatChatListTime } from "@wateaminbox/shared";
+import { memo, useCallback, useMemo } from "react";
+import {
+  extractPhoneFromJID,
+  formatPhoneLikeText,
+  formatPhoneNumber,
+} from "@/lib/utils";
+import type { ChatListItemProps } from "../../types/chat";
 
 /**
  * Truncate message content for preview display
@@ -30,8 +34,8 @@ export const ChatListItem = memo(function ChatListItem({
 
   // Display priority: customName > pushName > formatted phone number > 'Unknown'
   const displayName = useMemo(() => {
-    if (contact.customName) return contact.customName;
-    if (contact.name) return contact.name;
+    if (contact.customName) return formatPhoneLikeText(contact.customName);
+    if (contact.name) return formatPhoneLikeText(contact.name);
     // Use phone number if available, otherwise extract from JID
     const phone = contact.phoneNumber || extractPhoneFromJID(contact.jid);
     if (phone) return formatPhoneNumber(phone);

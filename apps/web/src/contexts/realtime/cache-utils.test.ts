@@ -34,13 +34,15 @@ function seed(client: QueryClient, companyId: string) {
   const messageKey = infiniteMessageKeys.list("conversation-1");
   const chatKey = chatKeys.list({});
   const groupKey = queryKeys.groups.list({});
+  const groupDetailKey = queryKeys.groups.detail("conversation-1");
   client.setQueryData<InfiniteMessageData>(messageKey, {
     pages: [{ messages: [message("pending-1")], hasMore: false }],
     pageParams: [undefined],
   });
   client.setQueryData(chatKey, []);
   client.setQueryData(groupKey, { data: [] });
-  return { messageKey, chatKey, groupKey };
+  client.setQueryData(groupDetailKey, { participants: [] });
+  return { messageKey, chatKey, groupKey, groupDetailKey };
 }
 
 describe("realtime React Query reconciliation", () => {
@@ -74,8 +76,14 @@ describe("realtime React Query reconciliation", () => {
 
     expect(client.getQueryState(companyB.chatKey)?.isInvalidated).toBe(true);
     expect(client.getQueryState(companyB.groupKey)?.isInvalidated).toBe(true);
+    expect(client.getQueryState(companyB.groupDetailKey)?.isInvalidated).toBe(
+      true,
+    );
     expect(client.getQueryState(companyA.chatKey)?.isInvalidated).toBe(false);
     expect(client.getQueryState(companyA.groupKey)?.isInvalidated).toBe(false);
+    expect(client.getQueryState(companyA.groupDetailKey)?.isInvalidated).toBe(
+      false,
+    );
   });
 
   test("message and read updates invalidate chat and group projections together", () => {

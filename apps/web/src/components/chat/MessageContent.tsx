@@ -1,5 +1,6 @@
 import type { Message, MessageType } from "@wateaminbox/shared";
 import { useTranslation } from "react-i18next";
+import { LinkifiedText } from "./LinkifiedText";
 import { MediaPendingPlaceholder } from "./MediaPendingPlaceholder";
 
 interface MessageContentProps {
@@ -21,17 +22,20 @@ export function MessageContent({ message, isOwn }: MessageContentProps) {
     );
   }
 
+  // WhatsApp media captions are stored as message content by the worker. Newer
+  // payloads may also expose metadata.caption, so support both shapes.
+  const mediaCaption =
+    message.metadata?.caption || message.content || undefined;
+
   const contentRenderer: Record<MessageType, () => React.ReactNode> = {
-    text: () => (
-      <p className="whitespace-pre-wrap break-words">{message.content}</p>
-    ),
+    text: () => <LinkifiedText text={message.content} isOwn={isOwn} />,
     image: () => {
       // Show placeholder if media is pending download
       if (message.metadata?.mediaPending && !message.metadata?.mediaUrl) {
         return (
           <MediaPendingPlaceholder
             type="image"
-            caption={message.metadata?.caption}
+            caption={mediaCaption}
             downloadStatus={message.metadata?.mediaDownloadStatus}
             messageId={message.id}
             conversationId={message.conversationId}
@@ -43,16 +47,14 @@ export function MessageContent({ message, isOwn }: MessageContentProps) {
         <div className="max-w-xs">
           <img
             src={message.metadata?.mediaUrl}
-            alt={message.metadata?.caption || "Image"}
+            alt={mediaCaption || "Image"}
             width={320}
             height={240}
             className="rounded-lg max-w-full h-auto cursor-pointer"
             loading="lazy"
           />
-          {message.metadata?.caption && (
-            <p className="mt-1 whitespace-pre-wrap break-words">
-              {message.metadata.caption}
-            </p>
+          {mediaCaption && (
+            <LinkifiedText text={mediaCaption} isOwn={isOwn} className="mt-1" />
           )}
         </div>
       );
@@ -62,7 +64,7 @@ export function MessageContent({ message, isOwn }: MessageContentProps) {
         return (
           <MediaPendingPlaceholder
             type="video"
-            caption={message.metadata?.caption}
+            caption={mediaCaption}
             downloadStatus={message.metadata?.mediaDownloadStatus}
             messageId={message.id}
             conversationId={message.conversationId}
@@ -78,13 +80,11 @@ export function MessageContent({ message, isOwn }: MessageContentProps) {
             controls
             width={320}
             className="rounded-lg max-w-full h-auto"
-            aria-label={message.metadata?.caption || "Video message"}
-            title={message.metadata?.caption || "Video message"}
+            aria-label={mediaCaption || "Video message"}
+            title={mediaCaption || "Video message"}
           />
-          {message.metadata?.caption && (
-            <p className="mt-1 whitespace-pre-wrap break-words">
-              {message.metadata.caption}
-            </p>
+          {mediaCaption && (
+            <LinkifiedText text={mediaCaption} isOwn={isOwn} className="mt-1" />
           )}
         </div>
       );
@@ -229,7 +229,7 @@ export function MessageContent({ message, isOwn }: MessageContentProps) {
         <p className="text-xs text-gray-500 dark:text-dark-text-secondary mb-1">
           Template Message
         </p>
-        <p className="whitespace-pre-wrap break-words">{message.content}</p>
+        <LinkifiedText text={message.content} isOwn={isOwn} />
       </div>
     ),
     contact: () => (
@@ -237,7 +237,7 @@ export function MessageContent({ message, isOwn }: MessageContentProps) {
         <p className="text-xs text-gray-500 dark:text-dark-text-secondary mb-1">
           Contact Card
         </p>
-        <p className="whitespace-pre-wrap break-words">{message.content}</p>
+        <LinkifiedText text={message.content} isOwn={isOwn} />
       </div>
     ),
     reaction: () => (
@@ -252,7 +252,7 @@ export function MessageContent({ message, isOwn }: MessageContentProps) {
 
   return (
     contentRenderer[message.messageType]?.() || (
-      <p className="whitespace-pre-wrap break-words">{message.content}</p>
+      <LinkifiedText text={message.content} isOwn={isOwn} />
     )
   );
 }

@@ -1,14 +1,14 @@
+import { nowMs } from "@wateaminbox/shared";
 import { AlertCircle, Loader2, Smartphone } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useWhatsAppConnection } from "@/hooks/useWhatsAppConnection";
-import { cn } from "@/lib/utils";
-import { nowMs } from "@wateaminbox/shared";
+import { cn, formatPhoneNumber } from "@/lib/utils";
 import {
+  getStateLabel,
   StatusBadge,
   StatusIndicator,
-  getStateLabel,
 } from "../ConnectionStatus";
 import {
   ConnectedView,
@@ -79,7 +79,7 @@ export function SingleConnectionPanel({
         <StatusIndicator state={state} />
         <span className="text-sm text-gray-600">
           {state === "connected"
-            ? phoneNumber || "Connected"
+            ? formatPhoneNumber(phoneNumber) || "Connected"
             : getStateLabel(state)}
         </span>
         {state === "disconnected" && (

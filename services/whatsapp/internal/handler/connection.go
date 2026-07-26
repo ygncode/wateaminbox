@@ -169,6 +169,7 @@ func (h *Handler) syncJoinedGroups() {
 		if err := h.publisher.PublishGroupMetadata(
 			group.JID.ToNonAD().String(),
 			group.Name,
+			group.Topic,
 			group.ParticipantCount,
 			participants,
 		); err != nil {

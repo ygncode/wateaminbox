@@ -64,7 +64,7 @@ describe("desktop notification decisions", () => {
     ).toBe("Ada");
     expect(
       getDesktopSenderName({ senderJid: "15551234567:2@s.whatsapp.net" }),
-    ).toBe("15551234567");
+    ).toBe("+15551234567");
     expect(getMessagePreview({ messageType: "image" })).toBe("Sent an image");
   });
 });
