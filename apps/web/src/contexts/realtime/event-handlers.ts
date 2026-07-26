@@ -70,6 +70,15 @@ export function registerRealtimeEventHandlers({
       const payload = data.payload;
       addMessageToCache(qc, payload.conversationId, payload.message);
       invalidateChatList(qc);
+
+      // Treat realtime as an update signal, not the source of truth. In
+      // particular, WhatsApp can replay several offline messages immediately
+      // after reconnecting while the active infinite-query cache is being
+      // remounted. The optimistic cache write above is instant when that cache
+      // exists; this active-only refetch guarantees the open thread reconciles
+      // with the committed PostgreSQL rows without requiring another click.
+      refetchConversationMessages(qc, payload.conversationId);
+
       const selectedId = useChatStore.getState().selectedConversationId;
       if (
         selectedId === payload.conversationId &&

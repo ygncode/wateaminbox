@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useCallback } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { nowMs } from "@wateaminbox/shared";
+import { reconcileRealtimeState } from "@/contexts/realtime/event-handlers";
 import { ApiRequestError } from "@/lib/api/client";
 import {
   createWhatsAppConnection,
@@ -10,6 +11,7 @@ import {
   updateWhatsAppConnection,
 } from "@/lib/api/whatsapp";
 import type { WhatsAppConnection } from "@/lib/api/types";
+import { useChatStore } from "@/stores/chat-store";
 import { queryKeys } from "../query-keys";
 import type { ConnectionState } from "./types";
 
@@ -40,6 +42,36 @@ export function useWhatsAppConnectionMutations({
   clearQrTimeout,
 }: UseMutationsOptions) {
   const queryClient = useQueryClient();
+  const reconnectReconciliationTimersRef = useRef<
+    ReturnType<typeof setTimeout>[]
+  >([]);
+
+  const clearReconnectReconciliationTimers = useCallback(() => {
+    reconnectReconciliationTimersRef.current.forEach(clearTimeout);
+    reconnectReconciliationTimersRef.current = [];
+  }, []);
+
+  const scheduleReconnectReconciliation = useCallback(() => {
+    clearReconnectReconciliationTimers();
+
+    // The reconnect endpoint returns after spawning the worker, before
+    // whatsmeow has replayed queued messages. Reconcile a few times during the
+    // bounded catch-up window so correctness does not depend on receiving every
+    // realtime publication and the user never has to refresh the page.
+    reconnectReconciliationTimersRef.current = [3_000, 8_000].map((delay) =>
+      setTimeout(() => {
+        reconcileRealtimeState(
+          queryClient,
+          useChatStore.getState().selectedConversationId,
+        );
+      }, delay),
+    );
+  }, [clearReconnectReconciliationTimers, queryClient]);
+
+  useEffect(
+    () => clearReconnectReconciliationTimers,
+    [clearReconnectReconciliationTimers],
+  );
 
   // Create connection mutation
   const createMutation = useMutation({
@@ -114,6 +146,7 @@ export function useWhatsAppConnectionMutations({
       queryClient.invalidateQueries({
         queryKey: queryKeys.whatsapp.lists(),
       });
+      scheduleReconnectReconciliation();
     },
     onError: (error: Error, connectionId) => {
       updateConnectionState(connectionId, {
