@@ -1,77 +1,15 @@
-import { nowMs } from "@wateaminbox/shared";
 import { env } from "./env.js";
-import { createLogger } from "./logger.js";
+import {
+  deliverEmail,
+  type EmailOptions,
+  type EmailResult,
+} from "./mail/index.js";
 
-const logger = createLogger("Email");
+export type { EmailOptions, EmailResult } from "./mail/index.js";
 
-export interface EmailOptions {
-  to: string;
-  subject: string;
-  html: string;
-  text?: string;
-}
-
-export interface EmailResult {
-  success: boolean;
-  messageId?: string;
-  error?: string;
-}
-
-/**
- * Send an email using Resend
- * This is a placeholder implementation - integrate with Resend API
- */
+/** Deliver a composed email through the configured mail driver. */
 export async function sendEmail(options: EmailOptions): Promise<EmailResult> {
-  // Development and tests deliberately use a local log-only transport.
-  if (env.NODE_ENV === "development" || env.NODE_ENV === "test") {
-    logger.info(
-      { to: options.to, subject: options.subject },
-      "Email (local mode) - not sending",
-    );
-    logger.debug({ body: options.text || options.html }, "Email body");
-    return { success: true, messageId: "local-" + nowMs() };
-  }
-
-  if (!env.RESEND_API_KEY) {
-    logger.error(
-      { to: options.to, subject: options.subject },
-      "Email delivery is not configured",
-    );
-    return { success: false, error: "Email delivery is not configured" };
-  }
-
-  try {
-    const response = await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${env.RESEND_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        from: env.EMAIL_FROM,
-        to: options.to,
-        subject: options.subject,
-        html: options.html,
-        text: options.text,
-      }),
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json();
-      return {
-        success: false,
-        error: errorData.message || "Failed to send email",
-      };
-    }
-
-    const data = await response.json();
-    return { success: true, messageId: data.id };
-  } catch (error) {
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : "Unknown error",
-    };
-  }
+  return deliverEmail(options);
 }
 
 /**

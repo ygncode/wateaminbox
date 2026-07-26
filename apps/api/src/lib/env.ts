@@ -48,7 +48,8 @@ export const env = {
   JWT_ACCESS_EXPIRES_IN: getEnv("JWT_ACCESS_EXPIRES_IN", "15m"),
   JWT_REFRESH_EXPIRES_IN: getEnv("JWT_REFRESH_EXPIRES_IN", "7d"),
 
-  // Email (Resend)
+  // Email
+  MAIL_DRIVER: getEnv("MAIL_DRIVER", isProduction ? "resend" : "log"),
   RESEND_API_KEY: getEnv("RESEND_API_KEY", ""),
   EMAIL_FROM: getEnv("EMAIL_FROM", "noreply@example.com"),
 
@@ -123,6 +124,9 @@ export const env = {
 } as const;
 
 function validateProductionEnv(): void {
+  if (!["log", "resend"].includes(env.MAIL_DRIVER)) {
+    throw new Error("MAIL_DRIVER must be one of: log, resend");
+  }
   if (env.NODE_ENV !== "production") return;
 
   const required = {
@@ -140,6 +144,12 @@ function validateProductionEnv(): void {
   if (missing.length > 0) {
     throw new Error(
       `Missing required production environment variables: ${missing.join(", ")}`,
+    );
+  }
+
+  if (env.MAIL_DRIVER === "resend" && !env.RESEND_API_KEY) {
+    throw new Error(
+      "RESEND_API_KEY is required when MAIL_DRIVER=resend in production",
     );
   }
 
