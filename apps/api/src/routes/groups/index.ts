@@ -8,6 +8,7 @@
  */
 import { Hono } from "hono";
 import { authMiddleware } from "../../middleware/auth.js";
+import { requireContactVisibility } from "../../middleware/resource-visibility.js";
 import { tenantMiddleware } from "../../middleware/tenant.js";
 import { crudRoutes } from "./crud.js";
 import { memberRoutes } from "./members.js";
@@ -18,6 +19,8 @@ export const groupRoutes = new Hono();
 // All group routes require authentication and tenant context
 groupRoutes.use("/*", authMiddleware);
 groupRoutes.use("/*", tenantMiddleware());
+groupRoutes.use("/:id", requireContactVisibility());
+groupRoutes.use("/:id/*", requireContactVisibility());
 
 // Mount CRUD routes at root level (GET /, GET /:id, PATCH /:id)
 groupRoutes.route("/", crudRoutes);

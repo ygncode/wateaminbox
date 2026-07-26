@@ -1,6 +1,5 @@
 import { toDbDate, toISOString } from "@wateaminbox/shared";
 import { Hono } from "hono";
-import { forbidden } from "../lib/errors.js";
 import { successData, successPaginated } from "../lib/response.js";
 import {
   extractPaginationParams,
@@ -9,26 +8,23 @@ import {
 import { transformAuditLogs } from "../lib/data-transformers.js";
 import { authMiddleware } from "../middleware/auth.js";
 import { getRouteContext } from "../middleware/context.js";
-import { tenantMiddleware } from "../middleware/tenant.js";
+import { requirePermission, tenantMiddleware } from "../middleware/tenant.js";
 import * as auditService from "../services/audit.service.js";
+import { PERMISSIONS } from "../services/permission.service.js";
 
 export const auditRoutes = new Hono();
 
 // All audit routes require authentication and tenant context
 auditRoutes.use("/*", authMiddleware);
 auditRoutes.use("/*", tenantMiddleware());
+auditRoutes.use("/*", requirePermission(PERMISSIONS.CAN_VIEW_AUDIT));
 
 /**
  * GET /audit - Get audit logs with optional filters
  * Query params: userId, action, entityType, entityId, startDate, endDate, limit, offset
  */
 auditRoutes.get("/", async (c) => {
-  const { companyId, role } = getRouteContext(c);
-
-  // Only admins and owners can view audit logs
-  if (role === "member") {
-    return forbidden(c, "Insufficient permissions");
-  }
+  const { companyId } = getRouteContext(c);
 
   const userId = c.req.query("userId");
   const action = c.req.query("action") as auditService.AuditAction | undefined;
@@ -100,12 +96,7 @@ auditRoutes.get("/actions", async (c) => {
  * GET /audit/export - Export audit logs as CSV
  */
 auditRoutes.get("/export", async (c) => {
-  const { companyId, role } = getRouteContext(c);
-
-  // Only admins and owners can export audit logs
-  if (role === "member") {
-    return forbidden(c, "Insufficient permissions");
-  }
+  const { companyId } = getRouteContext(c);
 
   const startDateStr = c.req.query("startDate");
   const endDateStr = c.req.query("endDate");

@@ -11,6 +11,7 @@ import {
   CompanyNotFoundError,
   InsufficientPermissionsError,
 } from "../../lib/errors.js";
+import { getEffectivePermissions } from "../permission.service.js";
 import { getCompany } from "./core.js";
 import type { CompanyMember, CompanyWithRole } from "./types.js";
 
@@ -162,10 +163,17 @@ export async function getUserCompanies(
       "c.created_at",
       "c.updated_at",
       "cm.role",
+      "cm.permissions",
     ])
     .where("cm.user_id", "=", userId)
     .where("c.status", "!=", "deleted")
     .execute();
 
-  return companies as unknown as CompanyWithRole[];
+  return companies.map((company) => ({
+    ...company,
+    permissions: getEffectivePermissions(
+      company.role,
+      (company.permissions ?? {}) as Record<string, boolean>,
+    ),
+  })) as unknown as CompanyWithRole[];
 }

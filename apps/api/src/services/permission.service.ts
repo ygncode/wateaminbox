@@ -1,4 +1,5 @@
 import { db } from "@wateaminbox/database";
+import type { MemberPermissions } from "@wateaminbox/shared";
 import { NotFoundError, ForbiddenError } from "../lib/errors.js";
 
 /**
@@ -17,6 +18,11 @@ export const PERMISSIONS = {
   CAN_MANAGE_TEAM: "can_manage_team",
   CAN_INVITE: "can_invite",
 
+  // Workspace administration
+  CAN_MANAGE_CONNECTIONS: "can_manage_connections",
+  CAN_VIEW_DASHBOARD: "can_view_dashboard",
+  CAN_VIEW_AUDIT: "can_view_audit",
+
   // Data Management
   CAN_EXPORT: "can_export",
   CAN_DELETE: "can_delete",
@@ -24,18 +30,7 @@ export const PERMISSIONS = {
 
 export type Permission = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
 
-/**
- * Full permissions interface for company members
- */
-export interface MemberPermissions {
-  can_view_all_chats: boolean;
-  can_send_messages: boolean;
-  can_assign_contacts: boolean;
-  can_manage_team: boolean;
-  can_invite: boolean;
-  can_export: boolean;
-  can_delete: boolean;
-}
+export type { MemberPermissions } from "@wateaminbox/shared";
 
 /**
  * Default permission presets for each role
@@ -53,6 +48,9 @@ export const ROLE_PRESETS: Record<
     can_assign_contacts: true,
     can_manage_team: true,
     can_invite: true,
+    can_manage_connections: true,
+    can_view_dashboard: true,
+    can_view_audit: true,
     can_export: true,
     can_delete: true,
   },
@@ -60,8 +58,11 @@ export const ROLE_PRESETS: Record<
     can_view_all_chats: true,
     can_send_messages: true,
     can_assign_contacts: true,
-    can_manage_team: false,
+    can_manage_team: true,
     can_invite: true,
+    can_manage_connections: true,
+    can_view_dashboard: true,
+    can_view_audit: true,
     can_export: true,
     can_delete: true,
   },
@@ -71,6 +72,9 @@ export const ROLE_PRESETS: Record<
     can_assign_contacts: false,
     can_manage_team: false,
     can_invite: false,
+    can_manage_connections: false,
+    can_view_dashboard: false,
+    can_view_audit: false,
     can_export: false,
     can_delete: false,
   },
@@ -297,6 +301,25 @@ export function getPermissionDescriptions(): Array<{
       name: "Invite Members",
       description: "Can invite new members to the company",
       category: "Team Management",
+    },
+    {
+      key: PERMISSIONS.CAN_MANAGE_CONNECTIONS,
+      name: "Manage Connections",
+      description:
+        "Can add, reconnect, rename, and remove WhatsApp connections",
+      category: "Workspace",
+    },
+    {
+      key: PERMISSIONS.CAN_VIEW_DASHBOARD,
+      name: "View Dashboard",
+      description: "Can view workspace analytics and operational metrics",
+      category: "Workspace",
+    },
+    {
+      key: PERMISSIONS.CAN_VIEW_AUDIT,
+      name: "View Audit Log",
+      description: "Can view workspace activity and security logs",
+      category: "Workspace",
     },
     {
       key: PERMISSIONS.CAN_EXPORT,

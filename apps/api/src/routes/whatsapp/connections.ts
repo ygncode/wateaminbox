@@ -18,8 +18,12 @@ import {
   legacyMessageSendRemoved,
   requireMessageSendPermission,
 } from "../../middleware/message-send-policy.js";
-import { tenantFromHeader } from "../../middleware/tenant.js";
+import {
+  requirePermission,
+  tenantFromHeader,
+} from "../../middleware/tenant.js";
 import { enqueueConnectionCommand } from "../../services/command-outbox.service.js";
+import { PERMISSIONS } from "../../services/permission.service.js";
 import * as whatsappService from "../../services/whatsapp.service.js";
 import { deleteConnectionWithKill } from "../../services/whatsapp/connection.js";
 
@@ -89,7 +93,8 @@ connectionRoutes.get(
 connectionRoutes.post(
   "/",
   authMiddleware,
-  tenantFromHeader("X-Company-ID", "admin"),
+  tenantFromHeader("X-Company-ID"),
+  requirePermission(PERMISSIONS.CAN_MANAGE_CONNECTIONS),
   zValidator("json", createConnectionSchema),
   async (c) => {
     const companyId = c.get("companyId");
@@ -191,7 +196,8 @@ connectionRoutes.get(
 connectionRoutes.patch(
   "/:connectionId",
   authMiddleware,
-  tenantFromHeader("X-Company-ID", "admin"),
+  tenantFromHeader("X-Company-ID"),
+  requirePermission(PERMISSIONS.CAN_MANAGE_CONNECTIONS),
   zValidator("json", updateConnectionSchema),
   async (c) => {
     const connectionId = c.req.param("connectionId");
@@ -242,7 +248,8 @@ connectionRoutes.patch(
 connectionRoutes.delete(
   "/:connectionId",
   authMiddleware,
-  tenantFromHeader("X-Company-ID", "admin"),
+  tenantFromHeader("X-Company-ID"),
+  requirePermission(PERMISSIONS.CAN_MANAGE_CONNECTIONS),
   async (c) => {
     const companyId = c.get("companyId");
     const connectionId = c.req.param("connectionId");
@@ -281,7 +288,8 @@ connectionRoutes.delete(
 connectionRoutes.post(
   "/:connectionId/reconnect",
   authMiddleware,
-  tenantFromHeader("X-Company-ID", "admin"),
+  tenantFromHeader("X-Company-ID"),
+  requirePermission(PERMISSIONS.CAN_MANAGE_CONNECTIONS),
   async (c) => {
     const companyId = c.get("companyId");
     const connectionId = c.req.param("connectionId");
@@ -353,7 +361,8 @@ connectionRoutes.post(
 connectionRoutes.post(
   "/:connectionId/disconnect",
   authMiddleware,
-  tenantFromHeader("X-Company-ID", "admin"),
+  tenantFromHeader("X-Company-ID"),
+  requirePermission(PERMISSIONS.CAN_MANAGE_CONNECTIONS),
   async (c) => {
     const companyId = c.get("companyId");
     const connectionId = c.req.param("connectionId");

@@ -1,14 +1,30 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as React from "react";
 import { useForm } from "react-hook-form";
-import { Link, useNavigate } from "react-router-dom";
+import {
+  Link,
+  useLocation,
+  useNavigate,
+  useSearchParams,
+} from "react-router-dom";
 import { Button } from "../components/ui/button";
 import { FormField } from "../components/ui/form-field";
 import { useAuth } from "../contexts/auth-context";
+import {
+  buildAuthUrl,
+  getAuthRedirectFromState,
+  getSafeAuthRedirect,
+} from "../lib/auth-redirect";
 import { type LoginFormData, loginSchema } from "../lib/schemas";
 
 export function LoginPage() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const [searchParams] = useSearchParams();
+  const redirectTo =
+    getSafeAuthRedirect(searchParams.get("redirect")) ??
+    getAuthRedirectFromState(location.state);
+  const suggestedEmail = searchParams.get("email") ?? "";
   const {
     login,
     isLoading,
@@ -25,21 +41,23 @@ export function LoginPage() {
   } = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
     defaultValues: {
-      email: "",
+      email: suggestedEmail,
       password: "",
     },
   });
 
-  // Redirect authenticated users to the appropriate page
+  // Return users to the invitation (or other protected destination) after
+  // login. An invitation can be accepted before the user has any company.
   React.useEffect(() => {
-    if (isAuthenticated) {
-      if (needsCompanySetup) {
-        navigate("/company-setup");
-      } else {
-        navigate("/chat");
-      }
+    if (!isAuthenticated) return;
+    if (redirectTo) {
+      navigate(redirectTo, { replace: true });
+    } else if (needsCompanySetup) {
+      navigate("/company-setup", { replace: true });
+    } else {
+      navigate("/chat", { replace: true });
     }
-  }, [isAuthenticated, needsCompanySetup, navigate]);
+  }, [isAuthenticated, needsCompanySetup, navigate, redirectTo]);
 
   const onSubmit = async (data: LoginFormData) => {
     clearError();
@@ -138,7 +156,7 @@ export function LoginPage() {
             <p className="text-sm text-gray-600 dark:text-dark-text-secondary">
               Don't have an account?{" "}
               <Link
-                to="/register"
+                to={buildAuthUrl("/register", redirectTo, suggestedEmail)}
                 className="text-whatsapp-green-a11y-text dark:text-whatsapp-green hover:text-whatsapp-green-a11y-button dark:hover:text-whatsapp-green/80 font-medium"
               >
                 Sign up

@@ -67,7 +67,7 @@ describe("authorization policy integration", () => {
     expect(Object.values(getEffectivePermissions("owner")).every(Boolean)).toBe(
       true,
     );
-    expect(getEffectivePermissions("admin").can_manage_team).toBe(false);
+    expect(getEffectivePermissions("admin").can_manage_team).toBe(true);
     expect(
       getEffectivePermissions("member", { can_export: true }).can_export,
     ).toBe(true);

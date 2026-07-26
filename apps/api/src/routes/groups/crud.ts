@@ -21,7 +21,7 @@ export const crudRoutes = new Hono();
  * Query params: search, limit, offset
  */
 crudRoutes.get("/", zValidator("query", listGroupsQuerySchema), async (c) => {
-  const { tenantDb } = getRouteContext(c);
+  const { tenantDb, user, permissions } = getRouteContext(c);
   const { search, limit, offset } = c.req.valid("query");
 
   let query = tenantDb
@@ -48,6 +48,16 @@ crudRoutes.get("/", zValidator("query", listGroupsQuerySchema), async (c) => {
     .where("contacts.is_group", "=", true)
     .groupBy(["contacts.id", "groups.id"]);
 
+  if (!permissions.can_view_all_chats) {
+    query = query
+      .innerJoin("contact_assignments", (join) =>
+        join
+          .onRef("contact_assignments.contact_id", "=", "contacts.id")
+          .on("contact_assignments.unassigned_at", "is", null),
+      )
+      .where("contact_assignments.assigned_to", "=", user.id);
+  }
+
   // Filter by search term
   if (search) {
     query = query.where((eb) =>
@@ -67,11 +77,25 @@ crudRoutes.get("/", zValidator("query", listGroupsQuerySchema), async (c) => {
   // Get total count
   let countQuery = tenantDb
     .selectFrom("contacts")
-    .select((eb) => eb.fn.count("id").as("total"))
-    .where("is_group", "=", true);
+    .select((eb) => eb.fn.count("contacts.id").as("total"))
+    .where("contacts.is_group", "=", true);
+
+  if (!permissions.can_view_all_chats) {
+    countQuery = countQuery
+      .innerJoin("contact_assignments", (join) =>
+        join
+          .onRef("contact_assignments.contact_id", "=", "contacts.id")
+          .on("contact_assignments.unassigned_at", "is", null),
+      )
+      .where("contact_assignments.assigned_to", "=", user.id);
+  }
 
   if (search) {
-    countQuery = countQuery.where("custom_name", "ilike", `%${search}%`);
+    countQuery = countQuery.where(
+      "contacts.custom_name",
+      "ilike",
+      `%${search}%`,
+    );
   }
 
   const countResult = await countQuery.executeTakeFirst();

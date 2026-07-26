@@ -1,4 +1,4 @@
-import { Crown, Shield, ShieldCheck, Trash2 } from "lucide-react";
+import { Crown, Settings2, Shield, ShieldCheck, Trash2 } from "lucide-react";
 import { useMemo } from "react";
 import { Avatar, AvatarFallback, Badge, EllipsisMenu } from "@/components/ui";
 import type { EllipsisMenuItem } from "@/components/ui/ellipsis-menu";
@@ -15,6 +15,7 @@ export function MemberCard({
   isMenuOpen,
   onMenuToggle,
   onRoleChange,
+  onEditPermissions,
   onRemove,
 }: MemberCardProps) {
   const initials = member.email.slice(0, 2).toUpperCase();
@@ -48,6 +49,13 @@ export function MemberCard({
     }
 
     items.push({
+      id: "permissions",
+      label: "Permissions",
+      icon: Settings2,
+      onClick: onEditPermissions,
+    });
+
+    items.push({
       id: "remove",
       label: "Remove",
       icon: Trash2,
@@ -56,7 +64,7 @@ export function MemberCard({
     });
 
     return items;
-  }, [member.role, onRoleChange, onRemove]);
+  }, [member.role, onEditPermissions, onRoleChange, onRemove]);
 
   return (
     <div className="flex items-center justify-between rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-elevated p-4 hover:bg-gray-50 dark:hover:bg-dark-tertiary">

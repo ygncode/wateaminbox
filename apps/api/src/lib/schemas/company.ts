@@ -56,6 +56,9 @@ export const updateMemberPermissionsSchema = z.object({
   can_assign_contacts: z.boolean().optional(),
   can_manage_team: z.boolean().optional(),
   can_invite: z.boolean().optional(),
+  can_manage_connections: z.boolean().optional(),
+  can_view_dashboard: z.boolean().optional(),
+  can_view_audit: z.boolean().optional(),
   can_export: z.boolean().optional(),
   can_delete: z.boolean().optional(),
 });

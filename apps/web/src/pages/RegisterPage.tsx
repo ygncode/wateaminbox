@@ -1,14 +1,18 @@
 import * as React from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Button } from "../components/ui/button";
 import { FormField } from "../components/ui/form-field";
 import { useAuth } from "../contexts/auth-context";
+import { buildAuthUrl, getSafeAuthRedirect } from "../lib/auth-redirect";
 import { registerSchema, type RegisterFormData } from "../lib/schemas";
 
 export function RegisterPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const redirectTo = getSafeAuthRedirect(searchParams.get("redirect"));
+  const suggestedEmail = searchParams.get("email") ?? "";
   const {
     register: registerUser,
     isLoading,
@@ -27,7 +31,7 @@ export function RegisterPage() {
     resolver: zodResolver(registerSchema),
     defaultValues: {
       name: "",
-      email: "",
+      email: suggestedEmail,
       password: "",
       confirmPassword: "",
     },
@@ -35,9 +39,9 @@ export function RegisterPage() {
 
   React.useEffect(() => {
     if (isAuthenticated) {
-      navigate("/chat");
+      navigate(redirectTo ?? "/chat", { replace: true });
     }
-  }, [isAuthenticated, navigate]);
+  }, [isAuthenticated, navigate, redirectTo]);
 
   const onSubmit = async (data: RegisterFormData) => {
     clearError();
@@ -85,7 +89,7 @@ export function RegisterPage() {
                 click the link to verify your account.
               </p>
               <Link
-                to="/login"
+                to={buildAuthUrl("/login", redirectTo, registeredEmail)}
                 className="inline-block w-full py-2 px-4 bg-whatsapp-green-a11y-button hover:bg-whatsapp-green-a11y-button/90 dark:bg-whatsapp-green-a11y-button dark:hover:bg-whatsapp-green-a11y-button/90 text-white font-medium rounded-lg transition-colors text-center"
               >
                 Go to Login
@@ -182,7 +186,7 @@ export function RegisterPage() {
             <p className="text-sm text-gray-600 dark:text-dark-text-secondary">
               Already have an account?{" "}
               <Link
-                to="/login"
+                to={buildAuthUrl("/login", redirectTo, suggestedEmail)}
                 className="text-whatsapp-green-a11y-text dark:text-whatsapp-green hover:text-whatsapp-green-a11y-button dark:hover:text-whatsapp-green/80 font-medium"
               >
                 Sign in

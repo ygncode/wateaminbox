@@ -21,6 +21,7 @@ export interface MemberCardProps {
   isMenuOpen: boolean;
   onMenuToggle: () => void;
   onRoleChange: (role: "admin" | "member") => void;
+  onEditPermissions: () => void;
   onRemove: () => void;
 }
 

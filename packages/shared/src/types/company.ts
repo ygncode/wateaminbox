@@ -8,6 +8,20 @@ export type CompanyStatus = "active" | "suspended" | "deleted";
  */
 export type CompanyMemberRole = "owner" | "admin" | "member";
 
+/** Effective workspace capabilities for a company member. */
+export interface MemberPermissions {
+  can_view_all_chats: boolean;
+  can_send_messages: boolean;
+  can_assign_contacts: boolean;
+  can_manage_team: boolean;
+  can_invite: boolean;
+  can_manage_connections: boolean;
+  can_view_dashboard: boolean;
+  can_view_audit: boolean;
+  can_export: boolean;
+  can_delete: boolean;
+}
+
 /**
  * Base company entity for API responses
  *
@@ -28,6 +42,7 @@ export interface Company {
  */
 export interface CompanyWithRole extends Company {
   role: CompanyMemberRole;
+  permissions: MemberPermissions;
 }
 
 /**
@@ -45,6 +60,10 @@ export interface CompanyMember {
   name?: string;
   /** User's email (from joined user data) */
   email: string;
+  /** Explicit per-member overrides stored in the company membership. */
+  permissions?: Partial<MemberPermissions>;
+  /** Role defaults merged with explicit overrides. */
+  effectivePermissions?: MemberPermissions;
 }
 
 /**

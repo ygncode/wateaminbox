@@ -84,7 +84,8 @@ permissionRoutes.get(
 permissionRoutes.patch(
   "/:id/members/:userId/permissions",
   authMiddleware,
-  tenantFromParam("id", "owner"),
+  tenantFromParam("id"),
+  requirePermission(PERMISSIONS.CAN_MANAGE_TEAM),
   zValidator("json", updateMemberPermissionsSchema),
   async (c) => {
     const companyId = c.get("companyId");
@@ -121,7 +122,8 @@ permissionRoutes.patch(
 permissionRoutes.post(
   "/:id/members/:userId/permissions/reset",
   authMiddleware,
-  tenantFromParam("id", "owner"),
+  tenantFromParam("id"),
+  requirePermission(PERMISSIONS.CAN_MANAGE_TEAM),
   async (c) => {
     const companyId = c.get("companyId");
     const userId = c.req.param("userId");

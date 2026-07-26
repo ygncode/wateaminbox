@@ -13,6 +13,7 @@ import { dayjs, now } from "@wateaminbox/shared";
 import { Button, Skeleton } from "../components/ui";
 import { useAuth } from "../contexts/auth-context";
 import { setCompanyId } from "../lib/api";
+import { buildAuthUrl } from "../lib/auth-redirect";
 import { useAcceptInvitation, useInvitationByToken } from "../hooks/useTeam";
 
 /**
@@ -248,13 +249,19 @@ export function AcceptInvitationPage() {
             <p className="text-sm text-gray-600 dark:text-dark-text-secondary text-center mb-4">
               Please log in or create an account to accept this invitation.
             </p>
-            <Link to={`/login?redirect=/invite/${token}`}>
+            <Link
+              to={buildAuthUrl("/login", `/invite/${token}`, invitation.email)}
+            >
               <Button className="w-full bg-whatsapp-teal-green hover:bg-whatsapp-dark-green">
                 Log In
               </Button>
             </Link>
             <Link
-              to={`/register?redirect=/invite/${token}&email=${encodeURIComponent(invitation.email)}`}
+              to={buildAuthUrl(
+                "/register",
+                `/invite/${token}`,
+                invitation.email,
+              )}
             >
               <Button variant="outline" className="w-full">
                 Create Account

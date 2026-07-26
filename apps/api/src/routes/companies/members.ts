@@ -9,9 +9,12 @@ import { zValidator } from "@hono/zod-validator";
 import { HTTPException } from "hono/http-exception";
 import type { CompanyMember } from "@wateaminbox/shared";
 import { authMiddleware } from "../../middleware/auth.js";
-import { tenantFromParam } from "../../middleware/tenant.js";
+import { requirePermission, tenantFromParam } from "../../middleware/tenant.js";
 import * as companyService from "../../services/company.service.js";
-import { getEffectivePermissions } from "../../services/permission.service.js";
+import {
+  getEffectivePermissions,
+  PERMISSIONS,
+} from "../../services/permission.service.js";
 import { successData, successMessage } from "../../lib/response.js";
 import { updateMemberRoleSchema } from "../../lib/schemas/index.js";
 
@@ -42,6 +45,7 @@ memberRoutes.get(
   "/:id/members",
   authMiddleware,
   tenantFromParam("id"),
+  requirePermission(PERMISSIONS.CAN_MANAGE_TEAM),
   async (c) => {
     const companyId = c.get("companyId");
 
@@ -75,7 +79,8 @@ memberRoutes.get(
 memberRoutes.patch(
   "/:id/members/:userId",
   authMiddleware,
-  tenantFromParam("id", "admin"),
+  tenantFromParam("id"),
+  requirePermission(PERMISSIONS.CAN_MANAGE_TEAM),
   zValidator("json", updateMemberRoleSchema),
   async (c) => {
     const companyId = c.get("companyId");
@@ -118,7 +123,8 @@ memberRoutes.patch(
 memberRoutes.delete(
   "/:id/members/:userId",
   authMiddleware,
-  tenantFromParam("id", "admin"),
+  tenantFromParam("id"),
+  requirePermission(PERMISSIONS.CAN_MANAGE_TEAM),
   async (c) => {
     const companyId = c.get("companyId");
     const userId = c.req.param("userId");

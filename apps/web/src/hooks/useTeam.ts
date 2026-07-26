@@ -1,5 +1,9 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
-import type { CompanyMember, CompanyInvitation } from "@wateaminbox/shared";
+import type {
+  CompanyInvitation,
+  CompanyMember,
+  MemberPermissions,
+} from "@wateaminbox/shared";
 import { api } from "@/lib/api/client";
 import { useInvalidate, useQueryInvalidation } from "./query";
 import { queryKeys } from "./query-keys";
@@ -141,6 +145,30 @@ export function useUpdateMemberRole() {
         { role },
       );
     },
+    onSuccess: (_, variables) => {
+      invalidate(queryKeys.team.members(variables.companyId));
+    },
+  });
+}
+
+/** Update per-member permission overrides. */
+export function useUpdateMemberPermissions() {
+  const { invalidate } = useQueryInvalidation();
+
+  return useMutation({
+    mutationFn: async ({
+      companyId,
+      userId,
+      permissions,
+    }: {
+      companyId: string;
+      userId: string;
+      permissions: Partial<MemberPermissions>;
+    }) =>
+      api.patch<{ effectivePermissions: MemberPermissions }>(
+        `/companies/${companyId}/members/${userId}/permissions`,
+        permissions,
+      ),
     onSuccess: (_, variables) => {
       invalidate(queryKeys.team.members(variables.companyId));
     },

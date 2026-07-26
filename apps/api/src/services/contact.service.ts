@@ -242,7 +242,13 @@ export async function getContactsWithLastMessage(
       ]),
     );
   }
-  if (assignedToMe && userId) {
+  if (restrictToAssigned && userId) {
+    countQuery = countQuery.where(
+      "contact_assignments.assigned_to",
+      "=",
+      userId,
+    );
+  } else if (assignedToMe && userId) {
     countQuery = countQuery.where(
       "contact_assignments.assigned_to",
       "=",

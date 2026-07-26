@@ -1,12 +1,15 @@
+import type { CompanyMember, MemberPermissions } from "@wateaminbox/shared";
 import { useState } from "react";
 import { useAsyncData } from "@/hooks/useAsyncData";
 import {
   useCompanyMembers,
   useRemoveMember,
+  useUpdateMemberPermissions,
   useUpdateMemberRole,
 } from "@/hooks/useTeam";
 import { ConfirmationDialog } from "@/components/ui";
 import { MemberCard } from "./MemberCard";
+import { MemberPermissionsDialog } from "./MemberPermissionsDialog";
 import { MemberSkeleton } from "./MemberSkeleton";
 import type { MembersListProps } from "./types";
 
@@ -20,9 +23,12 @@ export function MembersList({
 }: MembersListProps) {
   const { renderState } = useAsyncData(useCompanyMembers(companyId));
   const updateRole = useUpdateMemberRole();
+  const updatePermissions = useUpdateMemberPermissions();
   const removeMember = useRemoveMember();
   const [menuOpenFor, setMenuOpenFor] = useState<string | null>(null);
   const [pendingRemove, setPendingRemove] = useState<string | null>(null);
+  const [permissionMember, setPermissionMember] =
+    useState<CompanyMember | null>(null);
 
   const isAdmin = currentUserRole === "owner" || currentUserRole === "admin";
   const actionError = updateRole.error || removeMember.error;
@@ -37,6 +43,16 @@ export function MembersList({
     } catch {
       // React Query exposes the error in the action banner below.
     }
+  };
+
+  const handlePermissionsSave = async (permissions: MemberPermissions) => {
+    if (!permissionMember) return;
+    await updatePermissions.mutateAsync({
+      companyId,
+      userId: permissionMember.userId,
+      permissions,
+    });
+    setPermissionMember(null);
   };
 
   const handleRemove = (userId: string) => {
@@ -106,10 +122,22 @@ export function MembersList({
                 setMenuOpenFor(menuOpenFor === member.id ? null : member.id)
               }
               onRoleChange={(role) => handleRoleChange(member.userId, role)}
+              onEditPermissions={() => {
+                setPermissionMember(member);
+                setMenuOpenFor(null);
+              }}
               onRemove={() => handleRemove(member.userId)}
             />
           ))}
         </div>
+
+        <MemberPermissionsDialog
+          member={permissionMember}
+          isSaving={updatePermissions.isPending}
+          error={updatePermissions.error}
+          onClose={() => setPermissionMember(null)}
+          onSave={handlePermissionsSave}
+        />
 
         <ConfirmationDialog
           open={pendingRemove !== null}

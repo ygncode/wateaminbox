@@ -1,16 +1,19 @@
+import type { MemberPermissions } from "@wateaminbox/shared";
 import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "../../contexts/auth-context";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
   requireCompany?: boolean;
+  requiredPermission?: keyof MemberPermissions;
 }
 
 export function ProtectedRoute({
   children,
   requireCompany = true,
+  requiredPermission,
 }: ProtectedRouteProps) {
-  const { isAuthenticated, isLoading, needsCompanySetup } = useAuth();
+  const { isAuthenticated, isLoading, needsCompanySetup, user } = useAuth();
   const location = useLocation();
 
   if (isLoading) {
@@ -31,6 +34,10 @@ export function ProtectedRoute({
   // Redirect to company setup if user has no companies
   if (requireCompany && needsCompanySetup) {
     return <Navigate to="/company-setup" replace />;
+  }
+
+  if (requiredPermission && !user?.permissions[requiredPermission]) {
+    return <Navigate to="/chat" replace />;
   }
 
   return <>{children}</>;

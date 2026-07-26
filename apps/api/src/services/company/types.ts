@@ -94,5 +94,6 @@ export interface InvitationPreview {
  * Company with user's role attached
  */
 export interface CompanyWithRole extends Company {
-  role: string;
+  role: "owner" | "admin" | "member";
+  permissions: import("@wateaminbox/shared").MemberPermissions;
 }

@@ -145,9 +145,11 @@ function App() {
           <Route
             path="/team"
             element={
-              <Suspense fallback={<PageSkeleton variant="team" />}>
-                <TeamPage />
-              </Suspense>
+              <ProtectedRoute requiredPermission="can_manage_team">
+                <Suspense fallback={<PageSkeleton variant="team" />}>
+                  <TeamPage />
+                </Suspense>
+              </ProtectedRoute>
             }
           />
           <Route
@@ -161,17 +163,21 @@ function App() {
           <Route
             path="/audit"
             element={
-              <Suspense fallback={<PageSkeleton variant="default" />}>
-                <AuditPage />
-              </Suspense>
+              <ProtectedRoute requiredPermission="can_view_audit">
+                <Suspense fallback={<PageSkeleton variant="default" />}>
+                  <AuditPage />
+                </Suspense>
+              </ProtectedRoute>
             }
           />
           <Route
             path="/dashboard"
             element={
-              <Suspense fallback={<PageSkeleton variant="dashboard" />}>
-                <DashboardPage />
-              </Suspense>
+              <ProtectedRoute requiredPermission="can_view_dashboard">
+                <Suspense fallback={<PageSkeleton variant="dashboard" />}>
+                  <DashboardPage />
+                </Suspense>
+              </ProtectedRoute>
             }
           />
           <Route
@@ -184,15 +190,13 @@ function App() {
           />
         </Route>
 
-        {/* Accept invitation (protected but doesn't require company) */}
+        {/* Public preview; authentication is required only when accepting. */}
         <Route
           path="/invite/:token"
           element={
-            <ProtectedRoute requireCompany={false}>
-              <Suspense fallback={<PageSkeleton variant="default" />}>
-                <AcceptInvitationPage />
-              </Suspense>
-            </ProtectedRoute>
+            <Suspense fallback={<PageSkeleton variant="default" />}>
+              <AcceptInvitationPage />
+            </Suspense>
           }
         />
 

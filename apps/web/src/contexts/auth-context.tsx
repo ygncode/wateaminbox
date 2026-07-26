@@ -1,4 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
+import type { MemberPermissions } from "@wateaminbox/shared";
 import * as React from "react";
 import {
   login as apiLogin,
@@ -29,6 +30,7 @@ export interface AuthUser {
   avatarUrl?: string;
   companyId: string;
   role: UserRole;
+  permissions: MemberPermissions;
 }
 
 export interface AuthState {
@@ -68,10 +70,24 @@ interface ApiUser {
   emailVerified?: boolean;
 }
 
+const NO_MEMBER_PERMISSIONS: MemberPermissions = {
+  can_view_all_chats: false,
+  can_send_messages: false,
+  can_assign_contacts: false,
+  can_manage_team: false,
+  can_invite: false,
+  can_manage_connections: false,
+  can_view_dashboard: false,
+  can_view_audit: false,
+  can_export: false,
+  can_delete: false,
+};
+
 function mapApiUserToAuthUser(
   apiUser: ApiUser,
   companyId?: string,
   role?: string,
+  permissions?: MemberPermissions,
 ): AuthUser {
   return {
     id: apiUser.id,
@@ -80,6 +96,7 @@ function mapApiUserToAuthUser(
     avatarUrl: undefined,
     companyId: companyId || "",
     role: (role as UserRole) || "member",
+    permissions: permissions ?? NO_MEMBER_PERMISSIONS,
   };
 }
 
@@ -134,6 +151,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
               apiUser,
               currentCompanyId || undefined,
               currentRole,
+              companies.find((c) => c.id === currentCompanyId)?.permissions,
             ),
             isAuthenticated: true,
             isLoading: false,
@@ -183,6 +201,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
           response.user,
           currentCompanyId || undefined,
           currentRole,
+          companies.find((c) => c.id === currentCompanyId)?.permissions,
         ),
         isAuthenticated: true,
         isLoading: false,
@@ -274,6 +293,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
                 ...prev.user,
                 companyId,
                 role: membership.role,
+                permissions: membership.permissions,
               }
             : null,
         }));
@@ -316,6 +336,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
             apiUser,
             currentCompanyId || undefined,
             currentRole,
+            companies.find((c) => c.id === currentCompanyId)?.permissions,
           ),
           isAuthenticated: true,
           isLoading: false,

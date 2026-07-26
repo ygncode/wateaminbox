@@ -18,7 +18,11 @@ import {
   legacyMessageSendRemoved,
   requireMessageSendPermission,
 } from "../../middleware/message-send-policy.js";
-import { tenantFromHeader } from "../../middleware/tenant.js";
+import {
+  requirePermission,
+  tenantFromHeader,
+} from "../../middleware/tenant.js";
+import { PERMISSIONS } from "../../services/permission.service.js";
 import * as whatsappService from "../../services/whatsapp.service.js";
 
 const logger = createLogger("WhatsAppLegacyRoutes");
@@ -32,7 +36,8 @@ export const legacyRoutes = new Hono();
 legacyRoutes.post(
   "/connect",
   authMiddleware,
-  tenantFromHeader("X-Company-ID", "admin"),
+  tenantFromHeader("X-Company-ID"),
+  requirePermission(PERMISSIONS.CAN_MANAGE_CONNECTIONS),
   async (c) => {
     const companyId = c.get("companyId");
     const user = c.get("user");
@@ -84,7 +89,8 @@ legacyRoutes.post(
 legacyRoutes.post(
   "/disconnect",
   authMiddleware,
-  tenantFromHeader("X-Company-ID", "admin"),
+  tenantFromHeader("X-Company-ID"),
+  requirePermission(PERMISSIONS.CAN_MANAGE_CONNECTIONS),
   async (c) => {
     const companyId = c.get("companyId");
     const tenantDb = c.get("tenantDb");

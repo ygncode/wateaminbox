@@ -38,6 +38,7 @@ import { useAuth } from "../contexts/auth-context";
 export function SettingsPage() {
   const { t } = useTranslation();
   const { user, logout } = useAuth();
+  const permissions = user?.permissions;
   const [showKeyboardShortcuts, setShowKeyboardShortcuts] = useState(false);
   const [showContactImport, setShowContactImport] = useState(false);
 
@@ -122,18 +123,20 @@ export function SettingsPage() {
 
             <div className="grid grid-cols-1 gap-5 xl:grid-cols-12">
               <div className="space-y-5 xl:col-span-7">
-                <SettingsCard
-                  eyebrow="CHANNELS"
-                  icon={<Smartphone />}
-                  title={t(
-                    "settings.whatsappConnections",
-                    "WhatsApp Connections",
-                  )}
-                  tone="emerald"
-                  noPadding
-                >
-                  <WhatsAppConnectionPanel multiConnection hideHeader />
-                </SettingsCard>
+                {permissions?.can_manage_connections && (
+                  <SettingsCard
+                    eyebrow="CHANNELS"
+                    icon={<Smartphone />}
+                    title={t(
+                      "settings.whatsappConnections",
+                      "WhatsApp Connections",
+                    )}
+                    tone="emerald"
+                    noPadding
+                  >
+                    <WhatsAppConnectionPanel multiConnection hideHeader />
+                  </SettingsCard>
+                )}
                 <SettingsCard
                   eyebrow="ATTENTION"
                   icon={<Bell />}
@@ -150,22 +153,26 @@ export function SettingsPage() {
                 >
                   <QuickRepliesManager />
                 </SettingsCard>
-                <SettingsCard
-                  eyebrow="SYNC"
-                  icon={<Tag />}
-                  title={t("settings.labelSync", "WhatsApp Labels")}
-                  tone="violet"
-                >
-                  <LabelSyncManager />
-                </SettingsCard>
-                <SettingsCard
-                  eyebrow="CATALOG"
-                  icon={<Package />}
-                  title={t("settings.catalogs", "Product Catalogs")}
-                  tone="orange"
-                >
-                  <CatalogManager />
-                </SettingsCard>
+                {permissions?.can_manage_connections && (
+                  <>
+                    <SettingsCard
+                      eyebrow="SYNC"
+                      icon={<Tag />}
+                      title={t("settings.labelSync", "WhatsApp Labels")}
+                      tone="violet"
+                    >
+                      <LabelSyncManager />
+                    </SettingsCard>
+                    <SettingsCard
+                      eyebrow="CATALOG"
+                      icon={<Package />}
+                      title={t("settings.catalogs", "Product Catalogs")}
+                      tone="orange"
+                    >
+                      <CatalogManager />
+                    </SettingsCard>
+                  </>
+                )}
               </div>
 
               <aside className="space-y-5 xl:col-span-5">
@@ -204,69 +211,84 @@ export function SettingsPage() {
                     {t("settings.viewShortcuts", "View Shortcuts")}
                   </Button>
                 </SettingsCard>
-                <SettingsCard
-                  eyebrow="DATA"
-                  icon={<Upload />}
-                  title={t("settings.contactImport", "Contact Import")}
-                  tone="blue"
-                >
-                  <p className="mb-5 text-sm leading-6 text-slate-500 dark:text-[#9baea8]">
-                    {t(
-                      "settings.contactImportDescription",
-                      "Import contacts from a CSV file to quickly add multiple contacts at once.",
-                    )}
-                  </p>
-                  <Button
-                    variant="outline"
-                    onClick={() => setShowContactImport(true)}
-                    className="gap-2 border-slate-200 bg-white hover:border-emerald-500 hover:text-emerald-700 dark:border-white/10 dark:bg-white/[0.03] dark:hover:border-emerald-400/50 dark:hover:text-emerald-300"
+                {permissions?.can_assign_contacts && (
+                  <SettingsCard
+                    eyebrow="DATA"
+                    icon={<Upload />}
+                    title={t("settings.contactImport", "Contact Import")}
+                    tone="blue"
                   >
-                    <Upload className="h-4 w-4" />
-                    {t("settings.importContacts", "Import Contacts")}
-                  </Button>
-                </SettingsCard>
-                <SettingsCard
-                  eyebrow="WORKSPACE"
-                  icon={<MessageSquareText />}
-                  title={t("settings.quickLinks", "Quick Links")}
-                  tone="slate"
-                  noPadding
-                >
-                  <div className="divide-y divide-slate-100 dark:divide-white/[0.07]">
-                    <QuickLink
-                      to="/dashboard"
-                      state={{ from: "settings" }}
-                      icon={<LayoutDashboard />}
-                      title={t("settings.dashboard", "Dashboard")}
-                      description={t(
-                        "settings.dashboardDescription",
-                        "View analytics and statistics",
+                    <p className="mb-5 text-sm leading-6 text-slate-500 dark:text-[#9baea8]">
+                      {t(
+                        "settings.contactImportDescription",
+                        "Import contacts from a CSV file to quickly add multiple contacts at once.",
                       )}
-                      preloadRouteName="dashboard"
-                    />
-                    <QuickLink
-                      to="/team"
-                      state={{ from: "settings" }}
-                      icon={<Users />}
-                      title={t("settings.teamManagement", "Team Management")}
-                      description={t(
-                        "settings.teamManagementDescription",
-                        "Manage team members and invitations",
+                    </p>
+                    <Button
+                      variant="outline"
+                      onClick={() => setShowContactImport(true)}
+                      className="gap-2 border-slate-200 bg-white hover:border-emerald-500 hover:text-emerald-700 dark:border-white/10 dark:bg-white/[0.03] dark:hover:border-emerald-400/50 dark:hover:text-emerald-300"
+                    >
+                      <Upload className="h-4 w-4" />
+                      {t("settings.importContacts", "Import Contacts")}
+                    </Button>
+                  </SettingsCard>
+                )}
+                {(permissions?.can_view_dashboard ||
+                  permissions?.can_manage_team ||
+                  permissions?.can_view_audit) && (
+                  <SettingsCard
+                    eyebrow="WORKSPACE"
+                    icon={<MessageSquareText />}
+                    title={t("settings.quickLinks", "Quick Links")}
+                    tone="slate"
+                    noPadding
+                  >
+                    <div className="divide-y divide-slate-100 dark:divide-white/[0.07]">
+                      {permissions?.can_view_dashboard && (
+                        <QuickLink
+                          to="/dashboard"
+                          state={{ from: "settings" }}
+                          icon={<LayoutDashboard />}
+                          title={t("settings.dashboard", "Dashboard")}
+                          description={t(
+                            "settings.dashboardDescription",
+                            "View analytics and statistics",
+                          )}
+                          preloadRouteName="dashboard"
+                        />
                       )}
-                      preloadRouteName="team"
-                    />
-                    <QuickLink
-                      to="/audit"
-                      icon={<FileText />}
-                      title={t("settings.auditLog", "Audit Log")}
-                      description={t(
-                        "settings.auditLogDescription",
-                        "View activity and security logs",
+                      {permissions?.can_manage_team && (
+                        <QuickLink
+                          to="/team"
+                          state={{ from: "settings" }}
+                          icon={<Users />}
+                          title={t(
+                            "settings.teamManagement",
+                            "Team Management",
+                          )}
+                          description={t(
+                            "settings.teamManagementDescription",
+                            "Manage team members and invitations",
+                          )}
+                          preloadRouteName="team"
+                        />
                       )}
-                      preloadRouteName="audit"
-                    />
-                  </div>
-                </SettingsCard>
+                      {permissions?.can_view_audit && (
+                        <QuickLink
+                          to="/audit"
+                          icon={<FileText />}
+                          title={t("settings.auditLog", "Audit Log")}
+                          description={t(
+                            "settings.auditLogDescription",
+                            "View activity and security logs",
+                          )}
+                          preloadRouteName="audit"
+                        />
+                      )}
+                    </div>
+                  </SettingsCard>
+                )}
               </aside>
             </div>
             <p className="mt-8 pb-3 text-center text-xs font-medium uppercase tracking-[0.16em] text-slate-400 dark:text-[#657872]">

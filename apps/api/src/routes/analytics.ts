@@ -1,6 +1,5 @@
 import { toISOString } from "@wateaminbox/shared";
 import { Hono } from "hono";
-import { forbidden } from "../lib/errors.js";
 import { rateLimitConfig, rateLimitStore } from "../lib/rate-limit-store.js";
 import { successData } from "../lib/response.js";
 import {
@@ -11,14 +10,16 @@ import {
 import { authMiddleware } from "../middleware/auth.js";
 import { getRouteContext } from "../middleware/context.js";
 import { createConditionalRateLimiter } from "../middleware/rate-limit.js";
-import { tenantMiddleware } from "../middleware/tenant.js";
+import { requirePermission, tenantMiddleware } from "../middleware/tenant.js";
 import * as analyticsService from "../services/analytics.service.js";
+import { PERMISSIONS } from "../services/permission.service.js";
 
 export const analyticsRoutes = new Hono();
 
 // All analytics routes require authentication and tenant context
 analyticsRoutes.use("/*", authMiddleware);
 analyticsRoutes.use("/*", tenantMiddleware());
+analyticsRoutes.use("/*", requirePermission(PERMISSIONS.CAN_VIEW_DASHBOARD));
 
 // Analytics rate limiter: 20 requests per minute per user
 // Analytics queries can be resource-intensive with aggregations
@@ -85,12 +86,7 @@ analyticsRoutes.get("/contacts", analyticsRateLimiter, async (c) => {
  * Rate limit: 20 requests per minute per user
  */
 analyticsRoutes.get("/team", analyticsRateLimiter, async (c) => {
-  const { companyId, role } = getRouteContext(c);
-
-  // Only admins and owners can view team stats
-  if (role === "member") {
-    return forbidden(c, "Insufficient permissions");
-  }
+  const { companyId } = getRouteContext(c);
 
   const stats = await analyticsService.getTeamActivityStats(companyId);
 
@@ -189,13 +185,8 @@ analyticsRoutes.get("/response-time/trend", analyticsRateLimiter, async (c) => {
  * Rate limit: 20 requests per minute per user
  */
 analyticsRoutes.get("/response-time/team", analyticsRateLimiter, async (c) => {
-  const { companyId, role } = getRouteContext(c);
+  const { companyId } = getRouteContext(c);
   const slaThreshold = parseInt(c.req.query("slaThreshold") || "60", 10);
-
-  // Only admins and owners can view team stats
-  if (role === "member") {
-    return forbidden(c, "Insufficient permissions");
-  }
 
   const { startDate, endDate } = extractDateRange(c, 30);
 
