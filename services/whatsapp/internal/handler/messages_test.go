@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"go.mau.fi/whatsmeow"
+	"go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/proto/waHistorySync"
 	"go.mau.fi/whatsmeow/proto/waWeb"
 	"go.mau.fi/whatsmeow/store"
@@ -99,6 +100,51 @@ func TestHistorySyncPersistsMappingsBeforeResolvingReactionIdentity(t *testing.T
 	resolved := handler.resolveHistoryIdentity("277905926004845@lid")
 	if resolved != "841665247989@s.whatsapp.net" {
 		t.Fatalf("expected canonical reaction identity, got %s", resolved)
+	}
+}
+
+func TestGetQuotedMessageIDFromIncomingMessages(t *testing.T) {
+	tests := []struct {
+		name     string
+		message  *waE2E.Message
+		expected string
+	}{
+		{
+			name:     "text reply",
+			expected: "quoted-text-id",
+			message: &waE2E.Message{ExtendedTextMessage: &waE2E.ExtendedTextMessage{
+				Text: proto.String("reply"),
+				ContextInfo: &waE2E.ContextInfo{
+					StanzaID: proto.String("quoted-text-id"),
+				},
+			}},
+		},
+		{
+			name:     "image reply",
+			expected: "quoted-image-id",
+			message: &waE2E.Message{ImageMessage: &waE2E.ImageMessage{
+				ContextInfo: &waE2E.ContextInfo{
+					StanzaID: proto.String("quoted-image-id"),
+				},
+			}},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if actual := getQuotedMessageID(tt.message); actual != tt.expected {
+				t.Fatalf("expected %s, got %s", tt.expected, actual)
+			}
+		})
+	}
+}
+
+func TestGetQuotedMessageIDReturnsEmptyForRegularMessage(t *testing.T) {
+	message := &waE2E.Message{ExtendedTextMessage: &waE2E.ExtendedTextMessage{
+		Text: proto.String("not a reply"),
+	}}
+	if actual := getQuotedMessageID(message); actual != "" {
+		t.Fatalf("expected no quoted ID, got %s", actual)
 	}
 }
 

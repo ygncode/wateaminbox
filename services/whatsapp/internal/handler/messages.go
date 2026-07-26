@@ -72,6 +72,37 @@ func newMessageEvent(msg *events.Message, senderJID, chatJID types.JID) natsClie
 	}
 }
 
+type contextInfoCarrier interface {
+	GetContextInfo() *waE2E.ContextInfo
+}
+
+// getQuotedMessageID extracts the referenced WhatsApp stanza from every
+// message type handled by the worker. Replies are represented by context info,
+// not only ExtendedTextMessage, so media replies must be checked as well.
+func getQuotedMessageID(message *waE2E.Message) string {
+	if message == nil {
+		return ""
+	}
+	carriers := []contextInfoCarrier{
+		message.ExtendedTextMessage,
+		message.ImageMessage,
+		message.VideoMessage,
+		message.AudioMessage,
+		message.DocumentMessage,
+		message.StickerMessage,
+		message.LocationMessage,
+		message.ContactMessage,
+	}
+	for _, carrier := range carriers {
+		if contextInfo := carrier.GetContextInfo(); contextInfo != nil {
+			if stanzaID := contextInfo.GetStanzaID(); stanzaID != "" {
+				return stanzaID
+			}
+		}
+	}
+	return ""
+}
+
 // handleMessage processes incoming messages.
 func (h *Handler) handleMessage(msg *events.Message) {
 	// Get preferred JIDs (PN over LID) to ensure consistency with stored contacts
@@ -119,6 +150,8 @@ func (h *Handler) handleMessage(msg *events.Message) {
 		h.handleProtocolMessage(msg)
 		return
 	}
+
+	msgEvent.QuotedMessageID = getQuotedMessageID(msg.Message)
 
 	// Text message
 	if msg.Message.Conversation != nil {

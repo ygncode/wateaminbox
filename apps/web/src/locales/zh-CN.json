@@ -66,6 +66,7 @@
     "noMessages": "暂无消息",
     "startConversation": "开始对话",
     "messageDeleted": "此消息已被删除",
+    "quotedMessageUnavailable": "引用的消息不可用",
     "forwarded": "已转发",
     "reply": "回复",
     "forward": "转发",

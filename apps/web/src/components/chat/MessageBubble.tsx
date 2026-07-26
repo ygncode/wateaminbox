@@ -16,6 +16,12 @@ import { ForwardIcon, ReplyIcon, StarFilledIcon } from "./MessageIcons";
 import { MessageReactions } from "./MessageReactions";
 import { getErrorMessage, MessageStatusIcon } from "./MessageStatusIcon";
 
+export function shouldShowReplyPreview(
+  message: Pick<Message, "replyToMessageId" | "isDeleted">,
+): boolean {
+  return Boolean(message.replyToMessageId && !message.isDeleted);
+}
+
 interface MessageBubbleProps {
   message: Message;
   isOwn: boolean;
@@ -180,7 +186,7 @@ export const MessageBubble = memo(function MessageBubble({
         )}
 
         {/* Reply preview */}
-        {message.replyToMessage && !message.isDeleted && (
+        {shouldShowReplyPreview(message) && (
           <ReplyPreview replyToMessage={message.replyToMessage} isOwn={isOwn} />
         )}
 
@@ -336,7 +342,17 @@ function ReplyPreview({
 }) {
   const { t } = useTranslation();
 
-  if (!replyToMessage) return null;
+  const replySender = !replyToMessage
+    ? t("chat.reply")
+    : replyToMessage.senderType === "user"
+      ? t("chat.you")
+      : formatPhoneLikeText(replyToMessage.senderName) ||
+        t("chat.unknownContact");
+  const replyContent = !replyToMessage
+    ? t("chat.quotedMessageUnavailable")
+    : replyToMessage.isDeleted
+      ? t("chat.messageDeleted")
+      : replyToMessage.content;
 
   return (
     <div
@@ -356,9 +372,7 @@ function ReplyPreview({
                 : "text-gray-900 dark:text-dark-text-primary"
             }`}
           >
-            {replyToMessage.senderType === "user"
-              ? "You"
-              : formatPhoneLikeText(replyToMessage.senderName) || "Contact"}
+            {replySender}
           </p>
           <p
             className={`text-xs line-clamp-2 ${
@@ -367,9 +381,7 @@ function ReplyPreview({
                 : "text-gray-700 dark:text-dark-text-secondary"
             }`}
           >
-            {replyToMessage.isDeleted
-              ? t("chat.messageDeleted")
-              : replyToMessage.content}
+            {replyContent}
           </p>
         </div>
       </div>

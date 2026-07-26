@@ -66,6 +66,7 @@
     "noMessages": "No messages yet",
     "startConversation": "Start a conversation",
     "messageDeleted": "This message was deleted",
+    "quotedMessageUnavailable": "Quoted message unavailable",
     "forwarded": "Forwarded",
     "reply": "Reply",
     "forward": "Forward",

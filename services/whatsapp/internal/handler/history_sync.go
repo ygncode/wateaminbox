@@ -403,6 +403,7 @@ func (h *Handler) processHistorySyncMessage(historyMsg *waHistorySync.HistorySyn
 	if waMsg == nil {
 		return false, false
 	}
+	msgEvent.QuotedMessageID = getQuotedMessageID(waMsg)
 
 	hasMedia := false
 

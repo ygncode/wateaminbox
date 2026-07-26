@@ -13,6 +13,10 @@ import {
 import { sql } from "kysely";
 import { formatError } from "../../lib/logger.js";
 import {
+  buildQuotedMessageData,
+  type MessageDbRow,
+} from "../../lib/message-formatters.js";
+import {
   buildCommandSubject,
   type MessageEvent,
   type NatsCommand,
@@ -283,6 +287,7 @@ export async function handleMessageEvent(event: MessageEvent): Promise<void> {
               from_me: payload.fromMe,
               sender_jid: normalizedSenderJid,
               sender_name: senderName,
+              quoted_message_id: payload.quotedMessageId || null,
               // History sync contains the original WhatsApp status. Merge it
               // monotonically so imported messages get their old double ticks
               // without regressing newer realtime receipt state.
@@ -416,6 +421,23 @@ export async function handleMessageEvent(event: MessageEvent): Promise<void> {
       // notification_history is reserved for: assignments, mentions, team, system events
     }
 
+    // Resolve the quoted WhatsApp stanza for the realtime payload. Without the
+    // embedded message, an incoming reply only looks like a regular message
+    // until the conversation is manually refetched.
+    let replyToMessage: ReturnType<typeof buildQuotedMessageData> | undefined;
+    if (payload.quotedMessageId && !payload.isHistorySync) {
+      const quotedMessage = await tenantDb
+        .selectFrom("messages")
+        .selectAll()
+        .where("whatsapp_connection_id", "=", connection.id)
+        .where("contact_id", "=", contact.id)
+        .where("message_id", "=", payload.quotedMessageId)
+        .executeTakeFirst();
+      if (quotedMessage) {
+        replyToMessage = buildQuotedMessageData(quotedMessage as MessageDbRow);
+      }
+    }
+
     // Broadcast to clients with proper format for frontend
     // Frontend expects { message: Message, conversationId: string }
     // Skip for history sync messages to avoid flooding during initial sync
@@ -440,6 +462,7 @@ export async function handleMessageEvent(event: MessageEvent): Promise<void> {
               ? { mediaUrl: payload.mediaUrl }
               : undefined,
             replyToMessageId: payload.quotedMessageId,
+            replyToMessage,
             isForwarded: false,
             isDeleted: false,
             isStarred: false,
