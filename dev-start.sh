@@ -212,7 +212,7 @@ build_go_services() {
     print_status "Building Go services..."
 
     # Build WhatsApp worker
-    (cd services/whatsapp && go build -o whatsapp-worker main.go)
+    (cd services/whatsapp && go build -o whatsapp-worker.next main.go && mv whatsapp-worker.next whatsapp-worker)
     print_success "  WhatsApp worker built"
 
     # Build orchestrator (create tmp dir for air)

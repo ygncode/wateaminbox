@@ -2,8 +2,9 @@ root = "."
 tmp_dir = "tmp"
 
 [build]
-  # Build command - output to the location orchestrator expects
-  cmd = "go build -o whatsapp-worker . && echo '[air] WhatsApp worker binary rebuilt'"
+  # Build to a new inode before replacing the running executable. Overwriting a
+  # mapped Mach-O in place can invalidate its macOS code signature.
+  cmd = "go build -o whatsapp-worker.next . && mv whatsapp-worker.next whatsapp-worker && echo '[air] WhatsApp worker binary rebuilt'"
   # We don't actually run the binary (orchestrator spawns workers)
   # Using 'true' as a no-op since air requires an entrypoint
   entrypoint = ["/usr/bin/true"]
