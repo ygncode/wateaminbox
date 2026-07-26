@@ -34,6 +34,10 @@ export interface RawContactFromDb {
   assigned_to: string | null;
   is_online?: boolean | null;
   last_seen?: Date | string | null;
+  connection_id?: string | null;
+  connection_name?: string | null;
+  connection_phone_number?: string | null;
+  connection_status?: string | null;
   created_at: Date | string;
   updated_at: Date | string;
   // Optional: last message data (from joined query)
@@ -41,6 +45,8 @@ export interface RawContactFromDb {
     id: string;
     messageId: string;
     fromMe: boolean;
+    sentByUserId?: string | null;
+    sentByUserName?: string | null;
     messageType: string;
     content: string | null;
     status: string;
@@ -69,10 +75,18 @@ export interface TransformedContact {
     id: string;
     messageId: string;
     fromMe: boolean;
+    sentByUserId: string | null;
+    sentByUserName: string | null;
     messageType: string;
     content: string | null;
     status: string;
     timestamp: Date | string;
+  } | null;
+  connection: {
+    id: string;
+    name: string | null;
+    phoneNumber: string | null;
+    status: string;
   } | null;
   unreadCount: number;
   assignedTo: string | null;
@@ -137,10 +151,20 @@ export function transformContact(
           id: contact.last_message.id,
           messageId: contact.last_message.messageId,
           fromMe: contact.last_message.fromMe,
+          sentByUserId: contact.last_message.sentByUserId ?? null,
+          sentByUserName: contact.last_message.sentByUserName ?? null,
           messageType: contact.last_message.messageType,
           content: contact.last_message.content,
           status: contact.last_message.status,
           timestamp: contact.last_message.timestamp,
+        }
+      : null,
+    connection: contact.connection_id
+      ? {
+          id: contact.connection_id,
+          name: contact.connection_name ?? null,
+          phoneNumber: contact.connection_phone_number ?? null,
+          status: contact.connection_status || "disconnected",
         }
       : null,
     unreadCount: Number(contact.unread_count ?? 0),

@@ -21,6 +21,12 @@ export interface ContactDetail {
   notesShared: string | null;
   createdAt: string;
   updatedAt: string;
+  connection: {
+    id: string;
+    name: string | null;
+    phoneNumber: string | null;
+    status: "disconnected" | "pending" | "connected" | "banned" | "error";
+  } | null;
   assignment: {
     assignedTo: string;
     assignedToName: string;

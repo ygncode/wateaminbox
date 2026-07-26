@@ -25,4 +25,19 @@ describe("chat list query filters", () => {
       },
     );
   });
+
+  test("scopes the inbox to a selected WhatsApp account", () => {
+    expect(
+      buildChatListQueryParams(
+        "",
+        true,
+        "all",
+        "11111111-1111-4111-8111-111111111111",
+      ),
+    ).toEqual({
+      limit: 100,
+      includeGroups: "true",
+      connectionId: "11111111-1111-4111-8111-111111111111",
+    });
+  });
 });

@@ -1,8 +1,9 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { UserPlus } from "lucide-react";
+import { Smartphone, UserPlus } from "lucide-react";
 import {
   memo,
   useCallback,
+  useEffect,
   useMemo,
   useRef,
   useState,
@@ -10,13 +11,22 @@ import {
 } from "react";
 import { type AssignmentFilter, useChats } from "../../hooks/useChats";
 import { usePrefetchContact } from "../../hooks/usePrefetch";
+import { useWhatsAppConnections } from "../../hooks/useWhatsAppConnections";
 import type { ChatListProps } from "../../types/chat";
 import { AddContactDialog } from "../contacts/AddContactDialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "../ui/select";
 import { ChatListItem, ChatListItemSkeleton } from "./ChatListItem";
 import { ChatListSearch } from "./ChatListSearch";
+import { getConnectionLabel } from "./ConnectionIdentity";
 
 // Fixed height for chat list items for virtualization
-const CHAT_ITEM_HEIGHT = 72;
+const CHAT_ITEM_HEIGHT = 76;
 
 /**
  * Main chat list sidebar component
@@ -31,14 +41,30 @@ export const ChatList = memo(function ChatList({
   const [assignmentFilter, setAssignmentFilter] =
     useState<AssignmentFilter>("all");
   const [isAddContactOpen, setIsAddContactOpen] = useState(false);
+  const [connectionFilter, setConnectionFilter] = useState("all");
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const { connections } = useWhatsAppConnections();
+
+  useEffect(() => {
+    if (
+      connectionFilter !== "all" &&
+      !connections.some((connection) => connection.id === connectionFilter)
+    ) {
+      setConnectionFilter("all");
+    }
+  }, [connectionFilter, connections]);
 
   const {
     data: chats,
     isLoading,
     isError,
     error,
-  } = useChats(searchQuery, true, assignmentFilter);
+  } = useChats(
+    searchQuery,
+    true,
+    assignmentFilter,
+    connectionFilter === "all" ? undefined : connectionFilter,
+  );
 
   const handleSearchChange = useCallback((value: string) => {
     setSearchQuery(value);
@@ -100,6 +126,36 @@ export const ChatList = memo(function ChatList({
           onClear={handleSearchClear}
         />
       </div>
+
+      {/* Account scope makes the destination number explicit in multi-account inboxes. */}
+      {connections.length > 1 && (
+        <div className="flex items-center gap-2 border-b border-gray-200 bg-white px-3 py-2 dark:border-dark-border dark:bg-dark-secondary">
+          <Smartphone
+            className="h-4 w-4 shrink-0 text-gray-400 dark:text-dark-text-tertiary"
+            aria-hidden="true"
+          />
+          <span className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-dark-text-secondary">
+            Inbox
+          </span>
+          <Select value={connectionFilter} onValueChange={setConnectionFilter}>
+            <SelectTrigger
+              className="ml-auto h-8 min-w-0 max-w-[190px] border-0 bg-gray-100 px-2.5 text-xs shadow-none focus:ring-1 focus:ring-whatsapp-green dark:bg-dark-tertiary"
+              aria-label="Filter by WhatsApp account"
+            >
+              <SelectValue placeholder="All WhatsApp numbers" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All WhatsApp numbers</SelectItem>
+              {connections.map((connection) => (
+                <SelectItem key={connection.id} value={connection.id}>
+                  {getConnectionLabel(connection)}
+                  {connection.status !== "connected" ? " · offline" : ""}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
 
       {/* Assignment filters remain horizontally reachable at narrow widths. */}
       <div className="flex items-center border-b border-gray-200 bg-gray-50 dark:border-dark-border dark:bg-dark-secondary">

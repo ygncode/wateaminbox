@@ -14,6 +14,7 @@ import { loadMessageReactions } from "../../lib/message-reactions.js";
 import { extractPaginationParams } from "../../lib/route-helpers.js";
 import { getRouteContext } from "../../middleware/context.js";
 import { hasContactVisibility } from "../../middleware/resource-visibility.js";
+import { getUserNames } from "../../services/user.service.js";
 
 export const fetchRoutes = new Hono();
 
@@ -55,6 +56,11 @@ fetchRoutes.get("/", async (c) => {
   }
 
   const messages = await query.execute();
+  const userNames = await getUserNames(
+    messages
+      .map((message) => message.sent_by_user_id)
+      .filter((id): id is string => Boolean(id)),
+  );
 
   // Get quoted messages if any
   const quotedIds = messages
@@ -93,6 +99,7 @@ fetchRoutes.get("/", async (c) => {
     sortedMessages as MessageDbRow[],
     quotedMessages,
     reactionsMap,
+    userNames,
   );
 
   return c.json({

@@ -1,5 +1,6 @@
 import type { Message } from "@wateaminbox/shared";
 import { formatMessageTime } from "@wateaminbox/shared";
+import { Smartphone, UserRound } from "lucide-react";
 import { lazy, memo, Suspense, useCallback, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
@@ -28,6 +29,8 @@ interface MessageBubbleProps {
   isOwn: boolean;
   /** Whether the active conversation is a WhatsApp group. */
   isGroup?: boolean;
+  /** Authenticated teammate viewing the thread. */
+  currentUserId: string;
   /** Retry handler passed directly (local to MessageThread) */
   onRetry?: (messageId: string) => void;
   /** Highlight this message (e.g., from search) */
@@ -45,6 +48,7 @@ export const MessageBubble = memo(function MessageBubble({
   message,
   isOwn,
   isGroup = false,
+  currentUserId,
   onRetry,
   isHighlighted = false,
   isRetrying = false,
@@ -173,7 +177,10 @@ export const MessageBubble = memo(function MessageBubble({
         onContextMenu={selectionMode ? undefined : handleContextMenu}
         data-message-id={message.id}
       >
-        {/* Group participant identity */}
+        {/* Identity is explicit on both sides of a shared team conversation. */}
+        {isOwn && (
+          <TeamSenderLabel message={message} currentUserId={currentUserId} />
+        )}
         {isGroup && !isOwn && !message.isDeleted && (
           <GroupParticipantLabel message={message} />
         )}
@@ -188,7 +195,11 @@ export const MessageBubble = memo(function MessageBubble({
 
         {/* Reply preview */}
         {shouldShowReplyPreview(message) && (
-          <ReplyPreview replyToMessage={message.replyToMessage} isOwn={isOwn} />
+          <ReplyPreview
+            replyToMessage={message.replyToMessage}
+            isOwn={isOwn}
+            currentUserId={currentUserId}
+          />
         )}
 
         {/* Message content */}
@@ -337,16 +348,20 @@ function SelectionCheckbox({
 function ReplyPreview({
   replyToMessage,
   isOwn,
+  currentUserId,
 }: {
   replyToMessage: Message["replyToMessage"];
   isOwn: boolean;
+  currentUserId: string;
 }) {
   const { t } = useTranslation();
 
   const replySender = !replyToMessage
     ? t("chat.reply")
     : replyToMessage.senderType === "user"
-      ? t("chat.you")
+      ? replyToMessage.sentByUserId === currentUserId
+        ? t("chat.you")
+        : replyToMessage.sentByUserName || "Team member"
       : formatPhoneLikeText(replyToMessage.senderName) ||
         t("chat.unknownContact");
   const replyContent = !replyToMessage
@@ -485,6 +500,38 @@ function FailedMessageBanner({
           )}
         </button>
       )}
+    </div>
+  );
+}
+
+function TeamSenderLabel({
+  message,
+  currentUserId,
+}: {
+  message: Message;
+  currentUserId: string;
+}) {
+  const wasSentByCurrentUser = message.sentByUserId === currentUserId;
+  const wasSentFromTeamInbox = Boolean(message.sentByUserId);
+  const label = wasSentByCurrentUser
+    ? "You"
+    : message.sentByUserName ||
+      (wasSentFromTeamInbox ? "Team member" : "Linked phone");
+  const Icon = wasSentFromTeamInbox ? UserRound : Smartphone;
+
+  return (
+    <div
+      className="mb-1 flex max-w-full items-center justify-end gap-1 text-[11px] font-semibold leading-4 text-white/85"
+      title={
+        wasSentFromTeamInbox
+          ? `Sent by ${label} from the team inbox`
+          : "Sent directly from the linked WhatsApp phone"
+      }
+    >
+      <Icon className="h-3 w-3 shrink-0" aria-hidden="true" />
+      <span className="truncate">
+        {wasSentFromTeamInbox ? `Sent by ${label}` : label}
+      </span>
     </div>
   );
 }

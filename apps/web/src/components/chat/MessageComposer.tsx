@@ -1,4 +1,5 @@
-import type { Message } from "@wateaminbox/shared";
+import type { Message, WhatsAppConnectionIdentity } from "@wateaminbox/shared";
+import { UserRound } from "lucide-react";
 import {
   type ChangeEvent,
   type KeyboardEvent,
@@ -12,6 +13,7 @@ import {
 } from "react";
 import { useRealtimeContext } from "../../contexts/RealtimeProvider";
 import { useClickOutside, useTextareaAutoResize } from "../../hooks/ui";
+import { ConnectionRoute } from "./ConnectionIdentity";
 
 // Lazy load emoji picker - only loaded when user opens it
 // This keeps the emoji data (~1200 lines) out of the initial bundle
@@ -83,7 +85,8 @@ interface MessageComposerProps {
   onSendMessage: (content: string, replyToMessageId?: string) => void;
   onAttachFile: (file: File, type: "image" | "document") => void;
   disabled?: boolean;
-  connectionStatus?: string;
+  connection?: WhatsAppConnectionIdentity | null;
+  currentUserName?: string;
 }
 
 export function MessageComposer({
@@ -94,12 +97,11 @@ export function MessageComposer({
   onSendMessage,
   onAttachFile,
   disabled = false,
-  connectionStatus,
+  connection,
+  currentUserName,
 }: MessageComposerProps) {
-  // Disable input when connection is not "connected"
-  const isDisconnected = Boolean(
-    connectionStatus && connectionStatus !== "connected",
-  );
+  // A conversation is permanently routed through the account that owns it.
+  const isDisconnected = !connection || connection.status !== "connected";
   const isInputDisabled = disabled || isDisconnected;
   const [message, setMessage] = useState("");
   const [showAttachmentMenu, setShowAttachmentMenu] = useState(false);
@@ -300,10 +302,38 @@ export function MessageComposer({
     <div className="bg-gray-100 dark:bg-dark-secondary border-t border-gray-200 dark:border-dark-border safe-area-bottom">
       {/* Disconnected banner */}
       {isDisconnected && (
-        <div className="bg-yellow-50 dark:bg-yellow-900/20 text-yellow-800 dark:text-yellow-200 text-sm px-4 py-2 text-center border-b border-yellow-200 dark:border-yellow-800/30">
-          WhatsApp is disconnected. Messages cannot be sent.
+        <div className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-center text-sm text-amber-900 dark:border-amber-800/30 dark:bg-amber-900/20 dark:text-amber-200">
+          {connection?.name ||
+            connection?.phoneNumber ||
+            "This WhatsApp account"}{" "}
+          is disconnected. This conversation cannot be rerouted to another
+          number.
         </div>
       )}
+
+      {/* Persistent sender and account context prevents wrong-identity replies. */}
+      <div className="flex min-w-0 items-center gap-2 border-b border-gray-200/80 bg-white/70 px-3 py-1.5 dark:border-dark-border dark:bg-dark-secondary">
+        <UserRound
+          className="h-3.5 w-3.5 shrink-0 text-gray-400 dark:text-dark-text-tertiary"
+          aria-hidden="true"
+        />
+        <span className="truncate text-xs text-gray-500 dark:text-dark-text-secondary">
+          Sending as{" "}
+          <strong className="font-semibold text-gray-700 dark:text-dark-text-primary">
+            {currentUserName || "You"}
+          </strong>
+        </span>
+        {connection && (
+          <>
+            <span className="text-gray-300 dark:text-dark-border">•</span>
+            <ConnectionRoute
+              connection={connection}
+              mode="sending"
+              className="min-w-0"
+            />
+          </>
+        )}
+      </div>
 
       {/* Reply preview */}
       {replyToMessage && (

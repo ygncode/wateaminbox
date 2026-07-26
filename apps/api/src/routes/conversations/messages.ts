@@ -23,6 +23,7 @@ import {
 } from "../../middleware/message-send-policy.js";
 import { enqueueCommand } from "../../services/command-outbox.service.js";
 import { ensureContactAssignment } from "../../services/contact.service.js";
+import { getUserNames } from "../../services/user.service.js";
 
 export const messageRoutes = new Hono();
 
@@ -59,6 +60,11 @@ messageRoutes.get(
     }
 
     const messages = await query.execute();
+    const userNames = await getUserNames(
+      messages
+        .map((message) => message.sent_by_user_id)
+        .filter((id): id is string => Boolean(id)),
+    );
 
     // Get quoted messages if any (for reply functionality)
     const quotedIds = messages
@@ -80,12 +86,19 @@ messageRoutes.get(
         .where("whatsapp_connection_id", "in", connectionIds)
         .execute();
 
+      const quotedUserNames = await getUserNames(
+        quoted
+          .map((message) => message.sent_by_user_id)
+          .filter((id): id is string => Boolean(id)),
+      );
+      for (const [id, name] of quotedUserNames) userNames.set(id, name);
+
       quotedMessagesMap = new Map(
         quoted
           .filter((q) => q.message_id !== null)
           .map((q) => [
             q.message_id as string,
-            buildQuotedMessageData(q as MessageDbRow),
+            buildQuotedMessageData(q as MessageDbRow, userNames),
           ]),
       );
     }
@@ -100,6 +113,7 @@ messageRoutes.get(
       messages as MessageDbRow[],
       quotedMessagesMap,
       reactionsMap,
+      userNames,
     );
 
     return successData(c, {
@@ -205,7 +219,7 @@ messageRoutes.post(
           whatsapp_connection_id: connection.id,
           message_id: waMessageId,
           from_me: true,
-          sender_jid: null,
+          sender_jid: connection.jid,
           message_type: messageType,
           content,
           media_url: mediaUrl || null,
@@ -229,13 +243,17 @@ messageRoutes.post(
         messageId: waMessageId,
         conversationId: contactId,
         contactId,
-        fromMe: true,
+        senderId: user.id,
+        senderType: "user",
+        sentByUserId: user.id,
+        sentByUserName: user.name || user.email.split("@")[0],
         messageType,
-        content,
-        mediaUrl,
-        replyToMessageId: replyToMessageId || null,
-        timestamp: new Date().toISOString(),
+        content: content ?? "",
+        metadata: mediaUrl ? { mediaUrl } : undefined,
+        replyToMessageId: replyToMessageId || undefined,
         status: "pending",
+        createdAt: new Date(),
+        updatedAt: new Date(),
       },
       autoAssigned: wasAutoAssigned,
     });

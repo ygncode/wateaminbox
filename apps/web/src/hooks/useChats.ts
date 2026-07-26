@@ -26,6 +26,7 @@ interface ChatListFilters {
   search?: string;
   includeGroups?: boolean;
   assignmentFilter?: AssignmentFilter;
+  connectionId?: string;
 }
 
 /**
@@ -50,10 +51,12 @@ export function buildChatListQueryParams(
   searchQuery: string,
   includeGroups: boolean,
   assignmentFilter: AssignmentFilter,
+  connectionId?: string,
 ): Record<string, unknown> {
   const params: Record<string, unknown> = { limit: 100 };
   if (searchQuery.trim()) params.search = searchQuery;
   if (includeGroups) params.includeGroups = "true";
+  if (connectionId) params.connectionId = connectionId;
   if (assignmentFilter === "assignedToMe") {
     params.assignedToMe = "true";
   } else if (assignmentFilter === "unassigned") {
@@ -70,6 +73,7 @@ export function useChats(
   searchQuery: string = "",
   includeGroups: boolean = true,
   assignmentFilter: AssignmentFilter = "all",
+  connectionId?: string,
 ) {
   // Memoize the query key to prevent unnecessary re-renders
   const queryKey = useMemo(
@@ -78,8 +82,9 @@ export function useChats(
         search: searchQuery,
         includeGroups,
         assignmentFilter,
+        connectionId,
       }),
-    [searchQuery, includeGroups, assignmentFilter],
+    [searchQuery, includeGroups, assignmentFilter, connectionId],
   );
 
   return useQuery<Chat[], Error>({
@@ -100,7 +105,12 @@ export function useChats(
       }
 
       const queryString = buildQueryString(
-        buildChatListQueryParams(searchQuery, includeGroups, assignmentFilter),
+        buildChatListQueryParams(
+          searchQuery,
+          includeGroups,
+          assignmentFilter,
+          connectionId,
+        ),
       );
       const result = await api.get<ContactsListResponse>(
         `/contacts${queryString}`,

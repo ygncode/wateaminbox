@@ -31,6 +31,8 @@ export interface ContactApiResponse {
     content: string;
     status: string;
     timestamp: string;
+    sentByUserId: string | null;
+    sentByUserName: string | null;
   } | null;
   unreadCount: number;
   assignedTo: string | null;
@@ -38,6 +40,12 @@ export interface ContactApiResponse {
   lastSeen: string | null;
   createdAt: string;
   updatedAt: string;
+  connection: {
+    id: string;
+    name: string | null;
+    phoneNumber: string | null;
+    status: "disconnected" | "pending" | "connected" | "banned" | "error";
+  } | null;
 }
 
 /**
@@ -80,6 +88,7 @@ export function transformContactToChat(contact: ContactApiResponse): Chat {
         ? (toDate(contact.lastSeen) ?? undefined)
         : undefined,
       isGroup: contact.isGroup,
+      connection: contact.connection,
     },
     lastMessage: contact.lastMessage
       ? {
@@ -91,6 +100,8 @@ export function transformContactToChat(contact: ContactApiResponse): Chat {
           status: contact.lastMessage.status as MessageStatus,
           timestamp: toDate(contact.lastMessage.timestamp) ?? new Date(),
           isFromMe: contact.lastMessage.fromMe,
+          sentByUserId: contact.lastMessage.sentByUserId || undefined,
+          sentByUserName: contact.lastMessage.sentByUserName || undefined,
         }
       : undefined,
     unreadCount: contact.unreadCount,

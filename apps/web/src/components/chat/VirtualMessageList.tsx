@@ -14,6 +14,7 @@ interface VirtualMessageListProps {
   items: MessageListItem[];
   totalSize: number;
   isGroup?: boolean;
+  currentUserId: string;
   highlightedMessageId?: string | null;
   retryingMessageId: string | null;
   selectionMode: boolean;
@@ -35,6 +36,7 @@ export function VirtualMessageList({
   items,
   totalSize,
   isGroup = false,
+  currentUserId,
   highlightedMessageId,
   retryingMessageId,
   selectionMode,
@@ -124,6 +126,7 @@ export function VirtualMessageList({
                 message={item.message}
                 isOwn={item.message.senderType === "user"}
                 isGroup={isGroup}
+                currentUserId={currentUserId}
                 onRetry={selectionMode ? undefined : onRetryMessage}
                 isHighlighted={highlightedMessageId === item.message.id}
                 isRetrying={retryingMessageId === item.message.id}

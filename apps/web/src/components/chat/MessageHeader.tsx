@@ -4,6 +4,7 @@ import { ArrowLeft } from "lucide-react";
 import { IdentityAvatarFallback } from "@/components/ui/identity-avatar-fallback";
 import { useGroup } from "@/hooks/useGroups";
 import { formatPhoneLikeText } from "@/lib/utils";
+import { ConnectionBadge, ConnectionRoute } from "./ConnectionIdentity";
 import { ThemeToggle } from "./ThemeToggle";
 
 interface MessageHeaderProps {
@@ -88,23 +89,48 @@ export function MessageHeader({
 
         {/* Name and status */}
         <div className="flex-1 min-w-0 text-left">
-          <h2 className="text-base font-medium text-gray-900 dark:text-dark-text-primary truncate">
-            {displayName}
-          </h2>
-          {statusText && (
-            <p
-              className={`text-xs truncate ${isTyping ? "text-whatsapp-green" : "text-gray-500 dark:text-dark-text-secondary"}`}
-            >
-              {isTyping ? (
+          <div className="flex min-w-0 items-center gap-2">
+            <h2 className="truncate text-base font-medium text-gray-900 dark:text-dark-text-primary">
+              {displayName}
+            </h2>
+            {contact.connection && (
+              <ConnectionBadge
+                connection={contact.connection}
+                compact
+                className="max-w-[110px] shrink"
+              />
+            )}
+          </div>
+          <div className="flex min-w-0 items-center gap-1.5">
+            {isTyping ? (
+              <p className="shrink-0 text-xs text-whatsapp-green">
                 <span className="typing-indicator">
                   typing
                   <span className="typing-dots" />
                 </span>
-              ) : (
-                statusText
-              )}
-            </p>
-          )}
+              </p>
+            ) : (
+              statusText && (
+                <p className="truncate text-xs text-gray-500 dark:text-dark-text-secondary">
+                  {statusText}
+                </p>
+              )
+            )}
+            {contact.connection && (
+              <>
+                {(isTyping || statusText) && (
+                  <span className="text-[10px] text-gray-300 dark:text-dark-border">
+                    •
+                  </span>
+                )}
+                <ConnectionRoute
+                  connection={contact.connection}
+                  mode="receiving"
+                  className="min-w-0 truncate"
+                />
+              </>
+            )}
+          </div>
         </div>
       </button>
 

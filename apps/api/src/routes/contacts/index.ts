@@ -83,6 +83,7 @@ contactRoutes.get(
         limit: query.limit,
         offset: query.offset,
         includeGroups: query.includeGroups,
+        connectionId: query.connectionId,
         assignedToMe: query.assignedToMe,
         unassigned: query.unassigned,
         userId: user.id,
@@ -119,6 +120,14 @@ contactRoutes.get("/:id", async (c) => {
   if (!contact) {
     return notFound(c, "Contact");
   }
+
+  const connection = contact.whatsapp_connection_id
+    ? await tenantDb
+        .selectFrom("whatsapp_connections")
+        .select(["id", "name", "phone_number", "status"])
+        .where("id", "=", contact.whatsapp_connection_id)
+        .executeTakeFirst()
+    : null;
 
   // Get assignment info - first get the assignment, then fetch user names separately
   const assignmentRecord = await tenantDb
@@ -218,6 +227,14 @@ contactRoutes.get("/:id", async (c) => {
     notesShared: contact.notes_shared,
     createdAt: contact.created_at,
     updatedAt: contact.updated_at,
+    connection: connection
+      ? {
+          id: connection.id,
+          name: connection.name,
+          phoneNumber: connection.phone_number,
+          status: connection.status,
+        }
+      : null,
     assignment: assignmentWithNames,
     tags,
   });

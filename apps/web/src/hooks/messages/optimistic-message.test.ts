@@ -52,6 +52,38 @@ describe("optimistic message reconciliation", () => {
     ]);
   });
 
+  test("removes the optimistic copy when realtime confirmation arrived first", () => {
+    const optimistic = createOptimisticMessage({
+      contactId: "contact-1",
+      content: "hello",
+      messageType: "text",
+    });
+    const confirmed = {
+      ...optimistic,
+      id: "database-message-id",
+      status: "pending",
+    } as Message;
+    const realtimeFirst = {
+      ...initial,
+      pages: [
+        {
+          ...initial.pages[0],
+          messages: [confirmed, optimistic, existing],
+        },
+      ],
+    };
+
+    const reconciled = reconcileOptimisticMessage(
+      realtimeFirst,
+      optimistic.id,
+      confirmed,
+    );
+    expect(reconciled?.pages[0].messages.map((message) => message.id)).toEqual([
+      "database-message-id",
+      "existing",
+    ]);
+  });
+
   test("preserves cache for rollback and ignores unrelated confirmations", () => {
     const confirmed = { ...existing, id: "other" } as Message;
     expect(reconcileOptimisticMessage(initial, "missing", confirmed)).toEqual(

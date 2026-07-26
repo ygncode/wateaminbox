@@ -3,6 +3,7 @@ import type { Kysely } from "kysely";
 import { sql } from "kysely";
 import { buildContactWhereClause } from "./helpers/contact-query-builder.js";
 import { getSchemaName, type TenantDatabase } from "./tenant.service.js";
+import { getUserNames } from "./user.service.js";
 
 /**
  * Options for fetching contacts with last message
@@ -16,6 +17,8 @@ export interface GetContactsWithLastMessageOptions {
   offset?: number;
   /** Whether to include group contacts */
   includeGroups?: boolean;
+  /** Filter to conversations owned by one WhatsApp account. */
+  connectionId?: string;
   /** Filter to contacts assigned to the current user */
   assignedToMe?: boolean;
   /** Filter to unassigned contacts */
@@ -46,10 +49,16 @@ export interface ContactWithLastMessage {
   unread_count: number | bigint;
   is_online: boolean;
   last_seen: Date | null;
+  connection_id: string | null;
+  connection_name: string | null;
+  connection_phone_number: string | null;
+  connection_status: string | null;
   last_message: {
     id: string;
     messageId: string | null;
     fromMe: boolean;
+    sentByUserId: string | null;
+    sentByUserName: string | null;
     messageType: string;
     content: string | null;
     status: string;
@@ -78,6 +87,7 @@ export async function getContactsWithLastMessage(
     limit = 50,
     offset = 0,
     includeGroups = false,
+    connectionId,
     assignedToMe = false,
     unassigned = false,
     userId,
@@ -96,6 +106,7 @@ export async function getContactsWithLastMessage(
     buildContactWhereClause({
       search,
       includeGroups,
+      connectionId,
       assignedToMe,
       unassigned,
       userId,
@@ -129,6 +140,11 @@ export async function getContactsWithLastMessage(
     unread_count: string;
     is_online: boolean;
     last_seen: Date | null;
+    connection_id: string | null;
+    connection_name: string | null;
+    connection_phone_number: string | null;
+    connection_status: string | null;
+    last_message_sent_by_user_id: string | null;
   }>`
     WITH last_messages AS (
       SELECT
@@ -140,6 +156,7 @@ export async function getContactsWithLastMessage(
         content,
         status,
         timestamp,
+        sent_by_user_id,
         ROW_NUMBER() OVER (PARTITION BY contact_id ORDER BY timestamp DESC, id DESC) as rn
       FROM ${schema}.${sql.ref("messages")}
     )
@@ -156,6 +173,10 @@ export async function getContactsWithLastMessage(
       c.updated_at,
       c.is_online,
       c.last_seen,
+      c.whatsapp_connection_id as connection_id,
+      wc.name as connection_name,
+      wc.phone_number as connection_phone_number,
+      wc.status::text as connection_status,
       ca.assigned_to,
       lm.timestamp as last_message_at,
       lm.id as last_message_id,
@@ -165,8 +186,11 @@ export async function getContactsWithLastMessage(
       lm.content as last_message_content,
       lm.status as last_message_status,
       lm.timestamp as last_message_timestamp,
+      lm.sent_by_user_id as last_message_sent_by_user_id,
       COALESCE(cs.unread_count, 0)::bigint as unread_count
     FROM ${schema}.${sql.ref("contacts")} c
+    LEFT JOIN ${schema}.${sql.ref("whatsapp_connections")} wc
+      ON wc.id = c.whatsapp_connection_id
     LEFT JOIN ${schema}.${sql.ref("contact_assignments")} ca
       ON ca.contact_id = c.id
       AND ca.unassigned_at IS NULL
@@ -182,6 +206,11 @@ export async function getContactsWithLastMessage(
   `.execute(tenantDb);
 
   const rawContacts = result.rows;
+  const userNames = await getUserNames(
+    rawContacts
+      .map((contact) => contact.last_message_sent_by_user_id)
+      .filter((id): id is string => Boolean(id)),
+  );
 
   // Transform to the expected format
   const contacts: ContactWithLastMessage[] = rawContacts.map((contact) => {
@@ -191,6 +220,10 @@ export async function getContactsWithLastMessage(
             id: contact.last_message_id,
             messageId: contact.last_message_message_id,
             fromMe: contact.last_message_from_me!,
+            sentByUserId: contact.last_message_sent_by_user_id,
+            sentByUserName: contact.last_message_sent_by_user_id
+              ? userNames.get(contact.last_message_sent_by_user_id) || null
+              : null,
             messageType: contact.last_message_message_type!,
             content: contact.last_message_content,
             status: contact.last_message_status!,
@@ -214,6 +247,10 @@ export async function getContactsWithLastMessage(
       unread_count: BigInt(contact.unread_count),
       is_online: contact.is_online,
       last_seen: contact.last_seen,
+      connection_id: contact.connection_id,
+      connection_name: contact.connection_name,
+      connection_phone_number: contact.connection_phone_number,
+      connection_status: contact.connection_status,
       last_message: lastMessage,
     };
   });
@@ -232,6 +269,13 @@ export async function getContactsWithLastMessage(
   let countQuery = baseCountQuery;
   if (!includeGroups) {
     countQuery = countQuery.where("contacts.is_group", "=", false);
+  }
+  if (connectionId) {
+    countQuery = countQuery.where(
+      "contacts.whatsapp_connection_id",
+      "=",
+      connectionId,
+    );
   }
   if (search) {
     countQuery = countQuery.where((eb) =>

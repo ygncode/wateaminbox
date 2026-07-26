@@ -2,13 +2,18 @@ import type { Message } from "@wateaminbox/shared";
 import { nowMs, toDbDate } from "@wateaminbox/shared";
 import type { InfiniteMessagesData, SendMessageInput } from "./types";
 
-export function createOptimisticMessage(input: SendMessageInput): Message {
+export function createOptimisticMessage(
+  input: SendMessageInput,
+  sender?: { id: string; name: string },
+): Message {
   const now = toDbDate();
   return {
     id: `optimistic-${nowMs()}`,
     conversationId: input.contactId,
-    senderId: "current-user",
+    senderId: sender?.id || "current-user",
     senderType: "user",
+    sentByUserId: sender?.id,
+    sentByUserName: sender?.name,
     messageType: input.messageType || "text",
     content: input.content,
     metadata: input.mediaUrl ? { mediaUrl: input.mediaUrl } : undefined,
@@ -40,13 +45,19 @@ export function reconcileOptimisticMessage(
   confirmed: Message,
 ): InfiniteMessagesData | undefined {
   if (!data) return data;
+  const confirmationAlreadyArrived = data.pages.some((page) =>
+    page.messages.some((message) => message.id === confirmed.id),
+  );
+
   return {
     ...data,
     pages: data.pages.map((page) => ({
       ...page,
-      messages: page.messages.map((message) =>
-        message.id === optimisticId ? confirmed : message,
-      ),
+      messages: confirmationAlreadyArrived
+        ? page.messages.filter((message) => message.id !== optimisticId)
+        : page.messages.map((message) =>
+            message.id === optimisticId ? confirmed : message,
+          ),
     })),
   };
 }

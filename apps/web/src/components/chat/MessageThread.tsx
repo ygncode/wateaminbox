@@ -23,7 +23,7 @@ interface MessageThreadProps {
 
 export function MessageThread({
   conversationId,
-  currentUserId: _currentUserId,
+  currentUserId,
   isGroup = false,
   highlightedMessageId,
   onOpenContactInfo,
@@ -279,6 +279,7 @@ export function MessageThread({
         items={items}
         totalSize={totalSize}
         isGroup={isGroup}
+        currentUserId={currentUserId}
         highlightedMessageId={highlightedMessageId}
         retryingMessageId={retryingMessageId}
         selectionMode={selectionMode}

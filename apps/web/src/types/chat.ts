@@ -50,6 +50,8 @@ export interface Message {
   status: MessageStatus;
   timestamp: Date;
   isFromMe: boolean;
+  sentByUserId?: string;
+  sentByUserName?: string;
   replyToId?: string;
   isForwarded?: boolean;
   isDeleted?: boolean;

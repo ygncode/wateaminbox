@@ -60,4 +60,23 @@ describe("incoming reply formatting", () => {
       content: "Original outgoing message",
     });
   });
+
+  test("includes the team member identity for outbound messages", () => {
+    const userId = "00000000-0000-4000-8000-000000000099";
+    const outgoing = baseMessage({
+      from_me: true,
+      sent_by_user_id: userId,
+      sender_jid: null,
+    });
+
+    const formatted = formatMessageForConversation(
+      outgoing,
+      new Map(),
+      new Map(),
+      new Map([[userId, "Aye Aye"]]),
+    );
+
+    expect(formatted.sentByUserId).toBe(userId);
+    expect(formatted.sentByUserName).toBe("Aye Aye");
+  });
 });

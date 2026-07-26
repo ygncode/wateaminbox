@@ -5,7 +5,7 @@
  */
 
 import { zValidator } from "@hono/zod-validator";
-import { toDbDate, toISOString } from "@wateaminbox/shared";
+import { toDbDate } from "@wateaminbox/shared";
 import { Hono } from "hono";
 import { badRequest, notFound } from "../../lib/errors.js";
 import {
@@ -13,6 +13,7 @@ import {
   buildSendMessageCommand,
 } from "../../lib/nats/index.js";
 import { rateLimitConfig, rateLimitStore } from "../../lib/rate-limit-store.js";
+import { broadcastToCompany } from "../../lib/realtime.js";
 import {
   forwardMessageSchema,
   sendMessageSchema,
@@ -110,6 +111,7 @@ sendRoutes.post(
     // Create a pending message in database
     const messageId = crypto.randomUUID();
     const waMessageId = `pending_${messageId}`;
+    const createdAt = toDbDate();
 
     const sendCommand = await buildSendMessageCommand(
       companyId,
@@ -140,8 +142,8 @@ sendRoutes.post(
           quoted_message_id: quotedWaMessageId || null,
           sent_by_user_id: user.id,
           status: "pending",
-          timestamp: toDbDate(),
-          created_at: toDbDate(),
+          timestamp: createdAt,
+          created_at: createdAt,
         })
         .execute();
       await enqueueCommand(
@@ -151,20 +153,35 @@ sendRoutes.post(
       );
     });
 
+    const formattedMessage = {
+      id: messageId,
+      messageId: waMessageId,
+      whatsappMessageId: waMessageId,
+      conversationId: body.contactId,
+      contactId: body.contactId,
+      senderId: user.id,
+      senderType: "user" as const,
+      sentByUserId: user.id,
+      sentByUserName: user.name || user.email.split("@")[0],
+      messageType: body.messageType,
+      content: body.content || "",
+      metadata: body.mediaUrl ? { mediaUrl: body.mediaUrl } : undefined,
+      replyToMessageId: body.replyToMessageId || undefined,
+      status: "pending" as const,
+      createdAt,
+      updatedAt: createdAt,
+    };
+
+    await broadcastToCompany(
+      companyId,
+      "message:new",
+      { message: formattedMessage, conversationId: body.contactId },
+      connection.id,
+    );
+
     return c.json({
       success: true,
-      message: {
-        id: messageId,
-        messageId: waMessageId,
-        contactId: body.contactId,
-        fromMe: true,
-        messageType: body.messageType,
-        content: body.content,
-        mediaUrl: body.mediaUrl,
-        replyToMessageId: body.replyToMessageId || null,
-        timestamp: toISOString(),
-        status: "pending",
-      },
+      message: formattedMessage,
       autoAssigned: wasAutoAssigned,
     });
   },
@@ -402,13 +419,20 @@ sendRoutes.post(
       message: {
         id: newMessageId,
         messageId: waMessageId,
+        conversationId: originalMessage.contact_id,
         contactId: originalMessage.contact_id,
-        fromMe: true,
+        senderId: user.id,
+        senderType: "user",
+        sentByUserId: user.id,
+        sentByUserName: user.name || user.email.split("@")[0],
         messageType: originalMessage.message_type,
-        content: originalMessage.content,
-        mediaUrl: originalMessage.media_url,
+        content: originalMessage.content || "",
+        metadata: originalMessage.media_url
+          ? { mediaUrl: originalMessage.media_url }
+          : undefined,
         status: "pending",
-        timestamp: toISOString(),
+        createdAt: toDbDate(),
+        updatedAt: toDbDate(),
       },
       originalMessageId: messageId,
     });

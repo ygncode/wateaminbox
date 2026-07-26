@@ -1,12 +1,14 @@
 import { formatChatListTime } from "@wateaminbox/shared";
 import { memo, useCallback, useMemo } from "react";
 import { IdentityAvatarFallback } from "@/components/ui/identity-avatar-fallback";
+import { useAuth } from "@/contexts/auth-context";
 import {
   extractPhoneFromJID,
   formatPhoneLikeText,
   formatPhoneNumber,
 } from "@/lib/utils";
 import type { ChatListItemProps } from "../../types/chat";
+import { ConnectionBadge } from "./ConnectionIdentity";
 
 /**
  * Truncate message content for preview display
@@ -27,6 +29,7 @@ export const ChatListItem = memo(function ChatListItem({
   onPrefetch,
 }: ChatListItemProps) {
   const { contact, lastMessage, unreadCount } = chat;
+  const { user } = useAuth();
 
   // Memoize prefetch handler to prevent unnecessary re-renders
   const handlePrefetch = useCallback(() => {
@@ -51,8 +54,14 @@ export const ChatListItem = memo(function ChatListItem({
   const messagePreview = useMemo(() => {
     if (!lastMessage) return "No messages yet";
 
-    // Add prefix for sent messages
-    const prefix = lastMessage.isFromMe ? "You: " : "";
+    // Attribute shared-inbox replies to the teammate who actually sent them.
+    const prefix = lastMessage.isFromMe
+      ? lastMessage.sentByUserId === user?.id
+        ? "You: "
+        : lastMessage.sentByUserName
+          ? `${lastMessage.sentByUserName}: `
+          : "From phone: "
+      : "";
 
     if (lastMessage.isDeleted) {
       return `${prefix}This message was deleted`;
@@ -76,7 +85,7 @@ export const ChatListItem = memo(function ChatListItem({
       default:
         return prefix + truncateMessage(lastMessage.content);
     }
-  }, [lastMessage]);
+  }, [lastMessage, user?.id]);
 
   // Build accessible label with contact name, message preview, and status
   const accessibleLabel = useMemo(() => {
@@ -87,6 +96,11 @@ export const ChatListItem = memo(function ChatListItem({
       parts.push(`${unreadCount} unread message${unreadCount > 1 ? "s" : ""}`);
     if (chat.isMuted) parts.push("muted");
     if (chat.isPinned) parts.push("pinned");
+    if (contact.connection) {
+      parts.push(
+        `received on ${contact.connection.name || contact.connection.phoneNumber || "WhatsApp account"}`,
+      );
+    }
     return parts.join(", ");
   }, [
     displayName,
@@ -95,6 +109,7 @@ export const ChatListItem = memo(function ChatListItem({
     unreadCount,
     chat.isMuted,
     chat.isPinned,
+    contact.connection,
   ]);
 
   return (
@@ -181,6 +196,13 @@ export const ChatListItem = memo(function ChatListItem({
         {/* Bottom Row: Message Preview and Unread Badge */}
         <div className="flex items-center justify-between gap-2 mt-0.5">
           <div className="flex items-center gap-1 min-w-0 flex-1">
+            {contact.connection && (
+              <ConnectionBadge
+                connection={contact.connection}
+                compact
+                className="max-w-[92px] shrink-0"
+              />
+            )}
             {/* Message Status Icon for sent messages */}
             {lastMessage?.isFromMe && !lastMessage.isDeleted && (
               <span className="flex-shrink-0" aria-hidden="true">

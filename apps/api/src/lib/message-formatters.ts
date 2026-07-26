@@ -45,6 +45,8 @@ export interface QuotedMessageData {
   senderType: "user" | "contact";
   senderJid: string | null;
   senderName: string | null;
+  sentByUserId: string | null;
+  sentByUserName: string | null;
   messageType: string;
   content: string;
   isDeleted: boolean;
@@ -101,6 +103,7 @@ export function formatMessageForConversation(
   msg: MessageDbRow,
   quotedMessagesMap: Map<string, QuotedMessageData>,
   reactionsMap: Map<string, ReactionData[]>,
+  userNames: Map<string, string> = new Map(),
 ) {
   return {
     id: msg.id,
@@ -112,6 +115,10 @@ export function formatMessageForConversation(
     senderJid: msg.sender_jid,
     senderName: msg.sender_name,
     senderAvatarUrl: msg.sender_avatar_url,
+    sentByUserId: msg.sent_by_user_id,
+    sentByUserName: msg.sent_by_user_id
+      ? userNames.get(msg.sent_by_user_id) || null
+      : null,
     messageType: msg.message_type,
     content: msg.content || "",
     mediaUrl: msg.media_url,
@@ -124,7 +131,6 @@ export function formatMessageForConversation(
     isStarred: msg.is_starred,
     isDeleted: msg.deleted_by_sender || !!msg.deleted_at,
     deletedAt: msg.deleted_at,
-    sentByUserId: msg.sent_by_user_id,
     status: msg.status || (msg.from_me ? "sent" : "delivered"),
     timestamp: msg.timestamp,
     createdAt: msg.created_at,
@@ -140,9 +146,15 @@ export function formatMessagesForConversation(
   messages: MessageDbRow[],
   quotedMessagesMap: Map<string, QuotedMessageData>,
   reactionsMap: Map<string, ReactionData[]>,
+  userNames: Map<string, string> = new Map(),
 ) {
   return messages.map((msg) =>
-    formatMessageForConversation(msg, quotedMessagesMap, reactionsMap),
+    formatMessageForConversation(
+      msg,
+      quotedMessagesMap,
+      reactionsMap,
+      userNames,
+    ),
   );
 }
 
@@ -166,6 +178,7 @@ export function formatMessageForFetch(
   msg: MessageDbRow,
   quotedMessages: Map<string, QuotedMessageSimple>,
   reactionsMap: Map<string, ReactionData[]>,
+  userNames: Map<string, string> = new Map(),
 ) {
   return {
     id: msg.id,
@@ -175,6 +188,10 @@ export function formatMessageForFetch(
     senderJid: msg.sender_jid,
     senderName: msg.sender_name,
     senderAvatarUrl: msg.sender_avatar_url,
+    sentByUserId: msg.sent_by_user_id,
+    sentByUserName: msg.sent_by_user_id
+      ? userNames.get(msg.sent_by_user_id) || null
+      : null,
     messageType: msg.message_type,
     content: msg.content,
     // Keep these at root for backwards compatibility
@@ -190,7 +207,6 @@ export function formatMessageForFetch(
     isStarred: msg.is_starred,
     deletedBySender: msg.deleted_by_sender,
     deletedAt: msg.deleted_at,
-    sentByUserId: msg.sent_by_user_id,
     status: msg.status || "sent",
     timestamp: msg.timestamp,
     createdAt: msg.created_at,
@@ -205,16 +221,20 @@ export function formatMessagesForFetch(
   messages: MessageDbRow[],
   quotedMessages: Map<string, QuotedMessageSimple>,
   reactionsMap: Map<string, ReactionData[]>,
+  userNames: Map<string, string> = new Map(),
 ) {
   return messages.map((msg) =>
-    formatMessageForFetch(msg, quotedMessages, reactionsMap),
+    formatMessageForFetch(msg, quotedMessages, reactionsMap, userNames),
   );
 }
 
 /**
  * Build quoted message data for conversation format from a database row
  */
-export function buildQuotedMessageData(q: MessageDbRow): QuotedMessageData {
+export function buildQuotedMessageData(
+  q: MessageDbRow,
+  userNames: Map<string, string> = new Map(),
+): QuotedMessageData {
   return {
     id: q.id,
     conversationId: q.contact_id,
@@ -222,6 +242,10 @@ export function buildQuotedMessageData(q: MessageDbRow): QuotedMessageData {
     senderType: q.from_me ? "user" : "contact",
     senderJid: q.sender_jid,
     senderName: q.sender_name,
+    sentByUserId: q.sent_by_user_id,
+    sentByUserName: q.sent_by_user_id
+      ? userNames.get(q.sent_by_user_id) || null
+      : null,
     messageType: q.message_type,
     content: q.content || "",
     isDeleted: q.deleted_by_sender || !!q.deleted_at,

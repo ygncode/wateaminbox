@@ -23,6 +23,10 @@ export interface Message {
   senderName?: string | null;
   /** Cached WhatsApp profile picture for a group participant. */
   senderAvatarUrl?: string | null;
+  /** Team member who sent an outbound message from the shared inbox. */
+  sentByUserId?: string | null;
+  /** Display name resolved for the sending team member. */
+  sentByUserName?: string | null;
   content: string;
   messageType: MessageType;
   status: MessageStatus;
@@ -130,6 +134,13 @@ export interface UpdateMessageInput {
   isDeleted?: boolean;
 }
 
+export interface WhatsAppConnectionIdentity {
+  id: string;
+  name: string | null;
+  phoneNumber: string | null;
+  status: "disconnected" | "pending" | "connected" | "banned" | "error";
+}
+
 export interface Contact {
   id: string;
   name: string;
@@ -141,6 +152,8 @@ export interface Contact {
   lastSeen?: Date;
   about?: string;
   isGroup?: boolean;
+  /** WhatsApp account that owns and routes this conversation. */
+  connection?: WhatsAppConnectionIdentity | null;
 }
 
 export interface GroupParticipant {

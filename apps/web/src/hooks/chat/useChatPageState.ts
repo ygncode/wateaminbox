@@ -29,6 +29,7 @@ function mapContactDetailToContact(detail: ContactDetail): Contact {
     isOnline: detail.isOnline,
     lastSeen: detail.lastSeen ? new Date(detail.lastSeen) : undefined,
     isGroup: detail.isGroup,
+    connection: detail.connection,
   };
 }
 

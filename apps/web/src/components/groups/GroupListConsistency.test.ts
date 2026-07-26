@@ -6,7 +6,9 @@ const readSource = async (relativePath: string) =>
 describe("inclusive chat list and group filtering", () => {
   test("the Chats tab includes direct and group conversations", async () => {
     const chatList = await readSource("../chat/ChatList.tsx");
-    expect(chatList).toContain("useChats(searchQuery, true, assignmentFilter)");
+    expect(chatList).toContain("useChats(");
+    expect(chatList).toContain("true,\n    assignmentFilter,");
+    expect(chatList).toContain('connectionFilter === "all"');
     expect(chatList).not.toContain(
       "useChats(searchQuery, false, assignmentFilter)",
     );

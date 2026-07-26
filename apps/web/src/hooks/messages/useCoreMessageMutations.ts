@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import type { Message, UpdateMessageInput } from "@wateaminbox/shared";
+import { useAuth } from "../../contexts/auth-context";
 import { api } from "../../lib/api";
 import { queryKeys } from "../query-keys";
 import { infiniteMessageKeys } from "../useInfiniteMessages";
@@ -15,6 +16,7 @@ import type { InfiniteMessagesData, SendMessageInput } from "./types";
  */
 export function useSendMessage() {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
 
   return useMutation({
     mutationFn: (data: SendMessageInput) =>
@@ -25,7 +27,10 @@ export function useSendMessage() {
         queryKey: infiniteMessageKeys.list(newMessage.contactId),
       });
 
-      const optimisticMessage = createOptimisticMessage(newMessage);
+      const optimisticMessage = createOptimisticMessage(
+        newMessage,
+        user ? { id: user.id, name: user.name } : undefined,
+      );
 
       // Optimistically add the message to the cache
       const queryKey = infiniteMessageKeys.list(newMessage.contactId);

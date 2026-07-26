@@ -34,4 +34,22 @@ describe("contact API transformation", () => {
     );
     expect(transformed.phoneNumber).toBe("15551234567");
   });
+
+  test("exposes the WhatsApp account that owns the conversation", () => {
+    const transformed = transformContact(
+      contact({
+        connection_id: "00000000-0000-4000-8000-000000000001",
+        connection_name: "Sales",
+        connection_phone_number: "15550001111",
+        connection_status: "connected",
+      }),
+    );
+
+    expect(transformed.connection).toEqual({
+      id: "00000000-0000-4000-8000-000000000001",
+      name: "Sales",
+      phoneNumber: "15550001111",
+      status: "connected",
+    });
+  });
 });

@@ -13,17 +13,10 @@ import { Sidebar } from "../components/layout/sidebar";
 import { useAuth } from "../contexts/auth-context";
 import { MessageActionsProvider } from "../contexts/message-actions-context";
 import { useChatPageState } from "../hooks/chat";
-import { useWhatsAppConnections } from "../hooks/useWhatsAppConnections";
 
 export function ChatPage() {
   const { user } = useAuth();
   const [sidebarView, setSidebarView] = useState<SidebarView>("chats");
-  const { connections } = useWhatsAppConnections();
-
-  // Get the status of the active (first connected or first) connection
-  const activeConnection =
-    connections.find((c) => c.status === "connected") || connections[0];
-  const connectionStatus = activeConnection?.status;
 
   const {
     // State
@@ -119,7 +112,8 @@ export function ChatPage() {
             onSendMessage={handleSendMessage}
             onAttachFile={handleAttachFile}
             disabled={isSending}
-            connectionStatus={connectionStatus}
+            connection={selectedContact.connection}
+            currentUserName={user?.name}
           />
         </>
       ) : (

@@ -78,7 +78,7 @@ export async function handleMessageEvent(event: MessageEvent): Promise<void> {
     }
     const connection = await tenantDb
       .selectFrom("whatsapp_connections")
-      .select(["id"])
+      .select(["id", "name", "phone_number"])
       .where("id", "=", connectionId)
       .executeTakeFirst();
 
@@ -478,9 +478,15 @@ export async function handleMessageEvent(event: MessageEvent): Promise<void> {
     if (!payload.fromMe && !payload.isHistorySync) {
       const senderLabel =
         senderName || extractPhoneFromJid(normalizedSenderJid);
-      const pushTitle = senderLabel
+      const senderTitle = senderLabel
         ? formatPhoneLikeText(senderLabel)
         : contactName || "New message";
+      const accountLabel = formatPhoneLikeText(
+        connection.name || connection.phone_number,
+      );
+      const pushTitle = accountLabel
+        ? `${senderTitle} → ${accountLabel}`
+        : senderTitle;
       resolveIncomingMessageRecipients({
         companyId,
         contactId: contact.id,

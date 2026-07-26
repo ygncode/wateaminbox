@@ -8,6 +8,8 @@ export interface ContactFilterOptions {
   search?: string;
   /** Whether to include group contacts */
   includeGroups?: boolean;
+  /** Filter to conversations owned by one WhatsApp account. */
+  connectionId?: string;
   /** Filter to contacts assigned to the current user */
   assignedToMe?: boolean;
   /** Filter to unassigned contacts */
@@ -86,37 +88,37 @@ export function buildContactWhereClause(options: ContactFilterOptions): {
   const {
     search,
     includeGroups = false,
+    connectionId,
     assignedToMe,
     unassigned,
     userId,
     restrictToAssigned,
   } = options;
 
-  const searchClause = buildSearchClause(search);
-  const groupClause = buildGroupClause(includeGroups);
-  const assignmentClause = buildAssignmentClause({
-    assignedToMe,
-    unassigned,
-    userId,
-    restrictToAssigned,
-  });
+  const conditions: RawBuilder<unknown>[] = [];
+  if (search) conditions.push(buildSearchClause(search));
+  if (!includeGroups) conditions.push(buildGroupClause(includeGroups));
+  if (connectionId) {
+    conditions.push(sql`c.whatsapp_connection_id = ${connectionId}`);
+  }
 
-  // Check boolean flags directly (not RawBuilder objects which are always truthy)
-  const hasSearch = Boolean(search);
-  const hasGroupFilter = !includeGroups;
   const hasAssignmentFilter = Boolean(
     (restrictToAssigned && userId) || (assignedToMe && userId) || unassigned,
   );
-  const hasConditions = hasSearch || hasGroupFilter || hasAssignmentFilter;
+  if (hasAssignmentFilter) {
+    conditions.push(
+      buildAssignmentClause({
+        assignedToMe,
+        unassigned,
+        userId,
+        restrictToAssigned,
+      }),
+    );
+  }
 
-  // Build WHERE clause by combining conditions with proper AND logic
-  const whereClause = sql<unknown>`
-    ${hasSearch ? searchClause : sql``}
-    ${hasSearch && (hasGroupFilter || hasAssignmentFilter) ? sql`AND` : sql``}
-    ${hasGroupFilter ? groupClause : sql``}
-    ${hasGroupFilter && hasAssignmentFilter ? sql`AND` : sql``}
-    ${hasAssignmentFilter ? assignmentClause : sql``}
-  `;
-
-  return { whereClause, hasConditions };
+  return {
+    whereClause:
+      conditions.length > 0 ? sql.join(conditions, sql` AND `) : sql``,
+    hasConditions: conditions.length > 0,
+  };
 }
