@@ -13,8 +13,17 @@ describe("global notification architecture", () => {
     ]);
     expect(main.match(/<NotificationProvider>/g)?.length).toBe(1);
     expect(layout.match(/<NotificationCenter/g)?.length).toBe(2);
+    expect(layout.match(/<NotificationCenter className=/g)?.length).toBe(2);
     expect(chatPage).not.toContain("<NotificationCenter");
     expect(sidebar).not.toContain("notificationAction");
+  });
+
+  test("persists a collapsible desktop workspace rail", async () => {
+    const layout = await readSource("../layout/ProtectedAppLayout.tsx");
+    expect(layout).toContain('"wateaminbox:sidebar-collapsed"');
+    expect(layout).toContain("collapsed={sidebarCollapsed}");
+    expect(layout).toContain("Expand sidebar");
+    expect(layout).toContain("Collapse sidebar");
   });
 
   test("the bell and panel share one notification controller", async () => {

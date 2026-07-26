@@ -56,6 +56,15 @@
     background-color: theme("colors.gray.100");
   }
 
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]) {
+    cursor: pointer;
+  }
+
+  button:disabled {
+    cursor: not-allowed;
+  }
+
   .dark body {
     color: theme("colors.dark-text-primary");
     background-color: theme("colors.dark-primary");

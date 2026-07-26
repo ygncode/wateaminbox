@@ -5,6 +5,8 @@ import {
   LayoutDashboard,
   LogOut,
   Menu,
+  PanelLeftClose,
+  PanelLeftOpen,
   Settings,
   Users,
 } from "lucide-react";
@@ -29,21 +31,26 @@ interface NavigationItem {
 function NavigationLink({
   item,
   compact = false,
+  collapsed = false,
 }: {
   item: NavigationItem;
   compact?: boolean;
+  collapsed?: boolean;
 }) {
   const Icon = item.icon;
   return (
     <NavLink
       to={item.path}
       aria-label={item.label}
+      title={collapsed ? item.label : undefined}
       className={({ isActive }) =>
         cn(
           "group relative flex items-center rounded-xl font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300",
           compact
             ? "h-12 min-w-14 flex-1 flex-col justify-center gap-0.5 px-1 text-[10px]"
-            : "h-10 gap-3 px-3 text-sm",
+            : collapsed
+              ? "h-11 w-full justify-center px-0 text-sm"
+              : "h-10 gap-3 px-3 text-sm",
           isActive
             ? "bg-[#dcefe7] text-[#075c41]"
             : compact
@@ -53,7 +60,7 @@ function NavigationLink({
       }
     >
       <Icon className={compact ? "h-5 w-5" : "h-[18px] w-[18px]"} />
-      <span>{item.label}</span>
+      <span className={collapsed ? "sr-only" : undefined}>{item.label}</span>
     </NavLink>
   );
 }
@@ -98,10 +105,17 @@ function ButtonSignOut({ onClick }: { onClick: () => void }) {
   );
 }
 
+const SIDEBAR_COLLAPSED_KEY = "wateaminbox:sidebar-collapsed";
+
 /** Workspace-aware shell shared by every protected destination. */
 export function ProtectedAppLayout() {
   const { pathname } = useLocation();
   const [moreOpen, setMoreOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(
+    () =>
+      typeof window !== "undefined" &&
+      window.localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === "true",
+  );
   const { user, logout } = useAuth();
   const { activeWorkspace, can, canAny, isSwitching, switchingTo } =
     useWorkspace();
@@ -148,46 +162,113 @@ export function ProtectedAppLayout() {
   const moreIsActive = /\/(settings|audit|notifications)(?:\/|$)/.test(
     pathname,
   );
+  const toggleSidebar = () => {
+    setSidebarCollapsed((collapsed) => {
+      const next = !collapsed;
+      window.localStorage.setItem(SIDEBAR_COLLAPSED_KEY, String(next));
+      return next;
+    });
+  };
 
   return (
     <div className="flex h-dvh w-full overflow-hidden bg-[#f5f7f4] text-[#10211b] dark:bg-dark-primary dark:text-dark-text-primary">
       <a href="#main-content" className="skip-link">
         Skip to main content
       </a>
-      <aside className="hidden h-full w-[226px] shrink-0 flex-col bg-[#102c24] px-3 py-3 lg:flex">
-        <WorkspaceSwitcher />
+      <aside
+        className={cn(
+          "relative hidden h-full shrink-0 flex-col bg-[#102c24] py-3 transition-[width,padding] duration-200 ease-out lg:flex",
+          sidebarCollapsed ? "w-[72px] px-2" : "w-[226px] px-3",
+        )}
+      >
+        <WorkspaceSwitcher collapsed={sidebarCollapsed} />
         <nav className="mt-5 space-y-1" aria-label="Primary navigation">
           {visibleItems.map((item) => (
-            <NavigationLink key={item.label} item={item} />
+            <NavigationLink
+              key={item.label}
+              item={item}
+              collapsed={sidebarCollapsed}
+            />
           ))}
         </nav>
-        <div className="mt-auto space-y-1 border-t border-white/10 pt-3">
-          <NavigationLink item={settingsItem} />
-          <div className="flex items-center gap-1 px-1 pt-1">
-            <NotificationCenter />
-            <ThemeToggle className="rounded-xl text-[#b8c9c2] hover:bg-white/10 hover:text-white dark:hover:bg-white/10" />
-          </div>
-          <div className="mt-2 flex items-center gap-2 rounded-xl border border-white/10 bg-black/10 p-2">
-            <div className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-white/10 text-xs font-semibold text-white">
-              {(user?.name || user?.email || "U").slice(0, 1).toUpperCase()}
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-xs font-semibold text-white">
-                {user?.name}
-              </p>
-              <p className="truncate text-[10px] text-[#91a8a0]">
-                {user?.email}
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => void logout()}
-              className="grid h-8 w-8 place-items-center rounded-lg text-[#91a8a0] hover:bg-white/10 hover:text-white"
-              aria-label="Sign out"
-              title="Sign out"
+        <div className="mt-auto">
+          <button
+            type="button"
+            onClick={toggleSidebar}
+            className={cn(
+              "mb-2 flex h-10 w-full items-center rounded-xl text-sm font-medium text-[#91a8a0] transition-colors hover:bg-white/[0.07] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300",
+              sidebarCollapsed ? "justify-center px-0" : "gap-3 px-3",
+            )}
+            aria-label={
+              sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"
+            }
+            title={sidebarCollapsed ? "Expand sidebar" : undefined}
+          >
+            {sidebarCollapsed ? (
+              <PanelLeftOpen className="h-[18px] w-[18px]" />
+            ) : (
+              <PanelLeftClose className="h-[18px] w-[18px]" />
+            )}
+            <span className={sidebarCollapsed ? "sr-only" : undefined}>
+              {sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+            </span>
+          </button>
+          <div className="space-y-1 border-t border-white/10 pt-3">
+            <NavigationLink item={settingsItem} collapsed={sidebarCollapsed} />
+            <div
+              className={cn(
+                "flex items-center gap-1 pt-1",
+                sidebarCollapsed ? "flex-col px-0" : "px-1",
+              )}
             >
-              <LogOut className="h-4 w-4" />
-            </button>
+              <NotificationCenter className="rounded-xl text-[#b8c9c2] hover:bg-white/10 hover:text-white dark:hover:bg-white/10" />
+              <ThemeToggle className="rounded-xl text-[#b8c9c2] hover:bg-white/10 hover:text-white dark:hover:bg-white/10" />
+            </div>
+            {sidebarCollapsed ? (
+              <div className="mt-2 flex flex-col items-center gap-1.5">
+                <div
+                  className="grid h-10 w-10 place-items-center rounded-xl border border-white/10 bg-white/10 text-sm font-semibold text-white"
+                  title={`Signed in as ${user?.name || user?.email}`}
+                >
+                  {(user?.name || user?.email || "U").slice(0, 1).toUpperCase()}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => void logout()}
+                  className="grid h-10 w-10 place-items-center rounded-xl text-[#91a8a0] transition-colors hover:bg-red-400/10 hover:text-red-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-300"
+                  aria-label="Sign out"
+                  title="Sign out"
+                >
+                  <LogOut className="h-[18px] w-[18px]" />
+                </button>
+              </div>
+            ) : (
+              <div className="mt-2 overflow-hidden rounded-xl border border-white/10 bg-black/10">
+                <div className="flex items-center gap-3 p-2.5">
+                  <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-white/10 text-sm font-semibold text-white">
+                    {(user?.name || user?.email || "U")
+                      .slice(0, 1)
+                      .toUpperCase()}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-semibold leading-5 text-white">
+                      {user?.name || "Account"}
+                    </p>
+                    <p className="truncate text-[11px] leading-4 text-[#91a8a0]">
+                      {user?.email}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => void logout()}
+                  className="flex h-9 w-full items-center gap-2 border-t border-white/10 px-3 text-xs font-medium text-[#a7bbb3] transition-colors hover:bg-red-400/10 hover:text-red-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-red-300"
+                >
+                  <LogOut className="h-3.5 w-3.5" />
+                  Sign out
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </aside>
@@ -196,7 +277,7 @@ export function ProtectedAppLayout() {
         <header className="safe-area-top flex h-14 shrink-0 items-center justify-between border-b border-[#dce3de] bg-[#102c24] px-2 lg:hidden">
           <WorkspaceSwitcher compact />
           <div className="flex items-center text-[#b8c9c2]">
-            <NotificationCenter />
+            <NotificationCenter className="text-[#b8c9c2] hover:bg-white/10 hover:text-white dark:hover:bg-white/10" />
             <ThemeToggle className="text-[#b8c9c2] hover:bg-white/10 hover:text-white dark:hover:bg-white/10" />
           </div>
         </header>

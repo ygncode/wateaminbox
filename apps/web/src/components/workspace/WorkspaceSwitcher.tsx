@@ -34,7 +34,13 @@ function roleLabel(role: "owner" | "admin" | "member") {
     : `${role[0].toUpperCase()}${role.slice(1)}`;
 }
 
-export function WorkspaceSwitcher({ compact = false }: { compact?: boolean }) {
+export function WorkspaceSwitcher({
+  compact = false,
+  collapsed = false,
+}: {
+  compact?: boolean;
+  collapsed?: boolean;
+}) {
   const {
     memberships,
     activeWorkspace,
@@ -124,30 +130,42 @@ export function WorkspaceSwitcher({ compact = false }: { compact?: boolean }) {
             type="button"
             disabled={isSwitching}
             className={cn(
-              "group flex items-center rounded-xl text-left outline-none transition-colors focus-visible:ring-2 focus-visible:ring-emerald-300",
-              compact
-                ? "h-10 max-w-[210px] gap-2 px-2 hover:bg-white/10"
-                : "w-full gap-3 border border-white/10 bg-white/[0.06] p-2.5 hover:bg-white/10",
+              "group relative flex items-center rounded-xl text-left outline-none transition-colors focus-visible:ring-2 focus-visible:ring-emerald-300",
+              collapsed
+                ? "h-11 w-full justify-center p-1 hover:bg-white/10"
+                : compact
+                  ? "h-10 max-w-[210px] gap-2 px-2 hover:bg-white/10"
+                  : "w-full gap-3 border border-white/10 bg-white/[0.06] p-2.5 hover:bg-white/10",
             )}
             aria-label={`Active workspace: ${activeWorkspace.name}. Switch workspace`}
+            title={collapsed ? `Workspace: ${activeWorkspace.name}` : undefined}
           >
             <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-[#dcefe7] text-xs font-bold tracking-wide text-[#075c41]">
               {workspaceMonogram(activeWorkspace.name)}
             </span>
-            <span className="min-w-0 flex-1">
-              <span className="block truncate text-sm font-semibold text-white">
-                {isSwitching
-                  ? `Switching to ${switchingTo?.name}…`
-                  : activeWorkspace.name}
+            {!collapsed && (
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-sm font-semibold text-white">
+                  {isSwitching
+                    ? `Switching to ${switchingTo?.name}…`
+                    : activeWorkspace.name}
+                </span>
+                <span className="block truncate text-[11px] text-[#a7bbb3]">
+                  {roleLabel(activeWorkspace.role)}
+                </span>
               </span>
-              <span className="block truncate text-[11px] text-[#a7bbb3]">
-                {roleLabel(activeWorkspace.role)}
-              </span>
-            </span>
+            )}
             {isSwitching ? (
-              <Loader2 className="h-4 w-4 shrink-0 animate-spin text-emerald-300" />
+              <Loader2
+                className={cn(
+                  "h-4 w-4 shrink-0 animate-spin text-emerald-300",
+                  collapsed && "absolute bottom-0.5 right-0.5",
+                )}
+              />
             ) : (
-              <ChevronsUpDown className="h-4 w-4 shrink-0 text-[#8ba29a]" />
+              !collapsed && (
+                <ChevronsUpDown className="h-4 w-4 shrink-0 text-[#8ba29a]" />
+              )
             )}
           </button>
         </PopoverTrigger>
