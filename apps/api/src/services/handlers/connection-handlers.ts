@@ -2,16 +2,17 @@
  * Connection event handlers - QR code, connected, disconnected
  */
 
+import { toDbDate } from "@wateaminbox/shared";
+import { DuplicateWhatsAppPhoneError } from "../../lib/errors.js";
+import { formatError } from "../../lib/logger.js";
 import type {
-  QREvent,
   ConnectionEvent,
+  QREvent,
   WorkerConnectionStatusEvent,
 } from "../../lib/nats/index.js";
-import { toDbDate } from "@wateaminbox/shared";
-import { getTenantConnection } from "../tenant.service.js";
-import { updateConnectionStatus } from "../whatsapp.service.js";
 import { broadcastToCompany } from "../../lib/realtime.js";
-import { formatError } from "../../lib/logger.js";
+import { getTenantConnection } from "../tenant.service.js";
+import { killConnection, updateConnectionStatus } from "../whatsapp.service.js";
 import { handlerLogger as logger } from "./types.js";
 
 /**
@@ -75,6 +76,37 @@ export async function handleConnectedEvent(
       connectionId,
     );
   } catch (error) {
+    if (error instanceof DuplicateWhatsAppPhoneError) {
+      const reason =
+        "This WhatsApp number is already linked to another connection in this workspace.";
+      const tenantDb = getTenantConnection(companyId);
+      await killConnection(tenantDb, companyId, connectionId);
+      await broadcastToCompany(
+        companyId,
+        "disconnected",
+        { reason, code: "duplicate_phone" },
+        connectionId,
+      );
+      await broadcastToCompany(
+        companyId,
+        "notification:toast",
+        {
+          type: "error",
+          title: "Number already linked",
+          message: reason,
+        },
+        connectionId,
+      );
+      logger.warn(
+        {
+          companyId,
+          connectionId,
+          existingConnectionId: error.existingConnectionId,
+        },
+        "Rejected duplicate WhatsApp phone connection",
+      );
+      return;
+    }
     logger.error(formatError(error), "Failed to handle connected event");
     throw error;
   }
@@ -176,6 +208,9 @@ export async function handleWorkerConnectionStatusEvent(
       .updateTable("whatsapp_connections")
       .set({
         status: dbStatus,
+        ...(dbStatus === "connected"
+          ? { qr_code: null, qr_expires_at: null }
+          : {}),
         updated_at: toDbDate(),
       })
       .where("id", "=", connectionId)

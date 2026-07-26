@@ -1,12 +1,15 @@
+import { formatAuditTime } from "@wateaminbox/shared";
 import {
   AlertCircle,
   CheckCircle2,
+  Clock3,
   Edit2,
   Loader2,
   MoreVertical,
   Phone,
   Power,
   PowerOff,
+  QrCode,
   RefreshCw,
   Smartphone,
   Trash2,
@@ -15,13 +18,12 @@ import {
   X,
   XCircle,
 } from "lucide-react";
-import { useEffect, useState } from "react";
-import { formatAuditTime, nowMs } from "@wateaminbox/shared";
+import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 import type { ConnectionWithState } from "@/hooks/useWhatsAppConnections";
 import { cn } from "@/lib/utils";
-import { QRCodeDisplay } from "./QRCodeDisplay";
 
 interface ConnectionCardProps {
   connection: ConnectionWithState;
@@ -32,8 +34,9 @@ interface ConnectionCardProps {
   onCancelEdit: () => void;
   onSaveEdit: () => void;
   onReconnect: () => void;
+  onViewQr: () => void;
   onDisconnect: () => void;
-  onDelete: () => void;
+  onDelete: () => void | Promise<unknown>;
   onClearError: () => void;
 }
 
@@ -50,35 +53,14 @@ export function ConnectionCard({
   onCancelEdit,
   onSaveEdit,
   onReconnect,
+  onViewQr,
   onDisconnect,
   onDelete,
   onClearError,
 }: ConnectionCardProps) {
   const { localState } = connection;
   const [showMenu, setShowMenu] = useState(false);
-  const [countdown, setCountdown] = useState<number>(0);
-
-  // Countdown for QR expiry
-  useEffect(() => {
-    if (!localState.qrExpiresAt) {
-      setCountdown(0);
-      return;
-    }
-
-    const updateCountdown = () => {
-      const expiresAt = localState.qrExpiresAt;
-      if (!expiresAt) return;
-      const remaining = Math.max(
-        0,
-        Math.floor((expiresAt.getTime() - nowMs()) / 1000),
-      );
-      setCountdown(remaining);
-    };
-
-    updateCountdown();
-    const interval = setInterval(updateCountdown, 1000);
-    return () => clearInterval(interval);
-  }, [localState.qrExpiresAt]);
+  const [deleteOpen, setDeleteOpen] = useState(false);
 
   const statusColor = {
     connected:
@@ -104,29 +86,30 @@ export function ConnectionCard({
   return (
     <div
       className={cn(
-        "overflow-visible rounded-xl border p-4 transition-all duration-200",
-        connection.status === "connected"
-          ? "border-emerald-200 bg-emerald-50/60 shadow-[inset_3px_0_0_#34d399] dark:border-emerald-400/20 dark:bg-emerald-400/[0.055] dark:shadow-[inset_3px_0_0_#34d399]"
-          : "border-slate-200 bg-slate-50/50 hover:border-slate-300 dark:border-white/[0.08] dark:bg-white/[0.025] dark:hover:border-white/[0.14]",
+        "overflow-visible rounded-2xl border border-[#dce3de] bg-white p-4 shadow-[0_1px_2px_rgba(16,33,27,.035)] transition-[border-color,box-shadow] duration-200 hover:border-[#c8d3cc] hover:shadow-[0_8px_24px_rgba(16,33,27,.06)] dark:border-white/[0.08] dark:bg-white/[0.025] dark:hover:border-white/[0.14] dark:hover:shadow-none sm:p-5",
+        localState.error &&
+          "border-red-200 dark:border-red-400/20 dark:bg-red-400/[0.025]",
       )}
     >
-      <div className="flex items-start justify-between overflow-visible">
-        <div className="flex items-start gap-3 flex-1">
+      <div className="flex flex-col gap-4 overflow-visible sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex w-full min-w-0 flex-1 items-start gap-3">
           {/* Status Icon */}
           <div
             className={cn(
-              "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl",
+              "flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ring-1 ring-inset",
               connection.status === "connected"
-                ? "bg-emerald-100 dark:bg-emerald-400/10"
-                : "bg-slate-200/80 dark:bg-white/[0.07]",
+                ? "bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-400/10 dark:text-emerald-300 dark:ring-emerald-400/15"
+                : connection.status === "pending"
+                  ? "bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-400/10 dark:text-amber-300 dark:ring-amber-400/15"
+                  : "bg-[#f3f6f3] text-[#65736d] ring-[#e2e8e3] dark:bg-white/[0.06] dark:text-[#a9bab4] dark:ring-white/[0.08]",
             )}
           >
             {connection.status === "connected" ? (
-              <CheckCircle2 className="h-5 w-5 text-green-600" />
+              <CheckCircle2 className="h-5 w-5" />
             ) : connection.status === "pending" || localState.isConnecting ? (
-              <Loader2 className="h-5 w-5 text-blue-500 animate-spin" />
+              <Loader2 className="h-5 w-5 animate-spin" />
             ) : (
-              <Smartphone className="h-5 w-5 text-gray-400" />
+              <Smartphone className="h-5 w-5" />
             )}
           </div>
 
@@ -153,8 +136,8 @@ export function ConnectionCard({
               </div>
             ) : (
               <>
-                <div className="flex items-center gap-2 min-w-0">
-                  <h3 className="min-w-0 flex-1 truncate text-sm font-semibold tracking-tight text-slate-900 dark:text-[#eff7f3]">
+                <div className="flex min-w-0 flex-wrap items-center gap-2">
+                  <h3 className="min-w-0 truncate text-base font-semibold tracking-tight text-[#10211b] dark:text-[#eff7f3]">
                     {connection.name}
                   </h3>
                   <Badge
@@ -167,23 +150,22 @@ export function ConnectionCard({
                     <span className="ml-1 capitalize">{connection.status}</span>
                   </Badge>
                 </div>
-                {connection.phoneNumber && (
-                  <p className="mt-1 flex items-center gap-1.5 text-xs text-slate-500 dark:text-[#9cafA8]">
-                    <span>Phone</span>
-                    <span className="text-gray-400 dark:text-dark-text-tertiary">
-                      -
+                <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-[#65736d] dark:text-[#9cafa8]">
+                  {connection.phoneNumber && (
+                    <span className="flex items-center gap-1.5">
+                      <Phone className="h-3.5 w-3.5 text-[#829089]" />
+                      <span className="font-medium tabular-nums text-[#315348] dark:text-[#c9d8d2]">
+                        {connection.phoneNumber}
+                      </span>
                     </span>
-                    <Phone className="h-3.5 w-3.5 text-whatsapp-teal-green" />
-                    <span className="font-medium text-emerald-700 dark:text-emerald-300">
-                      {connection.phoneNumber}
+                  )}
+                  {connection.lastSync && (
+                    <span className="flex items-center gap-1.5">
+                      <Clock3 className="h-3.5 w-3.5 text-[#829089]" />
+                      Synced {formatAuditTime(connection.lastSync)}
                     </span>
-                  </p>
-                )}
-                {connection.lastSync && (
-                  <p className="text-xs text-gray-500 dark:text-dark-text-tertiary mt-0.5">
-                    Last sync: {formatAuditTime(connection.lastSync)}
-                  </p>
-                )}
+                  )}
+                </div>
               </>
             )}
 
@@ -231,45 +213,14 @@ export function ConnectionCard({
                 </div>
               </div>
             )}
-
-            {/* QR Code for pending connection */}
-            {localState.qrCode && (
-              <div className="mt-3">
-                <QRCodeDisplay
-                  qrCode={localState.qrCode}
-                  expiresAt={localState.qrExpiresAt}
-                  countdown={countdown}
-                  onRefresh={onReconnect}
-                  isRefreshing={localState.isConnecting}
-                  small
-                />
-              </div>
-            )}
           </div>
         </div>
 
         {/* Quick Actions + Menu */}
         {!isEditing && (
-          <div className="flex items-center gap-2">
-            {/* Quick action button based on status */}
-            {connection.status === "connected" ? (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={onDisconnect}
-                disabled={localState.isDisconnecting}
-                className="border-amber-200 text-amber-700 hover:border-amber-300 hover:bg-amber-50 dark:border-amber-400/20 dark:text-amber-300 dark:hover:bg-amber-400/10"
-              >
-                {localState.isDisconnecting ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <>
-                    <PowerOff className="h-4 w-4 mr-1.5" />
-                    Disconnect
-                  </>
-                )}
-              </Button>
-            ) : connection.status === "disconnected" ? (
+          <div className="flex w-full items-center justify-end gap-2 border-t border-slate-200/80 pt-3 dark:border-white/[0.08] sm:w-auto sm:border-0 sm:pt-0">
+            {/* Keep routine actions visible; destructive disconnect stays in More. */}
+            {connection.status === "disconnected" ? (
               <Button
                 variant="outline"
                 size="sm"
@@ -288,20 +239,17 @@ export function ConnectionCard({
               </Button>
             ) : connection.status === "pending" ? (
               <Button
-                variant="outline"
                 size="sm"
-                onClick={onDisconnect}
+                onClick={onViewQr}
                 disabled={localState.isDisconnecting}
-                className="text-gray-600 border-gray-200 hover:bg-gray-50 hover:border-gray-300"
+                className="gap-2 bg-[#087a5c] text-white hover:bg-[#06674e] dark:bg-[#159b73] dark:hover:bg-[#20ad83]"
               >
-                {localState.isDisconnecting ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
+                {localState.qrCode ? (
+                  <QrCode className="h-4 w-4" />
                 ) : (
-                  <>
-                    <X className="h-4 w-4 mr-1.5" />
-                    Cancel
-                  </>
+                  <Loader2 className="h-4 w-4 animate-spin" />
                 )}
+                {localState.qrCode ? "View QR code" : "View setup"}
               </Button>
             ) : null}
 
@@ -312,6 +260,8 @@ export function ConnectionCard({
                 size="sm"
                 onClick={() => setShowMenu(!showMenu)}
                 className="h-8 w-8 p-0"
+                aria-label={`More actions for ${connection.name}`}
+                title="More actions"
               >
                 <MoreVertical className="h-4 w-4" />
               </Button>
@@ -348,9 +298,25 @@ export function ConnectionCard({
                         )}
                         Disconnect
                       </button>
+                    ) : connection.status === "pending" ? (
+                      <button
+                        className="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left text-sm text-orange-600 transition-colors hover:bg-orange-50 dark:text-orange-400 dark:hover:bg-orange-900/30"
+                        onClick={() => {
+                          onDisconnect();
+                          setShowMenu(false);
+                        }}
+                        disabled={localState.isDisconnecting}
+                      >
+                        {localState.isDisconnecting ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <X className="h-4 w-4" />
+                        )}
+                        Cancel setup
+                      </button>
                     ) : (
                       <button
-                        className="w-full px-3.5 py-2.5 text-left text-sm text-whatsapp-teal-green hover:bg-emerald-50 dark:hover:bg-emerald-900/30 flex items-center gap-2.5 transition-colors"
+                        className="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left text-sm text-whatsapp-teal-green transition-colors hover:bg-emerald-50 dark:hover:bg-emerald-900/30"
                         onClick={() => {
                           onReconnect();
                           setShowMenu(false);
@@ -369,13 +335,7 @@ export function ConnectionCard({
                     <button
                       className="w-full px-3.5 py-2.5 text-left text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 flex items-center gap-2.5 transition-colors"
                       onClick={() => {
-                        if (
-                          window.confirm(
-                            "Are you sure you want to delete this connection?",
-                          )
-                        ) {
-                          onDelete();
-                        }
+                        setDeleteOpen(true);
                         setShowMenu(false);
                       }}
                     >
@@ -389,6 +349,18 @@ export function ConnectionCard({
           </div>
         )}
       </div>
+      <ConfirmationDialog
+        open={deleteOpen}
+        onOpenChange={setDeleteOpen}
+        title={`Delete ${connection.name}?`}
+        description="This permanently removes the connection from this workspace. You will need to link the device again to use this number."
+        confirmText="Delete connection"
+        onConfirm={async () => {
+          await onDelete();
+          setDeleteOpen(false);
+        }}
+        isDestructive
+      />
     </div>
   );
 }

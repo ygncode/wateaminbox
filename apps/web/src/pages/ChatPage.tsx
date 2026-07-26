@@ -7,7 +7,6 @@ import { ForwardMessageDialog } from "../components/chat/ForwardMessageDialog";
 import { MessageComposer } from "../components/chat/MessageComposer";
 import { MessageHeader } from "../components/chat/MessageHeader";
 import { MessageThread } from "../components/chat/MessageThread";
-import { SyncingOverlay } from "../components/chat/SyncingOverlay";
 import { AppLayout, ResponsiveLayout } from "../components/layout/app-layout";
 import { MainContent } from "../components/layout/main-content";
 import { Sidebar } from "../components/layout/sidebar";
@@ -159,7 +158,6 @@ export function ChatPage() {
   return (
     <AppLayout>
       <h1 className="sr-only">WATeamInbox - Conversations</h1>
-      <SyncingOverlay />
       <ResponsiveLayout
         sidebar={sidebar}
         main={main}

@@ -23,13 +23,14 @@ manager_snapshot=""
 temp_files=()
 
 usage() {
-  cat <<'EOF'
+	cat <<'EOF'
 Usage:
   ./dev-utils/reset-whatsapp-account.sh EMAIL [--company-id UUID] [--yes]
 
 Examples:
   ./dev-utils/reset-whatsapp-account.sh setkyar16@gmail.com
   ./dev-utils/reset-whatsapp-account.sh setkyar16@gmail.com --yes
+  ./dev-utils/reset-whatsapp-account.sh setkyar16@gmail.com --company-id UUID --yes
 
 The reset keeps the login and company, but removes that company's:
   - WhatsApp connections and worker registry rows
@@ -50,70 +51,70 @@ EOF
 }
 
 log() {
-  printf '[reset-whatsapp] %s\n' "$*"
+	printf '[reset-whatsapp] %s\n' "$*"
 }
 
 warn() {
-  printf '[reset-whatsapp] WARNING: %s\n' "$*" >&2
+	printf '[reset-whatsapp] WARNING: %s\n' "$*" >&2
 }
 
 fail() {
-  printf '[reset-whatsapp] ERROR: %s\n' "$*" >&2
-  exit 1
+	printf '[reset-whatsapp] ERROR: %s\n' "$*" >&2
+	exit 1
 }
 
 cleanup() {
-  for file in "${temp_files[@]:-}"; do
-    [[ -n "$file" ]] && rm -f "$file"
-  done
+	for file in "${temp_files[@]:-}"; do
+		[[ -n "$file" ]] && rm -f "$file"
+	done
 }
 trap cleanup EXIT
 
 require_command() {
-  command -v "$1" >/dev/null 2>&1 || fail "Required command not found: $1"
+	command -v "$1" >/dev/null 2>&1 || fail "Required command not found: $1"
 }
 
 psql_stdin() {
-  docker exec -i "$POSTGRES_CONTAINER" \
-    psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" -X "$@"
+	docker exec -i "$POSTGRES_CONTAINER" \
+		psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" -X "$@"
 }
 
 manager_workers() {
-  curl -fsS "$ORCHESTRATOR_URL/workers" 2>/dev/null
+	curl -fsS "$ORCHESTRATOR_URL/workers" 2>/dev/null
 }
 
 while (($# > 0)); do
-  case "$1" in
-    --company-id)
-      (($# >= 2)) || fail "--company-id requires a UUID"
-      requested_company_id=$2
-      shift 2
-      ;;
-    --yes | -y)
-      assume_yes=true
-      shift
-      ;;
-    --help | -h)
-      usage
-      exit 0
-      ;;
-    --*)
-      fail "Unknown option: $1"
-      ;;
-    *)
-      [[ -z "$email" ]] || fail "Only one email may be supplied"
-      email=$1
-      shift
-      ;;
-  esac
+	case "$1" in
+	--company-id)
+		(($# >= 2)) || fail "--company-id requires a UUID"
+		requested_company_id=$2
+		shift 2
+		;;
+	--yes | -y)
+		assume_yes=true
+		shift
+		;;
+	--help | -h)
+		usage
+		exit 0
+		;;
+	--*)
+		fail "Unknown option: $1"
+		;;
+	*)
+		[[ -z "$email" ]] || fail "Only one email may be supplied"
+		email=$1
+		shift
+		;;
+	esac
 done
 
 [[ -n "$email" ]] || {
-  usage >&2
-  exit 2
+	usage >&2
+	exit 2
 }
 if [[ -n "$requested_company_id" ]]; then
-  [[ "$requested_company_id" =~ ^[0-9a-fA-F-]{36}$ ]] || fail "Invalid company UUID"
+	[[ "$requested_company_id" =~ ^[0-9a-fA-F-]{36}$ ]] || fail "Invalid company UUID"
 fi
 
 require_command docker
@@ -123,12 +124,12 @@ require_command nats
 require_command mc
 
 docker inspect "$POSTGRES_CONTAINER" >/dev/null 2>&1 ||
-  fail "PostgreSQL container is not available: $POSTGRES_CONTAINER"
+	fail "PostgreSQL container is not available: $POSTGRES_CONTAINER"
 
 account_rows=$(
-  psql_stdin -At -F $'\t' \
-    -v "account_email=$email" \
-    -v "requested_company_id=$requested_company_id" <<'SQL'
+	psql_stdin -At -F $'\t' \
+		-v "account_email=$email" \
+		-v "requested_company_id=$requested_company_id" <<'SQL'
 SELECT c.id::text, c.schema_name, c.name
 FROM public.users AS u
 JOIN public.company_members AS cm ON cm.user_id = u.id
@@ -144,14 +145,37 @@ SQL
 
 row_count=$(printf '%s\n' "$account_rows" | awk 'NF { count++ } END { print count + 0 }')
 if ((row_count == 0)); then
-  if [[ -n "$requested_company_id" ]]; then
-    fail "No company $requested_company_id belongs to $email"
-  fi
-  fail "No company found for $email"
+	if [[ -n "$requested_company_id" ]]; then
+		fail "No company $requested_company_id belongs to $email"
+	fi
+	fail "No company found for $email"
 fi
 if ((row_count > 1)); then
-  printf '%s\n' "$account_rows" | awk -F '\t' '{ printf "  %s  %s\n", $1, $3 }' >&2
-  fail "The account belongs to multiple companies; rerun with --company-id"
+	printf '\n%s belongs to multiple workspaces:\n\n' "$email" >&2
+	printf '%s\n' "$account_rows" |
+		awk -F '\t' '{ printf "  %d) %-28s %s\n", NR, $3, $1 }' >&2
+
+	# Interactive runs can select safely. Non-interactive/--yes runs still
+	# require an explicit UUID so automation can never reset the wrong tenant.
+	if [[ "$assume_yes" != true && -t 0 ]]; then
+		printf '\nSelect a workspace [1-%d], or q to cancel: ' "$row_count" >&2
+		read -r selection
+		[[ "$selection" != "q" && "$selection" != "Q" ]] || fail "Cancelled; nothing was changed"
+		[[ "$selection" =~ ^[0-9]+$ ]] || fail "Selection must be a number between 1 and $row_count"
+		selection_number=$((10#$selection))
+		((selection_number >= 1 && selection_number <= row_count)) ||
+			fail "Selection must be between 1 and $row_count"
+		account_rows=$(printf '%s\n' "$account_rows" | sed -n "${selection_number}p")
+	else
+		printf '\nChoose one and rerun exactly one of:\n\n' >&2
+		while IFS=$'\t' read -r candidate_id _candidate_schema candidate_name; do
+			[[ -n "$candidate_id" ]] || continue
+			printf '  # %s\n  ' "$candidate_name" >&2
+			printf '%q %q --company-id %q --yes\n\n' \
+				"$0" "$email" "$candidate_id" >&2
+		done <<<"$account_rows"
+		fail "Refusing to guess which workspace to reset"
+	fi
 fi
 
 IFS=$'\t' read -r company_id schema_name company_name <<<"$account_rows"
@@ -160,7 +184,7 @@ IFS=$'\t' read -r company_id schema_name company_name <<<"$account_rows"
 
 # Include tenant rows, persisted worker rows, and stale in-memory manager rows.
 database_connection_ids=$(
-  psql_stdin -At -v "company_id=$company_id" <<SQL
+	psql_stdin -At -v "company_id=$company_id" <<SQL
 SELECT id::text FROM ${schema_name}.whatsapp_connections
 UNION
 SELECT connection_id::text FROM public.worker_registry
@@ -168,16 +192,16 @@ WHERE company_id::text = :'company_id';
 SQL
 )
 if manager_snapshot=$(manager_workers); then
-  manager_connection_ids=$(jq -r --arg company_id "$company_id" \
-    '.workers[]? | select(.company_id == $company_id) | .id' <<<"$manager_snapshot")
+	manager_connection_ids=$(jq -r --arg company_id "$company_id" \
+		'.workers[]? | select(.company_id == $company_id) | .id' <<<"$manager_snapshot")
 else
-  manager_connection_ids=""
-  warn "Orchestrator status is unavailable at $ORCHESTRATOR_URL"
+	manager_connection_ids=""
+	warn "Orchestrator status is unavailable at $ORCHESTRATOR_URL"
 fi
 connection_ids=$(
-  printf '%s\n%s\n' "$database_connection_ids" "$manager_connection_ids" |
-    awk 'NF' |
-    sort -u
+	printf '%s\n%s\n' "$database_connection_ids" "$manager_connection_ids" |
+		awk 'NF' |
+		sort -u
 )
 connection_count=$(printf '%s\n' "$connection_ids" | awk 'NF { count++ } END { print count + 0 }')
 
@@ -187,45 +211,45 @@ log "Tenant:  $schema_name"
 log "Connections discovered: $connection_count"
 
 if [[ "$assume_yes" != true ]]; then
-  printf '\nThis permanently removes the WhatsApp test data listed above.\n'
-  printf 'Type the account email to continue: '
-  read -r confirmation
-  [[ "$confirmation" == "$email" ]] || fail "Confirmation did not match; nothing was changed"
+	printf '\nThis permanently removes the WhatsApp test data listed above.\n'
+	printf 'Type the account email to continue: '
+	read -r confirmation
+	[[ "$confirmation" == "$email" ]] || fail "Confirmation did not match; nothing was changed"
 fi
 
 # Ask the orchestrator to stop workers before deleting their session/database
 # state. Dead manager entries are harmless and are ignored by the live-PID wait.
 if ((connection_count > 0)); then
-  while IFS= read -r connection_id; do
-    [[ -n "$connection_id" ]] || continue
-    [[ "$connection_id" =~ ^[0-9a-fA-F-]{36}$ ]] || fail "Invalid connection UUID: $connection_id"
-    payload=$(jq -nc \
-      --arg company_id "$company_id" \
-      --arg connection_id "$connection_id" \
-      '{type:"kill", company_id:$company_id, connection_id:$connection_id, reason:"development account reset"}')
-    nats --server "$NATS_URL" pub \
-      "WHATSAPP.commands.$company_id.$connection_id" "$payload" >/dev/null
-    log "Requested worker stop: $connection_id"
-  done <<<"$connection_ids"
+	while IFS= read -r connection_id; do
+		[[ -n "$connection_id" ]] || continue
+		[[ "$connection_id" =~ ^[0-9a-fA-F-]{36}$ ]] || fail "Invalid connection UUID: $connection_id"
+		payload=$(jq -nc \
+			--arg company_id "$company_id" \
+			--arg connection_id "$connection_id" \
+			'{type:"kill", company_id:$company_id, connection_id:$connection_id, reason:"development account reset"}')
+		nats --server "$NATS_URL" pub \
+			"WHATSAPP.commands.$company_id.$connection_id" "$payload" >/dev/null
+		log "Requested worker stop: $connection_id"
+	done <<<"$connection_ids"
 
-  for _ in $(seq 1 30); do
-    live_workers=0
-    if manager_snapshot=$(manager_workers); then
-      while IFS= read -r worker_pid; do
-        [[ -n "$worker_pid" ]] || continue
-        if kill -0 "$worker_pid" 2>/dev/null; then
-          live_workers=$((live_workers + 1))
-        fi
-      done < <(
-        jq -r --arg company_id "$company_id" \
-          '.workers[]? | select(.company_id == $company_id) | .pid // empty' \
-          <<<"$manager_snapshot"
-      )
-    fi
-    ((live_workers == 0)) && break
-    sleep 1
-  done
-  ((live_workers == 0)) || fail "A company worker is still running; aborting before database cleanup"
+	for _ in $(seq 1 30); do
+		live_workers=0
+		if manager_snapshot=$(manager_workers); then
+			while IFS= read -r worker_pid; do
+				[[ -n "$worker_pid" ]] || continue
+				if kill -0 "$worker_pid" 2>/dev/null; then
+					live_workers=$((live_workers + 1))
+				fi
+			done < <(
+				jq -r --arg company_id "$company_id" \
+					'.workers[]? | select(.company_id == $company_id) | .pid // empty' \
+					<<<"$manager_snapshot"
+			)
+		fi
+		((live_workers == 0)) && break
+		sleep 1
+	done
+	((live_workers == 0)) || fail "A company worker is still running; aborting before database cleanup"
 fi
 
 connection_csv=$(printf '%s\n' "$connection_ids" | awk 'NF' | paste -sd, -)
@@ -233,8 +257,8 @@ connection_csv=$(printf '%s\n' "$connection_ids" | awk 'NF' | paste -sd, -)
 # Keep user/company configuration and non-WhatsApp productivity settings. The
 # explicit table list makes the preservation boundary clear and reviewable.
 psql_stdin -q \
-  -v "company_id=$company_id" \
-  -v "connection_ids=$connection_csv" <<SQL
+	-v "company_id=$company_id" \
+	-v "connection_ids=$connection_csv" <<SQL
 BEGIN;
 
 DELETE FROM ${schema_name}.message_reactions;
@@ -294,12 +318,12 @@ SQL
 log "PostgreSQL WhatsApp data removed"
 
 purge_stream_subject() {
-  local stream=$1
-  local subject=$2
-  if nats --server "$NATS_URL" stream info "$stream" >/dev/null 2>&1; then
-    nats --server "$NATS_URL" stream purge "$stream" \
-      --subject="$subject" --force >/dev/null
-  fi
+	local stream=$1
+	local subject=$2
+	if nats --server "$NATS_URL" stream info "$stream" >/dev/null 2>&1; then
+		nats --server "$NATS_URL" stream purge "$stream" \
+			--subject="$subject" --force >/dev/null
+	fi
 }
 
 purge_stream_subject WHATSAPP_COMMANDS "WHATSAPP.commands.$company_id.>"
@@ -308,36 +332,36 @@ purge_stream_subject WHATSAPP_DOWNLOADS "WHATSAPP.download.$company_id.>"
 log "Company-scoped NATS messages purged"
 
 if mc alias set reset-whatsapp "$S3_ENDPOINT" "$S3_ACCESS_KEY" "$S3_SECRET_KEY" >/dev/null 2>&1; then
-  media_prefix="reset-whatsapp/$S3_BUCKET/media/$company_id/"
-  media_count=$(mc ls --recursive "$media_prefix" 2>/dev/null | wc -l | tr -d ' ')
-  mc rm --recursive --force "$media_prefix" >/dev/null 2>&1 || true
-  log "Media removed: $media_count object(s)"
+	media_prefix="reset-whatsapp/$S3_BUCKET/media/$company_id/"
+	media_count=$(mc ls --recursive "$media_prefix" 2>/dev/null | wc -l | tr -d ' ')
+	mc rm --recursive --force "$media_prefix" >/dev/null 2>&1 || true
+	log "Media removed: $media_count object(s)"
 else
-  warn "Could not connect to object storage at $S3_ENDPOINT; media was not removed"
+	warn "Could not connect to object storage at $S3_ENDPOINT; media was not removed"
 fi
 
 for index_name in \
-  "messages_${company_id//-/_}" \
-  "contacts_${company_id//-/_}"; do
-  response_file=$(mktemp)
-  temp_files+=("$response_file")
-  http_status=$(curl -sS -o "$response_file" -w '%{http_code}' \
-    -X DELETE "$MEILISEARCH_URL/indexes/$index_name" \
-    -H "Authorization: Bearer $MEILISEARCH_API_KEY" || true)
-  case "$http_status" in
-    202)
-      log "Meilisearch index deletion queued: $index_name"
-      ;;
-    404)
-      ;;
-    *)
-      warn "Could not delete Meilisearch index $index_name (HTTP ${http_status:-unavailable})"
-      ;;
-  esac
+	"messages_${company_id//-/_}" \
+	"contacts_${company_id//-/_}"; do
+	response_file=$(mktemp)
+	temp_files+=("$response_file")
+	http_status=$(curl -sS -o "$response_file" -w '%{http_code}' \
+		-X DELETE "$MEILISEARCH_URL/indexes/$index_name" \
+		-H "Authorization: Bearer $MEILISEARCH_API_KEY" || true)
+	case "$http_status" in
+	202)
+		log "Meilisearch index deletion queued: $index_name"
+		;;
+	404)
+		;;
+	*)
+		warn "Could not delete Meilisearch index $index_name (HTTP ${http_status:-unavailable})"
+		;;
+	esac
 done
 
 verification=$(
-  psql_stdin -At -F $'\t' <<SQL
+	psql_stdin -At -F $'\t' <<SQL
 SELECT
   (SELECT count(*) FROM ${schema_name}.whatsapp_connections),
   (SELECT count(*) FROM ${schema_name}.contacts),
@@ -347,15 +371,15 @@ SQL
 )
 IFS=$'\t' read -r remaining_connections remaining_contacts remaining_messages remaining_workers <<<"$verification"
 if [[ "$remaining_connections" != 0 || "$remaining_contacts" != 0 || "$remaining_messages" != 0 || "$remaining_workers" != 0 ]]; then
-  fail "Verification failed: connections=$remaining_connections contacts=$remaining_contacts messages=$remaining_messages workers=$remaining_workers"
+	fail "Verification failed: connections=$remaining_connections contacts=$remaining_contacts messages=$remaining_messages workers=$remaining_workers"
 fi
 
 if manager_snapshot=$(manager_workers); then
-  stale_manager_count=$(jq -r --arg company_id "$company_id" \
-    '[.workers[]? | select(.company_id == $company_id)] | length' <<<"$manager_snapshot")
-  if ((stale_manager_count > 0)); then
-    warn "$stale_manager_count dead in-memory orchestrator reference(s) remain until its next restart; they do not block pairing"
-  fi
+	stale_manager_count=$(jq -r --arg company_id "$company_id" \
+		'[.workers[]? | select(.company_id == $company_id)] | length' <<<"$manager_snapshot")
+	if ((stale_manager_count > 0)); then
+		warn "$stale_manager_count dead in-memory orchestrator reference(s) remain until its next restart; they do not block pairing"
+	fi
 fi
 
 log "Reset complete. Refresh the app and create a new WhatsApp connection."

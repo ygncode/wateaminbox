@@ -140,7 +140,7 @@ export function SettingsPage() {
   return (
     <div className="flex h-full min-h-0 w-full bg-[#f5f7f4] dark:bg-dark-primary">
       <aside className="hidden w-64 shrink-0 overflow-y-auto border-r border-[#dce3de] bg-[#edf1ed] px-4 py-6 dark:border-dark-border dark:bg-dark-secondary md:block">
-        <p className="px-2 text-xs font-bold uppercase tracking-[0.18em] text-[#0b7a55]">
+        <p className="px-2 text-xs font-bold uppercase tracking-[0.18em] text-[#0b7a55] dark:text-emerald-400">
           Settings
         </p>
         <h1 className="mt-2 truncate px-2 text-xl font-semibold tracking-tight">
@@ -150,7 +150,7 @@ export function SettingsPage() {
           {[...new Set(visibleSections.map((item) => item.group))].map(
             (group) => (
               <div key={group}>
-                <p className="mb-1 px-2 text-[10px] font-bold uppercase tracking-[0.16em] text-[#829089]">
+                <p className="mb-1 px-2 text-[10px] font-bold uppercase tracking-[0.16em] text-[#829089] dark:text-[#91a8a0]">
                   {group}
                 </p>
                 <div className="space-y-0.5">
@@ -227,8 +227,8 @@ function SettingsLink({
         cn(
           "flex items-center gap-3 rounded-lg px-2.5 py-2 text-sm font-medium transition-colors",
           isActive
-            ? "bg-white text-[#075c41] shadow-sm dark:bg-dark-tertiary dark:text-emerald-300"
-            : "text-[#65736d] hover:bg-white/60 hover:text-[#10211b] dark:text-dark-text-secondary dark:hover:bg-dark-tertiary",
+            ? "bg-white text-[#075c41] shadow-sm dark:bg-emerald-400/10 dark:text-emerald-300 dark:shadow-none dark:ring-1 dark:ring-inset dark:ring-emerald-400/20"
+            : "text-[#65736d] hover:bg-white/60 hover:text-[#10211b] dark:text-[#9fb0aa] dark:hover:bg-white/[0.07] dark:hover:text-white",
         )
       }
     >
@@ -242,19 +242,43 @@ function SettingsSectionContent({ section }: { section: SettingsSection }) {
     case "general":
       return <GeneralSettings />;
     case "connections":
-      return <WhatsAppConnectionPanel multiConnection hideHeader />;
-    case "quick-replies":
-      return <QuickRepliesManager />;
-    case "labels":
-      return <LabelSyncManager />;
-    case "catalogs":
-      return <CatalogManager />;
-    case "notifications":
       return (
-        <Panel>
-          <NotificationSettings />
+        <Panel
+          title="WhatsApp connections"
+          description="Link and manage the WhatsApp devices that power this workspace inbox."
+        >
+          <WhatsAppConnectionPanel multiConnection hideHeader />
         </Panel>
       );
+    case "quick-replies":
+      return (
+        <Panel
+          title="Saved responses"
+          description="Create reusable message templates and insert them from the composer with a shortcut."
+        >
+          <QuickRepliesManager />
+        </Panel>
+      );
+    case "labels":
+      return (
+        <Panel
+          title="Label mapping"
+          description="Map WhatsApp Business labels to workspace tags for consistent contact organization."
+        >
+          <LabelSyncManager />
+        </Panel>
+      );
+    case "catalogs":
+      return (
+        <Panel
+          title="Catalog library"
+          description="Sync WhatsApp Business catalogs and review the products available to your team."
+        >
+          <CatalogManager />
+        </Panel>
+      );
+    case "notifications":
+      return <NotificationSettings />;
     case "appearance":
       return <AppearanceSettings />;
     case "data":

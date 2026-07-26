@@ -135,14 +135,6 @@ export function QuickRepliesManager() {
 
   return (
     <div className="space-y-4">
-      {/* Description */}
-      <p className="text-sm text-gray-600 dark:text-dark-text-secondary">
-        {t(
-          "quickReplies.description",
-          "Create predefined message templates for quick responses. Type / followed by the shortcut in the message composer to use them.",
-        )}
-      </p>
-
       {/* Search and Add */}
       <div className="flex gap-2">
         <div className="relative flex-1">

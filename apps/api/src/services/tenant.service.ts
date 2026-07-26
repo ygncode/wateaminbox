@@ -116,6 +116,13 @@ export async function createTenantSchema(companyId: string): Promise<void> {
     WHERE whatsapp_connection_id IS NOT NULL AND jid IS NOT NULL
   `.execute(baseTenantDb);
   await sql`
+    CREATE UNIQUE INDEX IF NOT EXISTS ${sql.ref(
+      `${schemaName}_whatsapp_connections_phone_uidx`,
+    )}
+    ON ${sql.raw(`"${schemaName}".whatsapp_connections`)} (phone_number)
+    WHERE phone_number IS NOT NULL
+  `.execute(baseTenantDb);
+  await sql`
     CREATE INDEX IF NOT EXISTS ${sql.ref(`${schemaName}_nats_outbox_pending_idx`)}
     ON ${sql.raw(`"${schemaName}".nats_outbox`)}
       (status, next_attempt_at, created_at)

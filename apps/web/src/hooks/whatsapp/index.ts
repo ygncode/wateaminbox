@@ -5,18 +5,17 @@
  * The main useWhatsAppConnections.ts composes these hooks together.
  */
 
-// Types
+// Re-export WhatsAppConnection type from API
+export type { WhatsAppConnection } from "@/lib/api/types";
 export type {
   ConnectionState,
   ConnectionWithState,
   PendingConnection,
 } from "./types";
-
+// Types
+export { resolveConnectionQrState } from "./types";
+export { useWhatsAppConnectionMutations } from "./useWhatsAppConnectionMutations";
+export { useWhatsAppConnectionRealtime } from "./useWhatsAppConnectionRealtime";
+export { useWhatsAppConnectionState } from "./useWhatsAppConnectionState";
 // Sub-hooks
 export { useWhatsAppConnectionsList } from "./useWhatsAppConnectionsList";
-export { useWhatsAppConnectionMutations } from "./useWhatsAppConnectionMutations";
-export { useWhatsAppConnectionState } from "./useWhatsAppConnectionState";
-export { useWhatsAppConnectionRealtime } from "./useWhatsAppConnectionRealtime";
-
-// Re-export WhatsAppConnection type from API
-export type { WhatsAppConnection } from "@/lib/api/types";

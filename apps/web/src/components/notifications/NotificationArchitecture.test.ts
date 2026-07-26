@@ -18,6 +18,15 @@ describe("global notification architecture", () => {
     expect(sidebar).not.toContain("notificationAction");
   });
 
+  test("shows workspace sync progress from every protected page", async () => {
+    const [layout, chatPage] = await Promise.all([
+      readSource("../layout/ProtectedAppLayout.tsx"),
+      readSource("../../pages/ChatPage.tsx"),
+    ]);
+    expect(layout.match(/<SyncingOverlay \/>/g)?.length).toBe(1);
+    expect(chatPage).not.toContain("<SyncingOverlay");
+  });
+
   test("persists a collapsible desktop workspace rail", async () => {
     const layout = await readSource("../layout/ProtectedAppLayout.tsx");
     expect(layout).toContain('"wateaminbox:sidebar-collapsed"');

@@ -7,9 +7,9 @@ import { cn } from "@/lib/utils";
 import { injectAnimationStyles, removeAnimationStyles } from "../animations";
 import { ConnectionCard } from "../ConnectionCard";
 import { EmptyConnectionsView } from "../EmptyConnectionsView";
-import { QRCodeDisplay } from "../QRCodeDisplay";
 import { AddConnectionDialog } from "./AddConnectionDialog";
 import { GlobalErrorBanner } from "./GlobalErrorBanner";
+import { getConnectionSetupStage } from "./setup-state";
 import type { MultiConnectionPanelProps } from "./types";
 
 /**
@@ -22,7 +22,6 @@ export function MultiConnectionPanel({
 }: MultiConnectionPanelProps) {
   const {
     connections,
-    pendingConnection,
     globalError,
     isLoading,
     isCreating,
@@ -33,13 +32,15 @@ export function MultiConnectionPanel({
     rename,
     refresh,
     clearError,
-    clearPendingConnection,
     clearGlobalError,
     connectedCount,
     totalCount,
   } = useWhatsAppConnections();
 
   const [showAddDialog, setShowAddDialog] = useState(false);
+  const [setupConnectionId, setSetupConnectionId] = useState<string | null>(
+    null,
+  );
   const [newConnectionName, setNewConnectionName] = useState("");
   const [editingConnection, setEditingConnection] = useState<string | null>(
     null,
@@ -52,16 +53,61 @@ export function MultiConnectionPanel({
     return () => removeAnimationStyles();
   }, []);
 
-  // Handle add new connection
+  const setupConnection = setupConnectionId
+    ? (connections.find((connection) => connection.id === setupConnectionId) ??
+      null)
+    : null;
+
+  const openNewConnection = useCallback(() => {
+    setSetupConnectionId(null);
+    setNewConnectionName("");
+    setShowAddDialog(true);
+  }, []);
+
+  const closeSetup = useCallback(() => {
+    setShowAddDialog(false);
+    setSetupConnectionId(null);
+    setNewConnectionName("");
+  }, []);
+
+  // Keep the dialog open between naming and QR pairing.
   const handleAddConnection = useCallback(async () => {
     try {
-      await create(newConnectionName || undefined);
+      const created = await create(newConnectionName || undefined);
+      setSetupConnectionId(created.id);
       setNewConnectionName("");
-      setShowAddDialog(false);
     } catch (_error) {
       // Error is handled by the hook
     }
   }, [create, newConnectionName]);
+
+  const resumeSetup = useCallback((connectionId: string) => {
+    setSetupConnectionId(connectionId);
+    setShowAddDialog(true);
+  }, []);
+
+  const handleReconnect = useCallback(
+    async (connectionId: string) => {
+      resumeSetup(connectionId);
+      try {
+        await reconnect(connectionId);
+      } catch (_error) {
+        // Error is displayed in the setup dialog and connection card.
+      }
+    },
+    [reconnect, resumeSetup],
+  );
+
+  // Close shortly after the refreshed list confirms the connection.
+  useEffect(() => {
+    if (
+      !showAddDialog ||
+      getConnectionSetupStage(setupConnection) !== "connected"
+    )
+      return;
+    const timer = window.setTimeout(closeSetup, 700);
+    return () => window.clearTimeout(timer);
+  }, [closeSetup, setupConnection?.status, showAddDialog]);
 
   // Handle rename connection
   const handleRename = useCallback(
@@ -77,12 +123,23 @@ export function MultiConnectionPanel({
 
   if (isLoading) {
     return (
-      <div className={cn("p-6", className)}>
-        <Skeleton className="h-8 w-48 mb-4" />
-        <div className="space-y-3">
-          <Skeleton className="h-20 w-full" />
-          <Skeleton className="h-20 w-full" />
+      <div
+        className={cn(
+          "rounded-xl border border-[#dce3de] bg-[#f8faf8] p-4 dark:border-white/[0.08] dark:bg-white/[0.025]",
+          className,
+        )}
+      >
+        <div className="mb-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Skeleton className="h-10 w-10 rounded-xl" />
+            <div className="space-y-2">
+              <Skeleton className="h-4 w-32" />
+              <Skeleton className="h-3 w-20" />
+            </div>
+          </div>
+          <Skeleton className="h-9 w-28 rounded-lg" />
         </div>
+        <Skeleton className="h-24 w-full rounded-xl" />
       </div>
     );
   }
@@ -111,7 +168,7 @@ export function MultiConnectionPanel({
     <div
       className={cn(
         hideHeader
-          ? "p-5 sm:p-6"
+          ? ""
           : "rounded-2xl border border-gray-200 bg-white p-6 dark:border-white/[0.08] dark:bg-[#132126]",
         className,
       )}
@@ -138,7 +195,7 @@ export function MultiConnectionPanel({
             </Button>
             <Button
               size="sm"
-              onClick={() => setShowAddDialog(true)}
+              onClick={openNewConnection}
               disabled={isCreating}
               className="bg-whatsapp-teal-green hover:bg-whatsapp-dark-green"
             >
@@ -155,49 +212,53 @@ export function MultiConnectionPanel({
         </div>
       )}
 
-      {/* Minimal action bar when header is hidden */}
-      {hideHeader && (
-        <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-2.5">
-            <span
-              className={cn(
-                "h-2 w-2 rounded-full",
-                connectedCount > 0
-                  ? "bg-emerald-400 shadow-[0_0_10px_rgba(74,222,128,.8)]"
-                  : "bg-slate-400",
-              )}
-            />
-            <p className="text-sm font-medium text-slate-600 dark:text-[#a9bab4]">
-              <span className="font-semibold text-slate-900 dark:text-[#eef8f3]">
-                {connectedCount}
-              </span>{" "}
-              active of {totalCount} connection{totalCount === 1 ? "" : "s"}
-            </p>
+      {/* Workspace connection summary and actions. */}
+      {hideHeader && connections.length > 0 && (
+        <div className="mb-4 flex flex-col gap-3 rounded-xl border border-[#dce3de] bg-[#f8faf8] p-3.5 dark:border-white/[0.08] dark:bg-white/[0.025] sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-3">
+            <div className="relative grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-white text-[#315348] shadow-sm ring-1 ring-[#e2e8e3] dark:bg-white/[0.06] dark:text-[#c9d8d2] dark:ring-white/[0.08]">
+              <Smartphone className="h-5 w-5" aria-hidden="true" />
+              <span
+                className={cn(
+                  "absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-[#f8faf8] dark:border-[#172622]",
+                  connectedCount > 0 ? "bg-emerald-500" : "bg-slate-400",
+                )}
+              />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-[#10211b] dark:text-[#eef8f3]">
+                {connectedCount} active connection
+                {connectedCount === 1 ? "" : "s"}
+              </p>
+              <p className="text-xs text-[#65736d] dark:text-[#a9bab4]">
+                {totalCount} device{totalCount === 1 ? "" : "s"} linked to this
+                workspace
+              </p>
+            </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 self-end sm:self-auto">
             <Button
               variant="outline"
               size="sm"
               onClick={() => refresh()}
-              className="h-9 w-9 border-slate-200 p-0 hover:border-emerald-500 hover:text-emerald-700 dark:border-white/10 dark:bg-white/[0.03] dark:hover:border-emerald-400/50 dark:hover:text-emerald-300"
+              className="h-9 w-9 border-[#dce3de] p-0 hover:border-emerald-500 hover:text-emerald-700 dark:border-white/10 dark:bg-white/[0.03] dark:hover:border-emerald-400/50 dark:hover:text-emerald-300"
               aria-label="Refresh connections"
+              title="Refresh connections"
             >
               <RefreshCw className="h-4 w-4" />
             </Button>
             <Button
               size="sm"
-              onClick={() => setShowAddDialog(true)}
+              onClick={openNewConnection}
               disabled={isCreating}
-              className="h-9 bg-[#087a5c] px-3.5 font-semibold text-white shadow-sm hover:bg-[#06674e] dark:bg-[#159b73] dark:hover:bg-[#20ad83]"
+              className="h-9 gap-2 bg-[#087a5c] px-3.5 font-semibold text-white hover:bg-[#06674e] dark:bg-[#159b73] dark:hover:bg-[#20ad83]"
             >
               {isCreating ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
-                <>
-                  <Plus className="mr-1.5 h-4 w-4" />
-                  Add connection
-                </>
+                <Plus className="h-4 w-4" />
               )}
+              Add connection
             </Button>
           </div>
         </div>
@@ -208,59 +269,27 @@ export function MultiConnectionPanel({
         <GlobalErrorBanner error={globalError} onDismiss={clearGlobalError} />
       )}
 
-      {/* Add Connection Dialog */}
+      {/* Resumable naming and QR setup dialog. */}
       {showAddDialog && (
         <AddConnectionDialog
           name={newConnectionName}
           onNameChange={setNewConnectionName}
           onSubmit={handleAddConnection}
-          onCancel={() => {
-            setShowAddDialog(false);
-            setNewConnectionName("");
-          }}
+          onCancel={closeSetup}
           isCreating={isCreating}
+          connection={setupConnection}
+          onReconnect={() => {
+            if (setupConnectionId) {
+              void handleReconnect(setupConnectionId);
+            }
+          }}
         />
       )}
 
-      {/* Pending Connection with QR */}
-      {pendingConnection?.qrCode && (
-        <div className="mb-6 p-4 border border-blue-200 dark:border-blue-800 rounded-lg bg-blue-50 dark:bg-blue-900/30">
-          <div className="flex items-start gap-4">
-            <div className="flex-shrink-0">
-              <QRCodeDisplay
-                qrCode={pendingConnection.qrCode}
-                expiresAt={pendingConnection.qrExpiresAt}
-                onRefresh={() => {}}
-                isRefreshing={false}
-              />
-            </div>
-            <div className="flex-1">
-              <h3 className="text-sm font-medium text-gray-900 dark:text-dark-text-primary mb-2">
-                Scan to connect new device
-              </h3>
-              <ol className="text-xs text-gray-600 dark:text-dark-text-secondary space-y-1">
-                <li>1. Open WhatsApp on your phone</li>
-                <li>2. Tap Menu or Settings</li>
-                <li>3. Select Linked Devices</li>
-                <li>4. Point your phone at this QR code</li>
-              </ol>
-              <Button
-                size="sm"
-                variant="ghost"
-                className="mt-3"
-                onClick={clearPendingConnection}
-              >
-                Cancel
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Connections List */}
-      {connections.length === 0 && !pendingConnection ? (
+      {connections.length === 0 ? (
         <EmptyConnectionsView
-          onAdd={() => setShowAddDialog(true)}
+          onAdd={openNewConnection}
           isCreating={isCreating}
         />
       ) : (
@@ -281,7 +310,8 @@ export function MultiConnectionPanel({
                 setEditName("");
               }}
               onSaveEdit={() => handleRename(connection.id)}
-              onReconnect={() => reconnect(connection.id)}
+              onReconnect={() => void handleReconnect(connection.id)}
+              onViewQr={() => resumeSetup(connection.id)}
               onDisconnect={() => disconnect(connection.id)}
               onDelete={() => remove(connection.id)}
               onClearError={() => clearError(connection.id)}

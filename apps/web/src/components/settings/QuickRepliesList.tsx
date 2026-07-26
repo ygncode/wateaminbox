@@ -26,7 +26,7 @@ export function QuickRepliesList({
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center py-8">
+      <div className="flex items-center justify-center rounded-xl border border-[#e2e8e3] bg-[#f8faf8] py-10 dark:border-white/[0.07] dark:bg-white/[0.025]">
         <Loader2 className="h-6 w-6 animate-spin text-gray-400 dark:text-dark-text-tertiary" />
       </div>
     );
@@ -34,7 +34,7 @@ export function QuickRepliesList({
 
   if (quickReplies.length === 0) {
     return (
-      <div className="text-center py-8 text-gray-500 dark:text-dark-text-secondary">
+      <div className="rounded-xl border border-dashed border-[#d6dfd9] bg-[#f8faf8] px-5 py-10 text-center text-gray-500 dark:border-white/[0.1] dark:bg-white/[0.025] dark:text-dark-text-secondary">
         <Zap className="h-12 w-12 mx-auto mb-3 text-gray-300 dark:text-dark-text-tertiary" />
         <p className="font-medium">
           {hasSearchQuery

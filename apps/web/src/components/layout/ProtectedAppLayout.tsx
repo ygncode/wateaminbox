@@ -10,7 +10,7 @@ import {
   Settings,
   Users,
 } from "lucide-react";
-import { useState } from "react";
+import { lazy, Suspense, useState } from "react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "../../contexts/auth-context";
 import { useWorkspace } from "../../contexts/workspace-context";
@@ -20,6 +20,12 @@ import { ThemeToggle } from "../chat/ThemeToggle";
 import { NotificationCenter } from "../notifications/NotificationCenter";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../ui/dialog";
 import { WorkspaceSwitcher } from "../workspace/WorkspaceSwitcher";
+
+const SyncingOverlay = lazy(() =>
+  import("../chat/SyncingOverlay").then((module) => ({
+    default: module.SyncingOverlay,
+  })),
+);
 
 interface NavigationItem {
   label: string;
@@ -305,6 +311,9 @@ export function ProtectedAppLayout() {
             </div>
           )}
         </main>
+        <Suspense fallback={null}>
+          <SyncingOverlay />
+        </Suspense>
         <nav
           className="safe-area-bottom flex shrink-0 items-center border-t border-[#dce3de] bg-white px-1 py-1 dark:border-dark-border dark:bg-dark-secondary lg:hidden"
           aria-label="Mobile navigation"

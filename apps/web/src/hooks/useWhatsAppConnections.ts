@@ -1,12 +1,13 @@
 import { useEffect } from "react";
 import { queryKeys } from "./query-keys";
 import {
-  useWhatsAppConnectionsList,
-  useWhatsAppConnectionMutations,
-  useWhatsAppConnectionState,
-  useWhatsAppConnectionRealtime,
   type ConnectionState,
   type ConnectionWithState,
+  resolveConnectionQrState,
+  useWhatsAppConnectionMutations,
+  useWhatsAppConnectionRealtime,
+  useWhatsAppConnectionState,
+  useWhatsAppConnectionsList,
 } from "./whatsapp";
 
 /**
@@ -97,13 +98,18 @@ export function useWhatsAppConnections() {
         ? new Date(connection.qrExpiresAt)
         : null;
 
+      const qrState = resolveConnectionQrState(
+        local,
+        connection.qrCode,
+        persistedQrExpiresAt,
+        connection.status,
+      );
       return {
         ...connection,
-        // Realtime state wins when it has a QR. Otherwise fall back to the
-        // persisted QR returned by polling, which covers missed realtime events.
+        // Persisted QR data covers missed realtime events, but an explicit
+        // local clear after connection must never resurrect an old code.
         localState: {
-          qrCode: local?.qrCode ?? connection.qrCode ?? null,
-          qrExpiresAt: local?.qrExpiresAt ?? persistedQrExpiresAt,
+          ...qrState,
           error: local?.error ?? null,
           isConnecting: local?.isConnecting ?? connection.status === "pending",
           isDisconnecting: local?.isDisconnecting ?? false,

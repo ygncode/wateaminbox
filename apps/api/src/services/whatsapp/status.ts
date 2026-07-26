@@ -6,7 +6,8 @@
 
 import type { WhatsAppConnectionStatus } from "@wateaminbox/database";
 import { toDbDate } from "@wateaminbox/shared";
-import type { Kysely } from "kysely";
+import { type Kysely, sql } from "kysely";
+import { DuplicateWhatsAppPhoneError } from "../../lib/errors.js";
 import type { TenantDatabase } from "../tenant.service.js";
 
 // Types
@@ -58,8 +59,16 @@ export async function getConnectionStatus(
   };
 }
 
+/** Canonical identity used for workspace-level duplicate protection. */
+export function normalizeWhatsAppPhone(phoneNumber: string): string {
+  const digits = phoneNumber.replace(/\D/g, "");
+  return digits || phoneNumber.trim().toLowerCase();
+}
+
 /**
- * Updates connection status (called from message handler)
+ * Updates connection status (called from message handler).
+ * Connected identities are claimed atomically so one WhatsApp number cannot
+ * back multiple connection records in the same workspace.
  */
 export async function updateConnectionStatus(
   tenantDb: Kysely<TenantDatabase>,
@@ -85,11 +94,11 @@ export async function updateConnectionStatus(
       .executeTakeFirst();
   }
 
-  if (!connection) {
-    // No connection to update
-    return;
-  }
+  if (!connection) return;
 
+  const normalizedPhone = phoneNumber
+    ? normalizeWhatsAppPhone(phoneNumber)
+    : undefined;
   const updateData: Record<string, unknown> = {
     status,
     updated_at: toDbDate(),
@@ -97,14 +106,39 @@ export async function updateConnectionStatus(
 
   if (status === "connected") {
     updateData.connected_at = toDbDate();
+    updateData.qr_code = null;
+    updateData.qr_expires_at = null;
   }
 
-  if (phoneNumber) {
-    updateData.phone_number = phoneNumber;
+  if (status === "disconnected") {
+    updateData.qr_code = null;
+    updateData.qr_expires_at = null;
   }
 
-  if (jid) {
-    updateData.jid = jid;
+  if (normalizedPhone) updateData.phone_number = normalizedPhone;
+  if (jid) updateData.jid = jid;
+
+  if (status === "connected" && normalizedPhone) {
+    await tenantDb.transaction().execute(async (trx) => {
+      await sql`SELECT pg_advisory_xact_lock(hashtextextended(${normalizedPhone}, 1))`.execute(
+        trx,
+      );
+      const duplicate = await trx
+        .selectFrom("whatsapp_connections")
+        .select("id")
+        .where("phone_number", "=", normalizedPhone)
+        .where("id", "!=", connection.id)
+        .executeTakeFirst();
+      if (duplicate) {
+        throw new DuplicateWhatsAppPhoneError(duplicate.id, normalizedPhone);
+      }
+      await trx
+        .updateTable("whatsapp_connections")
+        .set(updateData)
+        .where("id", "=", connection.id)
+        .execute();
+    });
+    return;
   }
 
   await tenantDb

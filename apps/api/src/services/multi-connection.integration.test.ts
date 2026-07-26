@@ -74,6 +74,43 @@ describe("PostgreSQL tenant and connection isolation", () => {
   );
 
   integrationTest(
+    "rejects linking one phone number to two workspace connections",
+    async () => {
+      const companyId = crypto.randomUUID();
+      const schema = getSchemaName(companyId);
+      try {
+        await createTenantSchema(companyId);
+        const tenantDb = getTenantConnection(companyId);
+        await tenantDb
+          .insertInto("whatsapp_connections")
+          .values({
+            id: crypto.randomUUID(),
+            name: "Primary",
+            phone_number: "14155550199",
+            status: "connected",
+          })
+          .execute();
+
+        await expect(
+          tenantDb
+            .insertInto("whatsapp_connections")
+            .values({
+              id: crypto.randomUUID(),
+              name: "Duplicate",
+              phone_number: "14155550199",
+              status: "connected",
+            })
+            .execute(),
+        ).rejects.toThrow();
+      } finally {
+        await clearTenantConnection(companyId);
+        await sql.raw(`DROP SCHEMA IF EXISTS "${schema}" CASCADE`).execute(db);
+      }
+    },
+    30_000,
+  );
+
+  integrationTest(
     "stores and updates a colliding WhatsApp message ID independently",
     async () => {
       const companyId = crypto.randomUUID();

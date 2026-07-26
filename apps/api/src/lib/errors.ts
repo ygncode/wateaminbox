@@ -260,6 +260,18 @@ export class ConnectionAlreadyExistsError extends ConflictError {
   }
 }
 
+export class DuplicateWhatsAppPhoneError extends ConflictError {
+  constructor(
+    public existingConnectionId: string,
+    public phoneNumber: string,
+  ) {
+    super(
+      "This WhatsApp number is already linked to another connection in this workspace.",
+    );
+    this.name = "DuplicateWhatsAppPhoneError";
+  }
+}
+
 export class InvalidConnectionStateError extends ValidationError {
   constructor(currentState: string, requiredState: string) {
     super(`Connection is ${currentState}, but must be ${requiredState}`);

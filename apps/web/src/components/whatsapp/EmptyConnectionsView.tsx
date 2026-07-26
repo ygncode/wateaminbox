@@ -1,4 +1,4 @@
-import { Loader2, MessageCircle, Plus } from "lucide-react";
+import { Loader2, MessageCircle, Plus, QrCode, Smartphone } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface EmptyConnectionsViewProps {
@@ -6,76 +6,81 @@ interface EmptyConnectionsViewProps {
   isCreating: boolean;
 }
 
-/**
- * Empty Connections View
- * Displayed when no WhatsApp connections exist
- */
+const setupSteps = [
+  { icon: Smartphone, label: "Name the device" },
+  { icon: QrCode, label: "Scan a QR code" },
+  { icon: MessageCircle, label: "Start receiving chats" },
+];
+
+/** First-run state for workspaces without a WhatsApp device. */
 export function EmptyConnectionsView({
   onAdd,
   isCreating,
 }: EmptyConnectionsViewProps) {
   return (
-    <div className="relative py-12 px-4 dark:bg-dark-elevated rounded-lg">
-      <div className="relative text-center">
-        {/* Animated illustration */}
-        <div className="relative w-28 h-28 mx-auto mb-6">
-          {/* Outer ring */}
-          <div className="absolute inset-0 rounded-full border-2 border-dashed border-whatsapp-teal-green/20 animate-[spin_20s_linear_infinite]" />
-
-          {/* Inner circle */}
-          <div className="absolute inset-2 rounded-full bg-whatsapp-teal-green/10" />
-
-          {/* Icon container */}
-          <div className="absolute inset-4 rounded-full bg-whatsapp-teal-green flex items-center justify-center shadow-xl">
-            <MessageCircle className="h-10 w-10 text-white" />
+    <section className="overflow-hidden rounded-2xl border border-[#dce3de] bg-[#f8faf8] dark:border-white/[0.08] dark:bg-white/[0.025]">
+      <div className="p-5 sm:p-6">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
+          <div className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-[#dcefe7] text-[#087a5c] dark:bg-emerald-400/10 dark:text-emerald-300">
+            <MessageCircle className="h-6 w-6" aria-hidden="true" />
           </div>
-
-          {/* Floating accent dots */}
-          <div className="absolute -top-1 left-1/2 w-2 h-2 rounded-full bg-whatsapp-teal-green/60 animate-pulse" />
-          <div
-            className="absolute top-1/4 -right-1 w-1.5 h-1.5 rounded-full bg-emerald-400/60 animate-pulse"
-            style={{ animationDelay: "0.5s" }}
-          />
-          <div
-            className="absolute -bottom-1 left-1/3 w-1.5 h-1.5 rounded-full bg-teal-400/60 animate-pulse"
-            style={{ animationDelay: "1s" }}
-          />
+          <div className="min-w-0">
+            <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#0b7a55] dark:text-emerald-300">
+              No devices linked
+            </p>
+            <h3 className="mt-1 text-lg font-semibold tracking-tight text-[#10211b] dark:text-dark-text-primary">
+              Connect WhatsApp to your workspace
+            </h3>
+            <p className="mt-1 max-w-xl text-sm leading-6 text-[#65736d] dark:text-dark-text-secondary">
+              Link a phone once, then your team can manage its conversations
+              together from the shared inbox.
+            </p>
+          </div>
         </div>
 
-        {/* Content */}
-        <h3 className="text-xl font-semibold text-gray-900 dark:text-dark-text-primary mb-2 text-balance">
-          No WhatsApp Connections Yet
-        </h3>
-        <p className="text-sm text-gray-500 dark:text-dark-text-secondary mb-8 max-w-xs mx-auto leading-relaxed text-pretty">
-          Connect your first WhatsApp device to start managing conversations
-          with your team.
-        </p>
+        <ol className="mt-6 grid gap-2 sm:grid-cols-3" aria-label="Setup steps">
+          {setupSteps.map((step, index) => {
+            const Icon = step.icon;
+            return (
+              <li
+                key={step.label}
+                className="flex items-center gap-3 rounded-xl border border-[#e2e8e3] bg-white px-3 py-3 dark:border-white/[0.07] dark:bg-white/[0.035]"
+              >
+                <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-[#edf1ed] text-[#315348] dark:bg-white/[0.06] dark:text-[#b8c9c2]">
+                  <Icon className="h-4 w-4" aria-hidden="true" />
+                </span>
+                <span className="min-w-0 text-xs font-semibold text-[#315348] dark:text-[#c9d8d2]">
+                  <span className="mr-1 text-[#829089]">{index + 1}.</span>
+                  {step.label}
+                </span>
+              </li>
+            );
+          })}
+        </ol>
+      </div>
 
-        {/* CTA Button */}
+      <div className="flex flex-col gap-3 border-t border-[#dce3de] bg-white px-5 py-4 dark:border-white/[0.08] dark:bg-white/[0.02] sm:flex-row sm:items-center sm:justify-between sm:px-6">
+        <p className="text-xs text-[#65736d] dark:text-dark-text-secondary">
+          Keep your phone nearby—you’ll scan a code in WhatsApp.
+        </p>
         <Button
           onClick={onAdd}
           disabled={isCreating}
-          size="lg"
-          className="bg-whatsapp-teal-green hover:bg-whatsapp-dark-green text-white shadow-xl transition-all duration-300 px-8"
+          className="shrink-0 gap-2 bg-[#087a5c] text-white hover:bg-[#06674e] dark:bg-[#159b73] dark:hover:bg-[#20ad83]"
         >
           {isCreating ? (
             <>
-              <Loader2 className="h-5 w-5 mr-2 animate-spin" />
-              Creating Connection...
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Preparing…
             </>
           ) : (
             <>
-              <Plus className="h-5 w-5 mr-2" />
-              Add Your First Connection
+              <Plus className="h-4 w-4" />
+              Add first connection
             </>
           )}
         </Button>
-
-        {/* Helper text */}
-        <p className="text-xs text-gray-400 dark:text-dark-text-tertiary mt-4">
-          You'll need your phone nearby to scan the QR code
-        </p>
       </div>
-    </div>
+    </section>
   );
 }

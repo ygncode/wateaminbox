@@ -118,10 +118,17 @@ export function NotificationSettings() {
         </div>
       )}
 
-      {/* Main settings */}
-      <div className="rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-elevated divide-y divide-gray-100 dark:divide-dark-border">
+      {/* Delivery preferences */}
+      <section className="divide-y divide-[#e8ece9] overflow-hidden rounded-2xl border border-[#dce3de] bg-white shadow-[0_1px_2px_rgba(16,33,27,.03)] dark:divide-dark-border dark:border-dark-border dark:bg-dark-elevated">
+        <header className="p-5 sm:p-6">
+          <h3 className="font-semibold">Delivery preferences</h3>
+          <p className="mt-1 text-sm leading-6 text-[#65736d] dark:text-dark-text-secondary">
+            Choose how and when this browser should alert you.
+          </p>
+        </header>
+
         {/* Enable/disable */}
-        <div className="p-4 flex items-center justify-between">
+        <div className="flex items-center justify-between gap-4 p-5 sm:px-6">
           <div className="flex items-center gap-3">
             {settings.enabled ? (
               <Bell className="h-5 w-5 text-gray-600 dark:text-dark-text-secondary" />
@@ -129,7 +136,7 @@ export function NotificationSettings() {
               <BellOff className="h-5 w-5 text-gray-400 dark:text-dark-text-tertiary" />
             )}
             <div>
-              <Label className="font-medium">Desktop Notifications</Label>
+              <Label className="font-medium">Desktop notifications</Label>
               <p className="text-sm text-gray-500 dark:text-dark-text-secondary">
                 Show notifications for new messages
               </p>
@@ -143,7 +150,7 @@ export function NotificationSettings() {
         </div>
 
         {/* Sound settings */}
-        <div className="p-4 flex items-center justify-between">
+        <div className="flex items-center justify-between gap-4 p-5 sm:px-6">
           <div className="flex items-center gap-3">
             {settings.soundEnabled ? (
               <Volume2 className="h-5 w-5 text-gray-600 dark:text-dark-text-secondary" />
@@ -151,7 +158,7 @@ export function NotificationSettings() {
               <VolumeX className="h-5 w-5 text-gray-400 dark:text-dark-text-tertiary" />
             )}
             <div>
-              <Label className="font-medium">Notification Sound</Label>
+              <Label className="font-medium">Notification sound</Label>
               <p className="text-sm text-gray-500 dark:text-dark-text-secondary">
                 Play a sound when receiving notifications
               </p>
@@ -167,8 +174,8 @@ export function NotificationSettings() {
 
         {/* Sound choice */}
         {settings.soundEnabled && (
-          <div className="p-4">
-            <div className="flex items-center justify-between">
+          <div className="p-5 sm:px-6">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <Label className="font-medium">Sound</Label>
               <Select
                 value={settings.soundChoice}
@@ -192,12 +199,12 @@ export function NotificationSettings() {
         )}
 
         {/* Quiet hours */}
-        <div className="p-4">
-          <div className="flex items-center justify-between mb-3">
+        <div className="p-5 sm:px-6">
+          <div className="mb-3 flex items-center justify-between gap-4">
             <div className="flex items-center gap-3">
               <Moon className="h-5 w-5 text-gray-600 dark:text-dark-text-secondary" />
               <div>
-                <Label className="font-medium">Quiet Hours</Label>
+                <Label className="font-medium">Quiet hours</Label>
                 <p className="text-sm text-gray-500 dark:text-dark-text-secondary">
                   Pause notifications during specific hours
                 </p>
@@ -212,8 +219,8 @@ export function NotificationSettings() {
           </div>
 
           {settings.quietHoursEnabled && (
-            <div className="flex items-center gap-4 ml-8 mt-3">
-              <div className="flex items-center gap-2">
+            <div className="ml-0 mt-4 grid gap-3 sm:ml-8 sm:grid-cols-2">
+              <div className="flex items-center justify-between gap-2 sm:justify-start">
                 <Label
                   htmlFor="quiet-hours-start"
                   className="text-sm text-gray-500 dark:text-dark-text-secondary"
@@ -230,7 +237,7 @@ export function NotificationSettings() {
                   className="px-2 py-1 border border-gray-200 dark:border-dark-border dark:bg-dark-tertiary dark:text-dark-text-primary rounded text-sm"
                 />
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center justify-between gap-2 sm:justify-start">
                 <Label
                   htmlFor="quiet-hours-end"
                   className="text-sm text-gray-500 dark:text-dark-text-secondary"
@@ -250,15 +257,22 @@ export function NotificationSettings() {
             </div>
           )}
         </div>
-      </div>
-
-      {/* Test notification button */}
-      {permission === "granted" && settings.enabled && (
-        <Button variant="outline" onClick={testNotification} className="gap-2">
-          <TestTube2 className="h-4 w-4" />
-          Send Test Notification
-        </Button>
-      )}
+        {permission === "granted" && settings.enabled && (
+          <footer className="flex flex-col gap-3 bg-[#fbfcfb] p-5 dark:bg-white/[0.02] sm:flex-row sm:items-center sm:justify-between sm:px-6">
+            <p className="text-xs text-[#65736d] dark:text-dark-text-secondary">
+              Confirm that notifications work on this device.
+            </p>
+            <Button
+              variant="outline"
+              onClick={testNotification}
+              className="gap-2 self-start sm:self-auto"
+            >
+              <TestTube2 className="h-4 w-4" />
+              Send test notification
+            </Button>
+          </footer>
+        )}
+      </section>
     </div>
   );
 }

@@ -125,6 +125,8 @@ export async function listConnections(
     .updateTable("whatsapp_connections")
     .set({
       status: "disconnected",
+      qr_code: null,
+      qr_expires_at: null,
       updated_at: toDbDate(),
     })
     .where("status", "=", "pending")
@@ -272,6 +274,8 @@ export async function killConnection(
       .updateTable("whatsapp_connections")
       .set({
         status: "disconnected",
+        qr_code: null,
+        qr_expires_at: null,
         updated_at: toDbDate(),
       })
       .where("id", "=", connectionId)

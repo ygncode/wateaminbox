@@ -1,3 +1,4 @@
+import { formatStatusTime } from "@wateaminbox/shared";
 import {
   AlertCircle,
   Check,
@@ -11,7 +12,6 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { formatStatusTime } from "@wateaminbox/shared";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -31,6 +31,7 @@ import {
 import { useTags } from "@/hooks/useContact";
 import type { WhatsAppLabel } from "@/hooks/useLabels";
 import { useLabels } from "@/hooks/useLabels";
+import { cn } from "@/lib/utils";
 
 /**
  * WhatsApp Labels Sync Manager Component
@@ -129,50 +130,46 @@ export function LabelSyncManager() {
 
   return (
     <div className="space-y-6">
-      {/* Description */}
-      <p className="text-sm text-gray-600 dark:text-dark-text-secondary">
-        {t(
-          "labels.description",
-          "Sync your WhatsApp Business labels with custom tags. This allows you to organize contacts consistently across both platforms.",
-        )}
-      </p>
-
-      {/* Status Summary */}
+      {/* Status summary */}
       {status && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <div className="bg-blue-50 dark:bg-blue-900/30 rounded-lg p-3">
-            <div className="text-2xl font-bold text-blue-700 dark:text-blue-400">
-              {status.totalLabels}
+        <dl className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          {[
+            {
+              value: status.totalLabels,
+              label: t("labels.stats.whatsappLabels", "WhatsApp labels"),
+            },
+            {
+              value: status.linkedLabels,
+              label: t("labels.stats.linked", "Linked"),
+              active: true,
+            },
+            {
+              value: status.unlinkedLabels,
+              label: t("labels.stats.unlinked", "Unlinked"),
+            },
+            {
+              value: status.totalTags,
+              label: t("labels.stats.customTags", "Workspace tags"),
+            },
+          ].map((item) => (
+            <div
+              key={item.label}
+              className="rounded-xl border border-[#e2e8e3] bg-[#f8faf8] p-3.5 dark:border-white/[0.07] dark:bg-white/[0.025]"
+            >
+              <dd
+                className={cn(
+                  "text-xl font-semibold tabular-nums text-[#10211b] dark:text-dark-text-primary",
+                  item.active && "text-[#087a5c] dark:text-emerald-300",
+                )}
+              >
+                {item.value}
+              </dd>
+              <dt className="mt-1 text-xs text-[#65736d] dark:text-dark-text-secondary">
+                {item.label}
+              </dt>
             </div>
-            <div className="text-xs text-blue-600 dark:text-blue-300">
-              {t("labels.stats.whatsappLabels", "WhatsApp Labels")}
-            </div>
-          </div>
-          <div className="bg-green-50 dark:bg-green-900/30 rounded-lg p-3">
-            <div className="text-2xl font-bold text-green-700 dark:text-green-400">
-              {status.linkedLabels}
-            </div>
-            <div className="text-xs text-green-600 dark:text-green-300">
-              {t("labels.stats.linked", "Linked")}
-            </div>
-          </div>
-          <div className="bg-yellow-50 dark:bg-yellow-900/30 rounded-lg p-3">
-            <div className="text-2xl font-bold text-yellow-700 dark:text-yellow-400">
-              {status.unlinkedLabels}
-            </div>
-            <div className="text-xs text-yellow-600 dark:text-yellow-300">
-              {t("labels.stats.unlinked", "Unlinked")}
-            </div>
-          </div>
-          <div className="bg-purple-50 dark:bg-purple-900/30 rounded-lg p-3">
-            <div className="text-2xl font-bold text-purple-700 dark:text-purple-400">
-              {status.totalTags}
-            </div>
-            <div className="text-xs text-purple-600 dark:text-purple-300">
-              {t("labels.stats.customTags", "Custom Tags")}
-            </div>
-          </div>
-        </div>
+          ))}
+        </dl>
       )}
 
       {/* Action Buttons */}
@@ -219,11 +216,11 @@ export function LabelSyncManager() {
 
       {/* Labels List */}
       {isLoading ? (
-        <div className="flex items-center justify-center py-8">
+        <div className="flex items-center justify-center rounded-xl border border-[#e2e8e3] bg-[#f8faf8] py-10 dark:border-white/[0.07] dark:bg-white/[0.025]">
           <Loader2 className="h-6 w-6 animate-spin text-gray-400 dark:text-dark-text-tertiary" />
         </div>
       ) : labels.length === 0 ? (
-        <div className="text-center py-8 text-gray-500 dark:text-dark-text-secondary">
+        <div className="rounded-xl border border-dashed border-[#d6dfd9] bg-[#f8faf8] px-5 py-10 text-center text-gray-500 dark:border-white/[0.1] dark:bg-white/[0.025] dark:text-dark-text-secondary">
           <Tag className="h-12 w-12 mx-auto mb-3 text-gray-300 dark:text-dark-text-tertiary" />
           <p className="font-medium">
             {t("labels.empty", "No WhatsApp labels found")}
@@ -245,7 +242,7 @@ export function LabelSyncManager() {
             return (
               <div
                 key={label.id}
-                className="flex items-center gap-3 p-3 rounded-lg border border-gray-200 dark:border-dark-border hover:border-gray-300 dark:hover:border-dark-text-tertiary hover:bg-gray-50 dark:hover:bg-dark-tertiary transition-colors group"
+                className="group flex items-center gap-3 rounded-xl border border-[#e2e8e3] bg-[#fbfcfb] p-3.5 transition-colors hover:border-[#c8d3cc] hover:bg-[#f8faf8] dark:border-white/[0.07] dark:bg-white/[0.02] dark:hover:border-white/[0.14] dark:hover:bg-white/[0.04]"
                 data-testid={`label-item-${label.labelId}`}
               >
                 {/* Color indicator */}
