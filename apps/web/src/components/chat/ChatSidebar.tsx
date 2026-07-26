@@ -15,7 +15,8 @@ export interface ChatSidebarProps {
 }
 
 /**
- * Chat sidebar with tabs for Chats and Groups views
+ * Chat sidebar where Chats contains every conversation and Groups is a
+ * group-only filter, matching WhatsApp's inclusive conversation list.
  */
 export const ChatSidebar = memo(function ChatSidebar({
   selectedChatId,

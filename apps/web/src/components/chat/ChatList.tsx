@@ -38,7 +38,7 @@ export const ChatList = memo(function ChatList({
     isLoading,
     isError,
     error,
-  } = useChats(searchQuery, false, assignmentFilter);
+  } = useChats(searchQuery, true, assignmentFilter);
 
   const handleSearchChange = useCallback((value: string) => {
     setSearchQuery(value);

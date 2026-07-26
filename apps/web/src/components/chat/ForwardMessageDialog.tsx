@@ -6,6 +6,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { IdentityAvatarFallback } from "@/components/ui/identity-avatar-fallback";
 import { formatPhoneLikeText, formatPhoneNumber } from "@/lib/utils";
 import { useForwardContacts } from "../../hooks/useForwardContacts";
 import type { Chat } from "../../types/chat";
@@ -255,9 +256,11 @@ const ContactListItem = memo(function ContactListItem({
               <Users className="w-5 h-5" />
             </div>
           ) : (
-            <div className="w-full h-full flex items-center justify-center bg-whatsapp-teal-green text-white text-base font-semibold">
-              {displayName.charAt(0).toUpperCase()}
-            </div>
+            <IdentityAvatarFallback
+              displayName={displayName}
+              identity={contact.jid || contact.phoneNumber || contact.id}
+              className="text-base"
+            />
           )}
         </div>
         {/* Online Indicator */}

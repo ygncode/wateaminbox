@@ -1,5 +1,6 @@
 import { formatChatListTime } from "@wateaminbox/shared";
 import { memo, useCallback, useMemo } from "react";
+import { IdentityAvatarFallback } from "@/components/ui/identity-avatar-fallback";
 import {
   extractPhoneFromJID,
   formatPhoneLikeText,
@@ -136,9 +137,11 @@ export const ChatListItem = memo(function ChatListItem({
               </svg>
             </div>
           ) : (
-            <div className="w-full h-full flex items-center justify-center bg-whatsapp-teal-green text-white text-lg font-medium">
-              {displayName.charAt(0).toUpperCase()}
-            </div>
+            <IdentityAvatarFallback
+              displayName={displayName}
+              identity={contact.jid || contact.phoneNumber || contact.id}
+              className="text-lg"
+            />
           )}
         </div>
         {/* Online Indicator - only for individual contacts */}

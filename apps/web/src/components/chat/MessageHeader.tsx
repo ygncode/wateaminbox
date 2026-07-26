@@ -1,6 +1,7 @@
 import type { Contact } from "@wateaminbox/shared";
 import { formatLastSeen } from "@wateaminbox/shared";
 import { ArrowLeft } from "lucide-react";
+import { IdentityAvatarFallback } from "@/components/ui/identity-avatar-fallback";
 import { useGroup } from "@/hooks/useGroups";
 import { formatPhoneLikeText } from "@/lib/utils";
 import { ThemeToggle } from "./ThemeToggle";
@@ -71,9 +72,12 @@ export function MessageHeader({
                 className="w-full h-full object-cover"
               />
             ) : (
-              <div className="w-full h-full flex items-center justify-center bg-whatsapp-teal-green text-white text-lg font-medium">
-                {getInitials(displayName)}
-              </div>
+              <IdentityAvatarFallback
+                displayName={displayName}
+                identity={contact.jid || contact.phoneNumber || contact.id}
+                kind={contact.isGroup ? "group" : "user"}
+                className="text-lg"
+              />
             )}
           </div>
           {/* Online indicator */}
@@ -154,20 +158,6 @@ export function MessageHeader({
         </button>
       </div>
     </header>
-  );
-}
-
-// Helper function to get initials from name
-function getInitials(name: string | null | undefined): string {
-  if (!name) return "?";
-  return (
-    name
-      .split(" ")
-      .map((part) => part[0])
-      .filter(Boolean)
-      .join("")
-      .toUpperCase()
-      .slice(0, 2) || "?"
   );
 }
 

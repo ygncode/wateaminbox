@@ -1,4 +1,5 @@
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { IdentityAvatarFallback } from "@/components/ui/identity-avatar-fallback";
 import type { ContactData } from "./types";
 
 interface ProfileHeaderProps {
@@ -9,13 +10,6 @@ interface ProfileHeaderProps {
  * Profile header with avatar and display name
  */
 export function ProfileHeader({ contact }: ProfileHeaderProps) {
-  const initials = contact.displayName
-    .split(" ")
-    .map((n) => n[0])
-    .join("")
-    .toUpperCase()
-    .slice(0, 2);
-
   return (
     <div className="flex flex-col items-center gap-4 bg-gray-50 dark:bg-dark-elevated py-8">
       <Avatar className="h-32 w-32 border-4 border-white dark:border-dark-tertiary shadow-lg">
@@ -23,8 +17,14 @@ export function ProfileHeader({ contact }: ProfileHeaderProps) {
           src={contact.profilePictureUrl || undefined}
           alt={contact.displayName}
         />
-        <AvatarFallback className="bg-whatsapp-teal-green text-3xl text-white">
-          {initials}
+        <AvatarFallback className="p-0">
+          <IdentityAvatarFallback
+            displayName={contact.displayName}
+            identity={contact.jid || contact.phoneNumber || contact.id}
+            kind={contact.isGroup ? "group" : "user"}
+            className="text-3xl"
+            iconClassName="h-1/2 w-1/2"
+          />
         </AvatarFallback>
       </Avatar>
       <div className="text-center">

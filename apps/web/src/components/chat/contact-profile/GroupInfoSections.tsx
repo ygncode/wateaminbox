@@ -2,6 +2,7 @@ import { Crown, Users } from "lucide-react";
 import { useMemo, useState } from "react";
 import { RightPanelSection } from "@/components/layout/right-panel";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { IdentityAvatarFallback } from "@/components/ui/identity-avatar-fallback";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { GroupDetail, GroupParticipant } from "@/hooks/useGroups";
 import { formatPhoneLikeText, formatPhoneNumber } from "@/lib/utils";
@@ -102,12 +103,6 @@ export function GroupInfoSections({
 
 function ParticipantRow({ participant }: { participant: GroupParticipant }) {
   const displayName = formatPhoneLikeText(participant.displayName);
-  const initials = displayName
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((part) => part[0])
-    .join("")
-    .toUpperCase();
   const phone = participant.phoneNumber
     ? formatPhoneNumber(participant.phoneNumber)
     : null;
@@ -119,8 +114,12 @@ function ParticipantRow({ participant }: { participant: GroupParticipant }) {
           src={participant.profilePictureUrl || undefined}
           alt={displayName}
         />
-        <AvatarFallback className="bg-gray-200 text-sm font-semibold text-gray-700 dark:bg-dark-tertiary dark:text-dark-text-primary">
-          {initials || "?"}
+        <AvatarFallback className="p-0">
+          <IdentityAvatarFallback
+            displayName={displayName}
+            identity={participant.jid}
+            className="text-sm"
+          />
         </AvatarFallback>
       </Avatar>
       <div className="min-w-0 flex-1">

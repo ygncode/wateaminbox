@@ -46,6 +46,22 @@ export const chatKeys = {
     [...queryKeys.chats.all, "groups", filters] as const,
 };
 
+export function buildChatListQueryParams(
+  searchQuery: string,
+  includeGroups: boolean,
+  assignmentFilter: AssignmentFilter,
+): Record<string, unknown> {
+  const params: Record<string, unknown> = { limit: 100 };
+  if (searchQuery.trim()) params.search = searchQuery;
+  if (includeGroups) params.includeGroups = "true";
+  if (assignmentFilter === "assignedToMe") {
+    params.assignedToMe = "true";
+  } else if (assignmentFilter === "unassigned") {
+    params.unassigned = "true";
+  }
+  return params;
+}
+
 /**
  * Hook to fetch and manage chat list data
  * Supports search filtering, group inclusion, and assignment filtering
@@ -83,23 +99,9 @@ export function useChats(
         return [];
       }
 
-      // Build query params
-      const params: Record<string, unknown> = {
-        limit: 100,
-      };
-      if (searchQuery.trim()) {
-        params.search = searchQuery;
-      }
-      if (includeGroups) {
-        params.includeGroups = "true";
-      }
-      if (assignmentFilter === "assignedToMe") {
-        params.assignedToMe = "true";
-      } else if (assignmentFilter === "unassigned") {
-        params.unassigned = "true";
-      }
-
-      const queryString = buildQueryString(params);
+      const queryString = buildQueryString(
+        buildChatListQueryParams(searchQuery, includeGroups, assignmentFilter),
+      );
       const result = await api.get<ContactsListResponse>(
         `/contacts${queryString}`,
       );

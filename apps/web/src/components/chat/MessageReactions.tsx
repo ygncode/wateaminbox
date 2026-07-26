@@ -10,6 +10,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "../ui/dialog";
+import { IdentityAvatarFallback } from "../ui/identity-avatar-fallback";
 
 interface MessageReactionsProps {
   reactions: MessageReaction[];
@@ -33,18 +34,6 @@ export function getReactorIdentityLabel(
     reaction.reactorPhoneNumber?.trim() ||
     formatReactorJid(reaction.reactorJid);
   return phone.startsWith("+") ? formatPhoneNumber(phone) : phone;
-}
-
-function getInitials(name: string): string {
-  return (
-    name
-      .split(/\s+/)
-      .filter(Boolean)
-      .slice(0, 2)
-      .map((part) => part[0])
-      .join("")
-      .toUpperCase() || "?"
-  );
 }
 
 /** Displays compact reaction badges and a WhatsApp-style reactor list. */
@@ -225,8 +214,12 @@ function ReactorRow({ reaction }: { reaction: MessageReaction }) {
             className="object-cover"
           />
         )}
-        <AvatarFallback className="bg-emerald-50 text-sm font-semibold text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300">
-          {getInitials(displayName)}
+        <AvatarFallback className="p-0">
+          <IdentityAvatarFallback
+            displayName={displayName}
+            identity={reaction.reactorPhoneNumber || reaction.reactorJid}
+            className="text-sm"
+          />
         </AvatarFallback>
       </Avatar>
       <div className="min-w-0 flex-1">

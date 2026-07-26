@@ -3,15 +3,19 @@ import { describe, expect, test } from "bun:test";
 const readSource = async (relativePath: string) =>
   Bun.file(new URL(relativePath, import.meta.url)).text();
 
-describe("chat and group sidebar separation", () => {
-  test("the Chats tab excludes groups because Groups has its own tab", async () => {
+describe("inclusive chat list and group filtering", () => {
+  test("the Chats tab includes direct and group conversations", async () => {
     const chatList = await readSource("../chat/ChatList.tsx");
-    expect(chatList).toContain(
+    expect(chatList).toContain("useChats(searchQuery, true, assignmentFilter)");
+    expect(chatList).not.toContain(
       "useChats(searchQuery, false, assignmentFilter)",
     );
-    expect(chatList).not.toContain(
-      "useChats(searchQuery, true, assignmentFilter)",
-    );
+  });
+
+  test("the Groups tab remains a group-only filter", async () => {
+    const sidebar = await readSource("../chat/ChatSidebar.tsx");
+    expect(sidebar).toContain('activeView === "groups"');
+    expect(sidebar).toContain("<GroupList");
   });
 
   test("does not present missing participant metadata as a real zero", async () => {

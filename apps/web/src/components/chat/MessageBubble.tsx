@@ -3,6 +3,7 @@ import { formatMessageTime } from "@wateaminbox/shared";
 import { lazy, memo, Suspense, useCallback, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
+import { IdentityAvatarFallback } from "@/components/ui/identity-avatar-fallback";
 import { formatPhoneLikeText } from "@/lib/utils";
 import { useMessageActions } from "../../contexts";
 import { useClickOutside } from "../../hooks/ui";
@@ -512,16 +513,9 @@ function getParticipantLabel(message: Message): string {
 function GroupParticipantAvatar({ message }: { message: Message }) {
   const [imageFailed, setImageFailed] = useState(false);
   const label = getParticipantLabel(message);
-  const initials = label
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((part) => part[0])
-    .join("")
-    .toUpperCase();
-
   return (
     <div
-      className="mr-2 mb-1 flex h-8 w-8 shrink-0 self-end items-center justify-center overflow-hidden rounded-full bg-slate-300 text-[11px] font-bold text-slate-700 shadow-sm ring-1 ring-black/5 dark:bg-slate-700 dark:text-slate-200 dark:ring-white/10"
+      className="mr-2 mb-1 flex h-8 w-8 shrink-0 self-end items-center justify-center overflow-hidden rounded-full shadow-sm ring-1 ring-black/5 dark:ring-white/10"
       title={label}
       aria-label={`${label}'s profile picture`}
     >
@@ -533,7 +527,11 @@ function GroupParticipantAvatar({ message }: { message: Message }) {
           onError={() => setImageFailed(true)}
         />
       ) : (
-        <span aria-hidden="true">{initials || "?"}</span>
+        <IdentityAvatarFallback
+          displayName={label}
+          identity={message.senderJid || message.senderId}
+          className="text-[11px]"
+        />
       )}
     </div>
   );
