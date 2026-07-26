@@ -18,11 +18,18 @@ export type AuditAction =
   | "contact.updated"
   | "contact.assigned"
   | "contact.unassigned"
+  | "contact.blocked"
+  | "contact.unblocked"
+  | "contact.note.created"
+  | "contact.note.updated"
+  | "contact.note.deleted"
   | "message.sent"
   | "message.deleted"
   | "tag.created"
   | "tag.deleted"
-  | "company.updated";
+  | "company.updated"
+  | "conversation.resolved"
+  | "conversation.reopened";
 
 /**
  * Audit log entry
@@ -36,6 +43,13 @@ export interface AuditLog {
   details: Record<string, unknown> | null;
   ipAddress: string | null;
   createdAt: string;
+  actor: AuditActor | null;
+}
+
+export interface AuditActor {
+  id: string;
+  name: string | null;
+  email: string;
 }
 
 /**
@@ -107,6 +121,18 @@ export function useAuditActions() {
     },
     staleTime: 300_000, // 5 minutes
     gcTime: 600_000, // 10 minutes
+  });
+}
+
+/** Actors available to the current workspace audit viewer. */
+export function useAuditActors() {
+  return useQuery({
+    queryKey: queryKeys.audit.actors(),
+    queryFn: async () => {
+      const response = await api.get<{ data: AuditActor[] }>("/audit/actors");
+      return response.data;
+    },
+    staleTime: 300_000,
   });
 }
 

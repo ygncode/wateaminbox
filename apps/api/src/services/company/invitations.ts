@@ -150,21 +150,24 @@ export async function getPendingInvitations(
   companyId: string,
 ): Promise<Invitation[]> {
   const invitations = await db
-    .selectFrom("invitations")
+    .selectFrom("invitations as i")
+    .innerJoin("users as inviter", "inviter.id", "i.invited_by")
     .select([
-      "id",
-      "company_id",
-      "email",
-      "role",
-      "token",
-      "invited_by",
-      "expires_at",
-      "accepted_at",
-      "created_at",
+      "i.id",
+      "i.company_id",
+      "i.email",
+      "i.role",
+      "i.token",
+      "i.invited_by",
+      "inviter.name as inviter_name",
+      "inviter.email as inviter_email",
+      "i.expires_at",
+      "i.accepted_at",
+      "i.created_at",
     ])
-    .where("company_id", "=", companyId)
-    .where("accepted_at", "is", null)
-    .where("expires_at", ">", toDbDate())
+    .where("i.company_id", "=", companyId)
+    .where("i.accepted_at", "is", null)
+    .where("i.expires_at", ">", toDbDate())
     .execute();
 
   return invitations as unknown as Invitation[];

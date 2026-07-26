@@ -19,8 +19,8 @@ import {
   getPushStatus,
   getUnreadNotificationCount,
   muteContactApi,
-  subscribeToPush,
   type NotificationPreferencesResponse,
+  subscribeToPush,
   type UpdateNotificationPreferencesInput,
   unmuteContactApi,
   unsubscribeFromPush,
@@ -41,12 +41,13 @@ import {
   type NotificationSettings,
   requestNotificationPermission,
   saveNotificationSettings,
-  setNotificationSettingsScope,
   sendTestNotification,
+  setNotificationSettingsScope,
   showMessageNotification,
 } from "../lib/notifications";
 import { useAuth } from "./auth-context";
 import { useRealtimeContext } from "./RealtimeProvider";
+import { useWorkspace } from "./workspace-context";
 
 export interface NotificationContextValue {
   settings: NotificationSettings;
@@ -139,7 +140,8 @@ export function NotificationProvider({
 }) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { isAuthenticated, currentCompanyId, user } = useAuth();
+  const { isAuthenticated, user } = useAuth();
+  const { activeWorkspaceId: currentCompanyId } = useWorkspace();
   const { subscribe, subscribeUser, isConnected } = useRealtimeContext();
   setNotificationSettingsScope(currentCompanyId, user?.id ?? null);
   const [settings, setSettings] = useState(getNotificationSettings);

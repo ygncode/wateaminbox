@@ -20,35 +20,27 @@ export function AppLayout({ className, children, ...props }: AppLayoutProps) {
   const isTablet = useIsTablet();
 
   return (
-    <>
-      {/* Skip to main content link for keyboard navigation */}
-      <a href="#main-content" className="skip-link">
-        Skip to main content
-      </a>
+    <div
+      className={cn(
+        "flex h-full w-full overflow-hidden bg-gray-200 dark:bg-dark-primary",
+        // Safe area insets for mobile devices (notch, home indicator)
+        "safe-area-inset",
+        className,
+      )}
+      {...props}
+    >
       <div
         className={cn(
-          "flex h-dvh w-screen overflow-hidden bg-gray-200 dark:bg-dark-primary",
-          // Safe area insets for mobile devices (notch, home indicator)
-          "safe-area-inset",
-          className,
+          "mx-auto flex h-full w-full shadow-xl scroll-mt-4",
+          // Responsive max-width
+          !isMobile && "max-w-[1600px]",
+          // On tablet, hide right panel by default (handled in children)
+          isTablet && !isMobile && "max-w-[1200px]",
         )}
-        {...props}
       >
-        <div
-          id="main-content"
-          className={cn(
-            "mx-auto flex h-full w-full shadow-xl scroll-mt-4",
-            // Responsive max-width
-            !isMobile && "max-w-[1600px]",
-            // On tablet, hide right panel by default (handled in children)
-            isTablet && !isMobile && "max-w-[1200px]",
-          )}
-          tabIndex={-1}
-        >
-          {children}
-        </div>
+        {children}
       </div>
-    </>
+    </div>
   );
 }
 

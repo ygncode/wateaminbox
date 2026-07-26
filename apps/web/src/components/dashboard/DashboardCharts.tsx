@@ -10,8 +10,8 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatNumber } from "@/hooks/analytics";
+import { HourlyChart, MessageChart, NewContactsChart } from "./charts";
 import { StatRow } from "./StatRow";
-import { MessageChart, HourlyChart, NewContactsChart } from "./charts";
 
 // =====================
 // Types
@@ -192,6 +192,9 @@ export function StatsCardsRow({
           <h3 className="font-semibold text-gray-900 dark:text-dark-text-primary">
             Contact Stats
           </h3>
+          <span className="ml-auto text-[10px] font-semibold uppercase tracking-wide text-gray-400">
+            All time
+          </span>
         </div>
         {isLoadingContacts ? (
           <div className="space-y-3">
@@ -281,6 +284,9 @@ export function StatsCardsRow({
             <h3 className="font-semibold text-gray-900 dark:text-dark-text-primary">
               Team Activity
             </h3>
+            <span className="ml-auto text-[10px] font-semibold uppercase tracking-wide text-gray-400">
+              All time
+            </span>
           </div>
           {isLoadingTeam ? (
             <div className="space-y-3">

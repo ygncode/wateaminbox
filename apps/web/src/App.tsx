@@ -1,13 +1,15 @@
-import { Suspense, lazy } from "react";
+import { lazy, type ReactNode, Suspense } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 import { Toaster } from "sonner";
-import { ProtectedRoute } from "./components/auth";
+import {
+  LegacyWorkspaceRedirect,
+  ProtectedRoute,
+  WorkspaceRouteGuard,
+} from "./components/auth";
 import { ProtectedAppLayout } from "./components/layout/ProtectedAppLayout";
 import { KeyboardShortcutsModal } from "./components/settings";
 import { PageSkeleton } from "./components/ui";
 
-// Lazy load all page components for code splitting
-// Each page becomes a separate chunk, loaded only when navigating to that route
 const LoginPage = lazy(() =>
   import("./pages/LoginPage").then((m) => ({ default: m.LoginPage })),
 );
@@ -32,6 +34,11 @@ const VerifyEmailPage = lazy(() =>
 const CompanySetupPage = lazy(() =>
   import("./pages/CompanySetupPage").then((m) => ({
     default: m.CompanySetupPage,
+  })),
+);
+const WorkspaceChooserPage = lazy(() =>
+  import("./pages/WorkspaceChooserPage").then((m) => ({
+    default: m.WorkspaceChooserPage,
   })),
 );
 const ChatPage = lazy(() =>
@@ -60,153 +67,196 @@ const AcceptInvitationPage = lazy(() =>
   })),
 );
 
+function LazyPage({
+  children,
+  variant = "default",
+}: {
+  children: ReactNode;
+  variant?: "auth" | "chat" | "team" | "settings" | "dashboard" | "default";
+}) {
+  return (
+    <Suspense fallback={<PageSkeleton variant={variant} />}>
+      {children}
+    </Suspense>
+  );
+}
+
 function App() {
   return (
     <>
       <Routes>
-        {/* Public routes */}
         <Route
           path="/login"
           element={
-            <Suspense fallback={<PageSkeleton variant="auth" />}>
+            <LazyPage variant="auth">
               <LoginPage />
-            </Suspense>
+            </LazyPage>
           }
         />
         <Route
           path="/register"
           element={
-            <Suspense fallback={<PageSkeleton variant="auth" />}>
+            <LazyPage variant="auth">
               <RegisterPage />
-            </Suspense>
+            </LazyPage>
           }
         />
         <Route
           path="/forgot-password"
           element={
-            <Suspense fallback={<PageSkeleton variant="auth" />}>
+            <LazyPage variant="auth">
               <ForgotPasswordPage />
-            </Suspense>
+            </LazyPage>
           }
         />
         <Route
           path="/reset-password"
           element={
-            <Suspense fallback={<PageSkeleton variant="auth" />}>
+            <LazyPage variant="auth">
               <ResetPasswordPage />
-            </Suspense>
+            </LazyPage>
           }
         />
         <Route
           path="/verify-email"
           element={
-            <Suspense fallback={<PageSkeleton variant="auth" />}>
+            <LazyPage variant="auth">
               <VerifyEmailPage />
-            </Suspense>
+            </LazyPage>
           }
         />
 
-        {/* Company setup (protected but doesn't require company) */}
         <Route
           path="/company-setup"
           element={
             <ProtectedRoute requireCompany={false}>
-              <Suspense fallback={<PageSkeleton variant="auth" />}>
+              <LazyPage variant="auth">
                 <CompanySetupPage />
-              </Suspense>
+              </LazyPage>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/workspaces"
+          element={
+            <ProtectedRoute requireCompany={false}>
+              <LazyPage>
+                <WorkspaceChooserPage />
+              </LazyPage>
             </ProtectedRoute>
           }
         />
 
-        {/* Protected company application shell: one global notification center. */}
         <Route
           element={
             <ProtectedRoute>
-              <ProtectedAppLayout />
+              <WorkspaceRouteGuard />
             </ProtectedRoute>
           }
         >
-          <Route
-            path="/chat"
-            element={
-              <Suspense fallback={<PageSkeleton variant="chat" />}>
-                <ChatPage />
-              </Suspense>
-            }
-          />
-          <Route
-            path="/chat/:contactId"
-            element={
-              <Suspense fallback={<PageSkeleton variant="chat" />}>
-                <ChatPage />
-              </Suspense>
-            }
-          />
-          <Route
-            path="/team"
-            element={
-              <ProtectedRoute requiredPermission="can_manage_team">
-                <Suspense fallback={<PageSkeleton variant="team" />}>
-                  <TeamPage />
-                </Suspense>
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/settings"
-            element={
-              <Suspense fallback={<PageSkeleton variant="settings" />}>
-                <SettingsPage />
-              </Suspense>
-            }
-          />
-          <Route
-            path="/audit"
-            element={
-              <ProtectedRoute requiredPermission="can_view_audit">
-                <Suspense fallback={<PageSkeleton variant="default" />}>
-                  <AuditPage />
-                </Suspense>
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/dashboard"
-            element={
-              <ProtectedRoute requiredPermission="can_view_dashboard">
-                <Suspense fallback={<PageSkeleton variant="dashboard" />}>
-                  <DashboardPage />
-                </Suspense>
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/notifications"
-            element={
-              <Suspense fallback={<PageSkeleton variant="default" />}>
-                <NotificationsPage />
-              </Suspense>
-            }
-          />
+          <Route path="/w/:workspaceId" element={<ProtectedAppLayout />}>
+            <Route
+              path="chat"
+              element={
+                <LazyPage variant="chat">
+                  <ChatPage />
+                </LazyPage>
+              }
+            />
+            <Route
+              path="chat/:contactId"
+              element={
+                <LazyPage variant="chat">
+                  <ChatPage />
+                </LazyPage>
+              }
+            />
+            <Route
+              path="team"
+              element={
+                <ProtectedRoute
+                  requiredAnyPermission={["can_manage_team", "can_invite"]}
+                >
+                  <LazyPage variant="team">
+                    <TeamPage />
+                  </LazyPage>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="settings/:section?"
+              element={
+                <LazyPage variant="settings">
+                  <SettingsPage />
+                </LazyPage>
+              }
+            />
+            <Route
+              path="audit"
+              element={
+                <ProtectedRoute requiredPermission="can_view_audit">
+                  <LazyPage>
+                    <AuditPage />
+                  </LazyPage>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="dashboard"
+              element={
+                <ProtectedRoute requiredPermission="can_view_dashboard">
+                  <LazyPage variant="dashboard">
+                    <DashboardPage />
+                  </LazyPage>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="notifications"
+              element={
+                <LazyPage>
+                  <NotificationsPage />
+                </LazyPage>
+              }
+            />
+            <Route index element={<Navigate to="chat" replace />} />
+            <Route path="*" element={<Navigate to="chat" replace />} />
+          </Route>
         </Route>
 
-        {/* Public preview; authentication is required only when accepting. */}
+        {[
+          "/chat",
+          "/chat/:contactId",
+          "/settings",
+          "/settings/:section",
+          "/dashboard",
+          "/team",
+          "/audit",
+          "/notifications",
+        ].map((path) => (
+          <Route
+            key={path}
+            path={path}
+            element={
+              <ProtectedRoute>
+                <LegacyWorkspaceRedirect />
+              </ProtectedRoute>
+            }
+          />
+        ))}
+
         <Route
           path="/invite/:token"
           element={
-            <Suspense fallback={<PageSkeleton variant="default" />}>
+            <LazyPage>
               <AcceptInvitationPage />
-            </Suspense>
+            </LazyPage>
           }
         />
-
-        {/* Default redirect */}
         <Route path="/" element={<Navigate to="/chat" replace />} />
         <Route path="*" element={<Navigate to="/chat" replace />} />
       </Routes>
-      {/* Global keyboard shortcuts modal */}
       <KeyboardShortcutsModal />
-      {/* Toast notifications */}
       <Toaster position="top-right" richColors />
     </>
   );

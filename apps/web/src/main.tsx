@@ -9,6 +9,7 @@ import {
   AuthProvider,
   KeyboardShortcutsProvider,
   ThemeProvider,
+  WorkspaceProvider,
 } from "./contexts";
 import { NotificationProvider } from "./contexts/NotificationProvider";
 import { RealtimeProvider } from "./contexts/RealtimeProvider";
@@ -32,17 +33,19 @@ createRoot(document.getElementById("root")!).render(
       <BrowserRouter>
         <ErrorBoundary>
           <AuthProvider>
-            <ThemeProvider>
-              <RealtimeProvider>
-                <NotificationProvider>
-                  <KeyboardShortcutsProvider>
-                    <TooltipProvider>
-                      <App />
-                    </TooltipProvider>
-                  </KeyboardShortcutsProvider>
-                </NotificationProvider>
-              </RealtimeProvider>
-            </ThemeProvider>
+            <WorkspaceProvider>
+              <ThemeProvider>
+                <RealtimeProvider>
+                  <NotificationProvider>
+                    <KeyboardShortcutsProvider>
+                      <TooltipProvider>
+                        <App />
+                      </TooltipProvider>
+                    </KeyboardShortcutsProvider>
+                  </NotificationProvider>
+                </RealtimeProvider>
+              </ThemeProvider>
+            </WorkspaceProvider>
           </AuthProvider>
         </ErrorBoundary>
       </BrowserRouter>

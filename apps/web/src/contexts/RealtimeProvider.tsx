@@ -19,13 +19,13 @@ import { broadcastMessagesRead, sendTypingIndicator } from "../lib/api/actions";
 import {
   bindEvent,
   bindUserEvent,
+  type CompanyRealtimeEventType,
   connectRealtime,
   disconnectRealtime,
   getConnectionState,
   initializeRealtime,
   onConnectionStateChange,
   type RealtimeConnectionStatus,
-  type CompanyRealtimeEventType,
   type RealtimeEventData,
   subscribeToCompany,
   subscribeToUser,
@@ -39,6 +39,7 @@ import {
   type SyncState,
 } from "./realtime/event-handlers";
 import { reconcileSyncState } from "./realtime/sync-state";
+import { useWorkspace } from "./workspace-context";
 
 // Typing timeout in milliseconds
 const TYPING_TIMEOUT = 5000;
@@ -107,7 +108,8 @@ export function RealtimeProvider({
   const eventUnsubscribesRef = useRef<(() => void)[]>([]);
 
   // Get current company ID from auth context
-  const { currentCompanyId, user } = useAuth();
+  const { user } = useAuth();
+  const { activeWorkspaceId: currentCompanyId } = useWorkspace();
 
   // TanStack Query client for cache updates
   const queryClient = useQueryClient();

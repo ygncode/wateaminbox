@@ -159,6 +159,7 @@ export const queryKeys = {
     logs: <T extends object>(companyId: string | null, params?: T) =>
       ["audit", companyId, params] as const,
     actions: () => ["audit", getCompanyId(), "actions"] as const,
+    actors: () => ["audit", getCompanyId(), "actors"] as const,
   },
 
   // Quick replies - custom keys for quick reply management

@@ -76,6 +76,9 @@ export interface CompanyInvitation {
   role: Exclude<CompanyMemberRole, "owner">;
   token: string;
   invitedBy: string;
+  inviterName?: string | null;
+  inviterEmail?: string;
+  deliveryState?: "delivered" | "pending";
   expiresAt: string;
   createdAt: string;
 }

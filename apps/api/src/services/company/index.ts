@@ -4,47 +4,6 @@
  * Provides all company functions organized by domain.
  */
 
-// Types
-export type {
-  Company,
-  CompanyMember,
-  CompanyWithRole,
-  CreateCompanyInput,
-  UpdateCompanyInput,
-  Invitation,
-  InviteMemberInput,
-  AcceptInvitationResult,
-  InvitationPreview,
-} from "./types.js";
-
-// Core CRUD operations
-export {
-  createCompany,
-  getCompany,
-  updateCompany,
-  deleteCompany,
-} from "./core.js";
-
-// Member operations
-export {
-  getMembers,
-  getMemberRole,
-  hasPermission,
-  removeMember,
-  updateMemberRole,
-  getUserCompanies,
-} from "./members.js";
-
-// Invitation operations
-export {
-  inviteMember,
-  getPendingInvitations,
-  cancelInvitation,
-  acceptInvitation,
-  getInvitationByToken,
-  resendInvitation,
-} from "./invitations.js";
-
 // Re-export error classes for backward compatibility
 export {
   CompanyNotFoundError,
@@ -53,3 +12,43 @@ export {
   InvitationNotFoundError,
   UserAlreadyMemberError,
 } from "../../lib/errors.js";
+
+// Core CRUD operations
+export {
+  createCompany,
+  deleteCompany,
+  getCompany,
+  updateCompany,
+} from "./core.js";
+// Invitation operations
+export {
+  acceptInvitation,
+  cancelInvitation,
+  getInvitationByToken,
+  getPendingInvitations,
+  inviteMember,
+  resendInvitation,
+} from "./invitations.js";
+// Member operations
+export {
+  canManageMember,
+  getMemberRole,
+  getMembers,
+  getUserCompanies,
+  hasPermission,
+  removeMember,
+  transferOwnership,
+  updateMemberRole,
+} from "./members.js";
+// Types
+export type {
+  AcceptInvitationResult,
+  Company,
+  CompanyMember,
+  CompanyWithRole,
+  CreateCompanyInput,
+  Invitation,
+  InvitationPreview,
+  InviteMemberInput,
+  UpdateCompanyInput,
+} from "./types.js";

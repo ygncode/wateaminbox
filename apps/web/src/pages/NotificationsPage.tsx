@@ -11,6 +11,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { useWorkspace } from "@/contexts/workspace-context";
 import { useNotificationCenter } from "@/hooks/notification";
 import { navigateToNotificationTarget } from "@/lib/notification-navigation";
 import { cn } from "@/lib/utils";
@@ -19,6 +20,7 @@ const PAGE_SIZE = 25;
 
 export function NotificationsPage() {
   const navigate = useNavigate();
+  const { activeWorkspaceId } = useWorkspace();
   const [offset, setOffset] = useState(0);
   const [unreadOnly, setUnreadOnly] = useState(false);
   const controller = useNotificationCenter({
@@ -28,7 +30,7 @@ export function NotificationsPage() {
   });
 
   return (
-    <main className="min-h-dvh bg-gray-50 px-4 py-8 dark:bg-dark-primary sm:px-6 lg:px-8">
+    <main className="h-full overflow-y-auto bg-gray-50 px-4 py-8 dark:bg-dark-primary sm:px-6 lg:px-8">
       <div className="mx-auto max-w-3xl">
         <header className="mb-6 flex flex-wrap items-end justify-between gap-4">
           <div>
@@ -39,7 +41,7 @@ export function NotificationsPage() {
               Notifications
             </h1>
             <p className="mt-1 text-sm text-gray-500 dark:text-dark-text-secondary">
-              {controller.unreadCount} unread across your current company
+              {controller.unreadCount} unread in your current workspace
             </p>
           </div>
           {controller.unreadCount > 0 && (
@@ -113,6 +115,7 @@ export function NotificationsPage() {
                       navigateToNotificationTarget(
                         notification.actionUrl,
                         navigate,
+                        activeWorkspaceId,
                       );
                     }}
                     onKeyDown={(event) => {
@@ -123,6 +126,7 @@ export function NotificationsPage() {
                       navigateToNotificationTarget(
                         notification.actionUrl,
                         navigate,
+                        activeWorkspaceId,
                       );
                     }}
                   >

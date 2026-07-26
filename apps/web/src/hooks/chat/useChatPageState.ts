@@ -3,6 +3,10 @@ import type { Contact, Message } from "@wateaminbox/shared";
 import * as React from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
+import { useWorkspace } from "../../contexts/workspace-context";
+import { markConversationAsRead, uploadMedia } from "../../lib/api";
+import { workspacePath } from "../../lib/workspace-routes";
+import { useChatStore } from "../../stores/chat-store";
 import { chatKeys } from "../useChats";
 import { type ContactDetail, useContact } from "../useContact";
 import {
@@ -12,8 +16,6 @@ import {
   useSendMessage,
   useStarMessage,
 } from "../useMessages";
-import { markConversationAsRead, uploadMedia } from "../../lib/api";
-import { useChatStore } from "../../stores/chat-store";
 
 // Helper to map ContactDetail to Contact type expected by MessageHeader
 function mapContactDetailToContact(detail: ContactDetail): Contact {
@@ -99,6 +101,7 @@ export interface ChatPageActions {
 export function useChatPageState(): ChatPageState & ChatPageActions {
   const { contactId } = useParams<{ contactId?: string }>();
   const navigate = useNavigate();
+  const { activeWorkspaceId } = useWorkspace();
   const queryClient = useQueryClient();
 
   // Chat selection state
@@ -196,13 +199,10 @@ export function useChatPageState(): ChatPageState & ChatPageActions {
       setIsProfileOpen(false);
       setIsSearchOpen(false);
       setHighlightedMessageId(null);
-      if (chatId) {
-        navigate(`/chat/${chatId}`);
-      } else {
-        navigate("/chat");
-      }
+      if (!activeWorkspaceId) return;
+      navigate(workspacePath(activeWorkspaceId, "chat", chatId || undefined));
     },
-    [navigate],
+    [activeWorkspaceId, navigate],
   );
 
   // Profile panel handlers

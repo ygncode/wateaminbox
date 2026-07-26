@@ -175,6 +175,28 @@ export function useUpdateMemberPermissions() {
   });
 }
 
+/** Reset a member to the defaults for their assigned role. */
+export function useResetMemberPermissions() {
+  const { invalidate } = useQueryInvalidation();
+
+  return useMutation({
+    mutationFn: async ({
+      companyId,
+      userId,
+    }: {
+      companyId: string;
+      userId: string;
+    }) =>
+      api.post<{ effectivePermissions: MemberPermissions }>(
+        `/companies/${companyId}/members/${userId}/permissions/reset`,
+        {},
+      ),
+    onSuccess: (_, variables) => {
+      invalidate(queryKeys.team.members(variables.companyId));
+    },
+  });
+}
+
 /**
  * Hook to remove a member from the company
  */
@@ -250,6 +272,58 @@ export function useCreateCompany() {
     mutationFn: async ({ name }: { name: string }) => {
       return api.post<{ id: string; name: string }>("/companies", { name });
     },
+    onSuccess: invalidateCompanies,
+  });
+}
+
+/** Transfer workspace ownership to another member. */
+export function useTransferOwnership() {
+  const invalidateCompanies = useInvalidate(queryKeys.team.companies());
+  const { invalidate } = useQueryInvalidation();
+  return useMutation({
+    mutationFn: async ({
+      companyId,
+      userId,
+    }: {
+      companyId: string;
+      userId: string;
+    }) => api.post(`/companies/${companyId}/transfer-ownership`, { userId }),
+    onSuccess: (_, variables) => {
+      invalidateCompanies();
+      invalidate(queryKeys.team.members(variables.companyId));
+    },
+  });
+}
+
+/** Leave a workspace after ownership policy is satisfied. */
+export function useLeaveCompany() {
+  const invalidateCompanies = useInvalidate(queryKeys.team.companies());
+  return useMutation({
+    mutationFn: async (companyId: string) =>
+      api.post(`/companies/${companyId}/leave`, {}),
+    onSuccess: invalidateCompanies,
+  });
+}
+
+/** Delete a workspace. The API restricts this to its owner. */
+export function useDeleteCompany() {
+  const invalidateCompanies = useInvalidate(queryKeys.team.companies());
+  return useMutation({
+    mutationFn: async (companyId: string) =>
+      api.delete(`/companies/${companyId}`),
+    onSuccess: invalidateCompanies,
+  });
+}
+
+/** Update workspace details. The API enforces the membership hierarchy. */
+export function useUpdateCompany(companyId: string) {
+  const invalidateCompanies = useInvalidate(queryKeys.team.companies());
+
+  return useMutation({
+    mutationFn: async ({ name }: { name: string }) =>
+      api.patch<{ id: string; name: string }>(`/companies/${companyId}`, {
+        name,
+      }),
     onSuccess: invalidateCompanies,
   });
 }

@@ -1,64 +1,102 @@
 import type { CompanyMember, MemberPermissions } from "@wateaminbox/shared";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { cn } from "@/lib/utils";
 
-const permissionOptions: Array<{
-  key: keyof MemberPermissions;
+const permissionGroups: Array<{
   label: string;
-  description: string;
+  options: Array<{
+    key: keyof MemberPermissions;
+    label: string;
+    description: string;
+  }>;
 }> = [
   {
-    key: "can_view_all_chats",
-    label: "View all chats and groups",
-    description:
-      "Otherwise only conversations assigned to this member are visible.",
+    label: "Chat and messaging",
+    options: [
+      {
+        key: "can_view_all_chats",
+        label: "View all chats and groups",
+        description: "Otherwise only assigned conversations are visible.",
+      },
+      {
+        key: "can_send_messages",
+        label: "Send messages",
+        description: "Reply to visible WhatsApp conversations.",
+      },
+    ],
   },
   {
-    key: "can_send_messages",
-    label: "Send messages",
-    description: "Reply to visible WhatsApp conversations.",
+    label: "Contact management",
+    options: [
+      {
+        key: "can_assign_contacts",
+        label: "Assign contacts",
+        description: "Assign and reassign conversations.",
+      },
+    ],
   },
   {
-    key: "can_assign_contacts",
-    label: "Assign contacts",
-    description: "Assign and reassign conversations to team members.",
+    label: "Team management",
+    options: [
+      {
+        key: "can_manage_team",
+        label: "Manage team",
+        description: "View members and perform hierarchy-allowed actions.",
+      },
+      {
+        key: "can_invite",
+        label: "Invite members",
+        description: "Create, resend, and cancel invitations.",
+      },
+    ],
   },
   {
-    key: "can_manage_connections",
-    label: "Manage connections",
-    description: "Add, reconnect, rename, and remove WhatsApp connections.",
+    label: "Workspace administration",
+    options: [
+      {
+        key: "can_manage_connections",
+        label: "Manage connections",
+        description: "Manage WhatsApp connections.",
+      },
+      {
+        key: "can_view_dashboard",
+        label: "View dashboard",
+        description: "Access workspace analytics.",
+      },
+      {
+        key: "can_view_audit",
+        label: "View audit log",
+        description: "Access activity and security history.",
+      },
+    ],
   },
   {
-    key: "can_view_dashboard",
-    label: "View dashboard",
-    description: "Access workspace analytics and metrics.",
-  },
-  {
-    key: "can_manage_team",
-    label: "Manage team",
-    description: "View members and change roles or permissions.",
-  },
-  {
-    key: "can_invite",
-    label: "Invite members",
-    description: "Create, resend, and cancel invitations.",
-  },
-  {
-    key: "can_view_audit",
-    label: "View audit log",
-    description: "Access workspace activity and security history.",
-  },
-  {
-    key: "can_export",
-    label: "Export data",
-    description: "Export conversations and workspace records.",
-  },
-  {
-    key: "can_delete",
-    label: "Delete data",
-    description: "Perform destructive workspace actions.",
+    label: "Data management",
+    options: [
+      {
+        key: "can_export",
+        label: "Export data",
+        description: "Export workspace records.",
+      },
+      {
+        key: "can_delete",
+        label: "Delete data",
+        description: "Perform destructive data actions.",
+      },
+    ],
   },
 ];
+
+type AccessMode = "defaults" | "custom";
 
 interface MemberPermissionsDialogProps {
   member: CompanyMember | null;
@@ -66,6 +104,7 @@ interface MemberPermissionsDialogProps {
   error?: Error | null;
   onClose: () => void;
   onSave: (permissions: MemberPermissions) => Promise<void>;
+  onReset: () => Promise<void>;
 }
 
 export function MemberPermissionsDialog({
@@ -74,92 +113,172 @@ export function MemberPermissionsDialog({
   error,
   onClose,
   onSave,
+  onReset,
 }: MemberPermissionsDialogProps) {
   const [permissions, setPermissions] = useState<MemberPermissions | null>(
     null,
   );
+  const [mode, setMode] = useState<AccessMode>("defaults");
 
   useEffect(() => {
     setPermissions(member?.effectivePermissions ?? null);
+    setMode(
+      member?.permissions && Object.keys(member.permissions).length
+        ? "custom"
+        : "defaults",
+    );
   }, [member]);
 
-  if (!member || !permissions) return null;
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 dark:bg-black/70">
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="member-permissions-title"
-        className="max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-xl bg-white p-6 shadow-xl dark:bg-dark-elevated"
-      >
-        <h2
-          id="member-permissions-title"
-          className="text-lg font-semibold text-gray-900 dark:text-dark-text-primary"
-        >
-          Permissions for {member.email}
-        </h2>
-        <p className="mt-1 text-sm text-gray-500 dark:text-dark-text-secondary">
-          These settings override the {member.role} role defaults.
-        </p>
+    <Dialog open={member !== null} onOpenChange={(open) => !open && onClose()}>
+      {member && permissions && (
+        <DialogContent className="mx-4 max-h-[90dvh] w-[calc(100vw-2rem)] max-w-2xl overflow-y-auto rounded-2xl sm:w-full">
+          <DialogHeader>
+            <DialogTitle>Access for {member.name || member.email}</DialogTitle>
+            <DialogDescription>
+              Role hierarchy remains enforced by the server even when custom
+              capabilities are granted.
+            </DialogDescription>
+          </DialogHeader>
 
-        {error && (
           <div
-            role="alert"
-            className="mt-4 rounded-lg bg-red-50 p-3 text-sm text-red-700 dark:bg-red-950/30 dark:text-red-300"
+            className="grid grid-cols-2 gap-2 rounded-xl bg-[#edf1ed] p-1 dark:bg-dark-tertiary"
+            role="radiogroup"
+            aria-label="Permission mode"
           >
-            {error.message}
+            <ModeButton
+              active={mode === "defaults"}
+              onClick={() => setMode("defaults")}
+              title="Use role defaults"
+              description={`Follow the ${member.role} preset`}
+            />
+            <ModeButton
+              active={mode === "custom"}
+              onClick={() => setMode("custom")}
+              title="Customize access"
+              description="Override individual capabilities"
+            />
           </div>
-        )}
 
-        <div className="mt-5 divide-y divide-gray-100 rounded-lg border border-gray-200 dark:divide-dark-border dark:border-dark-border">
-          {permissionOptions.map((option) => (
-            <label
-              key={option.key}
-              className="flex cursor-pointer items-start gap-3 p-4"
+          {error && (
+            <div
+              role="alert"
+              className="rounded-lg bg-red-50 p-3 text-sm text-red-700 dark:bg-red-950/30 dark:text-red-300"
             >
-              <input
-                type="checkbox"
-                checked={permissions[option.key]}
-                onChange={(event) =>
-                  setPermissions((current) =>
-                    current
-                      ? { ...current, [option.key]: event.target.checked }
-                      : current,
-                  )
-                }
-                className="mt-1 h-4 w-4 rounded border-gray-300 text-whatsapp-teal-green focus:ring-whatsapp-teal-green"
-              />
-              <span>
-                <span className="block text-sm font-medium text-gray-900 dark:text-dark-text-primary">
-                  {option.label}
-                </span>
-                <span className="block text-xs text-gray-500 dark:text-dark-text-secondary">
-                  {option.description}
-                </span>
-              </span>
-            </label>
-          ))}
-        </div>
+              {error.message}
+            </div>
+          )}
 
-        <div className="mt-6 flex justify-end gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={onClose}
-            disabled={isSaving}
-          >
-            Cancel
-          </Button>
-          <Button
-            type="button"
-            onClick={() => void onSave(permissions)}
-            disabled={isSaving}
-          >
-            {isSaving ? "Saving…" : "Save permissions"}
-          </Button>
-        </div>
-      </div>
-    </div>
+          {mode === "defaults" ? (
+            <div className="rounded-xl border border-[#dce3de] p-5 text-sm dark:border-dark-border">
+              <p className="font-medium">Role defaults will be restored.</p>
+              <p className="mt-1 text-[#65736d] dark:text-dark-text-secondary">
+                Any custom overrides for this member will be removed.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-5">
+              {permissionGroups.map((group) => (
+                <fieldset
+                  key={group.label}
+                  className="overflow-hidden rounded-xl border border-[#dce3de] dark:border-dark-border"
+                >
+                  <legend className="ml-3 px-1 text-xs font-bold uppercase tracking-[0.12em] text-[#65736d] dark:text-dark-text-secondary">
+                    {group.label}
+                  </legend>
+                  <div className="divide-y divide-[#e6ebe7] dark:divide-dark-border">
+                    {group.options.map((option) => (
+                      <label
+                        key={option.key}
+                        className="flex cursor-pointer items-start gap-3 p-3.5 hover:bg-[#f8faf8] dark:hover:bg-dark-tertiary/50"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={permissions[option.key]}
+                          onChange={(event) =>
+                            setPermissions((current) =>
+                              current
+                                ? {
+                                    ...current,
+                                    [option.key]: event.target.checked,
+                                  }
+                                : current,
+                            )
+                          }
+                          className="mt-1 h-4 w-4 rounded border-gray-300 accent-[#0b7a55]"
+                        />
+                        <span>
+                          <span className="block text-sm font-medium">
+                            {option.label}
+                          </span>
+                          <span className="block text-xs leading-5 text-[#65736d] dark:text-dark-text-secondary">
+                            {option.description}
+                          </span>
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                </fieldset>
+              ))}
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={onClose}
+              disabled={isSaving}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              onClick={() =>
+                void (mode === "defaults" ? onReset() : onSave(permissions))
+              }
+              disabled={isSaving}
+              className="bg-[#0b7a55] text-white hover:bg-[#096747]"
+            >
+              {isSaving
+                ? "Saving…"
+                : mode === "defaults"
+                  ? "Reset to defaults"
+                  : "Save access"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      )}
+    </Dialog>
+  );
+}
+
+function ModeButton({
+  active,
+  onClick,
+  title,
+  description,
+}: {
+  active: boolean;
+  onClick: () => void;
+  title: string;
+  description: string;
+}) {
+  return (
+    <button
+      type="button"
+      role="radio"
+      aria-checked={active}
+      onClick={onClick}
+      className={cn(
+        "rounded-lg px-3 py-2 text-left transition-colors",
+        active
+          ? "bg-white shadow-sm dark:bg-dark-elevated"
+          : "text-[#65736d] dark:text-dark-text-secondary",
+      )}
+    >
+      <span className="block text-sm font-semibold">{title}</span>
+      <span className="hidden text-[10px] sm:block">{description}</span>
+    </button>
   );
 }

@@ -180,6 +180,7 @@ export interface RawAuditLog {
   details: Record<string, unknown> | null;
   ipAddress: string | null;
   createdAt: Date | string;
+  actor: { id: string; name: string | null; email: string } | null;
 }
 
 /**
@@ -194,6 +195,7 @@ export interface TransformedAuditLog {
   details: Record<string, unknown> | null;
   ipAddress: string | null;
   createdAt: Date | string;
+  actor: { id: string; name: string | null; email: string } | null;
 }
 
 // ============================================================================
@@ -227,6 +229,7 @@ export function transformAuditLog(log: RawAuditLog): TransformedAuditLog {
     details: log.details,
     ipAddress: log.ipAddress,
     createdAt: log.createdAt,
+    actor: log.actor,
   };
 }
 

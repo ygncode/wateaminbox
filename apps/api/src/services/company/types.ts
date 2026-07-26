@@ -27,7 +27,8 @@ export interface CompanyMember {
   permissions: Record<string, unknown>;
   invited_by: string | null;
   joined_at: Date;
-  /** Email from joined users table */
+  /** Identity fields from the joined users table. */
+  name?: string | null;
   email?: string;
 }
 
@@ -41,6 +42,8 @@ export interface Invitation {
   role: "admin" | "member";
   token: string;
   invited_by: string;
+  inviter_name?: string | null;
+  inviter_email?: string;
   expires_at: Date;
   accepted_at: Date | null;
   created_at: Date;

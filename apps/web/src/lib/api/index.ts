@@ -45,6 +45,7 @@ export {
   clearAuthTokens,
   clearCompanyId,
   fetchApi,
+  fetchBlobWithAuth,
   fetchWithAuth,
   getAccessToken,
   getCompanyId,

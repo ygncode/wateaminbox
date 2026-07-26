@@ -1,3 +1,4 @@
+import { db } from "@wateaminbox/database";
 import { createLogger, formatError } from "../lib/logger.js";
 import { getTenantConnection } from "./tenant.service.js";
 
@@ -35,6 +36,12 @@ export type AuditAction =
 /**
  * Audit log entry
  */
+export interface AuditActor {
+  id: string;
+  name: string | null;
+  email: string;
+}
+
 export interface AuditLog {
   id: string;
   userId: string | null;
@@ -44,6 +51,7 @@ export interface AuditLog {
   details: Record<string, unknown> | null;
   ipAddress: string | null;
   createdAt: Date;
+  actor: AuditActor | null;
 }
 
 /**
@@ -174,6 +182,20 @@ export async function getAuditLogs(params: GetAuditLogsParams): Promise<{
   const countResult = await countQuery.executeTakeFirst();
   const total = Number(countResult?.total || 0);
 
+  const actorIds = [
+    ...new Set(
+      logs.map((log) => log.user_id).filter((id): id is string => Boolean(id)),
+    ),
+  ];
+  const actors = actorIds.length
+    ? await db
+        .selectFrom("users")
+        .select(["id", "name", "email"])
+        .where("id", "in", actorIds)
+        .execute()
+    : [];
+  const actorById = new Map(actors.map((actor) => [actor.id, actor]));
+
   return {
     logs: logs.map((log) => ({
       id: log.id,
@@ -184,9 +206,38 @@ export async function getAuditLogs(params: GetAuditLogsParams): Promise<{
       details: log.details as Record<string, unknown> | null,
       ipAddress: log.ip_address,
       createdAt: log.created_at,
+      actor: log.user_id ? (actorById.get(log.user_id) ?? null) : null,
     })),
     total,
   };
+}
+
+/** Actors are resolved independently of Team-management permission. */
+export async function getAuditActors(companyId: string): Promise<AuditActor[]> {
+  const tenantDb = getTenantConnection(companyId);
+  const actorRows = await tenantDb
+    .selectFrom("audit_logs")
+    .select("user_id")
+    .distinct()
+    .where("user_id", "is not", null)
+    .execute();
+  const actorIds = actorRows
+    .map((row) => row.user_id)
+    .filter((id): id is string => Boolean(id));
+  if (!actorIds.length) return [];
+
+  const actors = await db
+    .selectFrom("users")
+    .select(["id", "name", "email"])
+    .where("id", "in", actorIds)
+    .orderBy("email", "asc")
+    .execute();
+
+  return actors.map((actor) => ({
+    id: actor.id,
+    name: actor.name,
+    email: actor.email,
+  }));
 }
 
 /**

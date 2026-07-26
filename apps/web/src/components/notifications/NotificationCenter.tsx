@@ -1,3 +1,4 @@
+import { formatStatusTime } from "@wateaminbox/shared";
 import {
   AtSign,
   Bell,
@@ -11,26 +12,27 @@ import {
   X,
 } from "lucide-react";
 import {
+  type HTMLAttributes,
   memo,
+  type RefObject,
   useCallback,
   useEffect,
   useRef,
   useState,
-  type HTMLAttributes,
-  type RefObject,
 } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
-import { formatStatusTime } from "@wateaminbox/shared";
 import { AriaLive } from "@/components/ui/aria-live";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useWorkspace } from "@/contexts/workspace-context";
 import { useNotificationCenter } from "@/hooks/notification";
 import type { InAppNotification, NotificationType } from "@/lib/api/types";
 import { navigateToNotificationTarget } from "@/lib/notification-navigation";
 import { cn } from "@/lib/utils";
+import { workspacePath } from "@/lib/workspace-routes";
 
 /**
  * Returns the icon for a notification type
@@ -275,6 +277,7 @@ function NotificationPanel({
   embedded?: boolean;
 }) {
   const navigate = useNavigate();
+  const { activeWorkspaceId } = useWorkspace();
   const panelRef = useRef<HTMLDivElement>(null);
 
   const {
@@ -295,7 +298,11 @@ function NotificationPanel({
 
       if (notification.actionUrl) {
         onClose();
-        navigateToNotificationTarget(notification.actionUrl, navigate);
+        navigateToNotificationTarget(
+          notification.actionUrl,
+          navigate,
+          activeWorkspaceId,
+        );
       }
     },
     [markAsRead, navigate, onClose],
@@ -426,7 +433,11 @@ function NotificationPanel({
             className="w-full h-11 text-sm font-medium text-gray-600 dark:text-dark-text-secondary hover:text-whatsapp-dark-green hover:bg-transparent rounded-none"
             onClick={() => {
               onClose();
-              navigate("/notifications");
+              navigate(
+                activeWorkspaceId
+                  ? workspacePath(activeWorkspaceId, "notifications")
+                  : "/notifications",
+              );
             }}
           >
             View all notifications

@@ -1,3 +1,4 @@
+import { dayjs, now } from "@wateaminbox/shared";
 import {
   Building2,
   CheckCircle,
@@ -9,12 +10,12 @@ import {
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { dayjs, now } from "@wateaminbox/shared";
 import { Button, Skeleton } from "../components/ui";
 import { useAuth } from "../contexts/auth-context";
-import { setCompanyId } from "../lib/api";
-import { buildAuthUrl } from "../lib/auth-redirect";
+import { useWorkspace } from "../contexts/workspace-context";
 import { useAcceptInvitation, useInvitationByToken } from "../hooks/useTeam";
+import { buildAuthUrl } from "../lib/auth-redirect";
+import { workspacePath } from "../lib/workspace-routes";
 
 /**
  * Accept Invitation page
@@ -23,8 +24,11 @@ import { useAcceptInvitation, useInvitationByToken } from "../hooks/useTeam";
 export function AcceptInvitationPage() {
   const { token } = useParams<{ token: string }>();
   const navigate = useNavigate();
-  const { isAuthenticated, refreshSession } = useAuth();
-  const [accepted, setAccepted] = useState(false);
+  const { isAuthenticated } = useAuth();
+  const { refreshWorkspaces, switchWorkspace } = useWorkspace();
+  const [acceptedWorkspaceId, setAcceptedWorkspaceId] = useState<string | null>(
+    null,
+  );
   const [error, setError] = useState<string | null>(null);
 
   // Fetch invitation details
@@ -53,11 +57,9 @@ export function AcceptInvitationPage() {
     try {
       setError(null);
       const result = await acceptInvitation.mutateAsync(token);
-      // Select the newly joined workspace before refreshing auth state so the
-      // redirect opens the company that issued the invitation.
-      setCompanyId(result.company.id);
-      await refreshSession();
-      setAccepted(true);
+      await refreshWorkspaces();
+      await switchWorkspace(result.company.id);
+      setAcceptedWorkspaceId(result.company.id);
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Failed to accept invitation",
@@ -67,13 +69,13 @@ export function AcceptInvitationPage() {
 
   // Redirect to chat after successful acceptance
   useEffect(() => {
-    if (accepted) {
+    if (acceptedWorkspaceId) {
       const timer = setTimeout(() => {
-        navigate("/chat");
+        navigate(workspacePath(acceptedWorkspaceId));
       }, 3000);
       return () => clearTimeout(timer);
     }
-  }, [accepted, navigate]);
+  }, [acceptedWorkspaceId, navigate]);
 
   // Show loading state
   if (isLoading) {
@@ -116,7 +118,7 @@ export function AcceptInvitationPage() {
   }
 
   // Show success state after accepting
-  if (accepted) {
+  if (acceptedWorkspaceId) {
     return (
       <div className="min-h-dvh flex items-center justify-center bg-gray-100 dark:bg-dark-primary">
         <div className="w-full max-w-md rounded-lg bg-white dark:bg-dark-elevated p-8 shadow-lg text-center">
@@ -161,7 +163,7 @@ export function AcceptInvitationPage() {
             <Building2 className="h-5 w-5 text-gray-500 dark:text-dark-text-tertiary flex-shrink-0" />
             <div>
               <p className="text-xs text-gray-500 dark:text-dark-text-tertiary">
-                Company
+                Workspace
               </p>
               <p className="font-medium text-gray-900 dark:text-dark-text-primary">
                 {invitation.companyName}

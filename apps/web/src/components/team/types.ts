@@ -6,18 +6,24 @@ export interface TeamManagementProps {
   companyId: string;
   currentUserId: string;
   currentUserRole: "owner" | "admin" | "member";
+  canManageTeam: boolean;
+  canInvite: boolean;
 }
 
 export interface MembersListProps {
   companyId: string;
   currentUserId: string;
   currentUserRole: "owner" | "admin" | "member";
+  search: string;
+  roleFilter: "all" | "owner" | "admin" | "member";
 }
 
 export interface MemberCardProps {
   member: CompanyMember;
   isCurrentUser: boolean;
-  canManage: boolean;
+  canChangeRole: boolean;
+  canEditPermissions: boolean;
+  canRemove: boolean;
   isMenuOpen: boolean;
   onMenuToggle: () => void;
   onRoleChange: (role: "admin" | "member") => void;
@@ -27,6 +33,7 @@ export interface MemberCardProps {
 
 export interface InvitationsListProps {
   companyId: string;
+  search?: string;
 }
 
 export interface InvitationCardProps {

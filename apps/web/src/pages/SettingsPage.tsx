@@ -1,408 +1,636 @@
 import {
-  ArrowLeft,
   Bell,
-  ChevronRight,
-  FileText,
+  Building2,
+  Database,
   Globe2,
   Keyboard,
-  LayoutDashboard,
-  LogOut,
   MessageSquareText,
   Package,
-  ShieldCheck,
-  Smartphone,
+  Plug,
+  Save,
   Tag,
-  Upload,
-  UserRound,
-  Users,
-  Zap,
+  Trash2,
 } from "lucide-react";
-import { useState, type ReactNode } from "react";
-import { useTranslation } from "react-i18next";
-import { Link } from "react-router-dom";
-import { preloadRoute, type RouteName } from "@/lib/route-preload";
+import { type ComponentType, type ReactNode, useState } from "react";
+import { Navigate, NavLink, useNavigate, useParams } from "react-router-dom";
+import { toast } from "sonner";
+import { ThemeToggle } from "../components/chat/ThemeToggle";
 import { ContactImport } from "../components/contacts";
-import { AppLayout } from "../components/layout/app-layout";
 import {
   CatalogManager,
-  KeyboardShortcutsModal,
   LabelSyncManager,
   LanguageSwitcher,
   NotificationSettings,
   QuickRepliesManager,
 } from "../components/settings";
-import { Button } from "../components/ui";
+import { Button, Input } from "../components/ui";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "../components/ui/dialog";
 import { WhatsAppConnectionPanel } from "../components/whatsapp";
 import { useAuth } from "../contexts/auth-context";
+import { useKeyboardShortcutsContext } from "../contexts/KeyboardShortcutsContext";
+import { useWorkspace } from "../contexts/workspace-context";
+import {
+  useCompanyMembers,
+  useDeleteCompany,
+  useLeaveCompany,
+  useTransferOwnership,
+  useUpdateCompany,
+} from "../hooks/useTeam";
+import { cn } from "../lib/utils";
+import { workspacePath } from "../lib/workspace-routes";
+
+type SettingsSection =
+  | "general"
+  | "connections"
+  | "quick-replies"
+  | "labels"
+  | "catalogs"
+  | "notifications"
+  | "data"
+  | "appearance";
+
+interface SectionDefinition {
+  id: SettingsSection;
+  label: string;
+  group: string;
+  icon: ComponentType<{ className?: string }>;
+  visible: boolean;
+}
 
 export function SettingsPage() {
-  const { t } = useTranslation();
-  const { user, logout } = useAuth();
-  const permissions = user?.permissions;
-  const [showKeyboardShortcuts, setShowKeyboardShortcuts] = useState(false);
-  const [showContactImport, setShowContactImport] = useState(false);
+  const { section = "general" } = useParams<{ section: SettingsSection }>();
+  const navigate = useNavigate();
+  const { activeWorkspace, can } = useWorkspace();
+  if (!activeWorkspace) return null;
+
+  const sections: SectionDefinition[] = [
+    {
+      id: "general",
+      label: "General",
+      group: "Workspace",
+      icon: Building2,
+      visible: true,
+    },
+    {
+      id: "connections",
+      label: "Connections",
+      group: "Workspace",
+      icon: Plug,
+      visible: can("can_manage_connections"),
+    },
+    {
+      id: "quick-replies",
+      label: "Quick replies",
+      group: "Inbox tools",
+      icon: MessageSquareText,
+      visible: true,
+    },
+    {
+      id: "labels",
+      label: "WhatsApp labels",
+      group: "Inbox tools",
+      icon: Tag,
+      visible: can("can_manage_connections"),
+    },
+    {
+      id: "catalogs",
+      label: "Product catalogs",
+      group: "Inbox tools",
+      icon: Package,
+      visible: can("can_manage_connections"),
+    },
+    {
+      id: "notifications",
+      label: "Notifications",
+      group: "Personal",
+      icon: Bell,
+      visible: true,
+    },
+    {
+      id: "appearance",
+      label: "Appearance & language",
+      group: "Personal",
+      icon: Globe2,
+      visible: true,
+    },
+    {
+      id: "data",
+      label: "Data tools",
+      group: "Data",
+      icon: Database,
+      visible: can("can_assign_contacts") || can("can_export"),
+    },
+  ];
+  const visibleSections = sections.filter((item) => item.visible);
+  const current = visibleSections.find((item) => item.id === section);
+
+  if (!current) {
+    return (
+      <Navigate to={workspacePath(activeWorkspace.id, "settings")} replace />
+    );
+  }
 
   return (
-    <AppLayout>
-      <div className="settings-workspace flex h-full w-full flex-col overflow-hidden bg-[#f4f7f5] text-slate-900 dark:bg-[#0b1418] dark:text-[#edf5f1]">
-        <header className="shrink-0 border-b border-slate-200/80 bg-white/80 backdrop-blur-xl dark:border-white/[0.08] dark:bg-[#0d181c]/90">
-          <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
-            <Link
-              to="/chat"
-              className="group inline-flex items-center gap-2 text-sm font-medium text-slate-500 transition-colors hover:text-slate-950 dark:text-[#91a29e] dark:hover:text-white"
-              onMouseEnter={() => preloadRoute("chat")}
-              onFocus={() => preloadRoute("chat")}
-            >
-              <ArrowLeft className="h-4 w-4 transition-transform group-hover:-translate-x-1" />
-              Back to inbox
-            </Link>
-            <div className="hidden items-center gap-2 sm:flex">
-              <span className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_12px_rgba(74,222,128,.9)]" />
-              <span className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400 dark:text-[#778984]">
-                Workspace settings
-              </span>
-            </div>
-            <Button
-              variant="ghost"
-              onClick={() => void logout()}
-              className="h-9 gap-2 px-3 text-slate-500 hover:bg-rose-50 hover:text-rose-600 dark:text-[#9bacA7] dark:hover:bg-rose-400/10 dark:hover:text-rose-300"
-            >
-              <LogOut className="h-4 w-4" />
-              <span className="hidden sm:inline">Sign out</span>
-            </Button>
-          </div>
-        </header>
-
-        <main className="flex-1 overflow-y-auto">
-          <div className="mx-auto max-w-7xl px-4 py-7 sm:px-6 lg:px-8 lg:py-10">
-            <section className="relative mb-8 overflow-hidden rounded-2xl border border-emerald-950/10 bg-[#e5f2ea] px-5 py-6 sm:px-7 dark:border-emerald-300/[0.10] dark:bg-[#10251f]">
-              <div className="pointer-events-none absolute -right-16 -top-24 h-64 w-64 rounded-full bg-emerald-300/20 blur-3xl dark:bg-emerald-400/10" />
-              <div className="pointer-events-none absolute bottom-0 right-0 h-px w-2/3 bg-gradient-to-l from-emerald-400/50 to-transparent" />
-              <div className="relative flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl bg-[#0c5c47] text-white shadow-lg shadow-emerald-950/20">
-                    <UserRound className="h-6 w-6" />
-                  </div>
-                  <div>
-                    <p className="mb-1 text-xs font-semibold uppercase tracking-[0.18em] text-emerald-800/70 dark:text-emerald-300/65">
-                      Your workspace
-                    </p>
-                    <h1 className="font-serif text-2xl font-semibold tracking-tight text-[#17382f] dark:text-[#f0faf5]">
-                      {t("settings.title", "Settings")}
-                    </h1>
-                    <p className="mt-1 text-sm text-[#477164] dark:text-[#9dbbb0]">
-                      {user?.name || "User"}{" "}
-                      <span className="mx-1.5 text-emerald-700/40 dark:text-emerald-300/30">
-                        /
-                      </span>{" "}
-                      {user?.email}
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2 rounded-full border border-emerald-900/10 bg-white/60 px-3 py-2 text-xs font-medium text-[#27624e] dark:border-emerald-200/10 dark:bg-black/15 dark:text-emerald-200">
-                  <ShieldCheck className="h-4 w-4" />
-                  Secure workspace controls
-                </div>
-              </div>
-            </section>
-
-            <div className="mb-5 flex items-end justify-between gap-4">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700 dark:text-emerald-400">
-                  Configuration
+    <div className="flex h-full min-h-0 w-full bg-[#f5f7f4] dark:bg-dark-primary">
+      <aside className="hidden w-64 shrink-0 overflow-y-auto border-r border-[#dce3de] bg-[#edf1ed] px-4 py-6 dark:border-dark-border dark:bg-dark-secondary md:block">
+        <p className="px-2 text-xs font-bold uppercase tracking-[0.18em] text-[#0b7a55]">
+          Settings
+        </p>
+        <h1 className="mt-2 truncate px-2 text-xl font-semibold tracking-tight">
+          {activeWorkspace.name}
+        </h1>
+        <nav className="mt-7 space-y-5" aria-label="Settings sections">
+          {[...new Set(visibleSections.map((item) => item.group))].map(
+            (group) => (
+              <div key={group}>
+                <p className="mb-1 px-2 text-[10px] font-bold uppercase tracking-[0.16em] text-[#829089]">
+                  {group}
                 </p>
-                <h2 className="mt-1 text-xl font-semibold tracking-tight text-slate-950 dark:text-white">
-                  Run your inbox your way
-                </h2>
+                <div className="space-y-0.5">
+                  {visibleSections
+                    .filter((item) => item.group === group)
+                    .map((item) => (
+                      <SettingsLink
+                        key={item.id}
+                        item={item}
+                        workspaceId={activeWorkspace.id}
+                      />
+                    ))}
+                </div>
               </div>
-              <p className="hidden max-w-xs text-right text-sm text-slate-500 dark:text-[#8fa29c] md:block">
-                Connections, communication preferences, and team tools in one
-                place.
-              </p>
-            </div>
+            ),
+          )}
+        </nav>
+      </aside>
 
-            <div className="grid grid-cols-1 gap-5 xl:grid-cols-12">
-              <div className="space-y-5 xl:col-span-7">
-                {permissions?.can_manage_connections && (
-                  <SettingsCard
-                    eyebrow="CHANNELS"
-                    icon={<Smartphone />}
-                    title={t(
-                      "settings.whatsappConnections",
-                      "WhatsApp Connections",
-                    )}
-                    tone="emerald"
-                    noPadding
-                  >
-                    <WhatsAppConnectionPanel multiConnection hideHeader />
-                  </SettingsCard>
-                )}
-                <SettingsCard
-                  eyebrow="ATTENTION"
-                  icon={<Bell />}
-                  title={t("settings.notifications", "Notifications")}
-                  tone="amber"
-                >
-                  <NotificationSettings />
-                </SettingsCard>
-                <SettingsCard
-                  eyebrow="SPEED"
-                  icon={<Zap />}
-                  title={t("settings.quickReplies", "Quick Replies")}
-                  tone="sky"
-                >
-                  <QuickRepliesManager />
-                </SettingsCard>
-                {permissions?.can_manage_connections && (
-                  <>
-                    <SettingsCard
-                      eyebrow="SYNC"
-                      icon={<Tag />}
-                      title={t("settings.labelSync", "WhatsApp Labels")}
-                      tone="violet"
-                    >
-                      <LabelSyncManager />
-                    </SettingsCard>
-                    <SettingsCard
-                      eyebrow="CATALOG"
-                      icon={<Package />}
-                      title={t("settings.catalogs", "Product Catalogs")}
-                      tone="orange"
-                    >
-                      <CatalogManager />
-                    </SettingsCard>
-                  </>
-                )}
-              </div>
-
-              <aside className="space-y-5 xl:col-span-5">
-                <SettingsCard
-                  eyebrow="PREFERENCES"
-                  icon={<Globe2 />}
-                  title={t("settings.language", "Language")}
-                  tone="cyan"
-                >
-                  <p className="mb-5 max-w-md text-sm leading-6 text-slate-500 dark:text-[#9baea8]">
-                    {t(
-                      "settings.languageDescription",
-                      "Choose your preferred language for the application interface.",
-                    )}
-                  </p>
-                  <LanguageSwitcher showLabel={false} />
-                </SettingsCard>
-                <SettingsCard
-                  eyebrow="TOOLS"
-                  icon={<Keyboard />}
-                  title={t("settings.keyboardShortcuts", "Keyboard Shortcuts")}
-                  tone="slate"
-                >
-                  <p className="mb-5 text-sm leading-6 text-slate-500 dark:text-[#9baea8]">
-                    {t(
-                      "settings.keyboardShortcutsDescription",
-                      "View all available keyboard shortcuts to navigate the app faster.",
-                    )}
-                  </p>
-                  <Button
-                    variant="outline"
-                    onClick={() => setShowKeyboardShortcuts(true)}
-                    className="gap-2 border-slate-200 bg-white hover:border-emerald-500 hover:text-emerald-700 dark:border-white/10 dark:bg-white/[0.03] dark:hover:border-emerald-400/50 dark:hover:text-emerald-300"
-                  >
-                    <Keyboard className="h-4 w-4" />
-                    {t("settings.viewShortcuts", "View Shortcuts")}
-                  </Button>
-                </SettingsCard>
-                {permissions?.can_assign_contacts && (
-                  <SettingsCard
-                    eyebrow="DATA"
-                    icon={<Upload />}
-                    title={t("settings.contactImport", "Contact Import")}
-                    tone="blue"
-                  >
-                    <p className="mb-5 text-sm leading-6 text-slate-500 dark:text-[#9baea8]">
-                      {t(
-                        "settings.contactImportDescription",
-                        "Import contacts from a CSV file to quickly add multiple contacts at once.",
-                      )}
-                    </p>
-                    <Button
-                      variant="outline"
-                      onClick={() => setShowContactImport(true)}
-                      className="gap-2 border-slate-200 bg-white hover:border-emerald-500 hover:text-emerald-700 dark:border-white/10 dark:bg-white/[0.03] dark:hover:border-emerald-400/50 dark:hover:text-emerald-300"
-                    >
-                      <Upload className="h-4 w-4" />
-                      {t("settings.importContacts", "Import Contacts")}
-                    </Button>
-                  </SettingsCard>
-                )}
-                {(permissions?.can_view_dashboard ||
-                  permissions?.can_manage_team ||
-                  permissions?.can_view_audit) && (
-                  <SettingsCard
-                    eyebrow="WORKSPACE"
-                    icon={<MessageSquareText />}
-                    title={t("settings.quickLinks", "Quick Links")}
-                    tone="slate"
-                    noPadding
-                  >
-                    <div className="divide-y divide-slate-100 dark:divide-white/[0.07]">
-                      {permissions?.can_view_dashboard && (
-                        <QuickLink
-                          to="/dashboard"
-                          state={{ from: "settings" }}
-                          icon={<LayoutDashboard />}
-                          title={t("settings.dashboard", "Dashboard")}
-                          description={t(
-                            "settings.dashboardDescription",
-                            "View analytics and statistics",
-                          )}
-                          preloadRouteName="dashboard"
-                        />
-                      )}
-                      {permissions?.can_manage_team && (
-                        <QuickLink
-                          to="/team"
-                          state={{ from: "settings" }}
-                          icon={<Users />}
-                          title={t(
-                            "settings.teamManagement",
-                            "Team Management",
-                          )}
-                          description={t(
-                            "settings.teamManagementDescription",
-                            "Manage team members and invitations",
-                          )}
-                          preloadRouteName="team"
-                        />
-                      )}
-                      {permissions?.can_view_audit && (
-                        <QuickLink
-                          to="/audit"
-                          icon={<FileText />}
-                          title={t("settings.auditLog", "Audit Log")}
-                          description={t(
-                            "settings.auditLogDescription",
-                            "View activity and security logs",
-                          )}
-                          preloadRouteName="audit"
-                        />
-                      )}
-                    </div>
-                  </SettingsCard>
-                )}
-              </aside>
-            </div>
-            <p className="mt-8 pb-3 text-center text-xs font-medium uppercase tracking-[0.16em] text-slate-400 dark:text-[#657872]">
-              WATeamInbox · workspace control centre
+      <main className="min-w-0 flex-1 overflow-y-auto">
+        <div className="mx-auto max-w-3xl px-4 py-6 sm:px-8 sm:py-10">
+          <div className="mb-6 md:hidden">
+            <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#0b7a55]">
+              Settings
             </p>
+            <select
+              value={current.id}
+              onChange={(event) => {
+                navigate(
+                  workspacePath(
+                    activeWorkspace.id,
+                    "settings",
+                    event.target.value,
+                  ),
+                );
+              }}
+              className="mt-3 h-11 w-full rounded-xl border border-[#dce3de] bg-white px-3 font-medium dark:border-dark-border dark:bg-dark-elevated"
+              aria-label="Settings section"
+            >
+              {visibleSections.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.label}
+                </option>
+              ))}
+            </select>
           </div>
-        </main>
-
-        <KeyboardShortcutsModal
-          open={showKeyboardShortcuts}
-          onOpenChange={setShowKeyboardShortcuts}
-        />
-        {showContactImport && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-sm">
-            <ContactImport
-              onClose={() => setShowContactImport(false)}
-              onImportComplete={() => setShowContactImport(false)}
-            />
-          </div>
-        )}
-      </div>
-    </AppLayout>
+          <header className="mb-7 border-b border-[#dce3de] pb-5 dark:border-dark-border">
+            <p className="text-xs font-semibold text-[#0b7a55]">
+              {current.group}
+            </p>
+            <h2 className="mt-1 text-2xl font-semibold tracking-[-0.025em]">
+              {current.label}
+            </h2>
+          </header>
+          <SettingsSectionContent section={current.id} />
+        </div>
+      </main>
+    </div>
   );
 }
 
-const tones = {
-  emerald:
-    "bg-emerald-100 text-emerald-700 dark:bg-emerald-400/10 dark:text-emerald-300",
-  amber: "bg-amber-100 text-amber-700 dark:bg-amber-400/10 dark:text-amber-300",
-  sky: "bg-sky-100 text-sky-700 dark:bg-sky-400/10 dark:text-sky-300",
-  violet:
-    "bg-violet-100 text-violet-700 dark:bg-violet-400/10 dark:text-violet-300",
-  orange:
-    "bg-orange-100 text-orange-700 dark:bg-orange-400/10 dark:text-orange-300",
-  cyan: "bg-cyan-100 text-cyan-700 dark:bg-cyan-400/10 dark:text-cyan-300",
-  slate: "bg-slate-100 text-slate-700 dark:bg-white/[0.06] dark:text-[#b8c8c2]",
-  blue: "bg-blue-100 text-blue-700 dark:bg-blue-400/10 dark:text-blue-300",
-};
-
-function SettingsCard({
-  eyebrow,
-  icon,
-  title,
-  tone,
-  children,
-  noPadding = false,
+function SettingsLink({
+  item,
+  workspaceId,
 }: {
-  eyebrow: string;
-  icon: ReactNode;
-  title: string;
-  tone: keyof typeof tones;
+  item: SectionDefinition;
+  workspaceId: string;
+}) {
+  const Icon = item.icon;
+  return (
+    <NavLink
+      to={workspacePath(workspaceId, "settings", item.id)}
+      className={({ isActive }) =>
+        cn(
+          "flex items-center gap-3 rounded-lg px-2.5 py-2 text-sm font-medium transition-colors",
+          isActive
+            ? "bg-white text-[#075c41] shadow-sm dark:bg-dark-tertiary dark:text-emerald-300"
+            : "text-[#65736d] hover:bg-white/60 hover:text-[#10211b] dark:text-dark-text-secondary dark:hover:bg-dark-tertiary",
+        )
+      }
+    >
+      <Icon className="h-4 w-4" /> {item.label}
+    </NavLink>
+  );
+}
+
+function SettingsSectionContent({ section }: { section: SettingsSection }) {
+  switch (section) {
+    case "general":
+      return <GeneralSettings />;
+    case "connections":
+      return <WhatsAppConnectionPanel multiConnection hideHeader />;
+    case "quick-replies":
+      return <QuickRepliesManager />;
+    case "labels":
+      return <LabelSyncManager />;
+    case "catalogs":
+      return <CatalogManager />;
+    case "notifications":
+      return (
+        <Panel>
+          <NotificationSettings />
+        </Panel>
+      );
+    case "appearance":
+      return <AppearanceSettings />;
+    case "data":
+      return <DataSettings />;
+  }
+}
+
+function GeneralSettings() {
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const { activeWorkspace, refreshWorkspaces } = useWorkspace();
+  const [name, setName] = useState(activeWorkspace?.name ?? "");
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteConfirmation, setDeleteConfirmation] = useState("");
+  const [transferOpen, setTransferOpen] = useState(false);
+  const [transferTarget, setTransferTarget] = useState("");
+  const [leaveOpen, setLeaveOpen] = useState(false);
+  const updateCompany = useUpdateCompany(activeWorkspace?.id ?? "");
+  const deleteCompany = useDeleteCompany();
+  const transferOwnership = useTransferOwnership();
+  const leaveCompany = useLeaveCompany();
+  const members = useCompanyMembers(
+    activeWorkspace?.role === "owner" ? activeWorkspace.id : null,
+  );
+  if (!activeWorkspace) return null;
+  const canRename =
+    activeWorkspace.role === "owner" || activeWorkspace.role === "admin";
+
+  const save = () => {
+    const nextName = name.trim();
+    if (!nextName || nextName === activeWorkspace.name) return;
+    updateCompany.mutate(
+      { name: nextName },
+      {
+        onSuccess: async () => {
+          await refreshWorkspaces();
+          toast.success("Workspace name updated");
+        },
+        onError: (error) => toast.error(error.message),
+      },
+    );
+  };
+
+  const navigateAfterExit = async () => {
+    const available = (await refreshWorkspaces()).filter(
+      (workspace) => workspace.status === "active",
+    );
+    if (available.length === 1) navigate(workspacePath(available[0].id));
+    else navigate(available.length ? "/workspaces" : "/company-setup");
+  };
+
+  const deleteWorkspace = async () => {
+    try {
+      await deleteCompany.mutateAsync(activeWorkspace.id);
+      toast.success("Workspace deleted");
+      await navigateAfterExit();
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Could not delete workspace",
+      );
+    }
+  };
+
+  const leaveWorkspace = async () => {
+    try {
+      await leaveCompany.mutateAsync(activeWorkspace.id);
+      toast.success(`You left ${activeWorkspace.name}`);
+      await navigateAfterExit();
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Could not leave workspace",
+      );
+    }
+  };
+
+  const transferWorkspace = async () => {
+    if (!transferTarget) return;
+    try {
+      await transferOwnership.mutateAsync({
+        companyId: activeWorkspace.id,
+        userId: transferTarget,
+      });
+      await refreshWorkspaces();
+      setTransferOpen(false);
+      toast.success("Workspace ownership transferred");
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Could not transfer ownership",
+      );
+    }
+  };
+
+  return (
+    <div className="space-y-5">
+      <Panel
+        title="Workspace identity"
+        description="This name is shown in navigation and invitations."
+      >
+        <label className="block text-sm font-medium">
+          Workspace name
+          <div className="mt-2 flex gap-2">
+            <Input
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+              disabled={!canRename}
+              maxLength={100}
+            />
+            {canRename && (
+              <Button
+                onClick={save}
+                disabled={updateCompany.isPending || !name.trim()}
+                className="gap-2 bg-[#0b7a55] text-white hover:bg-[#096747]"
+              >
+                <Save className="h-4 w-4" /> Save
+              </Button>
+            )}
+          </div>
+        </label>
+      </Panel>
+      <Panel
+        title="Membership"
+        description="Your access is scoped to this workspace."
+      >
+        <dl className="grid gap-4 sm:grid-cols-3">
+          <Fact label="Role" value={activeWorkspace.role} capitalize />
+          <Fact label="Status" value={activeWorkspace.status} capitalize />
+          <Fact
+            label="Created"
+            value={new Date(activeWorkspace.createdAt).toLocaleDateString()}
+          />
+        </dl>
+      </Panel>
+      {activeWorkspace.role === "owner" ? (
+        <Panel
+          title="Ownership and danger zone"
+          description="Transfer ownership before leaving, or remove this workspace from active use."
+        >
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" onClick={() => setTransferOpen(true)}>
+              Transfer ownership
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => setDeleteOpen(true)}
+              className="gap-2"
+            >
+              <Trash2 className="h-4 w-4" /> Delete workspace
+            </Button>
+          </div>
+        </Panel>
+      ) : (
+        <Panel
+          title="Leave workspace"
+          description="Your membership and workspace access will be removed."
+        >
+          <Button variant="destructive" onClick={() => setLeaveOpen(true)}>
+            Leave workspace
+          </Button>
+        </Panel>
+      )}
+      <Dialog open={transferOpen} onOpenChange={setTransferOpen}>
+        <DialogContent className="mx-4 w-[calc(100vw-2rem)] rounded-2xl sm:w-full">
+          <DialogHeader>
+            <DialogTitle>Transfer ownership</DialogTitle>
+            <DialogDescription>
+              The selected member becomes owner and your role changes to
+              Administrator.
+            </DialogDescription>
+          </DialogHeader>
+          <label className="text-sm font-medium">
+            New owner
+            <select
+              value={transferTarget}
+              onChange={(event) => setTransferTarget(event.target.value)}
+              className="mt-2 h-10 w-full rounded-lg border border-[#dce3de] bg-white px-3 dark:border-dark-border dark:bg-dark-tertiary"
+            >
+              <option value="">Select a member</option>
+              {members.data
+                ?.filter((member) => member.userId !== user?.id)
+                .map((member) => (
+                  <option key={member.userId} value={member.userId}>
+                    {member.name || member.email} · {member.role}
+                  </option>
+                ))}
+            </select>
+          </label>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setTransferOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              disabled={!transferTarget || transferOwnership.isPending}
+              onClick={() => void transferWorkspace()}
+              className="bg-[#0b7a55] text-white hover:bg-[#096747]"
+            >
+              {transferOwnership.isPending
+                ? "Transferring…"
+                : "Transfer ownership"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={leaveOpen} onOpenChange={setLeaveOpen}>
+        <DialogContent className="mx-4 w-[calc(100vw-2rem)] rounded-2xl sm:w-full">
+          <DialogHeader>
+            <DialogTitle>Leave {activeWorkspace.name}?</DialogTitle>
+            <DialogDescription>
+              You will immediately lose access to its conversations and
+              settings.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setLeaveOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={leaveCompany.isPending}
+              onClick={() => void leaveWorkspace()}
+            >
+              {leaveCompany.isPending ? "Leaving…" : "Leave workspace"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <DialogContent className="mx-4 w-[calc(100vw-2rem)] rounded-2xl sm:w-full">
+          <DialogHeader>
+            <DialogTitle>Delete {activeWorkspace.name}?</DialogTitle>
+            <DialogDescription>
+              This action cannot be undone. Conversations, settings, and team
+              access will be removed.
+            </DialogDescription>
+          </DialogHeader>
+          <label className="text-sm font-medium">
+            Type <strong>{activeWorkspace.name}</strong> to confirm
+            <Input
+              value={deleteConfirmation}
+              onChange={(event) => setDeleteConfirmation(event.target.value)}
+              className="mt-2"
+              autoComplete="off"
+            />
+          </label>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={
+                deleteConfirmation !== activeWorkspace.name ||
+                deleteCompany.isPending
+              }
+              onClick={() => void deleteWorkspace()}
+            >
+              {deleteCompany.isPending ? "Deleting…" : "Delete workspace"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+function AppearanceSettings() {
+  const { openHelpModal } = useKeyboardShortcutsContext();
+  return (
+    <div className="space-y-5">
+      <Panel
+        title="Theme"
+        description="Cycle between light, dark, and your system preference."
+      >
+        <ThemeToggle className="rounded-xl border border-[#dce3de] dark:border-dark-border" />
+      </Panel>
+      <Panel
+        title="Language"
+        description="Choose the language used by the application interface."
+      >
+        <LanguageSwitcher showLabel={false} />
+      </Panel>
+      <Panel
+        title="Keyboard shortcuts"
+        description="Review the keys available for faster navigation."
+      >
+        <Button variant="outline" onClick={openHelpModal} className="gap-2">
+          <Keyboard className="h-4 w-4" /> View shortcuts
+        </Button>
+      </Panel>
+    </div>
+  );
+}
+
+function DataSettings() {
+  const { can, activeWorkspace } = useWorkspace();
+  const [showImport, setShowImport] = useState(false);
+  return (
+    <>
+      <div className="space-y-5">
+        {can("can_assign_contacts") && (
+          <Panel
+            title="Contact import"
+            description="Add contacts from a reviewed CSV file."
+          >
+            <Button variant="outline" onClick={() => setShowImport(true)}>
+              Import contacts
+            </Button>
+          </Panel>
+        )}
+        {can("can_export") && (
+          <Panel
+            title="Exports"
+            description="Workspace exports are available from the relevant Dashboard and Audit views."
+          >
+            <p className="text-sm text-[#65736d] dark:text-dark-text-secondary">
+              Exports contain data from {activeWorkspace?.name} only.
+            </p>
+          </Panel>
+        )}
+      </div>
+      <Dialog open={showImport} onOpenChange={setShowImport}>
+        <DialogContent className="mx-4 max-h-[92dvh] w-[calc(100vw-2rem)] max-w-4xl overflow-y-auto rounded-2xl p-0 sm:w-full">
+          <DialogHeader className="sr-only">
+            <DialogTitle>Import contacts</DialogTitle>
+            <DialogDescription>
+              Review and import contacts into the current workspace.
+            </DialogDescription>
+          </DialogHeader>
+          <ContactImport
+            onClose={() => setShowImport(false)}
+            onImportComplete={() => setShowImport(false)}
+          />
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
+function Panel({
+  title,
+  description,
+  children,
+}: {
+  title?: string;
+  description?: string;
   children: ReactNode;
-  noPadding?: boolean;
 }) {
   return (
-    <section className="overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-[0_1px_1px_rgba(15,23,42,.02),0_10px_30px_rgba(15,23,42,.035)] transition-shadow hover:shadow-[0_12px_36px_rgba(15,23,42,.07)] dark:border-white/[0.08] dark:bg-[#132126] dark:shadow-none">
-      <div className="flex items-center gap-3 border-b border-slate-100 px-5 py-4 dark:border-white/[0.07]">
-        <div
-          className={`grid h-9 w-9 place-items-center rounded-xl ${tones[tone]}`}
-        >
-          {icon}
-        </div>
-        <div className="min-w-0">
-          <p className="text-[10px] font-bold tracking-[0.16em] text-slate-400 dark:text-[#778a83]">
-            {eyebrow}
-          </p>
-          <h3 className="mt-0.5 font-semibold tracking-tight text-slate-900 dark:text-[#eff7f3]">
-            {title}
-          </h3>
-        </div>
-      </div>
-      <div className={noPadding ? "" : "p-5"}>{children}</div>
+    <section className="rounded-2xl border border-[#dce3de] bg-white p-5 shadow-[0_1px_2px_rgba(16,33,27,.03)] dark:border-dark-border dark:bg-dark-elevated sm:p-6">
+      {title && <h3 className="font-semibold">{title}</h3>}
+      {description && (
+        <p className="mb-5 mt-1 text-sm leading-6 text-[#65736d] dark:text-dark-text-secondary">
+          {description}
+        </p>
+      )}
+      {children}
     </section>
   );
 }
 
-function QuickLink({
-  to,
-  icon,
-  title,
-  description,
-  state,
-  preloadRouteName,
+function Fact({
+  label,
+  value,
+  capitalize = false,
 }: {
-  to: string;
-  icon: ReactNode;
-  title: string;
-  description: string;
-  state?: Record<string, unknown>;
-  preloadRouteName?: RouteName;
+  label: string;
+  value: string;
+  capitalize?: boolean;
 }) {
-  const prefetch = preloadRouteName
-    ? () => preloadRoute(preloadRouteName)
-    : undefined;
   return (
-    <Link
-      to={to}
-      state={state}
-      onMouseEnter={prefetch}
-      onFocus={prefetch}
-      className="group flex items-center gap-3 px-5 py-4 transition-colors hover:bg-emerald-50/60 dark:hover:bg-white/[0.035]"
-    >
-      <div className="grid h-9 w-9 place-items-center rounded-xl bg-slate-100 text-slate-500 transition-colors group-hover:bg-emerald-100 group-hover:text-emerald-700 dark:bg-white/[0.06] dark:text-[#9fb2ab] dark:group-hover:bg-emerald-400/10 dark:group-hover:text-emerald-300">
-        {icon}
-      </div>
-      <div className="min-w-0 flex-1">
-        <p className="text-sm font-semibold text-slate-800 dark:text-[#e8f2ed]">
-          {title}
-        </p>
-        <p className="mt-0.5 truncate text-xs text-slate-500 dark:text-[#91a49d]">
-          {description}
-        </p>
-      </div>
-      <ChevronRight className="h-4 w-4 text-slate-300 transition-all group-hover:translate-x-0.5 group-hover:text-emerald-600 dark:text-[#61746d] dark:group-hover:text-emerald-300" />
-    </Link>
+    <div>
+      <dt className="text-xs font-medium text-[#829089]">{label}</dt>
+      <dd
+        className={cn("mt-1 text-sm font-semibold", capitalize && "capitalize")}
+      >
+        {value}
+      </dd>
+    </div>
   );
 }

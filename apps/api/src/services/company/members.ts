@@ -33,6 +33,7 @@ export async function getMembers(companyId: string): Promise<CompanyMember[]> {
       "cm.permissions",
       "cm.invited_by",
       "cm.joined_at",
+      "u.name",
       "u.email",
     ])
     .where("cm.company_id", "=", companyId)
@@ -71,6 +72,15 @@ export async function hasPermission(
 
   const roleHierarchy = { owner: 3, admin: 2, member: 1 };
   return roleHierarchy[role] >= roleHierarchy[requiredRole];
+}
+
+/** Hierarchy policy shared by role changes and member removal. */
+export function canManageMember(
+  actorRole: "owner" | "admin" | "member",
+  targetRole: "owner" | "admin" | "member",
+): boolean {
+  const roleRank = { owner: 3, admin: 2, member: 1 } as const;
+  return roleRank[actorRole] > roleRank[targetRole];
 }
 
 /**
@@ -144,6 +154,39 @@ export async function updateMemberRole(
   }
 
   return member as unknown as CompanyMember;
+}
+
+/** Transfer ownership atomically to an existing workspace member. */
+export async function transferOwnership(
+  companyId: string,
+  currentOwnerId: string,
+  newOwnerId: string,
+): Promise<void> {
+  if (currentOwnerId === newOwnerId) {
+    throw new InsufficientPermissionsError("transfer ownership to yourself");
+  }
+  const [currentRole, targetRole] = await Promise.all([
+    getMemberRole(companyId, currentOwnerId),
+    getMemberRole(companyId, newOwnerId),
+  ]);
+  if (currentRole !== "owner" || !targetRole || targetRole === "owner") {
+    throw new InsufficientPermissionsError("transfer workspace ownership");
+  }
+
+  await db.transaction().execute(async (transaction) => {
+    await transaction
+      .updateTable("company_members")
+      .set({ role: "admin" })
+      .where("company_id", "=", companyId)
+      .where("user_id", "=", currentOwnerId)
+      .executeTakeFirstOrThrow();
+    await transaction
+      .updateTable("company_members")
+      .set({ role: "owner" })
+      .where("company_id", "=", companyId)
+      .where("user_id", "=", newOwnerId)
+      .executeTakeFirstOrThrow();
+  });
 }
 
 /**

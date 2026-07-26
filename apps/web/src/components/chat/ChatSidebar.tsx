@@ -1,7 +1,5 @@
-import { MessageSquare, Settings, Users } from "lucide-react";
-import { memo, useCallback, type ReactNode, type Ref } from "react";
-import { Link } from "react-router-dom";
-import { preloadRoute } from "@/lib/route-preload";
+import { MessageSquare, Users } from "lucide-react";
+import { memo, useCallback } from "react";
 import { cn } from "@/lib/utils";
 import { GroupList } from "../groups/GroupList";
 import { ChatList } from "./ChatList";
@@ -13,8 +11,6 @@ export interface ChatSidebarProps {
   onChatSelect: (chatId: string | null) => void;
   activeView: SidebarView;
   onActiveViewChange: (view: SidebarView) => void;
-  notificationAction?: ReactNode;
-  panelHostRef?: Ref<HTMLDivElement>;
   className?: string;
 }
 
@@ -26,8 +22,6 @@ export const ChatSidebar = memo(function ChatSidebar({
   onChatSelect,
   activeView,
   onActiveViewChange,
-  notificationAction,
-  panelHostRef,
   className,
 }: ChatSidebarProps) {
   const handleGroupSelect = useCallback(
@@ -39,7 +33,6 @@ export const ChatSidebar = memo(function ChatSidebar({
 
   return (
     <div
-      ref={panelHostRef}
       className={cn(
         "relative flex flex-col h-full bg-white dark:bg-dark-secondary",
         className,
@@ -61,19 +54,6 @@ export const ChatSidebar = memo(function ChatSidebar({
             label="Groups"
           />
         </nav>
-        {/* Notifications stay in the familiar conversation-list header. */}
-        <div className="mr-2 flex items-center gap-1">
-          {notificationAction}
-          <Link
-            to="/settings"
-            className="p-2 text-gray-500 dark:text-dark-text-secondary hover:text-gray-700 dark:hover:text-dark-text-primary hover:bg-gray-200 dark:hover:bg-dark-tertiary rounded-full transition-colors lg:hidden"
-            aria-label="Settings"
-            onMouseEnter={() => preloadRoute("settings")}
-            onFocus={() => preloadRoute("settings")}
-          >
-            <Settings className="h-5 w-5" aria-hidden="true" />
-          </Link>
-        </div>
       </div>
 
       {/* View Content */}

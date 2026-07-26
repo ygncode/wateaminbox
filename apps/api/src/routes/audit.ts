@@ -1,11 +1,11 @@
-import { toDbDate, toISOString } from "@wateaminbox/shared";
+import { dayjs, toDbDate, toISOString } from "@wateaminbox/shared";
 import { Hono } from "hono";
+import { transformAuditLogs } from "../lib/data-transformers.js";
 import { successData, successPaginated } from "../lib/response.js";
 import {
-  extractPaginationParams,
   createPaginationMeta,
+  extractPaginationParams,
 } from "../lib/route-helpers.js";
-import { transformAuditLogs } from "../lib/data-transformers.js";
 import { authMiddleware } from "../middleware/auth.js";
 import { getRouteContext } from "../middleware/context.js";
 import { requirePermission, tenantMiddleware } from "../middleware/tenant.js";
@@ -13,6 +13,21 @@ import * as auditService from "../services/audit.service.js";
 import { PERMISSIONS } from "../services/permission.service.js";
 
 export const auditRoutes = new Hono();
+
+function sanitizeAuditDetails(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(sanitizeAuditDetails);
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value)
+        .filter(
+          ([key]) =>
+            !/(token|password|secret|authorization|access.?key)/i.test(key),
+        )
+        .map(([key, entry]) => [key, sanitizeAuditDetails(entry)]),
+    );
+  }
+  return value;
+}
 
 // All audit routes require authentication and tenant context
 auditRoutes.use("/*", authMiddleware);
@@ -41,14 +56,20 @@ auditRoutes.get("/", async (c) => {
     entityType: entityType || undefined,
     entityId: entityId || undefined,
     startDate: startDateStr ? toDbDate(startDateStr) : undefined,
-    endDate: endDateStr ? toDbDate(endDateStr) : undefined,
+    endDate: endDateStr ? dayjs(endDateStr).endOf("day").toDate() : undefined,
     limit,
     offset,
   });
 
   return successPaginated(
     c,
-    transformAuditLogs(result.logs),
+    transformAuditLogs(result.logs).map((log) => ({
+      ...log,
+      details: sanitizeAuditDetails(log.details) as Record<
+        string,
+        unknown
+      > | null,
+    })),
     createPaginationMeta(result.total, result.logs.length, {
       limit,
       offset,
@@ -73,11 +94,18 @@ auditRoutes.get("/actions", async (c) => {
     "contact.updated",
     "contact.assigned",
     "contact.unassigned",
+    "contact.blocked",
+    "contact.unblocked",
+    "contact.note.created",
+    "contact.note.updated",
+    "contact.note.deleted",
     "message.sent",
     "message.deleted",
     "tag.created",
     "tag.deleted",
     "company.updated",
+    "conversation.resolved",
+    "conversation.reopened",
   ];
 
   return successData(
@@ -92,56 +120,74 @@ auditRoutes.get("/actions", async (c) => {
   );
 });
 
+/** GET /audit/actors - Actors available to audit filters. */
+auditRoutes.get("/actors", async (c) => {
+  const { companyId } = getRouteContext(c);
+  return successData(c, await auditService.getAuditActors(companyId));
+});
+
 /**
  * GET /audit/export - Export audit logs as CSV
  */
-auditRoutes.get("/export", async (c) => {
-  const { companyId } = getRouteContext(c);
+auditRoutes.get(
+  "/export",
+  requirePermission(PERMISSIONS.CAN_EXPORT),
+  async (c) => {
+    const { companyId } = getRouteContext(c);
+    const action = c.req.query("action") as
+      | auditService.AuditAction
+      | undefined;
+    const userId = c.req.query("userId");
+    const entityType = c.req.query("entityType");
+    const startDateStr = c.req.query("startDate");
+    const endDateStr = c.req.query("endDate");
 
-  const startDateStr = c.req.query("startDate");
-  const endDateStr = c.req.query("endDate");
+    const result = await auditService.getAuditLogs({
+      companyId,
+      userId: userId || undefined,
+      action: action || undefined,
+      entityType: entityType || undefined,
+      startDate: startDateStr ? toDbDate(startDateStr) : undefined,
+      endDate: endDateStr ? dayjs(endDateStr).endOf("day").toDate() : undefined,
+      limit: 10000,
+      offset: 0,
+    });
 
-  const result = await auditService.getAuditLogs({
-    companyId,
-    startDate: startDateStr ? toDbDate(startDateStr) : undefined,
-    endDate: endDateStr ? toDbDate(endDateStr) : undefined,
-    limit: 10000, // Max export limit
-    offset: 0,
-  });
+    const headers = [
+      "ID",
+      "Actor",
+      "Actor Email",
+      "Action",
+      "Entity Type",
+      "Entity ID",
+      "Details",
+      "IP Address",
+      "Created At",
+    ];
+    const rows = result.logs.map((log) => [
+      log.id,
+      log.actor?.name || "System",
+      log.actor?.email || "",
+      log.action,
+      log.entityType || "",
+      log.entityId || "",
+      log.details ? JSON.stringify(sanitizeAuditDetails(log.details)) : "",
+      log.ipAddress || "",
+      toISOString(log.createdAt),
+    ]);
 
-  // Generate CSV
-  const headers = [
-    "ID",
-    "User ID",
-    "Action",
-    "Entity Type",
-    "Entity ID",
-    "Details",
-    "IP Address",
-    "Created At",
-  ];
-  const rows = result.logs.map((log) => [
-    log.id,
-    log.userId || "",
-    log.action,
-    log.entityType || "",
-    log.entityId || "",
-    log.details ? JSON.stringify(log.details) : "",
-    log.ipAddress || "",
-    toISOString(log.createdAt),
-  ]);
+    const csv = [
+      headers.join(","),
+      ...rows.map((row) =>
+        row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(","),
+      ),
+    ].join("\n");
 
-  const csv = [
-    headers.join(","),
-    ...rows.map((row) =>
-      row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(","),
-    ),
-  ].join("\n");
-
-  return new Response(csv, {
-    headers: {
-      "Content-Type": "text/csv",
-      "Content-Disposition": `attachment; filename="audit-logs-${toISOString(toDbDate()).split("T")[0]}.csv"`,
-    },
-  });
-});
+    return new Response(csv, {
+      headers: {
+        "Content-Type": "text/csv",
+        "Content-Disposition": `attachment; filename="audit-logs-${toISOString(toDbDate()).split("T")[0]}.csv"`,
+      },
+    });
+  },
+);

@@ -1,16 +1,19 @@
-import { useNavigate } from "react-router-dom";
-import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { useForm } from "react-hook-form";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/auth-context";
+import { useWorkspace } from "../contexts/workspace-context";
 import { useCreateCompany } from "../hooks/useTeam";
 import {
-  companySetupSchema,
   type CompanySetupFormData,
+  companySetupSchema,
 } from "../lib/schemas/auth";
+import { workspacePath } from "../lib/workspace-routes";
 
 export function CompanySetupPage() {
   const navigate = useNavigate();
-  const { refreshSession, logout } = useAuth();
+  const { logout } = useAuth();
+  const { refreshWorkspaces, switchWorkspace } = useWorkspace();
   const createCompany = useCreateCompany();
 
   const {
@@ -28,10 +31,10 @@ export function CompanySetupPage() {
     createCompany.mutate(
       { name: data.name.trim() },
       {
-        onSuccess: async () => {
-          // Refresh session to get the new company
-          await refreshSession();
-          navigate("/chat");
+        onSuccess: async (created) => {
+          await refreshWorkspaces();
+          await switchWorkspace(created.id);
+          navigate(workspacePath(created.id), { replace: true });
         },
       },
     );
@@ -58,7 +61,7 @@ export function CompanySetupPage() {
               </svg>
             </div>
             <h1 className="text-2xl font-bold text-gray-900 dark:text-dark-text-primary text-balance">
-              Create Your Company
+              Create Your Workspace
             </h1>
             <p className="text-gray-600 dark:text-dark-text-secondary mt-2">
               Set up your workspace to start using the app
@@ -72,7 +75,7 @@ export function CompanySetupPage() {
             >
               {createCompany.error instanceof Error
                 ? createCompany.error.message
-                : "Failed to create company"}
+                : "Failed to create workspace"}
             </div>
           )}
 
@@ -82,7 +85,7 @@ export function CompanySetupPage() {
                 htmlFor="companyName"
                 className="block text-sm font-medium text-gray-700 dark:text-dark-text-secondary mb-1"
               >
-                Company Name
+                Workspace Name
               </label>
               <input
                 id="companyName"
@@ -112,7 +115,7 @@ export function CompanySetupPage() {
               disabled={createCompany.isPending}
               className="w-full bg-green-500 text-white py-2 px-4 rounded-lg hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
-              {createCompany.isPending ? "Creating…" : "Create Company"}
+              {createCompany.isPending ? "Creating…" : "Create Workspace"}
             </button>
           </form>
 

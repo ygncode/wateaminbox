@@ -4,22 +4,22 @@
  * Handles permission listing, member permissions, and permission management.
  */
 
-import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
+import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
-import { authMiddleware } from "../../middleware/auth.js";
-import { tenantFromParam, requirePermission } from "../../middleware/tenant.js";
-import * as companyService from "../../services/company.service.js";
-import {
-  PERMISSIONS,
-  ROLE_PRESETS,
-  getEffectivePermissions,
-  updateMemberPermissions,
-  resetMemberPermissions,
-  getPermissionDescriptions,
-} from "../../services/permission.service.js";
 import { successData, successWithMessage } from "../../lib/response.js";
 import { updateMemberPermissionsSchema } from "../../lib/schemas/index.js";
+import { authMiddleware } from "../../middleware/auth.js";
+import { requirePermission, tenantFromParam } from "../../middleware/tenant.js";
+import * as companyService from "../../services/company.service.js";
+import {
+  getEffectivePermissions,
+  getPermissionDescriptions,
+  PERMISSIONS,
+  ROLE_PRESETS,
+  resetMemberPermissions,
+  updateMemberPermissions,
+} from "../../services/permission.service.js";
 
 export const permissionRoutes = new Hono();
 
@@ -84,8 +84,7 @@ permissionRoutes.get(
 permissionRoutes.patch(
   "/:id/members/:userId/permissions",
   authMiddleware,
-  tenantFromParam("id"),
-  requirePermission(PERMISSIONS.CAN_MANAGE_TEAM),
+  tenantFromParam("id", "owner"),
   zValidator("json", updateMemberPermissionsSchema),
   async (c) => {
     const companyId = c.get("companyId");
@@ -122,8 +121,7 @@ permissionRoutes.patch(
 permissionRoutes.post(
   "/:id/members/:userId/permissions/reset",
   authMiddleware,
-  tenantFromParam("id"),
-  requirePermission(PERMISSIONS.CAN_MANAGE_TEAM),
+  tenantFromParam("id", "owner"),
   async (c) => {
     const companyId = c.get("companyId");
     const userId = c.req.param("userId");

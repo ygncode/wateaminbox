@@ -1,4 +1,6 @@
 import { Mail } from "lucide-react";
+import { useState } from "react";
+import { ConfirmationDialog } from "@/components/ui";
 import { useAsyncData } from "@/hooks/useAsyncData";
 import {
   useCancelInvitation,
@@ -12,16 +14,24 @@ import type { InvitationsListProps } from "./types";
 /**
  * Invitations list component
  */
-export function InvitationsList({ companyId }: InvitationsListProps) {
+export function InvitationsList({
+  companyId,
+  search = "",
+}: InvitationsListProps) {
   const { renderState } = useAsyncData(usePendingInvitations(companyId));
   const cancelInvitation = useCancelInvitation();
   const resendInvitation = useResendInvitation();
   const actionError = cancelInvitation.error || resendInvitation.error;
+  const [pendingCancel, setPendingCancel] = useState<string | null>(null);
 
-  const handleCancel = async (invitationId: string) => {
-    if (!confirm("Are you sure you want to cancel this invitation?")) return;
+  const handleCancel = async () => {
+    if (!pendingCancel) return;
     try {
-      await cancelInvitation.mutateAsync({ companyId, invitationId });
+      await cancelInvitation.mutateAsync({
+        companyId,
+        invitationId: pendingCancel,
+      });
+      setPendingCancel(null);
     } catch {
       // React Query exposes the error in the action banner below.
     }
@@ -64,16 +74,42 @@ export function InvitationsList({ companyId }: InvitationsListProps) {
             {actionError.message || "Could not update this invitation"}
           </div>
         )}
-        {invitations.map((invitation) => (
-          <InvitationCard
-            key={invitation.id}
-            invitation={invitation}
-            onCancel={() => handleCancel(invitation.id)}
-            onResend={() => handleResend(invitation.id)}
-            isCancelling={cancelInvitation.isPending}
-            isResending={resendInvitation.isPending}
-          />
-        ))}
+        {invitations
+          .filter((invitation) =>
+            invitation.email
+              .toLocaleLowerCase()
+              .includes(search.trim().toLocaleLowerCase()),
+          )
+          .map((invitation) => (
+            <InvitationCard
+              key={invitation.id}
+              invitation={invitation}
+              onCancel={() => setPendingCancel(invitation.id)}
+              onResend={() => handleResend(invitation.id)}
+              isCancelling={cancelInvitation.isPending}
+              isResending={resendInvitation.isPending}
+            />
+          ))}
+        {invitations.length > 0 &&
+          !invitations.some((invitation) =>
+            invitation.email
+              .toLocaleLowerCase()
+              .includes(search.trim().toLocaleLowerCase()),
+          ) && (
+            <div className="rounded-xl border border-dashed border-[#cbd6cf] py-12 text-center text-sm text-[#65736d] dark:border-dark-border dark:text-dark-text-secondary">
+              No invitations match your search.
+            </div>
+          )}
+        <ConfirmationDialog
+          open={pendingCancel !== null}
+          onOpenChange={(open) => !open && setPendingCancel(null)}
+          title="Cancel invitation"
+          description="This invitation link will stop working immediately."
+          confirmText="Cancel invitation"
+          onConfirm={handleCancel}
+          isDestructive
+          isLoading={cancelInvitation.isPending}
+        />
       </div>
     ),
   });

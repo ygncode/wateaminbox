@@ -46,7 +46,9 @@ export function setAuthToken(access: string): void {
 export function setCompanyId(id: string): void {
   companyId = id;
   try {
-    localStorage.setItem(COMPANY_ID_STORAGE_KEY, id);
+    // Workspace preferences are persisted per user by WorkspaceContext. Remove
+    // the former global value after it has been consumed as a migration hint.
+    localStorage.removeItem(COMPANY_ID_STORAGE_KEY);
   } catch {
     // localStorage not available
   }
@@ -210,6 +212,38 @@ export async function fetchWithAuth<T>(
   }
 
   return handleResponse<T>(response);
+}
+
+/** Fetch an authenticated binary response, including token-refresh retry. */
+export async function fetchBlobWithAuth(
+  endpoint: string,
+  options: RequestInit = {},
+): Promise<Blob> {
+  const url = `${API_BASE_URL}${endpoint}`;
+  const headers: Record<string, string> = {
+    ...(options.headers as Record<string, string> | undefined),
+  };
+  if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
+  if (companyId) headers["X-Company-ID"] = companyId;
+
+  let response = await fetch(url, {
+    ...options,
+    headers,
+    credentials: "include",
+  });
+  if (response.status === 401) {
+    const refreshed = await attemptTokenRefresh();
+    if (refreshed) {
+      if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
+      response = await fetch(url, {
+        ...options,
+        headers,
+        credentials: "include",
+      });
+    }
+  }
+  if (!response.ok) await handleResponse<never>(response);
+  return response.blob();
 }
 
 // Fetch wrapper for FormData requests (file uploads)

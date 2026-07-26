@@ -4,21 +4,21 @@
  * Handles invitation listing, creation, cancellation, acceptance, and resending.
  */
 
-import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
-import { authMiddleware } from "../../middleware/auth.js";
-import { tenantFromParam, requirePermission } from "../../middleware/tenant.js";
-import * as companyService from "../../services/company.service.js";
-import { PERMISSIONS } from "../../services/permission.service.js";
+import { Hono } from "hono";
 import {
   successData,
   successMessage,
   successWithMessage,
 } from "../../lib/response.js";
 import {
-  inviteMemberSchema,
   type InviteMemberInput,
+  inviteMemberSchema,
 } from "../../lib/schemas/index.js";
+import { authMiddleware } from "../../middleware/auth.js";
+import { requirePermission, tenantFromParam } from "../../middleware/tenant.js";
+import * as companyService from "../../services/company.service.js";
+import { PERMISSIONS } from "../../services/permission.service.js";
 
 export const invitationRoutes = new Hono();
 
@@ -43,6 +43,9 @@ invitationRoutes.get(
       role: inv.role,
       token: inv.token,
       invitedBy: inv.invited_by,
+      inviterName: inv.inviter_name,
+      inviterEmail: inv.inviter_email,
+      deliveryState: "delivered" as const,
       expiresAt: inv.expires_at,
       createdAt: inv.created_at,
     }));

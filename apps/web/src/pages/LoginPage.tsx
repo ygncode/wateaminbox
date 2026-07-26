@@ -10,12 +10,14 @@ import {
 import { Button } from "../components/ui/button";
 import { FormField } from "../components/ui/form-field";
 import { useAuth } from "../contexts/auth-context";
+import { useWorkspace } from "../contexts/workspace-context";
 import {
   buildAuthUrl,
   getAuthRedirectFromState,
   getSafeAuthRedirect,
 } from "../lib/auth-redirect";
 import { type LoginFormData, loginSchema } from "../lib/schemas";
+import { workspacePath } from "../lib/workspace-routes";
 
 export function LoginPage() {
   const navigate = useNavigate();
@@ -25,14 +27,13 @@ export function LoginPage() {
     getSafeAuthRedirect(searchParams.get("redirect")) ??
     getAuthRedirectFromState(location.state);
   const suggestedEmail = searchParams.get("email") ?? "";
+  const { login, isLoading, error, clearError, isAuthenticated } = useAuth();
   const {
-    login,
-    isLoading,
-    error,
-    clearError,
-    isAuthenticated,
-    needsCompanySetup,
-  } = useAuth();
+    activeWorkspaceId,
+    isLoading: isWorkspaceLoading,
+    needsWorkspaceSetup,
+    needsWorkspaceChoice,
+  } = useWorkspace();
 
   const {
     register,
@@ -49,15 +50,25 @@ export function LoginPage() {
   // Return users to the invitation (or other protected destination) after
   // login. An invitation can be accepted before the user has any company.
   React.useEffect(() => {
-    if (!isAuthenticated) return;
+    if (!isAuthenticated || isWorkspaceLoading) return;
     if (redirectTo) {
       navigate(redirectTo, { replace: true });
-    } else if (needsCompanySetup) {
+    } else if (needsWorkspaceSetup) {
       navigate("/company-setup", { replace: true });
+    } else if (needsWorkspaceChoice || !activeWorkspaceId) {
+      navigate("/workspaces", { replace: true });
     } else {
-      navigate("/chat", { replace: true });
+      navigate(workspacePath(activeWorkspaceId), { replace: true });
     }
-  }, [isAuthenticated, needsCompanySetup, navigate, redirectTo]);
+  }, [
+    activeWorkspaceId,
+    isAuthenticated,
+    isWorkspaceLoading,
+    navigate,
+    needsWorkspaceChoice,
+    needsWorkspaceSetup,
+    redirectTo,
+  ]);
 
   const onSubmit = async (data: LoginFormData) => {
     clearError();

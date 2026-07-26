@@ -1,13 +1,20 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { AlertCircle, Shield, ShieldCheck, X } from "lucide-react";
+import { AlertCircle, Shield, ShieldCheck } from "lucide-react";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { FormField } from "@/components/ui/form-field";
 import { useInviteMember } from "@/hooks/useTeam";
 import {
-  inviteTeamMemberSchema,
   type InviteTeamMemberFormData,
+  inviteTeamMemberSchema,
 } from "@/lib/schemas/team";
 import { cn } from "@/lib/utils";
 import type { InviteFormModalProps } from "./types";
@@ -53,21 +60,14 @@ export function InviteFormModal({ companyId, onClose }: InviteFormModalProps) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 dark:bg-black/70">
-      <div className="w-full max-w-md rounded-lg bg-white dark:bg-dark-elevated p-6 shadow-xl">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-dark-text-primary">
-            Invite Team Member
-          </h3>
-          <button
-            onClick={onClose}
-            className="rounded-full p-1 text-gray-400 dark:text-dark-text-tertiary hover:bg-gray-100 dark:hover:bg-dark-tertiary hover:text-gray-600 dark:hover:text-dark-text-secondary"
-            aria-label="Close invite form"
-          >
-            <X className="h-5 w-5" aria-hidden="true" />
-          </button>
-        </div>
-
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="mx-4 w-[calc(100vw-2rem)] max-w-md rounded-2xl sm:w-full">
+        <DialogHeader>
+          <DialogTitle>Invite team member</DialogTitle>
+          <DialogDescription>
+            Send a time-limited invitation to the current workspace.
+          </DialogDescription>
+        </DialogHeader>
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <FormField
             id="email"
@@ -168,7 +168,7 @@ export function InviteFormModal({ companyId, onClose }: InviteFormModalProps) {
             </Button>
           </div>
         </form>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }

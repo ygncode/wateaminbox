@@ -4,10 +4,13 @@
  * Handles member listing, role updates, and member removal.
  */
 
-import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
-import { HTTPException } from "hono/http-exception";
 import type { CompanyMember } from "@wateaminbox/shared";
+import { Hono } from "hono";
+import { HTTPException } from "hono/http-exception";
+import { z } from "zod";
+import { successData, successMessage } from "../../lib/response.js";
+import { updateMemberRoleSchema } from "../../lib/schemas/index.js";
 import { authMiddleware } from "../../middleware/auth.js";
 import { requirePermission, tenantFromParam } from "../../middleware/tenant.js";
 import * as companyService from "../../services/company.service.js";
@@ -15,8 +18,6 @@ import {
   getEffectivePermissions,
   PERMISSIONS,
 } from "../../services/permission.service.js";
-import { successData, successMessage } from "../../lib/response.js";
-import { updateMemberRoleSchema } from "../../lib/schemas/index.js";
 
 /**
  * Transform internal member to API response format
@@ -32,6 +33,7 @@ function toApiMember(
     permissions: member.permissions as Record<string, boolean>,
     invitedBy: member.invited_by,
     joinedAt: member.joined_at.toISOString(),
+    name: member.name || undefined,
     email: member.email || "",
   };
 }
@@ -72,6 +74,46 @@ memberRoutes.get(
   },
 );
 
+/** POST /:id/transfer-ownership - Transfer ownership to another member. */
+memberRoutes.post(
+  "/:id/transfer-ownership",
+  authMiddleware,
+  tenantFromParam("id", "owner"),
+  zValidator("json", z.object({ userId: z.string().uuid() })),
+  async (c) => {
+    const companyId = c.get("companyId");
+    const currentUser = c.get("user");
+    const { userId } = c.req.valid("json");
+    try {
+      await companyService.transferOwnership(companyId, currentUser.id, userId);
+      return successMessage(c, "Workspace ownership transferred successfully");
+    } catch (error) {
+      if (error instanceof companyService.InsufficientPermissionsError) {
+        throw new HTTPException(403, { message: error.message });
+      }
+      throw error;
+    }
+  },
+);
+
+/** POST /:id/leave - Leave a workspace as a non-owner member. */
+memberRoutes.post(
+  "/:id/leave",
+  authMiddleware,
+  tenantFromParam("id"),
+  async (c) => {
+    const companyId = c.get("companyId");
+    const currentUser = c.get("user");
+    if (c.get("companyRole") === "owner") {
+      throw new HTTPException(400, {
+        message: "Transfer ownership before leaving this workspace",
+      });
+    }
+    await companyService.removeMember(companyId, currentUser.id);
+    return successMessage(c, "You left the workspace successfully");
+  },
+);
+
 /**
  * PATCH /:id/members/:userId - Update member role
  * Requires admin role
@@ -86,8 +128,18 @@ memberRoutes.patch(
     const companyId = c.get("companyId");
     const userId = c.req.param("userId");
     const { role } = c.req.valid("json");
+    const actorRole = c.get("companyRole");
 
     try {
+      const targetRole = await companyService.getMemberRole(companyId, userId);
+      if (
+        !targetRole ||
+        !companyService.canManageMember(actorRole, targetRole)
+      ) {
+        throw new companyService.InsufficientPermissionsError(
+          "change a member at or above your role",
+        );
+      }
       const member = await companyService.updateMemberRole(
         companyId,
         userId,
@@ -138,6 +190,16 @@ memberRoutes.delete(
     }
 
     try {
+      const actorRole = c.get("companyRole");
+      const targetRole = await companyService.getMemberRole(companyId, userId);
+      if (
+        !targetRole ||
+        !companyService.canManageMember(actorRole, targetRole)
+      ) {
+        throw new companyService.InsufficientPermissionsError(
+          "remove a member at or above your role",
+        );
+      }
       await companyService.removeMember(companyId, userId);
       return successMessage(c, "Member removed successfully");
     } catch (error) {

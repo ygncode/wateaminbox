@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { ChatNavigationRail } from "../components/chat/ChatNavigationRail";
 import { ChatSidebar, type SidebarView } from "../components/chat/ChatSidebar";
 import { ConversationSearch } from "../components/chat/ConversationSearch";
 import { ContactProfile } from "../components/chat/contact-profile";
@@ -9,7 +8,6 @@ import { MessageComposer } from "../components/chat/MessageComposer";
 import { MessageHeader } from "../components/chat/MessageHeader";
 import { MessageThread } from "../components/chat/MessageThread";
 import { SyncingOverlay } from "../components/chat/SyncingOverlay";
-import { NotificationCenter } from "../components/notifications/NotificationCenter";
 import { AppLayout, ResponsiveLayout } from "../components/layout/app-layout";
 import { MainContent } from "../components/layout/main-content";
 import { Sidebar } from "../components/layout/sidebar";
@@ -21,8 +19,6 @@ import { useWhatsAppConnections } from "../hooks/useWhatsAppConnections";
 export function ChatPage() {
   const { user } = useAuth();
   const [sidebarView, setSidebarView] = useState<SidebarView>("chats");
-  const [notificationPanelHost, setNotificationPanelHost] =
-    useState<HTMLDivElement | null>(null);
   const { connections } = useWhatsAppConnections();
 
   // Get the status of the active (first connected or first) connection
@@ -66,12 +62,6 @@ export function ChatPage() {
     handleCloseForwardDialog,
   } = useChatPageState();
 
-  // Keep notifications in the familiar conversation-list header. The panel
-  // replaces the sidebar when open instead of covering the active chat.
-  const notificationCenter = (
-    <NotificationCenter panelContainer={notificationPanelHost} />
-  );
-
   // Build the sidebar component
   const sidebar = (
     <Sidebar className="flex-shrink-0">
@@ -80,14 +70,8 @@ export function ChatPage() {
         onChatSelect={handleChatSelect}
         activeView={sidebarView}
         onActiveViewChange={setSidebarView}
-        notificationAction={notificationCenter}
-        panelHostRef={setNotificationPanelHost}
       />
     </Sidebar>
-  );
-
-  const desktopRail = (
-    <ChatNavigationRail onChatsClick={() => setSidebarView("chats")} />
   );
 
   // Build the main content component
@@ -178,7 +162,6 @@ export function ChatPage() {
       <SyncingOverlay />
       <ResponsiveLayout
         sidebar={sidebar}
-        desktopRail={desktopRail}
         main={main}
         rightPanel={rightPanel}
         isRightPanelOpen={isProfileOpen}

@@ -4,10 +4,7 @@ export {
   type AuthProviderProps,
   type AuthState,
   type AuthUser,
-  type UserRole,
   useAuth,
-  useHasRole,
-  useIsAdmin,
 } from "./auth-context";
 export {
   type KeyboardShortcutsContextValue,
@@ -20,6 +17,19 @@ export {
   useShortcutsEnabled,
 } from "./KeyboardShortcutsContext";
 export {
+  type MessageActionsContextValue,
+  MessageActionsProvider,
+  type MessageActionsProviderProps,
+  useMessageActions,
+  useMessageActionsStrict,
+} from "./message-actions-context";
+export {
+  type RealtimeContextValue,
+  RealtimeProvider,
+  type SyncState,
+  useRealtimeContext,
+} from "./RealtimeProvider";
+export {
   type ResolvedTheme,
   type Theme,
   type ThemeContextValue,
@@ -27,15 +37,10 @@ export {
   useTheme,
 } from "./theme-context";
 export {
-  RealtimeProvider,
-  type RealtimeContextValue,
-  type SyncState,
-  useRealtimeContext,
-} from "./RealtimeProvider";
-export {
-  type MessageActionsContextValue,
-  type MessageActionsProviderProps,
-  MessageActionsProvider,
-  useMessageActions,
-  useMessageActionsStrict,
-} from "./message-actions-context";
+  useHasRole,
+  useIsAdmin,
+  useWorkspace,
+  type WorkspaceCapability,
+  type WorkspaceContextValue,
+  WorkspaceProvider,
+} from "./workspace-context";
