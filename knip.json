@@ -17,10 +17,11 @@
       "project": ["src/**/*.{ts,tsx,astro}"]
     },
     "packages/database": {
-      "entry": ["src/migrations/*.ts"],
+      "entry": ["src/migrations/*.ts", "src/**/*.test.ts"],
       "project": ["src/**/*.ts"]
     },
     "packages/shared": {
+      "entry": ["src/**/*.test.ts"],
       "project": ["src/**/*.ts"]
     },
     "packages/ui": {

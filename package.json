@@ -14,7 +14,7 @@
     "check:unused": "knip",
     "format": "biome format --write apps/api apps/web packages",
     "test": "./scripts/run-tests.sh",
-    "test:integration": "RUN_DB_INTEGRATION=1 bun test apps/api/src/services/*.integration.test.ts apps/api/src/e2e/*.integration.test.ts && cd services/whatsapp && go test -tags=integration -timeout 20m ./...",
+    "test:integration": "RUN_DB_INTEGRATION=1 bun test packages/database/src/*.integration.test.ts apps/api/src/services/*.integration.test.ts apps/api/src/e2e/*.integration.test.ts && cd services/whatsapp && go test -tags=integration -timeout 20m ./...",
     "clean": "turbo clean",
     "db:migrate": "turbo db:migrate",
     "db:generate": "turbo db:generate"
