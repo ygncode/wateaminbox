@@ -2,11 +2,11 @@ import { describe, expect, test } from "bun:test";
 import { db } from "@wateaminbox/database";
 import { sql } from "kysely";
 import type { ContactEvent } from "../lib/nats/index.js";
-import { handleContactEvent } from "./handlers/contact-handlers.js";
 import {
   getEnrichedGroupParticipants,
   getGroupsList,
 } from "./group.service.js";
+import { handleContactEvent } from "./handlers/contact-handlers.js";
 import {
   clearTenantConnection,
   createTenantSchema,
@@ -141,6 +141,24 @@ describe("group synchronization", () => {
           participantCount: 2,
           unreadCount: 7,
         });
+
+        const matchingConnection = await getGroupsList(tenantDb, {
+          connectionId,
+          limit: 100,
+          offset: 0,
+          userId: crypto.randomUUID(),
+          canViewAllChats: true,
+        });
+        expect(matchingConnection.groups).toHaveLength(1);
+        const otherConnection = await getGroupsList(tenantDb, {
+          connectionId: crypto.randomUUID(),
+          limit: 100,
+          offset: 0,
+          userId: crypto.randomUUID(),
+          canViewAllChats: true,
+        });
+        expect(otherConnection.groups).toHaveLength(0);
+        expect(otherConnection.total).toBe(0);
 
         // A reconnect metadata repair has no unread snapshot and must not
         // claim that every group is read.

@@ -20,6 +20,14 @@ describe("inclusive chat list and group filtering", () => {
     expect(sidebar).toContain("<GroupList");
   });
 
+  test("groups can be scoped to a WhatsApp account", async () => {
+    const groupList = await readSource("./GroupList.tsx");
+    const groupsHook = await readSource("../../hooks/useGroups.ts");
+    expect(groupList).toContain('connectionFilter === "all"');
+    expect(groupList).toContain("All WhatsApp numbers");
+    expect(groupsHook).toContain('params.set("connectionId", connectionId)');
+  });
+
   test("does not present missing participant metadata as a real zero", async () => {
     const groupList = await readSource("./GroupList.tsx");
     expect(groupList).toContain('"Participant count unavailable"');

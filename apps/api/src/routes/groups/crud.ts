@@ -22,14 +22,15 @@ export const crudRoutes = new Hono();
 
 /**
  * GET / - List all groups
- * Query params: search, limit, offset
+ * Query params: search, connectionId, limit, offset
  */
 crudRoutes.get("/", zValidator("query", listGroupsQuerySchema), async (c) => {
   const { tenantDb, user, permissions } = getRouteContext(c);
-  const { search, limit, offset } = c.req.valid("query");
+  const { search, connectionId, limit, offset } = c.req.valid("query");
 
   const { groups, total } = await getGroupsList(tenantDb, {
     search,
+    connectionId,
     limit,
     offset,
     userId: user.id,

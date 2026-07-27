@@ -1,11 +1,20 @@
-import { MessageSquare, Search, Users, X } from "lucide-react";
-import { useCallback, useState } from "react";
+import { formatChatListTime } from "@wateaminbox/shared";
+import { MessageSquare, Search, Smartphone, Users, X } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAsyncData } from "@/hooks/useAsyncData";
 import { type GroupListItem, useGroups } from "@/hooks/useGroups";
+import { useWhatsAppConnections } from "@/hooks/useWhatsAppConnections";
 import { cn } from "@/lib/utils";
-import { formatChatListTime } from "@wateaminbox/shared";
+import { getConnectionLabel } from "../chat/ConnectionIdentity";
 
 export interface GroupListProps {
   selectedGroupId?: string | null;
@@ -23,9 +32,25 @@ export function GroupList({
   className = "",
 }: GroupListProps) {
   const [searchQuery, setSearchQuery] = useState("");
+  const [connectionFilter, setConnectionFilter] = useState("all");
+  const { connections } = useWhatsAppConnections();
   const { data, renderState, error } = useAsyncData(
-    useGroups(searchQuery, 100),
+    useGroups(
+      searchQuery,
+      100,
+      undefined,
+      connectionFilter === "all" ? undefined : connectionFilter,
+    ),
   );
+
+  useEffect(() => {
+    if (
+      connectionFilter !== "all" &&
+      !connections.some((connection) => connection.id === connectionFilter)
+    ) {
+      setConnectionFilter("all");
+    }
+  }, [connectionFilter, connections]);
 
   const handleSearchChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -93,6 +118,36 @@ export function GroupList({
           {data?.pagination.total ?? 0} groups
         </span>
       </div>
+
+      {/* Match the Inbox account scope for multi-number workspaces. */}
+      {connections.length > 1 && (
+        <div className="flex items-center gap-2 border-b border-gray-200 bg-white px-3 py-2 dark:border-dark-border dark:bg-dark-secondary">
+          <Smartphone
+            className="h-4 w-4 shrink-0 text-gray-400 dark:text-dark-text-tertiary"
+            aria-hidden="true"
+          />
+          <span className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-dark-text-secondary">
+            Inbox
+          </span>
+          <Select value={connectionFilter} onValueChange={setConnectionFilter}>
+            <SelectTrigger
+              className="ml-auto h-8 min-w-0 max-w-[190px] border-0 bg-gray-100 px-2.5 text-xs shadow-none focus:ring-1 focus:ring-whatsapp-green dark:bg-dark-tertiary"
+              aria-label="Filter groups by WhatsApp account"
+            >
+              <SelectValue placeholder="All WhatsApp numbers" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All WhatsApp numbers</SelectItem>
+              {connections.map((connection) => (
+                <SelectItem key={connection.id} value={connection.id}>
+                  {getConnectionLabel(connection)}
+                  {connection.status !== "connected" ? " · offline" : ""}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
 
       {/* Group List */}
       <div

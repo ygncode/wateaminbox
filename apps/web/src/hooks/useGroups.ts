@@ -82,9 +82,14 @@ export const groupKeys = createQueryKeyFactory("groups");
 /**
  * Hook to fetch groups list with optional search, limit, and offset
  */
-export function useGroups(search?: string, limit?: number, offset?: number) {
+export function useGroups(
+  search?: string,
+  limit?: number,
+  offset?: number,
+  connectionId?: string,
+) {
   return useQuery({
-    queryKey: groupKeys.list({ search, limit, offset }),
+    queryKey: groupKeys.list({ search, limit, offset, connectionId }),
     queryFn: async () => {
       const params = new URLSearchParams();
       if (search?.trim()) {
@@ -95,6 +100,9 @@ export function useGroups(search?: string, limit?: number, offset?: number) {
       }
       if (offset !== undefined) {
         params.set("offset", String(offset));
+      }
+      if (connectionId) {
+        params.set("connectionId", connectionId);
       }
 
       const queryString = params.toString();

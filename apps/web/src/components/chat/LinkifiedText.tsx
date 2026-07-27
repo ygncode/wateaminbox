@@ -9,6 +9,7 @@ export interface MessageTextSegment {
 
 const LINK_PATTERN =
   /[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}|(?:https?:\/\/|www\.)[^\s<>]+|(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}(?:\/[^\s<>]*)?/gi;
+const EMAIL_PATTERN = /^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/i;
 const SIMPLE_TRAILING_PUNCTUATION = /[.,!?;:]+$/;
 
 function trimTrailingPunctuation(value: string): {
@@ -42,7 +43,7 @@ function trimTrailingPunctuation(value: string): {
 }
 
 function toSafeHref(value: string): string | null {
-  const candidate = value.includes("@")
+  const candidate = EMAIL_PATTERN.test(value)
     ? `mailto:${value}`
     : /^https?:\/\//i.test(value)
       ? value

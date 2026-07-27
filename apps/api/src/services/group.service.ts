@@ -8,6 +8,7 @@ import type { TenantDatabase } from "./tenant.service.js";
 
 export interface ListGroupsOptions {
   search?: string;
+  connectionId?: string;
   limit: number;
   offset: number;
   userId: string;
@@ -46,7 +47,8 @@ export async function getGroupsList(
   tenantDb: Kysely<TenantDatabase>,
   options: ListGroupsOptions,
 ): Promise<{ groups: GroupListItem[]; total: number }> {
-  const { search, limit, offset, userId, canViewAllChats } = options;
+  const { search, connectionId, limit, offset, userId, canViewAllChats } =
+    options;
   const messageSummary = tenantDb
     .selectFrom("messages")
     .select("contact_id")
@@ -82,6 +84,10 @@ export async function getGroupsList(
     )
     .where("contacts.is_group", "=", true);
 
+  if (connectionId) {
+    query = query.where("contacts.whatsapp_connection_id", "=", connectionId);
+  }
+
   if (!canViewAllChats) {
     query = query
       .innerJoin("contact_assignments", (join) =>
@@ -116,6 +122,14 @@ export async function getGroupsList(
     .leftJoin("groups", "groups.contact_id", "contacts.id")
     .select((eb) => eb.fn.count("contacts.id").as("total"))
     .where("contacts.is_group", "=", true);
+
+  if (connectionId) {
+    countQuery = countQuery.where(
+      "contacts.whatsapp_connection_id",
+      "=",
+      connectionId,
+    );
+  }
 
   if (!canViewAllChats) {
     countQuery = countQuery

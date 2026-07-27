@@ -45,6 +45,18 @@ describe("message linkification", () => {
     expect(segments).toContainEqual({ type: "text", value: ")." });
   });
 
+  test("does not treat an @ inside a URL as an email address", () => {
+    const tiktokUrl =
+      "https://www.tiktok.com/@thesgdaily/video/7666820732684438805";
+    expect(parseMessageLinks(tiktokUrl)).toEqual([
+      {
+        type: "link",
+        value: tiktokUrl,
+        href: tiktokUrl,
+      },
+    ]);
+  });
+
   test("linkifies email addresses without allowing script protocols", () => {
     expect(parseMessageLinks("Email team@example.com")).toContainEqual({
       type: "link",
