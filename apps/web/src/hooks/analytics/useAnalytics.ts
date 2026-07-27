@@ -131,10 +131,7 @@ export function useDashboardStats(companyId: string | null) {
     queryKey: queryKeys.analytics.dashboard(companyId),
     queryFn: async () => {
       if (!companyId) throw new Error("No company ID provided");
-      const response = await api.get<{ data: DashboardStats }>(
-        "/analytics/dashboard",
-      );
-      return response.data;
+      return api.get<DashboardStats>("/analytics/dashboard");
     },
     enabled: !!companyId,
     staleTime: 60_000, // 1 minute
@@ -162,10 +159,10 @@ export function useMessageStats(
       if (!companyId) throw new Error("No company ID provided");
       const url = `/analytics/messages${queryString ? `?${queryString}` : ""}`;
       const response = await api.get<{
-        data: MessageStats[];
+        stats: MessageStats[];
         meta: { startDate: string; endDate: string };
       }>(url);
-      return response;
+      return response.stats;
     },
     enabled: !!companyId,
     staleTime: 300_000, // 5 minutes
@@ -181,10 +178,7 @@ export function useContactStats(companyId: string | null) {
     queryKey: queryKeys.analytics.contacts(companyId),
     queryFn: async () => {
       if (!companyId) throw new Error("No company ID provided");
-      const response = await api.get<{ data: ContactStats }>(
-        "/analytics/contacts",
-      );
-      return response.data;
+      return api.get<ContactStats>("/analytics/contacts");
     },
     enabled: !!companyId,
     staleTime: 300_000, // 5 minutes
@@ -200,10 +194,7 @@ export function useTeamActivityStats(companyId: string | null) {
     queryKey: queryKeys.analytics.team(companyId),
     queryFn: async () => {
       if (!companyId) throw new Error("No company ID provided");
-      const response = await api.get<{ data: TeamActivityStats[] }>(
-        "/analytics/team",
-      );
-      return response.data;
+      return api.get<TeamActivityStats[]>("/analytics/team");
     },
     enabled: !!companyId,
     staleTime: 300_000, // 5 minutes
@@ -229,8 +220,7 @@ export function useMessageTypeStats(
     queryFn: async () => {
       if (!companyId) throw new Error("No company ID provided");
       const url = `/analytics/message-types${queryString ? `?${queryString}` : ""}`;
-      const response = await api.get<{ data: MessageTypeStats[] }>(url);
-      return response.data;
+      return api.get<MessageTypeStats[]>(url);
     },
     enabled: !!companyId,
     staleTime: 300_000, // 5 minutes
@@ -246,10 +236,7 @@ export function useHourlyStats(companyId: string | null, days: number = 30) {
     queryKey: queryKeys.analytics.hourly(companyId, days),
     queryFn: async () => {
       if (!companyId) throw new Error("No company ID provided");
-      const response = await api.get<{ data: HourlyStats[] }>(
-        `/analytics/hourly?days=${days}`,
-      );
-      return response.data;
+      return api.get<HourlyStats[]>(`/analytics/hourly?days=${days}`);
     },
     enabled: !!companyId,
     staleTime: 300_000, // 5 minutes
@@ -276,10 +263,10 @@ export function useNewContactsTrend(
       if (!companyId) throw new Error("No company ID provided");
       const url = `/analytics/contacts/trend${queryString ? `?${queryString}` : ""}`;
       const response = await api.get<{
-        data: NewContactsTrend[];
+        trend: NewContactsTrend[];
         meta: { startDate: string; endDate: string };
       }>(url);
-      return response;
+      return response.trend;
     },
     enabled: !!companyId,
     staleTime: 300_000, // 5 minutes
@@ -310,26 +297,12 @@ export function formatDate(dateStr: string): string {
 /**
  * Hook to fetch resolution statistics
  */
-export function useResolutionStats(
-  companyId: string | null,
-  startDate?: string,
-  endDate?: string,
-) {
-  const params = new URLSearchParams();
-  if (startDate) params.set("startDate", startDate);
-  if (endDate) params.set("endDate", endDate);
-  const queryString = params.toString();
-
+export function useResolutionStats(companyId: string | null) {
   return useQuery({
-    queryKey: queryKeys.analytics.resolution(companyId, startDate, endDate),
+    queryKey: queryKeys.analytics.resolution(companyId),
     queryFn: async () => {
       if (!companyId) throw new Error("No company ID provided");
-      const url = `/conversations/stats/resolution${queryString ? `?${queryString}` : ""}`;
-      const response = await api.get<{
-        data: ResolutionStats;
-        meta: { startDate: string | null; endDate: string | null };
-      }>(url);
-      return response;
+      return api.get<ResolutionStats>("/conversations/stats/resolution");
     },
     enabled: !!companyId,
     staleTime: 60_000, // 1 minute
@@ -360,10 +333,10 @@ export function useResolutionTrend(
       if (!companyId) throw new Error("No company ID provided");
       const url = `/conversations/stats/resolution-trend${queryString ? `?${queryString}` : ""}`;
       const response = await api.get<{
-        data: ResolutionTrend[];
+        trend: ResolutionTrend[];
         meta: { startDate: string; endDate: string };
       }>(url);
-      return response;
+      return response.trend;
     },
     enabled: !!companyId,
     staleTime: 300_000, // 5 minutes
@@ -389,11 +362,11 @@ export function useEngagementMetrics(
     queryFn: async () => {
       if (!companyId) throw new Error("No company ID provided");
       const url = `/analytics/engagement${queryString ? `?${queryString}` : ""}`;
-      const response = await api.get<{
-        data: EngagementMetrics;
-        meta: { startDate: string; endDate: string };
-      }>(url);
-      return response;
+      return api.get<
+        EngagementMetrics & {
+          meta: { startDate: string; endDate: string };
+        }
+      >(url);
     },
     enabled: !!companyId,
     staleTime: 300_000, // 5 minutes
@@ -424,10 +397,10 @@ export function useEngagementTrend(
       if (!companyId) throw new Error("No company ID provided");
       const url = `/analytics/engagement/trend${queryString ? `?${queryString}` : ""}`;
       const response = await api.get<{
-        data: EngagementTrend[];
+        trend: EngagementTrend[];
         meta: { startDate: string; endDate: string };
       }>(url);
-      return response;
+      return response.trend;
     },
     enabled: !!companyId,
     staleTime: 300_000, // 5 minutes

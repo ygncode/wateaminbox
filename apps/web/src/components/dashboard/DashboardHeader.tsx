@@ -1,4 +1,5 @@
 import { Archive, ChevronDown, Download } from "lucide-react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Popover,
@@ -32,6 +33,12 @@ export function DashboardHeader({
   onDateRangeChange,
   onExport,
 }: DashboardHeaderProps) {
+  const [exportMenuOpen, setExportMenuOpen] = useState(false);
+  const selectExport = (type: ExportType) => {
+    setExportMenuOpen(false);
+    onExport(type);
+  };
+
   return (
     <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
       <div>
@@ -47,6 +54,7 @@ export function DashboardHeader({
               key={range.id}
               type="button"
               onClick={() => onDateRangeChange(range.id)}
+              aria-pressed={dateRange === range.id}
               className={cn(
                 "rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
                 dateRange === range.id
@@ -73,7 +81,7 @@ export function DashboardHeader({
           ))}
         </select>
         {canExport && (
-          <Popover>
+          <Popover open={exportMenuOpen} onOpenChange={setExportMenuOpen}>
             <PopoverTrigger asChild>
               <Button variant="outline" size="sm" className="gap-2">
                 <Download className="h-4 w-4" /> Export
@@ -83,16 +91,16 @@ export function DashboardHeader({
             <PopoverContent align="end" className="w-52 p-1.5">
               <ExportAction
                 label="Contacts"
-                onClick={() => onExport("contacts")}
+                onClick={() => selectExport("contacts")}
               />
               <ExportAction
                 label="Messages"
-                onClick={() => onExport("messages")}
+                onClick={() => selectExport("messages")}
               />
               <ExportAction
                 label="Full backup"
                 icon={Archive}
-                onClick={() => onExport("full-backup")}
+                onClick={() => selectExport("full-backup")}
               />
             </PopoverContent>
           </Popover>

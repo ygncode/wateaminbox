@@ -425,6 +425,12 @@ export interface ConversationStatesTable {
   last_message_at: Date | null;
   last_message_preview: string | null;
   unread_count: Generated<number>;
+  status: Generated<ConversationStatus>;
+  resolved_at: Date | null;
+  resolved_by: string | null;
+  reopened_at: Date | null;
+  reopened_by: string | null;
+  resolution_notes: string | null;
   created_at: Generated<Date>;
   updated_at: Generated<Date>;
 }

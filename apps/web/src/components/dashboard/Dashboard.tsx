@@ -1,5 +1,5 @@
 import { getDateRange, toISOString } from "@wateaminbox/shared";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { ExportDialog } from "@/components/export";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -58,22 +58,23 @@ export function Dashboard({
     if (showSecondary || !secondarySentinelRef.current) return;
     const observer = new IntersectionObserver(
       ([entry]) => entry.isIntersecting && setShowSecondary(true),
-      { rootMargin: "500px 0px" },
+      { rootMargin: "0px" },
     );
     observer.observe(secondarySentinelRef.current);
     return () => observer.disconnect();
   }, [showSecondary]);
 
-  const getDates = () => {
+  const { startDate, endDate } = useMemo(() => {
     const { start, end } = getDateRange(dateRange);
     return { startDate: toISOString(start), endDate: toISOString(end) };
-  };
-
-  const { startDate, endDate } = getDates();
+  }, [dateRange]);
 
   // Data fetching hooks
-  const { data: dashboardStats, isLoading: isLoadingDashboard } =
-    useDashboardStats(companyId);
+  const {
+    data: dashboardStats,
+    isLoading: isLoadingDashboard,
+    isError: isDashboardError,
+  } = useDashboardStats(companyId);
   const {
     data: messageData,
     isLoading: isLoadingMessages,
@@ -144,15 +145,16 @@ export function Dashboard({
           <DashboardStats
             data={dashboardStats}
             isLoading={isLoadingDashboard}
+            isError={isDashboardError}
           />
         </section>
 
         {/* Charts Row */}
         <TrendChartsRow
-          messageData={messageData?.data}
+          messageData={messageData}
           isLoadingMessages={isLoadingMessages}
           isMessagesError={isMessagesError}
-          contactsTrendData={contactsTrendData?.data}
+          contactsTrendData={contactsTrendData}
           isLoadingContactsTrend={isLoadingContactsTrend}
           isContactsTrendError={isContactsTrendError}
           hourlyStats={hourlyStats}
@@ -175,11 +177,7 @@ export function Dashboard({
               isTeamError={isTeamError}
               isAdmin={isAdmin}
             />
-            <ResolutionRateSection
-              companyId={companyId}
-              startDate={startDate}
-              endDate={endDate}
-            />
+            <ResolutionRateSection companyId={companyId} />
             <CustomerEngagementSection
               companyId={companyId}
               startDate={startDate}
@@ -188,6 +186,7 @@ export function Dashboard({
             <div className="rounded-lg border border-gray-200 bg-white p-4 dark:border-dark-border dark:bg-dark-elevated sm:p-6">
               <ResponseTimeAnalytics
                 companyId={companyId}
+                dateRange={dateRange}
                 isAdmin={isAdmin}
                 slaThreshold={60}
               />

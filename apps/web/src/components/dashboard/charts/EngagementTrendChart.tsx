@@ -1,5 +1,5 @@
-import { cn } from "@/lib/utils";
 import { formatDate } from "@/hooks/analytics";
+import { cn } from "@/lib/utils";
 
 export interface EngagementTrendData {
   date: string;

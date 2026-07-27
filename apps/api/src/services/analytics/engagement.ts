@@ -2,9 +2,9 @@
  * Engagement analytics
  */
 
+import { dayjs, toISOString } from "@wateaminbox/shared";
 import { sql } from "kysely";
-import { toISOString, dayjs } from "@wateaminbox/shared";
-import { getTenantConnection } from "../tenant.service.js";
+import { getSchemaName, getTenantConnection } from "../tenant.service.js";
 import type { EngagementMetrics, EngagementTrend } from "./types.js";
 
 /**
@@ -17,6 +17,8 @@ export async function getEngagementMetrics(
   endDate: Date,
 ): Promise<EngagementMetrics> {
   const tenantDb = getTenantConnection(companyId);
+  const messagesTable = sql.table(`${getSchemaName(companyId)}.messages`);
+  const contactsTable = sql.table(`${getSchemaName(companyId)}.contacts`);
 
   // Get total contacts (excluding groups)
   const totalContactsResult = await tenantDb
@@ -68,8 +70,8 @@ export async function getEngagementMetrics(
         m.contact_id,
         COUNT(*) FILTER (WHERE m.from_me = true) as sent_count,
         COUNT(*) FILTER (WHERE m.from_me = false) as received_count
-      FROM messages m
-      INNER JOIN contacts c ON c.id = m.contact_id
+      FROM ${messagesTable} m
+      INNER JOIN ${contactsTable} c ON c.id = m.contact_id
       WHERE c.is_group = false
         AND m.timestamp >= ${startDate}
         AND m.timestamp <= ${endDate}
@@ -111,14 +113,14 @@ export async function getEngagementMetrics(
         m.contact_id,
         m.timestamp as inbound_time,
         EXISTS (
-          SELECT 1 FROM messages outbound
+          SELECT 1 FROM ${messagesTable} outbound
           WHERE outbound.contact_id = m.contact_id
             AND outbound.from_me = true
             AND outbound.timestamp > m.timestamp
             AND outbound.timestamp < m.timestamp + INTERVAL '24 hours'
         ) as got_response
-      FROM messages m
-      INNER JOIN contacts c ON c.id = m.contact_id
+      FROM ${messagesTable} m
+      INNER JOIN ${contactsTable} c ON c.id = m.contact_id
       WHERE m.from_me = false
         AND c.is_group = false
         AND m.timestamp >= ${startDate}
@@ -183,6 +185,8 @@ export async function getEngagementTrend(
   endDate: Date,
 ): Promise<EngagementTrend[]> {
   const tenantDb = getTenantConnection(companyId);
+  const messagesTable = sql.table(`${getSchemaName(companyId)}.messages`);
+  const contactsTable = sql.table(`${getSchemaName(companyId)}.contacts`);
 
   // Get daily stats
   const dailyStats = await sql<{
@@ -200,8 +204,8 @@ export async function getEngagementTrend(
         m.from_me,
         m.id,
         m.timestamp
-      FROM messages m
-      INNER JOIN contacts c ON c.id = m.contact_id
+      FROM ${messagesTable} m
+      INNER JOIN ${contactsTable} c ON c.id = m.contact_id
       WHERE c.is_group = false
         AND m.timestamp >= ${startDate}
         AND m.timestamp <= ${endDate}
@@ -211,7 +215,7 @@ export async function getEngagementTrend(
         DATE(dm.timestamp) as message_date,
         dm.id,
         EXISTS (
-          SELECT 1 FROM messages outbound
+          SELECT 1 FROM ${messagesTable} outbound
           WHERE outbound.contact_id = dm.contact_id
             AND outbound.from_me = true
             AND outbound.timestamp > dm.timestamp

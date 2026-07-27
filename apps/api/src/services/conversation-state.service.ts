@@ -236,22 +236,21 @@ export async function getResolutionStats(
 ): Promise<ResolutionStats> {
   const db = castDb(tenantDb);
 
-  // Get counts by status using raw SQL for reliability
-  const result = await sql<{
-    total: string;
-    open_count: string;
-    pending_count: string;
-    resolved_count: string;
-  }>`
-    SELECT
-      COUNT(*) as total,
-      COUNT(*) FILTER (WHERE status = 'open') as open_count,
-      COUNT(*) FILTER (WHERE status = 'pending') as pending_count,
-      COUNT(*) FILTER (WHERE status = 'resolved') as resolved_count
-    FROM conversation_states
-  `.execute(db);
-
-  const row = result.rows[0];
+  const row = await db
+    .selectFrom("conversation_states")
+    .select((eb) => [
+      eb.fn.countAll().as("total"),
+      eb.fn.countAll().filterWhere("status", "=", "open").as("open_count"),
+      eb.fn
+        .countAll()
+        .filterWhere("status", "=", "pending")
+        .as("pending_count"),
+      eb.fn
+        .countAll()
+        .filterWhere("status", "=", "resolved")
+        .as("resolved_count"),
+    ])
+    .executeTakeFirst();
   const total = Number(row?.total || 0);
   const open = Number(row?.open_count || 0);
   const pending = Number(row?.pending_count || 0);
@@ -288,24 +287,30 @@ export async function getResolutionTrend(
   const db = castDb(tenantDb);
 
   // Get resolved conversations grouped by date
-  const resolvedResult = await sql<{ date: string; count: string }>`
-    SELECT DATE(resolved_at) as date, COUNT(*) as count
-    FROM conversation_states
-    WHERE status = 'resolved'
-      AND resolved_at >= ${startDate}
-      AND resolved_at <= ${endDate}
-    GROUP BY DATE(resolved_at)
-    ORDER BY date ASC
-  `.execute(db);
+  const resolvedResult = await db
+    .selectFrom("conversation_states")
+    .select((eb) => [
+      sql<string>`DATE(resolved_at)`.as("date"),
+      eb.fn.countAll().as("count"),
+    ])
+    .where("status", "=", "resolved")
+    .where("resolved_at", ">=", startDate)
+    .where("resolved_at", "<=", endDate)
+    .groupBy(sql`DATE(resolved_at)`)
+    .orderBy("date", "asc")
+    .execute();
 
   // Get total conversations created by date
-  const createdResult = await sql<{ date: string; count: string }>`
-    SELECT DATE(created_at) as date, COUNT(*) as count
-    FROM conversation_states
-    WHERE created_at >= ${startDate}
-      AND created_at <= ${endDate}
-    GROUP BY DATE(created_at)
-  `.execute(db);
+  const createdResult = await db
+    .selectFrom("conversation_states")
+    .select((eb) => [
+      sql<string>`DATE(created_at)`.as("date"),
+      eb.fn.countAll().as("count"),
+    ])
+    .where("created_at", ">=", startDate)
+    .where("created_at", "<=", endDate)
+    .groupBy(sql`DATE(created_at)`)
+    .execute();
 
   // Create a map of dates
   const dateMap = new Map<string, { resolved: number; total: number }>();
@@ -319,7 +324,7 @@ export async function getResolutionTrend(
   }
 
   // Fill in resolved counts
-  for (const row of resolvedResult.rows) {
+  for (const row of resolvedResult) {
     const dateStr = String(row.date);
     const existing = dateMap.get(dateStr) || { resolved: 0, total: 0 };
     existing.resolved = Number(row.count);
@@ -327,7 +332,7 @@ export async function getResolutionTrend(
   }
 
   // Fill in total counts
-  for (const row of createdResult.rows) {
+  for (const row of createdResult) {
     const dateStr = String(row.date);
     const existing = dateMap.get(dateStr) || { resolved: 0, total: 0 };
     existing.total = Number(row.count);

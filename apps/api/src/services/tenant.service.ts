@@ -66,6 +66,31 @@ export async function createTenantSchema(companyId: string): Promise<void> {
   const schemaName = getSchemaName(companyId);
   await sql`SELECT setup_tenant_schema(${schemaName})`.execute(baseTenantDb);
 
+  // Historical setup function versions alternated between resolution tracking
+  // and unread-state fields. New schemas need both capabilities.
+  await sql`
+    ALTER TABLE ${sql.raw(`"${schemaName}".conversation_states`)}
+    ADD COLUMN IF NOT EXISTS read_by_user_id UUID,
+    ADD COLUMN IF NOT EXISTS read_at TIMESTAMPTZ,
+    ADD COLUMN IF NOT EXISTS last_message_at TIMESTAMPTZ,
+    ADD COLUMN IF NOT EXISTS last_message_preview TEXT,
+    ADD COLUMN IF NOT EXISTS unread_count INTEGER NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS status conversation_status NOT NULL DEFAULT 'open',
+    ADD COLUMN IF NOT EXISTS resolved_at TIMESTAMPTZ,
+    ADD COLUMN IF NOT EXISTS resolved_by UUID,
+    ADD COLUMN IF NOT EXISTS reopened_at TIMESTAMPTZ,
+    ADD COLUMN IF NOT EXISTS reopened_by UUID,
+    ADD COLUMN IF NOT EXISTS resolution_notes TEXT
+  `.execute(baseTenantDb);
+  await sql`
+    CREATE INDEX IF NOT EXISTS ${sql.ref(`${schemaName}_conv_states_status_idx`)}
+    ON ${sql.raw(`"${schemaName}".conversation_states`)} (status)
+  `.execute(baseTenantDb);
+  await sql`
+    CREATE INDEX IF NOT EXISTS ${sql.ref(`${schemaName}_conv_states_resolved_idx`)}
+    ON ${sql.raw(`"${schemaName}".conversation_states`)} (resolved_at)
+  `.execute(baseTenantDb);
+
   // setup_tenant_schema predates persisted QR state. Keep newly-created tenant
   // schemas aligned with migration 033 so connection reads and QR events do not
   // fail for companies created after that migration ran.

@@ -2,8 +2,8 @@
  * Message analytics
  */
 
+import { dayjs, subtractDays } from "@wateaminbox/shared";
 import { sql } from "kysely";
-import { subtractDays, dayjs } from "@wateaminbox/shared";
 import { getTenantConnection } from "../tenant.service.js";
 import type { MessageStats } from "./types.js";
 

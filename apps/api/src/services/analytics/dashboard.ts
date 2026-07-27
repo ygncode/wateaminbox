@@ -3,7 +3,7 @@
  */
 
 import { db } from "@wateaminbox/database";
-import { startOfDay, subtractDays, dayjs } from "@wateaminbox/shared";
+import { startOfDay } from "@wateaminbox/shared";
 import { getTenantConnection } from "../tenant.service.js";
 import type { DashboardStats } from "./types.js";
 
@@ -15,39 +15,49 @@ export async function getDashboardStats(
 ): Promise<DashboardStats> {
   const tenantDb = getTenantConnection(companyId);
 
-  // Get basic stats from company_stats table
-  const companyStats = await db
-    .selectFrom("company_stats")
-    .select(["total_messages", "total_contacts", "active_users"])
-    .where("company_id", "=", companyId)
-    .executeTakeFirst();
-
   const today = startOfDay().toDate();
 
-  // Get today's message counts
-  const todayMessages = await tenantDb
-    .selectFrom("messages")
-    .select((eb) => [
-      eb.fn.count("id").filterWhere("from_me", "=", true).as("sent"),
-      eb.fn.count("id").filterWhere("from_me", "=", false).as("received"),
-    ])
-    .where("timestamp", ">=", today)
-    .executeTakeFirst();
-
-  // Get unread conversations count (simplified - contacts with recent unread messages)
-  const unreadCount = await tenantDb
-    .selectFrom("messages")
-    .select((eb) => eb.fn.countAll().as("count"))
-    .where("from_me", "=", false)
-    .where("timestamp", ">=", subtractDays(dayjs.utc(), 1).toDate())
-    .executeTakeFirst();
+  const [messageStats, contactStats, memberStats, unreadStats] =
+    await Promise.all([
+      tenantDb
+        .selectFrom("messages")
+        .select((eb) => [
+          eb.fn.countAll().as("total"),
+          eb.fn
+            .count("id")
+            .filterWhere("from_me", "=", true)
+            .filterWhere("timestamp", ">=", today)
+            .as("sent_today"),
+          eb.fn
+            .count("id")
+            .filterWhere("from_me", "=", false)
+            .filterWhere("timestamp", ">=", today)
+            .as("received_today"),
+        ])
+        .executeTakeFirst(),
+      tenantDb
+        .selectFrom("contacts")
+        .select((eb) => eb.fn.countAll().as("total"))
+        .where("is_group", "=", false)
+        .executeTakeFirst(),
+      db
+        .selectFrom("company_members")
+        .select((eb) => eb.fn.countAll().as("total"))
+        .where("company_id", "=", companyId)
+        .executeTakeFirst(),
+      tenantDb
+        .selectFrom("conversation_states")
+        .select((eb) => eb.fn.countAll().as("total"))
+        .where("unread_count", ">", 0)
+        .executeTakeFirst(),
+    ]);
 
   return {
-    totalMessages: Number(companyStats?.total_messages || 0),
-    totalContacts: Number(companyStats?.total_contacts || 0),
-    activeUsers: Number(companyStats?.active_users || 0),
-    messagesSentToday: Number(todayMessages?.sent || 0),
-    messagesReceivedToday: Number(todayMessages?.received || 0),
-    unreadConversations: Number(unreadCount?.count || 0),
+    totalMessages: Number(messageStats?.total || 0),
+    totalContacts: Number(contactStats?.total || 0),
+    activeUsers: Number(memberStats?.total || 0),
+    messagesSentToday: Number(messageStats?.sent_today || 0),
+    messagesReceivedToday: Number(messageStats?.received_today || 0),
+    unreadConversations: Number(unreadStats?.total || 0),
   };
 }

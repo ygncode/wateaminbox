@@ -20,15 +20,31 @@ export interface DashboardStatsData {
 export interface DashboardStatsProps {
   data: DashboardStatsData | undefined;
   isLoading: boolean;
+  isError?: boolean;
 }
 
 /**
  * Overview stat cards for the dashboard
  * Shows total messages, contacts, active team, sent/received today, and unread count
  */
-export function DashboardStats({ data, isLoading }: DashboardStatsProps) {
+export function DashboardStats({
+  data,
+  isLoading,
+  isError = false,
+}: DashboardStatsProps) {
+  if (isError) {
+    return (
+      <div
+        role="alert"
+        className="rounded-xl border border-red-200 bg-red-50 px-4 py-5 text-center text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-300"
+      >
+        We couldn’t load the operational overview. Please try again shortly.
+      </div>
+    );
+  }
+
   return (
-    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+    <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6 lg:gap-4">
       <StatCard
         icon={<MessageSquare className="h-5 w-5" />}
         label="Total Messages"
@@ -43,7 +59,7 @@ export function DashboardStats({ data, isLoading }: DashboardStatsProps) {
       />
       <StatCard
         icon={<UserCheck className="h-5 w-5" />}
-        label="Active Team"
+        label="Team Members"
         value={data?.activeUsers}
         isLoading={isLoading}
       />

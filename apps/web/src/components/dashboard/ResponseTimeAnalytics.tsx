@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { dayjs, getDateRange } from "@wateaminbox/shared";
 import {
   AlertTriangle,
   CheckCircle,
@@ -6,8 +7,7 @@ import {
   TrendingUp,
   Users,
 } from "lucide-react";
-import { useMemo, useState } from "react";
-import { dayjs, getDateRange } from "@wateaminbox/shared";
+import { useMemo } from "react";
 import {
   getResponseTimeStats,
   getResponseTimeTrend,
@@ -39,46 +39,52 @@ function getSlaBg(rate: number): string {
 
 interface ResponseTimeAnalyticsProps {
   companyId: string;
+  dateRange: TimeRange;
   isAdmin?: boolean;
   slaThreshold?: number;
 }
 
 export function ResponseTimeAnalytics({
   companyId,
+  dateRange,
   isAdmin = false,
   slaThreshold = 60,
 }: ResponseTimeAnalyticsProps) {
-  const [timeRange, setTimeRange] = useState<TimeRange>("30d");
-
-  const dateRange = useMemo(() => {
-    const { start, end } = getDateRange(timeRange);
+  const dates = useMemo(() => {
+    const { start, end } = getDateRange(dateRange);
     return { start: start.toDate(), end: end.toDate() };
-  }, [timeRange]);
+  }, [dateRange]);
 
-  const { data: statsData, isLoading: statsLoading } = useQuery({
+  const {
+    data: statsData,
+    isLoading: statsLoading,
+    isError: statsError,
+  } = useQuery({
     queryKey: [
       "responseTimeStats",
       companyId,
-      dateRange.start,
-      dateRange.end,
+      dates.start,
+      dates.end,
       slaThreshold,
     ],
-    queryFn: () =>
-      getResponseTimeStats(dateRange.start, dateRange.end, slaThreshold),
+    queryFn: () => getResponseTimeStats(dates.start, dates.end, slaThreshold),
     enabled: !!companyId,
     staleTime: 5 * 60 * 1000,
   });
 
-  const { data: trendData, isLoading: trendLoading } = useQuery({
+  const {
+    data: trendData,
+    isLoading: trendLoading,
+    isError: trendError,
+  } = useQuery({
     queryKey: [
       "responseTimeTrend",
       companyId,
-      dateRange.start,
-      dateRange.end,
+      dates.start,
+      dates.end,
       slaThreshold,
     ],
-    queryFn: () =>
-      getResponseTimeTrend(dateRange.start, dateRange.end, slaThreshold),
+    queryFn: () => getResponseTimeTrend(dates.start, dates.end, slaThreshold),
     enabled: !!companyId,
     staleTime: 5 * 60 * 1000,
   });
@@ -87,36 +93,30 @@ export function ResponseTimeAnalytics({
     queryKey: [
       "teamResponseTime",
       companyId,
-      dateRange.start,
-      dateRange.end,
+      dates.start,
+      dates.end,
       slaThreshold,
     ],
     queryFn: () =>
-      getTeamResponseTimeStats(dateRange.start, dateRange.end, slaThreshold),
+      getTeamResponseTimeStats(dates.start, dates.end, slaThreshold),
     enabled: !!companyId && isAdmin,
     staleTime: 5 * 60 * 1000,
   });
 
   const { data: breachData } = useQuery({
-    queryKey: [
-      "slaBreaches",
-      companyId,
-      dateRange.start,
-      dateRange.end,
-      slaThreshold,
-    ],
-    queryFn: () =>
-      getSlaBreaches(dateRange.start, dateRange.end, slaThreshold, 10),
+    queryKey: ["slaBreaches", companyId, dates.start, dates.end, slaThreshold],
+    queryFn: () => getSlaBreaches(dates.start, dates.end, slaThreshold, 10),
     enabled: !!companyId,
     staleTime: 5 * 60 * 1000,
   });
 
-  const stats = statsData?.data;
-  const trend = trendData?.data || [];
-  const team = teamData?.data || [];
-  const breaches = breachData?.data || [];
+  const stats = statsData;
+  const trend = trendData?.trend || [];
+  const team = teamData?.stats || [];
+  const breaches = breachData?.breaches || [];
 
   const isLoading = statsLoading || trendLoading;
+  const hasPrimaryError = statsError || trendError;
 
   return (
     <div className="space-y-6">
@@ -128,100 +128,98 @@ export function ResponseTimeAnalytics({
             Response Time Analytics
           </h2>
         </div>
-        <div className="flex gap-1 rounded-lg bg-gray-100 dark:bg-dark-tertiary p-1">
-          {(["7d", "30d", "90d"] as const).map((range) => (
-            <button
-              key={range}
-              onClick={() => setTimeRange(range)}
-              className={`rounded-md px-3 py-1 text-sm font-medium transition-colors ${
-                timeRange === range
-                  ? "bg-white dark:bg-dark-secondary text-gray-900 dark:text-dark-text-primary shadow-sm"
-                  : "text-gray-600 dark:text-dark-text-secondary hover:text-gray-900 dark:hover:text-dark-text-primary"
-              }`}
-            >
-              {range === "7d"
-                ? "7 days"
-                : range === "30d"
-                  ? "30 days"
-                  : "90 days"}
-            </button>
-          ))}
-        </div>
+        <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600 dark:bg-dark-tertiary dark:text-dark-text-secondary">
+          Last {dateRange === "7d" ? "7" : dateRange === "30d" ? "30" : "90"}{" "}
+          days
+        </span>
       </div>
+
+      {hasPrimaryError && (
+        <div
+          role="alert"
+          className="rounded-xl border border-red-200 bg-red-50 px-4 py-5 text-center text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-300"
+        >
+          Response-time analytics could not be loaded. Please try again shortly.
+        </div>
+      )}
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <div className="rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-elevated p-4">
-          <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-dark-text-secondary">
-            <Clock className="h-4 w-4" />
-            Avg Response
+      {!hasPrimaryError && (
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+          <div className="rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-elevated p-4">
+            <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-dark-text-secondary">
+              <Clock className="h-4 w-4" />
+              Avg Response
+            </div>
+            <div className="mt-2 text-2xl font-bold text-gray-900 dark:text-dark-text-primary">
+              {isLoading
+                ? "-"
+                : formatMinutes(stats?.averageResponseTimeMinutes || 0)}
+            </div>
+            <div className="mt-1 text-xs text-gray-500 dark:text-dark-text-secondary">
+              Median:{" "}
+              {isLoading
+                ? "-"
+                : formatMinutes(stats?.medianResponseTimeMinutes || 0)}
+            </div>
           </div>
-          <div className="mt-2 text-2xl font-bold text-gray-900 dark:text-dark-text-primary">
-            {isLoading
-              ? "-"
-              : formatMinutes(stats?.averageResponseTimeMinutes || 0)}
-          </div>
-          <div className="mt-1 text-xs text-gray-500 dark:text-dark-text-secondary">
-            Median:{" "}
-            {isLoading
-              ? "-"
-              : formatMinutes(stats?.medianResponseTimeMinutes || 0)}
-          </div>
-        </div>
 
-        <div className="rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-elevated p-4">
-          <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-dark-text-secondary">
-            <CheckCircle className="h-4 w-4" />
-            SLA Compliance
+          <div className="rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-elevated p-4">
+            <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-dark-text-secondary">
+              <CheckCircle className="h-4 w-4" />
+              SLA Compliance
+            </div>
+            <div
+              className={`mt-2 text-2xl font-bold ${
+                isLoading
+                  ? "text-gray-900 dark:text-dark-text-primary"
+                  : getSlaColor(stats?.slaComplianceRate || 0)
+              }`}
+            >
+              {isLoading
+                ? "-"
+                : `${Math.round(stats?.slaComplianceRate || 0)}%`}
+            </div>
+            <div className="mt-1 text-xs text-gray-500 dark:text-dark-text-secondary">
+              Target: {slaThreshold} min
+            </div>
           </div>
-          <div
-            className={`mt-2 text-2xl font-bold ${
-              isLoading
-                ? "text-gray-900 dark:text-dark-text-primary"
-                : getSlaColor(stats?.slaComplianceRate || 0)
-            }`}
-          >
-            {isLoading ? "-" : `${Math.round(stats?.slaComplianceRate || 0)}%`}
-          </div>
-          <div className="mt-1 text-xs text-gray-500 dark:text-dark-text-secondary">
-            Target: {slaThreshold} min
-          </div>
-        </div>
 
-        <div className="rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-elevated p-4">
-          <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-dark-text-secondary">
-            <TrendingUp className="h-4 w-4" />
-            Conversations
+          <div className="rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-elevated p-4">
+            <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-dark-text-secondary">
+              <TrendingUp className="h-4 w-4" />
+              Conversations
+            </div>
+            <div className="mt-2 text-2xl font-bold text-gray-900 dark:text-dark-text-primary">
+              {isLoading ? "-" : stats?.totalConversations || 0}
+            </div>
+            <div className="mt-1 text-xs text-gray-500 dark:text-dark-text-secondary">
+              {isLoading ? "-" : stats?.withinSlaCount || 0} within SLA
+            </div>
           </div>
-          <div className="mt-2 text-2xl font-bold text-gray-900 dark:text-dark-text-primary">
-            {isLoading ? "-" : stats?.totalConversations || 0}
-          </div>
-          <div className="mt-1 text-xs text-gray-500 dark:text-dark-text-secondary">
-            {isLoading ? "-" : stats?.withinSlaCount || 0} within SLA
-          </div>
-        </div>
 
-        <div className="rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-elevated p-4">
-          <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-dark-text-secondary">
-            <AlertTriangle className="h-4 w-4" />
-            Max Response
-          </div>
-          <div className="mt-2 text-2xl font-bold text-gray-900 dark:text-dark-text-primary">
-            {isLoading
-              ? "-"
-              : formatMinutes(stats?.maxResponseTimeMinutes || 0)}
-          </div>
-          <div className="mt-1 text-xs text-gray-500 dark:text-dark-text-secondary">
-            Min:{" "}
-            {isLoading
-              ? "-"
-              : formatMinutes(stats?.minResponseTimeMinutes || 0)}
+          <div className="rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-elevated p-4">
+            <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-dark-text-secondary">
+              <AlertTriangle className="h-4 w-4" />
+              Max Response
+            </div>
+            <div className="mt-2 text-2xl font-bold text-gray-900 dark:text-dark-text-primary">
+              {isLoading
+                ? "-"
+                : formatMinutes(stats?.maxResponseTimeMinutes || 0)}
+            </div>
+            <div className="mt-1 text-xs text-gray-500 dark:text-dark-text-secondary">
+              Min:{" "}
+              {isLoading
+                ? "-"
+                : formatMinutes(stats?.minResponseTimeMinutes || 0)}
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Trend Chart */}
-      {trend.length > 0 && (
+      {!hasPrimaryError && trend.length > 0 && (
         <div className="rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-elevated p-4">
           <h3 className="mb-4 font-medium text-gray-900 dark:text-dark-text-primary">
             Response Time Trend
@@ -325,9 +323,9 @@ export function ResponseTimeAnalytics({
             </span>
           </div>
           <div className="space-y-2">
-            {breaches.slice(0, 5).map((breach, i) => (
+            {breaches.slice(0, 5).map((breach) => (
               <div
-                key={i}
+                key={`${breach.contactId}-${breach.inboundMessageTime}`}
                 className="flex items-center justify-between rounded bg-white dark:bg-dark-elevated px-3 py-2 text-sm"
               >
                 <div>

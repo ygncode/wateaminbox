@@ -2,15 +2,15 @@
  * Response time analytics
  */
 
-import { sql } from "kysely";
 import { db } from "@wateaminbox/database";
 import { toISOString } from "@wateaminbox/shared";
-import { getTenantConnection } from "../tenant.service.js";
+import { sql } from "kysely";
+import { getSchemaName, getTenantConnection } from "../tenant.service.js";
 import type {
-  ResponseTimeStats,
   ResponseTimeByDate,
-  TeamResponseTimeStats,
+  ResponseTimeStats,
   SlaBreach,
+  TeamResponseTimeStats,
 } from "./types.js";
 
 /**
@@ -24,6 +24,7 @@ export async function getResponseTimeStats(
   slaThresholdMinutes: number = 60,
 ): Promise<ResponseTimeStats> {
   const tenantDb = getTenantConnection(companyId);
+  const messagesTable = sql.table(`${getSchemaName(companyId)}.messages`);
 
   // Query to find response times: for each inbound message, find the next outbound message
   // from the same contact and calculate the time difference
@@ -41,13 +42,13 @@ export async function getResponseTimeStats(
         inbound.timestamp as inbound_time,
         (
           SELECT MIN(outbound.timestamp)
-          FROM messages outbound
+          FROM ${messagesTable} outbound
           WHERE outbound.contact_id = inbound.contact_id
             AND outbound.from_me = true
             AND outbound.timestamp > inbound.timestamp
             AND outbound.timestamp < inbound.timestamp + INTERVAL '24 hours'
         ) as response_time
-      FROM messages inbound
+      FROM ${messagesTable} inbound
       WHERE inbound.from_me = false
         AND inbound.timestamp >= ${startDate}
         AND inbound.timestamp <= ${endDate}
@@ -95,6 +96,7 @@ export async function getResponseTimeTrend(
   slaThresholdMinutes: number = 60,
 ): Promise<ResponseTimeByDate[]> {
   const tenantDb = getTenantConnection(companyId);
+  const messagesTable = sql.table(`${getSchemaName(companyId)}.messages`);
 
   const result = await sql<{
     date: Date;
@@ -109,13 +111,13 @@ export async function getResponseTimeTrend(
         inbound.timestamp as inbound_time,
         (
           SELECT MIN(outbound.timestamp)
-          FROM messages outbound
+          FROM ${messagesTable} outbound
           WHERE outbound.contact_id = inbound.contact_id
             AND outbound.from_me = true
             AND outbound.timestamp > inbound.timestamp
             AND outbound.timestamp < inbound.timestamp + INTERVAL '24 hours'
         ) as response_time
-      FROM messages inbound
+      FROM ${messagesTable} inbound
       WHERE inbound.from_me = false
         AND inbound.timestamp >= ${startDate}
         AND inbound.timestamp <= ${endDate}
@@ -163,6 +165,7 @@ export async function getTeamResponseTimeStats(
   slaThresholdMinutes: number = 60,
 ): Promise<TeamResponseTimeStats[]> {
   const tenantDb = getTenantConnection(companyId);
+  const messagesTable = sql.table(`${getSchemaName(companyId)}.messages`);
 
   // Get company members
   const members = await db
@@ -186,14 +189,14 @@ export async function getTeamResponseTimeStats(
           inbound.timestamp as inbound_time,
           (
             SELECT MIN(outbound.timestamp)
-            FROM messages outbound
+            FROM ${messagesTable} outbound
             WHERE outbound.contact_id = inbound.contact_id
               AND outbound.from_me = true
               AND outbound.sent_by_user_id = ${member.user_id}
               AND outbound.timestamp > inbound.timestamp
               AND outbound.timestamp < inbound.timestamp + INTERVAL '24 hours'
           ) as response_time
-        FROM messages inbound
+        FROM ${messagesTable} inbound
         WHERE inbound.from_me = false
           AND inbound.timestamp >= ${startDate}
           AND inbound.timestamp <= ${endDate}
@@ -241,6 +244,8 @@ export async function getSlaBreaches(
   limit: number = 50,
 ): Promise<SlaBreach[]> {
   const tenantDb = getTenantConnection(companyId);
+  const messagesTable = sql.table(`${getSchemaName(companyId)}.messages`);
+  const contactsTable = sql.table(`${getSchemaName(companyId)}.contacts`);
 
   const result = await sql<{
     contact_id: string;
@@ -257,7 +262,7 @@ export async function getSlaBreaches(
         inbound.timestamp as inbound_time,
         (
           SELECT MIN(outbound.timestamp)
-          FROM messages outbound
+          FROM ${messagesTable} outbound
           WHERE outbound.contact_id = inbound.contact_id
             AND outbound.from_me = true
             AND outbound.timestamp > inbound.timestamp
@@ -265,7 +270,7 @@ export async function getSlaBreaches(
         ) as response_time,
         (
           SELECT outbound.sent_by_user_id
-          FROM messages outbound
+          FROM ${messagesTable} outbound
           WHERE outbound.contact_id = inbound.contact_id
             AND outbound.from_me = true
             AND outbound.timestamp > inbound.timestamp
@@ -273,8 +278,8 @@ export async function getSlaBreaches(
           ORDER BY outbound.timestamp ASC
           LIMIT 1
         ) as responded_by
-      FROM messages inbound
-      INNER JOIN contacts c ON c.id = inbound.contact_id
+      FROM ${messagesTable} inbound
+      INNER JOIN ${contactsTable} c ON c.id = inbound.contact_id
       WHERE inbound.from_me = false
         AND inbound.timestamp >= ${startDate}
         AND inbound.timestamp <= ${endDate}

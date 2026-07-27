@@ -2,8 +2,8 @@
  * Contact analytics
  */
 
-import { sql } from "kysely";
 import { dayjs } from "@wateaminbox/shared";
+import { sql } from "kysely";
 import { getTenantConnection } from "../tenant.service.js";
 import type { ContactStats, NewContactsTrend } from "./types.js";
 

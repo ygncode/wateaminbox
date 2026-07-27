@@ -1,13 +1,13 @@
 import { Activity, ArrowRightLeft, Image, Reply, Zap } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useAsyncData } from "@/hooks/useAsyncData";
 import {
   formatNumber,
   useEngagementMetrics,
   useEngagementTrend,
 } from "@/hooks/analytics";
-import { StatCard } from "./StatCard";
+import { useAsyncData } from "@/hooks/useAsyncData";
 import { EngagementTrendChart } from "./charts";
+import { StatCard } from "./StatCard";
 
 interface CustomerEngagementSectionProps {
   companyId: string;
@@ -61,9 +61,8 @@ export function CustomerEngagementSection({
             No engagement data available
           </p>
         ),
-        success: (response) => {
-          const data = response.data;
-          const trendData = trendState.data?.data;
+        success: (data) => {
+          const trendData = trendState.data;
 
           return (
             <div className="space-y-6">
@@ -158,13 +157,24 @@ export function CustomerEngagementSection({
               </div>
 
               {/* Engagement Trend Chart */}
-              {!trendState.isLoading && trendData && trendData.length > 0 && (
-                <div className="pt-4 border-t border-gray-100 dark:border-dark-border">
-                  <h4 className="text-sm font-medium text-gray-700 dark:text-dark-text-primary mb-3">
-                    Engagement Trend (Last 14 Days)
-                  </h4>
-                  <EngagementTrendChart data={trendData} />
-                </div>
+              {trendState.isError ? (
+                <p
+                  role="status"
+                  className="border-t border-gray-100 pt-4 text-center text-sm text-red-600 dark:border-dark-border dark:text-red-400"
+                >
+                  The engagement trend could not be loaded.
+                </p>
+              ) : (
+                !trendState.isLoading &&
+                trendData &&
+                trendData.length > 0 && (
+                  <div className="border-t border-gray-100 pt-4 dark:border-dark-border">
+                    <h4 className="mb-3 text-sm font-medium text-gray-700 dark:text-dark-text-primary">
+                      Engagement Trend
+                    </h4>
+                    <EngagementTrendChart data={trendData} />
+                  </div>
+                )
               )}
             </div>
           );

@@ -10,6 +10,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatNumber } from "@/hooks/analytics";
+import { cn } from "@/lib/utils";
 import { HourlyChart, MessageChart, NewContactsChart } from "./charts";
 import { StatRow } from "./StatRow";
 
@@ -184,7 +185,12 @@ export function StatsCardsRow({
   isAdmin,
 }: StatsCardsRowProps) {
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <div
+      className={cn(
+        "grid grid-cols-1 gap-6",
+        isAdmin ? "lg:grid-cols-3" : "lg:grid-cols-2",
+      )}
+    >
       {/* Contact Stats */}
       <div className="bg-white dark:bg-dark-elevated rounded-lg border border-gray-200 dark:border-dark-border p-6">
         <div className="flex items-center gap-2 mb-4">

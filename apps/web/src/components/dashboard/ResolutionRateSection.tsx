@@ -1,13 +1,11 @@
 import { CheckCircle, CircleDot, Clock, Target } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useAsyncData } from "@/hooks/useAsyncData";
 import { useResolutionStats } from "@/hooks/analytics";
+import { useAsyncData } from "@/hooks/useAsyncData";
 import { StatCard } from "./StatCard";
 
 interface ResolutionRateSectionProps {
   companyId: string;
-  startDate: string;
-  endDate: string;
 }
 
 /**
@@ -16,10 +14,8 @@ interface ResolutionRateSectionProps {
  */
 export function ResolutionRateSection({
   companyId,
-  startDate,
-  endDate,
 }: ResolutionRateSectionProps) {
-  const resolutionQuery = useResolutionStats(companyId, startDate, endDate);
+  const resolutionQuery = useResolutionStats(companyId);
   const { renderState } = useAsyncData(resolutionQuery);
 
   return (
@@ -29,6 +25,9 @@ export function ResolutionRateSection({
         <h3 className="font-semibold text-gray-900 dark:text-dark-text-primary">
           Resolution Rate
         </h3>
+        <span className="ml-auto text-[10px] font-semibold uppercase tracking-wide text-gray-400">
+          All time
+        </span>
       </div>
 
       {renderState({
@@ -50,8 +49,7 @@ export function ResolutionRateSection({
             No resolution data available
           </p>
         ),
-        success: (response) => {
-          const data = response.data;
+        success: (data) => {
           return (
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <StatCard

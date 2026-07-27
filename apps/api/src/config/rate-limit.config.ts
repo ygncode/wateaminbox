@@ -235,7 +235,7 @@ export function getRateLimitConfig(): RateLimitConfig {
         analytics: {
           requests: getDefaultRequests(
             process.env.RATE_LIMIT_RESOURCE_ANALYTICS_REQUESTS,
-            20,
+            60,
           ),
           windowSeconds: parsePositiveInt(
             process.env.RATE_LIMIT_RESOURCE_ANALYTICS_WINDOW_SECONDS,
@@ -368,7 +368,7 @@ export const DEFAULT_RATE_LIMIT_CONFIG: RateLimitConfig = {
         windowSeconds: 60,
       },
       analytics: {
-        requests: 20,
+        requests: 60,
         windowSeconds: 60,
       },
     },

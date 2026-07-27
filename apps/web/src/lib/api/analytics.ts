@@ -5,20 +5,21 @@
 
 import { fetchWithAuth } from "./client.js";
 import type {
-  ResponseTimeStats,
   ResponseTimeByDate,
-  TeamResponseTimeStats,
+  ResponseTimeStats,
   SlaBreach,
+  TeamResponseTimeStats,
 } from "./types.js";
 
 export async function getResponseTimeStats(
   startDate?: Date,
   endDate?: Date,
   slaThreshold?: number,
-): Promise<{
-  data: ResponseTimeStats;
-  meta: { startDate: string; endDate: string; slaThresholdMinutes: number };
-}> {
+): Promise<
+  ResponseTimeStats & {
+    meta: { startDate: string; endDate: string; slaThresholdMinutes: number };
+  }
+> {
   const params = new URLSearchParams();
   if (startDate) params.append("startDate", startDate.toISOString());
   if (endDate) params.append("endDate", endDate.toISOString());
@@ -33,7 +34,7 @@ export async function getResponseTimeTrend(
   endDate?: Date,
   slaThreshold?: number,
 ): Promise<{
-  data: ResponseTimeByDate[];
+  trend: ResponseTimeByDate[];
   meta: { startDate: string; endDate: string; slaThresholdMinutes: number };
 }> {
   const params = new URLSearchParams();
@@ -50,7 +51,7 @@ export async function getTeamResponseTimeStats(
   endDate?: Date,
   slaThreshold?: number,
 ): Promise<{
-  data: TeamResponseTimeStats[];
+  stats: TeamResponseTimeStats[];
   meta: { startDate: string; endDate: string; slaThresholdMinutes: number };
 }> {
   const params = new URLSearchParams();
@@ -68,7 +69,7 @@ export async function getSlaBreaches(
   slaThreshold?: number,
   limit?: number,
 ): Promise<{
-  data: SlaBreach[];
+  breaches: SlaBreach[];
   meta: { startDate: string; endDate: string; slaThresholdMinutes: number };
 }> {
   const params = new URLSearchParams();
