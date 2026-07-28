@@ -1,13 +1,21 @@
-import * as React from "react";
-import { Link } from "react-router-dom";
-import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import {
+  ArrowLeft,
+  ArrowRight,
+  LoaderCircle,
+  MailCheck,
+  ShieldCheck,
+} from "lucide-react";
+import * as React from "react";
+import { useForm } from "react-hook-form";
+import { Link } from "react-router-dom";
+import { AuthPageShell } from "../components/auth/AuthPageShell";
 import { Button } from "../components/ui/button";
 import { FormField } from "../components/ui/form-field";
 import { useForgotPassword } from "../hooks/useAuthMutations";
 import {
-  forgotPasswordSchema,
   type ForgotPasswordFormData,
+  forgotPasswordSchema,
 } from "../lib/schemas/auth";
 
 export function ForgotPasswordPage() {
@@ -46,112 +54,135 @@ export function ForgotPasswordPage() {
 
   if (isSubmitted) {
     return (
-      <div className="min-h-dvh flex items-center justify-center bg-gray-100 dark:bg-dark-primary">
-        <div className="w-full max-w-md">
-          <div className="bg-white dark:bg-dark-elevated rounded-lg shadow-lg p-8">
-            <div className="text-center">
-              <div className="w-16 h-16 bg-[#25D366] rounded-full flex items-center justify-center mx-auto mb-4">
-                <svg
-                  className="w-8 h-8 text-white"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
-                  />
-                </svg>
-              </div>
-              <h1 className="text-2xl font-bold text-gray-900 dark:text-dark-text-primary text-balance">
-                Check your email
-              </h1>
-              <p className="text-gray-600 dark:text-dark-text-secondary mt-2">
-                We've sent a password reset link to{" "}
-                <span className="font-medium">{submittedEmail}</span>
-              </p>
-              <p className="text-sm text-gray-500 dark:text-dark-text-tertiary mt-4">
-                Didn't receive the email? Check your spam folder or{" "}
-                <button
-                  onClick={() => setIsSubmitted(false)}
-                  className="text-whatsapp-green-a11y-text dark:text-whatsapp-green hover:text-whatsapp-green-a11y-button dark:hover:text-whatsapp-green/80"
-                >
-                  try again
-                </button>
-              </p>
-              <Link
-                to="/login"
-                className="inline-block mt-6 text-whatsapp-green-a11y-text dark:text-whatsapp-green hover:text-whatsapp-green-a11y-button dark:hover:text-whatsapp-green/80 font-medium"
-              >
-                Back to sign in
-              </Link>
-            </div>
+      <AuthPageShell variant="recovery">
+        <div
+          className="flex flex-col items-center text-center"
+          aria-live="polite"
+        >
+          <div className="relative mb-7">
+            <div
+              className="absolute inset-0 scale-150 rounded-full bg-[#25d366]/10"
+              aria-hidden="true"
+            />
+            <span className="relative grid h-16 w-16 place-items-center rounded-2xl bg-[#e2f8e9] text-[#075e54] dark:bg-[#25d366]/15 dark:text-[#52df83]">
+              <MailCheck aria-hidden="true" className="h-8 w-8" />
+            </span>
           </div>
+          <p className="mb-3 text-xs font-bold uppercase tracking-[0.16em] text-[#0a7c43] dark:text-[#52df83]">
+            Request received
+          </p>
+          <h1 className="text-3xl font-semibold tracking-[-0.035em] text-slate-950 text-balance sm:text-4xl dark:text-dark-text-primary">
+            Check your inbox
+          </h1>
+          <p className="mt-4 max-w-md text-sm leading-6 text-slate-600 dark:text-dark-text-secondary">
+            If an account exists for{" "}
+            <strong className="break-all font-semibold text-slate-900 dark:text-dark-text-primary">
+              {submittedEmail}
+            </strong>
+            , we&apos;ve sent a secure password reset link.
+          </p>
+
+          <div className="mt-7 w-full rounded-2xl border border-slate-200 bg-slate-50 p-4 text-left dark:border-dark-border dark:bg-dark-tertiary/60">
+            <p className="text-sm font-semibold text-slate-800 dark:text-dark-text-primary">
+              Nothing yet?
+            </p>
+            <p className="mt-1 text-sm leading-5 text-slate-500 dark:text-dark-text-secondary">
+              Allow a few minutes, then check your spam folder or{" "}
+              <button
+                type="button"
+                onClick={() => setIsSubmitted(false)}
+                className="rounded-sm font-semibold text-[#0a7c43] underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#075e54] dark:text-[#52df83]"
+              >
+                try another email
+              </button>
+              .
+            </p>
+          </div>
+
+          <Button
+            asChild
+            size="lg"
+            className="mt-7 h-12 w-full rounded-xl bg-[#075e54] text-white shadow-lg shadow-[#075e54]/15 hover:bg-[#064b43]"
+          >
+            <Link to="/login">
+              Return to sign in
+              <ArrowRight aria-hidden="true" />
+            </Link>
+          </Button>
         </div>
-      </div>
+      </AuthPageShell>
     );
   }
 
   return (
-    <div className="min-h-dvh flex items-center justify-center bg-gray-100 dark:bg-dark-primary">
-      <div className="w-full max-w-md">
-        <div className="bg-white dark:bg-dark-elevated rounded-lg shadow-lg p-8">
-          <div className="text-center mb-8">
-            <div className="w-16 h-16 bg-[#25D366] rounded-full flex items-center justify-center mx-auto mb-4">
-              <svg
-                className="w-8 h-8 text-white"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"
-                />
-              </svg>
-            </div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-dark-text-primary text-balance">
-              Forgot password?
-            </h1>
-            <p className="text-gray-600 dark:text-dark-text-secondary mt-2">
-              No worries, we'll send you reset instructions.
-            </p>
-          </div>
+    <AuthPageShell variant="recovery">
+      <div>
+        <Link
+          to="/login"
+          className="mb-8 inline-flex items-center gap-2 rounded-sm text-sm font-semibold text-slate-500 transition-colors hover:text-[#075e54] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#075e54] focus-visible:ring-offset-2 dark:text-dark-text-secondary dark:hover:text-[#52df83] dark:focus-visible:ring-offset-dark-elevated"
+        >
+          <ArrowLeft aria-hidden="true" className="h-4 w-4" />
+          Back to sign in
+        </Link>
 
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-            <FormField
-              label="Email"
-              id="email"
-              type="email"
-              placeholder="you@example.com"
-              registration={register("email")}
-              error={errors.email}
-              autoComplete="email"
-            />
+        <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#0a7c43] dark:text-[#52df83]">
+          Account recovery
+        </p>
+        <h1 className="mt-3 text-3xl font-semibold tracking-[-0.04em] text-slate-950 text-balance sm:text-4xl dark:text-dark-text-primary">
+          Forgot your password?
+        </h1>
+        <p className="mt-3 max-w-lg text-sm leading-6 text-slate-600 dark:text-dark-text-secondary">
+          Enter the email you use for WATeamInbox. We&apos;ll send instructions
+          to help you choose a new password.
+        </p>
 
-            <Button
-              type="submit"
-              className="w-full bg-whatsapp-green-a11y-button hover:bg-whatsapp-green-a11y-button/90 dark:bg-whatsapp-green-a11y-button dark:hover:bg-whatsapp-green-a11y-button/90 text-white"
-              disabled={forgotPasswordMutation.isPending}
-            >
-              {forgotPasswordMutation.isPending ? "Sending…" : "Reset password"}
-            </Button>
-          </form>
+        <form
+          onSubmit={handleSubmit(onSubmit)}
+          className="mt-8 space-y-5 [&_input]:h-11 [&_input]:rounded-xl [&_input]:border-slate-300 [&_input]:bg-white [&_input]:px-3.5 dark:[&_input]:border-dark-border dark:[&_input]:bg-dark-tertiary"
+          aria-busy={forgotPasswordMutation.isPending}
+        >
+          <FormField
+            label="Work email"
+            id="email"
+            type="email"
+            placeholder="you@company.com"
+            registration={register("email")}
+            error={errors.email}
+            autoComplete="email"
+            autoFocus
+          />
 
-          <div className="mt-6 text-center">
-            <Link
-              to="/login"
-              className="text-sm text-whatsapp-green-a11y-text dark:text-whatsapp-green hover:text-whatsapp-green-a11y-button dark:hover:text-whatsapp-green/80 font-medium"
-            >
-              Back to sign in
-            </Link>
-          </div>
+          <Button
+            type="submit"
+            size="lg"
+            className="h-12 w-full rounded-xl bg-[#075e54] text-white shadow-lg shadow-[#075e54]/15 hover:bg-[#064b43] dark:bg-whatsapp-green-a11y-button dark:hover:bg-whatsapp-green-a11y-button/90"
+            disabled={forgotPasswordMutation.isPending}
+          >
+            {forgotPasswordMutation.isPending ? (
+              <>
+                <LoaderCircle aria-hidden="true" className="animate-spin" />
+                Sending secure link…
+              </>
+            ) : (
+              <>
+                Send reset link
+                <ArrowRight aria-hidden="true" />
+              </>
+            )}
+          </Button>
+        </form>
+
+        <div className="mt-6 flex items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50/80 p-4 dark:border-dark-border dark:bg-dark-tertiary/50">
+          <ShieldCheck
+            aria-hidden="true"
+            className="mt-0.5 h-5 w-5 shrink-0 text-[#0a7c43] dark:text-[#52df83]"
+          />
+          <p className="text-xs leading-5 text-slate-500 dark:text-dark-text-secondary">
+            For your privacy, we&apos;ll show the same confirmation whether or
+            not an account is registered with that email.
+          </p>
         </div>
       </div>
-    </div>
+    </AuthPageShell>
   );
 }
