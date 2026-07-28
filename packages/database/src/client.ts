@@ -31,6 +31,8 @@ export type MemberRole = CompanyMemberRole;
 export interface CompaniesTable {
   id: Generated<string>;
   name: string;
+  description: string | null;
+  logo_key: string | null;
   schema_name: string;
   status: Generated<CompanyStatus>;
   max_whatsapp_connections: Generated<number>;
@@ -42,6 +44,7 @@ export interface UsersTable {
   id: Generated<string>;
   name: string | null;
   email: string;
+  avatar_key: string | null;
   password_hash: string;
   email_verified_at: Date | null;
   created_at: Generated<Date>;

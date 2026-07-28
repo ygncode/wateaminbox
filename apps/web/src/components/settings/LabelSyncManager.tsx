@@ -6,7 +6,6 @@ import {
   Link2,
   Loader2,
   RefreshCw,
-  Sparkles,
   Tag,
   Unlink,
 } from "lucide-react";
@@ -200,7 +199,7 @@ export function LabelSyncManager() {
             {isAutoCreating ? (
               <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
-              <Sparkles className="h-4 w-4" />
+              <Tag className="h-4 w-4" />
             )}
             {t("labels.autoCreateTags", "Auto-create Tags")}
           </Button>

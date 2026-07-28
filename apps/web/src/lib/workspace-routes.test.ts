@@ -35,6 +35,9 @@ describe("workspace routes", () => {
   });
 
   test("generates canonical, encoded workspace paths", () => {
+    expect(workspacePath("workspace-one", "settings")).toBe(
+      "/w/workspace-one/settings",
+    );
     expect(workspacePath("workspace/one", "settings", "notifications")).toBe(
       "/w/workspace%2Fone/settings/notifications",
     );

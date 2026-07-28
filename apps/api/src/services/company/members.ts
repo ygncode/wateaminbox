@@ -12,8 +12,8 @@ import {
   InsufficientPermissionsError,
 } from "../../lib/errors.js";
 import { getEffectivePermissions } from "../permission.service.js";
-import { getCompany } from "./core.js";
-import type { CompanyMember, CompanyWithRole } from "./types.js";
+import { getCompany, toCompanyResponse } from "./core.js";
+import type { Company, CompanyMember, CompanyWithRole } from "./types.js";
 
 /**
  * Gets all members of a company
@@ -201,6 +201,8 @@ export async function getUserCompanies(
     .select([
       "c.id",
       "c.name",
+      "c.description",
+      "c.logo_key",
       "c.schema_name",
       "c.status",
       "c.created_at",
@@ -212,11 +214,17 @@ export async function getUserCompanies(
     .where("c.status", "!=", "deleted")
     .execute();
 
-  return companies.map((company) => ({
-    ...company,
-    permissions: getEffectivePermissions(
-      company.role,
-      (company.permissions ?? {}) as Record<string, boolean>,
-    ),
-  })) as unknown as CompanyWithRole[];
+  return (await Promise.all(
+    companies.map(async (company) => {
+      const { role, permissions, ...workspace } = company;
+      return {
+        ...(await toCompanyResponse(workspace as unknown as Company)),
+        role,
+        permissions: getEffectivePermissions(
+          role,
+          (permissions ?? {}) as Record<string, boolean>,
+        ),
+      };
+    }),
+  )) as unknown as CompanyWithRole[];
 }

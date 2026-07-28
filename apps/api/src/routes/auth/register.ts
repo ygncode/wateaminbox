@@ -8,7 +8,11 @@ import {
   validationError,
 } from "../../lib/response.js";
 import { registerSchema, verifyEmailSchema } from "../../lib/schemas/index.js";
-import { register, verifyEmail } from "../../services/auth.service.js";
+import {
+  register,
+  toAuthUserResponse,
+  verifyEmail,
+} from "../../services/auth.service.js";
 import { registerRateLimiter } from "./rate-limiters.js";
 import { handleAuthError } from "./utils.js";
 
@@ -41,6 +45,7 @@ registerRoutes.post(
       }
 
       const { user } = await register(body.email, body.password, body.name);
+      const publicUser = await toAuthUserResponse(user);
 
       return createdWithMessage(
         c,
@@ -48,9 +53,12 @@ registerRoutes.post(
         {
           user: {
             id: user.id,
-            email: user.email,
-            name: user.name,
-            emailVerified: !!user.emailVerifiedAt,
+            email: publicUser.email,
+            name: publicUser.name,
+            avatarUrl: publicUser.avatarUrl,
+            gravatarUrl: publicUser.gravatarUrl,
+            hasCustomAvatar: publicUser.hasCustomAvatar,
+            emailVerified: publicUser.emailVerified,
             createdAt: user.createdAt,
           },
         },

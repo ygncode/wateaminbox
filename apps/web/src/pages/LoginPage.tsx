@@ -1,4 +1,10 @@
 import { zodResolver } from "@hookform/resolvers/zod";
+import {
+  ArrowRight,
+  CircleAlert,
+  LoaderCircle,
+  ShieldCheck,
+} from "lucide-react";
 import * as React from "react";
 import { useForm } from "react-hook-form";
 import {
@@ -7,6 +13,7 @@ import {
   useNavigate,
   useSearchParams,
 } from "react-router-dom";
+import { AuthPageShell } from "../components/auth/AuthPageShell";
 import { Button } from "../components/ui/button";
 import { FormField } from "../components/ui/form-field";
 import { useAuth } from "../contexts/auth-context";
@@ -38,6 +45,7 @@ export function LoginPage() {
   const {
     register,
     handleSubmit,
+    watch,
     formState: { errors },
   } = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
@@ -46,6 +54,7 @@ export function LoginPage() {
       password: "",
     },
   });
+  const currentEmail = watch("email");
 
   // Return users to the invitation (or other protected destination) after
   // login. An invitation can be accepted before the user has any company.
@@ -81,101 +90,116 @@ export function LoginPage() {
   };
 
   return (
-    <div className="min-h-dvh flex items-center justify-center bg-gray-100 dark:bg-dark-primary">
-      <div className="w-full max-w-md">
-        <div className="bg-white dark:bg-dark-elevated rounded-lg shadow-lg p-8">
-          <div className="text-center mb-8">
-            <div className="w-16 h-16 bg-[#25D366] rounded-full flex items-center justify-center mx-auto mb-4">
-              <svg
-                className="w-10 h-10 text-white"
-                fill="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
-              </svg>
+    <AuthPageShell variant="login">
+      <div className="mx-auto w-full max-w-[30rem]">
+        <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#0a7c43] dark:text-[#52df83]">
+          Welcome back
+        </p>
+        <h1 className="mt-3 text-3xl font-semibold tracking-[-0.04em] text-slate-950 text-balance sm:text-4xl dark:text-dark-text-primary">
+          Sign in to your team inbox
+        </h1>
+        <p className="mt-3 text-sm leading-6 text-slate-600 dark:text-dark-text-secondary">
+          Continue managing conversations, assignments, and customer context
+          with your team.
+        </p>
+
+        <form
+          onSubmit={handleSubmit(onSubmit)}
+          onChange={error ? clearError : undefined}
+          className="mt-8 space-y-5 [&_input]:h-11 [&_input]:rounded-xl [&_input]:border-slate-300 [&_input]:bg-white [&_input]:px-3.5 dark:[&_input]:border-dark-border dark:[&_input]:bg-dark-tertiary"
+          aria-busy={isLoading}
+          noValidate
+        >
+          {error && (
+            <div
+              role="alert"
+              className="flex items-start gap-2.5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm leading-5 text-red-700 dark:border-red-800 dark:bg-red-900/30 dark:text-red-300"
+            >
+              <CircleAlert
+                aria-hidden="true"
+                className="mt-0.5 h-4 w-4 shrink-0"
+              />
+              <span>{error}</span>
             </div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-dark-text-primary text-balance">
-              Welcome back
-            </h1>
-            <p className="text-gray-600 dark:text-dark-text-secondary mt-2">
-              Sign in to WATeamInbox
-            </p>
-          </div>
+          )}
 
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-            {error && (
-              <div
-                role="alert"
-                className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 px-4 py-3 rounded-lg text-sm"
-              >
-                {error}
-              </div>
-            )}
+          <FormField
+            label="Work email"
+            id="email"
+            type="email"
+            placeholder="you@company.com"
+            registration={register("email")}
+            error={errors.email}
+            autoComplete="email"
+            autoFocus
+          />
 
-            <FormField
-              label="Email"
-              id="email"
-              type="email"
-              placeholder="you@example.com"
-              registration={register("email")}
-              error={errors.email}
-              autoComplete="email"
-            />
-
+          <div>
             <FormField
               label="Password"
               id="password"
               type="password"
-              placeholder="Enter your password…"
+              placeholder="Enter your password"
               registration={register("password")}
               error={errors.password}
               autoComplete="current-password"
+              showPasswordToggle
             />
-
-            <div className="flex items-center justify-between">
-              <div className="flex items-center">
-                <input
-                  id="remember-me"
-                  type="checkbox"
-                  className="h-4 w-4 text-whatsapp-green-a11y-button border-gray-300 dark:border-dark-border dark:bg-dark-elevated rounded focus:ring-whatsapp-green-a11y-button"
-                />
-                <label
-                  htmlFor="remember-me"
-                  className="ml-2 text-sm text-gray-600 dark:text-dark-text-secondary cursor-pointer"
-                >
-                  Remember me
-                </label>
-              </div>
+            <div className="mt-2 flex justify-end">
               <Link
-                to="/forgot-password"
-                className="text-sm text-whatsapp-green-a11y-text dark:text-whatsapp-green hover:text-whatsapp-green-a11y-button dark:hover:text-whatsapp-green/80"
+                to={buildAuthUrl(
+                  "/forgot-password",
+                  redirectTo,
+                  currentEmail,
+                )}
+                className="rounded-sm text-sm font-semibold text-[#0a7c43] underline-offset-4 transition-colors hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#075e54] focus-visible:ring-offset-2 dark:text-[#52df83] dark:focus-visible:ring-offset-dark-elevated"
               >
                 Forgot password?
               </Link>
             </div>
-
-            <Button
-              type="submit"
-              className="w-full bg-whatsapp-green-a11y-button hover:bg-whatsapp-green-a11y-button/90 dark:bg-whatsapp-green-a11y-button dark:hover:bg-whatsapp-green-a11y-button/90 text-white"
-              disabled={isLoading}
-            >
-              {isLoading ? "Signing in…" : "Sign in"}
-            </Button>
-          </form>
-
-          <div className="mt-6 text-center">
-            <p className="text-sm text-gray-600 dark:text-dark-text-secondary">
-              Don't have an account?{" "}
-              <Link
-                to={buildAuthUrl("/register", redirectTo, suggestedEmail)}
-                className="text-whatsapp-green-a11y-text dark:text-whatsapp-green hover:text-whatsapp-green-a11y-button dark:hover:text-whatsapp-green/80 font-medium"
-              >
-                Sign up
-              </Link>
-            </p>
           </div>
+
+          <Button
+            type="submit"
+            size="lg"
+            className="h-12 w-full rounded-xl bg-[#075e54] text-white shadow-lg shadow-[#075e54]/15 hover:bg-[#064b43] dark:bg-whatsapp-green-a11y-button dark:hover:bg-whatsapp-green-a11y-button/90"
+            disabled={isLoading}
+          >
+            {isLoading ? (
+              <>
+                <LoaderCircle aria-hidden="true" className="animate-spin" />
+                Signing in…
+              </>
+            ) : (
+              <>
+                Sign in
+                <ArrowRight aria-hidden="true" />
+              </>
+            )}
+          </Button>
+        </form>
+
+        <div className="mt-6 flex items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50/80 p-4 dark:border-dark-border dark:bg-dark-tertiary/50">
+          <ShieldCheck
+            aria-hidden="true"
+            className="mt-0.5 h-5 w-5 shrink-0 text-[#0a7c43] dark:text-[#52df83]"
+          />
+          <p className="text-xs leading-5 text-slate-500 dark:text-dark-text-secondary">
+            Your sign-in is protected, and workspace access stays private to
+            approved team members.
+          </p>
         </div>
+
+        <p className="mt-6 text-center text-sm text-slate-600 dark:text-dark-text-secondary">
+          New to WATeamInbox?{" "}
+          <Link
+            to={buildAuthUrl("/register", redirectTo, currentEmail)}
+            className="rounded-sm font-semibold text-[#0a7c43] underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#075e54] focus-visible:ring-offset-2 dark:text-[#52df83] dark:focus-visible:ring-offset-dark-elevated"
+          >
+            Create an account
+          </Link>
+        </p>
       </div>
-    </div>
+    </AuthPageShell>
   );
 }

@@ -23,7 +23,7 @@ export function getAuthRedirectFromState(state: unknown): string | null {
 }
 
 export function buildAuthUrl(
-  path: "/login" | "/register",
+  path: "/forgot-password" | "/login" | "/register",
   redirect: string | null,
   email?: string | null,
 ): string {

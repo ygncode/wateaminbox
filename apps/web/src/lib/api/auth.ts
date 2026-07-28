@@ -11,11 +11,15 @@ import {
   handleResponse,
 } from "./client.js";
 import type {
+  ChangePasswordRequest,
+  CurrentUserResponse,
   LoginRequest,
   LoginResponse,
   RegisterRequest,
   RegisterResponse,
   ForgotPasswordResponse,
+  UpdateProfileRequest,
+  UpdateProfileResponse,
 } from "./types.js";
 
 export async function login(credentials: LoginRequest): Promise<LoginResponse> {
@@ -75,16 +79,30 @@ export async function resetPassword(
 }
 
 interface GetMeResponse {
-  user: {
-    id: string;
-    email: string;
-    emailVerified: boolean;
-  };
+  user: CurrentUserResponse;
 }
 
 export async function getCurrentUser(): Promise<GetMeResponse["user"]> {
   const response = await fetchWithAuth<GetMeResponse>("/auth/me");
   return response.user;
+}
+
+export async function updateCurrentUserProfile(
+  input: UpdateProfileRequest,
+): Promise<UpdateProfileResponse> {
+  return fetchWithAuth<UpdateProfileResponse>("/auth/me", {
+    method: "PATCH",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function changeCurrentUserPassword(
+  input: ChangePasswordRequest,
+): Promise<void> {
+  await fetchWithAuth("/auth/change-password", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
 }
 
 export async function healthCheck(): Promise<{ status: string }> {

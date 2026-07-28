@@ -11,7 +11,10 @@ import {
   initializeAuth,
   type RegisterRequest,
   type RegisterResponse,
+  type UpdateProfileRequest,
+  type UpdateProfileResponse,
   unsubscribeAllPush,
+  updateCurrentUserProfile,
 } from "../lib/api";
 import { useChatStore } from "../stores/chat-store";
 
@@ -20,6 +23,8 @@ export interface AuthUser {
   email: string;
   name: string;
   avatarUrl?: string;
+  gravatarUrl?: string;
+  hasCustomAvatar: boolean;
 }
 
 export interface AuthState {
@@ -36,6 +41,9 @@ export interface AuthContextValue extends AuthState {
   ) => Promise<RegisterResponse>;
   logout: () => Promise<void>;
   refreshSession: () => Promise<void>;
+  updateProfile: (
+    input: UpdateProfileRequest,
+  ) => Promise<UpdateProfileResponse>;
   clearError: () => void;
 }
 
@@ -50,7 +58,10 @@ export interface AuthProviderProps {
 interface ApiUser {
   id: string;
   email: string;
-  name?: string;
+  name?: string | null;
+  avatarUrl?: string;
+  gravatarUrl?: string;
+  hasCustomAvatar?: boolean;
 }
 
 function mapApiUser(apiUser: ApiUser): AuthUser {
@@ -58,6 +69,9 @@ function mapApiUser(apiUser: ApiUser): AuthUser {
     id: apiUser.id,
     email: apiUser.email,
     name: apiUser.name || apiUser.email.split("@")[0],
+    avatarUrl: apiUser.avatarUrl,
+    gravatarUrl: apiUser.gravatarUrl,
+    hasCustomAvatar: Boolean(apiUser.hasCustomAvatar),
   };
 }
 
@@ -174,13 +188,34 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   }, [loadIdentity, queryClient]);
 
+  const updateProfile = React.useCallback(
+    async (input: UpdateProfileRequest) => {
+      const response = await updateCurrentUserProfile(input);
+      setState((previous) => ({
+        ...previous,
+        user: mapApiUser(response.user),
+        error: null,
+      }));
+      return response;
+    },
+    [],
+  );
+
   const clearError = React.useCallback(() => {
     setState((previous) => ({ ...previous, error: null }));
   }, []);
 
   const value = React.useMemo(
-    () => ({ ...state, login, register, logout, refreshSession, clearError }),
-    [state, login, register, logout, refreshSession, clearError],
+    () => ({
+      ...state,
+      login,
+      register,
+      logout,
+      refreshSession,
+      updateProfile,
+      clearError,
+    }),
+    [state, login, register, logout, refreshSession, updateProfile, clearError],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

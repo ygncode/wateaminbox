@@ -4,6 +4,7 @@ import crypto from "node:crypto";
 import type { Kysely, Transaction } from "kysely";
 import { sendPasswordResetEmail, sendVerificationEmail } from "../lib/email.js";
 import { AuthError } from "../lib/errors.js";
+import { getGravatarUrl } from "../lib/gravatar.js";
 import {
   generateAccessToken,
   generateRefreshToken,
@@ -11,7 +12,9 @@ import {
   verifyRefreshToken,
 } from "../lib/jwt.js";
 import { hashPassword, verifyPassword } from "../lib/password.js";
+import type { UpdateProfileInput } from "../lib/schemas/auth.js";
 import { hashToken } from "../lib/security.js";
+import { deleteMedia, getPresignedUrl, uploadMedia } from "../lib/storage.js";
 
 export interface DeviceInfo {
   deviceName?: string;
@@ -41,9 +44,20 @@ export interface AuthUser {
   id: string;
   email: string;
   name: string | null;
+  avatarKey: string | null;
   emailVerifiedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
+}
+
+export interface AuthUserResponse {
+  id: string;
+  email: string;
+  name: string | null;
+  avatarUrl: string;
+  gravatarUrl: string;
+  hasCustomAvatar: boolean;
+  emailVerified: boolean;
 }
 
 // Re-export AuthError for backward compatibility with routes
@@ -60,6 +74,50 @@ const EMAIL_VERIFICATION_TTL_MS = 24 * 60 * 60 * 1000;
 const PASSWORD_RESET_TTL_MS = 60 * 60 * 1000;
 
 type AuthDatabase = Kysely<Database> | Transaction<Database>;
+
+export async function toAuthUserResponse(
+  user: Pick<AuthUser, "id" | "email" | "name" | "emailVerifiedAt"> & {
+    avatarKey?: string | null;
+  },
+): Promise<AuthUserResponse> {
+  const gravatarUrl = getGravatarUrl(user.email);
+  let avatarUrl = gravatarUrl;
+  if (user.avatarKey) {
+    try {
+      avatarUrl = await getPresignedUrl(user.avatarKey, 24 * 60 * 60);
+    } catch {
+      // Profile access should remain available if object storage is down.
+    }
+  }
+  return {
+    id: user.id,
+    email: user.email,
+    name: user.name,
+    avatarUrl,
+    gravatarUrl,
+    hasCustomAvatar: Boolean(user.avatarKey),
+    emailVerified: Boolean(user.emailVerifiedAt),
+  };
+}
+
+async function uploadProfileAvatar(
+  userId: string,
+  avatarDataUrl: string,
+): Promise<string> {
+  const match = avatarDataUrl.match(
+    /^data:(image\/(?:jpeg|png|webp));base64,(.+)$/,
+  );
+  if (!match) throw new Error("Invalid profile image");
+  const mimeType = match[1];
+  const extension = mimeType === "image/jpeg" ? "jpg" : mimeType.split("/")[1];
+  const avatar = await uploadMedia(
+    Buffer.from(match[2], "base64"),
+    mimeType,
+    `user-${userId}`,
+    `profile-avatar.${extension}`,
+  );
+  return avatar.key;
+}
 
 async function issueAuthToken(
   database: AuthDatabase,
@@ -119,21 +177,22 @@ export async function register(
     .transaction()
     .execute(async (trx) => {
       const createdUser = await trx
-    .insertInto("users")
-    .values({
+        .insertInto("users")
+        .values({
           email: normalizedEmail,
-      password_hash: passwordHash,
-      name: name || null,
-    })
-    .returning([
-      "id",
-      "email",
-      "name",
-      "email_verified_at",
-      "created_at",
-      "updated_at",
-    ])
-    .executeTakeFirstOrThrow();
+          password_hash: passwordHash,
+          name: name || null,
+        })
+        .returning([
+          "id",
+          "email",
+          "name",
+          "avatar_key",
+          "email_verified_at",
+          "created_at",
+          "updated_at",
+        ])
+        .executeTakeFirstOrThrow();
 
       const token = await issueAuthToken(
         trx,
@@ -152,6 +211,7 @@ export async function register(
       id: user.id,
       email: user.email,
       name: user.name,
+      avatarKey: user.avatar_key,
       emailVerifiedAt: user.email_verified_at,
       createdAt: user.created_at,
       updatedAt: user.updated_at,
@@ -237,6 +297,7 @@ export async function login(
       id: user.id,
       email: user.email,
       name: user.name,
+      avatarKey: user.avatar_key,
       emailVerifiedAt: user.email_verified_at,
       createdAt: user.created_at,
       updatedAt: user.updated_at,
@@ -286,17 +347,18 @@ export async function verifyEmail(token: string): Promise<AuthUser> {
 
     const now = toDbDate();
     const user = await trx
-    .updateTable("users")
+      .updateTable("users")
       .set({ email_verified_at: now, updated_at: now })
       .where("id", "=", storedToken.user_id)
-    .returning([
-      "id",
-      "email",
-      "name",
-      "email_verified_at",
-      "created_at",
-      "updated_at",
-    ])
+      .returning([
+        "id",
+        "email",
+        "name",
+        "avatar_key",
+        "email_verified_at",
+        "created_at",
+        "updated_at",
+      ])
       .executeTakeFirstOrThrow();
 
     await trx
@@ -305,14 +367,15 @@ export async function verifyEmail(token: string): Promise<AuthUser> {
       .where("id", "=", storedToken.id)
       .execute();
 
-  return {
-    id: user.id,
-    email: user.email,
-    name: user.name,
-    emailVerifiedAt: user.email_verified_at,
-    createdAt: user.created_at,
-    updatedAt: user.updated_at,
-  };
+    return {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      avatarKey: user.avatar_key,
+      emailVerifiedAt: user.email_verified_at,
+      createdAt: user.created_at,
+      updatedAt: user.updated_at,
+    };
   });
 }
 
@@ -363,7 +426,7 @@ export async function resetPassword(
       .where("auth_tokens.expires_at", ">", toDbDate())
       .select(["auth_tokens.id", "auth_tokens.user_id"])
       .forUpdate("auth_tokens")
-    .executeTakeFirst();
+      .executeTakeFirst();
 
     if (!storedToken) {
       throw new AuthError(
@@ -371,7 +434,7 @@ export async function resetPassword(
         "INVALID_TOKEN",
         400,
       );
-  }
+    }
 
     const now = toDbDate();
     await trx
@@ -397,6 +460,190 @@ export async function resetPassword(
 }
 
 /**
+ * Update the signed-in user's profile. Changing email requires the current
+ * password and starts a fresh email-verification cycle.
+ */
+export async function updateProfile(
+  userId: string,
+  input: UpdateProfileInput,
+): Promise<{ user: AuthUser; emailVerificationSent: boolean }> {
+  const current = await db
+    .selectFrom("users")
+    .where("id", "=", userId)
+    .selectAll()
+    .executeTakeFirst();
+  if (!current) {
+    throw new AuthError("User not found", "USER_NOT_FOUND", 404);
+  }
+
+  const normalizedEmail = input.email?.trim().toLowerCase();
+  const emailChanged =
+    normalizedEmail !== undefined && normalizedEmail !== current.email;
+
+  if (emailChanged) {
+    if (!input.currentPassword) {
+      throw new AuthError(
+        "Enter your current password to change your email",
+        "CURRENT_PASSWORD_REQUIRED",
+        400,
+      );
+    }
+    if (!(await verifyPassword(input.currentPassword, current.password_hash))) {
+      throw new AuthError(
+        "Current password is incorrect",
+        "INVALID_CURRENT_PASSWORD",
+        401,
+      );
+    }
+    const existing = await db
+      .selectFrom("users")
+      .where("email", "=", normalizedEmail)
+      .where("id", "!=", userId)
+      .select("id")
+      .executeTakeFirst();
+    if (existing) {
+      throw new AuthError(
+        "An account with this email already exists",
+        "EMAIL_EXISTS",
+        409,
+      );
+    }
+  }
+
+  let uploadedAvatarKey: string | null = null;
+  if (typeof input.avatarDataUrl === "string") {
+    uploadedAvatarKey = await uploadProfileAvatar(userId, input.avatarDataUrl);
+  }
+
+  const updateData: Record<string, unknown> = {
+    updated_at: toDbDate(),
+  };
+  if (input.name !== undefined) updateData.name = input.name;
+  if (emailChanged) {
+    updateData.email = normalizedEmail;
+    updateData.email_verified_at = null;
+  }
+  if (input.avatarDataUrl !== undefined) {
+    updateData.avatar_key = uploadedAvatarKey;
+  }
+
+  let updated: {
+    id: string;
+    email: string;
+    name: string | null;
+    avatar_key: string | null;
+    email_verified_at: Date | null;
+    created_at: Date;
+    updated_at: Date;
+  };
+
+  try {
+    updated = await db.transaction().execute(async (trx) => {
+      const user = await trx
+        .updateTable("users")
+        .set(updateData)
+        .where("id", "=", userId)
+        .returning([
+          "id",
+          "email",
+          "name",
+          "avatar_key",
+          "email_verified_at",
+          "created_at",
+          "updated_at",
+        ])
+        .executeTakeFirstOrThrow();
+
+      if (emailChanged && normalizedEmail) {
+        const verificationToken = await issueAuthToken(
+          trx,
+          userId,
+          "email_verification",
+          EMAIL_VERIFICATION_TTL_MS,
+        );
+        await sendVerificationEmail(normalizedEmail, verificationToken);
+      }
+      return user;
+    });
+  } catch (error) {
+    if (uploadedAvatarKey) {
+      await deleteMedia(uploadedAvatarKey).catch(() => undefined);
+    }
+    throw error;
+  }
+
+  if (
+    input.avatarDataUrl !== undefined &&
+    current.avatar_key &&
+    current.avatar_key !== updated.avatar_key
+  ) {
+    await deleteMedia(current.avatar_key).catch(() => undefined);
+  }
+
+  return {
+    user: {
+      id: updated.id,
+      email: updated.email,
+      name: updated.name,
+      avatarKey: updated.avatar_key,
+      emailVerifiedAt: updated.email_verified_at,
+      createdAt: updated.created_at,
+      updatedAt: updated.updated_at,
+    },
+    emailVerificationSent: emailChanged,
+  };
+}
+
+/**
+ * Change the signed-in user's password and revoke every other device session.
+ */
+export async function changePassword(
+  userId: string,
+  currentSessionId: string,
+  currentPassword: string,
+  newPassword: string,
+): Promise<{ revokedSessionCount: number }> {
+  const user = await db
+    .selectFrom("users")
+    .where("id", "=", userId)
+    .select(["password_hash"])
+    .executeTakeFirst();
+  if (!user) throw new AuthError("User not found", "USER_NOT_FOUND", 404);
+
+  if (!(await verifyPassword(currentPassword, user.password_hash))) {
+    throw new AuthError(
+      "Current password is incorrect",
+      "INVALID_CURRENT_PASSWORD",
+      401,
+    );
+  }
+  if (await verifyPassword(newPassword, user.password_hash)) {
+    throw new AuthError(
+      "New password must be different from your current password",
+      "PASSWORD_UNCHANGED",
+      400,
+    );
+  }
+
+  const passwordHash = await hashPassword(newPassword);
+  const revokedSessionCount = await db.transaction().execute(async (trx) => {
+    await trx
+      .updateTable("users")
+      .set({ password_hash: passwordHash, updated_at: toDbDate() })
+      .where("id", "=", userId)
+      .execute();
+    const revoked = await trx
+      .deleteFrom("user_sessions")
+      .where("user_id", "=", userId)
+      .where("id", "!=", currentSessionId)
+      .executeTakeFirst();
+    return Number(revoked.numDeletedRows);
+  });
+
+  return { revokedSessionCount };
+}
+
+/**
  * Refresh the session using a refresh token
  */
 export async function refreshSession(
@@ -409,21 +656,21 @@ export async function refreshSession(
 
   return db.transaction().execute(async (trx) => {
     const session = await trx
-    .selectFrom("user_sessions")
-    .where("id", "=", payload.sessionId)
+      .selectFrom("user_sessions")
+      .where("id", "=", payload.sessionId)
       .where("refresh_token", "=", hashToken(refreshToken))
-    .where("expires_at", ">", toDbDate())
-    .selectAll()
+      .where("expires_at", ">", toDbDate())
+      .selectAll()
       .forUpdate()
-    .executeTakeFirst();
+      .executeTakeFirst();
 
-  if (!session) {
+    if (!session) {
       throw new AuthError(
         "Session not found, expired, or refresh token already used",
         "SESSION_EXPIRED",
         401,
       );
-  }
+    }
 
     const [accessToken, newRefreshToken] = await Promise.all([
       generateAccessToken(session.user_id, session.id),
@@ -431,21 +678,21 @@ export async function refreshSession(
     ]);
 
     await trx
-    .updateTable("user_sessions")
-    .set({
+      .updateTable("user_sessions")
+      .set({
         refresh_token: hashToken(newRefreshToken),
-      last_active_at: toDbDate(),
-      expires_at: getRefreshTokenExpiry(),
-    })
-    .where("id", "=", session.id)
-    .execute();
+        last_active_at: toDbDate(),
+        expires_at: getRefreshTokenExpiry(),
+      })
+      .where("id", "=", session.id)
+      .execute();
 
-  return {
-    tokens: {
-      accessToken,
-      refreshToken: newRefreshToken,
-    },
-  };
+    return {
+      tokens: {
+        accessToken,
+        refreshToken: newRefreshToken,
+      },
+    };
   });
 }
 
@@ -533,6 +780,7 @@ export async function getUserById(userId: string): Promise<AuthUser | null> {
       "id",
       "email",
       "name",
+      "avatar_key",
       "email_verified_at",
       "created_at",
       "updated_at",
@@ -547,6 +795,7 @@ export async function getUserById(userId: string): Promise<AuthUser | null> {
     id: user.id,
     email: user.email,
     name: user.name,
+    avatarKey: user.avatar_key,
     emailVerifiedAt: user.email_verified_at,
     createdAt: user.created_at,
     updatedAt: user.updated_at,

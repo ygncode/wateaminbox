@@ -1,3 +1,4 @@
+export { AccountSettings } from "./AccountSettings";
 export { CatalogManager } from "./CatalogManager";
 
 export {

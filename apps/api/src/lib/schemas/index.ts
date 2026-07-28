@@ -20,12 +20,16 @@ export {
   verifyEmailSchema,
   forgotPasswordSchema,
   resetPasswordSchema,
+  updateProfileSchema,
+  changePasswordSchema,
   refreshTokenSchema,
   type RegisterInput,
   type LoginInput,
   type VerifyEmailInput,
   type ForgotPasswordInput,
   type ResetPasswordInput,
+  type UpdateProfileInput,
+  type ChangePasswordInput,
   type RefreshTokenInput,
 } from "./auth.js";
 

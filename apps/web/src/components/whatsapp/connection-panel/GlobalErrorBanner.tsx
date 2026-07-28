@@ -1,4 +1,4 @@
-import { Sparkles, X, Zap } from "lucide-react";
+import { X, Zap } from "lucide-react";
 import type { GlobalErrorBannerProps } from "./types";
 
 /**
@@ -32,7 +32,6 @@ export function GlobalErrorBanner({
             </p>
             <div className="mt-3 flex items-center gap-3">
               <button className="inline-flex items-center gap-1.5 text-xs font-medium text-amber-800 dark:text-amber-300 hover:text-amber-900 dark:hover:text-amber-200 bg-amber-200/50 dark:bg-amber-800/50 hover:bg-amber-200 dark:hover:bg-amber-700/50 px-3 py-1.5 rounded-full transition-all duration-200">
-                <Sparkles className="h-3.5 w-3.5" />
                 Upgrade Plan
               </button>
               <span className="text-amber-400">•</span>

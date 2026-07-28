@@ -68,6 +68,73 @@ export const resetPasswordSchema = z.object({
 export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;
 
 // =============================================================================
+// Account settings
+// =============================================================================
+
+const MAX_PROCESSED_AVATAR_BYTES = 512 * 1024;
+const MAX_AVATAR_DATA_URL_LENGTH =
+  Math.ceil((MAX_PROCESSED_AVATAR_BYTES * 4) / 3) + 64;
+const avatarDataUrlPattern =
+  /^data:image\/(?:jpeg|png|webp);base64,[A-Za-z0-9+/]+={0,2}$/;
+
+const avatarDataUrlSchema = z
+  .string()
+  .max(
+    MAX_AVATAR_DATA_URL_LENGTH,
+    "Processed profile image must be smaller than 512 KB",
+  )
+  .refine(
+    (value) => avatarDataUrlPattern.test(value),
+    "Profile image must be a valid PNG, JPEG, or WebP image",
+  )
+  .refine((value) => {
+    const base64 = value.split(",", 2)[1];
+    return (
+      Boolean(base64) &&
+      Buffer.byteLength(base64, "base64") <= MAX_PROCESSED_AVATAR_BYTES
+    );
+  }, "Processed profile image must be smaller than 512 KB");
+
+export const updateProfileSchema = z
+  .object({
+    name: z
+      .string()
+      .trim()
+      .min(2, "Name must be at least 2 characters")
+      .max(100, "Name must be less than 100 characters")
+      .optional(),
+    email: z
+      .string()
+      .trim()
+      .email("Invalid email address")
+      .transform((value) => value.toLowerCase())
+      .optional(),
+    currentPassword: z.string().min(1).max(128).optional(),
+    avatarDataUrl: avatarDataUrlSchema.nullable().optional(),
+  })
+  .refine(
+    (value) =>
+      value.name !== undefined ||
+      value.email !== undefined ||
+      value.avatarDataUrl !== undefined,
+    "No profile changes were provided",
+  );
+
+export type UpdateProfileInput = z.infer<typeof updateProfileSchema>;
+
+export const changePasswordSchema = z
+  .object({
+    currentPassword: z.string().min(1, "Current password is required"),
+    newPassword: passwordSchema,
+  })
+  .refine((value) => value.currentPassword !== value.newPassword, {
+    message: "New password must be different from your current password",
+    path: ["newPassword"],
+  });
+
+export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;
+
+// =============================================================================
 // Token Refresh
 // =============================================================================
 

@@ -14,6 +14,7 @@ export {
 } from "./analytics.js";
 // Re-export auth functions
 export {
+  changeCurrentUserPassword,
   forgotPassword,
   getCurrentUser,
   healthCheck,
@@ -21,6 +22,7 @@ export {
   logout,
   register,
   resetPassword,
+  updateCurrentUserProfile,
   verifyEmail,
 } from "./auth.js";
 // Re-export catalogs functions

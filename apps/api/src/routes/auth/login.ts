@@ -9,6 +9,7 @@ import {
   login,
   refreshSession,
   revokeSession,
+  toAuthUserResponse,
 } from "../../services/auth.service.js";
 import {
   clearRefreshTokenCookie,
@@ -45,15 +46,19 @@ loginRoutes.post(
         body.password,
         deviceInfo,
       );
+      const publicUser = await toAuthUserResponse(user);
 
       setRefreshTokenCookie(c, tokens.refreshToken);
 
       return successWithMessage(c, "Login successful", {
         user: {
           id: user.id,
-          email: user.email,
-          name: user.name,
-          emailVerified: !!user.emailVerifiedAt,
+          email: publicUser.email,
+          name: publicUser.name,
+          avatarUrl: publicUser.avatarUrl,
+          gravatarUrl: publicUser.gravatarUrl,
+          hasCustomAvatar: publicUser.hasCustomAvatar,
+          emailVerified: publicUser.emailVerified,
         },
         tokens: {
           accessToken: tokens.accessToken,
@@ -94,7 +99,7 @@ loginRoutes.post("/logout", authMiddleware, async (c) => {
  * Rate limit: 20 attempts per minute per IP
  */
 loginRoutes.post("/refresh", refreshRateLimiter, async (c) => {
-    try {
+  try {
     const refreshToken = getRefreshTokenCookie(c);
     if (!refreshToken) {
       throw new AuthError("Refresh cookie is missing", "INVALID_TOKEN", 401);
@@ -103,19 +108,19 @@ loginRoutes.post("/refresh", refreshRateLimiter, async (c) => {
     const { tokens } = await refreshSession(refreshToken);
     setRefreshTokenCookie(c, tokens.refreshToken);
 
-      return successWithMessage(c, "Token refreshed successfully", {
-        tokens: {
-          accessToken: tokens.accessToken,
-        },
-      });
-    } catch (error) {
+    return successWithMessage(c, "Token refreshed successfully", {
+      tokens: {
+        accessToken: tokens.accessToken,
+      },
+    });
+  } catch (error) {
     clearRefreshTokenCookie(c);
-      return handleAuthError(
-        c,
-        error,
-        logger,
-        formatError,
-        "Token refresh error",
-      );
-    }
+    return handleAuthError(
+      c,
+      error,
+      logger,
+      formatError,
+      "Token refresh error",
+    );
+  }
 });

@@ -1,8 +1,11 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import type {
+  Company,
   CompanyInvitation,
   CompanyMember,
+  CreateCompanyInput,
   MemberPermissions,
+  UpdateCompanyInput,
 } from "@wateaminbox/shared";
 import { api } from "@/lib/api/client";
 import { useInvalidate, useQueryInvalidation } from "./query";
@@ -269,8 +272,8 @@ export function useCreateCompany() {
   const invalidateCompanies = useInvalidate(queryKeys.team.companies());
 
   return useMutation({
-    mutationFn: async ({ name }: { name: string }) => {
-      return api.post<{ id: string; name: string }>("/companies", { name });
+    mutationFn: async (input: CreateCompanyInput) => {
+      return api.post<Company>("/companies", input);
     },
     onSuccess: invalidateCompanies,
   });
@@ -320,10 +323,8 @@ export function useUpdateCompany(companyId: string) {
   const invalidateCompanies = useInvalidate(queryKeys.team.companies());
 
   return useMutation({
-    mutationFn: async ({ name }: { name: string }) =>
-      api.patch<{ id: string; name: string }>(`/companies/${companyId}`, {
-        name,
-      }),
+    mutationFn: async (input: UpdateCompanyInput) =>
+      api.patch<Company>(`/companies/${companyId}`, input),
     onSuccess: invalidateCompanies,
   });
 }

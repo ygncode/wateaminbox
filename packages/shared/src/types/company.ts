@@ -30,6 +30,8 @@ export interface MemberPermissions {
 export interface Company {
   id: string;
   name: string;
+  description: string | null;
+  logoUrl: string | null;
   status: CompanyStatus;
   createdAt: string;
   updatedAt: string;
@@ -88,6 +90,8 @@ export interface CompanyInvitation {
  */
 export interface CreateCompanyInput {
   name: string;
+  description?: string;
+  logoDataUrl?: string;
 }
 
 /**
@@ -95,6 +99,9 @@ export interface CreateCompanyInput {
  */
 export interface UpdateCompanyInput {
   name?: string;
+  description?: string;
+  /** Processed data URL replaces the logo; null removes the current logo. */
+  logoDataUrl?: string | null;
   status?: Exclude<CompanyStatus, "deleted">;
 }
 

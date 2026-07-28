@@ -1,7 +1,7 @@
 import { ArrowRight, Building2, LogOut } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { workspaceMonogram } from "../components/workspace/WorkspaceSwitcher";
+import { WorkspaceAvatar } from "../components/workspace/WorkspaceAvatar";
 import { useAuth } from "../contexts/auth-context";
 import { useWorkspace } from "../contexts/workspace-context";
 import { workspacePath } from "../lib/workspace-routes";
@@ -64,9 +64,10 @@ export function WorkspaceChooserPage() {
               onClick={() => void choose(workspace.id)}
               className="group flex items-center gap-4 rounded-2xl border border-[#dce3de] bg-white p-4 text-left shadow-[0_1px_2px_rgba(16,33,27,.03)] transition-all hover:-translate-y-0.5 hover:border-[#9bcab8] hover:shadow-[0_12px_30px_rgba(16,33,27,.08)] disabled:opacity-60 dark:border-dark-border dark:bg-dark-elevated"
             >
-              <span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-[#dcefe7] text-sm font-bold text-[#075c41]">
-                {workspaceMonogram(workspace.name)}
-              </span>
+              <WorkspaceAvatar
+                workspace={workspace}
+                className="h-12 w-12 rounded-xl text-sm"
+              />
               <span className="min-w-0 flex-1">
                 <span className="block truncate font-semibold">
                   {switchingTo?.id === workspace.id

@@ -101,40 +101,84 @@ function ChatPageSkeleton({ className }: { className?: string }) {
 function SettingsPageSkeleton({ className }: { className?: string }) {
   return (
     <div
-      className={cn("min-h-dvh bg-gray-100 dark:bg-dark-primary", className)}
+      className={cn(
+        "flex h-full min-h-0 w-full bg-[#f5f7f4] dark:bg-dark-primary",
+        className,
+      )}
+      role="status"
+      aria-label="Loading workspace settings"
     >
-      {/* Header */}
-      <div className="border-b border-gray-200 dark:border-dark-border bg-white dark:bg-dark-secondary">
-        <div className="max-w-4xl mx-auto px-4 py-4">
-          <Skeleton className="h-8 w-32" />
-        </div>
-      </div>
-      {/* Content */}
-      <div className="max-w-4xl mx-auto px-4 py-8">
-        <div className="bg-white dark:bg-dark-elevated rounded-lg shadow-sm p-6 space-y-6">
-          {/* Profile section */}
-          <div className="flex items-center gap-4">
-            <Skeleton className="h-20 w-20 rounded-full" />
-            <div className="space-y-2">
-              <Skeleton className="h-6 w-40" />
-              <Skeleton className="h-4 w-56" />
-            </div>
-          </div>
-          {/* Settings items */}
-          {Array.from({ length: 4 }).map((_, i) => (
-            <div
-              key={i}
-              className="flex items-center justify-between py-4 border-t border-gray-200 dark:border-dark-border"
-            >
+      <aside className="hidden w-64 shrink-0 overflow-hidden border-r border-[#dce3de] bg-[#edf1ed] px-4 py-6 dark:border-dark-border dark:bg-dark-secondary md:block">
+        <Skeleton className="mx-2 h-3 w-16" />
+        <Skeleton className="mx-2 mt-3 h-6 w-36" />
+
+        <div className="mt-8 space-y-6">
+          {[2, 3, 2].map((itemCount, groupIndex) => (
+            <div key={groupIndex}>
+              <Skeleton className="mx-2 mb-2 h-2.5 w-20" />
               <div className="space-y-1">
-                <Skeleton className="h-5 w-32" />
-                <Skeleton className="h-4 w-48" />
+                {Array.from({ length: itemCount }).map((_, itemIndex) => (
+                  <div
+                    key={itemIndex}
+                    className={cn(
+                      "flex h-9 items-center gap-3 rounded-lg px-2.5",
+                      groupIndex === 0 &&
+                        itemIndex === 0 &&
+                        "bg-white shadow-sm dark:bg-white/[0.06] dark:shadow-none",
+                    )}
+                  >
+                    <Skeleton className="h-4 w-4 shrink-0 rounded" />
+                    <Skeleton
+                      className={cn(
+                        "h-3",
+                        itemIndex % 2 === 0 ? "w-24" : "w-28",
+                      )}
+                    />
+                  </div>
+                ))}
               </div>
-              <Skeleton className="h-9 w-20" />
             </div>
           ))}
         </div>
-      </div>
+      </aside>
+
+      <main className="min-w-0 flex-1 overflow-hidden">
+        <div className="mx-auto max-w-3xl px-4 py-6 sm:px-8 sm:py-10">
+          <div className="mb-6 md:hidden">
+            <Skeleton className="h-3 w-16" />
+            <Skeleton className="mt-3 h-11 w-full rounded-xl" />
+          </div>
+
+          <header className="mb-7 border-b border-[#dce3de] pb-5 dark:border-dark-border">
+            <Skeleton className="h-3 w-20" />
+            <Skeleton className="mt-2 h-7 w-44" />
+          </header>
+
+          <section className="rounded-2xl border border-[#dce3de] bg-white p-5 shadow-[0_1px_2px_rgba(16,33,27,.03)] dark:border-dark-border dark:bg-dark-elevated sm:p-6">
+            <Skeleton className="h-4 w-44" />
+            <Skeleton className="mt-3 h-3 w-full max-w-md" />
+            <Skeleton className="mt-2 h-3 w-4/5 max-w-sm" />
+
+            <div className="mt-6 space-y-3">
+              {Array.from({ length: 3 }).map((_, index) => (
+                <div
+                  key={index}
+                  className="flex items-center gap-4 rounded-xl border border-[#e4e9e5] p-4 dark:border-dark-border"
+                >
+                  <Skeleton className="h-11 w-11 shrink-0 rounded-xl" />
+                  <div className="min-w-0 flex-1">
+                    <Skeleton
+                      className={cn("h-4", index === 1 ? "w-32" : "w-40")}
+                    />
+                    <Skeleton className="mt-2 h-3 w-3/5 max-w-xs" />
+                  </div>
+                  <Skeleton className="h-9 w-20 shrink-0 rounded-lg" />
+                </div>
+              ))}
+            </div>
+          </section>
+        </div>
+      </main>
     </div>
   );
 }
