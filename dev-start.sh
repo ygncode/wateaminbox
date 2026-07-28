@@ -264,6 +264,22 @@ start_dev_servers() {
     # Get absolute path for more robust directory handling
     local ROOT_DIR
     ROOT_DIR="$(pwd)"
+
+    # Keep workspace package outputs synchronized with their source files.
+    # Apps import these packages through dist/, so a stale build can otherwise
+    # crash a running API after package source changes.
+    print_status "  Watching shared package (→ logs/shared.log)..."
+    (cd "$ROOT_DIR/packages/shared" && bun run dev) > "$LOGS_DIR/shared.log" 2>&1 &
+    PIDS+=($!)
+
+    print_status "  Watching database package (→ logs/database.log)..."
+    (cd "$ROOT_DIR/packages/database" && bun run dev) > "$LOGS_DIR/database.log" 2>&1 &
+    PIDS+=($!)
+
+    print_status "  Watching UI package (→ logs/ui.log)..."
+    (cd "$ROOT_DIR/packages/ui" && bun run dev) > "$LOGS_DIR/ui.log" 2>&1 &
+    PIDS+=($!)
+    sleep 2
     
     # Start API server using subshell with cd to avoid --cwd issues
     # This is more robust when other processes run in the same directory
@@ -312,6 +328,9 @@ start_dev_servers() {
     echo -e "  MinIO:       ${BLUE}http://localhost:4450${NC} (console: ${BLUE}http://localhost:9001${NC})"
     echo ""
     echo -e "${GREEN}View logs:${NC}"
+    echo -e "  tail -f logs/shared.log       ${BLUE}# Shared package${NC}"
+    echo -e "  tail -f logs/database.log     ${BLUE}# Database package${NC}"
+    echo -e "  tail -f logs/ui.log           ${BLUE}# UI package${NC}"
     echo -e "  tail -f logs/api.log          ${BLUE}# API only${NC}"
     echo -e "  tail -f logs/web.log          ${BLUE}# Frontend only${NC}"
     echo -e "  tail -f logs/orchestrator.log ${BLUE}# Orchestrator only${NC}"
