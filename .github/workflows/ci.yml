@@ -12,6 +12,22 @@ jobs:
   validate:
     runs-on: [self-hosted, minipc]
     timeout-minutes: 20
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:${{ job.services.postgres.ports[5432] }}/wateaminbox
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: wateaminbox
+        ports:
+          - 5432/tcp
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     steps:
       - uses: actions/checkout@v4
         with:
@@ -32,6 +48,8 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: bun run lint
       - run: bun run typecheck
+      - run: bun run db:migrate
+      - run: bun run test:db-contracts
       - run: bun run check:unused
       - run: bun run test
       - run: bun run build -- --force

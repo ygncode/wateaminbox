@@ -188,6 +188,7 @@ The receiving user must be assigned to the contact or have permission to view al
 | `bun run typecheck` | Type-check shared packages, API, and web app |
 | `bun run format` | Format TypeScript workspace files with Biome |
 | `bun run test` | Run API, web, and short Go tests |
+| `bun run test:db-contracts` | Verify tenant schema creation and PostgreSQL search |
 | `bun run test:integration` | Run database and Go integration tests |
 | `bun run check:unused` | Find unused files and dependencies with Knip |
 | `bun run db:migrate` | Apply database migrations |

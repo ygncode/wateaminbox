@@ -4,6 +4,11 @@ export {
   createTenantDatabase,
   getTenantSchemaName,
 } from "./client";
+export {
+  reconcileTenantSchema,
+  TENANT_SCHEMA_CONTRACT,
+} from "./tenant-schema";
+export type { TenantSchemaContractIsComplete } from "./tenant-schema";
 
 // Re-export types from shared package for convenience
 export type {
