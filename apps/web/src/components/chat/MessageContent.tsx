@@ -1,17 +1,26 @@
 import type { Message, MessageType } from "@wateaminbox/shared";
 import { useTranslation } from "react-i18next";
+import type { GroupParticipant } from "@/hooks/useGroups";
 import { LinkifiedText } from "./LinkifiedText";
 import { MediaPendingPlaceholder } from "./MediaPendingPlaceholder";
 
 interface MessageContentProps {
   message: Message;
   isOwn: boolean;
+  mentionParticipants?: Pick<
+    GroupParticipant,
+    "jid" | "phoneNumber" | "displayName"
+  >[];
 }
 
 /**
  * Renders the content of a message based on its type
  */
-export function MessageContent({ message, isOwn }: MessageContentProps) {
+export function MessageContent({
+  message,
+  isOwn,
+  mentionParticipants = [],
+}: MessageContentProps) {
   const { t } = useTranslation();
 
   if (message.isDeleted) {
@@ -28,7 +37,13 @@ export function MessageContent({ message, isOwn }: MessageContentProps) {
     message.metadata?.caption || message.content || undefined;
 
   const contentRenderer: Record<MessageType, () => React.ReactNode> = {
-    text: () => <LinkifiedText text={message.content} isOwn={isOwn} />,
+    text: () => (
+      <LinkifiedText
+        text={message.content}
+        isOwn={isOwn}
+        mentionParticipants={mentionParticipants}
+      />
+    ),
     image: () => {
       // Show placeholder if media is pending download
       if (message.metadata?.mediaPending && !message.metadata?.mediaUrl) {
@@ -54,7 +69,12 @@ export function MessageContent({ message, isOwn }: MessageContentProps) {
             loading="lazy"
           />
           {mediaCaption && (
-            <LinkifiedText text={mediaCaption} isOwn={isOwn} className="mt-1" />
+            <LinkifiedText
+              text={mediaCaption}
+              isOwn={isOwn}
+              className="mt-1"
+              mentionParticipants={mentionParticipants}
+            />
           )}
         </div>
       );
@@ -84,7 +104,12 @@ export function MessageContent({ message, isOwn }: MessageContentProps) {
             title={mediaCaption || "Video message"}
           />
           {mediaCaption && (
-            <LinkifiedText text={mediaCaption} isOwn={isOwn} className="mt-1" />
+            <LinkifiedText
+              text={mediaCaption}
+              isOwn={isOwn}
+              className="mt-1"
+              mentionParticipants={mentionParticipants}
+            />
           )}
         </div>
       );

@@ -5,6 +5,7 @@ import { lazy, memo, Suspense, useCallback, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 import { IdentityAvatarFallback } from "@/components/ui/identity-avatar-fallback";
+import type { GroupParticipant } from "@/hooks/useGroups";
 import { formatPhoneLikeText } from "@/lib/utils";
 import { useMessageActions } from "../../contexts";
 import { useClickOutside } from "../../hooks/ui";
@@ -42,6 +43,13 @@ interface MessageBubbleProps {
   isSelected?: boolean;
   /** Callback when message selection is toggled */
   onSelectionToggle?: (messageId: string) => void;
+  /** Resolved group members used to display WhatsApp mentions by name. */
+  mentionParticipants?: Pick<
+    GroupParticipant,
+    "jid" | "phoneNumber" | "displayName"
+  >[];
+  /** Navigate the thread to the original message referenced by a reply. */
+  onNavigateToMessage?: (messageId: string) => void;
 }
 
 export const MessageBubble = memo(function MessageBubble({
@@ -55,6 +63,8 @@ export const MessageBubble = memo(function MessageBubble({
   selectionMode = false,
   isSelected = false,
   onSelectionToggle,
+  mentionParticipants = [],
+  onNavigateToMessage,
 }: MessageBubbleProps) {
   // Get message actions from context (eliminates prop drilling)
   const { onReply, onForward, onDelete, onStar, onReact } = useMessageActions();
@@ -199,11 +209,16 @@ export const MessageBubble = memo(function MessageBubble({
             replyToMessage={message.replyToMessage}
             isOwn={isOwn}
             currentUserId={currentUserId}
+            onNavigateToMessage={onNavigateToMessage}
           />
         )}
 
         {/* Message content */}
-        <MessageContent message={message} isOwn={isOwn} />
+        <MessageContent
+          message={message}
+          isOwn={isOwn}
+          mentionParticipants={mentionParticipants}
+        />
 
         {/* Error banner for failed messages */}
         {message.status === "failed" && isOwn && (
@@ -349,10 +364,12 @@ function ReplyPreview({
   replyToMessage,
   isOwn,
   currentUserId,
+  onNavigateToMessage,
 }: {
   replyToMessage: Message["replyToMessage"];
   isOwn: boolean;
   currentUserId: string;
+  onNavigateToMessage?: (messageId: string) => void;
 }) {
   const { t } = useTranslation();
 
@@ -370,12 +387,33 @@ function ReplyPreview({
       ? t("chat.messageDeleted")
       : replyToMessage.content;
 
+  const navigationTargetId =
+    replyToMessage && !replyToMessage.isDeleted ? replyToMessage.id : undefined;
+  const canNavigate = Boolean(navigationTargetId);
+  const Component = canNavigate ? "button" : "div";
+
   return (
-    <div
-      className={`mb-2 p-2.5 rounded-lg border-l-4 ${
+    <Component
+      {...(canNavigate
+        ? {
+            type: "button" as const,
+            onClick: (event: React.MouseEvent) => {
+              event.stopPropagation();
+              if (navigationTargetId) {
+                onNavigateToMessage?.(navigationTargetId);
+              }
+            },
+            "aria-label": `${t("chat.reply")}: ${replySender}`,
+          }
+        : {})}
+      className={`mb-2 w-full p-2.5 rounded-lg border-l-4 text-left ${
         isOwn
           ? "bg-whatsapp-dark-green/30 border-white/50"
           : "bg-gray-100 dark:bg-dark-tertiary border-whatsapp-green"
+      } ${
+        canNavigate
+          ? "cursor-pointer transition-colors hover:bg-black/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-whatsapp-green"
+          : ""
       }`}
     >
       <div className="flex items-start gap-2">
@@ -401,7 +439,7 @@ function ReplyPreview({
           </p>
         </div>
       </div>
-    </div>
+    </Component>
   );
 }
 

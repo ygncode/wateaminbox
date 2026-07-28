@@ -1,4 +1,5 @@
 import { Fragment } from "react";
+import type { GroupParticipant } from "@/hooks/useGroups";
 import { cn } from "@/lib/utils";
 
 export interface MessageTextSegment {
@@ -11,6 +12,35 @@ const LINK_PATTERN =
   /[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}|(?:https?:\/\/|www\.)[^\s<>]+|(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}(?:\/[^\s<>]*)?/gi;
 const EMAIL_PATTERN = /^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/i;
 const SIMPLE_TRAILING_PUNCTUATION = /[.,!?;:]+$/;
+const PHONE_MENTION_PATTERN = /@(\d{5,20})\b/g;
+
+function digitsOnly(value: string): string {
+  return value.replace(/\D/g, "");
+}
+
+/**
+ * Replace WhatsApp's raw @phone-number mention text with the resolved group
+ * participant name. Unknown mentions are deliberately left unchanged.
+ */
+export function resolveMentionNames(
+  text: string,
+  participants: Pick<GroupParticipant, "jid" | "phoneNumber" | "displayName">[],
+): string {
+  if (participants.length === 0 || !text.includes("@")) return text;
+
+  const displayNameByPhone = new Map<string, string>();
+  for (const participant of participants) {
+    const jidPhone = participant.jid.split("@")[0]?.split(":")[0] || "";
+    const phone = digitsOnly(participant.phoneNumber || jidPhone);
+    const displayName = participant.displayName.trim().replace(/^@/, "");
+    if (phone && displayName) displayNameByPhone.set(phone, displayName);
+  }
+
+  return text.replace(PHONE_MENTION_PATTERN, (rawMention, phone: string) => {
+    const displayName = displayNameByPhone.get(phone);
+    return displayName ? `@${displayName}` : rawMention;
+  });
+}
 
 function trimTrailingPunctuation(value: string): {
   link: string;
@@ -91,14 +121,21 @@ export function LinkifiedText({
   text,
   isOwn,
   className,
+  mentionParticipants = [],
 }: {
   text: string;
   isOwn: boolean;
   className?: string;
+  mentionParticipants?: Pick<
+    GroupParticipant,
+    "jid" | "phoneNumber" | "displayName"
+  >[];
 }) {
+  const displayText = resolveMentionNames(text, mentionParticipants);
+
   return (
     <p className={cn("whitespace-pre-wrap break-words", className)}>
-      {parseMessageLinks(text).map((segment, index) =>
+      {parseMessageLinks(displayText).map((segment, index) =>
         segment.type === "link" ? (
           <a
             key={`${index}-${segment.value}`}

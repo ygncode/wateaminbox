@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { shouldShowReplyPreview } from "./MessageBubble";
+import { shouldDismissReplyHighlight } from "./MessageThread";
 
 describe("incoming reply previews", () => {
   test("shows a reply marker when only the quoted message ID is available", () => {
@@ -28,5 +29,23 @@ describe("incoming reply previews", () => {
       "utf8",
     );
     expect(source).toContain('t("chat.quotedMessageUnavailable")');
+  });
+
+  test("makes an available reply preview navigate to its original message", () => {
+    const source = readFileSync(
+      new URL("./MessageBubble.tsx", import.meta.url),
+      "utf8",
+    );
+    expect(source).toContain("onNavigateToMessage?.(navigationTargetId)");
+    expect(source).toContain('type: "button" as const');
+  });
+
+  test("dismisses a reply highlight only when clicking outside its original", () => {
+    expect(shouldDismissReplyHighlight("original-id", "original-id")).toBe(
+      false,
+    );
+    expect(shouldDismissReplyHighlight("another-id", "original-id")).toBe(true);
+    expect(shouldDismissReplyHighlight(null, "original-id")).toBe(true);
+    expect(shouldDismissReplyHighlight(null, null)).toBe(false);
   });
 });

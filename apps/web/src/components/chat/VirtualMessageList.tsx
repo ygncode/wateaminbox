@@ -1,6 +1,7 @@
 import type { useVirtualizer, VirtualItem } from "@tanstack/react-virtual";
 import { formatDateSeparator as formatDateSep } from "@wateaminbox/shared";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
+import type { GroupParticipant } from "@/hooks/useGroups";
 import type { VirtualItem as MessageListItem } from "../../hooks/chat/useMessageVirtualization";
 import { MessageBubble } from "./MessageBubble";
 
@@ -28,6 +29,11 @@ interface VirtualMessageListProps {
   onScroll: () => void;
   scrollContainerRef: React.RefObject<HTMLDivElement | null>;
   onBackgroundContextMenu?: (e: React.MouseEvent) => void;
+  mentionParticipants?: Pick<
+    GroupParticipant,
+    "jid" | "phoneNumber" | "displayName"
+  >[];
+  onNavigateToMessage?: (messageId: string) => void;
 }
 
 export function VirtualMessageList({
@@ -49,6 +55,8 @@ export function VirtualMessageList({
   onScroll,
   scrollContainerRef,
   onBackgroundContextMenu,
+  mentionParticipants = [],
+  onNavigateToMessage,
 }: VirtualMessageListProps) {
   return (
     <div
@@ -133,6 +141,8 @@ export function VirtualMessageList({
                 selectionMode={selectionMode}
                 isSelected={selectedMessageIds.has(item.message.id)}
                 onSelectionToggle={onMessageClick}
+                mentionParticipants={mentionParticipants}
+                onNavigateToMessage={onNavigateToMessage}
               />
             </div>
           );

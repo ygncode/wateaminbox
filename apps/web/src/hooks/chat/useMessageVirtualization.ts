@@ -17,6 +17,8 @@ interface UseMessageVirtualizationOptions {
   messages: Message[];
   conversationId: string | undefined;
   highlightedMessageId?: string | null;
+  /** Changes when navigation to the same highlighted message is requested again. */
+  highlightRequestKey?: number;
   hasNextPage?: boolean;
   isFetchingNextPage?: boolean;
   fetchNextPage?: () => void;
@@ -38,6 +40,7 @@ export function useMessageVirtualization({
   messages,
   conversationId,
   highlightedMessageId,
+  highlightRequestKey,
   hasNextPage,
   isFetchingNextPage,
   fetchNextPage,
@@ -211,7 +214,13 @@ export function useMessageVirtualization({
       setIsLoadingHighlightedMessage(false);
       pendingHighlightedMessageIdRef.current = null;
     }
-  }, [highlightedMessageId, hasNextPage, isFetchingNextPage, fetchNextPage]);
+  }, [
+    highlightedMessageId,
+    highlightRequestKey,
+    hasNextPage,
+    isFetchingNextPage,
+    fetchNextPage,
+  ]);
 
   // Scroll to bottom button click
   const scrollToBottom = useCallback(() => {

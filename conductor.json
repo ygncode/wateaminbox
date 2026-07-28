@@ -1,7 +1,0 @@
-{
-  "scripts": {
-    "setup": "ln -sf \"$CONDUCTOR_ROOT_PATH/.env\" .env && (cd \"$CONDUCTOR_ROOT_PATH\" && docker-compose up -d) && bun install && bun run db:migrate",
-    "run": "./dev-start.sh --skip-docker"
-  },
-  "runScriptMode": "nonconcurrent"
-}

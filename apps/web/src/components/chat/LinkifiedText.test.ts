@@ -1,14 +1,12 @@
 import { describe, expect, test } from "bun:test";
-import { parseMessageLinks } from "./LinkifiedText";
+import { parseMessageLinks, resolveMentionNames } from "./LinkifiedText";
 
 describe("message linkification", () => {
   test("is used for text messages and media captions", async () => {
     const messageContent = await Bun.file(
       new URL("./MessageContent.tsx", import.meta.url),
     ).text();
-    expect(messageContent).toContain(
-      "<LinkifiedText text={message.content} isOwn={isOwn}",
-    );
+    expect(messageContent).toContain("text={message.content}");
     expect(messageContent).toContain("text={mediaCaption}");
   });
 
@@ -68,5 +66,27 @@ describe("message linkification", () => {
         (segment) => segment.type === "link",
       ),
     ).toBe(false);
+  });
+});
+
+describe("WhatsApp mention display names", () => {
+  const participants = [
+    {
+      jid: "98797300309@s.whatsapp.net",
+      phoneNumber: "98797300309",
+      displayName: "Kelvin Cheng",
+    },
+  ];
+
+  test("replaces a raw phone mention with the participant name", () => {
+    expect(
+      resolveMentionNames("@98797300309 https://wall-pets.com/", participants),
+    ).toBe("@Kelvin Cheng https://wall-pets.com/");
+  });
+
+  test("keeps an unknown mention unchanged", () => {
+    expect(resolveMentionNames("@123456789 hello", participants)).toBe(
+      "@123456789 hello",
+    );
   });
 });

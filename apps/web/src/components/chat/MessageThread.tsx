@@ -1,5 +1,6 @@
 import type { Message } from "@wateaminbox/shared";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { useGroup } from "@/hooks/useGroups";
 import { useTheme } from "../../contexts";
 import { useMessageSelection } from "../../hooks/chat/useMessageSelection";
 import { useMessageVirtualization } from "../../hooks/chat/useMessageVirtualization";
@@ -10,6 +11,15 @@ import { MessageSelectionToolbar } from "./MessageSelectionToolbar";
 import { VirtualMessageList } from "./VirtualMessageList";
 
 const EMPTY_MESSAGES: Message[] = [];
+
+export function shouldDismissReplyHighlight(
+  clickedMessageId: string | null,
+  replyTargetMessageId: string | null,
+): boolean {
+  return Boolean(
+    replyTargetMessageId && clickedMessageId !== replyTargetMessageId,
+  );
+}
 
 interface MessageThreadProps {
   conversationId: string | undefined;
@@ -33,6 +43,49 @@ export function MessageThread({
   const [retryingMessageId, setRetryingMessageId] = useState<string | null>(
     null,
   );
+  const [replyNavigation, setReplyNavigation] = useState<{
+    messageId: string;
+    requestKey: number;
+  } | null>(null);
+  const { data: group } = useGroup(
+    isGroup && conversationId ? conversationId : null,
+  );
+  const activeHighlightedMessageId =
+    highlightedMessageId ?? replyNavigation?.messageId;
+
+  useEffect(() => {
+    setReplyNavigation(null);
+  }, [conversationId]);
+
+  useEffect(() => {
+    const replyTargetMessageId = replyNavigation?.messageId ?? null;
+    if (!replyTargetMessageId) return;
+
+    const handleOutsidePointerDown = (event: PointerEvent) => {
+      const clickedElement =
+        event.target instanceof Element ? event.target : null;
+      const clickedMessageId =
+        clickedElement
+          ?.closest<HTMLElement>("[data-message-id]")
+          ?.getAttribute("data-message-id") ?? null;
+
+      if (shouldDismissReplyHighlight(clickedMessageId, replyTargetMessageId)) {
+        setReplyNavigation(null);
+      }
+    };
+
+    document.addEventListener("pointerdown", handleOutsidePointerDown);
+    return () => {
+      document.removeEventListener("pointerdown", handleOutsidePointerDown);
+    };
+  }, [replyNavigation?.messageId]);
+
+  const handleNavigateToMessage = useCallback((messageId: string) => {
+    setReplyNavigation((current) => ({
+      messageId,
+      requestKey: (current?.requestKey ?? 0) + 1,
+    }));
+  }, []);
 
   // Context menu state
   const [contextMenu, setContextMenu] = useState<{
@@ -77,7 +130,8 @@ export function MessageThread({
   } = useMessageVirtualization({
     messages,
     conversationId,
-    highlightedMessageId,
+    highlightedMessageId: activeHighlightedMessageId,
+    highlightRequestKey: replyNavigation?.requestKey,
     hasNextPage,
     isFetchingNextPage,
     fetchNextPage,
@@ -280,7 +334,7 @@ export function MessageThread({
         totalSize={totalSize}
         isGroup={isGroup}
         currentUserId={currentUserId}
-        highlightedMessageId={highlightedMessageId}
+        highlightedMessageId={activeHighlightedMessageId}
         retryingMessageId={retryingMessageId}
         selectionMode={selectionMode}
         selectedMessageIds={selectedMessageIds}
@@ -292,6 +346,8 @@ export function MessageThread({
         onScroll={handleScroll}
         scrollContainerRef={scrollContainerRef}
         onBackgroundContextMenu={handleBackgroundContextMenu}
+        mentionParticipants={group?.participants}
+        onNavigateToMessage={handleNavigateToMessage}
       />
 
       {/* Loading indicator for searching message */}
