@@ -5,7 +5,7 @@ import {
   searchContactsWithMeilisearch,
   searchMessagesWithMeilisearch,
 } from "./meilisearch.service.js";
-import { getTenantConnection } from "./tenant.service.js";
+import { getSchemaName, getTenantConnection } from "./tenant.service.js";
 
 // Cache Meilisearch availability status (refresh every 30 seconds)
 let meilisearchAvailable: boolean | null = null;
@@ -126,6 +126,14 @@ export async function searchMessages(
     return { results: [], total: 0 };
   }
 
+  // Raw SQL isn't transformed by Kysely's withSchema() plugin. Qualify every
+  // tenant table explicitly so fallback search cannot hit the public schema or
+  // another tenant through a connection-level search_path.
+  const schemaName = getSchemaName(companyId);
+  const messagesTable = sql.table(`${schemaName}.messages`);
+  const contactsTable = sql.table(`${schemaName}.contacts`);
+  const assignmentsTable = sql.table(`${schemaName}.contact_assignments`);
+
   // Build the search query using raw SQL for full-text search
   const result = await sql<{
     id: string;
@@ -157,11 +165,11 @@ export async function searchMessages(
         ts_rank(COALESCE(m.search_vector, to_tsvector('english', COALESCE(m.content, ''))),
           plainto_tsquery('english', ${query})) as rank,
         COUNT(*) OVER() as total_count
-      FROM messages m
-      INNER JOIN contacts c ON c.id = m.contact_id
+      FROM ${messagesTable} m
+      INNER JOIN ${contactsTable} c ON c.id = m.contact_id
       ${
         assignedUserId
-          ? sql`INNER JOIN contact_assignments ca
+          ? sql`INNER JOIN ${assignmentsTable} ca
               ON ca.contact_id = c.id
               AND ca.assigned_to = ${assignedUserId}
               AND ca.unassigned_at IS NULL`
@@ -384,9 +392,12 @@ export async function updateMessageSearchVector(
 ): Promise<void> {
   const tenantDb = getTenantConnection(companyId);
 
-  await sql`
-    UPDATE messages
-    SET search_vector = to_tsvector('english', COALESCE(content, ''))
-    WHERE id = ${messageId}
-  `.execute(tenantDb);
+  // Use the query builder here so withSchema() qualifies the target table.
+  await tenantDb
+    .updateTable("messages")
+    .set({
+      search_vector: sql`to_tsvector('english', COALESCE(content, ''))`,
+    })
+    .where("id", "=", messageId)
+    .execute();
 }

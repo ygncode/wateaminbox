@@ -1,5 +1,6 @@
 import {
   getTenantSchemaName,
+  reconcileTenantSchema,
   type TenantDatabase as TenantDatabaseType,
 } from "@wateaminbox/database";
 import { Kysely, PostgresDialect, sql } from "kysely";
@@ -65,93 +66,7 @@ export async function tenantSchemaExists(companyId: string): Promise<boolean> {
 export async function createTenantSchema(companyId: string): Promise<void> {
   const schemaName = getSchemaName(companyId);
   await sql`SELECT setup_tenant_schema(${schemaName})`.execute(baseTenantDb);
-
-  // Historical setup function versions alternated between resolution tracking
-  // and unread-state fields. New schemas need both capabilities.
-  await sql`
-    ALTER TABLE ${sql.raw(`"${schemaName}".conversation_states`)}
-    ADD COLUMN IF NOT EXISTS read_by_user_id UUID,
-    ADD COLUMN IF NOT EXISTS read_at TIMESTAMPTZ,
-    ADD COLUMN IF NOT EXISTS last_message_at TIMESTAMPTZ,
-    ADD COLUMN IF NOT EXISTS last_message_preview TEXT,
-    ADD COLUMN IF NOT EXISTS unread_count INTEGER NOT NULL DEFAULT 0,
-    ADD COLUMN IF NOT EXISTS status conversation_status NOT NULL DEFAULT 'open',
-    ADD COLUMN IF NOT EXISTS resolved_at TIMESTAMPTZ,
-    ADD COLUMN IF NOT EXISTS resolved_by UUID,
-    ADD COLUMN IF NOT EXISTS reopened_at TIMESTAMPTZ,
-    ADD COLUMN IF NOT EXISTS reopened_by UUID,
-    ADD COLUMN IF NOT EXISTS resolution_notes TEXT
-  `.execute(baseTenantDb);
-  await sql`
-    CREATE INDEX IF NOT EXISTS ${sql.ref(`${schemaName}_conv_states_status_idx`)}
-    ON ${sql.raw(`"${schemaName}".conversation_states`)} (status)
-  `.execute(baseTenantDb);
-  await sql`
-    CREATE INDEX IF NOT EXISTS ${sql.ref(`${schemaName}_conv_states_resolved_idx`)}
-    ON ${sql.raw(`"${schemaName}".conversation_states`)} (resolved_at)
-  `.execute(baseTenantDb);
-
-  // setup_tenant_schema predates persisted QR state. Keep newly-created tenant
-  // schemas aligned with migration 033 so connection reads and QR events do not
-  // fail for companies created after that migration ran.
-  await sql`
-    ALTER TABLE ${sql.raw(`"${schemaName}".whatsapp_connections`)}
-    ADD COLUMN IF NOT EXISTS qr_code TEXT,
-    ADD COLUMN IF NOT EXISTS qr_expires_at TIMESTAMPTZ
-  `.execute(baseTenantDb);
-
-  // Persist history-sync counters for schemas created after migration 043 ran.
-  // This additive guard avoids redefining the large setup function.
-  await sql`
-    ALTER TABLE ${sql.raw(`"${schemaName}".whatsapp_connections`)}
-    ADD COLUMN IF NOT EXISTS sync_message_count INTEGER NOT NULL DEFAULT 0,
-    ADD COLUMN IF NOT EXISTS sync_conversation_count INTEGER NOT NULL DEFAULT 0
-  `.execute(baseTenantDb);
-
-  // setup_tenant_schema predates participant display names. Keep newly-created
-  // tenant schemas aligned with migration 034 without redefining that large
-  // database function in every additive migration.
-  await sql`
-    ALTER TABLE ${sql.raw(`"${schemaName}".messages`)}
-    ADD COLUMN IF NOT EXISTS sender_name TEXT,
-    ADD COLUMN IF NOT EXISTS sender_avatar_url TEXT
-  `.execute(baseTenantDb);
-
-  // Keep schemas created after the baseline setup function aligned with the
-  // durable command pipeline introduced in migration 038.
-  await sql`
-    CREATE TABLE IF NOT EXISTS ${sql.raw(`"${schemaName}".nats_outbox`)} (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      subject TEXT NOT NULL,
-      payload JSONB NOT NULL,
-      status TEXT NOT NULL DEFAULT 'pending'
-        CHECK (status IN ('pending', 'claimed', 'published', 'failed')),
-      attempts INTEGER NOT NULL DEFAULT 0,
-      next_attempt_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-      last_error TEXT,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-      published_at TIMESTAMPTZ
-    )
-  `.execute(baseTenantDb);
-  await sql`
-    CREATE UNIQUE INDEX IF NOT EXISTS ${sql.ref(
-      `${schemaName}_contacts_connection_jid_uidx`,
-    )}
-    ON ${sql.raw(`"${schemaName}".contacts`)} (whatsapp_connection_id, jid)
-    WHERE whatsapp_connection_id IS NOT NULL AND jid IS NOT NULL
-  `.execute(baseTenantDb);
-  await sql`
-    CREATE UNIQUE INDEX IF NOT EXISTS ${sql.ref(
-      `${schemaName}_whatsapp_connections_phone_uidx`,
-    )}
-    ON ${sql.raw(`"${schemaName}".whatsapp_connections`)} (phone_number)
-    WHERE phone_number IS NOT NULL
-  `.execute(baseTenantDb);
-  await sql`
-    CREATE INDEX IF NOT EXISTS ${sql.ref(`${schemaName}_nats_outbox_pending_idx`)}
-    ON ${sql.raw(`"${schemaName}".nats_outbox`)}
-      (status, next_attempt_at, created_at)
-  `.execute(baseTenantDb);
+  await reconcileTenantSchema(baseTenantDb, schemaName);
 }
 
 export async function dropTenantSchema(companyId: string): Promise<void> {

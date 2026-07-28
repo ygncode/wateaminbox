@@ -4,12 +4,18 @@ import { sql } from 'kysely'
 /**
  * Migration helper utilities for multi-tenant database schema management.
  *
- * IMPORTANT: Every migration that modifies tenant schemas must:
- * 1. Apply the change to ALL existing tenant schemas
- * 2. Update the setup_tenant_schema function ONLY in migration 002 or 003
+ * IMPORTANT: Historical migrations are immutable. Earlier migrations replaced
+ * setup_tenant_schema as the tenant model evolved; do not edit or copy those
+ * historical function bodies in new migrations.
  *
- * Do NOT use CREATE OR REPLACE FUNCTION setup_tenant_schema in later migrations.
- * Instead, keep the function in 002/003 as the "source of truth" and update it there.
+ * Every new migration that modifies tenant schemas must:
+ * 1. Apply the change to ALL existing tenant schemas.
+ * 2. Add an idempotent new-schema guard to reconcileTenantSchema in
+ *    src/tenant-schema.ts.
+ * 3. Update TENANT_SCHEMA_CONTRACT and TenantDatabase when columns change.
+ *
+ * This keeps one current compatibility path for newly-created tenants without
+ * duplicating the complete PostgreSQL setup function again.
  */
 
 /**
