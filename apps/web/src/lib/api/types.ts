@@ -45,6 +45,9 @@ export interface LoginResponse {
     id: string;
     email: string;
     name?: string;
+    avatarUrl: string;
+    gravatarUrl: string;
+    hasCustomAvatar: boolean;
     emailVerified: boolean;
   };
   tokens: {
@@ -82,6 +85,34 @@ export interface RefreshResponse {
 
 export interface ForgotPasswordResponse {
   message: string;
+}
+
+export interface CurrentUserResponse {
+  id: string;
+  email: string;
+  name: string | null;
+  avatarUrl: string;
+  gravatarUrl: string;
+  hasCustomAvatar: boolean;
+  emailVerified: boolean;
+}
+
+export interface UpdateProfileRequest {
+  name?: string;
+  email?: string;
+  currentPassword?: string;
+  avatarDataUrl?: string | null;
+}
+
+export interface UpdateProfileResponse {
+  message: string;
+  user: CurrentUserResponse;
+  emailVerificationSent: boolean;
+}
+
+export interface ChangePasswordRequest {
+  currentPassword: string;
+  newPassword: string;
 }
 
 // Contact types

@@ -18,6 +18,7 @@ import { cn } from "../../lib/utils";
 import { workspacePath } from "../../lib/workspace-routes";
 import { ThemeToggle } from "../chat/ThemeToggle";
 import { NotificationCenter } from "../notifications/NotificationCenter";
+import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../ui/dialog";
 import { WorkspaceSwitcher } from "../workspace/WorkspaceSwitcher";
 
@@ -232,12 +233,21 @@ export function ProtectedAppLayout() {
             </div>
             {sidebarCollapsed ? (
               <div className="mt-2 flex flex-col items-center gap-1.5">
-                <div
-                  className="grid h-10 w-10 place-items-center rounded-xl border border-white/10 bg-white/10 text-sm font-semibold text-white"
+                <Avatar
+                  className="h-10 w-10 rounded-xl border border-white/10 bg-white/10"
                   title={`Signed in as ${user?.name || user?.email}`}
                 >
-                  {(user?.name || user?.email || "U").slice(0, 1).toUpperCase()}
-                </div>
+                  <AvatarImage
+                    src={user?.avatarUrl}
+                    alt=""
+                    className="object-cover"
+                  />
+                  <AvatarFallback className="rounded-xl bg-white/10 text-sm font-semibold text-white">
+                    {(user?.name || user?.email || "U")
+                      .slice(0, 1)
+                      .toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>
                 <button
                   type="button"
                   onClick={() => void logout()}
@@ -251,11 +261,18 @@ export function ProtectedAppLayout() {
             ) : (
               <div className="mt-2 overflow-hidden rounded-xl border border-white/10 bg-black/10">
                 <div className="flex items-center gap-3 p-2.5">
-                  <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-white/10 text-sm font-semibold text-white">
-                    {(user?.name || user?.email || "U")
-                      .slice(0, 1)
-                      .toUpperCase()}
-                  </div>
+                  <Avatar className="h-10 w-10 rounded-xl bg-white/10">
+                    <AvatarImage
+                      src={user?.avatarUrl}
+                      alt=""
+                      className="object-cover"
+                    />
+                    <AvatarFallback className="rounded-xl bg-white/10 text-sm font-semibold text-white">
+                      {(user?.name || user?.email || "U")
+                        .slice(0, 1)
+                        .toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-semibold leading-5 text-white">
                       {user?.name || "Account"}

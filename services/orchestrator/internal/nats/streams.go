@@ -35,6 +35,10 @@ func (c *Client) CreateStreams() error {
 		return fmt.Errorf("failed to create downloads stream: %w", err)
 	}
 
+	if err := sharednats.EnsureStream(js, sharednats.DefaultDeadLettersStreamConfig()); err != nil {
+		return fmt.Errorf("failed to create dead-letter stream: %w", err)
+	}
+
 	// Create consumer for commands
 	if err := c.createCommandsConsumer(); err != nil {
 		return fmt.Errorf("failed to create commands consumer: %w", err)
@@ -124,6 +128,9 @@ func (c *Client) DeleteStreams() error {
 		return err
 	}
 	if err := sharednats.DeleteStream(js, sharednats.StreamDownloads); err != nil {
+		return err
+	}
+	if err := sharednats.DeleteStream(js, sharednats.StreamDeadLetters); err != nil {
 		return err
 	}
 	return nil

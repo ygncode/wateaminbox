@@ -10,9 +10,10 @@ import (
 
 // Stream names used by WhatsApp services.
 const (
-	StreamCommands  = "WHATSAPP_COMMANDS"
-	StreamEvents    = "WHATSAPP_EVENTS"
-	StreamDownloads = "WHATSAPP_DOWNLOADS"
+	StreamCommands    = "WHATSAPP_COMMANDS"
+	StreamEvents      = "WHATSAPP_EVENTS"
+	StreamDownloads   = "WHATSAPP_DOWNLOADS"
+	StreamDeadLetters = "WHATSAPP_DEAD_LETTERS"
 )
 
 // StreamConfig holds configuration for creating a JetStream stream.
@@ -61,6 +62,21 @@ func DefaultDownloadsStreamConfig() StreamConfig {
 		MaxAge:      1 * time.Hour,
 		MaxMsgs:     10000,
 		MaxBytes:    10 * 1024 * 1024, // 10MB
+		Replicas:    1,
+	}
+}
+
+// DefaultDeadLettersStreamConfig retains poison events after consumers stop
+// redelivery. It is deliberately separate from WHATSAPP_EVENTS so the API
+// event consumer cannot consume its own dead-letter publications.
+func DefaultDeadLettersStreamConfig() StreamConfig {
+	return StreamConfig{
+		Name:        StreamDeadLetters,
+		Subjects:    []string{"WHATSAPP.dead_letter", "WHATSAPP.dead_letter.>"},
+		Description: "Terminal WhatsApp events retained for operator inspection and replay",
+		MaxAge:      30 * 24 * time.Hour,
+		MaxMsgs:     100000,
+		MaxBytes:    256 * 1024 * 1024, // 256MB
 		Replicas:    1,
 	}
 }

@@ -103,6 +103,7 @@ export function ResetPasswordPage() {
                 registration={register("password")}
                 error={errors.password}
                 autoComplete="new-password"
+                showPasswordToggle
               />
               <FormField
                 label="Confirm password"
@@ -111,6 +112,7 @@ export function ResetPasswordPage() {
                 registration={register("confirmPassword")}
                 error={errors.confirmPassword}
                 autoComplete="new-password"
+                showPasswordToggle
               />
               <Button
                 type="submit"

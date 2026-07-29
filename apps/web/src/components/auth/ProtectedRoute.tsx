@@ -2,51 +2,90 @@ import type { MemberPermissions } from "@wateaminbox/shared";
 import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "../../contexts/auth-context";
 import { useWorkspace } from "../../contexts/workspace-context";
+import {
+  type WorkspaceAccessMode,
+  resolveWorkspaceAccessRedirect,
+} from "../../lib/workspace-access";
 import { workspacePath } from "../../lib/workspace-routes";
+import { PageSkeleton, type PageSkeletonVariant } from "../ui";
+import {
+  OnboardingErrorScreen,
+  OnboardingLoadingScreen,
+} from "../ui/onboarding-state";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
-  requireCompany?: boolean;
+  workspaceMode?: WorkspaceAccessMode;
   requiredPermission?: keyof MemberPermissions;
   requiredAnyPermission?: Array<keyof MemberPermissions>;
 }
 
+function workspaceLoadingVariant(pathname: string): PageSkeletonVariant {
+  if (pathname.includes("/chat")) return "chat";
+  if (pathname.includes("/settings")) return "settings";
+  if (pathname.includes("/dashboard")) return "dashboard";
+  if (pathname.includes("/team")) return "team";
+  return "default";
+}
+
 export function ProtectedRoute({
   children,
-  requireCompany = true,
+  workspaceMode = "required",
   requiredPermission,
   requiredAnyPermission,
 }: ProtectedRouteProps) {
-  const { isAuthenticated, isLoading: isAuthLoading } = useAuth();
+  const { isAuthenticated, isLoading: isAuthLoading, logout } = useAuth();
   const {
+    memberships,
     activeWorkspaceId,
     isLoading: isWorkspaceLoading,
-    needsWorkspaceSetup,
-    needsWorkspaceChoice,
+    error: workspaceError,
+    refreshWorkspaces,
     can,
     canAny,
   } = useWorkspace();
   const location = useLocation();
 
   if (isAuthLoading || (isAuthenticated && isWorkspaceLoading)) {
+    if (workspaceMode === "required") {
+      return (
+        <PageSkeleton
+          variant={workspaceLoadingVariant(location.pathname)}
+          className="min-h-dvh"
+        />
+      );
+    }
     return (
-      <div className="flex min-h-dvh items-center justify-center bg-[#f5f7f4] dark:bg-dark-primary">
-        <div className="flex flex-col items-center">
-          <div className="h-10 w-10 animate-spin rounded-full border-2 border-[#0b7a55] border-t-transparent" />
-          <p className="mt-4 text-sm text-[#65736d]">Loading workspace…</p>
-        </div>
-      </div>
+      <OnboardingLoadingScreen
+        message={
+          location.pathname === "/company-setup"
+            ? "Restoring workspace setup…"
+            : "Loading your workspaces…"
+        }
+      />
     );
   }
 
   if (!isAuthenticated) {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
-  if (requireCompany && needsWorkspaceSetup) {
-    return <Navigate to="/company-setup" replace />;
+  if (workspaceError && memberships.length === 0) {
+    return (
+      <OnboardingErrorScreen
+        message={workspaceError}
+        onRetry={() => void refreshWorkspaces().catch(() => undefined)}
+        onSignOut={() => void logout()}
+      />
+    );
   }
-  if (requireCompany && (needsWorkspaceChoice || !activeWorkspaceId)) {
-    return <Navigate to="/workspaces" replace />;
+
+  const workspaceRedirect = resolveWorkspaceAccessRedirect({
+    mode: workspaceMode,
+    membershipCount: memberships.length,
+    activeWorkspaceId,
+  });
+  if (workspaceRedirect) {
+    return <Navigate to={workspaceRedirect} replace />;
   }
 
   const forbidden =

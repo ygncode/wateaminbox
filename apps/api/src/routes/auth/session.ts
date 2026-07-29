@@ -1,14 +1,31 @@
 import { Hono } from "hono";
+import { zValidator } from "@hono/zod-validator";
 import { badRequest } from "../../lib/errors.js";
-import { successData, successMessage, successWithMessage } from "../../lib/response.js";
+import { createLogger, formatError } from "../../lib/logger.js";
+import { validatePasswordStrength } from "../../lib/password.js";
+import {
+  successData,
+  successMessage,
+  successWithMessage,
+  validationError,
+} from "../../lib/response.js";
+import {
+  changePasswordSchema,
+  updateProfileSchema,
+} from "../../lib/schemas/index.js";
 import { authMiddleware } from "../../middleware/auth.js";
 import {
+  changePassword,
   getUserSessions,
   revokeAllSessions,
   revokeSession,
+  toAuthUserResponse,
+  updateProfile,
 } from "../../services/auth.service.js";
+import { handleAuthError } from "./utils.js";
 
 export const sessionRoutes = new Hono();
+const logger = createLogger("AuthRoutes:Session");
 
 /**
  * GET /sessions
@@ -80,11 +97,76 @@ sessionRoutes.get("/me", authMiddleware, async (c) => {
   const user = c.get("user");
 
   return successData(c, {
-    user: {
-      id: user.id,
-      email: user.email,
-      name: user.name,
-      emailVerified: !!user.emailVerifiedAt,
-    },
+    user: await toAuthUserResponse(user),
   });
 });
+
+/**
+ * PATCH /me
+ * Update the current user's name, email, or profile image.
+ */
+sessionRoutes.patch(
+  "/me",
+  authMiddleware,
+  zValidator("json", updateProfileSchema),
+  async (c) => {
+    try {
+      const user = c.get("user");
+      const result = await updateProfile(user.id, c.req.valid("json"));
+      return successWithMessage(c, "Profile updated successfully", {
+        user: await toAuthUserResponse(result.user),
+        emailVerificationSent: result.emailVerificationSent,
+      });
+    } catch (error) {
+      return handleAuthError(
+        c,
+        error,
+        logger,
+        formatError,
+        "Profile update error",
+      );
+    }
+  },
+);
+
+/**
+ * POST /change-password
+ * Change the current user's password and revoke other device sessions.
+ */
+sessionRoutes.post(
+  "/change-password",
+  authMiddleware,
+  zValidator("json", changePasswordSchema),
+  async (c) => {
+    try {
+      const user = c.get("user");
+      const session = c.get("session");
+      const body = c.req.valid("json");
+      const passwordCheck = validatePasswordStrength(body.newPassword);
+      if (!passwordCheck.isValid) {
+        return validationError(c, [
+          {
+            field: "newPassword",
+            message: passwordCheck.message ?? "Password is not strong enough",
+          },
+        ]);
+      }
+
+      const result = await changePassword(
+        user.id,
+        session.id,
+        body.currentPassword,
+        body.newPassword,
+      );
+      return successWithMessage(c, "Password changed successfully", result);
+    } catch (error) {
+      return handleAuthError(
+        c,
+        error,
+        logger,
+        formatError,
+        "Password change error",
+      );
+    }
+  },
+);

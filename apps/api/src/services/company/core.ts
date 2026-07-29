@@ -9,12 +9,36 @@ import { db } from "@wateaminbox/database";
 import { toDbDate } from "@wateaminbox/shared";
 import type { Transaction } from "kysely";
 import { CompanyNotFoundError } from "../../lib/errors.js";
+import {
+  deleteMedia,
+  getPresignedUrl,
+  uploadMedia,
+} from "../../lib/storage.js";
 import { createTenantSchema, getSchemaName } from "../tenant.service.js";
 import type {
   Company,
   CreateCompanyInput,
   UpdateCompanyInput,
 } from "./types.js";
+
+async function uploadWorkspaceLogo(
+  companyId: string,
+  logoDataUrl: string,
+): Promise<string> {
+  const match = logoDataUrl.match(
+    /^data:(image\/(?:jpeg|png|webp));base64,(.+)$/,
+  );
+  if (!match) throw new Error("Invalid workspace logo");
+  const mimeType = match[1];
+  const extension = mimeType === "image/jpeg" ? "jpg" : mimeType.split("/")[1];
+  const logo = await uploadMedia(
+    Buffer.from(match[2], "base64"),
+    mimeType,
+    companyId,
+    `workspace-logo.${extension}`,
+  );
+  return logo.key;
+}
 
 /**
  * Creates a new company with its tenant schema
@@ -26,6 +50,11 @@ export async function createCompany(
   // Generate a unique ID for the company (will be used for schema name)
   const companyId = crypto.randomUUID();
   const schemaName = getSchemaName(companyId);
+  let logoKey: string | null = null;
+
+  if (input.logoDataUrl) {
+    logoKey = await uploadWorkspaceLogo(companyId, input.logoDataUrl);
+  }
 
   // Start a transaction
   const result = await db
@@ -37,6 +66,8 @@ export async function createCompany(
         .values({
           id: companyId,
           name: input.name,
+          description: input.description ?? null,
+          logo_key: logoKey,
           schema_name: schemaName,
           status: "active",
           created_at: toDbDate(),
@@ -45,6 +76,8 @@ export async function createCompany(
         .returning([
           "id",
           "name",
+          "description",
+          "logo_key",
           "schema_name",
           "status",
           "created_at",
@@ -91,7 +124,16 @@ export async function createCompany(
 export async function getCompany(companyId: string): Promise<Company> {
   const company = await db
     .selectFrom("companies")
-    .select(["id", "name", "schema_name", "status", "created_at", "updated_at"])
+    .select([
+      "id",
+      "name",
+      "description",
+      "logo_key",
+      "schema_name",
+      "status",
+      "created_at",
+      "updated_at",
+    ])
     .where("id", "=", companyId)
     .where("status", "!=", "deleted")
     .executeTakeFirst();
@@ -113,34 +155,88 @@ export async function updateCompany(
   const updateData: Record<string, unknown> = {
     updated_at: toDbDate(),
   };
+  let previousLogoKey: string | null = null;
+  let uploadedLogoKey: string | null = null;
 
   if (input.name !== undefined) {
     updateData.name = input.name;
+  }
+  if (input.description !== undefined) {
+    updateData.description = input.description || null;
+  }
+  if (input.logoDataUrl !== undefined) {
+    const current = await getCompany(companyId);
+    previousLogoKey = current.logo_key;
+    if (input.logoDataUrl === null) {
+      updateData.logo_key = null;
+    } else {
+      uploadedLogoKey = await uploadWorkspaceLogo(companyId, input.logoDataUrl);
+      updateData.logo_key = uploadedLogoKey;
+    }
   }
   if (input.status !== undefined) {
     updateData.status = input.status;
   }
 
-  const company = await db
-    .updateTable("companies")
-    .set(updateData)
-    .where("id", "=", companyId)
-    .where("status", "!=", "deleted")
-    .returning([
-      "id",
-      "name",
-      "schema_name",
-      "status",
-      "created_at",
-      "updated_at",
-    ])
-    .executeTakeFirst();
+  let company: Company | undefined;
+  try {
+    company = (await db
+      .updateTable("companies")
+      .set(updateData)
+      .where("id", "=", companyId)
+      .where("status", "!=", "deleted")
+      .returning([
+        "id",
+        "name",
+        "description",
+        "logo_key",
+        "schema_name",
+        "status",
+        "created_at",
+        "updated_at",
+      ])
+      .executeTakeFirst()) as Company | undefined;
+  } catch (error) {
+    if (uploadedLogoKey) {
+      await deleteMedia(uploadedLogoKey).catch(() => undefined);
+    }
+    throw error;
+  }
 
   if (!company) {
+    if (uploadedLogoKey) {
+      await deleteMedia(uploadedLogoKey).catch(() => undefined);
+    }
     throw new CompanyNotFoundError(companyId);
   }
 
-  return company as unknown as Company;
+  if (previousLogoKey && previousLogoKey !== company.logo_key) {
+    await deleteMedia(previousLogoKey).catch(() => undefined);
+  }
+
+  return company;
+}
+
+export async function toCompanyResponse(company: Company) {
+  const logoKey = company.logo_key;
+  let logoUrl: string | null = null;
+  if (logoKey) {
+    try {
+      logoUrl = await getPresignedUrl(logoKey, 3600);
+    } catch {
+      // Workspace access should not fail when object storage is temporarily
+      // unavailable. The monogram remains a usable fallback.
+    }
+  }
+  return {
+    id: company.id,
+    name: company.name,
+    description: company.description,
+    status: company.status,
+    logoUrl,
+    createdAt: company.created_at.toISOString(),
+    updatedAt: company.updated_at.toISOString(),
+  };
 }
 
 /**

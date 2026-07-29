@@ -8,17 +8,21 @@ import {
 } from "lucide-react";
 import * as React from "react";
 import { useForm } from "react-hook-form";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { AuthPageShell } from "../components/auth/AuthPageShell";
 import { Button } from "../components/ui/button";
 import { FormField } from "../components/ui/form-field";
 import { useForgotPassword } from "../hooks/useAuthMutations";
+import { buildAuthUrl, getSafeAuthRedirect } from "../lib/auth-redirect";
 import {
   type ForgotPasswordFormData,
   forgotPasswordSchema,
 } from "../lib/schemas/auth";
 
 export function ForgotPasswordPage() {
+  const [searchParams] = useSearchParams();
+  const redirectTo = getSafeAuthRedirect(searchParams.get("redirect"));
+  const suggestedEmail = searchParams.get("email") ?? "";
   const [isSubmitted, setIsSubmitted] = React.useState(false);
   const [submittedEmail, setSubmittedEmail] = React.useState("");
   const forgotPasswordMutation = useForgotPassword();
@@ -30,7 +34,7 @@ export function ForgotPasswordPage() {
   } = useForm<ForgotPasswordFormData>({
     resolver: zodResolver(forgotPasswordSchema),
     defaultValues: {
-      email: "",
+      email: suggestedEmail,
     },
   });
 
@@ -104,7 +108,7 @@ export function ForgotPasswordPage() {
             size="lg"
             className="mt-7 h-12 w-full rounded-xl bg-[#075e54] text-white shadow-lg shadow-[#075e54]/15 hover:bg-[#064b43]"
           >
-            <Link to="/login">
+            <Link to={buildAuthUrl("/login", redirectTo, submittedEmail)}>
               Return to sign in
               <ArrowRight aria-hidden="true" />
             </Link>
@@ -118,7 +122,7 @@ export function ForgotPasswordPage() {
     <AuthPageShell variant="recovery">
       <div>
         <Link
-          to="/login"
+          to={buildAuthUrl("/login", redirectTo, suggestedEmail)}
           className="mb-8 inline-flex items-center gap-2 rounded-sm text-sm font-semibold text-slate-500 transition-colors hover:text-[#075e54] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#075e54] focus-visible:ring-offset-2 dark:text-dark-text-secondary dark:hover:text-[#52df83] dark:focus-visible:ring-offset-dark-elevated"
         >
           <ArrowLeft aria-hidden="true" className="h-4 w-4" />
@@ -140,6 +144,7 @@ export function ForgotPasswordPage() {
           onSubmit={handleSubmit(onSubmit)}
           className="mt-8 space-y-5 [&_input]:h-11 [&_input]:rounded-xl [&_input]:border-slate-300 [&_input]:bg-white [&_input]:px-3.5 dark:[&_input]:border-dark-border dark:[&_input]:bg-dark-tertiary"
           aria-busy={forgotPasswordMutation.isPending}
+          noValidate
         >
           <FormField
             label="Work email"

@@ -38,11 +38,8 @@ crudRoutes.post(
   async (c) => {
     const user = c.get("user");
     const input = c.req.valid("json") as CreateCompanyInput;
-    const company = await companyService.createCompany(
-      { name: input.name },
-      user.id,
-    );
-    return created(c, company);
+    const company = await companyService.createCompany(input, user.id);
+    return created(c, await companyService.toCompanyResponse(company));
   },
 );
 
@@ -55,7 +52,7 @@ crudRoutes.get("/:id", authMiddleware, tenantFromParam("id"), async (c) => {
 
   const company = await companyService.getCompany(companyId);
   return successData(c, {
-    ...company,
+    ...(await companyService.toCompanyResponse(company)),
     role, // Include user's role in response
   });
 });
@@ -82,7 +79,7 @@ crudRoutes.patch(
     }
 
     const company = await companyService.updateCompany(companyId, input);
-    return successData(c, company);
+    return successData(c, await companyService.toCompanyResponse(company));
   },
 );
 

@@ -4,14 +4,13 @@ import {
   LockKeyhole,
   MessageCircleMore,
   ShieldCheck,
-  Sparkles,
   UsersRound,
 } from "lucide-react";
 import type { ReactNode } from "react";
 
 type AuthPageShellProps = {
   children: ReactNode;
-  variant: "register" | "recovery";
+  variant: "login" | "register" | "recovery";
 };
 
 const registerHighlights = [
@@ -22,6 +21,7 @@ const registerHighlights = [
 
 export function AuthPageShell({ children, variant }: AuthPageShellProps) {
   const isRegister = variant === "register";
+  const isRecovery = variant === "recovery";
 
   return (
     <main className="relative min-h-dvh overflow-hidden bg-[#edf4f0] px-3 py-3 text-slate-950 sm:px-6 sm:py-6 dark:bg-dark-primary dark:text-dark-text-primary">
@@ -80,27 +80,38 @@ export function AuthPageShell({ children, variant }: AuthPageShellProps) {
 
           <div className="relative">
             <div className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-[0.68rem] font-semibold uppercase tracking-[0.14em] text-emerald-50">
-              {isRegister ? (
-                <Sparkles aria-hidden="true" className="h-3.5 w-3.5" />
-              ) : (
+              {isRecovery ? (
                 <ShieldCheck aria-hidden="true" className="h-3.5 w-3.5" />
+              ) : (
+                <span
+                  aria-hidden="true"
+                  className="h-1.5 w-1.5 rounded-full bg-[#8fffb5] shadow-[0_0_0_3px_rgba(143,255,181,0.12)]"
+                />
               )}
-              {isRegister ? "A calmer shared inbox" : "Account recovery"}
+              {isRegister
+                ? "A calmer shared inbox"
+                : isRecovery
+                  ? "Account recovery"
+                  : "Your team is waiting"}
             </div>
             <h2 className="mt-7 max-w-sm text-4xl font-semibold leading-[1.08] tracking-[-0.045em] text-balance">
               {isRegister
                 ? "One conversation. The whole team in sync."
-                : "A secure way back to your workspace."}
+                : isRecovery
+                  ? "A secure way back to your workspace."
+                  : "Pick up every conversation right where you left it."}
             </h2>
             <p className="mt-5 max-w-sm text-sm leading-6 text-emerald-50/72">
               {isRegister
                 ? "Turn customer messages into clear, accountable teamwork—without losing the human touch."
-                : "Reset instructions are sent privately, links are time-limited, and your account details remain protected."}
+                : isRecovery
+                  ? "Reset instructions are sent privately, links are time-limited, and your account details remain protected."
+                  : "Assignments, notes, and customer context stay together, so your team can respond with confidence."}
             </p>
           </div>
 
           <div className="relative mt-10">
-            {isRegister ? <ConversationPreview /> : <RecoveryPreview />}
+            {isRecovery ? <RecoveryPreview /> : <ConversationPreview />}
           </div>
 
           <div className="relative mt-9 flex items-center gap-3 border-t border-white/10 pt-6 text-xs text-emerald-50/65">

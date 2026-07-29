@@ -18,6 +18,7 @@ export {
   createCompany,
   deleteCompany,
   getCompany,
+  toCompanyResponse,
   updateCompany,
 } from "./core.js";
 // Invitation operations

@@ -49,7 +49,11 @@ The shared type filename is retained for API compatibility; it describes realtim
 
 ## Reliability
 
-Realtime delivery is an invalidation/update signal, not the sole source of truth. The NATS broker path is at-most-once and does not provide Centrifugo history or recovery. Clients reconcile PostgreSQL-backed state after reconnecting and while long-running synchronization overlays are active.
+Realtime delivery is an invalidation/update signal, not the sole source of
+truth. The NATS broker path is at-most-once and does not provide Centrifugo
+history or recovery. Clients reconcile PostgreSQL-backed state after
+reconnecting, every 60 seconds while connected, and while long-running
+synchronization overlays are active.
 
 The API consumes WhatsApp events through the durable `whatsapp-api-events-v1` JetStream consumer. It acknowledges only successful handlers and negatively acknowledges failures for redelivery.
 

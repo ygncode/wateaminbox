@@ -17,16 +17,8 @@ import {
 } from "../ui/dialog";
 import { Input } from "../ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
-
-export function workspaceMonogram(name: string): string {
-  const words = name.trim().split(/\s+/).filter(Boolean);
-  if (words.length === 0) return "W";
-  return words
-    .slice(0, 2)
-    .map((word) => word[0])
-    .join("")
-    .toUpperCase();
-}
+import { WorkspaceAvatar } from "./WorkspaceAvatar";
+export { workspaceMonogram } from "./WorkspaceAvatar";
 
 function roleLabel(role: "owner" | "admin" | "member") {
   return role === "admin"
@@ -140,9 +132,10 @@ export function WorkspaceSwitcher({
             aria-label={`Active workspace: ${activeWorkspace.name}. Switch workspace`}
             title={collapsed ? `Workspace: ${activeWorkspace.name}` : undefined}
           >
-            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-[#dcefe7] text-xs font-bold tracking-wide text-[#075c41]">
-              {workspaceMonogram(activeWorkspace.name)}
-            </span>
+            <WorkspaceAvatar
+              workspace={activeWorkspace}
+              className="h-9 w-9 rounded-lg text-xs tracking-wide"
+            />
             {!collapsed && (
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-sm font-semibold text-white">
@@ -199,9 +192,10 @@ export function WorkspaceSwitcher({
                 disabled={workspace.status !== "active"}
                 className="flex w-full items-center gap-3 rounded-xl px-2 py-2 text-left hover:bg-[#edf1ed] disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-dark-tertiary"
               >
-                <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-[#edf1ed] text-xs font-bold text-[#315348] dark:bg-dark-tertiary dark:text-emerald-200">
-                  {workspaceMonogram(workspace.name)}
-                </span>
+                <WorkspaceAvatar
+                  workspace={workspace}
+                  className="h-9 w-9 rounded-lg bg-[#edf1ed] text-xs text-[#315348] dark:bg-dark-tertiary dark:text-emerald-200"
+                />
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-sm font-medium">
                     {workspace.name}

@@ -39,4 +39,5 @@ export {
   buildSendReactionCommand,
   publishSendReaction,
   publishTypingCommand,
+  PermanentEventError,
 } from "./client.js";

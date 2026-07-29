@@ -10,6 +10,8 @@
 export interface Company {
   id: string;
   name: string;
+  description: string | null;
+  logo_key: string | null;
   schema_name: string;
   status: "active" | "suspended" | "deleted";
   created_at: Date;
@@ -54,6 +56,8 @@ export interface Invitation {
  */
 export interface CreateCompanyInput {
   name: string;
+  description?: string;
+  logoDataUrl?: string;
 }
 
 /**
@@ -61,6 +65,8 @@ export interface CreateCompanyInput {
  */
 export interface UpdateCompanyInput {
   name?: string;
+  description?: string;
+  logoDataUrl?: string | null;
   status?: "active" | "suspended";
 }
 

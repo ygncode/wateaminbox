@@ -139,6 +139,7 @@ export function RegisterPage() {
           onSubmit={handleSubmit(onSubmit)}
           className="mt-8 space-y-5 [&_input]:h-11 [&_input]:rounded-xl [&_input]:border-slate-300 [&_input]:bg-white [&_input]:px-3.5 dark:[&_input]:border-dark-border dark:[&_input]:bg-dark-tertiary"
           aria-busy={isLoading}
+          noValidate
         >
           {error && (
             <div
@@ -182,6 +183,7 @@ export function RegisterPage() {
               error={errors.password}
               autoComplete="new-password"
               hint="Use 8 or more characters."
+              showPasswordToggle
             />
 
             <FormField
@@ -192,6 +194,7 @@ export function RegisterPage() {
               registration={register("confirmPassword")}
               error={errors.confirmPassword}
               autoComplete="new-password"
+              showPasswordToggle
             />
           </div>
 

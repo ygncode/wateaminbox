@@ -8,6 +8,7 @@ import {
   setCompanyId,
   unsubscribeAllPush,
 } from "../lib/api";
+import { isWorkspaceAccessBooting } from "../lib/workspace-access";
 import { resolveInitialWorkspaceId } from "../lib/workspace-routes";
 import { useChatStore } from "../stores/chat-store";
 import { useAuth } from "./auth-context";
@@ -65,7 +66,6 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
     string | null
   >(null);
   const activeWorkspaceIdRef = React.useRef<string | null>(null);
-  const [isLoading, setIsLoading] = React.useState(false);
   const [loadedUserId, setLoadedUserId] = React.useState<string | null>(null);
   const [switchingTo, setSwitchingTo] = React.useState<CompanyWithRole | null>(
     null,
@@ -110,7 +110,6 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
       return [];
     }
 
-    setIsLoading(true);
     setError(null);
     try {
       const available = await getUserCompanies();
@@ -155,8 +154,6 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
       setLoadedUserId(user.id);
       setError(message);
       throw cause;
-    } finally {
-      setIsLoading(false);
     }
   }, [isAuthenticated, queryClient, resolveInitialWorkspace, user]);
 
@@ -259,8 +256,11 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
     [can],
   );
 
-  const workspaceIsLoading =
-    isLoading || (isAuthenticated && loadedUserId !== user?.id);
+  const workspaceIsLoading = isWorkspaceAccessBooting({
+    isAuthenticated,
+    userId: user?.id ?? null,
+    loadedUserId,
+  });
 
   const value = React.useMemo<WorkspaceContextValue>(
     () => ({

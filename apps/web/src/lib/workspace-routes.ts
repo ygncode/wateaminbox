@@ -32,7 +32,8 @@ export function workspacePath(
 ): string {
   const encodedId = encodeURIComponent(workspaceId);
   if (destination === "settings") {
-    return `/w/${encodedId}/settings/${suffix || "general"}`;
+    const base = `/w/${encodedId}/settings`;
+    return suffix ? `${base}/${encodeURIComponent(suffix)}` : base;
   }
   const base = `/w/${encodedId}/${destination}`;
   return suffix ? `${base}/${encodeURIComponent(suffix)}` : base;

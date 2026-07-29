@@ -464,6 +464,8 @@ func (ledger *memoryCommandLedger) MarkCommandEventPublished(context.Context, st
 type recordingCommandPublisher struct {
 	confirmationAttempts int
 	failConfirmation     bool
+	failureAttempts      int
+	failFailure          bool
 }
 
 func (publisher *recordingCommandPublisher) PublishSendConfirmation(string, string, time.Time, string) error {
@@ -473,7 +475,13 @@ func (publisher *recordingCommandPublisher) PublishSendConfirmation(string, stri
 	}
 	return nil
 }
-func (*recordingCommandPublisher) PublishSendFailed(string, string, string) error { return nil }
+func (publisher *recordingCommandPublisher) PublishSendFailed(string, string, string) error {
+	publisher.failureAttempts++
+	if publisher.failFailure {
+		return errors.New("failure transport unavailable")
+	}
+	return nil
+}
 func (*recordingCommandPublisher) PublishCommandResult(string, string, bool, string) error {
 	return nil
 }
@@ -509,6 +517,50 @@ func TestSendResultReplayPreventsDuplicateSideEffect(t *testing.T) {
 	assert.Equal(t, 1, sendCalls)
 	assert.Equal(t, 1, ledger.saves)
 	assert.Equal(t, 2, publisher.confirmationAttempts)
+	assert.Equal(t, 1, ledger.published)
+}
+
+func TestFailedSendResultReplayPreventsExtraWhatsAppAttempts(t *testing.T) {
+	sendCalls := 0
+	sender := &mockMessageSender{sendMessageFunc: func(context.Context, string, string, string, string) (types.SendResponse, error) {
+		sendCalls++
+		return types.SendResponse{}, errors.New("whatsapp unavailable")
+	}}
+	ledger := &memoryCommandLedger{results: make(map[string][]byte)}
+	publisher := &recordingCommandPublisher{failFailure: true}
+	subscriber := &Subscriber{
+		ctx: context.Background(), sender: sender, ledger: ledger, publisher: publisher,
+	}
+	command := []byte(`{"type":"text","command_id":"command-failed","message_id":"pending-failed","to":"1@s.whatsapp.net","content":"hello"}`)
+	cmd := SendMessageCommand{
+		Type:      "text",
+		CommandID: "command-failed",
+		MessageID: "pending-failed",
+		To:        "1@s.whatsapp.net",
+	}
+
+	// The final WhatsApp attempt fails. Its durable result is saved, while the
+	// unavailable result transport prevents ACK.
+	subscriber.finishFailedSend(
+		&natsgo.Msg{Data: command},
+		cmd,
+		"whatsapp unavailable",
+	)
+	require.Equal(t, 0, sendCalls)
+	require.Equal(t, 1, ledger.saves)
+	require.Equal(t, 1, publisher.failureAttempts)
+
+	var stored storedCommandResult
+	require.NoError(t, json.Unmarshal(ledger.results["command-failed"], &stored))
+	require.True(t, stored.Failed)
+	require.Equal(t, "whatsapp unavailable", stored.ErrorMessage)
+
+	// Redelivery replays send_failed from the ledger without calling WhatsApp.
+	publisher.failFailure = false
+	subscriber.handleSendCommand(&natsgo.Msg{Data: command})
+	assert.Equal(t, 0, sendCalls)
+	assert.Equal(t, 1, ledger.saves)
+	assert.Equal(t, 2, publisher.failureAttempts)
 	assert.Equal(t, 1, ledger.published)
 }
 

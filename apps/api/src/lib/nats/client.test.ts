@@ -6,6 +6,7 @@ import {
   API_EVENTS_QUEUE,
   buildEventConsumerOptions,
   parseWhatsAppEvent,
+  PermanentEventError,
 } from "./client.js";
 
 describe("durable API event consumer", () => {
@@ -60,5 +61,11 @@ describe("durable API event consumer", () => {
       timestamp: new Date().toISOString(),
     });
     expect(event.contractVersion).toBe(1);
+  });
+
+  test("marks terminal handler validation failures for immediate dead-lettering", () => {
+    const error = new PermanentEventError("unknown connection");
+    expect(error).toBeInstanceOf(Error);
+    expect(error.name).toBe("PermanentEventError");
   });
 });

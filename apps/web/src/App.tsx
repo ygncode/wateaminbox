@@ -9,6 +9,7 @@ import {
 import { ProtectedAppLayout } from "./components/layout/ProtectedAppLayout";
 import { KeyboardShortcutsModal } from "./components/settings";
 import { PageSkeleton } from "./components/ui";
+import { OnboardingLoadingScreen } from "./components/ui/onboarding-state";
 
 const LoginPage = lazy(() =>
   import("./pages/LoginPage").then((m) => ({ default: m.LoginPage })),
@@ -75,7 +76,15 @@ function LazyPage({
   variant?: "auth" | "chat" | "team" | "settings" | "dashboard" | "default";
 }) {
   return (
-    <Suspense fallback={<PageSkeleton variant={variant} />}>
+    <Suspense
+      fallback={
+        variant === "auth" ? (
+          <OnboardingLoadingScreen />
+        ) : (
+          <PageSkeleton variant={variant} />
+        )
+      }
+    >
       {children}
     </Suspense>
   );
@@ -129,7 +138,7 @@ function App() {
         <Route
           path="/company-setup"
           element={
-            <ProtectedRoute requireCompany={false}>
+            <ProtectedRoute workspaceMode="setup">
               <LazyPage variant="auth">
                 <CompanySetupPage />
               </LazyPage>
@@ -139,7 +148,7 @@ function App() {
         <Route
           path="/workspaces"
           element={
-            <ProtectedRoute requireCompany={false}>
+            <ProtectedRoute workspaceMode="chooser">
               <LazyPage>
                 <WorkspaceChooserPage />
               </LazyPage>

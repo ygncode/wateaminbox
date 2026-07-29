@@ -20,6 +20,7 @@ import {
   buildCommandSubject,
   type MessageEvent,
   type NatsCommand,
+  PermanentEventError,
   publishCommand,
   type ReceiptEvent,
   type SendConfirmationEvent,
@@ -74,7 +75,9 @@ export async function handleMessageEvent(event: MessageEvent): Promise<void> {
     // different active account can corrupt contacts/messages when IDs collide.
     if (!connectionId) {
       logger.error({ companyId }, "Quarantining message without connection ID");
-      return;
+      throw new PermanentEventError(
+        `Message event for company ${companyId} has no connection ID`,
+      );
     }
     const connection = await tenantDb
       .selectFrom("whatsapp_connections")
@@ -87,7 +90,9 @@ export async function handleMessageEvent(event: MessageEvent): Promise<void> {
         { companyId, connectionId },
         "Quarantining message for unknown connection",
       );
-      return;
+      throw new PermanentEventError(
+        `Message event references unknown connection ${connectionId}`,
+      );
     }
 
     // Group messages belong to the group conversation, while `from` identifies
@@ -107,7 +112,9 @@ export async function handleMessageEvent(event: MessageEvent): Promise<void> {
         { companyId, messageId: payload.messageId },
         "Message has no contact JID",
       );
-      return;
+      throw new PermanentEventError(
+        `Message ${payload.messageId} has no contact JID`,
+      );
     }
     const contactJid = normalizeJid(rawContactJid);
     if (!contactJid) {
@@ -115,7 +122,9 @@ export async function handleMessageEvent(event: MessageEvent): Promise<void> {
         { companyId, rawContactJid },
         "Message contact JID is invalid",
       );
-      return;
+      throw new PermanentEventError(
+        `Message ${payload.messageId} has invalid contact JID ${rawContactJid}`,
+      );
     }
     let contact = await tenantDb
       .selectFrom("contacts")
@@ -231,11 +240,13 @@ export async function handleMessageEvent(event: MessageEvent): Promise<void> {
 
     // Store the message - also normalize sender_jid
     // Determine media download status based on whether it's a history sync with deferred media
-    const hasMediaReference = payload.mediaDirectPath && payload.isHistorySync;
-    const mediaDownloadStatus = hasMediaReference
-      ? "pending"
-      : payload.mediaUrl
-        ? "completed"
+    const hasMediaReference = Boolean(
+      payload.mediaDirectPath && payload.mediaKey,
+    );
+    const mediaDownloadStatus = payload.mediaUrl
+      ? "completed"
+      : hasMediaReference
+        ? "pending"
         : null;
     const messageStatus: MessageStatus = payload.fromMe
       ? (payload.status ?? "sent")

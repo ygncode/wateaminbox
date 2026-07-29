@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import {
+  DeleteObjectCommand,
   GetObjectCommand,
   HeadObjectCommand,
   PutObjectCommand,
@@ -118,6 +119,16 @@ export async function uploadMedia(
 
   // Return key, presigned URL, and original data (for NATS sending optimization)
   return { key, url: presignedUrl, data };
+}
+
+/** Delete an object previously written to the private media bucket. */
+export async function deleteMedia(key: string): Promise<void> {
+  await s3Client.send(
+    new DeleteObjectCommand({
+      Bucket: BUCKET,
+      Key: key,
+    }),
+  );
 }
 
 /**
