@@ -81,7 +81,11 @@ export interface ChatPageActions {
 
   // Send message
   handleSendMessage: (content: string, replyToMessageId?: string) => void;
-  handleAttachFile: (file: File, type: "image" | "document") => Promise<void>;
+  handleAttachFile: (
+    file: File,
+    type: "image" | "document",
+    caption: string,
+  ) => Promise<boolean>;
 
   // Delete message
   handleDeleteMessage: (message: Message) => void;
@@ -260,12 +264,17 @@ export function useChatPageState(): ChatPageState & ChatPageActions {
 
   // File attachment handler
   const handleAttachFile = React.useCallback(
-    async (file: File, type: "image" | "document") => {
-      if (!selectedChatId) return;
+    async (
+      file: File,
+      type: "image" | "document",
+      caption: string,
+    ): Promise<boolean> => {
+      if (!selectedChatId) return false;
+
+      const sendingToastId = toast.loading(`Sending ${file.name}...`);
 
       try {
         console.log("Uploading file:", file.name, type);
-        const uploadingToastId = toast.loading(`Uploading ${file.name}...`);
 
         const uploadResponse = await uploadMedia(file);
 
@@ -280,23 +289,25 @@ export function useChatPageState(): ChatPageState & ChatPageActions {
           messageType = "audio";
         }
 
-        toast.dismiss(uploadingToastId);
-        toast.success("File uploaded successfully");
-
-        sendMessage.mutate({
+        await sendMessage.mutateAsync({
           contactId: selectedChatId,
-          content: uploadResponse.fileName,
+          content: caption,
           messageType,
           mediaUrl: uploadResponse.mediaUrl,
         });
+        toast.dismiss(sendingToastId);
+        toast.success("Attachment sent");
+        return true;
       } catch (error) {
-        console.error("Failed to upload file:", error);
+        toast.dismiss(sendingToastId);
+        console.error("Failed to send attachment:", error);
 
         if (error instanceof Error) {
-          toast.error(`Failed to upload file: ${error.message}`);
+          toast.error(`Failed to send attachment: ${error.message}`);
         } else {
-          toast.error("Failed to upload file. Please try again.");
+          toast.error("Failed to send attachment. Please try again.");
         }
+        return false;
       }
     },
     [selectedChatId, sendMessage],

@@ -1,4 +1,5 @@
 import type { Message } from "@wateaminbox/shared";
+import { MessageCircle, Send } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { useGroup } from "@/hooks/useGroups";
 import { useTheme } from "../../contexts";
@@ -277,37 +278,46 @@ export function MessageThread({
     );
   }
 
+  // Keep empty and populated conversations on the same message surface.
+  const patternColor = resolvedTheme === "dark" ? "%231a2730" : "%23000000";
+  const patternOpacity = resolvedTheme === "dark" ? "0.4" : "1";
+
   // Empty messages state
   if (messages.length === 0) {
     return (
-      <div className="flex-1 flex items-center justify-center bg-gray-50 dark:bg-dark-primary">
-        <div className="text-center max-w-md px-4">
-          <div className="mb-4">
-            <svg
-              className="mx-auto h-16 w-16 text-gray-300 dark:text-dark-text-tertiary"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={1.5}
-                d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"
+      <div className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden bg-[#e5ddd5] dark:bg-dark-primary">
+        <div
+          className="absolute inset-0 opacity-5 dark:opacity-100"
+          style={{
+            backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='${patternColor}' fill-opacity='${patternOpacity}'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
+          }}
+          aria-hidden="true"
+        />
+
+        <div className="relative flex max-w-sm flex-col items-center px-6 text-center">
+          <div className="relative mb-5">
+            <div className="grid size-20 place-items-center rounded-2xl border border-white/80 bg-white/70 shadow-sm backdrop-blur-sm dark:border-white/[0.08] dark:bg-white/[0.055]">
+              <MessageCircle
+                className="size-9 text-[#66756f] dark:text-dark-text-secondary"
+                strokeWidth={1.6}
+                aria-hidden="true"
               />
-            </svg>
+            </div>
+            <span className="absolute -bottom-1.5 -right-1.5 grid size-8 place-items-center rounded-full border-2 border-[#e5ddd5] bg-whatsapp-dark-green text-white shadow-sm dark:border-dark-primary">
+              <Send className="size-3.5" aria-hidden="true" />
+            </span>
           </div>
-          <p className="text-gray-500 dark:text-dark-text-secondary">
-            No messages yet. Start the conversation!
+
+          <h2 className="text-base font-semibold tracking-tight text-[#263a33] dark:text-dark-text-primary">
+            No messages yet
+          </h2>
+          <p className="mt-1.5 max-w-[280px] text-sm leading-6 text-[#66756f] dark:text-dark-text-secondary">
+            Send the first message below to start this conversation.
           </p>
         </div>
       </div>
     );
   }
-
-  // Background pattern colors based on theme
-  const patternColor = resolvedTheme === "dark" ? "%231a2730" : "%23000000";
-  const patternOpacity = resolvedTheme === "dark" ? "0.4" : "1";
 
   return (
     <div className="flex-1 relative flex flex-col min-h-0 bg-[#e5ddd5] dark:bg-dark-primary">

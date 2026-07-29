@@ -1,7 +1,10 @@
 import type { Message, MessageType } from "@wateaminbox/shared";
+import { Maximize2, Play } from "lucide-react";
+import { type ReactNode, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { GroupParticipant } from "@/hooks/useGroups";
 import { LinkifiedText } from "./LinkifiedText";
+import { MediaLightbox } from "./MediaLightbox";
 import { MediaPendingPlaceholder } from "./MediaPendingPlaceholder";
 
 interface MessageContentProps {
@@ -11,6 +14,7 @@ interface MessageContentProps {
     GroupParticipant,
     "jid" | "phoneNumber" | "displayName"
   >[];
+  enableMediaPreview?: boolean;
 }
 
 /**
@@ -20,8 +24,10 @@ export function MessageContent({
   message,
   isOwn,
   mentionParticipants = [],
+  enableMediaPreview = true,
 }: MessageContentProps) {
   const { t } = useTranslation();
+  const [mediaPreviewOpen, setMediaPreviewOpen] = useState(false);
 
   if (message.isDeleted) {
     return (
@@ -58,16 +64,56 @@ export function MessageContent({
           />
         );
       }
+      const mediaUrl = message.metadata?.mediaUrl;
+      const imageAlt = mediaCaption || "Image message";
+
       return (
         <div className="max-w-xs">
-          <img
-            src={message.metadata?.mediaUrl}
-            alt={mediaCaption || "Image"}
-            width={320}
-            height={240}
-            className="rounded-lg max-w-full h-auto cursor-pointer"
-            loading="lazy"
-          />
+          {mediaUrl ? (
+            <>
+              <button
+                type="button"
+                className={`group/media relative block max-w-full overflow-hidden rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/90 focus-visible:ring-offset-2 ${
+                  isOwn
+                    ? "focus-visible:ring-offset-whatsapp-green"
+                    : "focus-visible:ring-offset-white dark:focus-visible:ring-offset-dark-elevated"
+                } ${enableMediaPreview ? "cursor-zoom-in" : "pointer-events-none"}`}
+                onClick={(event) => {
+                  if (!enableMediaPreview) return;
+                  event.stopPropagation();
+                  setMediaPreviewOpen(true);
+                }}
+                aria-label={`Open image: ${imageAlt}`}
+                tabIndex={enableMediaPreview ? 0 : -1}
+              >
+                <img
+                  src={mediaUrl}
+                  alt={imageAlt}
+                  width={320}
+                  height={240}
+                  className="h-auto max-w-full transition-transform duration-200 group-hover/media:scale-[1.015]"
+                  loading="lazy"
+                />
+                {enableMediaPreview && (
+                  <span className="absolute right-2 top-2 grid size-8 place-items-center rounded-full bg-[#111b21]/60 text-white opacity-0 shadow-sm backdrop-blur-sm transition-opacity group-hover/media:opacity-100 group-focus-visible/media:opacity-100">
+                    <Maximize2 className="size-4" aria-hidden="true" />
+                  </span>
+                )}
+              </button>
+
+              <MediaLightbox
+                open={mediaPreviewOpen}
+                onOpenChange={setMediaPreviewOpen}
+                src={mediaUrl}
+                alt={imageAlt}
+                caption={mediaCaption}
+              />
+            </>
+          ) : (
+            <div className="flex h-40 w-64 items-center justify-center rounded-lg bg-black/10 text-sm text-current/60 dark:bg-white/[0.06]">
+              Image unavailable
+            </div>
+          )}
           {mediaCaption && (
             <LinkifiedText
               text={mediaCaption}
@@ -92,17 +138,68 @@ export function MessageContent({
           />
         );
       }
+      const mediaUrl = message.metadata?.mediaUrl;
+      const videoLabel = mediaCaption || "Video message";
+
       return (
         <div className="max-w-xs">
-          <video
-            src={message.metadata?.mediaUrl}
-            poster={message.metadata?.thumbnailUrl}
-            controls
-            width={320}
-            className="rounded-lg max-w-full h-auto"
-            aria-label={mediaCaption || "Video message"}
-            title={mediaCaption || "Video message"}
-          />
+          {mediaUrl ? (
+            <>
+              <button
+                type="button"
+                className={`group/media relative block max-w-full overflow-hidden rounded-lg bg-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/90 focus-visible:ring-offset-2 ${
+                  isOwn
+                    ? "focus-visible:ring-offset-whatsapp-green"
+                    : "focus-visible:ring-offset-white dark:focus-visible:ring-offset-dark-elevated"
+                } ${enableMediaPreview ? "cursor-pointer" : "pointer-events-none"}`}
+                onClick={(event) => {
+                  if (!enableMediaPreview) return;
+                  event.stopPropagation();
+                  setMediaPreviewOpen(true);
+                }}
+                aria-label={`Play video: ${videoLabel}`}
+                tabIndex={enableMediaPreview ? 0 : -1}
+              >
+                <video
+                  src={mediaUrl}
+                  poster={message.metadata?.thumbnailUrl}
+                  preload="metadata"
+                  muted
+                  playsInline
+                  width={320}
+                  className="pointer-events-none h-auto max-w-full"
+                  aria-hidden="true"
+                />
+                {enableMediaPreview && (
+                  <>
+                    <span className="absolute inset-0 bg-black/10 transition-colors group-hover/media:bg-black/20" />
+                    <span className="absolute left-1/2 top-1/2 grid size-14 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full bg-[#111b21]/75 text-white shadow-lg backdrop-blur-sm transition-transform group-hover/media:scale-105 group-focus-visible/media:scale-105">
+                      <Play
+                        className="ml-0.5 size-6 fill-current"
+                        aria-hidden="true"
+                      />
+                    </span>
+                    <span className="absolute right-2 top-2 grid size-8 place-items-center rounded-full bg-[#111b21]/60 text-white opacity-0 shadow-sm backdrop-blur-sm transition-opacity group-hover/media:opacity-100 group-focus-visible/media:opacity-100">
+                      <Maximize2 className="size-4" aria-hidden="true" />
+                    </span>
+                  </>
+                )}
+              </button>
+
+              <MediaLightbox
+                open={mediaPreviewOpen}
+                onOpenChange={setMediaPreviewOpen}
+                src={mediaUrl}
+                alt={videoLabel}
+                caption={mediaCaption}
+                mediaType="video"
+              />
+            </>
+          ) : (
+            <div className="flex h-40 w-64 items-center justify-center rounded-lg bg-black/10 text-sm text-current/60 dark:bg-white/[0.06]">
+              Video unavailable
+            </div>
+          )}
           {mediaCaption && (
             <LinkifiedText
               text={mediaCaption}
@@ -159,13 +256,36 @@ export function MessageContent({
           />
         );
       }
-      return (
-        <a
-          href={message.metadata?.mediaUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex items-center gap-3 p-3 bg-gray-100 dark:bg-dark-tertiary rounded-lg hover:bg-gray-200 dark:hover:bg-dark-border transition-colors"
-        >
+      const mediaUrl = message.metadata?.mediaUrl;
+      const fileName = message.metadata?.fileName || "Document";
+      const mimeType = message.metadata?.mimeType?.toLowerCase();
+      const isPdf =
+        mimeType === "application/pdf" ||
+        fileName.toLowerCase().endsWith(".pdf");
+      const fileNameParts = fileName.split(".");
+      const mimeTypeParts = mimeType?.split("/");
+      const fileExtension =
+        fileNameParts.length > 1
+          ? fileNameParts[fileNameParts.length - 1]?.toUpperCase()
+          : undefined;
+      const mimeSubtype = mimeTypeParts?.[mimeTypeParts.length - 1];
+      const cardClassName =
+        "flex w-full max-w-xs items-center gap-3 rounded-lg bg-gray-100 p-3 text-left transition-colors hover:bg-gray-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-whatsapp-green dark:bg-dark-tertiary dark:hover:bg-dark-border";
+      const withCaption = (card: ReactNode) => (
+        <div className="max-w-xs">
+          {card}
+          {mediaCaption && (
+            <LinkifiedText
+              text={mediaCaption}
+              isOwn={isOwn}
+              className="mt-1"
+              mentionParticipants={mentionParticipants}
+            />
+          )}
+        </div>
+      );
+      const documentCard = (
+        <>
           <div className="flex-shrink-0">
             <svg
               className="h-10 w-10 text-gray-500 dark:text-dark-text-secondary"
@@ -184,15 +304,66 @@ export function MessageContent({
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-medium text-gray-900 dark:text-dark-text-primary truncate">
-              {message.metadata?.fileName || "Document"}
+              {fileName}
             </p>
-            {message.metadata?.fileSize && (
-              <p className="text-xs text-gray-500 dark:text-dark-text-secondary">
-                {formatFileSize(message.metadata.fileSize)}
-              </p>
-            )}
+            <p className="text-xs uppercase text-gray-500 dark:text-dark-text-secondary">
+              {isPdf ? "PDF" : fileExtension || mimeSubtype || "Document"}
+              {message.metadata?.fileSize
+                ? ` · ${formatFileSize(message.metadata.fileSize)}`
+                : ""}
+            </p>
           </div>
-        </a>
+        </>
+      );
+
+      if (!mediaUrl) {
+        return withCaption(
+          <div className={cardClassName}>
+            {documentCard}
+            <span className="sr-only">Document unavailable</span>
+          </div>,
+        );
+      }
+
+      if (!enableMediaPreview) {
+        return withCaption(<div className={cardClassName}>{documentCard}</div>);
+      }
+
+      if (isPdf) {
+        return withCaption(
+          <>
+            <button
+              type="button"
+              className={cardClassName}
+              onClick={(event) => {
+                event.stopPropagation();
+                setMediaPreviewOpen(true);
+              }}
+              aria-label={`Preview PDF: ${fileName}`}
+            >
+              {documentCard}
+            </button>
+            <MediaLightbox
+              open={mediaPreviewOpen}
+              onOpenChange={setMediaPreviewOpen}
+              src={mediaUrl}
+              alt={fileName}
+              mediaType="document"
+            />
+          </>,
+        );
+      }
+
+      return withCaption(
+        <a
+          href={mediaUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={cardClassName}
+          onClick={(event) => event.stopPropagation()}
+        >
+          {documentCard}
+        </a>,
       );
     },
     sticker: () => {
@@ -207,16 +378,48 @@ export function MessageContent({
           />
         );
       }
+      const mediaUrl = message.metadata?.mediaUrl;
+
       return (
         <div className="max-w-[200px]">
-          <img
-            src={message.metadata?.mediaUrl}
-            alt="Sticker"
-            width={200}
-            height={200}
-            className="w-full h-auto"
-            loading="lazy"
-          />
+          {mediaUrl ? (
+            <>
+              <button
+                type="button"
+                className={`group/media relative block max-w-full rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/90 focus-visible:ring-offset-2 ${
+                  isOwn
+                    ? "focus-visible:ring-offset-whatsapp-green"
+                    : "focus-visible:ring-offset-white dark:focus-visible:ring-offset-dark-elevated"
+                } ${enableMediaPreview ? "cursor-zoom-in" : "pointer-events-none"}`}
+                onClick={(event) => {
+                  if (!enableMediaPreview) return;
+                  event.stopPropagation();
+                  setMediaPreviewOpen(true);
+                }}
+                aria-label="Open sticker"
+                tabIndex={enableMediaPreview ? 0 : -1}
+              >
+                <img
+                  src={mediaUrl}
+                  alt="Sticker"
+                  width={200}
+                  height={200}
+                  className="h-auto w-full transition-transform duration-200 group-hover/media:scale-[1.025]"
+                  loading="lazy"
+                />
+              </button>
+              <MediaLightbox
+                open={mediaPreviewOpen}
+                onOpenChange={setMediaPreviewOpen}
+                src={mediaUrl}
+                alt="Sticker"
+              />
+            </>
+          ) : (
+            <div className="flex size-40 items-center justify-center rounded-lg bg-black/10 text-sm text-current/60 dark:bg-white/[0.06]">
+              Sticker unavailable
+            </div>
+          )}
         </div>
       );
     },

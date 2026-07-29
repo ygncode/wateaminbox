@@ -218,6 +218,7 @@ export const MessageBubble = memo(function MessageBubble({
           message={message}
           isOwn={isOwn}
           mentionParticipants={mentionParticipants}
+          enableMediaPreview={!selectionMode}
         />
 
         {/* Error banner for failed messages */}
