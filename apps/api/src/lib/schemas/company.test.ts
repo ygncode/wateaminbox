@@ -1,5 +1,11 @@
 import { describe, expect, test } from "bun:test";
-import { createCompanySchema, updateCompanySchema } from "./company.js";
+import {
+  createCompanySchema,
+  inviteMemberSchema,
+  listCompanyInvitationsQuerySchema,
+  listCompanyMembersQuerySchema,
+  updateCompanySchema,
+} from "./company.js";
 
 describe("company profile validation", () => {
   test("accepts an optional description and processed image", () => {
@@ -62,6 +68,92 @@ describe("company profile validation", () => {
     expect(
       updateCompanySchema.safeParse({
         logoDataUrl: "data:image/svg+xml;base64,PHN2Zy8+",
+      }).success,
+    ).toBe(false);
+  });
+});
+
+describe("listCompanyMembersQuerySchema", () => {
+  test("normalizes server table search and pagination", () => {
+    expect(
+      listCompanyMembersQuerySchema.parse({
+        search: "  maya  ",
+        role: "admin",
+        limit: "20",
+        offset: "40",
+      }),
+    ).toEqual({
+      search: "maya",
+      role: "admin",
+      limit: 20,
+      offset: 40,
+    });
+  });
+
+  test("uses safe table defaults", () => {
+    expect(listCompanyMembersQuerySchema.parse({})).toEqual({
+      search: "",
+      role: "all",
+      limit: 50,
+      offset: 0,
+    });
+  });
+});
+
+describe("listCompanyInvitationsQuerySchema", () => {
+  test("normalizes invitation search and pagination", () => {
+    expect(
+      listCompanyInvitationsQuerySchema.parse({
+        search: "  support@example.com  ",
+        role: "member",
+        limit: "10",
+        offset: "20",
+      }),
+    ).toEqual({
+      search: "support@example.com",
+      role: "member",
+      limit: 10,
+      offset: 20,
+    });
+  });
+
+  test("uses safe invitation table defaults", () => {
+    expect(listCompanyInvitationsQuerySchema.parse({})).toEqual({
+      search: "",
+      role: "all",
+      limit: 50,
+      offset: 0,
+    });
+  });
+});
+
+describe("inviteMemberSchema", () => {
+  test("accepts optional permission overrides", () => {
+    expect(
+      inviteMemberSchema.parse({
+        email: "agent@example.com",
+        role: "member",
+        permissions: {
+          can_send_messages: false,
+          can_view_dashboard: true,
+        },
+      }),
+    ).toEqual({
+      email: "agent@example.com",
+      role: "member",
+      permissions: {
+        can_send_messages: false,
+        can_view_dashboard: true,
+      },
+    });
+  });
+
+  test("rejects unknown permission values", () => {
+    expect(
+      inviteMemberSchema.safeParse({
+        email: "agent@example.com",
+        role: "member",
+        permissions: { can_export: "yes" },
       }).success,
     ).toBe(false);
   });

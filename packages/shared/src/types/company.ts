@@ -22,6 +22,49 @@ export interface MemberPermissions {
   can_delete: boolean;
 }
 
+/** Canonical role defaults used when resolving workspace access. */
+export const ROLE_PERMISSION_PRESETS: Record<
+  CompanyMemberRole,
+  MemberPermissions
+> = {
+  owner: {
+    can_view_all_chats: true,
+    can_send_messages: true,
+    can_assign_contacts: true,
+    can_manage_team: true,
+    can_invite: true,
+    can_manage_connections: true,
+    can_view_dashboard: true,
+    can_view_audit: true,
+    can_export: true,
+    can_delete: true,
+  },
+  admin: {
+    can_view_all_chats: true,
+    can_send_messages: true,
+    can_assign_contacts: true,
+    can_manage_team: true,
+    can_invite: true,
+    can_manage_connections: true,
+    can_view_dashboard: true,
+    can_view_audit: true,
+    can_export: true,
+    can_delete: true,
+  },
+  member: {
+    can_view_all_chats: false,
+    can_send_messages: true,
+    can_assign_contacts: false,
+    can_manage_team: false,
+    can_invite: false,
+    can_manage_connections: false,
+    can_view_dashboard: false,
+    can_view_audit: false,
+    can_export: false,
+    can_delete: false,
+  },
+};
+
 /**
  * Base company entity for API responses
  *
@@ -76,6 +119,10 @@ export interface CompanyInvitation {
   companyId: string;
   email: string;
   role: Exclude<CompanyMemberRole, "owner">;
+  /** Explicit access overrides applied when the invitation is accepted. */
+  permissions?: Partial<MemberPermissions>;
+  /** Role defaults merged with the invitation's explicit overrides. */
+  effectivePermissions?: MemberPermissions;
   token: string;
   invitedBy: string;
   inviterName?: string | null;
@@ -111,4 +158,6 @@ export interface UpdateCompanyInput {
 export interface InviteMemberInput {
   email: string;
   role?: Exclude<CompanyMemberRole, "owner">;
+  /** Owner-selected overrides; omitted or empty means role defaults. */
+  permissions?: Partial<MemberPermissions>;
 }

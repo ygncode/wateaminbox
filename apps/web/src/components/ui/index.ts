@@ -98,3 +98,9 @@ export {
   type PageSkeletonProps,
   type PageSkeletonVariant,
 } from "./page-skeleton";
+export {
+  ServerDataTable,
+  getVisibleRowRange,
+  type ServerDataTableProps,
+  type ServerTableSearch,
+} from "./server-data-table";

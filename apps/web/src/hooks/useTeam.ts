@@ -1,4 +1,4 @@
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery } from "@tanstack/react-query";
 import type {
   Company,
   CompanyInvitation,
@@ -19,17 +19,69 @@ export type { CompanyMember } from "@wateaminbox/shared";
  */
 export type Invitation = CompanyInvitation;
 
+export interface CompanyMembersQuery {
+  search?: string;
+  role?: "all" | "owner" | "admin" | "member";
+  limit?: number;
+  offset?: number;
+}
+
+export interface CompanyMembersPage {
+  data: CompanyMember[];
+  pagination: {
+    total: number;
+    limit: number;
+    offset: number;
+    hasMore: boolean;
+  };
+}
+
+export interface PendingInvitationsQuery {
+  search?: string;
+  role?: "all" | "admin" | "member";
+  limit?: number;
+  offset?: number;
+}
+
+export interface PendingInvitationsPage {
+  data: Invitation[];
+  pagination: {
+    total: number;
+    limit: number;
+    offset: number;
+    hasMore: boolean;
+  };
+}
+
 /**
  * Hook to fetch company members
  */
-export function useCompanyMembers(companyId: string | null) {
+export function useCompanyMembers(
+  companyId: string | null,
+  {
+    search = "",
+    role = "all",
+    limit = 20,
+    offset = 0,
+  }: CompanyMembersQuery = {},
+) {
+  const params = { search, role, limit, offset };
   return useQuery({
-    queryKey: queryKeys.team.members(companyId),
+    queryKey: queryKeys.team.members(companyId, params),
     queryFn: async () => {
       if (!companyId) throw new Error("No company ID provided");
-      return api.get<CompanyMember[]>(`/companies/${companyId}/members`);
+      const query = new URLSearchParams({
+        search,
+        role,
+        limit: String(limit),
+        offset: String(offset),
+      });
+      return api.get<CompanyMembersPage>(
+        `/companies/${companyId}/members?${query.toString()}`,
+      );
     },
     enabled: !!companyId,
+    placeholderData: keepPreviousData,
     staleTime: 30_000,
     gcTime: 300_000, // 5 minutes
   });
@@ -38,14 +90,32 @@ export function useCompanyMembers(companyId: string | null) {
 /**
  * Hook to fetch pending invitations
  */
-export function usePendingInvitations(companyId: string | null) {
+export function usePendingInvitations(
+  companyId: string | null,
+  {
+    search = "",
+    role = "all",
+    limit = 20,
+    offset = 0,
+  }: PendingInvitationsQuery = {},
+) {
+  const params = { search, role, limit, offset };
   return useQuery({
-    queryKey: queryKeys.team.invitations(companyId),
+    queryKey: queryKeys.team.invitations(companyId, params),
     queryFn: async () => {
       if (!companyId) throw new Error("No company ID provided");
-      return api.get<Invitation[]>(`/companies/${companyId}/invitations`);
+      const query = new URLSearchParams({
+        search,
+        role,
+        limit: String(limit),
+        offset: String(offset),
+      });
+      return api.get<PendingInvitationsPage>(
+        `/companies/${companyId}/invitations?${query.toString()}`,
+      );
     },
     enabled: !!companyId,
+    placeholderData: keepPreviousData,
     staleTime: 30_000,
     gcTime: 300_000, // 5 minutes
   });
@@ -62,14 +132,16 @@ export function useInviteMember() {
       companyId,
       email,
       role = "member",
+      permissions,
     }: {
       companyId: string;
       email: string;
       role?: "admin" | "member";
+      permissions?: Partial<MemberPermissions>;
     }) => {
       const response = await api.post<{ invitation: Invitation }>(
         `/companies/${companyId}/invitations`,
-        { email, role },
+        { email, role, permissions },
       );
       return response.invitation;
     },
@@ -236,6 +308,8 @@ export function useInvitationByToken(token: string | null) {
         companyName: string;
         invitedBy: string;
         role: "admin" | "member";
+        permissions: Partial<MemberPermissions>;
+        effectivePermissions: MemberPermissions;
         expiresAt: string;
         createdAt: string;
       }>(`/invitations/${token}`);

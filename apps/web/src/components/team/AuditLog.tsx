@@ -1,19 +1,20 @@
-import { formatAuditTime } from "@wateaminbox/shared";
+import type { ColumnDef, PaginationState } from "@tanstack/react-table";
+import { dayjs } from "@wateaminbox/shared";
 import {
-  ChevronLeft,
+  Activity,
   ChevronRight,
   FileDown,
   Filter,
-  Info,
+  ShieldCheck,
 } from "lucide-react";
 import { useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Skeleton } from "@/components/ui/skeleton";
+import { ServerDataTable } from "@/components/ui/server-data-table";
 import {
   type AuditAction,
   type AuditLog as AuditLogType,
@@ -42,7 +43,7 @@ const entityTypes = [
 
 export function AuditLog({ companyId, canExport = false }: AuditLogProps) {
   const [searchParams, setSearchParams] = useSearchParams();
-  const page = Math.max(0, Number(searchParams.get("page")) || 0);
+  const page = Math.max(0, Math.floor(Number(searchParams.get("page")) || 0));
   const actionFilter = (searchParams.get("action") || "") as AuditAction | "";
   const actorFilter = searchParams.get("actor") || "";
   const entityFilter = searchParams.get("entity") || "";
@@ -51,19 +52,30 @@ export function AuditLog({ companyId, canExport = false }: AuditLogProps) {
   const hasFilters = Boolean(
     actionFilter || actorFilter || entityFilter || startDate || endDate,
   );
+  const activeFilterCount = [
+    actionFilter,
+    actorFilter,
+    entityFilter,
+    startDate,
+    endDate,
+  ].filter(Boolean).length;
   const [showFilters, setShowFilters] = useState(hasFilters);
   const [isExporting, setIsExporting] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const limit = 25;
+  const requestedPageSize = Number(searchParams.get("pageSize"));
+  const pageSize = [10, 20, 50].includes(requestedPageSize)
+    ? requestedPageSize
+    : 20;
+  const pagination: PaginationState = { pageIndex: page, pageSize };
 
-  const { data, isLoading, error } = useAuditLogs(companyId, {
+  const { data, isLoading, isFetching, error } = useAuditLogs(companyId, {
     userId: actorFilter || undefined,
     action: actionFilter || undefined,
     entityType: entityFilter || undefined,
     startDate: startDate || undefined,
     endDate: endDate || undefined,
-    limit,
-    offset: page * limit,
+    limit: pageSize,
+    offset: page * pageSize,
   });
   const { data: actions } = useAuditActions();
   const { data: actors } = useAuditActors();
@@ -77,14 +89,146 @@ export function AuditLog({ companyId, canExport = false }: AuditLogProps) {
       return next;
     });
   };
-  const setPage = (nextPage: number) => {
+  const setPagination = (nextPagination: PaginationState) => {
     setSearchParams((current) => {
       const next = new URLSearchParams(current);
-      if (nextPage > 0) next.set("page", String(nextPage));
-      else next.delete("page");
+      if (nextPagination.pageIndex > 0) {
+        next.set("page", String(nextPagination.pageIndex));
+      } else {
+        next.delete("page");
+      }
+      if (nextPagination.pageSize !== 20) {
+        next.set("pageSize", String(nextPagination.pageSize));
+      } else {
+        next.delete("pageSize");
+      }
+      if (nextPagination.pageSize !== pageSize) {
+        next.delete("page");
+      }
       return next;
     });
   };
+
+  const clearFilters = () => {
+    setSearchParams(() => {
+      const next = new URLSearchParams();
+      if (pageSize !== 20) next.set("pageSize", String(pageSize));
+      return next;
+    });
+  };
+
+  const columns: ColumnDef<AuditLogType>[] = [
+    {
+      accessorKey: "createdAt",
+      header: "Time",
+      size: 155,
+      cell: ({ row }) => {
+        const occurredAt = dayjs(row.original.createdAt);
+        return (
+          <time
+            dateTime={row.original.createdAt}
+            className="block font-mono text-[11px] leading-4 text-[#65736d] dark:text-dark-text-secondary"
+          >
+            <span className="block">{occurredAt.format("MMM D, YYYY")}</span>
+            <span className="block text-[#8a9790] dark:text-dark-text-tertiary">
+              {occurredAt.format("HH:mm:ss")}
+            </span>
+          </time>
+        );
+      },
+    },
+    {
+      id: "actor",
+      header: "Actor",
+      size: 235,
+      cell: ({ row }) => <Actor actor={row.original.actor} />,
+    },
+    {
+      id: "activity",
+      header: "Activity",
+      size: 420,
+      cell: ({ row }) => (
+        <div>
+          <p className="max-w-xl text-[13px] font-medium leading-5 text-[#20362e] dark:text-dark-text-primary">
+            {formatAuditActivity(row.original)}
+          </p>
+          <span className="mt-1.5 inline-flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-[0.1em] text-[#718078] dark:text-dark-text-secondary">
+            <span
+              className={cn(
+                "h-1.5 w-1.5 rounded-full",
+                auditActionDot(row.original.action),
+              )}
+            />
+            {formatAuditAction(row.original.action)}
+          </span>
+        </div>
+      ),
+    },
+    {
+      id: "target",
+      header: "Target",
+      size: 210,
+      cell: ({ row }) =>
+        row.original.entityType ? (
+          <div className="min-w-0">
+            <p className="truncate text-[13px] font-semibold text-[#31463e] dark:text-dark-text-primary">
+              {titleCase(row.original.entityType)}
+            </p>
+            {row.original.entityId && (
+              <p
+                className="truncate font-mono text-[10px] text-[#8a9790] dark:text-dark-text-secondary"
+                title={row.original.entityId}
+              >
+                {shortIdentifier(row.original.entityId)}
+              </p>
+            )}
+          </div>
+        ) : (
+          <span className="text-[#718078]">—</span>
+        ),
+    },
+    {
+      accessorKey: "ipAddress",
+      header: "IP address",
+      size: 135,
+      cell: ({ row }) => (
+        <span className="font-mono text-xs text-[#65736d] dark:text-dark-text-secondary">
+          {row.original.ipAddress || "—"}
+        </span>
+      ),
+    },
+    {
+      id: "details",
+      header: () => <span className="sr-only">Details</span>,
+      size: 64,
+      cell: ({ row }) => {
+        const expanded = expandedId === row.original.id;
+        return (
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() =>
+              setExpandedId((current) =>
+                current === row.original.id ? null : row.original.id,
+              )
+            }
+            aria-expanded={expanded}
+            aria-label={
+              expanded ? "Hide audit event details" : "View audit event details"
+            }
+            className="h-8 w-8 rounded-full text-[#65736d] hover:bg-[#e8f1ec] hover:text-[#075c41]"
+          >
+            <ChevronRight
+              className={cn(
+                "h-4 w-4 transition-transform",
+                expanded && "rotate-90",
+              )}
+            />
+          </Button>
+        );
+      },
+    },
+  ];
 
   const handleExport = async () => {
     const params = new URLSearchParams();
@@ -119,204 +263,195 @@ export function AuditLog({ companyId, canExport = false }: AuditLogProps) {
   };
 
   return (
-    <div className="flex h-full flex-col bg-[#f5f7f4] dark:bg-dark-primary">
-      <header className="border-b border-[#dce3de] bg-white px-4 py-4 dark:border-dark-border dark:bg-dark-secondary sm:px-6">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <p className="text-xs font-semibold text-[#0b7a55]">Workspace</p>
-            <h1 className="text-xl font-semibold">Audit log</h1>
+    <div className="flex h-full min-h-0 flex-col overflow-hidden bg-[#f5f7f4] dark:bg-dark-primary">
+      <header className="shrink-0 border-b border-[#dce3de] bg-white px-4 py-3 dark:border-dark-border dark:bg-dark-secondary sm:px-6">
+        <div className="flex items-center gap-3">
+          <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-[#dcefe7] text-[#075c41] dark:bg-emerald-950/60 dark:text-emerald-300">
+            <ShieldCheck className="h-4.5 w-4.5" />
           </div>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowFilters((current) => !current)}
-              className={cn(
-                showFilters && "bg-[#edf1ed] dark:bg-dark-tertiary",
-              )}
-              aria-expanded={showFilters}
-            >
-              <Filter className="mr-2 h-4 w-4" /> Filters
-              {hasFilters && (
-                <span className="ml-2 h-2 w-2 rounded-full bg-[#0b7a55]" />
-              )}
-            </Button>
-            {canExport && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => void handleExport()}
-                disabled={isExporting}
-              >
-                <FileDown className="mr-2 h-4 w-4" />
-                <span className="hidden sm:inline">
-                  {isExporting ? "Exporting…" : "Export CSV"}
-                </span>
-                <span className="sm:hidden">Export</span>
-              </Button>
-            )}
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="text-lg font-semibold leading-none">Audit log</h1>
+              <Badge variant="outline" className="px-2 py-0 text-[10px]">
+                {data?.pagination.total ?? 0} events
+              </Badge>
+            </div>
+            <p className="mt-1 text-xs text-[#65736d] dark:text-dark-text-secondary">
+              Security and workspace activity, newest first.
+            </p>
           </div>
         </div>
+      </header>
 
-        {showFilters && (
-          <div className="mt-4 grid gap-3 border-t border-[#dce3de] pt-4 dark:border-dark-border sm:grid-cols-2 xl:grid-cols-5">
-            <FilterSelect
-              label="Actor"
-              value={actorFilter}
-              onChange={(value) => setFilter("actor", value)}
-            >
-              <option value="">All actors</option>
-              {actors?.map((actor) => (
-                <option key={actor.id} value={actor.id}>
-                  {actor.name || actor.email}
-                </option>
-              ))}
-            </FilterSelect>
-            <FilterSelect
-              label="Action"
-              value={actionFilter}
-              onChange={(value) => setFilter("action", value)}
-            >
-              <option value="">All actions</option>
-              {actions?.map((action) => (
-                <option key={action.value} value={action.value}>
-                  {action.label}
-                </option>
-              ))}
-            </FilterSelect>
-            <FilterSelect
-              label="Entity"
-              value={entityFilter}
-              onChange={(value) => setFilter("entity", value)}
-            >
-              <option value="">All entities</option>
-              {entityTypes.map((entity) => (
-                <option key={entity} value={entity}>
-                  {titleCase(entity)}
-                </option>
-              ))}
-            </FilterSelect>
-            <label className="text-xs font-medium text-[#65736d] dark:text-dark-text-secondary">
-              From
-              <Input
-                type="date"
-                value={startDate}
-                onChange={(event) => setFilter("startDate", event.target.value)}
-                className="mt-1 h-9"
-              />
-            </label>
-            <label className="text-xs font-medium text-[#65736d] dark:text-dark-text-secondary">
-              To
-              <Input
-                type="date"
-                value={endDate}
-                onChange={(event) => setFilter("endDate", event.target.value)}
-                className="mt-1 h-9"
-              />
-            </label>
-            {hasFilters && (
+      <div className="min-h-0 flex-1 overflow-hidden p-3 sm:p-4">
+        <ServerDataTable
+          columns={columns}
+          data={data?.data ?? []}
+          rowCount={data?.pagination.total ?? 0}
+          pagination={pagination}
+          onPaginationChange={setPagination}
+          toolbarLeading={
+            <div className="flex min-w-0 items-center gap-2.5">
+              <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg border border-[#d7e0da] bg-white text-[#0b7a55] dark:border-dark-border dark:bg-dark-elevated dark:text-emerald-300">
+                <Activity className="h-3.5 w-3.5" />
+              </span>
+              <div className="min-w-0">
+                <p className="truncate text-xs font-semibold text-[#31463e] dark:text-dark-text-primary">
+                  Activity stream
+                </p>
+                <p className="hidden truncate text-[10px] text-[#7a8881] sm:block dark:text-dark-text-secondary">
+                  Select an event to inspect its metadata.
+                </p>
+              </div>
+            </div>
+          }
+          toolbarActions={
+            <div className="flex items-center gap-0.5 rounded-lg border border-[#d7e0da] bg-white p-0.5 shadow-sm dark:border-dark-border dark:bg-dark-elevated">
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => setSearchParams({})}
-                className="justify-self-start text-[#0b7a55]"
+                onClick={() => setShowFilters((current) => !current)}
+                className={cn(
+                  "h-8 rounded-md px-2.5 text-xs",
+                  showFilters &&
+                    "bg-[#e8f1ec] text-[#075c41] dark:bg-dark-tertiary dark:text-emerald-300",
+                )}
+                aria-expanded={showFilters}
               >
-                Clear filters
+                <Filter className="mr-1.5 h-3.5 w-3.5" />
+                Filters
+                {activeFilterCount > 0 && (
+                  <span className="ml-1.5 grid min-w-4 place-items-center rounded-full bg-[#0b7a55] px-1 py-0.5 text-[9px] font-bold leading-none text-white">
+                    {activeFilterCount}
+                  </span>
+                )}
               </Button>
-            )}
-          </div>
-        )}
-      </header>
-
-      <ScrollArea className="flex-1">
-        {isLoading ? (
-          <div className="space-y-3 p-4 sm:p-6" aria-busy="true">
-            {[1, 2, 3, 4, 5].map((item) => (
-              <Skeleton key={item} className="h-16 w-full rounded-xl" />
-            ))}
-          </div>
-        ) : error ? (
-          <EmptyState title="Could not load the audit log" tone="error" />
-        ) : !data?.data.length ? (
-          <EmptyState title="No activity matches these filters" />
-        ) : (
-          <>
-            <div className="hidden p-6 md:block">
-              <div className="overflow-hidden rounded-xl border border-[#dce3de] bg-white dark:border-dark-border dark:bg-dark-elevated">
-                <table className="w-full table-fixed text-left">
-                  <thead className="bg-[#edf1ed] text-[11px] uppercase tracking-[0.12em] text-[#65736d] dark:bg-dark-tertiary dark:text-dark-text-secondary">
-                    <tr>
-                      <th className="w-40 px-4 py-3">Time</th>
-                      <th className="w-52 px-4 py-3">Actor</th>
-                      <th className="px-4 py-3">Activity</th>
-                      <th className="w-36 px-4 py-3">IP address</th>
-                      <th className="w-24 px-4 py-3">Details</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[#e6ebe7] dark:divide-dark-border">
-                    {data.data.map((log) => (
-                      <AuditTableRows
-                        key={log.id}
-                        log={log}
-                        expanded={expandedId === log.id}
-                        onToggle={() =>
-                          setExpandedId((current) =>
-                            current === log.id ? null : log.id,
-                          )
-                        }
-                      />
+              {canExport && (
+                <>
+                  <span className="mx-0.5 h-5 w-px bg-[#e1e7e3] dark:bg-dark-border" />
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => void handleExport()}
+                    disabled={isExporting}
+                    className="h-8 rounded-md px-2.5 text-xs"
+                  >
+                    <FileDown className="mr-1.5 h-3.5 w-3.5" />
+                    <span className="hidden sm:inline">
+                      {isExporting ? "Exporting…" : "Export"}
+                    </span>
+                    <span className="sm:hidden">CSV</span>
+                  </Button>
+                </>
+              )}
+            </div>
+          }
+          toolbarPanel={
+            showFilters ? (
+              <div>
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-semibold text-[#31463e] dark:text-dark-text-primary">
+                      Filter audit events
+                    </p>
+                    <p className="text-[11px] text-[#718078] dark:text-dark-text-secondary">
+                      Filters are applied on the server.
+                    </p>
+                  </div>
+                  {hasFilters && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={clearFilters}
+                      className="h-8 text-[#0b7a55]"
+                    >
+                      Clear all
+                    </Button>
+                  )}
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+                  <FilterSelect
+                    label="Actor"
+                    value={actorFilter}
+                    onChange={(value) => setFilter("actor", value)}
+                  >
+                    <option value="">All actors</option>
+                    {actors?.map((actor) => (
+                      <option key={actor.id} value={actor.id}>
+                        {actor.name || actor.email}
+                      </option>
                     ))}
-                  </tbody>
-                </table>
+                  </FilterSelect>
+                  <FilterSelect
+                    label="Action"
+                    value={actionFilter}
+                    onChange={(value) => setFilter("action", value)}
+                  >
+                    <option value="">All actions</option>
+                    {actions?.map((action) => (
+                      <option key={action.value} value={action.value}>
+                        {action.label}
+                      </option>
+                    ))}
+                  </FilterSelect>
+                  <FilterSelect
+                    label="Entity"
+                    value={entityFilter}
+                    onChange={(value) => setFilter("entity", value)}
+                  >
+                    <option value="">All entities</option>
+                    {entityTypes.map((entity) => (
+                      <option key={entity} value={entity}>
+                        {titleCase(entity)}
+                      </option>
+                    ))}
+                  </FilterSelect>
+                  <label className="text-xs font-medium text-[#65736d] dark:text-dark-text-secondary">
+                    From
+                    <Input
+                      type="date"
+                      value={startDate}
+                      onChange={(event) =>
+                        setFilter("startDate", event.target.value)
+                      }
+                      className="mt-1 h-9"
+                    />
+                  </label>
+                  <label className="text-xs font-medium text-[#65736d] dark:text-dark-text-secondary">
+                    To
+                    <Input
+                      type="date"
+                      value={endDate}
+                      onChange={(event) =>
+                        setFilter("endDate", event.target.value)
+                      }
+                      className="mt-1 h-9"
+                    />
+                  </label>
+                </div>
               </div>
-            </div>
-            <div className="space-y-3 p-4 md:hidden">
-              {data.data.map((log) => (
-                <AuditTimelineItem
-                  key={log.id}
-                  log={log}
-                  expanded={expandedId === log.id}
-                  onToggle={() =>
-                    setExpandedId((current) =>
-                      current === log.id ? null : log.id,
-                    )
-                  }
-                />
-              ))}
-            </div>
-          </>
-        )}
-      </ScrollArea>
-
-      {data && data.pagination.total > limit && (
-        <footer className="flex items-center justify-between border-t border-[#dce3de] bg-white px-4 py-3 dark:border-dark-border dark:bg-dark-secondary sm:px-6">
-          <p className="text-xs text-[#65736d] dark:text-dark-text-secondary">
-            {page * limit + 1}–
-            {Math.min((page + 1) * limit, data.pagination.total)} of{" "}
-            {data.pagination.total}
-          </p>
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setPage(Math.max(0, page - 1))}
-              disabled={page === 0}
-              aria-label="Previous page"
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setPage(page + 1)}
-              disabled={!data.pagination.hasMore}
-              aria-label="Next page"
-            >
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-          </div>
-        </footer>
-      )}
+            ) : undefined
+          }
+          isLoading={isLoading}
+          isFetching={isFetching}
+          error={error}
+          getRowId={(log) => log.id}
+          renderSubRow={(log) =>
+            expandedId === log.id ? <AuditDetails log={log} /> : null
+          }
+          tableLabel="Workspace audit log"
+          emptyTitle="No activity matches these filters"
+          emptyDescription={
+            hasFilters
+              ? "Clear or adjust the filters to see more events."
+              : "Workspace activity will appear here as it happens."
+          }
+          pageSizeOptions={[10, 20, 50]}
+          density="compact"
+          tableClassName="min-w-[68rem]"
+          className="min-h-0"
+        />
+      </div>
     </div>
   );
 }
@@ -346,114 +481,35 @@ function FilterSelect({
   );
 }
 
-function AuditTableRows({
-  log,
-  expanded,
-  onToggle,
-}: {
-  log: AuditLogType;
-  expanded: boolean;
-  onToggle: () => void;
-}) {
-  return (
-    <>
-      <tr className="align-top hover:bg-[#f8faf8] dark:hover:bg-dark-tertiary/50">
-        <td className="px-4 py-4 font-mono text-xs text-[#65736d] dark:text-dark-text-secondary">
-          {formatAuditTime(log.createdAt)}
-        </td>
-        <td className="px-4 py-4">
-          <Actor actor={log.actor} />
-        </td>
-        <td className="px-4 py-4">
-          <p className="text-sm leading-5">{formatAuditSummary(log)}</p>
-          <Badge variant="secondary" className="mt-2 text-[10px]">
-            {formatAuditAction(log.action)}
-          </Badge>
-        </td>
-        <td className="truncate px-4 py-4 font-mono text-xs text-[#65736d] dark:text-dark-text-secondary">
-          {log.ipAddress || "—"}
-        </td>
-        <td className="px-4 py-4">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={onToggle}
-            aria-expanded={expanded}
-          >
-            {expanded ? "Hide" : "View"}
-          </Button>
-        </td>
-      </tr>
-      {expanded && (
-        <tr>
-          <td
-            colSpan={5}
-            className="bg-[#f8faf8] px-4 py-4 dark:bg-dark-tertiary/40"
-          >
-            <AuditDetails log={log} />
-          </td>
-        </tr>
-      )}
-    </>
-  );
-}
-
-function AuditTimelineItem({
-  log,
-  expanded,
-  onToggle,
-}: {
-  log: AuditLogType;
-  expanded: boolean;
-  onToggle: () => void;
-}) {
-  return (
-    <article className="rounded-xl border border-[#dce3de] bg-white p-4 dark:border-dark-border dark:bg-dark-elevated">
-      <div className="flex items-start justify-between gap-3">
-        <Actor actor={log.actor} />
-        <time className="shrink-0 font-mono text-[10px] text-[#65736d] dark:text-dark-text-secondary">
-          {formatAuditTime(log.createdAt)}
-        </time>
-      </div>
-      <p className="mt-3 text-sm leading-6">{formatAuditSummary(log)}</p>
-      <div className="mt-3 flex items-center justify-between">
-        <Badge variant="secondary" className="text-[10px]">
-          {formatAuditAction(log.action)}
-        </Badge>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={onToggle}
-          aria-expanded={expanded}
-        >
-          {expanded ? "Hide details" : "Details"}
-        </Button>
-      </div>
-      {expanded && (
-        <div className="mt-3 border-t border-[#dce3de] pt-3 dark:border-dark-border">
-          <AuditDetails log={log} />
-        </div>
-      )}
-    </article>
-  );
-}
-
 function Actor({ actor }: { actor: AuditLogType["actor"] }) {
-  return actor ? (
-    <div className="min-w-0">
-      <p className="truncate text-sm font-medium">
-        {actor.name || actor.email}
-      </p>
-      {actor.name && (
-        <p className="truncate text-xs text-[#65736d] dark:text-dark-text-secondary">
-          {actor.email}
+  const displayName = actor?.name || actor?.email || "System";
+  const initials = actor
+    ? displayName
+        .split(/\s+/)
+        .slice(0, 2)
+        .map((part) => part[0])
+        .join("")
+        .toUpperCase()
+    : null;
+
+  return (
+    <div className="flex min-w-0 items-center gap-2.5">
+      <Avatar className="h-8 w-8">
+        <AvatarFallback className="bg-[#e8f1ec] text-[10px] font-bold text-[#075c41] dark:bg-emerald-950/50 dark:text-emerald-300">
+          {initials || <Activity className="h-3.5 w-3.5" />}
+        </AvatarFallback>
+      </Avatar>
+      <div className="min-w-0">
+        <p className="truncate text-[13px] font-semibold text-[#31463e] dark:text-dark-text-primary">
+          {displayName}
         </p>
-      )}
+        {actor?.name && (
+          <p className="truncate text-[10px] text-[#718078] dark:text-dark-text-secondary">
+            {actor.email}
+          </p>
+        )}
+      </div>
     </div>
-  ) : (
-    <span className="text-sm text-[#65736d] dark:text-dark-text-secondary">
-      System
-    </span>
   );
 }
 
@@ -518,30 +574,6 @@ function Detail({
   );
 }
 
-function EmptyState({
-  title,
-  tone = "default",
-}: {
-  title: string;
-  tone?: "default" | "error";
-}) {
-  return (
-    <div
-      className={cn(
-        "grid h-64 place-items-center px-4 text-center",
-        tone === "error"
-          ? "text-red-600 dark:text-red-400"
-          : "text-[#65736d] dark:text-dark-text-secondary",
-      )}
-    >
-      <div>
-        <Info className="mx-auto h-10 w-10 opacity-40" />
-        <p className="mt-3 text-sm">{title}</p>
-      </div>
-    </div>
-  );
-}
-
 export function formatAuditSummary(log: AuditLogType): string {
   const actor = log.actor?.name || log.actor?.email || "System";
   const details = log.details || {};
@@ -578,6 +610,40 @@ export function formatAuditSummary(log: AuditLogType): string {
     default:
       return `${actor} performed ${formatAuditAction(log.action).toLocaleLowerCase()} on ${target}.`;
   }
+}
+
+function formatAuditActivity(log: AuditLogType): string {
+  const actor = log.actor?.name || log.actor?.email || "System";
+  const summary = formatAuditSummary(log);
+  const description = summary.startsWith(`${actor} `)
+    ? summary.slice(actor.length + 1)
+    : summary;
+  return description.charAt(0).toUpperCase() + description.slice(1);
+}
+
+function auditActionDot(action: AuditAction): string {
+  const category = action.split(".")[0];
+  switch (category) {
+    case "invitation":
+      return "bg-emerald-500";
+    case "member":
+      return "bg-amber-500";
+    case "contact":
+      return "bg-cyan-500";
+    case "conversation":
+      return "bg-blue-500";
+    case "message":
+      return "bg-violet-500";
+    case "company":
+      return "bg-teal-500";
+    default:
+      return "bg-slate-400";
+  }
+}
+
+function shortIdentifier(value: string): string {
+  if (value.length <= 16) return value;
+  return `${value.slice(0, 8)}…${value.slice(-4)}`;
 }
 
 function titleCase(value: string): string {

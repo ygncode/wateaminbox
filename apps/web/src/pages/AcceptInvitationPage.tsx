@@ -4,6 +4,7 @@ import {
   CheckCircle,
   Clock,
   Mail,
+  Settings2,
   ShieldCheck,
   User,
   XCircle,
@@ -16,6 +17,7 @@ import { useWorkspace } from "../contexts/workspace-context";
 import { useAcceptInvitation, useInvitationByToken } from "../hooks/useTeam";
 import { buildAuthUrl } from "../lib/auth-redirect";
 import { workspacePath } from "../lib/workspace-routes";
+import { permissionOptions } from "../components/team/permission-options";
 
 /**
  * Accept Invitation page
@@ -45,6 +47,14 @@ export function AcceptInvitationPage() {
   const isExpired = invitation
     ? dayjs(invitation.expiresAt).isBefore(now())
     : false;
+  const hasCustomAccess = Boolean(
+    invitation?.permissions && Object.keys(invitation.permissions).length,
+  );
+  const enabledCapabilityCount = invitation
+    ? permissionOptions.filter(
+        (option) => invitation.effectivePermissions[option.key],
+      ).length
+    : 0;
 
   // Format date for display
   const formatDate = (dateString: string) => {
@@ -203,6 +213,19 @@ export function AcceptInvitationPage() {
               </p>
               <p className="font-medium capitalize text-gray-900 dark:text-dark-text-primary">
                 {invitation.role}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3 p-3 rounded-lg bg-gray-50 dark:bg-dark-tertiary">
+            <Settings2 className="h-5 w-5 text-gray-500 dark:text-dark-text-tertiary flex-shrink-0" />
+            <div>
+              <p className="text-xs text-gray-500 dark:text-dark-text-tertiary">
+                Starting access
+              </p>
+              <p className="font-medium text-gray-900 dark:text-dark-text-primary">
+                {hasCustomAccess ? "Custom access" : "Role defaults"} ·{" "}
+                {enabledCapabilityCount} capabilities enabled
               </p>
             </div>
           </div>

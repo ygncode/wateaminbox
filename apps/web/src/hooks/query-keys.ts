@@ -145,10 +145,14 @@ export const queryKeys = {
   // Team/Company - custom keys for company resources
   team: {
     all: ["company"] as const,
-    members: (companyId: string | null) =>
-      ["company", companyId, "members"] as const,
-    invitations: (companyId: string | null) =>
-      ["company", companyId, "invitations"] as const,
+    members: <T extends object>(companyId: string | null, params?: T) =>
+      params
+        ? (["company", companyId, "members", params] as const)
+        : (["company", companyId, "members"] as const),
+    invitations: <T extends object>(companyId: string | null, params?: T) =>
+      params
+        ? (["company", companyId, "invitations", params] as const)
+        : (["company", companyId, "invitations"] as const),
     invitation: (token: string | null) => ["invitation", token] as const,
     companies: () => ["companies"] as const,
   },

@@ -66,6 +66,7 @@ export interface InvitationsTable {
   company_id: string;
   email: string;
   role: Generated<Exclude<CompanyMemberRole, "owner">>;
+  permissions: Generated<Record<string, unknown>>;
   token: string;
   invited_by: string;
   expires_at: Date;

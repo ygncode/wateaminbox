@@ -42,6 +42,90 @@ export async function getMembers(companyId: string): Promise<CompanyMember[]> {
   return members as unknown as CompanyMember[];
 }
 
+export interface ListMembersOptions {
+  search?: string;
+  role?: "all" | "owner" | "admin" | "member";
+  limit: number;
+  offset: number;
+}
+
+/**
+ * Lists members for dashboard tables with database-backed filtering and
+ * pagination. The unrestricted member directory remains available for
+ * internal identity and policy workflows.
+ */
+export async function listMembers(
+  companyId: string,
+  options: ListMembersOptions,
+): Promise<{ members: CompanyMember[]; total: number }> {
+  await getCompany(companyId);
+
+  const search = options.search?.trim();
+  const searchPattern = search ? `%${search}%` : null;
+  const role =
+    options.role && options.role !== "all" ? options.role : undefined;
+
+  let membersQuery = db
+    .selectFrom("company_members as cm")
+    .innerJoin("users as u", "u.id", "cm.user_id")
+    .select([
+      "cm.id",
+      "cm.user_id",
+      "cm.company_id",
+      "cm.role",
+      "cm.permissions",
+      "cm.invited_by",
+      "cm.joined_at",
+      "u.name",
+      "u.email",
+    ])
+    .where("cm.company_id", "=", companyId);
+
+  let countQuery = db
+    .selectFrom("company_members as cm")
+    .innerJoin("users as u", "u.id", "cm.user_id")
+    .select((expression) => expression.fn.countAll<number>().as("count"))
+    .where("cm.company_id", "=", companyId);
+
+  if (searchPattern) {
+    membersQuery = membersQuery.where((expression) =>
+      expression.or([
+        expression("u.name", "ilike", searchPattern),
+        expression("u.email", "ilike", searchPattern),
+      ]),
+    );
+    countQuery = countQuery.where((expression) =>
+      expression.or([
+        expression("u.name", "ilike", searchPattern),
+        expression("u.email", "ilike", searchPattern),
+      ]),
+    );
+  }
+
+  if (role) {
+    membersQuery = membersQuery.where("cm.role", "=", role);
+    countQuery = countQuery.where("cm.role", "=", role);
+  }
+
+  const [members, countResult] = await Promise.all([
+    membersQuery
+      .orderBy(
+        sql<number>`CASE cm.role WHEN 'owner' THEN 1 WHEN 'admin' THEN 2 ELSE 3 END`,
+        "asc",
+      )
+      .orderBy(sql<string>`COALESCE(u.name, u.email)`, "asc")
+      .limit(options.limit)
+      .offset(options.offset)
+      .execute(),
+    countQuery.executeTakeFirstOrThrow(),
+  ]);
+
+  return {
+    members: members as unknown as CompanyMember[],
+    total: Number(countResult.count),
+  };
+}
+
 /**
  * Gets a specific member's role in a company
  */

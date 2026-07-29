@@ -1,5 +1,8 @@
 import { db } from "@wateaminbox/database";
-import type { MemberPermissions } from "@wateaminbox/shared";
+import {
+  type MemberPermissions,
+  ROLE_PERMISSION_PRESETS,
+} from "@wateaminbox/shared";
 import { NotFoundError, ForbiddenError } from "../lib/errors.js";
 
 /**
@@ -35,50 +38,13 @@ export type { MemberPermissions } from "@wateaminbox/shared";
 /**
  * Default permission presets for each role
  * Owner: All permissions
- * Admin: All except manage_team
+ * Admin: All permissions, subject to role hierarchy for team operations
  * Member (Agent): Basic messaging permissions
  */
 export const ROLE_PRESETS: Record<
   "owner" | "admin" | "member",
   MemberPermissions
-> = {
-  owner: {
-    can_view_all_chats: true,
-    can_send_messages: true,
-    can_assign_contacts: true,
-    can_manage_team: true,
-    can_invite: true,
-    can_manage_connections: true,
-    can_view_dashboard: true,
-    can_view_audit: true,
-    can_export: true,
-    can_delete: true,
-  },
-  admin: {
-    can_view_all_chats: true,
-    can_send_messages: true,
-    can_assign_contacts: true,
-    can_manage_team: true,
-    can_invite: true,
-    can_manage_connections: true,
-    can_view_dashboard: true,
-    can_view_audit: true,
-    can_export: true,
-    can_delete: true,
-  },
-  member: {
-    can_view_all_chats: false,
-    can_send_messages: true,
-    can_assign_contacts: false,
-    can_manage_team: false,
-    can_invite: false,
-    can_manage_connections: false,
-    can_view_dashboard: false,
-    can_view_audit: false,
-    can_export: false,
-    can_delete: false,
-  },
-};
+> = ROLE_PERMISSION_PRESETS;
 
 /**
  * Gets the effective permissions for a member

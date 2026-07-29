@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { paginationSchema } from "../schemas.js";
 
 const MAX_PROCESSED_LOGO_BYTES = 512 * 1024;
 const MAX_LOGO_DATA_URL_LENGTH =
@@ -68,18 +69,28 @@ export const updateMemberRoleSchema = z.object({
 
 export type UpdateMemberRoleInput = z.infer<typeof updateMemberRoleSchema>;
 
-/**
- * Schema for inviting a member
- */
-export const inviteMemberSchema = z.object({
-  email: z.string().email("Invalid email address"),
-  role: z.enum(["admin", "member"]).default("member"),
+/** Query parameters for the server-driven workspace member table. */
+export const listCompanyMembersQuerySchema = paginationSchema.extend({
+  search: z.string().trim().max(160).optional().default(""),
+  role: z.enum(["all", "owner", "admin", "member"]).optional().default("all"),
 });
 
-export type InviteMemberInput = z.infer<typeof inviteMemberSchema>;
+export type ListCompanyMembersQuery = z.infer<
+  typeof listCompanyMembersQuerySchema
+>;
+
+/** Query parameters for the server-driven pending invitations table. */
+export const listCompanyInvitationsQuerySchema = paginationSchema.extend({
+  search: z.string().trim().max(160).optional().default(""),
+  role: z.enum(["all", "admin", "member"]).optional().default("all"),
+});
+
+export type ListCompanyInvitationsQuery = z.infer<
+  typeof listCompanyInvitationsQuerySchema
+>;
 
 /**
- * Schema for updating member permissions
+ * Schema for workspace permission overrides
  */
 export const updateMemberPermissionsSchema = z.object({
   can_view_all_chats: z.boolean().optional(),
@@ -94,6 +105,20 @@ export const updateMemberPermissionsSchema = z.object({
   can_delete: z.boolean().optional(),
 });
 
+/**
+ * Schema for inviting a member
+ */
+export const inviteMemberSchema = z.object({
+  email: z.string().email("Invalid email address"),
+  role: z.enum(["admin", "member"]).default("member"),
+  permissions: updateMemberPermissionsSchema.optional(),
+});
+
+export type InviteMemberInput = z.infer<typeof inviteMemberSchema>;
+
+/**
+ * Schema for updating member permissions
+ */
 export type UpdateMemberPermissionsInput = z.infer<
   typeof updateMemberPermissionsSchema
 >;

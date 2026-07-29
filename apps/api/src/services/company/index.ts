@@ -28,6 +28,7 @@ export {
   getInvitationByToken,
   getPendingInvitations,
   inviteMember,
+  listPendingInvitations,
   resendInvitation,
 } from "./invitations.js";
 // Member operations
@@ -35,6 +36,7 @@ export {
   canManageMember,
   getMemberRole,
   getMembers,
+  listMembers,
   getUserCompanies,
   hasPermission,
   removeMember,

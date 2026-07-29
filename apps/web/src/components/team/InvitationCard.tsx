@@ -14,6 +14,9 @@ export function InvitationCard({
 }: InvitationCardProps) {
   const expiresAt = dayjs(invitation.expiresAt);
   const isExpiringSoon = expiresAt.valueOf() - nowMs() < 24 * 60 * 60 * 1000;
+  const hasCustomAccess = Boolean(
+    invitation.permissions && Object.keys(invitation.permissions).length,
+  );
 
   return (
     <article className="flex flex-col gap-4 rounded-xl border border-[#dce3de] bg-white p-4 dark:border-dark-border dark:bg-dark-elevated sm:flex-row sm:items-center sm:justify-between">
@@ -27,6 +30,7 @@ export function InvitationCard({
             <Badge variant="secondary" className="capitalize">
               {invitation.role}
             </Badge>
+            {hasCustomAccess && <Badge variant="default">Custom access</Badge>}
             <Badge
               variant="outline"
               className="text-emerald-700 dark:text-emerald-300"

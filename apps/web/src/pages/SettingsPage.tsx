@@ -355,6 +355,7 @@ function GeneralSettings() {
   const leaveCompany = useLeaveCompany();
   const members = useCompanyMembers(
     activeWorkspace?.role === "owner" ? activeWorkspace.id : null,
+    { limit: 100 },
   );
 
   if (!activeWorkspace) return null;
@@ -668,7 +669,7 @@ function GeneralSettings() {
               className="mt-2 h-10 w-full rounded-lg border border-[#dce3de] bg-white px-3 dark:border-dark-border dark:bg-dark-tertiary"
             >
               <option value="">Select a member</option>
-              {members.data
+              {members.data?.data
                 ?.filter((member) => member.userId !== user?.id)
                 .map((member) => (
                   <option key={member.userId} value={member.userId}>

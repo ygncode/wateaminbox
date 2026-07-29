@@ -5,7 +5,12 @@
  */
 
 import { db } from "@wateaminbox/database";
-import { addDays, toDbDate } from "@wateaminbox/shared";
+import {
+  addDays,
+  type CompanyMemberRole,
+  type MemberPermissions,
+  toDbDate,
+} from "@wateaminbox/shared";
 import { randomBytes } from "crypto";
 import { sql } from "kysely";
 import { sendInvitationEmail } from "../../lib/email.js";
@@ -14,9 +19,15 @@ import {
   InvitationEmailMismatchError,
   InvitationExpiredError,
   InvitationNotFoundError,
+  InsufficientPermissionsError,
   UserAlreadyMemberError,
 } from "../../lib/errors.js";
 import { createLogger } from "../../lib/logger.js";
+import {
+  getEffectivePermissions,
+  getMemberWithPermissions,
+  ROLE_PRESETS,
+} from "../permission.service.js";
 import { getCompany } from "./core.js";
 import type {
   AcceptInvitationResult,
@@ -29,6 +40,62 @@ import type {
 const logger = createLogger("CompanyInvitations");
 
 type InvitationEmailSender = typeof sendInvitationEmail;
+
+const roleRank: Record<CompanyMemberRole, number> = {
+  owner: 3,
+  admin: 2,
+  member: 1,
+};
+
+/** Invitations may create only roles at or below the inviter's own rank. */
+export function canInviteRole(
+  inviterRole: CompanyMemberRole,
+  invitedRole: Exclude<CompanyMemberRole, "owner">,
+): boolean {
+  return roleRank[inviterRole] >= roleRank[invitedRole];
+}
+
+/** Store only permission values that differ from the selected role preset. */
+export function normalizeInvitationPermissions(
+  role: "admin" | "member",
+  requested: Partial<MemberPermissions> = {},
+): Partial<MemberPermissions> {
+  const overrides: Partial<MemberPermissions> = {};
+  for (const key of Object.keys(requested) as Array<keyof MemberPermissions>) {
+    const value = requested[key];
+    if (value !== undefined && value !== ROLE_PRESETS[role][key]) {
+      overrides[key] = value;
+    }
+  }
+  return overrides;
+}
+
+async function authorizeInvitation(
+  companyId: string,
+  inviterId: string,
+  role: "admin" | "member",
+  requestedPermissions?: Partial<MemberPermissions>,
+): Promise<Partial<MemberPermissions>> {
+  const inviter = await getMemberWithPermissions(companyId, inviterId);
+  if (!inviter?.permissions.can_invite) {
+    throw new InsufficientPermissionsError("invite workspace members");
+  }
+  if (!canInviteRole(inviter.role, role)) {
+    throw new InsufficientPermissionsError(
+      `invite a ${role} from the ${inviter.role} role`,
+    );
+  }
+  if (
+    requestedPermissions &&
+    Object.keys(requestedPermissions).length > 0 &&
+    inviter.role !== "owner"
+  ) {
+    throw new InsufficientPermissionsError(
+      "customize permissions on an invitation",
+    );
+  }
+  return normalizeInvitationPermissions(role, requestedPermissions);
+}
 
 export function normalizeInvitationEmail(email: string): string {
   return email.trim().toLowerCase();
@@ -56,6 +123,12 @@ export async function inviteMember(
   const company = await getCompany(companyId);
   const email = normalizeInvitationEmail(input.email);
   const role = input.role ?? "member";
+  const permissions = await authorizeInvitation(
+    companyId,
+    invitedBy,
+    role,
+    input.permissions,
+  );
 
   const inviter = await db
     .selectFrom("users")
@@ -90,6 +163,7 @@ export async function inviteMember(
       company_id: companyId,
       email,
       role,
+      permissions,
       token,
       invited_by: invitedBy,
       expires_at: expiresAt,
@@ -100,6 +174,7 @@ export async function inviteMember(
       "company_id",
       "email",
       "role",
+      "permissions",
       "token",
       "invited_by",
       "expires_at",
@@ -157,6 +232,7 @@ export async function getPendingInvitations(
       "i.company_id",
       "i.email",
       "i.role",
+      "i.permissions",
       "i.token",
       "i.invited_by",
       "inviter.name as inviter_name",
@@ -171,6 +247,93 @@ export async function getPendingInvitations(
     .execute();
 
   return invitations as unknown as Invitation[];
+}
+
+export interface ListPendingInvitationsOptions {
+  search?: string;
+  role?: "all" | "admin" | "member";
+  limit: number;
+  offset: number;
+}
+
+/**
+ * Lists pending invitations for the dashboard table with database-backed
+ * filtering and pagination.
+ */
+export async function listPendingInvitations(
+  companyId: string,
+  options: ListPendingInvitationsOptions,
+): Promise<{ invitations: Invitation[]; total: number }> {
+  const search = options.search?.trim();
+  const searchPattern = search ? `%${search}%` : null;
+  const role =
+    options.role && options.role !== "all" ? options.role : undefined;
+  const currentDate = toDbDate();
+
+  let invitationsQuery = db
+    .selectFrom("invitations as i")
+    .innerJoin("users as inviter", "inviter.id", "i.invited_by")
+    .select([
+      "i.id",
+      "i.company_id",
+      "i.email",
+      "i.role",
+      "i.permissions",
+      "i.token",
+      "i.invited_by",
+      "inviter.name as inviter_name",
+      "inviter.email as inviter_email",
+      "i.expires_at",
+      "i.accepted_at",
+      "i.created_at",
+    ])
+    .where("i.company_id", "=", companyId)
+    .where("i.accepted_at", "is", null)
+    .where("i.expires_at", ">", currentDate);
+
+  let countQuery = db
+    .selectFrom("invitations as i")
+    .innerJoin("users as inviter", "inviter.id", "i.invited_by")
+    .select((expression) => expression.fn.countAll<number>().as("count"))
+    .where("i.company_id", "=", companyId)
+    .where("i.accepted_at", "is", null)
+    .where("i.expires_at", ">", currentDate);
+
+  if (searchPattern) {
+    invitationsQuery = invitationsQuery.where((expression) =>
+      expression.or([
+        expression("i.email", "ilike", searchPattern),
+        expression("inviter.name", "ilike", searchPattern),
+        expression("inviter.email", "ilike", searchPattern),
+      ]),
+    );
+    countQuery = countQuery.where((expression) =>
+      expression.or([
+        expression("i.email", "ilike", searchPattern),
+        expression("inviter.name", "ilike", searchPattern),
+        expression("inviter.email", "ilike", searchPattern),
+      ]),
+    );
+  }
+
+  if (role) {
+    invitationsQuery = invitationsQuery.where("i.role", "=", role);
+    countQuery = countQuery.where("i.role", "=", role);
+  }
+
+  const [invitations, countResult] = await Promise.all([
+    invitationsQuery
+      .orderBy("i.created_at", "desc")
+      .limit(options.limit)
+      .offset(options.offset)
+      .execute(),
+    countQuery.executeTakeFirstOrThrow(),
+  ]);
+
+  return {
+    invitations: invitations as unknown as Invitation[],
+    total: Number(countResult.count),
+  };
 }
 
 /**
@@ -207,6 +370,7 @@ export async function acceptInvitation(
       "company_id",
       "email",
       "role",
+      "permissions",
       "invited_by",
       "expires_at",
       "accepted_at",
@@ -265,7 +429,7 @@ export async function acceptInvitation(
         user_id: userId,
         company_id: invitation.company_id,
         role: invitation.role,
-        permissions: {},
+        permissions: invitation.permissions,
         invited_by: invitation.invited_by,
         joined_at: toDbDate(),
       })
@@ -320,6 +484,7 @@ export async function getInvitationByToken(
       "c.name as company_name",
       "u.email as inviter_email",
       "i.role",
+      "i.permissions",
     ])
     .where("i.token", "=", token)
     .executeTakeFirst();
@@ -342,6 +507,11 @@ export async function getInvitationByToken(
     companyName: result.company_name,
     invitedBy: result.inviter_email,
     role: result.role,
+    permissions: result.permissions as Partial<MemberPermissions>,
+    effectivePermissions: getEffectivePermissions(
+      result.role,
+      result.permissions as Partial<MemberPermissions>,
+    ),
     expiresAt: result.expires_at,
     createdAt: result.created_at,
   };
@@ -371,6 +541,7 @@ export async function resendInvitation(
       "company_id",
       "email",
       "role",
+      "permissions",
       "token",
       "invited_by",
       "expires_at",
@@ -382,6 +553,7 @@ export async function resendInvitation(
     .where("accepted_at", "is", null)
     .executeTakeFirst();
   if (!invitation) throw new InvitationNotFoundError(invitationId);
+  await authorizeInvitation(companyId, userId, invitation.role);
 
   const newToken = randomBytes(32).toString("hex");
   const expiresAt = addDays(toDbDate(), 7).toDate();
@@ -394,6 +566,7 @@ export async function resendInvitation(
       "company_id",
       "email",
       "role",
+      "permissions",
       "token",
       "invited_by",
       "expires_at",

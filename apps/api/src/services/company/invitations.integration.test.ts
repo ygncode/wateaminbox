@@ -3,6 +3,7 @@ import { db } from "@wateaminbox/database";
 import {
   InvitationDeliveryError,
   InvitationEmailMismatchError,
+  InsufficientPermissionsError,
 } from "../../lib/errors.js";
 import {
   acceptInvitation,
@@ -27,6 +28,7 @@ describe("company invitations", () => {
       const recipientId = crypto.randomUUID();
       const otherUserId = crypto.randomUUID();
       const failedRecipientId = crypto.randomUUID();
+      const memberInviterId = crypto.randomUUID();
       const companyId = crypto.randomUUID();
       const schemaName = `test_${companyId.replaceAll("-", "_")}`;
       const recipientEmail = `admin-${recipientId}@example.com`;
@@ -56,6 +58,11 @@ describe("company invitations", () => {
               email: failedEmailAddress,
               password_hash: "test",
             },
+            {
+              id: memberInviterId,
+              email: `member-inviter-${memberInviterId}@example.com`,
+              password_hash: "test",
+            },
           ])
           .execute();
         await db
@@ -73,21 +80,58 @@ describe("company invitations", () => {
           .execute();
         await db
           .insertInto("company_members")
-          .values({
-            company_id: companyId,
-            user_id: ownerId,
-            role: "owner",
-          })
+          .values([
+            {
+              company_id: companyId,
+              user_id: ownerId,
+              role: "owner",
+            },
+            {
+              company_id: companyId,
+              user_id: memberInviterId,
+              role: "member",
+              permissions: { can_invite: true },
+            },
+          ])
           .execute();
+
+        await expect(
+          inviteMember(
+            companyId,
+            { email: failedEmailAddress, role: "admin" },
+            memberInviterId,
+            deliveredEmail,
+          ),
+        ).rejects.toBeInstanceOf(InsufficientPermissionsError);
+        await expect(
+          inviteMember(
+            companyId,
+            {
+              email: failedEmailAddress,
+              role: "member",
+              permissions: { can_view_dashboard: true },
+            },
+            memberInviterId,
+            deliveredEmail,
+          ),
+        ).rejects.toBeInstanceOf(InsufficientPermissionsError);
 
         const invitation = await inviteMember(
           companyId,
-          { email: recipientEmail.toUpperCase(), role: "admin" },
+          {
+            email: recipientEmail.toUpperCase(),
+            role: "admin",
+            permissions: {
+              can_export: false,
+              can_send_messages: true,
+            },
+          },
           ownerId,
           deliveredEmail,
         );
         expect(invitation.email).toBe(recipientEmail);
         expect(invitation.role).toBe("admin");
+        expect(invitation.permissions).toEqual({ can_export: false });
 
         await expect(
           acceptInvitation(invitation.token, otherUserId),
@@ -104,6 +148,7 @@ describe("company invitations", () => {
 
         const accepted = await acceptInvitation(invitation.token, recipientId);
         expect(accepted.member.role).toBe("admin");
+        expect(accepted.member.permissions).toEqual({ can_export: false });
 
         await expect(
           inviteMember(
@@ -132,11 +177,12 @@ describe("company invitations", () => {
         ).rejects.toBeInstanceOf(InvitationDeliveryError);
         const restored = await db
           .selectFrom("invitations")
-          .select(["token", "role"])
+          .select(["token", "role", "permissions"])
           .where("id", "=", pending.id)
           .executeTakeFirstOrThrow();
         expect(restored.token).toBe(pending.token);
         expect(restored.role).toBe("member");
+        expect(restored.permissions).toEqual({});
       } finally {
         await db.deleteFrom("companies").where("id", "=", companyId).execute();
         await db
@@ -146,6 +192,7 @@ describe("company invitations", () => {
             recipientId,
             otherUserId,
             failedRecipientId,
+            memberInviterId,
           ])
           .execute();
       }

@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api/client";
 import { queryKeys } from "./query-keys";
 
@@ -102,6 +102,7 @@ export function useAuditLogs(
       return response;
     },
     enabled: !!companyId,
+    placeholderData: keepPreviousData,
     staleTime: 30_000,
     gcTime: 300_000, // 5 minutes
   });

@@ -9,8 +9,16 @@ import type { CompanyMember } from "@wateaminbox/shared";
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
-import { successData, successMessage } from "../../lib/response.js";
-import { updateMemberRoleSchema } from "../../lib/schemas/index.js";
+import { createPaginationMeta } from "../../lib/route-helpers.js";
+import {
+  successData,
+  successMessage,
+  successPaginated,
+} from "../../lib/response.js";
+import {
+  listCompanyMembersQuerySchema,
+  updateMemberRoleSchema,
+} from "../../lib/schemas/index.js";
 import { authMiddleware } from "../../middleware/auth.js";
 import { requirePermission, tenantFromParam } from "../../middleware/tenant.js";
 import * as companyService from "../../services/company.service.js";
@@ -42,19 +50,27 @@ export const memberRoutes = new Hono();
 
 /**
  * GET /:id/members - List company members
+ * Query params: search, role, limit, offset
  */
 memberRoutes.get(
   "/:id/members",
   authMiddleware,
   tenantFromParam("id"),
   requirePermission(PERMISSIONS.CAN_MANAGE_TEAM),
+  zValidator("query", listCompanyMembersQuerySchema),
   async (c) => {
     const companyId = c.get("companyId");
+    const { search, role, limit, offset } = c.req.valid("query");
 
     try {
-      const members = await companyService.getMembers(companyId);
+      const result = await companyService.listMembers(companyId, {
+        search,
+        role,
+        limit,
+        offset,
+      });
       // Transform to API format and add effective permissions
-      const membersWithPermissions = members.map((member) => {
+      const membersWithPermissions = result.members.map((member) => {
         const apiMember = toApiMember(member);
         return {
           ...apiMember,
@@ -64,7 +80,14 @@ memberRoutes.get(
           ),
         };
       });
-      return successData(c, membersWithPermissions);
+      return successPaginated(
+        c,
+        membersWithPermissions,
+        createPaginationMeta(result.total, membersWithPermissions.length, {
+          limit,
+          offset,
+        }),
+      );
     } catch (error) {
       if (error instanceof companyService.CompanyNotFoundError) {
         throw new HTTPException(404, { message: error.message });

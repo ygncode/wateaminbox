@@ -9,16 +9,23 @@ import { Hono } from "hono";
 import {
   successData,
   successMessage,
+  successPaginated,
   successWithMessage,
 } from "../../lib/response.js";
+import { createPaginationMeta } from "../../lib/route-helpers.js";
 import {
   type InviteMemberInput,
   inviteMemberSchema,
+  listCompanyInvitationsQuerySchema,
 } from "../../lib/schemas/index.js";
 import { authMiddleware } from "../../middleware/auth.js";
 import { requirePermission, tenantFromParam } from "../../middleware/tenant.js";
+import { createAuditLog, getClientIp } from "../../services/audit.service.js";
 import * as companyService from "../../services/company.service.js";
-import { PERMISSIONS } from "../../services/permission.service.js";
+import {
+  getEffectivePermissions,
+  PERMISSIONS,
+} from "../../services/permission.service.js";
 
 export const invitationRoutes = new Hono();
 
@@ -31,12 +38,19 @@ invitationRoutes.get(
   authMiddleware,
   tenantFromParam("id"),
   requirePermission(PERMISSIONS.CAN_INVITE),
+  zValidator("query", listCompanyInvitationsQuerySchema),
   async (c) => {
     const companyId = c.get("companyId");
+    const { search, role, limit, offset } = c.req.valid("query");
 
-    const invitations = await companyService.getPendingInvitations(companyId);
+    const result = await companyService.listPendingInvitations(companyId, {
+      search,
+      role,
+      limit,
+      offset,
+    });
     // Transform snake_case to camelCase for frontend
-    const transformedInvitations = invitations.map((inv) => ({
+    const transformedInvitations = result.invitations.map((inv) => ({
       id: inv.id,
       companyId: inv.company_id,
       email: inv.email,
@@ -45,11 +59,20 @@ invitationRoutes.get(
       invitedBy: inv.invited_by,
       inviterName: inv.inviter_name,
       inviterEmail: inv.inviter_email,
+      permissions: inv.permissions,
+      effectivePermissions: getEffectivePermissions(inv.role, inv.permissions),
       deliveryState: "delivered" as const,
       expiresAt: inv.expires_at,
       createdAt: inv.created_at,
     }));
-    return successData(c, transformedInvitations);
+    return successPaginated(
+      c,
+      transformedInvitations,
+      createPaginationMeta(result.total, transformedInvitations.length, {
+        limit,
+        offset,
+      }),
+    );
   },
 );
 
@@ -70,9 +93,30 @@ invitationRoutes.post(
 
     const invitation = await companyService.inviteMember(
       companyId,
-      { email: input.email, role: input.role },
+      {
+        email: input.email,
+        role: input.role,
+        permissions: input.permissions,
+      },
       user.id,
     );
+    await createAuditLog({
+      companyId,
+      userId: user.id,
+      action: "invitation.sent",
+      entityType: "invitation",
+      entityId: invitation.id,
+      details: {
+        email: invitation.email,
+        role: invitation.role,
+        accessMode:
+          Object.keys(invitation.permissions).length > 0
+            ? "custom"
+            : "role_defaults",
+        permissionOverrides: invitation.permissions,
+      },
+      ipAddress: getClientIp(c.req.raw.headers),
+    });
     return successWithMessage(
       c,
       `Invitation sent to ${input.email}`,
@@ -136,6 +180,22 @@ tokenInvitationRoutes.post("/:token/accept", authMiddleware, async (c) => {
   const user = c.get("user");
 
   const result = await companyService.acceptInvitation(token, user.id);
+  await createAuditLog({
+    companyId: result.company.id,
+    userId: user.id,
+    action: "invitation.accepted",
+    entityType: "member",
+    entityId: result.member.id,
+    details: {
+      role: result.member.role,
+      accessMode:
+        Object.keys(result.member.permissions).length > 0
+          ? "custom"
+          : "role_defaults",
+      permissionOverrides: result.member.permissions,
+    },
+    ipAddress: getClientIp(c.req.raw.headers),
+  });
   return successWithMessage(c, `Successfully joined ${result.company.name}`, {
     company: result.company,
     member: result.member,

@@ -16,6 +16,8 @@ export interface MembersListProps {
   currentUserRole: "owner" | "admin" | "member";
   search: string;
   roleFilter: "all" | "owner" | "admin" | "member";
+  onSearchChange: (search: string) => void;
+  onRoleFilterChange: (role: "all" | "owner" | "admin" | "member") => void;
 }
 
 export interface MemberCardProps {
@@ -33,7 +35,6 @@ export interface MemberCardProps {
 
 export interface InvitationsListProps {
   companyId: string;
-  search?: string;
 }
 
 export interface InvitationCardProps {
@@ -46,5 +47,6 @@ export interface InvitationCardProps {
 
 export interface InviteFormModalProps {
   companyId: string;
+  currentUserRole: "owner" | "admin" | "member";
   onClose: () => void;
 }

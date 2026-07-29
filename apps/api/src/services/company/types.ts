@@ -42,6 +42,7 @@ export interface Invitation {
   company_id: string;
   email: string;
   role: "admin" | "member";
+  permissions: Partial<import("@wateaminbox/shared").MemberPermissions>;
   token: string;
   invited_by: string;
   inviter_name?: string | null;
@@ -76,6 +77,7 @@ export interface UpdateCompanyInput {
 export interface InviteMemberInput {
   email: string;
   role?: "admin" | "member";
+  permissions?: Partial<import("@wateaminbox/shared").MemberPermissions>;
 }
 
 /**
@@ -95,6 +97,8 @@ export interface InvitationPreview {
   companyName: string;
   invitedBy: string;
   role: "admin" | "member";
+  permissions: Partial<import("@wateaminbox/shared").MemberPermissions>;
+  effectivePermissions: import("@wateaminbox/shared").MemberPermissions;
   expiresAt: Date;
   createdAt: Date;
 }

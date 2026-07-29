@@ -1,7 +1,6 @@
-import { Mail, Search, UserPlus, Users } from "lucide-react";
+import { Mail, UserPlus, Users } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { useCompanyMembers, usePendingInvitations } from "@/hooks/useTeam";
 import { cn } from "@/lib/utils";
 import { InvitationsList } from "./InvitationsList";
@@ -21,7 +20,7 @@ export function TeamManagement({
     canManageTeam ? "members" : "invitations",
   );
   const [showInviteForm, setShowInviteForm] = useState(false);
-  const [search, setSearch] = useState("");
+  const [memberSearch, setMemberSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState<
     "all" | "owner" | "admin" | "member"
   >("all");
@@ -38,8 +37,8 @@ export function TeamManagement({
               Team
             </h1>
             <p className="mt-1 text-xs text-[#65736d] dark:text-dark-text-secondary">
-              {members.data?.length ?? 0} members ·{" "}
-              {invitations.data?.length ?? 0} pending invitations
+              {members.data?.pagination.total ?? 0} members ·{" "}
+              {invitations.data?.pagination.total ?? 0} pending invitations
             </p>
           </div>
           {canInvite && (
@@ -51,38 +50,6 @@ export function TeamManagement({
             </Button>
           )}
         </div>
-
-        <div className="mt-4 flex flex-col gap-2 sm:flex-row">
-          <label className="relative min-w-0 flex-1">
-            <span className="sr-only">Search team</span>
-            <Search className="absolute left-3 top-2.5 h-4 w-4 text-[#829089]" />
-            <Input
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder={
-                activeTab === "members"
-                  ? "Search members"
-                  : "Search invitations"
-              }
-              className="h-9 bg-[#f8faf8] pl-9 dark:bg-dark-tertiary"
-            />
-          </label>
-          {activeTab === "members" && (
-            <select
-              value={roleFilter}
-              onChange={(event) =>
-                setRoleFilter(event.target.value as typeof roleFilter)
-              }
-              className="h-9 rounded-lg border border-[#dce3de] bg-white px-3 text-sm dark:border-dark-border dark:bg-dark-tertiary"
-              aria-label="Filter members by role"
-            >
-              <option value="all">All roles</option>
-              <option value="owner">Owners</option>
-              <option value="admin">Admins</option>
-              <option value="member">Members</option>
-            </select>
-          )}
-        </div>
       </header>
 
       <div className="flex border-b border-[#dce3de] bg-white dark:border-dark-border dark:bg-dark-secondary">
@@ -92,7 +59,7 @@ export function TeamManagement({
             onClick={() => setActiveTab("members")}
             icon={Users}
             label="Members"
-            count={members.data?.length}
+            count={members.data?.pagination.total}
           />
         )}
         {canInvite && (
@@ -101,28 +68,31 @@ export function TeamManagement({
             onClick={() => setActiveTab("invitations")}
             icon={Mail}
             label="Invitations"
-            count={invitations.data?.length}
+            count={invitations.data?.pagination.total}
           />
         )}
       </div>
 
-      <div className="flex-1 overflow-auto p-4 sm:p-6">
+      <div className="min-h-0 flex-1 overflow-hidden p-4 sm:p-6">
         {activeTab === "members" && canManageTeam ? (
           <MembersList
             companyId={companyId}
             currentUserId={currentUserId}
             currentUserRole={currentUserRole}
-            search={search}
+            search={memberSearch}
             roleFilter={roleFilter}
+            onSearchChange={setMemberSearch}
+            onRoleFilterChange={setRoleFilter}
           />
         ) : (
-          <InvitationsList companyId={companyId} search={search} />
+          <InvitationsList companyId={companyId} />
         )}
       </div>
 
       {showInviteForm && canInvite && (
         <InviteFormModal
           companyId={companyId}
+          currentUserRole={currentUserRole}
           onClose={() => setShowInviteForm(false)}
         />
       )}
