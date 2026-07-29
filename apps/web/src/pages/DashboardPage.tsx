@@ -7,7 +7,7 @@ export function DashboardPage() {
   if (!activeWorkspace) return null;
 
   return (
-    <div className="h-full w-full bg-[#f5f7f4] dark:bg-dark-primary">
+    <div className="h-full w-full overflow-hidden bg-white dark:bg-dark-primary">
       <Dashboard
         companyId={activeWorkspace.id}
         workspaceName={activeWorkspace.name}

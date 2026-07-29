@@ -9,3 +9,7 @@ export {
   NewContactsChart,
   type NewContactsChartProps,
 } from "./NewContactsChart";
+export {
+  ResponseTimeTrendChart,
+  type ResponseTimeTrendData,
+} from "./ResponseTimeTrendChart";

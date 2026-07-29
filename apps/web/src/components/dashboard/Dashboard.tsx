@@ -110,99 +110,134 @@ export function Dashboard({
   } = useNewContactsTrend(companyId, startDate, endDate);
 
   return (
-    <ScrollArea className="h-full">
-      <div className="p-6 space-y-6">
-        {/* Header */}
-        <DashboardHeader
-          workspaceName={workspaceName}
-          dateRange={dateRange}
-          canExport={canExport}
-          onDateRangeChange={setDateRange}
-          onExport={setExportType}
+    <div className="flex h-full min-h-0 flex-col overflow-hidden bg-[#f5f7f4] dark:bg-dark-primary">
+      <DashboardHeader
+        workspaceName={workspaceName}
+        dateRange={dateRange}
+        canExport={canExport}
+        onDateRangeChange={setDateRange}
+        onExport={setExportType}
+      />
+
+      {exportType && (
+        <ExportDialog
+          open={!!exportType}
+          onOpenChange={(open) => !open && setExportType(null)}
+          type={exportType}
         />
+      )}
 
-        {/* Export Dialog */}
-        {exportType && (
-          <ExportDialog
-            open={!!exportType}
-            onOpenChange={(open) => !open && setExportType(null)}
-            type={exportType}
-          />
-        )}
-
-        <section aria-labelledby="operational-overview-title">
-          <div className="mb-3 flex items-center justify-between">
-            <h2
-              id="operational-overview-title"
-              className="text-sm font-semibold"
-            >
-              Operational overview
-            </h2>
-            <span className="rounded-full bg-[#edf1ed] px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-[#65736d] dark:bg-dark-tertiary dark:text-dark-text-secondary">
-              All time
-            </span>
-          </div>
-          <DashboardStats
-            data={dashboardStats}
-            isLoading={isLoadingDashboard}
-            isError={isDashboardError}
-          />
-        </section>
-
-        {/* Charts Row */}
-        <TrendChartsRow
-          messageData={messageData}
-          isLoadingMessages={isLoadingMessages}
-          isMessagesError={isMessagesError}
-          contactsTrendData={contactsTrendData}
-          isLoadingContactsTrend={isLoadingContactsTrend}
-          isContactsTrendError={isContactsTrendError}
-          hourlyStats={hourlyStats}
-          isLoadingHourly={isLoadingHourly}
-          isHourlyError={isHourlyError}
-        />
-
-        <div ref={secondarySentinelRef} className="h-px" aria-hidden="true" />
-        {showSecondary ? (
-          <>
-            <StatsCardsRow
-              contactStats={contactStats}
-              isLoadingContacts={isLoadingContacts}
-              isContactsError={isContactsError}
-              messageTypes={messageTypes}
-              isLoadingTypes={isLoadingTypes}
-              isTypesError={isTypesError}
-              teamStats={teamStats}
-              isLoadingTeam={isLoadingTeam}
-              isTeamError={isTeamError}
-              isAdmin={isAdmin}
-            />
-            <ResolutionRateSection companyId={companyId} />
-            <CustomerEngagementSection
-              companyId={companyId}
-              startDate={startDate}
-              endDate={endDate}
-            />
-            <div className="rounded-lg border border-gray-200 bg-white p-4 dark:border-dark-border dark:bg-dark-elevated sm:p-6">
-              <ResponseTimeAnalytics
-                companyId={companyId}
-                dateRange={dateRange}
-                isAdmin={isAdmin}
-                slaThreshold={60}
+      <div className="min-h-0 flex-1 overflow-hidden p-3 sm:p-4">
+        <ScrollArea className="h-full rounded-xl border border-[#dce3de] bg-[#f9fbf9] shadow-sm dark:border-dark-border dark:bg-dark-secondary">
+          <div className="space-y-6 p-4 sm:p-5 lg:p-6">
+            <section aria-labelledby="operational-overview-title">
+              <div className="mb-3 flex items-center justify-between">
+                <div>
+                  <h2
+                    id="operational-overview-title"
+                    className="text-sm font-semibold text-[#203b32] dark:text-dark-text-primary"
+                  >
+                    Operational overview
+                  </h2>
+                  <p className="mt-0.5 text-xs text-[#718078] dark:text-dark-text-secondary">
+                    A live pulse of messaging and workspace activity.
+                  </p>
+                </div>
+                <span className="rounded-full border border-[#dce3de] bg-white px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-[#65736d] dark:border-dark-border dark:bg-dark-elevated dark:text-dark-text-secondary">
+                  All time
+                </span>
+              </div>
+              <DashboardStats
+                data={dashboardStats}
+                isLoading={isLoadingDashboard}
+                isError={isDashboardError}
               />
+            </section>
+
+            <div className="flex flex-wrap items-end justify-between gap-2 pt-1">
+              <div>
+                <h2 className="text-sm font-semibold text-[#203b32] dark:text-dark-text-primary">
+                  Activity trends
+                </h2>
+                <p className="mt-0.5 text-xs text-[#718078] dark:text-dark-text-secondary">
+                  Volume, acquisition, and traffic patterns.
+                </p>
+              </div>
+              <span className="rounded-full bg-[#edf2ef] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-[#65736d] dark:bg-dark-tertiary dark:text-dark-text-secondary">
+                Last{" "}
+                {dateRange === "7d" ? "7" : dateRange === "90d" ? "90" : "30"}{" "}
+                days
+              </span>
             </div>
-          </>
-        ) : (
-          <button
-            type="button"
-            onClick={() => setShowSecondary(true)}
-            className="w-full rounded-xl border border-dashed border-[#cbd6cf] bg-white/60 py-6 text-sm font-medium text-[#0b7a55] hover:bg-white dark:border-dark-border dark:bg-dark-elevated/50 dark:hover:bg-dark-elevated"
-          >
-            Load detailed analytics
-          </button>
-        )}
+
+            <TrendChartsRow
+              messageData={messageData}
+              isLoadingMessages={isLoadingMessages}
+              isMessagesError={isMessagesError}
+              contactsTrendData={contactsTrendData}
+              isLoadingContactsTrend={isLoadingContactsTrend}
+              isContactsTrendError={isContactsTrendError}
+              hourlyStats={hourlyStats}
+              isLoadingHourly={isLoadingHourly}
+              isHourlyError={isHourlyError}
+            />
+
+            <div
+              ref={secondarySentinelRef}
+              className="h-px"
+              aria-hidden="true"
+            />
+            {showSecondary ? (
+              <>
+                <div className="border-t border-[#dce3de] pt-6 dark:border-dark-border">
+                  <h2 className="text-sm font-semibold text-[#203b32] dark:text-dark-text-primary">
+                    Workspace insights
+                  </h2>
+                  <p className="mt-0.5 text-xs text-[#718078] dark:text-dark-text-secondary">
+                    Deeper signals for contact quality, outcomes, and service
+                    performance.
+                  </p>
+                </div>
+                <StatsCardsRow
+                  contactStats={contactStats}
+                  isLoadingContacts={isLoadingContacts}
+                  isContactsError={isContactsError}
+                  messageTypes={messageTypes}
+                  isLoadingTypes={isLoadingTypes}
+                  isTypesError={isTypesError}
+                  teamStats={teamStats}
+                  isLoadingTeam={isLoadingTeam}
+                  isTeamError={isTeamError}
+                  isAdmin={isAdmin}
+                />
+                <ResolutionRateSection companyId={companyId} />
+                <CustomerEngagementSection
+                  companyId={companyId}
+                  startDate={startDate}
+                  endDate={endDate}
+                />
+                <div className="rounded-xl border border-[#dce3de] bg-white p-5 shadow-[0_1px_1px_rgba(16,44,36,0.03)] dark:border-dark-border dark:bg-dark-elevated">
+                  <ResponseTimeAnalytics
+                    companyId={companyId}
+                    dateRange={dateRange}
+                    isAdmin={isAdmin}
+                    slaThreshold={60}
+                  />
+                </div>
+              </>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setShowSecondary(true)}
+                className="w-full rounded-xl border border-dashed border-[#cbd6cf] bg-white/70 py-6 text-sm font-medium text-[#0b7a55] transition-colors hover:border-[#8cb7a4] hover:bg-white dark:border-dark-border dark:bg-dark-elevated/50 dark:hover:bg-dark-elevated"
+              >
+                Load detailed analytics
+              </button>
+            )}
+          </div>
+        </ScrollArea>
       </div>
-    </ScrollArea>
+    </div>
   );
 }
 

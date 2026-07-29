@@ -15,16 +15,26 @@ export type StatCardColor =
   | "default";
 
 const colorClasses: Record<StatCardColor, string> = {
-  green: "text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/30",
-  blue: "text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30",
+  green:
+    "text-[#0b7a55] dark:text-emerald-300 bg-[#e5f2ec] dark:bg-emerald-950/50",
+  blue: "text-[#3f78ad] dark:text-blue-300 bg-[#eaf1f7] dark:bg-blue-950/40",
   orange:
-    "text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-900/30",
+    "text-[#b36c24] dark:text-amber-300 bg-[#fff2df] dark:bg-amber-950/40",
   yellow:
-    "text-yellow-600 dark:text-yellow-400 bg-yellow-50 dark:bg-yellow-900/30",
+    "text-[#a47718] dark:text-yellow-300 bg-[#fff8dd] dark:bg-yellow-950/40",
   purple:
-    "text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-900/30",
+    "text-[#70649a] dark:text-violet-300 bg-[#f1eef8] dark:bg-violet-950/40",
   default:
-    "text-gray-500 dark:text-dark-text-secondary bg-gray-100 dark:bg-dark-tertiary",
+    "text-[#536b62] dark:text-dark-text-secondary bg-[#edf2ef] dark:bg-dark-tertiary",
+};
+
+const accentClasses: Record<StatCardColor, string> = {
+  green: "bg-[#0b7a55]",
+  blue: "bg-[#4185c5]",
+  orange: "bg-[#d18b35]",
+  yellow: "bg-[#c79a2e]",
+  purple: "bg-[#7b6ca8]",
+  default: "bg-[#8da097]",
 };
 
 /**
@@ -82,22 +92,28 @@ function OverviewStatCard({
   color = "default",
 }: StatCardOverviewProps) {
   return (
-    <div className="bg-white dark:bg-dark-elevated rounded-lg border border-gray-200 dark:border-dark-border p-4">
+    <div className="group relative overflow-hidden rounded-xl border border-[#dce3de] bg-white p-4 shadow-[0_1px_1px_rgba(16,44,36,0.03)] transition-[border-color,box-shadow,transform] hover:-translate-y-0.5 hover:border-[#bdcbc3] hover:shadow-[0_8px_24px_rgba(16,44,36,0.08)] dark:border-dark-border dark:bg-dark-elevated dark:hover:border-[#43525b]">
+      <span
+        className={cn(
+          "absolute inset-x-0 top-0 h-0.5 opacity-80",
+          accentClasses[color],
+        )}
+      />
       <div
         className={cn(
-          "w-10 h-10 rounded-full flex items-center justify-center mb-3",
+          "mb-4 flex h-9 w-9 items-center justify-center rounded-xl",
           colorClasses[color],
         )}
       >
         {icon}
       </div>
-      <p className="text-xs text-gray-500 dark:text-dark-text-secondary uppercase">
+      <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[#7c8983] dark:text-dark-text-secondary">
         {label}
       </p>
       {isLoading ? (
-        <Skeleton className="h-7 w-16 mt-1" />
+        <Skeleton className="mt-1.5 h-8 w-16" />
       ) : (
-        <p className="text-2xl font-semibold text-gray-900 dark:text-dark-text-primary tabular-nums">
+        <p className="mt-1 text-2xl font-semibold tracking-[-0.02em] text-[#203b32] tabular-nums dark:text-dark-text-primary">
           {value !== undefined ? formatNumber(value) : "-"}
         </p>
       )}
@@ -117,26 +133,26 @@ function CompactStatCard({
   color,
 }: StatCardCompactProps) {
   return (
-    <div className="bg-gray-50 dark:bg-dark-tertiary rounded-lg p-4">
-      <div className="flex items-center gap-2 mb-2">
+    <div className="rounded-xl border border-[#e3e9e5] bg-[#fafcfb] p-4 dark:border-dark-border dark:bg-dark-tertiary/60">
+      <div className="mb-3 flex items-center gap-2.5">
         <div
           className={cn(
-            "w-8 h-8 rounded-full flex items-center justify-center",
+            "flex h-8 w-8 items-center justify-center rounded-lg",
             colorClasses[color],
           )}
         >
           {icon}
         </div>
-        <span className="text-sm text-gray-600 dark:text-dark-text-secondary">
+        <span className="text-xs font-medium text-[#65736d] dark:text-dark-text-secondary">
           {label}
         </span>
       </div>
-      <p className="text-2xl font-semibold text-gray-900 dark:text-dark-text-primary tabular-nums">
+      <p className="text-2xl font-semibold tracking-[-0.02em] text-[#203b32] tabular-nums dark:text-dark-text-primary">
         {formatNumber(value)}
         {suffix}
       </p>
       {detail && (
-        <p className="text-xs text-gray-500 dark:text-dark-text-secondary mt-1">
+        <p className="mt-1 text-[11px] text-[#87928c] dark:text-dark-text-secondary">
           {detail}
         </p>
       )}
