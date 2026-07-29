@@ -1,15 +1,45 @@
 package nats
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
+	"strings"
+	"sync"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/nats-io/nats.go"
 	sharednats "github.com/ygncode-lab/whatsapp-web/services/shared/nats"
 	internaltypes "github.com/ygncode-lab/whatsapp-web/services/whatsapp/internal/types"
 )
+
+const (
+	eventPublishMaxAttempts = 5
+	eventPublishBaseDelay   = 250 * time.Millisecond
+	eventOutboxPollInterval = time.Second
+	eventOutboxBatchSize    = 100
+)
+
+type jetStreamPublisher interface {
+	Publish(subject string, data []byte, opts ...nats.PubOpt) (*nats.PubAck, error)
+}
+
+type PendingEvent struct {
+	ID      string
+	Subject string
+	Payload []byte
+}
+
+// EventOutbox persists worker events before they cross the NATS boundary.
+// Implementations must scope entries to the worker's connection.
+type EventOutbox interface {
+	SavePendingEvent(ctx context.Context, event PendingEvent) error
+	ListPendingEvents(ctx context.Context, limit int) ([]PendingEvent, error)
+	MarkEventPublished(ctx context.Context, eventID string) error
+	RecordEventPublishFailure(ctx context.Context, eventID, errorMessage string) error
+}
 
 // Stream and subject constants - re-exported from shared module
 const (
@@ -67,9 +97,13 @@ type (
 // Publisher handles publishing events to NATS.
 type Publisher struct {
 	nc           *nats.Conn
-	js           nats.JetStreamContext
+	js           jetStreamPublisher
 	companyID    string
 	connectionID string
+	outbox       EventOutbox
+	ctx          context.Context
+	cancel       context.CancelFunc
+	wg           sync.WaitGroup
 }
 
 // PublisherConfig holds configuration for the publisher.
@@ -77,6 +111,7 @@ type PublisherConfig struct {
 	NATSURL      string
 	CompanyID    string
 	ConnectionID string
+	EventOutbox  EventOutbox
 }
 
 // NewPublisher creates a new NATS publisher.
@@ -111,13 +146,26 @@ func NewPublisher(cfg PublisherConfig) (*Publisher, error) {
 		nc.Close()
 		return nil, fmt.Errorf("failed to ensure stream: %w", err)
 	}
+	if err := sharednats.EnsureStream(js, sharednats.DefaultDeadLettersStreamConfig()); err != nil {
+		nc.Close()
+		return nil, fmt.Errorf("failed to ensure dead-letter stream: %w", err)
+	}
 
-	return &Publisher{
+	ctx, cancel := context.WithCancel(context.Background())
+	publisher := &Publisher{
 		nc:           nc,
 		js:           js,
 		companyID:    cfg.CompanyID,
 		connectionID: cfg.ConnectionID,
-	}, nil
+		outbox:       cfg.EventOutbox,
+		ctx:          ctx,
+		cancel:       cancel,
+	}
+	if publisher.outbox != nil {
+		publisher.wg.Add(1)
+		go publisher.runEventOutbox()
+	}
+	return publisher, nil
 }
 
 // PublishQRCode publishes a QR code event.
@@ -484,16 +532,132 @@ func (p *Publisher) PublishDownloadResponse(messageID, mediaURL string, mediaSiz
 	return p.publish(subject, event)
 }
 
-// publish marshals the event and publishes it to the specified subject.
+func publishEventWithRetry(
+	js jetStreamPublisher,
+	subject string,
+	data []byte,
+	eventID string,
+) error {
+	var lastErr error
+	var opts []nats.PubOpt
+	if eventID != "" {
+		opts = append(opts, nats.MsgId(eventID))
+	}
+	for attempt := 1; attempt <= eventPublishMaxAttempts; attempt++ {
+		if _, err := js.Publish(subject, data, opts...); err == nil {
+			return nil
+		} else {
+			lastErr = err
+		}
+
+		if attempt == eventPublishMaxAttempts {
+			break
+		}
+		delay := eventPublishBaseDelay * time.Duration(1<<uint(attempt-1))
+		log.Printf(
+			"Failed to publish event to %s (attempt %d/%d): %v; retrying in %v",
+			subject,
+			attempt,
+			eventPublishMaxAttempts,
+			lastErr,
+			delay,
+		)
+		time.Sleep(delay)
+	}
+	return fmt.Errorf(
+		"failed to publish to %s after %d attempts: %w",
+		subject,
+		eventPublishMaxAttempts,
+		lastErr,
+	)
+}
+
+func (p *Publisher) publishPendingEvent(event PendingEvent) error {
+	if err := publishEventWithRetry(
+		p.js,
+		event.Subject,
+		event.Payload,
+		event.ID,
+	); err != nil {
+		_ = p.outbox.RecordEventPublishFailure(
+			p.ctx,
+			event.ID,
+			err.Error(),
+		)
+		return err
+	}
+	if err := p.outbox.MarkEventPublished(p.ctx, event.ID); err != nil {
+		return fmt.Errorf("mark worker event %s published: %w", event.ID, err)
+	}
+	return nil
+}
+
+func (p *Publisher) flushPendingEvents() {
+	events, err := p.outbox.ListPendingEvents(p.ctx, eventOutboxBatchSize)
+	if err != nil {
+		if p.ctx.Err() == nil {
+			log.Printf("Failed to list pending worker events: %v", err)
+		}
+		return
+	}
+	for _, event := range events {
+		if p.ctx.Err() != nil {
+			return
+		}
+		if err = p.publishPendingEvent(event); err != nil {
+			log.Printf("Failed to replay worker event %s: %v", event.ID, err)
+		}
+	}
+}
+
+func (p *Publisher) runEventOutbox() {
+	defer p.wg.Done()
+	p.flushPendingEvents()
+	ticker := time.NewTicker(eventOutboxPollInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-p.ctx.Done():
+			return
+		case <-ticker.C:
+			p.flushPendingEvents()
+		}
+	}
+}
+
+func shouldPersistEventSubject(subject string) bool {
+	return !strings.HasSuffix(subject, ".qr") &&
+		!strings.HasSuffix(subject, ".presence") &&
+		!strings.HasSuffix(subject, ".typing")
+}
+
+// publish marshals the event and publishes it to the specified subject. The
+// event is written to PostgreSQL first so an extended NATS outage or worker
+// restart cannot lose it. JetStream message IDs deduplicate replay after a
+// publish succeeds but the outbox deletion fails.
 func (p *Publisher) publish(subject string, event interface{}) error {
 	data, err := json.Marshal(event)
 	if err != nil {
 		return fmt.Errorf("failed to marshal event: %w", err)
 	}
 
-	_, err = p.js.Publish(subject, data)
-	if err != nil {
-		return fmt.Errorf("failed to publish to %s: %w", subject, err)
+	if p.outbox == nil || !shouldPersistEventSubject(subject) {
+		return publishEventWithRetry(p.js, subject, data, "")
+	}
+
+	pending := PendingEvent{
+		ID:      uuid.NewString(),
+		Subject: subject,
+		Payload: data,
+	}
+	if err = p.outbox.SavePendingEvent(p.ctx, pending); err != nil {
+		return fmt.Errorf("persist worker event before publish: %w", err)
+	}
+	if err = p.publishPendingEvent(pending); err != nil {
+		// Persistence is the success boundary. The background flusher owns
+		// delivery after this point, including across worker restarts.
+		log.Printf("Worker event %s queued for replay after publish failure: %v", pending.ID, err)
+		return nil
 	}
 
 	log.Printf("Published event to %s", subject)
@@ -590,7 +754,11 @@ func (p *Publisher) PublishCommandResult(commandID, commandType string, success 
 
 // Close closes the NATS connection.
 func (p *Publisher) Close() {
+	if p.cancel != nil {
+		p.cancel()
+		p.wg.Wait()
+	}
 	if p.nc != nil {
-		p.nc.Close()
+		_ = p.nc.Drain()
 	}
 }

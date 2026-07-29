@@ -23,6 +23,9 @@ const (
 
 	// Consumer name for message sending (includes connectionId for uniqueness)
 	ConsumerSend = "whatsapp-send-%s-%s"
+
+	commandSideEffectMaxAttempts = 3
+	commandMaxDeliver            = 10
 )
 
 // commandType is used to extract the command type from a message for routing.
@@ -83,6 +86,8 @@ type storedCommandResult struct {
 	CommandType      string             `json:"command_type"`
 	Response         types.SendResponse `json:"response"`
 	CorrelationID    string             `json:"correlation_id"`
+	Failed           bool               `json:"failed,omitempty"`
+	ErrorMessage     string             `json:"error_message,omitempty"`
 }
 
 type MessageSender interface {
@@ -254,7 +259,7 @@ func (s *Subscriber) Start() error {
 				FilterSubject: subject,
 				AckPolicy:     nats.AckExplicitPolicy,
 				DeliverPolicy: nats.DeliverNewPolicy,
-				MaxDeliver:    3,
+				MaxDeliver:    commandMaxDeliver,
 				AckWait:       2 * time.Minute,
 			})
 			if err != nil {
@@ -264,11 +269,12 @@ func (s *Subscriber) Start() error {
 		} else {
 			return fmt.Errorf("failed to get consumer info: %w", err)
 		}
-	} else if info.Config.AckWait < 2*time.Minute {
+	} else if info.Config.AckWait < 2*time.Minute || info.Config.MaxDeliver < commandMaxDeliver {
 		config := info.Config
 		config.AckWait = 2 * time.Minute
+		config.MaxDeliver = commandMaxDeliver
 		if _, err = s.js.UpdateConsumer(CommandsStreamName, &config); err != nil {
-			return fmt.Errorf("failed to update consumer ack wait: %w", err)
+			return fmt.Errorf("failed to update consumer retry policy: %w", err)
 		}
 	}
 
@@ -396,7 +402,20 @@ func (s *Subscriber) publishStoredCommandResult(result storedCommandResult, comm
 		return fmt.Errorf("publisher is not configured")
 	}
 	var err error
-	if result.CommandType == "reaction" {
+	if result.Failed && result.CommandType == "reaction" {
+		err = s.publisher.PublishCommandResult(
+			commandID,
+			result.CommandType,
+			false,
+			result.ErrorMessage,
+		)
+	} else if result.Failed {
+		err = s.publisher.PublishSendFailed(
+			result.PendingMessageID,
+			result.ErrorMessage,
+			result.CorrelationID,
+		)
+	} else if result.CommandType == "reaction" {
 		err = s.publisher.PublishCommandResult(commandID, result.CommandType, true, "")
 	} else {
 		err = s.publisher.PublishSendConfirmation(
@@ -410,6 +429,50 @@ func (s *Subscriber) publishStoredCommandResult(result storedCommandResult, comm
 		err = s.ledger.MarkCommandEventPublished(s.ctx, commandID)
 	}
 	return err
+}
+
+func (s *Subscriber) persistCommandResult(commandID string, result storedCommandResult) error {
+	if commandID == "" || s.ledger == nil {
+		return nil
+	}
+	resultJSON, err := json.Marshal(result)
+	if err != nil {
+		return fmt.Errorf("marshal command result: %w", err)
+	}
+	if err = s.ledger.SaveProcessedCommand(
+		s.ctx,
+		commandID,
+		result.CommandType,
+		resultJSON,
+	); err != nil {
+		return fmt.Errorf("save command result: %w", err)
+	}
+	return nil
+}
+
+func (s *Subscriber) finishFailedSend(
+	msg *nats.Msg,
+	cmd SendMessageCommand,
+	errorMessage string,
+) {
+	stored := storedCommandResult{
+		PendingMessageID: cmd.MessageID,
+		CommandType:      cmd.Type,
+		CorrelationID:    cmd.CorrelationID,
+		Failed:           true,
+		ErrorMessage:     errorMessage,
+	}
+	if err := s.persistCommandResult(cmd.CommandID, stored); err != nil {
+		log.Printf("[NATS] Failed to persist failed command result: %v", err)
+		msg.Nak()
+		return
+	}
+	if err := s.publishStoredCommandResult(stored, cmd.CommandID); err != nil {
+		log.Printf("[NATS] Failed to publish failed command result: %v", err)
+		msg.Nak()
+		return
+	}
+	msg.Ack()
 }
 
 // handleSendCommand processes a send message command.
@@ -453,7 +516,9 @@ func (s *Subscriber) handleSendCommand(msg *nats.Msg) {
 		log.Printf("Failed to get message metadata: %v", err)
 	}
 
-	// MaxDeliver is set to 3 in consumer config, so NumDelivered starts at 1
+	// NumDelivered starts at 1. Deliveries after the side-effect budget are
+	// reserved for durably publishing the terminal outcome, never for sending
+	// to WhatsApp again.
 	deliveryCount := uint64(1)
 	streamSeq := uint64(0)
 	consumerSeq := uint64(0)
@@ -467,8 +532,16 @@ func (s *Subscriber) handleSendCommand(msg *nats.Msg) {
 
 	// Enhanced logging with correlation ID and metadata
 	correlationID := cmd.CorrelationID
-	log.Printf("[NATS] Processing command: type=%s to=%s msg_id=%s corr_id=%s delivery=%d/3 stream_seq=%d consumer_seq=%d pending=%d",
-		cmd.Type, cmd.To, cmd.MessageID, correlationID, deliveryCount, streamSeq, consumerSeq, numPending)
+	log.Printf("[NATS] Processing command: type=%s to=%s msg_id=%s corr_id=%s delivery=%d/%d stream_seq=%d consumer_seq=%d pending=%d",
+		cmd.Type, cmd.To, cmd.MessageID, correlationID, deliveryCount, commandMaxDeliver, streamSeq, consumerSeq, numPending)
+
+	if deliveryCount > commandSideEffectMaxAttempts {
+		// A prior terminal failure could not persist or publish its outcome.
+		// Keep retrying that outcome without repeating the WhatsApp side effect.
+		finishError := "WhatsApp send failed after retry exhaustion"
+		s.finishFailedSend(msg, cmd, finishError)
+		return
+	}
 
 	var resp types.SendResponse
 	ctx, cancel := context.WithTimeout(s.ctx, 30*time.Second)
@@ -508,30 +581,17 @@ func (s *Subscriber) handleSendCommand(msg *nats.Msg) {
 	}
 
 	if err != nil {
-		log.Printf("[NATS] Send failed: msg_id=%s corr_id=%s attempt=%d/3 error=%v", cmd.MessageID, correlationID, deliveryCount, err)
+		log.Printf("[NATS] Send failed: msg_id=%s corr_id=%s attempt=%d/%d error=%v", cmd.MessageID, correlationID, deliveryCount, commandSideEffectMaxAttempts, err)
 
 		// Check if this is the final retry attempt
-		if deliveryCount >= 3 {
+		if deliveryCount >= commandSideEffectMaxAttempts {
 			log.Printf("[NATS] Max retries exceeded: msg_id=%s corr_id=%s - marking as failed", cmd.MessageID, correlationID)
-			// Publish failure event
-			if s.publisher != nil {
-				if cmd.Type == "reaction" {
-					if pubErr := s.publisher.PublishCommandResult(cmd.CommandID, cmd.Type, false, err.Error()); pubErr != nil {
-						log.Printf("[NATS] Failed to publish reaction failure: %v", pubErr)
-					}
-				} else if pubErr := s.publisher.PublishSendFailed(cmd.MessageID, err.Error(), correlationID); pubErr != nil {
-					log.Printf("[NATS] Failed to publish send_failed: msg_id=%s corr_id=%s error=%v", cmd.MessageID, correlationID, pubErr)
-				} else {
-					log.Printf("[NATS] Published send_failed: msg_id=%s corr_id=%s", cmd.MessageID, correlationID)
-				}
-			}
-			// Acknowledge to stop redelivery
-			msg.Ack()
+			s.finishFailedSend(msg, cmd, err.Error())
 			return
 		}
 
 		// Still have retries left, NAK to trigger redelivery
-		log.Printf("[NATS] Scheduling retry: msg_id=%s corr_id=%s next_attempt=%d/3", cmd.MessageID, correlationID, deliveryCount+1)
+		log.Printf("[NATS] Scheduling retry: msg_id=%s corr_id=%s next_attempt=%d/%d", cmd.MessageID, correlationID, deliveryCount+1, commandSideEffectMaxAttempts)
 		msg.Nak()
 		return
 	}
@@ -542,15 +602,12 @@ func (s *Subscriber) handleSendCommand(msg *nats.Msg) {
 		Response:         resp,
 		CorrelationID:    correlationID,
 	}
-	if cmd.CommandID != "" && s.ledger != nil {
-		resultJSON, marshalErr := json.Marshal(stored)
-		if marshalErr != nil || s.ledger.SaveProcessedCommand(s.ctx, cmd.CommandID, cmd.Type, resultJSON) != nil {
-			// This is the unavoidable external-side-effect/local-persistence crash
-			// window. Do not ACK; operators can reconcile by command/message ID.
-			log.Printf("[NATS] Failed to persist successful command result: msg_id=%s", cmd.MessageID)
-			msg.Nak()
-			return
-		}
+	if persistErr := s.persistCommandResult(cmd.CommandID, stored); persistErr != nil {
+		// This is the unavoidable external-side-effect/local-persistence crash
+		// window. Do not ACK; operators can reconcile by command/message ID.
+		log.Printf("[NATS] Failed to persist successful command result: msg_id=%s error=%v", cmd.MessageID, persistErr)
+		msg.Nak()
+		return
 	}
 
 	if err := s.publishStoredCommandResult(stored, cmd.CommandID); err != nil {

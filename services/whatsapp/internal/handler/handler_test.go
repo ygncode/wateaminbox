@@ -11,6 +11,8 @@ import (
 	"go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/types"
 	"google.golang.org/protobuf/proto"
+
+	natsClient "github.com/ygncode-lab/whatsapp-web/services/whatsapp/internal/nats"
 )
 
 // mockDownloader is a mock implementation of WhatsAppClient for testing.
@@ -151,6 +153,27 @@ func newTestHandler(mock *mockDownloader) *Handler {
 		Client:    mock, // Inject the mock directly
 	}
 	return New(cfg)
+}
+
+func TestRetainMediaReferenceClonesDeferredDownloadMetadata(t *testing.T) {
+	downloadable := newMockDownloadable()
+	event := &natsClient.MessageEvent{}
+
+	retainMediaReference(downloadable, event)
+	downloadable.mediaKey[0] = 'X'
+
+	if event.MediaDirectPath != "/test/path" {
+		t.Fatalf("direct path = %q, want /test/path", event.MediaDirectPath)
+	}
+	if string(event.MediaKey) != "test-media-key" {
+		t.Fatalf("media key was not retained independently: %q", event.MediaKey)
+	}
+	if string(event.MediaFileSHA256) != "test-file-sha256" {
+		t.Fatalf("file hash = %q", event.MediaFileSHA256)
+	}
+	if string(event.MediaFileEncSHA256) != "test-file-enc-sha256" {
+		t.Fatalf("encrypted file hash = %q", event.MediaFileEncSHA256)
+	}
 }
 
 // TestDownloadWithRetry_SuccessOnFirstAttempt tests successful download on first try.

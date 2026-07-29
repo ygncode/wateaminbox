@@ -4,7 +4,10 @@
 
 1. A connected whatsmeow worker receives history-sync batches from WhatsApp.
 2. The worker normalizes contacts, conversations, messages, media metadata, and receipts.
-3. Events are published to NATS with company and connection identifiers.
+3. Durable events are written to a connection-scoped PostgreSQL outbox, then
+   published to NATS with a stable JetStream message ID. Pending rows replay
+   after NATS or worker recovery; expiring QR, presence, and typing signals are
+   not replayed.
 4. The Bun API consumes the events and writes them to the correct tenant schema.
 5. Message uniqueness constraints make redelivery safe.
 6. Searchable records are indexed in Meilisearch.
@@ -18,6 +21,7 @@
 WhatsApp
   -> Go event handler
   -> optional R2/MinIO media upload
+  -> PostgreSQL worker event outbox
   -> NATS JetStream
   -> API validation and tenant persistence
   -> Meilisearch indexing
@@ -38,13 +42,23 @@ This keeps realistic documents below the default NATS payload limit and avoids t
 
 ## Deferred media
 
-History messages may be stored before large media is downloaded. The UI requests a download, the worker retries with bounded exponential backoff, and the API publishes `media:downloaded` or `media:download_failed` after updating the message.
+The worker retains each attachment's encrypted direct path, key, and hashes
+before attempting the eager download. If that download fails, the message is
+stored as pending; the UI can request it later, and the API publishes
+`media:downloaded` or `media:download_failed` after updating the message.
 
 ## Delivery guarantees
 
 - Durable JetStream consumers with explicit acknowledgements provide at-least-once event delivery.
+- The worker event outbox closes the worker/NATS outage and restart window;
+  JetStream message IDs make replay safe.
 - Tenant-local command outboxes close the database/NATS crash window and use JetStream message IDs for deduplication.
-- Workers persist successful command results by `command_id` before ACK. Redelivery republishes that result instead of repeating the WhatsApp side effect; publication failure is retried through NAK/redelivery.
+- Workers persist successful and terminally failed command results by
+  `command_id` before ACK. Redelivery republishes that result instead of
+  repeating the WhatsApp side effect; extra deliveries are reserved for result
+  publication and never repeat the send.
+- Invalid or exhausted API events are persisted in the separate
+  `WHATSAPP_DEAD_LETTERS` stream before their source message is terminated.
 - The irreducible crash window is after WhatsApp accepts a send but before its result reaches the worker ledger. Such commands remain unacknowledged and are observable by command/message ID for reconciliation.
 - Database uniqueness constraints deduplicate WhatsApp message IDs and reactions.
 - PostgreSQL is the source of truth; Centrifugo is a realtime update signal.
@@ -55,6 +69,7 @@ History messages may be stored before large media is downloaded. The UI requests
 | Area | File |
 | --- | --- |
 | Worker history sync | `services/whatsapp/internal/handler/history_sync.go` |
+| Worker event outbox | `services/whatsapp/internal/nats/publisher.go` |
 | API NATS consumer | `apps/api/src/services/message-handler.ts` |
 | Message handlers | `apps/api/src/services/handlers/message-handlers.ts` |
 | Realtime provider | `apps/web/src/contexts/RealtimeProvider.tsx` |

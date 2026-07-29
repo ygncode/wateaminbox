@@ -43,6 +43,7 @@ import { useWorkspace } from "./workspace-context";
 
 // Typing timeout in milliseconds
 const TYPING_TIMEOUT = 5000;
+const REALTIME_RECONCILE_INTERVAL = 60_000;
 
 export type { SyncState } from "./realtime/event-handlers";
 
@@ -372,6 +373,21 @@ export function RealtimeProvider({
       );
     }
   }, [status, fetchSyncStatus]);
+
+  // Centrifugo is intentionally an update signal without message history.
+  // Periodic reconciliation bounds how long a connected client can remain
+  // stale if an API-to-Centrifugo publication fails without dropping the
+  // browser's WebSocket connection.
+  useEffect(() => {
+    if (status !== "connected") return;
+    const interval = setInterval(() => {
+      reconcileRealtimeState(
+        queryClientRef.current,
+        useChatStore.getState().selectedConversationId,
+      );
+    }, REALTIME_RECONCILE_INTERVAL);
+    return () => clearInterval(interval);
+  }, [status]);
 
   const contextValue: RealtimeContextValue = {
     status,

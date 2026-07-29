@@ -11,6 +11,7 @@ import {
   JetStreamClient,
   JetStreamSubscription,
   JSONCodec,
+  type JsMsg,
   NatsConnection,
 } from "nats";
 import { z } from "zod";
@@ -28,6 +29,11 @@ import {
 
 const logger = createLogger("NATS");
 export const API_EVENTS_DEAD_LETTER_SUBJECT = "WHATSAPP.dead_letter.api_events";
+
+/** Signals that redelivery cannot make an otherwise valid event processable. */
+export class PermanentEventError extends Error {
+  override readonly name = "PermanentEventError";
+}
 
 export const whatsAppEventEnvelopeSchema = z.object({
   // Version 0 (field absent) is accepted during rolling upgrades from workers
@@ -86,6 +92,24 @@ const MAX_RECONNECT_ATTEMPTS = 10;
 const RECONNECT_DELAY_MS = 1000;
 
 const jc = JSONCodec<unknown>();
+
+async function publishEventDeadLetter(
+  js: JetStreamClient,
+  msg: JsMsg,
+  error: unknown,
+  deliveries: number,
+): Promise<void> {
+  await js.publish(
+    API_EVENTS_DEAD_LETTER_SUBJECT,
+    jc.encode({
+      sourceSubject: msg.subject,
+      deliveries,
+      error: error instanceof Error ? error.message : String(error),
+      payloadBase64: Buffer.from(msg.data).toString("base64"),
+      failedAt: new Date().toISOString(),
+    }),
+  );
+}
 
 /**
  * Gets or creates the NATS connection
@@ -563,17 +587,16 @@ export async function subscribe(
             { ...formatError(error), subject },
             "Terminating invalid NATS event",
           );
-          natsConnection?.publish(
-            API_EVENTS_DEAD_LETTER_SUBJECT,
-            jc.encode({
-              sourceSubject: msg.subject,
-              deliveries: 1,
-              error: error instanceof Error ? error.message : String(error),
-              payloadBase64: Buffer.from(msg.data).toString("base64"),
-              failedAt: new Date().toISOString(),
-            }),
-          );
-          msg.term();
+          try {
+            await publishEventDeadLetter(js, msg, error, 1);
+            msg.term();
+          } catch (deadLetterError) {
+            logger.error(
+              { ...formatError(deadLetterError), subject },
+              "Failed to persist invalid event to dead-letter stream",
+            );
+            msg.nak(1_000);
+          }
           continue;
         }
         await callback(event);
@@ -584,18 +607,17 @@ export async function subscribe(
           { ...formatError(error), subject, deliveries },
           "Error processing message; scheduling redelivery",
         );
-        if (deliveries >= 9) {
-          natsConnection?.publish(
-            API_EVENTS_DEAD_LETTER_SUBJECT,
-            jc.encode({
-              sourceSubject: msg.subject,
-              deliveries: deliveries + 1,
-              error: error instanceof Error ? error.message : String(error),
-              payloadBase64: Buffer.from(msg.data).toString("base64"),
-              failedAt: new Date().toISOString(),
-            }),
-          );
-          msg.term();
+        if (error instanceof PermanentEventError || deliveries >= 9) {
+          try {
+            await publishEventDeadLetter(js, msg, error, deliveries + 1);
+            msg.term();
+          } catch (deadLetterError) {
+            logger.error(
+              { ...formatError(deadLetterError), subject },
+              "Failed to persist event to dead-letter stream",
+            );
+            msg.nak(1_000);
+          }
         } else {
           msg.nak(1_000);
         }
