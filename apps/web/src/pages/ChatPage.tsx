@@ -1,3 +1,9 @@
+import {
+  ArrowLeft,
+  CheckCheck,
+  MessagesSquare,
+  UsersRound,
+} from "lucide-react";
 import { useState } from "react";
 import { ChatSidebar, type SidebarView } from "../components/chat/ChatSidebar";
 import { ConversationSearch } from "../components/chat/ConversationSearch";
@@ -117,25 +123,7 @@ export function ChatPage() {
           />
         </>
       ) : (
-        <div className="flex-1 flex items-center justify-center bg-gray-50 dark:bg-dark-secondary">
-          <div className="text-center max-w-md px-4">
-            <div className="w-20 h-20 bg-[#25D366] rounded-full flex items-center justify-center mx-auto mb-4">
-              <svg
-                className="w-12 h-12 text-white"
-                fill="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
-              </svg>
-            </div>
-            <h2 className="text-xl font-semibold text-gray-700 dark:text-dark-text-primary mb-2">
-              WATeamInbox
-            </h2>
-            <p className="text-gray-500 dark:text-dark-text-secondary">
-              Select a conversation from the list to start messaging
-            </p>
-          </div>
-        </div>
+        <InboxEmptyState activeView={sidebarView} />
       )}
     </MainContent>
   );
@@ -174,5 +162,81 @@ export function ChatPage() {
         isDeleting={isDeleting}
       />
     </AppLayout>
+  );
+}
+
+function InboxEmptyState({ activeView }: { activeView: SidebarView }) {
+  const isGroupView = activeView === "groups";
+
+  return (
+    <div className="relative isolate flex min-h-0 flex-1 items-center justify-center overflow-hidden bg-[#f6f8f9] dark:bg-[#0b141a]">
+      <div
+        className="absolute inset-0 opacity-[0.035] dark:opacity-[0.09]"
+        style={{
+          backgroundImage:
+            "radial-gradient(circle at 1px 1px, currentColor 1px, transparent 0)",
+          backgroundSize: "28px 28px",
+        }}
+        aria-hidden="true"
+      />
+      <div
+        className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.96)_0%,rgba(246,248,249,0.72)_46%,rgba(246,248,249,0)_76%)] dark:bg-[radial-gradient(circle_at_center,rgba(32,44,51,0.68)_0%,rgba(11,20,26,0.32)_48%,rgba(11,20,26,0)_78%)]"
+        aria-hidden="true"
+      />
+
+      <div className="relative -mt-8 flex max-w-lg flex-col items-center px-8 text-center">
+        <div className="relative mb-7 h-36 w-52" aria-hidden="true">
+          <div className="absolute left-1 top-7 h-24 w-32 -rotate-6 rounded-2xl border border-[#dce4e7] bg-white/70 p-4 shadow-sm backdrop-blur-sm dark:border-white/[0.07] dark:bg-[#202c33]/60">
+            <span className="block h-2 w-14 rounded-full bg-[#dfe6e8] dark:bg-white/10" />
+            <span className="mt-3 block h-2 w-20 rounded-full bg-[#edf1f2] dark:bg-white/[0.06]" />
+            <span className="mt-2 block h-2 w-12 rounded-full bg-[#edf1f2] dark:bg-white/[0.06]" />
+          </div>
+
+          <div className="absolute right-1 top-3 h-28 w-36 rotate-6 rounded-2xl border border-[#dce4e7] bg-white/80 p-4 shadow-sm backdrop-blur-sm dark:border-white/[0.07] dark:bg-[#202c33]/70">
+            <span className="ml-auto block h-8 w-20 rounded-xl rounded-br-sm bg-[#d9fdd3] dark:bg-[#005c4b]" />
+            <span className="mt-3 block h-8 w-24 rounded-xl rounded-bl-sm bg-[#edf1f2] dark:bg-white/[0.07]" />
+          </div>
+
+          <div className="absolute left-1/2 top-1/2 grid size-20 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-[1.65rem] border border-white bg-[#0b6b5d] text-white shadow-[0_18px_45px_rgba(11,107,93,0.25)] dark:border-white/10 dark:bg-[#00a884] dark:shadow-black/30">
+            <MessagesSquare className="size-9" strokeWidth={1.65} />
+          </div>
+
+          <span className="absolute bottom-2 right-4 grid size-9 place-items-center rounded-full border-4 border-[#f6f8f9] bg-[#d9fdd3] text-[#008069] shadow-sm dark:border-[#0b141a] dark:bg-[#005c4b] dark:text-[#53bdeb]">
+            <CheckCheck className="size-4.5" strokeWidth={2.1} />
+          </span>
+          <span className="absolute bottom-0 left-5 grid size-10 place-items-center rounded-full border-4 border-[#f6f8f9] bg-[#fff0c7] text-[#a15c00] shadow-sm dark:border-[#0b141a] dark:bg-[#3b3525] dark:text-[#ffd279]">
+            <UsersRound className="size-4.5" strokeWidth={1.9} />
+          </span>
+        </div>
+
+        <p className="text-[11px] font-semibold uppercase tracking-[0.19em] text-[#008069] dark:text-[#00a884]">
+          {isGroupView ? "Team groups" : "Team conversations"}
+        </p>
+        <h2 className="mt-2 text-[1.7rem] font-semibold tracking-[-0.025em] text-[#263a33] dark:text-dark-text-primary">
+          {isGroupView ? "Choose a group to open" : "Choose a conversation"}
+        </h2>
+        <p className="mt-2.5 max-w-md text-[15px] leading-6 text-[#667781] dark:text-dark-text-secondary">
+          {isGroupView
+            ? "Open a group from the list to follow the discussion and reply with your team."
+            : "Open any chat from the inbox to see its history, assignments, and shared team replies."}
+        </p>
+
+        <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-[#dce4e7] bg-white/70 px-3 py-1.5 text-xs font-medium text-[#54656f] shadow-sm backdrop-blur-sm dark:border-white/[0.08] dark:bg-white/[0.045] dark:text-dark-text-secondary">
+            <UsersRound className="size-3.5 text-[#008069] dark:text-[#00a884]" />
+            Shared team context
+          </span>
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-[#dce4e7] bg-white/70 px-3 py-1.5 text-xs font-medium text-[#54656f] shadow-sm backdrop-blur-sm dark:border-white/[0.08] dark:bg-white/[0.045] dark:text-dark-text-secondary">
+            <CheckCheck className="size-3.5 text-[#008069] dark:text-[#00a884]" />
+            WhatsApp synced
+          </span>
+        </div>
+      </div>
+
+      <div className="absolute bottom-8 left-1/2 hidden -translate-x-1/2 items-center gap-2 text-xs text-[#8696a0] dark:text-dark-text-tertiary sm:flex">
+        <ArrowLeft className="size-3.5" aria-hidden="true" />
+        <span>Select a chat from the list to begin</span>
+      </div>
+    </div>
   );
 }
