@@ -18,6 +18,7 @@ import {
   requireMessageSendPermission,
 } from "../../middleware/message-send-policy.js";
 import { tenantFromHeader } from "../../middleware/tenant.js";
+import { getActiveSessionId } from "../../services/whatsapp/session.js";
 
 const logger = createLogger("ActionsRoutes");
 
@@ -81,15 +82,14 @@ actionsRoutes.post(
       if (contact.jid !== conversationId) {
         throw new HTTPException(400, { message: "Conversation JID mismatch" });
       }
+      const sessionId = await getActiveSessionId(
+        tenantDb,
+        contact.whatsapp_connection_id,
+      );
 
       await Promise.all([
         broadcastToCompanyExcept(companyId, eventType, payload, clientId),
-        publishTypingCommand(
-          companyId,
-          contact.whatsapp_connection_id,
-          contact.jid,
-          isTyping,
-        ),
+        publishTypingCommand(companyId, sessionId, contact.jid, isTyping),
       ]);
 
       return c.json({

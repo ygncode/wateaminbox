@@ -184,8 +184,22 @@ func (h *Handlers) handleKillCommand(ctx context.Context, data []byte) error {
 
 	log.Printf("Received kill command for company %s, connection %s: %s", cmd.CompanyID, cmd.ConnectionID, cmd.Reason)
 
-	// Stop the worker
-	err := h.manager.StopWorker(ctx, cmd.CompanyID, cmd.ConnectionID, cmd.Reason)
+	// Unlink performs a WhatsApp logout and credential purge before the worker
+	// exits. A normal kill preserves credentials for reconnect.
+	var err error
+	if cmd.Unlink {
+		databaseURL := h.manager.config.DatabaseURL
+		err = h.manager.UnlinkWorker(
+			ctx,
+			cmd.CompanyID,
+			cmd.ConnectionID,
+			cmd.TenantSchema,
+			databaseURL,
+			cmd.Reason,
+		)
+	} else {
+		err = h.manager.StopWorker(ctx, cmd.CompanyID, cmd.ConnectionID, cmd.Reason)
+	}
 	if err != nil {
 		log.Printf("Failed to stop worker for company %s, connection %s: %v", cmd.CompanyID, cmd.ConnectionID, err)
 		// Note: We don't return error here - worker not found is not a retryable error

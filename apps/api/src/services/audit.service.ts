@@ -30,6 +30,9 @@ export type AuditAction =
   | "tag.created"
   | "tag.deleted"
   | "company.updated"
+  | "connection.archived"
+  | "connection.relinked"
+  | "connection.purged"
   | "conversation.resolved"
   | "conversation.reopened";
 

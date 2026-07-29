@@ -134,6 +134,7 @@ export type ProductVisibility = "visible" | "hidden";
  */
 export interface TenantDatabase {
   whatsapp_connections: WhatsAppConnectionsTable;
+  whatsapp_connection_sessions: WhatsAppConnectionSessionsTable;
   contacts: ContactsTable;
   tags: TagsTable;
   whatsapp_labels: WhatsAppLabelsTable;
@@ -171,6 +172,28 @@ export interface WhatsAppConnectionsTable {
   sync_conversation_count: Generated<number>;
   qr_code: string | null;
   qr_expires_at: Date | null;
+  archived_at: Date | null;
+  created_at: Generated<Date>;
+  updated_at: Generated<Date>;
+}
+
+export type WhatsAppConnectionSessionStatus =
+  | "pending"
+  | "connecting"
+  | "connected"
+  | "disconnected"
+  | "ended";
+
+export interface WhatsAppConnectionSessionsTable {
+  id: Generated<string>;
+  whatsapp_connection_id: string;
+  status: Generated<WhatsAppConnectionSessionStatus>;
+  created_by: string | null;
+  expected_phone_number: string | null;
+  started_at: Date | null;
+  connected_at: Date | null;
+  ended_at: Date | null;
+  end_reason: string | null;
   created_at: Generated<Date>;
   updated_at: Generated<Date>;
 }

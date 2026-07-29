@@ -3,11 +3,13 @@ import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useWhatsAppConnections } from "@/hooks/useWhatsAppConnections";
+import { useArchivedWhatsAppConnections } from "@/hooks/whatsapp/useArchivedWhatsAppConnections";
 import { cn } from "@/lib/utils";
 import { injectAnimationStyles, removeAnimationStyles } from "../animations";
 import { ConnectionCard } from "../ConnectionCard";
 import { EmptyConnectionsView } from "../EmptyConnectionsView";
 import { AddConnectionDialog } from "./AddConnectionDialog";
+import { ArchivedConnectionCard } from "./ArchivedConnectionCard";
 import { GlobalErrorBanner } from "./GlobalErrorBanner";
 import { getConnectionSetupStage } from "./setup-state";
 import type { MultiConnectionPanelProps } from "./types";
@@ -36,6 +38,13 @@ export function MultiConnectionPanel({
     connectedCount,
     totalCount,
   } = useWhatsAppConnections();
+  const {
+    archivedConnections,
+    relinkArchived,
+    purgeArchived,
+    relinkingId,
+    purgingId,
+  } = useArchivedWhatsAppConnections();
 
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [setupConnectionId, setSetupConnectionId] = useState<string | null>(
@@ -96,6 +105,16 @@ export function MultiConnectionPanel({
       }
     },
     [reconnect, resumeSetup],
+  );
+
+  const handleRelinkArchived = useCallback(
+    async (connectionId: string) => {
+      await relinkArchived(connectionId);
+      setSetupConnectionId(connectionId);
+      setShowAddDialog(true);
+      await refresh();
+    },
+    [refresh, relinkArchived],
   );
 
   // Close shortly after the refreshed list confirms the connection.
@@ -318,6 +337,34 @@ export function MultiConnectionPanel({
             />
           ))}
         </div>
+      )}
+
+      {archivedConnections.length > 0 && (
+        <section className="mt-7 border-t border-stone-200/80 pt-5 dark:border-white/[0.08]">
+          <div className="mb-3">
+            <h3 className="text-sm font-semibold text-stone-800 dark:text-stone-200">
+              Archived accounts
+            </h3>
+            <p className="mt-0.5 text-xs text-stone-500 dark:text-stone-400">
+              Link a number again to restore its original inbox, or permanently
+              erase its retained data.
+            </p>
+          </div>
+          <div className="space-y-3">
+            {archivedConnections.map((connection) => (
+              <ArchivedConnectionCard
+                key={connection.id}
+                connection={connection}
+                isRelinking={relinkingId === connection.id}
+                isPurging={purgingId === connection.id}
+                onRelink={() => handleRelinkArchived(connection.id)}
+                onPurge={async () => {
+                  await purgeArchived(connection.id);
+                }}
+              />
+            ))}
+          </div>
+        </section>
       )}
     </div>
   );

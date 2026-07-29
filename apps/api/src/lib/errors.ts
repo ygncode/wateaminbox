@@ -272,6 +272,18 @@ export class DuplicateWhatsAppPhoneError extends ConflictError {
   }
 }
 
+export class WhatsAppIdentityMismatchError extends ConflictError {
+  constructor(
+    public expectedPhoneNumber: string,
+    public actualPhoneNumber: string,
+  ) {
+    super(
+      `Expected WhatsApp number ${expectedPhoneNumber}, but ${actualPhoneNumber} was paired.`,
+    );
+    this.name = "WhatsAppIdentityMismatchError";
+  }
+}
+
 export class InvalidConnectionStateError extends ValidationError {
   constructor(currentState: string, requiredState: string) {
     super(`Connection is ${currentState}, but must be ${requiredState}`);

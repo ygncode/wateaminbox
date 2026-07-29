@@ -421,6 +421,32 @@ func (c *Client) Disconnect() {
 	c.mu.Unlock()
 }
 
+// LogoutAndPurge unlinks the device from WhatsApp and erases all credentials
+// and runtime state for this replaceable session.
+func (c *Client) LogoutAndPurge(ctx context.Context) error {
+	log.Println("Unlinking WhatsApp device and purging session credentials...")
+	var logoutErr error
+	if c.client != nil && c.client.Store.ID != nil {
+		if !c.client.IsConnected() {
+			if err := c.client.Connect(); err != nil {
+				logoutErr = fmt.Errorf("connect for logout: %w", err)
+			}
+		}
+		if logoutErr == nil {
+			logoutErr = c.client.Logout(ctx)
+		}
+	}
+	if c.container != nil {
+		if purgeErr := c.container.PurgeSession(ctx); purgeErr != nil {
+			if logoutErr != nil {
+				return fmt.Errorf("logout failed: %v; purge failed: %w", logoutErr, purgeErr)
+			}
+			return purgeErr
+		}
+	}
+	return logoutErr
+}
+
 // RegisterEventHandler adds an event handler.
 func (c *Client) RegisterEventHandler(handler func(interface{})) {
 	c.mu.Lock()

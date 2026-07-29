@@ -56,6 +56,7 @@ type WorkerProcess struct {
 	LastActivity time.Time
 	RestartCount int       // Number of restart attempts
 	LastCrashAt  time.Time // When last crash occurred
+	ExpectedExit bool      // One-shot unlink workers must not auto-restart.
 	cmd          *exec.Cmd
 	cancelFunc   context.CancelFunc
 	healthCancel context.CancelFunc
@@ -76,6 +77,7 @@ func (w *WorkerProcess) Copy() *WorkerProcess {
 		LastActivity: w.LastActivity,
 		RestartCount: w.RestartCount,
 		LastCrashAt:  w.LastCrashAt,
+		ExpectedExit: w.ExpectedExit,
 	}
 }
 
@@ -176,7 +178,7 @@ func (m *Manager) Stop(ctx context.Context) error {
 	for _, id := range workerIDs {
 		worker, exists := m.GetWorkerStatus(id)
 		if exists {
-			if err := m.stopWorkerInternal(ctx, worker.CompanyID, id, "orchestrator shutdown"); err != nil {
+			if err := m.stopWorkerInternal(ctx, worker.CompanyID, id, "orchestrator shutdown", syscall.SIGTERM); err != nil {
 				log.Printf("Error stopping worker %s: %v", id, err)
 			}
 		}
@@ -198,6 +200,14 @@ func (m *Manager) Stop(ctx context.Context) error {
 
 // SpawnWorker creates and starts a new WhatsApp worker process.
 func (m *Manager) SpawnWorker(ctx context.Context, companyID, connectionID, tenantSchema, databaseURL string) error {
+	return m.spawnWorker(ctx, companyID, connectionID, tenantSchema, databaseURL, false)
+}
+
+func (m *Manager) spawnWorker(
+	ctx context.Context,
+	companyID, connectionID, tenantSchema, databaseURL string,
+	unlinkOnStart bool,
+) error {
 	m.mu.Lock()
 
 	// Check if worker already exists (keyed by connectionID)
@@ -233,6 +243,7 @@ func (m *Manager) SpawnWorker(ctx context.Context, companyID, connectionID, tena
 		fmt.Sprintf("NATS_URL=%s", m.config.DefaultNATSURL),
 		fmt.Sprintf("DATABASE_URL=%s", databaseURL),
 		fmt.Sprintf("TENANT_SCHEMA=%s", tenantSchema),
+		fmt.Sprintf("UNLINK_ON_START=%t", unlinkOnStart),
 	)
 
 	// Redirect stdout and stderr
@@ -254,6 +265,7 @@ func (m *Manager) SpawnWorker(ctx context.Context, companyID, connectionID, tena
 		Status:       types.StatusStarting,
 		StartedAt:    time.Now(),
 		LastActivity: time.Now(),
+		ExpectedExit: unlinkOnStart,
 		cmd:          cmd,
 		cancelFunc:   workerCancel,
 	}
@@ -280,16 +292,18 @@ func (m *Manager) SpawnWorker(ctx context.Context, companyID, connectionID, tena
 		}
 	}
 
-	// Start health check goroutine
-	healthCtx, healthCancel := context.WithCancel(m.ctx)
-	worker.healthCancel = healthCancel
+	if !unlinkOnStart {
+		// Start health check goroutine
+		healthCtx, healthCancel := context.WithCancel(m.ctx)
+		worker.healthCancel = healthCancel
 
-	m.wg.Add(1)
-	go m.healthCheckWorker(healthCtx, connectionID)
+		m.wg.Add(1)
+		go m.healthCheckWorker(healthCtx, connectionID)
+	}
 
 	// Start process monitor goroutine
 	m.wg.Add(1)
-	go m.monitorWorkerProcess(workerCtx, connectionID, cmd)
+	go m.monitorWorkerProcess(workerCtx, connectionID, cmd, worker)
 
 	// Publish worker started event
 	m.publishConnectionStatus(companyID, connectionID, types.StatusConnecting, "Worker process started")
@@ -299,7 +313,7 @@ func (m *Manager) SpawnWorker(ctx context.Context, companyID, connectionID, tena
 
 // StopWorker terminates a specific worker process.
 func (m *Manager) StopWorker(ctx context.Context, companyID, connectionID, reason string) error {
-	if err := m.stopWorkerInternal(ctx, companyID, connectionID, reason); err != nil {
+	if err := m.stopWorkerInternal(ctx, companyID, connectionID, reason, syscall.SIGTERM); err != nil {
 		return err
 	}
 
@@ -309,9 +323,41 @@ func (m *Manager) StopWorker(ctx context.Context, companyID, connectionID, reaso
 	return nil
 }
 
+// UnlinkWorker asks the worker to log out of WhatsApp and purge its credential
+// store before exiting.
+func (m *Manager) UnlinkWorker(
+	ctx context.Context,
+	companyID, connectionID, tenantSchema, databaseURL, reason string,
+) error {
+	m.mu.RLock()
+	_, exists := m.workers[connectionID]
+	m.mu.RUnlock()
+	if !exists {
+		if databaseURL == "" {
+			return fmt.Errorf("database URL is required to unlink a stopped session")
+		}
+		if tenantSchema == "" {
+			tenantSchema = "tenant_" + strings.ReplaceAll(companyID, "-", "_")
+		}
+		return m.spawnWorker(
+			ctx,
+			companyID,
+			connectionID,
+			tenantSchema,
+			databaseURL,
+			true,
+		)
+	}
+	if err := m.stopWorkerInternal(ctx, companyID, connectionID, reason, syscall.SIGUSR1); err != nil {
+		return err
+	}
+	m.publishConnectionStatus(companyID, connectionID, types.StatusStopped, reason)
+	return nil
+}
+
 // stopWorkerInternal terminates a worker without publishing events.
 // Used during shutdown to avoid NATS errors.
-func (m *Manager) stopWorkerInternal(ctx context.Context, companyID, connectionID, reason string) error {
+func (m *Manager) stopWorkerInternal(ctx context.Context, companyID, connectionID, reason string, stopSignal syscall.Signal) error {
 	m.mu.Lock()
 	worker, exists := m.workers[connectionID]
 	if !exists {
@@ -321,6 +367,9 @@ func (m *Manager) stopWorkerInternal(ctx context.Context, companyID, connectionI
 
 	// Mark as stopping
 	worker.Status = types.StatusStopping
+	if stopSignal == syscall.SIGUSR1 {
+		worker.ExpectedExit = true
+	}
 	m.mu.Unlock()
 
 	log.Printf("Stopping worker %s: %s", connectionID, reason)
@@ -352,19 +401,23 @@ func (m *Manager) stopWorkerInternal(ctx context.Context, companyID, connectionI
 		return fmt.Errorf("find worker %s process: %w", connectionID, err)
 	}
 	if pgid, pgErr := syscall.Getpgid(pid); pgErr == nil && pgid == pid {
-		err = syscall.Kill(-pgid, syscall.SIGTERM)
+		err = syscall.Kill(-pgid, stopSignal)
 	} else {
-		err = process.Signal(syscall.SIGTERM)
+		err = process.Signal(stopSignal)
 	}
 	if err != nil && !errors.Is(err, os.ErrProcessDone) && !errors.Is(err, syscall.ESRCH) {
 		return fmt.Errorf("signal worker %s: %w", connectionID, err)
 	}
-	log.Printf("Sent shutdown signal to worker %s", connectionID)
+	log.Printf("Sent %s signal to worker %s", stopSignal, connectionID)
 
-	if worker.cancelFunc != nil {
+	if worker.cancelFunc != nil && stopSignal != syscall.SIGUSR1 {
 		worker.cancelFunc()
 	}
-	if err := waitForProcessExit(ctx, pid, 5*time.Second); err != nil {
+	gracePeriod := 5 * time.Second
+	if stopSignal == syscall.SIGUSR1 {
+		gracePeriod = 20 * time.Second
+	}
+	if err := waitForProcessExit(ctx, pid, gracePeriod); err != nil {
 		_ = process.Signal(syscall.SIGKILL)
 		if killErr := waitForProcessExit(ctx, pid, 2*time.Second); killErr != nil {
 			return fmt.Errorf("worker %s did not exit: %w", connectionID, killErr)
@@ -559,11 +612,39 @@ func (m *Manager) healthCheckWorker(ctx context.Context, connectionID string) {
 }
 
 // monitorWorkerProcess monitors the worker process and handles its exit.
-func (m *Manager) monitorWorkerProcess(ctx context.Context, connectionID string, cmd *exec.Cmd) {
+func (m *Manager) monitorWorkerProcess(
+	ctx context.Context,
+	connectionID string,
+	cmd *exec.Cmd,
+	workerProcess *WorkerProcess,
+) {
 	defer m.wg.Done()
 
 	// Wait for the process to exit
 	err := cmd.Wait()
+
+	m.mu.Lock()
+	expectedExit := workerProcess.ExpectedExit
+	if expectedExit {
+		if workerProcess.healthCancel != nil {
+			workerProcess.healthCancel()
+		}
+		delete(m.workers, connectionID)
+	}
+	m.mu.Unlock()
+	if expectedExit {
+		if m.registry != nil {
+			if removeErr := m.registry.RemoveWorker(m.ctx, connectionID); removeErr != nil {
+				log.Printf("Warning: failed to remove completed unlink worker %s: %v", connectionID, removeErr)
+			}
+		}
+		if err != nil {
+			log.Printf("One-shot unlink worker %s exited with error: %v", connectionID, err)
+		} else {
+			log.Printf("One-shot unlink worker %s completed", connectionID)
+		}
+		return
+	}
 
 	select {
 	case <-ctx.Done():

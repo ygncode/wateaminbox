@@ -29,6 +29,7 @@ func main() {
 	databaseURL := config.GetEnv("DATABASE_URL", "")
 	natsURL := config.GetEnv("NATS_URL", "nats://localhost:4222")
 	logLevel := config.GetEnv("LOG_LEVEL", "info")
+	unlinkOnStart := config.GetEnv("UNLINK_ON_START", "false") == "true"
 
 	// Storage configuration (S3-compatible - works with MinIO and Cloudflare R2)
 	// Check both STORAGE_* and S3_* env vars for compatibility with .env convention
@@ -125,6 +126,32 @@ func main() {
 		}
 	})
 
+	if unlinkOnStart {
+		unlinkCtx, unlinkCancel := context.WithTimeout(
+			context.Background(),
+			30*time.Second,
+		)
+		err = waClient.LogoutAndPurge(unlinkCtx)
+		unlinkCancel()
+		if err != nil {
+			log.Printf("Failed to fully unlink stopped WhatsApp session: %v", err)
+			_ = publisher.PublishConnectionStatus(
+				"error",
+				"WhatsApp logout failed; local credentials were purged",
+				"",
+				"",
+			)
+		} else {
+			_ = publisher.PublishConnectionStatus(
+				"disconnected",
+				"WhatsApp session unlinked",
+				"",
+				"",
+			)
+		}
+		return
+	}
+
 	// Initialize message handler with NATS publisher and storage
 	msgHandler := handler.New(handler.Config{
 		WorkerID:     workerID,
@@ -196,10 +223,25 @@ func main() {
 
 	// Wait for shutdown signal
 	sigCh := make(chan os.Signal, 1)
-	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
-	<-sigCh
+	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM, syscall.SIGUSR1)
+	shutdownSignal := <-sigCh
 
 	log.Println("Shutting down WhatsApp worker...")
+	if shutdownSignal == syscall.SIGUSR1 {
+		logoutCtx, logoutCancel := context.WithTimeout(context.Background(), 15*time.Second)
+		if err := waClient.LogoutAndPurge(logoutCtx); err != nil {
+			log.Printf("Failed to fully unlink WhatsApp session: %v", err)
+			if publishErr := publisher.PublishConnectionStatus(
+				"error",
+				"WhatsApp logout failed; local credentials were purged",
+				"",
+				"",
+			); publishErr != nil {
+				log.Printf("Failed to publish unlink error: %v", publishErr)
+			}
+		}
+		logoutCancel()
+	}
 
 	// Cancel context to stop any active reconnection loops
 	cancel()

@@ -13,6 +13,7 @@ import {
 } from "../lib/nats/index.js";
 import { broadcastToCompany } from "../lib/realtime.js";
 import { getTenantConnection, type TenantDatabase } from "./tenant.service.js";
+import { getActiveSessionId } from "./whatsapp/session.js";
 
 const logger = createLogger("CommandOutbox");
 const POLL_INTERVAL_MS = 1_000;
@@ -110,9 +111,19 @@ export async function enqueueConnectionCommand(
   connectionId: string,
   build: (publisher: NatsCommandPublisher) => Promise<void>,
 ): Promise<void> {
+  const sessionId = await getActiveSessionId(executor, connectionId);
+  await enqueueSessionCommand(executor, companyId, sessionId, build);
+}
+
+export async function enqueueSessionCommand(
+  executor: TenantDbExecutor,
+  companyId: string,
+  sessionId: string,
+  build: (publisher: NatsCommandPublisher) => Promise<void>,
+): Promise<void> {
   const publisher = forConnection(
     companyId,
-    connectionId,
+    sessionId,
     async (subject, command: NatsCommand) => {
       await enqueueCommand(
         executor,

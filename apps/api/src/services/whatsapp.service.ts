@@ -16,8 +16,11 @@ export {
   ConnectionAlreadyExistsError,
   ConnectionNotFoundError,
   type ConnectionStatus,
+  claimConnectedSession,
+  createConnectionSession,
   getActiveConnection,
   getActiveConnections,
+  getActiveSessionId,
   getConnection,
   getConnectionLimits,
   // Status tracking
@@ -25,11 +28,16 @@ export {
   // Connection management
   getMaxConnections,
   killConnection,
+  listArchivedConnections,
   listConnections,
   MaxConnectionsExceededError,
+  purgeArchivedConnection,
+  relinkArchivedConnection,
+  resolveWhatsAppSession,
   spawnConnection,
   updateConnectionStatus,
   updateLastSync,
+  updateSessionStatus,
   // Types
   type WhatsAppConnection,
 } from "./whatsapp/index.js";

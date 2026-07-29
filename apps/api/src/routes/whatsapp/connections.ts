@@ -22,10 +22,16 @@ import {
   requirePermission,
   tenantFromHeader,
 } from "../../middleware/tenant.js";
+import { createAuditLog, getClientIp } from "../../services/audit.service.js";
 import { enqueueConnectionCommand } from "../../services/command-outbox.service.js";
+import {
+  deleteContacts,
+  deleteMessages,
+} from "../../services/meilisearch.service.js";
 import { PERMISSIONS } from "../../services/permission.service.js";
+import { archiveConnectionWithUnlink } from "../../services/whatsapp/connection.js";
+import { updateSessionStatus } from "../../services/whatsapp/session.js";
 import * as whatsappService from "../../services/whatsapp.service.js";
-import { deleteConnectionWithKill } from "../../services/whatsapp/connection.js";
 
 const connectionNameSchema = z.string().trim().min(1).max(80);
 const createConnectionSchema = z.object({
@@ -33,6 +39,9 @@ const createConnectionSchema = z.object({
 });
 const updateConnectionSchema = z.object({
   name: connectionNameSchema,
+});
+const purgeConnectionSchema = z.object({
+  confirmation: z.literal("DELETE"),
 });
 
 const logger = createLogger("WhatsAppConnectionRoutes");
@@ -147,6 +156,34 @@ connectionRoutes.post(
   },
 );
 
+connectionRoutes.get(
+  "/archived",
+  authMiddleware,
+  tenantFromHeader("X-Company-ID"),
+  requirePermission(PERMISSIONS.CAN_MANAGE_CONNECTIONS),
+  async (c) => {
+    const connections = await whatsappService.listArchivedConnections(
+      c.get("tenantDb"),
+    );
+    return c.json({
+      success: true,
+      data: connections.map((connection, index) => ({
+        id: connection.id,
+        name:
+          connection.name ||
+          connection.phoneNumber ||
+          `Archived connection ${index + 1}`,
+        phoneNumber: connection.phoneNumber,
+        jid: connection.jid,
+        status: connection.status,
+        archivedAt: connection.archivedAt,
+        createdAt: connection.createdAt,
+        updatedAt: connection.updatedAt,
+      })),
+    });
+  },
+);
+
 /**
  * GET /connections/:connectionId - Get specific connection details
  */
@@ -243,7 +280,8 @@ connectionRoutes.patch(
 );
 
 /**
- * DELETE /connections/:connectionId - Delete a connection permanently
+ * DELETE /connections/:connectionId - Archive the stable account and unlink
+ * its current WhatsApp session. Historical inbox data is retained.
  */
 connectionRoutes.delete(
   "/:connectionId",
@@ -256,19 +294,29 @@ connectionRoutes.delete(
     const tenantDb = c.get("tenantDb");
 
     try {
-      // The kill intent and row deletion commit together. JetStream receives
-      // an idempotent kill command from the durable outbox after commit.
+      // The archived state, ended session, and unlink intent commit together.
+      // JetStream receives the idempotent command after commit.
       const deleted = await tenantDb
         .transaction()
         .execute((trx) =>
-          deleteConnectionWithKill(trx, companyId, connectionId),
+          archiveConnectionWithUnlink(trx, companyId, connectionId),
         );
+      if (deleted) {
+        await createAuditLog({
+          companyId,
+          userId: c.get("user").id,
+          action: "connection.archived",
+          entityType: "whatsapp_connection",
+          entityId: connectionId,
+          ipAddress: getClientIp(c.req.raw.headers),
+        });
+      }
 
       return c.json({
         success: true,
         message: deleted
-          ? "Connection deletion queued"
-          : "Connection was already deleted",
+          ? "Connection archive and unlink queued"
+          : "Connection was already archived",
       });
     } catch (error) {
       if (error instanceof ConnectionNotFoundError) {
@@ -279,6 +327,47 @@ connectionRoutes.delete(
         message: "Failed to delete connection",
       });
     }
+  },
+);
+
+/**
+ * POST /connections/:connectionId/purge - Permanently erase an archived
+ * account and all of its inbox data.
+ */
+connectionRoutes.post(
+  "/:connectionId/purge",
+  authMiddleware,
+  tenantFromHeader("X-Company-ID"),
+  requirePermission(PERMISSIONS.CAN_MANAGE_CONNECTIONS),
+  requirePermission(PERMISSIONS.CAN_DELETE),
+  zValidator("json", purgeConnectionSchema),
+  async (c) => {
+    const connectionId = c.req.param("connectionId");
+    const tenantDb = c.get("tenantDb");
+    const deleted = await whatsappService.purgeArchivedConnection(
+      tenantDb,
+      connectionId,
+    );
+    await Promise.all([
+      deleteContacts(c.get("companyId"), deleted.contactIds),
+      deleteMessages(c.get("companyId"), deleted.messageIds),
+    ]);
+    await createAuditLog({
+      companyId: c.get("companyId"),
+      userId: c.get("user").id,
+      action: "connection.purged",
+      entityType: "whatsapp_connection",
+      entityId: connectionId,
+      details: {
+        deletedContacts: deleted.contactIds.length,
+        deletedMessages: deleted.messageIds.length,
+      },
+      ipAddress: getClientIp(c.req.raw.headers),
+    });
+    return c.json({
+      success: true,
+      message: "Connection and inbox data permanently deleted",
+    });
   },
 );
 
@@ -318,6 +407,12 @@ connectionRoutes.post(
       }
 
       await tenantDb.transaction().execute(async (trx) => {
+        const session = await trx
+          .selectFrom("whatsapp_connection_sessions")
+          .select("id")
+          .where("whatsapp_connection_id", "=", connectionId)
+          .where("ended_at", "is", null)
+          .executeTakeFirstOrThrow();
         await trx
           .updateTable("whatsapp_connections")
           .set({
@@ -328,6 +423,7 @@ connectionRoutes.post(
           })
           .where("id", "=", connectionId)
           .execute();
+        await updateSessionStatus(trx, session.id, "connecting");
         await enqueueConnectionCommand(
           trx,
           companyId,
@@ -352,6 +448,33 @@ connectionRoutes.post(
         message: "Failed to reconnect",
       });
     }
+  },
+);
+
+connectionRoutes.post(
+  "/:connectionId/relink",
+  authMiddleware,
+  tenantFromHeader("X-Company-ID"),
+  requirePermission(PERMISSIONS.CAN_MANAGE_CONNECTIONS),
+  async (c) => {
+    await whatsappService.relinkArchivedConnection(
+      c.get("tenantDb"),
+      c.get("companyId"),
+      c.req.param("connectionId"),
+      c.get("user").id,
+    );
+    await createAuditLog({
+      companyId: c.get("companyId"),
+      userId: c.get("user").id,
+      action: "connection.relinked",
+      entityType: "whatsapp_connection",
+      entityId: c.req.param("connectionId"),
+      ipAddress: getClientIp(c.req.raw.headers),
+    });
+    return c.json({
+      success: true,
+      message: "New pairing session initiated for the archived account",
+    });
   },
 );
 

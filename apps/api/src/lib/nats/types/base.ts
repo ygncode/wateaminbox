@@ -90,6 +90,8 @@ export interface WhatsAppEvent {
     | "error";
   companyId: string;
   connectionId: string;
+  /** Internal API-only field populated after resolving the worker session. */
+  sessionId?: string;
   payload: unknown;
   timestamp: string;
   correlationId?: string; // For end-to-end message flow tracing

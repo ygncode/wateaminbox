@@ -14,7 +14,9 @@ export interface SpawnCommand extends NatsCommand {
 // Kill command to disconnect WhatsApp
 export interface KillCommand extends NatsCommand {
   type: "kill";
+  tenant_schema: string;
   reason?: string;
+  unlink?: boolean;
 }
 
 // Send message command

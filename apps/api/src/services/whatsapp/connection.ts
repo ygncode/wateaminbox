@@ -12,15 +12,18 @@ import {
   ConnectionNotFoundError,
   MaxConnectionsExceededError,
 } from "../../lib/errors.js";
-import { forConnection } from "../../lib/nats/command-builder.js";
-import { buildCommandSubject, type NatsCommand } from "../../lib/nats/index.js";
 import {
-  enqueueCommand,
   enqueueConnectionCommand,
+  enqueueSessionCommand,
 } from "../command-outbox.service.js";
 import type { TenantDatabase } from "../tenant.service.js";
+import {
+  createConnectionSession,
+  getActiveSessionId,
+  updateSessionStatus,
+} from "./session.js";
 
-export async function deleteConnectionWithKill(
+export async function archiveConnectionWithUnlink(
   trx: Transaction<TenantDatabase>,
   companyId: string,
   connectionId: string,
@@ -28,20 +31,130 @@ export async function deleteConnectionWithKill(
 ): Promise<boolean> {
   const connection = await trx
     .selectFrom("whatsapp_connections")
-    .select(["id", "status"])
+    .select(["id", "status", "archived_at"])
     .where("id", "=", connectionId)
     .forUpdate()
     .executeTakeFirst();
   if (!connection) return false;
+  if (connection.archived_at) return false;
 
+  const sessionId = await getActiveSessionId(trx, connectionId);
   await enqueueKill(trx, companyId, connectionId, (publisher) =>
-    publisher.kill("connection deleted"),
+    publisher.kill("connection archived and unlinked", true),
   );
+  const now = toDbDate();
   await trx
-    .deleteFrom("whatsapp_connections")
+    .updateTable("whatsapp_connections")
+    .set({
+      status: "disconnected",
+      qr_code: null,
+      qr_expires_at: null,
+      archived_at: now,
+      updated_at: now,
+    })
     .where("id", "=", connectionId)
     .execute();
+  await updateSessionStatus(
+    trx,
+    sessionId,
+    "ended",
+    "connection archived and unlinked",
+  );
   return true;
+}
+
+/** @deprecated Use archiveConnectionWithUnlink. */
+export const deleteConnectionWithKill = archiveConnectionWithUnlink;
+
+/**
+ * Permanently delete a previously archived account and all inbox data owned by
+ * it. This is deliberately separate from archive/unlink.
+ */
+export async function purgeArchivedConnection(
+  tenantDb: Kysely<TenantDatabase>,
+  connectionId: string,
+): Promise<{ contactIds: string[]; messageIds: string[] }> {
+  return tenantDb.transaction().execute(async (trx) => {
+    const connection = await trx
+      .selectFrom("whatsapp_connections")
+      .select(["id", "archived_at"])
+      .where("id", "=", connectionId)
+      .forUpdate()
+      .executeTakeFirst();
+    if (!connection) throw new ConnectionNotFoundError(connectionId);
+    if (!connection.archived_at) {
+      throw new Error("Connection must be archived before permanent deletion");
+    }
+
+    const contactIds = trx
+      .selectFrom("contacts")
+      .select("id")
+      .where("whatsapp_connection_id", "=", connectionId);
+    const messageIds = trx
+      .selectFrom("messages")
+      .select("id")
+      .where("whatsapp_connection_id", "=", connectionId);
+    const groupIds = trx
+      .selectFrom("groups")
+      .select("id")
+      .where("contact_id", "in", contactIds);
+    const contactRows = await contactIds.execute();
+    const messageRows = await messageIds.execute();
+
+    await trx
+      .deleteFrom("message_reactions")
+      .where("message_id", "in", messageIds)
+      .execute();
+    await trx
+      .deleteFrom("group_participants")
+      .where("group_id", "in", groupIds)
+      .execute();
+    await trx.deleteFrom("groups").where("id", "in", groupIds).execute();
+    await trx
+      .deleteFrom("contact_tags")
+      .where("contact_id", "in", contactIds)
+      .execute();
+    await trx
+      .deleteFrom("contact_assignments")
+      .where("contact_id", "in", contactIds)
+      .execute();
+    await trx
+      .deleteFrom("contact_notes_private")
+      .where("contact_id", "in", contactIds)
+      .execute();
+    await trx
+      .deleteFrom("contact_notes_shared")
+      .where("contact_id", "in", contactIds)
+      .execute();
+    await trx
+      .deleteFrom("conversation_states")
+      .where("contact_id", "in", contactIds)
+      .execute();
+    await trx
+      .deleteFrom("messages")
+      .where("whatsapp_connection_id", "=", connectionId)
+      .execute();
+    await trx
+      .deleteFrom("status_updates")
+      .where("whatsapp_connection_id", "=", connectionId)
+      .execute();
+    await trx
+      .deleteFrom("contacts")
+      .where("whatsapp_connection_id", "=", connectionId)
+      .execute();
+    await trx
+      .deleteFrom("whatsapp_connection_sessions")
+      .where("whatsapp_connection_id", "=", connectionId)
+      .execute();
+    await trx
+      .deleteFrom("whatsapp_connections")
+      .where("id", "=", connectionId)
+      .execute();
+    return {
+      contactIds: contactRows.map((row) => row.id),
+      messageIds: messageRows.map((row) => row.id),
+    };
+  });
 }
 
 // Default max connections if not specified in company settings
@@ -59,6 +172,7 @@ export interface WhatsAppConnection {
   lastSyncAt: Date | null;
   qrCode: string | null;
   qrExpiresAt: Date | null;
+  archivedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -77,6 +191,7 @@ function mapConnectionRow(conn: {
   last_sync_at: Date | null;
   qr_code?: string | null;
   qr_expires_at?: Date | null;
+  archived_at: Date | null;
   created_at: Date;
   updated_at: Date;
 }): WhatsAppConnection {
@@ -91,6 +206,7 @@ function mapConnectionRow(conn: {
     lastSyncAt: conn.last_sync_at,
     qrCode: conn.qr_code ?? null,
     qrExpiresAt: conn.qr_expires_at ?? null,
+    archivedAt: conn.archived_at,
     createdAt: conn.created_at,
     updatedAt: conn.updated_at,
   };
@@ -146,13 +262,82 @@ export async function listConnections(
       "last_sync_at",
       "qr_code",
       "qr_expires_at",
+      "archived_at",
       "created_at",
       "updated_at",
     ])
+    .where("archived_at", "is", null)
     .orderBy("created_at", "desc")
     .execute();
 
   return connections.map(mapConnectionRow);
+}
+
+export async function listArchivedConnections(
+  tenantDb: Kysely<TenantDatabase>,
+): Promise<WhatsAppConnection[]> {
+  const connections = await tenantDb
+    .selectFrom("whatsapp_connections")
+    .select([
+      "id",
+      "name",
+      "phone_number",
+      "jid",
+      "status",
+      "connected_by",
+      "connected_at",
+      "last_sync_at",
+      "qr_code",
+      "qr_expires_at",
+      "archived_at",
+      "created_at",
+      "updated_at",
+    ])
+    .where("archived_at", "is not", null)
+    .orderBy("archived_at", "desc")
+    .execute();
+  return connections.map(mapConnectionRow);
+}
+
+export async function relinkArchivedConnection(
+  tenantDb: Kysely<TenantDatabase>,
+  companyId: string,
+  connectionId: string,
+  userId: string,
+): Promise<void> {
+  await tenantDb.transaction().execute(async (trx) => {
+    const connection = await trx
+      .selectFrom("whatsapp_connections")
+      .select(["id", "phone_number", "archived_at"])
+      .where("id", "=", connectionId)
+      .forUpdate()
+      .executeTakeFirst();
+    if (!connection) throw new ConnectionNotFoundError(connectionId);
+    if (!connection.archived_at) {
+      throw new Error("Only archived connections can be linked again");
+    }
+
+    const sessionId = await createConnectionSession(
+      trx,
+      connectionId,
+      userId,
+      connection.phone_number,
+    );
+    await trx
+      .updateTable("whatsapp_connections")
+      .set({
+        status: "pending",
+        archived_at: null,
+        qr_code: null,
+        qr_expires_at: null,
+        updated_at: toDbDate(),
+      })
+      .where("id", "=", connectionId)
+      .execute();
+    await enqueueSessionCommand(trx, companyId, sessionId, (publisher) =>
+      publisher.spawn(),
+    );
+  });
 }
 
 /**
@@ -173,6 +358,7 @@ export async function getConnection(
       "connected_by",
       "connected_at",
       "last_sync_at",
+      "archived_at",
       "created_at",
       "updated_at",
     ])
@@ -231,19 +417,10 @@ export async function spawnConnection(
       })
       .execute();
 
-    const publisher = forConnection(
-      companyId,
-      connectionId,
-      async (subject, command: NatsCommand) => {
-        await enqueueCommand(
-          trx,
-          subject,
-          command as unknown as Record<string, unknown>,
-        );
-      },
-      buildCommandSubject,
+    const sessionId = await createConnectionSession(trx, connectionId, userId);
+    await enqueueSessionCommand(trx, companyId, sessionId, (publisher) =>
+      publisher.spawn(),
     );
-    await publisher.spawn();
   });
 
   return { connectionId };
@@ -270,6 +447,7 @@ export async function killConnection(
   }
 
   await tenantDb.transaction().execute(async (trx) => {
+    const sessionId = await getActiveSessionId(trx, connectionId);
     await trx
       .updateTable("whatsapp_connections")
       .set({
@@ -281,19 +459,10 @@ export async function killConnection(
       .where("id", "=", connectionId)
       .execute();
 
-    const publisher = forConnection(
-      companyId,
-      connectionId,
-      async (subject, command: NatsCommand) => {
-        await enqueueCommand(
-          trx,
-          subject,
-          command as unknown as Record<string, unknown>,
-        );
-      },
-      buildCommandSubject,
+    await updateSessionStatus(trx, sessionId, "disconnected");
+    await enqueueSessionCommand(trx, companyId, sessionId, (publisher) =>
+      publisher.kill(),
     );
-    await publisher.kill();
   });
 }
 
@@ -314,6 +483,7 @@ export async function getActiveConnection(
       "connected_by",
       "connected_at",
       "last_sync_at",
+      "archived_at",
       "created_at",
       "updated_at",
     ])
@@ -344,6 +514,7 @@ export async function getActiveConnections(
       "connected_by",
       "connected_at",
       "last_sync_at",
+      "archived_at",
       "created_at",
       "updated_at",
     ])

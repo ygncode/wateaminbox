@@ -1,8 +1,9 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useCallback, useEffect, useRef } from "react";
 import { nowMs } from "@wateaminbox/shared";
+import { useCallback, useEffect, useRef } from "react";
 import { reconcileRealtimeState } from "@/contexts/realtime/event-handlers";
 import { ApiRequestError } from "@/lib/api/client";
+import type { WhatsAppConnection } from "@/lib/api/types";
 import {
   createWhatsAppConnection,
   deleteWhatsAppConnection,
@@ -10,7 +11,6 @@ import {
   reconnectWhatsAppConnection,
   updateWhatsAppConnection,
 } from "@/lib/api/whatsapp";
-import type { WhatsAppConnection } from "@/lib/api/types";
 import { useChatStore } from "@/stores/chat-store";
 import { queryKeys } from "../query-keys";
 import type { ConnectionState } from "./types";
@@ -185,7 +185,7 @@ export function useWhatsAppConnectionMutations({
     },
   });
 
-  // Delete connection mutation
+  // Archive the stable account and unlink its replaceable WhatsApp session.
   const deleteMutation = useMutation({
     mutationFn: (connectionId: string) =>
       deleteWhatsAppConnection(connectionId),

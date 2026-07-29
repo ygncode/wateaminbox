@@ -34,6 +34,33 @@ export async function listWhatsAppConnections(): Promise<WhatsAppConnection[]> {
   return fetchWithAuth<WhatsAppConnection[]>("/whatsapp/connections");
 }
 
+export async function listArchivedWhatsAppConnections(): Promise<
+  WhatsAppConnection[]
+> {
+  return fetchWithAuth<WhatsAppConnection[]>("/whatsapp/connections/archived");
+}
+
+export async function relinkArchivedWhatsAppConnection(
+  connectionId: string,
+): Promise<{ message: string }> {
+  return fetchWithAuth<{ message: string }>(
+    `/whatsapp/connections/${connectionId}/relink`,
+    { method: "POST" },
+  );
+}
+
+export async function purgeArchivedWhatsAppConnection(
+  connectionId: string,
+): Promise<{ message: string }> {
+  return fetchWithAuth<{ message: string }>(
+    `/whatsapp/connections/${connectionId}/purge`,
+    {
+      method: "POST",
+      body: JSON.stringify({ confirmation: "DELETE" }),
+    },
+  );
+}
+
 export async function getWhatsAppConnection(
   connectionId: string,
 ): Promise<WhatsAppConnection> {
@@ -85,6 +112,9 @@ export async function deleteWhatsAppConnection(
     },
   );
 }
+
+/** Archives the stable inbox identity and unlinks its current device session. */
+export const archiveWhatsAppConnection = deleteWhatsAppConnection;
 
 export async function updateWhatsAppConnection(
   connectionId: string,

@@ -4,21 +4,21 @@
  */
 
 import type {
-  NatsCommand,
-  StatusType,
-  SpawnCommand,
-  KillCommand,
-  PostStatusCommand,
-  GroupPromoteAdminCommand,
+  ApplyLabelCommand,
+  BlockContactCommand,
   GroupDemoteAdminCommand,
+  GroupPromoteAdminCommand,
   GroupRemoveParticipantCommand,
   GroupUpdateSettingsCommand,
-  SyncLabelsCommand,
-  ApplyLabelCommand,
+  KillCommand,
+  NatsCommand,
+  PostStatusCommand,
   RemoveLabelCommand,
-  SyncCatalogsCommand,
+  SpawnCommand,
+  StatusType,
   SyncCatalogProductsCommand,
-  BlockContactCommand,
+  SyncCatalogsCommand,
+  SyncLabelsCommand,
   UnblockContactCommand,
 } from "./types/index.js";
 
@@ -65,12 +65,14 @@ export class NatsCommandPublisher {
   /**
    * Publish kill command to disconnect WhatsApp
    */
-  async kill(reason?: string): Promise<void> {
+  async kill(reason?: string, unlink = false): Promise<void> {
     const command: KillCommand = {
       type: "kill",
       company_id: this.companyId,
       connection_id: this.connectionId,
+      tenant_schema: `tenant_${this.companyId.replace(/-/g, "_")}`,
       reason,
+      unlink,
     };
 
     await this.publish(command);

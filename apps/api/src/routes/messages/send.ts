@@ -24,6 +24,7 @@ import { createConditionalRateLimiter } from "../../middleware/rate-limit.js";
 import { requireMessageVisibility } from "../../middleware/resource-visibility.js";
 import { enqueueCommand } from "../../services/command-outbox.service.js";
 import { ensureContactAssignment } from "../../services/contact.service.js";
+import { getActiveSessionId } from "../../services/whatsapp/session.js";
 
 // Message send rate limiter: 60 requests per minute per user
 const messageSendRateLimiter = createConditionalRateLimiter(
@@ -112,10 +113,11 @@ sendRoutes.post(
     const messageId = crypto.randomUUID();
     const waMessageId = `pending_${messageId}`;
     const createdAt = toDbDate();
+    const sessionId = await getActiveSessionId(tenantDb, connection.id);
 
     const sendCommand = await buildSendMessageCommand(
       companyId,
-      connection.id,
+      sessionId,
       contact.jid,
       body.content || "",
       body.messageType,
@@ -148,7 +150,7 @@ sendRoutes.post(
         .execute();
       await enqueueCommand(
         trx,
-        buildCommandSubject(companyId, connection.id),
+        buildCommandSubject(companyId, sessionId),
         sendCommand,
       );
     });
@@ -247,10 +249,11 @@ sendRoutes.post(
     // Create forwarded message
     const newMessageId = crypto.randomUUID();
     const waMessageId = `pending_${newMessageId}`;
+    const sessionId = await getActiveSessionId(tenantDb, connection.id);
 
     const sendCommand = await buildSendMessageCommand(
       companyId,
-      connection.id,
+      sessionId,
       targetContact.jid,
       originalMessage.content || "",
       originalMessage.message_type,
@@ -280,7 +283,7 @@ sendRoutes.post(
         .execute();
       await enqueueCommand(
         trx,
-        buildCommandSubject(companyId, connection.id),
+        buildCommandSubject(companyId, sessionId),
         sendCommand,
       );
     });
@@ -357,6 +360,7 @@ sendRoutes.post(
     // Create a new message entry for the retry
     const newMessageId = crypto.randomUUID();
     const waMessageId = `pending_${newMessageId}`;
+    const sessionId = await getActiveSessionId(tenantDb, connection.id);
 
     // Look up the sender JID for reply context
     let quotedSenderJid: string | undefined;
@@ -376,7 +380,7 @@ sendRoutes.post(
 
     const sendCommand = await buildSendMessageCommand(
       companyId,
-      connection.id,
+      sessionId,
       contact.jid,
       originalMessage.content || "",
       originalMessage.message_type,
@@ -409,7 +413,7 @@ sendRoutes.post(
         .execute();
       await enqueueCommand(
         trx,
-        buildCommandSubject(companyId, connection.id),
+        buildCommandSubject(companyId, sessionId),
         sendCommand,
       );
     });

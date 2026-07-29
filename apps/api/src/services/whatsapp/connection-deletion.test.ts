@@ -1,34 +1,38 @@
 import { describe, expect, test } from "bun:test";
 import type { Transaction } from "kysely";
 import type { TenantDatabase } from "../tenant.service.js";
-import { deleteConnectionWithKill } from "./connection.js";
+import { archiveConnectionWithUnlink } from "./connection.js";
 
 function transactionWithConnection(exists = true) {
-  let deleteCalls = 0;
+  let updateCalls = 0;
   const builder = {
     selectFrom: () => builder,
     select: () => builder,
     where: () => builder,
+    orderBy: () => builder,
     forUpdate: () => builder,
     executeTakeFirst: async () =>
-      exists ? { id: "connection-1", status: "connected" } : undefined,
-    deleteFrom: () => {
-      deleteCalls++;
+      exists
+        ? { id: "connection-1", status: "connected", archived_at: null }
+        : undefined,
+    updateTable: () => {
+      updateCalls++;
       return builder;
     },
+    set: () => builder,
     execute: async () => undefined,
   };
   return {
     trx: builder as unknown as Transaction<TenantDatabase>,
-    deleteCalls: () => deleteCalls,
+    updateCalls: () => updateCalls,
   };
 }
 
-describe("atomic connection deletion", () => {
-  test("does not delete when the kill enqueue crash point fails", async () => {
+describe("atomic connection archive and unlink", () => {
+  test("does not archive when the unlink enqueue crash point fails", async () => {
     const state = transactionWithConnection();
     await expect(
-      deleteConnectionWithKill(
+      archiveConnectionWithUnlink(
         state.trx,
         "company-1",
         "connection-1",
@@ -37,14 +41,14 @@ describe("atomic connection deletion", () => {
         },
       ),
     ).rejects.toThrow("simulated outbox failure");
-    expect(state.deleteCalls()).toBe(0);
+    expect(state.updateCalls()).toBe(0);
   });
 
-  test("enqueues kill before deletion and treats a missing row idempotently", async () => {
+  test("enqueues unlink before archiving and treats a missing row idempotently", async () => {
     const calls: string[] = [];
     const state = transactionWithConnection();
     expect(
-      await deleteConnectionWithKill(
+      await archiveConnectionWithUnlink(
         state.trx,
         "company-1",
         "connection-1",
@@ -54,11 +58,11 @@ describe("atomic connection deletion", () => {
       ),
     ).toBe(true);
     expect(calls).toEqual(["enqueue"]);
-    expect(state.deleteCalls()).toBe(1);
+    expect(state.updateCalls()).toBe(2);
 
     const missing = transactionWithConnection(false);
     expect(
-      await deleteConnectionWithKill(
+      await archiveConnectionWithUnlink(
         missing.trx,
         "company-1",
         "connection-1",
@@ -67,6 +71,6 @@ describe("atomic connection deletion", () => {
         },
       ),
     ).toBe(false);
-    expect(missing.deleteCalls()).toBe(0);
+    expect(missing.updateCalls()).toBe(0);
   });
 });

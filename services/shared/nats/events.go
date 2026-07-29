@@ -277,7 +277,9 @@ type KillWorkerCommand struct {
 	Type         string `json:"type"`
 	CompanyID    string `json:"company_id"`
 	ConnectionID string `json:"connection_id"`
+	TenantSchema string `json:"tenant_schema,omitempty"`
 	Reason       string `json:"reason,omitempty"`
+	Unlink       bool   `json:"unlink,omitempty"`
 }
 
 // WorkerStatusCommand requests the status of a WhatsApp worker.

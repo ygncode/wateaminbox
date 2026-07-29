@@ -17,6 +17,7 @@ import { successData } from "../../lib/response.js";
 import { addReactionSchema } from "../../lib/schemas/index.js";
 import { getRouteContext } from "../../middleware/context.js";
 import { enqueueCommand } from "../../services/command-outbox.service.js";
+import { getActiveSessionId } from "../../services/whatsapp/session.js";
 
 export const reactionRoutes = new Hono();
 
@@ -102,8 +103,9 @@ reactionRoutes.post(
     const targetSenderJid = message.from_me
       ? connection.jid
       : protocolSenderJid || message.sender_jid || contact.jid;
+    const sessionId = await getActiveSessionId(tenantDb, connection.id);
     const reactionCommand = buildSendReactionCommand(
-      connection.id,
+      sessionId,
       contact.jid,
       message.message_id,
       body.emoji,
@@ -127,7 +129,7 @@ reactionRoutes.post(
         .execute();
       await enqueueCommand(
         trx,
-        buildCommandSubject(companyId, connection.id),
+        buildCommandSubject(companyId, sessionId),
         reactionCommand,
       );
     });
@@ -217,8 +219,9 @@ reactionRoutes.delete("/:id/reaction", async (c) => {
       const targetSenderJid = message.from_me
         ? connection.jid || undefined
         : protocolSenderJid || message.sender_jid || contact.jid;
+      const sessionId = await getActiveSessionId(tenantDb, connection.id);
       const reactionCommand = buildSendReactionCommand(
-        connection.id,
+        sessionId,
         contact.jid,
         message.message_id,
         "",
@@ -234,7 +237,7 @@ reactionRoutes.delete("/:id/reaction", async (c) => {
           .execute();
         await enqueueCommand(
           trx,
-          buildCommandSubject(companyId, connection.id),
+          buildCommandSubject(companyId, sessionId),
           reactionCommand,
         );
       });

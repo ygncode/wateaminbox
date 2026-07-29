@@ -24,6 +24,20 @@ export const TENANT_SCHEMA_CONTRACT = {
     "sync_conversation_count",
     "qr_code",
     "qr_expires_at",
+    "archived_at",
+    "created_at",
+    "updated_at",
+  ],
+  whatsapp_connection_sessions: [
+    "id",
+    "whatsapp_connection_id",
+    "status",
+    "created_by",
+    "expected_phone_number",
+    "started_at",
+    "connected_at",
+    "ended_at",
+    "end_reason",
     "created_at",
     "updated_at",
   ],
@@ -448,7 +462,52 @@ export async function reconcileTenantSchema<Database>(
     ADD COLUMN IF NOT EXISTS qr_code TEXT,
     ADD COLUMN IF NOT EXISTS qr_expires_at TIMESTAMPTZ,
     ADD COLUMN IF NOT EXISTS sync_message_count INTEGER NOT NULL DEFAULT 0,
-    ADD COLUMN IF NOT EXISTS sync_conversation_count INTEGER NOT NULL DEFAULT 0
+    ADD COLUMN IF NOT EXISTS sync_conversation_count INTEGER NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS archived_at TIMESTAMPTZ
+  `.execute(db);
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS ${table("whatsapp_connection_sessions")} (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      whatsapp_connection_id UUID NOT NULL
+        REFERENCES ${table("whatsapp_connections")}(id) ON DELETE CASCADE,
+      status TEXT NOT NULL DEFAULT 'pending'
+        CHECK (status IN (
+          'pending',
+          'connecting',
+          'connected',
+          'disconnected',
+          'ended'
+        )),
+      created_by UUID,
+      expected_phone_number VARCHAR(50),
+      started_at TIMESTAMPTZ,
+      connected_at TIMESTAMPTZ,
+      ended_at TIMESTAMPTZ,
+      end_reason TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `.execute(db);
+  await sql`
+    ALTER TABLE ${table("whatsapp_connection_sessions")}
+    ADD COLUMN IF NOT EXISTS expected_phone_number VARCHAR(50)
+  `.execute(db);
+  await sql`
+    CREATE INDEX IF NOT EXISTS ${sql.ref(
+      `${schemaName}_wa_sessions_account_idx`,
+    )}
+    ON ${table("whatsapp_connection_sessions")} (
+      whatsapp_connection_id,
+      created_at DESC
+    )
+  `.execute(db);
+  await sql`
+    CREATE UNIQUE INDEX IF NOT EXISTS ${sql.ref(
+      `${schemaName}_wa_sessions_active_uidx`,
+    )}
+    ON ${table("whatsapp_connection_sessions")} (whatsapp_connection_id)
+    WHERE ended_at IS NULL
   `.execute(db);
 
   await sql`

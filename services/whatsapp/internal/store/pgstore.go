@@ -16,7 +16,7 @@ import (
 	"go.mau.fi/whatsmeow/util/keys"
 	waLog "go.mau.fi/whatsmeow/util/log"
 
-	_ "github.com/lib/pq" // PostgreSQL driver
+	"github.com/lib/pq"
 	natsClient "github.com/ygncode-lab/whatsapp-web/services/whatsapp/internal/nats"
 )
 
@@ -34,6 +34,52 @@ type PGContainer struct {
 	connectionID string
 	log          waLog.Logger
 	mu           sync.RWMutex
+}
+
+// PurgeSession removes every whatsmeow/runtime row owned by this replaceable
+// pairing session. Table discovery keeps the purge complete when new runtime
+// stores are added, while identifiers still come exclusively from PostgreSQL's
+// catalog and are safely quoted.
+func (c *PGContainer) PurgeSession(ctx context.Context) error {
+	rows, err := c.db.QueryContext(ctx, `
+		SELECT DISTINCT table_name
+		FROM information_schema.columns
+		WHERE table_schema = current_schema()
+		  AND column_name = 'connection_id'
+		ORDER BY table_name`)
+	if err != nil {
+		return fmt.Errorf("list session tables: %w", err)
+	}
+	defer rows.Close()
+
+	var tables []string
+	for rows.Next() {
+		var table string
+		if err = rows.Scan(&table); err != nil {
+			return fmt.Errorf("scan session table: %w", err)
+		}
+		tables = append(tables, table)
+	}
+	if err = rows.Err(); err != nil {
+		return fmt.Errorf("iterate session tables: %w", err)
+	}
+
+	tx, err := c.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin session purge: %w", err)
+	}
+	defer tx.Rollback()
+
+	for _, table := range tables {
+		query := fmt.Sprintf(
+			"DELETE FROM %s WHERE connection_id = $1",
+			pq.QuoteIdentifier(table),
+		)
+		if _, err = tx.ExecContext(ctx, query, c.connectionID); err != nil {
+			return fmt.Errorf("purge %s: %w", table, err)
+		}
+	}
+	return tx.Commit()
 }
 
 // NewPGContainer creates a new PostgreSQL store container.

@@ -1,55 +1,57 @@
 import type { JetStreamSubscription } from "nats";
+import { createLogger, formatError } from "../lib/logger.js";
+import { PermanentEventError } from "../lib/nats/client.js";
 import {
-  subscribeToAllEvents,
-  type WhatsAppEvent,
-  type QREvent,
+  type CatalogProductsEvent,
+  type CatalogsEvent,
+  type CommandResultEvent,
   type ConnectionEvent,
+  type ContactEvent,
+  type DownloadResponseEvent,
+  type LabelsEvent,
   type MessageEvent,
+  type MessageRevokeEvent,
+  type PresenceEvent,
+  type ProfilePictureEvent,
+  type QREvent,
+  type ReactionEvent,
   type ReceiptEvent,
   type SendConfirmationEvent,
   type SendFailedEvent,
   type StatusEvent,
-  type ContactEvent,
-  type ProfilePictureEvent,
-  type MessageRevokeEvent,
-  type PresenceEvent,
-  type TypingEvent,
-  type ReactionEvent,
-  type DownloadResponseEvent,
   type SyncStatusEvent,
+  subscribeToAllEvents,
+  type TypingEvent,
+  type WhatsAppEvent,
   type WorkerConnectionStatusEvent,
-  type LabelsEvent,
-  type CatalogsEvent,
-  type CatalogProductsEvent,
-  type CommandResultEvent,
 } from "../lib/nats/index.js";
-import { createLogger, formatError } from "../lib/logger.js";
-
 // Import handlers from focused modules
 import {
-  handleQREvent,
+  handleCatalogProductsEvent,
+  handleCatalogsEvent,
+  handleCommandResultEvent,
   handleConnectedEvent,
+  handleContactEvent,
   handleDisconnectedEvent,
-  handleWorkerConnectionStatusEvent,
+  handleDownloadResponseEvent,
+  handleErrorEvent,
+  handleLabelsEvent,
   handleMessageEvent,
+  handleMessageRevokeEvent,
+  handlePresenceEvent,
+  handleProfilePictureEvent,
+  handleQREvent,
+  handleReactionEvent,
   handleReceiptEvent,
   handleSendConfirmationEvent,
   handleSendFailedEvent,
   handleStatusEvent,
-  handleContactEvent,
-  handleProfilePictureEvent,
-  handleMessageRevokeEvent,
-  handlePresenceEvent,
-  handleTypingEvent,
-  handleReactionEvent,
-  handleDownloadResponseEvent,
   handleSyncStatusEvent,
-  handleErrorEvent,
-  handleLabelsEvent,
-  handleCatalogsEvent,
-  handleCatalogProductsEvent,
-  handleCommandResultEvent,
+  handleTypingEvent,
+  handleWorkerConnectionStatusEvent,
 } from "./handlers/index.js";
+import { getTenantConnection } from "./tenant.service.js";
+import { resolveWhatsAppSession } from "./whatsapp/session.js";
 
 const logger = createLogger("MessageHandler");
 
@@ -116,103 +118,137 @@ export async function shutdownMessageHandler(): Promise<void> {
  * Exported for testing purposes
  */
 export async function handleWhatsAppEvent(event: WhatsAppEvent): Promise<void> {
-  const { type, companyId, connectionId } = event;
+  const { type, companyId } = event;
+  const sessionId = event.connectionId;
+  const session = await resolveWhatsAppSession(
+    getTenantConnection(companyId),
+    sessionId,
+  );
+  if (!session) {
+    throw new PermanentEventError(
+      `WhatsApp session ${sessionId} does not exist`,
+    );
+  }
+  if (
+    session.status === "ended" &&
+    !["connection_status", "disconnected", "error"].includes(type)
+  ) {
+    logger.info(
+      { type, companyId, sessionId },
+      "Ignoring late event from ended WhatsApp session",
+    );
+    return;
+  }
+  const resolvedEvent = {
+    ...event,
+    sessionId,
+    connectionId: session.connectionId,
+  } as WhatsAppEvent;
 
   logger.debug(
-    { type, companyId, connectionId: connectionId || "unknown" },
+    {
+      type,
+      companyId,
+      connectionId: resolvedEvent.connectionId,
+      sessionId,
+    },
     "Received WhatsApp event",
   );
 
   try {
     switch (type) {
       case "qr":
-        await handleQREvent(event as QREvent);
+        await handleQREvent(resolvedEvent as QREvent);
         break;
 
       case "connected":
-        await handleConnectedEvent(event as ConnectionEvent);
+        await handleConnectedEvent(resolvedEvent as ConnectionEvent);
         break;
 
       case "disconnected":
-        await handleDisconnectedEvent(event as ConnectionEvent);
+        await handleDisconnectedEvent(resolvedEvent as ConnectionEvent);
         break;
 
       case "message":
-        await handleMessageEvent(event as MessageEvent);
+        await handleMessageEvent(resolvedEvent as MessageEvent);
         break;
 
       case "receipt":
-        await handleReceiptEvent(event as ReceiptEvent);
+        await handleReceiptEvent(resolvedEvent as ReceiptEvent);
         break;
 
       case "send_confirmation":
-        await handleSendConfirmationEvent(event as SendConfirmationEvent);
+        await handleSendConfirmationEvent(
+          resolvedEvent as SendConfirmationEvent,
+        );
         break;
 
       case "send_failed":
-        await handleSendFailedEvent(event as SendFailedEvent);
+        await handleSendFailedEvent(resolvedEvent as SendFailedEvent);
         break;
 
       case "connection_status":
         await handleWorkerConnectionStatusEvent(
-          event as WorkerConnectionStatusEvent,
+          resolvedEvent as WorkerConnectionStatusEvent,
         );
         break;
 
       case "status":
-        await handleStatusEvent(event as StatusEvent);
+        await handleStatusEvent(resolvedEvent as StatusEvent);
         break;
 
       case "contact":
-        await handleContactEvent(event as ContactEvent);
+        await handleContactEvent(resolvedEvent as ContactEvent);
         break;
 
       case "profile_picture":
-        await handleProfilePictureEvent(event as ProfilePictureEvent);
+        await handleProfilePictureEvent(resolvedEvent as ProfilePictureEvent);
         break;
 
       case "message_revoke":
-        await handleMessageRevokeEvent(event as MessageRevokeEvent);
+        await handleMessageRevokeEvent(resolvedEvent as MessageRevokeEvent);
         break;
 
       case "presence":
-        await handlePresenceEvent(event as PresenceEvent);
+        await handlePresenceEvent(resolvedEvent as PresenceEvent);
         break;
 
       case "typing":
-        await handleTypingEvent(event as TypingEvent);
+        await handleTypingEvent(resolvedEvent as TypingEvent);
         break;
 
       case "reaction":
-        await handleReactionEvent(event as ReactionEvent);
+        await handleReactionEvent(resolvedEvent as ReactionEvent);
         break;
 
       case "download_response":
-        await handleDownloadResponseEvent(event as DownloadResponseEvent);
+        await handleDownloadResponseEvent(
+          resolvedEvent as DownloadResponseEvent,
+        );
         break;
 
       case "sync_status":
-        await handleSyncStatusEvent(event as SyncStatusEvent);
+        await handleSyncStatusEvent(resolvedEvent as SyncStatusEvent);
         break;
 
       case "labels":
-        await handleLabelsEvent(event as LabelsEvent);
+        await handleLabelsEvent(resolvedEvent as LabelsEvent);
         break;
 
       case "catalogs":
-        await handleCatalogsEvent(event as CatalogsEvent);
+        await handleCatalogsEvent(resolvedEvent as CatalogsEvent);
         break;
 
       case "catalog_products":
-        await handleCatalogProductsEvent(event as CatalogProductsEvent);
+        await handleCatalogProductsEvent(resolvedEvent as CatalogProductsEvent);
         break;
 
       case "command_result":
-        await handleCommandResultEvent(event as CommandResultEvent);
+        await handleCommandResultEvent(resolvedEvent as CommandResultEvent);
         break;
 
       case "error":
-        await handleErrorEvent(event);
+        await handleErrorEvent(resolvedEvent);
         break;
 
       default:

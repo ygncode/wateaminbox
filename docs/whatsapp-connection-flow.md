@@ -4,8 +4,11 @@
 
 1. An admin posts to `/api/whatsapp/connections`.
 2. The API validates tenant membership, role, and the company's connection limit.
-3. A pending `whatsapp_connections` row is created in the tenant schema.
-4. In the same transaction, the API writes a spawn command to the tenant command outbox. The dispatcher publishes it to `WHATSAPP.commands.{companyId}.{connectionId}` with a stable deduplication ID.
+3. A stable inbox identity is created in `whatsapp_connections`, together with
+   a replaceable row in `whatsapp_connection_sessions`.
+4. In the same transaction, the API writes a spawn command to the tenant
+   command outbox. Worker commands and whatsmeow credentials use the session
+   ID; contacts and messages use the stable connection/account ID.
 5. The Go orchestrator starts a dedicated WhatsApp worker.
 6. The worker initializes whatsmeow and requests a QR code.
 7. QR and connection events travel from the worker through NATS to the API.
@@ -28,11 +31,29 @@ pending -> connecting -> connected
           disconnected
 ```
 
-The orchestrator persists non-secret worker metadata and handles process lifecycle. Its durable consumer retains commands published while it is offline. Disconnect and delete operations commit the state change and kill command atomically through the tenant outbox.
+The orchestrator persists non-secret worker metadata and handles process
+lifecycle. Its durable consumer retains commands published while it is
+offline. The API resolves every worker session event back to its stable account
+before writing inbox data.
 
-## Deletion lifecycle
+## Disconnect, archive, and deletion
 
-Connection deletion takes a row lock and writes the idempotent worker `kill` command to the tenant command outbox in the same transaction that deletes the connection row. A crash therefore commits both intents or neither; repeated DELETE requests return success when the row is already absent. The orchestrator verifies recovered process identity, waits for termination, and only then removes its worker-registry entry.
+- **Disconnect** stops the worker but retains the session credentials and stable
+  account so reconnect can resume the same linked device.
+- **Archive & unlink** logs the device out of WhatsApp, purges all rows in the
+  `whatsapp_sessions` schema for that session, ends the session record, and
+  hides the stable account. Contacts, messages, notes, and assignments remain.
+- **Link again** creates a new pairing session for the archived stable account.
+  The expected phone identity is enforced before the session can claim it.
+- **Create and pair the same phone again** atomically moves the new session from
+  its empty provisional account to the historical stable account. The
+  provisional account is removed, preventing duplicate conversations.
+- **Permanent deletion** is a separate permission-gated operation that only
+  accepts archived accounts and erases their retained inbox data.
+
+Archive/unlink commits the account state, ended session, and idempotent unlink
+command together through the tenant outbox. The worker receives a dedicated
+unlink signal, logs out from WhatsApp, purges its credential store, and exits.
 
 ## Main files
 

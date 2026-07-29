@@ -110,6 +110,7 @@ func TestHandleKillCommand_Valid(t *testing.T) {
 		CompanyID:    "company-123",
 		ConnectionID: "conn-456",
 		Reason:       "user requested disconnect",
+		Unlink:       true,
 	}
 
 	data, err := json.Marshal(cmd)
@@ -123,6 +124,7 @@ func TestHandleKillCommand_Valid(t *testing.T) {
 	assert.Equal(t, cmd.CompanyID, parsed.CompanyID)
 	assert.Equal(t, cmd.ConnectionID, parsed.ConnectionID)
 	assert.Equal(t, cmd.Reason, parsed.Reason)
+	assert.True(t, parsed.Unlink)
 }
 
 // TestHandleKillCommand_OptionalReason tests kill command without reason.

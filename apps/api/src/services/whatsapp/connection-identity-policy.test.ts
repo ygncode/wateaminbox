@@ -17,8 +17,12 @@ describe("WhatsApp connection identity policy", () => {
       new URL("../handlers/connection-handlers.ts", import.meta.url),
     ).text();
     expect(handler).toContain("DuplicateWhatsAppPhoneError");
-    expect(handler).toContain("killConnection");
-    expect(handler).toContain('code: "duplicate_phone"');
+    expect(handler).toContain("enqueueSessionCommand");
+    expect(handler).toContain(
+      'publisher.kill("duplicate phone pairing rejected", true)',
+    );
+    expect(handler).toContain('"duplicate_phone"');
+    expect(handler).toContain('"identity_mismatch"');
   });
 
   test("the database migration enforces one non-null phone per workspace", async () => {
@@ -31,5 +35,18 @@ describe("WhatsApp connection identity policy", () => {
     expect(migration).toContain("CREATE UNIQUE INDEX IF NOT EXISTS");
     expect(migration).toContain("(phone_number)");
     expect(migration).toContain("WHERE phone_number IS NOT NULL");
+  });
+
+  test("stable inbox identities are separated from replaceable sessions", async () => {
+    const migration = await Bun.file(
+      new URL(
+        "../../../../../packages/database/src/migrations/052_separate_whatsapp_accounts_and_sessions.ts",
+        import.meta.url,
+      ),
+    ).text();
+    expect(migration).toContain("whatsapp_connection_sessions");
+    expect(migration).toContain("whatsapp_connection_id UUID NOT NULL");
+    expect(migration).toContain("WHERE ended_at IS NULL");
+    expect(migration).toContain("ADD COLUMN IF NOT EXISTS archived_at");
   });
 });

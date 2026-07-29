@@ -148,14 +148,14 @@ export interface Conversation {
 // Company types - re-export from shared package
 export type {
   Company,
-  CompanyWithRole,
-  CompanyMember,
   CompanyInvitation,
-  CompanyStatus,
+  CompanyMember,
   CompanyMemberRole,
+  CompanyStatus,
+  CompanyWithRole,
   CreateCompanyInput,
-  UpdateCompanyInput,
   InviteMemberInput,
+  UpdateCompanyInput,
 } from "@wateaminbox/shared";
 
 // Media types
@@ -197,6 +197,7 @@ export interface WhatsAppConnection {
   lastSync?: string;
   qrCode?: string | null;
   qrExpiresAt?: string | null;
+  archivedAt?: string | null;
   createdAt: string;
   updatedAt: string;
 }

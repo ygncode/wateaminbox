@@ -61,7 +61,7 @@ async function requestParticipantProfile(
  * Handles incoming WhatsApp messages
  */
 export async function handleMessageEvent(event: MessageEvent): Promise<void> {
-  const { companyId, connectionId, payload } = event;
+  const { companyId, connectionId, sessionId, payload } = event;
 
   logger.debug(
     { companyId, connectionId, from: payload.from },
@@ -350,7 +350,7 @@ export async function handleMessageEvent(event: MessageEvent): Promise<void> {
     ) {
       requestParticipantProfile(
         companyId,
-        connection.id,
+        sessionId ?? connection.id,
         normalizedSenderJid,
       ).catch((error) => {
         logger.warn(

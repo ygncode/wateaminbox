@@ -10,6 +10,7 @@ export {
   ConnectionAlreadyExistsError,
   ConnectionNotFoundError,
   MaxConnectionsExceededError,
+  WhatsAppIdentityMismatchError,
 } from "../../lib/errors.js";
 // Connection management
 export {
@@ -19,10 +20,20 @@ export {
   getConnectionLimits,
   getMaxConnections,
   killConnection,
+  listArchivedConnections,
   listConnections,
+  purgeArchivedConnection,
+  relinkArchivedConnection,
   spawnConnection,
   type WhatsAppConnection,
 } from "./connection.js";
+export {
+  claimConnectedSession,
+  createConnectionSession,
+  getActiveSessionId,
+  resolveWhatsAppSession,
+  updateSessionStatus,
+} from "./session.js";
 // Status tracking
 export {
   type ConnectionStatus,

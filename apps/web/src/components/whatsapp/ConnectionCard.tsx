@@ -340,7 +340,7 @@ export function ConnectionCard({
                       }}
                     >
                       <Trash2 className="h-4 w-4" />
-                      Delete
+                      Archive & unlink
                     </button>
                   </div>
                 </>
@@ -352,9 +352,9 @@ export function ConnectionCard({
       <ConfirmationDialog
         open={deleteOpen}
         onOpenChange={setDeleteOpen}
-        title={`Delete ${connection.name}?`}
-        description="This permanently removes the connection from this workspace. You will need to link the device again to use this number."
-        confirmText="Delete connection"
+        title={`Archive and unlink ${connection.name}?`}
+        description="This logs the device out of WhatsApp and hides the account from active connections. Conversations, assignments, and notes are retained and will return if this number is linked again."
+        confirmText="Archive & unlink"
         onConfirm={async () => {
           await onDelete();
           setDeleteOpen(false);

@@ -1,4 +1,4 @@
-import { MeiliSearch, Index } from "meilisearch";
+import { Index, MeiliSearch } from "meilisearch";
 import { createLogger, formatError } from "../lib/logger.js";
 
 const logger = createLogger("Meilisearch");
@@ -274,6 +274,32 @@ export async function deleteContact(
     await index.deleteDocument(contactId);
   } catch (error) {
     logger.error(formatError(error), "Failed to delete contact");
+  }
+}
+
+export async function deleteMessages(
+  companyId: string,
+  messageIds: string[],
+): Promise<void> {
+  if (messageIds.length === 0) return;
+  try {
+    const index = await getMessagesIndex(companyId);
+    await index.deleteDocuments(messageIds);
+  } catch (error) {
+    logger.error(formatError(error), "Failed to batch-delete messages");
+  }
+}
+
+export async function deleteContacts(
+  companyId: string,
+  contactIds: string[],
+): Promise<void> {
+  if (contactIds.length === 0) return;
+  try {
+    const index = await getContactsIndex(companyId);
+    await index.deleteDocuments(contactIds);
+  } catch (error) {
+    logger.error(formatError(error), "Failed to batch-delete contacts");
   }
 }
 

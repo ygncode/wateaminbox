@@ -24,6 +24,7 @@ import {
 import { enqueueCommand } from "../../services/command-outbox.service.js";
 import { ensureContactAssignment } from "../../services/contact.service.js";
 import { getUserNames } from "../../services/user.service.js";
+import { getActiveSessionId } from "../../services/whatsapp/session.js";
 
 export const messageRoutes = new Hono();
 
@@ -197,10 +198,11 @@ messageRoutes.post(
     // Create a pending message in database
     const messageId = crypto.randomUUID();
     const waMessageId = `pending_${messageId}`;
+    const sessionId = await getActiveSessionId(tenantDb, connection.id);
 
     const sendCommand = await buildSendMessageCommand(
       companyId,
-      connection.id,
+      sessionId,
       contact.jid,
       content ?? "",
       messageType,
@@ -232,7 +234,7 @@ messageRoutes.post(
         .execute();
       await enqueueCommand(
         trx,
-        buildCommandSubject(companyId, connection.id),
+        buildCommandSubject(companyId, sessionId),
         sendCommand,
       );
     });
