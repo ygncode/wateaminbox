@@ -24,7 +24,7 @@ export function AuthPageShell({ children, variant }: AuthPageShellProps) {
   const isRecovery = variant === "recovery";
 
   return (
-    <main className="relative min-h-dvh overflow-hidden bg-[#edf4f0] px-3 py-3 text-slate-950 sm:px-6 sm:py-6 dark:bg-dark-primary dark:text-dark-text-primary">
+    <main className="relative h-dvh overflow-hidden bg-[#edf4f0] px-3 py-3 text-slate-950 sm:px-6 sm:py-6 dark:bg-dark-primary dark:text-dark-text-primary">
       <div
         className="pointer-events-none absolute -left-28 -top-28 h-80 w-80 rounded-full bg-[#25d366]/12 blur-3xl"
         aria-hidden="true"
@@ -34,8 +34,8 @@ export function AuthPageShell({ children, variant }: AuthPageShellProps) {
         aria-hidden="true"
       />
 
-      <section className="relative mx-auto grid min-h-[calc(100dvh-1.5rem)] w-full max-w-6xl overflow-hidden rounded-[1.75rem] border border-white/80 bg-white shadow-[0_24px_80px_rgba(15,55,43,0.14)] sm:min-h-[calc(100dvh-3rem)] lg:grid-cols-[minmax(0,1.08fr)_minmax(23rem,0.92fr)] dark:border-dark-border dark:bg-dark-elevated dark:shadow-none">
-        <div className="flex min-w-0 flex-col p-6 sm:p-9 lg:p-12">
+      <section className="relative mx-auto grid h-full min-h-0 w-full max-w-6xl overflow-hidden rounded-[1.75rem] border border-white/80 bg-white shadow-[0_24px_80px_rgba(15,55,43,0.14)] lg:grid-cols-[minmax(0,1.08fr)_minmax(23rem,0.92fr)] dark:border-dark-border dark:bg-dark-elevated dark:shadow-none">
+        <div className="scrollbar-hide flex min-h-0 min-w-0 flex-col overflow-y-auto p-6 sm:p-9 lg:p-12">
           <div className="mb-10 flex items-center gap-3 sm:mb-12">
             <span className="grid h-10 w-10 place-items-center rounded-[0.9rem] bg-[#075e54] text-white shadow-sm shadow-[#075e54]/20">
               <MessageCircleMore
@@ -63,7 +63,7 @@ export function AuthPageShell({ children, variant }: AuthPageShellProps) {
           </p>
         </div>
 
-        <aside className="relative hidden overflow-hidden bg-[#073f3a] p-10 text-white lg:flex lg:flex-col lg:justify-between xl:p-12">
+        <aside className="scrollbar-hide relative hidden min-h-0 overflow-y-auto bg-[#073f3a] p-10 text-white lg:flex lg:flex-col lg:justify-between xl:p-12">
           <div
             className="pointer-events-none absolute inset-0 opacity-[0.16]"
             aria-hidden="true"
