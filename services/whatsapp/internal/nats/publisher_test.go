@@ -1,13 +1,148 @@
 package nats
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
 	"time"
 
+	natsgo "github.com/nats-io/nats.go"
 	"github.com/stretchr/testify/assert"
 )
+
+type flakyJetStreamPublisher struct {
+	calls      int
+	failBefore int
+	order      *[]string
+}
+
+func (publisher *flakyJetStreamPublisher) Publish(
+	_ string,
+	_ []byte,
+	_ ...natsgo.PubOpt,
+) (*natsgo.PubAck, error) {
+	publisher.calls++
+	if publisher.order != nil {
+		*publisher.order = append(*publisher.order, "publish")
+	}
+	if publisher.calls <= publisher.failBefore {
+		return nil, errors.New("temporary publish failure")
+	}
+	return &natsgo.PubAck{Stream: StreamName}, nil
+}
+
+type memoryEventOutbox struct {
+	events map[string]PendingEvent
+	order  *[]string
+}
+
+func (outbox *memoryEventOutbox) SavePendingEvent(
+	_ context.Context,
+	event PendingEvent,
+) error {
+	if outbox.events == nil {
+		outbox.events = make(map[string]PendingEvent)
+	}
+	outbox.events[event.ID] = event
+	if outbox.order != nil {
+		*outbox.order = append(*outbox.order, "save")
+	}
+	return nil
+}
+
+func (outbox *memoryEventOutbox) ListPendingEvents(
+	_ context.Context,
+	_ int,
+) ([]PendingEvent, error) {
+	events := make([]PendingEvent, 0, len(outbox.events))
+	for _, event := range outbox.events {
+		events = append(events, event)
+	}
+	return events, nil
+}
+
+func (outbox *memoryEventOutbox) MarkEventPublished(
+	_ context.Context,
+	eventID string,
+) error {
+	delete(outbox.events, eventID)
+	if outbox.order != nil {
+		*outbox.order = append(*outbox.order, "mark")
+	}
+	return nil
+}
+
+func (*memoryEventOutbox) RecordEventPublishFailure(
+	context.Context,
+	string,
+	string,
+) error {
+	return nil
+}
+
+func TestPublishEventRetriesTransientJetStreamFailures(t *testing.T) {
+	publisher := &flakyJetStreamPublisher{failBefore: 2}
+
+	err := publishEventWithRetry(
+		publisher,
+		"WHATSAPP.events.test",
+		[]byte("event"),
+		"event-id",
+	)
+
+	assert.NoError(t, err)
+	assert.Equal(t, 3, publisher.calls)
+}
+
+func TestPublisherPersistsEventBeforeJetStreamPublish(t *testing.T) {
+	order := make([]string, 0, 3)
+	outbox := &memoryEventOutbox{order: &order}
+	js := &flakyJetStreamPublisher{order: &order}
+	publisher := &Publisher{
+		js:     js,
+		outbox: outbox,
+		ctx:    context.Background(),
+	}
+
+	err := publisher.publish(
+		"WHATSAPP.events.company.connection.message",
+		map[string]string{"type": "message"},
+	)
+
+	assert.NoError(t, err)
+	assert.Equal(t, []string{"save", "publish", "mark"}, order)
+	assert.Empty(t, outbox.events)
+}
+
+func TestPublisherReplaysPersistedEventsAfterRestart(t *testing.T) {
+	outbox := &memoryEventOutbox{events: map[string]PendingEvent{
+		"event-1": {
+			ID:      "event-1",
+			Subject: "WHATSAPP.events.company.connection.message",
+			Payload: []byte(`{"type":"message"}`),
+		},
+	}}
+	js := &flakyJetStreamPublisher{}
+	publisher := &Publisher{
+		js:     js,
+		outbox: outbox,
+		ctx:    context.Background(),
+	}
+
+	publisher.flushPendingEvents()
+
+	assert.Equal(t, 1, js.calls)
+	assert.Empty(t, outbox.events)
+}
+
+func TestPublisherDoesNotReplayEphemeralEvents(t *testing.T) {
+	assert.False(t, shouldPersistEventSubject("WHATSAPP.events.company.connection.qr"))
+	assert.False(t, shouldPersistEventSubject("WHATSAPP.events.company.connection.presence"))
+	assert.False(t, shouldPersistEventSubject("WHATSAPP.events.company.connection.typing"))
+	assert.True(t, shouldPersistEventSubject("WHATSAPP.events.company.connection.message"))
+}
 
 func TestLabelColorHex(t *testing.T) {
 	assert.Equal(t, "#00a884", labelColorHex(0))

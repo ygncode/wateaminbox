@@ -17,6 +17,7 @@ import (
 	waLog "go.mau.fi/whatsmeow/util/log"
 
 	_ "github.com/lib/pq" // PostgreSQL driver
+	natsClient "github.com/ygncode-lab/whatsapp-web/services/whatsapp/internal/nats"
 )
 
 // PGConfig holds PostgreSQL store configuration.
@@ -116,6 +117,82 @@ func (c *PGContainer) MarkCommandEventPublished(ctx context.Context, commandID s
 		WHERE connection_id = $1 AND command_id = $2
 	`, c.connectionID, commandID)
 	return err
+}
+
+func (c *PGContainer) SavePendingEvent(
+	ctx context.Context,
+	event natsClient.PendingEvent,
+) error {
+	_, err := c.db.ExecContext(ctx, `
+		INSERT INTO worker_event_outbox (
+			connection_id, event_id, subject, payload
+		) VALUES ($1, $2, $3, $4)
+		ON CONFLICT (connection_id, event_id) DO NOTHING
+	`, c.connectionID, event.ID, event.Subject, event.Payload)
+	if err != nil {
+		return fmt.Errorf("save pending worker event: %w", err)
+	}
+	return nil
+}
+
+func (c *PGContainer) ListPendingEvents(
+	ctx context.Context,
+	limit int,
+) ([]natsClient.PendingEvent, error) {
+	rows, err := c.db.QueryContext(ctx, `
+		SELECT event_id::text, subject, payload
+		FROM worker_event_outbox
+		WHERE connection_id = $1
+		ORDER BY created_at ASC, event_id ASC
+		LIMIT $2
+	`, c.connectionID, limit)
+	if err != nil {
+		return nil, fmt.Errorf("list pending worker events: %w", err)
+	}
+	defer rows.Close()
+
+	events := make([]natsClient.PendingEvent, 0)
+	for rows.Next() {
+		var event natsClient.PendingEvent
+		if err = rows.Scan(&event.ID, &event.Subject, &event.Payload); err != nil {
+			return nil, fmt.Errorf("scan pending worker event: %w", err)
+		}
+		events = append(events, event)
+	}
+	if err = rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate pending worker events: %w", err)
+	}
+	return events, nil
+}
+
+func (c *PGContainer) MarkEventPublished(
+	ctx context.Context,
+	eventID string,
+) error {
+	_, err := c.db.ExecContext(ctx, `
+		DELETE FROM worker_event_outbox
+		WHERE connection_id = $1 AND event_id = $2
+	`, c.connectionID, eventID)
+	if err != nil {
+		return fmt.Errorf("delete published worker event: %w", err)
+	}
+	return nil
+}
+
+func (c *PGContainer) RecordEventPublishFailure(
+	ctx context.Context,
+	eventID string,
+	errorMessage string,
+) error {
+	_, err := c.db.ExecContext(ctx, `
+		UPDATE worker_event_outbox
+		SET attempts = attempts + 1, last_error = $3
+		WHERE connection_id = $1 AND event_id = $2
+	`, c.connectionID, eventID, errorMessage)
+	if err != nil {
+		return fmt.Errorf("record worker event publish failure: %w", err)
+	}
+	return nil
 }
 
 // Close closes the database connection.

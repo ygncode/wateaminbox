@@ -84,18 +84,6 @@ func main() {
 		}
 	}
 
-	// Initialize NATS publisher
-	publisher, err := natsClient.NewPublisher(natsClient.PublisherConfig{
-		NATSURL:      natsURL,
-		CompanyID:    companyID,
-		ConnectionID: connectionID,
-	})
-	if err != nil {
-		log.Fatalf("Failed to initialize NATS publisher: %v", err)
-	}
-	defer publisher.Close()
-	log.Printf("NATS publisher connected to %s", natsURL)
-
 	// Initialize WhatsApp client
 	waClient, err := client.New(ctx, client.Config{
 		WorkerID:     workerID,
@@ -108,6 +96,20 @@ func main() {
 		log.Fatalf("Failed to initialize WhatsApp client: %v", err)
 	}
 	defer waClient.Disconnect()
+
+	// Initialize the publisher after the PostgreSQL-backed WhatsApp store so
+	// every event is durably queued before crossing the NATS boundary.
+	publisher, err := natsClient.NewPublisher(natsClient.PublisherConfig{
+		NATSURL:      natsURL,
+		CompanyID:    companyID,
+		ConnectionID: connectionID,
+		EventOutbox:  waClient.EventOutbox(),
+	})
+	if err != nil {
+		log.Fatalf("Failed to initialize NATS publisher: %v", err)
+	}
+	defer publisher.Close()
+	log.Printf("NATS publisher connected to %s", natsURL)
 
 	// Set up QR code callback to publish to NATS
 	waClient.SetQRCallback(func(qrCode string) {

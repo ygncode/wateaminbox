@@ -14,6 +14,7 @@ func TestStreamConstants(t *testing.T) {
 		{"StreamCommands", StreamCommands, "WHATSAPP_COMMANDS"},
 		{"StreamEvents", StreamEvents, "WHATSAPP_EVENTS"},
 		{"StreamDownloads", StreamDownloads, "WHATSAPP_DOWNLOADS"},
+		{"StreamDeadLetters", StreamDeadLetters, "WHATSAPP_DEAD_LETTERS"},
 	}
 
 	for _, tt := range tests {
@@ -141,6 +142,20 @@ func TestDefaultDownloadsStreamConfig(t *testing.T) {
 	}
 }
 
+func TestDefaultDeadLettersStreamConfig(t *testing.T) {
+	cfg := DefaultDeadLettersStreamConfig()
+
+	if cfg.Name != StreamDeadLetters {
+		t.Errorf("Name = %q, want %q", cfg.Name, StreamDeadLetters)
+	}
+	if len(cfg.Subjects) == 0 || cfg.Subjects[len(cfg.Subjects)-1] != "WHATSAPP.dead_letter.>" {
+		t.Errorf("Subjects = %#v, want dead-letter wildcard", cfg.Subjects)
+	}
+	if cfg.MaxAge != 30*24*time.Hour {
+		t.Errorf("MaxAge = %v, want 30 days", cfg.MaxAge)
+	}
+}
+
 func TestStreamConfigValuesAreReasonable(t *testing.T) {
 	configs := []struct {
 		name   string
@@ -149,6 +164,7 @@ func TestStreamConfigValuesAreReasonable(t *testing.T) {
 		{"Commands", DefaultCommandsStreamConfig()},
 		{"Events", DefaultEventsStreamConfig()},
 		{"Downloads", DefaultDownloadsStreamConfig()},
+		{"DeadLetters", DefaultDeadLettersStreamConfig()},
 	}
 
 	for _, tt := range configs {

@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"bytes"
 	"context"
 	"io"
 	"log"
@@ -12,6 +13,19 @@ import (
 
 	natsClient "github.com/ygncode-lab/whatsapp-web/services/whatsapp/internal/nats"
 )
+
+// retainMediaReference keeps the encrypted WhatsApp attachment coordinates on
+// the event even when the eager download fails. The API can then persist them
+// and request an on-demand download from the owning worker later.
+func retainMediaReference(downloadable whatsmeow.DownloadableMessage, event *natsClient.MessageEvent) {
+	if downloadable == nil || event == nil {
+		return
+	}
+	event.MediaDirectPath = downloadable.GetDirectPath()
+	event.MediaKey = bytes.Clone(downloadable.GetMediaKey())
+	event.MediaFileSHA256 = bytes.Clone(downloadable.GetFileSHA256())
+	event.MediaFileEncSHA256 = bytes.Clone(downloadable.GetFileEncSHA256())
+}
 
 // downloadWithRetry downloads media with exponential backoff retry logic.
 // It attempts to download media up to mediaDownloadMaxRetries times, with each
@@ -76,6 +90,7 @@ func (h *Handler) downloadWithRetry(ctx context.Context, downloadable whatsmeow.
 // Uses retry logic with exponential backoff for robustness.
 // Timeout is extended to 135s to accommodate retry delays (1s + 2s + 4s backoff).
 func (h *Handler) handleMediaMessage(downloadable whatsmeow.DownloadableMessage, event *natsClient.MessageEvent) {
+	retainMediaReference(downloadable, event)
 	if h.config.Client == nil {
 		log.Println("Client not available for media download")
 		return
@@ -123,6 +138,7 @@ func (h *Handler) handleMediaMessage(downloadable whatsmeow.DownloadableMessage,
 // Timeout is extended to 75s to accommodate retry delays (1s + 2s + 4s backoff).
 // Returns true if download was successful, false otherwise.
 func (h *Handler) downloadHistoryMedia(downloadable whatsmeow.DownloadableMessage, event *natsClient.MessageEvent) bool {
+	retainMediaReference(downloadable, event)
 	if h.config.Client == nil {
 		log.Println("Client not available for history media download")
 		return false

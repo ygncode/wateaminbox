@@ -999,6 +999,11 @@ func (c *Client) CommandLedger() *store.PGContainer {
 	return c.container
 }
 
+// EventOutbox exposes the connection-scoped durable worker event queue.
+func (c *Client) EventOutbox() *store.PGContainer {
+	return c.container
+}
+
 // DownloadMedia downloads media from a message.
 func (c *Client) DownloadMedia(ctx context.Context, msg whatsmeow.DownloadableMessage) ([]byte, error) {
 	return c.client.Download(ctx, msg)
