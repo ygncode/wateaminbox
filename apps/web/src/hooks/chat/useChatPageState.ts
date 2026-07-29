@@ -168,6 +168,9 @@ export function useChatPageState(): ChatPageState & ChatPageActions {
   // Access action via getState() to avoid unnecessary subscription
   React.useEffect(() => {
     useChatStore.getState().selectConversation(selectedChatId || null);
+    return () => {
+      useChatStore.getState().selectConversation(null);
+    };
   }, [selectedChatId]);
 
   // Mark conversation as read when chat is selected

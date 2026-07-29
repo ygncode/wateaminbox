@@ -75,6 +75,8 @@ export function useChats(
   assignmentFilter: AssignmentFilter = "all",
   connectionId?: string,
 ) {
+  const companyId = getCompanyId();
+
   // Memoize the query key to prevent unnecessary re-renders
   const queryKey = useMemo(
     () =>
@@ -84,7 +86,7 @@ export function useChats(
         assignmentFilter,
         connectionId,
       }),
-    [searchQuery, includeGroups, assignmentFilter, connectionId],
+    [companyId, searchQuery, includeGroups, assignmentFilter, connectionId],
   );
 
   return useQuery<Chat[], Error>({
@@ -97,7 +99,6 @@ export function useChats(
         return [];
       }
 
-      const companyId = getCompanyId();
       if (!companyId) {
         // No company selected - return empty array
         // The ProtectedRoute will handle redirect to company-setup

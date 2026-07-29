@@ -14,6 +14,7 @@ import { lazy, Suspense, useState } from "react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "../../contexts/auth-context";
 import { useWorkspace } from "../../contexts/workspace-context";
+import { useChats } from "../../hooks/useChats";
 import { cn } from "../../lib/utils";
 import { workspacePath } from "../../lib/workspace-routes";
 import { ThemeToggle } from "../chat/ThemeToggle";
@@ -21,6 +22,11 @@ import { NotificationCenter } from "../notifications/NotificationCenter";
 import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../ui/dialog";
 import { WorkspaceSwitcher } from "../workspace/WorkspaceSwitcher";
+import {
+  formatInboxUnreadCount,
+  getInboxNavigationLabel,
+  getInboxUnreadCount,
+} from "./inbox-unread";
 
 const SyncingOverlay = lazy(() =>
   import("../chat/SyncingOverlay").then((module) => ({
@@ -33,6 +39,7 @@ interface NavigationItem {
   path: string;
   icon: typeof Inbox;
   visible: boolean;
+  unreadCount?: number;
 }
 
 function NavigationLink({
@@ -45,11 +52,14 @@ function NavigationLink({
   collapsed?: boolean;
 }) {
   const Icon = item.icon;
+  const unreadCount = item.unreadCount ?? 0;
   return (
     <NavLink
       to={item.path}
-      aria-label={item.label}
-      title={collapsed ? item.label : undefined}
+      aria-label={getInboxNavigationLabel(item.label, unreadCount)}
+      title={
+        collapsed ? getInboxNavigationLabel(item.label, unreadCount) : undefined
+      }
       className={({ isActive }) =>
         cn(
           "group relative flex items-center rounded-xl font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300",
@@ -66,8 +76,27 @@ function NavigationLink({
         )
       }
     >
-      <Icon className={compact ? "h-5 w-5" : "h-[18px] w-[18px]"} />
+      <Icon
+        className={compact ? "h-5 w-5" : "h-[18px] w-[18px]"}
+        aria-hidden="true"
+      />
       <span className={collapsed ? "sr-only" : undefined}>{item.label}</span>
+      {unreadCount > 0 && (
+        <span
+          className={cn(
+            "flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-[#25d366] px-1 text-[10px] font-bold leading-none text-[#073b2a] tabular-nums shadow-sm",
+            compact
+              ? "absolute left-1/2 top-0.5 translate-x-1"
+              : collapsed
+                ? "absolute right-1.5 top-1"
+                : "ml-auto",
+          )}
+          aria-hidden="true"
+          data-testid="inbox-unread-badge"
+        >
+          {formatInboxUnreadCount(unreadCount)}
+        </span>
+      )}
     </NavLink>
   );
 }
@@ -126,6 +155,8 @@ export function ProtectedAppLayout() {
   const { user, logout } = useAuth();
   const { activeWorkspace, can, canAny, isSwitching, switchingTo } =
     useWorkspace();
+  const { data: inboxChats } = useChats();
+  const inboxUnreadCount = getInboxUnreadCount(inboxChats);
 
   if (!activeWorkspace) return null;
 
@@ -135,6 +166,7 @@ export function ProtectedAppLayout() {
       path: workspacePath(activeWorkspace.id, "chat"),
       icon: Inbox,
       visible: true,
+      unreadCount: inboxUnreadCount,
     },
     {
       label: "Dashboard",
