@@ -1,4 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import type { MessageReaction } from "@wateaminbox/shared";
 import { api } from "../../lib/api";
 import { infiniteMessageKeys } from "../useInfiniteMessages";
 import type { InfiniteMessagesData, RetryMessageResponse } from "./types";
@@ -9,6 +10,43 @@ interface ReactionResponse {
   emoji: string;
   reactorJid: string;
   isOwn: boolean;
+}
+
+export function getReactionMutationEmoji(
+  reactions:
+    | ReadonlyArray<Pick<MessageReaction, "emoji" | "isOwn">>
+    | undefined,
+  requestedEmoji: string,
+): string {
+  return reactions?.some(
+    (reaction) => reaction.isOwn && reaction.emoji === requestedEmoji,
+  )
+    ? ""
+    : requestedEmoji;
+}
+
+export function reconcileOwnReaction(
+  reactions: MessageReaction[],
+  reaction: ReactionResponse,
+): MessageReaction[] {
+  const otherReactions = reactions.filter(
+    (item) =>
+      !item.isOwn &&
+      item.reactorJid !== OPTIMISTIC_REACTOR_JID &&
+      item.reactorJid !== reaction.reactorJid,
+  );
+
+  if (!reaction.emoji) return otherReactions;
+
+  return [
+    ...otherReactions,
+    {
+      emoji: reaction.emoji,
+      reactorJid: reaction.reactorJid,
+      isOwn: reaction.isOwn,
+      createdAt: new Date(),
+    },
+  ];
 }
 
 /**
@@ -44,10 +82,14 @@ export function useReactMessage() {
       conversationId: string;
       emoji: string;
       userJid?: string;
-    }) =>
-      api.post<ReactionResponse>(`/messages/${messageId}/reaction`, {
+    }) => {
+      if (!emoji) {
+        return api.delete<ReactionResponse>(`/messages/${messageId}/reaction`);
+      }
+      return api.post<ReactionResponse>(`/messages/${messageId}/reaction`, {
         emoji,
-      }),
+      });
+    },
     onMutate: async (variables) => {
       // Cancel outgoing refetches
       await queryClient.cancelQueries({
@@ -76,20 +118,26 @@ export function useReactMessage() {
                 if (msg.id !== variables.messageId) return msg;
 
                 const currentReactions = msg.reactions || [];
+                const isCurrentUserReaction = (
+                  reaction: (typeof currentReactions)[number],
+                ) =>
+                  reaction.isOwn ||
+                  reaction.reactorJid === reactorJid ||
+                  reaction.reactorJid === OPTIMISTIC_REACTOR_JID;
 
                 // If emoji is empty, remove the reaction
                 if (!variables.emoji) {
                   return {
                     ...msg,
                     reactions: currentReactions.filter(
-                      (r) => r.reactorJid !== reactorJid,
+                      (reaction) => !isCurrentUserReaction(reaction),
                     ),
                   };
                 }
 
                 // Check if user already has a reaction
                 const existingIndex = currentReactions.findIndex(
-                  (r) => r.reactorJid === reactorJid,
+                  isCurrentUserReaction,
                 );
 
                 if (existingIndex >= 0) {
@@ -149,23 +197,12 @@ export function useReactMessage() {
               messages: page.messages.map((msg) => {
                 if (msg.id !== variables.messageId) return msg;
 
-                const otherReactions = (msg.reactions || []).filter(
-                  (item) =>
-                    item.reactorJid !== OPTIMISTIC_REACTOR_JID &&
-                    item.reactorJid !== reaction.reactorJid,
-                );
-
                 return {
                   ...msg,
-                  reactions: [
-                    ...otherReactions,
-                    {
-                      emoji: reaction.emoji,
-                      reactorJid: reaction.reactorJid,
-                      isOwn: reaction.isOwn,
-                      createdAt: new Date(),
-                    },
-                  ],
+                  reactions: reconcileOwnReaction(
+                    msg.reactions || [],
+                    reaction,
+                  ),
                 };
               }),
             })),

@@ -63,6 +63,7 @@ type SendMessageCommand struct {
 	TargetMessageID string `json:"target_message_id"` // Message ID to react to (for reaction type)
 	Emoji           string `json:"emoji"`             // Emoji for reaction (for reaction type)
 	FromMe          bool   `json:"from_me"`           // Whether the target message is from us (for reaction type)
+	TargetSenderJID string `json:"target_sender_jid"` // Sender of the target message (required for incoming group messages)
 	// Debugging/tracing
 	CorrelationID string `json:"correlation_id,omitempty"` // For end-to-end message flow tracing
 	CommandID     string `json:"command_id,omitempty"`
@@ -93,7 +94,7 @@ type storedCommandResult struct {
 type MessageSender interface {
 	SendMessage(ctx context.Context, jid string, text string, replyTo string, replyToSender string) (types.SendResponse, error)
 	SendMediaMessage(ctx context.Context, jid string, mediaType string, data []byte, caption string, fileName string, mimeType string, replyTo string, replyToSender string) (types.SendResponse, error)
-	SendReaction(ctx context.Context, chatJID string, messageID string, emoji string, fromMe bool) (types.SendResponse, error)
+	SendReaction(ctx context.Context, chatJID string, messageID string, emoji string, targetSenderJID string, fromMe bool) (types.SendResponse, error)
 }
 
 // ContactBlocker is the interface for blocking/unblocking contacts.
@@ -573,7 +574,7 @@ func (s *Subscriber) handleSendCommand(msg *nats.Msg) {
 			resp, err = s.sender.SendMediaMessage(ctx, cmd.To, cmd.Type, mediaData, cmd.Caption, cmd.FileName, cmd.MimeType, cmd.ReplyTo, cmd.ReplyToSender)
 		}
 	case "reaction":
-		resp, err = s.sender.SendReaction(ctx, cmd.To, cmd.TargetMessageID, cmd.Emoji, cmd.FromMe)
+		resp, err = s.sender.SendReaction(ctx, cmd.To, cmd.TargetMessageID, cmd.Emoji, cmd.TargetSenderJID, cmd.FromMe)
 	default:
 		log.Printf("[NATS] Unknown message type: %s (corr_id=%s)", cmd.Type, correlationID)
 		msg.Nak()

@@ -391,6 +391,11 @@ func (h *Handler) processHistorySyncMessage(historyMsg *waHistorySync.HistorySyn
 		Timestamp:     timestamp,
 		IsHistorySync: true, // Mark as history sync message
 	}
+	if isGroup {
+		if participantJID, err := types.ParseJID(msg.GetKey().GetParticipant()); err == nil {
+			msgEvent.ProtocolSenderJID = participantJID.ToNonAD().String()
+		}
+	}
 	if msg.GetKey().GetFromMe() && msg.Status != nil {
 		msgEvent.Status = normalizeHistoryMessageStatus(msg.GetStatus())
 	}

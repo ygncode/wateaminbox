@@ -247,7 +247,11 @@ export const MessageBubble = memo(function MessageBubble({
 
         {/* Reaction display */}
         {hasReactions && (
-          <MessageReactions reactions={message.reactions!} isOwn={isOwn} />
+          <MessageReactions
+            reactions={message.reactions!}
+            isOwn={isOwn}
+            onRemoveOwnReaction={() => onReact?.(message, "")}
+          />
         )}
 
         {/* Context menu - rendered via portal to escape overflow:hidden containers */}

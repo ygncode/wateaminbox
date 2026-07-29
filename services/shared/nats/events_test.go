@@ -175,23 +175,24 @@ func TestWhatsAppEventSerialization(t *testing.T) {
 
 func TestMessagePayloadSerialization(t *testing.T) {
 	payload := MessagePayload{
-		MessageID:       "msg-123",
-		From:            "1234567890@s.whatsapp.net",
-		To:              "0987654321@s.whatsapp.net",
-		FromMe:          false,
-		Content:         "Test message",
-		MessageType:     "text",
-		Timestamp:       "2024-01-15T12:00:00Z",
-		MediaURL:        "https://example.com/media.jpg",
-		QuotedMessageID: "msg-100",
-		IsGroup:         true,
-		GroupID:         "group-456",
-		SenderName:      "John Doe",
-		Caption:         "Photo caption",
-		FileName:        "document.pdf",
-		MediaType:       "image/jpeg",
-		MediaSize:       1024,
-		IsHistorySync:   true,
+		MessageID:         "msg-123",
+		From:              "1234567890@s.whatsapp.net",
+		To:                "0987654321@s.whatsapp.net",
+		FromMe:            false,
+		Content:           "Test message",
+		MessageType:       "text",
+		Timestamp:         "2024-01-15T12:00:00Z",
+		MediaURL:          "https://example.com/media.jpg",
+		QuotedMessageID:   "msg-100",
+		IsGroup:           true,
+		GroupID:           "group-456",
+		SenderName:        "John Doe",
+		ProtocolSenderJID: "48954691608613@lid",
+		Caption:           "Photo caption",
+		FileName:          "document.pdf",
+		MediaType:         "image/jpeg",
+		MediaSize:         1024,
+		IsHistorySync:     true,
 	}
 
 	data, err := json.Marshal(payload)
@@ -218,6 +219,9 @@ func TestMessagePayloadSerialization(t *testing.T) {
 	}
 	if parsed.MediaSize != payload.MediaSize {
 		t.Errorf("MediaSize = %v, want %v", parsed.MediaSize, payload.MediaSize)
+	}
+	if parsed.ProtocolSenderJID != payload.ProtocolSenderJID {
+		t.Errorf("ProtocolSenderJID = %v, want %v", parsed.ProtocolSenderJID, payload.ProtocolSenderJID)
 	}
 }
 

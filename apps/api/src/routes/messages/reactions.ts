@@ -3,19 +3,20 @@
  *
  * Routes for adding and removing reactions from messages.
  */
-import { Hono } from "hono";
+
 import { zValidator } from "@hono/zod-validator";
 import { nowMs } from "@wateaminbox/shared";
+import { Hono } from "hono";
 import { badRequest, notFound } from "../../lib/errors.js";
 import {
   buildCommandSubject,
   buildSendReactionCommand,
 } from "../../lib/nats/index.js";
-import { enqueueCommand } from "../../services/command-outbox.service.js";
-import { successData, successMessage } from "../../lib/response.js";
+import { broadcastToCompany } from "../../lib/realtime.js";
+import { successData } from "../../lib/response.js";
 import { addReactionSchema } from "../../lib/schemas/index.js";
 import { getRouteContext } from "../../middleware/context.js";
-import { broadcastToCompany } from "../../lib/realtime.js";
+import { enqueueCommand } from "../../services/command-outbox.service.js";
 
 export const reactionRoutes = new Hono();
 
@@ -38,6 +39,8 @@ reactionRoutes.post(
         "contact_id",
         "message_id",
         "from_me",
+        "sender_jid",
+        "metadata",
         "whatsapp_connection_id",
       ])
       .where("id", "=", messageId)
@@ -83,6 +86,22 @@ reactionRoutes.post(
       return badRequest(c, "WhatsApp connection has no JID");
     }
 
+    const protocolSenderJid =
+      typeof message.metadata?.protocolSenderJid === "string"
+        ? message.metadata.protocolSenderJid
+        : undefined;
+    const isGroup = contact.jid.endsWith("@g.us");
+    if (
+      isGroup &&
+      !message.from_me &&
+      !protocolSenderJid &&
+      !message.sender_jid
+    ) {
+      return badRequest(c, "Group message has no sender JID");
+    }
+    const targetSenderJid = message.from_me
+      ? connection.jid
+      : protocolSenderJid || message.sender_jid || contact.jid;
     const reactionCommand = buildSendReactionCommand(
       connection.id,
       contact.jid,
@@ -90,6 +109,7 @@ reactionRoutes.post(
       body.emoji,
       user.id,
       message.from_me,
+      targetSenderJid,
     );
     await tenantDb.transaction().execute(async (trx) => {
       await trx
@@ -149,6 +169,8 @@ reactionRoutes.delete("/:id/reaction", async (c) => {
       "contact_id",
       "message_id",
       "from_me",
+      "sender_jid",
+      "metadata",
       "whatsapp_connection_id",
     ])
     .where("id", "=", messageId)
@@ -179,6 +201,22 @@ reactionRoutes.delete("/:id/reaction", async (c) => {
       .executeTakeFirst();
 
     if (contact?.jid) {
+      const protocolSenderJid =
+        typeof message.metadata?.protocolSenderJid === "string"
+          ? message.metadata.protocolSenderJid
+          : undefined;
+      const isGroup = contact.jid.endsWith("@g.us");
+      if (
+        isGroup &&
+        !message.from_me &&
+        !protocolSenderJid &&
+        !message.sender_jid
+      ) {
+        return badRequest(c, "Group message has no sender JID");
+      }
+      const targetSenderJid = message.from_me
+        ? connection.jid || undefined
+        : protocolSenderJid || message.sender_jid || contact.jid;
       const reactionCommand = buildSendReactionCommand(
         connection.id,
         contact.jid,
@@ -186,6 +224,7 @@ reactionRoutes.delete("/:id/reaction", async (c) => {
         "",
         user.id,
         message.from_me,
+        targetSenderJid,
       );
       await tenantDb.transaction().execute(async (trx) => {
         await trx
@@ -226,5 +265,9 @@ reactionRoutes.delete("/:id/reaction", async (c) => {
     );
   }
 
-  return successMessage(c, "Reaction removed");
+  return successData(c, {
+    emoji: "",
+    reactorJid,
+    isOwn: true,
+  });
 });

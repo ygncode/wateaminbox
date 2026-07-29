@@ -144,7 +144,7 @@ type WhatsAppClient interface {
 	// SendMediaMessage sends a media message.
 	SendMediaMessage(ctx context.Context, jid string, mediaType string, data []byte, caption string, fileName string, mimeType string, replyTo string, replyToSender string) (intTypes.SendResponse, error)
 	// SendReaction sends a reaction to a message.
-	SendReaction(ctx context.Context, chatJID string, messageID string, emoji string, fromMe bool) (intTypes.SendResponse, error)
+	SendReaction(ctx context.Context, chatJID string, messageID string, emoji string, targetSenderJID string, fromMe bool) (intTypes.SendResponse, error)
 	// RegisterEventHandler adds an event handler.
 	RegisterEventHandler(handler func(interface{}))
 	// SetQRCallback sets the callback for QR code events.

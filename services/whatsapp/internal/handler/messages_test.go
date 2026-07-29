@@ -220,3 +220,23 @@ func TestNewMessageEventPreservesFromMe(t *testing.T) {
 		t.Fatalf("expected recipient chat JID, got %s", event.To)
 	}
 }
+
+func TestNewMessageEventPreservesGroupProtocolSenderJID(t *testing.T) {
+	protocolSender := mustParseJID(t, "48954691608613:8@lid")
+	preferredSender := mustParseJID(t, "84855316944@s.whatsapp.net")
+	group := mustParseJID(t, "120363401436917596@g.us")
+	msg := &events.Message{Info: types.MessageInfo{MessageSource: types.MessageSource{
+		Sender:  protocolSender,
+		Chat:    group,
+		IsGroup: true,
+	}}}
+
+	event := newMessageEvent(msg, preferredSender, group)
+
+	if event.From != "84855316944@s.whatsapp.net" {
+		t.Fatalf("expected preferred sender for display, got %s", event.From)
+	}
+	if event.ProtocolSenderJID != "48954691608613@lid" {
+		t.Fatalf("expected protocol sender LID, got %s", event.ProtocolSenderJID)
+	}
+}

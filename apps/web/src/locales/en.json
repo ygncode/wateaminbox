@@ -97,6 +97,8 @@
     "reactionCount": "Reactions: {{count}}",
     "filterReactions": "Filter reactions",
     "viewReactionPeople": "See who reacted {{emoji}} ({{count}})",
+    "removeReaction": "Remove {{emoji}} reaction",
+    "clickToRemoveReaction": "Click to remove",
     "all": "All",
     "you": "You",
     "unknownContact": "Unknown contact",

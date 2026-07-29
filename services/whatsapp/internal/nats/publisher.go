@@ -236,6 +236,7 @@ func (p *Publisher) PublishMessage(msg MessageEvent) error {
 			IsGroup:            msg.IsGroup,
 			GroupID:            msg.GroupID,
 			SenderName:         msg.SenderName,
+			ProtocolSenderJID:  msg.ProtocolSenderJID,
 			Caption:            msg.Caption,
 			FileName:           msg.FileName,
 			MediaType:          msg.MediaType,

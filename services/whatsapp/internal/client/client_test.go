@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	waBinary "go.mau.fi/whatsmeow/binary"
+	waTypes "go.mau.fi/whatsmeow/types"
 )
 
 // TestCalculateBackoff_TransientPhase tests the exponential backoff in transient phase.
@@ -532,6 +533,79 @@ func TestCatalogNodeHelpers(t *testing.T) {
 	var products []waBinary.Node
 	collectNodes(waBinary.Node{Tag: "catalog", Content: []waBinary.Node{node}}, "product", &products)
 	require.Len(t, products, 1)
+}
+
+func TestBuildReactionKeyIncludesIncomingGroupParticipant(t *testing.T) {
+	group, err := waTypes.ParseJID("120363123456789012@g.us")
+	require.NoError(t, err)
+
+	key, err := buildReactionKey(
+		group,
+		"3EB0GROUPMESSAGE",
+		"15551234567:8@s.whatsapp.net",
+		false,
+	)
+
+	require.NoError(t, err)
+	assert.Equal(t, "120363123456789012@g.us", key.GetRemoteJID())
+	assert.Equal(t, "3EB0GROUPMESSAGE", key.GetID())
+	assert.False(t, key.GetFromMe())
+	assert.Equal(t, "15551234567@s.whatsapp.net", key.GetParticipant())
+}
+
+func TestBuildReactionKeyOmitsParticipantForOwnGroupMessage(t *testing.T) {
+	group, err := waTypes.ParseJID("120363123456789012@g.us")
+	require.NoError(t, err)
+
+	key, err := buildReactionKey(group, "3EB0OWNMESSAGE", "", true)
+
+	require.NoError(t, err)
+	assert.True(t, key.GetFromMe())
+	assert.Empty(t, key.GetParticipant())
+}
+
+func TestBuildReactionKeyRejectsMissingIncomingGroupParticipant(t *testing.T) {
+	group, err := waTypes.ParseJID("120363123456789012@g.us")
+	require.NoError(t, err)
+
+	_, err = buildReactionKey(group, "3EB0GROUPMESSAGE", "", false)
+
+	require.ErrorContains(t, err, "target sender JID is required")
+}
+
+func TestFindGroupReactionSenderUsesGroupPrimaryIdentity(t *testing.T) {
+	phone := mustParseClientJID(t, "84855316944@s.whatsapp.net")
+	lid := mustParseClientJID(t, "48954691608613@lid")
+
+	sender, ok := findGroupReactionSender(phone, []waTypes.GroupParticipant{{
+		JID:         lid,
+		PhoneNumber: phone,
+		LID:         lid,
+	}})
+
+	require.True(t, ok)
+	assert.Equal(t, lid, sender)
+}
+
+func TestFindGroupReactionSenderKeepsPNForPNAddressedGroup(t *testing.T) {
+	phone := mustParseClientJID(t, "84855316944@s.whatsapp.net")
+	lid := mustParseClientJID(t, "48954691608613@lid")
+
+	sender, ok := findGroupReactionSender(lid, []waTypes.GroupParticipant{{
+		JID:         phone,
+		PhoneNumber: phone,
+		LID:         lid,
+	}})
+
+	require.True(t, ok)
+	assert.Equal(t, phone, sender)
+}
+
+func mustParseClientJID(t *testing.T, raw string) waTypes.JID {
+	t.Helper()
+	jid, err := waTypes.ParseJID(raw)
+	require.NoError(t, err)
+	return jid
 }
 
 // TestSetStatusCallback tests the status callback setter.

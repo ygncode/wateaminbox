@@ -7,6 +7,7 @@ import { useWorkspace } from "../../contexts/workspace-context";
 import { markConversationAsRead, uploadMedia } from "../../lib/api";
 import { workspacePath } from "../../lib/workspace-routes";
 import { useChatStore } from "../../stores/chat-store";
+import { getReactionMutationEmoji } from "../messages/useReactionMutations";
 import { chatKeys } from "../useChats";
 import { type ContactDetail, useContact } from "../useContact";
 import {
@@ -358,7 +359,7 @@ export function useChatPageState(): ChatPageState & ChatPageActions {
       reactMessage.mutate({
         messageId: message.id,
         conversationId: selectedChatId,
-        emoji,
+        emoji: getReactionMutationEmoji(message.reactions, emoji),
       });
     },
     [selectedChatId, reactMessage],

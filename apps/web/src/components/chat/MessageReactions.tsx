@@ -15,6 +15,7 @@ import { IdentityAvatarFallback } from "../ui/identity-avatar-fallback";
 interface MessageReactionsProps {
   reactions: MessageReaction[];
   isOwn: boolean;
+  onRemoveOwnReaction?: () => void;
 }
 
 const ALL_REACTIONS = "all";
@@ -37,7 +38,11 @@ export function getReactorIdentityLabel(
 }
 
 /** Displays compact reaction badges and a WhatsApp-style reactor list. */
-export function MessageReactions({ reactions, isOwn }: MessageReactionsProps) {
+export function MessageReactions({
+  reactions,
+  isOwn,
+  onRemoveOwnReaction,
+}: MessageReactionsProps) {
   const { t } = useTranslation();
   const [isOpen, setIsOpen] = useState(false);
   const [selectedEmoji, setSelectedEmoji] = useState(ALL_REACTIONS);
@@ -73,6 +78,10 @@ export function MessageReactions({ reactions, isOwn }: MessageReactionsProps) {
     event.stopPropagation();
     setSelectedEmoji(emoji);
     setIsOpen(true);
+  };
+  const removeOwnReaction = () => {
+    onRemoveOwnReaction?.();
+    setIsOpen(false);
   };
 
   return (
@@ -151,6 +160,11 @@ export function MessageReactions({ reactions, isOwn }: MessageReactionsProps) {
               <ReactorRow
                 key={`${reaction.reactorJid}-${reaction.emoji}`}
                 reaction={reaction}
+                onRemove={
+                  reaction.isOwn && onRemoveOwnReaction
+                    ? removeOwnReaction
+                    : undefined
+                }
               />
             ))}
           </div>
@@ -194,7 +208,13 @@ function ReactionTab({
   );
 }
 
-function ReactorRow({ reaction }: { reaction: MessageReaction }) {
+function ReactorRow({
+  reaction,
+  onRemove,
+}: {
+  reaction: MessageReaction;
+  onRemove?: () => void;
+}) {
   const { t } = useTranslation();
   const jidLabel = getReactorIdentityLabel(reaction);
   const displayName = reaction.isOwn
@@ -204,8 +224,8 @@ function ReactorRow({ reaction }: { reaction: MessageReaction }) {
     jidLabel && !reaction.isOwn && reaction.reactorName?.trim(),
   );
 
-  return (
-    <div className="flex min-h-16 items-center gap-3 px-5 py-2.5 transition-colors hover:bg-gray-50 dark:hover:bg-dark-tertiary/60">
+  const content = (
+    <>
       <Avatar className="h-10 w-10 ring-1 ring-black/5 dark:ring-white/10">
         {reaction.reactorAvatarUrl && (
           <AvatarImage
@@ -226,6 +246,11 @@ function ReactorRow({ reaction }: { reaction: MessageReaction }) {
         <p className="truncate text-sm font-medium text-gray-900 dark:text-dark-text-primary">
           {displayName}
         </p>
+        {onRemove && (
+          <p className="truncate text-xs text-gray-500 dark:text-dark-text-secondary">
+            {t("chat.clickToRemoveReaction")}
+          </p>
+        )}
         {showJid && (
           <p className="truncate text-xs text-gray-500 dark:text-dark-text-secondary">
             {jidLabel}
@@ -235,6 +260,25 @@ function ReactorRow({ reaction }: { reaction: MessageReaction }) {
       <span className="text-xl" aria-label={reaction.emoji}>
         {reaction.emoji}
       </span>
+    </>
+  );
+
+  if (onRemove) {
+    return (
+      <button
+        type="button"
+        onClick={onRemove}
+        className="flex min-h-16 w-full items-center gap-3 px-5 py-2.5 text-left transition-colors hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-whatsapp-green dark:hover:bg-dark-tertiary/60"
+        aria-label={t("chat.removeReaction", { emoji: reaction.emoji })}
+      >
+        {content}
+      </button>
+    );
+  }
+
+  return (
+    <div className="flex min-h-16 items-center gap-3 px-5 py-2.5 transition-colors hover:bg-gray-50 dark:hover:bg-dark-tertiary/60">
+      {content}
     </div>
   );
 }

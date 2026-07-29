@@ -5,8 +5,9 @@ import {
   API_EVENTS_DELIVER_SUBJECT,
   API_EVENTS_QUEUE,
   buildEventConsumerOptions,
-  parseWhatsAppEvent,
+  buildSendReactionCommand,
   PermanentEventError,
+  parseWhatsAppEvent,
 } from "./client.js";
 
 describe("durable API event consumer", () => {
@@ -67,5 +68,47 @@ describe("durable API event consumer", () => {
     const error = new PermanentEventError("unknown connection");
     expect(error).toBeInstanceOf(Error);
     expect(error.name).toBe("PermanentEventError");
+  });
+});
+
+describe("reaction command", () => {
+  test("carries the target sender needed for group message keys", () => {
+    const command = buildSendReactionCommand(
+      "connection-1",
+      "120363123456789012@g.us",
+      "3EB0GROUPMESSAGE",
+      "👍",
+      "user-1",
+      false,
+      "15551234567@s.whatsapp.net",
+    );
+
+    expect(command).toMatchObject({
+      connection_id: "connection-1",
+      to: "120363123456789012@g.us",
+      type: "reaction",
+      target_message_id: "3EB0GROUPMESSAGE",
+      target_sender_jid: "15551234567@s.whatsapp.net",
+      from_me: false,
+    });
+  });
+
+  test("preserves an empty emoji when removing a group reaction", () => {
+    const command = buildSendReactionCommand(
+      "connection-1",
+      "120363123456789012@g.us",
+      "3EB0GROUPMESSAGE",
+      "",
+      "user-1",
+      false,
+      "48954691608613@lid",
+    );
+
+    expect(command).toMatchObject({
+      emoji: "",
+      target_message_id: "3EB0GROUPMESSAGE",
+      target_sender_jid: "48954691608613@lid",
+      from_me: false,
+    });
   });
 });

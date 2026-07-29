@@ -525,28 +525,34 @@ func (c *Client) SendMediaMessage(ctx context.Context, jid string, mediaType str
 
 // SendReaction sends a reaction to a message.
 // emoji can be an emoji string to add a reaction, or empty string to remove reaction.
+// targetSenderJID identifies the author of the target message. WhatsApp requires
+// it as the participant in the message key when reacting to an incoming group message.
 // fromMe indicates whether the message being reacted to was sent by us (true) or received (false).
-func (c *Client) SendReaction(ctx context.Context, chatJID string, messageID string, emoji string, fromMe bool) (types.SendResponse, error) {
+func (c *Client) SendReaction(ctx context.Context, chatJID string, messageID string, emoji string, targetSenderJID string, fromMe bool) (types.SendResponse, error) {
 	// Parse chat JID
 	recipient, err := waTypes.ParseJID(chatJID)
 	if err != nil {
 		return types.SendResponse{}, fmt.Errorf("invalid chat JID %s: %w", chatJID, err)
 	}
 
-	// Create reaction message using waCommon.MessageKey
-	reactionMsg := &waE2E.ReactionMessage{
-		Key: &waCommon.MessageKey{
-			RemoteJID: proto.String(chatJID),
-			FromMe:    proto.Bool(fromMe), // Use the fromMe parameter to indicate if we sent the original message
-			ID:        proto.String(messageID),
-		},
-		Text:              proto.String(emoji),
-		SenderTimestampMS: proto.Int64(time.Now().UnixMilli()),
+	if recipient.Server == waTypes.GroupServer && !fromMe {
+		targetSender, parseErr := waTypes.ParseJID(targetSenderJID)
+		if parseErr != nil {
+			return types.SendResponse{}, fmt.Errorf("invalid target sender JID %s: %w", targetSenderJID, parseErr)
+		}
+		targetSender, err = c.resolveGroupReactionSender(ctx, recipient, targetSender)
+		if err != nil {
+			return types.SendResponse{}, err
+		}
+		targetSenderJID = targetSender.String()
 	}
 
-	msg := &waE2E.Message{
-		ReactionMessage: reactionMsg,
+	reactionKey, err := buildReactionKey(recipient, messageID, targetSenderJID, fromMe)
+	if err != nil {
+		return types.SendResponse{}, err
 	}
+
+	msg := buildReactionMessage(reactionKey, emoji)
 
 	// Send reaction
 	resp, err := c.client.SendMessage(ctx, recipient, msg)
@@ -554,11 +560,91 @@ func (c *Client) SendReaction(ctx context.Context, chatJID string, messageID str
 		return types.SendResponse{}, fmt.Errorf("failed to send reaction: %w", err)
 	}
 
-	log.Printf("Reaction sent: ID=%s, TargetMessage=%s, Emoji=%s, FromMe=%v", resp.ID, messageID, emoji, fromMe)
+	log.Printf("Reaction sent: ID=%s, TargetMessage=%s, TargetSender=%s, Emoji=%s, FromMe=%v", resp.ID, messageID, reactionKey.GetParticipant(), emoji, fromMe)
 	return types.SendResponse{
 		ID:        string(resp.ID),
 		Timestamp: resp.Timestamp,
 	}, nil
+}
+
+func (c *Client) resolveGroupReactionSender(ctx context.Context, group, targetSender waTypes.JID) (waTypes.JID, error) {
+	targetSender = targetSender.ToNonAD()
+	// A stored protocol sender is already exact and avoids a group metadata
+	// request. Phone-number identities need resolving because modern groups use
+	// LIDs as their primary participant address.
+	if targetSender.Server == waTypes.HiddenUserServer || targetSender.Server == waTypes.HostedLIDServer {
+		return targetSender, nil
+	}
+
+	groupInfo, err := c.client.GetGroupInfo(ctx, group)
+	if err != nil {
+		return waTypes.EmptyJID, fmt.Errorf("failed to resolve participant for reaction in group %s: %w", group, err)
+	}
+	if sender, ok := findGroupReactionSender(targetSender, groupInfo.Participants); ok {
+		return sender, nil
+	}
+	return waTypes.EmptyJID, fmt.Errorf("target sender %s is not a participant of group %s", targetSender, group)
+}
+
+func findGroupReactionSender(target waTypes.JID, participants []waTypes.GroupParticipant) (waTypes.JID, bool) {
+	target = target.ToNonAD()
+	for _, participant := range participants {
+		identities := [...]waTypes.JID{
+			participant.JID,
+			participant.PhoneNumber,
+			participant.LID,
+		}
+		matches := false
+		for _, identity := range identities {
+			if !identity.IsEmpty() && identity.ToNonAD() == target {
+				matches = true
+				break
+			}
+		}
+		if !matches {
+			continue
+		}
+		if !participant.JID.IsEmpty() {
+			return participant.JID.ToNonAD(), true
+		}
+		if !participant.LID.IsEmpty() {
+			return participant.LID.ToNonAD(), true
+		}
+		if !participant.PhoneNumber.IsEmpty() {
+			return participant.PhoneNumber.ToNonAD(), true
+		}
+	}
+	return waTypes.EmptyJID, false
+}
+
+func buildReactionKey(recipient waTypes.JID, messageID string, targetSenderJID string, fromMe bool) (*waCommon.MessageKey, error) {
+	key := &waCommon.MessageKey{
+		RemoteJID: proto.String(recipient.String()),
+		FromMe:    proto.Bool(fromMe),
+		ID:        proto.String(messageID),
+	}
+	if recipient.Server != waTypes.GroupServer || fromMe {
+		return key, nil
+	}
+	if targetSenderJID == "" {
+		return nil, fmt.Errorf("target sender JID is required for incoming group message %s", messageID)
+	}
+	targetSender, err := waTypes.ParseJID(targetSenderJID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid target sender JID %s: %w", targetSenderJID, err)
+	}
+	key.Participant = proto.String(targetSender.ToNonAD().String())
+	return key, nil
+}
+
+func buildReactionMessage(key *waCommon.MessageKey, emoji string) *waE2E.Message {
+	return &waE2E.Message{
+		ReactionMessage: &waE2E.ReactionMessage{
+			Key:               key,
+			Text:              proto.String(emoji),
+			SenderTimestampMS: proto.Int64(time.Now().UnixMilli()),
+		},
+	}
 }
 
 // SendChatPresence sends a typing indicator to a chat.

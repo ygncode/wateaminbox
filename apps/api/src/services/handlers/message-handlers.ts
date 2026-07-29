@@ -264,6 +264,9 @@ export async function handleMessageEvent(event: MessageEvent): Promise<void> {
       sender_avatar_url: null,
       message_type: payload.messageType as MessageType,
       content: payload.content,
+      metadata: payload.protocolSenderJid
+        ? { protocolSenderJid: payload.protocolSenderJid }
+        : null,
       media_url: payload.mediaUrl || null,
       media_mime_type: payload.mediaType || null,
       media_size: payload.mediaSize || null,
@@ -298,6 +301,9 @@ export async function handleMessageEvent(event: MessageEvent): Promise<void> {
               from_me: payload.fromMe,
               sender_jid: normalizedSenderJid,
               sender_name: senderName,
+              metadata: payload.protocolSenderJid
+                ? { protocolSenderJid: payload.protocolSenderJid }
+                : null,
               quoted_message_id: payload.quotedMessageId || null,
               // History sync contains the original WhatsApp status. Merge it
               // monotonically so imported messages get their old double ticks

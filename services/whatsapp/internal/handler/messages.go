@@ -61,7 +61,7 @@ func (h *Handler) getPreferredSenderFromSource(source types.MessageSource) types
 }
 
 func newMessageEvent(msg *events.Message, senderJID, chatJID types.JID) natsClient.MessageEvent {
-	return natsClient.MessageEvent{
+	event := natsClient.MessageEvent{
 		MessageID:  msg.Info.ID,
 		From:       senderJID.String(),
 		To:         chatJID.String(),
@@ -70,6 +70,10 @@ func newMessageEvent(msg *events.Message, senderJID, chatJID types.JID) natsClie
 		SenderName: msg.Info.PushName,
 		Timestamp:  msg.Info.Timestamp,
 	}
+	if msg.Info.IsGroup && !msg.Info.Sender.IsEmpty() {
+		event.ProtocolSenderJID = msg.Info.Sender.ToNonAD().String()
+	}
+	return event
 }
 
 type contextInfoCarrier interface {

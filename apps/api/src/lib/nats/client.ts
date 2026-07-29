@@ -749,6 +749,7 @@ export function buildSendReactionCommand(
   emoji: string,
   userId: string,
   fromMe: boolean,
+  targetSenderJid?: string,
 ): Record<string, unknown> {
   return {
     message_id: `reaction_${nowMs()}`, // Temporary ID for tracking
@@ -759,6 +760,7 @@ export function buildSendReactionCommand(
     emoji,
     user_id: userId,
     from_me: fromMe,
+    target_sender_jid: targetSenderJid,
   };
 }
 
@@ -770,6 +772,7 @@ export async function publishSendReaction(
   emoji: string,
   userId: string,
   fromMe: boolean,
+  targetSenderJid?: string,
 ): Promise<void> {
   const sendCommand = buildSendReactionCommand(
     connectionId,
@@ -778,6 +781,7 @@ export async function publishSendReaction(
     emoji,
     userId,
     fromMe,
+    targetSenderJid,
   );
   const subject = buildCommandSubject(companyId, connectionId);
   await publishOutboxCommand(subject, sendCommand);

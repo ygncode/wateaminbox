@@ -116,6 +116,7 @@ export interface MessageEvent extends WhatsAppEvent {
     groupId?: string;
     // Additional fields from Go worker
     senderName?: string;
+    protocolSenderJid?: string;
     caption?: string;
     fileName?: string;
     mediaType?: string;

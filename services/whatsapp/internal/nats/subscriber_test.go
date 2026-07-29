@@ -18,7 +18,7 @@ import (
 type mockMessageSender struct {
 	sendMessageFunc      func(ctx context.Context, jid string, text string, replyTo string, replyToSender string) (types.SendResponse, error)
 	sendMediaMessageFunc func(ctx context.Context, jid string, mediaType string, data []byte, caption string, fileName string, mimeType string, replyTo string, replyToSender string) (types.SendResponse, error)
-	sendReactionFunc     func(ctx context.Context, chatJID string, messageID string, emoji string, fromMe bool) (types.SendResponse, error)
+	sendReactionFunc     func(ctx context.Context, chatJID string, messageID string, emoji string, targetSenderJID string, fromMe bool) (types.SendResponse, error)
 }
 
 func (m *mockMessageSender) SendMessage(ctx context.Context, jid string, text string, replyTo string, replyToSender string) (types.SendResponse, error) {
@@ -35,9 +35,9 @@ func (m *mockMessageSender) SendMediaMessage(ctx context.Context, jid string, me
 	return types.SendResponse{}, nil
 }
 
-func (m *mockMessageSender) SendReaction(ctx context.Context, chatJID string, messageID string, emoji string, fromMe bool) (types.SendResponse, error) {
+func (m *mockMessageSender) SendReaction(ctx context.Context, chatJID string, messageID string, emoji string, targetSenderJID string, fromMe bool) (types.SendResponse, error) {
 	if m.sendReactionFunc != nil {
-		return m.sendReactionFunc(ctx, chatJID, messageID, emoji, fromMe)
+		return m.sendReactionFunc(ctx, chatJID, messageID, emoji, targetSenderJID, fromMe)
 	}
 	return types.SendResponse{}, nil
 }
