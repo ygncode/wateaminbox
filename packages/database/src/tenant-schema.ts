@@ -68,6 +68,7 @@ export const TENANT_SCHEMA_CONTRACT = {
   ],
   whatsapp_labels: [
     "id",
+    "whatsapp_connection_id",
     "label_id",
     "name",
     "color",
@@ -79,6 +80,7 @@ export const TENANT_SCHEMA_CONTRACT = {
   ],
   whatsapp_catalogs: [
     "id",
+    "whatsapp_connection_id",
     "catalog_id",
     "name",
     "description",
@@ -93,6 +95,7 @@ export const TENANT_SCHEMA_CONTRACT = {
   ],
   catalog_products: [
     "id",
+    "whatsapp_connection_id",
     "product_id",
     "catalog_id",
     "name",
@@ -315,6 +318,28 @@ async function tenantColumnExists<Database>(
   return result.rows[0]?.exists ?? false;
 }
 
+async function tenantConstraintExists<Database>(
+  db: Kysely<Database>,
+  schemaName: string,
+  tableName: string,
+  constraintName: string,
+): Promise<boolean> {
+  const result = await sql<{ exists: boolean }>`
+    SELECT EXISTS (
+      SELECT 1
+      FROM pg_constraint AS constraint_record
+      JOIN pg_class AS table_record
+        ON table_record.oid = constraint_record.conrelid
+      JOIN pg_namespace AS schema_record
+        ON schema_record.oid = table_record.relnamespace
+      WHERE schema_record.nspname = ${schemaName}
+        AND table_record.relname = ${tableName}
+        AND constraint_record.conname = ${constraintName}
+    ) AS exists
+  `.execute(db);
+  return result.rows[0]?.exists ?? false;
+}
+
 /**
  * Bring a newly-created tenant schema up to the current application contract.
  *
@@ -369,6 +394,7 @@ export async function reconcileTenantSchema<Database>(
   await sql`
     ALTER TABLE ${table("whatsapp_labels")}
     ADD COLUMN IF NOT EXISTS label_id VARCHAR(100),
+    ADD COLUMN IF NOT EXISTS whatsapp_connection_id UUID,
     ADD COLUMN IF NOT EXISTS synced_tag_id UUID,
     ADD COLUMN IF NOT EXISTS last_synced_at TIMESTAMPTZ NOT NULL DEFAULT now()
   `.execute(db);
@@ -382,10 +408,52 @@ export async function reconcileTenantSchema<Database>(
     ALTER COLUMN label_id SET NOT NULL
   `.execute(db);
   await sql`
+    UPDATE ${table("whatsapp_labels")}
+    SET whatsapp_connection_id = (
+      SELECT id
+      FROM ${table("whatsapp_connections")}
+      ORDER BY (status = 'connected') DESC, created_at ASC
+      LIMIT 1
+    )
+    WHERE whatsapp_connection_id IS NULL
+  `.execute(db);
+  await sql`
+    ALTER TABLE ${table("whatsapp_labels")}
+    DROP CONSTRAINT IF EXISTS ${sql.ref("whatsapp_labels_label_id_key")},
+    DROP CONSTRAINT IF EXISTS ${sql.ref("unique_whatsapp_label")}
+  `.execute(db);
+  if (
+    !(await tenantConstraintExists(
+      db,
+      schemaName,
+      "whatsapp_labels",
+      "whatsapp_labels_connection_fk",
+    ))
+  ) {
+    await sql`
+      ALTER TABLE ${table("whatsapp_labels")}
+      ADD CONSTRAINT whatsapp_labels_connection_fk
+      FOREIGN KEY (whatsapp_connection_id)
+      REFERENCES ${table("whatsapp_connections")}(id)
+      ON DELETE CASCADE
+    `.execute(db);
+  }
+  await sql`
+    DROP INDEX IF EXISTS ${sql.ref(`${schemaName}_whatsapp_labels_label_uidx`)}
+  `.execute(db);
+  await sql`
     CREATE UNIQUE INDEX IF NOT EXISTS ${sql.ref(
-      `${schemaName}_whatsapp_labels_label_uidx`,
+      `${schemaName}_whatsapp_labels_connection_label_uidx`,
     )}
-    ON ${table("whatsapp_labels")} (label_id)
+    ON ${table("whatsapp_labels")} (whatsapp_connection_id, label_id)
+    WHERE whatsapp_connection_id IS NOT NULL
+  `.execute(db);
+  await sql`
+    CREATE UNIQUE INDEX IF NOT EXISTS ${sql.ref(
+      `${schemaName}_whatsapp_labels_connection_tag_uidx`,
+    )}
+    ON ${table("whatsapp_labels")} (whatsapp_connection_id, synced_tag_id)
+    WHERE whatsapp_connection_id IS NOT NULL AND synced_tag_id IS NOT NULL
   `.execute(db);
 
   await sql`
@@ -396,11 +464,49 @@ export async function reconcileTenantSchema<Database>(
   await sql`
     ALTER TABLE ${table("whatsapp_catalogs")}
     ALTER COLUMN name SET NOT NULL,
+    ADD COLUMN IF NOT EXISTS whatsapp_connection_id UUID,
     ADD COLUMN IF NOT EXISTS currency VARCHAR(10) DEFAULT 'USD',
     ADD COLUMN IF NOT EXISTS status catalog_status NOT NULL DEFAULT 'active',
     ADD COLUMN IF NOT EXISTS business_jid VARCHAR(100),
     ADD COLUMN IF NOT EXISTS header_image_url TEXT,
     ADD COLUMN IF NOT EXISTS last_synced_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  `.execute(db);
+  await sql`
+    UPDATE ${table("whatsapp_catalogs")}
+    SET whatsapp_connection_id = (
+      SELECT id
+      FROM ${table("whatsapp_connections")}
+      ORDER BY (status = 'connected') DESC, created_at ASC
+      LIMIT 1
+    )
+    WHERE whatsapp_connection_id IS NULL
+  `.execute(db);
+  await sql`
+    ALTER TABLE ${table("whatsapp_catalogs")}
+    DROP CONSTRAINT IF EXISTS ${sql.ref("whatsapp_catalogs_catalog_id_key")}
+  `.execute(db);
+  if (
+    !(await tenantConstraintExists(
+      db,
+      schemaName,
+      "whatsapp_catalogs",
+      "whatsapp_catalogs_connection_fk",
+    ))
+  ) {
+    await sql`
+      ALTER TABLE ${table("whatsapp_catalogs")}
+      ADD CONSTRAINT whatsapp_catalogs_connection_fk
+      FOREIGN KEY (whatsapp_connection_id)
+      REFERENCES ${table("whatsapp_connections")}(id)
+      ON DELETE CASCADE
+    `.execute(db);
+  }
+  await sql`
+    CREATE UNIQUE INDEX IF NOT EXISTS ${sql.ref(
+      `${schemaName}_whatsapp_catalogs_connection_catalog_uidx`,
+    )}
+    ON ${table("whatsapp_catalogs")} (whatsapp_connection_id, catalog_id)
+    WHERE whatsapp_connection_id IS NOT NULL
   `.execute(db);
   await sql`
     ALTER TABLE ${table("catalog_products")}
@@ -409,6 +515,7 @@ export async function reconcileTenantSchema<Database>(
   await sql`
     ALTER TABLE ${table("catalog_products")}
     ALTER COLUMN catalog_id TYPE VARCHAR(100) USING catalog_id::text,
+    ADD COLUMN IF NOT EXISTS whatsapp_connection_id UUID,
     ADD COLUMN IF NOT EXISTS image_urls TEXT[],
     ADD COLUMN IF NOT EXISTS sku VARCHAR(100),
     ADD COLUMN IF NOT EXISTS category VARCHAR(255),
@@ -416,9 +523,51 @@ export async function reconcileTenantSchema<Database>(
   `.execute(db);
   await sql`
     UPDATE ${table("catalog_products")} AS product
-    SET catalog_id = catalog.catalog_id
+    SET
+      catalog_id = catalog.catalog_id,
+      whatsapp_connection_id = catalog.whatsapp_connection_id
     FROM ${table("whatsapp_catalogs")} AS catalog
     WHERE product.catalog_id = catalog.id::text
+  `.execute(db);
+  await sql`
+    UPDATE ${table("catalog_products")} AS product
+    SET whatsapp_connection_id = catalog.whatsapp_connection_id
+    FROM ${table("whatsapp_catalogs")} AS catalog
+    WHERE product.whatsapp_connection_id IS NULL
+      AND product.catalog_id = catalog.catalog_id
+  `.execute(db);
+  await sql`
+    ALTER TABLE ${table("catalog_products")}
+    DROP CONSTRAINT IF EXISTS ${sql.ref(
+      "catalog_products_product_id_catalog_id_key",
+    )}
+  `.execute(db);
+  if (
+    !(await tenantConstraintExists(
+      db,
+      schemaName,
+      "catalog_products",
+      "catalog_products_connection_fk",
+    ))
+  ) {
+    await sql`
+      ALTER TABLE ${table("catalog_products")}
+      ADD CONSTRAINT catalog_products_connection_fk
+      FOREIGN KEY (whatsapp_connection_id)
+      REFERENCES ${table("whatsapp_connections")}(id)
+      ON DELETE CASCADE
+    `.execute(db);
+  }
+  await sql`
+    CREATE UNIQUE INDEX IF NOT EXISTS ${sql.ref(
+      `${schemaName}_catalog_products_connection_catalog_product_uidx`,
+    )}
+    ON ${table("catalog_products")} (
+      whatsapp_connection_id,
+      catalog_id,
+      product_id
+    )
+    WHERE whatsapp_connection_id IS NOT NULL
   `.execute(db);
   if (
     await tenantColumnExists(db, schemaName, "catalog_products", "image_url")

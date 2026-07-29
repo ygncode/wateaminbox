@@ -13,7 +13,7 @@ import {
 } from "../lib/route-helpers.js";
 import { authMiddleware } from "../middleware/auth.js";
 import { getRouteContext } from "../middleware/context.js";
-import { tenantMiddleware } from "../middleware/tenant.js";
+import { requirePermission, tenantMiddleware } from "../middleware/tenant.js";
 import {
   autoCreateTagsFromLabels,
   getLabelSyncStatus,
@@ -24,13 +24,18 @@ import {
   linkTagToLabel,
   unlinkTagFromLabel,
 } from "../services/label-sync.service.js";
-import { getActiveWhatsAppConnection } from "../services/whatsapp-connection.service.js";
+import { PERMISSIONS } from "../services/permission.service.js";
+import {
+  getActiveWhatsAppConnection,
+  getWhatsAppConnection,
+} from "../services/whatsapp-connection.service.js";
 
 export const labelRoutes = new Hono();
 
 // All label routes require authentication and tenant context
 labelRoutes.use("/*", authMiddleware);
 labelRoutes.use("/*", tenantMiddleware());
+labelRoutes.use("/*", requirePermission(PERMISSIONS.CAN_MANAGE_CONNECTIONS));
 
 /**
  * GET /labels - List all WhatsApp labels with optional pagination
@@ -39,13 +44,20 @@ labelRoutes.use("/*", tenantMiddleware());
 labelRoutes.get("/", async (c) => {
   const { tenantDb } = getRouteContext(c);
   const { limit, offset } = extractPaginationParams(c);
+  const connection = await getWhatsAppConnection(
+    tenantDb,
+    c.req.query("connectionId"),
+  );
 
   try {
     // Get total count
-    const total = await getWhatsAppLabelsCount(tenantDb);
+    const total = await getWhatsAppLabelsCount(tenantDb, connection.id);
 
     // Get paginated labels
-    const labels = await getWhatsAppLabels(tenantDb, { limit, offset });
+    const labels = await getWhatsAppLabels(tenantDb, connection.id, {
+      limit,
+      offset,
+    });
 
     return successPaginated(
       c,
@@ -70,9 +82,13 @@ labelRoutes.get("/", async (c) => {
  */
 labelRoutes.get("/status", async (c) => {
   const { tenantDb } = getRouteContext(c);
+  const connection = await getWhatsAppConnection(
+    tenantDb,
+    c.req.query("connectionId"),
+  );
 
   try {
-    const status = await getLabelSyncStatus(tenantDb);
+    const status = await getLabelSyncStatus(tenantDb, connection.id);
 
     return successData(c, status);
   } catch (error) {
@@ -97,8 +113,16 @@ labelRoutes.get("/status", async (c) => {
 labelRoutes.get("/:labelId", async (c) => {
   const { tenantDb } = getRouteContext(c);
   const labelId = c.req.param("labelId");
+  const connection = await getWhatsAppConnection(
+    tenantDb,
+    c.req.query("connectionId"),
+  );
 
-  const label = await getWhatsAppLabelByLabelId(tenantDb, labelId);
+  const label = await getWhatsAppLabelByLabelId(
+    tenantDb,
+    labelId,
+    connection.id,
+  );
 
   if (!label) {
     return notFound(c, "Label");
@@ -115,13 +139,18 @@ labelRoutes.post("/sync", async (c) => {
   const { tenantDb, user, companyId } = getRouteContext(c);
 
   // Check if WhatsApp is connected (throws ServiceUnavailableError if not)
-  const connection = await getActiveWhatsAppConnection(tenantDb);
-
-  await tenantDb.transaction().execute((trx) =>
-    enqueueConnectionCommand(trx, companyId, connection.id, (publisher) =>
-      publisher.syncLabels(user.id),
-    ),
+  const connection = await getActiveWhatsAppConnection(
+    tenantDb,
+    c.req.query("connectionId"),
   );
+
+  await tenantDb
+    .transaction()
+    .execute((trx) =>
+      enqueueConnectionCommand(trx, companyId, connection.id, (publisher) =>
+        publisher.syncLabels(user.id),
+      ),
+    );
 
   return successWithMessage(
     c,
@@ -136,6 +165,10 @@ labelRoutes.post("/sync", async (c) => {
 labelRoutes.post("/:labelId/link", async (c) => {
   const { tenantDb } = getRouteContext(c);
   const labelId = c.req.param("labelId");
+  const connection = await getWhatsAppConnection(
+    tenantDb,
+    c.req.query("connectionId"),
+  );
   const body = await c.req.json();
 
   const { tagId } = body;
@@ -144,7 +177,7 @@ labelRoutes.post("/:labelId/link", async (c) => {
     return badRequest(c, "tagId is required");
   }
 
-  const result = await linkTagToLabel(tenantDb, tagId, labelId);
+  const result = await linkTagToLabel(tenantDb, connection.id, tagId, labelId);
 
   if (!result.success) {
     return badRequest(c, result.error || "Failed to link tag to label");
@@ -159,19 +192,11 @@ labelRoutes.post("/:labelId/link", async (c) => {
 labelRoutes.delete("/:labelId/link", async (c) => {
   const { tenantDb } = getRouteContext(c);
   const labelId = c.req.param("labelId");
-
-  // Find the tag linked to this label
-  const tag = await tenantDb
-    .selectFrom("tags")
-    .select(["id"])
-    .where("whatsapp_label_id", "=", labelId)
-    .executeTakeFirst();
-
-  if (!tag) {
-    return badRequest(c, "No tag is linked to this label");
-  }
-
-  const result = await unlinkTagFromLabel(tenantDb, tag.id);
+  const connection = await getWhatsAppConnection(
+    tenantDb,
+    c.req.query("connectionId"),
+  );
+  const result = await unlinkTagFromLabel(tenantDb, connection.id, labelId);
 
   if (!result.success) {
     return badRequest(c, result.error || "Failed to unlink tag from label");
@@ -185,8 +210,16 @@ labelRoutes.delete("/:labelId/link", async (c) => {
  */
 labelRoutes.post("/auto-create", async (c) => {
   const { tenantDb, user } = getRouteContext(c);
+  const connection = await getWhatsAppConnection(
+    tenantDb,
+    c.req.query("connectionId"),
+  );
 
-  const result = await autoCreateTagsFromLabels(tenantDb, user.id);
+  const result = await autoCreateTagsFromLabels(
+    tenantDb,
+    connection.id,
+    user.id,
+  );
 
   return successWithMessage(
     c,
@@ -200,9 +233,13 @@ labelRoutes.post("/auto-create", async (c) => {
  */
 labelRoutes.get("/tags/with-status", async (c) => {
   const { tenantDb } = getRouteContext(c);
+  const connection = await getWhatsAppConnection(
+    tenantDb,
+    c.req.query("connectionId"),
+  );
 
   try {
-    const tags = await getTagsWithLabelStatus(tenantDb);
+    const tags = await getTagsWithLabelStatus(tenantDb, connection.id);
 
     return successData(c, tags);
   } catch (error) {
@@ -231,10 +268,17 @@ labelRoutes.post("/:labelId/apply/:contactId", async (c) => {
 
   if (!contact?.jid) return notFound(c, "Contact");
   if (!contact.whatsapp_connection_id) {
-    return badRequest(c, "Contact is not associated with a WhatsApp connection");
+    return badRequest(
+      c,
+      "Contact is not associated with a WhatsApp connection",
+    );
   }
 
-  const label = await getWhatsAppLabelByLabelId(tenantDb, labelId);
+  const label = await getWhatsAppLabelByLabelId(
+    tenantDb,
+    labelId,
+    contact.whatsapp_connection_id,
+  );
   if (!label) return notFound(c, "WhatsApp label");
 
   const connection = await tenantDb
@@ -246,11 +290,8 @@ labelRoutes.post("/:labelId/apply/:contactId", async (c) => {
   if (!connection) return badRequest(c, "Contact's connection is not active");
 
   await tenantDb.transaction().execute(async (trx) => {
-    await enqueueConnectionCommand(
-      trx,
-      companyId,
-      connection.id,
-      (publisher) => publisher.applyLabel(labelId, contact.jid!, user.id),
+    await enqueueConnectionCommand(trx, companyId, connection.id, (publisher) =>
+      publisher.applyLabel(labelId, contact.jid!, user.id),
     );
     if (label.syncedTagId) {
       await trx
@@ -283,10 +324,17 @@ labelRoutes.delete("/:labelId/apply/:contactId", async (c) => {
 
   if (!contact?.jid) return notFound(c, "Contact");
   if (!contact.whatsapp_connection_id) {
-    return badRequest(c, "Contact is not associated with a WhatsApp connection");
+    return badRequest(
+      c,
+      "Contact is not associated with a WhatsApp connection",
+    );
   }
 
-  const label = await getWhatsAppLabelByLabelId(tenantDb, labelId);
+  const label = await getWhatsAppLabelByLabelId(
+    tenantDb,
+    labelId,
+    contact.whatsapp_connection_id,
+  );
   if (!label) return notFound(c, "WhatsApp label");
 
   const connection = await tenantDb
@@ -298,11 +346,8 @@ labelRoutes.delete("/:labelId/apply/:contactId", async (c) => {
   if (!connection) return badRequest(c, "Contact's connection is not active");
 
   await tenantDb.transaction().execute(async (trx) => {
-    await enqueueConnectionCommand(
-      trx,
-      companyId,
-      connection.id,
-      (publisher) => publisher.removeLabel(labelId, contact.jid!, user.id),
+    await enqueueConnectionCommand(trx, companyId, connection.id, (publisher) =>
+      publisher.removeLabel(labelId, contact.jid!, user.id),
     );
     if (label.syncedTagId) {
       await trx

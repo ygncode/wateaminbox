@@ -18,7 +18,9 @@ export async function handleLabelsEvent(event: LabelsEvent): Promise<void> {
   const tenantDb = getTenantConnection(event.companyId);
   const result = await tenantDb
     .transaction()
-    .execute((trx) => syncLabelsFromWhatsApp(trx, event.payload.labels));
+    .execute((trx) =>
+      syncLabelsFromWhatsApp(trx, event.connectionId, event.payload.labels),
+    );
   await broadcastToCompany(event.companyId, "labels:updated", { result });
 }
 
@@ -30,7 +32,9 @@ export async function handleCatalogsEvent(event: CatalogsEvent): Promise<void> {
   }));
   const result = await tenantDb
     .transaction()
-    .execute((trx) => syncCatalogsFromWhatsApp(trx, catalogs));
+    .execute((trx) =>
+      syncCatalogsFromWhatsApp(trx, event.connectionId, catalogs),
+    );
   await broadcastToCompany(event.companyId, "catalogs:updated", { result });
 }
 
@@ -68,7 +72,12 @@ export async function handleCatalogProductsEvent(
   await tenantDb
     .transaction()
     .execute((trx) =>
-      syncCatalogProductsFromWhatsApp(trx, event.payload.catalogId, products),
+      syncCatalogProductsFromWhatsApp(
+        trx,
+        event.connectionId,
+        event.payload.catalogId,
+        products,
+      ),
     );
   await broadcastToCompany(event.companyId, "catalogs:updated", {
     catalogId: event.payload.catalogId,

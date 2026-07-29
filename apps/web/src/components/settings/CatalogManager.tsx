@@ -14,8 +14,13 @@ import {
   RefreshCw,
   ShoppingBag,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
+import {
+  useWhatsAppAccountScope,
+  WhatsAppAccountScope,
+} from "@/components/settings/WhatsAppAccountScope";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -29,6 +34,7 @@ import {
   useCatalogProducts,
   useCatalogs,
   useTriggerCatalogProductsSync,
+  useUpdateProductVisibility,
 } from "@/hooks/useCatalogs";
 import { cn } from "@/lib/utils";
 
@@ -41,6 +47,14 @@ export function CatalogManager() {
   const [selectedCatalog, setSelectedCatalog] =
     useState<WhatsAppCatalog | null>(null);
   const [productsDialogOpen, setProductsDialogOpen] = useState(false);
+  const [pendingCatalogId, setPendingCatalogId] = useState<string | null>(null);
+  const accountScope = useWhatsAppAccountScope();
+  const { connectionId, selectedConnection } = accountScope;
+
+  useEffect(() => {
+    setProductsDialogOpen(false);
+    setSelectedCatalog(null);
+  }, [connectionId]);
 
   const {
     catalogs,
@@ -53,29 +67,46 @@ export function CatalogManager() {
     isSyncing,
     isArchiving,
     isRestoring,
-  } = useCatalogs();
+  } = useCatalogs(connectionId);
 
   const handleSync = async () => {
     try {
       await sync();
+      toast.success("Catalog sync started", {
+        description: `Refreshing catalogs for ${selectedConnection?.name ?? "this account"}.`,
+      });
     } catch (err) {
-      console.error("Failed to sync catalogs:", err);
+      toast.error("Could not sync catalogs", {
+        description: err instanceof Error ? err.message : undefined,
+      });
     }
   };
 
   const handleArchive = async (catalogId: string) => {
+    setPendingCatalogId(catalogId);
     try {
       await archive(catalogId);
+      toast.success("Catalog archived");
     } catch (err) {
-      console.error("Failed to archive catalog:", err);
+      toast.error("Could not archive catalog", {
+        description: err instanceof Error ? err.message : undefined,
+      });
+    } finally {
+      setPendingCatalogId(null);
     }
   };
 
   const handleRestore = async (catalogId: string) => {
+    setPendingCatalogId(catalogId);
     try {
       await restore(catalogId);
+      toast.success("Catalog restored");
     } catch (err) {
-      console.error("Failed to restore catalog:", err);
+      toast.error("Could not restore catalog", {
+        description: err instanceof Error ? err.message : undefined,
+      });
+    } finally {
+      setPendingCatalogId(null);
     }
   };
 
@@ -97,19 +128,27 @@ export function CatalogManager() {
     }).format(price);
   };
 
-  if (error) {
-    return (
-      <div className="flex items-center gap-2 text-red-600 dark:text-red-400 text-sm">
-        <AlertCircle className="h-4 w-4" />
-        <span>
-          {t("catalogs.errors.loadFailed", "Failed to load catalogs")}
-        </span>
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-6">
+      <WhatsAppAccountScope
+        connections={accountScope.connections}
+        connectionId={connectionId}
+        onConnectionChange={accountScope.setConnectionId}
+        isLoading={accountScope.isLoading}
+      />
+
+      {(error || accountScope.isError) && (
+        <div
+          role="alert"
+          className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-300"
+        >
+          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+          <span>
+            {t("catalogs.errors.loadFailed", "Failed to load catalogs")}
+          </span>
+        </div>
+      )}
+
       {/* Status summary */}
       {status && (
         <dl className="grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -161,7 +200,11 @@ export function CatalogManager() {
       <div className="flex flex-wrap gap-2">
         <Button
           onClick={handleSync}
-          disabled={isSyncing}
+          disabled={
+            isSyncing ||
+            !connectionId ||
+            selectedConnection?.status !== "connected"
+          }
           variant="outline"
           className="gap-2"
           data-testid="sync-catalogs-button"
@@ -249,7 +292,7 @@ export function CatalogManager() {
                     className="gap-1 text-gray-600 dark:text-dark-text-secondary hover:text-green-600 dark:hover:text-green-400"
                     data-testid={`restore-catalog-${catalog.catalogId}`}
                   >
-                    {isRestoring ? (
+                    {isRestoring && pendingCatalogId === catalog.catalogId ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
                     ) : (
                       <ArchiveRestore className="h-4 w-4" />
@@ -267,7 +310,7 @@ export function CatalogManager() {
                     className="gap-1 text-gray-600 dark:text-dark-text-secondary hover:text-yellow-600 dark:hover:text-yellow-400"
                     data-testid={`archive-catalog-${catalog.catalogId}`}
                   >
-                    {isArchiving ? (
+                    {isArchiving && pendingCatalogId === catalog.catalogId ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
                     ) : (
                       <Archive className="h-4 w-4" />
@@ -302,6 +345,7 @@ export function CatalogManager() {
         open={productsDialogOpen}
         onOpenChange={setProductsDialogOpen}
         formatCurrency={formatCurrency}
+        connectionId={connectionId}
       />
     </div>
   );
@@ -316,26 +360,36 @@ function ProductsDialog({
   open,
   onOpenChange,
   formatCurrency,
+  connectionId,
 }: {
   catalog: WhatsAppCatalog | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   formatCurrency: (price: number | null, currency: string) => string;
+  connectionId: string;
 }) {
   const { t } = useTranslation();
-  const { data: productsData, isLoading } = useCatalogProducts(
-    catalog?.catalogId || "",
-  );
+  const {
+    data: productsData,
+    isLoading,
+    error,
+  } = useCatalogProducts(catalog?.catalogId || "", connectionId);
   const syncMutation = useTriggerCatalogProductsSync();
 
-  const products = productsData?.data || [];
+  const products = productsData?.products || [];
 
   const handleSyncProducts = async () => {
     if (!catalog) return;
     try {
-      await syncMutation.mutateAsync(catalog.catalogId);
+      await syncMutation.mutateAsync({
+        catalogId: catalog.catalogId,
+        connectionId,
+      });
+      toast.success("Product sync started");
     } catch (err) {
-      console.error("Failed to sync products:", err);
+      toast.error("Could not sync products", {
+        description: err instanceof Error ? err.message : undefined,
+      });
     }
   };
 
@@ -361,7 +415,7 @@ function ProductsDialog({
             variant="outline"
             size="sm"
             onClick={handleSyncProducts}
-            disabled={syncMutation.isPending}
+            disabled={syncMutation.isPending || !connectionId}
             className="gap-2"
             data-testid="sync-products-button"
           >
@@ -376,7 +430,17 @@ function ProductsDialog({
 
         {/* Products list */}
         <div className="flex-1 overflow-y-auto">
-          {isLoading ? (
+          {error ? (
+            <div
+              role="alert"
+              className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-300"
+            >
+              {t(
+                "catalogs.errors.loadProductsFailed",
+                "Failed to load products",
+              )}
+            </div>
+          ) : isLoading ? (
             <div className="flex items-center justify-center py-8">
               <Loader2 className="h-6 w-6 animate-spin text-gray-400 dark:text-dark-text-tertiary" />
             </div>
@@ -400,6 +464,8 @@ function ProductsDialog({
                   key={product.id}
                   product={product}
                   formatCurrency={formatCurrency}
+                  catalogId={catalog?.catalogId ?? ""}
+                  connectionId={connectionId}
                 />
               ))}
             </div>
@@ -417,12 +483,36 @@ function ProductsDialog({
 function ProductItem({
   product,
   formatCurrency,
+  catalogId,
+  connectionId,
 }: {
   product: CatalogProduct;
   formatCurrency: (price: number | null, currency: string) => string;
+  catalogId: string;
+  connectionId: string;
 }) {
   const { t } = useTranslation();
   const imageUrl = product.imageUrls?.[0];
+  const visibilityMutation = useUpdateProductVisibility();
+  const nextVisibility = product.visibility === "hidden" ? "visible" : "hidden";
+
+  const handleVisibilityChange = async () => {
+    try {
+      await visibilityMutation.mutateAsync({
+        catalogId,
+        productId: product.productId,
+        visibility: nextVisibility,
+        connectionId,
+      });
+      toast.success(
+        nextVisibility === "visible" ? "Product shown" : "Product hidden",
+      );
+    } catch (err) {
+      toast.error("Could not update product visibility", {
+        description: err instanceof Error ? err.message : undefined,
+      });
+    }
+  };
 
   return (
     <div
@@ -465,23 +555,33 @@ function ProductItem({
       </div>
 
       {/* Visibility indicator */}
-      <div className="flex-shrink-0">
-        {product.visibility === "hidden" ? (
-          <div className="flex items-center gap-1 text-xs text-gray-400 dark:text-dark-text-tertiary">
-            <EyeOff className="h-4 w-4" />
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        onClick={handleVisibilityChange}
+        disabled={visibilityMutation.isPending}
+        className="h-8 shrink-0 gap-1.5 px-2 text-xs"
+        aria-label={`${nextVisibility === "visible" ? "Show" : "Hide"} ${product.name}`}
+      >
+        {visibilityMutation.isPending ? (
+          <Loader2 className="h-4 w-4 animate-spin" />
+        ) : product.visibility === "hidden" ? (
+          <>
+            <EyeOff className="h-4 w-4 text-gray-400" />
             <span className="hidden sm:inline">
               {t("catalogs.hidden", "Hidden")}
             </span>
-          </div>
+          </>
         ) : (
-          <div className="flex items-center gap-1 text-xs text-green-600 dark:text-green-400">
-            <Eye className="h-4 w-4" />
+          <>
+            <Eye className="h-4 w-4 text-green-600 dark:text-green-400" />
             <span className="hidden sm:inline">
               {t("catalogs.visible", "Visible")}
             </span>
-          </div>
+          </>
         )}
-      </div>
+      </Button>
     </div>
   );
 }

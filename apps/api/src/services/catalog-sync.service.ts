@@ -35,6 +35,7 @@ export interface WhatsAppProduct {
 
 export interface SyncedCatalog {
   id: string;
+  connectionId: string | null;
   catalogId: string;
   name: string;
   description: string | null;
@@ -50,6 +51,7 @@ export interface SyncedCatalog {
 
 export interface SyncedProduct {
   id: string;
+  connectionId: string | null;
   productId: string;
   catalogId: string;
   name: string;
@@ -86,15 +88,18 @@ export interface ProductSyncResult {
  */
 export async function getWhatsAppCatalogs(
   tenantDb: Kysely<TenantDatabase>,
+  connectionId: string,
 ): Promise<SyncedCatalog[]> {
   const catalogs = await tenantDb
     .selectFrom("whatsapp_catalogs")
     .selectAll()
+    .where("whatsapp_connection_id", "=", connectionId)
     .orderBy("name", "asc")
     .execute();
 
   return catalogs.map((catalog) => ({
     id: catalog.id,
+    connectionId: catalog.whatsapp_connection_id,
     catalogId: catalog.catalog_id,
     name: catalog.name,
     description: catalog.description,
@@ -115,17 +120,20 @@ export async function getWhatsAppCatalogs(
 export async function getWhatsAppCatalogByCatalogId(
   tenantDb: Kysely<TenantDatabase>,
   catalogId: string,
+  connectionId: string,
 ): Promise<SyncedCatalog | null> {
   const catalog = await tenantDb
     .selectFrom("whatsapp_catalogs")
     .selectAll()
     .where("catalog_id", "=", catalogId)
+    .where("whatsapp_connection_id", "=", connectionId)
     .executeTakeFirst();
 
   if (!catalog) return null;
 
   return {
     id: catalog.id,
+    connectionId: catalog.whatsapp_connection_id,
     catalogId: catalog.catalog_id,
     name: catalog.name,
     description: catalog.description,
@@ -146,16 +154,19 @@ export async function getWhatsAppCatalogByCatalogId(
 export async function getCatalogProducts(
   tenantDb: Kysely<TenantDatabase>,
   catalogId: string,
+  connectionId: string,
 ): Promise<SyncedProduct[]> {
   const products = await tenantDb
     .selectFrom("catalog_products")
     .selectAll()
     .where("catalog_id", "=", catalogId)
+    .where("whatsapp_connection_id", "=", connectionId)
     .orderBy("name", "asc")
     .execute();
 
   return products.map((product) => ({
     id: product.id,
+    connectionId: product.whatsapp_connection_id,
     productId: product.product_id,
     catalogId: product.catalog_id,
     name: product.name,
@@ -181,18 +192,21 @@ export async function getProductByProductId(
   tenantDb: Kysely<TenantDatabase>,
   productId: string,
   catalogId: string,
+  connectionId: string,
 ): Promise<SyncedProduct | null> {
   const product = await tenantDb
     .selectFrom("catalog_products")
     .selectAll()
     .where("product_id", "=", productId)
     .where("catalog_id", "=", catalogId)
+    .where("whatsapp_connection_id", "=", connectionId)
     .executeTakeFirst();
 
   if (!product) return null;
 
   return {
     id: product.id,
+    connectionId: product.whatsapp_connection_id,
     productId: product.product_id,
     catalogId: product.catalog_id,
     name: product.name,
@@ -217,12 +231,14 @@ export async function getProductByProductId(
  */
 export async function syncCatalogsFromWhatsApp(
   tenantDb: Kysely<TenantDatabase>,
+  connectionId: string,
   catalogs: WhatsAppCatalog[],
 ): Promise<CatalogSyncResult> {
   // Get existing catalogs
   const existingCatalogs = await tenantDb
     .selectFrom("whatsapp_catalogs")
     .select(["id", "catalog_id", "name", "description"])
+    .where("whatsapp_connection_id", "=", connectionId)
     .execute();
 
   return syncEntities(
@@ -233,6 +249,7 @@ export async function syncCatalogsFromWhatsApp(
         await tenantDb
           .insertInto("whatsapp_catalogs")
           .values({
+            whatsapp_connection_id: connectionId,
             catalog_id: catalog.catalogId,
             name: catalog.name,
             description: catalog.description ?? null,
@@ -252,7 +269,7 @@ export async function syncCatalogsFromWhatsApp(
             name: catalog.name,
             description: catalog.description ?? null,
             currency: catalog.currency ?? "USD",
-            status: catalog.status ?? "active",
+            ...(catalog.status ? { status: catalog.status } : {}),
             business_jid: catalog.businessJid ?? null,
             header_image_url: catalog.headerImageUrl ?? null,
             product_count: catalog.productCount ?? 0,
@@ -260,6 +277,7 @@ export async function syncCatalogsFromWhatsApp(
             updated_at: new Date(),
           })
           .where("catalog_id", "=", catalog.catalogId)
+          .where("whatsapp_connection_id", "=", connectionId)
           .execute();
       },
       remove: async (catalog) => {
@@ -267,12 +285,14 @@ export async function syncCatalogsFromWhatsApp(
         await tenantDb
           .deleteFrom("catalog_products")
           .where("catalog_id", "=", catalog.catalog_id)
+          .where("whatsapp_connection_id", "=", connectionId)
           .execute();
 
         // Then delete catalog
         await tenantDb
           .deleteFrom("whatsapp_catalogs")
           .where("catalog_id", "=", catalog.catalog_id)
+          .where("whatsapp_connection_id", "=", connectionId)
           .execute();
       },
     },
@@ -286,6 +306,7 @@ export async function syncCatalogsFromWhatsApp(
  */
 export async function syncCatalogProductsFromWhatsApp(
   tenantDb: Kysely<TenantDatabase>,
+  connectionId: string,
   catalogId: string,
   products: WhatsAppProduct[],
 ): Promise<ProductSyncResult> {
@@ -297,6 +318,7 @@ export async function syncCatalogProductsFromWhatsApp(
     .selectFrom("catalog_products")
     .select(["id", "product_id", "name"])
     .where("catalog_id", "=", catalogId)
+    .where("whatsapp_connection_id", "=", connectionId)
     .execute();
 
   const existingMap = new Map(existingProducts.map((p) => [p.product_id, p]));
@@ -326,6 +348,7 @@ export async function syncCatalogProductsFromWhatsApp(
         })
         .where("product_id", "=", product.productId)
         .where("catalog_id", "=", catalogId)
+        .where("whatsapp_connection_id", "=", connectionId)
         .execute();
       updated++;
     } else {
@@ -333,6 +356,7 @@ export async function syncCatalogProductsFromWhatsApp(
       await tenantDb
         .insertInto("catalog_products")
         .values({
+          whatsapp_connection_id: connectionId,
           product_id: product.productId,
           catalog_id: catalogId,
           name: product.name,
@@ -363,6 +387,7 @@ export async function syncCatalogProductsFromWhatsApp(
       .deleteFrom("catalog_products")
       .where("product_id", "=", product.product_id)
       .where("catalog_id", "=", catalogId)
+      .where("whatsapp_connection_id", "=", connectionId)
       .execute();
     removed++;
   }
@@ -376,6 +401,7 @@ export async function syncCatalogProductsFromWhatsApp(
       updated_at: new Date(),
     })
     .where("catalog_id", "=", catalogId)
+    .where("whatsapp_connection_id", "=", connectionId)
     .execute();
 
   return {
@@ -391,6 +417,7 @@ export async function syncCatalogProductsFromWhatsApp(
  */
 export async function getCatalogSyncStatus(
   tenantDb: Kysely<TenantDatabase>,
+  connectionId: string,
 ): Promise<{
   totalCatalogs: number;
   activeCatalogs: number;
@@ -402,19 +429,23 @@ export async function getCatalogSyncStatus(
       tenantDb
         .selectFrom("whatsapp_catalogs")
         .select(({ fn }) => fn.countAll<number>().as("count"))
+        .where("whatsapp_connection_id", "=", connectionId)
         .executeTakeFirst(),
       tenantDb
         .selectFrom("whatsapp_catalogs")
         .select(({ fn }) => fn.countAll<number>().as("count"))
+        .where("whatsapp_connection_id", "=", connectionId)
         .where("status", "=", "active")
         .executeTakeFirst(),
       tenantDb
         .selectFrom("catalog_products")
         .select(({ fn }) => fn.countAll<number>().as("count"))
+        .where("whatsapp_connection_id", "=", connectionId)
         .executeTakeFirst(),
       tenantDb
         .selectFrom("whatsapp_catalogs")
         .select(["last_synced_at"])
+        .where("whatsapp_connection_id", "=", connectionId)
         .orderBy("last_synced_at", "desc")
         .executeTakeFirst(),
     ]);
@@ -432,12 +463,14 @@ export async function getCatalogSyncStatus(
  */
 export async function archiveCatalog(
   tenantDb: Kysely<TenantDatabase>,
+  connectionId: string,
   catalogId: string,
 ): Promise<{ success: boolean; error?: string }> {
   const catalog = await tenantDb
     .selectFrom("whatsapp_catalogs")
     .select(["id"])
     .where("catalog_id", "=", catalogId)
+    .where("whatsapp_connection_id", "=", connectionId)
     .executeTakeFirst();
 
   if (!catalog) {
@@ -451,6 +484,7 @@ export async function archiveCatalog(
       updated_at: new Date(),
     })
     .where("catalog_id", "=", catalogId)
+    .where("whatsapp_connection_id", "=", connectionId)
     .execute();
 
   return { success: true };
@@ -461,12 +495,14 @@ export async function archiveCatalog(
  */
 export async function restoreCatalog(
   tenantDb: Kysely<TenantDatabase>,
+  connectionId: string,
   catalogId: string,
 ): Promise<{ success: boolean; error?: string }> {
   const catalog = await tenantDb
     .selectFrom("whatsapp_catalogs")
     .select(["id", "status"])
     .where("catalog_id", "=", catalogId)
+    .where("whatsapp_connection_id", "=", connectionId)
     .executeTakeFirst();
 
   if (!catalog) {
@@ -484,6 +520,7 @@ export async function restoreCatalog(
       updated_at: new Date(),
     })
     .where("catalog_id", "=", catalogId)
+    .where("whatsapp_connection_id", "=", connectionId)
     .execute();
 
   return { success: true };
@@ -494,6 +531,7 @@ export async function restoreCatalog(
  */
 export async function updateProductVisibility(
   tenantDb: Kysely<TenantDatabase>,
+  connectionId: string,
   productId: string,
   catalogId: string,
   visibility: ProductVisibility,
@@ -503,6 +541,7 @@ export async function updateProductVisibility(
     .select(["id"])
     .where("product_id", "=", productId)
     .where("catalog_id", "=", catalogId)
+    .where("whatsapp_connection_id", "=", connectionId)
     .executeTakeFirst();
 
   if (!product) {
@@ -517,6 +556,7 @@ export async function updateProductVisibility(
     })
     .where("product_id", "=", productId)
     .where("catalog_id", "=", catalogId)
+    .where("whatsapp_connection_id", "=", connectionId)
     .execute();
 
   return { success: true };

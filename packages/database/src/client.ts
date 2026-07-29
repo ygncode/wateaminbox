@@ -227,6 +227,7 @@ export interface TagsTable {
 
 export interface WhatsAppLabelsTable {
   id: Generated<string>;
+  whatsapp_connection_id: string | null;
   label_id: string;
   name: string;
   color: string | null;
@@ -239,6 +240,7 @@ export interface WhatsAppLabelsTable {
 
 export interface WhatsAppCatalogsTable {
   id: Generated<string>;
+  whatsapp_connection_id: string | null;
   catalog_id: string;
   name: string;
   description: string | null;
@@ -254,6 +256,7 @@ export interface WhatsAppCatalogsTable {
 
 export interface CatalogProductsTable {
   id: Generated<string>;
+  whatsapp_connection_id: string | null;
   product_id: string;
   catalog_id: string;
   name: string;

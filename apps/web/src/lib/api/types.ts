@@ -414,6 +414,7 @@ export interface QuickReplyListResponse {
 // Label types
 export interface WhatsAppLabel {
   id: string;
+  connectionId: string | null;
   labelId: string;
   name: string;
   color: string | null;
@@ -450,6 +451,12 @@ export interface TagWithLabelStatus {
 
 export interface LabelListResponse {
   data: WhatsAppLabel[];
+  pagination: {
+    total: number;
+    limit: number;
+    offset: number;
+    hasMore: boolean;
+  };
 }
 
 export interface TagsWithStatusResponse {
@@ -462,12 +469,10 @@ export interface SyncLabelsResponse {
 }
 
 export interface LinkTagResponse {
-  success: boolean;
   message: string;
 }
 
 export interface AutoCreateTagsResponse {
-  success: boolean;
   message: string;
   created: number;
   linked: number;
@@ -479,6 +484,7 @@ export type ProductVisibility = "visible" | "hidden";
 
 export interface WhatsAppCatalog {
   id: string;
+  connectionId: string | null;
   catalogId: string;
   name: string;
   description: string | null;
@@ -494,6 +500,7 @@ export interface WhatsAppCatalog {
 
 export interface CatalogProduct {
   id: string;
+  connectionId: string | null;
   productId: string;
   catalogId: string;
   name: string;
@@ -523,7 +530,7 @@ export interface CatalogListResponse {
 }
 
 export interface CatalogProductsResponse {
-  data: CatalogProduct[];
+  products: CatalogProduct[];
   meta: {
     catalogId: string;
     catalogName: string;
@@ -538,6 +545,5 @@ export interface SyncCatalogsResponse {
 }
 
 export interface CatalogActionResponse {
-  success: boolean;
   message: string;
 }

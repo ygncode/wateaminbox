@@ -8,7 +8,7 @@ import {
 } from "../lib/response.js";
 import { authMiddleware } from "../middleware/auth.js";
 import { getRouteContext } from "../middleware/context.js";
-import { tenantMiddleware } from "../middleware/tenant.js";
+import { requirePermission, tenantMiddleware } from "../middleware/tenant.js";
 import {
   getWhatsAppCatalogs,
   getWhatsAppCatalogByCatalogId,
@@ -18,7 +18,11 @@ import {
   restoreCatalog,
   updateProductVisibility,
 } from "../services/catalog-sync.service.js";
-import { getActiveWhatsAppConnection } from "../services/whatsapp-connection.service.js";
+import { PERMISSIONS } from "../services/permission.service.js";
+import {
+  getActiveWhatsAppConnection,
+  getWhatsAppConnection,
+} from "../services/whatsapp-connection.service.js";
 
 // ProductVisibility type defined locally to avoid import issues
 type ProductVisibility = "visible" | "hidden";
@@ -28,15 +32,20 @@ export const catalogRoutes = new Hono();
 // All catalog routes require authentication and tenant context
 catalogRoutes.use("/*", authMiddleware);
 catalogRoutes.use("/*", tenantMiddleware());
+catalogRoutes.use("/*", requirePermission(PERMISSIONS.CAN_MANAGE_CONNECTIONS));
 
 /**
  * GET /catalogs - List all WhatsApp Business catalogs
  */
 catalogRoutes.get("/", async (c) => {
   const { tenantDb } = getRouteContext(c);
+  const connection = await getWhatsAppConnection(
+    tenantDb,
+    c.req.query("connectionId"),
+  );
 
   try {
-    const catalogs = await getWhatsAppCatalogs(tenantDb);
+    const catalogs = await getWhatsAppCatalogs(tenantDb, connection.id);
     return successData(c, catalogs);
   } catch (error) {
     // Handle missing table gracefully - return empty array
@@ -52,9 +61,13 @@ catalogRoutes.get("/", async (c) => {
  */
 catalogRoutes.get("/status", async (c) => {
   const { tenantDb } = getRouteContext(c);
+  const connection = await getWhatsAppConnection(
+    tenantDb,
+    c.req.query("connectionId"),
+  );
 
   try {
-    const status = await getCatalogSyncStatus(tenantDb);
+    const status = await getCatalogSyncStatus(tenantDb, connection.id);
     return successData(c, status);
   } catch (error) {
     // Handle missing table gracefully - return empty status
@@ -76,8 +89,16 @@ catalogRoutes.get("/status", async (c) => {
 catalogRoutes.get("/:catalogId", async (c) => {
   const { tenantDb } = getRouteContext(c);
   const catalogId = c.req.param("catalogId");
+  const connection = await getWhatsAppConnection(
+    tenantDb,
+    c.req.query("connectionId"),
+  );
 
-  const catalog = await getWhatsAppCatalogByCatalogId(tenantDb, catalogId);
+  const catalog = await getWhatsAppCatalogByCatalogId(
+    tenantDb,
+    catalogId,
+    connection.id,
+  );
 
   if (!catalog) {
     return notFound(c, "Catalog");
@@ -92,15 +113,23 @@ catalogRoutes.get("/:catalogId", async (c) => {
 catalogRoutes.get("/:catalogId/products", async (c) => {
   const { tenantDb } = getRouteContext(c);
   const catalogId = c.req.param("catalogId");
+  const connection = await getWhatsAppConnection(
+    tenantDb,
+    c.req.query("connectionId"),
+  );
 
   // Verify catalog exists
-  const catalog = await getWhatsAppCatalogByCatalogId(tenantDb, catalogId);
+  const catalog = await getWhatsAppCatalogByCatalogId(
+    tenantDb,
+    catalogId,
+    connection.id,
+  );
 
   if (!catalog) {
     return notFound(c, "Catalog");
   }
 
-  const products = await getCatalogProducts(tenantDb, catalogId);
+  const products = await getCatalogProducts(tenantDb, catalogId, connection.id);
 
   return successData(c, {
     products,
@@ -120,13 +149,18 @@ catalogRoutes.post("/sync", async (c) => {
   const { tenantDb, user, companyId } = getRouteContext(c);
 
   // Check if WhatsApp is connected (throws ServiceUnavailableError if not)
-  const connection = await getActiveWhatsAppConnection(tenantDb);
-
-  await tenantDb.transaction().execute((trx) =>
-    enqueueConnectionCommand(trx, companyId, connection.id, (publisher) =>
-      publisher.syncCatalogs(user.id),
-    ),
+  const connection = await getActiveWhatsAppConnection(
+    tenantDb,
+    c.req.query("connectionId"),
   );
+
+  await tenantDb
+    .transaction()
+    .execute((trx) =>
+      enqueueConnectionCommand(trx, companyId, connection.id, (publisher) =>
+        publisher.syncCatalogs(user.id),
+      ),
+    );
 
   return successWithMessage(
     c,
@@ -143,20 +177,33 @@ catalogRoutes.post("/:catalogId/sync-products", async (c) => {
   const catalogId = c.req.param("catalogId");
 
   // Verify catalog exists
-  const catalog = await getWhatsAppCatalogByCatalogId(tenantDb, catalogId);
+  const requestedConnection = await getWhatsAppConnection(
+    tenantDb,
+    c.req.query("connectionId"),
+  );
+  const catalog = await getWhatsAppCatalogByCatalogId(
+    tenantDb,
+    catalogId,
+    requestedConnection.id,
+  );
 
   if (!catalog) {
     return notFound(c, "Catalog");
   }
 
   // Check if WhatsApp is connected (throws ServiceUnavailableError if not)
-  const connection = await getActiveWhatsAppConnection(tenantDb);
-
-  await tenantDb.transaction().execute((trx) =>
-    enqueueConnectionCommand(trx, companyId, connection.id, (publisher) =>
-      publisher.syncCatalogProducts(catalogId, user.id),
-    ),
+  const connection = await getActiveWhatsAppConnection(
+    tenantDb,
+    requestedConnection.id,
   );
+
+  await tenantDb
+    .transaction()
+    .execute((trx) =>
+      enqueueConnectionCommand(trx, companyId, connection.id, (publisher) =>
+        publisher.syncCatalogProducts(catalogId, user.id),
+      ),
+    );
 
   return successWithMessage(
     c,
@@ -171,8 +218,12 @@ catalogRoutes.post("/:catalogId/sync-products", async (c) => {
 catalogRoutes.post("/:catalogId/archive", async (c) => {
   const { tenantDb } = getRouteContext(c);
   const catalogId = c.req.param("catalogId");
+  const connection = await getWhatsAppConnection(
+    tenantDb,
+    c.req.query("connectionId"),
+  );
 
-  const result = await archiveCatalog(tenantDb, catalogId);
+  const result = await archiveCatalog(tenantDb, connection.id, catalogId);
 
   if (!result.success) {
     return badRequest(c, result.error || "Failed to archive catalog");
@@ -187,8 +238,12 @@ catalogRoutes.post("/:catalogId/archive", async (c) => {
 catalogRoutes.post("/:catalogId/restore", async (c) => {
   const { tenantDb } = getRouteContext(c);
   const catalogId = c.req.param("catalogId");
+  const connection = await getWhatsAppConnection(
+    tenantDb,
+    c.req.query("connectionId"),
+  );
 
-  const result = await restoreCatalog(tenantDb, catalogId);
+  const result = await restoreCatalog(tenantDb, connection.id, catalogId);
 
   if (!result.success) {
     return badRequest(c, result.error || "Failed to restore catalog");
@@ -204,6 +259,10 @@ catalogRoutes.patch("/:catalogId/products/:productId/visibility", async (c) => {
   const { tenantDb } = getRouteContext(c);
   const catalogId = c.req.param("catalogId");
   const productId = c.req.param("productId");
+  const connection = await getWhatsAppConnection(
+    tenantDb,
+    c.req.query("connectionId"),
+  );
   const body = await c.req.json();
 
   const { visibility } = body as { visibility: ProductVisibility };
@@ -214,6 +273,7 @@ catalogRoutes.patch("/:catalogId/products/:productId/visibility", async (c) => {
 
   const result = await updateProductVisibility(
     tenantDb,
+    connection.id,
     productId,
     catalogId,
     visibility,

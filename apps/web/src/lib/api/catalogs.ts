@@ -13,39 +13,62 @@ import type {
   ProductVisibility,
 } from "./types.js";
 
-export async function getWhatsAppCatalogs(): Promise<WhatsAppCatalog[]> {
-  return fetchWithAuth<WhatsAppCatalog[]>("/catalogs");
+function withConnection(path: string, connectionId: string): string {
+  const separator = path.includes("?") ? "&" : "?";
+  return `${path}${separator}connectionId=${encodeURIComponent(connectionId)}`;
 }
 
-export async function getCatalogSyncStatus(): Promise<CatalogSyncStatus> {
-  return fetchWithAuth<CatalogSyncStatus>("/catalogs/status");
+export async function getWhatsAppCatalogs(
+  connectionId: string,
+): Promise<WhatsAppCatalog[]> {
+  return fetchWithAuth<WhatsAppCatalog[]>(
+    withConnection("/catalogs", connectionId),
+  );
+}
+
+export async function getCatalogSyncStatus(
+  connectionId: string,
+): Promise<CatalogSyncStatus> {
+  return fetchWithAuth<CatalogSyncStatus>(
+    withConnection("/catalogs/status", connectionId),
+  );
 }
 
 export async function getWhatsAppCatalog(
   catalogId: string,
+  connectionId: string,
 ): Promise<WhatsAppCatalog> {
-  return fetchWithAuth<WhatsAppCatalog>(`/catalogs/${catalogId}`);
+  return fetchWithAuth<WhatsAppCatalog>(
+    withConnection(`/catalogs/${catalogId}`, connectionId),
+  );
 }
 
 export async function getCatalogProducts(
   catalogId: string,
+  connectionId: string,
 ): Promise<CatalogProductsResponse> {
   return fetchWithAuth<CatalogProductsResponse>(
-    `/catalogs/${catalogId}/products`,
+    withConnection(`/catalogs/${catalogId}/products`, connectionId),
   );
 }
 
-export async function triggerCatalogSync(): Promise<SyncCatalogsResponse> {
-  return fetchWithAuth<SyncCatalogsResponse>("/catalogs/sync", {
-    method: "POST",
-  });
+export async function triggerCatalogSync(
+  connectionId: string,
+): Promise<SyncCatalogsResponse> {
+  return fetchWithAuth<SyncCatalogsResponse>(
+    withConnection("/catalogs/sync", connectionId),
+    {
+      method: "POST",
+    },
+  );
 }
 
 export async function triggerCatalogProductsSync(
   catalogId: string,
+  connectionId: string,
 ): Promise<SyncCatalogsResponse> {
   return fetchWithAuth<SyncCatalogsResponse>(
-    `/catalogs/${catalogId}/sync-products`,
+    withConnection(`/catalogs/${catalogId}/sync-products`, connectionId),
     {
       method: "POST",
     },
@@ -54,9 +77,10 @@ export async function triggerCatalogProductsSync(
 
 export async function archiveCatalog(
   catalogId: string,
+  connectionId: string,
 ): Promise<CatalogActionResponse> {
   return fetchWithAuth<CatalogActionResponse>(
-    `/catalogs/${catalogId}/archive`,
+    withConnection(`/catalogs/${catalogId}/archive`, connectionId),
     {
       method: "POST",
     },
@@ -65,9 +89,10 @@ export async function archiveCatalog(
 
 export async function restoreCatalog(
   catalogId: string,
+  connectionId: string,
 ): Promise<CatalogActionResponse> {
   return fetchWithAuth<CatalogActionResponse>(
-    `/catalogs/${catalogId}/restore`,
+    withConnection(`/catalogs/${catalogId}/restore`, connectionId),
     {
       method: "POST",
     },
@@ -78,9 +103,13 @@ export async function updateProductVisibility(
   catalogId: string,
   productId: string,
   visibility: ProductVisibility,
+  connectionId: string,
 ): Promise<CatalogActionResponse> {
   return fetchWithAuth<CatalogActionResponse>(
-    `/catalogs/${catalogId}/products/${productId}/visibility`,
+    withConnection(
+      `/catalogs/${catalogId}/products/${productId}/visibility`,
+      connectionId,
+    ),
     {
       method: "PATCH",
       body: JSON.stringify({ visibility }),

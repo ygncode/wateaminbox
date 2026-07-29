@@ -9,8 +9,13 @@ import {
   Tag,
   Unlink,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
+import {
+  useWhatsAppAccountScope,
+  WhatsAppAccountScope,
+} from "@/components/settings/WhatsAppAccountScope";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -43,6 +48,15 @@ export function LabelSyncManager() {
     null,
   );
   const [selectedTagId, setSelectedTagId] = useState<string>("");
+  const [unlinkingLabelId, setUnlinkingLabelId] = useState<string | null>(null);
+  const accountScope = useWhatsAppAccountScope();
+  const { connectionId, selectedConnection } = accountScope;
+
+  useEffect(() => {
+    setLinkDialogOpen(false);
+    setSelectedLabel(null);
+    setSelectedTagId("");
+  }, [connectionId]);
 
   const {
     labels,
@@ -56,8 +70,12 @@ export function LabelSyncManager() {
     autoCreateTags,
     isSyncing,
     isLinking,
+    isUnlinking,
     isAutoCreating,
-  } = useLabels();
+    loadMore,
+    isLoadingMore,
+    hasMore,
+  } = useLabels(connectionId);
 
   const { data: tagsData } = useTags();
   const allTags = tagsData || [];
@@ -73,16 +91,26 @@ export function LabelSyncManager() {
   const handleSync = async () => {
     try {
       await sync();
+      toast.success("Label sync started", {
+        description: `Refreshing labels for ${selectedConnection?.name ?? "this account"}.`,
+      });
     } catch (err) {
-      console.error("Failed to sync labels:", err);
+      toast.error("Could not sync labels", {
+        description: err instanceof Error ? err.message : undefined,
+      });
     }
   };
 
   const handleAutoCreate = async () => {
     try {
       await autoCreateTags();
+      toast.success("Tags are ready", {
+        description: "Unlinked WhatsApp labels were matched or created.",
+      });
     } catch (err) {
-      console.error("Failed to auto-create tags:", err);
+      toast.error("Could not create tags", {
+        description: err instanceof Error ? err.message : undefined,
+      });
     }
   };
 
@@ -100,16 +128,25 @@ export function LabelSyncManager() {
       setLinkDialogOpen(false);
       setSelectedLabel(null);
       setSelectedTagId("");
+      toast.success("Tag linked");
     } catch (err) {
-      console.error("Failed to link tag:", err);
+      toast.error("Could not link tag", {
+        description: err instanceof Error ? err.message : undefined,
+      });
     }
   };
 
   const handleUnlink = async (labelId: string) => {
+    setUnlinkingLabelId(labelId);
     try {
       await unlink(labelId);
+      toast.success("Tag unlinked");
     } catch (err) {
-      console.error("Failed to unlink tag:", err);
+      toast.error("Could not unlink tag", {
+        description: err instanceof Error ? err.message : undefined,
+      });
+    } finally {
+      setUnlinkingLabelId(null);
     }
   };
 
@@ -118,17 +155,25 @@ export function LabelSyncManager() {
     return formatStatusTime(dateString);
   };
 
-  if (error) {
-    return (
-      <div className="flex items-center gap-2 text-red-600 dark:text-red-400 text-sm">
-        <AlertCircle className="h-4 w-4" />
-        <span>{t("labels.errors.loadFailed", "Failed to load labels")}</span>
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-6">
+      <WhatsAppAccountScope
+        connections={accountScope.connections}
+        connectionId={connectionId}
+        onConnectionChange={accountScope.setConnectionId}
+        isLoading={accountScope.isLoading}
+      />
+
+      {(error || accountScope.isError) && (
+        <div
+          role="alert"
+          className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-300"
+        >
+          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+          <span>{t("labels.errors.loadFailed", "Failed to load labels")}</span>
+        </div>
+      )}
+
       {/* Status summary */}
       {status && (
         <dl className="grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -175,7 +220,11 @@ export function LabelSyncManager() {
       <div className="flex flex-wrap gap-2">
         <Button
           onClick={handleSync}
-          disabled={isSyncing}
+          disabled={
+            isSyncing ||
+            !connectionId ||
+            selectedConnection?.status !== "connected"
+          }
           variant="outline"
           className="gap-2"
           data-testid="sync-labels-button"
@@ -191,7 +240,7 @@ export function LabelSyncManager() {
         {status && status.unlinkedLabels > 0 && (
           <Button
             onClick={handleAutoCreate}
-            disabled={isAutoCreating}
+            disabled={isAutoCreating || !connectionId}
             variant="outline"
             className="gap-2"
             data-testid="auto-create-tags-button"
@@ -278,10 +327,15 @@ export function LabelSyncManager() {
                       variant="ghost"
                       size="sm"
                       onClick={() => handleUnlink(label.labelId)}
+                      disabled={isUnlinking}
                       className="gap-1 text-gray-600 dark:text-dark-text-secondary hover:text-red-600 dark:hover:text-red-400"
                       data-testid={`unlink-label-${label.labelId}`}
                     >
-                      <Unlink className="h-4 w-4" />
+                      {unlinkingLabelId === label.labelId ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Unlink className="h-4 w-4" />
+                      )}
                       <span className="hidden sm:inline">
                         {t("labels.unlink", "Unlink")}
                       </span>
@@ -304,6 +358,19 @@ export function LabelSyncManager() {
               </div>
             );
           })}
+          {hasMore && (
+            <div className="flex justify-center pt-3">
+              <Button
+                variant="outline"
+                onClick={() => loadMore()}
+                disabled={isLoadingMore}
+                className="min-w-36 gap-2"
+              >
+                {isLoadingMore && <Loader2 className="h-4 w-4 animate-spin" />}
+                {isLoadingMore ? "Loading…" : "Load more labels"}
+              </Button>
+            </div>
+          )}
         </div>
       )}
 

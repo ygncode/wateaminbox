@@ -113,6 +113,15 @@ describe("new tenant schema contract", () => {
           "character varying",
         );
         expect(column("whatsapp_labels", "label_id")?.is_nullable).toBe("NO");
+        expect(
+          column("whatsapp_labels", "whatsapp_connection_id")?.data_type,
+        ).toBe("uuid");
+        expect(
+          column("whatsapp_catalogs", "whatsapp_connection_id")?.data_type,
+        ).toBe("uuid");
+        expect(
+          column("catalog_products", "whatsapp_connection_id")?.data_type,
+        ).toBe("uuid");
         expect(column("whatsapp_catalogs", "name")?.is_nullable).toBe("NO");
         expect(column("whatsapp_labels", "whatsapp_label_id")).toBeUndefined();
       } finally {

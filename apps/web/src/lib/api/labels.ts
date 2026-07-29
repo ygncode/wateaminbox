@@ -11,59 +11,95 @@ import type {
   SyncLabelsResponse,
   LinkTagResponse,
   AutoCreateTagsResponse,
+  LabelListResponse,
 } from "./types.js";
 
-export async function getWhatsAppLabels(): Promise<WhatsAppLabel[]> {
-  // Labels endpoint returns paginated response { data, pagination }
-  const response = await fetchWithAuth<{
-    data: WhatsAppLabel[];
-    pagination: unknown;
-  }>("/labels");
-  return response.data;
+function withConnection(path: string, connectionId: string): string {
+  const separator = path.includes("?") ? "&" : "?";
+  return `${path}${separator}connectionId=${encodeURIComponent(connectionId)}`;
 }
 
-export async function getLabelSyncStatus(): Promise<LabelSyncStatus> {
-  return fetchWithAuth<LabelSyncStatus>("/labels/status");
+export async function getWhatsAppLabels(
+  connectionId: string,
+  limit = 50,
+  offset = 0,
+): Promise<LabelListResponse> {
+  return fetchWithAuth<LabelListResponse>(
+    withConnection(`/labels?limit=${limit}&offset=${offset}`, connectionId),
+  );
+}
+
+export async function getLabelSyncStatus(
+  connectionId: string,
+): Promise<LabelSyncStatus> {
+  return fetchWithAuth<LabelSyncStatus>(
+    withConnection("/labels/status", connectionId),
+  );
 }
 
 export async function getWhatsAppLabel(
   labelId: string,
+  connectionId: string,
 ): Promise<WhatsAppLabel> {
-  return fetchWithAuth<WhatsAppLabel>(`/labels/${labelId}`);
+  return fetchWithAuth<WhatsAppLabel>(
+    withConnection(`/labels/${labelId}`, connectionId),
+  );
 }
 
-export async function triggerLabelSync(): Promise<SyncLabelsResponse> {
-  return fetchWithAuth<SyncLabelsResponse>("/labels/sync", {
-    method: "POST",
-  });
+export async function triggerLabelSync(
+  connectionId: string,
+): Promise<SyncLabelsResponse> {
+  return fetchWithAuth<SyncLabelsResponse>(
+    withConnection("/labels/sync", connectionId),
+    {
+      method: "POST",
+    },
+  );
 }
 
 export async function linkTagToLabel(
   labelId: string,
   tagId: string,
+  connectionId: string,
 ): Promise<LinkTagResponse> {
-  return fetchWithAuth<LinkTagResponse>(`/labels/${labelId}/link`, {
-    method: "POST",
-    body: JSON.stringify({ tagId }),
-  });
+  return fetchWithAuth<LinkTagResponse>(
+    withConnection(`/labels/${labelId}/link`, connectionId),
+    {
+      method: "POST",
+      body: JSON.stringify({ tagId }),
+    },
+  );
 }
 
 export async function unlinkTagFromLabel(
   labelId: string,
+  connectionId: string,
 ): Promise<LinkTagResponse> {
-  return fetchWithAuth<LinkTagResponse>(`/labels/${labelId}/link`, {
-    method: "DELETE",
-  });
+  return fetchWithAuth<LinkTagResponse>(
+    withConnection(`/labels/${labelId}/link`, connectionId),
+    {
+      method: "DELETE",
+    },
+  );
 }
 
-export async function autoCreateTagsFromLabels(): Promise<AutoCreateTagsResponse> {
-  return fetchWithAuth<AutoCreateTagsResponse>("/labels/auto-create", {
-    method: "POST",
-  });
+export async function autoCreateTagsFromLabels(
+  connectionId: string,
+): Promise<AutoCreateTagsResponse> {
+  return fetchWithAuth<AutoCreateTagsResponse>(
+    withConnection("/labels/auto-create", connectionId),
+    {
+      method: "POST",
+    },
+  );
 }
 
-export async function getTagsWithLabelStatus(): Promise<TagWithLabelStatus[]> {
-  return fetchWithAuth<TagWithLabelStatus[]>("/labels/tags/with-status");
+export async function getTagsWithLabelStatus(
+  connectionId: string,
+): Promise<TagWithLabelStatus[]> {
+  return fetchWithAuth<TagWithLabelStatus[]>(
+    withConnection("/labels/tags/with-status", connectionId),
+  );
 }
 
 export async function applyLabelToContact(

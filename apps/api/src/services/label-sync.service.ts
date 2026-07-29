@@ -38,6 +38,7 @@ export interface WhatsAppLabel {
 
 export interface SyncedLabel {
   id: string;
+  connectionId: string | null;
   labelId: string;
   name: string;
   color: string | null;
@@ -60,11 +61,13 @@ export interface LabelSyncResult {
  */
 export async function getWhatsAppLabels(
   tenantDb: Kysely<TenantDatabase>,
+  connectionId: string,
   pagination?: { limit: number; offset: number },
 ): Promise<SyncedLabel[]> {
   let query = tenantDb
     .selectFrom("whatsapp_labels")
     .selectAll()
+    .where("whatsapp_connection_id", "=", connectionId)
     .orderBy("name", "asc");
 
   if (pagination) {
@@ -75,6 +78,7 @@ export async function getWhatsAppLabels(
 
   return labels.map((label) => ({
     id: label.id,
+    connectionId: label.whatsapp_connection_id,
     labelId: label.label_id,
     name: label.name,
     color: label.color,
@@ -91,10 +95,12 @@ export async function getWhatsAppLabels(
  */
 export async function getWhatsAppLabelsCount(
   tenantDb: Kysely<TenantDatabase>,
+  connectionId: string,
 ): Promise<number> {
   const result = await tenantDb
     .selectFrom("whatsapp_labels")
     .select((eb) => eb.fn.countAll<string>().as("total"))
+    .where("whatsapp_connection_id", "=", connectionId)
     .executeTakeFirst();
 
   return Number(result?.total || 0);
@@ -106,17 +112,20 @@ export async function getWhatsAppLabelsCount(
 export async function getWhatsAppLabelByLabelId(
   tenantDb: Kysely<TenantDatabase>,
   labelId: string,
+  connectionId: string,
 ): Promise<SyncedLabel | null> {
   const label = await tenantDb
     .selectFrom("whatsapp_labels")
     .selectAll()
     .where("label_id", "=", labelId)
+    .where("whatsapp_connection_id", "=", connectionId)
     .executeTakeFirst();
 
   if (!label) return null;
 
   return {
     id: label.id,
+    connectionId: label.whatsapp_connection_id,
     labelId: label.label_id,
     name: label.name,
     color: label.color,
@@ -134,12 +143,14 @@ export async function getWhatsAppLabelByLabelId(
  */
 export async function syncLabelsFromWhatsApp(
   tenantDb: Kysely<TenantDatabase>,
+  connectionId: string,
   labels: WhatsAppLabel[],
 ): Promise<LabelSyncResult> {
   // Get existing labels
   const existingLabels = await tenantDb
     .selectFrom("whatsapp_labels")
     .select(["id", "label_id", "name", "color"])
+    .where("whatsapp_connection_id", "=", connectionId)
     .execute();
 
   // Helper to resolve color from predefined ID
@@ -161,6 +172,7 @@ export async function syncLabelsFromWhatsApp(
         await tenantDb
           .insertInto("whatsapp_labels")
           .values({
+            whatsapp_connection_id: connectionId,
             label_id: label.labelId,
             name: label.name,
             color: resolveColor(label),
@@ -180,6 +192,7 @@ export async function syncLabelsFromWhatsApp(
             updated_at: new Date(),
           })
           .where("label_id", "=", label.labelId)
+          .where("whatsapp_connection_id", "=", connectionId)
           .execute();
       },
       remove: async (label) => {
@@ -193,6 +206,7 @@ export async function syncLabelsFromWhatsApp(
         await tenantDb
           .deleteFrom("whatsapp_labels")
           .where("label_id", "=", label.label_id)
+          .where("whatsapp_connection_id", "=", connectionId)
           .execute();
       },
       // Only update if name or color actually changed
@@ -212,6 +226,7 @@ export async function syncLabelsFromWhatsApp(
  */
 export async function linkTagToLabel(
   tenantDb: Kysely<TenantDatabase>,
+  connectionId: string,
   tagId: string,
   labelId: string,
 ): Promise<{ success: boolean; error?: string }> {
@@ -220,6 +235,7 @@ export async function linkTagToLabel(
     .selectFrom("whatsapp_labels")
     .select(["id", "label_id", "synced_tag_id"])
     .where("label_id", "=", labelId)
+    .where("whatsapp_connection_id", "=", connectionId)
     .executeTakeFirst();
 
   if (!label) {
@@ -237,11 +253,18 @@ export async function linkTagToLabel(
     return { success: false, error: "Tag not found" };
   }
 
-  // Check if tag is already linked to another label
-  if (tag.whatsapp_label_id && tag.whatsapp_label_id !== labelId) {
+  const tagLink = await tenantDb
+    .selectFrom("whatsapp_labels")
+    .select(["label_id"])
+    .where("whatsapp_connection_id", "=", connectionId)
+    .where("synced_tag_id", "=", tagId)
+    .executeTakeFirst();
+
+  // A workspace tag may map to one label per WhatsApp account.
+  if (tagLink && tagLink.label_id !== labelId) {
     return {
       success: false,
-      error: "Tag is already linked to another WhatsApp label",
+      error: "Tag is already linked to another label for this WhatsApp account",
     };
   }
 
@@ -253,24 +276,26 @@ export async function linkTagToLabel(
     };
   }
 
-  // Create the bidirectional link
-  await tenantDb
-    .updateTable("tags")
-    .set({
-      whatsapp_label_id: labelId,
-      synced_at: new Date(),
-    })
-    .where("id", "=", tagId)
-    .execute();
+  await tenantDb.transaction().execute(async (trx) => {
+    await trx
+      .updateTable("tags")
+      .set({
+        whatsapp_label_id: tag.whatsapp_label_id ?? labelId,
+        synced_at: new Date(),
+      })
+      .where("id", "=", tagId)
+      .execute();
 
-  await tenantDb
-    .updateTable("whatsapp_labels")
-    .set({
-      synced_tag_id: tagId,
-      updated_at: new Date(),
-    })
-    .where("label_id", "=", labelId)
-    .execute();
+    await trx
+      .updateTable("whatsapp_labels")
+      .set({
+        synced_tag_id: tagId,
+        updated_at: new Date(),
+      })
+      .where("label_id", "=", labelId)
+      .where("whatsapp_connection_id", "=", connectionId)
+      .execute();
+  });
 
   return { success: true };
 }
@@ -280,40 +305,50 @@ export async function linkTagToLabel(
  */
 export async function unlinkTagFromLabel(
   tenantDb: Kysely<TenantDatabase>,
-  tagId: string,
+  connectionId: string,
+  labelId: string,
 ): Promise<{ success: boolean; error?: string }> {
-  const tag = await tenantDb
-    .selectFrom("tags")
-    .select(["id", "whatsapp_label_id"])
-    .where("id", "=", tagId)
+  const label = await tenantDb
+    .selectFrom("whatsapp_labels")
+    .select(["synced_tag_id"])
+    .where("whatsapp_connection_id", "=", connectionId)
+    .where("label_id", "=", labelId)
     .executeTakeFirst();
 
-  if (!tag) {
-    return { success: false, error: "Tag not found" };
+  if (!label) {
+    return { success: false, error: "WhatsApp label not found" };
   }
 
-  if (!tag.whatsapp_label_id) {
-    return { success: false, error: "Tag is not linked to any WhatsApp label" };
+  if (!label.synced_tag_id) {
+    return { success: false, error: "No tag is linked to this label" };
   }
 
-  // Remove the bidirectional link
-  await tenantDb
-    .updateTable("whatsapp_labels")
-    .set({
-      synced_tag_id: null,
-      updated_at: new Date(),
-    })
-    .where("label_id", "=", tag.whatsapp_label_id)
-    .execute();
+  const tagId = label.synced_tag_id;
+  await tenantDb.transaction().execute(async (trx) => {
+    await trx
+      .updateTable("whatsapp_labels")
+      .set({
+        synced_tag_id: null,
+        updated_at: new Date(),
+      })
+      .where("whatsapp_connection_id", "=", connectionId)
+      .where("label_id", "=", labelId)
+      .execute();
 
-  await tenantDb
-    .updateTable("tags")
-    .set({
-      whatsapp_label_id: null,
-      synced_at: null,
-    })
-    .where("id", "=", tagId)
-    .execute();
+    const remainingLink = await trx
+      .selectFrom("whatsapp_labels")
+      .select(["label_id"])
+      .where("synced_tag_id", "=", tagId)
+      .executeTakeFirst();
+    await trx
+      .updateTable("tags")
+      .set({
+        whatsapp_label_id: remainingLink?.label_id ?? null,
+        synced_at: remainingLink ? new Date() : null,
+      })
+      .where("id", "=", tagId)
+      .execute();
+  });
 
   return { success: true };
 }
@@ -323,6 +358,7 @@ export async function unlinkTagFromLabel(
  */
 export async function getTagsWithLabelStatus(
   tenantDb: Kysely<TenantDatabase>,
+  connectionId: string,
 ): Promise<
   Array<{
     id: string;
@@ -337,10 +373,10 @@ export async function getTagsWithLabelStatus(
 > {
   const tags = await tenantDb
     .selectFrom("tags")
-    .leftJoin(
-      "whatsapp_labels",
-      "tags.whatsapp_label_id",
-      "whatsapp_labels.label_id",
+    .leftJoin("whatsapp_labels", (join) =>
+      join
+        .onRef("whatsapp_labels.synced_tag_id", "=", "tags.id")
+        .on("whatsapp_labels.whatsapp_connection_id", "=", connectionId),
     )
     .select([
       "tags.id",
@@ -348,7 +384,6 @@ export async function getTagsWithLabelStatus(
       "tags.color",
       "tags.created_by",
       "tags.created_at",
-      "tags.whatsapp_label_id",
       "tags.synced_at",
       "whatsapp_labels.label_id as wa_label_id",
       "whatsapp_labels.name as wa_label_name",
@@ -363,7 +398,7 @@ export async function getTagsWithLabelStatus(
     color: tag.color,
     createdBy: tag.created_by,
     createdAt: tag.created_at,
-    whatsappLabelId: tag.whatsapp_label_id,
+    whatsappLabelId: tag.wa_label_id,
     syncedAt: tag.synced_at,
     linkedLabel: tag.wa_label_id
       ? {
@@ -381,12 +416,14 @@ export async function getTagsWithLabelStatus(
  */
 export async function autoCreateTagsFromLabels(
   tenantDb: Kysely<TenantDatabase>,
+  connectionId: string,
   userId: string,
 ): Promise<{ created: number; linked: number }> {
   // Get unlinked WhatsApp labels
   const unlinkedLabels = await tenantDb
     .selectFrom("whatsapp_labels")
     .selectAll()
+    .where("whatsapp_connection_id", "=", connectionId)
     .where("synced_tag_id", "is", null)
     .execute();
 
@@ -397,16 +434,18 @@ export async function autoCreateTagsFromLabels(
     // Check if a tag with the same name already exists
     const existingTag = await tenantDb
       .selectFrom("tags")
-      .select(["id", "whatsapp_label_id"])
+      .select(["id"])
       .where("name", "ilike", label.name)
       .executeTakeFirst();
 
     if (existingTag) {
-      // Link existing tag if not already linked
-      if (!existingTag.whatsapp_label_id) {
-        await linkTagToLabel(tenantDb, existingTag.id, label.label_id);
-        linked++;
-      }
+      const result = await linkTagToLabel(
+        tenantDb,
+        connectionId,
+        existingTag.id,
+        label.label_id,
+      );
+      if (result.success) linked++;
     } else {
       // Create new tag with WhatsApp label link
       const newTag = await tenantDb
@@ -414,8 +453,6 @@ export async function autoCreateTagsFromLabels(
         .values({
           name: label.name,
           color: label.color,
-          whatsapp_label_id: label.label_id,
-          synced_at: new Date(),
           created_by: userId,
         })
         .returning(["id"])
@@ -430,6 +467,7 @@ export async function autoCreateTagsFromLabels(
             updated_at: new Date(),
           })
           .where("label_id", "=", label.label_id)
+          .where("whatsapp_connection_id", "=", connectionId)
           .execute();
 
         created++;
@@ -445,6 +483,7 @@ export async function autoCreateTagsFromLabels(
  */
 export async function getLabelSyncStatus(
   tenantDb: Kysely<TenantDatabase>,
+  connectionId: string,
 ): Promise<{
   totalLabels: number;
   linkedLabels: number;
@@ -463,10 +502,12 @@ export async function getLabelSyncStatus(
     tenantDb
       .selectFrom("whatsapp_labels")
       .select(({ fn }) => fn.countAll<number>().as("count"))
+      .where("whatsapp_connection_id", "=", connectionId)
       .executeTakeFirst(),
     tenantDb
       .selectFrom("whatsapp_labels")
       .select(({ fn }) => fn.countAll<number>().as("count"))
+      .where("whatsapp_connection_id", "=", connectionId)
       .where("synced_tag_id", "is not", null)
       .executeTakeFirst(),
     tenantDb
@@ -474,13 +515,17 @@ export async function getLabelSyncStatus(
       .select(({ fn }) => fn.countAll<number>().as("count"))
       .executeTakeFirst(),
     tenantDb
-      .selectFrom("tags")
-      .select(({ fn }) => fn.countAll<number>().as("count"))
-      .where("whatsapp_label_id", "is not", null)
+      .selectFrom("whatsapp_labels")
+      .select(({ fn }) =>
+        fn.count<number>("synced_tag_id").distinct().as("count"),
+      )
+      .where("whatsapp_connection_id", "=", connectionId)
+      .where("synced_tag_id", "is not", null)
       .executeTakeFirst(),
     tenantDb
       .selectFrom("whatsapp_labels")
       .select(["last_synced_at"])
+      .where("whatsapp_connection_id", "=", connectionId)
       .orderBy("last_synced_at", "desc")
       .executeTakeFirst(),
   ]);

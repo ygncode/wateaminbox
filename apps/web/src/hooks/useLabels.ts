@@ -1,4 +1,4 @@
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQuery } from "@tanstack/react-query";
 import { getCompanyId } from "@/lib/api/client";
 import {
   applyLabelToContact,
@@ -28,44 +28,55 @@ export const labelKeys = {
   get all() {
     return ["labels", getCompanyId()] as const;
   },
-  list: () => ["labels", getCompanyId(), "list"] as const,
-  status: () => ["labels", getCompanyId(), "status"] as const,
-  tagsWithStatus: () => ["labels", getCompanyId(), "tags-with-status"] as const,
+  list: (connectionId: string) =>
+    ["labels", getCompanyId(), connectionId, "list"] as const,
+  status: (connectionId: string) =>
+    ["labels", getCompanyId(), connectionId, "status"] as const,
+  tagsWithStatus: (connectionId: string) =>
+    ["labels", getCompanyId(), connectionId, "tags-with-status"] as const,
 };
 
 /**
  * Hook for fetching WhatsApp labels
  */
-export function useWhatsAppLabels() {
-  return useQuery({
-    queryKey: labelKeys.list(),
-    queryFn: getWhatsAppLabels,
+export function useWhatsAppLabels(connectionId: string) {
+  return useInfiniteQuery({
+    queryKey: labelKeys.list(connectionId),
+    queryFn: ({ pageParam }) => getWhatsAppLabels(connectionId, 50, pageParam),
+    initialPageParam: 0,
+    getNextPageParam: (lastPage) =>
+      lastPage.pagination.hasMore
+        ? lastPage.pagination.offset + lastPage.pagination.limit
+        : undefined,
     staleTime: 60 * 1000, // 1 minute
     gcTime: 5 * 60 * 1000, // 5 minutes
+    enabled: !!connectionId,
   });
 }
 
 /**
  * Hook for fetching label sync status
  */
-export function useLabelSyncStatus() {
+export function useLabelSyncStatus(connectionId: string) {
   return useQuery({
-    queryKey: labelKeys.status(),
-    queryFn: getLabelSyncStatus,
+    queryKey: labelKeys.status(connectionId),
+    queryFn: () => getLabelSyncStatus(connectionId),
     staleTime: 30 * 1000, // 30 seconds
     gcTime: 5 * 60 * 1000, // 5 minutes
+    enabled: !!connectionId,
   });
 }
 
 /**
  * Hook for fetching tags with their label sync status
  */
-export function useTagsWithLabelStatus() {
+export function useTagsWithLabelStatus(connectionId: string) {
   return useQuery({
-    queryKey: labelKeys.tagsWithStatus(),
-    queryFn: getTagsWithLabelStatus,
+    queryKey: labelKeys.tagsWithStatus(connectionId),
+    queryFn: () => getTagsWithLabelStatus(connectionId),
     staleTime: 60 * 1000, // 1 minute
     gcTime: 5 * 60 * 1000, // 5 minutes
+    enabled: !!connectionId,
   });
 }
 
@@ -76,7 +87,7 @@ export function useTriggerLabelSync() {
   const invalidateLabels = useInvalidate(labelKeys.all);
 
   return useMutation({
-    mutationFn: triggerLabelSync,
+    mutationFn: (connectionId: string) => triggerLabelSync(connectionId),
     onSuccess: invalidateLabels,
   });
 }
@@ -91,8 +102,15 @@ export function useLinkTagToLabel() {
   ]);
 
   return useMutation({
-    mutationFn: ({ labelId, tagId }: { labelId: string; tagId: string }) =>
-      linkTagToLabel(labelId, tagId),
+    mutationFn: ({
+      labelId,
+      tagId,
+      connectionId,
+    }: {
+      labelId: string;
+      tagId: string;
+      connectionId: string;
+    }) => linkTagToLabel(labelId, tagId, connectionId),
     onSuccess: invalidateLabelsAndTags,
   });
 }
@@ -107,7 +125,13 @@ export function useUnlinkTagFromLabel() {
   ]);
 
   return useMutation({
-    mutationFn: (labelId: string) => unlinkTagFromLabel(labelId),
+    mutationFn: ({
+      labelId,
+      connectionId,
+    }: {
+      labelId: string;
+      connectionId: string;
+    }) => unlinkTagFromLabel(labelId, connectionId),
     onSuccess: invalidateLabelsAndTags,
   });
 }
@@ -122,7 +146,8 @@ export function useAutoCreateTagsFromLabels() {
   ]);
 
   return useMutation({
-    mutationFn: autoCreateTagsFromLabels,
+    mutationFn: (connectionId: string) =>
+      autoCreateTagsFromLabels(connectionId),
     onSuccess: invalidateLabelsAndTags,
   });
 }
@@ -170,12 +195,12 @@ export function useRemoveLabelFromContact() {
 /**
  * Combined hook for label management
  */
-export function useLabels() {
+export function useLabels(connectionId: string) {
   const invalidateLabels = useInvalidate(labelKeys.all);
 
-  const labelsQuery = useWhatsAppLabels();
-  const statusQuery = useLabelSyncStatus();
-  const tagsWithStatusQuery = useTagsWithLabelStatus();
+  const labelsQuery = useWhatsAppLabels(connectionId);
+  const statusQuery = useLabelSyncStatus(connectionId);
+  const tagsWithStatusQuery = useTagsWithLabelStatus(connectionId);
 
   const syncMutation = useTriggerLabelSync();
   const linkMutation = useLinkTagToLabel();
@@ -184,7 +209,7 @@ export function useLabels() {
 
   return {
     // Data
-    labels: labelsQuery.data || [],
+    labels: labelsQuery.data?.pages.flatMap((page) => page.data) || [],
     status: statusQuery.data,
     tagsWithStatus: tagsWithStatusQuery.data || [],
 
@@ -201,11 +226,13 @@ export function useLabels() {
     error: labelsQuery.error || statusQuery.error || tagsWithStatusQuery.error,
 
     // Actions
-    sync: () => syncMutation.mutateAsync(undefined),
+    sync: () => syncMutation.mutateAsync(connectionId),
     link: (labelId: string, tagId: string) =>
-      linkMutation.mutateAsync({ labelId, tagId }),
-    unlink: (labelId: string) => unlinkMutation.mutateAsync(labelId),
-    autoCreateTags: () => autoCreateMutation.mutateAsync(undefined),
+      linkMutation.mutateAsync({ labelId, tagId, connectionId }),
+    unlink: (labelId: string) =>
+      unlinkMutation.mutateAsync({ labelId, connectionId }),
+    autoCreateTags: () => autoCreateMutation.mutateAsync(connectionId),
+    loadMore: labelsQuery.fetchNextPage,
     refresh: invalidateLabels,
 
     // Mutation states
@@ -213,6 +240,8 @@ export function useLabels() {
     isLinking: linkMutation.isPending,
     isUnlinking: unlinkMutation.isPending,
     isAutoCreating: autoCreateMutation.isPending,
+    isLoadingMore: labelsQuery.isFetchingNextPage,
+    hasMore: labelsQuery.hasNextPage,
   };
 }
 
