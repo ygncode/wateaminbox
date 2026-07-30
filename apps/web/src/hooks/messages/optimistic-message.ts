@@ -4,7 +4,12 @@ import type { InfiniteMessagesData, SendMessageInput } from "./types";
 
 export function createOptimisticMessage(
   input: SendMessageInput,
-  sender?: { id: string; name: string },
+  sender?: {
+    id: string;
+    name: string;
+    avatarUrl?: string;
+    gravatarUrl?: string;
+  },
 ): Message {
   const now = toDbDate();
   return {
@@ -14,6 +19,8 @@ export function createOptimisticMessage(
     senderType: "user",
     sentByUserId: sender?.id,
     sentByUserName: sender?.name,
+    sentByUserAvatarUrl: sender?.avatarUrl,
+    sentByUserGravatarUrl: sender?.gravatarUrl,
     messageType: input.messageType || "text",
     content: input.content,
     metadata: input.mediaUrl ? { mediaUrl: input.mediaUrl } : undefined,

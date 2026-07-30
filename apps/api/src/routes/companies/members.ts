@@ -26,6 +26,7 @@ import {
   getEffectivePermissions,
   PERMISSIONS,
 } from "../../services/permission.service.js";
+import { getUserAvatarSources } from "../../services/user.service.js";
 
 /**
  * Transform internal member to API response format
@@ -47,6 +48,38 @@ function toApiMember(
 }
 
 export const memberRoutes = new Hono();
+
+/**
+ * GET /:id/member-identities
+ * Minimal teammate identity directory used by shared-inbox message attribution.
+ * Every active workspace member may read it; emails, roles, and permissions are
+ * intentionally excluded.
+ */
+memberRoutes.get(
+  "/:id/member-identities",
+  authMiddleware,
+  tenantFromParam("id"),
+  async (c) => {
+    const companyId = c.get("companyId");
+    const members = await companyService.getMembers(companyId);
+    const avatarSources = await getUserAvatarSources(
+      members.map((member) => member.user_id),
+    );
+
+    return successData(
+      c,
+      members.map((member) => {
+        const avatars = avatarSources.get(member.user_id);
+        return {
+          userId: member.user_id,
+          name: member.name || member.email?.split("@")[0] || "Team member",
+          avatarUrl: avatars?.avatarUrl || null,
+          gravatarUrl: avatars?.gravatarUrl || null,
+        };
+      }),
+    );
+  },
+);
 
 /**
  * GET /:id/members - List company members

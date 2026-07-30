@@ -38,6 +38,7 @@ export interface ChatPageState {
   // Chat selection
   selectedChatId: string | undefined;
   selectedContact: Contact | undefined;
+  contactLoadError: Error | null;
   isContactTyping: boolean;
 
   // Panel visibility
@@ -65,6 +66,7 @@ export interface ChatPageState {
 export interface ChatPageActions {
   // Chat selection
   handleChatSelect: (chatId: string | null) => void;
+  retryContactLoad: () => void;
 
   // Profile panel
   handleOpenProfile: () => void;
@@ -139,10 +141,18 @@ export function useChatPageState(): ChatPageState & ChatPageActions {
   );
 
   // Fetch contact data for the selected chat
-  const { data: contactDetail } = useContact(selectedChatId || null);
+  const {
+    data: contactDetail,
+    error: contactLoadError,
+    refetch: refetchContact,
+  } = useContact(selectedChatId || null);
   const selectedContact = contactDetail
     ? mapContactDetailToContact(contactDetail)
     : undefined;
+
+  const retryContactLoad = React.useCallback(() => {
+    void refetchContact();
+  }, [refetchContact]);
 
   // Get typing indicators from store - use selector with specific conversation ID
   // to avoid re-renders on typing changes in other conversations
@@ -423,6 +433,7 @@ export function useChatPageState(): ChatPageState & ChatPageActions {
     // State
     selectedChatId,
     selectedContact,
+    contactLoadError,
     isContactTyping,
     isProfileOpen,
     isSearchOpen,
@@ -438,6 +449,7 @@ export function useChatPageState(): ChatPageState & ChatPageActions {
 
     // Actions
     handleChatSelect,
+    retryContactLoad,
     handleOpenProfile,
     handleCloseProfile,
     handleOpenSearch,

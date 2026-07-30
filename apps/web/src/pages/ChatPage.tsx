@@ -1,7 +1,9 @@
 import {
   ArrowLeft,
   CheckCheck,
+  CircleAlert,
   MessagesSquare,
+  RotateCcw,
   UsersRound,
 } from "lucide-react";
 import { useState } from "react";
@@ -16,6 +18,7 @@ import { MessageThread } from "../components/chat/MessageThread";
 import { AppLayout, ResponsiveLayout } from "../components/layout/app-layout";
 import { MainContent } from "../components/layout/main-content";
 import { Sidebar } from "../components/layout/sidebar";
+import { Skeleton } from "../components/ui";
 import { useAuth } from "../contexts/auth-context";
 import { MessageActionsProvider } from "../contexts/message-actions-context";
 import { useChatPageState } from "../hooks/chat";
@@ -28,6 +31,7 @@ export function ChatPage() {
     // State
     selectedChatId,
     selectedContact,
+    contactLoadError,
     isContactTyping,
     isProfileOpen,
     isSearchOpen,
@@ -41,6 +45,7 @@ export function ChatPage() {
 
     // Actions
     handleChatSelect,
+    retryContactLoad,
     handleOpenProfile,
     handleCloseProfile,
     handleOpenSearch,
@@ -75,7 +80,21 @@ export function ChatPage() {
   // Build the main content component
   const main = (
     <MainContent className="min-w-0 flex-1 flex flex-col">
-      {selectedChatId && selectedContact ? (
+      {!selectedChatId && <InboxEmptyState activeView={sidebarView} />}
+
+      {selectedChatId && !selectedContact && !contactLoadError && (
+        <ConversationLoadingState />
+      )}
+
+      {selectedChatId && !selectedContact && contactLoadError && (
+        <ConversationLoadError
+          message={contactLoadError.message}
+          onRetry={retryContactLoad}
+          onBackToInbox={() => handleChatSelect(null)}
+        />
+      )}
+
+      {selectedChatId && selectedContact && (
         <>
           <MessageHeader
             contact={selectedContact}
@@ -101,6 +120,9 @@ export function ChatPage() {
               <MessageThread
                 conversationId={selectedChatId}
                 currentUserId={user?.id || ""}
+                currentUserName={user?.name}
+                currentUserAvatarUrl={user?.avatarUrl}
+                currentUserGravatarUrl={user?.gravatarUrl}
                 isGroup={
                   selectedContact.isGroup ||
                   selectedContact.jid?.endsWith("@g.us")
@@ -122,8 +144,6 @@ export function ChatPage() {
             currentUserName={user?.name}
           />
         </>
-      ) : (
-        <InboxEmptyState activeView={sidebarView} />
       )}
     </MainContent>
   );
@@ -162,6 +182,122 @@ export function ChatPage() {
         isDeleting={isDeleting}
       />
     </AppLayout>
+  );
+}
+
+function ConversationLoadingState() {
+  return (
+    <div
+      className="flex min-h-0 flex-1 flex-col"
+      role="status"
+      aria-live="polite"
+      aria-label="Loading conversation"
+      aria-busy="true"
+    >
+      <span className="sr-only">Loading conversation</span>
+
+      <div
+        className="flex h-[60px] min-h-[60px] items-center gap-3 border-b border-gray-200 bg-gray-100 px-4 dark:border-dark-border dark:bg-dark-secondary"
+        aria-hidden="true"
+      >
+        <Skeleton className="size-10 shrink-0 rounded-full" />
+        <div className="min-w-0 flex-1 space-y-2">
+          <Skeleton className="h-3.5 w-36 max-w-[42%]" />
+          <Skeleton className="h-2.5 w-24 max-w-[30%]" />
+        </div>
+        <Skeleton className="size-9 rounded-full" />
+        <Skeleton className="size-9 rounded-full" />
+      </div>
+
+      <div className="relative min-h-0 flex-1 overflow-hidden bg-[#e5ddd5] dark:bg-dark-primary">
+        <div
+          className="absolute inset-0 opacity-[0.045] dark:opacity-100"
+          style={{
+            backgroundImage:
+              "url(\"data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%23000000' fill-opacity='0.16'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/svg%3E\")",
+          }}
+        />
+
+        <div
+          className="relative mx-auto flex h-full w-full max-w-4xl flex-col justify-end gap-3 px-5 py-8 sm:px-10"
+          aria-hidden="true"
+        >
+          <div className="flex justify-center pb-2">
+            <Skeleton className="h-5 w-20 rounded-full bg-black/10 dark:bg-white/10" />
+          </div>
+          <Skeleton className="h-12 w-[58%] max-w-md rounded-2xl rounded-bl-sm bg-white/75 dark:bg-dark-tertiary" />
+          <Skeleton className="h-16 w-[46%] max-w-sm rounded-2xl rounded-bl-sm bg-white/75 dark:bg-dark-tertiary" />
+          <div className="flex justify-end">
+            <Skeleton className="h-12 w-[52%] max-w-md rounded-2xl rounded-br-sm bg-[#d9fdd3]/80 dark:bg-[#005c4b]/70" />
+          </div>
+          <Skeleton className="h-10 w-[36%] max-w-xs rounded-2xl rounded-bl-sm bg-white/75 dark:bg-dark-tertiary" />
+          <div className="flex justify-end">
+            <Skeleton className="h-16 w-[44%] max-w-sm rounded-2xl rounded-br-sm bg-[#d9fdd3]/80 dark:bg-[#005c4b]/70" />
+          </div>
+        </div>
+      </div>
+
+      <div
+        className="flex min-h-[64px] items-center gap-3 border-t border-gray-200 bg-gray-100 px-3 py-2.5 dark:border-dark-border dark:bg-dark-secondary"
+        aria-hidden="true"
+      >
+        <Skeleton className="size-9 shrink-0 rounded-full" />
+        <Skeleton className="h-10 flex-1 rounded-[1.35rem] bg-white dark:bg-dark-tertiary" />
+        <Skeleton className="size-10 shrink-0 rounded-full bg-[#0b6b5d]/30 dark:bg-[#00a884]/30" />
+      </div>
+    </div>
+  );
+}
+
+function ConversationLoadError({
+  message,
+  onRetry,
+  onBackToInbox,
+}: {
+  message: string;
+  onRetry: () => void;
+  onBackToInbox: () => void;
+}) {
+  return (
+    <div className="relative isolate flex min-h-0 flex-1 items-center justify-center overflow-hidden bg-[#f6f8f9] px-6 dark:bg-[#0b141a]">
+      <div
+        className="absolute inset-0 opacity-[0.035] dark:opacity-[0.09]"
+        style={{
+          backgroundImage:
+            "radial-gradient(circle at 1px 1px, currentColor 1px, transparent 0)",
+          backgroundSize: "28px 28px",
+        }}
+        aria-hidden="true"
+      />
+      <div className="relative flex max-w-sm flex-col items-center text-center">
+        <span className="grid size-14 place-items-center rounded-2xl bg-red-50 text-red-600 ring-1 ring-red-100 dark:bg-red-950/40 dark:text-red-300 dark:ring-red-900/50">
+          <CircleAlert className="size-6" aria-hidden="true" />
+        </span>
+        <h2 className="mt-5 text-lg font-semibold tracking-tight text-[#263a33] dark:text-dark-text-primary">
+          Couldn&apos;t open this conversation
+        </h2>
+        <p className="mt-2 text-sm leading-6 text-[#667781] dark:text-dark-text-secondary">
+          {message || "The conversation details could not be loaded."}
+        </p>
+        <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
+          <button
+            type="button"
+            onClick={onRetry}
+            className="inline-flex h-10 items-center gap-2 rounded-full bg-[#0b6b5d] px-4 text-sm font-semibold text-white transition-colors hover:bg-[#095b50] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00a884] focus-visible:ring-offset-2 dark:bg-[#00a884] dark:text-[#071b16] dark:hover:bg-[#06bd96]"
+          >
+            <RotateCcw className="size-4" aria-hidden="true" />
+            Try again
+          </button>
+          <button
+            type="button"
+            onClick={onBackToInbox}
+            className="inline-flex h-10 items-center rounded-full border border-[#dce4e7] bg-white px-4 text-sm font-semibold text-[#54656f] transition-colors hover:bg-[#edf1f2] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00a884] focus-visible:ring-offset-2 dark:border-white/10 dark:bg-white/[0.055] dark:text-dark-text-secondary dark:hover:bg-white/10"
+          >
+            Back to inbox
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 

@@ -58,6 +58,32 @@ func (s *PGSQLStore) DeleteAppStateVersion(ctx context.Context, name string) err
 	return err
 }
 
+// ResetAppState removes the cached version and mutation MACs for one
+// collection. A full sync must clear both: keeping old mutation MACs can make
+// a fresh snapshot fail LTHash verification when a later patch removes an
+// index that existed only in the stale cache.
+func (s *PGSQLStore) ResetAppState(ctx context.Context, name string) error {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	if _, err = tx.ExecContext(ctx, `
+		DELETE FROM whatsmeow_app_state_mutation_macs
+		WHERE connection_id = $1 AND jid = $2 AND name = $3
+	`, s.connectionID, s.JID, name); err != nil {
+		return err
+	}
+	if _, err = tx.ExecContext(ctx, `
+		DELETE FROM whatsmeow_app_state_version
+		WHERE connection_id = $1 AND jid = $2 AND name = $3
+	`, s.connectionID, s.JID, name); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
 // PutAppStateMutationMACs stores mutation MACs.
 func (s *PGSQLStore) PutAppStateMutationMACs(ctx context.Context, name string, version uint64, mutations []store.AppStateMutationMAC) error {
 	if len(mutations) == 0 {

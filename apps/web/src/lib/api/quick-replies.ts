@@ -21,6 +21,23 @@ export async function getQuickReplies(
   return fetchWithAuth<QuickReplyListResponse>(`/quick-replies${query}`);
 }
 
+export async function getQuickReplyLibrary(): Promise<QuickReply[]> {
+  const quickReplies: QuickReply[] = [];
+  const limit = 100;
+  let offset = 0;
+
+  while (true) {
+    const page = await getQuickReplies({ limit, offset });
+    quickReplies.push(...page.data);
+
+    if (!page.pagination.hasMore || page.data.length === 0) {
+      return quickReplies;
+    }
+
+    offset += limit;
+  }
+}
+
 export async function getQuickReplyById(
   quickReplyId: string,
 ): Promise<QuickReply> {
@@ -61,12 +78,8 @@ export async function updateQuickReply(
   });
 }
 
-export async function deleteQuickReply(quickReplyId: string): Promise<boolean> {
-  const response = await fetchWithAuth<{ deleted: boolean }>(
-    `/quick-replies/${quickReplyId}`,
-    {
-      method: "DELETE",
-    },
-  );
-  return response.deleted;
+export async function deleteQuickReply(quickReplyId: string): Promise<void> {
+  await fetchWithAuth<{ message: string }>(`/quick-replies/${quickReplyId}`, {
+    method: "DELETE",
+  });
 }

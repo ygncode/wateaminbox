@@ -22,7 +22,13 @@ const existing = {
 } as Message;
 
 const initial = {
-  pages: [{ messages: [existing], hasMore: false }],
+  pages: [
+    {
+      messages: [existing],
+      hasMore: false,
+      remoteHistoryStatus: "unknown",
+    },
+  ],
   pageParams: [undefined],
 } as InfiniteMessagesData;
 

@@ -1,11 +1,12 @@
 import type { Message } from "@wateaminbox/shared";
 import { formatMessageTime } from "@wateaminbox/shared";
-import { Smartphone, UserRound } from "lucide-react";
+import { Smartphone } from "lucide-react";
 import { lazy, memo, Suspense, useCallback, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 import { IdentityAvatarFallback } from "@/components/ui/identity-avatar-fallback";
 import type { GroupParticipant } from "@/hooks/useGroups";
+import type { TeamMemberIdentity } from "@/hooks/useTeam";
 import { formatPhoneLikeText } from "@/lib/utils";
 import { useMessageActions } from "../../contexts";
 import { useClickOutside } from "../../hooks/ui";
@@ -32,6 +33,12 @@ interface MessageBubbleProps {
   isGroup?: boolean;
   /** Authenticated teammate viewing the thread. */
   currentUserId: string;
+  /** Display name and profile image for the authenticated teammate. */
+  currentUserName?: string;
+  currentUserAvatarUrl?: string;
+  currentUserGravatarUrl?: string;
+  /** Workspace teammate profiles keyed by user ID. */
+  teammateIdentities: ReadonlyMap<string, TeamMemberIdentity>;
   /** Retry handler passed directly (local to MessageThread) */
   onRetry?: (messageId: string) => void;
   /** Highlight this message (e.g., from search) */
@@ -57,6 +64,10 @@ export const MessageBubble = memo(function MessageBubble({
   isOwn,
   isGroup = false,
   currentUserId,
+  currentUserName,
+  currentUserAvatarUrl,
+  currentUserGravatarUrl,
+  teammateIdentities,
   onRetry,
   isHighlighted = false,
   isRetrying = false,
@@ -189,7 +200,11 @@ export const MessageBubble = memo(function MessageBubble({
       >
         {/* Identity is explicit on both sides of a shared team conversation. */}
         {isOwn && (
-          <TeamSenderLabel message={message} currentUserId={currentUserId} />
+          <TeamSenderLabel
+            message={message}
+            currentUserId={currentUserId}
+            currentUserName={currentUserName}
+          />
         )}
         {isGroup && !isOwn && !message.isDeleted && (
           <GroupParticipantLabel message={message} />
@@ -289,6 +304,21 @@ export const MessageBubble = memo(function MessageBubble({
             document.body,
           )}
       </div>
+
+      {!isGroup && isOwn && (
+        <TeamSenderAvatar
+          message={message}
+          currentUserId={currentUserId}
+          currentUserName={currentUserName}
+          currentUserAvatarUrl={currentUserAvatarUrl}
+          currentUserGravatarUrl={currentUserGravatarUrl}
+          teammateIdentity={
+            message.sentByUserId
+              ? teammateIdentities.get(message.sentByUserId)
+              : undefined
+          }
+        />
+      )}
     </div>
   );
 });
@@ -550,32 +580,108 @@ function FailedMessageBanner({
 function TeamSenderLabel({
   message,
   currentUserId,
+  currentUserName,
 }: {
   message: Message;
   currentUserId: string;
+  currentUserName?: string;
 }) {
   const wasSentByCurrentUser = message.sentByUserId === currentUserId;
   const wasSentFromTeamInbox = Boolean(message.sentByUserId);
-  const label = wasSentByCurrentUser
-    ? "You"
-    : message.sentByUserName ||
-      (wasSentFromTeamInbox ? "Team member" : "Linked phone");
-  const Icon = wasSentFromTeamInbox ? UserRound : Smartphone;
+  const label =
+    message.sentByUserName ||
+    (wasSentByCurrentUser ? currentUserName : undefined) ||
+    (wasSentFromTeamInbox ? "Team member" : "Linked phone");
+  const color = getSenderColor(
+    message.sentByUserId || "linked-phone",
+    label,
+    teamSenderColors,
+  );
 
   return (
     <div
-      className="mb-1 flex max-w-full items-center justify-end gap-1 text-[11px] font-semibold leading-4 text-white/85"
+      className={`mb-1 truncate text-[13px] font-semibold leading-4 ${color}`}
       title={
         wasSentFromTeamInbox
-          ? `Sent by ${label} from the team inbox`
+          ? `${label} · Team inbox`
           : "Sent directly from the linked WhatsApp phone"
       }
     >
-      <Icon className="h-3 w-3 shrink-0" aria-hidden="true" />
-      <span className="truncate">
-        {wasSentFromTeamInbox ? `Sent by ${label}` : label}
-      </span>
+      {label}
     </div>
+  );
+}
+
+const teamSenderColors = [
+  "text-[#d6f7ff]",
+  "text-[#fff0a8]",
+  "text-[#ead8ff]",
+  "text-[#ffd8e5]",
+  "text-[#ffe1bd]",
+  "text-[#d8f5e4]",
+  "text-[#dce5ff]",
+] as const;
+
+function getTeamSenderIdentity(
+  message: Message,
+  currentUserId: string,
+  currentUserName?: string,
+  currentUserAvatarUrl?: string,
+  currentUserGravatarUrl?: string,
+  teammateIdentity?: TeamMemberIdentity,
+) {
+  const wasSentByCurrentUser = message.sentByUserId === currentUserId;
+  const wasSentFromTeamInbox = Boolean(message.sentByUserId);
+  return {
+    label:
+      teammateIdentity?.name ||
+      message.sentByUserName ||
+      (wasSentByCurrentUser ? currentUserName : undefined) ||
+      (wasSentFromTeamInbox ? "Team member" : "Linked phone"),
+    identity: message.sentByUserId || message.senderId,
+    avatarUrl:
+      teammateIdentity?.avatarUrl ||
+      message.sentByUserAvatarUrl ||
+      (wasSentByCurrentUser ? currentUserAvatarUrl : undefined),
+    gravatarUrl:
+      teammateIdentity?.gravatarUrl ||
+      message.sentByUserGravatarUrl ||
+      (wasSentByCurrentUser ? currentUserGravatarUrl : undefined),
+  };
+}
+
+function TeamSenderAvatar({
+  message,
+  currentUserId,
+  currentUserName,
+  currentUserAvatarUrl,
+  currentUserGravatarUrl,
+  teammateIdentity,
+}: {
+  message: Message;
+  currentUserId: string;
+  currentUserName?: string;
+  currentUserAvatarUrl?: string;
+  currentUserGravatarUrl?: string;
+  teammateIdentity?: TeamMemberIdentity;
+}) {
+  const { label, identity, avatarUrl, gravatarUrl } = getTeamSenderIdentity(
+    message,
+    currentUserId,
+    currentUserName,
+    currentUserAvatarUrl,
+    currentUserGravatarUrl,
+    teammateIdentity,
+  );
+  return (
+    <SenderAvatar
+      label={label}
+      identity={identity}
+      avatarUrl={avatarUrl}
+      fallbackAvatarUrl={gravatarUrl}
+      side="right"
+      fallbackKind={message.sentByUserId ? "identity" : "linked-phone"}
+    />
   );
 }
 
@@ -589,6 +695,18 @@ const participantColors = [
   "text-orange-700 dark:text-orange-400",
 ] as const;
 
+function getSenderColor(
+  identity: string | null | undefined,
+  label: string,
+  colors: readonly string[],
+): string {
+  let hash = 0;
+  for (const character of identity || label) {
+    hash = (hash * 31 + character.charCodeAt(0)) | 0;
+  }
+  return colors[Math.abs(hash) % colors.length];
+}
+
 function getParticipantLabel(message: Message): string {
   const senderIdentity = message.senderJid || message.senderId;
   const senderName = message.senderName?.trim();
@@ -601,25 +719,71 @@ function getParticipantLabel(message: Message): string {
 }
 
 function GroupParticipantAvatar({ message }: { message: Message }) {
-  const [imageFailed, setImageFailed] = useState(false);
   const label = getParticipantLabel(message);
   return (
+    <SenderAvatar
+      label={label}
+      identity={message.senderJid || message.senderId}
+      avatarUrl={message.senderAvatarUrl}
+      side="left"
+    />
+  );
+}
+
+function SenderAvatar({
+  label,
+  identity,
+  avatarUrl,
+  fallbackAvatarUrl,
+  side,
+  fallbackKind = "identity",
+}: {
+  label: string;
+  identity?: string | null;
+  avatarUrl?: string | null;
+  fallbackAvatarUrl?: string | null;
+  side: "left" | "right";
+  fallbackKind?: "identity" | "linked-phone";
+}) {
+  const [failedAvatarUrls, setFailedAvatarUrls] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const activeAvatarUrl =
+    avatarUrl && !failedAvatarUrls.has(avatarUrl)
+      ? avatarUrl
+      : fallbackAvatarUrl && !failedAvatarUrls.has(fallbackAvatarUrl)
+        ? fallbackAvatarUrl
+        : null;
+  return (
     <div
-      className="mr-2 mb-1 flex h-8 w-8 shrink-0 self-end items-center justify-center overflow-hidden rounded-full shadow-sm ring-1 ring-black/5 dark:ring-white/10"
+      className={`${side === "left" ? "mr-2" : "ml-2"} mb-1 flex h-8 w-8 shrink-0 self-end items-center justify-center overflow-hidden rounded-full shadow-sm ring-1 ring-black/5 dark:ring-white/10`}
       title={label}
       aria-label={`${label}'s profile picture`}
     >
-      {message.senderAvatarUrl && !imageFailed ? (
+      {activeAvatarUrl ? (
         <img
-          src={message.senderAvatarUrl}
+          src={activeAvatarUrl}
           alt=""
           className="h-full w-full object-cover"
-          onError={() => setImageFailed(true)}
+          onError={() =>
+            setFailedAvatarUrls((failed) => {
+              const next = new Set(failed);
+              next.add(activeAvatarUrl);
+              return next;
+            })
+          }
         />
+      ) : fallbackKind === "linked-phone" ? (
+        <span
+          className="flex h-full w-full items-center justify-center bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
+          aria-hidden="true"
+        >
+          <Smartphone className="h-[55%] w-[55%]" strokeWidth={1.9} />
+        </span>
       ) : (
         <IdentityAvatarFallback
           displayName={label}
-          identity={message.senderJid || message.senderId}
+          identity={identity}
           className="text-[11px]"
         />
       )}
@@ -630,12 +794,7 @@ function GroupParticipantAvatar({ message }: { message: Message }) {
 function GroupParticipantLabel({ message }: { message: Message }) {
   const senderIdentity = message.senderJid || message.senderId;
   const label = getParticipantLabel(message);
-
-  let hash = 0;
-  for (const character of senderIdentity || label) {
-    hash = (hash * 31 + character.charCodeAt(0)) | 0;
-  }
-  const color = participantColors[Math.abs(hash) % participantColors.length];
+  const color = getSenderColor(senderIdentity, label, participantColors);
 
   return (
     <div

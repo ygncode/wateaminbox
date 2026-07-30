@@ -16,6 +16,8 @@ const shortcutPattern = /^[a-zA-Z0-9_-]+$/;
 export const createQuickReplySchema = z.object({
   shortcut: z
     .string()
+    .trim()
+    .toLowerCase()
     .min(1, "Shortcut is required")
     .max(50, "Shortcut must be 50 characters or less")
     .regex(
@@ -24,9 +26,10 @@ export const createQuickReplySchema = z.object({
     ),
   title: z
     .string()
+    .trim()
     .min(1, "Title is required")
     .max(255, "Title must be 255 characters or less"),
-  content: z.string().min(1, "Content is required"),
+  content: z.string().trim().min(1, "Content is required"),
 });
 
 /**
@@ -34,9 +37,16 @@ export const createQuickReplySchema = z.object({
  * All fields are optional
  */
 export const updateQuickReplySchema = z.object({
-  shortcut: z.string().min(1).max(50).regex(shortcutPattern).optional(),
-  title: z.string().min(1).max(255).optional(),
-  content: z.string().min(1).optional(),
+  shortcut: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .min(1)
+    .max(50)
+    .regex(shortcutPattern)
+    .optional(),
+  title: z.string().trim().min(1).max(255).optional(),
+  content: z.string().trim().min(1).optional(),
 });
 
 /**

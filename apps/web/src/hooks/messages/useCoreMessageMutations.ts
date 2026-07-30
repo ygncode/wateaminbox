@@ -29,7 +29,14 @@ export function useSendMessage() {
 
       const optimisticMessage = createOptimisticMessage(
         newMessage,
-        user ? { id: user.id, name: user.name } : undefined,
+        user
+          ? {
+              id: user.id,
+              name: user.name,
+              avatarUrl: user.avatarUrl,
+              gravatarUrl: user.gravatarUrl,
+            }
+          : undefined,
       );
 
       // Optimistically add the message to the cache

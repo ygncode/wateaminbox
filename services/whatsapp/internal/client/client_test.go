@@ -9,8 +9,14 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.mau.fi/whatsmeow/appstate"
 	waBinary "go.mau.fi/whatsmeow/binary"
+	"go.mau.fi/whatsmeow/proto/waSyncAction"
 	waTypes "go.mau.fi/whatsmeow/types"
+	"go.mau.fi/whatsmeow/types/events"
+	"google.golang.org/protobuf/proto"
+
+	"github.com/ygncode-lab/whatsapp-web/services/whatsapp/internal/types"
 )
 
 // TestCalculateBackoff_TransientPhase tests the exponential backoff in transient phase.
@@ -558,6 +564,75 @@ func TestIsConnected(t *testing.T) {
 
 	// Note: c.IsConnected() would also require c.client to be non-nil and IsConnected() on the client
 	// which requires full whatsmeow client setup
+}
+
+func TestAppStateSyncDoesNotBlockEventHandlers(t *testing.T) {
+	handlerCalled := make(chan struct{}, 1)
+	c := &Client{
+		handlers: []func(interface{}){
+			func(interface{}) {
+				handlerCalled <- struct{}{}
+			},
+		},
+	}
+
+	// SyncLabels holds this lock for the duration of the full app-state fetch.
+	// Whatsmeow must still be able to deliver events while that fetch is active.
+	c.appStateSyncMu.Lock()
+	defer c.appStateSyncMu.Unlock()
+
+	go c.internalEventHandler(struct{}{})
+
+	select {
+	case <-handlerCalled:
+	case <-time.After(time.Second):
+		t.Fatal("event handler was blocked by app-state synchronization")
+	}
+}
+
+func TestLabelRecoveryCollectsSnapshotUntilCompletion(t *testing.T) {
+	waiter := &labelRecoveryWaiter{
+		labels: make(map[string]types.WhatsAppLabel),
+		done:   make(chan []types.WhatsAppLabel, 1),
+	}
+	c := &Client{labelRecovery: waiter}
+
+	c.captureLabelRecoveryEvent(&events.LabelEdit{
+		LabelID: "2",
+		Action: &waSyncAction.LabelEditAction{
+			Name:         proto.String("Follow up"),
+			Color:        proto.Int32(4),
+			PredefinedID: proto.Int32(2),
+		},
+	})
+	c.captureLabelRecoveryEvent(&events.LabelEdit{
+		LabelID: "1",
+		Action: &waSyncAction.LabelEditAction{
+			Name:  proto.String("Important"),
+			Color: proto.Int32(1),
+		},
+	})
+	c.captureLabelRecoveryEvent(&events.LabelEdit{
+		LabelID: "2",
+		Action:  &waSyncAction.LabelEditAction{Deleted: proto.Bool(true)},
+	})
+
+	c.captureLabelRecoveryEvent(&events.AppStateSyncComplete{
+		Name:     appstate.WAPatchRegular,
+		Recovery: true,
+	})
+
+	select {
+	case labels := <-waiter.done:
+		require.Equal(t, []types.WhatsAppLabel{{
+			ID:    "1",
+			Name:  "Important",
+			Color: 1,
+		}}, labels)
+	case <-time.After(time.Second):
+		t.Fatal("label recovery did not complete")
+	}
+	assert.Nil(t, c.labelRecovery)
 }
 
 func TestCatalogNodeHelpers(t *testing.T) {

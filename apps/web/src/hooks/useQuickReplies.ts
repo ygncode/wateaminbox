@@ -2,13 +2,13 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import {
   createQuickReply,
   deleteQuickReply,
+  getQuickReplyLibrary,
   getQuickReplies,
   getQuickReplyByShortcut,
   updateQuickReply,
 } from "@/lib/api/quick-replies";
 import type {
   CreateQuickReplyInput,
-  QuickReply,
   QuickReplyListParams,
   UpdateQuickReplyInput,
 } from "@/lib/api/types";
@@ -19,7 +19,7 @@ import { queryKeys } from "./query-keys";
  * Hook for managing quick replies
  */
 export function useQuickReplies(params: QuickReplyListParams = {}) {
-  const { queryClient, invalidate } = useQueryInvalidation();
+  const { invalidate } = useQueryInvalidation();
 
   // Fetch quick replies list
   const {
@@ -37,25 +37,7 @@ export function useQuickReplies(params: QuickReplyListParams = {}) {
   // Create quick reply
   const createMutation = useMutation({
     mutationFn: createQuickReply,
-    onSuccess: (newQuickReply) => {
-      // Add to the list
-      queryClient.setQueryData(
-        queryKeys.quickReplies.list(params),
-        (old: { data: QuickReply[]; meta: { total: number } } | undefined) => {
-          if (!old) return old;
-          return {
-            ...old,
-            data: [...old.data, newQuickReply].sort((a, b) =>
-              a.shortcut.localeCompare(b.shortcut),
-            ),
-            meta: {
-              ...old.meta,
-              total: old.meta.total + 1,
-            },
-          };
-        },
-      );
-      // Invalidate all quick-replies queries to ensure fresh data
+    onSuccess: () => {
       invalidate(queryKeys.quickReplies.all);
     },
   });
@@ -64,23 +46,7 @@ export function useQuickReplies(params: QuickReplyListParams = {}) {
   const updateMutation = useMutation({
     mutationFn: ({ id, input }: { id: string; input: UpdateQuickReplyInput }) =>
       updateQuickReply(id, input),
-    onSuccess: (updatedQuickReply) => {
-      // Update in the list
-      queryClient.setQueryData(
-        queryKeys.quickReplies.list(params),
-        (old: { data: QuickReply[]; meta: unknown } | undefined) => {
-          if (!old) return old;
-          return {
-            ...old,
-            data: old.data
-              .map((qr) =>
-                qr.id === updatedQuickReply.id ? updatedQuickReply : qr,
-              )
-              .sort((a, b) => a.shortcut.localeCompare(b.shortcut)),
-          };
-        },
-      );
-      // Invalidate to ensure fresh data
+    onSuccess: () => {
       invalidate(queryKeys.quickReplies.all);
     },
   });
@@ -88,35 +54,24 @@ export function useQuickReplies(params: QuickReplyListParams = {}) {
   // Delete quick reply
   const deleteMutation = useMutation({
     mutationFn: deleteQuickReply,
-    onSuccess: (_, quickReplyId) => {
-      // Remove from the list
-      queryClient.setQueryData(
-        queryKeys.quickReplies.list(params),
-        (old: { data: QuickReply[]; meta: { total: number } } | undefined) => {
-          if (!old) return old;
-          return {
-            ...old,
-            data: old.data.filter((qr) => qr.id !== quickReplyId),
-            meta: {
-              ...old.meta,
-              total: Math.max(0, old.meta.total - 1),
-            },
-          };
-        },
-      );
-      // Invalidate to ensure fresh data
+    onSuccess: () => {
       invalidate(queryKeys.quickReplies.all);
     },
   });
 
   const quickReplies = quickRepliesData?.data || [];
-  const meta = quickRepliesData?.meta || { total: 0, limit: 50, offset: 0 };
+  const pagination = quickRepliesData?.pagination || {
+    total: 0,
+    limit: 50,
+    offset: 0,
+    hasMore: false,
+  };
 
   return {
     // Data
     quickReplies,
-    total: meta.total,
-    hasMore: meta.offset + meta.limit < meta.total,
+    total: pagination.total,
+    hasMore: pagination.hasMore,
 
     // Loading states
     isLoading,
@@ -135,6 +90,26 @@ export function useQuickReplies(params: QuickReplyListParams = {}) {
     isCreating: createMutation.isPending,
     isUpdating: updateMutation.isPending,
     isDeleting: deleteMutation.isPending,
+  };
+}
+
+/**
+ * Loads the workspace quick-reply library only while the composer picker is in
+ * use. Suggestions are filtered locally so typing never waits on a request.
+ */
+export function useQuickReplySuggestions(enabled: boolean) {
+  const { data, isLoading, error } = useQuery({
+    queryKey: queryKeys.quickReplies.library(),
+    queryFn: getQuickReplyLibrary,
+    enabled,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 15 * 60 * 1000,
+  });
+
+  return {
+    quickReplies: data ?? [],
+    isLoading,
+    error,
   };
 }
 

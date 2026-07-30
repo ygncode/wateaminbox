@@ -27,6 +27,10 @@ export interface Message {
   sentByUserId?: string | null;
   /** Display name resolved for the sending team member. */
   sentByUserName?: string | null;
+  /** Profile picture resolved for the sending team member. */
+  sentByUserAvatarUrl?: string | null;
+  /** Gravatar fallback for the sending team member's profile picture. */
+  sentByUserGravatarUrl?: string | null;
   content: string;
   messageType: MessageType;
   status: MessageStatus;

@@ -1,4 +1,4 @@
-import type { Message } from "@wateaminbox/shared";
+import type { Message, RemoteHistoryStatus } from "@wateaminbox/shared";
 
 export interface SendMessageInput {
   contactId: string;
@@ -30,6 +30,7 @@ export interface InfiniteMessagesData {
     messages: Message[];
     hasMore: boolean;
     nextCursor: string | null;
+    remoteHistoryStatus: RemoteHistoryStatus;
   }[];
   pageParams: (string | undefined)[];
 }

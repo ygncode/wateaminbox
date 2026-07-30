@@ -404,10 +404,11 @@ export interface UpdateQuickReplyInput {
 
 export interface QuickReplyListResponse {
   data: QuickReply[];
-  meta: {
+  pagination: {
     total: number;
     limit: number;
     offset: number;
+    hasMore: boolean;
   };
 }
 

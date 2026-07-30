@@ -68,6 +68,11 @@ export interface ReactionData {
   createdAt: Date;
 }
 
+export interface MessageUserAvatarSources {
+  avatarUrl: string;
+  gravatarUrl: string;
+}
+
 /**
  * Message metadata object shared across formats
  */
@@ -104,6 +109,7 @@ export function formatMessageForConversation(
   quotedMessagesMap: Map<string, QuotedMessageData>,
   reactionsMap: Map<string, ReactionData[]>,
   userNames: Map<string, string> = new Map(),
+  userAvatarSources: Map<string, MessageUserAvatarSources> = new Map(),
 ) {
   return {
     id: msg.id,
@@ -118,6 +124,12 @@ export function formatMessageForConversation(
     sentByUserId: msg.sent_by_user_id,
     sentByUserName: msg.sent_by_user_id
       ? userNames.get(msg.sent_by_user_id) || null
+      : null,
+    sentByUserAvatarUrl: msg.sent_by_user_id
+      ? userAvatarSources.get(msg.sent_by_user_id)?.avatarUrl || null
+      : null,
+    sentByUserGravatarUrl: msg.sent_by_user_id
+      ? userAvatarSources.get(msg.sent_by_user_id)?.gravatarUrl || null
       : null,
     messageType: msg.message_type,
     content: msg.content || "",
@@ -150,6 +162,7 @@ export function formatMessagesForConversation(
   quotedMessagesMap: Map<string, QuotedMessageData>,
   reactionsMap: Map<string, ReactionData[]>,
   userNames: Map<string, string> = new Map(),
+  userAvatarSources: Map<string, MessageUserAvatarSources> = new Map(),
 ) {
   return messages.map((msg) =>
     formatMessageForConversation(
@@ -157,6 +170,7 @@ export function formatMessagesForConversation(
       quotedMessagesMap,
       reactionsMap,
       userNames,
+      userAvatarSources,
     ),
   );
 }
@@ -182,6 +196,7 @@ export function formatMessageForFetch(
   quotedMessages: Map<string, QuotedMessageSimple>,
   reactionsMap: Map<string, ReactionData[]>,
   userNames: Map<string, string> = new Map(),
+  userAvatarSources: Map<string, MessageUserAvatarSources> = new Map(),
 ) {
   return {
     id: msg.id,
@@ -194,6 +209,12 @@ export function formatMessageForFetch(
     sentByUserId: msg.sent_by_user_id,
     sentByUserName: msg.sent_by_user_id
       ? userNames.get(msg.sent_by_user_id) || null
+      : null,
+    sentByUserAvatarUrl: msg.sent_by_user_id
+      ? userAvatarSources.get(msg.sent_by_user_id)?.avatarUrl || null
+      : null,
+    sentByUserGravatarUrl: msg.sent_by_user_id
+      ? userAvatarSources.get(msg.sent_by_user_id)?.gravatarUrl || null
       : null,
     messageType: msg.message_type,
     content: msg.content,
@@ -225,9 +246,16 @@ export function formatMessagesForFetch(
   quotedMessages: Map<string, QuotedMessageSimple>,
   reactionsMap: Map<string, ReactionData[]>,
   userNames: Map<string, string> = new Map(),
+  userAvatarSources: Map<string, MessageUserAvatarSources> = new Map(),
 ) {
   return messages.map((msg) =>
-    formatMessageForFetch(msg, quotedMessages, reactionsMap, userNames),
+    formatMessageForFetch(
+      msg,
+      quotedMessages,
+      reactionsMap,
+      userNames,
+      userAvatarSources,
+    ),
   );
 }
 

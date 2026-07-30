@@ -1,6 +1,15 @@
-import { AlertCircle, Loader2, Plus, Search } from "lucide-react";
+import {
+  AlertCircle,
+  Keyboard,
+  Loader2,
+  Plus,
+  Search,
+  X,
+  Zap,
+} from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -11,6 +20,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { useDebounce } from "@/hooks/ui";
 import { useQuickReplies } from "@/hooks/useQuickReplies";
 import type { QuickReply } from "@/lib/api/types";
 import type { QuickReplyFormData } from "@/lib/schemas/quick-reply";
@@ -30,10 +40,11 @@ export function QuickRepliesManager() {
   );
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [serverError, setServerError] = useState<string | null>(null);
-  const [success, setSuccess] = useState(false);
+  const debouncedSearchQuery = useDebounce(searchQuery.trim(), 250);
 
   const {
     quickReplies,
+    total,
     isLoading,
     error,
     create,
@@ -42,7 +53,7 @@ export function QuickRepliesManager() {
     isCreating,
     isUpdating,
     isDeleting,
-  } = useQuickReplies({ search: searchQuery || undefined });
+  } = useQuickReplies({ search: debouncedSearchQuery || undefined });
 
   const filteredQuickReplies = searchQuery
     ? quickReplies.filter(
@@ -56,14 +67,12 @@ export function QuickRepliesManager() {
   const openCreateDialog = () => {
     setEditingQuickReply(null);
     setServerError(null);
-    setSuccess(false);
     setIsDialogOpen(true);
   };
 
   const openEditDialog = (qr: QuickReply) => {
     setEditingQuickReply(qr);
     setServerError(null);
-    setSuccess(false);
     setIsDialogOpen(true);
   };
 
@@ -71,7 +80,6 @@ export function QuickRepliesManager() {
     setIsDialogOpen(false);
     setEditingQuickReply(null);
     setServerError(null);
-    setSuccess(false);
   };
 
   const handleSubmit = async (data: QuickReplyFormData) => {
@@ -85,17 +93,15 @@ export function QuickRepliesManager() {
           content: data.content.trim(),
         });
         closeDialog();
+        toast.success(t("quickReplies.updated", "Quick reply updated"));
       } else {
         await create({
           shortcut: data.shortcut.trim(),
           title: data.title.trim(),
           content: data.content.trim(),
         });
-        setSuccess(true);
-        // Auto-close after showing success
-        setTimeout(() => {
-          closeDialog();
-        }, 1000);
+        closeDialog();
+        toast.success(t("quickReplies.created", "Quick reply created"));
       }
     } catch (err) {
       if (err instanceof Error) {
@@ -117,8 +123,12 @@ export function QuickRepliesManager() {
     try {
       await deleteQuickReply(id);
       setDeleteConfirmId(null);
+      toast.success(t("quickReplies.deleted", "Quick reply deleted"));
     } catch (err) {
       console.error("Failed to delete quick reply:", err);
+      toast.error(
+        t("quickReplies.errors.deleteFailed", "Failed to delete quick reply"),
+      );
     }
   };
 
@@ -135,6 +145,33 @@ export function QuickRepliesManager() {
 
   return (
     <div className="space-y-4">
+      <div className="relative overflow-hidden rounded-2xl border border-[#cfe4da] bg-[#f3faf7] p-4 dark:border-emerald-400/15 dark:bg-emerald-400/[0.045]">
+        <div
+          className="absolute -right-6 -top-8 size-24 rounded-full bg-[#25d366]/10 blur-2xl"
+          aria-hidden="true"
+        />
+        <div className="relative flex items-start gap-3">
+          <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-white text-[#008069] shadow-sm ring-1 ring-black/[0.045] dark:bg-white/[0.07] dark:text-emerald-300 dark:ring-white/[0.06]">
+            <Zap className="size-5" fill="currentColor" aria-hidden="true" />
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="font-semibold text-[#263a43] dark:text-dark-text-primary">
+              {t("quickReplies.calloutTitle", "Reply without breaking flow")}
+            </p>
+            <p className="mt-0.5 text-sm leading-5 text-[#667781] dark:text-dark-text-secondary">
+              {t(
+                "quickReplies.calloutDescription",
+                "In any conversation, type / and keep typing to find a saved response. Use the arrow keys and Enter to insert it.",
+              )}
+            </p>
+          </div>
+          <span className="hidden shrink-0 items-center gap-1.5 rounded-lg bg-white/80 px-2.5 py-1.5 font-mono text-xs font-semibold text-[#008069] ring-1 ring-black/[0.05] sm:flex dark:bg-white/[0.06] dark:text-emerald-300 dark:ring-white/[0.07]">
+            <Keyboard className="size-3.5" aria-hidden="true" />
+            /shortcut
+          </span>
+        </div>
+      </div>
+
       {/* Search and Add */}
       <div className="flex gap-2">
         <div className="relative flex-1">
@@ -149,8 +186,25 @@ export function QuickRepliesManager() {
             )}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-9"
+            onKeyDown={(event) => {
+              if (event.key === "Escape") setSearchQuery("");
+            }}
+            className="pl-9 pr-9"
+            aria-label={t(
+              "quickReplies.searchPlaceholder",
+              "Search quick replies…",
+            )}
           />
+          {searchQuery && (
+            <button
+              type="button"
+              onClick={() => setSearchQuery("")}
+              className="absolute right-2 top-1/2 grid size-7 -translate-y-1/2 place-items-center rounded-full text-gray-400 transition-colors hover:bg-black/[0.05] hover:text-gray-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00a884]/35 dark:text-dark-text-tertiary dark:hover:bg-white/[0.06]"
+              aria-label={t("quickReplies.clearSearch", "Clear search")}
+            >
+              <X className="size-4" aria-hidden="true" />
+            </button>
+          )}
         </div>
         <Button
           onClick={openCreateDialog}
@@ -164,6 +218,24 @@ export function QuickRepliesManager() {
         </Button>
       </div>
 
+      <div className="flex items-center justify-between gap-3 text-xs text-[#667781] dark:text-dark-text-secondary">
+        <span aria-live="polite">
+          {debouncedSearchQuery
+            ? t("quickReplies.resultCount", "{{count}} matching replies", {
+                count: total,
+              })
+            : t("quickReplies.totalCount", "{{count}} saved replies", {
+                count: total,
+              })}
+        </span>
+        <span className="hidden sm:inline">
+          {t(
+            "quickReplies.teamHint",
+            "Available to everyone in this workspace",
+          )}
+        </span>
+      </div>
+
       {/* Quick Replies List */}
       <QuickRepliesList
         quickReplies={filteredQuickReplies}
@@ -174,8 +246,13 @@ export function QuickRepliesManager() {
       />
 
       {/* Create/Edit Dialog */}
-      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="sm:max-w-md">
+      <Dialog
+        open={isDialogOpen}
+        onOpenChange={(open) => {
+          if (!open) closeDialog();
+        }}
+      >
+        <DialogContent className="max-h-[calc(100vh-2rem)] w-[calc(100vw-2rem)] overflow-y-auto rounded-2xl p-6 sm:max-w-xl">
           <QuickReplyForm
             key={editingQuickReply?.id ?? "create"}
             isEditing={!!editingQuickReply}
@@ -189,7 +266,6 @@ export function QuickRepliesManager() {
                 : undefined
             }
             serverError={serverError}
-            success={success}
             isSubmitting={isCreating || isUpdating}
             onSubmit={handleSubmit}
             onClose={closeDialog}
@@ -200,7 +276,9 @@ export function QuickRepliesManager() {
       {/* Delete Confirmation Dialog */}
       <Dialog
         open={deleteConfirmId !== null}
-        onOpenChange={() => setDeleteConfirmId(null)}
+        onOpenChange={(open) => {
+          if (!open) setDeleteConfirmId(null);
+        }}
       >
         <DialogContent className="sm:max-w-[400px]">
           <DialogHeader>

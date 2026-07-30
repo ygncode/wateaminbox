@@ -26,12 +26,16 @@ import {
   toDbDate,
   toISOString,
 } from "@wateaminbox/shared";
+import { toAuthUserResponse } from "../../services/auth.service.js";
 import {
   enqueueCommand,
   enqueueSessionCommand,
 } from "../../services/command-outbox.service.js";
 import { ensureContactAssignment } from "../../services/contact.service.js";
-import { getUserNames } from "../../services/user.service.js";
+import {
+  getUserAvatarSources,
+  getUserNames,
+} from "../../services/user.service.js";
 import { getActiveSessionId } from "../../services/whatsapp/session.js";
 
 export const messageRoutes = new Hono();
@@ -94,11 +98,13 @@ messageRoutes.get(
     }
 
     const messages = await query.execute();
-    const userNames = await getUserNames(
-      messages
-        .map((message) => message.sent_by_user_id)
-        .filter((id): id is string => Boolean(id)),
-    );
+    const senderUserIds = messages
+      .map((message) => message.sent_by_user_id)
+      .filter((id): id is string => Boolean(id));
+    const [userNames, userAvatarSources] = await Promise.all([
+      getUserNames(senderUserIds),
+      getUserAvatarSources(senderUserIds),
+    ]);
 
     // Get quoted messages if any (for reply functionality)
     const quotedIds = messages
@@ -148,6 +154,7 @@ messageRoutes.get(
       quotedMessagesMap,
       reactionsMap,
       userNames,
+      userAvatarSources,
     );
 
     return successData(c, {
@@ -384,6 +391,7 @@ messageRoutes.post(
       );
     });
 
+    const senderProfile = await toAuthUserResponse(user);
     return successWithMessage(c, "Message queued", {
       message: {
         id: messageId,
@@ -394,6 +402,8 @@ messageRoutes.post(
         senderType: "user",
         sentByUserId: user.id,
         sentByUserName: user.name || user.email.split("@")[0],
+        sentByUserAvatarUrl: senderProfile.avatarUrl,
+        sentByUserGravatarUrl: senderProfile.gravatarUrl,
         messageType,
         content: content ?? "",
         metadata: mediaUrl ? { mediaUrl } : undefined,

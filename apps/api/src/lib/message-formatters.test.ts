@@ -92,9 +92,24 @@ describe("incoming reply formatting", () => {
       new Map(),
       new Map(),
       new Map([[userId, "Aye Aye"]]),
+      new Map([
+        [
+          userId,
+          {
+            avatarUrl: "https://example.com/aye-aye.jpg",
+            gravatarUrl: "https://example.com/aye-aye-gravatar.jpg",
+          },
+        ],
+      ]),
     );
 
     expect(formatted.sentByUserId).toBe(userId);
     expect(formatted.sentByUserName).toBe("Aye Aye");
+    expect(formatted.sentByUserAvatarUrl).toBe(
+      "https://example.com/aye-aye.jpg",
+    );
+    expect(formatted.sentByUserGravatarUrl).toBe(
+      "https://example.com/aye-aye-gravatar.jpg",
+    );
   });
 });

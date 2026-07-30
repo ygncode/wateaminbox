@@ -2,11 +2,13 @@ package client
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log"
 	"math/rand"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -61,6 +63,15 @@ type QRCallback func(qrCode string)
 // StatusCallback is called when connection status changes.
 type StatusCallback func(status string, reason string)
 
+type labelRecoveryWaiter struct {
+	labels map[string]types.WhatsAppLabel
+	done   chan []types.WhatsAppLabel
+}
+
+type appStateResetter interface {
+	ResetAppState(context.Context, string) error
+}
+
 // Client wraps the whatsmeow client.
 type Client struct {
 	config              Config
@@ -72,6 +83,9 @@ type Client struct {
 	statusCb            StatusCallback
 	logger              waLog.Logger
 	mu                  sync.RWMutex
+	appStateSyncMu      sync.Mutex
+	labelRecoveryMu     sync.Mutex
+	labelRecovery       *labelRecoveryWaiter
 	connected           bool
 	reconnecting        bool
 	ctx                 context.Context
@@ -143,6 +157,8 @@ func (c *Client) SetStatusCallback(cb StatusCallback) {
 
 // internalEventHandler forwards events to registered handlers.
 func (c *Client) internalEventHandler(evt interface{}) {
+	c.captureLabelRecoveryEvent(evt)
+
 	c.mu.RLock()
 	handlers := c.handlers
 	c.mu.RUnlock()
@@ -966,18 +982,44 @@ func (c *Client) ApplyLabel(ctx context.Context, contactJID, labelID string, lab
 }
 
 func (c *Client) SyncLabels(ctx context.Context) ([]types.WhatsAppLabel, error) {
-	c.mu.Lock()
+	// A full app-state fetch can cause whatsmeow to dispatch events while it
+	// waits for the server response. Never hold c.mu here: internalEventHandler
+	// needs that mutex, and blocking the event loop also blocks the app-state
+	// response, deadlocking this command and the sequential NATS consumer.
+	c.appStateSyncMu.Lock()
+	defer c.appStateSyncMu.Unlock()
+
 	previousEmitSetting := c.client.EmitAppStateEventsOnFullSync
 	c.client.EmitAppStateEventsOnFullSync = true
 	defer func() {
 		c.client.EmitAppStateEventsOnFullSync = previousEmitSetting
-		c.mu.Unlock()
 	}()
 
 	eventsToProcess, err := c.client.DangerousInternals().FetchAppState(ctx, appstate.WAPatchRegular, true, false)
 	if err != nil {
+		if errors.Is(err, appstate.ErrMismatchingLTHash) {
+			// whatsmeow's full sync clears only the saved version. Clear the
+			// mutation MAC cache too, then retry once from an actually clean
+			// snapshot before asking the primary device for recovery.
+			if resetter, ok := c.client.Store.AppState.(appStateResetter); ok {
+				if resetErr := resetter.ResetAppState(ctx, string(appstate.WAPatchRegular)); resetErr != nil {
+					return nil, fmt.Errorf("failed to reset labels app state after hash mismatch: %w", resetErr)
+				}
+				eventsToProcess, err = c.client.DangerousInternals().FetchAppState(ctx, appstate.WAPatchRegular, true, false)
+				if err == nil {
+					return labelsFromAppStateEvents(eventsToProcess), nil
+				}
+			}
+		}
+		if errors.Is(err, appstate.ErrMismatchingLTHash) {
+			return c.recoverLabels(ctx)
+		}
 		return nil, fmt.Errorf("failed to fetch labels app state: %w", err)
 	}
+	return labelsFromAppStateEvents(eventsToProcess), nil
+}
+
+func labelsFromAppStateEvents(eventsToProcess []any) []types.WhatsAppLabel {
 	labels := make([]types.WhatsAppLabel, 0)
 	for _, evt := range eventsToProcess {
 		label, ok := evt.(*events.LabelEdit)
@@ -988,7 +1030,88 @@ func (c *Client) SyncLabels(ctx context.Context) ([]types.WhatsAppLabel, error) 
 			ID: label.LabelID, Name: label.Action.GetName(), Color: label.Action.GetColor(), PredefinedID: label.Action.GetPredefinedID(),
 		})
 	}
-	return labels, nil
+	return labels
+}
+
+func (c *Client) recoverLabels(ctx context.Context) ([]types.WhatsAppLabel, error) {
+	waiter := &labelRecoveryWaiter{
+		labels: make(map[string]types.WhatsAppLabel),
+		done:   make(chan []types.WhatsAppLabel, 1),
+	}
+	c.labelRecoveryMu.Lock()
+	c.labelRecovery = waiter
+	c.labelRecoveryMu.Unlock()
+	defer c.clearLabelRecovery(waiter)
+
+	// A failed encrypted snapshot can leave a partially advanced version in the
+	// store. Reset it so whatsmeow accepts the authoritative recovery snapshot
+	// even when both snapshots report the same version.
+	if err := c.client.Store.AppState.DeleteAppStateVersion(ctx, string(appstate.WAPatchRegular)); err != nil {
+		return nil, fmt.Errorf("failed to reset labels app state for recovery: %w", err)
+	}
+	if _, err := c.client.SendPeerMessage(
+		ctx,
+		whatsmeow.BuildAppStateRecoveryRequest(appstate.WAPatchRegular),
+	); err != nil {
+		return nil, fmt.Errorf("failed to request labels recovery from the primary device: %w", err)
+	}
+
+	select {
+	case labels := <-waiter.done:
+		return labels, nil
+	case <-ctx.Done():
+		return nil, fmt.Errorf("timed out waiting for labels recovery from the primary device: %w", ctx.Err())
+	}
+}
+
+func (c *Client) clearLabelRecovery(waiter *labelRecoveryWaiter) {
+	c.labelRecoveryMu.Lock()
+	if c.labelRecovery == waiter {
+		c.labelRecovery = nil
+	}
+	c.labelRecoveryMu.Unlock()
+}
+
+func (c *Client) captureLabelRecoveryEvent(evt interface{}) {
+	c.labelRecoveryMu.Lock()
+	waiter := c.labelRecovery
+	if waiter == nil {
+		c.labelRecoveryMu.Unlock()
+		return
+	}
+
+	switch event := evt.(type) {
+	case *events.LabelEdit:
+		if event.Action == nil {
+			break
+		}
+		if event.Action.GetDeleted() {
+			delete(waiter.labels, event.LabelID)
+			break
+		}
+		waiter.labels[event.LabelID] = types.WhatsAppLabel{
+			ID:           event.LabelID,
+			Name:         event.Action.GetName(),
+			Color:        event.Action.GetColor(),
+			PredefinedID: event.Action.GetPredefinedID(),
+		}
+	case *events.AppStateSyncComplete:
+		if event.Name != appstate.WAPatchRegular || !event.Recovery {
+			break
+		}
+		labels := make([]types.WhatsAppLabel, 0, len(waiter.labels))
+		for _, label := range waiter.labels {
+			labels = append(labels, label)
+		}
+		sort.Slice(labels, func(i, j int) bool {
+			return labels[i].ID < labels[j].ID
+		})
+		c.labelRecovery = nil
+		c.labelRecoveryMu.Unlock()
+		waiter.done <- labels
+		return
+	}
+	c.labelRecoveryMu.Unlock()
 }
 
 func nodeText(node waBinary.Node, tags ...string) string {

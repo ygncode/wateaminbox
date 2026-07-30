@@ -16,13 +16,21 @@ import {
   useCallback,
   useEffect,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
 import { useRealtimeContext } from "../../contexts/RealtimeProvider";
 import { useClickOutside, useTextareaAutoResize } from "../../hooks/ui";
+import { useQuickReplySuggestions } from "../../hooks/useQuickReplies";
 import { AttachmentPreviewDialog } from "./AttachmentPreviewDialog";
 import { ConnectionRoute } from "./ConnectionIdentity";
+import { QuickReplyPicker } from "./QuickReplyPicker";
+import {
+  filterQuickReplies,
+  getActiveQuickReplyToken,
+  insertQuickReply,
+} from "./quick-reply-matching";
 
 // Lazy load emoji picker - only loaded when user opens it
 // This keeps the emoji data (~1200 lines) out of the initial bundle
@@ -117,6 +125,10 @@ export function MessageComposer({
   const isDisconnected = !connection || connection.status !== "connected";
   const isInputDisabled = disabled || isDisconnected;
   const [message, setMessage] = useState("");
+  const [caretPosition, setCaretPosition] = useState(0);
+  const [selectedQuickReplyIndex, setSelectedQuickReplyIndex] = useState(0);
+  const [isQuickReplyPickerDismissed, setIsQuickReplyPickerDismissed] =
+    useState(false);
   const [showAttachmentMenu, setShowAttachmentMenu] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [pendingAttachment, setPendingAttachment] = useState<{
@@ -141,6 +153,24 @@ export function MessageComposer({
 
   // Typing actions use REST and are broadcast to teammates through Centrifugo.
   const { sendTypingStart } = useRealtimeContext();
+  const activeQuickReplyToken = useMemo(
+    () => getActiveQuickReplyToken(message, caretPosition),
+    [caretPosition, message],
+  );
+  const shouldShowQuickReplyPicker =
+    activeQuickReplyToken !== null &&
+    !isQuickReplyPickerDismissed &&
+    !isInputDisabled;
+  const {
+    quickReplies: quickReplyLibrary,
+    isLoading: isLoadingQuickReplies,
+    error: quickReplyError,
+  } = useQuickReplySuggestions(shouldShowQuickReplyPicker);
+  const quickReplySuggestions = useMemo(
+    () =>
+      filterQuickReplies(quickReplyLibrary, activeQuickReplyToken?.query ?? ""),
+    [activeQuickReplyToken?.query, quickReplyLibrary],
+  );
 
   // Auto-resize textarea using the hook
   const { reset: resetTextareaHeight } = useTextareaAutoResize(textareaRef, {
@@ -163,6 +193,16 @@ export function MessageComposer({
   useEffect(() => {
     setPendingAttachment(null);
   }, [conversationId]);
+
+  useEffect(() => {
+    setSelectedQuickReplyIndex(0);
+  }, [activeQuickReplyToken?.query]);
+
+  useEffect(() => {
+    if (selectedQuickReplyIndex >= quickReplySuggestions.length) {
+      setSelectedQuickReplyIndex(Math.max(0, quickReplySuggestions.length - 1));
+    }
+  }, [quickReplySuggestions.length, selectedQuickReplyIndex]);
 
   // Cleanup typing timeout on unmount
   useEffect(() => {
@@ -200,6 +240,8 @@ export function MessageComposer({
   const handleInputChange = (e: ChangeEvent<HTMLTextAreaElement>) => {
     const newValue = e.target.value;
     setMessage(newValue);
+    setCaretPosition(e.target.selectionStart);
+    setIsQuickReplyPickerDismissed(false);
 
     // Only emit typing if we have a conversationId and content
     if (!conversationId || !contactId || !newValue.trim()) {
@@ -233,11 +275,69 @@ export function MessageComposer({
   };
 
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (shouldShowQuickReplyPicker) {
+      if (e.key === "ArrowDown" && quickReplySuggestions.length > 0) {
+        e.preventDefault();
+        setSelectedQuickReplyIndex(
+          (current) => (current + 1) % quickReplySuggestions.length,
+        );
+        return;
+      }
+
+      if (e.key === "ArrowUp" && quickReplySuggestions.length > 0) {
+        e.preventDefault();
+        setSelectedQuickReplyIndex(
+          (current) =>
+            (current - 1 + quickReplySuggestions.length) %
+            quickReplySuggestions.length,
+        );
+        return;
+      }
+
+      if (
+        ((e.key === "Enter" && !e.shiftKey) || e.key === "Tab") &&
+        quickReplySuggestions[selectedQuickReplyIndex]
+      ) {
+        e.preventDefault();
+        handleQuickReplySelect(quickReplySuggestions[selectedQuickReplyIndex]);
+        return;
+      }
+
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setIsQuickReplyPickerDismissed(true);
+        return;
+      }
+    }
+
     // Send on Enter, new line on Shift+Enter
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSend();
     }
+  };
+
+  const handleQuickReplySelect = (
+    quickReply: (typeof quickReplySuggestions)[number],
+  ) => {
+    if (!activeQuickReplyToken) return;
+
+    const insertion = insertQuickReply(
+      message,
+      activeQuickReplyToken,
+      quickReply,
+    );
+    setMessage(insertion.message);
+    setCaretPosition(insertion.cursor);
+    setIsQuickReplyPickerDismissed(true);
+
+    requestAnimationFrame(() => {
+      textareaRef.current?.focus();
+      textareaRef.current?.setSelectionRange(
+        insertion.cursor,
+        insertion.cursor,
+      );
+    });
   };
 
   const handleSend = () => {
@@ -250,6 +350,8 @@ export function MessageComposer({
 
     onSendMessage(trimmedMessage, replyToMessage?.id);
     setMessage("");
+    setCaretPosition(0);
+    setIsQuickReplyPickerDismissed(false);
     onClearReply();
 
     // Mark that we need to restore focus after re-renders
@@ -494,27 +596,62 @@ export function MessageComposer({
           </div>
 
           {/* Text input */}
-          <div
-            className={`min-w-0 flex-1 overflow-hidden rounded-[1.35rem] ring-1 transition-shadow ${
-              isInputDisabled
-                ? "bg-black/[0.035] opacity-60 ring-black/[0.05] dark:bg-white/[0.045] dark:ring-white/[0.05]"
-                : "bg-white shadow-[0_1px_1px_rgba(11,20,26,0.08)] ring-black/[0.055] focus-within:ring-[#00a884]/35 dark:bg-dark-tertiary dark:ring-white/[0.06]"
-            }`}
-          >
-            <textarea
-              ref={textareaRef}
-              value={message}
-              onChange={handleInputChange}
-              onKeyDown={handleKeyDown}
-              placeholder={isDisconnected ? "Disconnected…" : "Type a message"}
-              disabled={isInputDisabled}
-              rows={1}
-              aria-label="Message input"
-              className={`block max-h-[150px] w-full resize-none bg-transparent px-4 py-2.5 text-[15px] leading-5 text-[#111b21] outline-none placeholder:text-[#667781] dark:text-dark-text-primary dark:placeholder:text-dark-text-tertiary ${
-                isInputDisabled ? "cursor-not-allowed" : ""
+          <div className="relative min-w-0 flex-1">
+            {shouldShowQuickReplyPicker && activeQuickReplyToken && (
+              <QuickReplyPicker
+                quickReplies={quickReplySuggestions}
+                query={activeQuickReplyToken.query}
+                selectedIndex={selectedQuickReplyIndex}
+                isLoading={isLoadingQuickReplies}
+                hasError={quickReplyError !== null}
+                onSelect={handleQuickReplySelect}
+                onHighlight={setSelectedQuickReplyIndex}
+              />
+            )}
+            <div
+              className={`overflow-hidden rounded-[1.35rem] ring-1 transition-shadow ${
+                isInputDisabled
+                  ? "bg-black/[0.035] opacity-60 ring-black/[0.05] dark:bg-white/[0.045] dark:ring-white/[0.05]"
+                  : shouldShowQuickReplyPicker
+                    ? "bg-white shadow-[0_1px_1px_rgba(11,20,26,0.08)] ring-[#00a884]/50 dark:bg-dark-tertiary dark:ring-emerald-400/40"
+                    : "bg-white shadow-[0_1px_1px_rgba(11,20,26,0.08)] ring-black/[0.055] focus-within:ring-[#00a884]/35 dark:bg-dark-tertiary dark:ring-white/[0.06]"
               }`}
-              style={{ minHeight: "40px" }}
-            />
+            >
+              <textarea
+                ref={textareaRef}
+                value={message}
+                onChange={handleInputChange}
+                onKeyDown={handleKeyDown}
+                onClick={(event) => {
+                  setCaretPosition(event.currentTarget.selectionStart);
+                  setIsQuickReplyPickerDismissed(false);
+                }}
+                onSelect={(event) =>
+                  setCaretPosition(event.currentTarget.selectionStart)
+                }
+                placeholder={
+                  isDisconnected ? "Disconnected…" : "Type a message"
+                }
+                disabled={isInputDisabled}
+                rows={1}
+                aria-label="Message input"
+                aria-autocomplete="list"
+                aria-controls={
+                  shouldShowQuickReplyPicker ? "quick-reply-picker" : undefined
+                }
+                aria-expanded={shouldShowQuickReplyPicker}
+                aria-activedescendant={
+                  shouldShowQuickReplyPicker &&
+                  quickReplySuggestions[selectedQuickReplyIndex]
+                    ? `quick-reply-option-${quickReplySuggestions[selectedQuickReplyIndex].id}`
+                    : undefined
+                }
+                className={`block max-h-[150px] w-full resize-none bg-transparent px-4 py-2.5 text-[15px] leading-5 text-[#111b21] outline-none placeholder:text-[#667781] dark:text-dark-text-primary dark:placeholder:text-dark-text-tertiary ${
+                  isInputDisabled ? "cursor-not-allowed" : ""
+                }`}
+                style={{ minHeight: "40px" }}
+              />
+            </div>
           </div>
 
           {/* Send button */}

@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { AlertCircle, Check, Loader2, Zap } from "lucide-react";
+import { AlertCircle, Loader2, MessageSquareText, Zap } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
@@ -20,7 +20,6 @@ interface QuickReplyFormProps {
   isEditing: boolean;
   defaultValues?: Partial<QuickReplyFormData>;
   serverError: string | null;
-  success: boolean;
   isSubmitting: boolean;
   onSubmit: (data: QuickReplyFormData) => void;
   onClose: () => void;
@@ -35,7 +34,6 @@ export function QuickReplyForm({
   isEditing,
   defaultValues,
   serverError,
-  success,
   isSubmitting,
   onSubmit,
   onClose,
@@ -61,138 +59,166 @@ export function QuickReplyForm({
   const shortcut = watch("shortcut");
   const title = watch("title");
   const content = watch("content");
-
-  // Success view - only for CREATE operations
-  if (success && !isEditing) {
-    return (
-      <div className="flex flex-col items-center justify-center py-8">
-        <div className="w-16 h-16 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center mb-4">
-          <Check className="h-8 w-8 text-green-600 dark:text-green-400" />
-        </div>
-        <p className="text-lg font-medium text-gray-900 dark:text-dark-text-primary">
-          {t("quickReplies.created", "Quick Reply Created!")}
-        </p>
-        <p className="text-sm text-gray-500 dark:text-dark-text-secondary mt-1">
-          {t("quickReplies.createdHint", "Type /{shortcut} to use it", {
-            shortcut,
-          })}
-        </p>
-      </div>
-    );
-  }
+  const hasPreview = Boolean(shortcut && title && content.trim());
 
   return (
     <>
-      <DialogHeader>
-        <DialogTitle className="flex items-center gap-2">
-          <Zap className="h-5 w-5 text-whatsapp-teal-green" />
-          {isEditing
-            ? t("quickReplies.editTitle", "Edit Quick Reply")
-            : t("quickReplies.createTitle", "Create Quick Reply")}
-        </DialogTitle>
-        <DialogDescription>
-          {isEditing
-            ? t(
-                "quickReplies.editDescription",
-                "Update the quick reply details below.",
-              )
-            : t(
-                "quickReplies.createDescription",
-                "Create a new quick reply template.",
-              )}
-        </DialogDescription>
+      <DialogHeader className="pr-8 text-left">
+        <div className="flex items-start gap-3">
+          <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-[#e4f5ed] text-[#007a5e] ring-1 ring-[#bfe5d4] dark:bg-emerald-400/10 dark:text-emerald-300 dark:ring-emerald-400/15">
+            <Zap className="size-5" fill="currentColor" aria-hidden="true" />
+          </span>
+          <div className="min-w-0 pt-0.5">
+            <DialogTitle className="text-xl tracking-[-0.02em]">
+              {isEditing
+                ? t("quickReplies.editTitle", "Edit quick reply")
+                : t("quickReplies.createTitle", "Create quick reply")}
+            </DialogTitle>
+            <DialogDescription className="mt-1 leading-5">
+              {isEditing
+                ? t(
+                    "quickReplies.editDescription",
+                    "Update the shortcut or response your team can insert.",
+                  )
+                : t(
+                    "quickReplies.createDescription",
+                    "Save a response your team can insert while chatting.",
+                  )}
+            </DialogDescription>
+          </div>
+        </div>
       </DialogHeader>
 
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 py-4">
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-5 pt-2">
         {/* Server error message */}
         {serverError && (
-          <div className="flex items-center gap-2 p-3 text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 rounded-lg">
-            <AlertCircle className="h-4 w-4 flex-shrink-0" />
+          <div className="flex items-start gap-2.5 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-400/15 dark:bg-red-400/[0.06] dark:text-red-300">
+            <AlertCircle className="mt-0.5 size-4 shrink-0" />
             <span>{serverError}</span>
           </div>
         )}
 
-        {/* Shortcut Input */}
-        <div className="space-y-2">
-          <Label htmlFor="shortcut">
-            {t("quickReplies.shortcutLabel", "Shortcut")}{" "}
-            <span className="text-red-500">*</span>
-          </Label>
-          <div className="relative">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-whatsapp-teal-green font-mono font-semibold">
-              /
-            </span>
-            <Input
-              id="shortcut"
-              {...register("shortcut", {
-                onChange: (e) => {
-                  // Transform to lowercase and remove invalid characters
-                  const value = e.target.value
-                    .toLowerCase()
-                    .replace(/[^a-z0-9_-]/g, "");
-                  setValue("shortcut", value, { shouldValidate: true });
-                },
-              })}
-              placeholder={t("quickReplies.shortcutPlaceholder", "greeting…")}
-              className="pl-7 font-mono"
-              maxLength={50}
-              autoFocus
-              data-testid="quick-reply-shortcut-input"
-              aria-describedby="shortcut-hint"
-              aria-invalid={errors.shortcut ? "true" : "false"}
-            />
+        <div className="grid gap-4 sm:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+          {/* Shortcut Input */}
+          <div className="space-y-1.5">
+            <div className="flex items-baseline justify-between gap-2">
+              <Label htmlFor="shortcut" className="font-semibold">
+                {t("quickReplies.shortcutLabel", "Shortcut")}{" "}
+                <span className="text-red-500" aria-hidden="true">
+                  *
+                </span>
+              </Label>
+              <span className="text-[11px] text-[#8696a0] dark:text-dark-text-tertiary">
+                {t("quickReplies.shortcutMicrocopy", "What teammates type")}
+              </span>
+            </div>
+            <div className="relative">
+              <span
+                className="absolute inset-y-0 left-0 grid w-9 place-items-center border-r border-black/[0.06] font-mono text-base font-bold text-[#008069] dark:border-white/[0.07] dark:text-emerald-300"
+                aria-hidden="true"
+              >
+                /
+              </span>
+              <Input
+                id="shortcut"
+                {...register("shortcut", {
+                  onChange: (e) => {
+                    const value = e.target.value
+                      .toLowerCase()
+                      .replace(/[^a-z0-9_-]/g, "");
+                    setValue("shortcut", value, { shouldValidate: true });
+                  },
+                })}
+                placeholder={t("quickReplies.shortcutPlaceholder", "greeting")}
+                className="h-11 rounded-xl pl-12 font-mono font-medium"
+                maxLength={50}
+                autoFocus
+                autoComplete="off"
+                spellCheck={false}
+                data-testid="quick-reply-shortcut-input"
+                aria-describedby="shortcut-hint"
+                aria-invalid={errors.shortcut ? "true" : "false"}
+              />
+            </div>
+            {errors.shortcut ? (
+              <p
+                className="text-xs text-red-500 dark:text-red-400"
+                role="alert"
+              >
+                {errors.shortcut.message}
+              </p>
+            ) : (
+              <p
+                id="shortcut-hint"
+                className="text-xs text-[#667781] dark:text-dark-text-tertiary"
+              >
+                {t(
+                  "quickReplies.shortcutHelpCompact",
+                  "Letters, numbers, _ and -",
+                )}
+              </p>
+            )}
           </div>
-          {errors.shortcut ? (
-            <p className="text-xs text-red-500 dark:text-red-400" role="alert">
-              {errors.shortcut.message}
-            </p>
-          ) : (
-            <p
-              id="shortcut-hint"
-              className="text-xs text-gray-500 dark:text-dark-text-tertiary"
-            >
-              {t(
-                "quickReplies.shortcutHelp",
-                "Letters, numbers, underscores, and hyphens only",
-              )}
-            </p>
-          )}
-        </div>
 
-        {/* Title Input */}
-        <div className="space-y-2">
-          <Label htmlFor="title">
-            {t("quickReplies.titleLabel", "Title")}{" "}
-            <span className="text-red-500">*</span>
-          </Label>
-          <Input
-            id="title"
-            {...register("title")}
-            placeholder={t("quickReplies.titlePlaceholder", "Welcome Message")}
-            maxLength={200}
-            data-testid="quick-reply-title-input"
-            aria-invalid={errors.title ? "true" : "false"}
-          />
-          {errors.title ? (
-            <p className="text-xs text-red-500 dark:text-red-400" role="alert">
-              {errors.title.message}
-            </p>
-          ) : (
-            <p className="text-xs text-gray-500 dark:text-dark-text-tertiary">
-              {t(
-                "quickReplies.titleHint",
-                "A descriptive name to identify this quick reply",
+          {/* Title Input */}
+          <div className="space-y-1.5">
+            <div className="flex items-baseline justify-between gap-2">
+              <Label htmlFor="title" className="font-semibold">
+                {t("quickReplies.titleLabel", "Internal title")}{" "}
+                <span className="text-red-500" aria-hidden="true">
+                  *
+                </span>
+              </Label>
+              <span className="text-[11px] text-[#8696a0] dark:text-dark-text-tertiary">
+                {t("quickReplies.titleMicrocopy", "Only your team sees this")}
+              </span>
+            </div>
+            <Input
+              id="title"
+              {...register("title")}
+              placeholder={t(
+                "quickReplies.titlePlaceholder",
+                "Welcome message",
               )}
-            </p>
-          )}
+              className="h-11 rounded-xl"
+              maxLength={200}
+              data-testid="quick-reply-title-input"
+              aria-invalid={errors.title ? "true" : "false"}
+            />
+            {errors.title ? (
+              <p
+                className="text-xs text-red-500 dark:text-red-400"
+                role="alert"
+              >
+                {errors.title.message}
+              </p>
+            ) : (
+              <p className="text-xs text-[#667781] dark:text-dark-text-tertiary">
+                {t(
+                  "quickReplies.titleHelpCompact",
+                  "Use a name that is easy to scan",
+                )}
+              </p>
+            )}
+          </div>
         </div>
 
         {/* Content Input */}
-        <div className="space-y-2">
-          <Label htmlFor="content">
-            {t("quickReplies.contentLabel", "Message Content")}{" "}
-            <span className="text-red-500">*</span>
-          </Label>
+        <div className="space-y-1.5">
+          <div className="flex items-baseline justify-between gap-3">
+            <Label htmlFor="content" className="font-semibold">
+              {t("quickReplies.contentLabel", "Response")}{" "}
+              <span className="text-red-500" aria-hidden="true">
+                *
+              </span>
+            </Label>
+            <span
+              className="font-mono text-[11px] tabular-nums text-[#8696a0] dark:text-dark-text-tertiary"
+              aria-live="polite"
+            >
+              {content.length.toLocaleString()} / 5,000
+            </span>
+          </div>
           <Textarea
             id="content"
             {...register("content")}
@@ -200,8 +226,9 @@ export function QuickReplyForm({
               "quickReplies.contentPlaceholder",
               "Hello! Thank you for reaching out. How can I help you today?",
             )}
-            rows={4}
-            className="resize-none"
+            rows={5}
+            maxLength={5000}
+            className="min-h-32 resize-none rounded-xl px-3.5 py-3 leading-6 transition-[border-color,box-shadow] focus-visible:border-[#0a7c43] focus-visible:ring-[3px] focus-visible:ring-[#25d366]/20 focus-visible:ring-offset-0 dark:focus-visible:border-[#52df83] dark:focus-visible:ring-[#25d366]/15"
             data-testid="quick-reply-content-input"
             aria-describedby="content-hint"
             aria-invalid={errors.content ? "true" : "false"}
@@ -213,33 +240,35 @@ export function QuickReplyForm({
           ) : (
             <p
               id="content-hint"
-              className="text-xs text-gray-500 dark:text-dark-text-tertiary"
+              className="flex items-center gap-1.5 text-xs text-[#667781] dark:text-dark-text-tertiary"
             >
+              <MessageSquareText className="size-3.5" aria-hidden="true" />
               {t(
-                "quickReplies.contentHint",
-                "This message will be sent when you use this quick reply",
+                "quickReplies.contentHintCompact",
+                "Inserted into the composer so it can be personalized before sending",
               )}
             </p>
           )}
         </div>
 
-        {/* Live Preview - only show when ALL fields have content */}
-        {shortcut && title && content && (
-          <div className="p-3 rounded-lg bg-gray-50 dark:bg-dark-tertiary">
-            <p className="text-xs font-medium text-gray-500 dark:text-dark-text-tertiary uppercase mb-2">
-              Preview
-            </p>
-            <div className="flex items-start gap-3">
-              <div className="flex-shrink-0 mt-0.5">
-                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-mono font-medium bg-whatsapp-teal-green/10 text-whatsapp-teal-green">
-                  /{shortcut}
+        {hasPreview && (
+          <div className="overflow-hidden rounded-xl border border-[#d8e0dc] bg-[#efeae2] dark:border-white/[0.08] dark:bg-[#111b21]">
+            <div className="flex items-center justify-between gap-3 border-b border-black/[0.05] bg-white/70 px-3 py-2 dark:border-white/[0.06] dark:bg-white/[0.035]">
+              <div className="flex min-w-0 items-center gap-2">
+                <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-[#667781] dark:text-dark-text-tertiary">
+                  {t("quickReplies.preview", "Composer preview")}
+                </span>
+                <span className="truncate text-xs font-medium text-[#3b4a54] dark:text-dark-text-secondary">
+                  {title}
                 </span>
               </div>
-              <div className="flex-1 min-w-0">
-                <p className="font-medium text-sm text-gray-900 dark:text-dark-text-primary truncate">
-                  {title}
-                </p>
-                <p className="text-sm text-gray-500 dark:text-dark-text-secondary line-clamp-2 mt-0.5">
+              <span className="shrink-0 rounded-md bg-[#dff4eb] px-2 py-0.5 font-mono text-[10px] font-semibold text-[#008069] dark:bg-emerald-400/10 dark:text-emerald-300">
+                /{shortcut}
+              </span>
+            </div>
+            <div className="p-3">
+              <div className="ml-auto max-w-[88%] rounded-lg rounded-tr-sm bg-[#d9fdd3] px-3 py-2 shadow-sm dark:bg-[#005c4b]">
+                <p className="whitespace-pre-wrap break-words text-sm leading-5 text-[#111b21] dark:text-dark-text-primary">
                   {content}
                 </p>
               </div>
@@ -248,34 +277,35 @@ export function QuickReplyForm({
         )}
 
         {/* Action Buttons */}
-        <div className="flex justify-end gap-2 pt-2">
+        <div className="-mx-6 -mb-6 flex flex-col-reverse gap-2 rounded-b-2xl border-t border-black/[0.06] bg-[#f8faf9] px-6 py-4 sm:flex-row sm:items-center sm:justify-end dark:border-white/[0.07] dark:bg-white/[0.025]">
           <Button
             type="button"
-            variant="outline"
+            variant="ghost"
             onClick={onClose}
             disabled={isSubmitting}
+            className="sm:min-w-24"
           >
             {t("common.cancel", "Cancel")}
           </Button>
           <Button
             type="submit"
             disabled={isSubmitting || !isValid}
-            className="bg-whatsapp-teal-green hover:bg-whatsapp-dark-green"
+            className="min-w-32 bg-[#008069] text-white shadow-sm hover:bg-[#006f5b] disabled:bg-[#dce8e3] disabled:text-[#7d9289] disabled:opacity-100 dark:bg-emerald-600 dark:hover:bg-emerald-500 dark:disabled:bg-white/[0.08] dark:disabled:text-dark-text-tertiary"
             data-testid="save-quick-reply-button"
           >
             {isSubmitting ? (
               <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                <Loader2 className="mr-2 size-4 animate-spin" />
                 {isEditing
                   ? t("common.saving", "Saving…")
                   : t("common.creating", "Creating…")}
               </>
             ) : (
               <>
-                <Zap className="h-4 w-4 mr-2" />
+                <Zap className="mr-2 size-4" />
                 {isEditing
-                  ? t("common.save", "Save")
-                  : t("common.create", "Create")}
+                  ? t("quickReplies.saveAction", "Save changes")
+                  : t("quickReplies.createAction", "Create reply")}
               </>
             )}
           </Button>

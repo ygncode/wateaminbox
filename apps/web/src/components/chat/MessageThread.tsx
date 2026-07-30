@@ -1,8 +1,12 @@
 import type { Message } from "@wateaminbox/shared";
 import { MessageCircle, Send } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useGroup } from "@/hooks/useGroups";
-import { useTheme } from "../../contexts";
+import {
+  type TeamMemberIdentity,
+  useTeamMemberIdentities,
+} from "@/hooks/useTeam";
+import { useTheme, useWorkspace } from "../../contexts";
 import { useMessageSelection } from "../../hooks/chat/useMessageSelection";
 import { useMessageVirtualization } from "../../hooks/chat/useMessageVirtualization";
 import { useInfiniteMessages } from "../../hooks/useInfiniteMessages";
@@ -26,6 +30,9 @@ export function shouldDismissReplyHighlight(
 interface MessageThreadProps {
   conversationId: string | undefined;
   currentUserId: string;
+  currentUserName?: string;
+  currentUserAvatarUrl?: string;
+  currentUserGravatarUrl?: string;
   isGroup?: boolean;
   /** ID of message to highlight and scroll to */
   highlightedMessageId?: string | null;
@@ -36,12 +43,25 @@ interface MessageThreadProps {
 export function MessageThread({
   conversationId,
   currentUserId,
+  currentUserName,
+  currentUserAvatarUrl,
+  currentUserGravatarUrl,
   isGroup = false,
   highlightedMessageId,
   onOpenContactInfo,
 }: MessageThreadProps) {
   const retryMessage = useRetryMessage();
   const { resolvedTheme } = useTheme();
+  const { activeWorkspaceId } = useWorkspace();
+  const { data: teammateIdentities = [] } =
+    useTeamMemberIdentities(activeWorkspaceId);
+  const teammateIdentityMap = useMemo(
+    () =>
+      new Map<string, TeamMemberIdentity>(
+        teammateIdentities.map((identity) => [identity.userId, identity]),
+      ),
+    [teammateIdentities],
+  );
   const [retryingMessageId, setRetryingMessageId] = useState<string | null>(
     null,
   );
@@ -351,6 +371,10 @@ export function MessageThread({
         totalSize={totalSize}
         isGroup={isGroup}
         currentUserId={currentUserId}
+        currentUserName={currentUserName}
+        currentUserAvatarUrl={currentUserAvatarUrl}
+        currentUserGravatarUrl={currentUserGravatarUrl}
+        teammateIdentities={teammateIdentityMap}
         highlightedMessageId={activeHighlightedMessageId}
         retryingMessageId={retryingMessageId}
         selectionMode={selectionMode}

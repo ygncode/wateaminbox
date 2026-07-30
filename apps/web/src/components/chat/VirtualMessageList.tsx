@@ -6,6 +6,7 @@ import {
 import { ArchiveRestore, Loader2, Smartphone } from "lucide-react";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import type { GroupParticipant } from "@/hooks/useGroups";
+import type { TeamMemberIdentity } from "@/hooks/useTeam";
 import type { VirtualItem as MessageListItem } from "../../hooks/chat/useMessageVirtualization";
 import { MessageBubble } from "./MessageBubble";
 
@@ -20,6 +21,10 @@ interface VirtualMessageListProps {
   totalSize: number;
   isGroup?: boolean;
   currentUserId: string;
+  currentUserName?: string;
+  currentUserAvatarUrl?: string;
+  currentUserGravatarUrl?: string;
+  teammateIdentities: ReadonlyMap<string, TeamMemberIdentity>;
   highlightedMessageId?: string | null;
   retryingMessageId: string | null;
   selectionMode: boolean;
@@ -51,6 +56,10 @@ export function VirtualMessageList({
   totalSize,
   isGroup = false,
   currentUserId,
+  currentUserName,
+  currentUserAvatarUrl,
+  currentUserGravatarUrl,
+  teammateIdentities,
   highlightedMessageId,
   retryingMessageId,
   selectionMode,
@@ -200,6 +209,10 @@ export function VirtualMessageList({
                 isOwn={item.message.senderType === "user"}
                 isGroup={isGroup}
                 currentUserId={currentUserId}
+                currentUserName={currentUserName}
+                currentUserAvatarUrl={currentUserAvatarUrl}
+                currentUserGravatarUrl={currentUserGravatarUrl}
+                teammateIdentities={teammateIdentities}
                 onRetry={selectionMode ? undefined : onRetryMessage}
                 isHighlighted={highlightedMessageId === item.message.id}
                 isRetrying={retryingMessageId === item.message.id}

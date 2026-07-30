@@ -145,6 +145,8 @@ export const queryKeys = {
   // Team/Company - custom keys for company resources
   team: {
     all: ["company"] as const,
+    identities: (companyId: string | null) =>
+      ["company", companyId, "member-identities"] as const,
     members: <T extends object>(companyId: string | null, params?: T) =>
       params
         ? (["company", companyId, "members", params] as const)
@@ -174,6 +176,7 @@ export const queryKeys = {
     lists: () => ["quick-replies", getCompanyId(), "list"] as const,
     list: <T extends object>(params?: T) =>
       ["quick-replies", getCompanyId(), "list", params] as const,
+    library: () => ["quick-replies", getCompanyId(), "library"] as const,
     search: (shortcut: string) =>
       ["quick-replies", getCompanyId(), "search", shortcut] as const,
   },

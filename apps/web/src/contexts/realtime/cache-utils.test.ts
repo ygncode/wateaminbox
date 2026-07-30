@@ -36,7 +36,13 @@ function seed(client: QueryClient, companyId: string) {
   const groupKey = queryKeys.groups.list({});
   const groupDetailKey = queryKeys.groups.detail("conversation-1");
   client.setQueryData<InfiniteMessageData>(messageKey, {
-    pages: [{ messages: [message("pending-1")], hasMore: false }],
+    pages: [
+      {
+        messages: [message("pending-1")],
+        hasMore: false,
+        remoteHistoryStatus: "unknown",
+      },
+    ],
     pageParams: [undefined],
   });
   client.setQueryData(chatKey, []);

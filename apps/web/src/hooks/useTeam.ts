@@ -14,6 +14,32 @@ import { queryKeys } from "./query-keys";
 // Re-export types for backward compatibility
 export type { CompanyMember } from "@wateaminbox/shared";
 
+export interface TeamMemberIdentity {
+  userId: string;
+  name: string;
+  avatarUrl: string | null;
+  gravatarUrl: string | null;
+}
+
+/**
+ * Minimal identity directory available to every workspace member.
+ * Used to attribute shared-inbox messages without exposing team-management data.
+ */
+export function useTeamMemberIdentities(companyId: string | null) {
+  return useQuery({
+    queryKey: queryKeys.team.identities(companyId),
+    queryFn: async () => {
+      if (!companyId) throw new Error("No company ID provided");
+      return api.get<TeamMemberIdentity[]>(
+        `/companies/${companyId}/member-identities`,
+      );
+    },
+    enabled: !!companyId,
+    staleTime: 60_000,
+    gcTime: 300_000,
+  });
+}
+
 /**
  * Invitation types - alias for backward compatibility
  */

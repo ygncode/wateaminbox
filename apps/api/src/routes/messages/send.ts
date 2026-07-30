@@ -22,6 +22,7 @@ import { getRouteContext } from "../../middleware/context.js";
 import { requireMessageSendPermission } from "../../middleware/message-send-policy.js";
 import { createConditionalRateLimiter } from "../../middleware/rate-limit.js";
 import { requireMessageVisibility } from "../../middleware/resource-visibility.js";
+import { toAuthUserResponse } from "../../services/auth.service.js";
 import { enqueueCommand } from "../../services/command-outbox.service.js";
 import { ensureContactAssignment } from "../../services/contact.service.js";
 import { getActiveSessionId } from "../../services/whatsapp/session.js";
@@ -155,6 +156,7 @@ sendRoutes.post(
       );
     });
 
+    const senderProfile = await toAuthUserResponse(user);
     const formattedMessage = {
       id: messageId,
       messageId: waMessageId,
@@ -165,6 +167,8 @@ sendRoutes.post(
       senderType: "user" as const,
       sentByUserId: user.id,
       sentByUserName: user.name || user.email.split("@")[0],
+      sentByUserAvatarUrl: senderProfile.avatarUrl,
+      sentByUserGravatarUrl: senderProfile.gravatarUrl,
       messageType: body.messageType,
       content: body.content || "",
       metadata: body.mediaUrl ? { mediaUrl: body.mediaUrl } : undefined,
@@ -418,6 +422,7 @@ sendRoutes.post(
       );
     });
 
+    const senderProfile = await toAuthUserResponse(user);
     return c.json({
       success: true,
       message: {
@@ -429,6 +434,8 @@ sendRoutes.post(
         senderType: "user",
         sentByUserId: user.id,
         sentByUserName: user.name || user.email.split("@")[0],
+        sentByUserAvatarUrl: senderProfile.avatarUrl,
+        sentByUserGravatarUrl: senderProfile.gravatarUrl,
         messageType: originalMessage.message_type,
         content: originalMessage.content || "",
         metadata: originalMessage.media_url
