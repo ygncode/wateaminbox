@@ -32,6 +32,39 @@ export const forwardMessageSchema = z.object({
 export type ForwardMessageInput = z.infer<typeof forwardMessageSchema>;
 
 // =============================================================================
+// Scheduled Messages
+// =============================================================================
+
+/** Scheduling too close to "now" races the dispatcher; require a short lead. */
+export const SCHEDULE_MIN_LEAD_MS = 30_000;
+/** Cap the horizon so typos ("2062") don't silently park messages for decades. */
+export const SCHEDULE_MAX_HORIZON_MS = 365 * 24 * 60 * 60 * 1000;
+
+/**
+ * Schema for scheduling a message for future delivery.
+ * scheduledAt is an ISO 8601 timestamp (UTC or with offset).
+ */
+export const scheduleMessageSchema = z.object({
+  contactId: uuidSchema,
+  content: z.string().min(1, "content is required").max(65_536),
+  replyToMessageId: uuidSchema.optional(),
+  scheduledAt: z.string().datetime({ offset: true }),
+});
+
+export type ScheduleMessageInput = z.infer<typeof scheduleMessageSchema>;
+
+/**
+ * Schema for listing scheduled messages of a conversation
+ */
+export const listScheduledMessagesQuerySchema = z.object({
+  contactId: uuidSchema,
+});
+
+export type ListScheduledMessagesQuery = z.infer<
+  typeof listScheduledMessagesQuerySchema
+>;
+
+// =============================================================================
 // Message Query
 // =============================================================================
 

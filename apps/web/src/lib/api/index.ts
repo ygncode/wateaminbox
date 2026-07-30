@@ -114,6 +114,15 @@ export {
   updateNotificationPreferences,
 } from "./notifications.js";
 
+// Re-export scheduled-messages functions
+export {
+  cancelScheduledMessage,
+  createScheduledMessage,
+  getScheduledMessages,
+  type ScheduleMessageInput,
+  type ScheduleMessageResponse,
+} from "./scheduled-messages.js";
+
 // Re-export quick-replies functions
 export {
   createQuickReply,

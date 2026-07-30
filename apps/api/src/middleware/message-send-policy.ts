@@ -11,6 +11,7 @@ export const CANONICAL_MESSAGE_SEND_PATH = "/api/messages";
 
 export const MESSAGE_SEND_SURFACES = [
   "/messages",
+  "/messages/scheduled",
   "/messages/:id/forward",
   "/messages/:id/retry",
   "/conversations/:id/messages",

@@ -16,6 +16,7 @@ export type {
   CompanyMemberRole,
   MessageType,
   MessageStatus,
+  ScheduledMessageStatus,
 } from "@wateaminbox/shared";
 
 export type {
@@ -50,6 +51,7 @@ export type {
   NotificationHistoryTable,
   QuickRepliesTable,
   ConversationStatesTable,
+  ScheduledMessagesTable,
   WhatsAppLabelsTable,
   WhatsAppCatalogsTable,
   CatalogProductsTable,

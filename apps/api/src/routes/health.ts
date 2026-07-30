@@ -20,6 +20,7 @@ import {
 } from "../services/command-outbox.service.js";
 import { getMessageCleanupStatus } from "../services/message-cleanup.service.js";
 import { isMessageHandlerInitialized } from "../services/message-handler.js";
+import { getScheduledMessageHealth } from "../services/scheduled-message.service.js";
 
 export const healthRoutes = new Hono();
 
@@ -68,6 +69,7 @@ healthRoutes.get("/ready", async (c) => {
     eventConsumer: isMessageHandlerInitialized(),
     outbox: getCommandOutboxHealth(),
     outboxBacklog: { pending: 0, oldestPendingAt: null as Date | null },
+    scheduledMessages: getScheduledMessageHealth(),
     centrifugo: {
       configured: Boolean(
         env.CENTRIFUGO_API_URL &&

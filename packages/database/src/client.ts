@@ -4,6 +4,7 @@ import type {
   MessageStatus,
   MessageType,
   RemoteHistoryStatus,
+  ScheduledMessageStatus,
 } from "@wateaminbox/shared";
 import { Generated, Kysely, PostgresDialect } from "kysely";
 import { Pool } from "pg";
@@ -158,6 +159,7 @@ export interface TenantDatabase {
   quick_replies: QuickRepliesTable;
   conversation_states: ConversationStatesTable;
   nats_outbox: NatsOutboxTable;
+  scheduled_messages: ScheduledMessagesTable;
 }
 
 export interface WhatsAppConnectionsTable {
@@ -463,6 +465,26 @@ export interface ConversationStatesTable {
   reopened_at: Date | null;
   reopened_by: string | null;
   resolution_notes: string | null;
+  created_at: Generated<Date>;
+  updated_at: Generated<Date>;
+}
+
+export interface ScheduledMessagesTable {
+  id: Generated<string>;
+  contact_id: string;
+  content: string;
+  message_type: Generated<MessageType>;
+  reply_to_message_id: string | null;
+  scheduled_at: Date;
+  status: Generated<ScheduledMessageStatus>;
+  attempts: Generated<number>;
+  next_attempt_at: Date;
+  last_error: string | null;
+  sent_message_id: string | null;
+  created_by: string;
+  canceled_by: string | null;
+  canceled_at: Date | null;
+  sent_at: Date | null;
   created_at: Generated<Date>;
   updated_at: Generated<Date>;
 }

@@ -1,0 +1,227 @@
+/**
+ * Scheduled Message Routes
+ *
+ * Create, list, and cancel outbound messages scheduled for future delivery.
+ * Dispatch is handled server-side by the scheduled-message service.
+ */
+
+import { zValidator } from "@hono/zod-validator";
+import { toDbDate } from "@wateaminbox/shared";
+import { Hono } from "hono";
+import { badRequest, notFound } from "../../lib/errors.js";
+import { rateLimitConfig, rateLimitStore } from "../../lib/rate-limit-store.js";
+import { broadcastToCompany } from "../../lib/realtime.js";
+import {
+  listScheduledMessagesQuerySchema,
+  SCHEDULE_MAX_HORIZON_MS,
+  SCHEDULE_MIN_LEAD_MS,
+  scheduleMessageSchema,
+} from "../../lib/schemas/index.js";
+import { getRouteContext } from "../../middleware/context.js";
+import { requireMessageSendPermission } from "../../middleware/message-send-policy.js";
+import { createConditionalRateLimiter } from "../../middleware/rate-limit.js";
+import { hasContactVisibility } from "../../middleware/resource-visibility.js";
+import { ensureContactAssignment } from "../../services/contact.service.js";
+import {
+  formatScheduledMessage,
+  type ScheduledMessageRow,
+} from "../../services/scheduled-message.service.js";
+import { getUserNames } from "../../services/user.service.js";
+
+const scheduleRateLimiter = createConditionalRateLimiter(
+  {
+    store: rateLimitStore,
+    tier: rateLimitConfig.tiers.messaging.send,
+    keyStrategy: "user",
+    keyPrefix: "messaging-schedule",
+  },
+  rateLimitConfig.enabled,
+);
+
+export const scheduledRoutes = new Hono();
+
+/**
+ * POST /scheduled - Schedule a message for future delivery
+ * Requires can_send_messages permission
+ */
+scheduledRoutes.post(
+  "/scheduled",
+  requireMessageSendPermission,
+  scheduleRateLimiter,
+  zValidator("json", scheduleMessageSchema),
+  async (c) => {
+    const { tenantDb, user, companyId } = getRouteContext(c);
+    const body = c.req.valid("json");
+
+    const scheduledAt = new Date(body.scheduledAt);
+    const lead = scheduledAt.getTime() - Date.now();
+    if (lead < SCHEDULE_MIN_LEAD_MS) {
+      return badRequest(c, "scheduledAt must be at least 30 seconds from now");
+    }
+    if (lead > SCHEDULE_MAX_HORIZON_MS) {
+      return badRequest(c, "scheduledAt must be within one year");
+    }
+
+    const contact = await tenantDb
+      .selectFrom("contacts")
+      .select(["id", "jid", "whatsapp_connection_id"])
+      .where("id", "=", body.contactId)
+      .executeTakeFirst();
+
+    if (!contact || !contact.jid) {
+      return notFound(c, "Contact or JID");
+    }
+
+    // The connection is re-resolved at dispatch time; it only needs to exist
+    // now so the schedule isn't doomed from the start.
+    if (!contact.whatsapp_connection_id) {
+      return badRequest(c, "The contact has no WhatsApp connection");
+    }
+
+    // Match the immediate-send flow: engaging with an unassigned contact
+    // claims it for the scheduling user.
+    const wasAutoAssigned = await ensureContactAssignment(
+      tenantDb,
+      body.contactId,
+      user.id,
+    );
+
+    if (body.replyToMessageId) {
+      const quotedMessage = await tenantDb
+        .selectFrom("messages")
+        .select("id")
+        .where("id", "=", body.replyToMessageId)
+        .where("contact_id", "=", body.contactId)
+        .executeTakeFirst();
+      if (!quotedMessage) {
+        return notFound(c, "Quoted message");
+      }
+    }
+
+    const now = toDbDate();
+    const row = await tenantDb
+      .insertInto("scheduled_messages")
+      .values({
+        id: crypto.randomUUID(),
+        contact_id: body.contactId,
+        content: body.content,
+        message_type: "text",
+        reply_to_message_id: body.replyToMessageId || null,
+        scheduled_at: scheduledAt,
+        status: "scheduled",
+        attempts: 0,
+        next_attempt_at: scheduledAt,
+        created_by: user.id,
+        created_at: now,
+        updated_at: now,
+      })
+      .returningAll()
+      .executeTakeFirstOrThrow();
+
+    const scheduledMessage = formatScheduledMessage(
+      row as ScheduledMessageRow,
+      user.name || user.email.split("@")[0],
+    );
+
+    await broadcastToCompany(companyId, "scheduled_message:updated", {
+      scheduledMessageId: row.id,
+      conversationId: body.contactId,
+      status: "scheduled",
+    });
+
+    return c.json({
+      success: true,
+      scheduledMessage,
+      autoAssigned: wasAutoAssigned,
+    });
+  },
+);
+
+/**
+ * GET /scheduled?contactId= - List a conversation's scheduled messages
+ * Returns upcoming and failed entries; sent/canceled rows are history and
+ * excluded. Contact visibility rules apply.
+ */
+scheduledRoutes.get(
+  "/scheduled",
+  zValidator("query", listScheduledMessagesQuerySchema),
+  async (c) => {
+    const { tenantDb } = getRouteContext(c);
+    const { contactId } = c.req.valid("query");
+
+    if (!(await hasContactVisibility(c, contactId))) {
+      return notFound(c, "Contact");
+    }
+
+    const rows = await tenantDb
+      .selectFrom("scheduled_messages")
+      .selectAll()
+      .where("contact_id", "=", contactId)
+      .where("status", "in", ["scheduled", "processing", "failed"])
+      .orderBy("scheduled_at", "asc")
+      .limit(100)
+      .execute();
+
+    const names = await getUserNames(rows.map((row) => row.created_by));
+    return c.json({
+      success: true,
+      scheduledMessages: rows.map((row) =>
+        formatScheduledMessage(
+          row as ScheduledMessageRow,
+          names.get(row.created_by),
+        ),
+      ),
+    });
+  },
+);
+
+/**
+ * DELETE /scheduled/:id - Cancel a scheduled message
+ * Only rows that have not started dispatching (or already failed) can be
+ * canceled; a row being processed is past the point of no return.
+ */
+scheduledRoutes.delete(
+  "/scheduled/:id",
+  requireMessageSendPermission,
+  async (c) => {
+    const { tenantDb, user, companyId } = getRouteContext(c);
+    const id = c.req.param("id");
+
+    const row = await tenantDb
+      .selectFrom("scheduled_messages")
+      .select(["id", "contact_id", "status"])
+      .where("id", "=", id)
+      .executeTakeFirst();
+
+    if (!row || !(await hasContactVisibility(c, row.contact_id))) {
+      return notFound(c, "Scheduled message");
+    }
+
+    const result = await tenantDb
+      .updateTable("scheduled_messages")
+      .set({
+        status: "canceled",
+        canceled_by: user.id,
+        canceled_at: toDbDate(),
+        updated_at: toDbDate(),
+      })
+      .where("id", "=", id)
+      .where("status", "in", ["scheduled", "failed"])
+      .executeTakeFirst();
+
+    if (result.numUpdatedRows === 0n) {
+      return badRequest(
+        c,
+        "This message is already being sent and can no longer be canceled",
+      );
+    }
+
+    await broadcastToCompany(companyId, "scheduled_message:updated", {
+      scheduledMessageId: id,
+      conversationId: row.contact_id,
+      status: "canceled",
+    });
+
+    return c.json({ success: true });
+  },
+);

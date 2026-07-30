@@ -26,3 +26,10 @@ export {
   useRequestMediaDownload,
   useForwardMessage,
 } from "./useMediaMutations";
+
+// Re-export scheduled message hooks
+export {
+  useScheduledMessages,
+  useScheduleMessage,
+  useCancelScheduledMessage,
+} from "./useScheduledMessages";

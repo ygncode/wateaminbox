@@ -15,6 +15,7 @@ import { actionRoutes } from "./actions.js";
 import { batchRoutes } from "./batch.js";
 import { fetchRoutes } from "./fetch.js";
 import { reactionRoutes } from "./reactions.js";
+import { scheduledRoutes } from "./scheduled.js";
 import { sendRoutes } from "./send.js";
 
 export const messageRoutes = new Hono();
@@ -22,6 +23,10 @@ export const messageRoutes = new Hono();
 // All message routes require authentication and tenant context
 messageRoutes.use("/*", authMiddleware);
 messageRoutes.use("/*", tenantMiddleware());
+
+// Mount scheduled routes first so /scheduled is never shadowed by :id params
+// (POST /scheduled, GET /scheduled, DELETE /scheduled/:id)
+messageRoutes.route("/", scheduledRoutes);
 
 // Mount fetch routes at root level (GET /, GET /starred)
 messageRoutes.route("/", fetchRoutes);

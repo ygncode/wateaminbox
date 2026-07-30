@@ -87,6 +87,7 @@ export const queryKeys = {
   sharedNotes: createQueryKeyFactory("sharedNotes"),
   assignmentHistory: createQueryKeyFactory("assignmentHistory"),
   chats: createQueryKeyFactory("chats"),
+  scheduledMessages: createQueryKeyFactory("scheduled-messages"),
   search: createQueryKeyFactory("search"),
   status: createQueryKeyFactory("status"),
   export: createQueryKeyFactory("export"),

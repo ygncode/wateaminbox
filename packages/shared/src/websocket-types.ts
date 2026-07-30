@@ -9,6 +9,7 @@ import type {
   Message,
   MessageStatus,
   RemoteHistoryStatus,
+  ScheduledMessageStatus,
 } from "./types/message";
 
 // ============================================================================
@@ -34,6 +35,7 @@ export type ServerToClientEventType =
   | "message:deleted"
   | "message:reaction"
   | "message:failed"
+  | "scheduled_message:updated"
   // Conversation events
   | "conversation:updated"
   | "conversation:read"
@@ -215,6 +217,12 @@ export interface MessageFailedPayload {
   conversationId: string;
   reason: string;
   connectionId?: string;
+}
+
+export interface ScheduledMessageUpdatedPayload {
+  scheduledMessageId: string;
+  conversationId: string;
+  status: ScheduledMessageStatus;
 }
 
 // --- Conversation Payloads ---

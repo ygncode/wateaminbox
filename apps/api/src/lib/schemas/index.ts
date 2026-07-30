@@ -80,6 +80,10 @@ export {
   batchStarSchema,
   batchDeleteSchema,
   batchMessageOperationSchema,
+  scheduleMessageSchema,
+  listScheduledMessagesQuerySchema,
+  SCHEDULE_MIN_LEAD_MS,
+  SCHEDULE_MAX_HORIZON_MS,
   type SendMessageInput,
   type ForwardMessageInput,
   type ListMessagesQuery,
@@ -87,6 +91,8 @@ export {
   type BatchStarInput,
   type BatchDeleteInput,
   type BatchMessageOperationInput,
+  type ScheduleMessageInput,
+  type ListScheduledMessagesQuery,
 } from "./message.js";
 
 // Tag

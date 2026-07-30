@@ -1,5 +1,7 @@
 import type { Message, WhatsAppConnectionIdentity } from "@wateaminbox/shared";
+import { dayjs } from "@wateaminbox/shared";
 import {
+  CalendarClock,
   FileText,
   Image as ImageIcon,
   Paperclip,
@@ -20,12 +22,16 @@ import {
   useRef,
   useState,
 } from "react";
+import { toast } from "sonner";
 import { useRealtimeContext } from "../../contexts/RealtimeProvider";
+import { useScheduleMessage } from "../../hooks/messages";
 import { useClickOutside, useTextareaAutoResize } from "../../hooks/ui";
 import { useQuickReplySuggestions } from "../../hooks/useQuickReplies";
 import { AttachmentPreviewDialog } from "./AttachmentPreviewDialog";
 import { ConnectionRoute } from "./ConnectionIdentity";
 import { QuickReplyPicker } from "./QuickReplyPicker";
+import { ScheduledMessagesBar } from "./ScheduledMessagesBar";
+import { ScheduleMessagePopover } from "./ScheduleMessagePopover";
 import {
   filterQuickReplies,
   getActiveQuickReplyToken,
@@ -131,12 +137,14 @@ export function MessageComposer({
     useState(false);
   const [showAttachmentMenu, setShowAttachmentMenu] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [showSchedulePopover, setShowSchedulePopover] = useState(false);
   const [pendingAttachment, setPendingAttachment] = useState<{
     file: File;
     type: "image" | "document";
   } | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const attachmentMenuRef = useRef<HTMLDivElement>(null);
+  const schedulePopoverRef = useRef<HTMLDivElement>(null);
   const emojiPickerRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
@@ -182,6 +190,12 @@ export function MessageComposer({
   useClickOutside(attachmentMenuRef, () => setShowAttachmentMenu(false), {
     enabled: showAttachmentMenu,
   });
+
+  useClickOutside(schedulePopoverRef, () => setShowSchedulePopover(false), {
+    enabled: showSchedulePopover,
+  });
+
+  const scheduleMessageMutation = useScheduleMessage();
 
   // Focus textarea when reply is set
   useEffect(() => {
@@ -371,6 +385,44 @@ export function MessageComposer({
     }, 100);
   };
 
+  const handleSchedule = (scheduledAtIso: string) => {
+    const trimmedMessage = message.trim();
+    if (!trimmedMessage || isInputDisabled || !contactId) return;
+
+    clearTypingState();
+    scheduleMessageMutation.mutate(
+      {
+        contactId,
+        content: trimmedMessage,
+        replyToMessageId: replyToMessage?.id,
+        scheduledAt: scheduledAtIso,
+      },
+      {
+        onSuccess: () => {
+          setShowSchedulePopover(false);
+          setMessage("");
+          setCaretPosition(0);
+          setIsQuickReplyPickerDismissed(false);
+          onClearReply();
+          resetTextareaHeight();
+          shouldRestoreFocusRef.current = true;
+          toast.success(
+            `Message scheduled for ${dayjs(scheduledAtIso).format(
+              "MMM D [at] HH:mm",
+            )}`,
+          );
+        },
+        onError: (error) => {
+          toast.error(
+            error instanceof Error
+              ? `Failed to schedule message: ${error.message}`
+              : "Failed to schedule message. Please try again.",
+          );
+        },
+      },
+    );
+  };
+
   const handleFileSelect = (
     e: ChangeEvent<HTMLInputElement>,
     type: "image" | "document",
@@ -461,6 +513,9 @@ export function MessageComposer({
             </>
           )}
         </div>
+
+        {/* Upcoming scheduled messages for this conversation */}
+        {contactId && <ScheduledMessagesBar contactId={contactId} />}
 
         {/* Reply preview */}
         {replyToMessage && (
@@ -652,6 +707,41 @@ export function MessageComposer({
                 style={{ minHeight: "40px" }}
               />
             </div>
+          </div>
+
+          {/* Schedule button */}
+          <div className="relative" ref={schedulePopoverRef}>
+            <button
+              type="button"
+              onClick={() => {
+                setShowSchedulePopover(!showSchedulePopover);
+                setShowAttachmentMenu(false);
+                setShowEmojiPicker(false);
+              }}
+              disabled={!message.trim() || isInputDisabled || !contactId}
+              className={`grid size-10 shrink-0 touch-manipulation place-items-center rounded-full transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00a884]/40 ${
+                message.trim() && !isInputDisabled && contactId
+                  ? showSchedulePopover
+                    ? "bg-black/[0.07] text-[#008069] dark:bg-white/[0.08] dark:text-emerald-300"
+                    : "text-[#54656f] hover:bg-black/[0.055] active:bg-black/10 dark:text-dark-text-secondary dark:hover:bg-white/[0.06] dark:active:bg-white/10"
+                  : "cursor-not-allowed text-[#aebac1] dark:text-dark-text-tertiary"
+              }`}
+              aria-label="Schedule message"
+              aria-expanded={showSchedulePopover}
+            >
+              <CalendarClock
+                className="size-5.5"
+                strokeWidth={1.9}
+                aria-hidden="true"
+              />
+            </button>
+
+            {showSchedulePopover && (
+              <ScheduleMessagePopover
+                onSchedule={handleSchedule}
+                isSubmitting={scheduleMessageMutation.isPending}
+              />
+            )}
           </div>
 
           {/* Send button */}

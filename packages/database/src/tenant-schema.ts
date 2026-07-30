@@ -285,6 +285,25 @@ export const TENANT_SCHEMA_CONTRACT = {
     "created_at",
     "published_at",
   ],
+  scheduled_messages: [
+    "id",
+    "contact_id",
+    "content",
+    "message_type",
+    "reply_to_message_id",
+    "scheduled_at",
+    "status",
+    "attempts",
+    "next_attempt_at",
+    "last_error",
+    "sent_message_id",
+    "created_by",
+    "canceled_by",
+    "canceled_at",
+    "sent_at",
+    "created_at",
+    "updated_at",
+  ],
 } as const satisfies {
   [Table in keyof TenantDatabase]: readonly Extract<
     keyof TenantDatabase[Table],
@@ -717,5 +736,41 @@ export async function reconcileTenantSchema<Database>(
   await sql`
     CREATE INDEX IF NOT EXISTS ${sql.ref(`${schemaName}_nats_outbox_pending_idx`)}
     ON ${table("nats_outbox")} (status, next_attempt_at, created_at)
+  `.execute(db);
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS ${table("scheduled_messages")} (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      contact_id UUID NOT NULL,
+      content TEXT NOT NULL,
+      message_type message_type NOT NULL DEFAULT 'text',
+      reply_to_message_id UUID,
+      scheduled_at TIMESTAMPTZ NOT NULL,
+      status TEXT NOT NULL DEFAULT 'scheduled'
+        CHECK (status IN ('scheduled', 'processing', 'sent', 'failed', 'canceled')),
+      attempts INTEGER NOT NULL DEFAULT 0,
+      next_attempt_at TIMESTAMPTZ NOT NULL,
+      last_error TEXT,
+      sent_message_id UUID,
+      created_by UUID NOT NULL,
+      canceled_by UUID,
+      canceled_at TIMESTAMPTZ,
+      sent_at TIMESTAMPTZ,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `.execute(db);
+  await sql`
+    CREATE INDEX IF NOT EXISTS ${sql.ref(
+      `${schemaName}_scheduled_messages_due_idx`,
+    )}
+    ON ${table("scheduled_messages")} (next_attempt_at)
+    WHERE status IN ('scheduled', 'processing')
+  `.execute(db);
+  await sql`
+    CREATE INDEX IF NOT EXISTS ${sql.ref(
+      `${schemaName}_scheduled_messages_contact_idx`,
+    )}
+    ON ${table("scheduled_messages")} (contact_id, scheduled_at)
   `.execute(db);
 }

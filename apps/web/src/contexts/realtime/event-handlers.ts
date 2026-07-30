@@ -10,6 +10,7 @@ import type {
   NewMessagePayload,
   PresencePayload,
   ProfilePicturePayload,
+  ScheduledMessageUpdatedPayload,
   SyncStatusPayload,
   TypingPayload,
 } from "@wateaminbox/shared";
@@ -111,6 +112,14 @@ export function registerRealtimeEventHandlers({
         }),
       );
     }),
+    bindEvent<ScheduledMessageUpdatedPayload>(
+      "scheduled_message:updated",
+      () => {
+        // Postgres is authoritative; refetch the scheduled list wherever it is
+        // on screen so teammates see schedules, sends, and cancellations.
+        qc.invalidateQueries({ queryKey: queryKeys.scheduledMessages.all });
+      },
+    ),
     bindEvent<MessageReactionPayload>("message:reaction", (data) => {
       const payload = data.payload;
       updateMessageInCache(

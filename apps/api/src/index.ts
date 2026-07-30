@@ -15,6 +15,10 @@ import {
   initializeMessageHandler,
   shutdownMessageHandler,
 } from "./services/message-handler.js";
+import {
+  initializeScheduledMessages,
+  shutdownScheduledMessages,
+} from "./services/scheduled-message.service.js";
 import { shutdownTenantConnections } from "./services/tenant.service.js";
 
 const logger = createLogger("Startup");
@@ -58,6 +62,7 @@ if (!isTestEnvironment) {
     });
 
   initializeCommandOutbox();
+  initializeScheduledMessages();
 
   logger.info(
     { port },
@@ -73,6 +78,7 @@ async function shutdown() {
   await shutdownMessageHandler();
   await shutdownMessageCleanup();
   await shutdownCommandOutbox();
+  await shutdownScheduledMessages();
   await closeNatsConnection();
   await shutdownTenantConnections();
   process.exit(0);

@@ -92,6 +92,36 @@ export function advanceMessageStatus(
     : current;
 }
 
+export type ScheduledMessageStatus =
+  | "scheduled"
+  | "processing"
+  | "sent"
+  | "failed"
+  | "canceled";
+
+/**
+ * An outbound message queued for future delivery. Timestamps are ISO 8601 UTC
+ * strings; clients convert to local time for display.
+ */
+export interface ScheduledMessage {
+  id: string;
+  contactId: string;
+  content: string;
+  messageType: MessageType;
+  replyToMessageId: string | null;
+  scheduledAt: string;
+  status: ScheduledMessageStatus;
+  attempts: number;
+  lastError: string | null;
+  sentMessageId: string | null;
+  createdBy: string;
+  createdByName?: string;
+  canceledAt: string | null;
+  sentAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export type MediaDownloadStatus =
   | "pending"
   | "downloading"
