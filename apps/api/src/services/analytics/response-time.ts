@@ -3,7 +3,7 @@
  */
 
 import { db } from "@wateaminbox/database";
-import { toISOString } from "@wateaminbox/shared";
+import { dayjs, toISOString } from "@wateaminbox/shared";
 import { sql } from "kysely";
 import { getSchemaName, getTenantConnection } from "../tenant.service.js";
 import type {
@@ -139,20 +139,45 @@ export async function getResponseTimeTrend(
     ORDER BY message_date ASC
   `.execute(tenantDb);
 
-  return result.rows.map((row) => {
-    const totalCount = Number(row.total_count || 0);
-    const withinSlaCount = Number(row.within_sla_count || 0);
-    return {
-      date:
+  const trendByDate = new Map(
+    result.rows.map((row) => {
+      const totalCount = Number(row.total_count || 0);
+      const withinSlaCount = Number(row.within_sla_count || 0);
+      const date =
         row.date instanceof Date
           ? toISOString(row.date).split("T")[0]
-          : String(row.date),
-      averageResponseTimeMinutes: Number(row.avg_response_minutes || 0),
-      conversationCount: totalCount,
-      slaComplianceRate:
-        totalCount > 0 ? (withinSlaCount / totalCount) * 100 : 0,
-    };
-  });
+          : dayjs.utc(row.date).format("YYYY-MM-DD");
+      return [
+        date,
+        {
+          averageResponseTimeMinutes: Number(row.avg_response_minutes || 0),
+          conversationCount: totalCount,
+          slaComplianceRate:
+            totalCount > 0 ? (withinSlaCount / totalCount) * 100 : 0,
+        },
+      ] as const;
+    }),
+  );
+  const trend: ResponseTimeByDate[] = [];
+  let currentDate = dayjs.utc(startDate).startOf("day");
+  const lastDate = dayjs.utc(endDate).startOf("day");
+
+  while (
+    currentDate.isBefore(lastDate) ||
+    currentDate.isSame(lastDate, "day")
+  ) {
+    const date = currentDate.format("YYYY-MM-DD");
+    const values = trendByDate.get(date);
+    trend.push({
+      date,
+      averageResponseTimeMinutes: values?.averageResponseTimeMinutes ?? 0,
+      conversationCount: values?.conversationCount ?? 0,
+      slaComplianceRate: values?.slaComplianceRate ?? 0,
+    });
+    currentDate = currentDate.add(1, "day");
+  }
+
+  return trend;
 }
 
 /**

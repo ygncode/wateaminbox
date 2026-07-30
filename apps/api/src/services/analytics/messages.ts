@@ -30,11 +30,34 @@ export async function getMessageStats(
     .orderBy("date", "asc")
     .execute();
 
-  return stats.map((s) => ({
-    date: String(s.date),
-    sent: Number(s.sent),
-    received: Number(s.received),
-  }));
+  const statsByDate = new Map(
+    stats.map((stat) => [
+      dayjs.utc(stat.date).format("YYYY-MM-DD"),
+      {
+        sent: Number(stat.sent),
+        received: Number(stat.received),
+      },
+    ]),
+  );
+  const result: MessageStats[] = [];
+  let currentDate = dayjs.utc(startDate).startOf("day");
+  const lastDate = dayjs.utc(endDate).startOf("day");
+
+  while (
+    currentDate.isBefore(lastDate) ||
+    currentDate.isSame(lastDate, "day")
+  ) {
+    const date = currentDate.format("YYYY-MM-DD");
+    const stat = statsByDate.get(date);
+    result.push({
+      date,
+      sent: stat?.sent ?? 0,
+      received: stat?.received ?? 0,
+    });
+    currentDate = currentDate.add(1, "day");
+  }
+
+  return result;
 }
 
 /**
@@ -77,7 +100,10 @@ export async function getHourlyMessageStats(
 ): Promise<{ hour: number; count: number }[]> {
   const tenantDb = getTenantConnection(companyId);
 
-  const startDate = subtractDays(dayjs.utc(), days).toDate();
+  const startDate = subtractDays(
+    dayjs.utc().startOf("day"),
+    Math.max(days - 1, 0),
+  ).toDate();
 
   const results = await tenantDb
     .selectFrom("messages")

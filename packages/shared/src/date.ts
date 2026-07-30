@@ -238,19 +238,9 @@ export function formatDateSeparator(input: DateInput): string {
  */
 export function getDateRange(range: '7d' | '30d' | '90d'): { start: dayjs.Dayjs; end: dayjs.Dayjs } {
   const end = dayjs.utc()
-  let start: dayjs.Dayjs
-
-  switch (range) {
-    case '7d':
-      start = end.subtract(7, 'day')
-      break
-    case '30d':
-      start = end.subtract(30, 'day')
-      break
-    case '90d':
-      start = end.subtract(90, 'day')
-      break
-  }
+  const days = range === '7d' ? 7 : range === '30d' ? 30 : 90
+  // "Last N days" includes today, so start N - 1 calendar days ago.
+  const start = end.startOf('day').subtract(days - 1, 'day')
 
   return { start, end }
 }

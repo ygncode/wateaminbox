@@ -1,13 +1,16 @@
+import {
+  type PointerEvent as ReactPointerEvent,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { formatDate, formatNumber } from "@/hooks/analytics";
 import {
-  chartBaseline,
   chartBox,
   getAreaPath,
   getLabelIndexes,
   getLinePoints,
   getSmoothPath,
-  plotHeight,
-  plotWidth,
 } from "./chart-utils";
 
 export interface EngagementTrendData {
@@ -24,6 +27,31 @@ export interface EngagementTrendChartProps {
 }
 
 export function EngagementTrendChart({ data }: EngagementTrendChartProps) {
+  const chartContainerRef = useRef<HTMLDivElement>(null);
+  const [chartWidth, setChartWidth] = useState<number>(chartBox.width);
+  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
+  const [visibleSeries, setVisibleSeries] = useState({
+    engagement: true,
+    response: true,
+  });
+
+  useLayoutEffect(() => {
+    const container = chartContainerRef.current;
+    if (!container) return;
+
+    const updateWidth = (width: number) => {
+      if (width > 0) setChartWidth(Math.round(width));
+    };
+
+    updateWidth(container.getBoundingClientRect().width);
+    const observer = new ResizeObserver(([entry]) => {
+      updateWidth(entry.contentRect.width);
+    });
+    observer.observe(container);
+
+    return () => observer.disconnect();
+  }, []);
+
   if (data.length === 0) {
     return (
       <div className="grid h-[240px] place-items-center rounded-xl border border-dashed border-[#dce3de] bg-[#fafcfb] text-sm text-[#718078] dark:border-dark-border dark:bg-dark-secondary/40 dark:text-dark-text-secondary">
@@ -32,14 +60,26 @@ export function EngagementTrendChart({ data }: EngagementTrendChartProps) {
     );
   }
 
-  const displayData = data.slice(-14);
+  const displayData = data;
+  const responsiveChartBox = { ...chartBox, width: chartWidth };
+  const plotWidth =
+    responsiveChartBox.width -
+    responsiveChartBox.left -
+    responsiveChartBox.right;
+  const plotHeight =
+    responsiveChartBox.height -
+    responsiveChartBox.top -
+    responsiveChartBox.bottom;
+  const chartBaseline = responsiveChartBox.top + plotHeight;
   const scorePoints = getLinePoints(
     displayData.map((day) => day.engagementScore),
     100,
+    responsiveChartBox,
   );
   const responsePoints = getLinePoints(
     displayData.map((day) => day.responseRate),
     100,
+    responsiveChartBox,
   );
   const labelIndexes = getLabelIndexes(displayData.length);
   const averageScore = Math.round(
@@ -50,6 +90,19 @@ export function EngagementTrendChart({ data }: EngagementTrendChartProps) {
     (total, day) => total + day.activeContacts,
     0,
   );
+  const hoveredDay = hoveredIndex === null ? null : displayData[hoveredIndex];
+  const hoveredX = hoveredIndex === null ? 0 : scorePoints[hoveredIndex].x;
+
+  const handlePointerMove = (event: ReactPointerEvent<SVGSVGElement>) => {
+    const bounds = event.currentTarget.getBoundingClientRect();
+    const pointerX =
+      ((event.clientX - bounds.left) / bounds.width) * responsiveChartBox.width;
+    const index = Math.round(
+      ((pointerX - responsiveChartBox.left) / plotWidth) *
+        (displayData.length - 1),
+    );
+    setHoveredIndex(Math.max(0, Math.min(displayData.length - 1, index)));
+  };
 
   return (
     <div>
@@ -75,91 +128,112 @@ export function EngagementTrendChart({ data }: EngagementTrendChartProps) {
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-3 text-[10px] font-medium text-[#718078] dark:text-dark-text-secondary">
-          <Legend swatch="bg-[#0b7a55]" label="Engagement" />
+        <div className="flex items-center gap-1 text-[10px] font-medium text-[#718078] dark:text-dark-text-secondary">
+          <Legend
+            swatch="bg-[#0b7a55]"
+            label="Engagement"
+            active={visibleSeries.engagement}
+            onToggle={() =>
+              setVisibleSeries((series) => ({
+                ...series,
+                engagement: !series.engagement,
+              }))
+            }
+          />
           <Legend
             swatch="border-t-2 border-dashed border-[#d18b35]"
             label="Response"
+            active={visibleSeries.response}
+            onToggle={() =>
+              setVisibleSeries((series) => ({
+                ...series,
+                response: !series.response,
+              }))
+            }
           />
         </div>
       </div>
 
-      <svg
-        viewBox={`0 0 ${chartBox.width} ${chartBox.height}`}
-        className="h-[220px] w-full overflow-visible"
-        role="img"
-        aria-label={`Engagement trend with an average score of ${averageScore} out of 100`}
-      >
-        <defs>
-          <linearGradient id="engagement-area" x1="0" x2="0" y1="0" y2="1">
-            <stop offset="0%" stopColor="#0b7a55" stopOpacity="0.22" />
-            <stop offset="100%" stopColor="#0b7a55" stopOpacity="0" />
-          </linearGradient>
-        </defs>
+      <div ref={chartContainerRef} className="relative w-full">
+        <svg
+          viewBox={`0 0 ${responsiveChartBox.width} ${responsiveChartBox.height}`}
+          className="block h-[220px] w-full touch-none overflow-visible"
+          role="img"
+          aria-label={`Engagement trend with an average score of ${averageScore} out of 100`}
+          onPointerMove={handlePointerMove}
+          onPointerLeave={() => setHoveredIndex(null)}
+        >
+          <defs>
+            <linearGradient id="engagement-area" x1="0" x2="0" y1="0" y2="1">
+              <stop offset="0%" stopColor="#0b7a55" stopOpacity="0.22" />
+              <stop offset="100%" stopColor="#0b7a55" stopOpacity="0" />
+            </linearGradient>
+          </defs>
 
-        <rect
-          x={chartBox.left}
-          y={chartBox.top}
-          width={plotWidth}
-          height={plotHeight * 0.3}
-          fill="#e8f4ee"
-          className="dark:fill-emerald-950/20"
-          rx="8"
-        />
-        {[100, 75, 50, 25, 0].map((tick, index) => {
-          const y = chartBox.top + (index / 4) * plotHeight;
-          return (
-            <g key={tick}>
-              <line
-                x1={chartBox.left}
-                x2={chartBox.width - chartBox.right}
-                y1={y}
-                y2={y}
-                stroke="currentColor"
-                className="text-[#e4eae6] dark:text-dark-border"
-                strokeDasharray="3 5"
+          <rect
+            x={responsiveChartBox.left}
+            y={responsiveChartBox.top}
+            width={plotWidth}
+            height={plotHeight * 0.3}
+            fill="#e8f4ee"
+            className="dark:fill-emerald-950/20"
+            rx="8"
+          />
+          {[100, 75, 50, 25, 0].map((tick, index) => {
+            const y = responsiveChartBox.top + (index / 4) * plotHeight;
+            return (
+              <g key={tick}>
+                <line
+                  x1={responsiveChartBox.left}
+                  x2={responsiveChartBox.width - responsiveChartBox.right}
+                  y1={y}
+                  y2={y}
+                  stroke="currentColor"
+                  className="text-[#e4eae6] dark:text-dark-border"
+                  strokeDasharray="3 5"
+                />
+                <text
+                  x={responsiveChartBox.left - 10}
+                  y={y + 4}
+                  textAnchor="end"
+                  className="fill-[#8a9690] text-[10px] dark:fill-dark-text-tertiary"
+                >
+                  {tick}
+                </text>
+              </g>
+            );
+          })}
+
+          {visibleSeries.engagement && (
+            <>
+              <path
+                d={getAreaPath(scorePoints, chartBaseline)}
+                fill="url(#engagement-area)"
               />
-              <text
-                x={chartBox.left - 10}
-                y={y + 4}
-                textAnchor="end"
-                className="fill-[#8a9690] text-[10px] dark:fill-dark-text-tertiary"
-              >
-                {tick}
-              </text>
-            </g>
-          );
-        })}
+              <path
+                d={getSmoothPath(scorePoints)}
+                fill="none"
+                stroke="#0b7a55"
+                strokeWidth="3"
+                strokeLinecap="round"
+              />
+            </>
+          )}
+          {visibleSeries.response && (
+            <path
+              d={getSmoothPath(responsePoints)}
+              fill="none"
+              stroke="#d18b35"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              strokeDasharray="6 5"
+            />
+          )}
 
-        <path d={getAreaPath(scorePoints)} fill="url(#engagement-area)" />
-        <path
-          d={getSmoothPath(scorePoints)}
-          fill="none"
-          stroke="#0b7a55"
-          strokeWidth="3"
-          strokeLinecap="round"
-        />
-        <path
-          d={getSmoothPath(responsePoints)}
-          fill="none"
-          stroke="#d18b35"
-          strokeWidth="2.5"
-          strokeLinecap="round"
-          strokeDasharray="6 5"
-        />
-
-        {displayData.map((day, index) => (
-          <g key={day.date}>
-            <circle
-              cx={scorePoints[index].x}
-              cy={scorePoints[index].y}
-              r="7"
-              fill="transparent"
-            >
-              <title>{`${formatDate(day.date)}: ${day.engagementScore}/100 engagement, ${day.responseRate}% response rate`}</title>
-            </circle>
-            {labelIndexes.has(index) && (
+          {displayData.map((day, index) =>
+            labelIndexes.has(index) ? (
               <text
+                key={day.date}
                 x={scorePoints[index].x}
                 y={chartBaseline + 21}
                 textAnchor={
@@ -173,20 +247,120 @@ export function EngagementTrendChart({ data }: EngagementTrendChartProps) {
               >
                 {formatDate(day.date)}
               </text>
+            ) : null,
+          )}
+
+          {hoveredDay && hoveredIndex !== null && (
+            <g aria-hidden="true">
+              <line
+                x1={hoveredX}
+                x2={hoveredX}
+                y1={responsiveChartBox.top}
+                y2={chartBaseline}
+                stroke="currentColor"
+                className="text-[#aab5af] dark:text-dark-text-tertiary"
+                strokeWidth="1"
+                strokeDasharray="3 4"
+              />
+              {visibleSeries.engagement && (
+                <circle
+                  cx={hoveredX}
+                  cy={scorePoints[hoveredIndex].y}
+                  r="5"
+                  fill="#0b7a55"
+                  stroke="white"
+                  strokeWidth="2"
+                />
+              )}
+              {visibleSeries.response && (
+                <circle
+                  cx={hoveredX}
+                  cy={responsePoints[hoveredIndex].y}
+                  r="5"
+                  fill="#d18b35"
+                  stroke="white"
+                  strokeWidth="2"
+                />
+              )}
+            </g>
+          )}
+
+          <rect
+            x={responsiveChartBox.left}
+            y={responsiveChartBox.top}
+            width={plotWidth}
+            height={plotHeight}
+            fill="transparent"
+          />
+        </svg>
+
+        {hoveredDay && (visibleSeries.engagement || visibleSeries.response) && (
+          <div
+            className="pointer-events-none absolute top-0 z-10 min-w-40 -translate-x-1/2 rounded-lg border border-[#dce3de] bg-white/95 px-3 py-2 text-[11px] shadow-lg backdrop-blur-sm dark:border-dark-border dark:bg-dark-secondary/95"
+            style={{
+              left: Math.min(
+                Math.max(88, hoveredX),
+                Math.max(88, chartWidth - 88),
+              ),
+            }}
+            role="status"
+          >
+            <p className="mb-1.5 font-semibold text-[#31463e] dark:text-dark-text-primary">
+              {formatDate(hoveredDay.date)}
+            </p>
+            {visibleSeries.engagement && (
+              <p className="flex items-center justify-between gap-4 text-[#617169] dark:text-dark-text-secondary">
+                <span className="flex items-center gap-1.5">
+                  <span className="h-2 w-2 rounded-full bg-[#0b7a55]" />
+                  Engagement
+                </span>
+                <strong className="tabular-nums text-[#075c41] dark:text-emerald-300">
+                  {hoveredDay.engagementScore}/100
+                </strong>
+              </p>
             )}
-          </g>
-        ))}
-      </svg>
+            {visibleSeries.response && (
+              <p className="mt-1 flex items-center justify-between gap-4 text-[#617169] dark:text-dark-text-secondary">
+                <span className="flex items-center gap-1.5">
+                  <span className="h-2 w-2 rounded-full bg-[#d18b35]" />
+                  Response
+                </span>
+                <strong className="tabular-nums text-[#a76521] dark:text-amber-300">
+                  {hoveredDay.responseRate}%
+                </strong>
+              </p>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
 
-function Legend({ swatch, label }: { swatch: string; label: string }) {
+function Legend({
+  swatch,
+  label,
+  active,
+  onToggle,
+}: {
+  swatch: string;
+  label: string;
+  active: boolean;
+  onToggle: () => void;
+}) {
   return (
-    <span className="flex items-center gap-1.5">
+    <button
+      type="button"
+      className={`flex items-center gap-1.5 rounded-md px-2 py-1.5 transition-colors hover:bg-[#f0f4f1] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0b7a55]/40 dark:hover:bg-dark-tertiary ${
+        active ? "opacity-100" : "opacity-40"
+      }`}
+      aria-pressed={active}
+      aria-label={`${active ? "Hide" : "Show"} ${label.toLowerCase()} series`}
+      onClick={onToggle}
+    >
       <span className={`h-2 w-4 rounded-full ${swatch}`} />
-      {label}
-    </span>
+      <span className={active ? "" : "line-through"}>{label}</span>
+    </button>
   );
 }
 

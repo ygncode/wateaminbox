@@ -37,7 +37,7 @@ analyticsRoutes.get(
     const endDateDayjs = (endDateStr ? parseDate(endDateStr) : null) ?? now();
     const startDateDayjs =
       (startDateStr ? parseDate(startDateStr) : null) ??
-      subtractDays(endDateDayjs, 30);
+      subtractDays(endDateDayjs, 29).startOf("day");
 
     const trend = await getResolutionTrend(
       tenantDb,

@@ -85,9 +85,11 @@ describe("dashboard analytics", () => {
           activeUsers: 1,
           unreadConversations: 0,
         });
+        expect(results[1]).toHaveLength(30);
         expect(results[5]).toHaveLength(24);
-        expect(results[6]).toHaveLength(31);
-        expect(results[8]).toHaveLength(31);
+        expect(results[6]).toHaveLength(30);
+        expect(results[8]).toHaveLength(30);
+        expect(results[10]).toHaveLength(30);
         expect(results[13]).toMatchObject({
           totalConversations: 0,
           resolutionRate: 0,

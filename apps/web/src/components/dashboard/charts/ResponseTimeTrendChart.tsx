@@ -1,6 +1,11 @@
 import { dayjs } from "@wateaminbox/shared";
 import {
-  chartBaseline,
+  type PointerEvent as ReactPointerEvent,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
+import {
   chartBox,
   formatAxisNumber,
   getAreaPath,
@@ -9,7 +14,6 @@ import {
   getLinePoints,
   getNiceMax,
   getSmoothPath,
-  plotHeight,
 } from "./chart-utils";
 
 export interface ResponseTimeTrendData {
@@ -28,125 +32,251 @@ export function ResponseTimeTrendChart({
   data,
   slaThreshold,
 }: ResponseTimeTrendChartProps) {
-  const displayData = data.slice(-14);
+  const chartContainerRef = useRef<HTMLDivElement>(null);
+  const [chartWidth, setChartWidth] = useState<number>(chartBox.width);
+  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
+
+  useLayoutEffect(() => {
+    const container = chartContainerRef.current;
+    if (!container) return;
+
+    const updateWidth = (width: number) => {
+      if (width > 0) setChartWidth(Math.round(width));
+    };
+
+    updateWidth(container.getBoundingClientRect().width);
+    const observer = new ResizeObserver(([entry]) => {
+      updateWidth(entry.contentRect.width);
+    });
+    observer.observe(container);
+
+    return () => observer.disconnect();
+  }, []);
+
+  const displayData = data;
   const maxValue = getNiceMax([
     ...displayData.map((day) => day.averageResponseTimeMinutes),
     slaThreshold,
   ]);
+  const responsiveChartBox = { ...chartBox, width: chartWidth };
+  const plotWidth =
+    responsiveChartBox.width -
+    responsiveChartBox.left -
+    responsiveChartBox.right;
+  const plotHeight =
+    responsiveChartBox.height -
+    responsiveChartBox.top -
+    responsiveChartBox.bottom;
+  const chartBaseline = responsiveChartBox.top + plotHeight;
   const points = getLinePoints(
     displayData.map((day) => day.averageResponseTimeMinutes),
     maxValue,
+    responsiveChartBox,
   );
   const thresholdY =
-    chartBox.top +
+    responsiveChartBox.top +
     plotHeight -
     (slaThreshold / Math.max(maxValue, 1)) * plotHeight;
   const labelIndexes = getLabelIndexes(displayData.length);
+  const hoveredDay = hoveredIndex === null ? null : displayData[hoveredIndex];
+  const hoveredPoint = hoveredIndex === null ? null : points[hoveredIndex];
+
+  const handlePointerMove = (event: ReactPointerEvent<SVGSVGElement>) => {
+    if (displayData.length === 0) return;
+
+    const bounds = event.currentTarget.getBoundingClientRect();
+    const pointerX =
+      ((event.clientX - bounds.left) / bounds.width) * responsiveChartBox.width;
+    const index = Math.round(
+      ((pointerX - responsiveChartBox.left) / plotWidth) *
+        (displayData.length - 1),
+    );
+    setHoveredIndex(Math.max(0, Math.min(displayData.length - 1, index)));
+  };
 
   return (
-    <svg
-      viewBox={`0 0 ${chartBox.width} ${chartBox.height}`}
-      className="h-[220px] w-full overflow-visible"
-      role="img"
-      aria-label={`Average response-time trend with a ${slaThreshold}-minute SLA target`}
-    >
-      <defs>
-        <linearGradient id="response-time-area" x1="0" x2="0" y1="0" y2="1">
-          <stop offset="0%" stopColor="#4185c5" stopOpacity="0.22" />
-          <stop offset="100%" stopColor="#4185c5" stopOpacity="0" />
-        </linearGradient>
-      </defs>
-
-      {getGridTicks(maxValue).map((tick, index) => {
-        const y = chartBox.top + (index / 4) * plotHeight;
-        return (
-          <g key={tick}>
-            <line
-              x1={chartBox.left}
-              x2={chartBox.width - chartBox.right}
-              y1={y}
-              y2={y}
-              stroke="currentColor"
-              className="text-[#e4eae6] dark:text-dark-border"
-              strokeDasharray="3 5"
-            />
-            <text
-              x={chartBox.left - 10}
-              y={y + 4}
-              textAnchor="end"
-              className="fill-[#8a9690] text-[10px] dark:fill-dark-text-tertiary"
-            >
-              {formatAxisNumber(tick)}m
-            </text>
-          </g>
-        );
-      })}
-
-      <line
-        x1={chartBox.left}
-        x2={chartBox.width - chartBox.right}
-        y1={thresholdY}
-        y2={thresholdY}
-        stroke="#d18b35"
-        strokeWidth="2"
-        strokeDasharray="6 5"
-      />
-      <text
-        x={chartBox.width - chartBox.right}
-        y={thresholdY - 7}
-        textAnchor="end"
-        className="fill-[#b36c24] text-[10px] font-semibold dark:fill-amber-300"
+    <div ref={chartContainerRef} className="relative w-full">
+      <svg
+        viewBox={`0 0 ${responsiveChartBox.width} ${responsiveChartBox.height}`}
+        className="block h-[220px] w-full touch-none overflow-visible"
+        role="img"
+        aria-label={`Average response-time trend with a ${slaThreshold}-minute SLA target`}
+        onPointerMove={handlePointerMove}
+        onPointerLeave={() => setHoveredIndex(null)}
       >
-        {slaThreshold}m SLA
-      </text>
+        <defs>
+          <linearGradient id="response-time-area" x1="0" x2="0" y1="0" y2="1">
+            <stop offset="0%" stopColor="#4185c5" stopOpacity="0.22" />
+            <stop offset="100%" stopColor="#4185c5" stopOpacity="0" />
+          </linearGradient>
+        </defs>
 
-      <path d={getAreaPath(points)} fill="url(#response-time-area)" />
-      <path
-        d={getSmoothPath(points)}
-        fill="none"
-        stroke="#4185c5"
-        strokeWidth="3"
-        strokeLinecap="round"
-      />
+        {getGridTicks(maxValue).map((tick, index) => {
+          const y = responsiveChartBox.top + (index / 4) * plotHeight;
+          return (
+            <g key={tick}>
+              <line
+                x1={responsiveChartBox.left}
+                x2={responsiveChartBox.width - responsiveChartBox.right}
+                y1={y}
+                y2={y}
+                stroke="currentColor"
+                className="text-[#e4eae6] dark:text-dark-border"
+                strokeDasharray="3 5"
+              />
+              <text
+                x={responsiveChartBox.left - 10}
+                y={y + 4}
+                textAnchor="end"
+                className="fill-[#8a9690] text-[10px] dark:fill-dark-text-tertiary"
+              >
+                {formatAxisNumber(tick)}m
+              </text>
+            </g>
+          );
+        })}
 
-      {displayData.map((day, index) => (
-        <g key={day.date}>
-          <circle
-            cx={points[index].x}
-            cy={points[index].y}
-            r="4"
-            fill={
-              day.slaComplianceRate >= 90
-                ? "#0b7a55"
-                : day.slaComplianceRate >= 70
-                  ? "#d18b35"
-                  : "#cf5a5a"
-            }
-            stroke="white"
-            strokeWidth="2"
-          >
-            <title>{`${dayjs(day.date).format("MMM D")}: ${formatMinutes(day.averageResponseTimeMinutes)} average, ${Math.round(day.slaComplianceRate)}% SLA`}</title>
-          </circle>
-          {labelIndexes.has(index) && (
-            <text
-              x={points[index].x}
-              y={chartBaseline + 21}
-              textAnchor={
-                index === 0
-                  ? "start"
-                  : index === displayData.length - 1
-                    ? "end"
-                    : "middle"
-              }
-              className="fill-[#8a9690] text-[10px] dark:fill-dark-text-tertiary"
+        <line
+          x1={responsiveChartBox.left}
+          x2={responsiveChartBox.width - responsiveChartBox.right}
+          y1={thresholdY}
+          y2={thresholdY}
+          stroke="#d18b35"
+          strokeWidth="2"
+          strokeDasharray="6 5"
+        />
+        <text
+          x={responsiveChartBox.width - responsiveChartBox.right}
+          y={thresholdY - 7}
+          textAnchor="end"
+          className="fill-[#b36c24] text-[10px] font-semibold dark:fill-amber-300"
+        >
+          {slaThreshold}m SLA
+        </text>
+
+        <path
+          d={getAreaPath(points, chartBaseline)}
+          fill="url(#response-time-area)"
+        />
+        <path
+          d={getSmoothPath(points)}
+          fill="none"
+          stroke="#4185c5"
+          strokeWidth="3"
+          strokeLinecap="round"
+        />
+
+        {displayData.map((day, index) => (
+          <g key={day.date}>
+            <circle
+              cx={points[index].x}
+              cy={points[index].y}
+              r="4"
+              fill={getComplianceColor(day.slaComplianceRate)}
+              stroke="white"
+              strokeWidth="2"
+            />
+            {labelIndexes.has(index) && (
+              <text
+                x={points[index].x}
+                y={chartBaseline + 21}
+                textAnchor={
+                  index === 0
+                    ? "start"
+                    : index === displayData.length - 1
+                      ? "end"
+                      : "middle"
+                }
+                className="fill-[#8a9690] text-[10px] dark:fill-dark-text-tertiary"
+              >
+                {dayjs(day.date).format("MMM D")}
+              </text>
+            )}
+          </g>
+        ))}
+
+        {hoveredDay && hoveredPoint && (
+          <g aria-hidden="true">
+            <line
+              x1={hoveredPoint.x}
+              x2={hoveredPoint.x}
+              y1={responsiveChartBox.top}
+              y2={chartBaseline}
+              stroke="currentColor"
+              className="text-[#aab5af] dark:text-dark-text-tertiary"
+              strokeWidth="1"
+              strokeDasharray="3 4"
+            />
+            <circle
+              cx={hoveredPoint.x}
+              cy={hoveredPoint.y}
+              r="6"
+              fill={getComplianceColor(hoveredDay.slaComplianceRate)}
+              stroke="white"
+              strokeWidth="2.5"
+            />
+          </g>
+        )}
+
+        <rect
+          x={responsiveChartBox.left}
+          y={responsiveChartBox.top}
+          width={plotWidth}
+          height={plotHeight}
+          fill="transparent"
+        />
+      </svg>
+
+      {hoveredDay && hoveredPoint && (
+        <div
+          className="pointer-events-none absolute top-0 z-10 min-w-44 -translate-x-1/2 rounded-lg border border-[#dce3de] bg-white/95 px-3 py-2 text-[11px] shadow-lg backdrop-blur-sm dark:border-dark-border dark:bg-dark-secondary/95"
+          style={{
+            left: Math.min(
+              Math.max(96, hoveredPoint.x),
+              Math.max(96, chartWidth - 96),
+            ),
+          }}
+          role="status"
+        >
+          <p className="mb-1.5 font-semibold text-[#31463e] dark:text-dark-text-primary">
+            {dayjs(hoveredDay.date).format("MMM D, YYYY")}
+          </p>
+          <p className="flex items-center justify-between gap-4 text-[#617169] dark:text-dark-text-secondary">
+            <span className="flex items-center gap-1.5">
+              <span className="h-2 w-2 rounded-full bg-[#4185c5]" />
+              Average response
+            </span>
+            <strong className="tabular-nums text-[#286fae] dark:text-blue-300">
+              {formatMinutes(hoveredDay.averageResponseTimeMinutes)}
+            </strong>
+          </p>
+          <p className="mt-1 flex items-center justify-between gap-4 text-[#617169] dark:text-dark-text-secondary">
+            <span>SLA compliance</span>
+            <strong
+              className="tabular-nums"
+              style={{
+                color: getComplianceColor(hoveredDay.slaComplianceRate),
+              }}
             >
-              {dayjs(day.date).format("MMM D")}
-            </text>
-          )}
-        </g>
-      ))}
-    </svg>
+              {Math.round(hoveredDay.slaComplianceRate)}%
+            </strong>
+          </p>
+          <p className="mt-1 flex items-center justify-between gap-4 text-[#617169] dark:text-dark-text-secondary">
+            <span>Conversations</span>
+            <strong className="tabular-nums text-[#31463e] dark:text-dark-text-primary">
+              {hoveredDay.conversationCount.toLocaleString()}
+            </strong>
+          </p>
+        </div>
+      )}
+    </div>
   );
+}
+
+function getComplianceColor(rate: number): string {
+  if (rate >= 90) return "#0b7a55";
+  if (rate >= 70) return "#d18b35";
+  return "#cf5a5a";
 }
 
 function formatMinutes(minutes: number): string {

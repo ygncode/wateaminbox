@@ -20,7 +20,7 @@ export function NewContactsChart({ data }: NewContactsChartProps) {
     return <ChartEmptyState />;
   }
 
-  const displayData = data.slice(-14);
+  const displayData = data;
   const maxCount = getNiceMax(displayData.map((day) => day.count));
   const totalNew = displayData.reduce((sum, day) => sum + day.count, 0);
   const latestCumulative =

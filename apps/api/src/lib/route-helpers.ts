@@ -1,5 +1,5 @@
-import type { Context } from "hono";
 import { subtractDays, toDbDate } from "@wateaminbox/shared";
+import type { Context } from "hono";
 import { NotFoundError } from "./errors.js";
 
 /**
@@ -45,7 +45,9 @@ export function extractDateRange(c: Context, defaultDays = 30): DateRange {
   const endDate = endDateStr ? toDbDate(endDateStr) : toDbDate();
   const startDate = startDateStr
     ? toDbDate(startDateStr)
-    : subtractDays(endDate, defaultDays).toDate();
+    : subtractDays(endDate, Math.max(defaultDays - 1, 0))
+        .startOf("day")
+        .toDate();
 
   return { startDate, endDate };
 }

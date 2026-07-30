@@ -3,6 +3,15 @@ export interface ChartPoint {
   y: number;
 }
 
+export interface ChartBox {
+  width: number;
+  height: number;
+  left: number;
+  right: number;
+  top: number;
+  bottom: number;
+}
+
 export const chartBox = {
   width: 640,
   height: 220,
@@ -32,12 +41,15 @@ export function getNiceMax(values: number[]): number {
 export function getLinePoints(
   values: number[],
   maxValue: number,
+  box: ChartBox = chartBox,
 ): ChartPoint[] {
   const denominator = Math.max(values.length - 1, 1);
+  const width = box.width - box.left - box.right;
+  const height = box.height - box.top - box.bottom;
 
   return values.map((value, index) => ({
-    x: chartBox.left + (index / denominator) * plotWidth,
-    y: chartBox.top + plotHeight - (value / Math.max(maxValue, 1)) * plotHeight,
+    x: box.left + (index / denominator) * width,
+    y: box.top + height - (value / Math.max(maxValue, 1)) * height,
   }));
 }
 
@@ -64,13 +76,16 @@ export function getSmoothPath(points: ChartPoint[]): string {
   return path;
 }
 
-export function getAreaPath(points: ChartPoint[]): string {
+export function getAreaPath(
+  points: ChartPoint[],
+  baseline = chartBaseline,
+): string {
   if (points.length === 0) return "";
   const line = getSmoothPath(points);
   const first = points[0];
   const last = points[points.length - 1];
 
-  return `${line} L ${last.x} ${chartBaseline} L ${first.x} ${chartBaseline} Z`;
+  return `${line} L ${last.x} ${baseline} L ${first.x} ${baseline} Z`;
 }
 
 export function getGridTicks(maxValue: number, count = 4): number[] {
