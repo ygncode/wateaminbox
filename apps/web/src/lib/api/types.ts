@@ -229,11 +229,19 @@ export interface ContactImportPreview {
   existingName: string | null;
 }
 
+/** Connection that imported contacts will be linked to */
+export interface ContactImportConnection {
+  id: string;
+  name: string | null;
+  phoneNumber: string | null;
+}
+
 export interface ContactImportPreviewResponse {
   total: number;
   existingCount: number;
   newCount: number;
   preview: ContactImportPreview[];
+  connection: ContactImportConnection;
 }
 
 export interface ContactImportResult {
@@ -254,6 +262,7 @@ export interface ContactImportResponse {
     errors: number;
   };
   results: ContactImportResult[];
+  connection: ContactImportConnection;
 }
 
 // Analytics types

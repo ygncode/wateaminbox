@@ -5,6 +5,7 @@ import type {
   ContactImportResponse,
 } from "../../lib/api";
 import { importContacts, previewContactImport } from "../../lib/api";
+import { useWhatsAppConnectionsList } from "../../hooks/whatsapp";
 import {
   StepWizard,
   StepContent,
@@ -47,10 +48,36 @@ export function ContactImport({
     updateExisting: true,
     createTags: true,
   });
+  const [selectedConnectionId, setSelectedConnectionId] = useState<
+    string | null
+  >(null);
+
+  // Imported contacts get linked to a WhatsApp account. Sole connected
+  // account is used automatically; several require an explicit pick.
+  const { data: connections = [] } = useWhatsAppConnectionsList();
+  const connectedConnections = connections.filter(
+    (connection) => connection.status === "connected" && !connection.archivedAt,
+  );
+  const effectiveConnectionId =
+    connectedConnections.length === 1
+      ? connectedConnections[0].id
+      : connectedConnections.some(
+            (connection) => connection.id === selectedConnectionId,
+          )
+        ? selectedConnectionId
+        : null;
 
   const handleFileSelect = async (selectedFile: File) => {
     if (!selectedFile.name.endsWith(".csv")) {
       setError("Please upload a CSV file");
+      return;
+    }
+    if (!effectiveConnectionId) {
+      setError(
+        connectedConnections.length === 0
+          ? "Connect a WhatsApp account before importing contacts"
+          : "Choose which WhatsApp account the contacts belong to",
+      );
       return;
     }
 
@@ -59,7 +86,10 @@ export function ContactImport({
     setLoading(true);
 
     try {
-      const previewData = await previewContactImport(selectedFile);
+      const previewData = await previewContactImport(
+        selectedFile,
+        effectiveConnectionId,
+      );
       setPreview(previewData);
       setStep("preview");
     } catch (err) {
@@ -70,14 +100,17 @@ export function ContactImport({
   };
 
   const handleImport = async () => {
-    if (!file) return;
+    if (!file || !effectiveConnectionId) return;
 
     setStep("importing");
     setLoading(true);
     setError(null);
 
     try {
-      const importResult = await importContacts(file, options);
+      const importResult = await importContacts(file, {
+        ...options,
+        connectionId: effectiveConnectionId,
+      });
       setResult(importResult);
       setStep("complete");
       onImportComplete?.();
@@ -129,7 +162,13 @@ export function ContactImport({
           showProgress={step !== "upload"}
         >
           <StepContent stepId="upload" currentStep={step}>
-            <UploadStep loading={loading} onFileSelect={handleFileSelect} />
+            <UploadStep
+              loading={loading}
+              onFileSelect={handleFileSelect}
+              connections={connectedConnections}
+              selectedConnectionId={effectiveConnectionId}
+              onSelectConnection={setSelectedConnectionId}
+            />
           </StepContent>
 
           <StepContent stepId="preview" currentStep={step}>

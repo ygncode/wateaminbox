@@ -42,9 +42,13 @@ export async function updateContact(
 
 export async function previewContactImport(
   file: File,
+  connectionId?: string,
 ): Promise<ContactImportPreviewResponse> {
   const formData = new FormData();
   formData.append("file", file);
+  if (connectionId) {
+    formData.append("connectionId", connectionId);
+  }
   return fetchFormDataWithAuth<ContactImportPreviewResponse>(
     "/contacts/import/preview",
     formData,
@@ -53,7 +57,11 @@ export async function previewContactImport(
 
 export async function importContacts(
   file: File,
-  options: { updateExisting?: boolean; createTags?: boolean } = {},
+  options: {
+    updateExisting?: boolean;
+    createTags?: boolean;
+    connectionId?: string;
+  } = {},
 ): Promise<ContactImportResponse> {
   const formData = new FormData();
   formData.append("file", file);
@@ -62,6 +70,9 @@ export async function importContacts(
   }
   if (options.createTags !== undefined) {
     formData.append("createTags", String(options.createTags));
+  }
+  if (options.connectionId) {
+    formData.append("connectionId", options.connectionId);
   }
   return fetchFormDataWithAuth<ContactImportResponse>(
     "/contacts/import",

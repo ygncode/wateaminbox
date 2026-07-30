@@ -1,5 +1,10 @@
 import type { TenantDatabase } from "@wateaminbox/database";
-import type { Kysely, Transaction } from "kysely";
+import { type Kysely, sql, type Transaction } from "kysely";
+import {
+  NotFoundError,
+  ServiceUnavailableError,
+  ValidationError,
+} from "../../lib/errors.js";
 import { ImportCriticalError, ImportValidationError } from "./errors.js";
 import type {
   ContactImportResult,
@@ -7,6 +12,76 @@ import type {
   ImportSummary,
 } from "./types.js";
 import { normalizePhoneNumber } from "./validation.js";
+
+/** The WhatsApp connection imported contacts will be linked to. */
+export interface ImportConnection {
+  id: string;
+  name: string | null;
+  phone_number: string | null;
+}
+
+/**
+ * Resolve which WhatsApp connection an import targets.
+ *
+ * Imported contacts must carry a `whatsapp_connection_id` — every send path
+ * routes through the contact's own connection, so an unlinked contact can
+ * never be messaged. When the tenant has exactly one connected account it is
+ * chosen automatically; with several, the caller must pick one explicitly
+ * (mirrors POST /contacts).
+ *
+ * @throws {NotFoundError} When the explicit connectionId doesn't exist or is archived
+ * @throws {ValidationError} When the explicit connection isn't connected, or
+ *   no connectionId was given while multiple accounts are connected
+ * @throws {ServiceUnavailableError} When no connected account exists
+ */
+export async function resolveImportConnection(
+  tenantDb: Kysely<TenantDatabase>,
+  connectionId?: string,
+): Promise<ImportConnection> {
+  if (connectionId) {
+    const connection = await tenantDb
+      .selectFrom("whatsapp_connections")
+      .select(["id", "name", "phone_number", "status"])
+      .where("id", "=", connectionId)
+      .where("archived_at", "is", null)
+      .executeTakeFirst();
+
+    if (!connection) {
+      throw new NotFoundError("WhatsApp connection");
+    }
+    if (connection.status !== "connected") {
+      throw new ValidationError(
+        "The selected WhatsApp connection is not connected",
+      );
+    }
+    return {
+      id: connection.id,
+      name: connection.name,
+      phone_number: connection.phone_number,
+    };
+  }
+
+  const connections = await tenantDb
+    .selectFrom("whatsapp_connections")
+    .select(["id", "name", "phone_number"])
+    .where("status", "=", "connected")
+    .where("archived_at", "is", null)
+    .orderBy("created_at", "asc")
+    .limit(2)
+    .execute();
+
+  if (connections.length === 0) {
+    throw new ServiceUnavailableError(
+      "No connected WhatsApp account is available. Connect one before importing contacts.",
+    );
+  }
+  if (connections.length > 1) {
+    throw new ValidationError(
+      "connectionId is required when multiple WhatsApp accounts are connected",
+    );
+  }
+  return connections[0];
+}
 
 /**
  * Handle tags for a contact during import
@@ -159,11 +234,13 @@ export async function importContacts(
   rows: ContactImportRow[],
   userId: string,
   options: {
+    /** Connection new contacts are linked to; resolve via {@link resolveImportConnection} */
+    connectionId: string;
     updateExisting?: boolean;
     createTags?: boolean;
-  } = {},
+  },
 ): Promise<ImportSummary> {
-  const { updateExisting = true, createTags = true } = options;
+  const { connectionId, updateExisting = true, createTags = true } = options;
 
   // Initialize summary counters
   const summary: ImportSummary = {
@@ -209,13 +286,27 @@ export async function importContacts(
           throw new ImportValidationError("Invalid phone number");
         }
 
-        // Check if contact already exists (by JID or phone number)
+        // Check if the contact already exists (by JID or phone number) on the
+        // target connection. The same number reachable through a different
+        // connection is a different contact row by design, so it must not
+        // block or be overwritten by this import. Rows with a NULL connection
+        // are unlinked legacy imports; matching them lets this import adopt
+        // them instead of creating an unmessageable duplicate.
         const existingContact = await trx
           .selectFrom("contacts")
-          .select(["id"])
+          .select(["id", "whatsapp_connection_id"])
           .where((eb) =>
             eb.or([eb("jid", "=", jid), eb("phone_number", "=", phoneNumber)]),
           )
+          .where((eb) =>
+            eb.or([
+              eb("whatsapp_connection_id", "=", connectionId),
+              eb("whatsapp_connection_id", "is", null),
+            ]),
+          )
+          // Prefer the row already linked to this connection over an
+          // unlinked legacy row when both exist.
+          .orderBy(sql`whatsapp_connection_id IS NULL`)
           .executeTakeFirst();
 
         if (existingContact) {
@@ -234,6 +325,11 @@ export async function importContacts(
           }
           if (row.notes) {
             updateData.notes_shared = row.notes;
+          }
+          // Adopt unlinked legacy rows: link them to the target connection so
+          // they become messageable instead of spawning a duplicate later.
+          if (existingContact.whatsapp_connection_id === null) {
+            updateData.whatsapp_connection_id = connectionId;
           }
 
           await trx
@@ -261,6 +357,7 @@ export async function importContacts(
           const newContact = await trx
             .insertInto("contacts")
             .values({
+              whatsapp_connection_id: connectionId,
               jid,
               phone_number: phoneNumber,
               custom_name: row.custom_name || null,

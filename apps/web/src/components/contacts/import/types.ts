@@ -1,6 +1,7 @@
 import type {
   ContactImportPreviewResponse,
   ContactImportResponse,
+  WhatsAppConnection,
 } from "../../../lib/api";
 
 export type ImportStep = "upload" | "preview" | "importing" | "complete";
@@ -13,6 +14,11 @@ export interface ImportOptions {
 export interface UploadStepProps {
   loading: boolean;
   onFileSelect: (file: File) => void;
+  /** Connected WhatsApp accounts imported contacts can be linked to */
+  connections: WhatsAppConnection[];
+  /** Explicit user choice; null until picked */
+  selectedConnectionId: string | null;
+  onSelectConnection: (connectionId: string) => void;
 }
 
 export interface PreviewStepProps {

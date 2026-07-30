@@ -37,6 +37,17 @@ export function PreviewStep({
         </div>
       </div>
 
+      {/* Target connection */}
+      <p className="text-sm text-gray-600 dark:text-dark-text-secondary">
+        Contacts will be linked to{" "}
+        <span className="font-medium text-gray-900 dark:text-dark-text-primary">
+          {preview.connection.name || "WhatsApp account"}
+          {preview.connection.phoneNumber
+            ? ` (${formatPhoneNumber(preview.connection.phoneNumber)})`
+            : ""}
+        </span>
+      </p>
+
       {/* Options */}
       <div className="space-y-3">
         <label className="flex items-center gap-3">

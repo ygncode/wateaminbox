@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { badRequest } from "../../lib/errors.js";
 import { rateLimitConfig, rateLimitStore } from "../../lib/rate-limit-store.js";
 import { created, successData } from "../../lib/response.js";
+import { uuidSchema } from "../../lib/schemas.js";
 import { getRouteContext } from "../../middleware/context.js";
 import { createConditionalRateLimiter } from "../../middleware/rate-limit.js";
 import { requireAdmin } from "../../middleware/role.js";
@@ -10,7 +11,20 @@ import {
   importContacts,
   mapToContactRow,
   parseCSV,
+  resolveImportConnection,
 } from "../../services/import/index.js";
+
+/**
+ * Extract an optional connectionId from a form-data or JSON request value.
+ * Returns undefined when absent, null when present but not a valid UUID.
+ */
+function parseConnectionIdInput(value: unknown): string | null | undefined {
+  if (value === undefined || value === null || value === "") {
+    return undefined;
+  }
+  const parsed = uuidSchema.safeParse(value);
+  return parsed.success ? parsed.data : null;
+}
 
 export const importRoutes = new Hono();
 
@@ -51,6 +65,7 @@ importRoutes.post("/import", requireAdmin(), importRateLimiter, async (c) => {
   let csvContent: string;
   let updateExisting = true;
   let createTags = true;
+  let connectionIdInput: string | null | undefined;
 
   const contentType = c.req.header("Content-Type") || "";
 
@@ -79,6 +94,7 @@ importRoutes.post("/import", requireAdmin(), importRateLimiter, async (c) => {
     csvContent = await file.text();
     updateExisting = updateExistingParam !== "false";
     createTags = createTagsParam !== "false";
+    connectionIdInput = parseConnectionIdInput(formData.get("connectionId"));
   } else {
     // Handle JSON with CSV content
     const body = await c.req.json();
@@ -89,7 +105,16 @@ importRoutes.post("/import", requireAdmin(), importRateLimiter, async (c) => {
     csvContent = body.csvContent;
     updateExisting = body.updateExisting !== false;
     createTags = body.createTags !== false;
+    connectionIdInput = parseConnectionIdInput(body.connectionId);
   }
+
+  if (connectionIdInput === null) {
+    return badRequest(c, "connectionId must be a valid UUID");
+  }
+
+  // Imported contacts must be linked to a connection or they can never be
+  // messaged. Auto-selects the sole connected account; 400s when ambiguous.
+  const connection = await resolveImportConnection(tenantDb, connectionIdInput);
 
   // Parse CSV
   const parsed = parseCSV(csvContent);
@@ -111,6 +136,7 @@ importRoutes.post("/import", requireAdmin(), importRateLimiter, async (c) => {
 
   // Import contacts
   const summary = await importContacts(tenantDb, contactRows, user.id, {
+    connectionId: connection.id,
     updateExisting,
     createTags,
   });
@@ -124,6 +150,11 @@ importRoutes.post("/import", requireAdmin(), importRateLimiter, async (c) => {
       errors: summary.errors,
     },
     results: summary.results,
+    connection: {
+      id: connection.id,
+      name: connection.name,
+      phoneNumber: connection.phone_number,
+    },
   });
 });
 
@@ -135,6 +166,7 @@ importRoutes.post("/import/preview", importRateLimiter, async (c) => {
   const { tenantDb } = getRouteContext(c);
 
   let csvContent: string;
+  let connectionIdInput: string | null | undefined;
 
   const contentType = c.req.header("Content-Type") || "";
 
@@ -147,13 +179,23 @@ importRoutes.post("/import/preview", importRateLimiter, async (c) => {
     }
 
     csvContent = await file.text();
+    connectionIdInput = parseConnectionIdInput(formData.get("connectionId"));
   } else {
     const body = await c.req.json();
     if (!body.csvContent) {
       return badRequest(c, "csvContent is required");
     }
     csvContent = body.csvContent;
+    connectionIdInput = parseConnectionIdInput(body.connectionId);
   }
+
+  if (connectionIdInput === null) {
+    return badRequest(c, "connectionId must be a valid UUID");
+  }
+
+  // Resolve the same connection the import will use so exists/new counts
+  // reflect what the import would actually do.
+  const connection = await resolveImportConnection(tenantDb, connectionIdInput);
 
   // Parse CSV
   const parsed = parseCSV(csvContent);
@@ -177,7 +219,10 @@ importRoutes.post("/import/preview", importRateLimiter, async (c) => {
     };
   });
 
-  // Single query to find all existing contacts at once
+  // Single query to find all existing contacts at once, scoped exactly like
+  // the import's duplicate check: rows on the target connection plus unlinked
+  // legacy rows the import would adopt. Contacts on other connections are
+  // separate rows by design and must not count as "already exists".
   const existingContacts = await tenantDb
     .selectFrom("contacts")
     .select(["jid", "phone_number", "custom_name", "push_name"])
@@ -195,6 +240,12 @@ importRoutes.post("/import/preview", importRateLimiter, async (c) => {
           "in",
           lookupData.map((d) => d.cleanPhoneNumber),
         ),
+      ]),
+    )
+    .where((eb) =>
+      eb.or([
+        eb("whatsapp_connection_id", "=", connection.id),
+        eb("whatsapp_connection_id", "is", null),
       ]),
     )
     .execute();
@@ -244,5 +295,10 @@ importRoutes.post("/import/preview", importRateLimiter, async (c) => {
     existingCount,
     newCount,
     preview: preview.slice(0, 100), // Limit preview to first 100 rows
+    connection: {
+      id: connection.id,
+      name: connection.name,
+      phoneNumber: connection.phone_number,
+    },
   });
 });

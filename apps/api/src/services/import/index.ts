@@ -15,4 +15,8 @@ export { generateImportTemplate, parseCSV } from "./parsing.js";
 export { mapToContactRow, normalizePhoneNumber } from "./validation.js";
 
 // Processing functions
-export { importContacts } from "./processing.js";
+export {
+  type ImportConnection,
+  importContacts,
+  resolveImportConnection,
+} from "./processing.js";
