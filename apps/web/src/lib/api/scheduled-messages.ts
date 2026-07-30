@@ -8,7 +8,11 @@ import { buildQueryString, fetchWithAuth } from "./client.js";
 
 export interface ScheduleMessageInput {
   contactId: string;
+  /** Message text, or the caption when scheduling media (may be empty). */
   content: string;
+  messageType?: "text" | "image" | "video" | "document";
+  /** Presigned URL from POST /media/upload; required for media types. */
+  mediaUrl?: string;
   replyToMessageId?: string;
   /** ISO 8601 timestamp (UTC) for when the message should be sent. */
   scheduledAt: string;

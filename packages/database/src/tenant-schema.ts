@@ -290,6 +290,9 @@ export const TENANT_SCHEMA_CONTRACT = {
     "contact_id",
     "content",
     "message_type",
+    "media_url",
+    "media_mime_type",
+    "media_file_name",
     "reply_to_message_id",
     "scheduled_at",
     "status",
@@ -744,6 +747,9 @@ export async function reconcileTenantSchema<Database>(
       contact_id UUID NOT NULL,
       content TEXT NOT NULL,
       message_type message_type NOT NULL DEFAULT 'text',
+      media_url TEXT,
+      media_mime_type TEXT,
+      media_file_name TEXT,
       reply_to_message_id UUID,
       scheduled_at TIMESTAMPTZ NOT NULL,
       status TEXT NOT NULL DEFAULT 'scheduled'
@@ -772,5 +778,13 @@ export async function reconcileTenantSchema<Database>(
       `${schemaName}_scheduled_messages_contact_idx`,
     )}
     ON ${table("scheduled_messages")} (contact_id, scheduled_at)
+  `.execute(db);
+  // Media attachment support (058) for tables created before the columns
+  // existed; the CREATE above already carries them for new tenants.
+  await sql`
+    ALTER TABLE ${table("scheduled_messages")}
+    ADD COLUMN IF NOT EXISTS media_url TEXT,
+    ADD COLUMN IF NOT EXISTS media_mime_type TEXT,
+    ADD COLUMN IF NOT EXISTS media_file_name TEXT
   `.execute(db);
 }

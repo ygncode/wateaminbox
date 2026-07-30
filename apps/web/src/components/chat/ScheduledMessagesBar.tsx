@@ -1,7 +1,16 @@
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import type { ScheduledMessage } from "@wateaminbox/shared";
 import { dayjs } from "@wateaminbox/shared";
-import { AlertCircle, CalendarClock, Loader2, Trash2, X } from "lucide-react";
+import {
+  AlertCircle,
+  CalendarClock,
+  FileText,
+  Film,
+  Image as ImageIcon,
+  Loader2,
+  Trash2,
+  X,
+} from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import {
@@ -23,6 +32,16 @@ function formatScheduledTime(iso: string): string {
   return value.format("MMM D, YYYY [at] HH:mm");
 }
 
+function mediaKind(
+  scheduledMessage: ScheduledMessage,
+): { icon: typeof ImageIcon; label: string } | null {
+  if (!scheduledMessage.mediaUrl) return null;
+  const mimeType = scheduledMessage.mediaMimeType || "";
+  if (mimeType.startsWith("image/")) return { icon: ImageIcon, label: "Photo" };
+  if (mimeType.startsWith("video/")) return { icon: Film, label: "Video" };
+  return { icon: FileText, label: "File" };
+}
+
 function ScheduledMessageRow({
   scheduledMessage,
 }: {
@@ -30,6 +49,7 @@ function ScheduledMessageRow({
 }) {
   const cancelMutation = useCancelScheduledMessage();
   const isFailed = scheduledMessage.status === "failed";
+  const media = mediaKind(scheduledMessage);
 
   const handleCancel = () => {
     cancelMutation.mutate(scheduledMessage.id, {
@@ -64,8 +84,18 @@ function ScheduledMessageRow({
         )}
       </span>
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm text-[#111b21] dark:text-dark-text-primary">
-          {scheduledMessage.content}
+        <p className="flex items-center gap-1.5 truncate text-sm text-[#111b21] dark:text-dark-text-primary">
+          {media && (
+            <span className="inline-flex shrink-0 items-center gap-1 text-[#667781] dark:text-dark-text-tertiary">
+              <media.icon className="size-3.5" aria-hidden="true" />
+              <span className="text-xs font-medium">{media.label}</span>
+            </span>
+          )}
+          <span className="truncate">
+            {scheduledMessage.content ||
+              scheduledMessage.mediaFileName ||
+              media?.label}
+          </span>
         </p>
         <p className="mt-0.5 text-xs text-[#667781] dark:text-dark-text-tertiary">
           {isFailed

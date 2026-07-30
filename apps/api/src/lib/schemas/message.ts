@@ -40,13 +40,24 @@ export const SCHEDULE_MIN_LEAD_MS = 30_000;
 /** Cap the horizon so typos ("2062") don't silently park messages for decades. */
 export const SCHEDULE_MAX_HORIZON_MS = 365 * 24 * 60 * 60 * 1000;
 
+/** Message types that can be scheduled with a media attachment. */
+export const SCHEDULABLE_MEDIA_TYPES = ["image", "video", "document"] as const;
+
 /**
  * Schema for scheduling a message for future delivery.
  * scheduledAt is an ISO 8601 timestamp (UTC or with offset).
+ *
+ * Text messages require content; media messages require mediaUrl and treat
+ * content as an optional caption. The cross-field rules live in the route so
+ * the error messages match the immediate-send endpoint's.
  */
 export const scheduleMessageSchema = z.object({
   contactId: uuidSchema,
-  content: z.string().min(1, "content is required").max(65_536),
+  content: z.string().max(65_536).optional(),
+  messageType: z
+    .enum(["text", ...SCHEDULABLE_MEDIA_TYPES])
+    .default("text"),
+  mediaUrl: z.string().url().optional(),
   replyToMessageId: uuidSchema.optional(),
   scheduledAt: z.string().datetime({ offset: true }),
 });

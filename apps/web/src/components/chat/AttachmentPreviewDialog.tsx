@@ -1,6 +1,7 @@
 import * as DialogPrimitive from "@radix-ui/react-dialog";
-import { FileText, Loader2, Send, X } from "lucide-react";
+import { CalendarClock, FileText, Loader2, Send, X } from "lucide-react";
 import { type FormEvent, type KeyboardEvent, useEffect, useState } from "react";
+import { ScheduleMessagePopover } from "./ScheduleMessagePopover";
 
 const MAX_CAPTION_LENGTH = 1024;
 
@@ -12,6 +13,13 @@ interface AttachmentPreviewDialogProps {
     file: File,
     type: "image" | "document",
     caption: string,
+  ) => Promise<boolean>;
+  /** When provided, the dialog offers scheduling next to immediate send. */
+  onSchedule?: (
+    file: File,
+    type: "image" | "document",
+    caption: string,
+    scheduledAtIso: string,
   ) => Promise<boolean>;
 }
 
@@ -27,10 +35,14 @@ export function AttachmentPreviewDialog({
   attachmentType,
   onCancel,
   onSend,
+  onSchedule,
 }: AttachmentPreviewDialogProps) {
   const [caption, setCaption] = useState("");
   const [previewUrl, setPreviewUrl] = useState("");
   const [isSending, setIsSending] = useState(false);
+  const [isScheduling, setIsScheduling] = useState(false);
+  const [showSchedulePopover, setShowSchedulePopover] = useState(false);
+  const isBusy = isSending || isScheduling;
   const isVideo = file.type.startsWith("video/");
   const isVisualMedia =
     attachmentType === "image" && (file.type.startsWith("image/") || isVideo);
@@ -55,7 +67,7 @@ export function AttachmentPreviewDialog({
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (isSending) return;
+    if (isBusy) return;
 
     setIsSending(true);
     try {
@@ -63,6 +75,26 @@ export function AttachmentPreviewDialog({
       if (wasSent) onCancel();
     } finally {
       setIsSending(false);
+    }
+  };
+
+  const handleSchedule = async (scheduledAtIso: string) => {
+    if (!onSchedule || isBusy) return;
+
+    setIsScheduling(true);
+    try {
+      const wasScheduled = await onSchedule(
+        file,
+        attachmentType,
+        caption.trim(),
+        scheduledAtIso,
+      );
+      if (wasScheduled) {
+        setShowSchedulePopover(false);
+        onCancel();
+      }
+    } finally {
+      setIsScheduling(false);
     }
   };
 
@@ -77,7 +109,7 @@ export function AttachmentPreviewDialog({
     <DialogPrimitive.Root
       open
       onOpenChange={(open) => {
-        if (!open && !isSending) onCancel();
+        if (!open && !isBusy) onCancel();
       }}
     >
       <DialogPrimitive.Portal>
@@ -100,7 +132,7 @@ export function AttachmentPreviewDialog({
             <DialogPrimitive.Close asChild>
               <button
                 type="button"
-                disabled={isSending}
+                disabled={isBusy}
                 className="grid size-10 shrink-0 place-items-center rounded-full text-white/75 transition-colors hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00a884]"
                 aria-label="Cancel attachment"
               >
@@ -162,7 +194,7 @@ export function AttachmentPreviewDialog({
                   value={caption}
                   onChange={(event) => setCaption(event.target.value)}
                   onKeyDown={handleCaptionKeyDown}
-                  disabled={isSending}
+                  disabled={isBusy}
                   maxLength={MAX_CAPTION_LENGTH}
                   rows={1}
                   autoFocus
@@ -176,9 +208,40 @@ export function AttachmentPreviewDialog({
                   </p>
                 )}
               </div>
+              {onSchedule && (
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setShowSchedulePopover(!showSchedulePopover)}
+                    disabled={isBusy}
+                    className={`grid size-12 shrink-0 place-items-center rounded-full text-white shadow-lg shadow-black/20 transition-all active:scale-95 disabled:cursor-wait disabled:opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00a884] focus-visible:ring-offset-2 focus-visible:ring-offset-[#202c33] ${
+                      showSchedulePopover
+                        ? "bg-[#2a3942] text-[#06cf9c]"
+                        : "bg-[#2a3942] hover:bg-[#34434d]"
+                    }`}
+                    aria-label="Schedule attachment"
+                    aria-expanded={showSchedulePopover}
+                  >
+                    {isScheduling ? (
+                      <Loader2
+                        className="size-5 animate-spin"
+                        aria-hidden="true"
+                      />
+                    ) : (
+                      <CalendarClock className="size-5" aria-hidden="true" />
+                    )}
+                  </button>
+                  {showSchedulePopover && (
+                    <ScheduleMessagePopover
+                      onSchedule={handleSchedule}
+                      isSubmitting={isScheduling}
+                    />
+                  )}
+                </div>
+              )}
               <button
                 type="submit"
-                disabled={isSending}
+                disabled={isBusy}
                 className="grid size-12 shrink-0 place-items-center rounded-full bg-[#00a884] text-white shadow-lg shadow-black/20 transition-all hover:bg-[#06cf9c] active:scale-95 disabled:cursor-wait disabled:opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00a884] focus-visible:ring-offset-2 focus-visible:ring-offset-[#202c33]"
                 aria-label={
                   isSending ? "Sending attachment" : "Send attachment"

@@ -1,7 +1,16 @@
 import { describe, expect, test } from "bun:test";
 import { toDbDate } from "@wateaminbox/shared";
 import type { Kysely } from "kysely";
-import { dispatchCompanyScheduledMessages } from "./scheduled-message.service.js";
+import {
+  deleteMedia,
+  getMediaObjectReference,
+  resolveMediaKeyForCompany,
+  uploadMedia,
+} from "../lib/storage.js";
+import {
+  cleanupScheduledMediaObject,
+  dispatchCompanyScheduledMessages,
+} from "./scheduled-message.service.js";
 import type { TenantDatabase } from "./tenant.service.js";
 import {
   createTenantSchema,
@@ -67,6 +76,10 @@ async function insertScheduled(
     contactId: string;
     scheduledAt: Date;
     content: string;
+    messageType: "text" | "image" | "video" | "document";
+    mediaUrl: string;
+    mediaMimeType: string;
+    mediaFileName: string;
   }> = {},
 ): Promise<string> {
   const id = crypto.randomUUID();
@@ -77,7 +90,10 @@ async function insertScheduled(
       id,
       contact_id: overrides.contactId ?? seeded.contactId,
       content: overrides.content ?? "Scheduled hello",
-      message_type: "text",
+      message_type: overrides.messageType ?? "text",
+      media_url: overrides.mediaUrl ?? null,
+      media_mime_type: overrides.mediaMimeType ?? null,
+      media_file_name: overrides.mediaFileName ?? null,
       reply_to_message_id: null,
       scheduled_at: scheduledAt,
       status: "scheduled",
@@ -278,6 +294,167 @@ describe("scheduled message dispatcher integration", () => {
           .select("id")
           .execute();
         expect(messages).toHaveLength(0);
+      } finally {
+        await dropTenantSchema(companyId);
+      }
+    },
+    30_000,
+  );
+
+  integrationTest(
+    "dispatches a scheduled image through the media send pipeline",
+    async () => {
+      const companyId = crypto.randomUUID();
+      let mediaKey: string | null = null;
+      try {
+        await createTenantSchema(companyId);
+        const tenantDb = getTenantConnection(companyId);
+        const seeded = await seedConversation(tenantDb);
+
+        // A real object in the media bucket, exactly like POST /media/upload.
+        const upload = await uploadMedia(
+          Buffer.from("fake-png-bytes"),
+          "image/png",
+          companyId,
+          "team-photo.png",
+        );
+        mediaKey = upload.key;
+
+        const scheduledId = await insertScheduled(tenantDb, seeded, {
+          content: "Here is the photo",
+          messageType: "image",
+          mediaUrl: upload.url,
+          mediaMimeType: "image/png",
+          mediaFileName: "team-photo.png",
+        });
+
+        const dispatched = await dispatchCompanyScheduledMessages(companyId);
+        expect(dispatched).toBe(1);
+
+        const row = await tenantDb
+          .selectFrom("scheduled_messages")
+          .selectAll()
+          .where("id", "=", scheduledId)
+          .executeTakeFirstOrThrow();
+        expect(row.status).toBe("sent");
+
+        const message = await tenantDb
+          .selectFrom("messages")
+          .selectAll()
+          .where("id", "=", row.sent_message_id as string)
+          .executeTakeFirstOrThrow();
+        expect(message.message_type).toBe("image");
+        expect(message.media_url).toBe(upload.url);
+        expect(message.media_mime_type).toBe("image/png");
+
+        // The worker command must carry the durable object reference and the
+        // caption (content moves into caption for media sends).
+        const outbox = await tenantDb
+          .selectFrom("nats_outbox")
+          .selectAll()
+          .executeTakeFirstOrThrow();
+        const payload = outbox.payload as Record<string, unknown>;
+        expect(payload.type).toBe("image");
+        expect(payload.media_object_key).toBe(upload.key);
+        expect(payload.caption).toBe("Here is the photo");
+        expect(payload.content).toBe("");
+        expect(payload.file_name).toBe("team-photo.png");
+        expect(payload.mime_type).toBe("image/png");
+
+        // The dispatched message references the object; cleanup must keep it.
+        await cleanupScheduledMediaObject(
+          tenantDb,
+          companyId,
+          scheduledId,
+          row.media_url,
+        );
+        await expect(
+          getMediaObjectReference(upload.url, companyId),
+        ).resolves.toMatchObject({ key: upload.key });
+      } finally {
+        if (mediaKey) await deleteMedia(mediaKey).catch(() => {});
+        await dropTenantSchema(companyId);
+      }
+    },
+    30_000,
+  );
+
+  integrationTest(
+    "fails permanently when the media object no longer exists",
+    async () => {
+      const companyId = crypto.randomUUID();
+      try {
+        await createTenantSchema(companyId);
+        const tenantDb = getTenantConnection(companyId);
+        const seeded = await seedConversation(tenantDb);
+
+        const upload = await uploadMedia(
+          Buffer.from("ephemeral"),
+          "image/png",
+          companyId,
+          "gone.png",
+        );
+        await deleteMedia(upload.key);
+
+        const scheduledId = await insertScheduled(tenantDb, seeded, {
+          messageType: "image",
+          mediaUrl: upload.url,
+          mediaMimeType: "image/png",
+          mediaFileName: "gone.png",
+        });
+
+        await dispatchCompanyScheduledMessages(companyId);
+
+        const row = await tenantDb
+          .selectFrom("scheduled_messages")
+          .selectAll()
+          .where("id", "=", scheduledId)
+          .executeTakeFirstOrThrow();
+        // Permanent: failed on the first attempt instead of retrying.
+        expect(row.status).toBe("failed");
+        expect(row.attempts).toBe(1);
+        expect(row.last_error).toContain("no longer exists");
+
+        const messages = await tenantDb
+          .selectFrom("messages")
+          .select("id")
+          .execute();
+        expect(messages).toHaveLength(0);
+      } finally {
+        await dropTenantSchema(companyId);
+      }
+    },
+    30_000,
+  );
+
+  integrationTest(
+    "cleanupScheduledMediaObject removes unreferenced objects",
+    async () => {
+      const companyId = crypto.randomUUID();
+      try {
+        await createTenantSchema(companyId);
+        const tenantDb = getTenantConnection(companyId);
+
+        const upload = await uploadMedia(
+          Buffer.from("to-be-discarded"),
+          "video/mp4",
+          companyId,
+          "clip.mp4",
+        );
+        expect(resolveMediaKeyForCompany(upload.url, companyId)).toBe(
+          upload.key,
+        );
+
+        await cleanupScheduledMediaObject(
+          tenantDb,
+          companyId,
+          crypto.randomUUID(),
+          upload.url,
+        );
+
+        await expect(
+          getMediaObjectReference(upload.url, companyId),
+        ).rejects.toThrow();
       } finally {
         await dropTenantSchema(companyId);
       }

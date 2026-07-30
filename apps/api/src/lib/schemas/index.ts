@@ -84,6 +84,7 @@ export {
   listScheduledMessagesQuerySchema,
   SCHEDULE_MIN_LEAD_MS,
   SCHEDULE_MAX_HORIZON_MS,
+  SCHEDULABLE_MEDIA_TYPES,
   type SendMessageInput,
   type ForwardMessageInput,
   type ListMessagesQuery,

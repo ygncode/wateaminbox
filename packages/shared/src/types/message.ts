@@ -108,6 +108,10 @@ export interface ScheduledMessage {
   contactId: string;
   content: string;
   messageType: MessageType;
+  /** Presigned URL of the media object; null for text messages */
+  mediaUrl: string | null;
+  mediaMimeType: string | null;
+  mediaFileName: string | null;
   replyToMessageId: string | null;
   scheduledAt: string;
   status: ScheduledMessageStatus;

@@ -25,6 +25,7 @@ import {
 import { toast } from "sonner";
 import { useRealtimeContext } from "../../contexts/RealtimeProvider";
 import { useScheduleMessage } from "../../hooks/messages";
+import { uploadMedia } from "../../lib/api";
 import { useClickOutside, useTextareaAutoResize } from "../../hooks/ui";
 import { useQuickReplySuggestions } from "../../hooks/useQuickReplies";
 import { AttachmentPreviewDialog } from "./AttachmentPreviewDialog";
@@ -423,6 +424,49 @@ export function MessageComposer({
     );
   };
 
+  // Upload the attachment now so the object is durable, then schedule it
+  // through the same endpoint as text; the API pins mime/filename from the
+  // uploaded object.
+  const handleScheduleAttachment = async (
+    file: File,
+    _type: "image" | "document",
+    caption: string,
+    scheduledAtIso: string,
+  ): Promise<boolean> => {
+    if (!contactId || isInputDisabled) return false;
+
+    try {
+      const upload = await uploadMedia(file);
+      let messageType: "image" | "video" | "document" = "document";
+      if (upload.mimeType.startsWith("image/")) {
+        messageType = "image";
+      } else if (upload.mimeType.startsWith("video/")) {
+        messageType = "video";
+      }
+
+      await scheduleMessageMutation.mutateAsync({
+        contactId,
+        content: caption,
+        messageType,
+        mediaUrl: upload.mediaUrl,
+        scheduledAt: scheduledAtIso,
+      });
+      toast.success(
+        `Attachment scheduled for ${dayjs(scheduledAtIso).format(
+          "MMM D [at] HH:mm",
+        )}`,
+      );
+      return true;
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? `Failed to schedule attachment: ${error.message}`
+          : "Failed to schedule attachment. Please try again.",
+      );
+      return false;
+    }
+  };
+
   const handleFileSelect = (
     e: ChangeEvent<HTMLInputElement>,
     type: "image" | "document",
@@ -767,6 +811,7 @@ export function MessageComposer({
           attachmentType={pendingAttachment.type}
           onCancel={() => setPendingAttachment(null)}
           onSend={onAttachFile}
+          onSchedule={contactId ? handleScheduleAttachment : undefined}
         />
       )}
     </>

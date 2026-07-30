@@ -154,11 +154,15 @@ export interface MediaObjectReference {
   checksum?: string;
 }
 
-/** Resolve and authorize an API-issued path-style presigned media URL. */
-export async function getMediaObjectReference(
+/**
+ * Extract and authorize the object key from an API-issued path-style
+ * presigned media URL, without touching object storage. The presigned
+ * signature is ignored, so an expired URL still resolves.
+ */
+export function resolveMediaKeyForCompany(
   mediaUrl: string,
   companyId: string,
-): Promise<MediaObjectReference> {
+): string {
   const url = new URL(mediaUrl);
   const endpoint = new URL(env.S3_ENDPOINT);
   if (url.origin !== endpoint.origin) {
@@ -174,6 +178,15 @@ export async function getMediaObjectReference(
   if (!key.startsWith(tenantPrefix) || key.includes("..")) {
     throw new Error("Media object does not belong to the active tenant");
   }
+  return key;
+}
+
+/** Resolve and authorize an API-issued path-style presigned media URL. */
+export async function getMediaObjectReference(
+  mediaUrl: string,
+  companyId: string,
+): Promise<MediaObjectReference> {
+  const key = resolveMediaKeyForCompany(mediaUrl, companyId);
 
   const object = await s3Client.send(
     new HeadObjectCommand({ Bucket: BUCKET, Key: key }),

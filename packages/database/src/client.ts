@@ -474,6 +474,9 @@ export interface ScheduledMessagesTable {
   contact_id: string;
   content: string;
   message_type: Generated<MessageType>;
+  media_url: string | null;
+  media_mime_type: string | null;
+  media_file_name: string | null;
   reply_to_message_id: string | null;
   scheduled_at: Date;
   status: Generated<ScheduledMessageStatus>;

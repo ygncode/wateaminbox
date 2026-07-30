@@ -16,6 +16,11 @@ import {
   buildSendMessageCommand,
 } from "../lib/nats/index.js";
 import { broadcastToCompany } from "../lib/realtime.js";
+import {
+  deleteMedia,
+  getMediaObjectReference,
+  resolveMediaKeyForCompany,
+} from "../lib/storage.js";
 import { enqueueCommand } from "./command-outbox.service.js";
 import { getTenantConnection, type TenantDatabase } from "./tenant.service.js";
 import { getUserAvatarSources, getUserNames } from "./user.service.js";
@@ -59,6 +64,9 @@ export function formatScheduledMessage(
     contactId: row.contact_id,
     content: row.content,
     messageType: row.message_type,
+    mediaUrl: row.media_url,
+    mediaMimeType: row.media_mime_type,
+    mediaFileName: row.media_file_name,
     replyToMessageId: row.reply_to_message_id,
     scheduledAt: row.scheduled_at.toISOString(),
     status: row.status,
@@ -93,6 +101,46 @@ async function broadcastScheduledUpdate(
 
 /** A dispatch failure that retrying can never fix (e.g. deleted contact). */
 class PermanentDispatchError extends Error {}
+
+/** S3 HEAD on a deleted/never-existed object. */
+function isMediaMissingError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  const status = (
+    error as Error & { $metadata?: { httpStatusCode?: number } }
+  ).$metadata?.httpStatusCode;
+  return error.name === "NotFound" || status === 404;
+}
+
+/**
+ * Best-effort removal of a scheduled message's media object once the row can
+ * never dispatch (canceled, or permanently failed). Nothing else cleans the
+ * media bucket, so discarded schedules would otherwise leak objects forever.
+ * The object is kept if any sent message references the same URL — dispatch
+ * copies media_url verbatim into messages, so equality is exact.
+ */
+export async function cleanupScheduledMediaObject(
+  tenantDb: Kysely<TenantDatabase>,
+  companyId: string,
+  scheduledMessageId: string,
+  mediaUrl: string | null,
+): Promise<void> {
+  if (!mediaUrl) return;
+  try {
+    const referencedByMessage = await tenantDb
+      .selectFrom("messages")
+      .select("id")
+      .where("media_url", "=", mediaUrl)
+      .limit(1)
+      .executeTakeFirst();
+    if (referencedByMessage) return;
+    await deleteMedia(resolveMediaKeyForCompany(mediaUrl, companyId));
+  } catch (error) {
+    logger.warn(
+      { companyId, scheduledMessageId, err: formatError(error) },
+      "Failed to clean up scheduled message media object",
+    );
+  }
+}
 
 interface DispatchSuccess {
   messageId: string;
@@ -155,6 +203,22 @@ async function sendScheduledMessage(
     }
   }
 
+  // Verify the media object still exists before building the command: a
+  // vanished object can never dispatch (permanent), while any other storage
+  // error stays retryable.
+  if (row.media_url) {
+    try {
+      await getMediaObjectReference(row.media_url, companyId);
+    } catch (error) {
+      if (isMediaMissingError(error)) {
+        throw new PermanentDispatchError(
+          "The media attachment no longer exists",
+        );
+      }
+      throw error;
+    }
+  }
+
   const messageId = crypto.randomUUID();
   const waMessageId = `pending_${messageId}`;
   const createdAt = toDbDate();
@@ -168,7 +232,7 @@ async function sendScheduledMessage(
     row.message_type,
     row.created_by,
     waMessageId,
-    undefined,
+    row.media_url || undefined,
     quotedWaMessageId,
     quotedSenderJid,
   );
@@ -185,6 +249,8 @@ async function sendScheduledMessage(
         sender_jid: connection.jid,
         message_type: row.message_type,
         content: row.content,
+        media_url: row.media_url,
+        media_mime_type: row.media_mime_type,
         quoted_message_id: quotedWaMessageId || null,
         sent_by_user_id: row.created_by,
         status: "pending",
@@ -223,6 +289,7 @@ async function sendScheduledMessage(
     sentByUserGravatarUrl: avatars.get(row.created_by)?.gravatarUrl,
     messageType: row.message_type,
     content: row.content,
+    metadata: row.media_url ? { mediaUrl: row.media_url } : undefined,
     replyToMessageId: row.reply_to_message_id || undefined,
     status: "pending" as const,
     createdAt,
@@ -298,6 +365,8 @@ async function recordDispatchFailure(
 
   if (exhausted && result.numUpdatedRows > 0n) {
     failedTotal++;
+    // The row can never dispatch now; its media object has no other consumer.
+    await cleanupScheduledMediaObject(tenantDb, companyId, row.id, row.media_url);
     await Promise.all([
       broadcastScheduledUpdate(companyId, row.id, row.contact_id, "failed"),
       broadcastToCompany(companyId, "notification:toast", {

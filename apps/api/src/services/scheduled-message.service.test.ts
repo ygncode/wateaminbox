@@ -32,9 +32,50 @@ describe("scheduleMessageSchema", () => {
     ).not.toThrow();
   });
 
-  test("rejects empty content", () => {
+  test("allows empty content (route enforces it for text; media captions may be empty)", () => {
+    const parsed = scheduleMessageSchema.parse({ ...valid, content: "" });
+    expect(parsed.content).toBe("");
+    expect(parsed.messageType).toBe("text");
+  });
+
+  test("accepts media messages with a mediaUrl", () => {
+    const parsed = scheduleMessageSchema.parse({
+      ...valid,
+      content: "caption",
+      messageType: "image",
+      mediaUrl: "http://localhost:4450/whatsapp-media/media/co/123_a_pic.png",
+    });
+    expect(parsed.messageType).toBe("image");
+    expect(parsed.mediaUrl).toContain("pic.png");
+  });
+
+  test("accepts video and document message types", () => {
+    for (const messageType of ["video", "document"] as const) {
+      expect(() =>
+        scheduleMessageSchema.parse({
+          ...valid,
+          messageType,
+          mediaUrl: "http://localhost:4450/whatsapp-media/media/co/f.bin",
+        }),
+      ).not.toThrow();
+    }
+  });
+
+  test("rejects unschedulable message types", () => {
+    for (const messageType of ["audio", "sticker", "reaction"]) {
+      expect(() =>
+        scheduleMessageSchema.parse({ ...valid, messageType }),
+      ).toThrow();
+    }
+  });
+
+  test("rejects non-URL mediaUrl", () => {
     expect(() =>
-      scheduleMessageSchema.parse({ ...valid, content: "" }),
+      scheduleMessageSchema.parse({
+        ...valid,
+        messageType: "image",
+        mediaUrl: "not-a-url",
+      }),
     ).toThrow();
   });
 
@@ -73,6 +114,9 @@ describe("formatScheduledMessage", () => {
       contact_id: "22222222-2222-4222-8222-222222222222",
       content: "hello",
       message_type: "text",
+      media_url: null,
+      media_mime_type: null,
+      media_file_name: null,
       reply_to_message_id: null,
       scheduled_at: new Date("2026-07-31T09:00:00.000Z"),
       status: "scheduled",
@@ -93,6 +137,9 @@ describe("formatScheduledMessage", () => {
       contactId: row.contact_id,
       content: "hello",
       messageType: "text",
+      mediaUrl: null,
+      mediaMimeType: null,
+      mediaFileName: null,
       replyToMessageId: null,
       scheduledAt: "2026-07-31T09:00:00.000Z",
       status: "scheduled",

@@ -9,6 +9,7 @@ import { zValidator } from "@hono/zod-validator";
 import { toDbDate } from "@wateaminbox/shared";
 import { Hono } from "hono";
 import { badRequest, notFound } from "../../lib/errors.js";
+import { createLogger, formatError } from "../../lib/logger.js";
 import { rateLimitConfig, rateLimitStore } from "../../lib/rate-limit-store.js";
 import { broadcastToCompany } from "../../lib/realtime.js";
 import {
@@ -17,16 +18,20 @@ import {
   SCHEDULE_MIN_LEAD_MS,
   scheduleMessageSchema,
 } from "../../lib/schemas/index.js";
+import { getMediaObjectReference } from "../../lib/storage.js";
 import { getRouteContext } from "../../middleware/context.js";
 import { requireMessageSendPermission } from "../../middleware/message-send-policy.js";
 import { createConditionalRateLimiter } from "../../middleware/rate-limit.js";
 import { hasContactVisibility } from "../../middleware/resource-visibility.js";
 import { ensureContactAssignment } from "../../services/contact.service.js";
 import {
+  cleanupScheduledMediaObject,
   formatScheduledMessage,
   type ScheduledMessageRow,
 } from "../../services/scheduled-message.service.js";
 import { getUserNames } from "../../services/user.service.js";
+
+const logger = createLogger("ScheduledMessageRoutes");
 
 const scheduleRateLimiter = createConditionalRateLimiter(
   {
@@ -52,6 +57,19 @@ scheduledRoutes.post(
   async (c) => {
     const { tenantDb, user, companyId } = getRouteContext(c);
     const body = c.req.valid("json");
+    const isMediaMessage = body.messageType !== "text";
+
+    // Mirror the immediate-send rules: text needs content, media needs a
+    // media object; content doubles as the optional caption.
+    if (!isMediaMessage && !body.content?.trim()) {
+      return badRequest(c, "content is required for text messages");
+    }
+    if (isMediaMessage && !body.mediaUrl) {
+      return badRequest(c, "mediaUrl is required for media messages");
+    }
+    if (!isMediaMessage && body.mediaUrl) {
+      return badRequest(c, "mediaUrl is not allowed for text messages");
+    }
 
     const scheduledAt = new Date(body.scheduledAt);
     const lead = scheduledAt.getTime() - Date.now();
@@ -60,6 +78,39 @@ scheduledRoutes.post(
     }
     if (lead > SCHEDULE_MAX_HORIZON_MS) {
       return badRequest(c, "scheduledAt must be within one year");
+    }
+
+    // Authorize and pin the media object now so a bad reference fails fast
+    // instead of at dispatch time: the HEAD proves the object exists, belongs
+    // to this tenant, and is within the size limit, and yields canonical
+    // mime/filename for display.
+    let mediaMimeType: string | null = null;
+    let mediaFileName: string | null = null;
+    if (isMediaMessage && body.mediaUrl) {
+      let reference: Awaited<ReturnType<typeof getMediaObjectReference>>;
+      try {
+        reference = await getMediaObjectReference(body.mediaUrl, companyId);
+      } catch (error) {
+        logger.warn(
+          { companyId, err: formatError(error) },
+          "Rejected scheduled message media reference",
+        );
+        return badRequest(c, "Invalid media object for scheduling");
+      }
+      const expectedPrefix =
+        body.messageType === "image"
+          ? "image/"
+          : body.messageType === "video"
+            ? "video/"
+            : null;
+      if (expectedPrefix && !reference.mimeType.startsWith(expectedPrefix)) {
+        return badRequest(
+          c,
+          `messageType ${body.messageType} does not match the uploaded file type`,
+        );
+      }
+      mediaMimeType = reference.mimeType;
+      mediaFileName = reference.filename;
     }
 
     const contact = await tenantDb
@@ -104,8 +155,11 @@ scheduledRoutes.post(
       .values({
         id: crypto.randomUUID(),
         contact_id: body.contactId,
-        content: body.content,
-        message_type: "text",
+        content: body.content?.trim() || "",
+        message_type: body.messageType,
+        media_url: body.mediaUrl || null,
+        media_mime_type: mediaMimeType,
+        media_file_name: mediaFileName,
         reply_to_message_id: body.replyToMessageId || null,
         scheduled_at: scheduledAt,
         status: "scheduled",
@@ -189,7 +243,7 @@ scheduledRoutes.delete(
 
     const row = await tenantDb
       .selectFrom("scheduled_messages")
-      .select(["id", "contact_id", "status"])
+      .select(["id", "contact_id", "status", "media_url"])
       .where("id", "=", id)
       .executeTakeFirst();
 
@@ -215,6 +269,9 @@ scheduledRoutes.delete(
         "This message is already being sent and can no longer be canceled",
       );
     }
+
+    // A canceled schedule is this media object's only consumer; reclaim it.
+    await cleanupScheduledMediaObject(tenantDb, companyId, id, row.media_url);
 
     await broadcastToCompany(companyId, "scheduled_message:updated", {
       scheduledMessageId: id,
