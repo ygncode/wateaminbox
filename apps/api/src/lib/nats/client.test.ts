@@ -64,6 +64,22 @@ describe("durable API event consumer", () => {
     expect(event.contractVersion).toBe(1);
   });
 
+  test("accepts durable on-demand history page events", () => {
+    const event = parseWhatsAppEvent({
+      contractVersion: 1,
+      type: "history_sync_page",
+      companyId: "11111111-1111-4111-8111-111111111111",
+      connectionId: "22222222-2222-4222-8222-222222222222",
+      payload: {
+        chatJid: "15551234567@s.whatsapp.net",
+        messageCount: 50,
+        status: "available",
+      },
+      timestamp: new Date().toISOString(),
+    });
+    expect(event.type).toBe("history_sync_page");
+  });
+
   test("marks terminal handler validation failures for immediate dead-lettering", () => {
     const error = new PermanentEventError("unknown connection");
     expect(error).toBeInstanceOf(Error);

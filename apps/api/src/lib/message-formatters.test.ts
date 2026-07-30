@@ -34,6 +34,24 @@ const baseMessage = (overrides: Partial<MessageDbRow>): MessageDbRow => ({
 });
 
 describe("incoming reply formatting", () => {
+  test("uses the original WhatsApp timestamp instead of the history import time", () => {
+    const whatsappTimestamp = new Date("2026-01-15T09:01:17Z");
+    const importedAt = new Date("2026-07-30T03:23:03Z");
+    const imported = baseMessage({
+      timestamp: whatsappTimestamp,
+      created_at: importedAt,
+    });
+
+    const formatted = formatMessageForConversation(
+      imported,
+      new Map(),
+      new Map(),
+    );
+
+    expect(formatted.createdAt).toEqual(whatsappTimestamp);
+    expect(formatted.updatedAt).toEqual(importedAt);
+  });
+
   test("hydrates the quoted message preview from its WhatsApp message ID", () => {
     const quoted = baseMessage({
       id: "00000000-0000-4000-8000-000000000010",

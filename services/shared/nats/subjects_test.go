@@ -34,6 +34,7 @@ func TestSubjectFormatPatterns(t *testing.T) {
 		{"SubjectTyping", SubjectTyping},
 		{"SubjectReaction", SubjectReaction},
 		{"SubjectSyncStatus", SubjectSyncStatus},
+		{"SubjectHistorySyncPage", SubjectHistorySyncPage},
 		{"SubjectDownloadRequest", SubjectDownloadRequest},
 		{"SubjectDownloadResponse", SubjectDownloadResponse},
 	}
@@ -127,6 +128,7 @@ func TestSubjectHierarchy(t *testing.T) {
 		{SubjectTyping, true},
 		{SubjectReaction, true},
 		{SubjectSyncStatus, true},
+		{SubjectHistorySyncPage, true},
 		{SubjectDownloadResponse, true},
 	}
 
@@ -157,6 +159,7 @@ func TestSubjectNoDuplicates(t *testing.T) {
 		SubjectTyping,
 		SubjectReaction,
 		SubjectSyncStatus,
+		SubjectHistorySyncPage,
 		SubjectDownloadRequest,
 		SubjectDownloadResponse,
 	}

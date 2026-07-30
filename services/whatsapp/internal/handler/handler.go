@@ -83,24 +83,30 @@ type SyncStatusPublisher interface {
 	PublishSyncStatus(status string, messageCount int, conversations int) error
 }
 
+type HistoryPagePublisher interface {
+	PublishHistorySyncPage(chatJID string, messageCount int, status string) error
+}
+
 // Config holds handler configuration.
 type Config struct {
-	WorkerID            string
-	CompanyID           string
-	ConnectionID        string
-	NATSUrl             string
-	Client              WhatsAppClient
-	Publisher           *natsClient.Publisher
-	SyncStatusPublisher SyncStatusPublisher
-	Storage             *storage.Client
-	Ctx                 context.Context
+	WorkerID             string
+	CompanyID            string
+	ConnectionID         string
+	NATSUrl              string
+	Client               WhatsAppClient
+	Publisher            *natsClient.Publisher
+	SyncStatusPublisher  SyncStatusPublisher
+	HistoryPagePublisher HistoryPagePublisher
+	Storage              *storage.Client
+	Ctx                  context.Context
 }
 
 // Handler processes WhatsApp events.
 type Handler struct {
-	config              Config
-	publisher           *natsClient.Publisher
-	syncStatusPublisher SyncStatusPublisher
+	config               Config
+	publisher            *natsClient.Publisher
+	syncStatusPublisher  SyncStatusPublisher
+	historyPagePublisher HistoryPagePublisher
 
 	historySyncMu            sync.Mutex
 	historySyncActive        bool
@@ -117,13 +123,18 @@ type Handler struct {
 // New creates a new message handler.
 func New(cfg Config) *Handler {
 	syncPublisher := cfg.SyncStatusPublisher
-	if syncPublisher == nil {
+	if syncPublisher == nil && cfg.Publisher != nil {
 		syncPublisher = cfg.Publisher
+	}
+	historyPagePublisher := cfg.HistoryPagePublisher
+	if historyPagePublisher == nil && cfg.Publisher != nil {
+		historyPagePublisher = cfg.Publisher
 	}
 	return &Handler{
 		config:                 cfg,
 		publisher:              cfg.Publisher,
 		syncStatusPublisher:    syncPublisher,
+		historyPagePublisher:   historyPagePublisher,
 		historySyncIdleTimeout: historySyncIdleTimeout,
 	}
 }

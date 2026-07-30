@@ -43,10 +43,15 @@ func (m *mockMessageSender) SendReaction(ctx context.Context, chatJID string, me
 }
 
 type mockCommandExecutor struct {
-	groupAction string
-	groupJID    string
-	participant string
-	statusType  string
+	groupAction      string
+	groupJID         string
+	participant      string
+	statusType       string
+	historyJID       string
+	historyID        string
+	historyFromMe    bool
+	historyTimestamp time.Time
+	historyCount     int
 }
 
 func (m *mockCommandExecutor) PostStatus(_ context.Context, statusType, _, _ string) (types.SendResponse, error) {
@@ -69,6 +74,14 @@ func (m *mockCommandExecutor) ApplyLabel(context.Context, string, string, bool) 
 func (m *mockCommandExecutor) SyncCatalog(context.Context, string) (types.Catalog, error) {
 	return types.Catalog{}, nil
 }
+func (m *mockCommandExecutor) RequestHistory(_ context.Context, jid, id string, fromMe bool, timestamp time.Time, count int) error {
+	m.historyJID = jid
+	m.historyID = id
+	m.historyFromMe = fromMe
+	m.historyTimestamp = timestamp
+	m.historyCount = count
+	return nil
+}
 
 func TestCommandHandlersInvokeExecutor(t *testing.T) {
 	executor := &mockCommandExecutor{}
@@ -81,6 +94,15 @@ func TestCommandHandlersInvokeExecutor(t *testing.T) {
 
 	subscriber.handlePostStatusCommand(&natsgo.Msg{Data: []byte(`{"type":"post_status","status_type":"text","content":"hello"}`)})
 	assert.Equal(t, "text", executor.statusType)
+
+	subscriber.handleRequestHistoryCommand(&natsgo.Msg{Data: []byte(
+		`{"type":"request_history","chat_jid":"1@s.whatsapp.net","oldest_message_id":"ABC","oldest_from_me":true,"oldest_timestamp":"2026-01-02T03:04:05Z","count":50}`,
+	)})
+	assert.Equal(t, "1@s.whatsapp.net", executor.historyJID)
+	assert.Equal(t, "ABC", executor.historyID)
+	assert.True(t, executor.historyFromMe)
+	assert.Equal(t, 50, executor.historyCount)
+	assert.Equal(t, time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC), executor.historyTimestamp)
 }
 
 // TestSendMessageCommand_AllTypes tests that all message types are recognized.

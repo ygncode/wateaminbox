@@ -21,6 +21,23 @@ type recordingSyncPublisher struct {
 	events []recordedSyncStatus
 }
 
+type recordedHistoryPage struct {
+	chatJID      string
+	messageCount int
+	status       string
+}
+
+type recordingHistoryPagePublisher struct {
+	events []recordedHistoryPage
+}
+
+func (p *recordingHistoryPagePublisher) PublishHistorySyncPage(chatJID string, messageCount int, status string) error {
+	p.events = append(p.events, recordedHistoryPage{
+		chatJID: chatJID, messageCount: messageCount, status: status,
+	})
+	return nil
+}
+
 func (p *recordingSyncPublisher) PublishSyncStatus(status string, messageCount, conversations int) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -138,5 +155,48 @@ func TestUntrackedHistoryTypesDoNotOpenGlobalSyncLifecycle(t *testing.T) {
 
 	if got := publisher.snapshot(); len(got) != 0 {
 		t.Fatalf("untracked history types published lifecycle events: %#v", got)
+	}
+}
+
+func TestOnDemandHistoryPublishesConversationResult(t *testing.T) {
+	pagePublisher := &recordingHistoryPagePublisher{}
+	syncType := waHistorySync.HistorySync_ON_DEMAND
+	endType := waHistorySync.Conversation_COMPLETE_ON_DEMAND_SYNC_BUT_MORE_MSG_REMAIN_ON_PRIMARY
+	h := New(Config{HistoryPagePublisher: pagePublisher})
+
+	h.handleHistorySync(&events.HistorySync{Data: &waHistorySync.HistorySync{
+		SyncType: &syncType,
+		Conversations: []*waHistorySync.Conversation{{
+			ID:                       proto.String("15550000000@s.whatsapp.net"),
+			EndOfHistoryTransferType: &endType,
+		}},
+	}})
+
+	if len(pagePublisher.events) != 1 {
+		t.Fatalf("got %d page events, want 1", len(pagePublisher.events))
+	}
+	got := pagePublisher.events[0]
+	if got.chatJID != "15550000000@s.whatsapp.net" ||
+		got.messageCount != 0 ||
+		got.status != "available" {
+		t.Fatalf("unexpected page event: %#v", got)
+	}
+}
+
+func TestRemoteHistoryStatusMapping(t *testing.T) {
+	tests := []struct {
+		transfer waHistorySync.Conversation_EndOfHistoryTransferType
+		want     string
+	}{
+		{waHistorySync.Conversation_COMPLETE_BUT_MORE_MESSAGES_REMAIN_ON_PRIMARY, "available"},
+		{waHistorySync.Conversation_COMPLETE_AND_NO_MORE_MESSAGE_REMAIN_ON_PRIMARY, "exhausted"},
+		{waHistorySync.Conversation_COMPLETE_ON_DEMAND_SYNC_BUT_MORE_MSG_REMAIN_ON_PRIMARY, "available"},
+		{waHistorySync.Conversation_COMPLETE_ON_DEMAND_SYNC_WITH_MORE_MSG_ON_PRIMARY_BUT_NO_ACCESS, "unavailable"},
+	}
+	for _, test := range tests {
+		conv := &waHistorySync.Conversation{EndOfHistoryTransferType: &test.transfer}
+		if got := remoteHistoryStatus(conv); got != test.want {
+			t.Errorf("%s mapped to %q, want %q", test.transfer, got, test.want)
+		}
 	}
 }

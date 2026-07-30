@@ -186,6 +186,18 @@ func (h *Handler) downloadHistoryMedia(downloadable whatsmeow.DownloadableMessag
 	return true
 }
 
+func (h *Handler) processHistoryMedia(
+	downloadable whatsmeow.DownloadableMessage,
+	event *natsClient.MessageEvent,
+	deferDownload bool,
+) bool {
+	if deferDownload {
+		retainMediaReference(downloadable, event)
+		return false
+	}
+	return h.downloadHistoryMedia(downloadable, event)
+}
+
 // FetchProfilePicture resolves and caches a profile picture for command-driven
 // group participant lookups. Empty results are cached too, because privacy
 // settings commonly make profile pictures unavailable.

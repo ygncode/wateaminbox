@@ -20,6 +20,7 @@ export type CompanyRealtimeEventType =
   | "sync:progress"
   | "sync:complete"
   | "sync:interrupted"
+  | "history:loaded"
   | "media:downloaded"
   | "media:download_failed"
   | "notification:toast"

@@ -19,6 +19,8 @@ function selectInfiniteMessages(
     pageParams: data.pageParams,
     // Flatten and reverse to get chronological order
     messages: data.pages.flatMap((page) => page.messages).reverse(),
+    remoteHistoryStatus:
+      data.pages[data.pages.length - 1]?.remoteHistoryStatus ?? "unknown",
   };
 }
 
@@ -28,7 +30,7 @@ interface FetchMessagesParams {
   limit?: number;
 }
 
-async function fetchMessages({
+export async function fetchMessagesPage({
   conversationId,
   cursor,
   limit = 50,
@@ -53,7 +55,7 @@ export function useInfiniteMessages(
   return useInfiniteQuery({
     queryKey: infiniteMessageKeys.list(conversationId || ""),
     queryFn: ({ pageParam }) =>
-      fetchMessages({
+      fetchMessagesPage({
         conversationId: conversationId!,
         cursor: pageParam,
         limit,

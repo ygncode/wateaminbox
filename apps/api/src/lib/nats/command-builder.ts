@@ -14,6 +14,7 @@ import type {
   NatsCommand,
   PostStatusCommand,
   RemoveLabelCommand,
+  RequestHistoryCommand,
   SpawnCommand,
   StatusType,
   SyncCatalogProductsCommand,
@@ -75,6 +76,26 @@ export class NatsCommandPublisher {
       unlink,
     };
 
+    await this.publish(command);
+  }
+
+  async requestHistory(input: {
+    chatJid: string;
+    oldestMessageId: string;
+    oldestFromMe: boolean;
+    oldestTimestamp: string;
+    count: number;
+  }): Promise<void> {
+    const command: RequestHistoryCommand = {
+      type: "request_history",
+      company_id: this.companyId,
+      connection_id: this.connectionId,
+      chat_jid: input.chatJid,
+      oldest_message_id: input.oldestMessageId,
+      oldest_from_me: input.oldestFromMe,
+      oldest_timestamp: input.oldestTimestamp,
+      count: input.count,
+    };
     await this.publish(command);
   }
 

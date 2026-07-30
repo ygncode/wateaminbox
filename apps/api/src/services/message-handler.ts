@@ -9,6 +9,7 @@ import {
   type ContactEvent,
   type DownloadResponseEvent,
   type LabelsEvent,
+  type HistorySyncPageEvent,
   type MessageEvent,
   type MessageRevokeEvent,
   type PresenceEvent,
@@ -36,6 +37,7 @@ import {
   handleDownloadResponseEvent,
   handleErrorEvent,
   handleLabelsEvent,
+  handleHistorySyncPageEvent,
   handleMessageEvent,
   handleMessageRevokeEvent,
   handlePresenceEvent,
@@ -229,6 +231,10 @@ export async function handleWhatsAppEvent(event: WhatsAppEvent): Promise<void> {
 
       case "sync_status":
         await handleSyncStatusEvent(resolvedEvent as SyncStatusEvent);
+        break;
+
+      case "history_sync_page":
+        await handleHistorySyncPageEvent(resolvedEvent as HistorySyncPageEvent);
         break;
 
       case "labels":

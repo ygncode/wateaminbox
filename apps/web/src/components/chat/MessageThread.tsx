@@ -7,6 +7,7 @@ import { useMessageSelection } from "../../hooks/chat/useMessageSelection";
 import { useMessageVirtualization } from "../../hooks/chat/useMessageVirtualization";
 import { useInfiniteMessages } from "../../hooks/useInfiniteMessages";
 import { useRetryMessage } from "../../hooks/useMessages";
+import { useRemoteHistory } from "../../hooks/useRemoteHistory";
 import { ChatContextMenu } from "./ChatContextMenu";
 import { MessageSelectionToolbar } from "./MessageSelectionToolbar";
 import { VirtualMessageList } from "./VirtualMessageList";
@@ -104,8 +105,14 @@ export function MessageThread({
     hasNextPage,
     isFetchingNextPage,
   } = useInfiniteMessages(conversationId);
+  const {
+    requestHistory: requestRemoteHistory,
+    isRequesting: isRequestingRemoteHistory,
+    error: remoteHistoryError,
+  } = useRemoteHistory(conversationId);
 
   const messages = data?.messages ?? EMPTY_MESSAGES;
+  const remoteHistoryStatus = data?.remoteHistoryStatus ?? "unknown";
 
   // Use selection hook
   const {
@@ -353,6 +360,10 @@ export function MessageThread({
         isFetchingNextPage={isFetchingNextPage}
         hasNextPage={hasNextPage}
         fetchNextPage={fetchNextPage}
+        remoteHistoryStatus={remoteHistoryStatus}
+        isRequestingRemoteHistory={isRequestingRemoteHistory}
+        remoteHistoryError={remoteHistoryError}
+        onRequestRemoteHistory={requestRemoteHistory}
         onScroll={handleScroll}
         scrollContainerRef={scrollContainerRef}
         onBackgroundContextMenu={handleBackgroundContextMenu}

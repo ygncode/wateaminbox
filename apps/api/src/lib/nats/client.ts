@@ -58,6 +58,7 @@ export const whatsAppEventEnvelopeSchema = z.object({
     "typing",
     "reaction",
     "sync_status",
+    "history_sync_page",
     "download_response",
     "connection_status",
     "command_result",

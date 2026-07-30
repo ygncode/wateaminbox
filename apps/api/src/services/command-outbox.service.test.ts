@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { buildSendMessageCommand } from "../lib/nats/client.js";
+import { NatsCommandPublisher } from "../lib/nats/command-builder.js";
 import {
   getOutboxRetryDelayMs,
   prepareOutboxPayload,
@@ -52,5 +53,36 @@ describe("command outbox", () => {
     expect(command.connection_id).toBe("connection-id");
     expect(command.type).toBe("text");
     expect(command.to).toBe("15551234567@s.whatsapp.net");
+  });
+
+  test("builds a bounded per-conversation history request", async () => {
+    const commands: Array<Record<string, unknown>> = [];
+    const publisher = new NatsCommandPublisher(
+      "company-id",
+      "session-id",
+      async (_subject, command) => {
+        commands.push(command as unknown as Record<string, unknown>);
+      },
+      (companyId, connectionId) => `${companyId}.${connectionId}`,
+    );
+
+    await publisher.requestHistory({
+      chatJid: "15551234567@s.whatsapp.net",
+      oldestMessageId: "3EB0OLDEST",
+      oldestFromMe: false,
+      oldestTimestamp: "2026-01-01T00:00:00.000Z",
+      count: 50,
+    });
+
+    expect(commands[0]).toEqual({
+      type: "request_history",
+      company_id: "company-id",
+      connection_id: "session-id",
+      chat_jid: "15551234567@s.whatsapp.net",
+      oldest_message_id: "3EB0OLDEST",
+      oldest_from_me: false,
+      oldest_timestamp: "2026-01-01T00:00:00.000Z",
+      count: 50,
+    });
   });
 });

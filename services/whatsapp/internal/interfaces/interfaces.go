@@ -60,6 +60,8 @@ type Publisher interface {
 	PublishDownloadResponse(messageID, mediaURL string, mediaSize int64, success bool, errMsg string) error
 	// PublishSyncStatus publishes a sync status event.
 	PublishSyncStatus(status string, messageCount int, conversations int) error
+	// PublishHistorySyncPage reports a completed on-demand history page.
+	PublishHistorySyncPage(chatJID string, messageCount int, status string) error
 	// Close closes the NATS connection.
 	Close()
 }

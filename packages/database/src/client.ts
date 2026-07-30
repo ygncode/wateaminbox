@@ -3,6 +3,7 @@ import type {
   CompanyStatus,
   MessageStatus,
   MessageType,
+  RemoteHistoryStatus,
 } from "@wateaminbox/shared";
 import { Generated, Kysely, PostgresDialect } from "kysely";
 import { Pool } from "pg";
@@ -212,6 +213,8 @@ export interface ContactsTable {
   last_seen: Date | null;
   is_blocked: Generated<boolean>;
   profile_picture_url: string | null;
+  remote_history_status: Generated<RemoteHistoryStatus>;
+  remote_history_updated_at: Date | null;
   created_at: Generated<Date>;
   updated_at: Generated<Date>;
 }

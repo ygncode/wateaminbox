@@ -16,11 +16,35 @@ import (
 	natsClient "github.com/ygncode-lab/whatsapp-web/services/whatsapp/internal/nats"
 )
 
+type historyConversationResult struct {
+	messages            int
+	mediaDownloaded     int
+	chatJID             string
+	remoteHistoryStatus string
+}
+
+func remoteHistoryStatus(conv *waHistorySync.Conversation) string {
+	if conv == nil || conv.EndOfHistoryTransferType == nil {
+		return "unknown"
+	}
+	switch conv.GetEndOfHistoryTransferType() {
+	case waHistorySync.Conversation_COMPLETE_AND_NO_MORE_MESSAGE_REMAIN_ON_PRIMARY:
+		return "exhausted"
+	case waHistorySync.Conversation_COMPLETE_ON_DEMAND_SYNC_WITH_MORE_MSG_ON_PRIMARY_BUT_NO_ACCESS:
+		return "unavailable"
+	case waHistorySync.Conversation_COMPLETE_BUT_MORE_MESSAGES_REMAIN_ON_PRIMARY,
+		waHistorySync.Conversation_COMPLETE_ON_DEMAND_SYNC_BUT_MORE_MSG_REMAIN_ON_PRIMARY:
+		return "available"
+	default:
+		return "unknown"
+	}
+}
+
 // handleHistorySync is called when history sync is received.
 // Features:
 // - Parallel conversation processing using worker pool
-// - Immediate media downloads with retry logic
-// - Profile picture fetching for each contact
+// - Immediate media downloads during initial sync, deferred for on-demand pages
+// - Profile picture fetching during initial sync
 func (h *Handler) handleHistorySync(evt *events.HistorySync) {
 	// Persist PN↔LID mappings before conversations are processed in parallel.
 	// Group participants and reactions frequently use LIDs in the same first-sync
@@ -47,6 +71,7 @@ func (h *Handler) handleHistorySync(evt *events.HistorySync) {
 
 	conversations := evt.Data.GetConversations()
 	trackedSync := isTrackedHistorySyncType(evt.Data.GetSyncType())
+	onDemandSync := evt.Data.GetSyncType() == waHistorySync.HistorySync_ON_DEMAND
 	log.Printf(
 		"History sync received: type=%s chunk=%d progress=%d conversations=%d",
 		evt.Data.GetSyncType(),
@@ -61,13 +86,8 @@ func (h *Handler) handleHistorySync(evt *events.HistorySync) {
 	startTime := time.Now()
 
 	// Use channels for worker pool pattern
-	type conversationResult struct {
-		messages        int
-		mediaDownloaded int
-	}
-
 	jobs := make(chan int, len(conversations))
-	results := make(chan conversationResult, len(conversations))
+	results := make(chan historyConversationResult, len(conversations))
 
 	// Start worker pool
 	var wg sync.WaitGroup
@@ -77,7 +97,7 @@ func (h *Handler) handleHistorySync(evt *events.HistorySync) {
 			defer wg.Done()
 			for idx := range jobs {
 				conv := conversations[idx]
-				result := h.processHistorySyncConversation(conv)
+				result := h.processHistorySyncConversation(conv, onDemandSync)
 				results <- result
 			}
 		}()
@@ -101,6 +121,21 @@ func (h *Handler) handleHistorySync(evt *events.HistorySync) {
 		totalMessages += result.messages
 		totalMediaDownloaded += result.mediaDownloaded
 		conversationsProcessed++
+		if evt.Data.GetSyncType() == waHistorySync.HistorySync_ON_DEMAND &&
+			result.chatJID != "" &&
+			h.historyPagePublisher != nil {
+			if err := h.historyPagePublisher.PublishHistorySyncPage(
+				result.chatJID,
+				result.messages,
+				result.remoteHistoryStatus,
+			); err != nil {
+				log.Printf(
+					"Failed to publish on-demand history result for %s: %v",
+					result.chatJID,
+					err,
+				)
+			}
+		}
 		if trackedSync {
 			h.addHistorySyncProgress(result.messages, 1)
 		}
@@ -184,10 +219,11 @@ func (h *Handler) getHistoryGroupParticipants(conv *waHistorySync.Conversation) 
 // processHistorySyncConversation processes a single conversation during history sync.
 // Returns the count of messages processed and media items downloaded.
 // Uses concrete proto type *waHistorySync.Conversation for reliable type handling.
-func (h *Handler) processHistorySyncConversation(conv *waHistorySync.Conversation) (result struct{ messages, mediaDownloaded int }) {
+func (h *Handler) processHistorySyncConversation(conv *waHistorySync.Conversation, deferMedia bool) (result historyConversationResult) {
 	if conv == nil {
 		return
 	}
+	result.remoteHistoryStatus = remoteHistoryStatus(conv)
 
 	// Prefer pnJID (phone number JID) over ID (which can be LID).
 	// whatsmeow expects phone number JIDs for sending messages and looks up LID mappings internally.
@@ -211,16 +247,19 @@ func (h *Handler) processHistorySyncConversation(conv *waHistorySync.Conversatio
 		return
 	}
 
-	// Skip LID-only contacts - they can't be used for sending messages.
-	// LID JIDs have Server == "lid" (types.HiddenUserServer).
-	// This happens when pnJID is empty and ID is a LID.
-	if parsedJID.Server == types.HiddenUserServer {
-		log.Printf("Skipping LID-only contact %s (no phone number available)", rawJID)
+	// ON_DEMAND responses can identify a conversation only by LID while carrying
+	// the corresponding phone-number mapping elsewhere in the same history
+	// payload. Those mappings are persisted before conversations are processed,
+	// so resolve the canonical phone JID before deciding the chat is unusable.
+	resolvedJID := h.resolvePreferredJID(parsedJID, types.EmptyJID)
+	if resolvedJID.Server == types.HiddenUserServer || resolvedJID.Server == types.HostedLIDServer {
+		log.Printf("Skipping LID-only contact %s (no phone number mapping available)", rawJID)
 		return
 	}
 
-	normalizedJID := parsedJID.ToNonAD()
+	normalizedJID := resolvedJID.ToNonAD()
 	jid := normalizedJID.String()
+	result.chatJID = jid
 
 	// Store LID mapping if both pnJID and lidJID are available.
 	// This allows whatsmeow to look up the LID for encryption when sending to the phone number JID.
@@ -268,7 +307,7 @@ func (h *Handler) processHistorySyncConversation(conv *waHistorySync.Conversatio
 
 	// Fetch profile picture during history sync
 	var profilePicURL string
-	if h.config.Client != nil && h.config.Storage != nil {
+	if !deferMedia && h.config.Client != nil && h.config.Storage != nil {
 		profilePicURL = h.fetchProfilePicture(normalizedJID)
 	}
 
@@ -307,7 +346,12 @@ func (h *Handler) processHistorySyncConversation(conv *waHistorySync.Conversatio
 
 	// Process messages using concrete type
 	for _, historyMsg := range conv.GetMessages() {
-		processed, hasMedia := h.processHistorySyncMessage(historyMsg, jid, isGroup)
+		processed, hasMedia := h.processHistorySyncMessage(
+			historyMsg,
+			jid,
+			isGroup,
+			deferMedia,
+		)
 		if processed {
 			result.messages++
 			if hasMedia {
@@ -350,7 +394,7 @@ func normalizeHistoryMessageStatus(status waWeb.WebMessageInfo_Status) string {
 // processHistorySyncMessage processes a single message from history sync.
 // Returns (processed, hasMedia) - whether the message was processed and if it had media.
 // Uses concrete proto type *waHistorySync.HistorySyncMsg for reliable type handling.
-func (h *Handler) processHistorySyncMessage(historyMsg *waHistorySync.HistorySyncMsg, jid string, isGroup bool) (bool, bool) {
+func (h *Handler) processHistorySyncMessage(historyMsg *waHistorySync.HistorySyncMsg, jid string, isGroup bool, deferMedia bool) (bool, bool) {
 	if historyMsg == nil {
 		return false, false
 	}
@@ -432,7 +476,7 @@ func (h *Handler) processHistorySyncMessage(historyMsg *waHistorySync.HistorySyn
 		if waMsg.ImageMessage.Mimetype != nil {
 			msgEvent.MediaType = *waMsg.ImageMessage.Mimetype
 		}
-		if h.downloadHistoryMedia(waMsg.ImageMessage, &msgEvent) {
+		if h.processHistoryMedia(waMsg.ImageMessage, &msgEvent, deferMedia) {
 			hasMedia = true
 		}
 	}
@@ -446,7 +490,7 @@ func (h *Handler) processHistorySyncMessage(historyMsg *waHistorySync.HistorySyn
 		if waMsg.VideoMessage.Mimetype != nil {
 			msgEvent.MediaType = *waMsg.VideoMessage.Mimetype
 		}
-		if h.downloadHistoryMedia(waMsg.VideoMessage, &msgEvent) {
+		if h.processHistoryMedia(waMsg.VideoMessage, &msgEvent, deferMedia) {
 			hasMedia = true
 		}
 	}
@@ -457,7 +501,7 @@ func (h *Handler) processHistorySyncMessage(historyMsg *waHistorySync.HistorySyn
 		if waMsg.AudioMessage.Mimetype != nil {
 			msgEvent.MediaType = *waMsg.AudioMessage.Mimetype
 		}
-		if h.downloadHistoryMedia(waMsg.AudioMessage, &msgEvent) {
+		if h.processHistoryMedia(waMsg.AudioMessage, &msgEvent, deferMedia) {
 			hasMedia = true
 		}
 	}
@@ -474,7 +518,7 @@ func (h *Handler) processHistorySyncMessage(historyMsg *waHistorySync.HistorySyn
 		if waMsg.DocumentMessage.Mimetype != nil {
 			msgEvent.MediaType = *waMsg.DocumentMessage.Mimetype
 		}
-		if h.downloadHistoryMedia(waMsg.DocumentMessage, &msgEvent) {
+		if h.processHistoryMedia(waMsg.DocumentMessage, &msgEvent, deferMedia) {
 			hasMedia = true
 		}
 	}
@@ -485,7 +529,7 @@ func (h *Handler) processHistorySyncMessage(historyMsg *waHistorySync.HistorySyn
 		if waMsg.StickerMessage.Mimetype != nil {
 			msgEvent.MediaType = *waMsg.StickerMessage.Mimetype
 		}
-		if h.downloadHistoryMedia(waMsg.StickerMessage, &msgEvent) {
+		if h.processHistoryMedia(waMsg.StickerMessage, &msgEvent, deferMedia) {
 			hasMedia = true
 		}
 	}

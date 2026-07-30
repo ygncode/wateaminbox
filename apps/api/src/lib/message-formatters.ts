@@ -133,7 +133,10 @@ export function formatMessageForConversation(
     deletedAt: msg.deleted_at,
     status: msg.status || (msg.from_me ? "sent" : "delivered"),
     timestamp: msg.timestamp,
-    createdAt: msg.created_at,
+    // `created_at` is when the row reached our database. History pages may be
+    // imported months after the message was sent, so the UI-facing message date
+    // must come from WhatsApp's original timestamp.
+    createdAt: msg.timestamp,
     updatedAt: msg.created_at,
     reactions: reactionsMap.get(msg.id) || [],
   };
@@ -209,7 +212,7 @@ export function formatMessageForFetch(
     deletedAt: msg.deleted_at,
     status: msg.status || "sent",
     timestamp: msg.timestamp,
-    createdAt: msg.created_at,
+    createdAt: msg.timestamp,
     reactions: reactionsMap.get(msg.id) || [],
   };
 }
@@ -250,7 +253,7 @@ export function buildQuotedMessageData(
     content: q.content || "",
     isDeleted: q.deleted_by_sender || !!q.deleted_at,
     status: q.status || (q.from_me ? "sent" : "delivered"),
-    createdAt: q.created_at,
+    createdAt: q.timestamp,
     updatedAt: q.created_at,
   };
 }

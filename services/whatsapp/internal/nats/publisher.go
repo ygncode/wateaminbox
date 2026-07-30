@@ -57,6 +57,7 @@ const (
 	SubjectTyping           = sharednats.SubjectTyping
 	SubjectReaction         = sharednats.SubjectReaction
 	SubjectSyncStatus       = sharednats.SubjectSyncStatus
+	SubjectHistorySyncPage  = sharednats.SubjectHistorySyncPage
 	SubjectLabels           = sharednats.SubjectLabels
 	SubjectCatalogs         = sharednats.SubjectCatalogs
 	SubjectCatalogProducts  = sharednats.SubjectCatalogProducts
@@ -681,6 +682,27 @@ func (p *Publisher) PublishSyncStatus(status string, messageCount int, conversat
 
 	subject := fmt.Sprintf(SubjectSyncStatus, p.companyID, p.connectionID)
 	return p.publish(subject, event)
+}
+
+// PublishHistorySyncPage marks one on-demand conversation page as imported.
+// It is persisted in the worker outbox, so browsers can safely fetch the new
+// database page after the API handles this event.
+func (p *Publisher) PublishHistorySyncPage(chatJID string, messageCount int, status string) error {
+	event := WhatsAppEvent{
+		Type:         sharednats.EventTypeHistorySyncPage,
+		CompanyID:    p.companyID,
+		ConnectionID: p.connectionID,
+		Payload: sharednats.HistorySyncPagePayload{
+			ChatJID:      chatJID,
+			MessageCount: messageCount,
+			Status:       status,
+		},
+		Timestamp: time.Now().Format(time.RFC3339),
+	}
+	return p.publish(
+		fmt.Sprintf(SubjectHistorySyncPage, p.companyID, p.connectionID),
+		event,
+	)
 }
 
 func labelColorHex(color int32) string {

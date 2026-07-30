@@ -176,6 +176,22 @@ func TestRetainMediaReferenceClonesDeferredDownloadMetadata(t *testing.T) {
 	}
 }
 
+func TestOnDemandHistoryDefersMediaDownload(t *testing.T) {
+	downloader := &mockDownloader{downloadData: []byte("unused")}
+	handler := newTestHandler(downloader)
+	event := &natsClient.MessageEvent{}
+
+	if downloaded := handler.processHistoryMedia(newMockDownloadable(), event, true); downloaded {
+		t.Fatal("deferred on-demand media was reported as downloaded")
+	}
+	if downloader.GetDownloadCallCount() != 0 {
+		t.Fatal("deferred on-demand media called the downloader")
+	}
+	if event.MediaDirectPath != "/test/path" || len(event.MediaKey) == 0 {
+		t.Fatal("deferred on-demand media did not retain its download reference")
+	}
+}
+
 // TestDownloadWithRetry_SuccessOnFirstAttempt tests successful download on first try.
 func TestDownloadWithRetry_SuccessOnFirstAttempt(t *testing.T) {
 	mock := &mockDownloader{

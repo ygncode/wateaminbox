@@ -56,7 +56,8 @@ export interface NatsCommand {
     | "sync_catalog_products"
     | "block_contact"
     | "unblock_contact"
-    | "fetch_profile_picture";
+    | "fetch_profile_picture"
+    | "request_history";
   company_id: string;
   connection_id: string;
   timestamp?: string;
@@ -84,6 +85,7 @@ export interface WhatsAppEvent {
     | "typing"
     | "reaction"
     | "sync_status"
+    | "history_sync_page"
     | "download_response"
     | "connection_status"
     | "command_result"

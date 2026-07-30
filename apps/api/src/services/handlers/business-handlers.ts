@@ -1,3 +1,4 @@
+import { normalizeJid, toDbDate } from "@wateaminbox/shared";
 import type {
   CatalogProductsEvent,
   CatalogsEvent,
@@ -42,6 +43,50 @@ export async function handleCommandResultEvent(
   event: CommandResultEvent,
 ): Promise<void> {
   if (event.payload.success) return;
+  if (event.payload.commandType === "request_history") {
+    const tenantDb = getTenantConnection(event.companyId);
+    const outbox = await tenantDb
+      .selectFrom("nats_outbox")
+      .select("payload")
+      .where("id", "=", event.payload.commandId)
+      .executeTakeFirst();
+    const rawChatJid = outbox?.payload.chat_jid;
+    const chatJid =
+      typeof rawChatJid === "string" ? normalizeJid(rawChatJid) : null;
+    const contact = chatJid
+      ? await tenantDb
+          .selectFrom("contacts")
+          .select("id")
+          .where("whatsapp_connection_id", "=", event.connectionId)
+          .where("jid", "=", chatJid)
+          .executeTakeFirst()
+      : null;
+    if (contact) {
+      const now = toDbDate();
+      await tenantDb
+        .updateTable("contacts")
+        .set({
+          remote_history_status: "failed",
+          remote_history_updated_at: now,
+          updated_at: now,
+        })
+        .where("id", "=", contact.id)
+        .execute();
+      await broadcastToCompany(
+        event.companyId,
+        "history:loaded",
+        {
+          conversationId: contact.id,
+          messageCount: 0,
+          status: "failed",
+          error:
+            event.payload.error ||
+            "The primary phone did not return older messages",
+        },
+        event.connectionId,
+      );
+    }
+  }
   await broadcastToCompany(
     event.companyId,
     "command:failed",

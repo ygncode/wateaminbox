@@ -24,6 +24,7 @@ const (
 	EventTypeTyping           = "typing"
 	EventTypeReaction         = "reaction"
 	EventTypeSyncStatus       = "sync_status"
+	EventTypeHistorySyncPage  = "history_sync_page"
 	EventTypeDownloadResp     = "download_response"
 	EventTypeConnectionStatus = "connection_status" // Worker connection status change (from orchestrator)
 	EventTypeLabels           = "labels"
@@ -39,6 +40,7 @@ const (
 	CommandStatus         = "status"
 	CommandBlockContact   = "block_contact"
 	CommandUnblockContact = "unblock_contact"
+	CommandRequestHistory = "request_history"
 )
 
 // Worker status constants.
@@ -216,6 +218,15 @@ type SendFailedPayload struct {
 type ConnectionStatusPayload struct {
 	Status string `json:"status"` // "error", "failed", "connecting", "connected"
 	Reason string `json:"reason"` // Human-readable reason for the status change
+}
+
+// HistorySyncPagePayload reports the result of an on-demand history request
+// after every message in the returned conversation page has been durably
+// queued ahead of this event.
+type HistorySyncPagePayload struct {
+	ChatJID      string `json:"chatJid"`
+	MessageCount int    `json:"messageCount"`
+	Status       string `json:"status"`
 }
 
 type LabelsPayload struct {

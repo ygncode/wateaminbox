@@ -115,3 +115,12 @@ export interface UnblockContactCommand extends NatsCommand {
   type: "unblock_contact";
   contact_jid: string;
 }
+
+export interface RequestHistoryCommand extends NatsCommand {
+  type: "request_history";
+  chat_jid: string;
+  oldest_message_id: string;
+  oldest_from_me: boolean;
+  oldest_timestamp: string;
+  count: number;
+}

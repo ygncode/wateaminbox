@@ -29,6 +29,7 @@ export type {
   SyncCatalogProductsCommand,
   BlockContactCommand,
   UnblockContactCommand,
+  RequestHistoryCommand,
 } from "./commands.js";
 
 // Event types
@@ -53,4 +54,5 @@ export type {
   SendFailedEvent,
   CommandResultEvent,
   WorkerConnectionStatusEvent,
+  HistorySyncPageEvent,
 } from "./events.js";

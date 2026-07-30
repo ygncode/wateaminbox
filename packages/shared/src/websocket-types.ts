@@ -5,7 +5,11 @@
  * and frontend (React client) for WebSocket communication.
  */
 
-import type { Message, MessageStatus } from "./types/message";
+import type {
+  Message,
+  MessageStatus,
+  RemoteHistoryStatus,
+} from "./types/message";
 
 // ============================================================================
 // Server-to-Client Event Types
@@ -54,6 +58,7 @@ export type ServerToClientEventType =
   | "sync:progress"
   | "sync:complete"
   | "sync:interrupted"
+  | "history:loaded"
   // Notification events
   | "notification:new"
   | "notification:toast"
@@ -269,6 +274,14 @@ export interface MediaDownloadFailedPayload {
 export interface SyncStatusPayload {
   messageCount: number;
   conversations: number;
+  connectionId?: string;
+}
+
+export interface HistoryLoadedPayload {
+  conversationId: string;
+  messageCount: number;
+  status: RemoteHistoryStatus;
+  error?: string;
   connectionId?: string;
 }
 

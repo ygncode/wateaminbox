@@ -192,4 +192,22 @@ export interface PaginatedMessages {
   messages: Message[];
   nextCursor?: string;
   hasMore: boolean;
+  remoteHistoryStatus: RemoteHistoryStatus;
 }
+
+/**
+ * Availability of messages that may still live on the primary WhatsApp
+ * device after the locally persisted pages have been exhausted.
+ */
+export type RemoteHistoryStatus =
+  | "unknown"
+  | "available"
+  | "requesting"
+  | "exhausted"
+  | "unavailable"
+  | "failed";
+
+// WhatsApp can queue an on-demand history page for several minutes even while
+// both devices are online. Keep API stale detection and the browser timer in
+// lockstep so a delayed, valid page is not presented as a phone failure.
+export const REMOTE_HISTORY_RESPONSE_TIMEOUT_MS = 15 * 60_000;

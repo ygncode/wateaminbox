@@ -19,6 +19,7 @@ const (
 	SubjectTyping          = "WHATSAPP.events.%s.%s.typing"
 	SubjectReaction        = "WHATSAPP.events.%s.%s.reaction"
 	SubjectSyncStatus      = "WHATSAPP.events.%s.%s.sync_status"
+	SubjectHistorySyncPage = "WHATSAPP.events.%s.%s.history_sync_page"
 	SubjectLabels          = "WHATSAPP.events.%s.%s.labels"
 	SubjectCatalogs        = "WHATSAPP.events.%s.%s.catalogs"
 	SubjectCatalogProducts = "WHATSAPP.events.%s.%s.catalog_products"

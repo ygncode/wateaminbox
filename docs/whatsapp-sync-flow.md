@@ -31,6 +31,27 @@ WhatsApp
 
 Outgoing messages take the reverse command path: REST API -> atomic tenant persistence and command outbox -> NATS command -> worker -> WhatsApp. Delivery receipts return through the durable event path and produce `message:status` updates.
 
+## Loading older history on demand
+
+When local database pagination reaches the oldest imported message, the chat UI
+can request another page from the primary WhatsApp device:
+
+1. `POST /api/conversations/:id/history` locks the conversation, verifies its
+   connection is active, and uses the oldest persisted WhatsApp message as the
+   request anchor.
+2. A `request_history` command is committed to the session-scoped command
+   outbox. The worker asks the primary device for up to 50 messages immediately
+   before that anchor.
+3. WhatsApp returns an `ON_DEMAND` history sync. The existing history importer
+   persists its messages and reactions; media is kept as deferred metadata so
+   the page is not blocked by attachment downloads.
+4. After those message events are durably queued, the worker publishes
+   `history_sync_page`, including whether more history remains, the beginning
+   was reached, or the primary device denied access.
+5. The API persists that per-conversation state and broadcasts
+   `history:loaded`. The requesting browser fetches the newly inserted database
+   page and prepends it without resetting the already loaded thread.
+
 ### Outgoing media transport
 
 1. `/api/media/upload` validates the file and writes it below `media/{companyId}/` in S3/R2/MinIO.

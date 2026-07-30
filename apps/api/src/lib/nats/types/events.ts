@@ -254,6 +254,15 @@ export interface SyncStatusEvent extends WhatsAppEvent {
   };
 }
 
+export interface HistorySyncPageEvent extends WhatsAppEvent {
+  type: "history_sync_page";
+  payload: {
+    chatJid: string;
+    messageCount: number;
+    status: "unknown" | "available" | "exhausted" | "unavailable";
+  };
+}
+
 // Send failed event (message failed after max retries)
 export interface SendFailedEvent extends WhatsAppEvent {
   type: "send_failed";

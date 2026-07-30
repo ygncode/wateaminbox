@@ -115,6 +115,7 @@ type CommandExecutor interface {
 	SyncLabels(ctx context.Context) ([]types.WhatsAppLabel, error)
 	ApplyLabel(ctx context.Context, contactJID, labelID string, labeled bool) error
 	SyncCatalog(ctx context.Context, catalogID string) (types.Catalog, error)
+	RequestHistory(ctx context.Context, chatJID, oldestMessageID string, oldestFromMe bool, oldestTimestamp time.Time, count int) error
 }
 
 // ProfilePictureFetcher fetches and stores a WhatsApp profile picture.
@@ -152,6 +153,16 @@ type LabelCommand struct {
 type CatalogCommand struct {
 	Type      string `json:"type"`
 	CatalogID string `json:"catalog_id"`
+}
+
+type RequestHistoryCommand struct {
+	Type            string `json:"type"`
+	ChatJID         string `json:"chat_jid"`
+	OldestMessageID string `json:"oldest_message_id"`
+	OldestFromMe    bool   `json:"oldest_from_me"`
+	OldestTimestamp string `json:"oldest_timestamp"`
+	Count           int    `json:"count"`
+	CommandID       string `json:"command_id"`
 }
 
 // CommandEventPublisher publishes durable outcomes produced by commands.
@@ -367,6 +378,8 @@ func (s *Subscriber) handleCommand(msg *nats.Msg) {
 		s.handleLabelCommand(msg, ct.Type)
 	case "sync_catalogs", "sync_catalog_products":
 		s.handleCatalogCommand(msg, ct.Type)
+	case "request_history":
+		s.handleRequestHistoryCommand(msg)
 	case "spawn", "kill", "status":
 		// These commands are consumed by the orchestrator. A worker can also see
 		// them because both consumers subscribe to its connection subject; ACK so
@@ -377,6 +390,43 @@ func (s *Subscriber) handleCommand(msg *nats.Msg) {
 		// Delegate to send command handler for all other types
 		s.handleSendCommand(msg)
 	}
+}
+
+func (s *Subscriber) handleRequestHistoryCommand(msg *nats.Msg) {
+	var cmd RequestHistoryCommand
+	if err := json.Unmarshal(msg.Data, &cmd); err != nil {
+		s.retryCommand(msg, "request_history", err)
+		return
+	}
+	if s.executor == nil {
+		s.retryCommand(msg, cmd.Type, fmt.Errorf("command executor not configured"))
+		return
+	}
+	timestamp, err := time.Parse(time.RFC3339Nano, cmd.OldestTimestamp)
+	if err != nil {
+		s.retryCommand(msg, cmd.Type, fmt.Errorf("invalid oldest message timestamp: %w", err))
+		return
+	}
+	ctx, cancel := context.WithTimeout(s.ctx, 30*time.Second)
+	defer cancel()
+	if err = s.executor.RequestHistory(
+		ctx,
+		cmd.ChatJID,
+		cmd.OldestMessageID,
+		cmd.OldestFromMe,
+		timestamp,
+		cmd.Count,
+	); err != nil {
+		s.retryCommand(msg, cmd.Type, err)
+		return
+	}
+	if s.publisher != nil && cmd.CommandID != "" {
+		if err = s.publisher.PublishCommandResult(cmd.CommandID, cmd.Type, true, ""); err != nil {
+			s.retryCommand(msg, cmd.Type, err)
+			return
+		}
+	}
+	msg.Ack()
 }
 
 // recreateSubscription attempts to recreate the NATS subscription

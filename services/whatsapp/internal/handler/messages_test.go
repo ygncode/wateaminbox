@@ -103,6 +103,27 @@ func TestHistorySyncPersistsMappingsBeforeResolvingReactionIdentity(t *testing.T
 	}
 }
 
+func TestHistorySyncConversationUsesPersistedMappingForLIDOnlyChat(t *testing.T) {
+	lidStore := &fakeLIDStore{}
+	waClient := &whatsmeow.Client{Store: &store.Device{LIDs: lidStore}}
+	handler := New(Config{Client: &mockDownloader{client: waClient}})
+
+	handler.storeHistoryLIDMappings([]*waHistorySync.PhoneNumberToLIDMapping{
+		{
+			PnJID:  proto.String("6584042683@s.whatsapp.net"),
+			LidJID: proto.String("44578136657990@lid"),
+		},
+	})
+
+	result := handler.processHistorySyncConversation(
+		&waHistorySync.Conversation{ID: proto.String("44578136657990@lid")},
+		true,
+	)
+	if result.chatJID != "6584042683@s.whatsapp.net" {
+		t.Fatalf("expected canonical phone chat JID, got %q", result.chatJID)
+	}
+}
+
 func TestGetQuotedMessageIDFromIncomingMessages(t *testing.T) {
 	tests := []struct {
 		name     string

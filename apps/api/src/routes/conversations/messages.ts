@@ -21,7 +21,15 @@ import {
   markDeprecatedMessageSend,
   requireMessageSendPermission,
 } from "../../middleware/message-send-policy.js";
-import { enqueueCommand } from "../../services/command-outbox.service.js";
+import {
+  REMOTE_HISTORY_RESPONSE_TIMEOUT_MS,
+  toDbDate,
+  toISOString,
+} from "@wateaminbox/shared";
+import {
+  enqueueCommand,
+  enqueueSessionCommand,
+} from "../../services/command-outbox.service.js";
 import { ensureContactAssignment } from "../../services/contact.service.js";
 import { getUserNames } from "../../services/user.service.js";
 import { getActiveSessionId } from "../../services/whatsapp/session.js";
@@ -39,6 +47,31 @@ messageRoutes.get(
     const { tenantDb } = getRouteContext(c);
     const contactId = c.req.param("id");
     const { limit, cursor } = c.req.valid("query");
+    const contact = await tenantDb
+      .selectFrom("contacts")
+      .select(["remote_history_status", "remote_history_updated_at"])
+      .where("id", "=", contactId)
+      .executeTakeFirst();
+    if (!contact) {
+      return notFound(c, "Contact");
+    }
+    let remoteHistoryStatus = contact.remote_history_status;
+    if (
+      remoteHistoryStatus === "requesting" &&
+      (!contact.remote_history_updated_at ||
+        contact.remote_history_updated_at.getTime() <=
+          Date.now() - REMOTE_HISTORY_RESPONSE_TIMEOUT_MS)
+    ) {
+      remoteHistoryStatus = "failed";
+      await tenantDb
+        .updateTable("contacts")
+        .set({
+          remote_history_status: remoteHistoryStatus,
+          remote_history_updated_at: toDbDate(),
+        })
+        .where("id", "=", contactId)
+        .execute();
+    }
 
     let query = tenantDb
       .selectFrom("messages")
@@ -121,9 +154,121 @@ messageRoutes.get(
       messages: formattedMessages,
       hasMore: messages.length === limit,
       nextCursor: messages.length > 0 ? messages[messages.length - 1].id : null,
+      remoteHistoryStatus,
     });
   },
 );
+
+/**
+ * POST /conversations/:id/history - Request the next remote history page from
+ * the primary WhatsApp device after local database pages are exhausted.
+ */
+messageRoutes.post("/:id/history", async (c) => {
+  const { tenantDb, companyId } = getRouteContext(c);
+  const contactId = c.req.param("id");
+  const now = toDbDate();
+  const staleRequestBefore = new Date(
+    now.getTime() - REMOTE_HISTORY_RESPONSE_TIMEOUT_MS,
+  );
+
+  const result = await tenantDb.transaction().execute(async (trx) => {
+    const contact = await trx
+      .selectFrom("contacts")
+      .select([
+        "id",
+        "jid",
+        "whatsapp_connection_id",
+        "remote_history_status",
+        "remote_history_updated_at",
+      ])
+      .where("id", "=", contactId)
+      .forUpdate()
+      .executeTakeFirst();
+    if (!contact?.jid || !contact.whatsapp_connection_id) {
+      return { error: "This conversation is not linked to WhatsApp" } as const;
+    }
+
+    if (
+      contact.remote_history_status === "exhausted" ||
+      contact.remote_history_status === "unavailable"
+    ) {
+      return {
+        error:
+          contact.remote_history_status === "exhausted"
+            ? "WhatsApp reports that no older messages remain"
+            : "Older messages are not available from the primary phone",
+      } as const;
+    }
+    if (
+      contact.remote_history_status === "requesting" &&
+      contact.remote_history_updated_at &&
+      contact.remote_history_updated_at > staleRequestBefore
+    ) {
+      return { queued: true, alreadyPending: true } as const;
+    }
+
+    const connection = await trx
+      .selectFrom("whatsapp_connections")
+      .select("id")
+      .where("id", "=", contact.whatsapp_connection_id)
+      .where("status", "=", "connected")
+      .executeTakeFirst();
+    if (!connection) {
+      return {
+        error: "The contact's WhatsApp connection is not active",
+      } as const;
+    }
+
+    const oldestMessage = await trx
+      .selectFrom("messages")
+      .select(["message_id", "from_me", "timestamp"])
+      .where("contact_id", "=", contact.id)
+      .where("whatsapp_connection_id", "=", connection.id)
+      .where("message_id", "is not", null)
+      .where("message_id", "not like", "pending_%")
+      .orderBy("timestamp", "asc")
+      .orderBy("created_at", "asc")
+      .executeTakeFirst();
+    if (!oldestMessage?.message_id) {
+      return {
+        error: "An existing WhatsApp message is required to load older history",
+      } as const;
+    }
+
+    const sessionId = await getActiveSessionId(trx, connection.id);
+    await trx
+      .updateTable("contacts")
+      .set({
+        remote_history_status: "requesting",
+        remote_history_updated_at: now,
+        updated_at: now,
+      })
+      .where("id", "=", contact.id)
+      .execute();
+    await enqueueSessionCommand(trx, companyId, sessionId, (publisher) =>
+      publisher.requestHistory({
+        chatJid: contact.jid!,
+        oldestMessageId: oldestMessage.message_id!,
+        oldestFromMe: oldestMessage.from_me,
+        oldestTimestamp: toISOString(oldestMessage.timestamp),
+        count: 50,
+      }),
+    );
+    return { queued: true, alreadyPending: false } as const;
+  });
+
+  if ("error" in result) {
+    return badRequest(c, result.error);
+  }
+  return successData(
+    c,
+    {
+      ...result,
+      remoteHistoryStatus: "requesting" as const,
+    },
+    202,
+  );
+});
 
 /**
  * POST /conversations/:id/messages - Send a new message

@@ -52,5 +52,7 @@ export {
 // Error handlers
 export { handleErrorEvent } from "./error-handlers.js";
 
+export { handleHistorySyncPageEvent } from "./history-handlers.js";
+
 // Types
 export type { HandlerContext } from "./types.js";

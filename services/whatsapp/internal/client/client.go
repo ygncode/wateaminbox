@@ -230,7 +230,7 @@ func (c *Client) connectWithQR(ctx context.Context) error {
 
 // reconnect reconnects an existing session.
 func (c *Client) reconnect(ctx context.Context) error {
-	if err := c.client.Connect(); err != nil {
+	if err := ensureSocketConnected(c.client.IsConnected, c.client.Connect); err != nil {
 		return fmt.Errorf("failed to reconnect: %w", err)
 	}
 
@@ -238,6 +238,23 @@ func (c *Client) reconnect(ctx context.Context) error {
 	c.connected = true
 	c.mu.Unlock()
 
+	return nil
+}
+
+// ensureSocketConnected tolerates the race where whatsmeow restores its socket
+// after a Disconnected event but before our reconnect attempt runs. Connect
+// reports "websocket is already connected" in that case even though recovery
+// has succeeded.
+func ensureSocketConnected(isConnected func() bool, connect func() error) error {
+	if isConnected() {
+		return nil
+	}
+	if err := connect(); err != nil {
+		if isConnected() {
+			return nil
+		}
+		return err
+	}
 	return nil
 }
 
@@ -349,7 +366,7 @@ func (c *Client) HandleReconnect(ctx context.Context) {
 		}
 
 		// Attempt connection
-		if err := c.client.Connect(); err != nil {
+		if err := ensureSocketConnected(c.client.IsConnected, c.client.Connect); err != nil {
 			log.Printf("Reconnection attempt #%d failed: %v", c.reconnectAttemptNum, err)
 
 			// Calculate backoff duration

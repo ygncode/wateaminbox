@@ -54,6 +54,8 @@ export const TENANT_SCHEMA_CONTRACT = {
     "last_seen",
     "is_blocked",
     "profile_picture_url",
+    "remote_history_status",
+    "remote_history_updated_at",
     "created_at",
     "updated_at",
   ],
@@ -354,6 +356,25 @@ export async function reconcileTenantSchema<Database>(
 ): Promise<void> {
   const table = (name: keyof TenantDatabase) =>
     sql.table(`${schemaName}.${String(name)}`);
+
+  await sql`
+    ALTER TABLE ${table("contacts")}
+    ADD COLUMN IF NOT EXISTS remote_history_status TEXT NOT NULL DEFAULT 'unknown',
+    ADD COLUMN IF NOT EXISTS remote_history_updated_at TIMESTAMPTZ
+  `.execute(db);
+  await sql`
+    ALTER TABLE ${table("contacts")}
+    DROP CONSTRAINT IF EXISTS contacts_remote_history_status_check,
+    ADD CONSTRAINT contacts_remote_history_status_check
+    CHECK (remote_history_status IN (
+      'unknown',
+      'available',
+      'requesting',
+      'exhausted',
+      'unavailable',
+      'failed'
+    ))
+  `.execute(db);
 
   // The latest historical setup function regressed several label/catalog
   // columns. Normalize its legacy label identifier before adding the current

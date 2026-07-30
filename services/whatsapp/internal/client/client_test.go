@@ -494,6 +494,44 @@ func TestClient_ContextStorage(t *testing.T) {
 	assert.NotNil(t, c.cancelReconnect, "cancel function should be stored")
 }
 
+func TestEnsureSocketConnected(t *testing.T) {
+	t.Run("skips connect when the socket has already recovered", func(t *testing.T) {
+		connectCalled := false
+		err := ensureSocketConnected(
+			func() bool { return true },
+			func() error {
+				connectCalled = true
+				return nil
+			},
+		)
+
+		require.NoError(t, err)
+		assert.False(t, connectCalled)
+	})
+
+	t.Run("accepts recovery racing with a failed connect call", func(t *testing.T) {
+		connected := false
+		err := ensureSocketConnected(
+			func() bool { return connected },
+			func() error {
+				connected = true
+				return assert.AnError
+			},
+		)
+
+		require.NoError(t, err)
+	})
+
+	t.Run("returns a genuine connection error", func(t *testing.T) {
+		err := ensureSocketConnected(
+			func() bool { return false },
+			func() error { return assert.AnError },
+		)
+
+		require.ErrorIs(t, err, assert.AnError)
+	})
+}
+
 // TestIsConnected tests the connected flag behavior.
 // Note: The full IsConnected() method also checks the underlying whatsmeow client,
 // which requires a full client setup. This test verifies the internal flag state.
