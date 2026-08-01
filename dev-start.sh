@@ -241,49 +241,6 @@ build_packages() {
     print_success "All internal packages built"
 }
 
-# Run the API dev server under a health-checking supervisor.
-#
-# `bun --watch` wedges permanently if a reload hits an unresolvable import
-# (e.g. an entry file saved moments before its new dependency file exists):
-# the process stays alive but never serves or reloads again, and the frontend
-# surfaces it only as browser-level "Failed to fetch" errors. Probe the health
-# endpoint and relaunch the watcher when it stops responding.
-supervise_api_server() {
-    local root_dir=$1
-    local api_pid=""
-    local failures=0
-
-    start_api() {
-        (cd "$root_dir/apps/api" && exec bun run --watch src/index.ts) >> "$LOGS_DIR/api.log" 2>&1 &
-        api_pid=$!
-    }
-
-    # Ensure the API process dies with the supervisor (Ctrl+C / cleanup).
-    trap '[ -n "$api_pid" ] && kill "$api_pid" 2>/dev/null; exit 0' INT TERM EXIT
-
-    start_api
-    # Give the server time to boot before the first probe.
-    sleep 10
-
-    while true; do
-        if curl -fsS --max-time 3 http://localhost:4445/api/health > /dev/null 2>&1; then
-            failures=0
-        else
-            failures=$((failures + 1))
-        fi
-        if [ "$failures" -ge 3 ]; then
-            echo "[dev-start] API unresponsive after $failures health checks; restarting watcher..." >> "$LOGS_DIR/api.log"
-            kill "$api_pid" 2>/dev/null || true
-            sleep 1
-            kill_port 4445 > /dev/null 2>&1 || true
-            start_api
-            failures=0
-            sleep 10
-        fi
-        sleep 10
-    done
-}
-
 # Load environment variables from .env file
 load_env() {
     if [ -f .env ]; then
@@ -324,11 +281,13 @@ start_dev_servers() {
     PIDS+=($!)
     sleep 2
     
-    # Start API server under a health-checking supervisor (see
-    # supervise_api_server for why bun's watcher needs supervision).
+    # Start the API under a standalone supervisor. It reapplies pending
+    # migrations before every watcher launch and recovers dead/wedged watchers.
     print_status "  Starting API server (→ logs/api.log)..."
     : > "$LOGS_DIR/api.log"
-    supervise_api_server "$ROOT_DIR" &
+    SUPERVISOR_ROOT_DIR="$ROOT_DIR" \
+        SUPERVISOR_LOG="$LOGS_DIR/api.log" \
+        "$ROOT_DIR/scripts/api-supervisor.sh" &
     PIDS+=($!)
     sleep 2
 
