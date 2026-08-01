@@ -58,6 +58,12 @@ export {
 } from "./client.js";
 // Re-export companies functions
 export { getUserCompanies } from "./companies.js";
+// Re-export SLA policy functions
+export {
+  createSlaPolicy,
+  getCurrentSlaPolicy,
+  getSlaPolicyHistory,
+} from "./sla-policy.js";
 // Re-export contacts functions
 export {
   downloadImportTemplate,

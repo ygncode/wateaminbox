@@ -14,6 +14,7 @@ import {
   getPresignedUrl,
   uploadMedia,
 } from "../../lib/storage.js";
+import { seedDefaultSlaPolicy } from "../sla-policy/policy.service.js";
 import { createTenantSchema, getSchemaName } from "../tenant.service.js";
 import type {
   Company,
@@ -108,6 +109,8 @@ export async function createCompany(
           joined_at: toDbDate(),
         })
         .execute();
+
+      await seedDefaultSlaPolicy(trx, companyId);
 
       return company;
     });

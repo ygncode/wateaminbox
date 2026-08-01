@@ -8,6 +8,8 @@ import {
   Users,
 } from "lucide-react";
 import { useMemo } from "react";
+import { queryKeys } from "@/hooks/query-keys";
+import { useCurrentSlaPolicy } from "@/hooks/useSlaPolicy";
 import {
   getResponseTimeStats,
   getResponseTimeTrend,
@@ -32,77 +34,112 @@ function getSlaColor(rate: number): string {
   return "text-red-600";
 }
 
+/**
+ * True when the API refused to compute analytics because the date range
+ * has more conversations than it will process in one query (see
+ * `AnalyticsRangeTooWideError`/`MAX_EPISODES_PER_QUERY` on the backend).
+ * The backend never returns a silently-partial compliance calculation for
+ * this case - it fails explicitly - so the UI must show that explicitly
+ * too, not a generic "could not load" message.
+ */
+function isRangeTooWideError(error: unknown): boolean {
+  return (
+    error instanceof Error && error.message.includes("too many to process")
+  );
+}
+
 interface ResponseTimeAnalyticsProps {
   companyId: string;
   dateRange: TimeRange;
   isAdmin?: boolean;
-  slaThreshold?: number;
 }
 
 export function ResponseTimeAnalytics({
   companyId,
   dateRange,
   isAdmin = false,
-  slaThreshold = 60,
 }: ResponseTimeAnalyticsProps) {
+  // The current SLA policy's target is shown for context only (e.g. the
+  // chart's target line and the "Current target" label) - it is never sent
+  // as a query override. Each response episode in the figures below is
+  // measured against whichever SLA policy version was active when it began,
+  // which can differ from the current policy if it has since been edited.
+  const { data: currentPolicy } = useCurrentSlaPolicy(companyId);
+  const currentTargetMinutes = currentPolicy?.targetMinutes;
+
   const dates = useMemo(() => {
     const { start, end } = getDateRange(dateRange);
     return { start: start.toDate(), end: end.toDate() };
   }, [dateRange]);
 
+  // No `slaThreshold` override is passed in any of these calls: each
+  // response episode is measured against its own historical SLA policy by
+  // default, so editing the current policy never rewrites past analytics.
   const {
     data: statsData,
     isLoading: statsLoading,
     isError: statsError,
+    error: statsErrorObj,
   } = useQuery({
-    queryKey: [
-      "responseTimeStats",
+    queryKey: queryKeys.analytics.responseTimeStats(
       companyId,
       dates.start,
       dates.end,
-      slaThreshold,
-    ],
-    queryFn: () => getResponseTimeStats(dates.start, dates.end, slaThreshold),
+    ),
+    queryFn: () => getResponseTimeStats(dates.start, dates.end),
     enabled: !!companyId,
     staleTime: 5 * 60 * 1000,
+    retry: (failureCount, error) =>
+      !isRangeTooWideError(error) && failureCount < 3,
   });
 
   const {
     data: trendData,
     isLoading: trendLoading,
     isError: trendError,
+    error: trendErrorObj,
   } = useQuery({
-    queryKey: [
-      "responseTimeTrend",
+    queryKey: queryKeys.analytics.responseTimeTrend(
       companyId,
       dates.start,
       dates.end,
-      slaThreshold,
-    ],
-    queryFn: () => getResponseTimeTrend(dates.start, dates.end, slaThreshold),
+    ),
+    queryFn: () => getResponseTimeTrend(dates.start, dates.end),
     enabled: !!companyId,
     staleTime: 5 * 60 * 1000,
+    retry: (failureCount, error) =>
+      !isRangeTooWideError(error) && failureCount < 3,
   });
 
-  const { data: teamData } = useQuery({
-    queryKey: [
-      "teamResponseTime",
+  const { data: teamData, error: teamErrorObj } = useQuery({
+    queryKey: queryKeys.analytics.responseTimeTeam(
       companyId,
       dates.start,
       dates.end,
-      slaThreshold,
-    ],
-    queryFn: () =>
-      getTeamResponseTimeStats(dates.start, dates.end, slaThreshold),
+    ),
+    queryFn: () => getTeamResponseTimeStats(dates.start, dates.end),
     enabled: !!companyId && isAdmin,
     staleTime: 5 * 60 * 1000,
+    // Same range as stats/trend, fetched from the same episode set: if the
+    // range is too wide for one, it's too wide for all four, and the
+    // banner below already tells the user to narrow it - retrying this
+    // query too would just fire more redundant, guaranteed-to-fail
+    // expensive queries in the background.
+    retry: (failureCount, error) =>
+      !isRangeTooWideError(error) && failureCount < 3,
   });
 
-  const { data: breachData } = useQuery({
-    queryKey: ["slaBreaches", companyId, dates.start, dates.end, slaThreshold],
-    queryFn: () => getSlaBreaches(dates.start, dates.end, slaThreshold, 10),
+  const { data: breachData, error: breachErrorObj } = useQuery({
+    queryKey: queryKeys.analytics.slaBreaches(
+      companyId,
+      dates.start,
+      dates.end,
+    ),
+    queryFn: () => getSlaBreaches(dates.start, dates.end, undefined, 10),
     enabled: !!companyId,
     staleTime: 5 * 60 * 1000,
+    retry: (failureCount, error) =>
+      !isRangeTooWideError(error) && failureCount < 3,
   });
 
   const stats = statsData;
@@ -112,6 +149,15 @@ export function ResponseTimeAnalytics({
 
   const isLoading = statsLoading || trendLoading;
   const hasPrimaryError = statsError || trendError;
+  // All four queries share the same underlying episode fetch/date range, so
+  // a too-wide range fails all of them together - checked across all four
+  // (not just stats/trend) so the single banner below reflects the true
+  // state even though team/breaches render their own sections independently.
+  const rangeTooWide =
+    isRangeTooWideError(statsErrorObj) ||
+    isRangeTooWideError(trendErrorObj) ||
+    isRangeTooWideError(teamErrorObj) ||
+    isRangeTooWideError(breachErrorObj);
 
   return (
     <div className="space-y-6">
@@ -135,7 +181,16 @@ export function ResponseTimeAnalytics({
         </span>
       </div>
 
-      {hasPrimaryError && (
+      {hasPrimaryError && rangeTooWide && (
+        <div
+          role="alert"
+          className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-5 text-center text-sm text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-300"
+        >
+          This date range has too many conversations to analyze at once. Choose
+          a narrower range (e.g. 7 or 30 days) and try again.
+        </div>
+      )}
+      {hasPrimaryError && !rangeTooWide && (
         <div
           role="alert"
           className="rounded-xl border border-red-200 bg-red-50 px-4 py-5 text-center text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-300"
@@ -182,7 +237,7 @@ export function ResponseTimeAnalytics({
                 : `${Math.round(stats?.slaComplianceRate || 0)}%`}
             </div>
             <div className="mt-1 text-[10px] text-[#87928c] dark:text-dark-text-secondary">
-              Target: {slaThreshold} min
+              Current target: {currentTargetMinutes ?? "-"} min
             </div>
           </div>
 
@@ -227,10 +282,14 @@ export function ResponseTimeAnalytics({
               Response-time trend
             </h3>
             <p className="mt-0.5 text-[11px] text-[#7a8881] dark:text-dark-text-secondary">
-              Daily average compared with the {slaThreshold}-minute target
+              Daily average compared with the current{" "}
+              {currentTargetMinutes ?? "-"}-minute target
             </p>
           </div>
-          <ResponseTimeTrendChart data={trend} slaThreshold={slaThreshold} />
+          <ResponseTimeTrendChart
+            data={trend}
+            slaThreshold={currentTargetMinutes ?? 60}
+          />
         </div>
       )}
 

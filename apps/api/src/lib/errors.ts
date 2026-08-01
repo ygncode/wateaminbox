@@ -306,6 +306,33 @@ export class MaxConnectionsExceededError extends TooManyRequestsError {
 }
 
 /**
+ * A persisted SLA policy's weekly_schedule/exceptions JSON doesn't match
+ * the shape the business-hours calendar math requires (e.g. a missing
+ * weekday, or an "open" day/exception with no intervals). This should be
+ * unreachable through the normal API (schema-validated on write), so it
+ * signals a data-integrity problem, not a bad request - defaults to 500
+ * (AppError's default) rather than a 400 the caller could "fix" by retrying.
+ */
+export class MalformedSlaCalendarError extends AppError {
+  constructor(message: string) {
+    super(`Malformed SLA calendar data: ${message}`);
+    this.name = "MalformedSlaCalendarError";
+  }
+}
+
+export class AnalyticsRangeTooWideError extends ValidationError {
+  episodeLimit: number;
+
+  constructor(episodeLimit: number) {
+    super(
+      `This date range has more than ${episodeLimit} conversations to analyze, which is too many to process at once. Narrow the date range and try again.`,
+    );
+    this.name = "AnalyticsRangeTooWideError";
+    this.episodeLimit = episodeLimit;
+  }
+}
+
+/**
  * Check if an error is a PostgreSQL "relation does not exist" error
  * and extract the table name if so.
  */

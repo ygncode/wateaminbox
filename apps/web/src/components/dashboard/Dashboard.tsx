@@ -221,7 +221,6 @@ export function Dashboard({
                     companyId={companyId}
                     dateRange={dateRange}
                     isAdmin={isAdmin}
-                    slaThreshold={60}
                   />
                 </div>
               </>

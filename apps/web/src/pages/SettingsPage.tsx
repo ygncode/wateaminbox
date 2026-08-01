@@ -2,6 +2,7 @@ import {
   Bell,
   Building2,
   CircleAlert,
+  Clock,
   Database,
   Globe2,
   ImagePlus,
@@ -29,6 +30,7 @@ import {
   LanguageSwitcher,
   NotificationSettings,
   QuickRepliesManager,
+  SlaPolicySettings,
 } from "../components/settings";
 import { Button, Input } from "../components/ui";
 import {
@@ -63,6 +65,7 @@ import { workspacePath } from "../lib/workspace-routes";
 type SettingsSection =
   | "general"
   | "connections"
+  | "sla"
   | "quick-replies"
   | "labels"
   | "catalogs"
@@ -99,6 +102,13 @@ export function SettingsPage() {
       group: "Workspace",
       icon: Plug,
       visible: can("can_manage_connections"),
+    },
+    {
+      id: "sla",
+      label: "Response SLA",
+      group: "Workspace",
+      icon: Clock,
+      visible: true,
     },
     {
       id: "quick-replies",
@@ -295,6 +305,8 @@ function SettingsSectionContent({
           <WhatsAppConnectionPanel multiConnection hideHeader />
         </Panel>
       );
+    case "sla":
+      return <SlaPolicySettings />;
     case "quick-replies":
       return (
         <Panel

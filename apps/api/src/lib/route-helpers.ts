@@ -1,6 +1,11 @@
-import { subtractDays, toDbDate } from "@wateaminbox/shared";
+import {
+  SLA_TARGET_MINUTES_MAX,
+  SLA_TARGET_MINUTES_MIN,
+  subtractDays,
+  toDbDate,
+} from "@wateaminbox/shared";
 import type { Context } from "hono";
-import { NotFoundError } from "./errors.js";
+import { NotFoundError, ValidationError } from "./errors.js";
 
 /**
  * Date range result type
@@ -168,6 +173,41 @@ export function createPaginationMeta(
     offset: params.offset,
     hasMore: params.offset + returnedCount < total,
   };
+}
+
+/**
+ * Extract an explicit `slaThreshold` query-param override (in minutes).
+ *
+ * Returns `undefined` when the caller did not pass one, so analytics falls
+ * back to each response episode's own historical SLA policy target - this
+ * is the normal dashboard path, and is what keeps historical analytics
+ * stable when an admin edits the current policy later.
+ *
+ * When present, the override replaces only the *target duration* used for
+ * compliance decisions; it never changes which policy's business-hours
+ * calendar an episode is measured against (that always stays the policy
+ * that was active when the episode began). This is the only documented
+ * internal use case for overriding the dashboard default (ad-hoc analytics
+ * queries against a hypothetical target), so it is validated with the same
+ * bounds enforced when persisting a company's SLA policy rather than
+ * accepted unchecked. The normal frontend must never send this parameter.
+ */
+export function extractSlaThresholdOverride(c: Context): number | undefined {
+  const raw = c.req.query("slaThreshold");
+  if (raw === undefined) return undefined;
+
+  const value = Number(raw);
+  if (
+    !Number.isInteger(value) ||
+    value < SLA_TARGET_MINUTES_MIN ||
+    value > SLA_TARGET_MINUTES_MAX
+  ) {
+    throw new ValidationError(
+      `slaThreshold must be an integer between ${SLA_TARGET_MINUTES_MIN} and ${SLA_TARGET_MINUTES_MAX} minutes`,
+    );
+  }
+
+  return value;
 }
 
 // =============================================================================

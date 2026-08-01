@@ -13,3 +13,4 @@ export {
 } from "./LanguageSwitcher";
 export { NotificationSettings } from "./NotificationSettings";
 export { QuickRepliesManager } from "./QuickRepliesManager";
+export { SlaPolicySettings } from "./SlaPolicySettings";

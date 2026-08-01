@@ -6,6 +6,7 @@ import {
   extractDateRange,
   extractOptionalDateRange,
   extractPaginationParams,
+  extractSlaThresholdOverride,
 } from "../lib/route-helpers.js";
 import { authMiddleware } from "../middleware/auth.js";
 import { getRouteContext } from "../middleware/context.js";
@@ -127,19 +128,26 @@ analyticsRoutes.get("/hourly", analyticsRateLimiter, async (c) => {
 
 /**
  * GET /analytics/response-time - Get response time statistics
- * Query params: startDate, endDate, slaThreshold (minutes, default 60)
+ *
+ * Query params: startDate, endDate, slaThreshold (optional minutes
+ * override). Normally `slaThreshold` is omitted: each response episode is
+ * then measured against whichever SLA policy version (target + business
+ * calendar) was active when it began - the persisted, historical, default
+ * behavior. If provided, `slaThreshold` replaces only the target duration
+ * used for compliance decisions; each episode's own historical calendar is
+ * still always used for the business-time calculation itself.
  * Rate limit: 60 requests per minute per user
  */
 analyticsRoutes.get("/response-time", analyticsRateLimiter, async (c) => {
   const { companyId } = getRouteContext(c);
   const { startDate, endDate } = extractDateRange(c, 30);
-  const slaThreshold = parseInt(c.req.query("slaThreshold") || "60", 10);
+  const slaTargetOverrideMinutes = extractSlaThresholdOverride(c);
 
   const stats = await analyticsService.getResponseTimeStats(
     companyId,
     startDate,
     endDate,
-    slaThreshold,
+    slaTargetOverrideMinutes,
   );
 
   return successData(c, {
@@ -147,26 +155,26 @@ analyticsRoutes.get("/response-time", analyticsRateLimiter, async (c) => {
     meta: {
       startDate: toISOString(startDate),
       endDate: toISOString(endDate),
-      slaThresholdMinutes: slaThreshold,
+      slaTargetOverrideMinutes: slaTargetOverrideMinutes ?? null,
     },
   });
 });
 
 /**
  * GET /analytics/response-time/trend - Get response time trend over time
- * Query params: startDate, endDate, slaThreshold (minutes, default 60)
+ * Query params: startDate, endDate, slaThreshold (optional minutes override)
  * Rate limit: 60 requests per minute per user
  */
 analyticsRoutes.get("/response-time/trend", analyticsRateLimiter, async (c) => {
   const { companyId } = getRouteContext(c);
   const { startDate, endDate } = extractDateRange(c, 30);
-  const slaThreshold = parseInt(c.req.query("slaThreshold") || "60", 10);
+  const slaTargetOverrideMinutes = extractSlaThresholdOverride(c);
 
   const trend = await analyticsService.getResponseTimeTrend(
     companyId,
     startDate,
     endDate,
-    slaThreshold,
+    slaTargetOverrideMinutes,
   );
 
   return successData(c, {
@@ -174,19 +182,19 @@ analyticsRoutes.get("/response-time/trend", analyticsRateLimiter, async (c) => {
     meta: {
       startDate: toISOString(startDate),
       endDate: toISOString(endDate),
-      slaThresholdMinutes: slaThreshold,
+      slaTargetOverrideMinutes: slaTargetOverrideMinutes ?? null,
     },
   });
 });
 
 /**
  * GET /analytics/response-time/team - Get response time stats by team member
- * Query params: startDate, endDate, slaThreshold (minutes, default 60)
+ * Query params: startDate, endDate, slaThreshold (optional minutes override)
  * Rate limit: 60 requests per minute per user
  */
 analyticsRoutes.get("/response-time/team", analyticsRateLimiter, async (c) => {
   const { companyId } = getRouteContext(c);
-  const slaThreshold = parseInt(c.req.query("slaThreshold") || "60", 10);
+  const slaTargetOverrideMinutes = extractSlaThresholdOverride(c);
 
   const { startDate, endDate } = extractDateRange(c, 30);
 
@@ -194,7 +202,7 @@ analyticsRoutes.get("/response-time/team", analyticsRateLimiter, async (c) => {
     companyId,
     startDate,
     endDate,
-    slaThreshold,
+    slaTargetOverrideMinutes,
   );
 
   return successData(c, {
@@ -202,7 +210,7 @@ analyticsRoutes.get("/response-time/team", analyticsRateLimiter, async (c) => {
     meta: {
       startDate: toISOString(startDate),
       endDate: toISOString(endDate),
-      slaThresholdMinutes: slaThreshold,
+      slaTargetOverrideMinutes: slaTargetOverrideMinutes ?? null,
     },
   });
 });
@@ -281,20 +289,20 @@ analyticsRoutes.get("/engagement/trend", analyticsRateLimiter, async (c) => {
 
 /**
  * GET /analytics/sla-breaches - Get conversations that exceeded SLA
- * Query params: startDate, endDate, slaThreshold (minutes, default 60), limit (default 50)
+ * Query params: startDate, endDate, slaThreshold (optional minutes override), limit (default 50)
  * Rate limit: 60 requests per minute per user
  */
 analyticsRoutes.get("/sla-breaches", analyticsRateLimiter, async (c) => {
   const { companyId } = getRouteContext(c);
   const { startDate, endDate } = extractDateRange(c, 7);
-  const slaThreshold = parseInt(c.req.query("slaThreshold") || "60", 10);
+  const slaTargetOverrideMinutes = extractSlaThresholdOverride(c);
   const { limit } = extractPaginationParams(c);
 
   const breaches = await analyticsService.getSlaBreaches(
     companyId,
     startDate,
     endDate,
-    slaThreshold,
+    slaTargetOverrideMinutes,
     limit,
   );
 
@@ -303,7 +311,7 @@ analyticsRoutes.get("/sla-breaches", analyticsRateLimiter, async (c) => {
     meta: {
       startDate: toISOString(startDate),
       endDate: toISOString(endDate),
-      slaThresholdMinutes: slaThreshold,
+      slaTargetOverrideMinutes: slaTargetOverrideMinutes ?? null,
     },
   });
 });

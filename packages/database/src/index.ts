@@ -31,6 +31,7 @@ export type {
   UserSessionsTable,
   AuthTokensTable,
   AuthTokenType,
+  SlaPoliciesTable,
   /** @deprecated Use CompanyMemberRole from @wateaminbox/shared instead */
   MemberRole,
   // Tenant schema types

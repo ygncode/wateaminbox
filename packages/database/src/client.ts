@@ -26,6 +26,7 @@ export interface Database {
   company_stats: CompanyStatsTable;
   user_sessions: UserSessionsTable;
   auth_tokens: AuthTokensTable;
+  sla_policies: SlaPoliciesTable;
 }
 
 // Type alias for backward compatibility (deprecated - import from @wateaminbox/shared instead)
@@ -42,6 +43,25 @@ export interface CompaniesTable {
   max_whatsapp_connections: Generated<number>;
   created_at: Generated<Date>;
   updated_at: Generated<Date>;
+}
+
+/**
+ * Versioned, immutable SLA response-target policies for a company.
+ * `weekly_schedule`/`exceptions` are stored as jsonb; application code casts
+ * them to their typed shapes (see `SlaWeeklySchedule`/`SlaScheduleException`
+ * in @wateaminbox/shared) on read, matching the existing `permissions`
+ * jsonb-column pattern below.
+ */
+export interface SlaPoliciesTable {
+  id: Generated<string>;
+  company_id: string;
+  target_minutes: number;
+  timezone: string;
+  weekly_schedule: unknown;
+  exceptions: Generated<unknown>;
+  effective_from: Date;
+  created_by: string | null;
+  created_at: Generated<Date>;
 }
 
 export interface UsersTable {

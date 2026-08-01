@@ -142,6 +142,67 @@ export const queryKeys = {
       endDate?: string,
     ) =>
       ["analytics", "engagement-trend", companyId, startDate, endDate] as const,
+    // Response-time / SLA analytics. Called with no dates (e.g. from
+    // useCreateSlaPolicy's invalidation) this returns a short prefix key
+    // that react-query's `invalidateQueries` matches against every cached
+    // date-range variant for that company - the same pattern as
+    // `team.members`/`team.invitations` below.
+    responseTimeStats: (
+      companyId: string | null,
+      startDate?: Date,
+      endDate?: Date,
+    ) =>
+      startDate && endDate
+        ? ([
+            "analytics",
+            "response-time-stats",
+            companyId,
+            startDate,
+            endDate,
+          ] as const)
+        : (["analytics", "response-time-stats", companyId] as const),
+    responseTimeTrend: (
+      companyId: string | null,
+      startDate?: Date,
+      endDate?: Date,
+    ) =>
+      startDate && endDate
+        ? ([
+            "analytics",
+            "response-time-trend",
+            companyId,
+            startDate,
+            endDate,
+          ] as const)
+        : (["analytics", "response-time-trend", companyId] as const),
+    responseTimeTeam: (
+      companyId: string | null,
+      startDate?: Date,
+      endDate?: Date,
+    ) =>
+      startDate && endDate
+        ? ([
+            "analytics",
+            "response-time-team",
+            companyId,
+            startDate,
+            endDate,
+          ] as const)
+        : (["analytics", "response-time-team", companyId] as const),
+    slaBreaches: (
+      companyId: string | null,
+      startDate?: Date,
+      endDate?: Date,
+    ) =>
+      startDate && endDate
+        ? ([
+            "analytics",
+            "sla-breaches",
+            companyId,
+            startDate,
+            endDate,
+          ] as const)
+        : (["analytics", "sla-breaches", companyId] as const),
   },
 
   // Team/Company - custom keys for company resources
@@ -159,6 +220,14 @@ export const queryKeys = {
         : (["company", companyId, "invitations"] as const),
     invitation: (token: string | null) => ["invitation", token] as const,
     companies: () => ["companies"] as const,
+  },
+
+  // SLA policy - versioned company response-time policy
+  slaPolicy: {
+    current: (companyId: string | null) =>
+      ["company", companyId, "sla-policy"] as const,
+    history: (companyId: string | null) =>
+      ["company", companyId, "sla-policy", "history"] as const,
   },
 
   // Audit - custom keys for audit logs

@@ -17,7 +17,11 @@ export async function getResponseTimeStats(
   slaThreshold?: number,
 ): Promise<
   ResponseTimeStats & {
-    meta: { startDate: string; endDate: string; slaThresholdMinutes: number };
+    meta: {
+      startDate: string;
+      endDate: string;
+      slaTargetOverrideMinutes: number | null;
+    };
   }
 > {
   const params = new URLSearchParams();
@@ -35,7 +39,11 @@ export async function getResponseTimeTrend(
   slaThreshold?: number,
 ): Promise<{
   trend: ResponseTimeByDate[];
-  meta: { startDate: string; endDate: string; slaThresholdMinutes: number };
+  meta: {
+    startDate: string;
+    endDate: string;
+    slaTargetOverrideMinutes: number | null;
+  };
 }> {
   const params = new URLSearchParams();
   if (startDate) params.append("startDate", startDate.toISOString());
@@ -52,7 +60,11 @@ export async function getTeamResponseTimeStats(
   slaThreshold?: number,
 ): Promise<{
   stats: TeamResponseTimeStats[];
-  meta: { startDate: string; endDate: string; slaThresholdMinutes: number };
+  meta: {
+    startDate: string;
+    endDate: string;
+    slaTargetOverrideMinutes: number | null;
+  };
 }> {
   const params = new URLSearchParams();
   if (startDate) params.append("startDate", startDate.toISOString());
@@ -70,7 +82,11 @@ export async function getSlaBreaches(
   limit?: number,
 ): Promise<{
   breaches: SlaBreach[];
-  meta: { startDate: string; endDate: string; slaThresholdMinutes: number };
+  meta: {
+    startDate: string;
+    endDate: string;
+    slaTargetOverrideMinutes: number | null;
+  };
 }> {
   const params = new URLSearchParams();
   if (startDate) params.append("startDate", startDate.toISOString());

@@ -1,11 +1,28 @@
 /**
- * Response time analytics
+ * Response time analytics - calendar-aware SLA.
+ *
+ * All figures here (response times, compliance, breaches, team stats) are
+ * measured in BUSINESS minutes against each response episode's own
+ * historical SLA policy: the policy version that was active when that
+ * episode's first inbound message arrived (see episode-resolution.ts).
+ * Editing the current policy later never rewrites past results, and a
+ * dashboard date range can transparently span multiple policy versions.
+ *
+ * Business minutes (not wall-clock minutes) are used consistently
+ * throughout - see ../sla-policy/calendar.ts for the calendar math and
+ * episode-outcome.ts for how each episode's outcome is derived.
  */
 
 import { db } from "@wateaminbox/database";
-import { dayjs, toISOString } from "@wateaminbox/shared";
-import { sql } from "kysely";
-import { getSchemaName, getTenantConnection } from "../tenant.service.js";
+import { dayjs } from "@wateaminbox/shared";
+import { NotFoundError } from "../../lib/errors.js";
+import { getCurrentSlaPolicy } from "../sla-policy/policy.service.js";
+import {
+  computeEpisodeOutcome,
+  computeExactPendingBusinessMinutes,
+  type EpisodeOutcome,
+} from "./episode-outcome.js";
+import { fetchEpisodesWithPolicy } from "./episode-resolution.js";
 import type {
   ResponseTimeByDate,
   ResponseTimeStats,
@@ -13,72 +30,78 @@ import type {
   TeamResponseTimeStats,
 } from "./types.js";
 
+function average(values: number[]): number {
+  if (values.length === 0) return 0;
+  return values.reduce((sum, v) => sum + v, 0) / values.length;
+}
+
+/** Matches Postgres PERCENTILE_CONT(0.5): linear interpolation between the two middle order statistics. */
+function median(values: number[]): number {
+  if (values.length === 0) return 0;
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = (sorted.length - 1) / 2;
+  const lower = Math.floor(mid);
+  const upper = Math.ceil(mid);
+  return (sorted[lower] + sorted[upper]) / 2;
+}
+
+function isCountedInCompliance(outcome: EpisodeOutcome): boolean {
+  // Answered episodes always count (whatever their outcome); unanswered
+  // episodes count only once they're already overdue (a still-pending
+  // unanswered episode younger than the target is neither compliant nor
+  // a breach yet, so it's excluded from the denominator either way).
+  return outcome.responseTime !== null || outcome.isOverdueUnanswered;
+}
+
+function isWithinSla(outcome: EpisodeOutcome): boolean {
+  return (
+    outcome.responseMinutes !== null &&
+    outcome.responseMinutes <= outcome.effectiveTargetMinutes
+  );
+}
+
 /**
- * Calculate response times for conversations
- * Response time is measured as time between last inbound message and first outbound response
+ * Calculate response times for conversations.
+ *
+ * `totalConversations`/`withinSlaCount` (and therefore `slaComplianceRate`)
+ * include every answered episode plus unanswered episodes that are already
+ * overdue (elapsed business minutes > target) - matching `getSlaBreaches`.
+ * Still-pending unanswered episodes are excluded (neither compliant nor a
+ * breach yet).
+ *
+ * `averageResponseTimeMinutes`/`medianResponseTimeMinutes`/
+ * `maxResponseTimeMinutes`/`minResponseTimeMinutes` are computed over
+ * ANSWERED episodes only, in business minutes - an unanswered episode has
+ * no response time to average.
  */
 export async function getResponseTimeStats(
   companyId: string,
   startDate: Date,
   endDate: Date,
-  slaThresholdMinutes: number = 60,
+  targetOverrideMinutes?: number,
 ): Promise<ResponseTimeStats> {
-  const tenantDb = getTenantConnection(companyId);
-  const messagesTable = sql.table(`${getSchemaName(companyId)}.messages`);
+  const rows = await fetchEpisodesWithPolicy(companyId, startDate, endDate);
+  const now = new Date();
+  const outcomes = rows
+    .map((row) => computeEpisodeOutcome(row, targetOverrideMinutes, now))
+    .filter((o): o is EpisodeOutcome => o !== null);
 
-  // Query to find response times: for each inbound message, find the next outbound message
-  // from the same contact and calculate the time difference
-  const result = await sql<{
-    avg_response_minutes: number | null;
-    median_response_minutes: number | null;
-    max_response_minutes: number | null;
-    min_response_minutes: number | null;
-    total_count: string | null;
-    within_sla_count: string | null;
-  }>`
-    WITH message_pairs AS (
-      SELECT
-        inbound.contact_id,
-        inbound.timestamp as inbound_time,
-        (
-          SELECT MIN(outbound.timestamp)
-          FROM ${messagesTable} outbound
-          WHERE outbound.contact_id = inbound.contact_id
-            AND outbound.from_me = true
-            AND outbound.timestamp > inbound.timestamp
-            AND outbound.timestamp < inbound.timestamp + INTERVAL '24 hours'
-        ) as response_time
-      FROM ${messagesTable} inbound
-      WHERE inbound.from_me = false
-        AND inbound.timestamp >= ${startDate}
-        AND inbound.timestamp <= ${endDate}
-    ),
-    response_times AS (
-      SELECT
-        contact_id,
-        EXTRACT(EPOCH FROM (response_time - inbound_time)) / 60 as response_minutes
-      FROM message_pairs
-      WHERE response_time IS NOT NULL
-    )
-    SELECT
-      AVG(response_minutes) as avg_response_minutes,
-      PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY response_minutes) as median_response_minutes,
-      MAX(response_minutes) as max_response_minutes,
-      MIN(response_minutes) as min_response_minutes,
-      COUNT(*) as total_count,
-      COUNT(*) FILTER (WHERE response_minutes <= ${slaThresholdMinutes}) as within_sla_count
-    FROM response_times
-  `.execute(tenantDb);
-
-  const row = result.rows[0];
-  const totalConversations = Number(row?.total_count || 0);
-  const withinSlaCount = Number(row?.within_sla_count || 0);
+  const complianceSet = outcomes.filter(isCountedInCompliance);
+  const answeredMinutes = outcomes
+    .filter((o) => o.responseMinutes !== null)
+    .map((o) => o.responseMinutes as number);
+  const withinSlaCount = complianceSet.filter(isWithinSla).length;
+  const totalConversations = complianceSet.length;
 
   return {
-    averageResponseTimeMinutes: Number(row?.avg_response_minutes || 0),
-    medianResponseTimeMinutes: Number(row?.median_response_minutes || 0),
-    maxResponseTimeMinutes: Number(row?.max_response_minutes || 0),
-    minResponseTimeMinutes: Number(row?.min_response_minutes || 0),
+    averageResponseTimeMinutes: average(answeredMinutes),
+    medianResponseTimeMinutes: median(answeredMinutes),
+    maxResponseTimeMinutes: answeredMinutes.length
+      ? Math.max(...answeredMinutes)
+      : 0,
+    minResponseTimeMinutes: answeredMinutes.length
+      ? Math.min(...answeredMinutes)
+      : 0,
     totalConversations,
     withinSlaCount,
     slaComplianceRate:
@@ -87,92 +110,94 @@ export async function getResponseTimeStats(
 }
 
 /**
- * Get response time trends over time
+ * Get response time trends over time.
+ *
+ * Presentation (which day an episode's bar/point belongs to, and which
+ * dates appear on the axis at all - including zero-filled days) uses ONE
+ * coherent reporting timezone: the company's CURRENT SLA policy timezone.
+ * This is deliberately different from the SLA math above, which always
+ * uses each episode's own historical policy calendar - two different
+ * concerns: "was this episode compliant" (historical calendar) vs. "which
+ * calendar day do we draw this point under" (current, single timezone, so
+ * the chart has one coherent axis instead of episodes silently jumping
+ * between timezones mid-chart if the policy's timezone ever changed).
+ *
+ * Both the axis enumeration and the per-episode bucket key are derived
+ * from the same `reportingTimezone`, so no fetched episode can land on a
+ * bucket key the axis walk never visits (local date is monotonic in the
+ * underlying UTC instant, so walking from local-date(startDate) to
+ * local-date(endDate) in that one timezone covers every possible bucket
+ * for episodes whose inboundTime falls in [startDate, endDate]).
+ *
+ * Every company should always have a current policy (seeded at creation,
+ * backfilled by migration), but resolving the reporting timezone is a
+ * presentation concern, not part of the SLA compliance math itself - so if
+ * that lookup ever fails (a data-integrity gap, not something the caller
+ * can fix by retrying), this falls back to UTC for the axis rather than
+ * failing the whole trend request; each episode's own compliance
+ * calculation is unaffected either way.
  */
 export async function getResponseTimeTrend(
   companyId: string,
   startDate: Date,
   endDate: Date,
-  slaThresholdMinutes: number = 60,
+  targetOverrideMinutes?: number,
 ): Promise<ResponseTimeByDate[]> {
-  const tenantDb = getTenantConnection(companyId);
-  const messagesTable = sql.table(`${getSchemaName(companyId)}.messages`);
-
-  const result = await sql<{
-    date: Date;
-    avg_response_minutes: number | null;
-    total_count: string | null;
-    within_sla_count: string | null;
-  }>`
-    WITH message_pairs AS (
-      SELECT
-        inbound.contact_id,
-        DATE(inbound.timestamp) as message_date,
-        inbound.timestamp as inbound_time,
-        (
-          SELECT MIN(outbound.timestamp)
-          FROM ${messagesTable} outbound
-          WHERE outbound.contact_id = inbound.contact_id
-            AND outbound.from_me = true
-            AND outbound.timestamp > inbound.timestamp
-            AND outbound.timestamp < inbound.timestamp + INTERVAL '24 hours'
-        ) as response_time
-      FROM ${messagesTable} inbound
-      WHERE inbound.from_me = false
-        AND inbound.timestamp >= ${startDate}
-        AND inbound.timestamp <= ${endDate}
-    ),
-    response_times AS (
-      SELECT
-        message_date,
-        EXTRACT(EPOCH FROM (response_time - inbound_time)) / 60 as response_minutes
-      FROM message_pairs
-      WHERE response_time IS NOT NULL
-    )
-    SELECT
-      message_date as date,
-      AVG(response_minutes) as avg_response_minutes,
-      COUNT(*) as total_count,
-      COUNT(*) FILTER (WHERE response_minutes <= ${slaThresholdMinutes}) as within_sla_count
-    FROM response_times
-    GROUP BY message_date
-    ORDER BY message_date ASC
-  `.execute(tenantDb);
-
-  const trendByDate = new Map(
-    result.rows.map((row) => {
-      const totalCount = Number(row.total_count || 0);
-      const withinSlaCount = Number(row.within_sla_count || 0);
-      const date =
-        row.date instanceof Date
-          ? toISOString(row.date).split("T")[0]
-          : dayjs.utc(row.date).format("YYYY-MM-DD");
-      return [
-        date,
-        {
-          averageResponseTimeMinutes: Number(row.avg_response_minutes || 0),
-          conversationCount: totalCount,
-          slaComplianceRate:
-            totalCount > 0 ? (withinSlaCount / totalCount) * 100 : 0,
-        },
-      ] as const;
+  const [rows, currentPolicy] = await Promise.all([
+    fetchEpisodesWithPolicy(companyId, startDate, endDate),
+    getCurrentSlaPolicy(companyId).catch((error) => {
+      if (error instanceof NotFoundError) return null;
+      throw error;
     }),
-  );
+  ]);
+  const now = new Date();
+  const reportingTimezone = currentPolicy?.timezone ?? "UTC";
+
+  const byDate = new Map<
+    string,
+    { responseMinutes: number[]; total: number; withinSla: number }
+  >();
+
+  for (const row of rows) {
+    const outcome = computeEpisodeOutcome(row, targetOverrideMinutes, now);
+    if (!outcome) continue;
+
+    const dateKey = dayjs
+      .tz(row.inboundTime, reportingTimezone)
+      .format("YYYY-MM-DD");
+    const bucket = byDate.get(dateKey) ?? {
+      responseMinutes: [],
+      total: 0,
+      withinSla: 0,
+    };
+    if (isCountedInCompliance(outcome)) {
+      bucket.total += 1;
+      if (isWithinSla(outcome)) bucket.withinSla += 1;
+    }
+    if (outcome.responseMinutes !== null) {
+      bucket.responseMinutes.push(outcome.responseMinutes);
+    }
+    byDate.set(dateKey, bucket);
+  }
+
   const trend: ResponseTimeByDate[] = [];
-  let currentDate = dayjs.utc(startDate).startOf("day");
-  const lastDate = dayjs.utc(endDate).startOf("day");
+  let currentDate = dayjs.tz(startDate, reportingTimezone).startOf("day");
+  const lastDate = dayjs.tz(endDate, reportingTimezone).startOf("day");
 
   while (
     currentDate.isBefore(lastDate) ||
     currentDate.isSame(lastDate, "day")
   ) {
-    const date = currentDate.format("YYYY-MM-DD");
-    const values = trendByDate.get(date);
+    const dateStr = currentDate.format("YYYY-MM-DD");
+    const bucket = byDate.get(dateStr);
     trend.push({
-      date,
-      averageResponseTimeMinutes: values?.averageResponseTimeMinutes ?? 0,
-      conversationCount: values?.conversationCount ?? 0,
-      slaComplianceRate: values?.slaComplianceRate ?? 0,
+      date: dateStr,
+      averageResponseTimeMinutes: bucket ? average(bucket.responseMinutes) : 0,
+      conversationCount: bucket?.total ?? 0,
+      slaComplianceRate:
+        bucket && bucket.total > 0
+          ? (bucket.withinSla / bucket.total) * 100
+          : 0,
     });
     currentDate = currentDate.add(1, "day");
   }
@@ -181,18 +206,24 @@ export async function getResponseTimeTrend(
 }
 
 /**
- * Get response time stats by team member
+ * Get response time stats by team member.
+ *
+ * Each episode's response is resolved exactly once (see
+ * episode-resolution.ts) and grouped by its true responder - a member's
+ * later, unrelated reply can never be misattributed to another member's
+ * earlier episode. Only answered episodes are considered: unresolved work
+ * has no responder to attribute it to. Members with zero attributed
+ * episodes in the window are left-filled with zeroed stats.
  */
 export async function getTeamResponseTimeStats(
   companyId: string,
   startDate: Date,
   endDate: Date,
-  slaThresholdMinutes: number = 60,
+  targetOverrideMinutes?: number,
 ): Promise<TeamResponseTimeStats[]> {
-  const tenantDb = getTenantConnection(companyId);
-  const messagesTable = sql.table(`${getSchemaName(companyId)}.messages`);
+  const rows = await fetchEpisodesWithPolicy(companyId, startDate, endDate);
+  const now = new Date();
 
-  // Get company members
   const members = await db
     .selectFrom("company_members as cm")
     .innerJoin("users as u", "u.id", "cm.user_id")
@@ -200,58 +231,37 @@ export async function getTeamResponseTimeStats(
     .where("cm.company_id", "=", companyId)
     .execute();
 
-  const stats: TeamResponseTimeStats[] = [];
+  const byUser = new Map<
+    string,
+    { responseMinutes: number[]; withinSla: number }
+  >();
 
-  for (const member of members) {
-    const result = await sql<{
-      avg_response_minutes: number | null;
-      total_count: string | null;
-      within_sla_count: string | null;
-    }>`
-      WITH message_pairs AS (
-        SELECT
-          inbound.contact_id,
-          inbound.timestamp as inbound_time,
-          (
-            SELECT MIN(outbound.timestamp)
-            FROM ${messagesTable} outbound
-            WHERE outbound.contact_id = inbound.contact_id
-              AND outbound.from_me = true
-              AND outbound.sent_by_user_id = ${member.user_id}
-              AND outbound.timestamp > inbound.timestamp
-              AND outbound.timestamp < inbound.timestamp + INTERVAL '24 hours'
-          ) as response_time
-        FROM ${messagesTable} inbound
-        WHERE inbound.from_me = false
-          AND inbound.timestamp >= ${startDate}
-          AND inbound.timestamp <= ${endDate}
-      ),
-      response_times AS (
-        SELECT
-          EXTRACT(EPOCH FROM (response_time - inbound_time)) / 60 as response_minutes
-        FROM message_pairs
-        WHERE response_time IS NOT NULL
-      )
-      SELECT
-        AVG(response_minutes) as avg_response_minutes,
-        COUNT(*) as total_count,
-        COUNT(*) FILTER (WHERE response_minutes <= ${slaThresholdMinutes}) as within_sla_count
-      FROM response_times
-    `.execute(tenantDb);
+  for (const row of rows) {
+    if (!row.responseTime || !row.respondedBy) continue;
+    const outcome = computeEpisodeOutcome(row, targetOverrideMinutes, now);
+    if (!outcome || outcome.responseMinutes === null) continue;
 
-    const row = result.rows[0];
-    const totalResponses = Number(row?.total_count || 0);
-    const withinSlaCount = Number(row?.within_sla_count || 0);
+    const bucket = byUser.get(row.respondedBy) ?? {
+      responseMinutes: [],
+      withinSla: 0,
+    };
+    bucket.responseMinutes.push(outcome.responseMinutes);
+    if (isWithinSla(outcome)) bucket.withinSla += 1;
+    byUser.set(row.respondedBy, bucket);
+  }
 
-    stats.push({
+  const stats: TeamResponseTimeStats[] = members.map((member) => {
+    const bucket = byUser.get(member.user_id);
+    const totalResponses = bucket?.responseMinutes.length ?? 0;
+    return {
       userId: member.user_id,
       email: member.email,
-      averageResponseTimeMinutes: Number(row?.avg_response_minutes || 0),
+      averageResponseTimeMinutes: bucket ? average(bucket.responseMinutes) : 0,
       totalResponses,
       slaComplianceRate:
-        totalResponses > 0 ? (withinSlaCount / totalResponses) * 100 : 0,
-    });
-  }
+        totalResponses > 0 ? (bucket!.withinSla / totalResponses) * 100 : 0,
+    };
+  });
 
   return stats.sort(
     (a, b) => a.averageResponseTimeMinutes - b.averageResponseTimeMinutes,
@@ -259,76 +269,59 @@ export async function getTeamResponseTimeStats(
 }
 
 /**
- * Get conversations that exceeded SLA threshold
+ * Get conversations that exceeded SLA threshold.
+ *
+ * A response episode is a breach when:
+ * - it has already been answered and the reply took longer (in business
+ *   minutes) than the SLA target - however long after the inbound message
+ *   that reply landed, no arbitrary time window excludes it - or
+ * - it is still unanswered AND its elapsed BUSINESS minutes have exceeded
+ *   the target. An unanswered episode younger than the target is still
+ *   pending, not a breach yet.
+ *
+ * For unanswered breaches, the exact elapsed-minutes magnitude (used for
+ * sorting/display) is only computed for episodes already confirmed to be
+ * breaches via the cheap early-exit check - avoiding a full calendar walk
+ * for the (usually much larger) set of still-compliant pending episodes.
  */
 export async function getSlaBreaches(
   companyId: string,
   startDate: Date,
   endDate: Date,
-  slaThresholdMinutes: number = 60,
+  targetOverrideMinutes?: number,
   limit: number = 50,
 ): Promise<SlaBreach[]> {
-  const tenantDb = getTenantConnection(companyId);
-  const messagesTable = sql.table(`${getSchemaName(companyId)}.messages`);
-  const contactsTable = sql.table(`${getSchemaName(companyId)}.contacts`);
+  const rows = await fetchEpisodesWithPolicy(companyId, startDate, endDate);
+  const now = new Date();
 
-  const result = await sql<{
-    contact_id: string;
-    contact_name: string | null;
-    inbound_time: Date;
-    response_time: Date | null;
-    response_minutes: number;
-    responded_by: string | null;
-  }>`
-    WITH message_pairs AS (
-      SELECT
-        inbound.contact_id,
-        COALESCE(c.custom_name, c.push_name, c.phone_number) as contact_name,
-        inbound.timestamp as inbound_time,
-        (
-          SELECT MIN(outbound.timestamp)
-          FROM ${messagesTable} outbound
-          WHERE outbound.contact_id = inbound.contact_id
-            AND outbound.from_me = true
-            AND outbound.timestamp > inbound.timestamp
-            AND outbound.timestamp < inbound.timestamp + INTERVAL '24 hours'
-        ) as response_time,
-        (
-          SELECT outbound.sent_by_user_id
-          FROM ${messagesTable} outbound
-          WHERE outbound.contact_id = inbound.contact_id
-            AND outbound.from_me = true
-            AND outbound.timestamp > inbound.timestamp
-            AND outbound.timestamp < inbound.timestamp + INTERVAL '24 hours'
-          ORDER BY outbound.timestamp ASC
-          LIMIT 1
-        ) as responded_by
-      FROM ${messagesTable} inbound
-      INNER JOIN ${contactsTable} c ON c.id = inbound.contact_id
-      WHERE inbound.from_me = false
-        AND inbound.timestamp >= ${startDate}
-        AND inbound.timestamp <= ${endDate}
-    )
-    SELECT
-      contact_id,
-      contact_name,
-      inbound_time,
-      response_time,
-      EXTRACT(EPOCH FROM (COALESCE(response_time, NOW()) - inbound_time)) / 60 as response_minutes,
-      responded_by
-    FROM message_pairs
-    WHERE response_time IS NULL
-      OR EXTRACT(EPOCH FROM (response_time - inbound_time)) / 60 > ${slaThresholdMinutes}
-    ORDER BY response_minutes DESC
-    LIMIT ${limit}
-  `.execute(tenantDb);
+  const breaches: SlaBreach[] = [];
+  for (const row of rows) {
+    const outcome = computeEpisodeOutcome(row, targetOverrideMinutes, now);
+    if (!outcome) continue;
 
-  return result.rows.map((row) => ({
-    contactId: row.contact_id,
-    contactName: row.contact_name,
-    inboundMessageTime: row.inbound_time,
-    responseTime: row.response_time,
-    responseMinutes: Number(row.response_minutes),
-    respondedBy: row.responded_by,
-  }));
+    const isAnsweredBreach =
+      outcome.responseTime !== null &&
+      outcome.responseMinutes !== null &&
+      outcome.responseMinutes > outcome.effectiveTargetMinutes;
+    const isUnansweredBreach =
+      outcome.responseTime === null && outcome.isOverdueUnanswered;
+
+    if (!isAnsweredBreach && !isUnansweredBreach) continue;
+
+    const responseMinutes = isAnsweredBreach
+      ? (outcome.responseMinutes as number)
+      : computeExactPendingBusinessMinutes(row, now);
+
+    breaches.push({
+      contactId: row.contactId,
+      contactName: row.contactName,
+      inboundMessageTime: row.inboundTime,
+      responseTime: row.responseTime,
+      responseMinutes,
+      respondedBy: row.respondedBy,
+    });
+  }
+
+  breaches.sort((a, b) => b.responseMinutes - a.responseMinutes);
+  return breaches.slice(0, limit);
 }
