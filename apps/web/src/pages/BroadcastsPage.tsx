@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { BroadcastJobDetail } from "../components/broadcasts/BroadcastJobDetail";
 import { BroadcastJobList } from "../components/broadcasts/BroadcastJobList";
+import { BroadcastsHeader } from "../components/broadcasts/BroadcastsHeader";
 import { CreateBroadcastWizard } from "../components/broadcasts/CreateBroadcastWizard";
 import { useWorkspace } from "../contexts/workspace-context";
 
@@ -23,22 +24,25 @@ export function BroadcastsPage() {
   const basePath = `/w/${workspaceId}/broadcasts`;
 
   return (
-    <div className="h-full w-full overflow-hidden bg-white dark:bg-dark-primary">
-      <div className="h-full overflow-y-auto">
-        <div className="mx-auto w-full max-w-5xl px-4 py-6 sm:px-6">
-          {jobId ? (
-            <BroadcastJobDetail
-              jobId={jobId}
-              onBack={() => navigate(basePath)}
-            />
-          ) : (
-            <BroadcastJobList
-              onCreateBroadcast={() => setWizardOpen(true)}
-              onOpenJob={(id) => navigate(`${basePath}/${id}`)}
-            />
-          )}
-        </div>
-      </div>
+    <div className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-[#f5f7f4] dark:bg-dark-primary">
+      <BroadcastsHeader
+        workspaceName={activeWorkspace.name}
+        showingDetail={Boolean(jobId)}
+        onBack={() => navigate(basePath)}
+        onCreate={() => setWizardOpen(true)}
+      />
+
+      {/* Bounded like Team and Audit: the shell never scrolls, the table does. */}
+      <main className="min-h-0 flex-1 overflow-hidden p-3 sm:p-4">
+        {jobId ? (
+          <BroadcastJobDetail jobId={jobId} />
+        ) : (
+          <BroadcastJobList
+            onCreateBroadcast={() => setWizardOpen(true)}
+            getJobHref={(id) => `${basePath}/${id}`}
+          />
+        )}
+      </main>
 
       {/* Mounted per open so wizard state and idempotency key reset. */}
       {wizardOpen && (

@@ -10,6 +10,7 @@ import {
   ChevronRight,
   ChevronsLeft,
   ChevronsRight,
+  RefreshCw,
   Search,
   X,
 } from "lucide-react";
@@ -40,11 +41,15 @@ export interface ServerDataTableProps<TData> {
   isLoading?: boolean;
   isFetching?: boolean;
   error?: Error | null;
+  /** Renders a retry button inside the error state when provided. */
+  onRetry?: () => void;
   getRowId?: (row: TData) => string;
   renderSubRow?: (row: TData) => ReactNode;
   tableLabel: string;
   emptyTitle?: string;
   emptyDescription?: string;
+  /** Call-to-action rendered under the empty-state copy. */
+  emptyAction?: ReactNode;
   className?: string;
   tableClassName?: string;
   pageSizeOptions?: number[];
@@ -81,11 +86,13 @@ export function ServerDataTable<TData>({
   isLoading = false,
   isFetching = false,
   error,
+  onRetry,
   getRowId,
   renderSubRow,
   tableLabel,
   emptyTitle = "Nothing here yet",
   emptyDescription = "Try adjusting your search or filters.",
+  emptyAction,
   className,
   tableClassName,
   pageSizeOptions = [10, 20, 50],
@@ -112,14 +119,18 @@ export function ServerDataTable<TData>({
     return () => window.clearTimeout(timeout);
   }, [onSearchChange, searchDebounceMs, searchDraft, searchValue]);
 
+  // Clamp once a result is actually in hand: a deep-linked page must survive
+  // the first fetch, but a page past the end (rows deleted, filter narrowed,
+  // or an empty result) has to fall back instead of showing "Page 4 of 1".
   useEffect(() => {
-    if (rowCount > 0 && pagination.pageIndex >= pageCount) {
+    if (isLoading || error) return;
+    if (pagination.pageIndex >= pageCount) {
       onPaginationChange({
         ...pagination,
         pageIndex: pageCount - 1,
       });
     }
-  }, [onPaginationChange, pageCount, pagination, rowCount]);
+  }, [error, isLoading, onPaginationChange, pageCount, pagination]);
 
   const table = useReactTable({
     data,
@@ -263,6 +274,18 @@ export function ServerDataTable<TData>({
                   <p className="mt-1 text-xs text-[#718078] dark:text-dark-text-secondary">
                     {error.message}
                   </p>
+                  {onRetry && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={onRetry}
+                      className="mt-4 gap-2"
+                    >
+                      <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />
+                      Try again
+                    </Button>
+                  )}
                 </td>
               </tr>
             ) : table.getRowModel().rows.length ? (
@@ -308,6 +331,11 @@ export function ServerDataTable<TData>({
                   <p className="mx-auto mt-1 max-w-sm text-xs leading-5 text-[#718078] dark:text-dark-text-secondary">
                     {emptyDescription}
                   </p>
+                  {emptyAction && (
+                    <div className="mt-4 flex justify-center">
+                      {emptyAction}
+                    </div>
+                  )}
                 </td>
               </tr>
             )}

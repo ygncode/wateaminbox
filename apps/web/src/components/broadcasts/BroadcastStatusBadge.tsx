@@ -3,35 +3,38 @@ import { cn } from "@/lib/utils";
 
 const STATUS_CONFIG: Record<
   BulkJobStatus,
-  { label: string; className: string; pulse?: boolean }
+  { label: string; className: string; dotClassName: string; pulse?: boolean }
 > = {
   scheduled: {
     label: "Scheduled",
     className:
-      "bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300",
+      "border-sky-200/70 bg-sky-50 text-sky-700 dark:border-sky-900 dark:bg-sky-950/35 dark:text-sky-300",
+    dotClassName: "bg-sky-500 dark:bg-sky-300",
   },
   running: {
     label: "Sending",
     className:
-      "bg-[#00a884]/10 text-[#008069] dark:bg-emerald-900/30 dark:text-emerald-300",
+      "border-emerald-200 bg-emerald-50 text-[#087654] dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300",
+    dotClassName: "bg-[#16a06f] dark:bg-emerald-300",
     pulse: true,
   },
   completed: {
     label: "Completed",
     className:
-      "bg-[#00a884]/10 text-[#008069] dark:bg-emerald-900/30 dark:text-emerald-300",
+      "border-emerald-200/80 bg-[#edf7f2] text-[#087654] dark:border-emerald-900 dark:bg-emerald-950/35 dark:text-emerald-300",
+    dotClassName: "bg-[#24a778] dark:bg-emerald-300",
   },
-  // failed OR skipped recipients: the broadcast finished but not everyone
-  // snapshotted actually received a send.
   completed_with_errors: {
     label: "Partially sent",
     className:
-      "bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300",
+      "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900 dark:bg-amber-950/35 dark:text-amber-300",
+    dotClassName: "bg-amber-500 dark:bg-amber-300",
   },
   canceled: {
     label: "Canceled",
     className:
-      "bg-black/[0.05] text-[#667781] dark:bg-white/[0.07] dark:text-dark-text-secondary",
+      "border-[#dfe5e1] bg-[#f1f3f2] text-[#65736d] dark:border-dark-border dark:bg-dark-tertiary dark:text-dark-text-secondary",
+    dotClassName: "bg-[#8b9891] dark:bg-dark-text-tertiary",
   },
 };
 
@@ -40,7 +43,7 @@ interface BroadcastStatusBadgeProps {
   className?: string;
 }
 
-/** Status pill for a broadcast job; running shows a pulsing dot. */
+/** Restrained status badge shared by list and detail views. */
 export function BroadcastStatusBadge({
   status,
   className,
@@ -49,17 +52,27 @@ export function BroadcastStatusBadge({
   return (
     <span
       className={cn(
-        "inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold",
+        "inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-bold leading-4",
         config.className,
         className,
       )}
     >
-      {config.pulse && (
+      <span className="relative flex h-1.5 w-1.5" aria-hidden="true">
+        {config.pulse && (
+          <span
+            className={cn(
+              "absolute inline-flex h-full w-full animate-ping rounded-full opacity-60",
+              config.dotClassName,
+            )}
+          />
+        )}
         <span
-          className="size-1.5 animate-pulse rounded-full bg-[#00a884] dark:bg-emerald-300"
-          aria-hidden="true"
+          className={cn(
+            "relative h-1.5 w-1.5 rounded-full",
+            config.dotClassName,
+          )}
         />
-      )}
+      </span>
       {config.label}
     </span>
   );
