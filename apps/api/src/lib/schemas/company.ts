@@ -95,6 +95,7 @@ export type ListCompanyInvitationsQuery = z.infer<
 export const updateMemberPermissionsSchema = z.object({
   can_view_all_chats: z.boolean().optional(),
   can_send_messages: z.boolean().optional(),
+  can_send_bulk_messages: z.boolean().optional(),
   can_assign_contacts: z.boolean().optional(),
   can_manage_team: z.boolean().optional(),
   can_invite: z.boolean().optional(),

@@ -10,6 +10,7 @@ import {
 const permissions: MemberPermissions = {
   can_view_all_chats: true,
   can_send_messages: true,
+  can_send_bulk_messages: false,
   can_assign_contacts: false,
   can_manage_team: false,
   can_invite: false,

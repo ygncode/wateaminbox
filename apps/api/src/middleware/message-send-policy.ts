@@ -18,11 +18,20 @@ export const MESSAGE_SEND_SURFACES = [
   "/actions/messages/send",
   "/whatsapp/send",
   "/whatsapp/connections/:connectionId/send",
+  "/bulk-jobs",
 ] as const;
 
 /** A shared middleware instance makes the send policy auditable and testable. */
 export const requireMessageSendPermission = requirePermission(
   PERMISSIONS.CAN_SEND_MESSAGES,
+);
+
+/**
+ * Bulk broadcasts additionally require the dedicated bulk permission on top
+ * of the plain send permission (both are attached to the bulk routes).
+ */
+export const requireBulkSendPermission = requirePermission(
+  PERMISSIONS.CAN_SEND_BULK_MESSAGES,
 );
 
 /** Mark a still-functional compatibility route as deprecated. */

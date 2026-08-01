@@ -4,6 +4,7 @@ import {
   Inbox,
   LayoutDashboard,
   LogOut,
+  Megaphone,
   Menu,
   PanelLeftClose,
   PanelLeftOpen,
@@ -173,6 +174,12 @@ export function ProtectedAppLayout() {
       path: workspacePath(activeWorkspace.id, "dashboard"),
       icon: LayoutDashboard,
       visible: can("can_view_dashboard"),
+    },
+    {
+      label: "Broadcasts",
+      path: workspacePath(activeWorkspace.id, "broadcasts"),
+      icon: Megaphone,
+      visible: can("can_send_bulk_messages"),
     },
     {
       label: "Team",

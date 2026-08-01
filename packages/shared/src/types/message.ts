@@ -97,7 +97,8 @@ export type ScheduledMessageStatus =
   | "processing"
   | "sent"
   | "failed"
-  | "canceled";
+  | "canceled"
+  | "skipped";
 
 /**
  * An outbound message queued for future delivery. Timestamps are ISO 8601 UTC
@@ -124,6 +125,10 @@ export interface ScheduledMessage {
   sentAt: string | null;
   createdAt: string;
   updatedAt: string;
+  /** Present when this message is one recipient of a bulk broadcast job. */
+  bulkJobId: string | null;
+  /** Why an ineligible bulk recipient was skipped (status "skipped"). */
+  skipReason: string | null;
 }
 
 export type MediaDownloadStatus =

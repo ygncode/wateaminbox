@@ -57,6 +57,9 @@ const AuditPage = lazy(() =>
 const DashboardPage = lazy(() =>
   import("./pages/DashboardPage").then((m) => ({ default: m.DashboardPage })),
 );
+const BroadcastsPage = lazy(() =>
+  import("./pages/BroadcastsPage").then((m) => ({ default: m.BroadcastsPage })),
+);
 const NotificationsPage = lazy(() =>
   import("./pages/NotificationsPage").then((m) => ({
     default: m.NotificationsPage,
@@ -221,6 +224,26 @@ function App() {
               }
             />
             <Route
+              path="broadcasts"
+              element={
+                <ProtectedRoute requiredPermission="can_send_bulk_messages">
+                  <LazyPage>
+                    <BroadcastsPage />
+                  </LazyPage>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="broadcasts/:jobId"
+              element={
+                <ProtectedRoute requiredPermission="can_send_bulk_messages">
+                  <LazyPage>
+                    <BroadcastsPage />
+                  </LazyPage>
+                </ProtectedRoute>
+              }
+            />
+            <Route
               path="notifications"
               element={
                 <LazyPage>
@@ -239,6 +262,7 @@ function App() {
           "/settings",
           "/settings/:section",
           "/dashboard",
+          "/broadcasts",
           "/team",
           "/audit",
           "/notifications",

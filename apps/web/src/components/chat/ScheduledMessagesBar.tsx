@@ -8,6 +8,7 @@ import {
   Film,
   Image as ImageIcon,
   Loader2,
+  Megaphone,
   Trash2,
   X,
 } from "lucide-react";
@@ -85,6 +86,12 @@ function ScheduledMessageRow({
       </span>
       <div className="min-w-0 flex-1">
         <p className="flex items-center gap-1.5 truncate text-sm text-[#111b21] dark:text-dark-text-primary">
+          {scheduledMessage.bulkJobId && (
+            <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-[#00a884]/10 px-1.5 py-0.5 text-[10px] font-semibold text-[#008069] dark:bg-emerald-900/30 dark:text-emerald-300">
+              <Megaphone className="size-3" aria-hidden="true" />
+              Broadcast
+            </span>
+          )}
           {media && (
             <span className="inline-flex shrink-0 items-center gap-1 text-[#667781] dark:text-dark-text-tertiary">
               <media.icon className="size-3.5" aria-hidden="true" />

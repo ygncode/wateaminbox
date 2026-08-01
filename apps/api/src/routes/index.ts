@@ -4,6 +4,7 @@ import { authRoutes } from "./auth/index.js";
 import { companyRoutes, invitationRoutes } from "./companies.js";
 import { whatsappRoutes } from "./whatsapp/index.js";
 import { contactRoutes } from "./contacts/index.js";
+import { bulkJobRoutes } from "./bulk-jobs.js";
 import { messageRoutes } from "./messages/index.js";
 import { conversationRoutes } from "./conversations/index.js";
 import { tagRoutes } from "./tags.js";
@@ -43,6 +44,9 @@ routes.route("/contacts", contactRoutes);
 
 // Message routes
 routes.route("/messages", messageRoutes);
+
+// Bulk broadcast job routes
+routes.route("/bulk-jobs", bulkJobRoutes);
 
 // Conversation routes (alternative to /messages for RESTful access)
 routes.route("/conversations", conversationRoutes);

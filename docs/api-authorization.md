@@ -11,6 +11,7 @@ All tenant routes require an active session and company membership before the po
 | Contact assignment | Target must be a company member | Unassigned self-claim allowed; all other assignment/reassignment requires `can_assign_contacts` |
 | Search | Results filtered to active assignments unless `can_view_all_chats` | Reindex requires admin/owner |
 | Export | Results filtered to active assignments unless `can_view_all_chats` | `can_export`; full backup also requires `can_view_all_chats` |
+| Bulk broadcast jobs (`/bulk-jobs`) | `can_send_bulk_messages` | Preview, create, and cancel additionally require `can_send_messages`; create is also audited as a send surface and rate-limited in its own `messaging.bulk` tier |
 | Team and permissions | Company membership | Existing `can_manage_team`, `can_invite`, owner/admin policies |
 | WhatsApp connections | Company membership | Create, rename, reconnect, disconnect, archive/unlink, and re-link require connection-management permission; permanent inbox deletion also requires delete-data permission |
 

@@ -12,6 +12,7 @@ export type CompanyMemberRole = "owner" | "admin" | "member";
 export interface MemberPermissions {
   can_view_all_chats: boolean;
   can_send_messages: boolean;
+  can_send_bulk_messages: boolean;
   can_assign_contacts: boolean;
   can_manage_team: boolean;
   can_invite: boolean;
@@ -30,6 +31,7 @@ export const ROLE_PERMISSION_PRESETS: Record<
   owner: {
     can_view_all_chats: true,
     can_send_messages: true,
+    can_send_bulk_messages: true,
     can_assign_contacts: true,
     can_manage_team: true,
     can_invite: true,
@@ -42,6 +44,7 @@ export const ROLE_PERMISSION_PRESETS: Record<
   admin: {
     can_view_all_chats: true,
     can_send_messages: true,
+    can_send_bulk_messages: true,
     can_assign_contacts: true,
     can_manage_team: true,
     can_invite: true,
@@ -54,6 +57,7 @@ export const ROLE_PERMISSION_PRESETS: Record<
   member: {
     can_view_all_chats: false,
     can_send_messages: true,
+    can_send_bulk_messages: false,
     can_assign_contacts: false,
     can_manage_team: false,
     can_invite: false,

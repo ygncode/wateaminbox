@@ -2,6 +2,7 @@
 export * from "./types/user";
 export * from "./types/company";
 export * from "./types/message";
+export * from "./types/bulk-job";
 
 // WebSocket types
 export * from "./websocket-types";

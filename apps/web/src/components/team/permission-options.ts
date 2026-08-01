@@ -25,6 +25,11 @@ export const permissionGroups: PermissionGroup[] = [
         label: "Send messages",
         description: "Reply to visible WhatsApp conversations.",
       },
+      {
+        key: "can_send_bulk_messages",
+        label: "Send broadcasts",
+        description: "Schedule bulk broadcast messages to many contacts.",
+      },
     ],
   },
   {

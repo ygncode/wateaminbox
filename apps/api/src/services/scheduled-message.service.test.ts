@@ -130,6 +130,8 @@ describe("formatScheduledMessage", () => {
       sent_at: null,
       created_at: now,
       updated_at: now,
+      bulk_job_id: null,
+      skip_reason: null,
     };
 
     expect(formatScheduledMessage(row, "Aye Chan")).toEqual({
@@ -152,6 +154,8 @@ describe("formatScheduledMessage", () => {
       sentAt: null,
       createdAt: "2026-07-30T10:00:00.000Z",
       updatedAt: "2026-07-30T10:00:00.000Z",
+      bulkJobId: null,
+      skipReason: null,
     });
   });
 });

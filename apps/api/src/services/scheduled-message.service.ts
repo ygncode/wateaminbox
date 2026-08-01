@@ -8,8 +8,14 @@
  */
 
 import { db } from "@wateaminbox/database";
-import type { ScheduledMessage, ScheduledMessageStatus } from "@wateaminbox/shared";
+import type {
+  BulkRecipientSkipReason,
+  ScheduledMessage,
+  ScheduledMessageStatus,
+} from "@wateaminbox/shared";
 import { toDbDate } from "@wateaminbox/shared";
+import { sql } from "kysely";
+import { bulkConfig } from "../config/bulk.config.js";
 import { createLogger, formatError } from "../lib/logger.js";
 import {
   buildCommandSubject,
@@ -21,6 +27,10 @@ import {
   getMediaObjectReference,
   resolveMediaKeyForCompany,
 } from "../lib/storage.js";
+import {
+  finalizeBulkJobIfComplete,
+  markBulkJobRunning,
+} from "./bulk-job.service.js";
 import { enqueueCommand } from "./command-outbox.service.js";
 import { getTenantConnection, type TenantDatabase } from "./tenant.service.js";
 import { getUserAvatarSources, getUserNames } from "./user.service.js";
@@ -34,6 +44,8 @@ const POLL_INTERVAL_MS = 15_000;
 const BATCH_SIZE = 25;
 const MAX_ATTEMPTS = 10;
 const CLAIM_LEASE_MS = 60_000;
+/** Max connections that get a bulk send per company per poll cycle. */
+const BULK_CONNECTIONS_PER_CYCLE = 20;
 
 let timer: ReturnType<typeof setTimeout> | null = null;
 let running = false;
@@ -41,6 +53,9 @@ let stopping = false;
 let lastPollAt: Date | null = null;
 let dispatchedTotal = 0;
 let failedTotal = 0;
+let bulkDispatchedTotal = 0;
+let bulkSkippedTotal = 0;
+let bulkFailedTotal = 0;
 
 export function getScheduledMessageHealth() {
   return {
@@ -50,6 +65,9 @@ export function getScheduledMessageHealth() {
     lastPollAt,
     dispatchedTotal,
     failedTotal,
+    bulkDispatchedTotal,
+    bulkSkippedTotal,
+    bulkFailedTotal,
   };
 }
 
@@ -79,6 +97,8 @@ export function formatScheduledMessage(
     sentAt: row.sent_at ? row.sent_at.toISOString() : null,
     createdAt: row.created_at.toISOString(),
     updatedAt: row.updated_at.toISOString(),
+    bulkJobId: row.bulk_job_id,
+    skipReason: row.skip_reason,
   };
 }
 
@@ -102,12 +122,22 @@ async function broadcastScheduledUpdate(
 /** A dispatch failure that retrying can never fix (e.g. deleted contact). */
 class PermanentDispatchError extends Error {}
 
+/**
+ * A bulk leaf whose recipient became ineligible after the snapshot (deleted
+ * contact, block, connection moved off the job's target). Recorded as a
+ * "skipped" outcome, not a failure: nothing is wrong with the system.
+ */
+class BulkSkipError extends Error {
+  constructor(public readonly reason: BulkRecipientSkipReason) {
+    super(`Recipient is no longer eligible: ${reason}`);
+  }
+}
+
 /** S3 HEAD on a deleted/never-existed object. */
 function isMediaMissingError(error: unknown): boolean {
   if (!(error instanceof Error)) return false;
-  const status = (
-    error as Error & { $metadata?: { httpStatusCode?: number } }
-  ).$metadata?.httpStatusCode;
+  const status = (error as Error & { $metadata?: { httpStatusCode?: number } })
+    .$metadata?.httpStatusCode;
   return error.name === "NotFound" || status === 404;
 }
 
@@ -162,9 +192,31 @@ async function sendScheduledMessage(
 ): Promise<DispatchSuccess> {
   const contact = await tenantDb
     .selectFrom("contacts")
-    .select(["id", "jid", "whatsapp_connection_id"])
+    .select(["id", "jid", "whatsapp_connection_id", "is_blocked"])
     .where("id", "=", row.contact_id)
     .executeTakeFirst();
+
+  if (row.bulk_job_id) {
+    // Revalidate mutable eligibility for bulk recipients: the snapshot was
+    // taken at job creation and any of these may have changed since.
+    if (!contact) throw new BulkSkipError("contact_missing");
+    if (!contact.jid) throw new BulkSkipError("no_jid");
+    if (contact.is_blocked) throw new BulkSkipError("blocked");
+    const job = await tenantDb
+      .selectFrom("bulk_jobs")
+      .select(["audience"])
+      .where("id", "=", row.bulk_job_id)
+      .executeTakeFirst();
+    const targetConnectionId = job?.audience?.connectionId;
+    if (
+      targetConnectionId &&
+      contact.whatsapp_connection_id !== targetConnectionId
+    ) {
+      // The contact moved off the connection this job explicitly targeted;
+      // never silently reroute through a different account.
+      throw new BulkSkipError("connection_changed");
+    }
+  }
 
   if (!contact || !contact.jid) {
     throw new PermanentDispatchError("Contact no longer exists");
@@ -267,7 +319,9 @@ async function sendScheduledMessage(
     if (!updated) {
       // The row left "processing" underneath us (e.g. canceled); rolling back
       // the transaction discards the message and command.
-      throw new PermanentDispatchError("Scheduled message is no longer claimed");
+      throw new PermanentDispatchError(
+        "Scheduled message is no longer claimed",
+      );
     }
   });
 
@@ -331,7 +385,7 @@ async function recordDispatchFailure(
   row: ScheduledMessageRow,
   claimToken: Date,
   error: unknown,
-): Promise<void> {
+): Promise<boolean> {
   const attempts = row.attempts + 1;
   const permanent = error instanceof PermanentDispatchError;
   const exhausted = permanent || attempts >= MAX_ATTEMPTS;
@@ -356,6 +410,7 @@ async function recordDispatchFailure(
     {
       companyId,
       scheduledMessageId: row.id,
+      bulkJobId: row.bulk_job_id,
       attempts,
       exhausted,
       err: formatError(error),
@@ -364,17 +419,75 @@ async function recordDispatchFailure(
   );
 
   if (exhausted && result.numUpdatedRows > 0n) {
-    failedTotal++;
-    // The row can never dispatch now; its media object has no other consumer.
-    await cleanupScheduledMediaObject(tenantDb, companyId, row.id, row.media_url);
-    await Promise.all([
-      broadcastScheduledUpdate(companyId, row.id, row.contact_id, "failed"),
-      broadcastToCompany(companyId, "notification:toast", {
-        type: "error",
-        title: "Scheduled message failed",
-        message: `A scheduled message could not be sent: ${message}`,
-      }),
-    ]);
+    if (row.bulk_job_id) {
+      bulkFailedTotal++;
+      // Bulk media is job-owned (other leaves share it) and per-leaf toasts
+      // would storm; failures roll up into the single job-level result.
+      await broadcastScheduledUpdate(
+        companyId,
+        row.id,
+        row.contact_id,
+        "failed",
+      );
+    } else {
+      failedTotal++;
+      // The row can never dispatch now; its media object has no other consumer.
+      await cleanupScheduledMediaObject(
+        tenantDb,
+        companyId,
+        row.id,
+        row.media_url,
+      );
+      await Promise.all([
+        broadcastScheduledUpdate(companyId, row.id, row.contact_id, "failed"),
+        broadcastToCompany(companyId, "notification:toast", {
+          type: "error",
+          title: "Scheduled message failed",
+          message: `A scheduled message could not be sent: ${message}`,
+        }),
+      ]);
+    }
+  }
+  return exhausted;
+}
+
+/** Mark a claimed bulk leaf skipped (fenced like every claim mutation). */
+async function recordBulkSkip(
+  tenantDb: Kysely<TenantDatabase>,
+  companyId: string,
+  row: ScheduledMessageRow,
+  claimToken: Date,
+  reason: BulkRecipientSkipReason,
+): Promise<void> {
+  const result = await tenantDb
+    .updateTable("scheduled_messages")
+    .set({
+      status: "skipped",
+      skip_reason: reason,
+      attempts: row.attempts + 1,
+      updated_at: toDbDate(),
+    })
+    .where("id", "=", row.id)
+    .where("status", "=", "processing")
+    .where("next_attempt_at", "=", claimToken)
+    .executeTakeFirst();
+  if (result.numUpdatedRows > 0n) {
+    bulkSkippedTotal++;
+    logger.info(
+      {
+        companyId,
+        scheduledMessageId: row.id,
+        bulkJobId: row.bulk_job_id,
+        reason,
+      },
+      "Skipped ineligible bulk recipient",
+    );
+    await broadcastScheduledUpdate(
+      companyId,
+      row.id,
+      row.contact_id,
+      "skipped",
+    );
   }
 }
 
@@ -389,9 +502,12 @@ export async function dispatchCompanyScheduledMessages(
   // dispatch the same message. A "processing" row past its lease belongs to a
   // crashed dispatcher and is reclaimed.
   const rows = await tenantDb.transaction().execute(async (trx) => {
+    // Bulk leaves are excluded here: they dispatch through the paced,
+    // budget-locked path below so normal schedules always take priority.
     const claimed = await trx
       .selectFrom("scheduled_messages")
       .selectAll()
+      .where("bulk_job_id", "is", null)
       .where("status", "in", ["scheduled", "processing"])
       .where("next_attempt_at", "<=", now)
       .orderBy("scheduled_at", "asc")
@@ -456,6 +572,324 @@ export async function dispatchCompanyScheduledMessages(
   return dispatched;
 }
 
+/**
+ * Claim at most one due bulk leaf for a connection under the connection's
+ * budget row lock. The FOR UPDATE on bulk_connection_budgets serializes every
+ * replica and every overlapping job onto one pacing/quota ledger, which is
+ * what makes the guarantees hold:
+ *
+ * - Pacing: next_eligible_at only moves forward inside the lock, so two
+ *   replicas can never both send within one interval on a connection.
+ * - Daily quota: sent_today is read and incremented inside the same lock and
+ *   transaction as the leaf claim; a crash rolls back both together. The
+ *   "day" is the database server's CURRENT_DATE (UTC in production).
+ * - Budget is charged at claim, not delivery: a downstream error still
+ *   consumes the slot, so failures slow bulk sending down, never speed it up.
+ * - Disconnected/archived connections claim nothing and burn no attempts;
+ *   their backlog simply waits for the connection to come back.
+ */
+async function claimBulkLeafForConnection(
+  tenantDb: Kysely<TenantDatabase>,
+  connectionId: string,
+  now: Date,
+  claimUntil: Date,
+): Promise<ScheduledMessageRow | null> {
+  return tenantDb.transaction().execute(async (trx) => {
+    // Seed the ledger eligible-now (an explicit timestamp, not the column's
+    // now() default, which would land after this cycle's captured `now` and
+    // needlessly push a brand-new connection to the next poll).
+    await trx
+      .insertInto("bulk_connection_budgets")
+      .values({ whatsapp_connection_id: connectionId, next_eligible_at: now })
+      .onConflict((oc) => oc.column("whatsapp_connection_id").doNothing())
+      .execute();
+    const budget = await trx
+      .selectFrom("bulk_connection_budgets")
+      .select(["next_eligible_at", "sent_today"])
+      .select(sql<boolean>`(quota_date = CURRENT_DATE)`.as("same_day"))
+      .where("whatsapp_connection_id", "=", connectionId)
+      .forUpdate()
+      .executeTakeFirst();
+    if (!budget) return null;
+    const sentToday = budget.same_day ? budget.sent_today : 0;
+    if (sentToday >= bulkConfig.dailyCapPerConnection) return null;
+    if (budget.next_eligible_at.getTime() > now.getTime()) return null;
+
+    const connection = await trx
+      .selectFrom("whatsapp_connections")
+      .select(["id", "status", "archived_at"])
+      .where("id", "=", connectionId)
+      .executeTakeFirst();
+    if (
+      !connection ||
+      connection.status !== "connected" ||
+      connection.archived_at
+    ) {
+      return null;
+    }
+
+    const leaf = await trx
+      .selectFrom("scheduled_messages")
+      .selectAll()
+      .where("bulk_job_id", "is not", null)
+      .where("status", "in", ["scheduled", "processing"])
+      .where("next_attempt_at", "<=", now)
+      .where("contact_id", "in", (eb) =>
+        eb
+          .selectFrom("contacts")
+          .select("contacts.id")
+          .where("contacts.whatsapp_connection_id", "=", connectionId),
+      )
+      .orderBy("scheduled_at", "asc")
+      .orderBy("created_at", "asc")
+      .limit(1)
+      .forUpdate()
+      .skipLocked()
+      .executeTakeFirst();
+    if (!leaf) return null;
+
+    await trx
+      .updateTable("scheduled_messages")
+      .set({
+        status: "processing",
+        next_attempt_at: claimUntil,
+        updated_at: toDbDate(),
+      })
+      .where("id", "=", leaf.id)
+      .execute();
+    await trx
+      .updateTable("bulk_connection_budgets")
+      .set({
+        sent_today: sentToday + 1,
+        quota_date: sql<Date>`CURRENT_DATE`,
+        next_eligible_at: new Date(now.getTime() + bulkConfig.sendIntervalMs),
+        updated_at: toDbDate(),
+      })
+      .where("whatsapp_connection_id", "=", connectionId)
+      .execute();
+    return leaf;
+  });
+}
+
+/**
+ * The per-connection claim only sees leaves whose contact still routes to a
+ * connection; a recipient deleted or unlinked after the snapshot would wait
+ * forever and hang its job. Sweep such orphans to "skipped" so jobs always
+ * drain. Guarded by the status filter, so a concurrently claimed leaf is
+ * untouched; leaves mid-dispatch have next_attempt_at in the future.
+ */
+async function sweepOrphanedBulkLeaves(
+  tenantDb: Kysely<TenantDatabase>,
+  now: Date,
+): Promise<string[]> {
+  const affectedJobs = new Set<string>();
+  const sweeps: Array<{
+    reason: BulkRecipientSkipReason;
+    orphanFilter: "missing" | "unlinked";
+  }> = [
+    { reason: "contact_missing", orphanFilter: "missing" },
+    { reason: "no_connection", orphanFilter: "unlinked" },
+  ];
+  for (const sweep of sweeps) {
+    const rows = await tenantDb
+      .updateTable("scheduled_messages")
+      .set({
+        status: "skipped",
+        skip_reason: sweep.reason,
+        updated_at: toDbDate(),
+      })
+      .where("status", "in", ["scheduled", "processing"])
+      .where("id", "in", (eb) => {
+        let orphans = eb
+          .selectFrom("scheduled_messages as sm")
+          .leftJoin("contacts", "contacts.id", "sm.contact_id")
+          .select("sm.id")
+          .where("sm.bulk_job_id", "is not", null)
+          .where("sm.status", "in", ["scheduled", "processing"])
+          .where("sm.next_attempt_at", "<=", now)
+          .limit(100);
+        orphans =
+          sweep.orphanFilter === "missing"
+            ? orphans.where("contacts.id", "is", null)
+            : orphans
+                .where("contacts.id", "is not", null)
+                .where("contacts.whatsapp_connection_id", "is", null);
+        return orphans;
+      })
+      .returning(["id", "bulk_job_id"])
+      .execute();
+    for (const row of rows) {
+      bulkSkippedTotal++;
+      if (row.bulk_job_id) affectedJobs.add(row.bulk_job_id);
+    }
+    if (rows.length > 0) {
+      logger.info(
+        { count: rows.length, reason: sweep.reason },
+        "Skipped orphaned bulk leaves",
+      );
+    }
+  }
+  return [...affectedJobs];
+}
+
+/**
+ * Bulk phase: one paced send per connection per cycle, after all normal
+ * schedules dispatched. Immediate human sends never pass through here at all
+ * (they go straight to the outbox), so bulk pacing cannot delay them beyond
+ * the worker's own serial send loop.
+ */
+export async function dispatchCompanyBulkMessages(
+  companyId: string,
+): Promise<number> {
+  const tenantDb = getTenantConnection(companyId);
+  const now = toDbDate();
+  const claimUntil = new Date(Date.now() + CLAIM_LEASE_MS);
+
+  const orphanedJobIds = await sweepOrphanedBulkLeaves(tenantDb, now);
+  for (const jobId of orphanedJobIds) {
+    try {
+      await finalizeBulkJobIfComplete(tenantDb, companyId, jobId);
+    } catch (error) {
+      logger.error(
+        { companyId, bulkJobId: jobId, err: formatError(error) },
+        "Failed to finalize bulk job after orphan sweep",
+      );
+    }
+  }
+
+  // Candidate connections are pre-filtered to those that look eligible right
+  // now (connected, unarchived, not paced out, quota remaining) and ordered
+  // oldest-eligible-first, so paced-out or quota-exhausted connections never
+  // occupy the per-cycle limit and starve eligible ones. This filter is only
+  // advisory — the locked claim transaction below remains the authority.
+  const candidates = await tenantDb
+    .selectFrom("whatsapp_connections as wc")
+    .leftJoin(
+      "bulk_connection_budgets as budget",
+      "budget.whatsapp_connection_id",
+      "wc.id",
+    )
+    .select("wc.id as connectionId")
+    .where("wc.status", "=", "connected")
+    .where("wc.archived_at", "is", null)
+    .where((eb) =>
+      eb.or([
+        eb("budget.whatsapp_connection_id", "is", null),
+        eb.and([
+          eb("budget.next_eligible_at", "<=", now),
+          eb.or([
+            sql<boolean>`budget.quota_date <> CURRENT_DATE`,
+            eb("budget.sent_today", "<", bulkConfig.dailyCapPerConnection),
+          ]),
+        ]),
+      ]),
+    )
+    .where("wc.id", "in", (eb) =>
+      eb
+        .selectFrom("scheduled_messages as sm")
+        .innerJoin("contacts as ct", "ct.id", "sm.contact_id")
+        .select("ct.whatsapp_connection_id")
+        .where("sm.bulk_job_id", "is not", null)
+        .where("sm.status", "in", ["scheduled", "processing"])
+        .where("sm.next_attempt_at", "<=", now)
+        .where("ct.whatsapp_connection_id", "is not", null),
+    )
+    .orderBy(sql`budget.next_eligible_at ASC NULLS FIRST`)
+    .orderBy("wc.id", "asc")
+    .limit(BULK_CONNECTIONS_PER_CYCLE)
+    .execute();
+  if (candidates.length === 0) return 0;
+
+  let dispatched = 0;
+  for (const candidate of candidates) {
+    const connectionId = candidate.connectionId;
+    if (!connectionId) continue;
+    let leaf: ScheduledMessageRow | null = null;
+    try {
+      leaf = await claimBulkLeafForConnection(
+        tenantDb,
+        connectionId,
+        now,
+        claimUntil,
+      );
+    } catch (error) {
+      logger.error(
+        { companyId, connectionId, err: formatError(error) },
+        "Failed to claim bulk leaf",
+      );
+      continue;
+    }
+    if (!leaf) continue;
+    const bulkJobId = leaf.bulk_job_id;
+    if (bulkJobId) {
+      await markBulkJobRunning(tenantDb, companyId, bulkJobId);
+    }
+
+    try {
+      const result = await sendScheduledMessage(
+        tenantDb,
+        companyId,
+        leaf,
+        claimUntil,
+      );
+      dispatched++;
+      bulkDispatchedTotal++;
+      await Promise.all([
+        broadcastToCompany(
+          companyId,
+          "message:new",
+          {
+            message: result.formattedMessage,
+            conversationId: leaf.contact_id,
+          },
+          result.connectionId,
+        ),
+        broadcastScheduledUpdate(companyId, leaf.id, leaf.contact_id, "sent"),
+      ]);
+      logger.info(
+        {
+          companyId,
+          bulkJobId,
+          scheduledMessageId: leaf.id,
+          messageId: result.messageId,
+          connectionId,
+        },
+        "Dispatched bulk message",
+      );
+    } catch (error) {
+      if (error instanceof BulkSkipError) {
+        await recordBulkSkip(
+          tenantDb,
+          companyId,
+          leaf,
+          claimUntil,
+          error.reason,
+        );
+      } else {
+        await recordDispatchFailure(
+          tenantDb,
+          companyId,
+          leaf,
+          claimUntil,
+          error,
+        );
+      }
+    }
+
+    if (bulkJobId) {
+      try {
+        await finalizeBulkJobIfComplete(tenantDb, companyId, bulkJobId);
+      } catch (error) {
+        logger.error(
+          { companyId, bulkJobId, err: formatError(error) },
+          "Failed to finalize bulk job",
+        );
+      }
+    }
+  }
+  return dispatched;
+}
+
 export async function dispatchDueScheduledMessages(): Promise<number> {
   const companies = await db
     .selectFrom("companies")
@@ -471,6 +905,14 @@ export async function dispatchDueScheduledMessages(): Promise<number> {
       logger.error(
         { companyId: company.id, err: formatError(error) },
         "Failed to dispatch company scheduled messages",
+      );
+    }
+    try {
+      processed += await dispatchCompanyBulkMessages(company.id);
+    } catch (error) {
+      logger.error(
+        { companyId: company.id, err: formatError(error) },
+        "Failed to dispatch company bulk messages",
       );
     }
   }

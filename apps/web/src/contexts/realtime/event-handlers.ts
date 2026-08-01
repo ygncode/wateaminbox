@@ -1,5 +1,6 @@
 import type { QueryClient } from "@tanstack/react-query";
 import type {
+  BulkJobUpdatedPayload,
   ConversationReadPayload,
   MediaDownloadedPayload,
   MediaDownloadFailedPayload,
@@ -120,6 +121,11 @@ export function registerRealtimeEventHandlers({
         qc.invalidateQueries({ queryKey: queryKeys.scheduledMessages.all });
       },
     ),
+    bindEvent<BulkJobUpdatedPayload>("bulk_job:updated", () => {
+      // Job rows and their recipient rollups both derive from Postgres;
+      // refetch the broadcasts queries wherever they are on screen.
+      qc.invalidateQueries({ queryKey: queryKeys.bulkJobs.all });
+    }),
     bindEvent<MessageReactionPayload>("message:reaction", (data) => {
       const payload = data.payload;
       updateMessageInCache(

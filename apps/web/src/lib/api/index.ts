@@ -123,6 +123,20 @@ export {
   type ScheduleMessageResponse,
 } from "./scheduled-messages.js";
 
+// Re-export bulk broadcast job functions
+export {
+  cancelBulkJob,
+  createBulkJob,
+  getBulkJob,
+  getBulkJobRecipients,
+  getBulkJobs,
+  previewBulkJob,
+  type BulkJobListPage,
+  type BulkJobRecipientsPage,
+  type CreateBulkJobInput,
+  type PreviewBulkJobInput,
+} from "./bulk-jobs.js";
+
 // Re-export quick-replies functions
 export {
   createQuickReply,

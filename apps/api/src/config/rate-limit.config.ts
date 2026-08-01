@@ -29,6 +29,8 @@
  * Messaging endpoints:
  * - RATE_LIMIT_MESSAGING_SEND_REQUESTS: Send message requests per window (default: 60)
  * - RATE_LIMIT_MESSAGING_WHATSAPP_REQUESTS: WhatsApp requests per window (default: 30)
+ * - RATE_LIMIT_MESSAGING_BULK_REQUESTS: Bulk job API requests per window (default: 10)
+ * - RATE_LIMIT_MESSAGING_BULK_WINDOW_SECONDS: Bulk job window in seconds (default: 60)
  */
 
 import { createLogger } from "../lib/logger.js";
@@ -70,6 +72,7 @@ export interface RateLimitConfig {
     messaging: {
       send: RateLimitTier;
       whatsapp: RateLimitTier;
+      bulk: RateLimitTier;
     };
   };
 }
@@ -264,6 +267,16 @@ export function getRateLimitConfig(): RateLimitConfig {
             60,
           ),
         },
+        bulk: {
+          requests: getDefaultRequests(
+            process.env.RATE_LIMIT_MESSAGING_BULK_REQUESTS,
+            10,
+          ),
+          windowSeconds: parsePositiveInt(
+            process.env.RATE_LIMIT_MESSAGING_BULK_WINDOW_SECONDS,
+            60,
+          ),
+        },
       },
     },
   };
@@ -379,6 +392,10 @@ export const DEFAULT_RATE_LIMIT_CONFIG: RateLimitConfig = {
       },
       whatsapp: {
         requests: 30,
+        windowSeconds: 60,
+      },
+      bulk: {
+        requests: 10,
         windowSeconds: 60,
       },
     },

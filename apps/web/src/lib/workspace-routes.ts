@@ -20,6 +20,7 @@ export function resolveInitialWorkspaceId(
 export type WorkspaceDestination =
   | "chat"
   | "dashboard"
+  | "broadcasts"
   | "team"
   | "audit"
   | "settings"
@@ -53,6 +54,7 @@ export function getWorkspaceDestination(pathname: string): {
     [
       "chat",
       "dashboard",
+      "broadcasts",
       "team",
       "audit",
       "settings",
@@ -74,6 +76,8 @@ export function isDestinationAllowed(
   switch (destination) {
     case "dashboard":
       return permissions.can_view_dashboard;
+    case "broadcasts":
+      return permissions.can_send_bulk_messages;
     case "team":
       return permissions.can_manage_team || permissions.can_invite;
     case "audit":

@@ -24,6 +24,7 @@ export type CompanyRealtimeEventType =
   | "message:reaction"
   | "message:failed"
   | "scheduled_message:updated"
+  | "bulk_job:updated"
   | "qr"
   | "connected"
   | "disconnected"

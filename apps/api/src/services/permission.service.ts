@@ -13,6 +13,7 @@ export const PERMISSIONS = {
   // Chat & Messaging
   CAN_VIEW_ALL_CHATS: "can_view_all_chats",
   CAN_SEND_MESSAGES: "can_send_messages",
+  CAN_SEND_BULK_MESSAGES: "can_send_bulk_messages",
 
   // Contact Management
   CAN_ASSIGN_CONTACTS: "can_assign_contacts",
@@ -248,6 +249,12 @@ export function getPermissionDescriptions(): Array<{
       key: PERMISSIONS.CAN_SEND_MESSAGES,
       name: "Send Messages",
       description: "Can send messages to contacts",
+      category: "Chat & Messaging",
+    },
+    {
+      key: PERMISSIONS.CAN_SEND_BULK_MESSAGES,
+      name: "Send Broadcasts",
+      description: "Can schedule bulk broadcast messages to many contacts",
       category: "Chat & Messaging",
     },
     {

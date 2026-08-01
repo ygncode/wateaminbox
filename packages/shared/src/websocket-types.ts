@@ -5,6 +5,7 @@
  * and frontend (React client) for WebSocket communication.
  */
 
+import type { BulkJobStatus } from "./types/bulk-job";
 import type {
   Message,
   MessageStatus,
@@ -36,6 +37,7 @@ export type ServerToClientEventType =
   | "message:reaction"
   | "message:failed"
   | "scheduled_message:updated"
+  | "bulk_job:updated"
   // Conversation events
   | "conversation:updated"
   | "conversation:read"
@@ -225,6 +227,11 @@ export interface ScheduledMessageUpdatedPayload {
   status: ScheduledMessageStatus;
 }
 
+export interface BulkJobUpdatedPayload {
+  bulkJobId: string;
+  status: BulkJobStatus;
+}
+
 // --- Conversation Payloads ---
 
 export interface ConversationUpdatedPayload {
@@ -384,6 +391,8 @@ export function isServerToClientEventType(
     "message:deleted",
     "message:reaction",
     "message:failed",
+    "scheduled_message:updated",
+    "bulk_job:updated",
     "conversation:updated",
     "conversation:read",
     "contact",

@@ -52,6 +52,8 @@ export type {
   QuickRepliesTable,
   ConversationStatesTable,
   ScheduledMessagesTable,
+  BulkJobsTable,
+  BulkConnectionBudgetsTable,
   WhatsAppLabelsTable,
   WhatsAppCatalogsTable,
   CatalogProductsTable,

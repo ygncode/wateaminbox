@@ -1,4 +1,6 @@
 import type {
+  BulkJobAudience,
+  BulkJobStatus,
   CompanyMemberRole,
   CompanyStatus,
   MessageStatus,
@@ -160,6 +162,8 @@ export interface TenantDatabase {
   conversation_states: ConversationStatesTable;
   nats_outbox: NatsOutboxTable;
   scheduled_messages: ScheduledMessagesTable;
+  bulk_jobs: BulkJobsTable;
+  bulk_connection_budgets: BulkConnectionBudgetsTable;
 }
 
 export interface WhatsAppConnectionsTable {
@@ -489,6 +493,44 @@ export interface ScheduledMessagesTable {
   canceled_at: Date | null;
   sent_at: Date | null;
   created_at: Generated<Date>;
+  updated_at: Generated<Date>;
+  bulk_job_id: string | null;
+  skip_reason: string | null;
+}
+
+export interface BulkJobsTable {
+  id: Generated<string>;
+  name: string;
+  status: Generated<BulkJobStatus>;
+  content: string;
+  message_type: Generated<MessageType>;
+  media_url: string | null;
+  media_mime_type: string | null;
+  media_file_name: string | null;
+  audience: BulkJobAudience;
+  audience_hash: string;
+  scheduled_at: Date;
+  total_recipients: Generated<number>;
+  skipped_recipients: Generated<number>;
+  idempotency_key: string | null;
+  created_by: string;
+  canceled_by: string | null;
+  canceled_at: Date | null;
+  completed_at: Date | null;
+  created_at: Generated<Date>;
+  updated_at: Generated<Date>;
+}
+
+/**
+ * Global per-connection bulk send ledger. One row per WhatsApp connection;
+ * the dispatcher locks it FOR UPDATE before claiming a bulk leaf so pacing
+ * and the daily quota hold across all jobs and API replicas.
+ */
+export interface BulkConnectionBudgetsTable {
+  whatsapp_connection_id: string;
+  next_eligible_at: Generated<Date>;
+  quota_date: Generated<Date>;
+  sent_today: Generated<number>;
   updated_at: Generated<Date>;
 }
 

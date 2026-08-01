@@ -96,6 +96,20 @@ export {
   type ListScheduledMessagesQuery,
 } from "./message.js";
 
+// Bulk broadcast jobs
+export {
+  bulkAudienceSchema,
+  previewBulkJobSchema,
+  createBulkJobSchema,
+  listBulkJobsQuerySchema,
+  listBulkJobRecipientsQuerySchema,
+  type BulkAudienceInput,
+  type PreviewBulkJobInput,
+  type CreateBulkJobInput,
+  type ListBulkJobsQuery,
+  type ListBulkJobRecipientsQuery,
+} from "./bulk-job.js";
+
 // Tag
 export {
   createTagSchema,

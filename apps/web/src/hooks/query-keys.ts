@@ -88,6 +88,7 @@ export const queryKeys = {
   assignmentHistory: createQueryKeyFactory("assignmentHistory"),
   chats: createQueryKeyFactory("chats"),
   scheduledMessages: createQueryKeyFactory("scheduled-messages"),
+  bulkJobs: createQueryKeyFactory("bulk-jobs"),
   search: createQueryKeyFactory("search"),
   status: createQueryKeyFactory("status"),
   export: createQueryKeyFactory("export"),

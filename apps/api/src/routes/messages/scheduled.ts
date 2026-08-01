@@ -23,6 +23,7 @@ import { getRouteContext } from "../../middleware/context.js";
 import { requireMessageSendPermission } from "../../middleware/message-send-policy.js";
 import { createConditionalRateLimiter } from "../../middleware/rate-limit.js";
 import { hasContactVisibility } from "../../middleware/resource-visibility.js";
+import { finalizeBulkJobIfComplete } from "../../services/bulk-job.service.js";
 import { ensureContactAssignment } from "../../services/contact.service.js";
 import {
   cleanupScheduledMediaObject,
@@ -243,7 +244,7 @@ scheduledRoutes.delete(
 
     const row = await tenantDb
       .selectFrom("scheduled_messages")
-      .select(["id", "contact_id", "status", "media_url"])
+      .select(["id", "contact_id", "status", "media_url", "bulk_job_id"])
       .where("id", "=", id)
       .executeTakeFirst();
 
@@ -270,8 +271,14 @@ scheduledRoutes.delete(
       );
     }
 
-    // A canceled schedule is this media object's only consumer; reclaim it.
-    await cleanupScheduledMediaObject(tenantDb, companyId, id, row.media_url);
+    if (row.bulk_job_id) {
+      // Bulk media is shared by the job's other leaves; only job finalization
+      // may reclaim it. Canceling one leaf can also be the job's last word.
+      await finalizeBulkJobIfComplete(tenantDb, companyId, row.bulk_job_id);
+    } else {
+      // A canceled schedule is this media object's only consumer; reclaim it.
+      await cleanupScheduledMediaObject(tenantDb, companyId, id, row.media_url);
+    }
 
     await broadcastToCompany(companyId, "scheduled_message:updated", {
       scheduledMessageId: id,

@@ -306,6 +306,37 @@ export const TENANT_SCHEMA_CONTRACT = {
     "sent_at",
     "created_at",
     "updated_at",
+    "bulk_job_id",
+    "skip_reason",
+  ],
+  bulk_jobs: [
+    "id",
+    "name",
+    "status",
+    "content",
+    "message_type",
+    "media_url",
+    "media_mime_type",
+    "media_file_name",
+    "audience",
+    "audience_hash",
+    "scheduled_at",
+    "total_recipients",
+    "skipped_recipients",
+    "idempotency_key",
+    "created_by",
+    "canceled_by",
+    "canceled_at",
+    "completed_at",
+    "created_at",
+    "updated_at",
+  ],
+  bulk_connection_budgets: [
+    "whatsapp_connection_id",
+    "next_eligible_at",
+    "quota_date",
+    "sent_today",
+    "updated_at",
   ],
 } as const satisfies {
   [Table in keyof TenantDatabase]: readonly Extract<
@@ -786,5 +817,74 @@ export async function reconcileTenantSchema<Database>(
     ADD COLUMN IF NOT EXISTS media_url TEXT,
     ADD COLUMN IF NOT EXISTS media_mime_type TEXT,
     ADD COLUMN IF NOT EXISTS media_file_name TEXT
+  `.execute(db);
+
+  // Bulk broadcast jobs (059): parent table, per-connection pacing ledger,
+  // and the leaf columns/status linking scheduled_messages to a job.
+  await sql`
+    ALTER TABLE ${table("scheduled_messages")}
+    ADD COLUMN IF NOT EXISTS bulk_job_id UUID,
+    ADD COLUMN IF NOT EXISTS skip_reason TEXT
+  `.execute(db);
+  await sql`
+    ALTER TABLE ${table("scheduled_messages")}
+    DROP CONSTRAINT IF EXISTS scheduled_messages_status_check
+  `.execute(db);
+  await sql`
+    ALTER TABLE ${table("scheduled_messages")}
+    ADD CONSTRAINT scheduled_messages_status_check
+    CHECK (status IN ('scheduled', 'processing', 'sent', 'failed', 'canceled', 'skipped'))
+  `.execute(db);
+  await sql`
+    CREATE INDEX IF NOT EXISTS ${sql.ref(
+      `${schemaName}_scheduled_messages_bulk_job_idx`,
+    )}
+    ON ${table("scheduled_messages")} (bulk_job_id, status)
+    WHERE bulk_job_id IS NOT NULL
+  `.execute(db);
+  await sql`
+    CREATE TABLE IF NOT EXISTS ${table("bulk_jobs")} (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      name TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'scheduled'
+        CHECK (status IN ('scheduled', 'running', 'completed', 'completed_with_errors', 'canceled')),
+      content TEXT NOT NULL,
+      message_type message_type NOT NULL DEFAULT 'text',
+      media_url TEXT,
+      media_mime_type TEXT,
+      media_file_name TEXT,
+      audience JSONB NOT NULL,
+      audience_hash TEXT NOT NULL,
+      scheduled_at TIMESTAMPTZ NOT NULL,
+      total_recipients INTEGER NOT NULL DEFAULT 0,
+      skipped_recipients INTEGER NOT NULL DEFAULT 0,
+      idempotency_key TEXT,
+      created_by UUID NOT NULL,
+      canceled_by UUID,
+      canceled_at TIMESTAMPTZ,
+      completed_at TIMESTAMPTZ,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `.execute(db);
+  await sql`
+    CREATE UNIQUE INDEX IF NOT EXISTS ${sql.ref(
+      `${schemaName}_bulk_jobs_idempotency_uidx`,
+    )}
+    ON ${table("bulk_jobs")} (idempotency_key)
+    WHERE idempotency_key IS NOT NULL
+  `.execute(db);
+  await sql`
+    CREATE INDEX IF NOT EXISTS ${sql.ref(`${schemaName}_bulk_jobs_status_idx`)}
+    ON ${table("bulk_jobs")} (status, scheduled_at)
+  `.execute(db);
+  await sql`
+    CREATE TABLE IF NOT EXISTS ${table("bulk_connection_budgets")} (
+      whatsapp_connection_id UUID PRIMARY KEY,
+      next_eligible_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      quota_date DATE NOT NULL DEFAULT CURRENT_DATE,
+      sent_today INTEGER NOT NULL DEFAULT 0,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
   `.execute(db);
 }
