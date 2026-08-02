@@ -21,7 +21,7 @@ import {
   useState,
 } from "react";
 import { createPortal } from "react-dom";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router";
 import { AriaLive } from "@/components/ui/aria-live";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";

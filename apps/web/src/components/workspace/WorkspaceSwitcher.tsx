@@ -1,6 +1,6 @@
 import { Check, ChevronsUpDown, Loader2, Plus, Search } from "lucide-react";
 import * as React from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router";
 import { toast } from "sonner";
 import { useWorkspace } from "../../contexts/workspace-context";
 import { useCreateCompany } from "../../hooks/useTeam";

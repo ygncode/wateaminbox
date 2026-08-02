@@ -19,7 +19,7 @@ import {
   X,
 } from "lucide-react";
 import { type ComponentType, type ReactNode, useRef, useState } from "react";
-import { Navigate, NavLink, useNavigate, useParams } from "react-router-dom";
+import { Navigate, NavLink, useNavigate, useParams } from "react-router";
 import { toast } from "sonner";
 import { ThemeToggle } from "../components/chat/ThemeToggle";
 import { ContactImport } from "../components/contacts";

@@ -38,7 +38,7 @@ assignmentRoutes.post(
   zValidator("json", assignContactSchema),
   async (c) => {
     const { tenantDb, user, companyId, permissions } = getRouteContext(c);
-    const contactId = c.req.param("id");
+    const contactId = c.req.param("id")!;
     const targetUserId = c.req.valid("json").targetUserId ?? user.id;
 
     // Assignment IDs reference public users, so tenant-schema isolation alone
@@ -217,7 +217,7 @@ assignmentRoutes.delete(
   requirePermission(PERMISSIONS.CAN_ASSIGN_CONTACTS),
   async (c) => {
     const { tenantDb, user, companyId } = getRouteContext(c);
-    const contactId = c.req.param("id");
+    const contactId = c.req.param("id")!;
 
     // Locks the contact row FIRST, same as the assign route's takeover -
     // otherwise an unlocked read-then-update here can race a concurrent
@@ -293,7 +293,7 @@ assignmentRoutes.get(
   requireContactVisibility(),
   async (c) => {
     const { tenantDb } = getRouteContext(c);
-    const contactId = c.req.param("id");
+    const contactId = c.req.param("id")!;
 
     // Check if contact exists
     const contact = await tenantDb

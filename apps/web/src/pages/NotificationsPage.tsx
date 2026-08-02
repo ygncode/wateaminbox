@@ -8,7 +8,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useWorkspace } from "@/contexts/workspace-context";

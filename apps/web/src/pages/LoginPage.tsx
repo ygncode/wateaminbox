@@ -12,7 +12,7 @@ import {
   useLocation,
   useNavigate,
   useSearchParams,
-} from "react-router-dom";
+} from "react-router";
 import { AuthPageShell } from "../components/auth/AuthPageShell";
 import { Button } from "../components/ui/button";
 import { FormField } from "../components/ui/form-field";

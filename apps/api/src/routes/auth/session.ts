@@ -56,7 +56,7 @@ sessionRoutes.get("/sessions", authMiddleware, async (c) => {
  * Delete a specific session
  */
 sessionRoutes.delete("/sessions/:id", authMiddleware, async (c) => {
-  const sessionId = c.req.param("id");
+  const sessionId = c.req.param("id")!;
   const user = c.get("user");
   const currentSession = c.get("session");
 

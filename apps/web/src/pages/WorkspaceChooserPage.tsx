@@ -1,5 +1,5 @@
 import { ArrowRight, Building2, LogOut } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router";
 import { toast } from "sonner";
 import { WorkspaceAvatar } from "../components/workspace/WorkspaceAvatar";
 import { useAuth } from "../contexts/auth-context";

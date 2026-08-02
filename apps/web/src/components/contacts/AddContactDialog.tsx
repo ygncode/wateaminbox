@@ -2,7 +2,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { AlertCircle, Check, Loader2, UserPlus } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {

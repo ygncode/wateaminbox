@@ -1,5 +1,5 @@
 import { lazy, type ReactNode, Suspense } from "react";
-import { Navigate, Route, Routes } from "react-router-dom";
+import { Navigate, Route, Routes } from "react-router";
 import { Toaster } from "sonner";
 import {
   LegacyWorkspaceRedirect,

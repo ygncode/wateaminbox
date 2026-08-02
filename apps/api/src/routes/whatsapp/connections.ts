@@ -192,7 +192,7 @@ connectionRoutes.get(
   authMiddleware,
   tenantFromHeader("X-Company-ID"),
   async (c) => {
-    const connectionId = c.req.param("connectionId");
+    const connectionId = c.req.param("connectionId")!;
     const tenantDb = c.get("tenantDb");
 
     try {
@@ -237,7 +237,7 @@ connectionRoutes.patch(
   requirePermission(PERMISSIONS.CAN_MANAGE_CONNECTIONS),
   zValidator("json", updateConnectionSchema),
   async (c) => {
-    const connectionId = c.req.param("connectionId");
+    const connectionId = c.req.param("connectionId")!;
     const tenantDb = c.get("tenantDb");
     const { name } = c.req.valid("json");
 
@@ -290,7 +290,7 @@ connectionRoutes.delete(
   requirePermission(PERMISSIONS.CAN_MANAGE_CONNECTIONS),
   async (c) => {
     const companyId = c.get("companyId");
-    const connectionId = c.req.param("connectionId");
+    const connectionId = c.req.param("connectionId")!;
     const tenantDb = c.get("tenantDb");
 
     try {
@@ -342,7 +342,7 @@ connectionRoutes.post(
   requirePermission(PERMISSIONS.CAN_DELETE),
   zValidator("json", purgeConnectionSchema),
   async (c) => {
-    const connectionId = c.req.param("connectionId");
+    const connectionId = c.req.param("connectionId")!;
     const tenantDb = c.get("tenantDb");
     const deleted = await whatsappService.purgeArchivedConnection(
       tenantDb,
@@ -381,7 +381,7 @@ connectionRoutes.post(
   requirePermission(PERMISSIONS.CAN_MANAGE_CONNECTIONS),
   async (c) => {
     const companyId = c.get("companyId");
-    const connectionId = c.req.param("connectionId");
+    const connectionId = c.req.param("connectionId")!;
     const tenantDb = c.get("tenantDb");
 
     try {
@@ -460,7 +460,7 @@ connectionRoutes.post(
     await whatsappService.relinkArchivedConnection(
       c.get("tenantDb"),
       c.get("companyId"),
-      c.req.param("connectionId"),
+      c.req.param("connectionId")!,
       c.get("user").id,
     );
     await createAuditLog({
@@ -468,7 +468,7 @@ connectionRoutes.post(
       userId: c.get("user").id,
       action: "connection.relinked",
       entityType: "whatsapp_connection",
-      entityId: c.req.param("connectionId"),
+      entityId: c.req.param("connectionId")!,
       ipAddress: getClientIp(c.req.raw.headers),
     });
     return c.json({
@@ -488,7 +488,7 @@ connectionRoutes.post(
   requirePermission(PERMISSIONS.CAN_MANAGE_CONNECTIONS),
   async (c) => {
     const companyId = c.get("companyId");
-    const connectionId = c.req.param("connectionId");
+    const connectionId = c.req.param("connectionId")!;
     const tenantDb = c.get("tenantDb");
 
     try {
@@ -535,7 +535,7 @@ connectionRoutes.get(
   authMiddleware,
   tenantFromHeader("X-Company-ID"),
   async (c) => {
-    const connectionId = c.req.param("connectionId");
+    const connectionId = c.req.param("connectionId")!;
     const tenantDb = c.get("tenantDb");
 
     try {

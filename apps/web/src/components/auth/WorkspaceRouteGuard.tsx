@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Navigate, Outlet, useParams } from "react-router-dom";
+import { Navigate, Outlet, useParams } from "react-router";
 import { useWorkspace } from "../../contexts/workspace-context";
 import { workspacePath } from "../../lib/workspace-routes";
 import { PageSkeleton } from "../ui";

@@ -182,7 +182,7 @@ memberRoutes.patch(
   zValidator("json", updateMemberRoleSchema),
   async (c) => {
     const companyId = c.get("companyId");
-    const userId = c.req.param("userId");
+    const userId = c.req.param("userId")!;
     const { role } = c.req.valid("json");
     const actorRole = c.get("companyRole");
 
@@ -235,7 +235,7 @@ memberRoutes.delete(
   requirePermission(PERMISSIONS.CAN_MANAGE_TEAM),
   async (c) => {
     const companyId = c.get("companyId");
-    const userId = c.req.param("userId");
+    const userId = c.req.param("userId")!;
 
     // Prevent self-removal
     const currentUser = c.get("user");

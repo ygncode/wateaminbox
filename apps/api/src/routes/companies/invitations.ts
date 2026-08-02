@@ -137,7 +137,7 @@ invitationRoutes.delete(
   requirePermission(PERMISSIONS.CAN_INVITE),
   async (c) => {
     const companyId = c.get("companyId");
-    const invitationId = c.req.param("invitationId");
+    const invitationId = c.req.param("invitationId")!;
 
     await companyService.cancelInvitation(companyId, invitationId);
     return successMessage(c, "Invitation cancelled successfully");
@@ -155,7 +155,7 @@ invitationRoutes.post(
   requirePermission(PERMISSIONS.CAN_INVITE),
   async (c) => {
     const companyId = c.get("companyId");
-    const invitationId = c.req.param("invitationId");
+    const invitationId = c.req.param("invitationId")!;
     const user = c.get("user");
 
     const invitation = await companyService.resendInvitation(
@@ -176,7 +176,7 @@ export const tokenInvitationRoutes = new Hono();
  * POST /:token/accept - Accept invitation
  */
 tokenInvitationRoutes.post("/:token/accept", authMiddleware, async (c) => {
-  const token = c.req.param("token");
+  const token = c.req.param("token")!;
   const user = c.get("user");
 
   const result = await companyService.acceptInvitation(token, user.id);
@@ -206,7 +206,7 @@ tokenInvitationRoutes.post("/:token/accept", authMiddleware, async (c) => {
  * GET /:token - Get invitation details (for preview before accepting)
  */
 tokenInvitationRoutes.get("/:token", async (c) => {
-  const token = c.req.param("token");
+  const token = c.req.param("token")!;
 
   const invitation = await companyService.getInvitationByToken(token);
   return successData(c, invitation);

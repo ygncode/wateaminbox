@@ -9,7 +9,7 @@ import {
   Plus,
   Send,
 } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link } from "react-router";
 import { Button } from "@/components/ui/button";
 import { ServerDataTable } from "@/components/ui/server-data-table";
 import { useBulkJobs } from "@/hooks/useBulkJobs";

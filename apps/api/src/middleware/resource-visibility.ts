@@ -21,7 +21,7 @@ export async function hasContactVisibility(
 
 export function requireContactVisibility(paramName = "id") {
   return async (c: Context, next: Next) => {
-    if (!(await hasContactVisibility(c, c.req.param(paramName)))) {
+    if (!(await hasContactVisibility(c, c.req.param(paramName)!))) {
       // Use 404 to avoid disclosing that another assignee's resource exists.
       throw new HTTPException(404, { message: "Contact not found" });
     }
@@ -39,7 +39,7 @@ export function requireMessageVisibility(paramName = "id") {
     const message = await tenantDb
       .selectFrom("messages")
       .select("contact_id")
-      .where("id", "=", c.req.param(paramName))
+      .where("id", "=", c.req.param(paramName)!)
       .executeTakeFirst();
     if (
       !message?.contact_id ||

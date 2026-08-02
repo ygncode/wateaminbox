@@ -2,7 +2,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { CheckCircle2, KeyRound } from "lucide-react";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router";
 import { Button } from "../components/ui/button";
 import { FormField } from "../components/ui/form-field";
 import { resetPassword } from "../lib/api";

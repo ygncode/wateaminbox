@@ -10,7 +10,7 @@ import {
   XCircle,
 } from "lucide-react";
 import { useEffect, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router";
 import { Button, Skeleton } from "../components/ui";
 import { useAuth } from "../contexts/auth-context";
 import { useWorkspace } from "../contexts/workspace-context";

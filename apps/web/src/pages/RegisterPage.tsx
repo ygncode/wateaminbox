@@ -7,7 +7,7 @@ import {
 } from "lucide-react";
 import * as React from "react";
 import { useForm } from "react-hook-form";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router";
 import { AuthPageShell } from "../components/auth/AuthPageShell";
 import { Button } from "../components/ui/button";
 import { FormField } from "../components/ui/form-field";

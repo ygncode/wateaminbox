@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import * as React from "react";
 import { useForm } from "react-hook-form";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router";
 import { Button } from "../components/ui/button";
 import { FormField } from "../components/ui/form-field";
 import { useAuth } from "../contexts/auth-context";

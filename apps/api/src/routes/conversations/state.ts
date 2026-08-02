@@ -44,7 +44,7 @@ async function loadContact(
  */
 stateRoutes.get("/:id/state", async (c) => {
   const { tenantDb } = getRouteContext(c);
-  const contactId = c.req.param("id");
+  const contactId = c.req.param("id")!;
 
   const [state, activeCase, caseHistory] = await Promise.all([
     getConversationState(tenantDb, contactId),
@@ -79,7 +79,7 @@ stateRoutes.post(
   zValidator("json", resolveConversationSchema),
   async (c) => {
     const { tenantDb, user, companyId } = getRouteContext(c);
-    const contactId = c.req.param("id");
+    const contactId = c.req.param("id")!;
     const { outcome, notes } = c.req.valid("json");
 
     const contact = await loadContact(tenantDb, contactId);
@@ -136,7 +136,7 @@ async function performManualOpenOrReopen(
   reason: string | undefined,
 ) {
   const { tenantDb, user, companyId } = getRouteContext(c);
-  const contactId = c.req.param("id");
+  const contactId = c.req.param("id")!;
 
   const contact = await loadContact(tenantDb, contactId);
   if (!contact) {
@@ -222,7 +222,7 @@ stateRoutes.post(
  */
 stateRoutes.post("/:id/pending", requireMessageSendPermission, async (c) => {
   const { tenantDb, user, companyId } = getRouteContext(c);
-  const contactId = c.req.param("id");
+  const contactId = c.req.param("id")!;
 
   const contact = await loadContact(tenantDb, contactId);
   if (!contact) {
@@ -267,7 +267,7 @@ stateRoutes.post("/:id/pending", requireMessageSendPermission, async (c) => {
  */
 stateRoutes.post("/:id/resume", requireMessageSendPermission, async (c) => {
   const { tenantDb, user, companyId } = getRouteContext(c);
-  const contactId = c.req.param("id");
+  const contactId = c.req.param("id")!;
 
   const contact = await loadContact(tenantDb, contactId);
   if (!contact) {
@@ -305,7 +305,7 @@ stateRoutes.post("/:id/resume", requireMessageSendPermission, async (c) => {
  */
 stateRoutes.post("/:id/read", async (c) => {
   const { tenantDb, user, companyId } = getRouteContext(c);
-  const contactId = c.req.param("id");
+  const contactId = c.req.param("id")!;
 
   // Verify contact exists
   const contact = await tenantDb

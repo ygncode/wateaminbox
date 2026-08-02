@@ -12,7 +12,7 @@ import {
   Users,
 } from "lucide-react";
 import { lazy, Suspense, useState } from "react";
-import { NavLink, Outlet, useLocation } from "react-router-dom";
+import { NavLink, Outlet, useLocation } from "react-router";
 import { useAuth } from "../../contexts/auth-context";
 import { useWorkspace } from "../../contexts/workspace-context";
 import { useChats } from "../../hooks/useChats";

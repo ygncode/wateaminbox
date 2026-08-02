@@ -1,5 +1,5 @@
 import type { MemberPermissions } from "@wateaminbox/shared";
-import { Navigate, useLocation } from "react-router-dom";
+import { Navigate, useLocation } from "react-router";
 import { useAuth } from "../../contexts/auth-context";
 import { useWorkspace } from "../../contexts/workspace-context";
 import {

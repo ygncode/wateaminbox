@@ -227,7 +227,7 @@ sendRoutes.post(
   zValidator("json", forwardMessageSchema),
   async (c) => {
     const { tenantDb, user, companyId } = getRouteContext(c);
-    const messageId = c.req.param("id");
+    const messageId = c.req.param("id")!;
     const body = c.req.valid("json");
 
     // Get original message
@@ -346,7 +346,7 @@ sendRoutes.post(
   messageSendRateLimiter,
   async (c) => {
     const { tenantDb, user, companyId } = getRouteContext(c);
-    const messageId = c.req.param("id");
+    const messageId = c.req.param("id")!;
 
     // Get the original failed message
     const originalMessage = await tenantDb

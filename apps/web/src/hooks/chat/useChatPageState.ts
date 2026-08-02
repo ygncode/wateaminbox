@@ -1,7 +1,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import type { Contact, Message } from "@wateaminbox/shared";
 import * as React from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router";
 import { toast } from "sonner";
 import { useWorkspace } from "../../contexts/workspace-context";
 import { markConversationAsRead, uploadMedia } from "../../lib/api";

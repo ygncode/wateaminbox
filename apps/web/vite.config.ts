@@ -36,7 +36,7 @@ export default defineConfig(({ mode }) => ({
           // Core React runtime - changes rarely, cache separately
           "react-vendor": ["react", "react-dom"],
           // Router - separate chunk for routing
-          "router": ["react-router-dom"],
+          "router": ["react-router"],
           // TanStack libraries - query and virtualization
           "tanstack": ["@tanstack/react-query", "@tanstack/react-virtual"],
           // Form handling - react-hook-form + validation

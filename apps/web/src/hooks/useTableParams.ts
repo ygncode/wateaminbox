@@ -8,7 +8,7 @@
 
 import type { PaginationState } from "@tanstack/react-table";
 import { useCallback, useMemo } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams } from "react-router";
 
 export interface UseTableParamsOptions {
   /** Search-param name holding the zero-based page index. */

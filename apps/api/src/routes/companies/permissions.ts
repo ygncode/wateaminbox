@@ -48,7 +48,7 @@ permissionRoutes.get(
   requirePermission(PERMISSIONS.CAN_MANAGE_TEAM),
   async (c) => {
     const companyId = c.get("companyId");
-    const userId = c.req.param("userId");
+    const userId = c.req.param("userId")!;
 
     try {
       const members = await companyService.getMembers(companyId);
@@ -88,7 +88,7 @@ permissionRoutes.patch(
   zValidator("json", updateMemberPermissionsSchema),
   async (c) => {
     const companyId = c.get("companyId");
-    const userId = c.req.param("userId");
+    const userId = c.req.param("userId")!;
     const newPermissions = c.req.valid("json");
 
     try {
@@ -124,7 +124,7 @@ permissionRoutes.post(
   tenantFromParam("id", "owner"),
   async (c) => {
     const companyId = c.get("companyId");
-    const userId = c.req.param("userId");
+    const userId = c.req.param("userId")!;
 
     try {
       const effectivePermissions = await resetMemberPermissions(

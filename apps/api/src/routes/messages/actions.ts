@@ -21,7 +21,7 @@ actionRoutes.use("/:id/*", requireMessageVisibility());
  */
 actionRoutes.post("/:id/star", async (c) => {
   const { tenantDb } = getRouteContext(c);
-  const messageId = c.req.param("id");
+  const messageId = c.req.param("id")!;
 
   const updated = await tenantDb
     .updateTable("messages")
@@ -42,7 +42,7 @@ actionRoutes.post("/:id/star", async (c) => {
  */
 actionRoutes.delete("/:id/star", async (c) => {
   const { tenantDb } = getRouteContext(c);
-  const messageId = c.req.param("id");
+  const messageId = c.req.param("id")!;
 
   const updated = await tenantDb
     .updateTable("messages")
@@ -67,7 +67,7 @@ actionRoutes.delete(
   requirePermission(PERMISSIONS.CAN_DELETE),
   async (c) => {
     const { tenantDb } = getRouteContext(c);
-    const messageId = c.req.param("id");
+    const messageId = c.req.param("id")!;
 
     const updated = await tenantDb
       .updateTable("messages")

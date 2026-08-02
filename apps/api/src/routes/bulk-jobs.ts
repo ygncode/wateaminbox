@@ -250,7 +250,7 @@ bulkJobRoutes.patch(
   zValidator("json", rescheduleBulkJobSchema),
   async (c) => {
     const { tenantDb, user, companyId } = getRouteContext(c);
-    const id = c.req.param("id");
+    const id = c.req.param("id")!;
     const body = c.req.valid("json");
     const scheduledAt = new Date(body.scheduledAt);
     const lead = scheduledAt.getTime() - Date.now();
@@ -374,7 +374,7 @@ bulkJobRoutes.get(
  */
 bulkJobRoutes.get("/:id", async (c) => {
   const { tenantDb, companyId } = getRouteContext(c);
-  const id = c.req.param("id");
+  const id = c.req.param("id")!;
 
   const row = await tenantDb
     .selectFrom("bulk_jobs")
@@ -406,7 +406,7 @@ bulkJobRoutes.get(
   zValidator("query", listBulkJobRecipientsQuerySchema),
   async (c) => {
     const { tenantDb } = getRouteContext(c);
-    const id = c.req.param("id");
+    const id = c.req.param("id")!;
     const { limit, offset, status } = c.req.valid("query");
 
     const job = await tenantDb
@@ -484,7 +484,7 @@ bulkJobRoutes.post(
   bulkRateLimiter,
   async (c) => {
     const { tenantDb, user, companyId } = getRouteContext(c);
-    const id = c.req.param("id");
+    const id = c.req.param("id")!;
 
     const row = await tenantDb
       .selectFrom("bulk_jobs")

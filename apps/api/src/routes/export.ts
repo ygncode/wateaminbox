@@ -132,7 +132,7 @@ exportRoutes.get(
   exportRateLimiter,
   async (c) => {
     const { companyId, user, permissions } = getRouteContext(c);
-    const contactId = c.req.param("contactId");
+    const contactId = c.req.param("contactId")!;
     const format = (c.req.query("format") as "csv" | "json") || "json";
     const startDateStr = c.req.query("startDate");
     const endDateStr = c.req.query("endDate");

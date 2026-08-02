@@ -265,7 +265,7 @@ scheduledRoutes.delete(
   requireMessageSendPermission,
   async (c) => {
     const { tenantDb, user, companyId } = getRouteContext(c);
-    const id = c.req.param("id");
+    const id = c.req.param("id")!;
 
     const row = await tenantDb
       .selectFrom("scheduled_messages")
