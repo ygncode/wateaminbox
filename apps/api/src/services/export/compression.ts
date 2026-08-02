@@ -4,8 +4,8 @@
  * Handles ZIP file creation and README generation for data exports
  */
 
-import * as fflate from "fflate";
 import { dayjs } from "@wateaminbox/shared";
+import * as fflate from "fflate";
 import type { ContactExport, MessageExport } from "../export.service.js";
 import { toCSV } from "./csv.js";
 
@@ -79,15 +79,56 @@ export async function generateBackupZip(
     "backup-summary.json": encoder.encode(JSON.stringify(backupData, null, 2)),
   };
 
-  // Use async ZIP to avoid blocking the event loop for large files
-  const zipData = await new Promise<Uint8Array>((resolve, reject) => {
-    fflate.zip(files, { level: 6 }, (err, data) => {
-      if (err) {
-        reject(err);
-      } else {
-        resolve(data);
+  // Feed synchronous streaming compression in bounded chunks and yield between
+  // chunks. fflate's worker-backed `zip()` path is not compatible with Bun for
+  // files above its worker threshold, while `zipSync()` would block the server.
+  const outputChunks: Uint8Array[] = [];
+  let outputLength = 0;
+  const zipData = new Promise<Uint8Array>((resolve, reject) => {
+    const archive = new fflate.Zip((error, chunk, final) => {
+      if (error) {
+        reject(error);
+        return;
+      }
+      outputChunks.push(chunk);
+      outputLength += chunk.length;
+      if (final) {
+        const output = new Uint8Array(outputLength);
+        let offset = 0;
+        for (const outputChunk of outputChunks) {
+          output.set(outputChunk, offset);
+          offset += outputChunk.length;
+        }
+        resolve(output);
       }
     });
+
+    void (async () => {
+      try {
+        for (const [filename, data] of Object.entries(files)) {
+          const file = new fflate.ZipDeflate(filename, { level: 6 });
+          archive.add(file);
+
+          if (data.length === 0) {
+            file.push(data, true);
+            continue;
+          }
+
+          const chunkSize = 64 * 1024;
+          for (let offset = 0; offset < data.length; offset += chunkSize) {
+            const end = Math.min(offset + chunkSize, data.length);
+            file.push(data.subarray(offset, end), end === data.length);
+            if (end < data.length) {
+              await new Promise<void>((resume) => setTimeout(resume, 0));
+            }
+          }
+        }
+        archive.end();
+      } catch (error) {
+        archive.terminate();
+        reject(error);
+      }
+    })();
   });
 
   return zipData;

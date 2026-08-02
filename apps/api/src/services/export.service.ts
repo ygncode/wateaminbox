@@ -6,7 +6,7 @@ import {
   type FullBackupData,
   generateBackupZip,
 } from "./export/compression.js";
-import { getTenantConnection } from "./tenant.service.js";
+import { getSchemaName, getTenantConnection } from "./tenant.service.js";
 
 /**
  * Export format types
@@ -53,32 +53,42 @@ export async function exportContacts(
     assignedTo?: string;
     hasCustomName?: boolean;
     assignedUserId?: string;
+    includeGroups?: boolean;
   } = {},
 ): Promise<ContactExport[]> {
   const tenantDb = getTenantConnection(companyId);
 
-  // Build WHERE conditions
-  const conditions: string[] = ["c.is_group = false"];
-  const params: unknown[] = [];
+  // Raw SQL is not transformed by Kysely's withSchema() plugin. Qualify all
+  // tenant tables explicitly and compose value filters as bound SQL fragments.
+  const schemaName = getSchemaName(companyId);
+  const contactsTable = sql.table(`${schemaName}.contacts`);
+  const contactTagsTable = sql.table(`${schemaName}.contact_tags`);
+  const tagsTable = sql.table(`${schemaName}.tags`);
+  const assignmentsTable = sql.table(`${schemaName}.contact_assignments`);
+  const messagesTable = sql.table(`${schemaName}.messages`);
 
+  const conditions = options.includeGroups
+    ? [sql`true`]
+    : [sql`c.is_group = false`];
   if (options.tagIds && options.tagIds.length > 0) {
-    conditions.push(`ct.tag_id = ANY($${params.length + 1})`);
-    params.push(options.tagIds);
+    conditions.push(sql`EXISTS (
+      SELECT 1
+      FROM ${contactTagsTable} filtered_ct
+      WHERE filtered_ct.contact_id = c.id
+        AND filtered_ct.tag_id = ANY(${options.tagIds}::uuid[])
+    )`);
   }
   if (options.assignedTo) {
-    conditions.push(`ca.assigned_to = $${params.length + 1}`);
-    params.push(options.assignedTo);
+    conditions.push(sql`ca.assigned_to = ${options.assignedTo}`);
   }
   if (options.assignedUserId) {
-    conditions.push(
-      `ca.assigned_to = '${options.assignedUserId.replaceAll("'", "''")}'`,
-    );
+    conditions.push(sql`ca.assigned_to = ${options.assignedUserId}`);
   }
   if (options.hasCustomName) {
-    conditions.push("c.custom_name IS NOT NULL");
+    conditions.push(sql`c.custom_name IS NOT NULL`);
   }
 
-  const whereClause = conditions.join(" AND ");
+  const whereClause = sql.join(conditions, sql` AND `);
 
   const result = await sql<{
     whatsapp_id: string;
@@ -92,23 +102,29 @@ export async function exportContacts(
     last_message_at: Date | null;
   }>`
     SELECT
-      c.whatsapp_id,
+      c.jid as whatsapp_id,
       c.phone_number,
       c.push_name,
       c.custom_name,
-      c.shared_notes,
-      STRING_AGG(t.name, ',') as tags,
+      c.notes_shared as shared_notes,
+      STRING_AGG(t.name, ',' ORDER BY t.name) as tags,
       ca.assigned_to,
       c.created_at,
-      c.last_message_at
-    FROM contacts c
-    LEFT JOIN contact_tags ct ON ct.contact_id = c.id
-    LEFT JOIN tags t ON t.id = ct.tag_id
-    LEFT JOIN contact_assignments ca ON ca.contact_id = c.id AND ca.unassigned_at IS NULL
-    WHERE ${sql.raw(whereClause)}
-    GROUP BY c.id, c.whatsapp_id, c.phone_number, c.push_name, c.custom_name,
-             c.shared_notes, c.created_at, c.last_message_at, ca.assigned_to
-    ORDER BY c.last_message_at DESC NULLS LAST
+      lm.last_message_at
+    FROM ${contactsTable} c
+    LEFT JOIN ${contactTagsTable} ct ON ct.contact_id = c.id
+    LEFT JOIN ${tagsTable} t ON t.id = ct.tag_id
+    LEFT JOIN ${assignmentsTable} ca
+      ON ca.contact_id = c.id AND ca.unassigned_at IS NULL
+    LEFT JOIN LATERAL (
+      SELECT MAX(m.timestamp) as last_message_at
+      FROM ${messagesTable} m
+      WHERE m.contact_id = c.id
+    ) lm ON true
+    WHERE ${whereClause}
+    GROUP BY c.id, c.jid, c.phone_number, c.push_name, c.custom_name,
+             c.notes_shared, c.created_at, lm.last_message_at, ca.assigned_to
+    ORDER BY lm.last_message_at DESC NULLS LAST
   `.execute(tenantDb);
 
   return result.rows.map((c) => ({
@@ -150,35 +166,64 @@ const MAX_EXPORT_LIMIT = 50000;
  */
 const DEFAULT_BATCH_SIZE = 5000;
 
+interface MessageExportOptions {
+  contactId?: string;
+  startDate?: Date;
+  endDate?: Date;
+  messageTypes?: string[];
+  limit?: number;
+  offset?: number;
+  assignedUserId?: string;
+}
+
+interface MessageCursor {
+  timestamp: Date;
+  id: string;
+}
+
+interface MessageQueryOptions extends MessageExportOptions {
+  cursor?: MessageCursor;
+}
+
 /**
  * Export messages to array with proper parameterized queries
- * Supports pagination for large conversations
+ * Supports offset pagination for the public export endpoint.
  */
 export async function exportMessages(
   companyId: string,
-  options: {
-    contactId?: string;
-    startDate?: Date;
-    endDate?: Date;
-    messageTypes?: string[];
-    limit?: number;
-    offset?: number;
-    assignedUserId?: string;
-  } = {},
+  options: MessageExportOptions = {},
 ): Promise<MessageExport[]> {
+  return (await queryMessages(companyId, options)).messages;
+}
+
+/**
+ * Execute the tenant-scoped message query and retain the last database key for
+ * stable keyset pagination by internal batch consumers.
+ */
+async function queryMessages(
+  companyId: string,
+  options: MessageQueryOptions,
+): Promise<{ messages: MessageExport[]; nextCursor?: MessageCursor }> {
   const tenantDb = getTenantConnection(companyId);
 
   // Validate and sanitize limit
   const limit = Math.min(
-    Math.max(1, options.limit || MAX_EXPORT_LIMIT),
+    Math.max(1, options.limit ?? MAX_EXPORT_LIMIT),
     MAX_EXPORT_LIMIT,
   );
-  const offset = Math.max(0, options.offset || 0);
+  const offset = Math.max(0, options.offset ?? 0);
 
   // Validate message types to prevent injection (whitelist approach)
+  const hasMessageTypeFilter = Boolean(options.messageTypes?.length);
   const validatedMessageTypes = options.messageTypes?.filter((t) =>
     VALID_MESSAGE_TYPES.includes(t as (typeof VALID_MESSAGE_TYPES)[number]),
   );
+
+  // Raw SQL needs explicit tenant qualification; values remain parameters.
+  const schemaName = getSchemaName(companyId);
+  const messagesTable = sql.table(`${schemaName}.messages`);
+  const contactsTable = sql.table(`${schemaName}.contacts`);
+  const assignmentsTable = sql.table(`${schemaName}.contact_assignments`);
 
   // Build optional WHERE clauses using Kysely's parameterized sql template
   const contactIdFilter = options.contactId
@@ -190,13 +235,18 @@ export async function exportMessages(
   const endDateFilter = options.endDate
     ? sql`AND m.timestamp <= ${options.endDate}`
     : sql``;
-  const messageTypesFilter =
-    validatedMessageTypes && validatedMessageTypes.length > 0
-      ? sql`AND m.message_type = ANY(${validatedMessageTypes}::text[])`
-      : sql``;
+  const messageTypesFilter = !hasMessageTypeFilter
+    ? sql``
+    : validatedMessageTypes && validatedMessageTypes.length > 0
+      ? sql`AND m.message_type::text = ANY(${validatedMessageTypes}::text[])`
+      : sql`AND false`;
+  const cursorFilter = options.cursor
+    ? sql`AND (m.timestamp, m.id) < (${options.cursor.timestamp}, ${options.cursor.id})`
+    : sql``;
 
   // Use parameterized raw SQL query for complex joins with aliases
   const result = await sql<{
+    export_cursor_id: string;
     message_id: string | null;
     contact_whatsapp_id: string;
     contact_name: string | null;
@@ -208,20 +258,21 @@ export async function exportMessages(
     media_url: string | null;
   }>`
     SELECT
+      m.id as export_cursor_id,
       m.message_id,
-      c.whatsapp_id as contact_whatsapp_id,
+      c.jid as contact_whatsapp_id,
       c.custom_name as contact_name,
       m.from_me,
       m.message_type,
-      m.text_content,
+      m.content as text_content,
       m.timestamp,
       m.sent_by_user_id as sent_by_user,
       m.media_url
-    FROM messages m
-    INNER JOIN contacts c ON c.id = m.contact_id
+    FROM ${messagesTable} m
+    INNER JOIN ${contactsTable} c ON c.id = m.contact_id
     ${
       options.assignedUserId
-        ? sql`INNER JOIN contact_assignments ca
+        ? sql`INNER JOIN ${assignmentsTable} ca
             ON ca.contact_id = c.id
             AND ca.assigned_to = ${options.assignedUserId}
             AND ca.unassigned_at IS NULL`
@@ -232,22 +283,29 @@ export async function exportMessages(
       ${startDateFilter}
       ${endDateFilter}
       ${messageTypesFilter}
-    ORDER BY m.timestamp DESC
+      ${cursorFilter}
+    ORDER BY m.timestamp DESC, m.id DESC
     LIMIT ${limit}
     OFFSET ${offset}
   `.execute(tenantDb);
 
-  return result.rows.map((m) => ({
-    message_id: m.message_id || "",
-    contact_whatsapp_id: m.contact_whatsapp_id,
-    contact_name: m.contact_name,
-    direction: m.from_me ? ("sent" as const) : ("received" as const),
-    message_type: m.message_type || "text",
-    text_content: m.text_content,
-    timestamp: toISOString(m.timestamp),
-    sent_by_user: m.sent_by_user,
-    has_media: !!m.media_url,
-  }));
+  const lastRow = result.rows.at(-1);
+  return {
+    messages: result.rows.map((m) => ({
+      message_id: m.message_id || "",
+      contact_whatsapp_id: m.contact_whatsapp_id,
+      contact_name: m.contact_name,
+      direction: m.from_me ? ("sent" as const) : ("received" as const),
+      message_type: m.message_type || "text",
+      text_content: m.text_content,
+      timestamp: toISOString(m.timestamp),
+      sent_by_user: m.sent_by_user,
+      has_media: !!m.media_url,
+    })),
+    nextCursor: lastRow
+      ? { timestamp: lastRow.timestamp, id: lastRow.export_cursor_id }
+      : undefined,
+  };
 }
 
 /**
@@ -271,20 +329,21 @@ export async function exportMessagesInBatches(
     MAX_EXPORT_LIMIT,
   );
 
-  let offset = 0;
+  let cursor: MessageCursor | undefined;
   let batchNumber = 0;
   let totalExported = 0;
 
   while (true) {
-    const messages = await exportMessages(companyId, {
+    const batch = await queryMessages(companyId, {
       contactId: options.contactId,
       startDate: options.startDate,
       endDate: options.endDate,
       messageTypes: options.messageTypes,
       limit: batchSize,
-      offset,
       assignedUserId: options.assignedUserId,
+      cursor,
     });
+    const { messages } = batch;
 
     if (messages.length === 0) {
       break;
@@ -297,11 +356,11 @@ export async function exportMessagesInBatches(
       await options.onBatch(messages, batchNumber);
     }
 
-    if (messages.length < batchSize) {
+    if (messages.length < batchSize || !batch.nextCursor) {
       break; // Last batch
     }
 
-    offset += batchSize;
+    cursor = batch.nextCursor;
   }
 
   return { totalExported, batches: batchNumber };
@@ -324,6 +383,14 @@ export async function exportConversation(
 }> {
   const tenantDb = getTenantConnection(companyId);
 
+  // Raw SQL needs explicit tenant qualification; values remain parameters.
+  const schemaName = getSchemaName(companyId);
+  const contactsTable = sql.table(`${schemaName}.contacts`);
+  const contactTagsTable = sql.table(`${schemaName}.contact_tags`);
+  const tagsTable = sql.table(`${schemaName}.tags`);
+  const assignmentsTable = sql.table(`${schemaName}.contact_assignments`);
+  const messagesTable = sql.table(`${schemaName}.messages`);
+
   // Get contact
   const contactResult = await sql<{
     whatsapp_id: string;
@@ -337,27 +404,33 @@ export async function exportConversation(
     last_message_at: Date | null;
   }>`
     SELECT
-      c.whatsapp_id,
+      c.jid as whatsapp_id,
       c.phone_number,
       c.push_name,
       c.custom_name,
-      c.shared_notes,
-      STRING_AGG(t.name, ',') as tags,
+      c.notes_shared as shared_notes,
+      STRING_AGG(t.name, ',' ORDER BY t.name) as tags,
       ca.assigned_to,
       c.created_at,
-      c.last_message_at
-    FROM contacts c
-    LEFT JOIN contact_tags ct ON ct.contact_id = c.id
-    LEFT JOIN tags t ON t.id = ct.tag_id
-    LEFT JOIN contact_assignments ca ON ca.contact_id = c.id AND ca.unassigned_at IS NULL
+      lm.last_message_at
+    FROM ${contactsTable} c
+    LEFT JOIN ${contactTagsTable} ct ON ct.contact_id = c.id
+    LEFT JOIN ${tagsTable} t ON t.id = ct.tag_id
+    LEFT JOIN ${assignmentsTable} ca
+      ON ca.contact_id = c.id AND ca.unassigned_at IS NULL
+    LEFT JOIN LATERAL (
+      SELECT MAX(m.timestamp) as last_message_at
+      FROM ${messagesTable} m
+      WHERE m.contact_id = c.id
+    ) lm ON true
     WHERE c.id = ${contactId}
       ${
         options.assignedUserId
           ? sql`AND ca.assigned_to = ${options.assignedUserId}`
           : sql``
       }
-    GROUP BY c.id, c.whatsapp_id, c.phone_number, c.push_name, c.custom_name,
-             c.shared_notes, c.created_at, c.last_message_at, ca.assigned_to
+    GROUP BY c.id, c.jid, c.phone_number, c.push_name, c.custom_name,
+             c.notes_shared, c.created_at, lm.last_message_at, ca.assigned_to
   `.execute(tenantDb);
 
   if (contactResult.rows.length === 0) {
@@ -366,10 +439,15 @@ export async function exportConversation(
 
   const c = contactResult.rows[0];
 
-  // Get messages
-  const messages = await exportMessages(companyId, {
+  // Get every message in stable keyset-paginated batches. The conversation
+  // route has no pagination contract, so silently truncating is not acceptable.
+  const messages: MessageExport[] = [];
+  await exportMessagesInBatches(companyId, {
     contactId,
     ...options,
+    onBatch: async (batch) => {
+      messages.push(...batch);
+    },
   });
 
   return {
@@ -404,8 +482,8 @@ export async function exportFullBackup(
   companyId: string,
   options: BackupZipOptions = {},
 ): Promise<Uint8Array> {
-  // Get all contacts
-  const contacts = await exportContacts(companyId);
+  // Include group contacts because message backup includes group messages.
+  const contacts = await exportContacts(companyId, { includeGroups: true });
 
   // Get all messages with date filters using batched approach for large datasets
   const allMessages: MessageExport[] = [];
@@ -419,22 +497,27 @@ export async function exportFullBackup(
   });
 
   // Calculate stats
-  const messageTimestamps = allMessages
-    .map((m) => dayjs(m.timestamp).valueOf())
-    .filter((t) => !isNaN(t));
+  let earliestMessageTimestamp = Number.POSITIVE_INFINITY;
+  let latestMessageTimestamp = Number.NEGATIVE_INFINITY;
+  for (const message of allMessages) {
+    const timestamp = dayjs(message.timestamp).valueOf();
+    if (!isNaN(timestamp)) {
+      earliestMessageTimestamp = Math.min(earliestMessageTimestamp, timestamp);
+      latestMessageTimestamp = Math.max(latestMessageTimestamp, timestamp);
+    }
+  }
+  const hasMessageTimestamps = Number.isFinite(earliestMessageTimestamp);
 
   const stats = {
     totalContacts: contacts.length,
     totalMessages: allMessages.length,
     dateRange: {
-      start:
-        messageTimestamps.length > 0
-          ? dayjs(Math.min(...messageTimestamps)).toISOString()
-          : null,
-      end:
-        messageTimestamps.length > 0
-          ? dayjs(Math.max(...messageTimestamps)).toISOString()
-          : null,
+      start: hasMessageTimestamps
+        ? dayjs(earliestMessageTimestamp).toISOString()
+        : null,
+      end: hasMessageTimestamps
+        ? dayjs(latestMessageTimestamp).toISOString()
+        : null,
     },
   };
 
