@@ -27,6 +27,8 @@ export interface GetContactsWithLastMessageOptions {
   userId?: string;
   /** Enforce assignment visibility regardless of client-provided filters. */
   restrictToAssigned?: boolean;
+  /** Filter by conversation lifecycle status. "all" (or omitted) applies no filter. */
+  conversationStatus?: "open" | "pending" | "resolved" | "all";
 }
 
 /**
@@ -47,6 +49,8 @@ export interface ContactWithLastMessage {
   assigned_to: string | null;
   last_message_at: Date | null;
   unread_count: number | bigint;
+  conversation_status: "open" | "pending" | "resolved";
+  active_case_id: string | null;
   is_online: boolean;
   last_seen: Date | null;
   connection_id: string | null;
@@ -92,6 +96,7 @@ export async function getContactsWithLastMessage(
     unassigned = false,
     userId,
     restrictToAssigned = false,
+    conversationStatus,
   } = options;
 
   // Use raw SQL for the complex CTE query with window function
@@ -111,6 +116,7 @@ export async function getContactsWithLastMessage(
       unassigned,
       userId,
       restrictToAssigned,
+      conversationStatus,
     });
 
   // `withSchema()` qualifies Kysely query-builder calls, but raw SQL has to
@@ -145,6 +151,8 @@ export async function getContactsWithLastMessage(
     connection_phone_number: string | null;
     connection_status: string | null;
     last_message_sent_by_user_id: string | null;
+    conversation_status: "open" | "pending" | "resolved";
+    active_case_id: string | null;
   }>`
     WITH last_messages AS (
       SELECT
@@ -187,7 +195,9 @@ export async function getContactsWithLastMessage(
       lm.status as last_message_status,
       lm.timestamp as last_message_timestamp,
       lm.sent_by_user_id as last_message_sent_by_user_id,
-      COALESCE(cs.unread_count, 0)::bigint as unread_count
+      COALESCE(cs.unread_count, 0)::bigint as unread_count,
+      COALESCE(cs.status::text, 'resolved') as conversation_status,
+      cs.active_case_id
     FROM ${schema}.${sql.ref("contacts")} c
     LEFT JOIN ${schema}.${sql.ref("whatsapp_connections")} wc
       ON wc.id = c.whatsapp_connection_id
@@ -251,6 +261,8 @@ export async function getContactsWithLastMessage(
       connection_name: contact.connection_name,
       connection_phone_number: contact.connection_phone_number,
       connection_status: contact.connection_status,
+      conversation_status: contact.conversation_status,
+      active_case_id: contact.active_case_id,
       last_message: lastMessage,
     };
   });
@@ -264,6 +276,7 @@ export async function getContactsWithLastMessage(
         .onRef("contact_assignments.contact_id", "=", "contacts.id")
         .on("contact_assignments.unassigned_at", "is", null),
     )
+    .leftJoin("conversation_states", "conversation_states.contact_id", "contacts.id")
     .select((eb) => eb.fn.count("contacts.id").as("total"));
 
   let countQuery = baseCountQuery;
@@ -303,6 +316,11 @@ export async function getContactsWithLastMessage(
       "contact_assignments.assigned_to",
       "is",
       null,
+    );
+  }
+  if (conversationStatus && conversationStatus !== "all") {
+    countQuery = countQuery.where(
+      sql<boolean>`COALESCE(conversation_states.status::text, 'resolved') = ${conversationStatus}`,
     );
   }
 

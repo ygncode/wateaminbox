@@ -198,9 +198,29 @@ export interface BusinessMinutesOptions {
    * lower bound >= this threshold, not the precise elapsed time). Used for
    * "is this already overdue" checks so a message pending for months
    * doesn't force a full day-by-day walk to "now".
+   *
+   * IMPORTANT for strict "> target" overdue checks: a day's business
+   * intervals are summed in full before this threshold is tested, so the
+   * walk can stop with the accumulated total landing exactly ON
+   * `earlyExitAt` (e.g. an interval ends the instant the running total
+   * reaches the target) even though strictly more business time exists
+   * later, up to the real `end`. Comparing that early-exited value with a
+   * bare `> target` would then falsely read as compliant. Callers doing a
+   * strict overdue check must pass `target + OVERDUE_STRICT_EPSILON_MINUTES`
+   * here (see below) so an early exit can only ever fire once the total has
+   * *strictly* exceeded the target.
    */
   earlyExitAt?: number;
 }
+
+/**
+ * Add to a target when computing `earlyExitAt` for a strict "already overdue"
+ * check (`elapsed > target`, not `elapsed >= target`) - see the caveat on
+ * `BusinessMinutesOptions.earlyExitAt`. Deliberately far smaller than any
+ * realistic SLA target (minutes) while staying well above floating-point
+ * noise from millisecond-precision minute math.
+ */
+export const OVERDUE_STRICT_EPSILON_MINUTES = 1e-4;
 
 /**
  * Total business (open-hours) minutes elapsed between `start` and `end`.

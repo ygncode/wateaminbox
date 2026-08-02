@@ -1,4 +1,6 @@
 import {
+  SLA_RESOLUTION_TARGET_MINUTES_MAX,
+  SLA_RESOLUTION_TARGET_MINUTES_MIN,
   SLA_TARGET_MINUTES_MAX,
   SLA_TARGET_MINUTES_MIN,
 } from "@wateaminbox/shared";
@@ -20,6 +22,18 @@ export const targetMinutesSchema = z
   .max(
     SLA_TARGET_MINUTES_MAX,
     `SLA target must be at most ${SLA_TARGET_MINUTES_MAX} minutes`,
+  );
+
+export const resolutionTargetMinutesSchema = z
+  .number()
+  .int("SLA resolution target must be a whole number of minutes")
+  .min(
+    SLA_RESOLUTION_TARGET_MINUTES_MIN,
+    `SLA resolution target must be at least ${SLA_RESOLUTION_TARGET_MINUTES_MIN} minute`,
+  )
+  .max(
+    SLA_RESOLUTION_TARGET_MINUTES_MAX,
+    `SLA resolution target must be at most ${SLA_RESOLUTION_TARGET_MINUTES_MAX} minutes`,
   );
 
 export const timezoneSchema = z
@@ -130,6 +144,9 @@ export const exceptionsSchema = z
  */
 export const createSlaPolicySchema = z.object({
   targetMinutes: targetMinutesSchema,
+  directResolutionTargetMinutes: resolutionTargetMinutesSchema,
+  groupResponseTargetMinutes: targetMinutesSchema,
+  groupResolutionTargetMinutes: resolutionTargetMinutesSchema,
   timezone: timezoneSchema,
   weeklySchedule: weeklyScheduleSchema,
   exceptions: exceptionsSchema.default([]),

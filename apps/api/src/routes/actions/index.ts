@@ -18,6 +18,11 @@ import {
   requireMessageSendPermission,
 } from "../../middleware/message-send-policy.js";
 import { tenantFromHeader } from "../../middleware/tenant.js";
+import { NoActiveCaseError } from "../../lib/errors.js";
+import {
+  ContactAssignedToOtherError,
+  requireSendAccess,
+} from "../../services/send-access.service.js";
 import { getActiveSessionId } from "../../services/whatsapp/session.js";
 
 const logger = createLogger("ActionsRoutes");
@@ -54,6 +59,7 @@ actionsRoutes.post(
   "/messages/typing",
   authMiddleware,
   tenantFromHeader("X-Company-ID"),
+  requireMessageSendPermission,
   zValidator("json", typingSchema),
   async (c) => {
     const companyId = c.get("companyId");
@@ -81,6 +87,30 @@ actionsRoutes.post(
       }
       if (contact.jid !== conversationId) {
         throw new HTTPException(400, { message: "Conversation JID mismatch" });
+      }
+      // Only starting a stray "is typing" signal is worth blocking - always
+      // let a "stopped typing" through so a stale indicator can never get
+      // stuck client-side. Uses the SAME shared guard an interactive send
+      // does (assignment + active-case lifecycle), transactionally (the
+      // contact-row lock closes the same takeover TOCTOU window), but with
+      // `claimUnassigned: false` - merely typing must never itself claim an
+      // unassigned contact as a side effect.
+      if (isTyping) {
+        try {
+          await tenantDb.transaction().execute((trx) =>
+            requireSendAccess(trx, contactId, user.id, {
+              claimUnassigned: false,
+            }),
+          );
+        } catch (error) {
+          if (error instanceof ContactAssignedToOtherError) {
+            throw new HTTPException(403, { message: error.message });
+          }
+          if (error instanceof NoActiveCaseError) {
+            throw new HTTPException(409, { message: error.message });
+          }
+          throw error;
+        }
       }
       const sessionId = await getActiveSessionId(
         tenantDb,

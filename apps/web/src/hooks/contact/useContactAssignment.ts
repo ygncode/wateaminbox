@@ -33,6 +33,12 @@ export function useAssignContact() {
       queryClient.invalidateQueries({
         queryKey: queryKeys.assignmentHistory.detail(contactId),
       });
+      // Chat list rows show assignment (assigned-to-me filters, badges) - a
+      // realtime broadcast covers other clients, but this client's own
+      // mutation response can land before that broadcast is processed.
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.chats.lists(),
+      });
     },
   });
 }
@@ -53,6 +59,9 @@ export function useUnassignContact() {
       });
       queryClient.invalidateQueries({
         queryKey: queryKeys.assignmentHistory.detail(contactId),
+      });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.chats.lists(),
       });
     },
   });

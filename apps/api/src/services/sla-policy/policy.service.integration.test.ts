@@ -95,6 +95,9 @@ describe("SLA policy versioning", () => {
           companyId,
           {
             targetMinutes: 30,
+            directResolutionTargetMinutes: 480,
+            groupResponseTargetMinutes: 120,
+            groupResolutionTargetMinutes: 960,
             timezone: "America/New_York",
             weeklySchedule: [
               { weekday: 0, open: false, intervals: [] },
@@ -202,6 +205,9 @@ describe("SLA policy versioning", () => {
           .values({
             company_id: companyId,
             target_minutes: 30,
+            direct_resolution_target_minutes: 480,
+            group_response_target_minutes: 120,
+            group_resolution_target_minutes: 960,
             timezone: "UTC",
             weekly_schedule: JSON.stringify(DEFAULT_SLA_WEEKLY_SCHEDULE),
             exceptions: JSON.stringify([]),
@@ -216,6 +222,9 @@ describe("SLA policy versioning", () => {
           .values({
             company_id: companyId,
             target_minutes: 90,
+            direct_resolution_target_minutes: 480,
+            group_response_target_minutes: 120,
+            group_resolution_target_minutes: 960,
             timezone: "UTC",
             weekly_schedule: JSON.stringify(DEFAULT_SLA_WEEKLY_SCHEDULE),
             exceptions: JSON.stringify([]),
@@ -260,6 +269,24 @@ describe("SLA policy versioning", () => {
           .returning("id")
           .execute();
         const inboundTime = new Date(tieInstant.getTime() + 60_000);
+        // Response episodes only exist inside an SLA-bearing case's window
+        // (see conversation-case.service.ts) - seed one directly, snapshotted
+        // to the winning policy, so this test's raw message inserts are
+        // still measured as an episode.
+        const [seededCase] = await tenantDb
+          .insertInto("conversation_cases")
+          .values({
+            contact_id: contact.id,
+            kind: "direct",
+            status: "open",
+            opened_at: tieInstant,
+            open_source: "live_inbound",
+            policy_id: winnerId,
+            response_target_minutes: winnerTarget,
+            resolution_target_minutes: 480,
+          })
+          .returning("id")
+          .execute();
         await tenantDb
           .insertInto("messages")
           .values({
@@ -269,11 +296,14 @@ describe("SLA policy versioning", () => {
             message_type: "text",
             content: "hello",
             timestamp: inboundTime,
+            created_at: inboundTime,
+            case_id: seededCase.id,
           })
           .execute();
         // Reply exactly 60 minutes after inbound - a value strictly between
         // the two candidate targets (30 and 90), so compliance flips
         // depending on which policy actually won the tie.
+        const replyTime = new Date(inboundTime.getTime() + 60 * 60_000);
         await tenantDb
           .insertInto("messages")
           .values({
@@ -282,7 +312,9 @@ describe("SLA policy versioning", () => {
             from_me: true,
             message_type: "text",
             content: "reply",
-            timestamp: new Date(inboundTime.getTime() + 60 * 60_000),
+            timestamp: replyTime,
+            created_at: replyTime,
+            case_id: seededCase.id,
           })
           .execute();
 

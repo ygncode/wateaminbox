@@ -37,7 +37,10 @@ export type AuditAction =
   | "connection.relinked"
   | "connection.purged"
   | "conversation.resolved"
-  | "conversation.reopened";
+  | "conversation.opened"
+  | "conversation.reopened"
+  | "conversation.pending"
+  | "conversation.resumed";
 
 /**
  * Audit log entry

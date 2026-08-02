@@ -6,12 +6,14 @@ describe("chat list query filters", () => {
     expect(buildChatListQueryParams("", true, "all")).toEqual({
       limit: 100,
       includeGroups: "true",
+      conversationStatus: "open",
     });
   });
 
   test("can still request direct contacts only when explicitly needed", () => {
     expect(buildChatListQueryParams("", false, "all")).toEqual({
       limit: 100,
+      conversationStatus: "open",
     });
   });
 
@@ -22,6 +24,7 @@ describe("chat list query filters", () => {
         search: "Hackathon",
         includeGroups: "true",
         assignedToMe: "true",
+        conversationStatus: "open",
       },
     );
   });
@@ -38,6 +41,27 @@ describe("chat list query filters", () => {
       limit: 100,
       includeGroups: "true",
       connectionId: "11111111-1111-4111-8111-111111111111",
+      conversationStatus: "open",
     });
+  });
+
+  test("supports overriding the conversation lifecycle filter", () => {
+    expect(
+      buildChatListQueryParams("", true, "all", undefined, "resolved"),
+    ).toEqual({
+      limit: 100,
+      includeGroups: "true",
+      conversationStatus: "resolved",
+    });
+  });
+
+  test("passing 'all' removes the lifecycle filter server-side scoping intent explicitly", () => {
+    expect(buildChatListQueryParams("", true, "all", undefined, "all")).toEqual(
+      {
+        limit: 100,
+        includeGroups: "true",
+        conversationStatus: "all",
+      },
+    );
   });
 });

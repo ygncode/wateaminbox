@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { ChatSidebar, type SidebarView } from "../components/chat/ChatSidebar";
+import { ComposerLifecycleArea } from "../components/chat/ComposerLifecycleArea";
 import { ConversationSearch } from "../components/chat/ConversationSearch";
 import { ContactProfile } from "../components/chat/contact-profile";
 import { DeleteMessageDialog } from "../components/chat/DeleteMessageDialog";
@@ -22,6 +23,7 @@ import { Skeleton } from "../components/ui";
 import { useAuth } from "../contexts/auth-context";
 import { MessageActionsProvider } from "../contexts/message-actions-context";
 import { useChatPageState } from "../hooks/chat";
+import { useComposerAccess } from "../hooks/useComposerAccess";
 
 export function ChatPage() {
   const { user } = useAuth();
@@ -64,6 +66,13 @@ export function ChatPage() {
     handleForwardToContact,
     handleCloseForwardDialog,
   } = useChatPageState();
+
+  // Single source of truth for the composer gate, shared with
+  // ComposerLifecycleArea below - both must agree on whether this user can
+  // currently send, or the reply/react/retry affordances rendered here could
+  // diverge from what the composer itself shows.
+  const { access: composerAccess } = useComposerAccess(selectedChatId ?? null);
+  const canSend = composerAccess.kind === "sendable";
 
   // Build the sidebar component
   const sidebar = (
@@ -111,11 +120,17 @@ export function ChatPage() {
           )}
           <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
             <MessageActionsProvider
-              onReply={handleReplyToMessage}
+              // Reply/react are outbound actions gated exactly like the
+              // composer itself (server-side, requireSendAccess enforces
+              // this too) - offering them to an assigned-other/resolved/
+              // no-permission user would let stale reply state linger and
+              // reappear after a takeover, even though every click would
+              // still 403/409 server-side.
+              onReply={canSend ? handleReplyToMessage : undefined}
               onForward={handleForwardMessage}
               onDelete={handleDeleteMessage}
               onStar={handleStarMessage}
-              onReact={handleReactMessage}
+              onReact={canSend ? handleReactMessage : undefined}
             >
               <MessageThread
                 conversationId={selectedChatId}
@@ -129,20 +144,23 @@ export function ChatPage() {
                 }
                 highlightedMessageId={highlightedMessageId}
                 onOpenContactInfo={handleOpenProfile}
+                canRetry={canSend}
               />
             </MessageActionsProvider>
           </div>
-          <MessageComposer
-            conversationId={selectedContact?.jid}
-            contactId={selectedChatId}
-            replyToMessage={replyToMessage}
-            onClearReply={handleClearReply}
-            onSendMessage={handleSendMessage}
-            onAttachFile={handleAttachFile}
-            disabled={isSending}
-            connection={selectedContact.connection}
-            currentUserName={user?.name}
-          />
+          <ComposerLifecycleArea contactId={selectedChatId} access={composerAccess}>
+            <MessageComposer
+              conversationId={selectedContact?.jid}
+              contactId={selectedChatId}
+              replyToMessage={replyToMessage}
+              onClearReply={handleClearReply}
+              onSendMessage={handleSendMessage}
+              onAttachFile={handleAttachFile}
+              disabled={isSending}
+              connection={selectedContact.connection}
+              currentUserName={user?.name}
+            />
+          </ComposerLifecycleArea>
         </>
       )}
     </MainContent>

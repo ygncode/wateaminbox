@@ -2,12 +2,12 @@ import { zValidator } from "@hono/zod-validator";
 import { getContactDisplayName, toDbDate } from "@wateaminbox/shared";
 import { Hono } from "hono";
 import { forbidden, notFound } from "../../lib/errors.js";
-import { broadcastToCompany } from "../../lib/realtime.js";
 import { created, successData, successMessage } from "../../lib/response.js";
 import { assignContactSchema } from "../../lib/schemas/index.js";
 import { getRouteContext } from "../../middleware/context.js";
 import { requireContactVisibility } from "../../middleware/resource-visibility.js";
 import { requirePermission } from "../../middleware/tenant.js";
+import { broadcastContactAssignmentEvent } from "../../services/assignment-broadcast.service.js";
 import { decideContactAssignment } from "../../services/assignment-policy.js";
 import { createAuditLog, getClientIp } from "../../services/audit.service.js";
 import { getCurrentAssignment } from "../../services/contact.service.js";
@@ -158,14 +158,19 @@ assignmentRoutes.post(
     // Persist the complete recipient batch before publishing targeted signals.
     await createAndPublishNotifications(companyId, notificationInputs);
 
-    if (isTakeover && previousAssigneeId) {
-      await broadcastToCompany(companyId, "contact:updated", {
-        event: "reassigned",
+    // Broadcast every actual (non-noop) assignment change, not just
+    // takeovers - a first-ever claim of an unassigned contact changes who
+    // can send/type/react/schedule for it (see requireSendAccess) just as
+    // much as a takeover does, and every connected client's composer gate
+    // needs to react to it immediately, not just the assignee's own.
+    if (!isNoop) {
+      await broadcastContactAssignmentEvent(companyId, {
+        event: isTakeover ? "reassigned" : "assigned",
         contactId,
         contactName: contactDisplayName,
-        previousAssignee: previousAssigneeId,
+        previousAssignee: previousAssigneeId ?? null,
         newAssignee: targetUserId,
-        reassignedBy: user.id,
+        assignedBy: user.id,
       });
     }
 
@@ -211,15 +216,70 @@ assignmentRoutes.delete(
   "/:id/assign",
   requirePermission(PERMISSIONS.CAN_ASSIGN_CONTACTS),
   async (c) => {
-    const { tenantDb } = getRouteContext(c);
+    const { tenantDb, user, companyId } = getRouteContext(c);
     const contactId = c.req.param("id");
 
-    await tenantDb
-      .updateTable("contact_assignments")
-      .set({ unassigned_at: toDbDate() })
-      .where("contact_id", "=", contactId)
-      .where("unassigned_at", "is", null)
-      .execute();
+    // Locks the contact row FIRST, same as the assign route's takeover -
+    // otherwise an unlocked read-then-update here can race a concurrent
+    // takeover: read sees assignee A, a takeover to B commits in between,
+    // and this unassign then closes B's brand-new assignment while still
+    // broadcasting/auditing stale assignee A.
+    const result = await tenantDb.transaction().execute(async (trx) => {
+      const contact = await trx
+        .selectFrom("contacts")
+        .select(["id", "custom_name", "push_name", "phone_number"])
+        .where("id", "=", contactId)
+        .forUpdate()
+        .executeTakeFirst();
+      if (!contact) return null;
+
+      const previousAssignment = await getCurrentAssignment(trx, contactId);
+      if (!previousAssignment) {
+        return { contact, previousAssignment: null };
+      }
+
+      await trx
+        .updateTable("contact_assignments")
+        .set({ unassigned_at: toDbDate() })
+        .where("contact_id", "=", contactId)
+        .where("unassigned_at", "is", null)
+        .execute();
+
+      return { contact, previousAssignment };
+    });
+
+    if (!result) return notFound(c, "Contact");
+
+    // Same as assignment: only broadcast/audit a REAL change - a contact
+    // that was already unassigned produces no affected rows.
+    if (result.previousAssignment) {
+      const contactDisplayName = getContactDisplayName(
+        result.contact,
+        "Unknown Contact",
+      );
+
+      await broadcastContactAssignmentEvent(companyId, {
+        event: "unassigned",
+        contactId,
+        contactName: contactDisplayName,
+        previousAssignee: result.previousAssignment.assigned_to,
+        newAssignee: null,
+        assignedBy: user.id,
+      });
+
+      await createAuditLog({
+        companyId,
+        userId: user.id,
+        action: "contact.unassigned",
+        entityType: "contact",
+        entityId: contactId,
+        details: {
+          previousAssignee: result.previousAssignment.assigned_to,
+          contactName: contactDisplayName,
+        },
+        ipAddress: getClientIp(c.req.raw.headers),
+      });
+    }
 
     return successMessage(c, "Contact unassigned");
   },

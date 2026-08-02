@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { toDbDate } from "@wateaminbox/shared";
+import { db } from "@wateaminbox/database";
+import { DEFAULT_SLA_WEEKLY_SCHEDULE, toDbDate } from "@wateaminbox/shared";
 import type { Kysely } from "kysely";
 import { sql } from "kysely";
 import { bulkConfig } from "../config/bulk.config.js";
@@ -16,6 +17,8 @@ import {
   getBulkJobProgress,
   resolveBulkAudience,
 } from "./bulk-job.service.js";
+import { assignContactToUser } from "./contact.service.js";
+import { openOrReopenCaseForInboundMessage } from "./conversation-case.service.js";
 import {
   dispatchCompanyBulkMessages,
   dispatchCompanyScheduledMessages,
@@ -24,6 +27,7 @@ import type { TenantDatabase } from "./tenant.service.js";
 import {
   createTenantSchema,
   dropTenantSchema,
+  getSchemaName,
   getTenantConnection,
 } from "./tenant.service.js";
 
@@ -417,6 +421,61 @@ describe("bulk job integration", () => {
         const bulkContact = await seedContact(tenantDb, line.connectionId);
         const normalContact = await seedContact(tenantDb, line.connectionId);
 
+        // Non-bulk dispatch re-validates assignment/lifecycle access (see
+        // scheduled-message.service.ts) - give the normal row's contact a
+        // resolvable SLA policy and an active case owned by its creator.
+        const normalCreatedBy = crypto.randomUUID();
+        await db
+          .insertInto("companies")
+          .values({
+            id: companyId,
+            name: "Bulk priority test",
+            schema_name: getSchemaName(companyId),
+            status: "active",
+          })
+          .execute();
+        await db
+          .insertInto("sla_policies")
+          .values({
+            company_id: companyId,
+            target_minutes: 60,
+            direct_resolution_target_minutes: 480,
+            group_response_target_minutes: 120,
+            group_resolution_target_minutes: 960,
+            timezone: "UTC",
+            weekly_schedule: JSON.stringify(DEFAULT_SLA_WEEKLY_SCHEDULE),
+            exceptions: JSON.stringify([]),
+            effective_from: new Date("1970-01-01T00:00:00Z"),
+          })
+          .execute();
+        await assignContactToUser(
+          tenantDb,
+          normalContact,
+          normalCreatedBy,
+          normalCreatedBy,
+        );
+        await tenantDb.transaction().execute(async (trx) => {
+          const messageId = crypto.randomUUID();
+          await trx
+            .insertInto("messages")
+            .values({
+              id: messageId,
+              contact_id: normalContact,
+              message_id: crypto.randomUUID(),
+              from_me: false,
+              message_type: "text",
+              content: "hello",
+              timestamp: new Date(),
+            })
+            .execute();
+          return openOrReopenCaseForInboundMessage(
+            trx,
+            companyId,
+            { id: normalContact, isGroup: false },
+            { id: messageId, timestamp: new Date() },
+          );
+        });
+
         await createDueJob(tenantDb, { tagIds: [], contactIds: [bulkContact] });
         const normalId = crypto.randomUUID();
         await tenantDb
@@ -430,7 +489,7 @@ describe("bulk job integration", () => {
             status: "scheduled",
             attempts: 0,
             next_attempt_at: new Date(Date.now() - 1_000),
-            created_by: crypto.randomUUID(),
+            created_by: normalCreatedBy,
             created_at: toDbDate(),
             updated_at: toDbDate(),
           })
@@ -458,6 +517,11 @@ describe("bulk job integration", () => {
         expect(normalRow.status).toBe("sent");
       } finally {
         await dropTenantSchema(companyId);
+        await db
+          .deleteFrom("sla_policies")
+          .where("company_id", "=", companyId)
+          .execute();
+        await db.deleteFrom("companies").where("id", "=", companyId).execute();
       }
     },
     30_000,

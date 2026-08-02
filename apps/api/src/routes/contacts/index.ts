@@ -88,6 +88,7 @@ contactRoutes.get(
         unassigned: query.unassigned,
         userId: user.id,
         restrictToAssigned: !permissions.can_view_all_chats,
+        conversationStatus: query.conversationStatus,
       },
     );
 

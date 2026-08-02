@@ -22,9 +22,10 @@ import { getRouteContext } from "../../middleware/context.js";
 import { requireMessageSendPermission } from "../../middleware/message-send-policy.js";
 import { createConditionalRateLimiter } from "../../middleware/rate-limit.js";
 import { requireMessageVisibility } from "../../middleware/resource-visibility.js";
+import { broadcastAutoAssignment } from "../../services/assignment-broadcast.service.js";
 import { toAuthUserResponse } from "../../services/auth.service.js";
 import { enqueueCommand } from "../../services/command-outbox.service.js";
-import { ensureContactAssignment } from "../../services/contact.service.js";
+import { requireSendAccess } from "../../services/send-access.service.js";
 import { getActiveSessionId } from "../../services/whatsapp/session.js";
 
 // Message send rate limiter: 60 requests per minute per user
@@ -83,13 +84,6 @@ sendRoutes.post(
       return badRequest(c, "The contact's WhatsApp connection is not active");
     }
 
-    // Auto-assign contact to the user if unassigned
-    const wasAutoAssigned = await ensureContactAssignment(
-      tenantDb,
-      body.contactId,
-      user.id,
-    );
-
     // Look up the WhatsApp message ID and sender for reply-to if provided
     let quotedWaMessageId: string | undefined;
     let quotedSenderJid: string | undefined;
@@ -129,7 +123,10 @@ sendRoutes.post(
       quotedSenderJid,
     );
 
+    let autoAssigned = false;
     await tenantDb.transaction().execute(async (trx) => {
+      const result = await requireSendAccess(trx, body.contactId, user.id);
+      autoAssigned = result.autoAssigned;
       await trx
         .insertInto("messages")
         .values({
@@ -147,6 +144,7 @@ sendRoutes.post(
           status: "pending",
           timestamp: createdAt,
           created_at: createdAt,
+          case_id: result.caseId,
         })
         .execute();
       await enqueueCommand(
@@ -155,6 +153,9 @@ sendRoutes.post(
         sendCommand,
       );
     });
+    if (autoAssigned) {
+      await broadcastAutoAssignment(tenantDb, companyId, body.contactId, user.id);
+    }
 
     const senderProfile = await toAuthUserResponse(user);
     const formattedMessage = {
@@ -188,7 +189,7 @@ sendRoutes.post(
     return c.json({
       success: true,
       message: formattedMessage,
-      autoAssigned: wasAutoAssigned,
+      autoAssigned,
     });
   },
 );
@@ -243,13 +244,6 @@ sendRoutes.post(
       return badRequest(c, "The contact's WhatsApp connection is not active");
     }
 
-    // Auto-assign target contact to the user if unassigned
-    const wasAutoAssigned = await ensureContactAssignment(
-      tenantDb,
-      body.targetContactId,
-      user.id,
-    );
-
     // Create forwarded message
     const newMessageId = crypto.randomUUID();
     const waMessageId = `pending_${newMessageId}`;
@@ -266,7 +260,14 @@ sendRoutes.post(
       originalMessage.media_url || undefined,
     );
 
+    let autoAssigned = false;
     await tenantDb.transaction().execute(async (trx) => {
+      const result = await requireSendAccess(
+        trx,
+        body.targetContactId,
+        user.id,
+      );
+      autoAssigned = result.autoAssigned;
       await trx
         .insertInto("messages")
         .values({
@@ -283,6 +284,7 @@ sendRoutes.post(
           sent_by_user_id: user.id,
           status: "pending",
           timestamp: toDbDate(),
+          case_id: result.caseId,
         })
         .execute();
       await enqueueCommand(
@@ -291,6 +293,14 @@ sendRoutes.post(
         sendCommand,
       );
     });
+    if (autoAssigned) {
+      await broadcastAutoAssignment(
+        tenantDb,
+        companyId,
+        body.targetContactId,
+        user.id,
+      );
+    }
 
     return c.json({
       success: true,
@@ -299,7 +309,7 @@ sendRoutes.post(
         contactId: body.targetContactId,
         isForwarded: true,
       },
-      autoAssigned: wasAutoAssigned,
+      autoAssigned,
     });
   },
 );
@@ -395,7 +405,10 @@ sendRoutes.post(
       quotedSenderJid,
     );
 
+    let autoAssigned = false;
     await tenantDb.transaction().execute(async (trx) => {
+      const result = await requireSendAccess(trx, contact.id, user.id);
+      autoAssigned = result.autoAssigned;
       await trx
         .insertInto("messages")
         .values({
@@ -413,6 +426,7 @@ sendRoutes.post(
           sent_by_user_id: user.id,
           status: "pending",
           timestamp: toDbDate(),
+          case_id: result.caseId,
         })
         .execute();
       await enqueueCommand(
@@ -421,6 +435,9 @@ sendRoutes.post(
         sendCommand,
       );
     });
+    if (autoAssigned) {
+      await broadcastAutoAssignment(tenantDb, companyId, contact.id, user.id);
+    }
 
     const senderProfile = await toAuthUserResponse(user);
     return c.json({
@@ -446,6 +463,7 @@ sendRoutes.post(
         updatedAt: toDbDate(),
       },
       originalMessageId: messageId,
+      autoAssigned,
     });
   },
 );

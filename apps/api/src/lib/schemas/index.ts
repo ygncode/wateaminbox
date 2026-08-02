@@ -169,10 +169,13 @@ export {
   listConversationMessagesQuerySchema,
   sendConversationMessageSchema,
   resolveConversationSchema,
+  resolutionOutcomeSchema,
+  openConversationSchema,
   resolutionTrendQuerySchema,
   type ListConversationMessagesQuery,
   type SendConversationMessageInput,
   type ResolveConversationInput,
+  type OpenConversationInput,
   type ResolutionTrendQuery,
 } from "./conversation.js";
 

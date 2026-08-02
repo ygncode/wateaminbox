@@ -10,6 +10,9 @@
 import type { Database } from "@wateaminbox/database";
 import { db } from "@wateaminbox/database";
 import {
+  DEFAULT_SLA_DIRECT_RESOLUTION_TARGET_MINUTES,
+  DEFAULT_SLA_GROUP_RESOLUTION_TARGET_MINUTES,
+  DEFAULT_SLA_GROUP_RESPONSE_TARGET_MINUTES,
   DEFAULT_SLA_WEEKLY_SCHEDULE,
   type SlaPolicy,
   type SlaScheduleException,
@@ -20,10 +23,28 @@ import type { Transaction } from "kysely";
 import { NotFoundError } from "../../lib/errors.js";
 import type { CreateSlaPolicyInput } from "../../lib/schemas/sla-policy.js";
 
+const SLA_POLICY_COLUMNS = [
+  "id",
+  "company_id",
+  "target_minutes",
+  "direct_resolution_target_minutes",
+  "group_response_target_minutes",
+  "group_resolution_target_minutes",
+  "timezone",
+  "weekly_schedule",
+  "exceptions",
+  "effective_from",
+  "created_by",
+  "created_at",
+] as const;
+
 interface SlaPolicyRow {
   id: string;
   company_id: string;
   target_minutes: number;
+  direct_resolution_target_minutes: number;
+  group_response_target_minutes: number;
+  group_resolution_target_minutes: number;
   timezone: string;
   weekly_schedule: unknown;
   exceptions: unknown;
@@ -37,6 +58,9 @@ function toSlaPolicyResponse(row: SlaPolicyRow): SlaPolicy {
     id: row.id,
     companyId: row.company_id,
     targetMinutes: row.target_minutes,
+    directResolutionTargetMinutes: row.direct_resolution_target_minutes,
+    groupResponseTargetMinutes: row.group_response_target_minutes,
+    groupResolutionTargetMinutes: row.group_resolution_target_minutes,
     timezone: row.timezone,
     weeklySchedule: row.weekly_schedule as SlaWeeklySchedule,
     exceptions: row.exceptions as SlaScheduleException[],
@@ -60,23 +84,16 @@ export async function createSlaPolicy(
     .values({
       company_id: companyId,
       target_minutes: input.targetMinutes,
+      direct_resolution_target_minutes: input.directResolutionTargetMinutes,
+      group_response_target_minutes: input.groupResponseTargetMinutes,
+      group_resolution_target_minutes: input.groupResolutionTargetMinutes,
       timezone: input.timezone,
       weekly_schedule: JSON.stringify(input.weeklySchedule),
       exceptions: JSON.stringify(input.exceptions ?? []),
       effective_from: toDbDate(),
       created_by: createdByUserId,
     })
-    .returning([
-      "id",
-      "company_id",
-      "target_minutes",
-      "timezone",
-      "weekly_schedule",
-      "exceptions",
-      "effective_from",
-      "created_by",
-      "created_at",
-    ])
+    .returning(SLA_POLICY_COLUMNS)
     .executeTakeFirstOrThrow();
 
   return toSlaPolicyResponse(row as unknown as SlaPolicyRow);
@@ -93,17 +110,7 @@ export async function getCurrentSlaPolicy(
 ): Promise<SlaPolicy> {
   const row = await db
     .selectFrom("sla_policies")
-    .select([
-      "id",
-      "company_id",
-      "target_minutes",
-      "timezone",
-      "weekly_schedule",
-      "exceptions",
-      "effective_from",
-      "created_by",
-      "created_at",
-    ])
+    .select(SLA_POLICY_COLUMNS)
     .where("company_id", "=", companyId)
     // Tiebreak on created_at then id: `effective_from` is millisecond
     // resolution (see createSlaPolicy), so two versions created in the same
@@ -130,17 +137,7 @@ export async function listSlaPolicyHistory(
 ): Promise<SlaPolicy[]> {
   const rows = await db
     .selectFrom("sla_policies")
-    .select([
-      "id",
-      "company_id",
-      "target_minutes",
-      "timezone",
-      "weekly_schedule",
-      "exceptions",
-      "effective_from",
-      "created_by",
-      "created_at",
-    ])
+    .select(SLA_POLICY_COLUMNS)
     .where("company_id", "=", companyId)
     .orderBy("effective_from", "desc")
     .orderBy("created_at", "desc")
@@ -166,6 +163,11 @@ export async function seedDefaultSlaPolicy(
     .values({
       company_id: companyId,
       target_minutes: 60,
+      direct_resolution_target_minutes:
+        DEFAULT_SLA_DIRECT_RESOLUTION_TARGET_MINUTES,
+      group_response_target_minutes: DEFAULT_SLA_GROUP_RESPONSE_TARGET_MINUTES,
+      group_resolution_target_minutes:
+        DEFAULT_SLA_GROUP_RESOLUTION_TARGET_MINUTES,
       timezone: "UTC",
       weekly_schedule: JSON.stringify(DEFAULT_SLA_WEEKLY_SCHEDULE),
       exceptions: JSON.stringify([]),
@@ -173,4 +175,26 @@ export async function seedDefaultSlaPolicy(
       created_by: null,
     })
     .execute();
+}
+
+/** Resolves the response/resolution target for a case's kind from a policy. */
+export function resolveCaseTargets(
+  policy: Pick<
+    SlaPolicy,
+    | "targetMinutes"
+    | "directResolutionTargetMinutes"
+    | "groupResponseTargetMinutes"
+    | "groupResolutionTargetMinutes"
+  >,
+  kind: "direct" | "group",
+): { responseTargetMinutes: number; resolutionTargetMinutes: number } {
+  return kind === "group"
+    ? {
+        responseTargetMinutes: policy.groupResponseTargetMinutes,
+        resolutionTargetMinutes: policy.groupResolutionTargetMinutes,
+      }
+    : {
+        responseTargetMinutes: policy.targetMinutes,
+        resolutionTargetMinutes: policy.directResolutionTargetMinutes,
+      };
 }

@@ -266,7 +266,7 @@ export interface ContactImportResponse {
 }
 
 // Analytics types
-export interface ResponseTimeStats {
+export interface ResponseTimeStatsCore {
   averageResponseTimeMinutes: number;
   medianResponseTimeMinutes: number;
   maxResponseTimeMinutes: number;
@@ -274,6 +274,15 @@ export interface ResponseTimeStats {
   totalConversations: number;
   withinSlaCount: number;
   slaComplianceRate: number;
+  /** Unanswered episodes excluded via a valid response-SLA exclusion outcome (no_reply_needed/spam/duplicate) - never counted compliant. */
+  excludedCount: number;
+}
+
+export interface ResponseTimeStats extends ResponseTimeStatsCore {
+  byKind: {
+    direct: ResponseTimeStatsCore;
+    group: ResponseTimeStatsCore;
+  };
 }
 
 export interface ResponseTimeByDate {
@@ -298,6 +307,51 @@ export interface SlaBreach {
   responseTime: string | null;
   responseMinutes: number;
   respondedBy: string | null;
+}
+
+// Resolution (case-cycle) analytics types
+export interface CaseResolutionStatsCore {
+  totalResolvedCases: number;
+  averageResolutionMinutes: number;
+  medianResolutionMinutes: number;
+  withinSlaCount: number;
+  /** resolved-in-range count + currently-overdue-active count - the compliance denominator. */
+  totalEvaluated: number;
+  slaComplianceRate: number;
+  overdueActiveCases: number;
+}
+
+export interface CaseResolutionStats extends CaseResolutionStatsCore {
+  byKind: {
+    direct: CaseResolutionStatsCore;
+    group: CaseResolutionStatsCore;
+  };
+}
+
+export interface CaseResolutionTrendPoint {
+  date: string;
+  resolvedCount: number;
+  averageResolutionMinutes: number;
+  slaComplianceRate: number;
+}
+
+export interface TeamCaseResolutionStats {
+  userId: string;
+  email: string;
+  totalResolvedCases: number;
+  averageResolutionMinutes: number;
+  slaComplianceRate: number;
+}
+
+export interface OverdueCase {
+  caseId: string;
+  contactId: string;
+  contactName: string | null;
+  kind: "direct" | "group";
+  status: "open" | "pending";
+  openedAt: string;
+  elapsedMinutes: number;
+  resolutionTargetMinutes: number;
 }
 
 // Notification types

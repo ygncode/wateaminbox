@@ -50,6 +50,10 @@ export function useCreateSlaPolicy(companyId: string) {
     [...queryKeys.analytics.responseTimeTrend(companyId)],
     [...queryKeys.analytics.responseTimeTeam(companyId)],
     [...queryKeys.analytics.slaBreaches(companyId)],
+    [...queryKeys.analytics.resolution(companyId)],
+    [...queryKeys.analytics.resolutionTrend(companyId)],
+    [...queryKeys.analytics.resolutionTeam(companyId)],
+    [...queryKeys.analytics.resolutionOverdue(companyId)],
   ]);
 
   return useMutation({

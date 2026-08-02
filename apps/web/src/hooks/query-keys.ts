@@ -131,6 +131,14 @@ export const queryKeys = {
       endDate?: string,
     ) =>
       ["analytics", "resolution-trend", companyId, startDate, endDate] as const,
+    resolutionTeam: (
+      companyId: string | null,
+      startDate?: string,
+      endDate?: string,
+    ) =>
+      ["analytics", "resolution-team", companyId, startDate, endDate] as const,
+    resolutionOverdue: (companyId: string | null) =>
+      ["analytics", "resolution-overdue", companyId] as const,
     engagement: (
       companyId: string | null,
       startDate?: string,

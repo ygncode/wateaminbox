@@ -43,15 +43,47 @@ export type SendConversationMessageInput = z.infer<
 >;
 
 /**
- * Resolve conversation with optional notes
+ * Close outcomes for resolving a conversation case. `other` additionally
+ * requires non-empty `notes` (enforced below and by a DB check constraint).
+ * `no_reply_needed`/`spam`/`duplicate` are valid response-SLA exclusions;
+ * `handled`/`other` never silently turn an unanswered episode compliant -
+ * that's enforced in analytics, not here (see episode-outcome.ts).
  */
-export const resolveConversationSchema = z.object({
-  notes: z.string().max(2000).optional(),
-});
+export const resolutionOutcomeSchema = z.enum([
+  "handled",
+  "no_reply_needed",
+  "spam",
+  "duplicate",
+  "other",
+]);
+
+export const resolveConversationSchema = z
+  .object({
+    outcome: resolutionOutcomeSchema,
+    notes: z.string().trim().max(2000).optional(),
+  })
+  .refine((input) => input.outcome !== "other" || !!input.notes?.length, {
+    message: "Notes are required when the outcome is 'other'",
+    path: ["notes"],
+  });
 
 export type ResolveConversationInput = z.infer<
   typeof resolveConversationSchema
 >;
+
+/**
+ * Manually opens (no prior case) or reopens (a prior, resolved case
+ * exists) a conversation - the service determines which and, for a
+ * genuine reopen, REQUIRES a non-empty `reason` (see
+ * conversation-case.service.ts's `reopenAsNewCase`). It stays optional
+ * here at the schema level since a first-ever manual Open needs no
+ * justification.
+ */
+export const openConversationSchema = z.object({
+  reason: z.string().trim().max(500).optional(),
+});
+
+export type OpenConversationInput = z.infer<typeof openConversationSchema>;
 
 /**
  * Query params for resolution trend analytics

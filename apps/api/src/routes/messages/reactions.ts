@@ -16,10 +16,19 @@ import { broadcastToCompany } from "../../lib/realtime.js";
 import { successData } from "../../lib/response.js";
 import { addReactionSchema } from "../../lib/schemas/index.js";
 import { getRouteContext } from "../../middleware/context.js";
+import { requireMessageSendPermission } from "../../middleware/message-send-policy.js";
+import { requireMessageVisibility } from "../../middleware/resource-visibility.js";
 import { enqueueCommand } from "../../services/command-outbox.service.js";
+import { requireSendAccess } from "../../services/send-access.service.js";
 import { getActiveSessionId } from "../../services/whatsapp/session.js";
 
 export const reactionRoutes = new Hono();
+
+// A reaction is an outbound WhatsApp action like any other send - it must
+// respect the same visibility, permission, and assignment/lifecycle
+// invariants (see requireSendAccess), not just message-content edits.
+reactionRoutes.use("/:id/reaction", requireMessageVisibility());
+reactionRoutes.use("/:id/reaction", requireMessageSendPermission);
 
 /**
  * POST /:id/reaction - Add a reaction to a message
@@ -114,6 +123,13 @@ reactionRoutes.post(
       targetSenderJid,
     );
     await tenantDb.transaction().execute(async (trx) => {
+      // `claimUnassigned: false` - reacting must never itself claim an
+      // unassigned contact as a side effect, but it must still respect an
+      // existing assignment and the active-case lifecycle invariant, under
+      // the same contact-row lock an interactive send uses.
+      await requireSendAccess(trx, message.contact_id as string, user.id, {
+        claimUnassigned: false,
+      });
       await trx
         .insertInto("message_reactions")
         .values({
@@ -192,6 +208,17 @@ reactionRoutes.delete("/:id/reaction", async (c) => {
     : null;
 
   const reactorJid = connection?.jid || user.id;
+
+  // Same assignment/lifecycle invariant as adding a reaction - checked once
+  // up front (a pure guard here; `claimUnassigned: false` never mutates
+  // anything) since both branches below need it identically.
+  if (message.contact_id) {
+    await tenantDb.transaction().execute((trx) =>
+      requireSendAccess(trx, message.contact_id as string, user.id, {
+        claimUnassigned: false,
+      }),
+    );
+  }
 
   // Send empty emoji to WhatsApp to remove reaction (if we have contact info)
   let deletedInTransaction = false;

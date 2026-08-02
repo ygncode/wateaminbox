@@ -6,6 +6,8 @@
  */
 
 export {
+  type CaseResolutionStats,
+  type CaseResolutionTrendPoint,
   type ContactStats,
   // Types
   type DashboardStats,
@@ -18,9 +20,9 @@ export {
   type MessageStats,
   type MessageTypeStats,
   type NewContactsTrend,
-  type ResolutionStats,
-  type ResolutionTrend,
+  type OverdueCase,
   type TeamActivityStats,
+  type TeamCaseResolutionStats,
   useContactStats,
   // Hooks
   useDashboardStats,
@@ -30,7 +32,9 @@ export {
   useMessageStats,
   useMessageTypeStats,
   useNewContactsTrend,
+  useOverdueActiveCases,
   useResolutionStats,
+  useResolutionTeamStats,
   useResolutionTrend,
   useTeamActivityStats,
 } from "./useAnalytics";

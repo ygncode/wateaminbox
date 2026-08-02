@@ -48,6 +48,19 @@ describe("login to send confirmation happy path", () => {
             status: "connected",
           })
           .execute();
+        // A pending outbound send resolves its NATS command subject via the
+        // connection's ACTIVE session (see getActiveSessionId) - a
+        // connection alone is not enough; this pre-existing gap left this
+        // e2e test unable to reach the send handler at all.
+        await tenantDb
+          .insertInto("whatsapp_connection_sessions")
+          .values({
+            whatsapp_connection_id: connectionId,
+            status: "connected",
+            started_at: new Date(),
+            connected_at: new Date(),
+          })
+          .execute();
         await tenantDb
           .insertInto("contacts")
           .values({
@@ -80,6 +93,20 @@ describe("login to send confirmation happy path", () => {
         expect(JSON.stringify(await contactsResponse.json())).toContain(
           contactId,
         );
+
+        // A brand-new contact has no active case (post-061 baseline is
+        // "resolved" until explicitly opened) - sending requires opening
+        // the conversation first, same as any resolved conversation. See
+        // conversation-case.service.ts's `requireActiveCaseForSend`.
+        const openResponse = await app.request(
+          `/api/conversations/${contactId}/open`,
+          {
+            method: "POST",
+            headers: { ...tenantHeaders, "content-type": "application/json" },
+            body: "{}",
+          },
+        );
+        expect(openResponse.status).toBe(200);
 
         const sendResponse = await app.request("/api/messages", {
           method: "POST",

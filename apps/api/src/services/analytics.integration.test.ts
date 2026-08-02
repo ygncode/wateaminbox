@@ -17,7 +17,7 @@ import {
   getTeamActivityStats,
   getTeamResponseTimeStats,
 } from "./analytics/index.js";
-import { getResolutionStats } from "./conversation-state.service.js";
+import { getCaseResolutionStats } from "./analytics/case-resolution.js";
 import {
   clearTenantConnection,
   createTenantSchema,
@@ -61,7 +61,7 @@ describe("dashboard analytics", () => {
           .execute();
         await createTenantSchema(companyId);
 
-        const tenantDb = getTenantConnection(companyId);
+        getTenantConnection(companyId);
         const results = await Promise.all([
           getDashboardStats(companyId),
           getMessageStats(companyId, start.toDate(), end.toDate()),
@@ -76,7 +76,7 @@ describe("dashboard analytics", () => {
           getResponseTimeTrend(companyId, start.toDate(), end.toDate(), 60),
           getTeamResponseTimeStats(companyId, start.toDate(), end.toDate(), 60),
           getSlaBreaches(companyId, start.toDate(), end.toDate(), 60, 10),
-          getResolutionStats(tenantDb),
+          getCaseResolutionStats(companyId, start.toDate(), end.toDate()),
         ]);
 
         expect(results[0]).toMatchObject({
@@ -91,8 +91,8 @@ describe("dashboard analytics", () => {
         expect(results[8]).toHaveLength(30);
         expect(results[10]).toHaveLength(30);
         expect(results[13]).toMatchObject({
-          totalConversations: 0,
-          resolutionRate: 0,
+          totalResolvedCases: 0,
+          slaComplianceRate: 0,
         });
       } finally {
         await clearTenantConnection(companyId);

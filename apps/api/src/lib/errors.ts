@@ -291,6 +291,39 @@ export class InvalidConnectionStateError extends ValidationError {
   }
 }
 
+/**
+ * An interactive outbound send was attempted into a contact with no active
+ * (open/pending) conversation_cases row - i.e. the conversation is
+ * resolved. The Open/Reopen workflow exists precisely to make lifecycle
+ * transitions explicit and audited; sending must never silently bypass it
+ * (see conversation-case.service.ts's `requireActiveCaseForSend`).
+ */
+export class NoActiveCaseError extends ConflictError {
+  constructor() {
+    super(
+      "This conversation is resolved - open or reopen it before sending a message",
+    );
+    this.name = "NoActiveCaseError";
+  }
+}
+
+/**
+ * An interactive outbound action (send/attach/schedule/forward/retry/
+ * typing) was attempted against a contact actively assigned to someone
+ * OTHER than the acting user - even with `can_view_all_chats`. Assignment
+ * is a hard send invariant, not a visibility preference: only the current
+ * assignee (or someone who takes over via POST /contacts/:id/assign) may
+ * act. See send-access.service.ts's `requireSendAccess`.
+ */
+export class ContactAssignedToOtherError extends ForbiddenError {
+  assignedTo: string;
+  constructor(assignedTo: string) {
+    super("This conversation is assigned to another team member");
+    this.name = "ContactAssignedToOtherError";
+    this.assignedTo = assignedTo;
+  }
+}
+
 export class MaxConnectionsExceededError extends TooManyRequestsError {
   currentCount: number;
   maxAllowed: number;

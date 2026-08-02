@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { toDbDate } from "@wateaminbox/shared";
+import { db } from "@wateaminbox/database";
+import { DEFAULT_SLA_WEEKLY_SCHEDULE, toDbDate } from "@wateaminbox/shared";
 import type { Kysely } from "kysely";
 import {
   deleteMedia,
@@ -7,6 +8,11 @@ import {
   resolveMediaKeyForCompany,
   uploadMedia,
 } from "../lib/storage.js";
+import { assignContactToUser } from "./contact.service.js";
+import {
+  openOrReopenCaseForInboundMessage,
+  resolveActiveCase,
+} from "./conversation-case.service.js";
 import {
   cleanupScheduledMediaObject,
   dispatchCompanyScheduledMessages,
@@ -15,6 +21,7 @@ import type { TenantDatabase } from "./tenant.service.js";
 import {
   createTenantSchema,
   dropTenantSchema,
+  getSchemaName,
   getTenantConnection,
 } from "./tenant.service.js";
 
@@ -30,12 +37,43 @@ interface SeededConversation {
 
 async function seedConversation(
   tenantDb: Kysely<TenantDatabase>,
+  companyId: string,
   options: { connectionStatus?: "connected" | "disconnected" } = {},
 ): Promise<SeededConversation> {
   const connectionId = crypto.randomUUID();
   const sessionId = crypto.randomUUID();
   const contactId = crypto.randomUUID();
   const userId = crypto.randomUUID();
+
+  // Dispatch now re-validates assignment/lifecycle access for non-bulk rows
+  // (see scheduled-message.service.ts's `sendScheduledMessage`), which
+  // needs a resolvable SLA policy (`getCurrentSlaPolicy`) and an active
+  // case owned by the scheduling user. `sla_policies` FKs to `companies`,
+  // so a row is needed there too even though this file otherwise creates
+  // the tenant schema directly, bypassing `createCompany`.
+  await db
+    .insertInto("companies")
+    .values({
+      id: companyId,
+      name: "Scheduled message test",
+      schema_name: getSchemaName(companyId),
+      status: "active",
+    })
+    .execute();
+  await db
+    .insertInto("sla_policies")
+    .values({
+      company_id: companyId,
+      target_minutes: 60,
+      direct_resolution_target_minutes: 480,
+      group_response_target_minutes: 120,
+      group_resolution_target_minutes: 960,
+      timezone: "UTC",
+      weekly_schedule: JSON.stringify(DEFAULT_SLA_WEEKLY_SCHEDULE),
+      exceptions: JSON.stringify([]),
+      effective_from: new Date("1970-01-01T00:00:00Z"),
+    })
+    .execute();
 
   await tenantDb
     .insertInto("whatsapp_connections")
@@ -65,6 +103,29 @@ async function seedConversation(
       push_name: "Scheduled Test Contact",
     })
     .execute();
+
+  await assignContactToUser(tenantDb, contactId, userId, userId);
+  await tenantDb.transaction().execute(async (trx) => {
+    const messageId = crypto.randomUUID();
+    await trx
+      .insertInto("messages")
+      .values({
+        id: messageId,
+        contact_id: contactId,
+        message_id: crypto.randomUUID(),
+        from_me: false,
+        message_type: "text",
+        content: "hello",
+        timestamp: new Date(),
+      })
+      .execute();
+    return openOrReopenCaseForInboundMessage(
+      trx,
+      companyId,
+      { id: contactId, isGroup: false },
+      { id: messageId, timestamp: new Date() },
+    );
+  });
 
   return { connectionId, sessionId, contactId, userId };
 }
@@ -115,7 +176,7 @@ describe("scheduled message dispatcher integration", () => {
       try {
         await createTenantSchema(companyId);
         const tenantDb = getTenantConnection(companyId);
-        const seeded = await seedConversation(tenantDb);
+        const seeded = await seedConversation(tenantDb, companyId);
         const scheduledId = await insertScheduled(tenantDb, seeded);
         // A future message must not be touched.
         const futureId = await insertScheduled(tenantDb, seeded, {
@@ -163,6 +224,11 @@ describe("scheduled message dispatcher integration", () => {
         expect(future.status).toBe("scheduled");
       } finally {
         await dropTenantSchema(companyId);
+        await db
+          .deleteFrom("sla_policies")
+          .where("company_id", "=", companyId)
+          .execute();
+        await db.deleteFrom("companies").where("id", "=", companyId).execute();
       }
     },
     30_000,
@@ -175,7 +241,7 @@ describe("scheduled message dispatcher integration", () => {
       try {
         await createTenantSchema(companyId);
         const tenantDb = getTenantConnection(companyId);
-        const seeded = await seedConversation(tenantDb);
+        const seeded = await seedConversation(tenantDb, companyId);
         await insertScheduled(tenantDb, seeded);
 
         const results = await Promise.all([
@@ -188,6 +254,7 @@ describe("scheduled message dispatcher integration", () => {
         const messages = await tenantDb
           .selectFrom("messages")
           .select("id")
+          .where("from_me", "=", true)
           .execute();
         expect(messages).toHaveLength(1);
         const outbox = await tenantDb
@@ -197,6 +264,11 @@ describe("scheduled message dispatcher integration", () => {
         expect(outbox).toHaveLength(1);
       } finally {
         await dropTenantSchema(companyId);
+        await db
+          .deleteFrom("sla_policies")
+          .where("company_id", "=", companyId)
+          .execute();
+        await db.deleteFrom("companies").where("id", "=", companyId).execute();
       }
     },
     30_000,
@@ -209,7 +281,7 @@ describe("scheduled message dispatcher integration", () => {
       try {
         await createTenantSchema(companyId);
         const tenantDb = getTenantConnection(companyId);
-        const seeded = await seedConversation(tenantDb, {
+        const seeded = await seedConversation(tenantDb, companyId, {
           connectionStatus: "disconnected",
         });
         const scheduledId = await insertScheduled(tenantDb, seeded);
@@ -230,10 +302,16 @@ describe("scheduled message dispatcher integration", () => {
         const messages = await tenantDb
           .selectFrom("messages")
           .select("id")
+          .where("from_me", "=", true)
           .execute();
         expect(messages).toHaveLength(0);
       } finally {
         await dropTenantSchema(companyId);
+        await db
+          .deleteFrom("sla_policies")
+          .where("company_id", "=", companyId)
+          .execute();
+        await db.deleteFrom("companies").where("id", "=", companyId).execute();
       }
     },
     30_000,
@@ -246,7 +324,7 @@ describe("scheduled message dispatcher integration", () => {
       try {
         await createTenantSchema(companyId);
         const tenantDb = getTenantConnection(companyId);
-        const seeded = await seedConversation(tenantDb);
+        const seeded = await seedConversation(tenantDb, companyId);
         const scheduledId = await insertScheduled(tenantDb, seeded, {
           contactId: crypto.randomUUID(),
         });
@@ -262,6 +340,11 @@ describe("scheduled message dispatcher integration", () => {
         expect(row.last_error).toContain("Contact");
       } finally {
         await dropTenantSchema(companyId);
+        await db
+          .deleteFrom("sla_policies")
+          .where("company_id", "=", companyId)
+          .execute();
+        await db.deleteFrom("companies").where("id", "=", companyId).execute();
       }
     },
     30_000,
@@ -274,7 +357,7 @@ describe("scheduled message dispatcher integration", () => {
       try {
         await createTenantSchema(companyId);
         const tenantDb = getTenantConnection(companyId);
-        const seeded = await seedConversation(tenantDb);
+        const seeded = await seedConversation(tenantDb, companyId);
         const scheduledId = await insertScheduled(tenantDb, seeded);
         await tenantDb
           .updateTable("scheduled_messages")
@@ -292,10 +375,16 @@ describe("scheduled message dispatcher integration", () => {
         const messages = await tenantDb
           .selectFrom("messages")
           .select("id")
+          .where("from_me", "=", true)
           .execute();
         expect(messages).toHaveLength(0);
       } finally {
         await dropTenantSchema(companyId);
+        await db
+          .deleteFrom("sla_policies")
+          .where("company_id", "=", companyId)
+          .execute();
+        await db.deleteFrom("companies").where("id", "=", companyId).execute();
       }
     },
     30_000,
@@ -309,7 +398,7 @@ describe("scheduled message dispatcher integration", () => {
       try {
         await createTenantSchema(companyId);
         const tenantDb = getTenantConnection(companyId);
-        const seeded = await seedConversation(tenantDb);
+        const seeded = await seedConversation(tenantDb, companyId);
 
         // A real object in the media bucket, exactly like POST /media/upload.
         const upload = await uploadMedia(
@@ -374,6 +463,11 @@ describe("scheduled message dispatcher integration", () => {
       } finally {
         if (mediaKey) await deleteMedia(mediaKey).catch(() => {});
         await dropTenantSchema(companyId);
+        await db
+          .deleteFrom("sla_policies")
+          .where("company_id", "=", companyId)
+          .execute();
+        await db.deleteFrom("companies").where("id", "=", companyId).execute();
       }
     },
     30_000,
@@ -386,7 +480,7 @@ describe("scheduled message dispatcher integration", () => {
       try {
         await createTenantSchema(companyId);
         const tenantDb = getTenantConnection(companyId);
-        const seeded = await seedConversation(tenantDb);
+        const seeded = await seedConversation(tenantDb, companyId);
 
         const upload = await uploadMedia(
           Buffer.from("ephemeral"),
@@ -418,10 +512,16 @@ describe("scheduled message dispatcher integration", () => {
         const messages = await tenantDb
           .selectFrom("messages")
           .select("id")
+          .where("from_me", "=", true)
           .execute();
         expect(messages).toHaveLength(0);
       } finally {
         await dropTenantSchema(companyId);
+        await db
+          .deleteFrom("sla_policies")
+          .where("company_id", "=", companyId)
+          .execute();
+        await db.deleteFrom("companies").where("id", "=", companyId).execute();
       }
     },
     30_000,
@@ -457,6 +557,113 @@ describe("scheduled message dispatcher integration", () => {
         ).rejects.toThrow();
       } finally {
         await dropTenantSchema(companyId);
+        await db
+          .deleteFrom("sla_policies")
+          .where("company_id", "=", companyId)
+          .execute();
+        await db.deleteFrom("companies").where("id", "=", companyId).execute();
+      }
+    },
+    30_000,
+  );
+
+  integrationTest(
+    "a takeover between scheduling and dispatch fails the old assignee's queued message safely, never sending it",
+    async () => {
+      const companyId = crypto.randomUUID();
+      try {
+        await createTenantSchema(companyId);
+        const tenantDb = getTenantConnection(companyId);
+        const seeded = await seedConversation(tenantDb, companyId);
+        const scheduledId = await insertScheduled(tenantDb, seeded);
+
+        // Someone else takes over before dispatch runs.
+        const newAssignee = crypto.randomUUID();
+        await assignContactToUser(
+          tenantDb,
+          seeded.contactId,
+          newAssignee,
+          newAssignee,
+        );
+
+        const dispatched = await dispatchCompanyScheduledMessages(companyId);
+        expect(dispatched).toBe(0);
+
+        const row = await tenantDb
+          .selectFrom("scheduled_messages")
+          .selectAll()
+          .where("id", "=", scheduledId)
+          .executeTakeFirstOrThrow();
+        expect(row.status).toBe("failed");
+        expect(row.last_error).toContain("assigned to another team member");
+
+        const sent = await tenantDb
+          .selectFrom("messages")
+          .select("id")
+          .where("from_me", "=", true)
+          .execute();
+        expect(sent).toHaveLength(0);
+      } finally {
+        await dropTenantSchema(companyId);
+        await db
+          .deleteFrom("sla_policies")
+          .where("company_id", "=", companyId)
+          .execute();
+        await db.deleteFrom("companies").where("id", "=", companyId).execute();
+      }
+    },
+    30_000,
+  );
+
+  integrationTest(
+    "a resolve between scheduling and dispatch fails the queued message safely, never sending it or reopening the conversation",
+    async () => {
+      const companyId = crypto.randomUUID();
+      try {
+        await createTenantSchema(companyId);
+        const tenantDb = getTenantConnection(companyId);
+        const seeded = await seedConversation(tenantDb, companyId);
+        const scheduledId = await insertScheduled(tenantDb, seeded);
+
+        await resolveActiveCase(tenantDb, seeded.contactId, {
+          outcome: "no_reply_needed",
+          resolvedBy: seeded.userId,
+        });
+
+        const dispatched = await dispatchCompanyScheduledMessages(companyId);
+        expect(dispatched).toBe(0);
+
+        const row = await tenantDb
+          .selectFrom("scheduled_messages")
+          .selectAll()
+          .where("id", "=", scheduledId)
+          .executeTakeFirstOrThrow();
+        expect(row.status).toBe("failed");
+        expect(row.last_error).toContain("resolved");
+
+        const sent = await tenantDb
+          .selectFrom("messages")
+          .select("id")
+          .where("from_me", "=", true)
+          .execute();
+        expect(sent).toHaveLength(0);
+
+        // The failed dispatch attempt must never itself reopen the
+        // conversation as a side effect.
+        const projection = await tenantDb
+          .selectFrom("conversation_states")
+          .select(["status", "active_case_id"])
+          .where("contact_id", "=", seeded.contactId)
+          .executeTakeFirstOrThrow();
+        expect(projection.status).toBe("resolved");
+        expect(projection.active_case_id).toBeNull();
+      } finally {
+        await dropTenantSchema(companyId);
+        await db
+          .deleteFrom("sla_policies")
+          .where("company_id", "=", companyId)
+          .execute();
+        await db.deleteFrom("companies").where("id", "=", companyId).execute();
       }
     },
     30_000,

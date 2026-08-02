@@ -40,6 +40,8 @@ export interface RawContactFromDb {
   connection_status?: string | null;
   created_at: Date | string;
   updated_at: Date | string;
+  conversation_status?: "open" | "pending" | "resolved";
+  active_case_id?: string | null;
   // Optional: last message data (from joined query)
   last_message?: {
     id: string;
@@ -94,6 +96,8 @@ export interface TransformedContact {
   lastSeen: Date | string | null;
   createdAt: Date | string;
   updatedAt: Date | string;
+  conversationStatus: "open" | "pending" | "resolved";
+  activeCaseId: string | null;
 }
 
 // ============================================================================
@@ -173,6 +177,8 @@ export function transformContact(
     lastSeen: contact.last_seen ?? null,
     createdAt: contact.created_at,
     updatedAt: contact.updated_at,
+    conversationStatus: contact.conversation_status ?? "resolved",
+    activeCaseId: contact.active_case_id ?? null,
   };
 }
 

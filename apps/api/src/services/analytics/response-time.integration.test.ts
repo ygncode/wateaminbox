@@ -1,4 +1,12 @@
 import { describe, expect, test } from "bun:test";
+
+// Response episodes only exist INSIDE an SLA-bearing conversation_cases
+// row's [opened_at, resolved_at) window (see conversation-case.service.ts
+// and episode-resolution.ts) - every scenario below opens a case spanning
+// its messages via `openCase`/`insertContactWithCase` so the underlying
+// business-time/burst/policy-snapshot premise each test is actually
+// checking still holds under the case-boundary model.
+
 import { db } from "@wateaminbox/database";
 import type {
   SlaScheduleException,
@@ -6,6 +14,8 @@ import type {
 } from "@wateaminbox/shared";
 import { DEFAULT_SLA_WEEKLY_SCHEDULE } from "@wateaminbox/shared";
 import { AnalyticsRangeTooWideError } from "../../lib/errors.js";
+import { resolveActiveCase } from "../conversation-case.service.js";
+import { getCurrentSlaPolicy, resolveCaseTargets } from "../sla-policy/policy.service.js";
 import {
   clearTenantConnection,
   createTenantSchema,
@@ -89,6 +99,9 @@ async function withTenant(
         .values({
           company_id: companyId,
           target_minutes: policy.targetMinutes,
+          direct_resolution_target_minutes: 480,
+          group_response_target_minutes: 120,
+          group_resolution_target_minutes: 960,
           timezone: policy.timezone,
           weekly_schedule: JSON.stringify(policy.weeklySchedule),
           exceptions: JSON.stringify(policy.exceptions ?? []),
@@ -130,12 +143,60 @@ async function insertContact(tenantDb: ReturnType<typeof getTenantConnection>) {
   return contact.id;
 }
 
+/** Opens an (unresolved) case for a contact, snapshotting the company's CURRENT policy at call time. */
+async function openCase(
+  tenantDb: ReturnType<typeof getTenantConnection>,
+  companyId: string,
+  contactId: string,
+  openedAt: Date,
+  kind: "direct" | "group" = "direct",
+): Promise<void> {
+  const policy = await getCurrentSlaPolicy(companyId);
+  const targets = resolveCaseTargets(policy, kind);
+  await tenantDb
+    .insertInto("conversation_cases")
+    .values({
+      contact_id: contactId,
+      kind,
+      status: "open",
+      opened_at: openedAt,
+      open_source: "live_inbound",
+      policy_id: policy.id,
+      response_target_minutes: targets.responseTargetMinutes,
+      resolution_target_minutes: targets.resolutionTargetMinutes,
+    })
+    .execute();
+}
+
+/** Convenience: a fresh contact with an open case starting at `openedAt`. */
+async function insertContactWithCase(
+  tenantDb: ReturnType<typeof getTenantConnection>,
+  companyId: string,
+  openedAt: Date,
+  kind: "direct" | "group" = "direct",
+): Promise<string> {
+  const contactId = await insertContact(tenantDb);
+  await openCase(tenantDb, companyId, contactId, openedAt, kind);
+  return contactId;
+}
+
 async function insertMessage(
   tenantDb: ReturnType<typeof getTenantConnection>,
   contactId: string,
   fromMe: boolean,
   timestamp: Date,
 ) {
+  // Mirrors production: every message insert path stamps `case_id`
+  // explicitly from whichever case is currently active for the contact -
+  // never inferred from a timestamp window (see migration 061 / episode
+  // -resolution.ts).
+  const activeCase = await tenantDb
+    .selectFrom("conversation_cases")
+    .select("id")
+    .where("contact_id", "=", contactId)
+    .where("status", "in", ["open", "pending"])
+    .executeTakeFirst();
+
   await tenantDb
     .insertInto("messages")
     .values({
@@ -145,6 +206,50 @@ async function insertMessage(
       message_type: "text",
       content: fromMe ? "reply" : "hello",
       timestamp,
+      // SLA/duration math and range filtering use `created_at` (the
+      // authoritative server ingestion instant), never the WhatsApp-
+      // supplied `timestamp` - see episode-resolution.ts. These tests
+      // deliberately control the instant used for that math, so `timestamp`
+      // and `created_at` are set to the same controlled value here; tests
+      // that specifically exercise a delayed/future/mismatched WhatsApp
+      // timestamp pass one explicitly instead (see insertMessageWithTimes).
+      created_at: timestamp,
+      case_id: activeCase?.id ?? null,
+    })
+    .execute();
+}
+
+/**
+ * Like `insertMessage`, but lets a test deliberately diverge the
+ * WhatsApp-supplied `timestamp` from the authoritative `created_at` (server
+ * ingestion instant) - e.g. a delayed or future-dated client clock. Compliance
+ * math and range filtering must follow `created_at` only.
+ */
+async function insertMessageWithTimes(
+  tenantDb: ReturnType<typeof getTenantConnection>,
+  contactId: string,
+  fromMe: boolean,
+  timestamp: Date,
+  createdAt: Date,
+) {
+  const activeCase = await tenantDb
+    .selectFrom("conversation_cases")
+    .select("id")
+    .where("contact_id", "=", contactId)
+    .where("status", "in", ["open", "pending"])
+    .executeTakeFirst();
+
+  await tenantDb
+    .insertInto("messages")
+    .values({
+      contact_id: contactId,
+      message_id: crypto.randomUUID(),
+      from_me: fromMe,
+      message_type: "text",
+      content: fromMe ? "reply" : "hello",
+      timestamp,
+      created_at: createdAt,
+      case_id: activeCase?.id ?? null,
     })
     .execute();
 }
@@ -154,8 +259,8 @@ describe("response-time analytics correctness (24/7 UTC policy)", () => {
     "collapses a burst of consecutive inbound messages into a single response episode",
     async () => {
       await withTenant(async (companyId, tenantDb) => {
-        const contactId = await insertContact(tenantDb);
         const base = new Date("2026-01-01T00:00:00Z"); // Thursday
+        const contactId = await insertContactWithCase(tenantDb, companyId, base);
 
         await insertMessage(tenantDb, contactId, false, base);
         await insertMessage(
@@ -196,8 +301,8 @@ describe("response-time analytics correctness (24/7 UTC policy)", () => {
     "starts a new episode after an interleaved reply mid-burst",
     async () => {
       await withTenant(async (companyId, tenantDb) => {
-        const contactId = await insertContact(tenantDb);
         const base = new Date("2026-01-01T00:00:00Z");
+        const contactId = await insertContactWithCase(tenantDb, companyId, base);
 
         await insertMessage(tenantDb, contactId, false, base);
         await insertMessage(
@@ -239,9 +344,9 @@ describe("response-time analytics correctness (24/7 UTC policy)", () => {
     "counts a late reply beyond 24 hours as a breach instead of excluding it",
     async () => {
       await withTenant(async (companyId, tenantDb) => {
-        const contactId = await insertContact(tenantDb);
         const base = new Date("2026-01-01T00:00:00Z");
         const replyTime = new Date(base.getTime() + 30 * HOUR);
+        const contactId = await insertContactWithCase(tenantDb, companyId, base);
 
         await insertMessage(tenantDb, contactId, false, base);
         await insertMessage(tenantDb, contactId, true, replyTime);
@@ -264,8 +369,12 @@ describe("response-time analytics correctness (24/7 UTC policy)", () => {
     "unanswered messages are breaches only once their age exceeds the SLA target",
     async () => {
       await withTenant(async (companyId, tenantDb) => {
-        const contactId = await insertContact(tenantDb);
         const inboundTime = new Date(Date.now() - 30 * MINUTE);
+        const contactId = await insertContactWithCase(
+          tenantDb,
+          companyId,
+          inboundTime,
+        );
         await insertMessage(tenantDb, contactId, false, inboundTime);
 
         const start = new Date(inboundTime.getTime() - HOUR);
@@ -297,12 +406,14 @@ describe("response-time analytics correctness (24/7 UTC policy)", () => {
     "overall compliance counts overdue unanswered episodes as non-compliant, but excludes pending ones",
     async () => {
       await withTenant(async (companyId, tenantDb) => {
-        const contactCompliant = await insertContact(tenantDb);
-        const contactOverdue = await insertContact(tenantDb);
-        const contactPending = await insertContact(tenantDb);
         const threshold = 60;
 
         const compliantInbound = new Date(Date.now() - 3 * HOUR);
+        const contactCompliant = await insertContactWithCase(
+          tenantDb,
+          companyId,
+          compliantInbound,
+        );
         await insertMessage(
           tenantDb,
           contactCompliant,
@@ -317,9 +428,19 @@ describe("response-time analytics correctness (24/7 UTC policy)", () => {
         );
 
         const overdueInbound = new Date(Date.now() - 90 * MINUTE);
+        const contactOverdue = await insertContactWithCase(
+          tenantDb,
+          companyId,
+          overdueInbound,
+        );
         await insertMessage(tenantDb, contactOverdue, false, overdueInbound);
 
         const pendingInbound = new Date(Date.now() - 10 * MINUTE);
+        const contactPending = await insertContactWithCase(
+          tenantDb,
+          companyId,
+          pendingInbound,
+        );
         await insertMessage(tenantDb, contactPending, false, pendingInbound);
 
         const start = new Date(Date.now() - 4 * HOUR);
@@ -368,7 +489,6 @@ describe("response-time analytics correctness (business-hours calendar)", () => 
     async () => {
       await withTenant(
         async (companyId, tenantDb) => {
-          const contactId = await insertContact(tenantDb);
           // Friday 2026-01-02 16:50 UTC (10 min before the 17:00 close),
           // answered Monday 2026-01-05 09:10 UTC (10 min after the 09:00
           // open). ~56 wall-clock hours pass, but only 20 business minutes
@@ -377,6 +497,11 @@ describe("response-time analytics correctness (business-hours calendar)", () => 
           // be under wall-clock time.
           const inboundTime = new Date("2026-01-02T16:50:00Z");
           const replyTime = new Date("2026-01-05T09:10:00Z");
+          const contactId = await insertContactWithCase(
+            tenantDb,
+            companyId,
+            inboundTime,
+          );
           await insertMessage(tenantDb, contactId, false, inboundTime);
           await insertMessage(tenantDb, contactId, true, replyTime);
 
@@ -425,11 +550,15 @@ describe("response-time analytics correctness (business-hours calendar)", () => 
     async () => {
       await withTenant(
         async (companyId, tenantDb) => {
-          const contactId = await insertContact(tenantDb);
           // Wednesday 2026-01-07, closed as a holiday exception; reply lands
           // Thursday 2026-01-08 09:10 (10 minutes after Thursday's opening).
           const inboundTime = new Date("2026-01-07T10:00:00Z");
           const replyTime = new Date("2026-01-08T09:10:00Z");
+          const contactId = await insertContactWithCase(
+            tenantDb,
+            companyId,
+            inboundTime,
+          );
           await insertMessage(tenantDb, contactId, false, inboundTime);
           await insertMessage(tenantDb, contactId, true, replyTime);
 
@@ -457,7 +586,7 @@ describe("response-time analytics correctness (business-hours calendar)", () => 
   );
 
   integrationTest(
-    "episodes use the SLA policy version active when they began, even after a later edit",
+    "a case snapshots the policy active when it opened, even after a later edit",
     async () => {
       const companyId = crypto.randomUUID();
       const schemaName = `test_${companyId.replaceAll("-", "_")}`;
@@ -491,6 +620,9 @@ describe("response-time analytics correctness (business-hours calendar)", () => 
           .values({
             company_id: companyId,
             target_minutes: 120,
+            direct_resolution_target_minutes: 480,
+            group_response_target_minutes: 120,
+            group_resolution_target_minutes: 960,
             timezone: "UTC",
             weekly_schedule: JSON.stringify(DEFAULT_SLA_WEEKLY_SCHEDULE),
             exceptions: JSON.stringify([]),
@@ -501,10 +633,14 @@ describe("response-time analytics correctness (business-hours calendar)", () => 
 
         await createTenantSchema(companyId);
         const tenantDb = getTenantConnection(companyId);
-        const contactId = await insertContact(tenantDb);
 
-        // Episode begins under the original (120-minute) policy.
+        // The case opens under the original (120-minute) policy.
         const inboundTime = new Date("2026-01-01T00:00:00Z");
+        const contactId = await insertContactWithCase(
+          tenantDb,
+          companyId,
+          inboundTime,
+        );
         await insertMessage(tenantDb, contactId, false, inboundTime);
         await insertMessage(
           tenantDb,
@@ -514,16 +650,19 @@ describe("response-time analytics correctness (business-hours calendar)", () => 
         );
 
         // Admin now edits the policy to a much stricter 30-minute target,
-        // effective immediately (after the episode already happened).
+        // effective immediately (after the case already opened).
         await db
           .insertInto("sla_policies")
           .values({
             company_id: companyId,
             target_minutes: 30,
+            direct_resolution_target_minutes: 480,
+            group_response_target_minutes: 120,
+            group_resolution_target_minutes: 960,
             timezone: "UTC",
             weekly_schedule: JSON.stringify(DEFAULT_SLA_WEEKLY_SCHEDULE),
             exceptions: JSON.stringify([]),
-            effective_from: new Date(), // now - well after inboundTime
+            effective_from: new Date(), // now - well after the case opened
             created_by: ownerId,
           })
           .execute();
@@ -531,8 +670,9 @@ describe("response-time analytics correctness (business-hours calendar)", () => 
         const start = new Date("2025-12-31T00:00:00Z");
         const end = new Date("2026-01-02T00:00:00Z");
 
-        // No override -> uses each episode's own historical policy (120 min),
-        // so the 90-minute reply is still compliant, not a breach.
+        // The case snapshotted the 120-minute policy at opening - the later
+        // edit never rewrites it, so the 90-minute reply is still
+        // compliant, not a breach.
         const breaches = await getSlaBreaches(
           companyId,
           start,
@@ -567,7 +707,6 @@ describe("response-time analytics correctness (business-hours calendar)", () => 
     async () => {
       await withTenant(
         async (companyId, tenantDb) => {
-          const contactId = await insertContact(tenantDb);
           // Friday 16:50 UTC -> Monday 09:10 UTC, same office-hours calendar
           // as above (20 business minutes elapsed despite ~56 wall-clock
           // hours). The policy's own target is 60 minutes (never a breach on
@@ -575,6 +714,11 @@ describe("response-time analytics correctness (business-hours calendar)", () => 
           // SAME calendar, not fall back to wall-clock time.
           const inboundTime = new Date("2026-01-02T16:50:00Z");
           const replyTime = new Date("2026-01-05T09:10:00Z");
+          const contactId = await insertContactWithCase(
+            tenantDb,
+            companyId,
+            inboundTime,
+          );
           await insertMessage(tenantDb, contactId, false, inboundTime);
           await insertMessage(tenantDb, contactId, true, replyTime);
 
@@ -623,12 +767,16 @@ describe("response-time trend - reporting timezone boundary correctness", () => 
     async () => {
       await withTenant(
         async (companyId, tenantDb) => {
-          const contactId = await insertContact(tenantDb);
           // 23:00 UTC is 13:00 the NEXT calendar day in Pacific/Kiritimati
           // (UTC+14) - this is exactly the edge case that a UTC-enumerated
           // axis would never visit, even though the episode's inbound_time
           // is well inside [startDate, endDate].
           const inboundTime = new Date("2026-01-01T23:00:00Z");
+          const contactId = await insertContactWithCase(
+            tenantDb,
+            companyId,
+            inboundTime,
+          );
           await insertMessage(tenantDb, contactId, false, inboundTime);
           await insertMessage(
             tenantDb,
@@ -672,11 +820,15 @@ describe("response-time trend - reporting timezone boundary correctness", () => 
     async () => {
       await withTenant(
         async (companyId, tenantDb) => {
-          const contactId = await insertContact(tenantDb);
           // 02:00 UTC on 2026-01-01 is 18:00 on 2025-12-31 in
           // America/Los_Angeles (UTC-8) - the symmetric edge case at the
           // START of the range for a negative-offset zone.
           const inboundTime = new Date("2026-01-01T02:00:00Z");
+          const contactId = await insertContactWithCase(
+            tenantDb,
+            companyId,
+            inboundTime,
+          );
           await insertMessage(tenantDb, contactId, false, inboundTime);
           await insertMessage(
             tenantDb,
@@ -718,17 +870,14 @@ describe("response-time trend - reporting timezone boundary correctness", () => 
     async () => {
       await withTenant(
         async (companyId, tenantDb) => {
-          const contact1 = await insertContact(tenantDb);
-          const contact2 = await insertContact(tenantDb);
-          const contact3 = await insertContact(tenantDb);
-
-          for (const [contactId, offsetHours] of [
-            [contact1, 1],
-            [contact2, 30],
-            [contact3, 55],
-          ] as const) {
+          for (const offsetHours of [1, 30, 55] as const) {
             const inboundTime = new Date(
               Date.UTC(2026, 0, 1, 0, 0, 0) + offsetHours * HOUR,
+            );
+            const contactId = await insertContactWithCase(
+              tenantDb,
+              companyId,
+              inboundTime,
             );
             await insertMessage(tenantDb, contactId, false, inboundTime);
             await insertMessage(
@@ -771,6 +920,8 @@ describe("response-time analytics - exceeding the episode cap fails explicitly",
       await withTenant(async (companyId, tenantDb) => {
         const overCap = MAX_EPISODES_PER_QUERY + 1;
         const base = new Date("2026-01-01T00:00:00Z");
+        const policy = await getCurrentSlaPolicy(companyId);
+        const targets = resolveCaseTargets(policy, "direct");
 
         const contacts = Array.from({ length: overCap }, (_, i) => ({
           jid: `${crypto.randomUUID()}@s.whatsapp.net`,
@@ -783,6 +934,25 @@ describe("response-time analytics - exceeding the episode cap fails explicitly",
           .returning("id")
           .execute();
 
+        const cases = insertedContacts.map((contact, i) => ({
+          contact_id: contact.id,
+          kind: "direct" as const,
+          status: "open" as const,
+          opened_at: new Date(base.getTime() + i * 1000),
+          open_source: "live_inbound" as const,
+          policy_id: policy.id,
+          response_target_minutes: targets.responseTargetMinutes,
+          resolution_target_minutes: targets.resolutionTargetMinutes,
+        }));
+        const insertedCases = await tenantDb
+          .insertInto("conversation_cases")
+          .values(cases)
+          .returning(["id", "contact_id"])
+          .execute();
+        const caseIdByContact = new Map(
+          insertedCases.map((c) => [c.contact_id, c.id]),
+        );
+
         const messages = insertedContacts.map((contact, i) => ({
           contact_id: contact.id,
           message_id: crypto.randomUUID(),
@@ -793,6 +963,8 @@ describe("response-time analytics - exceeding the episode cap fails explicitly",
           // shared bursts), spread a second apart so ordering is
           // deterministic without needing overCap distinct timestamps.
           timestamp: new Date(base.getTime() + i * 1000),
+          created_at: new Date(base.getTime() + i * 1000),
+          case_id: caseIdByContact.get(contact.id) ?? null,
         }));
         await tenantDb.insertInto("messages").values(messages).execute();
 
@@ -816,6 +988,8 @@ describe("response-time analytics - exceeding the episode cap fails explicitly",
     await withTenant(async (companyId, tenantDb) => {
       const atCap = MAX_EPISODES_PER_QUERY;
       const base = new Date("2026-01-01T00:00:00Z");
+      const policy = await getCurrentSlaPolicy(companyId);
+      const targets = resolveCaseTargets(policy, "direct");
 
       const contacts = Array.from({ length: atCap }, (_, i) => ({
         jid: `${crypto.randomUUID()}@s.whatsapp.net`,
@@ -828,6 +1002,25 @@ describe("response-time analytics - exceeding the episode cap fails explicitly",
         .returning("id")
         .execute();
 
+      const cases = insertedContacts.map((contact, i) => ({
+        contact_id: contact.id,
+        kind: "direct" as const,
+        status: "open" as const,
+        opened_at: new Date(base.getTime() + i * 1000),
+        open_source: "live_inbound" as const,
+        policy_id: policy.id,
+        response_target_minutes: targets.responseTargetMinutes,
+        resolution_target_minutes: targets.resolutionTargetMinutes,
+      }));
+      const insertedCases = await tenantDb
+        .insertInto("conversation_cases")
+        .values(cases)
+        .returning(["id", "contact_id"])
+        .execute();
+      const caseIdByContact = new Map(
+        insertedCases.map((c) => [c.contact_id, c.id]),
+      );
+
       const messages = insertedContacts.map((contact, i) => ({
         contact_id: contact.id,
         message_id: crypto.randomUUID(),
@@ -835,6 +1028,8 @@ describe("response-time analytics - exceeding the episode cap fails explicitly",
         message_type: "text" as const,
         content: "hello",
         timestamp: new Date(base.getTime() + i * 1000),
+        created_at: new Date(base.getTime() + i * 1000),
+        case_id: caseIdByContact.get(contact.id) ?? null,
       }));
       await tenantDb.insertInto("messages").values(messages).execute();
 
@@ -855,8 +1050,12 @@ describe("response-time analytics - exact target boundary", () => {
         const target = 30;
         const base = new Date("2026-01-01T00:00:00Z");
 
-        const exactContact = await insertContact(tenantDb);
         const exactInbound = base;
+        const exactContact = await insertContactWithCase(
+          tenantDb,
+          companyId,
+          exactInbound,
+        );
         await insertMessage(tenantDb, exactContact, false, exactInbound);
         await insertMessage(
           tenantDb,
@@ -865,8 +1064,12 @@ describe("response-time analytics - exact target boundary", () => {
           new Date(exactInbound.getTime() + target * MINUTE),
         );
 
-        const overContact = await insertContact(tenantDb);
         const overInbound = new Date(base.getTime() + HOUR);
+        const overContact = await insertContactWithCase(
+          tenantDb,
+          companyId,
+          overInbound,
+        );
         await insertMessage(tenantDb, overContact, false, overInbound);
         await insertMessage(
           tenantDb,
@@ -909,8 +1112,12 @@ describe("response-time analytics - exact target boundary", () => {
       await withTenant(async (companyId, tenantDb) => {
         const target = 30;
 
-        const underTargetContact = await insertContact(tenantDb);
         const underTargetInbound = new Date(Date.now() - (target - 5) * MINUTE);
+        const underTargetContact = await insertContactWithCase(
+          tenantDb,
+          companyId,
+          underTargetInbound,
+        );
         await insertMessage(
           tenantDb,
           underTargetContact,
@@ -918,8 +1125,12 @@ describe("response-time analytics - exact target boundary", () => {
           underTargetInbound,
         );
 
-        const overTargetContact = await insertContact(tenantDb);
         const overTargetInbound = new Date(Date.now() - (target + 5) * MINUTE);
+        const overTargetContact = await insertContactWithCase(
+          tenantDb,
+          companyId,
+          overTargetInbound,
+        );
         await insertMessage(
           tenantDb,
           overTargetContact,
@@ -939,6 +1150,97 @@ describe("response-time analytics - exact target boundary", () => {
         );
         expect(breaches).toHaveLength(1);
         expect(breaches[0].contactId).toBe(overTargetContact);
+      });
+    },
+  );
+});
+
+describe("response-time analytics - authoritative ingestion time, not the WhatsApp-supplied timestamp", () => {
+  integrationTest(
+    "a future-dated inbound WhatsApp timestamp never produces a fake negative/zero compliance - duration and range filtering follow created_at",
+    async () => {
+      await withTenant(async (companyId, tenantDb) => {
+        const target = 30;
+        const t0 = new Date("2026-01-01T00:00:00Z");
+        // WhatsApp claims this arrived 10 days in the future relative to
+        // t0 - an untrustworthy client clock. The real (authoritative)
+        // ingestion instant is t0.
+        const futureClaimedTimestamp = new Date(t0.getTime() + 10 * 24 * HOUR);
+        const contact = await insertContactWithCase(tenantDb, companyId, t0);
+        await insertMessageWithTimes(
+          tenantDb,
+          contact,
+          false,
+          futureClaimedTimestamp,
+          t0,
+        );
+
+        // The reply's claimed WhatsApp timestamp is BEFORE the inbound's
+        // claimed timestamp - naive timestamp-based duration math would
+        // yield a negative (or nonsensical) value. Its real ingestion
+        // instant is genuinely 45 minutes after t0, a real breach.
+        const replyClaimedTimestamp = new Date(t0.getTime() - HOUR);
+        const replyCreatedAt = new Date(t0.getTime() + 45 * MINUTE);
+        await insertMessageWithTimes(
+          tenantDb,
+          contact,
+          true,
+          replyClaimedTimestamp,
+          replyCreatedAt,
+        );
+
+        const start = new Date(t0.getTime() - HOUR);
+        const end = new Date(t0.getTime() + HOUR);
+
+        const stats = await getResponseTimeStats(companyId, start, end, target);
+        // Found at all (created_at falls in range even though the claimed
+        // WhatsApp timestamp is 10 days outside it), and correctly measured
+        // as a genuine 45-minute breach - never a fake negative/zero
+        // "instant reply".
+        expect(stats.totalConversations).toBe(1);
+        expect(stats.withinSlaCount).toBe(0);
+
+        const breaches = await getSlaBreaches(companyId, start, end, target, 10);
+        expect(breaches).toHaveLength(1);
+        expect(breaches[0].responseMinutes).toBeCloseTo(45, 1);
+      });
+    },
+  );
+
+  integrationTest(
+    "same-millisecond inbound -> outbound -> inbound orders correctly by seq, never by created_at/id ties",
+    async () => {
+      await withTenant(async (companyId, tenantDb) => {
+        const target = 30;
+        const t0 = new Date("2026-01-01T00:00:00Z");
+        const contact = await insertContactWithCase(tenantDb, companyId, t0);
+
+        // All three messages share the EXACT SAME created_at/timestamp
+        // instant - only insertion order (seq) can tell them apart.
+        await insertMessageWithTimes(tenantDb, contact, false, t0, t0);
+        await insertMessageWithTimes(tenantDb, contact, true, t0, t0);
+        await insertMessageWithTimes(tenantDb, contact, false, t0, t0);
+
+        // Resolve so the still-unanswered second episode is measured
+        // against the case's fixed `resolved_at`, not wall-clock "now" -
+        // this test only cares about turn ORDERING, not elapsed magnitude.
+        await resolveActiveCase(tenantDb, contact, {
+          outcome: "no_reply_needed",
+          resolvedBy: crypto.randomUUID(),
+        });
+
+        const start = new Date(t0.getTime() - HOUR);
+        const end = new Date(t0.getTime() + HOUR);
+
+        const stats = await getResponseTimeStats(companyId, start, end, target);
+        // Exactly one COUNTED episode: the first inbound, answered
+        // immediately by the outbound (0 minutes, compliant). The second
+        // inbound is unanswered but excluded (valid exclusion outcome) -
+        // never one episode with the outbound matched to the wrong
+        // inbound, and never a crash from an ambiguous same-millisecond
+        // tie.
+        expect(stats.totalConversations).toBe(1);
+        expect(stats.withinSlaCount).toBe(1);
       });
     },
   );

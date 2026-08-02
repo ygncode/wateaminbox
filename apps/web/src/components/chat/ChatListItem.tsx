@@ -9,6 +9,7 @@ import {
 } from "@/lib/utils";
 import type { ChatListItemProps } from "../../types/chat";
 import { ConnectionBadge } from "./ConnectionIdentity";
+import { ConversationStatusBadge } from "./ConversationStatusBadge";
 
 /**
  * Truncate message content for preview display
@@ -196,6 +197,9 @@ export const ChatListItem = memo(function ChatListItem({
         {/* Bottom Row: Message Preview and Unread Badge */}
         <div className="flex items-center justify-between gap-2 mt-0.5">
           <div className="flex items-center gap-1 min-w-0 flex-1">
+            {chat.conversationStatus !== "open" && (
+              <ConversationStatusBadge status={chat.conversationStatus} />
+            )}
             {contact.connection && (
               <ConnectionBadge
                 connection={contact.connection}

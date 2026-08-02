@@ -38,6 +38,14 @@ interface MessageThreadProps {
   highlightedMessageId?: string | null;
   /** Callback when user clicks "Contact info" in context menu */
   onOpenContactInfo?: () => void;
+  /**
+   * Whether the current user can currently send in this conversation (same
+   * gate the composer itself uses - see useComposerAccess). When false, the
+   * Retry button is hidden: retrying a failed message is itself a send, and
+   * offering it to an assigned-other/resolved/no-permission user would only
+   * 403/409 server-side while looking actionable.
+   */
+  canRetry?: boolean;
 }
 
 export function MessageThread({
@@ -49,6 +57,7 @@ export function MessageThread({
   isGroup = false,
   highlightedMessageId,
   onOpenContactInfo,
+  canRetry = true,
 }: MessageThreadProps) {
   const retryMessage = useRetryMessage();
   const { resolvedTheme } = useTheme();
@@ -380,7 +389,7 @@ export function MessageThread({
         selectionMode={selectionMode}
         selectedMessageIds={selectedMessageIds}
         onMessageClick={handleMessageClick}
-        onRetryMessage={handleRetry}
+        onRetryMessage={canRetry ? handleRetry : undefined}
         isFetchingNextPage={isFetchingNextPage}
         hasNextPage={hasNextPage}
         fetchNextPage={fetchNextPage}

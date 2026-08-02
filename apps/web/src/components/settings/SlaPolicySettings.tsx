@@ -1,4 +1,6 @@
 import {
+  SLA_RESOLUTION_TARGET_MINUTES_MAX,
+  SLA_RESOLUTION_TARGET_MINUTES_MIN,
   SLA_TARGET_MINUTES_MAX,
   SLA_TARGET_MINUTES_MIN,
 } from "@wateaminbox/shared";
@@ -104,6 +106,12 @@ export function SlaPolicySettings() {
   const [editing, setEditing] = useState(false);
   const [timezone, setTimezone] = useState("UTC");
   const [targetMinutes, setTargetMinutes] = useState("60");
+  const [directResolutionTargetMinutes, setDirectResolutionTargetMinutes] =
+    useState("480");
+  const [groupResponseTargetMinutes, setGroupResponseTargetMinutes] =
+    useState("120");
+  const [groupResolutionTargetMinutes, setGroupResolutionTargetMinutes] =
+    useState("960");
   const [days, setDays] = useState<EditableDay[]>(() => toEditableDays([]));
   const [exceptions, setExceptions] = useState<EditableException[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -112,6 +120,13 @@ export function SlaPolicySettings() {
     if (!policy) return;
     setTimezone(policy.timezone);
     setTargetMinutes(String(policy.targetMinutes));
+    setDirectResolutionTargetMinutes(
+      String(policy.directResolutionTargetMinutes),
+    );
+    setGroupResponseTargetMinutes(String(policy.groupResponseTargetMinutes));
+    setGroupResolutionTargetMinutes(
+      String(policy.groupResolutionTargetMinutes),
+    );
     setDays(toEditableDays(policy.weeklySchedule));
     setExceptions(toEditableExceptions(policy.exceptions));
   }, [policy]);
@@ -137,12 +152,41 @@ export function SlaPolicySettings() {
     );
   }
 
+  const isValidTarget = (value: string, min: number, max: number) => {
+    const n = Number(value);
+    return (
+      value.trim() !== "" && Number.isInteger(n) && n >= min && n <= max
+    );
+  };
+
   const targetMinutesValue = Number(targetMinutes);
-  const targetValid =
-    targetMinutes.trim() !== "" &&
-    Number.isInteger(targetMinutesValue) &&
-    targetMinutesValue >= SLA_TARGET_MINUTES_MIN &&
-    targetMinutesValue <= SLA_TARGET_MINUTES_MAX;
+  const directResolutionTargetMinutesValue = Number(
+    directResolutionTargetMinutes,
+  );
+  const groupResponseTargetMinutesValue = Number(groupResponseTargetMinutes);
+  const groupResolutionTargetMinutesValue = Number(
+    groupResolutionTargetMinutes,
+  );
+  const targetValid = isValidTarget(
+    targetMinutes,
+    SLA_TARGET_MINUTES_MIN,
+    SLA_TARGET_MINUTES_MAX,
+  );
+  const directResolutionValid = isValidTarget(
+    directResolutionTargetMinutes,
+    SLA_RESOLUTION_TARGET_MINUTES_MIN,
+    SLA_RESOLUTION_TARGET_MINUTES_MAX,
+  );
+  const groupResponseValid = isValidTarget(
+    groupResponseTargetMinutes,
+    SLA_TARGET_MINUTES_MIN,
+    SLA_TARGET_MINUTES_MAX,
+  );
+  const groupResolutionValid = isValidTarget(
+    groupResolutionTargetMinutes,
+    SLA_RESOLUTION_TARGET_MINUTES_MIN,
+    SLA_RESOLUTION_TARGET_MINUTES_MAX,
+  );
   const atLeastOneOpenDay = days.some((d) => d.open);
 
   const updateDay = (weekday: number, patch: Partial<EditableDay>) => {
@@ -272,6 +316,13 @@ export function SlaPolicySettings() {
   const startEditing = () => {
     setTimezone(policy.timezone);
     setTargetMinutes(String(policy.targetMinutes));
+    setDirectResolutionTargetMinutes(
+      String(policy.directResolutionTargetMinutes),
+    );
+    setGroupResponseTargetMinutes(String(policy.groupResponseTargetMinutes));
+    setGroupResolutionTargetMinutes(
+      String(policy.groupResolutionTargetMinutes),
+    );
     setDays(toEditableDays(policy.weeklySchedule));
     setExceptions(toEditableExceptions(policy.exceptions));
     setError(null);
@@ -282,7 +333,25 @@ export function SlaPolicySettings() {
     setError(null);
     if (!targetValid) {
       setError(
-        `Target must be a whole number between ${SLA_TARGET_MINUTES_MIN} and ${SLA_TARGET_MINUTES_MAX} minutes.`,
+        `Direct response target must be a whole number between ${SLA_TARGET_MINUTES_MIN} and ${SLA_TARGET_MINUTES_MAX} minutes.`,
+      );
+      return;
+    }
+    if (!directResolutionValid) {
+      setError(
+        `Direct resolution target must be a whole number between ${SLA_RESOLUTION_TARGET_MINUTES_MIN} and ${SLA_RESOLUTION_TARGET_MINUTES_MAX} minutes.`,
+      );
+      return;
+    }
+    if (!groupResponseValid) {
+      setError(
+        `Group response target must be a whole number between ${SLA_TARGET_MINUTES_MIN} and ${SLA_TARGET_MINUTES_MAX} minutes.`,
+      );
+      return;
+    }
+    if (!groupResolutionValid) {
+      setError(
+        `Group resolution target must be a whole number between ${SLA_RESOLUTION_TARGET_MINUTES_MIN} and ${SLA_RESOLUTION_TARGET_MINUTES_MAX} minutes.`,
       );
       return;
     }
@@ -323,6 +392,9 @@ export function SlaPolicySettings() {
     try {
       await createPolicy.mutateAsync({
         targetMinutes: targetMinutesValue,
+        directResolutionTargetMinutes: directResolutionTargetMinutesValue,
+        groupResponseTargetMinutes: groupResponseTargetMinutesValue,
+        groupResolutionTargetMinutes: groupResolutionTargetMinutesValue,
         timezone,
         weeklySchedule: daysToScheduleInput(days),
         exceptions: exceptionsToInput(exceptions),
@@ -341,20 +413,61 @@ export function SlaPolicySettings() {
       <div className="space-y-5">
         <SettingsPanel
           title="Response SLA"
-          description="The response-time goal and business-hours calendar used across the dashboard's SLA compliance and breach reporting. Time outside open hours pauses the SLA clock."
+          description="The response and resolution targets and the shared business-hours calendar used across the dashboard's SLA compliance and breach reporting. Time outside open hours pauses both SLA clocks. Group SLA is measured per group conversation, not per member - one team reply acknowledges the whole inbound burst."
         >
-          <dl className="grid gap-4 sm:grid-cols-2">
-            <div>
-              <dt className="text-xs font-medium text-[#829089]">Target</dt>
-              <dd className="mt-1 text-sm font-semibold">
-                {policy.targetMinutes} minutes
-              </dd>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="rounded-xl border border-[#e6ebe7] p-4 dark:border-dark-border">
+              <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-[#829089]">
+                Direct chats
+              </p>
+              <dl className="space-y-3">
+                <div>
+                  <dt className="text-xs font-medium text-[#829089]">
+                    Response target
+                  </dt>
+                  <dd className="mt-1 text-sm font-semibold">
+                    {policy.targetMinutes} minutes
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-xs font-medium text-[#829089]">
+                    Resolution target
+                  </dt>
+                  <dd className="mt-1 text-sm font-semibold">
+                    {policy.directResolutionTargetMinutes} minutes
+                  </dd>
+                </div>
+              </dl>
             </div>
-            <div>
-              <dt className="text-xs font-medium text-[#829089]">Timezone</dt>
-              <dd className="mt-1 text-sm font-semibold">{policy.timezone}</dd>
+            <div className="rounded-xl border border-[#e6ebe7] p-4 dark:border-dark-border">
+              <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-[#829089]">
+                Group chats
+              </p>
+              <dl className="space-y-3">
+                <div>
+                  <dt className="text-xs font-medium text-[#829089]">
+                    Response target
+                  </dt>
+                  <dd className="mt-1 text-sm font-semibold">
+                    {policy.groupResponseTargetMinutes} minutes
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-xs font-medium text-[#829089]">
+                    Resolution target
+                  </dt>
+                  <dd className="mt-1 text-sm font-semibold">
+                    {policy.groupResolutionTargetMinutes} minutes
+                  </dd>
+                </div>
+              </dl>
             </div>
-          </dl>
+          </div>
+
+          <div className="mt-4">
+            <dt className="text-xs font-medium text-[#829089]">Timezone</dt>
+            <dd className="mt-1 text-sm font-semibold">{policy.timezone}</dd>
+          </div>
 
           <div className="mt-5">
             <p className="mb-2 text-xs font-medium text-[#829089]">
@@ -452,34 +565,99 @@ export function SlaPolicySettings() {
         description="Changes take effect immediately as a new policy version. Past and already-open conversations keep using the policy that was active when they began."
       >
         <div className="space-y-6">
+          <p className="text-xs text-[#65736d] dark:text-dark-text-secondary">
+            Direct and group chats share the same timezone, business hours,
+            and holidays below, but have their own response and resolution
+            targets. Group SLA is measured for the whole group conversation,
+            not per member - one team reply acknowledges the inbound burst
+            from any participant.
+          </p>
+
           <div className="grid gap-4 sm:grid-cols-2">
-            <label className="block text-sm font-medium">
-              Target response time (minutes)
-              <Input
-                type="number"
-                min={SLA_TARGET_MINUTES_MIN}
-                max={SLA_TARGET_MINUTES_MAX}
-                step={1}
-                className="mt-2"
-                value={targetMinutes}
-                onChange={(event) => setTargetMinutes(event.target.value)}
-              />
-            </label>
-            <label className="block text-sm font-medium">
-              Timezone
-              <select
-                value={timezone}
-                onChange={(event) => setTimezone(event.target.value)}
-                className="mt-2 h-9 w-full rounded-md border border-gray-300 bg-white px-3 text-sm dark:border-dark-border dark:bg-dark-tertiary"
-              >
-                {listTimeZones().map((tz) => (
-                  <option key={tz} value={tz}>
-                    {tz}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <fieldset className="rounded-xl border border-[#e6ebe7] p-4 dark:border-dark-border">
+              <legend className="px-1 text-xs font-semibold uppercase tracking-wide text-[#829089]">
+                Direct chats
+              </legend>
+              <div className="space-y-4">
+                <label className="block text-sm font-medium">
+                  Response target (minutes)
+                  <Input
+                    type="number"
+                    min={SLA_TARGET_MINUTES_MIN}
+                    max={SLA_TARGET_MINUTES_MAX}
+                    step={1}
+                    className="mt-2"
+                    value={targetMinutes}
+                    onChange={(event) => setTargetMinutes(event.target.value)}
+                  />
+                </label>
+                <label className="block text-sm font-medium">
+                  Resolution target (minutes)
+                  <Input
+                    type="number"
+                    min={SLA_RESOLUTION_TARGET_MINUTES_MIN}
+                    max={SLA_RESOLUTION_TARGET_MINUTES_MAX}
+                    step={1}
+                    className="mt-2"
+                    value={directResolutionTargetMinutes}
+                    onChange={(event) =>
+                      setDirectResolutionTargetMinutes(event.target.value)
+                    }
+                  />
+                </label>
+              </div>
+            </fieldset>
+            <fieldset className="rounded-xl border border-[#e6ebe7] p-4 dark:border-dark-border">
+              <legend className="px-1 text-xs font-semibold uppercase tracking-wide text-[#829089]">
+                Group chats
+              </legend>
+              <div className="space-y-4">
+                <label className="block text-sm font-medium">
+                  Response target (minutes)
+                  <Input
+                    type="number"
+                    min={SLA_TARGET_MINUTES_MIN}
+                    max={SLA_TARGET_MINUTES_MAX}
+                    step={1}
+                    className="mt-2"
+                    value={groupResponseTargetMinutes}
+                    onChange={(event) =>
+                      setGroupResponseTargetMinutes(event.target.value)
+                    }
+                  />
+                </label>
+                <label className="block text-sm font-medium">
+                  Resolution target (minutes)
+                  <Input
+                    type="number"
+                    min={SLA_RESOLUTION_TARGET_MINUTES_MIN}
+                    max={SLA_RESOLUTION_TARGET_MINUTES_MAX}
+                    step={1}
+                    className="mt-2"
+                    value={groupResolutionTargetMinutes}
+                    onChange={(event) =>
+                      setGroupResolutionTargetMinutes(event.target.value)
+                    }
+                  />
+                </label>
+              </div>
+            </fieldset>
           </div>
+
+          <label className="block text-sm font-medium">
+            Timezone
+            <select
+              value={timezone}
+              onChange={(event) => setTimezone(event.target.value)}
+              className="mt-2 h-9 w-full rounded-md border border-gray-300 bg-white px-3 text-sm dark:border-dark-border dark:bg-dark-tertiary sm:w-1/2"
+            >
+              {listTimeZones().map((tz) => (
+                <option key={tz} value={tz}>
+                  {tz}
+                </option>
+              ))}
+            </select>
+          </label>
 
           <div>
             <p className="mb-2 text-sm font-medium">Weekly hours</p>

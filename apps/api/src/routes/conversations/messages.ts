@@ -26,12 +26,13 @@ import {
   toDbDate,
   toISOString,
 } from "@wateaminbox/shared";
+import { broadcastAutoAssignment } from "../../services/assignment-broadcast.service.js";
 import { toAuthUserResponse } from "../../services/auth.service.js";
 import {
   enqueueCommand,
   enqueueSessionCommand,
 } from "../../services/command-outbox.service.js";
-import { ensureContactAssignment } from "../../services/contact.service.js";
+import { requireSendAccess } from "../../services/send-access.service.js";
 import {
   getUserAvatarSources,
   getUserNames,
@@ -320,13 +321,6 @@ messageRoutes.post(
       return badRequest(c, "The contact's WhatsApp connection is not active");
     }
 
-    // Auto-assign contact to the user if unassigned
-    const wasAutoAssigned = await ensureContactAssignment(
-      tenantDb,
-      contactId,
-      user.id,
-    );
-
     // Look up the WhatsApp message ID and sender for reply-to if provided
     let quotedWaMessageId: string | undefined;
     let quotedSenderJid: string | undefined;
@@ -364,7 +358,10 @@ messageRoutes.post(
       quotedWaMessageId,
       quotedSenderJid,
     );
+    let autoAssigned = false;
     await tenantDb.transaction().execute(async (trx) => {
+      const result = await requireSendAccess(trx, contactId, user.id);
+      autoAssigned = result.autoAssigned;
       await trx
         .insertInto("messages")
         .values({
@@ -382,6 +379,7 @@ messageRoutes.post(
           status: "pending",
           timestamp: new Date(),
           created_at: new Date(),
+          case_id: result.caseId,
         })
         .execute();
       await enqueueCommand(
@@ -390,6 +388,9 @@ messageRoutes.post(
         sendCommand,
       );
     });
+    if (autoAssigned) {
+      await broadcastAutoAssignment(tenantDb, companyId, contactId, user.id);
+    }
 
     const senderProfile = await toAuthUserResponse(user);
     return successWithMessage(c, "Message queued", {
@@ -412,7 +413,7 @@ messageRoutes.post(
         createdAt: new Date(),
         updatedAt: new Date(),
       },
-      autoAssigned: wasAutoAssigned,
+      autoAssigned,
     });
   },
 );

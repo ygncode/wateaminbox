@@ -23,13 +23,14 @@ import { getRouteContext } from "../../middleware/context.js";
 import { requireMessageSendPermission } from "../../middleware/message-send-policy.js";
 import { createConditionalRateLimiter } from "../../middleware/rate-limit.js";
 import { hasContactVisibility } from "../../middleware/resource-visibility.js";
+import { broadcastAutoAssignment } from "../../services/assignment-broadcast.service.js";
 import { finalizeBulkJobIfComplete } from "../../services/bulk-job.service.js";
-import { ensureContactAssignment } from "../../services/contact.service.js";
 import {
   cleanupScheduledMediaObject,
   formatScheduledMessage,
   type ScheduledMessageRow,
 } from "../../services/scheduled-message.service.js";
+import { requireSendAccess } from "../../services/send-access.service.js";
 import { getUserNames } from "../../services/user.service.js";
 
 const logger = createLogger("ScheduledMessageRoutes");
@@ -130,14 +131,6 @@ scheduledRoutes.post(
       return badRequest(c, "The contact has no WhatsApp connection");
     }
 
-    // Match the immediate-send flow: engaging with an unassigned contact
-    // claims it for the scheduling user.
-    const wasAutoAssigned = await ensureContactAssignment(
-      tenantDb,
-      body.contactId,
-      user.id,
-    );
-
     if (body.replyToMessageId) {
       const quotedMessage = await tenantDb
         .selectFrom("messages")
@@ -150,28 +143,45 @@ scheduledRoutes.post(
       }
     }
 
+    // Scheduling is itself a live, user-triggered action - it goes through
+    // the exact same guard an immediate send does (assignment claim/check
+    // AND an active case), inside the same transaction as the insert, so
+    // neither can be raced against a concurrent takeover/resolve. Unlike
+    // an immediate send, this only covers the CREATE step - dispatch later
+    // re-validates independently against whatever is true at THAT time
+    // (see scheduled-message.service.ts's `sendScheduledMessage`), since
+    // the conversation's assignment/lifecycle state can legitimately
+    // change any number of times before the scheduled time arrives.
     const now = toDbDate();
-    const row = await tenantDb
-      .insertInto("scheduled_messages")
-      .values({
-        id: crypto.randomUUID(),
-        contact_id: body.contactId,
-        content: body.content?.trim() || "",
-        message_type: body.messageType,
-        media_url: body.mediaUrl || null,
-        media_mime_type: mediaMimeType,
-        media_file_name: mediaFileName,
-        reply_to_message_id: body.replyToMessageId || null,
-        scheduled_at: scheduledAt,
-        status: "scheduled",
-        attempts: 0,
-        next_attempt_at: scheduledAt,
-        created_by: user.id,
-        created_at: now,
-        updated_at: now,
-      })
-      .returningAll()
-      .executeTakeFirstOrThrow();
+    let autoAssigned = false;
+    const row = await tenantDb.transaction().execute(async (trx) => {
+      const access = await requireSendAccess(trx, body.contactId, user.id);
+      autoAssigned = access.autoAssigned;
+      return trx
+        .insertInto("scheduled_messages")
+        .values({
+          id: crypto.randomUUID(),
+          contact_id: body.contactId,
+          content: body.content?.trim() || "",
+          message_type: body.messageType,
+          media_url: body.mediaUrl || null,
+          media_mime_type: mediaMimeType,
+          media_file_name: mediaFileName,
+          reply_to_message_id: body.replyToMessageId || null,
+          scheduled_at: scheduledAt,
+          status: "scheduled",
+          attempts: 0,
+          next_attempt_at: scheduledAt,
+          created_by: user.id,
+          created_at: now,
+          updated_at: now,
+        })
+        .returningAll()
+        .executeTakeFirstOrThrow();
+    });
+    if (autoAssigned) {
+      await broadcastAutoAssignment(tenantDb, companyId, body.contactId, user.id);
+    }
 
     const scheduledMessage = formatScheduledMessage(
       row as ScheduledMessageRow,
@@ -187,7 +197,7 @@ scheduledRoutes.post(
     return c.json({
       success: true,
       scheduledMessage,
-      autoAssigned: wasAutoAssigned,
+      autoAssigned,
     });
   },
 );

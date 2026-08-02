@@ -9,7 +9,11 @@ import {
   useState,
   type WheelEvent,
 } from "react";
-import { type AssignmentFilter, useChats } from "../../hooks/useChats";
+import {
+  type AssignmentFilter,
+  type ConversationStatusFilter,
+  useChats,
+} from "../../hooks/useChats";
 import { usePrefetchContact } from "../../hooks/usePrefetch";
 import { useWhatsAppConnections } from "../../hooks/useWhatsAppConnections";
 import type { ChatListProps } from "../../types/chat";
@@ -40,6 +44,8 @@ export const ChatList = memo(function ChatList({
   const [searchQuery, setSearchQuery] = useState("");
   const [assignmentFilter, setAssignmentFilter] =
     useState<AssignmentFilter>("all");
+  const [conversationStatusFilter, setConversationStatusFilter] =
+    useState<ConversationStatusFilter>("open");
   const [isAddContactOpen, setIsAddContactOpen] = useState(false);
   const [connectionFilter, setConnectionFilter] = useState("all");
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -64,6 +70,7 @@ export const ChatList = memo(function ChatList({
     true,
     assignmentFilter,
     connectionFilter === "all" ? undefined : connectionFilter,
+    conversationStatusFilter,
   );
 
   const handleSearchChange = useCallback((value: string) => {
@@ -156,6 +163,37 @@ export const ChatList = memo(function ChatList({
           </Select>
         </div>
       )}
+
+      {/* Conversation lifecycle filters - Open is the default working view, with
+          Pending/Resolved/All one tap away. Resolved chats stay browsable. */}
+      <div
+        className="flex items-center gap-1 overflow-x-auto overscroll-x-contain border-b border-gray-200 bg-gray-50 px-2 py-1.5 [scrollbar-width:thin] dark:border-dark-border dark:bg-dark-secondary"
+        aria-label="Conversation status filters"
+        onWheel={handleFilterWheel}
+      >
+        {(
+          [
+            { value: "open", label: "Open" },
+            { value: "pending", label: "Pending" },
+            { value: "resolved", label: "Resolved" },
+            { value: "all", label: "All" },
+          ] as const
+        ).map((option) => (
+          <button
+            key={option.value}
+            type="button"
+            onClick={() => setConversationStatusFilter(option.value)}
+            aria-pressed={conversationStatusFilter === option.value}
+            className={`flex-shrink-0 whitespace-nowrap rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+              conversationStatusFilter === option.value
+                ? "bg-whatsapp-teal-green text-white"
+                : "border border-gray-200 bg-white text-gray-600 hover:bg-gray-100 dark:border-dark-border dark:bg-dark-tertiary dark:text-dark-text-secondary dark:hover:bg-dark-border"
+            }`}
+          >
+            {option.label}
+          </button>
+        ))}
+      </div>
 
       {/* Assignment filters remain horizontally reachable at narrow widths. */}
       <div className="flex items-center border-b border-gray-200 bg-gray-50 dark:border-dark-border dark:bg-dark-secondary">

@@ -88,6 +88,9 @@ describe("SLA policy route authorization", () => {
 
         const validPolicyBody = JSON.stringify({
           targetMinutes: 45,
+          directResolutionTargetMinutes: 480,
+          groupResponseTargetMinutes: 120,
+          groupResolutionTargetMinutes: 960,
           timezone: "Asia/Yangon",
           weeklySchedule: [
             { weekday: 0, open: false, intervals: [] },

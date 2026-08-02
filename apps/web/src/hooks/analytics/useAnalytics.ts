@@ -1,6 +1,18 @@
 import { useQuery } from "@tanstack/react-query";
 import { dayjs } from "@wateaminbox/shared";
 import { api } from "@/lib/api/client";
+import {
+  getCaseResolutionStats,
+  getCaseResolutionTrend,
+  getOverdueActiveCases,
+  getTeamCaseResolutionStats,
+} from "@/lib/api/resolution-analytics";
+import type {
+  CaseResolutionStats,
+  CaseResolutionTrendPoint,
+  OverdueCase,
+  TeamCaseResolutionStats,
+} from "@/lib/api/types";
 import { queryKeys } from "../query-keys";
 
 /**
@@ -72,26 +84,9 @@ export interface NewContactsTrend {
 }
 
 /**
- * Resolution statistics
+ * Case-cycle resolution statistics (see @/lib/api/types for the full shape).
  */
-export interface ResolutionStats {
-  totalConversations: number;
-  openConversations: number;
-  pendingConversations: number;
-  resolvedConversations: number;
-  resolutionRate: number;
-  averageResolutionTimeMinutes: number | null;
-}
-
-/**
- * Resolution trend over time
- */
-export interface ResolutionTrend {
-  date: string;
-  resolved: number;
-  total: number;
-  rate: number;
-}
+export type { CaseResolutionStats, CaseResolutionTrendPoint, OverdueCase, TeamCaseResolutionStats };
 
 /**
  * Customer engagement metrics
@@ -295,14 +290,25 @@ export function formatDate(dateStr: string): string {
 }
 
 /**
- * Hook to fetch resolution statistics
+ * Hook to fetch case-cycle resolution statistics (compliance, avg/median
+ * business minutes, overdue active cases, direct/group breakdown).
+ * `startDate`/`endDate` scope which RESOLVED cases count - overdue active
+ * cases are always current, regardless of the range (see the API).
  */
-export function useResolutionStats(companyId: string | null) {
+export function useResolutionStats(
+  companyId: string | null,
+  startDate?: Date,
+  endDate?: Date,
+) {
   return useQuery({
-    queryKey: queryKeys.analytics.resolution(companyId),
+    queryKey: queryKeys.analytics.resolution(
+      companyId,
+      startDate?.toISOString(),
+      endDate?.toISOString(),
+    ),
     queryFn: async () => {
       if (!companyId) throw new Error("No company ID provided");
-      return api.get<ResolutionStats>("/conversations/stats/resolution");
+      return getCaseResolutionStats(startDate, endDate);
     },
     enabled: !!companyId,
     staleTime: 60_000, // 1 minute
@@ -311,36 +317,65 @@ export function useResolutionStats(companyId: string | null) {
 }
 
 /**
- * Hook to fetch resolution trend over time
+ * Hook to fetch resolution trend over time (bucketed by resolved_at, in the
+ * company's current SLA policy timezone).
  */
 export function useResolutionTrend(
   companyId: string | null,
-  startDate?: string,
-  endDate?: string,
+  startDate?: Date,
+  endDate?: Date,
 ) {
-  const params = new URLSearchParams();
-  if (startDate) params.set("startDate", startDate);
-  if (endDate) params.set("endDate", endDate);
-  const queryString = params.toString();
-
   return useQuery({
     queryKey: queryKeys.analytics.resolutionTrend(
       companyId,
-      startDate,
-      endDate,
+      startDate?.toISOString(),
+      endDate?.toISOString(),
     ),
     queryFn: async () => {
       if (!companyId) throw new Error("No company ID provided");
-      const url = `/conversations/stats/resolution-trend${queryString ? `?${queryString}` : ""}`;
-      const response = await api.get<{
-        trend: ResolutionTrend[];
-        meta: { startDate: string; endDate: string };
-      }>(url);
+      const response = await getCaseResolutionTrend(startDate, endDate);
       return response.trend;
     },
     enabled: !!companyId,
     staleTime: 300_000, // 5 minutes
     gcTime: 600_000, // 10 minutes
+  });
+}
+
+/** Hook to fetch resolution attribution by team member. */
+export function useResolutionTeamStats(
+  companyId: string | null,
+  startDate?: Date,
+  endDate?: Date,
+) {
+  return useQuery({
+    queryKey: queryKeys.analytics.resolutionTeam(
+      companyId,
+      startDate?.toISOString(),
+      endDate?.toISOString(),
+    ),
+    queryFn: async () => {
+      if (!companyId) throw new Error("No company ID provided");
+      const response = await getTeamCaseResolutionStats(startDate, endDate);
+      return response.stats;
+    },
+    enabled: !!companyId,
+    staleTime: 300_000, // 5 minutes
+    gcTime: 600_000, // 10 minutes
+  });
+}
+
+/** Hook to fetch the currently-overdue active-case work queue. */
+export function useOverdueActiveCases(companyId: string | null) {
+  return useQuery({
+    queryKey: queryKeys.analytics.resolutionOverdue(companyId),
+    queryFn: async () => {
+      if (!companyId) throw new Error("No company ID provided");
+      return getOverdueActiveCases();
+    },
+    enabled: !!companyId,
+    staleTime: 60_000, // 1 minute
+    gcTime: 300_000, // 5 minutes
   });
 }
 

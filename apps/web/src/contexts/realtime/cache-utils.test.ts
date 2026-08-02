@@ -92,6 +92,45 @@ describe("realtime React Query reconciliation", () => {
     );
   });
 
+  test("reconnect reconciliation invalidates the analytics prefix and the selected conversation's lifecycle detail", () => {
+    const client = new QueryClient();
+    setCompanyId("company-a");
+
+    const analyticsKey = queryKeys.analytics.responseTimeStats("company-a");
+    const otherAnalyticsKey = queryKeys.analytics.resolution(
+      "company-a",
+      "2026-01-01",
+      "2026-01-31",
+    );
+    const lifecycleDetailKey = queryKeys.conversations.detail(
+      "conversation-1",
+    );
+    client.setQueryData(analyticsKey, {});
+    client.setQueryData(otherAnalyticsKey, {});
+    client.setQueryData(lifecycleDetailKey, {});
+
+    reconcileRealtimeState(client, "conversation-1");
+
+    // A single "analytics" prefix invalidation covers every cached
+    // response-time/resolution variant, not just one specific query.
+    expect(client.getQueryState(analyticsKey)?.isInvalidated).toBe(true);
+    expect(client.getQueryState(otherAnalyticsKey)?.isInvalidated).toBe(true);
+    expect(client.getQueryState(lifecycleDetailKey)?.isInvalidated).toBe(
+      true,
+    );
+  });
+
+  test("reconnect reconciliation with no selected conversation still invalidates analytics, but touches no conversation detail", () => {
+    const client = new QueryClient();
+    setCompanyId("company-a");
+    const analyticsKey = queryKeys.analytics.responseTimeStats("company-a");
+    client.setQueryData(analyticsKey, {});
+
+    reconcileRealtimeState(client, null);
+
+    expect(client.getQueryState(analyticsKey)?.isInvalidated).toBe(true);
+  });
+
   test("message and read updates invalidate chat and group projections together", () => {
     const client = new QueryClient();
     const current = seed(client, "company-a");

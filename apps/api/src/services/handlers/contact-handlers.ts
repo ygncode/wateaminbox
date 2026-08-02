@@ -141,12 +141,20 @@ export async function handleContactEvent(event: ContactEvent): Promise<void> {
     // A full conversation event carries WhatsApp's unread snapshot. Persist it
     // in the same table used by both sidebar views instead of deriving unread
     // badges from the number of historical incoming messages.
+    //
+    // Imported history must never open a case or affect either SLA: a
+    // newly-created projection row is explicitly seeded `resolved`/case-free
+    // (overriding the table's `open` default), and an existing row's
+    // status/active_case_id is left untouched on conflict - only the unread
+    // snapshot is refreshed, so this can never resurrect or clobber a live
+    // case that already opened from a real inbound message.
     if (contactId && !payload.nameOnly && payload.unreadCount !== undefined) {
       await tenantDb
         .insertInto("conversation_states")
         .values({
           contact_id: contactId,
           unread_count: Math.max(0, payload.unreadCount),
+          status: "resolved",
           updated_at: toDbDate(),
         })
         .onConflict((oc) =>

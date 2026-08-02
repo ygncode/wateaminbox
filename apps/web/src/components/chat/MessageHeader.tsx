@@ -136,6 +136,9 @@ export function MessageHeader({
 
       {/* Action buttons - hide search on very small screens */}
       <div className="flex items-center gap-0 md:gap-1">
+        {/* Lifecycle actions (Open/Pending/Resolve/Reopen) now live in the
+            composer area, alongside the assignment gate - see ChatPage. */}
+
         {/* The desktop theme control lives in the navigation rail. */}
         <div className="lg:hidden">
           <ThemeToggle />

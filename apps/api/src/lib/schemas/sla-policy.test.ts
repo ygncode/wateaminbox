@@ -25,6 +25,9 @@ function officeHoursSchedule(): SlaWeeklySchedule {
 function validInput(overrides: Record<string, unknown> = {}) {
   return {
     targetMinutes: 60,
+    directResolutionTargetMinutes: 480,
+    groupResponseTargetMinutes: 120,
+    groupResolutionTargetMinutes: 960,
     timezone: "UTC",
     weeklySchedule: alwaysOpenSchedule(),
     exceptions: [],
@@ -266,6 +269,9 @@ describe("createSlaPolicySchema - exceptions", () => {
   test("defaults exceptions to an empty array when omitted", () => {
     const result = createSlaPolicySchema.parse({
       targetMinutes: 60,
+      directResolutionTargetMinutes: 480,
+      groupResponseTargetMinutes: 120,
+      groupResolutionTargetMinutes: 960,
       timezone: "UTC",
       weeklySchedule: alwaysOpenSchedule(),
     });

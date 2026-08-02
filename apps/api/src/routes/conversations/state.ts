@@ -1,75 +1,98 @@
 import { zValidator } from "@hono/zod-validator";
 import { toDbDate } from "@wateaminbox/shared";
+import type { Context } from "hono";
 import { Hono } from "hono";
 import { notFound } from "../../lib/errors.js";
+import { requireMessageSendPermission } from "../../middleware/message-send-policy.js";
 import { successData } from "../../lib/response.js";
-import { resolveConversationSchema } from "../../lib/schemas/index.js";
+import {
+  openConversationSchema,
+  resolveConversationSchema,
+} from "../../lib/schemas/index.js";
 import { getRouteContext } from "../../middleware/context.js";
+import { broadcastToCompany } from "../../lib/realtime.js";
 import { createAuditLog, getClientIp } from "../../services/audit.service.js";
 import {
-  getConversationState,
-  reopenConversation,
-  resolveConversation,
-  setConversationPending,
-} from "../../services/conversation-state.service.js";
-import { broadcastToCompany } from "../../lib/realtime.js";
+  getActiveCase,
+  hasCaseHistory,
+  reopenAsNewCase,
+  resolveActiveCase,
+  resumePendingCase,
+  setActiveCasePending,
+} from "../../services/conversation-case.service.js";
+import { getConversationState } from "../../services/conversation-state.service.js";
 
 export const stateRoutes = new Hono();
 
+async function loadContact(
+  tenantDb: ReturnType<typeof getRouteContext>["tenantDb"],
+  contactId: string,
+) {
+  return tenantDb
+    .selectFrom("contacts")
+    .select(["id", "custom_name", "push_name", "phone_number", "is_group"])
+    .where("id", "=", contactId)
+    .executeTakeFirst();
+}
+
 /**
- * GET /conversations/:id/state - Get the conversation state for a contact
+ * GET /conversations/:id/state - Get the conversation lifecycle state (the
+ * current projection plus the active case, if any) for a contact.
+ * `hasCaseHistory` tells the UI whether Open (no prior case) or Reopen (a
+ * prior, resolved case exists) is the correct label/flow to offer for a
+ * resolved conversation.
  */
 stateRoutes.get("/:id/state", async (c) => {
   const { tenantDb } = getRouteContext(c);
   const contactId = c.req.param("id");
 
-  const state = await getConversationState(tenantDb, contactId);
+  const [state, activeCase, caseHistory] = await Promise.all([
+    getConversationState(tenantDb, contactId),
+    getActiveCase(tenantDb, contactId),
+    hasCaseHistory(tenantDb, contactId),
+  ]);
 
   if (!state) {
     return successData(c, {
       contactId,
-      status: "open",
+      status: "resolved",
       resolvedAt: null,
       resolvedBy: null,
       reopenedAt: null,
       reopenedBy: null,
       resolutionNotes: null,
+      activeCase: null,
+      hasCaseHistory: caseHistory,
     });
   }
 
-  return successData(c, state);
+  return successData(c, { ...state, activeCase, hasCaseHistory: caseHistory });
 });
 
 /**
- * POST /conversations/:id/resolve - Mark a conversation as resolved
+ * POST /conversations/:id/resolve - Resolve the contact's active case with
+ * a required close outcome (and notes, if the outcome is `other`).
  */
 stateRoutes.post(
   "/:id/resolve",
+  requireMessageSendPermission,
   zValidator("json", resolveConversationSchema),
   async (c) => {
     const { tenantDb, user, companyId } = getRouteContext(c);
     const contactId = c.req.param("id");
-    const { notes } = c.req.valid("json");
+    const { outcome, notes } = c.req.valid("json");
 
-    // Verify contact exists
-    const contact = await tenantDb
-      .selectFrom("contacts")
-      .select(["id", "custom_name", "push_name", "phone_number"])
-      .where("id", "=", contactId)
-      .executeTakeFirst();
-
+    const contact = await loadContact(tenantDb, contactId);
     if (!contact) {
       return notFound(c, "Contact");
     }
 
-    const state = await resolveConversation(
-      tenantDb,
-      contactId,
-      user.id,
+    const resolvedCase = await resolveActiveCase(tenantDb, contactId, {
+      outcome,
       notes,
-    );
+      resolvedBy: user.id,
+    });
 
-    // Create audit log
     await createAuditLog({
       companyId,
       userId: user.id,
@@ -80,6 +103,8 @@ stateRoutes.post(
         contactId,
         contactName:
           contact.custom_name || contact.push_name || contact.phone_number,
+        caseId: resolvedCase.id,
+        outcome,
         notes,
       },
       ipAddress: getClientIp(c.req.raw.headers),
@@ -88,85 +113,191 @@ stateRoutes.post(
     await broadcastToCompany(companyId, "conversation:updated", {
       event: "resolved",
       contactId,
+      caseId: resolvedCase.id,
       resolvedBy: user.id,
-      resolvedAt: state.resolvedAt?.toISOString(),
+      resolvedAt: resolvedCase.resolvedAt?.toISOString(),
     });
 
-    return successData(c, state);
+    return successData(c, resolvedCase);
   },
 );
 
 /**
- * POST /conversations/:id/reopen - Reopen a resolved conversation
+ * Shared implementation for manual Open and Reopen. `expectedMode` is which
+ * endpoint was actually hit - `/open` requires there to be NO prior case
+ * history, `/reopen` requires there to BE some; a mismatch (a stale client
+ * view of `hasCaseHistory` racing a concurrent auto-reopen or resolve) is a
+ * controlled 409, never a silent fallthrough into the other transition. See
+ * `reopenAsNewCase`'s `expectedMode` doc comment.
  */
-stateRoutes.post("/:id/reopen", async (c) => {
+async function performManualOpenOrReopen(
+  c: Context,
+  expectedMode: "open" | "reopen",
+  reason: string | undefined,
+) {
   const { tenantDb, user, companyId } = getRouteContext(c);
   const contactId = c.req.param("id");
 
-  // Verify contact exists
-  const contact = await tenantDb
-    .selectFrom("contacts")
-    .select(["id", "custom_name", "push_name", "phone_number"])
-    .where("id", "=", contactId)
-    .executeTakeFirst();
-
+  const contact = await loadContact(tenantDb, contactId);
   if (!contact) {
     return notFound(c, "Contact");
   }
 
-  const state = await reopenConversation(tenantDb, contactId, user.id);
+  const newCase = await reopenAsNewCase(
+    tenantDb,
+    { id: contactId, isGroup: contact.is_group },
+    { companyId, openedBy: user.id, reason, expectedMode },
+  );
+  const wasReopen = Boolean(newCase.reopenedFromCaseId);
 
-  // Create audit log
   await createAuditLog({
     companyId,
     userId: user.id,
-    action: "conversation.reopened",
+    action: wasReopen ? "conversation.reopened" : "conversation.opened",
     entityType: "conversation",
     entityId: contactId,
     details: {
       contactId,
       contactName:
         contact.custom_name || contact.push_name || contact.phone_number,
+      caseId: newCase.id,
+      reopenedFromCaseId: newCase.reopenedFromCaseId,
+      reason,
     },
     ipAddress: getClientIp(c.req.raw.headers),
   });
 
   await broadcastToCompany(companyId, "conversation:updated", {
-    event: "reopened",
+    event: wasReopen ? "reopened" : "opened",
     contactId,
-    reopenedBy: user.id,
-    reopenedAt: state.reopenedAt?.toISOString(),
+    caseId: newCase.id,
+    // Field names track the ACTUAL transition (`wasReopen`), never the
+    // endpoint name - a genuine first-ever open must never be reported
+    // under reopenedBy/reopenedAt, and vice versa.
+    ...(wasReopen
+      ? {
+          reopenedBy: user.id,
+          reopenedAt: newCase.openedAt.toISOString(),
+        }
+      : {
+          openedBy: user.id,
+          openedAt: newCase.openedAt.toISOString(),
+        }),
   });
 
-  return successData(c, state);
-});
+  return successData(c, newCase);
+}
 
 /**
- * POST /conversations/:id/pending - Set a conversation to pending status
+ * POST /conversations/:id/open - Manually open a conversation that has
+ * never had a case. Reason is optional (there's nothing prior to justify
+ * reopening). If a prior case actually exists, this returns a 409 instead
+ * of transparently reopening - the caller's view is stale and must refetch
+ * and use `/reopen`.
  */
-stateRoutes.post("/:id/pending", async (c) => {
-  const { tenantDb, companyId } = getRouteContext(c);
+stateRoutes.post(
+  "/:id/open",
+  requireMessageSendPermission,
+  zValidator("json", openConversationSchema.optional().default({})),
+  (c) => performManualOpenOrReopen(c, "open", c.req.valid("json").reason),
+);
+
+/**
+ * POST /conversations/:id/reopen - Manually reopen a resolved conversation
+ * as a brand-new case (the previous case is preserved, never mutated).
+ * Requires `reason`. If there is no prior case history at all, returns a
+ * 409 instead of transparently opening - the caller's view is stale and
+ * must refetch and use `/open`.
+ */
+stateRoutes.post(
+  "/:id/reopen",
+  requireMessageSendPermission,
+  zValidator("json", openConversationSchema.optional().default({})),
+  (c) => performManualOpenOrReopen(c, "reopen", c.req.valid("json").reason),
+);
+
+/**
+ * POST /conversations/:id/pending - Mark the contact's active case pending.
+ * Stays within the same case; does not pause either SLA clock.
+ */
+stateRoutes.post("/:id/pending", requireMessageSendPermission, async (c) => {
+  const { tenantDb, user, companyId } = getRouteContext(c);
   const contactId = c.req.param("id");
 
-  // Verify contact exists
-  const contact = await tenantDb
-    .selectFrom("contacts")
-    .select(["id"])
-    .where("id", "=", contactId)
-    .executeTakeFirst();
-
+  const contact = await loadContact(tenantDb, contactId);
   if (!contact) {
     return notFound(c, "Contact");
   }
 
-  const state = await setConversationPending(tenantDb, contactId);
+  const pendingCase = await setActiveCasePending(tenantDb, contactId, user.id);
+
+  // A live inbound can flip a pending case back to open at any moment (see
+  // conversation-case.service.ts), so this transition otherwise leaves no
+  // trace once that happens - the audit log is the only durable record
+  // that an agent deliberately paused it.
+  await createAuditLog({
+    companyId,
+    userId: user.id,
+    action: "conversation.pending",
+    entityType: "conversation",
+    entityId: contactId,
+    details: {
+      contactId,
+      contactName:
+        contact.custom_name || contact.push_name || contact.phone_number,
+      caseId: pendingCase.id,
+    },
+    ipAddress: getClientIp(c.req.raw.headers),
+  });
 
   await broadcastToCompany(companyId, "conversation:updated", {
     event: "pending",
     contactId,
+    caseId: pendingCase.id,
   });
 
-  return successData(c, state);
+  return successData(c, pendingCase);
+});
+
+/**
+ * POST /conversations/:id/resume - Resume a pending case back to open.
+ * The SAME case (never a new one) - `opened_at` and both SLA clocks are
+ * unaffected, since `pending` never paused them. Distinct from `/open`
+ * (which always starts a brand-new case for a contact with none active).
+ */
+stateRoutes.post("/:id/resume", requireMessageSendPermission, async (c) => {
+  const { tenantDb, user, companyId } = getRouteContext(c);
+  const contactId = c.req.param("id");
+
+  const contact = await loadContact(tenantDb, contactId);
+  if (!contact) {
+    return notFound(c, "Contact");
+  }
+
+  const openedCase = await resumePendingCase(tenantDb, contactId, user.id);
+
+  await createAuditLog({
+    companyId,
+    userId: user.id,
+    action: "conversation.resumed",
+    entityType: "conversation",
+    entityId: contactId,
+    details: {
+      contactId,
+      contactName:
+        contact.custom_name || contact.push_name || contact.phone_number,
+      caseId: openedCase.id,
+    },
+    ipAddress: getClientIp(c.req.raw.headers),
+  });
+
+  await broadcastToCompany(companyId, "conversation:updated", {
+    event: "resumed",
+    contactId,
+    caseId: openedCase.id,
+  });
+
+  return successData(c, openedCase);
 });
 
 /**

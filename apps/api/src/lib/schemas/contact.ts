@@ -54,6 +54,8 @@ export const listContactsQuerySchema = paginationSchema.extend({
     .string()
     .optional()
     .transform((val) => val === "true"),
+  /** Conversation lifecycle filter. Defaults to "open" (see the inbox's default view) when omitted by callers that opt in; "all" removes the filter entirely. */
+  conversationStatus: z.enum(["open", "pending", "resolved", "all"]).optional(),
 });
 
 export type ListContactsQuery = z.infer<typeof listContactsQuerySchema>;

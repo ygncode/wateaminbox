@@ -210,7 +210,11 @@ export function Dashboard({
                   isTeamError={isTeamError}
                   isAdmin={isAdmin}
                 />
-                <ResolutionRateSection companyId={companyId} />
+                <ResolutionRateSection
+                  companyId={companyId}
+                  dateRange={dateRange}
+                  isAdmin={isAdmin}
+                />
                 <CustomerEngagementSection
                   companyId={companyId}
                   startDate={startDate}

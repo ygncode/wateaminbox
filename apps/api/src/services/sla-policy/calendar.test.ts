@@ -9,6 +9,7 @@ import {
   isValidHHmm,
   isValidIanaTimeZone,
   isValidLocalDateString,
+  OVERDUE_STRICT_EPSILON_MINUTES,
   type SlaCalendar,
 } from "./calendar.js";
 
@@ -275,6 +276,49 @@ describe("businessMinutesBetween - earlyExitAt", () => {
     const start = new Date("2026-01-01T00:00:00Z");
     const end = new Date("2026-01-02T00:00:00Z");
     expect(businessMinutesBetween(cal, start, end)).toBeCloseTo(1440, 5);
+  });
+
+  // 2026-06-01 is a Monday: OFFICE_HOURS_UTC is open 09:00-17:00 UTC that
+  // day (480 business minutes), then closed until Tuesday 09:00 UTC.
+  test("a bare-target earlyExitAt can stop exactly AT the target on a prior day boundary, silently under-reporting elapsed time relative to `end` - the false-negative this bug describes", () => {
+    const cal = calendar();
+    const start = new Date("2026-06-01T09:00:00Z"); // Monday 09:00
+    const end = new Date("2026-06-02T10:00:00Z"); // Tuesday 10:00 - an hour into the next business day
+    const target = 480; // exactly one full business day
+
+    const buggy = businessMinutesBetween(cal, start, end, {
+      earlyExitAt: target,
+    });
+    // Stops the instant Monday's 480 minutes are tallied, never walking
+    // into Tuesday - even though real elapsed time (up to `end`) is 540.
+    expect(buggy).toBe(480);
+    expect(buggy > target).toBe(false);
+  });
+
+  test("a strict earlyExitAt (target + OVERDUE_STRICT_EPSILON_MINUTES) forces the walk past a day boundary that lands exactly on the target, correctly surfacing that more than the target has elapsed", () => {
+    const cal = calendar();
+    const start = new Date("2026-06-01T09:00:00Z"); // Monday 09:00
+    const end = new Date("2026-06-02T10:00:00Z"); // Tuesday 10:00
+    const target = 480;
+
+    const strict = businessMinutesBetween(cal, start, end, {
+      earlyExitAt: target + OVERDUE_STRICT_EPSILON_MINUTES,
+    });
+    expect(strict).toBeCloseTo(540, 5);
+    expect(strict > target).toBe(true);
+  });
+
+  test("exactly-at-target with no further business time available (end coincides with the target) is still reported as exactly the target, not inflated by the epsilon", () => {
+    const cal = calendar();
+    const start = new Date("2026-06-01T09:00:00Z"); // Monday 09:00
+    const end = new Date("2026-06-01T17:00:00Z"); // Monday 17:00 - exactly the target, and `end` itself
+    const target = 480;
+
+    const strict = businessMinutesBetween(cal, start, end, {
+      earlyExitAt: target + OVERDUE_STRICT_EPSILON_MINUTES,
+    });
+    expect(strict).toBe(480);
+    expect(strict > target).toBe(false);
   });
 });
 

@@ -2,15 +2,15 @@
  * Response time analytics - calendar-aware SLA.
  *
  * All figures here (response times, compliance, breaches, team stats) are
- * measured in BUSINESS minutes against each response episode's own
- * historical SLA policy: the policy version that was active when that
- * episode's first inbound message arrived (see episode-resolution.ts).
- * Editing the current policy later never rewrites past results, and a
- * dashboard date range can transparently span multiple policy versions.
+ * measured in BUSINESS minutes against each response episode's own case's
+ * snapshotted SLA policy (see episode-resolution.ts). Editing the current
+ * policy later never rewrites past results, and a dashboard date range can
+ * transparently span multiple policy versions.
  *
  * Business minutes (not wall-clock minutes) are used consistently
  * throughout - see ../sla-policy/calendar.ts for the calendar math and
- * episode-outcome.ts for how each episode's outcome is derived.
+ * episode-outcome.ts for how each episode's outcome is derived, including
+ * terminal (case-closed) unanswered episodes.
  */
 
 import { db } from "@wateaminbox/database";
@@ -26,6 +26,7 @@ import { fetchEpisodesWithPolicy } from "./episode-resolution.js";
 import type {
   ResponseTimeByDate,
   ResponseTimeStats,
+  ResponseTimeStatsCore,
   SlaBreach,
   TeamResponseTimeStats,
 } from "./types.js";
@@ -46,10 +47,18 @@ function median(values: number[]): number {
 }
 
 function isCountedInCompliance(outcome: EpisodeOutcome): boolean {
+  // An unanswered episode whose case was closed with a valid response-SLA
+  // exclusion (no_reply_needed/spam/duplicate) is reported separately and
+  // NEVER counted compliant - it must not inflate the compliance rate.
+  // `handled`/`other` never set `exclusionOutcome` (see episode-outcome.ts),
+  // so they can never silently launder an unanswered episode this way.
+  if (outcome.exclusionOutcome) return false;
   // Answered episodes always count (whatever their outcome); unanswered
-  // episodes count only once they're already overdue (a still-pending
-  // unanswered episode younger than the target is neither compliant nor
-  // a breach yet, so it's excluded from the denominator either way).
+  // episodes count once they're either already overdue (still-open case)
+  // or terminally unanswered (case closed without a valid exclusion - an
+  // immediate, permanent breach). A still-pending unanswered episode
+  // younger than the target, in a still-open case, is excluded from the
+  // denominator either way (neither compliant nor a breach yet).
   return outcome.responseTime !== null || outcome.isOverdueUnanswered;
 }
 
@@ -60,33 +69,11 @@ function isWithinSla(outcome: EpisodeOutcome): boolean {
   );
 }
 
-/**
- * Calculate response times for conversations.
- *
- * `totalConversations`/`withinSlaCount` (and therefore `slaComplianceRate`)
- * include every answered episode plus unanswered episodes that are already
- * overdue (elapsed business minutes > target) - matching `getSlaBreaches`.
- * Still-pending unanswered episodes are excluded (neither compliant nor a
- * breach yet).
- *
- * `averageResponseTimeMinutes`/`medianResponseTimeMinutes`/
- * `maxResponseTimeMinutes`/`minResponseTimeMinutes` are computed over
- * ANSWERED episodes only, in business minutes - an unanswered episode has
- * no response time to average.
- */
-export async function getResponseTimeStats(
-  companyId: string,
-  startDate: Date,
-  endDate: Date,
-  targetOverrideMinutes?: number,
-): Promise<ResponseTimeStats> {
-  const rows = await fetchEpisodesWithPolicy(companyId, startDate, endDate);
-  const now = new Date();
-  const outcomes = rows
-    .map((row) => computeEpisodeOutcome(row, targetOverrideMinutes, now))
-    .filter((o): o is EpisodeOutcome => o !== null);
-
+function computeStatsForOutcomes(
+  outcomes: EpisodeOutcome[],
+): ResponseTimeStatsCore {
   const complianceSet = outcomes.filter(isCountedInCompliance);
+  const excludedCount = outcomes.filter((o) => o.exclusionOutcome).length;
   const answeredMinutes = outcomes
     .filter((o) => o.responseMinutes !== null)
     .map((o) => o.responseMinutes as number);
@@ -106,7 +93,50 @@ export async function getResponseTimeStats(
     withinSlaCount,
     slaComplianceRate:
       totalConversations > 0 ? (withinSlaCount / totalConversations) * 100 : 0,
+    excludedCount,
   };
+}
+
+/**
+ * Calculate response times for conversations.
+ *
+ * `totalConversations`/`withinSlaCount` (and therefore `slaComplianceRate`)
+ * include every answered episode plus unanswered episodes that are already
+ * overdue (still-open case) or terminally unanswered (closed case, no valid
+ * exclusion) - matching `getSlaBreaches`. Still-pending unanswered episodes
+ * in a still-open case are excluded (neither compliant nor a breach yet).
+ * `excludedCount` is reported separately and is never counted compliant.
+ *
+ * `averageResponseTimeMinutes`/`medianResponseTimeMinutes`/
+ * `maxResponseTimeMinutes`/`minResponseTimeMinutes` are computed over
+ * ANSWERED episodes only, in business minutes - an unanswered episode has
+ * no response time to average.
+ *
+ * `byKind` breaks the same figures down by direct vs. group conversations -
+ * each case (and therefore each of its episodes) already carries its own
+ * kind-resolved target, so this is a pure re-aggregation, not a new query.
+ */
+export async function getResponseTimeStats(
+  companyId: string,
+  startDate: Date,
+  endDate: Date,
+  targetOverrideMinutes?: number,
+): Promise<ResponseTimeStats> {
+  const rows = await fetchEpisodesWithPolicy(companyId, startDate, endDate);
+  const now = new Date();
+  const outcomes = rows
+    .map((row) => computeEpisodeOutcome(row, targetOverrideMinutes, now))
+    .filter((o): o is EpisodeOutcome => o !== null);
+
+  const overall = computeStatsForOutcomes(outcomes);
+  const direct = computeStatsForOutcomes(
+    outcomes.filter((o) => o.caseKind === "direct"),
+  );
+  const group = computeStatsForOutcomes(
+    outcomes.filter((o) => o.caseKind === "group"),
+  );
+
+  return { ...overall, byKind: { direct, group } };
 }
 
 /**
@@ -275,13 +305,14 @@ export async function getTeamResponseTimeStats(
  * - it has already been answered and the reply took longer (in business
  *   minutes) than the SLA target - however long after the inbound message
  *   that reply landed, no arbitrary time window excludes it - or
- * - it is still unanswered AND its elapsed BUSINESS minutes have exceeded
- *   the target. An unanswered episode younger than the target is still
- *   pending, not a breach yet.
+ * - it is still unanswered and either the still-open case has already
+ *   exceeded the target, or the case has closed without a valid exclusion
+ *   (an immediate, permanent breach - see episode-outcome.ts).
  *
  * For unanswered breaches, the exact elapsed-minutes magnitude (used for
- * sorting/display) is only computed for episodes already confirmed to be
- * breaches via the cheap early-exit check - avoiding a full calendar walk
+ * sorting/display) is fixed at the case's `resolved_at` once it has closed,
+ * and is only computed against "now" for still-open breaches already
+ * confirmed via the cheap early-exit check - avoiding a full calendar walk
  * for the (usually much larger) set of still-compliant pending episodes.
  */
 export async function getSlaBreaches(
@@ -304,7 +335,9 @@ export async function getSlaBreaches(
       outcome.responseMinutes !== null &&
       outcome.responseMinutes > outcome.effectiveTargetMinutes;
     const isUnansweredBreach =
-      outcome.responseTime === null && outcome.isOverdueUnanswered;
+      outcome.responseTime === null &&
+      outcome.isOverdueUnanswered &&
+      !outcome.exclusionOutcome;
 
     if (!isAnsweredBreach && !isUnansweredBreach) continue;
 
@@ -315,8 +348,12 @@ export async function getSlaBreaches(
     breaches.push({
       contactId: row.contactId,
       contactName: row.contactName,
-      inboundMessageTime: row.inboundTime,
-      responseTime: row.responseTime,
+      // Display fields use the original WhatsApp-supplied timestamp - the
+      // compliance decision above (isAnsweredBreach/isUnansweredBreach/
+      // responseMinutes) already used the authoritative server-ingestion
+      // time via computeEpisodeOutcome. See episode-resolution.ts.
+      inboundMessageTime: row.displayInboundTime,
+      responseTime: row.displayResponseTime,
       responseMinutes,
       respondedBy: row.respondedBy,
     });

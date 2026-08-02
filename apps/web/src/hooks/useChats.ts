@@ -20,6 +20,12 @@ import { queryKeys } from "./query-keys";
 export type AssignmentFilter = "all" | "assignedToMe" | "unassigned" | "unread";
 
 /**
+ * Conversation lifecycle filter. Defaults to "open" - the common inbox
+ * default, with Pending/Resolved/All one tap away (see ChatSidebar).
+ */
+export type ConversationStatusFilter = "open" | "pending" | "resolved" | "all";
+
+/**
  * Chat list filters for query keys
  */
 interface ChatListFilters {
@@ -27,6 +33,7 @@ interface ChatListFilters {
   includeGroups?: boolean;
   assignmentFilter?: AssignmentFilter;
   connectionId?: string;
+  conversationStatus?: ConversationStatusFilter;
 }
 
 /**
@@ -52,6 +59,7 @@ export function buildChatListQueryParams(
   includeGroups: boolean,
   assignmentFilter: AssignmentFilter,
   connectionId?: string,
+  conversationStatus: ConversationStatusFilter = "open",
 ): Record<string, unknown> {
   const params: Record<string, unknown> = { limit: 100 };
   if (searchQuery.trim()) params.search = searchQuery;
@@ -62,18 +70,21 @@ export function buildChatListQueryParams(
   } else if (assignmentFilter === "unassigned") {
     params.unassigned = "true";
   }
+  params.conversationStatus = conversationStatus;
   return params;
 }
 
 /**
  * Hook to fetch and manage chat list data
- * Supports search filtering, group inclusion, and assignment filtering
+ * Supports search filtering, group inclusion, assignment filtering, and the
+ * Open/Pending/Resolved/All conversation lifecycle filter.
  */
 export function useChats(
   searchQuery: string = "",
   includeGroups: boolean = true,
   assignmentFilter: AssignmentFilter = "all",
   connectionId?: string,
+  conversationStatus: ConversationStatusFilter = "open",
 ) {
   const companyId = getCompanyId();
 
@@ -85,8 +96,16 @@ export function useChats(
         includeGroups,
         assignmentFilter,
         connectionId,
+        conversationStatus,
       }),
-    [companyId, searchQuery, includeGroups, assignmentFilter, connectionId],
+    [
+      companyId,
+      searchQuery,
+      includeGroups,
+      assignmentFilter,
+      connectionId,
+      conversationStatus,
+    ],
   );
 
   return useQuery<Chat[], Error>({
@@ -111,6 +130,7 @@ export function useChats(
           includeGroups,
           assignmentFilter,
           connectionId,
+          conversationStatus,
         ),
       );
       const result = await api.get<ContactsListResponse>(
@@ -205,6 +225,10 @@ export function useGroupsAsChats(searchQuery: string = "") {
           isMuted: false,
           isArchived: false,
           updatedAt: toDate(group.createdAt) ?? new Date(),
+          // /groups doesn't carry lifecycle data; deprecated in favor of
+          // useGroups (useGroups.ts), which is wired into GroupList directly.
+          conversationStatus: "open",
+          activeCaseId: null,
         }),
       );
     },

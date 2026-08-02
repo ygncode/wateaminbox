@@ -18,6 +18,22 @@ export interface ContactFilterOptions {
   userId?: string;
   /** Force results to active assignments owned by userId. */
   restrictToAssigned?: boolean;
+  /** Filter by conversation lifecycle status. "all" (or omitted) applies no filter. */
+  conversationStatus?: "open" | "pending" | "resolved" | "all";
+}
+
+/**
+ * Build conversation-lifecycle filter SQL clause for raw SQL queries.
+ * A contact with no conversation_states row (never messaged, or created
+ * directly rather than through history/live sync) is treated as "resolved" -
+ * the same non-SLA baseline every existing conversation was closed into by
+ * migration 061.
+ */
+export function buildConversationStatusClause(
+  conversationStatus?: "open" | "pending" | "resolved" | "all",
+): RawBuilder<unknown> {
+  if (!conversationStatus || conversationStatus === "all") return sql``;
+  return sql`COALESCE(cs.status, 'resolved') = ${conversationStatus}`;
 }
 
 /**
@@ -93,6 +109,7 @@ export function buildContactWhereClause(options: ContactFilterOptions): {
     unassigned,
     userId,
     restrictToAssigned,
+    conversationStatus,
   } = options;
 
   const conditions: RawBuilder<unknown>[] = [];
@@ -100,6 +117,9 @@ export function buildContactWhereClause(options: ContactFilterOptions): {
   if (!includeGroups) conditions.push(buildGroupClause(includeGroups));
   if (connectionId) {
     conditions.push(sql`c.whatsapp_connection_id = ${connectionId}`);
+  }
+  if (conversationStatus && conversationStatus !== "all") {
+    conditions.push(buildConversationStatusClause(conversationStatus));
   }
 
   const hasAssignmentFilter = Boolean(

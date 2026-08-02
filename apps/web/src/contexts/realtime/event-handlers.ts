@@ -40,6 +40,18 @@ import {
 
 export type { SyncState } from "./sync-state";
 
+interface ConversationUpdatedPayload {
+  event:
+    | "opened"
+    | "auto_reopened"
+    | "resolved"
+    | "reopened"
+    | "pending"
+    | "resumed";
+  contactId: string;
+  caseId?: string;
+}
+
 interface RealtimeEventHandlerOptions {
   queryClient: QueryClient;
   companyId: string;
@@ -199,10 +211,43 @@ export function registerRealtimeEventHandlers({
     bindEvent<ConversationReadPayload>("conversation:read", () => {
       invalidateChatList(qc);
     }),
-    bindEvent("conversation:updated", () => invalidateChatList(qc)),
-    bindEvent("contact:updated", () => {
+    bindEvent<ConversationUpdatedPayload>("conversation:updated", (data) => {
+      invalidateChatList(qc);
+      // A lifecycle mutation (resolve/pending/open/reopen, or an automatic
+      // reopen from a live inbound) can change every response/resolution
+      // analytics number a dashboard has cached - invalidate the whole
+      // "analytics" prefix, not just this contact's chat/detail view.
+      qc.invalidateQueries({ queryKey: queryKeys.analytics.all });
+      const payload = data.payload;
+      if (payload?.contactId) {
+        qc.invalidateQueries({
+          queryKey: queryKeys.conversations.detail(payload.contactId),
+        });
+      }
+      // A live inbound message can auto-reopen a resolved conversation
+      // server-side (see conversation-case.service.ts) - surface that so an
+      // agent watching the resolved/all view notices without a refresh.
+      if (payload?.event === "auto_reopened") {
+        showRealtimeToast({
+          type: "info",
+          title: "Conversation reopened",
+          message: "A new message reopened a resolved conversation.",
+        });
+      }
+    }),
+    bindEvent<{ contactId?: string }>("contact:updated", (data) => {
       invalidateChatList(qc);
       qc.invalidateQueries({ queryKey: queryKeys.groups.details() });
+      // A reassignment (including a takeover) changes who can send here -
+      // invalidate this contact's detail (assignment) immediately so the
+      // composer's assignment gate reflects it without waiting on a
+      // manual refresh.
+      const contactId = data.payload?.contactId;
+      if (contactId) {
+        qc.invalidateQueries({
+          queryKey: queryKeys.contacts.detail(contactId),
+        });
+      }
     }),
     bindEvent("labels:updated", () => {
       qc.invalidateQueries({ queryKey: ["labels", companyId] });
@@ -338,7 +383,16 @@ export function reconcileRealtimeState(
   invalidateChatList(queryClient);
   queryClient.invalidateQueries({ queryKey: queryKeys.contacts.details() });
   queryClient.invalidateQueries({ queryKey: queryKeys.groups.details() });
+  // A dropped connection can miss "conversation:updated" events entirely -
+  // reconciliation must catch up analytics numbers the same way the live
+  // event handler does.
+  queryClient.invalidateQueries({ queryKey: queryKeys.analytics.all });
   if (selectedConversationId) {
     refetchConversationMessages(queryClient, selectedConversationId);
+    // Lifecycle state (status/activeCase/hasCaseHistory) for the currently
+    // open conversation can also have changed while disconnected.
+    queryClient.invalidateQueries({
+      queryKey: queryKeys.conversations.detail(selectedConversationId),
+    });
   }
 }

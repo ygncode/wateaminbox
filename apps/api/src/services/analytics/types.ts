@@ -48,7 +48,7 @@ export interface TeamActivityStats {
 /**
  * Response time statistics
  */
-export interface ResponseTimeStats {
+export interface ResponseTimeStatsCore {
   averageResponseTimeMinutes: number;
   medianResponseTimeMinutes: number;
   maxResponseTimeMinutes: number;
@@ -56,6 +56,15 @@ export interface ResponseTimeStats {
   totalConversations: number;
   withinSlaCount: number;
   slaComplianceRate: number;
+  /** Unanswered episodes excluded via a valid response-SLA exclusion outcome (no_reply_needed/spam/duplicate) - never counted compliant. */
+  excludedCount: number;
+}
+
+export interface ResponseTimeStats extends ResponseTimeStatsCore {
+  byKind: {
+    direct: ResponseTimeStatsCore;
+    group: ResponseTimeStatsCore;
+  };
 }
 
 /**

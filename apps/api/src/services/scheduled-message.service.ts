@@ -32,6 +32,12 @@ import {
   markBulkJobRunning,
 } from "./bulk-job.service.js";
 import { enqueueCommand } from "./command-outbox.service.js";
+import { resolveActiveCaseIdForContact } from "./conversation-case.service.js";
+import {
+  ContactAssignedToOtherError,
+  requireSendAccess,
+} from "./send-access.service.js";
+import { NoActiveCaseError } from "../lib/errors.js";
 import { getTenantConnection, type TenantDatabase } from "./tenant.service.js";
 import { getUserAvatarSources, getUserNames } from "./user.service.js";
 import { getActiveSessionId } from "./whatsapp/session.js";
@@ -290,6 +296,50 @@ async function sendScheduledMessage(
   );
 
   await tenantDb.transaction().execute(async (trx) => {
+    // Bulk/broadcast rows intentionally bypass both checks: a bulk job has
+    // no single "assignee" concept (it's a company-wide broadcast, not one
+    // agent's conversation) and its recipients' lifecycle state is
+    // deliberately not gated the way a normal 1:1 schedule is - see the
+    // BulkSkipError revalidation above for what bulk rows DO still
+    // re-check (contact/connection eligibility).
+    //
+    // Non-bulk rows re-run the SAME assignment/lifecycle access check a
+    // live interactive send would, using `row.created_by` as the acting
+    // user: the conversation was explicitly authored and queued while
+    // there was an active case owned by that user, but a takeover or a
+    // resolve can happen at any point before the scheduled time arrives.
+    // Dispatching anyway would let an old assignee's queued message land
+    // after someone else has taken over, or resurrect a resolved
+    // conversation's SLA clock without ever going through Open/Reopen.
+    // `claimUnassigned: false` - dispatch must never itself claim an
+    // unassigned contact as a side effect; an unassigned contact is simply
+    // allowed to dispatch as long as an active case exists (requireSendAccess
+    // still enforces the lifecycle check either way - it only skips the
+    // assignment claim, not the active-case requirement).
+    let caseId: string | null;
+    if (row.bulk_job_id) {
+      caseId = await resolveActiveCaseIdForContact(trx, row.contact_id);
+    } else {
+      try {
+        const access = await requireSendAccess(
+          trx,
+          row.contact_id,
+          row.created_by,
+          { claimUnassigned: false },
+        );
+        caseId = access.caseId;
+      } catch (error) {
+        if (
+          error instanceof ContactAssignedToOtherError ||
+          error instanceof NoActiveCaseError
+        ) {
+          // Neither condition resolves itself on retry - the assignee (or
+          // lack of an active case) won't revert on its own.
+          throw new PermanentDispatchError(error.message);
+        }
+        throw error;
+      }
+    }
     await trx
       .insertInto("messages")
       .values({
@@ -308,6 +358,7 @@ async function sendScheduledMessage(
         status: "pending",
         timestamp: createdAt,
         created_at: createdAt,
+        case_id: caseId,
       })
       .execute();
     await enqueueCommand(

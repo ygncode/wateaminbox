@@ -12,6 +12,13 @@ export {
   getSlaBreaches,
   getTeamResponseTimeStats,
 } from "./analytics.js";
+// Re-export resolution (case-cycle) analytics functions
+export {
+  getCaseResolutionStats,
+  getCaseResolutionTrend,
+  getOverdueActiveCases,
+  getTeamCaseResolutionStats,
+} from "./resolution-analytics.js";
 // Re-export auth functions
 export {
   changeCurrentUserPassword,

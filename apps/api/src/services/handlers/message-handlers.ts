@@ -27,6 +27,10 @@ import {
   type SendFailedEvent,
 } from "../../lib/nats/index.js";
 import { broadcastToCompany } from "../../lib/realtime.js";
+import {
+  openOrReopenCaseForInboundMessage,
+  resolveActiveCaseIdForContact,
+} from "../conversation-case.service.js";
 import { indexMessage, type MessageDocument } from "../meilisearch.service.js";
 import { sendPushToUsers } from "../notification-delivery.service.js";
 import { resolveIncomingMessageRecipients } from "../notification-recipient.service.js";
@@ -253,62 +257,76 @@ export async function handleMessageEvent(event: MessageEvent): Promise<void> {
       : "delivered";
 
     const messageId = crypto.randomUUID();
-    const insertQuery = tenantDb.insertInto("messages").values({
-      id: messageId,
-      whatsapp_connection_id: connection.id,
-      contact_id: contact.id,
-      message_id: payload.messageId,
-      from_me: payload.fromMe,
-      sender_jid: normalizedSenderJid,
-      sender_name: senderName,
-      sender_avatar_url: null,
-      message_type: payload.messageType as MessageType,
-      content: payload.content,
-      metadata: payload.protocolSenderJid
-        ? { protocolSenderJid: payload.protocolSenderJid }
-        : null,
-      media_url: payload.mediaUrl || null,
-      media_mime_type: payload.mediaType || null,
-      media_size: payload.mediaSize || null,
-      // Deferred media download fields
-      media_direct_path: payload.mediaDirectPath || null,
-      media_key: payload.mediaKey
-        ? Buffer.from(payload.mediaKey, "base64")
-        : null,
-      media_file_sha256: payload.mediaFileSha256
-        ? Buffer.from(payload.mediaFileSha256, "base64")
-        : null,
-      media_file_enc_sha256: payload.mediaFileEncSha256
-        ? Buffer.from(payload.mediaFileEncSha256, "base64")
-        : null,
-      media_download_status: mediaDownloadStatus,
-      quoted_message_id: payload.quotedMessageId || null,
-      is_forwarded: false,
-      is_starred: false,
-      deleted_by_sender: false,
-      status: messageStatus,
-      timestamp: toDbDate(payload.timestamp),
-      created_at: toDbDate(),
-    });
 
-    // A reconnect can resend history that was previously imported without its
-    // group participant. Update just the sender fields so that a new history
-    // sync repairs those existing rows without duplicating messages.
-    const insertResult = payload.isHistorySync
-      ? await insertQuery
-          .onConflict((oc) =>
-            oc.columns(["whatsapp_connection_id", "message_id"]).doUpdateSet({
-              from_me: payload.fromMe,
-              sender_jid: normalizedSenderJid,
-              sender_name: senderName,
-              metadata: payload.protocolSenderJid
-                ? { protocolSenderJid: payload.protocolSenderJid }
-                : null,
-              quoted_message_id: payload.quotedMessageId || null,
-              // History sync contains the original WhatsApp status. Merge it
-              // monotonically so imported messages get their old double ticks
-              // without regressing newer realtime receipt state.
-              status: sql<MessageStatus>`CASE
+    // The message insert, unread-count/last-message projection update, and
+    // conversation-case open/reopen must succeed or fail together: a case
+    // opening without its triggering message being durably stored (or vice
+    // versa) would corrupt the SLA clock. See conversation-case.service.ts
+    // for why the case-open step itself is additionally safe under retries
+    // and concurrent events (partial unique index + ON CONFLICT DO NOTHING).
+    const { insertResult, caseResult } = await tenantDb
+      .transaction()
+      .execute(async (trx) => {
+        const insertQuery = trx.insertInto("messages").values({
+          id: messageId,
+          whatsapp_connection_id: connection.id,
+          contact_id: contact.id,
+          message_id: payload.messageId,
+          from_me: payload.fromMe,
+          sender_jid: normalizedSenderJid,
+          sender_name: senderName,
+          sender_avatar_url: null,
+          message_type: payload.messageType as MessageType,
+          content: payload.content,
+          metadata: payload.protocolSenderJid
+            ? { protocolSenderJid: payload.protocolSenderJid }
+            : null,
+          media_url: payload.mediaUrl || null,
+          media_mime_type: payload.mediaType || null,
+          media_size: payload.mediaSize || null,
+          // Deferred media download fields
+          media_direct_path: payload.mediaDirectPath || null,
+          media_key: payload.mediaKey
+            ? Buffer.from(payload.mediaKey, "base64")
+            : null,
+          media_file_sha256: payload.mediaFileSha256
+            ? Buffer.from(payload.mediaFileSha256, "base64")
+            : null,
+          media_file_enc_sha256: payload.mediaFileEncSha256
+            ? Buffer.from(payload.mediaFileEncSha256, "base64")
+            : null,
+          media_download_status: mediaDownloadStatus,
+          quoted_message_id: payload.quotedMessageId || null,
+          is_forwarded: false,
+          is_starred: false,
+          deleted_by_sender: false,
+          status: messageStatus,
+          timestamp: toDbDate(payload.timestamp),
+          created_at: toDbDate(),
+        });
+
+        // A reconnect can resend history that was previously imported without
+        // its group participant. Update just the sender fields so that a new
+        // history sync repairs those existing rows without duplicating
+        // messages.
+        const insertResult = payload.isHistorySync
+          ? await insertQuery
+              .onConflict((oc) =>
+                oc
+                  .columns(["whatsapp_connection_id", "message_id"])
+                  .doUpdateSet({
+                    from_me: payload.fromMe,
+                    sender_jid: normalizedSenderJid,
+                    sender_name: senderName,
+                    metadata: payload.protocolSenderJid
+                      ? { protocolSenderJid: payload.protocolSenderJid }
+                      : null,
+                    quoted_message_id: payload.quotedMessageId || null,
+                    // History sync contains the original WhatsApp status. Merge
+                    // it monotonically so imported messages get their old
+                    // double ticks without regressing newer realtime receipt
+                    // state.
+                    status: sql<MessageStatus>`CASE
                 WHEN messages.status = 'read' OR excluded.status = 'read'
                   THEN 'read'::message_status
                 WHEN messages.status = 'delivered' OR excluded.status = 'delivered'
@@ -319,16 +337,100 @@ export async function handleMessageEvent(event: MessageEvent): Promise<void> {
                   THEN 'pending'::message_status
                 ELSE 'failed'::message_status
               END`,
-            }),
-          )
-          .returning("id")
-          .executeTakeFirst()
-      : await insertQuery
-          .onConflict((oc) =>
-            oc.columns(["whatsapp_connection_id", "message_id"]).doNothing(),
-          )
-          .returning("id")
-          .executeTakeFirst();
+                  }),
+              )
+              .returning("id")
+              .executeTakeFirst()
+          : await insertQuery
+              .onConflict((oc) =>
+                oc.columns(["whatsapp_connection_id", "message_id"]).doNothing(),
+              )
+              .returning("id")
+              .executeTakeFirst();
+
+        // If insert was skipped due to duplicate, skip all downstream
+        // processing - including opening/reopening a case, which must never
+        // happen for a message that was already processed.
+        if (!insertResult) {
+          return { insertResult: null, caseResult: null };
+        }
+
+        // Open/reopen the contact's conversation case FIRST, before any
+        // other write to conversation_states in this transaction - it reads
+        // the projection's CURRENT status to decide "opened" vs
+        // "auto_reopened", and that read must see reality, not a row this
+        // same transaction is about to create (see message-handlers bug:
+        // running the unread-count upsert first could insert a
+        // conversation_states row - defaulting to 'resolved' since 061 -
+        // for a brand-new contact, making its own first-ever message look
+        // like a reopen). Skip entirely for history sync - imported history
+        // must never open cases or affect either SLA.
+        let caseResult: Awaited<
+          ReturnType<typeof openOrReopenCaseForInboundMessage>
+        > = null;
+        if (!payload.fromMe && !payload.isHistorySync) {
+          caseResult = await openOrReopenCaseForInboundMessage(
+            trx,
+            companyId,
+            { id: contact.id, isGroup: isGroupMessage },
+            { id: messageId, timestamp: toDbDate(payload.timestamp) },
+          );
+
+          // Increment unread count for the incoming message. The case-open
+          // step above already upserts a conversation_states row via
+          // syncProjection in every reachable path, so this is normally an
+          // UPDATE; the INSERT fallback only matters for the unreachable
+          // defensive case where case-open found no active case at all -
+          // explicitly `status: "open"` there rather than relying on the
+          // column default, since we know a live inbound just arrived.
+          const updateResult = await trx
+            .updateTable("conversation_states")
+            .set((eb) => ({
+              unread_count: eb("unread_count", "+", 1),
+              last_message_at: toDbDate(payload.timestamp),
+              last_message_preview: payload.content?.substring(0, 100) || null,
+              updated_at: toDbDate(),
+            }))
+            .where("contact_id", "=", contact.id)
+            .executeTakeFirst();
+
+          if (updateResult.numUpdatedRows === BigInt(0)) {
+            await trx
+              .insertInto("conversation_states")
+              .values({
+                contact_id: contact.id,
+                status: "open",
+                unread_count: 1,
+                last_message_at: toDbDate(payload.timestamp),
+                last_message_preview: payload.content?.substring(0, 100) || null,
+              })
+              .execute();
+          }
+
+          // Note: We don't create notification_history entries for regular
+          // messages because the chat UI already shows unread counts via
+          // conversation_states and new messages appear in real-time via the
+          // message:new realtime event. notification_history is reserved for:
+          // assignments, mentions, team, system events
+        } else if (payload.fromMe && !payload.isHistorySync) {
+          // Live outbound (e.g. relayed from another linked device): stamp
+          // durable case membership from whatever is currently active, if
+          // anything. Never opens/mutates a case - only inbound does that.
+          const activeCaseId = await resolveActiveCaseIdForContact(
+            trx,
+            contact.id,
+          );
+          if (activeCaseId) {
+            await trx
+              .updateTable("messages")
+              .set({ case_id: activeCaseId })
+              .where("id", "=", messageId)
+              .execute();
+          }
+        }
+
+        return { insertResult, caseResult };
+      });
 
     // If insert was skipped due to duplicate, skip all downstream processing.
     if (!insertResult) {
@@ -404,40 +506,6 @@ export async function handleMessageEvent(event: MessageEvent): Promise<void> {
       );
     }
 
-    // Update conversation_states: increment unread count for incoming messages
-    // Skip for history sync messages to avoid inflating unread counts with old messages
-    if (!payload.fromMe && !payload.isHistorySync) {
-      // Try to update existing conversation_states row
-      const updateResult = await tenantDb
-        .updateTable("conversation_states")
-        .set((eb) => ({
-          unread_count: eb("unread_count", "+", 1),
-          last_message_at: toDbDate(payload.timestamp),
-          last_message_preview: payload.content?.substring(0, 100) || null,
-          updated_at: toDbDate(),
-        }))
-        .where("contact_id", "=", contact.id)
-        .executeTakeFirst();
-
-      // If no row exists, create one with unread_count = 1
-      if (updateResult.numUpdatedRows === BigInt(0)) {
-        await tenantDb
-          .insertInto("conversation_states")
-          .values({
-            contact_id: contact.id,
-            unread_count: 1,
-            last_message_at: toDbDate(payload.timestamp),
-            last_message_preview: payload.content?.substring(0, 100) || null,
-          })
-          .execute();
-      }
-
-      // Note: We don't create notification_history entries for regular messages
-      // because the chat UI already shows unread counts via conversation_states
-      // and new messages appear in real-time via the message:new realtime event.
-      // notification_history is reserved for: assignments, mentions, team, system events
-    }
-
     // Resolve the quoted WhatsApp stanza for the realtime payload. Without the
     // embedded message, an incoming reply only looks like a regular message
     // until the conversation is manually refetched.
@@ -487,6 +555,20 @@ export async function handleMessageEvent(event: MessageEvent): Promise<void> {
             updatedAt: payload.timestamp,
           },
           conversationId: contact.id,
+        },
+        connectionId,
+      );
+    }
+
+    if (caseResult) {
+      await broadcastToCompany(
+        companyId,
+        "conversation:updated",
+        {
+          event: caseResult.wasAutoReopen ? "auto_reopened" : "opened",
+          contactId: contact.id,
+          caseId: caseResult.case.id,
+          status: caseResult.case.status,
         },
         connectionId,
       );

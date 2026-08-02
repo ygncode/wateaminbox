@@ -7,7 +7,12 @@
  */
 
 import { toDate } from "@wateaminbox/shared";
-import type { Chat, MessageStatus, MessageType } from "@/types/chat";
+import type {
+  Chat,
+  ConversationLifecycleStatus,
+  MessageStatus,
+  MessageType,
+} from "@/types/chat";
 
 /**
  * Contact API response format from the backend
@@ -46,6 +51,8 @@ export interface ContactApiResponse {
     phoneNumber: string | null;
     status: "disconnected" | "pending" | "connected" | "banned" | "error";
   } | null;
+  conversationStatus: ConversationLifecycleStatus;
+  activeCaseId: string | null;
 }
 
 /**
@@ -110,6 +117,8 @@ export function transformContactToChat(contact: ContactApiResponse): Chat {
     isMuted: false,
     isArchived: false,
     updatedAt: toDate(contact.updatedAt) ?? new Date(),
+    conversationStatus: contact.conversationStatus,
+    activeCaseId: contact.activeCaseId,
   };
 }
 

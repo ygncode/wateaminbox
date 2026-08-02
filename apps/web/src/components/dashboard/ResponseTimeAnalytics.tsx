@@ -274,6 +274,44 @@ export function ResponseTimeAnalytics({
         </div>
       )}
 
+      {/* Direct vs. group breakdown, and excluded episodes (reported
+          separately - never counted compliant, see episode-outcome.ts) */}
+      {!hasPrimaryError && !isLoading && stats && (
+        <div className="grid gap-3 sm:grid-cols-3">
+          {(["direct", "group"] as const).map((kind) => {
+            const k = stats.byKind[kind];
+            return (
+              <div
+                key={kind}
+                className="rounded-xl border border-[#e3e9e5] bg-[#fafcfb] p-3 dark:border-dark-border dark:bg-dark-tertiary/30"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold capitalize text-[#40544c] dark:text-dark-text-primary">
+                    {kind} chats
+                  </span>
+                  <span className={`text-xs font-semibold ${getSlaColor(k.slaComplianceRate)}`}>
+                    {Math.round(k.slaComplianceRate)}%
+                  </span>
+                </div>
+                <div className="mt-1 text-[10px] text-[#87928c] dark:text-dark-text-secondary">
+                  {k.totalConversations} episodes · avg{" "}
+                  {formatMinutes(k.averageResponseTimeMinutes)}
+                </div>
+              </div>
+            );
+          })}
+          <div className="rounded-xl border border-[#e3e9e5] bg-[#fafcfb] p-3 dark:border-dark-border dark:bg-dark-tertiary/30">
+            <span className="text-xs font-semibold text-[#40544c] dark:text-dark-text-primary">
+              Excluded
+            </span>
+            <div className="mt-1 text-[10px] text-[#87928c] dark:text-dark-text-secondary">
+              {stats.excludedCount} unanswered - no_reply_needed/spam/duplicate
+              (never counted compliant)
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Trend Chart */}
       {!hasPrimaryError && trend.length > 0 && (
         <div className="rounded-xl border border-[#e3e9e5] bg-[#fafcfb] p-4 dark:border-dark-border dark:bg-dark-tertiary/30 sm:p-5">

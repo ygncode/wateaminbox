@@ -10,6 +10,10 @@ export {
   type NewContactsChartProps,
 } from "./NewContactsChart";
 export {
+  ResolutionTrendChart,
+  type ResolutionTrendData,
+} from "./ResolutionTrendChart";
+export {
   ResponseTimeTrendChart,
   type ResponseTimeTrendData,
 } from "./ResponseTimeTrendChart";

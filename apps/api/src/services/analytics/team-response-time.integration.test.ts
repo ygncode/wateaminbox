@@ -1,6 +1,13 @@
 import { describe, expect, test } from "bun:test";
+
+// Response episodes only exist INSIDE an SLA-bearing conversation_cases
+// row's [opened_at, resolved_at) window (see conversation-case.service.ts
+// and episode-resolution.ts) - this test opens one case spanning both
+// episodes below.
+
 import { db } from "@wateaminbox/database";
 import { DEFAULT_SLA_WEEKLY_SCHEDULE } from "@wateaminbox/shared";
+import { getCurrentSlaPolicy, resolveCaseTargets } from "../sla-policy/policy.service.js";
 import {
   clearTenantConnection,
   createTenantSchema,
@@ -67,6 +74,9 @@ describe("getTeamResponseTimeStats attribution", () => {
           .values({
             company_id: companyId,
             target_minutes: 60,
+            direct_resolution_target_minutes: 480,
+            group_response_target_minutes: 120,
+            group_resolution_target_minutes: 960,
             timezone: "UTC",
             weekly_schedule: JSON.stringify(DEFAULT_SLA_WEEKLY_SCHEDULE),
             exceptions: JSON.stringify([]),
@@ -90,6 +100,24 @@ describe("getTeamResponseTimeStats attribution", () => {
 
         const base = new Date("2026-01-01T00:00:00Z");
 
+        const policy = await getCurrentSlaPolicy(companyId);
+        const targets = resolveCaseTargets(policy, "direct");
+        const [insertedCase] = await tenantDb
+          .insertInto("conversation_cases")
+          .values({
+            contact_id: contact.id,
+            kind: "direct",
+            status: "open",
+            opened_at: base,
+            open_source: "live_inbound",
+            policy_id: policy.id,
+            response_target_minutes: targets.responseTargetMinutes,
+            resolution_target_minutes: targets.resolutionTargetMinutes,
+          })
+          .returning("id")
+          .execute();
+        const caseId = insertedCase.id;
+
         // Episode 1: inbound at t0, answered by member A 5 minutes later.
         const episode1Inbound = base;
         const aReply = new Date(base.getTime() + 5 * MINUTE);
@@ -102,6 +130,8 @@ describe("getTeamResponseTimeStats attribution", () => {
             message_type: "text",
             content: "hello",
             timestamp: episode1Inbound,
+            created_at: episode1Inbound,
+            case_id: caseId,
           })
           .execute();
         await tenantDb
@@ -114,6 +144,8 @@ describe("getTeamResponseTimeStats attribution", () => {
             message_type: "text",
             content: "reply from A",
             timestamp: aReply,
+            created_at: aReply,
+            case_id: caseId,
           })
           .execute();
 
@@ -133,6 +165,8 @@ describe("getTeamResponseTimeStats attribution", () => {
             message_type: "text",
             content: "another question",
             timestamp: episode2Inbound,
+            created_at: episode2Inbound,
+            case_id: caseId,
           })
           .execute();
         await tenantDb
@@ -145,6 +179,8 @@ describe("getTeamResponseTimeStats attribution", () => {
             message_type: "text",
             content: "reply from B",
             timestamp: bReply,
+            created_at: bReply,
+            case_id: caseId,
           })
           .execute();
 

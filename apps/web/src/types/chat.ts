@@ -60,6 +60,8 @@ export interface Message {
   mediaMimeType?: string;
 }
 
+export type ConversationLifecycleStatus = "open" | "pending" | "resolved";
+
 export interface Chat {
   id: string;
   contact: Contact;
@@ -70,6 +72,8 @@ export interface Chat {
   isMuted: boolean;
   isArchived: boolean;
   updatedAt: Date;
+  conversationStatus: ConversationLifecycleStatus;
+  activeCaseId: string | null;
 }
 
 export interface ChatListProps {

@@ -55,6 +55,7 @@ export interface CompaniesTable {
 export interface SlaPoliciesTable {
   id: Generated<string>;
   company_id: string;
+  /** Direct-chat response target (kept unrenamed for compatibility with pre-061 code/data). */
   target_minutes: number;
   timezone: string;
   weekly_schedule: unknown;
@@ -62,6 +63,9 @@ export interface SlaPoliciesTable {
   effective_from: Date;
   created_by: string | null;
   created_at: Generated<Date>;
+  direct_resolution_target_minutes: number;
+  group_response_target_minutes: number;
+  group_resolution_target_minutes: number;
 }
 
 export interface UsersTable {
@@ -180,6 +184,7 @@ export interface TenantDatabase {
   push_subscriptions: PushSubscriptionsTable;
   quick_replies: QuickRepliesTable;
   conversation_states: ConversationStatesTable;
+  conversation_cases: ConversationCasesTable;
   nats_outbox: NatsOutboxTable;
   scheduled_messages: ScheduledMessagesTable;
   bulk_jobs: BulkJobsTable;
@@ -374,6 +379,19 @@ export interface TenantMessagesTable {
   timestamp: Date;
   created_at: Generated<Date>;
   search_vector: unknown | null;
+  /** Durable, explicit case membership - never inferred from `timestamp`. See migration 061. */
+  case_id: string | null;
+  /**
+   * Strictly monotonic per-tenant ingestion sequence - the authoritative
+   * turn-ordering key for episode start/response detection, never
+   * `created_at`/`id`. Returned as a string by the pg driver (BIGINT).
+   * NULL for every row inserted before migration 061 (the sequence
+   * default was attached without backfilling existing rows to avoid a
+   * full-table rewrite) - those rows also always have `case_id IS NULL`,
+   * so they're already excluded from every `seq`-ordered query. See
+   * migration 061.
+   */
+  seq: Generated<string | null>;
 }
 
 export interface MessageReactionsTable {
@@ -488,6 +506,49 @@ export interface ConversationStatesTable {
   resolved_by: string | null;
   reopened_at: Date | null;
   reopened_by: string | null;
+  resolution_notes: string | null;
+  /** The contact's current open/pending conversation_cases row, or null when resolved. */
+  active_case_id: string | null;
+  created_at: Generated<Date>;
+  updated_at: Generated<Date>;
+}
+
+export type ConversationCaseKind = "direct" | "group";
+export type ConversationCaseStatus = "open" | "pending" | "resolved";
+export type ConversationCaseOpenSource = "live_inbound" | "manual";
+export type ConversationCaseResolutionOutcome =
+  | "handled"
+  | "no_reply_needed"
+  | "spam"
+  | "duplicate"
+  | "other";
+
+/**
+ * One immutable lifecycle cycle for a contact/group conversation. Both SLA
+ * guarantees (response, resolution) are measured against a case's
+ * boundaries; every reopen creates a new row rather than mutating this one.
+ * See migration 061 for the full data-model rationale.
+ */
+export interface ConversationCasesTable {
+  id: Generated<string>;
+  contact_id: string;
+  kind: ConversationCaseKind;
+  status: Generated<ConversationCaseStatus>;
+  opened_at: Date;
+  opening_message_id: string | null;
+  /** 'live_inbound' (opened_by null) or 'manual' (opened_by the acting user) - an immutable audit trail. */
+  open_source: ConversationCaseOpenSource;
+  opened_by: string | null;
+  /** Snapshot of the public.sla_policies row active at opened_at - never re-resolved after opening. */
+  policy_id: string;
+  response_target_minutes: number;
+  resolution_target_minutes: number;
+  /** Set for BOTH automatic and manual reopens - not exclusive to manual ones. */
+  reopened_from_case_id: string | null;
+  reopen_reason: string | null;
+  resolved_at: Date | null;
+  resolved_by: string | null;
+  resolution_outcome: ConversationCaseResolutionOutcome | null;
   resolution_notes: string | null;
   created_at: Generated<Date>;
   updated_at: Generated<Date>;

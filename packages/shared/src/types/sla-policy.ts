@@ -1,19 +1,32 @@
 /**
  * Calendar-aware SLA policy types.
  *
- * A company's SLA is a single global response-time target, gated by a
- * weekly open-hours calendar (in an IANA timezone) plus manual date
- * exceptions (holidays/closures or one-off custom hours). Policies are
- * versioned and immutable: editing the SLA creates a new policy version
- * that activates immediately, but every already-recorded (or in-progress)
- * response episode keeps using whichever policy version was active when
- * that episode's first inbound message arrived - edits never rewrite
+ * A company's SLA policy carries four targets under one shared calendar
+ * (IANA timezone + weekly open-hours schedule + manual date exceptions):
+ * direct response, direct resolution, group response, and group
+ * resolution. Direct chats use the direct targets; ALL group conversations
+ * share the group targets workspace-wide (there is no per-group override).
+ * "Response" measures each live inbound turn while a case is active;
+ * "resolution" measures case-open to manual-resolve.
+ *
+ * Policies are versioned and immutable: editing the SLA creates a new
+ * policy version that activates immediately, but every already-recorded
+ * (or in-progress) response episode or open case keeps using whichever
+ * policy version was active when it started - edits never rewrite
  * historical (or already-open) analytics.
  */
 
-/** Bounds for a policy's response target, in minutes. */
+/** Bounds for a response target (direct or group), in minutes. */
 export const SLA_TARGET_MINUTES_MIN = 1;
 export const SLA_TARGET_MINUTES_MAX = 1440;
+
+/**
+ * Bounds for a resolution target (direct or group), in minutes. Wider than
+ * the response bound - resolution spans an entire case, which can
+ * reasonably run for days of business time.
+ */
+export const SLA_RESOLUTION_TARGET_MINUTES_MIN = 1;
+export const SLA_RESOLUTION_TARGET_MINUTES_MAX = 20160; // 14 business days
 
 /**
  * A local wall-clock interval, "HH:mm" 24-hour format, half-open [start, end).
@@ -56,7 +69,11 @@ export interface SlaScheduleException {
 export interface SlaPolicy {
   id: string;
   companyId: string;
+  /** Direct-chat response target (field name kept for compatibility). */
   targetMinutes: number;
+  directResolutionTargetMinutes: number;
+  groupResponseTargetMinutes: number;
+  groupResolutionTargetMinutes: number;
   timezone: string;
   weeklySchedule: SlaWeeklySchedule;
   exceptions: SlaScheduleException[];
@@ -68,6 +85,9 @@ export interface SlaPolicy {
 /** Input for creating a new (immediately-active) SLA policy version. */
 export interface CreateSlaPolicyInput {
   targetMinutes: number;
+  directResolutionTargetMinutes: number;
+  groupResponseTargetMinutes: number;
+  groupResolutionTargetMinutes: number;
   timezone: string;
   weeklySchedule: SlaWeeklySchedule;
   exceptions?: SlaScheduleException[];
@@ -85,3 +105,7 @@ export const DEFAULT_SLA_WEEKLY_SCHEDULE: SlaWeeklySchedule = Array.from(
 
 export const DEFAULT_SLA_TARGET_MINUTES = 60;
 export const DEFAULT_SLA_TIMEZONE = "UTC";
+/** Conservative defaults for newly-seeded companies; documented in migration 061. */
+export const DEFAULT_SLA_DIRECT_RESOLUTION_TARGET_MINUTES = 480;
+export const DEFAULT_SLA_GROUP_RESPONSE_TARGET_MINUTES = 120;
+export const DEFAULT_SLA_GROUP_RESOLUTION_TARGET_MINUTES = 960;
