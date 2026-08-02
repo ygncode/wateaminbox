@@ -4,7 +4,7 @@ WATeamInbox is currently a beta. Only the latest code on the default branch is a
 
 ## Reporting a vulnerability
 
-Please report suspected vulnerabilities privately through [GitHub private vulnerability reporting](https://github.com/ygncode/wateaminbox/security/advisories/new). Do not open a public issue or include secrets, WhatsApp session material, message content, phone numbers, or other personal data in a report.
+Please report suspected vulnerabilities privately to [me@setkyar.com](mailto:me@setkyar.com) with the subject `WATeamInbox security report`. Once GitHub private vulnerability reporting is enabled for the public repository, its private advisory form may also be used. Do not open a public issue or include secrets, WhatsApp session material, message content, phone numbers, or other personal data unless they are strictly necessary to explain the issue.
 
 Include, when possible:
 

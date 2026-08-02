@@ -28,7 +28,7 @@ Unacceptable behavior includes:
 
 This Code applies in project spaces and when an individual officially represents the project. Maintainers may remove, edit, or reject contributions and may temporarily or permanently restrict participation for behavior they consider inappropriate, threatening, offensive, or harmful.
 
-Report conduct concerns privately to `contact@wateaminbox.com`. Reports will be reviewed by project maintainers and handled as confidentially as reasonably possible. Anyone enforcing this Code must avoid conflicts of interest and respect the privacy and safety of reporters.
+Report conduct concerns privately to [me@setkyar.com](mailto:me@setkyar.com) with the subject `WATeamInbox conduct report`. Reports will be reviewed by project maintainers and handled as confidentially as reasonably possible. Anyone enforcing this Code must avoid conflicts of interest and respect the privacy and safety of reporters.
 
 ## Attribution
 

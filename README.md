@@ -7,7 +7,7 @@ A multi-user WhatsApp team inbox for managing customer conversations, assignment
 
 WATeamInbox is an independent project and is not affiliated with, endorsed by, or sponsored by WhatsApp or Meta. It uses an unofficial WhatsApp client library; use may be affected by WhatsApp policy or protocol changes and can result in account restrictions or bans. No account-safety guarantee is provided. Third-party names are used only to describe interoperability; all trademarks belong to their respective owners.
 
-**Service status:** the public marketing site and double-opt-in Cloud waitlist are live. The waitlist records interest only: WATeamInbox Cloud is not an available hosted product, and no pricing, launch date, feature set, SLA, account, or support entitlement is promised. Self-hosting this beta is currently the only product path.
+**Service status:** the public marketing site and double-opt-in Cloud waitlist are live. The waitlist records interest only: WATeamInbox Cloud is not an available hosted product, and no pricing, launch date, feature set, SLA, account, or support entitlement is promised. Self-hosting this beta is currently the only product path. The WATeamInbox-operated waitlist is covered by the public [waitlist privacy notice](https://wateaminbox.com/privacy).
 
 ## Features
 

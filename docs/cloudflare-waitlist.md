@@ -267,7 +267,7 @@ The dashboard reports totals, confirmed/pending counts, confirmation volume, exp
 
 ## Operational notes
 
-- The confirmation email is transactional double-opt-in mail. This Worker does not contain a bulk campaign endpoint. Before sending recurring launch or marketing mail, design an unsubscribe/opt-out flow and privacy/data-retention policy that meets the applicable laws for your audience.
+- The WATeamInbox-operated waitlist is covered by the public [waitlist privacy notice](https://wateaminbox.com/privacy). Forks and self-hosters must publish their own operator-specific notice and contact process. The confirmation email is transactional double-opt-in mail, and this Worker does not contain a bulk campaign endpoint. Before sending recurring launch or marketing mail, add an appropriate unsubscribe/opt-out flow.
 - Email addresses are necessarily stored to send the confirmation. Raw confirmation tokens, raw session tokens, raw IP addresses, and raw idempotency keys are not stored in D1.
 - The in-Worker D1 rate limit is intentionally conservative for a low-volume waitlist. Add Cloudflare WAF/Rate Limiting rules and keep Turnstile enabled for an Internet-facing production domain.
 - The scheduled cleanup runs at `04:17 UTC`. It removes stale pending signups and expired artifacts after 30 days; it is a retention cleanup, not a substitute for backups or observability.
