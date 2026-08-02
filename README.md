@@ -5,7 +5,9 @@ A multi-user WhatsApp team inbox for managing customer conversations, assignment
 > [!WARNING]
 > **Open-source beta:** interfaces, migrations, and behavior may change without backward compatibility. The development defaults are not production-hardened. Evaluate the software, its unofficial WhatsApp integration, data handling, backups, monitoring, and account-risk implications before any production use.
 
-WATeamInbox is an independent project and is not affiliated with, endorsed by, or sponsored by WhatsApp or Meta. Third-party names are used only to describe interoperability; all trademarks belong to their respective owners.
+WATeamInbox is an independent project and is not affiliated with, endorsed by, or sponsored by WhatsApp or Meta. It uses an unofficial WhatsApp client library; use may be affected by WhatsApp policy or protocol changes and can result in account restrictions or bans. No account-safety guarantee is provided. Third-party names are used only to describe interoperability; all trademarks belong to their respective owners.
+
+**Service status:** the public marketing site and double-opt-in Cloud waitlist are live. The waitlist records interest only: WATeamInbox Cloud is not an available hosted product, and no pricing, launch date, feature set, SLA, account, or support entitlement is promised. Self-hosting this beta is currently the only product path.
 
 ## Features
 
@@ -26,15 +28,22 @@ flowchart TB
     api["Hono API<br/>(Bun)"]
     centrifugo["Centrifugo"]
     nats["NATS JetStream"]
+    postgres["PostgreSQL"]
+    storage["S3-compatible media storage"]
     orchestrator["Go orchestrator"]
     worker["WhatsApp worker<br/>(whatsmeow)"]
 
     web <-->|HTTP| api
     web -->|WebSocket| centrifugo
-    api -->|publish API| nats
+    api -->|HTTP publish| centrifugo
+    api <-->|durable commands/events| nats
     centrifugo <-->|NATS broker| nats
+    api <-->|application data| postgres
+    api <-->|media| storage
     nats --> orchestrator
     orchestrator -->|manages| worker
+    worker <-->|sessions/messages| postgres
+    worker <-->|media| storage
 ```
 
 ### Repository layout
@@ -51,6 +60,15 @@ flowchart TB
 | `services/orchestrator` | Go process manager for WhatsApp workers |
 | `services/whatsapp` | Go WhatsApp worker using whatsmeow |
 | `services/shared` | Shared Go packages |
+
+### Beta limitations
+
+- The supplied production topology is one API and one orchestrator on a single host; high availability and horizontal orchestrator scaling are not supported by the baseline.
+- Rate limiting is in memory unless an operator adds and validates shared Redis for multiple API replicas.
+- WhatsApp history depends on what the primary device and protocol make available. Protocol changes can interrupt pairing, sync, or delivery.
+- Durable messaging is at-least-once. A crash after WhatsApp accepts a send but before the result is recorded can leave delivery outcome uncertain and requires operator reconciliation.
+- Scheduled and bulk sends are paced and capped, but those controls do not establish recipient consent or guarantee account safety. Media uploads are capped at 50 MiB.
+- Operators remain responsible for backups, restores, monitoring, retention, privacy/compliance, abuse prevention, dependency updates, and incident response.
 
 ## Prerequisites
 
@@ -133,7 +151,8 @@ The main development endpoints are:
 - API: <http://localhost:4445/api>
 - API health: <http://localhost:4445/api/health>
 - Orchestrator: <http://localhost:8080>
-- Astro uses its default development port unless configured otherwise.
+- Marketing site: <http://localhost:4446>
+- Cloud waitlist Worker: <http://localhost:8787>
 
 The root development command builds the WhatsApp worker before starting the orchestrator. The orchestrator then manages worker processes for active WhatsApp connections.
 
@@ -217,9 +236,9 @@ An unavailable NATS connection or Centrifugo instance reports degraded readiness
 
 ## Production deployment
 
-Do not use `docker-compose.yml` for production; it contains development-only credentials and exposed service ports. The hardened single-host baseline is defined in `compose.production.yml`. See [docs/deployment.md](docs/deployment.md) for TLS, secret generation, migrations, private storage, backups, restores, upgrades, rollback, and monitoring.
+Do not use `docker-compose.yml` for production; it contains development-only credentials and exposed service ports. A security-conscious single-host baseline is defined in `compose.production.yml`; it is deployment guidance, not an audit, certification, managed service, or guarantee of fitness for your environment. See [docs/deployment.md](docs/deployment.md) for TLS, secret generation, migrations, private storage, backups, restores, upgrades, rollback, and monitoring.
 
-The public marketing site remains static and self-hostable. If you want to operate the separate managed-Cloud waitlist, see [docs/cloudflare-waitlist.md](docs/cloudflare-waitlist.md) for the Cloudflare D1, Email Service, Worker, static API URL, and admin-dashboard setup. It is optional and is not proxied through the production marketing Nginx container.
+The public marketing site remains static and self-hostable. The repository also includes the Worker used by the live project waitlist; this is an interest-registration service, not the planned managed Cloud product. Self-hosters may omit it or deploy their own separate instance. See [docs/cloudflare-waitlist.md](docs/cloudflare-waitlist.md) for the Cloudflare D1, Email Service, Worker, static API URL, and admin-dashboard setup. It is optional and is not proxied through the production marketing Nginx container.
 
 ## Troubleshooting
 
@@ -255,6 +274,7 @@ docker compose --profile debug up -d nats-box
 - Never commit `.env` files, JWT/Centrifugo secrets, VAPID private keys, Resend keys, WhatsApp session data, or production storage credentials.
 - Keep `VITE_*` variables limited to values safe for browsers and use HTTPS for non-local deployments.
 - Report suspected vulnerabilities privately according to [SECURITY.md](SECURITY.md); do not open a public security issue.
+- Before publishing a fork or changing repository visibility, use the [public repository release checklist](docs/public-release-checklist.md).
 - Use [GitHub Issues](https://github.com/ygncode/wateaminbox/issues) for reproducible bugs and development questions. This community beta does not include guaranteed support or response times.
 
 ## Contributing

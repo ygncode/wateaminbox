@@ -18,6 +18,12 @@ out
 .env.development.local
 .env.test.local
 .env.production.local
+.env.production
+
+# Operator-created production material
+secrets/
+backups/
+*.dump
 
 # Logs
 logs

@@ -6,7 +6,7 @@
 - `apps/waitlist-api` owns the public signup API, confirmation links, D1 data, transactional confirmation email, and its private admin dashboard.
 - The browser is configured with an explicit API URL. The Cloudflare Pages deployment uses a same-origin Worker route for the public `/v1/*` paths; self-hosted deployments can use the separate Worker origin.
 
-No Cloudflare account resources, credentials, secrets, migrations, or deployments were created by this change.
+The WATeamInbox-operated production waitlist and marketing site are live. The checked-in production D1 identifier, Worker/Pages project names, routes, domains, sender address, and Turnstile **site** key (when supplied at build time) are public identifiers, not credentials. Secret values and subscriber data must remain only in Cloudflare-managed bindings/storage. Forks and self-hosters must create and secure their own resources rather than assuming access to the WATeamInbox deployment.
 
 ## What the Worker does
 
@@ -45,7 +45,7 @@ Read the current Cloudflare documentation before operating the service:
 
 ## 1. Configure D1
 
-The checked-in `apps/waitlist-api/wrangler.jsonc` contains a D1 binding named `DB`, database name `wateaminbox-waitlist`, and a `migrations` directory. Its `database_id` is intentionally omitted: current Wrangler supports local resources and automatic provisioning without an ID. For production, use an explicit D1 database so its ownership is clear:
+The checked-in `apps/waitlist-api/wrangler.jsonc` contains a local/default D1 binding named `DB`, database name `wateaminbox-waitlist`, and a `migrations` directory. Its default binding intentionally omits `database_id` for local development. The `env.production` binding contains the WATeamInbox-operated production database's public resource identifier. Forks and self-hosters must replace that production environment with a database they own; creating one explicitly keeps ownership clear:
 
 ```sh
 cd apps/waitlist-api
@@ -64,15 +64,15 @@ bunx wrangler d1 migrations list wateaminbox-waitlist --local
 After creating the intended remote database and reviewing `migrations/0001_waitlist.sql`, apply it remotely:
 
 ```sh
-bunx wrangler d1 migrations apply wateaminbox-waitlist --remote
-bunx wrangler d1 migrations list wateaminbox-waitlist --remote
+bunx wrangler d1 migrations apply wateaminbox-waitlist-production --remote --env production
+bunx wrangler d1 migrations list wateaminbox-waitlist-production --remote --env production
 ```
 
 Migrations are forward-only. Take an appropriate D1 backup/export and review the SQL before applying it to a production database.
 
 ### Named environments
 
-If you add `env.staging` or `env.production` to `wrangler.jsonc`, remember that Cloudflare does **not** inherit bindings, variables, or `secrets.required` into named environments. Re-declare `d1_databases`, `send_email`, `vars`, and required secret names for each environment, and use a separate D1 database for staging. See the [Wrangler environments documentation](https://developers.cloudflare.com/workers/wrangler/environments/).
+The checked-in config includes `env.production` for the WATeamInbox-operated waitlist. Cloudflare does **not** inherit bindings, variables, or `secrets.required` into named environments, so every added or replaced environment must re-declare `d1_databases`, `send_email`, `vars`, and required secret names. Use resources you own and a separate D1 database for staging. See the [Wrangler environments documentation](https://developers.cloudflare.com/workers/wrangler/environments/).
 
 ## 2. Onboard the sending domain and Email Service binding
 
@@ -116,13 +116,13 @@ read -r -s -p 'Admin password: ' ADMIN_PASSWORD
 printf '\n'
 ADMIN_PASSWORD_HASH=$(printf '%s' "$ADMIN_PASSWORD" | bun run hash:admin-password)
 unset ADMIN_PASSWORD
-printf '%s' "$ADMIN_PASSWORD_HASH" | bunx wrangler secret put ADMIN_PASSWORD_HASH
+printf '%s' "$ADMIN_PASSWORD_HASH" | bunx wrangler secret put ADMIN_PASSWORD_HASH --env production
 unset ADMIN_PASSWORD_HASH
 
-openssl rand -base64 48 | tr -d '\n' | bunx wrangler secret put WAITLIST_TOKEN_SECRET
-openssl rand -base64 48 | tr -d '\n' | bunx wrangler secret put ADMIN_SESSION_SECRET
+openssl rand -base64 48 | tr -d '\n' | bunx wrangler secret put WAITLIST_TOKEN_SECRET --env production
+openssl rand -base64 48 | tr -d '\n' | bunx wrangler secret put ADMIN_SESSION_SECRET --env production
 # Paste the private Turnstile secret only through this command or your secret manager.
-bunx wrangler secret put TURNSTILE_SECRET_KEY
+bunx wrangler secret put TURNSTILE_SECRET_KEY --env production
 ```
 
 For local-only work, copy `apps/waitlist-api/.dev.vars.example` to ignored `.dev.vars` and replace its placeholders. `TURNSTILE_SECRET_KEY` may remain blank only while `ENVIRONMENT=development`; production configuration rejects an empty value. Run `bun run types` whenever `wrangler.jsonc` changes, then commit the generated `src/worker-configuration.d.ts`.
@@ -252,7 +252,7 @@ bun run --filter @wateaminbox/marketing build
 After D1, Email Service, the reviewed custom-domain route, variables, and all required secrets are set, an authorized operator can deploy from `apps/waitlist-api`:
 
 ```sh
-bunx wrangler deploy
+bunx wrangler deploy --env production
 ```
 
 This repository does not invoke that command automatically. Use a reviewed staging environment first, verify a real confirmation delivery, then point `PUBLIC_WAITLIST_API_URL` at the intended Worker origin and rebuild the static site.

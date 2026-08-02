@@ -1,8 +1,10 @@
 # Self-hosted production deployment
 
-This is a single-host production baseline for the current process model. It uses
-`compose.production.yml`; the existing `docker-compose.yml` remains the local
-development stack and is intentionally not an input to production.
+This is a security-conscious single-host production baseline for the current
+process model. It is deployment guidance, not an audit, certification, managed
+service, support commitment, or guarantee of fitness for a particular environment.
+It uses `compose.production.yml`; the existing `docker-compose.yml` remains the
+local development stack and is intentionally not an input to production.
 
 ## Architecture and trust boundaries
 
@@ -82,9 +84,11 @@ user-info). API also receives
 orchestrator's `DATABASE_URL`, `NATS_URL`, and `S3_*` values. Public Vite settings are compiled into the web
 image. Changing a `VITE_*` value therefore requires rebuilding it.
 
-For web push, generate a VAPID pair, set the public value in
-`.env.production`, and add the private value as a Compose secret mounted through
-`VAPID_PRIVATE_KEY_FILE`. Do not put the private key in the env file. If email is
+The checked-in production Compose baseline does not mount a VAPID private key,
+so background Web Push is disabled by default. To enable it, generate a VAPID pair,
+set the public value in `.env.production`, and use a reviewed Compose override to
+add the private value as a secret mounted through `VAPID_PRIVATE_KEY_FILE`. Do not
+put the private key in the env file. If email is
 intentionally disabled, use a reviewed override rather than a fake Resend key;
 production defaults assume `MAIL_DRIVER=resend`.
 

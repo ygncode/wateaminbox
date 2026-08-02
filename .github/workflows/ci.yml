@@ -10,10 +10,9 @@ permissions:
 
 jobs:
   validate:
-    runs-on: [self-hosted, minipc]
+    # Public pull-request code must not execute on maintainer infrastructure.
+    runs-on: ubuntu-latest
     timeout-minutes: 20
-    env:
-      DATABASE_URL: postgresql://postgres:postgres@localhost:${{ job.services.postgres.ports[5432] }}/wateaminbox
     services:
       postgres:
         image: postgres:18-alpine
@@ -39,11 +38,14 @@ jobs:
 
       - uses: actions/setup-go@v5
         with:
-          go-version: "1.24.x"
+          go-version: "1.25.x"
           cache-dependency-path: |
             services/shared/go.sum
             services/orchestrator/go.sum
             services/whatsapp/go.sum
+
+      - name: Configure test database URL
+        run: echo "DATABASE_URL=postgresql://postgres:postgres@localhost:${{ job.services.postgres.ports[5432] }}/wateaminbox" >> "$GITHUB_ENV"
 
       - run: bun install --frozen-lockfile
       - run: bun run lint
