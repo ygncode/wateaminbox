@@ -38,7 +38,12 @@ const { title, description = 'WATeamInbox - WhatsApp for Teams' } = Astro.props;
 
     <footer class="border-t border-gray-200 bg-gray-50">
       <div class="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
-        <p class="text-center text-gray-500">&copy; {new Date().getFullYear()} WATeamInbox. All rights reserved.</p>
+        <p class="text-center text-gray-500">
+          WATeamInbox is an independent open-source project and is not affiliated with, endorsed by, or sponsored by WhatsApp or Meta.
+        </p>
+        <p class="mt-2 text-center text-sm text-gray-500">
+          &copy; {new Date().getFullYear()} WATeamInbox contributors · <a href="https://github.com/ygncode/wateaminbox/blob/main/LICENSE" class="hover:text-gray-700 hover:underline">MIT License</a>
+        </p>
       </div>
     </footer>
   </body>

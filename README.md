@@ -1,6 +1,11 @@
-# wateaminbox
+# WATeamInbox
 
 A multi-user WhatsApp team inbox for managing customer conversations, assignments, contacts, groups, and team workflows from one web application.
+
+> [!WARNING]
+> **Open-source beta:** interfaces, migrations, and behavior may change without backward compatibility. The development defaults are not production-hardened. Evaluate the software, its unofficial WhatsApp integration, data handling, backups, monitoring, and account-risk implications before any production use.
+
+WATeamInbox is an independent project and is not affiliated with, endorsed by, or sponsored by WhatsApp or Meta. Third-party names are used only to describe interoperability; all trademarks belong to their respective owners.
 
 ## Features
 
@@ -240,16 +245,16 @@ Use `scripts/debug-nats.sh`, or start the optional NATS toolbox:
 docker compose --profile debug up -d nats-box
 ```
 
-## Security notes
+## Security and support
 
-- Never commit `.env` files, JWT/Centrifugo secrets, VAPID private keys, Resend keys, or production storage credentials.
-- Keep `VITE_*` variables limited to values safe for browsers.
-- Use HTTPS in production.
-- Notification and conversation access is scoped by company membership, permissions, and tenant schema.
+- Never commit `.env` files, JWT/Centrifugo secrets, VAPID private keys, Resend keys, WhatsApp session data, or production storage credentials.
+- Keep `VITE_*` variables limited to values safe for browsers and use HTTPS for non-local deployments.
+- Report suspected vulnerabilities privately according to [SECURITY.md](SECURITY.md); do not open a public security issue.
+- Use [GitHub Issues](https://github.com/ygncode/wateaminbox/issues) for reproducible bugs and development questions. This community beta does not include guaranteed support or response times.
 
 ## Contributing
 
-Before opening a pull request, run:
+See [CONTRIBUTING.md](CONTRIBUTING.md) and the [Code of Conduct](CODE_OF_CONDUCT.md). Before opening a pull request, run the checks relevant to your change; the standard code-change checks are:
 
 ```bash
 bun run lint
@@ -259,3 +264,9 @@ bun run build
 ```
 
 Run integration tests when changing database migrations, NATS behavior, the orchestrator, WhatsApp worker, or end-to-end messaging flows.
+
+## License
+
+WATeamInbox's original content is available under the [MIT License](LICENSE), copyright © 2026 WATeamInbox contributors.
+
+The whatsmeow Go dependency and `vendor/whatsmeow` submodule are licensed separately under MPL-2.0. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for details; the MIT License does not relicense third-party components.

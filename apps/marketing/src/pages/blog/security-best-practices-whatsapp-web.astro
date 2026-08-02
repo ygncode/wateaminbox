@@ -2,15 +2,15 @@
 import Layout from '../../layouts/Layout.astro';
 
 const post = {
-  title: 'Security Best Practices for WhatsApp Web',
+  title: 'Security Best Practices for WATeamInbox',
   date: 'December 28, 2025',
   readTime: '7 min read',
   category: 'Security',
-  author: 'WhatsApp Web Team'
+  author: 'WATeamInbox Team'
 };
 ---
 
-<Layout title={`${post.title} - WhatsApp Web Blog`}>
+<Layout title={`${post.title} - WATeamInbox Blog`}>
   <article class="mx-auto max-w-4xl px-4 py-24 sm:px-6 lg:px-8">
     <!-- Header -->
     <header class="text-center">
@@ -40,7 +40,7 @@ const post = {
     <!-- Content -->
     <div class="prose prose-lg mx-auto mt-12 max-w-3xl" data-testid="blog-post-content">
       <p class="lead text-xl text-gray-600">
-        Security is paramount when handling business communications. This guide covers essential security practices to protect your WhatsApp Web account and customer data.
+        Security is paramount when handling business communications. This guide covers essential practices for protecting your WATeamInbox account and customer data.
       </p>
 
       <div class="rounded-lg bg-red-50 border border-red-200 p-6 not-prose my-8">
@@ -59,7 +59,7 @@ const post = {
 
       <h3>Strong Password Practices</h3>
       <p>
-        Your WhatsApp Web account password is your first line of defense. Follow these guidelines:
+        Your WATeamInbox password is a key line of defense. Follow these guidelines:
       </p>
       <ul>
         <li>Use a unique password not shared with other services</li>
@@ -71,7 +71,7 @@ const post = {
 
       <h3>Session Management</h3>
       <p>
-        WhatsApp Web uses device-based sessions. Manage them carefully:
+        WhatsApp uses linked-device sessions. Review linked devices in the WhatsApp mobile app and manage them carefully:
       </p>
 
       <div class="rounded-lg bg-gray-50 p-6 not-prose my-8">
@@ -106,25 +106,15 @@ const post = {
 
       <h2>Data Protection</h2>
 
-      <h3>Multi-Tenant Isolation</h3>
+      <h3>Tenant Scoping</h3>
       <p>
-        WhatsApp Web uses schema-per-tenant database isolation. Each company's data is stored in a separate database schema, ensuring complete data separation:
+        WATeamInbox uses company-scoped database schemas, authenticated routes, roles, and conversation assignments as application access boundaries. These controls reduce accidental cross-workspace access but do not replace secure infrastructure or vulnerability management.
       </p>
-      <ul>
-        <li>No cross-tenant data access possible</li>
-        <li>Each tenant has its own encryption keys</li>
-        <li>Data is isolated at the database level</li>
-      </ul>
 
-      <h3>Encryption</h3>
+      <h3>Transport and Stored Data</h3>
       <p>
-        Your data is protected with encryption at rest and in transit:
+        WATeamInbox processes and stores message and session data so teammates can use the shared inbox. Self-hosting operators should terminate TLS, restrict database and object-storage access, protect secrets and backups, and enable storage encryption where required by their environment. Do not assume that WhatsApp's transport protections encrypt data after WATeamInbox receives or stores it.
       </p>
-      <ul>
-        <li><strong>In Transit:</strong> All API calls use HTTPS/TLS encryption</li>
-        <li><strong>At Rest:</strong> Sensitive data is encrypted in the database</li>
-        <li><strong>WhatsApp Messages:</strong> End-to-end encrypted by WhatsApp</li>
-      </ul>
 
       <h2>Team Security</h2>
 
@@ -153,14 +143,14 @@ const post = {
 
       <h3>Audit Logging</h3>
       <p>
-        All actions are logged for security and compliance. Use the audit log to:
+        Supported security-relevant workspace actions are recorded in the audit log. Use it to:
       </p>
       <ul>
         <li>Track who accessed what data</li>
         <li>Monitor message sending activity</li>
         <li>Detect unusual behavior patterns</li>
         <li>Investigate security incidents</li>
-        <li>Meet compliance requirements</li>
+        <li>Support internal review and incident investigation</li>
       </ul>
 
       <h2>WhatsApp-Specific Security</h2>
@@ -170,7 +160,7 @@ const post = {
         When scanning the QR code to connect WhatsApp:
       </p>
       <ul>
-        <li>Only scan codes from trusted WhatsApp Web sessions</li>
+        <li>Only scan a code you requested from your trusted WATeamInbox deployment</li>
         <li>Never share screenshots of QR codes</li>
         <li>QR codes expire after 30 seconds for security</li>
         <li>If you didn't initiate the connection, don't scan</li>
@@ -194,7 +184,7 @@ const post = {
           </svg>
           <div>
             <h4 class="font-semibold text-yellow-800">If You Get Banned</h4>
-            <p class="mt-1 text-yellow-700">WhatsApp Web will detect ban status and display guidance. Your message history is preserved locally, but you won't be able to send or receive until the ban is lifted.</p>
+            <p class="mt-1 text-yellow-700">WhatsApp may restrict accounts that trigger its anti-abuse systems. WATeamInbox cannot prevent or reverse those restrictions; follow the guidance shown by WhatsApp.</p>
           </div>
         </div>
       </div>
@@ -218,7 +208,7 @@ const post = {
         <li><strong>Log out all sessions</strong> - Use the "Log out all devices" feature immediately</li>
         <li><strong>Change your password</strong> - Create a new, strong password</li>
         <li><strong>Review audit logs</strong> - Check for unauthorized access</li>
-        <li><strong>Contact support</strong> - Report the incident to our security team</li>
+        <li><strong>Report vulnerabilities privately</strong> - Follow the process in the repository's SECURITY.md</li>
         <li><strong>Notify affected parties</strong> - If customer data was exposed, follow notification procedures</li>
       </ol>
 
@@ -251,7 +241,7 @@ const post = {
 
       <h2>Conclusion</h2>
       <p>
-        Security is an ongoing process, not a one-time setup. By following these best practices and maintaining vigilance, you can protect your business communications and customer data on WhatsApp Web.
+        Security is an ongoing process, not a one-time setup. Apply these practices alongside controls appropriate to your WATeamInbox deployment and organization.
       </p>
     </div>
 
