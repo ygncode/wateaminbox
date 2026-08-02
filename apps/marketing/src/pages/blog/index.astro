@@ -75,7 +75,10 @@ const categories = [
 ];
 ---
 
-<Layout title="Blog - WATeamInbox">
+<Layout
+  title="Blog — WATeamInbox"
+  description="Development notes, product guidance, security practices, and analytics ideas for teams running a shared WhatsApp inbox."
+>
   <section class="mx-auto max-w-7xl px-4 py-24 sm:px-6 lg:px-8">
     <!-- Header -->
     <div class="text-center">
@@ -206,50 +209,38 @@ const categories = [
       ))}
     </div>
 
-    <!-- Newsletter Signup -->
-    <div class="mt-24 rounded-2xl bg-gray-50 p-8 md:p-12" data-testid="newsletter-section">
+    <!-- Project updates -->
+    <div class="mt-24 rounded-2xl bg-gray-50 p-8 md:p-12" data-testid="project-updates-section">
       <div class="mx-auto max-w-2xl text-center">
         <h2 class="text-2xl font-bold text-gray-900 md:text-3xl">
-          Stay updated with our newsletter
+          Follow the project where it actually ships
         </h2>
         <p class="mt-4 text-gray-600">
-          Get the latest product updates, tips, and insights delivered straight to your inbox.
+          These are static development notes, not a newsletter feed. Join the
+          confirmed Cloud waitlist for planned managed-service updates, or use
+          GitHub for code and issue activity.
         </p>
-        <form class="mt-8 flex flex-col gap-4 sm:flex-row sm:justify-center" data-testid="newsletter-form">
-          <label for="email-input" class="sr-only">Email address</label>
-          <input
-            id="email-input"
-            type="email"
-            placeholder="Enter your email"
-            class="rounded-lg border border-gray-300 px-4 py-3 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500 sm:w-80"
-            data-testid="newsletter-email-input"
-          />
-          <button
-            type="submit"
+        <div class="mt-8 flex flex-wrap justify-center gap-3">
+          <a
+            href="/#waitlist"
             class="rounded-lg bg-primary-600 px-6 py-3 font-medium text-white transition-colors hover:bg-primary-700"
-            data-testid="newsletter-submit-button"
           >
-            Subscribe
-          </button>
-        </form>
-        <p class="mt-4 text-sm text-gray-500">
-          No spam, unsubscribe at any time.
-        </p>
+            Join the Cloud waitlist
+          </a>
+          <a
+            href="https://github.com/ygncode/wateaminbox"
+            target="_blank"
+            rel="noreferrer"
+            class="rounded-lg border border-gray-300 bg-white px-6 py-3 font-medium text-gray-700 transition-colors hover:bg-gray-50"
+          >
+            Watch the repository <span aria-hidden="true">↗</span>
+          </a>
+        </div>
       </div>
     </div>
 
-    <!-- Pagination -->
-    <div class="mt-16 flex justify-center" data-testid="pagination">
-      <nav class="flex items-center gap-2">
-        <button class="rounded-lg border border-gray-300 px-4 py-2 text-gray-500" disabled>
-          Previous
-        </button>
-        <button class="rounded-lg bg-primary-600 px-4 py-2 text-white">1</button>
-        <button class="rounded-lg border border-gray-300 px-4 py-2 text-gray-700 hover:bg-gray-50">2</button>
-        <button class="rounded-lg border border-gray-300 px-4 py-2 text-gray-700 hover:bg-gray-50">
-          Next
-        </button>
-      </nav>
+    <div class="mt-16 text-center" data-testid="pagination">
+      <p class="text-sm text-gray-500">All six archived notes are listed on this page.</p>
     </div>
   </section>
 </Layout>

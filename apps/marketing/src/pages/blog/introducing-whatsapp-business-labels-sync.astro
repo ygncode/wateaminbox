@@ -6,11 +6,16 @@ const post = {
   date: 'January 3, 2026',
   readTime: '4 min read',
   category: 'Product Update',
-  author: 'WATeamInbox Team'
+  author: 'WATeamInbox Team',
+  description: 'How WATeamInbox brings WhatsApp Business labels and workspace tags into one contact-organization workflow.'
 };
 ---
 
-<Layout title={`${post.title} - WATeamInbox Blog`}>
+<Layout
+  title={`${post.title} — WATeamInbox Blog`}
+  description={post.description}
+  type="article"
+>
   <article class="mx-auto max-w-4xl px-4 py-24 sm:px-6 lg:px-8">
     <!-- Header -->
     <header class="text-center">
@@ -40,7 +45,7 @@ const post = {
     <!-- Content -->
     <div class="prose prose-lg mx-auto mt-12 max-w-3xl" data-testid="blog-post-content">
       <p class="lead text-xl text-gray-600">
-        We're excited to announce the release of WhatsApp Business Labels Sync, a powerful new feature that bridges the gap between your WhatsApp Business labels and our custom tagging system.
+        WATeamInbox includes a label-sync workflow that connects WhatsApp Business labels with workspace tags. This note explains what the current implementation syncs and where an operator still needs to trigger an action.
       </p>
 
       <h2>What is Labels Sync?</h2>
@@ -53,9 +58,9 @@ const post = {
 
       <h2>Key Features</h2>
 
-      <h3>Bidirectional Sync</h3>
+      <h3>Sync and apply</h3>
       <p>
-        Labels Sync works in both directions. When you create a label in WhatsApp Business, it can sync to your custom tags. Similarly, supported changes made in WATeamInbox can sync back to WhatsApp Business labels.
+        Use "Sync from WhatsApp" to import the labels for a connected account and link them to workspace tags. Applying or removing a linked label from a contact sends that explicit action back to WhatsApp Business; it is not an always-on mirror of every change.
       </p>
 
       <h3>Auto-Create Tags</h3>
@@ -114,19 +119,13 @@ POST /api/labels/:id/link  # Link label to a tag
 POST /api/labels/auto-create # Auto-create tags from labels</code></pre>
       </div>
 
-      <h2>What's Next?</h2>
+      <h2>Current boundary</h2>
       <p>
-        This is just the beginning. We're working on expanding Labels Sync with features like:
+        Label data can be refreshed, linked, auto-created, applied, and removed through the current settings and API workflow. Treat the WhatsApp account and workspace tags as systems that may diverge until a sync or action completes; do not assume unsupported automation or bulk behavior.
       </p>
-      <ul>
-        <li>Bulk label application to multiple contacts</li>
-        <li>Label-based automation rules</li>
-        <li>Label analytics and insights</li>
-        <li>Cross-team label sharing</li>
-      </ul>
 
       <p>
-        We'd love to hear your feedback on Labels Sync. Reach out to our support team or join our community forum to share your thoughts and suggestions.
+        Report a reproducible mismatch or missing workflow through the project's <a href="https://github.com/ygncode/wateaminbox/issues">GitHub Issues</a>.
       </p>
     </div>
 

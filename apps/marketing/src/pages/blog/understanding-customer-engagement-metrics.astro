@@ -6,11 +6,16 @@ const post = {
   date: 'January 1, 2026',
   readTime: '5 min read',
   category: 'Analytics',
-  author: 'WATeamInbox Team'
+  author: 'WATeamInbox Team',
+  description: 'Understand WATeamInbox engagement, response, media, and resolution metrics without treating them as universal service guarantees.'
 };
 ---
 
-<Layout title={`${post.title} - WATeamInbox Blog`}>
+<Layout
+  title={`${post.title} — WATeamInbox Blog`}
+  description={post.description}
+  type="article"
+>
   <article class="mx-auto max-w-4xl px-4 py-24 sm:px-6 lg:px-8">
     <!-- Header -->
     <header class="text-center">

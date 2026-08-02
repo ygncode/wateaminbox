@@ -6,11 +6,16 @@ const post = {
   date: 'December 28, 2025',
   readTime: '7 min read',
   category: 'Security',
-  author: 'WATeamInbox Team'
+  author: 'WATeamInbox Team',
+  description: 'Security practices for self-hosted WATeamInbox deployments, team access, customer data, and linked WhatsApp sessions.'
 };
 ---
 
-<Layout title={`${post.title} - WATeamInbox Blog`}>
+<Layout
+  title={`${post.title} — WATeamInbox Blog`}
+  description={post.description}
+  type="article"
+>
   <article class="mx-auto max-w-4xl px-4 py-24 sm:px-6 lg:px-8">
     <!-- Header -->
     <header class="text-center">
@@ -162,7 +167,7 @@ const post = {
       <ul>
         <li>Only scan a code you requested from your trusted WATeamInbox deployment</li>
         <li>Never share screenshots of QR codes</li>
-        <li>QR codes expire after 30 seconds for security</li>
+        <li>QR codes are short-lived; follow the expiry shown by your deployment</li>
         <li>If you didn't initiate the connection, don't scan</li>
       </ul>
 

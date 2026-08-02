@@ -6,11 +6,16 @@ const post = {
   date: 'December 20, 2025',
   readTime: '4 min read',
   category: 'Tips & Tricks',
-  author: 'WATeamInbox Team'
+  author: 'WATeamInbox Team',
+  description: 'A practical guide to reusable quick replies, shortcuts, and more consistent team responses in WATeamInbox.'
 };
 ---
 
-<Layout title={`${post.title} - WATeamInbox Blog`}>
+<Layout
+  title={`${post.title} — WATeamInbox Blog`}
+  description={post.description}
+  type="article"
+>
   <article class="mx-auto max-w-4xl px-4 py-24 sm:px-6 lg:px-8">
     <!-- Header -->
     <header class="text-center">
@@ -55,7 +60,7 @@ const post = {
           </svg>
           <div>
             <h4 class="font-semibold text-cyan-800">Time Savings</h4>
-            <p class="mt-1 text-cyan-700">Teams report saving 2-3 hours per week using quick replies for common responses.</p>
+            <p class="mt-1 text-cyan-700">Quick replies reduce repeated typing and give teams a consistent starting point; measure the time saved in your own workflow.</p>
           </div>
         </div>
       </div>

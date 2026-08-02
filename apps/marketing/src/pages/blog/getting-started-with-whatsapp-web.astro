@@ -6,11 +6,16 @@ const post = {
   date: 'December 15, 2025',
   readTime: '8 min read',
   category: 'Getting Started',
-  author: 'WATeamInbox Team'
+  author: 'WATeamInbox Team',
+  description: 'A practical introduction to setting up WATeamInbox, pairing a WhatsApp device, and starting a team conversation.'
 };
 ---
 
-<Layout title={`${post.title} - WATeamInbox Blog`}>
+<Layout
+  title={`${post.title} — WATeamInbox Blog`}
+  description={post.description}
+  type="article"
+>
   <article class="mx-auto max-w-4xl px-4 py-24 sm:px-6 lg:px-8">
     <!-- Header -->
     <header class="text-center">
@@ -201,8 +206,8 @@ const post = {
               </svg>
             </div>
             <div>
-              <h5 class="font-medium text-gray-900">Status Tab</h5>
-              <p class="text-sm text-gray-600">View WhatsApp status updates from contacts</p>
+              <h5 class="font-medium text-gray-900">Notifications</h5>
+              <p class="text-sm text-gray-600">Review assignment, message, and workspace notifications</p>
             </div>
           </div>
         </div>

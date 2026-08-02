@@ -1,33 +1,503 @@
 ---
-import Layout from '../layouts/Layout.astro';
+import Layout from "../layouts/Layout.astro";
+
+const changeGroups = [
+  {
+    number: "01",
+    title: "Inbox and WhatsApp connections",
+    description:
+      "The current application can manage multiple WhatsApp connections per workspace, pair devices through QR codes, reconnect or archive sessions, and route each contact through its owning connection.",
+    items: [
+      "Message history sync with progress state and on-demand older history.",
+      "Text and supported media messages, replies, reactions, delivery state, presence, typing, and groups.",
+      "Connection-scoped worker sessions with durable command and event paths.",
+    ],
+  },
+  {
+    number: "02",
+    title: "Team workflows and access",
+    description:
+      "Workspace roles and granular permissions define who can see conversations, send, assign, manage connections, export data, or inspect operational history.",
+    items: [
+      "Owner, admin, and member roles with owner-managed permission overrides.",
+      "Contact assignment, assignment history, shared and private notes, tags, and CSV contact import.",
+      "Workspace invitations, audit logging, and access-aware search and exports.",
+    ],
+  },
+  {
+    number: "03",
+    title: "Business inbox tools",
+    description:
+      "The web app and API include the business-facing tools represented in the repository, without implying that every WhatsApp capability is supported.",
+    items: [
+      "Quick replies with shortcuts, WhatsApp Business label sync and tag linking.",
+      "Catalog and product sync with archive/restore and product visibility controls.",
+      "Scheduled messages and permission-gated broadcast jobs with pacing and quota configuration.",
+    ],
+  },
+  {
+    number: "04",
+    title: "Analytics, notifications, and data",
+    description:
+      "Operational views expose activity and response information while keeping PostgreSQL as the durable source of truth.",
+    items: [
+      "Dashboard metrics for messages, contacts, teams, engagement, response time, and resolution cases.",
+      "Calendar-aware response and resolution SLA policies plus breach views.",
+      "In-app and desktop notifications, optional Web Push, Meilisearch with a PostgreSQL fallback, and CSV/JSON/ZIP exports.",
+    ],
+  },
+  {
+    number: "05",
+    title: "Self-hosting and the public site",
+    description:
+      "The repository includes both a local development stack and a documented single-host production baseline. The marketing site remains a static Astro build.",
+    items: [
+      "Development Docker Compose for PostgreSQL, NATS, Centrifugo, Meilisearch, and MinIO.",
+      "Production Compose baseline with Caddy at the edge, private data services, secret-file configuration, migrations, backups, and monitoring guidance.",
+      "An optional, separate Cloudflare Worker for the double-opt-in Cloud waitlist; it is not the product and does not create Cloud access.",
+    ],
+  },
+];
 ---
 
-<Layout title="Changelog - WATeamInbox">
-  <section class="mx-auto max-w-3xl px-4 py-24 sm:px-6 lg:px-8">
-    <div class="text-center">
-      <h1 class="text-4xl font-bold tracking-tight text-gray-900">Changelog</h1>
-      <p class="mx-auto mt-4 max-w-2xl text-lg text-gray-600">
-        Stay up to date with the latest changes and improvements
-      </p>
-    </div>
-
-    <div class="mt-16 space-y-12">
-      <!-- Version 0.0.1 -->
-      <article class="relative border-l-2 border-primary-600 pl-6">
-        <div class="absolute -left-2 top-0 h-4 w-4 rounded-full bg-primary-600"></div>
-        <time class="text-sm font-semibold text-primary-600">January 17, 2026</time>
-        <h2 class="mt-2 text-xl font-bold text-gray-900">Version 0.0.1</h2>
-        <p class="mt-4 text-gray-600">
-          Initial pre-release of WATeamInbox. We're actively developing and improving the platform.
+<Layout
+  title="Changelog — WATeamInbox"
+  description="An honest snapshot of what is implemented in the WATeamInbox repository, with release dates and versions omitted until they are real."
+  imageAlt="WATeamInbox changelog"
+>
+  <div class="change-page">
+    <section class="change-hero">
+      <div>
+        <p class="change-kicker"><span></span> Repository notes / no tagged release</p>
+        <h1>What is here.<br /><em>What is not.</em></h1>
+        <p class="change-lede">
+          A changelog should describe shipped work, not fill gaps with invented
+          dates or roadmap promises. This page is a readable snapshot of the
+          implementation in the current repository baseline.
         </p>
-        <ul class="mt-4 space-y-2 text-gray-600">
-          <li>Team-based WhatsApp management</li>
-          <li>Multi-number support (up to 5 WhatsApp numbers)</li>
-          <li>Contact assignment and collaboration</li>
-          <li>Real-time messaging synchronization</li>
-          <li>Analytics and engagement tracking</li>
-        </ul>
-      </article>
-    </div>
-  </section>
+      </div>
+      <aside class="change-status">
+        <p class="change-status-label">Release status</p>
+        <strong>Unreleased</strong>
+        <p>
+          No public version or release date is assigned here. Use the repository
+          history and source files for the exact change sequence.
+        </p>
+        <a href="https://github.com/ygncode/wateaminbox/commits/main" target="_blank" rel="noreferrer">Browse commit history <span aria-hidden="true">↗</span></a>
+      </aside>
+    </section>
+
+    <section class="change-ledger" aria-labelledby="current-heading">
+      <div class="change-ledger-rail" aria-hidden="true"><span></span></div>
+      <div class="change-ledger-main">
+        <div class="change-entry-heading">
+          <p class="change-entry-label">Current repository</p>
+          <h2 id="current-heading">Implemented surfaces</h2>
+          <p>
+            The list below names capabilities that are represented by the web,
+            API, database, worker, configuration, and documentation in this
+            checkout. Availability can still depend on permissions, migrations,
+            external services, and deployment choices.
+          </p>
+        </div>
+
+        <div class="change-group-list">
+          {changeGroups.map((group) => (
+            <article class="change-group">
+              <span class="change-group-number">{group.number}</span>
+              <div>
+                <h3>{group.title}</h3>
+                <p>{group.description}</p>
+                <ul>
+                  {group.items.map((item) => <li>{item}</li>)}
+                </ul>
+              </div>
+            </article>
+          ))}
+        </div>
+
+        <aside class="change-boundary">
+          <p class="change-entry-label">Boundary notes</p>
+          <h2>Do not read this as a Cloud launch.</h2>
+          <ul>
+            <li><strong>Cloud access:</strong> not available from this page or the waitlist.</li>
+            <li><strong>Pricing and timing:</strong> no managed-service price, launch date, feature set, or SLA has been announced.</li>
+            <li><strong>Production status:</strong> the repository has a self-hosting baseline, but operators must review it for their own risk, compliance, availability, and support needs.</li>
+            <li><strong>WhatsApp relationship:</strong> WATeamInbox is independent and cannot guarantee account safety or prevent platform restrictions.</li>
+          </ul>
+        </aside>
+
+        <div class="change-footer-note">
+          <p>
+            See a feature here that the code no longer supports, or a real
+            release that should be recorded? <a href="https://github.com/ygncode/wateaminbox/issues" target="_blank" rel="noreferrer">Open a focused issue <span aria-hidden="true">↗</span></a> with the relevant route, component, or configuration file.
+          </p>
+        </div>
+      </div>
+    </section>
+  </div>
 </Layout>
+
+<style>
+  .change-page {
+    --change-ink: #15211f;
+    --change-muted: #5b6b62;
+    --change-paper: #f8f7f1;
+    --change-line: #cbd6ca;
+    --change-green: #1d633d;
+    --change-dark: #14221e;
+    overflow-x: clip;
+    background: var(--change-paper);
+    color: var(--change-ink);
+    font-family: var(--font-body);
+  }
+
+  .change-hero {
+    position: relative;
+    display: grid;
+    grid-template-columns: minmax(0, 1.15fr) minmax(19rem, 0.85fr);
+    align-items: end;
+    gap: clamp(2rem, 8vw, 8rem);
+    width: min(100% - 2rem, 74rem);
+    margin: 0 auto;
+    padding: clamp(4.5rem, 10vw, 8rem) 0 clamp(4rem, 8vw, 6.5rem);
+  }
+
+  .change-hero::before {
+    position: absolute;
+    top: 2rem;
+    right: -4rem;
+    width: 8rem;
+    height: 8rem;
+    border: 1px solid #8eaa90;
+    content: "";
+    transform: rotate(22deg);
+  }
+
+  .change-hero > div,
+  .change-status {
+    position: relative;
+    z-index: 1;
+  }
+
+  .change-kicker,
+  .change-entry-label,
+  .change-status-label,
+  .change-group-number {
+    margin: 0;
+    color: var(--change-green);
+    font-family: var(--font-mono);
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+
+  .change-kicker {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+  }
+
+  .change-kicker span {
+    width: 0.55rem;
+    height: 0.55rem;
+    background: #4d9f62;
+  }
+
+  .change-hero h1,
+  .change-ledger h2,
+  .change-boundary h2 {
+    margin: 1rem 0 0;
+    color: var(--change-ink);
+    font-family: var(--font-display);
+    font-size: clamp(3.3rem, 7vw, 6.4rem);
+    font-weight: 500;
+    letter-spacing: -0.06em;
+    line-height: 0.87;
+    text-wrap: balance;
+  }
+
+  .change-hero h1 em {
+    color: var(--change-green);
+    font-style: italic;
+  }
+
+  .change-lede {
+    max-width: 42rem;
+    margin: 1.8rem 0 0;
+    color: var(--change-muted);
+    font-size: clamp(1.05rem, 1.5vw, 1.22rem);
+    line-height: 1.65;
+    text-wrap: pretty;
+  }
+
+  .change-status {
+    border: 1px solid #557360;
+    background: var(--change-dark);
+    box-shadow: 12px 12px 0 #d0dfcd;
+    color: #e9f2e7;
+    padding: clamp(1.4rem, 3vw, 2.2rem);
+  }
+
+  .change-status::after {
+    position: absolute;
+    right: -1.25rem;
+    bottom: -1.25rem;
+    width: 3.5rem;
+    height: 3.5rem;
+    background: #c7dfc2;
+    content: "";
+  }
+
+  .change-status-label {
+    color: #9cca9d;
+  }
+
+  .change-status strong {
+    display: block;
+    margin-top: 0.8rem;
+    color: #f4faf1;
+    font-family: var(--font-display);
+    font-size: 2.45rem;
+    font-weight: 500;
+    letter-spacing: -0.05em;
+    line-height: 1;
+  }
+
+  .change-status p:not(.change-status-label) {
+    max-width: 22rem;
+    margin: 0.9rem 0 0;
+    color: #c8dcc8;
+    font-size: 0.84rem;
+    line-height: 1.6;
+  }
+
+  .change-status a,
+  .change-footer-note a {
+    color: #b9dfba;
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-decoration: none;
+  }
+
+  .change-status a {
+    display: inline-block;
+    margin-top: 1.3rem;
+  }
+
+  .change-status a:hover,
+  .change-footer-note a:hover {
+    text-decoration: underline;
+  }
+
+  .change-ledger {
+    display: grid;
+    grid-template-columns: 4rem minmax(0, 1fr);
+    gap: 2rem;
+    width: min(100% - 2rem, 74rem);
+    margin: 0 auto;
+    padding: 1rem 0 7rem;
+  }
+
+  .change-ledger-rail {
+    position: relative;
+    border-top: 1px solid var(--change-line);
+  }
+
+  .change-ledger-rail::after {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 1.15rem;
+    width: 1px;
+    background: var(--change-line);
+    content: "";
+  }
+
+  .change-ledger-rail span {
+    position: absolute;
+    z-index: 1;
+    top: 1rem;
+    left: 0.7rem;
+    width: 0.95rem;
+    height: 0.95rem;
+    border: 3px solid var(--change-paper);
+    background: var(--change-green);
+    box-shadow: 0 0 0 1px var(--change-green);
+  }
+
+  .change-ledger-main {
+    min-width: 0;
+    border-top: 1px solid var(--change-line);
+  }
+
+  .change-entry-heading {
+    padding: clamp(3.8rem, 7vw, 6rem) 0 2.4rem;
+  }
+
+  .change-entry-label {
+    color: #528563;
+  }
+
+  .change-ledger h2,
+  .change-boundary h2 {
+    font-size: clamp(2.7rem, 5vw, 4.6rem);
+  }
+
+  .change-entry-heading > p:last-child {
+    max-width: 45rem;
+    margin: 1.2rem 0 0;
+    color: var(--change-muted);
+    font-size: 0.98rem;
+    line-height: 1.7;
+  }
+
+  .change-group-list {
+    border-top: 1px solid #aebdaf;
+  }
+
+  .change-group {
+    display: grid;
+    grid-template-columns: 3rem minmax(0, 1fr);
+    gap: 1.2rem;
+    border-bottom: 1px solid #ccd7cb;
+    padding: 1.75rem 0 2rem;
+  }
+
+  .change-group-number {
+    color: #528563;
+    padding-top: 0.3rem;
+  }
+
+  .change-group h3 {
+    margin: 0;
+    color: var(--change-ink);
+    font-family: var(--font-display);
+    font-size: clamp(1.7rem, 3vw, 2.25rem);
+    font-weight: 600;
+    letter-spacing: -0.045em;
+    line-height: 1;
+  }
+
+  .change-group p {
+    max-width: 44rem;
+    margin: 0.75rem 0 0;
+    color: var(--change-muted);
+    font-size: 0.88rem;
+    line-height: 1.65;
+  }
+
+  .change-group ul,
+  .change-boundary ul {
+    display: grid;
+    gap: 0.5rem;
+    margin: 1rem 0 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .change-group li,
+  .change-boundary li {
+    position: relative;
+    padding-left: 1.15rem;
+    color: #52635a;
+    font-size: 0.82rem;
+    line-height: 1.55;
+  }
+
+  .change-group li::before,
+  .change-boundary li::before {
+    position: absolute;
+    top: 0.55rem;
+    left: 0;
+    width: 0.38rem;
+    height: 0.38rem;
+    background: #4f9962;
+    content: "";
+  }
+
+  .change-boundary {
+    margin-top: 3.5rem;
+    border: 1px solid #b6c9b5;
+    background: #e8efe5;
+    padding: clamp(1.4rem, 4vw, 2.4rem);
+  }
+
+  .change-boundary h2 {
+    max-width: 37rem;
+    margin-top: 0.8rem;
+    font-size: clamp(2.3rem, 4.5vw, 3.9rem);
+  }
+
+  .change-boundary li {
+    max-width: 46rem;
+  }
+
+  .change-boundary strong {
+    color: #294638;
+  }
+
+  .change-footer-note {
+    border-top: 1px solid var(--change-line);
+    margin-top: 3.5rem;
+    padding-top: 1.2rem;
+  }
+
+  .change-footer-note p {
+    max-width: 44rem;
+    margin: 0;
+    color: #718078;
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    line-height: 1.7;
+  }
+
+  .change-footer-note a {
+    color: var(--change-green);
+  }
+
+  @media (max-width: 900px) {
+    .change-hero {
+      grid-template-columns: 1fr;
+    }
+
+    .change-status {
+      max-width: 34rem;
+    }
+  }
+
+  @media (max-width: 680px) {
+    .change-hero,
+    .change-ledger {
+      width: min(100% - 1.5rem, 74rem);
+    }
+
+    .change-hero {
+      padding-top: 3.5rem;
+    }
+
+    .change-hero h1 {
+      font-size: clamp(3.3rem, 17vw, 5.5rem);
+    }
+
+    .change-ledger {
+      grid-template-columns: 1.5rem minmax(0, 1fr);
+      gap: 0.75rem;
+    }
+
+    .change-ledger-rail::after {
+      left: 0.4rem;
+    }
+
+    .change-ledger-rail span {
+      left: 0;
+    }
+
+    .change-group {
+      grid-template-columns: 2.1rem minmax(0, 1fr);
+      gap: 0.7rem;
+    }
+  }
+</style>
