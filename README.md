@@ -216,6 +216,10 @@ The API exposes:
 
 An unavailable NATS connection or Centrifugo instance reports degraded readiness, while PostgreSQL failure reports the service as unready.
 
+## Production deployment
+
+Do not use `docker-compose.yml` for production; it contains development-only credentials and exposed service ports. The hardened single-host baseline is defined in `compose.production.yml`. See [docs/deployment.md](docs/deployment.md) for TLS, secret generation, migrations, private storage, backups, restores, upgrades, rollback, and monitoring.
+
 ## Troubleshooting
 
 ### Realtime events do not arrive
