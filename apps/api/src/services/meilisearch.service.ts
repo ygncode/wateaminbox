@@ -1,4 +1,5 @@
 import { Index, MeiliSearch } from "meilisearch";
+import { env } from "../lib/env.js";
 import { createLogger, formatError } from "../lib/logger.js";
 
 const logger = createLogger("Meilisearch");
@@ -6,9 +7,8 @@ const logger = createLogger("Meilisearch");
 /**
  * Meilisearch configuration
  */
-const MEILISEARCH_URL = process.env.MEILISEARCH_URL || "http://localhost:7700";
-const MEILISEARCH_API_KEY =
-  process.env.MEILISEARCH_API_KEY || "development_master_key";
+const MEILISEARCH_URL = env.MEILISEARCH_URL;
+const MEILISEARCH_API_KEY = env.MEILISEARCH_API_KEY;
 
 /**
  * Singleton Meilisearch client

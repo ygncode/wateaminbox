@@ -22,7 +22,8 @@ func main() {
 
 	// Get configuration from environment using shared config utilities
 	natsURL := config.GetEnv("NATS_URL", "nats://localhost:4222")
-	httpAddr := config.GetEnv("HTTP_ADDR", ":8080")
+	httpAddr := config.GetEnv("HTTP_ADDR", "127.0.0.1:8080")
+	httpBearerToken := config.GetEnv("HTTP_BEARER_TOKEN", "")
 	whatsappBinaryPath := config.GetEnv("WHATSAPP_BINARY_PATH", "/usr/local/bin/whatsapp-worker")
 	healthCheckInterval := config.GetDurationEnv("HEALTH_CHECK_INTERVAL", 30*time.Second)
 
@@ -64,10 +65,14 @@ func main() {
 	}
 
 	// Initialize and start HTTP server
-	httpServer := api.NewServer(api.Config{
-		Address: httpAddr,
-		Manager: mgr,
+	httpServer, err := api.NewServer(api.Config{
+		Address:     httpAddr,
+		BearerToken: httpBearerToken,
+		Manager:     mgr,
 	})
+	if err != nil {
+		log.Fatalf("Invalid HTTP server configuration: %v", err)
+	}
 	if err := httpServer.Start(); err != nil {
 		log.Fatalf("Failed to start HTTP server: %v", err)
 	}
