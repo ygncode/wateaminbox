@@ -1,0 +1,411 @@
+name: ${COMPOSE_PROJECT_NAME:-wateaminbox-production}
+
+x-service-defaults: &service-defaults
+  restart: unless-stopped
+  init: true
+  security_opt:
+    - no-new-privileges:true
+  logging:
+    driver: local
+    options:
+      max-size: 20m
+      max-file: "5"
+
+x-app-environment: &app-environment
+  NODE_ENV: production
+  POSTGRES_USER: ${POSTGRES_USER:?set POSTGRES_USER}
+  POSTGRES_DB: ${POSTGRES_DB:?set POSTGRES_DB}
+  POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+  NATS_TOKEN_FILE: /run/secrets/nats_token
+  S3_ENDPOINT: https://${MEDIA_DOMAIN:?set MEDIA_DOMAIN}
+  S3_ACCESS_KEY_FILE: /run/secrets/s3_access_key
+  S3_SECRET_KEY_FILE: /run/secrets/s3_secret_key
+  S3_BUCKET: ${S3_BUCKET:?set S3_BUCKET}
+  S3_REGION: ${S3_REGION:?set S3_REGION}
+  LOG_LEVEL: ${LOG_LEVEL:-info}
+
+services:
+  proxy:
+    <<: *service-defaults
+    image: caddy:2.10.0-alpine
+    environment:
+      APP_DOMAIN: ${APP_DOMAIN:?set APP_DOMAIN}
+      MARKETING_DOMAIN: ${MARKETING_DOMAIN:?set MARKETING_DOMAIN}
+      MEDIA_DOMAIN: ${MEDIA_DOMAIN:?set MEDIA_DOMAIN}
+      ACME_EMAIL: ${ACME_EMAIL:?set ACME_EMAIL}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./infrastructure/production/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      edge:
+        ipv4_address: ${PROXY_IP:-10.253.0.254}
+    depends_on:
+      api:
+        condition: service_healthy
+      web:
+        condition: service_healthy
+      marketing:
+        condition: service_healthy
+      centrifugo:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:2019/config/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  web:
+    <<: *service-defaults
+    image: wateaminbox/web:${APP_IMAGE_TAG:?set APP_IMAGE_TAG}
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      target: web
+      args:
+        VITE_API_URL: /api
+        VITE_CENTRIFUGO_URL: wss://${APP_DOMAIN:?set APP_DOMAIN}/connection/websocket
+        VITE_VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /var/cache/nginx
+      - /var/run
+    networks: [edge]
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  marketing:
+    <<: *service-defaults
+    image: wateaminbox/marketing:${APP_IMAGE_TAG:?set APP_IMAGE_TAG}
+    build:
+      context: .
+      dockerfile: apps/marketing/Dockerfile
+      target: marketing
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /var/cache/nginx
+      - /var/run
+    networks: [edge]
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  migration:
+    <<: *service-defaults
+    restart: "no"
+    image: wateaminbox/migration:${APP_IMAGE_TAG:?set APP_IMAGE_TAG}
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+      target: migration
+    environment:
+      NODE_ENV: production
+      POSTGRES_USER: ${POSTGRES_USER:?set POSTGRES_USER}
+      POSTGRES_DB: ${POSTGRES_DB:?set POSTGRES_DB}
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+    secrets: [postgres_password]
+    networks: [data]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    read_only: true
+    tmpfs: [/tmp]
+
+  api:
+    <<: *service-defaults
+    image: wateaminbox/api:${APP_IMAGE_TAG:?set APP_IMAGE_TAG}
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+      target: api
+    environment:
+      <<: *app-environment
+      # nats.js accepts its token as a separate option, not URL user-info.
+      NATS_URL: nats://nats:4222
+      PORT: "4445"
+      APP_URL: https://${APP_DOMAIN:?set APP_DOMAIN}
+      CORS_ORIGINS: https://${APP_DOMAIN:?set APP_DOMAIN}
+      JWT_SECRET_FILE: /run/secrets/jwt_secret
+      JWT_ACCESS_EXPIRES_IN: 15m
+      JWT_REFRESH_EXPIRES_IN: 7d
+      MAIL_DRIVER: ${MAIL_DRIVER:?set MAIL_DRIVER}
+      RESEND_API_KEY_FILE: /run/secrets/resend_api_key
+      EMAIL_FROM: ${EMAIL_FROM:?set EMAIL_FROM}
+      MEILISEARCH_URL: http://meilisearch:7700
+      MEILISEARCH_API_KEY_FILE: /run/secrets/meilisearch_master_key
+      CENTRIFUGO_API_URL: http://centrifugo:8000/api
+      CENTRIFUGO_HEALTH_URL: http://centrifugo:8000/health
+      CENTRIFUGO_API_KEY_FILE: /run/secrets/centrifugo_api_key
+      CENTRIFUGO_TOKEN_HMAC_SECRET_FILE: /run/secrets/centrifugo_token_secret
+      CENTRIFUGO_REQUEST_TIMEOUT_MS: "3000"
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      LOG_PRETTY: "false"
+      RATE_LIMIT_ENABLED: "true"
+      RATE_LIMIT_STORE_TYPE: memory
+      TRUSTED_PROXY_IPS: ${PROXY_IP:-10.253.0.254}
+      TRUSTED_PROXY_IP_HEADER: x-forwarded-for
+    secrets:
+      - postgres_password
+      - nats_token
+      - s3_access_key
+      - s3_secret_key
+      - jwt_secret
+      - resend_api_key
+      - meilisearch_master_key
+      - centrifugo_api_key
+      - centrifugo_token_secret
+    networks: [edge, backend, data]
+    depends_on:
+      migration:
+        condition: service_completed_successfully
+      nats:
+        condition: service_healthy
+      meilisearch:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+      centrifugo:
+        condition: service_healthy
+    read_only: true
+    tmpfs: [/tmp]
+    healthcheck:
+      test: ["CMD", "bun", "-e", "fetch('http://127.0.0.1:4445/api/health/live').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
+
+  orchestrator:
+    <<: *service-defaults
+    image: wateaminbox/orchestrator:${APP_IMAGE_TAG:?set APP_IMAGE_TAG}
+    build:
+      context: .
+      dockerfile: services/orchestrator/Dockerfile
+      target: orchestrator
+    environment:
+      <<: *app-environment
+      HTTP_ADDR: :8080
+      WHATSAPP_BINARY_PATH: /usr/local/bin/whatsapp-worker
+      HEALTH_CHECK_INTERVAL: 30s
+      AUTO_RESTART_ENABLED: "true"
+      AUTO_RESTART_MAX_RETRIES: "5"
+      AUTO_RESTART_BACKOFF: 5s
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    secrets:
+      - postgres_password
+      - nats_token
+      - s3_access_key
+      - s3_secret_key
+    networks: [backend, data]
+    depends_on:
+      migration:
+        condition: service_completed_successfully
+      nats:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+    read_only: true
+    tmpfs: [/tmp]
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/health"]
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
+
+  postgres:
+    <<: *service-defaults
+    image: postgres:18.1-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?set POSTGRES_USER}
+      POSTGRES_DB: ${POSTGRES_DB:?set POSTGRES_DB}
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+    secrets: [postgres_password]
+    volumes:
+      - postgres_data:/var/lib/postgresql
+    networks: [data]
+    shm_size: 256mb
+    stop_grace_period: 1m
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  nats:
+    <<: *service-defaults
+    image: nats:2.10.26-alpine
+    entrypoint: ["/bin/sh", "-ec"]
+    command:
+      - |
+        token=$$(cat /run/secrets/nats_token)
+        test -n "$$token"
+        umask 077
+        printf 'jetstream { store_dir: "/data" }\nhttp: 8222\nauthorization { token: "%s" }\n' "$$token" >/tmp/nats.conf
+        exec nats-server --config /tmp/nats.conf
+    secrets: [nats_token]
+    volumes:
+      - nats_data:/data
+    networks: [data]
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8222/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  centrifugo:
+    <<: *service-defaults
+    image: centrifugo/centrifugo:v6.9.1
+    entrypoint: ["/bin/sh", "-ec"]
+    command:
+      - |
+        token=$$(cat /run/secrets/nats_token)
+        export CENTRIFUGO_BROKER_NATS_URL="nats://$$token@nats:4222"
+        export CENTRIFUGO_CLIENT_TOKEN_HMAC_SECRET_KEY="$$(cat /run/secrets/centrifugo_token_secret)"
+        export CENTRIFUGO_HTTP_API_KEY="$$(cat /run/secrets/centrifugo_api_key)"
+        exec centrifugo --config=/centrifugo/config.json
+    environment:
+      CENTRIFUGO_CLIENT_ALLOWED_ORIGINS: '["https://${APP_DOMAIN:?set APP_DOMAIN}"]'
+    secrets:
+      - nats_token
+      - centrifugo_api_key
+      - centrifugo_token_secret
+    volumes:
+      - ./infrastructure/production/centrifugo.json:/centrifugo/config.json:ro
+    networks: [edge, data]
+    depends_on:
+      nats:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  meilisearch:
+    <<: *service-defaults
+    image: getmeili/meilisearch:v1.11.3
+    entrypoint: ["/bin/sh", "-ec"]
+    command:
+      - |
+        export MEILI_MASTER_KEY="$$(cat /run/secrets/meilisearch_master_key)"
+        exec /bin/meilisearch
+    environment:
+      MEILI_ENV: production
+      MEILI_NO_ANALYTICS: "true"
+      MEILI_DB_PATH: /meili_data/data.ms
+      MEILI_DUMP_DIR: /meili_data/dumps
+    secrets: [meilisearch_master_key]
+    volumes:
+      - meilisearch_data:/meili_data
+    networks: [data]
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:7700/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  minio:
+    <<: *service-defaults
+    image: minio/minio:RELEASE.2025-04-22T22-12-26Z
+    command: ["server", "/data"]
+    environment:
+      MINIO_ROOT_USER_FILE: /run/secrets/minio_root_user
+      MINIO_ROOT_PASSWORD_FILE: /run/secrets/minio_root_password
+      MINIO_BROWSER: "off"
+    secrets:
+      - minio_root_user
+      - minio_root_password
+    volumes:
+      - minio_data:/data
+    networks: [edge, data]
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  minio-init:
+    <<: *service-defaults
+    restart: "no"
+    image: minio/mc:RELEASE.2025-04-16T18-13-26Z
+    entrypoint: ["/bin/sh", "-ec"]
+    command:
+      - |
+        mc alias set local http://minio:9000 "$$(cat /run/secrets/minio_root_user)" "$$(cat /run/secrets/minio_root_password)"
+        mc mb --ignore-existing "local/$${S3_BUCKET}"
+        mc anonymous set none "local/$${S3_BUCKET}"
+        cat >/tmp/media-policy.json <<EOF
+        {"Version":"2012-10-17","Statement":[{"Effect":"Allow","Action":["s3:GetBucketLocation","s3:ListBucket"],"Resource":["arn:aws:s3:::$${S3_BUCKET}"]},{"Effect":"Allow","Action":["s3:GetObject","s3:PutObject","s3:DeleteObject"],"Resource":["arn:aws:s3:::$${S3_BUCKET}/*"]}]}
+        EOF
+        mc admin policy create local wateaminbox-media /tmp/media-policy.json
+        mc admin user info local "$$(cat /run/secrets/s3_access_key)" >/dev/null 2>&1 || mc admin user add local "$$(cat /run/secrets/s3_access_key)" "$$(cat /run/secrets/s3_secret_key)"
+        mc admin policy attach local wateaminbox-media --user "$$(cat /run/secrets/s3_access_key)"
+    environment:
+      S3_BUCKET: ${S3_BUCKET:?set S3_BUCKET}
+      MC_CONFIG_DIR: /tmp/.mc
+    secrets:
+      - minio_root_user
+      - minio_root_password
+      - s3_access_key
+      - s3_secret_key
+    networks: [data]
+    depends_on:
+      minio:
+        condition: service_healthy
+    read_only: true
+    tmpfs: [/tmp]
+
+networks:
+  edge:
+    ipam:
+      config:
+        - subnet: ${EDGE_SUBNET:-10.253.0.0/24}
+  backend: {}
+  data:
+    internal: true
+
+volumes:
+  postgres_data:
+  nats_data:
+  meilisearch_data:
+  minio_data:
+  caddy_data:
+  caddy_config:
+
+secrets:
+  postgres_password:
+    file: ${POSTGRES_PASSWORD_FILE:?set POSTGRES_PASSWORD_FILE}
+  nats_token:
+    file: ${NATS_TOKEN_FILE:?set NATS_TOKEN_FILE}
+  meilisearch_master_key:
+    file: ${MEILISEARCH_MASTER_KEY_FILE:?set MEILISEARCH_MASTER_KEY_FILE}
+  minio_root_user:
+    file: ${MINIO_ROOT_USER_FILE:?set MINIO_ROOT_USER_FILE}
+  minio_root_password:
+    file: ${MINIO_ROOT_PASSWORD_FILE:?set MINIO_ROOT_PASSWORD_FILE}
+  s3_access_key:
+    file: ${S3_ACCESS_KEY_FILE:?set S3_ACCESS_KEY_FILE}
+  s3_secret_key:
+    file: ${S3_SECRET_KEY_FILE:?set S3_SECRET_KEY_FILE}
+  jwt_secret:
+    file: ${JWT_SECRET_FILE:?set JWT_SECRET_FILE}
+  centrifugo_api_key:
+    file: ${CENTRIFUGO_API_KEY_FILE:?set CENTRIFUGO_API_KEY_FILE}
+  centrifugo_token_secret:
+    file: ${CENTRIFUGO_TOKEN_SECRET_FILE:?set CENTRIFUGO_TOKEN_SECRET_FILE}
+  resend_api_key:
+    file: ${RESEND_API_KEY_FILE:?set RESEND_API_KEY_FILE}

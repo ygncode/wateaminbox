@@ -3,6 +3,7 @@ package config
 
 import (
 	"log"
+	"net/url"
 	"os"
 	"strconv"
 	"time"
@@ -14,6 +15,16 @@ func GetEnv(key, defaultValue string) string {
 		return value
 	}
 	return defaultValue
+}
+
+// RedactURL removes user information before a service URL is logged.
+func RedactURL(value string) string {
+	parsed, err := url.Parse(value)
+	if err != nil {
+		return "[invalid URL]"
+	}
+	parsed.User = nil
+	return parsed.String()
 }
 
 // GetEnvRequired returns the value of an environment variable or panics if not set.

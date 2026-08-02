@@ -123,6 +123,7 @@ export async function getNatsConnection(): Promise<NatsConnection> {
   try {
     natsConnection = await connect({
       servers: env.NATS_URL,
+      token: env.NATS_TOKEN || undefined,
       name: "whatsapp-api",
       reconnect: true,
       maxReconnectAttempts: MAX_RECONNECT_ATTEMPTS,

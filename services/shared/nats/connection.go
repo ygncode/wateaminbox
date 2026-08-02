@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/nats-io/nats.go"
+	"github.com/ygncode-lab/whatsapp-web/services/shared/config"
 )
 
 // ConnectionConfig holds configuration for creating a NATS connection.
@@ -53,7 +54,7 @@ func NewConnection(ctx context.Context, cfg ConnectionConfig) (*Connection, erro
 
 	opts := buildConnectionOptions(cfg)
 
-	log.Printf("Connecting to NATS at %s...", cfg.URL)
+	log.Printf("Connecting to NATS at %s...", config.RedactURL(cfg.URL))
 
 	nc, err := nats.Connect(cfg.URL, opts...)
 	if err != nil {
@@ -66,7 +67,7 @@ func NewConnection(ctx context.Context, cfg ConnectionConfig) (*Connection, erro
 		return nil, fmt.Errorf("failed to get JetStream context: %w", err)
 	}
 
-	log.Printf("Connected to NATS successfully at %s", cfg.URL)
+	log.Printf("Connected to NATS successfully at %s", config.RedactURL(cfg.URL))
 
 	return &Connection{
 		nc:  nc,
@@ -117,7 +118,7 @@ func buildConnectionOptions(cfg ConnectionConfig) []nats.Option {
 
 	// Reconnect handler
 	opts = append(opts, nats.ReconnectHandler(func(nc *nats.Conn) {
-		log.Printf("NATS reconnected to %s", nc.ConnectedUrl())
+		log.Printf("NATS reconnected to %s", config.RedactURL(nc.ConnectedUrl()))
 		if cfg.ReconnectHandler != nil {
 			cfg.ReconnectHandler()
 		}

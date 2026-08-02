@@ -91,6 +91,7 @@ export const env = {
 
   // NATS
   NATS_URL: getEnv("NATS_URL", "nats://localhost:4448"),
+  NATS_TOKEN: getEnv("NATS_TOKEN", ""),
 
   // S3 Storage
   S3_ENDPOINT: getEnv("S3_ENDPOINT", "http://localhost:4450"),

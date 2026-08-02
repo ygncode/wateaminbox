@@ -79,7 +79,7 @@ func main() {
 
 	log.Println("Orchestrator started successfully")
 	log.Printf("HTTP server listening on %s", httpAddr)
-	log.Printf("NATS connected to %s", natsURL)
+	log.Printf("NATS connected to %s", config.RedactURL(natsURL))
 
 	// Wait for shutdown signal
 	sigCh := make(chan os.Signal, 1)

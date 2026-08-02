@@ -1,0 +1,50 @@
+{
+	email {$ACME_EMAIL}
+	admin 0.0.0.0:2019
+	servers {
+		trusted_proxies static private_ranges
+		client_ip_headers X-Forwarded-For X-Real-IP
+	}
+}
+
+(common_security) {
+	encode zstd gzip
+	header {
+		-Server
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		X-Frame-Options DENY
+		Permissions-Policy "camera=(), microphone=(), geolocation=()"
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+	}
+}
+
+{$APP_DOMAIN} {
+	import common_security
+
+	handle /api/* {
+		reverse_proxy api:4445
+	}
+
+	handle /connection/* {
+		reverse_proxy centrifugo:8000
+	}
+
+	handle {
+		reverse_proxy web:8080
+	}
+}
+
+{$MARKETING_DOMAIN} {
+	import common_security
+	reverse_proxy marketing:8080
+}
+
+{$MEDIA_DOMAIN} {
+	import common_security
+	# MinIO remains private at the network layer. Only signed S3 requests reach
+	# this endpoint; its console and administrative API are not routed.
+	@admin path /minio/admin/*
+	respond @admin 404
+	reverse_proxy minio:9000
+}

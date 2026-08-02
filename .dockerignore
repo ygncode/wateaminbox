@@ -1,0 +1,43 @@
+# Version-control and local tooling
+.git
+.github
+.claude
+.pi
+.idea
+.vscode
+.DS_Store
+
+# Never send local credentials or deployment secrets to a build daemon
+.env
+.env.*
+!.env.example
+secrets
+**/secrets
+*.pem
+*.key
+
+# Dependencies, caches, and generated output
+node_modules
+**/node_modules
+.turbo
+**/.turbo
+**/dist
+**/build
+**/.astro
+coverage
+playwright-report
+test-results
+*.log
+*.tsbuildinfo
+
+# Local Go artifacts
+services/orchestrator/orchestrator
+services/whatsapp/whatsapp-worker
+services/whatsapp/whatsapp-worker.next
+services/*/tmp
+
+# Unneeded development state
+.loop
+.worktrees
+tmp
+.temp

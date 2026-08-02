@@ -108,7 +108,7 @@ func main() {
 		log.Fatalf("Failed to initialize NATS publisher: %v", err)
 	}
 	defer publisher.Close()
-	log.Printf("NATS publisher connected to %s", natsURL)
+	log.Printf("NATS publisher connected to %s", config.RedactURL(natsURL))
 
 	// Set up QR code callback to publish to NATS
 	waClient.SetQRCallback(func(qrCode string) {

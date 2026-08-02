@@ -1,0 +1,26 @@
+{
+  "client": {
+    "allowed_origins": [],
+    "token": {
+      "audience": "wateaminbox-realtime",
+      "issuer": "wateaminbox-api"
+    }
+  },
+  "http_api": {},
+  "channel": {
+    "namespaces": [
+      { "name": "company" },
+      { "name": "user" }
+    ]
+  },
+  "broker": {
+    "enabled": true,
+    "type": "nats",
+    "nats": {
+      "url": "nats://nats:4222",
+      "prefix": "wateaminbox.centrifugo"
+    }
+  },
+  "health": { "enabled": true },
+  "prometheus": { "enabled": true }
+}
