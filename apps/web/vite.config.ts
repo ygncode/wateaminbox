@@ -25,6 +25,8 @@ export default defineConfig(({ mode }) => ({
     port: 4444,
   },
   resolve: {
+    // Workspace-local installs can otherwise split React from React DOM.
+    dedupe: ["react", "react-dom"],
     alias: {
       "@": path.resolve(__dirname, "./src"),
     },
