@@ -197,7 +197,8 @@ services:
       target: orchestrator
     environment:
       <<: *app-environment
-      HTTP_ADDR: :8080
+      # Operational endpoints remain process-local; they are not routed by Caddy.
+      HTTP_ADDR: 127.0.0.1:8080
       WHATSAPP_BINARY_PATH: /usr/local/bin/whatsapp-worker
       HEALTH_CHECK_INTERVAL: 30s
       AUTO_RESTART_ENABLED: "true"
