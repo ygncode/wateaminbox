@@ -20,24 +20,21 @@ WATeamInbox is an independent project and is not affiliated with, endorsed by, o
 
 ## Architecture
 
-```text
-┌──────────────────┐         HTTP          ┌──────────────────┐
-│ React web app    │◀─────────────────────▶│ Hono API (Bun)   │
-└────────┬─────────┘                       └────────┬─────────┘
-         │ WebSocket                                │ publish API
-         ▼                                          ▼
-┌──────────────────┐◀────── NATS broker ──▶┌──────────────────┐
-│   Centrifugo     │                        │ NATS JetStream   │
-└──────────────────┘                        └────────┬─────────┘
-                                                   │
-                                           ┌───────▼────────┐
-                                           │ Go orchestrator │
-                                           └───────┬────────┘
-                                                   │ manages
-                                           ┌───────▼────────┐
-                                           │ WhatsApp worker │
-                                           │   (whatsmeow)   │
-                                           └────────────────┘
+```mermaid
+flowchart TB
+    web["React web app"]
+    api["Hono API<br/>(Bun)"]
+    centrifugo["Centrifugo"]
+    nats["NATS JetStream"]
+    orchestrator["Go orchestrator"]
+    worker["WhatsApp worker<br/>(whatsmeow)"]
+
+    web <-->|HTTP| api
+    web -->|WebSocket| centrifugo
+    api -->|publish API| nats
+    centrifugo <-->|NATS broker| nats
+    nats --> orchestrator
+    orchestrator -->|manages| worker
 ```
 
 ### Repository layout
