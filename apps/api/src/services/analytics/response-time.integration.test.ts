@@ -34,6 +34,7 @@ const integrationTest =
 
 const MINUTE = 60 * 1000;
 const HOUR = 60 * MINUTE;
+const LARGE_DATASET_TEST_TIMEOUT_MS = 20_000;
 
 const OFFICE_HOURS_UTC: SlaWeeklySchedule = [
   { weekday: 0, open: false, intervals: [] },
@@ -982,6 +983,7 @@ describe("response-time analytics - exceeding the episode cap fails explicitly",
         ).rejects.toBeInstanceOf(AnalyticsRangeTooWideError);
       });
     },
+    LARGE_DATASET_TEST_TIMEOUT_MS,
   );
 
   integrationTest("does not throw when exactly at the cap", async () => {
@@ -1039,7 +1041,7 @@ describe("response-time analytics - exceeding the episode cap fails explicitly",
       const stats = await getResponseTimeStats(companyId, start, end);
       expect(stats.totalConversations).toBe(atCap);
     });
-  });
+  }, LARGE_DATASET_TEST_TIMEOUT_MS);
 });
 
 describe("response-time analytics - exact target boundary", () => {

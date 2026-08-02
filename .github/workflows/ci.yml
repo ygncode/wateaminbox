@@ -13,6 +13,9 @@ jobs:
     # Public pull-request code must not execute on maintainer infrastructure.
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    env:
+      # Synthetic test-only key. Production secrets must never be stored in Actions YAML.
+      JWT_SECRET: ci-test-only-not-a-secret-at-least-32-characters
     services:
       postgres:
         image: postgres:18-alpine
