@@ -6,6 +6,7 @@
 import { Hono } from "hono";
 import { badRequest, notFound } from "../../lib/errors.js";
 import {
+  authorizeMessageMedia,
   formatMessagesForFetch,
   type MessageDbRow,
   type QuotedMessageSimple,
@@ -26,7 +27,7 @@ export const fetchRoutes = new Hono();
  * Query params: contactId (required), limit, before (cursor for pagination)
  */
 fetchRoutes.get("/", async (c) => {
-  const { tenantDb } = getRouteContext(c);
+  const { tenantDb, companyId } = getRouteContext(c);
   const contactId = c.req.query("contactId");
   const { limit } = extractPaginationParams(c, 50);
   const before = c.req.query("before"); // Message ID for cursor pagination
@@ -100,8 +101,12 @@ fetchRoutes.get("/", async (c) => {
   const sortedMessages = messages.reverse();
 
   // Format messages using shared formatter
-  const formattedMessages = formatMessagesForFetch(
+  const authorizedMessages = await authorizeMessageMedia(
     sortedMessages as MessageDbRow[],
+    companyId,
+  );
+  const formattedMessages = formatMessagesForFetch(
+    authorizedMessages,
     quotedMessages,
     reactionsMap,
     userNames,

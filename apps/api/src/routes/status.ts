@@ -1,26 +1,49 @@
+import { zValidator } from "@hono/zod-validator";
 import { now, toDbDate, toISOString } from "@wateaminbox/shared";
 import { Hono } from "hono";
-import { zValidator } from "@hono/zod-validator";
 import { forbidden, notFound } from "../lib/errors.js";
 import {
-  successData,
-  successPaginated,
-  successMessage,
   created,
+  successData,
+  successMessage,
+  successPaginated,
 } from "../lib/response.js";
-import { authMiddleware } from "../middleware/auth.js";
-import { tenantMiddleware } from "../middleware/tenant.js";
-import { getRouteContext } from "../middleware/context.js";
 import {
-  extractPaginationParams,
   createPaginationMeta,
+  extractPaginationParams,
 } from "../lib/route-helpers.js";
 import { postStatusSchema } from "../lib/schemas/index.js";
+import {
+  getAuthorizedMediaUrl,
+  getMediaObjectReference,
+  getPresignedUrl,
+  getPrivateMediaReference,
+} from "../lib/storage.js";
+import { authMiddleware } from "../middleware/auth.js";
+import { getRouteContext } from "../middleware/context.js";
+import { tenantMiddleware } from "../middleware/tenant.js";
 import { enqueueConnectionCommand } from "../services/command-outbox.service.js";
-import { env } from "../lib/env.js";
 import { getActiveWhatsAppConnection } from "../services/whatsapp-connection.service.js";
 
 export const statusRoutes = new Hono();
+
+async function authorizeStatusMedia<T extends { media_url: string | null }>(
+  statuses: T[],
+  companyId: string,
+): Promise<T[]> {
+  return Promise.all(
+    statuses.map(async (status) => {
+      try {
+        return {
+          ...status,
+          media_url: await getAuthorizedMediaUrl(status.media_url, companyId),
+        };
+      } catch {
+        return { ...status, media_url: null };
+      }
+    }),
+  );
+}
 
 // All status routes require authentication and tenant context
 statusRoutes.use("/*", authMiddleware);
@@ -31,20 +54,23 @@ statusRoutes.use("/*", tenantMiddleware());
  * Query params: limit, offset
  */
 statusRoutes.get("/", async (c) => {
-  const { tenantDb } = getRouteContext(c);
+  const { tenantDb, companyId } = getRouteContext(c);
   const { limit, offset } = extractPaginationParams(c);
 
   const currentTime = toDbDate();
 
   // Get non-expired status updates
-  const statuses = await tenantDb
-    .selectFrom("status_updates")
-    .selectAll()
-    .where("expires_at", ">", currentTime)
-    .orderBy("timestamp", "desc")
-    .limit(limit)
-    .offset(offset)
-    .execute();
+  const statuses = await authorizeStatusMedia(
+    await tenantDb
+      .selectFrom("status_updates")
+      .selectAll()
+      .where("expires_at", ">", currentTime)
+      .orderBy("timestamp", "desc")
+      .limit(limit)
+      .offset(offset)
+      .execute(),
+    companyId,
+  );
 
   // Group statuses by sender
   const groupedByContact: Record<string, typeof statuses> = {};
@@ -91,17 +117,20 @@ statusRoutes.get("/", async (c) => {
  * GET /status/:jid - Get all status updates from a specific contact
  */
 statusRoutes.get("/:jid", async (c) => {
-  const { tenantDb } = getRouteContext(c);
+  const { tenantDb, companyId } = getRouteContext(c);
   const jid = c.req.param("jid");
   const currentTime = toDbDate();
 
-  const statuses = await tenantDb
-    .selectFrom("status_updates")
-    .selectAll()
-    .where("from_jid", "=", jid)
-    .where("expires_at", ">", currentTime)
-    .orderBy("timestamp", "asc")
-    .execute();
+  const statuses = await authorizeStatusMedia(
+    await tenantDb
+      .selectFrom("status_updates")
+      .selectAll()
+      .where("from_jid", "=", jid)
+      .where("expires_at", ">", currentTime)
+      .orderBy("timestamp", "asc")
+      .execute(),
+    companyId,
+  );
 
   if (statuses.length === 0) {
     return notFound(c, "Status updates");
@@ -173,11 +202,17 @@ statusRoutes.post("/", zValidator("json", postStatusSchema), async (c) => {
     .where("id", "=", connection.id)
     .executeTakeFirst();
 
-  // Create status record with pending state
+  // Origin checks do not prove tenant ownership. Resolve the exact private
+  // object and validate its tenant metadata before it reaches the worker.
+  let storedMediaReference: string | null = null;
+  let workerMediaUrl: string | undefined;
   if (mediaUrl) {
-    const allowedOrigin = new URL(env.S3_ENDPOINT).origin;
-    if (new URL(mediaUrl).origin !== allowedOrigin) {
-      return forbidden(c, "Status media must come from configured storage");
+    try {
+      const media = await getMediaObjectReference(mediaUrl, companyId);
+      storedMediaReference = getPrivateMediaReference(media.key);
+      workerMediaUrl = await getPresignedUrl(media.key, 15 * 60);
+    } catch {
+      return forbidden(c, "Status media does not belong to this workspace");
     }
   }
 
@@ -194,18 +229,14 @@ statusRoutes.post("/", zValidator("json", postStatusSchema), async (c) => {
         status_id: `pending_${statusId}`,
         from_jid: connectionDetails?.jid || "me",
         media_type: type === "text" ? null : type,
-        media_url: mediaUrl || null,
+        media_url: storedMediaReference,
         caption: content || null,
         timestamp: currentTime.toDate(),
         expires_at: expiresAt.toDate(),
       })
       .execute();
-    await enqueueConnectionCommand(
-      trx,
-      companyId,
-      connection.id,
-      (publisher) =>
-        publisher.postStatus(type, content || "", user.id, mediaUrl),
+    await enqueueConnectionCommand(trx, companyId, connection.id, (publisher) =>
+      publisher.postStatus(type, content || "", user.id, workerMediaUrl),
     );
   });
 
@@ -266,7 +297,7 @@ statusRoutes.delete("/:id", async (c) => {
  * GET /status/my - Get my posted status updates
  */
 statusRoutes.get("/my", async (c) => {
-  const { tenantDb } = getRouteContext(c);
+  const { tenantDb, companyId } = getRouteContext(c);
   const currentTime = toDbDate();
 
   // Get connected JID
@@ -281,15 +312,21 @@ statusRoutes.get("/my", async (c) => {
   }
 
   // Get my active statuses
-  const myStatuses = await tenantDb
-    .selectFrom("status_updates")
-    .selectAll()
-    .where((eb) =>
-      eb.or([eb("from_jid", "=", connection.jid!), eb("from_jid", "=", "me")]),
-    )
-    .where("expires_at", ">", currentTime)
-    .orderBy("timestamp", "desc")
-    .execute();
+  const myStatuses = await authorizeStatusMedia(
+    await tenantDb
+      .selectFrom("status_updates")
+      .selectAll()
+      .where((eb) =>
+        eb.or([
+          eb("from_jid", "=", connection.jid!),
+          eb("from_jid", "=", "me"),
+        ]),
+      )
+      .where("expires_at", ">", currentTime)
+      .orderBy("timestamp", "desc")
+      .execute(),
+    companyId,
+  );
 
   return successData(c, {
     statuses: myStatuses.map((s) => ({

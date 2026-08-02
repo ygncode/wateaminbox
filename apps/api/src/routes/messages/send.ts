@@ -18,6 +18,11 @@ import {
   forwardMessageSchema,
   sendMessageSchema,
 } from "../../lib/schemas/index.js";
+import {
+  getAuthorizedMediaUrlOrNull,
+  getPrivateMediaReference,
+  resolveMediaKeyForCompany,
+} from "../../lib/storage.js";
 import { getRouteContext } from "../../middleware/context.js";
 import { requireMessageSendPermission } from "../../middleware/message-send-policy.js";
 import { createConditionalRateLimiter } from "../../middleware/rate-limit.js";
@@ -123,6 +128,11 @@ sendRoutes.post(
       quotedSenderJid,
     );
 
+    const storedMediaReference = body.mediaUrl
+      ? getPrivateMediaReference(
+          resolveMediaKeyForCompany(body.mediaUrl, companyId),
+        )
+      : null;
     let autoAssigned = false;
     await tenantDb.transaction().execute(async (trx) => {
       const result = await requireSendAccess(trx, body.contactId, user.id);
@@ -138,7 +148,7 @@ sendRoutes.post(
           sender_jid: connection.jid,
           message_type: body.messageType,
           content: body.content,
-          media_url: body.mediaUrl || null,
+          media_url: storedMediaReference,
           quoted_message_id: quotedWaMessageId || null,
           sent_by_user_id: user.id,
           status: "pending",
@@ -154,7 +164,12 @@ sendRoutes.post(
       );
     });
     if (autoAssigned) {
-      await broadcastAutoAssignment(tenantDb, companyId, body.contactId, user.id);
+      await broadcastAutoAssignment(
+        tenantDb,
+        companyId,
+        body.contactId,
+        user.id,
+      );
     }
 
     const senderProfile = await toAuthUserResponse(user);
@@ -182,7 +197,13 @@ sendRoutes.post(
     await broadcastToCompany(
       companyId,
       "message:new",
-      { message: formattedMessage, conversationId: body.contactId },
+      {
+        message: {
+          ...formattedMessage,
+          metadata: body.mediaUrl ? { mediaAvailable: true } : undefined,
+        },
+        conversationId: body.contactId,
+      },
       connection.id,
     );
 
@@ -439,7 +460,10 @@ sendRoutes.post(
       await broadcastAutoAssignment(tenantDb, companyId, contact.id, user.id);
     }
 
-    const senderProfile = await toAuthUserResponse(user);
+    const [senderProfile, authorizedMediaUrl] = await Promise.all([
+      toAuthUserResponse(user),
+      getAuthorizedMediaUrlOrNull(originalMessage.media_url, companyId),
+    ]);
     return c.json({
       success: true,
       message: {
@@ -455,8 +479,8 @@ sendRoutes.post(
         sentByUserGravatarUrl: senderProfile.gravatarUrl,
         messageType: originalMessage.message_type,
         content: originalMessage.content || "",
-        metadata: originalMessage.media_url
-          ? { mediaUrl: originalMessage.media_url }
+        metadata: authorizedMediaUrl
+          ? { mediaUrl: authorizedMediaUrl }
           : undefined,
         status: "pending",
         createdAt: toDbDate(),

@@ -49,7 +49,9 @@ func TestRealisticMediaObjectSendWithLocalMinIO(t *testing.T) {
 	require.NoError(t, err)
 	parsed, err := url.Parse(mediaURL)
 	require.NoError(t, err)
-	objectKey := strings.TrimPrefix(parsed.Path, "/"+bucket+"/")
+	require.Equal(t, "s3", parsed.Scheme)
+	require.Equal(t, bucket, parsed.Host)
+	objectKey := strings.TrimPrefix(parsed.Path, "/")
 	defer client.DeleteMedia(context.Background(), objectKey)
 
 	sentBytes := 0

@@ -72,6 +72,8 @@ export async function handleStatusEvent(event: StatusEvent): Promise<void> {
       {
         id: statusId,
         ...payload,
+        mediaUrl: undefined,
+        mediaAvailable: Boolean(payload.mediaUrl),
       },
       connectionId,
     );
@@ -295,7 +297,7 @@ export async function handleDownloadResponseEvent(
           {
             messageId: updatedMessage.id,
             conversationId: updatedMessage.contact_id,
-            mediaUrl: payload.mediaUrl,
+            mediaAvailable: true,
             mediaSize: payload.mediaSize,
           },
           connectionId,

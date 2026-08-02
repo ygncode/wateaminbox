@@ -15,6 +15,7 @@
  */
 
 import { createHash } from "node:crypto";
+import type { BulkJobsTable } from "@wateaminbox/database";
 import type {
   BulkJob,
   BulkJobAudience,
@@ -24,6 +25,7 @@ import type {
   BulkRecipientSkipReason,
 } from "@wateaminbox/shared";
 import { toDbDate } from "@wateaminbox/shared";
+import type { Kysely, Selectable } from "kysely";
 import { bulkConfig } from "../config/bulk.config.js";
 import { ConflictError, ValidationError } from "../lib/errors.js";
 import { createLogger, formatError } from "../lib/logger.js";
@@ -31,9 +33,6 @@ import { broadcastToCompany } from "../lib/realtime.js";
 import { deleteMedia, resolveMediaKeyForCompany } from "../lib/storage.js";
 import { createAuditLog } from "./audit.service.js";
 import type { TenantDatabase } from "./tenant.service.js";
-
-import type { BulkJobsTable } from "@wateaminbox/database";
-import type { Kysely, Selectable } from "kysely";
 
 const logger = createLogger("BulkJobs");
 
@@ -620,6 +619,7 @@ export function formatBulkJob(
   row: BulkJobRow,
   progress: BulkJobProgress,
   createdByName?: string,
+  authorizedMediaUrl: string | null = row.media_url,
 ): BulkJob {
   return {
     id: row.id,
@@ -627,7 +627,7 @@ export function formatBulkJob(
     status: row.status,
     content: row.content,
     messageType: row.message_type,
-    mediaUrl: row.media_url,
+    mediaUrl: authorizedMediaUrl,
     mediaMimeType: row.media_mime_type,
     mediaFileName: row.media_file_name,
     audience: row.audience,

@@ -18,7 +18,11 @@ import {
   SCHEDULE_MIN_LEAD_MS,
   scheduleMessageSchema,
 } from "../../lib/schemas/index.js";
-import { getMediaObjectReference } from "../../lib/storage.js";
+import {
+  getAuthorizedMediaUrlOrNull,
+  getMediaObjectReference,
+  getPrivateMediaReference,
+} from "../../lib/storage.js";
 import { getRouteContext } from "../../middleware/context.js";
 import { requireMessageSendPermission } from "../../middleware/message-send-policy.js";
 import { createConditionalRateLimiter } from "../../middleware/rate-limit.js";
@@ -88,6 +92,7 @@ scheduledRoutes.post(
     // mime/filename for display.
     let mediaMimeType: string | null = null;
     let mediaFileName: string | null = null;
+    let storedMediaReference: string | null = null;
     if (isMediaMessage && body.mediaUrl) {
       let reference: Awaited<ReturnType<typeof getMediaObjectReference>>;
       try {
@@ -113,6 +118,7 @@ scheduledRoutes.post(
       }
       mediaMimeType = reference.mimeType;
       mediaFileName = reference.filename;
+      storedMediaReference = getPrivateMediaReference(reference.key);
     }
 
     const contact = await tenantDb
@@ -164,7 +170,7 @@ scheduledRoutes.post(
           contact_id: body.contactId,
           content: body.content?.trim() || "",
           message_type: body.messageType,
-          media_url: body.mediaUrl || null,
+          media_url: storedMediaReference,
           media_mime_type: mediaMimeType,
           media_file_name: mediaFileName,
           reply_to_message_id: body.replyToMessageId || null,
@@ -180,12 +186,18 @@ scheduledRoutes.post(
         .executeTakeFirstOrThrow();
     });
     if (autoAssigned) {
-      await broadcastAutoAssignment(tenantDb, companyId, body.contactId, user.id);
+      await broadcastAutoAssignment(
+        tenantDb,
+        companyId,
+        body.contactId,
+        user.id,
+      );
     }
 
     const scheduledMessage = formatScheduledMessage(
       row as ScheduledMessageRow,
       user.name || user.email.split("@")[0],
+      body.mediaUrl || null,
     );
 
     await broadcastToCompany(companyId, "scheduled_message:updated", {
@@ -211,7 +223,7 @@ scheduledRoutes.get(
   "/scheduled",
   zValidator("query", listScheduledMessagesQuerySchema),
   async (c) => {
-    const { tenantDb } = getRouteContext(c);
+    const { tenantDb, companyId } = getRouteContext(c);
     const { contactId } = c.req.valid("query");
 
     if (!(await hasContactVisibility(c, contactId))) {
@@ -230,10 +242,13 @@ scheduledRoutes.get(
     const names = await getUserNames(rows.map((row) => row.created_by));
     return c.json({
       success: true,
-      scheduledMessages: rows.map((row) =>
-        formatScheduledMessage(
-          row as ScheduledMessageRow,
-          names.get(row.created_by),
+      scheduledMessages: await Promise.all(
+        rows.map(async (row) =>
+          formatScheduledMessage(
+            row as ScheduledMessageRow,
+            names.get(row.created_by),
+            await getAuthorizedMediaUrlOrNull(row.media_url, companyId),
+          ),
         ),
       ),
     });

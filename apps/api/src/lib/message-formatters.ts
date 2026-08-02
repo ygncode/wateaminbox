@@ -5,6 +5,8 @@
  * These functions ensure consistent message formatting across different routes.
  */
 
+import { getAuthorizedMediaUrl } from "./storage.js";
+
 /**
  * Database message row type (from Kysely query)
  */
@@ -82,6 +84,31 @@ export interface MessageMetadata {
   fileSize: number | null;
   mediaPending: boolean;
   mediaDownloadStatus: string | null;
+}
+
+/**
+ * Replace private persisted references with fresh, short-lived URLs. Call this
+ * only after the route has enforced message/contact visibility.
+ */
+export async function authorizeMessageMedia(
+  messages: MessageDbRow[],
+  companyId: string,
+): Promise<MessageDbRow[]> {
+  const authorize = async (reference: string | null) => {
+    try {
+      return await getAuthorizedMediaUrl(reference, companyId);
+    } catch {
+      // Never echo malformed, external, or cross-tenant persisted references.
+      return null;
+    }
+  };
+  return Promise.all(
+    messages.map(async (message) => ({
+      ...message,
+      media_url: await authorize(message.media_url),
+      sender_avatar_url: await authorize(message.sender_avatar_url),
+    })),
+  );
 }
 
 /**

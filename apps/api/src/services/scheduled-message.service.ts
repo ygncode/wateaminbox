@@ -7,6 +7,7 @@
  * scheduled row sent, so a crash or a concurrent replica can never double-send.
  */
 
+import type { ScheduledMessagesTable } from "@wateaminbox/database";
 import { db } from "@wateaminbox/database";
 import type {
   BulkRecipientSkipReason,
@@ -14,8 +15,10 @@ import type {
   ScheduledMessageStatus,
 } from "@wateaminbox/shared";
 import { toDbDate } from "@wateaminbox/shared";
+import type { Kysely, Selectable, Transaction } from "kysely";
 import { sql } from "kysely";
 import { bulkConfig } from "../config/bulk.config.js";
+import { NoActiveCaseError } from "../lib/errors.js";
 import { createLogger, formatError } from "../lib/logger.js";
 import {
   buildCommandSubject,
@@ -37,13 +40,9 @@ import {
   ContactAssignedToOtherError,
   requireSendAccess,
 } from "./send-access.service.js";
-import { NoActiveCaseError } from "../lib/errors.js";
 import { getTenantConnection, type TenantDatabase } from "./tenant.service.js";
 import { getUserAvatarSources, getUserNames } from "./user.service.js";
 import { getActiveSessionId } from "./whatsapp/session.js";
-
-import type { Kysely, Selectable, Transaction } from "kysely";
-import type { ScheduledMessagesTable } from "@wateaminbox/database";
 
 const logger = createLogger("ScheduledMessages");
 const POLL_INTERVAL_MS = 15_000;
@@ -82,13 +81,14 @@ export type ScheduledMessageRow = Selectable<ScheduledMessagesTable>;
 export function formatScheduledMessage(
   row: ScheduledMessageRow,
   createdByName?: string,
+  authorizedMediaUrl: string | null = row.media_url,
 ): ScheduledMessage {
   return {
     id: row.id,
     contactId: row.contact_id,
     content: row.content,
     messageType: row.message_type,
-    mediaUrl: row.media_url,
+    mediaUrl: authorizedMediaUrl,
     mediaMimeType: row.media_mime_type,
     mediaFileName: row.media_file_name,
     replyToMessageId: row.reply_to_message_id,
@@ -394,7 +394,8 @@ async function sendScheduledMessage(
     sentByUserGravatarUrl: avatars.get(row.created_by)?.gravatarUrl,
     messageType: row.message_type,
     content: row.content,
-    metadata: row.media_url ? { mediaUrl: row.media_url } : undefined,
+    // Realtime is company-wide; authorized message reads mint media URLs.
+    metadata: row.media_url ? { mediaAvailable: true } : undefined,
     replyToMessageId: row.reply_to_message_id || undefined,
     status: "pending" as const,
     createdAt,

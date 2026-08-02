@@ -345,7 +345,9 @@ export async function handleMessageEvent(event: MessageEvent): Promise<void> {
               .executeTakeFirst()
           : await insertQuery
               .onConflict((oc) =>
-                oc.columns(["whatsapp_connection_id", "message_id"]).doNothing(),
+                oc
+                  .columns(["whatsapp_connection_id", "message_id"])
+                  .doNothing(),
               )
               .returning("id")
               .executeTakeFirst();
@@ -404,7 +406,8 @@ export async function handleMessageEvent(event: MessageEvent): Promise<void> {
                 status: "open",
                 unread_count: 1,
                 last_message_at: toDbDate(payload.timestamp),
-                last_message_preview: payload.content?.substring(0, 100) || null,
+                last_message_preview:
+                  payload.content?.substring(0, 100) || null,
               })
               .execute();
           }
@@ -545,9 +548,9 @@ export async function handleMessageEvent(event: MessageEvent): Promise<void> {
             messageType: payload.messageType || "text",
             status: messageStatus,
             whatsappMessageId: payload.messageId,
-            metadata: payload.mediaUrl
-              ? { mediaUrl: payload.mediaUrl }
-              : undefined,
+            // Private media URLs are issued only by visibility-checked HTTP
+            // reads; company-wide realtime channels carry update signals only.
+            metadata: payload.mediaUrl ? { mediaAvailable: true } : undefined,
             replyToMessageId: payload.quotedMessageId,
             replyToMessage,
             isForwarded: false,

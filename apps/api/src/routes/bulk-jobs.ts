@@ -27,7 +27,11 @@ import {
   SCHEDULE_MAX_HORIZON_MS,
   SCHEDULE_MIN_LEAD_MS,
 } from "../lib/schemas/index.js";
-import { getMediaObjectReference } from "../lib/storage.js";
+import {
+  getAuthorizedMediaUrlOrNull,
+  getMediaObjectReference,
+  getPrivateMediaReference,
+} from "../lib/storage.js";
 import { authMiddleware } from "../middleware/auth.js";
 import { getRouteContext } from "../middleware/context.js";
 import {
@@ -46,9 +50,9 @@ import {
   formatBulkJob,
   getBulkJobProgress,
   getBulkJobProgressMap,
+  rescheduleBulkJob,
   resolveBulkAudience,
   resolveRecipientName,
-  rescheduleBulkJob,
 } from "../services/bulk-job.service.js";
 import { getUserNames } from "../services/user.service.js";
 
@@ -141,6 +145,7 @@ bulkJobRoutes.post(
     // scheduled-message endpoint does.
     let mediaMimeType: string | null = null;
     let mediaFileName: string | null = null;
+    let storedMediaReference: string | null = null;
     if (isMediaMessage && body.mediaUrl) {
       let reference: Awaited<ReturnType<typeof getMediaObjectReference>>;
       try {
@@ -166,6 +171,7 @@ bulkJobRoutes.post(
       }
       mediaMimeType = reference.mimeType;
       mediaFileName = reference.filename;
+      storedMediaReference = getPrivateMediaReference(reference.key);
     }
 
     let result: Awaited<ReturnType<typeof createBulkJob>>;
@@ -175,7 +181,7 @@ bulkJobRoutes.post(
         audience: body.audience,
         content: body.content?.trim() || "",
         messageType: body.messageType,
-        mediaUrl: body.mediaUrl || null,
+        mediaUrl: storedMediaReference,
         mediaMimeType,
         mediaFileName,
         scheduledAt,
@@ -202,6 +208,7 @@ bulkJobRoutes.post(
       result.job,
       progress,
       user.name || user.email.split("@")[0],
+      await getAuthorizedMediaUrlOrNull(result.job.media_url, companyId),
     );
 
     if (result.created) {
@@ -277,6 +284,7 @@ bulkJobRoutes.patch(
       result.job,
       progress,
       names.get(result.job.created_by),
+      await getAuthorizedMediaUrlOrNull(result.job.media_url, companyId),
     );
 
     await createAuditLog({
@@ -309,7 +317,7 @@ bulkJobRoutes.get(
   "/",
   zValidator("query", listBulkJobsQuerySchema),
   async (c) => {
-    const { tenantDb } = getRouteContext(c);
+    const { tenantDb, companyId } = getRouteContext(c);
     const { limit, offset } = c.req.valid("query");
 
     const countResult = await tenantDb
@@ -334,19 +342,22 @@ bulkJobRoutes.get(
       getUserNames(rows.map((row) => row.created_by)),
     ]);
 
-    const jobs = rows.map((row) =>
-      formatBulkJob(
-        row,
-        progressMap.get(row.id) ?? {
-          total: 0,
-          pending: 0,
-          processing: 0,
-          sent: 0,
-          failed: 0,
-          canceled: 0,
-          skipped: 0,
-        },
-        names.get(row.created_by),
+    const jobs = await Promise.all(
+      rows.map(async (row) =>
+        formatBulkJob(
+          row,
+          progressMap.get(row.id) ?? {
+            total: 0,
+            pending: 0,
+            processing: 0,
+            sent: 0,
+            failed: 0,
+            canceled: 0,
+            skipped: 0,
+          },
+          names.get(row.created_by),
+          await getAuthorizedMediaUrlOrNull(row.media_url, companyId),
+        ),
       ),
     );
 
@@ -362,7 +373,7 @@ bulkJobRoutes.get(
  * GET /bulk-jobs/:id - Job detail with derived progress.
  */
 bulkJobRoutes.get("/:id", async (c) => {
-  const { tenantDb } = getRouteContext(c);
+  const { tenantDb, companyId } = getRouteContext(c);
   const id = c.req.param("id");
 
   const row = await tenantDb
@@ -378,7 +389,12 @@ bulkJobRoutes.get("/:id", async (c) => {
   ]);
   return successData(
     c,
-    formatBulkJob(row, progress, names.get(row.created_by)),
+    formatBulkJob(
+      row,
+      progress,
+      names.get(row.created_by),
+      await getAuthorizedMediaUrlOrNull(row.media_url, companyId),
+    ),
   );
 });
 

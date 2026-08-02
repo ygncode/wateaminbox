@@ -38,7 +38,6 @@ func main() {
 	storageSecretKey := config.GetEnv("STORAGE_SECRET_KEY", config.GetEnv("S3_SECRET_KEY", "minioadmin"))
 	storageBucket := config.GetEnv("STORAGE_BUCKET", config.GetEnv("S3_BUCKET", "whatsapp-media"))
 	storageRegion := config.GetEnv("STORAGE_REGION", config.GetEnv("S3_REGION", "us-east-1"))
-	storagePublicURL := config.GetEnv("STORAGE_PUBLIC_URL", config.GetEnv("S3_PUBLIC_URL", ""))
 
 	// Validate required configuration
 	if companyID == "" {
@@ -67,7 +66,6 @@ func main() {
 			SecretAccessKey: storageSecretKey,
 			Bucket:          storageBucket,
 			Region:          storageRegion,
-			PublicURL:       storagePublicURL,
 			UsePathStyle:    true, // Required for MinIO
 		})
 		if err != nil {

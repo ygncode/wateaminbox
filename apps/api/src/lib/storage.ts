@@ -88,14 +88,21 @@ function generateMediaKey(
 }
 
 /**
- * Upload media to S3 and return S3 key and presigned URL
+ * Upload media to the private bucket. The URL is short-lived and intended only
+ * for the uploading user's immediate preview; `reference` is the stable,
+ * non-downloadable value that may be persisted internally.
  */
 export async function uploadMedia(
   data: Buffer | Uint8Array,
   mimeType: string,
   companyId: string,
   filename?: string,
-): Promise<{ key: string; url: string; data: Buffer | Uint8Array }> {
+): Promise<{
+  key: string;
+  reference: string;
+  url: string;
+  data: Buffer | Uint8Array;
+}> {
   const ext = getExtensionFromMimeType(mimeType);
   const key = generateMediaKey(companyId, ext, filename);
 
@@ -112,16 +119,25 @@ export async function uploadMedia(
     ContentType: mimeType,
     ContentLength: data.length,
     ContentDisposition: `inline; filename="${safeFilename}"`,
-    Metadata: { sha256: checksum, original_filename: safeFilename },
+    Metadata: {
+      sha256: checksum,
+      original_filename: safeFilename,
+      tenant_id: companyId,
+    },
   });
 
   await s3Client.send(command);
 
-  // Generate presigned URL (1 hour expiry for frontend display)
-  const presignedUrl = await getPresignedUrl(key, 3600);
+  // Generate a short-lived URL for the uploader's local preview. Persist the
+  // stable private reference instead whenever the caller controls the schema.
+  const presignedUrl = await getPresignedUrl(key, 15 * 60);
 
-  // Return key, presigned URL, and original data (for NATS sending optimization)
-  return { key, url: presignedUrl, data };
+  return {
+    key,
+    reference: getPrivateMediaReference(key),
+    url: presignedUrl,
+    data,
+  };
 }
 
 /** Delete an object previously written to the private media bucket. */
@@ -134,12 +150,10 @@ export async function deleteMedia(key: string): Promise<void> {
   );
 }
 
-/**
- * Generate presigned URL for private media access (optional, for future use)
- */
+/** Generate a short-lived URL for private media access. */
 export async function getPresignedUrl(
   key: string,
-  expiresIn: number = 3600,
+  expiresIn: number = 5 * 60,
 ): Promise<string> {
   const command = new GetObjectCommand({
     Bucket: BUCKET,
@@ -157,34 +171,65 @@ export interface MediaObjectReference {
   checksum?: string;
 }
 
+function encodeObjectKey(key: string): string {
+  return key.split("/").map(encodeURIComponent).join("/");
+}
+
+/** Stable internal reference. It is deliberately not an HTTP download URL. */
+export function getPrivateMediaReference(key: string): string {
+  return `s3://${BUCKET}/${encodeObjectKey(key)}`;
+}
+
 /**
- * Extract and authorize the object key from an API-issued path-style
- * presigned media URL, without touching object storage. The presigned
- * signature is ignored, so an expired URL still resolves.
+ * Resolve a private reference or API-issued path-style URL and enforce tenant
+ * ownership. URL signatures are not used as object identity because scheduled
+ * sends must remain valid after an uploader preview URL expires.
  */
 export function resolveMediaKeyForCompany(
   mediaUrl: string,
   companyId: string,
 ): string {
   const url = new URL(mediaUrl);
-  const endpoint = new URL(env.S3_ENDPOINT);
-  if (url.origin !== endpoint.origin) {
-    throw new Error("Media URL is not from configured object storage");
+  let encodedKey: string;
+
+  if (url.protocol === "s3:") {
+    if (url.hostname !== BUCKET || url.username || url.password || url.port) {
+      throw new Error("Media reference does not use the configured bucket");
+    }
+    encodedKey = url.pathname.replace(/^\/+/, "");
+  } else {
+    const endpoint = new URL(env.S3_ENDPOINT);
+    if (url.origin !== endpoint.origin) {
+      throw new Error("Media URL is not from configured object storage");
+    }
+    const endpointPath = endpoint.pathname.replace(/\/$/, "");
+    const bucketPrefix = `${endpointPath}/${encodeURIComponent(BUCKET)}/`;
+    if (!url.pathname.startsWith(bucketPrefix)) {
+      throw new Error("Media URL does not reference the media bucket");
+    }
+    encodedKey = url.pathname.slice(bucketPrefix.length);
   }
 
-  const pathParts = decodeURIComponent(url.pathname).split("/").filter(Boolean);
-  const bucketIndex = pathParts.indexOf(BUCKET);
-  if (bucketIndex < 0)
-    throw new Error("Media URL does not reference the media bucket");
-  const key = pathParts.slice(bucketIndex + 1).join("/");
+  let key: string;
+  try {
+    key = decodeURIComponent(encodedKey);
+  } catch {
+    throw new Error("Media object key has invalid encoding");
+  }
   const tenantPrefix = `media/${companyId}/`;
-  if (!key.startsWith(tenantPrefix) || key.includes("..")) {
+  if (
+    !key.startsWith(tenantPrefix) ||
+    key.length <= tenantPrefix.length ||
+    key.includes("..") ||
+    key.includes("\\") ||
+    /[\0-\x1f\x7f]/.test(key)
+  ) {
     throw new Error("Media object does not belong to the active tenant");
   }
   return key;
 }
 
-/** Resolve and authorize an API-issued path-style presigned media URL. */
+/** Resolve and authorize an internally persisted media reference. */
 export async function getMediaObjectReference(
   mediaUrl: string,
   companyId: string,
@@ -194,6 +239,9 @@ export async function getMediaObjectReference(
   const object = await s3Client.send(
     new HeadObjectCommand({ Bucket: BUCKET, Key: key }),
   );
+  if (object.Metadata?.tenant_id && object.Metadata.tenant_id !== companyId) {
+    throw new Error("Media object metadata belongs to another tenant");
+  }
   const size = object.ContentLength ?? 0;
   if (size <= 0 || size > 50 * 1024 * 1024) {
     throw new Error("Media object size is outside the supported limit");
@@ -212,6 +260,29 @@ export async function getMediaObjectReference(
     size,
     checksum: object.Metadata?.sha256,
   };
+}
+
+/** Issue a fresh URL only after the caller has authorized the parent resource. */
+export async function getAuthorizedMediaUrl(
+  mediaReference: string | null | undefined,
+  companyId: string,
+  expiresIn: number = 5 * 60,
+): Promise<string | null> {
+  if (!mediaReference) return null;
+  const key = resolveMediaKeyForCompany(mediaReference, companyId);
+  return getPresignedUrl(key, expiresIn);
+}
+
+/** Never echo an invalid persisted reference into an authorized API response. */
+export async function getAuthorizedMediaUrlOrNull(
+  mediaReference: string | null | undefined,
+  companyId: string,
+): Promise<string | null> {
+  try {
+    return await getAuthorizedMediaUrl(mediaReference, companyId);
+  } catch {
+    return null;
+  }
 }
 
 /**

@@ -12,6 +12,7 @@ import {
   listGroupsQuerySchema,
   updateGroupSchema,
 } from "../../lib/schemas/index.js";
+import { getAuthorizedMediaUrlOrNull } from "../../lib/storage.js";
 import { getRouteContext } from "../../middleware/context.js";
 import {
   getEnrichedGroupParticipants,
@@ -25,7 +26,7 @@ export const crudRoutes = new Hono();
  * Query params: search, connectionId, limit, offset
  */
 crudRoutes.get("/", zValidator("query", listGroupsQuerySchema), async (c) => {
-  const { tenantDb, user, permissions } = getRouteContext(c);
+  const { tenantDb, user, permissions, companyId } = getRouteContext(c);
   const { search, connectionId, limit, offset } = c.req.valid("query");
 
   const { groups, total } = await getGroupsList(tenantDb, {
@@ -37,11 +38,20 @@ crudRoutes.get("/", zValidator("query", listGroupsQuerySchema), async (c) => {
     canViewAllChats: permissions.can_view_all_chats,
   });
 
-  return successPaginated(c, groups, {
+  const authorizedGroups = await Promise.all(
+    groups.map(async (group) => ({
+      ...group,
+      profilePictureUrl: await getAuthorizedMediaUrlOrNull(
+        group.profilePictureUrl,
+        companyId,
+      ),
+    })),
+  );
+  return successPaginated(c, authorizedGroups, {
     total,
     limit,
     offset,
-    hasMore: offset + groups.length < total,
+    hasMore: offset + authorizedGroups.length < total,
   });
 });
 
@@ -49,7 +59,7 @@ crudRoutes.get("/", zValidator("query", listGroupsQuerySchema), async (c) => {
  * GET /:id - Get a specific group with participants
  */
 crudRoutes.get("/:id", async (c) => {
-  const { tenantDb } = getRouteContext(c);
+  const { tenantDb, companyId } = getRouteContext(c);
   const contactId = c.req.param("id");
 
   // Get contact (group)
@@ -98,6 +108,16 @@ crudRoutes.get("/:id", async (c) => {
     .where("contact_tags.contact_id", "=", contactId)
     .execute();
 
+  const authorizedParticipants = await Promise.all(
+    participants.map(async (participant) => ({
+      ...participant,
+      profilePictureUrl: await getAuthorizedMediaUrlOrNull(
+        participant.profilePictureUrl,
+        companyId,
+      ),
+    })),
+  );
+
   return successData(c, {
     id: contact.id,
     jid: contact.jid,
@@ -108,15 +128,18 @@ crudRoutes.get("/:id", async (c) => {
     }),
     customName: contact.custom_name,
     description: group?.description,
-    profilePictureUrl: contact.profile_picture_url,
+    profilePictureUrl: await getAuthorizedMediaUrlOrNull(
+      contact.profile_picture_url,
+      companyId,
+    ),
     participantCount: Math.max(
       group?.participant_count || 0,
-      participants.length,
+      authorizedParticipants.length,
     ),
     createdBy: group?.created_by,
     createdAt: contact.created_at,
     updatedAt: contact.updated_at,
-    participants,
+    participants: authorizedParticipants,
     tags,
   });
 });

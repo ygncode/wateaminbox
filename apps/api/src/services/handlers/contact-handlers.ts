@@ -266,7 +266,10 @@ export async function handleContactEvent(event: ContactEvent): Promise<void> {
       await broadcastToCompany(
         companyId,
         "contact:profile_picture",
-        payload,
+        {
+          jid: contactJid,
+          mediaAvailable: Boolean(payload.profilePictureUrl),
+        },
         connectionId,
       );
     }
@@ -334,7 +337,7 @@ export async function handleProfilePictureEvent(
         "contact:profile_picture",
         {
           jid: contactJid,
-          profilePictureUrl,
+          mediaAvailable: Boolean(profilePictureUrl),
         },
         connectionId,
       );

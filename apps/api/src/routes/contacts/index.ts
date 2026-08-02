@@ -33,6 +33,7 @@ import {
   updateContactSchema,
 } from "../../lib/schemas/index.js";
 import { normalizePhoneNumber } from "../../lib/schemas.js";
+import { getAuthorizedMediaUrlOrNull } from "../../lib/storage.js";
 import { authMiddleware } from "../../middleware/auth.js";
 import { getRouteContext } from "../../middleware/context.js";
 import { requireContactVisibility } from "../../middleware/resource-visibility.js";
@@ -92,11 +93,20 @@ contactRoutes.get(
       },
     );
 
+    const authorizedContacts = await Promise.all(
+      contacts.map(async (contact) => ({
+        ...contact,
+        profile_picture_url: await getAuthorizedMediaUrlOrNull(
+          contact.profile_picture_url,
+          companyId,
+        ),
+      })),
+    );
     // Type assertion needed because ContactWithLastMessage has slightly looser types than RawContactFromDb
     // (e.g., jid can be null in the service but the transformer expects it to be string)
     return successPaginated(
       c,
-      transformContacts(contacts as unknown as RawContactFromDb[]),
+      transformContacts(authorizedContacts as unknown as RawContactFromDb[]),
       createPaginationMeta(total, contacts.length, {
         limit: query.limit,
         offset: query.offset,
@@ -109,7 +119,7 @@ contactRoutes.get(
  * GET /contacts/:id - Get a specific contact
  */
 contactRoutes.get("/:id", async (c) => {
-  const { tenantDb } = getRouteContext(c);
+  const { tenantDb, companyId } = getRouteContext(c);
   const contactId = c.req.param("id");
 
   const contact = await tenantDb
@@ -224,7 +234,10 @@ contactRoutes.get("/:id", async (c) => {
     isBlocked: contact.is_blocked,
     isOnline: contact.is_online,
     lastSeen: contact.last_seen,
-    profilePictureUrl: contact.profile_picture_url,
+    profilePictureUrl: await getAuthorizedMediaUrlOrNull(
+      contact.profile_picture_url,
+      companyId,
+    ),
     notesShared: contact.notes_shared,
     createdAt: contact.created_at,
     updatedAt: contact.updated_at,

@@ -8,7 +8,8 @@ import (
 	"fmt"
 	"io"
 	"net/url"
-	"path"
+	"regexp"
+	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -25,15 +26,13 @@ type Config struct {
 	SecretAccessKey string
 	Bucket          string
 	Region          string
-	PublicURL       string // Public URL prefix for accessing files
-	UsePathStyle    bool   // Use path-style addressing (required for MinIO)
+	UsePathStyle    bool // Use path-style addressing (required for MinIO)
 }
 
 // Client provides media storage operations.
 type Client struct {
-	s3Client  *s3.Client
-	bucket    string
-	publicURL string
+	s3Client *s3.Client
+	bucket   string
 }
 
 // New creates a new storage client.
@@ -72,65 +71,66 @@ func New(cfg Config) (*Client, error) {
 		o.UsePathStyle = cfg.UsePathStyle
 	})
 
-	// Determine public URL
-	publicURL := cfg.PublicURL
-	if publicURL == "" {
-		publicURL = cfg.Endpoint
-	}
-
 	return &Client{
-		s3Client:  s3Client,
-		bucket:    cfg.Bucket,
-		publicURL: publicURL,
+		s3Client: s3Client,
+		bucket:   cfg.Bucket,
 	}, nil
 }
 
-// UploadMedia uploads media data and returns the public URL.
+// UploadMedia uploads media data and returns a stable private object reference.
 func (c *Client) UploadMedia(ctx context.Context, data []byte, mimeType string, companyID string) (string, error) {
-	// Generate unique file key
+	if !validTenantID(companyID) {
+		return "", fmt.Errorf("invalid company ID for media key")
+	}
 	ext := getExtensionFromMimeType(mimeType)
 	key := generateMediaKey(companyID, ext)
+	checksum := sha256.Sum256(data)
 
-	// Upload to S3
 	_, err := c.s3Client.PutObject(ctx, &s3.PutObjectInput{
 		Bucket:        aws.String(c.bucket),
 		Key:           aws.String(key),
 		Body:          bytes.NewReader(data),
 		ContentType:   aws.String(mimeType),
 		ContentLength: aws.Int64(int64(len(data))),
+		Metadata: map[string]string{
+			"sha256":    hex.EncodeToString(checksum[:]),
+			"tenant_id": companyID,
+		},
 	})
 	if err != nil {
 		return "", fmt.Errorf("failed to upload media: %w", err)
 	}
 
-	// Generate public URL
-	publicURL := c.getPublicURL(key)
-
-	return publicURL, nil
+	return c.getPrivateReference(key), nil
 }
 
-// UploadMediaWithFilename uploads media with a specific filename.
+// UploadMediaWithFilename uploads media with a sanitized filename.
 func (c *Client) UploadMediaWithFilename(ctx context.Context, data []byte, mimeType string, companyID string, filename string) (string, error) {
-	// Generate unique file key preserving the original filename
-	key := generateMediaKeyWithFilename(companyID, filename)
+	if !validTenantID(companyID) {
+		return "", fmt.Errorf("invalid company ID for media key")
+	}
+	safeFilename := sanitizeFilename(filename)
+	key := generateMediaKeyWithFilename(companyID, safeFilename)
+	checksum := sha256.Sum256(data)
 
-	// Upload to S3
 	_, err := c.s3Client.PutObject(ctx, &s3.PutObjectInput{
 		Bucket:             aws.String(c.bucket),
 		Key:                aws.String(key),
 		Body:               bytes.NewReader(data),
 		ContentType:        aws.String(mimeType),
 		ContentLength:      aws.Int64(int64(len(data))),
-		ContentDisposition: aws.String(fmt.Sprintf("inline; filename=\"%s\"", filename)),
+		ContentDisposition: aws.String(fmt.Sprintf("inline; filename=\"%s\"", safeFilename)),
+		Metadata: map[string]string{
+			"sha256":            hex.EncodeToString(checksum[:]),
+			"tenant_id":         companyID,
+			"original_filename": safeFilename,
+		},
 	})
 	if err != nil {
 		return "", fmt.Errorf("failed to upload media: %w", err)
 	}
 
-	// Generate public URL
-	publicURL := c.getPublicURL(key)
-
-	return publicURL, nil
+	return c.getPrivateReference(key), nil
 }
 
 // DownloadMediaObject streams an object with a strict size cap and optional checksum verification.
@@ -190,18 +190,34 @@ func (c *Client) GetPresignedURL(ctx context.Context, key string, expiry time.Du
 	return presignedReq.URL, nil
 }
 
-// getPublicURL generates the public URL for a file.
-func (c *Client) getPublicURL(key string) string {
-	// Parse the public URL base
-	u, err := url.Parse(c.publicURL)
-	if err != nil {
-		// Fallback to simple concatenation
-		return fmt.Sprintf("%s/%s/%s", c.publicURL, c.bucket, key)
-	}
+// getPrivateReference returns an internal identifier, never a download URL.
+func (c *Client) getPrivateReference(key string) string {
+	return (&url.URL{Scheme: "s3", Host: c.bucket, Path: "/" + key}).String()
+}
 
-	// Append bucket and key to path
-	u.Path = path.Join(u.Path, c.bucket, key)
-	return u.String()
+var tenantIDPattern = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
+
+func validTenantID(companyID string) bool {
+	return companyID != "" && tenantIDPattern.MatchString(companyID)
+}
+
+func sanitizeFilename(filename string) string {
+	filename = strings.Map(func(r rune) rune {
+		if r > 127 || strings.ContainsRune(`/\\\x00\r\n`, r) {
+			return '_'
+		}
+		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') ||
+			(r >= '0' && r <= '9') || strings.ContainsRune("._-", r) {
+			return r
+		}
+		return '_'
+	}, filename)
+	filename = strings.ReplaceAll(filename, "..", "__")
+	filename = strings.Trim(filename, ".")
+	if filename == "" {
+		return "file"
+	}
+	return filename
 }
 
 // generateMediaKey creates a unique key for storing media.

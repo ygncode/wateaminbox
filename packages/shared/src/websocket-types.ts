@@ -250,7 +250,7 @@ export interface ConversationReadPayload {
 
 export interface ProfilePicturePayload {
   jid: string;
-  profilePictureUrl: string | null;
+  mediaAvailable: boolean;
 }
 
 // --- Presence Payloads ---
@@ -274,7 +274,7 @@ export interface TypingPayload {
 export interface MediaDownloadedPayload {
   messageId: string;
   conversationId: string;
-  mediaUrl: string;
+  mediaAvailable: true;
   mediaSize?: number;
 }
 

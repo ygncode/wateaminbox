@@ -258,12 +258,11 @@ export function registerRealtimeEventHandlers({
       qc.invalidateQueries({ queryKey: ["catalogs", companyId] });
       qc.invalidateQueries({ queryKey: queryKeys.groups.all });
     }),
-    bindEvent<ProfilePicturePayload>("contact:profile_picture", (data) => {
-      const payload = data.payload;
-      updateContactInChatList(qc, payload.jid, (contact) => ({
-        ...contact,
-        avatarUrl: payload.profilePictureUrl,
-      }));
+    bindEvent<ProfilePicturePayload>("contact:profile_picture", () => {
+      // Re-fetch through visibility-checked HTTP routes so the API can issue a
+      // fresh private-storage URL; realtime channels never carry media URLs.
+      invalidateChatList(qc);
+      qc.invalidateQueries({ queryKey: queryKeys.groups.all });
     }),
     bindEvent<MessageDeletedPayload>("message:deleted", (data) => {
       const payload = data.payload;
@@ -314,7 +313,6 @@ export function registerRealtimeEventHandlers({
           ...message,
           metadata: {
             ...(message.metadata || {}),
-            mediaUrl: payload.mediaUrl,
             mediaPending: false,
             mediaDownloadStatus: "completed" as const,
             fileSize: payload.mediaSize || message.metadata?.fileSize,

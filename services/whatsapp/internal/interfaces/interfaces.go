@@ -17,9 +17,9 @@ import (
 // Storage provides an interface for media storage operations.
 // This allows mocking S3/MinIO storage in tests.
 type Storage interface {
-	// UploadMedia uploads media data and returns the public URL.
+	// UploadMedia uploads media data and returns a private object reference.
 	UploadMedia(ctx context.Context, data []byte, mimeType string, companyID string) (string, error)
-	// UploadMediaWithFilename uploads media with a specific filename.
+	// UploadMediaWithFilename uploads media with a sanitized filename.
 	UploadMediaWithFilename(ctx context.Context, data []byte, mimeType string, companyID string, filename string) (string, error)
 	// DeleteMedia deletes a media file by its key.
 	DeleteMedia(ctx context.Context, key string) error

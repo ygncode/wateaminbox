@@ -7,7 +7,10 @@ import {
   ROLE_PRESETS,
 } from "../services/permission.service.js";
 import { requirePermission } from "./permission.js";
-import { requireContactVisibility } from "./resource-visibility.js";
+import {
+  requireContactVisibility,
+  requireMessageVisibility,
+} from "./resource-visibility.js";
 
 function permissionsWith(
   permission: keyof MemberPermissions,
@@ -28,6 +31,65 @@ function emptyAssignmentDatabase() {
     executeTakeFirst: async () => undefined,
   };
   return builder;
+}
+
+function messageVisibilityDatabase(assignedTo: string | null) {
+  return {
+    selectFrom(table: string) {
+      const conditions = new Map<string, unknown>();
+      const query = {
+        select: () => query,
+        where(column: string, _operator: string, value: unknown) {
+          conditions.set(column, value);
+          return query;
+        },
+        async executeTakeFirst() {
+          if (table === "messages") {
+            return conditions.get("id") === "media-message"
+              ? { contact_id: "media-contact" }
+              : undefined;
+          }
+          if (table === "contact_assignments") {
+            return conditions.get("contact_id") === "media-contact" &&
+              conditions.get("assigned_to") === assignedTo &&
+              assignedTo !== null
+              ? { id: "assignment" }
+              : undefined;
+          }
+          return undefined;
+        },
+      };
+      return query;
+    },
+  };
+}
+
+function mediaGuardApp(
+  userId: string,
+  assignedTo: string | null,
+  canViewAllChats = false,
+) {
+  const app = new Hono();
+  app.use("*", async (context, next) => {
+    context.set("user", {
+      id: userId,
+      email: `${userId}@example.com`,
+      name: userId,
+      emailVerifiedAt: null,
+    });
+    context.set(
+      "companyPermissions",
+      permissionsWith(PERMISSIONS.CAN_VIEW_ALL_CHATS, canViewAllChats),
+    );
+    context.set("tenantDb", messageVisibilityDatabase(assignedTo) as never);
+    await next();
+  });
+  app.get(
+    "/media/messages/:messageId",
+    requireMessageVisibility("messageId"),
+    (context) => context.json({ mediaUrl: "authorized" }),
+  );
+  return app;
 }
 
 describe("authorization policy integration", () => {
@@ -71,6 +133,28 @@ describe("authorization policy integration", () => {
     expect(
       getEffectivePermissions("member", { can_export: true }).can_export,
     ).toBe(true);
+  });
+
+  test("media access allows the active contact assignee", async () => {
+    const response = await mediaGuardApp("agent-a", "agent-a").request(
+      "/media/messages/media-message",
+    );
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ mediaUrl: "authorized" });
+  });
+
+  test("media access hides another assignee's message", async () => {
+    const response = await mediaGuardApp("agent-a", "agent-b").request(
+      "/media/messages/media-message",
+    );
+    expect(response.status).toBe(404);
+  });
+
+  test("media access honors the can_view_all_chats role policy", async () => {
+    const response = await mediaGuardApp("supervisor", "agent-b", true).request(
+      "/media/messages/media-message",
+    );
+    expect(response.status).toBe(200);
   });
 
   test("restricted members receive 404 for another assignee's contact", async () => {

@@ -224,7 +224,7 @@ func (h *Handler) FetchProfilePicture(rawJID string) string {
 }
 
 // fetchProfilePicture downloads and uploads a contact's profile picture.
-// Returns the public URL if successful, empty string otherwise.
+// Returns the private object reference if successful, empty string otherwise.
 func (h *Handler) fetchProfilePicture(jid types.JID) string {
 	if h.config.Client == nil {
 		log.Println("Client not available for profile picture fetch")

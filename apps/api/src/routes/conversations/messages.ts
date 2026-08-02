@@ -1,7 +1,13 @@
 import { zValidator } from "@hono/zod-validator";
+import {
+  REMOTE_HISTORY_RESPONSE_TIMEOUT_MS,
+  toDbDate,
+  toISOString,
+} from "@wateaminbox/shared";
 import { Hono } from "hono";
 import { badRequest, notFound } from "../../lib/errors.js";
 import {
+  authorizeMessageMedia,
   buildQuotedMessageData,
   formatMessagesForConversation,
   type MessageDbRow,
@@ -16,16 +22,15 @@ import {
   listConversationMessagesQuerySchema,
   sendConversationMessageSchema,
 } from "../../lib/schemas/index.js";
+import {
+  getPrivateMediaReference,
+  resolveMediaKeyForCompany,
+} from "../../lib/storage.js";
 import { getRouteContext } from "../../middleware/context.js";
 import {
   markDeprecatedMessageSend,
   requireMessageSendPermission,
 } from "../../middleware/message-send-policy.js";
-import {
-  REMOTE_HISTORY_RESPONSE_TIMEOUT_MS,
-  toDbDate,
-  toISOString,
-} from "@wateaminbox/shared";
 import { broadcastAutoAssignment } from "../../services/assignment-broadcast.service.js";
 import { toAuthUserResponse } from "../../services/auth.service.js";
 import {
@@ -49,7 +54,7 @@ messageRoutes.get(
   "/:id/messages",
   zValidator("query", listConversationMessagesQuerySchema),
   async (c) => {
-    const { tenantDb } = getRouteContext(c);
+    const { tenantDb, companyId } = getRouteContext(c);
     const contactId = c.req.param("id");
     const { limit, cursor } = c.req.valid("query");
     const contact = await tenantDb
@@ -150,8 +155,12 @@ messageRoutes.get(
     );
 
     // Map to frontend format using shared formatter
-    const formattedMessages = formatMessagesForConversation(
+    const authorizedMessages = await authorizeMessageMedia(
       messages as MessageDbRow[],
+      companyId,
+    );
+    const formattedMessages = formatMessagesForConversation(
+      authorizedMessages,
       quotedMessagesMap,
       reactionsMap,
       userNames,
@@ -358,6 +367,9 @@ messageRoutes.post(
       quotedWaMessageId,
       quotedSenderJid,
     );
+    const storedMediaReference = mediaUrl
+      ? getPrivateMediaReference(resolveMediaKeyForCompany(mediaUrl, companyId))
+      : null;
     let autoAssigned = false;
     await tenantDb.transaction().execute(async (trx) => {
       const result = await requireSendAccess(trx, contactId, user.id);
@@ -373,7 +385,7 @@ messageRoutes.post(
           sender_jid: connection.jid,
           message_type: messageType,
           content,
-          media_url: mediaUrl || null,
+          media_url: storedMediaReference,
           quoted_message_id: quotedWaMessageId || null,
           sent_by_user_id: user.id,
           status: "pending",

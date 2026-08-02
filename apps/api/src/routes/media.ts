@@ -8,10 +8,11 @@ import {
 import { createLogger, formatError } from "../lib/logger.js";
 import { rateLimitConfig, rateLimitStore } from "../lib/rate-limit-store.js";
 import { successData } from "../lib/response.js";
-import { uploadMedia } from "../lib/storage.js";
+import { getAuthorizedMediaUrl, uploadMedia } from "../lib/storage.js";
 import { authMiddleware } from "../middleware/auth.js";
 import { getRouteContext } from "../middleware/context.js";
 import { createConditionalRateLimiter } from "../middleware/rate-limit.js";
+import { requireMessageVisibility } from "../middleware/resource-visibility.js";
 import { tenantMiddleware } from "../middleware/tenant.js";
 
 const logger = createLogger("MediaRoutes");
@@ -41,109 +42,143 @@ const uploadRateLimiter = createConditionalRateLimiter(
  * POST /media/download/:messageId - Request on-demand media download
  * Triggers download for deferred media from history sync
  */
-mediaRoutes.post("/download/:messageId", async (c) => {
-  const { companyId, tenantDb } = getRouteContext(c);
-  const { messageId } = c.req.param();
-
-  try {
-    const { getJetStreamClient } = await import("../lib/nats/index.js");
-    const { JSONCodec } = await import("nats");
-
-    // Get the message with media reference data
+mediaRoutes.get(
+  "/messages/:messageId",
+  requireMessageVisibility("messageId"),
+  async (c) => {
+    const { companyId, tenantDb } = getRouteContext(c);
+    const { messageId } = c.req.param();
     const message = await tenantDb
       .selectFrom("messages")
-      .select([
-        "id",
-        "contact_id",
-        "whatsapp_connection_id",
-        "media_url",
-        "media_direct_path",
-        "media_key",
-        "media_file_sha256",
-        "media_file_enc_sha256",
-        "media_download_status",
-        "media_mime_type",
-      ])
+      .select("media_url")
       .where("id", "=", messageId)
       .executeTakeFirst();
 
-    if (!message) {
-      return notFound(c, "Message");
+    if (!message?.media_url) return notFound(c, "Media");
+    try {
+      const mediaUrl = await getAuthorizedMediaUrl(
+        message.media_url,
+        companyId,
+      );
+      return successData(c, { mediaUrl, expiresIn: 5 * 60 });
+    } catch (error) {
+      logger.error(
+        { err: formatError(error), companyId, messageId },
+        "Failed to authorize message media",
+      );
+      return notFound(c, "Media");
     }
+  },
+);
 
-    // If already downloaded, return existing URL
-    if (message.media_url && message.media_download_status === "completed") {
-      return successData(c, {
-        status: "completed",
-        mediaUrl: message.media_url,
-      });
-    }
+mediaRoutes.post(
+  "/download/:messageId",
+  requireMessageVisibility("messageId"),
+  async (c) => {
+    const { companyId, tenantDb } = getRouteContext(c);
+    const { messageId } = c.req.param();
 
-    // If no media reference data, cannot download
-    if (!message.media_direct_path || !message.media_key) {
-      return badRequest(c, "No media reference available for this message");
-    }
+    try {
+      const { getJetStreamClient } = await import("../lib/nats/index.js");
+      const { JSONCodec } = await import("nats");
 
-    // If already downloading, return status
-    if (message.media_download_status === "downloading") {
+      // Get the message with media reference data
+      const message = await tenantDb
+        .selectFrom("messages")
+        .select([
+          "id",
+          "contact_id",
+          "whatsapp_connection_id",
+          "media_url",
+          "media_direct_path",
+          "media_key",
+          "media_file_sha256",
+          "media_file_enc_sha256",
+          "media_download_status",
+          "media_mime_type",
+        ])
+        .where("id", "=", messageId)
+        .executeTakeFirst();
+
+      if (!message) {
+        return notFound(c, "Message");
+      }
+
+      // If already downloaded, return existing URL
+      if (message.media_url && message.media_download_status === "completed") {
+        const mediaUrl = await getAuthorizedMediaUrl(
+          message.media_url,
+          companyId,
+        );
+        return successData(c, { status: "completed", mediaUrl });
+      }
+
+      // If no media reference data, cannot download
+      if (!message.media_direct_path || !message.media_key) {
+        return badRequest(c, "No media reference available for this message");
+      }
+
+      // If already downloading, return status
+      if (message.media_download_status === "downloading") {
+        return successData(c, { status: "downloading" });
+      }
+
+      // Get the WhatsApp connection for this message
+      const connection = await tenantDb
+        .selectFrom("whatsapp_connections")
+        .select(["id", "status"])
+        .where("id", "=", message.whatsapp_connection_id)
+        .executeTakeFirst();
+
+      if (!connection || connection.status !== "connected") {
+        return serviceUnavailable(c, "WhatsApp connection not available");
+      }
+
+      // Mark as downloading
+      await tenantDb
+        .updateTable("messages")
+        .set({ media_download_status: "downloading" })
+        .where("id", "=", messageId)
+        .execute();
+
+      // Determine media type from mime type
+      const mimeType = message.media_mime_type || "";
+      let mediaType = "document";
+      if (mimeType.startsWith("image/")) mediaType = "image";
+      else if (mimeType.startsWith("video/")) mediaType = "video";
+      else if (mimeType.startsWith("audio/")) mediaType = "audio";
+
+      // Publish download request to NATS JetStream
+      const js = await getJetStreamClient();
+      const jc = JSONCodec();
+
+      const downloadRequest = {
+        messageId: messageId,
+        directPath: message.media_direct_path,
+        mediaKey: message.media_key.toString("base64"),
+        fileSha256: message.media_file_sha256?.toString("base64") || "",
+        fileEncSha256: message.media_file_enc_sha256?.toString("base64") || "",
+        mediaType: mediaType,
+      };
+
+      const subject = `WHATSAPP.download.${companyId}.${connection.id}.request`;
+      await js.publish(subject, jc.encode(downloadRequest));
+
+      logger.info(
+        { messageId, companyId, connectionId: connection.id },
+        "Published download request",
+      );
+
       return successData(c, { status: "downloading" });
+    } catch (error) {
+      logger.error(
+        { err: formatError(error) },
+        "Failed to request media download",
+      );
+      return serverError(c, "Failed to request media download");
     }
-
-    // Get the WhatsApp connection for this message
-    const connection = await tenantDb
-      .selectFrom("whatsapp_connections")
-      .select(["id", "status"])
-      .where("id", "=", message.whatsapp_connection_id)
-      .executeTakeFirst();
-
-    if (!connection || connection.status !== "connected") {
-      return serviceUnavailable(c, "WhatsApp connection not available");
-    }
-
-    // Mark as downloading
-    await tenantDb
-      .updateTable("messages")
-      .set({ media_download_status: "downloading" })
-      .where("id", "=", messageId)
-      .execute();
-
-    // Determine media type from mime type
-    const mimeType = message.media_mime_type || "";
-    let mediaType = "document";
-    if (mimeType.startsWith("image/")) mediaType = "image";
-    else if (mimeType.startsWith("video/")) mediaType = "video";
-    else if (mimeType.startsWith("audio/")) mediaType = "audio";
-
-    // Publish download request to NATS JetStream
-    const js = await getJetStreamClient();
-    const jc = JSONCodec();
-
-    const downloadRequest = {
-      messageId: messageId,
-      directPath: message.media_direct_path,
-      mediaKey: message.media_key.toString("base64"),
-      fileSha256: message.media_file_sha256?.toString("base64") || "",
-      fileEncSha256: message.media_file_enc_sha256?.toString("base64") || "",
-      mediaType: mediaType,
-    };
-
-    const subject = `WHATSAPP.download.${companyId}.${connection.id}.request`;
-    await js.publish(subject, jc.encode(downloadRequest));
-
-    logger.info(
-      { messageId, companyId, connectionId: connection.id },
-      "Published download request",
-    );
-
-    return successData(c, { status: "downloading" });
-  } catch (error) {
-    logger.error(
-      { err: formatError(error) },
-      "Failed to request media download",
-    );
-    return serverError(c, "Failed to request media download");
-  }
-});
+  },
+);
 
 mediaRoutes.post("/upload", uploadRateLimiter, async (c) => {
   const { companyId } = getRouteContext(c);
@@ -215,7 +250,8 @@ mediaRoutes.post("/upload", uploadRateLimiter, async (c) => {
       fileName: file.name,
       fileSize: file.size,
       mimeType: file.type,
-      key: uploadResult.key, // S3 key for backend reference
+      key: uploadResult.key,
+      mediaReference: uploadResult.reference,
     });
   } catch (error) {
     logger.error({ err: formatError(error) }, "Failed to upload media");
