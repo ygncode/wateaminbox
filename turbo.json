@@ -7,6 +7,10 @@
       "inputs": ["$TURBO_DEFAULT$", ".env*"],
       "outputs": ["dist/**", ".next/**", "!.next/cache/**", "whatsapp-worker", "orchestrator"]
     },
+    "@wateaminbox/waitlist-api#build": {
+      "dependsOn": ["^build"],
+      "outputs": []
+    },
     "dev": {
       "dependsOn": ["^build"],
       "cache": false,

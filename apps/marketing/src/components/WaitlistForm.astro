@@ -1,0 +1,495 @@
+---
+interface Props {
+  apiUrl: string;
+  turnstileSiteKey?: string;
+}
+
+const { apiUrl, turnstileSiteKey } = Astro.props;
+const isWaitlistConfigured = Boolean(apiUrl.trim());
+const unavailableMessage =
+  "Cloud waitlist signups are not configured on this copy of the site. You can still self-host WATeamInbox.";
+const noScriptMessage = isWaitlistConfigured
+  ? "Cloud waitlist signup needs JavaScript to send and verify the double-opt-in request. You can still self-host WATeamInbox."
+  : "This self-hosted copy has no configured Cloud waitlist. You can still self-host WATeamInbox.";
+---
+
+<form
+  id="waitlist"
+  class="waitlist-form"
+  data-api-url={apiUrl}
+  data-unavailable-message={unavailableMessage}
+  data-waitlist-form
+  novalidate
+>
+  <div class="form-copy">
+    <p class="form-eyebrow">WATeamInbox Cloud / planned hosting</p>
+    <h2>Want the shared inbox without running it yourself?</h2>
+    <p>
+      Join the waitlist for updates about a future hosted version of WATeamInbox,
+      the shared WhatsApp inbox for teams. The open-source project is available
+      to self-host today.
+    </p>
+  </div>
+
+  <div class="form-controls">
+    <label class="sr-only" for="waitlist-email">Work email</label>
+    <input
+      id="waitlist-email"
+      name="email"
+      type="email"
+      autocomplete="email"
+      inputmode="email"
+      maxlength="254"
+      placeholder="you@company.com"
+      aria-describedby="waitlist-status"
+      disabled
+      required
+    />
+    <button type="submit" disabled>
+      Join the cloud waitlist <span aria-hidden="true">↗</span>
+    </button>
+  </div>
+
+  <div class="honeypot" aria-hidden="true">
+    <label for="waitlist-website">Leave this field empty</label>
+    <input
+      id="waitlist-website"
+      name="website"
+      tabindex="-1"
+      autocomplete="off"
+    />
+  </div>
+
+  {
+    isWaitlistConfigured && turnstileSiteKey && (
+      <div class="turnstile-wrap">
+        <div
+          data-turnstile-container
+          data-turnstile-sitekey={turnstileSiteKey}
+        />
+      </div>
+    )
+  }
+
+  <div class="form-foot">
+    <p
+      id="waitlist-status"
+      class="form-status"
+      aria-live="polite"
+      data-state={isWaitlistConfigured ? undefined : "error"}
+    >
+      {isWaitlistConfigured ? "" : unavailableMessage}
+    </p>
+    <p>
+      We will send one confirmation email. No account, payment, or launch date
+      is implied.
+    </p>
+  </div>
+
+  <noscript>
+    <p class="noscript-status">{noScriptMessage}</p>
+  </noscript>
+</form>
+
+<script is:inline>
+  window.wateaminboxTurnstileOnload = () => {
+    window.wateaminboxTurnstileLoaded = true;
+    window.dispatchEvent(new Event("wateaminbox-turnstile-ready"));
+  };
+</script>
+
+{
+  isWaitlistConfigured && turnstileSiteKey && (
+    <script
+      is:inline
+      src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit&onload=wateaminboxTurnstileOnload"
+      defer
+    />
+  )
+}
+
+<script>
+  type TurnstileApi = {
+    render(
+      container: HTMLElement,
+      options: {
+        action: string;
+        "error-callback"?: () => void;
+        "expired-callback"?: () => void;
+        sitekey: string;
+        size: "flexible";
+        theme: "light";
+      },
+    ): string;
+    remove(widgetId: string): void;
+    reset(widgetId: string): void;
+  };
+
+  type WaitlistWindow = Window & {
+    turnstile?: TurnstileApi;
+    wateaminboxTurnstileLoaded?: boolean;
+  };
+
+  const turnstileReadyEvent = "wateaminbox-turnstile-ready";
+  const waitlistWindow = window as WaitlistWindow;
+  const getTurnstile = (): TurnstileApi | undefined =>
+    waitlistWindow.turnstile;
+  const forms = document.querySelectorAll<HTMLFormElement>(
+    "[data-waitlist-form]",
+  );
+
+  for (const form of forms) {
+    const apiUrl = form.dataset.apiUrl?.trim();
+    const email = form.querySelector<HTMLInputElement>('input[name="email"]');
+    const website = form.querySelector<HTMLInputElement>(
+      'input[name="website"]',
+    );
+    const button = form.querySelector<HTMLButtonElement>(
+      'button[type="submit"]',
+    );
+    const status = form.querySelector<HTMLElement>(".form-status");
+    const turnstileContainer = form.querySelector<HTMLElement>(
+      "[data-turnstile-container]",
+    );
+    let turnstileWidgetId: string | undefined;
+    const startedAt = Date.now();
+    let idempotencyKey = crypto.randomUUID();
+
+    const setStatus = (
+      message: string,
+      state: "error" | "success" | "waiting",
+    ) => {
+      if (!status) return;
+      status.textContent = message;
+      status.dataset.state = state;
+    };
+
+    const renderTurnstile = () => {
+      if (!turnstileContainer || turnstileWidgetId) return;
+
+      const turnstile = getTurnstile();
+      if (!turnstile || !waitlistWindow.wateaminboxTurnstileLoaded) return;
+
+      try {
+        const sitekey = turnstileContainer.dataset.turnstileSitekey;
+        if (!sitekey) return;
+
+        turnstileWidgetId = turnstile.render(turnstileContainer, {
+          action: "waitlist",
+          "error-callback": () =>
+            setStatus(
+              "Verification could not load. Refresh the page or try again shortly.",
+              "error",
+            ),
+          "expired-callback": () =>
+            setStatus(
+              "Verification expired. Complete it again before submitting.",
+              "error",
+            ),
+          sitekey,
+          size: "flexible",
+          theme: "light",
+        });
+      } catch {
+        // The provider can expose its global just before rendering is ready;
+        // wait for the explicit onload event rather than breaking form setup.
+      }
+    };
+
+    const resetTurnstile = () => {
+      if (!turnstileContainer) return;
+
+      const responseField = form.querySelector<HTMLInputElement>(
+        'input[name="cf-turnstile-response"]',
+      );
+      if (responseField) responseField.value = "";
+
+      const turnstile = getTurnstile();
+      if (!turnstile || !turnstileWidgetId) {
+        renderTurnstile();
+        return;
+      }
+
+      try {
+        turnstile.reset(turnstileWidgetId);
+      } catch {
+        try {
+          turnstile.remove(turnstileWidgetId);
+        } catch {
+          // The provider script may have unloaded; a fresh render is still safe.
+        }
+        turnstileContainer.replaceChildren();
+        turnstileWidgetId = undefined;
+        renderTurnstile();
+      }
+    };
+
+    const confirmationState = new URLSearchParams(window.location.search).get(
+      "waitlist",
+    );
+    if (confirmationState === "confirmed") {
+      setStatus(
+        "Email confirmed. You are on the WATeamInbox Cloud waitlist.",
+        "success",
+      );
+    } else if (confirmationState === "already-confirmed") {
+      setStatus(
+        "That email was already confirmed for the Cloud waitlist.",
+        "success",
+      );
+    } else if (confirmationState === "expired") {
+      setStatus(
+        "That confirmation link has expired. Submit your email again for a new one.",
+        "error",
+      );
+    }
+
+    if (!apiUrl || !email || !website || !button) {
+      button?.setAttribute("disabled", "");
+      setStatus(
+        form.dataset.unavailableMessage ||
+          "Cloud waitlist signups are not configured on this copy of the site. You can still self-host WATeamInbox.",
+        "error",
+      );
+      continue;
+    }
+
+    email.disabled = false;
+    button.disabled = false;
+    if (turnstileContainer) {
+      window.addEventListener(turnstileReadyEvent, renderTurnstile);
+      renderTurnstile();
+    }
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      let accepted = false;
+      let attempted = false;
+      if (!email.checkValidity()) {
+        email.reportValidity();
+        return;
+      }
+
+      const turnstileToken = form.querySelector<HTMLInputElement>(
+        'input[name="cf-turnstile-response"]',
+      )?.value;
+      if (turnstileContainer && !turnstileToken) {
+        renderTurnstile();
+        setStatus(
+          "Complete the verification before joining the waitlist.",
+          "error",
+        );
+        return;
+      }
+
+      button.disabled = true;
+      attempted = true;
+      setStatus("Sending your confirmation link…", "waiting");
+
+      try {
+        const response = await fetch(
+          `${apiUrl.replace(/\/+$/, "")}/v1/waitlist`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Idempotency-Key": idempotencyKey,
+            },
+            body: JSON.stringify({
+              email: email.value,
+              website: website.value,
+              formStartedAt: startedAt,
+              ...(turnstileToken ? { turnstileToken } : {}),
+            }),
+          },
+        );
+        const payload = (await response.json().catch(() => ({}))) as {
+          error?: string;
+          message?: string;
+        };
+
+        if (!response.ok) {
+          setStatus(
+            payload.error ||
+              "We could not join the waitlist. Please try again.",
+            "error",
+          );
+          return;
+        }
+
+        setStatus(
+          payload.message || "Check your inbox to confirm your waitlist place.",
+          "success",
+        );
+        form.reset();
+        idempotencyKey = crypto.randomUUID();
+        accepted = true;
+        button.textContent = "Confirmation link sent";
+      } catch {
+        setStatus(
+          "We could not reach the waitlist service. Please try again.",
+          "error",
+        );
+      } finally {
+        if (attempted && !accepted) resetTurnstile();
+        button.disabled = accepted;
+      }
+    });
+  }
+</script>
+
+<style>
+  .waitlist-form {
+    position: relative;
+    border: 1px solid var(--landing-line, #b8c6bc);
+    background: var(--landing-paper, #fbfaf4);
+    box-shadow: 8px 8px 0 var(--landing-shadow, #d6dfd4);
+    padding: clamp(1.25rem, 3vw, 2.25rem);
+  }
+
+  .form-copy h2 {
+    margin: 0.35rem 0 0;
+    color: var(--landing-ink, #15211f);
+    font-family: var(--font-display, Georgia, serif);
+    font-size: clamp(1.75rem, 3.4vw, 2.7rem);
+    font-weight: 500;
+    line-height: 0.98;
+    text-wrap: balance;
+  }
+
+  .form-copy p:not(.form-eyebrow) {
+    max-width: 42rem;
+    margin: 0.9rem 0 0;
+    color: var(--landing-muted, #52615b);
+    font-size: 0.98rem;
+    line-height: 1.65;
+    text-wrap: pretty;
+  }
+
+  .form-eyebrow {
+    margin: 0;
+    color: var(--landing-green, #267047);
+    font-family: var(--font-mono, ui-monospace, monospace);
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .form-controls {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 0.65rem;
+    margin-top: 1.5rem;
+  }
+
+  .form-controls input {
+    min-width: 0;
+    border: 1px solid var(--landing-line-strong, #82988a);
+    border-radius: 0;
+    background: #fff;
+    color: var(--landing-ink, #15211f);
+    font: inherit;
+    padding: 0.9rem 1rem;
+  }
+
+  .form-controls input::placeholder {
+    color: #809087;
+  }
+  .form-controls input:disabled {
+    cursor: not-allowed;
+    background: #eff2ec;
+    color: #68776e;
+  }
+  .form-controls input:focus {
+    outline: 3px solid #b8d6bc;
+    outline-offset: 2px;
+  }
+
+  .form-controls button {
+    border: 1px solid var(--landing-green, #267047);
+    border-radius: 0;
+    background: var(--landing-green, #267047);
+    color: #fff;
+    cursor: pointer;
+    font: 700 0.85rem/1.2 var(--font-mono, ui-monospace, monospace);
+    padding: 0.9rem 1.05rem;
+  }
+
+  .form-controls button:hover {
+    background: #184f30;
+    border-color: #184f30;
+  }
+  .form-controls button:focus {
+    outline: 3px solid #b8d6bc;
+    outline-offset: 2px;
+  }
+  .form-controls button:disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
+  }
+
+  .form-foot {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-top: 0.9rem;
+  }
+
+  .form-foot p {
+    margin: 0;
+    color: var(--landing-muted, #52615b);
+    font-size: 0.73rem;
+    line-height: 1.5;
+  }
+
+  .form-status {
+    font-weight: 700;
+  }
+  .form-status[data-state="success"] {
+    color: #17643b;
+  }
+  .form-status[data-state="error"] {
+    color: #a24420;
+  }
+  .form-status[data-state="waiting"] {
+    color: #42534b;
+  }
+
+  .noscript-status {
+    margin: 0.9rem 0 0;
+    border-left: 3px solid #a24420;
+    background: #fff4ed;
+    color: #7f351a;
+    font-size: 0.78rem;
+    line-height: 1.5;
+    padding: 0.65rem 0.75rem;
+  }
+
+  .honeypot {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .turnstile-wrap {
+    margin-top: 1rem;
+  }
+
+  @media (max-width: 620px) {
+    .form-controls {
+      grid-template-columns: 1fr;
+    }
+    .form-controls button {
+      width: 100%;
+    }
+    .form-foot {
+      flex-direction: column;
+    }
+  }
+</style>

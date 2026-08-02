@@ -44,6 +44,7 @@ flowchart TB
 | `apps/web` | React 19, Vite, Tailwind CSS, TanStack Query |
 | `apps/api` | Hono API running on Bun |
 | `apps/marketing` | Astro marketing site |
+| `apps/waitlist-api` | Cloudflare Worker for the optional Cloud waitlist, double opt-in, and private administrator dashboard |
 | `packages/database` | Kysely database client and migrations |
 | `packages/shared` | Shared TypeScript types and utilities |
 | `packages/ui` | Shared React components |
@@ -195,6 +196,7 @@ The receiving user must be assigned to the contact or have permission to view al
 | `bun run check:unused` | Find unused files and dependencies with Knip |
 | `bun run db:migrate` | Apply database migrations |
 | `bun run db:generate` | Regenerate Kysely database types |
+| `bun run --filter @wateaminbox/waitlist-api dev` | Start the local Cloudflare waitlist Worker on port 8787 |
 | `docker compose down` | Stop local infrastructure |
 
 Integration tests require the local infrastructure and use:
@@ -216,6 +218,8 @@ An unavailable NATS connection or Centrifugo instance reports degraded readiness
 ## Production deployment
 
 Do not use `docker-compose.yml` for production; it contains development-only credentials and exposed service ports. The hardened single-host baseline is defined in `compose.production.yml`. See [docs/deployment.md](docs/deployment.md) for TLS, secret generation, migrations, private storage, backups, restores, upgrades, rollback, and monitoring.
+
+The public marketing site remains static and self-hostable. If you want to operate the separate managed-Cloud waitlist, see [docs/cloudflare-waitlist.md](docs/cloudflare-waitlist.md) for the Cloudflare D1, Email Service, Worker, static API URL, and admin-dashboard setup. It is optional and is not proxied through the production marketing Nginx container.
 
 ## Troubleshooting
 

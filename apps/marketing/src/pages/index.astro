@@ -1,57 +1,1151 @@
 ---
-import Layout from '../layouts/Layout.astro';
+import Layout from "../layouts/Layout.astro";
+import WaitlistForm from "../components/WaitlistForm.astro";
+
+const apiUrl = (import.meta.env.PUBLIC_WAITLIST_API_URL ?? "")
+  .trim()
+  .replace(/\/+$/, "");
+const turnstileSiteKey = (
+  import.meta.env.PUBLIC_WAITLIST_TURNSTILE_SITE_KEY ?? ""
+).trim();
 ---
 
-<Layout title="WATeamInbox - WhatsApp for Teams">
-  <section class="mx-auto max-w-7xl px-4 py-24 sm:px-6 lg:px-8">
-    <div class="text-center">
-      <h1 class="text-4xl font-bold tracking-tight text-gray-900 sm:text-5xl md:text-6xl">
-        WhatsApp for
-        <span class="text-primary-600">Teams</span>
-      </h1>
-      <p class="mx-auto mt-6 max-w-2xl text-lg text-gray-600">
-        Collaborate with your team on WhatsApp. Manage multiple WhatsApp numbers, assign conversations, and work together seamlessly.
-      </p>
-      <p class="mx-auto mt-4 max-w-2xl text-sm text-amber-700">
-        Open-source beta software for evaluation and self-hosting. Development defaults are not production-hardened.
-      </p>
-      <div class="mt-10 flex items-center justify-center gap-4">
-        <a
-          href="#"
-          class="rounded-lg bg-primary-600 px-6 py-3 font-semibold text-white shadow-sm hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
-        >
-          Get Started
-        </a>
-        <a
-          href="/docs"
-          class="rounded-lg border border-gray-300 bg-white px-6 py-3 font-semibold text-gray-700 shadow-sm hover:bg-gray-50"
-        >
-          Documentation
-        </a>
+<Layout
+  title="WATeamInbox — shared WhatsApp inbox for teams"
+  description="WATeamInbox is a shared WhatsApp inbox for teams. Keep customer conversations, assignments, and context in one place. Open-source and self-hostable."
+>
+  <div class="landing">
+    <section class="hero">
+      <div class="hero-copy">
+        <p class="eyebrow">
+          <span aria-hidden="true"></span> Shared WhatsApp inbox · Open-source beta
+        </p>
+        <h1>One shared<br /><em>WhatsApp inbox.</em></h1>
+        <p class="hero-lede">
+          When several people answer customers through the same WhatsApp account,
+          it is easy to lose track of who is replying or what was promised.
+          WATeamInbox gives the team one place to see the conversation, assign the
+          next reply, and keep notes with the history.
+        </p>
+        <p class="hero-audience">For teams that answer customers on WhatsApp.</p>
+        <div class="hero-actions">
+          <a href="#waitlist" class="action-primary"
+            >Join the Cloud waitlist <span aria-hidden="true">↗</span></a
+          >
+          <a
+            href="https://github.com/ygncode/wateaminbox"
+            target="_blank"
+            rel="noreferrer"
+            class="action-secondary"
+            >Self-host the open-source beta <span aria-hidden="true">↗</span></a
+          >
+        </div>
+        <p class="hero-note">
+          <strong>Cloud is planned:</strong> the waitlist is for updates about a
+          future managed version—not product access. Self-host the open-source
+          beta today.
+        </p>
       </div>
-    </div>
-  </section>
 
-  <section class="bg-gray-50 py-24">
-    <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-      <h2 class="text-center text-3xl font-bold text-gray-900">Features</h2>
-      <p class="mx-auto mt-4 max-w-2xl text-center text-gray-600">
-        Everything you need to stay connected
-      </p>
-      <div class="mt-16 grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
-        <div class="rounded-lg bg-white p-6 shadow-sm">
-          <h3 class="text-lg font-semibold text-gray-900">Real-time Messaging</h3>
-          <p class="mt-2 text-gray-600">Send and receive messages instantly with real-time synchronization.</p>
+      <div
+        class="hero-product"
+        aria-label="An illustrative shared WhatsApp team inbox"
+      >
+        <div class="product-topbar">
+          <span class="product-mark">WAT</span>
+          <span class="product-workspace">WhatsApp team inbox</span>
+          <span class="product-presence">3 teammates online</span>
         </div>
-        <div class="rounded-lg bg-white p-6 shadow-sm">
-          <h3 class="text-lg font-semibold text-gray-900">Role-Based Access</h3>
-          <p class="mt-2 text-gray-600">Scope conversations and administrative actions with workspace roles and assignments.</p>
+        <div class="product-shell">
+          <aside class="product-sidebar" aria-hidden="true">
+            <span class="side-glyph active"></span><span class="side-glyph"
+            ></span><span class="side-glyph"></span><span class="side-glyph"
+            ></span>
+          </aside>
+          <div class="product-queue">
+            <div class="queue-head"><span>Inbox</span><b>12</b></div>
+            <div class="queue-filter">
+              <span>All conversations</span><span>⌄</span>
+            </div>
+            <article class="conversation selected">
+              <i class="avatar orange">S</i><div>
+                <strong>Sofia Martin</strong><p>
+                  Could we change the delivery…
+                </p>
+              </div><time>2m</time>
+            </article>
+            <article class="conversation">
+              <i class="avatar blue">M</i><div>
+                <strong>Marco’s workshop</strong><p>Thanks, that solved it.</p>
+              </div><time>8m</time>
+            </article>
+            <article class="conversation">
+              <i class="avatar green">E</i><div>
+                <strong>Ember coffee</strong><p>Order #1438 has a question</p>
+              </div><time>21m</time>
+            </article>
+            <article class="conversation">
+              <i class="avatar yellow">R</i><div>
+                <strong>Ravi Patel</strong><p>Can someone help with setup?</p>
+              </div><time>1h</time>
+            </article>
+          </div>
+          <div class="product-thread">
+            <header>
+              <div>
+                <strong>Sofia Martin</strong><span>Assigned to Keiko</span>
+              </div><span class="thread-actions" aria-hidden="true">•••</span>
+            </header>
+            <div class="thread-date">Today</div>
+            <div class="bubble incoming">
+              Hi! I need to change the delivery address for tomorrow’s order.
+            </div>
+            <div class="bubble outgoing">
+              Absolutely. I’ve found it—what’s the new address?
+            </div>
+            <div class="handoff">
+              <span>↳</span><p>
+                <strong>Keiko assigned this conversation to you</strong><br
+                />Customer asked for a delivery update.
+              </p>
+            </div>
+            <div class="bubble incoming">
+              Perfect, it’s 18 Orchard Lane. Thank you!
+            </div>
+            <div class="thread-composer">
+              <span>Write a reply…</span><b>↑</b>
+            </div>
+          </div>
         </div>
-        <div class="rounded-lg bg-white p-6 shadow-sm">
-          <h3 class="text-lg font-semibold text-gray-900">Cross-Platform</h3>
-          <p class="mt-2 text-gray-600">Access your messages from any device, anywhere.</p>
+        <div class="product-caption">
+          <span class="pulse-dot"></span> An illustrative shared WhatsApp inbox—not
+          a promise of the Cloud roadmap.
         </div>
       </div>
-    </div>
-  </section>
+    </section>
+
+    <section class="signal-strip" aria-label="What the team gets">
+      <p>Make the next reply clear.</p>
+      <div>
+        <span>Shared WhatsApp inbox</span><span>Assignments + notes</span><span
+          >Self-hostable today</span
+        >
+      </div>
+    </section>
+
+    <section class="section choice-section" id="choice">
+      <div class="section-heading">
+        <p class="eyebrow">
+          <span aria-hidden="true"></span> For teams on WhatsApp
+        </p>
+        <h2>Make customer conversations a team job.</h2>
+        <p>
+          WATeamInbox gives your team one shared place to read, assign, and reply
+          to WhatsApp conversations. Run the open-source beta yourself today, or
+          join the waitlist for a future managed option.
+        </p>
+      </div>
+      <div class="choice-grid">
+        <article class="choice-card self-host">
+          <div class="card-number">01</div>
+          <p class="card-kicker">Available to self-host now</p>
+          <h3>Self-host WATeamInbox</h3>
+          <p>
+            Run the open-source stack on infrastructure you control. The
+            repository, deployment guidance, and MIT license are public.
+          </p>
+          <ul>
+            <li>Your hosting and data boundaries</li>
+            <li>Docker-based production baseline</li>
+            <li>Community-led development</li>
+          </ul>
+          <a
+            href="https://github.com/ygncode/wateaminbox"
+            target="_blank"
+            rel="noreferrer"
+            >Read the repository <span aria-hidden="true">↗</span></a
+          >
+        </article>
+        <article class="choice-card cloud">
+          <div class="card-number">02</div>
+          <p class="card-kicker">Planned managed option</p>
+          <h3>WATeamInbox Cloud</h3>
+          <p>
+            Prefer not to operate the software? Join the double-opt-in waitlist
+            for updates about a future hosted version.
+          </p>
+          <ul>
+            <li>No product account created today</li>
+            <li>No pricing or launch date promised</li>
+            <li>The source remains open</li>
+          </ul>
+          <a href="#waitlist"
+            >Join the waitlist <span aria-hidden="true">↗</span></a
+          >
+        </article>
+      </div>
+    </section>
+
+    <section class="section workflow-section" id="how-it-works">
+      <div class="workflow-intro">
+        <p class="eyebrow">
+          <span aria-hidden="true"></span> How the shared inbox works
+        </p>
+        <h2>From customer message<br />to <em>clear next step.</em></h2>
+      </div>
+      <div class="workflow-list">
+        <article>
+          <span>01</span><div>
+            <h3>Keep the whole conversation in view</h3><p>
+              Messages, contacts, and history stay together, so teammates can
+              understand the customer before they reply.
+            </p>
+          </div>
+        </article>
+        <article>
+          <span>02</span><div>
+            <h3>Give the reply a clear owner</h3><p>
+              Assign contacts and use team roles to give each teammate a clear
+              slice of work without losing sight of the wider inbox.
+            </p>
+          </div>
+        </article>
+        <article>
+          <span>03</span><div>
+            <h3>Hand off without losing context</h3><p>
+              Shared notes and conversation history stay with the contact, so the
+              next teammate can continue without asking the customer to start
+              over.
+            </p>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section class="waitlist-section" aria-labelledby="waitlist-heading">
+      <div class="waitlist-grid">
+        <div class="waitlist-aside">
+          <p class="eyebrow">
+            <span aria-hidden="true"></span> Planned hosted option
+          </p>
+          <h2 id="waitlist-heading">The shared inbox, without running it yourself.</h2>
+          <p>
+            WATeamInbox Cloud is a planned managed option for teams that want to
+            handle customer conversations on WhatsApp without managing the
+            servers and software themselves. Join for updates; the open-source
+            project is available to self-host today.
+          </p>
+          <div class="waitlist-steps">
+            <span><b>1</b> Enter your email</span>
+            <span><b>2</b> Confirm from your inbox</span>
+            <span><b>3</b> Receive Cloud updates</span>
+          </div>
+        </div>
+        <WaitlistForm
+          apiUrl={apiUrl}
+          turnstileSiteKey={turnstileSiteKey || undefined}
+        />
+      </div>
+    </section>
+
+    <section class="section faq-section">
+      <div class="section-heading compact">
+        <p class="eyebrow"><span aria-hidden="true"></span> Straight answers</p>
+        <h2>Questions, answered.</h2>
+      </div>
+      <div class="faq-list">
+        <details open>
+          <summary>What is WATeamInbox?</summary>
+          <p>
+            WATeamInbox is a shared inbox for teams that manage customer
+            conversations on WhatsApp. It brings messages, assignments, contact
+            information, notes, and history into one workspace so a teammate can
+            take over with context.
+          </p>
+        </details>
+        <details>
+          <summary>Who is it for?</summary>
+          <p>
+            It is for customer-facing teams that share responsibility for
+            WhatsApp conversations—when more than one person needs to see the
+            context, take ownership, or hand a conversation off.
+          </p>
+        </details>
+        <details>
+          <summary>Is WATeamInbox open source?</summary>
+          <p>
+            Yes. The repository is published under the MIT License, and
+            self-hosting remains a first-class path. The Cloud waitlist does not
+            gate the code.
+          </p>
+        </details>
+        <details>
+          <summary>What am I signing up for?</summary>
+          <p>
+            Only updates about the planned WATeamInbox Cloud service. You will
+            receive a confirmation email first; confirming does not create a
+            product account or commit you to payment.
+          </p>
+        </details>
+        <details>
+          <summary>Can I run it myself now?</summary>
+          <p>
+            Yes. Start with the repository and the self-hosted deployment guide.
+            As with any beta software, review the infrastructure, data handling,
+            backups, and WhatsApp account risks before production use.
+          </p>
+        </details>
+        <details>
+          <summary>Is this an official WhatsApp product?</summary>
+          <p>
+            No. WATeamInbox is an independent project and is not affiliated
+            with, endorsed by, or sponsored by WhatsApp or Meta.
+          </p>
+        </details>
+      </div>
+    </section>
+
+    <section class="closing">
+      <p class="eyebrow">
+        <span aria-hidden="true"></span> Shared work, clearer handoffs
+      </p>
+      <h2>Give your team<br /><em>one place to reply.</em></h2>
+      <div>
+        <a href="#waitlist" class="action-primary"
+          >Join the Cloud waitlist <span aria-hidden="true">↗</span></a
+        ><a href="/docs" class="text-link"
+          >Read the self-hosting guide <span aria-hidden="true">↗</span></a
+        >
+      </div>
+    </section>
+  </div>
 </Layout>
+
+<style>
+  .landing {
+    --landing-ink: #15211f;
+    --landing-muted: #52615b;
+    --landing-paper: #fbfaf4;
+    --landing-green: #1d633d;
+    --landing-line: #b8c6bc;
+    --landing-line-strong: #82988a;
+    --landing-shadow: #d6dfd4;
+    --font-display:
+      "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Georgia, serif;
+    --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+    --font-body: "Avenir Next", "Segoe UI", sans-serif;
+    overflow: hidden;
+    background: var(--landing-paper);
+  }
+
+  .hero,
+  .section,
+  .waitlist-section,
+  .closing {
+    width: min(100% - 2rem, 74rem);
+    margin: 0 auto;
+  }
+
+  .hero {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(24rem, 1.1fr);
+    align-items: center;
+    gap: clamp(2.5rem, 5vw, 5rem);
+    min-height: 43rem;
+    padding: clamp(4rem, 9vw, 8rem) 0 clamp(4rem, 8vw, 6rem);
+  }
+
+  .eyebrow {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    margin: 0;
+    color: var(--landing-green);
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .eyebrow span {
+    width: 0.55rem;
+    height: 0.55rem;
+    background: #4d9f62;
+  }
+
+  .hero h1,
+  .section h2,
+  .closing h2 {
+    margin: 1rem 0 0;
+    color: var(--landing-ink);
+    font-family: var(--font-display);
+    font-size: clamp(3.25rem, 5.8vw, 5.3rem);
+    font-weight: 500;
+    letter-spacing: -0.045em;
+    line-height: 0.88;
+    text-wrap: balance;
+  }
+
+  .hero h1 em,
+  .workflow-intro em,
+  .closing em {
+    color: var(--landing-green);
+    font-style: italic;
+  }
+
+  .hero-lede {
+    max-width: 35rem;
+    margin: 1.7rem 0 0;
+    color: var(--landing-muted);
+    font-size: clamp(1.05rem, 1.75vw, 1.3rem);
+    line-height: 1.65;
+    text-wrap: pretty;
+  }
+
+  .hero-audience {
+    margin: 1.05rem 0 0;
+    color: var(--landing-ink);
+    font-size: 0.88rem;
+    font-weight: 700;
+    line-height: 1.5;
+  }
+
+  .hero-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.9rem 1.4rem;
+    margin-top: 2rem;
+  }
+  .action-primary,
+  .action-secondary,
+  .text-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-family: var(--font-mono);
+    font-size: 0.78rem;
+    font-weight: 700;
+    text-decoration: none;
+  }
+
+  .action-primary {
+    background: var(--landing-green);
+    color: #fff;
+    padding: 0.95rem 1.1rem;
+  }
+  .action-primary:hover {
+    background: #15482d;
+  }
+  .action-secondary,
+  .text-link {
+    color: var(--landing-ink);
+    border-bottom: 1px solid #7c8f84;
+    padding-bottom: 0.18rem;
+  }
+  .action-secondary:hover,
+  .text-link:hover {
+    color: var(--landing-green);
+    border-color: var(--landing-green);
+  }
+  .action-primary:focus-visible,
+  .action-secondary:focus-visible,
+  .text-link:focus-visible {
+    outline: 3px solid #9acaa0;
+    outline-offset: 3px;
+  }
+
+  .hero-note {
+    max-width: 32rem;
+    margin: 1.75rem 0 0;
+    color: #65756d;
+    font-size: 0.78rem;
+    line-height: 1.55;
+    text-wrap: pretty;
+  }
+  .hero-note strong {
+    color: #32483e;
+  }
+
+  .hero-product {
+    position: relative;
+    max-width: 41rem;
+    justify-self: end;
+    border: 1px solid #5f776a;
+    background: #14221e;
+    box-shadow: 14px 14px 0 #d4dfd1;
+    color: #dce9de;
+    padding: 0.75rem;
+  }
+  .hero-product::before {
+    position: absolute;
+    z-index: 0;
+    top: -2.4rem;
+    right: -1.65rem;
+    width: 6.5rem;
+    height: 6.5rem;
+    border: 1px solid #82a98b;
+    background: #e1eddd;
+    content: "";
+  }
+  .hero-product::after {
+    position: absolute;
+    z-index: 0;
+    bottom: -1.3rem;
+    left: -1.3rem;
+    width: 4rem;
+    height: 4rem;
+    background: #c5dcbf;
+    content: "";
+  }
+  .product-topbar,
+  .product-shell,
+  .product-caption {
+    position: relative;
+    z-index: 1;
+  }
+  .product-topbar {
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+    min-height: 2.5rem;
+    padding: 0 0.35rem 0.55rem;
+    border-bottom: 1px solid #456052;
+    font-family: var(--font-mono);
+    font-size: 0.63rem;
+  }
+  .product-mark {
+    display: grid;
+    width: 1.6rem;
+    height: 1.6rem;
+    place-items: center;
+    background: #3c9559;
+    color: white;
+    font-size: 0.56rem;
+    font-weight: 800;
+  }
+  .product-workspace {
+    overflow: hidden;
+    color: #e4efe5;
+    font-weight: 700;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .product-presence {
+    margin-left: auto;
+    color: #95c49d;
+  }
+  .product-shell {
+    display: grid;
+    grid-template-columns: 2.7rem minmax(10.3rem, 0.8fr) minmax(15rem, 1.4fr);
+    min-height: 23rem;
+    background: #f8faf6;
+    color: #213229;
+  }
+  .product-sidebar {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+    padding-top: 1rem;
+    background: #e7eee5;
+    border-right: 1px solid #d0ddd0;
+  }
+  .side-glyph {
+    width: 0.8rem;
+    height: 0.8rem;
+    border: 1px solid #718778;
+  }
+  .side-glyph.active {
+    border-color: #297148;
+    background: #297148;
+  }
+  .product-queue {
+    border-right: 1px solid #d6ded6;
+    overflow: hidden;
+  }
+  .queue-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem 0.8rem 0.65rem;
+    font-family: var(--font-display);
+    font-size: 1.25rem;
+    font-weight: 700;
+  }
+  .queue-head b {
+    display: grid;
+    width: 1.35rem;
+    height: 1.35rem;
+    place-items: center;
+    background: #d9eee0;
+    color: #1d633d;
+    font-family: var(--font-mono);
+    font-size: 0.6rem;
+  }
+  .queue-filter {
+    display: flex;
+    justify-content: space-between;
+    margin: 0 0.65rem 0.55rem;
+    border: 1px solid #d4ddd3;
+    color: #63756b;
+    font-family: var(--font-mono);
+    font-size: 0.57rem;
+    padding: 0.45rem;
+  }
+  .conversation {
+    display: grid;
+    grid-template-columns: 1.75rem minmax(0, 1fr) auto;
+    gap: 0.45rem;
+    align-items: center;
+    padding: 0.67rem;
+    border-top: 1px solid #e4e9e3;
+  }
+  .conversation.selected {
+    background: #e3efe4;
+    border-left: 3px solid #2d7b4a;
+    padding-left: calc(0.67rem - 3px);
+  }
+  .conversation strong {
+    display: block;
+    overflow: hidden;
+    font-size: 0.6rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .conversation p {
+    overflow: hidden;
+    margin: 0.2rem 0 0;
+    color: #718278;
+    font-size: 0.52rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .conversation time {
+    align-self: start;
+    color: #839188;
+    font-family: var(--font-mono);
+    font-size: 0.48rem;
+  }
+  .avatar {
+    display: grid;
+    width: 1.6rem;
+    height: 1.6rem;
+    place-items: center;
+    border-radius: 50%;
+    color: #fff;
+    font-family: var(--font-mono);
+    font-size: 0.54rem;
+    font-style: normal;
+    font-weight: 700;
+  }
+  .avatar.orange {
+    background: #be7448;
+  }
+  .avatar.blue {
+    background: #477c9e;
+  }
+  .avatar.green {
+    background: #5d906c;
+  }
+  .avatar.yellow {
+    background: #ad8734;
+  }
+  .product-thread {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    padding: 0 0.9rem;
+    background: #fafcf8;
+  }
+  .product-thread header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    min-height: 3.45rem;
+    border-bottom: 1px solid #e0e7df;
+  }
+  .product-thread header strong {
+    display: block;
+    font-size: 0.66rem;
+  }
+  .product-thread header span {
+    display: block;
+    margin-top: 0.18rem;
+    color: #6d8073;
+    font-family: var(--font-mono);
+    font-size: 0.48rem;
+  }
+  .thread-actions {
+    color: #6d8073;
+    font-weight: 700;
+  }
+  .thread-date {
+    margin: 0.7rem auto;
+    color: #829087;
+    font-family: var(--font-mono);
+    font-size: 0.48rem;
+  }
+  .bubble {
+    max-width: 82%;
+    margin: 0.24rem 0;
+    padding: 0.55rem 0.63rem;
+    font-size: 0.57rem;
+    line-height: 1.45;
+  }
+  .bubble.incoming {
+    align-self: flex-start;
+    background: #ebefea;
+  }
+  .bubble.outgoing {
+    align-self: flex-end;
+    background: #d5ecd9;
+  }
+  .handoff {
+    display: flex;
+    gap: 0.35rem;
+    margin: 0.6rem 0;
+    border-left: 2px solid #68a577;
+    background: #eff6ed;
+    padding: 0.46rem 0.5rem;
+    color: #596c60;
+  }
+  .handoff span {
+    color: #237044;
+    font-weight: 800;
+  }
+  .handoff p {
+    margin: 0;
+    font-size: 0.49rem;
+    line-height: 1.45;
+  }
+  .handoff strong {
+    color: #365442;
+  }
+  .thread-composer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: auto;
+    margin-bottom: 0.7rem;
+    border: 1px solid #d6dfd6;
+    color: #93a098;
+    font-family: var(--font-mono);
+    font-size: 0.5rem;
+    padding: 0.48rem;
+  }
+  .thread-composer b {
+    display: grid;
+    width: 1rem;
+    height: 1rem;
+    place-items: center;
+    background: #2b7a49;
+    color: white;
+    font-size: 0.64rem;
+  }
+  .product-caption {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin: 0.65rem 0.25rem 0;
+    color: #a8bdad;
+    font-family: var(--font-mono);
+    font-size: 0.49rem;
+  }
+  .pulse-dot {
+    width: 0.38rem;
+    height: 0.38rem;
+    background: #73b780;
+  }
+
+  .signal-strip {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 2rem;
+    border-top: 1px solid #d7dfd4;
+    border-bottom: 1px solid #d7dfd4;
+    background: #edf1e9;
+    padding: 1.15rem max(1rem, calc((100vw - 74rem) / 2));
+  }
+  .signal-strip p {
+    margin: 0;
+    color: #284537;
+    font-family: var(--font-display);
+    font-size: 1.2rem;
+    font-style: italic;
+  }
+  .signal-strip div {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 1.2rem;
+  }
+  .signal-strip span {
+    color: #556a5d;
+    font-family: var(--font-mono);
+    font-size: 0.64rem;
+    font-weight: 700;
+  }
+  .signal-strip span::before {
+    color: #4e9d61;
+    content: "● ";
+  }
+
+  .section {
+    padding: clamp(5rem, 10vw, 8.75rem) 0;
+  }
+  .section-heading {
+    max-width: 42rem;
+  }
+  .section h2 {
+    font-size: clamp(2.7rem, 5vw, 4.8rem);
+    line-height: 0.93;
+  }
+  .section-heading > p:last-child {
+    max-width: 38rem;
+    margin: 1.25rem 0 0;
+    color: var(--landing-muted);
+    font-size: 1rem;
+    line-height: 1.7;
+    text-wrap: pretty;
+  }
+  .choice-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem;
+    margin-top: 3rem;
+  }
+  .choice-card {
+    position: relative;
+    min-height: 29rem;
+    border: 1px solid var(--landing-line);
+    padding: 1.5rem;
+  }
+  .choice-card.self-host {
+    background: #f1f3ec;
+  }
+  .choice-card.cloud {
+    background: #173526;
+    color: #edf6ed;
+  }
+  .card-number {
+    color: #729280;
+    font-family: var(--font-mono);
+    font-size: 0.68rem;
+    font-weight: 700;
+  }
+  .cloud .card-number {
+    color: #99c4a2;
+  }
+  .card-kicker {
+    margin: 3rem 0 0;
+    color: #387a4c;
+    font-family: var(--font-mono);
+    font-size: 0.67rem;
+    font-weight: 700;
+    text-transform: uppercase;
+  }
+  .cloud .card-kicker {
+    color: #a4cca9;
+  }
+  .choice-card h3 {
+    margin: 0.55rem 0 0;
+    font-family: var(--font-display);
+    font-size: clamp(2rem, 3.3vw, 3rem);
+    font-weight: 500;
+    letter-spacing: -0.035em;
+    line-height: 0.95;
+    text-wrap: balance;
+  }
+  .choice-card > p:not(.card-kicker) {
+    max-width: 30rem;
+    margin: 1.1rem 0;
+    color: #53645b;
+    font-size: 0.94rem;
+    line-height: 1.6;
+    text-wrap: pretty;
+  }
+  .cloud > p:not(.card-kicker) {
+    color: #c5d7c7;
+  }
+  .choice-card ul {
+    margin: 1.5rem 0 3.6rem;
+    padding: 0;
+    list-style: none;
+  }
+  .choice-card li {
+    position: relative;
+    margin-top: 0.65rem;
+    padding-left: 1.1rem;
+    color: #53645b;
+    font-size: 0.77rem;
+    line-height: 1.45;
+  }
+  .cloud li {
+    color: #d2e1d2;
+  }
+  .choice-card li::before {
+    position: absolute;
+    left: 0;
+    color: #3c9957;
+    content: "✓";
+  }
+  .choice-card a {
+    position: absolute;
+    bottom: 1.5rem;
+    left: 1.5rem;
+    color: #1a613a;
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-decoration: none;
+  }
+  .cloud a {
+    color: #b8ddbc;
+  }
+  .choice-card a:hover {
+    text-decoration: underline;
+  }
+
+  .workflow-section {
+    display: grid;
+    grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.1fr);
+    gap: clamp(2.5rem, 8vw, 8rem);
+    border-top: 1px solid #d7dfd4;
+  }
+  .workflow-intro h2 {
+    font-size: clamp(2.7rem, 4.6vw, 4.3rem);
+  }
+  .workflow-list {
+    border-top: 1px solid #aebdaf;
+  }
+  .workflow-list article {
+    display: grid;
+    grid-template-columns: 2.4rem minmax(0, 1fr);
+    gap: 1.1rem;
+    padding: 1.45rem 0;
+    border-bottom: 1px solid #c8d3c9;
+  }
+  .workflow-list article > span {
+    color: #528563;
+    font-family: var(--font-mono);
+    font-size: 0.68rem;
+    font-weight: 700;
+  }
+  .workflow-list h3 {
+    margin: 0;
+    font-family: var(--font-display);
+    font-size: 1.55rem;
+    font-weight: 600;
+  }
+  .workflow-list p {
+    margin: 0.6rem 0 0;
+    color: var(--landing-muted);
+    font-size: 0.9rem;
+    line-height: 1.6;
+    text-wrap: pretty;
+  }
+
+  .waitlist-section {
+    width: auto;
+    margin: 0;
+    background: #dce9d9;
+    padding: clamp(4rem, 8vw, 7rem) max(1rem, calc((100vw - 74rem) / 2));
+  }
+  .waitlist-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 0.72fr) minmax(22rem, 1.28fr);
+    align-items: center;
+    gap: clamp(2rem, 7vw, 6rem);
+    max-width: 74rem;
+    margin: 0 auto;
+  }
+  .waitlist-aside h2 {
+    font-size: clamp(2.8rem, 5.2vw, 4.5rem);
+    line-height: 0.92;
+  }
+  .waitlist-aside > p:not(.eyebrow) {
+    max-width: 29rem;
+    margin: 1.2rem 0 0;
+    color: #4d6456;
+    font-size: 1rem;
+    line-height: 1.65;
+    text-wrap: pretty;
+  }
+  .waitlist-steps {
+    display: grid;
+    gap: 0.65rem;
+    margin-top: 1.6rem;
+  }
+  .waitlist-steps span {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    color: #385344;
+    font-family: var(--font-mono);
+    font-size: 0.68rem;
+    font-weight: 700;
+  }
+  .waitlist-steps b {
+    display: grid;
+    width: 1.25rem;
+    height: 1.25rem;
+    place-items: center;
+    border: 1px solid #72a17a;
+    background: #eff7ec;
+    color: #317341;
+    font-size: 0.58rem;
+  }
+
+  .faq-section {
+    display: grid;
+    grid-template-columns: minmax(0, 0.7fr) minmax(0, 1.3fr);
+    gap: clamp(2.5rem, 8vw, 8rem);
+  }
+  .compact h2 {
+    font-size: clamp(2.9rem, 4.8vw, 4rem);
+  }
+  .faq-list {
+    border-top: 1px solid #aebdaf;
+  }
+  .faq-list details {
+    border-bottom: 1px solid #c8d3c9;
+    padding: 1.2rem 0;
+  }
+  .faq-list summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    cursor: pointer;
+    color: #20372b;
+    font-family: var(--font-display);
+    font-size: 1.35rem;
+    font-weight: 600;
+    list-style: none;
+  }
+  .faq-list summary::-webkit-details-marker {
+    display: none;
+  }
+  .faq-list summary::after {
+    flex: 0 0 auto;
+    color: #2d7748;
+    content: "+";
+    font-family: var(--font-mono);
+    font-size: 1.1rem;
+  }
+  .faq-list details[open] summary::after {
+    content: "−";
+  }
+  .faq-list p {
+    max-width: 44rem;
+    margin: 0.85rem 2rem 0 0;
+    color: var(--landing-muted);
+    font-size: 0.9rem;
+    line-height: 1.65;
+    text-wrap: pretty;
+  }
+
+  .closing {
+    padding: clamp(4.5rem, 9vw, 8rem) 0 clamp(5rem, 10vw, 9rem);
+    text-align: center;
+  }
+  .closing .eyebrow {
+    justify-content: center;
+  }
+  .closing h2 {
+    font-size: clamp(3.4rem, 7.2vw, 6.1rem);
+  }
+  .closing > div {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: center;
+    gap: 1.1rem 1.6rem;
+    margin-top: 2rem;
+  }
+
+  @media (max-width: 920px) {
+    .hero {
+      grid-template-columns: 1fr;
+      gap: 3rem;
+      min-height: 0;
+    }
+    .hero-product {
+      justify-self: stretch;
+      width: min(100%, 41rem);
+    }
+    .choice-grid,
+    .workflow-section,
+    .waitlist-grid,
+    .faq-section {
+      grid-template-columns: 1fr;
+    }
+    .workflow-section {
+      gap: 2.5rem;
+    }
+    .faq-section {
+      gap: 2rem;
+    }
+    .signal-strip {
+      align-items: flex-start;
+      flex-direction: column;
+    }
+  }
+
+  @media (max-width: 620px) {
+    .hero,
+    .section,
+    .closing {
+      width: min(100% - 1.5rem, 74rem);
+    }
+    .hero {
+      padding-top: 3.5rem;
+    }
+    .hero h1 {
+      font-size: clamp(3.3rem, 17vw, 5rem);
+    }
+    .product-shell {
+      grid-template-columns: 2.35rem minmax(9.5rem, 0.82fr) minmax(
+          12.5rem,
+          1.15fr
+        );
+      min-height: 20rem;
+    }
+    .product-sidebar {
+      gap: 0.8rem;
+    }
+    .conversation {
+      padding: 0.52rem;
+    }
+    .product-thread {
+      padding: 0 0.55rem;
+    }
+    .bubble {
+      max-width: 90%;
+      font-size: 0.51rem;
+    }
+    .handoff {
+      display: none;
+    }
+    .product-caption {
+      font-size: 0.43rem;
+    }
+    .choice-card {
+      min-height: 27rem;
+    }
+    .signal-strip {
+      padding-inline: 0.75rem;
+    }
+    .signal-strip p {
+      font-size: 1.05rem;
+    }
+    .waitlist-section {
+      padding-inline: 0.75rem;
+    }
+    .faq-list summary {
+      font-size: 1.18rem;
+    }
+  }
+</style>

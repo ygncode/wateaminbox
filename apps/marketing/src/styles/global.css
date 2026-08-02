@@ -1,2 +1,23 @@
 @config "../../tailwind.config.mjs";
 @import "tailwindcss";
+
+:root {
+  --font-body: "Avenir Next", "Segoe UI", sans-serif;
+  --font-display:
+    "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Georgia, serif;
+  --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+}
+
+html {
+  background: #f8f7f1;
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+}
+
+::selection {
+  background: #b9dabb;
+  color: #15211f;
+}

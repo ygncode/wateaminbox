@@ -6,6 +6,7 @@ WORKDIR /app
 COPY package.json bun.lock turbo.json ./
 COPY apps/marketing/package.json apps/marketing/package.json
 COPY apps/api/package.json apps/api/package.json
+COPY apps/waitlist-api/package.json apps/waitlist-api/package.json
 COPY apps/web/package.json apps/web/package.json
 COPY packages/database/package.json packages/database/package.json
 COPY packages/shared/package.json packages/shared/package.json
@@ -14,6 +15,10 @@ COPY services/orchestrator/package.json services/orchestrator/package.json
 COPY services/whatsapp/package.json services/whatsapp/package.json
 RUN --mount=type=cache,target=/root/.bun/install/cache bun install --frozen-lockfile
 COPY apps/marketing apps/marketing
+ARG PUBLIC_WAITLIST_API_URL=
+ARG PUBLIC_WAITLIST_TURNSTILE_SITE_KEY=
+ENV PUBLIC_WAITLIST_API_URL=${PUBLIC_WAITLIST_API_URL} \
+    PUBLIC_WAITLIST_TURNSTILE_SITE_KEY=${PUBLIC_WAITLIST_TURNSTILE_SITE_KEY}
 RUN bun run --filter @wateaminbox/marketing build
 
 FROM nginxinc/nginx-unprivileged:1.29-alpine AS marketing

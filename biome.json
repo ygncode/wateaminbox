@@ -14,7 +14,8 @@
       "!**/.astro",
       "!**/.turbo",
       "!**/coverage",
-      "!**/*.gen.ts"
+      "!**/*.gen.ts",
+      "!**/worker-configuration.d.ts"
     ]
   },
   "formatter": {

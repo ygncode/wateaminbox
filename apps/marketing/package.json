@@ -6,6 +6,7 @@
     "dev": "astro dev",
     "build": "astro build",
     "preview": "astro preview",
+    "deploy:pages": "wrangler pages deploy --branch main",
     "lint": "astro check",
     "format": "prettier --write \"src/**/*.{astro,ts,tsx,js,jsx,css,md}\""
   },
@@ -18,7 +19,8 @@
     "@astrojs/check": "^0.9.10",
     "prettier": "^3.2.0",
     "prettier-plugin-astro": "^0.13.0",
-    "typescript": "^5.7.2"
+    "typescript": "^5.7.2",
+    "wrangler": "^4.118.0"
   },
   "prettier": {
     "plugins": ["prettier-plugin-astro"]

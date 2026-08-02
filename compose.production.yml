@@ -91,6 +91,10 @@ services:
       context: .
       dockerfile: apps/marketing/Dockerfile
       target: marketing
+      args:
+        # The API is intentionally an explicit Worker origin, not a missing Nginx /api proxy.
+        PUBLIC_WAITLIST_API_URL: ${PUBLIC_WAITLIST_API_URL:-}
+        PUBLIC_WAITLIST_TURNSTILE_SITE_KEY: ${PUBLIC_WAITLIST_TURNSTILE_SITE_KEY:-}
     read_only: true
     tmpfs:
       - /tmp

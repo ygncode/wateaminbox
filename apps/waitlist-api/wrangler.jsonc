@@ -1,0 +1,95 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "wateaminbox-waitlist",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-08-02",
+  "workers_dev": false,
+  "preview_urls": false,
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "wateaminbox-waitlist",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "send_email": [
+    {
+      "name": "EMAIL"
+    }
+  ],
+  "vars": {
+    "ENVIRONMENT": "development",
+    "ALLOWED_ORIGINS": "http://localhost:4446",
+    "MARKETING_ORIGIN": "http://localhost:4446",
+    "PUBLIC_API_ORIGIN": "http://localhost:8787",
+    "WAITLIST_FROM_EMAIL": "WATeamInbox <waitlist@example.com>"
+  },
+  "secrets": {
+    "required": [
+      "WAITLIST_TOKEN_SECRET",
+      "ADMIN_SESSION_SECRET",
+      "ADMIN_PASSWORD_HASH",
+      "TURNSTILE_SECRET_KEY"
+    ]
+  },
+  "triggers": {
+    "crons": ["17 4 * * *"]
+  },
+  "env": {
+    "production": {
+      "name": "wateaminbox-waitlist",
+      "workers_dev": false,
+      "preview_urls": false,
+      "observability": {
+        "enabled": true,
+        "head_sampling_rate": 1
+      },
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "wateaminbox-waitlist-production",
+          "database_id": "e210f834-43f8-48f9-b192-ab1d574feccc",
+          "migrations_dir": "migrations"
+        }
+      ],
+      "send_email": [
+        {
+          "name": "EMAIL",
+          "allowed_sender_addresses": ["noreply@wateaminbox.com"]
+        }
+      ],
+      "vars": {
+        "ENVIRONMENT": "production",
+        "ALLOWED_ORIGINS": "https://wateaminbox.com",
+        "MARKETING_ORIGIN": "https://wateaminbox.com",
+        "PUBLIC_API_ORIGIN": "https://waitlist-api.wateaminbox.com",
+        "WAITLIST_FROM_EMAIL": "WATeamInbox <noreply@wateaminbox.com>"
+      },
+      "secrets": {
+        "required": [
+          "WAITLIST_TOKEN_SECRET",
+          "ADMIN_SESSION_SECRET",
+          "ADMIN_PASSWORD_HASH",
+          "TURNSTILE_SECRET_KEY"
+        ]
+      },
+      "triggers": {
+        "crons": ["17 4 * * *"]
+      },
+      "routes": [
+        {
+          "pattern": "waitlist-api.wateaminbox.com",
+          "custom_domain": true
+        },
+        {
+          "pattern": "wateaminbox.com/v1/*",
+          "zone_name": "wateaminbox.com"
+        }
+      ]
+    }
+  }
+}

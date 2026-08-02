@@ -1,0 +1,25 @@
+{
+  "name": "@wateaminbox/waitlist-api",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev --port 8787",
+    "build": "bun run typecheck",
+    "typecheck": "wrangler types ./src/worker-configuration.d.ts --env-interface CloudflareBindings --env production --check && tsc --noEmit",
+    "lint": "bunx biome lint src tests",
+    "test": "bun test tests",
+    "types": "wrangler types ./src/worker-configuration.d.ts --env-interface CloudflareBindings --env production",
+    "db:migrate:local": "wrangler d1 migrations apply wateaminbox-waitlist --local",
+    "hash:admin-password": "node scripts/generate-admin-password-hash.mjs"
+  },
+  "dependencies": {
+    "hono": "^4.12.33",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "^5.7.2",
+    "wrangler": "^4.118.0"
+  }
+}

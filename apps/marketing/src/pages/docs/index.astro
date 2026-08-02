@@ -146,7 +146,7 @@ bun run dev</code></pre>
                   </tr>
                   <tr>
                     <td class="py-3 pl-0 pr-3 text-sm text-gray-900">Marketing Site</td>
-                    <td class="px-3 py-3 text-sm text-gray-600">4321</td>
+                    <td class="px-3 py-3 text-sm text-gray-600">4446</td>
                     <td class="px-3 py-3 text-sm text-gray-600">Astro static site</td>
                   </tr>
                   <tr>
@@ -698,96 +698,17 @@ X-Company-ID: &lt;company-uuid&gt;</code></pre>
           </div>
         </section>
 
-        <!-- Feedback -->
-        <section class="mt-16">
+        <!-- Feedback intentionally uses an explicit destination: the static marketing host has no API proxy. -->
+        <section class="mt-16 border-t border-gray-200 pt-10">
           <h2 class="text-2xl font-bold text-gray-900">Feedback</h2>
-          <p class="mt-4 text-gray-600">
-            We read every message. A real human will respond. You can also reach us at <a href="mailto:contact@wateaminbox.com" class="text-primary-600 hover:underline">contact@wateaminbox.com</a>
+          <p class="mt-4 max-w-2xl text-gray-600">
+            For documentation feedback, bugs, or ideas, use an explicit channel rather than a form that depends on a nonexistent marketing-site API.
           </p>
-          <form id="feedback-form" class="mt-6 space-y-4">
-            <div>
-              <label for="feedback-email" class="block text-sm font-medium text-gray-700">Email (optional)</label>
-              <input
-                type="email"
-                id="feedback-email"
-                name="email"
-                placeholder="your@email.com"
-                class="mt-1 block w-full rounded-md border border-gray-300 px-4 py-2 text-gray-900 placeholder-gray-400 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
-              />
-            </div>
-            <div>
-              <label for="feedback-message" class="block text-sm font-medium text-gray-700">Message</label>
-              <textarea
-                id="feedback-message"
-                name="message"
-                rows="4"
-                required
-                minlength="10"
-                placeholder="Tell us about your experience, bugs you've found, or features you'd like to see..."
-                class="mt-1 block w-full rounded-md border border-gray-300 px-4 py-2 text-gray-900 placeholder-gray-400 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
-              ></textarea>
-            </div>
-            <div class="flex items-center gap-4">
-              <button
-                type="submit"
-                class="inline-flex items-center rounded-md bg-primary-600 px-4 py-2 text-sm font-semibold text-white hover:bg-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Send feedback
-              </button>
-              <span id="feedback-status" class="text-sm"></span>
-            </div>
-          </form>
+          <div class="mt-6 flex flex-wrap gap-3">
+            <a href="mailto:contact@wateaminbox.com" class="inline-flex items-center rounded-md bg-primary-600 px-4 py-2 text-sm font-semibold text-white hover:bg-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2">Email the project</a>
+            <a href="https://github.com/ygncode/wateaminbox/issues" target="_blank" rel="noreferrer" class="inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2">Open a GitHub issue <span class="ml-1" aria-hidden="true">↗</span></a>
+          </div>
         </section>
-
-        <script>
-          const form = document.querySelector<HTMLFormElement>('#feedback-form');
-          const status = document.querySelector<HTMLElement>('#feedback-status');
-          const emailInput = document.querySelector<HTMLInputElement>('#feedback-email');
-          const messageInput = document.querySelector<HTMLTextAreaElement>('#feedback-message');
-          const submitBtn = form?.querySelector<HTMLButtonElement>('button[type="submit"]');
-
-          if (form && status && emailInput && messageInput && submitBtn) {
-            form.addEventListener('submit', async (event) => {
-              event.preventDefault();
-
-              const email = emailInput.value;
-              const message = messageInput.value;
-
-              if (message.length < 10) {
-                status.textContent = 'Message must be at least 10 characters';
-                status.className = 'text-sm text-red-600';
-                return;
-              }
-
-              submitBtn.disabled = true;
-              status.textContent = 'Sending...';
-              status.className = 'text-sm text-gray-600';
-
-              try {
-                const response = await fetch('/api/feedback', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ message, ...(email && { email }) }),
-                });
-                const data = await response.json();
-
-                if (response.ok) {
-                  status.textContent = 'Thank you for your feedback!';
-                  status.className = 'text-sm text-green-600';
-                  form.reset();
-                } else {
-                  status.textContent = data.error || 'Failed to send feedback. Please try again.';
-                  status.className = 'text-sm text-red-600';
-                }
-              } catch {
-                status.textContent = 'Failed to send feedback. Please try again.';
-                status.className = 'text-sm text-red-600';
-              } finally {
-                submitBtn.disabled = false;
-              }
-            });
-          }
-        </script>
       </main>
     </div>
   </div>

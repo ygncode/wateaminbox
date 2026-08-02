@@ -16,6 +16,10 @@
       "entry": ["src/**/*.astro"],
       "project": ["src/**/*.{ts,tsx,astro}"]
     },
+    "apps/waitlist-api": {
+      "entry": ["src/index.ts", "tests/**/*.test.ts", "scripts/**/*.mjs"],
+      "project": ["src/**/*.ts", "tests/**/*.ts", "scripts/**/*.mjs"]
+    },
     "packages/database": {
       "entry": ["src/migrations/*.ts", "src/**/*.test.ts"],
       "project": ["src/**/*.ts"]

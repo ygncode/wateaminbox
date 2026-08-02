@@ -63,6 +63,12 @@ services/*/tmp/
 # Astro
 .astro/
 
+# Cloudflare Workers local state and local-only secrets
+.wrangler/
+.dev.vars
+.dev.vars.*
+!.dev.vars.example
+
 # Temp
 tmp
 .temp

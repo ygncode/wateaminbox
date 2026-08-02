@@ -1,12 +1,15 @@
 ---
-import '../styles/global.css';
+import "../styles/global.css";
 
 interface Props {
-  title: string;
   description?: string;
+  title: string;
 }
 
-const { title, description = 'WATeamInbox - WhatsApp for Teams' } = Astro.props;
+const {
+  title,
+  description = "WATeamInbox is a shared WhatsApp inbox for teams. The open-source project is self-hostable; join the Cloud waitlist for a future managed option.",
+} = Astro.props;
 ---
 
 <!doctype html>
@@ -15,22 +18,36 @@ const { title, description = 'WATeamInbox - WhatsApp for Teams' } = Astro.props;
     <meta charset="UTF-8" />
     <meta name="description" content={description} />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#14221e" />
+    <link rel="icon" href="/favicon.ico" sizes="any" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
+    <link rel="icon" type="image/png" sizes="96x96" href="/favicon-96x96.png" />
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/site.webmanifest" />
+    <link rel="canonical" href={Astro.url.href} />
     <meta name="generator" content={Astro.generator} />
     <title>{title}</title>
   </head>
-  <body class="min-h-screen bg-white text-gray-900 antialiased">
-    <header class="sticky top-0 z-50 border-b border-gray-200 bg-white/80 backdrop-blur-sm">
-      <nav class="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
-        <a href="/" class="text-xl font-bold text-primary-600">WATeamInbox</a>
-        <ul class="flex items-center gap-6">
-          <li><a href="/pricing" class="text-gray-600 hover:text-gray-900">Pricing</a></li>
-          <li><a href="/docs" class="text-gray-600 hover:text-gray-900">Docs</a></li>
-          <li><a href="/blog" class="text-gray-600 hover:text-gray-900">Blog</a></li>
-          <li><a href="/changelog" class="text-gray-600 hover:text-gray-900">Changelog</a></li>
-        </ul>
+  <body class="site-shell">
+    <header class="site-header">
+      <nav class="site-nav" aria-label="Primary navigation">
+        <a href="/" class="brand" aria-label="WATeamInbox home">
+          <img src="/favicon-96x96.png" alt="" width="32" height="32" />
+          <span>WATeamInbox</span>
+        </a>
+        <div class="nav-links">
+          <a
+            href="https://github.com/ygncode/wateaminbox"
+            target="_blank"
+            rel="noreferrer">Self-host <span aria-hidden="true">↗</span></a
+          >
+          <a href="/docs">Docs</a>
+          <a href="/changelog">Changelog</a>
+        </div>
+        <a href="/#waitlist" class="nav-waitlist"
+          >Cloud waitlist <span aria-hidden="true">↗</span></a
+        >
       </nav>
     </header>
 
@@ -38,15 +55,187 @@ const { title, description = 'WATeamInbox - WhatsApp for Teams' } = Astro.props;
       <slot />
     </main>
 
-    <footer class="border-t border-gray-200 bg-gray-50">
-      <div class="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
-        <p class="text-center text-gray-500">
-          WATeamInbox is an independent open-source project and is not affiliated with, endorsed by, or sponsored by WhatsApp or Meta.
+    <footer class="site-footer">
+      <div class="footer-inner">
+        <div>
+          <a href="/" class="footer-brand">WATeamInbox</a>
+          <p>
+            An open-source shared WhatsApp inbox for teams.
+          </p>
+        </div>
+        <div class="footer-links">
+          <a
+            href="https://github.com/ygncode/wateaminbox"
+            target="_blank"
+            rel="noreferrer">GitHub</a
+          >
+          <a href="/docs">Self-hosting docs</a>
+          <a href="/blog">Blog</a>
+          <a href="/pricing">Cloud status</a>
+          <a
+            href="https://github.com/ygncode/wateaminbox/blob/main/LICENSE"
+            target="_blank"
+            rel="noreferrer">MIT License</a
+          >
+        </div>
+      </div>
+      <div class="footer-legal">
+        <p>
+          WATeamInbox is independent and is not affiliated with, endorsed by, or
+          sponsored by WhatsApp or Meta.
         </p>
-        <p class="mt-2 text-center text-sm text-gray-500">
-          &copy; {new Date().getFullYear()} WATeamInbox contributors · <a href="https://github.com/ygncode/wateaminbox/blob/main/LICENSE" class="hover:text-gray-700 hover:underline">MIT License</a>
-        </p>
+        <p>&copy; {new Date().getFullYear()} WATeamInbox contributors</p>
       </div>
     </footer>
   </body>
 </html>
+
+<style>
+  .site-shell {
+    min-width: 320px;
+    background: #f8f7f1;
+    color: #15211f;
+    font-family: var(--font-body);
+  }
+
+  .site-header {
+    border-bottom: 1px solid #d9ded6;
+    background: #f8f7f1;
+  }
+
+  .site-nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    width: min(100% - 2rem, 74rem);
+    min-height: 4.5rem;
+    margin: 0 auto;
+  }
+
+  .brand,
+  .footer-brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.55rem;
+    color: #14221e;
+    font-family: var(--font-display);
+    font-size: 1.3rem;
+    font-weight: 600;
+    line-height: 1;
+    text-decoration: none;
+  }
+
+  .brand img {
+    display: block;
+    border-radius: 0.55rem;
+  }
+
+  .nav-links {
+    display: flex;
+    align-items: center;
+    gap: 1.25rem;
+    margin-left: auto;
+  }
+
+  .nav-links a,
+  .footer-links a {
+    color: #52615b;
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-decoration: none;
+  }
+
+  .nav-links a:hover,
+  .footer-links a:hover {
+    color: #17643b;
+  }
+
+  .nav-waitlist {
+    border: 1px solid #1d633d;
+    background: #1d633d;
+    color: #fff;
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    font-weight: 700;
+    line-height: 1;
+    padding: 0.72rem 0.82rem;
+    text-decoration: none;
+  }
+
+  .nav-waitlist:hover {
+    background: #12452a;
+    border-color: #12452a;
+  }
+  .nav-waitlist:focus-visible,
+  .nav-links a:focus-visible,
+  .footer-links a:focus-visible,
+  .brand:focus-visible {
+    outline: 3px solid #9bcba1;
+    outline-offset: 3px;
+  }
+
+  .site-footer {
+    border-top: 1px solid #d9ded6;
+    background: #edf0ea;
+    padding: 3rem max(1rem, calc((100vw - 74rem) / 2)) 1.3rem;
+  }
+
+  .footer-inner,
+  .footer-legal {
+    display: flex;
+    justify-content: space-between;
+    gap: 2rem;
+    max-width: 74rem;
+    margin: 0 auto;
+  }
+
+  .footer-inner p,
+  .footer-legal p {
+    margin: 0.65rem 0 0;
+    color: #5c6c64;
+    font-size: 0.78rem;
+    line-height: 1.55;
+    text-wrap: pretty;
+  }
+
+  .footer-links {
+    display: grid;
+    grid-template-columns: repeat(2, max-content);
+    align-content: start;
+    gap: 0.75rem 1.25rem;
+  }
+
+  .footer-legal {
+    align-items: flex-end;
+    border-top: 1px solid #d4dbd1;
+    margin-top: 2rem;
+    padding-top: 1rem;
+  }
+
+  .footer-legal p {
+    margin: 0;
+    max-width: 48rem;
+  }
+
+  @media (max-width: 680px) {
+    .site-nav {
+      min-height: 4rem;
+    }
+    .nav-links {
+      display: none;
+    }
+    .nav-waitlist {
+      margin-left: auto;
+    }
+    .footer-inner,
+    .footer-legal {
+      flex-direction: column;
+      gap: 1.25rem;
+    }
+    .footer-links {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>

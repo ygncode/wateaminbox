@@ -1,0 +1,11 @@
+# Copy to .dev.vars for local Worker development. These values are examples only;
+# generate unique values before using any publicly reachable environment.
+WAITLIST_TOKEN_SECRET=replace-with-a-random-value-of-at-least-32-characters
+ADMIN_SESSION_SECRET=replace-with-a-different-random-value-of-at-least-32-characters
+# Generate with: printf '%s' "$PASSWORD" | bun run hash:admin-password
+ADMIN_PASSWORD_HASH=pbkdf2_sha256$100000$replace-with-base64url-salt$replace-with-base64url-hash
+
+# Required for production. For local development only, it may be left blank to
+# exercise the non-delivery flow without Turnstile. Never expose this secret in
+# the marketing app; production also needs the matching public site key there.
+TURNSTILE_SECRET_KEY=
