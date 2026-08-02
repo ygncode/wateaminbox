@@ -89,7 +89,7 @@ import {
   NotFoundError,
   ValidationError,
 } from "../lib/errors.js";
-import { getCurrentAssignment } from "./contact.service.js";
+import { getCurrentAssignment, unassignContact } from "./contact.service.js";
 import { getCurrentSlaPolicy, resolveCaseTargets } from "./sla-policy/policy.service.js";
 import { getSchemaName, type TenantDatabase } from "./tenant.service.js";
 
@@ -426,13 +426,23 @@ async function syncProjection(
  * message did not change lifecycle state (there was already an open case -
  * the common "next message in an ongoing conversation" path) - the
  * message's `case_id` is still stamped in that case.
+ *
+ * An AUTOMATIC reopen (a live inbound arriving after the contact's case
+ * was resolved) also atomically clears any existing contact assignment -
+ * see the inline comment at the unassign call below for why. The caller
+ * (message-handlers.ts) uses `unassignedPreviousAssignee` to broadcast/
+ * audit that outside this transaction.
  */
 export async function openOrReopenCaseForInboundMessage(
   trx: Transaction<TenantDatabase>,
   companyId: string,
   contact: { id: string; isGroup: boolean },
   message: { id: string; timestamp: Date },
-): Promise<{ case: ConversationCase; wasAutoReopen: boolean } | null> {
+): Promise<{
+  case: ConversationCase;
+  wasAutoReopen: boolean;
+  unassignedPreviousAssignee: string | null;
+} | null> {
   await lockContact(trx, contact.id);
   // Authoritative server ingestion time - NEVER the WhatsApp-supplied
   // `message.timestamp`, which can be delayed, out of order, or (for a
@@ -482,11 +492,41 @@ export async function openOrReopenCaseForInboundMessage(
     RETURNING *
   `.execute(trx);
 
-  let result: { case: ConversationCase; wasAutoReopen: boolean } | null = null;
+  let result: {
+    case: ConversationCase;
+    wasAutoReopen: boolean;
+    unassignedPreviousAssignee: string | null;
+  } | null = null;
   let finalCaseId: string | null = null;
 
   if (insertResult.rows.length > 0) {
     const newCase = insertResult.rows[0];
+
+    // Ownership must NOT automatically carry over across an AUTOMATIC
+    // reopen: the prior assignee may be unavailable (offline, on leave, no
+    // longer on the team) and silently re-attaching their name to a
+    // brand-new case would block every other teammate from claiming it
+    // (`requireSendAccess` treats an assigned contact as off-limits to
+    // everyone else, even with `can_view_all_chats`) even though nothing
+    // about this reopen was their decision - the customer simply messaged
+    // again. A MANUAL reopen (an agent explicitly clicking Reopen) is a
+    // deliberate choice by a specific human and intentionally does NOT go
+    // through this - see `reopenAsNewCase`, which never touches
+    // assignment. This unassign happens under the SAME contact-row lock
+    // `lockContact` already took above (this function's first statement),
+    // so it can never race a concurrent takeover/self-claim; the
+    // assignment row is soft-closed (`unassigned_at` set), never deleted,
+    // so assignment history/audit trail is fully preserved - see
+    // `unassignContact`.
+    let unassignedPreviousAssignee: string | null = null;
+    if (isReopen) {
+      const priorAssignment = await getCurrentAssignment(trx, contact.id);
+      if (priorAssignment) {
+        await unassignContact(trx, contact.id);
+        unassignedPreviousAssignee = priorAssignment.assigned_to;
+      }
+    }
+
     await syncProjection(trx, contact.id, {
       activeCaseId: newCase.id,
       status: "open",
@@ -496,7 +536,11 @@ export async function openOrReopenCaseForInboundMessage(
       ...(isReopen ? { reopenedAt: serverNow, reopenedBy: null } : {}),
     });
     finalCaseId = newCase.id;
-    result = { case: toConversationCase(newCase), wasAutoReopen: isReopen };
+    result = {
+      case: toConversationCase(newCase),
+      wasAutoReopen: isReopen,
+      unassignedPreviousAssignee,
+    };
   } else {
     // A case was already active - self-heal the projection pointer, and
     // flip a `pending` case back to `open` since the customer/group has
@@ -518,7 +562,11 @@ export async function openOrReopenCaseForInboundMessage(
       if (updated) {
         await syncProjection(trx, contact.id, { activeCaseId: activeCase.id, status: "open" });
         finalCaseId = activeCase.id;
-        result = { case: toConversationCase(updated as unknown as ConversationCaseRow), wasAutoReopen: false };
+        result = {
+          case: toConversationCase(updated as unknown as ConversationCaseRow),
+          wasAutoReopen: false,
+          unassignedPreviousAssignee: null,
+        };
       }
     }
     if (!finalCaseId) {

@@ -19,7 +19,8 @@ export interface ContactAssignmentBroadcastParams {
   contactName: string;
   previousAssignee: string | null;
   newAssignee: string | null;
-  assignedBy: string;
+  /** Null for a system-triggered change with no human actor (e.g. the auto-unassign on an automatic reopen - see `broadcastAutoUnassignment`). */
+  assignedBy: string | null;
 }
 
 export async function broadcastContactAssignmentEvent(
@@ -66,5 +67,39 @@ export async function broadcastAutoAssignment(
     previousAssignee: null,
     newAssignee: userId,
     assignedBy: userId,
+  });
+}
+
+/**
+ * Broadcasts the SYSTEM-triggered unassignment that happens when a new live
+ * inbound automatically reopens a resolved case (see
+ * conversation-case.service.ts's `openOrReopenCaseForInboundMessage`) - the
+ * prior assignee's ownership deliberately does NOT carry over to the new
+ * case (they may be unavailable), so every client's composer/assignment
+ * gate needs to react to this exactly like an explicit unassign would.
+ * `assignedBy: null` - no human actor performed this.
+ */
+export async function broadcastAutoUnassignment(
+  tenantDb: Kysely<TenantDatabase>,
+  companyId: string,
+  contactId: string,
+  previousAssigneeId: string,
+): Promise<void> {
+  const contact = await tenantDb
+    .selectFrom("contacts")
+    .select(["custom_name", "push_name", "phone_number"])
+    .where("id", "=", contactId)
+    .executeTakeFirst();
+  const contactName = contact
+    ? getContactDisplayName(contact, "Unknown Contact")
+    : "Unknown Contact";
+
+  await broadcastContactAssignmentEvent(companyId, {
+    event: "unassigned",
+    contactId,
+    contactName,
+    previousAssignee: previousAssigneeId,
+    newAssignee: null,
+    assignedBy: null,
   });
 }

@@ -666,4 +666,184 @@ describe("handleMessageEvent - conversation-case lifecycle wiring", () => {
       });
     },
   );
+
+  integrationTest(
+    "an AUTOMATIC reopen (new live inbound after resolution) clears the prior assignment - the old assignee can no longer send, another user can claim it, and the old assignment row is preserved as history",
+    async () => {
+      await withTenant(async (companyId, connectionId) => {
+        const tenantDb = getTenantConnection(companyId);
+        const jid = "15557778888@s.whatsapp.net";
+        const oldAssigneeId = crypto.randomUUID();
+        const otherUserId = crypto.randomUUID();
+
+        const {
+          assignContactToUser,
+          getCurrentAssignment,
+        } = await import("../contact.service.js");
+        const { resolveActiveCase } = await import(
+          "../conversation-case.service.js"
+        );
+        const { requireSendAccess, ContactAssignedToOtherError } =
+          await import("../send-access.service.js");
+
+        // Cycle 1: live inbound opens a case, an agent claims it, then
+        // resolves.
+        await handleMessageEvent(directInboundEvent(companyId, connectionId, { from: jid }));
+        const contact = await tenantDb
+          .selectFrom("contacts")
+          .selectAll()
+          .where("jid", "=", jid)
+          .executeTakeFirstOrThrow();
+
+        await assignContactToUser(
+          tenantDb,
+          contact.id,
+          oldAssigneeId,
+          oldAssigneeId,
+        );
+        await resolveActiveCase(tenantDb, contact.id, {
+          outcome: "no_reply_needed",
+          resolvedBy: oldAssigneeId,
+        });
+
+        // Cycle 2: a brand-new live inbound automatically reopens the
+        // conversation. The prior assignee must NOT carry over.
+        await handleMessageEvent(
+          directInboundEvent(companyId, connectionId, {
+            from: jid,
+            messageId: crypto.randomUUID(),
+            content: "customer is back",
+          }),
+        );
+
+        const activeAssignment = await getCurrentAssignment(
+          tenantDb,
+          contact.id,
+        );
+        expect(activeAssignment).toBeUndefined();
+
+        // The realtime signal and audit trail both reflect a SYSTEM-
+        // triggered unassign (no human actor), not an explicit unassign
+        // route call.
+        const auditRow = await tenantDb
+          .selectFrom("audit_logs")
+          .selectAll()
+          .where("action", "=", "contact.unassigned")
+          .where("entity_id", "=", contact.id)
+          .executeTakeFirstOrThrow();
+        expect(auditRow.user_id).toBeNull();
+        expect(
+          (auditRow.details as { previousAssignee?: string } | null)
+            ?.previousAssignee,
+        ).toBe(oldAssigneeId);
+        expect(
+          (auditRow.details as { reason?: string } | null)?.reason,
+        ).toBe("auto_reopen");
+
+        // The old assignee can no longer send - the contact is unassigned,
+        // so ANY permitted user (including a completely different one) can
+        // claim it first via the normal auto-claim path.
+        const newCaseId = await tenantDb
+          .selectFrom("conversation_cases")
+          .select("id")
+          .where("contact_id", "=", contact.id)
+          .where("status", "=", "open")
+          .executeTakeFirstOrThrow();
+        expect(newCaseId).toBeDefined();
+
+        const otherClaim = await tenantDb
+          .transaction()
+          .execute((trx) => requireSendAccess(trx, contact.id, otherUserId));
+        expect(otherClaim.autoAssigned).toBe(true);
+
+        // Now that "other" holds it, the OLD assignee is blocked exactly
+        // like any non-owner would be.
+        await expect(
+          tenantDb
+            .transaction()
+            .execute((trx) =>
+              requireSendAccess(trx, contact.id, oldAssigneeId),
+            ),
+        ).rejects.toBeInstanceOf(ContactAssignedToOtherError);
+
+        // Assignment HISTORY is preserved - the old row still exists,
+        // soft-closed, not deleted, alongside the new active one.
+        const allAssignments = await tenantDb
+          .selectFrom("contact_assignments")
+          .selectAll()
+          .where("contact_id", "=", contact.id)
+          .orderBy("assigned_at", "asc")
+          .execute();
+        expect(allAssignments).toHaveLength(2);
+        expect(allAssignments[0].assigned_to).toBe(oldAssigneeId);
+        expect(allAssignments[0].unassigned_at).not.toBeNull();
+        expect(allAssignments[1].assigned_to).toBe(otherUserId);
+        expect(allAssignments[1].unassigned_at).toBeNull();
+      });
+    },
+  );
+
+  integrationTest(
+    "a MANUAL reopen (an agent explicitly clicking Reopen) preserves the existing assignment - this is a deliberate human action, not the automatic-reopen unassign path",
+    async () => {
+      await withTenant(async (companyId, connectionId) => {
+        const tenantDb = getTenantConnection(companyId);
+        const jid = "15557778889@s.whatsapp.net";
+        const assigneeId = crypto.randomUUID();
+
+        const { assignContactToUser, getCurrentAssignment } = await import(
+          "../contact.service.js"
+        );
+        const { resolveActiveCase, reopenAsNewCase } = await import(
+          "../conversation-case.service.js"
+        );
+
+        await handleMessageEvent(directInboundEvent(companyId, connectionId, { from: jid }));
+        const contact = await tenantDb
+          .selectFrom("contacts")
+          .selectAll()
+          .where("jid", "=", jid)
+          .executeTakeFirstOrThrow();
+
+        await assignContactToUser(tenantDb, contact.id, assigneeId, assigneeId);
+        await resolveActiveCase(tenantDb, contact.id, {
+          outcome: "no_reply_needed",
+          resolvedBy: assigneeId,
+        });
+
+        // The SAME assignee manually reopens (assertActorOwnsContact
+        // requires the actor to already own the contact, or it to be
+        // unassigned - the assignee here still owns it, since manual
+        // reopen is a separate code path from the auto-reopen unassign).
+        await reopenAsNewCase(
+          tenantDb,
+          { id: contact.id, isGroup: false },
+          {
+            companyId,
+            openedBy: assigneeId,
+            reason: "Customer followed up directly with the agent",
+            expectedMode: "reopen",
+          },
+        );
+
+        // getCurrentAssignment only ever returns a row where
+        // unassigned_at IS NULL (see its own WHERE clause) - a match here
+        // already proves the assignment is still active, not just that
+        // SOME row with this assignee exists.
+        const activeAssignment = await getCurrentAssignment(
+          tenantDb,
+          contact.id,
+        );
+        expect(activeAssignment?.assigned_to).toBe(assigneeId);
+
+        const allAssignments = await tenantDb
+          .selectFrom("contact_assignments")
+          .selectAll()
+          .where("contact_id", "=", contact.id)
+          .execute();
+        // Never unassigned/re-assigned - still exactly the one original row.
+        expect(allAssignments).toHaveLength(1);
+      });
+    },
+  );
 });

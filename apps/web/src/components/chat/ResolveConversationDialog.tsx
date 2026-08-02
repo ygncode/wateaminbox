@@ -27,6 +27,16 @@ interface ResolveConversationDialogProps {
   onOpenChange: (open: boolean) => void;
   onConfirm: (input: { outcome: ResolutionOutcome; notes?: string }) => void;
   isSubmitting?: boolean;
+  /**
+   * True while Confirm must be blocked for a reason OTHER than the resolve
+   * mutation itself being in flight - specifically, a send for this contact
+   * hasn't settled yet (see lifecycle-action-gating.ts). Disables Confirm
+   * without showing the "Resolving…" spinner (nothing is actually being
+   * submitted), and covers the case where this dialog was ALREADY open
+   * when the send started - disabling only the button that OPENS the
+   * dialog (in ConversationLifecycleActions) is not enough on its own.
+   */
+  disabled?: boolean;
 }
 
 export function ResolveConversationDialog({
@@ -34,6 +44,7 @@ export function ResolveConversationDialog({
   onOpenChange,
   onConfirm,
   isSubmitting = false,
+  disabled = false,
 }: ResolveConversationDialogProps) {
   const [outcome, setOutcome] = useState<ResolutionOutcome>("handled");
   const [notes, setNotes] = useState("");
@@ -49,6 +60,7 @@ export function ResolveConversationDialog({
   };
 
   const handleConfirm = () => {
+    if (disabled) return;
     if (outcome === "other" && !notes.trim()) {
       setError("Notes are required when the outcome is 'other'.");
       return;
@@ -56,6 +68,8 @@ export function ResolveConversationDialog({
     setError(null);
     onConfirm({ outcome, notes: notes.trim() || undefined });
   };
+
+  const confirmDisabled = isSubmitting || disabled;
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -114,6 +128,11 @@ export function ResolveConversationDialog({
           </label>
 
           {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+          {disabled && !isSubmitting && (
+            <p className="text-sm text-gray-500 dark:text-dark-text-secondary">
+              Waiting for your message to finish sending…
+            </p>
+          )}
         </div>
 
         <DialogFooter className="gap-2 sm:gap-0">
@@ -128,7 +147,7 @@ export function ResolveConversationDialog({
           <button
             type="button"
             onClick={handleConfirm}
-            disabled={isSubmitting}
+            disabled={confirmDisabled}
             className="flex items-center gap-2 rounded-lg bg-whatsapp-teal-green px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-whatsapp-teal-green/90 disabled:opacity-50"
           >
             {isSubmitting ? (

@@ -1,6 +1,6 @@
 /**
  * Bulk Broadcast Jobs API
- * Preview an audience, create a broadcast job, inspect progress, cancel.
+ * Preview an audience, create a broadcast job, inspect progress, reschedule, cancel.
  */
 
 import type {
@@ -74,7 +74,9 @@ export async function getBulkJobs(params: {
   limit?: number;
   offset?: number;
 }): Promise<BulkJobListPage> {
-  return fetchWithAuth<BulkJobListPage>(`/bulk-jobs${buildQueryString(params)}`);
+  return fetchWithAuth<BulkJobListPage>(
+    `/bulk-jobs${buildQueryString(params)}`,
+  );
 }
 
 export async function getBulkJob(id: string): Promise<BulkJob> {
@@ -88,6 +90,16 @@ export async function getBulkJobRecipients(
   return fetchWithAuth<BulkJobRecipientsPage>(
     `/bulk-jobs/${id}/recipients${buildQueryString(params)}`,
   );
+}
+
+export async function rescheduleBulkJob(
+  id: string,
+  scheduledAt: string,
+): Promise<BulkJob> {
+  return fetchWithAuth<BulkJob>(`/bulk-jobs/${id}/schedule`, {
+    method: "PATCH",
+    body: JSON.stringify({ scheduledAt }),
+  });
 }
 
 export async function cancelBulkJob(

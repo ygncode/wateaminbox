@@ -134,9 +134,11 @@ export function registerRealtimeEventHandlers({
       },
     ),
     bindEvent<BulkJobUpdatedPayload>("bulk_job:updated", () => {
-      // Job rows and their recipient rollups both derive from Postgres;
-      // refetch the broadcasts queries wherever they are on screen.
+      // Job rows and recipient schedules both derive from Postgres. The latter
+      // matters when a teammate reschedules a broadcast while a contact's
+      // scheduled-message surface is open.
       qc.invalidateQueries({ queryKey: queryKeys.bulkJobs.all });
+      qc.invalidateQueries({ queryKey: queryKeys.scheduledMessages.all });
     }),
     bindEvent<MessageReactionPayload>("message:reaction", (data) => {
       const payload = data.payload;
@@ -224,16 +226,9 @@ export function registerRealtimeEventHandlers({
           queryKey: queryKeys.conversations.detail(payload.contactId),
         });
       }
-      // A live inbound message can auto-reopen a resolved conversation
-      // server-side (see conversation-case.service.ts) - surface that so an
-      // agent watching the resolved/all view notices without a refresh.
-      if (payload?.event === "auto_reopened") {
-        showRealtimeToast({
-          type: "info",
-          title: "Conversation reopened",
-          message: "A new message reopened a resolved conversation.",
-        });
-      }
+      // auto_reopened deliberately has no global toast: the inbound message,
+      // unread/list projection, lifecycle detail, status badge, and assignment
+      // realtime updates already make the transition visible.
     }),
     bindEvent<{ contactId?: string }>("contact:updated", (data) => {
       invalidateChatList(qc);

@@ -102,6 +102,7 @@ auditRoutes.get("/actions", async (c) => {
     "message.sent",
     "message.deleted",
     "bulk_job.created",
+    "bulk_job.rescheduled",
     "bulk_job.canceled",
     "bulk_job.completed",
     "tag.created",

@@ -44,6 +44,10 @@ export const createBulkJobSchema = z.object({
   idempotencyKey: z.string().min(8).max(128),
 });
 
+export const rescheduleBulkJobSchema = z.object({
+  scheduledAt: z.string().datetime({ offset: true }),
+});
+
 export const listBulkJobsQuerySchema = paginationSchema;
 
 export const listBulkJobRecipientsQuerySchema = paginationSchema.extend({
@@ -55,6 +59,7 @@ export const listBulkJobRecipientsQuerySchema = paginationSchema.extend({
 export type BulkAudienceInput = z.infer<typeof bulkAudienceSchema>;
 export type PreviewBulkJobInput = z.infer<typeof previewBulkJobSchema>;
 export type CreateBulkJobInput = z.infer<typeof createBulkJobSchema>;
+export type RescheduleBulkJobInput = z.infer<typeof rescheduleBulkJobSchema>;
 export type ListBulkJobsQuery = z.infer<typeof listBulkJobsQuerySchema>;
 export type ListBulkJobRecipientsQuery = z.infer<
   typeof listBulkJobRecipientsQuerySchema

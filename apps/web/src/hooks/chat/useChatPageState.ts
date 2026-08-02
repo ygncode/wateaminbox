@@ -17,6 +17,7 @@ import {
   useSendMessage,
   useStarMessage,
 } from "../useMessages";
+import { isSendPendingForContact } from "./send-scope";
 
 // Helper to map ContactDetail to Contact type expected by MessageHeader
 function mapContactDetailToContact(detail: ContactDetail): Contact {
@@ -173,6 +174,15 @@ export function useChatPageState(): ChatPageState & ChatPageActions {
   const starMessage = useStarMessage();
   const reactMessage = useReactMessage();
   const forwardMessage = useForwardMessage();
+
+  // See send-scope.ts: `sendMessage` is a single mutation instance shared
+  // across every chat this page ever selects, so `sendMessage.isPending`
+  // alone isn't scoped to the contact currently on screen.
+  const isSendingToSelectedChat = isSendPendingForContact({
+    isPending: sendMessage.isPending,
+    pendingContactId: sendMessage.variables?.contactId,
+    selectedChatId,
+  });
 
   // Sync URL with selected chat
   React.useEffect(() => {
@@ -445,7 +455,7 @@ export function useChatPageState(): ChatPageState & ChatPageActions {
     deleteDialogOpen,
     messageToDelete,
     isDeleting: deleteMessage.isPending,
-    isSending: sendMessage.isPending,
+    isSending: isSendingToSelectedChat,
 
     // Actions
     handleChatSelect,

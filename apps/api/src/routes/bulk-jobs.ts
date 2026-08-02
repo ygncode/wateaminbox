@@ -12,7 +12,7 @@
 
 import { zValidator } from "@hono/zod-validator";
 import { Hono } from "hono";
-import { badRequest, notFound } from "../lib/errors.js";
+import { badRequest, conflict, notFound } from "../lib/errors.js";
 import { createLogger, formatError } from "../lib/logger.js";
 import { rateLimitConfig, rateLimitStore } from "../lib/rate-limit-store.js";
 import { broadcastToCompany } from "../lib/realtime.js";
@@ -23,6 +23,7 @@ import {
   listBulkJobRecipientsQuerySchema,
   listBulkJobsQuerySchema,
   previewBulkJobSchema,
+  rescheduleBulkJobSchema,
   SCHEDULE_MAX_HORIZON_MS,
   SCHEDULE_MIN_LEAD_MS,
 } from "../lib/schemas/index.js";
@@ -47,6 +48,7 @@ import {
   getBulkJobProgressMap,
   resolveBulkAudience,
   resolveRecipientName,
+  rescheduleBulkJob,
 } from "../services/bulk-job.service.js";
 import { getUserNames } from "../services/user.service.js";
 
@@ -66,8 +68,8 @@ export const bulkJobRoutes = new Hono();
 
 bulkJobRoutes.use("/*", authMiddleware);
 bulkJobRoutes.use("/*", tenantMiddleware());
-// Reads only need the bulk permission; the send surfaces (create/cancel and
-// preview, which feeds them) additionally attach the shared send-permission
+// Reads only need the bulk permission; the send surfaces (create/cancel/
+// reschedule and preview, which feeds them) attach the shared send-permission
 // instance so the message-send policy test can audit them.
 bulkJobRoutes.use("/*", requireBulkSendPermission);
 
@@ -225,6 +227,77 @@ bulkJobRoutes.post(
       return created(c, job);
     }
     // Idempotent replay of an earlier create.
+    return successData(c, job);
+  },
+);
+
+/**
+ * PATCH /bulk-jobs/:id/schedule - Move a truly not-started broadcast.
+ * The service updates the parent and already-materialized leaves in one
+ * guarded transaction; dispatch/cancel races return a controlled conflict.
+ */
+bulkJobRoutes.patch(
+  "/:id/schedule",
+  requireMessageSendPermission,
+  bulkRateLimiter,
+  zValidator("json", rescheduleBulkJobSchema),
+  async (c) => {
+    const { tenantDb, user, companyId } = getRouteContext(c);
+    const id = c.req.param("id");
+    const body = c.req.valid("json");
+    const scheduledAt = new Date(body.scheduledAt);
+    const lead = scheduledAt.getTime() - Date.now();
+    if (lead < SCHEDULE_MIN_LEAD_MS) {
+      return badRequest(c, "scheduledAt must be at least 30 seconds from now");
+    }
+    if (lead > SCHEDULE_MAX_HORIZON_MS) {
+      return badRequest(c, "scheduledAt must be within one year");
+    }
+
+    const existing = await tenantDb
+      .selectFrom("bulk_jobs")
+      .select(["id", "name"])
+      .where("id", "=", id)
+      .executeTakeFirst();
+    if (!existing) return notFound(c, "Bulk job");
+
+    const result = await rescheduleBulkJob(tenantDb, id, scheduledAt);
+    if (!result.didReschedule || !result.job || !result.previousScheduledAt) {
+      return conflict(
+        c,
+        "Only scheduled broadcasts that have not started can be rescheduled",
+      );
+    }
+
+    const [progress, names] = await Promise.all([
+      getBulkJobProgress(tenantDb, id),
+      getUserNames([result.job.created_by]),
+    ]);
+    const job = formatBulkJob(
+      result.job,
+      progress,
+      names.get(result.job.created_by),
+    );
+
+    await createAuditLog({
+      companyId,
+      userId: user.id,
+      action: "bulk_job.rescheduled",
+      entityType: "bulk_job",
+      entityId: id,
+      details: {
+        name: existing.name,
+        previousScheduledAt: result.previousScheduledAt.toISOString(),
+        scheduledAt: scheduledAt.toISOString(),
+        recipientRows: result.updatedLeaves,
+      },
+      ipAddress: getClientIp(c.req.raw.headers),
+    });
+    await broadcastToCompany(companyId, "bulk_job:updated", {
+      bulkJobId: id,
+      status: "scheduled",
+    });
+
     return successData(c, job);
   },
 );

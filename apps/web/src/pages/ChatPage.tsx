@@ -148,7 +148,11 @@ export function ChatPage() {
               />
             </MessageActionsProvider>
           </div>
-          <ComposerLifecycleArea contactId={selectedChatId} access={composerAccess}>
+          <ComposerLifecycleArea
+            contactId={selectedChatId}
+            access={composerAccess}
+            isSending={isSending}
+          >
             <MessageComposer
               conversationId={selectedContact?.jid}
               contactId={selectedChatId}

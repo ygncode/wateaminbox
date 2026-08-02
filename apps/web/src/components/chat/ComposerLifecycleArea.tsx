@@ -22,6 +22,14 @@ interface ComposerLifecycleAreaProps {
    * MessageThread expose vs. what this component actually renders.
    */
   access: ComposerAccessState;
+  /**
+   * True while a message send for this contact is in flight. Threaded down
+   * to the Resolve action (see lifecycle-action-gating.ts) so an agent
+   * can't resolve while their own reply's send transaction hasn't
+   * committed yet - a real race that produced spurious "unanswered turn"
+   * rejections in production.
+   */
+  isSending?: boolean;
   /** The actual MessageComposer element - only rendered in the "sendable" state; every other state replaces it entirely. */
   children: ReactNode;
 }
@@ -40,6 +48,7 @@ interface ComposerLifecycleAreaProps {
 export function ComposerLifecycleArea({
   contactId,
   access,
+  isSending = false,
   children,
 }: ComposerLifecycleAreaProps) {
   const { data: state } = useConversationState(contactId);
@@ -125,7 +134,10 @@ export function ComposerLifecycleArea({
   return (
     <div>
       <div className="flex items-center justify-end border-t border-gray-100 bg-white px-3 py-1.5 dark:border-dark-border dark:bg-dark-elevated">
-        <ConversationLifecycleActions contactId={contactId} />
+        <ConversationLifecycleActions
+          contactId={contactId}
+          isSending={isSending}
+        />
       </div>
       {children}
     </div>

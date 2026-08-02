@@ -15,6 +15,7 @@ import {
   useResumeConversation,
 } from "@/hooks/useConversationLifecycle";
 import type { ResolutionOutcome } from "@/lib/api/conversation-state";
+import { isResolveActionDisabled } from "./lifecycle-action-gating";
 import { resolveOpenOrReopenMode } from "./open-reopen-dialog-state";
 import { ConversationStatusBadge } from "./ConversationStatusBadge";
 import { OpenOrReopenConversationDialog } from "./ReopenConversationDialog";
@@ -31,8 +32,16 @@ import { ResolveConversationDialog } from "./ResolveConversationDialog";
  */
 export function ConversationLifecycleActions({
   contactId,
+  isSending = false,
 }: {
   contactId: string;
+  /**
+   * True while a message send for this contact is in flight (mirrors
+   * MessageComposer's `disabled` prop). Resolve is disabled for this SAME
+   * window - see lifecycle-action-gating.ts for why an in-flight send
+   * racing a resolve click is exactly the bug this closes.
+   */
+  isSending?: boolean;
 }) {
   const { can } = useWorkspace();
   const canManage = can("can_send_messages");
@@ -44,6 +53,10 @@ export function ConversationLifecycleActions({
   const openMutation = useOpenConversation(contactId);
   const [resolveDialogOpen, setResolveDialogOpen] = useState(false);
   const [openReopenDialogOpen, setOpenReopenDialogOpen] = useState(false);
+  const resolveDisabled = isResolveActionDisabled({
+    isSending,
+    resolveMutationPending: resolveMutation.isPending,
+  });
 
   if (!canManage || !state) return null;
 
@@ -94,8 +107,12 @@ export function ConversationLifecycleActions({
           <button
             type="button"
             onClick={() => setResolveDialogOpen(true)}
-            disabled={resolveMutation.isPending}
-            aria-label="Resolve conversation"
+            disabled={resolveDisabled}
+            aria-label={
+              isSending
+                ? "Resolve conversation (waiting for your message to finish sending)"
+                : "Resolve conversation"
+            }
             className="flex h-9 items-center gap-1.5 rounded-full border border-gray-200 px-3 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-100 disabled:opacity-50 dark:border-dark-border dark:text-dark-text-primary dark:hover:bg-dark-tertiary"
           >
             <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />
@@ -138,6 +155,7 @@ export function ConversationLifecycleActions({
         onOpenChange={setResolveDialogOpen}
         onConfirm={handleResolve}
         isSubmitting={resolveMutation.isPending}
+        disabled={isSending}
       />
       <OpenOrReopenConversationDialog
         open={openReopenDialogOpen}

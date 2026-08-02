@@ -144,6 +144,7 @@ export {
   getBulkJobRecipients,
   getBulkJobs,
   previewBulkJob,
+  rescheduleBulkJob,
   type BulkJobListPage,
   type BulkJobRecipientsPage,
   type CreateBulkJobInput,

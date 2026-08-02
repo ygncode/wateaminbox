@@ -27,6 +27,8 @@ import {
   type SendFailedEvent,
 } from "../../lib/nats/index.js";
 import { broadcastToCompany } from "../../lib/realtime.js";
+import { broadcastAutoUnassignment } from "../assignment-broadcast.service.js";
+import { createAuditLog } from "../audit.service.js";
 import {
   openOrReopenCaseForInboundMessage,
   resolveActiveCaseIdForContact,
@@ -572,6 +574,31 @@ export async function handleMessageEvent(event: MessageEvent): Promise<void> {
         },
         connectionId,
       );
+
+      // The automatic reopen cleared the prior assignee inside the
+      // transaction (see openOrReopenCaseForInboundMessage's doc comment) -
+      // broadcast/audit that outside it, same as every other realtime
+      // signal/audit entry in this handler.
+      if (caseResult.unassignedPreviousAssignee) {
+        await broadcastAutoUnassignment(
+          tenantDb,
+          companyId,
+          contact.id,
+          caseResult.unassignedPreviousAssignee,
+        );
+        await createAuditLog({
+          companyId,
+          userId: null,
+          action: "contact.unassigned",
+          entityType: "contact",
+          entityId: contact.id,
+          details: {
+            previousAssignee: caseResult.unassignedPreviousAssignee,
+            reason: "auto_reopen",
+            caseId: caseResult.case.id,
+          },
+        });
+      }
     }
 
     if (!payload.fromMe && !payload.isHistorySync) {

@@ -101,11 +101,13 @@ export {
   bulkAudienceSchema,
   previewBulkJobSchema,
   createBulkJobSchema,
+  rescheduleBulkJobSchema,
   listBulkJobsQuerySchema,
   listBulkJobRecipientsQuerySchema,
   type BulkAudienceInput,
   type PreviewBulkJobInput,
   type CreateBulkJobInput,
+  type RescheduleBulkJobInput,
   type ListBulkJobsQuery,
   type ListBulkJobRecipientsQuery,
 } from "./bulk-job.js";

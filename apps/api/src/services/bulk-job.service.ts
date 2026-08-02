@@ -693,8 +693,10 @@ async function cleanupBulkJobMediaObject(
  * Move a job to its terminal state once no leaf is pending or processing.
  * Race-safe: the guarded UPDATE means exactly one caller (of any replica)
  * observes the transition and emits the single job-level notification.
- * Canceled jobs only gain completed_at; their status and the cancel-time
- * notification stand.
+ * Progress reads take no row locks and finalization only locks the parent CAS;
+ * it never holds a leaf while waiting for the parent, preserving the lifecycle
+ * lock order used by reschedule/cancel. Canceled jobs only gain completed_at;
+ * their status and the cancel-time notification stand.
  */
 export async function finalizeBulkJobIfComplete(
   tenantDb: Kysely<TenantDatabase>,
@@ -793,6 +795,111 @@ export async function markBulkJobRunning(
       bulkJobId,
       status: "running",
     });
+  }
+}
+
+export interface RescheduleBulkJobResult {
+  /** False when cancel/dispatch/terminal work won the state transition. */
+  didReschedule: boolean;
+  previousScheduledAt: Date | null;
+  job: BulkJobRow | null;
+  updatedLeaves: number;
+}
+
+class RescheduleStateConflict extends Error {}
+
+/**
+ * Move a broadcast and every materialized recipient leaf to a new start time.
+ *
+ * Lock order is always parent -> leaves, matching cancelBulkJob. The
+ * dispatcher never holds a leaf while locking the parent (mark-running happens
+ * only after its claim transaction commits), so waiting for a concurrent leaf
+ * claim cannot form a cycle. Once every leaf is locked, any processing/sent/
+ * failed/canceled state means dispatch or another terminal action won and the
+ * whole transaction rolls back. Otherwise the guarded updates move only time
+ * fields; content, recipient IDs, personalized bodies, and media are untouched.
+ */
+export async function rescheduleBulkJob(
+  tenantDb: Kysely<TenantDatabase>,
+  bulkJobId: string,
+  scheduledAt: Date,
+): Promise<RescheduleBulkJobResult> {
+  const now = toDbDate();
+  try {
+    return await tenantDb.transaction().execute(async (trx) => {
+      const before = await trx
+        .selectFrom("bulk_jobs")
+        .selectAll()
+        .where("id", "=", bulkJobId)
+        .forUpdate()
+        .executeTakeFirst();
+      if (!before || before.status !== "scheduled") {
+        throw new RescheduleStateConflict();
+      }
+
+      // Lock every leaf after the parent. A dispatcher that already claimed a
+      // leaf commits first; READ COMMITTED then returns its processing state
+      // here and we reject without changing any of the remaining leaves.
+      const leafStates = await trx
+        .selectFrom("scheduled_messages")
+        .select(["id", "status"])
+        .where("bulk_job_id", "=", bulkJobId)
+        .orderBy("id", "asc")
+        .forUpdate()
+        .execute();
+      if (
+        leafStates.length === 0 ||
+        leafStates.some(
+          (leaf) => leaf.status !== "scheduled" && leaf.status !== "skipped",
+        )
+      ) {
+        throw new RescheduleStateConflict();
+      }
+
+      const leaves = await trx
+        .updateTable("scheduled_messages")
+        .set({
+          scheduled_at: scheduledAt,
+          next_attempt_at: scheduledAt,
+          updated_at: now,
+        })
+        .where(
+          "id",
+          "in",
+          leafStates.map((leaf) => leaf.id),
+        )
+        .where("status", "in", ["scheduled", "skipped"])
+        .executeTakeFirst();
+      if (Number(leaves.numUpdatedRows) !== leafStates.length) {
+        throw new RescheduleStateConflict();
+      }
+
+      const job = await trx
+        .updateTable("bulk_jobs")
+        .set({ scheduled_at: scheduledAt, updated_at: now })
+        .where("id", "=", bulkJobId)
+        .where("status", "=", "scheduled")
+        .returningAll()
+        .executeTakeFirst();
+      if (!job) throw new RescheduleStateConflict();
+
+      return {
+        didReschedule: true,
+        previousScheduledAt: before.scheduled_at,
+        job,
+        updatedLeaves: Number(leaves.numUpdatedRows),
+      };
+    });
+  } catch (error) {
+    if (error instanceof RescheduleStateConflict) {
+      return {
+        didReschedule: false,
+        previousScheduledAt: null,
+        job: null,
+        updatedLeaves: 0,
+      };
+    }
+    throw error;
   }
 }
 

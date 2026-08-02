@@ -13,6 +13,7 @@ import {
   Image as ImageIcon,
   MessageSquareText,
   Paperclip,
+  Pencil,
   RefreshCw,
   Send,
   TriangleAlert,
@@ -38,12 +39,15 @@ import {
   useBulkJob,
   useBulkJobRecipients,
   useCancelBulkJob,
+  useRescheduleBulkJob,
 } from "@/hooks/useBulkJobs";
 import { useTableParams } from "@/hooks/useTableParams";
 import { cn, formatPhoneNumber } from "@/lib/utils";
 import { BroadcastProgressBar } from "./BroadcastProgressBar";
 import { BroadcastStatusBadge } from "./BroadcastStatusBadge";
 import { humanizeSkipReason, progressSummary } from "./broadcast-format";
+import { canRescheduleBulkJob } from "./broadcast-schedule";
+import { RescheduleBroadcastDialog } from "./RescheduleBroadcastDialog";
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50];
 const DEFAULT_PAGE_SIZE = 20;
@@ -282,6 +286,7 @@ interface BroadcastJobDetailProps {
 /** Full detail view of one broadcast job with recipients and cancelation. */
 export function BroadcastJobDetail({ jobId }: BroadcastJobDetailProps) {
   const [confirmCancelOpen, setConfirmCancelOpen] = useState(false);
+  const [rescheduleOpen, setRescheduleOpen] = useState(false);
   const { pagination, setPagination, getParam, setFilterParam, resetParams } =
     useTableParams({
       pageKey: "rPage",
@@ -318,6 +323,7 @@ export function BroadcastJobDetail({ jobId }: BroadcastJobDetailProps) {
     status: statusFilter === "all" ? undefined : statusFilter,
   });
   const cancelMutation = useCancelBulkJob();
+  const rescheduleMutation = useRescheduleBulkJob();
 
   const recipientColumns: ColumnDef<BulkJobRecipient>[] = [
     {
@@ -421,9 +427,33 @@ export function BroadcastJobDetail({ jobId }: BroadcastJobDetailProps) {
 
   const media = mediaChip(job);
   const canCancel = job.status === "scheduled" || job.status === "running";
+  const canReschedule = canRescheduleBulkJob(job);
   const pending = job.progress.pending + job.progress.processing;
   const isScheduled = job.status === "scheduled";
   const totalRecipientRows = recipientsPage?.pagination.total ?? 0;
+
+  const handleReschedule = (scheduledAt: string) => {
+    rescheduleMutation.mutate(
+      { id: jobId, scheduledAt },
+      {
+        onSuccess: (updatedJob) => {
+          setRescheduleOpen(false);
+          toast.success(
+            `Broadcast rescheduled for ${dayjs(updatedJob.scheduledAt).format(
+              "MMM D [at] HH:mm",
+            )}`,
+          );
+        },
+        onError: (error) => {
+          toast.error(
+            error instanceof Error
+              ? `Could not reschedule broadcast: ${error.message}`
+              : "Could not reschedule broadcast",
+          );
+        },
+      },
+    );
+  };
 
   const handleCancel = () => {
     cancelMutation.mutate(jobId, {
@@ -457,16 +487,31 @@ export function BroadcastJobDetail({ jobId }: BroadcastJobDetailProps) {
             </h2>
             <BroadcastStatusBadge status={job.status} />
           </div>
-          {canCancel && (
-            <Button
-              variant="outline"
-              size="sm"
-              className="shrink-0 gap-2 border-red-200 text-red-600 shadow-none hover:border-red-300 hover:bg-red-50 hover:text-red-700 dark:border-red-900 dark:text-red-300 dark:hover:bg-red-950/30"
-              onClick={() => setConfirmCancelOpen(true)}
-            >
-              <Ban className="h-3.5 w-3.5" aria-hidden="true" />
-              Cancel broadcast
-            </Button>
+          {(canReschedule || canCancel) && (
+            <div className="flex w-full items-center justify-end gap-2 sm:w-auto">
+              {canReschedule && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="min-w-0 gap-2 border-[#bfd4c8] text-[#087654] shadow-none hover:border-[#8fbba2] hover:bg-[#edf6f1] hover:text-[#075c41] dark:border-emerald-900 dark:text-emerald-300 dark:hover:bg-emerald-950/35"
+                  onClick={() => setRescheduleOpen(true)}
+                >
+                  <Pencil className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                  <span className="truncate">Edit schedule</span>
+                </Button>
+              )}
+              {canCancel && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="min-w-0 gap-2 border-red-200 text-red-600 shadow-none hover:border-red-300 hover:bg-red-50 hover:text-red-700 dark:border-red-900 dark:text-red-300 dark:hover:bg-red-950/30"
+                  onClick={() => setConfirmCancelOpen(true)}
+                >
+                  <Ban className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                  <span className="truncate">Cancel broadcast</span>
+                </Button>
+              )}
+            </div>
           )}
         </header>
 
@@ -703,6 +748,14 @@ export function BroadcastJobDetail({ jobId }: BroadcastJobDetailProps) {
           className="min-h-0"
         />
       </div>
+
+      <RescheduleBroadcastDialog
+        open={rescheduleOpen}
+        onOpenChange={setRescheduleOpen}
+        scheduledAt={job.scheduledAt}
+        isSubmitting={rescheduleMutation.isPending}
+        onSubmit={handleReschedule}
+      />
 
       <ConfirmationDialog
         open={confirmCancelOpen}

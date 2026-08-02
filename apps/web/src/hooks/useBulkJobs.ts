@@ -14,6 +14,7 @@ import {
   getBulkJobs,
   previewBulkJob,
   type PreviewBulkJobInput,
+  rescheduleBulkJob,
 } from "../lib/api";
 import { queryKeys } from "./query-keys";
 
@@ -58,6 +59,20 @@ export function useCreateBulkJob() {
     mutationFn: (input: CreateBulkJobInput) => createBulkJob(input),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.bulkJobs.all });
+    },
+  });
+}
+
+export function useRescheduleBulkJob() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, scheduledAt }: { id: string; scheduledAt: string }) =>
+      rescheduleBulkJob(id, scheduledAt),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.bulkJobs.all });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.scheduledMessages.all,
+      });
     },
   });
 }

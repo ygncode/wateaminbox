@@ -16,6 +16,7 @@ import {
   finalizeBulkJobIfComplete,
   getBulkJobProgress,
   resolveBulkAudience,
+  rescheduleBulkJob,
 } from "./bulk-job.service.js";
 import { assignContactToUser } from "./contact.service.js";
 import { openOrReopenCaseForInboundMessage } from "./conversation-case.service.js";
@@ -33,6 +34,26 @@ import {
 
 const integrationTest =
   process.env.RUN_DB_INTEGRATION === "1" ? test : test.skip;
+
+async function withTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+): Promise<T> {
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<never>((_resolve, reject) => {
+        timeout = setTimeout(
+          () => reject(new Error(`Timed out after ${timeoutMs}ms`)),
+          timeoutMs,
+        );
+      }),
+    ]);
+  } finally {
+    if (timeout) clearTimeout(timeout);
+  }
+}
 
 interface SeededLine {
   connectionId: string;
@@ -588,6 +609,275 @@ describe("bulk job integration", () => {
           .where("whatsapp_connection_id", "=", line.connectionId)
           .executeTakeFirstOrThrow();
         expect(budget.sent_today).toBe(1);
+      } finally {
+        await dropTenantSchema(companyId);
+      }
+    },
+    30_000,
+  );
+
+  integrationTest(
+    "reschedules every materialized leaf without changing recipients, content, or media",
+    async () => {
+      const companyId = crypto.randomUUID();
+      try {
+        await createTenantSchema(companyId);
+        const tenantDb = getTenantConnection(companyId);
+        const line = await seedConnection(tenantDb);
+        const eligible = await seedContact(tenantDb, line.connectionId, {
+          customName: "Preserved Recipient",
+        });
+        const skipped = await seedContact(tenantDb, line.connectionId, {
+          isBlocked: true,
+        });
+        const { job } = await createDueJob(
+          tenantDb,
+          { tagIds: [], contactIds: [eligible, skipped] },
+          {
+            content: "Hello {{name}}",
+            messageType: "image",
+            mediaUrl: "https://media.example.test/preserved.jpg",
+            mediaMimeType: "image/jpeg",
+            mediaFileName: "preserved.jpg",
+          },
+        );
+        const before = await tenantDb
+          .selectFrom("scheduled_messages")
+          .selectAll()
+          .where("bulk_job_id", "=", job.id)
+          .orderBy("id")
+          .execute();
+        const nextTime = new Date(Date.now() + 3_600_000);
+
+        const result = await rescheduleBulkJob(tenantDb, job.id, nextTime);
+
+        expect(result.didReschedule).toBe(true);
+        expect(result.updatedLeaves).toBe(2);
+        expect(result.previousScheduledAt?.getTime()).toBe(
+          job.scheduled_at.getTime(),
+        );
+        const after = await tenantDb
+          .selectFrom("scheduled_messages")
+          .selectAll()
+          .where("bulk_job_id", "=", job.id)
+          .orderBy("id")
+          .execute();
+        expect(after.map((leaf) => leaf.id)).toEqual(
+          before.map((leaf) => leaf.id),
+        );
+        for (let index = 0; index < after.length; index++) {
+          expect(after[index].scheduled_at.getTime()).toBe(nextTime.getTime());
+          expect(after[index].next_attempt_at.getTime()).toBe(
+            nextTime.getTime(),
+          );
+          expect(after[index].contact_id).toBe(before[index].contact_id);
+          expect(after[index].content).toBe(before[index].content);
+          expect(after[index].media_url).toBe(before[index].media_url);
+          expect(after[index].status).toBe(before[index].status);
+        }
+        const parent = await tenantDb
+          .selectFrom("bulk_jobs")
+          .select(["scheduled_at", "content", "media_url", "audience_hash"])
+          .where("id", "=", job.id)
+          .executeTakeFirstOrThrow();
+        expect(parent.scheduled_at.getTime()).toBe(nextTime.getTime());
+        expect(parent.content).toBe(job.content);
+        expect(parent.media_url).toBe(job.media_url);
+        expect(parent.audience_hash).toBe(job.audience_hash);
+      } finally {
+        await dropTenantSchema(companyId);
+      }
+    },
+    30_000,
+  );
+
+  integrationTest(
+    "rejects in-progress and terminal jobs without partially moving queued leaves",
+    async () => {
+      const companyId = crypto.randomUUID();
+      try {
+        await createTenantSchema(companyId);
+        const tenantDb = getTenantConnection(companyId);
+        const line = await seedConnection(tenantDb);
+        const contactA = await seedContact(tenantDb, line.connectionId);
+        const contactB = await seedContact(tenantDb, line.connectionId);
+        const { job } = await createDueJob(tenantDb, {
+          tagIds: [],
+          contactIds: [contactA, contactB],
+        });
+        const originalTime = job.scheduled_at.getTime();
+        await tenantDb
+          .updateTable("scheduled_messages")
+          .set({ status: "processing" })
+          .where("contact_id", "=", contactA)
+          .execute();
+
+        const inProgress = await rescheduleBulkJob(
+          tenantDb,
+          job.id,
+          new Date(Date.now() + 3_600_000),
+        );
+        expect(inProgress.didReschedule).toBe(false);
+        const unchanged = await tenantDb
+          .selectFrom("scheduled_messages")
+          .select(["status", "scheduled_at"])
+          .where("bulk_job_id", "=", job.id)
+          .execute();
+        expect(
+          unchanged.every(
+            (leaf) => leaf.scheduled_at.getTime() === originalTime,
+          ),
+        ).toBe(true);
+
+        await tenantDb
+          .updateTable("bulk_jobs")
+          .set({ status: "completed", completed_at: toDbDate() })
+          .where("id", "=", job.id)
+          .execute();
+        const terminal = await rescheduleBulkJob(
+          tenantDb,
+          job.id,
+          new Date(Date.now() + 7_200_000),
+        );
+        expect(terminal.didReschedule).toBe(false);
+      } finally {
+        await dropTenantSchema(companyId);
+      }
+    },
+    30_000,
+  );
+
+  integrationTest(
+    "reschedule and dispatcher claim race has exactly one winner",
+    async () => {
+      const companyId = crypto.randomUUID();
+      try {
+        await createTenantSchema(companyId);
+        const tenantDb = getTenantConnection(companyId);
+        const line = await seedConnection(tenantDb);
+        const contactId = await seedContact(tenantDb, line.connectionId);
+        const { job } = await createDueJob(tenantDb, {
+          tagIds: [],
+          contactIds: [contactId],
+        });
+        const nextTime = new Date(Date.now() + 3_600_000);
+
+        const [rescheduled, dispatched] = await Promise.all([
+          rescheduleBulkJob(tenantDb, job.id, nextTime),
+          dispatchCompanyBulkMessages(companyId),
+        ]);
+
+        expect(
+          Number(rescheduled.didReschedule) + Number(dispatched === 1),
+        ).toBe(1);
+        const stored = await tenantDb
+          .selectFrom("bulk_jobs")
+          .select(["status", "scheduled_at"])
+          .where("id", "=", job.id)
+          .executeTakeFirstOrThrow();
+        if (rescheduled.didReschedule) {
+          expect(dispatched).toBe(0);
+          expect(stored.status).toBe("scheduled");
+          expect(stored.scheduled_at.getTime()).toBe(nextTime.getTime());
+        } else {
+          expect(dispatched).toBe(1);
+          expect(stored.status).toBe("completed");
+          expect(stored.scheduled_at.getTime()).toBe(
+            job.scheduled_at.getTime(),
+          );
+        }
+      } finally {
+        await dropTenantSchema(companyId);
+      }
+    },
+    30_000,
+  );
+
+  integrationTest(
+    "concurrent cancel and reschedule use parent-first locks with one winner and no partial schedule move",
+    async () => {
+      const companyId = crypto.randomUUID();
+      try {
+        await createTenantSchema(companyId);
+        const tenantDb = getTenantConnection(companyId);
+        const line = await seedConnection(tenantDb);
+        const contactA = await seedContact(tenantDb, line.connectionId);
+        const contactB = await seedContact(tenantDb, line.connectionId);
+        const { job } = await createDueJob(tenantDb, {
+          tagIds: [],
+          contactIds: [contactA, contactB],
+        });
+        const nextTime = new Date(Date.now() + 3_600_000);
+
+        // Hold the parent so cancel can queue first. With the old inverse lock
+        // order, reschedule then held leaves while waiting behind cancel for
+        // this parent, and cancel circular-waited on those leaves.
+        let parentLocked!: () => void;
+        const parentLockedPromise = new Promise<void>((resolve) => {
+          parentLocked = resolve;
+        });
+        let releaseParent!: () => void;
+        const releaseParentPromise = new Promise<void>((resolve) => {
+          releaseParent = resolve;
+        });
+        const blocker = tenantDb.transaction().execute(async (trx) => {
+          await trx
+            .selectFrom("bulk_jobs")
+            .select("id")
+            .where("id", "=", job.id)
+            .forUpdate()
+            .executeTakeFirstOrThrow();
+          parentLocked();
+          await releaseParentPromise;
+        });
+        await parentLockedPromise;
+
+        const cancelPromise = cancelBulkJob(
+          tenantDb,
+          companyId,
+          job,
+          crypto.randomUUID(),
+        );
+        // Give cancel's parent UPDATE time to enter the lock wait queue before
+        // starting reschedule; both remain concurrently in flight.
+        await Bun.sleep(25);
+        const reschedulePromise = rescheduleBulkJob(tenantDb, job.id, nextTime);
+        await Bun.sleep(25);
+        releaseParent();
+
+        const [canceled, rescheduled] = await withTimeout(
+          Promise.all([cancelPromise, reschedulePromise]),
+          5_000,
+        );
+        await blocker;
+
+        expect(canceled.didCancel).toBe(true);
+        expect(rescheduled.didReschedule).toBe(false);
+        expect(
+          Number(canceled.didCancel) + Number(rescheduled.didReschedule),
+        ).toBe(1);
+
+        const stored = await tenantDb
+          .selectFrom("bulk_jobs")
+          .select(["status", "scheduled_at"])
+          .where("id", "=", job.id)
+          .executeTakeFirstOrThrow();
+        const leaves = await tenantDb
+          .selectFrom("scheduled_messages")
+          .select(["status", "scheduled_at", "next_attempt_at"])
+          .where("bulk_job_id", "=", job.id)
+          .execute();
+        expect(stored.status).toBe("canceled");
+        expect(stored.scheduled_at.getTime()).toBe(job.scheduled_at.getTime());
+        expect(leaves).toHaveLength(2);
+        expect(leaves.every((leaf) => leaf.status === "canceled")).toBe(true);
+        expect(
+          leaves.every(
+            (leaf) =>
+              leaf.scheduled_at.getTime() === job.scheduled_at.getTime() &&
+              leaf.next_attempt_at.getTime() === job.scheduled_at.getTime(),
+          ),
+        ).toBe(true);
       } finally {
         await dropTenantSchema(companyId);
       }
