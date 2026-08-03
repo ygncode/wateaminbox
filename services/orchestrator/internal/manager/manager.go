@@ -178,7 +178,11 @@ func (m *Manager) Stop(ctx context.Context) error {
 	for _, id := range workerIDs {
 		worker, exists := m.GetWorkerStatus(id)
 		if exists {
-			if err := m.stopWorkerInternal(ctx, worker.CompanyID, id, "orchestrator shutdown", syscall.SIGTERM); err != nil {
+			// Keep the durable record while stopping for an orchestrator restart.
+			// The next orchestrator process uses that record to respawn the worker;
+			// deleting it here leaves a database connection marked connected with no
+			// process consuming incoming WhatsApp messages.
+			if err := m.stopWorkerInternal(ctx, worker.CompanyID, id, "orchestrator shutdown", syscall.SIGTERM, true); err != nil {
 				log.Printf("Error stopping worker %s: %v", id, err)
 			}
 		}
@@ -313,7 +317,7 @@ func (m *Manager) spawnWorker(
 
 // StopWorker terminates a specific worker process.
 func (m *Manager) StopWorker(ctx context.Context, companyID, connectionID, reason string) error {
-	if err := m.stopWorkerInternal(ctx, companyID, connectionID, reason, syscall.SIGTERM); err != nil {
+	if err := m.stopWorkerInternal(ctx, companyID, connectionID, reason, syscall.SIGTERM, false); err != nil {
 		return err
 	}
 
@@ -348,7 +352,7 @@ func (m *Manager) UnlinkWorker(
 			true,
 		)
 	}
-	if err := m.stopWorkerInternal(ctx, companyID, connectionID, reason, syscall.SIGUSR1); err != nil {
+	if err := m.stopWorkerInternal(ctx, companyID, connectionID, reason, syscall.SIGUSR1, false); err != nil {
 		return err
 	}
 	m.publishConnectionStatus(companyID, connectionID, types.StatusStopped, reason)
@@ -357,7 +361,12 @@ func (m *Manager) UnlinkWorker(
 
 // stopWorkerInternal terminates a worker without publishing events.
 // Used during shutdown to avoid NATS errors.
-func (m *Manager) stopWorkerInternal(ctx context.Context, companyID, connectionID, reason string, stopSignal syscall.Signal) error {
+func (m *Manager) stopWorkerInternal(
+	ctx context.Context,
+	companyID, connectionID, reason string,
+	stopSignal syscall.Signal,
+	preserveRegistry bool,
+) error {
 	m.mu.Lock()
 	worker, exists := m.workers[connectionID]
 	if !exists {
@@ -373,6 +382,15 @@ func (m *Manager) stopWorkerInternal(ctx context.Context, companyID, connectionI
 	m.mu.Unlock()
 
 	log.Printf("Stopping worker %s: %s", connectionID, reason)
+
+	// Mark recovery intent before signaling. If the orchestrator itself is
+	// terminated before the child finishes, the durable record still tells the
+	// replacement process to recover this worker.
+	if preserveRegistry && m.registry != nil {
+		if err := m.registry.UpdateStatus(ctx, connectionID, "recovering"); err != nil {
+			return fmt.Errorf("mark worker %s for recovery: %w", connectionID, err)
+		}
+	}
 
 	// Cancel health check
 	if worker.healthCancel != nil {
@@ -424,8 +442,10 @@ func (m *Manager) stopWorkerInternal(ctx context.Context, companyID, connectionI
 		}
 	}
 
-	// Delete durable/in-memory state only after process termination is confirmed.
-	if m.registry != nil {
+	// Explicit disconnect/unlink removes the durable record. During an
+	// orchestrator shutdown it must survive so startup recovery can respawn the
+	// WhatsApp process with its existing session credentials.
+	if m.registry != nil && !preserveRegistry {
 		if err := m.registry.RemoveWorker(ctx, connectionID); err != nil {
 			return fmt.Errorf("remove worker %s from registry: %w", connectionID, err)
 		}
