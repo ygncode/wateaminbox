@@ -283,7 +283,9 @@ services:
         export CENTRIFUGO_HTTP_API_KEY="$$(cat /run/secrets/centrifugo_api_key)"
         exec centrifugo --config=/centrifugo/config.json
     environment:
-      CENTRIFUGO_CLIENT_ALLOWED_ORIGINS: '["https://${APP_DOMAIN:?set APP_DOMAIN}"]'
+      # Centrifugo parses array-valued environment settings as comma-separated
+      # strings. JSON here becomes one literal origin and rejects every browser.
+      CENTRIFUGO_CLIENT_ALLOWED_ORIGINS: https://${APP_DOMAIN:?set APP_DOMAIN}
     secrets:
       - nats_token
       - centrifugo_api_key
