@@ -1,5 +1,6 @@
 import {
   Bell,
+  CreditCard,
   FileClock,
   Inbox,
   LayoutDashboard,
@@ -16,6 +17,7 @@ import { NavLink, Outlet, useLocation } from "react-router";
 import { useAuth } from "../../contexts/auth-context";
 import { useWorkspace } from "../../contexts/workspace-context";
 import { useChats } from "../../hooks/useChats";
+import { getWorkspaceBillingUrl } from "../../lib/billing-url";
 import { cn } from "../../lib/utils";
 import { workspacePath } from "../../lib/workspace-routes";
 import { ThemeToggle } from "../chat/ThemeToggle";
@@ -41,6 +43,7 @@ interface NavigationItem {
   icon: typeof Inbox;
   visible: boolean;
   unreadCount?: number;
+  external?: boolean;
 }
 
 function NavigationLink({
@@ -54,29 +57,19 @@ function NavigationLink({
 }) {
   const Icon = item.icon;
   const unreadCount = item.unreadCount ?? 0;
-  return (
-    <NavLink
-      to={item.path}
-      aria-label={getInboxNavigationLabel(item.label, unreadCount)}
-      title={
-        collapsed ? getInboxNavigationLabel(item.label, unreadCount) : undefined
-      }
-      className={({ isActive }) =>
-        cn(
-          "group relative flex items-center rounded-xl font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300",
-          compact
-            ? "h-12 min-w-14 flex-1 flex-col justify-center gap-0.5 px-1 text-[10px]"
-            : collapsed
-              ? "h-11 w-full justify-center px-0 text-sm"
-              : "h-10 gap-3 px-3 text-sm",
-          isActive
-            ? "bg-[#dcefe7] text-[#075c41]"
-            : compact
-              ? "text-[#65736d] dark:text-dark-text-secondary"
-              : "text-[#b8c9c2] hover:bg-white/[0.07] hover:text-white",
-        )
-      }
-    >
+  const baseClass = cn(
+    "group relative flex items-center rounded-xl font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300",
+    compact
+      ? "h-12 min-w-14 flex-1 flex-col justify-center gap-0.5 px-1 text-[10px]"
+      : collapsed
+        ? "h-11 w-full justify-center px-0 text-sm"
+        : "h-10 gap-3 px-3 text-sm",
+  );
+  const inactiveClass = compact
+    ? "text-[#65736d] dark:text-dark-text-secondary"
+    : "text-[#b8c9c2] hover:bg-white/[0.07] hover:text-white";
+  const content = (
+    <>
       <Icon
         className={compact ? "h-5 w-5" : "h-[18px] w-[18px]"}
         aria-hidden="true"
@@ -98,6 +91,34 @@ function NavigationLink({
           {formatInboxUnreadCount(unreadCount)}
         </span>
       )}
+    </>
+  );
+  const accessibleLabel = getInboxNavigationLabel(item.label, unreadCount);
+  const title = collapsed ? accessibleLabel : undefined;
+
+  if (item.external) {
+    return (
+      <a
+        href={item.path}
+        aria-label={accessibleLabel}
+        title={title}
+        className={cn(baseClass, inactiveClass)}
+      >
+        {content}
+      </a>
+    );
+  }
+
+  return (
+    <NavLink
+      to={item.path}
+      aria-label={accessibleLabel}
+      title={title}
+      className={({ isActive }) =>
+        cn(baseClass, isActive ? "bg-[#dcefe7] text-[#075c41]" : inactiveClass)
+      }
+    >
+      {content}
     </NavLink>
   );
 }
@@ -110,21 +131,44 @@ function MoreLink({
   onClick: () => void;
 }) {
   const Icon = item.icon;
+  const content = (
+    <>
+      <Icon className="h-5 w-5" />
+      {item.label}
+    </>
+  );
+  const baseClass =
+    "flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium";
+
+  if (item.external) {
+    return (
+      <a
+        href={item.path}
+        onClick={onClick}
+        className={cn(
+          baseClass,
+          "hover:bg-[#edf1ed] dark:hover:bg-dark-tertiary",
+        )}
+      >
+        {content}
+      </a>
+    );
+  }
+
   return (
     <NavLink
       to={item.path}
       onClick={onClick}
       className={({ isActive }) =>
         cn(
-          "flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium",
+          baseClass,
           isActive
             ? "bg-[#dcefe7] text-[#075c41]"
             : "hover:bg-[#edf1ed] dark:hover:bg-dark-tertiary",
         )
       }
     >
-      <Icon className="h-5 w-5" />
-      {item.label}
+      {content}
     </NavLink>
   );
 }
@@ -161,6 +205,7 @@ export function ProtectedAppLayout() {
 
   if (!activeWorkspace) return null;
 
+  const billingUrl = getWorkspaceBillingUrl(activeWorkspace.id);
   const items: NavigationItem[] = [
     {
       label: "Inbox",
@@ -193,6 +238,13 @@ export function ProtectedAppLayout() {
       icon: FileClock,
       visible: can("can_view_audit"),
     },
+    {
+      label: "Plan & billing",
+      path: billingUrl ?? "#",
+      icon: CreditCard,
+      visible: activeWorkspace.role === "owner" && billingUrl !== null,
+      external: true,
+    },
   ];
   const visibleItems = items.filter((item) => item.visible);
   const settingsItem: NavigationItem = {
@@ -205,6 +257,9 @@ export function ProtectedAppLayout() {
     .filter((item) => item.label !== "Audit")
     .slice(0, 3);
   const auditItem = visibleItems.find((item) => item.label === "Audit");
+  const billingItem = visibleItems.find(
+    (item) => item.label === "Plan & billing",
+  );
   const moreIsActive = /\/(settings|audit|notifications)(?:\/|$)/.test(
     pathname,
   );
@@ -400,6 +455,12 @@ export function ProtectedAppLayout() {
             <nav className="space-y-1" aria-label="More navigation">
               {auditItem && (
                 <MoreLink item={auditItem} onClick={() => setMoreOpen(false)} />
+              )}
+              {billingItem && (
+                <MoreLink
+                  item={billingItem}
+                  onClick={() => setMoreOpen(false)}
+                />
               )}
               <MoreLink
                 item={settingsItem}

@@ -22,6 +22,10 @@ import { useAuth } from "../contexts/auth-context";
 import { useWorkspace } from "../contexts/workspace-context";
 import { useCreateCompany } from "../hooks/useTeam";
 import {
+  getWorkspaceBillingUrl,
+  isBillingRequiredAfterSetup,
+} from "../lib/billing-url";
+import {
   type CompanySetupFormData,
   companySetupSchema,
 } from "../lib/schemas/auth";
@@ -114,6 +118,13 @@ export function CompanySetupPage() {
         onSuccess: async (created) => {
           await refreshWorkspaces();
           await switchWorkspace(created.id);
+          const billingUrl = getWorkspaceBillingUrl(created.id, {
+            onboarding: true,
+          });
+          if (billingUrl && isBillingRequiredAfterSetup()) {
+            window.location.assign(billingUrl);
+            return;
+          }
           navigate(workspacePath(created.id), { replace: true });
         },
       },
