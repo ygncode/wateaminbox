@@ -3,6 +3,7 @@
  * Base HTTP client with authentication, token refresh, and error handling
  */
 
+import { getWorkspaceBillingUrl } from "../billing-url.js";
 import type { RefreshResponse } from "./types.js";
 
 // API Configuration
@@ -13,8 +14,26 @@ export const API_BASE_URL =
 let accessToken: string | null = null;
 let companyId: string | null = null;
 let refreshPromise: Promise<boolean> | null = null;
+let paymentRedirectStarted = false;
 
 const COMPANY_ID_STORAGE_KEY = "company_id";
+
+function redirectToBillingOnPaymentRequired(status: number): void {
+  if (
+    status !== 402 ||
+    paymentRedirectStarted ||
+    !companyId ||
+    typeof window === "undefined"
+  ) {
+    return;
+  }
+
+  const billingUrl = getWorkspaceBillingUrl(companyId, { onboarding: true });
+  if (!billingUrl) return;
+
+  paymentRedirectStarted = true;
+  window.location.replace(billingUrl);
+}
 
 // Custom error class
 export class ApiRequestError extends Error {
@@ -44,6 +63,7 @@ export function setAuthToken(access: string): void {
 }
 
 export function setCompanyId(id: string): void {
+  if (companyId !== id) paymentRedirectStarted = false;
   companyId = id;
   try {
     // Workspace preferences are persisted per user by WorkspaceContext. Remove
@@ -70,6 +90,7 @@ export function clearCompanyId(): void {
 export function clearAuthTokens(): void {
   accessToken = null;
   companyId = null;
+  paymentRedirectStarted = false;
   try {
     localStorage.removeItem(COMPANY_ID_STORAGE_KEY);
   } catch {
@@ -84,6 +105,10 @@ export function getAccessToken(): string | null {
 // Response handler
 export async function handleResponse<T>(response: Response): Promise<T> {
   if (!response.ok) {
+    // A private deployment may require billing before workspace APIs become
+    // available. Keep the OSS client commercial-logic-free: HTTP 402 plus the
+    // generic configured billing URL is the complete redirect contract.
+    redirectToBillingOnPaymentRequired(response.status);
     let errorData: {
       code: string;
       message: string;

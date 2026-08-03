@@ -30,6 +30,7 @@ export const languages = [
 export type LanguageCode = (typeof languages)[number]["code"];
 
 i18n.use(initReactI18next).init({
+  showSupportNotice: false,
   resources: {
     en: { translation: en },
     "zh-CN": { translation: zhCN },
