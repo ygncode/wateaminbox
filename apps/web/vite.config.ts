@@ -31,38 +31,7 @@ export default defineConfig(({ mode }) => ({
       "@": path.resolve(__dirname, "./src"),
     },
   },
-  build: {
-    rollupOptions: {
-      output: {
-        manualChunks: {
-          // Core React runtime - changes rarely, cache separately
-          "react-vendor": ["react", "react-dom"],
-          // Router - separate chunk for routing
-          "router": ["react-router"],
-          // TanStack libraries - query and virtualization
-          "tanstack": ["@tanstack/react-query", "@tanstack/react-virtual"],
-          // Form handling - react-hook-form + validation
-          "form": ["react-hook-form", "@hookform/resolvers", "zod"],
-          // UI primitives from Radix - grouped together
-          "radix-ui": [
-            "@radix-ui/react-avatar",
-            "@radix-ui/react-checkbox",
-            "@radix-ui/react-dialog",
-            "@radix-ui/react-label",
-            "@radix-ui/react-popover",
-            "@radix-ui/react-scroll-area",
-            "@radix-ui/react-select",
-            "@radix-ui/react-slot",
-            "@radix-ui/react-tooltip",
-          ],
-          // State management
-          "zustand": ["zustand"],
-          // Animation library
-          "motion": ["motion"],
-          // i18n
-          "i18n": ["i18next", "react-i18next"],
-        },
-      },
-    },
-  },
+  // Let Rollup derive the chunk graph. Manually separating ReactDOM, Radix,
+  // and TanStack creates a production-only circular chunk dependency with
+  // React 19, leaving React's Activity export undefined during evaluation.
 }))
