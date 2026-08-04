@@ -70,7 +70,7 @@ chmod 600 secrets/*
 Provision a new media application token scoped to the private
 `whatsapp-media` bucket through the approved Cloudflare process. Install its
 access key ID at `/opt/wateaminbox/secrets/r2_media_access_key_id` and its secret
-at `/opt/wateaminbox/secrets/r2_media_secret_access_key`, both mode `0600`. Set
+at `/opt/wateaminbox/secrets/r2_media_secret_access_key`, both mode `0640` and owned by the deployment user's secrets group. Set
 `S3_ACCESS_KEY_FILE` and `S3_SECRET_KEY_FILE` to those paths respectively.
 Compose deliberately keeps the provider-neutral secret mounts
 `/run/secrets/s3_access_key` and `/run/secrets/s3_secret_key`; the entrypoint
