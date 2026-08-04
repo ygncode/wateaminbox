@@ -21,7 +21,7 @@ set -e
 #   - If running in background: kill %1  OR  pkill -f dev-start.sh
 #
 # HOT-RELOAD:
-#   - Frontend (Vite), API (Bun), Marketing (Astro): Auto-reload on file changes
+#   - Frontend (Vite), API (Bun): Auto-reload on file changes
 #   - Go services (Orchestrator, WhatsApp worker): Auto-rebuild via 'air'
 #     Note: Existing WhatsApp worker processes won't restart automatically.
 #           New workers spawned by orchestrator will use the updated binary.
@@ -99,13 +99,12 @@ kill_port() {
 # Clean up app ports before starting
 cleanup_ports() {
     print_status "Cleaning up app ports..."
-    
+
     # App ports
     kill_port 4444   # Frontend
     kill_port 4445   # API
-    kill_port 4446   # Marketing
     kill_port 8080   # Orchestrator
-    
+
     print_success "Ports cleaned up"
 }
 
@@ -297,12 +296,6 @@ start_dev_servers() {
     PIDS+=($!)
     sleep 3
 
-    # Start Marketing site using subshell for isolation
-    print_status "  Starting Marketing site (→ logs/marketing.log)..."
-    (cd "$ROOT_DIR/apps/marketing" && bun run dev) > "$LOGS_DIR/marketing.log" 2>&1 &
-    PIDS+=($!)
-    sleep 1
-
     # Start WhatsApp worker watcher (rebuilds binary on changes)
     print_status "  Starting WhatsApp worker watcher (→ logs/whatsapp-worker.log)..."
     (cd services/whatsapp && air) > "$LOGS_DIR/whatsapp-worker.log" 2>&1 &
@@ -320,7 +313,6 @@ start_dev_servers() {
     echo -e "${GREEN}Service URLs:${NC}"
     echo -e "  Frontend:    ${BLUE}http://localhost:4444${NC}"
     echo -e "  API:         ${BLUE}http://localhost:4445${NC}"
-    echo -e "  Marketing:   ${BLUE}http://localhost:4446${NC}"
     echo -e "  Orchestrator:${BLUE}http://localhost:8080${NC}"
     echo ""
     echo -e "${GREEN}Infrastructure:${NC}"

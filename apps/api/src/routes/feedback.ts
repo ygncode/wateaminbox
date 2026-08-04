@@ -1,7 +1,7 @@
 /**
  * Feedback Routes
  *
- * Public endpoint for users to submit feedback from the marketing site.
+ * Public endpoint for users to submit product feedback.
  * Sends feedback to contact@wateaminbox.com via email.
  */
 import { Hono } from "hono";

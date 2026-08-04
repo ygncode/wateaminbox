@@ -24,7 +24,6 @@ Supporting services: Meilisearch, R2/MinIO, Resend
 | --- | --- |
 | `apps/web` | React inbox and administration UI |
 | `apps/api` | Hono REST API, auth, business services, NATS consumers, Centrifugo publishing |
-| `apps/marketing` | Astro marketing and documentation site |
 | `packages/database` | Kysely types, clients, and migrations |
 | `packages/shared` | Shared TypeScript types and utilities |
 | `packages/ui` | Shared React primitives |
@@ -89,7 +88,6 @@ Default ports:
 | --- | ---: |
 | Web | 4444 |
 | API | 4445 |
-| Marketing | 4446 |
 | PostgreSQL | 4447 |
 | NATS | 4448 |
 | Meilisearch | 4449 |

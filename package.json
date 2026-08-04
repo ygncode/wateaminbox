@@ -9,10 +9,10 @@
   "scripts": {
     "build": "turbo build --concurrency=3",
     "dev": "turbo dev",
-    "lint": "biome lint apps/api apps/web apps/waitlist-api packages && (cd apps/marketing && bun run lint) && ./scripts/lint-go.sh",
-    "typecheck": "bun run --filter @wateaminbox/shared build && bun run --filter @wateaminbox/database build && tsc -p apps/api/tsconfig.json --noEmit && tsc -p apps/web/tsconfig.json --noEmit && bun run --filter @wateaminbox/waitlist-api typecheck",
+    "lint": "biome lint apps/api apps/web packages && ./scripts/lint-go.sh",
+    "typecheck": "bun run --filter @wateaminbox/shared build && bun run --filter @wateaminbox/database build && tsc -p apps/api/tsconfig.json --noEmit && tsc -p apps/web/tsconfig.json --noEmit",
     "check:unused": "knip",
-    "format": "biome format --write apps/api apps/web apps/waitlist-api packages",
+    "format": "biome format --write apps/api apps/web packages",
     "test": "./scripts/run-tests.sh",
     "test:db-contracts": "DATABASE_URL=${DATABASE_URL:-postgresql://postgres:postgres@localhost:4447/wateaminbox} RUN_DB_INTEGRATION=1 bun test apps/api/src/services/search.integration.test.ts apps/api/src/services/tenant-schema.integration.test.ts",
     "test:sla-analytics": "DATABASE_URL=${DATABASE_URL:-postgresql://postgres:postgres@localhost:4447/wateaminbox} RUN_DB_INTEGRATION=1 RATE_LIMIT_ENABLED=false bun test apps/api/src/services/analytics/response-time.integration.test.ts apps/api/src/services/analytics/team-response-time.integration.test.ts apps/api/src/services/analytics/case-resolution.integration.test.ts apps/api/src/services/sla-policy/policy.service.integration.test.ts apps/api/src/routes/companies/sla-policy.integration.test.ts apps/api/src/services/conversation-case.service.integration.test.ts apps/api/src/services/handlers/message-handlers.case-lifecycle.integration.test.ts apps/api/src/routes/conversations/state.integration.test.ts apps/api/src/services/send-access.service.integration.test.ts apps/api/src/routes/messages/send.integration.test.ts apps/api/src/routes/actions/typing.integration.test.ts apps/api/src/routes/messages/reactions.integration.test.ts apps/api/src/routes/contacts/assignment.integration.test.ts apps/api/src/services/assignment-broadcast.service.integration.test.ts",

@@ -35,7 +35,6 @@ services:
     image: caddy:2.10.0-alpine
     environment:
       APP_DOMAIN: ${APP_DOMAIN:?set APP_DOMAIN}
-      MARKETING_DOMAIN: ${MARKETING_DOMAIN:?set MARKETING_DOMAIN}
       MEDIA_DOMAIN: ${MEDIA_DOMAIN:?set MEDIA_DOMAIN}
       ACME_EMAIL: ${ACME_EMAIL:?set ACME_EMAIL}
     ports:
@@ -53,8 +52,6 @@ services:
       api:
         condition: service_healthy
       web:
-        condition: service_healthy
-      marketing:
         condition: service_healthy
       centrifugo:
         condition: service_healthy
@@ -77,29 +74,6 @@ services:
         VITE_API_URL: /api
         VITE_CENTRIFUGO_URL: wss://${APP_DOMAIN:?set APP_DOMAIN}/connection/websocket
         VITE_VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
-    read_only: true
-    tmpfs:
-      - /tmp
-      - /var/cache/nginx
-      - /var/run
-    networks: [edge]
-    healthcheck:
-      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/healthz"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-
-  marketing:
-    <<: *service-defaults
-    image: wateaminbox/marketing:${APP_IMAGE_TAG:?set APP_IMAGE_TAG}
-    build:
-      context: .
-      dockerfile: apps/marketing/Dockerfile
-      target: marketing
-      args:
-        # The API is intentionally an explicit Worker origin, not a missing Nginx /api proxy.
-        PUBLIC_WAITLIST_API_URL: ${PUBLIC_WAITLIST_API_URL:-}
-        PUBLIC_WAITLIST_TURNSTILE_SITE_KEY: ${PUBLIC_WAITLIST_TURNSTILE_SITE_KEY:-}
     read_only: true
     tmpfs:
       - /tmp

@@ -7,7 +7,7 @@ A multi-user WhatsApp team inbox for managing customer conversations, assignment
 
 WATeamInbox is an independent project and is not affiliated with, endorsed by, or sponsored by WhatsApp or Meta. It uses an unofficial WhatsApp client library; use may be affected by WhatsApp policy or protocol changes and can result in account restrictions or bans. No account-safety guarantee is provided. Third-party names are used only to describe interoperability; all trademarks belong to their respective owners.
 
-**Service status:** the public marketing site and double-opt-in Cloud waitlist are live. The waitlist records interest only: WATeamInbox Cloud is not an available hosted product, and no pricing, launch date, feature set, SLA, account, or support entitlement is promised. Self-hosting this beta is currently the only product path. The WATeamInbox-operated waitlist is covered by the public [waitlist privacy notice](https://wateaminbox.com/privacy).
+**Service status:** self-hosting this beta is currently the only product path in this repository. A separate public marketing site and Cloud interest waitlist may exist outside this monorepo; they are not part of the self-hostable application and do not promise pricing, launch date, feature set, SLA, account, or support entitlements for a managed Cloud product.
 
 ## Features
 
@@ -52,8 +52,6 @@ flowchart TB
 | --- | --- |
 | `apps/web` | React 19, Vite, Tailwind CSS, TanStack Query |
 | `apps/api` | Hono API running on Bun |
-| `apps/marketing` | Astro marketing site |
-| `apps/waitlist-api` | Cloudflare Worker for the optional Cloud waitlist, double opt-in, and private administrator dashboard |
 | `packages/database` | Kysely database client and migrations |
 | `packages/shared` | Shared TypeScript types and utilities |
 | `packages/ui` | Shared React components |
@@ -151,8 +149,6 @@ The main development endpoints are:
 - API: <http://localhost:4445/api>
 - API health: <http://localhost:4445/api/health>
 - Orchestrator: <http://localhost:8080>
-- Marketing site: <http://localhost:4446>
-- Cloud waitlist Worker: <http://localhost:8787>
 
 The root development command builds the WhatsApp worker before starting the orchestrator. The orchestrator then manages worker processes for active WhatsApp connections.
 
@@ -215,7 +211,6 @@ The receiving user must be assigned to the contact or have permission to view al
 | `bun run check:unused` | Find unused files and dependencies with Knip |
 | `bun run db:migrate` | Apply database migrations |
 | `bun run db:generate` | Regenerate Kysely database types |
-| `bun run --filter @wateaminbox/waitlist-api dev` | Start the local Cloudflare waitlist Worker on port 8787 |
 | `docker compose down` | Stop local infrastructure |
 
 Integration tests require the local infrastructure and use:
@@ -238,7 +233,7 @@ An unavailable NATS connection or Centrifugo instance reports degraded readiness
 
 Do not use `docker-compose.yml` for production; it contains development-only credentials and exposed service ports. A security-conscious single-host baseline is defined in `compose.production.yml`; it is deployment guidance, not an audit, certification, managed service, or guarantee of fitness for your environment. See [docs/deployment.md](docs/deployment.md) for TLS, secret generation, migrations, private storage, backups, restores, upgrades, rollback, and monitoring.
 
-The public marketing site remains static and self-hostable. The repository also includes the Worker used by the live project waitlist; this is an interest-registration service, not the planned managed Cloud product. Self-hosters may omit it or deploy their own separate instance. See [docs/cloudflare-waitlist.md](docs/cloudflare-waitlist.md) for the Cloudflare D1, Email Service, Worker, static API URL, and admin-dashboard setup. It is optional and is not proxied through the production marketing Nginx container.
+The public marketing site and Cloud waitlist live in a separate repository and are not required to self-host this application.
 
 ## Troubleshooting
 

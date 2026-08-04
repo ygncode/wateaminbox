@@ -11,7 +11,6 @@ run() {
 }
 
 run "API unit tests" bash -c "cd '$ROOT/apps/api' && bun test"
-run "Cloud waitlist Worker tests" bash -c "cd '$ROOT/apps/waitlist-api' && bun run test"
 run "Web unit tests" bash -c "cd '$ROOT/apps/web' && bun test"
 run "Shared TypeScript unit tests" bash -c "cd '$ROOT/packages/shared' && bun test"
 run "Shared Go tests" bash -c "cd '$ROOT/services/shared' && go test -short -timeout 5m ./..."

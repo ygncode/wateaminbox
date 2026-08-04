@@ -13,10 +13,11 @@ terminates TLS and routes:
 
 - `APP_DOMAIN`: `/api/*` to the Bun API, `/connection/*` to Centrifugo, and all
   other paths to the web SPA;
-- `MARKETING_DOMAIN`: the static Astro build;
 - `MEDIA_DOMAIN`: the retained legacy MinIO S3 origin during the R2 rollback
   window. New private media URLs are presigned directly against R2's account S3
   API endpoint; the MinIO console is disabled and is never routed.
+
+The public marketing site is not part of this compose stack.
 
 PostgreSQL, NATS, Meilisearch, retained MinIO, Centrifugo, and the orchestrator have no
 host port mappings. Data services share an `internal: true` network. API and
@@ -29,7 +30,7 @@ The R2 `whatsapp-media` bucket and retained MinIO source are private. Browser
 access uses API-authorized, short-lived R2 signatures; neither `r2.dev` nor a
 public bucket/custom domain is permitted. `MEDIA_DOMAIN` exists only so transient
 legacy MinIO signatures can finish during migration. See
-[the copy, verify, cutover, and rollback runbook](../.clanker/media-r2-migration.md).
+[the copy, verify, cutover, and rollback runbook](../../docs/operations/media-r2-migration.md).
 
 ## Host and DNS prerequisites
 
@@ -37,8 +38,8 @@ Use a supported Linux host with Docker Engine, the Compose plugin, BuildKit,
 reliable storage, NTP, and enough memory for PostgreSQL and Meilisearch (8 GiB is
 a practical starting point). Keep Docker and the kernel patched.
 
-1. Point A/AAAA records for all three domains at the host. The domains must be
-   distinct and globally reachable for ACME issuance.
+1. Point A/AAAA records for `APP_DOMAIN` and `MEDIA_DOMAIN` at the host. The
+   domains must be distinct and globally reachable for ACME issuance.
 2. Allow inbound TCP 80/443 and UDP 443. Deny every other inbound port at the
    host/cloud firewall; SSH should be restricted separately.
 3. Ensure outbound HTTPS, DNS, NTP, email-provider, and WhatsApp traffic is
@@ -145,10 +146,8 @@ Validate externally (set the domains to the values from `.env.production`):
 
 ```sh
 APP_DOMAIN=inbox.example.com
-MARKETING_DOMAIN=www.example.com
 curl -fsS "https://$APP_DOMAIN/api/health/live"
 curl -fsS "https://$APP_DOMAIN/api/health/ready"
-curl -fsSI "https://$MARKETING_DOMAIN/"
 $COMPOSE exec orchestrator wget -qO- http://127.0.0.1:8080/health
 ```
 

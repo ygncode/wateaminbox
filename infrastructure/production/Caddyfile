@@ -35,11 +35,6 @@
 	}
 }
 
-{$MARKETING_DOMAIN} {
-	import common_security
-	reverse_proxy marketing:8080
-}
-
 {$MEDIA_DOMAIN} {
 	import common_security
 	# Legacy MinIO origin retained for migration rollback compatibility. New
