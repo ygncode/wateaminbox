@@ -21,18 +21,20 @@ import (
 
 // Config holds storage configuration.
 type Config struct {
-	Endpoint        string // S3 endpoint (e.g., "http://localhost:9000" for MinIO)
-	AccessKeyID     string
-	SecretAccessKey string
-	Bucket          string
-	Region          string
-	UsePathStyle    bool // Use path-style addressing (required for MinIO)
+	Endpoint              string // S3 endpoint (e.g., "http://localhost:9000" for MinIO)
+	AccessKeyID           string
+	SecretAccessKey       string
+	Bucket                string
+	Region                string
+	UsePathStyle          bool // Explicit for MinIO and Cloudflare R2 S3 API requests
+	CreateBucketIfMissing bool // Development only; production buckets are pre-provisioned
 }
 
 // Client provides media storage operations.
 type Client struct {
-	s3Client *s3.Client
-	bucket   string
+	s3Client              *s3.Client
+	bucket                string
+	createBucketIfMissing bool
 }
 
 // New creates a new storage client.
@@ -72,8 +74,9 @@ func New(cfg Config) (*Client, error) {
 	})
 
 	return &Client{
-		s3Client: s3Client,
-		bucket:   cfg.Bucket,
+		s3Client:              s3Client,
+		bucket:                cfg.Bucket,
+		createBucketIfMissing: cfg.CreateBucketIfMissing,
 	}, nil
 }
 
@@ -284,17 +287,20 @@ func getExtensionFromMimeType(mimeType string) string {
 	return ".bin" // Default for unknown types
 }
 
-// EnsureBucketExists creates the bucket if it doesn't exist.
+// EnsureBucketExists verifies the configured bucket. Creation is opt-in for
+// local development; production R2 buckets must be pre-provisioned so a
+// transient HeadBucket or permission error can never trigger a mutation.
 func (c *Client) EnsureBucketExists(ctx context.Context) error {
-	// Check if bucket exists
 	_, err := c.s3Client.HeadBucket(ctx, &s3.HeadBucketInput{
 		Bucket: aws.String(c.bucket),
 	})
 	if err == nil {
-		return nil // Bucket exists
+		return nil
+	}
+	if !c.createBucketIfMissing {
+		return fmt.Errorf("failed to verify media bucket: %w", err)
 	}
 
-	// Create bucket
 	_, err = c.s3Client.CreateBucket(ctx, &s3.CreateBucketInput{
 		Bucket: aws.String(c.bucket),
 	})

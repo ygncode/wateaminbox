@@ -38,6 +38,8 @@ func main() {
 	storageSecretKey := config.GetEnv("STORAGE_SECRET_KEY", config.GetEnv("S3_SECRET_KEY", "minioadmin"))
 	storageBucket := config.GetEnv("STORAGE_BUCKET", config.GetEnv("S3_BUCKET", "whatsapp-media"))
 	storageRegion := config.GetEnv("STORAGE_REGION", config.GetEnv("S3_REGION", "us-east-1"))
+	storagePathStyle := config.GetBoolEnv("STORAGE_FORCE_PATH_STYLE", config.GetBoolEnv("S3_FORCE_PATH_STYLE", true))
+	storageCreateBucket := config.GetBoolEnv("STORAGE_CREATE_BUCKET_IF_MISSING", false)
 
 	// Validate required configuration
 	if companyID == "" {
@@ -61,12 +63,13 @@ func main() {
 	if storageEndpoint != "" {
 		var err error
 		storageClient, err = storage.New(storage.Config{
-			Endpoint:        storageEndpoint,
-			AccessKeyID:     storageAccessKey,
-			SecretAccessKey: storageSecretKey,
-			Bucket:          storageBucket,
-			Region:          storageRegion,
-			UsePathStyle:    true, // Required for MinIO
+			Endpoint:              storageEndpoint,
+			AccessKeyID:           storageAccessKey,
+			SecretAccessKey:       storageSecretKey,
+			Bucket:                storageBucket,
+			Region:                storageRegion,
+			UsePathStyle:          storagePathStyle,
+			CreateBucketIfMissing: storageCreateBucket,
 		})
 		if err != nil {
 			log.Printf("Warning: Failed to initialize storage client: %v", err)

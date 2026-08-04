@@ -98,7 +98,15 @@ export const env = {
   S3_ACCESS_KEY: getEnv("S3_ACCESS_KEY", isProduction ? "" : "minioadmin"),
   S3_SECRET_KEY: getEnv("S3_SECRET_KEY", isProduction ? "" : "minioadmin"),
   S3_BUCKET: getEnv("S3_BUCKET", isProduction ? "" : "whatsapp-media"),
-  S3_REGION: getEnv("S3_REGION", "us-east-1"),
+  // Cloudflare R2 uses region "auto" and its account S3 API endpoint. MinIO
+  // development keeps us-east-1. Path style is explicit for both providers.
+  S3_REGION: getEnv("S3_REGION", isProduction ? "auto" : "us-east-1"),
+  S3_FORCE_PATH_STYLE: getEnvBoolean("S3_FORCE_PATH_STYLE", true),
+  // Comma-separated former path-style endpoints accepted only to recover an
+  // object key from persisted legacy URLs. New requests are always signed for
+  // S3_ENDPOINT.
+  S3_LEGACY_ENDPOINTS: getEnv("S3_LEGACY_ENDPOINTS", ""),
+  S3_SIGNED_URL_TTL_SECONDS: getEnvNumber("S3_SIGNED_URL_TTL_SECONDS", 5 * 60),
 
   // Search
   MEILISEARCH_URL: getEnv("MEILISEARCH_URL", "http://localhost:7700"),
@@ -300,6 +308,7 @@ export function validateProductionEnv(config: Env = env): void {
     NATS_URL: config.NATS_URL,
     S3_ENDPOINT: config.S3_ENDPOINT,
     S3_BUCKET: config.S3_BUCKET,
+    S3_REGION: config.S3_REGION,
     MEILISEARCH_URL: config.MEILISEARCH_URL,
     MEILISEARCH_API_KEY: config.MEILISEARCH_API_KEY,
     RESEND_API_KEY: config.RESEND_API_KEY,
@@ -349,7 +358,57 @@ export function validateProductionEnv(config: Env = env): void {
     }
   }
 
-  assertServiceURL("S3_ENDPOINT", config.S3_ENDPOINT, ["http:", "https:"]);
+  const storageEndpoint = assertServiceURL("S3_ENDPOINT", config.S3_ENDPOINT, [
+    "https:",
+  ]);
+  const r2Suffix = ".r2.cloudflarestorage.com";
+  if (
+    !storageEndpoint.hostname.toLowerCase().endsWith(r2Suffix) ||
+    storageEndpoint.hostname.length <= r2Suffix.length
+  ) {
+    throw new Error(
+      "S3_ENDPOINT must use a Cloudflare account R2 S3 endpoint ending .r2.cloudflarestorage.com",
+    );
+  }
+  if (
+    storageEndpoint.pathname !== "/" ||
+    storageEndpoint.search ||
+    storageEndpoint.hash ||
+    storageEndpoint.username ||
+    storageEndpoint.password
+  ) {
+    throw new Error(
+      "S3_ENDPOINT must be a path-free HTTPS R2 S3 API endpoint without credentials, query, or fragment",
+    );
+  }
+  if (config.S3_BUCKET !== "whatsapp-media") {
+    throw new Error(
+      "S3_BUCKET must remain whatsapp-media to preserve stable media references",
+    );
+  }
+  if (config.S3_REGION !== "auto") {
+    throw new Error("S3_REGION must be auto for Cloudflare R2 in production");
+  }
+  if (!config.S3_FORCE_PATH_STYLE) {
+    throw new Error("S3_FORCE_PATH_STYLE must be true in production");
+  }
+  if (
+    !Number.isInteger(config.S3_SIGNED_URL_TTL_SECONDS) ||
+    config.S3_SIGNED_URL_TTL_SECONDS < 60 ||
+    config.S3_SIGNED_URL_TTL_SECONDS > 15 * 60
+  ) {
+    throw new Error(
+      "S3_SIGNED_URL_TTL_SECONDS must be between 60 and 900 seconds in production",
+    );
+  }
+  for (const legacyEndpoint of config.S3_LEGACY_ENDPOINTS.split(",")
+    .map((value) => value.trim())
+    .filter(Boolean)) {
+    assertServiceURL("S3_LEGACY_ENDPOINTS", legacyEndpoint, [
+      "http:",
+      "https:",
+    ]);
+  }
   if (Boolean(config.S3_ACCESS_KEY) !== Boolean(config.S3_SECRET_KEY)) {
     throw new Error(
       "S3_ACCESS_KEY and S3_SECRET_KEY must either both be set or both be omitted for workload identity",

@@ -22,7 +22,8 @@ function productionEnv(overrides: Partial<Env> = {}): Env {
     S3_ENDPOINT: "https://account.r2.cloudflarestorage.com",
     S3_ACCESS_KEY: "R2LIVEACCESSKEY123",
     S3_SECRET_KEY: "r2-live-secret-key-456",
-    S3_BUCKET: "inbox-media",
+    S3_BUCKET: "whatsapp-media",
+    S3_REGION: "auto",
     MEILISEARCH_URL: "https://search.acme.test",
     MEILISEARCH_API_KEY: "meili-live-key-123",
     RATE_LIMIT_ENABLED: true,
@@ -83,7 +84,7 @@ describe("production environment validation", () => {
   test.each([
     ["DATABASE_URL", "postgresql://postgres:strong@localhost:5432/inbox"],
     ["NATS_URL", "nats://127.0.0.1:4222"],
-    ["S3_ENDPOINT", "http://localhost:4450"],
+    ["S3_ENDPOINT", "https://localhost:4450"],
     ["MEILISEARCH_URL", "http://[::1]:7700"],
     ["CENTRIFUGO_API_URL", "http://localhost:4451/api"],
     ["CENTRIFUGO_HEALTH_URL", "http://localhost:4451/health"],
@@ -102,11 +103,30 @@ describe("production environment validation", () => {
     );
   });
 
-  test("rejects an incomplete S3 credential pair", () => {
+  test("rejects unsafe production object-storage signing configuration", () => {
     expectInvalid(
       { S3_ACCESS_KEY: "", S3_SECRET_KEY: "configured-secret" },
       /must either both be set or both be omitted/,
     );
+    expectInvalid({ S3_ENDPOINT: "http://storage.acme.test" }, /https/i);
+    expectInvalid(
+      { S3_ENDPOINT: "https://account.r2.cloudflarestorage.com/path" },
+      /path-free HTTPS R2 S3 API endpoint/,
+    );
+    for (const endpoint of [
+      "https://pub.r2.dev",
+      "https://media.acme.test",
+      "https://account.r2.cloudflarestorage.com.evil.test",
+    ]) {
+      expectInvalid({ S3_ENDPOINT: endpoint }, /account R2 S3 endpoint/);
+    }
+    expectInvalid({ S3_REGION: "us-east-1" }, /must be auto/);
+    expectInvalid(
+      { S3_BUCKET: "replacement-media" },
+      /must remain whatsapp-media/,
+    );
+    expectInvalid({ S3_FORCE_PATH_STYLE: false }, /must be true/);
+    expectInvalid({ S3_SIGNED_URL_TTL_SECONDS: 901 }, /between 60 and 900/);
   });
 
   test.each([

@@ -3,6 +3,7 @@ import {
   DeleteObjectCommand,
   GetObjectCommand,
   HeadObjectCommand,
+  ListObjectsV2Command,
   PutObjectCommand,
   S3Client,
 } from "@aws-sdk/client-s3";
@@ -21,10 +22,84 @@ const s3Client = new S3Client({
           secretAccessKey: env.S3_SECRET_KEY,
         }
       : undefined,
-  forcePathStyle: true, // Required for MinIO
+  // R2's S3 API and MinIO both support path-style requests. Keeping this
+  // explicit makes signatures and stable bucket/key parsing provider-neutral.
+  forcePathStyle: env.S3_FORCE_PATH_STYLE,
 });
 
 const BUCKET = env.S3_BUCKET;
+const MAX_SIGNED_BIGINT = 9_223_372_036_854_775_807n;
+
+export type MediaUsagePage = {
+  contents: Array<{ key: string; size: number }>;
+  truncated: boolean;
+  nextToken?: string;
+};
+
+export async function aggregateTenantMediaUsage(
+  tenantPrefix: string,
+  loadPage: (token?: string) => Promise<MediaUsagePage>,
+): Promise<{ bytes: bigint; objects: bigint }> {
+  let bytes = 0n;
+  let objects = 0n;
+  let token: string | undefined;
+  const seen = new Set<string>();
+  do {
+    const page = await loadPage(token);
+    for (const object of page.contents) {
+      if (!object.key.startsWith(tenantPrefix))
+        throw new Error("Storage returned an object outside the tenant prefix");
+      if (!Number.isSafeInteger(object.size) || object.size < 0)
+        throw new Error("Storage returned an unsafe object size");
+      const size = BigInt(object.size);
+      if (bytes > MAX_SIGNED_BIGINT - size || objects === MAX_SIGNED_BIGINT)
+        throw new Error("Media usage exceeds bigint range");
+      bytes += size;
+      objects += 1n;
+    }
+    const next = page.truncated ? page.nextToken : undefined;
+    if (page.truncated && !next)
+      throw new Error("Storage pagination token is missing");
+    if (next && (next === token || seen.has(next)))
+      throw new Error("Storage pagination did not advance");
+    if (next) seen.add(next);
+    token = next;
+  } while (token);
+  return { bytes, objects };
+}
+
+/** Authoritative current object usage for a tenant prefix (MinIO/R2/S3). */
+export async function getTenantMediaUsage(
+  companyId: string,
+): Promise<{ bytes: bigint; objects: bigint }> {
+  if (
+    !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+      companyId,
+    )
+  ) {
+    throw new Error("Invalid company ID");
+  }
+  const prefix = `media/${companyId}/`;
+  return aggregateTenantMediaUsage(prefix, async (continuationToken) => {
+    const page = await s3Client.send(
+      new ListObjectsV2Command({
+        Bucket: BUCKET,
+        Prefix: prefix,
+        ...(continuationToken ? { ContinuationToken: continuationToken } : {}),
+      }),
+    );
+    return {
+      contents: (page.Contents ?? []).map((object) => ({
+        key: object.Key ?? "",
+        size: object.Size ?? -1,
+      })),
+      truncated: page.IsTruncated ?? false,
+      ...(page.NextContinuationToken
+        ? { nextToken: page.NextContinuationToken }
+        : {}),
+    };
+  });
+}
 
 /**
  * Get file extension from MIME type
@@ -153,14 +228,20 @@ export async function deleteMedia(key: string): Promise<void> {
 /** Generate a short-lived URL for private media access. */
 export async function getPresignedUrl(
   key: string,
-  expiresIn: number = 5 * 60,
+  expiresIn: number = env.S3_SIGNED_URL_TTL_SECONDS,
 ): Promise<string> {
+  if (!Number.isInteger(expiresIn) || expiresIn <= 0) {
+    throw new Error("Signed URL expiry must be a positive integer");
+  }
+  // Callers cannot accidentally turn private media references into durable
+  // bearer URLs. Production validation caps the configured maximum at 15 min.
+  const signedExpiry = Math.min(expiresIn, env.S3_SIGNED_URL_TTL_SECONDS);
   const command = new GetObjectCommand({
     Bucket: BUCKET,
     Key: key,
   });
 
-  return await getSignedUrl(s3Client, command, { expiresIn });
+  return await getSignedUrl(s3Client, command, { expiresIn: signedExpiry });
 }
 
 export interface MediaObjectReference {
@@ -198,8 +279,14 @@ export function resolveMediaKeyForCompany(
     }
     encodedKey = url.pathname.replace(/^\/+/, "");
   } else {
-    const endpoint = new URL(env.S3_ENDPOINT);
-    if (url.origin !== endpoint.origin) {
+    const endpoints = [env.S3_ENDPOINT, ...env.S3_LEGACY_ENDPOINTS.split(",")]
+      .map((value) => value.trim())
+      .filter(Boolean)
+      .map((value) => new URL(value));
+    const endpoint = endpoints.find(
+      (candidate) => url.origin === candidate.origin,
+    );
+    if (!endpoint) {
       throw new Error("Media URL is not from configured object storage");
     }
     const endpointPath = endpoint.pathname.replace(/\/$/, "");

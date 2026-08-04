@@ -17,11 +17,16 @@ x-app-environment: &app-environment
   POSTGRES_DB: ${POSTGRES_DB:?set POSTGRES_DB}
   POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
   NATS_TOKEN_FILE: /run/secrets/nats_token
-  S3_ENDPOINT: https://${MEDIA_DOMAIN:?set MEDIA_DOMAIN}
+  # R2 S3 API endpoint, not an R2 public/custom domain. The bucket remains private.
+  S3_ENDPOINT: ${S3_ENDPOINT:?set R2 S3 endpoint}
   S3_ACCESS_KEY_FILE: /run/secrets/s3_access_key
   S3_SECRET_KEY_FILE: /run/secrets/s3_secret_key
   S3_BUCKET: ${S3_BUCKET:?set S3_BUCKET}
-  S3_REGION: ${S3_REGION:?set S3_REGION}
+  S3_REGION: ${S3_REGION:-auto}
+  S3_FORCE_PATH_STYLE: "true"
+  S3_LEGACY_ENDPOINTS: ${S3_LEGACY_ENDPOINTS:-}
+  S3_SIGNED_URL_TTL_SECONDS: ${S3_SIGNED_URL_TTL_SECONDS:-300}
+  STORAGE_CREATE_BUCKET_IF_MISSING: "false"
   LOG_LEVEL: ${LOG_LEVEL:-info}
 
 services:
@@ -179,8 +184,6 @@ services:
         condition: service_healthy
       meilisearch:
         condition: service_healthy
-      minio-init:
-        condition: service_completed_successfully
       centrifugo:
         condition: service_healthy
     read_only: true
@@ -220,8 +223,6 @@ services:
         condition: service_completed_successfully
       nats:
         condition: service_healthy
-      minio-init:
-        condition: service_completed_successfully
     read_only: true
     tmpfs: [/tmp]
     healthcheck:
@@ -344,37 +345,6 @@ services:
       interval: 10s
       timeout: 5s
       retries: 10
-
-  minio-init:
-    <<: *service-defaults
-    restart: "no"
-    image: minio/mc:RELEASE.2025-04-16T18-13-26Z
-    entrypoint: ["/bin/sh", "-ec"]
-    command:
-      - |
-        mc alias set local http://minio:9000 "$$(cat /run/secrets/minio_root_user)" "$$(cat /run/secrets/minio_root_password)"
-        mc mb --ignore-existing "local/$${S3_BUCKET}"
-        mc anonymous set none "local/$${S3_BUCKET}"
-        cat >/tmp/media-policy.json <<EOF
-        {"Version":"2012-10-17","Statement":[{"Effect":"Allow","Action":["s3:GetBucketLocation","s3:ListBucket"],"Resource":["arn:aws:s3:::$${S3_BUCKET}"]},{"Effect":"Allow","Action":["s3:GetObject","s3:PutObject","s3:DeleteObject"],"Resource":["arn:aws:s3:::$${S3_BUCKET}/*"]}]}
-        EOF
-        mc admin policy create local wateaminbox-media /tmp/media-policy.json
-        mc admin user info local "$$(cat /run/secrets/s3_access_key)" >/dev/null 2>&1 || mc admin user add local "$$(cat /run/secrets/s3_access_key)" "$$(cat /run/secrets/s3_secret_key)"
-        mc admin policy attach local wateaminbox-media --user "$$(cat /run/secrets/s3_access_key)"
-    environment:
-      S3_BUCKET: ${S3_BUCKET:?set S3_BUCKET}
-      MC_CONFIG_DIR: /tmp/.mc
-    secrets:
-      - minio_root_user
-      - minio_root_password
-      - s3_access_key
-      - s3_secret_key
-    networks: [data]
-    depends_on:
-      minio:
-        condition: service_healthy
-    read_only: true
-    tmpfs: [/tmp]
 
 networks:
   edge:
