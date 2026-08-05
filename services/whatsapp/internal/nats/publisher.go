@@ -142,8 +142,11 @@ func NewPublisher(cfg PublisherConfig) (*Publisher, error) {
 		return nil, fmt.Errorf("failed to get JetStream context: %w", err)
 	}
 
-	// Ensure the stream exists using shared helper
-	if err := sharednats.EnsureStream(js, sharednats.DefaultEventsStreamConfig()); err != nil {
+	// Ensure the stream and the API's durable consumer exist using shared
+	// helpers. The consumer must exist before the first publish: the events
+	// stream uses interest retention, which discards messages no consumer
+	// filters for.
+	if err := sharednats.EnsureEventsStream(js); err != nil {
 		nc.Close()
 		return nil, fmt.Errorf("failed to ensure stream: %w", err)
 	}

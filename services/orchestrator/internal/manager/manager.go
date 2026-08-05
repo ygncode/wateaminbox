@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"math/rand/v2"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -744,13 +745,48 @@ func (m *Manager) handleWorkerFailure(connectionID, reason string) {
 	}
 }
 
-// scheduleRestart schedules a worker restart with exponential backoff.
-func (m *Manager) scheduleRestart(worker *WorkerProcess, reason string) {
-	// Exponential backoff: 5s, 10s, 20s, 40s, 80s (capped at 2 minutes)
-	backoff := m.config.AutoRestartBackoff * time.Duration(1<<worker.RestartCount)
-	if backoff > 2*time.Minute {
-		backoff = 2 * time.Minute
+const (
+	// maxRestartBackoff caps the exponential restart delay.
+	maxRestartBackoff = 2 * time.Minute
+	// restartJitterFraction is how much of the nominal backoff the jitter may
+	// subtract, so a delay lands anywhere in the last (1-fraction) of the
+	// window: 2.5s-5s for a 5s backoff.
+	restartJitterFraction = 0.5
+)
+
+// applyRestartJitter spreads a restart delay across
+// (backoff-spread, backoff] so that workers which failed together do not
+// reconnect on the same second.
+//
+// Without it, every worker recovered after an orchestrator restart sits at
+// RestartCount 0 and therefore computes an identical backoff, so they all
+// reconnect to WhatsApp in the same instant — a self-inflicted thundering herd
+// against both the orchestrator's spawn path and WhatsApp's servers.
+//
+// The jitter only subtracts. Widening the window in both directions would push
+// delays past maxRestartBackoff, and clamping those back to the ceiling would
+// land a share of the workers on exactly the same delay again — reintroducing
+// the synchronisation this exists to break.
+func applyRestartJitter(backoff time.Duration) time.Duration {
+	spread := time.Duration(float64(backoff) * restartJitterFraction)
+	if spread <= 0 {
+		return backoff
 	}
+
+	return backoff - time.Duration(rand.Int64N(int64(spread)))
+}
+
+// scheduleRestart schedules a worker restart with exponential backoff and
+// jitter.
+func (m *Manager) scheduleRestart(worker *WorkerProcess, reason string) {
+	// Exponential ceiling on the default 5s base: 5s, 10s, 20s, 40s, 80s
+	// (capped at 2 minutes). Jitter then pulls the actual delay down into the
+	// upper half of that window.
+	backoff := m.config.AutoRestartBackoff * time.Duration(1<<worker.RestartCount)
+	if backoff > maxRestartBackoff {
+		backoff = maxRestartBackoff
+	}
+	backoff = applyRestartJitter(backoff)
 
 	log.Printf("Scheduling restart for %s in %v (attempt %d/%d, reason: %s)",
 		worker.ConnectionID, backoff, worker.RestartCount+1, m.config.AutoRestartMaxRetries, reason)

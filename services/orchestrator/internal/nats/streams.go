@@ -25,8 +25,8 @@ func (c *Client) CreateStreams() error {
 		return fmt.Errorf("failed to create commands stream: %w", err)
 	}
 
-	// Create events stream using shared config
-	if err := sharednats.EnsureStream(js, sharednats.DefaultEventsStreamConfig()); err != nil {
+	// Create events stream (with the API's durable consumer) using shared config
+	if err := sharednats.EnsureEventsStream(js); err != nil {
 		return fmt.Errorf("failed to create events stream: %w", err)
 	}
 
