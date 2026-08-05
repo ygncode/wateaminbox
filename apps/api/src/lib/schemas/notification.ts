@@ -58,12 +58,23 @@ export const muteContactSchema = z.object({
 export type MuteContactInput = z.infer<typeof muteContactSchema>;
 
 /**
+ * Boolean flag arriving as a query-string value.
+ *
+ * `z.coerce.boolean()` is wrong here: it applies JavaScript truthiness, so the
+ * literal string "false" that clients send for a disabled flag becomes `true`.
+ * Only the affirmative spellings enable the flag; everything else disables it.
+ */
+const queryBooleanSchema = z
+  .union([z.boolean(), z.enum(["true", "false", "1", "0", ""])])
+  .transform((value) => value === true || value === "true" || value === "1");
+
+/**
  * Schema for listing notifications query parameters
  */
 export const listNotificationsQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).optional().default(20),
   offset: z.coerce.number().int().min(0).optional().default(0),
-  unreadOnly: z.coerce.boolean().optional().default(false),
+  unreadOnly: queryBooleanSchema.optional().default(false),
 });
 
 export type ListNotificationsQuery = z.infer<

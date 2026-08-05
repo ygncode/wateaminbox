@@ -4,6 +4,7 @@
  */
 
 import { fetchWithAuth, buildQueryString } from "./client.js";
+import { buildNotificationListQuery } from "./notification-query.js";
 import type {
   NotificationPreferencesResponse,
   UpdateNotificationPreferencesInput,
@@ -90,7 +91,7 @@ export async function unsubscribeFromPush(
 export async function getNotifications(
   params: NotificationListParams = {},
 ): Promise<NotificationListResponse> {
-  const query = buildQueryString(params as Record<string, unknown>);
+  const query = buildQueryString(buildNotificationListQuery(params));
   return fetchWithAuth<NotificationListResponse>(`/notifications${query}`);
 }
 
