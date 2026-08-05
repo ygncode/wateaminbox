@@ -121,10 +121,14 @@ export function NotificationsPage() {
   const showSkeleton = isLoadingNotifications;
   const showEmpty = !showSkeleton && !error && notifications.length === 0;
 
+  // The page is a container: every width decision below is made against the
+  // shell's content area rather than the viewport, so collapsing the workspace
+  // rail actually widens the inbox instead of opening dead gutters beside a
+  // fixed-width column.
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden bg-[#f5f7f4] dark:bg-dark-primary">
+    <div className="@container flex h-full min-h-0 flex-col overflow-hidden bg-[#f5f7f4] dark:bg-dark-primary">
       <header className="shrink-0 border-b border-[#dce3de] bg-white px-4 py-3 dark:border-dark-border dark:bg-dark-secondary sm:px-6">
-        <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center gap-3">
+        <div className="flex w-full flex-wrap items-center gap-3">
           <div className="grid size-9 shrink-0 place-items-center rounded-xl bg-[#dcefe7] text-[#075c41] dark:bg-emerald-950/60 dark:text-emerald-300">
             <Bell className="size-[18px]" aria-hidden="true" />
           </div>
@@ -180,8 +184,10 @@ export function NotificationsPage() {
         </div>
       </header>
 
-      <div className="min-h-0 flex-1 overflow-hidden p-3 sm:p-4">
-        <div className="mx-auto flex h-full min-h-0 w-full max-w-6xl gap-4">
+      {/* Padding matches the header's so the list card and the page title share
+          one left edge at every width. */}
+      <div className="min-h-0 flex-1 overflow-hidden px-4 py-3 sm:px-6 sm:py-4">
+        <div className="flex h-full min-h-0 w-full gap-4">
           <section className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-xl border border-[#dce3de] bg-white shadow-sm dark:border-dark-border dark:bg-dark-secondary">
             <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-[#e6ebe7] px-3 py-2.5 dark:border-dark-border sm:px-4">
               <div
@@ -315,7 +321,9 @@ export function NotificationsPage() {
             )}
           </section>
 
-          <aside className="hidden w-72 shrink-0 flex-col gap-4 xl:flex">
+          {/* Keyed to the content area, not the viewport: the summary rail
+              appears when there is genuinely room for it beside the list. */}
+          <aside className="@5xl:flex hidden w-72 shrink-0 flex-col gap-4">
             <div className="rounded-xl border border-[#dce3de] bg-white p-4 shadow-sm dark:border-dark-border dark:bg-dark-secondary">
               <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[#7a8881] dark:text-dark-text-secondary">
                 Waiting on you
