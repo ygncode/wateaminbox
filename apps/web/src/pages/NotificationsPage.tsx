@@ -1,214 +1,380 @@
-import { formatStatusTime } from "@wateaminbox/shared";
 import {
   Bell,
-  Check,
   CheckCheck,
   ChevronLeft,
   ChevronRight,
-  Trash2,
+  RefreshCw,
+  Settings2,
 } from "lucide-react";
-import { useState } from "react";
-import { useNavigate } from "react-router";
+import { useNavigate, useSearchParams } from "react-router";
+import {
+  NotificationEmptyState,
+  NotificationErrorState,
+  NotificationGroups,
+  NotificationListSkeleton,
+} from "@/components/notifications/NotificationList";
+import {
+  describeNotificationView,
+  getNotificationPageRange,
+  getNotificationVisual,
+  type NotificationFilter,
+  parseNotificationFilter,
+  summarizeNotificationTypes,
+} from "@/components/notifications/notification-presentation";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import { useWorkspace } from "@/contexts/workspace-context";
 import { useNotificationCenter } from "@/hooks/notification";
+import type { InAppNotification } from "@/lib/api/types";
 import { navigateToNotificationTarget } from "@/lib/notification-navigation";
 import { cn } from "@/lib/utils";
+import { workspacePath } from "@/lib/workspace-routes";
 
 const PAGE_SIZE = 25;
 
+const FILTER_TABS: { id: NotificationFilter; label: string }[] = [
+  { id: "all", label: "All" },
+  { id: "unread", label: "Unread" },
+];
+
+/**
+ * Activity Inbox: the full-page view of workspace notifications.
+ *
+ * The list is unfiltered by default — read notifications included — and the
+ * unread view is an explicit, server-backed filter kept in the URL alongside
+ * the page number, so a view can be linked and restored.
+ */
 export function NotificationsPage() {
   const navigate = useNavigate();
   const { activeWorkspaceId } = useWorkspace();
-  const [offset, setOffset] = useState(0);
-  const [unreadOnly, setUnreadOnly] = useState(false);
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  const filter = parseNotificationFilter(searchParams.get("filter"));
+  const page = Math.max(0, Math.floor(Number(searchParams.get("page")) || 0));
+  const offset = page * PAGE_SIZE;
+
   const controller = useNotificationCenter({
     limit: PAGE_SIZE,
     offset,
-    unreadOnly,
+    // Absent unless the unread view is chosen: "all" must never be a filter.
+    unreadOnly: filter === "unread" ? true : undefined,
   });
 
+  const {
+    notifications,
+    total,
+    unreadCount,
+    hasMore,
+    error,
+    isLoadingNotifications,
+    isFetching,
+    isMarkingAllAsRead,
+  } = controller;
+
+  const range = getNotificationPageRange(offset, notifications.length, total);
+  const typeCounts = summarizeNotificationTypes(notifications);
+  const settingsPath = activeWorkspaceId
+    ? workspacePath(activeWorkspaceId, "settings", "notifications")
+    : "/settings/notifications";
+
+  const updateParams = (
+    apply: (next: URLSearchParams) => void,
+    { resetPage = false } = {},
+  ) => {
+    setSearchParams(
+      (current) => {
+        const next = new URLSearchParams(current);
+        apply(next);
+        if (resetPage) next.delete("page");
+        return next;
+      },
+      { replace: true },
+    );
+  };
+
+  const setFilter = (next: NotificationFilter) => {
+    updateParams(
+      (params) => {
+        if (next === "all") params.delete("filter");
+        else params.set("filter", next);
+      },
+      { resetPage: true },
+    );
+  };
+
+  const setPage = (next: number) => {
+    updateParams((params) => {
+      if (next <= 0) params.delete("page");
+      else params.set("page", String(next));
+    });
+  };
+
+  const openNotification = (notification: InAppNotification) => {
+    if (!notification.isRead) controller.markAsRead(notification.id);
+    navigateToNotificationTarget(
+      notification.actionUrl,
+      navigate,
+      activeWorkspaceId,
+    );
+  };
+
+  const showSkeleton = isLoadingNotifications;
+  const showEmpty = !showSkeleton && !error && notifications.length === 0;
+
   return (
-    <main className="h-full overflow-y-auto bg-gray-50 px-4 py-8 dark:bg-dark-primary sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-3xl">
-        <header className="mb-6 flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <p className="mb-1 text-xs font-semibold uppercase tracking-[0.16em] text-whatsapp-dark-green">
-              Activity inbox
-            </p>
-            <h1 className="text-2xl font-semibold text-gray-950 dark:text-dark-text-primary">
-              Notifications
-            </h1>
-            <p className="mt-1 text-sm text-gray-500 dark:text-dark-text-secondary">
-              {controller.unreadCount} unread in your current workspace
+    <div className="flex h-full min-h-0 flex-col overflow-hidden bg-[#f5f7f4] dark:bg-dark-primary">
+      <header className="shrink-0 border-b border-[#dce3de] bg-white px-4 py-3 dark:border-dark-border dark:bg-dark-secondary sm:px-6">
+        <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center gap-3">
+          <div className="grid size-9 shrink-0 place-items-center rounded-xl bg-[#dcefe7] text-[#075c41] dark:bg-emerald-950/60 dark:text-emerald-300">
+            <Bell className="size-[18px]" aria-hidden="true" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="text-lg font-semibold leading-none text-[#10211b] dark:text-dark-text-primary">
+                Notifications
+              </h1>
+              {unreadCount > 0 && (
+                <Badge
+                  variant="outline"
+                  className="px-2 py-0 text-[10px] tabular-nums"
+                >
+                  {unreadCount} unread
+                </Badge>
+              )}
+            </div>
+            <p className="mt-1 text-xs text-[#65736d] dark:text-dark-text-secondary">
+              {describeNotificationView({
+                filter,
+                total,
+                unreadCount,
+                isLoading: showSkeleton,
+              })}
             </p>
           </div>
-          {controller.unreadCount > 0 && (
-            <Button variant="outline" onClick={controller.markAllAsRead}>
-              <CheckCheck className="mr-2 size-4" /> Mark all as read
-            </Button>
-          )}
-        </header>
-
-        <div className="mb-3 flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-3 dark:border-dark-border dark:bg-dark-elevated">
-          <Checkbox
-            id="unread-notifications"
-            checked={unreadOnly}
-            onCheckedChange={(checked) => {
-              setUnreadOnly(Boolean(checked));
-              setOffset(0);
-            }}
-          />
-          <label
-            htmlFor="unread-notifications"
-            className="text-sm font-medium text-gray-700 dark:text-dark-text-primary"
-          >
-            Show unread only
-          </label>
-        </div>
-
-        <section className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-dark-border dark:bg-dark-elevated">
-          {controller.isLoadingNotifications ? (
-            <div className="p-12 text-center text-sm text-gray-500">
-              Loading notifications…
-            </div>
-          ) : controller.error ? (
-            <div className="p-12 text-center">
-              <p className="text-sm text-red-600">
-                Notifications could not be loaded.
-              </p>
+          <div className="flex shrink-0 items-center gap-2">
+            {unreadCount > 0 && (
               <Button
                 variant="outline"
-                className="mt-4"
-                onClick={controller.refresh}
+                size="sm"
+                className="h-9"
+                onClick={controller.markAllAsRead}
+                disabled={isMarkingAllAsRead}
               >
-                Try again
+                <CheckCheck className="mr-1.5 size-4" />
+                <span className="hidden sm:inline">
+                  {isMarkingAllAsRead ? "Marking…" : "Mark all as read"}
+                </span>
+                <span className="sm:hidden">Mark all</span>
               </Button>
-            </div>
-          ) : controller.notifications.length === 0 ? (
-            <div className="flex flex-col items-center px-6 py-16 text-center">
-              <div className="mb-4 grid size-14 place-items-center rounded-2xl bg-whatsapp-green/10 text-whatsapp-dark-green">
-                <Bell className="size-6" />
-              </div>
-              <h2 className="font-semibold text-gray-900 dark:text-dark-text-primary">
-                You’re all caught up
-              </h2>
-              <p className="mt-1 text-sm text-gray-500">
-                No notifications match this view.
-              </p>
-            </div>
-          ) : (
-            <ul className="divide-y divide-gray-100 dark:divide-dark-border">
-              {controller.notifications.map((notification) => (
-                <li key={notification.id}>
-                  <div
-                    role="button"
-                    tabIndex={0}
-                    className={cn(
-                      "group flex w-full items-start gap-4 px-5 py-4 text-left transition-colors hover:bg-gray-50 dark:hover:bg-dark-tertiary",
-                      !notification.isRead && "bg-whatsapp-green/[0.04]",
-                    )}
-                    onClick={() => {
-                      if (!notification.isRead)
-                        controller.markAsRead(notification.id);
-                      navigateToNotificationTarget(
-                        notification.actionUrl,
-                        navigate,
-                        activeWorkspaceId,
-                      );
-                    }}
-                    onKeyDown={(event) => {
-                      if (event.key !== "Enter" && event.key !== " ") return;
-                      event.preventDefault();
-                      if (!notification.isRead)
-                        controller.markAsRead(notification.id);
-                      navigateToNotificationTarget(
-                        notification.actionUrl,
-                        navigate,
-                        activeWorkspaceId,
-                      );
-                    }}
-                  >
-                    <span
+            )}
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label="Open notification settings"
+              className="size-9 rounded-lg text-[#65736d] dark:text-dark-text-secondary"
+              onClick={() => navigate(settingsPath)}
+            >
+              <Settings2 className="size-4" />
+            </Button>
+          </div>
+        </div>
+      </header>
+
+      <div className="min-h-0 flex-1 overflow-hidden p-3 sm:p-4">
+        <div className="mx-auto flex h-full min-h-0 w-full max-w-6xl gap-4">
+          <section className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-xl border border-[#dce3de] bg-white shadow-sm dark:border-dark-border dark:bg-dark-secondary">
+            <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-[#e6ebe7] px-3 py-2.5 dark:border-dark-border sm:px-4">
+              <div
+                role="group"
+                aria-label="Filter notifications"
+                className="flex items-center gap-0.5 rounded-lg border border-[#d7e0da] bg-white p-0.5 shadow-sm dark:border-dark-border dark:bg-dark-elevated"
+              >
+                {FILTER_TABS.map((tab) => {
+                  const active = filter === tab.id;
+                  return (
+                    <Button
+                      key={tab.id}
+                      variant="ghost"
+                      size="sm"
+                      aria-pressed={active}
+                      onClick={() => setFilter(tab.id)}
                       className={cn(
-                        "mt-1 size-2 shrink-0 rounded-full",
-                        notification.isRead
-                          ? "bg-gray-200 dark:bg-dark-border"
-                          : "bg-whatsapp-green",
+                        "h-8 rounded-md px-3 text-xs font-medium",
+                        active &&
+                          "bg-[#e8f1ec] text-[#075c41] dark:bg-dark-tertiary dark:text-emerald-300",
                       )}
-                    />
-                    <span className="min-w-0 flex-1">
-                      <span className="block text-sm font-semibold text-gray-900 dark:text-dark-text-primary">
-                        {notification.title}
-                      </span>
-                      {notification.message && (
-                        <span className="mt-1 block text-sm text-gray-600 dark:text-dark-text-secondary">
-                          {notification.message}
+                    >
+                      {tab.label}
+                      {tab.id === "unread" && unreadCount > 0 && (
+                        <span className="ml-1.5 grid min-w-4 place-items-center rounded-full bg-[#0b7a55] px-1 py-0.5 text-[9px] font-bold leading-none tabular-nums text-white">
+                          {unreadCount > 99 ? "99+" : unreadCount}
                         </span>
                       )}
-                      <span className="mt-2 block text-xs text-gray-400">
-                        {formatStatusTime(notification.createdAt)}
-                      </span>
-                    </span>
-                    <span className="flex shrink-0 gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100">
-                      {!notification.isRead && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          aria-label="Mark as read"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            controller.markAsRead(notification.id);
-                          }}
-                        >
-                          <Check className="size-4" />
-                        </Button>
-                      )}
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        aria-label="Delete notification"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          controller.deleteNotification(notification.id);
-                        }}
-                      >
-                        <Trash2 className="size-4 text-red-500" />
-                      </Button>
-                    </span>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
+                    </Button>
+                  );
+                })}
+              </div>
 
-        <nav
-          className="mt-4 flex items-center justify-between"
-          aria-label="Notification pages"
-        >
-          <Button
-            variant="outline"
-            disabled={offset === 0}
-            onClick={() => setOffset(Math.max(0, offset - PAGE_SIZE))}
-          >
-            <ChevronLeft className="mr-1 size-4" /> Previous
-          </Button>
-          <span className="text-xs font-medium text-gray-500">
-            {controller.total === 0 ? 0 : offset + 1}–
-            {Math.min(offset + PAGE_SIZE, controller.total)} of{" "}
-            {controller.total}
-          </span>
-          <Button
-            variant="outline"
-            disabled={!controller.hasMore}
-            onClick={() => setOffset(offset + PAGE_SIZE)}
-          >
-            Next <ChevronRight className="ml-1 size-4" />
-          </Button>
-        </nav>
+              <div className="flex items-center gap-2">
+                <p
+                  className="hidden text-[11px] text-[#7a8881] tabular-nums dark:text-dark-text-secondary sm:block"
+                  aria-live="polite"
+                >
+                  {range.end === 0
+                    ? "No results"
+                    : `Showing ${range.start}–${range.end} of ${total}`}
+                </p>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label="Refresh notifications"
+                  className="size-8 rounded-lg text-[#65736d] dark:text-dark-text-secondary"
+                  onClick={controller.refresh}
+                  disabled={isFetching}
+                >
+                  <RefreshCw
+                    className={cn("size-4", isFetching && "animate-spin")}
+                  />
+                </Button>
+              </div>
+            </div>
+
+            <div className="min-h-0 flex-1 overflow-y-auto">
+              {showSkeleton ? (
+                <NotificationListSkeleton rows={6} />
+              ) : error ? (
+                <NotificationErrorState
+                  onRetry={controller.refresh}
+                  isRetrying={isFetching}
+                />
+              ) : showEmpty ? (
+                <NotificationEmptyState
+                  filter={filter}
+                  beyondFirstPage={page > 0}
+                  action={
+                    page > 0 ? (
+                      <Button variant="outline" onClick={() => setPage(0)}>
+                        Back to the first page
+                      </Button>
+                    ) : filter === "unread" ? (
+                      <Button
+                        variant="outline"
+                        onClick={() => setFilter("all")}
+                      >
+                        View all notifications
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="outline"
+                        onClick={() => navigate(settingsPath)}
+                      >
+                        Notification settings
+                      </Button>
+                    )
+                  }
+                />
+              ) : (
+                <NotificationGroups
+                  notifications={notifications}
+                  onActivate={openNotification}
+                  onMarkAsRead={controller.markAsRead}
+                  onDelete={controller.deleteNotification}
+                />
+              )}
+            </div>
+
+            {(page > 0 || hasMore) && (
+              <nav
+                aria-label="Notification pages"
+                className="flex shrink-0 items-center justify-between gap-3 border-t border-[#e6ebe7] px-3 py-2.5 dark:border-dark-border sm:px-4"
+              >
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8"
+                  disabled={page === 0}
+                  onClick={() => setPage(page - 1)}
+                >
+                  <ChevronLeft className="mr-1 size-4" />
+                  Previous
+                </Button>
+                <span className="text-[11px] font-medium text-[#7a8881] tabular-nums dark:text-dark-text-secondary">
+                  Page {page + 1}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8"
+                  disabled={!hasMore}
+                  onClick={() => setPage(page + 1)}
+                >
+                  Next
+                  <ChevronRight className="ml-1 size-4" />
+                </Button>
+              </nav>
+            )}
+          </section>
+
+          <aside className="hidden w-72 shrink-0 flex-col gap-4 xl:flex">
+            <div className="rounded-xl border border-[#dce3de] bg-white p-4 shadow-sm dark:border-dark-border dark:bg-dark-secondary">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[#7a8881] dark:text-dark-text-secondary">
+                Waiting on you
+              </p>
+              <p className="mt-2 text-3xl font-semibold tabular-nums text-[#10211b] dark:text-dark-text-primary">
+                {unreadCount}
+              </p>
+              <p className="mt-1 text-xs text-[#65736d] dark:text-dark-text-secondary">
+                {unreadCount === 0
+                  ? "Every notification in this workspace has been read."
+                  : `Unread notification${unreadCount === 1 ? "" : "s"} across this workspace.`}
+              </p>
+              {unreadCount > 0 && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="mt-3 w-full"
+                  onClick={controller.markAllAsRead}
+                  disabled={isMarkingAllAsRead}
+                >
+                  <CheckCheck className="mr-1.5 size-4" />
+                  Mark all as read
+                </Button>
+              )}
+            </div>
+
+            {typeCounts.length > 0 && (
+              <div className="rounded-xl border border-[#dce3de] bg-white p-4 shadow-sm dark:border-dark-border dark:bg-dark-secondary">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[#7a8881] dark:text-dark-text-secondary">
+                  On this page
+                </p>
+                <ul className="mt-3 space-y-2.5">
+                  {typeCounts.map((entry) => (
+                    <li
+                      key={entry.type}
+                      className="flex items-center justify-between gap-3 text-sm"
+                    >
+                      <span className="flex min-w-0 items-center gap-2">
+                        <span
+                          className={cn(
+                            "size-2 shrink-0 rounded-full",
+                            getNotificationVisual(entry.type).dot,
+                          )}
+                        />
+                        <span className="truncate text-[#31463e] dark:text-dark-text-primary">
+                          {entry.label}
+                        </span>
+                      </span>
+                      <span className="shrink-0 tabular-nums text-[#7a8881] dark:text-dark-text-secondary">
+                        {entry.count}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </aside>
+        </div>
       </div>
-    </main>
+    </div>
   );
 }

@@ -231,6 +231,33 @@
   display: inline-block;
 }
 
+/* Side sheet entrance (notification sheet: full page on mobile, right-anchored on md+) */
+@keyframes sheet-slide-in-right {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+@keyframes sheet-scrim-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.animate-sheet-in-right {
+  animation: sheet-slide-in-right 220ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.animate-scrim-in {
+  animation: sheet-scrim-in 180ms ease-out;
+}
+
 /* Respect user's preference for reduced motion */
 @media (prefers-reduced-motion: reduce) {
   *,

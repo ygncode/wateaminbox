@@ -102,6 +102,8 @@ export function useNotificationCenter(
     isLoading: notificationsQuery.isLoading || isLoadingUnreadCount,
     isLoadingNotifications: notificationsQuery.isLoading,
     isLoadingCount: isLoadingUnreadCount,
+    /** True while any fetch is in flight, including background refetches. */
+    isFetching: notificationsQuery.isFetching,
     error: notificationsQuery.error,
     markAsRead: (id: string) => markAsReadMutation.mutate(id),
     markAllAsRead: () => markAllAsReadMutation.mutate(),
