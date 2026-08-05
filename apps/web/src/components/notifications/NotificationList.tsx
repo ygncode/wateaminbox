@@ -332,7 +332,9 @@ export function NotificationEmptyState({
     <div
       className={cn(
         "flex flex-col items-center justify-center px-6 text-center",
-        density === "compact" ? "py-14" : "py-16 sm:py-20",
+        // The full-page card runs the height of the viewport, so the message
+        // centres in it rather than clinging to the top of a tall void.
+        density === "compact" ? "py-14" : "min-h-full py-16 sm:py-20",
       )}
       data-testid="notification-empty"
     >
@@ -372,7 +374,7 @@ export function NotificationErrorState({
       role="alert"
       className={cn(
         "flex flex-col items-center justify-center px-6 text-center",
-        density === "compact" ? "py-14" : "py-16 sm:py-20",
+        density === "compact" ? "py-14" : "min-h-full py-16 sm:py-20",
       )}
       data-testid="notification-error"
     >

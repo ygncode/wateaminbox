@@ -81,6 +81,40 @@ describe("global notification architecture", () => {
     expect(page).toContain("resetPage: true");
   });
 
+  test("the Activity Inbox is sized by the shell, not the viewport", async () => {
+    const page = await readSource("../../pages/NotificationsPage.tsx");
+    // A centred fixed-width column looked settled only while the workspace
+    // rail was expanded: collapsing the rail handed the page ~150px it could
+    // not use, and it re-centred into two dead gutters instead. The page fills
+    // the content area it is given and measures itself as a container.
+    expect(page).toContain("@container");
+    expect(page).not.toContain("max-w-6xl");
+    expect(page).not.toMatch(/mx-auto[^"]*max-w-/);
+    // The summary rail appears when the list has room beside it, which is a
+    // fact about the content area rather than the window.
+    expect(page).toContain("@5xl:flex");
+    expect(page).not.toMatch(/\sxl:flex/);
+  });
+
+  test("the Activity Inbox header and list card share one left edge", async () => {
+    const page = await readSource("../../pages/NotificationsPage.tsx");
+    // Without the centring wrapper the two rows only line up if their
+    // horizontal padding matches. The header sets the scale; the list well
+    // has to follow it rather than run its own.
+    expect(page.match(/px-4 py-3[^"]*sm:px-6/g)?.length).toBe(2);
+    expect(page).not.toContain("p-3 sm:p-4");
+  });
+
+  test("the full-page empty and error states fill the list card", async () => {
+    const list = await readSource("./NotificationList.tsx");
+    // The card runs the full height of the shell, so a top-anchored message
+    // left a tall void beneath it.
+    expect(
+      list.match(/density === "compact" \? "py-14" : "min-h-full py-16/g)
+        ?.length,
+    ).toBe(2);
+  });
+
   test("the sheet and the page render notifications through one component", async () => {
     const [center, page] = await Promise.all([
       readSource("./NotificationCenter.tsx"),
