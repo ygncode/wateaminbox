@@ -11,7 +11,7 @@ import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
 import { createLogger, formatError } from "../../lib/logger.js";
 import { publishTypingCommand } from "../../lib/nats/index.js";
-import { broadcastToCompanyExcept } from "../../lib/realtime.js";
+import { broadcastToContactViewers } from "../../services/message-broadcast.service.js";
 import { authMiddleware } from "../../middleware/auth.js";
 import {
   legacyMessageSendRemoved,
@@ -118,7 +118,9 @@ actionsRoutes.post(
       );
 
       await Promise.all([
-        broadcastToCompanyExcept(companyId, eventType, payload, clientId),
+        broadcastToContactViewers(companyId, contactId, eventType, payload, {
+          excludeClientId: clientId,
+        }),
         publishTypingCommand(companyId, sessionId, contact.jid, isTyping),
       ]);
 
@@ -166,15 +168,16 @@ actionsRoutes.post(
 
     try {
       // Broadcast read event to other clients
-      await broadcastToCompanyExcept(
+      await broadcastToContactViewers(
         companyId,
+        conversationId,
         "conversation:read",
         {
           contactId: conversationId,
           readBy: user.id,
           messageIds,
         },
-        clientId,
+        { excludeClientId: clientId },
       );
 
       return c.json({

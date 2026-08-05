@@ -10,7 +10,7 @@ import {
   resolveConversationSchema,
 } from "../../lib/schemas/index.js";
 import { getRouteContext } from "../../middleware/context.js";
-import { broadcastToCompany } from "../../lib/realtime.js";
+import { broadcastToContactViewers } from "../../services/message-broadcast.service.js";
 import { createAuditLog, getClientIp } from "../../services/audit.service.js";
 import {
   getActiveCase,
@@ -107,16 +107,21 @@ stateRoutes.post(
         outcome,
         notes,
       },
-      ipAddress: getClientIp(c.req.raw.headers),
+      ipAddress: getClientIp(c),
     });
 
-    await broadcastToCompany(companyId, "conversation:updated", {
-      event: "resolved",
+    await broadcastToContactViewers(
+      companyId,
       contactId,
-      caseId: resolvedCase.id,
-      resolvedBy: user.id,
-      resolvedAt: resolvedCase.resolvedAt?.toISOString(),
-    });
+      "conversation:updated",
+      {
+        event: "resolved",
+        contactId,
+        caseId: resolvedCase.id,
+        resolvedBy: user.id,
+        resolvedAt: resolvedCase.resolvedAt?.toISOString(),
+      },
+    );
 
     return successData(c, resolvedCase);
   },
@@ -164,26 +169,31 @@ async function performManualOpenOrReopen(
       reopenedFromCaseId: newCase.reopenedFromCaseId,
       reason,
     },
-    ipAddress: getClientIp(c.req.raw.headers),
+    ipAddress: getClientIp(c),
   });
 
-  await broadcastToCompany(companyId, "conversation:updated", {
-    event: wasReopen ? "reopened" : "opened",
+  await broadcastToContactViewers(
+    companyId,
     contactId,
-    caseId: newCase.id,
-    // Field names track the ACTUAL transition (`wasReopen`), never the
-    // endpoint name - a genuine first-ever open must never be reported
-    // under reopenedBy/reopenedAt, and vice versa.
-    ...(wasReopen
-      ? {
-          reopenedBy: user.id,
-          reopenedAt: newCase.openedAt.toISOString(),
-        }
-      : {
-          openedBy: user.id,
-          openedAt: newCase.openedAt.toISOString(),
-        }),
-  });
+    "conversation:updated",
+    {
+      event: wasReopen ? "reopened" : "opened",
+      contactId,
+      caseId: newCase.id,
+      // Field names track the ACTUAL transition (`wasReopen`), never the
+      // endpoint name - a genuine first-ever open must never be reported
+      // under reopenedBy/reopenedAt, and vice versa.
+      ...(wasReopen
+        ? {
+            reopenedBy: user.id,
+            reopenedAt: newCase.openedAt.toISOString(),
+          }
+        : {
+            openedBy: user.id,
+            openedAt: newCase.openedAt.toISOString(),
+          }),
+    },
+  );
 
   return successData(c, newCase);
 }
@@ -247,14 +257,19 @@ stateRoutes.post("/:id/pending", requireMessageSendPermission, async (c) => {
         contact.custom_name || contact.push_name || contact.phone_number,
       caseId: pendingCase.id,
     },
-    ipAddress: getClientIp(c.req.raw.headers),
+    ipAddress: getClientIp(c),
   });
 
-  await broadcastToCompany(companyId, "conversation:updated", {
-    event: "pending",
+  await broadcastToContactViewers(
+    companyId,
     contactId,
-    caseId: pendingCase.id,
-  });
+    "conversation:updated",
+    {
+      event: "pending",
+      contactId,
+      caseId: pendingCase.id,
+    },
+  );
 
   return successData(c, pendingCase);
 });
@@ -288,14 +303,19 @@ stateRoutes.post("/:id/resume", requireMessageSendPermission, async (c) => {
         contact.custom_name || contact.push_name || contact.phone_number,
       caseId: openedCase.id,
     },
-    ipAddress: getClientIp(c.req.raw.headers),
+    ipAddress: getClientIp(c),
   });
 
-  await broadcastToCompany(companyId, "conversation:updated", {
-    event: "resumed",
+  await broadcastToContactViewers(
+    companyId,
     contactId,
-    caseId: openedCase.id,
-  });
+    "conversation:updated",
+    {
+      event: "resumed",
+      contactId,
+      caseId: openedCase.id,
+    },
+  );
 
   return successData(c, openedCase);
 });
@@ -343,7 +363,7 @@ stateRoutes.post("/:id/read", async (c) => {
       .execute();
   }
 
-  await broadcastToCompany(companyId, "conversation:read", {
+  await broadcastToContactViewers(companyId, contactId, "conversation:read", {
     contactId,
     unreadCount: 0,
     readBy: user.id,

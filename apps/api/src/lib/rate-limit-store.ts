@@ -96,13 +96,15 @@ interface CounterEntry {
  * Uses a Map with manual LRU tracking to limit memory usage.
  */
 export class MemoryRateLimitStore implements RateLimitStore {
+  // A Map iterates in insertion order, so re-inserting a key on access makes
+  // the Map itself the LRU list. The previous parallel array cost an O(n)
+  // indexOf + splice on every single rate-limited request (n up to maxItems,
+  // 10k by default), which is pure CPU burn on the hottest request path.
   private counters: Map<string, CounterEntry>;
-  private accessOrder: string[]; // Track access for LRU eviction
   private maxItems: number;
 
   constructor(maxItems: number = 10000) {
     this.counters = new Map();
-    this.accessOrder = [];
     this.maxItems = maxItems;
   }
 
@@ -119,9 +121,6 @@ export class MemoryRateLimitStore implements RateLimitStore {
 
     // Get or create entry
     let entry = this.counters.get(key);
-
-    // Update access order for LRU
-    this.updateAccessOrder(key);
 
     if (!entry) {
       // New entry - initialize with count of 1
@@ -140,6 +139,10 @@ export class MemoryRateLimitStore implements RateLimitStore {
         // Within window - increment count
         entry.count++;
       }
+
+      // Re-insert so this key becomes the most recently used.
+      this.counters.delete(key);
+      this.counters.set(key, entry);
     }
 
     const resetAtMs = entry.windowStart + windowMs;
@@ -160,7 +163,6 @@ export class MemoryRateLimitStore implements RateLimitStore {
    */
   async reset(key: string): Promise<void> {
     this.counters.delete(key);
-    this.accessOrder = this.accessOrder.filter((k) => k !== key);
   }
 
   /**
@@ -168,7 +170,6 @@ export class MemoryRateLimitStore implements RateLimitStore {
    */
   async clear(): Promise<void> {
     this.counters.clear();
-    this.accessOrder = [];
   }
 
   /**
@@ -179,26 +180,16 @@ export class MemoryRateLimitStore implements RateLimitStore {
   }
 
   /**
-   * Update access order for LRU tracking
-   * Moves the key to the end of the access list (most recently used)
-   */
-  private updateAccessOrder(key: string): void {
-    const index = this.accessOrder.indexOf(key);
-    if (index >= 0) {
-      this.accessOrder.splice(index, 1);
-    }
-    this.accessOrder.push(key);
-  }
-
-  /**
-   * Evict least recently used entries if we're over the limit
+   * Evict least recently used entries if we're over the limit.
+   *
+   * The Map's first key is the least recently used one, because every access
+   * re-inserts its key at the end.
    */
   private evictIfNeeded(): void {
-    while (this.counters.size > this.maxItems && this.accessOrder.length > 0) {
-      const lruKey = this.accessOrder.shift();
-      if (lruKey) {
-        this.counters.delete(lruKey);
-      }
+    while (this.counters.size > this.maxItems) {
+      const lruKey = this.counters.keys().next().value;
+      if (lruKey === undefined) return;
+      this.counters.delete(lruKey);
     }
   }
 

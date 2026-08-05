@@ -15,7 +15,7 @@ import type {
   ProfilePictureEvent,
   TypingEvent,
 } from "../../lib/nats/index.js";
-import { broadcastToCompany } from "../../lib/realtime.js";
+import { broadcastToContactViewersByJid } from "../message-broadcast.service.js";
 import { getTenantConnection } from "../tenant.service.js";
 import { handlerLogger as logger } from "./types.js";
 
@@ -255,22 +255,24 @@ export async function handleContactEvent(event: ContactEvent): Promise<void> {
       contactChanged &&
       (Boolean(syncedName) || (payload.isGroup === true && !payload.nameOnly))
     ) {
-      await broadcastToCompany(
+      await broadcastToContactViewersByJid(
         companyId,
+        contactJid,
         "contact:updated",
         { jid: contactJid, pushName: syncedName },
-        connectionId,
+        { connectionId },
       );
     }
     if (payload.profilePictureUrl !== undefined && contactChanged) {
-      await broadcastToCompany(
+      await broadcastToContactViewersByJid(
         companyId,
+        contactJid,
         "contact:profile_picture",
         {
           jid: contactJid,
           mediaAvailable: Boolean(payload.profilePictureUrl),
         },
-        connectionId,
+        { connectionId },
       );
     }
   } catch (error) {
@@ -332,14 +334,18 @@ export async function handleProfilePictureEvent(
       );
 
       // Broadcast to clients with normalized JID
-      await broadcastToCompany(
+      await broadcastToContactViewersByJid(
         companyId,
+        contactJid,
         "contact:profile_picture",
         {
           jid: contactJid,
           mediaAvailable: Boolean(profilePictureUrl),
         },
-        connectionId,
+        // A group participant may have no contact row of their own; their
+        // identity renders inside the group thread, so the viewers of the
+        // groups they belong to are the audience.
+        { connectionId, includeGroupMemberships: true },
       );
     } else {
       logger.warn(
@@ -398,15 +404,16 @@ export async function handlePresenceEvent(event: PresenceEvent): Promise<void> {
       );
 
       // Broadcast to clients with normalized JID
-      await broadcastToCompany(
+      await broadcastToContactViewersByJid(
         companyId,
+        contactJid,
         isOnline ? "presence:online" : "presence:offline",
         {
           jid: contactJid,
           isOnline,
           lastSeen: lastSeen ? toISOString(lastSeen) : undefined,
         },
-        connectionId,
+        { connectionId },
       );
     } else {
       // Contact not found - this is normal for contacts we haven't seen messages from yet
@@ -442,14 +449,15 @@ export async function handleTypingEvent(event: TypingEvent): Promise<void> {
 
   // Broadcast to clients
   // Frontend expects conversationId (JID) to match against active chat
-  await broadcastToCompany(
+  await broadcastToContactViewersByJid(
     companyId,
+    payload.chatJid || payload.from,
     payload.isTyping ? "typing:start" : "typing:stop",
     {
       conversationId: payload.chatJid || payload.from,
       userId: payload.from,
       userName: payload.from, // JID as fallback, could lookup contact name
     },
-    connectionId,
+    { connectionId },
   );
 }

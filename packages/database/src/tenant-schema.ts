@@ -1,6 +1,10 @@
 import type { Kysely } from "kysely";
 import { sql } from "kysely";
 import type { TenantDatabase } from "./client";
+import {
+  formatDuplicateBlockers,
+  reconcileTenantIndexNames,
+} from "./tenant-index-names.js";
 
 /**
  * Runtime contract for tenant tables.
@@ -1098,4 +1102,30 @@ export async function reconcileTenantSchema<Database>(
   // here; conversation_states rows are created resolved/case-free lazily
   // (contact-handlers.ts / conversation-case.service.ts), matching the
   // post-baseline steady state directly.
+
+  // Migration 062 parity. Realtime fan-out resolves "which conversations does
+  // this JID appear in" through group membership, so a newly created tenant
+  // needs this index from the start rather than only after the next migration
+  // run. The short `gp_` prefix keeps the name inside PostgreSQL's 63-byte
+  // identifier limit, which a 43-character schema name plus the full table
+  // name would exceed (and silently truncate).
+  await sql`
+    CREATE INDEX IF NOT EXISTS ${sql.ref(`${schemaName}_gp_jid_idx`)}
+    ON ${table("group_participants")} (participant_jid)
+  `.execute(db);
+
+  // Migration 063 parity. The historical index names above overflow
+  // PostgreSQL's 63-byte identifier limit once a 43-character tenant schema
+  // name is prepended, and several truncate into each other - which silently
+  // dropped four indexes, two of them UNIQUE. A newly created tenant is built
+  // by the historical setup_tenant_schema function and inherits exactly the
+  // same problem, so it has to be normalized here rather than only by the
+  // migration that fixes existing tenants.
+  //
+  // A brand-new schema has no rows, so the UNIQUE duplicate check can never
+  // block; the assertion documents that rather than silently ignoring it.
+  const indexes = await reconcileTenantIndexNames(db, schemaName);
+  if (indexes.blocked.length > 0) {
+    throw new Error(formatDuplicateBlockers(indexes.blocked));
+  }
 }

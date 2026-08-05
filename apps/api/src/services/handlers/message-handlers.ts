@@ -27,6 +27,10 @@ import {
   type SendFailedEvent,
 } from "../../lib/nats/index.js";
 import { broadcastToCompany } from "../../lib/realtime.js";
+import {
+  broadcastNewMessageToViewers,
+  broadcastToContactViewers,
+} from "../message-broadcast.service.js";
 import { broadcastAutoUnassignment } from "../assignment-broadcast.service.js";
 import { createAuditLog } from "../audit.service.js";
 import {
@@ -532,9 +536,9 @@ export async function handleMessageEvent(event: MessageEvent): Promise<void> {
     // Frontend expects { message: Message, conversationId: string }
     // Skip for history sync messages to avoid flooding during initial sync
     if (!payload.isHistorySync) {
-      await broadcastToCompany(
+      await broadcastNewMessageToViewers(
         companyId,
-        "message:new",
+        contact.id,
         {
           message: {
             id: storedMessageId,
@@ -549,7 +553,7 @@ export async function handleMessageEvent(event: MessageEvent): Promise<void> {
             status: messageStatus,
             whatsappMessageId: payload.messageId,
             // Private media URLs are issued only by visibility-checked HTTP
-            // reads; company-wide realtime channels carry update signals only.
+            // reads; realtime payloads carry update signals only.
             metadata: payload.mediaUrl ? { mediaAvailable: true } : undefined,
             replyToMessageId: payload.quotedMessageId,
             replyToMessage,
@@ -566,8 +570,9 @@ export async function handleMessageEvent(event: MessageEvent): Promise<void> {
     }
 
     if (caseResult) {
-      await broadcastToCompany(
+      await broadcastToContactViewers(
         companyId,
+        contact.id,
         "conversation:updated",
         {
           event: caseResult.wasAutoReopen ? "auto_reopened" : "opened",
@@ -575,7 +580,7 @@ export async function handleMessageEvent(event: MessageEvent): Promise<void> {
           caseId: caseResult.case.id,
           status: caseResult.case.status,
         },
-        connectionId,
+        { connectionId },
       );
 
       // The automatic reopen cleared the prior assignee inside the
@@ -760,15 +765,16 @@ export async function handleReceiptEvent(event: ReceiptEvent): Promise<void> {
     // Broadcast to clients with correct message:status format
     // Frontend expects: { conversationId, messageId (internal), status }
     if (updatedMessage?.id && updatedMessage?.contact_id) {
-      await broadcastToCompany(
+      await broadcastToContactViewers(
         companyId,
+        updatedMessage.contact_id,
         "message:status",
         {
           conversationId: updatedMessage.contact_id,
           messageId: updatedMessage.id,
           status: dbStatus,
         },
-        connectionId,
+        { connectionId },
       );
     }
   } catch (error) {
@@ -827,15 +833,16 @@ export async function handleSendConfirmationEvent(
     // Broadcast to clients with the correct payload format
     // Frontend expects: { conversationId, messageId (internal), status }
     if (updatedMessage?.id && updatedMessage?.contact_id) {
-      await broadcastToCompany(
+      await broadcastToContactViewers(
         companyId,
+        updatedMessage.contact_id,
         "message:status",
         {
           conversationId: updatedMessage.contact_id,
           messageId: updatedMessage.id,
           status: updatedMessage.status ?? "sent",
         },
-        connectionId,
+        { connectionId },
       );
     }
   } catch (error) {
@@ -894,15 +901,16 @@ export async function handleSendFailedEvent(
 
     // Broadcast message:failed event to clients
     // Frontend can show retry option
-    await broadcastToCompany(
+    await broadcastToContactViewers(
       companyId,
+      updatedMessage.contact_id,
       "message:failed",
       {
         conversationId: updatedMessage.contact_id,
         messageId: updatedMessage.id,
         reason: payload.reason,
       },
-      connectionId,
+      { connectionId },
     );
 
     // Also broadcast a toast notification for user visibility

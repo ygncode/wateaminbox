@@ -11,6 +11,7 @@ import type {
   SyncStatusEvent,
 } from "../../lib/nats/index.js";
 import { broadcastToCompany } from "../../lib/realtime.js";
+import { broadcastToContactViewers } from "../message-broadcast.service.js";
 import { getTenantConnection } from "../tenant.service.js";
 import { handlerLogger as logger } from "./types.js";
 
@@ -291,8 +292,9 @@ export async function handleDownloadResponseEvent(
         );
 
         // Broadcast to clients
-        await broadcastToCompany(
+        await broadcastToContactViewers(
           companyId,
+          updatedMessage.contact_id,
           "media:downloaded",
           {
             messageId: updatedMessage.id,
@@ -300,7 +302,7 @@ export async function handleDownloadResponseEvent(
             mediaAvailable: true,
             mediaSize: payload.mediaSize,
           },
-          connectionId,
+          { connectionId },
         );
       }
     } else {
@@ -332,15 +334,16 @@ export async function handleDownloadResponseEvent(
         .executeTakeFirst();
 
       if (message) {
-        await broadcastToCompany(
+        await broadcastToContactViewers(
           companyId,
+          message.contact_id,
           "media:download_failed",
           {
             messageId: message.id,
             conversationId: message.contact_id,
             error: payload.error,
           },
-          connectionId,
+          { connectionId },
         );
       }
     }

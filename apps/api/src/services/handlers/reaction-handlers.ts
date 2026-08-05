@@ -9,7 +9,7 @@ import type {
   MessageRevokeEvent,
   ReactionEvent,
 } from "../../lib/nats/index.js";
-import { broadcastToCompany } from "../../lib/realtime.js";
+import { broadcastToContactViewers } from "../message-broadcast.service.js";
 import { getTenantConnection } from "../tenant.service.js";
 import { handlerLogger as logger } from "./types.js";
 
@@ -81,8 +81,9 @@ export async function handleReactionEvent(event: ReactionEvent): Promise<void> {
       : undefined;
 
     // Broadcast to clients
-    await broadcastToCompany(
+    await broadcastToContactViewers(
       companyId,
+      message.contact_id,
       "message:reaction",
       {
         messageId: message.id, // Use internal message ID
@@ -95,7 +96,7 @@ export async function handleReactionEvent(event: ReactionEvent): Promise<void> {
         isOwn: reactionDetails?.isOwn,
         timestamp: payload.timestamp,
       },
-      connectionId,
+      { connectionId },
     );
   } catch (error) {
     logger.error(formatError(error), "Error handling reaction event");
@@ -151,15 +152,16 @@ export async function handleMessageRevokeEvent(
 
       if (message) {
         // Broadcast to clients
-        await broadcastToCompany(
+        await broadcastToContactViewers(
           companyId,
+          message.contact_id,
           "message:deleted",
           {
             messageId: message.id,
             conversationId: message.contact_id,
             whatsappMessageId: payload.messageId,
           },
-          connectionId,
+          { connectionId },
         );
       }
     } else {

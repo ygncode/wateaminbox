@@ -5,6 +5,58 @@
  */
 
 /**
+ * Characters that make a spreadsheet treat a cell as a formula rather than
+ * text. Exported rows carry attacker-controlled content (WhatsApp message
+ * bodies, push names, contact names), so a cell starting with one of these
+ * would execute in Excel/LibreOffice/Sheets when an operator opens the file.
+ */
+const FORMULA_TRIGGERS = new Set(["=", "+", "-", "@"]);
+
+/**
+ * Leading control characters that spreadsheets skip before deciding whether a
+ * cell is a formula, so they must be neutralized too.
+ */
+const LEADING_CONTROL_CHARS = new Set(["\t", "\r"]);
+
+/**
+ * Neutralize spreadsheet formula injection ("CSV injection").
+ *
+ * A leading apostrophe forces the cell to be read as literal text. The value
+ * itself is preserved, so re-importing the file still round-trips the visible
+ * content.
+ */
+function neutralizeFormula(value: string): string {
+  const first = value[0];
+  if (first === undefined) return value;
+  if (FORMULA_TRIGGERS.has(first) || LEADING_CONTROL_CHARS.has(first)) {
+    return `'${value}`;
+  }
+  return value;
+}
+
+/**
+ * Quote and escape a value for a CSV cell after neutralizing formulas.
+ */
+function formatCell(value: unknown): string {
+  if (value === null || value === undefined) return "";
+
+  const str = neutralizeFormula(String(value));
+
+  // Escape quotes and wrap in quotes if the value contains a delimiter,
+  // a line break, or a quote of its own.
+  if (
+    str.includes(",") ||
+    str.includes("\n") ||
+    str.includes("\r") ||
+    str.includes('"')
+  ) {
+    return `"${str.replace(/"/g, '""')}"`;
+  }
+
+  return str;
+}
+
+/**
  * Convert array of objects to CSV string
  *
  * Handles:
@@ -12,6 +64,7 @@
  * - Quote escaping
  * - Newline handling
  * - Null/undefined values
+ * - Spreadsheet formula injection in untrusted cell values
  *
  * @param data - Array of objects to convert
  * @param columns - Optional array of column names to include (defaults to all keys)
@@ -24,21 +77,10 @@ export function toCSV(
   if (data.length === 0) return "";
 
   const keys = columns || Object.keys(data[0]);
-  const header = keys.join(",");
+  const header = keys.map(formatCell).join(",");
 
   const rows = data.map((row) =>
-    keys
-      .map((key) => {
-        const value = row[key];
-        if (value === null || value === undefined) return "";
-        const str = String(value);
-        // Escape quotes and wrap in quotes if contains comma or newline
-        if (str.includes(",") || str.includes("\n") || str.includes('"')) {
-          return `"${str.replace(/"/g, '""')}"`;
-        }
-        return str;
-      })
-      .join(","),
+    keys.map((key) => formatCell(row[key])).join(","),
   );
 
   return [header, ...rows].join("\n");
@@ -51,16 +93,7 @@ export function toCSV(
  * @returns Escaped string suitable for CSV cell
  */
 export function escapeCSVCell(value: unknown): string {
-  if (value === null || value === undefined) return "";
-
-  const str = String(value);
-
-  // If contains special characters, wrap in quotes and escape internal quotes
-  if (str.includes(",") || str.includes("\n") || str.includes('"')) {
-    return `"${str.replace(/"/g, '""')}"`;
-  }
-
-  return str;
+  return formatCell(value);
 }
 
 /**
@@ -70,7 +103,7 @@ export function escapeCSVCell(value: unknown): string {
  * @returns CSV header string
  */
 export function createCSVHeader(columns: string[]): string {
-  return columns.join(",");
+  return columns.map(formatCell).join(",");
 }
 
 /**
@@ -84,5 +117,5 @@ export function createCSVRow(
   row: Record<string, unknown>,
   columns: string[],
 ): string {
-  return columns.map((key) => escapeCSVCell(row[key])).join(",");
+  return columns.map((key) => formatCell(row[key])).join(",");
 }

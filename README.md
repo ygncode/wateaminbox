@@ -93,15 +93,17 @@ Create the root environment file:
 cp .env.example .env
 ```
 
-At minimum, replace `JWT_SECRET`, `CENTRIFUGO_API_KEY`, and `CENTRIFUGO_TOKEN_HMAC_SECRET` with independent random values. The token secret must contain at least 32 characters:
+`JWT_SECRET` and `CENTRIFUGO_TOKEN_HMAC_SECRET` are required in **every** environment. The API ships no default for either and refuses to start when one is missing or blank: HS256 accepts a zero-length key, and a key committed to this repository would be equally forgeable, so a server started without `NODE_ENV=production` would otherwise issue tokens anyone could mint. Give them independent random values of at least 32 characters, and set `CENTRIFUGO_API_KEY` too:
 
-```env
-JWT_SECRET=replace-with-a-random-secret-at-least-32-characters
-CENTRIFUGO_API_KEY=replace-with-a-random-api-key
-CENTRIFUGO_TOKEN_HMAC_SECRET=replace-with-a-random-secret-at-least-32-characters
+```bash
+printf 'JWT_SECRET=%s\n' "$(openssl rand -base64 48)" >> .env
+printf 'CENTRIFUGO_TOKEN_HMAC_SECRET=%s\n' "$(openssl rand -base64 48)" >> .env
+printf 'CENTRIFUGO_API_KEY=%s\n' "$(openssl rand -base64 32)" >> .env
 ```
 
-Both Centrifugo values are server secrets and must never be exposed to the browser.
+`./dev-start.sh` performs the two signing-secret steps for you when they are absent, printing what it added. Both Centrifugo values are server secrets and must never be exposed to the browser; `docker compose` reads the same `.env`, so the Centrifugo container picks up whatever you set here.
+
+The test suite injects its own throwaway secrets (`apps/api/bunfig.toml`), so `bun test` needs no `.env`.
 
 Bun loads the root `.env` when commands are run from the repository root. If you run an app directly from its workspace directory, create an app-local ignored `.env` or export the required variables first. Common frontend values are:
 

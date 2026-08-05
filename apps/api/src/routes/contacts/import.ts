@@ -14,6 +14,12 @@ import {
   resolveImportConnection,
 } from "../../services/import/index.js";
 
+/** Upload ceiling shared by the multipart and JSON request bodies. */
+export const MAX_IMPORT_CSV_BYTES = 5 * 1024 * 1024;
+
+/** Ceiling on parsed data rows, so a dense CSV cannot outgrow the byte cap. */
+export const MAX_IMPORT_ROWS = 20_000;
+
 /**
  * Extract an optional connectionId from a form-data or JSON request value.
  * Returns undefined when absent, null when present but not a valid UUID.
@@ -24,6 +30,29 @@ function parseConnectionIdInput(value: unknown): string | null | undefined {
   }
   const parsed = uuidSchema.safeParse(value);
   return parsed.success ? parsed.data : null;
+}
+
+/**
+ * Validate a JSON-supplied `csvContent` field.
+ *
+ * The multipart path is capped by `file.size`; without the same ceiling here a
+ * caller could stream an unbounded string into memory and into `parseCSV`.
+ * The type check matters too: a non-string value reaches `parseCSV` and throws
+ * a 500 rather than being rejected as bad input.
+ */
+export function validateCsvContentInput(
+  value: unknown,
+): { ok: true; csvContent: string } | { ok: false; message: string } {
+  if (typeof value !== "string") {
+    return { ok: false, message: "csvContent must be a string" };
+  }
+  if (value.length === 0) {
+    return { ok: false, message: "csvContent is required" };
+  }
+  if (Buffer.byteLength(value, "utf8") > MAX_IMPORT_CSV_BYTES) {
+    return { ok: false, message: "CSV content must be less than 5MB" };
+  }
+  return { ok: true, csvContent: value };
 }
 
 export const importRoutes = new Hono();
@@ -87,7 +116,7 @@ importRoutes.post("/import", requireAdmin(), importRateLimiter, async (c) => {
     }
 
     // Check file size (max 5MB)
-    if (file.size > 5 * 1024 * 1024) {
+    if (file.size > MAX_IMPORT_CSV_BYTES) {
       return badRequest(c, "File size must be less than 5MB");
     }
 
@@ -98,14 +127,15 @@ importRoutes.post("/import", requireAdmin(), importRateLimiter, async (c) => {
   } else {
     // Handle JSON with CSV content
     const body = await c.req.json();
-    if (!body.csvContent) {
-      return badRequest(c, "csvContent is required");
+    const validated = validateCsvContentInput(body?.csvContent);
+    if (!validated.ok) {
+      return badRequest(c, validated.message);
     }
 
-    csvContent = body.csvContent;
-    updateExisting = body.updateExisting !== false;
-    createTags = body.createTags !== false;
-    connectionIdInput = parseConnectionIdInput(body.connectionId);
+    csvContent = validated.csvContent;
+    updateExisting = body?.updateExisting !== false;
+    createTags = body?.createTags !== false;
+    connectionIdInput = parseConnectionIdInput(body?.connectionId);
   }
 
   if (connectionIdInput === null) {
@@ -120,6 +150,12 @@ importRoutes.post("/import", requireAdmin(), importRateLimiter, async (c) => {
   const parsed = parseCSV(csvContent);
   if (parsed.length === 0) {
     return badRequest(c, "No valid data found in CSV");
+  }
+  if (parsed.length > MAX_IMPORT_ROWS) {
+    return badRequest(
+      c,
+      `CSV has too many rows. Maximum is ${MAX_IMPORT_ROWS} per import.`,
+    );
   }
 
   // Map to contact rows
@@ -178,15 +214,22 @@ importRoutes.post("/import/preview", importRateLimiter, async (c) => {
       return badRequest(c, "No file provided");
     }
 
+    // Preview is member-accessible, so it needs the same upload ceiling the
+    // admin-only import path enforces.
+    if (file.size > MAX_IMPORT_CSV_BYTES) {
+      return badRequest(c, "File size must be less than 5MB");
+    }
+
     csvContent = await file.text();
     connectionIdInput = parseConnectionIdInput(formData.get("connectionId"));
   } else {
     const body = await c.req.json();
-    if (!body.csvContent) {
-      return badRequest(c, "csvContent is required");
+    const validated = validateCsvContentInput(body?.csvContent);
+    if (!validated.ok) {
+      return badRequest(c, validated.message);
     }
-    csvContent = body.csvContent;
-    connectionIdInput = parseConnectionIdInput(body.connectionId);
+    csvContent = validated.csvContent;
+    connectionIdInput = parseConnectionIdInput(body?.connectionId);
   }
 
   if (connectionIdInput === null) {
@@ -201,6 +244,12 @@ importRoutes.post("/import/preview", importRateLimiter, async (c) => {
   const parsed = parseCSV(csvContent);
   if (parsed.length === 0) {
     return badRequest(c, "No valid data found in CSV");
+  }
+  if (parsed.length > MAX_IMPORT_ROWS) {
+    return badRequest(
+      c,
+      `CSV has too many rows. Maximum is ${MAX_IMPORT_ROWS} per import.`,
+    );
   }
 
   // Map to contact rows

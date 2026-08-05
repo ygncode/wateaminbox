@@ -1,4 +1,6 @@
 import { db } from "@wateaminbox/database";
+import type { Context } from "hono";
+import { resolveClientIp } from "../lib/client-ip.js";
 import { createLogger, formatError } from "../lib/logger.js";
 import { getTenantConnection } from "./tenant.service.js";
 
@@ -251,12 +253,13 @@ export async function getAuditActors(companyId: string): Promise<AuditActor[]> {
 }
 
 /**
- * Helper to get client IP from request
+ * Helper to get the client IP to record on an audit entry.
+ *
+ * Resolved from the verified socket peer, honoring a forwarding header only
+ * when the direct peer is a configured trusted proxy. Reading the request
+ * headers directly would let any authenticated caller forge the IP attributed
+ * to their own audited actions.
  */
-export function getClientIp(headers: Headers): string | undefined {
-  return (
-    headers.get("x-forwarded-for")?.split(",")[0].trim() ||
-    headers.get("x-real-ip") ||
-    undefined
-  );
+export function getClientIp(c: Context): string | undefined {
+  return resolveClientIp(c);
 }

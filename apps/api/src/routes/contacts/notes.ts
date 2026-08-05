@@ -110,7 +110,7 @@ notesRoutes.post(
         noteType: "shared",
         contentLength: content.length,
       },
-      ipAddress: getClientIp(c.req.raw.headers),
+      ipAddress: getClientIp(c),
     });
 
     return created(c, transformSharedNoteResponse(note));
@@ -177,7 +177,7 @@ notesRoutes.put(
         noteType: "shared",
         contentLength: content.length,
       },
-      ipAddress: getClientIp(c.req.raw.headers),
+      ipAddress: getClientIp(c),
     });
 
     return successData(c, transformSharedNoteResponse(updatedNote!));
@@ -226,7 +226,7 @@ notesRoutes.delete("/:id/notes/shared/:noteId", async (c) => {
       contactId,
       noteType: "shared",
     },
-    ipAddress: getClientIp(c.req.raw.headers),
+    ipAddress: getClientIp(c),
   });
 
   return successMessage(c, "Note deleted");

@@ -5,7 +5,7 @@ import {
   type MessageCleanupConfig,
 } from "../config/cleanup.config.js";
 import { createLogger } from "../lib/logger.js";
-import { broadcastToCompany } from "../lib/realtime.js";
+import { broadcastToContactViewers } from "./message-broadcast.service.js";
 import { getTenantConnection, tenantSchemaExists } from "./tenant.service.js";
 
 const logger = createLogger("MessageCleanup");
@@ -311,7 +311,7 @@ export async function cleanupCompanyMessages(
 
     // Send notification per contact (conversation)
     for (const [contactId, messages] of messagesByContact) {
-      await broadcastToCompany(companyId, "message:status", {
+      await broadcastToContactViewers(companyId, contactId, "message:status", {
         messageIds: messages.map((m) => m.message_id || m.id),
         status: "failed",
         error: "delivery_timeout",

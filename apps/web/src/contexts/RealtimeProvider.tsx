@@ -27,6 +27,7 @@ import {
   onConnectionStateChange,
   type RealtimeConnectionStatus,
   type RealtimeEventData,
+  type UserRealtimeEventType,
   subscribeToCompany,
   subscribeToUser,
   unsubscribeFromCompany,
@@ -74,7 +75,7 @@ export interface RealtimeContextValue {
   // Event subscription
   subscribe: <T>(eventType: string, handler: EventHandler<T>) => () => void;
   subscribeUser: <T>(
-    eventType: "notification:new",
+    eventType: UserRealtimeEventType,
     handler: EventHandler<T>,
   ) => () => void;
 
@@ -333,7 +334,7 @@ export function RealtimeProvider({
 
   const subscribeUser = useCallback(
     <T,>(
-      eventType: "notification:new",
+      eventType: UserRealtimeEventType,
       handler: EventHandler<T>,
     ): (() => void) =>
       bindUserEvent(eventType, (data: RealtimeEventData<T>) =>

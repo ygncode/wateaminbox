@@ -130,3 +130,81 @@ describe("new tenant schema contract", () => {
     },
   );
 });
+
+/**
+ * Realtime fan-out for contact-identity events resolves "which conversations
+ * does this JID appear in" from group membership. Without this index that is a
+ * sequential scan on every profile-picture event, so a newly created tenant
+ * has to get it from `reconcileTenantSchema` - not only after the next
+ * migration run.
+ */
+describe("group membership lookup is indexed", () => {
+  integrationTest(
+    "a newly created tenant has the participant_jid index",
+    async () => {
+      const companyId = crypto.randomUUID();
+      const schemaName = getSchemaName(companyId);
+
+      try {
+        await createTenantSchema(companyId);
+
+        const indexes = await sql<{ indexname: string; indexdef: string }>`
+          SELECT indexname, indexdef
+          FROM pg_indexes
+          WHERE schemaname = ${schemaName}
+            AND tablename = 'group_participants'
+        `.execute(db);
+
+        const jidIndex = indexes.rows.find((row) =>
+          row.indexdef.includes("participant_jid"),
+        );
+        expect(jidIndex).toBeDefined();
+        // PostgreSQL truncates identifiers at 63 bytes; a collision there
+        // would silently leave only one of several indexes created.
+        expect(jidIndex?.indexname.length).toBeLessThanOrEqual(63);
+        expect(jidIndex?.indexname).toBe(`${schemaName}_gp_jid_idx`);
+      } finally {
+        await dropTenantSchema(companyId);
+      }
+    },
+  );
+
+  integrationTest(
+    "a tenant created by the historical function gains it on reconcile",
+    async () => {
+      // Models an existing tenant that predates migration 062.
+      const companyId = crypto.randomUUID();
+      const schemaName = getSchemaName(companyId);
+
+      try {
+        await sql`SELECT setup_tenant_schema(${schemaName})`.execute(db);
+        const before = await sql<{ indexname: string }>`
+          SELECT indexname FROM pg_indexes
+          WHERE schemaname = ${schemaName}
+            AND indexname = ${`${schemaName}_gp_jid_idx`}
+        `.execute(db);
+        expect(before.rows).toHaveLength(0);
+
+        await reconcileTenantSchema(db, schemaName);
+
+        const after = await sql<{ indexname: string }>`
+          SELECT indexname FROM pg_indexes
+          WHERE schemaname = ${schemaName}
+            AND indexname = ${`${schemaName}_gp_jid_idx`}
+        `.execute(db);
+        expect(after.rows).toHaveLength(1);
+
+        // Reconcile must stay idempotent - it runs on every tenant creation.
+        await reconcileTenantSchema(db, schemaName);
+        const again = await sql<{ indexname: string }>`
+          SELECT indexname FROM pg_indexes
+          WHERE schemaname = ${schemaName}
+            AND indexname = ${`${schemaName}_gp_jid_idx`}
+        `.execute(db);
+        expect(again.rows).toHaveLength(1);
+      } finally {
+        await dropTenantSchema(companyId);
+      }
+    },
+  );
+});

@@ -11,7 +11,7 @@ import { Hono } from "hono";
 import { badRequest, notFound } from "../../lib/errors.js";
 import { createLogger, formatError } from "../../lib/logger.js";
 import { rateLimitConfig, rateLimitStore } from "../../lib/rate-limit-store.js";
-import { broadcastToCompany } from "../../lib/realtime.js";
+import { broadcastToContactViewers } from "../../services/message-broadcast.service.js";
 import {
   listScheduledMessagesQuerySchema,
   SCHEDULE_MAX_HORIZON_MS,
@@ -200,11 +200,16 @@ scheduledRoutes.post(
       body.mediaUrl || null,
     );
 
-    await broadcastToCompany(companyId, "scheduled_message:updated", {
-      scheduledMessageId: row.id,
-      conversationId: body.contactId,
-      status: "scheduled",
-    });
+    await broadcastToContactViewers(
+      companyId,
+      body.contactId,
+      "scheduled_message:updated",
+      {
+        scheduledMessageId: row.id,
+        conversationId: body.contactId,
+        status: "scheduled",
+      },
+    );
 
     return c.json({
       success: true,
@@ -305,11 +310,16 @@ scheduledRoutes.delete(
       await cleanupScheduledMediaObject(tenantDb, companyId, id, row.media_url);
     }
 
-    await broadcastToCompany(companyId, "scheduled_message:updated", {
-      scheduledMessageId: id,
-      conversationId: row.contact_id,
-      status: "canceled",
-    });
+    await broadcastToContactViewers(
+      companyId,
+      row.contact_id,
+      "scheduled_message:updated",
+      {
+        scheduledMessageId: id,
+        conversationId: row.contact_id,
+        status: "canceled",
+      },
+    );
 
     return c.json({ success: true });
   },

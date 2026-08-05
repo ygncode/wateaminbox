@@ -116,7 +116,7 @@ settingsRoutes.patch(
         newDescription: description,
         operation: "update_settings",
       },
-      ipAddress: getClientIp(c.req.raw.headers),
+      ipAddress: getClientIp(c),
     });
 
     return successWithMessage(c, "Group settings updated", {

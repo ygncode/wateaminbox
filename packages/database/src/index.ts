@@ -9,6 +9,21 @@ export {
   TENANT_SCHEMA_CONTRACT,
 } from "./tenant-schema";
 export type { TenantSchemaContractIsComplete } from "./tenant-schema";
+export {
+  formatDuplicateBlockers,
+  legacyIdentifier,
+  PG_IDENTIFIER_MAX_BYTES,
+  reconcileTenantIndexNames,
+  targetIdentifier,
+  TENANT_INDEX_TARGETS,
+  TENANT_SCHEMA_NAME_LENGTH,
+  TENANT_SUFFIX_BUDGET,
+} from "./tenant-index-names";
+export type {
+  DuplicateBlocker,
+  TenantIndexReconcileResult,
+  TenantIndexTarget,
+} from "./tenant-index-names";
 
 // Re-export types from shared package for convenience
 export type {

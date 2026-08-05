@@ -13,9 +13,14 @@ import { escapeHtml } from "../lib/security.js";
 
 export const feedbackRoutes = new Hono();
 
+// Unauthenticated endpoint, so the body is bounded: without a maximum, one
+// request can push an arbitrarily large payload through the mail transport.
 const feedbackSchema = z.object({
-  message: z.string().min(10, "Message must be at least 10 characters"),
-  email: z.string().email("Invalid email format").optional(),
+  message: z
+    .string()
+    .min(10, "Message must be at least 10 characters")
+    .max(5000, "Message must be at most 5000 characters"),
+  email: z.string().email("Invalid email format").max(254).optional(),
 });
 
 /**

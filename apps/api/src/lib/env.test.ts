@@ -1,5 +1,11 @@
 import { describe, expect, test } from "bun:test";
-import { type Env, env, validateProductionEnv } from "./env.js";
+import { readFileSync } from "node:fs";
+import {
+  type Env,
+  env,
+  validateProductionEnv,
+  validateSigningSecrets,
+} from "./env.js";
 
 function productionEnv(overrides: Partial<Env> = {}): Env {
   return {
@@ -220,6 +226,113 @@ describe("production environment validation", () => {
         RATE_LIMIT_REDIS_URL: "redis://default:password@cache.acme.test:6379",
       },
       /development Redis credentials/,
+    );
+  });
+});
+
+/**
+ * HS256 accepts a zero-length key, so an empty signing secret is not a loud
+ * failure - it silently makes every issued token forgeable. A process that
+ * merely forgot to set NODE_ENV must therefore still refuse to start.
+ */
+describe("signing secrets are validated in every environment", () => {
+  function nonProductionEnv(overrides: Partial<Env> = {}): Env {
+    return {
+      ...env,
+      NODE_ENV: "development",
+      JWT_SECRET: "an-explicitly-supplied-local-secret-123456789",
+      CENTRIFUGO_TOKEN_HMAC_SECRET:
+        "a-distinct-explicitly-supplied-local-secret-987654321",
+      ...overrides,
+    };
+  }
+
+  test("explicitly supplied local secrets start cleanly", () => {
+    expect(() => validateSigningSecrets(nonProductionEnv())).not.toThrow();
+  });
+
+  test("the signing secrets ship with no built-in default", () => {
+    // A published development key is not a safeguard: a server that forgot
+    // NODE_ENV would run with a key anyone can read out of this repository.
+    // The suite injects its own via bunfig.toml preload, so the only way this
+    // can pass is if the value came from outside lib/env.ts.
+    const source = readFileSync(
+      new URL("./env.ts", import.meta.url).pathname,
+      "utf8",
+    );
+    expect(source).toContain('getEnv("JWT_SECRET", "")');
+    expect(source).toContain('getEnv("CENTRIFUGO_TOKEN_HMAC_SECRET", "")');
+    expect(source).not.toMatch(/JWT_SECRET",\s*\n?\s*isProduction \?/);
+  });
+
+  test("the test process supplied its own secrets", () => {
+    expect(env.JWT_SECRET.trim().length).toBeGreaterThan(0);
+    expect(env.CENTRIFUGO_TOKEN_HMAC_SECRET.trim().length).toBeGreaterThan(0);
+    expect(() => validateSigningSecrets()).not.toThrow();
+  });
+
+  test.each([
+    "development",
+    "test",
+    "staging",
+    "",
+  ])("a missing JWT_SECRET fails closed when NODE_ENV is %p", (nodeEnv) => {
+    expect(() =>
+      validateSigningSecrets(
+        nonProductionEnv({ NODE_ENV: nodeEnv, JWT_SECRET: "" }),
+      ),
+    ).toThrow(/JWT_SECRET is required and must not be blank/);
+  });
+
+  test("a whitespace-only JWT_SECRET is treated as missing", () => {
+    expect(() =>
+      validateSigningSecrets(nonProductionEnv({ JWT_SECRET: "   " })),
+    ).toThrow(/JWT_SECRET is required and must not be blank/);
+  });
+
+  test("the failure names the variable and how to generate one", () => {
+    // The whole point is that an operator hits this at startup and can fix it
+    // without reading the source.
+    expect(() =>
+      validateSigningSecrets(nonProductionEnv({ JWT_SECRET: "" })),
+    ).toThrow(/openssl rand/);
+  });
+
+  test("a missing Centrifugo signing secret also fails closed", () => {
+    expect(() =>
+      validateSigningSecrets(
+        nonProductionEnv({ CENTRIFUGO_TOKEN_HMAC_SECRET: "" }),
+      ),
+    ).toThrow(/CENTRIFUGO_TOKEN_HMAC_SECRET is required and must not be blank/);
+  });
+
+  test("reusing one secret for both roles fails outside production too", () => {
+    const shared = "a-single-secret-used-for-both-roles-123456789";
+    expect(() =>
+      validateSigningSecrets(
+        nonProductionEnv({
+          JWT_SECRET: shared,
+          CENTRIFUGO_TOKEN_HMAC_SECRET: shared,
+        }),
+      ),
+    ).toThrow(/must be different/);
+  });
+
+  test("two empty production secrets report as missing, not as identical", () => {
+    // The required-variable check lists every missing name at once, which is
+    // the more useful production failure.
+    expect(() =>
+      validateProductionEnv(
+        productionEnv({ JWT_SECRET: "", CENTRIFUGO_TOKEN_HMAC_SECRET: "" }),
+      ),
+    ).toThrow(/Missing required production environment variables/);
+  });
+
+  test("production still rejects a reused secret", () => {
+    const shared = "strong-but-reused-signing-secret-123456789";
+    expectInvalid(
+      { JWT_SECRET: shared, CENTRIFUGO_TOKEN_HMAC_SECRET: shared },
+      /must be different/,
     );
   });
 });

@@ -308,7 +308,7 @@ connectionRoutes.delete(
           action: "connection.archived",
           entityType: "whatsapp_connection",
           entityId: connectionId,
-          ipAddress: getClientIp(c.req.raw.headers),
+          ipAddress: getClientIp(c),
         });
       }
 
@@ -362,7 +362,7 @@ connectionRoutes.post(
         deletedContacts: deleted.contactIds.length,
         deletedMessages: deleted.messageIds.length,
       },
-      ipAddress: getClientIp(c.req.raw.headers),
+      ipAddress: getClientIp(c),
     });
     return c.json({
       success: true,
@@ -469,7 +469,7 @@ connectionRoutes.post(
       action: "connection.relinked",
       entityType: "whatsapp_connection",
       entityId: c.req.param("connectionId")!,
-      ipAddress: getClientIp(c.req.raw.headers),
+      ipAddress: getClientIp(c),
     });
     return c.json({
       success: true,
