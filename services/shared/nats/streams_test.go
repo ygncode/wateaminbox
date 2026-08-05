@@ -3,7 +3,173 @@ package nats
 import (
 	"testing"
 	"time"
+
+	"github.com/nats-io/nats.go"
 )
+
+// The events stream carries authoritative conversation data, so a full stream
+// must reject new publishes (which the worker outbox replays) rather than
+// silently discard unacknowledged history.
+func TestEventsStreamDiscardsNewNotOld(t *testing.T) {
+	if got := DefaultEventsStreamConfig().Discard; got != nats.DiscardNew {
+		t.Errorf("events Discard = %v, want %v (DiscardNew)", got, nats.DiscardNew)
+	}
+
+	// The remaining streams stay on DiscardOld: commands and downloads are
+	// short-lived, and the dead-letter stream must keep accepting new poison
+	// events rather than reject them once full.
+	for _, tt := range []struct {
+		name string
+		cfg  StreamConfig
+	}{
+		{"commands", DefaultCommandsStreamConfig()},
+		{"downloads", DefaultDownloadsStreamConfig()},
+		{"dead letters", DefaultDeadLettersStreamConfig()},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.cfg.Discard; got != nats.DiscardOld {
+				t.Errorf("Discard = %v, want %v (DiscardOld)", got, nats.DiscardOld)
+			}
+		})
+	}
+}
+
+// DiscardNew is only recoverable under interest retention: with LimitsPolicy an
+// acknowledged message keeps occupying the stream until MaxAge, so a stream
+// that filled once would reject publishes for a week even after the API had
+// consumed everything. Interest retention frees each message on acknowledgement,
+// so draining APIEventsConsumer reopens the stream immediately.
+func TestEventsStreamUsesInterestRetention(t *testing.T) {
+	if got := DefaultEventsStreamConfig().Retention; got != nats.InterestPolicy {
+		t.Errorf("events Retention = %v, want %v (InterestPolicy)", got, nats.InterestPolicy)
+	}
+
+	// The other streams keep limits retention. Commands and downloads are
+	// consumed by per-connection durables that are created on demand, and the
+	// dead-letter stream is read by operators with ad-hoc consumers, so
+	// interest retention would drop their messages on publish.
+	for _, tt := range []struct {
+		name string
+		cfg  StreamConfig
+	}{
+		{"commands", DefaultCommandsStreamConfig()},
+		{"downloads", DefaultDownloadsStreamConfig()},
+		{"dead letters", DefaultDeadLettersStreamConfig()},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.cfg.Retention; got != nats.LimitsPolicy {
+				t.Errorf("Retention = %v, want %v (LimitsPolicy)", got, nats.LimitsPolicy)
+			}
+		})
+	}
+}
+
+// EnsureStream only calls UpdateStream when streamsEqual reports a difference,
+// so a stream already created under the previous policies is migrated only if
+// retention and discard participate in the comparison.
+func TestStreamsEqualDetectsRetentionAndDiscardChange(t *testing.T) {
+	existing := nats.StreamConfig{
+		Name:      StreamEvents,
+		Subjects:  []string{"WHATSAPP.events", "WHATSAPP.events.>"},
+		MaxAge:    7 * 24 * time.Hour,
+		MaxMsgs:   1000000,
+		MaxBytes:  1024 * 1024 * 1024,
+		Retention: nats.LimitsPolicy,
+		Discard:   nats.DiscardOld,
+	}
+
+	for _, tt := range []struct {
+		name   string
+		mutate func(*nats.StreamConfig)
+	}{
+		{"discard", func(c *nats.StreamConfig) { c.Discard = nats.DiscardNew }},
+		{"retention", func(c *nats.StreamConfig) { c.Retention = nats.InterestPolicy }},
+		{"both", func(c *nats.StreamConfig) {
+			c.Discard = nats.DiscardNew
+			c.Retention = nats.InterestPolicy
+		}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			desired := existing
+			tt.mutate(&desired)
+			if streamsEqual(existing, desired) {
+				t.Errorf("streamsEqual reported a changed %s policy as matching; the stream would never be updated", tt.name)
+			}
+			if !streamsEqual(desired, desired) {
+				t.Error("streamsEqual reported an identical config as different")
+			}
+		})
+	}
+}
+
+// EnsureStream must carry both policies into the config it sends to the server;
+// a dropped field would leave the events stream on the JetStream defaults
+// (limits retention, discard old) and silently reintroduce the data loss.
+func TestEnsureStreamAppliesEventsPolicies(t *testing.T) {
+	fake := &fakeJetStream{}
+	if err := EnsureStream(fake, DefaultEventsStreamConfig()); err != nil {
+		t.Fatalf("EnsureStream: %v", err)
+	}
+	if fake.added == nil {
+		t.Fatal("EnsureStream did not create the missing stream")
+	}
+	if fake.added.Retention != nats.InterestPolicy {
+		t.Errorf("Retention sent to server = %v, want %v", fake.added.Retention, nats.InterestPolicy)
+	}
+	if fake.added.Discard != nats.DiscardNew {
+		t.Errorf("Discard sent to server = %v, want %v", fake.added.Discard, nats.DiscardNew)
+	}
+	if fake.added.Storage != nats.FileStorage {
+		t.Errorf("Storage sent to server = %v, want %v", fake.added.Storage, nats.FileStorage)
+	}
+}
+
+// An existing stream created before this change must be migrated in place
+// rather than left on its old policies.
+func TestEnsureStreamUpdatesLegacyEventsStream(t *testing.T) {
+	legacy := nats.StreamConfig{
+		Name:      StreamEvents,
+		Subjects:  []string{"WHATSAPP.events", "WHATSAPP.events.>"},
+		MaxAge:    7 * 24 * time.Hour,
+		MaxMsgs:   1000000,
+		MaxBytes:  1024 * 1024 * 1024,
+		Retention: nats.LimitsPolicy,
+		Discard:   nats.DiscardOld,
+	}
+	fake := &fakeJetStream{existing: &nats.StreamInfo{Config: legacy}}
+
+	if err := EnsureStream(fake, DefaultEventsStreamConfig()); err != nil {
+		t.Fatalf("EnsureStream: %v", err)
+	}
+	if fake.added != nil {
+		t.Error("EnsureStream recreated an existing stream instead of updating it")
+	}
+	if fake.updated == nil {
+		t.Fatal("EnsureStream left the legacy stream on limits/discard-old")
+	}
+	if fake.updated.Retention != nats.InterestPolicy || fake.updated.Discard != nats.DiscardNew {
+		t.Errorf("update sent Retention=%v Discard=%v, want %v/%v",
+			fake.updated.Retention, fake.updated.Discard, nats.InterestPolicy, nats.DiscardNew)
+	}
+}
+
+// A stream that already matches must not be updated, so repeated worker starts
+// do not churn the server config.
+func TestEnsureStreamSkipsMatchingStream(t *testing.T) {
+	cfg := DefaultEventsStreamConfig()
+	fake := &fakeJetStream{}
+	if err := EnsureStream(fake, cfg); err != nil {
+		t.Fatalf("EnsureStream: %v", err)
+	}
+
+	second := &fakeJetStream{existing: &nats.StreamInfo{Config: *fake.added}}
+	if err := EnsureStream(second, cfg); err != nil {
+		t.Fatalf("EnsureStream: %v", err)
+	}
+	if second.updated != nil {
+		t.Errorf("EnsureStream updated an already-matching stream: %#v", second.updated)
+	}
+}
 
 func TestStreamConstants(t *testing.T) {
 	tests := []struct {

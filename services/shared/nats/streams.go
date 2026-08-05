@@ -25,6 +25,14 @@ type StreamConfig struct {
 	MaxMsgs     int64
 	MaxBytes    int64
 	Replicas    int
+	// Retention selects when a stored message becomes eligible for removal. The
+	// zero value is nats.LimitsPolicy, which keeps every message until a limit
+	// (MaxAge/MaxMsgs/MaxBytes) forces it out, regardless of acknowledgements.
+	Retention nats.RetentionPolicy
+	// Discard selects the behaviour when a limit is reached. The zero value is
+	// nats.DiscardOld, which silently removes the oldest messages even when a
+	// consumer has not acknowledged them.
+	Discard nats.DiscardPolicy
 }
 
 // DefaultCommandsStreamConfig returns the default configuration for the commands stream.
@@ -41,6 +49,28 @@ func DefaultCommandsStreamConfig() StreamConfig {
 }
 
 // DefaultEventsStreamConfig returns the default configuration for the events stream.
+//
+// Discard is DiscardNew rather than DiscardOld because this stream carries
+// authoritative conversation data. Producers are far more parallel than the
+// single API event consumer: each worker runs a history-sync pool, so several
+// connections synchronising at once can outrun the consumer and reach MaxBytes.
+// Under DiscardOld JetStream would drop the oldest messages, which are exactly
+// the ones the API has not processed yet, losing conversation history silently.
+// DiscardNew instead fails the publish, and the worker's PostgreSQL event
+// outbox retains the event and replays it once the consumer drains.
+//
+// Retention is InterestPolicy so that DiscardNew can recover. Under
+// LimitsPolicy an acknowledged message still occupies the stream until MaxAge
+// expires, so a stream that once hit MaxMsgs/MaxBytes would keep rejecting
+// publishes for up to a week even after the API had consumed everything —
+// the outbox would never drain. Interest retention deletes each message as
+// soon as APIEventsConsumer acknowledges (or terminates) it, so draining the
+// consumer immediately reopens the stream for new publishes.
+//
+// Interest retention only stores a message when a consumer already filters its
+// subject, so APIEventsConsumer must exist before the first publish. Use
+// EnsureEventsStream, which creates both, rather than calling EnsureStream
+// with this config directly.
 func DefaultEventsStreamConfig() StreamConfig {
 	return StreamConfig{
 		Name:        StreamEvents,
@@ -50,6 +80,8 @@ func DefaultEventsStreamConfig() StreamConfig {
 		MaxMsgs:     1000000,
 		MaxBytes:    1024 * 1024 * 1024, // 1GB
 		Replicas:    1,
+		Retention:   nats.InterestPolicy,
+		Discard:     nats.DiscardNew,
 	}
 }
 
@@ -96,9 +128,9 @@ func EnsureStream(js nats.JetStreamContext, cfg StreamConfig) error {
 		MaxMsgs:     cfg.MaxMsgs,
 		MaxBytes:    cfg.MaxBytes,
 		Storage:     nats.FileStorage,
-		Retention:   nats.LimitsPolicy,
+		Retention:   cfg.Retention,
 		Replicas:    replicas,
-		Discard:     nats.DiscardOld,
+		Discard:     cfg.Discard,
 	}
 
 	// Try to get existing stream
@@ -143,7 +175,13 @@ func streamsEqual(a, b nats.StreamConfig) bool {
 			return false
 		}
 	}
-	return a.MaxAge == b.MaxAge && a.MaxMsgs == b.MaxMsgs && a.MaxBytes == b.MaxBytes
+	// Retention and Discard must be compared so a stream created under previous
+	// policies is updated in place rather than left on the old behaviour.
+	// nats-server accepts both as in-place updates and keeps already-stored
+	// messages (verified against nats-server 2.10, the version deployed by
+	// docker-compose).
+	return a.MaxAge == b.MaxAge && a.MaxMsgs == b.MaxMsgs && a.MaxBytes == b.MaxBytes &&
+		a.Retention == b.Retention && a.Discard == b.Discard
 }
 
 // DeleteStream deletes a stream by name.

@@ -9,7 +9,15 @@ import (
 // Command subjects - re-exported from shared module
 const (
 	SubjectCommands = sharednats.SubjectCommands
-	SubjectEvents   = "WHATSAPP.events"
+	// SubjectEvents is the legacy unscoped events subject. Nothing consumes it:
+	// the API's durable consumer is the only consumer on the events stream and
+	// filters sharednats.APIEventsFilterSubject ("WHATSAPP.events.>"), which
+	// requires at least one token after "events". Since the stream moved to
+	// interest retention, JetStream acknowledges publishes here and then
+	// discards them. Publish connection-visible events to the scoped subjects
+	// in shared/nats/subjects.go instead, wrapped in a sharednats.WhatsAppEvent
+	// envelope — the API dead-letters anything it cannot parse as one.
+	SubjectEvents = "WHATSAPP.events"
 
 	// Command types
 	CommandSpawn  = sharednats.CommandSpawn
