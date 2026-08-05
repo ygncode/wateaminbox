@@ -6,8 +6,8 @@
 import {
   fetchWithAuth,
   fetchFormDataWithAuth,
+  fetchBlobWithAuth,
   buildQueryString,
-  API_BASE_URL,
 } from "./client.js";
 import type {
   Contact,
@@ -80,7 +80,25 @@ export async function importContacts(
   );
 }
 
-export function downloadImportTemplate(): void {
-  const url = `${API_BASE_URL}/contacts/import/template`;
-  window.open(url, "_blank");
+/**
+ * Download the CSV import template.
+ *
+ * The endpoint sits behind the bearer-token auth middleware, so the file has to
+ * be fetched with the Authorization header and handed to the browser as a blob.
+ * A plain navigation (window.open) carries no header and only renders the
+ * middleware's Unauthorized JSON.
+ */
+export async function downloadImportTemplate(): Promise<void> {
+  const blob = await fetchBlobWithAuth("/contacts/import/template");
+  const url = URL.createObjectURL(blob);
+  try {
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "contact-import-template.csv";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+  } finally {
+    URL.revokeObjectURL(url);
+  }
 }
