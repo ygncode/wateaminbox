@@ -1,5 +1,6 @@
 import { AlertTriangle, Download, Loader2, Upload } from "lucide-react";
-import { useRef } from "react";
+import { useRef, useState } from "react";
+import { toast } from "sonner";
 import { downloadImportTemplate } from "../../../lib/api";
 import type { UploadStepProps } from "./types";
 
@@ -11,6 +12,22 @@ export function UploadStep({
   onSelectConnection,
 }: UploadStepProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [downloadingTemplate, setDownloadingTemplate] = useState(false);
+
+  const handleDownloadTemplate = async () => {
+    setDownloadingTemplate(true);
+    try {
+      await downloadImportTemplate();
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Could not download the CSV template",
+      );
+    } finally {
+      setDownloadingTemplate(false);
+    }
+  };
 
   // Imported contacts are linked to a WhatsApp account so they can be
   // messaged. With several connected accounts the choice must be explicit.
@@ -112,10 +129,16 @@ export function UploadStep({
       {/* Download template */}
       <div className="flex items-center justify-center">
         <button
-          onClick={() => downloadImportTemplate()}
-          className="flex items-center gap-2 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300"
+          type="button"
+          onClick={handleDownloadTemplate}
+          disabled={downloadingTemplate}
+          className="flex items-center gap-2 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 disabled:opacity-60"
         >
-          <Download className="h-4 w-4" />
+          {downloadingTemplate ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <Download className="h-4 w-4" />
+          )}
           Download CSV template
         </button>
       </div>
