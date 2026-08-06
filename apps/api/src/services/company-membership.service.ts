@@ -30,7 +30,7 @@ import { env } from "../lib/env.js";
 import {
   getEffectivePermissions,
   type MemberPermissions,
-} from "./permission.service.js";
+} from "./effective-permissions.js";
 
 export interface CompanyMemberPermissions {
   userId: string;
