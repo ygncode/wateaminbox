@@ -3,6 +3,7 @@ import {
   type DuplicateBlocker,
   formatDuplicateBlockers,
   reconcileTenantIndexNames,
+  renameTenantRelation,
   TENANT_INDEX_TARGETS,
 } from "../tenant-index-names.js";
 import { getTenantSchemas } from "./migration-helpers.js";
@@ -19,9 +20,11 @@ import { getTenantSchemas } from "./migration-helpers.js";
  *    disagreed about what existed.
  *  - Three families of names shared their first 20 characters and therefore
  *    truncated to the SAME identifier. `CREATE INDEX IF NOT EXISTS` turned
- *    every one after the first into a silent no-op, so these were absent from
- *    every tenant:
- *      * scheduled_messages (next_attempt_at) WHERE status IN (...)  - pacing
+ *    every one after the first into a silent no-op. The survivor of each
+ *    family is whichever was created FIRST, so these were the ones lost:
+ *      * scheduled_messages (contact_id, scheduled_at)               - pacing
+ *        (migration 056 creates the `next_attempt_at` index just above it,
+ *        which is why that one survived and this one did not)
  *      * scheduled_messages (bulk_job_id, status)                    - pacing
  *      * whatsapp_connections (phone_number) UNIQUE                  - INTEGRITY
  *      * whatsapp_labels (whatsapp_connection_id, synced_tag_id) UNIQUE - INTEGRITY
@@ -115,17 +118,9 @@ export async function down(db: Kysely<unknown>): Promise<void> {
       `.execute(db);
       if (taken.rows[0]?.exists) continue;
 
-      if (target.constraint) {
-        await sql`
-          ALTER TABLE ${sql.raw(`"${schemaName}"."${target.table}"`)}
-          RENAME CONSTRAINT ${sql.raw(`"${current}"`)} TO ${sql.raw(`"${legacy}"`)}
-        `.execute(db);
-      } else {
-        await sql`
-          ALTER INDEX ${sql.raw(`"${schemaName}"."${current}"`)}
-          RENAME TO ${sql.raw(`"${legacy}"`)}
-        `.execute(db);
-      }
+      // Same helper `up` renames with, so the two cannot disagree about
+      // whether a relation is a constraint or a bare index.
+      await renameTenantRelation(db, schemaName, target, current, legacy);
     }
   }
 }

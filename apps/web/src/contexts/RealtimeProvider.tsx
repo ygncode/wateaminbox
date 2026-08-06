@@ -309,7 +309,9 @@ export function RealtimeProvider({
     [],
   );
 
-  // Mark messages as read
+  // Ephemeral per-message read receipt. See broadcastMessagesRead: this does
+  // NOT persist read state - `markConversationAsRead` does that - and has no
+  // caller yet, so it is part of the context surface rather than dead code.
   const sendMarkAsRead = useCallback(
     (conversationId: string, messageIds: string[]) => {
       broadcastMessagesRead(conversationId, messageIds).catch(() => {});

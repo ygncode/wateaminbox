@@ -39,9 +39,26 @@ export async function sendTypingIndicator(
 }
 
 /**
- * Broadcast that messages have been read
+ * Broadcast an ephemeral read receipt for specific messages.
  *
- * @param conversationId - The conversation ID
+ * NOT the same thing as `markConversationAsRead`, and not a replacement for
+ * it. The two read paths are deliberately separate:
+ *
+ * - `markConversationAsRead` (`POST /conversations/:id/read`) PERSISTS read
+ *   state: it zeroes the unread count and records who read it. That is what
+ *   the inbox calls when a conversation is opened, and it is the canonical
+ *   path.
+ * - This one (`POST /actions/messages/read`) persists nothing. It only tells
+ *   the conversation's other viewers that these specific `messageIds` were
+ *   read, excluding the originating tab.
+ *
+ * No component calls this yet — the UI marks whole conversations read rather
+ * than individual messages. It is kept because per-message receipts are the
+ * feature it exists for, and the server route is authorized and covered by
+ * `apps/api/src/routes/actions/read.integration.test.ts`. Delete both together
+ * if per-message receipts are abandoned.
+ *
+ * @param conversationId - The tenant contact ID (a UUID, not a JID)
  * @param messageIds - Optional list of message IDs that were read
  */
 export async function broadcastMessagesRead(

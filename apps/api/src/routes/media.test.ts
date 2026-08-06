@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { MEDIA_DOWNLOAD_LEASE_MS } from "./media.js";
+import { MEDIA_DOWNLOAD_LEASE_MS } from "../config/media.config.js";
 
 /**
  * Mirrors the SQL predicate used to claim a deferred media download in

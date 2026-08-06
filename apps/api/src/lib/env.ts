@@ -142,6 +142,22 @@ export const env = {
 
   // Database pooling
   TENANT_DB_POOL_MAX: getEnvNumber("TENANT_DB_POOL_MAX", 20),
+
+  // Realtime fan-out. Workspace membership is cached between conversation
+  // events and invalidated on every company_members write, so a revocation
+  // applies on the next event in this process. The TTL only bounds staleness
+  // for writes made outside those paths - or on another API replica, whose
+  // cache this process cannot invalidate. Set to 0 to always read live.
+  REALTIME_MEMBERSHIP_CACHE_TTL_MS: getEnvNumber(
+    "REALTIME_MEMBERSHIP_CACHE_TTL_MS",
+    5_000,
+  ),
+  // Minimum gap between repeats of the same ephemeral signal (typing/presence)
+  // for one conversation. Distinct states are never suppressed.
+  REALTIME_EPHEMERAL_MIN_INTERVAL_MS: getEnvNumber(
+    "REALTIME_EPHEMERAL_MIN_INTERVAL_MS",
+    1_500,
+  ),
 } as const;
 
 export type Env = typeof env;
@@ -522,6 +538,28 @@ export function validateProductionEnv(config: Env = env): void {
     config.CENTRIFUGO_TOKEN_HMAC_SECRET,
   );
   // Distinctness is asserted by validateSigningSecrets in every environment.
+
+  // A long membership TTL is exactly how a permission revocation ends up
+  // taking effect minutes later on a replica. The cache is an optimization;
+  // production must not be able to turn it into a policy window.
+  if (
+    !Number.isInteger(config.REALTIME_MEMBERSHIP_CACHE_TTL_MS) ||
+    config.REALTIME_MEMBERSHIP_CACHE_TTL_MS < 0 ||
+    config.REALTIME_MEMBERSHIP_CACHE_TTL_MS > 60_000
+  ) {
+    throw new Error(
+      "REALTIME_MEMBERSHIP_CACHE_TTL_MS must be between 0 and 60000 in production",
+    );
+  }
+  if (
+    !Number.isInteger(config.REALTIME_EPHEMERAL_MIN_INTERVAL_MS) ||
+    config.REALTIME_EPHEMERAL_MIN_INTERVAL_MS < 0 ||
+    config.REALTIME_EPHEMERAL_MIN_INTERVAL_MS > 30_000
+  ) {
+    throw new Error(
+      "REALTIME_EPHEMERAL_MIN_INTERVAL_MS must be between 0 and 30000 in production",
+    );
+  }
 
   if (!config.RATE_LIMIT_ENABLED) {
     throw new Error("RATE_LIMIT_ENABLED must be true in production");

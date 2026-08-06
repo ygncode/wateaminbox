@@ -1,7 +1,10 @@
 import { describe, expect, test } from "bun:test";
-import { readFileSync } from "node:fs";
-import { readdirSync, statSync } from "node:fs";
+import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
+import {
+  COMPANY_REALTIME_EVENT_TYPES,
+  CONVERSATION_REALTIME_EVENT_TYPES,
+} from "./realtime.js";
 
 /**
  * Structural guard on the channel split.
@@ -30,22 +33,12 @@ function sourceFiles(dir: string, acc: string[] = []): string[] {
   return acc;
 }
 
-const realtimeSource = readFileSync(join(SRC, "lib/realtime.ts"), "utf8");
-
-function unionMembers(typeName: string): string[] {
-  const start = realtimeSource.indexOf(`export type ${typeName} =`);
-  expect(start).toBeGreaterThan(-1);
-  const body = realtimeSource
-    .slice(start, realtimeSource.indexOf(";", start))
-    // Comments inside the union may quote event names or doc titles; only the
-    // actual `| "member"` entries count.
-    .replace(/\/\/[^\n]*/g, "")
-    .replace(/\/\*[\s\S]*?\*\//g, "");
-  return [...body.matchAll(/\|\s*"([^"]+)"/g)].map((match) => match[1]);
-}
-
-const COMPANY_EVENTS = unionMembers("CompanyRealtimeEventType");
-const CONVERSATION_EVENTS = unionMembers("ConversationRealtimeEventType");
+// Imported as real values rather than parsed out of the source: the unions are
+// declared as `as const` arrays with their types derived from them, so this
+// test and the type system read the same single definition.
+const COMPANY_EVENTS: readonly string[] = COMPANY_REALTIME_EVENT_TYPES;
+const CONVERSATION_EVENTS: readonly string[] =
+  CONVERSATION_REALTIME_EVENT_TYPES;
 
 describe("realtime channel classification", () => {
   test("no event is both company-wide and conversation-scoped", () => {
@@ -58,7 +51,7 @@ describe("realtime channel classification", () => {
   test("every conversation-scoped event is actually conversation-scoped", () => {
     // Each of these names a message, a conversation, or a contact, so it
     // reveals which conversations exist and when they are active.
-    expect(CONVERSATION_EVENTS.sort()).toEqual(
+    expect([...CONVERSATION_EVENTS].sort()).toEqual(
       [
         "contact:profile_picture",
         "contact:updated",
@@ -83,7 +76,7 @@ describe("realtime channel classification", () => {
   test("company-wide events describe the workspace or a connection only", () => {
     // If a new name lands here, decide deliberately: does it identify one
     // contact's conversation? Then it belongs in ConversationRealtimeEventType.
-    expect(COMPANY_EVENTS.sort()).toEqual(
+    expect([...COMPANY_EVENTS].sort()).toEqual(
       [
         "bulk_job:updated",
         "catalogs:updated",
@@ -119,6 +112,10 @@ describe("no producer bypasses the visibility-scoped fan-out", () => {
     (file) => !file.endsWith("lib/realtime.ts"),
   );
 
+  // Source-scanned deliberately: the type system already rejects a
+  // conversation event passed to `broadcastToCompany`, so this only backstops
+  // an `as any`/cast escape. There is no runtime signal for that, which is why
+  // it reads text rather than behaviour.
   test("nothing publishes a conversation event straight to the company channel", () => {
     const offenders: string[] = [];
     for (const file of files) {
@@ -137,15 +134,21 @@ describe("no producer bypasses the visibility-scoped fan-out", () => {
     expect(offenders).toEqual([]);
   });
 
-  test("the company-wide 'except one client' helper is gone", () => {
-    // It existed only for typing and read receipts, both now scoped. Keeping
-    // it would be an easy way to reintroduce a company-wide conversation event.
-    expect(realtimeSource).not.toMatch(
-      /export async function broadcastToCompanyExcept/,
-    );
-    const users = files.filter((file) =>
-      readFileSync(file, "utf8").includes("broadcastToCompanyExcept"),
-    );
-    expect(users).toEqual([]);
+  test("the company-wide 'except one client' helper is gone", async () => {
+    // Checked against the module's real export surface rather than its source
+    // text. It existed only for typing and read receipts, both now scoped;
+    // keeping it would be an easy way to reintroduce a company-wide
+    // conversation event.
+    const realtime = await import("./realtime.js");
+    expect(Object.keys(realtime)).not.toContain("broadcastToCompanyExcept");
+    expect("broadcastToCompanyExcept" in realtime).toBe(false);
+  });
+
+  test("the exported publish helpers are the visibility-scoped ones", async () => {
+    const realtime = await import("./realtime.js");
+    // `broadcastToUsers` is the only fan-out entry point; `broadcastToCompany`
+    // survives for genuine workspace control events.
+    expect(Object.keys(realtime)).toContain("broadcastToUsers");
+    expect(Object.keys(realtime)).toContain("broadcastToCompany");
   });
 });

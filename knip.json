@@ -13,7 +13,11 @@
       "ignore": ["e2e/**"]
     },
     "packages/database": {
-      "entry": ["src/migrations/*.ts", "src/**/*.test.ts"],
+      "entry": [
+        "src/migrations/*.ts",
+        "src/**/*.test.ts",
+        "src/preflight-*.ts"
+      ],
       "project": ["src/**/*.ts"]
     },
     "packages/shared": {

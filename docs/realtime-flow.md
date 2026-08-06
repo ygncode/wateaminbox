@@ -56,6 +56,32 @@ deduplicated before the call: a repeated channel would deliver the event twice
 and clients would apply it twice. An empty audience short-circuits, because
 Centrifugo rejects an empty `channels` array outright (code 107).
 
+### Fan-out cost and staleness
+
+Resolving recipients needs two facts: workspace membership, and the contact's
+current assignee. Typing and presence fire far more often than either changes,
+so:
+
+- **Membership is cached** (`REALTIME_MEMBERSHIP_CACHE_TTL_MS`, default 5000).
+  Every write to `company_members` — role change, permission edit, removal,
+  invitation acceptance, ownership transfer, workspace creation — calls
+  `invalidateCompanyMembership`, so a revocation applies to the very next
+  event. The TTL is a backstop, not the correctness mechanism. A read already
+  in flight when a write lands cannot repopulate the cache behind it.
+- **Assignments are never cached.** They are the per-conversation half of the
+  authorization decision and change constantly, so they are read live on every
+  event.
+- **Repeat ephemeral signals are collapsed**
+  (`REALTIME_EPHEMERAL_MIN_INTERVAL_MS`, default 1500). Only an *identical*
+  state for the same conversation inside the interval is dropped; a state
+  change always publishes, so a `typing:stop` can never be suppressed by a
+  preceding `typing:start` and an indicator cannot get stuck on.
+
+Multi-replica caveat: invalidation is in-process, like the in-memory rate
+limiter. A second API replica keeps its own cached membership until its TTL
+lapses, so a revocation can lag there by up to the TTL. Set the TTL to `0` to
+read membership live on every event.
+
 ### Policy: `status` stays workspace-wide
 
 `status` (WhatsApp Status/Stories) is deliberately **not** treated as a

@@ -11,6 +11,7 @@ import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
 import { createLogger, formatError } from "../../lib/logger.js";
 import { publishTypingCommand } from "../../lib/nats/index.js";
+import { hasContactVisibility } from "../../middleware/resource-visibility.js";
 import { broadcastToContactViewers } from "../../services/message-broadcast.service.js";
 import { authMiddleware } from "../../middleware/auth.js";
 import {
@@ -156,15 +157,38 @@ actionsRoutes.post(
   zValidator(
     "json",
     z.object({
-      conversationId: z.string().min(1),
+      // A tenant contact ID, not a JID - the payload below publishes it as
+      // `contactId`, and the viewer resolver keys on it. Validating the shape
+      // here keeps a non-UUID from reaching PostgreSQL as a cast error.
+      conversationId: z.string().uuid(),
       messageIds: z.array(z.string()).optional(),
     }),
   ),
   async (c) => {
     const companyId = c.get("companyId");
+    const tenantDb = c.get("tenantDb");
     const user = c.get("user");
     const { conversationId, messageIds } = c.req.valid("json");
     const clientId = c.req.header("X-Realtime-Client-Id");
+
+    // The contact ID arrives in the body, so the path-param visibility
+    // middleware cannot guard this route. Without these checks a member who
+    // cannot see a conversation could inject a "read by me" signal into it,
+    // which its real viewers would display.
+    //
+    // Existence is checked separately from visibility because
+    // `hasContactVisibility` short-circuits on `can_view_all_chats` - without
+    // it, an admin passing any random UUID would publish an event naming a
+    // conversation that does not exist. 404 for both, matching
+    // requireContactVisibility: never disclose which of the two it was.
+    const contact = await tenantDb
+      .selectFrom("contacts")
+      .select("id")
+      .where("id", "=", conversationId)
+      .executeTakeFirst();
+    if (!contact || !(await hasContactVisibility(c, conversationId))) {
+      throw new HTTPException(404, { message: "Conversation not found" });
+    }
 
     try {
       // Broadcast read event to other clients

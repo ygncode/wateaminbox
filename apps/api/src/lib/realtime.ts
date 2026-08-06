@@ -12,27 +12,31 @@ const logger = createLogger("Realtime");
  * workspace or a WhatsApp connection belong here - never one contact's
  * conversation, activity, or identity. Those are `ConversationRealtimeEventType`.
  */
-export type CompanyRealtimeEventType =
-  | "bulk_job:updated"
+export const COMPANY_REALTIME_EVENT_TYPES = [
+  "bulk_job:updated",
   // `status` (WhatsApp Status/Stories) is a deliberate policy decision, not an
   // oversight: a Status is broadcast by its author to their whole audience
   // rather than sent into a conversation, and `status_updates` rows carry a
   // JID and connection but no contact/assignee to scope visibility on. See
   // "Policy: status stays workspace-wide" in docs/realtime-flow.md.
-  | "status"
-  | "qr"
-  | "connected"
-  | "disconnected"
-  | "connection:status"
-  | "sync:start"
-  | "sync:progress"
-  | "sync:complete"
-  | "sync:interrupted"
-  | "history:loaded"
-  | "notification:toast"
-  | "labels:updated"
-  | "catalogs:updated"
-  | "command:failed";
+  "status",
+  "qr",
+  "connected",
+  "disconnected",
+  "connection:status",
+  "sync:start",
+  "sync:progress",
+  "sync:complete",
+  "sync:interrupted",
+  "history:loaded",
+  "notification:toast",
+  "labels:updated",
+  "catalogs:updated",
+  "command:failed",
+] as const;
+
+export type CompanyRealtimeEventType =
+  (typeof COMPANY_REALTIME_EVENT_TYPES)[number];
 
 /**
  * Events scoped to a single contact's conversation.
@@ -44,23 +48,27 @@ export type CompanyRealtimeEventType =
  * authorized viewers of that contact instead; see
  * `services/message-broadcast.service.ts`.
  */
+export const CONVERSATION_REALTIME_EVENT_TYPES = [
+  "message:new",
+  "message:status",
+  "message:deleted",
+  "message:reaction",
+  "message:failed",
+  "scheduled_message:updated",
+  "typing:start",
+  "typing:stop",
+  "media:downloaded",
+  "media:download_failed",
+  "contact:updated",
+  "contact:profile_picture",
+  "presence:online",
+  "presence:offline",
+  "conversation:read",
+  "conversation:updated",
+] as const;
+
 export type ConversationRealtimeEventType =
-  | "message:new"
-  | "message:status"
-  | "message:deleted"
-  | "message:reaction"
-  | "message:failed"
-  | "scheduled_message:updated"
-  | "typing:start"
-  | "typing:stop"
-  | "media:downloaded"
-  | "media:download_failed"
-  | "contact:updated"
-  | "contact:profile_picture"
-  | "presence:online"
-  | "presence:offline"
-  | "conversation:read"
-  | "conversation:updated";
+  (typeof CONVERSATION_REALTIME_EVENT_TYPES)[number];
 
 /** Events addressed to one authenticated user's own channel. */
 export type UserRealtimeEventType =

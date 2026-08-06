@@ -413,14 +413,28 @@ async function findDuplicates<DB>(
   };
 }
 
-async function renameRelation<DB>(
+/**
+ * Rename one target's relation, choosing the right statement for what it is.
+ *
+ * Exported so migration 063's `down` reverses a rename through exactly the
+ * same code that made it, rather than a second copy that could disagree about
+ * constraint-versus-index.
+ */
+export async function renameTenantRelation<DB>(
   db: Kysely<DB>,
   schemaName: string,
   target: TenantIndexTarget,
   from: string,
   to: string,
 ): Promise<void> {
-  if (target.constraint) {
+  // Which statement to use is a property of the RELATION BEING RENAMED, not of
+  // the target: `planTenantIndexAction` may adopt a bare UNIQUE index that has
+  // the target's shape but no backing constraint, and `ALTER TABLE ... RENAME
+  // CONSTRAINT` errors outright on one of those - aborting the whole migration.
+  if (
+    target.constraint &&
+    (await isConstraint(db, schemaName, target.table, from))
+  ) {
     // Renaming the constraint renames its backing index too.
     await sql`
       ALTER TABLE ${sql.raw(`"${schemaName}"."${target.table}"`)}
@@ -482,6 +496,114 @@ export interface TenantIndexReconcileResult {
 }
 
 /**
+ * Planner row estimate for a tenant table.
+ *
+ * `reltuples` rather than COUNT(*): this only has to convey the order of
+ * magnitude of an index build, and must stay cheap on a large table.
+ */
+async function estimatedRowCount<DB>(
+  db: Kysely<DB>,
+  schemaName: string,
+  table: string,
+): Promise<number> {
+  const result = await sql<{ rows: number }>`
+    SELECT GREATEST(c.reltuples, 0)::bigint::int AS rows
+    FROM pg_class c
+    JOIN pg_namespace n ON n.oid = c.relnamespace
+    WHERE n.nspname = ${schemaName} AND c.relname = ${table}
+  `.execute(db);
+  return result.rows[0]?.rows ?? 0;
+}
+
+/** What reconciliation would do to one target on one schema. */
+export type TenantIndexAction =
+  | { kind: "skip"; reason: "missing-table-or-column" }
+  | { kind: "already-correct"; redundant?: string }
+  | { kind: "rename"; from: string; to: string }
+  | { kind: "create"; name: string }
+  | { kind: "blocked"; blocker: DuplicateBlocker };
+
+/**
+ * Decide, without changing anything, what a single target needs.
+ *
+ * Both `reconcileTenantIndexNames` (which applies the decision) and
+ * `preflightTenantIndexNames` (which reports it) call this, so a preflight can
+ * never disagree with what the migration then does. Keeping the decision in
+ * one place is the whole point - two copies of this logic would drift.
+ */
+export async function planTenantIndexAction<DB>(
+  db: Kysely<DB>,
+  schemaName: string,
+  target: TenantIndexTarget,
+): Promise<TenantIndexAction> {
+  // A schema that has not reached the migration which adds this table or
+  // column yet is skipped, not failed: later migrations still bring it up to
+  // date, and reconcileTenantSchema re-runs this afterwards.
+  const columns = await tableColumns(db, schemaName, target.table);
+  if (!columns || target.columns.some((column) => !columns.has(column))) {
+    return { kind: "skip", reason: "missing-table-or-column" };
+  }
+
+  const desired = targetIdentifier(schemaName, target);
+  const legacyName = legacyIdentifier(schemaName, target);
+  const existing = await loadExistingIndexes(db, schemaName, target.table);
+
+  if (existing.some((index) => index.name === desired)) {
+    // Self-healing: the historical name still present alongside the canonical
+    // one AND with exactly the same shape is a pure duplicate - same
+    // guarantee, twice the write cost and disk. Only an exact shape match
+    // under the computed legacy name qualifies, so a truncation sibling (a
+    // DIFFERENT index that merely shares the name prefix) is never touched,
+    // and the canonical relation always survives.
+    const redundant = existing.find(
+      (index) =>
+        index.name === legacyName &&
+        index.name !== desired &&
+        matchesTarget(index, target),
+    );
+    return redundant
+      ? { kind: "already-correct", redundant: redundant.name }
+      : { kind: "already-correct" };
+  }
+
+  // Only rename a relation that actually has this target's shape. Under a
+  // truncation collision the historical name belongs to a sibling.
+  const renameable = existing.find(
+    (index) => index.name === legacyName && matchesTarget(index, target),
+  );
+  if (renameable) {
+    return { kind: "rename", from: legacyName, to: desired };
+  }
+
+  // An identically shaped index under some other name already provides the
+  // guarantee; adopt it rather than building a duplicate.
+  const adoptable = existing.find((index) => matchesTarget(index, target));
+  if (adoptable) {
+    return { kind: "rename", from: adoptable.name, to: desired };
+  }
+
+  if (target.unique) {
+    const duplicates = await findDuplicates(db, schemaName, target);
+    if (duplicates.total > 0) {
+      return {
+        kind: "blocked",
+        blocker: {
+          schemaName,
+          table: target.table,
+          indexName: desired,
+          columns: target.columns,
+          purpose: target.purpose,
+          samples: duplicates.samples,
+          totalConflicts: duplicates.total,
+        },
+      };
+    }
+  }
+
+  return { kind: "create", name: desired };
+}
+
+/**
  * Bring one tenant schema's index names to the canonical, length-safe set.
  *
  * Idempotent and order-independent:
@@ -510,93 +632,53 @@ export async function reconcileTenantIndexNames<DB>(
   };
 
   for (const target of TENANT_INDEX_TARGETS) {
-    // A schema that has not reached the migration which adds this table or
-    // column yet is skipped, not failed: later migrations still bring it up to
-    // date, and reconcileTenantSchema re-runs this afterwards.
-    const columns = await tableColumns(db, schemaName, target.table);
-    if (!columns || target.columns.some((column) => !columns.has(column))) {
-      result.skipped.push(target.suffix);
-      continue;
-    }
+    const action = await planTenantIndexAction(db, schemaName, target);
 
-    const desired = targetIdentifier(schemaName, target);
-    const existing = await loadExistingIndexes(db, schemaName, target.table);
+    switch (action.kind) {
+      case "skip":
+        result.skipped.push(target.suffix);
+        break;
 
-    const legacyName = legacyIdentifier(schemaName, target);
-
-    if (existing.some((index) => index.name === desired)) {
-      // Self-healing: if the historical name is still present alongside the
-      // canonical one AND has exactly the same shape, it is a pure duplicate -
-      // same guarantee, twice the write cost and disk. Drop the redundant copy.
-      // Only an exact shape match under the computed legacy name qualifies, so
-      // a truncation sibling (a DIFFERENT index that merely shares the name
-      // prefix) is never touched, and the canonical relation always survives -
-      // no guarantee is ever removed.
-      //
-      // Constraints need this too: ADD CONSTRAINT only rejects a duplicate
-      // NAME, not a duplicate definition, so a second identical UNIQUE
-      // constraint can coexist under the old truncated name.
-      const redundant = existing.find(
-        (index) =>
-          index.name === legacyName &&
-          index.name !== desired &&
-          matchesTarget(index, target),
-      );
-      if (redundant) {
-        if (await isConstraint(db, schemaName, target.table, redundant.name)) {
-          await sql`
-            ALTER TABLE ${sql.raw(`"${schemaName}"."${target.table}"`)}
-            DROP CONSTRAINT ${sql.raw(`"${redundant.name}"`)}
-          `.execute(db);
-        } else {
-          await sql`
-            DROP INDEX ${sql.raw(`"${schemaName}"."${redundant.name}"`)}
-          `.execute(db);
+      case "already-correct":
+        if (action.redundant) {
+          // Constraints need this too: ADD CONSTRAINT only rejects a duplicate
+          // NAME, not a duplicate definition, so a second identical UNIQUE
+          // constraint can coexist under the old truncated name.
+          if (await isConstraint(db, schemaName, target.table, action.redundant)) {
+            await sql`
+              ALTER TABLE ${sql.raw(`"${schemaName}"."${target.table}"`)}
+              DROP CONSTRAINT ${sql.raw(`"${action.redundant}"`)}
+            `.execute(db);
+          } else {
+            await sql`
+              DROP INDEX ${sql.raw(`"${schemaName}"."${action.redundant}"`)}
+            `.execute(db);
+          }
+          result.droppedRedundant.push(target.suffix);
         }
-        result.droppedRedundant.push(target.suffix);
-      }
-      result.alreadyCorrect.push(target.suffix);
-      continue;
-    }
+        result.alreadyCorrect.push(target.suffix);
+        break;
 
-    // Only rename a relation that actually has this target's shape. Under a
-    // truncation collision the historical name belongs to a sibling.
-    const renameable = existing.find(
-      (index) => index.name === legacyName && matchesTarget(index, target),
-    );
-    if (renameable) {
-      await renameRelation(db, schemaName, target, legacyName, desired);
-      result.renamed.push(target.suffix);
-      continue;
-    }
-
-    // An identically shaped index under some other name already provides the
-    // guarantee; adopt it rather than building a duplicate.
-    const adoptable = existing.find((index) => matchesTarget(index, target));
-    if (adoptable) {
-      await renameRelation(db, schemaName, target, adoptable.name, desired);
-      result.renamed.push(target.suffix);
-      continue;
-    }
-
-    if (target.unique) {
-      const duplicates = await findDuplicates(db, schemaName, target);
-      if (duplicates.total > 0) {
-        result.blocked.push({
+      case "rename":
+        await renameTenantRelation(
+          db,
           schemaName,
-          table: target.table,
-          indexName: desired,
-          columns: target.columns,
-          purpose: target.purpose,
-          samples: duplicates.samples,
-          totalConflicts: duplicates.total,
-        });
-        continue;
-      }
-    }
+          target,
+          action.from,
+          action.to,
+        );
+        result.renamed.push(target.suffix);
+        break;
 
-    await createRelation(db, schemaName, target, desired);
-    result.created.push(target.suffix);
+      case "blocked":
+        result.blocked.push(action.blocker);
+        break;
+
+      case "create":
+        await createRelation(db, schemaName, target, action.name);
+        result.created.push(target.suffix);
+        break;
+    }
   }
 
   return result;
@@ -626,5 +708,190 @@ export function formatDuplicateBlockers(
     }
     lines.push("");
   }
+  return lines.join("\n");
+}
+
+/**
+ * The pre-054 label uniqueness index, retired by the connection-scoped one.
+ *
+ * `whatsapp_labels(label_id)` UNIQUE predates labels being scoped per WhatsApp
+ * connection. Once a workspace can connect two accounts, the same WhatsApp
+ * label ID legitimately appears twice, so this index is not merely redundant -
+ * it rejects valid rows.
+ */
+const LEGACY_LABEL_UNIQUE_SUFFIX = "_whatsapp_labels_label_uidx";
+
+/**
+ * Drop the obsolete label index, if and only if it is really that index.
+ *
+ * The original statement never worked: it named an unqualified identifier (the
+ * migrator's search_path is `public`, so `IF EXISTS` matched nothing) and the
+ * intended name is 70 characters, which PostgreSQL truncates at 63 - so the
+ * name being asked for was never the name in the catalog.
+ *
+ * Both are corrected here, and the drop is guarded by shape: a unique index on
+ * exactly `(label_id)`. Anything else under that identifier is left alone, so
+ * a truncation collision can never turn this into a destructive surprise.
+ */
+export async function dropLegacyLabelUniqueIndex<DB>(
+  db: Kysely<DB>,
+  schemaName: string,
+): Promise<boolean> {
+  const indexName = `${schemaName}${LEGACY_LABEL_UNIQUE_SUFFIX}`.slice(
+    0,
+    PG_IDENTIFIER_MAX_BYTES,
+  );
+
+  const matches = await sql<{ columns: string[]; is_unique: boolean }>`
+    SELECT
+      ix.indisunique AS is_unique,
+      array_agg(a.attname::text ORDER BY k.ord) AS columns
+    FROM pg_index ix
+    JOIN pg_class i ON i.oid = ix.indexrelid
+    JOIN pg_class t ON t.oid = ix.indrelid
+    JOIN pg_namespace n ON n.oid = t.relnamespace
+    JOIN LATERAL unnest(ix.indkey) WITH ORDINALITY AS k(attnum, ord) ON true
+    JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = k.attnum
+    WHERE n.nspname = ${schemaName}
+      AND t.relname = 'whatsapp_labels'
+      AND i.relname = ${indexName}
+    GROUP BY ix.indisunique
+  `.execute(db);
+
+  const found = matches.rows[0];
+  if (
+    !found ||
+    !found.is_unique ||
+    found.columns.length !== 1 ||
+    found.columns[0] !== "label_id"
+  ) {
+    return false;
+  }
+
+  await sql`
+    DROP INDEX ${sql.raw(`"${schemaName}"."${indexName}"`)}
+  `.execute(db);
+  return true;
+}
+
+export interface TenantIndexPreflightRow {
+  schemaName: string;
+  /** Targets that will be renamed - catalog-only, no rebuild, no lock risk. */
+  willRename: string[];
+  /** Targets that will be BUILT - these take a lock proportional to the table. */
+  willCreate: Array<{ suffix: string; table: string; estimatedRows: number }>;
+  /** Redundant duplicates that will be dropped. */
+  willDrop: string[];
+  /** UNIQUE targets whose data already conflicts. These ABORT the migration. */
+  blocked: DuplicateBlocker[];
+}
+
+/**
+ * Report what migration 063 would do, changing nothing.
+ *
+ * Two operational questions this answers before a deploy window:
+ *
+ *  1. WILL IT ABORT? A UNIQUE index cannot be built over conflicting rows, and
+ *     the migration deliberately fails rather than deleting data. Finding that
+ *     out here costs nothing; finding out during the deploy costs the window.
+ *  2. HOW LONG WILL IT LOCK? Renames are catalog-only. Only a CREATE takes an
+ *     ACCESS EXCLUSIVE lock for the duration of the build, so the row estimate
+ *     for exactly those tables is the number that matters. Everything else is
+ *     effectively instant.
+ *
+ * Row counts come from the planner's statistics (`pg_class.reltuples`), so
+ * this stays cheap on large tables - it is an estimate, not a COUNT(*).
+ */
+export async function preflightTenantIndexNames<DB>(
+  db: Kysely<DB>,
+  schemaNames: readonly string[],
+): Promise<TenantIndexPreflightRow[]> {
+  const report: TenantIndexPreflightRow[] = [];
+
+  for (const schemaName of schemaNames) {
+    const row: TenantIndexPreflightRow = {
+      schemaName,
+      willRename: [],
+      willCreate: [],
+      willDrop: [],
+      blocked: [],
+    };
+
+    for (const target of TENANT_INDEX_TARGETS) {
+      // Exactly the decision reconciliation will make - same function, so the
+      // report cannot diverge from the migration's behaviour.
+      const action = await planTenantIndexAction(db, schemaName, target);
+
+      switch (action.kind) {
+        case "skip":
+          break;
+        case "already-correct":
+          if (action.redundant) row.willDrop.push(target.suffix);
+          break;
+        case "rename":
+          row.willRename.push(target.suffix);
+          break;
+        case "blocked":
+          row.blocked.push(action.blocker);
+          break;
+        case "create":
+          row.willCreate.push({
+            suffix: target.suffix,
+            table: target.table,
+            estimatedRows: await estimatedRowCount(db, schemaName, target.table),
+          });
+          break;
+      }
+    }
+
+    report.push(row);
+  }
+
+  return report;
+}
+
+/** Render a preflight report for an operator. */
+export function formatPreflightReport(
+  rows: readonly TenantIndexPreflightRow[],
+): string {
+  const renames = rows.reduce((n, row) => n + row.willRename.length, 0);
+  const drops = rows.reduce((n, row) => n + row.willDrop.length, 0);
+  const creates = rows.flatMap((row) =>
+    row.willCreate.map((entry) => ({ ...entry, schemaName: row.schemaName })),
+  );
+  const blocked = rows.flatMap((row) => row.blocked);
+
+  const lines = [
+    `Migration 063 preflight across ${rows.length} tenant schema(s)`,
+    "",
+    `  renames (catalog-only, no lock risk): ${renames}`,
+    `  redundant duplicates to drop:         ${drops}`,
+    `  indexes to BUILD (take a lock):       ${creates.length}`,
+    "",
+  ];
+
+  if (creates.length > 0) {
+    const heaviest = [...creates]
+      .sort((a, b) => b.estimatedRows - a.estimatedRows)
+      .slice(0, 10);
+    lines.push("  Largest builds (estimated rows - these hold ACCESS EXCLUSIVE):");
+    for (const entry of heaviest) {
+      lines.push(
+        `    ${entry.schemaName}.${entry.table}${entry.suffix}: ~${entry.estimatedRows} rows`,
+      );
+    }
+    lines.push("");
+  }
+
+  if (blocked.length > 0) {
+    lines.push(
+      "  BLOCKED - the migration will abort until these are resolved:",
+      "",
+      formatDuplicateBlockers(blocked),
+    );
+  } else {
+    lines.push("  No duplicate conflicts found; the migration will not abort.");
+  }
+
   return lines.join("\n");
 }

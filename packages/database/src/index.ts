@@ -10,10 +10,14 @@ export {
 } from "./tenant-schema";
 export type { TenantSchemaContractIsComplete } from "./tenant-schema";
 export {
+  dropLegacyLabelUniqueIndex,
   formatDuplicateBlockers,
+  formatPreflightReport,
+  preflightTenantIndexNames,
   legacyIdentifier,
   PG_IDENTIFIER_MAX_BYTES,
   reconcileTenantIndexNames,
+  renameTenantRelation,
   targetIdentifier,
   TENANT_INDEX_TARGETS,
   TENANT_SCHEMA_NAME_LENGTH,
@@ -21,6 +25,7 @@ export {
 } from "./tenant-index-names";
 export type {
   DuplicateBlocker,
+  TenantIndexPreflightRow,
   TenantIndexReconcileResult,
   TenantIndexTarget,
 } from "./tenant-index-names";

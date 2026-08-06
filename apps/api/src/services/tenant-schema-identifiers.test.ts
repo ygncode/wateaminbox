@@ -21,6 +21,16 @@ import {
  *
  * These run without a database so the invariant is checked on every test run,
  * not only when integration tests are enabled.
+ *
+ * WHY THIS SCANS SOURCE TEXT, unlike the other guards in this suite: the
+ * property under test is the name a migration *asks for*, and PostgreSQL
+ * silently discards the part that overflows. Once a schema exists, no stored
+ * identifier is ever longer than 63 bytes, so the catalog cannot tell you
+ * whether a name was truncated or simply short. The server does emit a NOTICE
+ * at creation time, but capturing those needs driver-level hooks that would be
+ * far more fragile than reading the migrations. Historical migrations are also
+ * immutable, so their text is the authoritative record. Source scanning is the
+ * only honest way to check this, and it is deliberate rather than convenient.
  */
 
 const PG_IDENTIFIER_LIMIT = 63;

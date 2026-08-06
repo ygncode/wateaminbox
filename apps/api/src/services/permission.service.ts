@@ -4,6 +4,7 @@ import {
   ROLE_PERMISSION_PRESETS,
 } from "@wateaminbox/shared";
 import { NotFoundError, ForbiddenError } from "../lib/errors.js";
+import { invalidateCompanyMembership } from "./company-membership.service.js";
 
 /**
  * Feature-based permissions
@@ -194,6 +195,7 @@ export async function updateMemberPermissions(
     .where("company_id", "=", companyId)
     .where("user_id", "=", targetUserId)
     .execute();
+  invalidateCompanyMembership(companyId);
 
   return getEffectivePermissions(role, updatedPermissions);
 }
@@ -225,6 +227,7 @@ export async function resetMemberPermissions(
     .where("company_id", "=", companyId)
     .where("user_id", "=", targetUserId)
     .execute();
+  invalidateCompanyMembership(companyId);
 
   return ROLE_PRESETS[role];
 }

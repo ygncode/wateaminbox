@@ -14,6 +14,7 @@ import {
 import { getEffectivePermissions } from "../permission.service.js";
 import { getCompany, toCompanyResponse } from "./core.js";
 import type { Company, CompanyMember, CompanyWithRole } from "./types.js";
+import { invalidateCompanyMembership } from "../company-membership.service.js";
 
 /**
  * Gets all members of a company
@@ -190,6 +191,7 @@ export async function removeMember(
   if (!result.numDeletedRows) {
     throw new CompanyNotFoundError(companyId);
   }
+  invalidateCompanyMembership(companyId);
 
   // Update company stats
   await db
@@ -236,6 +238,7 @@ export async function updateMemberRole(
   if (!member) {
     throw new CompanyNotFoundError(companyId);
   }
+  invalidateCompanyMembership(companyId);
 
   return member as unknown as CompanyMember;
 }
@@ -271,6 +274,7 @@ export async function transferOwnership(
       .where("user_id", "=", newOwnerId)
       .executeTakeFirstOrThrow();
   });
+  invalidateCompanyMembership(companyId);
 }
 
 /**

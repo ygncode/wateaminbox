@@ -2,6 +2,7 @@ import type { Kysely } from "kysely";
 import { sql } from "kysely";
 import type { TenantDatabase } from "./client";
 import {
+  dropLegacyLabelUniqueIndex,
   formatDuplicateBlockers,
   reconcileTenantIndexNames,
 } from "./tenant-index-names.js";
@@ -540,9 +541,17 @@ export async function reconcileTenantSchema<Database>(
       ON DELETE CASCADE
     `.execute(db);
   }
-  await sql`
-    DROP INDEX IF EXISTS ${sql.ref(`${schemaName}_whatsapp_labels_label_uidx`)}
-  `.execute(db);
+  // Retire the pre-054 connection-less label uniqueness index.
+  //
+  // Two things made this a no-op until now, so the obsolete index survived on
+  // every tenant that had it:
+  //   1. The name is unqualified, and the migrator's search_path is `public` -
+  //      so `IF EXISTS` matched nothing and silently succeeded.
+  //   2. The intended name is 70 characters; PostgreSQL truncates identifiers
+  //      at 63, so the catalog never held the name being asked for.
+  // Both are fixed by dropping the schema-qualified, truncated identifier that
+  // the server actually created.
+  await dropLegacyLabelUniqueIndex(db, schemaName);
   await sql`
     CREATE UNIQUE INDEX IF NOT EXISTS ${sql.ref(
       `${schemaName}_whatsapp_labels_connection_label_uidx`,
@@ -1112,6 +1121,16 @@ export async function reconcileTenantSchema<Database>(
   await sql`
     CREATE INDEX IF NOT EXISTS ${sql.ref(`${schemaName}_gp_jid_idx`)}
     ON ${table("group_participants")} (participant_jid)
+  `.execute(db);
+
+  // Migration 064 parity. The stranded-media sweep filters on
+  // `media_download_status = 'downloading'`, which the pre-existing partial
+  // index (on 'pending') does not cover - without this the sweep sequentially
+  // scans the whole messages table on every cleanup cycle.
+  await sql`
+    CREATE INDEX IF NOT EXISTS ${sql.ref(`${schemaName}_msg_dl_claim_idx`)}
+    ON ${table("messages")} (media_downloaded_at)
+    WHERE media_download_status = 'downloading'
   `.execute(db);
 
   // Migration 063 parity. The historical index names above overflow

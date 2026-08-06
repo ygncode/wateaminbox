@@ -14,7 +14,6 @@
  * this module is what keeps the two in step.
  */
 
-import { db } from "@wateaminbox/database";
 import type { Kysely, Transaction } from "kysely";
 import { createLogger, formatError } from "../lib/logger.js";
 import {
@@ -22,10 +21,8 @@ import {
   type ConversationRealtimeEventType,
   type UserFanOutOptions,
 } from "../lib/realtime.js";
-import {
-  getEffectivePermissions,
-  type MemberPermissions,
-} from "./permission.service.js";
+import { getCompanyMemberPermissions } from "./company-membership.service.js";
+import type { MemberPermissions } from "./permission.service.js";
 import { getTenantConnection, type TenantDatabase } from "./tenant.service.js";
 
 const logger = createLogger("ConversationBroadcast");
@@ -83,11 +80,11 @@ export async function resolveContactViewerIds(
   executor: TenantExecutor = getTenantConnection(companyId),
 ): Promise<string[]> {
   const [members, assignment] = await Promise.all([
-    db
-      .selectFrom("company_members")
-      .select(["user_id", "role", "permissions"])
-      .where("company_id", "=", companyId)
-      .execute(),
+    // Membership is cached and invalidated on every company_members write, so
+    // a revocation still applies to the very next event in this process.
+    getCompanyMemberPermissions(companyId),
+    // The assignment is deliberately NOT cached: it is the per-conversation
+    // half of the authorization decision and changes constantly.
     executor
       .selectFrom("contact_assignments")
       .select("assigned_to")
@@ -98,14 +95,52 @@ export async function resolveContactViewerIds(
 
   return selectContactViewerIds({
     assignedTo: assignment?.assigned_to ?? null,
-    candidates: members.map((member) => ({
-      userId: member.user_id,
-      permissions: getEffectivePermissions(
-        member.role as "owner" | "admin" | "member",
-        (member.permissions ?? {}) as Partial<MemberPermissions>,
-      ),
-    })),
+    candidates: members,
   });
+}
+
+/**
+ * Resolve viewers for several contacts at once.
+ *
+ * The per-contact loop this replaces issued one assignment query per contact,
+ * sequentially. A group participant belongs to many groups, so a single
+ * presence or typing event could cost a round trip per group on the hottest
+ * path in the system. Membership is read once (cached) and every assignment is
+ * fetched in one statement, so the cost is O(1) queries regardless of how many
+ * conversations the JID appears in.
+ */
+export async function resolveContactViewerIdsForContacts(
+  companyId: string,
+  contactIds: readonly string[],
+  executor: TenantExecutor = getTenantConnection(companyId),
+): Promise<string[]> {
+  if (contactIds.length === 0) return [];
+
+  const [members, assignments] = await Promise.all([
+    getCompanyMemberPermissions(companyId),
+    executor
+      .selectFrom("contact_assignments")
+      .select(["contact_id", "assigned_to"])
+      .where("contact_id", "in", [...contactIds])
+      .where("unassigned_at", "is", null)
+      .execute(),
+  ]);
+
+  const assignedTo = new Map<string, string>();
+  for (const row of assignments) {
+    if (row.assigned_to) assignedTo.set(row.contact_id, row.assigned_to);
+  }
+
+  const viewers = new Set<string>();
+  for (const contactId of contactIds) {
+    for (const userId of selectContactViewerIds({
+      candidates: members,
+      assignedTo: assignedTo.get(contactId) ?? null,
+    })) {
+      viewers.add(userId);
+    }
+  }
+  return [...viewers];
 }
 
 /**
@@ -233,24 +268,13 @@ export async function broadcastToContactViewersByJid(
 
     if (contactIds.size === 0) return;
 
-    const viewerIds = new Set<string>();
-    for (const contactId of contactIds) {
-      for (const userId of await resolveContactViewerIds(
-        companyId,
-        contactId,
-        tenantDb,
-      )) {
-        viewerIds.add(userId);
-      }
-    }
-
-    await broadcastToUsers(
+    const viewerIds = await resolveContactViewerIdsForContacts(
       companyId,
-      [...viewerIds],
-      eventType,
-      payload,
-      options,
+      [...contactIds],
+      tenantDb,
     );
+
+    await broadcastToUsers(companyId, viewerIds, eventType, payload, options);
   } catch (error) {
     logger.error(
       { err: formatError(error), companyId, jid, eventType },

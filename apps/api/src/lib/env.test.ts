@@ -1,5 +1,4 @@
 import { describe, expect, test } from "bun:test";
-import { readFileSync } from "node:fs";
 import {
   type Env,
   env,
@@ -251,19 +250,52 @@ describe("signing secrets are validated in every environment", () => {
     expect(() => validateSigningSecrets(nonProductionEnv())).not.toThrow();
   });
 
-  test("the signing secrets ship with no built-in default", () => {
-    // A published development key is not a safeguard: a server that forgot
-    // NODE_ENV would run with a key anyone can read out of this repository.
-    // The suite injects its own via bunfig.toml preload, so the only way this
-    // can pass is if the value came from outside lib/env.ts.
-    const source = readFileSync(
-      new URL("./env.ts", import.meta.url).pathname,
-      "utf8",
+  test("a server with no signing secrets refuses to start", async () => {
+    // Behavioural rather than a source-text match: `env.ts` is evaluated once
+    // per process and Bun caches it, so the only way to observe module-load
+    // behaviour under different environment variables is a fresh process.
+    const child = Bun.spawn(
+      [process.execPath, "-e", 'await import("./src/lib/env.ts")'],
+      {
+        cwd: new URL("../..", import.meta.url).pathname,
+        env: {
+          ...process.env,
+          NODE_ENV: "development",
+          JWT_SECRET: "",
+          CENTRIFUGO_TOKEN_HMAC_SECRET: "",
+        },
+        stderr: "pipe",
+        stdout: "pipe",
+      },
     );
-    expect(source).toContain('getEnv("JWT_SECRET", "")');
-    expect(source).toContain('getEnv("CENTRIFUGO_TOKEN_HMAC_SECRET", "")');
-    expect(source).not.toMatch(/JWT_SECRET",\s*\n?\s*isProduction \?/);
-  });
+    const stderr = await new Response(child.stderr).text();
+    const exitCode = await child.exited;
+
+    expect(exitCode).not.toBe(0);
+    expect(stderr).toMatch(/is required and must not be blank/);
+    expect(stderr).toMatch(/openssl rand/);
+  }, 30_000);
+
+  test("a server with explicit signing secrets starts", async () => {
+    // The other half: the failure above is about the secrets being absent, not
+    // about the module being unable to load at all.
+    const child = Bun.spawn(
+      [process.execPath, "-e", 'await import("./src/lib/env.ts")'],
+      {
+        cwd: new URL("../..", import.meta.url).pathname,
+        env: {
+          ...process.env,
+          NODE_ENV: "development",
+          JWT_SECRET: "an-explicitly-supplied-secret-123456789",
+          CENTRIFUGO_TOKEN_HMAC_SECRET: "a-distinct-explicit-secret-987654321",
+        },
+        stderr: "pipe",
+        stdout: "pipe",
+      },
+    );
+    const exitCode = await child.exited;
+    expect(exitCode).toBe(0);
+  }, 30_000);
 
   test("the test process supplied its own secrets", () => {
     expect(env.JWT_SECRET.trim().length).toBeGreaterThan(0);
@@ -333,6 +365,60 @@ describe("signing secrets are validated in every environment", () => {
     expectInvalid(
       { JWT_SECRET: shared, CENTRIFUGO_TOKEN_HMAC_SECRET: shared },
       /must be different/,
+    );
+  });
+});
+
+/**
+ * The membership cache is an optimization. Production must not be able to turn
+ * it into a policy window where a revoked permission keeps applying.
+ */
+describe("realtime tuning bounds in production", () => {
+  test("accepts the shipped defaults", () => {
+    expect(() =>
+      validateProductionEnv(
+        productionEnv({
+          REALTIME_MEMBERSHIP_CACHE_TTL_MS: 5_000,
+          REALTIME_EPHEMERAL_MIN_INTERVAL_MS: 1_500,
+        }),
+      ),
+    ).not.toThrow();
+  });
+
+  test("accepts 0, which disables caching and reads live", () => {
+    expect(() =>
+      validateProductionEnv(
+        productionEnv({
+          REALTIME_MEMBERSHIP_CACHE_TTL_MS: 0,
+          REALTIME_EPHEMERAL_MIN_INTERVAL_MS: 0,
+        }),
+      ),
+    ).not.toThrow();
+  });
+
+  test("rejects a membership TTL long enough to matter", () => {
+    expectInvalid(
+      { REALTIME_MEMBERSHIP_CACHE_TTL_MS: 600_000 },
+      /REALTIME_MEMBERSHIP_CACHE_TTL_MS must be between 0 and 60000/,
+    );
+  });
+
+  test("rejects a negative or non-integer TTL", () => {
+    expectInvalid(
+      { REALTIME_MEMBERSHIP_CACHE_TTL_MS: -1 },
+      /must be between 0 and 60000/,
+    );
+    expectInvalid(
+      { REALTIME_MEMBERSHIP_CACHE_TTL_MS: 1.5 },
+      /must be between 0 and 60000/,
+    );
+  });
+
+  test("rejects an ephemeral interval long enough to look like a bug", () => {
+    // A 60s throttle would make typing indicators appear broken.
+    expectInvalid(
+      { REALTIME_EPHEMERAL_MIN_INTERVAL_MS: 60_000 },
+      /REALTIME_EPHEMERAL_MIN_INTERVAL_MS must be between 0 and 30000/,
     );
   });
 });

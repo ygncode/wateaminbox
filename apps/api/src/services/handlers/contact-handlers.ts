@@ -15,6 +15,7 @@ import type {
   ProfilePictureEvent,
   TypingEvent,
 } from "../../lib/nats/index.js";
+import { shouldPublishEphemeralSignal } from "../ephemeral-signal-throttle.js";
 import { broadcastToContactViewersByJid } from "../message-broadcast.service.js";
 import { getTenantConnection } from "../tenant.service.js";
 import { handlerLogger as logger } from "./types.js";
@@ -403,18 +404,35 @@ export async function handlePresenceEvent(event: PresenceEvent): Promise<void> {
         "Updated presence for contact",
       );
 
-      // Broadcast to clients with normalized JID
-      await broadcastToContactViewersByJid(
-        companyId,
-        contactJid,
-        isOnline ? "presence:online" : "presence:offline",
-        {
-          jid: contactJid,
-          isOnline,
-          lastSeen: lastSeen ? toISOString(lastSeen) : undefined,
-        },
-        { connectionId },
-      );
+      // Broadcast to clients with normalized JID.
+      // Presence flaps repeatedly while a contact has the chat open; only a
+      // change of state is worth republishing. A row was updated by matching
+      // this JID, so it is non-null here - the check keeps that explicit
+      // rather than coercing a null into the throttle key.
+      if (
+        contactJid &&
+        shouldPublishEphemeralSignal(
+          {
+            kind: "presence",
+            companyId,
+            connectionId,
+            conversationJid: contactJid,
+          },
+          isOnline ? "online" : "offline",
+        )
+      ) {
+        await broadcastToContactViewersByJid(
+          companyId,
+          contactJid,
+          isOnline ? "presence:online" : "presence:offline",
+          {
+            jid: contactJid,
+            isOnline,
+            lastSeen: lastSeen ? toISOString(lastSeen) : undefined,
+          },
+          { connectionId },
+        );
+      }
     } else {
       // Contact not found - this is normal for contacts we haven't seen messages from yet
       // Don't log a warning as this is expected behavior
@@ -447,14 +465,38 @@ export async function handleTypingEvent(event: TypingEvent): Promise<void> {
     "Typing event received",
   );
 
+  // A contact typing a sentence emits a stream of identical `typing:start`
+  // events. Collapse the repeats; a state CHANGE (start -> stop) always passes,
+  // so an indicator can never be left stuck on.
+  const typingChatJid = payload.chatJid || payload.from;
+  // An event naming no conversation was previously dropped by the fan-out's
+  // own `if (!jid) return`. The throttle now runs first and would throw on a
+  // missing key, and this handler rethrows into the NATS consumer - so a
+  // malformed payload would become a redelivery loop instead of a no-op.
+  if (!typingChatJid) return;
+  if (
+    !shouldPublishEphemeralSignal(
+      {
+        kind: "typing",
+        companyId,
+        connectionId,
+        conversationJid: typingChatJid,
+        actorJid: payload.from,
+      },
+      payload.isTyping ? "start" : "stop",
+    )
+  ) {
+    return;
+  }
+
   // Broadcast to clients
   // Frontend expects conversationId (JID) to match against active chat
   await broadcastToContactViewersByJid(
     companyId,
-    payload.chatJid || payload.from,
+    typingChatJid,
     payload.isTyping ? "typing:start" : "typing:stop",
     {
-      conversationId: payload.chatJid || payload.from,
+      conversationId: typingChatJid,
       userId: payload.from,
       userName: payload.from, // JID as fallback, could lookup contact name
     },

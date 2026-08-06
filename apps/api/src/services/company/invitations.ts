@@ -29,6 +29,7 @@ import {
   ROLE_PRESETS,
 } from "../permission.service.js";
 import { getCompany } from "./core.js";
+import { invalidateCompanyMembership } from "../company-membership.service.js";
 import type {
   AcceptInvitationResult,
   CompanyMember,
@@ -456,6 +457,10 @@ export async function acceptInvitation(
 
     return member;
   });
+
+  // A newly joined member must be able to receive conversation events for the
+  // contacts they can see immediately, not once a cache entry lapses.
+  invalidateCompanyMembership(invitation.company_id);
 
   const company = await getCompany(invitation.company_id);
 

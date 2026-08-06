@@ -1,4 +1,5 @@
 import { toDbDate } from "@wateaminbox/shared";
+import { MEDIA_DOWNLOAD_LEASE_MS } from "../config/media.config.js";
 import { Hono } from "hono";
 import {
   badRequest,
@@ -17,14 +18,6 @@ import { requireMessageVisibility } from "../middleware/resource-visibility.js";
 import { tenantMiddleware } from "../middleware/tenant.js";
 
 const logger = createLogger("MediaRoutes");
-
-/**
- * How long one on-demand media download may stay claimed before another
- * request may retry it. Sized well above a normal worker round-trip so a
- * healthy download is never duplicated, and far below "forever" so a worker
- * that dies mid-download cannot strand the media permanently.
- */
-export const MEDIA_DOWNLOAD_LEASE_MS = 5 * 60_000;
 
 export const mediaRoutes = new Hono();
 
