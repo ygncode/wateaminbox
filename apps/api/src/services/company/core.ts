@@ -16,6 +16,7 @@ import {
 } from "../../lib/storage.js";
 import { seedDefaultSlaPolicy } from "../sla-policy/policy.service.js";
 import { createTenantSchema, getSchemaName } from "../tenant.service.js";
+import { invalidateCompanyMembership } from "../company-membership.service.js";
 import type {
   Company,
   CreateCompanyInput,
@@ -114,6 +115,10 @@ export async function createCompany(
 
       return company;
     });
+
+  // A brand-new workspace has no cached membership, but invalidating keeps the
+  // "every company_members write invalidates" rule literally true.
+  invalidateCompanyMembership(companyId);
 
   // Create the tenant schema
   await createTenantSchema(companyId);

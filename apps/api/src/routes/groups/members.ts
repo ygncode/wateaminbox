@@ -104,7 +104,7 @@ memberRoutes.post("/:id/participants/:participantJid/promote", async (c) => {
       participantJid,
       operation: "promote_admin",
     },
-    ipAddress: getClientIp(c.req.raw.headers),
+    ipAddress: getClientIp(c),
   });
 
   return successWithMessage(c, "Participant promoted to admin", {
@@ -203,7 +203,7 @@ memberRoutes.post("/:id/participants/:participantJid/demote", async (c) => {
       participantJid,
       operation: "demote_admin",
     },
-    ipAddress: getClientIp(c.req.raw.headers),
+    ipAddress: getClientIp(c),
   });
 
   return successWithMessage(c, "Admin demoted to regular participant", {
@@ -309,7 +309,7 @@ memberRoutes.delete("/:id/participants/:participantJid", async (c) => {
       participantJid,
       operation: "remove_participant",
     },
-    ipAddress: getClientIp(c.req.raw.headers),
+    ipAddress: getClientIp(c),
   });
 
   return successWithMessage(c, "Participant removed from group", {

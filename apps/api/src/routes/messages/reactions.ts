@@ -12,7 +12,7 @@ import {
   buildCommandSubject,
   buildSendReactionCommand,
 } from "../../lib/nats/index.js";
-import { broadcastToCompany } from "../../lib/realtime.js";
+import { broadcastToContactViewers } from "../../services/message-broadcast.service.js";
 import { successData } from "../../lib/response.js";
 import { addReactionSchema } from "../../lib/schemas/index.js";
 import { getRouteContext } from "../../middleware/context.js";
@@ -150,8 +150,9 @@ reactionRoutes.post(
       );
     });
 
-    await broadcastToCompany(
+    await broadcastToContactViewers(
       companyId,
+      message.contact_id,
       "message:reaction",
       {
         messageId,
@@ -161,7 +162,7 @@ reactionRoutes.post(
         isOwn: true,
         timestamp: nowMs(),
       },
-      connection.id,
+      { connectionId: connection.id },
     );
 
     return successData(c, {
@@ -281,8 +282,9 @@ reactionRoutes.delete("/:id/reaction", async (c) => {
   }
 
   if (connection) {
-    await broadcastToCompany(
+    await broadcastToContactViewers(
       companyId,
+      message.contact_id,
       "message:reaction",
       {
         messageId,
@@ -291,7 +293,7 @@ reactionRoutes.delete("/:id/reaction", async (c) => {
         emoji: "",
         timestamp: nowMs(),
       },
-      connection.id,
+      { connectionId: connection.id },
     );
   }
 

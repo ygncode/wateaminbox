@@ -4,6 +4,7 @@ import { rateLimitConfig, rateLimitStore } from "../lib/rate-limit-store.js";
 import { successData } from "../lib/response.js";
 import {
   extractDateRange,
+  extractDayWindow,
   extractOptionalDateRange,
   extractPaginationParams,
   extractSlaThresholdOverride,
@@ -119,7 +120,7 @@ analyticsRoutes.get("/message-types", analyticsRateLimiter, async (c) => {
  */
 analyticsRoutes.get("/hourly", analyticsRateLimiter, async (c) => {
   const { companyId } = getRouteContext(c);
-  const days = parseInt(c.req.query("days") || "30", 10);
+  const days = extractDayWindow(c);
 
   const stats = await analyticsService.getHourlyMessageStats(companyId, days);
 

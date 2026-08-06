@@ -34,6 +34,10 @@ import {
   finalizeBulkJobIfComplete,
   markBulkJobRunning,
 } from "./bulk-job.service.js";
+import {
+  broadcastNewMessageToViewers,
+  broadcastToContactViewers,
+} from "./message-broadcast.service.js";
 import { enqueueCommand } from "./command-outbox.service.js";
 import { resolveActiveCaseIdForContact } from "./conversation-case.service.js";
 import {
@@ -118,11 +122,12 @@ async function broadcastScheduledUpdate(
   contactId: string,
   status: ScheduledMessageStatus,
 ): Promise<void> {
-  await broadcastToCompany(companyId, "scheduled_message:updated", {
-    scheduledMessageId,
-    conversationId: contactId,
-    status,
-  });
+  await broadcastToContactViewers(
+    companyId,
+    contactId,
+    "scheduled_message:updated",
+    { scheduledMessageId, conversationId: contactId, status },
+  );
 }
 
 /** A dispatch failure that retrying can never fix (e.g. deleted contact). */
@@ -598,9 +603,9 @@ export async function dispatchCompanyScheduledMessages(
       dispatched++;
       dispatchedTotal++;
       await Promise.all([
-        broadcastToCompany(
+        broadcastNewMessageToViewers(
           companyId,
-          "message:new",
+          row.contact_id,
           {
             message: result.formattedMessage,
             conversationId: row.contact_id,
@@ -887,9 +892,9 @@ export async function dispatchCompanyBulkMessages(
       dispatched++;
       bulkDispatchedTotal++;
       await Promise.all([
-        broadcastToCompany(
+        broadcastNewMessageToViewers(
           companyId,
-          "message:new",
+          leaf.contact_id,
           {
             message: result.formattedMessage,
             conversationId: leaf.contact_id,

@@ -115,7 +115,7 @@ invitationRoutes.post(
             : "role_defaults",
         permissionOverrides: invitation.permissions,
       },
-      ipAddress: getClientIp(c.req.raw.headers),
+      ipAddress: getClientIp(c),
     });
     return successWithMessage(
       c,
@@ -194,7 +194,7 @@ tokenInvitationRoutes.post("/:token/accept", authMiddleware, async (c) => {
           : "role_defaults",
       permissionOverrides: result.member.permissions,
     },
-    ipAddress: getClientIp(c.req.raw.headers),
+    ipAddress: getClientIp(c),
   });
   return successWithMessage(c, `Successfully joined ${result.company.name}`, {
     company: result.company,

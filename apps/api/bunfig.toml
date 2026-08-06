@@ -1,0 +1,4 @@
+[test]
+# Signing secrets have no built-in default, so the suite injects its own before
+# any module reads lib/env.ts. See src/test-env.ts.
+preload = ["./src/test-env.ts"]

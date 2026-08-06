@@ -13,7 +13,6 @@ import {
   buildSendMessageCommand,
 } from "../../lib/nats/index.js";
 import { rateLimitConfig, rateLimitStore } from "../../lib/rate-limit-store.js";
-import { broadcastToCompany } from "../../lib/realtime.js";
 import {
   forwardMessageSchema,
   sendMessageSchema,
@@ -30,6 +29,7 @@ import { requireMessageVisibility } from "../../middleware/resource-visibility.j
 import { broadcastAutoAssignment } from "../../services/assignment-broadcast.service.js";
 import { toAuthUserResponse } from "../../services/auth.service.js";
 import { enqueueCommand } from "../../services/command-outbox.service.js";
+import { broadcastNewMessageToViewers } from "../../services/message-broadcast.service.js";
 import { requireSendAccess } from "../../services/send-access.service.js";
 import { getActiveSessionId } from "../../services/whatsapp/session.js";
 
@@ -194,9 +194,9 @@ sendRoutes.post(
       updatedAt: createdAt,
     };
 
-    await broadcastToCompany(
+    await broadcastNewMessageToViewers(
       companyId,
-      "message:new",
+      body.contactId,
       {
         message: {
           ...formattedMessage,

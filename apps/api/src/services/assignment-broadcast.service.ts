@@ -8,7 +8,7 @@
 
 import { getContactDisplayName } from "@wateaminbox/shared";
 import type { Kysely } from "kysely";
-import { broadcastToCompany } from "../lib/realtime.js";
+import { broadcastToContactViewers } from "./message-broadcast.service.js";
 import type { TenantDatabase } from "./tenant.service.js";
 
 export type ContactAssignmentEvent = "assigned" | "reassigned" | "unassigned";
@@ -27,14 +27,23 @@ export async function broadcastContactAssignmentEvent(
   companyId: string,
   params: ContactAssignmentBroadcastParams,
 ): Promise<void> {
-  await broadcastToCompany(companyId, "contact:updated", {
-    event: params.event,
-    contactId: params.contactId,
-    contactName: params.contactName,
-    previousAssignee: params.previousAssignee,
-    newAssignee: params.newAssignee,
-    assignedBy: params.assignedBy,
-  });
+  await broadcastToContactViewers(
+    companyId,
+    params.contactId,
+    "contact:updated",
+    {
+      event: params.event,
+      contactId: params.contactId,
+      contactName: params.contactName,
+      previousAssignee: params.previousAssignee,
+      newAssignee: params.newAssignee,
+      assignedBy: params.assignedBy,
+    },
+    // Both sides of the transition must react: the incoming assignee gains the
+    // conversation, and the outgoing one - who the viewer resolver no longer
+    // returns - has to drop it from their inbox and composer gate.
+    { alsoNotifyUserIds: [params.previousAssignee, params.newAssignee] },
+  );
 }
 
 /**

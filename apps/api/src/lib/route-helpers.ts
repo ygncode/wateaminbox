@@ -82,6 +82,37 @@ export function extractOptionalDateRange(c: Context): OptionalDateRange {
   };
 }
 
+/** Widest lookback an endpoint that takes a raw `days` window will accept. */
+export const MAX_ANALYTICS_WINDOW_DAYS = 730;
+
+/**
+ * Extract a whole-day lookback window from the `days` query parameter.
+ *
+ * `parseInt` alone is not enough: a non-numeric value yields NaN, which flows
+ * into date arithmetic and reaches PostgreSQL as an invalid timestamp (a 500,
+ * not a 400). An unbounded value turns a bounded dashboard query into a
+ * full-table scan. Both are rejected here instead.
+ *
+ * @throws ValidationError when the value is not an integer in range
+ */
+export function extractDayWindow(
+  c: Context,
+  defaultDays = 30,
+  maxDays = MAX_ANALYTICS_WINDOW_DAYS,
+): number {
+  const raw = c.req.query("days");
+  if (raw === undefined || raw === "") return defaultDays;
+
+  const value = Number(raw);
+  if (!Number.isInteger(value) || value < 1 || value > maxDays) {
+    throw new ValidationError(
+      `days must be an integer between 1 and ${maxDays}`,
+    );
+  }
+
+  return value;
+}
+
 /**
  * Pagination parameters extracted from query string
  */

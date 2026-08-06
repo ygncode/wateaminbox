@@ -17,39 +17,50 @@ let currentCompanyId: string | null = null;
 let currentUserId: string | null = null;
 let realtimeClientId: string | undefined;
 
+/** Workspace-wide control events, delivered on the shared company channel. */
 export type CompanyRealtimeEventType =
+  | "bulk_job:updated"
+  | "qr"
+  | "connected"
+  | "disconnected"
+  | "connection:status"
+  | "sync:start"
+  | "sync:progress"
+  | "sync:complete"
+  | "sync:interrupted"
+  | "notification:toast"
+  | "status"
+  | "labels:updated"
+  | "catalogs:updated"
+  | "command:failed";
+
+/**
+ * Events scoped to one contact's conversation. The server fans these out to
+ * the users authorized to read that conversation, so they arrive on this
+ * user's own channel rather than the shared company channel.
+ */
+export type ConversationRealtimeEventType =
   | "message:new"
   | "message:status"
   | "message:deleted"
   | "message:reaction"
   | "message:failed"
   | "scheduled_message:updated"
-  | "bulk_job:updated"
-  | "qr"
-  | "connected"
-  | "disconnected"
-  | "connection:status"
   | "typing:start"
   | "typing:stop"
-  | "sync:start"
-  | "sync:progress"
-  | "sync:complete"
-  | "sync:interrupted"
   | "media:downloaded"
   | "media:download_failed"
-  | "notification:toast"
-  | "status"
   | "contact:updated"
   | "contact:profile_picture"
   | "presence:online"
   | "presence:offline"
   | "conversation:read"
-  | "conversation:updated"
-  | "labels:updated"
-  | "catalogs:updated"
-  | "command:failed";
+  | "conversation:updated";
 
-export type UserRealtimeEventType = "notification:new";
+/** Events the server addresses to this user's own channel. */
+export type UserRealtimeEventType =
+  | "notification:new"
+  | ConversationRealtimeEventType;
 export type RealtimeEventType =
   | CompanyRealtimeEventType
   | UserRealtimeEventType;

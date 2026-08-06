@@ -41,10 +41,24 @@ export function getCommandOutboxHealth() {
   };
 }
 
-export async function getCommandOutboxBacklog(): Promise<{
+export type CommandOutboxBacklog = {
   pending: number;
   oldestPendingAt: Date | null;
-}> {
+};
+
+/**
+ * The backlog scan costs one query per active tenant, so it must never run
+ * once per caller. `/health/ready` is unauthenticated, which would otherwise
+ * turn a cheap probe into an arbitrary-cost fan-out across every tenant
+ * schema. Results are memoized for a probe interval, and concurrent callers
+ * share a single in-flight computation.
+ */
+const BACKLOG_CACHE_TTL_MS = 10_000;
+let backlogCache: { value: CommandOutboxBacklog; expiresAt: number } | null =
+  null;
+let backlogInFlight: Promise<CommandOutboxBacklog> | null = null;
+
+async function computeCommandOutboxBacklog(): Promise<CommandOutboxBacklog> {
   const companies = await db
     .selectFrom("companies")
     .select("id")
@@ -71,6 +85,32 @@ export async function getCommandOutboxBacklog(): Promise<{
     }
   }
   return { pending, oldestPendingAt };
+}
+
+export async function getCommandOutboxBacklog(
+  load: () => Promise<CommandOutboxBacklog> = computeCommandOutboxBacklog,
+): Promise<CommandOutboxBacklog> {
+  const now = Date.now();
+  if (backlogCache && backlogCache.expiresAt > now) return backlogCache.value;
+  if (backlogInFlight) return backlogInFlight;
+
+  backlogInFlight = load()
+    .then((value) => {
+      backlogCache = { value, expiresAt: Date.now() + BACKLOG_CACHE_TTL_MS };
+      return value;
+    })
+    .finally(() => {
+      // A failure must not be cached: the next probe should retry.
+      backlogInFlight = null;
+    });
+
+  return backlogInFlight;
+}
+
+/** Drop the memoized backlog so tests observe fresh reads. */
+export function resetCommandOutboxBacklogCache(): void {
+  backlogCache = null;
+  backlogInFlight = null;
 }
 
 export type TenantDbExecutor =

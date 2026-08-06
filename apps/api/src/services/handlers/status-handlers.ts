@@ -11,6 +11,7 @@ import type {
   SyncStatusEvent,
 } from "../../lib/nats/index.js";
 import { broadcastToCompany } from "../../lib/realtime.js";
+import { broadcastToContactViewers } from "../message-broadcast.service.js";
 import { getTenantConnection } from "../tenant.service.js";
 import { handlerLogger as logger } from "./types.js";
 
@@ -267,7 +268,17 @@ export async function handleDownloadResponseEvent(
     const tenantDb = getTenantConnection(companyId);
 
     if (payload.success && payload.mediaUrl) {
-      // Update message with downloaded media
+      // First response wins.
+      //
+      // A download claim whose lease expires while the worker is still running
+      // can be re-claimed, producing a second command for the same message and
+      // eventually a second response. Without this guard the later response
+      // would overwrite `media_url` with its own upload, orphaning the object
+      // the first one stored and emitting a duplicate `media:downloaded`.
+      //
+      // Matching on "not already completed" is a compare-and-set: PostgreSQL
+      // re-checks it under the row lock, so exactly one of two concurrent
+      // responses updates a row. The loser simply finds nothing to do.
       const updatedMessage = await tenantDb
         .updateTable("messages")
         .set({
@@ -278,8 +289,25 @@ export async function handleDownloadResponseEvent(
         })
         .where("id", "=", payload.messageId)
         .where("whatsapp_connection_id", "=", connectionId)
+        .where((eb) =>
+          eb.or([
+            eb("media_download_status", "is", null),
+            eb("media_download_status", "!=", "completed"),
+            eb("media_url", "is", null),
+          ]),
+        )
         .returning(["id", "contact_id"])
         .executeTakeFirst();
+
+      if (!updatedMessage) {
+        // Either the message is gone, or another response already completed
+        // it. Neither is an error, but a duplicate download means a stored
+        // object nobody references - worth seeing in the logs.
+        logger.info(
+          { messageId: payload.messageId, connectionId },
+          "Ignoring media download response for an already-settled message",
+        );
+      }
 
       if (updatedMessage) {
         logger.info(
@@ -291,8 +319,9 @@ export async function handleDownloadResponseEvent(
         );
 
         // Broadcast to clients
-        await broadcastToCompany(
+        await broadcastToContactViewers(
           companyId,
+          updatedMessage.contact_id,
           "media:downloaded",
           {
             messageId: updatedMessage.id,
@@ -300,7 +329,7 @@ export async function handleDownloadResponseEvent(
             mediaAvailable: true,
             mediaSize: payload.mediaSize,
           },
-          connectionId,
+          { connectionId },
         );
       }
     } else {
@@ -332,15 +361,16 @@ export async function handleDownloadResponseEvent(
         .executeTakeFirst();
 
       if (message) {
-        await broadcastToCompany(
+        await broadcastToContactViewers(
           companyId,
+          message.contact_id,
           "media:download_failed",
           {
             messageId: message.id,
             conversationId: message.contact_id,
             error: payload.error,
           },
-          connectionId,
+          { connectionId },
         );
       }
     }

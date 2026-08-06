@@ -9,13 +9,21 @@ import type {
 } from "../../lib/realtime";
 
 const handlers = new Map<string, RealtimeEventHandler>();
+/** Which channel each event was bound to, so the split stays asserted here. */
+const boundChannel = new Map<string, "company" | "user">();
 const toastPayloads: unknown[] = [];
 
-mock.module("../../lib/realtime", () => ({
-  bindEvent: (eventType: string, handler: RealtimeEventHandler) => {
+function record(channel: "company" | "user") {
+  return (eventType: string, handler: RealtimeEventHandler) => {
     handlers.set(eventType, handler);
+    boundChannel.set(eventType, channel);
     return () => handlers.delete(eventType);
-  },
+  };
+}
+
+mock.module("../../lib/realtime", () => ({
+  bindEvent: record("company"),
+  bindUserEvent: record("user"),
 }));
 
 mock.module("../../lib/toast-notifications", () => ({
@@ -33,6 +41,7 @@ beforeAll(async () => {
 
 function register(queryClient: QueryClient): () => void {
   handlers.clear();
+  boundChannel.clear();
   toastPayloads.length = 0;
   const cleanups = registerRealtimeEventHandlers({
     queryClient,
@@ -99,5 +108,57 @@ describe("realtime event handlers", () => {
       title: "Broadcast finished",
     });
     cleanup();
+  });
+});
+
+/**
+ * The server only fans conversation events out to the users authorized to read
+ * that conversation, and it addresses them to that user's own channel. A
+ * handler bound to the shared company channel would simply never fire.
+ */
+describe("conversation events are bound to the user channel", () => {
+  test("every conversation-scoped event listens on the user channel", () => {
+    const cleanup = register(new QueryClient());
+    try {
+      for (const eventType of [
+        "message:new",
+        "message:status",
+        "message:failed",
+        "message:deleted",
+        "message:reaction",
+        "scheduled_message:updated",
+        "typing:start",
+        "typing:stop",
+        "conversation:read",
+        "conversation:updated",
+        "contact:updated",
+        "contact:profile_picture",
+        "presence:online",
+        "presence:offline",
+        "media:downloaded",
+        "media:download_failed",
+      ]) {
+        expect([eventType, boundChannel.get(eventType)]).toEqual([
+          eventType,
+          "user",
+        ]);
+      }
+    } finally {
+      cleanup();
+    }
+  });
+
+  test("workspace control events stay on the company channel", () => {
+    const cleanup = register(new QueryClient());
+    try {
+      for (const eventType of ["notification:toast", "bulk_job:updated"]) {
+        expect([eventType, boundChannel.get(eventType)]).toEqual([
+          eventType,
+          "company",
+        ]);
+      }
+    } finally {
+      cleanup();
+    }
   });
 });

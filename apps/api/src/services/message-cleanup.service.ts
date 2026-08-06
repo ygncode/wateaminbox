@@ -5,7 +5,8 @@ import {
   type MessageCleanupConfig,
 } from "../config/cleanup.config.js";
 import { createLogger } from "../lib/logger.js";
-import { broadcastToCompany } from "../lib/realtime.js";
+import { MEDIA_DOWNLOAD_LEASE_MS } from "../config/media.config.js";
+import { broadcastToContactViewers } from "./message-broadcast.service.js";
 import { getTenantConnection, tenantSchemaExists } from "./tenant.service.js";
 
 const logger = createLogger("MessageCleanup");
@@ -158,10 +159,46 @@ export async function shutdownMessageCleanup(): Promise<void> {
 }
 
 /**
+ * Collaborators of a cleanup cycle.
+ *
+ * Injectable so the cycle's per-tenant error isolation can be tested without a
+ * database - matching the seam other services already use (`dispatchCompany`'s
+ * publisher, `getCommandOutboxBacklog`'s loader).
+ */
+export interface CleanupCycleDeps {
+  listCompanies: () => Promise<Array<{ id: string }>>;
+  cleanupMessages: (
+    companyId: string,
+    timeoutMinutes: number,
+    batchSize: number,
+  ) => Promise<number>;
+  releaseMedia: (companyId: string) => Promise<number>;
+}
+
+/**
+ * Production wiring. `runCleanupCycle` resolves overrides against this once,
+ * and the loop below reads ONLY the resolved object - so adding a new
+ * collaborator means adding it here and to `CleanupCycleDeps`, rather than
+ * calling a module function directly and silently escaping the test seam.
+ */
+const defaultCleanupDeps: CleanupCycleDeps = {
+  listCompanies: () => getActiveCompanies(),
+  cleanupMessages: (companyId, timeoutMinutes, batchSize) =>
+    cleanupCompanyMessages(companyId, timeoutMinutes, batchSize),
+  releaseMedia: (companyId) => releaseStrandedMediaDownloads(companyId),
+};
+
+/**
  * Run a single cleanup cycle
  * Iterates through all active companies and expires stale pending messages
  */
-export async function runCleanupCycle(): Promise<CleanupCycleResult> {
+export async function runCleanupCycle(
+  overrides: Partial<CleanupCycleDeps> = {},
+): Promise<CleanupCycleResult> {
+  const { listCompanies, cleanupMessages, releaseMedia }: CleanupCycleDeps = {
+    ...defaultCleanupDeps,
+    ...overrides,
+  };
   const startTime = Date.now();
 
   // Check if cleanup is enabled
@@ -176,7 +213,7 @@ export async function runCleanupCycle(): Promise<CleanupCycleResult> {
   }
 
   // Get all active companies
-  const companies = await getActiveCompanies();
+  const companies = await listCompanies();
 
   if (companies.length === 0) {
     return {
@@ -194,7 +231,7 @@ export async function runCleanupCycle(): Promise<CleanupCycleResult> {
   // Process each company
   for (const company of companies) {
     try {
-      const expiredCount = await cleanupCompanyMessages(
+      const expiredCount = await cleanupMessages(
         company.id,
         currentConfig.timeoutMinutes,
         currentConfig.batchSize,
@@ -217,6 +254,19 @@ export async function runCleanupCycle(): Promise<CleanupCycleResult> {
         "Failed to cleanup company",
       );
     }
+
+    // Isolated from the message cleanup above, and from every other tenant.
+    // The two are independent maintenance tasks that happen to share a cycle:
+    // a media sweep failure must not discard an already-completed message
+    // cleanup's result, and neither must stop the remaining tenants.
+    try {
+      await releaseMedia(company.id);
+    } catch (error) {
+      logger.error(
+        { err: error, companyId: company.id },
+        "Failed to release stranded media downloads",
+      );
+    }
   }
 
   return {
@@ -226,6 +276,62 @@ export async function runCleanupCycle(): Promise<CleanupCycleResult> {
     durationMs: Date.now() - startTime,
     skipped: false,
   };
+}
+
+/**
+ * Release media downloads whose claim lease expired.
+ *
+ * `POST /media/download/:id` claims a row by setting `media_download_status`
+ * to "downloading" with `media_downloaded_at` as the claim stamp, and the
+ * worker's response settles it. If that response never arrives - worker crash,
+ * restart, dropped event - the row stays "downloading". The route can reclaim
+ * an expired lease, but only if somebody asks again; until then the client
+ * shows a permanent "downloading" state with no way out.
+ *
+ * Returning the row to "pending" is what makes it self-healing: `mediaPending`
+ * goes true again, so the UI offers the retry that re-claims it. This never
+ * touches a completed or failed download, and never deletes anything - the
+ * media reference columns are untouched, so the retry has everything it needs.
+ */
+export async function releaseStrandedMediaDownloads(
+  companyId: string,
+  leaseMs: number = MEDIA_DOWNLOAD_LEASE_MS,
+  now: Date = new Date(),
+): Promise<number> {
+  // Same guard `cleanupCompanyMessages` uses. An active company whose tenant
+  // schema is missing (provisioning failed part-way) would otherwise raise
+  // "relation does not exist" on every cleanup cycle, forever.
+  if (!(await tenantSchemaExists(companyId))) {
+    logger.warn({ companyId }, "Tenant schema does not exist for company");
+    return 0;
+  }
+
+  const tenantDb = getTenantConnection(companyId);
+  const cutoff = new Date(now.getTime() - leaseMs);
+
+  const result = await tenantDb
+    .updateTable("messages")
+    .set({ media_download_status: "pending" })
+    .where("media_download_status", "=", "downloading")
+    .where((eb) =>
+      eb.or([
+        eb("media_downloaded_at", "is", null),
+        eb("media_downloaded_at", "<=", cutoff),
+      ]),
+    )
+    // Only rows that can actually be retried; without a direct path the
+    // download route rejects the request anyway.
+    .where("media_direct_path", "is not", null)
+    .executeTakeFirst();
+
+  const released = Number(result.numUpdatedRows ?? 0n);
+  if (released > 0) {
+    logger.info(
+      { companyId, released, leaseMinutes: leaseMs / 60_000 },
+      "Released stranded media download claims",
+    );
+  }
+  return released;
 }
 
 /**
@@ -311,7 +417,7 @@ export async function cleanupCompanyMessages(
 
     // Send notification per contact (conversation)
     for (const [contactId, messages] of messagesByContact) {
-      await broadcastToCompany(companyId, "message:status", {
+      await broadcastToContactViewers(companyId, contactId, "message:status", {
         messageIds: messages.map((m) => m.message_id || m.id),
         status: "failed",
         error: "delivery_timeout",

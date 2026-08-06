@@ -24,7 +24,7 @@ import {
   transformContacts,
 } from "../../lib/data-transformers.js";
 import { badRequest, notFound, serverError } from "../../lib/errors.js";
-import { broadcastToCompany } from "../../lib/realtime.js";
+import { broadcastToContactViewers } from "../../services/message-broadcast.service.js";
 import { created, successData, successPaginated } from "../../lib/response.js";
 import { createPaginationMeta } from "../../lib/route-helpers.js";
 import {
@@ -483,10 +483,10 @@ contactRoutes.patch(
           contactName: contactDisplayName,
           contactJid: existingContact.jid,
         },
-        ipAddress: getClientIp(c.req.raw.headers),
+        ipAddress: getClientIp(c),
       });
 
-      await broadcastToCompany(companyId, "contact:updated", {
+      await broadcastToContactViewers(companyId, contactId, "contact:updated", {
         event: body.isBlocked ? "blocked" : "unblocked",
         contactId,
         contactName: contactDisplayName,

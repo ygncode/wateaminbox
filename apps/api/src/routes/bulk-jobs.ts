@@ -225,7 +225,7 @@ bulkJobRoutes.post(
           scheduledAt: body.scheduledAt,
           messageType: body.messageType,
         },
-        ipAddress: getClientIp(c.req.raw.headers),
+        ipAddress: getClientIp(c),
       });
       await broadcastToCompany(companyId, "bulk_job:updated", {
         bulkJobId: result.job.id,
@@ -299,7 +299,7 @@ bulkJobRoutes.patch(
         scheduledAt: scheduledAt.toISOString(),
         recipientRows: result.updatedLeaves,
       },
-      ipAddress: getClientIp(c.req.raw.headers),
+      ipAddress: getClientIp(c),
     });
     await broadcastToCompany(companyId, "bulk_job:updated", {
       bulkJobId: id,
@@ -516,7 +516,7 @@ bulkJobRoutes.post(
         canceledLeaves: result.canceledLeaves,
         stillProcessing: result.stillProcessing,
       },
-      ipAddress: getClientIp(c.req.raw.headers),
+      ipAddress: getClientIp(c),
     });
 
     return successData(c, result);

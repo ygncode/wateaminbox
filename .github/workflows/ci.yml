@@ -14,8 +14,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
-      # Synthetic test-only key. Production secrets must never be stored in Actions YAML.
+      # Synthetic test-only keys. Production secrets must never be stored in Actions YAML.
       JWT_SECRET: ci-test-only-not-a-secret-at-least-32-characters
+      CENTRIFUGO_TOKEN_HMAC_SECRET: ci-test-only-realtime-secret-at-least-32-characters
     services:
       postgres:
         image: postgres:18-alpine

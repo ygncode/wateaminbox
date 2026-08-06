@@ -1,3 +1,5 @@
+import { toDbDate } from "@wateaminbox/shared";
+import { MEDIA_DOWNLOAD_LEASE_MS } from "../config/media.config.js";
 import { Hono } from "hono";
 import {
   badRequest,
@@ -95,6 +97,7 @@ mediaRoutes.post(
           "media_file_sha256",
           "media_file_enc_sha256",
           "media_download_status",
+          "media_downloaded_at",
           "media_mime_type",
         ])
         .where("id", "=", messageId)
@@ -118,11 +121,6 @@ mediaRoutes.post(
         return badRequest(c, "No media reference available for this message");
       }
 
-      // If already downloading, return status
-      if (message.media_download_status === "downloading") {
-        return successData(c, { status: "downloading" });
-      }
-
       // Get the WhatsApp connection for this message
       const connection = await tenantDb
         .selectFrom("whatsapp_connections")
@@ -134,12 +132,44 @@ mediaRoutes.post(
         return serviceUnavailable(c, "WhatsApp connection not available");
       }
 
-      // Mark as downloading
-      await tenantDb
+      // Claim the row with a single conditional UPDATE. PostgreSQL re-checks
+      // the qualification under the row lock, so of two concurrent requests
+      // exactly one updates a row and publishes; the loser matches nothing.
+      //
+      // `media_downloaded_at` doubles as the claim timestamp. It is written
+      // nowhere else while a download is outstanding and is never read for
+      // display, and the success handler overwrites it with the completion
+      // time - so an in-flight claim can reuse it without a schema migration.
+      // A claim older than the lease belonged to a worker that never answered
+      // (crash, restart, dropped event) and is reclaimed rather than stranding
+      // the media forever. A NULL timestamp on a "downloading" row is a claim
+      // made before this lease existed, so it is reclaimable immediately.
+      const claimedAt = toDbDate();
+      const staleClaimCutoff = new Date(
+        claimedAt.getTime() - MEDIA_DOWNLOAD_LEASE_MS,
+      );
+      const claim = await tenantDb
         .updateTable("messages")
-        .set({ media_download_status: "downloading" })
+        .set({
+          media_download_status: "downloading",
+          media_downloaded_at: claimedAt,
+        })
         .where("id", "=", messageId)
-        .execute();
+        .where((eb) =>
+          eb.or([
+            eb("media_download_status", "is", null),
+            eb("media_download_status", "!=", "downloading"),
+            eb("media_downloaded_at", "is", null),
+            eb("media_downloaded_at", "<=", staleClaimCutoff),
+          ]),
+        )
+        .executeTakeFirst();
+
+      if (claim.numUpdatedRows === 0n) {
+        // Another request holds a live claim; its worker response will settle
+        // the row.
+        return successData(c, { status: "downloading" });
+      }
 
       // Determine media type from mime type
       const mimeType = message.media_mime_type || "";
@@ -147,10 +177,6 @@ mediaRoutes.post(
       if (mimeType.startsWith("image/")) mediaType = "image";
       else if (mimeType.startsWith("video/")) mediaType = "video";
       else if (mimeType.startsWith("audio/")) mediaType = "audio";
-
-      // Publish download request to NATS JetStream
-      const js = await getJetStreamClient();
-      const jc = JSONCodec();
 
       const downloadRequest = {
         messageId: messageId,
@@ -162,7 +188,30 @@ mediaRoutes.post(
       };
 
       const subject = `WHATSAPP.download.${companyId}.${connection.id}.request`;
-      await js.publish(subject, jc.encode(downloadRequest));
+
+      try {
+        // Publish download request to NATS JetStream
+        const js = await getJetStreamClient();
+        const jc = JSONCodec();
+        await js.publish(subject, jc.encode(downloadRequest));
+      } catch (publishError) {
+        // Release the claim immediately rather than making the caller wait out
+        // the lease: this failure is known, not a silent worker timeout. The
+        // guard on the claim timestamp keeps a concurrent winner's claim
+        // intact if this row was already re-claimed.
+        await tenantDb
+          .updateTable("messages")
+          .set({
+            media_download_status: message.media_download_status ?? "pending",
+            media_downloaded_at: message.media_downloaded_at,
+          })
+          .where("id", "=", messageId)
+          .where("media_download_status", "=", "downloading")
+          .where("media_downloaded_at", "=", claimedAt)
+          .execute()
+          .catch(() => undefined);
+        throw publishError;
+      }
 
       logger.info(
         { messageId, companyId, connectionId: connection.id },

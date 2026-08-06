@@ -1,10 +1,12 @@
-import { describe, expect, test } from "bun:test";
+import { beforeEach, describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { buildSendMessageCommand } from "../lib/nats/client.js";
 import { NatsCommandPublisher } from "../lib/nats/command-builder.js";
 import {
+  getCommandOutboxBacklog,
   getOutboxRetryDelayMs,
   prepareOutboxPayload,
+  resetCommandOutboxBacklogCache,
 } from "./command-outbox.service.js";
 
 describe("command outbox", () => {
@@ -84,5 +86,78 @@ describe("command outbox", () => {
       oldest_timestamp: "2026-01-01T00:00:00.000Z",
       count: 50,
     });
+  });
+});
+
+/**
+ * The backlog scan issues one query per active tenant. `/health/ready` is
+ * unauthenticated, so an uncached read would let anyone fan a cheap probe out
+ * across every tenant schema.
+ */
+describe("command outbox backlog is not recomputed per probe", () => {
+  beforeEach(() => {
+    resetCommandOutboxBacklogCache();
+  });
+
+  test("repeated probes reuse one scan", async () => {
+    let scans = 0;
+    const load = async () => {
+      scans++;
+      return { pending: 3, oldestPendingAt: null };
+    };
+
+    expect(await getCommandOutboxBacklog(load)).toEqual({
+      pending: 3,
+      oldestPendingAt: null,
+    });
+    await getCommandOutboxBacklog(load);
+    await getCommandOutboxBacklog(load);
+
+    expect(scans).toBe(1);
+  });
+
+  test("concurrent probes share a single in-flight scan", async () => {
+    let scans = 0;
+    let release: (() => void) | undefined;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const load = async () => {
+      scans++;
+      await gate;
+      return { pending: 7, oldestPendingAt: null };
+    };
+
+    const probes = Promise.all([
+      getCommandOutboxBacklog(load),
+      getCommandOutboxBacklog(load),
+      getCommandOutboxBacklog(load),
+    ]);
+    release?.();
+
+    expect(await probes).toEqual([
+      { pending: 7, oldestPendingAt: null },
+      { pending: 7, oldestPendingAt: null },
+      { pending: 7, oldestPendingAt: null },
+    ]);
+    expect(scans).toBe(1);
+  });
+
+  test("a failed scan is not cached, so the next probe retries", async () => {
+    let scans = 0;
+    const load = async () => {
+      scans++;
+      if (scans === 1) throw new Error("postgres unavailable");
+      return { pending: 0, oldestPendingAt: null };
+    };
+
+    await expect(getCommandOutboxBacklog(load)).rejects.toThrow(
+      "postgres unavailable",
+    );
+    expect(await getCommandOutboxBacklog(load)).toEqual({
+      pending: 0,
+      oldestPendingAt: null,
+    });
+    expect(scans).toBe(2);
   });
 });

@@ -1,17 +1,25 @@
 import type { Context } from "hono";
+import { resolveClientIp } from "../../lib/client-ip.js";
 import { AuthError, serverError } from "../../lib/errors.js";
 
+/** Session rows are shown to users verbatim, so bound what a client can store. */
+const MAX_USER_AGENT_LENGTH = 512;
+
 /**
- * Helper to extract device info from request
+ * Helper to extract device info from request.
+ *
+ * The IP comes from the verified socket peer rather than a client-supplied
+ * forwarding header: users read this value on the "active sessions" screen to
+ * decide whether a session is theirs, so a spoofable value is worse than none.
  */
 export function getDeviceInfo(c: Context): {
   ipAddress?: string;
   userAgent?: string;
 } {
   return {
-    ipAddress:
-      c.req.header("x-forwarded-for") || c.req.header("x-real-ip") || undefined,
-    userAgent: c.req.header("user-agent") || undefined,
+    ipAddress: resolveClientIp(c),
+    userAgent:
+      c.req.header("user-agent")?.slice(0, MAX_USER_AGENT_LENGTH) || undefined,
   };
 }
 

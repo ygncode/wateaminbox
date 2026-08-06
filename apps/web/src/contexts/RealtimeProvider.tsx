@@ -27,6 +27,7 @@ import {
   onConnectionStateChange,
   type RealtimeConnectionStatus,
   type RealtimeEventData,
+  type UserRealtimeEventType,
   subscribeToCompany,
   subscribeToUser,
   unsubscribeFromCompany,
@@ -74,7 +75,7 @@ export interface RealtimeContextValue {
   // Event subscription
   subscribe: <T>(eventType: string, handler: EventHandler<T>) => () => void;
   subscribeUser: <T>(
-    eventType: "notification:new",
+    eventType: UserRealtimeEventType,
     handler: EventHandler<T>,
   ) => () => void;
 
@@ -308,7 +309,9 @@ export function RealtimeProvider({
     [],
   );
 
-  // Mark messages as read
+  // Ephemeral per-message read receipt. See broadcastMessagesRead: this does
+  // NOT persist read state - `markConversationAsRead` does that - and has no
+  // caller yet, so it is part of the context surface rather than dead code.
   const sendMarkAsRead = useCallback(
     (conversationId: string, messageIds: string[]) => {
       broadcastMessagesRead(conversationId, messageIds).catch(() => {});
@@ -333,7 +336,7 @@ export function RealtimeProvider({
 
   const subscribeUser = useCallback(
     <T,>(
-      eventType: "notification:new",
+      eventType: UserRealtimeEventType,
       handler: EventHandler<T>,
     ): (() => void) =>
       bindUserEvent(eventType, (data: RealtimeEventData<T>) =>

@@ -142,7 +142,7 @@ export function NotificationProvider({
   const queryClient = useQueryClient();
   const { isAuthenticated, user } = useAuth();
   const { activeWorkspaceId: currentCompanyId } = useWorkspace();
-  const { subscribe, subscribeUser, isConnected } = useRealtimeContext();
+  const { subscribeUser, isConnected } = useRealtimeContext();
   setNotificationSettingsScope(currentCompanyId, user?.id ?? null);
   const [settings, setSettings] = useState(getNotificationSettings);
   const [permission, setPermission] = useState(getNotificationPermission);
@@ -265,7 +265,10 @@ export function NotificationProvider({
 
   useEffect(() => {
     if (!enabled || !isConnected) return;
-    return subscribe<NewMessagePayload>(
+    // User channel: the server already restricted this to members allowed to
+    // read the conversation, so a desktop notification cannot surface a chat
+    // the recipient is not authorized to open.
+    return subscribeUser<NewMessagePayload>(
       "message:new",
       ({ message, conversationId }) => {
         if (
@@ -303,7 +306,7 @@ export function NotificationProvider({
     navigate,
     permission,
     settings,
-    subscribe,
+    subscribeUser,
   ]);
 
   useEffect(() => {

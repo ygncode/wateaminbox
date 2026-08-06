@@ -19,7 +19,7 @@ import { advanceMessageStatus } from "@wateaminbox/shared";
 import type { Dispatch, SetStateAction } from "react";
 import { queryKeys } from "../../hooks/query-keys";
 import { markConversationAsRead } from "../../lib/api/conversations";
-import { bindEvent } from "../../lib/realtime";
+import { bindEvent, bindUserEvent } from "../../lib/realtime";
 import { showRealtimeToast } from "../../lib/toast-notifications";
 import type { TypingIndicator } from "../../stores/chat-store";
 import { useChatStore } from "../../stores/chat-store";
@@ -80,7 +80,9 @@ export function registerRealtimeEventHandlers({
           : data.payload;
       showRealtimeToast(payload);
     }),
-    bindEvent<NewMessagePayload>("message:new", (data) => {
+    // Delivered on this user's own channel: the server fans it out only to
+    // members authorized to read the conversation.
+    bindUserEvent<NewMessagePayload>("message:new", (data) => {
       const payload = data.payload;
       addMessageToCache(qc, payload.conversationId, payload.message);
       invalidateChatList(qc);
@@ -101,7 +103,7 @@ export function registerRealtimeEventHandlers({
         markConversationAsRead(payload.conversationId).catch(() => {});
       }
     }),
-    bindEvent<MessageStatusPayload>("message:status", (data) => {
+    bindUserEvent<MessageStatusPayload>("message:status", (data) => {
       const payload = data.payload;
       updateMessageInCache(
         qc,
@@ -113,7 +115,7 @@ export function registerRealtimeEventHandlers({
         }),
       );
     }),
-    bindEvent<MessageFailedPayload>("message:failed", (data) => {
+    bindUserEvent<MessageFailedPayload>("message:failed", (data) => {
       const payload = data.payload;
       updateMessageInCache(
         qc,
@@ -125,7 +127,7 @@ export function registerRealtimeEventHandlers({
         }),
       );
     }),
-    bindEvent<ScheduledMessageUpdatedPayload>(
+    bindUserEvent<ScheduledMessageUpdatedPayload>(
       "scheduled_message:updated",
       () => {
         // Postgres is authoritative; refetch the scheduled list wherever it is
@@ -140,7 +142,7 @@ export function registerRealtimeEventHandlers({
       qc.invalidateQueries({ queryKey: queryKeys.bulkJobs.all });
       qc.invalidateQueries({ queryKey: queryKeys.scheduledMessages.all });
     }),
-    bindEvent<MessageReactionPayload>("message:reaction", (data) => {
+    bindUserEvent<MessageReactionPayload>("message:reaction", (data) => {
       const payload = data.payload;
       updateMessageInCache(
         qc,
@@ -195,7 +197,7 @@ export function registerRealtimeEventHandlers({
         },
       );
     }),
-    bindEvent<TypingPayload>("typing:start", (data) => {
+    bindUserEvent<TypingPayload>("typing:start", (data) => {
       const payload = data.payload;
       addTypingIndicator({
         conversationId: payload.conversationId,
@@ -205,32 +207,35 @@ export function registerRealtimeEventHandlers({
       });
       setTypingTimeout(payload.conversationId, payload.userId);
     }),
-    bindEvent<TypingPayload>("typing:stop", (data) => {
+    bindUserEvent<TypingPayload>("typing:stop", (data) => {
       const payload = data.payload;
       removeTypingIndicator(payload.conversationId, payload.userId);
       clearTypingTimeout(payload.conversationId, payload.userId);
     }),
-    bindEvent<ConversationReadPayload>("conversation:read", () => {
+    bindUserEvent<ConversationReadPayload>("conversation:read", () => {
       invalidateChatList(qc);
     }),
-    bindEvent<ConversationUpdatedPayload>("conversation:updated", (data) => {
-      invalidateChatList(qc);
-      // A lifecycle mutation (resolve/pending/open/reopen, or an automatic
-      // reopen from a live inbound) can change every response/resolution
-      // analytics number a dashboard has cached - invalidate the whole
-      // "analytics" prefix, not just this contact's chat/detail view.
-      qc.invalidateQueries({ queryKey: queryKeys.analytics.all });
-      const payload = data.payload;
-      if (payload?.contactId) {
-        qc.invalidateQueries({
-          queryKey: queryKeys.conversations.detail(payload.contactId),
-        });
-      }
-      // auto_reopened deliberately has no global toast: the inbound message,
-      // unread/list projection, lifecycle detail, status badge, and assignment
-      // realtime updates already make the transition visible.
-    }),
-    bindEvent<{ contactId?: string }>("contact:updated", (data) => {
+    bindUserEvent<ConversationUpdatedPayload>(
+      "conversation:updated",
+      (data) => {
+        invalidateChatList(qc);
+        // A lifecycle mutation (resolve/pending/open/reopen, or an automatic
+        // reopen from a live inbound) can change every response/resolution
+        // analytics number a dashboard has cached - invalidate the whole
+        // "analytics" prefix, not just this contact's chat/detail view.
+        qc.invalidateQueries({ queryKey: queryKeys.analytics.all });
+        const payload = data.payload;
+        if (payload?.contactId) {
+          qc.invalidateQueries({
+            queryKey: queryKeys.conversations.detail(payload.contactId),
+          });
+        }
+        // auto_reopened deliberately has no global toast: the inbound message,
+        // unread/list projection, lifecycle detail, status badge, and assignment
+        // realtime updates already make the transition visible.
+      },
+    ),
+    bindUserEvent<{ contactId?: string }>("contact:updated", (data) => {
       invalidateChatList(qc);
       qc.invalidateQueries({ queryKey: queryKeys.groups.details() });
       // A reassignment (including a takeover) changes who can send here -
@@ -258,13 +263,13 @@ export function registerRealtimeEventHandlers({
       qc.invalidateQueries({ queryKey: ["catalogs", companyId] });
       qc.invalidateQueries({ queryKey: queryKeys.groups.all });
     }),
-    bindEvent<ProfilePicturePayload>("contact:profile_picture", () => {
+    bindUserEvent<ProfilePicturePayload>("contact:profile_picture", () => {
       // Re-fetch through visibility-checked HTTP routes so the API can issue a
       // fresh private-storage URL; realtime channels never carry media URLs.
       invalidateChatList(qc);
       qc.invalidateQueries({ queryKey: queryKeys.groups.all });
     }),
-    bindEvent<MessageDeletedPayload>("message:deleted", (data) => {
+    bindUserEvent<MessageDeletedPayload>("message:deleted", (data) => {
       const payload = data.payload;
       updateMessageInCache(
         qc,
@@ -277,7 +282,7 @@ export function registerRealtimeEventHandlers({
         }),
       );
     }),
-    bindEvent<PresencePayload>("presence:online", (data) => {
+    bindUserEvent<PresencePayload>("presence:online", (data) => {
       const { jid } = data.payload;
       updateContactInChatList(qc, jid, (contact) => ({
         ...contact,
@@ -290,7 +295,7 @@ export function registerRealtimeEventHandlers({
         lastSeen: null,
       }));
     }),
-    bindEvent<PresencePayload>("presence:offline", (data) => {
+    bindUserEvent<PresencePayload>("presence:offline", (data) => {
       const payload = data.payload;
       updateContactInChatList(qc, payload.jid, (contact) => ({
         ...contact,
@@ -303,7 +308,7 @@ export function registerRealtimeEventHandlers({
         lastSeen: payload.lastSeen ?? null,
       }));
     }),
-    bindEvent<MediaDownloadedPayload>("media:downloaded", (data) => {
+    bindUserEvent<MediaDownloadedPayload>("media:downloaded", (data) => {
       const payload = data.payload;
       updateMessageInCache(
         qc,
@@ -321,23 +326,26 @@ export function registerRealtimeEventHandlers({
       );
       refetchConversationMessages(qc, payload.conversationId);
     }),
-    bindEvent<MediaDownloadFailedPayload>("media:download_failed", (data) => {
-      const payload = data.payload;
-      updateMessageInCache(
-        qc,
-        payload.conversationId,
-        payload.messageId,
-        (message) => ({
-          ...message,
-          metadata: {
-            ...(message.metadata || {}),
-            mediaPending: true,
-            mediaDownloadStatus: "failed" as const,
-          },
-        }),
-      );
-      refetchConversationMessages(qc, payload.conversationId);
-    }),
+    bindUserEvent<MediaDownloadFailedPayload>(
+      "media:download_failed",
+      (data) => {
+        const payload = data.payload;
+        updateMessageInCache(
+          qc,
+          payload.conversationId,
+          payload.messageId,
+          (message) => ({
+            ...message,
+            metadata: {
+              ...(message.metadata || {}),
+              mediaPending: true,
+              mediaDownloadStatus: "failed" as const,
+            },
+          }),
+        );
+        refetchConversationMessages(qc, payload.conversationId);
+      },
+    ),
     bindEvent<SyncStatusPayload>("sync:start", (data) => {
       const connectionId = data.connectionId || "unknown";
       setSyncingConnections((previous) => startSync(previous, connectionId));

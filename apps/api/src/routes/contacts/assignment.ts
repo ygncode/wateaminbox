@@ -192,7 +192,7 @@ assignmentRoutes.post(
             isTakeover: false,
             contactName: contactDisplayName,
           },
-      ipAddress: getClientIp(c.req.raw.headers),
+      ipAddress: getClientIp(c),
     });
 
     return created(c, {
@@ -277,7 +277,7 @@ assignmentRoutes.delete(
           previousAssignee: result.previousAssignment.assigned_to,
           contactName: contactDisplayName,
         },
-        ipAddress: getClientIp(c.req.raw.headers),
+        ipAddress: getClientIp(c),
       });
     }
 

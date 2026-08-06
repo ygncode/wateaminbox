@@ -46,6 +46,12 @@ export const env = {
   DATABASE_URL: getEnv("DATABASE_URL", ""),
 
   // Auth
+  // Deliberately has no default in any environment. A built-in development
+  // key is not a safeguard: a process that merely forgot NODE_ENV would run
+  // with a signing key published in this repository, so every token would
+  // still be forgeable. `validateSigningSecrets` turns a missing or blank
+  // value into a startup failure instead. Local development supplies it
+  // through .env; tests inject it explicitly (apps/api/bunfig.toml).
   JWT_SECRET: getEnv("JWT_SECRET", ""),
   JWT_ACCESS_EXPIRES_IN: getEnv("JWT_ACCESS_EXPIRES_IN", "15m"),
   JWT_REFRESH_EXPIRES_IN: getEnv("JWT_REFRESH_EXPIRES_IN", "7d"),
@@ -75,10 +81,10 @@ export const env = {
     "CENTRIFUGO_API_KEY",
     isProduction ? "" : "development-centrifugo-api-key",
   ),
-  CENTRIFUGO_TOKEN_HMAC_SECRET: getEnv(
-    "CENTRIFUGO_TOKEN_HMAC_SECRET",
-    isProduction ? "" : "development-centrifugo-token-secret-change-me",
-  ),
+  // No default, for the same reason as JWT_SECRET: this key signs the tokens
+  // that authorize realtime channel subscriptions, so a published default
+  // would let anyone mint a subscription to any workspace's channels.
+  CENTRIFUGO_TOKEN_HMAC_SECRET: getEnv("CENTRIFUGO_TOKEN_HMAC_SECRET", ""),
   CENTRIFUGO_REQUEST_TIMEOUT_MS: getEnvNumber(
     "CENTRIFUGO_REQUEST_TIMEOUT_MS",
     3000,
@@ -136,6 +142,22 @@ export const env = {
 
   // Database pooling
   TENANT_DB_POOL_MAX: getEnvNumber("TENANT_DB_POOL_MAX", 20),
+
+  // Realtime fan-out. Workspace membership is cached between conversation
+  // events and invalidated on every company_members write, so a revocation
+  // applies on the next event in this process. The TTL only bounds staleness
+  // for writes made outside those paths - or on another API replica, whose
+  // cache this process cannot invalidate. Set to 0 to always read live.
+  REALTIME_MEMBERSHIP_CACHE_TTL_MS: getEnvNumber(
+    "REALTIME_MEMBERSHIP_CACHE_TTL_MS",
+    5_000,
+  ),
+  // Minimum gap between repeats of the same ephemeral signal (typing/presence)
+  // for one conversation. Distinct states are never suppressed.
+  REALTIME_EPHEMERAL_MIN_INTERVAL_MS: getEnvNumber(
+    "REALTIME_EPHEMERAL_MIN_INTERVAL_MS",
+    1_500,
+  ),
 } as const;
 
 export type Env = typeof env;
@@ -292,10 +314,47 @@ function validateTrustedProxies(config: Env): void {
   }
 }
 
+/**
+ * Invariants that hold in every environment, not just production.
+ *
+ * HS256 accepts a zero-length key, so an empty signing secret does not fail
+ * loudly - it silently makes every access token, refresh token, and realtime
+ * connection token forgeable by anyone. That must be a startup failure in
+ * development and test too, because those are exactly the processes an
+ * operator can accidentally expose by forgetting to set NODE_ENV.
+ */
+export function validateSigningSecrets(config: Env = env): void {
+  // Production reports empties through the required-variable check instead,
+  // which lists every missing name at once rather than failing on the first.
+  if (config.NODE_ENV !== "production") {
+    const secrets = {
+      JWT_SECRET: config.JWT_SECRET,
+      CENTRIFUGO_TOKEN_HMAC_SECRET: config.CENTRIFUGO_TOKEN_HMAC_SECRET,
+    };
+    for (const [name, value] of Object.entries(secrets)) {
+      if (!value.trim()) {
+        throw new Error(
+          `${name} is required and must not be blank. HS256 accepts a zero-length key, ` +
+            `so starting without one would make every issued token forgeable. ` +
+            `Set it in .env (generate one with: openssl rand -base64 48).`,
+        );
+      }
+    }
+  }
+
+  if (
+    config.JWT_SECRET.trim() &&
+    config.JWT_SECRET === config.CENTRIFUGO_TOKEN_HMAC_SECRET
+  ) {
+    throw new Error("JWT and Centrifugo signing secrets must be different");
+  }
+}
+
 export function validateProductionEnv(config: Env = env): void {
   if (!["log", "resend"].includes(config.MAIL_DRIVER)) {
     throw new Error("MAIL_DRIVER must be one of: log, resend");
   }
+  validateSigningSecrets(config);
   if (config.NODE_ENV !== "production") return;
 
   const required = {
@@ -478,8 +537,28 @@ export function validateProductionEnv(config: Env = env): void {
     "CENTRIFUGO_TOKEN_HMAC_SECRET",
     config.CENTRIFUGO_TOKEN_HMAC_SECRET,
   );
-  if (config.JWT_SECRET === config.CENTRIFUGO_TOKEN_HMAC_SECRET) {
-    throw new Error("JWT and Centrifugo signing secrets must be different");
+  // Distinctness is asserted by validateSigningSecrets in every environment.
+
+  // A long membership TTL is exactly how a permission revocation ends up
+  // taking effect minutes later on a replica. The cache is an optimization;
+  // production must not be able to turn it into a policy window.
+  if (
+    !Number.isInteger(config.REALTIME_MEMBERSHIP_CACHE_TTL_MS) ||
+    config.REALTIME_MEMBERSHIP_CACHE_TTL_MS < 0 ||
+    config.REALTIME_MEMBERSHIP_CACHE_TTL_MS > 60_000
+  ) {
+    throw new Error(
+      "REALTIME_MEMBERSHIP_CACHE_TTL_MS must be between 0 and 60000 in production",
+    );
+  }
+  if (
+    !Number.isInteger(config.REALTIME_EPHEMERAL_MIN_INTERVAL_MS) ||
+    config.REALTIME_EPHEMERAL_MIN_INTERVAL_MS < 0 ||
+    config.REALTIME_EPHEMERAL_MIN_INTERVAL_MS > 30_000
+  ) {
+    throw new Error(
+      "REALTIME_EPHEMERAL_MIN_INTERVAL_MS must be between 0 and 30000 in production",
+    );
   }
 
   if (!config.RATE_LIMIT_ENABLED) {

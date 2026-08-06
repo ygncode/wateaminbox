@@ -4,6 +4,10 @@ import {
   ROLE_PERMISSION_PRESETS,
 } from "@wateaminbox/shared";
 import { NotFoundError, ForbiddenError } from "../lib/errors.js";
+import { invalidateCompanyMembership } from "./company-membership.service.js";
+import { getEffectivePermissions } from "./effective-permissions.js";
+
+export { getEffectivePermissions } from "./effective-permissions.js";
 
 /**
  * Feature-based permissions
@@ -46,28 +50,6 @@ export const ROLE_PRESETS: Record<
   "owner" | "admin" | "member",
   MemberPermissions
 > = ROLE_PERMISSION_PRESETS;
-
-/**
- * Gets the effective permissions for a member
- * Merges role-based defaults with any custom permissions
- */
-export function getEffectivePermissions(
-  role: "owner" | "admin" | "member",
-  customPermissions: Partial<MemberPermissions> = {},
-): MemberPermissions {
-  const roleDefaults = ROLE_PRESETS[role];
-
-  // Owner always has all permissions, ignore custom overrides
-  if (role === "owner") {
-    return roleDefaults;
-  }
-
-  // Merge custom permissions with role defaults
-  return {
-    ...roleDefaults,
-    ...customPermissions,
-  };
-}
 
 /**
  * Gets member data including role and permissions from database
@@ -194,6 +176,7 @@ export async function updateMemberPermissions(
     .where("company_id", "=", companyId)
     .where("user_id", "=", targetUserId)
     .execute();
+  invalidateCompanyMembership(companyId);
 
   return getEffectivePermissions(role, updatedPermissions);
 }
@@ -225,6 +208,7 @@ export async function resetMemberPermissions(
     .where("company_id", "=", companyId)
     .where("user_id", "=", targetUserId)
     .execute();
+  invalidateCompanyMembership(companyId);
 
   return ROLE_PRESETS[role];
 }

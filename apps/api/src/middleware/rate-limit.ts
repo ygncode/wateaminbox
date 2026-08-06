@@ -8,8 +8,7 @@
 
 import type { Context, Next } from "hono";
 import type { RateLimitTier } from "../config/rate-limit.config";
-import { getVerifiedRequestIp } from "../lib/client-ip.js";
-import { env } from "../lib/env.js";
+import { resolveClientIp } from "../lib/client-ip.js";
 import type { RateLimitResult, RateLimitStore } from "../lib/rate-limit-store";
 
 /**
@@ -87,19 +86,7 @@ export interface RateLimitOptions {
 /** Resolve an IP from the socket, accepting one configured forwarding header
  * only when the direct peer is an explicitly trusted proxy. */
 export function getClientIp(c: Context): string {
-  const remoteIp = getVerifiedRequestIp(c.req.raw);
-  if (!remoteIp) return "unknown";
-
-  const trustedProxies = new Set(
-    env.TRUSTED_PROXY_IPS.split(",")
-      .map((ip) => ip.trim())
-      .filter(Boolean),
-  );
-  if (!trustedProxies.has(remoteIp)) return remoteIp;
-
-  const forwarded = c.req.header(env.TRUSTED_PROXY_IP_HEADER);
-  const clientIp = forwarded?.split(",")[0]?.trim();
-  return clientIp || remoteIp;
+  return resolveClientIp(c) ?? "unknown";
 }
 
 /**
