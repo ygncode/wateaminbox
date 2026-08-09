@@ -43,6 +43,12 @@ type Manager struct {
 	shuttingDown bool            // prevents NATS publishes during shutdown
 	registry     *WorkerRegistry // persistent storage for worker state
 
+	// markWorkersRecovering records recovery intent for a whole set of workers
+	// at once. It is wired to the registry when persistence initialises, and is
+	// a field rather than a direct call so shutdown ordering can be tested
+	// without a database.
+	markWorkersRecovering func(context.Context, []string) error
+
 	// recordWorkerHeartbeat advances a worker's durable last_heartbeat. It is
 	// wired to the registry when persistence initialises, and is a field rather
 	// than a direct registry call so the health check can be exercised without
@@ -131,6 +137,7 @@ func (m *Manager) Start(ctx context.Context) error {
 			log.Println("Continuing without persistence - workers will not survive orchestrator restart")
 		} else {
 			m.registry = registry
+			m.markWorkersRecovering = registry.MarkWorkersRecovering
 			m.recordWorkerHeartbeat = registry.UpdateHeartbeat
 			log.Println("Worker registry initialized successfully")
 
@@ -183,18 +190,58 @@ func (m *Manager) Stop(ctx context.Context) error {
 	}
 	m.mu.Unlock()
 
-	for _, id := range workerIDs {
-		worker, exists := m.GetWorkerStatus(id)
-		if exists {
-			// Keep the durable record while stopping for an orchestrator restart.
-			// The next orchestrator process uses that record to respawn the worker;
-			// deleting it here leaves a database connection marked connected with no
-			// process consuming incoming WhatsApp messages.
-			if err := m.stopWorkerInternal(ctx, worker.CompanyID, id, "orchestrator shutdown", syscall.SIGTERM, true); err != nil {
-				log.Printf("Error stopping worker %s: %v", id, err)
-			}
+	// Record recovery intent for every worker before touching a single process.
+	// If the container's stop grace period expires mid-shutdown, SIGKILL takes
+	// down an orchestrator whose unmarked records still read "connected", and
+	// the replacement process reports those healthy connections as crashes.
+	// Doing it in one statement up front makes that bookkeeping independent of
+	// how far the stops below actually get.
+	//
+	// A failure here is logged rather than fatal: shutdown must still stop the
+	// workers, and stopWorkerInternal marks each record again as it goes.
+	if m.markWorkersRecovering != nil && len(workerIDs) > 0 {
+		if err := m.markWorkersRecovering(ctx, workerIDs); err != nil {
+			log.Printf("Warning: failed to mark workers for recovery before shutdown: %v", err)
 		}
 	}
+
+	// Stop the workers concurrently. Each one costs up to 5s of grace plus a 2s
+	// SIGKILL wait, so stopping them in turn only fits about four workers into
+	// the 30s shutdown budget while GLOBAL_MAX_ACTIVE_CONNECTIONS permits far
+	// more; the rest would be killed with the container instead of being asked
+	// to close their WhatsApp sessions. The stops are independent: each touches
+	// only its own process and its own map entry, the map itself is mutex
+	// guarded, and the registry's connection pool is safe for concurrent use.
+	var (
+		stopWG   sync.WaitGroup
+		stopMu   sync.Mutex
+		stopErrs []error
+	)
+	for _, id := range workerIDs {
+		worker, exists := m.GetWorkerStatus(id)
+		if !exists {
+			continue
+		}
+
+		stopWG.Add(1)
+		// Keep the durable record while stopping for an orchestrator restart.
+		// The next orchestrator process uses that record to respawn the worker;
+		// deleting it here leaves a database connection marked connected with no
+		// process consuming incoming WhatsApp messages.
+		go func(companyID, connectionID string) {
+			defer stopWG.Done()
+
+			err := m.stopWorkerInternal(ctx, companyID, connectionID, "orchestrator shutdown", syscall.SIGTERM, true)
+			if err == nil {
+				return
+			}
+			log.Printf("Error stopping worker %s: %v", connectionID, err)
+			stopMu.Lock()
+			stopErrs = append(stopErrs, fmt.Errorf("stop worker %s: %w", connectionID, err))
+			stopMu.Unlock()
+		}(worker.CompanyID, id)
+	}
+	stopWG.Wait()
 
 	// Wait for all goroutines to finish
 	m.wg.Wait()
@@ -207,7 +254,9 @@ func (m *Manager) Stop(ctx context.Context) error {
 	}
 
 	log.Println("Process manager stopped")
-	return nil
+	// Surfaced to main.go, which logs it. Shutdown still completed; this reports
+	// which workers could not be stopped cleanly.
+	return errors.Join(stopErrs...)
 }
 
 // SpawnWorker creates and starts a new WhatsApp worker process.
@@ -394,9 +443,14 @@ func (m *Manager) stopWorkerInternal(
 	// Mark recovery intent before signaling. If the orchestrator itself is
 	// terminated before the child finishes, the durable record still tells the
 	// replacement process to recover this worker.
+	// Stop already marks the whole set in one statement before any of these run,
+	// so this is a second line of defence rather than the primary record. Failing
+	// the stop on it would be worse than the stale row it guards against: the
+	// worker would keep running, still holding its WhatsApp session, while the
+	// orchestrator exits around it.
 	if preserveRegistry && m.registry != nil {
-		if err := m.registry.UpdateStatus(ctx, connectionID, "recovering"); err != nil {
-			return fmt.Errorf("mark worker %s for recovery: %w", connectionID, err)
+		if err := m.registry.UpdateStatus(ctx, connectionID, WorkerStatusRecovering); err != nil {
+			log.Printf("Warning: failed to re-mark worker %s for recovery: %v", connectionID, err)
 		}
 	}
 
@@ -846,6 +900,57 @@ func (m *Manager) scheduleRestart(worker *WorkerProcess, reason string) {
 	}
 }
 
+// WorkerStatusRecovering marks a durable registry record whose process was
+// stopped deliberately, as part of an orchestrator shutdown, rather than lost.
+// It is a registry-only lifecycle state: it is never published as a connection
+// status because the API only understands the connection-facing vocabulary in
+// services/shared/nats.
+const WorkerStatusRecovering = "recovering"
+
+// recoveryAnnouncement reports the connection status a restarting orchestrator
+// should publish for a registry record whose process is no longer running.
+//
+// A planned restart and a crash are indistinguishable by the time recovery
+// runs: the worker is a child process of the orchestrator, so replacing the
+// orchestrator container always leaves a registry row pointing at a PID that no
+// longer exists. Only the durable status separates them. Announcing a planned
+// restart as an error made every deployment raise a "WhatsApp disconnected"
+// alert at every operator, seconds before the same worker reconnected, which
+// trains people to ignore the alert that matters.
+func recoveryAnnouncement(recordStatus string) (status, reason string) {
+	if recordStatus == WorkerStatusRecovering {
+		return types.StatusConnecting, "reconnecting after planned orchestrator restart"
+	}
+	return types.StatusError, "worker process died"
+}
+
+// survivorAnnouncement reports the connection status to publish for a worker
+// whose process outlived the orchestrator, and whether to publish at all.
+//
+// The registry is written once, by RegisterWorker at spawn time, and is never
+// advanced as the WhatsApp session comes up. So a worker that has been happily
+// connected for hours still carries the status it was born with. Republishing
+// that on recovery would take a connection the API currently has as "connected"
+// and push it back to "connecting", where nothing would ever correct it: the
+// process survived, so it has no reason to re-announce itself.
+//
+// The orchestrator does not know this worker's session state. It knows only
+// that the process is alive. Saying nothing leaves the API holding the last
+// status the worker itself reported, which is the best information anyone has;
+// claiming "connected" would be inventing state the orchestrator cannot see.
+// So only a status the orchestrator genuinely established is published, and
+// everything else is left alone.
+func survivorAnnouncement(recordStatus string) (status string, publish bool) {
+	if recordStatus == WorkerStatusRecovering {
+		// Set deliberately by this orchestrator's own shutdown path, so it is a
+		// fact rather than a leftover: the worker is coming back.
+		return types.StatusConnecting, true
+	}
+	// Anything else is the spawn-time default or an unknown value. Neither
+	// describes the live session.
+	return "", false
+}
+
 // recoverOrphanedWorkers recovers workers from the database after orchestrator restart.
 func (m *Manager) recoverOrphanedWorkers(ctx context.Context) error {
 	if m.registry == nil {
@@ -875,8 +980,10 @@ func (m *Manager) recoverOrphanedWorkers(ctx context.Context) error {
 		if processErr != nil || !processMatches {
 			log.Printf("Worker %s (PID %d) is dead or has a reused PID, cleaning up and notifying API", w.ConnectionID, w.PID)
 			m.registry.RemoveWorker(ctx, w.ConnectionID)
-			// Publish error status so the API updates the database
-			m.publishConnectionStatus(w.CompanyID, w.ConnectionID, types.StatusError, "worker process died")
+			// Tell the API the connection is coming back. Only a record that was
+			// not marked for recovery represents an actual crash.
+			status, reason := recoveryAnnouncement(w.Status)
+			m.publishConnectionStatus(w.CompanyID, w.ConnectionID, status, reason)
 
 			// Trigger respawn if auto-restart enabled
 			if m.config.AutoRestartEnabled && w.RestartCount < m.config.AutoRestartMaxRetries {
@@ -922,8 +1029,18 @@ func (m *Manager) recoverOrphanedWorkers(ctx context.Context) error {
 		m.wg.Add(1)
 		go m.healthCheckWorker(healthCtx, w.ConnectionID)
 
-		// Publish status to notify API that this connection is alive
-		m.publishConnectionStatus(w.CompanyID, w.ConnectionID, w.Status, "recovered after orchestrator restart")
+		// Tell the API only what this orchestrator actually established. A
+		// surviving process whose record still carries its spawn-time status
+		// tells us nothing about the WhatsApp session, and publishing it would
+		// overwrite a correct "connected" with a stale "connecting".
+		if status, publish := survivorAnnouncement(w.Status); publish {
+			m.publishConnectionStatus(w.CompanyID, w.ConnectionID, status, "recovered after orchestrator restart")
+		} else {
+			log.Printf(
+				"Worker %s recovered with process alive; leaving connection status untouched (registry status %q is not authoritative)",
+				w.ConnectionID, w.Status,
+			)
+		}
 	}
 
 	return nil
