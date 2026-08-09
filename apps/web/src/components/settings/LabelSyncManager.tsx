@@ -16,6 +16,7 @@ import {
   useWhatsAppAccountScope,
   WhatsAppAccountScope,
 } from "@/components/settings/WhatsAppAccountScope";
+import { TagSearchInput } from "@/components/tags/TagSearchInput";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -32,6 +33,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useDebounce } from "@/hooks/ui";
 import { useTags } from "@/hooks/useContact";
 import type { WhatsAppLabel } from "@/hooks/useLabels";
 import { useLabels } from "@/hooks/useLabels";
@@ -48,6 +50,8 @@ export function LabelSyncManager() {
     null,
   );
   const [selectedTagId, setSelectedTagId] = useState<string>("");
+  const [tagSearch, setTagSearch] = useState("");
+  const debouncedTagSearch = useDebounce(tagSearch.trim(), 250);
   const [unlinkingLabelId, setUnlinkingLabelId] = useState<string | null>(null);
   const accountScope = useWhatsAppAccountScope();
   const { connectionId, selectedConnection } = accountScope;
@@ -56,6 +60,7 @@ export function LabelSyncManager() {
     setLinkDialogOpen(false);
     setSelectedLabel(null);
     setSelectedTagId("");
+    setTagSearch("");
   }, [connectionId]);
 
   const {
@@ -77,7 +82,10 @@ export function LabelSyncManager() {
     hasMore,
   } = useLabels(connectionId);
 
-  const { data: tagsData } = useTags();
+  const { data: tagsData } = useTags({
+    search: debouncedTagSearch || undefined,
+    limit: 100,
+  });
   const allTags = tagsData || [];
 
   // Get unlinked tags for the select dropdown
@@ -117,6 +125,7 @@ export function LabelSyncManager() {
   const openLinkDialog = (label: WhatsAppLabel) => {
     setSelectedLabel(label);
     setSelectedTagId("");
+    setTagSearch("");
     setLinkDialogOpen(true);
   };
 
@@ -405,6 +414,11 @@ export function LabelSyncManager() {
               </div>
             )}
 
+            <TagSearchInput
+              value={tagSearch}
+              onChange={setTagSearch}
+              className="mb-2"
+            />
             <Select value={selectedTagId} onValueChange={setSelectedTagId}>
               <SelectTrigger data-testid="select-tag-trigger">
                 <SelectValue

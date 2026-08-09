@@ -1,4 +1,8 @@
 import {
+  getDateRange as getDateRangeHelper,
+  toISOString,
+} from "@wateaminbox/shared";
+import {
   Archive,
   Download,
   FileJson,
@@ -6,10 +10,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { useState } from "react";
-import {
-  getDateRange as getDateRangeHelper,
-  toISOString,
-} from "@wateaminbox/shared";
+import { TagSearchInput } from "@/components/tags/TagSearchInput";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -27,6 +28,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useDebounce } from "@/hooks/ui";
 import { useTags } from "@/hooks/useContact";
 import {
   type ExportFormat,
@@ -35,6 +37,8 @@ import {
   useExportMessages,
   useFullBackupExport,
 } from "@/hooks/useExport";
+
+const MAX_EXPORT_TAGS = 50;
 
 export interface ExportDialogProps {
   open: boolean;
@@ -56,9 +60,14 @@ export function ExportDialog({
     "all",
   );
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [tagSearch, setTagSearch] = useState("");
+  const debouncedTagSearch = useDebounce(tagSearch.trim(), 250);
   const [hasCustomName, setHasCustomName] = useState(false);
 
-  const { data: tags } = useTags();
+  const { data: tags } = useTags({
+    search: debouncedTagSearch || undefined,
+    limit: 100,
+  });
   const exportContacts = useExportContacts();
   const exportMessages = useExportMessages();
   const exportConversation = useExportConversation();
@@ -115,7 +124,9 @@ export function ExportDialog({
     setSelectedTags((prev) =>
       prev.includes(tagId)
         ? prev.filter((id) => id !== tagId)
-        : [...prev, tagId],
+        : prev.length < MAX_EXPORT_TAGS
+          ? [...prev, tagId]
+          : prev,
     );
   };
 
@@ -232,33 +243,52 @@ export function ExportDialog({
               </div>
 
               {/* Tag filter */}
-              {tags && tags.length > 0 && (
-                <div className="space-y-2">
-                  <Label>Filter by Tags</Label>
-                  <div className="flex flex-wrap gap-2">
-                    {tags.map((tag) => (
-                      <button
-                        key={tag.id}
-                        onClick={() => toggleTag(tag.id)}
-                        className={`px-2 py-1 text-xs rounded-full border transition-colors ${
-                          selectedTags.includes(tag.id)
-                            ? "bg-whatsapp-teal-green text-white border-whatsapp-teal-green"
-                            : "bg-white text-gray-600 border-gray-300 hover:border-gray-400"
-                        }`}
-                        style={
-                          selectedTags.includes(tag.id)
-                            ? undefined
-                            : tag.color
-                              ? { borderColor: tag.color, color: tag.color }
+              <div className="space-y-2">
+                <Label>Filter by Tags</Label>
+                <TagSearchInput value={tagSearch} onChange={setTagSearch} />
+                {tags && tags.length > 0 ? (
+                  <div className="flex max-h-32 flex-wrap gap-2 overflow-y-auto">
+                    {tags.map((tag) => {
+                      const isSelected = selectedTags.includes(tag.id);
+                      const isDisabled =
+                        !isSelected && selectedTags.length >= MAX_EXPORT_TAGS;
+                      return (
+                        <button
+                          key={tag.id}
+                          type="button"
+                          onClick={() => toggleTag(tag.id)}
+                          disabled={isDisabled}
+                          title={
+                            isDisabled
+                              ? `You can select up to ${MAX_EXPORT_TAGS} tags`
                               : undefined
-                        }
-                      >
-                        {tag.name}
-                      </button>
-                    ))}
+                          }
+                          className={`rounded-full border px-2 py-1 text-xs transition-colors disabled:cursor-not-allowed disabled:opacity-45 ${
+                            isSelected
+                              ? "border-whatsapp-teal-green bg-whatsapp-teal-green text-white"
+                              : "border-gray-300 bg-white text-gray-600 hover:border-gray-400"
+                          }`}
+                          style={
+                            isSelected
+                              ? undefined
+                              : tag.color
+                                ? { borderColor: tag.color, color: tag.color }
+                                : undefined
+                          }
+                        >
+                          {tag.name}
+                        </button>
+                      );
+                    })}
                   </div>
-                </div>
-              )}
+                ) : (
+                  <p className="py-2 text-center text-xs text-gray-500 dark:text-dark-text-secondary">
+                    {debouncedTagSearch
+                      ? `No tags match “${debouncedTagSearch}”`
+                      : "No tags available"}
+                  </p>
+                )}
+              </div>
             </>
           )}
         </div>

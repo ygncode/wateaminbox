@@ -495,6 +495,10 @@ export async function reconcileTenantSchema<Database>(
     ADD COLUMN IF NOT EXISTS synced_at TIMESTAMPTZ
   `.execute(db);
   await sql`
+    CREATE INDEX IF NOT EXISTS ${sql.ref(`${schemaName}_ct_tag_contact_idx`)}
+    ON ${table("contact_tags")} (tag_id, contact_id)
+  `.execute(db);
+  await sql`
     ALTER TABLE ${table("whatsapp_labels")}
     ADD COLUMN IF NOT EXISTS label_id VARCHAR(100),
     ADD COLUMN IF NOT EXISTS whatsapp_connection_id UUID,

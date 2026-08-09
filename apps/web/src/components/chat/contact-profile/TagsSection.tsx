@@ -2,10 +2,12 @@ import { Plus, Tag, X } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { RightPanelSection } from "@/components/layout/right-panel";
+import { TagSearchInput } from "@/components/tags/TagSearchInput";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useDebounce } from "@/hooks/ui";
 import {
   useAddContactTag,
   useCreateTag,
@@ -26,7 +28,12 @@ export function TagsSection({ contact }: TagsSectionProps) {
   const [showTagPicker, setShowTagPicker] = useState(false);
   const [showCreateTag, setShowCreateTag] = useState(false);
   const [newTagName, setNewTagName] = useState("");
-  const { data: allTags, isLoading: isLoadingTags } = useTags();
+  const [tagSearch, setTagSearch] = useState("");
+  const debouncedTagSearch = useDebounce(tagSearch.trim(), 250);
+  const { data: allTags, isLoading: isLoadingTags } = useTags({
+    search: debouncedTagSearch || undefined,
+    limit: 100,
+  });
   const addTag = useAddContactTag();
   const removeTag = useRemoveContactTag();
   const createTag = useCreateTag();
@@ -36,6 +43,7 @@ export function TagsSection({ contact }: TagsSectionProps) {
 
   const handleAddTag = async (tagId: string) => {
     await addTag.mutateAsync({ contactId: contact.id, tagId });
+    setTagSearch("");
     setShowTagPicker(false);
   };
 
@@ -52,6 +60,7 @@ export function TagsSection({ contact }: TagsSectionProps) {
       setShowCreateTag(false);
       // Automatically add the newly created tag to the contact
       await addTag.mutateAsync({ contactId: contact.id, tagId: newTag.id });
+      setTagSearch("");
       setShowTagPicker(false);
     } catch (error) {
       const errorMessage =
@@ -94,7 +103,10 @@ export function TagsSection({ contact }: TagsSectionProps) {
               </Badge>
             ))}
             <button
-              onClick={() => setShowTagPicker(!showTagPicker)}
+              onClick={() => {
+                setShowTagPicker(!showTagPicker);
+                if (showTagPicker) setTagSearch("");
+              }}
               className="flex h-6 items-center gap-1 rounded-full border border-dashed border-gray-300 dark:border-dark-border px-2 text-xs text-gray-500 dark:text-dark-text-secondary hover:border-gray-400 hover:text-gray-600 dark:hover:border-dark-text-tertiary dark:hover:text-dark-text-primary"
             >
               <Plus className="h-3 w-3" />
@@ -104,12 +116,18 @@ export function TagsSection({ contact }: TagsSectionProps) {
 
           {showTagPicker && (
             <div className="mt-2 rounded-md border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-elevated p-2 shadow-sm">
+              <TagSearchInput
+                value={tagSearch}
+                onChange={setTagSearch}
+                className="mb-2"
+                autoFocus
+              />
               {isLoadingTags ? (
                 <Skeleton className="h-8 w-full" />
               ) : (
                 <>
-                  {availableTags.length > 0 && (
-                    <div className="flex flex-wrap gap-1 mb-2">
+                  {availableTags.length > 0 ? (
+                    <div className="mb-2 flex max-h-32 flex-wrap gap-1 overflow-y-auto">
                       {availableTags.map((tag) => (
                         <Badge
                           key={tag.id}
@@ -126,6 +144,12 @@ export function TagsSection({ contact }: TagsSectionProps) {
                         </Badge>
                       ))}
                     </div>
+                  ) : (
+                    <p className="mb-2 px-1 py-2 text-center text-xs text-gray-500 dark:text-dark-text-secondary">
+                      {debouncedTagSearch
+                        ? `No tags match “${debouncedTagSearch}”`
+                        : "No other tags available"}
+                    </p>
                   )}
 
                   {showCreateTag ? (

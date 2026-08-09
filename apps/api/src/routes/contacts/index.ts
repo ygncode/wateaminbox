@@ -65,7 +65,7 @@ contactRoutes.use("/:id", requireContactVisibility());
 
 /**
  * GET /contacts - List all contacts
- * Query params: search, limit, offset, includeGroups, assignedToMe, unassigned
+ * Query params: search, tagIds, limit, offset, includeGroups, assignedToMe, unassigned
  */
 contactRoutes.get(
   "/",
@@ -85,6 +85,7 @@ contactRoutes.get(
         offset: query.offset,
         includeGroups: query.includeGroups,
         connectionId: query.connectionId,
+        tagIds: query.tagIds,
         assignedToMe: query.assignedToMe,
         unassigned: query.unassigned,
         userId: user.id,

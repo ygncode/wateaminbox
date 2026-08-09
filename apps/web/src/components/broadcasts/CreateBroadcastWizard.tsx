@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
+import { TagSearchInput } from "@/components/tags/TagSearchInput";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -43,6 +44,7 @@ import {
 } from "@/components/ui/step-wizard";
 import { Textarea } from "@/components/ui/textarea";
 import { useTags } from "@/hooks/contact/useContactTags";
+import { useDebounce } from "@/hooks/ui";
 import { useCreateBulkJob, usePreviewBulkJob } from "@/hooks/useBulkJobs";
 import { useWhatsAppConnectionsList } from "@/hooks/whatsapp";
 import { ApiRequestError } from "@/lib/api/client";
@@ -57,6 +59,7 @@ import {
 import { ContactMultiSelect } from "./ContactMultiSelect";
 
 const MAX_ATTACHMENT_BYTES = 50 * 1024 * 1024;
+const MAX_AUDIENCE_TAGS = 50;
 /** Mirror of the server-side minimum lead time, with UI slack on top. */
 const MIN_LEAD_MS = 60_000;
 
@@ -193,6 +196,8 @@ export function CreateBroadcastWizard({
 
   // Audience
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
+  const [tagSearch, setTagSearch] = useState("");
+  const debouncedTagSearch = useDebounce(tagSearch.trim(), 250);
   const [selectedContacts, setSelectedContacts] = useState<
     ReadonlyMap<string, string>
   >(new Map());
@@ -232,7 +237,10 @@ export function CreateBroadcastWizard({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const attachmentUrlRef = useRef<string | null>(null);
 
-  const { data: tags, isLoading: tagsLoading } = useTags();
+  const { data: tags, isLoading: tagsLoading } = useTags({
+    search: debouncedTagSearch || undefined,
+    limit: 100,
+  });
   const { data: connections = [] } = useWhatsAppConnectionsList();
   const previewMutation = usePreviewBulkJob();
   const createMutation = useCreateBulkJob();
@@ -292,7 +300,9 @@ export function CreateBroadcastWizard({
     setSelectedTagIds((previous) =>
       previous.includes(tagId)
         ? previous.filter((id) => id !== tagId)
-        : [...previous, tagId],
+        : previous.length < MAX_AUDIENCE_TAGS
+          ? [...previous, tagId]
+          : previous,
     );
   };
 
@@ -520,26 +530,42 @@ export function CreateBroadcastWizard({
                     <p className="mt-0.5 text-xs text-[#667781] dark:text-dark-text-tertiary">
                       Every contact carrying a selected tag is included.
                     </p>
-                    <div className="mt-2 flex flex-wrap gap-1.5">
+                    <TagSearchInput
+                      value={tagSearch}
+                      onChange={setTagSearch}
+                      className="mt-2 max-w-sm"
+                    />
+                    <div className="mt-2 flex max-h-36 flex-wrap gap-1.5 overflow-y-auto">
                       {tagsLoading ? (
                         <span className="text-sm text-[#667781] dark:text-dark-text-secondary">
                           Loading tags…
                         </span>
                       ) : !tags || tags.length === 0 ? (
                         <span className="text-sm text-[#667781] dark:text-dark-text-secondary">
-                          No tags yet — pick contacts below instead.
+                          {debouncedTagSearch
+                            ? `No tags match “${debouncedTagSearch}”`
+                            : "No tags yet — pick contacts below instead."}
                         </span>
                       ) : (
                         tags.map((tag) => {
                           const isSelected = selectedTagIds.includes(tag.id);
+                          const isDisabled =
+                            !isSelected &&
+                            selectedTagIds.length >= MAX_AUDIENCE_TAGS;
                           return (
                             <button
                               key={tag.id}
                               type="button"
                               onClick={() => toggleTag(tag.id)}
                               aria-pressed={isSelected}
+                              disabled={isDisabled}
+                              title={
+                                isDisabled
+                                  ? `You can select up to ${MAX_AUDIENCE_TAGS} tags`
+                                  : undefined
+                              }
                               className={cn(
-                                "inline-flex items-center gap-1 rounded-full border px-3 py-1 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00a884]/40",
+                                "inline-flex items-center gap-1 rounded-full border px-3 py-1 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00a884]/40 disabled:cursor-not-allowed disabled:opacity-45",
                                 isSelected
                                   ? "border-[#00a884] bg-[#00a884]/10 text-[#008069] dark:border-emerald-500 dark:bg-emerald-900/30 dark:text-emerald-300"
                                   : "border-black/[0.08] text-[#54656f] hover:bg-[#f0f2f5] dark:border-white/[0.1] dark:text-dark-text-secondary dark:hover:bg-white/[0.06]",

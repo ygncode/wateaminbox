@@ -10,6 +10,10 @@ export interface ContactFilterOptions {
   includeGroups?: boolean;
   /** Filter to conversations owned by one WhatsApp account. */
   connectionId?: string;
+  /** Match contacts carrying any of these workspace tags. */
+  tagIds?: string[];
+  /** Schema-qualified contact_tags table used by raw tenant SQL. */
+  contactTagsTable?: RawBuilder<unknown>;
   /** Filter to contacts assigned to the current user */
   assignedToMe?: boolean;
   /** Filter to unassigned contacts */
@@ -105,6 +109,8 @@ export function buildContactWhereClause(options: ContactFilterOptions): {
     search,
     includeGroups = false,
     connectionId,
+    tagIds,
+    contactTagsTable,
     assignedToMe,
     unassigned,
     userId,
@@ -117,6 +123,17 @@ export function buildContactWhereClause(options: ContactFilterOptions): {
   if (!includeGroups) conditions.push(buildGroupClause(includeGroups));
   if (connectionId) {
     conditions.push(sql`c.whatsapp_connection_id = ${connectionId}`);
+  }
+  if (tagIds?.length) {
+    if (!contactTagsTable) {
+      throw new Error("contactTagsTable is required when filtering by tags");
+    }
+    conditions.push(sql`EXISTS (
+      SELECT 1
+      FROM ${contactTagsTable} ct
+      WHERE ct.contact_id = c.id
+        AND ct.tag_id = ANY(${tagIds}::uuid[])
+    )`);
   }
   if (conversationStatus && conversationStatus !== "all") {
     conditions.push(buildConversationStatusClause(conversationStatus));
