@@ -42,6 +42,12 @@ type Manager struct {
 	startedAt    time.Time
 	shuttingDown bool            // prevents NATS publishes during shutdown
 	registry     *WorkerRegistry // persistent storage for worker state
+
+	// recordWorkerHeartbeat advances a worker's durable last_heartbeat. It is
+	// wired to the registry when persistence initialises, and is a field rather
+	// than a direct registry call so the health check can be exercised without
+	// a database.
+	recordWorkerHeartbeat func(context.Context, string) error
 }
 
 // WorkerProcess represents a managed WhatsApp worker.
@@ -125,6 +131,7 @@ func (m *Manager) Start(ctx context.Context) error {
 			log.Println("Continuing without persistence - workers will not survive orchestrator restart")
 		} else {
 			m.registry = registry
+			m.recordWorkerHeartbeat = registry.UpdateHeartbeat
 			log.Println("Worker registry initialized successfully")
 
 			// Recover existing workers from database
@@ -624,7 +631,27 @@ func (m *Manager) healthCheckWorker(ctx context.Context, connectionID string) {
 				}
 			}
 
-			// Check for stale activity
+			// The process answered signal 0, so it is alive. Record that in the
+			// durable registry.
+			//
+			// Without this, last_heartbeat was only ever written by
+			// RegisterWorker and so stayed frozen at the spawn time for the
+			// life of the worker: a connection healthy for fourteen hours still
+			// reported a fourteen-hour-old heartbeat, indistinguishable from an
+			// abandoned row. A heartbeat that never beats cannot answer the one
+			// question the column exists for.
+			//
+			// Logged rather than fatal. Failing the health check because a
+			// bookkeeping write failed would stop a worker that is running
+			// perfectly well and holding a live WhatsApp session.
+			if m.recordWorkerHeartbeat != nil {
+				if err := m.recordWorkerHeartbeat(ctx, connectionID); err != nil {
+					log.Printf("Warning: failed to record heartbeat for worker %s: %v", connectionID, err)
+				}
+			}
+
+			// Check for stale activity. This is about WhatsApp traffic, not
+			// liveness: an idle connection legitimately sees none for hours.
 			if time.Since(worker.LastActivity) > 5*time.Minute {
 				log.Printf("Health check: worker %s has stale activity (last: %v)", connectionID, worker.LastActivity)
 			}
