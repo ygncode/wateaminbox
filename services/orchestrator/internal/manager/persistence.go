@@ -7,7 +7,7 @@ import (
 	"log"
 	"time"
 
-	_ "github.com/lib/pq"
+	"github.com/lib/pq"
 )
 
 // WorkerRegistry provides persistent storage for worker state.
@@ -119,6 +119,29 @@ func (r *WorkerRegistry) UpdateStatus(ctx context.Context, connectionID, status 
 	`, status, time.Now(), connectionID)
 	if err != nil {
 		return fmt.Errorf("failed to update worker status: %w", err)
+	}
+	return nil
+}
+
+// MarkWorkersRecovering records deliberate shutdown intent for every listed
+// worker in a single statement.
+//
+// Shutdown stops workers one at a time and each stop can take seconds, so
+// marking them individually along the way leaves the later workers unmarked for
+// most of the shutdown window. One statement means the whole set is durable
+// before any process is signalled, which is what makes the marking survive a
+// SIGKILL partway through.
+func (r *WorkerRegistry) MarkWorkersRecovering(ctx context.Context, connectionIDs []string) error {
+	if len(connectionIDs) == 0 {
+		return nil
+	}
+
+	_, err := r.db.ExecContext(ctx, `
+		UPDATE worker_registry SET status = $1, last_heartbeat = $2
+		WHERE connection_id = ANY($3)
+	`, WorkerStatusRecovering, time.Now(), pq.Array(connectionIDs))
+	if err != nil {
+		return fmt.Errorf("failed to mark workers for recovery: %w", err)
 	}
 	return nil
 }

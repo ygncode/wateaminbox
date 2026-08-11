@@ -199,6 +199,16 @@ services:
         condition: service_healthy
     read_only: true
     tmpfs: [/tmp]
+    # The orchestrator allows itself 30s to shut down: it records recovery intent
+    # for every worker, then stops each WhatsApp child process, allowing 5s per
+    # worker before escalating to SIGKILL. Docker's 10s default would SIGKILL the
+    # orchestrator partway through that, leaving the surviving workers' durable
+    # records untouched so the next process reads them as crashes and reports a
+    # WhatsApp failure that never happened. Keep this above the 30s budget in
+    # services/orchestrator/main.go; the guard test in
+    # services/orchestrator/internal/manager/stop_grace_period_test.go holds the
+    # two together.
+    stop_grace_period: 40s
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/health"]
       interval: 30s
