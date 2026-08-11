@@ -199,8 +199,17 @@ func (m *Manager) Stop(ctx context.Context) error {
 	//
 	// A failure here is logged rather than fatal: shutdown must still stop the
 	// workers, and stopWorkerInternal marks each record again as it goes.
+	//
+	// Bounded separately from the shutdown context. This write sits ahead of
+	// every SIGTERM, so on the caller's full budget a slow or unreachable
+	// PostgreSQL would spend the time meant for closing WhatsApp sessions and
+	// leave the container to SIGKILL the workers instead — the exact outcome
+	// the marking exists to prevent. Give up quickly and go stop the workers.
 	if m.markWorkersRecovering != nil && len(workerIDs) > 0 {
-		if err := m.markWorkersRecovering(ctx, workerIDs); err != nil {
+		markCtx, cancelMark := context.WithTimeout(ctx, markRecoveringTimeout)
+		err := m.markWorkersRecovering(markCtx, workerIDs)
+		cancelMark()
+		if err != nil {
 			log.Printf("Warning: failed to mark workers for recovery before shutdown: %v", err)
 		}
 	}
@@ -900,6 +909,12 @@ func (m *Manager) scheduleRestart(worker *WorkerProcess, reason string) {
 	}
 }
 
+// markRecoveringTimeout bounds the single registry write that shutdown performs
+// before signalling any worker. It is deliberately far below the shutdown
+// budget in main.go: the write is bookkeeping, and the workers' sessions are
+// what the budget is for.
+const markRecoveringTimeout = 5 * time.Second
+
 // WorkerStatusRecovering marks a durable registry record whose process was
 // stopped deliberately, as part of an orchestrator shutdown, rather than lost.
 // It is a registry-only lifecycle state: it is never published as a connection
@@ -924,30 +939,32 @@ func recoveryAnnouncement(recordStatus string) (status, reason string) {
 	return types.StatusError, "worker process died"
 }
 
-// survivorAnnouncement reports the connection status to publish for a worker
-// whose process outlived the orchestrator, and whether to publish at all.
+// survivorAnnouncement reports what to publish for a worker whose process
+// outlived the orchestrator. Nothing, whatever the record says.
 //
-// The registry is written once, by RegisterWorker at spawn time, and is never
-// advanced as the WhatsApp session comes up. So a worker that has been happily
-// connected for hours still carries the status it was born with. Republishing
-// that on recovery would take a connection the API currently has as "connected"
-// and push it back to "connecting", where nothing would ever correct it: the
-// process survived, so it has no reason to re-announce itself.
+// The registry is written once, by RegisterWorker at spawn, and never advanced
+// as the WhatsApp session comes up, so a worker connected for hours still
+// carries the status it was born with. Republishing that took a connection the
+// API held as "connected" and pushed it back to "connecting", where nothing
+// corrected it: the process survived, so it never re-announced itself.
 //
-// The orchestrator does not know this worker's session state. It knows only
-// that the process is alive. Saying nothing leaves the API holding the last
-// status the worker itself reported, which is the best information anyone has;
-// claiming "connected" would be inventing state the orchestrator cannot see.
-// So only a status the orchestrator genuinely established is published, and
-// everything else is left alone.
+// "recovering" is declined for the same reason, which is easy to get wrong.
+// That marker means this orchestrator's shutdown path asked the worker to
+// stop — but we are here because the process is still alive, so the request
+// did not take effect. The worker never left, its session is still up, and
+// announcing "connecting" would downgrade a live connection exactly as the
+// spawn-time default did. A record that contradicts the observed process is
+// not evidence about the session.
+//
+// The orchestrator cannot see the WhatsApp session; it knows only that a
+// process is alive. Saying nothing leaves the API holding the last status the
+// worker itself reported, which is the best information anyone has. Claiming
+// "connected" would be inventing state. The recordStatus argument is kept so
+// the rule stays one auditable decision rather than an implicit fallthrough,
+// and so a future status has to be considered here rather than silently
+// acquiring a meaning.
 func survivorAnnouncement(recordStatus string) (status string, publish bool) {
-	if recordStatus == WorkerStatusRecovering {
-		// Set deliberately by this orchestrator's own shutdown path, so it is a
-		// fact rather than a leftover: the worker is coming back.
-		return types.StatusConnecting, true
-	}
-	// Anything else is the spawn-time default or an unknown value. Neither
-	// describes the live session.
+	_ = recordStatus
 	return "", false
 }
 

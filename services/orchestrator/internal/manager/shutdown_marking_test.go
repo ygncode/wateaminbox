@@ -123,3 +123,47 @@ func TestStop_WithoutRegistryHook(t *testing.T) {
 
 	assert.False(t, alive(cmds[0]))
 }
+
+// The regression this guards: the pre-stop registry write ran on the caller's
+// full shutdown budget with no bound of its own. It sits ahead of every
+// SIGTERM, so an unreachable PostgreSQL would hold shutdown until the budget
+// expired and leave the container to SIGKILL workers mid-session — the exact
+// outcome the marking exists to prevent.
+func TestStop_MarkingCannotConsumeTheShutdownBudget(t *testing.T) {
+	cmds, m := startRecoveredTestWorkers(t, 2)
+
+	markStarted := make(chan struct{})
+	var markCtxErr error
+	m.markWorkersRecovering = func(ctx context.Context, _ []string) error {
+		close(markStarted)
+		// Stand in for a database that never answers.
+		<-ctx.Done()
+		markCtxErr = ctx.Err()
+		return ctx.Err()
+	}
+
+	// Generous relative to markRecoveringTimeout, so the assertion is about the
+	// mark giving up on its own rather than about the caller's deadline.
+	ctx, cancel := context.WithTimeout(context.Background(), 25*time.Second)
+	defer cancel()
+
+	started := time.Now()
+	require.NoError(t, m.Stop(ctx))
+	elapsed := time.Since(started)
+
+	select {
+	case <-markStarted:
+	default:
+		t.Fatal("marking never ran")
+	}
+
+	assert.ErrorIs(t, markCtxErr, context.DeadlineExceeded,
+		"the mark should hit its own deadline, not the caller's")
+	assert.Less(t, elapsed, markRecoveringTimeout+10*time.Second,
+		"a hung registry write must not hold shutdown for the whole budget")
+
+	for i, cmd := range cmds {
+		assert.False(t, alive(cmd), "worker %d must still be stopped after a failed mark", i)
+	}
+	assert.Zero(t, m.WorkerCount())
+}

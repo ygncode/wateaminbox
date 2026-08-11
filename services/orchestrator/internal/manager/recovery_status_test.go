@@ -38,21 +38,14 @@ func TestRecoveryAnnouncement_LostWorkerIsStillAnError(t *testing.T) {
 	}
 }
 
-func TestSurvivorAnnouncement_TranslatesTheRegistryOnlyState(t *testing.T) {
-	status, publish := survivorAnnouncement(WorkerStatusRecovering)
-	if !publish {
-		t.Fatal("a worker this orchestrator marked for recovery should be announced")
-	}
-	if status != types.StatusConnecting {
-		t.Errorf("survivorAnnouncement(%q) = %q, want %q", WorkerStatusRecovering, status, types.StatusConnecting)
-	}
-}
-
 // The regression this guards: worker_registry is written once, at spawn, and
 // never advanced as the session comes up, so a worker connected for hours still
 // carries "connecting". Republishing that on recovery pushed a connection the
 // API had as "connected" back to "connecting", where nothing corrected it —
 // the process survived, so it never re-announced itself.
+//
+// No registry status is exempt, including the shutdown marker. See
+// TestSurvivorAnnouncement_RecoveringIsAlsoDeclined.
 func TestSurvivorAnnouncement_StaleRecordIsNotRepublished(t *testing.T) {
 	for _, recorded := range []string{
 		types.StatusConnecting, // the spawn-time default: the actual production case
@@ -70,6 +63,35 @@ func TestSurvivorAnnouncement_StaleRecordIsNotRepublished(t *testing.T) {
 		if status != "" {
 			t.Errorf("record %q produced status %q while declining to publish", recorded, status)
 		}
+	}
+}
+
+// The easy mistake, and the one an earlier revision of this code made: treating
+// "recovering" as authoritative because this orchestrator's own shutdown wrote
+// it. That marker means a stop was requested — but survivorAnnouncement is only
+// consulted when the process is still alive, so the stop did not take effect.
+// The worker never left, its WhatsApp session is still up, and announcing
+// "connecting" would downgrade a live connection exactly as the spawn-time
+// default did.
+func TestSurvivorAnnouncement_RecoveringIsAlsoDeclined(t *testing.T) {
+	status, publish := survivorAnnouncement(WorkerStatusRecovering)
+	if publish {
+		t.Errorf("a surviving worker marked %q was announced as %q; the stop never took effect, so the session is still up",
+			WorkerStatusRecovering, status)
+	}
+	if status != "" {
+		t.Errorf("survivorAnnouncement(%q) produced status %q while declining to publish", WorkerStatusRecovering, status)
+	}
+}
+
+// A dead process is a different question and must still be announced, so the
+// two paths cannot be collapsed.
+func TestRecoveryAnnouncement_StillSpeaksForDeadProcesses(t *testing.T) {
+	if status, _ := recoveryAnnouncement(WorkerStatusRecovering); status != types.StatusConnecting {
+		t.Errorf("a dead worker marked for recovery announced %q, want %q", status, types.StatusConnecting)
+	}
+	if status, _ := recoveryAnnouncement(types.StatusConnected); status != types.StatusError {
+		t.Errorf("a dead unmarked worker announced %q, want %q", status, types.StatusError)
 	}
 }
 
