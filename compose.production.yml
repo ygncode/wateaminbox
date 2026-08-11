@@ -162,6 +162,12 @@ services:
         condition: service_healthy
     read_only: true
     tmpfs: [/tmp]
+    # apps/api/src/index.ts drains the HTTP server, stops its dispatchers, then
+    # releases NATS and the database pools under a single 20s budget and exits.
+    # Docker's 10s default would SIGKILL partway through that. Keep this above
+    # SHUTDOWN_DEADLINE_MS in apps/api/src/index.ts; the guard test in
+    # apps/api/src/lib/shutdown-config.test.ts holds the two together.
+    stop_grace_period: 30s
     healthcheck:
       test: ["CMD", "bun", "-e", "fetch('http://127.0.0.1:4445/api/health/live').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
       interval: 30s
