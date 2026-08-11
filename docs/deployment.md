@@ -142,6 +142,17 @@ Running migration explicitly makes failure visible before traffic changes.
 Inspect failures with `$COMPOSE logs migration` and do not bypass a failed
 migration.
 
+`api` sets `stop_grace_period: 30s`, above the 20s `SHUTDOWN_DEADLINE_MS` in
+`apps/api/src/index.ts`. On SIGTERM it drains the HTTP server, stops the message
+handler, cleanup, command outbox and scheduled dispatchers, drains NATS, then
+closes the tenant database pools — in that order, because each step can still
+need what the next one releases. All of them share one 20s budget: a step that
+exhausts it is abandoned and the remaining steps are logged as skipped, so a
+stuck `drain()` or outbox cycle can no longer hold the process open until
+SIGKILL. A second SIGTERM exits immediately. Change the budget and grace period
+together; `apps/api/src/lib/shutdown-config.test.ts` asserts that the grace
+period stays at least 5s above the budget.
+
 Validate externally (set the domains to the values from `.env.production`):
 
 ```sh
