@@ -45,6 +45,21 @@ describe("chat list query filters", () => {
     });
   });
 
+  test("filters by any selected workspace tag", () => {
+    expect(
+      buildChatListQueryParams("", true, "all", undefined, "open", [
+        "11111111-1111-4111-8111-111111111111",
+        "22222222-2222-4222-8222-222222222222",
+      ]),
+    ).toEqual({
+      limit: 100,
+      includeGroups: "true",
+      tagIds:
+        "11111111-1111-4111-8111-111111111111,22222222-2222-4222-8222-222222222222",
+      conversationStatus: "open",
+    });
+  });
+
   test("supports overriding the conversation lifecycle filter", () => {
     expect(
       buildChatListQueryParams("", true, "all", undefined, "resolved"),

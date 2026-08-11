@@ -1,5 +1,5 @@
-import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
+import { Hono } from "hono";
 import { conflict, notFound } from "../lib/errors.js";
 import {
   created,
@@ -10,12 +10,12 @@ import {
 import { createPaginationMeta } from "../lib/route-helpers.js";
 import {
   createTagSchema,
-  updateTagSchema,
   listTagsQuerySchema,
+  updateTagSchema,
 } from "../lib/schemas/index.js";
 import { authMiddleware } from "../middleware/auth.js";
-import { tenantMiddleware } from "../middleware/tenant.js";
 import { getRouteContext } from "../middleware/context.js";
+import { tenantMiddleware } from "../middleware/tenant.js";
 
 export const tagRoutes = new Hono();
 
@@ -25,23 +25,30 @@ tagRoutes.use("/*", tenantMiddleware());
 
 /**
  * GET /tags - List all tags with optional pagination
- * Query params: limit (default 50), offset (default 0)
+ * Query params: search, limit (default 50), offset (default 0)
  */
 tagRoutes.get("/", zValidator("query", listTagsQuerySchema), async (c) => {
   const { tenantDb } = getRouteContext(c);
   const query = c.req.valid("query");
 
-  // Get total count
+  const searchPattern = query.search ? `%${query.search}%` : undefined;
+
+  // Keep the count and page under the same case-insensitive name filter.
   const countResult = await tenantDb
     .selectFrom("tags")
     .select((eb) => eb.fn.countAll<string>().as("total"))
+    .$if(Boolean(searchPattern), (qb) =>
+      qb.where("name", "ilike", searchPattern!),
+    )
     .executeTakeFirst();
   const total = Number(countResult?.total || 0);
 
-  // Get paginated tags
   const tags = await tenantDb
     .selectFrom("tags")
     .selectAll()
+    .$if(Boolean(searchPattern), (qb) =>
+      qb.where("name", "ilike", searchPattern!),
+    )
     .orderBy("name", "asc")
     .limit(query.limit)
     .offset(query.offset)

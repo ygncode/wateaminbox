@@ -1,5 +1,5 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { Smartphone, UserPlus } from "lucide-react";
+import { Check, Smartphone, Tags, UserPlus, X } from "lucide-react";
 import {
   memo,
   useCallback,
@@ -9,6 +9,8 @@ import {
   useState,
   type WheelEvent,
 } from "react";
+import { useTags } from "../../hooks/contact/useContactTags";
+import { useDebounce } from "../../hooks/ui";
 import {
   type AssignmentFilter,
   type ConversationStatusFilter,
@@ -18,6 +20,8 @@ import { usePrefetchContact } from "../../hooks/usePrefetch";
 import { useWhatsAppConnections } from "../../hooks/useWhatsAppConnections";
 import type { ChatListProps } from "../../types/chat";
 import { AddContactDialog } from "../contacts/AddContactDialog";
+import { TagSearchInput } from "../tags/TagSearchInput";
+import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
 import {
   Select,
   SelectContent,
@@ -31,6 +35,7 @@ import { getConnectionLabel } from "./ConnectionIdentity";
 
 // Fixed height for chat list items for virtualization
 const CHAT_ITEM_HEIGHT = 76;
+const MAX_TAG_FILTERS = 50;
 
 /**
  * Main chat list sidebar component
@@ -48,6 +53,13 @@ export const ChatList = memo(function ChatList({
     useState<ConversationStatusFilter>("open");
   const [isAddContactOpen, setIsAddContactOpen] = useState(false);
   const [connectionFilter, setConnectionFilter] = useState("all");
+  const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
+  const [tagSearch, setTagSearch] = useState("");
+  const debouncedTagSearch = useDebounce(tagSearch.trim(), 250);
+  const { data: tagResults = [], isFetching: isFetchingTags } = useTags({
+    search: debouncedTagSearch || undefined,
+    limit: 100,
+  });
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const { connections } = useWhatsAppConnections();
 
@@ -71,6 +83,7 @@ export const ChatList = memo(function ChatList({
     assignmentFilter,
     connectionFilter === "all" ? undefined : connectionFilter,
     conversationStatusFilter,
+    selectedTagIds,
   );
 
   const handleSearchChange = useCallback((value: string) => {
@@ -87,6 +100,16 @@ export const ChatList = memo(function ChatList({
     },
     [onChatSelect],
   );
+
+  const toggleTagFilter = useCallback((tagId: string) => {
+    setSelectedTagIds((current) =>
+      current.includes(tagId)
+        ? current.filter((id) => id !== tagId)
+        : current.length < MAX_TAG_FILTERS
+          ? [...current, tagId]
+          : current,
+    );
+  }, []);
 
   const handleFilterWheel = useCallback((event: WheelEvent<HTMLDivElement>) => {
     const filterList = event.currentTarget;
@@ -248,11 +271,128 @@ export const ChatList = memo(function ChatList({
           </button>
         </div>
 
+        <Popover onOpenChange={(open) => !open && setTagSearch("")}>
+          <PopoverTrigger asChild>
+            <button
+              type="button"
+              className={`mx-1 inline-flex h-8 flex-shrink-0 items-center gap-1.5 rounded-full border px-2.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-whatsapp-green/40 ${
+                selectedTagIds.length > 0
+                  ? "border-whatsapp-teal-green bg-whatsapp-teal-green text-white"
+                  : "border-gray-200 bg-white text-gray-600 hover:bg-gray-100 dark:border-dark-border dark:bg-dark-tertiary dark:text-dark-text-secondary"
+              }`}
+              aria-label="Filter conversations by tag"
+            >
+              <Tags className="h-3.5 w-3.5" aria-hidden="true" />
+              <span>Tags</span>
+              {selectedTagIds.length > 0 && (
+                <span className="rounded-full bg-white/20 px-1.5 text-[10px] tabular-nums">
+                  {selectedTagIds.length}
+                </span>
+              )}
+            </button>
+          </PopoverTrigger>
+          <PopoverContent align="end" className="w-72 p-0">
+            <div className="flex items-center justify-between border-b border-gray-100 px-3 py-2.5 dark:border-dark-border">
+              <div>
+                <p className="text-sm font-semibold">Filter by tags</p>
+                <p className="text-[11px] text-gray-500 dark:text-dark-text-secondary">
+                  Matches any selected tag
+                </p>
+              </div>
+              {selectedTagIds.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setSelectedTagIds([])}
+                  className="text-xs font-medium text-whatsapp-teal-green hover:underline"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+            <div className="p-2.5">
+              <TagSearchInput
+                value={tagSearch}
+                onChange={setTagSearch}
+                autoFocus
+              />
+              <div className="mt-2 max-h-56 overflow-y-auto rounded-lg border border-gray-100 dark:border-dark-border">
+                {isFetchingTags && tagResults.length === 0 ? (
+                  <p className="px-3 py-5 text-center text-xs text-gray-500 dark:text-dark-text-secondary">
+                    Searching tags…
+                  </p>
+                ) : tagResults.length === 0 ? (
+                  <p className="px-3 py-5 text-center text-xs text-gray-500 dark:text-dark-text-secondary">
+                    {debouncedTagSearch
+                      ? `No tags match “${debouncedTagSearch}”`
+                      : "No tags available"}
+                  </p>
+                ) : (
+                  <div className="py-1">
+                    {tagResults.map((tag) => {
+                      const selected = selectedTagIds.includes(tag.id);
+                      const disabled =
+                        !selected && selectedTagIds.length >= MAX_TAG_FILTERS;
+                      return (
+                        <button
+                          key={tag.id}
+                          type="button"
+                          role="checkbox"
+                          aria-checked={selected}
+                          disabled={disabled}
+                          onClick={() => toggleTagFilter(tag.id)}
+                          title={
+                            disabled
+                              ? `You can select up to ${MAX_TAG_FILTERS} tags`
+                              : undefined
+                          }
+                          className="flex w-full items-center gap-2.5 px-2.5 py-2 text-left text-sm hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-whatsapp-green/40 disabled:cursor-not-allowed disabled:opacity-45 dark:hover:bg-dark-tertiary"
+                        >
+                          <span
+                            className={`grid h-4 w-4 shrink-0 place-items-center rounded border ${
+                              selected
+                                ? "border-whatsapp-teal-green bg-whatsapp-teal-green text-white"
+                                : "border-gray-300 dark:border-dark-border"
+                            }`}
+                          >
+                            {selected && <Check className="h-3 w-3" />}
+                          </span>
+                          <span
+                            className="h-2.5 w-2.5 shrink-0 rounded-full bg-gray-300"
+                            style={
+                              tag.color
+                                ? { backgroundColor: tag.color }
+                                : undefined
+                            }
+                            aria-hidden="true"
+                          />
+                          <span className="min-w-0 flex-1 truncate">
+                            {tag.name}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+              {selectedTagIds.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setSelectedTagIds([])}
+                  className="mt-2 flex w-full items-center justify-center gap-1 rounded-md py-1.5 text-xs text-gray-500 hover:bg-gray-50 hover:text-gray-700 dark:text-dark-text-secondary dark:hover:bg-dark-tertiary"
+                >
+                  <X className="h-3 w-3" aria-hidden="true" />
+                  Remove all tag filters
+                </button>
+              )}
+            </div>
+          </PopoverContent>
+        </Popover>
+
         {/* Keep the primary action visible while the filters scroll. */}
         <button
           type="button"
           onClick={() => setIsAddContactOpen(true)}
-          className="mx-1 flex-shrink-0 rounded-full p-1.5 text-whatsapp-teal-green transition-colors hover:bg-whatsapp-teal-green/10 dark:hover:bg-whatsapp-teal-green/20"
+          className="mr-1 flex-shrink-0 rounded-full p-1.5 text-whatsapp-teal-green transition-colors hover:bg-whatsapp-teal-green/10 dark:hover:bg-whatsapp-teal-green/20"
           aria-label="Add new contact"
           data-testid="add-contact-button"
         >
@@ -334,11 +474,36 @@ export const ChatList = memo(function ChatList({
           </div>
         )}
 
+        {/* Empty State - No conversations match the selected tags */}
+        {!isLoading &&
+          !isError &&
+          visibleChats.length === 0 &&
+          !searchQuery &&
+          selectedTagIds.length > 0 && (
+            <div className="flex h-full flex-col items-center justify-center px-4 py-8 text-center">
+              <Tags className="mb-4 h-11 w-11 text-gray-300 dark:text-dark-text-tertiary" />
+              <p className="font-medium text-gray-600 dark:text-dark-text-primary">
+                No tagged conversations found
+              </p>
+              <p className="mt-1 text-sm text-gray-500 dark:text-dark-text-secondary">
+                Try removing a tag filter or changing the inbox filters
+              </p>
+              <button
+                type="button"
+                onClick={() => setSelectedTagIds([])}
+                className="mt-3 text-sm font-medium text-whatsapp-teal-green hover:underline"
+              >
+                Clear tag filters
+              </button>
+            </div>
+          )}
+
         {/* Empty State - No Unread Chats */}
         {!isLoading &&
           !isError &&
           visibleChats.length === 0 &&
           !searchQuery &&
+          selectedTagIds.length === 0 &&
           assignmentFilter === "unread" && (
             <div className="flex flex-col items-center justify-center h-full px-4 py-8 text-center">
               <svg
@@ -368,6 +533,7 @@ export const ChatList = memo(function ChatList({
           !isError &&
           visibleChats.length === 0 &&
           !searchQuery &&
+          selectedTagIds.length === 0 &&
           assignmentFilter !== "unread" && (
             <div className="flex flex-col items-center justify-center h-full px-4 py-8 text-center">
               <svg

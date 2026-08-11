@@ -57,6 +57,13 @@ export type UpdateTagInput = z.infer<typeof updateTagSchema>;
 /**
  * Schema for listing tags with pagination
  */
-export const listTagsQuerySchema = paginationSchema;
+export const listTagsQuerySchema = paginationSchema.extend({
+  search: z
+    .string()
+    .trim()
+    .max(50, "Tag search must be at most 50 characters")
+    .optional()
+    .transform((value) => value || undefined),
+});
 
 export type ListTagsQuery = z.infer<typeof listTagsQuerySchema>;

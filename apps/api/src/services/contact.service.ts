@@ -19,6 +19,8 @@ export interface GetContactsWithLastMessageOptions {
   includeGroups?: boolean;
   /** Filter to conversations owned by one WhatsApp account. */
   connectionId?: string;
+  /** Match contacts carrying at least one selected workspace tag. */
+  tagIds?: string[];
   /** Filter to contacts assigned to the current user */
   assignedToMe?: boolean;
   /** Filter to unassigned contacts */
@@ -92,6 +94,7 @@ export async function getContactsWithLastMessage(
     offset = 0,
     includeGroups = false,
     connectionId,
+    tagIds,
     assignedToMe = false,
     unassigned = false,
     userId,
@@ -106,22 +109,27 @@ export async function getContactsWithLastMessage(
   // 2. Joins contacts with last messages (rank=1) and assignments
   // 3. Groups by contact to get unread counts
 
-  // Build WHERE clause using helper (uses parameterized SQL to prevent injection)
+  // `withSchema()` qualifies Kysely query-builder calls, but raw SQL has to
+  // qualify identifiers itself. The tenant schema comes from trusted middleware.
+  const schemaName = getSchemaName(companyId);
+  const schema = sql.ref(schemaName);
+
+  // Build WHERE clause using helper (uses parameterized SQL to prevent injection).
+  // The tag table is explicitly tenant-qualified so raw SQL never depends on
+  // the connection search_path.
   const { whereClause, hasConditions: hasWhereCondition } =
     buildContactWhereClause({
       search,
       includeGroups,
       connectionId,
+      tagIds,
+      contactTagsTable: sql.table(`${schemaName}.contact_tags`),
       assignedToMe,
       unassigned,
       userId,
       restrictToAssigned,
       conversationStatus,
     });
-
-  // `withSchema()` qualifies Kysely query-builder calls, but raw SQL has to
-  // qualify identifiers itself. The tenant schema comes from trusted middleware.
-  const schema = sql.ref(getSchemaName(companyId));
 
   const result = await sql<{
     id: string;
@@ -297,6 +305,14 @@ export async function getContactsWithLastMessage(
         eb("contacts.custom_name", "ilike", `%${search}%`),
         eb("contacts.phone_number", "ilike", `%${search}%`),
       ]),
+    );
+  }
+  if (tagIds?.length) {
+    countQuery = countQuery.where("contacts.id", "in", (qb) =>
+      qb
+        .selectFrom("contact_tags")
+        .select("contact_tags.contact_id")
+        .where("contact_tags.tag_id", "in", tagIds),
     );
   }
   if (restrictToAssigned && userId) {

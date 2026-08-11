@@ -34,6 +34,7 @@ interface ChatListFilters {
   assignmentFilter?: AssignmentFilter;
   connectionId?: string;
   conversationStatus?: ConversationStatusFilter;
+  tagIds?: readonly string[];
 }
 
 /**
@@ -60,11 +61,13 @@ export function buildChatListQueryParams(
   assignmentFilter: AssignmentFilter,
   connectionId?: string,
   conversationStatus: ConversationStatusFilter = "open",
+  tagIds: readonly string[] = [],
 ): Record<string, unknown> {
   const params: Record<string, unknown> = { limit: 100 };
   if (searchQuery.trim()) params.search = searchQuery;
   if (includeGroups) params.includeGroups = "true";
   if (connectionId) params.connectionId = connectionId;
+  if (tagIds.length > 0) params.tagIds = tagIds.join(",");
   if (assignmentFilter === "assignedToMe") {
     params.assignedToMe = "true";
   } else if (assignmentFilter === "unassigned") {
@@ -85,6 +88,7 @@ export function useChats(
   assignmentFilter: AssignmentFilter = "all",
   connectionId?: string,
   conversationStatus: ConversationStatusFilter = "open",
+  tagIds: readonly string[] = [],
 ) {
   const companyId = getCompanyId();
 
@@ -97,6 +101,7 @@ export function useChats(
         assignmentFilter,
         connectionId,
         conversationStatus,
+        tagIds,
       }),
     [
       companyId,
@@ -105,6 +110,7 @@ export function useChats(
       assignmentFilter,
       connectionId,
       conversationStatus,
+      tagIds,
     ],
   );
 
@@ -131,6 +137,7 @@ export function useChats(
           assignmentFilter,
           connectionId,
           conversationStatus,
+          tagIds,
         ),
       );
       const result = await api.get<ContactsListResponse>(
