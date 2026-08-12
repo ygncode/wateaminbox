@@ -9,7 +9,7 @@ import {
   useState,
   type WheelEvent,
 } from "react";
-import { useTags } from "../../hooks/contact/useContactTags";
+import { type Tag, useTags } from "../../hooks/contact/useContactTags";
 import { useDebounce } from "../../hooks/ui";
 import {
   type AssignmentFilter,
@@ -53,7 +53,11 @@ export const ChatList = memo(function ChatList({
     useState<ConversationStatusFilter>("open");
   const [isAddContactOpen, setIsAddContactOpen] = useState(false);
   const [connectionFilter, setConnectionFilter] = useState("all");
-  const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
+  const [selectedTags, setSelectedTags] = useState<Tag[]>([]);
+  const selectedTagIds = useMemo(
+    () => selectedTags.map((tag) => tag.id),
+    [selectedTags],
+  );
   const [tagSearch, setTagSearch] = useState("");
   const debouncedTagSearch = useDebounce(tagSearch.trim(), 250);
   const { data: tagResults = [], isFetching: isFetchingTags } = useTags({
@@ -101,15 +105,17 @@ export const ChatList = memo(function ChatList({
     [onChatSelect],
   );
 
-  const toggleTagFilter = useCallback((tagId: string) => {
-    setSelectedTagIds((current) =>
-      current.includes(tagId)
-        ? current.filter((id) => id !== tagId)
+  const toggleTagFilter = useCallback((tag: Tag) => {
+    setSelectedTags((current) =>
+      current.some((selected) => selected.id === tag.id)
+        ? current.filter((selected) => selected.id !== tag.id)
         : current.length < MAX_TAG_FILTERS
-          ? [...current, tagId]
+          ? [...current, tag]
           : current,
     );
   }, []);
+
+  const clearTagFilters = useCallback(() => setSelectedTags([]), []);
 
   const handleFilterWheel = useCallback((event: WheelEvent<HTMLDivElement>) => {
     const filterList = event.currentTarget;
@@ -189,33 +195,203 @@ export const ChatList = memo(function ChatList({
 
       {/* Conversation lifecycle filters - Open is the default working view, with
           Pending/Resolved/All one tap away. Resolved chats stay browsable. */}
-      <div
-        className="flex items-center gap-1 overflow-x-auto overscroll-x-contain border-b border-gray-200 bg-gray-50 px-2 py-1.5 [scrollbar-width:thin] dark:border-dark-border dark:bg-dark-secondary"
-        aria-label="Conversation status filters"
-        onWheel={handleFilterWheel}
-      >
-        {(
-          [
-            { value: "open", label: "Open" },
-            { value: "pending", label: "Pending" },
-            { value: "resolved", label: "Resolved" },
-            { value: "all", label: "All" },
-          ] as const
-        ).map((option) => (
-          <button
-            key={option.value}
-            type="button"
-            onClick={() => setConversationStatusFilter(option.value)}
-            aria-pressed={conversationStatusFilter === option.value}
-            className={`flex-shrink-0 whitespace-nowrap rounded-full px-3 py-1 text-xs font-medium transition-colors ${
-              conversationStatusFilter === option.value
-                ? "bg-whatsapp-teal-green text-white"
-                : "border border-gray-200 bg-white text-gray-600 hover:bg-gray-100 dark:border-dark-border dark:bg-dark-tertiary dark:text-dark-text-secondary dark:hover:bg-dark-border"
-            }`}
+      <div className="flex items-center border-b border-gray-200 bg-gray-50 dark:border-dark-border dark:bg-dark-secondary">
+        <div
+          className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto overscroll-x-contain px-2 py-1.5 [scrollbar-width:thin]"
+          aria-label="Conversation status filters"
+          onWheel={handleFilterWheel}
+        >
+          {(
+            [
+              { value: "open", label: "Open" },
+              { value: "pending", label: "Pending" },
+              { value: "resolved", label: "Resolved" },
+              { value: "all", label: "All" },
+            ] as const
+          ).map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              onClick={() => setConversationStatusFilter(option.value)}
+              aria-pressed={conversationStatusFilter === option.value}
+              className={`flex-shrink-0 whitespace-nowrap rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+                conversationStatusFilter === option.value
+                  ? "bg-whatsapp-teal-green text-white"
+                  : "border border-gray-200 bg-white text-gray-600 hover:bg-gray-100 dark:border-dark-border dark:bg-dark-tertiary dark:text-dark-text-secondary dark:hover:bg-dark-border"
+              }`}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+
+        <Popover onOpenChange={(open) => !open && setTagSearch("")}>
+          <PopoverTrigger asChild>
+            <button
+              type="button"
+              className={`mr-1 inline-flex h-8 flex-shrink-0 items-center gap-1.5 rounded-full border px-2.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-whatsapp-green/40 ${
+                selectedTags.length > 0
+                  ? "border-whatsapp-teal-green/40 bg-whatsapp-teal-green/10 text-whatsapp-teal-green hover:bg-whatsapp-teal-green/15 dark:bg-whatsapp-teal-green/15"
+                  : "border-gray-200 bg-white text-gray-600 hover:bg-gray-100 dark:border-dark-border dark:bg-dark-tertiary dark:text-dark-text-secondary"
+              }`}
+              aria-label={
+                selectedTags.length > 0
+                  ? `Filter conversations by tag, ${selectedTags.length} selected`
+                  : "Filter conversations by tag"
+              }
+            >
+              <Tags className="h-3.5 w-3.5" aria-hidden="true" />
+              <span>Filter</span>
+              {selectedTags.length > 0 && (
+                <span className="grid min-w-4 place-items-center rounded-full bg-whatsapp-teal-green px-1 text-[10px] leading-4 text-white tabular-nums">
+                  {selectedTags.length}
+                </span>
+              )}
+            </button>
+          </PopoverTrigger>
+          <PopoverContent
+            align="end"
+            sideOffset={8}
+            className="w-[min(21rem,calc(100vw-1rem))] overflow-hidden rounded-xl border-gray-200 p-0 shadow-[0_18px_50px_-12px_rgba(15,23,42,0.28)] dark:border-dark-border"
           >
-            {option.label}
-          </button>
-        ))}
+            <div className="flex items-center gap-2.5 px-3 pt-3 pb-2.5">
+              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-whatsapp-teal-green/10 text-whatsapp-teal-green dark:bg-whatsapp-teal-green/15">
+                <Tags className="h-4 w-4" aria-hidden="true" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold text-gray-900 dark:text-dark-text-primary">
+                  Filter by tags
+                </p>
+                <p className="text-[11px] text-gray-500 dark:text-dark-text-secondary">
+                  Show chats matching any selected tag
+                </p>
+              </div>
+            </div>
+
+            <div className="px-3 pb-3">
+              <TagSearchInput
+                value={tagSearch}
+                onChange={setTagSearch}
+                autoFocus
+              />
+            </div>
+
+            {selectedTags.length > 0 && (
+              <div className="border-y border-whatsapp-teal-green/15 bg-whatsapp-teal-green/[0.06] px-3 py-2.5 dark:bg-whatsapp-teal-green/10">
+                <div className="mb-2 flex items-center justify-between">
+                  <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-gray-500 dark:text-dark-text-secondary">
+                    Selected · {selectedTags.length}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={clearTagFilters}
+                    className="rounded px-1 py-0.5 text-[11px] font-medium text-whatsapp-teal-green hover:bg-whatsapp-teal-green/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-whatsapp-green/40"
+                  >
+                    Clear all
+                  </button>
+                </div>
+                <div className="flex max-h-20 flex-wrap gap-1.5 overflow-y-auto">
+                  {selectedTags.map((tag) => (
+                    <button
+                      key={tag.id}
+                      type="button"
+                      onClick={() => toggleTagFilter(tag)}
+                      className="group inline-flex max-w-full items-center gap-1.5 rounded-full border border-gray-200 bg-white py-1 pl-2 pr-1.5 text-xs text-gray-700 shadow-sm transition-colors hover:border-red-200 hover:bg-red-50 hover:text-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-whatsapp-green/40 dark:border-dark-border dark:bg-dark-elevated dark:text-dark-text-primary dark:hover:border-red-900/60 dark:hover:bg-red-950/30 dark:hover:text-red-300"
+                      aria-label={`Remove ${tag.name} tag filter`}
+                    >
+                      <span
+                        className="h-2 w-2 shrink-0 rounded-full bg-gray-300"
+                        style={
+                          tag.color ? { backgroundColor: tag.color } : undefined
+                        }
+                        aria-hidden="true"
+                      />
+                      <span className="max-w-44 truncate">{tag.name}</span>
+                      <X
+                        className="h-3 w-3 shrink-0 text-gray-400 group-hover:text-current"
+                        aria-hidden="true"
+                      />
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div
+              className="max-h-64 overflow-y-auto p-1.5"
+              role="group"
+              aria-label="Available tags"
+            >
+              {isFetchingTags && tagResults.length === 0 ? (
+                <div className="flex items-center justify-center gap-2 px-3 py-8 text-xs text-gray-500 dark:text-dark-text-secondary">
+                  <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-gray-200 border-t-whatsapp-teal-green dark:border-dark-border dark:border-t-whatsapp-teal-green" />
+                  Searching tags…
+                </div>
+              ) : tagResults.length === 0 ? (
+                <div className="px-4 py-8 text-center">
+                  <Tags className="mx-auto mb-2 h-5 w-5 text-gray-300 dark:text-dark-text-tertiary" />
+                  <p className="text-xs font-medium text-gray-600 dark:text-dark-text-primary">
+                    {debouncedTagSearch ? "No matching tags" : "No tags yet"}
+                  </p>
+                  <p className="mt-0.5 text-[11px] text-gray-400 dark:text-dark-text-secondary">
+                    {debouncedTagSearch
+                      ? `Try another search for “${debouncedTagSearch}”`
+                      : "Create a tag from a contact profile"}
+                  </p>
+                </div>
+              ) : (
+                tagResults.map((tag) => {
+                  const selected = selectedTags.some(
+                    (selectedTag) => selectedTag.id === tag.id,
+                  );
+                  const disabled =
+                    !selected && selectedTags.length >= MAX_TAG_FILTERS;
+                  return (
+                    <button
+                      key={tag.id}
+                      type="button"
+                      role="checkbox"
+                      aria-checked={selected}
+                      disabled={disabled}
+                      onClick={() => toggleTagFilter(tag)}
+                      title={
+                        disabled
+                          ? `You can select up to ${MAX_TAG_FILTERS} tags`
+                          : undefined
+                      }
+                      className={`mb-0.5 flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2.5 text-left text-sm transition-colors last:mb-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-whatsapp-green/40 disabled:cursor-not-allowed disabled:opacity-45 ${
+                        selected
+                          ? "bg-whatsapp-teal-green/[0.08] text-gray-900 dark:bg-whatsapp-teal-green/10 dark:text-dark-text-primary"
+                          : "text-gray-700 hover:bg-gray-50 dark:text-dark-text-primary dark:hover:bg-dark-tertiary"
+                      }`}
+                    >
+                      <span
+                        className="h-3 w-3 shrink-0 rounded-full bg-gray-300 ring-2 ring-white dark:ring-dark-elevated"
+                        style={
+                          tag.color ? { backgroundColor: tag.color } : undefined
+                        }
+                        aria-hidden="true"
+                      />
+                      <span className="min-w-0 flex-1 truncate font-medium">
+                        {tag.name}
+                      </span>
+                      <span
+                        className={`grid h-5 w-5 shrink-0 place-items-center rounded-full border transition-colors ${
+                          selected
+                            ? "border-whatsapp-teal-green bg-whatsapp-teal-green text-white"
+                            : "border-gray-200 bg-white text-transparent dark:border-dark-border dark:bg-dark-tertiary"
+                        }`}
+                        aria-hidden="true"
+                      >
+                        <Check className="h-3 w-3" />
+                      </span>
+                    </button>
+                  );
+                })
+              )}
+            </div>
+          </PopoverContent>
+        </Popover>
       </div>
 
       {/* Assignment filters remain horizontally reachable at narrow widths. */}
@@ -270,123 +446,6 @@ export const ChatList = memo(function ChatList({
             Unassigned
           </button>
         </div>
-
-        <Popover onOpenChange={(open) => !open && setTagSearch("")}>
-          <PopoverTrigger asChild>
-            <button
-              type="button"
-              className={`mx-1 inline-flex h-8 flex-shrink-0 items-center gap-1.5 rounded-full border px-2.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-whatsapp-green/40 ${
-                selectedTagIds.length > 0
-                  ? "border-whatsapp-teal-green bg-whatsapp-teal-green text-white"
-                  : "border-gray-200 bg-white text-gray-600 hover:bg-gray-100 dark:border-dark-border dark:bg-dark-tertiary dark:text-dark-text-secondary"
-              }`}
-              aria-label="Filter conversations by tag"
-            >
-              <Tags className="h-3.5 w-3.5" aria-hidden="true" />
-              <span>Tags</span>
-              {selectedTagIds.length > 0 && (
-                <span className="rounded-full bg-white/20 px-1.5 text-[10px] tabular-nums">
-                  {selectedTagIds.length}
-                </span>
-              )}
-            </button>
-          </PopoverTrigger>
-          <PopoverContent align="end" className="w-72 p-0">
-            <div className="flex items-center justify-between border-b border-gray-100 px-3 py-2.5 dark:border-dark-border">
-              <div>
-                <p className="text-sm font-semibold">Filter by tags</p>
-                <p className="text-[11px] text-gray-500 dark:text-dark-text-secondary">
-                  Matches any selected tag
-                </p>
-              </div>
-              {selectedTagIds.length > 0 && (
-                <button
-                  type="button"
-                  onClick={() => setSelectedTagIds([])}
-                  className="text-xs font-medium text-whatsapp-teal-green hover:underline"
-                >
-                  Clear
-                </button>
-              )}
-            </div>
-            <div className="p-2.5">
-              <TagSearchInput
-                value={tagSearch}
-                onChange={setTagSearch}
-                autoFocus
-              />
-              <div className="mt-2 max-h-56 overflow-y-auto rounded-lg border border-gray-100 dark:border-dark-border">
-                {isFetchingTags && tagResults.length === 0 ? (
-                  <p className="px-3 py-5 text-center text-xs text-gray-500 dark:text-dark-text-secondary">
-                    Searching tags…
-                  </p>
-                ) : tagResults.length === 0 ? (
-                  <p className="px-3 py-5 text-center text-xs text-gray-500 dark:text-dark-text-secondary">
-                    {debouncedTagSearch
-                      ? `No tags match “${debouncedTagSearch}”`
-                      : "No tags available"}
-                  </p>
-                ) : (
-                  <div className="py-1">
-                    {tagResults.map((tag) => {
-                      const selected = selectedTagIds.includes(tag.id);
-                      const disabled =
-                        !selected && selectedTagIds.length >= MAX_TAG_FILTERS;
-                      return (
-                        <button
-                          key={tag.id}
-                          type="button"
-                          role="checkbox"
-                          aria-checked={selected}
-                          disabled={disabled}
-                          onClick={() => toggleTagFilter(tag.id)}
-                          title={
-                            disabled
-                              ? `You can select up to ${MAX_TAG_FILTERS} tags`
-                              : undefined
-                          }
-                          className="flex w-full items-center gap-2.5 px-2.5 py-2 text-left text-sm hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-whatsapp-green/40 disabled:cursor-not-allowed disabled:opacity-45 dark:hover:bg-dark-tertiary"
-                        >
-                          <span
-                            className={`grid h-4 w-4 shrink-0 place-items-center rounded border ${
-                              selected
-                                ? "border-whatsapp-teal-green bg-whatsapp-teal-green text-white"
-                                : "border-gray-300 dark:border-dark-border"
-                            }`}
-                          >
-                            {selected && <Check className="h-3 w-3" />}
-                          </span>
-                          <span
-                            className="h-2.5 w-2.5 shrink-0 rounded-full bg-gray-300"
-                            style={
-                              tag.color
-                                ? { backgroundColor: tag.color }
-                                : undefined
-                            }
-                            aria-hidden="true"
-                          />
-                          <span className="min-w-0 flex-1 truncate">
-                            {tag.name}
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-              {selectedTagIds.length > 0 && (
-                <button
-                  type="button"
-                  onClick={() => setSelectedTagIds([])}
-                  className="mt-2 flex w-full items-center justify-center gap-1 rounded-md py-1.5 text-xs text-gray-500 hover:bg-gray-50 hover:text-gray-700 dark:text-dark-text-secondary dark:hover:bg-dark-tertiary"
-                >
-                  <X className="h-3 w-3" aria-hidden="true" />
-                  Remove all tag filters
-                </button>
-              )}
-            </div>
-          </PopoverContent>
-        </Popover>
 
         {/* Keep the primary action visible while the filters scroll. */}
         <button
@@ -479,7 +538,7 @@ export const ChatList = memo(function ChatList({
           !isError &&
           visibleChats.length === 0 &&
           !searchQuery &&
-          selectedTagIds.length > 0 && (
+          selectedTags.length > 0 && (
             <div className="flex h-full flex-col items-center justify-center px-4 py-8 text-center">
               <Tags className="mb-4 h-11 w-11 text-gray-300 dark:text-dark-text-tertiary" />
               <p className="font-medium text-gray-600 dark:text-dark-text-primary">
@@ -490,7 +549,7 @@ export const ChatList = memo(function ChatList({
               </p>
               <button
                 type="button"
-                onClick={() => setSelectedTagIds([])}
+                onClick={clearTagFilters}
                 className="mt-3 text-sm font-medium text-whatsapp-teal-green hover:underline"
               >
                 Clear tag filters
@@ -503,7 +562,7 @@ export const ChatList = memo(function ChatList({
           !isError &&
           visibleChats.length === 0 &&
           !searchQuery &&
-          selectedTagIds.length === 0 &&
+          selectedTags.length === 0 &&
           assignmentFilter === "unread" && (
             <div className="flex flex-col items-center justify-center h-full px-4 py-8 text-center">
               <svg
@@ -533,7 +592,7 @@ export const ChatList = memo(function ChatList({
           !isError &&
           visibleChats.length === 0 &&
           !searchQuery &&
-          selectedTagIds.length === 0 &&
+          selectedTags.length === 0 &&
           assignmentFilter !== "unread" && (
             <div className="flex flex-col items-center justify-center h-full px-4 py-8 text-center">
               <svg
