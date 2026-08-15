@@ -1,6 +1,7 @@
-import { ArrowRight, Building2, LogOut } from "lucide-react";
+import { ArrowRight, LogOut } from "lucide-react";
 import { useNavigate } from "react-router";
 import { toast } from "sonner";
+import { BrandMark } from "../components/brand/BrandMark";
 import { WorkspaceAvatar } from "../components/workspace/WorkspaceAvatar";
 import { useAuth } from "../contexts/auth-context";
 import { useWorkspace } from "../contexts/workspace-context";
@@ -29,9 +30,7 @@ export function WorkspaceChooserPage() {
       <div className="relative mx-auto max-w-2xl">
         <div className="mb-10 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <span className="grid h-10 w-10 place-items-center rounded-xl bg-[#102c24] text-white">
-              <Building2 className="h-5 w-5" />
-            </span>
+            <BrandMark className="h-10 w-10 shrink-0 rounded-xl object-contain" />
             <span className="text-sm font-semibold tracking-tight">
               WATeamInbox
             </span>

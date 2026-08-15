@@ -8,7 +8,6 @@ import {
   LoaderCircle,
   LockKeyhole,
   LogOut,
-  MessageCircleMore,
   Upload,
   UsersRound,
   X,
@@ -16,6 +15,7 @@ import {
 import * as React from "react";
 import { useForm } from "react-hook-form";
 import { useNavigate } from "react-router";
+import { BrandMark } from "../components/brand/BrandMark";
 import { Button } from "../components/ui/button";
 import { FormField } from "../components/ui/form-field";
 import { useAuth } from "../contexts/auth-context";
@@ -148,13 +148,7 @@ export function CompanySetupPage() {
         <div className="flex min-w-0 flex-col p-6 sm:p-9 lg:p-12">
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-3">
-              <span className="grid h-10 w-10 place-items-center rounded-[0.9rem] bg-[#075e54] text-white shadow-sm shadow-[#075e54]/20">
-                <MessageCircleMore
-                  aria-hidden="true"
-                  className="h-5 w-5"
-                  strokeWidth={2.2}
-                />
-              </span>
+              <BrandMark className="h-10 w-10 shrink-0 rounded-[0.9rem] object-contain shadow-sm shadow-[#075e54]/20" />
               <div className="leading-none">
                 <p className="text-[1.05rem] font-bold tracking-[-0.03em] text-slate-900 dark:text-dark-text-primary">
                   WATeamInbox

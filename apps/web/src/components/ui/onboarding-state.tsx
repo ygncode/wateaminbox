@@ -1,9 +1,5 @@
-import {
-  AlertTriangle,
-  ArrowRight,
-  MessageCircleMore,
-  RefreshCw,
-} from "lucide-react";
+import { AlertTriangle, ArrowRight, RefreshCw } from "lucide-react";
+import { BrandMark } from "../brand/BrandMark";
 import { Button } from "./button";
 
 function OnboardingFrame({ children }: { children: React.ReactNode }) {
@@ -20,13 +16,7 @@ function OnboardingFrame({ children }: { children: React.ReactNode }) {
       <section className="relative mx-auto grid min-h-[calc(100dvh-1.5rem)] w-full max-w-6xl overflow-hidden rounded-[1.75rem] border border-white/80 bg-white shadow-[0_24px_80px_rgba(15,55,43,0.14)] sm:min-h-[calc(100dvh-3rem)] lg:grid-cols-[minmax(0,1.08fr)_minmax(23rem,0.92fr)] dark:border-dark-border dark:bg-dark-elevated dark:shadow-none">
         <div className="flex min-w-0 flex-col p-6 sm:p-9 lg:p-12">
           <div className="flex items-center gap-3">
-            <span className="grid h-10 w-10 place-items-center rounded-[0.9rem] bg-[#075e54] text-white shadow-sm shadow-[#075e54]/20">
-              <MessageCircleMore
-                aria-hidden="true"
-                className="h-5 w-5"
-                strokeWidth={2.2}
-              />
-            </span>
+            <BrandMark className="h-10 w-10 shrink-0 rounded-[0.9rem] object-contain shadow-sm shadow-[#075e54]/20" />
             <div className="leading-none">
               <p className="text-[1.05rem] font-bold tracking-[-0.03em] text-slate-900 dark:text-dark-text-primary">
                 WATeamInbox
