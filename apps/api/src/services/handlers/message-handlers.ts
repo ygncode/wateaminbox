@@ -27,10 +27,6 @@ import {
   type SendFailedEvent,
 } from "../../lib/nats/index.js";
 import { broadcastToCompany } from "../../lib/realtime.js";
-import {
-  broadcastNewMessageToViewers,
-  broadcastToContactViewers,
-} from "../message-broadcast.service.js";
 import { broadcastAutoUnassignment } from "../assignment-broadcast.service.js";
 import { createAuditLog } from "../audit.service.js";
 import {
@@ -38,6 +34,10 @@ import {
   resolveActiveCaseIdForContact,
 } from "../conversation-case.service.js";
 import { indexMessage, type MessageDocument } from "../meilisearch.service.js";
+import {
+  broadcastNewMessageToViewers,
+  broadcastToContactViewers,
+} from "../message-broadcast.service.js";
 import { sendPushToUsers } from "../notification-delivery.service.js";
 import { resolveIncomingMessageRecipients } from "../notification-recipient.service.js";
 import { updateMessageSearchVector } from "../search.service.js";
@@ -637,7 +637,7 @@ export async function handleMessageEvent(event: MessageEvent): Promise<void> {
             tag: `message-${storedMessageId}`,
             actionUrl: `/chat/${contact.id}`,
             icon: "/apple-touch-icon.png",
-            badge: "/favicon-32x32.png",
+            badge: "/favicon-96x96.png",
           }),
         )
         .catch((pushError) => {

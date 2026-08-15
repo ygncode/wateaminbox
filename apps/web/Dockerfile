@@ -27,7 +27,8 @@ ENV VITE_API_URL=${VITE_API_URL} \
 RUN test -n "$VITE_CENTRIFUGO_URL" \
  && { test "$VITE_BILLING_REQUIRED_AFTER_SETUP" != "true" || test -n "$VITE_BILLING_URL"; } \
  && bun run --filter @wateaminbox/shared build \
- && bun run --filter @wateaminbox/web build
+ && bun run --filter @wateaminbox/web build \
+ && chmod -R a+rX /app/apps/web/dist
 
 FROM nginxinc/nginx-unprivileged:1.29-alpine AS web
 COPY --from=build /app/apps/web/dist /usr/share/nginx/html
