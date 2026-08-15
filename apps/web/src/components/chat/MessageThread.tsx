@@ -1,5 +1,5 @@
 import type { Message } from "@wateaminbox/shared";
-import { MessageCircle, Send } from "lucide-react";
+import { MessageCircle, SearchX, Send } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useGroup } from "@/hooks/useGroups";
 import {
@@ -14,6 +14,10 @@ import { useRetryMessage } from "../../hooks/useMessages";
 import { useRemoteHistory } from "../../hooks/useRemoteHistory";
 import { ChatContextMenu } from "./ChatContextMenu";
 import { MessageSelectionToolbar } from "./MessageSelectionToolbar";
+import {
+  type MessageNavigationTarget,
+  resolveMessageNavigationTarget,
+} from "./message-navigation";
 import { VirtualMessageList } from "./VirtualMessageList";
 
 const EMPTY_MESSAGES: Message[] = [];
@@ -75,48 +79,25 @@ export function MessageThread({
     null,
   );
   const [replyNavigation, setReplyNavigation] = useState<{
-    messageId: string;
+    target: MessageNavigationTarget;
     requestKey: number;
   } | null>(null);
   const { data: group } = useGroup(
     isGroup && conversationId ? conversationId : null,
   );
-  const activeHighlightedMessageId =
-    highlightedMessageId ?? replyNavigation?.messageId;
-
   useEffect(() => {
     setReplyNavigation(null);
   }, [conversationId]);
 
-  useEffect(() => {
-    const replyTargetMessageId = replyNavigation?.messageId ?? null;
-    if (!replyTargetMessageId) return;
-
-    const handleOutsidePointerDown = (event: PointerEvent) => {
-      const clickedElement =
-        event.target instanceof Element ? event.target : null;
-      const clickedMessageId =
-        clickedElement
-          ?.closest<HTMLElement>("[data-message-id]")
-          ?.getAttribute("data-message-id") ?? null;
-
-      if (shouldDismissReplyHighlight(clickedMessageId, replyTargetMessageId)) {
-        setReplyNavigation(null);
-      }
-    };
-
-    document.addEventListener("pointerdown", handleOutsidePointerDown);
-    return () => {
-      document.removeEventListener("pointerdown", handleOutsidePointerDown);
-    };
-  }, [replyNavigation?.messageId]);
-
-  const handleNavigateToMessage = useCallback((messageId: string) => {
-    setReplyNavigation((current) => ({
-      messageId,
-      requestKey: (current?.requestKey ?? 0) + 1,
-    }));
-  }, []);
+  const handleNavigateToMessage = useCallback(
+    (target: MessageNavigationTarget) => {
+      setReplyNavigation((current) => ({
+        target,
+        requestKey: (current?.requestKey ?? 0) + 1,
+      }));
+    },
+    [],
+  );
 
   // Context menu state
   const [contextMenu, setContextMenu] = useState<{
@@ -142,6 +123,44 @@ export function MessageThread({
 
   const messages = data?.messages ?? EMPTY_MESSAGES;
   const remoteHistoryStatus = data?.remoteHistoryStatus ?? "unknown";
+  const resolvedReplyMessage = resolveMessageNavigationTarget(
+    messages,
+    replyNavigation?.target ?? null,
+  );
+  const activeHighlightedMessageId =
+    highlightedMessageId ??
+    resolvedReplyMessage?.id ??
+    (replyNavigation?.target.kind === "database"
+      ? replyNavigation.target.messageId
+      : null);
+  const activeNavigationTarget = highlightedMessageId
+    ? null
+    : replyNavigation?.target;
+
+  useEffect(() => {
+    const replyTargetMessageId = replyNavigation
+      ? (activeHighlightedMessageId ?? replyNavigation.target.messageId)
+      : null;
+    if (!replyTargetMessageId) return;
+
+    const handleOutsidePointerDown = (event: PointerEvent) => {
+      const clickedElement =
+        event.target instanceof Element ? event.target : null;
+      const clickedMessageId =
+        clickedElement
+          ?.closest<HTMLElement>("[data-message-id]")
+          ?.getAttribute("data-message-id") ?? null;
+
+      if (shouldDismissReplyHighlight(clickedMessageId, replyTargetMessageId)) {
+        setReplyNavigation(null);
+      }
+    };
+
+    document.addEventListener("pointerdown", handleOutsidePointerDown);
+    return () => {
+      document.removeEventListener("pointerdown", handleOutsidePointerDown);
+    };
+  }, [activeHighlightedMessageId, replyNavigation]);
 
   // Use selection hook
   const {
@@ -164,14 +183,19 @@ export function MessageThread({
     scrollToBottom,
     isAtBottom,
     isLoadingHighlightedMessage,
+    isHighlightedMessageUnavailable,
   } = useMessageVirtualization({
     messages,
     conversationId,
     highlightedMessageId: activeHighlightedMessageId,
+    navigationTarget: activeNavigationTarget,
     highlightRequestKey: replyNavigation?.requestKey,
     hasNextPage,
     isFetchingNextPage,
     fetchNextPage,
+    remoteHistoryStatus,
+    isRequestingRemoteHistory,
+    requestRemoteHistory,
   });
 
   // Enhanced scroll handler that includes infinite loading logic
@@ -404,7 +428,7 @@ export function MessageThread({
         onNavigateToMessage={handleNavigateToMessage}
       />
 
-      {/* Loading indicator for searching message */}
+      {/* Status for reply-to-original navigation across local/remote history. */}
       {isLoadingHighlightedMessage && (
         <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20 bg-white dark:bg-dark-elevated rounded-full px-4 py-2 shadow-lg flex items-center gap-2">
           <svg
@@ -429,8 +453,19 @@ export function MessageThread({
             />
           </svg>
           <span className="text-sm text-gray-700 dark:text-dark-text-primary">
-            Finding message...
+            Finding original message...
           </span>
+        </div>
+      )}
+
+      {isHighlightedMessageUnavailable && (
+        <div
+          className="absolute top-4 left-1/2 z-20 flex -translate-x-1/2 items-center gap-2 rounded-full border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-900 shadow-lg dark:border-amber-300/15 dark:bg-[#332f24] dark:text-amber-100"
+          role="status"
+          aria-live="polite"
+        >
+          <SearchX className="size-4" aria-hidden="true" />
+          Original message is not available in synced history.
         </div>
       )}
 

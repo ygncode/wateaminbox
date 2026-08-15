@@ -19,6 +19,10 @@ import { MessageContextMenu } from "./MessageContextMenu";
 import { ForwardIcon, ReplyIcon, StarFilledIcon } from "./MessageIcons";
 import { MessageReactions } from "./MessageReactions";
 import { getErrorMessage, MessageStatusIcon } from "./MessageStatusIcon";
+import {
+  getReplyNavigationTarget,
+  type MessageNavigationTarget,
+} from "./message-navigation";
 
 export function shouldShowReplyPreview(
   message: Pick<Message, "replyToMessageId" | "isDeleted">,
@@ -56,7 +60,7 @@ interface MessageBubbleProps {
     "jid" | "phoneNumber" | "displayName"
   >[];
   /** Navigate the thread to the original message referenced by a reply. */
-  onNavigateToMessage?: (messageId: string) => void;
+  onNavigateToMessage?: (target: MessageNavigationTarget) => void;
 }
 
 export const MessageBubble = memo(function MessageBubble({
@@ -222,6 +226,7 @@ export const MessageBubble = memo(function MessageBubble({
         {shouldShowReplyPreview(message) && (
           <ReplyPreview
             replyToMessage={message.replyToMessage}
+            replyToMessageId={message.replyToMessageId}
             isOwn={isOwn}
             currentUserId={currentUserId}
             onNavigateToMessage={onNavigateToMessage}
@@ -397,14 +402,16 @@ function SelectionCheckbox({
  */
 function ReplyPreview({
   replyToMessage,
+  replyToMessageId,
   isOwn,
   currentUserId,
   onNavigateToMessage,
 }: {
   replyToMessage: Message["replyToMessage"];
+  replyToMessageId: Message["replyToMessageId"];
   isOwn: boolean;
   currentUserId: string;
-  onNavigateToMessage?: (messageId: string) => void;
+  onNavigateToMessage?: (target: MessageNavigationTarget) => void;
 }) {
   const { t } = useTranslation();
 
@@ -422,9 +429,11 @@ function ReplyPreview({
       ? t("chat.messageDeleted")
       : replyToMessage.content;
 
-  const navigationTargetId =
-    replyToMessage && !replyToMessage.isDeleted ? replyToMessage.id : undefined;
-  const canNavigate = Boolean(navigationTargetId);
+  const navigationTarget = getReplyNavigationTarget(
+    replyToMessage,
+    replyToMessageId,
+  );
+  const canNavigate = Boolean(navigationTarget);
   const Component = canNavigate ? "button" : "div";
 
   return (
@@ -434,8 +443,8 @@ function ReplyPreview({
             type: "button" as const,
             onClick: (event: React.MouseEvent) => {
               event.stopPropagation();
-              if (navigationTargetId) {
-                onNavigateToMessage?.(navigationTargetId);
+              if (navigationTarget) {
+                onNavigateToMessage?.(navigationTarget);
               }
             },
             "aria-label": `${t("chat.reply")}: ${replySender}`,
