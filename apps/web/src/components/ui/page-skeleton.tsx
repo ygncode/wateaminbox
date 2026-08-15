@@ -275,36 +275,95 @@ function AuthPageSkeleton({ className }: { className?: string }) {
 function TeamPageSkeleton({ className }: { className?: string }) {
   return (
     <div
-      className={cn("min-h-dvh bg-gray-100 dark:bg-dark-primary", className)}
+      className={cn(
+        "flex h-full w-full flex-col overflow-hidden bg-[#f5f7f4] dark:bg-dark-primary",
+        className,
+      )}
     >
-      {/* Header */}
-      <div className="border-b border-gray-200 dark:border-dark-border bg-white dark:bg-dark-secondary">
-        <div className="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
-          <Skeleton className="h-8 w-32" />
-          <Skeleton className="h-10 w-32" />
+      {/* Workspace heading and primary action */}
+      <header className="shrink-0 border-b border-[#dce3de] bg-white px-4 py-4 dark:border-dark-border dark:bg-dark-secondary sm:px-6">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <Skeleton className="h-3 w-16" />
+            <Skeleton className="mt-1.5 h-6 w-14" />
+            <Skeleton className="mt-2 h-3 w-44" />
+          </div>
+          <Skeleton className="h-10 w-36 rounded-md" />
         </div>
+      </header>
+
+      {/* Members and invitations tabs */}
+      <div className="flex shrink-0 border-b border-[#dce3de] bg-white dark:border-dark-border dark:bg-dark-secondary">
+        {Array.from({ length: 2 }).map((_, index) => (
+          <div
+            key={index}
+            className={cn(
+              "flex items-center gap-2 border-b-2 px-5 py-3",
+              index === 0 ? "border-[#0b7a55]" : "border-transparent",
+            )}
+          >
+            <Skeleton className="h-4 w-4 rounded" />
+            <Skeleton className={cn("h-4", index === 0 ? "w-16" : "w-20")} />
+            <Skeleton className="h-4 w-6 rounded-full" />
+          </div>
+        ))}
       </div>
-      {/* Tabs */}
-      <div className="max-w-4xl mx-auto px-4 py-4">
-        <div className="flex gap-4 mb-6">
-          <Skeleton className="h-8 w-24" />
-          <Skeleton className="h-8 w-24" />
-        </div>
-        {/* Member list */}
-        <div className="bg-white dark:bg-dark-elevated rounded-lg shadow-sm divide-y divide-gray-200 dark:divide-dark-border">
-          {Array.from({ length: 5 }).map((_, i) => (
-            <div key={i} className="flex items-center justify-between p-4">
-              <div className="flex items-center gap-3">
-                <Skeleton className="h-10 w-10 rounded-full" />
-                <div className="space-y-1">
-                  <Skeleton className="h-5 w-32" />
-                  <Skeleton className="h-4 w-48" />
-                </div>
+
+      {/* Searchable, paginated members table */}
+      <div className="min-h-0 flex-1 overflow-hidden p-4 sm:p-6">
+        <section className="flex h-full min-h-[24rem] flex-col overflow-hidden rounded-2xl border border-[#d7e0da] bg-white shadow-[0_12px_34px_rgba(16,33,27,0.07)] dark:border-dark-border dark:bg-dark-elevated dark:shadow-none">
+          <div className="flex shrink-0 flex-col gap-2.5 border-b border-[#e3e9e5] bg-[#fbfcfb] p-3 sm:flex-row sm:items-center dark:border-dark-border dark:bg-dark-secondary/40">
+            <Skeleton className="h-9 w-full sm:max-w-md" />
+            <Skeleton className="h-9 w-28 self-end rounded-lg sm:ml-auto sm:self-auto" />
+          </div>
+
+          <div className="min-h-0 flex-1 overflow-hidden">
+            <div className="min-w-[48rem]">
+              <div className="grid grid-cols-[minmax(20rem,1fr)_8rem_10rem_9rem_3.5rem] border-b border-[#d7e0da] bg-[#edf1ed]/95 px-4 py-3 dark:border-dark-border dark:bg-dark-tertiary/95">
+                <Skeleton className="h-2.5 w-16" />
+                <Skeleton className="h-2.5 w-9" />
+                <Skeleton className="h-2.5 w-12" />
+                <Skeleton className="h-2.5 w-11" />
+                <span />
               </div>
-              <Skeleton className="h-6 w-16" />
+
+              {Array.from({ length: 8 }).map((_, index) => (
+                <div
+                  key={index}
+                  className="grid grid-cols-[minmax(20rem,1fr)_8rem_10rem_9rem_3.5rem] items-center border-b border-[#edf1ed] px-4 py-3.5 dark:border-dark-border"
+                >
+                  <div className="flex min-w-0 items-center gap-3">
+                    <Skeleton className="h-9 w-9 shrink-0 rounded-full" />
+                    <div>
+                      <Skeleton
+                        className={cn("h-4", index % 2 === 0 ? "w-32" : "w-40")}
+                      />
+                      <Skeleton className="mt-1.5 h-3 w-44" />
+                    </div>
+                  </div>
+                  <Skeleton className="h-4 w-16" />
+                  <Skeleton className="h-5 w-24 rounded-full" />
+                  <Skeleton className="h-3 w-20" />
+                  <Skeleton className="h-7 w-7 rounded-md" />
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
+          </div>
+
+          <footer className="flex shrink-0 flex-col gap-3 border-t border-[#d7e0da] bg-[#fbfcfb] px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between dark:border-dark-border dark:bg-dark-secondary/40">
+            <div className="flex items-center gap-2">
+              <Skeleton className="h-3 w-20" />
+              <Skeleton className="h-3 w-16" />
+            </div>
+            <div className="flex items-center gap-2">
+              <Skeleton className="h-3 w-16" />
+              <Skeleton className="h-8 w-8 rounded-md" />
+              <Skeleton className="h-8 w-8 rounded-md" />
+              <Skeleton className="h-8 w-8 rounded-md" />
+              <Skeleton className="h-8 w-8 rounded-md" />
+            </div>
+          </footer>
+        </section>
       </div>
     </div>
   );
