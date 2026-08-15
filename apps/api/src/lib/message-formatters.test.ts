@@ -34,6 +34,16 @@ const baseMessage = (overrides: Partial<MessageDbRow>): MessageDbRow => ({
 });
 
 describe("incoming reply formatting", () => {
+  test("exposes the WhatsApp stanza ID using the shared Message field", () => {
+    const formatted = formatMessageForConversation(
+      baseMessage({}),
+      new Map(),
+      new Map(),
+    );
+
+    expect(formatted.whatsappMessageId).toBe("wa-message-id");
+  });
+
   test("uses the original WhatsApp timestamp instead of the history import time", () => {
     const whatsappTimestamp = new Date("2026-01-15T09:01:17Z");
     const importedAt = new Date("2026-07-30T03:23:03Z");

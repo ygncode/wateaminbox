@@ -9,6 +9,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/appstate"
 	waBinary "go.mau.fi/whatsmeow/binary"
 	"go.mau.fi/whatsmeow/proto/waSyncAction"
@@ -18,6 +19,14 @@ import (
 
 	"github.com/ygncode-lab/whatsapp-web/services/whatsapp/internal/types"
 )
+
+func TestConfigureMessageRecoveryRequestsUndecryptableMessagesFromPhone(t *testing.T) {
+	waClient := &whatsmeow.Client{}
+
+	configureMessageRecovery(waClient)
+
+	assert.True(t, waClient.AutomaticMessageRerequestFromPhone)
+}
 
 // TestCalculateBackoff_TransientPhase tests the exponential backoff in transient phase.
 func TestCalculateBackoff_TransientPhase(t *testing.T) {

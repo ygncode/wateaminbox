@@ -2,8 +2,12 @@ import {
   useVirtualizer,
   type VirtualItem as VirtualRow,
 } from "@tanstack/react-virtual";
-import type { Message } from "@wateaminbox/shared";
+import type { Message, RemoteHistoryStatus } from "@wateaminbox/shared";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  type MessageNavigationTarget,
+  matchesMessageNavigationTarget,
+} from "@/components/chat/message-navigation";
 
 // Estimated row heights for virtualization
 const ESTIMATED_MESSAGE_HEIGHT = 80;
@@ -17,11 +21,15 @@ interface UseMessageVirtualizationOptions {
   messages: Message[];
   conversationId: string | undefined;
   highlightedMessageId?: string | null;
+  navigationTarget?: MessageNavigationTarget | null;
   /** Changes when navigation to the same highlighted message is requested again. */
   highlightRequestKey?: number;
   hasNextPage?: boolean;
   isFetchingNextPage?: boolean;
   fetchNextPage?: () => void;
+  remoteHistoryStatus?: RemoteHistoryStatus;
+  isRequestingRemoteHistory?: boolean;
+  requestRemoteHistory?: () => void;
 }
 
 interface UseMessageVirtualizationReturn {
@@ -34,16 +42,21 @@ interface UseMessageVirtualizationReturn {
   scrollToBottom: () => void;
   isAtBottom: boolean;
   isLoadingHighlightedMessage: boolean;
+  isHighlightedMessageUnavailable: boolean;
 }
 
 export function useMessageVirtualization({
   messages,
   conversationId,
   highlightedMessageId,
+  navigationTarget,
   highlightRequestKey,
   hasNextPage,
   isFetchingNextPage,
   fetchNextPage,
+  remoteHistoryStatus = "unknown",
+  isRequestingRemoteHistory = false,
+  requestRemoteHistory,
 }: UseMessageVirtualizationOptions): UseMessageVirtualizationReturn {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [isAtBottom, setIsAtBottom] = useState(true);
@@ -51,7 +64,10 @@ export function useMessageVirtualization({
   const isInitialScrollDone = useRef(false);
   const [isLoadingHighlightedMessage, setIsLoadingHighlightedMessage] =
     useState(false);
+  const [isHighlightedMessageUnavailable, setIsHighlightedMessageUnavailable] =
+    useState(false);
   const pendingHighlightedMessageIdRef = useRef<string | null>(null);
+  const remoteRequestItemCountRef = useRef<number | null>(null);
 
   // Group messages by date and flatten into virtual items - memoized to prevent re-renders
   const items = useMemo<VirtualItem[]>(() => {
@@ -176,50 +192,104 @@ export function useMessageVirtualization({
   const itemsRef = useRef(items);
   itemsRef.current = items;
 
-  // Scroll to highlighted message with auto-loading if not in view
   useEffect(() => {
-    if (!highlightedMessageId || itemsRef.current.length === 0) {
+    pendingHighlightedMessageIdRef.current = null;
+    remoteRequestItemCountRef.current = null;
+    setIsHighlightedMessageUnavailable(false);
+  }, [
+    highlightedMessageId,
+    navigationTarget?.kind,
+    navigationTarget?.messageId,
+    highlightRequestKey,
+  ]);
+
+  // Scroll to highlighted messages. Unresolved reply references first search
+  // every local page, then request older pages from the primary phone while
+  // each request continues to add messages.
+  useEffect(() => {
+    const searchKey =
+      navigationTarget?.messageId ?? highlightedMessageId ?? null;
+    if (!searchKey || itemsRef.current.length === 0) {
       setIsLoadingHighlightedMessage(false);
       pendingHighlightedMessageIdRef.current = null;
       return;
     }
 
-    // Check if message exists in current items
     const messageIndex = itemsRef.current.findIndex(
-      (item) => item.type === "message" && item.id === highlightedMessageId,
+      (item) =>
+        item.type === "message" &&
+        (navigationTarget
+          ? matchesMessageNavigationTarget(item.message, navigationTarget)
+          : item.id === highlightedMessageId),
     );
 
     if (messageIndex !== -1) {
-      // Message found - scroll to it and clear loading state
       setIsLoadingHighlightedMessage(false);
+      setIsHighlightedMessageUnavailable(false);
       pendingHighlightedMessageIdRef.current = null;
       virtualizerRef.current.scrollToIndex(messageIndex, {
         align: "center",
         behavior: "auto",
       });
-    } else if (hasNextPage && !isFetchingNextPage && fetchNextPage) {
-      // Message not found but more pages available - load next page
-      // Track that we're looking for this message to avoid duplicate fetches
-      if (pendingHighlightedMessageIdRef.current !== highlightedMessageId) {
-        pendingHighlightedMessageIdRef.current = highlightedMessageId;
-        setIsLoadingHighlightedMessage(true);
-      }
+      return;
+    }
 
-      // Only fetch if not already fetching
-      if (!isFetchingNextPage) {
+    if (hasNextPage) {
+      setIsLoadingHighlightedMessage(true);
+      setIsHighlightedMessageUnavailable(false);
+      pendingHighlightedMessageIdRef.current = searchKey;
+      if (!isFetchingNextPage && fetchNextPage) {
         fetchNextPage();
       }
-    } else {
-      // Message not found and no more pages - clear loading state
+      return;
+    }
+
+    // A database target came from an already-resolved quote, so it must be in
+    // local pagination. Only unresolved WhatsApp references can benefit from
+    // requesting history from the primary phone.
+    if (navigationTarget?.kind !== "reference") {
       setIsLoadingHighlightedMessage(false);
       pendingHighlightedMessageIdRef.current = null;
+      return;
     }
+
+    if (isRequestingRemoteHistory || remoteHistoryStatus === "requesting") {
+      setIsLoadingHighlightedMessage(true);
+      setIsHighlightedMessageUnavailable(false);
+      return;
+    }
+
+    const canRequestRemoteHistory = ["unknown", "available", "failed"].includes(
+      remoteHistoryStatus,
+    );
+    if (canRequestRemoteHistory && requestRemoteHistory) {
+      // If WhatsApp completed a request without adding a row, repeating the
+      // same anchor would loop forever. A second click resets this guard.
+      if (remoteRequestItemCountRef.current === itemsRef.current.length) {
+        setIsLoadingHighlightedMessage(false);
+        setIsHighlightedMessageUnavailable(true);
+        return;
+      }
+      remoteRequestItemCountRef.current = itemsRef.current.length;
+      setIsLoadingHighlightedMessage(true);
+      setIsHighlightedMessageUnavailable(false);
+      requestRemoteHistory();
+      return;
+    }
+
+    setIsLoadingHighlightedMessage(false);
+    setIsHighlightedMessageUnavailable(true);
+    pendingHighlightedMessageIdRef.current = null;
   }, [
     highlightedMessageId,
+    navigationTarget,
     highlightRequestKey,
     hasNextPage,
     isFetchingNextPage,
     fetchNextPage,
+    remoteHistoryStatus,
+    isRequestingRemoteHistory,
+    requestRemoteHistory,
   ]);
 
   // Scroll to bottom button click
@@ -242,5 +312,6 @@ export function useMessageVirtualization({
     scrollToBottom,
     isAtBottom,
     isLoadingHighlightedMessage,
+    isHighlightedMessageUnavailable,
   };
 }

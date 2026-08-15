@@ -29,6 +29,7 @@ describe("incoming reply previews", () => {
       "utf8",
     );
     expect(source).toContain('t("chat.quotedMessageUnavailable")');
+    expect(source).toContain("getReplyNavigationTarget(");
   });
 
   test("makes an available reply preview navigate to its original message", () => {
@@ -36,7 +37,7 @@ describe("incoming reply previews", () => {
       new URL("./MessageBubble.tsx", import.meta.url),
       "utf8",
     );
-    expect(source).toContain("onNavigateToMessage?.(navigationTargetId)");
+    expect(source).toContain("onNavigateToMessage?.(navigationTarget)");
     expect(source).toContain('type: "button" as const');
   });
 

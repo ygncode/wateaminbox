@@ -9,6 +9,7 @@ import type { GroupParticipant } from "@/hooks/useGroups";
 import type { TeamMemberIdentity } from "@/hooks/useTeam";
 import type { VirtualItem as MessageListItem } from "../../hooks/chat/useMessageVirtualization";
 import { MessageBubble } from "./MessageBubble";
+import type { MessageNavigationTarget } from "./message-navigation";
 
 type MessageVirtualizer = ReturnType<
   typeof useVirtualizer<HTMLDivElement, Element>
@@ -46,7 +47,7 @@ interface VirtualMessageListProps {
     GroupParticipant,
     "jid" | "phoneNumber" | "displayName"
   >[];
-  onNavigateToMessage?: (messageId: string) => void;
+  onNavigateToMessage?: (target: MessageNavigationTarget) => void;
 }
 
 export function VirtualMessageList({
