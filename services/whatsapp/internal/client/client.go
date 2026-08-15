@@ -122,8 +122,12 @@ func New(ctx context.Context, cfg Config) (*Client, error) {
 		return nil, fmt.Errorf("failed to get device: %w", err)
 	}
 
-	// Create whatsmeow client
+	// Create whatsmeow client. If an offline group message cannot be decrypted
+	// because its sender key is missing, whatsmeow first asks the sender to
+	// retry. The sender may no longer be online after a server outage, so also
+	// ask the primary phone for the message after whatsmeow's retry delay.
 	waClient := whatsmeow.NewClient(device, waLogger.Sub("client"))
+	configureMessageRecovery(waClient)
 
 	// Create a cancellable context for controlling reconnection loops
 	reconnectCtx, cancelReconnect := context.WithCancel(ctx)
@@ -143,6 +147,10 @@ func New(ctx context.Context, cfg Config) (*Client, error) {
 	waClient.AddEventHandler(c.internalEventHandler)
 
 	return c, nil
+}
+
+func configureMessageRecovery(waClient *whatsmeow.Client) {
+	waClient.AutomaticMessageRerequestFromPhone = true
 }
 
 // SetQRCallback sets the callback for QR code events.

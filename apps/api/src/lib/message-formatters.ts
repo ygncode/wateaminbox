@@ -140,7 +140,10 @@ export function formatMessageForConversation(
 ) {
   return {
     id: msg.id,
+    // Keep the legacy response key while also exposing the canonical shared
+    // Message field used to match unresolved WhatsApp reply references.
     messageId: msg.message_id,
+    whatsappMessageId: msg.message_id || undefined,
     conversationId: msg.contact_id,
     contactId: msg.contact_id,
     senderId: msg.sent_by_user_id || msg.sender_jid || "",
