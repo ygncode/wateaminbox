@@ -14,9 +14,12 @@ import {
 import { NotificationProvider } from "./contexts/NotificationProvider";
 import { RealtimeProvider } from "./contexts/RealtimeProvider";
 import "./index.css";
+import { installChunkLoadRecovery } from "./lib/chunk-load-recovery";
 
 // Initialize i18n
 import "./lib/i18n";
+
+installChunkLoadRecovery();
 
 const queryClient = new QueryClient({
   defaultOptions: {

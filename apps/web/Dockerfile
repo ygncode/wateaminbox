@@ -40,6 +40,6 @@ RUN printf '%s\n' \
   '  index index.html;' \
   '  location = /healthz { access_log off; add_header Content-Type text/plain; return 200 "ok\\n"; }' \
   '  location /assets/ { try_files $uri =404; expires 1y; add_header Cache-Control "public, immutable"; }' \
-  '  location / { try_files $uri $uri/ /index.html; }' \
+  '  location / { try_files $uri $uri/ /index.html; add_header Cache-Control "no-cache"; }' \
   '}' > /etc/nginx/conf.d/default.conf
 EXPOSE 8080
