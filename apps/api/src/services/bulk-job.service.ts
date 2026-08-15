@@ -32,6 +32,7 @@ import { createLogger, formatError } from "../lib/logger.js";
 import { broadcastToCompany } from "../lib/realtime.js";
 import { deleteMedia, resolveMediaKeyForCompany } from "../lib/storage.js";
 import { createAuditLog } from "./audit.service.js";
+import { reserveMediaReferences } from "./media-reference-lock.js";
 import type { TenantDatabase } from "./tenant.service.js";
 
 const logger = createLogger("BulkJobs");
@@ -302,6 +303,8 @@ export function buildBulkJobPreview(
 // ============================================================================
 
 export interface CreateBulkJobParams {
+  /** Needed to resolve this job's media object into its tenant-scoped key. */
+  companyId: string;
   name: string;
   audience: BulkJobAudience;
   content: string;
@@ -386,6 +389,8 @@ export async function createBulkJob(
   const now = toDbDate();
   try {
     const job = await tenantDb.transaction().execute(async (trx) => {
+      // The job row and every leaf it materializes point at this object.
+      await reserveMediaReferences(trx, params.companyId, [params.mediaUrl]);
       const jobRow = await trx
         .insertInto("bulk_jobs")
         .values({
@@ -530,15 +535,26 @@ export async function getBulkJobProgress(
     .groupBy("status")
     .execute();
 
+  const retained = await tenantDb
+    .selectFrom("bulk_jobs")
+    .select([
+      "purged_sent",
+      "purged_failed",
+      "purged_canceled",
+      "purged_skipped",
+    ])
+    .where("id", "=", bulkJobId)
+    .executeTakeFirst();
   const byStatus = new Map(rows.map((r) => [r.status, Number(r.count)]));
   const progress: BulkJobProgress = {
     total: 0,
     pending: byStatus.get("scheduled") ?? 0,
     processing: byStatus.get("processing") ?? 0,
-    sent: byStatus.get("sent") ?? 0,
-    failed: byStatus.get("failed") ?? 0,
-    canceled: byStatus.get("canceled") ?? 0,
-    skipped: byStatus.get("skipped") ?? 0,
+    sent: (byStatus.get("sent") ?? 0) + (retained?.purged_sent ?? 0),
+    failed: (byStatus.get("failed") ?? 0) + (retained?.purged_failed ?? 0),
+    canceled:
+      (byStatus.get("canceled") ?? 0) + (retained?.purged_canceled ?? 0),
+    skipped: (byStatus.get("skipped") ?? 0) + (retained?.purged_skipped ?? 0),
   };
   progress.total =
     progress.pending +
@@ -563,6 +579,31 @@ export async function getBulkJobProgressMap(
     .where("bulk_job_id", "in", bulkJobIds)
     .groupBy(["bulk_job_id", "status"])
     .execute();
+  const retainedRows = await tenantDb
+    .selectFrom("bulk_jobs")
+    .select([
+      "id",
+      "purged_sent",
+      "purged_failed",
+      "purged_canceled",
+      "purged_skipped",
+    ])
+    .where("id", "in", bulkJobIds)
+    .execute();
+  for (const retained of retainedRows) {
+    const progress: BulkJobProgress = {
+      total: 0,
+      pending: 0,
+      processing: 0,
+      sent: retained.purged_sent,
+      failed: retained.purged_failed,
+      canceled: retained.purged_canceled,
+      skipped: retained.purged_skipped,
+    };
+    progress.total =
+      progress.sent + progress.failed + progress.canceled + progress.skipped;
+    map.set(retained.id, progress);
+  }
   for (const row of rows) {
     const jobId = row.bulk_job_id as string;
     const progress = map.get(jobId) ?? {

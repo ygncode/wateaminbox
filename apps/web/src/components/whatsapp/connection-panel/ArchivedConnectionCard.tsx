@@ -98,8 +98,14 @@ export function ArchivedConnectionCard({
         isDestructive
         isLoading={isPurging}
         onConfirm={async () => {
-          await onPurge();
-          setPurgeOpen(false);
+          try {
+            await onPurge();
+            setPurgeOpen(false);
+          } catch {
+            // The failure is reported as a toast by the purge mutation. Keep
+            // the dialog open so a retry is one click away, and never let the
+            // rejection escape into an unhandled promise.
+          }
         }}
       />
     </div>

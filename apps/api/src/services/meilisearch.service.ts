@@ -1,4 +1,4 @@
-import { Index, MeiliSearch } from "meilisearch";
+import { Index, MeiliSearch, type Task } from "meilisearch";
 import { env } from "../lib/env.js";
 import { createLogger, formatError } from "../lib/logger.js";
 
@@ -277,16 +277,38 @@ export async function deleteContact(
   }
 }
 
-export async function deleteMessages(
+/** Contact ids per delete-by-filter request, to bound the filter expression. */
+const CONTACT_FILTER_BATCH_SIZE = 500;
+
+function assertTaskSucceeded(task: Task, operation: string): void {
+  if (task.status !== "succeeded") {
+    throw new Error(
+      `${operation} failed: ${task.error?.message ?? task.status}`,
+    );
+  }
+}
+
+/**
+ * Drop every indexed message belonging to the given contacts.
+ *
+ * Deleting a purged connection can cover millions of messages, so this filters
+ * server-side on the indexed `contactId` instead of enumerating message ids -
+ * the caller never has to materialize them.
+ */
+export async function deleteMessagesForContacts(
   companyId: string,
-  messageIds: string[],
+  contactIds: string[],
 ): Promise<void> {
-  if (messageIds.length === 0) return;
-  try {
-    const index = await getMessagesIndex(companyId);
-    await index.deleteDocuments(messageIds);
-  } catch (error) {
-    logger.error(formatError(error), "Failed to batch-delete messages");
+  if (contactIds.length === 0) return;
+  const index = await getMessagesIndex(companyId);
+  for (let i = 0; i < contactIds.length; i += CONTACT_FILTER_BATCH_SIZE) {
+    const batch = contactIds.slice(i, i + CONTACT_FILTER_BATCH_SIZE);
+    const task = await index
+      .deleteDocuments({
+        filter: `contactId IN [${batch.map((id) => JSON.stringify(id)).join(", ")}]`,
+      })
+      .waitTask();
+    assertTaskSucceeded(task, "Message search cleanup");
   }
 }
 
@@ -295,12 +317,9 @@ export async function deleteContacts(
   contactIds: string[],
 ): Promise<void> {
   if (contactIds.length === 0) return;
-  try {
-    const index = await getContactsIndex(companyId);
-    await index.deleteDocuments(contactIds);
-  } catch (error) {
-    logger.error(formatError(error), "Failed to batch-delete contacts");
-  }
+  const index = await getContactsIndex(companyId);
+  const task = await index.deleteDocuments(contactIds).waitTask();
+  assertTaskSucceeded(task, "Contact search cleanup");
 }
 
 /**

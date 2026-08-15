@@ -37,6 +37,7 @@ import {
   enqueueCommand,
   enqueueSessionCommand,
 } from "../../services/command-outbox.service.js";
+import { reserveMediaReferences } from "../../services/media-reference-lock.js";
 import { requireSendAccess } from "../../services/send-access.service.js";
 import {
   getUserAvatarSources,
@@ -372,6 +373,7 @@ messageRoutes.post(
       : null;
     let autoAssigned = false;
     await tenantDb.transaction().execute(async (trx) => {
+      await reserveMediaReferences(trx, companyId, [storedMediaReference]);
       const result = await requireSendAccess(trx, contactId, user.id);
       autoAssigned = result.autoAssigned;
       await trx

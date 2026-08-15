@@ -42,6 +42,7 @@ import { sendPushToUsers } from "../notification-delivery.service.js";
 import { resolveIncomingMessageRecipients } from "../notification-recipient.service.js";
 import { updateMessageSearchVector } from "../search.service.js";
 import { getTenantConnection } from "../tenant.service.js";
+import { lockActiveConnectionForEvent } from "./connection-event-guard.js";
 import { handlerLogger as logger } from "./types.js";
 
 const participantProfileRequests = new Map<string, number>();
@@ -91,17 +92,17 @@ export async function handleMessageEvent(event: MessageEvent): Promise<void> {
     }
     const connection = await tenantDb
       .selectFrom("whatsapp_connections")
-      .select(["id", "name", "phone_number"])
+      .select(["id", "name", "phone_number", "archived_at"])
       .where("id", "=", connectionId)
       .executeTakeFirst();
 
-    if (!connection) {
+    if (!connection || connection.archived_at) {
       logger.error(
         { companyId, connectionId },
-        "Quarantining message for unknown connection",
+        "Quarantining message for inactive connection",
       );
       throw new PermanentEventError(
-        `Message event references unknown connection ${connectionId}`,
+        `Message event references inactive connection ${connectionId}`,
       );
     }
 
@@ -147,18 +148,25 @@ export async function handleMessageEvent(event: MessageEvent): Promise<void> {
       const contactId = crypto.randomUUID();
       // Extract phone number from JID (removes device suffix like ":3")
       const phoneNumber = extractPhoneFromJid(contactJid);
-      await tenantDb
-        .insertInto("contacts")
-        .values({
-          id: contactId,
-          whatsapp_connection_id: connection.id,
-          jid: contactJid,
-          phone_number: phoneNumber,
-          is_group: isGroupMessage || contactJid.includes("@g.us"),
-          created_at: toDbDate(),
-          updated_at: toDbDate(),
-        })
-        .execute();
+      await tenantDb.transaction().execute(async (trx) => {
+        if (!(await lockActiveConnectionForEvent(trx, connection.id))) {
+          throw new PermanentEventError(
+            `Message event references inactive connection ${connection.id}`,
+          );
+        }
+        await trx
+          .insertInto("contacts")
+          .values({
+            id: contactId,
+            whatsapp_connection_id: connection.id,
+            jid: contactJid,
+            phone_number: phoneNumber,
+            is_group: isGroupMessage || contactJid.includes("@g.us"),
+            created_at: toDbDate(),
+            updated_at: toDbDate(),
+          })
+          .execute();
+      });
       contact = { id: contactId };
     }
 
@@ -273,6 +281,11 @@ export async function handleMessageEvent(event: MessageEvent): Promise<void> {
     const { insertResult, caseResult } = await tenantDb
       .transaction()
       .execute(async (trx) => {
+        if (!(await lockActiveConnectionForEvent(trx, connection.id))) {
+          throw new PermanentEventError(
+            `Message event references inactive connection ${connection.id}`,
+          );
+        }
         const insertQuery = trx.insertInto("messages").values({
           id: messageId,
           whatsapp_connection_id: connection.id,
@@ -502,8 +515,18 @@ export async function handleMessageEvent(event: MessageEvent): Promise<void> {
       fromMe: payload.fromMe,
     };
 
-    indexMessage(companyId, messageDoc).catch((err) => {
-      logger.error(formatError(err), "Failed to index message in Meilisearch");
+    // Keep task submission ordered before any purge cleanup. Purge takes an
+    // incompatible lock on this row, so its delete-by-contact task can only be
+    // enqueued after this add task (or this block sees the archived row and
+    // skips indexing entirely).
+    await tenantDb.transaction().execute(async (trx) => {
+      if (!(await lockActiveConnectionForEvent(trx, connection.id))) return;
+      const stillStored = await trx
+        .selectFrom("messages")
+        .select("id")
+        .where("id", "=", storedMessageId)
+        .executeTakeFirst();
+      if (stillStored) await indexMessage(companyId, messageDoc);
     });
 
     // Skip notifications, unread counts, and broadcasts for history sync messages
