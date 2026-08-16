@@ -57,6 +57,7 @@ describe("realtime channel classification", () => {
         "contact:updated",
         "conversation:read",
         "conversation:updated",
+        "group:updated",
         "media:download_failed",
         "media:downloaded",
         "message:deleted",

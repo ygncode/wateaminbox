@@ -55,7 +55,8 @@ export type ConversationRealtimeEventType =
   | "presence:online"
   | "presence:offline"
   | "conversation:read"
-  | "conversation:updated";
+  | "conversation:updated"
+  | "group:updated";
 
 /** Events the server addresses to this user's own channel. */
 export type UserRealtimeEventType =

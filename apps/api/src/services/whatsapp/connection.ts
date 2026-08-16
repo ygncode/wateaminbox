@@ -351,6 +351,13 @@ export async function purgeArchivedConnection(
           .where("whatsapp_connection_id", "=", connectionId),
       )
       .execute();
+    // Pending join requests hang off the group. The foreign key cascades, but
+    // the purge deletes every dependent row explicitly so the set it is
+    // responsible for stays readable here rather than implied by DDL.
+    await trx
+      .deleteFrom("group_join_requests")
+      .where("group_id", "in", groupIds)
+      .execute();
     await trx
       .deleteFrom("group_participants")
       .where("group_id", "in", groupIds)

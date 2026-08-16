@@ -8,6 +8,7 @@ import {
   type ConnectionEvent,
   type ContactEvent,
   type DownloadResponseEvent,
+  type GroupEvent,
   type LabelsEvent,
   type HistorySyncPageEvent,
   type MessageEvent,
@@ -36,6 +37,7 @@ import {
   handleDisconnectedEvent,
   handleDownloadResponseEvent,
   handleErrorEvent,
+  handleGroupEvent,
   handleLabelsEvent,
   handleHistorySyncPageEvent,
   handleMessageEvent,
@@ -251,6 +253,10 @@ export async function handleWhatsAppEvent(event: WhatsAppEvent): Promise<void> {
 
       case "command_result":
         await handleCommandResultEvent(resolvedEvent as CommandResultEvent);
+        break;
+
+      case "group":
+        await handleGroupEvent(resolvedEvent as GroupEvent);
         break;
 
       case "error":

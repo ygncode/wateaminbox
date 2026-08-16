@@ -31,6 +31,35 @@ const (
 	EventTypeCatalogs         = "catalogs"
 	EventTypeCatalogProducts  = "catalog_products"
 	EventTypeCommandResult    = "command_result"
+	EventTypeGroup            = "group"
+)
+
+// Command outcomes carried on CommandResultPayload.Outcome.
+const (
+	// CommandOutcomeSucceeded: the command ran and its result was delivered.
+	CommandOutcomeSucceeded = "succeeded"
+	// CommandOutcomeFailed: the command did not take effect.
+	CommandOutcomeFailed = "failed"
+	// CommandOutcomeAppliedNotSynced: WhatsApp applied the change, but this
+	// workspace could not be refreshed with the result. The action must NOT be
+	// presented as failed, and must not be retried by the user.
+	CommandOutcomeAppliedNotSynced = "applied_not_synced"
+)
+
+// Group event actions. Every group mutation the API can request produces one
+// of these, so the API never has to infer group state from a bare command ack.
+const (
+	// GroupActionSnapshot carries WhatsApp's current view of a group.
+	GroupActionSnapshot = "snapshot"
+	// GroupActionCreated is a snapshot for a group this account just created.
+	GroupActionCreated = "created"
+	// GroupActionLeft reports that this account is no longer a member. It is
+	// NOT a deletion: the group continues to exist for its other members.
+	GroupActionLeft = "left"
+	// GroupActionInviteLink carries the invite link WhatsApp returned.
+	GroupActionInviteLink = "invite_link"
+	// GroupActionJoinRequests carries the pending membership approval requests.
+	GroupActionJoinRequests = "join_requests"
 )
 
 // Command types used across WhatsApp services.
@@ -172,6 +201,47 @@ type ContactPayload struct {
 	ProfilePictureURL string                    `json:"profilePictureUrl,omitempty"`
 }
 
+// GroupSnapshotPayload is WhatsApp's authoritative view of a single group.
+//
+// Pointer fields distinguish "WhatsApp did not report this" from "WhatsApp
+// reported false/zero". A partial change notification (events.GroupInfo) only
+// fills the fields it changed, so the API must not reset the rest.
+type GroupSnapshotPayload struct {
+	JID                    string                    `json:"jid"`
+	Name                   *string                   `json:"name,omitempty"`
+	Description            *string                   `json:"description,omitempty"`
+	OwnerJID               string                    `json:"ownerJid,omitempty"`
+	Participants           []GroupParticipantPayload `json:"participants,omitempty"`
+	ParticipantCount       *int                      `json:"participantCount,omitempty"`
+	IsAnnounce             *bool                     `json:"isAnnounce,omitempty"`
+	IsLocked               *bool                     `json:"isLocked,omitempty"`
+	IsEphemeral            *bool                     `json:"isEphemeral,omitempty"`
+	DisappearingTimer      *uint32                   `json:"disappearingTimer,omitempty"`
+	IsJoinApprovalRequired *bool                     `json:"isJoinApprovalRequired,omitempty"`
+	MemberAddMode          string                    `json:"memberAddMode,omitempty"`
+	IsMember               *bool                     `json:"isMember,omitempty"`
+}
+
+// GroupJoinRequestPayload is one pending request to join a group.
+type GroupJoinRequestPayload struct {
+	JID         string `json:"jid"`
+	RequestedAt string `json:"requestedAt,omitempty"`
+}
+
+// GroupPayload is the payload for group administration events.
+//
+// CommandID correlates the event with the outbox row that requested it, so the
+// API can attribute an invite link or join-request listing to the request that
+// asked for it rather than to whichever group happened to change last.
+type GroupPayload struct {
+	Action       string                    `json:"action"`
+	JID          string                    `json:"jid"`
+	CommandID    string                    `json:"commandId,omitempty"`
+	Snapshot     *GroupSnapshotPayload     `json:"snapshot,omitempty"`
+	InviteLink   string                    `json:"inviteLink,omitempty"`
+	JoinRequests []GroupJoinRequestPayload `json:"joinRequests,omitempty"`
+}
+
 // ProfilePicturePayload is the payload for profile picture update events.
 type ProfilePicturePayload struct {
 	JID               string `json:"jid"`
@@ -251,7 +321,12 @@ type CommandResultPayload struct {
 	CommandID   string `json:"commandId"`
 	CommandType string `json:"commandType"`
 	Success     bool   `json:"success"`
-	Error       string `json:"error,omitempty"`
+	// Outcome says WHAT happened, where Success only says whether everything
+	// went right. The two differ for a change that WhatsApp applied but whose
+	// result could not be brought back - reporting that as a plain failure
+	// invites someone to redo an action that already took effect.
+	Outcome string `json:"outcome,omitempty"`
+	Error   string `json:"error,omitempty"`
 }
 
 // DownloadRequest is the payload for on-demand media download requests.

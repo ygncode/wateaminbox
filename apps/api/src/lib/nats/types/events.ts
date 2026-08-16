@@ -273,13 +273,67 @@ export interface SendFailedEvent extends WhatsAppEvent {
   };
 }
 
+/**
+ * What happened to a command, beyond whether everything went right.
+ *
+ * `applied_not_synced` is the case `success: false` alone cannot express: the
+ * change DID take effect on WhatsApp and only the read-back failed. Presenting
+ * that as a failure invites the user to repeat an action that already happened.
+ */
+export type CommandOutcome = "succeeded" | "failed" | "applied_not_synced";
+
 export interface CommandResultEvent extends WhatsAppEvent {
   type: "command_result";
   payload: {
     commandId: string;
     commandType: string;
     success: boolean;
+    /** Absent on events from workers deployed before outcomes existed. */
+    outcome?: CommandOutcome;
     error?: string;
+  };
+}
+
+/**
+ * WhatsApp's own description of a group, as reported by the worker.
+ *
+ * Every field is optional because a change notification only names what
+ * changed. An absent field means "WhatsApp did not report this", which must be
+ * preserved rather than defaulted - resetting a permission the server never
+ * mentioned would silently rewrite group state the workspace does not own.
+ */
+export interface GroupSnapshotPayload {
+  jid: string;
+  name?: string;
+  description?: string;
+  ownerJid?: string;
+  participants?: Array<{ jid: string; isAdmin: boolean }>;
+  participantCount?: number;
+  isAnnounce?: boolean;
+  isLocked?: boolean;
+  isEphemeral?: boolean;
+  disappearingTimer?: number;
+  isJoinApprovalRequired?: boolean;
+  memberAddMode?: string;
+  isMember?: boolean;
+}
+
+/**
+ * Group administration event.
+ *
+ * `left` records that the connected account is no longer a member. WhatsApp has
+ * no delete/disband operation, so this never means the group ceased to exist.
+ */
+export interface GroupEvent extends WhatsAppEvent {
+  type: "group";
+  payload: {
+    action: "snapshot" | "created" | "left" | "invite_link" | "join_requests";
+    jid: string;
+    /** Outbox id of the command that asked for this, when there was one. */
+    commandId?: string;
+    snapshot?: GroupSnapshotPayload;
+    inviteLink?: string;
+    joinRequests?: Array<{ jid: string; requestedAt?: string }>;
   };
 }
 

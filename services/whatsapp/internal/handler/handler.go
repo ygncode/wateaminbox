@@ -118,7 +118,20 @@ type Handler struct {
 
 	profilePictureCache    sync.Map
 	profilePictureRequests singleflight.Group
+
+	// Group refreshes are coalesced per group and capped in total, so a burst
+	// of group changes cannot turn into a burst of concurrent WhatsApp queries.
+	groupRefreshMu      sync.Mutex
+	groupRefreshPending map[string]bool
+	groupRefreshSlots   chan struct{}
+	// refreshGroupFn overrides the WhatsApp round trip in tests.
+	refreshGroupFn func(types.JID)
 }
+
+// maxConcurrentGroupRefreshes bounds how many group metadata reads are in
+// flight at once. Each is a WhatsApp IQ with a 30-second timeout; a handful is
+// enough to keep a busy workspace current without flooding the connection.
+const maxConcurrentGroupRefreshes = 4
 
 // New creates a new message handler.
 func New(cfg Config) *Handler {
@@ -136,6 +149,8 @@ func New(cfg Config) *Handler {
 		syncStatusPublisher:    syncPublisher,
 		historyPagePublisher:   historyPagePublisher,
 		historySyncIdleTimeout: historySyncIdleTimeout,
+		groupRefreshPending:    make(map[string]bool),
+		groupRefreshSlots:      make(chan struct{}, maxConcurrentGroupRefreshes),
 	}
 }
 
@@ -176,6 +191,10 @@ func (h *Handler) HandleEvent(evt interface{}) {
 		h.handleStreamReplaced(v)
 	case *events.Picture:
 		h.handlePicture(v)
+	case *events.GroupInfo:
+		h.handleGroupInfo(v)
+	case *events.JoinedGroup:
+		h.handleJoinedGroup(v)
 	case *events.OfflineSyncPreview:
 		h.handleOfflineSyncPreview(v)
 	case *events.OfflineSyncCompleted:

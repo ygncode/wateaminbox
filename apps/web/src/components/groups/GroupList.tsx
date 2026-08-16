@@ -1,5 +1,12 @@
 import { formatChatListTime } from "@wateaminbox/shared";
-import { MessageSquare, Search, Smartphone, Users, X } from "lucide-react";
+import {
+  MessageSquare,
+  Plus,
+  Search,
+  Smartphone,
+  Users,
+  X,
+} from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
@@ -15,6 +22,7 @@ import { type GroupListItem, useGroups } from "@/hooks/useGroups";
 import { useWhatsAppConnections } from "@/hooks/useWhatsAppConnections";
 import { cn } from "@/lib/utils";
 import { getConnectionLabel } from "../chat/ConnectionIdentity";
+import { CreateGroupDialog } from "./CreateGroupDialog";
 
 export interface GroupListProps {
   selectedGroupId?: string | null;
@@ -33,6 +41,7 @@ export function GroupList({
 }: GroupListProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [connectionFilter, setConnectionFilter] = useState("all");
+  const [showCreateGroup, setShowCreateGroup] = useState(false);
   const { connections } = useWhatsAppConnections();
   const { data, renderState, error } = useAsyncData(
     useGroups(
@@ -117,7 +126,21 @@ export function GroupList({
         <span className="text-xs text-gray-500 dark:text-dark-text-secondary whitespace-nowrap">
           {data?.pagination.total ?? 0} groups
         </span>
+        <button
+          type="button"
+          onClick={() => setShowCreateGroup(true)}
+          aria-label="Create a new WhatsApp group"
+          title="New group"
+          className="grid size-8 shrink-0 place-items-center rounded-lg text-gray-500 transition-colors hover:bg-gray-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-whatsapp-green/40 dark:text-dark-text-tertiary dark:hover:bg-dark-tertiary"
+        >
+          <Plus className="h-4 w-4" />
+        </button>
       </div>
+
+      <CreateGroupDialog
+        open={showCreateGroup}
+        onOpenChange={setShowCreateGroup}
+      />
 
       {/* Match the Inbox account scope for multi-number workspaces. */}
       {connections.length > 1 && (
@@ -297,9 +320,13 @@ function GroupListItemComponent({
           <div className="flex items-center gap-1 min-w-0 flex-1">
             <Users className="h-3.5 w-3.5 text-gray-400 dark:text-dark-text-tertiary flex-shrink-0" />
             <span className="text-sm text-gray-500 dark:text-dark-text-secondary truncate">
-              {group.participantCount === null
-                ? "Participant count unavailable"
-                : `${group.participantCount} participants`}
+              {/* A group this account left keeps its history but can no longer
+                  be administered, so the state is worth showing up front. */}
+              {!group.isMember
+                ? "You left this group"
+                : group.participantCount === null
+                  ? "Participant count unavailable"
+                  : `${group.participantCount} participants`}
             </span>
           </div>
 

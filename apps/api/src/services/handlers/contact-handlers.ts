@@ -16,6 +16,7 @@ import type {
   TypingEvent,
 } from "../../lib/nats/index.js";
 import { shouldPublishEphemeralSignal } from "../ephemeral-signal-throttle.js";
+import { syncGroupSnapshotWithin } from "../group-sync.service.js";
 import { broadcastToContactViewersByJid } from "../message-broadcast.service.js";
 import { getTenantConnection } from "../tenant.service.js";
 import { lockActiveConnectionForEvent } from "./connection-event-guard.js";
@@ -182,84 +183,32 @@ export async function handleContactEvent(event: ContactEvent): Promise<void> {
         // History sync also carries the group title and current participant list.
         // Keep the legacy contacts.push_name copy for chat compatibility, while
         // filling the dedicated group tables used by the Groups tab and details.
-        if (contactId && !payload.nameOnly && payload.isGroup === true) {
-          const participants = payload.participants
-            ? [
-                ...new Map(
-                  payload.participants
-                    .map((participant) => ({
-                      jid: normalizeJid(participant.jid),
-                      isAdmin: participant.isAdmin,
-                    }))
-                    .filter(
-                      (
-                        participant,
-                      ): participant is {
-                        jid: string;
-                        isAdmin: boolean;
-                      } => Boolean(participant.jid),
-                    )
-                    .map((participant) => [participant.jid, participant]),
-                ).values(),
-              ]
-            : undefined;
-          const participantCount =
-            payload.participantCount !== undefined
-              ? Math.max(0, payload.participantCount)
-              : participants?.length;
-
-          let group = await trx
-            .selectFrom("groups")
-            .select("id")
-            .where("contact_id", "=", contactId)
-            .executeTakeFirst();
-
-          if (group) {
-            await trx
-              .updateTable("groups")
-              .set({
-                ...(syncedName ? { name: syncedName } : {}),
-                ...(payload.description !== undefined
-                  ? { description: payload.description || null }
-                  : {}),
-                ...(participantCount !== undefined
-                  ? { participant_count: participantCount }
-                  : {}),
-              })
-              .where("id", "=", group.id)
-              .execute();
-          } else {
-            group = await trx
-              .insertInto("groups")
-              .values({
-                contact_id: contactId,
-                jid: contactJid,
-                name: syncedName,
-                description: payload.description || null,
-                participant_count: participantCount ?? 0,
-              })
-              .returning("id")
-              .executeTakeFirstOrThrow();
-          }
-
-          if (participants) {
-            await trx
-              .deleteFrom("group_participants")
-              .where("group_id", "=", group.id)
-              .execute();
-            if (participants.length > 0) {
-              await trx
-                .insertInto("group_participants")
-                .values(
-                  participants.map((participant) => ({
-                    group_id: group.id,
-                    participant_jid: participant.jid,
-                    is_admin: participant.isAdmin,
-                  })),
-                )
-                .execute();
-            }
-          }
+        //
+        // Delegated rather than written here: the group tables have exactly one
+        // writer, so no code path can record a group state WhatsApp has not
+        // confirmed (see group-sync.service.ts). It runs on THIS transaction so
+        // it stays inside the connection fence taken above - a second
+        // transaction could commit group rows for a connection that is being
+        // purged, and would not see the contact row this one has yet to commit.
+        if (
+          contactId &&
+          contactJid &&
+          !payload.nameOnly &&
+          payload.isGroup === true
+        ) {
+          await syncGroupSnapshotWithin(trx, companyId, connection.id, {
+            jid: contactJid,
+            ...(syncedName ? { name: syncedName } : {}),
+            ...(payload.description !== undefined
+              ? { description: payload.description }
+              : {}),
+            ...(payload.participants
+              ? { participants: payload.participants }
+              : {}),
+            ...(payload.participantCount !== undefined
+              ? { participantCount: payload.participantCount }
+              : {}),
+          });
         }
 
         return { contactChanged };

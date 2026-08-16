@@ -193,6 +193,18 @@ export const TENANT_SCHEMA_CONTRACT = {
     "created_by",
     "created_at",
     "participant_count",
+    "owner_jid",
+    "is_announce",
+    "is_locked",
+    "is_ephemeral",
+    "disappearing_timer",
+    "is_join_approval_required",
+    "member_add_mode",
+    "is_member",
+    "invite_link",
+    "invite_link_updated_at",
+    "metadata_synced_at",
+    "join_requests_synced_at",
   ],
   group_participants: [
     "id",
@@ -200,6 +212,13 @@ export const TENANT_SCHEMA_CONTRACT = {
     "participant_jid",
     "is_admin",
     "joined_at",
+  ],
+  group_join_requests: [
+    "id",
+    "group_id",
+    "requester_jid",
+    "requested_at",
+    "synced_at",
   ],
   status_updates: [
     "id",
@@ -1597,6 +1616,50 @@ export async function reconcileTenantSchema<Database>(
     sql`
       CREATE INDEX IF NOT EXISTS ${sql.ref(indexName)}
       ON ${table("group_participants")} (participant_jid)
+    `.execute(db),
+  );
+
+  // Migration 068 parity. Group administration keeps WhatsApp's own view of a
+  // group (permissions, ownership, invite link, membership) so the API never
+  // has to guess it between syncs. Every column here is written only after
+  // WhatsApp confirms a change, so the defaults describe an ordinary group
+  // that the connected account is still a member of.
+  //
+  // Guarded by a catalog check like the rest of this routine: reconcile runs on
+  // every tenant creation, and an unconditional ALTER takes an ACCESS EXCLUSIVE
+  // lock even when there is nothing to add.
+  const groupColumns = await tenantColumns(db, schemaName, "groups");
+  await alterIfNeeded(db, !groupColumns.has("join_requests_synced_at"), () =>
+    sql`
+      ALTER TABLE ${table("groups")}
+      ADD COLUMN IF NOT EXISTS owner_jid VARCHAR(255),
+      ADD COLUMN IF NOT EXISTS is_announce BOOLEAN NOT NULL DEFAULT false,
+      ADD COLUMN IF NOT EXISTS is_locked BOOLEAN NOT NULL DEFAULT false,
+      ADD COLUMN IF NOT EXISTS is_ephemeral BOOLEAN NOT NULL DEFAULT false,
+      ADD COLUMN IF NOT EXISTS disappearing_timer INTEGER NOT NULL DEFAULT 0,
+      ADD COLUMN IF NOT EXISTS is_join_approval_required BOOLEAN NOT NULL DEFAULT false,
+      ADD COLUMN IF NOT EXISTS member_add_mode VARCHAR(32),
+      ADD COLUMN IF NOT EXISTS is_member BOOLEAN NOT NULL DEFAULT true,
+      ADD COLUMN IF NOT EXISTS invite_link TEXT,
+      ADD COLUMN IF NOT EXISTS invite_link_updated_at TIMESTAMPTZ,
+      ADD COLUMN IF NOT EXISTS metadata_synced_at TIMESTAMPTZ,
+      ADD COLUMN IF NOT EXISTS join_requests_synced_at TIMESTAMPTZ
+    `.execute(db),
+  );
+  await sql`
+    CREATE TABLE IF NOT EXISTS ${table("group_join_requests")} (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      group_id UUID NOT NULL
+        REFERENCES ${table("groups")}(id) ON DELETE CASCADE,
+      requester_jid VARCHAR(255) NOT NULL,
+      requested_at TIMESTAMPTZ,
+      synced_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `.execute(db);
+  await ensureIndex(`${schemaName}_gjr_group_jid_uidx`, (indexName) =>
+    sql`
+      CREATE UNIQUE INDEX IF NOT EXISTS ${sql.ref(indexName)}
+      ON ${table("group_join_requests")} (group_id, requester_jid)
     `.execute(db),
   );
 

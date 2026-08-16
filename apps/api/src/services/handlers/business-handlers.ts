@@ -2,15 +2,15 @@ import { normalizeJid, toDbDate } from "@wateaminbox/shared";
 import type {
   CatalogProductsEvent,
   CatalogsEvent,
-  LabelsEvent,
   CommandResultEvent,
+  LabelsEvent,
 } from "../../lib/nats/index.js";
 import { broadcastToCompany } from "../../lib/realtime.js";
 import {
-  syncCatalogProductsFromWhatsApp,
-  syncCatalogsFromWhatsApp,
   type CatalogStatus,
   type ProductVisibility,
+  syncCatalogProductsFromWhatsApp,
+  syncCatalogsFromWhatsApp,
 } from "../catalog-sync.service.js";
 import { syncLabelsFromWhatsApp } from "../label-sync.service.js";
 import { getTenantConnection } from "../tenant.service.js";
@@ -37,6 +37,26 @@ export async function handleCatalogsEvent(event: CatalogsEvent): Promise<void> {
       syncCatalogsFromWhatsApp(trx, event.connectionId, catalogs),
     );
   await broadcastToCompany(event.companyId, "catalogs:updated", { result });
+}
+
+/**
+ * How a command outcome is surfaced to the user.
+ *
+ * Driven by the typed `outcome` field rather than by inspecting the error text:
+ * an applied-but-unsynced change is not a failure, and calling it one would
+ * tell someone to redo work WhatsApp has already done.
+ */
+function describeCommandOutcome(event: CommandResultEvent): {
+  type: "error" | "warning";
+  title: string;
+} {
+  if (event.payload.outcome === "applied_not_synced") {
+    return {
+      type: "warning",
+      title: "WhatsApp change applied, view not up to date",
+    };
+  }
+  return { type: "error", title: "WhatsApp action failed" };
 }
 
 export async function handleCommandResultEvent(
@@ -87,6 +107,7 @@ export async function handleCommandResultEvent(
       );
     }
   }
+  const outcome = describeCommandOutcome(event);
   await broadcastToCompany(
     event.companyId,
     "command:failed",
@@ -97,8 +118,8 @@ export async function handleCommandResultEvent(
     event.companyId,
     "notification:toast",
     {
-      type: "error",
-      title: "WhatsApp action failed",
+      type: outcome.type,
+      title: outcome.title,
       message: event.payload.error || `${event.payload.commandType} failed`,
     },
     event.connectionId,

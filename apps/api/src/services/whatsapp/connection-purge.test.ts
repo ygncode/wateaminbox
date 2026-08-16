@@ -119,8 +119,10 @@ describe("permanent connection purge", () => {
     // conversation_cases cascade from contacts, so contacts may only go once
     // their messages are gone.
     expect(at("delete messages")).toBeLessThan(at("delete contacts"));
-    // group_participants cascade from groups, which cascade from contacts.
+    // group_participants and group_join_requests both cascade from groups,
+    // which cascade from contacts.
     expect(at("delete group_participants")).toBeLessThan(at("delete groups"));
+    expect(at("delete group_join_requests")).toBeLessThan(at("delete groups"));
     expect(at("delete groups")).toBeLessThan(at("delete contacts"));
     // Everything the connection owns must precede the connection row itself.
     expect(fake.statements.at(-1)).toBe("delete whatsapp_connections");
@@ -146,6 +148,7 @@ describe("permanent connection purge", () => {
       "delete contact_notes_private",
       "delete contact_notes_shared",
       "delete notification_history",
+      "delete group_join_requests",
       "delete group_participants",
       "delete groups",
       "delete messages",

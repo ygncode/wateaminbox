@@ -24,6 +24,7 @@ const (
 	SubjectCatalogs        = "WHATSAPP.events.%s.%s.catalogs"
 	SubjectCatalogProducts = "WHATSAPP.events.%s.%s.catalog_products"
 	SubjectCommandResult   = "WHATSAPP.events.%s.%s.command_result"
+	SubjectGroup           = "WHATSAPP.events.%s.%s.group"
 
 	// On-demand media download subjects
 	SubjectDownloadRequest  = "WHATSAPP.download.%s.%s.request"

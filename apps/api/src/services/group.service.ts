@@ -26,6 +26,37 @@ export interface GroupListItem {
   lastMessageAt: Date | null;
   unreadCount: number;
   createdAt: Date;
+  /**
+   * False once this WhatsApp account left the group. The conversation is kept
+   * as a record - WhatsApp has no way to delete a group - but no
+   * administration action is possible on it any more.
+   */
+  isMember: boolean;
+}
+
+/**
+ * The group permissions WhatsApp exposes, as last confirmed by WhatsApp.
+ *
+ * These are read-only projections. They change when the worker reports a new
+ * snapshot, never when a settings request is accepted by the API.
+ */
+export interface GroupSettings {
+  ownerJid: string | null;
+  /** Only admins may send messages. */
+  isAnnounce: boolean;
+  /** Only admins may edit the group's name, icon and description. */
+  isLocked: boolean;
+  /** Disappearing messages are on. */
+  isEphemeral: boolean;
+  /** Disappearing-message timer in seconds; 0 when off. */
+  disappearingTimer: number;
+  /** New members need admin approval. */
+  isJoinApprovalRequired: boolean;
+  /** `admin_add` or `all_member_add`. */
+  memberAddMode: string | null;
+  isMember: boolean;
+  /** When WhatsApp last confirmed all of the above. */
+  syncedAt: Date | null;
 }
 
 export interface EnrichedGroupParticipant {
@@ -75,6 +106,7 @@ export async function getGroupsList(
       "groups.name as group_name",
       "groups.description",
       "groups.participant_count",
+      "groups.is_member",
       "message_summary.last_message_at",
     ])
     .select((eb) =>
@@ -174,6 +206,9 @@ export async function getGroupsList(
         lastMessageAt: group.last_message_at,
         unreadCount: Number(group.unread_count),
         createdAt: group.created_at,
+        // A conversation with no `groups` row has not synced yet; treat it as
+        // joined rather than as one this account has left.
+        isMember: group.is_member ?? true,
       };
     }),
     total: Number(countResult?.total || 0),

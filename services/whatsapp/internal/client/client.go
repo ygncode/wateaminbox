@@ -950,37 +950,6 @@ func (c *Client) PostStatus(ctx context.Context, statusType, content, mediaURL s
 	return types.SendResponse{ID: string(result.ID), Timestamp: result.Timestamp}, nil
 }
 
-func (c *Client) UpdateGroupParticipant(ctx context.Context, groupJID, participantJID, action string) error {
-	group, err := waTypes.ParseJID(groupJID)
-	if err != nil {
-		return fmt.Errorf("invalid group JID: %w", err)
-	}
-	participant, err := waTypes.ParseJID(participantJID)
-	if err != nil {
-		return fmt.Errorf("invalid participant JID: %w", err)
-	}
-	_, err = c.client.UpdateGroupParticipants(ctx, group, []waTypes.JID{participant}, whatsmeow.ParticipantChange(action))
-	return err
-}
-
-func (c *Client) UpdateGroupSettings(ctx context.Context, groupJID string, name, description *string) error {
-	group, err := waTypes.ParseJID(groupJID)
-	if err != nil {
-		return fmt.Errorf("invalid group JID: %w", err)
-	}
-	if name != nil {
-		if err = c.client.SetGroupName(ctx, group, *name); err != nil {
-			return fmt.Errorf("failed to update group name: %w", err)
-		}
-	}
-	if description != nil {
-		if err = c.client.SetGroupDescription(ctx, group, *description); err != nil {
-			return fmt.Errorf("failed to update group description: %w", err)
-		}
-	}
-	return nil
-}
-
 func (c *Client) ApplyLabel(ctx context.Context, contactJID, labelID string, labeled bool) error {
 	jid, err := waTypes.ParseJID(contactJID)
 	if err != nil {

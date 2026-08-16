@@ -61,6 +61,10 @@ export const CONVERSATION_REALTIME_EVENT_TYPES = [
   "media:download_failed",
   "contact:updated",
   "contact:profile_picture",
+  // A group update names one group conversation - its members, permissions and
+  // invite link - so it is scoped exactly like that conversation's other
+  // events rather than broadcast to the whole workspace.
+  "group:updated",
   "presence:online",
   "presence:offline",
   "conversation:read",

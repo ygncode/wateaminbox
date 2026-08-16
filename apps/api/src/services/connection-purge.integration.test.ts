@@ -14,10 +14,12 @@ import {
   ConnectionNotArchivedError,
   ConnectionNotFoundError,
 } from "../lib/errors.js";
+import type { GroupEvent } from "../lib/nats/index.js";
 import { getBulkJobProgress } from "./bulk-job.service.js";
 import { processConnectionPurgeCleanup } from "./connection-purge-cleanup.service.js";
 import { openOrReopenCaseForInboundMessage } from "./conversation-case.service.js";
 import { lockActiveConnectionForEvent } from "./handlers/connection-event-guard.js";
+import { handleGroupEvent } from "./handlers/group-handlers.js";
 import {
   clearTenantConnection,
   createTenantSchema,
@@ -179,6 +181,15 @@ async function seedConnection(
     .values({
       group_id: groupId,
       participant_jid: `${options.label}-member@s.whatsapp.net`,
+    })
+    .execute();
+  // Group administration caches WhatsApp's pending join requests per group;
+  // they are connection-owned data and must not survive a purge either.
+  await tenantDb
+    .insertInto("group_join_requests")
+    .values({
+      group_id: groupId,
+      requester_jid: `${options.label}-requester@s.whatsapp.net`,
     })
     .execute();
 
@@ -450,6 +461,13 @@ async function countRows(
     groupParticipants: await count(
       tenantDb
         .selectFrom("group_participants")
+        .select("id")
+        .where("group_id", "=", fixture.groupId)
+        .execute(),
+    ),
+    groupJoinRequests: await count(
+      tenantDb
+        .selectFrom("group_join_requests")
         .select("id")
         .where("group_id", "=", fixture.groupId)
         .execute(),
@@ -745,6 +763,102 @@ describe("permanent connection purge against PostgreSQL", () => {
             .where("id", "=", unrelatedNotificationId)
             .executeTakeFirst(),
         ).toBeDefined();
+      });
+    },
+    60_000,
+  );
+
+  integrationTest(
+    "a group event racing archive and purge cannot recreate group rows",
+    async () => {
+      await withTenant(async ({ companyId }) => {
+        const tenantDb = getTenantConnection(companyId);
+        const connectionId = crypto.randomUUID();
+        const groupJid = "120363000000000771@g.us";
+        const laterGroupJid = "120363000000000772@g.us";
+        await tenantDb
+          .insertInto("whatsapp_connections")
+          .values({
+            id: connectionId,
+            name: "racing group event",
+            status: "connected",
+          })
+          .execute();
+        const groupEvent = (
+          action: "snapshot" | "created",
+          jid: string,
+        ): GroupEvent => ({
+          contractVersion: 1,
+          type: "group",
+          companyId,
+          connectionId,
+          timestamp: "2026-03-01T10:00:00Z",
+          payload: { action, jid, snapshot: { jid, name: "Launch team" } },
+        });
+
+        // The group exists while the connection is live, so the purge has real
+        // rows to remove and the racing event has a real group to update.
+        await handleGroupEvent(groupEvent("snapshot", groupJid));
+
+        let archiveHolding!: () => void;
+        const holding = new Promise<void>((resolve) => {
+          archiveHolding = resolve;
+        });
+        let releaseArchive!: () => void;
+        const release = new Promise<void>((resolve) => {
+          releaseArchive = resolve;
+        });
+        const archive = tenantDb.transaction().execute(async (trx) => {
+          await trx
+            .selectFrom("whatsapp_connections")
+            .select("id")
+            .where("id", "=", connectionId)
+            .forUpdate()
+            .executeTakeFirstOrThrow();
+          archiveHolding();
+          await release;
+          await trx
+            .updateTable("whatsapp_connections")
+            .set({
+              status: "disconnected",
+              archived_at: new Date("2026-03-01T11:00:00Z"),
+            })
+            .where("id", "=", connectionId)
+            .execute();
+        });
+        await holding;
+
+        // Both events block on the connection fence behind the archive.
+        const racing = Promise.all([
+          handleGroupEvent(groupEvent("snapshot", groupJid)),
+          handleGroupEvent(groupEvent("created", laterGroupJid)),
+        ]);
+        releaseArchive();
+        await Promise.all([archive, racing]);
+
+        await purgeArchivedConnection(tenantDb, connectionId);
+
+        // A late event that reaches the API after the connection row is gone
+        // has nothing to fence against - and must still write nothing.
+        await handleGroupEvent(groupEvent("created", laterGroupJid));
+
+        const survivingContacts = await tenantDb
+          .selectFrom("contacts")
+          .select("id")
+          .where("whatsapp_connection_id", "=", connectionId)
+          .execute();
+        expect(survivingContacts).toEqual([]);
+        const survivingGroups = await tenantDb
+          .selectFrom("groups")
+          .select("id")
+          .where("jid", "in", [groupJid, laterGroupJid])
+          .execute();
+        expect(survivingGroups).toEqual([]);
+        const survivingParticipants = await tenantDb
+          .selectFrom("group_participants")
+          .select("id")
+          .execute();
+        expect(survivingParticipants).toEqual([]);
       });
     },
     60_000,
