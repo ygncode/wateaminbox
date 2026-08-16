@@ -6,9 +6,16 @@
 import type {
   ApplyLabelCommand,
   BlockContactCommand,
+  GroupAddParticipantsCommand,
+  GroupCreateCommand,
   GroupDemoteAdminCommand,
+  GroupInviteLinkCommand,
+  GroupJoinRequestsFetchCommand,
+  GroupJoinRequestsUpdateCommand,
+  GroupLeaveCommand,
   GroupPromoteAdminCommand,
-  GroupRemoveParticipantCommand,
+  GroupRemoveParticipantsCommand,
+  GroupSyncCommand,
   GroupUpdateSettingsCommand,
   KillCommand,
   NatsCommand,
@@ -122,11 +129,75 @@ export class NatsCommandPublisher {
   }
 
   /**
+   * Ask WhatsApp to create a group.
+   *
+   * The connected account is added by WhatsApp implicitly and must not appear
+   * in `participantJids`. The new group only reaches the workspace once the
+   * worker reports back what WhatsApp actually created.
+   */
+  async groupCreate(
+    name: string,
+    participantJids: string[],
+    userId: string,
+  ): Promise<void> {
+    const command: GroupCreateCommand = {
+      type: "group_create",
+      company_id: this.companyId,
+      connection_id: this.connectionId,
+      name,
+      participant_jids: participantJids,
+      user_id: userId,
+    };
+
+    await this.publish(command);
+  }
+
+  /**
+   * Publish group add participants command
+   */
+  async groupAddParticipants(
+    groupJid: string,
+    participantJids: string[],
+    userId: string,
+  ): Promise<void> {
+    const command: GroupAddParticipantsCommand = {
+      type: "group_add_participants",
+      company_id: this.companyId,
+      connection_id: this.connectionId,
+      group_jid: groupJid,
+      participant_jids: participantJids,
+      user_id: userId,
+    };
+
+    await this.publish(command);
+  }
+
+  /**
+   * Publish group remove participants command
+   */
+  async groupRemoveParticipants(
+    groupJid: string,
+    participantJids: string[],
+    userId: string,
+  ): Promise<void> {
+    const command: GroupRemoveParticipantsCommand = {
+      type: "group_remove_participants",
+      company_id: this.companyId,
+      connection_id: this.connectionId,
+      group_jid: groupJid,
+      participant_jids: participantJids,
+      user_id: userId,
+    };
+
+    await this.publish(command);
+  }
+
+  /**
    * Publish group promote admin command
    */
   async groupPromoteAdmin(
     groupJid: string,
-    participantJid: string,
+    participantJids: string[],
     userId: string,
   ): Promise<void> {
     const command: GroupPromoteAdminCommand = {
@@ -134,7 +205,7 @@ export class NatsCommandPublisher {
       company_id: this.companyId,
       connection_id: this.connectionId,
       group_jid: groupJid,
-      participant_jid: participantJid,
+      participant_jids: participantJids,
       user_id: userId,
     };
 
@@ -146,7 +217,7 @@ export class NatsCommandPublisher {
    */
   async groupDemoteAdmin(
     groupJid: string,
-    participantJid: string,
+    participantJids: string[],
     userId: string,
   ): Promise<void> {
     const command: GroupDemoteAdminCommand = {
@@ -154,7 +225,7 @@ export class NatsCommandPublisher {
       company_id: this.companyId,
       connection_id: this.connectionId,
       group_jid: groupJid,
-      participant_jid: participantJid,
+      participant_jids: participantJids,
       user_id: userId,
     };
 
@@ -162,33 +233,21 @@ export class NatsCommandPublisher {
   }
 
   /**
-   * Publish group remove participant command
-   */
-  async groupRemoveParticipant(
-    groupJid: string,
-    participantJid: string,
-    userId: string,
-  ): Promise<void> {
-    const command: GroupRemoveParticipantCommand = {
-      type: "group_remove_participant",
-      company_id: this.companyId,
-      connection_id: this.connectionId,
-      group_jid: groupJid,
-      participant_jid: participantJid,
-      user_id: userId,
-    };
-
-    await this.publish(command);
-  }
-
-  /**
-   * Publish group update settings command
+   * Publish group update settings command.
+   *
+   * Only the supplied settings are changed; anything omitted is left as-is.
    */
   async groupUpdateSettings(
     groupJid: string,
     userId: string,
-    name?: string,
-    description?: string,
+    settings: {
+      name?: string;
+      description?: string;
+      isAnnounce?: boolean;
+      isLocked?: boolean;
+      isJoinApprovalRequired?: boolean;
+      memberAddMode?: string;
+    },
   ): Promise<void> {
     const command: GroupUpdateSettingsCommand = {
       type: "group_update_settings",
@@ -196,8 +255,116 @@ export class NatsCommandPublisher {
       connection_id: this.connectionId,
       group_jid: groupJid,
       user_id: userId,
-      name,
-      description,
+      ...(settings.name !== undefined ? { name: settings.name } : {}),
+      ...(settings.description !== undefined
+        ? { description: settings.description }
+        : {}),
+      ...(settings.isAnnounce !== undefined
+        ? { is_announce: settings.isAnnounce }
+        : {}),
+      ...(settings.isLocked !== undefined
+        ? { is_locked: settings.isLocked }
+        : {}),
+      ...(settings.isJoinApprovalRequired !== undefined
+        ? { is_join_approval_required: settings.isJoinApprovalRequired }
+        : {}),
+      ...(settings.memberAddMode !== undefined
+        ? { member_add_mode: settings.memberAddMode }
+        : {}),
+    };
+
+    await this.publish(command);
+  }
+
+  /**
+   * Publish group leave command.
+   *
+   * This ends the connected account's membership only. WhatsApp offers no way
+   * to delete or disband a group, so the group survives for its other members.
+   */
+  async groupLeave(groupJid: string, userId: string): Promise<void> {
+    const command: GroupLeaveCommand = {
+      type: "group_leave",
+      company_id: this.companyId,
+      connection_id: this.connectionId,
+      group_jid: groupJid,
+      user_id: userId,
+    };
+
+    await this.publish(command);
+  }
+
+  /**
+   * Publish group invite link command. When `reset` is true the previous link
+   * is revoked, so anything already shared stops working.
+   */
+  async groupInviteLink(
+    groupJid: string,
+    reset: boolean,
+    userId: string,
+  ): Promise<void> {
+    const command: GroupInviteLinkCommand = {
+      type: "group_invite_link",
+      company_id: this.companyId,
+      connection_id: this.connectionId,
+      group_jid: groupJid,
+      reset,
+      user_id: userId,
+    };
+
+    await this.publish(command);
+  }
+
+  /**
+   * Publish a command that re-reads the group's pending join requests.
+   */
+  async groupFetchJoinRequests(
+    groupJid: string,
+    userId: string,
+  ): Promise<void> {
+    const command: GroupJoinRequestsFetchCommand = {
+      type: "group_join_requests_fetch",
+      company_id: this.companyId,
+      connection_id: this.connectionId,
+      group_jid: groupJid,
+      user_id: userId,
+    };
+
+    await this.publish(command);
+  }
+
+  /**
+   * Publish an approve/reject decision on pending join requests.
+   */
+  async groupUpdateJoinRequests(
+    groupJid: string,
+    participantJids: string[],
+    decision: "approve" | "reject",
+    userId: string,
+  ): Promise<void> {
+    const command: GroupJoinRequestsUpdateCommand = {
+      type: "group_join_requests_update",
+      company_id: this.companyId,
+      connection_id: this.connectionId,
+      group_jid: groupJid,
+      participant_jids: participantJids,
+      decision,
+      user_id: userId,
+    };
+
+    await this.publish(command);
+  }
+
+  /**
+   * Publish a command that re-reads a group from WhatsApp without changing it.
+   */
+  async groupSync(groupJid: string, userId: string): Promise<void> {
+    const command: GroupSyncCommand = {
+      type: "group_sync",
+      company_id: this.companyId,
+      connection_id: this.connectionId,
+      group_jid: groupJid,
+      user_id: userId,
     };
 
     await this.publish(command);

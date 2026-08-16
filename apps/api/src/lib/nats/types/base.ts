@@ -45,10 +45,17 @@ export interface NatsCommand {
     | "kill"
     | "send"
     | "post_status"
+    | "group_create"
+    | "group_add_participants"
+    | "group_remove_participants"
     | "group_promote_admin"
     | "group_demote_admin"
-    | "group_remove_participant"
     | "group_update_settings"
+    | "group_leave"
+    | "group_invite_link"
+    | "group_join_requests_fetch"
+    | "group_join_requests_update"
+    | "group_sync"
     | "sync_labels"
     | "apply_label"
     | "remove_label"
@@ -89,6 +96,7 @@ export interface WhatsAppEvent {
     | "download_response"
     | "connection_status"
     | "command_result"
+    | "group"
     | "error";
   companyId: string;
   connectionId: string;

@@ -35,6 +35,9 @@ export {
   handleTypingEvent,
 } from "./contact-handlers.js";
 
+// Group administration handlers
+export { handleGroupEvent } from "./group-handlers.js";
+
 // Reaction handlers
 export {
   handleReactionEvent,

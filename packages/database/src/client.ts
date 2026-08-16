@@ -177,6 +177,7 @@ export interface TenantDatabase {
   message_reactions: MessageReactionsTable;
   groups: GroupsTable;
   group_participants: GroupParticipantsTable;
+  group_join_requests: GroupJoinRequestsTable;
   status_updates: StatusUpdatesTable;
   audit_logs: AuditLogsTable;
   notification_preferences: NotificationPreferencesTable;
@@ -402,6 +403,13 @@ export interface MessageReactionsTable {
   created_at: Generated<Date>;
 }
 
+/**
+ * WhatsApp-authoritative group state.
+ *
+ * Every column below `participant_count` mirrors a value WhatsApp reported for
+ * the group. Nothing here may be written speculatively from an API request -
+ * see `apps/api/src/services/group-sync.service.ts`, which is the only writer.
+ */
 export interface GroupsTable {
   id: Generated<string>;
   contact_id: string | null;
@@ -411,6 +419,35 @@ export interface GroupsTable {
   created_by: string | null;
   created_at: Generated<Date>;
   participant_count: Generated<number>;
+  /** JID of the group owner as reported by WhatsApp. */
+  owner_jid: string | null;
+  /** Only admins may send messages ("announcement" group). */
+  is_announce: Generated<boolean>;
+  /** Only admins may edit the group's name, icon and description. */
+  is_locked: Generated<boolean>;
+  /** Disappearing messages are enabled. */
+  is_ephemeral: Generated<boolean>;
+  /** Disappearing-message timer in seconds; 0 when disabled. */
+  disappearing_timer: Generated<number>;
+  /** New members must be approved by an admin before joining. */
+  is_join_approval_required: Generated<boolean>;
+  /** Who may add participants: `admin_add` or `all_member_add`. */
+  member_add_mode: string | null;
+  /** False once the connected account has left the group. */
+  is_member: Generated<boolean>;
+  /** Last invite link WhatsApp returned; only ever set from a worker result. */
+  invite_link: string | null;
+  invite_link_updated_at: Date | null;
+  /** When WhatsApp last confirmed the metadata above. */
+  metadata_synced_at: Date | null;
+  /**
+   * When the pending join requests were last read from WhatsApp.
+   *
+   * Kept on the group rather than derived from `group_join_requests`, because
+   * "we asked and nobody is waiting" deletes every row - and would otherwise be
+   * indistinguishable from "we never asked".
+   */
+  join_requests_synced_at: Date | null;
 }
 
 export interface GroupParticipantsTable {
@@ -419,6 +456,20 @@ export interface GroupParticipantsTable {
   participant_jid: string;
   is_admin: Generated<boolean>;
   joined_at: Generated<Date>;
+}
+
+/**
+ * Pending "request to join" entries for groups with join approval enabled.
+ *
+ * WhatsApp only exposes these on demand, so rows are a cached projection of the
+ * last worker fetch rather than a continuously-maintained list.
+ */
+export interface GroupJoinRequestsTable {
+  id: Generated<string>;
+  group_id: string;
+  requester_jid: string;
+  requested_at: Date | null;
+  synced_at: Generated<Date>;
 }
 
 export interface StatusUpdatesTable {

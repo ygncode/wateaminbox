@@ -40,6 +40,29 @@ import {
 
 export type { SyncState } from "./sync-state";
 
+/**
+ * A command's outcome.
+ *
+ * `applied_not_synced` means the change took effect on WhatsApp and only the
+ * read-back failed, which is why this event still triggers a refetch rather
+ * than being treated purely as an error.
+ */
+interface CommandResultPayload {
+  commandId: string;
+  commandType: string;
+  success: boolean;
+  outcome?: "succeeded" | "failed" | "applied_not_synced";
+  error?: string;
+}
+
+/** What WhatsApp confirmed about a group, delivered to that group's viewers. */
+interface GroupUpdatedPayload {
+  contactId: string;
+  jid: string;
+  reason: "snapshot" | "created" | "left" | "invite_link" | "join_requests";
+  commandId: string | null;
+}
+
 interface ConversationUpdatedPayload {
   event:
     | "opened"
@@ -249,13 +272,43 @@ export function registerRealtimeEventHandlers({
         });
       }
     }),
+    // A group action is only "done" once WhatsApp confirms it, and this event
+    // is that confirmation. Nothing was optimistically applied when the action
+    // was requested, so refetching here is what makes the change appear.
+    bindUserEvent<GroupUpdatedPayload>("group:updated", (data) => {
+      const payload = data.payload;
+      qc.invalidateQueries({ queryKey: queryKeys.groups.lists() });
+      if (payload?.contactId) {
+        qc.invalidateQueries({
+          queryKey: queryKeys.groups.detail(payload.contactId),
+        });
+        qc.invalidateQueries({
+          queryKey: queryKeys.contacts.detail(payload.contactId),
+        });
+      } else {
+        // A group this workspace has not seen before (just created, or joined
+        // from the phone) has no detail cache to target yet.
+        qc.invalidateQueries({ queryKey: queryKeys.groups.all });
+      }
+      // A snapshot can carry a rename or a membership change, both of which the
+      // conversation list renders. Before group state moved to its own subject
+      // this arrived as `contact:updated`, which always invalidated the list -
+      // scoping it to left/created silently stopped refreshing renames made
+      // from the phone.
+      invalidateChatList(qc);
+    }),
     bindEvent("labels:updated", () => {
       qc.invalidateQueries({ queryKey: ["labels", companyId] });
     }),
     bindEvent("catalogs:updated", () => {
       qc.invalidateQueries({ queryKey: ["catalogs", companyId] });
     }),
-    bindEvent("command:failed", () => {
+    // Carries both "the command failed" and "it worked but we could not read
+    // the result back". Refetching is right either way - and is the whole point
+    // in the second case, since the change is real and the view is what is
+    // behind. The distinction is what the server-authored toast conveys; it is
+    // read from the typed `outcome`, never from the message text.
+    bindEvent<CommandResultPayload>("command:failed", () => {
       invalidateChatList(qc);
       const selectedId = useChatStore.getState().selectedConversationId;
       if (selectedId) refetchConversationMessages(qc, selectedId);

@@ -8,6 +8,8 @@ import (
 	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
 
+	sharednats "github.com/ygncode-lab/whatsapp-web/services/shared/nats"
+	waClient "github.com/ygncode-lab/whatsapp-web/services/whatsapp/internal/client"
 	natsClient "github.com/ygncode-lab/whatsapp-web/services/whatsapp/internal/nats"
 )
 
@@ -151,32 +153,167 @@ func (h *Handler) syncJoinedGroups() {
 		if group == nil || group.JID.IsEmpty() {
 			continue
 		}
-		participants := make([]natsClient.GroupParticipantPayload, 0, len(group.Participants))
-		for _, participant := range group.Participants {
-			primary := participant.JID
-			if primary.IsEmpty() {
-				primary = participant.PhoneNumber
-			}
-			resolved := h.resolvePreferredJID(primary, participant.PhoneNumber)
-			if resolved.User == "" || resolved.Server == "" {
-				continue
-			}
-			participants = append(participants, natsClient.GroupParticipantPayload{
-				JID:     resolved.String(),
-				IsAdmin: participant.IsAdmin || participant.IsSuperAdmin,
-			})
-		}
-		if err := h.publisher.PublishGroupMetadata(
-			group.JID.ToNonAD().String(),
-			group.Name,
-			group.Topic,
-			group.ParticipantCount,
-			participants,
-		); err != nil {
+		snapshot := waClient.SnapshotFromGroupInfo(group, h.resolvePreferredJID)
+		if err := h.publisher.PublishGroupSnapshot("", sharednats.GroupActionSnapshot, snapshot); err != nil {
 			log.Printf("Failed to publish metadata for group %s: %v", group.JID.String(), err)
 		}
 	}
 	log.Printf("Refreshed metadata for %d joined groups", len(groups))
+}
+
+// refreshGroup re-reads one group from WhatsApp and republishes it.
+//
+// A change notification (events.GroupInfo) only names what changed and reports
+// members by JID without their admin status, so applying it directly would
+// leave the workspace with a partial participant list. Re-reading is the only
+// way to keep the stored group identical to WhatsApp's own view.
+func (h *Handler) refreshGroup(groupJID types.JID) {
+	if h.config.Client == nil || h.publisher == nil || groupJID.IsEmpty() {
+		return
+	}
+	client := h.config.Client.GetClient()
+	if client == nil {
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	info, err := client.GetGroupInfo(ctx, groupJID.ToNonAD())
+	if err != nil {
+		log.Printf("Failed to refresh group %s: %v", groupJID.String(), err)
+		return
+	}
+	snapshot := waClient.SnapshotFromGroupInfo(info, h.resolvePreferredJID)
+	if err := h.publisher.PublishGroupSnapshot("", sharednats.GroupActionSnapshot, snapshot); err != nil {
+		log.Printf("Failed to publish refreshed group %s: %v", groupJID.String(), err)
+	}
+}
+
+// runGroupRefresh performs one refresh. Indirected through a field so the
+// coalescing logic above can be exercised without a live WhatsApp connection.
+func (h *Handler) runGroupRefresh(groupJID types.JID) {
+	if h.refreshGroupFn != nil {
+		h.refreshGroupFn(groupJID)
+		return
+	}
+	h.refreshGroup(groupJID)
+}
+
+// handleGroupInfo processes a live group change made by anyone, including from
+// the linked phone or another admin's device.
+func (h *Handler) handleGroupInfo(evt *events.GroupInfo) {
+	if evt == nil || h.publisher == nil {
+		return
+	}
+	// A group being removed from this account is expressed as this account
+	// appearing in Leave. That is a membership change, not a deletion: WhatsApp
+	// keeps the group for its other members and offers no way to disband it.
+	if h.isSelfLeaving(evt) {
+		log.Printf("Left group %s", evt.JID.String())
+		if err := h.publisher.PublishGroupLeft("", evt.JID.ToNonAD().String()); err != nil {
+			log.Printf("Failed to publish group departure for %s: %v", evt.JID.String(), err)
+		}
+		return
+	}
+	h.scheduleGroupRefresh(evt.JID)
+}
+
+// scheduleGroupRefresh coalesces refreshes for one group and caps how many run
+// at once.
+//
+// A busy group emits a burst of GroupInfo events (each add, each promote), and
+// an offline-sync replay delivers the whole backlog at once. Spawning a
+// detached goroutine and a 30-second IQ per event would put the worker into a
+// self-inflicted request storm against WhatsApp. Collapsing a burst into one
+// refresh is also strictly more correct: the refresh re-reads current state, so
+// the last one would have superseded the others anyway.
+func (h *Handler) scheduleGroupRefresh(groupJID types.JID) {
+	if groupJID.IsEmpty() {
+		return
+	}
+	key := groupJID.ToNonAD().String()
+
+	h.groupRefreshMu.Lock()
+	if h.groupRefreshPending == nil {
+		h.groupRefreshPending = make(map[string]bool)
+	}
+	if queued, inFlight := h.groupRefreshPending[key]; inFlight {
+		// Already running: mark it so the in-flight refresh re-reads once more
+		// after it finishes, rather than starting a competing one.
+		if !queued {
+			h.groupRefreshPending[key] = true
+		}
+		h.groupRefreshMu.Unlock()
+		return
+	}
+	h.groupRefreshPending[key] = false
+	h.groupRefreshMu.Unlock()
+
+	go func() {
+		for {
+			// A Handler built without New() has no semaphore; a refresh is still
+			// correct without the cap, so degrade rather than deadlock.
+			if h.groupRefreshSlots != nil {
+				h.groupRefreshSlots <- struct{}{}
+			}
+			h.runGroupRefresh(groupJID)
+			if h.groupRefreshSlots != nil {
+				<-h.groupRefreshSlots
+			}
+
+			// Deciding to stop and releasing the key MUST be one critical
+			// section. Splitting them leaves a window where a new event sees
+			// the key still present, records "run again", and returns without
+			// starting anything - and the release then discards that request,
+			// stranding the group on stale membership until something
+			// unrelated happens to refresh it.
+			h.groupRefreshMu.Lock()
+			if !h.groupRefreshPending[key] {
+				delete(h.groupRefreshPending, key)
+				h.groupRefreshMu.Unlock()
+				return
+			}
+			h.groupRefreshPending[key] = false
+			h.groupRefreshMu.Unlock()
+		}
+	}()
+}
+
+// handleJoinedGroup processes joining or creating a group. The event already
+// carries complete metadata, so no extra round trip is needed.
+func (h *Handler) handleJoinedGroup(evt *events.JoinedGroup) {
+	if evt == nil || h.publisher == nil || evt.JID.IsEmpty() {
+		return
+	}
+	log.Printf("Joined group %s (reason=%s type=%s)", evt.JID.String(), evt.Reason, evt.Type)
+	snapshot := waClient.SnapshotFromGroupInfo(&evt.GroupInfo, h.resolvePreferredJID)
+	if err := h.publisher.PublishGroupSnapshot("", sharednats.GroupActionSnapshot, snapshot); err != nil {
+		log.Printf("Failed to publish joined group %s: %v", evt.JID.String(), err)
+	}
+}
+
+// isSelfLeaving reports whether this account is among the members leaving.
+func (h *Handler) isSelfLeaving(evt *events.GroupInfo) bool {
+	if len(evt.Leave) == 0 || h.config.Client == nil {
+		return false
+	}
+	client := h.config.Client.GetClient()
+	if client == nil || client.Store == nil {
+		return false
+	}
+	own := make(map[types.JID]struct{}, 2)
+	if client.Store.ID != nil {
+		own[client.Store.ID.ToNonAD()] = struct{}{}
+	}
+	if !client.Store.LID.IsEmpty() {
+		own[client.Store.LID.ToNonAD()] = struct{}{}
+	}
+	for _, jid := range evt.Leave {
+		if _, isSelf := own[jid.ToNonAD()]; isSelf {
+			return true
+		}
+	}
+	return false
 }
 
 // subscribeToKnownContacts restores presence subscriptions after a connection

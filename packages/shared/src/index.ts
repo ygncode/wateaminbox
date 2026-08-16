@@ -3,6 +3,7 @@ export * from "./types/user";
 export * from "./types/company";
 export * from "./types/message";
 export * from "./types/bulk-job";
+export * from "./types/group";
 export * from "./types/sla-policy";
 
 // WebSocket types

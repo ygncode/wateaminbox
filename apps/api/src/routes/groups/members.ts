@@ -1,318 +1,330 @@
 /**
  * Group Member Routes
  *
- * Routes for managing group participants (promote, demote, remove).
+ * Add, remove, promote and demote group participants.
+ *
+ * None of these routes write `group_participants`. They validate the request,
+ * enqueue one durable command, and return "requested". The membership list only
+ * changes when the worker reports what WhatsApp actually did (see
+ * services/group-sync.service.ts), so a request WhatsApp rejects - because the
+ * account lost admin rights a second ago, or a number refuses group invites -
+ * never leaves the workspace showing a change that did not happen.
  */
-import { Hono } from "hono";
-import { notFound, badRequest, forbidden } from "../../lib/errors.js";
-import { enqueueConnectionCommand } from "../../services/command-outbox.service.js";
+import { zValidator } from "@hono/zod-validator";
+import { GROUP_MAX_PARTICIPANTS } from "@wateaminbox/shared";
+import { type Context, Hono } from "hono";
+import { badRequest, conflict } from "../../lib/errors.js";
+import type { NatsCommandPublisher } from "../../lib/nats/command-builder.js";
 import { successWithMessage } from "../../lib/response.js";
+import {
+  groupParticipantsSchema,
+  participantJidSchema,
+} from "../../lib/schemas/index.js";
 import { getRouteContext } from "../../middleware/context.js";
 import { createAuditLog, getClientIp } from "../../services/audit.service.js";
-import { getConnectionJid, isUserGroupAdmin } from "./helpers.js";
+import { enqueueConnectionCommand } from "../../services/command-outbox.service.js";
+import {
+  type GroupContext,
+  getGroupAdminJids,
+  getGroupMemberJids,
+  loadGroupContext,
+} from "./helpers.js";
 
 export const memberRoutes = new Hono();
 
-/**
- * POST /:id/participants/:participantJid/promote - Promote participant to admin
- */
-memberRoutes.post("/:id/participants/:participantJid/promote", async (c) => {
+type ParticipantOperation =
+  | "add_participants"
+  | "remove_participants"
+  | "promote_admin"
+  | "demote_admin";
+
+interface ParticipantMutation {
+  operation: ParticipantOperation;
+  /** Verb used in the "only group admins can ..." message. */
+  adminAction: string;
+  /**
+   * Reject a request WhatsApp is certain to refuse. This is a fast, friendly
+   * pre-check, not the authority: WhatsApp still decides, and the worker still
+   * reports the real outcome.
+   */
+  precheck: (input: {
+    context: GroupContext;
+    participantJids: string[];
+    members: Set<string>;
+    admins: Set<string>;
+  }) => string | null;
+  enqueue: (
+    publisher: NatsCommandPublisher,
+    context: GroupContext,
+    participantJids: string[],
+    userId: string,
+  ) => Promise<void>;
+}
+
+interface MutateOptions {
+  /** Echoes the singular field the deprecated routes used to return. */
+  legacyParticipantJid?: string;
+}
+
+async function mutateParticipants(
+  c: Context,
+  participantJids: string[],
+  mutation: ParticipantMutation,
+  options: MutateOptions = {},
+): Promise<Response> {
   const { tenantDb, companyId, user } = getRouteContext(c);
-  const userId = user.id;
-  const contactId = c.req.param("id");
-  const participantJid = c.req.param("participantJid");
 
-  // Get group contact
-  const contact = await tenantDb
-    .selectFrom("contacts")
-    .select(["id", "jid", "whatsapp_connection_id"])
-    .where("id", "=", contactId)
-    .where("is_group", "=", true)
-    .executeTakeFirst();
+  const loaded = await loadGroupContext(c, c.req.param("id")!, {
+    requireConnected: true,
+    requireMembership: true,
+    requireAdmin: true,
+    adminAction: mutation.adminAction,
+  });
+  if (!loaded.ok) return loaded.response;
+  const context = loaded.context;
 
-  if (!contact || !contact.jid) {
-    return notFound(c, "Group");
-  }
-
-  if (!contact.whatsapp_connection_id) {
+  // Acting on the connected account here would make "leave the group" reachable
+  // without its own confirmation, and WhatsApp does not let an account promote
+  // or demote itself either.
+  //
+  // Matched on the account's phone-number JID, which is the same identity the
+  // admin lookup above resolved membership by. An account listed in the group
+  // under a LID instead would already have failed `requireAdmin`, because that
+  // lookup uses this same JID - so a request that gets this far is one where
+  // the account's JID is known. WhatsApp independently rejects self-removal, and
+  // nothing local changes before it answers, so a miss costs a failed command
+  // rather than a silent departure.
+  if (
+    context.connectionJid &&
+    participantJids.includes(context.connectionJid)
+  ) {
     return badRequest(
       c,
-      "Group is not associated with any WhatsApp connection",
+      "Use the leave-group action to change this account's own membership",
     );
   }
 
-  // Get group details
-  const group = await tenantDb
-    .selectFrom("groups")
-    .select(["id", "name"])
-    .where("contact_id", "=", contactId)
-    .executeTakeFirst();
+  const [members, admins] = await Promise.all([
+    getGroupMemberJids(tenantDb, context.groupId, participantJids),
+    getGroupAdminJids(tenantDb, context.groupId, participantJids),
+  ]);
 
-  if (!group) {
-    return notFound(c, "Group details");
-  }
-
-  // Check if current user is admin
-  const connectionJid = await getConnectionJid(tenantDb);
-  const isAdmin = await isUserGroupAdmin(tenantDb, contactId, connectionJid);
-
-  if (!isAdmin) {
-    return forbidden(c, "Only group admins can promote participants");
-  }
-
-  // Check if participant exists in group
-  const participant = await tenantDb
-    .selectFrom("group_participants")
-    .select(["id", "is_admin"])
-    .where("group_id", "=", group.id)
-    .where("participant_jid", "=", participantJid)
-    .executeTakeFirst();
-
-  if (!participant) {
-    return notFound(c, "Participant in group");
-  }
-
-  if (participant.is_admin) {
-    return badRequest(c, "Participant is already an admin");
-  }
+  const problem = mutation.precheck({
+    context,
+    participantJids,
+    members,
+    admins,
+  });
+  if (problem) return conflict(c, problem);
 
   await tenantDb.transaction().execute(async (trx) => {
-    await trx
-      .updateTable("group_participants")
-      .set({ is_admin: true })
-      .where("id", "=", participant.id)
-      .execute();
     await enqueueConnectionCommand(
       trx,
       companyId,
-      contact.whatsapp_connection_id!,
+      context.connectionId,
       (publisher) =>
-        publisher.groupPromoteAdmin(contact.jid!, participantJid, userId),
+        mutation.enqueue(publisher, context, participantJids, user.id),
     );
   });
 
-  // Create audit log
   await createAuditLog({
     companyId,
-    userId,
+    userId: user.id,
     action: "contact.updated",
     entityType: "group",
-    entityId: contactId,
+    entityId: context.contactId,
     details: {
-      groupJid: contact.jid,
-      groupName: group.name,
-      participantJid,
-      operation: "promote_admin",
+      groupJid: context.groupJid,
+      groupName: context.groupName,
+      participantJids,
+      operation: mutation.operation,
     },
     ipAddress: getClientIp(c),
   });
 
-  return successWithMessage(c, "Participant promoted to admin", {
-    participantJid,
-  });
-});
+  return successWithMessage(
+    c,
+    "Requested from WhatsApp. Members update once WhatsApp confirms the change.",
+    {
+      participantJids,
+      ...(options.legacyParticipantJid
+        ? { participantJid: options.legacyParticipantJid }
+        : {}),
+      pending: true,
+    },
+  );
+}
 
 /**
- * POST /:id/participants/:participantJid/demote - Demote admin to regular participant
+ * POST /:id/participants - Add members to the group
  */
-memberRoutes.post("/:id/participants/:participantJid/demote", async (c) => {
-  const { tenantDb, companyId, user } = getRouteContext(c);
-  const userId = user.id;
-  const contactId = c.req.param("id");
-  const participantJid = c.req.param("participantJid");
+memberRoutes.post(
+  "/:id/participants",
+  zValidator("json", groupParticipantsSchema),
+  async (c) =>
+    mutateParticipants(c, c.req.valid("json").participantJids, {
+      operation: "add_participants",
+      adminAction: "add members",
+      precheck: ({ context, participantJids, members }) => {
+        const alreadyIn = participantJids.filter((jid) => members.has(jid));
+        if (alreadyIn.length > 0) {
+          return `Already in the group: ${alreadyIn.join(", ")}`;
+        }
+        // WhatsApp enforces the real cap per participant; refusing an
+        // impossible batch up front turns a partial silent failure into a
+        // clear error the composer can show before anything is sent.
+        if (
+          context.participantCount + participantJids.length >
+          GROUP_MAX_PARTICIPANTS
+        ) {
+          return `A WhatsApp group holds at most ${GROUP_MAX_PARTICIPANTS} members; this group has ${context.participantCount}`;
+        }
+        return null;
+      },
+      enqueue: (publisher, context, participantJids, userId) =>
+        publisher.groupAddParticipants(
+          context.groupJid,
+          participantJids,
+          userId,
+        ),
+    }),
+);
 
-  // Get group contact
-  const contact = await tenantDb
-    .selectFrom("contacts")
-    .select(["id", "jid", "whatsapp_connection_id"])
-    .where("id", "=", contactId)
-    .where("is_group", "=", true)
-    .executeTakeFirst();
+const REMOVE_MUTATION: ParticipantMutation = {
+  operation: "remove_participants",
+  adminAction: "remove members",
+  precheck: ({ participantJids, members }) => {
+    const missing = participantJids.filter((jid) => !members.has(jid));
+    return missing.length > 0
+      ? `Not in the group: ${missing.join(", ")}`
+      : null;
+  },
+  enqueue: (publisher, context, participantJids, userId) =>
+    publisher.groupRemoveParticipants(
+      context.groupJid,
+      participantJids,
+      userId,
+    ),
+};
 
-  if (!contact || !contact.jid) {
-    return notFound(c, "Group");
-  }
+const PROMOTE_MUTATION: ParticipantMutation = {
+  operation: "promote_admin",
+  adminAction: "promote members",
+  precheck: ({ participantJids, members, admins }) => {
+    const missing = participantJids.filter((jid) => !members.has(jid));
+    if (missing.length > 0) {
+      return `Not in the group: ${missing.join(", ")}`;
+    }
+    const alreadyAdmin = participantJids.filter((jid) => admins.has(jid));
+    return alreadyAdmin.length > 0
+      ? `Already an admin: ${alreadyAdmin.join(", ")}`
+      : null;
+  },
+  enqueue: (publisher, context, participantJids, userId) =>
+    publisher.groupPromoteAdmin(context.groupJid, participantJids, userId),
+};
 
-  if (!contact.whatsapp_connection_id) {
-    return badRequest(
-      c,
-      "Group is not associated with any WhatsApp connection",
-    );
-  }
-
-  // Get group details
-  const group = await tenantDb
-    .selectFrom("groups")
-    .select(["id", "name"])
-    .where("contact_id", "=", contactId)
-    .executeTakeFirst();
-
-  if (!group) {
-    return notFound(c, "Group details");
-  }
-
-  // Check if current user is admin
-  const connectionJid = await getConnectionJid(tenantDb);
-  const isAdmin = await isUserGroupAdmin(tenantDb, contactId, connectionJid);
-
-  if (!isAdmin) {
-    return forbidden(c, "Only group admins can demote participants");
-  }
-
-  // Check if participant exists and is admin
-  const participant = await tenantDb
-    .selectFrom("group_participants")
-    .select(["id", "is_admin"])
-    .where("group_id", "=", group.id)
-    .where("participant_jid", "=", participantJid)
-    .executeTakeFirst();
-
-  if (!participant) {
-    return notFound(c, "Participant in group");
-  }
-
-  if (!participant.is_admin) {
-    return badRequest(c, "Participant is not an admin");
-  }
-
-  await tenantDb.transaction().execute(async (trx) => {
-    await trx
-      .updateTable("group_participants")
-      .set({ is_admin: false })
-      .where("id", "=", participant.id)
-      .execute();
-    await enqueueConnectionCommand(
-      trx,
-      companyId,
-      contact.whatsapp_connection_id!,
-      (publisher) =>
-        publisher.groupDemoteAdmin(contact.jid!, participantJid, userId),
-    );
-  });
-
-  // Create audit log
-  await createAuditLog({
-    companyId,
-    userId,
-    action: "contact.updated",
-    entityType: "group",
-    entityId: contactId,
-    details: {
-      groupJid: contact.jid,
-      groupName: group.name,
-      participantJid,
-      operation: "demote_admin",
-    },
-    ipAddress: getClientIp(c),
-  });
-
-  return successWithMessage(c, "Admin demoted to regular participant", {
-    participantJid,
-  });
-});
+const DEMOTE_MUTATION: ParticipantMutation = {
+  operation: "demote_admin",
+  adminAction: "demote admins",
+  precheck: ({ participantJids, members, admins }) => {
+    const missing = participantJids.filter((jid) => !members.has(jid));
+    if (missing.length > 0) {
+      return `Not in the group: ${missing.join(", ")}`;
+    }
+    const notAdmin = participantJids.filter((jid) => !admins.has(jid));
+    return notAdmin.length > 0 ? `Not an admin: ${notAdmin.join(", ")}` : null;
+  },
+  enqueue: (publisher, context, participantJids, userId) =>
+    publisher.groupDemoteAdmin(context.groupJid, participantJids, userId),
+};
 
 /**
- * DELETE /:id/participants/:participantJid - Remove participant from group
+ * POST /:id/participants/remove - Remove members from the group
+ *
+ * A POST rather than a DELETE because the request names WHICH members to
+ * remove, and a DELETE body is dropped by enough intermediaries that it is not
+ * a safe place to put the only thing that makes the request meaningful.
  */
-memberRoutes.delete("/:id/participants/:participantJid", async (c) => {
-  const { tenantDb, companyId, user } = getRouteContext(c);
-  const userId = user.id;
-  const contactId = c.req.param("id");
-  const participantJid = c.req.param("participantJid");
+memberRoutes.post(
+  "/:id/participants/remove",
+  zValidator("json", groupParticipantsSchema),
+  async (c) =>
+    mutateParticipants(c, c.req.valid("json").participantJids, REMOVE_MUTATION),
+);
 
-  // Get group contact
-  const contact = await tenantDb
-    .selectFrom("contacts")
-    .select(["id", "jid", "whatsapp_connection_id"])
-    .where("id", "=", contactId)
-    .where("is_group", "=", true)
-    .executeTakeFirst();
-
-  if (!contact || !contact.jid) {
-    return notFound(c, "Group");
-  }
-
-  if (!contact.whatsapp_connection_id) {
-    return badRequest(
+/**
+ * POST /:id/participants/promote - Promote members to admin
+ */
+memberRoutes.post(
+  "/:id/participants/promote",
+  zValidator("json", groupParticipantsSchema),
+  async (c) =>
+    mutateParticipants(
       c,
-      "Group is not associated with any WhatsApp connection",
+      c.req.valid("json").participantJids,
+      PROMOTE_MUTATION,
+    ),
+);
+
+/**
+ * POST /:id/participants/demote - Demote admins to regular members
+ */
+memberRoutes.post(
+  "/:id/participants/demote",
+  zValidator("json", groupParticipantsSchema),
+  async (c) =>
+    mutateParticipants(c, c.req.valid("json").participantJids, DEMOTE_MUTATION),
+);
+
+/**
+ * Compatibility wrappers for the single-participant routes this suite replaced.
+ *
+ * The batch routes above are the current shape, but the old per-participant
+ * paths were a published API. They are kept as thin adapters - same guards,
+ * same command, one-element batch - so an external client that still calls them
+ * keeps working instead of silently 404-ing. The `Deprecation` header points
+ * callers at the replacement, matching how message-send handles its own legacy
+ * surface.
+ *
+ * What did change, and cannot be preserved, is the MEANING of a 200: these
+ * routes used to answer once the change was applied locally, and now answer
+ * once it has been requested from WhatsApp. `pending: true` says so explicitly,
+ * and the singular `participantJid` the old shape returned is echoed back
+ * alongside the batch field so a client reading either key still works.
+ */
+function legacyParticipantHandler(mutation: ParticipantMutation) {
+  return async (c: Context): Promise<Response> => {
+    c.header("Deprecation", "true");
+    c.header("Link", '</api/groups>; rel="successor-version"');
+
+    // Hono has already percent-decoded the path parameter, and it does so with
+    // a decoder that returns the raw string rather than throwing. Decoding
+    // again here would throw a URIError on a lone `%` and surface as a 500
+    // instead of the 400 this validation exists to produce.
+    const parsed = participantJidSchema.safeParse(
+      c.req.param("participantJid") ?? "",
     );
-  }
+    if (!parsed.success) {
+      return badRequest(c, "Participant must be a WhatsApp user JID");
+    }
+    return mutateParticipants(c, [parsed.data], mutation, {
+      legacyParticipantJid: parsed.data,
+    });
+  };
+}
 
-  // Get group details
-  const group = await tenantDb
-    .selectFrom("groups")
-    .select(["id", "name", "participant_count"])
-    .where("contact_id", "=", contactId)
-    .executeTakeFirst();
+memberRoutes.post(
+  "/:id/participants/:participantJid/promote",
+  legacyParticipantHandler(PROMOTE_MUTATION),
+);
 
-  if (!group) {
-    return notFound(c, "Group details");
-  }
+memberRoutes.post(
+  "/:id/participants/:participantJid/demote",
+  legacyParticipantHandler(DEMOTE_MUTATION),
+);
 
-  // Check if current user is admin
-  const connectionJid = await getConnectionJid(tenantDb);
-  const isAdmin = await isUserGroupAdmin(tenantDb, contactId, connectionJid);
-
-  if (!isAdmin) {
-    return forbidden(c, "Only group admins can remove participants");
-  }
-
-  // Check if participant exists
-  const participant = await tenantDb
-    .selectFrom("group_participants")
-    .select(["id"])
-    .where("group_id", "=", group.id)
-    .where("participant_jid", "=", participantJid)
-    .executeTakeFirst();
-
-  if (!participant) {
-    return notFound(c, "Participant in group");
-  }
-
-  // Cannot remove yourself
-  if (participantJid === connectionJid) {
-    return badRequest(c, "Cannot remove yourself from the group");
-  }
-
-  await tenantDb.transaction().execute(async (trx) => {
-    await trx
-      .deleteFrom("group_participants")
-      .where("id", "=", participant.id)
-      .execute();
-    await trx
-      .updateTable("groups")
-      .set({
-        participant_count: Math.max(0, (group.participant_count || 1) - 1),
-      })
-      .where("id", "=", group.id)
-      .execute();
-    await enqueueConnectionCommand(
-      trx,
-      companyId,
-      contact.whatsapp_connection_id!,
-      (publisher) =>
-        publisher.groupRemoveParticipant(contact.jid!, participantJid, userId),
-    );
-  });
-
-  // Create audit log
-  await createAuditLog({
-    companyId,
-    userId,
-    action: "contact.updated",
-    entityType: "group",
-    entityId: contactId,
-    details: {
-      groupJid: contact.jid,
-      groupName: group.name,
-      participantJid,
-      operation: "remove_participant",
-    },
-    ipAddress: getClientIp(c),
-  });
-
-  return successWithMessage(c, "Participant removed from group", {
-    participantJid,
-  });
-});
+memberRoutes.delete(
+  "/:id/participants/:participantJid",
+  legacyParticipantHandler(REMOVE_MUTATION),
+);

@@ -64,6 +64,7 @@ const (
 	SubjectCommandResult    = sharednats.SubjectCommandResult
 	SubjectDownloadRequest  = sharednats.SubjectDownloadRequest
 	SubjectDownloadResponse = sharednats.SubjectDownloadResponse
+	SubjectGroup            = sharednats.SubjectGroup
 )
 
 // Type aliases for shared types (for backwards compatibility within this package)
@@ -78,6 +79,9 @@ type (
 	TypingPayload           = sharednats.TypingPayload
 	ContactPayload          = sharednats.ContactPayload
 	GroupParticipantPayload = sharednats.GroupParticipantPayload
+	GroupPayload            = sharednats.GroupPayload
+	GroupSnapshotPayload    = sharednats.GroupSnapshotPayload
+	GroupJoinRequestPayload = sharednats.GroupJoinRequestPayload
 	ProfilePicturePayload   = sharednats.ProfilePicturePayload
 	SendConfirmationPayload = sharednats.SendConfirmationPayload
 	SendFailedPayload       = sharednats.SendFailedPayload
@@ -366,33 +370,99 @@ func (p *Publisher) PublishContact(jid, name, displayName, description string, i
 	return p.publish(subject, event)
 }
 
-// PublishGroupMetadata refreshes joined-group data without changing unread
-// state, which is only authoritative when supplied by a history conversation.
-func (p *Publisher) PublishGroupMetadata(jid, name, description string, participantCount int, participants []GroupParticipantPayload) error {
-	if participantCount <= 0 && len(participants) > 0 {
-		participantCount = len(participants)
-	}
-	var participantCountSnapshot *int
-	if participantCount > 0 {
-		participantCountSnapshot = &participantCount
-	}
+// publishGroup emits a group administration event. Group state reaches the API
+// exclusively through this subject, so the API never has to infer a group
+// change from a command acknowledgement.
+func (p *Publisher) publishGroup(payload GroupPayload) error {
 	event := WhatsAppEvent{
-		Type:         "contact",
+		Type:         sharednats.EventTypeGroup,
 		CompanyID:    p.companyID,
 		ConnectionID: p.connectionID,
-		Payload: ContactPayload{
-			JID:              jid,
-			DisplayName:      name,
-			Description:      description,
-			IsGroup:          true,
-			Participants:     participants,
-			ParticipantCount: participantCountSnapshot,
-		},
-		Timestamp: time.Now().Format(time.RFC3339),
+		Payload:      payload,
+		Timestamp:    time.Now().Format(time.RFC3339),
 	}
-
-	subject := fmt.Sprintf(SubjectContact, p.companyID, p.connectionID)
+	subject := fmt.Sprintf(SubjectGroup, p.companyID, p.connectionID)
 	return p.publish(subject, event)
+}
+
+// PublishGroupSnapshot publishes WhatsApp's current view of a group. `action`
+// is either a plain snapshot or the snapshot of a group this account created.
+func (p *Publisher) PublishGroupSnapshot(commandID, action string, snapshot internaltypes.GroupSnapshot) error {
+	return p.publishGroup(GroupPayload{
+		Action:    action,
+		JID:       snapshot.JID,
+		CommandID: commandID,
+		Snapshot:  groupSnapshotPayload(snapshot),
+	})
+}
+
+// PublishGroupLeft reports that this account has left a group. It records the
+// end of a membership, never the deletion of a group - WhatsApp keeps the group
+// running for its remaining members.
+func (p *Publisher) PublishGroupLeft(commandID, groupJID string) error {
+	return p.publishGroup(GroupPayload{
+		Action:    sharednats.GroupActionLeft,
+		JID:       groupJID,
+		CommandID: commandID,
+	})
+}
+
+// PublishGroupInviteLink publishes the invite link WhatsApp returned.
+func (p *Publisher) PublishGroupInviteLink(commandID, groupJID, inviteLink string) error {
+	return p.publishGroup(GroupPayload{
+		Action:     sharednats.GroupActionInviteLink,
+		JID:        groupJID,
+		CommandID:  commandID,
+		InviteLink: inviteLink,
+	})
+}
+
+// PublishGroupJoinRequests publishes the pending membership approval requests.
+//
+// An empty list is meaningful - it says nobody is waiting - and is published as
+// such. The field itself is omitted from the JSON when empty, which the API
+// reads back as "no requests" rather than "unchanged"; the fetch timestamp it
+// records separately is what distinguishes an empty answer from never asking.
+func (p *Publisher) PublishGroupJoinRequests(commandID, groupJID string, requests []internaltypes.GroupJoinRequest) error {
+	payload := make([]GroupJoinRequestPayload, 0, len(requests))
+	for _, request := range requests {
+		entry := GroupJoinRequestPayload{JID: request.JID}
+		if !request.RequestedAt.IsZero() {
+			entry.RequestedAt = request.RequestedAt.UTC().Format(time.RFC3339)
+		}
+		payload = append(payload, entry)
+	}
+	return p.publishGroup(GroupPayload{
+		Action:       sharednats.GroupActionJoinRequests,
+		JID:          groupJID,
+		CommandID:    commandID,
+		JoinRequests: payload,
+	})
+}
+
+func groupSnapshotPayload(snapshot internaltypes.GroupSnapshot) *GroupSnapshotPayload {
+	participants := make([]GroupParticipantPayload, 0, len(snapshot.Participants))
+	for _, participant := range snapshot.Participants {
+		participants = append(participants, GroupParticipantPayload{
+			JID:     participant.JID,
+			IsAdmin: participant.IsAdmin,
+		})
+	}
+	return &GroupSnapshotPayload{
+		JID:                    snapshot.JID,
+		Name:                   snapshot.Name,
+		Description:            snapshot.Description,
+		OwnerJID:               snapshot.OwnerJID,
+		Participants:           participants,
+		ParticipantCount:       snapshot.ParticipantCount,
+		IsAnnounce:             snapshot.IsAnnounce,
+		IsLocked:               snapshot.IsLocked,
+		IsEphemeral:            snapshot.IsEphemeral,
+		DisappearingTimer:      snapshot.DisappearingTimer,
+		IsJoinApprovalRequired: snapshot.IsJoinApprovalRequired,
+		MemberAddMode:          snapshot.MemberAddMode,
+		IsMember:               snapshot.IsMember,
+	}
 }
 
 // PublishContactName publishes names learned from WhatsApp's contact and push-name stores.
@@ -767,11 +837,22 @@ func (p *Publisher) PublishCatalog(catalog internaltypes.Catalog) error {
 	return p.publish(fmt.Sprintf(SubjectCatalogProducts, p.companyID, p.connectionID), productsEvent)
 }
 
-func (p *Publisher) PublishCommandResult(commandID, commandType string, success bool, errorMessage string) error {
+func (p *Publisher) PublishCommandResult(commandID, commandType string, success bool, outcome, errorMessage string) error {
+	if outcome == "" {
+		if success {
+			outcome = sharednats.CommandOutcomeSucceeded
+		} else {
+			outcome = sharednats.CommandOutcomeFailed
+		}
+	}
 	event := WhatsAppEvent{
 		Type: sharednats.EventTypeCommandResult, CompanyID: p.companyID, ConnectionID: p.connectionID,
 		Payload: sharednats.CommandResultPayload{
-			CommandID: commandID, CommandType: commandType, Success: success, Error: errorMessage,
+			CommandID:   commandID,
+			CommandType: commandType,
+			Success:     success,
+			Outcome:     outcome,
+			Error:       errorMessage,
 		},
 		Timestamp: time.Now().Format(time.RFC3339),
 	}

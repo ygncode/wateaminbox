@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/google/uuid"
 	"go.mau.fi/whatsmeow/proto/waAdv"
@@ -155,6 +156,86 @@ func (c *PGContainer) SaveProcessedCommand(ctx context.Context, commandID, comma
 		return fmt.Errorf("save processed command: %w", err)
 	}
 	return nil
+}
+
+// GetProcessedCommandState reports the stored result together with whether its
+// outcome already reached the API, so a redelivery can be acknowledged instead
+// of republishing an event the workspace has already applied.
+func (c *PGContainer) GetProcessedCommandState(
+	ctx context.Context,
+	commandID string,
+) (result []byte, published bool, found bool, err error) {
+	err = c.db.QueryRowContext(ctx, `
+		SELECT result, event_published FROM processed_commands
+		WHERE connection_id = $1 AND command_id = $2
+	`, c.connectionID, commandID).Scan(&result, &published)
+	if err == sql.ErrNoRows {
+		return nil, false, false, nil
+	}
+	if err != nil {
+		return nil, false, false, fmt.Errorf("get processed command state: %w", err)
+	}
+	return result, published, true, nil
+}
+
+// ScrubProcessedCommandResult empties a delivered result while keeping the row.
+//
+// The row is what stops a redelivery re-running the mutation, so it has to
+// stay; its payload does not, and for invite links it is a credential we have
+// no reason to keep a second copy of.
+func (c *PGContainer) ScrubProcessedCommandResult(
+	ctx context.Context,
+	commandID string,
+) error {
+	_, err := c.db.ExecContext(ctx, `
+		UPDATE processed_commands SET result = '{}'::jsonb
+		WHERE connection_id = $1 AND command_id = $2 AND event_published = true
+	`, c.connectionID, commandID)
+	if err != nil {
+		return fmt.Errorf("scrub processed command: %w", err)
+	}
+	return nil
+}
+
+// PruneProcessedCommands drops command records past their retention window.
+//
+// Two classes, two windows, and the difference is a safety property rather than
+// a tuning preference:
+//
+//   - A DELIVERED row has already done its job; it only has to outlive a
+//     redelivery of the same command.
+//   - An UNDELIVERED row is the record that stops a redelivery from repeating
+//     the mutation. Removing one while its command could still be redelivered
+//     would create a second group, rotate an invite link again, or re-decide a
+//     join request. Its window is therefore much longer than the commands
+//     stream's own retention, so no redelivery can outlive it.
+//
+// Mirrors how the worker event outbox reclaims its rows once they are spent.
+func (c *PGContainer) PruneProcessedCommands(
+	ctx context.Context,
+	deliveredOlderThan time.Duration,
+	undeliveredOlderThan time.Duration,
+) (int64, error) {
+	result, err := c.db.ExecContext(ctx, `
+		DELETE FROM processed_commands
+		WHERE connection_id = $1
+		  AND (
+		    (event_published = true AND processed_at < now() - $2::interval)
+		    OR (event_published = false AND processed_at < now() - $3::interval)
+		  )
+	`,
+		c.connectionID,
+		fmt.Sprintf("%d seconds", int64(deliveredOlderThan.Seconds())),
+		fmt.Sprintf("%d seconds", int64(undeliveredOlderThan.Seconds())),
+	)
+	if err != nil {
+		return 0, fmt.Errorf("prune processed commands: %w", err)
+	}
+	removed, err := result.RowsAffected()
+	if err != nil {
+		return 0, nil
+	}
+	return removed, nil
 }
 
 func (c *PGContainer) MarkCommandEventPublished(ctx context.Context, commandID string) error {

@@ -1,5 +1,6 @@
-import * as React from "react";
 import { Loader2 } from "lucide-react";
+import * as React from "react";
+import { Button } from "./button";
 import {
   Dialog,
   DialogContent,
@@ -8,7 +9,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "./dialog";
-import { Button } from "./button";
 
 export interface ConfirmationDialogProps {
   /**
@@ -100,7 +100,15 @@ export function ConfirmationDialog({
   }, [onCancel, onOpenChange]);
 
   const handleConfirm = React.useCallback(async () => {
-    await onConfirm();
+    // A rejected confirm action must not become an unhandled rejection, and the
+    // dialog must not sit there looking stuck. Call sites surface the reason
+    // themselves (the group mutations toast on error), so swallowing it here
+    // only stops the duplicate console noise.
+    try {
+      await onConfirm();
+    } catch {
+      // Intentionally ignored: reporting is the caller's responsibility.
+    }
   }, [onConfirm]);
 
   return (

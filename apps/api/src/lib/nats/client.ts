@@ -62,6 +62,7 @@ export const whatsAppEventEnvelopeSchema = z.object({
     "download_response",
     "connection_status",
     "command_result",
+    "group",
     "error",
   ]),
   companyId: z.string().uuid(),
@@ -401,83 +402,6 @@ export async function publishPostStatus(
     buildCommandSubject,
   );
   await publisher.postStatus(statusType, content || "", userId, mediaUrl);
-}
-
-/**
- * Publishes a group promote admin command
- */
-export async function publishGroupPromoteAdmin(
-  companyId: string,
-  connectionId: string,
-  groupJid: string,
-  participantJid: string,
-  userId: string,
-): Promise<void> {
-  const publisher = forConnection(
-    companyId,
-    connectionId,
-    publishCommand,
-    buildCommandSubject,
-  );
-  await publisher.groupPromoteAdmin(groupJid, participantJid, userId);
-}
-
-/**
- * Publishes a group demote admin command
- */
-export async function publishGroupDemoteAdmin(
-  companyId: string,
-  connectionId: string,
-  groupJid: string,
-  participantJid: string,
-  userId: string,
-): Promise<void> {
-  const publisher = forConnection(
-    companyId,
-    connectionId,
-    publishCommand,
-    buildCommandSubject,
-  );
-  await publisher.groupDemoteAdmin(groupJid, participantJid, userId);
-}
-
-/**
- * Publishes a group remove participant command
- */
-export async function publishGroupRemoveParticipant(
-  companyId: string,
-  connectionId: string,
-  groupJid: string,
-  participantJid: string,
-  userId: string,
-): Promise<void> {
-  const publisher = forConnection(
-    companyId,
-    connectionId,
-    publishCommand,
-    buildCommandSubject,
-  );
-  await publisher.groupRemoveParticipant(groupJid, participantJid, userId);
-}
-
-/**
- * Publishes a group update settings command
- */
-export async function publishGroupUpdateSettings(
-  companyId: string,
-  connectionId: string,
-  groupJid: string,
-  userId: string,
-  name?: string,
-  description?: string,
-): Promise<void> {
-  const publisher = forConnection(
-    companyId,
-    connectionId,
-    publishCommand,
-    buildCommandSubject,
-  );
-  await publisher.groupUpdateSettings(groupJid, userId, name, description);
 }
 
 /**

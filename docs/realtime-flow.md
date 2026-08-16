@@ -28,7 +28,7 @@ carries conversation content must therefore be addressed to individual users.
 | Channel | Contents |
 | --- | --- |
 | `company:{companyId}` | Workspace and connection control only: `qr`, `connected`, `disconnected`, `connection:status`, `sync:*`, `history:loaded`, `labels:updated`, `catalogs:updated`, `bulk_job:updated`, `command:failed`, `notification:toast`, `status`. |
-| `user:{companyId}:{userId}` | `notification:new`, plus every conversation-scoped event: `message:new`, `message:status`, `message:deleted`, `message:reaction`, `message:failed`, `scheduled_message:updated`, `media:downloaded`, `media:download_failed`, `conversation:updated`, `conversation:read`, `contact:updated`, `contact:profile_picture`, `presence:*`, `typing:*`. |
+| `user:{companyId}:{userId}` | `notification:new`, plus every conversation-scoped event: `message:new`, `message:status`, `message:deleted`, `message:reaction`, `message:failed`, `scheduled_message:updated`, `media:downloaded`, `media:download_failed`, `conversation:updated`, `conversation:read`, `contact:updated`, `contact:profile_picture`, `group:updated`, `presence:*`, `typing:*`. |
 
 Conversation-scoped events are fanned out by
 `apps/api/src/services/message-broadcast.service.ts` to exactly the users
