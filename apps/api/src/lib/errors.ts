@@ -284,6 +284,32 @@ export class WhatsAppIdentityMismatchError extends ConflictError {
   }
 }
 
+/**
+ * Permanent deletion was requested for a connection that is still linked.
+ * Archiving is a mandatory first step (it unlinks the device and ends the
+ * session), so this is a state conflict the operator can resolve - never a
+ * server fault.
+ */
+export class ConnectionNotArchivedError extends ConflictError {
+  constructor() {
+    super("Archive this connection before permanently deleting its inbox data");
+    this.name = "ConnectionNotArchivedError";
+  }
+}
+
+/**
+ * A media object was committed for deletion by the purge cleanup queue before
+ * this request could attach it to a row. Persisting the reference anyway would
+ * leave a row pointing at an object that is about to disappear, so the write is
+ * refused - the caller can re-upload. See `media-reference-lock.ts`.
+ */
+export class MediaObjectReclaimedError extends ConflictError {
+  constructor() {
+    super("This media attachment is no longer available - upload it again");
+    this.name = "MediaObjectReclaimedError";
+  }
+}
+
 export class InvalidConnectionStateError extends ValidationError {
   constructor(currentState: string, requiredState: string) {
     super(`Connection is ${currentState}, but must be ${requiredState}`);

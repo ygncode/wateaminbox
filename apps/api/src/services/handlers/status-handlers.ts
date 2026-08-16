@@ -11,8 +11,11 @@ import type {
   SyncStatusEvent,
 } from "../../lib/nats/index.js";
 import { broadcastToCompany } from "../../lib/realtime.js";
+import { deleteMedia, resolveMediaKeyForCompany } from "../../lib/storage.js";
+import { enqueueMediaCleanup } from "../connection-purge-cleanup.service.js";
 import { broadcastToContactViewers } from "../message-broadcast.service.js";
 import { getTenantConnection } from "../tenant.service.js";
+import { lockActiveConnectionForEvent } from "./connection-event-guard.js";
 import { handlerLogger as logger } from "./types.js";
 
 /**
@@ -35,34 +38,42 @@ export async function handleStatusEvent(event: StatusEvent): Promise<void> {
     }
     const connection = await tenantDb
       .selectFrom("whatsapp_connections")
-      .select(["id"])
+      .select(["id", "archived_at"])
       .where("id", "=", connectionId)
       .executeTakeFirst();
 
-    if (!connection) {
+    if (!connection || connection.archived_at) {
       logger.error(
         { companyId, connectionId },
-        "Quarantining status for unknown connection",
+        "Quarantining status for inactive connection",
       );
       return;
     }
 
-    // Store the status update
+    // Store the status while holding the lifecycle fence used by archive and
+    // purge, so this row cannot commit after its connection disappears.
     const statusId = crypto.randomUUID();
-    await tenantDb
-      .insertInto("status_updates")
-      .values({
-        id: statusId,
-        whatsapp_connection_id: connection.id,
-        status_id: payload.statusId,
-        from_jid: payload.fromJid,
-        media_type: payload.mediaType,
-        media_url: payload.mediaUrl,
-        caption: payload.caption,
-        timestamp: toDbDate(payload.timestamp),
-        expires_at: toDbDate(payload.expiresAt),
-      })
-      .execute();
+    const stored = await tenantDb.transaction().execute(async (trx) => {
+      if (!(await lockActiveConnectionForEvent(trx, connection.id))) {
+        return false;
+      }
+      await trx
+        .insertInto("status_updates")
+        .values({
+          id: statusId,
+          whatsapp_connection_id: connection.id,
+          status_id: payload.statusId,
+          from_jid: payload.fromJid,
+          media_type: payload.mediaType,
+          media_url: payload.mediaUrl,
+          caption: payload.caption,
+          timestamp: toDbDate(payload.timestamp),
+          expires_at: toDbDate(payload.expiresAt),
+        })
+        .execute();
+      return true;
+    });
+    if (!stored) return;
 
     logger.debug({ statusId, companyId }, "Stored status update");
 
@@ -280,32 +291,65 @@ export async function handleDownloadResponseEvent(
       // re-checks it under the row lock, so exactly one of two concurrent
       // responses updates a row. The loser simply finds nothing to do.
       const updatedMessage = await tenantDb
-        .updateTable("messages")
-        .set({
-          media_url: payload.mediaUrl,
-          media_size: payload.mediaSize || null,
-          media_download_status: "completed",
-          media_downloaded_at: toDbDate(),
-        })
-        .where("id", "=", payload.messageId)
-        .where("whatsapp_connection_id", "=", connectionId)
-        .where((eb) =>
-          eb.or([
-            eb("media_download_status", "is", null),
-            eb("media_download_status", "!=", "completed"),
-            eb("media_url", "is", null),
-          ]),
-        )
-        .returning(["id", "contact_id"])
-        .executeTakeFirst();
+        .transaction()
+        .execute(async (trx) => {
+          if (!(await lockActiveConnectionForEvent(trx, connectionId))) {
+            return undefined;
+          }
+          return trx
+            .updateTable("messages")
+            .set({
+              media_url: payload.mediaUrl,
+              media_size: payload.mediaSize || null,
+              media_download_status: "completed",
+              media_downloaded_at: toDbDate(),
+            })
+            .where("id", "=", payload.messageId)
+            .where("whatsapp_connection_id", "=", connectionId)
+            .where((eb) =>
+              eb.or([
+                eb("media_download_status", "is", null),
+                eb("media_download_status", "!=", "completed"),
+                eb("media_url", "is", null),
+              ]),
+            )
+            .returning(["id", "contact_id"])
+            .executeTakeFirst();
+        });
 
       if (!updatedMessage) {
-        // Either the message is gone, or another response already completed
-        // it. Neither is an error, but a duplicate download means a stored
-        // object nobody references - worth seeing in the logs.
+        // Either purge removed the message, another upload won the CAS, or
+        // this is a redelivery of the winning response. Reclaim only when no
+        // row references this exact upload, so purge/duplicate races cannot
+        // strand media and redelivery cannot remove the winner.
+        try {
+          const referenced = await tenantDb
+            .selectFrom("messages")
+            .select("id")
+            .where("media_url", "=", payload.mediaUrl)
+            .limit(1)
+            .executeTakeFirst();
+          if (!referenced) {
+            const key = resolveMediaKeyForCompany(payload.mediaUrl, companyId);
+            await deleteMedia(key);
+          }
+        } catch (error) {
+          try {
+            await enqueueMediaCleanup(tenantDb, connectionId, payload.mediaUrl);
+          } catch (queueError) {
+            logger.warn(
+              { messageId: payload.messageId, err: formatError(queueError) },
+              "Failed to queue unreferenced media cleanup",
+            );
+          }
+          logger.warn(
+            { messageId: payload.messageId, err: formatError(error) },
+            "Failed to reclaim an unreferenced media download immediately",
+          );
+        }
         logger.info(
           { messageId: payload.messageId, connectionId },
-          "Ignoring media download response for an already-settled message",
+          "Ignored media response for an already-settled message",
         );
       }
 

@@ -130,7 +130,7 @@ outcomes — 062's participant index, 063's canonical names, and 064's claim
 index — so a workspace provisioned after this change never has the truncated
 names or the missing indexes in the first place. Nothing extra is required.
 
-## Residual risk: orphaned media objects
+## Duplicate media response cleanup
 
 Unrelated to the index work itself, but relevant to the same subsystem 064
 serves, and worth knowing before you rely on the sweep.
@@ -140,12 +140,12 @@ be re-claimed, producing a second download command for the same message. Both
 workers may complete and upload their own object to storage. The **database** is
 protected — the response handler is first-writer-wins, so the later response
 neither overwrites `media_url` nor emits a duplicate `media:downloaded` event —
-but the losing worker's uploaded object is left in the bucket with nothing
-referencing it.
+which means the losing worker's uploaded object would otherwise be left in the
+bucket with nothing referencing it.
 
-This is logged (`Ignoring media download response for an already-settled
-message`) so it is visible, but nothing reclaims the object. Closing it properly
-needs either a deterministic object key or a storage reconciliation pass;
-neither exists today. Expect a small, slow accumulation of unreferenced media
-objects proportional to how often workers die mid-download, and account for it
-in bucket lifecycle policy if that matters to you.
+The response handler now checks whether the uploaded reference won the database
+compare-and-set. A losing or post-purge upload is deleted immediately when
+unreferenced; transient object-storage failures are written to the durable purge
+cleanup queue and retried by the independent cleanup cycle. The database remains
+first-writer-wins, and the bucket no longer relies on a later full reconciliation
+pass for this race.

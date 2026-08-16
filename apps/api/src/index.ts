@@ -9,6 +9,10 @@ import {
   shutdownCommandOutbox,
 } from "./services/command-outbox.service.js";
 import {
+  initializeConnectionPurgeCleanup,
+  shutdownConnectionPurgeCleanup,
+} from "./services/connection-purge-cleanup.service.js";
+import {
   initializeMessageCleanup,
   shutdownMessageCleanup,
 } from "./services/message-cleanup.service.js";
@@ -64,6 +68,7 @@ if (!isTestEnvironment) {
 
   initializeCommandOutbox();
   initializeScheduledMessages();
+  initializeConnectionPurgeCleanup();
 
   logger.info(
     { port },
@@ -108,6 +113,7 @@ function shutdownSteps(): ShutdownStep[] {
     },
     { name: "message-handler", run: shutdownMessageHandler },
     { name: "message-cleanup", run: shutdownMessageCleanup },
+    { name: "connection-purge-cleanup", run: shutdownConnectionPurgeCleanup },
     { name: "command-outbox", run: shutdownCommandOutbox },
     { name: "scheduled-messages", run: shutdownScheduledMessages },
     // Consumers and dispatchers are stopped, so nothing will publish into a

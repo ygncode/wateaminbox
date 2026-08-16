@@ -24,10 +24,7 @@ import {
 } from "../../middleware/tenant.js";
 import { createAuditLog, getClientIp } from "../../services/audit.service.js";
 import { enqueueConnectionCommand } from "../../services/command-outbox.service.js";
-import {
-  deleteContacts,
-  deleteMessages,
-} from "../../services/meilisearch.service.js";
+import { processConnectionPurgeCleanup } from "../../services/connection-purge-cleanup.service.js";
 import { PERMISSIONS } from "../../services/permission.service.js";
 import { archiveConnectionWithUnlink } from "../../services/whatsapp/connection.js";
 import { updateSessionStatus } from "../../services/whatsapp/session.js";
@@ -342,28 +339,57 @@ connectionRoutes.post(
   requirePermission(PERMISSIONS.CAN_DELETE),
   zValidator("json", purgeConnectionSchema),
   async (c) => {
+    const companyId = c.get("companyId");
     const connectionId = c.req.param("connectionId")!;
     const tenantDb = c.get("tenantDb");
-    const deleted = await whatsappService.purgeArchivedConnection(
+    const purged = await whatsappService.purgeArchivedConnection(
       tenantDb,
       connectionId,
     );
-    await Promise.all([
-      deleteContacts(c.get("companyId"), deleted.contactIds),
-      deleteMessages(c.get("companyId"), deleted.messageIds),
-    ]);
-    await createAuditLog({
-      companyId: c.get("companyId"),
-      userId: c.get("user").id,
-      action: "connection.purged",
-      entityType: "whatsapp_connection",
-      entityId: connectionId,
-      details: {
-        deletedContacts: deleted.contactIds.length,
-        deletedMessages: deleted.messageIds.length,
-      },
-      ipAddress: getClientIp(c),
-    });
+    // External/post-commit work was persisted before its source disappeared.
+    // Settle search and bulk state now; potentially unbounded object deletion
+    // stays on the independent retry cycle so this request remains bounded.
+    try {
+      const cleanup = await processConnectionPurgeCleanup(tenantDb, companyId, {
+        connectionId,
+        kinds: ["bulk_job", "search_contact"],
+        limit: 500,
+      });
+      if (cleanup.failed > 0) {
+        logger.warn(
+          { connectionId, failed: cleanup.failed },
+          "Permanent-purge cleanup was queued for retry",
+        );
+      }
+    } catch (error) {
+      logger.warn(
+        { connectionId, err: formatError(error) },
+        "Permanent-purge cleanup pass failed and will be retried",
+      );
+    }
+    // The deletion already committed and cannot be undone or usefully retried,
+    // so a failure to record it must not be reported to the caller as a failed
+    // purge - that would invite a retry against a connection that no longer
+    // exists. A missing audit row is loud in the logs instead.
+    try {
+      await createAuditLog({
+        companyId,
+        userId: c.get("user").id,
+        action: "connection.purged",
+        entityType: "whatsapp_connection",
+        entityId: connectionId,
+        details: {
+          deletedContacts: purged.contactIds.length,
+          deletedMessages: purged.deletedMessageCount,
+        },
+        ipAddress: getClientIp(c),
+      });
+    } catch (error) {
+      logger.error(
+        { connectionId, err: formatError(error) },
+        "Permanent purge committed but its audit record could not be written",
+      );
+    }
     return c.json({
       success: true,
       message: "Connection and inbox data permanently deleted",

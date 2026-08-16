@@ -49,11 +49,59 @@ before writing inbox data.
   its empty provisional account to the historical stable account. The
   provisional account is removed, preventing duplicate conversations.
 - **Permanent deletion** is a separate permission-gated operation that only
-  accepts archived accounts and erases their retained inbox data.
+  accepts archived accounts and erases their retained inbox data. A
+  still-linked account is refused with 409, not deleted.
 
 Archive/unlink commits the account state, ended session, and idempotent unlink
 command together through the tenant outbox. The worker receives a dedicated
 unlink signal, logs out from WhatsApp, purges its credential store, and exits.
+
+Permanent deletion runs in one transaction ordered around the tenant schema's
+foreign keys - conversation cases before the messages they were opened by,
+messages before their contacts, the account row last. It erases the account's
+contacts, messages, reactions, cases, conversation states, groups, tag links,
+assignments, notes, contact notifications, undelivered schedules and bulk
+leaves, status updates, labels, catalogs, products, bulk pacing budget, and
+sessions. Search documents and private media objects are recorded as durable
+cleanup work in the same transaction. Search cleanup is attempted immediately;
+all unfinished work is retried by an independent maintenance cycle until
+settled. Workspace-level records shared with other
+connections (tags, bulk job parents, quick replies) and the audit trail are
+kept, as is any queued unlink command still waiting for the worker. Aggregate
+purged-recipient counters preserve retained bulk-job progress without retaining
+contact-linked leaves.
+
+### Stored-media ownership
+
+An object is deleted only when no row anywhere in the tenant still points at
+it - messages (attachment and sender avatar), contacts, status updates,
+undispatched schedules, live broadcasts, and the workspace logo, which shares
+the same `media/<companyId>/` key namespace. Object keys are per-upload unique
+and immutable, so a new upload can never collide with one being reclaimed, and
+every path that persists an existing key either copies it from a row the check
+already reads or re-validates it with a HeadObject that fails once the object
+is gone.
+
+The remaining interleaving - a request that validated its object before the
+check and commits its row after the delete - is closed by a shared ownership
+protocol. Both sides serialize on a transaction-scoped advisory lock derived
+from the canonical object key (never the reference spelling, since one object
+has several valid spellings), taken in sorted key order so overlapping sets
+cannot deadlock. No network call is made while a lock is held: writers validate
+their upload before opening the transaction, and cleanup commits a deletion
+intent (`purge_cleanup_items.media_key` plus a `deleting` marker) and releases
+the lock before calling object storage. A writer that finds an intent for its
+key refuses with 409 rather than persisting a row that points at an object
+about to vanish, and the intent survives a failed retry so the key stays closed
+until the deletion finishes. The participating writers are `messages/send`
+(send, forward, retry), `messages/scheduled`, `conversations/messages`,
+`bulk-jobs`, and `status`. An object still has to look unreferenced across two
+checks a settle window apart before the intent is taken.
+
+Reclaiming objects stranded by purges that ran *before* this queue existed is
+**not** automatic and is deliberately not part of startup or the cleanup cycle.
+It requires listing the tenant prefix, so it belongs in a separate, approved
+maintenance operation with a dry run.
 
 ## Main files
 

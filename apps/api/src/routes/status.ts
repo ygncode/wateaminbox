@@ -23,6 +23,7 @@ import { authMiddleware } from "../middleware/auth.js";
 import { getRouteContext } from "../middleware/context.js";
 import { tenantMiddleware } from "../middleware/tenant.js";
 import { enqueueConnectionCommand } from "../services/command-outbox.service.js";
+import { reserveMediaReferences } from "../services/media-reference-lock.js";
 import { getActiveWhatsAppConnection } from "../services/whatsapp-connection.service.js";
 
 export const statusRoutes = new Hono();
@@ -221,6 +222,7 @@ statusRoutes.post("/", zValidator("json", postStatusSchema), async (c) => {
   const expiresAt = currentTime.add(24, "hour");
 
   await tenantDb.transaction().execute(async (trx) => {
+    await reserveMediaReferences(trx, companyId, [storedMediaReference]);
     await trx
       .insertInto("status_updates")
       .values({

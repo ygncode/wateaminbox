@@ -177,6 +177,7 @@ bulkJobRoutes.post(
     let result: Awaited<ReturnType<typeof createBulkJob>>;
     try {
       result = await createBulkJob(tenantDb, {
+        companyId,
         name: body.name,
         audience: body.audience,
         content: body.content?.trim() || "",

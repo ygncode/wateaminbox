@@ -9,6 +9,7 @@ import { db, type WhatsAppConnectionStatus } from "@wateaminbox/database";
 import { toDbDate } from "@wateaminbox/shared";
 import { type Kysely, sql, type Transaction } from "kysely";
 import {
+  ConnectionNotArchivedError,
   ConnectionNotFoundError,
   MaxConnectionsExceededError,
 } from "../../lib/errors.js";
@@ -66,14 +67,63 @@ export async function archiveConnectionWithUnlink(
 /** @deprecated Use archiveConnectionWithUnlink. */
 export const deleteConnectionWithKill = archiveConnectionWithUnlink;
 
+export interface ArchivedConnectionPurge {
+  /**
+   * Every erased contact id. The Meilisearch contact documents are keyed by
+   * it, and the message documents are filterable by it.
+   */
+  contactIds: string[];
+  deletedMessageCount: number;
+  /**
+   * Bulk jobs that lost recipients to the purge. A job whose remaining leaves
+   * have all settled can no longer be finalized by the dispatcher (nothing is
+   * left to dispatch), so the caller has to settle it once, after commit.
+   */
+  affectedBulkJobIds: string[];
+}
+
 /**
  * Permanently delete a previously archived account and all inbox data owned by
  * it. This is deliberately separate from archive/unlink.
+ *
+ * Everything commits in one transaction, in an order that satisfies the tenant
+ * schema's foreign keys:
+ *
+ *   - `conversation_cases.opening_message_id` references `messages`, so cases
+ *     must go BEFORE the messages they were opened by. Deleting them also
+ *     clears `messages.case_id` and `conversation_states.active_case_id`
+ *     (both ON DELETE SET NULL) for rows this purge is about to delete anyway.
+ *   - `conversation_cases.contact_id` cascades from `contacts`, so contacts
+ *     must go AFTER their messages - otherwise the cascade would try to remove
+ *     a case still guarding an undeleted opening message.
+ *   - `whatsapp_labels`/`whatsapp_catalogs`/`catalog_products`/
+ *     `whatsapp_connection_sessions` cascade from `whatsapp_connections`, but
+ *     are deleted explicitly so the erased set is stated here rather than
+ *     inferred from schema history.
+ *
+ * Every statement is scoped to this connection or to contacts owned by it, so
+ * a sibling connection in the same workspace keeps all of its data.
+ *
+ * Deliberately NOT erased:
+ *   - `tags`, `quick_replies` and other workspace-level records: they are
+ *     shared with every other connection, so removing them would delete data
+ *     the operator did not ask to lose. Only this connection's `contact_tags`
+ *     links and its synced `whatsapp_labels` rows go.
+ *   - `bulk_jobs` parents: a broadcast's audience can span connections. Only
+ *     the leaves addressed to purged contacts are removed.
+ *   - `audit_logs`: the record of what happened to this workspace has to
+ *     outlive the data it describes (this purge writes one of its own).
+ *   - `nats_outbox`: an archived connection's last queued command is the
+ *     unlink itself. Dropping it undelivered would leave the phone still
+ *     linked to a device nobody can reach.
+ * Stored media objects and search documents are erased through durable cleanup
+ * items inserted by this same transaction. This keeps an unbounded object set
+ * out of API memory without losing retryability after the source rows vanish.
  */
 export async function purgeArchivedConnection(
   tenantDb: Kysely<TenantDatabase>,
   connectionId: string,
-): Promise<{ contactIds: string[]; messageIds: string[] }> {
+): Promise<ArchivedConnectionPurge> {
   return tenantDb.transaction().execute(async (trx) => {
     const connection = await trx
       .selectFrom("whatsapp_connections")
@@ -82,10 +132,11 @@ export async function purgeArchivedConnection(
       .forUpdate()
       .executeTakeFirst();
     if (!connection) throw new ConnectionNotFoundError(connectionId);
-    if (!connection.archived_at) {
-      throw new Error("Connection must be archived before permanent deletion");
-    }
+    if (!connection.archived_at) throw new ConnectionNotArchivedError();
 
+    // Subqueries, not materialized id lists: a busy account can hold millions
+    // of messages, and only the contact ids (bounded by the address book) are
+    // ever pulled into memory - the search index needs them after commit.
     const contactIds = trx
       .selectFrom("contacts")
       .select("id")
@@ -98,18 +149,179 @@ export async function purgeArchivedConnection(
       .selectFrom("groups")
       .select("id")
       .where("contact_id", "in", contactIds);
-    const contactRows = await contactIds.execute();
-    const messageRows = await messageIds.execute();
+    const contactRows = await trx
+      .selectFrom("contacts")
+      .select("id")
+      .where("whatsapp_connection_id", "=", connectionId)
+      .forUpdate()
+      .execute();
+    const bulkProgressRows = await trx
+      .selectFrom("scheduled_messages")
+      .select(["bulk_job_id", "status"])
+      .select((eb) => eb.fn.countAll().as("count"))
+      .where("contact_id", "in", contactIds)
+      .where("bulk_job_id", "is not", null)
+      .groupBy(["bulk_job_id", "status"])
+      .execute();
+    const affectedBulkJobIds = [
+      ...new Set(
+        bulkProgressRows
+          .map((row) => row.bulk_job_id)
+          .filter((id): id is string => id !== null),
+      ),
+    ];
+
+    // The source rows are about to disappear, so retain enough durable work to
+    // remove their external representations after commit. INSERT .. SELECT
+    // keeps even very large media histories inside PostgreSQL rather than
+    // materializing every URL in the API process.
+    await trx
+      .insertInto("purge_cleanup_items")
+      .columns(["connection_id", "kind", "reference"])
+      .expression((eb) =>
+        eb
+          .selectFrom("contacts")
+          .select([
+            eb.val(connectionId).as("connection_id"),
+            eb.val("search_contact" as const).as("kind"),
+            sql<string>`id::text`.as("reference"),
+          ])
+          .where("whatsapp_connection_id", "=", connectionId),
+      )
+      .onConflict((oc) =>
+        oc.columns(["connection_id", "kind", "reference"]).doNothing(),
+      )
+      .execute();
+    for (const source of [
+      { table: "messages" as const, column: "media_url" as const },
+      { table: "messages" as const, column: "sender_avatar_url" as const },
+      { table: "contacts" as const, column: "profile_picture_url" as const },
+      { table: "status_updates" as const, column: "media_url" as const },
+      {
+        table: "whatsapp_catalogs" as const,
+        column: "header_image_url" as const,
+      },
+      { table: "scheduled_messages" as const, column: "media_url" as const },
+    ]) {
+      // DISTINCT matters: an avatar or profile picture repeats on every row
+      // that carries it, so without it this inserts one candidate per message
+      // instead of one per object.
+      let mediaQuery = trx
+        .selectFrom(source.table)
+        .select([
+          sql<string>`${connectionId}::uuid`.as("connection_id"),
+          sql<"media">`'media'`.as("kind"),
+          sql<string>`${sql.ref(source.column)}`.as("reference"),
+        ])
+        .distinct()
+        .where(source.column, "is not", null);
+      // Schedules are reached through their contact; every other source is
+      // owned by the connection directly.
+      mediaQuery =
+        source.table === "scheduled_messages"
+          ? mediaQuery.where("contact_id", "in", contactIds)
+          : mediaQuery.where("whatsapp_connection_id", "=", connectionId);
+      await trx
+        .insertInto("purge_cleanup_items")
+        .columns(["connection_id", "kind", "reference"])
+        .expression(mediaQuery)
+        .onConflict((oc) =>
+          oc.columns(["connection_id", "kind", "reference"]).doNothing(),
+        )
+        .execute();
+    }
+    await trx
+      .insertInto("purge_cleanup_items")
+      .columns(["connection_id", "kind", "reference"])
+      .expression((eb) =>
+        eb
+          .selectFrom("catalog_products")
+          .select([
+            eb.val(connectionId).as("connection_id"),
+            eb.val("media" as const).as("kind"),
+            sql<string>`unnest(image_urls)`.as("reference"),
+          ])
+          .where("whatsapp_connection_id", "=", connectionId)
+          .where("image_urls", "is not", null),
+      )
+      .onConflict((oc) =>
+        oc.columns(["connection_id", "kind", "reference"]).doNothing(),
+      )
+      .execute();
+    if (affectedBulkJobIds.length > 0) {
+      await trx
+        .insertInto("purge_cleanup_items")
+        .values(
+          affectedBulkJobIds.map((bulkJobId) => ({
+            connection_id: connectionId,
+            kind: "bulk_job" as const,
+            reference: bulkJobId,
+          })),
+        )
+        .onConflict((oc) =>
+          oc.columns(["connection_id", "kind", "reference"]).doNothing(),
+        )
+        .execute();
+    }
+
+    // Keep aggregate outcomes honest after privacy deletion removes leaves.
+    for (const bulkJobId of affectedBulkJobIds) {
+      const counts = {
+        sent: 0,
+        failed: 0,
+        canceled: 0,
+        skipped: 0,
+      };
+      for (const row of bulkProgressRows) {
+        if (row.bulk_job_id !== bulkJobId) continue;
+        const count = Number(row.count);
+        if (row.status === "sent") counts.sent += count;
+        else if (row.status === "failed") counts.failed += count;
+        else if (row.status === "canceled") counts.canceled += count;
+        else counts.skipped += count;
+      }
+      await trx
+        .updateTable("bulk_jobs")
+        .set((eb) => ({
+          purged_sent: eb("purged_sent", "+", counts.sent),
+          purged_failed: eb("purged_failed", "+", counts.failed),
+          purged_canceled: eb("purged_canceled", "+", counts.canceled),
+          purged_skipped: eb("purged_skipped", "+", counts.skipped),
+          updated_at: toDbDate(),
+        }))
+        .where("id", "=", bulkJobId)
+        .execute();
+    }
 
     await trx
       .deleteFrom("message_reactions")
       .where("message_id", "in", messageIds)
       .execute();
     await trx
-      .deleteFrom("group_participants")
-      .where("group_id", "in", groupIds)
+      .deleteFrom("conversation_cases")
+      .where("contact_id", "in", contactIds)
       .execute();
-    await trx.deleteFrom("groups").where("id", "in", groupIds).execute();
+    // A case always opens on a message belonging to its own contact, so the
+    // delete above covers every case this connection's messages can be tied
+    // to. This releases any link that drifted outside that invariant instead
+    // of failing the purge on it - it clears a pointer to a message that is
+    // being erased regardless, and leaves the other connection's case intact.
+    await trx
+      .updateTable("conversation_cases")
+      .set({ opening_message_id: null })
+      .where("opening_message_id", "in", messageIds)
+      .execute();
+    await trx
+      .deleteFrom("conversation_states")
+      .where("contact_id", "in", contactIds)
+      .execute();
+    // Undelivered schedules and bulk leaves addressed to erased contacts can
+    // never dispatch; leaving them would surface "contact no longer exists"
+    // failures for a conversation the operator was told is gone.
+    await trx
+      .deleteFrom("scheduled_messages")
+      .where("contact_id", "in", contactIds)
+      .execute();
     await trx
       .deleteFrom("contact_tags")
       .where("contact_id", "in", contactIds)
@@ -126,12 +338,30 @@ export async function purgeArchivedConnection(
       .deleteFrom("contact_notes_shared")
       .where("contact_id", "in", contactIds)
       .execute();
+    // Notifications carry the contact id they deep-link into; keeping them
+    // would leave the inbox advertising conversations that no longer exist.
     await trx
-      .deleteFrom("conversation_states")
-      .where("contact_id", "in", contactIds)
+      .deleteFrom("notification_history")
+      .where(
+        sql<string>`metadata->>'contactId'`,
+        "in",
+        trx
+          .selectFrom("contacts")
+          .select(sql<string>`id::text`.as("id"))
+          .where("whatsapp_connection_id", "=", connectionId),
+      )
       .execute();
     await trx
+      .deleteFrom("group_participants")
+      .where("group_id", "in", groupIds)
+      .execute();
+    await trx.deleteFrom("groups").where("id", "in", groupIds).execute();
+    const deletedMessages = await trx
       .deleteFrom("messages")
+      .where("whatsapp_connection_id", "=", connectionId)
+      .executeTakeFirst();
+    await trx
+      .deleteFrom("contacts")
       .where("whatsapp_connection_id", "=", connectionId)
       .execute();
     await trx
@@ -139,7 +369,19 @@ export async function purgeArchivedConnection(
       .where("whatsapp_connection_id", "=", connectionId)
       .execute();
     await trx
-      .deleteFrom("contacts")
+      .deleteFrom("catalog_products")
+      .where("whatsapp_connection_id", "=", connectionId)
+      .execute();
+    await trx
+      .deleteFrom("whatsapp_catalogs")
+      .where("whatsapp_connection_id", "=", connectionId)
+      .execute();
+    await trx
+      .deleteFrom("whatsapp_labels")
+      .where("whatsapp_connection_id", "=", connectionId)
+      .execute();
+    await trx
+      .deleteFrom("bulk_connection_budgets")
       .where("whatsapp_connection_id", "=", connectionId)
       .execute();
     await trx
@@ -152,7 +394,8 @@ export async function purgeArchivedConnection(
       .execute();
     return {
       contactIds: contactRows.map((row) => row.id),
-      messageIds: messageRows.map((row) => row.id),
+      deletedMessageCount: Number(deletedMessages?.numDeletedRows ?? 0n),
+      affectedBulkJobIds,
     };
   });
 }

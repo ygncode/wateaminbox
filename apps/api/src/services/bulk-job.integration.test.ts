@@ -15,8 +15,8 @@ import {
   createBulkJob,
   finalizeBulkJobIfComplete,
   getBulkJobProgress,
-  resolveBulkAudience,
   rescheduleBulkJob,
+  resolveBulkAudience,
 } from "./bulk-job.service.js";
 import { assignContactToUser } from "./contact.service.js";
 import { openOrReopenCaseForInboundMessage } from "./conversation-case.service.js";
@@ -146,6 +146,7 @@ async function seedTag(
 
 async function createDueJob(
   tenantDb: Kysely<TenantDatabase>,
+  companyId: string,
   audience: { tagIds: string[]; contactIds: string[]; connectionId?: string },
   overrides: Partial<{
     content: string;
@@ -159,6 +160,7 @@ async function createDueJob(
 ) {
   const resolved = await resolveBulkAudience(tenantDb, audience);
   return createBulkJob(tenantDb, {
+    companyId,
     name: overrides.name ?? "Test broadcast",
     audience,
     content: overrides.content ?? "Hello {{name}}",
@@ -217,6 +219,7 @@ describe("bulk job integration", () => {
 
         const { job, created } = await createDueJob(
           tenantDb,
+          companyId,
           { tagIds: [tagId], contactIds: [named] },
           { content: "Hi {{firstName}}!" },
         );
@@ -267,6 +270,7 @@ describe("bulk job integration", () => {
 
         await expect(
           createBulkJob(tenantDb, {
+            companyId,
             name: "Drifted",
             audience: { tagIds: [], contactIds: [contactId] },
             content: "hello",
@@ -308,6 +312,7 @@ describe("bulk job integration", () => {
         });
         const idempotencyKey = crypto.randomUUID();
         const params = {
+          companyId,
           name: "Retry me",
           audience: { tagIds: [], contactIds: [contactId] },
           content: "hello",
@@ -346,7 +351,10 @@ describe("bulk job integration", () => {
         // The same key with a materially different body must never replay an
         // unrelated job; it is a client bug and conflicts.
         await expect(
-          createBulkJob(tenantDb, { ...params, content: "different body" }),
+          createBulkJob(tenantDb, {
+            ...params,
+            content: "different body",
+          }),
         ).rejects.toThrow(/idempotency key/);
         await expect(
           createBulkJob(tenantDb, {
@@ -382,11 +390,14 @@ describe("bulk job integration", () => {
         const contactC = await seedContact(tenantDb, line.connectionId);
 
         // Two overlapping jobs on the same connection.
-        await createDueJob(tenantDb, {
+        await createDueJob(tenantDb, companyId, {
           tagIds: [],
           contactIds: [contactA, contactB],
         });
-        await createDueJob(tenantDb, { tagIds: [], contactIds: [contactC] });
+        await createDueJob(tenantDb, companyId, {
+          tagIds: [],
+          contactIds: [contactC],
+        });
 
         // Concurrent replicas: the budget row lock admits exactly one send.
         const results = await Promise.all([
@@ -497,7 +508,10 @@ describe("bulk job integration", () => {
           );
         });
 
-        await createDueJob(tenantDb, { tagIds: [], contactIds: [bulkContact] });
+        await createDueJob(tenantDb, companyId, {
+          tagIds: [],
+          contactIds: [bulkContact],
+        });
         const normalId = crypto.randomUUID();
         await tenantDb
           .insertInto("scheduled_messages")
@@ -557,7 +571,10 @@ describe("bulk job integration", () => {
         const tenantDb = getTenantConnection(companyId);
         const line = await seedConnection(tenantDb);
         const contactId = await seedContact(tenantDb, line.connectionId);
-        await createDueJob(tenantDb, { tagIds: [], contactIds: [contactId] });
+        await createDueJob(tenantDb, companyId, {
+          tagIds: [],
+          contactIds: [contactId],
+        });
 
         // Exhausted daily quota: nothing is admitted.
         await tenantDb
@@ -632,6 +649,7 @@ describe("bulk job integration", () => {
         });
         const { job } = await createDueJob(
           tenantDb,
+          companyId,
           { tagIds: [], contactIds: [eligible, skipped] },
           {
             content: "Hello {{name}}",
@@ -701,7 +719,7 @@ describe("bulk job integration", () => {
         const line = await seedConnection(tenantDb);
         const contactA = await seedContact(tenantDb, line.connectionId);
         const contactB = await seedContact(tenantDb, line.connectionId);
-        const { job } = await createDueJob(tenantDb, {
+        const { job } = await createDueJob(tenantDb, companyId, {
           tagIds: [],
           contactIds: [contactA, contactB],
         });
@@ -756,7 +774,7 @@ describe("bulk job integration", () => {
         const tenantDb = getTenantConnection(companyId);
         const line = await seedConnection(tenantDb);
         const contactId = await seedContact(tenantDb, line.connectionId);
-        const { job } = await createDueJob(tenantDb, {
+        const { job } = await createDueJob(tenantDb, companyId, {
           tagIds: [],
           contactIds: [contactId],
         });
@@ -803,7 +821,7 @@ describe("bulk job integration", () => {
         const line = await seedConnection(tenantDb);
         const contactA = await seedContact(tenantDb, line.connectionId);
         const contactB = await seedContact(tenantDb, line.connectionId);
-        const { job } = await createDueJob(tenantDb, {
+        const { job } = await createDueJob(tenantDb, companyId, {
           tagIds: [],
           contactIds: [contactA, contactB],
         });
@@ -895,7 +913,7 @@ describe("bulk job integration", () => {
         const line = await seedConnection(tenantDb);
         const contactA = await seedContact(tenantDb, line.connectionId);
         const contactB = await seedContact(tenantDb, line.connectionId);
-        const { job } = await createDueJob(tenantDb, {
+        const { job } = await createDueJob(tenantDb, companyId, {
           tagIds: [],
           contactIds: [contactA, contactB],
         });
@@ -970,7 +988,7 @@ describe("bulk job integration", () => {
         const tenantDb = getTenantConnection(companyId);
         const line = await seedConnection(tenantDb);
         const contactId = await seedContact(tenantDb, line.connectionId);
-        const { job } = await createDueJob(tenantDb, {
+        const { job } = await createDueJob(tenantDb, companyId, {
           tagIds: [],
           contactIds: [contactId],
         });
@@ -1009,7 +1027,7 @@ describe("bulk job integration", () => {
         const tenantDb = getTenantConnection(companyId);
         const line = await seedConnection(tenantDb);
         const contactId = await seedContact(tenantDb, line.connectionId);
-        const { job } = await createDueJob(tenantDb, {
+        const { job } = await createDueJob(tenantDb, companyId, {
           tagIds: [],
           contactIds: [contactId],
         });
@@ -1053,7 +1071,7 @@ describe("bulk job integration", () => {
         const line = await seedConnection(tenantDb);
         const okContact = await seedContact(tenantDb, line.connectionId);
         const doomedContact = await seedContact(tenantDb, line.connectionId);
-        const { job } = await createDueJob(tenantDb, {
+        const { job } = await createDueJob(tenantDb, companyId, {
           tagIds: [],
           contactIds: [okContact, doomedContact],
         });
@@ -1117,6 +1135,7 @@ describe("bulk job integration", () => {
         );
         const { job } = await createDueJob(
           tenantDb,
+          companyId,
           { tagIds: [], contactIds: [contactA, contactB] },
           {
             messageType: "image",
@@ -1173,7 +1192,7 @@ describe("bulk job integration", () => {
           lines.push(line);
           contactIds.push(await seedContact(tenantDb, line.connectionId));
         }
-        await createDueJob(tenantDb, { tagIds: [], contactIds });
+        await createDueJob(tenantDb, companyId, { tagIds: [], contactIds });
 
         const eligible = lines[lines.length - 1];
         await tenantDb
@@ -1235,6 +1254,7 @@ describe("bulk job integration", () => {
         );
         const { job } = await createDueJob(
           tenantDb,
+          companyId,
           { tagIds: [], contactIds: [contactA] },
           {
             messageType: "image",

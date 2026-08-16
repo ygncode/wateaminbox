@@ -5,6 +5,7 @@ import {
   legacyIdentifier,
   preflightTenantIndexNames,
   reconcileTenantIndexNames,
+  reconcileTenantSchema,
   renameTenantRelation,
   TENANT_INDEX_TARGETS,
   targetIdentifier,
@@ -285,6 +286,14 @@ describe("tenant index name normalization", () => {
         const connectionId = crypto.randomUUID();
         const table = sql.raw(`"${schemaName}"."messages"`);
 
+        // `messages_connection_fk` (066) means a message can only exist behind
+        // a real connection row - otherwise the duplicate below would be
+        // rejected for the wrong reason and prove nothing about the UNIQUE
+        // constraint this test is about.
+        await sql`
+          INSERT INTO ${sql.raw(`"${schemaName}"."whatsapp_connections"`)} (id)
+          VALUES (${connectionId})
+        `.execute(db);
         await sql`
           INSERT INTO ${table} (whatsapp_connection_id, message_id, from_me, message_type, timestamp)
           VALUES (${connectionId}, 'WA-DUP-1', false, 'text', now())
@@ -361,6 +370,12 @@ describe("adopting a bare index for a constraint target", () => {
         expect(present.has(`${schemaName}_handbuilt_wa_uidx`)).toBe(false);
 
         const connectionId = crypto.randomUUID();
+        // The adopted index is what must reject the duplicate below, so the
+        // owning connection has to exist for `messages_connection_fk` (066).
+        await sql`
+          INSERT INTO ${sql.raw(`"${schemaName}"."whatsapp_connections"`)} (id)
+          VALUES (${connectionId})
+        `.execute(db);
         await sql`
           INSERT INTO ${messages} (whatsapp_connection_id, message_id, from_me, message_type, timestamp)
           VALUES (${connectionId}, 'WA-ADOPT-1', false, 'text', now())
@@ -1044,5 +1059,115 @@ describe("preflight reports every tenant independently", () => {
       expect(row.willRename).toEqual([]);
       expect(row.blocked).toEqual([]);
     },
+  );
+});
+
+/**
+ * Reconciliation has to converge.
+ *
+ * Several index names in `reconcileTenantSchema` are the historical
+ * over-length ones, which PostgreSQL truncates to 63 bytes on creation.
+ * Migration 063 then renames the truncated relation to a budgeted canonical
+ * name - after which the over-length request matches nothing, a duplicate gets
+ * built under the truncated legacy name, and the renamer drops it again. That
+ * loop rebuilt and dropped the phone-uniqueness index on `whatsapp_connections`
+ * on EVERY reconcile: an ACCESS EXCLUSIVE lock on the table every worker event
+ * pins FOR KEY SHARE, and a window with no uniqueness enforcement at all.
+ */
+describe("repeated reconciliation is a no-op", () => {
+  integrationTest(
+    "keeps canonical index names and never rebuilds them",
+    async () => {
+      const companyId = crypto.randomUUID();
+      const schemaName = getSchemaName(companyId);
+      try {
+        await createTenantSchema(companyId);
+
+        const identity = async () => {
+          const rows = await sql<{ name: string; oid: number }>`
+            SELECT i.relname AS name, i.oid::int AS oid
+            FROM pg_index ix
+            JOIN pg_class i ON i.oid = ix.indexrelid
+            JOIN pg_class t ON t.oid = ix.indrelid
+            JOIN pg_namespace n ON n.oid = t.relnamespace
+            WHERE n.nspname = ${schemaName}
+              AND t.relname = 'whatsapp_connections'
+            ORDER BY i.relname
+          `.execute(db);
+          return rows.rows;
+        };
+
+        const initial = await identity();
+        const phoneTarget = TENANT_INDEX_TARGETS.find(
+          (target) => target.table === "whatsapp_connections" && target.unique,
+        );
+        if (!phoneTarget) throw new Error("expected a phone uniqueness target");
+        const canonical = targetIdentifier(schemaName, phoneTarget);
+
+        // Created under the budgeted name, not the truncated historical one.
+        expect(initial.map((row) => row.name)).toContain(canonical);
+        expect(initial.map((row) => row.name)).not.toContain(
+          legacyIdentifier(schemaName, phoneTarget),
+        );
+
+        await reconcileTenantSchema(db, schemaName);
+        await reconcileTenantSchema(db, schemaName);
+
+        // Same names AND same relation OIDs: renamed in place at worst, never
+        // dropped and rebuilt, so uniqueness is enforced without interruption.
+        expect(await identity()).toEqual(initial);
+      } finally {
+        await dropTenantSchema(companyId);
+      }
+    },
+  );
+
+  integrationTest(
+    "does not block a worker-style write holding the connection row",
+    async () => {
+      const companyId = crypto.randomUUID();
+      const schemaName = getSchemaName(companyId);
+      try {
+        await createTenantSchema(companyId);
+        const connectionId = crypto.randomUUID();
+        await sql`
+          INSERT INTO ${sql.raw(`"${schemaName}"."whatsapp_connections"`)} (id, status)
+          VALUES (${connectionId}, 'connected')
+        `.execute(db);
+
+        let release!: () => void;
+        const released = new Promise<void>((resolve) => {
+          release = resolve;
+        });
+        // Exactly what a worker event does: pin the parent FOR KEY SHARE, then
+        // write the child row, inside one open transaction.
+        const eventInFlight = db.transaction().execute(async (trx) => {
+          await sql`
+            SELECT id FROM ${sql.raw(`"${schemaName}"."whatsapp_connections"`)}
+            WHERE id = ${connectionId} FOR KEY SHARE
+          `.execute(trx);
+          await sql`
+            INSERT INTO ${sql.raw(`"${schemaName}"."messages"`)}
+              (whatsapp_connection_id, message_id, from_me, message_type, timestamp)
+            VALUES (${connectionId}, 'WA-LOCK-1', false, 'text', now())
+          `.execute(trx);
+          await released;
+        });
+        await new Promise((resolve) => setTimeout(resolve, 250));
+
+        const startedAt = Date.now();
+        await reconcileTenantSchema(db, schemaName);
+        const elapsed = Date.now() - startedAt;
+
+        release();
+        await eventInFlight;
+
+        // Unguarded this waits out the 5s DDL lock_timeout, or deadlocks.
+        expect(elapsed).toBeLessThan(4_000);
+      } finally {
+        await dropTenantSchema(companyId);
+      }
+    },
+    60_000,
   );
 });

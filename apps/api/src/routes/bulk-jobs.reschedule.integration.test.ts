@@ -112,6 +112,7 @@ describe("PATCH /api/bulk-jobs/:id/schedule", () => {
         const resolved = await resolveBulkAudience(tenantDb, audience);
         const originalTime = new Date(Date.now() + 3_600_000);
         const { job } = await createBulkJob(tenantDb, {
+          companyId,
           name: "Route reschedule",
           audience,
           content: "Hello",

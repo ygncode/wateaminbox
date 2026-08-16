@@ -189,6 +189,7 @@ export interface TenantDatabase {
   scheduled_messages: ScheduledMessagesTable;
   bulk_jobs: BulkJobsTable;
   bulk_connection_budgets: BulkConnectionBudgetsTable;
+  purge_cleanup_items: PurgeCleanupItemsTable;
 }
 
 export interface WhatsAppConnectionsTable {
@@ -593,6 +594,10 @@ export interface BulkJobsTable {
   scheduled_at: Date;
   total_recipients: Generated<number>;
   skipped_recipients: Generated<number>;
+  purged_sent: Generated<number>;
+  purged_failed: Generated<number>;
+  purged_canceled: Generated<number>;
+  purged_skipped: Generated<number>;
   idempotency_key: string | null;
   created_by: string;
   canceled_by: string | null;
@@ -612,6 +617,23 @@ export interface BulkConnectionBudgetsTable {
   next_eligible_at: Generated<Date>;
   quota_date: Generated<Date>;
   sent_today: Generated<number>;
+  updated_at: Generated<Date>;
+}
+
+export type PurgeCleanupKind = "search_contact" | "media" | "bulk_job";
+
+/** Durable post-commit work created by an irreversible connection purge. */
+export interface PurgeCleanupItemsTable {
+  id: Generated<string>;
+  connection_id: string;
+  kind: PurgeCleanupKind;
+  reference: string;
+  /** Canonical object key, set once a media item is committed for deletion. */
+  media_key: string | null;
+  attempts: Generated<number>;
+  next_attempt_at: Generated<Date>;
+  last_error: string | null;
+  created_at: Generated<Date>;
   updated_at: Generated<Date>;
 }
 
