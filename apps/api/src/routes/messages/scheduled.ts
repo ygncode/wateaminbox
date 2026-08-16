@@ -11,7 +11,6 @@ import { Hono } from "hono";
 import { badRequest, notFound } from "../../lib/errors.js";
 import { createLogger, formatError } from "../../lib/logger.js";
 import { rateLimitConfig, rateLimitStore } from "../../lib/rate-limit-store.js";
-import { broadcastToContactViewers } from "../../services/message-broadcast.service.js";
 import {
   listScheduledMessagesQuerySchema,
   SCHEDULE_MAX_HORIZON_MS,
@@ -29,6 +28,8 @@ import { createConditionalRateLimiter } from "../../middleware/rate-limit.js";
 import { hasContactVisibility } from "../../middleware/resource-visibility.js";
 import { broadcastAutoAssignment } from "../../services/assignment-broadcast.service.js";
 import { finalizeBulkJobIfComplete } from "../../services/bulk-job.service.js";
+import { reserveMediaReferences } from "../../services/media-reference-lock.js";
+import { broadcastToContactViewers } from "../../services/message-broadcast.service.js";
 import {
   cleanupScheduledMediaObject,
   formatScheduledMessage,
@@ -161,6 +162,7 @@ scheduledRoutes.post(
     const now = toDbDate();
     let autoAssigned = false;
     const row = await tenantDb.transaction().execute(async (trx) => {
+      await reserveMediaReferences(trx, companyId, [storedMediaReference]);
       const access = await requireSendAccess(trx, body.contactId, user.id);
       autoAssigned = access.autoAssigned;
       return trx

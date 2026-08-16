@@ -16,9 +16,10 @@ import type {
   TypingEvent,
 } from "../../lib/nats/index.js";
 import { shouldPublishEphemeralSignal } from "../ephemeral-signal-throttle.js";
-import { syncGroupSnapshot } from "../group-sync.service.js";
+import { syncGroupSnapshotWithin } from "../group-sync.service.js";
 import { broadcastToContactViewersByJid } from "../message-broadcast.service.js";
 import { getTenantConnection } from "../tenant.service.js";
+import { lockActiveConnectionForEvent } from "./connection-event-guard.js";
 import { handlerLogger as logger } from "./types.js";
 
 function isRedactedContactLabel(value: string | undefined): boolean {
@@ -63,14 +64,14 @@ export async function handleContactEvent(event: ContactEvent): Promise<void> {
     }
     const connection = await tenantDb
       .selectFrom("whatsapp_connections")
-      .select(["id"])
+      .select(["id", "archived_at"])
       .where("id", "=", connectionId)
       .executeTakeFirst();
 
-    if (!connection) {
+    if (!connection || connection.archived_at) {
       logger.error(
         { companyId, connectionId },
-        "Quarantining contact for unknown connection",
+        "Quarantining contact for inactive connection",
       );
       return;
     }
@@ -80,117 +81,138 @@ export async function handleContactEvent(event: ContactEvent): Promise<void> {
 
     const syncedName = getSyncedContactName(payload);
 
-    // Check if contact already exists for this WhatsApp connection.
-    const existingContact = await tenantDb
-      .selectFrom("contacts")
-      .select(["id", "push_name"])
-      .where("jid", "=", contactJid)
-      .where("whatsapp_connection_id", "=", connection.id)
-      .executeTakeFirst();
+    const { contactChanged } = await tenantDb
+      .transaction()
+      .execute(async (trx) => {
+        if (!(await lockActiveConnectionForEvent(trx, connection.id))) {
+          return { contactChanged: false };
+        }
 
-    let contactChanged = false;
-    let contactId = existingContact?.id ?? null;
-    if (existingContact) {
-      const shouldClearRedactedName =
-        !syncedName &&
-        isRedactedContactLabel(existingContact.push_name ?? undefined) &&
-        [payload.name, payload.displayName].some(
-          (value) => value !== undefined,
-        );
+        // Check if contact already exists for this WhatsApp connection.
+        const existingContact = await trx
+          .selectFrom("contacts")
+          .select(["id", "push_name"])
+          .where("jid", "=", contactJid)
+          .where("whatsapp_connection_id", "=", connection.id)
+          .executeTakeFirst();
 
-      await tenantDb
-        .updateTable("contacts")
-        .set({
-          ...(syncedName ? { push_name: syncedName } : {}),
-          ...(shouldClearRedactedName ? { push_name: null } : {}),
-          ...(payload.isGroup !== undefined
-            ? { is_group: payload.isGroup }
-            : {}),
-          ...(payload.profilePictureUrl !== undefined
-            ? { profile_picture_url: payload.profilePictureUrl || null }
-            : {}),
-          updated_at: toDbDate(),
-        })
-        .where("id", "=", existingContact.id)
-        .execute();
+        let contactChanged = false;
+        let contactId = existingContact?.id ?? null;
+        if (existingContact) {
+          const shouldClearRedactedName =
+            !syncedName &&
+            isRedactedContactLabel(existingContact.push_name ?? undefined) &&
+            [payload.name, payload.displayName].some(
+              (value) => value !== undefined,
+            );
 
-      contactChanged = true;
-      logger.debug({ jid: contactJid, companyId }, "Updated contact");
-    } else if (!payload.nameOnly) {
-      // Name-only events may include the entire address book. Do not create an
-      // inbox conversation until WhatsApp supplies conversation history.
-      contactId = crypto.randomUUID();
-      const phoneNumber = extractPhoneFromJid(contactJid);
-      await tenantDb
-        .insertInto("contacts")
-        .values({
-          id: contactId,
-          whatsapp_connection_id: connection.id,
-          jid: contactJid,
-          phone_number: phoneNumber,
-          push_name: syncedName,
-          is_group: payload.isGroup ?? false,
-          profile_picture_url: payload.profilePictureUrl || null,
-          created_at: toDbDate(),
-          updated_at: toDbDate(),
-        })
-        .execute();
+          await trx
+            .updateTable("contacts")
+            .set({
+              ...(syncedName ? { push_name: syncedName } : {}),
+              ...(shouldClearRedactedName ? { push_name: null } : {}),
+              ...(payload.isGroup !== undefined
+                ? { is_group: payload.isGroup }
+                : {}),
+              ...(payload.profilePictureUrl !== undefined
+                ? { profile_picture_url: payload.profilePictureUrl || null }
+                : {}),
+              updated_at: toDbDate(),
+            })
+            .where("id", "=", existingContact.id)
+            .execute();
 
-      contactChanged = true;
-      logger.debug({ jid: contactJid, companyId }, "Created contact");
-    }
+          contactChanged = true;
+          logger.debug({ jid: contactJid, companyId }, "Updated contact");
+        } else if (!payload.nameOnly) {
+          // Name-only events may include the entire address book. Do not create an
+          // inbox conversation until WhatsApp supplies conversation history.
+          contactId = crypto.randomUUID();
+          const phoneNumber = extractPhoneFromJid(contactJid);
+          await trx
+            .insertInto("contacts")
+            .values({
+              id: contactId,
+              whatsapp_connection_id: connection.id,
+              jid: contactJid,
+              phone_number: phoneNumber,
+              push_name: syncedName,
+              is_group: payload.isGroup ?? false,
+              profile_picture_url: payload.profilePictureUrl || null,
+              created_at: toDbDate(),
+              updated_at: toDbDate(),
+            })
+            .execute();
 
-    // A full conversation event carries WhatsApp's unread snapshot. Persist it
-    // in the same table used by both sidebar views instead of deriving unread
-    // badges from the number of historical incoming messages.
-    //
-    // Imported history must never open a case or affect either SLA: a
-    // newly-created projection row is explicitly seeded `resolved`/case-free
-    // (overriding the table's `open` default), and an existing row's
-    // status/active_case_id is left untouched on conflict - only the unread
-    // snapshot is refreshed, so this can never resurrect or clobber a live
-    // case that already opened from a real inbound message.
-    if (contactId && !payload.nameOnly && payload.unreadCount !== undefined) {
-      await tenantDb
-        .insertInto("conversation_states")
-        .values({
-          contact_id: contactId,
-          unread_count: Math.max(0, payload.unreadCount),
-          status: "resolved",
-          updated_at: toDbDate(),
-        })
-        .onConflict((oc) =>
-          oc.column("contact_id").doUpdateSet({
-            unread_count: Math.max(0, payload.unreadCount ?? 0),
-            updated_at: toDbDate(),
-          }),
-        )
-        .execute();
-    }
+          contactChanged = true;
+          logger.debug({ jid: contactJid, companyId }, "Created contact");
+        }
 
-    // History sync also carries the group title and current participant list.
-    // Keep the legacy contacts.push_name copy for chat compatibility, while
-    // filling the dedicated group tables used by the Groups tab and details.
-    // The group tables have exactly one writer so that no code path can record
-    // a group state WhatsApp has not confirmed - see group-sync.service.ts.
-    if (
-      contactId &&
-      contactJid &&
-      !payload.nameOnly &&
-      payload.isGroup === true
-    ) {
-      await syncGroupSnapshot(companyId, connection.id, {
-        jid: contactJid,
-        ...(syncedName ? { name: syncedName } : {}),
-        ...(payload.description !== undefined
-          ? { description: payload.description }
-          : {}),
-        ...(payload.participants ? { participants: payload.participants } : {}),
-        ...(payload.participantCount !== undefined
-          ? { participantCount: payload.participantCount }
-          : {}),
+        // A full conversation event carries WhatsApp's unread snapshot. Persist it
+        // in the same table used by both sidebar views instead of deriving unread
+        // badges from the number of historical incoming messages.
+        //
+        // Imported history must never open a case or affect either SLA: a
+        // newly-created projection row is explicitly seeded `resolved`/case-free
+        // (overriding the table's `open` default), and an existing row's
+        // status/active_case_id is left untouched on conflict - only the unread
+        // snapshot is refreshed, so this can never resurrect or clobber a live
+        // case that already opened from a real inbound message.
+        if (
+          contactId &&
+          !payload.nameOnly &&
+          payload.unreadCount !== undefined
+        ) {
+          await trx
+            .insertInto("conversation_states")
+            .values({
+              contact_id: contactId,
+              unread_count: Math.max(0, payload.unreadCount),
+              status: "resolved",
+              updated_at: toDbDate(),
+            })
+            .onConflict((oc) =>
+              oc.column("contact_id").doUpdateSet({
+                unread_count: Math.max(0, payload.unreadCount ?? 0),
+                updated_at: toDbDate(),
+              }),
+            )
+            .execute();
+        }
+
+        // History sync also carries the group title and current participant list.
+        // Keep the legacy contacts.push_name copy for chat compatibility, while
+        // filling the dedicated group tables used by the Groups tab and details.
+        //
+        // Delegated rather than written here: the group tables have exactly one
+        // writer, so no code path can record a group state WhatsApp has not
+        // confirmed (see group-sync.service.ts). It runs on THIS transaction so
+        // it stays inside the connection fence taken above - a second
+        // transaction could commit group rows for a connection that is being
+        // purged, and would not see the contact row this one has yet to commit.
+        if (
+          contactId &&
+          contactJid &&
+          !payload.nameOnly &&
+          payload.isGroup === true
+        ) {
+          await syncGroupSnapshotWithin(trx, companyId, connection.id, {
+            jid: contactJid,
+            ...(syncedName ? { name: syncedName } : {}),
+            ...(payload.description !== undefined
+              ? { description: payload.description }
+              : {}),
+            ...(payload.participants
+              ? { participants: payload.participants }
+              : {}),
+            ...(payload.participantCount !== undefined
+              ? { participantCount: payload.participantCount }
+              : {}),
+          });
+        }
+
+        return { contactChanged };
       });
-    }
 
     if (
       contactChanged &&
@@ -244,24 +266,30 @@ export async function handleProfilePictureEvent(
     // Update contact profile picture
     const profilePictureUrl = payload.remove ? null : payload.profilePictureUrl;
 
-    const result = await tenantDb
-      .updateTable("contacts")
-      .set({
-        profile_picture_url: profilePictureUrl,
-        updated_at: toDbDate(),
-      })
-      .where("jid", "=", contactJid)
-      .where("whatsapp_connection_id", "=", connectionId)
-      .executeTakeFirst();
+    const updated = await tenantDb.transaction().execute(async (trx) => {
+      if (!(await lockActiveConnectionForEvent(trx, connectionId))) return null;
+      const result = await trx
+        .updateTable("contacts")
+        .set({
+          profile_picture_url: profilePictureUrl,
+          updated_at: toDbDate(),
+        })
+        .where("jid", "=", contactJid)
+        .where("whatsapp_connection_id", "=", connectionId)
+        .executeTakeFirst();
 
-    // Group participants may not have a standalone contact conversation. Cache
-    // their avatar directly on existing messages so the chat can still render it.
-    const messageResult = await tenantDb
-      .updateTable("messages")
-      .set({ sender_avatar_url: profilePictureUrl })
-      .where("sender_jid", "=", contactJid)
-      .where("whatsapp_connection_id", "=", connectionId)
-      .executeTakeFirst();
+      // Group participants may not have a standalone contact conversation. Cache
+      // their avatar directly on existing messages so the chat can still render it.
+      const messageResult = await trx
+        .updateTable("messages")
+        .set({ sender_avatar_url: profilePictureUrl })
+        .where("sender_jid", "=", contactJid)
+        .where("whatsapp_connection_id", "=", connectionId)
+        .executeTakeFirst();
+      return { result, messageResult };
+    });
+    if (!updated) return;
+    const { result, messageResult } = updated;
 
     if (result.numUpdatedRows > 0 || messageResult.numUpdatedRows > 0) {
       logger.debug(

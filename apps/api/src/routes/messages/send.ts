@@ -29,6 +29,7 @@ import { requireMessageVisibility } from "../../middleware/resource-visibility.j
 import { broadcastAutoAssignment } from "../../services/assignment-broadcast.service.js";
 import { toAuthUserResponse } from "../../services/auth.service.js";
 import { enqueueCommand } from "../../services/command-outbox.service.js";
+import { reserveMediaReferences } from "../../services/media-reference-lock.js";
 import { broadcastNewMessageToViewers } from "../../services/message-broadcast.service.js";
 import { requireSendAccess } from "../../services/send-access.service.js";
 import { getActiveSessionId } from "../../services/whatsapp/session.js";
@@ -135,6 +136,7 @@ sendRoutes.post(
       : null;
     let autoAssigned = false;
     await tenantDb.transaction().execute(async (trx) => {
+      await reserveMediaReferences(trx, companyId, [storedMediaReference]);
       const result = await requireSendAccess(trx, body.contactId, user.id);
       autoAssigned = result.autoAssigned;
       await trx
@@ -283,6 +285,8 @@ sendRoutes.post(
 
     let autoAssigned = false;
     await tenantDb.transaction().execute(async (trx) => {
+      // The forwarded copy reuses the source message's object.
+      await reserveMediaReferences(trx, companyId, [originalMessage.media_url]);
       const result = await requireSendAccess(
         trx,
         body.targetContactId,
@@ -428,6 +432,8 @@ sendRoutes.post(
 
     let autoAssigned = false;
     await tenantDb.transaction().execute(async (trx) => {
+      // The retry copy reuses the failed message's object.
+      await reserveMediaReferences(trx, companyId, [originalMessage.media_url]);
       const result = await requireSendAccess(trx, contact.id, user.id);
       autoAssigned = result.autoAssigned;
       await trx

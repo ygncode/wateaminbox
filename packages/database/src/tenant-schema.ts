@@ -4,7 +4,10 @@ import type { TenantDatabase } from "./client";
 import {
   dropLegacyLabelUniqueIndex,
   formatDuplicateBlockers,
+  legacyIdentifier,
   reconcileTenantIndexNames,
+  TENANT_INDEX_TARGETS,
+  targetIdentifier,
 } from "./tenant-index-names.js";
 
 /**
@@ -371,6 +374,10 @@ export const TENANT_SCHEMA_CONTRACT = {
     "scheduled_at",
     "total_recipients",
     "skipped_recipients",
+    "purged_sent",
+    "purged_failed",
+    "purged_canceled",
+    "purged_skipped",
     "idempotency_key",
     "created_by",
     "canceled_by",
@@ -384,6 +391,18 @@ export const TENANT_SCHEMA_CONTRACT = {
     "next_eligible_at",
     "quota_date",
     "sent_today",
+    "updated_at",
+  ],
+  purge_cleanup_items: [
+    "id",
+    "connection_id",
+    "kind",
+    "reference",
+    "media_key",
+    "attempts",
+    "next_attempt_at",
+    "last_error",
+    "created_at",
     "updated_at",
   ],
 } as const satisfies {
@@ -443,6 +462,105 @@ async function tenantConstraintExists<Database>(
   return result.rows[0]?.exists ?? false;
 }
 
+/** Every column of `tableName` that already exists, lower-cased. */
+async function tenantColumns<Database>(
+  db: Kysely<Database>,
+  schemaName: string,
+  tableName: string,
+): Promise<Set<string>> {
+  const result = await sql<{ column_name: string }>`
+    SELECT column_name
+    FROM information_schema.columns
+    WHERE table_schema = ${schemaName} AND table_name = ${tableName}
+  `.execute(db);
+  return new Set(result.rows.map((row) => row.column_name));
+}
+
+/** The stored definition of a constraint, or null when it does not exist. */
+async function tenantConstraintDefinition<Database>(
+  db: Kysely<Database>,
+  schemaName: string,
+  tableName: string,
+  constraintName: string,
+): Promise<string | null> {
+  const result = await sql<{ definition: string }>`
+    SELECT pg_get_constraintdef(constraint_record.oid) AS definition
+    FROM pg_constraint AS constraint_record
+    JOIN pg_class AS table_record
+      ON table_record.oid = constraint_record.conrelid
+    JOIN pg_namespace AS schema_record
+      ON schema_record.oid = table_record.relnamespace
+    WHERE schema_record.nspname = ${schemaName}
+      AND table_record.relname = ${tableName}
+      AND constraint_record.conname = ${constraintName}
+  `.execute(db);
+  return result.rows[0]?.definition ?? null;
+}
+
+/**
+ * `ALTER TABLE` always takes ACCESS EXCLUSIVE on its target - even when the
+ * statement turns out to be a no-op - and adding a foreign key additionally
+ * locks the referenced table. Reconciliation therefore has to decide from the
+ * catalog whether a statement is needed BEFORE issuing it; otherwise every run
+ * over a live tenant queues behind, and blocks, all traffic on that table.
+ *
+ * `run` is only invoked when `needed` reports drift, and it runs with a short
+ * `lock_timeout` so a genuine repair against a busy tenant fails fast and is
+ * retried in a maintenance window rather than stalling the workspace.
+ */
+const DDL_LOCK_TIMEOUT = "5s";
+
+async function alterIfNeeded<Database>(
+  db: Kysely<Database>,
+  needed: boolean,
+  run: () => Promise<unknown>,
+): Promise<void> {
+  if (!needed) return;
+  await sql`SET lock_timeout = ${sql.lit(DDL_LOCK_TIMEOUT)}`.execute(db);
+  try {
+    await run();
+  } finally {
+    await sql`SET lock_timeout = DEFAULT`.execute(db);
+  }
+}
+
+/** Every index name that already exists in the schema. */
+async function tenantIndexNames<Database>(
+  db: Kysely<Database>,
+  schemaName: string,
+): Promise<Set<string>> {
+  const result = await sql<{ indexname: string }>`
+    SELECT indexname FROM pg_indexes WHERE schemaname = ${schemaName}
+  `.execute(db);
+  return new Set(result.rows.map((row) => row.indexname));
+}
+
+/**
+ * Add a constraint only when the catalog says it is missing.
+ *
+ * Existence, not definition text, is the guard: `pg_get_constraintdef` renders
+ * the same constraint differently across column types and server versions, so
+ * comparing it would re-issue a drop/add on every run - exactly the lock this
+ * exists to avoid. A constraint whose *definition* has to change is a schema
+ * change, and belongs in a migration that drops it by name first; this routine
+ * then re-creates it here on the next run.
+ */
+async function ensureConstraint<Database>(
+  db: Kysely<Database>,
+  schemaName: string,
+  tableName: string,
+  constraintName: string,
+  apply: () => Promise<unknown>,
+): Promise<void> {
+  const exists = await tenantConstraintExists(
+    db,
+    schemaName,
+    tableName,
+    constraintName,
+  );
+  await alterIfNeeded(db, !exists, apply);
+}
+
 /**
  * Bring a newly-created tenant schema up to the current application contract.
  *
@@ -450,6 +568,9 @@ async function tenantConstraintExists<Database>(
  * applied migrations are immutable. New additive tenant migrations should
  * update existing schemas and add an idempotent guard here instead of copying
  * the complete PostgreSQL setup function again.
+ *
+ * Every statement below is catalog-guarded: reconciling a schema that is
+ * already current issues no `ALTER TABLE` at all. See `alterIfNeeded`.
  */
 export async function reconcileTenantSchema<Database>(
   db: Kysely<Database>,
@@ -458,24 +579,87 @@ export async function reconcileTenantSchema<Database>(
   const table = (name: keyof TenantDatabase) =>
     sql.table(`${schemaName}.${String(name)}`);
 
-  await sql`
-    ALTER TABLE ${table("contacts")}
-    ADD COLUMN IF NOT EXISTS remote_history_status TEXT NOT NULL DEFAULT 'unknown',
-    ADD COLUMN IF NOT EXISTS remote_history_updated_at TIMESTAMPTZ
-  `.execute(db);
-  await sql`
-    ALTER TABLE ${table("contacts")}
-    DROP CONSTRAINT IF EXISTS contacts_remote_history_status_check,
-    ADD CONSTRAINT contacts_remote_history_status_check
-    CHECK (remote_history_status IN (
-      'unknown',
-      'available',
-      'requesting',
-      'exhausted',
-      'unavailable',
-      'failed'
-    ))
-  `.execute(db);
+  // `CREATE INDEX IF NOT EXISTS` takes SHARE on the table before it discovers
+  // the index is already there, and SHARE conflicts with the ROW EXCLUSIVE an
+  // in-flight INSERT holds. Skipping the statement entirely is the only way a
+  // steady-state reconcile stays out of the way of live writes.
+  const existingIndexes = await tenantIndexNames(db, schemaName);
+
+  /**
+   * Resolve a requested index name to the one that must actually exist.
+   *
+   * Several names here are the historical, over-length ones: PostgreSQL
+   * silently truncates them to 63 bytes, so asking for
+   * `<schema>_whatsapp_connections_phone_uidx` produces an index actually
+   * called `<schema>_whatsapp_connection`. `reconcileTenantIndexNames` (063)
+   * then renames that to the budgeted canonical name - after which the
+   * over-length request matches nothing in the catalog, a duplicate is built
+   * under the truncated legacy name, and the renamer drops it again. That loop
+   * rebuilt and dropped the phone-uniqueness index on every single reconcile,
+   * taking ACCESS EXCLUSIVE on `whatsapp_connections` - the table every worker
+   * event pins FOR KEY SHARE - and leaving uniqueness unenforced in between.
+   *
+   * Resolving to the canonical name and accepting the truncated legacy one as
+   * already-satisfying breaks the loop: a fresh tenant is built canonical, an
+   * existing one is left for the renamer to migrate in place (catalog-only, so
+   * uniqueness is never dropped), and a current one does nothing at all.
+   */
+  const resolveIndexName = (
+    requested: string,
+  ): { create: string; satisfiedBy: string[] } => {
+    const target = TENANT_INDEX_TARGETS.find(
+      (candidate) => `${schemaName}${candidate.legacySuffix}` === requested,
+    );
+    if (!target) return { create: requested, satisfiedBy: [requested] };
+    const canonical = targetIdentifier(schemaName, target);
+    return {
+      create: canonical,
+      satisfiedBy: [canonical, legacyIdentifier(schemaName, target)],
+    };
+  };
+
+  const ensureIndex = async (
+    requestedName: string,
+    create: (indexName: string) => Promise<unknown>,
+  ): Promise<void> => {
+    const resolved = resolveIndexName(requestedName);
+    if (resolved.satisfiedBy.some((name) => existingIndexes.has(name))) return;
+    await create(resolved.create);
+    existingIndexes.add(resolved.create);
+  };
+
+  const contactColumns = await tenantColumns(db, schemaName, "contacts");
+  await alterIfNeeded(
+    db,
+    !contactColumns.has("remote_history_status") ||
+      !contactColumns.has("remote_history_updated_at"),
+    () =>
+      sql`
+        ALTER TABLE ${table("contacts")}
+        ADD COLUMN IF NOT EXISTS remote_history_status TEXT NOT NULL DEFAULT 'unknown',
+        ADD COLUMN IF NOT EXISTS remote_history_updated_at TIMESTAMPTZ
+      `.execute(db),
+  );
+  await ensureConstraint(
+    db,
+    schemaName,
+    "contacts",
+    "contacts_remote_history_status_check",
+    () =>
+      sql`
+        ALTER TABLE ${table("contacts")}
+        DROP CONSTRAINT IF EXISTS contacts_remote_history_status_check,
+        ADD CONSTRAINT contacts_remote_history_status_check
+        CHECK (remote_history_status IN (
+          'unknown',
+          'available',
+          'requesting',
+          'exhausted',
+          'unavailable',
+          'failed'
+        ))
+      `.execute(db),
+  );
 
   // The latest historical setup function regressed several label/catalog
   // columns. Normalize its legacy label identifier before adding the current
@@ -513,10 +697,12 @@ export async function reconcileTenantSchema<Database>(
     ADD COLUMN IF NOT EXISTS whatsapp_label_id VARCHAR(100),
     ADD COLUMN IF NOT EXISTS synced_at TIMESTAMPTZ
   `.execute(db);
-  await sql`
-    CREATE INDEX IF NOT EXISTS ${sql.ref(`${schemaName}_ct_tag_contact_idx`)}
-    ON ${table("contact_tags")} (tag_id, contact_id)
-  `.execute(db);
+  await ensureIndex(`${schemaName}_ct_tag_contact_idx`, (indexName) =>
+    sql`
+      CREATE INDEX IF NOT EXISTS ${sql.ref(indexName)}
+      ON ${table("contact_tags")} (tag_id, contact_id)
+    `.execute(db),
+  );
   await sql`
     ALTER TABLE ${table("whatsapp_labels")}
     ADD COLUMN IF NOT EXISTS label_id VARCHAR(100),
@@ -575,20 +761,24 @@ export async function reconcileTenantSchema<Database>(
   // Both are fixed by dropping the schema-qualified, truncated identifier that
   // the server actually created.
   await dropLegacyLabelUniqueIndex(db, schemaName);
-  await sql`
-    CREATE UNIQUE INDEX IF NOT EXISTS ${sql.ref(
-      `${schemaName}_whatsapp_labels_connection_label_uidx`,
-    )}
-    ON ${table("whatsapp_labels")} (whatsapp_connection_id, label_id)
-    WHERE whatsapp_connection_id IS NOT NULL
-  `.execute(db);
-  await sql`
-    CREATE UNIQUE INDEX IF NOT EXISTS ${sql.ref(
-      `${schemaName}_whatsapp_labels_connection_tag_uidx`,
-    )}
-    ON ${table("whatsapp_labels")} (whatsapp_connection_id, synced_tag_id)
-    WHERE whatsapp_connection_id IS NOT NULL AND synced_tag_id IS NOT NULL
-  `.execute(db);
+  await ensureIndex(
+    `${schemaName}_whatsapp_labels_connection_label_uidx`,
+    (indexName) =>
+      sql`
+      CREATE UNIQUE INDEX IF NOT EXISTS ${sql.ref(indexName)}
+      ON ${table("whatsapp_labels")} (whatsapp_connection_id, label_id)
+      WHERE whatsapp_connection_id IS NOT NULL
+    `.execute(db),
+  );
+  await ensureIndex(
+    `${schemaName}_whatsapp_labels_connection_tag_uidx`,
+    (indexName) =>
+      sql`
+      CREATE UNIQUE INDEX IF NOT EXISTS ${sql.ref(indexName)}
+      ON ${table("whatsapp_labels")} (whatsapp_connection_id, synced_tag_id)
+      WHERE whatsapp_connection_id IS NOT NULL AND synced_tag_id IS NOT NULL
+    `.execute(db),
+  );
 
   await sql`
     UPDATE ${table("whatsapp_catalogs")}
@@ -635,13 +825,15 @@ export async function reconcileTenantSchema<Database>(
       ON DELETE CASCADE
     `.execute(db);
   }
-  await sql`
-    CREATE UNIQUE INDEX IF NOT EXISTS ${sql.ref(
-      `${schemaName}_whatsapp_catalogs_connection_catalog_uidx`,
-    )}
-    ON ${table("whatsapp_catalogs")} (whatsapp_connection_id, catalog_id)
-    WHERE whatsapp_connection_id IS NOT NULL
-  `.execute(db);
+  await ensureIndex(
+    `${schemaName}_whatsapp_catalogs_connection_catalog_uidx`,
+    (indexName) =>
+      sql`
+      CREATE UNIQUE INDEX IF NOT EXISTS ${sql.ref(indexName)}
+      ON ${table("whatsapp_catalogs")} (whatsapp_connection_id, catalog_id)
+      WHERE whatsapp_connection_id IS NOT NULL
+    `.execute(db),
+  );
   await sql`
     ALTER TABLE ${table("catalog_products")}
     DROP CONSTRAINT IF EXISTS ${sql.ref("fk_catalog")}
@@ -692,17 +884,19 @@ export async function reconcileTenantSchema<Database>(
       ON DELETE CASCADE
     `.execute(db);
   }
-  await sql`
-    CREATE UNIQUE INDEX IF NOT EXISTS ${sql.ref(
-      `${schemaName}_catalog_products_connection_catalog_product_uidx`,
-    )}
-    ON ${table("catalog_products")} (
-      whatsapp_connection_id,
-      catalog_id,
-      product_id
-    )
-    WHERE whatsapp_connection_id IS NOT NULL
-  `.execute(db);
+  await ensureIndex(
+    `${schemaName}_catalog_products_connection_catalog_product_uidx`,
+    (indexName) =>
+      sql`
+      CREATE UNIQUE INDEX IF NOT EXISTS ${sql.ref(indexName)}
+      ON ${table("catalog_products")} (
+        whatsapp_connection_id,
+        catalog_id,
+        product_id
+      )
+      WHERE whatsapp_connection_id IS NOT NULL
+    `.execute(db),
+  );
   if (
     await tenantColumnExists(db, schemaName, "catalog_products", "image_url")
   ) {
@@ -712,42 +906,94 @@ export async function reconcileTenantSchema<Database>(
       WHERE image_urls IS NULL AND image_url IS NOT NULL
     `.execute(db);
   }
-  await sql`
-    ALTER TABLE ${table("quick_replies")}
-    ADD COLUMN IF NOT EXISTS title VARCHAR(255) NOT NULL DEFAULT ''
-  `.execute(db);
+  const quickReplyColumns = await tenantColumns(
+    db,
+    schemaName,
+    "quick_replies",
+  );
+  await alterIfNeeded(db, !quickReplyColumns.has("title"), () =>
+    sql`
+      ALTER TABLE ${table("quick_replies")}
+      ADD COLUMN IF NOT EXISTS title VARCHAR(255) NOT NULL DEFAULT ''
+    `.execute(db),
+  );
 
-  await sql`
-    ALTER TABLE ${table("conversation_states")}
-    ADD COLUMN IF NOT EXISTS read_by_user_id UUID,
-    ADD COLUMN IF NOT EXISTS read_at TIMESTAMPTZ,
-    ADD COLUMN IF NOT EXISTS last_message_at TIMESTAMPTZ,
-    ADD COLUMN IF NOT EXISTS last_message_preview TEXT,
-    ADD COLUMN IF NOT EXISTS unread_count INTEGER NOT NULL DEFAULT 0,
-    ADD COLUMN IF NOT EXISTS status conversation_status NOT NULL DEFAULT 'open',
-    ADD COLUMN IF NOT EXISTS resolved_at TIMESTAMPTZ,
-    ADD COLUMN IF NOT EXISTS resolved_by UUID,
-    ADD COLUMN IF NOT EXISTS reopened_at TIMESTAMPTZ,
-    ADD COLUMN IF NOT EXISTS reopened_by UUID,
-    ADD COLUMN IF NOT EXISTS resolution_notes TEXT
-  `.execute(db);
-  await sql`
-    CREATE INDEX IF NOT EXISTS ${sql.ref(`${schemaName}_conv_states_status_idx`)}
-    ON ${table("conversation_states")} (status)
-  `.execute(db);
-  await sql`
-    CREATE INDEX IF NOT EXISTS ${sql.ref(`${schemaName}_conv_states_resolved_idx`)}
-    ON ${table("conversation_states")} (resolved_at)
-  `.execute(db);
+  const stateColumns = await tenantColumns(
+    db,
+    schemaName,
+    "conversation_states",
+  );
+  await alterIfNeeded(
+    db,
+    ![
+      "read_by_user_id",
+      "read_at",
+      "last_message_at",
+      "last_message_preview",
+      "unread_count",
+      "status",
+      "resolved_at",
+      "resolved_by",
+      "reopened_at",
+      "reopened_by",
+      "resolution_notes",
+    ].every((column) => stateColumns.has(column)),
+    () =>
+      sql`
+        ALTER TABLE ${table("conversation_states")}
+        ADD COLUMN IF NOT EXISTS read_by_user_id UUID,
+        ADD COLUMN IF NOT EXISTS read_at TIMESTAMPTZ,
+        ADD COLUMN IF NOT EXISTS last_message_at TIMESTAMPTZ,
+        ADD COLUMN IF NOT EXISTS last_message_preview TEXT,
+        ADD COLUMN IF NOT EXISTS unread_count INTEGER NOT NULL DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS status conversation_status NOT NULL DEFAULT 'open',
+        ADD COLUMN IF NOT EXISTS resolved_at TIMESTAMPTZ,
+        ADD COLUMN IF NOT EXISTS resolved_by UUID,
+        ADD COLUMN IF NOT EXISTS reopened_at TIMESTAMPTZ,
+        ADD COLUMN IF NOT EXISTS reopened_by UUID,
+        ADD COLUMN IF NOT EXISTS resolution_notes TEXT
+      `.execute(db),
+  );
+  await ensureIndex(`${schemaName}_conv_states_status_idx`, (indexName) =>
+    sql`
+      CREATE INDEX IF NOT EXISTS ${sql.ref(indexName)}
+      ON ${table("conversation_states")} (status)
+    `.execute(db),
+  );
+  await ensureIndex(`${schemaName}_conv_states_resolved_idx`, (indexName) =>
+    sql`
+      CREATE INDEX IF NOT EXISTS ${sql.ref(indexName)}
+      ON ${table("conversation_states")} (resolved_at)
+    `.execute(db),
+  );
 
-  await sql`
-    ALTER TABLE ${table("whatsapp_connections")}
-    ADD COLUMN IF NOT EXISTS qr_code TEXT,
-    ADD COLUMN IF NOT EXISTS qr_expires_at TIMESTAMPTZ,
-    ADD COLUMN IF NOT EXISTS sync_message_count INTEGER NOT NULL DEFAULT 0,
-    ADD COLUMN IF NOT EXISTS sync_conversation_count INTEGER NOT NULL DEFAULT 0,
-    ADD COLUMN IF NOT EXISTS archived_at TIMESTAMPTZ
-  `.execute(db);
+  // `whatsapp_connections` is the parent every worker event locks FOR KEY
+  // SHARE before writing a child row. Touching it unconditionally here is what
+  // put reconciliation on the opposite side of that lock order.
+  const connectionColumns = await tenantColumns(
+    db,
+    schemaName,
+    "whatsapp_connections",
+  );
+  await alterIfNeeded(
+    db,
+    ![
+      "qr_code",
+      "qr_expires_at",
+      "sync_message_count",
+      "sync_conversation_count",
+      "archived_at",
+    ].every((column) => connectionColumns.has(column)),
+    () =>
+      sql`
+        ALTER TABLE ${table("whatsapp_connections")}
+        ADD COLUMN IF NOT EXISTS qr_code TEXT,
+        ADD COLUMN IF NOT EXISTS qr_expires_at TIMESTAMPTZ,
+        ADD COLUMN IF NOT EXISTS sync_message_count INTEGER NOT NULL DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS sync_conversation_count INTEGER NOT NULL DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS archived_at TIMESTAMPTZ
+      `.execute(db),
+  );
 
   await sql`
     CREATE TABLE IF NOT EXISTS ${table("whatsapp_connection_sessions")} (
@@ -772,32 +1018,46 @@ export async function reconcileTenantSchema<Database>(
       updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
     )
   `.execute(db);
-  await sql`
-    ALTER TABLE ${table("whatsapp_connection_sessions")}
-    ADD COLUMN IF NOT EXISTS expected_phone_number VARCHAR(50)
-  `.execute(db);
-  await sql`
-    CREATE INDEX IF NOT EXISTS ${sql.ref(
-      `${schemaName}_wa_sessions_account_idx`,
-    )}
-    ON ${table("whatsapp_connection_sessions")} (
-      whatsapp_connection_id,
-      created_at DESC
-    )
-  `.execute(db);
-  await sql`
-    CREATE UNIQUE INDEX IF NOT EXISTS ${sql.ref(
-      `${schemaName}_wa_sessions_active_uidx`,
-    )}
-    ON ${table("whatsapp_connection_sessions")} (whatsapp_connection_id)
-    WHERE ended_at IS NULL
-  `.execute(db);
+  const sessionColumns = await tenantColumns(
+    db,
+    schemaName,
+    "whatsapp_connection_sessions",
+  );
+  await alterIfNeeded(db, !sessionColumns.has("expected_phone_number"), () =>
+    sql`
+      ALTER TABLE ${table("whatsapp_connection_sessions")}
+      ADD COLUMN IF NOT EXISTS expected_phone_number VARCHAR(50)
+    `.execute(db),
+  );
+  await ensureIndex(`${schemaName}_wa_sessions_account_idx`, (indexName) =>
+    sql`
+      CREATE INDEX IF NOT EXISTS ${sql.ref(indexName)}
+      ON ${table("whatsapp_connection_sessions")} (
+        whatsapp_connection_id,
+        created_at DESC
+      )
+    `.execute(db),
+  );
+  await ensureIndex(`${schemaName}_wa_sessions_active_uidx`, (indexName) =>
+    sql`
+      CREATE UNIQUE INDEX IF NOT EXISTS ${sql.ref(indexName)}
+      ON ${table("whatsapp_connection_sessions")} (whatsapp_connection_id)
+      WHERE ended_at IS NULL
+    `.execute(db),
+  );
 
-  await sql`
-    ALTER TABLE ${table("messages")}
-    ADD COLUMN IF NOT EXISTS sender_name TEXT,
-    ADD COLUMN IF NOT EXISTS sender_avatar_url TEXT
-  `.execute(db);
+  const senderColumns = await tenantColumns(db, schemaName, "messages");
+  await alterIfNeeded(
+    db,
+    !senderColumns.has("sender_name") ||
+      !senderColumns.has("sender_avatar_url"),
+    () =>
+      sql`
+        ALTER TABLE ${table("messages")}
+        ADD COLUMN IF NOT EXISTS sender_name TEXT,
+        ADD COLUMN IF NOT EXISTS sender_avatar_url TEXT
+      `.execute(db),
+  );
 
   await sql`
     CREATE TABLE IF NOT EXISTS ${table("nats_outbox")} (
@@ -813,24 +1073,28 @@ export async function reconcileTenantSchema<Database>(
       published_at TIMESTAMPTZ
     )
   `.execute(db);
-  await sql`
-    CREATE UNIQUE INDEX IF NOT EXISTS ${sql.ref(
-      `${schemaName}_contacts_connection_jid_uidx`,
-    )}
-    ON ${table("contacts")} (whatsapp_connection_id, jid)
-    WHERE whatsapp_connection_id IS NOT NULL AND jid IS NOT NULL
-  `.execute(db);
-  await sql`
-    CREATE UNIQUE INDEX IF NOT EXISTS ${sql.ref(
-      `${schemaName}_whatsapp_connections_phone_uidx`,
-    )}
-    ON ${table("whatsapp_connections")} (phone_number)
-    WHERE phone_number IS NOT NULL
-  `.execute(db);
-  await sql`
-    CREATE INDEX IF NOT EXISTS ${sql.ref(`${schemaName}_nats_outbox_pending_idx`)}
-    ON ${table("nats_outbox")} (status, next_attempt_at, created_at)
-  `.execute(db);
+  await ensureIndex(`${schemaName}_contacts_connection_jid_uidx`, (indexName) =>
+    sql`
+      CREATE UNIQUE INDEX IF NOT EXISTS ${sql.ref(indexName)}
+      ON ${table("contacts")} (whatsapp_connection_id, jid)
+      WHERE whatsapp_connection_id IS NOT NULL AND jid IS NOT NULL
+    `.execute(db),
+  );
+  await ensureIndex(
+    `${schemaName}_whatsapp_connections_phone_uidx`,
+    (indexName) =>
+      sql`
+      CREATE UNIQUE INDEX IF NOT EXISTS ${sql.ref(indexName)}
+      ON ${table("whatsapp_connections")} (phone_number)
+      WHERE phone_number IS NOT NULL
+    `.execute(db),
+  );
+  await ensureIndex(`${schemaName}_nats_outbox_pending_idx`, (indexName) =>
+    sql`
+      CREATE INDEX IF NOT EXISTS ${sql.ref(indexName)}
+      ON ${table("nats_outbox")} (status, next_attempt_at, created_at)
+    `.execute(db),
+  );
 
   await sql`
     CREATE TABLE IF NOT EXISTS ${table("scheduled_messages")} (
@@ -857,51 +1121,89 @@ export async function reconcileTenantSchema<Database>(
       updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
     )
   `.execute(db);
-  await sql`
-    CREATE INDEX IF NOT EXISTS ${sql.ref(
-      `${schemaName}_scheduled_messages_due_idx`,
-    )}
-    ON ${table("scheduled_messages")} (next_attempt_at)
-    WHERE status IN ('scheduled', 'processing')
-  `.execute(db);
-  await sql`
-    CREATE INDEX IF NOT EXISTS ${sql.ref(
-      `${schemaName}_scheduled_messages_contact_idx`,
-    )}
-    ON ${table("scheduled_messages")} (contact_id, scheduled_at)
-  `.execute(db);
+  await ensureIndex(`${schemaName}_scheduled_messages_due_idx`, (indexName) =>
+    sql`
+      CREATE INDEX IF NOT EXISTS ${sql.ref(indexName)}
+      ON ${table("scheduled_messages")} (next_attempt_at)
+      WHERE status IN ('scheduled', 'processing')
+    `.execute(db),
+  );
+  await ensureIndex(
+    `${schemaName}_scheduled_messages_contact_idx`,
+    (indexName) =>
+      sql`
+      CREATE INDEX IF NOT EXISTS ${sql.ref(indexName)}
+      ON ${table("scheduled_messages")} (contact_id, scheduled_at)
+    `.execute(db),
+  );
   // Media attachment support (058) for tables created before the columns
   // existed; the CREATE above already carries them for new tenants.
-  await sql`
-    ALTER TABLE ${table("scheduled_messages")}
-    ADD COLUMN IF NOT EXISTS media_url TEXT,
-    ADD COLUMN IF NOT EXISTS media_mime_type TEXT,
-    ADD COLUMN IF NOT EXISTS media_file_name TEXT
-  `.execute(db);
+  const scheduleColumns = await tenantColumns(
+    db,
+    schemaName,
+    "scheduled_messages",
+  );
+  await alterIfNeeded(
+    db,
+    !["media_url", "media_mime_type", "media_file_name"].every((column) =>
+      scheduleColumns.has(column),
+    ),
+    () =>
+      sql`
+        ALTER TABLE ${table("scheduled_messages")}
+        ADD COLUMN IF NOT EXISTS media_url TEXT,
+        ADD COLUMN IF NOT EXISTS media_mime_type TEXT,
+        ADD COLUMN IF NOT EXISTS media_file_name TEXT
+      `.execute(db),
+  );
 
   // Bulk broadcast jobs (059): parent table, per-connection pacing ledger,
   // and the leaf columns/status linking scheduled_messages to a job.
-  await sql`
-    ALTER TABLE ${table("scheduled_messages")}
-    ADD COLUMN IF NOT EXISTS bulk_job_id UUID,
-    ADD COLUMN IF NOT EXISTS skip_reason TEXT
-  `.execute(db);
-  await sql`
-    ALTER TABLE ${table("scheduled_messages")}
-    DROP CONSTRAINT IF EXISTS scheduled_messages_status_check
-  `.execute(db);
-  await sql`
-    ALTER TABLE ${table("scheduled_messages")}
-    ADD CONSTRAINT scheduled_messages_status_check
-    CHECK (status IN ('scheduled', 'processing', 'sent', 'failed', 'canceled', 'skipped'))
-  `.execute(db);
-  await sql`
-    CREATE INDEX IF NOT EXISTS ${sql.ref(
-      `${schemaName}_scheduled_messages_bulk_job_idx`,
-    )}
-    ON ${table("scheduled_messages")} (bulk_job_id, status)
-    WHERE bulk_job_id IS NOT NULL
-  `.execute(db);
+  await alterIfNeeded(
+    db,
+    !scheduleColumns.has("bulk_job_id") || !scheduleColumns.has("skip_reason"),
+    () =>
+      sql`
+        ALTER TABLE ${table("scheduled_messages")}
+        ADD COLUMN IF NOT EXISTS bulk_job_id UUID,
+        ADD COLUMN IF NOT EXISTS skip_reason TEXT
+      `.execute(db),
+  );
+  // 059 WIDENED this CHECK to admit 'skipped', and the CREATE TABLE above
+  // still writes the narrow pre-059 form for a brand-new tenant. Existence
+  // alone is therefore not a safe guard here - the narrow constraint carries
+  // the same name - so the guard is whether the stored definition already
+  // admits the new value.
+  const scheduleStatusCheck = await tenantConstraintDefinition(
+    db,
+    schemaName,
+    "scheduled_messages",
+    "scheduled_messages_status_check",
+  );
+  await alterIfNeeded(
+    db,
+    !scheduleStatusCheck?.includes("'skipped'"),
+    async () => {
+      await sql`
+        ALTER TABLE ${table("scheduled_messages")}
+        DROP CONSTRAINT IF EXISTS scheduled_messages_status_check
+      `.execute(db);
+      await sql`
+        ALTER TABLE ${table("scheduled_messages")}
+        ADD CONSTRAINT scheduled_messages_status_check
+        CHECK (status IN ('scheduled', 'processing', 'sent', 'failed', 'canceled', 'skipped'))
+      `.execute(db);
+    },
+  );
+  await ensureIndex(
+    `${schemaName}_scheduled_messages_bulk_job_idx`,
+    (indexName) =>
+      sql`
+      CREATE INDEX IF NOT EXISTS ${sql.ref(indexName)}
+      ON ${table("scheduled_messages")} (bulk_job_id, status)
+      WHERE bulk_job_id IS NOT NULL
+    `.execute(db),
+  );
   await sql`
     CREATE TABLE IF NOT EXISTS ${table("bulk_jobs")} (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -927,17 +1229,19 @@ export async function reconcileTenantSchema<Database>(
       updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
     )
   `.execute(db);
-  await sql`
-    CREATE UNIQUE INDEX IF NOT EXISTS ${sql.ref(
-      `${schemaName}_bulk_jobs_idempotency_uidx`,
-    )}
-    ON ${table("bulk_jobs")} (idempotency_key)
-    WHERE idempotency_key IS NOT NULL
-  `.execute(db);
-  await sql`
-    CREATE INDEX IF NOT EXISTS ${sql.ref(`${schemaName}_bulk_jobs_status_idx`)}
-    ON ${table("bulk_jobs")} (status, scheduled_at)
-  `.execute(db);
+  await ensureIndex(`${schemaName}_bulk_jobs_idempotency_uidx`, (indexName) =>
+    sql`
+      CREATE UNIQUE INDEX IF NOT EXISTS ${sql.ref(indexName)}
+      ON ${table("bulk_jobs")} (idempotency_key)
+      WHERE idempotency_key IS NOT NULL
+    `.execute(db),
+  );
+  await ensureIndex(`${schemaName}_bulk_jobs_status_idx`, (indexName) =>
+    sql`
+      CREATE INDEX IF NOT EXISTS ${sql.ref(indexName)}
+      ON ${table("bulk_jobs")} (status, scheduled_at)
+    `.execute(db),
+  );
   await sql`
     CREATE TABLE IF NOT EXISTS ${table("bulk_connection_budgets")} (
       whatsapp_connection_id UUID PRIMARY KEY,
@@ -947,6 +1251,109 @@ export async function reconcileTenantSchema<Database>(
       updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
     )
   `.execute(db);
+
+  // Permanent connection purge recovery (066): retain aggregate broadcast
+  // outcomes and durable external cleanup work after the source rows are gone.
+  const bulkJobColumns = await tenantColumns(db, schemaName, "bulk_jobs");
+  await alterIfNeeded(
+    db,
+    ![
+      "purged_sent",
+      "purged_failed",
+      "purged_canceled",
+      "purged_skipped",
+    ].every((column) => bulkJobColumns.has(column)),
+    () =>
+      sql`
+        ALTER TABLE ${table("bulk_jobs")}
+        ADD COLUMN IF NOT EXISTS purged_sent INTEGER NOT NULL DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS purged_failed INTEGER NOT NULL DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS purged_canceled INTEGER NOT NULL DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS purged_skipped INTEGER NOT NULL DEFAULT 0
+      `.execute(db),
+  );
+  await sql`
+    CREATE TABLE IF NOT EXISTS ${table("purge_cleanup_items")} (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      connection_id UUID NOT NULL,
+      kind TEXT NOT NULL CHECK (kind IN ('search_contact', 'media', 'bulk_job')),
+      reference TEXT NOT NULL,
+      attempts INTEGER NOT NULL DEFAULT 0,
+      next_attempt_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      last_error TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      UNIQUE (connection_id, kind, reference)
+    )
+  `.execute(db);
+  await ensureIndex(`${schemaName}_pci_due_idx`, (indexName) =>
+    sql`
+      CREATE INDEX IF NOT EXISTS ${sql.ref(indexName)}
+      ON ${table("purge_cleanup_items")} (next_attempt_at, created_at)
+    `.execute(db),
+  );
+
+  // Media deletion intent (067): the key a media item is reclaiming, which is
+  // how a writer discovers that the object it just validated is already
+  // committed for deletion. See media-reference-lock.ts.
+  const cleanupColumns = await tenantColumns(
+    db,
+    schemaName,
+    "purge_cleanup_items",
+  );
+  await alterIfNeeded(db, !cleanupColumns.has("media_key"), () =>
+    sql`
+      ALTER TABLE ${table("purge_cleanup_items")}
+      ADD COLUMN IF NOT EXISTS media_key TEXT
+    `.execute(db),
+  );
+  await ensureIndex(`${schemaName}_pci_media_key_idx`, (indexName) =>
+    sql`
+      CREATE INDEX IF NOT EXISTS ${sql.ref(indexName)}
+      ON ${table("purge_cleanup_items")} (media_key)
+      WHERE media_key IS NOT NULL
+    `.execute(db),
+  );
+
+  // Enforce connection ownership for every new write. NOT VALID preserves any
+  // historical orphan that needs operator review while still taking a key-share
+  // lock on the parent for inserts and cascading rows committed before purge.
+  for (const relation of [
+    {
+      tableName: "contacts" as const,
+      constraint: "contacts_connection_fk",
+    },
+    {
+      tableName: "messages" as const,
+      constraint: "messages_connection_fk",
+    },
+    {
+      tableName: "status_updates" as const,
+      constraint: "status_updates_connection_fk",
+    },
+    {
+      tableName: "bulk_connection_budgets" as const,
+      constraint: "bulk_connection_budgets_connection_fk",
+    },
+  ]) {
+    if (
+      !(await tenantConstraintExists(
+        db,
+        schemaName,
+        relation.tableName,
+        relation.constraint,
+      ))
+    ) {
+      await sql`
+        ALTER TABLE ${table(relation.tableName)}
+        ADD CONSTRAINT ${sql.ref(relation.constraint)}
+        FOREIGN KEY (whatsapp_connection_id)
+        REFERENCES ${table("whatsapp_connections")}(id)
+        ON DELETE CASCADE
+        NOT VALID
+      `.execute(db);
+    }
+  }
 
   // Conversation cases (061): immutable per-cycle lifecycle unit for the
   // separate response/resolution SLA guarantees. See migration 061 for the
@@ -993,57 +1400,87 @@ export async function reconcileTenantSchema<Database>(
       )
     )
   `.execute(db);
-  await sql`
-    ALTER TABLE ${table("conversation_cases")}
-    DROP CONSTRAINT IF EXISTS conversation_cases_reopened_from_fk,
-    ADD CONSTRAINT conversation_cases_reopened_from_fk
-    FOREIGN KEY (reopened_from_case_id) REFERENCES ${table("conversation_cases")}(id)
-  `.execute(db);
-  await sql`
-    ALTER TABLE ${table("conversation_cases")}
-    DROP CONSTRAINT IF EXISTS conversation_cases_opening_message_fk,
-    ADD CONSTRAINT conversation_cases_opening_message_fk
-    FOREIGN KEY (opening_message_id) REFERENCES ${table("messages")}(id)
-  `.execute(db);
-  await sql`
-    ALTER TABLE ${table("conversation_cases")}
-    DROP CONSTRAINT IF EXISTS conversation_cases_policy_fk,
-    ADD CONSTRAINT conversation_cases_policy_fk
-    FOREIGN KEY (policy_id) REFERENCES public.sla_policies(id)
-  `.execute(db);
-  await sql`
-    CREATE UNIQUE INDEX IF NOT EXISTS ${sql.ref(`${schemaName}_cc_active_uidx`)}
-    ON ${table("conversation_cases")} (contact_id)
-    WHERE status IN ('open', 'pending')
-  `.execute(db);
-  await sql`
-    CREATE INDEX IF NOT EXISTS ${sql.ref(`${schemaName}_cc_contact_idx`)}
-    ON ${table("conversation_cases")} (contact_id, created_at DESC)
-  `.execute(db);
-  await sql`
-    CREATE INDEX IF NOT EXISTS ${sql.ref(`${schemaName}_cc_status_idx`)}
-    ON ${table("conversation_cases")} (status)
-  `.execute(db);
-  await sql`
-    CREATE INDEX IF NOT EXISTS ${sql.ref(`${schemaName}_cc_resolved_idx`)}
-    ON ${table("conversation_cases")} (resolved_at)
-    WHERE resolved_at IS NOT NULL
-  `.execute(db);
+  await ensureConstraint(
+    db,
+    schemaName,
+    "conversation_cases",
+    "conversation_cases_reopened_from_fk",
+    () =>
+      sql`
+        ALTER TABLE ${table("conversation_cases")}
+        ADD CONSTRAINT conversation_cases_reopened_from_fk
+        FOREIGN KEY (reopened_from_case_id) REFERENCES ${table("conversation_cases")}(id)
+      `.execute(db),
+  );
+  await ensureConstraint(
+    db,
+    schemaName,
+    "conversation_cases",
+    "conversation_cases_opening_message_fk",
+    () =>
+      sql`
+        ALTER TABLE ${table("conversation_cases")}
+        ADD CONSTRAINT conversation_cases_opening_message_fk
+        FOREIGN KEY (opening_message_id) REFERENCES ${table("messages")}(id)
+      `.execute(db),
+  );
+  await ensureConstraint(
+    db,
+    schemaName,
+    "conversation_cases",
+    "conversation_cases_policy_fk",
+    () =>
+      sql`
+        ALTER TABLE ${table("conversation_cases")}
+        ADD CONSTRAINT conversation_cases_policy_fk
+        FOREIGN KEY (policy_id) REFERENCES public.sla_policies(id)
+      `.execute(db),
+  );
+  await ensureIndex(`${schemaName}_cc_active_uidx`, (indexName) =>
+    sql`
+      CREATE UNIQUE INDEX IF NOT EXISTS ${sql.ref(indexName)}
+      ON ${table("conversation_cases")} (contact_id)
+      WHERE status IN ('open', 'pending')
+    `.execute(db),
+  );
+  await ensureIndex(`${schemaName}_cc_contact_idx`, (indexName) =>
+    sql`
+      CREATE INDEX IF NOT EXISTS ${sql.ref(indexName)}
+      ON ${table("conversation_cases")} (contact_id, created_at DESC)
+    `.execute(db),
+  );
+  await ensureIndex(`${schemaName}_cc_status_idx`, (indexName) =>
+    sql`
+      CREATE INDEX IF NOT EXISTS ${sql.ref(indexName)}
+      ON ${table("conversation_cases")} (status)
+    `.execute(db),
+  );
+  await ensureIndex(`${schemaName}_cc_resolved_idx`, (indexName) =>
+    sql`
+      CREATE INDEX IF NOT EXISTS ${sql.ref(indexName)}
+      ON ${table("conversation_cases")} (resolved_at)
+      WHERE resolved_at IS NOT NULL
+    `.execute(db),
+  );
 
   // Durable, explicit case membership for every message - see migration
   // 061's doc comment on why this can never be inferred from a timestamp
   // window.
-  await sql`
-    ALTER TABLE ${table("messages")}
-    ADD COLUMN IF NOT EXISTS case_id UUID
-  `.execute(db);
-  await sql`
-    ALTER TABLE ${table("messages")}
-    DROP CONSTRAINT IF EXISTS messages_case_fk,
-    ADD CONSTRAINT messages_case_fk
-    FOREIGN KEY (case_id) REFERENCES ${table("conversation_cases")}(id)
-    ON DELETE SET NULL
-  `.execute(db);
+  const messageColumns = await tenantColumns(db, schemaName, "messages");
+  await alterIfNeeded(db, !messageColumns.has("case_id"), () =>
+    sql`
+      ALTER TABLE ${table("messages")}
+      ADD COLUMN IF NOT EXISTS case_id UUID
+    `.execute(db),
+  );
+  await ensureConstraint(db, schemaName, "messages", "messages_case_fk", () =>
+    sql`
+        ALTER TABLE ${table("messages")}
+        ADD CONSTRAINT messages_case_fk
+        FOREIGN KEY (case_id) REFERENCES ${table("conversation_cases")}(id)
+        ON DELETE SET NULL
+      `.execute(db),
+  );
   // Authoritative, strictly monotonic per-tenant turn-ordering key - see
   // migration 061's doc comment on why `created_at`/`id` alone cannot
   // safely break same-millisecond ties, and why this is a plain nullable
@@ -1054,23 +1491,40 @@ export async function reconcileTenantSchema<Database>(
   await sql`
     CREATE SEQUENCE IF NOT EXISTS ${messagesSeqSeq}
   `.execute(db);
-  await sql`
-    ALTER TABLE ${table("messages")}
-    ADD COLUMN IF NOT EXISTS seq BIGINT
+  await alterIfNeeded(db, !messageColumns.has("seq"), () =>
+    sql`
+      ALTER TABLE ${table("messages")}
+      ADD COLUMN IF NOT EXISTS seq BIGINT
+    `.execute(db),
+  );
+  // Ownership and the default only have to be attached once. Re-issuing them
+  // would take ACCESS EXCLUSIVE on `messages` on every reconcile.
+  const seqDefault = await sql<{ column_default: string | null }>`
+    SELECT column_default
+    FROM information_schema.columns
+    WHERE table_schema = ${schemaName}
+      AND table_name = 'messages'
+      AND column_name = 'seq'
   `.execute(db);
-  await sql`
-    ALTER SEQUENCE ${messagesSeqSeq}
-    OWNED BY ${table("messages")}.seq
-  `.execute(db);
-  await sql`
-    ALTER TABLE ${table("messages")}
-    ALTER COLUMN seq SET DEFAULT nextval(${sql.lit(`${schemaName}.messages_seq_seq`)})
-  `.execute(db);
-  await sql`
-    CREATE INDEX IF NOT EXISTS ${sql.ref(`${schemaName}_messages_case_idx`)}
-    ON ${table("messages")} (case_id, seq)
-    WHERE case_id IS NOT NULL
-  `.execute(db);
+  if (!seqDefault.rows[0]?.column_default) {
+    await sql`
+      ALTER SEQUENCE ${messagesSeqSeq}
+      OWNED BY ${table("messages")}.seq
+    `.execute(db);
+    await alterIfNeeded(db, true, () =>
+      sql`
+        ALTER TABLE ${table("messages")}
+        ALTER COLUMN seq SET DEFAULT nextval(${sql.lit(`${schemaName}.messages_seq_seq`)})
+      `.execute(db),
+    );
+  }
+  await ensureIndex(`${schemaName}_messages_case_idx`, (indexName) =>
+    sql`
+      CREATE INDEX IF NOT EXISTS ${sql.ref(indexName)}
+      ON ${table("messages")} (case_id, seq)
+      WHERE case_id IS NOT NULL
+    `.execute(db),
+  );
 
   // Deterministically resolve any pre-existing duplicate active
   // assignments before the unique index below - see migration 061's doc
@@ -1086,36 +1540,65 @@ export async function reconcileTenantSchema<Database>(
         ORDER BY contact_id, assigned_at DESC, id DESC
       )
   `.execute(db);
-  await sql`
-    CREATE UNIQUE INDEX IF NOT EXISTS ${sql.ref(`${schemaName}_ca_active_uidx`)}
-    ON ${table("contact_assignments")} (contact_id)
-    WHERE unassigned_at IS NULL
-  `.execute(db);
+  await ensureIndex(`${schemaName}_ca_active_uidx`, (indexName) =>
+    sql`
+      CREATE UNIQUE INDEX IF NOT EXISTS ${sql.ref(indexName)}
+      ON ${table("contact_assignments")} (contact_id)
+      WHERE unassigned_at IS NULL
+    `.execute(db),
+  );
 
-  await sql`
-    ALTER TABLE ${table("conversation_states")}
-    ADD COLUMN IF NOT EXISTS active_case_id UUID
-  `.execute(db);
-  await sql`
-    ALTER TABLE ${table("conversation_states")}
-    DROP CONSTRAINT IF EXISTS conversation_states_active_case_fk,
-    ADD CONSTRAINT conversation_states_active_case_fk
-    FOREIGN KEY (active_case_id) REFERENCES ${table("conversation_cases")}(id)
-    ON DELETE SET NULL
-  `.execute(db);
-  await sql`
-    CREATE INDEX IF NOT EXISTS ${sql.ref(`${schemaName}_cs_active_idx`)}
-    ON ${table("conversation_states")} (active_case_id)
-    WHERE active_case_id IS NOT NULL
-  `.execute(db);
+  const stateColumnsForCase = await tenantColumns(
+    db,
+    schemaName,
+    "conversation_states",
+  );
+  await alterIfNeeded(db, !stateColumnsForCase.has("active_case_id"), () =>
+    sql`
+      ALTER TABLE ${table("conversation_states")}
+      ADD COLUMN IF NOT EXISTS active_case_id UUID
+    `.execute(db),
+  );
+  await ensureConstraint(
+    db,
+    schemaName,
+    "conversation_states",
+    "conversation_states_active_case_fk",
+    () =>
+      sql`
+        ALTER TABLE ${table("conversation_states")}
+        ADD CONSTRAINT conversation_states_active_case_fk
+        FOREIGN KEY (active_case_id) REFERENCES ${table("conversation_cases")}(id)
+        ON DELETE SET NULL
+      `.execute(db),
+  );
+  await ensureIndex(`${schemaName}_cs_active_idx`, (indexName) =>
+    sql`
+      CREATE INDEX IF NOT EXISTS ${sql.ref(indexName)}
+      ON ${table("conversation_states")} (active_case_id)
+      WHERE active_case_id IS NOT NULL
+    `.execute(db),
+  );
   // Override the historical (047) 'open' default - the post-cases steady
   // state for a bare row-insert (read-before-inbound, a manually created
   // contact) is resolved/case-free, matching migration 061 for existing
   // tenants.
-  await sql`
-    ALTER TABLE ${table("conversation_states")}
-    ALTER COLUMN status SET DEFAULT 'resolved'
+  const statusDefault = await sql<{ column_default: string | null }>`
+    SELECT column_default
+    FROM information_schema.columns
+    WHERE table_schema = ${schemaName}
+      AND table_name = 'conversation_states'
+      AND column_name = 'status'
   `.execute(db);
+  await alterIfNeeded(
+    db,
+    !statusDefault.rows[0]?.column_default?.includes("'resolved'"),
+    () =>
+      sql`
+        ALTER TABLE ${table("conversation_states")}
+        ALTER COLUMN status SET DEFAULT 'resolved'
+      `.execute(db),
+  );
 
   // New tenants start with no historical data, so - unlike migration 061's
   // one-time backfill for pre-existing tenants - there is nothing to close
@@ -1129,31 +1612,40 @@ export async function reconcileTenantSchema<Database>(
   // run. The short `gp_` prefix keeps the name inside PostgreSQL's 63-byte
   // identifier limit, which a 43-character schema name plus the full table
   // name would exceed (and silently truncate).
-  await sql`
-    CREATE INDEX IF NOT EXISTS ${sql.ref(`${schemaName}_gp_jid_idx`)}
-    ON ${table("group_participants")} (participant_jid)
-  `.execute(db);
+  await ensureIndex(`${schemaName}_gp_jid_idx`, (indexName) =>
+    sql`
+      CREATE INDEX IF NOT EXISTS ${sql.ref(indexName)}
+      ON ${table("group_participants")} (participant_jid)
+    `.execute(db),
+  );
 
-  // Migration 067 parity. Group administration keeps WhatsApp's own view of a
+  // Migration 068 parity. Group administration keeps WhatsApp's own view of a
   // group (permissions, ownership, invite link, membership) so the API never
   // has to guess it between syncs. Every column here is written only after
   // WhatsApp confirms a change, so the defaults describe an ordinary group
   // that the connected account is still a member of.
-  await sql`
-    ALTER TABLE ${table("groups")}
-    ADD COLUMN IF NOT EXISTS owner_jid VARCHAR(255),
-    ADD COLUMN IF NOT EXISTS is_announce BOOLEAN NOT NULL DEFAULT false,
-    ADD COLUMN IF NOT EXISTS is_locked BOOLEAN NOT NULL DEFAULT false,
-    ADD COLUMN IF NOT EXISTS is_ephemeral BOOLEAN NOT NULL DEFAULT false,
-    ADD COLUMN IF NOT EXISTS disappearing_timer INTEGER NOT NULL DEFAULT 0,
-    ADD COLUMN IF NOT EXISTS is_join_approval_required BOOLEAN NOT NULL DEFAULT false,
-    ADD COLUMN IF NOT EXISTS member_add_mode VARCHAR(32),
-    ADD COLUMN IF NOT EXISTS is_member BOOLEAN NOT NULL DEFAULT true,
-    ADD COLUMN IF NOT EXISTS invite_link TEXT,
-    ADD COLUMN IF NOT EXISTS invite_link_updated_at TIMESTAMPTZ,
-    ADD COLUMN IF NOT EXISTS metadata_synced_at TIMESTAMPTZ,
-    ADD COLUMN IF NOT EXISTS join_requests_synced_at TIMESTAMPTZ
-  `.execute(db);
+  //
+  // Guarded by a catalog check like the rest of this routine: reconcile runs on
+  // every tenant creation, and an unconditional ALTER takes an ACCESS EXCLUSIVE
+  // lock even when there is nothing to add.
+  const groupColumns = await tenantColumns(db, schemaName, "groups");
+  await alterIfNeeded(db, !groupColumns.has("join_requests_synced_at"), () =>
+    sql`
+      ALTER TABLE ${table("groups")}
+      ADD COLUMN IF NOT EXISTS owner_jid VARCHAR(255),
+      ADD COLUMN IF NOT EXISTS is_announce BOOLEAN NOT NULL DEFAULT false,
+      ADD COLUMN IF NOT EXISTS is_locked BOOLEAN NOT NULL DEFAULT false,
+      ADD COLUMN IF NOT EXISTS is_ephemeral BOOLEAN NOT NULL DEFAULT false,
+      ADD COLUMN IF NOT EXISTS disappearing_timer INTEGER NOT NULL DEFAULT 0,
+      ADD COLUMN IF NOT EXISTS is_join_approval_required BOOLEAN NOT NULL DEFAULT false,
+      ADD COLUMN IF NOT EXISTS member_add_mode VARCHAR(32),
+      ADD COLUMN IF NOT EXISTS is_member BOOLEAN NOT NULL DEFAULT true,
+      ADD COLUMN IF NOT EXISTS invite_link TEXT,
+      ADD COLUMN IF NOT EXISTS invite_link_updated_at TIMESTAMPTZ,
+      ADD COLUMN IF NOT EXISTS metadata_synced_at TIMESTAMPTZ,
+      ADD COLUMN IF NOT EXISTS join_requests_synced_at TIMESTAMPTZ
+    `.execute(db),
+  );
   await sql`
     CREATE TABLE IF NOT EXISTS ${table("group_join_requests")} (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -1164,20 +1656,24 @@ export async function reconcileTenantSchema<Database>(
       synced_at TIMESTAMPTZ NOT NULL DEFAULT now()
     )
   `.execute(db);
-  await sql`
-    CREATE UNIQUE INDEX IF NOT EXISTS ${sql.ref(`${schemaName}_gjr_group_jid_uidx`)}
-    ON ${table("group_join_requests")} (group_id, requester_jid)
-  `.execute(db);
+  await ensureIndex(`${schemaName}_gjr_group_jid_uidx`, (indexName) =>
+    sql`
+      CREATE UNIQUE INDEX IF NOT EXISTS ${sql.ref(indexName)}
+      ON ${table("group_join_requests")} (group_id, requester_jid)
+    `.execute(db),
+  );
 
   // Migration 064 parity. The stranded-media sweep filters on
   // `media_download_status = 'downloading'`, which the pre-existing partial
   // index (on 'pending') does not cover - without this the sweep sequentially
   // scans the whole messages table on every cleanup cycle.
-  await sql`
-    CREATE INDEX IF NOT EXISTS ${sql.ref(`${schemaName}_msg_dl_claim_idx`)}
-    ON ${table("messages")} (media_downloaded_at)
-    WHERE media_download_status = 'downloading'
-  `.execute(db);
+  await ensureIndex(`${schemaName}_msg_dl_claim_idx`, (indexName) =>
+    sql`
+      CREATE INDEX IF NOT EXISTS ${sql.ref(indexName)}
+      ON ${table("messages")} (media_downloaded_at)
+      WHERE media_download_status = 'downloading'
+    `.execute(db),
+  );
 
   // Migration 063 parity. The historical index names above overflow
   // PostgreSQL's 63-byte identifier limit once a 43-character tenant schema

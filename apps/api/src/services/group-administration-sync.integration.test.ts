@@ -595,6 +595,209 @@ describe("group synchronization - address forms and fetch bookkeeping", () => {
   );
 });
 
+describe("group synchronization - connection lifecycle fence", () => {
+  const ANOTHER_GROUP_JID = "120363000000000999@g.us";
+
+  /** Fires one of every group event variant, in the order a real account emits. */
+  async function fireEveryVariant(
+    companyId: string,
+    connectionId: string,
+  ): Promise<void> {
+    await handleGroupEvent(
+      groupEvent(companyId, connectionId, {
+        action: "snapshot",
+        jid: GROUP_JID,
+        snapshot: {
+          jid: GROUP_JID,
+          name: "Renamed after archive",
+          participants: [{ jid: "15550000008@s.whatsapp.net", isAdmin: true }],
+        },
+      }),
+    );
+    await handleGroupEvent(
+      groupEvent(companyId, connectionId, {
+        action: "created",
+        jid: ANOTHER_GROUP_JID,
+        snapshot: { jid: ANOTHER_GROUP_JID, name: "Created after archive" },
+      }),
+    );
+    await handleGroupEvent(
+      groupEvent(companyId, connectionId, {
+        action: "invite_link",
+        jid: GROUP_JID,
+        inviteLink: "https://chat.whatsapp.com/AFTER",
+      }),
+    );
+    await handleGroupEvent(
+      groupEvent(companyId, connectionId, {
+        action: "join_requests",
+        jid: GROUP_JID,
+        joinRequests: [{ jid: "15550000008@s.whatsapp.net" }],
+      }),
+    );
+    // Last: it is the only variant that would still "succeed" by mutating a
+    // group the earlier events failed to change.
+    await handleGroupEvent(
+      groupEvent(companyId, connectionId, {
+        action: "left",
+        jid: GROUP_JID,
+      }),
+    );
+  }
+
+  /** The group state every variant above tries, and must fail, to change. */
+  async function seedLiveGroup(
+    companyId: string,
+    connectionId: string,
+  ): Promise<void> {
+    await handleGroupEvent(
+      groupEvent(companyId, connectionId, {
+        action: "snapshot",
+        jid: GROUP_JID,
+        snapshot: {
+          jid: GROUP_JID,
+          name: "Launch team",
+          participants: [{ jid: OWN_JID, isAdmin: true }],
+          isMember: true,
+        },
+      }),
+    );
+    await handleGroupEvent(
+      groupEvent(companyId, connectionId, {
+        action: "invite_link",
+        jid: GROUP_JID,
+        inviteLink: "https://chat.whatsapp.com/BEFORE",
+      }),
+    );
+    await handleGroupEvent(
+      groupEvent(companyId, connectionId, {
+        action: "join_requests",
+        jid: GROUP_JID,
+        joinRequests: [{ jid: MEMBER_JID }],
+      }),
+    );
+  }
+
+  integrationTest(
+    "every group event variant is ignored once the connection is archived",
+    async () => {
+      await withTenant(async ({ companyId, connectionId }) => {
+        const tenantDb = getTenantConnection(companyId);
+        await seedLiveGroup(companyId, connectionId);
+        const before = await readGroup(companyId);
+
+        await tenantDb
+          .updateTable("whatsapp_connections")
+          .set({
+            status: "disconnected",
+            archived_at: new Date("2026-03-01T10:00:00Z"),
+          })
+          .where("id", "=", connectionId)
+          .execute();
+
+        await fireEveryVariant(companyId, connectionId);
+
+        // Nothing the archived connection reported may land: an archived
+        // connection is queued for permanent deletion, so a row written now is
+        // a row the purge has already accounted for and would orphan.
+        const after = await readGroup(companyId);
+        expect(after?.group.name).toBe("Launch team");
+        expect(after?.group.is_member).toBe(true);
+        expect(after?.group.invite_link).toBe(
+          "https://chat.whatsapp.com/BEFORE",
+        );
+        expect(after?.participants).toEqual(before?.participants ?? []);
+
+        const requests = await tenantDb
+          .selectFrom("group_join_requests")
+          .select(["requester_jid"])
+          .execute();
+        expect(requests.map((request) => request.requester_jid)).toEqual([
+          MEMBER_JID,
+        ]);
+
+        // Nor may a snapshot create a conversation for a group first seen
+        // after the archive.
+        const created = await tenantDb
+          .selectFrom("contacts")
+          .select(["id"])
+          .where("jid", "=", ANOTHER_GROUP_JID)
+          .execute();
+        expect(created).toEqual([]);
+      });
+    },
+  );
+
+  integrationTest(
+    "a group event that loses the race to archive writes nothing",
+    async () => {
+      await withTenant(async ({ companyId, connectionId }) => {
+        const tenantDb = getTenantConnection(companyId);
+        await seedLiveGroup(companyId, connectionId);
+
+        // Archive takes FOR UPDATE on the connection row; the event's fence
+        // takes FOR KEY SHARE on the same row, so the event blocks here rather
+        // than reading a pre-archive snapshot and committing behind it.
+        let archiveHolding!: () => void;
+        const holding = new Promise<void>((resolve) => {
+          archiveHolding = resolve;
+        });
+        let releaseArchive!: () => void;
+        const release = new Promise<void>((resolve) => {
+          releaseArchive = resolve;
+        });
+        const archive = tenantDb.transaction().execute(async (trx) => {
+          await trx
+            .selectFrom("whatsapp_connections")
+            .select("id")
+            .where("id", "=", connectionId)
+            .forUpdate()
+            .executeTakeFirstOrThrow();
+          archiveHolding();
+          await release;
+          await trx
+            .updateTable("whatsapp_connections")
+            .set({
+              status: "disconnected",
+              archived_at: new Date("2026-03-01T11:00:00Z"),
+            })
+            .where("id", "=", connectionId)
+            .execute();
+        });
+        await holding;
+
+        const event = handleGroupEvent(
+          groupEvent(companyId, connectionId, {
+            action: "created",
+            jid: ANOTHER_GROUP_JID,
+            snapshot: { jid: ANOTHER_GROUP_JID, name: "Raced the archive" },
+          }),
+        );
+        releaseArchive();
+        await Promise.all([archive, event]);
+
+        // The event re-read the row after archive committed and failed closed,
+        // so no conversation, group or participant row exists for it.
+        expect(
+          await tenantDb
+            .selectFrom("contacts")
+            .select("id")
+            .where("jid", "=", ANOTHER_GROUP_JID)
+            .execute(),
+        ).toEqual([]);
+        expect(
+          await tenantDb
+            .selectFrom("groups")
+            .select("id")
+            .where("jid", "=", ANOTHER_GROUP_JID)
+            .execute(),
+        ).toEqual([]);
+      });
+    },
+    30_000,
+  );
+});
+
 describe("group synchronization - created group ownership", () => {
   integrationTest(
     "a created group is assigned to whoever asked for it",

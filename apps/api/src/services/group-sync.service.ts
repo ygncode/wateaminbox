@@ -9,6 +9,17 @@
  * Keeping the write path here is what makes "no optimistic authoritative state"
  * enforceable rather than a convention - a route that wanted to pre-apply a
  * change would have to reach past this module to do it.
+ *
+ * Every function here writes on a transaction its CALLER owns, and none opens
+ * one of its own. That is deliberate: a worker event may only write rows for a
+ * live connection, which the caller establishes by holding the connection fence
+ * (see handlers/connection-event-guard.ts) for the whole event. A transaction
+ * started down here would sit outside that fence and could commit group rows
+ * for a connection being permanently purged.
+ *
+ * Lock order, everywhere: the connection fence first, then the per-group
+ * advisory lock taken by `resolveGroupTarget`. Nothing in this module takes the
+ * fence itself, so keeping that order is the caller's job.
  */
 
 import {
@@ -19,7 +30,7 @@ import {
 import { sql, type Transaction } from "kysely";
 import { createLogger } from "../lib/logger.js";
 import type { GroupSnapshotPayload } from "../lib/nats/index.js";
-import { getTenantConnection, type TenantDatabase } from "./tenant.service.js";
+import type { TenantDatabase } from "./tenant.service.js";
 
 const logger = createLogger("GroupSync");
 
@@ -210,95 +221,96 @@ export async function resolveGroupTarget(
 }
 
 /**
- * Apply a group snapshot.
+ * Apply a group snapshot on the caller's transaction.
  *
  * Fields WhatsApp did not report are left untouched. That distinction matters:
  * a partial change notification names only what changed, and writing defaults
  * for the rest would silently reset permissions the server never mentioned.
+ *
+ * `companyId` is carried for logging only - `trx` already targets that tenant -
+ * so a warning here names the workspace the same way its event did.
  */
-export async function syncGroupSnapshot(
+export async function syncGroupSnapshotWithin(
+  trx: Transaction<TenantDatabase>,
   companyId: string,
   connectionId: string,
   snapshot: GroupSnapshotPayload,
 ): Promise<GroupSyncTarget | null> {
-  const tenantDb = getTenantConnection(companyId);
   const participants = normalizeParticipants(snapshot.participants);
 
-  return tenantDb.transaction().execute(async (trx) => {
-    const target = await resolveGroupTarget(trx, connectionId, snapshot.jid);
-    if (!target) {
-      logger.warn(
-        { companyId, connectionId, jid: snapshot.jid },
-        "Ignoring group snapshot with an unusable JID",
-      );
-      return null;
-    }
+  const target = await resolveGroupTarget(trx, connectionId, snapshot.jid);
+  if (!target) {
+    logger.warn(
+      { companyId, connectionId, jid: snapshot.jid },
+      "Ignoring group snapshot with an unusable JID",
+    );
+    return null;
+  }
 
-    const participantCount =
-      snapshot.participantCount !== undefined
-        ? Math.max(0, snapshot.participantCount)
-        : participants?.length;
+  const participantCount =
+    snapshot.participantCount !== undefined
+      ? Math.max(0, snapshot.participantCount)
+      : participants?.length;
 
+  await trx
+    .updateTable("groups")
+    .set({
+      jid: target.jid,
+      ...(snapshot.name !== undefined ? { name: snapshot.name || null } : {}),
+      ...(snapshot.description !== undefined
+        ? { description: snapshot.description || null }
+        : {}),
+      ...(snapshot.ownerJid !== undefined
+        ? { owner_jid: normalizeJid(snapshot.ownerJid) }
+        : {}),
+      ...(participantCount !== undefined
+        ? { participant_count: participantCount }
+        : {}),
+      ...(snapshot.isAnnounce !== undefined
+        ? { is_announce: snapshot.isAnnounce }
+        : {}),
+      ...(snapshot.isLocked !== undefined
+        ? { is_locked: snapshot.isLocked }
+        : {}),
+      ...(snapshot.isEphemeral !== undefined
+        ? { is_ephemeral: snapshot.isEphemeral }
+        : {}),
+      ...(snapshot.disappearingTimer !== undefined
+        ? { disappearing_timer: Math.max(0, snapshot.disappearingTimer) }
+        : {}),
+      ...(snapshot.isJoinApprovalRequired !== undefined
+        ? { is_join_approval_required: snapshot.isJoinApprovalRequired }
+        : {}),
+      ...(snapshot.memberAddMode !== undefined
+        ? { member_add_mode: snapshot.memberAddMode || null }
+        : {}),
+      ...(snapshot.isMember !== undefined
+        ? { is_member: snapshot.isMember }
+        : {}),
+      metadata_synced_at: toDbDate(),
+    })
+    .where("id", "=", target.groupId)
+    .execute();
+
+  // The group's WhatsApp title also backs the chat sidebar, which reads
+  // contacts.push_name for every conversation type.
+  if (snapshot.name) {
     await trx
-      .updateTable("groups")
+      .updateTable("contacts")
       .set({
-        jid: target.jid,
-        ...(snapshot.name !== undefined ? { name: snapshot.name || null } : {}),
-        ...(snapshot.description !== undefined
-          ? { description: snapshot.description || null }
-          : {}),
-        ...(snapshot.ownerJid !== undefined
-          ? { owner_jid: normalizeJid(snapshot.ownerJid) }
-          : {}),
-        ...(participantCount !== undefined
-          ? { participant_count: participantCount }
-          : {}),
-        ...(snapshot.isAnnounce !== undefined
-          ? { is_announce: snapshot.isAnnounce }
-          : {}),
-        ...(snapshot.isLocked !== undefined
-          ? { is_locked: snapshot.isLocked }
-          : {}),
-        ...(snapshot.isEphemeral !== undefined
-          ? { is_ephemeral: snapshot.isEphemeral }
-          : {}),
-        ...(snapshot.disappearingTimer !== undefined
-          ? { disappearing_timer: Math.max(0, snapshot.disappearingTimer) }
-          : {}),
-        ...(snapshot.isJoinApprovalRequired !== undefined
-          ? { is_join_approval_required: snapshot.isJoinApprovalRequired }
-          : {}),
-        ...(snapshot.memberAddMode !== undefined
-          ? { member_add_mode: snapshot.memberAddMode || null }
-          : {}),
-        ...(snapshot.isMember !== undefined
-          ? { is_member: snapshot.isMember }
-          : {}),
-        metadata_synced_at: toDbDate(),
+        push_name: snapshot.name,
+        is_group: true,
+        updated_at: toDbDate(),
       })
-      .where("id", "=", target.groupId)
+      .where("id", "=", target.contactId)
       .execute();
+  }
 
-    // The group's WhatsApp title also backs the chat sidebar, which reads
-    // contacts.push_name for every conversation type.
-    if (snapshot.name) {
-      await trx
-        .updateTable("contacts")
-        .set({
-          push_name: snapshot.name,
-          is_group: true,
-          updated_at: toDbDate(),
-        })
-        .where("id", "=", target.contactId)
-        .execute();
-    }
+  if (participants) {
+    await reconcileParticipants(trx, target.groupId, participants);
+  }
 
-    if (participants) {
-      await reconcileParticipants(trx, target.groupId, participants);
-    }
-
-    return target;
-  });
+  return target;
 }
 
 /**
@@ -309,65 +321,57 @@ export async function syncGroupSnapshot(
  * the inbox as a read-only record. Pending join requests are dropped because a
  * non-member can no longer act on them.
  */
-export async function markGroupLeft(
-  companyId: string,
+export async function markGroupLeftWithin(
+  trx: Transaction<TenantDatabase>,
   connectionId: string,
   rawJid: string,
 ): Promise<GroupSyncTarget | null> {
-  const tenantDb = getTenantConnection(companyId);
-
-  return tenantDb.transaction().execute(async (trx) => {
-    const target = await resolveGroupTarget(trx, connectionId, rawJid, {
-      create: false,
-    });
-    if (!target) return null;
-
-    await trx
-      .updateTable("groups")
-      .set({
-        is_member: false,
-        invite_link: null,
-        invite_link_updated_at: null,
-        join_requests_synced_at: null,
-        metadata_synced_at: toDbDate(),
-      })
-      .where("id", "=", target.groupId)
-      .execute();
-    await trx
-      .deleteFrom("group_join_requests")
-      .where("group_id", "=", target.groupId)
-      .execute();
-
-    return target;
+  const target = await resolveGroupTarget(trx, connectionId, rawJid, {
+    create: false,
   });
+  if (!target) return null;
+
+  await trx
+    .updateTable("groups")
+    .set({
+      is_member: false,
+      invite_link: null,
+      invite_link_updated_at: null,
+      join_requests_synced_at: null,
+      metadata_synced_at: toDbDate(),
+    })
+    .where("id", "=", target.groupId)
+    .execute();
+  await trx
+    .deleteFrom("group_join_requests")
+    .where("group_id", "=", target.groupId)
+    .execute();
+
+  return target;
 }
 
 /** Store the invite link WhatsApp returned for a group. */
-export async function saveGroupInviteLink(
-  companyId: string,
+export async function saveGroupInviteLinkWithin(
+  trx: Transaction<TenantDatabase>,
   connectionId: string,
   rawJid: string,
   inviteLink: string,
 ): Promise<GroupSyncTarget | null> {
-  const tenantDb = getTenantConnection(companyId);
-
-  return tenantDb.transaction().execute(async (trx) => {
-    const target = await resolveGroupTarget(trx, connectionId, rawJid, {
-      create: false,
-    });
-    if (!target) return null;
-
-    await trx
-      .updateTable("groups")
-      .set({
-        invite_link: inviteLink || null,
-        invite_link_updated_at: toDbDate(),
-      })
-      .where("id", "=", target.groupId)
-      .execute();
-
-    return target;
+  const target = await resolveGroupTarget(trx, connectionId, rawJid, {
+    create: false,
   });
+  if (!target) return null;
+
+  await trx
+    .updateTable("groups")
+    .set({
+      invite_link: inviteLink || null,
+      invite_link_updated_at: toDbDate(),
+    })
+    .where("id", "=", target.groupId)
+    .execute();
+
+  return target;
 }
 
 /**
@@ -378,14 +382,12 @@ export async function saveGroupInviteLink(
  * is replaced instead of merged: a request that disappeared upstream (approved
  * from the phone, or withdrawn) must not linger as an actionable row here.
  */
-export async function replaceGroupJoinRequests(
-  companyId: string,
+export async function replaceGroupJoinRequestsWithin(
+  trx: Transaction<TenantDatabase>,
   connectionId: string,
   rawJid: string,
   requests: Array<{ jid: string; requestedAt?: string }>,
 ): Promise<GroupSyncTarget | null> {
-  const tenantDb = getTenantConnection(companyId);
-
   const normalized = new Map<string, Date | null>();
   for (const request of requests) {
     const jid = normalizeJid(request.jid);
@@ -399,38 +401,36 @@ export async function replaceGroupJoinRequests(
     );
   }
 
-  return tenantDb.transaction().execute(async (trx) => {
-    const target = await resolveGroupTarget(trx, connectionId, rawJid, {
-      create: false,
-    });
-    if (!target) return null;
-
-    // Recorded on the group, not derived from the rows: a fetch that returns
-    // nothing deletes every row, and "we asked, nobody is waiting" must stay
-    // distinguishable from "we never asked".
-    await trx
-      .updateTable("groups")
-      .set({ join_requests_synced_at: toDbDate() })
-      .where("id", "=", target.groupId)
-      .execute();
-    await trx
-      .deleteFrom("group_join_requests")
-      .where("group_id", "=", target.groupId)
-      .execute();
-    if (normalized.size > 0) {
-      await trx
-        .insertInto("group_join_requests")
-        .values(
-          [...normalized.entries()].map(([jid, requestedAt]) => ({
-            group_id: target.groupId,
-            requester_jid: jid,
-            requested_at: requestedAt,
-            synced_at: toDbDate(),
-          })),
-        )
-        .execute();
-    }
-
-    return target;
+  const target = await resolveGroupTarget(trx, connectionId, rawJid, {
+    create: false,
   });
+  if (!target) return null;
+
+  // Recorded on the group, not derived from the rows: a fetch that returns
+  // nothing deletes every row, and "we asked, nobody is waiting" must stay
+  // distinguishable from "we never asked".
+  await trx
+    .updateTable("groups")
+    .set({ join_requests_synced_at: toDbDate() })
+    .where("id", "=", target.groupId)
+    .execute();
+  await trx
+    .deleteFrom("group_join_requests")
+    .where("group_id", "=", target.groupId)
+    .execute();
+  if (normalized.size > 0) {
+    await trx
+      .insertInto("group_join_requests")
+      .values(
+        [...normalized.entries()].map(([jid, requestedAt]) => ({
+          group_id: target.groupId,
+          requester_jid: jid,
+          requested_at: requestedAt,
+          synced_at: toDbDate(),
+        })),
+      )
+      .execute();
+  }
+
+  return target;
 }

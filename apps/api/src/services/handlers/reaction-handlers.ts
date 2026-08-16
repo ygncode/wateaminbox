@@ -11,6 +11,7 @@ import type {
 } from "../../lib/nats/index.js";
 import { broadcastToContactViewers } from "../message-broadcast.service.js";
 import { getTenantConnection } from "../tenant.service.js";
+import { lockActiveConnectionForEvent } from "./connection-event-guard.js";
 import { handlerLogger as logger } from "./types.js";
 
 /**
@@ -34,44 +35,47 @@ export async function handleReactionEvent(event: ReactionEvent): Promise<void> {
     // Get database connection
     const tenantDb = getTenantConnection(companyId);
 
-    // Find the message being reacted to (by WhatsApp message_id field, not the internal id)
-    const message = await tenantDb
-      .selectFrom("messages")
-      .select(["id", "contact_id", "whatsapp_connection_id"])
-      .where("message_id", "=", payload.messageId)
-      .where("whatsapp_connection_id", "=", connectionId)
-      .executeTakeFirst();
+    const message = await tenantDb.transaction().execute(async (trx) => {
+      if (!(await lockActiveConnectionForEvent(trx, connectionId))) return null;
+      // Find the message being reacted to (by WhatsApp message_id field, not the internal id)
+      const stored = await trx
+        .selectFrom("messages")
+        .select(["id", "contact_id", "whatsapp_connection_id"])
+        .where("message_id", "=", payload.messageId)
+        .where("whatsapp_connection_id", "=", connectionId)
+        .executeTakeFirst();
+      if (!stored) return null;
+
+      if (payload.emoji) {
+        await trx
+          .insertInto("message_reactions")
+          .values({
+            message_id: stored.id,
+            reactor_jid: payload.from,
+            emoji: payload.emoji,
+          })
+          .onConflict((oc) =>
+            oc.columns(["message_id", "reactor_jid"]).doUpdateSet({
+              emoji: payload.emoji,
+            }),
+          )
+          .execute();
+      } else {
+        await trx
+          .deleteFrom("message_reactions")
+          .where("message_id", "=", stored.id)
+          .where("reactor_jid", "=", payload.from)
+          .execute();
+      }
+      return stored;
+    });
 
     if (!message) {
       logger.warn(
         { messageId: payload.messageId },
-        "Message not found for reaction",
+        "Message not found for reaction on an active connection",
       );
       return;
-    }
-
-    if (payload.emoji) {
-      // Add or update reaction
-      await tenantDb
-        .insertInto("message_reactions")
-        .values({
-          message_id: message.id, // Use internal message ID for FK
-          reactor_jid: payload.from,
-          emoji: payload.emoji,
-        })
-        .onConflict((oc) =>
-          oc.columns(["message_id", "reactor_jid"]).doUpdateSet({
-            emoji: payload.emoji,
-          }),
-        )
-        .execute();
-    } else {
-      // Remove reaction (empty emoji)
-      await tenantDb
-        .deleteFrom("message_reactions")
-        .where("message_id", "=", message.id) // Use internal message ID
-        .where("reactor_jid", "=", payload.from)
-        .execute();
     }
 
     const reactionDetails = payload.emoji
