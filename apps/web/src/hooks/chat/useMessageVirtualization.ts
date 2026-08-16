@@ -8,6 +8,7 @@ import {
   type MessageNavigationTarget,
   matchesMessageNavigationTarget,
 } from "@/components/chat/message-navigation";
+import { resolveNewestMessageAnchor } from "./message-scroll-anchor";
 
 // Estimated row heights for virtualization
 const ESTIMATED_MESSAGE_HEIGHT = 80;
@@ -61,7 +62,9 @@ export function useMessageVirtualization({
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [isAtBottom, setIsAtBottom] = useState(true);
   const prevItemsLengthRef = useRef(0);
-  const isInitialScrollDone = useRef(false);
+  // Conversation whose initial anchor already ran. See resolveNewestMessageAnchor
+  // for why this is keyed by id instead of a boolean flag.
+  const anchoredConversationIdRef = useRef<string | null>(null);
   const [isLoadingHighlightedMessage, setIsLoadingHighlightedMessage] =
     useState(false);
   const [isHighlightedMessageUnavailable, setIsHighlightedMessageUnavailable] =
@@ -131,6 +134,21 @@ export function useMessageVirtualization({
   const virtualRows = virtualizer.getVirtualItems();
   const totalSize = virtualizer.getTotalSize();
 
+  // Store virtualizer in a ref to avoid dependency issues
+  const virtualizerRef = useRef(virtualizer);
+  virtualizerRef.current = virtualizer;
+
+  // Store items in a ref for the effect
+  const itemsRef = useRef(items);
+  itemsRef.current = items;
+
+  // Read during the initial anchor effect without re-running it whenever a
+  // highlight target changes later in the same conversation.
+  const hasHighlightTargetRef = useRef(false);
+  hasHighlightTargetRef.current = Boolean(
+    navigationTarget?.messageId ?? highlightedMessageId,
+  );
+
   // Handle scroll to detect when we're near the top (for loading more) and bottom
   const handleScroll = useCallback(() => {
     const container = scrollContainerRef.current;
@@ -143,11 +161,19 @@ export function useMessageVirtualization({
     setIsAtBottom(isNearBottom);
   }, []);
 
+  // Reset viewport state when the conversation changes. The initial anchor is
+  // guarded by conversation id, so it no longer depends on this effect running
+  // before the anchor effect.
+  useEffect(() => {
+    prevItemsLengthRef.current = 0;
+    setIsAtBottom(true);
+  }, [conversationId]);
+
   // Scroll to bottom when new messages arrive (if already at bottom)
   useEffect(() => {
     // Only auto-scroll for new messages if initial scroll is done and user is at bottom
     if (
-      isInitialScrollDone.current &&
+      anchoredConversationIdRef.current === conversationId &&
       items.length > prevItemsLengthRef.current &&
       isAtBottom
     ) {
@@ -162,35 +188,31 @@ export function useMessageVirtualization({
       return () => clearTimeout(timeoutId);
     }
     prevItemsLengthRef.current = items.length;
-  }, [items.length, isAtBottom, virtualizer]);
+  }, [conversationId, items.length, isAtBottom, virtualizer]);
 
-  // Initial scroll to bottom when conversation loads
+  // Anchor the thread to the newest message once a conversation's messages are
+  // available. TanStack keeps reconciling the target while rows are measured,
+  // so one call still lands at the bottom for taller group rows.
   useEffect(() => {
-    if (conversationId && items.length > 0 && !isInitialScrollDone.current) {
-      // Mark as done immediately to prevent duplicate scrolls
-      isInitialScrollDone.current = true;
+    const anchor = resolveNewestMessageAnchor({
+      conversationId,
+      anchoredConversationId: anchoredConversationIdRef.current,
+      itemCount: items.length,
+      hasHighlightTarget: hasHighlightTargetRef.current,
+    });
 
-      // Small delay to allow virtualizer measurements to stabilize
-      const timeoutId = setTimeout(() => {
-        virtualizer.scrollToIndex(items.length - 1, { align: "end" });
-      }, 50);
-      return () => clearTimeout(timeoutId);
+    if (anchor === "wait" || anchor === "already-anchored") return;
+
+    // Claim the anchor before scrolling so re-renders cannot repeat it.
+    anchoredConversationIdRef.current = conversationId ?? null;
+
+    if (anchor === "newest-message") {
+      virtualizer.scrollToIndex(items.length - 1, {
+        align: "end",
+        behavior: "auto",
+      });
     }
   }, [conversationId, items.length, virtualizer]);
-
-  // Reset initial scroll flag and items count when conversation changes
-  useEffect(() => {
-    isInitialScrollDone.current = false;
-    prevItemsLengthRef.current = 0;
-  }, [conversationId]);
-
-  // Store virtualizer in a ref to avoid dependency issues
-  const virtualizerRef = useRef(virtualizer);
-  virtualizerRef.current = virtualizer;
-
-  // Store items in a ref for the effect
-  const itemsRef = useRef(items);
-  itemsRef.current = items;
 
   useEffect(() => {
     pendingHighlightedMessageIdRef.current = null;

@@ -135,6 +135,34 @@ describe("authorization policy integration", () => {
     ).toBe(true);
   });
 
+  test("member effective permissions come from the shared preset: full chat/messaging and contact management, nothing else", () => {
+    const permissions = getEffectivePermissions("member");
+
+    expect(permissions).toEqual(ROLE_PRESETS.member);
+    expect(permissions).toEqual({
+      can_view_all_chats: true,
+      can_send_messages: true,
+      can_send_bulk_messages: true,
+      can_assign_contacts: true,
+      can_manage_team: false,
+      can_invite: false,
+      can_manage_connections: false,
+      can_view_dashboard: false,
+      can_view_audit: false,
+      can_export: false,
+      can_delete: false,
+    });
+  });
+
+  test("a per-member override still narrows a member default", () => {
+    expect(
+      getEffectivePermissions("member", { can_send_bulk_messages: false }),
+    ).toMatchObject({
+      can_send_bulk_messages: false,
+      can_view_all_chats: true,
+    });
+  });
+
   test("media access allows the active contact assignee", async () => {
     const response = await mediaGuardApp("agent-a", "agent-a").request(
       "/media/messages/media-message",

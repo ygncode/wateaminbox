@@ -54,11 +54,13 @@ export const ROLE_PERMISSION_PRESETS: Record<
     can_export: true,
     can_delete: true,
   },
+  // Members get the full "Chat and messaging" and "Contact management" groups
+  // by default; everything else stays opt-in per member.
   member: {
-    can_view_all_chats: false,
+    can_view_all_chats: true,
     can_send_messages: true,
-    can_send_bulk_messages: false,
-    can_assign_contacts: false,
+    can_send_bulk_messages: true,
+    can_assign_contacts: true,
     can_manage_team: false,
     can_invite: false,
     can_manage_connections: false,

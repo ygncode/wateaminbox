@@ -1,15 +1,19 @@
 import { describe, expect, test } from "bun:test";
-import { ROLE_PRESETS } from "./permission.service.js";
 import {
   isWithinQuietHours,
-  selectIncomingMessageRecipientIds,
   type NotificationRecipientCandidate,
+  selectIncomingMessageRecipientIds,
 } from "./notification-recipient.service.js";
+import { ROLE_PRESETS } from "./permission.service.js";
 
+/**
+ * Defaults to a member whose can_view_all_chats override is off, so these
+ * cases stay about visibility rules rather than the role preset's default.
+ */
 const candidate = (
   overrides: Partial<NotificationRecipientCandidate> & { userId: string },
 ): NotificationRecipientCandidate => ({
-  permissions: ROLE_PRESETS.member,
+  permissions: { ...ROLE_PRESETS.member, can_view_all_chats: false },
   isAssignee: false,
   notificationsEnabled: true,
   quietHoursStart: null,
