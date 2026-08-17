@@ -125,7 +125,13 @@ services:
       JWT_ACCESS_EXPIRES_IN: 15m
       JWT_REFRESH_EXPIRES_IN: 7d
       MAIL_DRIVER: ${MAIL_DRIVER:?set MAIL_DRIVER}
-      RESEND_API_KEY_FILE: /run/secrets/resend_api_key
+      # The selected provider's key arrives through the provider-neutral
+      # mail_api_key mount, and only the provider whose host key file is
+      # configured names it. The unused provider therefore needs no placeholder
+      # secret, and no provider's key is ever mounted under another's name.
+      RESEND_API_KEY_FILE: ${RESEND_API_KEY_FILE:+/run/secrets/mail_api_key}
+      CLOUDFLARE_ACCOUNT_ID: ${CLOUDFLARE_ACCOUNT_ID:-}
+      CLOUDFLARE_EMAIL_API_TOKEN_FILE: ${CLOUDFLARE_EMAIL_API_TOKEN_FILE:+/run/secrets/mail_api_key}
       EMAIL_FROM: ${EMAIL_FROM:?set EMAIL_FROM}
       MEILISEARCH_URL: http://meilisearch:7700
       MEILISEARCH_API_KEY_FILE: /run/secrets/meilisearch_master_key
@@ -146,7 +152,7 @@ services:
       - s3_access_key
       - s3_secret_key
       - jwt_secret
-      - resend_api_key
+      - mail_api_key
       - meilisearch_master_key
       - centrifugo_api_key
       - centrifugo_token_secret
@@ -374,5 +380,10 @@ secrets:
     file: ${CENTRIFUGO_API_KEY_FILE:?set CENTRIFUGO_API_KEY_FILE}
   centrifugo_token_secret:
     file: ${CENTRIFUGO_TOKEN_SECRET_FILE:?set CENTRIFUGO_TOKEN_SECRET_FILE}
-  resend_api_key:
-    file: ${RESEND_API_KEY_FILE:?set RESEND_API_KEY_FILE}
+  # The API key of the mail provider named by MAIL_DRIVER, kept provider-neutral
+  # like the object-storage mounts. Set that provider's key file; the other
+  # provider's variable stays unset and needs no file of its own. Setting both
+  # is refused by the entrypoint, because one mount cannot be two providers'
+  # keys.
+  mail_api_key:
+    file: ${RESEND_API_KEY_FILE:-${CLOUDFLARE_EMAIL_API_TOKEN_FILE:?set RESEND_API_KEY_FILE or CLOUDFLARE_EMAIL_API_TOKEN_FILE for the selected MAIL_DRIVER}}

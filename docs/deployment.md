@@ -61,10 +61,12 @@ for name in postgres_password nats_token meilisearch_master_key \
   openssl rand -hex 32 > "secrets/$name"
 done
 # Supply the real provider key interactively; it is not echoed or put in history.
-read -r -s -p 'Resend API key: ' RESEND_API_KEY; printf '\n'
-test -n "$RESEND_API_KEY"
-printf '%s' "$RESEND_API_KEY" > secrets/resend_api_key
-unset RESEND_API_KEY
+# Create only the file for the provider named by MAIL_DRIVER.
+read -r -s -p 'Mail provider API key: ' MAIL_API_KEY; printf '\n'
+test -n "$MAIL_API_KEY"
+printf '%s' "$MAIL_API_KEY" > secrets/resend_api_key            # MAIL_DRIVER=resend
+# printf '%s' "$MAIL_API_KEY" > secrets/cloudflare_email_api_token  # MAIL_DRIVER=cloudflare
+unset MAIL_API_KEY
 chmod 600 secrets/*
 ```
 
@@ -116,9 +118,48 @@ The checked-in production Compose baseline does not mount a VAPID private key,
 so background Web Push is disabled by default. To enable it, generate a VAPID pair,
 set the public value in `.env.production`, and use a reviewed Compose override to
 add the private value as a secret mounted through `VAPID_PRIVATE_KEY_FILE`. Do not
-put the private key in the env file. If email is
-intentionally disabled, use a reviewed override rather than a fake Resend key;
-production defaults assume `MAIL_DRIVER=resend`.
+put the private key in the env file.
+
+## Mail provider
+
+`MAIL_DRIVER` selects the transport and decides which credentials are required.
+Startup validation asks only for the selected provider's values, so a
+deployment on one provider never supplies a placeholder for the other:
+
+- `resend`: set `RESEND_API_KEY_FILE` to the key file.
+- `cloudflare`: set `CLOUDFLARE_EMAIL_API_TOKEN_FILE` to a token file and
+  `CLOUDFLARE_ACCOUNT_ID` to the 32-character account ID. The token needs the
+  **Email Sending: Edit** permission on the account that owns the sender
+  domain, and that domain must be onboarded for Email Sending on Cloudflare
+  DNS. Sends go to `POST /accounts/{account_id}/email/sending/send` with the
+  token as a bearer credential.
+
+Set exactly one of those key files and leave the other provider's `*_FILE`
+variable unset, so no dummy credential is needed for the provider that is not
+in use. Compose mounts the configured file once, as the provider-neutral
+`/run/secrets/mail_api_key` (the same convention as the `s3_access_key` and
+`s3_secret_key` mounts), and passes that path only to the variable of the
+provider whose key file was configured; `secret-entrypoint.sh` then hydrates
+only that provider's credential. No provider's key is ever mounted under
+another provider's name. Configuring both key files is refused at startup,
+because a single mount cannot hold both providers' keys and the container would
+otherwise present one provider's key to the other. `EMAIL_FROM` keeps its
+`Name <address>` form for both providers - the Cloudflare driver splits it into
+the address/name object that the REST API expects.
+
+Switching providers is an `.env.production` change: set the new `MAIL_DRIVER`,
+install its key file, point the matching `*_FILE` variable at it, remove the old
+provider's `*_FILE` line - the container refuses to start while both are set -
+and recreate `api`. A successful Cloudflare send
+returns one `message_id` for the send operation plus per-recipient delivery
+status, and that `message_id` is what the API records - falling back to the
+accepting request's `cf-ray` only if a response omits it. A response that
+reports a permanent bounce, or no delivered and no queued recipient, is treated
+as a failed send.
+
+Production requires a delivering driver. If email is intentionally disabled,
+use a reviewed override rather than a fake provider key; production defaults
+assume `MAIL_DRIVER=resend`.
 
 ## Build, validate, and first start
 

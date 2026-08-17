@@ -15,7 +15,7 @@ PostgreSQL             Go orchestrator -> WhatsApp worker -> WhatsApp
     |
     +-> tenant schemas
 
-Supporting services: Meilisearch, R2/MinIO, Resend
+Supporting services: Meilisearch, R2/MinIO, Resend or Cloudflare Email Service
 ```
 
 ## Monorepo

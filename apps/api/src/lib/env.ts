@@ -56,9 +56,14 @@ export const env = {
   JWT_ACCESS_EXPIRES_IN: getEnv("JWT_ACCESS_EXPIRES_IN", "15m"),
   JWT_REFRESH_EXPIRES_IN: getEnv("JWT_REFRESH_EXPIRES_IN", "7d"),
 
-  // Email
+  // Email. Only the selected provider's credentials are required, so a
+  // deployment on one provider never has to invent values for the other.
   MAIL_DRIVER: getEnv("MAIL_DRIVER", isProduction ? "resend" : "log"),
   RESEND_API_KEY: getEnv("RESEND_API_KEY", ""),
+  // Cloudflare Email Service (MAIL_DRIVER=cloudflare). The token needs the
+  // Email Sending: Edit permission on the account that owns the sender domain.
+  CLOUDFLARE_ACCOUNT_ID: getEnv("CLOUDFLARE_ACCOUNT_ID", ""),
+  CLOUDFLARE_EMAIL_API_TOKEN: getEnv("CLOUDFLARE_EMAIL_API_TOKEN", ""),
   EMAIL_FROM: getEnv("EMAIL_FROM", "noreply@example.com"),
 
   // App
@@ -161,6 +166,10 @@ export const env = {
 } as const;
 
 export type Env = typeof env;
+
+const mailDrivers = ["log", "resend", "cloudflare"];
+/** Drivers that actually hand a message to a provider. */
+const deliveringMailDrivers = ["resend", "cloudflare"];
 
 const unsafeCredentialValues = new Set([
   "admin",
@@ -350,9 +359,49 @@ export function validateSigningSecrets(config: Env = env): void {
   }
 }
 
+/**
+ * Credentials the selected mail provider needs. Requiring only these is what
+ * lets a Cloudflare deployment omit `RESEND_API_KEY` entirely - and vice versa
+ * - instead of supplying a placeholder for the provider it does not use.
+ */
+function requiredMailCredentials(config: Env): Record<string, string> {
+  if (config.MAIL_DRIVER === "cloudflare") {
+    return {
+      CLOUDFLARE_ACCOUNT_ID: config.CLOUDFLARE_ACCOUNT_ID,
+      CLOUDFLARE_EMAIL_API_TOKEN: config.CLOUDFLARE_EMAIL_API_TOKEN,
+    };
+  }
+  return { RESEND_API_KEY: config.RESEND_API_KEY };
+}
+
+function validateMailCredentials(config: Env): void {
+  if (!deliveringMailDrivers.includes(config.MAIL_DRIVER)) {
+    throw new Error(
+      `MAIL_DRIVER must deliver mail in production; use one of: ${deliveringMailDrivers.join(", ")}`,
+    );
+  }
+
+  if (config.MAIL_DRIVER === "cloudflare") {
+    // Cloudflare account identifiers are 32 hex characters. Checking the shape
+    // also rejects the ACCOUNT_ID placeholder carried in the example files.
+    if (!/^[0-9a-f]{32}$/i.test(config.CLOUDFLARE_ACCOUNT_ID.trim())) {
+      throw new Error(
+        "CLOUDFLARE_ACCOUNT_ID must be a 32-character Cloudflare account ID in production",
+      );
+    }
+    assertCredentialIsSafe(
+      "CLOUDFLARE_EMAIL_API_TOKEN",
+      config.CLOUDFLARE_EMAIL_API_TOKEN,
+    );
+    return;
+  }
+
+  assertCredentialIsSafe("RESEND_API_KEY", config.RESEND_API_KEY);
+}
+
 export function validateProductionEnv(config: Env = env): void {
-  if (!["log", "resend"].includes(config.MAIL_DRIVER)) {
-    throw new Error("MAIL_DRIVER must be one of: log, resend");
+  if (!mailDrivers.includes(config.MAIL_DRIVER)) {
+    throw new Error(`MAIL_DRIVER must be one of: ${mailDrivers.join(", ")}`);
   }
   validateSigningSecrets(config);
   if (config.NODE_ENV !== "production") return;
@@ -370,7 +419,7 @@ export function validateProductionEnv(config: Env = env): void {
     S3_REGION: config.S3_REGION,
     MEILISEARCH_URL: config.MEILISEARCH_URL,
     MEILISEARCH_API_KEY: config.MEILISEARCH_API_KEY,
-    RESEND_API_KEY: config.RESEND_API_KEY,
+    ...requiredMailCredentials(config),
     EMAIL_FROM: config.EMAIL_FROM,
     APP_URL: config.APP_URL,
     CORS_ORIGINS: config.CORS_ORIGINS,
@@ -494,10 +543,7 @@ export function validateProductionEnv(config: Env = env): void {
   validateCORSOrigins(config.CORS_ORIGINS);
   validateTrustedProxies(config);
 
-  if (config.MAIL_DRIVER !== "resend") {
-    throw new Error("MAIL_DRIVER must be resend in production");
-  }
-  assertCredentialIsSafe("RESEND_API_KEY", config.RESEND_API_KEY);
+  validateMailCredentials(config);
   const fromAddress = config.EMAIL_FROM.trim().match(
     /(?:^|<)([^<>\s@]+@[^<>\s@]+\.[^<>\s@]+)>?$/,
   )?.[1];
