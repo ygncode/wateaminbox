@@ -20,11 +20,21 @@ load_secret() {
   unset "${name}_FILE"
 }
 
+# The selected mail provider's key arrives through one provider-neutral mount,
+# so at most one provider variable may name a given file. Two providers naming
+# the same file would hand one provider's key to the other on the next send.
+if [ -n "${RESEND_API_KEY_FILE:-}" ] &&
+  [ "${RESEND_API_KEY_FILE:-}" = "${CLOUDFLARE_EMAIL_API_TOKEN_FILE:-}" ]; then
+  echo "secret-entrypoint: RESEND_API_KEY_FILE and CLOUDFLARE_EMAIL_API_TOKEN_FILE both name ${RESEND_API_KEY_FILE}; configure only the mail provider named by MAIL_DRIVER" >&2
+  exit 1
+fi
+
 for name in \
   POSTGRES_PASSWORD DATABASE_URL NATS_TOKEN NATS_URL \
   JWT_SECRET MEILISEARCH_API_KEY S3_ACCESS_KEY S3_SECRET_KEY \
   CENTRIFUGO_API_KEY CENTRIFUGO_TOKEN_HMAC_SECRET \
-  RESEND_API_KEY VAPID_PUBLIC_KEY VAPID_PRIVATE_KEY; do
+  RESEND_API_KEY CLOUDFLARE_ACCOUNT_ID CLOUDFLARE_EMAIL_API_TOKEN \
+  VAPID_PUBLIC_KEY VAPID_PRIVATE_KEY; do
   load_secret "$name"
 done
 

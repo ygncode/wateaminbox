@@ -1,4 +1,5 @@
 import { describe, expect, mock, test } from "bun:test";
+import { CloudflareMailDriver } from "./drivers/cloudflare.js";
 import { LogMailDriver } from "./drivers/log.js";
 import { ResendMailDriver } from "./drivers/resend.js";
 import { createMailDriver } from "./index.js";
@@ -14,6 +15,7 @@ describe("mail drivers", () => {
   test("selects drivers by configuration", () => {
     expect(createMailDriver("log")).toBeInstanceOf(LogMailDriver);
     expect(createMailDriver("resend")).toBeInstanceOf(ResendMailDriver);
+    expect(createMailDriver("cloudflare")).toBeInstanceOf(CloudflareMailDriver);
     expect(() => createMailDriver("unknown")).toThrow(
       'Unsupported MAIL_DRIVER "unknown"',
     );

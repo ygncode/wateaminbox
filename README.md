@@ -73,7 +73,7 @@ flowchart TB
 - [Bun](https://bun.sh/) 1.2.18 or newer
 - [Go](https://go.dev/) 1.25 or newer
 - [Docker](https://www.docker.com/) with Docker Compose
-- A [Resend](https://resend.com/) API key for production transactional email (local development uses a log-only transport)
+- Credentials for one transactional email provider in production: a [Resend](https://resend.com/) API key, or a [Cloudflare Email Service](https://developers.cloudflare.com/email-service/) account ID with an Email Sending token (local development uses a log-only transport)
 
 ## Local development
 
@@ -268,7 +268,7 @@ docker compose --profile debug up -d nats-box
 
 ## Security and support
 
-- Never commit `.env` files, JWT/Centrifugo secrets, VAPID private keys, Resend keys, WhatsApp session data, or production storage credentials.
+- Never commit `.env` files, JWT/Centrifugo secrets, VAPID private keys, mail provider keys, WhatsApp session data, or production storage credentials.
 - Keep `VITE_*` variables limited to values safe for browsers and use HTTPS for non-local deployments.
 - Report suspected vulnerabilities privately according to [SECURITY.md](SECURITY.md); do not open a public security issue.
 - Before publishing a fork or changing repository visibility, use the [public repository release checklist](docs/public-release-checklist.md).

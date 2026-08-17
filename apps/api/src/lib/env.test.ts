@@ -144,13 +144,74 @@ describe("production environment validation", () => {
   });
 
   test("rejects non-delivering or placeholder mail configuration", () => {
-    expectInvalid({ MAIL_DRIVER: "log" }, /must be resend/);
+    expectInvalid({ MAIL_DRIVER: "log" }, /must deliver mail in production/);
+    expectInvalid({ MAIL_DRIVER: "smtp" }, /MAIL_DRIVER must be one of/);
     expectInvalid({ RESEND_API_KEY: "re_xxxxxxxxxxxxx" }, /placeholder value/);
     expectInvalid({ EMAIL_FROM: "not-an-email" }, /valid email address/);
     expectInvalid(
       { EMAIL_FROM: "WATeamInbox <noreply@example.com>" },
       /reserved example domain/,
     );
+  });
+
+  /**
+   * An operator running one provider must never have to invent credentials for
+   * the other just to satisfy startup validation.
+   */
+  describe("selected mail provider", () => {
+    const cloudflare = {
+      MAIL_DRIVER: "cloudflare",
+      CLOUDFLARE_ACCOUNT_ID: "0123456789abcdef0123456789abcdef",
+      CLOUDFLARE_EMAIL_API_TOKEN: "cf-live-email-sending-token-123",
+      RESEND_API_KEY: "",
+    } as const;
+
+    test("accepts Cloudflare without any Resend credential", () => {
+      expect(() =>
+        validateProductionEnv(productionEnv(cloudflare)),
+      ).not.toThrow();
+    });
+
+    test("accepts Resend without any Cloudflare credential", () => {
+      expect(() =>
+        validateProductionEnv(
+          productionEnv({
+            CLOUDFLARE_ACCOUNT_ID: "",
+            CLOUDFLARE_EMAIL_API_TOKEN: "",
+          }),
+        ),
+      ).not.toThrow();
+    });
+
+    test.each([
+      "CLOUDFLARE_ACCOUNT_ID",
+      "CLOUDFLARE_EMAIL_API_TOKEN",
+    ] as const)("requires Cloudflare setting %s", (key) => {
+      expectInvalid(
+        { ...cloudflare, [key]: "" },
+        /Missing required production environment variables/,
+      );
+    });
+
+    test("rejects an account ID that is not a Cloudflare account ID", () => {
+      for (const accountId of [
+        "ACCOUNT_ID",
+        "0123456789abcdef",
+        "z".repeat(32),
+      ]) {
+        expectInvalid(
+          { ...cloudflare, CLOUDFLARE_ACCOUNT_ID: accountId },
+          /32-character Cloudflare account ID/,
+        );
+      }
+    });
+
+    test("rejects a placeholder Cloudflare token", () => {
+      expectInvalid(
+        { ...cloudflare, CLOUDFLARE_EMAIL_API_TOKEN: "replace-with-token" },
+        /placeholder value/,
+      );
+    });
   });
 
   test("rejects weak, placeholder, or reused signing secrets", () => {
