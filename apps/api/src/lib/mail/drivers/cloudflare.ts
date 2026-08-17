@@ -97,8 +97,10 @@ function describeFailure(
  * Production transport backed by the Cloudflare Email Service REST API.
  *
  * A successful send returns one `message_id` for the send operation alongside
- * the recipient buckets (`delivered`, `queued`, `permanent_bounces`), so the
- * `EmailResult` identifier is the provider's own Message-ID, as with Resend.
+ * the recipient buckets (`delivered`, `queued`, `permanent_bounces`). The live
+ * API can leave the delivered/queued buckets empty while accepting the message
+ * asynchronously, in which case its non-empty `message_id` is the acceptance
+ * signal and the `EmailResult` identifier, as with Resend.
  */
 export class CloudflareMailDriver implements MailDriver {
   readonly name = "cloudflare";
@@ -185,11 +187,15 @@ export class CloudflareMailDriver implements MailDriver {
         ...addresses(result?.delivered),
         ...addresses(result?.queued),
       ];
-      if (accepted.length === 0) {
+      const reportedMessageId = result?.message_id;
+      const hasMessageId =
+        typeof reportedMessageId === "string" &&
+        reportedMessageId.trim().length > 0;
+      if (accepted.length === 0 && !hasMessageId) {
         return {
           success: false,
           error:
-            "Cloudflare Email Service accepted the request without reporting a delivered or queued recipient",
+            "Cloudflare Email Service accepted the request without a message ID or recipient outcome",
         };
       }
 
