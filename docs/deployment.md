@@ -153,9 +153,11 @@ provider's `*_FILE` line - the container refuses to start while both are set -
 and recreate `api`. A successful Cloudflare send
 returns one `message_id` for the send operation plus per-recipient delivery
 status, and that `message_id` is what the API records - falling back to the
-accepting request's `cf-ray` only if a response omits it. A response that
-reports a permanent bounce, or no delivered and no queued recipient, is treated
-as a failed send.
+accepting request's `cf-ray` only if a response omits it. The live service can
+accept a message asynchronously while leaving both delivered and queued empty;
+in that case a non-empty `message_id` is the acceptance signal. A response that
+reports a permanent bounce, or reports neither a message ID nor a delivered or
+queued recipient, is treated as a failed send.
 
 Production requires a delivering driver. If email is intentionally disabled,
 use a reviewed override rather than a fake provider key; production defaults

@@ -212,7 +212,8 @@ describe("cloudflare mail driver", () => {
     expect(result.messageId).toBeUndefined();
   });
 
-  test("fails when the envelope reports no recipient outcome at all", async () => {
+  test("accepts a message ID when asynchronous recipient buckets are empty", async () => {
+    // The live API can accept the message before assigning a recipient outcome.
     const fetchMock = fetchReturning(() =>
       envelope({
         message_id: MESSAGE_ID,
@@ -224,8 +225,18 @@ describe("cloudflare mail driver", () => {
 
     const result = await driverWith(fetchMock).send(message);
 
+    expect(result).toEqual({ success: true, messageId: MESSAGE_ID });
+  });
+
+  test("fails when the envelope reports neither an ID nor a recipient outcome", async () => {
+    const fetchMock = fetchReturning(() =>
+      envelope({ delivered: [], permanent_bounces: [], queued: [] }),
+    );
+
+    const result = await driverWith(fetchMock).send(message);
+
     expect(result.success).toBe(false);
-    expect(result.error).toMatch(/without reporting a delivered or queued/);
+    expect(result.error).toMatch(/without a message ID or recipient outcome/);
   });
 
   test("surfaces API envelope errors with their codes", async () => {
@@ -344,7 +355,7 @@ describe("cloudflare mail driver", () => {
     const result = await driverWith(fetchMock).send(message);
 
     expect(result.success).toBe(false);
-    expect(result.error).toMatch(/without reporting a delivered or queued/);
+    expect(result.error).toMatch(/without a message ID or recipient outcome/);
   });
 
   test("refuses to send without credentials", async () => {

@@ -386,4 +386,8 @@ secrets:
   # is refused by the entrypoint, because one mount cannot be two providers'
   # keys.
   mail_api_key:
-    file: ${RESEND_API_KEY_FILE:-${CLOUDFLARE_EMAIL_API_TOKEN_FILE:?set RESEND_API_KEY_FILE or CLOUDFLARE_EMAIL_API_TOKEN_FILE for the selected MAIL_DRIVER}}
+    # Do not put a required-value operator inside the nested fallback: Compose
+    # eagerly evaluates it even when RESEND_API_KEY_FILE is set. If neither is
+    # configured, container creation cannot mount a usable secret and startup
+    # validation also rejects the selected provider's missing credential.
+    file: ${RESEND_API_KEY_FILE:-${CLOUDFLARE_EMAIL_API_TOKEN_FILE:-}}
