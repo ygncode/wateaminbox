@@ -16,6 +16,8 @@
  * - RATE_LIMIT_AUTH_LOGIN_WINDOW_SECONDS: Login window in seconds (default: 900)
  * - RATE_LIMIT_AUTH_REGISTER_REQUESTS: Register requests per window (default: 3)
  * - RATE_LIMIT_AUTH_REGISTER_WINDOW_SECONDS: Register window in seconds (default: 3600)
+ * - RATE_LIMIT_AUTH_RESEND_VERIFICATION_REQUESTS: Verification resends per window (default: 3)
+ * - RATE_LIMIT_AUTH_RESEND_VERIFICATION_WINDOW_SECONDS: Verification resend window in seconds (default: 3600)
  * - RATE_LIMIT_AUTH_REFRESH_REQUESTS: Refresh requests per window (default: 20)
  * - RATE_LIMIT_AUTH_REFRESH_WINDOW_SECONDS: Refresh window in seconds (default: 60)
  *
@@ -60,6 +62,7 @@ export interface RateLimitConfig {
     auth: {
       login: RateLimitTier;
       register: RateLimitTier;
+      resendVerification: RateLimitTier;
       forgotPassword: RateLimitTier;
       refresh: RateLimitTier;
     };
@@ -180,6 +183,17 @@ export function getRateLimitConfig(): RateLimitConfig {
           windowSeconds: parsePositiveInt(
             process.env.RATE_LIMIT_AUTH_REGISTER_WINDOW_SECONDS,
             isDevelopment() ? 60 : 3600, // 1 minute in dev, 1 hour in prod
+          ),
+        },
+        resendVerification: {
+          requests: getDefaultRequests(
+            process.env.RATE_LIMIT_AUTH_RESEND_VERIFICATION_REQUESTS,
+            3,
+            20, // 60 resends in dev
+          ),
+          windowSeconds: parsePositiveInt(
+            process.env.RATE_LIMIT_AUTH_RESEND_VERIFICATION_WINDOW_SECONDS,
+            isDevelopment() ? 60 : 3600,
           ),
         },
         forgotPassword: {
@@ -355,6 +369,10 @@ export const DEFAULT_RATE_LIMIT_CONFIG: RateLimitConfig = {
         windowSeconds: 900, // 15 minutes
       },
       register: {
+        requests: 3,
+        windowSeconds: 3600, // 1 hour
+      },
+      resendVerification: {
         requests: 3,
         windowSeconds: 3600, // 1 hour
       },

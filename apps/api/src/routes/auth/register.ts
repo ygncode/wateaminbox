@@ -1,5 +1,5 @@
-import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
+import { Hono } from "hono";
 import { createLogger, formatError } from "../../lib/logger.js";
 import { validatePasswordStrength } from "../../lib/password.js";
 import {
@@ -7,13 +7,21 @@ import {
   successWithMessage,
   validationError,
 } from "../../lib/response.js";
-import { registerSchema, verifyEmailSchema } from "../../lib/schemas/index.js";
+import {
+  registerSchema,
+  resendVerificationSchema,
+  verifyEmailSchema,
+} from "../../lib/schemas/index.js";
 import {
   register,
+  resendVerification,
   toAuthUserResponse,
   verifyEmail,
 } from "../../services/auth.service.js";
-import { registerRateLimiter } from "./rate-limiters.js";
+import {
+  registerRateLimiter,
+  resendVerificationRateLimiter,
+} from "./rate-limiters.js";
 import { handleAuthError } from "./utils.js";
 
 const logger = createLogger("AuthRoutes:Register");
@@ -44,12 +52,18 @@ registerRoutes.post(
         ]);
       }
 
-      const { user } = await register(body.email, body.password, body.name);
+      const { user, verificationEmailSent } = await register(
+        body.email,
+        body.password,
+        body.name,
+      );
       const publicUser = await toAuthUserResponse(user);
 
       return createdWithMessage(
         c,
-        "Registration successful. Please check your email to verify your account.",
+        verificationEmailSent
+          ? "Registration successful. Please check your email to verify your account."
+          : "Registration successful, but we could not send the verification email. Please retry from the sign-in page.",
         {
           user: {
             id: user.id,
@@ -61,6 +75,7 @@ registerRoutes.post(
             emailVerified: publicUser.emailVerified,
             createdAt: user.createdAt,
           },
+          verificationEmailSent,
         },
       );
     } catch (error) {
@@ -70,6 +85,37 @@ registerRoutes.post(
         logger,
         formatError,
         "Registration error",
+      );
+    }
+  },
+);
+
+/**
+ * POST /resend-verification
+ * Reissue a verification link after checking the account password.
+ */
+registerRoutes.post(
+  "/resend-verification",
+  resendVerificationRateLimiter,
+  zValidator("json", resendVerificationSchema),
+  async (c) => {
+    try {
+      const body = c.req.valid("json");
+      const result = await resendVerification(body.email, body.password);
+      return successWithMessage(
+        c,
+        result.alreadyVerified
+          ? "Your email is already verified. You can sign in."
+          : "A new verification email has been sent.",
+        result,
+      );
+    } catch (error) {
+      return handleAuthError(
+        c,
+        error,
+        logger,
+        formatError,
+        "Verification resend error",
       );
     }
   },

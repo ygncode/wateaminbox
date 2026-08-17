@@ -191,14 +191,21 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const updateProfile = React.useCallback(
     async (input: UpdateProfileRequest) => {
       const response = await updateCurrentUserProfile(input);
-      setState((previous) => ({
-        ...previous,
-        user: mapApiUser(response.user),
-        error: null,
-      }));
+      if (response.emailVerificationRequired) {
+        clearAuthTokens();
+        queryClient.clear();
+        useChatStore.getState().reset();
+        setState(EMPTY_STATE);
+      } else {
+        setState((previous) => ({
+          ...previous,
+          user: mapApiUser(response.user),
+          error: null,
+        }));
+      }
       return response;
     },
-    [],
+    [queryClient],
   );
 
   const clearError = React.useCallback(() => {

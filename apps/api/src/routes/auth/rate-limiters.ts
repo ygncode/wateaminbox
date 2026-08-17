@@ -23,6 +23,17 @@ export const registerRateLimiter = createConditionalRateLimiter(
   rateLimitConfig.enabled,
 );
 
+// Verification resend rate limiter: 3 attempts per hour
+export const resendVerificationRateLimiter = createConditionalRateLimiter(
+  {
+    store: rateLimitStore,
+    tier: rateLimitConfig.tiers.auth.resendVerification,
+    keyStrategy: "ip",
+    keyPrefix: "auth-resend-verification",
+  },
+  rateLimitConfig.enabled,
+);
+
 // Forgot password rate limiter: 3 attempts per hour
 export const forgotPasswordRateLimiter = createConditionalRateLimiter(
   {

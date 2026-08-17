@@ -36,7 +36,7 @@ export function handleAuthError(
   if (error instanceof AuthError) {
     return c.json(
       { error: error.code, message: error.message },
-      error.statusCode as 400 | 401 | 403 | 404 | 409,
+      error.statusCode as 400 | 401 | 403 | 404 | 409 | 429 | 503,
     );
   }
   logger.error({ err: formatError(error) }, contextMessage);

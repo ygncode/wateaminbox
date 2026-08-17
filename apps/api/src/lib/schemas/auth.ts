@@ -1,9 +1,9 @@
 import { z } from "zod";
 import {
   emailSchema,
+  optionalNameSchema,
   passwordSchema,
   tokenSchema,
-  optionalNameSchema,
 } from "../schemas.js";
 
 /**
@@ -49,6 +49,13 @@ export const verifyEmailSchema = z.object({
 });
 
 export type VerifyEmailInput = z.infer<typeof verifyEmailSchema>;
+
+export const resendVerificationSchema = z.object({
+  email: emailSchema,
+  password: z.string().min(1, "Password is required"),
+});
+
+export type ResendVerificationInput = z.infer<typeof resendVerificationSchema>;
 
 // =============================================================================
 // Password Reset

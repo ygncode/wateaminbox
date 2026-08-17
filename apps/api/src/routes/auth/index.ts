@@ -6,7 +6,7 @@ import { sessionRoutes } from "./session.js";
 
 export const authRoutes = new Hono();
 
-// Register routes - POST /register, POST /verify-email
+// Registration routes - POST /register, POST /resend-verification, POST /verify-email
 authRoutes.route("/", registerRoutes);
 
 // Login routes - POST /login, POST /logout, POST /refresh

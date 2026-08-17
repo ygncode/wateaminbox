@@ -2,6 +2,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import {
   ArrowRight,
   CheckCircle2,
+  CircleAlert,
   LoaderCircle,
   MailCheck,
 } from "lucide-react";
@@ -29,6 +30,8 @@ export function RegisterPage() {
   } = useAuth();
   const [registrationSuccess, setRegistrationSuccess] = React.useState(false);
   const [registeredEmail, setRegisteredEmail] = React.useState("");
+  const [verificationEmailSent, setVerificationEmailSent] =
+    React.useState(true);
 
   const {
     register,
@@ -53,12 +56,13 @@ export function RegisterPage() {
   const onSubmit = async (data: RegisterFormData) => {
     clearError();
     try {
-      await registerUser({
+      const response = await registerUser({
         name: data.name,
         email: data.email,
         password: data.password,
       });
       setRegisteredEmail(data.email);
+      setVerificationEmailSent(response.verificationEmailSent);
       setRegistrationSuccess(true);
     } catch {
       // Error is handled by auth context
@@ -77,32 +81,76 @@ export function RegisterPage() {
               className="absolute inset-0 scale-150 rounded-full bg-[#25d366]/10"
               aria-hidden="true"
             />
-            <span className="relative grid h-16 w-16 place-items-center rounded-2xl bg-[#e2f8e9] text-[#075e54] dark:bg-[#25d366]/15 dark:text-[#52df83]">
-              <MailCheck aria-hidden="true" className="h-8 w-8" />
+            <span
+              className={`relative grid h-16 w-16 place-items-center rounded-2xl ${
+                verificationEmailSent
+                  ? "bg-[#e2f8e9] text-[#075e54] dark:bg-[#25d366]/15 dark:text-[#52df83]"
+                  : "bg-amber-100 text-amber-800 dark:bg-amber-400/15 dark:text-amber-300"
+              }`}
+            >
+              {verificationEmailSent ? (
+                <MailCheck aria-hidden="true" className="h-8 w-8" />
+              ) : (
+                <CircleAlert aria-hidden="true" className="h-8 w-8" />
+              )}
             </span>
           </div>
           <p className="mb-3 text-xs font-bold uppercase tracking-[0.16em] text-[#0a7c43] dark:text-[#52df83]">
             Account created
           </p>
           <h1 className="text-3xl font-semibold tracking-[-0.035em] text-slate-950 text-balance sm:text-4xl dark:text-dark-text-primary">
-            Verify your email to continue
+            {verificationEmailSent
+              ? "Verify your email to continue"
+              : "Account created, but email delivery failed"}
           </h1>
           <p className="mt-4 max-w-md text-sm leading-6 text-slate-600 dark:text-dark-text-secondary">
-            We sent a verification link to{" "}
-            <strong className="break-all font-semibold text-slate-900 dark:text-dark-text-primary">
-              {registeredEmail}
-            </strong>
-            . Open it to activate your WATeamInbox account.
+            {verificationEmailSent ? (
+              <>
+                We sent a verification link to{" "}
+                <strong className="break-all font-semibold text-slate-900 dark:text-dark-text-primary">
+                  {registeredEmail}
+                </strong>
+                . Open it to activate your WATeamInbox account.
+              </>
+            ) : (
+              <>
+                We could not send the verification link to{" "}
+                <strong className="break-all font-semibold text-slate-900 dark:text-dark-text-primary">
+                  {registeredEmail}
+                </strong>
+                . Sign in with your new credentials to retry delivery.
+              </>
+            )}
           </p>
 
-          <div className="mt-7 flex w-full items-start gap-3 rounded-2xl border border-emerald-100 bg-emerald-50/70 p-4 text-left dark:border-[#25d366]/20 dark:bg-[#25d366]/[0.07]">
-            <CheckCircle2
-              aria-hidden="true"
-              className="mt-0.5 h-5 w-5 shrink-0 text-[#0a7c43] dark:text-[#52df83]"
-            />
-            <p className="text-sm leading-5 text-emerald-950/75 dark:text-emerald-50/70">
-              The link may take a minute to arrive. Check your spam folder if
-              you don&apos;t see it.
+          <div
+            className={`mt-7 flex w-full items-start gap-3 rounded-2xl border p-4 text-left ${
+              verificationEmailSent
+                ? "border-emerald-100 bg-emerald-50/70 dark:border-[#25d366]/20 dark:bg-[#25d366]/[0.07]"
+                : "border-amber-200 bg-amber-50 dark:border-amber-400/25 dark:bg-amber-400/[0.08]"
+            }`}
+          >
+            {verificationEmailSent ? (
+              <CheckCircle2
+                aria-hidden="true"
+                className="mt-0.5 h-5 w-5 shrink-0 text-[#0a7c43] dark:text-[#52df83]"
+              />
+            ) : (
+              <CircleAlert
+                aria-hidden="true"
+                className="mt-0.5 h-5 w-5 shrink-0 text-amber-700 dark:text-amber-300"
+              />
+            )}
+            <p
+              className={`text-sm leading-5 ${
+                verificationEmailSent
+                  ? "text-emerald-950/75 dark:text-emerald-50/70"
+                  : "text-amber-950/80 dark:text-amber-100/80"
+              }`}
+            >
+              {verificationEmailSent
+                ? "The link may take a minute to arrive. Check your spam folder if you don't see it."
+                : "Your account was kept safely. The sign-in page can send a fresh link after checking your password."}
             </p>
           </div>
 
@@ -112,7 +160,9 @@ export function RegisterPage() {
             className="mt-7 h-12 w-full rounded-xl bg-[#075e54] text-white shadow-lg shadow-[#075e54]/15 hover:bg-[#064b43]"
           >
             <Link to={buildAuthUrl("/login", redirectTo, registeredEmail)}>
-              Continue to sign in
+              {verificationEmailSent
+                ? "Continue to sign in"
+                : "Go to sign in and retry"}
               <ArrowRight aria-hidden="true" />
             </Link>
           </Button>
