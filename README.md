@@ -198,6 +198,24 @@ Restart the API and rebuild/restart the web app after changing these values. Web
 
 The receiving user must be assigned to the contact or have permission to view all chats. Disabled notifications, quiet hours, and muted contacts suppress delivery.
 
+## Optional product analytics (GA4)
+
+The web app can optionally report anonymous product usage (sanitized page views and a small set of allowlisted events) to a Google Analytics 4 property **that you own**. It is fully inert by default: nothing loads, no consent banner appears, and no request is made to Google unless you opt in.
+
+To enable it, set all of the following and rebuild the web app/image (the values are compiled into the browser bundle, so changing them always requires a rebuild):
+
+```env
+VITE_GA_ENABLED=true              # only the exact string "true" enables it
+VITE_GA_MEASUREMENT_ID=G-XXXXXXXXXX  # your own GA4 web stream ID
+VITE_GA_REQUIRE_CONSENT=true      # recommended default: per-browser consent prompt
+```
+
+With consent required (the default), each visitor must accept an in-app prompt before `gtag.js` loads; declining sends nothing, and consent can be changed later under **Settings → Personal → Privacy & analytics**. Setting `VITE_GA_REQUIRE_CONSENT=false` is an explicit operator policy decision that makes you responsible for another valid consent mechanism.
+
+URLs are canonicalized before sending, so workspace/contact/job identifiers, invitation and reset tokens, query strings, and message or customer content never reach GA. No user or workspace correlation is performed. GA data is approximate (ad blockers and declined consent suppress events) — never treat it as authoritative usage or billing data.
+
+See [docs/product-analytics.md](docs/product-analytics.md) for the full configuration reference, event list, GA property setup checklist (including disabling Enhanced Measurement page views and Google Signals), and privacy notes.
+
 ## Useful commands
 
 | Command | Description |

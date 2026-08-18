@@ -14,6 +14,7 @@ import { Button } from "../components/ui/button";
 import { FormField } from "../components/ui/form-field";
 import { useAuth } from "../contexts/auth-context";
 import { buildAuthUrl, getSafeAuthRedirect } from "../lib/auth-redirect";
+import { productAnalytics } from "../lib/product-analytics";
 import { type RegisterFormData, registerSchema } from "../lib/schemas";
 
 export function RegisterPage() {
@@ -61,6 +62,7 @@ export function RegisterPage() {
         email: data.email,
         password: data.password,
       });
+      productAnalytics.track("sign_up", { method: "email" });
       setRegisteredEmail(data.email);
       setVerificationEmailSent(response.verificationEmailSent);
       setRegistrationSuccess(true);

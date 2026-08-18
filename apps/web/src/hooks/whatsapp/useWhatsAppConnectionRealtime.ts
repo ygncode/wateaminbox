@@ -8,7 +8,12 @@ import type {
   WorkerConnectionStatusPayload,
 } from "@wateaminbox/shared";
 import { useRealtimeContext } from "@/contexts";
+import { productAnalytics } from "@/lib/product-analytics";
 import { queryKeys } from "../query-keys";
+import {
+  clearConnectionTransition,
+  consumeConnectionTransition,
+} from "./connection-analytics";
 import type { ConnectionState } from "./types";
 
 interface UseRealtimeOptions {
@@ -88,6 +93,9 @@ export function useWhatsAppConnectionRealtime({
             error: "QR code expired. Please try again.",
             isConnecting: false,
           });
+          // Pairing failed; retrying issues a fresh expectation, so the old
+          // one must not linger and attribute an unrelated later connect.
+          clearConnectionTransition(connectionId);
         });
       } else {
         // If no connectionId, stash on pending placeholder so UI can still show
@@ -129,6 +137,16 @@ export function useWhatsAppConnectionRealtime({
           queryClientRef.current.invalidateQueries({
             queryKey: queryKeys.whatsapp.lists(),
           });
+
+          // Report only a real transition into connected that the user
+          // initiated in this session (consume-once), never a render of an
+          // already-connected item or a background worker recovery.
+          const connectionMode = consumeConnectionTransition(connectionId);
+          if (connectionMode) {
+            productAnalytics.track("whatsapp_connection_connected", {
+              connectionMode,
+            });
+          }
         }
       },
     );
