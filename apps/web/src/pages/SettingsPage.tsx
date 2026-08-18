@@ -12,6 +12,7 @@ import {
   Package,
   Plug,
   Save,
+  ShieldCheck,
   Tag,
   Trash2,
   Upload,
@@ -21,6 +22,7 @@ import {
 import { type ComponentType, type ReactNode, useRef, useState } from "react";
 import { Navigate, NavLink, useNavigate, useParams } from "react-router";
 import { toast } from "sonner";
+import { AnalyticsPreferences } from "../components/analytics";
 import { ThemeToggle } from "../components/chat/ThemeToggle";
 import { ContactImport } from "../components/contacts";
 import {
@@ -46,6 +48,7 @@ import { WorkspaceAvatar } from "../components/workspace/WorkspaceAvatar";
 import { useAuth } from "../contexts/auth-context";
 import { useKeyboardShortcutsContext } from "../contexts/KeyboardShortcutsContext";
 import { useWorkspace } from "../contexts/workspace-context";
+import { productAnalytics } from "../lib/product-analytics";
 import {
   useCompanyMembers,
   useDeleteCompany,
@@ -72,7 +75,8 @@ type SettingsSection =
   | "profile"
   | "notifications"
   | "data"
-  | "appearance";
+  | "appearance"
+  | "privacy";
 
 interface SectionDefinition {
   id: SettingsSection;
@@ -151,6 +155,15 @@ export function SettingsPage() {
       group: "Personal",
       icon: Globe2,
       visible: true,
+    },
+    {
+      id: "privacy",
+      label: "Privacy & analytics",
+      group: "Personal",
+      icon: ShieldCheck,
+      // Analytics is an optional, deployer-enabled integration; render no
+      // settings control at all when it is not configured.
+      visible: productAnalytics.isConfigured(),
     },
     {
       id: "data",
@@ -338,6 +351,15 @@ function SettingsSectionContent({
       return <NotificationSettings />;
     case "appearance":
       return <AppearanceSettings />;
+    case "privacy":
+      return (
+        <Panel
+          title="Product analytics"
+          description="Control whether this browser shares anonymous usage analytics with this deployment's Google Analytics property."
+        >
+          <AnalyticsPreferences />
+        </Panel>
+      );
     case "data":
       return <DataSettings />;
   }

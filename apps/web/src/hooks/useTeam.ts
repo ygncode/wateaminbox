@@ -8,6 +8,7 @@ import type {
   UpdateCompanyInput,
 } from "@wateaminbox/shared";
 import { api } from "@/lib/api/client";
+import { productAnalytics } from "@/lib/product-analytics";
 import { useInvalidate, useQueryInvalidation } from "./query";
 import { queryKeys } from "./query-keys";
 
@@ -375,7 +376,10 @@ export function useCreateCompany() {
     mutationFn: async (input: CreateCompanyInput) => {
       return api.post<Company>("/companies", input);
     },
-    onSuccess: invalidateCompanies,
+    onSuccess: () => {
+      invalidateCompanies();
+      productAnalytics.track("workspace_created", {});
+    },
   });
 }
 
