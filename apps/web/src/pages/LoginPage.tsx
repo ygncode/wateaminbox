@@ -3,26 +3,24 @@ import {
   ArrowRight,
   CircleAlert,
   LoaderCircle,
+  MailCheck,
   ShieldCheck,
 } from "lucide-react";
 import * as React from "react";
 import { useForm } from "react-hook-form";
-import {
-  Link,
-  useLocation,
-  useNavigate,
-  useSearchParams,
-} from "react-router";
+import { Link, useLocation, useNavigate, useSearchParams } from "react-router";
 import { AuthPageShell } from "../components/auth/AuthPageShell";
 import { Button } from "../components/ui/button";
 import { FormField } from "../components/ui/form-field";
 import { useAuth } from "../contexts/auth-context";
 import { useWorkspace } from "../contexts/workspace-context";
+import { resendVerification } from "../lib/api";
 import {
   buildAuthUrl,
   getAuthRedirectFromState,
   getSafeAuthRedirect,
 } from "../lib/auth-redirect";
+import { isEmailVerificationRequiredError } from "../lib/email-verification";
 import { type LoginFormData, loginSchema } from "../lib/schemas";
 import { workspacePath } from "../lib/workspace-routes";
 
@@ -42,8 +40,14 @@ export function LoginPage() {
     needsWorkspaceChoice,
   } = useWorkspace();
 
+  const [verificationRequired, setVerificationRequired] = React.useState(false);
+  const [isResending, setIsResending] = React.useState(false);
+  const [resendMessage, setResendMessage] = React.useState<string | null>(null);
+  const [resendError, setResendError] = React.useState<string | null>(null);
+
   const {
     register,
+    getValues,
     handleSubmit,
     watch,
     formState: { errors },
@@ -81,12 +85,43 @@ export function LoginPage() {
 
   const onSubmit = async (data: LoginFormData) => {
     clearError();
+    setVerificationRequired(false);
+    setResendMessage(null);
+    setResendError(null);
     try {
       await login(data.email, data.password);
       // Navigation is handled by useEffect based on auth state
-    } catch {
-      // Error is handled by auth context
+    } catch (loginError) {
+      if (isEmailVerificationRequiredError(loginError)) {
+        setVerificationRequired(true);
+      }
     }
+  };
+
+  const resendVerificationEmail = async () => {
+    const { email, password } = getValues();
+    setIsResending(true);
+    setResendMessage(null);
+    setResendError(null);
+    try {
+      const response = await resendVerification(email, password);
+      setResendMessage(response.message);
+    } catch (resendFailure) {
+      setResendError(
+        resendFailure instanceof Error
+          ? resendFailure.message
+          : "Could not resend the verification email",
+      );
+    } finally {
+      setIsResending(false);
+    }
+  };
+
+  const clearLoginFeedback = () => {
+    if (error) clearError();
+    if (verificationRequired) setVerificationRequired(false);
+    setResendMessage(null);
+    setResendError(null);
   };
 
   return (
@@ -105,7 +140,7 @@ export function LoginPage() {
 
         <form
           onSubmit={handleSubmit(onSubmit)}
-          onChange={error ? clearError : undefined}
+          onChange={clearLoginFeedback}
           className="mt-8 space-y-5 [&_input]:h-11 [&_input]:rounded-xl [&_input]:border-slate-300 [&_input]:bg-white [&_input]:px-3.5 dark:[&_input]:border-dark-border dark:[&_input]:bg-dark-tertiary"
           aria-busy={isLoading}
           noValidate
@@ -119,7 +154,33 @@ export function LoginPage() {
                 aria-hidden="true"
                 className="mt-0.5 h-4 w-4 shrink-0"
               />
-              <span>{error}</span>
+              <div className="min-w-0 flex-1">
+                <p>{error}</p>
+                {verificationRequired && (
+                  <button
+                    type="button"
+                    onClick={resendVerificationEmail}
+                    disabled={isResending || Boolean(resendMessage)}
+                    className="mt-2 inline-flex items-center gap-1.5 rounded-sm font-semibold underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {isResending ? (
+                      <LoaderCircle
+                        aria-hidden="true"
+                        className="h-4 w-4 animate-spin"
+                      />
+                    ) : (
+                      <MailCheck aria-hidden="true" className="h-4 w-4" />
+                    )}
+                    {isResending ? "Sending…" : "Resend verification email"}
+                  </button>
+                )}
+                {resendMessage && (
+                  <p className="mt-2 font-medium text-emerald-700 dark:text-emerald-300">
+                    {resendMessage}
+                  </p>
+                )}
+                {resendError && <p className="mt-2">{resendError}</p>}
+              </div>
             </div>
           )}
 
@@ -147,11 +208,7 @@ export function LoginPage() {
             />
             <div className="mt-2 flex justify-end">
               <Link
-                to={buildAuthUrl(
-                  "/forgot-password",
-                  redirectTo,
-                  currentEmail,
-                )}
+                to={buildAuthUrl("/forgot-password", redirectTo, currentEmail)}
                 className="rounded-sm text-sm font-semibold text-[#0a7c43] underline-offset-4 transition-colors hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#075e54] focus-visible:ring-offset-2 dark:text-[#52df83] dark:focus-visible:ring-offset-dark-elevated"
               >
                 Forgot password?

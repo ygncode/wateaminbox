@@ -1,5 +1,5 @@
-import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
+import { Hono } from "hono";
 import { badRequest } from "../../lib/errors.js";
 import { createLogger, formatError } from "../../lib/logger.js";
 import { validatePasswordStrength } from "../../lib/password.js";
@@ -115,6 +115,7 @@ sessionRoutes.patch(
       const result = await updateProfile(user.id, c.req.valid("json"));
       return successWithMessage(c, "Profile updated successfully", {
         user: await toAuthUserResponse(result.user),
+        emailVerificationRequired: result.emailVerificationRequired,
         emailVerificationSent: result.emailVerificationSent,
       });
     } catch (error) {

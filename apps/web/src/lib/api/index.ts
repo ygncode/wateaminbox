@@ -28,6 +28,7 @@ export {
   login,
   logout,
   register,
+  resendVerification,
   resetPassword,
   updateCurrentUserProfile,
   verifyEmail,

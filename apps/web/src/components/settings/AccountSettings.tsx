@@ -14,9 +14,9 @@ import { toast } from "sonner";
 import { useAuth } from "@/contexts/auth-context";
 import { changeCurrentUserPassword } from "@/lib/api";
 import {
-  prepareProfileAvatar,
   PROFILE_AVATAR_INPUT_BYTES,
   PROFILE_AVATAR_SIZE,
+  prepareProfileAvatar,
   validateProfileAvatar,
 } from "@/lib/profile-avatar";
 import {
@@ -137,11 +137,19 @@ export function AccountSettings() {
       setAvatarDataUrl(null);
       setAvatarRemoved(false);
       setAvatarError(null);
-      toast.success(
-        response.emailVerificationSent
-          ? "Profile saved. Check your new email to verify the address."
-          : "Profile saved",
-      );
+      if (response.emailVerificationRequired) {
+        if (response.emailVerificationSent) {
+          toast.success(
+            "Email changed. Verify the new address before signing in again.",
+          );
+        } else {
+          toast.warning(
+            "Email changed, but the verification message could not be sent. Sign in to retry.",
+          );
+        }
+      } else {
+        toast.success("Profile saved");
+      }
     } catch (error) {
       toast.error(
         error instanceof Error ? error.message : "Could not save your profile",

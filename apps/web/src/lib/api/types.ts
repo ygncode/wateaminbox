@@ -68,12 +68,18 @@ export interface RegisterRequest {
 
 export interface RegisterResponse {
   message: string;
+  verificationEmailSent: boolean;
   user: {
     id: string;
     email: string;
     emailVerified: boolean;
     createdAt: string;
   };
+}
+
+export interface ResendVerificationResponse {
+  message: string;
+  alreadyVerified: boolean;
 }
 
 export interface RefreshResponse {
@@ -107,6 +113,7 @@ export interface UpdateProfileRequest {
 export interface UpdateProfileResponse {
   message: string;
   user: CurrentUserResponse;
+  emailVerificationRequired: boolean;
   emailVerificationSent: boolean;
 }
 

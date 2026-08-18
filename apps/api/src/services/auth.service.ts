@@ -1,8 +1,12 @@
-import { db, type AuthTokenType, type Database } from "@wateaminbox/database";
-import { toDbDate } from "@wateaminbox/shared";
 import crypto from "node:crypto";
+import { type AuthTokenType, type Database, db } from "@wateaminbox/database";
+import { toDbDate } from "@wateaminbox/shared";
 import type { Kysely, Transaction } from "kysely";
-import { sendPasswordResetEmail, sendVerificationEmail } from "../lib/email.js";
+import {
+  type EmailResult,
+  sendPasswordResetEmail,
+  sendVerificationEmail,
+} from "../lib/email.js";
 import { AuthError } from "../lib/errors.js";
 import { getGravatarUrl } from "../lib/gravatar.js";
 import {
@@ -74,6 +78,43 @@ const EMAIL_VERIFICATION_TTL_MS = 24 * 60 * 60 * 1000;
 const PASSWORD_RESET_TTL_MS = 60 * 60 * 1000;
 
 type AuthDatabase = Kysely<Database> | Transaction<Database>;
+type VerificationEmailSender = (
+  email: string,
+  token: string,
+) => Promise<EmailResult>;
+
+const emailNotVerifiedError = () =>
+  new AuthError(
+    "Verify your email address before signing in",
+    "EMAIL_NOT_VERIFIED",
+    403,
+  );
+
+/** Keep the access-control decision explicit and independently testable. */
+export function assertEmailVerified(
+  emailVerifiedAt: Date | null,
+): asserts emailVerifiedAt is Date {
+  if (!emailVerifiedAt) throw emailNotVerifiedError();
+}
+
+async function deliverVerificationEmail(
+  email: string,
+  token: string,
+  emailSender: VerificationEmailSender,
+): Promise<boolean> {
+  try {
+    return (await emailSender(email, token)).success;
+  } catch {
+    return false;
+  }
+}
+
+async function discardAuthToken(token: string): Promise<void> {
+  await db
+    .deleteFrom("auth_tokens")
+    .where("token_hash", "=", hashToken(token))
+    .execute();
+}
 
 export async function toAuthUserResponse(
   user: Pick<AuthUser, "id" | "email" | "name" | "emailVerifiedAt"> & {
@@ -124,15 +165,34 @@ async function issueAuthToken(
   userId: string,
   type: AuthTokenType,
   ttlMs: number,
+  invalidateExisting: boolean = true,
 ): Promise<string> {
   const token = generateToken();
 
-  // Only the newest token of each type remains valid for a user.
-  await database
-    .deleteFrom("auth_tokens")
-    .where("user_id", "=", userId)
-    .where("type", "=", type)
-    .execute();
+  if (invalidateExisting) {
+    // New auth operations invalidate tokens from an earlier operation. A
+    // verification resend opts out so an already-delivered link stays valid
+    // until the replacement has also been accepted by the mail provider.
+    await database
+      .deleteFrom("auth_tokens")
+      .where("user_id", "=", userId)
+      .where("type", "=", type)
+      .execute();
+  } else {
+    // Resends may preserve earlier delivered links, but dead rows must not
+    // accumulate forever on an account that repeatedly requests new links.
+    await database
+      .deleteFrom("auth_tokens")
+      .where("user_id", "=", userId)
+      .where("type", "=", type)
+      .where((eb) =>
+        eb.or([
+          eb("expires_at", "<=", toDbDate()),
+          eb("used_at", "is not", null),
+        ]),
+      )
+      .execute();
+  }
 
   await database
     .insertInto("auth_tokens")
@@ -155,7 +215,8 @@ export async function register(
   email: string,
   password: string,
   name?: string,
-): Promise<{ user: AuthUser }> {
+  emailSender: VerificationEmailSender = sendVerificationEmail,
+): Promise<{ user: AuthUser; verificationEmailSent: boolean }> {
   const normalizedEmail = email.toLowerCase();
   const existingUser = await db
     .selectFrom("users")
@@ -204,7 +265,14 @@ export async function register(
       return { user: createdUser, verificationToken: token };
     });
 
-  await sendVerificationEmail(user.email, verificationToken);
+  const verificationEmailSent = await deliverVerificationEmail(
+    user.email,
+    verificationToken,
+    emailSender,
+  );
+  if (!verificationEmailSent) {
+    await discardAuthToken(verificationToken).catch(() => undefined);
+  }
 
   return {
     user: {
@@ -216,6 +284,7 @@ export async function register(
       createdAt: user.created_at,
       updatedAt: user.updated_at,
     },
+    verificationEmailSent,
   };
 }
 
@@ -252,72 +321,102 @@ export async function login(
     );
   }
 
-  // Insert a unique placeholder until the signed refresh token can include the session ID.
-  const refreshTokenPlaceholder = hashToken(generateToken());
+  if (!user.email_verified_at) {
+    // Revoke sessions created before verification became mandatory. This also
+    // closes any session left behind after the account's email was changed.
+    await db
+      .deleteFrom("user_sessions")
+      .where("user_id", "=", user.id)
+      .execute();
+    assertEmailVerified(user.email_verified_at);
+  }
 
-  // Create session
-  const session = await db
-    .insertInto("user_sessions")
-    .values({
-      user_id: user.id,
-      device_name: deviceInfo?.deviceName ?? null,
-      device_type: deviceInfo?.deviceType ?? null,
-      ip_address: deviceInfo?.ipAddress ?? null,
-      user_agent: deviceInfo?.userAgent ?? null,
-      refresh_token: refreshTokenPlaceholder,
-      expires_at: getRefreshTokenExpiry(),
-    })
-    .returning([
-      "id",
-      "user_id",
-      "device_name",
-      "device_type",
-      "ip_address",
-      "user_agent",
-      "last_active_at",
-      "created_at",
-      "expires_at",
-    ])
-    .executeTakeFirstOrThrow();
+  const result = await db.transaction().execute(async (trx) => {
+    // Serialize session creation with profile email changes. Without this lock,
+    // an email change could mark the user unverified and delete sessions just
+    // before a racing login inserts a new one.
+    const lockedUser = await trx
+      .selectFrom("users")
+      .where("id", "=", user.id)
+      .selectAll()
+      .forUpdate()
+      .executeTakeFirstOrThrow();
 
-  // Generate JWT tokens
-  const [accessToken, refreshToken] = await Promise.all([
-    generateAccessToken(user.id, session.id),
-    generateRefreshToken(session.id),
-  ]);
+    if (!lockedUser.email_verified_at) {
+      await trx
+        .deleteFrom("user_sessions")
+        .where("user_id", "=", lockedUser.id)
+        .execute();
+      return null;
+    }
 
-  await db
-    .updateTable("user_sessions")
-    .set({ refresh_token: hashToken(refreshToken) })
-    .where("id", "=", session.id)
-    .execute();
+    // Insert a unique placeholder until the signed refresh token can include the session ID.
+    const refreshTokenPlaceholder = hashToken(generateToken());
+    const session = await trx
+      .insertInto("user_sessions")
+      .values({
+        user_id: lockedUser.id,
+        device_name: deviceInfo?.deviceName ?? null,
+        device_type: deviceInfo?.deviceType ?? null,
+        ip_address: deviceInfo?.ipAddress ?? null,
+        user_agent: deviceInfo?.userAgent ?? null,
+        refresh_token: refreshTokenPlaceholder,
+        expires_at: getRefreshTokenExpiry(),
+      })
+      .returning([
+        "id",
+        "user_id",
+        "device_name",
+        "device_type",
+        "ip_address",
+        "user_agent",
+        "last_active_at",
+        "created_at",
+        "expires_at",
+      ])
+      .executeTakeFirstOrThrow();
 
-  return {
-    user: {
-      id: user.id,
-      email: user.email,
-      name: user.name,
-      avatarKey: user.avatar_key,
-      emailVerifiedAt: user.email_verified_at,
-      createdAt: user.created_at,
-      updatedAt: user.updated_at,
-    },
-    tokens: {
-      accessToken,
-      refreshToken,
-    },
-    session: {
-      id: session.id,
-      userId: session.user_id,
-      deviceName: session.device_name,
-      deviceType: session.device_type,
-      ipAddress: session.ip_address,
-      userAgent: session.user_agent,
-      lastActiveAt: session.last_active_at,
-      createdAt: session.created_at,
-      expiresAt: session.expires_at,
-    },
-  };
+    const [accessToken, refreshToken] = await Promise.all([
+      generateAccessToken(lockedUser.id, session.id),
+      generateRefreshToken(session.id),
+    ]);
+
+    await trx
+      .updateTable("user_sessions")
+      .set({ refresh_token: hashToken(refreshToken) })
+      .where("id", "=", session.id)
+      .execute();
+
+    return {
+      user: {
+        id: lockedUser.id,
+        email: lockedUser.email,
+        name: lockedUser.name,
+        avatarKey: lockedUser.avatar_key,
+        emailVerifiedAt: lockedUser.email_verified_at,
+        createdAt: lockedUser.created_at,
+        updatedAt: lockedUser.updated_at,
+      },
+      tokens: {
+        accessToken,
+        refreshToken,
+      },
+      session: {
+        id: session.id,
+        userId: session.user_id,
+        deviceName: session.device_name,
+        deviceType: session.device_type,
+        ipAddress: session.ip_address,
+        userAgent: session.user_agent,
+        lastActiveAt: session.last_active_at,
+        createdAt: session.created_at,
+        expiresAt: session.expires_at,
+      },
+    };
+  });
+
+  if (!result) throw emailNotVerifiedError();
+  return result;
 }
 
 /**
@@ -364,7 +463,9 @@ export async function verifyEmail(token: string): Promise<AuthUser> {
     await trx
       .updateTable("auth_tokens")
       .set({ used_at: now })
-      .where("id", "=", storedToken.id)
+      .where("user_id", "=", storedToken.user_id)
+      .where("type", "=", "email_verification")
+      .where("used_at", "is", null)
       .execute();
 
     return {
@@ -377,6 +478,56 @@ export async function verifyEmail(token: string): Promise<AuthUser> {
       updatedAt: user.updated_at,
     };
   });
+}
+
+/**
+ * Reissue a verification link after validating the account password. Requiring
+ * credentials lets delivery failures be reported accurately without exposing
+ * whether an arbitrary email address has an account.
+ */
+export async function resendVerification(
+  email: string,
+  password: string,
+  emailSender: VerificationEmailSender = sendVerificationEmail,
+): Promise<{ alreadyVerified: boolean }> {
+  const user = await db
+    .selectFrom("users")
+    .where("email", "=", email.trim().toLowerCase())
+    .select(["id", "email", "password_hash", "email_verified_at"])
+    .executeTakeFirst();
+
+  if (!user || !(await verifyPassword(password, user.password_hash))) {
+    throw new AuthError(
+      "Invalid email or password",
+      "INVALID_CREDENTIALS",
+      401,
+    );
+  }
+
+  if (user.email_verified_at) return { alreadyVerified: true };
+
+  const token = await issueAuthToken(
+    db,
+    user.id,
+    "email_verification",
+    EMAIL_VERIFICATION_TTL_MS,
+    false,
+  );
+  const delivered = await deliverVerificationEmail(
+    user.email,
+    token,
+    emailSender,
+  );
+  if (!delivered) {
+    await discardAuthToken(token).catch(() => undefined);
+    throw new AuthError(
+      "We could not send a verification email. Please try again later.",
+      "VERIFICATION_EMAIL_DELIVERY_FAILED",
+      503,
+    );
+  }
+
+  return { alreadyVerified: false };
 }
 
 /**
@@ -466,7 +617,12 @@ export async function resetPassword(
 export async function updateProfile(
   userId: string,
   input: UpdateProfileInput,
-): Promise<{ user: AuthUser; emailVerificationSent: boolean }> {
+  emailSender: VerificationEmailSender = sendVerificationEmail,
+): Promise<{
+  user: AuthUser;
+  emailVerificationRequired: boolean;
+  emailVerificationSent: boolean;
+}> {
   const current = await db
     .selectFrom("users")
     .where("id", "=", userId)
@@ -536,9 +692,10 @@ export async function updateProfile(
     created_at: Date;
     updated_at: Date;
   };
+  let verificationToken: string | null = null;
 
   try {
-    updated = await db.transaction().execute(async (trx) => {
+    const result = await db.transaction().execute(async (trx) => {
       const user = await trx
         .updateTable("users")
         .set(updateData)
@@ -554,22 +711,42 @@ export async function updateProfile(
         ])
         .executeTakeFirstOrThrow();
 
+      let token: string | null = null;
       if (emailChanged && normalizedEmail) {
-        const verificationToken = await issueAuthToken(
+        token = await issueAuthToken(
           trx,
           userId,
           "email_verification",
           EMAIL_VERIFICATION_TTL_MS,
         );
-        await sendVerificationEmail(normalizedEmail, verificationToken);
+        // Changing the login identity returns the account to an unverified
+        // state, so every existing session must stop immediately.
+        await trx
+          .deleteFrom("user_sessions")
+          .where("user_id", "=", userId)
+          .execute();
       }
-      return user;
+      return { user, verificationToken: token };
     });
+    updated = result.user;
+    verificationToken = result.verificationToken;
   } catch (error) {
     if (uploadedAvatarKey) {
       await deleteMedia(uploadedAvatarKey).catch(() => undefined);
     }
     throw error;
+  }
+
+  let emailVerificationSent = false;
+  if (verificationToken && normalizedEmail) {
+    emailVerificationSent = await deliverVerificationEmail(
+      normalizedEmail,
+      verificationToken,
+      emailSender,
+    );
+    if (!emailVerificationSent) {
+      await discardAuthToken(verificationToken).catch(() => undefined);
+    }
   }
 
   if (
@@ -590,7 +767,8 @@ export async function updateProfile(
       createdAt: updated.created_at,
       updatedAt: updated.updated_at,
     },
-    emailVerificationSent: emailChanged,
+    emailVerificationRequired: emailChanged,
+    emailVerificationSent,
   };
 }
 
@@ -654,14 +832,15 @@ export async function refreshSession(
     throw new AuthError("Invalid refresh token", "INVALID_TOKEN", 401);
   }
 
-  return db.transaction().execute(async (trx) => {
+  const result = await db.transaction().execute(async (trx) => {
     const session = await trx
-      .selectFrom("user_sessions")
-      .where("id", "=", payload.sessionId)
-      .where("refresh_token", "=", hashToken(refreshToken))
-      .where("expires_at", ">", toDbDate())
-      .selectAll()
-      .forUpdate()
+      .selectFrom("user_sessions as session")
+      .innerJoin("users as user", "user.id", "session.user_id")
+      .where("session.id", "=", payload.sessionId)
+      .where("session.refresh_token", "=", hashToken(refreshToken))
+      .where("session.expires_at", ">", toDbDate())
+      .select(["session.id", "session.user_id", "user.email_verified_at"])
+      .forUpdate("session")
       .executeTakeFirst();
 
     if (!session) {
@@ -670,6 +849,14 @@ export async function refreshSession(
         "SESSION_EXPIRED",
         401,
       );
+    }
+
+    if (!session.email_verified_at) {
+      await trx
+        .deleteFrom("user_sessions")
+        .where("id", "=", session.id)
+        .execute();
+      return null;
     }
 
     const [accessToken, newRefreshToken] = await Promise.all([
@@ -694,6 +881,9 @@ export async function refreshSession(
       },
     };
   });
+
+  if (!result) throw emailNotVerifiedError();
+  return result;
 }
 
 /**

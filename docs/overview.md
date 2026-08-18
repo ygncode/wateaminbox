@@ -48,7 +48,8 @@ Tenant schemas contain contacts, messages, reactions, groups, connection state, 
 - Only SHA-256 refresh-token hashes are stored in `user_sessions`.
 - Access middleware checks that the referenced session remains active.
 - Email verification and password reset use hashed, expiring, single-use `auth_tokens` rows.
-- Password reset revokes all existing sessions.
+- Unverified accounts cannot create or refresh sessions. Verification resends require the account password and are rate-limited.
+- Password reset revokes all existing sessions. Changing the account email also revokes every session until the new address is verified.
 
 Production startup validates database, JWT, and Centrifugo configuration.
 

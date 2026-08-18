@@ -4,20 +4,21 @@
  */
 
 import {
-  fetchWithAuth,
-  setAuthToken,
-  clearAuthTokens,
   API_BASE_URL,
+  clearAuthTokens,
+  fetchWithAuth,
   handleResponse,
+  setAuthToken,
 } from "./client.js";
 import type {
   ChangePasswordRequest,
   CurrentUserResponse,
+  ForgotPasswordResponse,
   LoginRequest,
   LoginResponse,
   RegisterRequest,
   RegisterResponse,
-  ForgotPasswordResponse,
+  ResendVerificationResponse,
   UpdateProfileRequest,
   UpdateProfileResponse,
 } from "./types.js";
@@ -40,6 +41,19 @@ export async function register(
   });
   // Registration doesn't return tokens - user must verify email and then login
   return response;
+}
+
+export async function resendVerification(
+  email: string,
+  password: string,
+): Promise<ResendVerificationResponse> {
+  return fetchWithAuth<ResendVerificationResponse>(
+    "/auth/resend-verification",
+    {
+      method: "POST",
+      body: JSON.stringify({ email, password }),
+    },
+  );
 }
 
 export async function logout(): Promise<void> {
