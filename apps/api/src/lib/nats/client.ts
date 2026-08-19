@@ -6,19 +6,18 @@
 import { nowMs } from "@wateaminbox/shared";
 import {
   type ConsumerOptsBuilder,
-  connect,
   consumerOpts,
-  JetStreamClient,
-  JetStreamSubscription,
+  type JetStreamClient,
+  type JetStreamSubscription,
   JSONCodec,
   type JsMsg,
-  NatsConnection,
+  type NatsConnection,
 } from "nats";
 import { z } from "zod";
-import { env } from "../env.js";
 import { createLogger, formatError } from "../logger.js";
 import { getMediaObjectReference } from "../storage.js";
 import { forConnection } from "./command-builder.js";
+import { natsLifecycle } from "./lifecycle.js";
 import {
   type MessageType,
   NATS_SUBJECTS,
@@ -86,13 +85,6 @@ function generateCorrelationId(): string {
   return `${timestamp}-${random}`;
 }
 
-// Singleton NATS client
-let natsConnection: NatsConnection | null = null;
-let jetStreamClient: JetStreamClient | null = null;
-let reconnectAttempts = 0;
-const MAX_RECONNECT_ATTEMPTS = 10;
-const RECONNECT_DELAY_MS = 1000;
-
 const jc = JSONCodec<unknown>();
 
 async function publishEventDeadLetter(
@@ -113,81 +105,12 @@ async function publishEventDeadLetter(
   );
 }
 
-/**
- * Gets or creates the NATS connection
- */
 export async function getNatsConnection(): Promise<NatsConnection> {
-  if (natsConnection && !natsConnection.isClosed()) {
-    return natsConnection;
-  }
-
-  try {
-    natsConnection = await connect({
-      servers: env.NATS_URL,
-      token: env.NATS_TOKEN || undefined,
-      name: "whatsapp-api",
-      reconnect: true,
-      maxReconnectAttempts: MAX_RECONNECT_ATTEMPTS,
-      reconnectTimeWait: RECONNECT_DELAY_MS,
-      pingInterval: 30000,
-      maxPingOut: 3,
-    });
-
-    // Set up connection event handlers
-    setupConnectionHandlers(natsConnection);
-
-    reconnectAttempts = 0;
-    logger.info({ url: env.NATS_URL }, "Connected to NATS");
-
-    return natsConnection;
-  } catch (error) {
-    logger.error(formatError(error), "Failed to connect to NATS");
-    throw error;
-  }
+  return natsLifecycle.getConnection();
 }
 
-/**
- * Sets up NATS connection event handlers
- */
-function setupConnectionHandlers(nc: NatsConnection): void {
-  (async () => {
-    for await (const status of nc.status()) {
-      switch (status.type) {
-        case "disconnect":
-          logger.warn("Disconnected from server");
-          break;
-        case "reconnect":
-          logger.info("Reconnected to server");
-          reconnectAttempts = 0;
-          break;
-        case "reconnecting":
-          reconnectAttempts++;
-          logger.info({ attempt: reconnectAttempts }, "Reconnecting to NATS");
-          break;
-        case "error":
-          logger.error({ error: status.data }, "Connection error");
-          break;
-        case "update":
-          logger.debug("Connection updated");
-          break;
-      }
-    }
-  })().catch((err) => {
-    logger.error(formatError(err), "Status monitoring error");
-  });
-}
-
-/**
- * Gets or creates JetStream client
- */
 export async function getJetStreamClient(): Promise<JetStreamClient> {
-  if (jetStreamClient) {
-    return jetStreamClient;
-  }
-
-  const nc = await getNatsConnection();
-  jetStreamClient = nc.jetstream();
-  return jetStreamClient;
+  return natsLifecycle.getJetStreamClient();
 }
 
 /**
@@ -597,24 +520,12 @@ export async function subscribeToAllEvents(
   return subscribe(`${NATS_SUBJECTS.WHATSAPP_EVENTS}.>`, callback);
 }
 
-/**
- * Closes the NATS connection
- */
 export async function closeNatsConnection(): Promise<void> {
-  if (natsConnection) {
-    await natsConnection.drain();
-    await natsConnection.close();
-    natsConnection = null;
-    jetStreamClient = null;
-    logger.info("Connection closed");
-  }
+  await natsLifecycle.shutdown();
 }
 
-/**
- * Checks if NATS is connected
- */
 export function isNatsConnected(): boolean {
-  return natsConnection !== null && !natsConnection.isClosed();
+  return natsLifecycle.isConnected();
 }
 
 /**

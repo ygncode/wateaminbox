@@ -1,10 +1,3 @@
-/**
- * NATS Module Index
- * Re-exports all NATS types and client operations for backward compatibility
- *
- * Usage: import { ... } from "@/lib/nats"
- */
-
 // Re-export all types
 export * from "./types/index.js";
 
@@ -37,3 +30,6 @@ export {
   publishTypingCommand,
   PermanentEventError,
 } from "./client.js";
+
+export { natsLifecycle } from "./lifecycle.js";
+export type { NatsReadinessState } from "./lifecycle.js";

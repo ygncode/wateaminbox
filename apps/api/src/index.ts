@@ -2,7 +2,7 @@ import { app } from "./app.js";
 import { setVerifiedRequestIp } from "./lib/client-ip.js";
 import { env } from "./lib/env.js";
 import { createLogger, formatError } from "./lib/logger.js";
-import { closeNatsConnection } from "./lib/nats/index.js";
+import { natsLifecycle } from "./lib/nats/index.js";
 import { runShutdown, type ShutdownStep } from "./lib/shutdown.js";
 import {
   initializeCommandOutbox,
@@ -16,10 +16,7 @@ import {
   initializeMessageCleanup,
   shutdownMessageCleanup,
 } from "./services/message-cleanup.service.js";
-import {
-  initializeMessageHandler,
-  shutdownMessageHandler,
-} from "./services/message-handler.js";
+import { initializeMessageHandler } from "./services/message-handler.js";
 import {
   initializeScheduledMessages,
   shutdownScheduledMessages,
@@ -41,18 +38,9 @@ if (!isTestEnvironment) {
   logger.info({ port }, `Starting server on http://localhost:${port}`);
   logger.info("Initializing background services...");
 
-  // Initialize services - these run in background and don't block server startup
-  initializeMessageHandler()
-    .then(() => {
-      logger.info("Message handler initialized");
-    })
-    .catch((err) => {
-      logger.error(
-        { err: formatError(err) },
-        "Failed to initialize message handler",
-      );
-      // Continue running even if NATS is not available initially
-    });
+  // The lifecycle supervisor connects to NATS and re-subscribes automatically;
+  // it is non-blocking and never throws.
+  initializeMessageHandler();
 
   initializeMessageCleanup()
     .then(() => {
@@ -111,14 +99,12 @@ function shutdownSteps(): ShutdownStep[] {
         await httpServer?.stop(false);
       },
     },
-    { name: "message-handler", run: shutdownMessageHandler },
     { name: "message-cleanup", run: shutdownMessageCleanup },
     { name: "connection-purge-cleanup", run: shutdownConnectionPurgeCleanup },
     { name: "command-outbox", run: shutdownCommandOutbox },
     { name: "scheduled-messages", run: shutdownScheduledMessages },
-    // Consumers and dispatchers are stopped, so nothing will publish into a
-    // draining connection.
-    { name: "nats", run: closeNatsConnection },
+    // Drains the event supervisor, then the NATS connection itself.
+    { name: "nats", run: () => natsLifecycle.shutdown() },
     // Every step above can touch the database, so the pools close last.
     { name: "tenant-connections", run: shutdownTenantConnections },
   ];
