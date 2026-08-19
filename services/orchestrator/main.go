@@ -32,6 +32,10 @@ func main() {
 	autoRestartEnabled := config.GetBoolEnv("AUTO_RESTART_ENABLED", true)
 	autoRestartMaxRetries := config.GetIntEnv("AUTO_RESTART_MAX_RETRIES", 5)
 	autoRestartBackoff := config.GetDurationEnv("AUTO_RESTART_BACKOFF", 5*time.Second)
+	maxWorkers := config.GetIntEnv("ORCHESTRATOR_MAX_WORKERS", 15)
+	if maxWorkers < 0 {
+		log.Fatalf("ORCHESTRATOR_MAX_WORKERS must be non-negative, got %d", maxWorkers)
+	}
 
 	// Initialize NATS client
 	natsClient, err := nats.NewClient(ctx, nats.Config{
@@ -57,6 +61,7 @@ func main() {
 		AutoRestartEnabled:    autoRestartEnabled,
 		AutoRestartMaxRetries: autoRestartMaxRetries,
 		AutoRestartBackoff:    autoRestartBackoff,
+		MaxWorkers:            maxWorkers,
 	})
 
 	// Start the manager

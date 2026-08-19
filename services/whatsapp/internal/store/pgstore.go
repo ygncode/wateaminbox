@@ -26,6 +26,11 @@ type PGConfig struct {
 	DatabaseURL  string
 	ConnectionID string // UUID for isolating session data
 	Logger       waLog.Logger
+
+	MaxOpenConns    int
+	MaxIdleConns    int
+	ConnMaxLifetime time.Duration
+	ConnMaxIdleTime time.Duration
 }
 
 // PGContainer is a PostgreSQL-backed device container for whatsmeow.
@@ -94,6 +99,40 @@ func NewPGContainer(ctx context.Context, cfg PGConfig) (*PGContainer, error) {
 		return nil, fmt.Errorf("invalid connection_id UUID: %w", err)
 	}
 
+	// Validate pool config before opening the connection so invalid values
+	// never leak a database handle.
+	maxOpen := cfg.MaxOpenConns
+	if maxOpen == 0 {
+		maxOpen = 4
+	}
+	if maxOpen < 0 {
+		return nil, fmt.Errorf("WORKER_DB_MAX_OPEN_CONNS must be positive, got %d", maxOpen)
+	}
+	maxIdle := cfg.MaxIdleConns
+	if maxIdle < 0 {
+		return nil, fmt.Errorf("WORKER_DB_MAX_IDLE_CONNS must be non-negative, got %d", maxIdle)
+	}
+	if maxIdle == 0 {
+		maxIdle = 2
+	}
+	if maxIdle > maxOpen {
+		maxIdle = maxOpen
+	}
+	connLifetime := cfg.ConnMaxLifetime
+	if connLifetime < 0 {
+		return nil, fmt.Errorf("WORKER_DB_CONN_MAX_LIFETIME must be non-negative, got %v", connLifetime)
+	}
+	if connLifetime == 0 {
+		connLifetime = 5 * time.Minute
+	}
+	connIdleTime := cfg.ConnMaxIdleTime
+	if connIdleTime < 0 {
+		return nil, fmt.Errorf("WORKER_DB_CONN_MAX_IDLE_TIME must be non-negative, got %v", connIdleTime)
+	}
+	if connIdleTime == 0 {
+		connIdleTime = 2 * time.Minute
+	}
+
 	// Add search_path to the database URL so all pooled connections use it
 	dbURL := cfg.DatabaseURL
 	if !strings.Contains(dbURL, "search_path") {
@@ -108,6 +147,11 @@ func NewPGContainer(ctx context.Context, cfg PGConfig) (*PGContainer, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database: %w", err)
 	}
+
+	db.SetMaxOpenConns(maxOpen)
+	db.SetMaxIdleConns(maxIdle)
+	db.SetConnMaxLifetime(connLifetime)
+	db.SetConnMaxIdleTime(connIdleTime)
 
 	// Test connection
 	if err := db.PingContext(ctx); err != nil {

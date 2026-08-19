@@ -88,11 +88,15 @@ func main() {
 
 	// Initialize WhatsApp client
 	waClient, err := client.New(ctx, client.Config{
-		WorkerID:     workerID,
-		CompanyID:    companyID,
-		ConnectionID: connectionID,
-		DatabaseURL:  databaseURL,
-		LogLevel:     logLevel,
+		WorkerID:          workerID,
+		CompanyID:         companyID,
+		ConnectionID:      connectionID,
+		DatabaseURL:       databaseURL,
+		LogLevel:          logLevel,
+		DBMaxOpenConns:    config.GetIntEnv("WORKER_DB_MAX_OPEN_CONNS", 0),
+		DBMaxIdleConns:    config.GetIntEnv("WORKER_DB_MAX_IDLE_CONNS", 0),
+		DBConnMaxLifetime: config.GetDurationEnv("WORKER_DB_CONN_MAX_LIFETIME", 0),
+		DBConnMaxIdleTime: config.GetDurationEnv("WORKER_DB_CONN_MAX_IDLE_TIME", 0),
 	})
 	if err != nil {
 		log.Fatalf("Failed to initialize WhatsApp client: %v", err)
