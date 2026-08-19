@@ -162,20 +162,6 @@ export async function getContactsWithLastMessage(
     conversation_status: "open" | "pending" | "resolved";
     active_case_id: string | null;
   }>`
-    WITH last_messages AS (
-      SELECT
-        contact_id,
-        id,
-        message_id,
-        from_me,
-        message_type,
-        content,
-        status,
-        timestamp,
-        sent_by_user_id,
-        ROW_NUMBER() OVER (PARTITION BY contact_id ORDER BY timestamp DESC, id DESC) as rn
-      FROM ${schema}.${sql.ref("messages")}
-    )
     SELECT
       c.id,
       c.jid,
@@ -212,9 +198,14 @@ export async function getContactsWithLastMessage(
     LEFT JOIN ${schema}.${sql.ref("contact_assignments")} ca
       ON ca.contact_id = c.id
       AND ca.unassigned_at IS NULL
-    LEFT JOIN last_messages lm
-      ON lm.contact_id = c.id
-      AND lm.rn = 1
+    LEFT JOIN LATERAL (
+      SELECT id, message_id, from_me, message_type, content, status,
+             timestamp, sent_by_user_id
+      FROM ${schema}.${sql.ref("messages")} m
+      WHERE m.contact_id = c.id
+      ORDER BY m.timestamp DESC, m.id DESC
+      LIMIT 1
+    ) lm ON TRUE
     LEFT JOIN ${schema}.${sql.ref("conversation_states")} cs
       ON cs.contact_id = c.id
     ${hasWhereCondition ? sql`WHERE ${whereClause}` : sql``}
