@@ -49,6 +49,8 @@ jobs:
           bun-version: 1.2.18
 
       - run: bun install --frozen-lockfile
+      - name: Build internal TypeScript dependencies
+        run: bun run --filter @wateaminbox/shared build && bun run --filter @wateaminbox/database build
       - name: API unit tests
         run: cd apps/api && bun test
       - name: Web unit tests
@@ -89,6 +91,8 @@ jobs:
         run: echo "DATABASE_URL=postgresql://postgres:postgres@localhost:${{ job.services.postgres.ports[5432] }}/wateaminbox" >> "$GITHUB_ENV"
 
       - run: bun install --frozen-lockfile
+      - name: Build internal TypeScript dependencies
+        run: bun run --filter @wateaminbox/shared build && bun run --filter @wateaminbox/database build
       - run: bun run db:migrate
 
       - name: Run all TypeScript integration tests (recursive discovery)
@@ -169,7 +173,7 @@ jobs:
       - name: Configure test database URL
         run: echo "DATABASE_URL=postgresql://postgres:postgres@localhost:${{ job.services.postgres.ports[5432] }}/wateaminbox" >> "$GITHUB_ENV"
 
-      - name: Run Go integration tests (all modules)
+      - name: Run WhatsApp Go integration tests
         run: ./scripts/run-integration-tests-go.sh
 
   security:
@@ -184,7 +188,9 @@ jobs:
 
       - uses: actions/setup-go@v5
         with:
-          go-version: "1.25.x"
+          # Explicitly require the first 1.25 patch containing the standard-library
+          # fixes reported by govulncheck (GO-2026-6090 and GO-2026-5972).
+          go-version: "1.25.13"
           cache-dependency-path: |
             services/shared/go.sum
             services/orchestrator/go.sum
