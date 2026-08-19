@@ -87,6 +87,27 @@ jobs:
         with:
           bun-version: 1.2.18
 
+      - name: Start NATS and MinIO integration services
+        run: |
+          docker run -d --name nats-ci -p 4448:4222 nats:2.10-alpine -js
+          docker run -d --name minio-ci -p 4450:9000 \
+            -e MINIO_ROOT_USER=minioadmin \
+            -e MINIO_ROOT_PASSWORD=minioadmin \
+            minio/minio:RELEASE.2025-04-22T22-12-26Z server /data
+          for attempt in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:4450/minio/health/live >/dev/null; then
+              break
+            fi
+            if [ "$attempt" -eq 30 ]; then
+              echo "MinIO did not become ready" >&2
+              docker logs minio-ci
+              exit 1
+            fi
+            sleep 1
+          done
+          docker run --rm --network host --entrypoint /bin/sh minio/mc:latest \
+            -c 'mc alias set local http://127.0.0.1:4450 minioadmin minioadmin && mc mb --ignore-existing local/whatsapp-media'
+
       - name: Configure test database URL
         run: echo "DATABASE_URL=postgresql://postgres:postgres@localhost:${{ job.services.postgres.ports[5432] }}/wateaminbox" >> "$GITHUB_ENV"
 
@@ -169,6 +190,26 @@ jobs:
             services/shared/go.sum
             services/orchestrator/go.sum
             services/whatsapp/go.sum
+
+      - name: Start MinIO integration service
+        run: |
+          docker run -d --name minio-ci -p 4450:9000 \
+            -e MINIO_ROOT_USER=minioadmin \
+            -e MINIO_ROOT_PASSWORD=minioadmin \
+            minio/minio:RELEASE.2025-04-22T22-12-26Z server /data
+          for attempt in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:4450/minio/health/live >/dev/null; then
+              break
+            fi
+            if [ "$attempt" -eq 30 ]; then
+              echo "MinIO did not become ready" >&2
+              docker logs minio-ci
+              exit 1
+            fi
+            sleep 1
+          done
+          docker run --rm --network host --entrypoint /bin/sh minio/mc:latest \
+            -c 'mc alias set local http://127.0.0.1:4450 minioadmin minioadmin && mc mb --ignore-existing local/whatsapp-media'
 
       - name: Configure test database URL
         run: echo "DATABASE_URL=postgresql://postgres:postgres@localhost:${{ job.services.postgres.ports[5432] }}/wateaminbox" >> "$GITHUB_ENV"

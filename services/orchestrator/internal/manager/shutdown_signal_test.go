@@ -26,9 +26,14 @@ func startCooperativeTestWorkers(t *testing.T, n int, markerDir string) ([]*exec
 	for i := 0; i < n; i++ {
 		id := "coop-" + string(rune('a'+i))
 		marker := filepath.Join(markerDir, id)
+		ready := marker + ".ready"
 		cmd := exec.Command("/bin/sh", "-c",
-			`trap 'echo got_sigterm > "`+marker+`"; exit 0' TERM; while true; do sleep 0.1; done`)
+			`trap 'echo got_sigterm > "`+marker+`"; exit 0' TERM; : > "`+ready+`"; while true; do sleep 0.1; done`)
 		require.NoError(t, cmd.Start())
+		require.Eventually(t, func() bool {
+			_, err := os.Stat(ready)
+			return err == nil
+		}, 5*time.Second, 10*time.Millisecond, "worker %s should install its signal trap", id)
 
 		done := make(chan struct{})
 		go func() {

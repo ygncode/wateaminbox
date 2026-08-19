@@ -83,9 +83,14 @@ describe("tenant index name normalization", () => {
         ).map((target) => target.suffix);
         expect(missing).toEqual([]);
 
-        // Nothing should still be sitting under a truncated legacy name.
-        const leftovers = TENANT_INDEX_TARGETS.filter((target) =>
-          present.has(legacyIdentifier(schemaName, target)),
+        // Nothing should still be sitting under a truncated legacy name. The
+        // tuple-pagination index is new; its hypothetical long name truncates
+        // to the still-useful historical two-column contact/timestamp index,
+        // so that relation is not a leftover of the new three-column target.
+        const leftovers = TENANT_INDEX_TARGETS.filter(
+          (target) =>
+            target.suffix !== "_msg_ct_ts_id_idx" &&
+            present.has(legacyIdentifier(schemaName, target)),
         ).map((target) => target.suffix);
         expect(leftovers).toEqual([]);
 

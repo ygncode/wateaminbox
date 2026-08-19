@@ -76,7 +76,14 @@ async function createActor(
     .execute();
   await db
     .insertInto("company_members")
-    .values({ company_id: companyId, user_id: userId, role })
+    .values({
+      company_id: companyId,
+      user_id: userId,
+      role,
+      // The product's member preset can view all chats. These fixtures need a
+      // deliberately restricted member to exercise assignment-only access.
+      permissions: role === "member" ? { can_view_all_chats: false } : {},
+    })
     .execute();
   await db
     .insertInto("user_sessions")

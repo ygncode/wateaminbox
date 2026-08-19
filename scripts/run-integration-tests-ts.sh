@@ -38,10 +38,12 @@ export DATABASE_URL="${DATABASE_URL:-postgresql://postgres:postgres@localhost:54
 export JWT_SECRET="${JWT_SECRET:-integration-test-only-not-a-secret-at-least-32-chars}"
 export CENTRIFUGO_TOKEN_HMAC_SECRET="${CENTRIFUGO_TOKEN_HMAC_SECRET:-integration-test-only-realtime-not-a-secret-32-chars}"
 
-# Resolve absolute paths for bun test.
-abs_files=()
+# Run each file in its own Bun process. Several integration suites intentionally
+# cache membership/configuration at module scope; combining every file in one
+# process leaks those caches between otherwise isolated fixtures. Sequential
+# processes also prevent independent suites from mutating shared public tables
+# concurrently while retaining recursive discovery.
 for f in "${files[@]}"; do
-  abs_files+=("$ROOT/$f")
+  echo "==> $f"
+  bun test "$ROOT/$f"
 done
-
-exec bun test "${abs_files[@]}"
