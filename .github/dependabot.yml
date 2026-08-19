@@ -1,0 +1,46 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      patch-minor:
+        update-types: [patch, minor]
+    open-pull-requests-limit: 10
+
+  - package-ecosystem: gomod
+    directory: /services/shared
+    schedule:
+      interval: weekly
+    groups:
+      patch-minor:
+        update-types: [patch, minor]
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: gomod
+    directory: /services/orchestrator
+    schedule:
+      interval: weekly
+    groups:
+      patch-minor:
+        update-types: [patch, minor]
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: gomod
+    directory: /services/whatsapp
+    schedule:
+      interval: weekly
+    groups:
+      patch-minor:
+        update-types: [patch, minor]
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        update-types: [patch, minor]
+    open-pull-requests-limit: 5
