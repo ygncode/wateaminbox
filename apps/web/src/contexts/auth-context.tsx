@@ -17,6 +17,7 @@ import {
   updateCurrentUserProfile,
 } from "../lib/api";
 import { useChatStore } from "../stores/chat-store";
+import { useTranslation } from "react-i18next";
 
 export interface AuthUser {
   id: string;
@@ -83,6 +84,8 @@ const EMPTY_STATE: AuthState = {
 };
 
 export function AuthProvider({ children }: AuthProviderProps) {
+  const { t } = useTranslation();
+
   const queryClient = useQueryClient();
   const [state, setState] = React.useState<AuthState>({
     ...EMPTY_STATE,
@@ -124,7 +127,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
         error: null,
       });
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Login failed";
+      const message =
+        error instanceof Error
+          ? error.message
+          : t("auth.loginFailed", "Login failed");
       setState((previous) => ({
         ...previous,
         isLoading: false,
@@ -149,7 +155,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
         return response;
       } catch (error) {
         const message =
-          error instanceof Error ? error.message : "Registration failed";
+          error instanceof Error
+            ? error.message
+            : t("auth.registrationFailed", "Registration failed");
         setState((previous) => ({
           ...previous,
           isLoading: false,

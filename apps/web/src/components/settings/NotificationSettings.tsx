@@ -20,8 +20,11 @@ import {
 } from "@/components/ui/select";
 import { useNotifications } from "@/hooks/notification";
 import { NOTIFICATION_SOUNDS } from "@/lib/notifications";
+import { useTranslation } from "react-i18next";
 
 export function NotificationSettings() {
+  const { t } = useTranslation();
+
   const {
     settings,
     permission,
@@ -39,7 +42,10 @@ export function NotificationSettings() {
         <div className="flex items-center gap-2 text-gray-500 dark:text-dark-text-secondary">
           <BellOff className="h-5 w-5" />
           <p className="text-sm">
-            Browser notifications are not supported in this browser.
+            {t(
+              "notifications.unsupported",
+              "Browser notifications are not supported in this browser.",
+            )}
           </p>
         </div>
       </div>
@@ -62,13 +68,15 @@ export function NotificationSettings() {
       {isLoading && (
         <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-dark-text-secondary">
           <Loader2 className="h-4 w-4 animate-spin" />
-          <span>Loading preferences...</span>
+          <span>
+            {t("notifications.loadingPreferences", "Loading preferences...")}
+          </span>
         </div>
       )}
       {isSyncing && (
         <div className="flex items-center gap-2 text-sm text-blue-500">
           <Cloud className="h-4 w-4" />
-          <span>Syncing...</span>
+          <span>{t("notifications.syncing", "Syncing...")}</span>
         </div>
       )}
 
@@ -79,12 +87,13 @@ export function NotificationSettings() {
             <BellOff className="h-5 w-5 text-orange-500 dark:text-orange-400 flex-shrink-0 mt-0.5" />
             <div>
               <p className="font-medium text-orange-800 dark:text-orange-400">
-                Notifications blocked
+                {t("notifications.blocked", "Notifications blocked")}
               </p>
               <p className="text-sm text-orange-700 dark:text-orange-300 mt-1">
-                You have blocked notifications for this site. To enable them,
-                click the lock icon in your browser's address bar and allow
-                notifications.
+                {t(
+                  "notifications.blockedHint",
+                  "You have blocked notifications for this site. To enable them, click the lock icon in your browser's address bar and allow notifications.",
+                )}
               </p>
             </div>
           </div>
@@ -97,10 +106,13 @@ export function NotificationSettings() {
             <Bell className="h-5 w-5 text-blue-500 dark:text-blue-400 flex-shrink-0 mt-0.5" />
             <div className="flex-1">
               <p className="font-medium text-blue-800 dark:text-blue-400">
-                Enable notifications
+                {t("notifications.enablePrompt", "Enable notifications")}
               </p>
               <p className="text-sm text-blue-700 dark:text-blue-300 mt-1">
-                Get notified when you receive new messages.
+                {t(
+                  "notifications.enablePromptHint",
+                  "Get notified when you receive new messages.",
+                )}
               </p>
               <Button
                 size="sm"
@@ -111,7 +123,7 @@ export function NotificationSettings() {
                   }
                 }}
               >
-                Enable Notifications
+                {t("notifications.enableAction", "Enable Notifications")}
               </Button>
             </div>
           </div>
@@ -121,9 +133,14 @@ export function NotificationSettings() {
       {/* Delivery preferences */}
       <section className="divide-y divide-[#e8ece9] overflow-hidden rounded-2xl border border-[#dce3de] bg-white shadow-[0_1px_2px_rgba(16,33,27,.03)] dark:divide-dark-border dark:border-dark-border dark:bg-dark-elevated">
         <header className="p-5 sm:p-6">
-          <h3 className="font-semibold">Delivery preferences</h3>
+          <h3 className="font-semibold">
+            {t("notifications.deliveryPreferences", "Delivery preferences")}
+          </h3>
           <p className="mt-1 text-sm leading-6 text-[#65736d] dark:text-dark-text-secondary">
-            Choose how and when this browser should alert you.
+            {t(
+              "notifications.deliveryPreferencesHint",
+              "Choose how and when this browser should alert you.",
+            )}
           </p>
         </header>
 
@@ -136,9 +153,14 @@ export function NotificationSettings() {
               <BellOff className="h-5 w-5 text-gray-400 dark:text-dark-text-tertiary" />
             )}
             <div>
-              <Label className="font-medium">Desktop notifications</Label>
+              <Label className="font-medium">
+                {t("notifications.desktop", "Desktop notifications")}
+              </Label>
               <p className="text-sm text-gray-500 dark:text-dark-text-secondary">
-                Show notifications for new messages
+                {t(
+                  "notifications.desktopHint",
+                  "Show notifications for new messages",
+                )}
               </p>
             </div>
           </div>
@@ -158,9 +180,14 @@ export function NotificationSettings() {
               <VolumeX className="h-5 w-5 text-gray-400 dark:text-dark-text-tertiary" />
             )}
             <div>
-              <Label className="font-medium">Notification sound</Label>
+              <Label className="font-medium">
+                {t("notifications.sound", "Notification sound")}
+              </Label>
               <p className="text-sm text-gray-500 dark:text-dark-text-secondary">
-                Play a sound when receiving notifications
+                {t(
+                  "notifications.soundHint",
+                  "Play a sound when receiving notifications",
+                )}
               </p>
             </div>
           </div>
@@ -176,7 +203,9 @@ export function NotificationSettings() {
         {settings.soundEnabled && (
           <div className="p-5 sm:px-6">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <Label className="font-medium">Sound</Label>
+              <Label className="font-medium">
+                {t("notifications.soundChoice", "Sound")}
+              </Label>
               <Select
                 value={settings.soundChoice}
                 onValueChange={(value) =>
@@ -204,9 +233,14 @@ export function NotificationSettings() {
             <div className="flex items-center gap-3">
               <Moon className="h-5 w-5 text-gray-600 dark:text-dark-text-secondary" />
               <div>
-                <Label className="font-medium">Quiet hours</Label>
+                <Label className="font-medium">
+                  {t("notifications.quietHours", "Quiet hours")}
+                </Label>
                 <p className="text-sm text-gray-500 dark:text-dark-text-secondary">
-                  Pause notifications during specific hours
+                  {t(
+                    "notifications.quietHoursHint",
+                    "Pause notifications during specific hours",
+                  )}
                 </p>
               </div>
             </div>
@@ -225,7 +259,7 @@ export function NotificationSettings() {
                   htmlFor="quiet-hours-start"
                   className="text-sm text-gray-500 dark:text-dark-text-secondary"
                 >
-                  From
+                  {t("notifications.from", "From")}
                 </Label>
                 <input
                   id="quiet-hours-start"
@@ -242,7 +276,7 @@ export function NotificationSettings() {
                   htmlFor="quiet-hours-end"
                   className="text-sm text-gray-500 dark:text-dark-text-secondary"
                 >
-                  To
+                  {t("notifications.to", "To")}
                 </Label>
                 <input
                   id="quiet-hours-end"
@@ -260,7 +294,10 @@ export function NotificationSettings() {
         {permission === "granted" && settings.enabled && (
           <footer className="flex flex-col gap-3 bg-[#fbfcfb] p-5 dark:bg-white/[0.02] sm:flex-row sm:items-center sm:justify-between sm:px-6">
             <p className="text-xs text-[#65736d] dark:text-dark-text-secondary">
-              Confirm that notifications work on this device.
+              {t(
+                "notifications.testHint",
+                "Confirm that notifications work on this device.",
+              )}
             </p>
             <Button
               variant="outline"
@@ -268,7 +305,7 @@ export function NotificationSettings() {
               className="gap-2 self-start sm:self-auto"
             >
               <TestTube2 className="h-4 w-4" />
-              Send test notification
+              {t("notifications.sendTest", "Send test notification")}
             </Button>
           </footer>
         )}

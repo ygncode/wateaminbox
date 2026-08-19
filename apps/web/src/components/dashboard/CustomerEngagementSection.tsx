@@ -8,6 +8,8 @@ import {
 import { useAsyncData } from "@/hooks/useAsyncData";
 import { EngagementTrendChart } from "./charts";
 import { StatCard } from "./StatCard";
+import type { TFunction } from "i18next";
+import { useTranslation } from "react-i18next";
 
 interface CustomerEngagementSectionProps {
   companyId: string;
@@ -24,6 +26,8 @@ export function CustomerEngagementSection({
   startDate,
   endDate,
 }: CustomerEngagementSectionProps) {
+  const { t } = useTranslation();
+
   const engagementQuery = useEngagementMetrics(companyId, startDate, endDate);
   const trendQuery = useEngagementTrend(companyId, startDate, endDate);
 
@@ -38,10 +42,13 @@ export function CustomerEngagementSection({
         </span>
         <div>
           <h3 className="text-sm font-semibold text-[#203b32] dark:text-dark-text-primary">
-            Customer engagement
+            {t("dashboard.engagementPanel.title", "Customer engagement")}
           </h3>
           <p className="text-[11px] text-[#7a8881] dark:text-dark-text-secondary">
-            Interaction quality across the selected period
+            {t(
+              "dashboard.engagementPanel.subtitle",
+              "Interaction quality across the selected period",
+            )}
           </p>
         </div>
       </div>
@@ -60,12 +67,18 @@ export function CustomerEngagementSection({
         ),
         error: () => (
           <p className="text-red-500 dark:text-red-400 text-center py-4">
-            Failed to load engagement data
+            {t(
+              "dashboard.engagementPanel.loadFailed",
+              "Failed to load engagement data",
+            )}
           </p>
         ),
         empty: () => (
           <p className="text-gray-500 dark:text-dark-text-secondary text-center py-4">
-            No engagement data available
+            {t(
+              "dashboard.engagementPanel.empty",
+              "No engagement data available",
+            )}
           </p>
         ),
         success: (data) => {
@@ -78,7 +91,7 @@ export function CustomerEngagementSection({
                   <div className="absolute -right-10 -top-12 h-40 w-40 rounded-full border border-white/10" />
                   <div className="absolute -bottom-16 right-8 h-32 w-32 rounded-full bg-emerald-300/5" />
                   <p className="relative text-[10px] font-semibold uppercase tracking-[0.14em] text-emerald-100/70">
-                    Engagement score
+                    {t("dashboard.engagementPanel.score", "Engagement score")}
                   </p>
                   <div className="relative mt-5 flex items-center gap-4">
                     <div
@@ -95,10 +108,13 @@ export function CustomerEngagementSection({
                     </div>
                     <div>
                       <p className="text-xl font-semibold">
-                        {getEngagementLabel(data.engagementScore)}
+                        {getEngagementLabel(t, data.engagementScore)}
                       </p>
                       <p className="mt-1 text-xs leading-relaxed text-emerald-100/70">
-                        Activity, replies, and two-way interactions.
+                        {t(
+                          "dashboard.engagementPanel.scoreHint",
+                          "Activity, replies, and two-way interactions.",
+                        )}
                       </p>
                     </div>
                   </div>
@@ -108,7 +124,10 @@ export function CustomerEngagementSection({
                   <StatCard
                     variant="compact"
                     icon={<Activity className="h-4 w-4" />}
-                    label="Active Contacts"
+                    label={t(
+                      "dashboard.engagementPanel.activeContacts",
+                      "Active Contacts",
+                    )}
                     value={data.activeContactsRate}
                     suffix="%"
                     detail={`${data.activeContacts} of ${data.totalContacts}`}
@@ -117,7 +136,10 @@ export function CustomerEngagementSection({
                   <StatCard
                     variant="compact"
                     icon={<ArrowRightLeft className="h-4 w-4" />}
-                    label="Two-Way Chats"
+                    label={t(
+                      "dashboard.engagementPanel.twoWayChats",
+                      "Two-Way Chats",
+                    )}
                     value={data.twoWayConversationRate}
                     suffix="%"
                     detail={`${data.twoWayConversations} conversations`}
@@ -126,7 +148,10 @@ export function CustomerEngagementSection({
                   <StatCard
                     variant="compact"
                     icon={<Reply className="h-4 w-4" />}
-                    label="Response Rate"
+                    label={t(
+                      "dashboard.engagementPanel.responseRate",
+                      "Response Rate",
+                    )}
                     value={data.responseRate}
                     suffix="%"
                     detail={`${formatNumber(data.messagesReceived)} inbound`}
@@ -135,7 +160,10 @@ export function CustomerEngagementSection({
                   <StatCard
                     variant="compact"
                     icon={<Image className="h-4 w-4" />}
-                    label="Media Engagement"
+                    label={t(
+                      "dashboard.engagementPanel.mediaEngagement",
+                      "Media Engagement",
+                    )}
                     value={data.mediaEngagementRate}
                     suffix="%"
                     detail={`${data.conversationsWithMedia} with media`}
@@ -150,7 +178,10 @@ export function CustomerEngagementSection({
                     {data.averageMessagesPerContact}
                   </p>
                   <p className="mt-1 text-[10px] text-[#7a8881] dark:text-dark-text-secondary">
-                    Avg. per contact
+                    {t(
+                      "dashboard.engagementPanel.avgPerContact",
+                      "Avg. per contact",
+                    )}
                   </p>
                 </div>
                 <div className="px-3 text-center">
@@ -158,7 +189,10 @@ export function CustomerEngagementSection({
                     {formatNumber(data.messagesSent)}
                   </p>
                   <p className="mt-1 text-[10px] text-[#7a8881] dark:text-dark-text-secondary">
-                    Messages sent
+                    {t(
+                      "dashboard.engagementPanel.messagesSent",
+                      "Messages sent",
+                    )}
                   </p>
                 </div>
                 <div className="px-3 text-center">
@@ -166,7 +200,10 @@ export function CustomerEngagementSection({
                     {formatNumber(data.messagesReceived)}
                   </p>
                   <p className="mt-1 text-[10px] text-[#7a8881] dark:text-dark-text-secondary">
-                    Messages received
+                    {t(
+                      "dashboard.engagementPanel.messagesReceived",
+                      "Messages received",
+                    )}
                   </p>
                 </div>
               </div>
@@ -176,7 +213,10 @@ export function CustomerEngagementSection({
                   role="status"
                   className="border-t border-[#e3e9e5] pt-4 text-center text-sm text-red-600 dark:border-dark-border dark:text-red-400"
                 >
-                  The engagement trend could not be loaded.
+                  {t(
+                    "dashboard.engagementPanel.trendLoadFailed",
+                    "The engagement trend could not be loaded.",
+                  )}
                 </p>
               ) : (
                 !trendState.isLoading &&
@@ -185,10 +225,16 @@ export function CustomerEngagementSection({
                   <div className="border-t border-[#e3e9e5] pt-5 dark:border-dark-border">
                     <div className="mb-4">
                       <h4 className="text-sm font-semibold text-[#203b32] dark:text-dark-text-primary">
-                        Engagement trend
+                        {t(
+                          "dashboard.engagementPanel.trendTitle",
+                          "Engagement trend",
+                        )}
                       </h4>
                       <p className="mt-0.5 text-[11px] text-[#7a8881] dark:text-dark-text-secondary">
-                        Engagement score compared with response rate
+                        {t(
+                          "dashboard.engagementPanel.trendSubtitle",
+                          "Engagement score compared with response rate",
+                        )}
                       </p>
                     </div>
                     <EngagementTrendChart data={trendData} />
@@ -203,9 +249,15 @@ export function CustomerEngagementSection({
   );
 }
 
-function getEngagementLabel(score: number): string {
-  if (score >= 75) return "Strong";
-  if (score >= 50) return "Healthy";
-  if (score >= 25) return "Developing";
-  return "Needs attention";
+function getEngagementLabel(t: TFunction, score: number): string {
+  if (score >= 75)
+    return t("dashboard.engagementPanel.levels.strong", "Strong");
+  if (score >= 50)
+    return t("dashboard.engagementPanel.levels.healthy", "Healthy");
+  if (score >= 25)
+    return t("dashboard.engagementPanel.levels.developing", "Developing");
+  return t(
+    "dashboard.engagementPanel.levels.needsAttention",
+    "Needs attention",
+  );
 }

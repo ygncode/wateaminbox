@@ -15,6 +15,7 @@ import {
   getNiceMax,
   getSmoothPath,
 } from "./chart-utils";
+import { useTranslation } from "react-i18next";
 
 export interface ResolutionTrendData {
   date: string;
@@ -35,6 +36,8 @@ interface ResolutionTrendChartProps {
  * overlay here; compliance is instead conveyed per-point via dot color.
  */
 export function ResolutionTrendChart({ data }: ResolutionTrendChartProps) {
+  const { t } = useTranslation();
+
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const [chartWidth, setChartWidth] = useState<number>(chartBox.width);
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
@@ -59,18 +62,27 @@ export function ResolutionTrendChart({ data }: ResolutionTrendChartProps) {
   if (data.length === 0) {
     return (
       <div className="grid h-[220px] place-items-center rounded-xl border border-dashed border-[#dce3de] bg-[#fafcfb] text-sm text-[#718078] dark:border-dark-border dark:bg-dark-secondary/40 dark:text-dark-text-secondary">
-        No resolution trend in this period
+        {t(
+          "dashboard.charts.noResolutionTrend",
+          "No resolution trend in this period",
+        )}
       </div>
     );
   }
 
   const displayData = data;
-  const maxValue = getNiceMax(displayData.map((day) => day.averageResolutionMinutes));
+  const maxValue = getNiceMax(
+    displayData.map((day) => day.averageResolutionMinutes),
+  );
   const responsiveChartBox = { ...chartBox, width: chartWidth };
   const plotWidth =
-    responsiveChartBox.width - responsiveChartBox.left - responsiveChartBox.right;
+    responsiveChartBox.width -
+    responsiveChartBox.left -
+    responsiveChartBox.right;
   const plotHeight =
-    responsiveChartBox.height - responsiveChartBox.top - responsiveChartBox.bottom;
+    responsiveChartBox.height -
+    responsiveChartBox.top -
+    responsiveChartBox.bottom;
   const chartBaseline = responsiveChartBox.top + plotHeight;
   const points = getLinePoints(
     displayData.map((day) => day.averageResolutionMinutes),
@@ -88,7 +100,8 @@ export function ResolutionTrendChart({ data }: ResolutionTrendChartProps) {
     const pointerX =
       ((event.clientX - bounds.left) / bounds.width) * responsiveChartBox.width;
     const index = Math.round(
-      ((pointerX - responsiveChartBox.left) / plotWidth) * (displayData.length - 1),
+      ((pointerX - responsiveChartBox.left) / plotWidth) *
+        (displayData.length - 1),
     );
     setHoveredIndex(Math.max(0, Math.min(displayData.length - 1, index)));
   };
@@ -99,7 +112,10 @@ export function ResolutionTrendChart({ data }: ResolutionTrendChartProps) {
         viewBox={`0 0 ${responsiveChartBox.width} ${responsiveChartBox.height}`}
         className="block h-[220px] w-full touch-none overflow-visible"
         role="img"
-        aria-label="Average resolution-time trend"
+        aria-label={t(
+          "dashboard.charts.avgResolutionTrendAria",
+          "Average resolution-time trend",
+        )}
         onPointerMove={handlePointerMove}
         onPointerLeave={() => setHoveredIndex(null)}
       >
@@ -135,7 +151,10 @@ export function ResolutionTrendChart({ data }: ResolutionTrendChartProps) {
           );
         })}
 
-        <path d={getAreaPath(points, chartBaseline)} fill="url(#resolution-time-area)" />
+        <path
+          d={getAreaPath(points, chartBaseline)}
+          fill="url(#resolution-time-area)"
+        />
         <path
           d={getSmoothPath(points)}
           fill="none"
@@ -222,23 +241,25 @@ export function ResolutionTrendChart({ data }: ResolutionTrendChartProps) {
           <p className="flex items-center justify-between gap-4 text-[#617169] dark:text-dark-text-secondary">
             <span className="flex items-center gap-1.5">
               <span className="h-2 w-2 rounded-full bg-[#0b7a55]" />
-              Average resolution
+              {t("dashboard.charts.averageResolution", "Average resolution")}
             </span>
             <strong className="tabular-nums text-[#075c41] dark:text-emerald-300">
-              {formatMinutes(hoveredDay.averageResolutionMinutes)}
+              {formatMinutes(hoveredDay.averageResolutionMinutes, t)}
             </strong>
           </p>
           <p className="mt-1 flex items-center justify-between gap-4 text-[#617169] dark:text-dark-text-secondary">
-            <span>SLA compliance</span>
+            <span>{t("dashboard.charts.slaCompliance", "SLA compliance")}</span>
             <strong
               className="tabular-nums"
-              style={{ color: getComplianceColor(hoveredDay.slaComplianceRate) }}
+              style={{
+                color: getComplianceColor(hoveredDay.slaComplianceRate),
+              }}
             >
               {Math.round(hoveredDay.slaComplianceRate)}%
             </strong>
           </p>
           <p className="mt-1 flex items-center justify-between gap-4 text-[#617169] dark:text-dark-text-secondary">
-            <span>Resolved</span>
+            <span>{t("dashboard.charts.resolved", "Resolved")}</span>
             <strong className="tabular-nums text-[#31463e] dark:text-dark-text-primary">
               {hoveredDay.resolvedCount.toLocaleString()}
             </strong>
@@ -255,12 +276,37 @@ function getComplianceColor(rate: number): string {
   return "#cf5a5a";
 }
 
-function formatMinutes(minutes: number): string {
-  if (minutes < 1) return "< 1 min";
-  if (minutes < 60) return `${Math.round(minutes)} min`;
+/** Optional translator keeps this usable outside a React render. */
+type MinutesTranslate = (
+  key: string,
+  options: { defaultValue: string } & Record<string, unknown>,
+) => string;
+
+const englishMinutes: MinutesTranslate = (_key, options) =>
+  options.defaultValue.replace(/\{\{(\w+)\}\}/g, (_m, name: string) =>
+    String(options[name] ?? ""),
+  );
+
+function formatMinutes(
+  minutes: number,
+  t: MinutesTranslate = englishMinutes,
+): string {
+  if (minutes < 1)
+    return t("duration.lessThanAMinute", { defaultValue: "< 1 min" });
+  if (minutes < 60)
+    return t("duration.minutes", {
+      defaultValue: "{{count}} min",
+      count: Math.round(minutes),
+    });
   const hours = Math.floor(minutes / 60);
   const mins = Math.round(minutes % 60);
-  return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
+  return mins > 0
+    ? t("duration.hoursMinutes", {
+        defaultValue: "{{hours}}h {{minutes}}m",
+        hours,
+        minutes: mins,
+      })
+    : t("duration.hours", { defaultValue: "{{hours}}h", hours });
 }
 
 export default ResolutionTrendChart;

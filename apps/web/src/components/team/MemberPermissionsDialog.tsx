@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { permissionGroups } from "./permission-options";
+import { useTranslation } from "react-i18next";
 
 type AccessMode = "defaults" | "custom";
 
@@ -31,6 +32,8 @@ export function MemberPermissionsDialog({
   onSave,
   onReset,
 }: MemberPermissionsDialogProps) {
+  const { t } = useTranslation();
+
   const [permissions, setPermissions] = useState<MemberPermissions | null>(
     null,
   );
@@ -50,29 +53,39 @@ export function MemberPermissionsDialog({
       {member && permissions && (
         <DialogContent className="mx-4 max-h-[90dvh] w-[calc(100vw-2rem)] max-w-2xl overflow-y-auto rounded-2xl sm:w-full">
           <DialogHeader>
-            <DialogTitle>Access for {member.name || member.email}</DialogTitle>
+            <DialogTitle>
+              {t("team.accessFor", {
+                defaultValue: "Access for {{name}}",
+                name: member.name || member.email,
+              })}
+            </DialogTitle>
             <DialogDescription>
-              Role hierarchy remains enforced by the server even when custom
-              capabilities are granted.
+              {t(
+                "team.hierarchyEnforcedServer",
+                "Role hierarchy remains enforced by the server even when custom capabilities are granted.",
+              )}
             </DialogDescription>
           </DialogHeader>
 
           <div
             className="grid grid-cols-2 gap-2 rounded-xl bg-[#edf1ed] p-1 dark:bg-dark-tertiary"
             role="radiogroup"
-            aria-label="Permission mode"
+            aria-label={t("team.permissionMode", "Permission mode")}
           >
             <ModeButton
               active={mode === "defaults"}
               onClick={() => setMode("defaults")}
-              title="Use role defaults"
+              title={t("team.useRoleDefaults", "Use role defaults")}
               description={`Follow the ${member.role} preset`}
             />
             <ModeButton
               active={mode === "custom"}
               onClick={() => setMode("custom")}
-              title="Customize access"
-              description="Override individual capabilities"
+              title={t("team.customizeAccess", "Customize access")}
+              description={t(
+                "team.overrideCapabilities",
+                "Override individual capabilities",
+              )}
             />
           </div>
 
@@ -87,9 +100,17 @@ export function MemberPermissionsDialog({
 
           {mode === "defaults" ? (
             <div className="rounded-xl border border-[#dce3de] p-5 text-sm dark:border-dark-border">
-              <p className="font-medium">Role defaults will be restored.</p>
+              <p className="font-medium">
+                {t(
+                  "team.roleDefaultsRestored",
+                  "Role defaults will be restored.",
+                )}
+              </p>
               <p className="mt-1 text-[#65736d] dark:text-dark-text-secondary">
-                Any custom overrides for this member will be removed.
+                {t(
+                  "team.customOverridesRemoved",
+                  "Any custom overrides for this member will be removed.",
+                )}
               </p>
             </div>
           ) : (
@@ -159,8 +180,8 @@ export function MemberPermissionsDialog({
               {isSaving
                 ? "Saving…"
                 : mode === "defaults"
-                  ? "Reset to defaults"
-                  : "Save access"}
+                  ? t("team.resetToDefaults", "Reset to defaults")
+                  : t("team.saveAccess", "Save access")}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 import { useBlockContact } from "@/hooks/useContact";
 import type { ContactData } from "./types";
+import { useTranslation } from "react-i18next";
 
 interface BlockStatusSectionProps {
   contact: ContactData;
@@ -15,6 +16,8 @@ interface BlockStatusSectionProps {
  * Hidden for group contacts since WhatsApp only supports blocking individuals
  */
 export function BlockStatusSection({ contact }: BlockStatusSectionProps) {
+  const { t } = useTranslation();
+
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const blockContact = useBlockContact();
 
@@ -44,7 +47,7 @@ export function BlockStatusSection({ contact }: BlockStatusSectionProps) {
 
   return (
     <>
-      <RightPanelSection title="Block Status">
+      <RightPanelSection title={t("contacts.blockStatus", "Block Status")}>
         <div className="flex items-center justify-between">
           {contact.isBlocked ? (
             <>
@@ -52,10 +55,13 @@ export function BlockStatusSection({ contact }: BlockStatusSectionProps) {
                 <Ban className="h-4 w-4 text-red-500" />
                 <div>
                   <p className="text-sm font-medium text-red-600 dark:text-red-400">
-                    Contact Blocked
+                    {t("contacts.contactBlocked", "Contact Blocked")}
                   </p>
                   <p className="text-xs text-gray-500 dark:text-dark-text-tertiary">
-                    Messages from this contact are blocked
+                    {t(
+                      "contacts.blockedHint",
+                      "Messages from this contact are blocked",
+                    )}
                   </p>
                 </div>
               </div>
@@ -76,10 +82,13 @@ export function BlockStatusSection({ contact }: BlockStatusSectionProps) {
                 <CheckCircle className="h-4 w-4 text-green-500" />
                 <div>
                   <p className="text-sm text-gray-700 dark:text-dark-text-primary">
-                    Not Blocked
+                    {t("contacts.notBlocked", "Not Blocked")}
                   </p>
                   <p className="text-xs text-gray-500 dark:text-dark-text-tertiary">
-                    You can receive messages from this contact
+                    {t(
+                      "contacts.notBlockedHint",
+                      "You can receive messages from this contact",
+                    )}
                   </p>
                 </div>
               </div>
@@ -101,10 +110,14 @@ export function BlockStatusSection({ contact }: BlockStatusSectionProps) {
       <ConfirmationDialog
         open={showConfirmDialog}
         onOpenChange={setShowConfirmDialog}
-        title="Block Contact"
-        description={`Are you sure you want to block ${contact.displayName}? You will no longer receive messages from this contact.`}
-        confirmText="Block"
-        cancelText="Cancel"
+        title={t("contacts.blockContact", "Block Contact")}
+        description={t("contacts.blockContactConfirm", {
+          defaultValue:
+            "Are you sure you want to block {{name}}? You will no longer receive messages from this contact.",
+          name: contact.displayName,
+        })}
+        confirmText={t("contacts.block", "Block")}
+        cancelText={t("common.cancel", "Cancel")}
         isDestructive
         isLoading={blockContact.isPending}
         onConfirm={handleConfirmBlock}

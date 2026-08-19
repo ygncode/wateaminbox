@@ -15,8 +15,11 @@ import {
   useResendInvitation,
 } from "@/hooks/useTeam";
 import type { InvitationsListProps } from "./types";
+import { useTranslation } from "react-i18next";
 
 export function InvitationsList({ companyId }: InvitationsListProps) {
+  const { t } = useTranslation();
+
   const [pagination, setPagination] = useState<PaginationState>({
     pageIndex: 0,
     pageSize: 20,
@@ -66,7 +69,7 @@ export function InvitationsList({ companyId }: InvitationsListProps) {
   const columns: ColumnDef<CompanyInvitation>[] = [
     {
       id: "invitee",
-      header: "Invitee",
+      header: t("team.invitee", "Invitee"),
       size: 320,
       cell: ({ row }) => {
         const invitation = row.original;
@@ -80,8 +83,11 @@ export function InvitationsList({ companyId }: InvitationsListProps) {
                 {invitation.email}
               </p>
               <p className="truncate text-xs text-[#718078] dark:text-dark-text-secondary">
-                Sent {dayjs(invitation.createdAt).format("MMM D, YYYY")} ·{" "}
-                {invitation.deliveryState || "delivered"}
+                {t("team.sentOn", {
+                  defaultValue: "Sent {{date}} · {{state}}",
+                  date: dayjs(invitation.createdAt).format("MMM D, YYYY"),
+                  state: invitation.deliveryState || "delivered",
+                })}
               </p>
             </div>
           </div>
@@ -90,7 +96,7 @@ export function InvitationsList({ companyId }: InvitationsListProps) {
     },
     {
       accessorKey: "role",
-      header: "Role",
+      header: t("team.role", "Role"),
       size: 110,
       cell: ({ row }) => (
         <Badge variant="secondary" className="capitalize">
@@ -100,7 +106,7 @@ export function InvitationsList({ companyId }: InvitationsListProps) {
     },
     {
       id: "access",
-      header: "Access",
+      header: t("team.access", "Access"),
       size: 150,
       cell: ({ row }) => {
         const hasCustomAccess = Boolean(
@@ -112,21 +118,23 @@ export function InvitationsList({ companyId }: InvitationsListProps) {
             variant={hasCustomAccess ? "default" : "secondary"}
             className="text-[10px]"
           >
-            {hasCustomAccess ? "Custom access" : "Role defaults"}
+            {hasCustomAccess
+              ? t("team.customAccess", "Custom access")
+              : t("team.roleDefaults", "Role defaults")}
           </Badge>
         );
       },
     },
     {
       id: "invitedBy",
-      header: "Invited by",
+      header: t("team.invitedBy", "Invited by"),
       size: 190,
       cell: ({ row }) => (
         <div className="min-w-0">
           <p className="truncate text-sm font-medium text-[#31463e] dark:text-dark-text-primary">
             {row.original.inviterName ||
               row.original.inviterEmail ||
-              "Team member"}
+              t("team.teamMember", "Team member")}
           </p>
           {row.original.inviterName && row.original.inviterEmail && (
             <p className="truncate text-xs text-[#718078] dark:text-dark-text-secondary">
@@ -138,7 +146,7 @@ export function InvitationsList({ companyId }: InvitationsListProps) {
     },
     {
       accessorKey: "expiresAt",
-      header: "Expires",
+      header: t("team.expires", "Expires"),
       size: 170,
       cell: ({ row }) => {
         const expiresAt = dayjs(row.original.expiresAt);
@@ -173,14 +181,18 @@ export function InvitationsList({ companyId }: InvitationsListProps) {
         const items: EllipsisMenuItem[] = [
           {
             id: "resend",
-            label: isResending ? "Resending…" : "Resend invitation",
+            label: isResending
+              ? t("team.resending", "Resending…")
+              : t("team.resendInvitationAction", "Resend invitation"),
             icon: RefreshCw,
             disabled: resendInvitation.isPending || cancelInvitation.isPending,
             onClick: () => void handleResend(invitation.id),
           },
           {
             id: "cancel",
-            label: isCancelling ? "Cancelling…" : "Cancel invitation",
+            label: isCancelling
+              ? t("team.cancelling", "Cancelling…")
+              : t("team.cancelInvitationAction", "Cancel invitation"),
             icon: X,
             destructive: true,
             disabled: resendInvitation.isPending || cancelInvitation.isPending,
@@ -191,7 +203,10 @@ export function InvitationsList({ companyId }: InvitationsListProps) {
         return (
           <EllipsisMenu
             items={items}
-            ariaLabel={`Actions for ${invitation.email}`}
+            ariaLabel={t("team.actionsFor", {
+              defaultValue: "Actions for {{name}}",
+              name: invitation.email,
+            })}
             open={menuOpenFor === invitation.id}
             onOpenChange={(open) => setMenuOpenFor(open ? invitation.id : null)}
           />
@@ -210,7 +225,11 @@ export function InvitationsList({ companyId }: InvitationsListProps) {
           role="alert"
           className="shrink-0 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700 dark:bg-red-950/30 dark:text-red-300"
         >
-          {actionError.message || "Could not update this invitation"}
+          {actionError.message ||
+            t(
+              "team.invitationUpdateFailed",
+              "Could not update this invitation",
+            )}
         </div>
       )}
 
@@ -223,23 +242,31 @@ export function InvitationsList({ companyId }: InvitationsListProps) {
         search={{
           value: search,
           onChange: setSearch,
-          placeholder: "Search invitee or inviter…",
-          label: "Search pending invitations",
+          placeholder: t(
+            "team.searchInvitationsPlaceholder",
+            "Search invitee or inviter…",
+          ),
+          label: t("team.searchInvitationsLabel", "Search pending invitations"),
         }}
         toolbarActions={
           <label className="flex items-center gap-2 text-xs font-medium text-[#65736d] dark:text-dark-text-secondary">
-            <span className="hidden sm:inline">Role</span>
+            <span className="hidden sm:inline">{t("team.role", "Role")}</span>
             <select
               value={roleFilter}
               onChange={(event) =>
                 setRoleFilter(event.target.value as "all" | "admin" | "member")
               }
               className="h-9 rounded-lg border border-[#d7e0da] bg-white px-3 text-sm text-[#263b33] shadow-none dark:border-dark-border dark:bg-dark-tertiary dark:text-dark-text-primary"
-              aria-label="Filter invitations by role"
+              aria-label={t(
+                "team.filterInvitationsByRole",
+                "Filter invitations by role",
+              )}
             >
-              <option value="all">All roles</option>
-              <option value="admin">Admins</option>
-              <option value="member">Members</option>
+              <option value="all">{t("team.allRoles", "All roles")}</option>
+              <option value="admin">{t("team.admins", "Admins")}</option>
+              <option value="member">
+                {t("team.membersLabel", "Members")}
+              </option>
             </select>
           </label>
         }
@@ -247,16 +274,22 @@ export function InvitationsList({ companyId }: InvitationsListProps) {
         isFetching={invitationsQuery.isFetching}
         error={invitationsQuery.error}
         getRowId={(invitation) => invitation.id}
-        tableLabel="Pending invitations"
+        tableLabel={t("team.pendingInvitations", "Pending invitations")}
         emptyTitle={
           search || roleFilter !== "all"
-            ? "No invitations match this view"
-            : "No pending invitations"
+            ? t("team.noInvitationsMatch", "No invitations match this view")
+            : t("team.noPendingInvitations", "No pending invitations")
         }
         emptyDescription={
           search || roleFilter !== "all"
-            ? "Try a different search or role filter."
-            : "New invitations will appear here until they are accepted or expire."
+            ? t(
+                "team.tryDifferentFilter",
+                "Try a different search or role filter.",
+              )
+            : t(
+                "team.invitationsAppearHere",
+                "New invitations will appear here until they are accepted or expire.",
+              )
         }
         className="min-h-0 flex-1"
       />
@@ -264,9 +297,12 @@ export function InvitationsList({ companyId }: InvitationsListProps) {
       <ConfirmationDialog
         open={pendingCancel !== null}
         onOpenChange={(open) => !open && setPendingCancel(null)}
-        title="Cancel invitation"
-        description="This invitation link will stop working immediately."
-        confirmText="Cancel invitation"
+        title={t("team.cancelInvitationAction", "Cancel invitation")}
+        description={t(
+          "team.cancelInvitationDescription",
+          "This invitation link will stop working immediately.",
+        )}
+        confirmText={t("team.cancelInvitationAction", "Cancel invitation")}
         onConfirm={handleCancel}
         isDestructive
         isLoading={cancelInvitation.isPending}

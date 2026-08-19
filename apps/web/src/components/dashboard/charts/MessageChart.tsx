@@ -15,12 +15,15 @@ import {
   getNiceMax,
   getSmoothPath,
 } from "./chart-utils";
+import { useTranslation } from "react-i18next";
 
 export interface MessageChartProps {
   data: { date: string; sent: number; received: number }[];
 }
 
 export function MessageChart({ data }: MessageChartProps) {
+  const { t } = useTranslation();
+
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const [chartWidth, setChartWidth] = useState<number>(chartBox.width);
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
@@ -47,7 +50,14 @@ export function MessageChart({ data }: MessageChartProps) {
   }, [data.length]);
 
   if (data.length === 0) {
-    return <ChartEmptyState message="No message activity in this period" />;
+    return (
+      <ChartEmptyState
+        message={t(
+          "dashboard.charts.noMessageActivity",
+          "No message activity in this period",
+        )}
+      />
+    );
   }
 
   const displayData = data;
@@ -98,13 +108,21 @@ export function MessageChart({ data }: MessageChartProps) {
     <div>
       <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
         <div className="flex items-end gap-5">
-          <Metric label="Sent" value={totalSent} color="emerald" />
-          <Metric label="Received" value={totalReceived} color="blue" />
+          <Metric
+            label={t("dashboard.charts.sent", "Sent")}
+            value={totalSent}
+            color="emerald"
+          />
+          <Metric
+            label={t("dashboard.charts.received", "Received")}
+            value={totalReceived}
+            color="blue"
+          />
         </div>
         <div className="flex items-center gap-1 text-[11px] font-medium text-[#718078] dark:text-dark-text-secondary">
           <LegendDot
             color="bg-[#0b7a55]"
-            label="Outbound"
+            label={t("dashboard.charts.outbound", "Outbound")}
             active={visibleSeries.outbound}
             onToggle={() =>
               setVisibleSeries((series) => ({
@@ -115,7 +133,7 @@ export function MessageChart({ data }: MessageChartProps) {
           />
           <LegendDot
             color="bg-[#4185c5]"
-            label="Inbound"
+            label={t("dashboard.charts.inbound", "Inbound")}
             active={visibleSeries.inbound}
             onToggle={() =>
               setVisibleSeries((series) => ({
@@ -311,7 +329,7 @@ export function MessageChart({ data }: MessageChartProps) {
             )}
             <div className="mt-1.5 border-t border-[#e3e9e5] pt-1.5 dark:border-dark-border">
               <p className="flex items-center justify-between gap-4 text-[#617169] dark:text-dark-text-secondary">
-                <span>Total</span>
+                <span>{t("dashboard.charts.total", "Total")}</span>
                 <strong className="tabular-nums text-[#31463e] dark:text-dark-text-primary">
                   {formatNumber(hoveredDay.sent + hoveredDay.received)}
                 </strong>

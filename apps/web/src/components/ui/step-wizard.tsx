@@ -1,7 +1,10 @@
 import { Check } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 export interface StepWizardStep {
   id: string;
+  /** Optional i18n key; `label` is the English fallback. */
+  labelKey?: string;
   label: string;
   description?: string;
 }
@@ -17,6 +20,8 @@ export function StepProgress({
   currentStepIndex,
   className = "",
 }: StepProgressProps) {
+  const { t } = useTranslation();
+
   return (
     <div className={`flex items-center justify-center ${className}`}>
       {steps.map((step, index) => {
@@ -58,7 +63,7 @@ export function StepProgress({
                     : "text-gray-500 dark:text-dark-text-secondary"
                 }`}
               >
-                {step.label}
+                {step.labelKey ? t(step.labelKey, step.label) : step.label}
               </span>
             </div>
 

@@ -7,6 +7,7 @@ import { InvitationsList } from "./InvitationsList";
 import { InviteFormModal } from "./InviteFormModal";
 import { MembersList } from "./MembersList";
 import type { TeamManagementProps } from "./types";
+import { useTranslation } from "react-i18next";
 
 /** Team interface driven by effective capabilities and server hierarchy rules. */
 export function TeamManagement({
@@ -16,6 +17,8 @@ export function TeamManagement({
   canManageTeam,
   canInvite,
 }: TeamManagementProps) {
+  const { t } = useTranslation();
+
   const [activeTab, setActiveTab] = useState<"members" | "invitations">(
     canManageTeam ? "members" : "invitations",
   );
@@ -32,13 +35,19 @@ export function TeamManagement({
       <header className="border-b border-[#dce3de] bg-white px-4 py-4 dark:border-dark-border dark:bg-dark-secondary sm:px-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <p className="text-xs font-semibold text-[#0b7a55]">Workspace</p>
+            <p className="text-xs font-semibold text-[#0b7a55]">
+              {t("team.workspace", "Workspace")}
+            </p>
             <h1 className="text-xl font-semibold text-gray-900 dark:text-dark-text-primary">
-              Team
+              {t("team.title", "Team")}
             </h1>
             <p className="mt-1 text-xs text-[#65736d] dark:text-dark-text-secondary">
-              {members.data?.pagination.total ?? 0} members ·{" "}
-              {invitations.data?.pagination.total ?? 0} pending invitations
+              {t("team.memberInvitationCounts", {
+                defaultValue:
+                  "{{members}} members · {{invitations}} pending invitations",
+                members: members.data?.pagination.total ?? 0,
+                invitations: invitations.data?.pagination.total ?? 0,
+              })}
             </p>
           </div>
           {canInvite && (
@@ -58,7 +67,7 @@ export function TeamManagement({
             active={activeTab === "members"}
             onClick={() => setActiveTab("members")}
             icon={Users}
-            label="Members"
+            label={t("team.membersLabel", "Members")}
             count={members.data?.pagination.total}
           />
         )}
@@ -67,7 +76,7 @@ export function TeamManagement({
             active={activeTab === "invitations"}
             onClick={() => setActiveTab("invitations")}
             icon={Mail}
-            label="Invitations"
+            label={t("team.invitations", "Invitations")}
             count={invitations.data?.pagination.total}
           />
         )}

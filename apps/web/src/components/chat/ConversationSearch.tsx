@@ -1,6 +1,7 @@
 import { ChevronDown, ChevronUp, Loader2, Search, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useConversationSearch } from "../../hooks/useSearch";
+import { useTranslation } from "react-i18next";
 
 interface ConversationSearchProps {
   contactId: string;
@@ -13,6 +14,8 @@ export function ConversationSearch({
   onClose,
   onNavigateToMessage,
 }: ConversationSearchProps) {
+  const { t } = useTranslation();
+
   const [query, setQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -109,9 +112,12 @@ export function ConversationSearch({
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="Search in conversation…"
+          placeholder={t("search.inConversation", "Search in conversation…")}
           className="flex-1 bg-transparent text-sm outline-none text-gray-900 dark:text-dark-text-primary placeholder:text-gray-400 dark:placeholder:text-dark-text-tertiary"
-          aria-label="Search messages in conversation"
+          aria-label={t(
+            "search.inConversationAria",
+            "Search messages in conversation",
+          )}
         />
         {isLoading && (
           <Loader2 className="h-4 w-4 text-gray-400 dark:text-dark-text-tertiary animate-spin flex-shrink-0" />
@@ -120,7 +126,7 @@ export function ConversationSearch({
           <button
             onClick={handleClear}
             className="p-0.5 text-gray-400 hover:text-gray-600 dark:text-dark-text-tertiary dark:hover:text-dark-text-secondary rounded"
-            aria-label="Clear search"
+            aria-label={t("common.clearSearch", "Clear search")}
           >
             <X className="h-4 w-4" />
           </button>
@@ -131,15 +137,15 @@ export function ConversationSearch({
       {debouncedQuery.length >= 2 && (
         <div className="flex items-center gap-1">
           <span className="text-sm text-gray-500 dark:text-dark-text-secondary min-w-[60px] text-center">
-            {results.length > 0 ? (
-              <>
-                {currentIndex + 1} of {total}
-              </>
-            ) : isLoading ? (
-              "…"
-            ) : (
-              "No results"
-            )}
+            {results.length > 0
+              ? t("search.resultPosition", {
+                  defaultValue: "{{current}} of {{total}}",
+                  current: currentIndex + 1,
+                  total,
+                })
+              : isLoading
+                ? "…"
+                : t("search.noResultsShort", "No results")}
           </span>
 
           {/* Navigation buttons */}
@@ -147,8 +153,8 @@ export function ConversationSearch({
             onClick={goToPrevious}
             disabled={results.length === 0}
             className="p-1.5 text-gray-500 hover:text-gray-700 hover:bg-gray-200 dark:text-dark-text-secondary dark:hover:text-dark-text-primary dark:hover:bg-dark-tertiary rounded disabled:opacity-40 disabled:cursor-not-allowed"
-            aria-label="Previous result"
-            title="Previous (Shift+Enter)"
+            aria-label={t("search.previousResult", "Previous result")}
+            title={t("search.previousResultHint", "Previous (Shift+Enter)")}
           >
             <ChevronUp className="h-4 w-4" />
           </button>
@@ -156,8 +162,8 @@ export function ConversationSearch({
             onClick={goToNext}
             disabled={results.length === 0}
             className="p-1.5 text-gray-500 hover:text-gray-700 hover:bg-gray-200 dark:text-dark-text-secondary dark:hover:text-dark-text-primary dark:hover:bg-dark-tertiary rounded disabled:opacity-40 disabled:cursor-not-allowed"
-            aria-label="Next result"
-            title="Next (Enter)"
+            aria-label={t("search.nextResult", "Next result")}
+            title={t("search.nextResultHint", "Next (Enter)")}
           >
             <ChevronDown className="h-4 w-4" />
           </button>
@@ -168,8 +174,8 @@ export function ConversationSearch({
       <button
         onClick={onClose}
         className="p-1.5 text-gray-500 hover:text-gray-700 hover:bg-gray-200 dark:text-dark-text-secondary dark:hover:text-dark-text-primary dark:hover:bg-dark-tertiary rounded"
-        aria-label="Close search"
-        title="Close (Escape)"
+        aria-label={t("search.closeSearch", "Close search")}
+        title={t("search.closeSearchHint", "Close (Escape)")}
       >
         <X className="h-5 w-5" />
       </button>

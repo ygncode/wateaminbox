@@ -23,6 +23,7 @@ import { formatPhoneLikeText } from "@/lib/utils";
 import { QRCodeDisplay } from "../QRCodeDisplay";
 import { getConnectionSetupStage } from "./setup-state";
 import type { AddConnectionDialogProps } from "./types";
+import { useTranslation } from "react-i18next";
 
 interface ConnectionSetupDialogProps extends AddConnectionDialogProps {
   connection: ConnectionWithState | null;
@@ -39,6 +40,8 @@ export function AddConnectionDialog({
   connection,
   onReconnect,
 }: ConnectionSetupDialogProps) {
+  const { t } = useTranslation();
+
   const setupStage = getConnectionSetupStage(connection);
   const isLinking = setupStage !== "details";
   const qrCode = connection?.localState.qrCode ?? null;
@@ -66,17 +69,26 @@ export function AddConnectionDialog({
             </div>
             <DialogTitle className="text-xl">
               {isConnected
-                ? "WhatsApp connected"
+                ? t("connections.dialogConnected", "WhatsApp connected")
                 : isLinking
-                  ? "Link your WhatsApp device"
-                  : "Add WhatsApp connection"}
+                  ? t("connections.dialogLinking", "Link your WhatsApp device")
+                  : t("connections.dialogAdd", "Add WhatsApp connection")}
             </DialogTitle>
             <DialogDescription className="leading-6">
               {isConnected
-                ? "The device is ready for this workspace inbox."
+                ? t(
+                    "connections.dialogConnectedHint",
+                    "The device is ready for this workspace inbox.",
+                  )
                 : isLinking
-                  ? "Keep this window open while you scan the code. It closes automatically once WhatsApp connects."
-                  : "Give this device a recognizable name, then continue to the QR code."}
+                  ? t(
+                      "connections.dialogLinkingHint",
+                      "Keep this window open while you scan the code. It closes automatically once WhatsApp connects.",
+                    )
+                  : t(
+                      "connections.dialogAddHint",
+                      "Give this device a recognizable name, then continue to the QR code.",
+                    )}
             </DialogDescription>
           </DialogHeader>
         </div>
@@ -102,14 +114,19 @@ export function AddConnectionDialog({
                   autoFocus
                   value={name}
                   onChange={(event) => onNameChange(event.target.value)}
-                  placeholder="Support phone"
+                  placeholder={t(
+                    "connections.namePlaceholder",
+                    "Support phone",
+                  )}
                   autoComplete="off"
                   maxLength={80}
                   className="mt-2"
                 />
                 <p className="mt-2 text-xs leading-5 text-[#65736d] dark:text-dark-text-secondary">
-                  Use a team or location name so members know which number they
-                  are working with.
+                  {t(
+                    "connections.nameHint",
+                    "Use a team or location name so members know which number they are working with.",
+                  )}
                 </p>
               </div>
 
@@ -119,15 +136,17 @@ export function AddConnectionDialog({
                   aria-hidden="true"
                 />
                 <p className="text-xs leading-5 text-[#53645d] dark:text-[#a9bab4]">
-                  WhatsApp will ask you to scan one secure QR code. One phone
-                  number can only be linked once in this workspace.
+                  {t(
+                    "connections.qrHint",
+                    "WhatsApp will ask you to scan one secure QR code. One phone number can only be linked once in this workspace.",
+                  )}
                 </p>
               </div>
             </div>
 
             <DialogFooter className="border-t border-[#dce3de] bg-[#fbfcfb] px-5 py-4 dark:border-dark-border dark:bg-white/[0.02] sm:px-6">
               <Button type="button" variant="outline" onClick={onCancel}>
-                Cancel
+                {t("common.cancel", "Cancel")}
               </Button>
               <Button
                 type="submit"
@@ -137,11 +156,11 @@ export function AddConnectionDialog({
                 {isCreating ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    Preparing…
+                    {t("connections.preparing", "Preparing…")}
                   </>
                 ) : (
                   <>
-                    Continue
+                    {t("connections.continue", "Continue")}
                     <ArrowRight className="h-4 w-4" />
                   </>
                 )}
@@ -162,7 +181,10 @@ export function AddConnectionDialog({
                     )}
                   </p>
                   <p className="mt-1 text-sm text-[#65736d] dark:text-dark-text-secondary">
-                    Connected and ready to receive conversations.
+                    {t(
+                      "connections.readyToReceive",
+                      "Connected and ready to receive conversations.",
+                    )}
                   </p>
                 </div>
               ) : qrCode ? (
@@ -179,15 +201,27 @@ export function AddConnectionDialog({
                   </div>
                   <ol className="mt-5 flex w-full flex-col overflow-hidden rounded-xl border border-[#dce3de] bg-[#f8faf8] dark:border-white/[0.08] dark:bg-white/[0.025] sm:flex-row">
                     {[
-                      { title: "Open WhatsApp", detail: "On your phone" },
                       {
+                        titleKey: "connections.qrSteps.openTitle",
+                        title: "Open WhatsApp",
+                        detailKey: "connections.qrSteps.openDetail",
+                        detail: "On your phone",
+                      },
+                      {
+                        titleKey: "connections.qrSteps.linkedTitle",
                         title: "Linked devices",
+                        detailKey: "connections.qrSteps.linkedDetail",
                         detail: "From Settings or Menu",
                       },
-                      { title: "Scan this code", detail: "Tap Link a device" },
+                      {
+                        titleKey: "connections.qrSteps.scanTitle",
+                        title: "Scan this code",
+                        detailKey: "connections.qrSteps.scanDetail",
+                        detail: "Tap Link a device",
+                      },
                     ].map((step, index, steps) => (
                       <li
-                        key={step.title}
+                        key={step.titleKey}
                         className="relative flex min-w-0 flex-1 items-center gap-3 border-b border-[#e2e8e3] px-3.5 py-3 last:border-b-0 dark:border-white/[0.07] sm:border-b-0 sm:border-r sm:last:border-r-0"
                       >
                         <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-[#dcefe7] text-xs font-bold text-[#087a5c] dark:bg-emerald-400/10 dark:text-emerald-300">
@@ -195,10 +229,10 @@ export function AddConnectionDialog({
                         </span>
                         <span className="min-w-0">
                           <span className="block text-xs font-semibold text-[#315348] dark:text-[#d6e2dd]">
-                            {step.title}
+                            {t(step.titleKey, step.title)}
                           </span>
                           <span className="mt-0.5 block text-[10px] leading-4 text-[#829089] dark:text-dark-text-tertiary">
-                            {step.detail}
+                            {t(step.detailKey, step.detail)}
                           </span>
                         </span>
                         {index < steps.length - 1 && (
@@ -237,7 +271,7 @@ export function AddConnectionDialog({
                       className="mt-4 gap-2"
                     >
                       <RefreshCw className="h-4 w-4" />
-                      Try again
+                      {t("connections.tryAgainShort", "Try again")}
                     </Button>
                   )}
                 </div>
@@ -251,10 +285,13 @@ export function AddConnectionDialog({
                     <Loader2 className="absolute -bottom-2 -right-2 h-6 w-6 animate-spin rounded-full bg-white p-1 dark:bg-dark-elevated" />
                   </div>
                   <p className="mt-5 font-semibold">
-                    Preparing secure QR code…
+                    {t("connections.preparingQr", "Preparing secure QR code…")}
                   </p>
                   <p className="mt-1 text-sm text-[#65736d] dark:text-dark-text-secondary">
-                    This usually takes only a few seconds.
+                    {t(
+                      "connections.preparingQrHint",
+                      "This usually takes only a few seconds.",
+                    )}
                   </p>
                 </div>
               ) : null}
@@ -263,10 +300,13 @@ export function AddConnectionDialog({
             {!isConnected && (
               <DialogFooter className="border-t border-[#dce3de] bg-[#fbfcfb] px-5 py-4 dark:border-dark-border dark:bg-white/[0.02] sm:px-6">
                 <p className="mr-auto self-center text-xs text-[#65736d] dark:text-dark-text-secondary">
-                  You can close this and resume from the pending connection.
+                  {t(
+                    "connections.resumeLater",
+                    "You can close this and resume from the pending connection.",
+                  )}
                 </p>
                 <Button variant="outline" onClick={onCancel}>
-                  Finish later
+                  {t("connections.finishLater", "Finish later")}
                 </Button>
               </DialogFooter>
             )}

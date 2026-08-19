@@ -1,5 +1,6 @@
 import { cn } from "@/lib/utils";
 import { Skeleton } from "./skeleton";
+import { useTranslation } from "react-i18next";
 
 export type PageSkeletonVariant =
   | "default"
@@ -99,6 +100,8 @@ function ChatPageSkeleton({ className }: { className?: string }) {
  * Settings page skeleton - navigation + content area
  */
 function SettingsPageSkeleton({ className }: { className?: string }) {
+  const { t } = useTranslation();
+
   return (
     <div
       className={cn(
@@ -106,7 +109,7 @@ function SettingsPageSkeleton({ className }: { className?: string }) {
         className,
       )}
       role="status"
-      aria-label="Loading workspace settings"
+      aria-label={t("layout.loadingSettings", "Loading workspace settings")}
     >
       <aside className="hidden w-64 shrink-0 overflow-hidden border-r border-[#dce3de] bg-[#edf1ed] px-4 py-6 dark:border-dark-border dark:bg-dark-secondary md:block">
         <Skeleton className="mx-2 h-3 w-16" />

@@ -5,6 +5,7 @@ import { RightPanelSection } from "@/components/layout/right-panel";
 import { Button } from "@/components/ui/button";
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 import { type GroupDetail, useGroupInviteLink } from "@/hooks/useGroups";
+import { useTranslation } from "react-i18next";
 
 interface GroupInviteLinkSectionProps {
   group: GroupDetail;
@@ -18,6 +19,8 @@ interface GroupInviteLinkSectionProps {
  * a confirmation because it invalidates every copy of the link already shared.
  */
 export function GroupInviteLinkSection({ group }: GroupInviteLinkSectionProps) {
+  const { t } = useTranslation();
+
   const inviteLink = useGroupInviteLink();
   const [copied, setCopied] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
@@ -33,34 +36,43 @@ export function GroupInviteLinkSection({ group }: GroupInviteLinkSectionProps) {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      toast.error("Could not copy the link to the clipboard");
+      toast.error(
+        t("groups.copyFailed", "Could not copy the link to the clipboard"),
+      );
     }
   };
 
   return (
-    <RightPanelSection title="Invite link">
+    <RightPanelSection title={t("groups.inviteLink", "Invite link")}>
       {group.inviteLink ? (
         <div className="space-y-2">
           <p className="break-all rounded-lg bg-gray-50 p-2.5 font-mono text-xs text-gray-700 dark:bg-dark-elevated dark:text-dark-text-primary">
             {group.inviteLink}
           </p>
           <p className="text-xs text-gray-500 dark:text-dark-text-tertiary">
-            Anyone with this link can request to join. Treat it like a password.
+            {t(
+              "groups.inviteLinkHint",
+              "Anyone with this link can request to join. Treat it like a password.",
+            )}
           </p>
         </div>
       ) : (
         <div className="flex gap-3 rounded-lg bg-gray-50 p-3 dark:bg-dark-elevated">
           <Link2 className="mt-0.5 h-5 w-5 shrink-0 text-gray-400" />
           <p className="text-sm leading-5 text-gray-600 dark:text-dark-text-secondary">
-            WhatsApp hands out the invite link on request. Fetch it to see it
-            here.
+            {t(
+              "groups.inviteLinkFetchHint",
+              "WhatsApp hands out the invite link on request. Fetch it to see it here.",
+            )}
           </p>
         </div>
       )}
 
       {/* The copy confirmation is otherwise a purely visual state change. */}
       <p className="sr-only" role="status" aria-live="polite">
-        {copied ? "Invite link copied to the clipboard" : ""}
+        {copied
+          ? t("groups.linkCopied", "Invite link copied to the clipboard")
+          : ""}
       </p>
 
       <div className="mt-3 flex flex-wrap gap-2">
@@ -76,7 +88,7 @@ export function GroupInviteLinkSection({ group }: GroupInviteLinkSectionProps) {
           ) : (
             <RefreshCw className="h-4 w-4" />
           )}
-          {group.inviteLink ? "Refresh" : "Get link"}
+          {group.inviteLink ? "Refresh" : t("groups.getLink", "Get link")}
         </Button>
         {group.inviteLink && (
           <Button
@@ -100,16 +112,19 @@ export function GroupInviteLinkSection({ group }: GroupInviteLinkSectionProps) {
           disabled={disabled}
           onClick={() => setConfirmReset(true)}
         >
-          Reset link
+          {t("groups.resetLink", "Reset link")}
         </Button>
       </div>
 
       <ConfirmationDialog
         open={confirmReset}
         onOpenChange={setConfirmReset}
-        title="Reset the invite link?"
-        description="The current link stops working immediately for everyone who has it, and WhatsApp issues a new one. Anyone who already joined stays in the group."
-        confirmText="Reset link"
+        title={t("groups.resetLinkConfirm", "Reset the invite link?")}
+        description={t(
+          "groups.resetLinkDescription",
+          "The current link stops working immediately for everyone who has it, and WhatsApp issues a new one. Anyone who already joined stays in the group.",
+        )}
+        confirmText={t("groups.resetLink", "Reset link")}
         isDestructive
         isLoading={inviteLink.isPending}
         onConfirm={async () => {

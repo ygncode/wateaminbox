@@ -15,6 +15,7 @@ import {
   type UpdateGroupSettingsVariables,
   useUpdateGroupSettings,
 } from "@/hooks/useGroups";
+import { useTranslation } from "react-i18next";
 
 interface GroupSettingsSectionProps {
   group: GroupDetail;
@@ -29,6 +30,8 @@ interface GroupSettingsSectionProps {
  * fail on their own.
  */
 export function GroupSettingsSection({ group }: GroupSettingsSectionProps) {
+  const { t } = useTranslation();
+
   const updateSettings = useUpdateGroupSettings();
   const confirmed = group.settings;
 
@@ -60,21 +63,27 @@ export function GroupSettingsSection({ group }: GroupSettingsSectionProps) {
     updateSettings.mutate({ groupId: group.id, ...changes });
 
   return (
-    <RightPanelSection title="Group settings">
+    <RightPanelSection title={t("groups.settings", "Group settings")}>
       {!group.isMember ? (
         <p className="text-sm leading-5 text-gray-600 dark:text-dark-text-secondary">
-          This WhatsApp account has left the group, so its settings can no
-          longer be changed from here.
+          {t(
+            "groups.settingsLeftHint",
+            "This WhatsApp account has left the group, so its settings can no longer be changed from here.",
+          )}
         </p>
       ) : !group.isAdmin ? (
         <p className="text-sm leading-5 text-gray-600 dark:text-dark-text-secondary">
-          Only group admins can change these settings. This WhatsApp account is
-          a member, not an admin.
+          {t(
+            "groups.settingsAdminOnlyHint",
+            "Only group admins can change these settings. This WhatsApp account is a member, not an admin.",
+          )}
         </p>
       ) : group.connection?.status !== "connected" ? (
         <p className="text-sm leading-5 text-gray-600 dark:text-dark-text-secondary">
-          The WhatsApp account for this group is offline. Reconnect it to change
-          group settings.
+          {t(
+            "groups.settingsOfflineHint",
+            "The WhatsApp account for this group is offline. Reconnect it to change group settings.",
+          )}
         </p>
       ) : null}
 
@@ -87,13 +96,18 @@ export function GroupSettingsSection({ group }: GroupSettingsSectionProps) {
           role="status"
         >
           <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
-          Waiting for WhatsApp to apply the change…
+          {t(
+            "groups.waitingForWhatsapp",
+            "Waiting for WhatsApp to apply the change…",
+          )}
         </p>
       )}
 
       <div className="space-y-4">
         <div className="space-y-1.5">
-          <Label htmlFor="group-name">Group name</Label>
+          <Label htmlFor="group-name">
+            {t("groups.groupNameLabel", "Group name")}
+          </Label>
           <Input
             id="group-name"
             value={name}
@@ -108,7 +122,9 @@ export function GroupSettingsSection({ group }: GroupSettingsSectionProps) {
         </div>
 
         <div className="space-y-1.5">
-          <Label htmlFor="group-description">Description</Label>
+          <Label htmlFor="group-description">
+            {t("groups.descriptionLabel", "Description")}
+          </Label>
           <Textarea
             id="group-description"
             rows={3}
@@ -143,24 +159,36 @@ export function GroupSettingsSection({ group }: GroupSettingsSectionProps) {
         <div className="space-y-3 border-t border-gray-200 pt-4 dark:border-dark-border">
           <PermissionToggle
             id="group-announce"
-            label="Only admins can send messages"
-            description="Turns the group into an announcement group."
+            label={t("groups.onlyAdminsSend", "Only admins can send messages")}
+            description={t(
+              "groups.onlyAdminsSendHint",
+              "Turns the group into an announcement group.",
+            )}
             checked={confirmed.isAnnounce}
             disabled={disabled}
             onChange={(isAnnounce) => submit({ isAnnounce })}
           />
           <PermissionToggle
             id="group-locked"
-            label="Only admins can edit group info"
-            description="Locks the group's name, icon and description."
+            label={t(
+              "groups.onlyAdminsEdit",
+              "Only admins can edit group info",
+            )}
+            description={t(
+              "groups.onlyAdminsEditHint",
+              "Locks the group's name, icon and description.",
+            )}
             checked={confirmed.isLocked}
             disabled={disabled}
             onChange={(isLocked) => submit({ isLocked })}
           />
           <PermissionToggle
             id="group-approval"
-            label="Approve new members"
-            description="People who use the invite link wait for an admin."
+            label={t("groups.approveNewMembers", "Approve new members")}
+            description={t(
+              "groups.approveNewMembersHint",
+              "People who use the invite link wait for an admin.",
+            )}
             checked={confirmed.isJoinApprovalRequired}
             disabled={disabled}
             onChange={(isJoinApprovalRequired) =>
@@ -169,8 +197,11 @@ export function GroupSettingsSection({ group }: GroupSettingsSectionProps) {
           />
           <PermissionToggle
             id="group-member-add"
-            label="Only admins can add members"
-            description="Otherwise any member can add someone."
+            label={t("groups.onlyAdminsAdd", "Only admins can add members")}
+            description={t(
+              "groups.onlyAdminsAddHint",
+              "Otherwise any member can add someone.",
+            )}
             checked={confirmed.memberAddMode === "admin_add"}
             disabled={disabled}
             onChange={(adminOnly) =>

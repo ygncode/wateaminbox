@@ -86,7 +86,12 @@ export interface NewContactsTrend {
 /**
  * Case-cycle resolution statistics (see @/lib/api/types for the full shape).
  */
-export type { CaseResolutionStats, CaseResolutionTrendPoint, OverdueCase, TeamCaseResolutionStats };
+export type {
+  CaseResolutionStats,
+  CaseResolutionTrendPoint,
+  OverdueCase,
+  TeamCaseResolutionStats,
+};
 
 /**
  * Customer engagement metrics

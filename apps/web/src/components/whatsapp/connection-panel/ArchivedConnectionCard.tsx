@@ -9,6 +9,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 import type { WhatsAppConnection } from "@/lib/api/types";
+import { useTranslation } from "react-i18next";
 
 interface ArchivedConnectionCardProps {
   connection: WhatsAppConnection;
@@ -25,6 +26,8 @@ export function ArchivedConnectionCard({
   isRelinking,
   isPurging,
 }: ArchivedConnectionCardProps) {
+  const { t } = useTranslation();
+
   const [purgeOpen, setPurgeOpen] = useState(false);
 
   return (
@@ -72,8 +75,14 @@ export function ArchivedConnectionCard({
             className="h-9 w-9 p-0 text-stone-400 hover:bg-red-50 hover:text-red-700 dark:hover:bg-red-950/30 dark:hover:text-red-300"
             disabled={isRelinking || isPurging}
             onClick={() => setPurgeOpen(true)}
-            aria-label={`Permanently delete ${connection.name}`}
-            title="Permanently delete inbox data"
+            aria-label={t("connections.permanentDeleteAria", {
+              defaultValue: "Permanently delete {{name}}",
+              name: connection.name,
+            })}
+            title={t(
+              "connections.permanentDeleteTitle",
+              "Permanently delete inbox data",
+            )}
           >
             {isPurging ? (
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -86,15 +95,27 @@ export function ArchivedConnectionCard({
 
       <div className="mt-3 flex items-center gap-2 border-t border-stone-200/70 pt-3 text-xs text-stone-500 dark:border-white/[0.06] dark:text-stone-400">
         <ShieldCheck className="h-3.5 w-3.5 text-emerald-600" />
-        Conversations, notes, and assignments are retained.
+        {t(
+          "connections.dataRetained",
+          "Conversations, notes, and assignments are retained.",
+        )}
       </div>
 
       <ConfirmationDialog
         open={purgeOpen}
         onOpenChange={setPurgeOpen}
-        title={`Permanently delete ${connection.name}?`}
-        description="This erases this account's conversations, messages, contacts, assignments, and notes. This cannot be undone."
-        confirmText="Permanently delete data"
+        title={t("connections.permanentDeleteConfirmTitle", {
+          defaultValue: "Permanently delete {{name}}?",
+          name: connection.name,
+        })}
+        description={t(
+          "connections.permanentDeleteDescription",
+          "This erases this account's conversations, messages, contacts, assignments, and notes. This cannot be undone.",
+        )}
+        confirmText={t(
+          "connections.permanentDeleteConfirm",
+          "Permanently delete data",
+        )}
         isDestructive
         isLoading={isPurging}
         onConfirm={async () => {

@@ -10,12 +10,15 @@ import {
   plotHeight,
   plotWidth,
 } from "./chart-utils";
+import { useTranslation } from "react-i18next";
 
 export interface NewContactsChartProps {
   data: { date: string; count: number; cumulativeTotal: number }[];
 }
 
 export function NewContactsChart({ data }: NewContactsChartProps) {
+  const { t } = useTranslation();
+
   if (data.length === 0) {
     return <ChartEmptyState />;
   }
@@ -44,7 +47,7 @@ export function NewContactsChart({ data }: NewContactsChartProps) {
       <div className="mb-4 flex items-end justify-between gap-3">
         <div>
           <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[#7c8983] dark:text-dark-text-secondary">
-            New in period
+            {t("dashboard.charts.newInPeriod", "New in period")}
           </p>
           <p className="text-xl font-semibold tabular-nums text-[#075c41] dark:text-emerald-300">
             +{formatNumber(totalNew)}
@@ -52,7 +55,7 @@ export function NewContactsChart({ data }: NewContactsChartProps) {
         </div>
         <div className="text-right">
           <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[#7c8983] dark:text-dark-text-secondary">
-            Contact base
+            {t("dashboard.charts.contactBase", "Contact base")}
           </p>
           <p className="text-sm font-semibold tabular-nums text-[#31463e] dark:text-dark-text-primary">
             {formatNumber(latestCumulative)}
@@ -148,7 +151,7 @@ export function NewContactsChart({ data }: NewContactsChartProps) {
       <div className="-mt-1 flex justify-end">
         <span className="flex items-center gap-1.5 text-[10px] font-medium text-[#7c8983] dark:text-dark-text-secondary">
           <span className="h-0.5 w-4 border-t-2 border-dashed border-[#d18b35]" />
-          Cumulative growth
+          {t("dashboard.charts.cumulativeGrowth", "Cumulative growth")}
         </span>
       </div>
     </div>
@@ -156,9 +159,11 @@ export function NewContactsChart({ data }: NewContactsChartProps) {
 }
 
 function ChartEmptyState() {
+  const { t } = useTranslation();
+
   return (
     <div className="grid h-[276px] place-items-center rounded-xl border border-dashed border-[#dce3de] bg-[#fafcfb] text-sm text-[#718078] dark:border-dark-border dark:bg-dark-secondary/40 dark:text-dark-text-secondary">
-      No new contacts in this period
+      {t("dashboard.charts.noNewContacts", "No new contacts in this period")}
     </div>
   );
 }

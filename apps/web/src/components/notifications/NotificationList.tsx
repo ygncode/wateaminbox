@@ -23,6 +23,7 @@ import {
   groupNotificationsByDay,
   type NotificationFilter,
 } from "./notification-presentation";
+import { useTranslation } from "react-i18next";
 
 /**
  * Row scale. `compact` fits the 400px sheet, `comfortable` is the full-page
@@ -369,6 +370,8 @@ export function NotificationErrorState({
   isRetrying?: boolean;
   density?: NotificationDensity;
 }) {
+  const { t } = useTranslation();
+
   return (
     <div
       role="alert"
@@ -382,10 +385,13 @@ export function NotificationErrorState({
         <TriangleAlert className="size-7" aria-hidden="true" />
       </div>
       <p className="text-base font-semibold text-gray-900 dark:text-dark-text-primary">
-        Notifications could not be loaded
+        {t("notifications.loadFailed", "Notifications could not be loaded")}
       </p>
       <p className="mt-1.5 max-w-xs text-pretty text-sm text-gray-500 dark:text-dark-text-secondary">
-        The connection to your workspace failed. Your notifications are safe.
+        {t(
+          "notifications.loadFailedHint",
+          "The connection to your workspace failed. Your notifications are safe.",
+        )}
       </p>
       <Button
         variant="outline"

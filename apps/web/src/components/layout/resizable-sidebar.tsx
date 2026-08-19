@@ -7,6 +7,7 @@ import {
   useState,
 } from "react";
 import { cn } from "@/lib/utils";
+import { useTranslation } from "react-i18next";
 
 export const SIDEBAR_MIN_WIDTH = 280;
 export const SIDEBAR_DEFAULT_WIDTH = 400;
@@ -59,6 +60,8 @@ export function ResizableSidebar({
   children,
   className,
 }: ResizableSidebarProps) {
+  const { t } = useTranslation();
+
   const [width, setWidth] = useState(getInitialWidth);
   const [isResizing, setIsResizing] = useState(false);
   const dragStart = useRef<{ pointerX: number; width: number } | null>(null);
@@ -146,13 +149,16 @@ export function ResizableSidebar({
       {children}
       <div
         role="separator"
-        aria-label="Resize conversation list"
+        aria-label={t(
+          "layout.resizeConversationList",
+          "Resize conversation list",
+        )}
         aria-orientation="vertical"
         aria-valuemin={SIDEBAR_MIN_WIDTH}
         aria-valuemax={getSidebarMaxWidth(getViewportWidth())}
         aria-valuenow={width}
         tabIndex={0}
-        title="Drag to resize. Double-click to reset."
+        title={t("layout.resizeHint", "Drag to resize. Double-click to reset.")}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={finishResize}

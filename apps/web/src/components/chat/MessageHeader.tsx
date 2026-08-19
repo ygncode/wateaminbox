@@ -6,6 +6,7 @@ import { useGroup } from "@/hooks/useGroups";
 import { formatPhoneLikeText } from "@/lib/utils";
 import { ConnectionBadge, ConnectionRoute } from "./ConnectionIdentity";
 import { ThemeToggle } from "./ThemeToggle";
+import { useTranslation } from "react-i18next";
 
 interface MessageHeaderProps {
   contact: Contact | undefined;
@@ -29,6 +30,8 @@ export function MessageHeader({
   onBack,
   isTyping = false,
 }: MessageHeaderProps) {
+  const { t } = useTranslation();
+
   const { data: group } = useGroup(contact?.isGroup ? contact.id : null);
 
   if (!contact) {
@@ -40,10 +43,13 @@ export function MessageHeader({
   );
   const lastSeenText = contact.isGroup
     ? group?.participantCount
-      ? `${group.participantCount} participants`
-      : "Group"
-    : formatLastSeen(contact.lastSeen, contact.isOnline);
-  const statusText = isTyping ? "typing" : lastSeenText;
+      ? t("chat.participantCount", {
+          defaultValue: "{{count}} participants",
+          count: group.participantCount,
+        })
+      : t("chat.group", "Group")
+    : formatLastSeen(contact.lastSeen, contact.isOnline, t);
+  const statusText = isTyping ? t("chat.typingShort", "typing") : lastSeenText;
 
   return (
     <header className="flex items-center gap-2 md:gap-3 px-2 md:px-4 py-2 bg-gray-100 dark:bg-dark-secondary border-b border-gray-200 dark:border-dark-border h-14 min-h-[56px] md:h-[60px] md:min-h-[60px] safe-area-top">
@@ -52,7 +58,7 @@ export function MessageHeader({
         <button
           onClick={onBack}
           className="flex h-11 w-11 items-center justify-center rounded-full text-gray-600 dark:text-dark-text-secondary hover:bg-gray-200 dark:hover:bg-dark-tertiary active:bg-gray-300 dark:active:bg-dark-border transition-colors touch-manipulation md:hidden"
-          aria-label="Go back"
+          aria-label={t("common.goBack", "Go back")}
         >
           <ArrowLeft className="h-6 w-6" />
         </button>
@@ -148,7 +154,10 @@ export function MessageHeader({
         <button
           onClick={onSearch}
           className="hidden sm:flex h-11 w-11 md:h-10 md:w-10 items-center justify-center text-gray-500 dark:text-dark-text-secondary hover:text-gray-700 dark:hover:text-dark-text-primary rounded-full hover:bg-gray-200 dark:hover:bg-dark-tertiary active:bg-gray-300 dark:active:bg-dark-border transition-colors touch-manipulation"
-          aria-label="Search in conversation"
+          aria-label={t(
+            "search.inConversationAria",
+            "Search messages in conversation",
+          )}
         >
           <svg
             className="h-5 w-5"
@@ -169,7 +178,7 @@ export function MessageHeader({
         <button
           onClick={onMore}
           className="flex h-11 w-11 md:h-10 md:w-10 items-center justify-center text-gray-500 dark:text-dark-text-secondary hover:text-gray-700 dark:hover:text-dark-text-primary rounded-full hover:bg-gray-200 dark:hover:bg-dark-tertiary active:bg-gray-300 dark:active:bg-dark-border transition-colors touch-manipulation"
-          aria-label="More options"
+          aria-label={t("common.moreOptions", "More options")}
         >
           <svg
             className="h-5 w-5"

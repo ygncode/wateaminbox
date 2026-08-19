@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import type { ReactNode } from "react";
 import { BrandMark } from "../brand/BrandMark";
+import { useTranslation } from "react-i18next";
 
 type AuthPageShellProps = {
   children: ReactNode;
@@ -14,12 +15,20 @@ type AuthPageShellProps = {
 };
 
 const registerHighlights = [
-  "Shared ownership, clear handoffs",
-  "Private notes stay with your team",
-  "Conversation history in one place",
+  {
+    key: "auth.highlights.sharedOwnership",
+    en: "Shared ownership, clear handoffs",
+  },
+  {
+    key: "auth.highlights.privateNotes",
+    en: "Private notes stay with your team",
+  },
+  { key: "auth.highlights.history", en: "Conversation history in one place" },
 ];
 
 export function AuthPageShell({ children, variant }: AuthPageShellProps) {
+  const { t } = useTranslation();
+
   const isRegister = variant === "register";
   const isRecovery = variant === "recovery";
 
@@ -43,7 +52,7 @@ export function AuthPageShell({ children, variant }: AuthPageShellProps) {
                 WATeamInbox
               </p>
               <p className="mt-1 text-[0.65rem] font-semibold uppercase tracking-[0.16em] text-slate-500 dark:text-dark-text-tertiary">
-                WhatsApp for teams
+                {t("setup.whatsappForTeams", "WhatsApp for teams")}
               </p>
             </div>
           </div>
@@ -53,7 +62,10 @@ export function AuthPageShell({ children, variant }: AuthPageShellProps) {
           </div>
 
           <p className="mt-10 text-xs leading-5 text-slate-400 dark:text-dark-text-tertiary">
-            Secure team messaging, designed for focused customer conversations.
+            {t(
+              "onboarding.tagline",
+              "Secure team messaging, designed for focused customer conversations.",
+            )}
           </p>
         </div>
 
@@ -83,24 +95,42 @@ export function AuthPageShell({ children, variant }: AuthPageShellProps) {
                 />
               )}
               {isRegister
-                ? "A calmer shared inbox"
+                ? t("auth.shell.registerEyebrow", "A calmer shared inbox")
                 : isRecovery
-                  ? "Account recovery"
-                  : "Your team is waiting"}
+                  ? t("auth.shell.recoveryEyebrow", "Account recovery")
+                  : t("auth.shell.loginEyebrow", "Your team is waiting")}
             </div>
             <h2 className="mt-7 max-w-sm text-4xl font-semibold leading-[1.08] tracking-[-0.045em] text-balance">
               {isRegister
-                ? "One conversation. The whole team in sync."
+                ? t(
+                    "auth.shell.registerHeadline",
+                    "One conversation. The whole team in sync.",
+                  )
                 : isRecovery
-                  ? "A secure way back to your workspace."
-                  : "Pick up every conversation right where you left it."}
+                  ? t(
+                      "auth.shell.recoveryHeadline",
+                      "A secure way back to your workspace.",
+                    )
+                  : t(
+                      "auth.shell.loginHeadline",
+                      "Pick up every conversation right where you left it.",
+                    )}
             </h2>
             <p className="mt-5 max-w-sm text-sm leading-6 text-emerald-50/72">
               {isRegister
-                ? "Turn customer messages into clear, accountable teamwork—without losing the human touch."
+                ? t(
+                    "auth.shell.registerBody",
+                    "Turn customer messages into clear, accountable teamwork—without losing the human touch.",
+                  )
                 : isRecovery
-                  ? "Reset instructions are sent privately, links are time-limited, and your account details remain protected."
-                  : "Assignments, notes, and customer context stay together, so your team can respond with confidence."}
+                  ? t(
+                      "auth.shell.recoveryBody",
+                      "Reset instructions are sent privately, links are time-limited, and your account details remain protected.",
+                    )
+                  : t(
+                      "auth.shell.loginBody",
+                      "Assignments, notes, and customer context stay together, so your team can respond with confidence.",
+                    )}
             </p>
           </div>
 
@@ -110,7 +140,10 @@ export function AuthPageShell({ children, variant }: AuthPageShellProps) {
 
           <div className="relative mt-9 flex items-center gap-3 border-t border-white/10 pt-6 text-xs text-emerald-50/65">
             <LockKeyhole aria-hidden="true" className="h-4 w-4" />
-            Your workspace data stays private to your team.
+            {t(
+              "auth.shell.privacyNote",
+              "Your workspace data stays private to your team.",
+            )}
           </div>
         </aside>
       </section>
@@ -119,6 +152,8 @@ export function AuthPageShell({ children, variant }: AuthPageShellProps) {
 }
 
 function ConversationPreview() {
+  const { t } = useTranslation();
+
   return (
     <div>
       <div className="rounded-2xl border border-white/15 bg-white/[0.09] p-4 shadow-2xl shadow-black/10 backdrop-blur">
@@ -127,21 +162,29 @@ function ConversationPreview() {
             SM
           </div>
           <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-semibold">Sara Mitchell</p>
+            <p className="truncate text-sm font-semibold">
+              {t("auth.preview.contactName", "Sara Mitchell")}
+            </p>
             <p className="mt-0.5 text-xs text-emerald-50/55">
-              Online now · Acme &amp; Co.
+              {t("auth.preview.contactMeta", "Online now · Acme & Co.")}
             </p>
           </div>
           <span className="h-2 w-2 rounded-full bg-[#25d366]" />
         </div>
 
         <div className="mt-5 rounded-2xl rounded-tl-md bg-white px-4 py-3 text-sm leading-5 text-slate-700 shadow-sm">
-          Thanks! Could you send the updated quote before 3pm?
+          {t(
+            "auth.preview.incoming",
+            "Thanks! Could you send the updated quote before 3pm?",
+          )}
           <p className="mt-1 text-right text-[0.65rem] text-slate-400">10:42</p>
         </div>
 
         <div className="ml-9 mt-3 rounded-2xl rounded-br-md bg-[#d9fdd3] px-4 py-3 text-sm leading-5 text-[#16483f] shadow-sm">
-          Absolutely—Maya is preparing it now. We’ll send it shortly.
+          {t(
+            "auth.preview.outgoing",
+            "Absolutely—Maya is preparing it now. We’ll send it shortly.",
+          )}
           <p className="mt-1 flex items-center justify-end gap-1 text-[0.65rem] text-[#537d73]">
             10:43 <Check aria-hidden="true" className="h-3 w-3" />
           </p>
@@ -150,10 +193,10 @@ function ConversationPreview() {
         <div className="mt-4 flex items-center justify-between rounded-xl border border-white/10 bg-black/10 px-3 py-2.5">
           <div className="flex items-center gap-2 text-xs text-emerald-50/75">
             <UsersRound aria-hidden="true" className="h-3.5 w-3.5" />
-            Assigned to Maya
+            {t("auth.preview.assignedTo", "Assigned to Maya")}
           </div>
           <span className="rounded-full bg-[#25d366]/18 px-2 py-1 text-[0.65rem] font-semibold text-[#8fffb5]">
-            In progress
+            {t("auth.preview.inProgress", "In progress")}
           </span>
         </div>
       </div>
@@ -161,14 +204,14 @@ function ConversationPreview() {
       <ul className="mt-5 grid gap-2">
         {registerHighlights.map((item) => (
           <li
-            key={item}
+            key={item.key}
             className="flex items-center gap-2.5 text-xs text-emerald-50/70"
           >
             <CheckCircle2
               aria-hidden="true"
               className="h-4 w-4 text-[#52df83]"
             />
-            {item}
+            {t(item.key, item.en)}
           </li>
         ))}
       </ul>
@@ -177,21 +220,32 @@ function ConversationPreview() {
 }
 
 function RecoveryPreview() {
+  const { t } = useTranslation();
+
   const steps = [
     {
       number: "01",
-      title: "Request received",
-      detail: "Enter the email linked to your workspace.",
+      title: t("auth.recovery.step1Title", "Request received"),
+      detail: t(
+        "auth.recovery.step1Detail",
+        "Enter the email linked to your workspace.",
+      ),
     },
     {
       number: "02",
-      title: "Secure link sent",
-      detail: "Follow the time-limited link in your inbox.",
+      title: t("auth.recovery.step2Title", "Secure link sent"),
+      detail: t(
+        "auth.recovery.step2Detail",
+        "Follow the time-limited link in your inbox.",
+      ),
     },
     {
       number: "03",
-      title: "Choose a new password",
-      detail: "Return to your team with a fresh sign-in.",
+      title: t("auth.recovery.step3Title", "Choose a new password"),
+      detail: t(
+        "auth.recovery.step3Detail",
+        "Return to your team with a fresh sign-in.",
+      ),
     },
   ];
 

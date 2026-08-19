@@ -15,6 +15,7 @@ import {
   toLocalScheduleInput,
   validateRescheduleTime,
 } from "./broadcast-schedule";
+import { useTranslation } from "react-i18next";
 
 interface RescheduleBroadcastDialogProps {
   open: boolean;
@@ -31,6 +32,8 @@ export function RescheduleBroadcastDialog({
   isSubmitting,
   onSubmit,
 }: RescheduleBroadcastDialogProps) {
+  const { t } = useTranslation();
+
   const [value, setValue] = useState(() => toLocalScheduleInput(scheduledAt));
   const [error, setError] = useState<string | null>(null);
 
@@ -70,10 +73,14 @@ export function RescheduleBroadcastDialog({
               <CalendarClock className="h-4 w-4" aria-hidden="true" />
             </span>
             <div>
-              <DialogTitle className="text-base">Edit schedule</DialogTitle>
+              <DialogTitle className="text-base">
+                {t("broadcasts.editSchedule", "Edit schedule")}
+              </DialogTitle>
               <DialogDescription className="mt-1 text-xs leading-5">
-                Change when this broadcast starts. Its message, attachment, and
-                snapshotted recipients stay exactly the same.
+                {t(
+                  "broadcasts.rescheduleHint",
+                  "Change when this broadcast starts. Its message, attachment, and snapshotted recipients stay exactly the same.",
+                )}
               </DialogDescription>
             </div>
           </div>
@@ -82,7 +89,7 @@ export function RescheduleBroadcastDialog({
         <div className="space-y-4 px-5 py-1">
           <div
             className="flex flex-wrap gap-1.5"
-            aria-label="Schedule shortcuts"
+            aria-label={t("broadcasts.scheduleShortcuts", "Schedule shortcuts")}
           >
             <Button
               type="button"
@@ -90,7 +97,7 @@ export function RescheduleBroadcastDialog({
               size="sm"
               onClick={() => choosePreset(dayjs().add(1, "hour"))}
             >
-              In 1 hour
+              {t("broadcasts.presets.inOneHour", "In 1 hour")}
             </Button>
             <Button
               type="button"
@@ -100,13 +107,13 @@ export function RescheduleBroadcastDialog({
                 choosePreset(dayjs().add(1, "day").hour(9).minute(0))
               }
             >
-              Tomorrow 9:00
+              {t("broadcasts.presets.tomorrow9", "Tomorrow 9:00")}
             </Button>
           </div>
 
           <label htmlFor="broadcast-reschedule-at" className="block">
             <span className="text-xs font-semibold text-[#40554c] dark:text-dark-text-primary">
-              New start time
+              {t("broadcasts.newStartTime", "New start time")}
             </span>
             <span className="mt-0.5 block text-[11px] text-[#718078] dark:text-dark-text-secondary">
               Times are shown in {timezone}.
@@ -140,9 +147,10 @@ export function RescheduleBroadcastDialog({
           </label>
 
           <p className="rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs leading-5 text-sky-800 dark:border-sky-900 dark:bg-sky-950/35 dark:text-sky-200">
-            Rescheduling is available only until the first recipient begins
-            processing. If sending starts while this dialog is open, the update
-            will be safely rejected.
+            {t(
+              "broadcasts.rescheduleWindowHint",
+              "Rescheduling is available only until the first recipient begins processing. If sending starts while this dialog is open, the update will be safely rejected.",
+            )}
           </p>
         </div>
 
@@ -153,7 +161,7 @@ export function RescheduleBroadcastDialog({
             onClick={() => onOpenChange(false)}
             disabled={isSubmitting}
           >
-            Keep current time
+            {t("broadcasts.keepCurrentTime", "Keep current time")}
           </Button>
           <Button
             type="button"

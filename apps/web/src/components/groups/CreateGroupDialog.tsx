@@ -26,6 +26,7 @@ import {
   ParticipantPicker,
   type PickableParticipant,
 } from "./ParticipantPicker";
+import { useTranslation } from "react-i18next";
 
 interface CreateGroupDialogProps {
   open: boolean;
@@ -43,6 +44,8 @@ export function CreateGroupDialog({
   open,
   onOpenChange,
 }: CreateGroupDialogProps) {
+  const { t } = useTranslation();
+
   const { connections } = useWhatsAppConnections();
   const createGroup = useCreateGroup();
 
@@ -120,10 +123,12 @@ export function CreateGroupDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[480px]">
         <DialogHeader>
-          <DialogTitle>New group</DialogTitle>
+          <DialogTitle>{t("groups.newGroup", "New group")}</DialogTitle>
           <DialogDescription>
-            The group is created on WhatsApp and appears here once WhatsApp
-            confirms it.
+            {t(
+              "groups.newGroupHint",
+              "The group is created on WhatsApp and appears here once WhatsApp confirms it.",
+            )}
           </DialogDescription>
         </DialogHeader>
 
@@ -131,17 +136,26 @@ export function CreateGroupDialog({
           <div className="flex gap-3 rounded-lg bg-gray-50 p-3 dark:bg-dark-elevated">
             <Users className="mt-0.5 h-5 w-5 shrink-0 text-gray-400" />
             <p className="text-sm leading-5 text-gray-600 dark:text-dark-text-secondary">
-              No WhatsApp account is connected. Connect one before creating a
-              group.
+              {t(
+                "groups.noAccountConnected",
+                "No WhatsApp account is connected. Connect one before creating a group.",
+              )}
             </p>
           </div>
         ) : (
           <div className="space-y-4">
             <div className="space-y-1.5">
-              <Label htmlFor="create-group-connection">WhatsApp account</Label>
+              <Label htmlFor="create-group-connection">
+                {t("connections.whatsappAccount", "WhatsApp account")}
+              </Label>
               <Select value={connectionId} onValueChange={setConnectionId}>
                 <SelectTrigger id="create-group-connection">
-                  <SelectValue placeholder="Choose the account that will own the group" />
+                  <SelectValue
+                    placeholder={t(
+                      "groups.chooseAccount",
+                      "Choose the account that will own the group",
+                    )}
+                  />
                 </SelectTrigger>
                 <SelectContent>
                   {connectedAccounts.map((connection) => (
@@ -154,13 +168,18 @@ export function CreateGroupDialog({
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="create-group-name">Group name</Label>
+              <Label htmlFor="create-group-name">
+                {t("groups.groupNameLabel", "Group name")}
+              </Label>
               <Input
                 id="create-group-name"
                 value={name}
                 maxLength={GROUP_NAME_MAX_LENGTH}
                 onChange={(event) => setName(event.target.value)}
-                placeholder="e.g. Support escalations"
+                placeholder={t(
+                  "groups.namePlaceholder",
+                  "e.g. Support escalations",
+                )}
               />
               <p className="text-xs text-gray-500 dark:text-dark-text-tertiary">
                 {trimmedName.length}/{GROUP_NAME_MAX_LENGTH} characters ·
@@ -185,8 +204,10 @@ export function CreateGroupDialog({
                 labelledBy="create-group-members-label"
               />
               <p className="text-xs text-gray-500 dark:text-dark-text-tertiary">
-                This account joins the group automatically. WhatsApp may refuse
-                individual members whose privacy settings block group invites.
+                {t(
+                  "groups.ownerJoinsHint",
+                  "This account joins the group automatically. WhatsApp may refuse individual members whose privacy settings block group invites.",
+                )}
               </p>
             </div>
           </div>

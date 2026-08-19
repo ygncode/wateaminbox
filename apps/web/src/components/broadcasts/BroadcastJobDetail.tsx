@@ -48,19 +48,37 @@ import { BroadcastStatusBadge } from "./BroadcastStatusBadge";
 import { humanizeSkipReason, progressSummary } from "./broadcast-format";
 import { canRescheduleBulkJob } from "./broadcast-schedule";
 import { RescheduleBroadcastDialog } from "./RescheduleBroadcastDialog";
+import type { TFunction } from "i18next";
+import { useTranslation } from "react-i18next";
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50];
 const DEFAULT_PAGE_SIZE = 20;
 
 /** Values the API's recipient `status` filter accepts, plus the "all" reset. */
 const RECIPIENT_STATUS_FILTERS = [
-  { value: "all", label: "All statuses" },
-  { value: "scheduled", label: "Scheduled" },
-  { value: "processing", label: "Sending" },
-  { value: "sent", label: "Sent" },
-  { value: "failed", label: "Failed" },
-  { value: "skipped", label: "Skipped" },
-  { value: "canceled", label: "Canceled" },
+  { value: "all", labelKey: "broadcasts.filters.all", label: "All statuses" },
+  {
+    value: "scheduled",
+    labelKey: "broadcasts.filters.scheduled",
+    label: "Scheduled",
+  },
+  {
+    value: "processing",
+    labelKey: "broadcasts.filters.processing",
+    label: "Sending",
+  },
+  { value: "sent", labelKey: "broadcasts.filters.sent", label: "Sent" },
+  { value: "failed", labelKey: "broadcasts.filters.failed", label: "Failed" },
+  {
+    value: "skipped",
+    labelKey: "broadcasts.filters.skipped",
+    label: "Skipped",
+  },
+  {
+    value: "canceled",
+    labelKey: "broadcasts.filters.canceled",
+    label: "Canceled",
+  },
 ];
 const RECIPIENT_STATUS_VALUES = RECIPIENT_STATUS_FILTERS.map(
   (option) => option.value,
@@ -102,7 +120,24 @@ const RECIPIENT_STATUS_CONFIG: Record<
   },
 };
 
+const RECIPIENT_STATUS_LABELS: Record<string, [key: string, fallback: string]> =
+  {
+    sent: ["broadcasts.filters.sent", "Sent"],
+    failed: ["broadcasts.filters.failed", "Failed"],
+    skipped: ["broadcasts.filters.skipped", "Skipped"],
+    canceled: ["broadcasts.filters.canceled", "Canceled"],
+    scheduled: ["broadcasts.filters.scheduled", "Scheduled"],
+    processing: ["broadcasts.filters.processing", "Sending"],
+  };
+
+function recipientStatusLabel(t: TFunction, status: string): string {
+  const entry = RECIPIENT_STATUS_LABELS[status];
+  return entry ? t(entry[0], entry[1]) : status;
+}
+
 function RecipientStatus({ status }: { status: string }) {
+  const { t } = useTranslation();
+
   const config = RECIPIENT_STATUS_CONFIG[status] ?? {
     className:
       "border-[#dfe5e1] bg-[#f1f3f2] text-[#65736d] dark:border-dark-border dark:bg-dark-tertiary dark:text-dark-text-secondary",
@@ -119,19 +154,25 @@ function RecipientStatus({ status }: { status: string }) {
         className={cn("h-1.5 w-1.5 rounded-full", config.dotClassName)}
         aria-hidden="true"
       />
-      {status}
+      {recipientStatusLabel(t, status)}
     </span>
   );
 }
 
 function mediaChip(
   job: BulkJob,
-): { icon: typeof ImageIcon; label: string } | null {
+): { icon: typeof ImageIcon; labelKey: string; label: string } | null {
   if (!job.mediaUrl) return null;
   const mimeType = job.mediaMimeType || "";
-  if (mimeType.startsWith("image/")) return { icon: ImageIcon, label: "Photo" };
-  if (mimeType.startsWith("video/")) return { icon: Film, label: "Video" };
-  return { icon: FileText, label: "File" };
+  if (mimeType.startsWith("image/"))
+    return {
+      icon: ImageIcon,
+      labelKey: "chat.mediaTypes.image",
+      label: "Photo",
+    };
+  if (mimeType.startsWith("video/"))
+    return { icon: Film, labelKey: "chat.mediaTypes.video", label: "Video" };
+  return { icon: FileText, labelKey: "broadcasts.file", label: "File" };
 }
 
 const OUTCOME_STYLES = {
@@ -285,6 +326,8 @@ interface BroadcastJobDetailProps {
 
 /** Full detail view of one broadcast job with recipients and cancelation. */
 export function BroadcastJobDetail({ jobId }: BroadcastJobDetailProps) {
+  const { t } = useTranslation();
+
   const [confirmCancelOpen, setConfirmCancelOpen] = useState(false);
   const [rescheduleOpen, setRescheduleOpen] = useState(false);
   const { pagination, setPagination, getParam, setFilterParam, resetParams } =
@@ -328,7 +371,7 @@ export function BroadcastJobDetail({ jobId }: BroadcastJobDetailProps) {
   const recipientColumns: ColumnDef<BulkJobRecipient>[] = [
     {
       id: "contact",
-      header: "Contact",
+      header: t("broadcasts.contact", "Contact"),
       size: 260,
       cell: ({ row }) => {
         const identity = contactIdentity(row.original);
@@ -355,13 +398,13 @@ export function BroadcastJobDetail({ jobId }: BroadcastJobDetailProps) {
     },
     {
       accessorKey: "status",
-      header: "Status",
+      header: t("broadcasts.statusHeader", "Status"),
       size: 130,
       cell: ({ row }) => <RecipientStatus status={row.original.status} />,
     },
     {
       id: "detail",
-      header: "Detail",
+      header: t("broadcasts.detail", "Detail"),
       size: 300,
       cell: ({ row }) => {
         const detail = recipientDetail(row.original);
@@ -385,14 +428,18 @@ export function BroadcastJobDetail({ jobId }: BroadcastJobDetailProps) {
     },
     {
       accessorKey: "scheduledAt",
-      header: "Scheduled",
+      header: t("broadcasts.scheduledHeader", "Scheduled"),
       size: 140,
       cell: ({ row }) => <TimeCell value={row.original.scheduledAt} />,
     },
     {
       accessorKey: "sentAt",
       // The table right-aligns the trailing cell; match it in the header.
-      header: () => <span className="block text-right">Sent at</span>,
+      header: () => (
+        <span className="block text-right">
+          {t("broadcasts.sentAt", "Sent at")}
+        </span>
+      ),
       size: 140,
       cell: ({ row }) => <TimeCell value={row.original.sentAt} />,
     },
@@ -407,10 +454,13 @@ export function BroadcastJobDetail({ jobId }: BroadcastJobDetailProps) {
           <AlertCircle className="h-5 w-5" aria-hidden="true" />
         </span>
         <h2 className="mt-3 text-sm font-semibold text-[#20362e] dark:text-dark-text-primary">
-          Broadcast could not be loaded
+          {t("broadcasts.loadFailed", "Broadcast could not be loaded")}
         </h2>
         <p className="mt-1 max-w-sm text-xs leading-5 text-[#718078] dark:text-dark-text-secondary">
-          It may have been removed, or the workspace connection was interrupted.
+          {t(
+            "broadcasts.loadFailedHint",
+            "It may have been removed, or the workspace connection was interrupted.",
+          )}
         </p>
         <Button
           variant="outline"
@@ -419,7 +469,7 @@ export function BroadcastJobDetail({ jobId }: BroadcastJobDetailProps) {
           onClick={() => void refetchJob()}
         >
           <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />
-          Try again
+          {t("broadcasts.tryAgain", "Try again")}
         </Button>
       </div>
     );
@@ -448,7 +498,10 @@ export function BroadcastJobDetail({ jobId }: BroadcastJobDetailProps) {
           toast.error(
             error instanceof Error
               ? `Could not reschedule broadcast: ${error.message}`
-              : "Could not reschedule broadcast",
+              : t(
+                  "broadcasts.rescheduleFailed",
+                  "Could not reschedule broadcast",
+                ),
           );
         },
       },
@@ -459,13 +512,13 @@ export function BroadcastJobDetail({ jobId }: BroadcastJobDetailProps) {
     cancelMutation.mutate(jobId, {
       onSuccess: () => {
         setConfirmCancelOpen(false);
-        toast.success("Broadcast canceled");
+        toast.success(t("broadcasts.canceled", "Broadcast canceled"));
       },
       onError: (error) => {
         toast.error(
           error instanceof Error
             ? `Failed to cancel broadcast: ${error.message}`
-            : "Failed to cancel broadcast",
+            : t("broadcasts.cancelFailed", "Failed to cancel broadcast"),
         );
       },
     });
@@ -497,7 +550,9 @@ export function BroadcastJobDetail({ jobId }: BroadcastJobDetailProps) {
                   onClick={() => setRescheduleOpen(true)}
                 >
                   <Pencil className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-                  <span className="truncate">Edit schedule</span>
+                  <span className="truncate">
+                    {t("broadcasts.editSchedule", "Edit schedule")}
+                  </span>
                 </Button>
               )}
               {canCancel && (
@@ -508,7 +563,9 @@ export function BroadcastJobDetail({ jobId }: BroadcastJobDetailProps) {
                   onClick={() => setConfirmCancelOpen(true)}
                 >
                   <Ban className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-                  <span className="truncate">Cancel broadcast</span>
+                  <span className="truncate">
+                    {t("broadcasts.cancelBroadcast", "Cancel broadcast")}
+                  </span>
                 </Button>
               )}
             </div>
@@ -525,26 +582,41 @@ export function BroadcastJobDetail({ jobId }: BroadcastJobDetailProps) {
                 {dayjs(job.scheduledAt).format("MMM D, YYYY · HH:mm")}
               </time>
             </MetaItem>
-            <MetaItem icon={UsersRound} label="Recipients">
+            <MetaItem
+              icon={UsersRound}
+              label={t("broadcasts.recipients", "Recipients")}
+            >
               <span className="tabular-nums">{job.progress.total}</span>
             </MetaItem>
-            <MetaItem icon={UserRound} label="Created by">
+            <MetaItem
+              icon={UserRound}
+              label={t("broadcasts.createdBy", "Created by")}
+            >
               {job.createdByName || "Unknown"}
             </MetaItem>
-            <MetaItem icon={CalendarClock} label="Created">
+            <MetaItem
+              icon={CalendarClock}
+              label={t("broadcasts.created", "Created")}
+            >
               <time dateTime={job.createdAt}>
                 {dayjs(job.createdAt).format("MMM D, YYYY · HH:mm")}
               </time>
             </MetaItem>
             {job.canceledAt ? (
-              <MetaItem icon={Ban} label="Canceled">
+              <MetaItem
+                icon={Ban}
+                label={t("broadcasts.canceledLabel", "Canceled")}
+              >
                 <time dateTime={job.canceledAt}>
                   {dayjs(job.canceledAt).format("MMM D, YYYY · HH:mm")}
                 </time>
               </MetaItem>
             ) : (
               job.completedAt && (
-                <MetaItem icon={CircleCheck} label="Completed">
+                <MetaItem
+                  icon={CircleCheck}
+                  label={t("broadcasts.completed", "Completed")}
+                >
                   <time dateTime={job.completedAt}>
                     {dayjs(job.completedAt).format("MMM D, YYYY · HH:mm")}
                   </time>
@@ -552,7 +624,10 @@ export function BroadcastJobDetail({ jobId }: BroadcastJobDetailProps) {
               )
             )}
             {media && (
-              <MetaItem icon={Paperclip} label="Attachment">
+              <MetaItem
+                icon={Paperclip}
+                label={t("broadcasts.attachment", "Attachment")}
+              >
                 {job.mediaFileName || media.label}
               </MetaItem>
             )}
@@ -574,11 +649,11 @@ export function BroadcastJobDetail({ jobId }: BroadcastJobDetailProps) {
                   id="message-preview-title"
                   className="text-xs font-semibold text-[#31463e] dark:text-dark-text-primary"
                 >
-                  Message preview
+                  {t("broadcasts.messagePreview", "Message preview")}
                 </h3>
               </div>
               <span className="hidden text-[10px] font-bold uppercase tracking-[0.1em] text-[#8a9790] dark:text-dark-text-tertiary sm:inline">
-                Tokens personalize per contact
+                {t("broadcasts.tokensHint", "Tokens personalize per contact")}
               </span>
             </div>
 
@@ -601,7 +676,7 @@ export function BroadcastJobDetail({ jobId }: BroadcastJobDetailProps) {
                   </p>
                 ) : (
                   <p className="italic text-[#718078] dark:text-dark-text-secondary">
-                    Attachment-only message
+                    {t("broadcasts.attachmentOnly", "Attachment-only message")}
                   </p>
                 )}
               </div>
@@ -618,7 +693,7 @@ export function BroadcastJobDetail({ jobId }: BroadcastJobDetailProps) {
                   id="delivery-summary-title"
                   className="text-xs font-semibold text-[#31463e] dark:text-dark-text-primary"
                 >
-                  Delivery summary
+                  {t("broadcasts.deliverySummary", "Delivery summary")}
                 </p>
                 <p className="mt-1 text-2xl font-semibold tabular-nums tracking-[-0.03em] text-[#172a23] dark:text-dark-text-primary">
                   {job.progress.sent}
@@ -651,23 +726,27 @@ export function BroadcastJobDetail({ jobId }: BroadcastJobDetailProps) {
             <div className="mt-4 grid grid-cols-3 gap-x-4 gap-y-3 border-t border-[#e3e9e5] pt-3 dark:border-dark-border sm:grid-cols-5 lg:grid-cols-3">
               <OutcomeMetric
                 type="sent"
-                label="Sent"
+                label={t("broadcasts.sent", "Sent")}
                 value={job.progress.sent}
               />
-              <OutcomeMetric type="pending" label="Pending" value={pending} />
+              <OutcomeMetric
+                type="pending"
+                label={t("broadcasts.pending", "Pending")}
+                value={pending}
+              />
               <OutcomeMetric
                 type="failed"
-                label="Failed"
+                label={t("broadcasts.failed", "Failed")}
                 value={job.progress.failed}
               />
               <OutcomeMetric
                 type="skipped"
-                label="Skipped"
+                label={t("broadcasts.skipped", "Skipped")}
                 value={job.progress.skipped}
               />
               <OutcomeMetric
                 type="canceled"
-                label="Canceled"
+                label={t("broadcasts.canceledLabel", "Canceled")}
                 value={job.progress.canceled}
               />
             </div>
@@ -687,7 +766,10 @@ export function BroadcastJobDetail({ jobId }: BroadcastJobDetailProps) {
           error={recipientsError}
           onRetry={() => void refetchRecipients()}
           getRowId={(recipient) => recipient.id}
-          tableLabel="Broadcast recipients"
+          tableLabel={t(
+            "broadcasts.recipientsTableLabel",
+            "Broadcast recipients",
+          )}
           toolbarLeading={
             <div className="flex min-w-0 items-center gap-2.5">
               <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg border border-[#d7e0da] bg-white text-[#0b7a55] dark:border-dark-border dark:bg-dark-elevated dark:text-emerald-300">
@@ -695,10 +777,13 @@ export function BroadcastJobDetail({ jobId }: BroadcastJobDetailProps) {
               </span>
               <div className="min-w-0">
                 <p className="truncate text-xs font-semibold text-[#31463e] dark:text-dark-text-primary">
-                  Recipient outcomes
+                  {t("broadcasts.recipientOutcomes", "Recipient outcomes")}
                 </p>
                 <p className="hidden truncate text-[10px] text-[#7a8881] sm:block dark:text-dark-text-secondary">
-                  Individual delivery results and failure details.
+                  {t(
+                    "broadcasts.recipientOutcomesHint",
+                    "Individual delivery results and failure details.",
+                  )}
                 </p>
               </div>
             </div>
@@ -710,26 +795,37 @@ export function BroadcastJobDetail({ jobId }: BroadcastJobDetailProps) {
             >
               <SelectTrigger
                 className="h-8 w-40 border-[#d7e0da] bg-white text-xs shadow-none dark:border-dark-border dark:bg-dark-elevated"
-                aria-label="Filter recipients by status"
+                aria-label={t(
+                  "broadcasts.filterRecipients",
+                  "Filter recipients by status",
+                )}
               >
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 {RECIPIENT_STATUS_FILTERS.map((option) => (
                   <SelectItem key={option.value} value={option.value}>
-                    {option.label}
+                    {t(option.labelKey, option.label)}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           }
           emptyTitle={
-            statusFilter === "all" ? "No recipients" : "No matching recipients"
+            statusFilter === "all"
+              ? t("broadcasts.noRecipients", "No recipients")
+              : t("broadcasts.noMatchingRecipients", "No matching recipients")
           }
           emptyDescription={
             statusFilter === "all"
-              ? "Recipient outcomes appear here once the broadcast is prepared."
-              : "Choose another status to see more delivery outcomes."
+              ? t(
+                  "broadcasts.noRecipientsHint",
+                  "Recipient outcomes appear here once the broadcast is prepared.",
+                )
+              : t(
+                  "broadcasts.noMatchingRecipientsHint",
+                  "Choose another status to see more delivery outcomes.",
+                )
           }
           emptyAction={
             statusFilter === "all" ? undefined : (
@@ -738,7 +834,7 @@ export function BroadcastJobDetail({ jobId }: BroadcastJobDetailProps) {
                 size="sm"
                 onClick={() => setFilterParam("status", "all")}
               >
-                Clear filter
+                {t("broadcasts.clearFilter", "Clear filter")}
               </Button>
             )
           }
@@ -760,10 +856,13 @@ export function BroadcastJobDetail({ jobId }: BroadcastJobDetailProps) {
       <ConfirmationDialog
         open={confirmCancelOpen}
         onOpenChange={setConfirmCancelOpen}
-        title="Cancel broadcast"
-        description="Recipients who have not been messaged yet will not receive this broadcast. Messages that were already sent cannot be recalled."
-        confirmText="Cancel broadcast"
-        cancelText="Keep sending"
+        title={t("broadcasts.cancelBroadcast", "Cancel broadcast")}
+        description={t(
+          "broadcasts.cancelBroadcastDescription",
+          "Recipients who have not been messaged yet will not receive this broadcast. Messages that were already sent cannot be recalled.",
+        )}
+        confirmText={t("broadcasts.cancelBroadcast", "Cancel broadcast")}
+        cancelText={t("broadcasts.keepSending", "Keep sending")}
         isDestructive
         isLoading={cancelMutation.isPending}
         onConfirm={handleCancel}

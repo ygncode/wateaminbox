@@ -14,6 +14,7 @@ import {
   ParticipantPicker,
   type PickableParticipant,
 } from "./ParticipantPicker";
+import { useTranslation } from "react-i18next";
 
 interface AddParticipantsDialogProps {
   group: GroupDetail;
@@ -33,6 +34,8 @@ export function AddParticipantsDialog({
   open,
   onOpenChange,
 }: AddParticipantsDialogProps) {
+  const { t } = useTranslation();
+
   const addParticipants = useAddParticipants();
   const [selected, setSelected] = useState<Map<string, PickableParticipant>>(
     new Map(),
@@ -71,10 +74,12 @@ export function AddParticipantsDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[460px]">
         <DialogHeader>
-          <DialogTitle>Add members</DialogTitle>
+          <DialogTitle>{t("groups.addMembers", "Add members")}</DialogTitle>
           <DialogDescription>
-            Members are added by WhatsApp. The list updates here once WhatsApp
-            confirms the change.
+            {t(
+              "groups.addMembersHint",
+              "Members are added by WhatsApp. The list updates here once WhatsApp confirms the change.",
+            )}
           </DialogDescription>
         </DialogHeader>
 

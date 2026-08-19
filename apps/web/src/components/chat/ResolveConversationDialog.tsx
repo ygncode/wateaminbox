@@ -9,17 +9,50 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import type { ResolutionOutcome } from "@/lib/api/conversation-state";
+import { useTranslation } from "react-i18next";
 
-const OUTCOME_OPTIONS: { value: ResolutionOutcome; label: string; hint: string }[] = [
-  { value: "handled", label: "Handled", hint: "We replied and resolved it" },
+const OUTCOME_OPTIONS: {
+  value: ResolutionOutcome;
+  labelKey: string;
+  label: string;
+  hintKey: string;
+  hint: string;
+}[] = [
+  {
+    value: "handled",
+    labelKey: "chat.outcomes.handled",
+    label: "Handled",
+    hintKey: "chat.outcomes.handledHint",
+    hint: "We replied and resolved it",
+  },
   {
     value: "no_reply_needed",
+    labelKey: "chat.outcomes.noReplyNeeded",
     label: "No reply needed",
+    hintKey: "chat.outcomes.noReplyNeededHint",
     hint: "Nothing to answer - excluded from response SLA",
   },
-  { value: "spam", label: "Spam", hint: "Excluded from response SLA" },
-  { value: "duplicate", label: "Duplicate", hint: "Excluded from response SLA" },
-  { value: "other", label: "Other", hint: "Requires a note" },
+  {
+    value: "spam",
+    labelKey: "chat.outcomes.spam",
+    label: "Spam",
+    hintKey: "chat.outcomes.spamHint",
+    hint: "Excluded from response SLA",
+  },
+  {
+    value: "duplicate",
+    labelKey: "chat.outcomes.duplicate",
+    label: "Duplicate",
+    hintKey: "chat.outcomes.duplicateHint",
+    hint: "Excluded from response SLA",
+  },
+  {
+    value: "other",
+    labelKey: "chat.outcomes.other",
+    label: "Other",
+    hintKey: "chat.outcomes.otherHint",
+    hint: "Requires a note",
+  },
 ];
 
 interface ResolveConversationDialogProps {
@@ -46,6 +79,8 @@ export function ResolveConversationDialog({
   isSubmitting = false,
   disabled = false,
 }: ResolveConversationDialogProps) {
+  const { t } = useTranslation();
+
   const [outcome, setOutcome] = useState<ResolutionOutcome>("handled");
   const [notes, setNotes] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -62,7 +97,12 @@ export function ResolveConversationDialog({
   const handleConfirm = () => {
     if (disabled) return;
     if (outcome === "other" && !notes.trim()) {
-      setError("Notes are required when the outcome is 'other'.");
+      setError(
+        t(
+          "chat.notesRequiredForOther",
+          "Notes are required when the outcome is 'other'.",
+        ),
+      );
       return;
     }
     setError(null);
@@ -75,17 +115,22 @@ export function ResolveConversationDialog({
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Resolve conversation</DialogTitle>
+          <DialogTitle>
+            {t("chat.resolveConversation", "Resolve conversation")}
+          </DialogTitle>
           <DialogDescription>
-            Choose why this conversation is being closed. This ends the
-            active case - a later message from the customer reopens it as a
-            new one.
+            {t(
+              "chat.resolveConversationDescription",
+              "Choose why this conversation is being closed. This ends the active case - a later message from the customer reopens it as a new one.",
+            )}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-3">
           <fieldset className="space-y-2">
-            <legend className="sr-only">Close outcome</legend>
+            <legend className="sr-only">
+              {t("chat.closeOutcome", "Close outcome")}
+            </legend>
             {OUTCOME_OPTIONS.map((option) => (
               <label
                 key={option.value}
@@ -101,10 +146,10 @@ export function ResolveConversationDialog({
                 />
                 <span>
                   <span className="block font-medium text-gray-900 dark:text-dark-text-primary">
-                    {option.label}
+                    {t(option.labelKey, option.label)}
                   </span>
                   <span className="block text-xs text-gray-500 dark:text-dark-text-secondary">
-                    {option.hint}
+                    {t(option.hintKey, option.hint)}
                   </span>
                 </span>
               </label>
@@ -112,7 +157,8 @@ export function ResolveConversationDialog({
           </fieldset>
 
           <label className="block text-sm font-medium text-gray-700 dark:text-dark-text-primary">
-            Notes {outcome === "other" && <span className="text-red-500">*</span>}
+            {t("chat.notesLabel", "Notes")}{" "}
+            {outcome === "other" && <span className="text-red-500">*</span>}
             <textarea
               value={notes}
               onChange={(event) => setNotes(event.target.value)}
@@ -120,17 +166,25 @@ export function ResolveConversationDialog({
               rows={3}
               placeholder={
                 outcome === "other"
-                  ? "Describe why this doesn't fit the other outcomes…"
-                  : "Optional notes"
+                  ? t(
+                      "chat.notesPlaceholderOther",
+                      "Describe why this doesn't fit the other outcomes…",
+                    )
+                  : t("chat.notesPlaceholderOptional", "Optional notes")
               }
               className="mt-1.5 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm dark:border-dark-border dark:bg-dark-tertiary"
             />
           </label>
 
-          {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+          {error && (
+            <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+          )}
           {disabled && !isSubmitting && (
             <p className="text-sm text-gray-500 dark:text-dark-text-secondary">
-              Waiting for your message to finish sending…
+              {t(
+                "chat.waitingForSend",
+                "Waiting for your message to finish sending…",
+              )}
             </p>
           )}
         </div>
@@ -142,7 +196,7 @@ export function ResolveConversationDialog({
             disabled={isSubmitting}
             className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-dark-text-primary hover:bg-gray-100 dark:hover:bg-dark-tertiary rounded-lg transition-colors disabled:opacity-50"
           >
-            Cancel
+            {t("common.cancel", "Cancel")}
           </button>
           <button
             type="button"
@@ -153,10 +207,10 @@ export function ResolveConversationDialog({
             {isSubmitting ? (
               <>
                 <Loader2 className="h-4 w-4 animate-spin" />
-                Resolving…
+                {t("chat.resolving", "Resolving…")}
               </>
             ) : (
-              "Resolve"
+              t("chat.resolve", "Resolve")
             )}
           </button>
         </DialogFooter>

@@ -1,20 +1,29 @@
 import type { Message } from "@wateaminbox/shared";
+import type { TFunction } from "i18next";
+import { useTranslation } from "react-i18next";
 
-// Error code to human-readable message mapping
-const ERROR_MESSAGES: Record<string, string> = {
-  delivery_timeout: "Message delivery timed out",
-  network_error: "Network error occurred",
-  rate_limit: "Too many messages. Please try again later",
-  unknown: "Failed to send message",
+// Error code to translation key + English fallback mapping
+const ERROR_MESSAGES: Record<string, [key: string, fallback: string]> = {
+  delivery_timeout: [
+    "chat.sendErrors.deliveryTimeout",
+    "Message delivery timed out",
+  ],
+  network_error: ["chat.sendErrors.networkError", "Network error occurred"],
+  rate_limit: [
+    "chat.sendErrors.rateLimit",
+    "Too many messages. Please try again later",
+  ],
+  unknown: ["chat.sendErrors.unknown", "Failed to send message"],
 };
 
 export function getErrorMessage(
+  t: TFunction,
   error?: string,
   customErrorMessage?: string,
 ): string {
-  return (
-    customErrorMessage || ERROR_MESSAGES[error || ""] || ERROR_MESSAGES.unknown
-  );
+  if (customErrorMessage) return customErrorMessage;
+  const [key, fallback] = ERROR_MESSAGES[error || ""] || ERROR_MESSAGES.unknown;
+  return t(key, fallback);
 }
 
 interface MessageStatusIconProps {
@@ -27,12 +36,18 @@ interface MessageStatusIconProps {
  * (pending, sent, delivered, read, failed)
  */
 export function MessageStatusIcon({ message, isOwn }: MessageStatusIconProps) {
+  const { t } = useTranslation();
+
   if (!isOwn) return null;
 
   switch (message.status) {
     case "pending":
       return (
-        <span className="inline-flex" role="img" aria-label="Sending">
+        <span
+          className="inline-flex"
+          role="img"
+          aria-label={t("chat.statusLabels.sending", "Sending")}
+        >
           <svg
             className="h-4 w-4 text-white/60"
             viewBox="0 0 16 16"
@@ -45,7 +60,11 @@ export function MessageStatusIcon({ message, isOwn }: MessageStatusIconProps) {
       );
     case "sent":
       return (
-        <span className="inline-flex" role="img" aria-label="Sent">
+        <span
+          className="inline-flex"
+          role="img"
+          aria-label={t("chat.statusLabels.sent", "Sent")}
+        >
           <svg
             className="h-4 w-4 text-white/60"
             viewBox="0 0 16 16"
@@ -58,7 +77,11 @@ export function MessageStatusIcon({ message, isOwn }: MessageStatusIconProps) {
       );
     case "delivered":
       return (
-        <span className="inline-flex" role="img" aria-label="Delivered">
+        <span
+          className="inline-flex"
+          role="img"
+          aria-label={t("chat.statusLabels.delivered", "Delivered")}
+        >
           <svg
             className="h-4 w-4 text-white/60"
             viewBox="0 0 16 16"
@@ -72,7 +95,11 @@ export function MessageStatusIcon({ message, isOwn }: MessageStatusIconProps) {
       );
     case "read":
       return (
-        <span className="inline-flex" role="img" aria-label="Read">
+        <span
+          className="inline-flex"
+          role="img"
+          aria-label={t("chat.statusLabels.read", "Read")}
+        >
           <svg
             className="h-4 w-4 text-blue-500"
             viewBox="0 0 16 16"
@@ -86,6 +113,7 @@ export function MessageStatusIcon({ message, isOwn }: MessageStatusIconProps) {
       );
     case "failed": {
       const errorMsg = getErrorMessage(
+        t,
         message.metadata?.error,
         message.metadata?.errorMessage,
       );
@@ -93,7 +121,10 @@ export function MessageStatusIcon({ message, isOwn }: MessageStatusIconProps) {
         <div
           className="group/tooltip relative flex items-center"
           role="img"
-          aria-label={`Failed: ${errorMsg}`}
+          aria-label={t("chat.statusLabels.failedWithReason", {
+            defaultValue: "Failed: {{reason}}",
+            reason: errorMsg,
+          })}
         >
           <svg
             className="h-4 w-4 text-red-500"

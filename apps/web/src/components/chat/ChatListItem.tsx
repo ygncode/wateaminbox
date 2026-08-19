@@ -10,6 +10,7 @@ import {
 import type { ChatListItemProps } from "../../types/chat";
 import { ConnectionBadge } from "./ConnectionIdentity";
 import { ConversationStatusBadge } from "./ConversationStatusBadge";
+import { useTranslation } from "react-i18next";
 
 /**
  * Truncate message content for preview display
@@ -29,6 +30,8 @@ export const ChatListItem = memo(function ChatListItem({
   onClick,
   onPrefetch,
 }: ChatListItemProps) {
+  const { t } = useTranslation();
+
   const { contact, lastMessage, unreadCount } = chat;
   const { user } = useAuth();
 
@@ -44,49 +47,49 @@ export const ChatListItem = memo(function ChatListItem({
     // Use phone number if available, otherwise extract from JID
     const phone = contact.phoneNumber || extractPhoneFromJID(contact.jid);
     if (phone) return formatPhoneNumber(phone);
-    return "Unknown";
-  }, [contact.customName, contact.name, contact.phoneNumber, contact.jid]);
+    return t("chat.unknownContact", "Unknown contact");
+  }, [contact.customName, contact.name, contact.phoneNumber, contact.jid, t]);
 
   const formattedTime = useMemo(() => {
     if (!lastMessage) return "";
-    return formatChatListTime(lastMessage.timestamp);
-  }, [lastMessage]);
+    return formatChatListTime(lastMessage.timestamp, t);
+  }, [lastMessage, t]);
 
   const messagePreview = useMemo(() => {
-    if (!lastMessage) return "No messages yet";
+    if (!lastMessage) return t("chat.noMessages", "No messages yet");
 
     // Attribute shared-inbox replies to the teammate who actually sent them.
     const prefix = lastMessage.isFromMe
       ? lastMessage.sentByUserId === user?.id
-        ? "You: "
+        ? `${t("chat.you", "You")}: `
         : lastMessage.sentByUserName
           ? `${lastMessage.sentByUserName}: `
-          : "From phone: "
+          : `${t("chat.fromPhone", "From phone")}: `
       : "";
 
     if (lastMessage.isDeleted) {
-      return `${prefix}This message was deleted`;
+      return `${prefix}${t("chat.messageDeleted", "This message was deleted")}`;
     }
 
     switch (lastMessage.type) {
       case "image":
-        return `${prefix}Photo`;
+        return `${prefix}${t("chat.mediaTypes.image", "Photo")}`;
       case "video":
-        return `${prefix}Video`;
+        return `${prefix}${t("chat.mediaTypes.video", "Video")}`;
       case "audio":
-        return `${prefix}Audio`;
+        return `${prefix}${t("chat.mediaTypes.audio", "Audio")}`;
       case "document":
-        return `${prefix}Document`;
+        return `${prefix}${t("chat.mediaTypes.document", "Document")}`;
       case "sticker":
-        return `${prefix}Sticker`;
+        return `${prefix}${t("chat.mediaTypes.sticker", "Sticker")}`;
       case "location":
-        return `${prefix}Location`;
+        return `${prefix}${t("chat.mediaTypes.location", "Location")}`;
       case "contact":
-        return `${prefix}Contact`;
+        return `${prefix}${t("chat.mediaTypes.contact", "Contact")}`;
       default:
         return prefix + truncateMessage(lastMessage.content);
     }
-  }, [lastMessage, user?.id]);
+  }, [lastMessage, user?.id, t]);
 
   // Build accessible label with contact name, message preview, and status
   const accessibleLabel = useMemo(() => {
@@ -94,12 +97,24 @@ export const ChatListItem = memo(function ChatListItem({
     if (messagePreview) parts.push(messagePreview);
     if (formattedTime) parts.push(formattedTime);
     if (unreadCount > 0)
-      parts.push(`${unreadCount} unread message${unreadCount > 1 ? "s" : ""}`);
-    if (chat.isMuted) parts.push("muted");
-    if (chat.isPinned) parts.push("pinned");
+      parts.push(
+        t("chat.unreadMessages", {
+          defaultValue: "{{count}} unread message",
+          defaultValue_plural: "{{count}} unread messages",
+          count: unreadCount,
+        }),
+      );
+    if (chat.isMuted) parts.push(t("chat.mutedLabel", "muted"));
+    if (chat.isPinned) parts.push(t("chat.pinnedLabel", "pinned"));
     if (contact.connection) {
       parts.push(
-        `received on ${contact.connection.name || contact.connection.phoneNumber || "WhatsApp account"}`,
+        t("chat.receivedOn", {
+          defaultValue: "received on {{account}}",
+          account:
+            contact.connection.name ||
+            contact.connection.phoneNumber ||
+            t("chat.whatsappAccount", "WhatsApp account"),
+        }),
       );
     }
     return parts.join(", ");
@@ -111,6 +126,7 @@ export const ChatListItem = memo(function ChatListItem({
     chat.isMuted,
     chat.isPinned,
     contact.connection,
+    t,
   ]);
 
   return (
@@ -165,7 +181,7 @@ export const ChatListItem = memo(function ChatListItem({
           <span
             className="absolute bottom-0 right-0 w-3 h-3 bg-whatsapp-green
                        border-2 border-white dark:border-dark-secondary rounded-full"
-            aria-label="Online"
+            aria-label={t("chat.online", "Online")}
           />
         )}
       </div>

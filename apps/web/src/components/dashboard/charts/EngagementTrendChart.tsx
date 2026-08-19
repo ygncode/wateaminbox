@@ -12,6 +12,7 @@ import {
   getLinePoints,
   getSmoothPath,
 } from "./chart-utils";
+import { useTranslation } from "react-i18next";
 
 export interface EngagementTrendData {
   date: string;
@@ -27,6 +28,8 @@ export interface EngagementTrendChartProps {
 }
 
 export function EngagementTrendChart({ data }: EngagementTrendChartProps) {
+  const { t } = useTranslation();
+
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const [chartWidth, setChartWidth] = useState<number>(chartBox.width);
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
@@ -55,7 +58,10 @@ export function EngagementTrendChart({ data }: EngagementTrendChartProps) {
   if (data.length === 0) {
     return (
       <div className="grid h-[240px] place-items-center rounded-xl border border-dashed border-[#dce3de] bg-[#fafcfb] text-sm text-[#718078] dark:border-dark-border dark:bg-dark-secondary/40 dark:text-dark-text-secondary">
-        No engagement trend in this period
+        {t(
+          "dashboard.charts.noEngagementTrend",
+          "No engagement trend in this period",
+        )}
       </div>
     );
   }
@@ -110,7 +116,7 @@ export function EngagementTrendChart({ data }: EngagementTrendChartProps) {
         <div className="flex items-end gap-5">
           <div>
             <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[#7c8983] dark:text-dark-text-secondary">
-              Average score
+              {t("dashboard.charts.averageScore", "Average score")}
             </p>
             <p className="text-xl font-semibold tabular-nums text-[#075c41] dark:text-emerald-300">
               {averageScore}
@@ -121,7 +127,7 @@ export function EngagementTrendChart({ data }: EngagementTrendChartProps) {
           </div>
           <div>
             <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[#7c8983] dark:text-dark-text-secondary">
-              Active touches
+              {t("dashboard.charts.activeTouches", "Active touches")}
             </p>
             <p className="text-sm font-semibold tabular-nums text-[#31463e] dark:text-dark-text-primary">
               {formatNumber(activeContacts)}
@@ -131,7 +137,7 @@ export function EngagementTrendChart({ data }: EngagementTrendChartProps) {
         <div className="flex items-center gap-1 text-[10px] font-medium text-[#718078] dark:text-dark-text-secondary">
           <Legend
             swatch="bg-[#0b7a55]"
-            label="Engagement"
+            label={t("dashboard.charts.engagement", "Engagement")}
             active={visibleSeries.engagement}
             onToggle={() =>
               setVisibleSeries((series) => ({
@@ -142,7 +148,7 @@ export function EngagementTrendChart({ data }: EngagementTrendChartProps) {
           />
           <Legend
             swatch="border-t-2 border-dashed border-[#d18b35]"
-            label="Response"
+            label={t("dashboard.charts.response", "Response")}
             active={visibleSeries.response}
             onToggle={() =>
               setVisibleSeries((series) => ({

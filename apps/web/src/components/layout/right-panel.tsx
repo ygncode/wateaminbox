@@ -2,6 +2,7 @@ import { X } from "lucide-react";
 import type * as React from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
+import { useTranslation } from "react-i18next";
 
 export interface RightPanelProps extends React.HTMLAttributes<HTMLDivElement> {
   children: React.ReactNode;
@@ -33,7 +34,8 @@ export function RightPanel({
   );
 }
 
-export interface RightPanelHeaderProps extends React.HTMLAttributes<HTMLDivElement> {
+export interface RightPanelHeaderProps
+  extends React.HTMLAttributes<HTMLDivElement> {
   title: string;
   onClose?: () => void;
 }
@@ -44,6 +46,8 @@ export function RightPanelHeader({
   onClose,
   ...props
 }: RightPanelHeaderProps) {
+  const { t } = useTranslation();
+
   return (
     <header
       className={cn(
@@ -60,7 +64,7 @@ export function RightPanelHeader({
         <button
           onClick={onClose}
           className="flex h-10 w-10 items-center justify-center rounded-full hover:bg-white/10 transition-colors touch-manipulation"
-          aria-label="Close panel"
+          aria-label={t("common.closePanel", "Close panel")}
         >
           <X className="h-5 w-5" />
         </button>
@@ -84,7 +88,8 @@ export function RightPanelContent({
   );
 }
 
-export interface RightPanelSectionProps extends React.HTMLAttributes<HTMLDivElement> {
+export interface RightPanelSectionProps
+  extends React.HTMLAttributes<HTMLDivElement> {
   title?: string;
   children: React.ReactNode;
 }

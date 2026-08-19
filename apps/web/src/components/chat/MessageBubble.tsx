@@ -3,6 +3,7 @@ import { formatMessageTime } from "@wateaminbox/shared";
 import { Smartphone } from "lucide-react";
 import { lazy, memo, Suspense, useCallback, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
 import { IdentityAvatarFallback } from "@/components/ui/identity-avatar-fallback";
 import type { GroupParticipant } from "@/hooks/useGroups";
@@ -362,12 +363,21 @@ function SelectionCheckbox({
   isOwn: boolean;
   isSelected: boolean;
 }) {
+  const { t } = useTranslation();
+
   return (
     <div
       className={`flex items-center ${isOwn ? "order-2 ml-2" : "mr-2"}`}
       role="checkbox"
       aria-checked={isSelected}
-      aria-label={isSelected ? "Message selected" : "Select message"}
+      aria-label={
+        isSelected
+          ? t(
+              "chat.messageSelected",
+              t("chat.messageSelected", "Message selected"),
+            )
+          : t("chat.selectMessage", "Select message")
+      }
     >
       <div
         className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${
@@ -501,6 +511,8 @@ function FailedMessageBanner({
   isRetrying: boolean;
   onRetry?: (messageId: string) => void;
 }) {
+  const { t } = useTranslation();
+
   return (
     <div
       className={`mt-2 flex items-center justify-between gap-2 text-xs px-2 py-1 rounded ${
@@ -523,6 +535,7 @@ function FailedMessageBanner({
         </svg>
         <span>
           {getErrorMessage(
+            t,
             message.metadata?.error,
             message.metadata?.errorMessage,
           )}
@@ -537,7 +550,7 @@ function FailedMessageBanner({
               ? "bg-white/20 hover:bg-white/30 text-white"
               : "bg-red-200 hover:bg-red-300 text-red-800"
           } ${isRetrying ? "opacity-50 cursor-not-allowed" : ""}`}
-          aria-label="Retry sending this message"
+          aria-label={t("chat.retrySendAria", "Retry sending this message")}
         >
           {isRetrying ? (
             <>
@@ -560,7 +573,7 @@ function FailedMessageBanner({
                   d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
                 />
               </svg>
-              <span>Sending…</span>
+              <span>{t("chat.statusLabels.sendingEllipsis", "Sending…")}</span>
             </>
           ) : (
             <>
@@ -577,7 +590,7 @@ function FailedMessageBanner({
                   d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
                 />
               </svg>
-              <span>Retry</span>
+              <span>{t("common.retry", "Retry")}</span>
             </>
           )}
         </button>
@@ -595,12 +608,16 @@ function TeamSenderLabel({
   currentUserId: string;
   currentUserName?: string;
 }) {
+  const { t } = useTranslation();
+
   const wasSentByCurrentUser = message.sentByUserId === currentUserId;
   const wasSentFromTeamInbox = Boolean(message.sentByUserId);
   const label =
     message.sentByUserName ||
     (wasSentByCurrentUser ? currentUserName : undefined) ||
-    (wasSentFromTeamInbox ? "Team member" : "Linked phone");
+    (wasSentFromTeamInbox
+      ? t("chat.teamMember", "Team member")
+      : t("chat.linkedPhone", "Linked phone"));
   const color = getSenderColor(
     message.sentByUserId || "linked-phone",
     label,
@@ -612,8 +629,14 @@ function TeamSenderLabel({
       className={`mb-1 truncate text-[13px] font-semibold leading-4 ${color}`}
       title={
         wasSentFromTeamInbox
-          ? `${label} · Team inbox`
-          : "Sent directly from the linked WhatsApp phone"
+          ? t("chat.teamInboxSender", {
+              defaultValue: "{{label}} · Team inbox",
+              label,
+            })
+          : t(
+              "chat.linkedPhoneSender",
+              "Sent directly from the linked WhatsApp phone",
+            )
       }
     >
       {label}
@@ -632,6 +655,7 @@ const teamSenderColors = [
 ] as const;
 
 function getTeamSenderIdentity(
+  t: TFunction,
   message: Message,
   currentUserId: string,
   currentUserName?: string,
@@ -646,7 +670,9 @@ function getTeamSenderIdentity(
       teammateIdentity?.name ||
       message.sentByUserName ||
       (wasSentByCurrentUser ? currentUserName : undefined) ||
-      (wasSentFromTeamInbox ? "Team member" : "Linked phone"),
+      (wasSentFromTeamInbox
+        ? t("chat.teamMember", "Team member")
+        : t("chat.linkedPhone", "Linked phone")),
     identity: message.sentByUserId || message.senderId,
     avatarUrl:
       teammateIdentity?.avatarUrl ||
@@ -674,7 +700,10 @@ function TeamSenderAvatar({
   currentUserGravatarUrl?: string;
   teammateIdentity?: TeamMemberIdentity;
 }) {
+  const { t } = useTranslation();
+
   const { label, identity, avatarUrl, gravatarUrl } = getTeamSenderIdentity(
+    t,
     message,
     currentUserId,
     currentUserName,
@@ -716,19 +745,21 @@ function getSenderColor(
   return colors[Math.abs(hash) % colors.length];
 }
 
-function getParticipantLabel(message: Message): string {
+function getParticipantLabel(t: TFunction, message: Message): string {
   const senderIdentity = message.senderJid || message.senderId;
   const senderName = message.senderName?.trim();
   if (senderName) return formatPhoneLikeText(senderName);
   if (!senderIdentity || senderIdentity.endsWith("@g.us")) {
-    return "Unknown participant";
+    return t("chat.unknownParticipant", "Unknown participant");
   }
   const identifier = senderIdentity.split("@")[0]?.split(":")[0] || "";
   return /^\d+$/.test(identifier) ? `+${identifier}` : identifier;
 }
 
 function GroupParticipantAvatar({ message }: { message: Message }) {
-  const label = getParticipantLabel(message);
+  const { t } = useTranslation();
+
+  const label = getParticipantLabel(t, message);
   return (
     <SenderAvatar
       label={label}
@@ -801,8 +832,10 @@ function SenderAvatar({
 }
 
 function GroupParticipantLabel({ message }: { message: Message }) {
+  const { t } = useTranslation();
+
   const senderIdentity = message.senderJid || message.senderId;
-  const label = getParticipantLabel(message);
+  const label = getParticipantLabel(t, message);
   const color = getSenderColor(senderIdentity, label, participantColors);
 
   return (

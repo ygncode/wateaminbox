@@ -3,6 +3,7 @@ import { RightPanelSection } from "@/components/layout/right-panel";
 import { formatPhoneNumber } from "@/lib/utils";
 import { ConnectionBadge, getConnectionPhone } from "../ConnectionIdentity";
 import type { ContactData } from "./types";
+import { useTranslation } from "react-i18next";
 
 interface ContactInfoSectionProps {
   contact: ContactData;
@@ -12,6 +13,8 @@ interface ContactInfoSectionProps {
  * Contact info section showing phone number and WhatsApp name
  */
 export function ContactInfoSection({ contact }: ContactInfoSectionProps) {
+  const { t } = useTranslation();
+
   return (
     <RightPanelSection>
       <div className="space-y-3">
@@ -48,7 +51,7 @@ export function ContactInfoSection({ contact }: ContactInfoSectionProps) {
                 {contact.pushName}
               </p>
               <p className="text-xs text-gray-500 dark:text-dark-text-tertiary">
-                WhatsApp Name
+                {t("contacts.whatsappName", "WhatsApp Name")}
               </p>
             </div>
           </div>

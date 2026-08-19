@@ -41,6 +41,7 @@ import {
 } from "./realtime/event-handlers";
 import { reconcileSyncState } from "./realtime/sync-state";
 import { useWorkspace } from "./workspace-context";
+import { useTranslation } from "react-i18next";
 
 // Typing timeout in milliseconds
 const TYPING_TIMEOUT = 5000;
@@ -96,6 +97,8 @@ export function RealtimeProvider({
   children,
   autoConnect = true,
 }: RealtimeProviderProps) {
+  const { t } = useTranslation();
+
   const [status, setStatus] =
     useState<RealtimeConnectionStatus>("disconnected");
   const [error, setError] = useState<string | null>(null);
@@ -202,7 +205,7 @@ export function RealtimeProvider({
       setError(
         connectionError instanceof Error
           ? connectionError.message
-          : "Realtime connection failed",
+          : t("realtime.connectionFailed", "Realtime connection failed"),
       );
       return;
     }
@@ -213,7 +216,9 @@ export function RealtimeProvider({
       if (state === "connected") {
         setError(null);
       } else if (state === "disconnected") {
-        setError("Realtime connection disconnected");
+        setError(
+          t("realtime.disconnected", "Realtime connection disconnected"),
+        );
       }
     });
 
@@ -281,7 +286,9 @@ export function RealtimeProvider({
       );
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "Failed to fetch sync status",
+        err instanceof Error
+          ? err.message
+          : t("realtime.syncStatusFailed", "Failed to fetch sync status"),
       );
     }
   }, [currentCompanyId]);

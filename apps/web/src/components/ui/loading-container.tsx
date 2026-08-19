@@ -1,6 +1,7 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
 import { LoadingSpinner, type LoadingSpinnerProps } from "./loading-spinner";
+import { useTranslation } from "react-i18next";
 
 export interface LoadingContainerProps {
   /** Whether the content is currently loading */
@@ -48,11 +49,13 @@ export function LoadingContainer({
   children,
   className,
   spinnerSize = "md",
-  loadingText = "Loading…",
+  loadingText,
   centered = true,
   minHeight,
   spinnerClassName,
 }: LoadingContainerProps) {
+  const { t } = useTranslation();
+
   return (
     <div
       className={cn("relative", className)}
@@ -69,7 +72,9 @@ export function LoadingContainer({
           role="status"
         >
           <LoadingSpinner size={spinnerSize} className={spinnerClassName} />
-          <span className="sr-only">{loadingText}</span>
+          <span className="sr-only">
+            {loadingText ?? t("common.loading", "Loading…")}
+          </span>
         </div>
       ) : (
         children
@@ -115,9 +120,11 @@ export function LoadingOverlay({
   children,
   className,
   spinnerSize = "md",
-  loadingText = "Updating…",
+  loadingText,
   overlayOpacity = 60,
 }: LoadingOverlayProps) {
+  const { t } = useTranslation();
+
   return (
     <div
       className={cn("relative", className)}
@@ -136,7 +143,9 @@ export function LoadingOverlay({
           role="status"
         >
           <LoadingSpinner size={spinnerSize} />
-          <span className="sr-only">{loadingText}</span>
+          <span className="sr-only">
+            {loadingText ?? t("common.updating", "Updating…")}
+          </span>
         </div>
       )}
     </div>
@@ -171,9 +180,11 @@ export interface InlineLoadingProps {
  */
 export function InlineLoading({
   size = "sm",
-  loadingText = "Loading…",
+  loadingText,
   className,
 }: InlineLoadingProps) {
+  const { t } = useTranslation();
+
   return (
     <span
       className={cn("inline-flex items-center", className)}
@@ -181,7 +192,9 @@ export function InlineLoading({
       aria-live="polite"
     >
       <LoadingSpinner size={size} />
-      <span className="sr-only">{loadingText}</span>
+      <span className="sr-only">
+        {loadingText ?? t("common.loading", "Loading…")}
+      </span>
     </span>
   );
 }

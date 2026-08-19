@@ -19,6 +19,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "./button";
 import { Input } from "./input";
 import { Skeleton } from "./skeleton";
+import { useTranslation } from "react-i18next";
 
 export interface ServerTableSearch {
   value: string;
@@ -90,14 +91,16 @@ export function ServerDataTable<TData>({
   getRowId,
   renderSubRow,
   tableLabel,
-  emptyTitle = "Nothing here yet",
-  emptyDescription = "Try adjusting your search or filters.",
+  emptyTitle,
+  emptyDescription,
   emptyAction,
   className,
   tableClassName,
   pageSizeOptions = [10, 20, 50],
   density = "default",
 }: ServerDataTableProps<TData>) {
+  const { t } = useTranslation();
+
   const searchId = useId();
   const [searchDraft, setSearchDraft] = useState(search?.value ?? "");
   const searchValue = search?.value ?? "";
@@ -188,7 +191,7 @@ export function ServerDataTable<TData>({
                   type="button"
                   onClick={() => setSearchDraft("")}
                   className="absolute right-2 top-1.5 grid h-6 w-6 place-items-center rounded-md text-[#718078] hover:bg-[#edf1ed] hover:text-[#10211b] dark:hover:bg-dark-border dark:hover:text-white"
-                  aria-label="Clear search"
+                  aria-label={t("common.clearSearch", "Clear search")}
                 >
                   <X className="h-3.5 w-3.5" />
                 </button>
@@ -283,7 +286,7 @@ export function ServerDataTable<TData>({
                       className="mt-4 gap-2"
                     >
                       <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />
-                      Try again
+                      {t("table.tryAgain", "Try again")}
                     </Button>
                   )}
                 </td>
@@ -326,10 +329,14 @@ export function ServerDataTable<TData>({
               <tr>
                 <td colSpan={columns.length} className="h-64 px-6 text-center">
                   <p className="text-sm font-semibold text-[#263b33] dark:text-dark-text-primary">
-                    {emptyTitle}
+                    {emptyTitle ?? t("table.emptyTitle", "Nothing here yet")}
                   </p>
                   <p className="mx-auto mt-1 max-w-sm text-xs leading-5 text-[#718078] dark:text-dark-text-secondary">
-                    {emptyDescription}
+                    {emptyDescription ??
+                      t(
+                        "table.emptyDescription",
+                        "Try adjusting your search or filters.",
+                      )}
                   </p>
                   {emptyAction && (
                     <div className="mt-4 flex justify-center">
@@ -363,7 +370,7 @@ export function ServerDataTable<TData>({
                 })
               }
               className="h-7 rounded-md border border-[#d7e0da] bg-white px-1.5 text-xs text-[#263b33] dark:border-dark-border dark:bg-dark-tertiary dark:text-dark-text-primary"
-              aria-label="Rows per page"
+              aria-label={t("table.rowsPerPage", "Rows per page")}
             >
               {pageSizeOptions.map((pageSize) => (
                 <option key={pageSize} value={pageSize}>
@@ -383,7 +390,7 @@ export function ServerDataTable<TData>({
               type="button"
               variant="ghost"
               size="icon"
-              aria-label="First page"
+              aria-label={t("table.firstPage", "First page")}
               disabled={pagination.pageIndex === 0 || isFetching}
               onClick={() =>
                 onPaginationChange({ ...pagination, pageIndex: 0 })
@@ -396,7 +403,7 @@ export function ServerDataTable<TData>({
               type="button"
               variant="ghost"
               size="icon"
-              aria-label="Previous page"
+              aria-label={t("table.previousPage", "Previous page")}
               disabled={pagination.pageIndex === 0 || isFetching}
               onClick={() =>
                 onPaginationChange({
@@ -412,7 +419,7 @@ export function ServerDataTable<TData>({
               type="button"
               variant="ghost"
               size="icon"
-              aria-label="Next page"
+              aria-label={t("table.nextPage", "Next page")}
               disabled={pagination.pageIndex >= pageCount - 1 || isFetching}
               onClick={() =>
                 onPaginationChange({
@@ -428,7 +435,7 @@ export function ServerDataTable<TData>({
               type="button"
               variant="ghost"
               size="icon"
-              aria-label="Last page"
+              aria-label={t("table.lastPage", "Last page")}
               disabled={pagination.pageIndex >= pageCount - 1 || isFetching}
               onClick={() =>
                 onPaginationChange({

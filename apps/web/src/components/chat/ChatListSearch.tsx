@@ -1,5 +1,6 @@
 import { useCallback, useRef } from "react";
 import type { ChatListSearchProps } from "../../types/chat";
+import { useTranslation } from "react-i18next";
 
 /**
  * Search input component for filtering chat contacts
@@ -9,8 +10,10 @@ export function ChatListSearch({
   value,
   onChange,
   onClear,
-  placeholder = "Search contacts",
+  placeholder,
 }: ChatListSearchProps) {
+  const { t } = useTranslation();
+
   const inputRef = useRef<HTMLInputElement>(null);
 
   const handleClear = useCallback(() => {
@@ -53,9 +56,11 @@ export function ChatListSearch({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         onKeyDown={handleKeyDown}
-        placeholder={placeholder}
+        placeholder={
+          placeholder ?? t("chat.searchContactsPlaceholder", "Search contacts")
+        }
         className="w-full py-2 pl-9 pr-8 text-sm bg-gray-100 dark:bg-dark-tertiary border border-gray-200 dark:border-dark-border rounded-lg text-gray-900 dark:text-dark-text-primary placeholder-gray-500 dark:placeholder-dark-text-tertiary focus:outline-none focus:border-whatsapp-green focus:ring-1 focus:ring-whatsapp-green focus:bg-white dark:focus:bg-dark-elevated transition-all"
-        aria-label="Search contacts"
+        aria-label={t("chat.searchContactsAria", "Search contacts")}
       />
 
       {/* Clear Button - only visible when there's input */}
@@ -64,7 +69,7 @@ export function ChatListSearch({
           type="button"
           onClick={handleClear}
           className="absolute right-2 p-1 text-gray-400 dark:text-dark-text-tertiary hover:text-gray-600 dark:hover:text-dark-text-secondary focus:outline-none transition-colors"
-          aria-label="Clear search"
+          aria-label={t("common.clearSearch", "Clear search")}
         >
           <svg
             className="w-4 h-4"

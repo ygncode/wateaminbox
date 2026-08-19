@@ -7,6 +7,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
+import { useTranslation } from "react-i18next";
 
 export type DateRange = "7d" | "30d" | "90d";
 export type ExportType = "contacts" | "messages" | "full-backup";
@@ -19,10 +20,10 @@ export interface DashboardHeaderProps {
   onExport: (type: ExportType) => void;
 }
 
-const ranges: Array<{ id: DateRange; label: string }> = [
-  { id: "7d", label: "7 days" },
-  { id: "30d", label: "30 days" },
-  { id: "90d", label: "90 days" },
+const ranges: Array<{ id: DateRange; labelKey: string; label: string }> = [
+  { id: "7d", labelKey: "dashboard.ranges.7d", label: "7 days" },
+  { id: "30d", labelKey: "dashboard.ranges.30d", label: "30 days" },
+  { id: "90d", labelKey: "dashboard.ranges.90d", label: "90 days" },
 ];
 
 /** One responsive dashboard header with consolidated export actions. */
@@ -33,6 +34,8 @@ export function DashboardHeader({
   onDateRangeChange,
   onExport,
 }: DashboardHeaderProps) {
+  const { t } = useTranslation();
+
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
   const selectExport = (type: ExportType) => {
     setExportMenuOpen(false);
@@ -60,7 +63,7 @@ export function DashboardHeader({
           <div
             className="hidden rounded-lg border border-[#d7e0da] bg-[#f7f9f7] p-0.5 dark:border-dark-border dark:bg-dark-elevated sm:flex"
             role="group"
-            aria-label="Dashboard date range"
+            aria-label={t("dashboard.dateRangeAria", "Dashboard date range")}
           >
             {ranges.map((range) => (
               <button
@@ -75,7 +78,7 @@ export function DashboardHeader({
                     : "text-[#65736d] hover:text-[#10211b] dark:text-dark-text-secondary dark:hover:text-white",
                 )}
               >
-                {range.label}
+                {t(range.labelKey, range.label)}
               </button>
             ))}
           </div>
@@ -85,11 +88,14 @@ export function DashboardHeader({
               onDateRangeChange(event.target.value as DateRange)
             }
             className="h-9 min-w-0 flex-1 rounded-lg border border-[#d7e0da] bg-white px-3 text-sm text-[#10211b] dark:border-dark-border dark:bg-dark-elevated dark:text-dark-text-primary sm:hidden"
-            aria-label="Dashboard date range"
+            aria-label={t("dashboard.dateRangeAria", "Dashboard date range")}
           >
             {ranges.map((range) => (
               <option key={range.id} value={range.id}>
-                Last {range.label}
+                {t("dashboard.lastRange", {
+                  defaultValue: "Last {{range}}",
+                  range: t(range.labelKey, range.label),
+                })}
               </option>
             ))}
           </select>
@@ -107,15 +113,15 @@ export function DashboardHeader({
               </PopoverTrigger>
               <PopoverContent align="end" className="w-52 p-1.5">
                 <ExportAction
-                  label="Contacts"
+                  label={t("dashboard.exportContacts", "Contacts")}
                   onClick={() => selectExport("contacts")}
                 />
                 <ExportAction
-                  label="Messages"
+                  label={t("dashboard.exportMessages", "Messages")}
                   onClick={() => selectExport("messages")}
                 />
                 <ExportAction
-                  label="Full backup"
+                  label={t("dashboard.exportFullBackup", "Full backup")}
                   icon={Archive}
                   onClick={() => selectExport("full-backup")}
                 />

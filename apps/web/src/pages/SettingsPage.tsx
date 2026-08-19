@@ -64,6 +64,8 @@ import {
   WORKSPACE_LOGO_SIZE,
 } from "../lib/workspace-logo";
 import { workspacePath } from "../lib/workspace-routes";
+import type { TFunction } from "i18next";
+import { Trans, useTranslation } from "react-i18next";
 
 type SettingsSection =
   | "general"
@@ -80,13 +82,30 @@ type SettingsSection =
 
 interface SectionDefinition {
   id: SettingsSection;
+  /** i18n key; `label` is the English fallback. */
+  labelKey: string;
   label: string;
+  /** Stable grouping identifier - translated for display via groupLabel(). */
   group: string;
   icon: ComponentType<{ className?: string }>;
   visible: boolean;
 }
 
+const SECTION_GROUP_LABELS: Record<string, string> = {
+  Workspace: "settings.groups.workspace",
+  "Inbox tools": "settings.groups.inboxTools",
+  Personal: "settings.groups.personal",
+  Data: "settings.groups.data",
+};
+
+function groupLabel(t: TFunction, group: string): string {
+  const key = SECTION_GROUP_LABELS[group];
+  return key ? t(key, group) : group;
+}
+
 export function SettingsPage() {
+  const { t } = useTranslation();
+
   const { section } = useParams<{ section?: SettingsSection }>();
   const navigate = useNavigate();
   const { activeWorkspace, can } = useWorkspace();
@@ -95,6 +114,7 @@ export function SettingsPage() {
   const sections: SectionDefinition[] = [
     {
       id: "general",
+      labelKey: "settings.sections.general",
       label: "General",
       group: "Workspace",
       icon: Building2,
@@ -102,6 +122,7 @@ export function SettingsPage() {
     },
     {
       id: "connections",
+      labelKey: "settings.sections.connections",
       label: "Connections",
       group: "Workspace",
       icon: Plug,
@@ -109,6 +130,7 @@ export function SettingsPage() {
     },
     {
       id: "sla",
+      labelKey: "settings.sections.sla",
       label: "Response SLA",
       group: "Workspace",
       icon: Clock,
@@ -116,6 +138,7 @@ export function SettingsPage() {
     },
     {
       id: "quick-replies",
+      labelKey: "settings.sections.quickReplies",
       label: "Quick replies",
       group: "Inbox tools",
       icon: MessageSquareText,
@@ -123,6 +146,7 @@ export function SettingsPage() {
     },
     {
       id: "labels",
+      labelKey: "settings.sections.labels",
       label: "WhatsApp labels",
       group: "Inbox tools",
       icon: Tag,
@@ -130,6 +154,7 @@ export function SettingsPage() {
     },
     {
       id: "catalogs",
+      labelKey: "settings.sections.catalogs",
       label: "Product catalogs",
       group: "Inbox tools",
       icon: Package,
@@ -137,6 +162,7 @@ export function SettingsPage() {
     },
     {
       id: "profile",
+      labelKey: "settings.sections.profile",
       label: "Profile & security",
       group: "Personal",
       icon: UserRound,
@@ -144,6 +170,7 @@ export function SettingsPage() {
     },
     {
       id: "notifications",
+      labelKey: "settings.sections.notifications",
       label: "Notifications",
       group: "Personal",
       icon: Bell,
@@ -151,6 +178,7 @@ export function SettingsPage() {
     },
     {
       id: "appearance",
+      labelKey: "settings.sections.appearance",
       label: "Appearance & language",
       group: "Personal",
       icon: Globe2,
@@ -158,6 +186,7 @@ export function SettingsPage() {
     },
     {
       id: "privacy",
+      labelKey: "settings.sections.privacy",
       label: "Privacy & analytics",
       group: "Personal",
       icon: ShieldCheck,
@@ -167,6 +196,7 @@ export function SettingsPage() {
     },
     {
       id: "data",
+      labelKey: "settings.sections.data",
       label: "Data tools",
       group: "Data",
       icon: Database,
@@ -198,17 +228,20 @@ export function SettingsPage() {
     <div className="flex h-full min-h-0 w-full bg-[#f5f7f4] dark:bg-dark-primary">
       <aside className="hidden w-64 shrink-0 overflow-y-auto border-r border-[#dce3de] bg-[#edf1ed] px-4 py-6 dark:border-dark-border dark:bg-dark-secondary md:block">
         <p className="px-2 text-xs font-bold uppercase tracking-[0.18em] text-[#0b7a55] dark:text-emerald-400">
-          Settings
+          {t("settings.title", "Settings")}
         </p>
         <h1 className="mt-2 truncate px-2 text-xl font-semibold tracking-tight">
           {activeWorkspace.name}
         </h1>
-        <nav className="mt-7 space-y-5" aria-label="Settings sections">
+        <nav
+          className="mt-7 space-y-5"
+          aria-label={t("settings.sectionsNav", "Settings sections")}
+        >
           {[...new Set(visibleSections.map((item) => item.group))].map(
             (group) => (
               <div key={group}>
                 <p className="mb-1 px-2 text-[10px] font-bold uppercase tracking-[0.16em] text-[#829089] dark:text-[#91a8a0]">
-                  {group}
+                  {groupLabel(t, group)}
                 </p>
                 <div className="space-y-0.5">
                   {visibleSections
@@ -231,7 +264,7 @@ export function SettingsPage() {
         <div className="mx-auto max-w-3xl px-4 py-6 sm:px-8 sm:py-10">
           <div className="mb-6 md:hidden">
             <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#0b7a55]">
-              Settings
+              {t("settings.title", "Settings")}
             </p>
             <select
               value={current.id}
@@ -245,21 +278,21 @@ export function SettingsPage() {
                 );
               }}
               className="mt-3 h-11 w-full rounded-xl border border-[#dce3de] bg-white px-3 font-medium dark:border-dark-border dark:bg-dark-elevated"
-              aria-label="Settings section"
+              aria-label={t("settings.sectionSelect", "Settings section")}
             >
               {visibleSections.map((item) => (
                 <option key={item.id} value={item.id}>
-                  {item.label}
+                  {t(item.labelKey, item.label)}
                 </option>
               ))}
             </select>
           </div>
           <header className="mb-7 border-b border-[#dce3de] pb-5 dark:border-dark-border">
             <p className="text-xs font-semibold text-[#0b7a55]">
-              {current.group}
+              {groupLabel(t, current.group)}
             </p>
             <h2 className="mt-1 text-2xl font-semibold tracking-[-0.025em]">
-              {current.label}
+              {t(current.labelKey, current.label)}
             </h2>
           </header>
           <SettingsSectionContent
@@ -279,6 +312,8 @@ function SettingsLink({
   item: SectionDefinition;
   workspaceId: string;
 }) {
+  const { t } = useTranslation();
+
   const Icon = item.icon;
   return (
     <NavLink
@@ -292,7 +327,7 @@ function SettingsLink({
         )
       }
     >
-      <Icon className="h-4 w-4" /> {item.label}
+      <Icon className="h-4 w-4" /> {t(item.labelKey, item.label)}
     </NavLink>
   );
 }
@@ -304,6 +339,8 @@ function SettingsSectionContent({
   section: SettingsSection;
   workspaceId: string;
 }) {
+  const { t } = useTranslation();
+
   switch (section) {
     case "general":
       return <GeneralSettings key={workspaceId} />;
@@ -312,8 +349,11 @@ function SettingsSectionContent({
     case "connections":
       return (
         <Panel
-          title="WhatsApp connections"
-          description="Link and manage the WhatsApp devices that power this workspace inbox."
+          title={t("settings.connections.title", "WhatsApp connections")}
+          description={t(
+            "settings.connections.description",
+            "Link and manage the WhatsApp devices that power this workspace inbox.",
+          )}
         >
           <WhatsAppConnectionPanel multiConnection hideHeader />
         </Panel>
@@ -323,8 +363,11 @@ function SettingsSectionContent({
     case "quick-replies":
       return (
         <Panel
-          title="Saved responses"
-          description="Create reusable message templates and insert them from the composer with a shortcut."
+          title={t("settings.quickRepliesPanel.title", "Saved responses")}
+          description={t(
+            "settings.quickRepliesPanel.description",
+            "Create reusable message templates and insert them from the composer with a shortcut.",
+          )}
         >
           <QuickRepliesManager />
         </Panel>
@@ -332,8 +375,11 @@ function SettingsSectionContent({
     case "labels":
       return (
         <Panel
-          title="Label mapping"
-          description="Map WhatsApp Business labels to workspace tags for consistent contact organization."
+          title={t("settings.labels.title", "Label mapping")}
+          description={t(
+            "settings.labels.description",
+            "Map WhatsApp Business labels to workspace tags for consistent contact organization.",
+          )}
         >
           <LabelSyncManager />
         </Panel>
@@ -341,8 +387,11 @@ function SettingsSectionContent({
     case "catalogs":
       return (
         <Panel
-          title="Catalog library"
-          description="Sync WhatsApp Business catalogs and review the products available to your team."
+          title={t("settings.catalogsPanel.title", "Catalog library")}
+          description={t(
+            "settings.catalogsPanel.description",
+            "Sync WhatsApp Business catalogs and review the products available to your team.",
+          )}
         >
           <CatalogManager />
         </Panel>
@@ -354,8 +403,11 @@ function SettingsSectionContent({
     case "privacy":
       return (
         <Panel
-          title="Product analytics"
-          description="Control whether this browser shares anonymous usage analytics with this deployment's Google Analytics property."
+          title={t("settings.privacyPanel.title", "Product analytics")}
+          description={t(
+            "settings.privacyPanel.description",
+            "Control whether this browser shares anonymous usage analytics with this deployment's Google Analytics property.",
+          )}
         >
           <AnalyticsPreferences />
         </Panel>
@@ -366,6 +418,8 @@ function SettingsSectionContent({
 }
 
 function GeneralSettings() {
+  const { t } = useTranslation();
+
   const navigate = useNavigate();
   const { user } = useAuth();
   const { activeWorkspace, refreshWorkspaces } = useWorkspace();
@@ -422,7 +476,9 @@ function GeneralSettings() {
       setLogoRemoved(false);
     } catch (error) {
       setLogoError(
-        error instanceof Error ? error.message : "Could not process this logo",
+        error instanceof Error
+          ? error.message
+          : t("settings.logoProcessFailed", "Could not process this logo"),
       );
     } finally {
       setIsProcessingLogo(false);
@@ -456,12 +512,17 @@ function GeneralSettings() {
       setDescription(nextDescription);
       setLogoDataUrl(null);
       setLogoRemoved(false);
-      toast.success("Workspace identity updated");
+      toast.success(
+        t("settings.identityUpdated", "Workspace identity updated"),
+      );
     } catch (error) {
       toast.error(
         error instanceof Error
           ? error.message
-          : "Could not update workspace identity",
+          : t(
+              "settings.identityUpdateFailed",
+              "Could not update workspace identity",
+            ),
       );
     }
   };
@@ -477,11 +538,13 @@ function GeneralSettings() {
   const deleteWorkspace = async () => {
     try {
       await deleteCompany.mutateAsync(activeWorkspace.id);
-      toast.success("Workspace deleted");
+      toast.success(t("settings.workspaceDeleted", "Workspace deleted"));
       await navigateAfterExit();
     } catch (error) {
       toast.error(
-        error instanceof Error ? error.message : "Could not delete workspace",
+        error instanceof Error
+          ? error.message
+          : t("settings.workspaceDeleteFailed", "Could not delete workspace"),
       );
     }
   };
@@ -493,7 +556,9 @@ function GeneralSettings() {
       await navigateAfterExit();
     } catch (error) {
       toast.error(
-        error instanceof Error ? error.message : "Could not leave workspace",
+        error instanceof Error
+          ? error.message
+          : t("settings.workspaceLeaveFailed", "Could not leave workspace"),
       );
     }
   };
@@ -507,10 +572,17 @@ function GeneralSettings() {
       });
       await refreshWorkspaces();
       setTransferOpen(false);
-      toast.success("Workspace ownership transferred");
+      toast.success(
+        t("settings.ownershipTransferred", "Workspace ownership transferred"),
+      );
     } catch (error) {
       toast.error(
-        error instanceof Error ? error.message : "Could not transfer ownership",
+        error instanceof Error
+          ? error.message
+          : t(
+              "settings.ownershipTransferFailed",
+              "Could not transfer ownership",
+            ),
       );
     }
   };
@@ -518,8 +590,11 @@ function GeneralSettings() {
   return (
     <div className="space-y-5">
       <Panel
-        title="Workspace identity"
-        description="Keep the name, description, and logo recognizable everywhere your team switches workspace."
+        title={t("settings.identity.title", "Workspace identity")}
+        description={t(
+          "settings.identity.description",
+          "Keep the name, description, and logo recognizable everywhere your team switches workspace.",
+        )}
       >
         <div className="space-y-6">
           <div className="flex flex-col gap-4 rounded-2xl border border-[#dce3de] bg-[#f8faf8] p-4 dark:border-dark-border dark:bg-dark-tertiary/35 sm:flex-row sm:items-center">
@@ -531,20 +606,28 @@ function GeneralSettings() {
               className="h-20 w-20 rounded-2xl text-xl shadow-sm"
             />
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-semibold">Workspace logo</p>
+              <p className="text-sm font-semibold">
+                {t("settings.workspaceLogo", "Workspace logo")}
+              </p>
               <p className="mt-1 text-xs leading-5 text-[#65736d] dark:text-dark-text-secondary">
-                PNG, JPEG, WebP, GIF, or AVIF up to{" "}
-                {WORKSPACE_LOGO_INPUT_BYTES / 1024 / 1024} MB. Images are
-                cropped to {WORKSPACE_LOGO_SIZE} × {WORKSPACE_LOGO_SIZE}.
+                {t("settings.logoHint", {
+                  defaultValue:
+                    "PNG, JPEG, WebP, GIF, or AVIF up to {{mb}} MB. Images are cropped to {{size}} × {{size}}.",
+                  mb: WORKSPACE_LOGO_INPUT_BYTES / 1024 / 1024,
+                  size: WORKSPACE_LOGO_SIZE,
+                })}
               </p>
               {logoDataUrl && (
                 <p className="mt-1.5 text-xs font-semibold text-[#0b7a55] dark:text-emerald-300">
-                  New logo ready to save
+                  {t("settings.logoReady", "New logo ready to save")}
                 </p>
               )}
               {logoRemoved && (
                 <p className="mt-1.5 text-xs font-semibold text-amber-700 dark:text-amber-300">
-                  Logo will be removed when you save
+                  {t(
+                    "settings.logoWillBeRemoved",
+                    "Logo will be removed when you save",
+                  )}
                 </p>
               )}
             </div>
@@ -573,7 +656,9 @@ function GeneralSettings() {
                   ) : (
                     <ImagePlus className="h-4 w-4" />
                   )}
-                  {logoPreview ? "Replace" : "Upload"}
+                  {logoPreview
+                    ? t("settings.replace", "Replace")
+                    : t("settings.upload", "Upload")}
                 </Button>
                 {logoPreview && (
                   <Button
@@ -583,7 +668,7 @@ function GeneralSettings() {
                     disabled={identityBusy}
                     className="gap-2 text-red-600 hover:bg-red-50 hover:text-red-700 dark:text-red-300 dark:hover:bg-red-950/30"
                   >
-                    <X className="h-4 w-4" /> Remove
+                    <X className="h-4 w-4" /> {t("settings.remove", "Remove")}
                   </Button>
                 )}
               </div>
@@ -601,7 +686,7 @@ function GeneralSettings() {
           )}
 
           <label className="block text-sm font-medium">
-            Workspace name
+            {t("settings.workspaceName", "Workspace name")}
             <Input
               className="mt-2"
               value={name}
@@ -613,7 +698,8 @@ function GeneralSettings() {
 
           <label className="block text-sm font-medium">
             <span className="flex items-center justify-between gap-4">
-              Description <span>{description.length}/280</span>
+              {t("settings.description", "Description")}{" "}
+              <span>{description.length}/280</span>
             </span>
             <textarea
               value={description}
@@ -621,7 +707,10 @@ function GeneralSettings() {
               disabled={!canEditIdentity || identityBusy}
               maxLength={280}
               rows={3}
-              placeholder="What does this team handle?"
+              placeholder={t(
+                "settings.descriptionPlaceholder",
+                "What does this team handle?",
+              )}
               className="mt-2 w-full resize-none rounded-xl border border-[#dce3de] bg-white px-3.5 py-3 text-sm leading-5 outline-none transition-[border-color,box-shadow] placeholder:text-[#9aa7a1] focus:border-[#0b7a55] focus:ring-[3px] focus:ring-[#25d366]/15 disabled:cursor-not-allowed disabled:opacity-60 dark:border-dark-border dark:bg-dark-tertiary dark:focus:border-emerald-400"
             />
           </label>
@@ -639,70 +728,96 @@ function GeneralSettings() {
                 ) : (
                   <Save className="h-4 w-4" />
                 )}
-                {updateCompany.isPending ? "Saving…" : "Save changes"}
+                {updateCompany.isPending
+                  ? t("common.saving", "Saving…")
+                  : t("settings.saveChanges", "Save changes")}
               </Button>
             </div>
           )}
         </div>
       </Panel>
       <Panel
-        title="Membership"
-        description="Your access is scoped to this workspace."
+        title={t("settings.membership.title", "Membership")}
+        description={t(
+          "settings.membership.description",
+          "Your access is scoped to this workspace.",
+        )}
       >
         <dl className="grid gap-4 sm:grid-cols-3">
-          <Fact label="Role" value={activeWorkspace.role} capitalize />
-          <Fact label="Status" value={activeWorkspace.status} capitalize />
           <Fact
-            label="Created"
-            value={formatWorkspaceDate(activeWorkspace.createdAt)}
+            label={t("settings.roleFact", "Role")}
+            value={activeWorkspace.role}
+            capitalize
+          />
+          <Fact
+            label={t("settings.statusFact", "Status")}
+            value={activeWorkspace.status}
+            capitalize
+          />
+          <Fact
+            label={t("settings.createdFact", "Created")}
+            value={formatWorkspaceDate(t, activeWorkspace.createdAt)}
           />
         </dl>
       </Panel>
       {activeWorkspace.role === "owner" ? (
         <Panel
-          title="Ownership and danger zone"
-          description="Transfer ownership before leaving, or remove this workspace from active use."
+          title={t("settings.dangerZone.title", "Ownership and danger zone")}
+          description={t(
+            "settings.dangerZone.description",
+            "Transfer ownership before leaving, or remove this workspace from active use.",
+          )}
         >
           <div className="flex flex-wrap gap-2">
             <Button variant="outline" onClick={() => setTransferOpen(true)}>
-              Transfer ownership
+              {t("settings.transferOwnership", "Transfer ownership")}
             </Button>
             <Button
               variant="destructive"
               onClick={() => setDeleteOpen(true)}
               className="gap-2"
             >
-              <Trash2 className="h-4 w-4" /> Delete workspace
+              <Trash2 className="h-4 w-4" />{" "}
+              {t("settings.deleteWorkspace", "Delete workspace")}
             </Button>
           </div>
         </Panel>
       ) : (
         <Panel
-          title="Leave workspace"
-          description="Your membership and workspace access will be removed."
+          title={t("settings.leaveWorkspace.title", "Leave workspace")}
+          description={t(
+            "settings.leaveWorkspace.description",
+            "Your membership and workspace access will be removed.",
+          )}
         >
           <Button variant="destructive" onClick={() => setLeaveOpen(true)}>
-            Leave workspace
+            {t("settings.leaveWorkspace.action", "Leave workspace")}
           </Button>
         </Panel>
       )}
       <Dialog open={transferOpen} onOpenChange={setTransferOpen}>
         <DialogContent className="mx-4 w-[calc(100vw-2rem)] rounded-2xl sm:w-full">
           <DialogHeader>
-            <DialogTitle>Transfer ownership</DialogTitle>
+            <DialogTitle>
+              {t("settings.transferOwnership", "Transfer ownership")}
+            </DialogTitle>
             <DialogDescription>
-              The selected member becomes owner and your role changes to
-              Administrator.
+              {t(
+                "settings.transferOwnershipDescription",
+                "The selected member becomes owner and your role changes to Administrator.",
+              )}
             </DialogDescription>
           </DialogHeader>
           <label className="text-sm font-medium">
-            New owner
+            {t("settings.newOwner", "New owner")}
             <select
               value={transferTarget}
               onChange={(event) => setTransferTarget(event.target.value)}
               className="mt-2 h-10 w-full rounded-lg border border-[#dce3de] bg-white px-3 dark:border-dark-border dark:bg-dark-tertiary"
             >
-              <option value="">Select a member</option>
+              <option value="">
+                {t("settings.selectMember", "Select a member")}
+              </option>
               {members.data?.data
                 ?.filter((member) => member.userId !== user?.id)
                 .map((member) => (
@@ -714,7 +829,7 @@ function GeneralSettings() {
           </label>
           <DialogFooter>
             <Button variant="outline" onClick={() => setTransferOpen(false)}>
-              Cancel
+              {t("common.cancel", "Cancel")}
             </Button>
             <Button
               disabled={!transferTarget || transferOwnership.isPending}
@@ -722,8 +837,8 @@ function GeneralSettings() {
               className="bg-[#0b7a55] text-white hover:bg-[#096747]"
             >
               {transferOwnership.isPending
-                ? "Transferring…"
-                : "Transfer ownership"}
+                ? t("settings.transferring", "Transferring…")
+                : t("settings.transferOwnership", "Transfer ownership")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -731,22 +846,31 @@ function GeneralSettings() {
       <Dialog open={leaveOpen} onOpenChange={setLeaveOpen}>
         <DialogContent className="mx-4 w-[calc(100vw-2rem)] rounded-2xl sm:w-full">
           <DialogHeader>
-            <DialogTitle>Leave {activeWorkspace.name}?</DialogTitle>
+            <DialogTitle>
+              {t("settings.leaveWorkspaceConfirm", {
+                defaultValue: "Leave {{name}}?",
+                name: activeWorkspace.name,
+              })}
+            </DialogTitle>
             <DialogDescription>
-              You will immediately lose access to its conversations and
-              settings.
+              {t(
+                "settings.leaveWorkspaceWarning",
+                "You will immediately lose access to its conversations and settings.",
+              )}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setLeaveOpen(false)}>
-              Cancel
+              {t("common.cancel", "Cancel")}
             </Button>
             <Button
               variant="destructive"
               disabled={leaveCompany.isPending}
               onClick={() => void leaveWorkspace()}
             >
-              {leaveCompany.isPending ? "Leaving…" : "Leave workspace"}
+              {leaveCompany.isPending
+                ? t("settings.leaving", "Leaving…")
+                : t("settings.leaveWorkspace.action", "Leave workspace")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -754,14 +878,26 @@ function GeneralSettings() {
       <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <DialogContent className="mx-4 w-[calc(100vw-2rem)] rounded-2xl sm:w-full">
           <DialogHeader>
-            <DialogTitle>Delete {activeWorkspace.name}?</DialogTitle>
+            <DialogTitle>
+              {t("settings.deleteWorkspaceConfirm", {
+                defaultValue: "Delete {{name}}?",
+                name: activeWorkspace.name,
+              })}
+            </DialogTitle>
             <DialogDescription>
-              This action cannot be undone. Conversations, settings, and team
-              access will be removed.
+              {t(
+                "settings.deleteWorkspaceWarning",
+                "This action cannot be undone. Conversations, settings, and team access will be removed.",
+              )}
             </DialogDescription>
           </DialogHeader>
           <label className="text-sm font-medium">
-            Type <strong>{activeWorkspace.name}</strong> to confirm
+            <Trans
+              i18nKey="settings.deleteWorkspaceTypeToConfirm"
+              values={{ name: activeWorkspace.name }}
+              defaults="Type <strong>{{name}}</strong> to confirm"
+              components={{ strong: <strong /> }}
+            />
             <Input
               value={deleteConfirmation}
               onChange={(event) => setDeleteConfirmation(event.target.value)}
@@ -771,7 +907,7 @@ function GeneralSettings() {
           </label>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteOpen(false)}>
-              Cancel
+              {t("common.cancel", "Cancel")}
             </Button>
             <Button
               variant="destructive"
@@ -781,7 +917,9 @@ function GeneralSettings() {
               }
               onClick={() => void deleteWorkspace()}
             >
-              {deleteCompany.isPending ? "Deleting…" : "Delete workspace"}
+              {deleteCompany.isPending
+                ? t("common.deleting", "Deleting…")
+                : t("settings.deleteWorkspace", "Delete workspace")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -791,24 +929,35 @@ function GeneralSettings() {
 }
 
 function AppearanceSettings() {
+  const { t } = useTranslation();
+
   const { openHelpModal } = useKeyboardShortcutsContext();
   return (
     <div className="space-y-5">
       <Panel
-        title="Theme"
-        description="Cycle between light, dark, and your system preference."
+        title={t("settings.themePanel.title", "Theme")}
+        description={t(
+          "settings.themePanel.description",
+          "Cycle between light, dark, and your system preference.",
+        )}
       >
         <ThemeToggle className="rounded-xl border border-[#dce3de] dark:border-dark-border" />
       </Panel>
       <Panel
-        title="Language"
-        description="Choose the language used by the application interface."
+        title={t("settings.languagePanel.title", "Language")}
+        description={t(
+          "settings.languagePanel.description",
+          "Choose the language used by the application interface.",
+        )}
       >
         <LanguageSwitcher showLabel={false} />
       </Panel>
       <Panel
-        title="Keyboard shortcuts"
-        description="Review the keys available for faster navigation."
+        title={t("settings.shortcuts.title", "Keyboard shortcuts")}
+        description={t(
+          "settings.shortcuts.description",
+          "Review the keys available for faster navigation.",
+        )}
       >
         <Button variant="outline" onClick={openHelpModal} className="gap-2">
           <Keyboard className="h-4 w-4" /> View shortcuts
@@ -819,6 +968,8 @@ function AppearanceSettings() {
 }
 
 function DataSettings() {
+  const { t } = useTranslation();
+
   const { can, activeWorkspace } = useWorkspace();
   const [showImport, setShowImport] = useState(false);
   return (
@@ -826,21 +977,30 @@ function DataSettings() {
       <div className="space-y-5">
         {can("can_assign_contacts") && (
           <Panel
-            title="Contact import"
-            description="Add contacts from a reviewed CSV file."
+            title={t("settings.contactImportPanel.title", "Contact import")}
+            description={t(
+              "settings.contactImportPanel.description",
+              "Add contacts from a reviewed CSV file.",
+            )}
           >
             <Button variant="outline" onClick={() => setShowImport(true)}>
-              Import contacts
+              {t("settings.importContactsAction", "Import contacts")}
             </Button>
           </Panel>
         )}
         {can("can_export") && (
           <Panel
-            title="Exports"
-            description="Workspace exports are available from the relevant Dashboard and Audit views."
+            title={t("settings.exports.title", "Exports")}
+            description={t(
+              "settings.exports.description",
+              "Workspace exports are available from the relevant Dashboard and Audit views.",
+            )}
           >
             <p className="text-sm text-[#65736d] dark:text-dark-text-secondary">
-              Exports contain data from {activeWorkspace?.name} only.
+              {t("settings.exportsScope", {
+                defaultValue: "Exports contain data from {{name}} only.",
+                name: activeWorkspace?.name,
+              })}
             </p>
           </Panel>
         )}
@@ -848,9 +1008,14 @@ function DataSettings() {
       <Dialog open={showImport} onOpenChange={setShowImport}>
         <DialogContent className="mx-4 max-h-[92dvh] w-[calc(100vw-2rem)] max-w-4xl overflow-y-auto rounded-2xl p-0 sm:w-full">
           <DialogHeader className="sr-only">
-            <DialogTitle>Import contacts</DialogTitle>
+            <DialogTitle>
+              {t("settings.importContactsAction", "Import contacts")}
+            </DialogTitle>
             <DialogDescription>
-              Review and import contacts into the current workspace.
+              {t(
+                "settings.importContactsDescription",
+                "Review and import contacts into the current workspace.",
+              )}
             </DialogDescription>
           </DialogHeader>
           <ContactImport
@@ -906,9 +1071,9 @@ function Fact({
   );
 }
 
-function formatWorkspaceDate(value: string): string {
+function formatWorkspaceDate(t: TFunction, value: string): string {
   const date = new Date(value);
   return Number.isNaN(date.getTime())
-    ? "Not available"
+    ? t("settings.notAvailable", "Not available")
     : date.toLocaleDateString();
 }

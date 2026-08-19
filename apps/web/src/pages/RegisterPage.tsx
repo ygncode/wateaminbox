@@ -16,8 +16,11 @@ import { useAuth } from "../contexts/auth-context";
 import { buildAuthUrl, getSafeAuthRedirect } from "../lib/auth-redirect";
 import { productAnalytics } from "../lib/product-analytics";
 import { type RegisterFormData, registerSchema } from "../lib/schemas";
+import { Trans, useTranslation } from "react-i18next";
 
 export function RegisterPage() {
+  const { t } = useTranslation();
+
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const redirectTo = getSafeAuthRedirect(searchParams.get("redirect"));
@@ -98,30 +101,39 @@ export function RegisterPage() {
             </span>
           </div>
           <p className="mb-3 text-xs font-bold uppercase tracking-[0.16em] text-[#0a7c43] dark:text-[#52df83]">
-            Account created
+            {t("auth.accountCreated", "Account created")}
           </p>
           <h1 className="text-3xl font-semibold tracking-[-0.035em] text-slate-950 text-balance sm:text-4xl dark:text-dark-text-primary">
             {verificationEmailSent
-              ? "Verify your email to continue"
-              : "Account created, but email delivery failed"}
+              ? t("auth.verifyEmailTitle", "Verify your email to continue")
+              : t(
+                  "auth.emailDeliveryFailedTitle",
+                  "Account created, but email delivery failed",
+                )}
           </h1>
           <p className="mt-4 max-w-md text-sm leading-6 text-slate-600 dark:text-dark-text-secondary">
             {verificationEmailSent ? (
-              <>
-                We sent a verification link to{" "}
-                <strong className="break-all font-semibold text-slate-900 dark:text-dark-text-primary">
-                  {registeredEmail}
-                </strong>
-                . Open it to activate your WATeamInbox account.
-              </>
+              <Trans
+                i18nKey="auth.verificationSentTo"
+                values={{ email: registeredEmail }}
+                defaults="We sent a verification link to <strong>{{email}}</strong>. Open it to activate your WATeamInbox account."
+                components={{
+                  strong: (
+                    <strong className="break-all font-semibold text-slate-900 dark:text-dark-text-primary" />
+                  ),
+                }}
+              />
             ) : (
-              <>
-                We could not send the verification link to{" "}
-                <strong className="break-all font-semibold text-slate-900 dark:text-dark-text-primary">
-                  {registeredEmail}
-                </strong>
-                . Sign in with your new credentials to retry delivery.
-              </>
+              <Trans
+                i18nKey="auth.verificationFailedTo"
+                values={{ email: registeredEmail }}
+                defaults="We could not send the verification link to <strong>{{email}}</strong>. Sign in with your new credentials to retry delivery."
+                components={{
+                  strong: (
+                    <strong className="break-all font-semibold text-slate-900 dark:text-dark-text-primary" />
+                  ),
+                }}
+              />
             )}
           </p>
 
@@ -151,8 +163,14 @@ export function RegisterPage() {
               }`}
             >
               {verificationEmailSent
-                ? "The link may take a minute to arrive. Check your spam folder if you don't see it."
-                : "Your account was kept safely. The sign-in page can send a fresh link after checking your password."}
+                ? t(
+                    "auth.verificationHint",
+                    "The link may take a minute to arrive. Check your spam folder if you don't see it.",
+                  )
+                : t(
+                    "auth.deliveryFailedHint",
+                    "Your account was kept safely. The sign-in page can send a fresh link after checking your password.",
+                  )}
             </p>
           </div>
 
@@ -163,8 +181,8 @@ export function RegisterPage() {
           >
             <Link to={buildAuthUrl("/login", redirectTo, registeredEmail)}>
               {verificationEmailSent
-                ? "Continue to sign in"
-                : "Go to sign in and retry"}
+                ? t("auth.continueToSignIn", "Continue to sign in")
+                : t("auth.goToSignInRetry", "Go to sign in and retry")}
               <ArrowRight aria-hidden="true" />
             </Link>
           </Button>
@@ -177,14 +195,16 @@ export function RegisterPage() {
     <AuthPageShell variant="register">
       <div>
         <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#0a7c43] dark:text-[#52df83]">
-          Create your workspace
+          {t("auth.createWorkspaceEyebrow", "Create your workspace")}
         </p>
         <h1 className="mt-3 text-3xl font-semibold tracking-[-0.04em] text-slate-950 text-balance sm:text-4xl dark:text-dark-text-primary">
-          Bring your team into one inbox
+          {t("auth.registerTitle", "Bring your team into one inbox")}
         </h1>
         <p className="mt-3 max-w-lg text-sm leading-6 text-slate-600 dark:text-dark-text-secondary">
-          Set up your account and start turning customer conversations into
-          coordinated teamwork.
+          {t(
+            "auth.registerSubtitle",
+            "Set up your account and start turning customer conversations into coordinated teamwork.",
+          )}
         </p>
 
         <form
@@ -204,10 +224,10 @@ export function RegisterPage() {
 
           <div className="grid gap-5 sm:grid-cols-2">
             <FormField
-              label="Full name"
+              label={t("auth.fullName", "Full name")}
               id="name"
               type="text"
-              placeholder="Your name"
+              placeholder={t("auth.fullNamePlaceholder", "Your name")}
               registration={register("name")}
               error={errors.name}
               autoComplete="name"
@@ -215,7 +235,7 @@ export function RegisterPage() {
             />
 
             <FormField
-              label="Work email"
+              label={t("auth.workEmail", "Work email")}
               id="email"
               type="email"
               placeholder="you@company.com"
@@ -227,22 +247,28 @@ export function RegisterPage() {
 
           <div className="grid gap-5 sm:grid-cols-2">
             <FormField
-              label="Password"
+              label={t("auth.password", "Password")}
               id="password"
               type="password"
-              placeholder="At least 8 characters"
+              placeholder={t(
+                "auth.passwordMinPlaceholder",
+                "At least 8 characters",
+              )}
               registration={register("password")}
               error={errors.password}
               autoComplete="new-password"
-              hint="Use 8 or more characters."
+              hint={t("auth.passwordHint", "Use 8 or more characters.")}
               showPasswordToggle
             />
 
             <FormField
-              label="Confirm password"
+              label={t("auth.confirmPasswordLabel", "Confirm password")}
               id="confirmPassword"
               type="password"
-              placeholder="Repeat your password"
+              placeholder={t(
+                "auth.confirmPasswordPlaceholder",
+                "Repeat your password",
+              )}
               registration={register("confirmPassword")}
               error={errors.confirmPassword}
               autoComplete="new-password"
@@ -259,11 +285,11 @@ export function RegisterPage() {
             {isLoading ? (
               <>
                 <LoaderCircle aria-hidden="true" className="animate-spin" />
-                Creating your account…
+                {t("auth.creatingAccount", "Creating your account…")}
               </>
             ) : (
               <>
-                Create account
+                {t("auth.createAccountAction", "Create account")}
                 <ArrowRight aria-hidden="true" />
               </>
             )}
@@ -271,12 +297,12 @@ export function RegisterPage() {
         </form>
 
         <p className="mt-6 text-center text-sm text-slate-600 dark:text-dark-text-secondary">
-          Already have an account?{" "}
+          {t("auth.alreadyHaveAccount", "Already have an account?")}{" "}
           <Link
             to={buildAuthUrl("/login", redirectTo, suggestedEmail)}
             className="rounded-sm font-semibold text-[#0a7c43] underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#075e54] focus-visible:ring-offset-2 dark:text-[#52df83] dark:focus-visible:ring-offset-dark-elevated"
           >
-            Sign in
+            {t("auth.signInAction", "Sign in")}
           </Link>
         </p>
       </div>

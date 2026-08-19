@@ -6,8 +6,11 @@ import { WorkspaceAvatar } from "../components/workspace/WorkspaceAvatar";
 import { useAuth } from "../contexts/auth-context";
 import { useWorkspace } from "../contexts/workspace-context";
 import { workspacePath } from "../lib/workspace-routes";
+import { useTranslation } from "react-i18next";
 
 export function WorkspaceChooserPage() {
+  const { t } = useTranslation();
+
   const navigate = useNavigate();
   const { logout } = useAuth();
   const { memberships, switchWorkspace, isSwitching, switchingTo } =
@@ -19,7 +22,9 @@ export function WorkspaceChooserPage() {
       navigate(workspacePath(workspaceId), { replace: true });
     } catch (error) {
       toast.error(
-        error instanceof Error ? error.message : "Could not open workspace",
+        error instanceof Error
+          ? error.message
+          : t("workspaces.openFailed", "Could not open workspace"),
       );
     }
   };
@@ -45,13 +50,16 @@ export function WorkspaceChooserPage() {
         </div>
 
         <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#0b7a55]">
-          Your workspaces
+          {t("workspaces.yourWorkspaces", "Your workspaces")}
         </p>
         <h1 className="mt-3 text-3xl font-semibold tracking-[-0.035em] sm:text-4xl">
-          Where are you working today?
+          {t("workspaces.whereWorking", "Where are you working today?")}
         </h1>
         <p className="mt-3 max-w-lg text-[#65736d] dark:text-dark-text-secondary">
-          Each workspace keeps its conversations, team, and settings separate.
+          {t(
+            "workspaces.separateHint",
+            "Each workspace keeps its conversations, team, and settings separate.",
+          )}
         </p>
 
         <div className="mt-8 grid gap-3">

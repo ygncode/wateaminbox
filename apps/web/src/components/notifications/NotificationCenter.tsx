@@ -33,6 +33,7 @@ import {
   NOTIFICATION_SHEET_EMBEDDED_CLASS,
   SHEET_FOCUSABLE_SELECTOR,
 } from "./notification-sheet";
+import { useTranslation } from "react-i18next";
 
 /**
  * Notification sheet: a full-viewport page on mobile, and a full-height sheet
@@ -51,6 +52,8 @@ function NotificationPanel({
   triggerRef: RefObject<HTMLButtonElement | null>;
   embedded?: boolean;
 }) {
+  const { t } = useTranslation();
+
   const navigate = useNavigate();
   const { activeWorkspaceId } = useWorkspace();
   const panelRef = useRef<HTMLDivElement>(null);
@@ -211,7 +214,7 @@ function NotificationPanel({
               disabled={isMarkingAllAsRead}
             >
               <CheckCheck className="size-3.5 mr-1.5" />
-              Mark all
+              {t("notifications.markAll", "Mark all")}
             </Button>
           )}
           <Button
@@ -219,7 +222,7 @@ function NotificationPanel({
             size="sm"
             className="size-10 md:size-8 p-0 rounded-lg text-gray-400 dark:text-dark-text-tertiary hover:text-gray-600 dark:hover:text-dark-text-secondary hover:bg-gray-100 dark:hover:bg-dark-tertiary"
             onClick={onClose}
-            aria-label="Close notifications"
+            aria-label={t("notifications.close", "Close notifications")}
           >
             <X className="size-4" />
           </Button>
@@ -249,7 +252,7 @@ function NotificationPanel({
                   navigate(settingsPath);
                 }}
               >
-                Notification settings
+                {t("notifications.settings", "Notification settings")}
               </Button>
             }
           />
@@ -277,7 +280,7 @@ function NotificationPanel({
             navigate(notificationsPath);
           }}
         >
-          View all notifications
+          {t("notifications.viewAll", "View all notifications")}
         </Button>
       </div>
     </div>
@@ -309,6 +312,8 @@ export const NotificationCenter = memo(function NotificationCenter({
   className,
   panelContainer,
 }: NotificationCenterProps) {
+  const { t } = useTranslation();
+
   const [isOpen, setIsOpen] = useState(false);
   const [announcement, setAnnouncement] = useState("");
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -332,7 +337,9 @@ export const NotificationCenter = memo(function NotificationCenter({
     if (unreadCount > prevCount) {
       const newCount = unreadCount - prevCount;
       setAnnouncement(
-        newCount === 1 ? "New notification" : `${newCount} new notifications`,
+        newCount === 1
+          ? t("notifications.new", "New notification")
+          : `${newCount} new notifications`,
       );
 
       // Clear announcement after screen reader has time to read it
@@ -357,7 +364,7 @@ export const NotificationCenter = memo(function NotificationCenter({
           className,
         )}
         onClick={() => setIsOpen((open) => !open)}
-        title="Notifications"
+        title={t("notifications.title", "Notifications")}
         aria-label={
           unreadCount > 0
             ? `Notifications, ${unreadCount} unread`

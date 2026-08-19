@@ -94,10 +94,7 @@ export async function openConversation(
   contactId: string,
   input: { reason?: string } = {},
 ): Promise<ConversationCase> {
-  return api.post<ConversationCase>(
-    `/conversations/${contactId}/open`,
-    input,
-  );
+  return api.post<ConversationCase>(`/conversations/${contactId}/open`, input);
 }
 
 export async function setConversationPending(

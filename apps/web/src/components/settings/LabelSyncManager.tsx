@@ -99,11 +99,15 @@ export function LabelSyncManager() {
   const handleSync = async () => {
     try {
       await sync();
-      toast.success("Label sync started", {
-        description: `Refreshing labels for ${selectedConnection?.name ?? "this account"}.`,
+      toast.success(t("labels.syncStarted", "Label sync started"), {
+        description: t("labels.syncStartedDescription", {
+          defaultValue: "Refreshing labels for {{account}}.",
+          account:
+            selectedConnection?.name ?? t("labels.thisAccount", "this account"),
+        }),
       });
     } catch (err) {
-      toast.error("Could not sync labels", {
+      toast.error(t("labels.syncFailed", "Could not sync labels"), {
         description: err instanceof Error ? err.message : undefined,
       });
     }
@@ -112,11 +116,14 @@ export function LabelSyncManager() {
   const handleAutoCreate = async () => {
     try {
       await autoCreateTags();
-      toast.success("Tags are ready", {
-        description: "Unlinked WhatsApp labels were matched or created.",
+      toast.success(t("labels.tagsReady", "Tags are ready"), {
+        description: t(
+          "labels.tagsReadyDescription",
+          "Unlinked WhatsApp labels were matched or created.",
+        ),
       });
     } catch (err) {
-      toast.error("Could not create tags", {
+      toast.error(t("labels.createTagsFailed", "Could not create tags"), {
         description: err instanceof Error ? err.message : undefined,
       });
     }
@@ -137,9 +144,9 @@ export function LabelSyncManager() {
       setLinkDialogOpen(false);
       setSelectedLabel(null);
       setSelectedTagId("");
-      toast.success("Tag linked");
+      toast.success(t("labels.tagLinked", "Tag linked"));
     } catch (err) {
-      toast.error("Could not link tag", {
+      toast.error(t("labels.linkTagFailed", "Could not link tag"), {
         description: err instanceof Error ? err.message : undefined,
       });
     }
@@ -149,9 +156,9 @@ export function LabelSyncManager() {
     setUnlinkingLabelId(labelId);
     try {
       await unlink(labelId);
-      toast.success("Tag unlinked");
+      toast.success(t("labels.tagUnlinked", "Tag unlinked"));
     } catch (err) {
-      toast.error("Could not unlink tag", {
+      toast.error(t("labels.unlinkTagFailed", "Could not unlink tag"), {
         description: err instanceof Error ? err.message : undefined,
       });
     } finally {
@@ -161,7 +168,7 @@ export function LabelSyncManager() {
 
   const formatLastSync = (dateString: string | null) => {
     if (!dateString) return t("labels.neverSynced", "Never synced");
-    return formatStatusTime(dateString);
+    return formatStatusTime(dateString, t);
   };
 
   return (
@@ -376,7 +383,9 @@ export function LabelSyncManager() {
                 className="min-w-36 gap-2"
               >
                 {isLoadingMore && <Loader2 className="h-4 w-4 animate-spin" />}
-                {isLoadingMore ? "Loading…" : "Load more labels"}
+                {isLoadingMore
+                  ? "Loading…"
+                  : t("labels.loadMore", "Load more labels")}
               </Button>
             </div>
           )}

@@ -8,6 +8,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { useTranslation } from "react-i18next";
 
 interface DeleteMessageDialogProps {
   open: boolean;
@@ -25,6 +26,8 @@ export const DeleteMessageDialog = memo(function DeleteMessageDialog({
   onConfirm,
   isDeleting = false,
 }: DeleteMessageDialogProps) {
+  const { t } = useTranslation();
+
   const handleConfirm = () => {
     onConfirm();
   };
@@ -33,10 +36,14 @@ export const DeleteMessageDialog = memo(function DeleteMessageDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Delete message?</DialogTitle>
+          <DialogTitle>
+            {t("chat.deleteMessageTitle", "Delete message?")}
+          </DialogTitle>
           <DialogDescription>
-            This action cannot be undone. The message will be deleted for you
-            only.
+            {t(
+              "chat.deleteMessageWarning",
+              "This action cannot be undone. The message will be deleted for you only.",
+            )}
           </DialogDescription>
         </DialogHeader>
         <DialogFooter className="gap-2 sm:gap-0">

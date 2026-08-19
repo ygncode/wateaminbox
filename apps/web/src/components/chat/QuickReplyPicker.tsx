@@ -1,6 +1,7 @@
 import { AlertCircle, CornerDownLeft, Loader2, Zap } from "lucide-react";
 import { useEffect } from "react";
 import type { QuickReply } from "@/lib/api/types";
+import { useTranslation } from "react-i18next";
 
 interface QuickReplyPickerProps {
   quickReplies: QuickReply[];
@@ -21,6 +22,8 @@ export function QuickReplyPicker({
   onSelect,
   onHighlight,
 }: QuickReplyPickerProps) {
+  const { t } = useTranslation();
+
   const selectedQuickReply = quickReplies[selectedIndex];
 
   useEffect(() => {
@@ -43,7 +46,7 @@ export function QuickReplyPicker({
           </span>
           <div className="min-w-0">
             <p className="text-xs font-semibold text-[#3b4a54] dark:text-dark-text-primary">
-              Quick replies
+              {t("quickReplies.pickerTitle", "Quick replies")}
             </p>
             <p className="truncate text-[11px] text-[#667781] dark:text-dark-text-tertiary">
               {query ? `Matching “/${query}”` : "Choose a saved response"}
@@ -65,25 +68,28 @@ export function QuickReplyPicker({
       <div
         className="max-h-[280px] overflow-y-auto p-1.5"
         role="listbox"
-        aria-label="Quick reply suggestions"
+        aria-label={t("quickReplies.suggestions", "Quick reply suggestions")}
       >
         {isLoading ? (
           <div className="flex items-center justify-center gap-2 px-3 py-7 text-sm text-[#667781] dark:text-dark-text-secondary">
             <Loader2 className="size-4 animate-spin" aria-hidden="true" />
-            Loading saved replies…
+            {t("quickReplies.loading", "Loading saved replies…")}
           </div>
         ) : hasError ? (
           <div className="flex items-center justify-center gap-2 px-3 py-7 text-sm text-red-600 dark:text-red-400">
             <AlertCircle className="size-4" aria-hidden="true" />
-            Quick replies could not be loaded
+            {t("quickReplies.loadFailed", "Quick replies could not be loaded")}
           </div>
         ) : quickReplies.length === 0 ? (
           <div className="px-4 py-7 text-center">
             <p className="text-sm font-medium text-[#3b4a54] dark:text-dark-text-primary">
-              No matching quick reply
+              {t("quickReplies.noMatch", "No matching quick reply")}
             </p>
             <p className="mt-1 text-xs text-[#667781] dark:text-dark-text-secondary">
-              Try another shortcut or continue typing your message.
+              {t(
+                "quickReplies.noMatchHint",
+                "Try another shortcut or continue typing your message.",
+              )}
             </p>
           </div>
         ) : (

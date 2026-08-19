@@ -26,6 +26,8 @@ import {
   toEditableDays,
   toEditableExceptions,
 } from "./sla-policy-form";
+import type { TFunction } from "i18next";
+import { useTranslation } from "react-i18next";
 
 const WEEKDAY_LABELS = [
   "Sunday",
@@ -36,6 +38,20 @@ const WEEKDAY_LABELS = [
   "Friday",
   "Saturday",
 ];
+
+const WEEKDAY_KEYS = [
+  "sla.weekdays.sunday",
+  "sla.weekdays.monday",
+  "sla.weekdays.tuesday",
+  "sla.weekdays.wednesday",
+  "sla.weekdays.thursday",
+  "sla.weekdays.friday",
+  "sla.weekdays.saturday",
+];
+
+function weekdayLabel(t: TFunction, weekday: number): string {
+  return t(WEEKDAY_KEYS[weekday], WEEKDAY_LABELS[weekday]);
+}
 
 const FALLBACK_TIMEZONES = [
   "UTC",
@@ -95,6 +111,8 @@ function SettingsPanel({
 }
 
 export function SlaPolicySettings() {
+  const { t } = useTranslation();
+
   const { activeWorkspace } = useWorkspace();
   const companyId = activeWorkspace?.id ?? "";
   const canEdit =
@@ -133,10 +151,10 @@ export function SlaPolicySettings() {
 
   if (isLoading) {
     return (
-      <SettingsPanel title="Response SLA">
+      <SettingsPanel title={t("sla.title", "Response SLA")}>
         <div className="flex items-center gap-2 text-sm text-[#65736d] dark:text-dark-text-secondary">
           <LoaderCircle className="h-4 w-4 animate-spin" />
-          Loading SLA policy…
+          {t("sla.loading", "Loading SLA policy…")}
         </div>
       </SettingsPanel>
     );
@@ -144,9 +162,9 @@ export function SlaPolicySettings() {
 
   if (isError || !policy) {
     return (
-      <SettingsPanel title="Response SLA">
+      <SettingsPanel title={t("sla.title", "Response SLA")}>
         <p className="text-sm text-red-600 dark:text-red-400">
-          Could not load the SLA policy.
+          {t("sla.loadFailed", "Could not load the SLA policy.")}
         </p>
       </SettingsPanel>
     );
@@ -154,9 +172,7 @@ export function SlaPolicySettings() {
 
   const isValidTarget = (value: string, min: number, max: number) => {
     const n = Number(value);
-    return (
-      value.trim() !== "" && Number.isInteger(n) && n >= min && n <= max
-    );
+    return value.trim() !== "" && Number.isInteger(n) && n >= min && n <= max;
   };
 
   const targetMinutesValue = Number(targetMinutes);
@@ -333,30 +349,55 @@ export function SlaPolicySettings() {
     setError(null);
     if (!targetValid) {
       setError(
-        `Direct response target must be a whole number between ${SLA_TARGET_MINUTES_MIN} and ${SLA_TARGET_MINUTES_MAX} minutes.`,
+        t("sla.errors.directResponse", {
+          defaultValue:
+            "Direct response target must be a whole number between {{min}} and {{max}} minutes.",
+          min: SLA_TARGET_MINUTES_MIN,
+          max: SLA_TARGET_MINUTES_MAX,
+        }),
       );
       return;
     }
     if (!directResolutionValid) {
       setError(
-        `Direct resolution target must be a whole number between ${SLA_RESOLUTION_TARGET_MINUTES_MIN} and ${SLA_RESOLUTION_TARGET_MINUTES_MAX} minutes.`,
+        t("sla.errors.directResolution", {
+          defaultValue:
+            "Direct resolution target must be a whole number between {{min}} and {{max}} minutes.",
+          min: SLA_RESOLUTION_TARGET_MINUTES_MIN,
+          max: SLA_RESOLUTION_TARGET_MINUTES_MAX,
+        }),
       );
       return;
     }
     if (!groupResponseValid) {
       setError(
-        `Group response target must be a whole number between ${SLA_TARGET_MINUTES_MIN} and ${SLA_TARGET_MINUTES_MAX} minutes.`,
+        t("sla.errors.groupResponse", {
+          defaultValue:
+            "Group response target must be a whole number between {{min}} and {{max}} minutes.",
+          min: SLA_TARGET_MINUTES_MIN,
+          max: SLA_TARGET_MINUTES_MAX,
+        }),
       );
       return;
     }
     if (!groupResolutionValid) {
       setError(
-        `Group resolution target must be a whole number between ${SLA_RESOLUTION_TARGET_MINUTES_MIN} and ${SLA_RESOLUTION_TARGET_MINUTES_MAX} minutes.`,
+        t("sla.errors.groupResolution", {
+          defaultValue:
+            "Group resolution target must be a whole number between {{min}} and {{max}} minutes.",
+          min: SLA_RESOLUTION_TARGET_MINUTES_MIN,
+          max: SLA_RESOLUTION_TARGET_MINUTES_MAX,
+        }),
       );
       return;
     }
     if (!atLeastOneOpenDay) {
-      setError("At least one weekday must be open with an interval.");
+      setError(
+        t(
+          "sla.errors.noOpenDay",
+          "At least one weekday must be open with an interval.",
+        ),
+      );
       return;
     }
     const openDayMissingInterval = days.find(
@@ -364,19 +405,30 @@ export function SlaPolicySettings() {
     );
     if (openDayMissingInterval) {
       setError(
-        `${WEEKDAY_LABELS[openDayMissingInterval.weekday]} is open but has no interval - add one or mark it closed.`,
+        t("sla.errors.dayMissingInterval", {
+          defaultValue:
+            "{{day}} is open but has no interval - add one or mark it closed.",
+          day: weekdayLabel(t, openDayMissingInterval.weekday),
+        }),
       );
       return;
     }
     const missingDate = exceptions.find((e) => !e.date);
     if (missingDate) {
-      setError("Every exception needs a date.");
+      setError(
+        t("sla.errors.exceptionNeedsDate", "Every exception needs a date."),
+      );
       return;
     }
     const duplicateDates =
       new Set(exceptions.map((e) => e.date)).size !== exceptions.length;
     if (duplicateDates) {
-      setError("Exception dates must be unique.");
+      setError(
+        t(
+          "sla.errors.duplicateExceptionDates",
+          "Exception dates must be unique.",
+        ),
+      );
       return;
     }
     const customExceptionMissingInterval = exceptions.find(
@@ -384,7 +436,11 @@ export function SlaPolicySettings() {
     );
     if (customExceptionMissingInterval) {
       setError(
-        `The ${customExceptionMissingInterval.date || "new"} exception needs at least one interval, or mark it closed.`,
+        t("sla.errors.exceptionMissingInterval", {
+          defaultValue:
+            "The {{date}} exception needs at least one interval, or mark it closed.",
+          date: customExceptionMissingInterval.date || t("sla.newDate", "new"),
+        }),
       );
       return;
     }
@@ -399,11 +455,13 @@ export function SlaPolicySettings() {
         weeklySchedule: daysToScheduleInput(days),
         exceptions: exceptionsToInput(exceptions),
       });
-      toast.success("SLA policy updated");
+      toast.success(t("sla.updated", "SLA policy updated"));
       setEditing(false);
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "Could not update the SLA policy",
+        err instanceof Error
+          ? err.message
+          : t("sla.updateFailed", "Could not update the SLA policy"),
       );
     }
   };
@@ -412,52 +470,67 @@ export function SlaPolicySettings() {
     return (
       <div className="space-y-5">
         <SettingsPanel
-          title="Response SLA"
-          description="The response and resolution targets and the shared business-hours calendar used across the dashboard's SLA compliance and breach reporting. Time outside open hours pauses both SLA clocks. Group SLA is measured per group conversation, not per member - one team reply acknowledges the whole inbound burst."
+          title={t("sla.title", "Response SLA")}
+          description={t(
+            "sla.description",
+            "The response and resolution targets and the shared business-hours calendar used across the dashboard's SLA compliance and breach reporting. Time outside open hours pauses both SLA clocks. Group SLA is measured per group conversation, not per member - one team reply acknowledges the whole inbound burst.",
+          )}
         >
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="rounded-xl border border-[#e6ebe7] p-4 dark:border-dark-border">
               <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-[#829089]">
-                Direct chats
+                {t("sla.directChats", "Direct chats")}
               </p>
               <dl className="space-y-3">
                 <div>
                   <dt className="text-xs font-medium text-[#829089]">
-                    Response target
+                    {t("sla.responseTarget", "Response target")}
                   </dt>
                   <dd className="mt-1 text-sm font-semibold">
-                    {policy.targetMinutes} minutes
+                    {t("sla.minutes", {
+                      defaultValue: "{{count}} minutes",
+                      count: policy.targetMinutes,
+                    })}
                   </dd>
                 </div>
                 <div>
                   <dt className="text-xs font-medium text-[#829089]">
-                    Resolution target
+                    {t("sla.resolutionTarget", "Resolution target")}
                   </dt>
                   <dd className="mt-1 text-sm font-semibold">
-                    {policy.directResolutionTargetMinutes} minutes
+                    {t("sla.minutes", {
+                      defaultValue: "{{count}} minutes",
+                      count: policy.directResolutionTargetMinutes,
+                    })}
                   </dd>
                 </div>
               </dl>
             </div>
             <div className="rounded-xl border border-[#e6ebe7] p-4 dark:border-dark-border">
               <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-[#829089]">
-                Group chats
+                {t("sla.groupChats", "Group chats")}
               </p>
               <dl className="space-y-3">
                 <div>
                   <dt className="text-xs font-medium text-[#829089]">
-                    Response target
+                    {t("sla.responseTarget", "Response target")}
                   </dt>
                   <dd className="mt-1 text-sm font-semibold">
-                    {policy.groupResponseTargetMinutes} minutes
+                    {t("sla.minutes", {
+                      defaultValue: "{{count}} minutes",
+                      count: policy.groupResponseTargetMinutes,
+                    })}
                   </dd>
                 </div>
                 <div>
                   <dt className="text-xs font-medium text-[#829089]">
-                    Resolution target
+                    {t("sla.resolutionTarget", "Resolution target")}
                   </dt>
                   <dd className="mt-1 text-sm font-semibold">
-                    {policy.groupResolutionTargetMinutes} minutes
+                    {t("sla.minutes", {
+                      defaultValue: "{{count}} minutes",
+                      count: policy.groupResolutionTargetMinutes,
+                    })}
                   </dd>
                 </div>
               </dl>
@@ -465,13 +538,15 @@ export function SlaPolicySettings() {
           </div>
 
           <div className="mt-4">
-            <dt className="text-xs font-medium text-[#829089]">Timezone</dt>
+            <dt className="text-xs font-medium text-[#829089]">
+              {t("sla.timezone", "Timezone")}
+            </dt>
             <dd className="mt-1 text-sm font-semibold">{policy.timezone}</dd>
           </div>
 
           <div className="mt-5">
             <p className="mb-2 text-xs font-medium text-[#829089]">
-              Weekly hours
+              {t("sla.weeklyHours", "Weekly hours")}
             </p>
             <div className="space-y-1">
               {policy.weeklySchedule
@@ -483,7 +558,7 @@ export function SlaPolicySettings() {
                     className="flex items-center justify-between rounded-lg px-3 py-1.5 text-sm odd:bg-[#f8faf8] dark:odd:bg-dark-tertiary/30"
                   >
                     <span className="text-[#40544c] dark:text-dark-text-primary">
-                      {WEEKDAY_LABELS[day.weekday]}
+                      {weekdayLabel(t, day.weekday)}
                     </span>
                     <span
                       className={
@@ -492,7 +567,7 @@ export function SlaPolicySettings() {
                           : "text-[#87928c] dark:text-dark-text-secondary"
                       }
                     >
-                      {formatIntervals(day)}
+                      {formatIntervals(day, t)}
                     </span>
                   </div>
                 ))}
@@ -502,7 +577,7 @@ export function SlaPolicySettings() {
           {policy.exceptions.length > 0 && (
             <div className="mt-5">
               <p className="mb-2 text-xs font-medium text-[#829089]">
-                Date exceptions
+                {t("sla.dateExceptions", "Date exceptions")}
               </p>
               <div className="space-y-1">
                 {policy.exceptions.map((exception) => (
@@ -522,7 +597,7 @@ export function SlaPolicySettings() {
                       }
                     >
                       {exception.closed
-                        ? "Closed"
+                        ? t("sla.closed", "Closed")
                         : (exception.intervals ?? [])
                             .map((i) => `${i.start}–${i.end}`)
                             .join(", ")}
@@ -549,7 +624,7 @@ export function SlaPolicySettings() {
                 onClick={startEditing}
                 className="gap-2"
               >
-                Edit SLA policy
+                {t("sla.editPolicy", "Edit SLA policy")}
               </Button>
             </div>
           )}
@@ -561,26 +636,28 @@ export function SlaPolicySettings() {
   return (
     <div className="space-y-5">
       <SettingsPanel
-        title="Edit response SLA"
-        description="Changes take effect immediately as a new policy version. Past and already-open conversations keep using the policy that was active when they began."
+        title={t("sla.editTitle", "Edit response SLA")}
+        description={t(
+          "sla.editDescription",
+          "Changes take effect immediately as a new policy version. Past and already-open conversations keep using the policy that was active when they began.",
+        )}
       >
         <div className="space-y-6">
           <p className="text-xs text-[#65736d] dark:text-dark-text-secondary">
-            Direct and group chats share the same timezone, business hours,
-            and holidays below, but have their own response and resolution
-            targets. Group SLA is measured for the whole group conversation,
-            not per member - one team reply acknowledges the inbound burst
-            from any participant.
+            {t(
+              "sla.editIntro",
+              "Direct and group chats share the same timezone, business hours, and holidays below, but have their own response and resolution targets. Group SLA is measured for the whole group conversation, not per member - one team reply acknowledges the inbound burst from any participant.",
+            )}
           </p>
 
           <div className="grid gap-4 sm:grid-cols-2">
             <fieldset className="rounded-xl border border-[#e6ebe7] p-4 dark:border-dark-border">
               <legend className="px-1 text-xs font-semibold uppercase tracking-wide text-[#829089]">
-                Direct chats
+                {t("sla.directChats", "Direct chats")}
               </legend>
               <div className="space-y-4">
                 <label className="block text-sm font-medium">
-                  Response target (minutes)
+                  {t("sla.responseTargetMinutes", "Response target (minutes)")}
                   <Input
                     type="number"
                     min={SLA_TARGET_MINUTES_MIN}
@@ -592,7 +669,10 @@ export function SlaPolicySettings() {
                   />
                 </label>
                 <label className="block text-sm font-medium">
-                  Resolution target (minutes)
+                  {t(
+                    "sla.resolutionTargetMinutes",
+                    "Resolution target (minutes)",
+                  )}
                   <Input
                     type="number"
                     min={SLA_RESOLUTION_TARGET_MINUTES_MIN}
@@ -609,11 +689,11 @@ export function SlaPolicySettings() {
             </fieldset>
             <fieldset className="rounded-xl border border-[#e6ebe7] p-4 dark:border-dark-border">
               <legend className="px-1 text-xs font-semibold uppercase tracking-wide text-[#829089]">
-                Group chats
+                {t("sla.groupChats", "Group chats")}
               </legend>
               <div className="space-y-4">
                 <label className="block text-sm font-medium">
-                  Response target (minutes)
+                  {t("sla.responseTargetMinutes", "Response target (minutes)")}
                   <Input
                     type="number"
                     min={SLA_TARGET_MINUTES_MIN}
@@ -627,7 +707,10 @@ export function SlaPolicySettings() {
                   />
                 </label>
                 <label className="block text-sm font-medium">
-                  Resolution target (minutes)
+                  {t(
+                    "sla.resolutionTargetMinutes",
+                    "Resolution target (minutes)",
+                  )}
                   <Input
                     type="number"
                     min={SLA_RESOLUTION_TARGET_MINUTES_MIN}
@@ -645,7 +728,7 @@ export function SlaPolicySettings() {
           </div>
 
           <label className="block text-sm font-medium">
-            Timezone
+            {t("sla.timezone", "Timezone")}
             <select
               value={timezone}
               onChange={(event) => setTimezone(event.target.value)}
@@ -660,10 +743,14 @@ export function SlaPolicySettings() {
           </label>
 
           <div>
-            <p className="mb-2 text-sm font-medium">Weekly hours</p>
+            <p className="mb-2 text-sm font-medium">
+              {t("sla.weeklyHours", "Weekly hours")}
+            </p>
             <p className="mb-3 text-xs text-[#87928c] dark:text-dark-text-secondary">
-              A day can have multiple intervals (e.g. a lunch break split
-              shift).
+              {t(
+                "sla.weeklyHoursHint",
+                "A day can have multiple intervals (e.g. a lunch break split shift).",
+              )}
             </p>
             <div className="space-y-2">
               {days.map((day) => (
@@ -680,7 +767,7 @@ export function SlaPolicySettings() {
                           updateDay(day.weekday, { open: event.target.checked })
                         }
                       />
-                      {WEEKDAY_LABELS[day.weekday]}
+                      {weekdayLabel(t, day.weekday)}
                     </label>
                     {day.open && (
                       <Button
@@ -690,7 +777,8 @@ export function SlaPolicySettings() {
                         onClick={() => addDayInterval(day.weekday)}
                         className="gap-1.5"
                       >
-                        <Plus className="h-3.5 w-3.5" /> Add interval
+                        <Plus className="h-3.5 w-3.5" />{" "}
+                        {t("sla.addInterval", "Add interval")}
                       </Button>
                     )}
                   </div>
@@ -733,7 +821,7 @@ export function SlaPolicySettings() {
                                 })
                               }
                             />
-                            Until midnight
+                            {t("sla.untilMidnight", "Until midnight")}
                           </label>
                           {day.intervals.length > 1 && (
                             <Button
@@ -763,7 +851,9 @@ export function SlaPolicySettings() {
 
           <div>
             <div className="mb-2 flex items-center justify-between">
-              <p className="text-sm font-medium">Date exceptions</p>
+              <p className="text-sm font-medium">
+                {t("sla.dateExceptions", "Date exceptions")}
+              </p>
               <Button
                 type="button"
                 variant="outline"
@@ -771,12 +861,15 @@ export function SlaPolicySettings() {
                 onClick={addException}
                 className="gap-1.5"
               >
-                <Plus className="h-3.5 w-3.5" /> Add date
+                <Plus className="h-3.5 w-3.5" /> {t("sla.addDate", "Add date")}
               </Button>
             </div>
             {exceptions.length === 0 ? (
               <p className="text-sm text-[#87928c] dark:text-dark-text-secondary">
-                No holidays or custom-hours dates yet.
+                {t(
+                  "sla.noExceptions",
+                  "No holidays or custom-hours dates yet.",
+                )}
               </p>
             ) : (
               <div className="space-y-2">
@@ -797,7 +890,10 @@ export function SlaPolicySettings() {
                         className="h-8 rounded-md border border-gray-300 bg-white px-2 text-sm dark:border-dark-border dark:bg-dark-tertiary"
                       />
                       <Input
-                        placeholder="Label (e.g. Christmas)"
+                        placeholder={t(
+                          "sla.exceptionLabelPlaceholder",
+                          "Label (e.g. Christmas)",
+                        )}
                         value={exception.label}
                         onChange={(event) =>
                           updateException(exception.key, {
@@ -826,7 +922,7 @@ export function SlaPolicySettings() {
                             updateException(exception.key, { closed: false })
                           }
                         />
-                        Custom hours
+                        {t("sla.customHours", "Custom hours")}
                       </label>
                       <Button
                         type="button"
@@ -835,7 +931,8 @@ export function SlaPolicySettings() {
                         onClick={() => removeException(exception.key)}
                         className="ml-auto gap-1.5 text-red-600 hover:bg-red-50 hover:text-red-700 dark:text-red-300"
                       >
-                        <Trash2 className="h-3.5 w-3.5" /> Remove
+                        <Trash2 className="h-3.5 w-3.5" />{" "}
+                        {t("sla.remove", "Remove")}
                       </Button>
                     </div>
                     {!exception.closed && (
@@ -883,7 +980,7 @@ export function SlaPolicySettings() {
                                   )
                                 }
                               />
-                              Until midnight
+                              {t("sla.untilMidnight", "Until midnight")}
                             </label>
                             {exception.intervals.length > 1 && (
                               <Button
@@ -937,7 +1034,7 @@ export function SlaPolicySettings() {
               onClick={() => setEditing(false)}
               disabled={createPolicy.isPending}
             >
-              Cancel
+              {t("common.cancel", "Cancel")}
             </Button>
             <Button
               type="button"
@@ -950,7 +1047,9 @@ export function SlaPolicySettings() {
               ) : (
                 <Save className="h-4 w-4" />
               )}
-              {createPolicy.isPending ? "Saving…" : "Save changes"}
+              {createPolicy.isPending
+                ? t("common.saving", "Saving…")
+                : t("sla.saveChanges", "Save changes")}
             </Button>
           </div>
         </div>

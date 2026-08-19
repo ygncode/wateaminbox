@@ -57,6 +57,7 @@ import {
   personalizeSample,
 } from "./broadcast-format";
 import { ContactMultiSelect } from "./ContactMultiSelect";
+import { useTranslation } from "react-i18next";
 
 const MAX_ATTACHMENT_BYTES = 50 * 1024 * 1024;
 const MAX_AUDIENCE_TAGS = 50;
@@ -64,21 +65,27 @@ const MAX_AUDIENCE_TAGS = 50;
 const MIN_LEAD_MS = 60_000;
 
 const WIZARD_STEPS: StepWizardStep[] = [
-  { id: "audience", label: "Audience" },
-  { id: "message", label: "Message" },
-  { id: "preview", label: "Preview" },
-  { id: "schedule", label: "Schedule" },
+  { id: "audience", labelKey: "broadcasts.steps.audience", label: "Audience" },
+  { id: "message", labelKey: "broadcasts.steps.message", label: "Message" },
+  { id: "preview", labelKey: "broadcasts.steps.preview", label: "Preview" },
+  { id: "schedule", labelKey: "broadcasts.steps.schedule", label: "Schedule" },
 ];
 
 type WizardStep = "audience" | "message" | "preview" | "schedule";
 
 const SCHEDULE_PRESETS = [
-  { label: "In 1 hour", value: () => dayjs().add(1, "hour") },
   {
+    labelKey: "broadcasts.presets.inOneHour",
+    label: "In 1 hour",
+    value: () => dayjs().add(1, "hour"),
+  },
+  {
+    labelKey: "broadcasts.presets.tomorrow9",
     label: "Tomorrow 9:00",
     value: () => dayjs().add(1, "day").hour(9).minute(0),
   },
   {
+    labelKey: "broadcasts.presets.nextWeek9",
     label: "Next week 9:00",
     value: () => dayjs().add(7, "day").hour(9).minute(0),
   },
@@ -118,6 +125,8 @@ const STEP_ICONS: Record<WizardStep, typeof UsersRound> = {
 };
 
 function BroadcastStepProgress({ currentStep }: { currentStep: WizardStep }) {
+  const { t } = useTranslation();
+
   const currentIndex = WIZARD_STEPS.findIndex(
     (item) => item.id === currentStep,
   );
@@ -125,7 +134,10 @@ function BroadcastStepProgress({ currentStep }: { currentStep: WizardStep }) {
   return (
     <nav
       className="border-b border-[#e3e9e5] bg-[#fbfcfb] px-4 py-2.5 dark:border-dark-border dark:bg-dark-secondary/45 sm:px-6"
-      aria-label="Broadcast creation progress"
+      aria-label={t(
+        "broadcasts.creationProgress",
+        "Broadcast creation progress",
+      )}
     >
       <ol className="mx-auto grid max-w-2xl grid-cols-4 gap-1">
         {WIZARD_STEPS.map((item, index) => {
@@ -172,7 +184,7 @@ function BroadcastStepProgress({ currentStep }: { currentStep: WizardStep }) {
                       : "text-[#8a9790] dark:text-dark-text-tertiary",
                   )}
                 >
-                  {item.label}
+                  {t(item.labelKey ?? item.label, item.label)}
                 </span>
               </div>
             </li>
@@ -192,6 +204,8 @@ export function CreateBroadcastWizard({
   onOpenChange,
   onCreated,
 }: CreateBroadcastWizardProps) {
+  const { t } = useTranslation();
+
   const [step, setStep] = useState<WizardStep>("audience");
 
   // Audience
@@ -291,7 +305,9 @@ export function CreateBroadcastWizard({
     } catch (error) {
       setPreview(null);
       setPreviewError(
-        error instanceof Error ? error.message : "Failed to preview audience",
+        error instanceof Error
+          ? error.message
+          : t("broadcasts.previewFailed", "Failed to preview audience"),
       );
     }
   }, [previewAsync, audience, content]);
@@ -339,7 +355,12 @@ export function CreateBroadcastWizard({
     event.target.value = "";
     if (!file) return;
     if (file.size > MAX_ATTACHMENT_BYTES) {
-      toast.error("Attachment must be 50MB or smaller");
+      toast.error(
+        t(
+          "broadcasts.attachmentTooLarge",
+          "Attachment must be 50MB or smaller",
+        ),
+      );
       return;
     }
     if (attachment?.previewUrl) URL.revokeObjectURL(attachment.previewUrl);
@@ -356,7 +377,9 @@ export function CreateBroadcastWizard({
     setAttachment(null);
   };
 
-  const sampleName = selectedContacts.values().next().value ?? "Alex Smith";
+  const sampleName =
+    selectedContacts.values().next().value ??
+    t("broadcasts.sampleName", "Alex Smith");
 
   const overMaxRecipients = Boolean(
     preview && preview.recipientCount > preview.limits.maxRecipientsPerJob,
@@ -456,14 +479,22 @@ export function CreateBroadcastWizard({
         error.statusCode === 409 &&
         error.code === "audience_changed"
       ) {
-        toast.error("The audience changed — review the new counts.");
+        toast.error(
+          t(
+            "broadcasts.audienceChanged",
+            "The audience changed — review the new counts.",
+          ),
+        );
         setStep("preview");
         void runPreview();
       } else {
         toast.error(
           error instanceof Error
             ? `Failed to schedule broadcast: ${error.message}`
-            : "Failed to schedule broadcast. Please try again.",
+            : t(
+                "broadcasts.scheduleFailed",
+                "Failed to schedule broadcast. Please try again.",
+              ),
         );
       }
     } finally {
@@ -488,15 +519,23 @@ export function CreateBroadcastWizard({
             </span>
             <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <DialogTitle className="text-base">New broadcast</DialogTitle>
+                <DialogTitle className="text-base">
+                  {t("broadcasts.newBroadcast", "New broadcast")}
+                </DialogTitle>
                 <span className="rounded-full bg-[#edf2ef] px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-[#65736d] dark:bg-dark-tertiary dark:text-dark-text-secondary">
-                  Step {WIZARD_STEPS.findIndex((item) => item.id === step) + 1}{" "}
-                  of {WIZARD_STEPS.length}
+                  {t("broadcasts.stepOf", {
+                    defaultValue: "Step {{current}} of {{total}}",
+                    current:
+                      WIZARD_STEPS.findIndex((item) => item.id === step) + 1,
+                    total: WIZARD_STEPS.length,
+                  })}
                 </span>
               </div>
               <DialogDescription className="mt-0.5 truncate text-xs">
-                Build the audience, message, and delivery plan before
-                scheduling.
+                {t(
+                  "broadcasts.wizardSubtitle",
+                  "Build the audience, message, and delivery plan before scheduling.",
+                )}
               </DialogDescription>
             </div>
           </div>
@@ -516,19 +555,27 @@ export function CreateBroadcastWizard({
                 <div className="space-y-5">
                   <div className="border-b border-[#e3e9e5] pb-4 dark:border-dark-border">
                     <h3 className="text-sm font-semibold text-[#20362e] dark:text-dark-text-primary">
-                      Choose who should receive this
+                      {t(
+                        "broadcasts.audienceTitle",
+                        "Choose who should receive this",
+                      )}
                     </h3>
                     <p className="mt-1 text-xs leading-5 text-[#718078] dark:text-dark-text-secondary">
-                      Combine tags and individual contacts. Duplicates are
-                      removed before scheduling.
+                      {t(
+                        "broadcasts.audienceHint",
+                        "Combine tags and individual contacts. Duplicates are removed before scheduling.",
+                      )}
                     </p>
                   </div>
                   <div>
                     <p className="text-sm font-medium text-[#111b21] dark:text-dark-text-primary">
-                      Tags
+                      {t("tags.title", "Tags")}
                     </p>
                     <p className="mt-0.5 text-xs text-[#667781] dark:text-dark-text-tertiary">
-                      Every contact carrying a selected tag is included.
+                      {t(
+                        "broadcasts.tagsHint",
+                        "Every contact carrying a selected tag is included.",
+                      )}
                     </p>
                     <TagSearchInput
                       value={tagSearch}
@@ -538,13 +585,16 @@ export function CreateBroadcastWizard({
                     <div className="mt-2 flex max-h-36 flex-wrap gap-1.5 overflow-y-auto">
                       {tagsLoading ? (
                         <span className="text-sm text-[#667781] dark:text-dark-text-secondary">
-                          Loading tags…
+                          {t("broadcasts.loadingTags", "Loading tags…")}
                         </span>
                       ) : !tags || tags.length === 0 ? (
                         <span className="text-sm text-[#667781] dark:text-dark-text-secondary">
                           {debouncedTagSearch
                             ? `No tags match “${debouncedTagSearch}”`
-                            : "No tags yet — pick contacts below instead."}
+                            : t(
+                                "broadcasts.noTagsHint",
+                                "No tags yet — pick contacts below instead.",
+                              )}
                         </span>
                       ) : (
                         tags.map((tag) => {
@@ -584,10 +634,13 @@ export function CreateBroadcastWizard({
 
                   <div>
                     <p className="text-sm font-medium text-[#111b21] dark:text-dark-text-primary">
-                      Contacts
+                      {t("chat.contacts", "Contacts")}
                     </p>
                     <p className="mt-0.5 mb-2 text-xs text-[#667781] dark:text-dark-text-tertiary">
-                      Add individual contacts on top of any tags.
+                      {t(
+                        "broadcasts.contactsHint",
+                        "Add individual contacts on top of any tags.",
+                      )}
                     </p>
                     <ContactMultiSelect
                       selected={selectedContacts}
@@ -601,7 +654,7 @@ export function CreateBroadcastWizard({
                         htmlFor="broadcast-connection"
                         className="text-sm font-medium text-[#111b21] dark:text-dark-text-primary"
                       >
-                        WhatsApp account
+                        {t("connections.whatsappAccount", "WhatsApp account")}
                       </Label>
                       <Select
                         value={connectionId}
@@ -614,7 +667,9 @@ export function CreateBroadcastWizard({
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="all">All accounts</SelectItem>
+                          <SelectItem value="all">
+                            {t("broadcasts.allAccounts", "All accounts")}
+                          </SelectItem>
                           {activeConnections.map((connection) => (
                             <SelectItem
                               key={connection.id}
@@ -639,13 +694,18 @@ export function CreateBroadcastWizard({
                         className="h-4 w-4 text-[#0b7a55] dark:text-emerald-300"
                         aria-hidden="true"
                       />
-                      Audience definition
+                      {t(
+                        "broadcasts.audienceDefinition",
+                        "Audience definition",
+                      )}
                     </span>
                     <span className="text-xs font-bold tabular-nums text-[#087654] dark:text-emerald-300">
-                      {selectedTagIds.length} tag
-                      {selectedTagIds.length === 1 ? "" : "s"} ·{" "}
-                      {selectedContacts.size} contact
-                      {selectedContacts.size === 1 ? "" : "s"}
+                      {t("broadcasts.audienceCounts", {
+                        defaultValue:
+                          "{{tags}} tag(s) · {{contacts}} contact(s)",
+                        tags: selectedTagIds.length,
+                        contacts: selectedContacts.size,
+                      })}
                     </span>
                   </div>
                 </div>
@@ -656,11 +716,13 @@ export function CreateBroadcastWizard({
                 <div className="space-y-5">
                   <div className="border-b border-[#e3e9e5] pb-4 dark:border-dark-border">
                     <h3 className="text-sm font-semibold text-[#20362e] dark:text-dark-text-primary">
-                      Compose the campaign
+                      {t("broadcasts.composeTitle", "Compose the campaign")}
                     </h3>
                     <p className="mt-1 text-xs leading-5 text-[#718078] dark:text-dark-text-secondary">
-                      Give it an internal name, then write the message
-                      recipients will see.
+                      {t(
+                        "broadcasts.composeHint",
+                        "Give it an internal name, then write the message recipients will see.",
+                      )}
                     </p>
                   </div>
                   <div>
@@ -668,13 +730,16 @@ export function CreateBroadcastWizard({
                       htmlFor="broadcast-name"
                       className="text-sm font-medium text-[#111b21] dark:text-dark-text-primary"
                     >
-                      Broadcast name
+                      {t("broadcasts.name", "Broadcast name")}
                     </Label>
                     <Input
                       id="broadcast-name"
                       value={name}
                       onChange={(event) => setName(event.target.value)}
-                      placeholder="e.g. April promotion"
+                      placeholder={t(
+                        "broadcasts.namePlaceholder",
+                        "e.g. April promotion",
+                      )}
                       className="mt-1.5"
                       maxLength={120}
                     />
@@ -697,7 +762,13 @@ export function CreateBroadcastWizard({
                       ref={contentRef}
                       value={content}
                       onChange={(event) => setContent(event.target.value)}
-                      placeholder="Hi {{firstName}}, …"
+                      placeholder={t(
+                        "broadcasts.messagePlaceholder",
+                        "Hi {{firstName}}, …",
+                        {
+                          interpolation: { skipOnVariables: true },
+                        },
+                      )}
                       rows={6}
                       className="mt-1.5"
                     />
@@ -744,9 +815,9 @@ export function CreateBroadcastWizard({
 
                   <div>
                     <p className="text-sm font-medium text-[#111b21] dark:text-dark-text-primary">
-                      Attachment{" "}
+                      {t("broadcasts.attachment", "Attachment")}{" "}
                       <span className="font-normal text-[#667781] dark:text-dark-text-tertiary">
-                        (optional, max 50MB)
+                        {t("broadcasts.attachmentHint", "(optional, max 50MB)")}
                       </span>
                     </p>
                     <input
@@ -763,7 +834,10 @@ export function CreateBroadcastWizard({
                         {attachment.previewUrl ? (
                           <img
                             src={attachment.previewUrl}
-                            alt="Attachment preview"
+                            alt={t(
+                              "broadcasts.attachmentPreview",
+                              "Attachment preview",
+                            )}
                             className="size-16 shrink-0 rounded-lg object-cover"
                           />
                         ) : (
@@ -789,7 +863,10 @@ export function CreateBroadcastWizard({
                           type="button"
                           variant="ghost"
                           size="icon"
-                          aria-label="Remove attachment"
+                          aria-label={t(
+                            "broadcasts.removeAttachment",
+                            "Remove attachment",
+                          )}
                           onClick={removeAttachment}
                         >
                           <X aria-hidden="true" />
@@ -804,7 +881,10 @@ export function CreateBroadcastWizard({
                         onClick={() => fileInputRef.current?.click()}
                       >
                         <Paperclip aria-hidden="true" />
-                        Attach image, video, or file
+                        {t(
+                          "broadcasts.attachAction",
+                          "Attach image, video, or file",
+                        )}
                       </Button>
                     )}
                   </div>
@@ -820,7 +900,10 @@ export function CreateBroadcastWizard({
                       aria-hidden="true"
                     />
                     <p className="mt-3 text-sm text-[#667781] dark:text-dark-text-secondary">
-                      Calculating audience…
+                      {t(
+                        "broadcasts.calculatingAudience",
+                        "Calculating audience…",
+                      )}
                     </p>
                   </div>
                 ) : previewError ? (
@@ -865,14 +948,16 @@ export function CreateBroadcastWizard({
                         onClick={() => void runPreview()}
                       >
                         <RefreshCw aria-hidden="true" />
-                        Refresh
+                        {t("common.refresh", "Refresh")}
                       </Button>
                     </div>
 
                     {preview.recipientCount === 0 && (
                       <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-300">
-                        No eligible recipients. Adjust the audience and try
-                        again.
+                        {t(
+                          "broadcasts.noEligibleRecipients",
+                          "No eligible recipients. Adjust the audience and try again.",
+                        )}
                       </div>
                     )}
 
@@ -898,7 +983,7 @@ export function CreateBroadcastWizard({
                     {preview.perConnection.length > 0 && (
                       <div className="rounded-xl border border-black/[0.06] dark:border-white/[0.07]">
                         <p className="border-b border-black/[0.06] px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-[#667781] dark:border-white/[0.07] dark:text-dark-text-tertiary">
-                          By account
+                          {t("broadcasts.byAccount", "By account")}
                         </p>
                         <ul className="divide-y divide-black/[0.04] dark:divide-white/[0.05]">
                           {preview.perConnection.map((connection) => (
@@ -907,7 +992,11 @@ export function CreateBroadcastWizard({
                               className="flex items-center justify-between px-4 py-2.5 text-sm"
                             >
                               <span className="text-[#111b21] dark:text-dark-text-primary">
-                                {connection.connectionName || "Unknown account"}
+                                {connection.connectionName ||
+                                  t(
+                                    "broadcasts.unknownAccount",
+                                    "Unknown account",
+                                  )}
                               </span>
                               <span className="tabular-nums text-[#667781] dark:text-dark-text-secondary">
                                 {connection.recipientCount}
@@ -946,7 +1035,7 @@ export function CreateBroadcastWizard({
                     {content.trim() && (
                       <div>
                         <p className="text-xs font-semibold uppercase tracking-wide text-[#667781] dark:text-dark-text-tertiary">
-                          Sample message
+                          {t("broadcasts.sampleMessage", "Sample message")}
                         </p>
                         <div className="mt-2 max-w-md rounded-xl rounded-tl-sm bg-[#d9fdd3] p-3 text-sm text-[#111b21] shadow-sm dark:bg-emerald-900/40 dark:text-dark-text-primary">
                           <p className="whitespace-pre-wrap">
@@ -964,12 +1053,15 @@ export function CreateBroadcastWizard({
                 <div className="space-y-5">
                   <div>
                     <p className="text-sm font-medium text-[#111b21] dark:text-dark-text-primary">
-                      When should sending start?
+                      {t(
+                        "broadcasts.whenToStart",
+                        "When should sending start?",
+                      )}
                     </p>
                     <div className="mt-2 flex flex-wrap gap-1.5">
                       {SCHEDULE_PRESETS.map((preset) => (
                         <button
-                          key={preset.label}
+                          key={preset.labelKey}
                           type="button"
                           onClick={() => {
                             setScheduleValue(
@@ -979,14 +1071,17 @@ export function CreateBroadcastWizard({
                           }}
                           className="rounded-full border border-black/[0.08] px-2.5 py-1 text-xs font-medium text-[#54656f] transition-colors hover:bg-[#f0f2f5] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00a884]/35 dark:border-white/[0.1] dark:text-dark-text-secondary dark:hover:bg-white/[0.06]"
                         >
-                          {preset.label}
+                          {t(preset.labelKey, preset.label)}
                         </button>
                       ))}
                     </div>
                     <label className="mt-3 block max-w-xs">
                       <span className="text-xs font-medium text-[#667781] dark:text-dark-text-tertiary">
-                        Send at (
-                        {Intl.DateTimeFormat().resolvedOptions().timeZone})
+                        {t("broadcasts.sendAt", {
+                          defaultValue: "Send at ({{timezone}})",
+                          timezone:
+                            Intl.DateTimeFormat().resolvedOptions().timeZone,
+                        })}
                       </span>
                       <input
                         type="datetime-local"
@@ -997,7 +1092,10 @@ export function CreateBroadcastWizard({
                           setScheduleError(null);
                         }}
                         className="mt-1 block w-full rounded-lg border border-black/[0.1] bg-white px-2.5 py-1.5 text-sm text-[#111b21] outline-none focus:border-[#00a884] focus:ring-1 focus:ring-[#00a884]/40 dark:border-white/[0.1] dark:bg-dark-tertiary dark:text-dark-text-primary"
-                        aria-label="Broadcast start time"
+                        aria-label={t(
+                          "broadcasts.startTime",
+                          "Broadcast start time",
+                        )}
                       />
                     </label>
                     {scheduleError && (
@@ -1035,13 +1133,16 @@ export function CreateBroadcastWizard({
                       />
                       <div>
                         <p className="text-sm font-semibold text-amber-900 dark:text-amber-300">
-                          Bulk messaging can get your number banned
+                          {t(
+                            "broadcasts.riskTitle",
+                            "Bulk messaging can get your number banned",
+                          )}
                         </p>
                         <p className="mt-1 text-sm text-amber-800 dark:text-amber-300/90">
-                          WhatsApp actively enforces against bulk and automated
-                          messaging. Sends are paced and capped daily to reduce
-                          the risk, but it is never zero. Only message people
-                          who expect to hear from you.
+                          {t(
+                            "broadcasts.riskBody",
+                            "WhatsApp actively enforces against bulk and automated messaging. Sends are paced and capped daily to reduce the risk, but it is never zero. Only message people who expect to hear from you.",
+                          )}
                         </p>
                       </div>
                     </div>
@@ -1056,7 +1157,7 @@ export function CreateBroadcastWizard({
                           setRiskAccepted(checked === true)
                         }
                       />
-                      I understand the risks
+                      {t("broadcasts.riskAccept", "I understand the risks")}
                     </label>
                   </div>
                 </div>

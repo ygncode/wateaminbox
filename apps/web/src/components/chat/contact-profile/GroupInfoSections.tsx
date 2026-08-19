@@ -29,6 +29,8 @@ import {
   useSyncGroup,
 } from "@/hooks/useGroups";
 import { formatPhoneLikeText, formatPhoneNumber } from "@/lib/utils";
+import type { TFunction } from "i18next";
+import { useTranslation } from "react-i18next";
 
 interface GroupInfoSectionsProps {
   group: GroupDetail | undefined;
@@ -49,6 +51,8 @@ export function GroupInfoSections({
   isLoading,
   error,
 }: GroupInfoSectionsProps) {
+  const { t } = useTranslation();
+
   const [showAll, setShowAll] = useState(false);
   const [showAddMembers, setShowAddMembers] = useState(false);
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(
@@ -70,8 +74,14 @@ export function GroupInfoSections({
 
   if (isLoading) {
     return (
-      <RightPanelSection title="Participants">
-        <div className="space-y-3" aria-label="Loading group participants">
+      <RightPanelSection title={t("groups.participants", "Participants")}>
+        <div
+          className="space-y-3"
+          aria-label={t(
+            "groups.loadingParticipants",
+            "Loading group participants",
+          )}
+        >
           {Array.from({ length: 4 }).map((_, index) => (
             <div key={index} className="flex items-center gap-3">
               <Skeleton className="h-10 w-10 rounded-full" />
@@ -88,9 +98,9 @@ export function GroupInfoSections({
 
   if (error) {
     return (
-      <RightPanelSection title="Participants">
+      <RightPanelSection title={t("groups.participants", "Participants")}>
         <p className="text-sm text-red-600 dark:text-red-400">
-          Failed to load group participants.
+          {t("groups.participantsError", "Failed to load group participants.")}
         </p>
       </RightPanelSection>
     );
@@ -116,7 +126,7 @@ export function GroupInfoSections({
   return (
     <>
       {group?.description && (
-        <RightPanelSection title="Description">
+        <RightPanelSection title={t("groups.description", "Description")}>
           <p className="whitespace-pre-wrap text-sm leading-6 text-gray-700 dark:text-dark-text-primary">
             {group.description}
           </p>
@@ -136,7 +146,7 @@ export function GroupInfoSections({
                 onClick={() => setShowAddMembers(true)}
               >
                 <UserPlus className="h-4 w-4" />
-                Add members
+                {t("groups.addMembers", "Add members")}
               </Button>
             )}
             {/* Repairs a member list that drifted while the worker was offline,
@@ -178,8 +188,11 @@ export function GroupInfoSections({
                 className="mt-2 w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-whatsapp-teal-green transition-colors hover:bg-gray-50 dark:hover:bg-dark-tertiary"
               >
                 {showAll
-                  ? "Show fewer participants"
-                  : `Show all ${group?.participants.length} participants`}
+                  ? t("groups.showFewerParticipants", "Show fewer participants")
+                  : t("groups.showAllParticipants", {
+                      defaultValue: "Show all {{count}} participants",
+                      count: group?.participants.length ?? 0,
+                    })}
               </button>
             )}
           </div>
@@ -187,8 +200,10 @@ export function GroupInfoSections({
           <div className="flex gap-3 rounded-lg bg-gray-50 p-3 dark:bg-dark-elevated">
             <Users className="mt-0.5 h-5 w-5 shrink-0 text-gray-400" />
             <p className="text-sm leading-5 text-gray-600 dark:text-dark-text-secondary">
-              Participant details are syncing from WhatsApp. They refresh when
-              the connected account comes online.
+              {t(
+                "groups.participantsSyncing",
+                "Participant details are syncing from WhatsApp. They refresh when the connected account comes online.",
+              )}
             </p>
           </div>
         )}
@@ -212,9 +227,9 @@ export function GroupInfoSections({
             onOpenChange={(open) => {
               if (!open) setPendingAction(null);
             }}
-            title={pendingActionTitle(pendingAction)}
-            description={pendingActionDescription(pendingAction)}
-            confirmText={pendingActionConfirm(pendingAction)}
+            title={pendingActionTitle(t, pendingAction)}
+            description={pendingActionDescription(t, pendingAction)}
+            confirmText={pendingActionConfirm(t, pendingAction)}
             isDestructive={pendingAction?.kind === "remove"}
             isLoading={actionPending}
             onConfirm={runPendingAction}
@@ -225,30 +240,62 @@ export function GroupInfoSections({
   );
 }
 
-function pendingActionTitle(action: PendingAction | null): string {
+function pendingActionTitle(
+  t: TFunction,
+  action: PendingAction | null,
+): string {
   if (!action) return "";
   const name = formatPhoneLikeText(action.participant.displayName);
-  if (action.kind === "promote") return `Make ${name} an admin?`;
-  if (action.kind === "demote") return `Remove ${name}'s admin rights?`;
-  return `Remove ${name} from the group?`;
+  if (action.kind === "promote")
+    return t("groups.promoteTitle", {
+      defaultValue: "Make {{name}} an admin?",
+      name,
+    });
+  if (action.kind === "demote")
+    return t("groups.demoteTitle", {
+      defaultValue: "Remove {{name}}'s admin rights?",
+      name,
+    });
+  return t("groups.removeTitle", {
+    defaultValue: "Remove {{name}} from the group?",
+    name,
+  });
 }
 
-function pendingActionDescription(action: PendingAction | null): string {
+function pendingActionDescription(
+  t: TFunction,
+  action: PendingAction | null,
+): string {
   if (!action) return "";
   const name = formatPhoneLikeText(action.participant.displayName);
   if (action.kind === "promote") {
-    return `${name} will be able to add and remove members, change group settings and manage the invite link. WhatsApp applies the change; it appears here once confirmed.`;
+    return t("groups.promoteDescription", {
+      defaultValue:
+        "{{name}} will be able to add and remove members, change group settings and manage the invite link. WhatsApp applies the change; it appears here once confirmed.",
+      name,
+    });
   }
   if (action.kind === "demote") {
-    return `${name} stays in the group as a regular member and loses admin rights. WhatsApp applies the change; it appears here once confirmed.`;
+    return t("groups.demoteDescription", {
+      defaultValue:
+        "{{name}} stays in the group as a regular member and loses admin rights. WhatsApp applies the change; it appears here once confirmed.",
+      name,
+    });
   }
-  return `${name} is removed from the group and stops receiving its messages. They can rejoin only with a new invite. WhatsApp applies the change; it appears here once confirmed.`;
+  return t("groups.removeDescription", {
+    defaultValue:
+      "{{name}} is removed from the group and stops receiving its messages. They can rejoin only with a new invite. WhatsApp applies the change; it appears here once confirmed.",
+    name,
+  });
 }
 
-function pendingActionConfirm(action: PendingAction | null): string {
-  if (action?.kind === "promote") return "Make admin";
-  if (action?.kind === "demote") return "Remove admin";
-  return "Remove member";
+function pendingActionConfirm(
+  t: TFunction,
+  action: PendingAction | null,
+): string {
+  if (action?.kind === "promote") return t("groups.makeAdmin", "Make admin");
+  if (action?.kind === "demote") return t("groups.removeAdmin", "Remove admin");
+  return t("groups.removeMember", "Remove member");
 }
 
 interface ParticipantRowProps {

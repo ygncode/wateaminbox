@@ -23,6 +23,7 @@ import { useWhatsAppConnections } from "@/hooks/useWhatsAppConnections";
 import { cn } from "@/lib/utils";
 import { getConnectionLabel } from "../chat/ConnectionIdentity";
 import { CreateGroupDialog } from "./CreateGroupDialog";
+import { useTranslation } from "react-i18next";
 
 export interface GroupListProps {
   selectedGroupId?: string | null;
@@ -39,6 +40,8 @@ export function GroupList({
   onGroupSelect,
   className = "",
 }: GroupListProps) {
+  const { t } = useTranslation();
+
   const [searchQuery, setSearchQuery] = useState("");
   const [connectionFilter, setConnectionFilter] = useState("all");
   const [showCreateGroup, setShowCreateGroup] = useState(false);
@@ -95,7 +98,7 @@ export function GroupList({
         className,
       )}
       role="navigation"
-      aria-label="Group list"
+      aria-label={t("groups.groupList", "Group list")}
     >
       {/* Search */}
       <div className="flex items-center gap-2 px-3 py-2 bg-white dark:bg-dark-secondary border-b border-gray-200 dark:border-dark-border">
@@ -108,16 +111,16 @@ export function GroupList({
             value={searchQuery}
             onChange={handleSearchChange}
             onKeyDown={handleKeyDown}
-            placeholder="Search groups"
+            placeholder={t("groups.searchGroups", "Search groups")}
             className="w-full py-2 pl-9 pr-8 text-sm bg-gray-100 dark:bg-dark-tertiary border border-gray-200 dark:border-dark-border rounded-lg placeholder-gray-500 dark:placeholder-dark-text-tertiary text-gray-900 dark:text-dark-text-primary focus:outline-none focus:border-whatsapp-green focus:ring-1 focus:ring-whatsapp-green focus:bg-white dark:focus:bg-dark-elevated transition-all"
-            aria-label="Search groups"
+            aria-label={t("groups.searchGroups", "Search groups")}
           />
           {searchQuery && (
             <button
               type="button"
               onClick={handleSearchClear}
               className="absolute right-2 p-1 text-gray-400 dark:text-dark-text-tertiary hover:text-gray-600 dark:hover:text-dark-text-secondary focus:outline-none transition-colors"
-              aria-label="Clear search"
+              aria-label={t("common.clearSearch", "Clear search")}
             >
               <X className="w-4 h-4" />
             </button>
@@ -129,8 +132,8 @@ export function GroupList({
         <button
           type="button"
           onClick={() => setShowCreateGroup(true)}
-          aria-label="Create a new WhatsApp group"
-          title="New group"
+          aria-label={t("groups.createNewGroup", "Create a new WhatsApp group")}
+          title={t("groups.newGroup", "New group")}
           className="grid size-8 shrink-0 place-items-center rounded-lg text-gray-500 transition-colors hover:bg-gray-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-whatsapp-green/40 dark:text-dark-text-tertiary dark:hover:bg-dark-tertiary"
         >
           <Plus className="h-4 w-4" />
@@ -155,12 +158,22 @@ export function GroupList({
           <Select value={connectionFilter} onValueChange={setConnectionFilter}>
             <SelectTrigger
               className="ml-auto h-8 min-w-0 max-w-[190px] border-0 bg-gray-100 px-2.5 text-xs shadow-none focus:ring-1 focus:ring-whatsapp-green dark:bg-dark-tertiary"
-              aria-label="Filter groups by WhatsApp account"
+              aria-label={t(
+                "groups.filterByAccount",
+                "Filter groups by WhatsApp account",
+              )}
             >
-              <SelectValue placeholder="All WhatsApp numbers" />
+              <SelectValue
+                placeholder={t(
+                  "chat.allWhatsappNumbers",
+                  "All WhatsApp numbers",
+                )}
+              />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All WhatsApp numbers</SelectItem>
+              <SelectItem value="all">
+                {t("chat.allWhatsappNumbers", "All WhatsApp numbers")}
+              </SelectItem>
               {connections.map((connection) => (
                 <SelectItem key={connection.id} value={connection.id}>
                   {getConnectionLabel(connection)}
@@ -176,7 +189,7 @@ export function GroupList({
       <div
         className="flex-1 overflow-y-auto"
         role="listbox"
-        aria-label="Groups"
+        aria-label={t("chat.groups", "Groups")}
       >
         {renderState({
           loading: () => (
@@ -190,7 +203,7 @@ export function GroupList({
             <div className="flex flex-col items-center justify-center h-full px-4 py-8 text-center">
               <MessageSquare className="w-12 h-12 text-red-400 dark:text-red-500 mb-4" />
               <p className="text-gray-600 dark:text-dark-text-primary font-medium">
-                Failed to load groups
+                {t("groups.loadFailed", "Failed to load groups")}
               </p>
               <p className="text-sm text-gray-500 dark:text-dark-text-secondary mt-1">
                 {error?.message || "Please try again later"}
@@ -202,7 +215,7 @@ export function GroupList({
               <div className="flex flex-col items-center justify-center h-full px-4 py-8 text-center">
                 <Search className="w-12 h-12 text-gray-400 dark:text-dark-text-tertiary mb-4" />
                 <p className="text-gray-600 dark:text-dark-text-primary font-medium">
-                  No groups found
+                  {t("groups.noGroupsFound", "No groups found")}
                 </p>
                 <p className="text-sm text-gray-500 dark:text-dark-text-secondary mt-1">
                   No results for "{searchQuery}"
@@ -212,10 +225,13 @@ export function GroupList({
               <div className="flex flex-col items-center justify-center h-full px-4 py-8 text-center">
                 <Users className="w-12 h-12 text-gray-400 dark:text-dark-text-tertiary mb-4" />
                 <p className="text-gray-600 dark:text-dark-text-primary font-medium">
-                  No groups yet
+                  {t("groups.noGroupsYet", "No groups yet")}
                 </p>
                 <p className="text-sm text-gray-500 dark:text-dark-text-secondary mt-1">
-                  Groups you join will appear here
+                  {t(
+                    "groups.groupsAppearHere",
+                    "Groups you join will appear here",
+                  )}
                 </p>
               </div>
             ),
@@ -251,6 +267,8 @@ function GroupListItemComponent({
   isSelected,
   onClick,
 }: GroupListItemComponentProps) {
+  const { t } = useTranslation();
+
   const initials = group.displayName
     .split(" ")
     .map((n) => n[0])
@@ -259,7 +277,7 @@ function GroupListItemComponent({
     .slice(0, 2);
 
   const formattedTime = group.lastMessageAt
-    ? formatChatListTime(group.lastMessageAt)
+    ? formatChatListTime(group.lastMessageAt, t)
     : "";
 
   return (
@@ -323,9 +341,12 @@ function GroupListItemComponent({
               {/* A group this account left keeps its history but can no longer
                   be administered, so the state is worth showing up front. */}
               {!group.isMember
-                ? "You left this group"
+                ? t("groups.youLeft", "You left this group")
                 : group.participantCount === null
-                  ? "Participant count unavailable"
+                  ? t(
+                      "groups.participantCountUnavailable",
+                      "Participant count unavailable",
+                    )
                   : `${group.participantCount} participants`}
             </span>
           </div>

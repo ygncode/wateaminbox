@@ -18,8 +18,11 @@ import {
   type ForgotPasswordFormData,
   forgotPasswordSchema,
 } from "../lib/schemas/auth";
+import { Trans, useTranslation } from "react-i18next";
 
 export function ForgotPasswordPage() {
+  const { t } = useTranslation();
+
   const [searchParams] = useSearchParams();
   const redirectTo = getSafeAuthRedirect(searchParams.get("redirect"));
   const suggestedEmail = searchParams.get("email") ?? "";
@@ -73,33 +76,42 @@ export function ForgotPasswordPage() {
             </span>
           </div>
           <p className="mb-3 text-xs font-bold uppercase tracking-[0.16em] text-[#0a7c43] dark:text-[#52df83]">
-            Request received
+            {t("auth.requestReceived", "Request received")}
           </p>
           <h1 className="text-3xl font-semibold tracking-[-0.035em] text-slate-950 text-balance sm:text-4xl dark:text-dark-text-primary">
-            Check your inbox
+            {t("auth.checkInbox", "Check your inbox")}
           </h1>
           <p className="mt-4 max-w-md text-sm leading-6 text-slate-600 dark:text-dark-text-secondary">
-            If an account exists for{" "}
-            <strong className="break-all font-semibold text-slate-900 dark:text-dark-text-primary">
-              {submittedEmail}
-            </strong>
-            , we&apos;ve sent a secure password reset link.
+            <Trans
+              i18nKey="auth.resetLinkSent"
+              values={{ email: submittedEmail }}
+              defaults="If an account exists for <strong>{{email}}</strong>, we've sent a secure password reset link."
+              components={{
+                strong: (
+                  <strong className="break-all font-semibold text-slate-900 dark:text-dark-text-primary" />
+                ),
+              }}
+            />
           </p>
 
           <div className="mt-7 w-full rounded-2xl border border-slate-200 bg-slate-50 p-4 text-left dark:border-dark-border dark:bg-dark-tertiary/60">
             <p className="text-sm font-semibold text-slate-800 dark:text-dark-text-primary">
-              Nothing yet?
+              {t("auth.nothingYet", "Nothing yet?")}
             </p>
             <p className="mt-1 text-sm leading-5 text-slate-500 dark:text-dark-text-secondary">
-              Allow a few minutes, then check your spam folder or{" "}
-              <button
-                type="button"
-                onClick={() => setIsSubmitted(false)}
-                className="rounded-sm font-semibold text-[#0a7c43] underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#075e54] dark:text-[#52df83]"
-              >
-                try another email
-              </button>
-              .
+              <Trans
+                i18nKey="auth.nothingYetHint"
+                defaults="Allow a few minutes, then check your spam folder or <retry>try another email</retry>."
+                components={{
+                  retry: (
+                    <button
+                      type="button"
+                      onClick={() => setIsSubmitted(false)}
+                      className="rounded-sm font-semibold text-[#0a7c43] underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#075e54] dark:text-[#52df83]"
+                    />
+                  ),
+                }}
+              />
             </p>
           </div>
 
@@ -109,7 +121,7 @@ export function ForgotPasswordPage() {
             className="mt-7 h-12 w-full rounded-xl bg-[#075e54] text-white shadow-lg shadow-[#075e54]/15 hover:bg-[#064b43]"
           >
             <Link to={buildAuthUrl("/login", redirectTo, submittedEmail)}>
-              Return to sign in
+              {t("auth.returnToSignIn", "Return to sign in")}
               <ArrowRight aria-hidden="true" />
             </Link>
           </Button>
@@ -126,18 +138,20 @@ export function ForgotPasswordPage() {
           className="mb-8 inline-flex items-center gap-2 rounded-sm text-sm font-semibold text-slate-500 transition-colors hover:text-[#075e54] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#075e54] focus-visible:ring-offset-2 dark:text-dark-text-secondary dark:hover:text-[#52df83] dark:focus-visible:ring-offset-dark-elevated"
         >
           <ArrowLeft aria-hidden="true" className="h-4 w-4" />
-          Back to sign in
+          {t("auth.backToSignIn", "Back to sign in")}
         </Link>
 
         <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#0a7c43] dark:text-[#52df83]">
-          Account recovery
+          {t("auth.accountRecovery", "Account recovery")}
         </p>
         <h1 className="mt-3 text-3xl font-semibold tracking-[-0.04em] text-slate-950 text-balance sm:text-4xl dark:text-dark-text-primary">
-          Forgot your password?
+          {t("auth.forgotPasswordTitle", "Forgot your password?")}
         </h1>
         <p className="mt-3 max-w-lg text-sm leading-6 text-slate-600 dark:text-dark-text-secondary">
-          Enter the email you use for WATeamInbox. We&apos;ll send instructions
-          to help you choose a new password.
+          {t(
+            "auth.forgotPasswordSubtitle",
+            "Enter the email you use for WATeamInbox. We'll send instructions to help you choose a new password.",
+          )}
         </p>
 
         <form
@@ -147,7 +161,7 @@ export function ForgotPasswordPage() {
           noValidate
         >
           <FormField
-            label="Work email"
+            label={t("auth.workEmail", "Work email")}
             id="email"
             type="email"
             placeholder="you@company.com"
@@ -166,11 +180,11 @@ export function ForgotPasswordPage() {
             {forgotPasswordMutation.isPending ? (
               <>
                 <LoaderCircle aria-hidden="true" className="animate-spin" />
-                Sending secure link…
+                {t("auth.sendingSecureLink", "Sending secure link…")}
               </>
             ) : (
               <>
-                Send reset link
+                {t("auth.sendResetLink", "Send reset link")}
                 <ArrowRight aria-hidden="true" />
               </>
             )}
@@ -183,8 +197,10 @@ export function ForgotPasswordPage() {
             className="mt-0.5 h-5 w-5 shrink-0 text-[#0a7c43] dark:text-[#52df83]"
           />
           <p className="text-xs leading-5 text-slate-500 dark:text-dark-text-secondary">
-            For your privacy, we&apos;ll show the same confirmation whether or
-            not an account is registered with that email.
+            {t(
+              "auth.forgotPasswordPrivacyNote",
+              "For your privacy, we'll show the same confirmation whether or not an account is registered with that email.",
+            )}
           </p>
         </div>
       </div>

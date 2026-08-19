@@ -24,8 +24,11 @@ import { isEmailVerificationRequiredError } from "../lib/email-verification";
 import { productAnalytics } from "../lib/product-analytics";
 import { type LoginFormData, loginSchema } from "../lib/schemas";
 import { workspacePath } from "../lib/workspace-routes";
+import { useTranslation } from "react-i18next";
 
 export function LoginPage() {
+  const { t } = useTranslation();
+
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams] = useSearchParams();
@@ -112,7 +115,10 @@ export function LoginPage() {
       setResendError(
         resendFailure instanceof Error
           ? resendFailure.message
-          : "Could not resend the verification email",
+          : t(
+              "auth.resendVerificationFailed",
+              "Could not resend the verification email",
+            ),
       );
     } finally {
       setIsResending(false);
@@ -130,14 +136,16 @@ export function LoginPage() {
     <AuthPageShell variant="login">
       <div className="mx-auto w-full max-w-[30rem]">
         <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#0a7c43] dark:text-[#52df83]">
-          Welcome back
+          {t("auth.welcomeBack", "Welcome back")}
         </p>
         <h1 className="mt-3 text-3xl font-semibold tracking-[-0.04em] text-slate-950 text-balance sm:text-4xl dark:text-dark-text-primary">
-          Sign in to your team inbox
+          {t("auth.loginTitle", "Sign in to your team inbox")}
         </h1>
         <p className="mt-3 text-sm leading-6 text-slate-600 dark:text-dark-text-secondary">
-          Continue managing conversations, assignments, and customer context
-          with your team.
+          {t(
+            "auth.loginSubtitle",
+            "Continue managing conversations, assignments, and customer context with your team.",
+          )}
         </p>
 
         <form
@@ -173,7 +181,12 @@ export function LoginPage() {
                     ) : (
                       <MailCheck aria-hidden="true" className="h-4 w-4" />
                     )}
-                    {isResending ? "Sending…" : "Resend verification email"}
+                    {isResending
+                      ? t("auth.sending", "Sending…")
+                      : t(
+                          "auth.resendVerification",
+                          "Resend verification email",
+                        )}
                   </button>
                 )}
                 {resendMessage && (
@@ -187,7 +200,7 @@ export function LoginPage() {
           )}
 
           <FormField
-            label="Work email"
+            label={t("auth.workEmail", "Work email")}
             id="email"
             type="email"
             placeholder="you@company.com"
@@ -199,10 +212,10 @@ export function LoginPage() {
 
           <div>
             <FormField
-              label="Password"
+              label={t("auth.password", "Password")}
               id="password"
               type="password"
-              placeholder="Enter your password"
+              placeholder={t("auth.passwordPlaceholder", "Enter your password")}
               registration={register("password")}
               error={errors.password}
               autoComplete="current-password"
@@ -213,7 +226,7 @@ export function LoginPage() {
                 to={buildAuthUrl("/forgot-password", redirectTo, currentEmail)}
                 className="rounded-sm text-sm font-semibold text-[#0a7c43] underline-offset-4 transition-colors hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#075e54] focus-visible:ring-offset-2 dark:text-[#52df83] dark:focus-visible:ring-offset-dark-elevated"
               >
-                Forgot password?
+                {t("auth.forgotPasswordLink", "Forgot password?")}
               </Link>
             </div>
           </div>
@@ -227,11 +240,11 @@ export function LoginPage() {
             {isLoading ? (
               <>
                 <LoaderCircle aria-hidden="true" className="animate-spin" />
-                Signing in…
+                {t("auth.signingIn", "Signing in…")}
               </>
             ) : (
               <>
-                Sign in
+                {t("auth.signInAction", "Sign in")}
                 <ArrowRight aria-hidden="true" />
               </>
             )}
@@ -244,18 +257,20 @@ export function LoginPage() {
             className="mt-0.5 h-5 w-5 shrink-0 text-[#0a7c43] dark:text-[#52df83]"
           />
           <p className="text-xs leading-5 text-slate-500 dark:text-dark-text-secondary">
-            Your sign-in is protected, and workspace access stays private to
-            approved team members.
+            {t(
+              "auth.loginPrivacyNote",
+              "Your sign-in is protected, and workspace access stays private to approved team members.",
+            )}
           </p>
         </div>
 
         <p className="mt-6 text-center text-sm text-slate-600 dark:text-dark-text-secondary">
-          New to WATeamInbox?{" "}
+          {t("auth.newToApp", "New to WATeamInbox?")}{" "}
           <Link
             to={buildAuthUrl("/register", redirectTo, currentEmail)}
             className="rounded-sm font-semibold text-[#0a7c43] underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#075e54] focus-visible:ring-offset-2 dark:text-[#52df83] dark:focus-visible:ring-offset-dark-elevated"
           >
-            Create an account
+            {t("auth.createAccountLink", "Create an account")}
           </Link>
         </p>
       </div>

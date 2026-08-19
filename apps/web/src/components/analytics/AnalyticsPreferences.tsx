@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from "react";
 import { Button } from "@/components/ui";
 import { productAnalytics } from "@/lib/product-analytics";
+import { useTranslation } from "react-i18next";
 
 /**
  * Authenticated analytics preference control (Settings → Privacy &
@@ -8,6 +9,8 @@ import { productAnalytics } from "@/lib/product-analytics";
  * grant or withdraw analytics consent for this browser at any time.
  */
 export function AnalyticsPreferences() {
+  const { t } = useTranslation();
+
   const consent = useSyncExternalStore(
     productAnalytics.subscribe,
     productAnalytics.getConsent,
@@ -26,13 +29,25 @@ export function AnalyticsPreferences() {
         <div>
           <p className="text-sm font-semibold">
             {collecting
-              ? "Anonymous analytics is on for this browser"
-              : "Anonymous analytics is off for this browser"}
+              ? t(
+                  "analytics.statusOn",
+                  "Anonymous analytics is on for this browser",
+                )
+              : t(
+                  "analytics.statusOff",
+                  "Anonymous analytics is off for this browser",
+                )}
           </p>
           <p className="mt-1 text-xs leading-5 text-[#65736d] dark:text-dark-text-secondary">
             {consentRequired
-              ? "Your choice is stored only in this browser."
-              : "This deployment enables analytics by default (operator policy); you can still opt this browser out."}
+              ? t(
+                  "analytics.storedLocally",
+                  "Your choice is stored only in this browser.",
+                )
+              : t(
+                  "analytics.defaultOnHint",
+                  "This deployment enables analytics by default (operator policy); you can still opt this browser out.",
+                )}
           </p>
         </div>
         {collecting ||
@@ -42,7 +57,7 @@ export function AnalyticsPreferences() {
             variant="outline"
             onClick={() => productAnalytics.setConsent("denied")}
           >
-            Opt out
+            {t("analytics.optOut", "Opt out")}
           </Button>
         ) : (
           <Button
@@ -50,24 +65,25 @@ export function AnalyticsPreferences() {
             onClick={() => productAnalytics.setConsent("granted")}
             className="bg-[#0b7a55] text-white hover:bg-[#096747]"
           >
-            Opt in
+            {t("analytics.optIn", "Opt in")}
           </Button>
         )}
       </div>
 
       {consent === "granted" && productAnalytics.isReloadRequired() && (
         <p className="text-xs leading-5 text-amber-700 dark:text-amber-300">
-          Analytics stays fully off for the rest of this session; it resumes
-          after your next page reload.
+          {t(
+            "analytics.sessionOffHint",
+            "Analytics stays fully off for the rest of this session; it resumes after your next page reload.",
+          )}
         </p>
       )}
 
       <p className="text-xs leading-5 text-[#65736d] dark:text-dark-text-secondary">
-        When on, this deployment reports anonymous page views and product events
-        (for example “message sent” or “workspace created”) to its own Google
-        Analytics property. Messages, contacts, names, email addresses, and
-        workspace identifiers are never sent. Opting out takes effect
-        immediately and also removes Google Analytics cookies where possible.
+        {t(
+          "analytics.onHint",
+          "When on, this deployment reports anonymous page views and product events (for example “message sent” or “workspace created”) to its own Google Analytics property. Messages, contacts, names, email addresses, and workspace identifiers are never sent. Opting out takes effect immediately and also removes Google Analytics cookies where possible.",
+        )}
       </p>
     </div>
   );

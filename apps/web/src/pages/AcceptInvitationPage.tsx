@@ -18,12 +18,15 @@ import { useAcceptInvitation, useInvitationByToken } from "../hooks/useTeam";
 import { buildAuthUrl } from "../lib/auth-redirect";
 import { workspacePath } from "../lib/workspace-routes";
 import { permissionOptions } from "../components/team/permission-options";
+import { useTranslation } from "react-i18next";
 
 /**
  * Accept Invitation page
  * Allows users to view and accept team invitations
  */
 export function AcceptInvitationPage() {
+  const { t } = useTranslation();
+
   const { token } = useParams<{ token: string }>();
   const navigate = useNavigate();
   const { isAuthenticated } = useAuth();
@@ -72,7 +75,9 @@ export function AcceptInvitationPage() {
       setAcceptedWorkspaceId(result.company.id);
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "Failed to accept invitation",
+        err instanceof Error
+          ? err.message
+          : t("invitation.acceptFailed", "Failed to accept invitation"),
       );
     }
   };
@@ -112,14 +117,17 @@ export function AcceptInvitationPage() {
             <XCircle className="h-8 w-8 text-red-600 dark:text-red-400" />
           </div>
           <h1 className="text-xl font-semibold text-gray-900 dark:text-dark-text-primary mb-2">
-            Invalid Invitation
+            {t("invitation.invalidTitle", "Invalid Invitation")}
           </h1>
           <p className="text-gray-600 dark:text-dark-text-secondary mb-6">
-            This invitation link is invalid or has already been used.
+            {t(
+              "invitation.invalidBody",
+              "This invitation link is invalid or has already been used.",
+            )}
           </p>
           <Link to="/login">
             <Button className="w-full bg-whatsapp-teal-green hover:bg-whatsapp-dark-green">
-              Go to Login
+              {t("invitation.goToLogin", "Go to Login")}
             </Button>
           </Link>
         </div>
@@ -139,11 +147,13 @@ export function AcceptInvitationPage() {
             Welcome to {invitation.companyName}!
           </h1>
           <p className="text-gray-600 dark:text-dark-text-secondary mb-4">
-            You have successfully joined the team. Redirecting you to the
-            chat...
+            {t(
+              "invitation.successBody",
+              "You have successfully joined the team. Redirecting you to the chat...",
+            )}
           </p>
           <div className="animate-pulse text-sm text-gray-500 dark:text-dark-text-tertiary">
-            Redirecting in a moment...
+            {t("invitation.redirecting", "Redirecting in a moment...")}
           </div>
         </div>
       </div>
@@ -160,10 +170,10 @@ export function AcceptInvitationPage() {
             <Mail className="h-8 w-8 text-whatsapp-dark-green" />
           </div>
           <h1 className="text-xl font-semibold text-gray-900 dark:text-dark-text-primary">
-            Team Invitation
+            {t("invitation.title", "Team Invitation")}
           </h1>
           <p className="text-gray-600 dark:text-dark-text-secondary mt-1">
-            You have been invited to join a team
+            {t("invitation.subtitle", "You have been invited to join a team")}
           </p>
         </div>
 
@@ -185,7 +195,7 @@ export function AcceptInvitationPage() {
             <Mail className="h-5 w-5 text-gray-500 dark:text-dark-text-tertiary flex-shrink-0" />
             <div>
               <p className="text-xs text-gray-500 dark:text-dark-text-tertiary">
-                Invited Email
+                {t("invitation.invitedEmail", "Invited Email")}
               </p>
               <p className="font-medium text-gray-900 dark:text-dark-text-primary">
                 {invitation.email}
@@ -197,7 +207,7 @@ export function AcceptInvitationPage() {
             <User className="h-5 w-5 text-gray-500 dark:text-dark-text-tertiary flex-shrink-0" />
             <div>
               <p className="text-xs text-gray-500 dark:text-dark-text-tertiary">
-                Invited By
+                {t("invitation.invitedBy", "Invited By")}
               </p>
               <p className="font-medium text-gray-900 dark:text-dark-text-primary">
                 {invitation.invitedBy}
@@ -209,7 +219,7 @@ export function AcceptInvitationPage() {
             <ShieldCheck className="h-5 w-5 text-gray-500 dark:text-dark-text-tertiary flex-shrink-0" />
             <div>
               <p className="text-xs text-gray-500 dark:text-dark-text-tertiary">
-                Role
+                {t("invitation.role", "Role")}
               </p>
               <p className="font-medium capitalize text-gray-900 dark:text-dark-text-primary">
                 {invitation.role}
@@ -221,11 +231,16 @@ export function AcceptInvitationPage() {
             <Settings2 className="h-5 w-5 text-gray-500 dark:text-dark-text-tertiary flex-shrink-0" />
             <div>
               <p className="text-xs text-gray-500 dark:text-dark-text-tertiary">
-                Starting access
+                {t("invitation.startingAccess", "Starting access")}
               </p>
               <p className="font-medium text-gray-900 dark:text-dark-text-primary">
-                {hasCustomAccess ? "Custom access" : "Role defaults"} ·{" "}
-                {enabledCapabilityCount} capabilities enabled
+                {t("invitation.accessSummary", {
+                  defaultValue: "{{mode}} · {{count}} capabilities enabled",
+                  mode: hasCustomAccess
+                    ? t("team.customAccess", "Custom access")
+                    : t("team.roleDefaults", "Role defaults"),
+                  count: enabledCapabilityCount,
+                })}
               </p>
             </div>
           </div>
@@ -234,7 +249,7 @@ export function AcceptInvitationPage() {
             <Clock className="h-5 w-5 text-gray-500 dark:text-dark-text-tertiary flex-shrink-0" />
             <div>
               <p className="text-xs text-gray-500 dark:text-dark-text-tertiary">
-                Expires
+                {t("invitation.expires", "Expires")}
               </p>
               <p
                 className={`font-medium ${
@@ -244,7 +259,7 @@ export function AcceptInvitationPage() {
                 }`}
               >
                 {formatDate(invitation.expiresAt)}
-                {isExpired && " (Expired)"}
+                {isExpired && ` ${t("invitation.expiredSuffix", "(Expired)")}`}
               </p>
             </div>
           </div>
@@ -261,24 +276,30 @@ export function AcceptInvitationPage() {
         {isExpired ? (
           <div className="text-center">
             <p className="text-red-600 dark:text-red-400 mb-4">
-              This invitation has expired. Please request a new one.
+              {t(
+                "invitation.expiredBody",
+                "This invitation has expired. Please request a new one.",
+              )}
             </p>
             <Link to="/login">
               <Button variant="outline" className="w-full">
-                Go to Login
+                {t("invitation.goToLogin", "Go to Login")}
               </Button>
             </Link>
           </div>
         ) : !isAuthenticated ? (
           <div className="space-y-3">
             <p className="text-sm text-gray-600 dark:text-dark-text-secondary text-center mb-4">
-              Please log in or create an account to accept this invitation.
+              {t(
+                "invitation.loginPrompt",
+                "Please log in or create an account to accept this invitation.",
+              )}
             </p>
             <Link
               to={buildAuthUrl("/login", `/invite/${token}`, invitation.email)}
             >
               <Button className="w-full bg-whatsapp-teal-green hover:bg-whatsapp-dark-green">
-                Log In
+                {t("invitation.logIn", "Log In")}
               </Button>
             </Link>
             <Link
@@ -289,7 +310,7 @@ export function AcceptInvitationPage() {
               )}
             >
               <Button variant="outline" className="w-full">
-                Create Account
+                {t("invitation.createAccount", "Create Account")}
               </Button>
             </Link>
           </div>
@@ -300,11 +321,13 @@ export function AcceptInvitationPage() {
               disabled={acceptInvitation.isPending}
               className="w-full bg-whatsapp-teal-green hover:bg-whatsapp-dark-green"
             >
-              {acceptInvitation.isPending ? "Accepting…" : "Accept Invitation"}
+              {acceptInvitation.isPending
+                ? t("invitation.accepting", "Accepting…")
+                : t("invitation.accept", "Accept Invitation")}
             </Button>
             <Link to="/chat">
               <Button variant="outline" className="w-full">
-                Cancel
+                {t("common.cancel", "Cancel")}
               </Button>
             </Link>
           </div>

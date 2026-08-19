@@ -8,6 +8,7 @@ import {
   useRefreshJoinRequests,
 } from "@/hooks/useGroups";
 import { formatPhoneLikeText } from "@/lib/utils";
+import { useTranslation } from "react-i18next";
 
 interface GroupJoinRequestsSectionProps {
   group: GroupDetail;
@@ -24,6 +25,8 @@ interface GroupJoinRequestsSectionProps {
 export function GroupJoinRequestsSection({
   group,
 }: GroupJoinRequestsSectionProps) {
+  const { t } = useTranslation();
+
   const enabled = group.isAdmin && group.isMember;
   const { data, isLoading } = useGroupJoinRequests(group.id, enabled);
   const refresh = useRefreshJoinRequests();
@@ -40,15 +43,16 @@ export function GroupJoinRequestsSection({
     >
       {!group.settings.isJoinApprovalRequired && (
         <p className="mb-3 text-xs text-gray-500 dark:text-dark-text-tertiary">
-          Approval is currently off, so people who use the invite link join
-          straight away. Requests made before it was turned off still appear
-          here.
+          {t(
+            "groups.approvalOffHint",
+            "Approval is currently off, so people who use the invite link join straight away. Requests made before it was turned off still appear here.",
+          )}
         </p>
       )}
 
       {isLoading ? (
         <p className="text-sm text-gray-500 dark:text-dark-text-secondary">
-          Loading join requests…
+          {t("groups.loadingJoinRequests", "Loading join requests…")}
         </p>
       ) : requests.length === 0 ? (
         <div className="flex gap-3 rounded-lg bg-gray-50 p-3 dark:bg-dark-elevated">
@@ -57,8 +61,14 @@ export function GroupJoinRequestsSection({
             {/* "Never asked" and "asked, nobody waiting" are different facts,
                 and saying the second when the first is true would be wrong. */}
             {data?.syncedAt
-              ? "Nobody is waiting to join. Refresh to check WhatsApp again."
-              : "Join requests have not been fetched yet. Refresh to ask WhatsApp."}
+              ? t(
+                  "groups.noJoinRequests",
+                  "Nobody is waiting to join. Refresh to check WhatsApp again.",
+                )
+              : t(
+                  "groups.joinRequestsNotFetched",
+                  "Join requests have not been fetched yet. Refresh to ask WhatsApp.",
+                )}
           </p>
         </div>
       ) : (

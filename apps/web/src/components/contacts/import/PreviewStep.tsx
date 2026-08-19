@@ -1,12 +1,15 @@
 import { AlertCircle, Check } from "lucide-react";
 import { formatPhoneNumber } from "@/lib/utils";
 import type { PreviewStepProps } from "./types";
+import { useTranslation } from "react-i18next";
 
 export function PreviewStep({
   preview,
   options,
   onOptionsChange,
 }: PreviewStepProps) {
+  const { t } = useTranslation();
+
   return (
     <div className="space-y-6">
       {/* Summary */}
@@ -16,7 +19,7 @@ export function PreviewStep({
             {preview.total}
           </div>
           <div className="text-sm text-blue-600 dark:text-blue-400">
-            Total contacts
+            {t("contacts.totalContacts", "Total contacts")}
           </div>
         </div>
         <div className="bg-green-50 dark:bg-green-900/30 rounded-lg p-4 text-center">
@@ -24,7 +27,7 @@ export function PreviewStep({
             {preview.newCount}
           </div>
           <div className="text-sm text-green-600 dark:text-green-400">
-            New contacts
+            {t("contacts.newContacts", "New contacts")}
           </div>
         </div>
         <div className="bg-yellow-50 dark:bg-yellow-900/30 rounded-lg p-4 text-center">
@@ -32,7 +35,7 @@ export function PreviewStep({
             {preview.existingCount}
           </div>
           <div className="text-sm text-yellow-600 dark:text-yellow-400">
-            Already exist
+            {t("contacts.alreadyExist", "Already exist")}
           </div>
         </div>
       </div>
@@ -60,7 +63,10 @@ export function PreviewStep({
             className="h-4 w-4 rounded border-gray-300 dark:border-dark-border text-blue-600 focus:ring-blue-500 dark:bg-dark-tertiary"
           />
           <span className="text-sm text-gray-700 dark:text-dark-text-primary">
-            Update existing contacts with new data
+            {t(
+              "contacts.updateExisting",
+              "Update existing contacts with new data",
+            )}
           </span>
         </label>
         <label className="flex items-center gap-3">
@@ -73,7 +79,7 @@ export function PreviewStep({
             className="h-4 w-4 rounded border-gray-300 dark:border-dark-border text-blue-600 focus:ring-blue-500 dark:bg-dark-tertiary"
           />
           <span className="text-sm text-gray-700 dark:text-dark-text-primary">
-            Create new tags if they don't exist
+            {t("contacts.createNewTags", "Create new tags if they don't exist")}
           </span>
         </label>
       </div>

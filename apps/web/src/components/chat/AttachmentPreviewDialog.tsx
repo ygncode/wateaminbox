@@ -2,6 +2,7 @@ import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { CalendarClock, FileText, Loader2, Send, X } from "lucide-react";
 import { type FormEvent, type KeyboardEvent, useEffect, useState } from "react";
 import { ScheduleMessagePopover } from "./ScheduleMessagePopover";
+import { useTranslation } from "react-i18next";
 
 const MAX_CAPTION_LENGTH = 1024;
 
@@ -37,6 +38,8 @@ export function AttachmentPreviewDialog({
   onSend,
   onSchedule,
 }: AttachmentPreviewDialogProps) {
+  const { t } = useTranslation();
+
   const [caption, setCaption] = useState("");
   const [previewUrl, setPreviewUrl] = useState("");
   const [isSending, setIsSending] = useState(false);
@@ -119,13 +122,16 @@ export function AttachmentPreviewDialog({
           aria-describedby="attachment-preview-description"
         >
           <DialogPrimitive.Title className="sr-only">
-            Preview attachment
+            {t("chat.previewAttachment", "Preview attachment")}
           </DialogPrimitive.Title>
           <DialogPrimitive.Description
             id="attachment-preview-description"
             className="sr-only"
           >
-            Review the selected file and add an optional caption before sending.
+            {t(
+              "chat.previewAttachmentHint",
+              "Review the selected file and add an optional caption before sending.",
+            )}
           </DialogPrimitive.Description>
 
           <header className="flex min-h-16 items-center gap-3 border-b border-white/10 bg-[#202c33] px-3 sm:px-5">
@@ -134,7 +140,7 @@ export function AttachmentPreviewDialog({
                 type="button"
                 disabled={isBusy}
                 className="grid size-10 shrink-0 place-items-center rounded-full text-white/75 transition-colors hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00a884]"
-                aria-label="Cancel attachment"
+                aria-label={t("chat.cancelAttachment", "Cancel attachment")}
               >
                 <X className="size-5" aria-hidden="true" />
               </button>
@@ -198,8 +204,8 @@ export function AttachmentPreviewDialog({
                   maxLength={MAX_CAPTION_LENGTH}
                   rows={1}
                   autoFocus
-                  placeholder="Add a caption…"
-                  aria-label="Attachment caption"
+                  placeholder={t("chat.addCaption", "Add a caption…")}
+                  aria-label={t("chat.attachmentCaption", "Attachment caption")}
                   className="block max-h-28 min-h-7 w-full resize-none bg-transparent py-1 text-[15px] leading-5 text-white outline-none placeholder:text-[#8696a0] disabled:cursor-not-allowed"
                 />
                 {caption.length > MAX_CAPTION_LENGTH - 100 && (
@@ -219,7 +225,10 @@ export function AttachmentPreviewDialog({
                         ? "bg-[#2a3942] text-[#06cf9c]"
                         : "bg-[#2a3942] hover:bg-[#34434d]"
                     }`}
-                    aria-label="Schedule attachment"
+                    aria-label={t(
+                      "chat.scheduleAttachment",
+                      "Schedule attachment",
+                    )}
                     aria-expanded={showSchedulePopover}
                   >
                     {isScheduling ? (
@@ -244,7 +253,9 @@ export function AttachmentPreviewDialog({
                 disabled={isBusy}
                 className="grid size-12 shrink-0 place-items-center rounded-full bg-[#00a884] text-white shadow-lg shadow-black/20 transition-all hover:bg-[#06cf9c] active:scale-95 disabled:cursor-wait disabled:opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00a884] focus-visible:ring-offset-2 focus-visible:ring-offset-[#202c33]"
                 aria-label={
-                  isSending ? "Sending attachment" : "Send attachment"
+                  isSending
+                    ? t("chat.sendingAttachment", "Sending attachment")
+                    : t("chat.sendAttachment", "Send attachment")
                 }
               >
                 {isSending ? (
@@ -255,7 +266,7 @@ export function AttachmentPreviewDialog({
               </button>
             </div>
             <p className="mt-2 hidden text-center text-[11px] text-white/40 sm:block">
-              Press Ctrl/⌘ + Enter to send
+              {t("chat.pressCtrlEnter", "Press Ctrl/⌘ + Enter to send")}
             </p>
           </form>
         </DialogPrimitive.Content>

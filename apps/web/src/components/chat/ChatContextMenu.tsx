@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { useTranslation } from "react-i18next";
 
 interface ChatContextMenuProps {
   x: number;
@@ -15,6 +16,8 @@ export function ChatContextMenu({
   onContactInfo,
   onSelectMessages,
 }: ChatContextMenuProps) {
+  const { t } = useTranslation();
+
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -75,7 +78,7 @@ export function ChatContextMenu({
         }}
       >
         <ContactInfoIcon className="h-4 w-4" />
-        Contact info
+        {t("chat.contactInfo", "Contact info")}
       </button>
       <button
         type="button"
@@ -86,7 +89,7 @@ export function ChatContextMenu({
         }}
       >
         <SelectIcon className="h-4 w-4" />
-        Select messages
+        {t("chat.selectMessages", "Select messages")}
       </button>
     </div>
   );

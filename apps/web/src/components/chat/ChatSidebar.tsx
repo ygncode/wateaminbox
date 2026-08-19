@@ -3,6 +3,7 @@ import { memo, useCallback } from "react";
 import { cn } from "@/lib/utils";
 import { GroupList } from "../groups/GroupList";
 import { ChatList } from "./ChatList";
+import { useTranslation } from "react-i18next";
 
 export type SidebarView = "chats" | "groups";
 
@@ -25,6 +26,8 @@ export const ChatSidebar = memo(function ChatSidebar({
   onActiveViewChange,
   className,
 }: ChatSidebarProps) {
+  const { t } = useTranslation();
+
   const handleGroupSelect = useCallback(
     (groupId: string) => {
       onChatSelect(groupId);
@@ -46,13 +49,13 @@ export const ChatSidebar = memo(function ChatSidebar({
             isActive={activeView === "chats"}
             onClick={() => onActiveViewChange("chats")}
             icon={<MessageSquare className="h-4 w-4" />}
-            label="Chats"
+            label={t("chat.tabChats", "Chats")}
           />
           <TabButton
             isActive={activeView === "groups"}
             onClick={() => onActiveViewChange("groups")}
             icon={<Users className="h-4 w-4" />}
-            label="Groups"
+            label={t("chat.groups", "Groups")}
           />
         </nav>
       </div>

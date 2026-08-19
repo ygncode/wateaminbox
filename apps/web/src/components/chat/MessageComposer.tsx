@@ -38,6 +38,7 @@ import {
   getActiveQuickReplyToken,
   insertQuickReply,
 } from "./quick-reply-matching";
+import { useTranslation } from "react-i18next";
 
 // Lazy load emoji picker - only loaded when user opens it
 // This keeps the emoji data (~1200 lines) out of the initial bundle
@@ -48,6 +49,8 @@ const EmojiInputPicker = lazy(() => import("./EmojiInputPicker"));
  * Shows a placeholder while the emoji picker chunk loads
  */
 function EmojiPickerSkeleton() {
+  const { t } = useTranslation();
+
   return (
     <div className="absolute bottom-full mb-2 left-0 w-80 bg-white dark:bg-dark-elevated rounded-xl shadow-lg border border-gray-200 dark:border-dark-border overflow-hidden z-20">
       {/* Search placeholder */}
@@ -87,7 +90,7 @@ function EmojiPickerSkeleton() {
             />
           </svg>
           <span className="text-sm text-gray-500 dark:text-dark-text-secondary">
-            Loading emojis...
+            {t("chat.loadingEmojis", "Loading emojis...")}
           </span>
         </div>
       </div>
@@ -128,6 +131,8 @@ export function MessageComposer({
   connection,
   currentUserName,
 }: MessageComposerProps) {
+  const { t } = useTranslation();
+
   // A conversation is permanently routed through the account that owns it.
   const isDisconnected = !connection || connection.status !== "connected";
   const isInputDisabled = disabled || isDisconnected;
@@ -417,7 +422,13 @@ export function MessageComposer({
           toast.error(
             error instanceof Error
               ? `Failed to schedule message: ${error.message}`
-              : "Failed to schedule message. Please try again.",
+              : t(
+                  "chat.scheduleMessageFailed",
+                  t(
+                    "chat.scheduleMessageFailed",
+                    "Failed to schedule message. Please try again.",
+                  ),
+                ),
           );
         },
       },
@@ -461,7 +472,13 @@ export function MessageComposer({
       toast.error(
         error instanceof Error
           ? `Failed to schedule attachment: ${error.message}`
-          : "Failed to schedule attachment. Please try again.",
+          : t(
+              "chat.scheduleAttachmentFailed",
+              t(
+                "chat.scheduleAttachmentFailed",
+                "Failed to schedule attachment. Please try again.",
+              ),
+            ),
       );
       return false;
     }
@@ -575,7 +592,10 @@ export function MessageComposer({
                 </p>
                 <p className="truncate px-3 pb-2 text-sm text-[#667781] dark:text-dark-text-secondary">
                   {replyToMessage.isDeleted
-                    ? "This message was deleted"
+                    ? t(
+                        "chat.messageDeleted",
+                        t("chat.messageDeleted", "This message was deleted"),
+                      )
                     : replyToMessage.content}
                 </p>
               </div>
@@ -583,7 +603,7 @@ export function MessageComposer({
                 type="button"
                 onClick={onClearReply}
                 className="mr-2 grid size-8 shrink-0 place-items-center rounded-full text-[#8696a0] transition-colors hover:bg-black/[0.055] hover:text-[#54656f] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00a884]/40 dark:text-dark-text-tertiary dark:hover:bg-white/[0.06] dark:hover:text-dark-text-secondary"
-                aria-label="Cancel reply"
+                aria-label={t("chat.cancelReply", "Cancel reply")}
               >
                 <X className="size-4.5" aria-hidden="true" />
               </button>
@@ -602,7 +622,7 @@ export function MessageComposer({
                 setShowAttachmentMenu(false);
               }}
               className="grid size-10 shrink-0 touch-manipulation place-items-center rounded-full text-[#54656f] transition-colors hover:bg-black/[0.055] active:bg-black/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00a884]/40 dark:text-dark-text-secondary dark:hover:bg-white/[0.06] dark:active:bg-white/10"
-              aria-label="Insert emoji"
+              aria-label={t("chat.insertEmoji", "Insert emoji")}
               aria-expanded={showEmojiPicker}
             >
               <Smile className="size-6" strokeWidth={1.8} aria-hidden="true" />
@@ -635,7 +655,7 @@ export function MessageComposer({
                 setShowAttachmentMenu(!showAttachmentMenu);
                 setShowEmojiPicker(false);
               }}
-              aria-label="Attach file"
+              aria-label={t("chat.attachFile", "Attach file")}
               aria-expanded={showAttachmentMenu}
               aria-controls="message-attachment-menu"
             >
@@ -660,7 +680,7 @@ export function MessageComposer({
                   <span className="grid size-9 shrink-0 place-items-center rounded-full bg-[#bf59cf] text-white">
                     <ImageIcon className="size-4.5" aria-hidden="true" />
                   </span>
-                  <span>Photos & Videos</span>
+                  <span>{t("chat.photosAndVideos", "Photos & Videos")}</span>
                 </button>
                 <button
                   type="button"
@@ -670,7 +690,7 @@ export function MessageComposer({
                   <span className="grid size-9 shrink-0 place-items-center rounded-full bg-[#5157ae] text-white">
                     <FileText className="size-4.5" aria-hidden="true" />
                   </span>
-                  <span>Document</span>
+                  <span>{t("chat.mediaTypes.document", "Document")}</span>
                 </button>
               </div>
             )}
@@ -729,11 +749,16 @@ export function MessageComposer({
                   setCaretPosition(event.currentTarget.selectionStart)
                 }
                 placeholder={
-                  isDisconnected ? "Disconnected…" : "Type a message"
+                  isDisconnected
+                    ? "Disconnected…"
+                    : t(
+                        "chat.typeAMessage",
+                        t("chat.typeAMessage", "Type a message"),
+                      )
                 }
                 disabled={isInputDisabled}
                 rows={1}
-                aria-label="Message input"
+                aria-label={t("chat.messageInput", "Message input")}
                 aria-autocomplete="list"
                 aria-controls={
                   shouldShowQuickReplyPicker ? "quick-reply-picker" : undefined
@@ -770,7 +795,7 @@ export function MessageComposer({
                     : "text-[#54656f] hover:bg-black/[0.055] active:bg-black/10 dark:text-dark-text-secondary dark:hover:bg-white/[0.06] dark:active:bg-white/10"
                   : "cursor-not-allowed text-[#aebac1] dark:text-dark-text-tertiary"
               }`}
-              aria-label="Schedule message"
+              aria-label={t("chat.scheduleMessage", "Schedule message")}
               aria-expanded={showSchedulePopover}
             >
               <CalendarClock
@@ -798,7 +823,7 @@ export function MessageComposer({
                 ? "bg-[#00a884] text-white shadow-sm shadow-[#00a884]/25 hover:bg-[#008f72] active:scale-95"
                 : "cursor-not-allowed bg-transparent text-[#aebac1] dark:text-dark-text-tertiary"
             }`}
-            aria-label="Send message"
+            aria-label={t("chat.sendMessage", "Send Message")}
           >
             <Send className="size-5.5" strokeWidth={1.9} aria-hidden="true" />
           </button>

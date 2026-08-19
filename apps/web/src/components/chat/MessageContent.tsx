@@ -111,7 +111,7 @@ export function MessageContent({
             </>
           ) : (
             <div className="flex h-40 w-64 items-center justify-center rounded-lg bg-black/10 text-sm text-current/60 dark:bg-white/[0.06]">
-              Image unavailable
+              {t("chat.imageUnavailable", "Image unavailable")}
             </div>
           )}
           {mediaCaption && (
@@ -197,7 +197,7 @@ export function MessageContent({
             </>
           ) : (
             <div className="flex h-40 w-64 items-center justify-center rounded-lg bg-black/10 text-sm text-current/60 dark:bg-white/[0.06]">
-              Video unavailable
+              {t("chat.videoUnavailable", "Video unavailable")}
             </div>
           )}
           {mediaCaption && (
@@ -229,7 +229,7 @@ export function MessageContent({
             src={message.metadata?.mediaUrl}
             controls
             className="w-full"
-            aria-label="Audio message"
+            aria-label={t("chat.audioMessage", "Audio message")}
           />
           {message.metadata?.duration && (
             <span
@@ -320,7 +320,9 @@ export function MessageContent({
         return withCaption(
           <div className={cardClassName}>
             {documentCard}
-            <span className="sr-only">Document unavailable</span>
+            <span className="sr-only">
+              {t("chat.documentUnavailable", "Document unavailable")}
+            </span>
           </div>,
         );
       }
@@ -396,12 +398,12 @@ export function MessageContent({
                   event.stopPropagation();
                   setMediaPreviewOpen(true);
                 }}
-                aria-label="Open sticker"
+                aria-label={t("chat.openSticker", "Open sticker")}
                 tabIndex={enableMediaPreview ? 0 : -1}
               >
                 <img
                   src={mediaUrl}
-                  alt="Sticker"
+                  alt={t("chat.mediaTypes.sticker", "Sticker")}
                   width={200}
                   height={200}
                   className="h-auto w-full transition-transform duration-200 group-hover/media:scale-[1.025]"
@@ -412,12 +414,12 @@ export function MessageContent({
                 open={mediaPreviewOpen}
                 onOpenChange={setMediaPreviewOpen}
                 src={mediaUrl}
-                alt="Sticker"
+                alt={t("chat.mediaTypes.sticker", "Sticker")}
               />
             </>
           ) : (
             <div className="flex size-40 items-center justify-center rounded-lg bg-black/10 text-sm text-current/60 dark:bg-white/[0.06]">
-              Sticker unavailable
+              {t("chat.stickerUnavailable", "Sticker unavailable")}
             </div>
           )}
         </div>
@@ -455,7 +457,7 @@ export function MessageContent({
     template: () => (
       <div className="p-3 bg-gray-50 dark:bg-dark-tertiary rounded-lg border border-gray-200 dark:border-dark-border">
         <p className="text-xs text-gray-500 dark:text-dark-text-secondary mb-1">
-          Template Message
+          {t("chat.templateMessage", "Template Message")}
         </p>
         <LinkifiedText text={message.content} isOwn={isOwn} />
       </div>
@@ -463,7 +465,7 @@ export function MessageContent({
     contact: () => (
       <div className="p-3 bg-gray-50 dark:bg-dark-tertiary rounded-lg border border-gray-200 dark:border-dark-border">
         <p className="text-xs text-gray-500 dark:text-dark-text-secondary mb-1">
-          Contact Card
+          {t("chat.contactCard", "Contact Card")}
         </p>
         <LinkifiedText text={message.content} isOwn={isOwn} />
       </div>

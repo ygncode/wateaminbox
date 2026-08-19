@@ -60,6 +60,7 @@
         "centrifuge": "^5.7.0",
         "class-variance-authority": "^0.7.1",
         "clsx": "^2.1.1",
+        "dayjs": "^1.11.19",
         "i18next": "^25.7.3",
         "lucide-react": "^0.562.0",
         "motion": "^12.26.2",

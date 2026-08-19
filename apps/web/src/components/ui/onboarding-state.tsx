@@ -1,8 +1,11 @@
 import { AlertTriangle, ArrowRight, RefreshCw } from "lucide-react";
 import { BrandMark } from "../brand/BrandMark";
 import { Button } from "./button";
+import { useTranslation } from "react-i18next";
 
 function OnboardingFrame({ children }: { children: React.ReactNode }) {
+  const { t } = useTranslation();
+
   return (
     <main className="relative min-h-dvh overflow-hidden bg-[#edf4f0] px-3 py-3 text-slate-950 sm:px-6 sm:py-6 dark:bg-dark-primary dark:text-dark-text-primary">
       <div
@@ -22,7 +25,7 @@ function OnboardingFrame({ children }: { children: React.ReactNode }) {
                 WATeamInbox
               </p>
               <p className="mt-1 text-[0.65rem] font-semibold uppercase tracking-[0.16em] text-slate-500 dark:text-dark-text-tertiary">
-                WhatsApp for teams
+                {t("setup.whatsappForTeams", "WhatsApp for teams")}
               </p>
             </div>
           </div>
@@ -30,7 +33,10 @@ function OnboardingFrame({ children }: { children: React.ReactNode }) {
             {children}
           </div>
           <p className="text-xs leading-5 text-slate-400 dark:text-dark-text-tertiary">
-            Secure team messaging, designed for focused customer conversations.
+            {t(
+              "onboarding.tagline",
+              "Secure team messaging, designed for focused customer conversations.",
+            )}
           </p>
         </div>
 
@@ -59,11 +65,9 @@ function OnboardingFrame({ children }: { children: React.ReactNode }) {
   );
 }
 
-export function OnboardingLoadingScreen({
-  message = "Preparing your workspace…",
-}: {
-  message?: string;
-}) {
+export function OnboardingLoadingScreen({ message }: { message?: string }) {
+  const { t } = useTranslation();
+
   return (
     <OnboardingFrame>
       <div className="w-full" role="status" aria-live="polite">
@@ -72,13 +76,17 @@ export function OnboardingLoadingScreen({
           <RefreshCw aria-hidden="true" className="h-6 w-6 animate-spin" />
         </div>
         <p className="mt-7 text-xs font-bold uppercase tracking-[0.16em] text-[#0a7c43] dark:text-[#52df83]">
-          Just a moment
+          {t("onboarding.justAMoment", "Just a moment")}
         </p>
         <h1 className="mt-3 text-3xl font-semibold tracking-[-0.04em] text-slate-950 text-balance sm:text-4xl dark:text-dark-text-primary">
-          {message}
+          {message ??
+            t("onboarding.preparingWorkspace", "Preparing your workspace…")}
         </h1>
         <p className="mt-3 text-sm leading-6 text-slate-500 dark:text-dark-text-secondary">
-          We’re restoring your session and checking workspace access.
+          {t(
+            "onboarding.restoringSession",
+            "We’re restoring your session and checking workspace access.",
+          )}
         </p>
         <div
           className="mt-8 h-1.5 overflow-hidden rounded-full bg-slate-100 dark:bg-dark-tertiary"
@@ -100,6 +108,8 @@ export function OnboardingErrorScreen({
   onRetry: () => void;
   onSignOut: () => void;
 }) {
+  const { t } = useTranslation();
+
   return (
     <OnboardingFrame>
       <div className="w-full">
@@ -107,14 +117,16 @@ export function OnboardingErrorScreen({
           <AlertTriangle aria-hidden="true" className="h-6 w-6" />
         </span>
         <p className="mt-7 text-xs font-bold uppercase tracking-[0.16em] text-amber-700 dark:text-amber-300">
-          Workspace unavailable
+          {t("onboarding.workspaceUnavailable", "Workspace unavailable")}
         </p>
         <h1 className="mt-3 text-3xl font-semibold tracking-[-0.04em] text-slate-950 text-balance sm:text-4xl dark:text-dark-text-primary">
-          We couldn’t load your workspace
+          {t("onboarding.couldNotLoad", "We couldn’t load your workspace")}
         </h1>
         <p className="mt-3 text-sm leading-6 text-slate-500 dark:text-dark-text-secondary">
-          Your current page has been preserved. Try loading workspace access
-          again, or sign out and return later.
+          {t(
+            "onboarding.couldNotLoadHint",
+            "Your current page has been preserved. Try loading workspace access again, or sign out and return later.",
+          )}
         </p>
         <div
           role="alert"
@@ -129,7 +141,7 @@ export function OnboardingErrorScreen({
             onClick={onRetry}
             className="h-12 flex-1 rounded-xl bg-[#075e54] text-white hover:bg-[#064b43]"
           >
-            Try again
+            {t("onboarding.tryAgain", "Try again")}
             <RefreshCw aria-hidden="true" />
           </Button>
           <Button
@@ -139,7 +151,7 @@ export function OnboardingErrorScreen({
             onClick={onSignOut}
             className="h-12 flex-1 rounded-xl"
           >
-            Sign out
+            {t("nav.signOut", "Sign out")}
             <ArrowRight aria-hidden="true" />
           </Button>
         </div>

@@ -32,6 +32,7 @@ import {
 import { ChatListItem, ChatListItemSkeleton } from "./ChatListItem";
 import { ChatListSearch } from "./ChatListSearch";
 import { getConnectionLabel } from "./ConnectionIdentity";
+import { useTranslation } from "react-i18next";
 
 // Fixed height for chat list items for virtualization
 const CHAT_ITEM_HEIGHT = 76;
@@ -46,6 +47,8 @@ export const ChatList = memo(function ChatList({
   onChatSelect,
   className = "",
 }: ChatListProps) {
+  const { t } = useTranslation();
+
   const [searchQuery, setSearchQuery] = useState("");
   const [assignmentFilter, setAssignmentFilter] =
     useState<AssignmentFilter>("all");
@@ -152,7 +155,7 @@ export const ChatList = memo(function ChatList({
     <div
       className={`flex flex-col h-full bg-white dark:bg-dark-secondary border-r border-gray-200 dark:border-dark-border ${className}`}
       role="navigation"
-      aria-label="Chat list"
+      aria-label={t("chat.chatListAria", "Chat list")}
     >
       {/* Search */}
       <div className="px-3 py-2 bg-white dark:bg-dark-secondary border-b border-gray-200 dark:border-dark-border">
@@ -171,21 +174,33 @@ export const ChatList = memo(function ChatList({
             aria-hidden="true"
           />
           <span className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-dark-text-secondary">
-            Inbox
+            {t("chat.inbox", "Inbox")}
           </span>
           <Select value={connectionFilter} onValueChange={setConnectionFilter}>
             <SelectTrigger
               className="ml-auto h-8 min-w-0 max-w-[190px] border-0 bg-gray-100 px-2.5 text-xs shadow-none focus:ring-1 focus:ring-whatsapp-green dark:bg-dark-tertiary"
-              aria-label="Filter by WhatsApp account"
+              aria-label={t(
+                "chat.filterByAccount",
+                "Filter by WhatsApp account",
+              )}
             >
-              <SelectValue placeholder="All WhatsApp numbers" />
+              <SelectValue
+                placeholder={t(
+                  "chat.allWhatsappNumbers",
+                  "All WhatsApp numbers",
+                )}
+              />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All WhatsApp numbers</SelectItem>
+              <SelectItem value="all">
+                {t("chat.allWhatsappNumbers", "All WhatsApp numbers")}
+              </SelectItem>
               {connections.map((connection) => (
                 <SelectItem key={connection.id} value={connection.id}>
                   {getConnectionLabel(connection)}
-                  {connection.status !== "connected" ? " · offline" : ""}
+                  {connection.status !== "connected"
+                    ? ` · ${t("chat.offline", "Offline").toLowerCase()}`
+                    : ""}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -198,15 +213,19 @@ export const ChatList = memo(function ChatList({
       <div className="flex items-center border-b border-gray-200 bg-gray-50 dark:border-dark-border dark:bg-dark-secondary">
         <div
           className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto overscroll-x-contain px-2 py-1.5 [scrollbar-width:thin]"
-          aria-label="Conversation status filters"
+          aria-label={t("chat.statusFilters", "Conversation status filters")}
           onWheel={handleFilterWheel}
         >
           {(
             [
-              { value: "open", label: "Open" },
-              { value: "pending", label: "Pending" },
-              { value: "resolved", label: "Resolved" },
-              { value: "all", label: "All" },
+              { value: "open", labelKey: "chat.open", label: "Open" },
+              { value: "pending", labelKey: "chat.pending", label: "Pending" },
+              {
+                value: "resolved",
+                labelKey: "chat.resolved",
+                label: "Resolved",
+              },
+              { value: "all", labelKey: "chat.all", label: "All" },
             ] as const
           ).map((option) => (
             <button
@@ -220,7 +239,7 @@ export const ChatList = memo(function ChatList({
                   : "border border-gray-200 bg-white text-gray-600 hover:bg-gray-100 dark:border-dark-border dark:bg-dark-tertiary dark:text-dark-text-secondary dark:hover:bg-dark-border"
               }`}
             >
-              {option.label}
+              {t(option.labelKey, option.label)}
             </button>
           ))}
         </div>
@@ -236,12 +255,16 @@ export const ChatList = memo(function ChatList({
               }`}
               aria-label={
                 selectedTags.length > 0
-                  ? `Filter conversations by tag, ${selectedTags.length} selected`
-                  : "Filter conversations by tag"
+                  ? t("chat.filterByTagSelected", {
+                      defaultValue:
+                        "Filter conversations by tag, {{count}} selected",
+                      count: selectedTags.length,
+                    })
+                  : t("chat.filterByTag", "Filter conversations by tag")
               }
             >
               <Tags className="h-3.5 w-3.5" aria-hidden="true" />
-              <span>Filter</span>
+              <span>{t("chat.filter", "Filter")}</span>
               {selectedTags.length > 0 && (
                 <span className="grid min-w-4 place-items-center rounded-full bg-whatsapp-teal-green px-1 text-[10px] leading-4 text-white tabular-nums">
                   {selectedTags.length}
@@ -260,10 +283,13 @@ export const ChatList = memo(function ChatList({
               </span>
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-semibold text-gray-900 dark:text-dark-text-primary">
-                  Filter by tags
+                  {t("chat.filterByTagsTitle", "Filter by tags")}
                 </p>
                 <p className="text-[11px] text-gray-500 dark:text-dark-text-secondary">
-                  Show chats matching any selected tag
+                  {t(
+                    "chat.filterByTagsHint",
+                    "Show chats matching any selected tag",
+                  )}
                 </p>
               </div>
             </div>
@@ -280,14 +306,17 @@ export const ChatList = memo(function ChatList({
               <div className="border-y border-whatsapp-teal-green/15 bg-whatsapp-teal-green/[0.06] px-3 py-2.5 dark:bg-whatsapp-teal-green/10">
                 <div className="mb-2 flex items-center justify-between">
                   <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-gray-500 dark:text-dark-text-secondary">
-                    Selected · {selectedTags.length}
+                    {t("chat.selectedCount", {
+                      defaultValue: "Selected · {{count}}",
+                      count: selectedTags.length,
+                    })}
                   </span>
                   <button
                     type="button"
                     onClick={clearTagFilters}
                     className="rounded px-1 py-0.5 text-[11px] font-medium text-whatsapp-teal-green hover:bg-whatsapp-teal-green/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-whatsapp-green/40"
                   >
-                    Clear all
+                    {t("chat.clearAll", "Clear all")}
                   </button>
                 </div>
                 <div className="flex max-h-20 flex-wrap gap-1.5 overflow-y-auto">
@@ -320,23 +349,31 @@ export const ChatList = memo(function ChatList({
             <div
               className="max-h-64 overflow-y-auto p-1.5"
               role="group"
-              aria-label="Available tags"
+              aria-label={t("chat.availableTags", "Available tags")}
             >
               {isFetchingTags && tagResults.length === 0 ? (
                 <div className="flex items-center justify-center gap-2 px-3 py-8 text-xs text-gray-500 dark:text-dark-text-secondary">
                   <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-gray-200 border-t-whatsapp-teal-green dark:border-dark-border dark:border-t-whatsapp-teal-green" />
-                  Searching tags…
+                  {t("chat.searchingTags", "Searching tags…")}
                 </div>
               ) : tagResults.length === 0 ? (
                 <div className="px-4 py-8 text-center">
                   <Tags className="mx-auto mb-2 h-5 w-5 text-gray-300 dark:text-dark-text-tertiary" />
                   <p className="text-xs font-medium text-gray-600 dark:text-dark-text-primary">
-                    {debouncedTagSearch ? "No matching tags" : "No tags yet"}
+                    {debouncedTagSearch
+                      ? t("chat.noMatchingTags", "No matching tags")
+                      : t("chat.noTagsYet", "No tags yet")}
                   </p>
                   <p className="mt-0.5 text-[11px] text-gray-400 dark:text-dark-text-secondary">
                     {debouncedTagSearch
-                      ? `Try another search for “${debouncedTagSearch}”`
-                      : "Create a tag from a contact profile"}
+                      ? t("chat.tryAnotherTagSearch", {
+                          defaultValue: "Try another search for “{{query}}”",
+                          query: debouncedTagSearch,
+                        })
+                      : t(
+                          "chat.createTagHint",
+                          "Create a tag from a contact profile",
+                        )}
                   </p>
                 </div>
               ) : (
@@ -398,7 +435,7 @@ export const ChatList = memo(function ChatList({
       <div className="flex items-center border-b border-gray-200 bg-gray-50 dark:border-dark-border dark:bg-dark-secondary">
         <div
           className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto overscroll-x-contain px-2 py-1.5 [scrollbar-width:thin]"
-          aria-label="Conversation filters"
+          aria-label={t("chat.conversationFilters", "Conversation filters")}
           onWheel={handleFilterWheel}
         >
           <button
@@ -410,7 +447,7 @@ export const ChatList = memo(function ChatList({
                 : "border border-gray-200 bg-white text-gray-600 hover:bg-gray-100 dark:border-dark-border dark:bg-dark-tertiary dark:text-dark-text-secondary dark:hover:bg-dark-border"
             }`}
           >
-            All
+            {t("chat.all", "All")}
           </button>
           <button
             type="button"
@@ -421,7 +458,7 @@ export const ChatList = memo(function ChatList({
                 : "border border-gray-200 bg-white text-gray-600 hover:bg-gray-100 dark:border-dark-border dark:bg-dark-tertiary dark:text-dark-text-secondary dark:hover:bg-dark-border"
             }`}
           >
-            Unread
+            {t("chat.unread", "Unread")}
           </button>
           <button
             type="button"
@@ -432,7 +469,7 @@ export const ChatList = memo(function ChatList({
                 : "border border-gray-200 bg-white text-gray-600 hover:bg-gray-100 dark:border-dark-border dark:bg-dark-tertiary dark:text-dark-text-secondary dark:hover:bg-dark-border"
             }`}
           >
-            Assigned to me
+            {t("chat.assignedToMe", "Assigned to Me")}
           </button>
           <button
             type="button"
@@ -443,7 +480,7 @@ export const ChatList = memo(function ChatList({
                 : "border border-gray-200 bg-white text-gray-600 hover:bg-gray-100 dark:border-dark-border dark:bg-dark-tertiary dark:text-dark-text-secondary dark:hover:bg-dark-border"
             }`}
           >
-            Unassigned
+            {t("chat.unassigned", "Unassigned")}
           </button>
         </div>
 
@@ -452,7 +489,7 @@ export const ChatList = memo(function ChatList({
           type="button"
           onClick={() => setIsAddContactOpen(true)}
           className="mr-1 flex-shrink-0 rounded-full p-1.5 text-whatsapp-teal-green transition-colors hover:bg-whatsapp-teal-green/10 dark:hover:bg-whatsapp-teal-green/20"
-          aria-label="Add new contact"
+          aria-label={t("contacts.addNew", "Add new contact")}
           data-testid="add-contact-button"
         >
           <UserPlus className="h-4 w-4" aria-hidden="true" />
@@ -470,7 +507,7 @@ export const ChatList = memo(function ChatList({
         ref={scrollContainerRef}
         className="flex-1 overflow-y-auto"
         role="listbox"
-        aria-label="Conversations"
+        aria-label={t("chat.conversations", "Conversations")}
         aria-live="polite"
         aria-busy={isLoading}
       >
@@ -500,10 +537,11 @@ export const ChatList = memo(function ChatList({
               />
             </svg>
             <p className="text-gray-600 dark:text-dark-text-primary font-medium">
-              Failed to load chats
+              {t("chat.loadFailed", "Failed to load chats")}
             </p>
             <p className="text-sm text-gray-500 dark:text-dark-text-secondary mt-1">
-              {error?.message || "Please try again later"}
+              {error?.message ||
+                t("errors.tryAgainLater", "Please try again later")}
             </p>
           </div>
         )}
@@ -525,10 +563,13 @@ export const ChatList = memo(function ChatList({
               />
             </svg>
             <p className="text-gray-600 dark:text-dark-text-primary font-medium">
-              No chats found
+              {t("chat.noChats", "No chats found")}
             </p>
             <p className="text-sm text-gray-500 dark:text-dark-text-secondary mt-1">
-              No results for "{searchQuery}"
+              {t("chat.noResultsFor", {
+                defaultValue: 'No results for "{{query}}"',
+                query: searchQuery,
+              })}
             </p>
           </div>
         )}
@@ -542,17 +583,23 @@ export const ChatList = memo(function ChatList({
             <div className="flex h-full flex-col items-center justify-center px-4 py-8 text-center">
               <Tags className="mb-4 h-11 w-11 text-gray-300 dark:text-dark-text-tertiary" />
               <p className="font-medium text-gray-600 dark:text-dark-text-primary">
-                No tagged conversations found
+                {t(
+                  "chat.noTaggedConversations",
+                  "No tagged conversations found",
+                )}
               </p>
               <p className="mt-1 text-sm text-gray-500 dark:text-dark-text-secondary">
-                Try removing a tag filter or changing the inbox filters
+                {t(
+                  "chat.noTaggedConversationsHint",
+                  "Try removing a tag filter or changing the inbox filters",
+                )}
               </p>
               <button
                 type="button"
                 onClick={clearTagFilters}
                 className="mt-3 text-sm font-medium text-whatsapp-teal-green hover:underline"
               >
-                Clear tag filters
+                {t("chat.clearTagFilters", "Clear tag filters")}
               </button>
             </div>
           )}
@@ -579,10 +626,10 @@ export const ChatList = memo(function ChatList({
                 />
               </svg>
               <p className="text-gray-600 dark:text-dark-text-primary font-medium">
-                All caught up!
+                {t("chat.allCaughtUp", "All caught up!")}
               </p>
               <p className="text-sm text-gray-500 dark:text-dark-text-secondary mt-1">
-                You have no unread messages
+                {t("chat.noUnreadMessages", "You have no unread messages")}
               </p>
             </div>
           )}
@@ -609,10 +656,13 @@ export const ChatList = memo(function ChatList({
                 />
               </svg>
               <p className="text-gray-600 dark:text-dark-text-primary font-medium">
-                No conversations yet
+                {t("chat.noConversationsYet", "No conversations yet")}
               </p>
               <p className="text-sm text-gray-500 dark:text-dark-text-secondary mt-1">
-                Start a new chat to begin messaging
+                {t(
+                  "chat.startNewChatHint",
+                  "Start a new chat to begin messaging",
+                )}
               </p>
             </div>
           )}

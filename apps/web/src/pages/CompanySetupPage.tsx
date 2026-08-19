@@ -36,6 +36,7 @@ import {
   WORKSPACE_LOGO_SIZE,
 } from "../lib/workspace-logo";
 import { workspacePath } from "../lib/workspace-routes";
+import { useTranslation } from "react-i18next";
 
 function workspaceMonogram(name: string): string {
   const words = name.trim().split(/\s+/).filter(Boolean);
@@ -48,6 +49,8 @@ function workspaceMonogram(name: string): string {
 }
 
 export function CompanySetupPage() {
+  const { t } = useTranslation();
+
   const navigate = useNavigate();
   const { logout } = useAuth();
   const { refreshWorkspaces, switchWorkspace } = useWorkspace();
@@ -92,7 +95,9 @@ export function CompanySetupPage() {
       setLogoDataUrl(await prepareWorkspaceLogo(file));
     } catch (error) {
       setLogoError(
-        error instanceof Error ? error.message : "Could not process this logo",
+        error instanceof Error
+          ? error.message
+          : t("settings.logoProcessFailed", "Could not process this logo"),
       );
     } finally {
       setIsProcessingLogo(false);
@@ -154,31 +159,35 @@ export function CompanySetupPage() {
                   WATeamInbox
                 </p>
                 <p className="mt-1 text-[0.65rem] font-semibold uppercase tracking-[0.16em] text-slate-500 dark:text-dark-text-tertiary">
-                  WhatsApp for teams
+                  {t("setup.whatsappForTeams", "WhatsApp for teams")}
                 </p>
               </div>
             </div>
             <button
               type="button"
               onClick={() => void logout()}
-              aria-label="Sign out"
+              aria-label={t("nav.signOut", "Sign out")}
               className="inline-flex items-center gap-2 rounded-lg px-2.5 py-2 text-xs font-semibold text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#075e54] dark:text-dark-text-secondary dark:hover:bg-dark-tertiary dark:hover:text-white"
             >
               <LogOut aria-hidden="true" className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">Sign out</span>
+              <span className="hidden sm:inline">
+                {t("nav.signOut", "Sign out")}
+              </span>
             </button>
           </div>
 
           <div className="mx-auto flex w-full max-w-[34rem] flex-1 flex-col justify-center py-10 lg:py-12">
             <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#0a7c43] dark:text-[#52df83]">
-              One last step
+              {t("setup.oneLastStep", "One last step")}
             </p>
             <h1 className="mt-3 text-3xl font-semibold tracking-[-0.04em] text-slate-950 text-balance sm:text-4xl dark:text-dark-text-primary">
-              Give your workspace an identity
+              {t("setup.title", "Give your workspace an identity")}
             </h1>
             <p className="mt-3 max-w-lg text-sm leading-6 text-slate-600 dark:text-dark-text-secondary">
-              Help teammates recognize the right inbox at a glance. You can
-              start with just a name, or add more context now.
+              {t(
+                "setup.subtitle",
+                "Help teammates recognize the right inbox at a glance. You can start with just a name, or add more context now.",
+              )}
             </p>
 
             {createCompany.error && (
@@ -193,7 +202,7 @@ export function CompanySetupPage() {
                 <span>
                   {createCompany.error instanceof Error
                     ? createCompany.error.message
-                    : "Failed to create workspace"}
+                    : t("setup.createFailed", "Failed to create workspace")}
                 </span>
               </div>
             )}
@@ -255,13 +264,19 @@ export function CompanySetupPage() {
                     <span className="grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-2xl bg-[#dcefe7] text-[#075e54] shadow-sm dark:bg-[#25d366]/15 dark:text-[#52df83]">
                       {isProcessingLogo ? (
                         <LoaderCircle
-                          aria-label="Processing logo"
+                          aria-label={t(
+                            "setup.processingLogo",
+                            "Processing logo",
+                          )}
                           className="h-6 w-6 animate-spin"
                         />
                       ) : logoDataUrl ? (
                         <img
                           src={logoDataUrl}
-                          alt="Workspace logo preview"
+                          alt={t(
+                            "setup.logoPreviewAlt",
+                            "Workspace logo preview",
+                          )}
                           className="h-full w-full object-cover"
                         />
                       ) : (
@@ -272,19 +287,24 @@ export function CompanySetupPage() {
                       <span className="flex items-center gap-2 text-sm font-semibold text-slate-800 dark:text-dark-text-primary">
                         <Upload aria-hidden="true" className="h-4 w-4" />
                         {logoDataUrl
-                          ? "Choose a different logo"
-                          : "Upload logo"}
+                          ? t(
+                              "setup.chooseDifferentLogo",
+                              "Choose a different logo",
+                            )
+                          : t("setup.uploadLogo", "Upload logo")}
                       </span>
                       <span className="mt-1 block text-xs leading-5 text-slate-500 dark:text-dark-text-tertiary">
-                        PNG, JPEG, WebP, GIF, or AVIF · max{" "}
-                        {WORKSPACE_LOGO_INPUT_BYTES / 1024 / 1024} MB ·
-                        automatically cropped to {WORKSPACE_LOGO_SIZE} ×{" "}
-                        {WORKSPACE_LOGO_SIZE}
+                        {t("setup.logoHint", {
+                          defaultValue:
+                            "PNG, JPEG, WebP, GIF, or AVIF · max {{mb}} MB · automatically cropped to {{size}} × {{size}}",
+                          mb: WORKSPACE_LOGO_INPUT_BYTES / 1024 / 1024,
+                          size: WORKSPACE_LOGO_SIZE,
+                        })}
                       </span>
                       {logoDataUrl && !isProcessingLogo && (
                         <span className="mt-1.5 flex items-center gap-1.5 text-xs font-semibold text-[#0a7c43] dark:text-[#52df83]">
                           <Check aria-hidden="true" className="h-3.5 w-3.5" />
-                          Logo ready
+                          {t("setup.logoReady", "Logo ready")}
                         </span>
                       )}
                     </span>
@@ -294,7 +314,10 @@ export function CompanySetupPage() {
                       type="button"
                       onClick={removeLogo}
                       className="absolute right-2 top-2 grid h-8 w-8 place-items-center rounded-lg text-slate-400 transition-colors hover:bg-white hover:text-red-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 dark:hover:bg-dark-secondary"
-                      aria-label="Remove workspace logo"
+                      aria-label={t(
+                        "setup.removeLogo",
+                        "Remove workspace logo",
+                      )}
                     >
                       <X aria-hidden="true" className="h-4 w-4" />
                     </button>
@@ -315,10 +338,10 @@ export function CompanySetupPage() {
               </fieldset>
 
               <FormField
-                label="Workspace name"
+                label={t("settings.workspaceName", "Workspace name")}
                 id="companyName"
                 type="text"
-                placeholder="Northwind Support"
+                placeholder={t("setup.namePlaceholder", "Northwind Support")}
                 registration={register("name")}
                 error={errors.name}
                 autoComplete="organization"
@@ -336,9 +359,9 @@ export function CompanySetupPage() {
                         : "text-slate-700 dark:text-dark-text-secondary"
                     }`}
                   >
-                    Description{" "}
+                    {t("settings.description", "Description")}{" "}
                     <span className="font-normal text-slate-400">
-                      (optional)
+                      {t("setup.optional", "(optional)")}
                     </span>
                   </label>
                   <span className="text-[0.68rem] tabular-nums text-slate-400">
@@ -349,7 +372,10 @@ export function CompanySetupPage() {
                   id="companyDescription"
                   rows={3}
                   maxLength={280}
-                  placeholder="What does this team handle?"
+                  placeholder={t(
+                    "settings.descriptionPlaceholder",
+                    "What does this team handle?",
+                  )}
                   disabled={isBusy}
                   aria-invalid={errors.description ? "true" : "false"}
                   aria-describedby={
@@ -382,16 +408,16 @@ export function CompanySetupPage() {
                 {createCompany.isPending ? (
                   <>
                     <LoaderCircle aria-hidden="true" className="animate-spin" />
-                    Creating workspace…
+                    {t("setup.creatingWorkspace", "Creating workspace…")}
                   </>
                 ) : isProcessingLogo ? (
                   <>
                     <LoaderCircle aria-hidden="true" className="animate-spin" />
-                    Preparing logo…
+                    {t("setup.preparingLogo", "Preparing logo…")}
                   </>
                 ) : (
                   <>
-                    Create workspace
+                    {t("setup.createWorkspace", "Create workspace")}
                     <ArrowRight aria-hidden="true" />
                   </>
                 )}
@@ -400,7 +426,10 @@ export function CompanySetupPage() {
           </div>
 
           <p className="text-xs leading-5 text-slate-400 dark:text-dark-text-tertiary">
-            Workspace details are visible only to invited team members.
+            {t(
+              "setup.visibilityNote",
+              "Workspace details are visible only to invited team members.",
+            )}
           </p>
         </div>
 
@@ -425,14 +454,19 @@ export function CompanySetupPage() {
                 aria-hidden="true"
                 className="h-1.5 w-1.5 rounded-full bg-[#8fffb5]"
               />
-              Live workspace preview
+              {t("setup.livePreview", "Live workspace preview")}
             </div>
             <h2 className="mt-7 max-w-sm text-4xl font-semibold leading-[1.08] tracking-[-0.045em] text-balance">
-              Make the right inbox instantly recognizable.
+              {t(
+                "setup.previewHeadline",
+                "Make the right inbox instantly recognizable.",
+              )}
             </h2>
             <p className="mt-5 max-w-sm text-sm leading-6 text-emerald-50/72">
-              Your name, description, and logo help teammates switch contexts
-              without losing focus.
+              {t(
+                "setup.previewBody",
+                "Your name, description, and logo help teammates switch contexts without losing focus.",
+              )}
             </p>
           </div>
 
@@ -465,9 +499,11 @@ export function CompanySetupPage() {
                   aria-hidden="true"
                   className="h-4 w-4 text-[#8fffb5]"
                 />
-                <p className="mt-3 text-xs font-semibold">Invite your team</p>
+                <p className="mt-3 text-xs font-semibold">
+                  {t("setup.inviteYourTeam", "Invite your team")}
+                </p>
                 <p className="mt-1 text-[0.68rem] text-emerald-50/50">
-                  Add members after setup
+                  {t("setup.addMembersAfter", "Add members after setup")}
                 </p>
               </div>
               <div className="rounded-xl border border-white/10 bg-black/10 p-3">
@@ -475,22 +511,27 @@ export function CompanySetupPage() {
                   aria-hidden="true"
                   className="h-4 w-4 text-[#8fffb5]"
                 />
-                <p className="mt-3 text-xs font-semibold">Private workspace</p>
+                <p className="mt-3 text-xs font-semibold">
+                  {t("setup.privateWorkspace", "Private workspace")}
+                </p>
                 <p className="mt-1 text-[0.68rem] text-emerald-50/50">
-                  Separate data and access
+                  {t("setup.separateData", "Separate data and access")}
                 </p>
               </div>
             </div>
 
             <div className="mt-4 flex items-center gap-2.5 rounded-xl bg-[#25d366]/14 px-3 py-2.5 text-xs text-[#a9fbc5]">
               <Check aria-hidden="true" className="h-4 w-4" />
-              Ready for your first WhatsApp connection
+              {t(
+                "setup.readyForConnection",
+                "Ready for your first WhatsApp connection",
+              )}
             </div>
           </div>
 
           <div className="relative flex items-center gap-3 border-t border-white/10 pt-6 text-xs text-emerald-50/65">
             <LockKeyhole aria-hidden="true" className="h-4 w-4" />
-            You’ll be the owner of this workspace.
+            {t("setup.ownerNote", "You’ll be the owner of this workspace.")}
           </div>
         </aside>
       </section>

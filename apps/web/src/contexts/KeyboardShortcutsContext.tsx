@@ -4,6 +4,7 @@ import {
   type KeyboardShortcut,
   useKeyboardShortcuts,
 } from "@/hooks/ui";
+import { useTranslation } from "react-i18next";
 
 /**
  * State for the keyboard shortcuts context
@@ -70,6 +71,8 @@ export interface KeyboardShortcutsProviderProps {
 export function KeyboardShortcutsProvider({
   children,
 }: KeyboardShortcutsProviderProps) {
+  const { t } = useTranslation();
+
   const [state, setState] = React.useState<KeyboardShortcutsState>({
     enabled: true,
     isHelpModalOpen: false,
@@ -133,7 +136,7 @@ export function KeyboardShortcutsProvider({
   const focusNewChat = React.useCallback(() => {
     // Try to find and focus the chat list search input
     const searchInput = document.querySelector<HTMLInputElement>(
-      '[aria-label="Search contacts"], [data-testid="chat-list-search"]',
+      '[aria-label={t("chat.searchContactsAria", "Search contacts")}], [data-testid="chat-list-search"]',
     );
     if (searchInput) {
       searchInput.focus();
@@ -188,8 +191,11 @@ export function KeyboardShortcutsProvider({
       // Navigation shortcuts
       {
         id: "new-chat",
-        label: "New Chat",
-        description: "Focus the search input to start a new chat",
+        label: t("keyboard.shortcuts.newChat.label", "New Chat"),
+        description: t(
+          "keyboard.shortcuts.newChat.description",
+          "Focus the search input to start a new chat",
+        ),
         key: "n",
         modifiers: [primaryMod],
         category: "navigation",
@@ -197,8 +203,11 @@ export function KeyboardShortcutsProvider({
       },
       {
         id: "open-search",
-        label: "Open Search",
-        description: "Open the global search panel",
+        label: t("keyboard.shortcuts.openSearch.label", "Open Search"),
+        description: t(
+          "keyboard.shortcuts.openSearch.description",
+          "Open the global search panel",
+        ),
         key: "f",
         modifiers: [primaryMod],
         category: "navigation",
@@ -206,8 +215,11 @@ export function KeyboardShortcutsProvider({
       },
       {
         id: "navigate-up",
-        label: "Navigate Up",
-        description: "Move up in the chat list",
+        label: t("keyboard.shortcuts.navigateUp.label", "Navigate Up"),
+        description: t(
+          "keyboard.shortcuts.navigateUp.description",
+          "Move up in the chat list",
+        ),
         key: "ArrowUp",
         modifiers: [],
         category: "navigation",
@@ -216,8 +228,11 @@ export function KeyboardShortcutsProvider({
       },
       {
         id: "navigate-down",
-        label: "Navigate Down",
-        description: "Move down in the chat list",
+        label: t("keyboard.shortcuts.navigateDown.label", "Navigate Down"),
+        description: t(
+          "keyboard.shortcuts.navigateDown.description",
+          "Move down in the chat list",
+        ),
         key: "ArrowDown",
         modifiers: [],
         category: "navigation",
@@ -228,8 +243,14 @@ export function KeyboardShortcutsProvider({
       // General shortcuts
       {
         id: "show-shortcuts",
-        label: "Keyboard Shortcuts",
-        description: "Show this keyboard shortcuts help",
+        label: t(
+          "keyboard.shortcuts.showShortcuts.label",
+          "Keyboard Shortcuts",
+        ),
+        description: t(
+          "keyboard.shortcuts.showShortcuts.description",
+          "Show this keyboard shortcuts help",
+        ),
         key: "/",
         modifiers: [primaryMod],
         category: "general",
@@ -237,8 +258,11 @@ export function KeyboardShortcutsProvider({
       },
       {
         id: "close-modal",
-        label: "Close",
-        description: "Close the current modal or panel",
+        label: t("keyboard.shortcuts.closeModal.label", "Close"),
+        description: t(
+          "keyboard.shortcuts.closeModal.description",
+          "Close the current modal or panel",
+        ),
         key: "Escape",
         modifiers: [],
         category: "general",
@@ -247,6 +271,7 @@ export function KeyboardShortcutsProvider({
       },
     ],
     [
+      t,
       primaryMod,
       focusNewChat,
       toggleSearchPanel,

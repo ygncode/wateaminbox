@@ -18,6 +18,7 @@ import {
 import { Input } from "../ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
 import { WorkspaceAvatar } from "./WorkspaceAvatar";
+import { useTranslation } from "react-i18next";
 export { workspaceMonogram } from "./WorkspaceAvatar";
 
 function roleLabel(role: "owner" | "admin" | "member") {
@@ -33,6 +34,8 @@ export function WorkspaceSwitcher({
   compact?: boolean;
   collapsed?: boolean;
 }) {
+  const { t } = useTranslation();
+
   const {
     memberships,
     activeWorkspace,
@@ -79,7 +82,12 @@ export function WorkspaceSwitcher({
       }
     } catch (error) {
       toast.error(
-        error instanceof Error ? error.message : "Could not switch workspace",
+        error instanceof Error
+          ? error.message
+          : t(
+              "workspaces.switchFailed",
+              t("workspaces.switchFailed", "Could not switch workspace"),
+            ),
       );
     }
   };
@@ -169,7 +177,7 @@ export function WorkspaceSwitcher({
         >
           <div className="px-2 pb-2 pt-1">
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#65736d]">
-              Switch workspace
+              {t("workspaces.switch", "Switch workspace")}
             </p>
           </div>
           {memberships.length >= 4 && (
@@ -178,7 +186,7 @@ export function WorkspaceSwitcher({
               <Input
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
-                placeholder="Find a workspace"
+                placeholder={t("workspaces.find", "Find a workspace")}
                 className="h-9 rounded-lg pl-9"
               />
             </div>
@@ -208,7 +216,7 @@ export function WorkspaceSwitcher({
                 {workspace.id === activeWorkspace.id && (
                   <Check
                     className="h-4 w-4 text-[#0b7a55]"
-                    aria-label="Active"
+                    aria-label={t("workspaces.active", "Active")}
                   />
                 )}
               </button>
@@ -224,7 +232,7 @@ export function WorkspaceSwitcher({
               className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[#0b7a55] hover:bg-[#dcefe7] dark:text-emerald-300 dark:hover:bg-emerald-400/10"
             >
               <Plus className="h-4 w-4" />
-              Create workspace
+              {t("workspaces.create", "Create workspace")}
             </button>
           </div>
         </PopoverContent>
@@ -233,13 +241,18 @@ export function WorkspaceSwitcher({
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
         <DialogContent className="mx-4 w-[calc(100vw-2rem)] rounded-2xl sm:w-full">
           <DialogHeader>
-            <DialogTitle>Create another workspace</DialogTitle>
+            <DialogTitle>
+              {t("workspaces.createAnother", "Create another workspace")}
+            </DialogTitle>
             <DialogDescription>
-              Start a separate inbox with its own team, connections, and data.
+              {t(
+                "workspaces.createHint",
+                "Start a separate inbox with its own team, connections, and data.",
+              )}
             </DialogDescription>
           </DialogHeader>
           <label className="space-y-2 text-sm font-medium">
-            Workspace name
+            {t("settings.workspaceName", "Workspace name")}
             <Input
               autoFocus
               value={workspaceName}
@@ -247,7 +260,7 @@ export function WorkspaceSwitcher({
               onKeyDown={(event) => {
                 if (event.key === "Enter") handleCreate();
               }}
-              placeholder="Northwind Support"
+              placeholder={t("setup.namePlaceholder", "Northwind Support")}
               maxLength={100}
             />
           </label>

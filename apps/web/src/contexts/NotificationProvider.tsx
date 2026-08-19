@@ -48,6 +48,7 @@ import {
 import { useAuth } from "./auth-context";
 import { useRealtimeContext } from "./RealtimeProvider";
 import { useWorkspace } from "./workspace-context";
+import { useTranslation } from "react-i18next";
 
 export interface NotificationContextValue {
   settings: NotificationSettings;
@@ -138,6 +139,8 @@ export function NotificationProvider({
 }: {
   children: React.ReactNode;
 }) {
+  const { t } = useTranslation();
+
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { isAuthenticated, user } = useAuth();
@@ -186,7 +189,9 @@ export function NotificationProvider({
       void queryClient.invalidateQueries({
         queryKey: queryKeys.notificationPreferences.all,
       });
-      toast.error("Notification settings were not saved");
+      toast.error(
+        t("notifications.saveFailed", "Notification settings were not saved"),
+      );
     },
   });
 
@@ -242,13 +247,19 @@ export function NotificationProvider({
             mutedContacts: response.mutedContacts,
           });
           setSettings(saved);
-          toast.success(muted ? "Contact muted" : "Contact unmuted");
+          toast.success(
+            muted
+              ? t("contacts.muted", "Contact muted")
+              : t("contacts.unmuted", "Contact unmuted"),
+          );
         },
         onError: () => {
           saveNotificationSettings(previous);
           setSettings(previous);
           toast.error(
-            muted ? "Could not mute contact" : "Could not unmute contact",
+            muted
+              ? t("contacts.muteFailed", "Could not mute contact")
+              : t("contacts.unmuteFailed", "Could not unmute contact"),
           );
         },
       });

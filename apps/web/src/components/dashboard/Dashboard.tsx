@@ -22,6 +22,7 @@ import {
 import { DashboardStats } from "./DashboardStats";
 import { ResolutionRateSection } from "./ResolutionRateSection";
 import { ResponseTimeAnalytics } from "./ResponseTimeAnalytics";
+import { useTranslation } from "react-i18next";
 
 export interface DashboardProps {
   companyId: string;
@@ -39,6 +40,8 @@ export function Dashboard({
   canExport = false,
   workspaceName,
 }: DashboardProps) {
+  const { t } = useTranslation();
+
   const [searchParams, setSearchParams] = useSearchParams();
   const rangeParam = searchParams.get("range");
   const dateRange: DateRange =
@@ -137,14 +140,17 @@ export function Dashboard({
                     id="operational-overview-title"
                     className="text-sm font-semibold text-[#203b32] dark:text-dark-text-primary"
                   >
-                    Operational overview
+                    {t("dashboard.operationalOverview", "Operational overview")}
                   </h2>
                   <p className="mt-0.5 text-xs text-[#718078] dark:text-dark-text-secondary">
-                    A live pulse of messaging and workspace activity.
+                    {t(
+                      "dashboard.operationalOverviewHint",
+                      "A live pulse of messaging and workspace activity.",
+                    )}
                   </p>
                 </div>
                 <span className="rounded-full border border-[#dce3de] bg-white px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-[#65736d] dark:border-dark-border dark:bg-dark-elevated dark:text-dark-text-secondary">
-                  All time
+                  {t("dashboard.allTime", "All time")}
                 </span>
               </div>
               <DashboardStats
@@ -157,10 +163,13 @@ export function Dashboard({
             <div className="flex flex-wrap items-end justify-between gap-2 pt-1">
               <div>
                 <h2 className="text-sm font-semibold text-[#203b32] dark:text-dark-text-primary">
-                  Activity trends
+                  {t("dashboard.activityTrends", "Activity trends")}
                 </h2>
                 <p className="mt-0.5 text-xs text-[#718078] dark:text-dark-text-secondary">
-                  Volume, acquisition, and traffic patterns.
+                  {t(
+                    "dashboard.activityTrendsHint",
+                    "Volume, acquisition, and traffic patterns.",
+                  )}
                 </p>
               </div>
               <span className="rounded-full bg-[#edf2ef] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-[#65736d] dark:bg-dark-tertiary dark:text-dark-text-secondary">
@@ -191,11 +200,13 @@ export function Dashboard({
               <>
                 <div className="border-t border-[#dce3de] pt-6 dark:border-dark-border">
                   <h2 className="text-sm font-semibold text-[#203b32] dark:text-dark-text-primary">
-                    Workspace insights
+                    {t("dashboard.workspaceInsights", "Workspace insights")}
                   </h2>
                   <p className="mt-0.5 text-xs text-[#718078] dark:text-dark-text-secondary">
-                    Deeper signals for contact quality, outcomes, and service
-                    performance.
+                    {t(
+                      "dashboard.workspaceInsightsHint",
+                      "Deeper signals for contact quality, outcomes, and service performance.",
+                    )}
                   </p>
                 </div>
                 <StatsCardsRow
@@ -234,7 +245,10 @@ export function Dashboard({
                 onClick={() => setShowSecondary(true)}
                 className="w-full rounded-xl border border-dashed border-[#cbd6cf] bg-white/70 py-6 text-sm font-medium text-[#0b7a55] transition-colors hover:border-[#8cb7a4] hover:bg-white dark:border-dark-border dark:bg-dark-elevated/50 dark:hover:bg-dark-elevated"
               >
-                Load detailed analytics
+                {t(
+                  "dashboard.loadDetailedAnalytics",
+                  "Load detailed analytics",
+                )}
               </button>
             )}
           </div>

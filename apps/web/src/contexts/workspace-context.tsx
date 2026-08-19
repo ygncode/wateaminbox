@@ -12,6 +12,7 @@ import { isWorkspaceAccessBooting } from "../lib/workspace-access";
 import { resolveInitialWorkspaceId } from "../lib/workspace-routes";
 import { useChatStore } from "../stores/chat-store";
 import { useAuth } from "./auth-context";
+import { useTranslation } from "react-i18next";
 
 export type WorkspaceCapability = keyof MemberPermissions;
 
@@ -59,6 +60,8 @@ function queryKeyContains(
 }
 
 export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
+  const { t } = useTranslation();
+
   const { user, isAuthenticated } = useAuth();
   const queryClient = useQueryClient();
   const [memberships, setMemberships] = React.useState<CompanyWithRole[]>([]);
@@ -150,7 +153,9 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
       return available;
     } catch (cause) {
       const message =
-        cause instanceof Error ? cause.message : "Unable to load workspaces";
+        cause instanceof Error
+          ? cause.message
+          : t("workspaces.loadFailed", "Unable to load workspaces");
       setLoadedUserId(user.id);
       setError(message);
       throw cause;
@@ -234,7 +239,9 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
         activeWorkspaceIdRef.current = previousId;
         setActiveWorkspaceId(previousId);
         const message =
-          cause instanceof Error ? cause.message : "Workspace switch failed";
+          cause instanceof Error
+            ? cause.message
+            : t("workspaces.switchFailedGeneric", "Workspace switch failed");
         setError(message);
         throw cause;
       } finally {

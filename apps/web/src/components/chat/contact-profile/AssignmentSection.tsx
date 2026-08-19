@@ -4,6 +4,7 @@ import { RightPanelSection } from "@/components/layout/right-panel";
 import { Button } from "@/components/ui/button";
 import { useAssignContact, useUnassignContact } from "@/hooks/useContact";
 import type { ContactData } from "./types";
+import { useTranslation } from "react-i18next";
 
 interface AssignmentSectionProps {
   contact: ContactData;
@@ -13,6 +14,8 @@ interface AssignmentSectionProps {
  * Assignment section - assign/unassign contact to current user
  */
 export function AssignmentSection({ contact }: AssignmentSectionProps) {
+  const { t } = useTranslation();
+
   const assignContact = useAssignContact();
   const unassignContact = useUnassignContact();
 
@@ -25,7 +28,7 @@ export function AssignmentSection({ contact }: AssignmentSectionProps) {
   };
 
   return (
-    <RightPanelSection title="Assignment">
+    <RightPanelSection title={t("contacts.assignment", "Assignment")}>
       <div className="flex items-center justify-between">
         {contact.assignment ? (
           <>
@@ -54,7 +57,7 @@ export function AssignmentSection({ contact }: AssignmentSectionProps) {
         ) : (
           <>
             <p className="text-sm italic text-gray-400 dark:text-dark-text-tertiary">
-              Not assigned to anyone
+              {t("contacts.notAssigned", "Not assigned to anyone")}
             </p>
             <Button
               size="sm"
@@ -63,7 +66,7 @@ export function AssignmentSection({ contact }: AssignmentSectionProps) {
               className="bg-whatsapp-teal-green hover:bg-whatsapp-dark-green"
             >
               <UserPlus className="mr-1 h-4 w-4" />
-              Assign to me
+              {t("contacts.assignToMe", "Assign to me")}
             </Button>
           </>
         )}

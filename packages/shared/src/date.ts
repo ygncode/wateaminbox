@@ -12,6 +12,21 @@ export { dayjs }
 // Type for accepted date inputs
 export type DateInput = Date | string | number | dayjs.Dayjs | null | undefined
 
+/**
+ * Optional translator, shaped like i18next's `t`. These helpers live in the
+ * shared package so they cannot depend on the web app's i18n instance; callers
+ * that have one pass it in, and everything else keeps the English wording.
+ */
+export type DateTranslate = (
+  key: string,
+  options: { defaultValue: string } & Record<string, unknown>,
+) => string
+
+const englishDate: DateTranslate = (_key, options) =>
+  options.defaultValue.replace(/\{\{(\w+)\}\}/g, (_match, name: string) =>
+    String(options[name] ?? ''),
+  )
+
 // ============================================
 // CORE UTILITIES
 // ============================================
@@ -91,7 +106,10 @@ export function formatRelativeTime(input: DateInput): string {
  * Format relative time in short form for compact displays
  * e.g., "5m ago", "2h ago", "3d ago"
  */
-export function formatStatusTime(input: DateInput): string {
+export function formatStatusTime(
+  input: DateInput,
+  t: DateTranslate = englishDate,
+): string {
   const parsed = parseDate(input)
   if (!parsed) return ''
 
@@ -101,10 +119,21 @@ export function formatStatusTime(input: DateInput): string {
   const diffHours = Math.floor(diffMinutes / 60)
   const diffDays = Math.floor(diffHours / 24)
 
-  if (diffMinutes < 1) return 'Just now'
-  if (diffMinutes < 60) return `${diffMinutes}m ago`
-  if (diffHours < 24) return `${diffHours}h ago`
-  return `${diffDays}d ago`
+  if (diffMinutes < 1) return t('time.justNow', { defaultValue: 'Just now' })
+  if (diffMinutes < 60)
+    return t('time.minutesAgoShort', {
+      defaultValue: '{{count}}m ago',
+      count: diffMinutes,
+    })
+  if (diffHours < 24)
+    return t('time.hoursAgoShort', {
+      defaultValue: '{{count}}h ago',
+      count: diffHours,
+    })
+  return t('time.daysAgoShort', {
+    defaultValue: '{{count}}d ago',
+    count: diffDays,
+  })
 }
 
 /**
@@ -118,8 +147,12 @@ export function formatStatusTime(input: DateInput): string {
  * - "last seen Monday at HH:mm" (within 7 days)
  * - "last seen Mon, Jan 15, 2024" (older)
  */
-export function formatLastSeen(input: DateInput, isOnline?: boolean): string {
-  if (isOnline) return 'online'
+export function formatLastSeen(
+  input: DateInput,
+  isOnline?: boolean,
+  t: DateTranslate = englishDate,
+): string {
+  if (isOnline) return t('time.online', { defaultValue: 'online' })
 
   const parsed = parseDate(input)
   if (!parsed) return ''
@@ -131,21 +164,38 @@ export function formatLastSeen(input: DateInput, isOnline?: boolean): string {
   const diffHours = Math.floor(diffMinutes / 60)
   const diffDays = Math.floor(diffHours / 24)
 
-  if (diffMinutes < 1) return 'last seen just now'
+  if (diffMinutes < 1)
+    return t('time.lastSeenJustNow', { defaultValue: 'last seen just now' })
   if (diffMinutes < 60) {
-    return `last seen ${diffMinutes} minute${diffMinutes === 1 ? '' : 's'} ago`
+    return t('time.lastSeenMinutes', {
+      defaultValue: `last seen {{count}} minute${diffMinutes === 1 ? '' : 's'} ago`,
+      count: diffMinutes,
+    })
   }
   if (diffHours < 24) {
-    return `last seen ${diffHours} hour${diffHours === 1 ? '' : 's'} ago`
+    return t('time.lastSeenHours', {
+      defaultValue: `last seen {{count}} hour${diffHours === 1 ? '' : 's'} ago`,
+      count: diffHours,
+    })
   }
   if (diffDays === 1) {
-    return `last seen yesterday at ${local.format('HH:mm')}`
+    return t('time.lastSeenYesterday', {
+      defaultValue: 'last seen yesterday at {{time}}',
+      time: local.format('HH:mm'),
+    })
   }
   if (diffDays < 7) {
-    return `last seen ${local.format('dddd')} at ${local.format('HH:mm')}`
+    return t('time.lastSeenWeekday', {
+      defaultValue: 'last seen {{day}} at {{time}}',
+      day: local.format('dddd'),
+      time: local.format('HH:mm'),
+    })
   }
 
-  return `last seen ${local.format('MMM D, YYYY')}`
+  return t('time.lastSeenDate', {
+    defaultValue: 'last seen {{date}}',
+    date: local.format('MMM D, YYYY'),
+  })
 }
 
 // ============================================
@@ -169,7 +219,10 @@ export function formatMessageTime(input: DateInput): string {
  * - Older this year: Short date (e.g., "Jan 5")
  * - Previous years: Date with year (e.g., "Jan 5, 2025")
  */
-export function formatChatListTime(input: DateInput): string {
+export function formatChatListTime(
+  input: DateInput,
+  t: DateTranslate = englishDate,
+): string {
   const parsed = parseDate(input)
   if (!parsed) return ''
 
@@ -182,7 +235,7 @@ export function formatChatListTime(input: DateInput): string {
     return local.format('HH:mm')
   }
   if (diffDays === 1) {
-    return 'Yesterday'
+    return t('time.yesterday', { defaultValue: 'Yesterday' })
   }
   if (diffDays < 7) {
     // This week - show day name
@@ -212,7 +265,10 @@ export function formatAuditTime(input: DateInput): string {
  * - This week: Full day name (e.g., "Monday")
  * - Older: Full date (e.g., "Monday, January 15")
  */
-export function formatDateSeparator(input: DateInput): string {
+export function formatDateSeparator(
+  input: DateInput,
+  t: DateTranslate = englishDate,
+): string {
   const parsed = parseDate(input)
   if (!parsed) return ''
 
@@ -220,8 +276,8 @@ export function formatDateSeparator(input: DateInput): string {
   const nowLocal = dayjs().local()
   const diffDays = nowLocal.startOf('day').diff(local.startOf('day'), 'day')
 
-  if (diffDays === 0) return 'Today'
-  if (diffDays === 1) return 'Yesterday'
+  if (diffDays === 0) return t('time.today', { defaultValue: 'Today' })
+  if (diffDays === 1) return t('time.yesterday', { defaultValue: 'Yesterday' })
   if (diffDays < 7) return local.format('dddd')
 
   // Older - show full date

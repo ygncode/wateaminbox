@@ -17,6 +17,7 @@ import { useTableParams } from "@/hooks/useTableParams";
 import { BroadcastProgressBar } from "./BroadcastProgressBar";
 import { BroadcastStatusBadge } from "./BroadcastStatusBadge";
 import { progressSummary } from "./broadcast-format";
+import { useTranslation } from "react-i18next";
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50];
 const DEFAULT_PAGE_SIZE = 20;
@@ -32,6 +33,8 @@ export function BroadcastJobList({
   onCreateBroadcast,
   getJobHref,
 }: BroadcastJobListProps) {
+  const { t } = useTranslation();
+
   const { pagination, setPagination } = useTableParams({
     defaultPageSize: DEFAULT_PAGE_SIZE,
     pageSizeOptions: PAGE_SIZE_OPTIONS,
@@ -47,7 +50,7 @@ export function BroadcastJobList({
   const columns: ColumnDef<BulkJob>[] = [
     {
       id: "campaign",
-      header: "Campaign",
+      header: t("broadcasts.campaign", "Campaign"),
       size: 320,
       cell: ({ row }) => (
         <div className="flex min-w-0 items-center gap-3">
@@ -64,7 +67,7 @@ export function BroadcastJobList({
             <p className="truncate text-[11px] text-[#718078] dark:text-dark-text-secondary">
               {row.original.createdByName
                 ? `Created by ${row.original.createdByName}`
-                : "Workspace broadcast"}
+                : t("broadcasts.workspaceBroadcast", "Workspace broadcast")}
             </p>
           </div>
         </div>
@@ -72,13 +75,13 @@ export function BroadcastJobList({
     },
     {
       accessorKey: "status",
-      header: "Status",
+      header: t("broadcasts.statusHeader", "Status"),
       size: 130,
       cell: ({ row }) => <BroadcastStatusBadge status={row.original.status} />,
     },
     {
       id: "delivery",
-      header: "Delivery",
+      header: t("broadcasts.delivery", "Delivery"),
       size: 270,
       cell: ({ row }) => {
         const { progress } = row.original;
@@ -113,7 +116,7 @@ export function BroadcastJobList({
     },
     {
       accessorKey: "scheduledAt",
-      header: "Schedule",
+      header: t("broadcasts.schedule", "Schedule"),
       size: 190,
       cell: ({ row }) => {
         const isScheduled = row.original.status === "scheduled";
@@ -136,7 +139,7 @@ export function BroadcastJobList({
     },
     {
       accessorKey: "createdAt",
-      header: "Created",
+      header: t("broadcasts.created", "Created"),
       size: 140,
       cell: ({ row }) => (
         <time
@@ -149,7 +152,9 @@ export function BroadcastJobList({
     },
     {
       id: "open",
-      header: () => <span className="sr-only">Open</span>,
+      header: () => (
+        <span className="sr-only">{t("broadcasts.open", "Open")}</span>
+      ),
       size: 60,
       cell: ({ row }) => (
         // The campaign name is the accessible link; this is a pointer affordance
@@ -178,7 +183,7 @@ export function BroadcastJobList({
       error={error}
       onRetry={() => void refetch()}
       getRowId={(job) => job.id}
-      tableLabel="Broadcast campaigns"
+      tableLabel={t("broadcasts.campaignsTableLabel", "Broadcast campaigns")}
       toolbarLeading={
         <div className="flex min-w-0 items-center gap-2.5">
           <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg border border-[#d7e0da] bg-white text-[#0b7a55] dark:border-dark-border dark:bg-dark-elevated dark:text-emerald-300">
@@ -186,20 +191,26 @@ export function BroadcastJobList({
           </span>
           <div className="min-w-0">
             <p className="truncate text-xs font-semibold text-[#31463e] dark:text-dark-text-primary">
-              Campaign history
+              {t("broadcasts.campaignHistory", "Campaign history")}
             </p>
             <p className="hidden truncate text-[10px] text-[#7a8881] sm:block dark:text-dark-text-secondary">
-              Newest first — open a campaign for recipient outcomes.
+              {t(
+                "broadcasts.campaignHistoryHint",
+                "Newest first — open a campaign for recipient outcomes.",
+              )}
             </p>
           </div>
         </div>
       }
-      emptyTitle="No broadcasts yet"
-      emptyDescription="Build an audience, personalize one message, and schedule delivery at a safe pace."
+      emptyTitle={t("broadcasts.emptyTitle", "No broadcasts yet")}
+      emptyDescription={t(
+        "broadcasts.emptyDescription",
+        "Build an audience, personalize one message, and schedule delivery at a safe pace.",
+      )}
       emptyAction={
         <Button size="sm" className="gap-2" onClick={onCreateBroadcast}>
           <Plus className="h-4 w-4" aria-hidden="true" />
-          New broadcast
+          {t("broadcasts.newBroadcast", "New broadcast")}
         </Button>
       }
       pageSizeOptions={PAGE_SIZE_OPTIONS}

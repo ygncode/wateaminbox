@@ -9,6 +9,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "./dialog";
+import { useTranslation } from "react-i18next";
 
 export interface ConfirmationDialogProps {
   /**
@@ -83,14 +84,16 @@ export function ConfirmationDialog({
   onOpenChange,
   title,
   description,
-  confirmText = "Confirm",
-  cancelText = "Cancel",
+  confirmText,
+  cancelText,
   onConfirm,
   onCancel,
   isDestructive = false,
   isLoading = false,
   confirmTestId,
 }: ConfirmationDialogProps) {
+  const { t } = useTranslation();
+
   const handleCancel = React.useCallback(() => {
     if (onCancel) {
       onCancel();
@@ -120,7 +123,7 @@ export function ConfirmationDialog({
         </DialogHeader>
         <DialogFooter>
           <Button variant="outline" onClick={handleCancel} disabled={isLoading}>
-            {cancelText}
+            {cancelText ?? t("common.cancel", "Cancel")}
           </Button>
           <Button
             variant={isDestructive ? "destructive" : "default"}
@@ -130,7 +133,7 @@ export function ConfirmationDialog({
             data-testid={confirmTestId}
           >
             {isLoading && <Loader2 className="h-4 w-4 animate-spin" />}
-            {confirmText}
+            {confirmText ?? t("common.confirm", "Confirm")}
           </Button>
         </DialogFooter>
       </DialogContent>

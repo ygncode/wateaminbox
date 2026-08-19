@@ -30,6 +30,7 @@ import {
   getInboxNavigationLabel,
   getInboxUnreadCount,
 } from "./inbox-unread";
+import { useTranslation } from "react-i18next";
 
 const SyncingOverlay = lazy(() =>
   import("../chat/SyncingOverlay").then((module) => ({
@@ -38,6 +39,8 @@ const SyncingOverlay = lazy(() =>
 );
 
 interface NavigationItem {
+  /** i18n key; `label` is the English fallback and the stable identifier. */
+  labelKey: string;
   label: string;
   path: string;
   icon: typeof Inbox;
@@ -55,6 +58,8 @@ function NavigationLink({
   compact?: boolean;
   collapsed?: boolean;
 }) {
+  const { t } = useTranslation();
+
   const Icon = item.icon;
   const unreadCount = item.unreadCount ?? 0;
   const baseClass = cn(
@@ -74,7 +79,9 @@ function NavigationLink({
         className={compact ? "h-5 w-5" : "h-[18px] w-[18px]"}
         aria-hidden="true"
       />
-      <span className={collapsed ? "sr-only" : undefined}>{item.label}</span>
+      <span className={collapsed ? "sr-only" : undefined}>
+        {t(item.labelKey, item.label)}
+      </span>
       {unreadCount > 0 && (
         <span
           className={cn(
@@ -93,7 +100,11 @@ function NavigationLink({
       )}
     </>
   );
-  const accessibleLabel = getInboxNavigationLabel(item.label, unreadCount);
+  const accessibleLabel = getInboxNavigationLabel(
+    t(item.labelKey, item.label),
+    unreadCount,
+    t,
+  );
   const title = collapsed ? accessibleLabel : undefined;
 
   if (item.external) {
@@ -130,11 +141,13 @@ function MoreLink({
   item: NavigationItem;
   onClick: () => void;
 }) {
+  const { t } = useTranslation();
+
   const Icon = item.icon;
   const content = (
     <>
       <Icon className="h-5 w-5" />
-      {item.label}
+      {t(item.labelKey, item.label)}
     </>
   );
   const baseClass =
@@ -174,6 +187,8 @@ function MoreLink({
 }
 
 function ButtonSignOut({ onClick }: { onClick: () => void }) {
+  const { t } = useTranslation();
+
   return (
     <button
       type="button"
@@ -181,7 +196,7 @@ function ButtonSignOut({ onClick }: { onClick: () => void }) {
       className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/30"
     >
       <LogOut className="h-4 w-4" />
-      Sign out
+      {t("nav.signOut", "Sign out")}
     </button>
   );
 }
@@ -190,6 +205,8 @@ const SIDEBAR_COLLAPSED_KEY = "wateaminbox:sidebar-collapsed";
 
 /** Workspace-aware shell shared by every protected destination. */
 export function ProtectedAppLayout() {
+  const { t } = useTranslation();
+
   const { pathname } = useLocation();
   const [moreOpen, setMoreOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(
@@ -208,6 +225,7 @@ export function ProtectedAppLayout() {
   const billingUrl = getWorkspaceBillingUrl(activeWorkspace.id);
   const items: NavigationItem[] = [
     {
+      labelKey: "nav.inbox",
       label: "Inbox",
       path: workspacePath(activeWorkspace.id, "chat"),
       icon: Inbox,
@@ -215,30 +233,35 @@ export function ProtectedAppLayout() {
       unreadCount: inboxUnreadCount,
     },
     {
+      labelKey: "nav.dashboard",
       label: "Dashboard",
       path: workspacePath(activeWorkspace.id, "dashboard"),
       icon: LayoutDashboard,
       visible: can("can_view_dashboard"),
     },
     {
+      labelKey: "nav.broadcasts",
       label: "Broadcasts",
       path: workspacePath(activeWorkspace.id, "broadcasts"),
       icon: Megaphone,
       visible: can("can_send_bulk_messages"),
     },
     {
+      labelKey: "nav.team",
       label: "Team",
       path: workspacePath(activeWorkspace.id, "team"),
       icon: Users,
       visible: canAny(["can_manage_team", "can_invite"]),
     },
     {
+      labelKey: "nav.audit",
       label: "Audit",
       path: workspacePath(activeWorkspace.id, "audit"),
       icon: FileClock,
       visible: can("can_view_audit"),
     },
     {
+      labelKey: "nav.billing",
       label: "Plan & billing",
       path: billingUrl ?? "#",
       icon: CreditCard,
@@ -248,6 +271,7 @@ export function ProtectedAppLayout() {
   ];
   const visibleItems = items.filter((item) => item.visible);
   const settingsItem: NavigationItem = {
+    labelKey: "nav.settings",
     label: "Settings",
     path: workspacePath(activeWorkspace.id, "settings"),
     icon: Settings,
@@ -274,7 +298,7 @@ export function ProtectedAppLayout() {
   return (
     <div className="flex h-dvh w-full overflow-hidden bg-[#f5f7f4] text-[#10211b] dark:bg-dark-primary dark:text-dark-text-primary">
       <a href="#main-content" className="skip-link">
-        Skip to main content
+        {t("nav.skipToMain", "Skip to main content")}
       </a>
       <aside
         className={cn(
@@ -283,7 +307,10 @@ export function ProtectedAppLayout() {
         )}
       >
         <WorkspaceSwitcher collapsed={sidebarCollapsed} />
-        <nav className="mt-5 space-y-1" aria-label="Primary navigation">
+        <nav
+          className="mt-5 space-y-1"
+          aria-label={t("nav.primary", "Primary navigation")}
+        >
           {visibleItems.map((item) => (
             <NavigationLink
               key={item.label}
@@ -301,9 +328,15 @@ export function ProtectedAppLayout() {
               sidebarCollapsed ? "justify-center px-0" : "gap-3 px-3",
             )}
             aria-label={
-              sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"
+              sidebarCollapsed
+                ? t("nav.expandSidebar", "Expand sidebar")
+                : t("nav.collapseSidebar", "Collapse sidebar")
             }
-            title={sidebarCollapsed ? "Expand sidebar" : undefined}
+            title={
+              sidebarCollapsed
+                ? t("nav.expandSidebar", "Expand sidebar")
+                : undefined
+            }
           >
             {sidebarCollapsed ? (
               <PanelLeftOpen className="h-[18px] w-[18px]" />
@@ -311,7 +344,9 @@ export function ProtectedAppLayout() {
               <PanelLeftClose className="h-[18px] w-[18px]" />
             )}
             <span className={sidebarCollapsed ? "sr-only" : undefined}>
-              {sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+              {sidebarCollapsed
+                ? t("nav.expandSidebar", "Expand sidebar")
+                : t("nav.collapseSidebar", "Collapse sidebar")}
             </span>
           </button>
           <div className="space-y-1 border-t border-white/10 pt-3">
@@ -346,8 +381,8 @@ export function ProtectedAppLayout() {
                   type="button"
                   onClick={() => void logout()}
                   className="grid h-10 w-10 place-items-center rounded-xl text-[#91a8a0] transition-colors hover:bg-red-400/10 hover:text-red-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-300"
-                  aria-label="Sign out"
-                  title="Sign out"
+                  aria-label={t("nav.signOut", "Sign out")}
+                  title={t("nav.signOut", "Sign out")}
                 >
                   <LogOut className="h-[18px] w-[18px]" />
                 </button>
@@ -382,7 +417,7 @@ export function ProtectedAppLayout() {
                   className="flex h-9 w-full items-center gap-2 border-t border-white/10 px-3 text-xs font-medium text-[#a7bbb3] transition-colors hover:bg-red-400/10 hover:text-red-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-red-300"
                 >
                   <LogOut className="h-3.5 w-3.5" />
-                  Sign out
+                  {t("nav.signOut", "Sign out")}
                 </button>
               </div>
             )}
@@ -416,7 +451,7 @@ export function ProtectedAppLayout() {
                   Switching to {switchingTo?.name}…
                 </p>
                 <p className="mt-1 text-xs text-[#65736d] dark:text-dark-text-secondary">
-                  Preparing a clean workspace
+                  {t("nav.preparingWorkspace", "Preparing a clean workspace")}
                 </p>
               </div>
             </div>
@@ -427,7 +462,7 @@ export function ProtectedAppLayout() {
         </Suspense>
         <nav
           className="safe-area-bottom flex shrink-0 items-center border-t border-[#dce3de] bg-white px-1 py-1 dark:border-dark-border dark:bg-dark-secondary lg:hidden"
-          aria-label="Mobile navigation"
+          aria-label={t("nav.mobile", "Mobile navigation")}
         >
           {mobileItems.map((item) => (
             <NavigationLink key={item.label} item={item} compact />
@@ -441,18 +476,21 @@ export function ProtectedAppLayout() {
                 ? "bg-[#dcefe7] text-[#075c41]"
                 : "text-[#65736d] dark:text-dark-text-secondary",
             )}
-            aria-label="More navigation"
+            aria-label={t("nav.more", "More navigation")}
           >
             <Menu className="h-5 w-5" />
-            More
+            {t("nav.moreShort", "More")}
           </button>
         </nav>
         <Dialog open={moreOpen} onOpenChange={setMoreOpen}>
           <DialogContent className="mx-4 w-[calc(100vw-2rem)] rounded-2xl p-4 sm:w-full">
             <DialogHeader>
-              <DialogTitle>More</DialogTitle>
+              <DialogTitle>{t("nav.moreShort", "More")}</DialogTitle>
             </DialogHeader>
-            <nav className="space-y-1" aria-label="More navigation">
+            <nav
+              className="space-y-1"
+              aria-label={t("nav.more", "More navigation")}
+            >
               {auditItem && (
                 <MoreLink item={auditItem} onClick={() => setMoreOpen(false)} />
               )}
@@ -468,6 +506,7 @@ export function ProtectedAppLayout() {
               />
               <MoreLink
                 item={{
+                  labelKey: "nav.notifications",
                   label: "Notifications",
                   path: workspacePath(activeWorkspace.id, "notifications"),
                   icon: Bell,
