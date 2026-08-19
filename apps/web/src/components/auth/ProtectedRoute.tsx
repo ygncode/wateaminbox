@@ -12,6 +12,7 @@ import {
   OnboardingErrorScreen,
   OnboardingLoadingScreen,
 } from "../ui/onboarding-state";
+import { useTranslation } from "react-i18next";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -34,6 +35,8 @@ export function ProtectedRoute({
   requiredPermission,
   requiredAnyPermission,
 }: ProtectedRouteProps) {
+  const { t } = useTranslation();
+
   const { isAuthenticated, isLoading: isAuthLoading, logout } = useAuth();
   const {
     memberships,
@@ -59,8 +62,8 @@ export function ProtectedRoute({
       <OnboardingLoadingScreen
         message={
           location.pathname === "/company-setup"
-            ? "Restoring workspace setup…"
-            : "Loading your workspaces…"
+            ? t("auth.restoringSetup", "Restoring workspace setup…")
+            : t("auth.loadingWorkspaces", "Loading your workspaces…")
         }
       />
     );

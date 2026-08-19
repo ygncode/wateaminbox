@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useUpdateContact } from "@/hooks/useContact";
 import type { ContactData } from "./types";
+import { useTranslation } from "react-i18next";
 
 interface EditableNameSectionProps {
   contact: ContactData;
@@ -14,6 +15,8 @@ interface EditableNameSectionProps {
  * Editable custom name section
  */
 export function EditableNameSection({ contact }: EditableNameSectionProps) {
+  const { t } = useTranslation();
+
   const [isEditing, setIsEditing] = useState(false);
   const [customName, setCustomName] = useState(contact.customName || "");
   const updateContact = useUpdateContact();
@@ -36,13 +39,16 @@ export function EditableNameSection({ contact }: EditableNameSectionProps) {
   };
 
   return (
-    <RightPanelSection title="Custom Name">
+    <RightPanelSection title={t("contacts.customName", "Custom Name")}>
       {isEditing ? (
         <div className="flex items-center gap-2">
           <Input
             value={customName}
             onChange={(e) => setCustomName(e.target.value)}
-            placeholder="Enter custom name"
+            placeholder={t(
+              "contacts.customNamePlaceholder",
+              "Enter custom name",
+            )}
             className="flex-1 dark:bg-dark-tertiary dark:border-dark-border dark:text-dark-text-primary dark:placeholder:text-dark-text-tertiary"
             autoFocus
           />
@@ -52,7 +58,7 @@ export function EditableNameSection({ contact }: EditableNameSectionProps) {
             onClick={handleSave}
             disabled={updateContact.isPending}
             className="h-8 w-8 dark:hover:bg-dark-tertiary"
-            aria-label="Save custom name"
+            aria-label={t("contacts.saveCustomName", "Save custom name")}
           >
             <Check
               className="h-4 w-4 text-green-600 dark:text-green-400"
@@ -64,7 +70,7 @@ export function EditableNameSection({ contact }: EditableNameSectionProps) {
             variant="ghost"
             onClick={handleCancel}
             className="h-8 w-8 dark:hover:bg-dark-tertiary"
-            aria-label="Cancel editing"
+            aria-label={t("contacts.cancelEditing", "Cancel editing")}
           >
             <X
               className="h-4 w-4 text-red-600 dark:text-red-400"
@@ -77,7 +83,7 @@ export function EditableNameSection({ contact }: EditableNameSectionProps) {
           <p className="text-sm text-gray-700 dark:text-dark-text-primary">
             {contact.customName || (
               <span className="text-gray-400 dark:text-dark-text-tertiary italic">
-                No custom name set
+                {t("contacts.noCustomName", "No custom name set")}
               </span>
             )}
           </p>
@@ -86,7 +92,7 @@ export function EditableNameSection({ contact }: EditableNameSectionProps) {
             variant="ghost"
             onClick={() => setIsEditing(true)}
             className="h-8 w-8 dark:hover:bg-dark-tertiary"
-            aria-label="Edit custom name"
+            aria-label={t("contacts.editCustomName", "Edit custom name")}
           >
             <Edit2
               className="h-4 w-4 text-gray-500 dark:text-dark-text-secondary"
@@ -96,7 +102,10 @@ export function EditableNameSection({ contact }: EditableNameSectionProps) {
         </div>
       )}
       <p className="mt-1 text-xs text-gray-500 dark:text-dark-text-tertiary">
-        Custom name is visible to all team members
+        {t(
+          "contacts.customNameVisible",
+          "Custom name is visible to all team members",
+        )}
       </p>
     </RightPanelSection>
   );

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import { EMOJI_CATEGORIES, type CategoryKey } from "./emoji-data";
+import { useTranslation } from "react-i18next";
 
 const STORAGE_KEY = "whatsapp-web-recent-emojis";
 const MAX_RECENT = 24;
@@ -14,6 +15,8 @@ export function EmojiInputPicker({
   onSelectEmoji,
   onClose,
 }: EmojiInputPickerProps) {
+  const { t } = useTranslation();
+
   const [activeCategory, setActiveCategory] = useState<CategoryKey>("smileys");
   const [recentEmojis, setRecentEmojis] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
@@ -103,7 +106,7 @@ export function EmojiInputPicker({
       <div className="p-2 border-b border-gray-200 dark:border-dark-border">
         <input
           type="text"
-          placeholder="Search emoji…"
+          placeholder={t("chat.searchEmoji", "Search emoji…")}
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           className="w-full px-3 py-1.5 text-sm bg-gray-100 dark:bg-dark-tertiary text-gray-900 dark:text-dark-text-primary placeholder-gray-500 dark:placeholder-dark-text-tertiary rounded-lg focus:outline-none focus:ring-1 focus:ring-whatsapp-green"

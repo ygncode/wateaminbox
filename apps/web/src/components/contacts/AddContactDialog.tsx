@@ -22,6 +22,7 @@ import {
   addContactSchema,
 } from "@/lib/schemas/contact";
 import { formatPhoneLikeText } from "@/lib/utils";
+import { useTranslation } from "react-i18next";
 
 export interface AddContactDialogProps {
   open: boolean;
@@ -35,6 +36,8 @@ export function AddContactDialog({
   open,
   onOpenChange,
 }: AddContactDialogProps) {
+  const { t } = useTranslation();
+
   const [serverError, setServerError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
 
@@ -100,7 +103,12 @@ export function AddContactDialog({
       if (err instanceof Error) {
         // Handle conflict error (contact already exists) - show as toast
         if (err.message.includes("already exists")) {
-          toast.error("A contact with this phone number already exists");
+          toast.error(
+            t(
+              "contacts.duplicatePhone",
+              "A contact with this phone number already exists",
+            ),
+          );
         } else {
           setServerError(err.message);
         }
@@ -116,11 +124,13 @@ export function AddContactDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <UserPlus className="h-5 w-5 text-whatsapp-teal-green" />
-            Add New Contact
+            {t("contacts.addNewTitle", "Add New Contact")}
           </DialogTitle>
           <DialogDescription>
-            Enter a phone number to add a new contact. Include the country code
-            (e.g., +1 for US).
+            {t(
+              "contacts.addNewHint",
+              "Enter a phone number to add a new contact. Include the country code (e.g., +1 for US).",
+            )}
           </DialogDescription>
         </DialogHeader>
 
@@ -130,10 +140,10 @@ export function AddContactDialog({
               <Check className="h-8 w-8 text-green-600 dark:text-green-400" />
             </div>
             <p className="text-lg font-medium text-gray-900 dark:text-dark-text-primary">
-              Contact Created!
+              {t("contacts.created", "Contact Created!")}
             </p>
             <p className="text-sm text-gray-500 dark:text-dark-text-secondary mt-1">
-              Redirecting to conversation...
+              {t("contacts.redirecting", "Redirecting to conversation...")}
             </p>
           </div>
         ) : (
@@ -157,7 +167,9 @@ export function AddContactDialog({
                   className="flex h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm dark:border-dark-border dark:bg-dark-elevated"
                   {...register("connectionId")}
                 >
-                  <option value="">Select an account</option>
+                  <option value="">
+                    {t("connections.selectAccount", "Select an account")}
+                  </option>
                   {activeConnections.map((connection) => (
                     <option key={connection.id} value={connection.id}>
                       {formatPhoneLikeText(
@@ -204,19 +216,23 @@ export function AddContactDialog({
                   id="phoneNumber-hint"
                   className="text-xs text-gray-500 dark:text-dark-text-tertiary"
                 >
-                  Include country code (e.g., +1 for US, +44 for UK, +95 for
-                  Myanmar)
+                  {t(
+                    "contacts.countryCodeHint",
+                    "Include country code (e.g., +1 for US, +44 for UK, +95 for Myanmar)",
+                  )}
                 </p>
               )}
             </div>
 
             {/* Custom Name Input */}
             <div className="space-y-2">
-              <Label htmlFor="customName">Name (Optional)</Label>
+              <Label htmlFor="customName">
+                {t("contacts.nameOptional", "Name (Optional)")}
+              </Label>
               <Input
                 id="customName"
                 type="text"
-                placeholder="John Doe"
+                placeholder={t("contacts.namePlaceholder", "John Doe")}
                 autoComplete="name"
                 data-testid="add-contact-name"
                 aria-invalid={errors.customName ? "true" : "false"}
@@ -238,10 +254,15 @@ export function AddContactDialog({
 
             {/* Notes Input */}
             <div className="space-y-2">
-              <Label htmlFor="notes">Notes (Optional)</Label>
+              <Label htmlFor="notes">
+                {t("contacts.notesOptional", "Notes (Optional)")}
+              </Label>
               <Textarea
                 id="notes"
-                placeholder="Add notes about this contact…"
+                placeholder={t(
+                  "contacts.notesPlaceholder",
+                  "Add notes about this contact…",
+                )}
                 rows={3}
                 autoComplete="off"
                 data-testid="add-contact-notes"
@@ -262,7 +283,10 @@ export function AddContactDialog({
                   id="notes-hint"
                   className="text-xs text-gray-500 dark:text-dark-text-tertiary"
                 >
-                  These notes will be visible to all team members
+                  {t(
+                    "contacts.notesVisibleHint",
+                    "These notes will be visible to all team members",
+                  )}
                 </p>
               )}
             </div>
@@ -293,7 +317,7 @@ export function AddContactDialog({
                 ) : (
                   <>
                     <UserPlus className="h-4 w-4 mr-2" />
-                    Add Contact
+                    {t("contacts.addContact", "Add Contact")}
                   </>
                 )}
               </Button>

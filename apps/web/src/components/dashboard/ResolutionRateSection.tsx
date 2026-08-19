@@ -1,11 +1,5 @@
 import { dayjs, getDateRange } from "@wateaminbox/shared";
-import {
-  AlertTriangle,
-  CheckCircle,
-  Clock,
-  Target,
-  Users,
-} from "lucide-react";
+import { AlertTriangle, CheckCircle, Clock, Target, Users } from "lucide-react";
 import { useMemo } from "react";
 import {
   useOverdueActiveCases,
@@ -15,6 +9,7 @@ import {
 } from "@/hooks/analytics";
 import { ResolutionTrendChart } from "./charts";
 import type { DateRange } from "./DashboardHeader";
+import { useTranslation } from "react-i18next";
 
 interface ResolutionRateSectionProps {
   companyId: string;
@@ -22,12 +17,37 @@ interface ResolutionRateSectionProps {
   isAdmin?: boolean;
 }
 
-function formatMinutes(minutes: number): string {
-  if (minutes < 1) return "< 1 min";
-  if (minutes < 60) return `${Math.round(minutes)} min`;
+/** Optional translator keeps this usable outside a React render. */
+type MinutesTranslate = (
+  key: string,
+  options: { defaultValue: string } & Record<string, unknown>,
+) => string;
+
+const englishMinutes: MinutesTranslate = (_key, options) =>
+  options.defaultValue.replace(/\{\{(\w+)\}\}/g, (_m, name: string) =>
+    String(options[name] ?? ""),
+  );
+
+function formatMinutes(
+  minutes: number,
+  t: MinutesTranslate = englishMinutes,
+): string {
+  if (minutes < 1)
+    return t("duration.lessThanAMinute", { defaultValue: "< 1 min" });
+  if (minutes < 60)
+    return t("duration.minutes", {
+      defaultValue: "{{count}} min",
+      count: Math.round(minutes),
+    });
   const hours = Math.floor(minutes / 60);
   const mins = Math.round(minutes % 60);
-  return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
+  return mins > 0
+    ? t("duration.hoursMinutes", {
+        defaultValue: "{{hours}}h {{minutes}}m",
+        hours,
+        minutes: mins,
+      })
+    : t("duration.hours", { defaultValue: "{{hours}}h", hours });
 }
 
 function getSlaColor(rate: number): string {
@@ -46,6 +66,8 @@ export function ResolutionRateSection({
   dateRange,
   isAdmin = false,
 }: ResolutionRateSectionProps) {
+  const { t } = useTranslation();
+
   const { startDate, endDate } = useMemo(() => {
     const { start, end } = getDateRange(dateRange);
     return { startDate: start.toDate(), endDate: end.toDate() };
@@ -56,10 +78,11 @@ export function ResolutionRateSection({
     isLoading: statsLoading,
     isError: statsError,
   } = useResolutionStats(companyId, startDate, endDate);
-  const {
-    data: team,
-    isError: teamError,
-  } = useResolutionTeamStats(isAdmin ? companyId : null, startDate, endDate);
+  const { data: team, isError: teamError } = useResolutionTeamStats(
+    isAdmin ? companyId : null,
+    startDate,
+    endDate,
+  );
   const { data: overdueCases, isError: overdueError } =
     useOverdueActiveCases(companyId);
   const {
@@ -76,10 +99,13 @@ export function ResolutionRateSection({
         </span>
         <div>
           <h3 className="text-sm font-semibold text-[#203b32] dark:text-dark-text-primary">
-            Resolution SLA
+            {t("dashboard.resolution.title", "Resolution SLA")}
           </h3>
           <p className="text-[11px] text-[#7a8881] dark:text-dark-text-secondary">
-            How fast conversations get closed out
+            {t(
+              "dashboard.resolution.subtitle",
+              "How fast conversations get closed out",
+            )}
           </p>
         </div>
         <span className="ml-auto rounded-full border border-[#dce3de] bg-[#fafcfb] px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-[#718078] dark:border-dark-border dark:bg-dark-secondary dark:text-dark-text-secondary">
@@ -89,7 +115,10 @@ export function ResolutionRateSection({
 
       {statsError && (
         <p className="text-red-500 dark:text-red-400 text-center py-4">
-          Failed to load resolution data
+          {t(
+            "dashboard.resolution.loadFailed",
+            "Failed to load resolution data",
+          )}
         </p>
       )}
 
@@ -99,25 +128,25 @@ export function ResolutionRateSection({
             <div className="rounded-xl border border-[#e3e9e5] bg-[#fafcfb] p-4 dark:border-dark-border dark:bg-dark-tertiary/50">
               <div className="flex items-center gap-2 text-xs font-medium text-[#65736d] dark:text-dark-text-secondary">
                 <Clock className="h-3.5 w-3.5" />
-                Avg Resolution
+                {t("dashboard.resolution.avgResolution", "Avg Resolution")}
               </div>
               <div className="mt-2 text-2xl font-semibold tracking-[-0.02em] text-[#203b32] dark:text-dark-text-primary">
                 {statsLoading
                   ? "-"
-                  : formatMinutes(stats?.averageResolutionMinutes || 0)}
+                  : formatMinutes(stats?.averageResolutionMinutes || 0, t)}
               </div>
               <div className="mt-1 text-[10px] text-[#87928c] dark:text-dark-text-secondary">
                 Median:{" "}
                 {statsLoading
                   ? "-"
-                  : formatMinutes(stats?.medianResolutionMinutes || 0)}
+                  : formatMinutes(stats?.medianResolutionMinutes || 0, t)}
               </div>
             </div>
 
             <div className="rounded-xl border border-[#e3e9e5] bg-[#fafcfb] p-4 dark:border-dark-border dark:bg-dark-tertiary/50">
               <div className="flex items-center gap-2 text-xs font-medium text-[#65736d] dark:text-dark-text-secondary">
                 <CheckCircle className="h-3.5 w-3.5" />
-                SLA Compliance
+                {t("dashboard.resolution.slaCompliance", "SLA Compliance")}
               </div>
               <div
                 className={`mt-2 text-2xl font-semibold tracking-[-0.02em] ${
@@ -151,13 +180,13 @@ export function ResolutionRateSection({
             <div className="rounded-xl border border-[#e3e9e5] bg-[#fafcfb] p-4 dark:border-dark-border dark:bg-dark-tertiary/50">
               <div className="flex items-center gap-2 text-xs font-medium text-[#65736d] dark:text-dark-text-secondary">
                 <AlertTriangle className="h-3.5 w-3.5" />
-                Overdue Active
+                {t("dashboard.resolution.overdueActive", "Overdue Active")}
               </div>
               <div className="mt-2 text-2xl font-semibold tracking-[-0.02em] text-red-600 dark:text-red-400">
                 {statsLoading ? "-" : stats?.overdueActiveCases || 0}
               </div>
               <div className="mt-1 text-[10px] text-[#87928c] dark:text-dark-text-secondary">
-                Right now, any age
+                {t("dashboard.resolution.rightNowAnyAge", "Right now, any age")}
               </div>
             </div>
           </div>
@@ -176,13 +205,15 @@ export function ResolutionRateSection({
                       <span className="text-xs font-semibold capitalize text-[#40544c] dark:text-dark-text-primary">
                         {kind} chats
                       </span>
-                      <span className={`text-xs font-semibold ${getSlaColor(k.slaComplianceRate)}`}>
+                      <span
+                        className={`text-xs font-semibold ${getSlaColor(k.slaComplianceRate)}`}
+                      >
                         {Math.round(k.slaComplianceRate)}%
                       </span>
                     </div>
                     <div className="mt-1 text-[10px] text-[#87928c] dark:text-dark-text-secondary">
                       {k.totalResolvedCases} resolved · avg{" "}
-                      {formatMinutes(k.averageResolutionMinutes)} ·{" "}
+                      {formatMinutes(k.averageResolutionMinutes, t)} ·{" "}
                       {k.overdueActiveCases} overdue
                     </div>
                   </div>
@@ -195,11 +226,14 @@ export function ResolutionRateSection({
           <div className="mt-4">
             {trendError ? (
               <p className="rounded-xl border border-dashed border-red-200 bg-red-50/50 py-4 text-center text-xs text-red-600 dark:border-red-900/50 dark:bg-red-950/10 dark:text-red-400">
-                Failed to load resolution trend
+                {t(
+                  "dashboard.resolution.trendLoadFailed",
+                  "Failed to load resolution trend",
+                )}
               </p>
             ) : trendLoading ? (
               <div className="grid h-[220px] place-items-center rounded-xl border border-dashed border-[#dce3de] bg-[#fafcfb] text-sm text-[#718078] dark:border-dark-border dark:bg-dark-secondary/40 dark:text-dark-text-secondary">
-                Loading trend…
+                {t("dashboard.resolution.loadingTrend", "Loading trend…")}
               </div>
             ) : (
               <ResolutionTrendChart data={trend ?? []} />
@@ -209,7 +243,10 @@ export function ResolutionRateSection({
           {/* Overdue work queue */}
           {overdueError && (
             <p className="mt-4 rounded-xl border border-dashed border-red-200 bg-red-50/50 py-4 text-center text-xs text-red-600 dark:border-red-900/50 dark:bg-red-950/10 dark:text-red-400">
-              Failed to load overdue work queue
+              {t(
+                "dashboard.resolution.queueLoadFailed",
+                "Failed to load overdue work queue",
+              )}
             </p>
           )}
           {!overdueError && overdueCases && overdueCases.length > 0 && (
@@ -217,7 +254,7 @@ export function ResolutionRateSection({
               <div className="mb-3 flex items-center gap-2">
                 <AlertTriangle className="h-4 w-4 text-red-600 dark:text-red-400" />
                 <h3 className="text-sm font-semibold text-red-900 dark:text-red-300">
-                  Overdue work queue
+                  {t("dashboard.resolution.overdueQueue", "Overdue work queue")}
                 </h3>
                 <span className="rounded bg-red-100 dark:bg-red-900/50 px-2 py-0.5 text-xs font-medium text-red-700 dark:text-red-300">
                   {overdueCases.length}
@@ -238,7 +275,7 @@ export function ResolutionRateSection({
                       </span>
                     </div>
                     <span className="font-medium text-red-600 dark:text-red-400">
-                      {formatMinutes(item.elapsedMinutes)} elapsed
+                      {formatMinutes(item.elapsedMinutes, t)} elapsed
                     </span>
                   </div>
                 ))}
@@ -249,7 +286,10 @@ export function ResolutionRateSection({
           {/* Team attribution (admin only) */}
           {isAdmin && teamError && (
             <p className="mt-4 rounded-xl border border-dashed border-red-200 bg-red-50/50 py-4 text-center text-xs text-red-600 dark:border-red-900/50 dark:bg-red-950/10 dark:text-red-400">
-              Failed to load team resolution times
+              {t(
+                "dashboard.resolution.teamLoadFailed",
+                "Failed to load team resolution times",
+              )}
             </p>
           )}
           {isAdmin && !teamError && team && team.length > 0 && (
@@ -257,7 +297,7 @@ export function ResolutionRateSection({
               <div className="mb-4 flex items-center gap-2">
                 <Users className="h-4 w-4 text-[#65736d] dark:text-dark-text-secondary" />
                 <h3 className="text-sm font-semibold text-[#203b32] dark:text-dark-text-primary">
-                  Team resolution times
+                  {t("dashboard.resolution.teamTimes", "Team resolution times")}
                 </h3>
               </div>
               <div className="space-y-1">
@@ -276,9 +316,11 @@ export function ResolutionRateSection({
                     </div>
                     <div className="text-right">
                       <div className="text-xs font-semibold text-[#203b32] dark:text-dark-text-primary">
-                        {formatMinutes(member.averageResolutionMinutes)}
+                        {formatMinutes(member.averageResolutionMinutes, t)}
                       </div>
-                      <div className={`text-xs ${getSlaColor(member.slaComplianceRate)}`}>
+                      <div
+                        className={`text-xs ${getSlaColor(member.slaComplianceRate)}`}
+                      >
                         {Math.round(member.slaComplianceRate)}% SLA
                       </div>
                     </div>

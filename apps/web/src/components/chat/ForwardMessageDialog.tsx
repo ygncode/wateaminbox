@@ -10,6 +10,7 @@ import { IdentityAvatarFallback } from "@/components/ui/identity-avatar-fallback
 import { formatPhoneLikeText, formatPhoneNumber } from "@/lib/utils";
 import { useForwardContacts } from "../../hooks/useForwardContacts";
 import type { Chat } from "../../types/chat";
+import { useTranslation } from "react-i18next";
 
 interface ForwardMessageDialogProps {
   open: boolean;
@@ -44,6 +45,8 @@ export const ForwardMessageDialog = memo(function ForwardMessageDialog({
   onForward,
   isForwarding = false,
 }: ForwardMessageDialogProps) {
+  const { t } = useTranslation();
+
   const [searchQuery, setSearchQuery] = useState("");
 
   const {
@@ -100,7 +103,7 @@ export const ForwardMessageDialog = memo(function ForwardMessageDialog({
         <DialogHeader className="px-5 pt-5 pb-3 border-b border-gray-100 dark:border-dark-border/50">
           <div className="flex items-center justify-between">
             <DialogTitle className="text-base font-semibold text-gray-900 dark:text-dark-text-primary">
-              Forward message
+              {t("chat.forwardMessage", "Forward message")}
             </DialogTitle>
             {/* Updating indicator - show when fetching with existing data */}
             {isFetching && availableContacts.length > 0 && (
@@ -120,7 +123,7 @@ export const ForwardMessageDialog = memo(function ForwardMessageDialog({
             <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 dark:text-dark-text-tertiary transition-colors group-focus-within:text-whatsapp-teal-green" />
             <input
               type="text"
-              placeholder="Search contacts…"
+              placeholder={t("chat.searchContactsEllipsis", "Search contacts…")}
               value={searchQuery}
               onChange={handleSearchChange}
               className="w-full pl-10 pr-10 py-2.5 text-sm bg-white dark:bg-dark-tertiary border border-gray-200 dark:border-dark-border rounded-xl text-gray-900 dark:text-dark-text-primary placeholder-gray-400 dark:placeholder-dark-text-tertiary focus:outline-none focus:ring-2 focus:ring-whatsapp-teal-green/30 focus:border-whatsapp-teal-green transition-all duration-200"
@@ -150,7 +153,7 @@ export const ForwardMessageDialog = memo(function ForwardMessageDialog({
                 <X className="h-8 w-8 text-red-500 dark:text-red-400" />
               </div>
               <p className="text-sm font-medium text-gray-700 dark:text-dark-text-primary mb-1">
-                Failed to load contacts
+                {t("chat.contactsLoadFailed", "Failed to load contacts")}
               </p>
               <p className="text-xs text-gray-500 dark:text-dark-text-secondary mb-4">
                 {error.message || "Please try again"}
@@ -160,7 +163,7 @@ export const ForwardMessageDialog = memo(function ForwardMessageDialog({
                 onClick={() => refetch()}
                 className="px-4 py-2 text-sm font-medium text-white bg-whatsapp-teal-green hover:bg-whatsapp-green rounded-lg transition-colors"
               >
-                Try again
+                {t("chat.tryAgain", "Try again")}
               </button>
             </div>
           ) : showSkeletons ? (
@@ -177,12 +180,20 @@ export const ForwardMessageDialog = memo(function ForwardMessageDialog({
                 <Users className="h-8 w-8 text-gray-400 dark:text-dark-text-tertiary" />
               </div>
               <p className="text-sm font-medium text-gray-700 dark:text-dark-text-primary mb-1">
-                {searchQuery ? "No contacts found" : "No contacts available"}
+                {searchQuery
+                  ? t("chat.noContactsFound", "No contacts found")
+                  : t(
+                      "broadcasts.noContactsAvailable",
+                      "No contacts available",
+                    )}
               </p>
               <p className="text-xs text-gray-500 dark:text-dark-text-secondary max-w-[200px]">
                 {searchQuery
                   ? `No results for "${searchQuery}"`
-                  : "Start a conversation to see contacts here"}
+                  : t(
+                      "chat.startConversationHint",
+                      "Start a conversation to see contacts here",
+                    )}
               </p>
             </div>
           ) : (
@@ -208,7 +219,7 @@ export const ForwardMessageDialog = memo(function ForwardMessageDialog({
                 <Loader2 className="h-6 w-6 text-whatsapp-teal-green animate-spin" />
               </div>
               <span className="text-sm font-medium text-gray-700 dark:text-dark-text-primary">
-                Forwarding message...
+                {t("chat.forwardingMessage", "Forwarding message...")}
               </span>
             </div>
           </div>
@@ -229,6 +240,8 @@ const ContactListItem = memo(function ContactListItem({
   onClick,
   isDisabled,
 }: ContactListItemProps) {
+  const { t } = useTranslation();
+
   const { contact } = chat;
   const displayName = formatPhoneLikeText(
     contact.customName || contact.name || contact.jid || "Unknown",
@@ -267,7 +280,7 @@ const ContactListItem = memo(function ContactListItem({
         {!contact.isGroup && contact.isOnline && (
           <span
             className="absolute bottom-0.5 right-0.5 w-3 h-3 bg-whatsapp-green border-2 border-white dark:border-dark-elevated rounded-full shadow-sm"
-            aria-label="Online"
+            aria-label={t("chat.online", "Online")}
           />
         )}
       </div>

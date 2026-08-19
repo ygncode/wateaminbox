@@ -8,6 +8,7 @@ import {
   X,
 } from "lucide-react";
 import { useId, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 const MIN_ZOOM = 1;
 const MAX_ZOOM = 3;
@@ -30,6 +31,8 @@ export function MediaLightbox({
   caption,
   mediaType = "image",
 }: MediaLightboxProps) {
+  const { t } = useTranslation();
+
   const [zoom, setZoom] = useState(MIN_ZOOM);
   const descriptionId = useId();
   const isImage = mediaType === "image";
@@ -80,7 +83,7 @@ export function MediaLightbox({
                     onClick={zoomOut}
                     disabled={zoom <= MIN_ZOOM}
                     className="hidden size-10 place-items-center rounded-full text-white/75 transition-colors hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-30 sm:grid"
-                    aria-label="Zoom out"
+                    aria-label={t("chat.zoomOut", "Zoom out")}
                   >
                     <Minus className="size-5" aria-hidden="true" />
                   </button>
@@ -89,7 +92,7 @@ export function MediaLightbox({
                     onClick={() => setZoom(MIN_ZOOM)}
                     disabled={zoom === MIN_ZOOM}
                     className="hidden size-10 place-items-center rounded-full text-white/75 transition-colors hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-30 sm:grid"
-                    aria-label="Reset zoom"
+                    aria-label={t("chat.resetZoom", "Reset zoom")}
                   >
                     <RotateCcw className="size-4.5" aria-hidden="true" />
                   </button>
@@ -98,7 +101,7 @@ export function MediaLightbox({
                     onClick={zoomIn}
                     disabled={zoom >= MAX_ZOOM}
                     className="hidden size-10 place-items-center rounded-full text-white/75 transition-colors hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-30 sm:grid"
-                    aria-label="Zoom in"
+                    aria-label={t("chat.zoomIn", "Zoom in")}
                   >
                     <Plus className="size-5" aria-hidden="true" />
                   </button>

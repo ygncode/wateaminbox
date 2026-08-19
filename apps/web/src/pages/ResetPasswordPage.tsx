@@ -10,8 +10,11 @@ import {
   resetPasswordSchema,
   type ResetPasswordFormData,
 } from "../lib/schemas/auth";
+import { useTranslation } from "react-i18next";
 
 export function ResetPasswordPage() {
+  const { t } = useTranslation();
+
   const [searchParams] = useSearchParams();
   const token = searchParams.get("token") || "";
   const [status, setStatus] = useState<"form" | "saving" | "success">("form");
@@ -34,7 +37,9 @@ export function ResetPasswordPage() {
       setStatus("success");
     } catch (error) {
       setServerError(
-        error instanceof Error ? error.message : "Unable to reset password",
+        error instanceof Error
+          ? error.message
+          : t("auth.resetPasswordFailed", "Unable to reset password"),
       );
       setStatus("form");
     }
@@ -54,27 +59,34 @@ export function ResetPasswordPage() {
         {status === "success" ? (
           <div className="text-center">
             <h1 className="text-2xl font-bold text-gray-900 dark:text-dark-text-primary">
-              Password updated
+              {t("auth.passwordUpdatedTitle", "Password updated")}
             </h1>
             <p className="mt-3 text-gray-600 dark:text-dark-text-secondary">
-              Every previous session has been signed out. You can now continue
-              with your new password.
+              {t(
+                "auth.passwordUpdatedHint",
+                "Every previous session has been signed out. You can now continue with your new password.",
+              )}
             </p>
             <Button
               asChild
               className="mt-7 w-full bg-whatsapp-green-a11y-button text-white"
             >
-              <Link to="/login">Return to sign in</Link>
+              <Link to="/login">
+                {t("auth.returnToSignIn", "Return to sign in")}
+              </Link>
             </Button>
           </div>
         ) : (
           <>
             <div className="mb-7 text-center">
               <h1 className="text-2xl font-bold text-gray-900 dark:text-dark-text-primary">
-                Choose a new password
+                {t("auth.chooseNewPassword", "Choose a new password")}
               </h1>
               <p className="mt-2 text-gray-600 dark:text-dark-text-secondary">
-                Use at least eight characters. This link can only be used once.
+                {t(
+                  "auth.chooseNewPasswordHint",
+                  "Use at least eight characters. This link can only be used once.",
+                )}
               </p>
             </div>
 
@@ -83,7 +95,10 @@ export function ResetPasswordPage() {
                 role="alert"
                 className="mb-5 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-800 dark:bg-red-950/30 dark:text-red-300"
               >
-                This reset link is incomplete. Request a new one to continue.
+                {t(
+                  "auth.resetLinkIncomplete",
+                  "This reset link is incomplete. Request a new one to continue.",
+                )}
               </div>
             )}
             {serverError && (
@@ -97,7 +112,7 @@ export function ResetPasswordPage() {
 
             <form className="space-y-4" onSubmit={handleSubmit(onSubmit)}>
               <FormField
-                label="New password"
+                label={t("auth.newPassword", "New password")}
                 id="password"
                 type="password"
                 registration={register("password")}
@@ -106,7 +121,7 @@ export function ResetPasswordPage() {
                 showPasswordToggle
               />
               <FormField
-                label="Confirm password"
+                label={t("auth.confirmPasswordLabel", "Confirm password")}
                 id="confirmPassword"
                 type="password"
                 registration={register("confirmPassword")}
@@ -119,7 +134,9 @@ export function ResetPasswordPage() {
                 className="w-full bg-whatsapp-green-a11y-button text-white hover:bg-whatsapp-green-a11y-button/90"
                 disabled={!token || status === "saving"}
               >
-                {status === "saving" ? "Updating…" : "Update password"}
+                {status === "saving"
+                  ? t("auth.updating", "Updating…")
+                  : t("auth.updatePassword", "Update password")}
               </Button>
             </form>
           </>

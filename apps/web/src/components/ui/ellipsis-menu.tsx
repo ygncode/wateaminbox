@@ -3,6 +3,7 @@ import { MoreVertical } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "./button";
 import { useClickOutside } from "@/hooks/ui";
+import { useTranslation } from "react-i18next";
 
 export interface EllipsisMenuItem {
   /**
@@ -103,8 +104,10 @@ export function EllipsisMenu({
   align = "right",
   open: controlledOpen,
   onOpenChange,
-  ariaLabel = "More options",
+  ariaLabel,
 }: EllipsisMenuProps) {
+  const { t } = useTranslation();
+
   const [uncontrolledOpen, setUncontrolledOpen] = React.useState(false);
   const containerRef = React.useRef<HTMLDivElement>(null);
   const menuRef = React.useRef<HTMLDivElement>(null);
@@ -220,7 +223,7 @@ export function EllipsisMenu({
         variant="ghost"
         size="icon"
         onClick={handleToggle}
-        aria-label={ariaLabel}
+        aria-label={ariaLabel ?? t("common.moreOptions", "More options")}
         aria-haspopup="menu"
         aria-expanded={isOpen}
         className={cn(buttonSize, triggerClassName)}

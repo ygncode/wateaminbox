@@ -37,8 +37,7 @@ const buttonVariants = cva(
 
 /** Base button props without accessibility requirements */
 interface BaseButtonProps
-  extends
-    React.ButtonHTMLAttributes<HTMLButtonElement>,
+  extends React.ButtonHTMLAttributes<HTMLButtonElement>,
     VariantProps<typeof buttonVariants> {
   asChild?: boolean;
 }

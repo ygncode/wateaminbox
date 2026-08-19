@@ -16,6 +16,7 @@ import {
 } from "@/hooks/useContact";
 import { cn } from "@/lib/utils";
 import type { ContactData } from "./types";
+import { useTranslation } from "react-i18next";
 
 interface TagsSectionProps {
   contact: ContactData;
@@ -25,6 +26,8 @@ interface TagsSectionProps {
  * Tags section - display and manage contact tags
  */
 export function TagsSection({ contact }: TagsSectionProps) {
+  const { t } = useTranslation();
+
   const [showTagPicker, setShowTagPicker] = useState(false);
   const [showCreateTag, setShowCreateTag] = useState(false);
   const [newTagName, setNewTagName] = useState("");
@@ -64,9 +67,13 @@ export function TagsSection({ contact }: TagsSectionProps) {
       setShowTagPicker(false);
     } catch (error) {
       const errorMessage =
-        error instanceof Error ? error.message : "Failed to create tag";
+        error instanceof Error
+          ? error.message
+          : t("tags.createFailed", "Failed to create tag");
       if (errorMessage.includes("already exists")) {
-        toast.error("A tag with this name already exists");
+        toast.error(
+          t("tags.duplicateName", "A tag with this name already exists"),
+        );
       } else {
         toast.error(errorMessage);
       }
@@ -74,7 +81,7 @@ export function TagsSection({ contact }: TagsSectionProps) {
   };
 
   return (
-    <RightPanelSection title="Tags">
+    <RightPanelSection title={t("tags.title", "Tags")}>
       <div className="flex items-start gap-2">
         <Tag className="mt-0.5 h-4 w-4 text-gray-400 dark:text-dark-text-tertiary" />
         <div className="flex-1">
@@ -110,7 +117,7 @@ export function TagsSection({ contact }: TagsSectionProps) {
               className="flex h-6 items-center gap-1 rounded-full border border-dashed border-gray-300 dark:border-dark-border px-2 text-xs text-gray-500 dark:text-dark-text-secondary hover:border-gray-400 hover:text-gray-600 dark:hover:border-dark-text-tertiary dark:hover:text-dark-text-primary"
             >
               <Plus className="h-3 w-3" />
-              Add Tag
+              {t("tags.addTag", "Add Tag")}
             </button>
           </div>
 
@@ -148,7 +155,7 @@ export function TagsSection({ contact }: TagsSectionProps) {
                     <p className="mb-2 px-1 py-2 text-center text-xs text-gray-500 dark:text-dark-text-secondary">
                       {debouncedTagSearch
                         ? `No tags match “${debouncedTagSearch}”`
-                        : "No other tags available"}
+                        : t("tags.noneAvailable", "No other tags available")}
                     </p>
                   )}
 
@@ -156,7 +163,10 @@ export function TagsSection({ contact }: TagsSectionProps) {
                     <div className="flex items-center gap-2">
                       <Input
                         type="text"
-                        placeholder="Enter tag name…"
+                        placeholder={t(
+                          "tags.namePlaceholder",
+                          "Enter tag name…",
+                        )}
                         value={newTagName}
                         onChange={(e) => setNewTagName(e.target.value)}
                         onKeyDown={(e) => {
@@ -196,7 +206,7 @@ export function TagsSection({ contact }: TagsSectionProps) {
                       className="flex w-full items-center gap-1.5 rounded px-2 py-1.5 text-xs text-gray-600 dark:text-dark-text-secondary hover:bg-gray-100 dark:hover:bg-dark-tertiary transition-colors"
                     >
                       <Plus className="h-3 w-3" />
-                      Create new tag
+                      {t("tags.createNew", "Create new tag")}
                     </button>
                   )}
                 </>

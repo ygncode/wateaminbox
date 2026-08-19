@@ -10,6 +10,7 @@ import type { TeamMemberIdentity } from "@/hooks/useTeam";
 import type { VirtualItem as MessageListItem } from "../../hooks/chat/useMessageVirtualization";
 import { MessageBubble } from "./MessageBubble";
 import type { MessageNavigationTarget } from "./message-navigation";
+import { useTranslation } from "react-i18next";
 
 type MessageVirtualizer = ReturnType<
   typeof useVirtualizer<HTMLDivElement, Element>
@@ -80,6 +81,8 @@ export function VirtualMessageList({
   mentionParticipants = [],
   onNavigateToMessage,
 }: VirtualMessageListProps) {
+  const { t } = useTranslation();
+
   return (
     <div
       ref={scrollContainerRef}
@@ -101,7 +104,7 @@ export function VirtualMessageList({
             onClick={() => fetchNextPage?.()}
             className="text-sm text-whatsapp-teal-green hover:underline"
           >
-            Load older messages
+            {t("chat.loadOlderMessages", "Load older messages")}
           </button>
         </div>
       )}
@@ -113,7 +116,7 @@ export function VirtualMessageList({
           aria-live="polite"
         >
           <Loader2 className="size-3.5 animate-spin text-[#00a884]" />
-          Waiting for WhatsApp history…
+          {t("chat.waitingForHistory", "Waiting for WhatsApp history…")}
         </div>
       )}
 
@@ -132,8 +135,11 @@ export function VirtualMessageList({
                 <ArchiveRestore className="size-3.5 transition-transform group-hover:-translate-y-0.5" />
               )}
               {remoteHistoryStatus === "failed"
-                ? "Try loading older messages again"
-                : "Load older messages from phone"}
+                ? t("chat.retryLoadOlder", "Try loading older messages again")
+                : t(
+                    "chat.loadOlderFromPhone",
+                    "Load older messages from phone",
+                  )}
             </button>
             {remoteHistoryError && (
               <p className="max-w-sm text-xs leading-5 text-amber-700 dark:text-amber-200">
@@ -146,7 +152,7 @@ export function VirtualMessageList({
       {!hasNextPage && remoteHistoryStatus === "exhausted" && (
         <div className="mx-auto my-3 flex w-fit items-center gap-2 px-3 text-[11px] font-medium uppercase tracking-[0.12em] text-[#7a8b85] dark:text-dark-text-tertiary">
           <span className="h-px w-8 bg-current opacity-30" />
-          Beginning of conversation
+          {t("chat.beginningOfConversation", "Beginning of conversation")}
           <span className="h-px w-8 bg-current opacity-30" />
         </div>
       )}
@@ -154,8 +160,10 @@ export function VirtualMessageList({
       {!hasNextPage && remoteHistoryStatus === "unavailable" && (
         <div className="mx-auto my-3 flex max-w-sm items-center gap-2.5 rounded-xl border border-amber-200/80 bg-amber-50/85 px-3.5 py-2.5 text-left text-xs leading-5 text-amber-900 shadow-sm backdrop-blur dark:border-amber-300/10 dark:bg-amber-300/[0.07] dark:text-amber-100">
           <Smartphone className="size-4 shrink-0 text-amber-600 dark:text-amber-300" />
-          WhatsApp says earlier messages are only available on the primary
-          phone.
+          {t(
+            "chat.earlierOnPrimaryPhone",
+            "WhatsApp says earlier messages are only available on the primary phone.",
+          )}
         </div>
       )}
 
@@ -185,7 +193,7 @@ export function VirtualMessageList({
               >
                 <div className="flex justify-center my-4">
                   <span className="px-3 py-1 bg-white/80 dark:bg-dark-elevated/90 rounded-lg text-xs text-gray-600 dark:text-dark-text-secondary shadow-sm">
-                    {formatDateSep(item.date)}
+                    {formatDateSep(item.date, t)}
                   </span>
                 </div>
               </div>

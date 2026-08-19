@@ -1,8 +1,11 @@
 import { Check } from "lucide-react";
 import { formatPhoneNumber } from "@/lib/utils";
 import type { CompleteStepProps } from "./types";
+import { useTranslation } from "react-i18next";
 
 export function CompleteStep({ result }: CompleteStepProps) {
+  const { t } = useTranslation();
+
   return (
     <div className="space-y-6">
       {/* Result summary */}
@@ -11,7 +14,7 @@ export function CompleteStep({ result }: CompleteStepProps) {
           <Check className="h-8 w-8 text-green-600 dark:text-green-400" />
         </div>
         <h3 className="text-xl font-semibold text-gray-900 dark:text-dark-text-primary">
-          Import Complete
+          {t("contacts.importComplete", "Import Complete")}
         </h3>
       </div>
 
@@ -44,7 +47,9 @@ export function CompleteStep({ result }: CompleteStepProps) {
           <div className="text-2xl font-bold text-red-600 dark:text-red-400">
             {result.summary.errors}
           </div>
-          <div className="text-sm text-red-600 dark:text-red-400">Errors</div>
+          <div className="text-sm text-red-600 dark:text-red-400">
+            {t("contacts.errorsLabel", "Errors")}
+          </div>
         </div>
       </div>
 

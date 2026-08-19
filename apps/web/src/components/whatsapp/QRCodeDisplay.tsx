@@ -4,6 +4,7 @@ import QRCode from "qrcode";
 import { nowMs } from "@wateaminbox/shared";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useTranslation } from "react-i18next";
 
 interface QRCodeDisplayProps {
   qrCode: string;
@@ -26,6 +27,8 @@ export function QRCodeDisplay({
   isRefreshing,
   small = false,
 }: QRCodeDisplayProps) {
+  const { t } = useTranslation();
+
   const [localCountdown, setLocalCountdown] = useState<number>(0);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [qrError, setQrError] = useState(false);
@@ -106,7 +109,7 @@ export function QRCodeDisplay({
           >
             <AlertCircle className="h-8 w-8 text-red-500" />
             <p className="text-xs text-red-600 text-center">
-              Failed to generate QR
+              {t("connections.qrGenerateFailed", "Failed to generate QR")}
             </p>
             <Button size="sm" variant="outline" onClick={onRefresh}>
               Retry
@@ -123,7 +126,9 @@ export function QRCodeDisplay({
         {displayCountdown <= 30 && displayCountdown > 0 && !qrError && (
           <div className="absolute inset-0 bg-white/80 flex items-center justify-center rounded-lg">
             <div className="text-center">
-              <p className="text-orange-600 font-medium text-sm">Expiring</p>
+              <p className="text-orange-600 font-medium text-sm">
+                {t("connections.expiring", "Expiring")}
+              </p>
               <p className="text-xl font-bold text-gray-900">
                 {displayCountdown}s
               </p>
@@ -133,7 +138,9 @@ export function QRCodeDisplay({
         {displayCountdown === 0 && (
           <div className="absolute inset-0 bg-white/90 flex items-center justify-center rounded-lg">
             <div className="text-center">
-              <p className="text-red-600 font-medium text-sm mb-1">Expired</p>
+              <p className="text-red-600 font-medium text-sm mb-1">
+                {t("connections.expired", "Expired")}
+              </p>
               <Button size="sm" onClick={onRefresh} disabled={isRefreshing}>
                 {isRefreshing ? (
                   <Loader2 className="h-4 w-4 animate-spin" />

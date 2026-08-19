@@ -102,9 +102,7 @@ describe("realtime React Query reconciliation", () => {
       "2026-01-01",
       "2026-01-31",
     );
-    const lifecycleDetailKey = queryKeys.conversations.detail(
-      "conversation-1",
-    );
+    const lifecycleDetailKey = queryKeys.conversations.detail("conversation-1");
     client.setQueryData(analyticsKey, {});
     client.setQueryData(otherAnalyticsKey, {});
     client.setQueryData(lifecycleDetailKey, {});
@@ -115,9 +113,7 @@ describe("realtime React Query reconciliation", () => {
     // response-time/resolution variant, not just one specific query.
     expect(client.getQueryState(analyticsKey)?.isInvalidated).toBe(true);
     expect(client.getQueryState(otherAnalyticsKey)?.isInvalidated).toBe(true);
-    expect(client.getQueryState(lifecycleDetailKey)?.isInvalidated).toBe(
-      true,
-    );
+    expect(client.getQueryState(lifecycleDetailKey)?.isInvalidated).toBe(true);
   });
 
   test("reconnect reconciliation with no selected conversation still invalidates analytics, but touches no conversation detail", () => {

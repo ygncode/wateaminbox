@@ -19,6 +19,7 @@ import {
   type ImportStep,
   type ImportOptions,
 } from "./import";
+import { useTranslation } from "react-i18next";
 
 interface ContactImportProps {
   onImportComplete?: () => void;
@@ -26,16 +27,18 @@ interface ContactImportProps {
 }
 
 const WIZARD_STEPS: StepWizardStep[] = [
-  { id: "upload", label: "Upload" },
-  { id: "preview", label: "Preview" },
-  { id: "importing", label: "Import" },
-  { id: "complete", label: "Done" },
+  { id: "upload", labelKey: "contacts.steps.upload", label: "Upload" },
+  { id: "preview", labelKey: "contacts.steps.preview", label: "Preview" },
+  { id: "importing", labelKey: "contacts.steps.import", label: "Import" },
+  { id: "complete", labelKey: "contacts.steps.done", label: "Done" },
 ];
 
 export function ContactImport({
   onImportComplete,
   onClose,
 }: ContactImportProps) {
+  const { t } = useTranslation();
+
   const [step, setStep] = useState<ImportStep>("upload");
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<ContactImportPreviewResponse | null>(
@@ -69,14 +72,20 @@ export function ContactImport({
 
   const handleFileSelect = async (selectedFile: File) => {
     if (!selectedFile.name.endsWith(".csv")) {
-      setError("Please upload a CSV file");
+      setError(t("contacts.csvRequired", "Please upload a CSV file"));
       return;
     }
     if (!effectiveConnectionId) {
       setError(
         connectedConnections.length === 0
-          ? "Connect a WhatsApp account before importing contacts"
-          : "Choose which WhatsApp account the contacts belong to",
+          ? t(
+              "contacts.connectBeforeImport",
+              "Connect a WhatsApp account before importing contacts",
+            )
+          : t(
+              "contacts.chooseAccountForImport",
+              "Choose which WhatsApp account the contacts belong to",
+            ),
       );
       return;
     }
@@ -93,7 +102,11 @@ export function ContactImport({
       setPreview(previewData);
       setStep("preview");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to preview file");
+      setError(
+        err instanceof Error
+          ? err.message
+          : t("contacts.previewFailed", "Failed to preview file"),
+      );
     } finally {
       setLoading(false);
     }
@@ -115,7 +128,11 @@ export function ContactImport({
       setStep("complete");
       onImportComplete?.();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Import failed");
+      setError(
+        err instanceof Error
+          ? err.message
+          : t("contacts.importFailed", "Import failed"),
+      );
       setStep("preview");
     } finally {
       setLoading(false);
@@ -135,7 +152,7 @@ export function ContactImport({
       {/* Header */}
       <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-dark-border">
         <h2 className="text-lg font-semibold text-gray-900 dark:text-dark-text-primary">
-          Import Contacts
+          {t("contacts.importTitle", "Import Contacts")}
         </h2>
         {onClose && (
           <button
@@ -196,7 +213,7 @@ export function ContactImport({
         {step === "upload" && (
           <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-dark-text-secondary">
             <FileText className="h-4 w-4" />
-            Supported format: CSV
+            {t("contacts.supportedFormat", "Supported format: CSV")}
           </div>
         )}
 
@@ -205,7 +222,7 @@ export function ContactImport({
             onClick={handleReset}
             className="text-gray-600 dark:text-dark-text-secondary hover:text-gray-800 dark:hover:text-dark-text-primary"
           >
-            Choose different file
+            {t("contacts.chooseDifferentFile", "Choose different file")}
           </button>
         )}
 
@@ -214,7 +231,7 @@ export function ContactImport({
             onClick={handleReset}
             className="text-gray-600 dark:text-dark-text-secondary hover:text-gray-800 dark:hover:text-dark-text-primary"
           >
-            Import more
+            {t("contacts.importMore", "Import more")}
           </button>
         )}
 

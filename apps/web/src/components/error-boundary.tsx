@@ -1,6 +1,7 @@
 import * as React from "react";
 import { useNavigate } from "react-router";
 import { Button } from "./ui/button";
+import { useTranslation } from "react-i18next";
 
 interface ErrorBoundaryState {
   hasError: boolean;
@@ -92,6 +93,8 @@ export function ErrorFallback({
   errorInfo,
   onReset,
 }: ErrorFallbackProps) {
+  const { t } = useTranslation();
+
   const navigate = useNavigate();
 
   const handleGoHome = () => {
@@ -125,20 +128,22 @@ export function ErrorFallback({
 
         {/* Error Title */}
         <h1 className="text-2xl font-bold text-gray-900 dark:text-dark-text-primary mb-2 text-balance">
-          Something went wrong
+          {t("errors.somethingWentWrong", "Something went wrong")}
         </h1>
 
         {/* Error Description */}
         <p className="text-gray-600 dark:text-dark-text-secondary mb-6">
-          We're sorry, but something unexpected happened. Please try refreshing
-          the page or going back to the home screen.
+          {t(
+            "errors.unexpectedBody",
+            "We're sorry, but something unexpected happened. Please try refreshing the page or going back to the home screen.",
+          )}
         </p>
 
         {/* Error Details (dev only) */}
         {process.env.NODE_ENV === "development" && error && (
           <details className="text-left mb-6 bg-gray-50 dark:bg-dark-secondary rounded-lg p-4">
             <summary className="cursor-pointer text-sm font-medium text-gray-700 dark:text-dark-text-secondary mb-2">
-              Error Details
+              {t("errors.errorDetails", "Error Details")}
             </summary>
             <div className="mt-2 text-xs">
               <p className="font-mono text-red-600 dark:text-red-400 break-all mb-2">
@@ -160,13 +165,13 @@ export function ErrorFallback({
             onClick={handleGoHome}
             className="dark:border-dark-border dark:text-dark-text-primary dark:hover:bg-dark-tertiary"
           >
-            Go to Home
+            {t("errors.goHome", "Go to Home")}
           </Button>
           <Button
             onClick={handleRefresh}
             className="bg-whatsapp-green-a11y-button hover:bg-whatsapp-green-a11y-button/90 text-white"
           >
-            Refresh Page
+            {t("errors.refreshPage", "Refresh Page")}
           </Button>
         </div>
       </div>

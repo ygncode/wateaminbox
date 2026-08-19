@@ -37,6 +37,7 @@ import {
   useExportMessages,
   useFullBackupExport,
 } from "@/hooks/useExport";
+import { useTranslation } from "react-i18next";
 
 const MAX_EXPORT_TAGS = 50;
 
@@ -55,6 +56,8 @@ export function ExportDialog({
   contactId,
   contactName,
 }: ExportDialogProps) {
+  const { t } = useTranslation();
+
   const [format, setFormat] = useState<ExportFormat>("csv");
   const [dateRange, setDateRange] = useState<"7d" | "30d" | "90d" | "all">(
     "all",
@@ -141,19 +144,25 @@ export function ExportDialog({
               <Download className="h-5 w-5" />
             )}
             {type === "full-backup"
-              ? "Full Backup"
-              : `Export ${
-                  type === "contacts"
-                    ? "Contacts"
-                    : type === "messages"
-                      ? "Messages"
-                      : `Conversation${contactName ? ` with ${contactName}` : ""}`
-                }`}
+              ? t("export.fullBackup", "Full Backup")
+              : type === "contacts"
+                ? t("export.exportContacts", "Export Contacts")
+                : type === "messages"
+                  ? t("export.exportMessages", "Export Messages")
+                  : contactName
+                    ? t("export.exportConversationWith", {
+                        defaultValue: "Export Conversation with {{name}}",
+                        name: contactName,
+                      })
+                    : t("export.exportConversation", "Export Conversation")}
           </DialogTitle>
           <DialogDescription>
             {type === "full-backup"
-              ? "Download a complete backup of all your data as a ZIP file"
-              : "Choose your export format and filters"}
+              ? t(
+                  "export.fullBackupHint",
+                  "Download a complete backup of all your data as a ZIP file",
+                )
+              : t("export.formatHint", "Choose your export format and filters")}
           </DialogDescription>
         </DialogHeader>
 
@@ -161,12 +170,20 @@ export function ExportDialog({
           {/* Full backup info */}
           {type === "full-backup" && (
             <div className="rounded-lg bg-muted p-4 text-sm">
-              <p className="font-medium mb-2">Your backup will include:</p>
+              <p className="font-medium mb-2">
+                {t("export.backupIncludes", "Your backup will include:")}
+              </p>
               <ul className="list-disc list-inside space-y-1 text-muted-foreground">
-                <li>All contacts (JSON and CSV)</li>
-                <li>All messages (JSON and CSV)</li>
-                <li>Backup summary with statistics</li>
-                <li>README file with documentation</li>
+                <li>
+                  {t("export.allContacts", "All contacts (JSON and CSV)")}
+                </li>
+                <li>
+                  {t("export.allMessages", "All messages (JSON and CSV)")}
+                </li>
+                <li>
+                  {t("export.backupSummary", "Backup summary with statistics")}
+                </li>
+                <li>{t("export.readme", "README file with documentation")}</li>
               </ul>
             </div>
           )}
@@ -174,7 +191,7 @@ export function ExportDialog({
           {/* Format selection - only for non-full-backup */}
           {type !== "full-backup" && (
             <div className="space-y-2">
-              <Label>Format</Label>
+              <Label>{t("export.format", "Format")}</Label>
               <div className="flex gap-2">
                 <Button
                   variant={format === "csv" ? "default" : "outline"}
@@ -201,7 +218,7 @@ export function ExportDialog({
             type === "conversation" ||
             type === "full-backup") && (
             <div className="space-y-2">
-              <Label>Date Range</Label>
+              <Label>{t("export.dateRange", "Date Range")}</Label>
               <Select
                 value={dateRange}
                 onValueChange={(v) => setDateRange(v as typeof dateRange)}
@@ -210,16 +227,26 @@ export function ExportDialog({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="7d">Last 7 days</SelectItem>
-                  <SelectItem value="30d">Last 30 days</SelectItem>
-                  <SelectItem value="90d">Last 90 days</SelectItem>
-                  <SelectItem value="all">All time</SelectItem>
+                  <SelectItem value="7d">
+                    {t("export.last7Days", "Last 7 days")}
+                  </SelectItem>
+                  <SelectItem value="30d">
+                    {t("export.last30Days", "Last 30 days")}
+                  </SelectItem>
+                  <SelectItem value="90d">
+                    {t("export.last90Days", "Last 90 days")}
+                  </SelectItem>
+                  <SelectItem value="all">
+                    {t("export.allTime", "All time")}
+                  </SelectItem>
                 </SelectContent>
               </Select>
               {type === "conversation" && dateRange === "all" && (
                 <p className="text-xs text-amber-600 dark:text-amber-400">
-                  Note: Exports are limited to 50,000 messages. Use date ranges
-                  for very large conversations.
+                  {t(
+                    "export.messageLimitNote",
+                    "Note: Exports are limited to 50,000 messages. Use date ranges for very large conversations.",
+                  )}
                 </p>
               )}
             </div>
@@ -238,13 +265,16 @@ export function ExportDialog({
                   }
                 />
                 <Label htmlFor="hasCustomName" className="text-sm font-normal">
-                  Only contacts with custom names
+                  {t(
+                    "export.onlyCustomNames",
+                    "Only contacts with custom names",
+                  )}
                 </Label>
               </div>
 
               {/* Tag filter */}
               <div className="space-y-2">
-                <Label>Filter by Tags</Label>
+                <Label>{t("export.filterByTags", "Filter by Tags")}</Label>
                 <TagSearchInput value={tagSearch} onChange={setTagSearch} />
                 {tags && tags.length > 0 ? (
                   <div className="flex max-h-32 flex-wrap gap-2 overflow-y-auto">
@@ -284,8 +314,11 @@ export function ExportDialog({
                 ) : (
                   <p className="py-2 text-center text-xs text-gray-500 dark:text-dark-text-secondary">
                     {debouncedTagSearch
-                      ? `No tags match “${debouncedTagSearch}”`
-                      : "No tags available"}
+                      ? t("export.noTagsMatch", {
+                          defaultValue: "No tags match “{{query}}”",
+                          query: debouncedTagSearch,
+                        })
+                      : t("export.noTagsAvailable", "No tags available")}
                   </p>
                 )}
               </div>
@@ -295,7 +328,7 @@ export function ExportDialog({
 
         <div className="flex justify-end gap-2">
           <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
+            {t("common.cancel", "Cancel")}
           </Button>
           <Button
             onClick={handleExport}
@@ -305,7 +338,9 @@ export function ExportDialog({
             {isLoading ? (
               <>
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                {type === "full-backup" ? "Creating Backup…" : "Exporting…"}
+                {type === "full-backup"
+                  ? t("export.creatingBackup", "Creating Backup…")
+                  : t("export.exporting", "Exporting…")}
               </>
             ) : (
               <>
@@ -314,7 +349,9 @@ export function ExportDialog({
                 ) : (
                   <Download className="h-4 w-4 mr-2" />
                 )}
-                {type === "full-backup" ? "Download Backup" : "Export"}
+                {type === "full-backup"
+                  ? t("export.downloadBackup", "Download Backup")
+                  : t("export.exportAction", "Export")}
               </>
             )}
           </Button>

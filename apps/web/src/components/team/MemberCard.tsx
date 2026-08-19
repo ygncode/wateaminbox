@@ -3,6 +3,7 @@ import { useMemo } from "react";
 import { Avatar, AvatarFallback, Badge, EllipsisMenu } from "@/components/ui";
 import type { EllipsisMenuItem } from "@/components/ui/ellipsis-menu";
 import type { MemberCardProps } from "./types";
+import { useTranslation } from "react-i18next";
 
 export function MemberCard({
   member,
@@ -16,6 +17,8 @@ export function MemberCard({
   onEditPermissions,
   onRemove,
 }: MemberCardProps) {
+  const { t } = useTranslation();
+
   const displayName = member.name || member.email;
   const initials = displayName
     .split(/\s+/)
@@ -39,28 +42,28 @@ export function MemberCard({
     if (canChangeRole && member.role === "member")
       items.push({
         id: "make-admin",
-        label: "Make admin",
+        label: t("team.makeAdmin", "Make admin"),
         icon: ShieldCheck,
         onClick: () => onRoleChange("admin"),
       });
     if (canChangeRole && member.role === "admin")
       items.push({
         id: "make-member",
-        label: "Make member",
+        label: t("team.makeMember", "Make member"),
         icon: Shield,
         onClick: () => onRoleChange("member"),
       });
     if (canEditPermissions)
       items.push({
         id: "permissions",
-        label: "Edit access",
+        label: t("team.editAccess", "Edit access"),
         icon: Settings2,
         onClick: onEditPermissions,
       });
     if (canRemove)
       items.push({
         id: "remove",
-        label: "Remove member",
+        label: t("team.removeMemberAction", "Remove member"),
         icon: Trash2,
         onClick: onRemove,
         destructive: true,
@@ -109,7 +112,9 @@ export function MemberCard({
           variant={hasCustomAccess ? "default" : "secondary"}
           className="text-[10px]"
         >
-          {hasCustomAccess ? "Custom access" : "Role defaults"}
+          {hasCustomAccess
+            ? t("team.customAccess", "Custom access")
+            : t("team.roleDefaults", "Role defaults")}
         </Badge>
       </div>
       <time className="font-mono text-xs text-[#65736d] dark:text-dark-text-secondary">
@@ -119,7 +124,10 @@ export function MemberCard({
         {menuItems.length > 0 && (
           <EllipsisMenu
             items={menuItems}
-            ariaLabel={`Actions for ${displayName}`}
+            ariaLabel={t("team.actionsFor", {
+              defaultValue: "Actions for {{name}}",
+              name: displayName,
+            })}
             open={isMenuOpen}
             onOpenChange={(open) => {
               if (open !== isMenuOpen) onMenuToggle();

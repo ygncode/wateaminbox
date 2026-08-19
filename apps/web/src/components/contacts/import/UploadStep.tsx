@@ -3,6 +3,7 @@ import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { downloadImportTemplate } from "../../../lib/api";
 import type { UploadStepProps } from "./types";
+import { useTranslation } from "react-i18next";
 
 export function UploadStep({
   loading,
@@ -11,6 +12,8 @@ export function UploadStep({
   selectedConnectionId,
   onSelectConnection,
 }: UploadStepProps) {
+  const { t } = useTranslation();
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [downloadingTemplate, setDownloadingTemplate] = useState(false);
 
@@ -22,7 +25,10 @@ export function UploadStep({
       toast.error(
         error instanceof Error
           ? error.message
-          : "Could not download the CSV template",
+          : t(
+              "contacts.templateDownloadFailed",
+              "Could not download the CSV template",
+            ),
       );
     } finally {
       setDownloadingTemplate(false);
@@ -55,8 +61,10 @@ export function UploadStep({
         <div className="p-3 bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-800 rounded-lg flex items-center gap-2 text-yellow-700 dark:text-yellow-400">
           <AlertTriangle className="h-5 w-5 flex-shrink-0" />
           <span className="text-sm">
-            Connect a WhatsApp account before importing. Imported contacts are
-            linked to an account so they can be messaged.
+            {t(
+              "contacts.connectBeforeImportHint",
+              "Connect a WhatsApp account before importing. Imported contacts are linked to an account so they can be messaged.",
+            )}
           </span>
         </div>
       )}
@@ -71,7 +79,10 @@ export function UploadStep({
       {connections.length > 1 && (
         <label className="block">
           <span className="text-sm font-medium text-gray-700 dark:text-dark-text-primary">
-            WhatsApp account for imported contacts
+            {t(
+              "contacts.accountForImported",
+              "WhatsApp account for imported contacts",
+            )}
           </span>
           <select
             value={selectedConnectionId ?? ""}
@@ -79,7 +90,7 @@ export function UploadStep({
             className="mt-1 block w-full rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-tertiary px-3 py-2 text-sm text-gray-900 dark:text-dark-text-primary focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
           >
             <option value="" disabled>
-              Choose an account…
+              {t("contacts.chooseAccountEllipsis", "Choose an account…")}
             </option>
             {connections.map((connection) => (
               <option key={connection.id} value={connection.id}>
@@ -119,10 +130,10 @@ export function UploadStep({
           <Upload className="h-12 w-12 mx-auto text-gray-400 dark:text-dark-text-tertiary" />
         )}
         <p className="mt-4 text-lg font-medium text-gray-700 dark:text-dark-text-primary">
-          Drop your CSV file here
+          {t("contacts.dropCsvHere", "Drop your CSV file here")}
         </p>
         <p className="mt-1 text-sm text-gray-500 dark:text-dark-text-secondary">
-          or click to browse
+          {t("contacts.orClickToBrowse", "or click to browse")}
         </p>
       </div>
 
@@ -146,10 +157,13 @@ export function UploadStep({
       {/* Instructions */}
       <div className="bg-gray-50 dark:bg-dark-tertiary rounded-lg p-4">
         <h3 className="font-medium text-gray-900 dark:text-dark-text-primary mb-2">
-          CSV Format
+          {t("contacts.csvFormat", "CSV Format")}
         </h3>
         <p className="text-sm text-gray-600 dark:text-dark-text-secondary mb-3">
-          Your CSV file should include a header row with these columns:
+          {t(
+            "contacts.csvFormatHint",
+            "Your CSV file should include a header row with these columns:",
+          )}
         </p>
         <ul className="text-sm text-gray-600 dark:text-dark-text-secondary space-y-1">
           <li>

@@ -2,6 +2,7 @@ import { Loader2, Lock, UserCheck } from "lucide-react";
 import { toast } from "sonner";
 import { useAssignContact } from "@/hooks/contact";
 import type { ComposerAccessState } from "./composer-access";
+import { useTranslation } from "react-i18next";
 
 interface AssignmentGateBarProps {
   contactId: string;
@@ -17,15 +18,25 @@ interface AssignmentGateBarProps {
  * side), not a UI preference. Read-only for anyone without
  * can_assign_contacts; a Take over action for anyone who has it.
  */
-export function AssignmentGateBar({ contactId, access }: AssignmentGateBarProps) {
+export function AssignmentGateBar({
+  contactId,
+  access,
+}: AssignmentGateBarProps) {
+  const { t } = useTranslation();
+
   const takeOverMutation = useAssignContact();
 
   const handleTakeOver = () => {
     takeOverMutation.mutate(contactId, {
-      onSuccess: () => toast.success("You've taken over this conversation"),
+      onSuccess: () =>
+        toast.success(
+          t("chat.takeOverSuccess", "You've taken over this conversation"),
+        ),
       onError: (err) =>
         toast.error(
-          err instanceof Error ? err.message : "Could not take over conversation",
+          err instanceof Error
+            ? err.message
+            : t("chat.takeOverError", "Could not take over conversation"),
         ),
     });
   };
@@ -55,7 +66,9 @@ export function AssignmentGateBar({ contactId, access }: AssignmentGateBarProps)
   return (
     <div className="flex items-center gap-2 border-t border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-600 dark:border-dark-border dark:bg-dark-tertiary/50 dark:text-dark-text-secondary">
       <Lock className="h-4 w-4 shrink-0" aria-hidden="true" />
-      <span>Assigned to {access.assignedToName} - you can't send messages here</span>
+      <span>
+        Assigned to {access.assignedToName} - you can't send messages here
+      </span>
     </div>
   );
 }

@@ -25,6 +25,8 @@ import {
 } from "@/hooks/useAudit";
 import { fetchBlobWithAuth } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import type { TFunction } from "i18next";
+import { useTranslation } from "react-i18next";
 
 export interface AuditLogProps {
   companyId: string;
@@ -42,6 +44,8 @@ const entityTypes = [
 ];
 
 export function AuditLog({ companyId, canExport = false }: AuditLogProps) {
+  const { t } = useTranslation();
+
   const [searchParams, setSearchParams] = useSearchParams();
   const page = Math.max(0, Math.floor(Number(searchParams.get("page")) || 0));
   const actionFilter = (searchParams.get("action") || "") as AuditAction | "";
@@ -120,7 +124,7 @@ export function AuditLog({ companyId, canExport = false }: AuditLogProps) {
   const columns: ColumnDef<AuditLogType>[] = [
     {
       accessorKey: "createdAt",
-      header: "Time",
+      header: t("audit.time", "Time"),
       size: 155,
       cell: ({ row }) => {
         const occurredAt = dayjs(row.original.createdAt);
@@ -139,18 +143,18 @@ export function AuditLog({ companyId, canExport = false }: AuditLogProps) {
     },
     {
       id: "actor",
-      header: "Actor",
+      header: t("audit.actor", "Actor"),
       size: 235,
       cell: ({ row }) => <Actor actor={row.original.actor} />,
     },
     {
       id: "activity",
-      header: "Activity",
+      header: t("audit.activity", "Activity"),
       size: 420,
       cell: ({ row }) => (
         <div>
           <p className="max-w-xl text-[13px] font-medium leading-5 text-[#20362e] dark:text-dark-text-primary">
-            {formatAuditActivity(row.original)}
+            {formatAuditActivity(row.original, t)}
           </p>
           <span className="mt-1.5 inline-flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-[0.1em] text-[#718078] dark:text-dark-text-secondary">
             <span
@@ -166,7 +170,7 @@ export function AuditLog({ companyId, canExport = false }: AuditLogProps) {
     },
     {
       id: "target",
-      header: "Target",
+      header: t("audit.target", "Target"),
       size: 210,
       cell: ({ row }) =>
         row.original.entityType ? (
@@ -189,7 +193,7 @@ export function AuditLog({ companyId, canExport = false }: AuditLogProps) {
     },
     {
       accessorKey: "ipAddress",
-      header: "IP address",
+      header: t("audit.ipAddressLabel", "IP address"),
       size: 135,
       cell: ({ row }) => (
         <span className="font-mono text-xs text-[#65736d] dark:text-dark-text-secondary">
@@ -199,7 +203,9 @@ export function AuditLog({ companyId, canExport = false }: AuditLogProps) {
     },
     {
       id: "details",
-      header: () => <span className="sr-only">Details</span>,
+      header: () => (
+        <span className="sr-only">{t("audit.details", "Details")}</span>
+      ),
       size: 64,
       cell: ({ row }) => {
         const expanded = expandedId === row.original.id;
@@ -214,7 +220,9 @@ export function AuditLog({ companyId, canExport = false }: AuditLogProps) {
             }
             aria-expanded={expanded}
             aria-label={
-              expanded ? "Hide audit event details" : "View audit event details"
+              expanded
+                ? t("audit.hideDetails", "Hide audit event details")
+                : t("audit.viewDetails", "View audit event details")
             }
             className="h-8 w-8 rounded-full text-[#65736d] hover:bg-[#e8f1ec] hover:text-[#075c41]"
           >
@@ -255,7 +263,7 @@ export function AuditLog({ companyId, canExport = false }: AuditLogProps) {
       toast.error(
         exportError instanceof Error
           ? exportError.message
-          : "Could not export audit log",
+          : t("audit.exportFailed", "Could not export audit log"),
       );
     } finally {
       setIsExporting(false);
@@ -271,13 +279,21 @@ export function AuditLog({ companyId, canExport = false }: AuditLogProps) {
           </div>
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <h1 className="text-lg font-semibold leading-none">Audit log</h1>
+              <h1 className="text-lg font-semibold leading-none">
+                {t("audit.pageTitle", "Audit log")}
+              </h1>
               <Badge variant="outline" className="px-2 py-0 text-[10px]">
-                {data?.pagination.total ?? 0} events
+                {t("audit.eventCount", {
+                  defaultValue: "{{count}} events",
+                  count: data?.pagination.total ?? 0,
+                })}
               </Badge>
             </div>
             <p className="mt-1 text-xs text-[#65736d] dark:text-dark-text-secondary">
-              Security and workspace activity, newest first.
+              {t(
+                "audit.subtitle",
+                "Security and workspace activity, newest first.",
+              )}
             </p>
           </div>
         </div>
@@ -297,10 +313,13 @@ export function AuditLog({ companyId, canExport = false }: AuditLogProps) {
               </span>
               <div className="min-w-0">
                 <p className="truncate text-xs font-semibold text-[#31463e] dark:text-dark-text-primary">
-                  Activity stream
+                  {t("audit.activityStream", "Activity stream")}
                 </p>
                 <p className="hidden truncate text-[10px] text-[#7a8881] sm:block dark:text-dark-text-secondary">
-                  Select an event to inspect its metadata.
+                  {t(
+                    "audit.activityStreamHint",
+                    "Select an event to inspect its metadata.",
+                  )}
                 </p>
               </div>
             </div>
@@ -338,9 +357,11 @@ export function AuditLog({ companyId, canExport = false }: AuditLogProps) {
                   >
                     <FileDown className="mr-1.5 h-3.5 w-3.5" />
                     <span className="hidden sm:inline">
-                      {isExporting ? "Exporting…" : "Export"}
+                      {isExporting
+                        ? t("audit.exporting", "Exporting…")
+                        : t("audit.export", "Export")}
                     </span>
-                    <span className="sm:hidden">CSV</span>
+                    <span className="sm:hidden">{t("audit.csv", "CSV")}</span>
                   </Button>
                 </>
               )}
@@ -352,10 +373,13 @@ export function AuditLog({ companyId, canExport = false }: AuditLogProps) {
                 <div className="mb-3 flex items-center justify-between gap-3">
                   <div>
                     <p className="text-xs font-semibold text-[#31463e] dark:text-dark-text-primary">
-                      Filter audit events
+                      {t("audit.filterTitle", "Filter audit events")}
                     </p>
                     <p className="text-[11px] text-[#718078] dark:text-dark-text-secondary">
-                      Filters are applied on the server.
+                      {t(
+                        "audit.filterHint",
+                        "Filters are applied on the server.",
+                      )}
                     </p>
                   </div>
                   {hasFilters && (
@@ -365,17 +389,19 @@ export function AuditLog({ companyId, canExport = false }: AuditLogProps) {
                       onClick={clearFilters}
                       className="h-8 text-[#0b7a55]"
                     >
-                      Clear all
+                      {t("audit.clearAll", "Clear all")}
                     </Button>
                   )}
                 </div>
                 <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
                   <FilterSelect
-                    label="Actor"
+                    label={t("audit.actor", "Actor")}
                     value={actorFilter}
                     onChange={(value) => setFilter("actor", value)}
                   >
-                    <option value="">All actors</option>
+                    <option value="">
+                      {t("audit.allActors", "All actors")}
+                    </option>
                     {actors?.map((actor) => (
                       <option key={actor.id} value={actor.id}>
                         {actor.name || actor.email}
@@ -383,11 +409,13 @@ export function AuditLog({ companyId, canExport = false }: AuditLogProps) {
                     ))}
                   </FilterSelect>
                   <FilterSelect
-                    label="Action"
+                    label={t("audit.action", "Action")}
                     value={actionFilter}
                     onChange={(value) => setFilter("action", value)}
                   >
-                    <option value="">All actions</option>
+                    <option value="">
+                      {t("audit.allActions", "All actions")}
+                    </option>
                     {actions?.map((action) => (
                       <option key={action.value} value={action.value}>
                         {action.label}
@@ -395,11 +423,13 @@ export function AuditLog({ companyId, canExport = false }: AuditLogProps) {
                     ))}
                   </FilterSelect>
                   <FilterSelect
-                    label="Entity"
+                    label={t("audit.entity", "Entity")}
                     value={entityFilter}
                     onChange={(value) => setFilter("entity", value)}
                   >
-                    <option value="">All entities</option>
+                    <option value="">
+                      {t("audit.allEntities", "All entities")}
+                    </option>
                     {entityTypes.map((entity) => (
                       <option key={entity} value={entity}>
                         {titleCase(entity)}
@@ -407,7 +437,7 @@ export function AuditLog({ companyId, canExport = false }: AuditLogProps) {
                     ))}
                   </FilterSelect>
                   <label className="text-xs font-medium text-[#65736d] dark:text-dark-text-secondary">
-                    From
+                    {t("audit.from", "From")}
                     <Input
                       type="date"
                       value={startDate}
@@ -418,7 +448,7 @@ export function AuditLog({ companyId, canExport = false }: AuditLogProps) {
                     />
                   </label>
                   <label className="text-xs font-medium text-[#65736d] dark:text-dark-text-secondary">
-                    To
+                    {t("audit.to", "To")}
                     <Input
                       type="date"
                       value={endDate}
@@ -437,14 +467,23 @@ export function AuditLog({ companyId, canExport = false }: AuditLogProps) {
           error={error}
           getRowId={(log) => log.id}
           renderSubRow={(log) =>
-            expandedId === log.id ? <AuditDetails log={log} /> : null
+            expandedId === log.id ? <AuditDetails log={log} t={t} /> : null
           }
-          tableLabel="Workspace audit log"
-          emptyTitle="No activity matches these filters"
+          tableLabel={t("audit.tableLabel", "Workspace audit log")}
+          emptyTitle={t(
+            "audit.emptyTitle",
+            "No activity matches these filters",
+          )}
           emptyDescription={
             hasFilters
-              ? "Clear or adjust the filters to see more events."
-              : "Workspace activity will appear here as it happens."
+              ? t(
+                  "audit.emptyFiltered",
+                  "Clear or adjust the filters to see more events.",
+                )
+              : t(
+                  "audit.emptyDefault",
+                  "Workspace activity will appear here as it happens.",
+                )
           }
           pageSizeOptions={[10, 20, 50]}
           density="compact"
@@ -513,7 +552,7 @@ function Actor({ actor }: { actor: AuditLogType["actor"] }) {
   );
 }
 
-function AuditDetails({ log }: { log: AuditLogType }) {
+function AuditDetails({ log, t }: { log: AuditLogType; t: TFunction }) {
   const sanitizedDetails = sanitizeAuditDetails(log.details || {}) as Record<
     string,
     unknown
@@ -523,9 +562,18 @@ function AuditDetails({ log }: { log: AuditLogType }) {
     <div className="space-y-3">
       <dl className="grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-3">
         {log.entityType && (
-          <Detail label="Target type" value={titleCase(log.entityType)} />
+          <Detail
+            label={t("audit.targetType", "Target type")}
+            value={titleCase(log.entityType)}
+          />
         )}
-        {log.entityId && <Detail label="Target ID" value={log.entityId} mono />}
+        {log.entityId && (
+          <Detail
+            label={t("audit.targetId", "Target ID")}
+            value={log.entityId}
+            mono
+          />
+        )}
         {details.map(([key, value]) => (
           <Detail
             key={key}
@@ -537,7 +585,7 @@ function AuditDetails({ log }: { log: AuditLogType }) {
       {log.details && (
         <details className="text-xs text-[#65736d] dark:text-dark-text-secondary">
           <summary className="cursor-pointer font-medium">
-            Raw event data
+            {t("audit.rawEventData", "Raw event data")}
           </summary>
           <pre className="mt-2 max-h-52 overflow-auto rounded-lg bg-[#edf1ed] p-3 dark:bg-dark-primary">
             {JSON.stringify(Object.fromEntries(details), null, 2)}
@@ -574,7 +622,24 @@ function Detail({
   );
 }
 
-export function formatAuditSummary(log: AuditLogType): string {
+/**
+ * Minimal stand-in for i18next's `t` so this module stays callable (and
+ * unit-testable) outside React. Interpolates {{vars}} into the English text.
+ */
+type AuditTranslate = (
+  key: string,
+  options: { defaultValue: string } & Record<string, unknown>,
+) => string;
+
+const englishAuditText: AuditTranslate = (_key, options) =>
+  options.defaultValue.replace(/\{\{(\w+)\}\}/g, (_match, name: string) =>
+    String(options[name] ?? ""),
+  );
+
+export function formatAuditSummary(
+  log: AuditLogType,
+  t: AuditTranslate = englishAuditText,
+): string {
   const actor = log.actor?.name || log.actor?.email || "System";
   const details = log.details || {};
   const target = String(
@@ -588,33 +653,83 @@ export function formatAuditSummary(log: AuditLogType): string {
   );
   switch (log.action) {
     case "member.role_changed":
-      return `${actor} changed ${target}'s role from ${titleCase(String(details.oldRole || "member"))} to ${titleCase(String(details.newRole || "member"))}.`;
+      return t("audit.summary.roleChanged", {
+        defaultValue:
+          "{{actor}} changed {{target}}'s role from {{oldRole}} to {{newRole}}.",
+        actor,
+        target,
+        oldRole: titleCase(String(details.oldRole || "member")),
+        newRole: titleCase(String(details.newRole || "member")),
+      });
     case "member.removed":
-      return `${actor} removed ${target} from the workspace.`;
+      return t("audit.summary.memberRemoved", {
+        defaultValue: "{{actor}} removed {{target}} from the workspace.",
+        actor,
+        target,
+      });
     case "invitation.sent":
-      return `${actor} invited ${target} to the workspace.`;
+      return t("audit.summary.invitationSent", {
+        defaultValue: "{{actor}} invited {{target}} to the workspace.",
+        actor,
+        target,
+      });
     case "invitation.cancelled":
-      return `${actor} cancelled the invitation for ${target}.`;
+      return t("audit.summary.invitationCancelled", {
+        defaultValue: "{{actor}} cancelled the invitation for {{target}}.",
+        actor,
+        target,
+      });
     case "invitation.resent":
-      return `${actor} resent the invitation to ${target}.`;
+      return t("audit.summary.invitationResent", {
+        defaultValue: "{{actor}} resent the invitation to {{target}}.",
+        actor,
+        target,
+      });
     case "company.updated":
-      return `${actor} updated workspace settings.`;
+      return t("audit.summary.companyUpdated", {
+        defaultValue: "{{actor}} updated workspace settings.",
+        actor,
+      });
     case "contact.assigned":
-      return `${actor} assigned ${target}.`;
+      return t("audit.summary.contactAssigned", {
+        defaultValue: "{{actor}} assigned {{target}}.",
+        actor,
+        target,
+      });
     case "contact.unassigned":
-      return `${actor} unassigned ${target}.`;
+      return t("audit.summary.contactUnassigned", {
+        defaultValue: "{{actor}} unassigned {{target}}.",
+        actor,
+        target,
+      });
     case "conversation.resolved":
-      return `${actor} resolved ${target}.`;
+      return t("audit.summary.conversationResolved", {
+        defaultValue: "{{actor}} resolved {{target}}.",
+        actor,
+        target,
+      });
     case "conversation.reopened":
-      return `${actor} reopened ${target}.`;
+      return t("audit.summary.conversationReopened", {
+        defaultValue: "{{actor}} reopened {{target}}.",
+        actor,
+        target,
+      });
     default:
-      return `${actor} performed ${formatAuditAction(log.action).toLocaleLowerCase()} on ${target}.`;
+      return t("audit.summary.generic", {
+        defaultValue: "{{actor}} performed {{action}} on {{target}}.",
+        actor,
+        action: formatAuditAction(log.action).toLocaleLowerCase(),
+        target,
+      });
   }
 }
 
-function formatAuditActivity(log: AuditLogType): string {
+function formatAuditActivity(
+  log: AuditLogType,
+  t: AuditTranslate = englishAuditText,
+): string {
   const actor = log.actor?.name || log.actor?.email || "System";
-  const summary = formatAuditSummary(log);
+  const summary = formatAuditSummary(log, t);
   const description = summary.startsWith(`${actor} `)
     ? summary.slice(actor.length + 1)
     : summary;

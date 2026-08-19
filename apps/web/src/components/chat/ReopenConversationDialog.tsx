@@ -12,6 +12,7 @@ import {
   type OpenOrReopenMode,
   validateOpenOrReopenReason,
 } from "./open-reopen-dialog-state";
+import { useTranslation } from "react-i18next";
 
 interface OpenOrReopenConversationDialogProps {
   open: boolean;
@@ -38,6 +39,8 @@ export function OpenOrReopenConversationDialog({
   isSubmitting = false,
   mode,
 }: OpenOrReopenConversationDialogProps) {
+  const { t } = useTranslation();
+
   const isReopen = mode === "reopen";
   const [reason, setReason] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -65,17 +68,26 @@ export function OpenOrReopenConversationDialog({
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>
-            {isReopen ? "Reopen conversation" : "Open conversation"}
+            {isReopen
+              ? t("chat.reopenConversation", "Reopen conversation")
+              : t("chat.openConversation", "Open conversation")}
           </DialogTitle>
           <DialogDescription>
             {isReopen
-              ? "This creates a brand-new case - the resolved one is preserved, never overwritten. Explain why this needs to reopen."
-              : "This starts tracking the conversation against your SLA targets."}
+              ? t(
+                  "chat.reopenDescription",
+                  "This creates a brand-new case - the resolved one is preserved, never overwritten. Explain why this needs to reopen.",
+                )
+              : t(
+                  "chat.openDescription",
+                  "This starts tracking the conversation against your SLA targets.",
+                )}
           </DialogDescription>
         </DialogHeader>
 
         <label className="block text-sm font-medium text-gray-700 dark:text-dark-text-primary">
-          Reason{isReopen ? "" : " (optional)"}
+          {t("chat.reason", "Reason")}
+          {isReopen ? "" : ` ${t("setup.optional", "(optional)")}`}
           <textarea
             value={reason}
             onChange={(event) => setReason(event.target.value)}
@@ -83,8 +95,14 @@ export function OpenOrReopenConversationDialog({
             rows={3}
             placeholder={
               isReopen
-                ? "e.g. Customer followed up outside WhatsApp about the same issue"
-                : "e.g. Starting a new conversation thread"
+                ? t(
+                    "chat.reopenReasonPlaceholder",
+                    "e.g. Customer followed up outside WhatsApp about the same issue",
+                  )
+                : t(
+                    "chat.openReasonPlaceholder",
+                    "e.g. Starting a new conversation thread",
+                  )
             }
             className="mt-1.5 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm dark:border-dark-border dark:bg-dark-tertiary"
           />

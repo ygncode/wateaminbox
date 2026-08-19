@@ -13,6 +13,7 @@ import { ArchivedConnectionCard } from "./ArchivedConnectionCard";
 import { GlobalErrorBanner } from "./GlobalErrorBanner";
 import { getConnectionSetupStage } from "./setup-state";
 import type { MultiConnectionPanelProps } from "./types";
+import { useTranslation } from "react-i18next";
 
 /**
  * Multi-connection panel for managing multiple WhatsApp connections
@@ -22,6 +23,8 @@ export function MultiConnectionPanel({
   compact = false,
   hideHeader = false,
 }: MultiConnectionPanelProps) {
+  const { t } = useTranslation();
+
   const {
     connections,
     globalError,
@@ -201,7 +204,7 @@ export function MultiConnectionPanel({
             </div>
             <div>
               <h2 className="text-lg font-semibold text-gray-900 dark:text-dark-text-primary">
-                WhatsApp Connections
+                {t("connections.panelTitle", "WhatsApp Connections")}
               </h2>
               <p className="text-sm text-gray-500 dark:text-dark-text-secondary">
                 {connectedCount} of {totalCount} connections active
@@ -223,7 +226,7 @@ export function MultiConnectionPanel({
               ) : (
                 <>
                   <Plus className="h-4 w-4 mr-1" />
-                  Add Connection
+                  {t("connections.addConnection", "Add Connection")}
                 </>
               )}
             </Button>
@@ -261,8 +264,8 @@ export function MultiConnectionPanel({
               size="sm"
               onClick={() => refresh()}
               className="h-9 w-9 border-[#dce3de] p-0 hover:border-emerald-500 hover:text-emerald-700 dark:border-white/10 dark:bg-white/[0.03] dark:hover:border-emerald-400/50 dark:hover:text-emerald-300"
-              aria-label="Refresh connections"
-              title="Refresh connections"
+              aria-label={t("connections.refresh", "Refresh connections")}
+              title={t("connections.refresh", "Refresh connections")}
             >
               <RefreshCw className="h-4 w-4" />
             </Button>
@@ -343,11 +346,13 @@ export function MultiConnectionPanel({
         <section className="mt-7 border-t border-stone-200/80 pt-5 dark:border-white/[0.08]">
           <div className="mb-3">
             <h3 className="text-sm font-semibold text-stone-800 dark:text-stone-200">
-              Archived accounts
+              {t("connections.archivedAccounts", "Archived accounts")}
             </h3>
             <p className="mt-0.5 text-xs text-stone-500 dark:text-stone-400">
-              Link a number again to restore its original inbox, or permanently
-              erase its retained data.
+              {t(
+                "connections.archivedAccountsHint",
+                "Link a number again to restore its original inbox, or permanently erase its retained data.",
+              )}
             </p>
           </div>
           <div className="space-y-3">

@@ -24,8 +24,11 @@ import { useAuth } from "../contexts/auth-context";
 import { MessageActionsProvider } from "../contexts/message-actions-context";
 import { useChatPageState } from "../hooks/chat";
 import { useComposerAccess } from "../hooks/useComposerAccess";
+import { useTranslation } from "react-i18next";
 
 export function ChatPage() {
+  const { t } = useTranslation();
+
   const { user } = useAuth();
   const [sidebarView, setSidebarView] = useState<SidebarView>("chats");
 
@@ -181,7 +184,9 @@ export function ChatPage() {
 
   return (
     <AppLayout>
-      <h1 className="sr-only">WATeamInbox - Conversations</h1>
+      <h1 className="sr-only">
+        {t("chat.pageTitle", "WATeamInbox - Conversations")}
+      </h1>
       <ResponsiveLayout
         sidebar={sidebar}
         main={main}
@@ -208,15 +213,19 @@ export function ChatPage() {
 }
 
 function ConversationLoadingState() {
+  const { t } = useTranslation();
+
   return (
     <div
       className="flex min-h-0 flex-1 flex-col"
       role="status"
       aria-live="polite"
-      aria-label="Loading conversation"
+      aria-label={t("chat.loadingConversation", "Loading conversation")}
       aria-busy="true"
     >
-      <span className="sr-only">Loading conversation</span>
+      <span className="sr-only">
+        {t("chat.loadingConversation", "Loading conversation")}
+      </span>
 
       <div
         className="flex h-[60px] min-h-[60px] items-center gap-3 border-b border-gray-200 bg-gray-100 px-4 dark:border-dark-border dark:bg-dark-secondary"
@@ -280,6 +289,8 @@ function ConversationLoadError({
   onRetry: () => void;
   onBackToInbox: () => void;
 }) {
+  const { t } = useTranslation();
+
   return (
     <div className="relative isolate flex min-h-0 flex-1 items-center justify-center overflow-hidden bg-[#f6f8f9] px-6 dark:bg-[#0b141a]">
       <div
@@ -296,10 +307,14 @@ function ConversationLoadError({
           <CircleAlert className="size-6" aria-hidden="true" />
         </span>
         <h2 className="mt-5 text-lg font-semibold tracking-tight text-[#263a33] dark:text-dark-text-primary">
-          Couldn&apos;t open this conversation
+          {t("chat.couldNotOpen", "Couldn't open this conversation")}
         </h2>
         <p className="mt-2 text-sm leading-6 text-[#667781] dark:text-dark-text-secondary">
-          {message || "The conversation details could not be loaded."}
+          {message ||
+            t(
+              "chat.conversationLoadFailed",
+              "The conversation details could not be loaded.",
+            )}
         </p>
         <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
           <button
@@ -308,14 +323,14 @@ function ConversationLoadError({
             className="inline-flex h-10 items-center gap-2 rounded-full bg-[#0b6b5d] px-4 text-sm font-semibold text-white transition-colors hover:bg-[#095b50] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00a884] focus-visible:ring-offset-2 dark:bg-[#00a884] dark:text-[#071b16] dark:hover:bg-[#06bd96]"
           >
             <RotateCcw className="size-4" aria-hidden="true" />
-            Try again
+            {t("chat.tryAgain", "Try again")}
           </button>
           <button
             type="button"
             onClick={onBackToInbox}
             className="inline-flex h-10 items-center rounded-full border border-[#dce4e7] bg-white px-4 text-sm font-semibold text-[#54656f] transition-colors hover:bg-[#edf1f2] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00a884] focus-visible:ring-offset-2 dark:border-white/10 dark:bg-white/[0.055] dark:text-dark-text-secondary dark:hover:bg-white/10"
           >
-            Back to inbox
+            {t("chat.backToInbox", "Back to inbox")}
           </button>
         </div>
       </div>
@@ -324,6 +339,8 @@ function ConversationLoadError({
 }
 
 function InboxEmptyState({ activeView }: { activeView: SidebarView }) {
+  const { t } = useTranslation();
+
   const isGroupView = activeView === "groups";
 
   return (
@@ -368,32 +385,44 @@ function InboxEmptyState({ activeView }: { activeView: SidebarView }) {
         </div>
 
         <p className="text-[11px] font-semibold uppercase tracking-[0.19em] text-[#008069] dark:text-[#00a884]">
-          {isGroupView ? "Team groups" : "Team conversations"}
+          {isGroupView
+            ? t("chat.teamGroups", "Team groups")
+            : t("chat.teamConversations", "Team conversations")}
         </p>
         <h2 className="mt-2 text-[1.7rem] font-semibold tracking-[-0.025em] text-[#263a33] dark:text-dark-text-primary">
-          {isGroupView ? "Choose a group to open" : "Choose a conversation"}
+          {isGroupView
+            ? t("chat.chooseGroup", "Choose a group to open")
+            : t("chat.chooseConversation", "Choose a conversation")}
         </h2>
         <p className="mt-2.5 max-w-md text-[15px] leading-6 text-[#667781] dark:text-dark-text-secondary">
           {isGroupView
-            ? "Open a group from the list to follow the discussion and reply with your team."
-            : "Open any chat from the inbox to see its history, assignments, and shared team replies."}
+            ? t(
+                "chat.chooseGroupHint",
+                "Open a group from the list to follow the discussion and reply with your team.",
+              )
+            : t(
+                "chat.chooseConversationHint",
+                "Open any chat from the inbox to see its history, assignments, and shared team replies.",
+              )}
         </p>
 
         <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
           <span className="inline-flex items-center gap-1.5 rounded-full border border-[#dce4e7] bg-white/70 px-3 py-1.5 text-xs font-medium text-[#54656f] shadow-sm backdrop-blur-sm dark:border-white/[0.08] dark:bg-white/[0.045] dark:text-dark-text-secondary">
             <UsersRound className="size-3.5 text-[#008069] dark:text-[#00a884]" />
-            Shared team context
+            {t("chat.sharedTeamContext", "Shared team context")}
           </span>
           <span className="inline-flex items-center gap-1.5 rounded-full border border-[#dce4e7] bg-white/70 px-3 py-1.5 text-xs font-medium text-[#54656f] shadow-sm backdrop-blur-sm dark:border-white/[0.08] dark:bg-white/[0.045] dark:text-dark-text-secondary">
             <CheckCheck className="size-3.5 text-[#008069] dark:text-[#00a884]" />
-            WhatsApp synced
+            {t("chat.whatsappSynced", "WhatsApp synced")}
           </span>
         </div>
       </div>
 
       <div className="absolute bottom-8 left-1/2 hidden -translate-x-1/2 items-center gap-2 text-xs text-[#8696a0] dark:text-dark-text-tertiary sm:flex">
         <ArrowLeft className="size-3.5" aria-hidden="true" />
-        <span>Select a chat from the list to begin</span>
+        <span>
+          {t("chat.selectChatHint", "Select a chat from the list to begin")}
+        </span>
       </div>
     </div>
   );

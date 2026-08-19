@@ -11,11 +11,10 @@ describe("group info panel", () => {
     ]);
     expect(profile).toContain("useGroup(contact?.isGroup ? contactId : null)");
     expect(profile).toContain("<GroupInfoSections");
-    expect(profile).toContain(
-      'contact?.isGroup ? "Group Info" : "Contact Info"',
-    );
+    expect(profile).toContain('t("contacts.groupInfo", "Group Info")');
+    expect(profile).toContain('t("contacts.contactInfo", "Contact Info")');
     expect(header).toContain("useGroup(contact?.isGroup ? contact.id : null)");
-    expect(header).toContain("group.participantCount} participants");
+    expect(header).toContain("count: group.participantCount");
   });
 
   test("shows every available member identity and admin role", async () => {

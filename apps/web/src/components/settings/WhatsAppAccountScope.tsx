@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/select";
 import { useWhatsAppConnectionsList } from "@/hooks/whatsapp";
 import type { WhatsAppConnection } from "@/lib/api/types";
+import { useTranslation } from "react-i18next";
 
 export function useWhatsAppAccountScope() {
   const {
@@ -60,6 +61,8 @@ export function WhatsAppAccountScope({
   onConnectionChange: (connectionId: string) => void;
   isLoading: boolean;
 }) {
+  const { t } = useTranslation();
+
   const selected = connections.find(
     (connection) => connection.id === connectionId,
   );
@@ -72,10 +75,13 @@ export function WhatsAppAccountScope({
         </div>
         <div className="min-w-0">
           <p className="text-sm font-semibold text-[#17342a] dark:text-dark-text-primary">
-            WhatsApp account
+            {t("connections.whatsappAccount", "WhatsApp account")}
           </p>
           <p className="truncate text-xs text-[#65776f] dark:text-dark-text-secondary">
-            Labels and catalogs stay isolated to the selected number.
+            {t(
+              "connections.accountScopeHint",
+              "Labels and catalogs stay isolated to the selected number.",
+            )}
           </p>
           {selected && (
             <p className="mt-1 flex items-center gap-1.5 text-[11px] font-medium text-[#517066] dark:text-dark-text-secondary">
@@ -86,7 +92,9 @@ export function WhatsAppAccountScope({
                     : "bg-amber-500"
                 }`}
               />
-              {selected.status === "connected" ? "Connected" : "Not connected"}
+              {selected.status === "connected"
+                ? t("connections.connected", "Connected")
+                : t("connections.notConnected", "Not connected")}
             </p>
           )}
         </div>
@@ -100,9 +108,11 @@ export function WhatsAppAccountScope({
         <Select value={connectionId} onValueChange={onConnectionChange}>
           <SelectTrigger
             className="h-10 w-full bg-white shadow-sm sm:w-64 dark:bg-white/[0.05]"
-            aria-label="WhatsApp account"
+            aria-label={t("connections.whatsappAccount", "WhatsApp account")}
           >
-            <SelectValue placeholder="Select an account" />
+            <SelectValue
+              placeholder={t("connections.selectAccount", "Select an account")}
+            />
           </SelectTrigger>
           <SelectContent>
             {connections.map((connection) => (
@@ -121,7 +131,7 @@ export function WhatsAppAccountScope({
         </Select>
       ) : (
         <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-200">
-          Connect a WhatsApp account first
+          {t("connections.connectFirst", "Connect a WhatsApp account first")}
         </div>
       )}
     </div>

@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 interface MessageSelectionToolbarProps {
   selectionMode: boolean;
   selectedCount: number;
@@ -9,6 +10,8 @@ export function MessageSelectionToolbar({
   selectedCount,
   onExit,
 }: MessageSelectionToolbarProps) {
+  const { t } = useTranslation();
+
   if (!selectionMode) return null;
 
   return (
@@ -17,7 +20,7 @@ export function MessageSelectionToolbar({
         <button
           onClick={onExit}
           className="p-1 hover:bg-white/10 rounded-full transition-colors"
-          aria-label="Exit selection mode"
+          aria-label={t("chat.exitSelectionMode", "Exit selection mode")}
         >
           <svg
             className="h-6 w-6"
@@ -39,7 +42,9 @@ export function MessageSelectionToolbar({
             : `${selectedCount} selected`}
         </span>
       </div>
-      <span className="text-sm opacity-80">Press ESC to cancel</span>
+      <span className="text-sm opacity-80">
+        {t("chat.pressEscToCancel", "Press ESC to cancel")}
+      </span>
     </div>
   );
 }

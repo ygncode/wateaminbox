@@ -7,6 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useAsyncData } from "@/hooks/useAsyncData";
 import { useAssignmentHistory } from "@/hooks/useContact";
 import { cn } from "@/lib/utils";
+import { useTranslation } from "react-i18next";
 
 interface AssignmentHistorySectionProps {
   contactId: string;
@@ -18,23 +19,31 @@ interface AssignmentHistorySectionProps {
 export function AssignmentHistorySection({
   contactId,
 }: AssignmentHistorySectionProps) {
+  const { t } = useTranslation();
+
   const [isExpanded, setIsExpanded] = useState(false);
   const { renderState } = useAsyncData(useAssignmentHistory(contactId));
 
   return (
-    <RightPanelSection title="Assignment History">
+    <RightPanelSection
+      title={t("contacts.assignmentHistory", "Assignment History")}
+    >
       {renderState({
         loading: () => <Skeleton className="h-12 w-full" />,
         error: () => (
           <div className="flex items-center gap-2 text-red-400 dark:text-red-500">
             <History className="h-4 w-4" />
-            <p className="text-sm">Failed to load history</p>
+            <p className="text-sm">
+              {t("contacts.assignmentHistoryError", "Failed to load history")}
+            </p>
           </div>
         ),
         empty: () => (
           <div className="flex items-center gap-2 text-gray-400 dark:text-dark-text-tertiary">
             <History className="h-4 w-4" />
-            <p className="text-sm italic">No assignment history</p>
+            <p className="text-sm italic">
+              {t("contacts.assignmentHistoryEmpty", "No assignment history")}
+            </p>
           </div>
         ),
         success: (history) => {
@@ -105,7 +114,7 @@ export function AssignmentHistorySection({
                   {isExpanded ? (
                     <>
                       <ChevronUp className="h-3 w-3" />
-                      Show less
+                      {t("common.showLessLower", "Show less")}
                     </>
                   ) : (
                     <>

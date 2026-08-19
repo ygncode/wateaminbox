@@ -124,8 +124,17 @@ export function exceptionsToInput(
   }));
 }
 
-export function formatIntervals(day: SlaWeeklyScheduleDay): string {
-  if (!day.open || day.intervals.length === 0) return "Closed";
+/**
+ * Optional translator so this stays usable (and unit-testable) outside React.
+ * Defaults to the English label.
+ */
+export type IntervalTranslate = (key: string, fallback: string) => string;
+
+export function formatIntervals(
+  day: SlaWeeklyScheduleDay,
+  t: IntervalTranslate = (_key, fallback) => fallback,
+): string {
+  if (!day.open || day.intervals.length === 0) return t("sla.closed", "Closed");
   return day.intervals
     .map((interval) => `${interval.start}–${interval.end}`)
     .join(", ");

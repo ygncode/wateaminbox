@@ -1,5 +1,6 @@
 import { X, Zap } from "lucide-react";
 import type { GlobalErrorBannerProps } from "./types";
+import { useTranslation } from "react-i18next";
 
 /**
  * Global error banner for connection limit and other critical errors
@@ -8,6 +9,8 @@ export function GlobalErrorBanner({
   error,
   onDismiss,
 }: GlobalErrorBannerProps) {
+  const { t } = useTranslation();
+
   return (
     <div className="mb-6 animate-slide-down">
       <div className="relative overflow-hidden rounded-xl border border-amber-300/50 dark:border-amber-700/50 bg-amber-50 dark:bg-amber-900/30 p-4 shadow-lg">
@@ -25,14 +28,14 @@ export function GlobalErrorBanner({
 
           <div className="flex-1 pt-1">
             <h3 className="text-base font-semibold text-amber-900 dark:text-amber-300">
-              Connection Limit Reached
+              {t("connections.limitReached", "Connection Limit Reached")}
             </h3>
             <p className="text-sm text-amber-700/90 dark:text-amber-400/90 mt-1 leading-relaxed">
               {error}
             </p>
             <div className="mt-3 flex items-center gap-3">
               <button className="inline-flex items-center gap-1.5 text-xs font-medium text-amber-800 dark:text-amber-300 hover:text-amber-900 dark:hover:text-amber-200 bg-amber-200/50 dark:bg-amber-800/50 hover:bg-amber-200 dark:hover:bg-amber-700/50 px-3 py-1.5 rounded-full transition-all duration-200">
-                Upgrade Plan
+                {t("connections.upgradePlan", "Upgrade Plan")}
               </button>
               <span className="text-amber-400">•</span>
               <button

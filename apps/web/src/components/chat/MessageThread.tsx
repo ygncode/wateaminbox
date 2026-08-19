@@ -20,6 +20,7 @@ import {
   resolveMessageNavigationTarget,
 } from "./message-navigation";
 import { VirtualMessageList } from "./VirtualMessageList";
+import { useTranslation } from "react-i18next";
 
 const EMPTY_MESSAGES: Message[] = [];
 
@@ -64,6 +65,8 @@ export function MessageThread({
   onOpenContactInfo,
   canRetry = true,
 }: MessageThreadProps) {
+  const { t } = useTranslation();
+
   const retryMessage = useRetryMessage();
   const { resolvedTheme } = useTheme();
   const { activeWorkspaceId } = useWorkspace();
@@ -254,7 +257,10 @@ export function MessageThread({
             WATeamInbox
           </h2>
           <p className="text-gray-500 dark:text-dark-text-tertiary">
-            Select a conversation to start messaging
+            {t(
+              "chat.selectConversationToStart",
+              "Select a conversation to start messaging",
+            )}
           </p>
         </div>
       </div>
@@ -287,7 +293,7 @@ export function MessageThread({
             />
           </svg>
           <p className="text-sm text-gray-500 dark:text-dark-text-secondary">
-            Loading messages...
+            {t("chat.loadingMessages", "Loading messages...")}
           </p>
         </div>
       </div>
@@ -315,7 +321,7 @@ export function MessageThread({
             </svg>
           </div>
           <h3 className="text-lg font-medium text-gray-900 dark:text-dark-text-primary mb-1">
-            Failed to load messages
+            {t("chat.messagesLoadFailed", "Failed to load messages")}
           </h3>
           <p className="text-sm text-gray-500 dark:text-dark-text-secondary">
             {error instanceof Error ? error.message : "An error occurred"}
@@ -356,10 +362,13 @@ export function MessageThread({
           </div>
 
           <h2 className="text-base font-semibold tracking-tight text-[#263a33] dark:text-dark-text-primary">
-            No messages yet
+            {t("chat.noMessagesYet", "No messages yet")}
           </h2>
           <p className="mt-1.5 max-w-[280px] text-sm leading-6 text-[#66756f] dark:text-dark-text-secondary">
-            Send the first message below to start this conversation.
+            {t(
+              "chat.sendFirstMessage",
+              "Send the first message below to start this conversation.",
+            )}
           </p>
         </div>
       </div>
@@ -440,7 +449,7 @@ export function MessageThread({
             />
           </svg>
           <span className="text-sm text-gray-700 dark:text-dark-text-primary">
-            Finding original message...
+            {t("chat.findingOriginal", "Finding original message...")}
           </span>
         </div>
       )}
@@ -452,7 +461,10 @@ export function MessageThread({
           aria-live="polite"
         >
           <SearchX className="size-4" aria-hidden="true" />
-          Original message is not available in synced history.
+          {t(
+            "chat.originalUnavailable",
+            "Original message is not available in synced history.",
+          )}
         </div>
       )}
 
@@ -461,7 +473,7 @@ export function MessageThread({
         <button
           onClick={scrollToBottom}
           className="absolute bottom-4 right-4 z-20 bg-white dark:bg-dark-elevated rounded-full p-2 shadow-lg hover:bg-gray-50 dark:hover:bg-dark-tertiary transition-colors"
-          aria-label="Scroll to bottom"
+          aria-label={t("chat.scrollToBottom", "Scroll to bottom")}
         >
           <svg
             className="h-6 w-6 text-gray-600 dark:text-dark-text-secondary"

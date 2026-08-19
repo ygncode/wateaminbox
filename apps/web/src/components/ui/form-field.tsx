@@ -73,11 +73,13 @@ export function FormField({
 }: FormFieldProps) {
   const [isPasswordVisible, setIsPasswordVisible] = React.useState(false);
   const canTogglePassword = type === "password" && showPasswordToggle;
-  const resolvedType =
-    canTogglePassword && isPasswordVisible ? "text" : type;
+  const resolvedType = canTogglePassword && isPasswordVisible ? "text" : type;
 
   return (
-    <div className={cn("group", className)} data-invalid={error ? "" : undefined}>
+    <div
+      className={cn("group", className)}
+      data-invalid={error ? "" : undefined}
+    >
       <label
         htmlFor={id}
         className={cn(

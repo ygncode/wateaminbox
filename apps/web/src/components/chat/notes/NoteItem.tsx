@@ -3,6 +3,7 @@ import { useState } from "react";
 import { dayjs } from "@wateaminbox/shared";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useTranslation } from "react-i18next";
 
 export interface NoteItemNote {
   id: string;
@@ -36,6 +37,8 @@ export function NoteItem({
   isPending,
   showAuthor = false,
 }: NoteItemProps) {
+  const { t } = useTranslation();
+
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState(note.content || "");
 
@@ -102,7 +105,7 @@ export function NoteItem({
               variant="ghost"
               onClick={() => setIsEditing(true)}
               className="h-6 w-6 dark:hover:bg-dark-tertiary"
-              aria-label="Edit note"
+              aria-label={t("notes.editNote", "Edit note")}
             >
               <Edit2
                 className="h-3 w-3 text-gray-500 dark:text-dark-text-secondary"
@@ -115,7 +118,7 @@ export function NoteItem({
               onClick={() => onDelete(note.id)}
               disabled={isPending}
               className="h-6 w-6 hover:bg-red-50 dark:hover:bg-red-900/20"
-              aria-label="Delete note"
+              aria-label={t("notes.deleteNote", "Delete note")}
             >
               <Trash2
                 className="h-3 w-3 text-red-500 dark:text-red-400"

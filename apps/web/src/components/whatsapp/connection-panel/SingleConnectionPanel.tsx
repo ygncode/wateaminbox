@@ -18,6 +18,7 @@ import {
   LegacyQRCodeView,
 } from "../ConnectionViews";
 import type { SingleConnectionPanelProps } from "./types";
+import { useTranslation } from "react-i18next";
 
 /**
  * Single connection panel for legacy mode (one WhatsApp connection)
@@ -26,6 +27,8 @@ export function SingleConnectionPanel({
   className,
   compact = false,
 }: SingleConnectionPanelProps) {
+  const { t } = useTranslation();
+
   const {
     state,
     qrCode,
@@ -80,7 +83,7 @@ export function SingleConnectionPanel({
         <span className="text-sm text-gray-600">
           {state === "connected"
             ? formatPhoneNumber(phoneNumber) || "Connected"
-            : getStateLabel(state)}
+            : getStateLabel(state, t)}
         </span>
         {state === "disconnected" && (
           <Button
@@ -115,10 +118,13 @@ export function SingleConnectionPanel({
           </div>
           <div>
             <h2 className="text-lg font-semibold text-gray-900 dark:text-dark-text-primary">
-              WhatsApp Connection
+              {t("connections.singleTitle", "WhatsApp Connection")}
             </h2>
             <p className="text-sm text-gray-500 dark:text-dark-text-secondary">
-              Link your WhatsApp Business account
+              {t(
+                "connections.singleHint",
+                "Link your WhatsApp Business account",
+              )}
             </p>
           </div>
         </div>

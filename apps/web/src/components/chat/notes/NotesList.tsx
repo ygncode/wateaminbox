@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useNoteList } from "@/hooks/useNoteList";
 import { NoteItem, type NoteItemNote } from "./NoteItem";
+import { useTranslation } from "react-i18next";
 
 export interface NotesListProps {
   /** Title for the section */
@@ -41,6 +42,8 @@ export function NotesList({
   onEdit,
   onDelete,
 }: NotesListProps) {
+  const { t } = useTranslation();
+
   const {
     showAddForm,
     setShowAddForm,
@@ -69,10 +72,14 @@ export function NotesList({
 
   const Icon = isPrivate ? Lock : Users;
   const subtitle = isPrivate
-    ? "Only you can see these"
-    : "Visible to all team members";
-  const placeholder = isPrivate ? "Add a private note…" : "Add a shared note…";
-  const addButtonText = isPrivate ? "Add private note" : "Add shared note";
+    ? t("notes.privateSubtitle", "Only you can see these")
+    : t("notes.sharedSubtitle", "Visible to all team members");
+  const placeholder = isPrivate
+    ? t("notes.privatePlaceholder", "Add a private note…")
+    : t("notes.sharedPlaceholder", "Add a shared note…");
+  const addButtonText = isPrivate
+    ? t("notes.addPrivate", "Add private note")
+    : t("notes.addShared", "Add shared note");
 
   return (
     <RightPanelSection title={title}>
@@ -142,7 +149,7 @@ export function NotesList({
                   disabled={isPending || !newContent.trim()}
                   className="bg-whatsapp-teal-green hover:bg-whatsapp-dark-green"
                 >
-                  Add Note
+                  {t("notes.addNote", "Add Note")}
                 </Button>
               </div>
             </div>

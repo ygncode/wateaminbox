@@ -28,6 +28,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar";
 import { Button } from "../ui/button";
 import { FormField } from "../ui/form-field";
+import { useTranslation } from "react-i18next";
 
 function initials(name: string, email: string): string {
   const value = name.trim() || email;
@@ -40,6 +41,8 @@ function initials(name: string, email: string): string {
 }
 
 export function AccountSettings() {
+  const { t } = useTranslation();
+
   const { user, updateProfile } = useAuth();
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const [avatarDataUrl, setAvatarDataUrl] = useState<string | null>(null);
@@ -92,7 +95,9 @@ export function AccountSettings() {
       setAvatarRemoved(false);
     } catch (error) {
       setAvatarError(
-        error instanceof Error ? error.message : "Could not process this image",
+        error instanceof Error
+          ? error.message
+          : t("account.imageProcessFailed", "Could not process this image"),
       );
     } finally {
       setIsProcessingAvatar(false);
@@ -105,14 +110,19 @@ export function AccountSettings() {
     const email = data.email.trim().toLowerCase();
     if (emailChanged && !data.currentPassword) {
       profileForm.setError("currentPassword", {
-        message: "Enter your current password to change your email",
+        message: t(
+          "account.currentPasswordRequired",
+          "Enter your current password to change your email",
+        ),
       });
       return;
     }
 
     const nameChanged = name !== user.name;
     if (!nameChanged && !emailChanged && !hasAvatarChange) {
-      toast.info("Your profile is already up to date");
+      toast.info(
+        t("account.alreadyUpToDate", "Your profile is already up to date"),
+      );
       return;
     }
 
@@ -140,19 +150,27 @@ export function AccountSettings() {
       if (response.emailVerificationRequired) {
         if (response.emailVerificationSent) {
           toast.success(
-            "Email changed. Verify the new address before signing in again.",
+            t(
+              "account.emailChangedVerify",
+              "Email changed. Verify the new address before signing in again.",
+            ),
           );
         } else {
           toast.warning(
-            "Email changed, but the verification message could not be sent. Sign in to retry.",
+            t(
+              "account.emailChangedNoVerification",
+              "Email changed, but the verification message could not be sent. Sign in to retry.",
+            ),
           );
         }
       } else {
-        toast.success("Profile saved");
+        toast.success(t("account.profileSaved", "Profile saved"));
       }
     } catch (error) {
       toast.error(
-        error instanceof Error ? error.message : "Could not save your profile",
+        error instanceof Error
+          ? error.message
+          : t("account.profileSaveFailed", "Could not save your profile"),
       );
     } finally {
       setIsSavingProfile(false);
@@ -167,10 +185,17 @@ export function AccountSettings() {
         newPassword: data.newPassword,
       });
       passwordForm.reset();
-      toast.success("Password changed. Other device sessions were signed out.");
+      toast.success(
+        t(
+          "account.passwordChanged",
+          "Password changed. Other device sessions were signed out.",
+        ),
+      );
     } catch (error) {
       toast.error(
-        error instanceof Error ? error.message : "Could not change password",
+        error instanceof Error
+          ? error.message
+          : t("account.passwordChangeFailed", "Could not change password"),
       );
     } finally {
       setIsChangingPassword(false);
@@ -182,16 +207,22 @@ export function AccountSettings() {
   return (
     <div className="space-y-6">
       <section className="rounded-2xl border border-[#dce3de] bg-white p-5 shadow-[0_1px_2px_rgba(16,33,27,.03)] dark:border-dark-border dark:bg-dark-elevated sm:p-6">
-        <h3 className="font-semibold">Profile</h3>
+        <h3 className="font-semibold">{t("account.profile", "Profile")}</h3>
         <p className="mt-1 text-sm leading-6 text-[#65736d] dark:text-dark-text-secondary">
-          Choose how your name and image appear to teammates.
+          {t(
+            "account.profileDescription",
+            "Choose how your name and image appear to teammates.",
+          )}
         </p>
 
         <div className="mt-6 flex flex-col gap-5 border-b border-[#e4e9e5] pb-6 sm:flex-row sm:items-center dark:border-dark-border">
           <Avatar className="h-24 w-24 rounded-2xl border border-[#dce3de] bg-[#edf1ed] shadow-sm dark:border-dark-border">
             <AvatarImage
               src={avatarPreview}
-              alt={`${user.name}'s profile`}
+              alt={t("account.avatarAlt", {
+                defaultValue: "{{name}}'s profile",
+                name: user.name,
+              })}
               className="object-cover"
               width={96}
               height={96}
@@ -224,7 +255,7 @@ export function AccountSettings() {
                 ) : (
                   <Upload aria-hidden="true" />
                 )}
-                Upload image
+                {t("account.uploadImage", "Upload image")}
               </Button>
               {(user.hasCustomAvatar || avatarDataUrl) && (
                 <Button
@@ -239,15 +270,17 @@ export function AccountSettings() {
                   className="rounded-xl text-[#65736d]"
                 >
                   <ImagePlus aria-hidden="true" />
-                  Use Gravatar
+                  {t("account.useGravatar", "Use Gravatar")}
                 </Button>
               )}
             </div>
             <p className="mt-2 text-xs leading-5 text-[#65736d] dark:text-dark-text-secondary">
-              Gravatar is used from your email by default. Custom images can be
-              up to {PROFILE_AVATAR_INPUT_BYTES / 1024 / 1024} MB, must be at
-              least 128 × 128, and are automatically cropped to{" "}
-              {PROFILE_AVATAR_SIZE} × {PROFILE_AVATAR_SIZE}.
+              {t("account.avatarHint", {
+                defaultValue:
+                  "Gravatar is used from your email by default. Custom images can be up to {{mb}} MB, must be at least 128 × 128, and are automatically cropped to {{size}} × {{size}}.",
+                mb: PROFILE_AVATAR_INPUT_BYTES / 1024 / 1024,
+                size: PROFILE_AVATAR_SIZE,
+              })}
             </p>
             {avatarError && (
               <p className="mt-1.5 text-xs font-medium text-red-600 dark:text-red-400">
@@ -264,15 +297,15 @@ export function AccountSettings() {
         >
           <fieldset disabled={profileBusy} className="space-y-5">
             <FormField
-              label="Full name"
+              label={t("account.fullName", "Full name")}
               id="profile-name"
-              placeholder="Your full name"
+              placeholder={t("account.fullNamePlaceholder", "Your full name")}
               registration={profileForm.register("name")}
               error={profileForm.formState.errors.name}
               autoComplete="name"
             />
             <FormField
-              label="Email address"
+              label={t("account.emailAddress", "Email address")}
               id="profile-email"
               type="email"
               placeholder="you@company.com"
@@ -281,16 +314,25 @@ export function AccountSettings() {
               autoComplete="email"
               hint={
                 emailChanged
-                  ? "We’ll send a verification link to the new address."
-                  : "Your Gravatar is matched using this email."
+                  ? t(
+                      "account.emailChangeHint",
+                      "We’ll send a verification link to the new address.",
+                    )
+                  : t(
+                      "account.gravatarHint",
+                      "Your Gravatar is matched using this email.",
+                    )
               }
             />
             {emailChanged && (
               <FormField
-                label="Current password"
+                label={t("account.currentPassword", "Current password")}
                 id="profile-current-password"
                 type="password"
-                placeholder="Confirm this email change"
+                placeholder={t(
+                  "account.confirmEmailChange",
+                  "Confirm this email change",
+                )}
                 registration={profileForm.register("currentPassword")}
                 error={profileForm.formState.errors.currentPassword}
                 autoComplete="current-password"
@@ -310,7 +352,9 @@ export function AccountSettings() {
               ) : (
                 <Save aria-hidden="true" />
               )}
-              {isSavingProfile ? "Saving…" : "Save profile"}
+              {isSavingProfile
+                ? t("common.saving", "Saving…")
+                : t("account.saveProfile", "Save profile")}
             </Button>
           </div>
         </form>
@@ -322,10 +366,14 @@ export function AccountSettings() {
             <KeyRound aria-hidden="true" className="h-5 w-5" />
           </span>
           <div>
-            <h3 className="font-semibold">Password</h3>
+            <h3 className="font-semibold">
+              {t("account.password", "Password")}
+            </h3>
             <p className="mt-1 text-sm leading-6 text-[#65736d] dark:text-dark-text-secondary">
-              Updating your password keeps this session active and signs out
-              your other devices.
+              {t(
+                "account.passwordDescription",
+                "Updating your password keeps this session active and signs out your other devices.",
+              )}
             </p>
           </div>
         </div>
@@ -337,10 +385,13 @@ export function AccountSettings() {
         >
           <fieldset disabled={isChangingPassword} className="space-y-5">
             <FormField
-              label="Current password"
+              label={t("account.currentPassword", "Current password")}
               id="password-current"
               type="password"
-              placeholder="Enter your current password"
+              placeholder={t(
+                "account.currentPasswordPlaceholder",
+                "Enter your current password",
+              )}
               registration={passwordForm.register("currentPassword")}
               error={passwordForm.formState.errors.currentPassword}
               autoComplete="current-password"
@@ -348,21 +399,30 @@ export function AccountSettings() {
             />
             <div className="grid gap-5 sm:grid-cols-2">
               <FormField
-                label="New password"
+                label={t("account.newPassword", "New password")}
                 id="password-new"
                 type="password"
-                placeholder="Choose a strong password"
+                placeholder={t(
+                  "account.newPasswordPlaceholder",
+                  "Choose a strong password",
+                )}
                 registration={passwordForm.register("newPassword")}
                 error={passwordForm.formState.errors.newPassword}
                 autoComplete="new-password"
                 showPasswordToggle
-                hint="8–128 characters with upper, lower, and a number."
+                hint={t(
+                  "account.passwordRules",
+                  "8–128 characters with upper, lower, and a number.",
+                )}
               />
               <FormField
-                label="Confirm new password"
+                label={t("account.confirmNewPassword", "Confirm new password")}
                 id="password-confirm"
                 type="password"
-                placeholder="Repeat the new password"
+                placeholder={t(
+                  "account.confirmNewPasswordPlaceholder",
+                  "Repeat the new password",
+                )}
                 registration={passwordForm.register("confirmPassword")}
                 error={passwordForm.formState.errors.confirmPassword}
                 autoComplete="new-password"
@@ -374,7 +434,10 @@ export function AccountSettings() {
           <div className="flex flex-col gap-3 border-t border-[#e4e9e5] pt-5 sm:flex-row sm:items-center sm:justify-between dark:border-dark-border">
             <p className="flex items-center gap-2 text-xs text-[#65736d] dark:text-dark-text-secondary">
               <ShieldCheck aria-hidden="true" className="h-4 w-4" />
-              Your current device stays signed in.
+              {t(
+                "account.deviceStaysSignedIn",
+                "Your current device stays signed in.",
+              )}
             </p>
             <Button
               type="submit"
@@ -386,7 +449,9 @@ export function AccountSettings() {
               ) : (
                 <CheckCircle2 aria-hidden="true" />
               )}
-              {isChangingPassword ? "Updating…" : "Change password"}
+              {isChangingPassword
+                ? t("common.updating", "Updating…")
+                : t("account.changePassword", "Change password")}
             </Button>
           </div>
         </form>

@@ -8,6 +8,7 @@ import {
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import React, { useState } from "react";
 import { useRealtimeContext } from "../../contexts";
+import { useTranslation } from "react-i18next";
 
 const numberFormatter = new Intl.NumberFormat(undefined, {
   notation: "compact",
@@ -65,6 +66,8 @@ function TransferPath({ reduceMotion }: { reduceMotion: boolean }) {
 }
 
 export const SyncingOverlay = React.memo(function SyncingOverlay() {
+  const { t } = useTranslation();
+
   const { syncingConnections } = useRealtimeContext();
   const [isExpanded, setIsExpanded] = useState(true);
   const reduceMotion = useReducedMotion() ?? false;
@@ -81,7 +84,7 @@ export const SyncingOverlay = React.memo(function SyncingOverlay() {
   const hasProgress = totals.conversations > 0 || totals.messages > 0;
   const compactSummary = hasProgress
     ? `${numberFormatter.format(totals.conversations)} chats ready`
-    : "Preparing history";
+    : t("chat.preparingHistory", "Preparing history");
 
   return (
     <AnimatePresence>
@@ -128,11 +131,14 @@ export const SyncingOverlay = React.memo(function SyncingOverlay() {
                           <span className="relative inline-flex size-2.5 rounded-full bg-whatsapp-green" />
                         </span>
                         <span className="font-mono text-[10px] font-semibold uppercase tracking-[0.18em] text-whatsapp-green-a11y-text dark:text-whatsapp-green">
-                          History import live
+                          {t("chat.historyImportLive", "History import live")}
                         </span>
                       </div>
                       <h2 className="text-[19px] font-semibold tracking-[-0.02em] text-gray-950 dark:text-dark-text-primary">
-                        Bringing your inbox up to date
+                        {t(
+                          "chat.bringingUpToDate",
+                          "Bringing your inbox up to date",
+                        )}
                       </h2>
                     </div>
 
@@ -140,7 +146,10 @@ export const SyncingOverlay = React.memo(function SyncingOverlay() {
                       type="button"
                       onClick={() => setIsExpanded(false)}
                       className="grid size-8 shrink-0 place-items-center rounded-full text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-whatsapp-green dark:text-dark-text-secondary dark:hover:bg-white/10 dark:hover:text-white"
-                      aria-label="Collapse sync status"
+                      aria-label={t(
+                        "chat.collapseSyncStatus",
+                        "Collapse sync status",
+                      )}
                     >
                       <ChevronDown className="size-4" />
                     </button>
@@ -180,7 +189,10 @@ export const SyncingOverlay = React.memo(function SyncingOverlay() {
                   <div className="mt-3 flex items-center gap-2 text-xs text-gray-500 dark:text-dark-text-secondary">
                     <MessageSquareText className="size-3.5 text-whatsapp-green-a11y-text dark:text-whatsapp-green" />
                     <span>
-                      Your inbox stays available while history arrives.
+                      {t(
+                        "chat.inboxAvailableDuringSync",
+                        "Your inbox stays available while history arrives.",
+                      )}
                     </span>
                     {connectionCount > 1 && (
                       <span className="ml-auto font-mono text-[10px] uppercase tracking-wider">
@@ -209,7 +221,7 @@ export const SyncingOverlay = React.memo(function SyncingOverlay() {
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-semibold text-gray-950 dark:text-dark-text-primary">
-                      Syncing WhatsApp history
+                      {t("chat.syncingHistory", "Syncing WhatsApp history")}
                     </p>
                     <p className="truncate font-mono text-[11px] text-gray-500 dark:text-dark-text-secondary">
                       {compactSummary}
@@ -219,7 +231,10 @@ export const SyncingOverlay = React.memo(function SyncingOverlay() {
                     type="button"
                     onClick={() => setIsExpanded(true)}
                     className="grid size-8 place-items-center rounded-full text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-whatsapp-green dark:text-dark-text-secondary dark:hover:bg-white/10 dark:hover:text-white"
-                    aria-label="Expand sync status"
+                    aria-label={t(
+                      "chat.expandSyncStatus",
+                      "Expand sync status",
+                    )}
                   >
                     <ChevronUp className="size-4" />
                   </button>

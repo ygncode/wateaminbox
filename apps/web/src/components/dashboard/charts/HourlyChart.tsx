@@ -1,19 +1,25 @@
 import { MousePointer2, Pin, X } from "lucide-react";
 import { useState } from "react";
 import { formatNumber } from "@/hooks/analytics";
+import { useTranslation } from "react-i18next";
 
 export interface HourlyChartProps {
   data: { hour: number; count: number }[];
 }
 
 export function HourlyChart({ data }: HourlyChartProps) {
+  const { t } = useTranslation();
+
   const [hoveredHour, setHoveredHour] = useState<number | null>(null);
   const [selectedHour, setSelectedHour] = useState<number | null>(null);
 
   if (data.length === 0) {
     return (
       <div className="grid h-[236px] place-items-center rounded-xl border border-dashed border-[#dce3de] bg-[#fafcfb] text-sm text-[#718078] dark:border-dark-border dark:bg-dark-secondary/40 dark:text-dark-text-secondary">
-        No hourly activity in this period
+        {t(
+          "dashboard.charts.noHourlyActivity",
+          "No hourly activity in this period",
+        )}
       </div>
     );
   }
@@ -46,7 +52,7 @@ export function HourlyChart({ data }: HourlyChartProps) {
           </div>
           <div>
             <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[#7c8983] dark:text-dark-text-secondary">
-              Peak hour
+              {t("dashboard.charts.peakHour", "Peak hour")}
             </p>
             <p className="text-sm font-semibold tabular-nums text-[#0b7a55] dark:text-emerald-300">
               {formatHour(peak.hour)}
@@ -56,14 +62,17 @@ export function HourlyChart({ data }: HourlyChartProps) {
         {selectedHour === null ? (
           <span className="flex items-center gap-1.5 rounded-full border border-[#dce3de] bg-[#fafcfb] px-2.5 py-1 text-[10px] font-medium text-[#718078] dark:border-dark-border dark:bg-dark-secondary dark:text-dark-text-secondary">
             <MousePointer2 className="h-3 w-3" />
-            Hover or click a bar
+            {t("dashboard.charts.hoverHint", "Hover or click a bar")}
           </span>
         ) : (
           <button
             type="button"
             onClick={() => setSelectedHour(null)}
             className="flex items-center gap-1.5 rounded-full border border-[#b9d7ca] bg-[#edf6f2] px-2.5 py-1 text-[10px] font-semibold text-[#0b7a55] transition-colors hover:bg-[#e1f0e9] dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300"
-            aria-label="Clear pinned hour"
+            aria-label={t(
+              "dashboard.charts.clearPinnedHour",
+              "Clear pinned hour",
+            )}
           >
             <Pin className="h-3 w-3" />
             {formatHour(selectedHour)} pinned

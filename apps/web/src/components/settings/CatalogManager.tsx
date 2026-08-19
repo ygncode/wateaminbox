@@ -72,11 +72,16 @@ export function CatalogManager() {
   const handleSync = async () => {
     try {
       await sync();
-      toast.success("Catalog sync started", {
-        description: `Refreshing catalogs for ${selectedConnection?.name ?? "this account"}.`,
+      toast.success(t("catalogs.syncStarted", "Catalog sync started"), {
+        description: t("catalogs.syncStartedDescription", {
+          defaultValue: "Refreshing catalogs for {{account}}.",
+          account:
+            selectedConnection?.name ??
+            t("catalogs.thisAccount", "this account"),
+        }),
       });
     } catch (err) {
-      toast.error("Could not sync catalogs", {
+      toast.error(t("catalogs.syncFailed", "Could not sync catalogs"), {
         description: err instanceof Error ? err.message : undefined,
       });
     }
@@ -86,9 +91,9 @@ export function CatalogManager() {
     setPendingCatalogId(catalogId);
     try {
       await archive(catalogId);
-      toast.success("Catalog archived");
+      toast.success(t("catalogs.archivedToast", "Catalog archived"));
     } catch (err) {
-      toast.error("Could not archive catalog", {
+      toast.error(t("catalogs.archiveFailed", "Could not archive catalog"), {
         description: err instanceof Error ? err.message : undefined,
       });
     } finally {
@@ -100,9 +105,9 @@ export function CatalogManager() {
     setPendingCatalogId(catalogId);
     try {
       await restore(catalogId);
-      toast.success("Catalog restored");
+      toast.success(t("catalogs.restored", "Catalog restored"));
     } catch (err) {
-      toast.error("Could not restore catalog", {
+      toast.error(t("catalogs.restoreFailed", "Could not restore catalog"), {
         description: err instanceof Error ? err.message : undefined,
       });
     } finally {
@@ -117,7 +122,7 @@ export function CatalogManager() {
 
   const formatLastSync = (dateString: string | null) => {
     if (!dateString) return t("catalogs.neverSynced", "Never synced");
-    return formatStatusTime(dateString);
+    return formatStatusTime(dateString, t);
   };
 
   const formatCurrency = (price: number | null, currency: string) => {
@@ -190,7 +195,7 @@ export function CatalogManager() {
               {formatLastSync(status.lastSyncAt)}
             </dd>
             <dt className="mt-1 text-xs text-[#65736d] dark:text-dark-text-secondary">
-              Last sync
+              {t("catalogs.lastSync", "Last sync")}
             </dt>
           </div>
         </dl>
@@ -385,9 +390,9 @@ function ProductsDialog({
         catalogId: catalog.catalogId,
         connectionId,
       });
-      toast.success("Product sync started");
+      toast.success(t("catalogs.productSyncStarted", "Product sync started"));
     } catch (err) {
-      toast.error("Could not sync products", {
+      toast.error(t("catalogs.productSyncFailed", "Could not sync products"), {
         description: err instanceof Error ? err.message : undefined,
       });
     }
@@ -505,12 +510,20 @@ function ProductItem({
         connectionId,
       });
       toast.success(
-        nextVisibility === "visible" ? "Product shown" : "Product hidden",
+        nextVisibility === "visible"
+          ? t("catalogs.productShown", "Product shown")
+          : t("catalogs.productHidden", "Product hidden"),
       );
     } catch (err) {
-      toast.error("Could not update product visibility", {
-        description: err instanceof Error ? err.message : undefined,
-      });
+      toast.error(
+        t(
+          "catalogs.visibilityUpdateFailed",
+          "Could not update product visibility",
+        ),
+        {
+          description: err instanceof Error ? err.message : undefined,
+        },
+      );
     }
   };
 

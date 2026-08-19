@@ -1,5 +1,6 @@
 import type * as React from "react";
 import { cn } from "@/lib/utils";
+import { useTranslation } from "react-i18next";
 
 export interface MainContentProps extends React.HTMLAttributes<HTMLDivElement> {
   children: React.ReactNode;
@@ -23,7 +24,8 @@ export function MainContent({
   );
 }
 
-export interface MainContentHeaderProps extends React.HTMLAttributes<HTMLDivElement> {
+export interface MainContentHeaderProps
+  extends React.HTMLAttributes<HTMLDivElement> {
   children: React.ReactNode;
 }
 
@@ -71,7 +73,8 @@ export function MessageArea({
   );
 }
 
-export interface MessageInputAreaProps extends React.HTMLAttributes<HTMLDivElement> {
+export interface MessageInputAreaProps
+  extends React.HTMLAttributes<HTMLDivElement> {
   children: React.ReactNode;
 }
 
@@ -104,10 +107,12 @@ export interface EmptyStateProps extends React.HTMLAttributes<HTMLDivElement> {
 
 export function EmptyState({
   className,
-  title = "Select a chat",
-  description = "Choose a conversation from the sidebar to start messaging",
+  title,
+  description,
   ...props
 }: EmptyStateProps) {
+  const { t } = useTranslation();
+
   return (
     <div
       className={cn(
@@ -133,10 +138,14 @@ export function EmptyState({
           </svg>
         </div>
         <h2 className="text-2xl font-light text-gray-800 dark:text-dark-text-primary">
-          {title}
+          {title ?? t("chat.selectChat", "Select a chat")}
         </h2>
         <p className="text-sm text-gray-500 dark:text-dark-text-secondary">
-          {description}
+          {description ??
+            t(
+              "chat.selectChatDescription",
+              "Choose a conversation from the sidebar to start messaging",
+            )}
         </p>
       </div>
     </div>

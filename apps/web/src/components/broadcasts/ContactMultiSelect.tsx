@@ -2,6 +2,7 @@ import { Check, Search, Users, X } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useForwardContacts } from "@/hooks/useForwardContacts";
 import { cn, formatPhoneLikeText, formatPhoneNumber } from "@/lib/utils";
+import { useTranslation } from "react-i18next";
 
 interface ContactMultiSelectProps {
   /** Selected contact ids mapped to their display names (for chips). */
@@ -17,6 +18,8 @@ export function ContactMultiSelect({
   selected,
   onToggle,
 }: ContactMultiSelectProps) {
+  const { t } = useTranslation();
+
   const [searchQuery, setSearchQuery] = useState("");
   const { data: chats, isLoading } = useForwardContacts(searchQuery);
 
@@ -58,15 +61,15 @@ export function ContactMultiSelect({
           type="text"
           value={searchQuery}
           onChange={(event) => setSearchQuery(event.target.value)}
-          placeholder="Search contacts…"
-          aria-label="Search contacts"
+          placeholder={t("chat.searchContactsEllipsis", "Search contacts…")}
+          aria-label={t("chat.searchContactsAria", "Search contacts")}
           className="w-full rounded-lg border border-black/[0.1] bg-white py-2 pl-9 pr-9 text-sm text-[#111b21] outline-none placeholder:text-[#8696a0] focus:border-[#00a884] focus:ring-1 focus:ring-[#00a884]/40 dark:border-white/[0.1] dark:bg-dark-tertiary dark:text-dark-text-primary dark:placeholder:text-dark-text-tertiary"
         />
         {searchQuery && (
           <button
             type="button"
             onClick={() => setSearchQuery("")}
-            aria-label="Clear search"
+            aria-label={t("common.clearSearch", "Clear search")}
             className="absolute right-2.5 top-1/2 grid size-5 -translate-y-1/2 place-items-center rounded-full text-[#8696a0] hover:bg-black/[0.055] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00a884]/40 dark:text-dark-text-tertiary dark:hover:bg-white/[0.06]"
           >
             <X className="size-3.5" aria-hidden="true" />
@@ -77,7 +80,7 @@ export function ContactMultiSelect({
       <div className="mt-2 max-h-52 overflow-y-auto rounded-lg border border-black/[0.06] dark:border-white/[0.07]">
         {isLoading ? (
           <p className="px-4 py-6 text-center text-sm text-[#667781] dark:text-dark-text-secondary">
-            Loading contacts…
+            {t("broadcasts.loadingContacts", "Loading contacts…")}
           </p>
         ) : availableContacts.length === 0 ? (
           <div className="flex flex-col items-center px-4 py-6 text-center">
@@ -88,7 +91,7 @@ export function ContactMultiSelect({
             <p className="mt-2 text-sm text-[#667781] dark:text-dark-text-secondary">
               {searchQuery
                 ? `No contacts match "${searchQuery}"`
-                : "No contacts available"}
+                : t("broadcasts.noContactsAvailable", "No contacts available")}
             </p>
           </div>
         ) : (

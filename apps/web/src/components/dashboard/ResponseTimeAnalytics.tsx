@@ -17,15 +17,41 @@ import {
   getTeamResponseTimeStats,
 } from "../../lib/api";
 import { ResponseTimeTrendChart } from "./charts";
+import { useTranslation } from "react-i18next";
 
 type TimeRange = "7d" | "30d" | "90d";
 
-function formatMinutes(minutes: number): string {
-  if (minutes < 1) return "< 1 min";
-  if (minutes < 60) return `${Math.round(minutes)} min`;
+/** Optional translator keeps this usable outside a React render. */
+type MinutesTranslate = (
+  key: string,
+  options: { defaultValue: string } & Record<string, unknown>,
+) => string;
+
+const englishMinutes: MinutesTranslate = (_key, options) =>
+  options.defaultValue.replace(/\{\{(\w+)\}\}/g, (_m, name: string) =>
+    String(options[name] ?? ""),
+  );
+
+function formatMinutes(
+  minutes: number,
+  t: MinutesTranslate = englishMinutes,
+): string {
+  if (minutes < 1)
+    return t("duration.lessThanAMinute", { defaultValue: "< 1 min" });
+  if (minutes < 60)
+    return t("duration.minutes", {
+      defaultValue: "{{count}} min",
+      count: Math.round(minutes),
+    });
   const hours = Math.floor(minutes / 60);
   const mins = Math.round(minutes % 60);
-  return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
+  return mins > 0
+    ? t("duration.hoursMinutes", {
+        defaultValue: "{{hours}}h {{minutes}}m",
+        hours,
+        minutes: mins,
+      })
+    : t("duration.hours", { defaultValue: "{{hours}}h", hours });
 }
 
 function getSlaColor(rate: number): string {
@@ -59,6 +85,8 @@ export function ResponseTimeAnalytics({
   dateRange,
   isAdmin = false,
 }: ResponseTimeAnalyticsProps) {
+  const { t } = useTranslation();
+
   // The current SLA policy's target is shown for context only (e.g. the
   // chart's target line and the "Current target" label) - it is never sent
   // as a query override. Each response episode in the figures below is
@@ -168,10 +196,13 @@ export function ResponseTimeAnalytics({
           </span>
           <div>
             <h2 className="text-sm font-semibold text-[#203b32] dark:text-dark-text-primary">
-              Response performance
+              {t("dashboard.response.title", "Response performance")}
             </h2>
             <p className="text-[11px] text-[#7a8881] dark:text-dark-text-secondary">
-              First-response speed and SLA reliability
+              {t(
+                "dashboard.response.subtitle",
+                "First-response speed and SLA reliability",
+              )}
             </p>
           </div>
         </div>
@@ -186,8 +217,10 @@ export function ResponseTimeAnalytics({
           role="alert"
           className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-5 text-center text-sm text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-300"
         >
-          This date range has too many conversations to analyze at once. Choose
-          a narrower range (e.g. 7 or 30 days) and try again.
+          {t(
+            "dashboard.response.rangeTooWide",
+            "This date range has too many conversations to analyze at once. Choose a narrower range (e.g. 7 or 30 days) and try again.",
+          )}
         </div>
       )}
       {hasPrimaryError && !rangeTooWide && (
@@ -195,7 +228,10 @@ export function ResponseTimeAnalytics({
           role="alert"
           className="rounded-xl border border-red-200 bg-red-50 px-4 py-5 text-center text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-300"
         >
-          Response-time analytics could not be loaded. Please try again shortly.
+          {t(
+            "dashboard.response.loadFailed",
+            "Response-time analytics could not be loaded. Please try again shortly.",
+          )}
         </div>
       )}
 
@@ -205,25 +241,25 @@ export function ResponseTimeAnalytics({
           <div className="rounded-xl border border-[#e3e9e5] bg-[#fafcfb] p-4 dark:border-dark-border dark:bg-dark-tertiary/50">
             <div className="flex items-center gap-2 text-xs font-medium text-[#65736d] dark:text-dark-text-secondary">
               <Clock className="h-3.5 w-3.5" />
-              Avg Response
+              {t("dashboard.response.avgResponse", "Avg Response")}
             </div>
             <div className="mt-2 text-2xl font-semibold tracking-[-0.02em] text-[#203b32] dark:text-dark-text-primary">
               {isLoading
                 ? "-"
-                : formatMinutes(stats?.averageResponseTimeMinutes || 0)}
+                : formatMinutes(stats?.averageResponseTimeMinutes || 0, t)}
             </div>
             <div className="mt-1 text-[10px] text-[#87928c] dark:text-dark-text-secondary">
               Median:{" "}
               {isLoading
                 ? "-"
-                : formatMinutes(stats?.medianResponseTimeMinutes || 0)}
+                : formatMinutes(stats?.medianResponseTimeMinutes || 0, t)}
             </div>
           </div>
 
           <div className="rounded-xl border border-[#e3e9e5] bg-[#fafcfb] p-4 dark:border-dark-border dark:bg-dark-tertiary/50">
             <div className="flex items-center gap-2 text-xs font-medium text-[#65736d] dark:text-dark-text-secondary">
               <CheckCircle className="h-3.5 w-3.5" />
-              SLA Compliance
+              {t("dashboard.response.slaCompliance", "SLA Compliance")}
             </div>
             <div
               className={`mt-2 text-2xl font-semibold tracking-[-0.02em] ${
@@ -257,18 +293,18 @@ export function ResponseTimeAnalytics({
           <div className="rounded-xl border border-[#e3e9e5] bg-[#fafcfb] p-4 dark:border-dark-border dark:bg-dark-tertiary/50">
             <div className="flex items-center gap-2 text-xs font-medium text-[#65736d] dark:text-dark-text-secondary">
               <AlertTriangle className="h-3.5 w-3.5" />
-              Max Response
+              {t("dashboard.response.maxResponse", "Max Response")}
             </div>
             <div className="mt-2 text-2xl font-semibold tracking-[-0.02em] text-[#203b32] dark:text-dark-text-primary">
               {isLoading
                 ? "-"
-                : formatMinutes(stats?.maxResponseTimeMinutes || 0)}
+                : formatMinutes(stats?.maxResponseTimeMinutes || 0, t)}
             </div>
             <div className="mt-1 text-[10px] text-[#87928c] dark:text-dark-text-secondary">
               Min:{" "}
               {isLoading
                 ? "-"
-                : formatMinutes(stats?.minResponseTimeMinutes || 0)}
+                : formatMinutes(stats?.minResponseTimeMinutes || 0, t)}
             </div>
           </div>
         </div>
@@ -289,13 +325,15 @@ export function ResponseTimeAnalytics({
                   <span className="text-xs font-semibold capitalize text-[#40544c] dark:text-dark-text-primary">
                     {kind} chats
                   </span>
-                  <span className={`text-xs font-semibold ${getSlaColor(k.slaComplianceRate)}`}>
+                  <span
+                    className={`text-xs font-semibold ${getSlaColor(k.slaComplianceRate)}`}
+                  >
                     {Math.round(k.slaComplianceRate)}%
                   </span>
                 </div>
                 <div className="mt-1 text-[10px] text-[#87928c] dark:text-dark-text-secondary">
                   {k.totalConversations} episodes · avg{" "}
-                  {formatMinutes(k.averageResponseTimeMinutes)}
+                  {formatMinutes(k.averageResponseTimeMinutes, t)}
                 </div>
               </div>
             );
@@ -317,7 +355,7 @@ export function ResponseTimeAnalytics({
         <div className="rounded-xl border border-[#e3e9e5] bg-[#fafcfb] p-4 dark:border-dark-border dark:bg-dark-tertiary/30 sm:p-5">
           <div className="mb-4">
             <h3 className="text-sm font-semibold text-[#203b32] dark:text-dark-text-primary">
-              Response-time trend
+              {t("dashboard.response.trend", "Response-time trend")}
             </h3>
             <p className="mt-0.5 text-[11px] text-[#7a8881] dark:text-dark-text-secondary">
               Daily average compared with the current{" "}
@@ -337,7 +375,7 @@ export function ResponseTimeAnalytics({
           <div className="mb-4 flex items-center gap-2">
             <Users className="h-4 w-4 text-[#65736d] dark:text-dark-text-secondary" />
             <h3 className="text-sm font-semibold text-[#203b32] dark:text-dark-text-primary">
-              Team response times
+              {t("dashboard.response.teamTimes", "Team response times")}
             </h3>
           </div>
           <div className="space-y-1">
@@ -356,7 +394,7 @@ export function ResponseTimeAnalytics({
                 </div>
                 <div className="text-right">
                   <div className="text-xs font-semibold text-[#203b32] dark:text-dark-text-primary">
-                    {formatMinutes(member.averageResponseTimeMinutes)}
+                    {formatMinutes(member.averageResponseTimeMinutes, t)}
                   </div>
                   <div
                     className={`text-xs ${getSlaColor(member.slaComplianceRate)}`}
@@ -376,7 +414,7 @@ export function ResponseTimeAnalytics({
           <div className="mb-3 flex items-center gap-2">
             <AlertTriangle className="h-4 w-4 text-red-600 dark:text-red-400" />
             <h3 className="text-sm font-semibold text-red-900 dark:text-red-300">
-              SLA Breaches
+              {t("dashboard.response.slaBreaches", "SLA Breaches")}
             </h3>
             <span className="rounded bg-red-100 dark:bg-red-900/50 px-2 py-0.5 text-xs font-medium text-red-700 dark:text-red-300">
               {breaches.length}
@@ -398,15 +436,15 @@ export function ResponseTimeAnalytics({
                 </div>
                 <div className="text-right">
                   <span className="font-medium text-red-600 dark:text-red-400">
-                    {formatMinutes(breach.responseMinutes)}
+                    {formatMinutes(breach.responseMinutes, t)}
                   </span>
                   {breach.responseTime ? (
                     <span className="ml-2 text-xs text-gray-500 dark:text-dark-text-secondary">
-                      responded
+                      {t("dashboard.response.responded", "responded")}
                     </span>
                   ) : (
                     <span className="ml-2 text-xs text-red-500 dark:text-red-400">
-                      no response
+                      {t("dashboard.response.noResponse", "no response")}
                     </span>
                   )}
                 </div>

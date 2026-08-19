@@ -1,5 +1,6 @@
 import type { UseQueryResult } from "@tanstack/react-query";
 import type { ReactNode } from "react";
+import { useTranslation } from "react-i18next";
 
 /**
  * Async data state returned by useAsyncData hook
@@ -67,25 +68,34 @@ function isDataEmpty<T>(data: T | undefined): boolean {
 const defaultLoadingRenderer = () => null;
 
 /**
- * Default error renderer
+ * Default error renderer. A component (not a bare function) so it can use the
+ * translation hook.
  */
-const defaultErrorRenderer = (error: Error | null) => {
-  const message = error?.message ?? "An error occurred";
+function DefaultErrorMessage({ error }: { error: Error | null }) {
+  const { t } = useTranslation();
+  const message = error?.message ?? t("common.error", "An error occurred");
   return (
     <p className="text-red-500 dark:text-red-400 text-center py-4">{message}</p>
   );
-};
+}
+
+const defaultErrorRenderer = (error: Error | null) => (
+  <DefaultErrorMessage error={error} />
+);
 
 /**
  * Default empty renderer
  */
-const defaultEmptyRenderer = () => {
+function DefaultEmptyMessage() {
+  const { t } = useTranslation();
   return (
     <p className="text-gray-500 dark:text-dark-text-secondary text-center py-4">
-      No data available
+      {t("common.noData", "No data available")}
     </p>
   );
-};
+}
+
+const defaultEmptyRenderer = () => <DefaultEmptyMessage />;
 
 /**
  * Utility hook that wraps TanStack Query result handling with built-in

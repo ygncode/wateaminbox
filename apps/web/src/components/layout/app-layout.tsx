@@ -126,6 +126,7 @@ import {
   MobileSlideInPanel,
   MobileViewContainer,
 } from "./MobileLayout";
+import { useTranslation } from "react-i18next";
 
 interface MobileResponsiveLayoutProps {
   sidebar: React.ReactNode;
@@ -146,6 +147,8 @@ function MobileResponsiveLayout({
   selectedChatId,
   onChatSelect,
 }: MobileResponsiveLayoutProps) {
+  const { t } = useTranslation();
+
   return (
     <MobileLayoutProvider
       initialChatId={selectedChatId}
@@ -163,7 +166,7 @@ function MobileResponsiveLayout({
           <MobileSlideInPanel
             isOpen={isRightPanelOpen}
             onClose={onRightPanelClose}
-            title="Contact info"
+            title={t("chat.contactInfo", "Contact info")}
             position="right"
           >
             {rightPanel}
@@ -189,6 +192,8 @@ function TabletResponsiveLayout({
   isRightPanelOpen = false,
   onRightPanelClose,
 }: TabletResponsiveLayoutProps) {
+  const { t } = useTranslation();
+
   return (
     <>
       {/* Sidebar - narrower on tablet */}
@@ -202,7 +207,7 @@ function TabletResponsiveLayout({
         <MobileSlideInPanel
           isOpen={isRightPanelOpen}
           onClose={onRightPanelClose}
-          title="Contact info"
+          title={t("chat.contactInfo", "Contact info")}
           position="right"
         >
           {rightPanel}

@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { InvitationCardProps } from "./types";
+import { useTranslation } from "react-i18next";
 
 export function InvitationCard({
   invitation,
@@ -12,6 +13,8 @@ export function InvitationCard({
   isCancelling,
   isResending,
 }: InvitationCardProps) {
+  const { t } = useTranslation();
+
   const expiresAt = dayjs(invitation.expiresAt);
   const isExpiringSoon = expiresAt.valueOf() - nowMs() < 24 * 60 * 60 * 1000;
   const hasCustomAccess = Boolean(
@@ -30,7 +33,11 @@ export function InvitationCard({
             <Badge variant="secondary" className="capitalize">
               {invitation.role}
             </Badge>
-            {hasCustomAccess && <Badge variant="default">Custom access</Badge>}
+            {hasCustomAccess && (
+              <Badge variant="default">
+                {t("team.customAccess", "Custom access")}
+              </Badge>
+            )}
             <Badge
               variant="outline"
               className="text-emerald-700 dark:text-emerald-300"

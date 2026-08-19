@@ -1,6 +1,7 @@
 import { dayjs } from "@wateaminbox/shared";
 import { CalendarClock, Loader2 } from "lucide-react";
 import { useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 /** Mirror of the server-side minimum lead time, with UI slack on top. */
 const MIN_LEAD_MS = 60_000;
@@ -15,17 +16,24 @@ function toLocalInputValue(value: dayjs.Dayjs): string {
 }
 
 interface Preset {
+  labelKey: string;
   label: string;
   value: () => dayjs.Dayjs;
 }
 
 const PRESETS: Preset[] = [
-  { label: "In 1 hour", value: () => dayjs().add(1, "hour") },
   {
+    labelKey: "broadcasts.presets.inOneHour",
+    label: "In 1 hour",
+    value: () => dayjs().add(1, "hour"),
+  },
+  {
+    labelKey: "broadcasts.presets.tomorrow9",
     label: "Tomorrow 9:00",
     value: () => dayjs().add(1, "day").hour(9).minute(0),
   },
   {
+    labelKey: "broadcasts.presets.nextWeek9",
     label: "Next week 9:00",
     value: () => dayjs().add(7, "day").hour(9).minute(0),
   },
@@ -39,6 +47,8 @@ export function ScheduleMessagePopover({
   onSchedule,
   isSubmitting,
 }: ScheduleMessagePopoverProps) {
+  const { t } = useTranslation();
+
   const [value, setValue] = useState(() =>
     toLocalInputValue(dayjs().add(1, "hour").second(0)),
   );
@@ -51,11 +61,13 @@ export function ScheduleMessagePopover({
   const handleConfirm = () => {
     const parsed = new Date(value);
     if (Number.isNaN(parsed.getTime())) {
-      setError("Enter a valid date and time");
+      setError(t("chat.invalidDateTime", "Enter a valid date and time"));
       return;
     }
     if (parsed.getTime() - Date.now() < MIN_LEAD_MS) {
-      setError("Pick a time at least a minute from now");
+      setError(
+        t("chat.pickFutureTime", "Pick a time at least a minute from now"),
+      );
       return;
     }
     setError(null);
@@ -69,7 +81,7 @@ export function ScheduleMessagePopover({
           className="size-4 text-[#008069] dark:text-emerald-300"
           aria-hidden="true"
         />
-        Schedule message
+        {t("chat.scheduleMessage", "Schedule message")}
       </p>
 
       <div className="mt-2.5 flex flex-wrap gap-1.5">
@@ -101,12 +113,15 @@ export function ScheduleMessagePopover({
             setError(null);
           }}
           className="mt-1 block w-full rounded-lg border border-black/[0.1] bg-white px-2.5 py-1.5 text-sm text-[#111b21] outline-none focus:border-[#00a884] focus:ring-1 focus:ring-[#00a884]/40 dark:border-white/[0.1] dark:bg-dark-tertiary dark:text-dark-text-primary"
-          aria-label="Scheduled send time"
+          aria-label={t("chat.scheduledSendTime", "Scheduled send time")}
         />
       </label>
 
       {error && (
-        <p className="mt-1.5 text-xs text-red-600 dark:text-red-400" role="alert">
+        <p
+          className="mt-1.5 text-xs text-red-600 dark:text-red-400"
+          role="alert"
+        >
           {error}
         </p>
       )}

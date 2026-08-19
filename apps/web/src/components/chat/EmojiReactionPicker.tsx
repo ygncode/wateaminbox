@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 interface EmojiReactionPickerProps {
   onSelectReaction: (emoji: string) => void;
@@ -243,6 +244,8 @@ export function EmojiReactionPicker({
   onClose,
   position,
 }: EmojiReactionPickerProps) {
+  const { t } = useTranslation();
+
   const [showExtended, setShowExtended] = useState(false);
   const [selectedCategory, setSelectedCategory] =
     useState<string>("Smileys & People");
@@ -321,14 +324,14 @@ export function EmojiReactionPicker({
         top: adjustedPosition.y,
       }}
       role="dialog"
-      aria-label="Emoji reaction picker"
+      aria-label={t("chat.emojiReactionPicker", "Emoji reaction picker")}
     >
       {!showExtended ? (
         /* Quick reactions bar */
         <div
           className="bg-white dark:bg-dark-elevated rounded-full shadow-2xl px-2 py-2 flex items-center gap-1 border border-gray-200 dark:border-dark-border"
           role="toolbar"
-          aria-label="Quick reactions"
+          aria-label={t("chat.quickReactions", "Quick reactions")}
         >
           {QUICK_REACTIONS.map((emoji) => (
             <button
@@ -344,8 +347,8 @@ export function EmojiReactionPicker({
           <button
             onClick={() => setShowExtended(true)}
             className="w-10 h-10 flex items-center justify-center text-gray-600 dark:text-dark-text-secondary hover:bg-gray-100 dark:hover:bg-dark-tertiary rounded-full transition-colors ml-1"
-            title="More reactions"
-            aria-label="Show more reactions"
+            title={t("chat.moreReactions", "More reactions")}
+            aria-label={t("chat.showMoreReactions", "Show more reactions")}
           >
             <svg
               className="w-5 h-5"
@@ -370,7 +373,10 @@ export function EmojiReactionPicker({
             <button
               onClick={() => setShowExtended(false)}
               className="p-1 hover:bg-gray-100 dark:hover:bg-dark-tertiary rounded-full transition-colors"
-              aria-label="Back to quick reactions"
+              aria-label={t(
+                "chat.backToQuickReactions",
+                "Back to quick reactions",
+              )}
             >
               <svg
                 className="w-5 h-5 text-gray-600 dark:text-dark-text-secondary"
@@ -387,12 +393,12 @@ export function EmojiReactionPicker({
               </svg>
             </button>
             <h3 className="text-sm font-medium text-gray-900 dark:text-dark-text-primary">
-              Pick a reaction
+              {t("chat.pickAReaction", "Pick a reaction")}
             </h3>
             <button
               onClick={onClose}
               className="p-1 hover:bg-gray-100 dark:hover:bg-dark-tertiary rounded-full transition-colors"
-              aria-label="Close"
+              aria-label={t("common.close", "Close")}
             >
               <svg
                 className="w-5 h-5 text-gray-600 dark:text-dark-text-secondary"

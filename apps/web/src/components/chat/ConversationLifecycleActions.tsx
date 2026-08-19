@@ -1,9 +1,4 @@
-import {
-  CheckCircle2,
-  Clock,
-  PlayCircle,
-  RotateCcw,
-} from "lucide-react";
+import { CheckCircle2, Clock, PlayCircle, RotateCcw } from "lucide-react";
 import { useState } from "react";
 import { useWorkspace } from "@/contexts/workspace-context";
 import {
@@ -20,6 +15,7 @@ import { resolveOpenOrReopenMode } from "./open-reopen-dialog-state";
 import { ConversationStatusBadge } from "./ConversationStatusBadge";
 import { OpenOrReopenConversationDialog } from "./ReopenConversationDialog";
 import { ResolveConversationDialog } from "./ResolveConversationDialog";
+import { useTranslation } from "react-i18next";
 
 /**
  * Resolve/Pending/Open(resume)/Reopen actions for the currently open
@@ -43,6 +39,8 @@ export function ConversationLifecycleActions({
    */
   isSending?: boolean;
 }) {
+  const { t } = useTranslation();
+
   const { can } = useWorkspace();
   const canManage = can("can_send_messages");
   const { data: state } = useConversationState(contactId);
@@ -66,7 +64,10 @@ export function ConversationLifecycleActions({
   const isReopen = mode === "reopen";
   const openOrReopenMutation = isReopen ? reopenMutation : openMutation;
 
-  const handleResolve = (input: { outcome: ResolutionOutcome; notes?: string }) => {
+  const handleResolve = (input: {
+    outcome: ResolutionOutcome;
+    notes?: string;
+  }) => {
     resolveMutation.mutate(input, {
       onSuccess: () => setResolveDialogOpen(false),
     });
@@ -94,11 +95,14 @@ export function ConversationLifecycleActions({
           type="button"
           onClick={() => resumeMutation.mutate()}
           disabled={resumeMutation.isPending}
-          aria-label="Open conversation (resume from pending)"
+          aria-label={t(
+            "chat.openFromPending",
+            "Open conversation (resume from pending)",
+          )}
           className="flex h-9 items-center gap-1.5 rounded-full border border-gray-200 px-3 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-100 disabled:opacity-50 dark:border-dark-border dark:text-dark-text-primary dark:hover:bg-dark-tertiary"
         >
           <PlayCircle className="h-3.5 w-3.5" aria-hidden="true" />
-          <span>Open</span>
+          <span>{t("chat.open", "Open")}</span>
         </button>
       )}
 
@@ -110,24 +114,27 @@ export function ConversationLifecycleActions({
             disabled={resolveDisabled}
             aria-label={
               isSending
-                ? "Resolve conversation (waiting for your message to finish sending)"
-                : "Resolve conversation"
+                ? t(
+                    "chat.resolveConversationWaiting",
+                    "Resolve conversation (waiting for your message to finish sending)",
+                  )
+                : t("chat.resolveConversation", "Resolve conversation")
             }
             className="flex h-9 items-center gap-1.5 rounded-full border border-gray-200 px-3 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-100 disabled:opacity-50 dark:border-dark-border dark:text-dark-text-primary dark:hover:bg-dark-tertiary"
           >
             <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />
-            <span>Resolve</span>
+            <span>{t("chat.resolve", "Resolve")}</span>
           </button>
           {state.status !== "pending" && (
             <button
               type="button"
               onClick={() => pendingMutation.mutate()}
               disabled={pendingMutation.isPending}
-              aria-label="Mark conversation pending"
+              aria-label={t("chat.markPending", "Mark conversation pending")}
               className="flex h-9 items-center gap-1.5 rounded-full border border-gray-200 px-3 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-100 disabled:opacity-50 dark:border-dark-border dark:text-dark-text-primary dark:hover:bg-dark-tertiary"
             >
               <Clock className="h-3.5 w-3.5" aria-hidden="true" />
-              <span>Pending</span>
+              <span>{t("chat.pending", "Pending")}</span>
             </button>
           )}
         </>
@@ -138,7 +145,11 @@ export function ConversationLifecycleActions({
           type="button"
           onClick={() => setOpenReopenDialogOpen(true)}
           disabled={openOrReopenMutation.isPending}
-          aria-label={isReopen ? "Reopen conversation" : "Open conversation"}
+          aria-label={
+            isReopen
+              ? t("chat.reopenConversation", "Reopen conversation")
+              : t("chat.openConversation", "Open conversation")
+          }
           className="flex h-9 items-center gap-1.5 rounded-full border border-gray-200 px-3 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-100 disabled:opacity-50 dark:border-dark-border dark:text-dark-text-primary dark:hover:bg-dark-tertiary"
         >
           {isReopen ? (
@@ -146,7 +157,9 @@ export function ConversationLifecycleActions({
           ) : (
             <PlayCircle className="h-3.5 w-3.5" aria-hidden="true" />
           )}
-          <span>{isReopen ? "Reopen" : "Open"}</span>
+          <span>
+            {isReopen ? t("chat.reopen", "Reopen") : t("chat.open", "Open")}
+          </span>
         </button>
       )}
 

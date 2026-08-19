@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { Skeleton } from "./skeleton";
+import { useTranslation } from "react-i18next";
 
 export interface AsyncDataRendererProps<T> {
   /** Whether data is currently loading */
@@ -48,13 +49,15 @@ export function AsyncDataRenderer<T>({
   data,
   children,
   skeleton,
-  errorMessage = "Failed to load data",
-  emptyMessage = "No data available",
+  errorMessage,
+  emptyMessage,
   errorFallback,
   emptyFallback,
   skeletonHeight = "h-6",
   skeletonCount = 1,
 }: AsyncDataRendererProps<T>) {
+  const { t } = useTranslation();
+
   // Loading state
   if (isLoading) {
     if (skeleton) {
@@ -76,7 +79,8 @@ export function AsyncDataRenderer<T>({
     }
     return (
       <p className="text-red-500 dark:text-red-400 text-center py-4">
-        {errorMessage}
+        {errorMessage ??
+          t("dashboard.charts.dataLoadFailed", "Failed to load data")}
       </p>
     );
   }
@@ -92,7 +96,7 @@ export function AsyncDataRenderer<T>({
     }
     return (
       <p className="text-gray-500 dark:text-dark-text-secondary text-center py-4">
-        {emptyMessage}
+        {emptyMessage ?? t("common.noData", "No data available")}
       </p>
     );
   }

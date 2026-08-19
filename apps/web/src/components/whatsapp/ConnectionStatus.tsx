@@ -2,6 +2,7 @@ import { Loader2, QrCode, Wifi, WifiOff, XCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import type { WhatsAppConnectionState } from "@/hooks/useWhatsAppConnection";
+import { useTranslation } from "react-i18next";
 
 /**
  * Status Indicator Component
@@ -25,6 +26,8 @@ export function StatusIndicator({ state }: { state: WhatsAppConnectionState }) {
  * Badge with icon and label indicating connection status
  */
 export function StatusBadge({ state }: { state: WhatsAppConnectionState }) {
+  const { t } = useTranslation();
+
   const variants: Record<
     WhatsAppConnectionState,
     {
@@ -36,32 +39,32 @@ export function StatusBadge({ state }: { state: WhatsAppConnectionState }) {
     disconnected: {
       variant: "secondary",
       icon: <WifiOff className="h-3 w-3" />,
-      label: "Disconnected",
+      label: t("connections.states.disconnected", "Disconnected"),
     },
     connecting: {
       variant: "outline",
       icon: <Loader2 className="h-3 w-3 animate-spin" />,
-      label: "Connecting",
+      label: t("connections.states.connecting", "Connecting"),
     },
     waiting_qr: {
       variant: "outline",
       icon: <QrCode className="h-3 w-3" />,
-      label: "Waiting for QR",
+      label: t("connections.states.waitingQr", "Waiting for QR"),
     },
     scanning: {
       variant: "outline",
       icon: <QrCode className="h-3 w-3 animate-pulse" />,
-      label: "Scan QR Code",
+      label: t("connections.states.scanning", "Scan QR Code"),
     },
     connected: {
       variant: "default",
       icon: <Wifi className="h-3 w-3" />,
-      label: "Connected",
+      label: t("connections.states.connected", "Connected"),
     },
     error: {
       variant: "destructive",
       icon: <XCircle className="h-3 w-3" />,
-      label: "Error",
+      label: t("connections.states.error", "Error"),
     },
   };
 
@@ -75,17 +78,24 @@ export function StatusBadge({ state }: { state: WhatsAppConnectionState }) {
   );
 }
 
+/** Optional translator so this helper stays usable outside React. */
+export type StateTranslate = (key: string, fallback: string) => string;
+
 /**
  * Get human-readable label for connection state
  */
-export function getStateLabel(state: WhatsAppConnectionState): string {
-  const labels: Record<WhatsAppConnectionState, string> = {
-    disconnected: "Not connected",
-    connecting: "Connecting…",
-    waiting_qr: "Waiting for QR…",
-    scanning: "Scan QR code",
-    connected: "Connected",
-    error: "Connection error",
+export function getStateLabel(
+  state: WhatsAppConnectionState,
+  t: StateTranslate = (_key, fallback) => fallback,
+): string {
+  const labels: Record<WhatsAppConnectionState, [key: string, en: string]> = {
+    disconnected: ["connections.stateLabels.disconnected", "Not connected"],
+    connecting: ["connections.stateLabels.connecting", "Connecting…"],
+    waiting_qr: ["connections.stateLabels.waitingQr", "Waiting for QR…"],
+    scanning: ["connections.stateLabels.scanning", "Scan QR code"],
+    connected: ["connections.stateLabels.connected", "Connected"],
+    error: ["connections.stateLabels.error", "Connection error"],
   };
-  return labels[state];
+  const [key, fallback] = labels[state];
+  return t(key, fallback);
 }

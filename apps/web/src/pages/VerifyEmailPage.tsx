@@ -8,10 +8,13 @@ import { useEffect, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import { Button } from "../components/ui/button";
 import { verifyEmail } from "../lib/api";
+import { useTranslation } from "react-i18next";
 
 type VerificationState = "loading" | "success" | "error";
 
 export function VerifyEmailPage() {
+  const { t } = useTranslation();
+
   const [searchParams] = useSearchParams();
   const token = searchParams.get("token") || "";
   const started = useRef(false);
@@ -40,7 +43,10 @@ export function VerifyEmailPage() {
         setMessage(
           error instanceof Error
             ? error.message
-            : "This verification link is invalid or has expired.",
+            : t(
+                "verify.invalidLink",
+                "This verification link is invalid or has expired.",
+              ),
         );
       });
   }, [token]);
@@ -69,10 +75,10 @@ export function VerifyEmailPage() {
         />
         <h1 className="text-2xl font-bold text-gray-900 dark:text-dark-text-primary">
           {state === "loading"
-            ? "One moment"
+            ? t("verify.oneMoment", "One moment")
             : state === "success"
-              ? "Email verified"
-              : "Link unavailable"}
+              ? t("verify.emailVerified", "Email verified")
+              : t("verify.linkUnavailable", "Link unavailable")}
         </h1>
         <p className="mt-3 text-gray-600 dark:text-dark-text-secondary">
           {message}
@@ -85,8 +91,8 @@ export function VerifyEmailPage() {
           >
             <Link to={state === "success" ? "/login" : "/register"}>
               {state === "success"
-                ? "Continue to sign in"
-                : "Back to registration"}
+                ? t("auth.continueToSignIn", "Continue to sign in")
+                : t("verify.backToRegistration", "Back to registration")}
             </Link>
           </Button>
         )}

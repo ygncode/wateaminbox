@@ -33,6 +33,7 @@ import {
 import { cn } from "@/lib/utils";
 import { permissionGroups, permissionOptions } from "./permission-options";
 import type { InviteFormModalProps } from "./types";
+import { useTranslation } from "react-i18next";
 
 type AccessMode = "defaults" | "custom";
 type InviteStep = "details" | "review";
@@ -57,6 +58,8 @@ export function InviteFormModal({
   currentUserRole,
   onClose,
 }: InviteFormModalProps) {
+  const { t } = useTranslation();
+
   const inviteMember = useInviteMember();
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [step, setStep] = useState<InviteStep>("details");
@@ -115,7 +118,9 @@ export function InviteFormModal({
       onClose();
     } catch (error) {
       setSubmitError(
-        error instanceof Error ? error.message : "Could not send invitation",
+        error instanceof Error
+          ? error.message
+          : t("team.inviteFailed", "Could not send invitation"),
       );
     }
   };
@@ -126,7 +131,7 @@ export function InviteFormModal({
         <div className="border-b border-[#e6ebe7] bg-[#f8faf8] py-4 pl-5 pr-16 dark:border-dark-border dark:bg-dark-tertiary/40 sm:pl-6 sm:pr-20">
           <div
             className="mb-4"
-            aria-label="Step progress"
+            aria-label={t("team.stepProgress", "Step progress")}
             aria-valuemin={1}
             aria-valuemax={2}
             aria-valuenow={step === "details" ? 1 : 2}
@@ -163,12 +168,20 @@ export function InviteFormModal({
           </div>
           <DialogHeader>
             <DialogTitle>
-              {step === "details" ? "Invite team member" : "Review invitation"}
+              {step === "details"
+                ? t("team.inviteTeamMember", "Invite team member")
+                : t("team.reviewInvitation", "Review invitation")}
             </DialogTitle>
             <DialogDescription>
               {step === "details"
-                ? "Choose their workspace role and starting access."
-                : "Confirm exactly what access will be granted on acceptance."}
+                ? t(
+                    "team.inviteStepDetailsHint",
+                    "Choose their workspace role and starting access.",
+                  )
+                : t(
+                    "team.inviteStepReviewHint",
+                    "Confirm exactly what access will be granted on acceptance.",
+                  )}
             </DialogDescription>
           </DialogHeader>
         </div>
@@ -178,7 +191,7 @@ export function InviteFormModal({
             <div className="space-y-5 px-5 py-5 sm:px-6">
               <FormField
                 id="email"
-                label="Email address"
+                label={t("team.emailAddress", "Email address")}
                 type="email"
                 inputMode="email"
                 placeholder="colleague@company.com"
@@ -194,10 +207,13 @@ export function InviteFormModal({
                       id="role-label"
                       className="text-sm font-semibold text-gray-800 dark:text-dark-text-primary"
                     >
-                      Workspace role
+                      {t("team.workspaceRole", "Workspace role")}
                     </p>
                     <p className="text-xs text-[#65736d] dark:text-dark-text-secondary">
-                      Role controls hierarchy as well as default access.
+                      {t(
+                        "team.workspaceRoleHint",
+                        "Role controls hierarchy as well as default access.",
+                      )}
                     </p>
                   </div>
                 </div>
@@ -213,16 +229,22 @@ export function InviteFormModal({
                     selected={role === "member"}
                     onClick={() => selectRole("member")}
                     icon={Shield}
-                    title="Member"
-                    description="Handles assigned conversations"
+                    title={t("team.roleMember", "Member")}
+                    description={t(
+                      "team.roleMemberDescription",
+                      "Handles assigned conversations",
+                    )}
                   />
                   {canInviteAdmin && (
                     <RoleButton
                       selected={role === "admin"}
                       onClick={() => selectRole("admin")}
                       icon={ShieldCheck}
-                      title="Admin"
-                      description="Broad workspace access"
+                      title={t("team.roleAdmin", "Admin")}
+                      description={t(
+                        "team.roleAdminDescription",
+                        "Broad workspace access",
+                      )}
                     />
                   )}
                 </div>
@@ -242,9 +264,14 @@ export function InviteFormModal({
                     <SlidersHorizontal className="h-4 w-4" />
                   </div>
                   <div className="min-w-0">
-                    <p className="text-sm font-semibold">Starting access</p>
+                    <p className="text-sm font-semibold">
+                      {t("team.startingAccess", "Starting access")}
+                    </p>
                     <p className="text-xs text-[#65736d] dark:text-dark-text-secondary">
-                      Applied when the invitation is accepted.
+                      {t(
+                        "team.startingAccessHint",
+                        "Applied when the invitation is accepted.",
+                      )}
                     </p>
                   </div>
                 </div>
@@ -254,7 +281,10 @@ export function InviteFormModal({
                     <div
                       className="grid grid-cols-2 gap-1 border-y border-[#e6ebe7] bg-white p-1.5 dark:border-dark-border dark:bg-dark-elevated"
                       role="radiogroup"
-                      aria-label="Invitation access mode"
+                      aria-label={t(
+                        "team.invitationAccessMode",
+                        "Invitation access mode",
+                      )}
                     >
                       <AccessModeButton
                         selected={accessMode === "defaults"}
@@ -262,8 +292,11 @@ export function InviteFormModal({
                           setAccessMode("defaults");
                           setPermissions({ ...ROLE_PERMISSION_PRESETS[role] });
                         }}
-                        title="Role defaults"
-                        description={`Use the ${role} preset`}
+                        title={t("team.roleDefaults", "Role defaults")}
+                        description={t("team.useRolePreset", {
+                          defaultValue: "Use the {{role}} preset",
+                          role,
+                        })}
                       />
                       <AccessModeButton
                         selected={accessMode === "custom"}
@@ -271,8 +304,11 @@ export function InviteFormModal({
                           setAccessMode("custom");
                           setPermissions({ ...ROLE_PERMISSION_PRESETS[role] });
                         }}
-                        title="Custom access"
-                        description="Override capabilities"
+                        title={t("team.customAccess", "Custom access")}
+                        description={t(
+                          "team.overrideCapabilitiesShort",
+                          "Override capabilities",
+                        )}
                       />
                     </div>
 
@@ -324,11 +360,16 @@ export function InviteFormModal({
                 ) : (
                   <div className="px-4 py-3 text-sm">
                     <p className="font-medium capitalize">
-                      {role} role defaults
+                      {t("team.roleDefaultsFor", {
+                        defaultValue: "{{role}} role defaults",
+                        role,
+                      })}
                     </p>
                     <p className="mt-0.5 text-xs leading-5 text-[#65736d] dark:text-dark-text-secondary">
-                      Only the workspace owner can customize invitation access.
-                      Your role can invite this person with the selected preset.
+                      {t(
+                        "team.ownerOnlyCustomAccess",
+                        "Only the workspace owner can customize invitation access. Your role can invite this person with the selected preset.",
+                      )}
                     </p>
                   </div>
                 )}
@@ -351,8 +392,11 @@ export function InviteFormModal({
                         variant={hasCustomOverrides ? "default" : "outline"}
                       >
                         {hasCustomOverrides
-                          ? `${overrideCount} custom ${overrideCount === 1 ? "override" : "overrides"}`
-                          : "Role defaults"}
+                          ? t("team.customOverrideCount", {
+                              defaultValue: "{{count}} custom override",
+                              count: overrideCount,
+                            })
+                          : t("team.roleDefaults", "Role defaults")}
                       </Badge>
                     </div>
                   </div>
@@ -362,14 +406,22 @@ export function InviteFormModal({
               <section className="overflow-hidden rounded-xl border border-[#dce3de] dark:border-dark-border">
                 <div className="flex items-center justify-between gap-3 border-b border-[#e6ebe7] px-4 py-3 dark:border-dark-border">
                   <div>
-                    <p className="text-sm font-semibold">Effective access</p>
+                    <p className="text-sm font-semibold">
+                      {t("team.effectiveAccess", "Effective access")}
+                    </p>
                     <p className="text-xs text-[#65736d] dark:text-dark-text-secondary">
-                      {enabledPermissions.length} of {permissionOptions.length}{" "}
-                      capabilities enabled
+                      {t("team.capabilitiesEnabled", {
+                        defaultValue:
+                          "{{enabled}} of {{total}} capabilities enabled",
+                        enabled: enabledPermissions.length,
+                        total: permissionOptions.length,
+                      })}
                     </p>
                   </div>
                   {!effectivePermissions.can_view_all_chats && (
-                    <Badge variant="outline">Assigned chats only</Badge>
+                    <Badge variant="outline">
+                      {t("team.assignedChatsOnly", "Assigned chats only")}
+                    </Badge>
                   )}
                 </div>
                 <div className="grid gap-x-5 gap-y-2 p-4 sm:grid-cols-2">
@@ -388,8 +440,10 @@ export function InviteFormModal({
               </section>
 
               <p className="rounded-lg bg-[#fff8e7] px-3 py-2.5 text-xs leading-5 text-[#735c20] dark:bg-amber-950/20 dark:text-amber-200">
-                Team hierarchy remains enforced even when a custom capability is
-                enabled.
+                {t(
+                  "team.hierarchyEnforcedNote",
+                  "Team hierarchy remains enforced even when a custom capability is enabled.",
+                )}
               </p>
             </div>
           )}
@@ -430,7 +484,7 @@ export function InviteFormModal({
                 onClick={handleSubmit(() => setStep("review"))}
                 className="ml-auto gap-1.5 bg-[#0b7a55] text-white hover:bg-[#096747]"
               >
-                Review invitation
+                {t("team.reviewInvitation", "Review invitation")}
                 <ChevronRight className="h-4 w-4" />
               </Button>
             ) : (
@@ -439,7 +493,9 @@ export function InviteFormModal({
                 disabled={inviteMember.isPending}
                 className="ml-auto bg-[#0b7a55] text-white hover:bg-[#096747]"
               >
-                {inviteMember.isPending ? "Sending…" : "Send invitation"}
+                {inviteMember.isPending
+                  ? t("team.sending", "Sending…")
+                  : t("team.sendInvitation", "Send invitation")}
               </Button>
             )}
           </div>

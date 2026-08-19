@@ -9,6 +9,7 @@ import {
   ReplyIcon,
   StarIcon,
 } from "./MessageIcons";
+import { useTranslation } from "react-i18next";
 
 interface ContextMenuItem {
   label: string;
@@ -43,6 +44,8 @@ export const MessageContextMenu = forwardRef<
   { message, position, onReply, onForward, onDelete, onStar, onReact, onClose },
   ref,
 ) {
+  const { t } = useTranslation();
+
   const queryClient = useQueryClient();
 
   // Prefetch forward contacts when context menu opens
@@ -83,15 +86,29 @@ export const MessageContextMenu = forwardRef<
   }, [position.x, position.y]);
 
   const menuItems: ContextMenuItem[] = [
-    { label: "React", icon: EmojiIcon, action: onReact },
-    { label: "Reply", icon: ReplyIcon, action: () => onReply?.(message) },
-    { label: "Forward", icon: ForwardIcon, action: () => onForward?.(message) },
+    { label: t("chat.react", "React"), icon: EmojiIcon, action: onReact },
     {
-      label: message.isStarred ? "Unstar" : "Star",
+      label: t("chat.reply", "Reply"),
+      icon: ReplyIcon,
+      action: () => onReply?.(message),
+    },
+    {
+      label: t("chat.forward", "Forward"),
+      icon: ForwardIcon,
+      action: () => onForward?.(message),
+    },
+    {
+      label: message.isStarred
+        ? t("chat.unstar", "Unstar")
+        : t("chat.star", "Star"),
       icon: StarIcon,
       action: () => onStar?.(message),
     },
-    { label: "Delete", icon: DeleteIcon, action: () => onDelete?.(message) },
+    {
+      label: t("chat.delete", "Delete"),
+      icon: DeleteIcon,
+      action: () => onDelete?.(message),
+    },
   ];
 
   return (

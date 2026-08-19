@@ -37,17 +37,18 @@ export function getConnectionColor(connectionId: string) {
   return accountColors[hashIdentity(connectionId) % accountColors.length];
 }
 
-export function getConnectionLabel(
-  connection: { name?: string | null; phoneNumber?: string | null },
-): string {
+export function getConnectionLabel(connection: {
+  name?: string | null;
+  phoneNumber?: string | null;
+}): string {
   return formatPhoneLikeText(
     connection.name || connection.phoneNumber || "WhatsApp account",
   );
 }
 
-export function getConnectionPhone(
-  connection: { phoneNumber?: string | null },
-): string | null {
+export function getConnectionPhone(connection: {
+  phoneNumber?: string | null;
+}): string | null {
   return connection.phoneNumber
     ? formatPhoneLikeText(connection.phoneNumber)
     : null;

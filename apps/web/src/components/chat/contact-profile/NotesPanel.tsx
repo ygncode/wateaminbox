@@ -10,6 +10,7 @@ import {
   useUpdateSharedNote,
 } from "@/hooks/useContact";
 import { NotesList } from "../notes";
+import { useTranslation } from "react-i18next";
 
 interface NotesSectionProps {
   contactId: string;
@@ -19,6 +20,8 @@ interface NotesSectionProps {
  * Shared notes section - wrapper around NotesList
  */
 export function SharedNotesSection({ contactId }: NotesSectionProps) {
+  const { t } = useTranslation();
+
   const { user } = useAuth();
   const { data, isLoading } = useSharedNotes(contactId);
   const createNote = useCreateSharedNote();
@@ -31,7 +34,7 @@ export function SharedNotesSection({ contactId }: NotesSectionProps) {
 
   return (
     <NotesList
-      title="Shared Notes"
+      title={t("notes.sharedTitle", "Shared Notes")}
       notes={notes}
       isLoading={isLoading}
       isPrivate={false}
@@ -54,6 +57,8 @@ export function SharedNotesSection({ contactId }: NotesSectionProps) {
  * Private notes section - wrapper around NotesList
  */
 export function PrivateNotesSection({ contactId }: NotesSectionProps) {
+  const { t } = useTranslation();
+
   const { data, isLoading } = usePrivateNotes(contactId);
   const createNote = useCreatePrivateNote();
   const updateNote = useUpdatePrivateNote();
@@ -65,7 +70,7 @@ export function PrivateNotesSection({ contactId }: NotesSectionProps) {
 
   return (
     <NotesList
-      title="Private Notes"
+      title={t("notes.privateTitle", "Private Notes")}
       notes={notes}
       isLoading={isLoading}
       isPrivate={true}

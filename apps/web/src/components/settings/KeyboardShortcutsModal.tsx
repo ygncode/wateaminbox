@@ -10,6 +10,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useKeyboardShortcutsContext } from "@/contexts/KeyboardShortcutsContext";
 import { formatShortcut, isMac, type KeyboardShortcut } from "@/hooks/ui";
+import { useTranslation } from "react-i18next";
 
 /**
  * Category configuration for grouping shortcuts
@@ -18,22 +19,30 @@ interface ShortcutCategory {
   id: "navigation" | "chat" | "general";
   label: string;
   description: string;
+  labelKey: string;
+  descriptionKey: string;
 }
 
 const categories: ShortcutCategory[] = [
   {
     id: "navigation",
+    labelKey: "keyboard.categories.navigation.label",
     label: "Navigation",
+    descriptionKey: "keyboard.categories.navigation.description",
     description: "Move around the application",
   },
   {
     id: "chat",
+    labelKey: "keyboard.categories.chat.label",
     label: "Chat",
+    descriptionKey: "keyboard.categories.chat.description",
     description: "Manage conversations and messages",
   },
   {
     id: "general",
+    labelKey: "keyboard.categories.general.label",
     label: "General",
+    descriptionKey: "keyboard.categories.general.description",
     description: "General application shortcuts",
   },
 ];
@@ -73,6 +82,8 @@ function ShortcutSection({
   category: ShortcutCategory;
   shortcuts: KeyboardShortcut[];
 }) {
+  const { t } = useTranslation();
+
   if (shortcuts.length === 0) {
     return null;
   }
@@ -80,10 +91,10 @@ function ShortcutSection({
   return (
     <div className="mb-6 last:mb-0">
       <h3 className="text-sm font-semibold text-gray-700 dark:text-dark-text-primary mb-1">
-        {category.label}
+        {t(category.labelKey, category.label)}
       </h3>
       <p className="text-xs text-gray-500 dark:text-dark-text-secondary mb-3">
-        {category.description}
+        {t(category.descriptionKey, category.description)}
       </p>
       <div className="divide-y divide-gray-100 dark:divide-dark-border">
         {shortcuts.map((shortcut) => (
@@ -110,6 +121,8 @@ export function KeyboardShortcutsModal({
   open,
   onOpenChange,
 }: KeyboardShortcutsModalProps) {
+  const { t } = useTranslation();
+
   const { isHelpModalOpen, closeHelpModal, shortcuts } =
     useKeyboardShortcutsContext();
 
@@ -139,8 +152,8 @@ export function KeyboardShortcutsModal({
   }, [shortcuts]);
 
   const platformHint = isMac()
-    ? "On Mac, use Cmd instead of Ctrl"
-    : "On Windows/Linux, use Ctrl";
+    ? t("keyboard.macHint", "On Mac, use Cmd instead of Ctrl")
+    : t("keyboard.winHint", "On Windows/Linux, use Ctrl");
 
   return (
     <Dialog open={isOpen} onOpenChange={handleOpenChange}>
@@ -148,7 +161,7 @@ export function KeyboardShortcutsModal({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Keyboard className="h-5 w-5" />
-            Keyboard Shortcuts
+            {t("keyboard.title", "Keyboard Shortcuts")}
           </DialogTitle>
           <DialogDescription>{platformHint}</DialogDescription>
         </DialogHeader>

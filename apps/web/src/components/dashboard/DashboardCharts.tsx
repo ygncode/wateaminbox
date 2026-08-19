@@ -13,6 +13,7 @@ import { formatNumber } from "@/hooks/analytics";
 import { cn } from "@/lib/utils";
 import { HourlyChart, MessageChart, NewContactsChart } from "./charts";
 import { StatRow } from "./StatRow";
+import { useTranslation } from "react-i18next";
 
 // =====================
 // Types
@@ -77,6 +78,8 @@ function ChartPanel({
   className,
   children,
 }: ChartPanelProps) {
+  const { t } = useTranslation();
+
   return (
     <section
       className={cn(
@@ -107,7 +110,7 @@ function ChartPanel({
         </div>
       ) : isError ? (
         <div className="grid h-[276px] place-items-center rounded-xl border border-red-100 bg-red-50/60 text-sm text-red-600 dark:border-red-900/60 dark:bg-red-950/20 dark:text-red-300">
-          This chart could not be loaded
+          {t("dashboard.charts.loadFailed", "This chart could not be loaded")}
         </div>
       ) : (
         children
@@ -143,12 +146,17 @@ export function TrendChartsRow({
   isLoadingHourly,
   isHourlyError,
 }: TrendChartsRowProps) {
+  const { t } = useTranslation();
+
   return (
     <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
       <ChartPanel
         icon={<TrendingUp className="h-4 w-4" />}
-        title="Message Trend"
-        description="Daily inbound and outbound volume"
+        title={t("dashboard.charts.messageTrend", "Message Trend")}
+        description={t(
+          "dashboard.charts.messageTrendHint",
+          "Daily inbound and outbound volume",
+        )}
         isLoading={isLoadingMessages}
         isError={isMessagesError}
         className="xl:col-span-8"
@@ -158,8 +166,11 @@ export function TrendChartsRow({
 
       <ChartPanel
         icon={<UserPlus className="h-4 w-4" />}
-        title="New Contacts"
-        description="Acquisition and total contact growth"
+        title={t("dashboard.charts.newContacts", "New Contacts")}
+        description={t(
+          "dashboard.charts.newContactsHint",
+          "Acquisition and total contact growth",
+        )}
         isLoading={isLoadingContactsTrend}
         isError={isContactsTrendError}
         className="xl:col-span-4"
@@ -169,8 +180,11 @@ export function TrendChartsRow({
 
       <ChartPanel
         icon={<Clock className="h-4 w-4" />}
-        title="Hourly Activity"
-        description="When your inbox is busiest across the day"
+        title={t("dashboard.charts.hourlyActivity", "Hourly Activity")}
+        description={t(
+          "dashboard.charts.hourlyActivityHint",
+          "When your inbox is busiest across the day",
+        )}
         isLoading={isLoadingHourly}
         isError={isHourlyError}
         className="xl:col-span-12"
@@ -210,6 +224,8 @@ export function StatsCardsRow({
   isTeamError,
   isAdmin,
 }: StatsCardsRowProps) {
+  const { t } = useTranslation();
+
   const maxMessageTypeCount = Math.max(
     ...(messageTypes?.map((type) => type.count) ?? []),
     1,
@@ -230,10 +246,13 @@ export function StatsCardsRow({
           </span>
           <div>
             <h3 className="text-sm font-semibold text-[#203b32] dark:text-dark-text-primary">
-              Contact health
+              {t("dashboard.charts.contactHealth", "Contact health")}
             </h3>
             <p className="text-[11px] text-[#7a8881] dark:text-dark-text-secondary">
-              Profile quality and ownership · all time
+              {t(
+                "dashboard.charts.contactHealthHint",
+                "Profile quality and ownership · all time",
+              )}
             </p>
           </div>
         </div>
@@ -245,13 +264,13 @@ export function StatsCardsRow({
           </div>
         ) : isContactsError ? (
           <p className="text-red-500 dark:text-red-400 text-center py-4">
-            Failed to load data
+            {t("dashboard.charts.dataLoadFailed", "Failed to load data")}
           </p>
         ) : contactStats ? (
           <div>
             <div className="mb-5 rounded-xl bg-[#f4f8f5] px-4 py-3 dark:bg-dark-tertiary/60">
               <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[#7a8881] dark:text-dark-text-secondary">
-                Total contacts
+                {t("dashboard.charts.totalContacts", "Total contacts")}
               </p>
               <p className="mt-0.5 text-2xl font-semibold tabular-nums text-[#203b32] dark:text-dark-text-primary">
                 {formatNumber(contactStats.total)}
@@ -259,22 +278,22 @@ export function StatsCardsRow({
             </div>
             <div className="space-y-3.5">
               <StatRow
-                label="Custom names"
+                label={t("dashboard.charts.customNames", "Custom names")}
                 value={contactStats.withCustomName}
                 total={contactStats.total}
               />
               <StatRow
-                label="Tagged"
+                label={t("dashboard.charts.tagged", "Tagged")}
                 value={contactStats.withTags}
                 total={contactStats.total}
               />
               <StatRow
-                label="Assigned"
+                label={t("dashboard.charts.assigned", "Assigned")}
                 value={contactStats.assigned}
                 total={contactStats.total}
               />
               <StatRow
-                label="Unassigned"
+                label={t("dashboard.charts.unassigned", "Unassigned")}
                 value={contactStats.unassigned}
                 total={contactStats.total}
               />
@@ -282,7 +301,7 @@ export function StatsCardsRow({
           </div>
         ) : (
           <p className="text-gray-500 dark:text-dark-text-secondary text-center py-4">
-            No data available
+            {t("dashboard.charts.noData", "No data available")}
           </p>
         )}
       </div>
@@ -295,10 +314,13 @@ export function StatsCardsRow({
           </span>
           <div>
             <h3 className="text-sm font-semibold text-[#203b32] dark:text-dark-text-primary">
-              Message mix
+              {t("dashboard.charts.messageMix", "Message mix")}
             </h3>
             <p className="text-[11px] text-[#7a8881] dark:text-dark-text-secondary">
-              Top formats in the selected period
+              {t(
+                "dashboard.charts.messageMixHint",
+                "Top formats in the selected period",
+              )}
             </p>
           </div>
         </div>
@@ -309,7 +331,7 @@ export function StatsCardsRow({
           </div>
         ) : isTypesError ? (
           <p className="text-red-500 dark:text-red-400 text-center py-4">
-            Failed to load data
+            {t("dashboard.charts.dataLoadFailed", "Failed to load data")}
           </p>
         ) : messageTypes && messageTypes.length > 0 ? (
           <div className="space-y-4">
@@ -336,7 +358,7 @@ export function StatsCardsRow({
           </div>
         ) : (
           <p className="text-gray-500 dark:text-dark-text-secondary text-center py-4">
-            No data available
+            {t("dashboard.charts.noData", "No data available")}
           </p>
         )}
       </div>
@@ -350,10 +372,13 @@ export function StatsCardsRow({
             </span>
             <div>
               <h3 className="text-sm font-semibold text-[#203b32] dark:text-dark-text-primary">
-                Team activity
+                {t("dashboard.charts.teamActivity", "Team activity")}
               </h3>
               <p className="text-[11px] text-[#7a8881] dark:text-dark-text-secondary">
-                Most active senders · all time
+                {t(
+                  "dashboard.charts.teamActivityHint",
+                  "Most active senders · all time",
+                )}
               </p>
             </div>
           </div>
@@ -364,7 +389,7 @@ export function StatsCardsRow({
             </div>
           ) : isTeamError ? (
             <p className="text-red-500 dark:text-red-400 text-center py-4">
-              Failed to load data
+              {t("dashboard.charts.dataLoadFailed", "Failed to load data")}
             </p>
           ) : teamStats && teamStats.length > 0 ? (
             <div className="space-y-1">
@@ -397,7 +422,7 @@ export function StatsCardsRow({
             </div>
           ) : (
             <p className="text-gray-500 dark:text-dark-text-secondary text-center py-4">
-              No team activity
+              {t("dashboard.charts.noTeamActivity", "No team activity")}
             </p>
           )}
         </div>

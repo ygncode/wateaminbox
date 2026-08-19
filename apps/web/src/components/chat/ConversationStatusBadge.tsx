@@ -9,8 +9,10 @@ const STATUS_LABEL: Record<ConversationLifecycleStatus, string> = {
 
 const STATUS_CLASSES: Record<ConversationLifecycleStatus, string> = {
   open: "bg-whatsapp-teal-green/10 text-whatsapp-teal-green dark:bg-whatsapp-teal-green/20",
-  pending: "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300",
-  resolved: "bg-gray-100 text-gray-500 dark:bg-dark-tertiary dark:text-dark-text-secondary",
+  pending:
+    "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300",
+  resolved:
+    "bg-gray-100 text-gray-500 dark:bg-dark-tertiary dark:text-dark-text-secondary",
 };
 
 export function ConversationStatusBadge({

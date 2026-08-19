@@ -2,6 +2,7 @@ import { ArrowLeft, X } from "lucide-react";
 import * as React from "react";
 import { useCallback, useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
+import { useTranslation } from "react-i18next";
 
 // Mobile view states
 export type MobileView = "chat-list" | "message-thread" | "contact-info";
@@ -115,7 +116,8 @@ export function MobileLayoutProvider({
   );
 }
 
-export interface MobileLayoutProps extends React.HTMLAttributes<HTMLDivElement> {
+export interface MobileLayoutProps
+  extends React.HTMLAttributes<HTMLDivElement> {
   children: React.ReactNode;
 }
 
@@ -139,7 +141,8 @@ export function MobileLayout({
   );
 }
 
-export interface MobileViewContainerProps extends React.HTMLAttributes<HTMLDivElement> {
+export interface MobileViewContainerProps
+  extends React.HTMLAttributes<HTMLDivElement> {
   children: React.ReactNode;
   view: MobileView;
 }
@@ -175,7 +178,8 @@ export function MobileViewContainer({
   );
 }
 
-export interface MobileHeaderProps extends React.HTMLAttributes<HTMLDivElement> {
+export interface MobileHeaderProps
+  extends React.HTMLAttributes<HTMLDivElement> {
   title?: string;
   subtitle?: string;
   showBackButton?: boolean;
@@ -194,6 +198,8 @@ export function MobileHeader({
   rightContent,
   ...props
 }: MobileHeaderProps) {
+  const { t } = useTranslation();
+
   const { goBack } = useMobileLayout();
 
   const handleBack = () => {
@@ -216,7 +222,7 @@ export function MobileHeader({
         <button
           onClick={handleBack}
           className="flex h-11 w-11 items-center justify-center rounded-full text-gray-600 dark:text-dark-text-secondary hover:bg-gray-200 dark:hover:bg-dark-tertiary active:bg-gray-300 dark:active:bg-dark-border transition-colors touch-manipulation"
-          aria-label="Go back"
+          aria-label={t("common.goBack", "Go back")}
         >
           <ArrowLeft className="h-6 w-6" />
         </button>
@@ -246,7 +252,8 @@ export function MobileHeader({
   );
 }
 
-export interface MobileSlideInPanelProps extends React.HTMLAttributes<HTMLDivElement> {
+export interface MobileSlideInPanelProps
+  extends React.HTMLAttributes<HTMLDivElement> {
   children: React.ReactNode;
   isOpen: boolean;
   onClose?: () => void;
@@ -263,6 +270,8 @@ export function MobileSlideInPanel({
   position = "right",
   ...props
 }: MobileSlideInPanelProps) {
+  const { t } = useTranslation();
+
   // Prevent body scroll when panel is open
   useEffect(() => {
     if (isOpen) {
@@ -310,7 +319,7 @@ export function MobileSlideInPanel({
               <button
                 onClick={onClose}
                 className="flex h-10 w-10 items-center justify-center rounded-full hover:bg-white/10 transition-colors touch-manipulation"
-                aria-label="Close panel"
+                aria-label={t("common.closePanel", "Close panel")}
               >
                 <X className="h-5 w-5" />
               </button>
@@ -328,7 +337,8 @@ export function MobileSlideInPanel({
   );
 }
 
-export interface MobileActionButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
+export interface MobileActionButtonProps
+  extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   icon: React.ReactNode;
   label: string;
 }

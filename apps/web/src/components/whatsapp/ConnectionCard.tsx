@@ -24,6 +24,7 @@ import { Button } from "@/components/ui/button";
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 import type { ConnectionWithState } from "@/hooks/useWhatsAppConnections";
 import { cn, formatPhoneNumber } from "@/lib/utils";
+import { useTranslation } from "react-i18next";
 
 interface ConnectionCardProps {
   connection: ConnectionWithState;
@@ -58,6 +59,8 @@ export function ConnectionCard({
   onDelete,
   onClearError,
 }: ConnectionCardProps) {
+  const { t } = useTranslation();
+
   const { localState } = connection;
   const [showMenu, setShowMenu] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -182,7 +185,7 @@ export function ConnectionCard({
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-xs font-medium text-red-800 dark:text-red-300">
-                        Connection Error
+                        {t("connections.connectionError", "Connection Error")}
                       </p>
                       <p className="text-xs text-red-600/80 dark:text-red-400/80 mt-0.5 leading-relaxed">
                         {localState.error}
@@ -249,7 +252,9 @@ export function ConnectionCard({
                 ) : (
                   <Loader2 className="h-4 w-4 animate-spin" />
                 )}
-                {localState.qrCode ? "View QR code" : "View setup"}
+                {localState.qrCode
+                  ? t("connections.viewQrCode", "View QR code")
+                  : t("connections.viewSetup", "View setup")}
               </Button>
             ) : null}
 
@@ -260,8 +265,11 @@ export function ConnectionCard({
                 size="sm"
                 onClick={() => setShowMenu(!showMenu)}
                 className="h-8 w-8 p-0"
-                aria-label={`More actions for ${connection.name}`}
-                title="More actions"
+                aria-label={t("connections.moreActionsFor", {
+                  defaultValue: "More actions for {{name}}",
+                  name: connection.name,
+                })}
+                title={t("connections.moreActions", "More actions")}
               >
                 <MoreVertical className="h-4 w-4" />
               </Button>
@@ -340,7 +348,7 @@ export function ConnectionCard({
                       }}
                     >
                       <Trash2 className="h-4 w-4" />
-                      Archive & unlink
+                      {t("connections.archiveUnlink", "Archive & unlink")}
                     </button>
                   </div>
                 </>
@@ -352,9 +360,15 @@ export function ConnectionCard({
       <ConfirmationDialog
         open={deleteOpen}
         onOpenChange={setDeleteOpen}
-        title={`Archive and unlink ${connection.name}?`}
-        description="This logs the device out of WhatsApp and hides the account from active connections. Conversations, assignments, and notes are retained and will return if this number is linked again."
-        confirmText="Archive & unlink"
+        title={t("connections.archiveUnlinkConfirm", {
+          defaultValue: "Archive and unlink {{name}}?",
+          name: connection.name,
+        })}
+        description={t(
+          "connections.archiveUnlinkDescription",
+          "This logs the device out of WhatsApp and hides the account from active connections. Conversations, assignments, and notes are retained and will return if this number is linked again.",
+        )}
+        confirmText={t("connections.archiveUnlink", "Archive & unlink")}
         onConfirm={async () => {
           await onDelete();
           setDeleteOpen(false);

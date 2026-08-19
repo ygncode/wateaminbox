@@ -11,6 +11,7 @@ import { AssignmentGateBar } from "./AssignmentGateBar";
 import { ConversationLifecycleActions } from "./ConversationLifecycleActions";
 import { resolveOpenOrReopenMode } from "./open-reopen-dialog-state";
 import { OpenOrReopenConversationDialog } from "./ReopenConversationDialog";
+import { useTranslation } from "react-i18next";
 
 interface ComposerLifecycleAreaProps {
   contactId: string;
@@ -51,6 +52,8 @@ export function ComposerLifecycleArea({
   isSending = false,
   children,
 }: ComposerLifecycleAreaProps) {
+  const { t } = useTranslation();
+
   const { data: state } = useConversationState(contactId);
   const reopenMutation = useReopenConversation(contactId);
   const openMutation = useOpenConversation(contactId);
@@ -68,7 +71,12 @@ export function ComposerLifecycleArea({
     return (
       <div className="flex items-center gap-2 border-t border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-600 dark:border-dark-border dark:bg-dark-tertiary/50 dark:text-dark-text-secondary">
         <Lock className="h-4 w-4 shrink-0" aria-hidden="true" />
-        <span>You don't have permission to send messages here</span>
+        <span>
+          {t(
+            "chat.noSendPermission",
+            "You don't have permission to send messages here",
+          )}
+        </span>
       </div>
     );
   }
@@ -104,7 +112,7 @@ export function ComposerLifecycleArea({
     return (
       <div className="flex items-center justify-between gap-3 border-t border-gray-200 bg-gray-50 px-4 py-3 dark:border-dark-border dark:bg-dark-tertiary/50">
         <span className="text-sm text-gray-600 dark:text-dark-text-secondary">
-          This conversation is resolved
+          {t("chat.conversationResolved", "This conversation is resolved")}
         </span>
         <button
           type="button"

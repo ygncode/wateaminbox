@@ -15,6 +15,7 @@ import {
   getNiceMax,
   getSmoothPath,
 } from "./chart-utils";
+import { useTranslation } from "react-i18next";
 
 export interface ResponseTimeTrendData {
   date: string;
@@ -32,6 +33,8 @@ export function ResponseTimeTrendChart({
   data,
   slaThreshold,
 }: ResponseTimeTrendChartProps) {
+  const { t } = useTranslation();
+
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const [chartWidth, setChartWidth] = useState<number>(chartBox.width);
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
@@ -244,14 +247,14 @@ export function ResponseTimeTrendChart({
           <p className="flex items-center justify-between gap-4 text-[#617169] dark:text-dark-text-secondary">
             <span className="flex items-center gap-1.5">
               <span className="h-2 w-2 rounded-full bg-[#4185c5]" />
-              Average response
+              {t("dashboard.charts.averageResponse", "Average response")}
             </span>
             <strong className="tabular-nums text-[#286fae] dark:text-blue-300">
-              {formatMinutes(hoveredDay.averageResponseTimeMinutes)}
+              {formatMinutes(hoveredDay.averageResponseTimeMinutes, t)}
             </strong>
           </p>
           <p className="mt-1 flex items-center justify-between gap-4 text-[#617169] dark:text-dark-text-secondary">
-            <span>SLA compliance</span>
+            <span>{t("dashboard.charts.slaCompliance", "SLA compliance")}</span>
             <strong
               className="tabular-nums"
               style={{
@@ -262,7 +265,7 @@ export function ResponseTimeTrendChart({
             </strong>
           </p>
           <p className="mt-1 flex items-center justify-between gap-4 text-[#617169] dark:text-dark-text-secondary">
-            <span>Conversations</span>
+            <span>{t("dashboard.charts.conversations", "Conversations")}</span>
             <strong className="tabular-nums text-[#31463e] dark:text-dark-text-primary">
               {hoveredDay.conversationCount.toLocaleString()}
             </strong>
@@ -279,12 +282,37 @@ function getComplianceColor(rate: number): string {
   return "#cf5a5a";
 }
 
-function formatMinutes(minutes: number): string {
-  if (minutes < 1) return "< 1 min";
-  if (minutes < 60) return `${Math.round(minutes)} min`;
+/** Optional translator keeps this usable outside a React render. */
+type MinutesTranslate = (
+  key: string,
+  options: { defaultValue: string } & Record<string, unknown>,
+) => string;
+
+const englishMinutes: MinutesTranslate = (_key, options) =>
+  options.defaultValue.replace(/\{\{(\w+)\}\}/g, (_m, name: string) =>
+    String(options[name] ?? ""),
+  );
+
+function formatMinutes(
+  minutes: number,
+  t: MinutesTranslate = englishMinutes,
+): string {
+  if (minutes < 1)
+    return t("duration.lessThanAMinute", { defaultValue: "< 1 min" });
+  if (minutes < 60)
+    return t("duration.minutes", {
+      defaultValue: "{{count}} min",
+      count: Math.round(minutes),
+    });
   const hours = Math.floor(minutes / 60);
   const mins = Math.round(minutes % 60);
-  return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
+  return mins > 0
+    ? t("duration.hoursMinutes", {
+        defaultValue: "{{hours}}h {{minutes}}m",
+        hours,
+        minutes: mins,
+      })
+    : t("duration.hours", { defaultValue: "{{hours}}h", hours });
 }
 
 export default ResponseTimeTrendChart;

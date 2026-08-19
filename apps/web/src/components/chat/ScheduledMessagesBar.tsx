@@ -18,6 +18,7 @@ import {
   useCancelScheduledMessage,
   useScheduledMessages,
 } from "../../hooks/messages";
+import { useTranslation } from "react-i18next";
 
 interface ScheduledMessagesBarProps {
   contactId: string;
@@ -35,12 +36,18 @@ function formatScheduledTime(iso: string): string {
 
 function mediaKind(
   scheduledMessage: ScheduledMessage,
-): { icon: typeof ImageIcon; label: string } | null {
+): { icon: typeof ImageIcon; labelKey: string; label: string } | null {
   if (!scheduledMessage.mediaUrl) return null;
   const mimeType = scheduledMessage.mediaMimeType || "";
-  if (mimeType.startsWith("image/")) return { icon: ImageIcon, label: "Photo" };
-  if (mimeType.startsWith("video/")) return { icon: Film, label: "Video" };
-  return { icon: FileText, label: "File" };
+  if (mimeType.startsWith("image/"))
+    return {
+      icon: ImageIcon,
+      labelKey: "chat.mediaTypes.image",
+      label: "Photo",
+    };
+  if (mimeType.startsWith("video/"))
+    return { icon: Film, labelKey: "chat.mediaTypes.video", label: "Video" };
+  return { icon: FileText, labelKey: "broadcasts.file", label: "File" };
 }
 
 function ScheduledMessageRow({
@@ -48,6 +55,8 @@ function ScheduledMessageRow({
 }: {
   scheduledMessage: ScheduledMessage;
 }) {
+  const { t } = useTranslation();
+
   const cancelMutation = useCancelScheduledMessage();
   const isFailed = scheduledMessage.status === "failed";
   const media = mediaKind(scheduledMessage);
@@ -56,14 +65,19 @@ function ScheduledMessageRow({
     cancelMutation.mutate(scheduledMessage.id, {
       onSuccess: () => {
         toast.success(
-          isFailed ? "Failed message dismissed" : "Scheduled message canceled",
+          isFailed
+            ? t("chat.failedMessageDismissed", "Failed message dismissed")
+            : t("chat.scheduledMessageCanceled", "Scheduled message canceled"),
         );
       },
       onError: (error) => {
         toast.error(
           error instanceof Error
             ? `Failed to cancel: ${error.message}`
-            : "Failed to cancel scheduled message",
+            : t(
+                "chat.cancelScheduledFailed",
+                "Failed to cancel scheduled message",
+              ),
         );
       },
     });
@@ -95,21 +109,34 @@ function ScheduledMessageRow({
           {media && (
             <span className="inline-flex shrink-0 items-center gap-1 text-[#667781] dark:text-dark-text-tertiary">
               <media.icon className="size-3.5" aria-hidden="true" />
-              <span className="text-xs font-medium">{media.label}</span>
+              <span className="text-xs font-medium">
+                {t(media.labelKey, media.label)}
+              </span>
             </span>
           )}
           <span className="truncate">
             {scheduledMessage.content ||
               scheduledMessage.mediaFileName ||
-              media?.label}
+              (media ? t(media.labelKey, media.label) : null)}
           </span>
         </p>
         <p className="mt-0.5 text-xs text-[#667781] dark:text-dark-text-tertiary">
           {isFailed
-            ? `Failed: ${scheduledMessage.lastError || "could not be sent"}`
-            : `Sends ${formatScheduledTime(scheduledMessage.scheduledAt)}`}
+            ? t("chat.scheduledFailedReason", {
+                defaultValue: "Failed: {{reason}}",
+                reason:
+                  scheduledMessage.lastError ||
+                  t("chat.couldNotBeSent", "could not be sent"),
+              })
+            : t("chat.sendsAt", {
+                defaultValue: "Sends {{time}}",
+                time: formatScheduledTime(scheduledMessage.scheduledAt),
+              })}
           {scheduledMessage.createdByName &&
-            ` · by ${scheduledMessage.createdByName}`}
+            ` · ${t("chat.byUser", {
+              defaultValue: "by {{name}}",
+              name: scheduledMessage.createdByName,
+            })}`}
         </p>
       </div>
       <button
@@ -118,7 +145,9 @@ function ScheduledMessageRow({
         disabled={cancelMutation.isPending}
         className="grid size-8 shrink-0 place-items-center rounded-full text-[#8696a0] transition-colors hover:bg-black/[0.055] hover:text-red-600 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00a884]/40 dark:text-dark-text-tertiary dark:hover:bg-white/[0.06] dark:hover:text-red-400"
         aria-label={
-          isFailed ? "Dismiss failed message" : "Cancel scheduled message"
+          isFailed
+            ? t("chat.dismissFailedMessage", "Dismiss failed message")
+            : t("chat.cancelScheduledMessage", "Cancel scheduled message")
         }
       >
         {cancelMutation.isPending ? (
@@ -136,6 +165,8 @@ function ScheduledMessageRow({
  * failed) scheduled messages, with a dialog to review and cancel them.
  */
 export function ScheduledMessagesBar({ contactId }: ScheduledMessagesBarProps) {
+  const { t } = useTranslation();
+
   const [open, setOpen] = useState(false);
   const { data: scheduledMessages } = useScheduledMessages(contactId);
 
@@ -185,20 +216,23 @@ export function ScheduledMessagesBar({ contactId }: ScheduledMessagesBarProps) {
           <DialogPrimitive.Content className="fixed left-1/2 top-1/2 z-50 w-[calc(100vw-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-white p-4 shadow-xl animate-in fade-in-0 zoom-in-95 dark:bg-dark-elevated">
             <div className="flex items-center justify-between">
               <DialogPrimitive.Title className="text-base font-semibold text-[#111b21] dark:text-dark-text-primary">
-                Scheduled messages
+                {t("chat.scheduledMessages", "Scheduled messages")}
               </DialogPrimitive.Title>
               <DialogPrimitive.Close asChild>
                 <button
                   type="button"
                   className="grid size-8 place-items-center rounded-full text-[#8696a0] transition-colors hover:bg-black/[0.055] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00a884]/40 dark:text-dark-text-tertiary dark:hover:bg-white/[0.06]"
-                  aria-label="Close"
+                  aria-label={t("common.close", "Close")}
                 >
                   <X className="size-4.5" aria-hidden="true" />
                 </button>
               </DialogPrimitive.Close>
             </div>
             <DialogPrimitive.Description className="mt-1 text-xs text-[#667781] dark:text-dark-text-tertiary">
-              These messages will be sent automatically at their scheduled time.
+              {t(
+                "chat.scheduledMessagesHint",
+                "These messages will be sent automatically at their scheduled time.",
+              )}
             </DialogPrimitive.Description>
             <ul className="mt-3 flex max-h-[50vh] flex-col gap-2 overflow-y-auto">
               {scheduledMessages.map((scheduledMessage) => (

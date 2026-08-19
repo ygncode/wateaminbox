@@ -1,6 +1,7 @@
 import { Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { QuickReply } from "@/lib/api/types";
+import { useTranslation } from "react-i18next";
 
 interface QuickReplyCardProps {
   quickReply: QuickReply;
@@ -17,6 +18,8 @@ export function QuickReplyCard({
   onEdit,
   onDelete,
 }: QuickReplyCardProps) {
+  const { t } = useTranslation();
+
   return (
     <div
       className="group flex items-start gap-3 rounded-xl border border-[#e2e8e3] bg-[#fbfcfb] p-3.5 transition-colors hover:border-[#c8d3cc] hover:bg-[#f8faf8] focus-within:border-[#a9beb3] dark:border-white/[0.07] dark:bg-white/[0.02] dark:hover:border-white/[0.14] dark:hover:bg-white/[0.04]"
@@ -47,7 +50,7 @@ export function QuickReplyCard({
           onClick={() => onEdit(quickReply)}
           className="h-8 w-8 p-0"
           aria-label={`Edit ${quickReply.title}`}
-          title="Edit quick reply"
+          title={t("quickReplies.editAction", "Edit quick reply")}
           data-testid={`edit-quick-reply-${quickReply.shortcut}`}
         >
           <Pencil className="h-4 w-4" />
@@ -58,7 +61,7 @@ export function QuickReplyCard({
           onClick={() => onDelete(quickReply.id)}
           className="h-8 w-8 p-0 text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/30"
           aria-label={`Delete ${quickReply.title}`}
-          title="Delete quick reply"
+          title={t("quickReplies.deleteAction", "Delete quick reply")}
           data-testid={`delete-quick-reply-${quickReply.shortcut}`}
         >
           <Trash2 className="h-4 w-4" />

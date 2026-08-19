@@ -22,6 +22,7 @@ import { AssignmentSection } from "./AssignmentSection";
 import { AssignmentHistorySection } from "./AssignmentHistorySection";
 import { BlockStatusSection } from "./BlockStatusSection";
 import { NotificationMuteSection } from "./NotificationMuteSection";
+import { useTranslation } from "react-i18next";
 
 /**
  * Contact Profile Panel - shows detailed contact information
@@ -32,6 +33,8 @@ export function ContactProfile({
   isOpen,
   onClose,
 }: ContactProfileProps) {
+  const { t } = useTranslation();
+
   const { data: contact, isLoading, error } = useContact(contactId);
   const {
     data: group,
@@ -45,7 +48,11 @@ export function ContactProfile({
   return (
     <RightPanel isOpen={isOpen} onClose={onClose}>
       <RightPanelHeader
-        title={contact?.isGroup ? "Group Info" : "Contact Info"}
+        title={
+          contact?.isGroup
+            ? t("contacts.groupInfo", "Group Info")
+            : t("contacts.contactInfo", "Contact Info")
+        }
         onClose={onClose}
       />
       <RightPanelContent>
@@ -53,7 +60,10 @@ export function ContactProfile({
           <ContactProfileSkeleton />
         ) : error ? (
           <div className="p-4 text-center text-red-500 dark:text-red-400">
-            Failed to load contact information
+            {t(
+              "contacts.profileLoadFailed",
+              "Failed to load contact information",
+            )}
           </div>
         ) : contact ? (
           <>
@@ -95,10 +105,13 @@ export function ContactProfile({
             <BlockStatusSection contact={contact} />
 
             {/* Export Conversation Section */}
-            <RightPanelSection title="Export">
+            <RightPanelSection title={t("export.title", "Export")}>
               <div className="flex items-center justify-between">
                 <p className="text-sm text-gray-600 dark:text-dark-text-secondary">
-                  Download this conversation as CSV or JSON
+                  {t(
+                    "contacts.downloadConversation",
+                    "Download this conversation as CSV or JSON",
+                  )}
                 </p>
                 <Button
                   size="sm"

@@ -1,5 +1,6 @@
 import { ArrowLeft, Megaphone, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useTranslation } from "react-i18next";
 
 interface BroadcastsHeaderProps {
   workspaceName: string;
@@ -15,6 +16,8 @@ export function BroadcastsHeader({
   onBack,
   onCreate,
 }: BroadcastsHeaderProps) {
+  const { t } = useTranslation();
+
   return (
     <header className="shrink-0 border-b border-[#dce3de] bg-white px-4 py-3 dark:border-dark-border dark:bg-dark-secondary sm:px-6">
       <div className="flex min-h-10 items-center justify-between gap-3">
@@ -24,7 +27,10 @@ export function BroadcastsHeader({
               type="button"
               onClick={onBack}
               className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-[#d7e0da] bg-white text-[#52675f] transition-colors hover:bg-[#edf2ef] hover:text-[#075c41] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300 dark:border-dark-border dark:bg-dark-elevated dark:text-dark-text-secondary dark:hover:bg-dark-tertiary dark:hover:text-emerald-300"
-              aria-label="Back to broadcasts"
+              aria-label={t(
+                "broadcasts.backToBroadcasts",
+                "Back to broadcasts",
+              )}
             >
               <ArrowLeft className="h-4 w-4" aria-hidden="true" />
             </button>
@@ -36,13 +42,21 @@ export function BroadcastsHeader({
 
           <div className="min-w-0">
             <h1 className="truncate text-lg font-semibold leading-none text-gray-900 dark:text-dark-text-primary">
-              {showingDetail ? "Broadcast details" : "Broadcasts"}
+              {showingDetail
+                ? t("broadcasts.details", "Broadcast details")
+                : "Broadcasts"}
             </h1>
             <p className="mt-1 truncate text-xs text-[#65736d] dark:text-dark-text-secondary">
               {workspaceName} ·{" "}
               {showingDetail
-                ? "delivery progress and recipient outcomes"
-                : "scheduled outreach, paced safely by account"}
+                ? t(
+                    "broadcasts.detailsSubtitle",
+                    "delivery progress and recipient outcomes",
+                  )
+                : t(
+                    "broadcasts.listSubtitle",
+                    "scheduled outreach, paced safely by account",
+                  )}
             </p>
           </div>
         </div>
@@ -54,8 +68,10 @@ export function BroadcastsHeader({
             className="shrink-0 gap-2 bg-[#0b7a55] text-white shadow-sm hover:bg-[#096747]"
           >
             <Plus className="h-4 w-4" aria-hidden="true" />
-            <span className="hidden sm:inline">New broadcast</span>
-            <span className="sm:hidden">New</span>
+            <span className="hidden sm:inline">
+              {t("broadcasts.newBroadcast", "New broadcast")}
+            </span>
+            <span className="sm:hidden">{t("broadcasts.new", "New")}</span>
           </Button>
         )}
       </div>

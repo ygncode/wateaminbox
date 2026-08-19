@@ -27,9 +27,9 @@ describe("resolveComposerAccess", () => {
   });
 
   test("no can_send_messages is read-only regardless of assignment/lifecycle", () => {
-    expect(
-      resolveComposerAccess({ ...BASE, canSendMessages: false }),
-    ).toEqual({ kind: "no-permission" });
+    expect(resolveComposerAccess({ ...BASE, canSendMessages: false })).toEqual({
+      kind: "no-permission",
+    });
     expect(
       resolveComposerAccess({
         ...BASE,
@@ -58,9 +58,9 @@ describe("resolveComposerAccess", () => {
   });
 
   test("open + self-assigned is sendable", () => {
-    expect(
-      resolveComposerAccess({ ...BASE, assignedTo: "user-1" }),
-    ).toEqual({ kind: "sendable" });
+    expect(resolveComposerAccess({ ...BASE, assignedTo: "user-1" })).toEqual({
+      kind: "sendable",
+    });
   });
 
   test("resolved + unassigned shows the resolved CTA", () => {
@@ -70,9 +70,9 @@ describe("resolveComposerAccess", () => {
   });
 
   test("null lifecycle status (no case history at all) is treated as resolved", () => {
-    expect(
-      resolveComposerAccess({ ...BASE, lifecycleStatus: null }),
-    ).toEqual({ kind: "resolved" });
+    expect(resolveComposerAccess({ ...BASE, lifecycleStatus: null })).toEqual({
+      kind: "resolved",
+    });
     expect(
       resolveComposerAccess({ ...BASE, lifecycleStatus: undefined }),
     ).toEqual({ kind: "resolved" });

@@ -4,6 +4,7 @@ import { RightPanelSection } from "@/components/layout/right-panel";
 import { Button } from "@/components/ui/button";
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 import { type GroupDetail, useLeaveGroup } from "@/hooks/useGroups";
+import { useTranslation } from "react-i18next";
 
 interface GroupLeaveSectionProps {
   group: GroupDetail;
@@ -18,11 +19,13 @@ interface GroupLeaveSectionProps {
  * everyone.
  */
 export function GroupLeaveSection({ group }: GroupLeaveSectionProps) {
+  const { t } = useTranslation();
+
   const leaveGroup = useLeaveGroup();
   const [confirming, setConfirming] = useState(false);
 
   return (
-    <RightPanelSection title="Membership">
+    <RightPanelSection title={t("groups.membership", "Membership")}>
       {group.isMember ? (
         <>
           <p className="text-sm leading-5 text-gray-600 dark:text-dark-text-secondary">
@@ -38,28 +41,32 @@ export function GroupLeaveSection({ group }: GroupLeaveSectionProps) {
             onClick={() => setConfirming(true)}
           >
             <LogOut className="h-4 w-4" />
-            Leave group
+            {t("groups.leaveGroup", "Leave group")}
           </Button>
           {group.connection?.status !== "connected" && (
             <p className="mt-2 text-xs text-gray-500 dark:text-dark-text-tertiary">
-              The WhatsApp account for this group is offline. Reconnect it to
-              leave.
+              {t(
+                "groups.leaveOfflineHint",
+                "The WhatsApp account for this group is offline. Reconnect it to leave.",
+              )}
             </p>
           )}
         </>
       ) : (
         <p className="text-sm leading-5 text-gray-600 dark:text-dark-text-secondary">
-          This WhatsApp account has left the group. The conversation stays here
-          as a record, and the group continues for its other members.
+          {t(
+            "groups.alreadyLeftHint",
+            "This WhatsApp account has left the group. The conversation stays here as a record, and the group continues for its other members.",
+          )}
         </p>
       )}
 
       <ConfirmationDialog
         open={confirming}
         onOpenChange={setConfirming}
-        title="Leave this group?"
+        title={t("groups.leaveConfirm", "Leave this group?")}
         description={`${group.displayName}: this WhatsApp account stops receiving and sending messages here. ${group.leaveSemantics} Rejoining needs a new invite.`}
-        confirmText="Leave group"
+        confirmText={t("groups.leaveGroup", "Leave group")}
         isDestructive
         isLoading={leaveGroup.isPending}
         onConfirm={async () => {

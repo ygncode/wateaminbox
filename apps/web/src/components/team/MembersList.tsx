@@ -20,6 +20,7 @@ import {
 } from "@/hooks/useTeam";
 import { MemberPermissionsDialog } from "./MemberPermissionsDialog";
 import type { MembersListProps } from "./types";
+import { useTranslation } from "react-i18next";
 
 const roleRank = { owner: 3, admin: 2, member: 1 } as const;
 
@@ -32,6 +33,8 @@ export function MembersList({
   onSearchChange,
   onRoleFilterChange,
 }: MembersListProps) {
+  const { t } = useTranslation();
+
   const [pagination, setPagination] = useState<PaginationState>({
     pageIndex: 0,
     pageSize: 20,
@@ -101,7 +104,7 @@ export function MembersList({
   const columns: ColumnDef<CompanyMember>[] = [
     {
       id: "member",
-      header: "Member",
+      header: t("team.member", "Member"),
       size: 330,
       cell: ({ row }) => (
         <MemberIdentity
@@ -112,13 +115,13 @@ export function MembersList({
     },
     {
       accessorKey: "role",
-      header: "Role",
+      header: t("team.role", "Role"),
       size: 130,
       cell: ({ row }) => <MemberRole role={row.original.role} />,
     },
     {
       id: "access",
-      header: "Access",
+      header: t("team.access", "Access"),
       size: 160,
       cell: ({ row }) => {
         const hasCustomAccess = Boolean(
@@ -130,14 +133,16 @@ export function MembersList({
             variant={hasCustomAccess ? "default" : "secondary"}
             className="text-[10px]"
           >
-            {hasCustomAccess ? "Custom access" : "Role defaults"}
+            {hasCustomAccess
+              ? t("team.customAccess", "Custom access")
+              : t("team.roleDefaults", "Role defaults")}
           </Badge>
         );
       },
     },
     {
       accessorKey: "joinedAt",
-      header: "Joined",
+      header: t("team.joined", "Joined"),
       size: 150,
       cell: ({ row }) => (
         <time className="font-mono text-xs text-[#65736d] dark:text-dark-text-secondary">
@@ -161,7 +166,7 @@ export function MembersList({
         if (canManageTarget && member.role === "member") {
           items.push({
             id: "make-admin",
-            label: "Make admin",
+            label: t("team.makeAdmin", "Make admin"),
             icon: ShieldCheck,
             onClick: () => void handleRoleChange(member.userId, "admin"),
           });
@@ -169,7 +174,7 @@ export function MembersList({
         if (canManageTarget && member.role === "admin") {
           items.push({
             id: "make-member",
-            label: "Make member",
+            label: t("team.makeMember", "Make member"),
             icon: Shield,
             onClick: () => void handleRoleChange(member.userId, "member"),
           });
@@ -177,7 +182,7 @@ export function MembersList({
         if (canEditPermissions) {
           items.push({
             id: "permissions",
-            label: "Edit access",
+            label: t("team.editAccess", "Edit access"),
             icon: Settings2,
             onClick: () => {
               setPermissionMember(member);
@@ -188,7 +193,7 @@ export function MembersList({
         if (canManageTarget) {
           items.push({
             id: "remove",
-            label: "Remove member",
+            label: t("team.removeMemberAction", "Remove member"),
             icon: Trash2,
             destructive: true,
             onClick: () => {
@@ -201,7 +206,10 @@ export function MembersList({
         return items.length ? (
           <EllipsisMenu
             items={items}
-            ariaLabel={`Actions for ${member.name || member.email}`}
+            ariaLabel={t("team.actionsFor", {
+              defaultValue: "Actions for {{name}}",
+              name: member.name || member.email,
+            })}
             open={menuOpenFor === member.id}
             onOpenChange={(open) => setMenuOpenFor(open ? member.id : null)}
           />
@@ -224,7 +232,8 @@ export function MembersList({
           role="alert"
           className="shrink-0 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700 dark:bg-red-950/30 dark:text-red-300"
         >
-          {actionError.message || "Could not update this team member"}
+          {actionError.message ||
+            t("team.memberUpdateFailed", "Could not update this team member")}
         </div>
       )}
 
@@ -237,12 +246,12 @@ export function MembersList({
         search={{
           value: search,
           onChange: onSearchChange,
-          placeholder: "Search by name or email…",
-          label: "Search team members",
+          placeholder: t("team.searchPlaceholder", "Search by name or email…"),
+          label: t("team.searchLabel", "Search team members"),
         }}
         toolbarActions={
           <label className="flex items-center gap-2 text-xs font-medium text-[#65736d] dark:text-dark-text-secondary">
-            <span className="hidden sm:inline">Role</span>
+            <span className="hidden sm:inline">{t("team.role", "Role")}</span>
             <select
               value={roleFilter}
               onChange={(event) =>
@@ -251,12 +260,14 @@ export function MembersList({
                 )
               }
               className="h-9 rounded-lg border border-[#d7e0da] bg-white px-3 text-sm text-[#263b33] shadow-none dark:border-dark-border dark:bg-dark-tertiary dark:text-dark-text-primary"
-              aria-label="Filter members by role"
+              aria-label={t("team.filterByRole", "Filter members by role")}
             >
-              <option value="all">All roles</option>
-              <option value="owner">Owners</option>
-              <option value="admin">Admins</option>
-              <option value="member">Members</option>
+              <option value="all">{t("team.allRoles", "All roles")}</option>
+              <option value="owner">{t("team.owners", "Owners")}</option>
+              <option value="admin">{t("team.admins", "Admins")}</option>
+              <option value="member">
+                {t("team.membersLabel", "Members")}
+              </option>
             </select>
           </label>
         }
@@ -264,16 +275,22 @@ export function MembersList({
         isFetching={membersQuery.isFetching}
         error={membersQuery.error}
         getRowId={(member) => member.id}
-        tableLabel="Workspace members"
+        tableLabel={t("team.tableLabel", "Workspace members")}
         emptyTitle={
           search || roleFilter !== "all"
-            ? "No members match this view"
-            : "No team members yet"
+            ? t("team.noMembersMatch", "No members match this view")
+            : t("team.noMembersYet", "No team members yet")
         }
         emptyDescription={
           search || roleFilter !== "all"
-            ? "Try a different search or role filter."
-            : "Invite someone to start collaborating in this workspace."
+            ? t(
+                "team.tryDifferentFilter",
+                "Try a different search or role filter.",
+              )
+            : t(
+                "team.inviteToCollaborate",
+                "Invite someone to start collaborating in this workspace.",
+              )
         }
         className="min-h-0 flex-1"
       />
@@ -289,9 +306,12 @@ export function MembersList({
       <ConfirmationDialog
         open={pendingRemove !== null}
         onOpenChange={(open) => !open && setPendingRemove(null)}
-        title="Remove team member"
-        description="This member will immediately lose access to workspace conversations and data."
-        confirmText="Remove member"
+        title={t("team.removeTeamMember", "Remove team member")}
+        description={t(
+          "team.removeTeamMemberDescription",
+          "This member will immediately lose access to workspace conversations and data.",
+        )}
+        confirmText={t("team.removeMemberAction", "Remove member")}
         isDestructive
         isLoading={removeMember.isPending}
         onConfirm={handleConfirmRemove}

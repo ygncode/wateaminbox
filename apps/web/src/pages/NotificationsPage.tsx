@@ -29,12 +29,17 @@ import type { InAppNotification } from "@/lib/api/types";
 import { navigateToNotificationTarget } from "@/lib/notification-navigation";
 import { cn } from "@/lib/utils";
 import { workspacePath } from "@/lib/workspace-routes";
+import { useTranslation } from "react-i18next";
 
 const PAGE_SIZE = 25;
 
-const FILTER_TABS: { id: NotificationFilter; label: string }[] = [
-  { id: "all", label: "All" },
-  { id: "unread", label: "Unread" },
+const FILTER_TABS: {
+  id: NotificationFilter;
+  labelKey: string;
+  label: string;
+}[] = [
+  { id: "all", labelKey: "notifications.filterAll", label: "All" },
+  { id: "unread", labelKey: "notifications.filterUnread", label: "Unread" },
 ];
 
 /**
@@ -45,6 +50,8 @@ const FILTER_TABS: { id: NotificationFilter; label: string }[] = [
  * the page number, so a view can be linked and restored.
  */
 export function NotificationsPage() {
+  const { t } = useTranslation();
+
   const navigate = useNavigate();
   const { activeWorkspaceId } = useWorkspace();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -166,15 +173,22 @@ export function NotificationsPage() {
               >
                 <CheckCheck className="mr-1.5 size-4" />
                 <span className="hidden sm:inline">
-                  {isMarkingAllAsRead ? "Marking…" : "Mark all as read"}
+                  {isMarkingAllAsRead
+                    ? t("notifications.marking", "Marking…")
+                    : t("notifications.markAllAsRead", "Mark all as read")}
                 </span>
-                <span className="sm:hidden">Mark all</span>
+                <span className="sm:hidden">
+                  {t("notifications.markAll", "Mark all")}
+                </span>
               </Button>
             )}
             <Button
               variant="ghost"
               size="icon"
-              aria-label="Open notification settings"
+              aria-label={t(
+                "notifications.openSettings",
+                "Open notification settings",
+              )}
               className="size-9 rounded-lg text-[#65736d] dark:text-dark-text-secondary"
               onClick={() => navigate(settingsPath)}
             >
@@ -192,7 +206,7 @@ export function NotificationsPage() {
             <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-[#e6ebe7] px-3 py-2.5 dark:border-dark-border sm:px-4">
               <div
                 role="group"
-                aria-label="Filter notifications"
+                aria-label={t("notifications.filter", "Filter notifications")}
                 className="flex items-center gap-0.5 rounded-lg border border-[#d7e0da] bg-white p-0.5 shadow-sm dark:border-dark-border dark:bg-dark-elevated"
               >
                 {FILTER_TABS.map((tab) => {
@@ -210,7 +224,7 @@ export function NotificationsPage() {
                           "bg-[#e8f1ec] text-[#075c41] dark:bg-dark-tertiary dark:text-emerald-300",
                       )}
                     >
-                      {tab.label}
+                      {t(tab.labelKey, tab.label)}
                       {tab.id === "unread" && unreadCount > 0 && (
                         <span className="ml-1.5 grid min-w-4 place-items-center rounded-full bg-[#0b7a55] px-1 py-0.5 text-[9px] font-bold leading-none tabular-nums text-white">
                           {unreadCount > 99 ? "99+" : unreadCount}
@@ -227,13 +241,21 @@ export function NotificationsPage() {
                   aria-live="polite"
                 >
                   {range.end === 0
-                    ? "No results"
-                    : `Showing ${range.start}–${range.end} of ${total}`}
+                    ? t("search.noResultsShort", "No results")
+                    : t("notifications.showingRange", {
+                        defaultValue: "Showing {{start}}–{{end}} of {{total}}",
+                        start: range.start,
+                        end: range.end,
+                        total,
+                      })}
                 </p>
                 <Button
                   variant="ghost"
                   size="icon"
-                  aria-label="Refresh notifications"
+                  aria-label={t(
+                    "notifications.refresh",
+                    "Refresh notifications",
+                  )}
                   className="size-8 rounded-lg text-[#65736d] dark:text-dark-text-secondary"
                   onClick={controller.refresh}
                   disabled={isFetching}
@@ -260,21 +282,24 @@ export function NotificationsPage() {
                   action={
                     page > 0 ? (
                       <Button variant="outline" onClick={() => setPage(0)}>
-                        Back to the first page
+                        {t(
+                          "notifications.backToFirstPage",
+                          "Back to the first page",
+                        )}
                       </Button>
                     ) : filter === "unread" ? (
                       <Button
                         variant="outline"
                         onClick={() => setFilter("all")}
                       >
-                        View all notifications
+                        {t("notifications.viewAll", "View all notifications")}
                       </Button>
                     ) : (
                       <Button
                         variant="outline"
                         onClick={() => navigate(settingsPath)}
                       >
-                        Notification settings
+                        {t("notifications.settings", "Notification settings")}
                       </Button>
                     )
                   }
@@ -291,7 +316,7 @@ export function NotificationsPage() {
 
             {(page > 0 || hasMore) && (
               <nav
-                aria-label="Notification pages"
+                aria-label={t("notifications.pages", "Notification pages")}
                 className="flex shrink-0 items-center justify-between gap-3 border-t border-[#e6ebe7] px-3 py-2.5 dark:border-dark-border sm:px-4"
               >
                 <Button
@@ -326,15 +351,22 @@ export function NotificationsPage() {
           <aside className="@5xl:flex hidden w-72 shrink-0 flex-col gap-4">
             <div className="rounded-xl border border-[#dce3de] bg-white p-4 shadow-sm dark:border-dark-border dark:bg-dark-secondary">
               <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[#7a8881] dark:text-dark-text-secondary">
-                Waiting on you
+                {t("notifications.waitingOnYou", "Waiting on you")}
               </p>
               <p className="mt-2 text-3xl font-semibold tabular-nums text-[#10211b] dark:text-dark-text-primary">
                 {unreadCount}
               </p>
               <p className="mt-1 text-xs text-[#65736d] dark:text-dark-text-secondary">
                 {unreadCount === 0
-                  ? "Every notification in this workspace has been read."
-                  : `Unread notification${unreadCount === 1 ? "" : "s"} across this workspace.`}
+                  ? t(
+                      "notifications.allRead",
+                      "Every notification in this workspace has been read.",
+                    )
+                  : t("notifications.unreadAcrossWorkspace", {
+                      defaultValue:
+                        "Unread notifications across this workspace.",
+                      count: unreadCount,
+                    })}
               </p>
               {unreadCount > 0 && (
                 <Button
@@ -345,7 +377,7 @@ export function NotificationsPage() {
                   disabled={isMarkingAllAsRead}
                 >
                   <CheckCheck className="mr-1.5 size-4" />
-                  Mark all as read
+                  {t("notifications.markAllAsRead", "Mark all as read")}
                 </Button>
               )}
             </div>
@@ -353,7 +385,7 @@ export function NotificationsPage() {
             {typeCounts.length > 0 && (
               <div className="rounded-xl border border-[#dce3de] bg-white p-4 shadow-sm dark:border-dark-border dark:bg-dark-secondary">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[#7a8881] dark:text-dark-text-secondary">
-                  On this page
+                  {t("notifications.onThisPage", "On this page")}
                 </p>
                 <ul className="mt-3 space-y-2.5">
                   {typeCounts.map((entry) => (
