@@ -145,6 +145,7 @@ describe("realtime fan-out query load", () => {
             company_id: fixture.companyId,
             user_id: otherUserId,
             role: "member",
+            permissions: { can_view_all_chats: false },
           })
           .execute();
         invalidateCompanyMembership(fixture.companyId);

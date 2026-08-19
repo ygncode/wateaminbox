@@ -73,8 +73,18 @@ async function withWorkspace(run: (fixture: Fixture) => Promise<void>) {
       .insertInto("company_members")
       .values([
         { company_id: companyId, user_id: ownerId, role: "owner" },
-        { company_id: companyId, user_id: agentId, role: "member" },
-        { company_id: companyId, user_id: otherAgentId, role: "member" },
+        {
+          company_id: companyId,
+          user_id: agentId,
+          role: "member",
+          permissions: { can_view_all_chats: false },
+        },
+        {
+          company_id: companyId,
+          user_id: otherAgentId,
+          role: "member",
+          permissions: { can_view_all_chats: false },
+        },
       ])
       .execute();
 

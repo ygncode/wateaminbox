@@ -114,6 +114,15 @@ export const TENANT_INDEX_TARGETS: readonly TenantIndexTarget[] = [
     purpose: "conversation status filter",
   },
   {
+    suffix: "_msg_ct_ts_id_idx",
+    legacySuffix: "_messages_contact_timestamp_id_idx",
+    table: "messages",
+    columns: ["contact_id", "timestamp", "id"],
+    createColumns: ["contact_id", "timestamp DESC", "id DESC"],
+    unique: false,
+    purpose: "deterministic conversation pagination and inbox lateral lookup",
+  },
+  {
     suffix: "_msg_media_pend_idx",
     legacySuffix: "_idx_messages_media_pending",
     table: "messages",

@@ -12,14 +12,13 @@ import { toISOString } from "@wateaminbox/shared";
 import { Hono } from "hono";
 import { sql } from "kysely";
 import { env } from "../lib/env.js";
-import { isNatsConnected } from "../lib/nats/index.js";
+import { natsLifecycle } from "../lib/nats/index.js";
 import { isCentrifugoReachable } from "../lib/realtime.js";
 import {
   getCommandOutboxBacklog,
   getCommandOutboxHealth,
 } from "../services/command-outbox.service.js";
 import { getMessageCleanupStatus } from "../services/message-cleanup.service.js";
-import { isMessageHandlerInitialized } from "../services/message-handler.js";
 import { getScheduledMessageHealth } from "../services/scheduled-message.service.js";
 
 export const healthRoutes = new Hono();
@@ -35,10 +34,8 @@ export function evaluateReadiness(
   checks: ReadinessChecks,
 ): "ready" | "degraded" | "unready" {
   if (!checks.postgres) return "unready";
-  return !checks.nats ||
-    !checks.eventConsumer ||
-    !checks.centrifugo.configured ||
-    !checks.centrifugo.reachable
+  if (!checks.nats || !checks.eventConsumer) return "unready";
+  return !checks.centrifugo.configured || !checks.centrifugo.reachable
     ? "degraded"
     : "ready";
 }
@@ -63,10 +60,11 @@ healthRoutes.get("/", (c) => {
  * Kubernetes uses this to determine if the pod is ready to receive traffic
  */
 healthRoutes.get("/ready", async (c) => {
+  const natsState = natsLifecycle.getReadinessState();
   const checks = {
     postgres: false,
-    nats: isNatsConnected(),
-    eventConsumer: isMessageHandlerInitialized(),
+    nats: natsState.nats.connected,
+    eventConsumer: natsState.eventConsumer.active,
     outbox: getCommandOutboxHealth(),
     outboxBacklog: { pending: 0, oldestPendingAt: null as Date | null },
     scheduledMessages: getScheduledMessageHealth(),
@@ -78,6 +76,7 @@ healthRoutes.get("/ready", async (c) => {
       ),
       reachable: false,
     },
+    natsDetail: natsState,
   };
 
   try {
@@ -97,9 +96,6 @@ healthRoutes.get("/ready", async (c) => {
     return c.json({ status, timestamp: toISOString(), checks }, 503);
   }
 
-  // NATS, the consumer, and Centrifugo are reported as degraded without
-  // removing the API from service; persisted REST operations remain available
-  // and the command outbox recovers delivery when NATS returns.
   return c.json({ status, timestamp: toISOString(), checks });
 });
 

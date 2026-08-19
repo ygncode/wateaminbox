@@ -55,6 +55,11 @@ type Config struct {
 	ConnectionID string
 	DatabaseURL  string
 	LogLevel     string
+
+	DBMaxOpenConns    int
+	DBMaxIdleConns    int
+	DBConnMaxLifetime time.Duration
+	DBConnMaxIdleTime time.Duration
 }
 
 // QRCallback is called when a QR code is available for pairing.
@@ -108,9 +113,13 @@ func New(ctx context.Context, cfg Config) (*Client, error) {
 
 	// Initialize PostgreSQL store
 	container, err := store.NewStore(ctx, store.Config{
-		DatabaseURL:  cfg.DatabaseURL,
-		ConnectionID: cfg.ConnectionID,
-		Logger:       waLogger.Sub("store"),
+		DatabaseURL:     cfg.DatabaseURL,
+		ConnectionID:    cfg.ConnectionID,
+		Logger:          waLogger.Sub("store"),
+		MaxOpenConns:    cfg.DBMaxOpenConns,
+		MaxIdleConns:    cfg.DBMaxIdleConns,
+		ConnMaxLifetime: cfg.DBConnMaxLifetime,
+		ConnMaxIdleTime: cfg.DBConnMaxIdleTime,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create store: %w", err)

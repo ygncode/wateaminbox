@@ -89,19 +89,30 @@ messageRoutes.get(
       .selectAll()
       .where("contact_id", "=", contactId)
       .orderBy("timestamp", "desc")
+      .orderBy("id", "desc")
       .limit(limit);
 
-    // Cursor pagination - get messages before a specific message
     if (cursor) {
       const cursorMessage = await tenantDb
         .selectFrom("messages")
-        .select(["timestamp"])
+        .select(["timestamp", "id"])
         .where("id", "=", cursor)
+        .where("contact_id", "=", contactId)
         .executeTakeFirst();
 
-      if (cursorMessage) {
-        query = query.where("timestamp", "<", cursorMessage.timestamp);
+      if (!cursorMessage) {
+        return badRequest(c, "Invalid cursor");
       }
+
+      query = query.where((eb) =>
+        eb.or([
+          eb("timestamp", "<", cursorMessage.timestamp),
+          eb.and([
+            eb("timestamp", "=", cursorMessage.timestamp),
+            eb("id", "<", cursorMessage.id),
+          ]),
+        ]),
+      );
     }
 
     const messages = await query.execute();

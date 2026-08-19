@@ -28,6 +28,7 @@ type Config struct {
 	AutoRestartEnabled    bool          // Enable auto-restart on crash
 	AutoRestartMaxRetries int           // Max restart attempts (default: 5)
 	AutoRestartBackoff    time.Duration // Base backoff between restarts (default: 5s)
+	MaxWorkers            int           // 0 = unlimited
 }
 
 // Manager handles WhatsApp worker process lifecycle.
@@ -69,10 +70,11 @@ type WorkerProcess struct {
 	LastActivity time.Time
 	RestartCount int       // Number of restart attempts
 	LastCrashAt  time.Time // When last crash occurred
-	ExpectedExit bool      // One-shot unlink workers must not auto-restart.
+	ExpectedExit bool      // Suppresses crash handling in monitorWorkerProcess.
+	RemoveOnExit bool      // One-shot unlink workers remove themselves on exit.
 	cmd          *exec.Cmd
-	cancelFunc   context.CancelFunc
 	healthCancel context.CancelFunc
+	done         chan struct{} // closed after cmd.Wait() reaps the process
 }
 
 // Copy returns a shallow copy of the worker process without internal fields.
@@ -91,6 +93,7 @@ func (w *WorkerProcess) Copy() *WorkerProcess {
 		RestartCount: w.RestartCount,
 		LastCrashAt:  w.LastCrashAt,
 		ExpectedExit: w.ExpectedExit,
+		RemoveOnExit: w.RemoveOnExit,
 	}
 }
 
@@ -177,12 +180,8 @@ func (m *Manager) Stop(ctx context.Context) error {
 		}
 	}
 
-	// Cancel the manager context (stops health checks and monitors)
-	if m.cancel != nil {
-		m.cancel()
-	}
-
-	// Stop all workers
+	// Stop all workers — manager context stays alive so health checks and
+	// monitors can still observe workers while they drain.
 	m.mu.Lock()
 	workerIDs := make([]string, 0, len(m.workers))
 	for id := range m.workers {
@@ -252,6 +251,12 @@ func (m *Manager) Stop(ctx context.Context) error {
 	}
 	stopWG.Wait()
 
+	// Cancel the manager context now that all workers have been stopped.
+	// This stops health checks and monitors.
+	if m.cancel != nil {
+		m.cancel()
+	}
+
 	// Wait for all goroutines to finish
 	m.wg.Wait()
 
@@ -299,11 +304,15 @@ func (m *Manager) spawnWorker(
 		delete(m.workers, connectionID)
 	}
 
-	// Create worker context with cancel
-	workerCtx, workerCancel := context.WithCancel(m.ctx)
+	if m.config.MaxWorkers > 0 && len(m.workers) >= m.config.MaxWorkers {
+		count := len(m.workers)
+		m.mu.Unlock()
+		return fmt.Errorf("worker limit reached (%d/%d)", count, m.config.MaxWorkers)
+	}
 
-	// Create the command
-	cmd := exec.CommandContext(workerCtx, m.config.WhatsAppBinaryPath)
+	// Create the command without a context so the manager context cancellation
+	// does not kill the process — the manager has explicit signal ownership.
+	cmd := exec.Command(m.config.WhatsAppBinaryPath)
 
 	// Set environment variables
 	cmd.Env = append(os.Environ(),
@@ -335,45 +344,47 @@ func (m *Manager) spawnWorker(
 		Status:       types.StatusStarting,
 		StartedAt:    time.Now(),
 		LastActivity: time.Now(),
-		ExpectedExit: unlinkOnStart,
+		RemoveOnExit: unlinkOnStart,
 		cmd:          cmd,
-		cancelFunc:   workerCancel,
+		done:         make(chan struct{}),
 	}
 
 	// Start the process
 	log.Printf("Spawning worker for company %s, connection %s...", companyID, connectionID)
 	if err := cmd.Start(); err != nil {
-		workerCancel()
 		m.mu.Unlock()
 		return fmt.Errorf("failed to start worker process: %w", err)
 	}
 
 	worker.PID = cmd.Process.Pid
 	worker.Status = types.StatusConnecting
-	m.workers[connectionID] = worker
-	m.mu.Unlock()
+
+	if !unlinkOnStart {
+		healthCtx, healthCancel := context.WithCancel(m.ctx)
+		worker.healthCancel = healthCancel
+		m.workers[connectionID] = worker
+		m.mu.Unlock()
+
+		m.wg.Add(1)
+		go m.healthCheckWorker(healthCtx, connectionID)
+	} else {
+		m.workers[connectionID] = worker
+		m.mu.Unlock()
+	}
 
 	log.Printf("Worker spawned for company %s, connection %s with PID %d", companyID, connectionID, worker.PID)
 
-	// Register worker in persistent storage
+	// Register worker in persistent storage — pass a copy to avoid handing
+	// a mutable map pointer to the registry goroutine.
 	if m.registry != nil {
-		if err := m.registry.RegisterWorker(ctx, worker); err != nil {
+		if err := m.registry.RegisterWorker(ctx, worker.Copy()); err != nil {
 			log.Printf("Warning: failed to register worker in registry: %v", err)
 		}
 	}
 
-	if !unlinkOnStart {
-		// Start health check goroutine
-		healthCtx, healthCancel := context.WithCancel(m.ctx)
-		worker.healthCancel = healthCancel
-
-		m.wg.Add(1)
-		go m.healthCheckWorker(healthCtx, connectionID)
-	}
-
 	// Start process monitor goroutine
 	m.wg.Add(1)
-	go m.monitorWorkerProcess(workerCtx, connectionID, cmd, worker)
+	go m.monitorWorkerProcess(connectionID, cmd, worker)
 
 	// Publish worker started event
 	m.publishConnectionStatus(companyID, connectionID, types.StatusConnecting, "Worker process started")
@@ -440,11 +451,10 @@ func (m *Manager) stopWorkerInternal(
 		return fmt.Errorf("worker %s not found", connectionID)
 	}
 
-	// Mark as stopping
+	// Mark as stopping — every explicit stop suppresses crash handling in
+	// monitorWorkerProcess, which races to observe the process exit.
 	worker.Status = types.StatusStopping
-	if stopSignal == syscall.SIGUSR1 {
-		worker.ExpectedExit = true
-	}
+	worker.ExpectedExit = true
 	m.mu.Unlock()
 
 	log.Printf("Stopping worker %s: %s", connectionID, reason)
@@ -499,16 +509,18 @@ func (m *Manager) stopWorkerInternal(
 	}
 	log.Printf("Sent %s signal to worker %s", stopSignal, connectionID)
 
-	if worker.cancelFunc != nil && stopSignal != syscall.SIGUSR1 {
-		worker.cancelFunc()
-	}
 	gracePeriod := 5 * time.Second
 	if stopSignal == syscall.SIGUSR1 {
 		gracePeriod = 20 * time.Second
 	}
-	if err := waitForProcessExit(ctx, pid, gracePeriod); err != nil {
-		_ = process.Signal(syscall.SIGKILL)
-		if killErr := waitForProcessExit(ctx, pid, 2*time.Second); killErr != nil {
+	if err := m.waitForWorkerExit(ctx, worker, pid, gracePeriod); err != nil {
+		if pgid, pgErr := syscall.Getpgid(pid); pgErr == nil && pgid == pid {
+			_ = syscall.Kill(-pgid, syscall.SIGKILL)
+		} else {
+			_ = process.Signal(syscall.SIGKILL)
+		}
+		log.Printf("Escalated to SIGKILL for worker %s (PID %d)", connectionID, pid)
+		if killErr := m.waitForWorkerExit(ctx, worker, pid, 2*time.Second); killErr != nil {
 			return fmt.Errorf("worker %s did not exit: %w", connectionID, killErr)
 		}
 	}
@@ -554,6 +566,25 @@ func (m *Manager) isExpectedWorkerProcess(pid int) (bool, error) {
 	}
 	actual := fields[0]
 	return actual == m.config.WhatsAppBinaryPath || filepath.Base(actual) == filepath.Base(m.config.WhatsAppBinaryPath), nil
+}
+
+// waitForWorkerExit waits for a spawned worker's done channel (closed when
+// cmd.Wait reaps the process) or falls back to signal-0 polling for recovered
+// workers that have no exec.Cmd.
+func (m *Manager) waitForWorkerExit(ctx context.Context, worker *WorkerProcess, pid int, timeout time.Duration) error {
+	if worker.done != nil {
+		timer := time.NewTimer(timeout)
+		defer timer.Stop()
+		select {
+		case <-worker.done:
+			return nil
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-timer.C:
+			return fmt.Errorf("timed out waiting for PID %d", pid)
+		}
+	}
+	return waitForProcessExit(ctx, pid, timeout)
 }
 
 func waitForProcessExit(ctx context.Context, pid int, timeout time.Duration) error {
@@ -668,19 +699,21 @@ func (m *Manager) healthCheckWorker(ctx context.Context, connectionID string) {
 		case <-ticker.C:
 			m.mu.RLock()
 			worker, exists := m.workers[connectionID]
-			m.mu.RUnlock()
-
 			if !exists {
+				m.mu.RUnlock()
 				log.Printf("Health check: worker %s no longer exists, stopping health check", connectionID)
 				return
 			}
+			pid := worker.PID
+			lastActivity := worker.LastActivity
+			m.mu.RUnlock()
 
 			// Check if process is still running using PID
 			// This works for both spawned workers (with cmd) and recovered workers (without cmd)
-			if worker.PID > 0 {
-				process, err := os.FindProcess(worker.PID)
+			if pid > 0 {
+				process, err := os.FindProcess(pid)
 				if err != nil {
-					log.Printf("Health check: worker %s process not found (PID %d)", connectionID, worker.PID)
+					log.Printf("Health check: worker %s process not found (PID %d)", connectionID, pid)
 					m.handleWorkerFailure(connectionID, "process not found")
 					return
 				}
@@ -688,7 +721,7 @@ func (m *Manager) healthCheckWorker(ctx context.Context, connectionID string) {
 				// Send signal 0 to check if process exists
 				err = process.Signal(syscall.Signal(0))
 				if err != nil {
-					log.Printf("Health check: worker %s process dead (PID %d): %v", connectionID, worker.PID, err)
+					log.Printf("Health check: worker %s process dead (PID %d): %v", connectionID, pid, err)
 					m.handleWorkerFailure(connectionID, "process dead")
 					return
 				}
@@ -696,17 +729,6 @@ func (m *Manager) healthCheckWorker(ctx context.Context, connectionID string) {
 
 			// The process answered signal 0, so it is alive. Record that in the
 			// durable registry.
-			//
-			// Without this, last_heartbeat was only ever written by
-			// RegisterWorker and so stayed frozen at the spawn time for the
-			// life of the worker: a connection healthy for fourteen hours still
-			// reported a fourteen-hour-old heartbeat, indistinguishable from an
-			// abandoned row. A heartbeat that never beats cannot answer the one
-			// question the column exists for.
-			//
-			// Logged rather than fatal. Failing the health check because a
-			// bookkeeping write failed would stop a worker that is running
-			// perfectly well and holding a live WhatsApp session.
 			if m.recordWorkerHeartbeat != nil {
 				if err := m.recordWorkerHeartbeat(ctx, connectionID); err != nil {
 					log.Printf("Warning: failed to record heartbeat for worker %s: %v", connectionID, err)
@@ -715,8 +737,8 @@ func (m *Manager) healthCheckWorker(ctx context.Context, connectionID string) {
 
 			// Check for stale activity. This is about WhatsApp traffic, not
 			// liveness: an idle connection legitimately sees none for hours.
-			if time.Since(worker.LastActivity) > 5*time.Minute {
-				log.Printf("Health check: worker %s has stale activity (last: %v)", connectionID, worker.LastActivity)
+			if time.Since(lastActivity) > 5*time.Minute {
+				log.Printf("Health check: worker %s has stale activity (last: %v)", connectionID, lastActivity)
 			}
 		}
 	}
@@ -724,26 +746,29 @@ func (m *Manager) healthCheckWorker(ctx context.Context, connectionID string) {
 
 // monitorWorkerProcess monitors the worker process and handles its exit.
 func (m *Manager) monitorWorkerProcess(
-	ctx context.Context,
 	connectionID string,
 	cmd *exec.Cmd,
 	workerProcess *WorkerProcess,
 ) {
 	defer m.wg.Done()
+	defer close(workerProcess.done)
 
 	// Wait for the process to exit
 	err := cmd.Wait()
 
 	m.mu.Lock()
+	removeOnExit := workerProcess.RemoveOnExit
 	expectedExit := workerProcess.ExpectedExit
-	if expectedExit {
+	shuttingDown := m.shuttingDown
+	if removeOnExit {
 		if workerProcess.healthCancel != nil {
 			workerProcess.healthCancel()
 		}
 		delete(m.workers, connectionID)
 	}
 	m.mu.Unlock()
-	if expectedExit {
+
+	if removeOnExit {
 		if m.registry != nil {
 			if removeErr := m.registry.RemoveWorker(m.ctx, connectionID); removeErr != nil {
 				log.Printf("Warning: failed to remove completed unlink worker %s: %v", connectionID, removeErr)
@@ -757,19 +782,17 @@ func (m *Manager) monitorWorkerProcess(
 		return
 	}
 
-	select {
-	case <-ctx.Done():
-		// Context was cancelled, this is expected
+	if expectedExit || shuttingDown {
 		return
-	default:
-		// Process exited unexpectedly
-		if err != nil {
-			log.Printf("Worker %s exited with error: %v", connectionID, err)
-			m.handleWorkerFailure(connectionID, err.Error())
-		} else {
-			log.Printf("Worker %s exited cleanly", connectionID)
-			m.handleWorkerFailure(connectionID, "process exited")
-		}
+	}
+
+	// Process exited unexpectedly
+	if err != nil {
+		log.Printf("Worker %s exited with error: %v", connectionID, err)
+		m.handleWorkerFailure(connectionID, err.Error())
+	} else {
+		log.Printf("Worker %s exited cleanly", connectionID)
+		m.handleWorkerFailure(connectionID, "process exited")
 	}
 }
 

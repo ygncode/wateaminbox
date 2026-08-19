@@ -1,4 +1,3 @@
-import type { JetStreamSubscription } from "nats";
 import { createLogger, formatError } from "../lib/logger.js";
 import { PermanentEventError } from "../lib/nats/client.js";
 import {
@@ -22,12 +21,11 @@ import {
   type SendFailedEvent,
   type StatusEvent,
   type SyncStatusEvent,
-  subscribeToAllEvents,
   type TypingEvent,
   type WhatsAppEvent,
   type WorkerConnectionStatusEvent,
+  natsLifecycle,
 } from "../lib/nats/index.js";
-// Import handlers from focused modules
 import {
   handleCatalogProductsEvent,
   handleCatalogsEvent,
@@ -59,68 +57,15 @@ import { resolveWhatsAppSession } from "./whatsapp/session.js";
 
 const logger = createLogger("MessageHandler");
 
-// Subscription handle
-let eventSubscription: JetStreamSubscription | null = null;
-let isInitialized = false;
-let isShuttingDown = false;
-
-/**
- * Initializes the message event handler
- * Subscribes to NATS WhatsApp events and processes them
- * Retries if streams don't exist yet (orchestrator may not have started)
- */
-export async function initializeMessageHandler(): Promise<void> {
-  if (isInitialized) {
-    logger.info("Already initialized");
-    return;
-  }
-
-  const retryDelayMs = 3000;
-  let attempt = 0;
-  isShuttingDown = false;
-
-  // Keep trying for the lifetime of the API process. Starting the HTTP server
-  // without an event consumer is acceptable briefly, but silently remaining
-  // disconnected until the next process restart is not.
-  while (!isShuttingDown) {
-    attempt++;
-    try {
-      eventSubscription = await subscribeToAllEvents(handleWhatsAppEvent);
-      isInitialized = true;
-      logger.info({ attempt }, "Initialized and subscribed to WhatsApp events");
-      return;
-    } catch (error) {
-      logger.warn(
-        {
-          ...formatError(error),
-          attempt,
-          retryDelaySeconds: retryDelayMs / 1000,
-        },
-        "Failed to initialize event consumer; retrying",
-      );
-      await new Promise((resolve) => setTimeout(resolve, retryDelayMs));
-    }
-  }
+export function initializeMessageHandler(): void {
+  natsLifecycle.startEventSupervisor(handleWhatsAppEvent);
+  logger.info("Event supervisor started");
 }
 
-/**
- * Shuts down the message event handler
- */
 export async function shutdownMessageHandler(): Promise<void> {
-  isShuttingDown = true;
-  if (eventSubscription) {
-    eventSubscription.unsubscribe();
-    eventSubscription = null;
-  }
-  isInitialized = false;
-  logger.info("Shutdown complete");
+  await natsLifecycle.shutdown();
 }
 
-/**
- * Handles incoming WhatsApp events from NATS
- * Routes events to appropriate handlers based on event type
- * Exported for testing purposes
- */
 export async function handleWhatsAppEvent(event: WhatsAppEvent): Promise<void> {
   const { type, companyId } = event;
   const sessionId = event.connectionId;
@@ -272,9 +217,6 @@ export async function handleWhatsAppEvent(event: WhatsAppEvent): Promise<void> {
   }
 }
 
-/**
- * Gets initialization status
- */
 export function isMessageHandlerInitialized(): boolean {
-  return isInitialized;
+  return natsLifecycle.isConsumerActive();
 }

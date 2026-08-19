@@ -9,12 +9,59 @@ permissions:
   contents: read
 
 jobs:
-  validate:
+  static:
     # Public pull-request code must not execute on maintainer infrastructure.
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.2.18
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25.x"
+          cache-dependency-path: |
+            services/shared/go.sum
+            services/orchestrator/go.sum
+            services/whatsapp/go.sum
+
+      - run: bun install --frozen-lockfile
+      - run: bun run lint
+      - run: bun run typecheck
+      - run: bun run check:unused
+      - run: bun run build -- --force
+
+  ts-unit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.2.18
+
+      - run: bun install --frozen-lockfile
+      - name: Build internal TypeScript dependencies
+        run: bun run --filter @wateaminbox/shared build && bun run --filter @wateaminbox/database build
+      - name: API unit tests
+        run: cd apps/api && bun test
+      - name: Web unit tests
+        run: cd apps/web && bun test
+      - name: Shared unit tests
+        run: cd packages/shared && bun test
+
+  ts-integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
     env:
-      # Synthetic test-only keys. Production secrets must never be stored in Actions YAML.
       JWT_SECRET: ci-test-only-not-a-secret-at-least-32-characters
       CENTRIFUGO_TOKEN_HMAC_SECRET: ci-test-only-realtime-secret-at-least-32-characters
     services:
@@ -40,6 +87,46 @@ jobs:
         with:
           bun-version: 1.2.18
 
+      - name: Start NATS and MinIO integration services
+        run: |
+          docker run -d --name nats-ci -p 4448:4222 nats:2.10-alpine -js
+          docker run -d --name minio-ci -p 4450:9000 \
+            -e MINIO_ROOT_USER=minioadmin \
+            -e MINIO_ROOT_PASSWORD=minioadmin \
+            minio/minio:RELEASE.2025-04-22T22-12-26Z server /data
+          for attempt in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:4450/minio/health/live >/dev/null; then
+              break
+            fi
+            if [ "$attempt" -eq 30 ]; then
+              echo "MinIO did not become ready" >&2
+              docker logs minio-ci
+              exit 1
+            fi
+            sleep 1
+          done
+          docker run --rm --network host --entrypoint /bin/sh minio/mc:latest \
+            -c 'mc alias set local http://127.0.0.1:4450 minioadmin minioadmin && mc mb --ignore-existing local/whatsapp-media'
+
+      - name: Configure test database URL
+        run: echo "DATABASE_URL=postgresql://postgres:postgres@localhost:${{ job.services.postgres.ports[5432] }}/wateaminbox" >> "$GITHUB_ENV"
+
+      - run: bun install --frozen-lockfile
+      - name: Build internal TypeScript dependencies
+        run: bun run --filter @wateaminbox/shared build && bun run --filter @wateaminbox/database build
+      - run: bun run db:migrate
+
+      - name: Run all TypeScript integration tests (recursive discovery)
+        run: ./scripts/run-integration-tests-ts.sh
+
+  go-unit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
       - uses: actions/setup-go@v5
         with:
           go-version: "1.25.x"
@@ -48,16 +135,134 @@ jobs:
             services/orchestrator/go.sum
             services/whatsapp/go.sum
 
+      - name: Go unit tests (all modules, -short)
+        run: |
+          for mod in services/shared services/orchestrator services/whatsapp; do
+            echo "==> $mod"
+            (cd "$mod" && go test -short -timeout 5m ./...)
+          done
+
+  go-race:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25.x"
+          cache-dependency-path: |
+            services/shared/go.sum
+            services/orchestrator/go.sum
+            services/whatsapp/go.sum
+
+      - name: Go race detection (all modules)
+        run: ./scripts/run-go-race.sh
+
+  go-integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: wateaminbox
+        ports:
+          - 5432/tcp
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25.x"
+          cache-dependency-path: |
+            services/shared/go.sum
+            services/orchestrator/go.sum
+            services/whatsapp/go.sum
+
+      - name: Start MinIO integration service
+        run: |
+          docker run -d --name minio-ci -p 4450:9000 \
+            -e MINIO_ROOT_USER=minioadmin \
+            -e MINIO_ROOT_PASSWORD=minioadmin \
+            minio/minio:RELEASE.2025-04-22T22-12-26Z server /data
+          for attempt in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:4450/minio/health/live >/dev/null; then
+              break
+            fi
+            if [ "$attempt" -eq 30 ]; then
+              echo "MinIO did not become ready" >&2
+              docker logs minio-ci
+              exit 1
+            fi
+            sleep 1
+          done
+          docker run --rm --network host --entrypoint /bin/sh minio/mc:latest \
+            -c 'mc alias set local http://127.0.0.1:4450 minioadmin minioadmin && mc mb --ignore-existing local/whatsapp-media'
+
       - name: Configure test database URL
         run: echo "DATABASE_URL=postgresql://postgres:postgres@localhost:${{ job.services.postgres.ports[5432] }}/wateaminbox" >> "$GITHUB_ENV"
 
-      - run: bun install --frozen-lockfile
-      - run: bun run lint
-      - run: bun run typecheck
-      - run: bun run db:migrate
-      - run: bun run test:db-contracts
-      - run: bun run test:sla-analytics
-      - run: bun run test:groups
-      - run: bun run check:unused
-      - run: bun run test
-      - run: bun run build -- --force
+      - name: Run WhatsApp Go integration tests
+        run: ./scripts/run-integration-tests-go.sh
+
+  security:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: actions/setup-go@v5
+        with:
+          # Explicitly require the first 1.25 patch containing the standard-library
+          # fixes reported by govulncheck (GO-2026-6090 and GO-2026-5972).
+          go-version: "1.25.13"
+          cache-dependency-path: |
+            services/shared/go.sum
+            services/orchestrator/go.sum
+            services/whatsapp/go.sum
+
+      - name: Install govulncheck
+        run: go install golang.org/x/vuln/cmd/govulncheck@v1.1.4
+
+      - name: Run govulncheck on all Go modules
+        run: |
+          for mod in services/shared services/orchestrator services/whatsapp; do
+            echo "==> govulncheck $mod"
+            (cd "$mod" && govulncheck ./...)
+          done
+
+  # Stable aggregate required by main's branch-protection policy. Keep the
+  # detailed jobs independently visible while exposing one durable gate name.
+  validate:
+    if: ${{ always() }}
+    needs:
+      - static
+      - ts-unit
+      - ts-integration
+      - go-unit
+      - go-race
+      - go-integration
+      - security
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Require every CI job to pass
+        env:
+          JOB_RESULTS: ${{ toJSON(needs) }}
+        run: jq --exit-status 'all(.[]; .result == "success")' <<<"$JOB_RESULTS"

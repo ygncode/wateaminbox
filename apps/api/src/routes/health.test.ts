@@ -13,11 +13,14 @@ describe("readiness policy", () => {
     expect(evaluateReadiness({ ...healthy, postgres: false })).toBe("unready");
   });
 
-  test("delivery dependencies report degraded without rejecting REST traffic", () => {
-    expect(evaluateReadiness({ ...healthy, nats: false })).toBe("degraded");
+  test("NATS or event consumer failure makes the API unready", () => {
+    expect(evaluateReadiness({ ...healthy, nats: false })).toBe("unready");
     expect(evaluateReadiness({ ...healthy, eventConsumer: false })).toBe(
-      "degraded",
+      "unready",
     );
+  });
+
+  test("Centrifugo issues degrade without rejecting REST traffic", () => {
     expect(
       evaluateReadiness({
         ...healthy,

@@ -6,7 +6,7 @@
 import { Hono } from "hono";
 import { env } from "../lib/env.js";
 import { createLogger, formatError } from "../lib/logger.js";
-import { getNatsConnection, isNatsConnected } from "../lib/nats/client.js";
+import { natsLifecycle } from "../lib/nats/lifecycle.js";
 
 const logger = createLogger("debug");
 
@@ -25,7 +25,7 @@ debugRoutes.get("/nats/status", async (c) => {
   }
 
   try {
-    const connected = isNatsConnected();
+    const connected = natsLifecycle.isConnected();
 
     if (!connected) {
       return c.json({
@@ -35,7 +35,7 @@ debugRoutes.get("/nats/status", async (c) => {
       });
     }
 
-    const jsm = await (await getNatsConnection()).jetstreamManager();
+    const jsm = await (await natsLifecycle.getConnection()).jetstreamManager();
 
     // Get stream info
     const streams: Array<{
@@ -100,7 +100,7 @@ debugRoutes.get("/nats/consumers/:stream", async (c) => {
   const streamName = c.req.param("stream");
 
   try {
-    const jsm = await (await getNatsConnection()).jetstreamManager();
+    const jsm = await (await natsLifecycle.getConnection()).jetstreamManager();
 
     const consumers: Array<{
       name: string;
@@ -149,7 +149,7 @@ debugRoutes.get("/nats/messages/:stream", async (c) => {
   const streamName = c.req.param("stream");
 
   try {
-    const jsm = await (await getNatsConnection()).jetstreamManager();
+    const jsm = await (await natsLifecycle.getConnection()).jetstreamManager();
 
     // Get stream info
     const streamInfo = await jsm.streams.info(streamName);
