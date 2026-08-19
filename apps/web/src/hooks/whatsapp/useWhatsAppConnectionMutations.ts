@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef } from "react";
 import { reconcileRealtimeState } from "@/contexts/realtime/event-handlers";
 import { ApiRequestError } from "@/lib/api/client";
 import type { WhatsAppConnection } from "@/lib/api/types";
+import { productAnalytics } from "@/lib/product-analytics";
 import {
   createWhatsAppConnection,
   deleteWhatsAppConnection,
@@ -13,6 +14,10 @@ import {
 } from "@/lib/api/whatsapp";
 import { useChatStore } from "@/stores/chat-store";
 import { queryKeys } from "../query-keys";
+import {
+  clearConnectionTransition,
+  expectConnectionTransition,
+} from "./connection-analytics";
 import type { ConnectionState } from "./types";
 
 interface UseMutationsOptions {
@@ -112,6 +117,11 @@ export function useWhatsAppConnectionMutations({
       queryClient.invalidateQueries({
         queryKey: queryKeys.whatsapp.lists(),
       });
+
+      // Outcome instrumentation: the backend accepted the setup request, and
+      // the realtime "connected" transition should count as a new pairing.
+      productAnalytics.track("whatsapp_connection_setup_started", {});
+      expectConnectionTransition(connectionId, "new");
     },
     onError: (error: Error) => {
       let errorMessage = error.message;
@@ -138,6 +148,9 @@ export function useWhatsAppConnectionMutations({
         isConnecting: true,
         error: null,
       });
+      // Register before the request resolves: the realtime "connected" event
+      // can arrive ahead of the HTTP onSuccess callback.
+      expectConnectionTransition(connectionId, "reconnect");
     },
     onSuccess: (_data, connectionId) => {
       updateConnectionState(connectionId, {
@@ -149,6 +162,7 @@ export function useWhatsAppConnectionMutations({
       scheduleReconnectReconciliation();
     },
     onError: (error: Error, connectionId) => {
+      clearConnectionTransition(connectionId);
       updateConnectionState(connectionId, {
         isConnecting: false,
         error: error.message,
@@ -173,6 +187,8 @@ export function useWhatsAppConnectionMutations({
         isConnecting: false,
         isDisconnecting: false,
       });
+      // A user-initiated disconnect ends any pending setup/reconnect flow.
+      clearConnectionTransition(connectionId);
       queryClient.invalidateQueries({
         queryKey: queryKeys.whatsapp.lists(),
       });
@@ -200,6 +216,8 @@ export function useWhatsAppConnectionMutations({
       });
       // Clear any QR timeout
       clearQrTimeout(connectionId);
+      // A deleted connection can never produce a user-attributable connect.
+      clearConnectionTransition(connectionId);
       // Invalidate list
       queryClient.invalidateQueries({
         queryKey: queryKeys.whatsapp.lists(),

@@ -2,6 +2,10 @@ import { lazy, type ReactNode, Suspense } from "react";
 import { Navigate, Route, Routes } from "react-router";
 import { Toaster } from "sonner";
 import {
+  AnalyticsConsent,
+  AnalyticsRouteTracker,
+} from "./components/analytics";
+import {
   LegacyWorkspaceRedirect,
   ProtectedRoute,
   WorkspaceRouteGuard,
@@ -289,6 +293,8 @@ function App() {
         <Route path="/" element={<Navigate to="/chat" replace />} />
         <Route path="*" element={<Navigate to="/chat" replace />} />
       </Routes>
+      <AnalyticsRouteTracker />
+      <AnalyticsConsent />
       <KeyboardShortcutsModal />
       <Toaster position="top-right" richColors />
     </>

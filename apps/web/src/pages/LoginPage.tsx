@@ -21,6 +21,7 @@ import {
   getSafeAuthRedirect,
 } from "../lib/auth-redirect";
 import { isEmailVerificationRequiredError } from "../lib/email-verification";
+import { productAnalytics } from "../lib/product-analytics";
 import { type LoginFormData, loginSchema } from "../lib/schemas";
 import { workspacePath } from "../lib/workspace-routes";
 
@@ -90,6 +91,7 @@ export function LoginPage() {
     setResendError(null);
     try {
       await login(data.email, data.password);
+      productAnalytics.track("login", { method: "email" });
       // Navigation is handled by useEffect based on auth state
     } catch (loginError) {
       if (isEmailVerificationRequiredError(loginError)) {
