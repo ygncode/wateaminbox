@@ -246,3 +246,23 @@ jobs:
             echo "==> govulncheck $mod"
             (cd "$mod" && govulncheck ./...)
           done
+
+  # Stable aggregate required by main's branch-protection policy. Keep the
+  # detailed jobs independently visible while exposing one durable gate name.
+  validate:
+    if: ${{ always() }}
+    needs:
+      - static
+      - ts-unit
+      - ts-integration
+      - go-unit
+      - go-race
+      - go-integration
+      - security
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Require every CI job to pass
+        env:
+          JOB_RESULTS: ${{ toJSON(needs) }}
+        run: jq --exit-status 'all(.[]; .result == "success")' <<<"$JOB_RESULTS"
