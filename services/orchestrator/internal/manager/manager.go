@@ -82,6 +82,10 @@ type Manager struct {
 	// initialises, and is a field rather than a direct registry call so
 	// enforcement can be exercised without a database.
 	checkConnectionAllowances func(context.Context, []string) ([]string, error)
+
+	// reservedRelaunch is a focused crash-boundary test seam. Production uses
+	// spawnWorkerArtifactWithLaunch when it is nil.
+	reservedRelaunch func(context.Context, *WorkerUpgradeItem, WorkerArtifact, string) error
 }
 
 // WorkerProcess represents a managed WhatsApp worker.
@@ -765,6 +769,21 @@ func (m *Manager) UnlinkWorker(
 		if databaseURL == "" {
 			databaseURL = worker.DatabaseURL
 		}
+		if m.registry != nil {
+			updated, abandoned, err := m.registry.SetDesiredStateAndAbandonHaltedUpgrade(
+				ctx, connectionID, companyID, tenantSchema, worker.LaunchID,
+				DesiredStateUnlinking, reason,
+			)
+			if err != nil {
+				return fmt.Errorf("persist processless unlink intent: %w", err)
+			}
+			if !updated {
+				return fmt.Errorf("worker %s launch changed before processless unlink", connectionID)
+			}
+			if abandoned {
+				log.Printf("Abandoned halted rollout for processless unlink of worker %s", connectionID)
+			}
+		}
 		return m.spawnWorker(
 			ctx,
 			companyID,
@@ -841,10 +860,14 @@ func (m *Manager) stopWorkerInternal(
 
 	log.Printf("Stopping worker %s: %s", connectionID, reason)
 
-	// Persist explicit stop intent before signalling. A delayed restart or a new
-	// orchestrator must not resurrect a process the operator stopped.
+	// Persist explicit stop intent before signalling. If this exact launch is
+	// involved in a halted rollout, abandonment is committed in the same
+	// transaction so redelivery can never resume or resurrect it.
 	if !preserveRegistry && m.registry != nil {
-		updated, err := m.registry.SetDesiredState(ctx, connectionID, companyID, launchID, targetDesiredState)
+		updated, abandoned, err := m.registry.SetDesiredStateAndAbandonHaltedUpgrade(
+			ctx, connectionID, companyID, worker.TenantSchema, launchID,
+			targetDesiredState, reason,
+		)
 		if err != nil || !updated {
 			m.mu.Lock()
 			if current, ok := m.workers[connectionID]; ok && current.LaunchID == launchID {
@@ -857,6 +880,9 @@ func (m *Manager) stopWorkerInternal(
 				return fmt.Errorf("persist stopped intent for worker %s: %w", connectionID, err)
 			}
 			return fmt.Errorf("worker %s launch changed while stopping", connectionID)
+		}
+		if abandoned {
+			log.Printf("Abandoned halted rollout for authoritative lifecycle operation on worker %s", connectionID)
 		}
 	}
 
@@ -904,13 +930,6 @@ func (m *Manager) stopWorkerInternal(
 			return fmt.Errorf("worker %s has no live process; durable unlink must be resumed", connectionID)
 		}
 		if m.registry != nil && !preserveRegistry {
-			if reason == connectionAllowanceStopReason {
-				if _, abandonErr := m.registry.AbandonHaltedWorkerUpgradeForExternalStop(
-					ctx, companyID, connectionID, launchID, reason,
-				); abandonErr != nil {
-					return fmt.Errorf("abandon halted rollout for processless worker %s: %w", connectionID, abandonErr)
-				}
-			}
 			removed, removeErr := m.registry.RemoveWorkerLaunch(ctx, connectionID, companyID, launchID)
 			if removeErr != nil || !removed {
 				m.mu.Lock()
@@ -984,21 +1003,6 @@ func (m *Manager) stopWorkerInternal(
 		}
 		m.mu.Unlock()
 		return fmt.Errorf("unlink worker %s exited before completing purge: %w", connectionID, worker.exitErr)
-	}
-
-	// An authoritative allowance stop wins over a halted rollout. Abandon its
-	// unverifiable fleet claim transactionally before removing this stopped row,
-	// releasing the global active-batch gate without claiming rollback success.
-	if m.registry != nil && !preserveRegistry && reason == connectionAllowanceStopReason {
-		abandoned, abandonErr := m.registry.AbandonHaltedWorkerUpgradeForExternalStop(
-			ctx, companyID, connectionID, launchID, reason,
-		)
-		if abandonErr != nil {
-			return fmt.Errorf("abandon halted rollout for worker %s: %w", connectionID, abandonErr)
-		}
-		if abandoned {
-			log.Printf("Abandoned halted rollout after authoritative allowance stop for worker %s", connectionID)
-		}
 	}
 
 	// Explicit disconnect/unlink removes the durable record. During an

@@ -415,9 +415,9 @@ an operator can retry the same tenant- and generation-fenced rollback with authe
 `POST /rollouts/<batch-id>/retry-rollback` and
 `{"connection_id":"<halted connection UUID>"}`; only the actionable halted
 rollback item can be resumed. A missing, externally stopped, or newer launch fails this check
-without being signaled or replaced. If connection-allowance enforcement
-performs an authoritative stop while a batch is halted, it transactionally
-terminates the unfinished items as `abandoned_external_stop` and the batch as
+without being signaled or replaced. If an operator stop, unlink, or connection-allowance enforcement wins while a
+batch is halted, the exact registry intent and rollout are changed in one
+transaction. Unfinished items become `abandoned_external` and the batch becomes
 `abandoned`; this releases rollout serialization without falsely claiming that
 the fleet completed or rolled back. Never delete an artifact directory while
 any registry or rollout row references it. The orchestrator resumes unfinished stop, launch,
@@ -425,7 +425,12 @@ verify-refresh, or reverse rollback phases after its own crash without starting
 ordinary auto-recovery for those connections. Startup acquires the rollout
 writer lock synchronously before command subscription. A durable `recovery`
 phase fences the exact old/new target generation around readiness-authority
-refresh, including crashes after target relaunch but before generation update.
+refresh. If the orchestrator dies after claiming a reserved target,
+readiness-refresh, or reverse-rollback generation but before committing the next
+item phase, Linux parent-death signaling leaves that exact registry generation
+dead; recovery validates its tenant, artifact, UID/GID, and reserved UUID, then
+reclaims the same UUID with fresh credentials and readiness authority. It never
+invents a replacement generation at these crash boundaries.
 Successful rollout history becomes the
 company default for later worker spawns, without replacing the orchestrator.
 Signed runtime readiness timestamps are accepted only when fresh, not future,

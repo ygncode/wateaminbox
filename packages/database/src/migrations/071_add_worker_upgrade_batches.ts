@@ -83,7 +83,7 @@ export async function up(db: Kysely<unknown>): Promise<void> {
       recovery_generation UUID,
       rollback_generation UUID,
       phase VARCHAR(20) NOT NULL DEFAULT 'stop',
-      result VARCHAR(24),
+      result VARCHAR(32),
       last_error TEXT,
       created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
       updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -96,7 +96,7 @@ export async function up(db: Kysely<unknown>): Promise<void> {
       CONSTRAINT worker_upgrade_items_result_check
         CHECK (result IS NULL OR result IN
           ('target_complete', 'rollback_complete', 'canceled_untouched',
-           'abandoned_external_stop')),
+           'abandoned_external')),
       CONSTRAINT worker_upgrade_items_completion_check
         CHECK ((completed_at IS NULL AND result IS NULL) OR
                (completed_at IS NOT NULL AND result IS NOT NULL)),

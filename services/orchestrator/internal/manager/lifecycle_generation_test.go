@@ -178,9 +178,14 @@ func TestUnlinkProcesslessFailedWorkerRunsOneShotPurge(t *testing.T) {
 
 func TestFailedLiveWorkerUnlinkRetainsDurableIntent(t *testing.T) {
 	registry, mock := newMockRegistry(t)
-	mock.ExpectExec(regexp.QuoteMeta("UPDATE worker_registry SET desired_state = $1 WHERE connection_id = $2 AND company_id = $3 AND launch_id = $4")).
-		WithArgs(DesiredStateUnlinking, "connection", "company", "launch").
+	mock.ExpectBegin()
+	mock.ExpectExec(regexp.QuoteMeta("UPDATE worker_registry SET desired_state = $1, last_heartbeat = now()")).
+		WithArgs(DesiredStateUnlinking, "connection", "company", "tenant_company", "launch").
 		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectQuery(regexp.QuoteMeta("SELECT batch.id::text FROM worker_upgrade_batches batch JOIN worker_upgrade_items item ON item.batch_id = batch.id JOIN worker_registry current ON current.connection_id = item.connection_id")).
+		WithArgs("company", "tenant_company", "connection", "launch", DesiredStateUnlinking).
+		WillReturnRows(sqlmock.NewRows([]string{"id"}))
+	mock.ExpectCommit()
 
 	ready := filepath.Join(t.TempDir(), "ready")
 	cmd := exec.Command("/bin/sh", "-c", `trap 'exit 1' USR1; : > "$READY"; while true; do sleep 0.1; done`)
@@ -193,8 +198,8 @@ func TestFailedLiveWorkerUnlinkRetainsDurableIntent(t *testing.T) {
 	}, time.Second, 10*time.Millisecond)
 	worker := &WorkerProcess{
 		ID: "connection", LaunchID: "launch", DesiredState: DesiredStateRunning,
-		CompanyID: "company", ConnectionID: "connection", Status: types.StatusConnected,
-		PID: cmd.Process.Pid, cmd: cmd, done: make(chan struct{}),
+		CompanyID: "company", ConnectionID: "connection", TenantSchema: "tenant_company",
+		Status: types.StatusConnected, PID: cmd.Process.Pid, cmd: cmd, done: make(chan struct{}),
 	}
 	m := New(Config{})
 	m.ctx = context.Background()
@@ -350,16 +355,19 @@ func TestRestartCarriesIncrementedAttemptIntoNewLaunch(t *testing.T) {
 
 func TestKillCommandReturnsPersistenceFailureForRedelivery(t *testing.T) {
 	registry, mock := newMockRegistry(t)
-	mock.ExpectExec(regexp.QuoteMeta("UPDATE worker_registry SET desired_state = $1 WHERE connection_id = $2 AND company_id = $3 AND launch_id = $4")).
-		WithArgs(DesiredStateStopped, "connection", "company", "launch").
+	mock.ExpectBegin()
+	mock.ExpectExec(regexp.QuoteMeta("UPDATE worker_registry SET desired_state = $1, last_heartbeat = now()")).
+		WithArgs(DesiredStateStopped, "connection", "company", "tenant_company", "launch").
 		WillReturnError(assert.AnError)
+	mock.ExpectRollback()
 
 	m := New(Config{})
 	m.ctx = context.Background()
 	m.registry = registry
 	m.workers["connection"] = &WorkerProcess{
 		ID: "connection", LaunchID: "launch", DesiredState: DesiredStateRunning,
-		CompanyID: "company", ConnectionID: "connection", Status: types.StatusConnected, PID: 999999,
+		CompanyID: "company", ConnectionID: "connection", TenantSchema: "tenant_company",
+		Status: types.StatusConnected, PID: 999999,
 	}
 	h := &Handlers{manager: m}
 	payload, err := json.Marshal(types.KillWorkerCommand{

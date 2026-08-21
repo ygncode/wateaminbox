@@ -291,6 +291,31 @@ func TestCompanyWorkerArtifactUsesNewestCompletedRollout(t *testing.T) {
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
+func TestAuthoritativeStopRollsBackRegistryIntentWhenAbandonmentFails(t *testing.T) {
+	registry, mock := newMockRegistry(t)
+	mock.ExpectBegin()
+	mock.ExpectExec(regexp.QuoteMeta("UPDATE worker_registry SET desired_state = $1, last_heartbeat = now()")).
+		WithArgs(DesiredStateStopped, "connection", "company", "tenant", "launch").
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectQuery(regexp.QuoteMeta("SELECT batch.id::text FROM worker_upgrade_batches batch JOIN worker_upgrade_items item ON item.batch_id = batch.id JOIN worker_registry current ON current.connection_id = item.connection_id")).
+		WithArgs("company", "tenant", "connection", "launch", DesiredStateStopped).
+		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow("batch"))
+	mock.ExpectExec(regexp.QuoteMeta("UPDATE worker_upgrade_items SET phase = 'abandoned', result = 'abandoned_external'")).
+		WithArgs("operator stop", "batch").WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec(regexp.QuoteMeta("UPDATE worker_upgrade_batches SET phase = 'abandoned', result = 'abandoned'")).
+		WithArgs("operator stop", "batch").WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectRollback()
+
+	updated, abandoned, err := registry.SetDesiredStateAndAbandonHaltedUpgrade(
+		context.Background(), "connection", "company", "tenant", "launch",
+		DesiredStateStopped, "operator stop",
+	)
+	assert.False(t, updated)
+	assert.False(t, abandoned)
+	require.ErrorContains(t, err, "affected 0 rows")
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
 func TestHaltWorkerUpgradeRollsBackWhenCheckedItemUpdateLosesCAS(t *testing.T) {
 	registry, mock := newMockRegistry(t)
 	mock.ExpectBegin()

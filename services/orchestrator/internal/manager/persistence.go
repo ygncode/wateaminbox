@@ -35,7 +35,7 @@ const (
 	WorkerUpgradeItemResultTargetComplete    = "target_complete"
 	WorkerUpgradeItemResultRollbackComplete  = "rollback_complete"
 	WorkerUpgradeItemResultCanceledUntouched = "canceled_untouched"
-	WorkerUpgradeItemResultAbandonedExternal = "abandoned_external_stop"
+	WorkerUpgradeItemResultAbandonedExternal = "abandoned_external"
 )
 
 // WorkerUpgradeItemIntent is the immutable pre-signal snapshot of one worker.
@@ -415,6 +415,92 @@ func (r *WorkerRegistry) SetDesiredState(ctx context.Context, connectionID, comp
 	}
 	affected, err := result.RowsAffected()
 	return affected == 1, err
+}
+
+// SetDesiredStateAndAbandonHaltedUpgrade atomically gives an acknowledged
+// operator stop/unlink authority over a halted rollout. The exact tenant-owned
+// launch intent changes in the same transaction that truthfully abandons every
+// unfinished batch item, so redelivery cannot resurrect the rollout.
+func (r *WorkerRegistry) SetDesiredStateAndAbandonHaltedUpgrade(
+	ctx context.Context, connectionID, companyID, tenantSchema, launchID,
+	desiredState, reason string,
+) (updated, abandoned bool, err error) {
+	if desiredState != DesiredStateStopped && desiredState != DesiredStateUnlinking {
+		return false, false, fmt.Errorf("invalid authoritative desired state %q", desiredState)
+	}
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return false, false, fmt.Errorf("begin authoritative worker lifecycle intent: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+	result, err := tx.ExecContext(ctx, `
+		UPDATE worker_registry
+		SET desired_state = $1, last_heartbeat = now()
+		WHERE connection_id = $2::uuid AND company_id = $3::uuid
+			AND tenant_schema = $4 AND launch_id = $5::uuid
+	`, desiredState, connectionID, companyID, tenantSchema, launchID)
+	if err != nil {
+		return false, false, fmt.Errorf("persist authoritative worker lifecycle intent: %w", err)
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return false, false, fmt.Errorf("inspect authoritative worker lifecycle intent: %w", err)
+	}
+	if rows != 1 {
+		return false, false, nil
+	}
+
+	var batchID string
+	err = tx.QueryRowContext(ctx, `
+		SELECT batch.id::text
+		FROM worker_upgrade_batches batch
+		JOIN worker_upgrade_items item ON item.batch_id = batch.id
+		JOIN worker_registry current ON current.connection_id = item.connection_id
+		WHERE batch.phase = 'halted' AND batch.completed_at IS NULL
+			AND item.company_id = $1::uuid AND item.tenant_schema = $2
+			AND item.connection_id = $3::uuid
+			AND current.company_id = item.company_id
+			AND current.tenant_schema = item.tenant_schema
+			AND current.launch_id = $4::uuid
+			AND current.desired_state = $5
+		FOR UPDATE OF batch, item, current
+	`, companyID, tenantSchema, connectionID, launchID, desiredState).Scan(&batchID)
+	if err != nil && err != sql.ErrNoRows {
+		return false, false, fmt.Errorf("lock halted rollout for authoritative lifecycle: %w", err)
+	}
+	if err == nil {
+		itemResult, updateErr := tx.ExecContext(ctx, `
+			UPDATE worker_upgrade_items
+			SET phase = 'abandoned', result = 'abandoned_external',
+				last_error = $1, completed_at = now(), updated_at = now()
+			WHERE batch_id = $2::uuid AND completed_at IS NULL
+		`, reason, batchID)
+		if updateErr != nil {
+			return false, false, fmt.Errorf("abandon halted rollout items: %w", updateErr)
+		}
+		itemRows, rowsErr := itemResult.RowsAffected()
+		if rowsErr != nil || itemRows < 1 {
+			return false, false, fmt.Errorf("abandon halted rollout items affected %d rows: %w", itemRows, rowsErr)
+		}
+		batchResult, updateErr := tx.ExecContext(ctx, `
+			UPDATE worker_upgrade_batches
+			SET phase = 'abandoned', result = 'abandoned', last_error = $1,
+				completed_at = now(), updated_at = now()
+			WHERE id = $2::uuid AND phase = 'halted' AND completed_at IS NULL
+		`, reason, batchID)
+		if updateErr != nil {
+			return false, false, fmt.Errorf("abandon halted rollout batch: %w", updateErr)
+		}
+		batchRows, rowsErr := batchResult.RowsAffected()
+		if rowsErr != nil || batchRows != 1 {
+			return false, false, fmt.Errorf("abandon halted rollout batch affected %d rows: %w", batchRows, rowsErr)
+		}
+		abandoned = true
+	}
+	if err = tx.Commit(); err != nil {
+		return false, false, fmt.Errorf("commit authoritative worker lifecycle intent: %w", err)
+	}
+	return true, abandoned, nil
 }
 
 func (r *WorkerRegistry) GetWorker(ctx context.Context, connectionID string) (*WorkerRecord, error) {
@@ -1052,69 +1138,6 @@ func (r *WorkerRegistry) HaltWorkerUpgrade(
 	}
 	if err = tx.Commit(); err != nil {
 		return false, fmt.Errorf("commit worker upgrade halt: %w", err)
-	}
-	return true, nil
-}
-
-// AbandonHaltedWorkerUpgradeForExternalStop releases a halted batch after an
-// authoritative allowance stop. Every unfinished item is explicitly terminal,
-// so status never implies that rollback restored the fleet.
-func (r *WorkerRegistry) AbandonHaltedWorkerUpgradeForExternalStop(
-	ctx context.Context, companyID, connectionID, launchID, reason string,
-) (bool, error) {
-	tx, err := r.db.BeginTx(ctx, nil)
-	if err != nil {
-		return false, fmt.Errorf("begin halted rollout abandonment: %w", err)
-	}
-	defer func() { _ = tx.Rollback() }()
-	var batchID string
-	err = tx.QueryRowContext(ctx, `
-		SELECT batch.id::text
-		FROM worker_upgrade_batches batch
-		JOIN worker_upgrade_items item ON item.batch_id = batch.id
-		JOIN worker_registry current ON current.connection_id = item.connection_id
-		WHERE batch.phase = 'halted' AND batch.completed_at IS NULL
-			AND item.company_id = $1::uuid AND item.connection_id = $2::uuid
-			AND current.company_id = item.company_id
-			AND current.tenant_schema = item.tenant_schema
-			AND current.launch_id = $3::uuid
-			AND current.desired_state IN ('stopped', 'unlinking')
-		FOR UPDATE OF batch
-	`, companyID, connectionID, launchID).Scan(&batchID)
-	if err == sql.ErrNoRows {
-		return false, nil
-	}
-	if err != nil {
-		return false, fmt.Errorf("lock halted rollout for abandonment: %w", err)
-	}
-	itemResult, err := tx.ExecContext(ctx, `
-		UPDATE worker_upgrade_items
-		SET phase = 'abandoned', result = 'abandoned_external_stop',
-			last_error = $1, completed_at = now(), updated_at = now()
-		WHERE batch_id = $2::uuid AND completed_at IS NULL
-	`, reason, batchID)
-	if err != nil {
-		return false, fmt.Errorf("abandon halted rollout items: %w", err)
-	}
-	itemRows, err := itemResult.RowsAffected()
-	if err != nil || itemRows < 1 {
-		return false, fmt.Errorf("abandon halted rollout items affected %d rows: %w", itemRows, err)
-	}
-	batchResult, err := tx.ExecContext(ctx, `
-		UPDATE worker_upgrade_batches
-		SET phase = 'abandoned', result = 'abandoned', last_error = $1,
-			completed_at = now(), updated_at = now()
-		WHERE id = $2::uuid AND phase = 'halted' AND completed_at IS NULL
-	`, reason, batchID)
-	if err != nil {
-		return false, fmt.Errorf("abandon halted rollout batch: %w", err)
-	}
-	batchRows, err := batchResult.RowsAffected()
-	if err != nil || batchRows != 1 {
-		return false, fmt.Errorf("abandon halted rollout batch affected %d rows: %w", batchRows, err)
-	}
-	if err = tx.Commit(); err != nil {
-		return false, fmt.Errorf("commit halted rollout abandonment: %w", err)
 	}
 	return true, nil
 }

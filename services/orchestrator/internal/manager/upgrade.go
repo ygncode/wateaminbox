@@ -387,6 +387,19 @@ func (m *Manager) runWorkerUpgradeItem(ctx context.Context, batch *WorkerUpgrade
 		targetMatches := exists && current.PID > 0 && current.LaunchID == item.TargetGeneration &&
 			current.CompanyID == item.CompanyID && current.TenantSchema == item.TenantSchema &&
 			m.workerMatchesArtifactContent(current, target)
+		if !targetMatches {
+			relaunched, err := m.relaunchDeadReservedGeneration(
+				ctx, batch, item, WorkerUpgradePhaseLaunch, item.TargetGeneration, target,
+			)
+			if err != nil {
+				return fmt.Errorf("recover reserved target claim: %w", err)
+			}
+			if relaunched {
+				current, exists = m.GetWorkerStatus(item.ConnectionID)
+				targetMatches = exists && current.PID > 0 && current.LaunchID == item.TargetGeneration &&
+					m.workerMatchesArtifactContent(current, target)
+			}
+		}
 		if exists && current.PID > 0 && !targetMatches {
 			return errors.New("refusing to stop an unowned generation before target launch")
 		}
@@ -514,6 +527,45 @@ func (m *Manager) fenceRolloutOwnedLaunch(
 	return record, nil
 }
 
+// relaunchDeadReservedGeneration handles the Pdeathsig crash boundary after a
+// registry claim but before the item phase/generation transition commits. The
+// recovered map must prove that the exact reserved process is dead; the
+// registry CAS then relaunches that same reserved generation ID with fresh
+// credentials and readiness authority.
+func (m *Manager) relaunchDeadReservedGeneration(
+	ctx context.Context, batch *WorkerUpgradeBatch, item *WorkerUpgradeItem,
+	phase, generation string, artifact WorkerArtifact,
+) (bool, error) {
+	worker, exists := m.GetWorkerStatus(item.ConnectionID)
+	if !exists || worker.PID > 0 || worker.LaunchID != generation ||
+		worker.CompanyID != item.CompanyID || worker.TenantSchema != item.TenantSchema ||
+		worker.ArtifactVersion != artifact.Version ||
+		!strings.EqualFold(worker.ArtifactSHA256, artifact.SHA256) {
+		return false, nil
+	}
+	record, err := m.fenceRolloutOwnedLaunch(
+		ctx, batch, item, phase, generation, artifact.Version, artifact.SHA256, false,
+	)
+	if err != nil {
+		return false, fmt.Errorf("fence dead reserved generation: %w", err)
+	}
+	if worker.WorkerUID != record.WorkerUID || worker.WorkerGID != record.WorkerGID {
+		return false, errors.New("dead reserved generation credentials changed during recovery")
+	}
+	installRolloutPredecessor(m, item, record, artifact.BinaryPath)
+	if m.reservedRelaunch != nil {
+		if err := m.reservedRelaunch(ctx, item, artifact, generation); err != nil {
+			return false, fmt.Errorf("relaunch dead reserved generation: %w", err)
+		}
+	} else if err := m.spawnWorkerArtifactWithLaunch(
+		ctx, item.CompanyID, item.ConnectionID, item.TenantSchema,
+		m.config.DatabaseURL, false, 1, artifact, generation,
+	); err != nil {
+		return false, fmt.Errorf("relaunch dead reserved generation: %w", err)
+	}
+	return true, nil
+}
+
 func installRolloutPredecessor(m *Manager, item *WorkerUpgradeItem, record *WorkerRecord, binaryPath string) {
 	m.mu.Lock()
 	m.workers[item.ConnectionID] = &WorkerProcess{
@@ -581,6 +633,19 @@ func (m *Manager) refreshWorkerUpgradeTarget(ctx context.Context, batch *WorkerU
 	refreshedMatches := exists && current.PID > 0 && current.LaunchID == item.RecoveryGeneration &&
 		current.CompanyID == item.CompanyID && current.TenantSchema == item.TenantSchema &&
 		m.workerMatchesArtifactContent(current, target)
+	if !refreshedMatches {
+		relaunched, err := m.relaunchDeadReservedGeneration(
+			ctx, batch, item, WorkerUpgradePhaseRecovery, item.RecoveryGeneration, target,
+		)
+		if err != nil {
+			return fmt.Errorf("recover reserved readiness-refresh claim: %w", err)
+		}
+		if relaunched {
+			current, exists = m.GetWorkerStatus(item.ConnectionID)
+			refreshedMatches = exists && current.PID > 0 && current.LaunchID == item.RecoveryGeneration &&
+				m.workerMatchesArtifactContent(current, target)
+		}
+	}
 	if exists && current.PID > 0 && !refreshedMatches {
 		if current.LaunchID != previousTarget || !m.workerMatchesArtifactContent(current, target) {
 			return errors.New("refusing to stop an unowned generation during readiness refresh")
@@ -665,6 +730,19 @@ func (m *Manager) rollbackWorkerUpgrade(ctx context.Context, batch *WorkerUpgrad
 	rollbackMatches := exists && current.PID > 0 && item.RollbackGeneration != "" &&
 		current.LaunchID == item.RollbackGeneration && current.CompanyID == item.CompanyID &&
 		current.TenantSchema == item.TenantSchema && m.workerMatchesArtifactContent(current, source)
+	if item.RollbackGeneration != "" && !rollbackMatches {
+		relaunched, err := m.relaunchDeadReservedGeneration(
+			ctx, batch, item, WorkerUpgradePhaseRollback, item.RollbackGeneration, source,
+		)
+		if err != nil {
+			return fmt.Errorf("recover reserved rollback claim: %w", err)
+		}
+		if relaunched {
+			current, exists = m.GetWorkerStatus(item.ConnectionID)
+			rollbackMatches = exists && current.PID > 0 && current.LaunchID == item.RollbackGeneration &&
+				m.workerMatchesArtifactContent(current, source)
+		}
+	}
 	if item.RollbackGeneration == "" {
 		if _, err := fencePredecessor(exists && current.PID > 0); err != nil {
 			return fmt.Errorf("rollback predecessor changed before reservation: %w", err)
