@@ -471,30 +471,43 @@ func (c *Client) Disconnect() {
 	c.mu.Unlock()
 }
 
-// LogoutAndPurge unlinks the device from WhatsApp and erases all credentials
-// and runtime state for this replaceable session.
+// logoutThenPurge preserves credentials when remote logout fails. Purging first
+// would make a retry impossible while leaving the device linked at WhatsApp.
+func logoutThenPurge(hasSession bool, logout, purge func() error) error {
+	if hasSession {
+		if err := logout(); err != nil {
+			return fmt.Errorf("remote logout failed; credentials preserved for retry: %w", err)
+		}
+	}
+	if err := purge(); err != nil {
+		return fmt.Errorf("purge session credentials: %w", err)
+	}
+	return nil
+}
+
+// LogoutAndPurge unlinks the device from WhatsApp and then erases credentials
+// and runtime state. Credentials remain intact until remote logout succeeds so
+// durable unlink retries can authenticate and finish the operation.
 func (c *Client) LogoutAndPurge(ctx context.Context) error {
 	log.Println("Unlinking WhatsApp device and purging session credentials...")
-	var logoutErr error
-	if c.client != nil && c.client.Store.ID != nil {
-		if !c.client.IsConnected() {
-			if err := c.client.Connect(); err != nil {
-				logoutErr = fmt.Errorf("connect for logout: %w", err)
+	hasSession := c.client != nil && c.client.Store.ID != nil
+	return logoutThenPurge(
+		hasSession,
+		func() error {
+			if !c.client.IsConnected() {
+				if err := c.client.Connect(); err != nil {
+					return fmt.Errorf("connect for logout: %w", err)
+				}
 			}
-		}
-		if logoutErr == nil {
-			logoutErr = c.client.Logout(ctx)
-		}
-	}
-	if c.container != nil {
-		if purgeErr := c.container.PurgeSession(ctx); purgeErr != nil {
-			if logoutErr != nil {
-				return fmt.Errorf("logout failed: %v; purge failed: %w", logoutErr, purgeErr)
+			return c.client.Logout(ctx)
+		},
+		func() error {
+			if c.container == nil {
+				return nil
 			}
-			return purgeErr
-		}
-	}
-	return logoutErr
+			return c.container.PurgeSession(ctx)
+		},
+	)
 }
 
 // RegisterEventHandler adds an event handler.

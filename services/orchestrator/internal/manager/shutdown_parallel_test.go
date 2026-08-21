@@ -2,6 +2,7 @@ package manager
 
 import (
 	"context"
+	"os"
 	"os/exec"
 	"testing"
 	"time"
@@ -31,12 +32,13 @@ func startStubbornTestWorkers(t *testing.T, n int) ([]*exec.Cmd, *Manager) {
 
 	cmds := make([]*exec.Cmd, 0, n)
 	for i := 0; i < n; i++ {
+		id := "stubborn-" + string(rune('a'+i))
 		cmd := exec.Command("/bin/sh", "-c", `trap "" TERM; sleep 60`)
+		cmd.Env = append(os.Environ(), "COMPANY_ID=company", "CONNECTION_ID="+id)
 		require.NoError(t, cmd.Start())
 		go func() { _ = cmd.Wait() }()
 		t.Cleanup(func() { _ = cmd.Process.Kill() })
 
-		id := "stubborn-" + string(rune('a'+i))
 		m.workers[id] = &WorkerProcess{
 			ID:           id,
 			CompanyID:    "company",

@@ -2,8 +2,10 @@ package manager
 
 import (
 	"context"
+	crand "crypto/rand"
 	"errors"
 	"fmt"
+	"hash/fnv"
 	"log"
 	"math/rand/v2"
 	"os"
@@ -43,6 +45,7 @@ type Manager struct {
 	startedAt    time.Time
 	shuttingDown bool            // prevents NATS publishes during shutdown
 	registry     *WorkerRegistry // persistent storage for worker state
+	lifecycle    [256]sync.Mutex // serializes operations for each connection
 
 	// markWorkersRecovering records recovery intent for a whole set of workers
 	// at once. It is wired to the registry when persistence initialises, and is
@@ -54,12 +57,14 @@ type Manager struct {
 	// wired to the registry when persistence initialises, and is a field rather
 	// than a direct registry call so the health check can be exercised without
 	// a database.
-	recordWorkerHeartbeat func(context.Context, string) error
+	recordWorkerHeartbeat func(context.Context, string, string, string) (bool, error)
 }
 
 // WorkerProcess represents a managed WhatsApp worker.
 type WorkerProcess struct {
 	ID           string
+	LaunchID     string // unique identity for this particular process launch
+	DesiredState string // durable operator intent (running or stopped)
 	CompanyID    string
 	ConnectionID string
 	TenantSchema string
@@ -75,6 +80,7 @@ type WorkerProcess struct {
 	cmd          *exec.Cmd
 	healthCancel context.CancelFunc
 	done         chan struct{} // closed after cmd.Wait() reaps the process
+	exitErr      error         // cmd.Wait result, published before done closes
 }
 
 // Copy returns a shallow copy of the worker process without internal fields.
@@ -82,6 +88,8 @@ type WorkerProcess struct {
 func (w *WorkerProcess) Copy() *WorkerProcess {
 	return &WorkerProcess{
 		ID:           w.ID,
+		LaunchID:     w.LaunchID,
+		DesiredState: w.DesiredState,
 		CompanyID:    w.CompanyID,
 		ConnectionID: w.ConnectionID,
 		TenantSchema: w.TenantSchema,
@@ -136,17 +144,18 @@ func (m *Manager) Start(ctx context.Context) error {
 	if m.config.DatabaseURL != "" {
 		registry, err := NewWorkerRegistry(m.config.DatabaseURL)
 		if err != nil {
-			log.Printf("Warning: failed to initialize worker registry: %v", err)
-			log.Println("Continuing without persistence - workers will not survive orchestrator restart")
+			return fmt.Errorf("failed to initialize required worker registry: %w", err)
 		} else {
 			m.registry = registry
 			m.markWorkersRecovering = registry.MarkWorkersRecovering
-			m.recordWorkerHeartbeat = registry.UpdateHeartbeat
+			m.recordWorkerHeartbeat = registry.UpdateHeartbeatLaunch
 			log.Println("Worker registry initialized successfully")
 
-			// Recover existing workers from database
+			// Recovery must finish before commands are consumed. Continuing after
+			// an ambiguous durable intent could start a duplicate worker.
 			if err := m.recoverOrphanedWorkers(m.ctx); err != nil {
-				log.Printf("Warning: failed to recover workers: %v", err)
+				_ = registry.Close()
+				return fmt.Errorf("failed to recover workers: %w", err)
 			}
 		}
 	} else {
@@ -238,6 +247,8 @@ func (m *Manager) Stop(ctx context.Context) error {
 		// process consuming incoming WhatsApp messages.
 		go func(companyID, connectionID string) {
 			defer stopWG.Done()
+			unlock := m.lockLifecycle(connectionID)
+			defer unlock()
 
 			err := m.stopWorkerInternal(ctx, companyID, connectionID, "orchestrator shutdown", syscall.SIGTERM, true)
 			if err == nil {
@@ -273,34 +284,73 @@ func (m *Manager) Stop(ctx context.Context) error {
 	return errors.Join(stopErrs...)
 }
 
+var ErrWorkerNotFound = errors.New("worker not found")
+
+const (
+	DesiredStateRunning   = "running"
+	DesiredStateStopped   = "stopped"
+	DesiredStateUnlinking = "unlinking"
+)
+
+func newLaunchID() (string, error) {
+	var id [16]byte
+	if _, err := crand.Read(id[:]); err != nil {
+		return "", fmt.Errorf("generate launch ID: %w", err)
+	}
+	id[6] = (id[6] & 0x0f) | 0x40
+	id[8] = (id[8] & 0x3f) | 0x80
+	return fmt.Sprintf("%08x-%04x-%04x-%04x-%012x", id[0:4], id[4:6], id[6:8], id[8:10], id[10:16]), nil
+}
+
+func (m *Manager) lockLifecycle(connectionID string) func() {
+	h := fnv.New32a()
+	_, _ = h.Write([]byte(connectionID))
+	lock := &m.lifecycle[h.Sum32()%uint32(len(m.lifecycle))]
+	lock.Lock()
+	return lock.Unlock
+}
+
 // SpawnWorker creates and starts a new WhatsApp worker process.
 func (m *Manager) SpawnWorker(ctx context.Context, companyID, connectionID, tenantSchema, databaseURL string) error {
-	return m.spawnWorker(ctx, companyID, connectionID, tenantSchema, databaseURL, false)
+	unlock := m.lockLifecycle(connectionID)
+	defer unlock()
+	return m.spawnWorker(ctx, companyID, connectionID, tenantSchema, databaseURL, false, 0)
 }
 
 func (m *Manager) spawnWorker(
 	ctx context.Context,
 	companyID, connectionID, tenantSchema, databaseURL string,
 	unlinkOnStart bool,
+	restartCount int,
 ) error {
-	m.mu.Lock()
+	launchID, err := newLaunchID()
+	if err != nil {
+		return err
+	}
 
-	// Check if worker already exists (keyed by connectionID)
+	m.mu.Lock()
+	if m.shuttingDown {
+		m.mu.Unlock()
+		return fmt.Errorf("process manager is shutting down")
+	}
+
+	previousLaunchID := ""
+	var previousWorker *WorkerProcess
+	// Check if worker already exists (keyed by connectionID).
 	if existing, exists := m.workers[connectionID]; exists {
+		if existing.CompanyID != companyID {
+			m.mu.Unlock()
+			return fmt.Errorf("worker %s belongs to another company", connectionID)
+		}
 		if existing.Status != types.StatusStopped && existing.Status != types.StatusError {
-			// Worker already running - republish current status instead of returning error
 			status := existing.Status
 			log.Printf("Worker for connection %s already exists with status %s, republishing status", connectionID, status)
-			// Preserve the actual lifecycle state. A running worker may still be
-			// negotiating a QR pairing or protocol handshake and is not connected
-			// until it emits a confirmed connected event.
-			// publishConnectionStatus also reads manager state, so release the
-			// write lock before calling it.
 			m.mu.Unlock()
 			go m.publishConnectionStatus(companyID, connectionID, status, "worker already running")
 			return nil
 		}
-		// Clean up the old worker entry
+		previousLaunchID = existing.LaunchID
+		previousWorker = existing
 		delete(m.workers, connectionID)
 	}
 
@@ -313,8 +363,6 @@ func (m *Manager) spawnWorker(
 	// Create the command without a context so the manager context cancellation
 	// does not kill the process — the manager has explicit signal ownership.
 	cmd := exec.Command(m.config.WhatsAppBinaryPath)
-
-	// Set environment variables
 	cmd.Env = append(os.Environ(),
 		fmt.Sprintf("WORKER_ID=%s", connectionID),
 		fmt.Sprintf("COMPANY_ID=%s", companyID),
@@ -324,19 +372,18 @@ func (m *Manager) spawnWorker(
 		fmt.Sprintf("TENANT_SCHEMA=%s", tenantSchema),
 		fmt.Sprintf("UNLINK_ON_START=%t", unlinkOnStart),
 	)
-
-	// Redirect stdout and stderr
 	cmd.Stdout = &workerLogWriter{connectionID: connectionID, stream: "stdout"}
 	cmd.Stderr = &workerLogWriter{connectionID: connectionID, stream: "stderr"}
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 
-	// Set process group for clean termination
-	cmd.SysProcAttr = &syscall.SysProcAttr{
-		Setpgid: true,
+	desiredState := DesiredStateRunning
+	if unlinkOnStart {
+		desiredState = DesiredStateUnlinking
 	}
-
-	// Create worker entry
 	worker := &WorkerProcess{
 		ID:           connectionID,
+		LaunchID:     launchID,
+		DesiredState: desiredState,
 		CompanyID:    companyID,
 		ConnectionID: connectionID,
 		TenantSchema: tenantSchema,
@@ -344,43 +391,111 @@ func (m *Manager) spawnWorker(
 		Status:       types.StatusStarting,
 		StartedAt:    time.Now(),
 		LastActivity: time.Now(),
+		RestartCount: restartCount,
 		RemoveOnExit: unlinkOnStart,
 		cmd:          cmd,
 		done:         make(chan struct{}),
 	}
 
-	// Start the process
+	// Reserve the map slot before releasing the global lock, preserving the
+	// worker cap while a different connection starts. The per-connection
+	// lifecycle lock prevents anyone from observing this launch as replaceable.
+	m.workers[connectionID] = worker
+	m.mu.Unlock()
+
+	removeInMemory := func() {
+		m.mu.Lock()
+		if current, ok := m.workers[connectionID]; ok && current.LaunchID == launchID {
+			delete(m.workers, connectionID)
+		}
+		m.mu.Unlock()
+	}
+	restorePrevious := func() {
+		if previousWorker == nil {
+			return
+		}
+		m.mu.Lock()
+		if _, exists := m.workers[connectionID]; !exists {
+			m.workers[connectionID] = previousWorker
+		}
+		m.mu.Unlock()
+	}
+	preserveFailedIntent := restartCount > 0 || unlinkOnStart
+	markLaunchFailed := func() {
+		m.mu.Lock()
+		if current, ok := m.workers[connectionID]; ok && current.LaunchID == launchID {
+			current.PID = 0
+			current.Status = types.StatusError
+			current.LastCrashAt = time.Now()
+		}
+		m.mu.Unlock()
+		if m.registry != nil {
+			_, _ = m.registry.UpdateStatusLaunch(ctx, connectionID, companyID, launchID, types.StatusError)
+		}
+	}
+
+	// Reserve durable ownership before starting the child. In particular, an
+	// existing registry row owned by another tenant must fail before a process
+	// with that tenant's connection ID can be launched.
+	if m.registry != nil {
+		if err := m.registry.ClaimWorkerLaunch(ctx, worker.Copy(), previousLaunchID); err != nil {
+			removeInMemory()
+			if !errors.Is(err, ErrWorkerLaunchConflict) {
+				restorePrevious()
+			}
+			return fmt.Errorf("reserve worker launch: %w", err)
+		}
+	}
+
 	log.Printf("Spawning worker for company %s, connection %s...", companyID, connectionID)
 	if err := cmd.Start(); err != nil {
-		m.mu.Unlock()
+		if preserveFailedIntent {
+			markLaunchFailed()
+		} else {
+			if m.registry != nil {
+				_, _ = m.registry.RemoveWorkerLaunch(ctx, connectionID, companyID, launchID)
+			}
+			removeInMemory()
+		}
 		return fmt.Errorf("failed to start worker process: %w", err)
 	}
 
+	m.mu.Lock()
+	current, currentExists := m.workers[connectionID]
+	if !currentExists || current.LaunchID != launchID {
+		m.mu.Unlock()
+		stopUnregisteredProcess(cmd)
+		if m.registry != nil {
+			_, _ = m.registry.RemoveWorkerLaunch(ctx, connectionID, companyID, launchID)
+		}
+		return fmt.Errorf("worker %s launch changed during process start", connectionID)
+	}
 	worker.PID = cmd.Process.Pid
 	worker.Status = types.StatusConnecting
+	m.mu.Unlock()
+	if m.registry != nil {
+		if err := m.registry.ActivateWorkerLaunch(ctx, worker.Copy()); err != nil {
+			stopUnregisteredProcess(cmd)
+			if errors.Is(err, ErrWorkerLaunchConflict) {
+				removeInMemory()
+			} else if preserveFailedIntent {
+				markLaunchFailed()
+			} else {
+				_, _ = m.registry.RemoveWorkerLaunch(ctx, connectionID, companyID, launchID)
+				removeInMemory()
+			}
+			return fmt.Errorf("activate worker launch: %w", err)
+		}
+	}
 
 	if !unlinkOnStart {
 		healthCtx, healthCancel := context.WithCancel(m.ctx)
 		worker.healthCancel = healthCancel
-		m.workers[connectionID] = worker
-		m.mu.Unlock()
-
 		m.wg.Add(1)
-		go m.healthCheckWorker(healthCtx, connectionID)
-	} else {
-		m.workers[connectionID] = worker
-		m.mu.Unlock()
+		go m.healthCheckWorker(healthCtx, connectionID, launchID)
 	}
 
 	log.Printf("Worker spawned for company %s, connection %s with PID %d", companyID, connectionID, worker.PID)
-
-	// Register worker in persistent storage — pass a copy to avoid handing
-	// a mutable map pointer to the registry goroutine.
-	if m.registry != nil {
-		if err := m.registry.RegisterWorker(ctx, worker.Copy()); err != nil {
-			log.Printf("Warning: failed to register worker in registry: %v", err)
-		}
-	}
 
 	// Start process monitor goroutine
 	m.wg.Add(1)
@@ -392,8 +507,46 @@ func (m *Manager) spawnWorker(
 	return nil
 }
 
+// stopUnregisteredProcess reaps a child whose durable activation failed. No
+// monitor goroutine exists yet, so this function owns the single cmd.Wait call.
+func stopUnregisteredProcess(cmd *exec.Cmd) {
+	if cmd == nil || cmd.Process == nil {
+		return
+	}
+	pid := cmd.Process.Pid
+	if pgid, err := syscall.Getpgid(pid); err == nil && pgid == pid {
+		_ = syscall.Kill(-pgid, syscall.SIGTERM)
+	} else {
+		_ = cmd.Process.Signal(syscall.SIGTERM)
+	}
+
+	done := make(chan struct{})
+	go func() {
+		_ = cmd.Wait()
+		close(done)
+	}()
+	select {
+	case <-done:
+		return
+	case <-time.After(5 * time.Second):
+	}
+
+	if pgid, err := syscall.Getpgid(pid); err == nil && pgid == pid {
+		_ = syscall.Kill(-pgid, syscall.SIGKILL)
+	} else {
+		_ = cmd.Process.Kill()
+	}
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		log.Printf("Warning: unregistered worker PID %d did not exit after SIGKILL", pid)
+	}
+}
+
 // StopWorker terminates a specific worker process.
 func (m *Manager) StopWorker(ctx context.Context, companyID, connectionID, reason string) error {
+	unlock := m.lockLifecycle(connectionID)
+	defer unlock()
 	if err := m.stopWorkerInternal(ctx, companyID, connectionID, reason, syscall.SIGTERM, false); err != nil {
 		return err
 	}
@@ -410,9 +563,32 @@ func (m *Manager) UnlinkWorker(
 	ctx context.Context,
 	companyID, connectionID, tenantSchema, databaseURL, reason string,
 ) error {
+	unlock := m.lockLifecycle(connectionID)
+	defer unlock()
 	m.mu.RLock()
-	_, exists := m.workers[connectionID]
+	worker, exists := m.workers[connectionID]
+	if exists && worker.CompanyID != companyID {
+		m.mu.RUnlock()
+		return fmt.Errorf("worker %s belongs to another company", connectionID)
+	}
 	m.mu.RUnlock()
+	if exists && worker.PID <= 0 && (worker.Status == types.StatusError || worker.Status == types.StatusStopped) {
+		if tenantSchema == "" {
+			tenantSchema = worker.TenantSchema
+		}
+		if databaseURL == "" {
+			databaseURL = worker.DatabaseURL
+		}
+		return m.spawnWorker(
+			ctx,
+			companyID,
+			connectionID,
+			tenantSchema,
+			databaseURL,
+			true,
+			worker.RestartCount+1,
+		)
+	}
 	if !exists {
 		if databaseURL == "" {
 			return fmt.Errorf("database URL is required to unlink a stopped session")
@@ -427,6 +603,7 @@ func (m *Manager) UnlinkWorker(
 			tenantSchema,
 			databaseURL,
 			true,
+			0,
 		)
 	}
 	if err := m.stopWorkerInternal(ctx, companyID, connectionID, reason, syscall.SIGUSR1, false); err != nil {
@@ -448,16 +625,54 @@ func (m *Manager) stopWorkerInternal(
 	worker, exists := m.workers[connectionID]
 	if !exists {
 		m.mu.Unlock()
-		return fmt.Errorf("worker %s not found", connectionID)
+		return fmt.Errorf("%w: %s", ErrWorkerNotFound, connectionID)
+	}
+	if worker.CompanyID != companyID {
+		m.mu.Unlock()
+		return fmt.Errorf("worker %s belongs to another company", connectionID)
+	}
+
+	if worker.PID <= 0 && worker.Status != types.StatusError && worker.Status != types.StatusStopped {
+		m.mu.Unlock()
+		return fmt.Errorf("worker %s has no process ID", connectionID)
 	}
 
 	// Mark as stopping — every explicit stop suppresses crash handling in
 	// monitorWorkerProcess, which races to observe the process exit.
+	previousStatus := worker.Status
+	previousDesiredState := worker.DesiredState
 	worker.Status = types.StatusStopping
 	worker.ExpectedExit = true
+	targetDesiredState := DesiredStateStopped
+	if stopSignal == syscall.SIGUSR1 {
+		targetDesiredState = DesiredStateUnlinking
+	}
+	if !preserveRegistry {
+		worker.DesiredState = targetDesiredState
+	}
+	launchID := worker.LaunchID
 	m.mu.Unlock()
 
 	log.Printf("Stopping worker %s: %s", connectionID, reason)
+
+	// Persist explicit stop intent before signalling. A delayed restart or a new
+	// orchestrator must not resurrect a process the operator stopped.
+	if !preserveRegistry && m.registry != nil {
+		updated, err := m.registry.SetDesiredState(ctx, connectionID, companyID, launchID, targetDesiredState)
+		if err != nil || !updated {
+			m.mu.Lock()
+			if current, ok := m.workers[connectionID]; ok && current.LaunchID == launchID {
+				current.Status = previousStatus
+				current.DesiredState = previousDesiredState
+				current.ExpectedExit = false
+			}
+			m.mu.Unlock()
+			if err != nil {
+				return fmt.Errorf("persist stopped intent for worker %s: %w", connectionID, err)
+			}
+			return fmt.Errorf("worker %s launch changed while stopping", connectionID)
+		}
+	}
 
 	// Mark recovery intent before signaling. If the orchestrator itself is
 	// terminated before the child finishes, the durable record still tells the
@@ -468,8 +683,21 @@ func (m *Manager) stopWorkerInternal(
 	// worker would keep running, still holding its WhatsApp session, while the
 	// orchestrator exits around it.
 	if preserveRegistry && m.registry != nil {
-		if err := m.registry.UpdateStatus(ctx, connectionID, WorkerStatusRecovering); err != nil {
-			log.Printf("Warning: failed to re-mark worker %s for recovery: %v", connectionID, err)
+		updated, err := m.registry.UpdateStatusLaunch(
+			ctx,
+			connectionID,
+			companyID,
+			launchID,
+			WorkerStatusRecovering,
+		)
+		if err != nil || !updated {
+			log.Printf(
+				"Warning: failed to re-mark worker %s launch %s for recovery: updated=%t error=%v",
+				connectionID,
+				launchID,
+				updated,
+				err,
+			)
 		}
 	}
 
@@ -480,13 +708,42 @@ func (m *Manager) stopWorkerInternal(
 
 	pid := worker.PID
 	if pid <= 0 {
-		return fmt.Errorf("worker %s has no process ID", connectionID)
+		if !preserveRegistry && targetDesiredState == DesiredStateUnlinking {
+			m.mu.Lock()
+			if current, ok := m.workers[connectionID]; ok && current.LaunchID == launchID {
+				current.Status = types.StatusError
+				current.ExpectedExit = false
+			}
+			m.mu.Unlock()
+			return fmt.Errorf("worker %s has no live process; durable unlink must be resumed", connectionID)
+		}
+		if m.registry != nil && !preserveRegistry {
+			removed, removeErr := m.registry.RemoveWorkerLaunch(ctx, connectionID, companyID, launchID)
+			if removeErr != nil || !removed {
+				m.mu.Lock()
+				if current, ok := m.workers[connectionID]; ok && current.LaunchID == launchID {
+					current.Status = types.StatusError
+					current.ExpectedExit = false
+				}
+				m.mu.Unlock()
+				if removeErr != nil {
+					return fmt.Errorf("remove processless worker %s: %w", connectionID, removeErr)
+				}
+				return fmt.Errorf("processless worker %s launch changed before removal", connectionID)
+			}
+		}
+		m.mu.Lock()
+		if current, ok := m.workers[connectionID]; ok && current.LaunchID == launchID {
+			delete(m.workers, connectionID)
+		}
+		m.mu.Unlock()
+		return nil
 	}
 
 	// Recovered workers have no exec.Cmd. Verify the PID still belongs to the
 	// configured worker binary before signaling it, mitigating PID reuse.
 	if worker.cmd == nil {
-		matches, err := m.isExpectedWorkerProcess(pid)
+		matches, err := m.isExpectedWorkerProcess(pid, worker.CompanyID, worker.ConnectionID)
 		if err != nil {
 			return fmt.Errorf("verify recovered worker %s: %w", connectionID, err)
 		}
@@ -525,47 +782,103 @@ func (m *Manager) stopWorkerInternal(
 		}
 	}
 
+	if stopSignal == syscall.SIGUSR1 && worker.cmd != nil && worker.exitErr != nil {
+		m.mu.Lock()
+		if current, ok := m.workers[connectionID]; ok && current.LaunchID == launchID {
+			current.PID = 0
+			current.Status = types.StatusError
+			current.DesiredState = DesiredStateUnlinking
+		}
+		m.mu.Unlock()
+		return fmt.Errorf("unlink worker %s exited before completing purge: %w", connectionID, worker.exitErr)
+	}
+
 	// Explicit disconnect/unlink removes the durable record. During an
 	// orchestrator shutdown it must survive so startup recovery can respawn the
 	// WhatsApp process with its existing session credentials.
 	if m.registry != nil && !preserveRegistry {
-		if err := m.registry.RemoveWorker(ctx, connectionID); err != nil {
+		removed, err := m.registry.RemoveWorkerLaunch(ctx, connectionID, companyID, launchID)
+		if err != nil {
 			return fmt.Errorf("remove worker %s from registry: %w", connectionID, err)
+		}
+		if !removed {
+			return fmt.Errorf("worker %s launch changed before registry removal", connectionID)
 		}
 	}
 
 	m.mu.Lock()
-	worker.Status = types.StatusStopped
-	delete(m.workers, connectionID)
+	if current, ok := m.workers[connectionID]; ok && current.LaunchID == launchID {
+		worker.Status = types.StatusStopped
+		delete(m.workers, connectionID)
+	}
 	m.mu.Unlock()
 
 	return nil
 }
 
-func (m *Manager) isExpectedWorkerProcess(pid int) (bool, error) {
-	procExecutable := fmt.Sprintf("/proc/%d/exe", pid)
-	if executable, err := os.Readlink(procExecutable); err == nil {
-		expected, expectedErr := filepath.EvalSymlinks(m.config.WhatsAppBinaryPath)
-		if expectedErr != nil {
-			expected = m.config.WhatsAppBinaryPath
-		}
-		actual, actualErr := filepath.EvalSymlinks(executable)
-		if actualErr != nil {
-			actual = executable
-		}
-		return actual == expected, nil
-	}
-
-	output, err := exec.Command("ps", "-p", fmt.Sprint(pid), "-o", "command=").Output()
-	if err != nil {
-		return false, err
-	}
-	fields := strings.Fields(string(output))
-	if len(fields) == 0 {
+func (m *Manager) isExpectedWorkerProcess(pid int, companyID, connectionID string) (bool, error) {
+	if pid <= 0 {
 		return false, nil
 	}
-	actual := fields[0]
-	return actual == m.config.WhatsAppBinaryPath || filepath.Base(actual) == filepath.Base(m.config.WhatsAppBinaryPath), nil
+	process, err := os.FindProcess(pid)
+	if err != nil {
+		return false, nil
+	}
+	if err := process.Signal(syscall.Signal(0)); err != nil {
+		if errors.Is(err, os.ErrProcessDone) || errors.Is(err, syscall.ESRCH) {
+			return false, nil
+		}
+		return false, fmt.Errorf("check PID %d liveness: %w", pid, err)
+	}
+
+	procExecutable := fmt.Sprintf("/proc/%d/exe", pid)
+	executable, executableErr := os.Readlink(procExecutable)
+	if executableErr != nil {
+		output, err := exec.Command("ps", "-p", fmt.Sprint(pid), "-o", "command=").Output()
+		if err != nil {
+			return false, err
+		}
+		fields := strings.Fields(string(output))
+		if len(fields) == 0 {
+			return false, nil
+		}
+		executable = fields[0]
+	}
+
+	expected, expectedErr := filepath.EvalSymlinks(m.config.WhatsAppBinaryPath)
+	if expectedErr != nil {
+		expected = m.config.WhatsAppBinaryPath
+	}
+	actual, actualErr := filepath.EvalSymlinks(executable)
+	if actualErr != nil {
+		actual = executable
+	}
+	if actual != expected && filepath.Base(actual) != filepath.Base(expected) {
+		return false, nil
+	}
+
+	// The executable alone is insufficient: every connection runs the same
+	// worker binary, so a stale PID can be reused by another tenant's worker.
+	// Match the immutable tenant/connection identity from the child environment
+	// before sending any signal to an adopted process.
+	environment, err := os.ReadFile(fmt.Sprintf("/proc/%d/environ", pid))
+	if err != nil {
+		environment, err = exec.Command("ps", "eww", "-p", fmt.Sprint(pid), "-o", "command=").Output()
+		if err != nil {
+			return false, err
+		}
+	}
+	normalized := strings.ReplaceAll(string(environment), "\x00", " ")
+	fields := strings.Fields(normalized)
+	companyToken := "COMPANY_ID=" + companyID
+	connectionToken := "CONNECTION_ID=" + connectionID
+	companyMatches := false
+	connectionMatches := false
+	for _, field := range fields {
+		companyMatches = companyMatches || field == companyToken
+		connectionMatches = connectionMatches || field == connectionToken
+	}
+	return companyMatches && connectionMatches, nil
 }
 
 // waitForWorkerExit waits for a spawned worker's done channel (closed when
@@ -686,7 +999,7 @@ func (m *Manager) WorkerCount() int {
 }
 
 // healthCheckWorker performs periodic health checks on a worker.
-func (m *Manager) healthCheckWorker(ctx context.Context, connectionID string) {
+func (m *Manager) healthCheckWorker(ctx context.Context, connectionID, launchID string) {
 	defer m.wg.Done()
 
 	ticker := time.NewTicker(m.config.HealthCheckInterval)
@@ -699,7 +1012,7 @@ func (m *Manager) healthCheckWorker(ctx context.Context, connectionID string) {
 		case <-ticker.C:
 			m.mu.RLock()
 			worker, exists := m.workers[connectionID]
-			if !exists {
+			if !exists || worker.LaunchID != launchID {
 				m.mu.RUnlock()
 				log.Printf("Health check: worker %s no longer exists, stopping health check", connectionID)
 				return
@@ -714,7 +1027,7 @@ func (m *Manager) healthCheckWorker(ctx context.Context, connectionID string) {
 				process, err := os.FindProcess(pid)
 				if err != nil {
 					log.Printf("Health check: worker %s process not found (PID %d)", connectionID, pid)
-					m.handleWorkerFailure(connectionID, "process not found")
+					m.handleWorkerFailure(connectionID, launchID, "process not found")
 					return
 				}
 
@@ -722,7 +1035,7 @@ func (m *Manager) healthCheckWorker(ctx context.Context, connectionID string) {
 				err = process.Signal(syscall.Signal(0))
 				if err != nil {
 					log.Printf("Health check: worker %s process dead (PID %d): %v", connectionID, pid, err)
-					m.handleWorkerFailure(connectionID, "process dead")
+					m.handleWorkerFailure(connectionID, launchID, "process dead")
 					return
 				}
 			}
@@ -730,8 +1043,17 @@ func (m *Manager) healthCheckWorker(ctx context.Context, connectionID string) {
 			// The process answered signal 0, so it is alive. Record that in the
 			// durable registry.
 			if m.recordWorkerHeartbeat != nil {
-				if err := m.recordWorkerHeartbeat(ctx, connectionID); err != nil {
+				updated, err := m.recordWorkerHeartbeat(
+					ctx,
+					connectionID,
+					worker.CompanyID,
+					launchID,
+				)
+				if err != nil {
 					log.Printf("Warning: failed to record heartbeat for worker %s: %v", connectionID, err)
+				} else if !updated {
+					log.Printf("Health check: worker %s launch changed before heartbeat; stopping health check", connectionID)
+					return
 				}
 			}
 
@@ -751,29 +1073,51 @@ func (m *Manager) monitorWorkerProcess(
 	workerProcess *WorkerProcess,
 ) {
 	defer m.wg.Done()
-	defer close(workerProcess.done)
 
-	// Wait for the process to exit
+	// Close done immediately after Wait so a serialized StopWorker waiting for
+	// process reaping cannot deadlock with this callback's lifecycle lock.
 	err := cmd.Wait()
+	workerProcess.exitErr = err
+	close(workerProcess.done)
 
+	unlock := m.lockLifecycle(connectionID)
 	m.mu.Lock()
+	current, currentLaunch := m.workers[connectionID]
+	isCurrent := currentLaunch && current.LaunchID == workerProcess.LaunchID
 	removeOnExit := workerProcess.RemoveOnExit
 	expectedExit := workerProcess.ExpectedExit
 	shuttingDown := m.shuttingDown
-	if removeOnExit {
-		if workerProcess.healthCancel != nil {
-			workerProcess.healthCancel()
-		}
-		delete(m.workers, connectionID)
+	if removeOnExit && isCurrent && workerProcess.healthCancel != nil {
+		workerProcess.healthCancel()
 	}
 	m.mu.Unlock()
 
 	if removeOnExit {
-		if m.registry != nil {
-			if removeErr := m.registry.RemoveWorker(m.ctx, connectionID); removeErr != nil {
+		// A one-shot unlink is complete only after a clean process exit. A
+		// signal, crash, or orchestrator shutdown may interrupt LogoutAndPurge;
+		// keep durable unlink intent so startup or an explicit retry finishes it.
+		retainForCleanup := err != nil || expectedExit || shuttingDown
+		if isCurrent && m.registry != nil && !retainForCleanup {
+			removed, removeErr := m.registry.RemoveWorkerLaunch(m.ctx, connectionID, workerProcess.CompanyID, workerProcess.LaunchID)
+			if removeErr != nil {
+				retainForCleanup = true
 				log.Printf("Warning: failed to remove completed unlink worker %s: %v", connectionID, removeErr)
+			} else if !removed {
+				log.Printf("Completed unlink worker %s no longer owns its durable launch", connectionID)
 			}
 		}
+		m.mu.Lock()
+		if current, ok := m.workers[connectionID]; ok && current.LaunchID == workerProcess.LaunchID {
+			if retainForCleanup {
+				current.PID = 0
+				current.Status = types.StatusError
+				current.DesiredState = DesiredStateUnlinking
+			} else {
+				delete(m.workers, connectionID)
+			}
+		}
+		m.mu.Unlock()
+		unlock()
 		if err != nil {
 			log.Printf("One-shot unlink worker %s exited with error: %v", connectionID, err)
 		} else {
@@ -781,28 +1125,32 @@ func (m *Manager) monitorWorkerProcess(
 		}
 		return
 	}
+	unlock()
 
-	if expectedExit || shuttingDown {
+	if !isCurrent || expectedExit || shuttingDown {
 		return
 	}
 
-	// Process exited unexpectedly
+	// Process exited unexpectedly. Failure handling rechecks the launch after
+	// acquiring the lifecycle lock, so a replacement between here and there wins.
 	if err != nil {
 		log.Printf("Worker %s exited with error: %v", connectionID, err)
-		m.handleWorkerFailure(connectionID, err.Error())
+		m.handleWorkerFailure(connectionID, workerProcess.LaunchID, err.Error())
 	} else {
 		log.Printf("Worker %s exited cleanly", connectionID)
-		m.handleWorkerFailure(connectionID, "process exited")
+		m.handleWorkerFailure(connectionID, workerProcess.LaunchID, "process exited")
 	}
 }
 
-// handleWorkerFailure handles a worker failure.
-func (m *Manager) handleWorkerFailure(connectionID, reason string) {
-	log.Printf("handleWorkerFailure called for %s: %s", connectionID, reason)
+// handleWorkerFailure handles a worker failure only for the launch that failed.
+func (m *Manager) handleWorkerFailure(connectionID, launchID, reason string) {
+	unlock := m.lockLifecycle(connectionID)
+	defer unlock()
+	log.Printf("handleWorkerFailure called for %s launch %s: %s", connectionID, launchID, reason)
 	m.mu.Lock()
 	worker, exists := m.workers[connectionID]
-	if !exists {
-		log.Printf("Worker %s not found in workers map, cannot handle failure", connectionID)
+	if !exists || worker.LaunchID != launchID || worker.DesiredState != DesiredStateRunning {
+		log.Printf("Ignoring stale failure for worker %s launch %s", connectionID, launchID)
 		m.mu.Unlock()
 		return
 	}
@@ -810,6 +1158,7 @@ func (m *Manager) handleWorkerFailure(connectionID, reason string) {
 
 	companyID := worker.CompanyID
 	worker.Status = types.StatusError
+	worker.PID = 0
 	worker.LastCrashAt = time.Now()
 
 	// Cancel health check if running
@@ -826,7 +1175,12 @@ func (m *Manager) handleWorkerFailure(connectionID, reason string) {
 	// Get restart count from registry or use in-memory count.
 	restartCount := workerCopy.RestartCount
 	if m.registry != nil {
-		if count, err := m.registry.GetRestartCount(m.ctx, connectionID); err == nil {
+		if count, found, err := m.registry.GetRestartCountLaunch(
+			m.ctx,
+			connectionID,
+			workerCopy.CompanyID,
+			workerCopy.LaunchID,
+		); err == nil && found {
 			restartCount = count
 		}
 	}
@@ -839,22 +1193,32 @@ func (m *Manager) handleWorkerFailure(connectionID, reason string) {
 	if m.config.AutoRestartEnabled && restartCount < m.config.AutoRestartMaxRetries {
 		log.Printf("Auto-restart enabled for %s (attempt %d/%d)", connectionID, restartCount+1, m.config.AutoRestartMaxRetries)
 		go m.scheduleRestart(workerCopy, reason)
-	} else if restartCount >= m.config.AutoRestartMaxRetries {
-		log.Printf("Worker %s exceeded max restart attempts (%d)", connectionID, m.config.AutoRestartMaxRetries)
-		// Publish permanent failure event
-		m.publishConnectionStatus(companyID, connectionID, "failed", "max restart attempts exceeded")
+	} else {
+		failureReason := "automatic restart disabled"
+		if restartCount >= m.config.AutoRestartMaxRetries {
+			failureReason = "max restart attempts exceeded"
+			log.Printf("Worker %s exceeded max restart attempts (%d)", connectionID, m.config.AutoRestartMaxRetries)
+		}
+		m.publishConnectionStatus(companyID, connectionID, "failed", failureReason)
 
-		// Clean up from registry since we're not restarting
+		// Retain the failed in-memory generation when durable cleanup fails.
+		// A manual spawn can then CAS from that exact launch instead of becoming
+		// permanently wedged behind an unclaimable desired-running row.
+		removeFromMemory := true
 		if m.registry != nil {
-			if err := m.registry.RemoveWorker(m.ctx, connectionID); err != nil {
-				log.Printf("Warning: failed to remove worker from registry: %v", err)
+			removed, err := m.registry.RemoveWorkerLaunch(m.ctx, connectionID, companyID, workerCopy.LaunchID)
+			if err != nil || !removed {
+				removeFromMemory = false
+				log.Printf("Warning: failed to remove worker from registry: removed=%t error=%v", removed, err)
 			}
 		}
-
-		// Remove from in-memory tracking
-		m.mu.Lock()
-		delete(m.workers, connectionID)
-		m.mu.Unlock()
+		if removeFromMemory {
+			m.mu.Lock()
+			if current, ok := m.workers[connectionID]; ok && current.LaunchID == workerCopy.LaunchID {
+				delete(m.workers, connectionID)
+			}
+			m.mu.Unlock()
+		}
 	}
 }
 
@@ -906,29 +1270,64 @@ func (m *Manager) scheduleRestart(worker *WorkerProcess, reason string) {
 
 	time.Sleep(backoff)
 
-	// Check if we're still supposed to restart (not shutting down)
-	m.mu.RLock()
-	shuttingDown := m.shuttingDown
-	m.mu.RUnlock()
+	unlock := m.lockLifecycle(worker.ConnectionID)
+	defer unlock()
 
-	if shuttingDown {
-		log.Printf("Skipping restart for %s - orchestrator is shutting down", worker.ConnectionID)
+	// A delayed restart is valid only while the exact failed launch is still the
+	// current launch and both in-memory and durable intent remain running.
+	m.mu.RLock()
+	current, exists := m.workers[worker.ConnectionID]
+	valid := !m.shuttingDown && exists && current.LaunchID == worker.LaunchID &&
+		current.CompanyID == worker.CompanyID && current.DesiredState == DesiredStateRunning &&
+		current.Status == types.StatusError
+	m.mu.RUnlock()
+	if !valid {
+		log.Printf("Skipping stale restart for %s launch %s", worker.ConnectionID, worker.LaunchID)
 		return
 	}
 
-	// Increment restart count in registry
 	if m.registry != nil {
-		if err := m.registry.IncrementRestartCount(m.ctx, worker.ConnectionID); err != nil {
-			log.Printf("Warning: failed to increment restart count: %v", err)
+		record, err := m.registry.GetWorker(m.ctx, worker.ConnectionID)
+		if err != nil || record == nil || record.LaunchID != worker.LaunchID ||
+			record.CompanyID != worker.CompanyID || record.DesiredState != DesiredStateRunning {
+			log.Printf("Skipping restart for %s: durable launch or desired state changed (error: %v)", worker.ConnectionID, err)
+			return
+		}
+		updated, err := m.registry.IncrementRestartCountLaunch(m.ctx, worker.ConnectionID, worker.CompanyID, worker.LaunchID)
+		if err != nil || !updated {
+			log.Printf("Skipping restart for %s: failed to advance matching restart attempt (error: %v)", worker.ConnectionID, err)
+			return
 		}
 	}
 
-	// Respawn the worker
+	// Respawn while retaining the same per-connection lifecycle lock. Carry the
+	// incremented attempt into the replacement launch so registration cannot
+	// accidentally reset the durable retry budget.
+	nextRestartCount := worker.RestartCount + 1
 	log.Printf("Restarting worker %s...", worker.ConnectionID)
-	err := m.SpawnWorker(m.ctx, worker.CompanyID, worker.ConnectionID, worker.TenantSchema, worker.DatabaseURL)
+	err := m.spawnWorker(
+		m.ctx,
+		worker.CompanyID,
+		worker.ConnectionID,
+		worker.TenantSchema,
+		worker.DatabaseURL,
+		false,
+		nextRestartCount,
+	)
 	if err != nil {
 		log.Printf("Auto-restart failed for %s: %v", worker.ConnectionID, err)
-		// The next failure will trigger another restart attempt if under limit
+		m.mu.RLock()
+		failedLaunch, exists := m.workers[worker.ConnectionID]
+		var failedCopy *WorkerProcess
+		if exists && failedLaunch.CompanyID == worker.CompanyID && failedLaunch.Status == types.StatusError {
+			failedCopy = failedLaunch.Copy()
+		}
+		m.mu.RUnlock()
+		if failedCopy != nil {
+			// Re-enter normal failure handling after releasing this lifecycle lock.
+			// That preserves the incremented budget and schedules the next attempt.
+			go m.handleWorkerFailure(failedCopy.ConnectionID, failedCopy.LaunchID, err.Error())
+		}
 	}
 }
 
@@ -991,6 +1390,10 @@ func survivorAnnouncement(recordStatus string) (status string, publish bool) {
 	return "", false
 }
 
+func shouldRecoverWorker(w *WorkerRecord) bool {
+	return w.DesiredState == DesiredStateRunning
+}
+
 // recoverOrphanedWorkers recovers workers from the database after orchestrator restart.
 func (m *Manager) recoverOrphanedWorkers(ctx context.Context) error {
 	if m.registry == nil {
@@ -1014,12 +1417,95 @@ func (m *Manager) recoverOrphanedWorkers(ctx context.Context) error {
 		if databaseURL == "" {
 			databaseURL = w.DatabaseURL // Backward compatibility with old registry rows.
 		}
-		// Check that the process exists and still belongs to the worker binary.
-		// A stale registry PID may have been reused by an unrelated process.
-		processMatches, processErr := m.isExpectedWorkerProcess(w.PID)
-		if processErr != nil || !processMatches {
-			log.Printf("Worker %s (PID %d) is dead or has a reused PID, cleaning up and notifying API", w.ConnectionID, w.PID)
-			m.registry.RemoveWorker(ctx, w.ConnectionID)
+		// Check every intent before deciding whether to skip it. A stopped or
+		// unlinking row may represent a crash between persisting intent and
+		// signaling the old process, and must not leave that child orphaned.
+		processMatches, processErr := m.isExpectedWorkerProcess(w.PID, w.CompanyID, w.ConnectionID)
+		if processErr != nil {
+			return fmt.Errorf("verify persisted worker %s process identity: %w", w.ConnectionID, processErr)
+		}
+		processAlive := processMatches
+
+		if w.DesiredState == DesiredStateStopped || w.DesiredState == DesiredStateUnlinking {
+			if !processAlive {
+				if w.DesiredState == DesiredStateUnlinking {
+					failed := &WorkerProcess{
+						ID: w.ConnectionID, LaunchID: w.LaunchID, DesiredState: DesiredStateUnlinking,
+						ConnectionID: w.ConnectionID, CompanyID: w.CompanyID,
+						TenantSchema: w.TenantSchema, DatabaseURL: databaseURL,
+						Status: types.StatusError, RestartCount: w.RestartCount,
+					}
+					m.mu.Lock()
+					m.workers[w.ConnectionID] = failed
+					m.mu.Unlock()
+					unlink := m.lockLifecycle(w.ConnectionID)
+					err := m.spawnWorker(ctx, w.CompanyID, w.ConnectionID, w.TenantSchema, databaseURL, true, w.RestartCount+1)
+					unlink()
+					if err != nil {
+						return fmt.Errorf("resume durable unlink for worker %s: %w", w.ConnectionID, err)
+					}
+				} else if removed, err := m.registry.RemoveWorkerLaunch(ctx, w.ConnectionID, w.CompanyID, w.LaunchID); err != nil || !removed {
+					log.Printf("Warning: failed to clear completed stopped worker %s: removed=%t error=%v", w.ConnectionID, removed, err)
+					if err != nil {
+						m.mu.Lock()
+						m.workers[w.ConnectionID] = &WorkerProcess{
+							ID: w.ConnectionID, LaunchID: w.LaunchID, DesiredState: DesiredStateStopped,
+							ConnectionID: w.ConnectionID, CompanyID: w.CompanyID,
+							TenantSchema: w.TenantSchema, DatabaseURL: databaseURL,
+							Status: types.StatusError, RestartCount: w.RestartCount,
+						}
+						m.mu.Unlock()
+					}
+				}
+				continue
+			}
+
+			pending := &WorkerProcess{
+				ID: w.ConnectionID, LaunchID: w.LaunchID, DesiredState: w.DesiredState,
+				ConnectionID: w.ConnectionID, CompanyID: w.CompanyID,
+				TenantSchema: w.TenantSchema, DatabaseURL: databaseURL,
+				Status: w.Status, PID: w.PID, StartedAt: w.StartedAt,
+				LastActivity: w.LastHeartbeat, RestartCount: w.RestartCount,
+			}
+			m.mu.Lock()
+			m.workers[w.ConnectionID] = pending
+			m.mu.Unlock()
+			if w.DesiredState == DesiredStateUnlinking {
+				// An adopted process has no wait status, so its exit cannot prove
+				// LogoutAndPurge succeeded. Keep the row, stop it, then run a
+				// manager-owned one-shot whose clean exit can be verified.
+				if err := m.stopWorkerInternal(ctx, w.CompanyID, w.ConnectionID, "resume durable unlink", syscall.SIGUSR1, true); err != nil {
+					return fmt.Errorf("stop adopted unlink worker %s: %w", w.ConnectionID, err)
+				}
+				m.mu.Lock()
+				m.workers[w.ConnectionID] = &WorkerProcess{
+					ID: w.ConnectionID, LaunchID: w.LaunchID, DesiredState: DesiredStateUnlinking,
+					ConnectionID: w.ConnectionID, CompanyID: w.CompanyID,
+					TenantSchema: w.TenantSchema, DatabaseURL: databaseURL,
+					Status: types.StatusError, RestartCount: w.RestartCount,
+				}
+				m.mu.Unlock()
+				unlink := m.lockLifecycle(w.ConnectionID)
+				err := m.spawnWorker(ctx, w.CompanyID, w.ConnectionID, w.TenantSchema, databaseURL, true, w.RestartCount+1)
+				unlink()
+				if err != nil {
+					return fmt.Errorf("verify durable unlink for worker %s: %w", w.ConnectionID, err)
+				}
+				continue
+			}
+			if err := m.stopWorkerInternal(ctx, w.CompanyID, w.ConnectionID, "complete durable stopped intent", syscall.SIGTERM, false); err != nil {
+				return fmt.Errorf("complete durable stopped intent for worker %s: %w", w.ConnectionID, err)
+			}
+			m.publishConnectionStatus(w.CompanyID, w.ConnectionID, types.StatusStopped, "completed pending lifecycle request")
+			continue
+		}
+		if !shouldRecoverWorker(w) {
+			log.Printf("Skipping worker %s with unknown desired state %q", w.ConnectionID, w.DesiredState)
+			continue
+		}
+
+		if !processAlive {
+			log.Printf("Worker %s (PID %d) is dead or has a reused PID, retaining launch intent and notifying API", w.ConnectionID, w.PID)
 			// Tell the API the connection is coming back. Only a record that was
 			// not marked for recovery represents an actual crash.
 			status, reason := recoveryAnnouncement(w.Status)
@@ -1028,13 +1514,37 @@ func (m *Manager) recoverOrphanedWorkers(ctx context.Context) error {
 			// Trigger respawn if auto-restart enabled
 			if m.config.AutoRestartEnabled && w.RestartCount < m.config.AutoRestartMaxRetries {
 				workerProcess := &WorkerProcess{
+					ID:           w.ConnectionID,
+					LaunchID:     w.LaunchID,
+					DesiredState: w.DesiredState,
 					ConnectionID: w.ConnectionID,
 					CompanyID:    w.CompanyID,
 					TenantSchema: w.TenantSchema,
 					DatabaseURL:  databaseURL,
+					Status:       types.StatusError,
 					RestartCount: w.RestartCount,
 				}
-				go m.scheduleRestart(workerProcess, "recovered after orchestrator restart")
+				m.mu.Lock()
+				m.workers[w.ConnectionID] = workerProcess
+				m.mu.Unlock()
+				go m.scheduleRestart(workerProcess.Copy(), "recovered after orchestrator restart")
+			} else {
+				reason := "automatic restart disabled"
+				if w.RestartCount >= m.config.AutoRestartMaxRetries {
+					reason = "max restart attempts exceeded"
+				}
+				m.publishConnectionStatus(w.CompanyID, w.ConnectionID, "failed", reason)
+				if removed, removeErr := m.registry.RemoveWorkerLaunch(ctx, w.ConnectionID, w.CompanyID, w.LaunchID); removeErr != nil || !removed {
+					log.Printf("Warning: failed to clear terminal recovery row for worker %s: removed=%t error=%v", w.ConnectionID, removed, removeErr)
+					m.mu.Lock()
+					m.workers[w.ConnectionID] = &WorkerProcess{
+						ID: w.ConnectionID, LaunchID: w.LaunchID, DesiredState: w.DesiredState,
+						ConnectionID: w.ConnectionID, CompanyID: w.CompanyID,
+						TenantSchema: w.TenantSchema, DatabaseURL: databaseURL,
+						Status: types.StatusError, RestartCount: w.RestartCount,
+					}
+					m.mu.Unlock()
+				}
 			}
 			continue
 		}
@@ -1047,6 +1557,8 @@ func (m *Manager) recoverOrphanedWorkers(ctx context.Context) error {
 		// But we can track it and monitor its health
 		worker := &WorkerProcess{
 			ID:           w.ConnectionID,
+			LaunchID:     w.LaunchID,
+			DesiredState: w.DesiredState,
 			CompanyID:    w.CompanyID,
 			ConnectionID: w.ConnectionID,
 			TenantSchema: w.TenantSchema,
@@ -1067,7 +1579,7 @@ func (m *Manager) recoverOrphanedWorkers(ctx context.Context) error {
 		worker.healthCancel = healthCancel
 
 		m.wg.Add(1)
-		go m.healthCheckWorker(healthCtx, w.ConnectionID)
+		go m.healthCheckWorker(healthCtx, w.ConnectionID, w.LaunchID)
 
 		// Tell the API only what this orchestrator actually established. A
 		// surviving process whose record still carries its spawn-time status

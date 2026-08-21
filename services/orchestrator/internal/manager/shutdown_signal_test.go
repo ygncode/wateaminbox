@@ -29,6 +29,7 @@ func startCooperativeTestWorkers(t *testing.T, n int, markerDir string) ([]*exec
 		ready := marker + ".ready"
 		cmd := exec.Command("/bin/sh", "-c",
 			`trap 'echo got_sigterm > "`+marker+`"; exit 0' TERM; : > "`+ready+`"; while true; do sleep 0.1; done`)
+		cmd.Env = append(os.Environ(), "COMPANY_ID=company", "CONNECTION_ID="+id)
 		require.NoError(t, cmd.Start())
 		require.Eventually(t, func() bool {
 			_, err := os.Stat(ready)
