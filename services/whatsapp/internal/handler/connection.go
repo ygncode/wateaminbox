@@ -449,23 +449,34 @@ func (h *Handler) handleStreamReplaced(evt *events.StreamReplaced) {
 
 // handlePicture processes profile picture updates.
 func (h *Handler) handlePicture(evt *events.Picture) {
-	// Normalize JID to remove device suffix for consistent contact matching
-	normalizedJID := evt.JID.ToNonAD()
-	log.Printf("Profile picture update for %s (remove: %v)", normalizedJID.String(), evt.Remove)
+	// Picture events may identify a person by their private LID while contacts
+	// are stored by phone-number JID. Resolve the same canonical identity used
+	// by message and history handling before fetching or publishing.
+	canonicalJID := h.resolvePreferredJID(evt.JID, types.EmptyJID).ToNonAD()
+	cacheKey := canonicalJID.String()
+	log.Printf("Profile picture update for %s (remove: %v)", cacheKey, evt.Remove)
 
+	// A WhatsApp change event supersedes any command-driven cache entry.
+	h.profilePictureCache.Delete(cacheKey)
 	var profilePictureURL string
 	if !evt.Remove {
-		// Fetch the new profile picture (use original JID for API call)
-		profilePictureURL = h.fetchProfilePicture(evt.JID)
-		if profilePictureURL == "" {
-			log.Printf("Failed to fetch new profile picture for %s", normalizedJID.String())
+		var err error
+		profilePictureURL, err = h.fetchProfilePicture(canonicalJID)
+		if err != nil {
+			log.Printf("Failed to fetch new profile picture for %s: %v", cacheKey, err)
 			return
 		}
+		if profilePictureURL == "" {
+			// The change notification can arrive before the new CDN URL becomes
+			// readable. Preserve the last known picture rather than clearing it.
+			log.Printf("New profile picture is not yet available for %s", cacheKey)
+			return
+		}
+		h.profilePictureCache.Store(cacheKey, profilePictureCacheEntry{url: profilePictureURL})
 	}
 
-	// Publish to NATS with normalized JID
 	if h.publisher != nil {
-		if err := h.publisher.PublishProfilePicture(normalizedJID.String(), profilePictureURL, evt.Remove, evt.Timestamp); err != nil {
+		if err := h.publisher.PublishProfilePicture(cacheKey, profilePictureURL, evt.Remove, evt.Timestamp); err != nil {
 			log.Printf("Failed to publish profile picture update: %v", err)
 		}
 	}

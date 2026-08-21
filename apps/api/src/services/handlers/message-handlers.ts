@@ -43,22 +43,23 @@ import { resolveIncomingMessageRecipients } from "../notification-recipient.serv
 import { updateMessageSearchVector } from "../search.service.js";
 import { getTenantConnection } from "../tenant.service.js";
 import { lockActiveConnectionForEvent } from "./connection-event-guard.js";
+import { getProfilePictureRequestJid } from "./profile-picture-request.js";
 import { handlerLogger as logger } from "./types.js";
 
-const participantProfileRequests = new Map<string, number>();
-const participantProfileRequestCooldownMs = 10 * 60 * 1000;
+const profilePictureRequestTimes = new Map<string, number>();
+const profilePictureRequestCooldownMs = 10 * 60 * 1000;
 
-async function requestParticipantProfile(
+async function requestProfilePicture(
   companyId: string,
   connectionId: string,
   jid: string,
 ): Promise<void> {
   const requestKey = `${connectionId}:${jid}`;
-  const lastRequestedAt = participantProfileRequests.get(requestKey) || 0;
-  if (Date.now() - lastRequestedAt < participantProfileRequestCooldownMs) {
+  const lastRequestedAt = profilePictureRequestTimes.get(requestKey) || 0;
+  if (Date.now() - lastRequestedAt < profilePictureRequestCooldownMs) {
     return;
   }
-  participantProfileRequests.set(requestKey, Date.now());
+  profilePictureRequestTimes.set(requestKey, Date.now());
 
   await publishCommand(buildCommandSubject(companyId, connectionId), {
     type: "fetch_profile_picture",
@@ -139,7 +140,7 @@ export async function handleMessageEvent(event: MessageEvent): Promise<void> {
     }
     let contact = await tenantDb
       .selectFrom("contacts")
-      .select(["id"])
+      .select(["id", "profile_picture_url"])
       .where("jid", "=", contactJid)
       .where("whatsapp_connection_id", "=", connection.id)
       .executeTakeFirst();
@@ -167,7 +168,7 @@ export async function handleMessageEvent(event: MessageEvent): Promise<void> {
           })
           .execute();
       });
-      contact = { id: contactId };
+      contact = { id: contactId, profile_picture_url: null };
     }
 
     // Preserve the participant separately from the group conversation. Push
@@ -466,20 +467,23 @@ export async function handleMessageEvent(event: MessageEvent): Promise<void> {
     const storedMessageId = insertResult.id;
     logger.debug({ messageId: storedMessageId, companyId }, "Stored message");
 
-    if (
-      isGroupMessage &&
-      !payload.fromMe &&
-      normalizedSenderJid &&
-      !normalizedSenderJid.includes("@g.us")
-    ) {
-      requestParticipantProfile(
+    const profilePictureRequestJid = getProfilePictureRequestJid({
+      isGroupMessage,
+      isHistorySync: payload.isHistorySync === true,
+      fromMe: payload.fromMe,
+      contactJid,
+      contactProfilePictureUrl: contact.profile_picture_url,
+      senderJid: normalizedSenderJid,
+    });
+    if (profilePictureRequestJid) {
+      requestProfilePicture(
         companyId,
         sessionId ?? connection.id,
-        normalizedSenderJid,
+        profilePictureRequestJid,
       ).catch((error) => {
         logger.warn(
-          { error: formatError(error), jid: normalizedSenderJid },
-          "Failed to request group participant profile",
+          { error: formatError(error), jid: profilePictureRequestJid },
+          "Failed to request contact profile picture",
         );
       });
     }

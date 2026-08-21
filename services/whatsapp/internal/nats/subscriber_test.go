@@ -929,10 +929,19 @@ func (noopGroupPublisher) PublishGroupJoinRequests(string, string, []types.Group
 
 type recordingCommandPublisher struct {
 	noopGroupPublisher
-	confirmationAttempts int
-	failConfirmation     bool
-	failureAttempts      int
-	failFailure          bool
+	confirmationAttempts   int
+	failConfirmation       bool
+	failureAttempts        int
+	failFailure            bool
+	profilePictureAttempts int
+	profilePictureURL      string
+	profilePictureRemove   bool
+}
+
+type profilePictureFetcherFunc func(string) (string, error)
+
+func (fetch profilePictureFetcherFunc) FetchProfilePicture(jid string) (string, error) {
+	return fetch(jid)
 }
 
 func (publisher *recordingCommandPublisher) PublishSendConfirmation(string, string, time.Time, string) error {
@@ -952,11 +961,48 @@ func (publisher *recordingCommandPublisher) PublishSendFailed(string, string, st
 func (*recordingCommandPublisher) PublishCommandResult(string, string, bool, string, string) error {
 	return nil
 }
-func (*recordingCommandPublisher) PublishProfilePicture(string, string, bool, time.Time) error {
+func (publisher *recordingCommandPublisher) PublishProfilePicture(_ string, url string, remove bool, _ time.Time) error {
+	publisher.profilePictureAttempts++
+	publisher.profilePictureURL = url
+	publisher.profilePictureRemove = remove
 	return nil
 }
 func (*recordingCommandPublisher) PublishLabels([]types.WhatsAppLabel) error { return nil }
 func (*recordingCommandPublisher) PublishCatalog(types.Catalog) error        { return nil }
+
+func TestProfilePictureFetchFailureDoesNotPublishRemoval(t *testing.T) {
+	publisher := &recordingCommandPublisher{}
+	subscriber := &Subscriber{
+		profileFetcher: profilePictureFetcherFunc(func(string) (string, error) {
+			return "", errors.New("temporary object storage failure")
+		}),
+		publisher: publisher,
+	}
+
+	subscriber.handleFetchProfilePictureCommand(&natsgo.Msg{Data: []byte(
+		`{"type":"fetch_profile_picture","jid":"15551234567@s.whatsapp.net"}`,
+	)})
+
+	assert.Equal(t, 0, publisher.profilePictureAttempts)
+}
+
+func TestConfirmedMissingProfilePicturePublishesRemoval(t *testing.T) {
+	publisher := &recordingCommandPublisher{}
+	subscriber := &Subscriber{
+		profileFetcher: profilePictureFetcherFunc(func(string) (string, error) {
+			return "", nil
+		}),
+		publisher: publisher,
+	}
+
+	subscriber.handleFetchProfilePictureCommand(&natsgo.Msg{Data: []byte(
+		`{"type":"fetch_profile_picture","jid":"15551234567@s.whatsapp.net"}`,
+	)})
+
+	require.Equal(t, 1, publisher.profilePictureAttempts)
+	assert.Empty(t, publisher.profilePictureURL)
+	assert.True(t, publisher.profilePictureRemove)
+}
 
 func TestSendResultReplayPreventsDuplicateSideEffect(t *testing.T) {
 	sendCalls := 0

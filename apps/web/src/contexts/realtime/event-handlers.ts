@@ -321,6 +321,7 @@ export function registerRealtimeEventHandlers({
       // fresh private-storage URL; realtime channels never carry media URLs.
       invalidateChatList(qc);
       qc.invalidateQueries({ queryKey: queryKeys.groups.all });
+      qc.invalidateQueries({ queryKey: queryKeys.contacts.details() });
     }),
     bindUserEvent<MessageDeletedPayload>("message:deleted", (data) => {
       const payload = data.payload;

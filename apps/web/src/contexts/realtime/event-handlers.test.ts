@@ -109,6 +109,22 @@ describe("realtime event handlers", () => {
     });
     cleanup();
   });
+
+  test("profile picture updates invalidate an open contact detail", () => {
+    setCompanyId("company-a");
+    const client = new QueryClient();
+    const detailKey = queryKeys.contacts.detail("contact-1");
+    client.setQueryData(detailKey, { profilePictureUrl: null });
+    const cleanup = register(client);
+
+    emit("contact:profile_picture", {
+      jid: "15551234567@s.whatsapp.net",
+      mediaAvailable: true,
+    });
+
+    expect(client.getQueryState(detailKey)?.isInvalidated).toBe(true);
+    cleanup();
+  });
 });
 
 /**
