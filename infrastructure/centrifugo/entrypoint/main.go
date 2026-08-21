@@ -20,11 +20,12 @@ const (
 )
 
 type redactingWriter struct {
-	mu      sync.Mutex
-	dst     io.Writer
-	secrets [][]byte
-	pending []byte
-	maxLen  int
+	mu             sync.Mutex
+	dst            io.Writer
+	secrets        [][]byte
+	pending        []byte
+	maxLen         int
+	destinationErr error
 }
 
 func newRedactingWriter(dst io.Writer, secrets []string) *redactingWriter {
@@ -48,19 +49,21 @@ func (w *redactingWriter) Write(p []byte) (int, error) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	w.pending = append(w.pending, p...)
-	if err := w.flush(false); err != nil {
-		return 0, err
-	}
+	w.flush(false)
+	// A destination failure must never close os/exec's source pipe: doing so
+	// gives the child SIGPIPE and hides its natural status. Continue draining,
+	// redact in memory, and safely discard after recording the first error.
 	return len(p), nil
 }
 
 func (w *redactingWriter) Close() error {
 	w.mu.Lock()
 	defer w.mu.Unlock()
-	return w.flush(true)
+	w.flush(true)
+	return w.destinationErr
 }
 
-func (w *redactingWriter) flush(final bool) error {
+func (w *redactingWriter) flush(final bool) {
 	limit := len(w.pending)
 	if !final && w.maxLen > 1 {
 		limit -= w.maxLen - 1
@@ -71,7 +74,7 @@ func (w *redactingWriter) flush(final bool) error {
 			limit = newline
 		}
 		if limit <= 0 {
-			return nil
+			return
 		}
 	}
 
@@ -92,13 +95,16 @@ func (w *redactingWriter) flush(final bool) error {
 			consumed++
 		}
 	}
-	if output.Len() > 0 {
-		if _, err := w.dst.Write(output.Bytes()); err != nil {
-			return err
+	if output.Len() > 0 && w.destinationErr == nil {
+		written, err := w.dst.Write(output.Bytes())
+		if err == nil && written != output.Len() {
+			err = io.ErrShortWrite
+		}
+		if err != nil {
+			w.destinationErr = err
 		}
 	}
 	w.pending = append(w.pending[:0], w.pending[consumed:]...)
-	return nil
 }
 
 func readSecret(label, path string) (string, error) {
@@ -129,6 +135,57 @@ func envWithout(keys ...string) []string {
 		}
 	}
 	return result
+}
+
+func executeCommand(command *exec.Cmd, signals <-chan os.Signal) (waitErr, startErr error) {
+	if err := command.Start(); err != nil {
+		return nil, err
+	}
+
+	done := make(chan struct{})
+	go func() {
+		for {
+			select {
+			case received := <-signals:
+				_ = command.Process.Signal(received)
+			case <-done:
+				return
+			}
+		}
+	}()
+	waitErr = command.Wait()
+	close(done)
+	return waitErr, nil
+}
+
+func drainSignalQueue(signals <-chan os.Signal) {
+	for {
+		select {
+		case <-signals:
+		default:
+			return
+		}
+	}
+}
+
+// commandExitStatus defines failure precedence: a naturally nonzero child
+// status is authoritative even if log delivery also failed. Output failure 74
+// applies only when the child itself completed successfully.
+func commandExitStatus(waitErr, outputErr error) int {
+	if waitErr == nil {
+		if outputErr != nil {
+			return 74
+		}
+		return 0
+	}
+	var exitError *exec.ExitError
+	if errors.As(waitErr, &exitError) {
+		if status, ok := exitError.Sys().(syscall.WaitStatus); ok && status.Signaled() {
+			return 128 + int(status.Signal())
+		}
+		return exitError.ExitCode()
+	}
+	return 70
 }
 
 func run() int {
@@ -198,46 +255,26 @@ func run() int {
 	command.Env = childEnv
 	command.Stdout = stdout
 	command.Stderr = stderr
-	if err = command.Start(); err != nil {
+	// Register before Start. Signals delivered while fork/exec is in progress
+	// remain queued and are forwarded as soon as a child exists.
+	signals := make(chan os.Signal, 4)
+	signal.Notify(signals, syscall.SIGTERM, syscall.SIGINT, syscall.SIGHUP)
+	waitErr, startErr := executeCommand(command, signals)
+	signal.Stop(signals)
+	drainSignalQueue(signals)
+	if startErr != nil {
 		fmt.Fprintln(os.Stderr, "centrifugo-entrypoint: failed to start child")
 		return 70
 	}
 
-	signals := make(chan os.Signal, 4)
-	done := make(chan struct{})
-	signal.Notify(signals, syscall.SIGTERM, syscall.SIGINT, syscall.SIGHUP)
-	go func() {
-		for {
-			select {
-			case received := <-signals:
-				_ = command.Process.Signal(received)
-			case <-done:
-				return
-			}
-		}
-	}()
-
-	waitErr := command.Wait()
-	close(done)
-	signal.Stop(signals)
-	stdoutErr := stdout.Close()
-	stderrErr := stderr.Close()
-	if waitErr == nil {
-		if stdoutErr != nil || stderrErr != nil {
-			fmt.Fprintln(os.Stderr, "centrifugo-entrypoint: failed to stream child output")
-			return 74
-		}
-		return 0
+	outputErr := errors.Join(stdout.Close(), stderr.Close())
+	status := commandExitStatus(waitErr, outputErr)
+	if waitErr == nil && outputErr != nil {
+		fmt.Fprintln(os.Stderr, "centrifugo-entrypoint: failed to stream child output")
+	} else if status == 70 {
+		fmt.Fprintln(os.Stderr, "centrifugo-entrypoint: child wait failed")
 	}
-	var exitError *exec.ExitError
-	if errors.As(waitErr, &exitError) {
-		if status, ok := exitError.Sys().(syscall.WaitStatus); ok && status.Signaled() {
-			return 128 + int(status.Signal())
-		}
-		return exitError.ExitCode()
-	}
-	fmt.Fprintln(os.Stderr, "centrifugo-entrypoint: child wait failed")
-	return 70
+	return status
 }
 
 func main() {
