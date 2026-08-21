@@ -1,0 +1,189 @@
+package nats
+
+import (
+	"os"
+	"strings"
+	"testing"
+	"time"
+
+	gnats "github.com/nats-io/nats.go"
+)
+
+func TestRestrictedWorkerNATSPermissionMatrix(t *testing.T) {
+	serviceURL := os.Getenv("NATS_SERVICE_TEST_URL")
+	workerURL := os.Getenv("NATS_WORKER_TEST_URL")
+	if serviceURL == "" || workerURL == "" {
+		t.Skip("set NATS_SERVICE_TEST_URL and NATS_WORKER_TEST_URL")
+	}
+	service, err := gnats.Connect(serviceURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer service.Close()
+	serviceJS, err := service.JetStream()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, cfg := range []StreamConfig{
+		DefaultCommandsStreamConfig(), DefaultEventsStreamConfig(), DefaultDownloadsStreamConfig(),
+	} {
+		if err = EnsureStream(serviceJS, cfg); err != nil {
+			t.Fatalf("ensure %s: %v", cfg.Name, err)
+		}
+	}
+
+	for _, subject := range []string{
+		"WHATSAPP.events.company.connection.message",
+		"WHATSAPP.workers.company.connection.launch.status",
+	} {
+		expectNATSPublish(t, workerURL, subject, true)
+	}
+	for _, subject := range []string{
+		"WHATSAPP.commands",
+		"WHATSAPP.commands.company.connection",
+		"WHATSAPP.control.stop",
+		"WHATSAPP.lifecycle.unlink",
+		"WHATSAPP.rollouts.start",
+		"$JS.API.STREAM.DELETE.WHATSAPP_COMMANDS",
+		"unrelated.subject",
+	} {
+		expectNATSPublish(t, workerURL, subject, false)
+	}
+
+	for _, subject := range []string{
+		"WHATSAPP.commands.company.connection",
+		"WHATSAPP.download.company.connection.request",
+		"_INBOX.permission.test",
+	} {
+		expectNATSSubscribe(t, workerURL, subject, true)
+	}
+	for _, subject := range []string{
+		"WHATSAPP.events.>",
+		"WHATSAPP.workers.>",
+		"WHATSAPP.control.>",
+		"unrelated.>",
+	} {
+		expectNATSSubscribe(t, workerURL, subject, false)
+	}
+
+	worker, err := gnats.Connect(workerURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer worker.Close()
+	workerJS, err := worker.JetStream()
+	if err != nil {
+		t.Fatal(err)
+	}
+	consumer := "worker-permission-test"
+	_ = serviceJS.DeleteConsumer(StreamCommands, consumer)
+	_, err = workerJS.AddConsumer(StreamCommands, &gnats.ConsumerConfig{
+		Durable: consumer, FilterSubject: "WHATSAPP.commands.company.connection",
+		AckPolicy: gnats.AckExplicitPolicy, DeliverPolicy: gnats.DeliverNewPolicy,
+	})
+	if err != nil {
+		t.Fatalf("worker could not create its command consumer: %v", err)
+	}
+	t.Cleanup(func() { _ = serviceJS.DeleteConsumer(StreamCommands, consumer) })
+	sub, err := workerJS.PullSubscribe("WHATSAPP.commands.company.connection", consumer)
+	if err != nil {
+		t.Fatalf("worker could not bind command consumer: %v", err)
+	}
+	if _, err = serviceJS.Publish("WHATSAPP.commands.company.connection", []byte("command")); err != nil {
+		t.Fatal(err)
+	}
+	messages, err := sub.Fetch(1, gnats.MaxWait(2*time.Second))
+	if err != nil || len(messages) != 1 {
+		t.Fatalf("worker could not consume command: messages=%d err=%v", len(messages), err)
+	}
+	if err = messages[0].AckSync(); err != nil {
+		t.Fatalf("worker could not ack command: %v", err)
+	}
+	if _, err = workerJS.Publish("WHATSAPP.events.company.connection.message", []byte("event")); err != nil {
+		t.Fatalf("worker could not publish event through JetStream: %v", err)
+	}
+
+	downloads := make(chan *gnats.Msg, 1)
+	downloadSub, err := workerJS.Subscribe(
+		"WHATSAPP.download.company.connection.request",
+		func(message *gnats.Msg) { downloads <- message },
+		gnats.DeliverNew(), gnats.AckExplicit(), gnats.MaxDeliver(3),
+	)
+	if err != nil {
+		t.Fatalf("worker could not create media-download consumer: %v", err)
+	}
+	defer downloadSub.Unsubscribe()
+	if _, err = serviceJS.Publish("WHATSAPP.download.company.connection.request", []byte("download")); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case message := <-downloads:
+		if err = message.AckSync(); err != nil {
+			t.Fatalf("worker could not ack media download: %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("worker did not receive media-download request")
+	}
+}
+
+func expectNATSPublish(t *testing.T, url, subject string, allowed bool) {
+	t.Helper()
+	errorsCh := make(chan error, 2)
+	nc, err := gnats.Connect(url, gnats.ErrorHandler(func(_ *gnats.Conn, _ *gnats.Subscription, err error) {
+		errorsCh <- err
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer nc.Close()
+	if err = nc.Publish(subject, []byte("test")); err != nil && allowed {
+		t.Fatalf("publish %s: %v", subject, err)
+	}
+	_ = nc.FlushTimeout(time.Second)
+	permissionErr := awaitPermissionError(errorsCh)
+	if allowed && permissionErr != nil {
+		t.Fatalf("publish %s unexpectedly denied: %v", subject, permissionErr)
+	}
+	if !allowed && permissionErr == nil {
+		t.Fatalf("publish %s unexpectedly allowed", subject)
+	}
+}
+
+func expectNATSSubscribe(t *testing.T, url, subject string, allowed bool) {
+	t.Helper()
+	errorsCh := make(chan error, 2)
+	nc, err := gnats.Connect(url, gnats.ErrorHandler(func(_ *gnats.Conn, _ *gnats.Subscription, err error) {
+		errorsCh <- err
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer nc.Close()
+	_, err = nc.Subscribe(subject, func(*gnats.Msg) {})
+	if err != nil && allowed {
+		t.Fatalf("subscribe %s: %v", subject, err)
+	}
+	_ = nc.FlushTimeout(time.Second)
+	permissionErr := awaitPermissionError(errorsCh)
+	if allowed && permissionErr != nil {
+		t.Fatalf("subscribe %s unexpectedly denied: %v", subject, permissionErr)
+	}
+	if !allowed && permissionErr == nil {
+		t.Fatalf("subscribe %s unexpectedly allowed", subject)
+	}
+}
+
+func awaitPermissionError(errorsCh <-chan error) error {
+	timer := time.NewTimer(200 * time.Millisecond)
+	defer timer.Stop()
+	for {
+		select {
+		case err := <-errorsCh:
+			if err != nil && strings.Contains(strings.ToLower(err.Error()), "permissions violation") {
+				return err
+			}
+		case <-timer.C:
+			return nil
+		}
+	}
+}

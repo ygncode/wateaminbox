@@ -8,6 +8,7 @@ import (
 	"hash/fnv"
 	"log"
 	"math/rand/v2"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -28,7 +29,9 @@ type Config struct {
 	WhatsAppBinaryPath    string
 	DefaultNATSURL        string
 	HealthCheckInterval   time.Duration
-	DatabaseURL           string        // Database URL for worker registry persistence
+	DatabaseURL           string        // Privileged manager URL for registry/control persistence.
+	WorkerDatabaseURL     string        // Restricted runtime/session-only worker URL.
+	WorkerNATSURL         string        // Restricted worker NATS user URL.
 	AutoRestartEnabled    bool          // Enable auto-restart on crash
 	AutoRestartMaxRetries int           // Max restart attempts (default: 5)
 	AutoRestartBackoff    time.Duration // Base backoff between restarts (default: 5s)
@@ -196,6 +199,24 @@ func (m *Manager) Start(ctx context.Context) error {
 	log.Println("Starting process manager...")
 
 	if m.config.DatabaseURL != "" {
+		if strings.TrimSpace(m.config.WorkerDatabaseURL) == "" {
+			return errors.New("WORKER_DATABASE_URL is required for durable worker isolation")
+		}
+		if strings.TrimSpace(m.config.WorkerNATSURL) == "" {
+			return errors.New("WORKER_NATS_URL is required for durable worker isolation")
+		}
+		if m.config.WorkerDatabaseURL == m.config.DatabaseURL {
+			return errors.New("WORKER_DATABASE_URL must not reuse the manager database credential")
+		}
+		if m.config.WorkerNATSURL == m.config.DefaultNATSURL {
+			return errors.New("WORKER_NATS_URL must not reuse the service NATS credential")
+		}
+		if err := validateRestrictedCredentialURL("WORKER_DATABASE_URL", m.config.WorkerDatabaseURL, "postgresql", "wateaminbox_worker"); err != nil {
+			return err
+		}
+		if err := validateRestrictedCredentialURL("WORKER_NATS_URL", m.config.WorkerNATSURL, "nats", "worker"); err != nil {
+			return err
+		}
 		if err := validateRootManagerApproval(m.config.RootManagerApproved); err != nil {
 			return err
 		}
@@ -253,6 +274,17 @@ func (m *Manager) Start(ctx context.Context) error {
 	}
 
 	log.Println("Process manager started successfully")
+	return nil
+}
+
+func validateRestrictedCredentialURL(name, raw, scheme, username string) error {
+	parsed, err := url.Parse(raw)
+	if err != nil || parsed.Scheme != scheme || parsed.Hostname() == "" || parsed.User == nil || parsed.User.Username() != username {
+		return fmt.Errorf("%s must use the dedicated %q user", name, username)
+	}
+	if password, present := parsed.User.Password(); !present || password == "" {
+		return fmt.Errorf("%s must include a non-empty credential", name)
+	}
 	return nil
 }
 
@@ -513,18 +545,30 @@ func (m *Manager) spawnWorkerArtifactWithLaunch(
 	// Create the command without a context so the manager context cancellation
 	// does not kill the process — the manager has explicit signal ownership.
 	cmd := exec.Command(artifact.BinaryPath)
+	workerDatabaseURL := databaseURL
+	workerNATSURL := m.config.DefaultNATSURL
+	if m.registry != nil {
+		workerDatabaseURL = m.config.WorkerDatabaseURL
+		workerNATSURL = m.config.WorkerNATSURL
+		if workerDatabaseURL == "" || workerNATSURL == "" {
+			return errors.New("restricted worker database and NATS credentials are required")
+		}
+	}
 	cmd.Env = append(workerBaseEnvironment(),
 		fmt.Sprintf("WORKER_ID=%s", connectionID),
 		fmt.Sprintf("COMPANY_ID=%s", companyID),
 		fmt.Sprintf("CONNECTION_ID=%s", connectionID),
-		fmt.Sprintf("NATS_URL=%s", m.config.DefaultNATSURL),
-		fmt.Sprintf("DATABASE_URL=%s", databaseURL),
+		fmt.Sprintf("NATS_URL=%s", workerNATSURL),
+		fmt.Sprintf("DATABASE_URL=%s", workerDatabaseURL),
 		fmt.Sprintf("TENANT_SCHEMA=%s", tenantSchema),
 		fmt.Sprintf("UNLINK_ON_START=%t", unlinkOnStart),
 		fmt.Sprintf("WORKER_LAUNCH_ID=%s", launchID),
 		fmt.Sprintf("WORKER_ARTIFACT_VERSION=%s", artifact.Version),
 		fmt.Sprintf("WORKER_READINESS_TOKEN=%s", readinessToken),
 	)
+	if m.registry != nil {
+		cmd.Env = append(cmd.Env, "WORKER_REQUIRED_DATABASE_ROLE=wateaminbox_worker")
+	}
 	cmd.Stdout = &workerLogWriter{connectionID: connectionID, stream: "stdout"}
 	cmd.Stderr = &workerLogWriter{connectionID: connectionID, stream: "stderr"}
 
@@ -539,7 +583,7 @@ func (m *Manager) spawnWorkerArtifactWithLaunch(
 		CompanyID:       companyID,
 		ConnectionID:    connectionID,
 		TenantSchema:    tenantSchema,
-		DatabaseURL:     databaseURL,
+		DatabaseURL:     workerDatabaseURL,
 		Status:          types.StatusStarting,
 		StartedAt:       time.Now(),
 		LastActivity:    time.Now(),
@@ -672,25 +716,27 @@ func (m *Manager) spawnWorkerArtifactWithLaunch(
 }
 
 func workerBaseEnvironment() []string {
-	blocked := []string{
-		"HTTP_BEARER_TOKEN=", "HTTP_BEARER_TOKEN_FILE=",
-		"JWT_SECRET=", "JWT_SECRET_FILE=",
+	// Workers receive only this audited data-plane configuration. In particular,
+	// manager DB/NATS credentials and operational bearer/JWT authority are never
+	// inherited from the root orchestrator environment.
+	allowed := []string{
+		"LOG_LEVEL",
+		"S3_ENDPOINT", "S3_ACCESS_KEY", "S3_SECRET_KEY", "S3_BUCKET",
+		"S3_REGION", "S3_FORCE_PATH_STYLE", "S3_LEGACY_ENDPOINTS",
+		"STORAGE_ENDPOINT", "STORAGE_ACCESS_KEY", "STORAGE_SECRET_KEY",
+		"STORAGE_BUCKET", "STORAGE_REGION", "STORAGE_FORCE_PATH_STYLE",
+		"STORAGE_CREATE_BUCKET_IF_MISSING",
+		"WORKER_DB_MAX_OPEN_CONNS", "WORKER_DB_MAX_IDLE_CONNS",
+		"WORKER_DB_CONN_MAX_LIFETIME", "WORKER_DB_CONN_MAX_IDLE_TIME",
+		"SSL_CERT_FILE", "SSL_CERT_DIR",
 	}
-	environment := os.Environ()
-	filtered := make([]string, 0, len(environment))
-	for _, variable := range environment {
-		allowed := true
-		for _, prefix := range blocked {
-			if strings.HasPrefix(variable, prefix) {
-				allowed = false
-				break
-			}
-		}
-		if allowed {
-			filtered = append(filtered, variable)
+	environment := make([]string, 0, len(allowed))
+	for _, name := range allowed {
+		if value, ok := os.LookupEnv(name); ok {
+			environment = append(environment, name+"="+value)
 		}
 	}
-	return filtered
+	return environment
 }
 
 // stopUnregisteredProcess reaps a child whose durable activation failed. No
@@ -765,7 +811,7 @@ func (m *Manager) UnlinkWorker(
 	if durable != nil {
 		tenantSchema = durable.TenantSchema
 		if databaseURL == "" {
-			databaseURL = m.config.DatabaseURL
+			databaseURL = m.config.WorkerDatabaseURL
 		}
 	}
 	m.mu.RLock()
@@ -874,7 +920,7 @@ func (m *Manager) reconcileDurableLifecycleWorker(
 	current = m.workers[connectionID]
 	if current == nil || current.LaunchID != record.LaunchID ||
 		current.CompanyID != record.CompanyID || current.TenantSchema != record.TenantSchema {
-		databaseURL := m.config.DatabaseURL
+		databaseURL := m.config.WorkerDatabaseURL
 		if databaseURL == "" {
 			databaseURL = record.DatabaseURL
 		}
@@ -1862,9 +1908,9 @@ func (m *Manager) recoverOrphanedWorkers(ctx context.Context) error {
 		if err := validateWorkerIdentity(w.WorkerUID, w.WorkerGID); err != nil {
 			return fmt.Errorf("worker %s has unsafe durable process credentials: %w", w.ConnectionID, err)
 		}
-		databaseURL := m.config.DatabaseURL
+		databaseURL := m.config.WorkerDatabaseURL
 		if databaseURL == "" {
-			databaseURL = w.DatabaseURL // Backward compatibility with old registry rows.
+			databaseURL = w.DatabaseURL // Persistence-free compatibility only.
 		}
 		if item := upgradeItems[w.ConnectionID]; item != nil {
 			if item.CompanyID != w.CompanyID || item.TenantSchema != w.TenantSchema {

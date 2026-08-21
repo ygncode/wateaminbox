@@ -30,7 +30,8 @@ if [ -n "${RESEND_API_KEY_FILE:-}" ] &&
 fi
 
 for name in \
-  POSTGRES_PASSWORD DATABASE_URL NATS_TOKEN NATS_URL \
+  POSTGRES_PASSWORD DATABASE_URL WORKER_POSTGRES_PASSWORD WORKER_DATABASE_URL \
+  NATS_SERVICE_PASSWORD NATS_URL NATS_WORKER_PASSWORD WORKER_NATS_URL \
   JWT_SECRET MEILISEARCH_API_KEY S3_ACCESS_KEY S3_SECRET_KEY \
   CENTRIFUGO_API_KEY CENTRIFUGO_TOKEN_HMAC_SECRET \
   RESEND_API_KEY CLOUDFLARE_ACCOUNT_ID CLOUDFLARE_EMAIL_API_TOKEN \
@@ -45,9 +46,19 @@ if [ -z "${DATABASE_URL:-}" ] && [ -n "${POSTGRES_PASSWORD:-}" ]; then
   : "${POSTGRES_DB:?POSTGRES_DB is required to derive DATABASE_URL}"
   export DATABASE_URL="postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable"
 fi
-if [ -z "${NATS_URL:-}" ] && [ -n "${NATS_TOKEN:-}" ]; then
-  export NATS_URL="nats://${NATS_TOKEN}@nats:4222"
+if [ -z "${NATS_URL:-}" ] && [ -n "${NATS_SERVICE_PASSWORD:-}" ]; then
+  export NATS_URL="nats://service:${NATS_SERVICE_PASSWORD}@nats:4222"
 fi
+if [ -n "${WORKER_POSTGRES_PASSWORD:-}" ] || [ -n "${NATS_WORKER_PASSWORD:-}" ]; then
+  : "${WORKER_POSTGRES_PASSWORD:?WORKER_POSTGRES_PASSWORD is required with restricted worker credentials}"
+  : "${NATS_WORKER_PASSWORD:?NATS_WORKER_PASSWORD is required with restricted worker credentials}"
+  : "${POSTGRES_DB:?POSTGRES_DB is required to derive WORKER_DATABASE_URL}"
+  export WORKER_DATABASE_URL="postgresql://wateaminbox_worker:${WORKER_POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable"
+  export WORKER_NATS_URL="nats://worker:${NATS_WORKER_PASSWORD}@nats:4222"
+fi
+# Retain only the URLs consumed by services; avoid duplicate plaintext password
+# variables in process environments.
+unset POSTGRES_PASSWORD WORKER_POSTGRES_PASSWORD NATS_SERVICE_PASSWORD NATS_WORKER_PASSWORD
 
 # The root orchestrator creates rollout authority at every container start.
 # It lives only on a root-owned tmpfs so unprivileged worker UIDs cannot read

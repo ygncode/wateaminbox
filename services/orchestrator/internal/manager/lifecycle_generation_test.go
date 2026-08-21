@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -156,7 +157,7 @@ func TestUnlinkProcesslessFailedWorkerRunsOneShotPurge(t *testing.T) {
 	tempDir := t.TempDir()
 	marker := filepath.Join(tempDir, "unlink-mode")
 	binary := filepath.Join(tempDir, "worker")
-	require.NoError(t, os.WriteFile(binary, []byte("#!/bin/sh\nprintf '%s' \"$UNLINK_ON_START\" > \"$MARKER\"\n"), 0o755))
+	require.NoError(t, os.WriteFile(binary, []byte(fmt.Sprintf("#!/bin/sh\nprintf '%%s' \"$UNLINK_ON_START\" > %q\n", marker)), 0o755))
 
 	m := New(Config{WhatsAppBinaryPath: binary})
 	m.ctx = context.Background()
@@ -165,8 +166,6 @@ func TestUnlinkProcesslessFailedWorkerRunsOneShotPurge(t *testing.T) {
 		CompanyID: "company", ConnectionID: "connection", TenantSchema: "tenant_company",
 		DatabaseURL: "postgres://unused", Status: types.StatusError, PID: 0,
 	}
-	t.Setenv("MARKER", marker)
-
 	require.NoError(t, m.UnlinkWorker(
 		context.Background(), "company", "connection", "tenant_company", "postgres://unused", "test unlink",
 	))
@@ -523,7 +522,10 @@ func TestTransientClaimFailureRestoresPreviousFailedLaunch(t *testing.T) {
 		).
 		WillReturnError(assert.AnError)
 
-	m := New(Config{WhatsAppBinaryPath: filepath.Join(t.TempDir(), "unused-worker")})
+	m := New(Config{
+		WhatsAppBinaryPath: filepath.Join(t.TempDir(), "unused-worker"),
+		WorkerDatabaseURL:  "postgres://restricted", WorkerNATSURL: "nats://worker",
+	})
 	m.ctx = context.Background()
 	m.registry = registry
 	old := &WorkerProcess{
@@ -646,10 +648,12 @@ func TestSpawnDoesNotStartProcessWhenDurableOwnershipFails(t *testing.T) {
 		).
 		WillReturnRows(sqlmock.NewRows([]string{"worker_uid", "worker_gid"}))
 
-	m := New(Config{WhatsAppBinaryPath: binary})
+	m := New(Config{
+		WhatsAppBinaryPath: binary,
+		WorkerDatabaseURL:  "postgres://restricted", WorkerNATSURL: "nats://worker",
+	})
 	m.ctx = context.Background()
 	m.registry = registry
-	t.Setenv("MARKER", marker)
 	err := m.SpawnWorker(
 		context.Background(),
 		"00000000-0000-4000-8000-000000000002",

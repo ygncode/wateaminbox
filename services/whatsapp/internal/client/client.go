@@ -50,11 +50,12 @@ const (
 
 // Config holds WhatsApp client configuration.
 type Config struct {
-	WorkerID     string
-	CompanyID    string
-	ConnectionID string
-	DatabaseURL  string
-	LogLevel     string
+	WorkerID       string
+	CompanyID      string
+	ConnectionID   string
+	DatabaseURL    string
+	RequiredDBRole string
+	LogLevel       string
 
 	DBMaxOpenConns    int
 	DBMaxIdleConns    int
@@ -114,6 +115,7 @@ func New(ctx context.Context, cfg Config) (*Client, error) {
 	// Initialize PostgreSQL store
 	container, err := store.NewStore(ctx, store.Config{
 		DatabaseURL:     cfg.DatabaseURL,
+		RequiredRole:    cfg.RequiredDBRole,
 		ConnectionID:    cfg.ConnectionID,
 		Logger:          waLogger.Sub("store"),
 		MaxOpenConns:    cfg.DBMaxOpenConns,

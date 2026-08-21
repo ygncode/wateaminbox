@@ -25,6 +25,7 @@ import (
 type PGConfig struct {
 	DatabaseURL  string
 	ConnectionID string // UUID for isolating session data
+	RequiredRole string // Production login role; empty only for local tests/development.
 	Logger       waLog.Logger
 
 	MaxOpenConns    int
@@ -153,10 +154,26 @@ func NewPGContainer(ctx context.Context, cfg PGConfig) (*PGContainer, error) {
 	db.SetConnMaxLifetime(connLifetime)
 	db.SetConnMaxIdleTime(connIdleTime)
 
-	// Test connection
+	// Test connection and fail closed if production accidentally hands a worker
+	// the manager/control-plane database role.
 	if err := db.PingContext(ctx); err != nil {
 		db.Close()
 		return nil, fmt.Errorf("failed to ping database: %w", err)
+	}
+	if cfg.RequiredRole != "" {
+		var currentRole string
+		var hasControlDML bool
+		if err := db.QueryRowContext(ctx, `
+			SELECT current_user,
+				has_table_privilege(current_user, 'public.worker_registry', 'SELECT,INSERT,UPDATE,DELETE')
+		`).Scan(&currentRole, &hasControlDML); err != nil {
+			db.Close()
+			return nil, fmt.Errorf("verify restricted worker database role: %w", err)
+		}
+		if currentRole != cfg.RequiredRole || hasControlDML {
+			db.Close()
+			return nil, fmt.Errorf("worker database role is not restricted as %q", cfg.RequiredRole)
+		}
 	}
 
 	log := cfg.Logger

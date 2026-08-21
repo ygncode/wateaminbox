@@ -400,18 +400,54 @@ func TestConfig_Fields(t *testing.T) {
 }
 
 // TestWorkerLogWriter tests the worker log writer.
-func TestWorkerEnvironmentExcludesOperationalAuthority(t *testing.T) {
-	t.Setenv("HTTP_BEARER_TOKEN", "rollout-authority")
-	t.Setenv("HTTP_BEARER_TOKEN_FILE", "/run/secrets/jwt_secret")
-	t.Setenv("JWT_SECRET", "jwt-authority")
-	t.Setenv("NATS_URL", "nats://worker-credential@nats:4222")
+func TestDurableManagerRequiresDistinctRestrictedWorkerCredentials(t *testing.T) {
+	for _, testCase := range []struct {
+		name string
+		cfg  Config
+		want string
+	}{
+		{name: "missing database", cfg: Config{DatabaseURL: "manager", WorkerNATSURL: "worker-nats"}, want: "WORKER_DATABASE_URL"},
+		{name: "missing nats", cfg: Config{DatabaseURL: "manager", WorkerDatabaseURL: "worker-db"}, want: "WORKER_NATS_URL"},
+		{name: "reused database", cfg: Config{DatabaseURL: "same", WorkerDatabaseURL: "same", WorkerNATSURL: "worker-nats"}, want: "must not reuse"},
+		{name: "reused nats", cfg: Config{DatabaseURL: "manager", WorkerDatabaseURL: "worker-db", DefaultNATSURL: "same", WorkerNATSURL: "same"}, want: "must not reuse"},
+		{name: "wrong database user", cfg: Config{DatabaseURL: "manager", WorkerDatabaseURL: "postgresql://manager:secret@db/app", WorkerNATSURL: "nats://worker:secret@nats"}, want: "dedicated"},
+		{name: "wrong nats user", cfg: Config{DatabaseURL: "manager", WorkerDatabaseURL: "postgresql://wateaminbox_worker:secret@db/app", WorkerNATSURL: "nats://service:secret@nats"}, want: "dedicated"},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			manager := New(testCase.cfg)
+			err := manager.Start(context.Background())
+			require.ErrorContains(t, err, testCase.want)
+		})
+	}
+}
+
+func TestWorkerEnvironmentIsStrictDataPlaneAllowlist(t *testing.T) {
+	for name, value := range map[string]string{
+		"HTTP_BEARER_TOKEN":        "rollout-authority",
+		"JWT_SECRET":               "jwt-authority",
+		"DATABASE_URL":             "postgresql://manager-control",
+		"NATS_URL":                 "nats://service-control",
+		"POSTGRES_PASSWORD":        "manager-password",
+		"NATS_SERVICE_PASSWORD":    "service-password",
+		"PATH":                     "/privileged/bin",
+		"S3_ENDPOINT":              "https://storage.example",
+		"S3_ACCESS_KEY":            "shared-data-plane-key",
+		"WORKER_DB_MAX_OPEN_CONNS": "4",
+	} {
+		t.Setenv(name, value)
+	}
 
 	environment := workerBaseEnvironment()
 	joined := strings.Join(environment, "\n")
-	assert.NotContains(t, joined, "HTTP_BEARER_TOKEN=")
-	assert.NotContains(t, joined, "HTTP_BEARER_TOKEN_FILE=")
-	assert.NotContains(t, joined, "JWT_SECRET=")
-	assert.Contains(t, joined, "NATS_URL=nats://worker-credential@nats:4222")
+	for _, forbidden := range []string{
+		"HTTP_BEARER_TOKEN=", "JWT_SECRET=", "DATABASE_URL=", "NATS_URL=",
+		"POSTGRES_PASSWORD=", "NATS_SERVICE_PASSWORD=", "PATH=",
+	} {
+		assert.NotContains(t, joined, forbidden)
+	}
+	assert.Contains(t, joined, "S3_ENDPOINT=https://storage.example")
+	assert.Contains(t, joined, "S3_ACCESS_KEY=shared-data-plane-key")
+	assert.Contains(t, joined, "WORKER_DB_MAX_OPEN_CONNS=4")
 }
 
 func TestWorkerLogWriter(t *testing.T) {

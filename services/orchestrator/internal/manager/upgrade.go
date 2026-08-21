@@ -414,7 +414,7 @@ func (m *Manager) runWorkerUpgradeItem(ctx context.Context, batch *WorkerUpgrade
 			installRolloutPredecessor(m, item, record, target.BinaryPath)
 			if err := m.spawnWorkerArtifactWithLaunch(
 				ctx, item.CompanyID, item.ConnectionID, item.TenantSchema,
-				m.config.DatabaseURL, false, 1, target, item.TargetGeneration,
+				m.config.WorkerDatabaseURL, false, 1, target, item.TargetGeneration,
 			); err != nil {
 				return fmt.Errorf("launch reserved target artifact: %w", err)
 			}
@@ -559,7 +559,7 @@ func (m *Manager) relaunchDeadReservedGeneration(
 		}
 	} else if err := m.spawnWorkerArtifactWithLaunch(
 		ctx, item.CompanyID, item.ConnectionID, item.TenantSchema,
-		m.config.DatabaseURL, false, 1, artifact, generation,
+		m.config.WorkerDatabaseURL, false, 1, artifact, generation,
 	); err != nil {
 		return false, fmt.Errorf("relaunch dead reserved generation: %w", err)
 	}
@@ -571,7 +571,7 @@ func installRolloutPredecessor(m *Manager, item *WorkerUpgradeItem, record *Work
 	m.workers[item.ConnectionID] = &WorkerProcess{
 		ID: item.ConnectionID, LaunchID: record.LaunchID, DesiredState: DesiredStateRunning,
 		CompanyID: item.CompanyID, ConnectionID: item.ConnectionID, TenantSchema: item.TenantSchema,
-		DatabaseURL: m.config.DatabaseURL, Status: "error", ArtifactVersion: record.ArtifactVersion,
+		DatabaseURL: m.config.WorkerDatabaseURL, Status: "error", ArtifactVersion: record.ArtifactVersion,
 		ArtifactSHA256: record.ArtifactSHA256, BinaryPath: binaryPath,
 		WorkerUID: record.WorkerUID, WorkerGID: record.WorkerGID,
 	}
@@ -600,7 +600,7 @@ func (m *Manager) installUpgradePredecessor(item *WorkerUpgradeItem, current *Wo
 	m.workers[item.ConnectionID] = &WorkerProcess{
 		ID: item.ConnectionID, LaunchID: item.SourceGeneration, DesiredState: DesiredStateRunning,
 		CompanyID: item.CompanyID, ConnectionID: item.ConnectionID, TenantSchema: item.TenantSchema,
-		DatabaseURL: m.config.DatabaseURL, Status: "error", ArtifactVersion: item.SourceArtifactVersion,
+		DatabaseURL: m.config.WorkerDatabaseURL, Status: "error", ArtifactVersion: item.SourceArtifactVersion,
 		ArtifactSHA256: item.SourceArtifactSHA256,
 	}
 	m.mu.Unlock()
@@ -672,7 +672,7 @@ func (m *Manager) refreshWorkerUpgradeTarget(ctx context.Context, batch *WorkerU
 		installRolloutPredecessor(m, item, record, target.BinaryPath)
 		if err := m.spawnWorkerArtifactWithLaunch(
 			ctx, item.CompanyID, item.ConnectionID, item.TenantSchema,
-			m.config.DatabaseURL, false, 1, target, item.RecoveryGeneration,
+			m.config.WorkerDatabaseURL, false, 1, target, item.RecoveryGeneration,
 		); err != nil {
 			return fmt.Errorf("relaunch reserved target with readiness authority: %w", err)
 		}
@@ -783,7 +783,7 @@ func (m *Manager) rollbackWorkerUpgrade(ctx context.Context, batch *WorkerUpgrad
 		installRolloutPredecessor(m, item, record, source.BinaryPath)
 		if err := m.spawnWorkerArtifactWithLaunch(
 			ctx, item.CompanyID, item.ConnectionID, item.TenantSchema,
-			m.config.DatabaseURL, false, 1, source, item.RollbackGeneration,
+			m.config.WorkerDatabaseURL, false, 1, source, item.RollbackGeneration,
 		); err != nil {
 			return fmt.Errorf("reserved rollback launch failed: %w", err)
 		}

@@ -41,6 +41,12 @@ jobs:
         run: ./scripts/production-compose-worker-artifact.test.sh
       - name: Validate root-only orchestrator control authority
         run: ./scripts/orchestrator-control-token.test.sh
+      - name: Validate restricted worker credential wiring
+        run: ./scripts/worker-credential-isolation.test.sh
+      - name: Validate worker NATS permission matrix
+        run: ./scripts/nats-worker-permissions.test.sh
+      - name: Validate worker PostgreSQL role provisioning
+        run: ./scripts/worker-postgres-provisioner.test.sh
 
   ts-unit:
     runs-on: ubuntu-latest

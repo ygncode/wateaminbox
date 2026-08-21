@@ -37,6 +37,7 @@ func run() error {
 	workerLaunchID := config.GetEnv("WORKER_LAUNCH_ID", "")
 	workerArtifactVersion := config.GetEnv("WORKER_ARTIFACT_VERSION", "")
 	workerReadinessToken := config.GetEnv("WORKER_READINESS_TOKEN", "")
+	workerRequiredDatabaseRole := config.GetEnv("WORKER_REQUIRED_DATABASE_ROLE", "")
 	tenantSchema := config.GetEnv("TENANT_SCHEMA", "")
 	databaseURL := config.GetEnv("DATABASE_URL", "")
 	natsURL := config.GetEnv("NATS_URL", "nats://localhost:4222")
@@ -113,6 +114,7 @@ func run() error {
 		CompanyID:         companyID,
 		ConnectionID:      connectionID,
 		DatabaseURL:       databaseURL,
+		RequiredDBRole:    workerRequiredDatabaseRole,
 		LogLevel:          logLevel,
 		DBMaxOpenConns:    config.GetIntEnv("WORKER_DB_MAX_OPEN_CONNS", 0),
 		DBMaxIdleConns:    config.GetIntEnv("WORKER_DB_MAX_IDLE_CONNS", 0),

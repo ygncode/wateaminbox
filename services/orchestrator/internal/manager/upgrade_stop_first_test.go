@@ -21,20 +21,8 @@ func TestStopFirstArtifactReplacementNeverOverlaps(t *testing.T) {
 	sourcePath := filepath.Join(directory, "source-worker")
 	targetPath := filepath.Join(directory, "target-worker")
 
-	sourceScript := "#!/bin/sh\n" +
-		"touch \"$OLD_STARTED\"\n" +
-		"trap 'exit 0' TERM INT\n" +
-		"while :; do sleep 0.02; done\n"
-	targetScript := "#!/bin/sh\n" +
-		"kill -0 \"$OLD_PID\" 2>/dev/null && touch \"$OVERLAP\"\n" +
-		"touch \"$NEW_STARTED\"\n" +
-		"trap 'exit 0' TERM INT\n" +
-		"while :; do sleep 0.02; done\n"
+	sourceScript := fmt.Sprintf("#!/bin/sh\ntouch %q\ntrap 'exit 0' TERM INT\nwhile :; do sleep 0.02; done\n", oldStarted)
 	require.NoError(t, os.WriteFile(sourcePath, []byte(sourceScript), 0o555))
-	require.NoError(t, os.WriteFile(targetPath, []byte(targetScript), 0o555))
-	t.Setenv("OLD_STARTED", oldStarted)
-	t.Setenv("NEW_STARTED", newStarted)
-	t.Setenv("OVERLAP", overlap)
 
 	manager := New(Config{HealthCheckInterval: time.Hour})
 	manager.ctx, manager.cancel = context.WithCancel(context.Background())
@@ -59,7 +47,11 @@ func TestStopFirstArtifactReplacementNeverOverlaps(t *testing.T) {
 	}, time.Second, 10*time.Millisecond)
 	source, exists := manager.GetWorkerStatus("connection")
 	require.True(t, exists)
-	t.Setenv("OLD_PID", fmt.Sprint(source.PID))
+	targetScript := fmt.Sprintf(
+		"#!/bin/sh\nkill -0 %d 2>/dev/null && touch %q\ntouch %q\ntrap 'exit 0' TERM INT\nwhile :; do sleep 0.02; done\n",
+		source.PID, overlap, newStarted,
+	)
+	require.NoError(t, os.WriteFile(targetPath, []byte(targetScript), 0o555))
 
 	// This is the same serialized stop/reap/launch sequence used by the rollout
 	// state machine: spawn cannot execute until waitForWorkerExit confirms old.

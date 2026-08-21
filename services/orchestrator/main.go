@@ -66,6 +66,8 @@ func main() {
 
 	// Auto-restart configuration
 	databaseURL := config.GetEnv("DATABASE_URL", "")
+	workerDatabaseURL := config.GetEnv("WORKER_DATABASE_URL", "")
+	workerNATSURL := config.GetEnv("WORKER_NATS_URL", "")
 	autoRestartEnabled := config.GetBoolEnv("AUTO_RESTART_ENABLED", true)
 	autoRestartMaxRetries := config.GetIntEnv("AUTO_RESTART_MAX_RETRIES", 5)
 	autoRestartBackoff := config.GetDurationEnv("AUTO_RESTART_BACKOFF", 5*time.Second)
@@ -103,6 +105,8 @@ func main() {
 		DefaultNATSURL:         natsURL,
 		HealthCheckInterval:    healthCheckInterval,
 		DatabaseURL:            databaseURL,
+		WorkerDatabaseURL:      workerDatabaseURL,
+		WorkerNATSURL:          workerNATSURL,
 		AutoRestartEnabled:     autoRestartEnabled,
 		AutoRestartMaxRetries:  autoRestartMaxRetries,
 		AutoRestartBackoff:     autoRestartBackoff,

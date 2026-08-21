@@ -15,11 +15,14 @@ render "$TMP/default.json"
 jq -e '
   .services["worker-artifact-installer"].image == "wateaminbox/whatsapp-worker-artifact:2026-08-02.1" and
   .services["worker-artifact-installer"].environment.WORKER_ARTIFACT_VERSION == "" and
-  .services["worker-artifact-installer"].depends_on.migration.condition == "service_completed_successfully" and
+  (.services["worker-artifact-installer"].depends_on == null) and
   .services.orchestrator.depends_on["worker-artifact-installer"].condition == "service_completed_successfully" and
+  .services.orchestrator.depends_on["worker-credential-provisioner"].condition == "service_completed_successfully" and
   .services.orchestrator.environment.WHATSAPP_BINARY_PATH == "/var/lib/wateaminbox/worker-artifacts/bootstrap/whatsapp-worker" and
   .services.orchestrator.environment.EPHEMERAL_HTTP_BEARER_TOKEN_FILE == "/run/wateaminbox-control/http-bearer-token" and
   .services.orchestrator.environment.ORCHESTRATOR_ROOT_MANAGER_APPROVED == "true" and
+  .services.orchestrator.environment.WORKER_POSTGRES_PASSWORD_FILE == "/run/secrets/worker_postgres_password" and
+  .services.orchestrator.environment.NATS_WORKER_PASSWORD_FILE == "/run/secrets/nats_worker_password" and
   any(.services.orchestrator.tmpfs[]; . == "/run/wateaminbox-control:mode=0700,uid=0,gid=0") and
   .services.orchestrator.environment.WORKER_ARTIFACT_ROOT == "/var/lib/wateaminbox/worker-artifacts" and
   .services.orchestrator.environment.WORKER_DEFAULT_ARTIFACT_VERSION == "bootstrap" and

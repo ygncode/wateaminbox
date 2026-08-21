@@ -215,15 +215,17 @@ $COMPOSE up -d postgres nats meilisearch minio centrifugo
 $COMPOSE stop orchestrator # required before the migration-071 cutover
 $COMPOSE run --rm worker-artifact-installer
 $COMPOSE run --rm migration
+$COMPOSE run --rm worker-credential-provisioner
 $COMPOSE up -d
 $COMPOSE ps
 ```
 
 `up` also gates API startup on the idempotent migration service and orchestrator
-startup on both migration and artifact installation. Running the one-shot jobs
-explicitly makes either failure visible before the orchestrator changes. Inspect
-failures with `$COMPOSE logs migration worker-artifact-installer`; do not bypass
-a failed gate.
+startup on migration, artifact installation, and restricted worker-role
+provisioning. Running the one-shot jobs explicitly makes either failure visible
+before the orchestrator changes. Inspect failures with
+`$COMPOSE logs migration worker-artifact-installer worker-credential-provisioner`;
+do not bypass a failed gate.
 
 Migration 071 is a **mandatory coordinated cutover**, not an online mixed-version
 migration. Before applying it, stop the old orchestrator and confirm its command
@@ -251,9 +253,23 @@ $COMPOSE exec postgres sh -ec 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Atc \
 # Required result: 0
 ```
 
-This cutover changes process/artifact ownership only. Do not combine it with an
-ad hoc NATS, database, or S3 credential redesign; that shared trust boundary is
-subject to a separate security architecture review.
+Migration 072 is a second mandatory cutover that establishes minimum
+control-plane credential isolation. Supply distinct `NATS_SERVICE_PASSWORD_FILE`,
+`NATS_WORKER_PASSWORD_FILE`, and `WORKER_POSTGRES_PASSWORD_FILE` paths before
+Compose validation. The migration creates the password-free
+`wateaminbox_worker_runtime` grant role; the file-only
+`worker-credential-provisioner` creates or rotates the `wateaminbox_worker`
+login. NATS starts separate `service` and restricted `worker` users. The
+orchestrator refuses durable startup if either restricted URL is absent or
+reuses its manager URL. Follow
+`docs/operations/worker-control-plane-credential-isolation.md` for migration,
+rotation, validation, and rollback ordering.
+
+Workers remain trusted backend processes with shared S3 and broader data-plane
+authority. Distinct OS UIDs and the root-only bearer do not claim complete
+tenant isolation. Per-worker NATS identity, PostgreSQL RLS/session brokering,
+and per-tenant S3 credentials/media brokering remain a separate security
+architecture program.
 
 The installer verifies the checksum embedded in the worker image before writing.
 It atomically creates a version directory containing
