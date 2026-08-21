@@ -225,6 +225,9 @@ if run_provisioner >/dev/null 2>&1; then
   echo "provisioner accepted a missing worker credential" >&2
   exit 1
 fi
+# Linux Docker's -v compatibility syntax creates a directory at a missing
+# bind-mount source; remove it before restoring the credential fixture.
+rm -rf "$tmp/worker"
 
 # The explicit development-only exception supports historical local volumes
 # whose administrator password is "postgres". It never relaxes worker secrets
