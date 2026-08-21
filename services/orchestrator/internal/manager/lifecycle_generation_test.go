@@ -2,6 +2,7 @@ package manager
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"os"
 	"os/exec"
@@ -269,14 +270,16 @@ func TestCompletedUnlinkRetainsLaunchWhenRegistryCleanupFails(t *testing.T) {
 
 func TestRecoveryClearsStoppedIntentAfterProcessIsGone(t *testing.T) {
 	registry, mock := newMockRegistry(t)
-	mock.ExpectQuery(regexp.QuoteMeta("SELECT connection_id, company_id, tenant_schema, database_url, pid, status, started_at, last_heartbeat, restart_count, launch_id, desired_state FROM worker_registry")).
+	mock.ExpectQuery(regexp.QuoteMeta("SELECT connection_id, company_id, tenant_schema, database_url, pid, status, started_at, last_heartbeat, restart_count, launch_id, desired_state, artifact_version, artifact_sha256, worker_uid, worker_gid FROM worker_registry")).
 		WillReturnRows(sqlmock.NewRows([]string{
 			"connection_id", "company_id", "tenant_schema", "database_url", "pid", "status",
-			"started_at", "last_heartbeat", "restart_count", "launch_id", "desired_state",
+			"started_at", "last_heartbeat", "restart_count", "launch_id", "desired_state", "artifact_version", "artifact_sha256", "worker_uid", "worker_gid",
 		}).AddRow(
 			"connection", "company", "tenant_company", "", 999999, types.StatusStopping,
-			time.Now(), time.Now(), 0, "launch", DesiredStateStopped,
+			time.Now(), time.Now(), 0, "launch", DesiredStateStopped, "embedded", "", 100000, 100000,
 		))
+	mock.ExpectQuery(regexp.QuoteMeta("FROM worker_upgrade_batches WHERE completed_at IS NULL")).
+		WillReturnError(sql.ErrNoRows)
 	mock.ExpectExec(regexp.QuoteMeta("DELETE FROM worker_registry WHERE connection_id = $1 AND company_id = $2 AND launch_id = $3")).
 		WithArgs("connection", "company", "launch").
 		WillReturnResult(sqlmock.NewResult(0, 1))
@@ -291,14 +294,16 @@ func TestRecoveryClearsStoppedIntentAfterProcessIsGone(t *testing.T) {
 
 func TestRecoveryRetainsStoppedLaunchWhenCleanupFails(t *testing.T) {
 	registry, mock := newMockRegistry(t)
-	mock.ExpectQuery(regexp.QuoteMeta("SELECT connection_id, company_id, tenant_schema, database_url, pid, status, started_at, last_heartbeat, restart_count, launch_id, desired_state FROM worker_registry")).
+	mock.ExpectQuery(regexp.QuoteMeta("SELECT connection_id, company_id, tenant_schema, database_url, pid, status, started_at, last_heartbeat, restart_count, launch_id, desired_state, artifact_version, artifact_sha256, worker_uid, worker_gid FROM worker_registry")).
 		WillReturnRows(sqlmock.NewRows([]string{
 			"connection_id", "company_id", "tenant_schema", "database_url", "pid", "status",
-			"started_at", "last_heartbeat", "restart_count", "launch_id", "desired_state",
+			"started_at", "last_heartbeat", "restart_count", "launch_id", "desired_state", "artifact_version", "artifact_sha256", "worker_uid", "worker_gid",
 		}).AddRow(
 			"connection", "company", "tenant_company", "", 999999, types.StatusStopping,
-			time.Now(), time.Now(), 0, "launch", DesiredStateStopped,
+			time.Now(), time.Now(), 0, "launch", DesiredStateStopped, "embedded", "", 100001, 100001,
 		))
+	mock.ExpectQuery(regexp.QuoteMeta("FROM worker_upgrade_batches WHERE completed_at IS NULL")).
+		WillReturnError(sql.ErrNoRows)
 	mock.ExpectExec(regexp.QuoteMeta("DELETE FROM worker_registry WHERE connection_id = $1 AND company_id = $2 AND launch_id = $3")).
 		WithArgs("connection", "company", "launch").
 		WillReturnError(assert.AnError)
@@ -411,10 +416,11 @@ func TestReconnectCommandReplacesProcesslessFailedLaunch(t *testing.T) {
 
 func TestTransientClaimFailureRestoresPreviousFailedLaunch(t *testing.T) {
 	registry, mock := newMockRegistry(t)
-	mock.ExpectExec(regexp.QuoteMeta("INSERT INTO worker_registry")).
+	mock.ExpectQuery(regexp.QuoteMeta("INSERT INTO worker_registry")).
 		WithArgs(
 			"connection", "company", "tenant_company", "", 0, types.StatusStarting,
-			sqlmock.AnyArg(), 1, sqlmock.AnyArg(), DesiredStateRunning, "old-launch",
+			sqlmock.AnyArg(), 1, sqlmock.AnyArg(), DesiredStateRunning,
+			defaultArtifactVersion, "", "old-launch",
 		).
 		WillReturnError(assert.AnError)
 
@@ -522,7 +528,7 @@ func TestSpawnDoesNotStartProcessWhenDurableOwnershipFails(t *testing.T) {
 	require.NoError(t, os.WriteFile(binary, []byte("#!/bin/sh\ntouch \"$MARKER\"\nsleep 30\n"), 0o755))
 
 	registry, mock := newMockRegistry(t)
-	mock.ExpectExec(regexp.QuoteMeta("INSERT INTO worker_registry")).
+	mock.ExpectQuery(regexp.QuoteMeta("INSERT INTO worker_registry")).
 		WithArgs(
 			"00000000-0000-4000-8000-000000000001",
 			"00000000-0000-4000-8000-000000000002",
@@ -534,10 +540,12 @@ func TestSpawnDoesNotStartProcessWhenDurableOwnershipFails(t *testing.T) {
 			0,
 			sqlmock.AnyArg(),
 			DesiredStateRunning,
+			defaultArtifactVersion,
+			sqlmock.AnyArg(),
 			// A first launch expects no prior launch: a typed NULL, not "".
 			nil,
 		).
-		WillReturnResult(sqlmock.NewResult(0, 0))
+		WillReturnRows(sqlmock.NewRows([]string{"worker_uid", "worker_gid"}))
 
 	m := New(Config{WhatsAppBinaryPath: binary})
 	m.ctx = context.Background()

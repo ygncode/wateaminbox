@@ -12,6 +12,7 @@ import (
 	"go.mau.fi/whatsmeow/types"
 
 	"github.com/ygncode-lab/whatsapp-web/services/shared/config"
+	sharednats "github.com/ygncode-lab/whatsapp-web/services/shared/nats"
 	"github.com/ygncode-lab/whatsapp-web/services/whatsapp/internal/client"
 	"github.com/ygncode-lab/whatsapp-web/services/whatsapp/internal/handler"
 	natsClient "github.com/ygncode-lab/whatsapp-web/services/whatsapp/internal/nats"
@@ -33,6 +34,9 @@ func run() error {
 	workerID := config.GetEnv("WORKER_ID", "default")
 	companyID := config.GetEnv("COMPANY_ID", "")
 	connectionID := config.GetEnv("CONNECTION_ID", "")
+	workerLaunchID := config.GetEnv("WORKER_LAUNCH_ID", "")
+	workerArtifactVersion := config.GetEnv("WORKER_ARTIFACT_VERSION", "")
+	workerReadinessToken := config.GetEnv("WORKER_READINESS_TOKEN", "")
 	tenantSchema := config.GetEnv("TENANT_SCHEMA", "")
 	databaseURL := config.GetEnv("DATABASE_URL", "")
 	natsURL := config.GetEnv("NATS_URL", "nats://localhost:4222")
@@ -59,8 +63,17 @@ func run() error {
 	if databaseURL == "" {
 		log.Fatal("DATABASE_URL environment variable is required")
 	}
+	if workerLaunchID == "" {
+		log.Fatal("WORKER_LAUNCH_ID environment variable is required")
+	}
+	if workerArtifactVersion == "" {
+		log.Fatal("WORKER_ARTIFACT_VERSION environment variable is required")
+	}
+	if workerReadinessToken == "" {
+		log.Fatal("WORKER_READINESS_TOKEN environment variable is required")
+	}
 
-	log.Printf("Starting WhatsApp worker: %s for company: %s, connection: %s", workerID, companyID, connectionID)
+	log.Printf("Starting WhatsApp worker: %s for company: %s, connection: %s, launch: %s, artifact: %s", workerID, companyID, connectionID, workerLaunchID, workerArtifactVersion)
 	if tenantSchema != "" {
 		log.Printf("Tenant schema: %s", tenantSchema)
 	}
@@ -114,10 +127,13 @@ func run() error {
 	// Initialize the publisher after the PostgreSQL-backed WhatsApp store so
 	// every event is durably queued before crossing the NATS boundary.
 	publisher, err := natsClient.NewPublisher(natsClient.PublisherConfig{
-		NATSURL:      natsURL,
-		CompanyID:    companyID,
-		ConnectionID: connectionID,
-		EventOutbox:  waClient.EventOutbox(),
+		NATSURL:         natsURL,
+		CompanyID:       companyID,
+		ConnectionID:    connectionID,
+		LaunchID:        workerLaunchID,
+		ArtifactVersion: workerArtifactVersion,
+		ReadinessToken:  workerReadinessToken,
+		EventOutbox:     waClient.EventOutbox(),
 	})
 	if err != nil {
 		log.Fatalf("Failed to initialize NATS publisher: %v", err)
@@ -215,6 +231,16 @@ func run() error {
 		log.Fatalf("Failed to start NATS subscriber: %v", err)
 	}
 	log.Printf("NATS subscriber listening for send commands")
+
+	// All process-level dependencies and handlers are initialized. This signal
+	// is transient and scoped to the exact launch, so it cannot make an older
+	// generation appear ready or enter the API event stream.
+	if err := publisher.PublishWorkerRuntimeStatus(
+		sharednats.WorkerRuntimeStatusProcessReady,
+		"",
+	); err != nil {
+		return fmt.Errorf("publish worker process readiness: %w", err)
+	}
 
 	// Connect to WhatsApp
 	if err := waClient.Connect(ctx); err != nil {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"os/exec"
+	"strings"
 	"syscall"
 	"testing"
 	"time"
@@ -399,6 +400,20 @@ func TestConfig_Fields(t *testing.T) {
 }
 
 // TestWorkerLogWriter tests the worker log writer.
+func TestWorkerEnvironmentExcludesOperationalAuthority(t *testing.T) {
+	t.Setenv("HTTP_BEARER_TOKEN", "rollout-authority")
+	t.Setenv("HTTP_BEARER_TOKEN_FILE", "/run/secrets/jwt_secret")
+	t.Setenv("JWT_SECRET", "jwt-authority")
+	t.Setenv("NATS_URL", "nats://worker-credential@nats:4222")
+
+	environment := workerBaseEnvironment()
+	joined := strings.Join(environment, "\n")
+	assert.NotContains(t, joined, "HTTP_BEARER_TOKEN=")
+	assert.NotContains(t, joined, "HTTP_BEARER_TOKEN_FILE=")
+	assert.NotContains(t, joined, "JWT_SECRET=")
+	assert.Contains(t, joined, "NATS_URL=nats://worker-credential@nats:4222")
+}
+
 func TestWorkerLogWriter(t *testing.T) {
 	w := &workerLogWriter{
 		connectionID: "test-conn",

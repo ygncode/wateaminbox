@@ -35,6 +35,12 @@ jobs:
       - run: bun run typecheck
       - run: bun run check:unused
       - run: bun run build -- --force
+      - name: Validate worker artifact installer
+        run: ./scripts/worker-artifact-installer.test.sh
+      - name: Validate production worker artifact Compose wiring
+        run: ./scripts/production-compose-worker-artifact.test.sh
+      - name: Validate root-only orchestrator control authority
+        run: ./scripts/orchestrator-control-token.test.sh
 
   ts-unit:
     runs-on: ubuntu-latest

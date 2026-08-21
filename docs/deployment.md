@@ -22,13 +22,20 @@ The public marketing site is not part of this compose stack.
 PostgreSQL, NATS, Meilisearch, retained MinIO, Centrifugo, and the orchestrator have no
 host port mappings. Data services share an `internal: true` network. API and
 orchestrator also join an egress network because email, WhatsApp, and object
-requests need outbound Internet access. The orchestrator image contains the
-WhatsApp worker artifact and starts workers as child processes; do not scale the
+requests need outbound Internet access. The orchestrator image does not contain
+the WhatsApp worker. A one-shot installer copies the worker from its independently
+tagged image into an immutable version directory in the retained
+`whatsapp_worker_artifacts` volume; the orchestrator mounts that volume read-only
+and starts the configured artifact as a child process. Do not scale the
 orchestrator horizontally without changing that ownership model. Orchestrator
 replacements must remain stop-first: never overlap old and new orchestrator
 binaries. Migration 070 adds generation-scoped ownership, but pre-070 binaries
 still write registry rows by connection ID and are not safe to run concurrently
-with a post-070 orchestrator. Apply migrations before starting the new binary.
+with a post-070 orchestrator. Migration 071 adds additive artifact identity and
+upgrade intent tables; old orchestrators ignore those additions, while the new
+orchestrator refuses to start until they exist. Compose orders migration,
+artifact installation, and orchestrator startup in that order. Do not bypass
+those gates.
 
 The R2 `whatsapp-media` bucket and retained MinIO source are private. Browser
 access uses API-authorized, short-lived R2 signatures; neither `r2.dev` nor a
@@ -112,8 +119,26 @@ Go services receive a derived authenticated `NATS_URL` (logging strips URL
 user-info). API also receives
 `MEILISEARCH_API_KEY`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `JWT_SECRET`,
 `CENTRIFUGO_API_KEY`, and `CENTRIFUGO_TOKEN_HMAC_SECRET`; workers inherit the
-orchestrator's `DATABASE_URL`, `NATS_URL`, and `S3_*` values. For R2 set the
-path-free account S3 API endpoint, region `auto`, path style `true`, bucket
+orchestrator's `DATABASE_URL`, `NATS_URL`, and `S3_*` values. The explicitly
+approved root orchestrator manager generates a fresh 256-bit operational bearer
+at every container start. Only its path is passed to the Go process:
+`/run/wateaminbox-control/http-bearer-token` on a root-owned `0700` tmpfs, with
+the token itself in a root-owned `0600` file. The Go process reads it and removes
+both token variables before constructing any worker environment. It never
+reuses the JWT secret.
+
+Migration 071 allocates a fresh, non-cycling, database-unique UID/GID in the
+bounded unprivileged range `100000..2147483646` for every worker generation.
+The root manager launches each child with that exact durable credential, no
+supplementary groups, a separate process group, and Linux parent-death
+`SIGKILL`. Recovery verifies executable, tenant environment, UID, and GID before
+adopting or signaling a PID. Distinct concurrently live UIDs prevent one worker
+from reading a sibling's per-launch readiness HMAC in `/proc/<pid>/environ`.
+`ORCHESTRATOR_ROOT_MANAGER_APPROVED=true` is mandatory in production; a durable
+Linux manager fails startup if it is not root or lacks that explicit approval.
+The listener remains loopback-only and is not routed by Caddy. `/health` is
+intentionally public on that process-local listener for Docker health checks.
+For R2 set the path-free account S3 API endpoint, region `auto`, path style `true`, bucket
 `whatsapp-media`, and a 300-second signed URL TTL. `S3_LEGACY_ENDPOINTS` lists
 former MinIO path-style origins only for key recovery. Public Vite settings are
 compiled into the web image. Changing a `VITE_*` value therefore requires rebuilding it.
@@ -169,25 +194,46 @@ assume `MAIL_DRIVER=resend`.
 
 ## Build, validate, and first start
 
-Use a unique, immutable `APP_IMAGE_TAG` for every release (for example a Git
-commit or release identifier):
+Prefer a unique, immutable `APP_IMAGE_TAG` for every release (for example a Git
+commit or release identifier). `WORKER_IMAGE_TAG` is independent, so a worker
+can be packaged without rebuilding the orchestrator; for backward compatibility
+its image tag defaults to `APP_IMAGE_TAG`. The installer does **not** trust that
+tag as artifact identity: when `WORKER_ARTIFACT_VERSION` is unset it derives the
+immutable version `sha256-<packaged digest>`. This also supports existing private
+deployment automation that rebuilds a mutable application tag. An explicit
+version must match `[A-Za-z0-9][A-Za-z0-9._-]{0,127}` and must never be reused
+for new bytes. The first installed bytes are also copied once to the immutable
+`bootstrap` version used by companies with no successful rollout history.
 
 ```sh
 export COMPOSE='docker compose --env-file .env.production -f compose.production.yml'
 $COMPOSE config --quiet
 $COMPOSE build --pull
 
-# Bring up dependencies, run the one-shot migration, then start the stack.
+# Bring up dependencies, migrate, install/verify the worker, then start the stack.
 $COMPOSE up -d postgres nats meilisearch minio centrifugo
 $COMPOSE run --rm migration
+$COMPOSE run --rm worker-artifact-installer
 $COMPOSE up -d
 $COMPOSE ps
 ```
 
-`up` also gates API/orchestrator startup on the idempotent migration service.
-Running migration explicitly makes failure visible before traffic changes.
-Inspect failures with `$COMPOSE logs migration` and do not bypass a failed
-migration.
+`up` also gates API startup on the idempotent migration service and orchestrator
+startup on both migration and artifact installation. Running the one-shot jobs
+explicitly makes either failure visible before the orchestrator changes. Inspect
+failures with `$COMPOSE logs migration worker-artifact-installer`; do not bypass
+a failed gate.
+
+The installer verifies the checksum embedded in the worker image before writing.
+It atomically creates a version directory containing
+`/var/lib/wateaminbox/worker-artifacts/<version>/whatsapp-worker` and its sibling
+`sha256` manifest in the named volume, then retains earlier versions. The
+orchestrator independently hashes the selected executable against that manifest.
+Repeating an installation is a
+no-op only when the manifest and installed bytes still match. It fails closed
+if the same version already contains different, missing, symlinked, malformed,
+or non-executable content. Never edit the volume manually or remove it with
+`docker compose down --volumes` during routine deployments.
 
 `api` sets `stop_grace_period: 30s`, above the 20s `SHUTDOWN_DEADLINE_MS` in
 `apps/api/src/index.ts`. On SIGTERM it drains the HTTP server, stops the message
@@ -213,14 +259,19 @@ The API readiness endpoint can report `degraded` while still returning 200 when
 recoverable realtime dependencies are unavailable; alert on the JSON status,
 not only the HTTP status. PostgreSQL failure returns 503.
 
-The standalone worker artifact can be built for inspection with:
+The independently packaged installer and standalone worker runtime can be built
+for inspection with:
 
 ```sh
-docker build --target worker -f services/whatsapp/Dockerfile -t wateaminbox/worker:check .
+docker build --target artifact-installer -f services/whatsapp/Dockerfile \
+  -t wateaminbox/whatsapp-worker-artifact:check .
+docker build --target worker -f services/whatsapp/Dockerfile \
+  -t wateaminbox/worker:check .
 ```
 
-It is normally supplied by the orchestrator image, not deployed as a fixed
-Compose service because each worker requires per-connection identifiers.
+The installer image is a one-shot packaging vehicle, not a fixed worker service.
+The orchestrator executes installed binaries because every child requires its
+own connection identifiers and lifecycle ownership.
 
 ## Reverse proxy and TLS operations
 
@@ -295,16 +346,80 @@ Before an upgrade, read migration changes, take verified PostgreSQL/media
 backups, preserve the old image tag, and build/pull the new immutable tag:
 
 ```sh
-# Edit APP_IMAGE_TAG in .env.production to the new release.
+# Edit APP_IMAGE_TAG and, only when it differs, WORKER_IMAGE_TAG.
 $COMPOSE config --quiet
 $COMPOSE build --pull
 $COMPOSE run --rm migration
+$COMPOSE run --rm worker-artifact-installer
 $COMPOSE up -d --remove-orphans
 $COMPOSE ps
 ```
 
 Check readiness, error rates, worker reconnects, NATS backlog, and a signed media
 read/write. Do not use `latest` release tags.
+
+### WhatsApp-worker-only rollout
+
+After the migration-071-capable orchestrator has been deployed once, a worker
+release does **not** change `APP_IMAGE_TAG`, the orchestrator environment, or the
+orchestrator container. Stage and activate it separately:
+
+```sh
+# Set unique immutable values; never reuse either value for different bytes.
+export WORKER_IMAGE_TAG=worker-2026.08.03
+export WORKER_ARTIFACT_VERSION=worker-2026.08.03
+$COMPOSE build --pull worker-artifact-installer
+$COMPOSE run --rm worker-artifact-installer
+
+# The API is process-local and always requires the fresh root-only bearer.
+# curl reads its configuration on stdin inside the container; neither authority
+# nor digest appears in the host process list or output.
+$COMPOSE exec -T -u 0 \
+  -e TARGET_VERSION="$WORKER_ARTIFACT_VERSION" orchestrator sh -ec '
+    token=$(cat /run/wateaminbox-control/http-bearer-token)
+    digest=$(cat "/var/lib/wateaminbox/worker-artifacts/$TARGET_VERSION/sha256")
+    curl --fail --silent --show-error --config - <<EOF
+url = "http://127.0.0.1:8080/rollouts"
+request = "POST"
+header = "Authorization: Bearer $token"
+header = "Content-Type: application/json"
+data = "{\\\"target_artifact_version\\\":\\\"$TARGET_VERSION\\\",\\\"target_artifact_sha256\\\":\\\"$digest\\\"}"
+EOF
+  '
+```
+
+`POST /rollouts` snapshots every exact company/tenant/connection launch in one
+transaction before sending the first signal and returns `202` with the durable
+batch ID. It then processes connections serially. For each connection it stops
+and reaps the old process, launches the digest-verified target, and waits up to
+`WORKER_ROLLOUT_READY_TIMEOUT` for generation-scoped process-ready, connected,
+and authenticated signals. Use authenticated `GET /rollouts` for the active
+batch or `GET /rollouts/<batch-id>` for durable history; `/workers` exposes each
+launch ID, actual artifact digest, and readiness state.
+
+A target failure atomically moves the entire durable batch to rollback: every
+previously target-complete item is reopened for rollback, the failed item is
+included, and later untouched items become terminal `canceled_untouched` in the
+same transaction. Touched items are restored in reverse rollout order and become
+`rollback_complete` only after the source artifact is process-ready and
+WhatsApp-authenticated. A batch is terminal `completed` only when every snapshot
+item is `target_complete`; it is terminal `rolled_back` only when every item is
+`rollback_complete` or `canceled_untouched`, so the whole snapshotted fleet is
+on its source bytes. A rollback failure marks only the actionable item and batch
+`halted`; `completed_at` and `result` remain unset, earlier pending rollbacks stay
+durable, and later rollouts remain blocked. After repairing the reported cause,
+an operator can retry the same tenant- and generation-fenced rollback with authenticated
+`POST /rollouts/<batch-id>/retry-rollback` and
+`{"connection_id":"<halted connection UUID>"}`; only the actionable halted
+rollback item can be resumed. Never delete an artifact directory while any registry
+or rollout row references it. The orchestrator resumes unfinished stop, launch,
+verify-refresh, or reverse rollback phases after its own crash without starting
+ordinary auto-recovery for those connections. Startup acquires the rollout
+writer lock synchronously before command subscription. A durable `recovery`
+phase fences the exact old/new target generation around readiness-authority
+refresh, including crashes after target relaunch but before generation update.
+Successful rollout history becomes the
+company default for later worker spawns, without replacing the orchestrator.
 
 Use an application-only rollback only when that exact old image has been
 explicitly verified against every migration already applied. Migration 070 is a
@@ -314,7 +429,10 @@ Never roll back across that boundary by changing `APP_IMAGE_TAG` alone. Stop all
 writers and orchestrators, then restore the verified pre-upgrade
 PostgreSQL/media backup (or follow a separately tested, release-specific down
 procedure) before starting the old image. Document the resulting data-loss
-window.
+window. For a compatible worker-only rollback, submit another authenticated
+rollout targeting the retained old version and its recorded digest; do not
+recreate the orchestrator. Retention is not compatibility proof: only select a
+worker version reviewed against the chosen orchestrator and applied schema.
 
 ## Observability and maintenance
 

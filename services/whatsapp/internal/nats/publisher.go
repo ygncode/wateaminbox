@@ -7,6 +7,7 @@ import (
 	"log"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -16,14 +17,20 @@ import (
 )
 
 const (
-	eventPublishMaxAttempts = 5
-	eventPublishBaseDelay   = 250 * time.Millisecond
-	eventOutboxPollInterval = time.Second
-	eventOutboxBatchSize    = 100
+	eventPublishMaxAttempts  = 5
+	eventPublishBaseDelay    = 250 * time.Millisecond
+	eventOutboxPollInterval  = time.Second
+	eventOutboxBatchSize     = 100
+	runtimeHeartbeatInterval = 15 * time.Second
 )
 
 type jetStreamPublisher interface {
 	Publish(subject string, data []byte, opts ...nats.PubOpt) (*nats.PubAck, error)
+}
+
+type corePublisher interface {
+	Publish(subject string, data []byte) error
+	FlushTimeout(timeout time.Duration) error
 }
 
 type PendingEvent struct {
@@ -101,22 +108,31 @@ type (
 
 // Publisher handles publishing events to NATS.
 type Publisher struct {
-	nc           *nats.Conn
-	js           jetStreamPublisher
-	companyID    string
-	connectionID string
-	outbox       EventOutbox
-	ctx          context.Context
-	cancel       context.CancelFunc
-	wg           sync.WaitGroup
+	nc               *nats.Conn
+	js               jetStreamPublisher
+	companyID        string
+	connectionID     string
+	launchID         string
+	artifactVersion  string
+	readinessToken   string
+	core             corePublisher
+	runtimeConnected atomic.Bool
+	runtimeMu        sync.Mutex // orders heartbeat/connected/disconnected signals
+	outbox           EventOutbox
+	ctx              context.Context
+	cancel           context.CancelFunc
+	wg               sync.WaitGroup
 }
 
 // PublisherConfig holds configuration for the publisher.
 type PublisherConfig struct {
-	NATSURL      string
-	CompanyID    string
-	ConnectionID string
-	EventOutbox  EventOutbox
+	NATSURL         string
+	CompanyID       string
+	ConnectionID    string
+	LaunchID        string
+	ArtifactVersion string
+	ReadinessToken  string
+	EventOutbox     EventOutbox
 }
 
 // NewPublisher creates a new NATS publisher.
@@ -161,18 +177,26 @@ func NewPublisher(cfg PublisherConfig) (*Publisher, error) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	publisher := &Publisher{
-		nc:           nc,
-		js:           js,
-		companyID:    cfg.CompanyID,
-		connectionID: cfg.ConnectionID,
-		outbox:       cfg.EventOutbox,
-		ctx:          ctx,
-		cancel:       cancel,
+		nc:              nc,
+		js:              js,
+		core:            nc,
+		companyID:       cfg.CompanyID,
+		connectionID:    cfg.ConnectionID,
+		launchID:        cfg.LaunchID,
+		artifactVersion: cfg.ArtifactVersion,
+		readinessToken:  cfg.ReadinessToken,
+		outbox:          cfg.EventOutbox,
+		ctx:             ctx,
+		cancel:          cancel,
 	}
 	if publisher.outbox != nil {
 		publisher.wg.Add(1)
 		go publisher.runEventOutbox()
 	}
+	// Re-announcement lets a replacement orchestrator recover verification of
+	// this healthy generation after losing its transient subscription state.
+	publisher.wg.Add(1)
+	go publisher.runRuntimeHeartbeat(runtimeHeartbeatInterval)
 	return publisher, nil
 }
 
@@ -196,8 +220,20 @@ func (p *Publisher) PublishQRCode(qrData string) error {
 	return p.publish(subject, event)
 }
 
-// PublishConnectionStatus publishes a connection status event.
+// PublishConnectionStatus preserves the durable API event and additionally
+// emits transient runtime state for this exact worker generation.
 func (p *Publisher) PublishConnectionStatus(status, reason, phoneNumber, jid string) error {
+	var runtimeErr error
+	if status == "disconnected" || status == "logged_out" {
+		// Serialize with the whole heartbeat batch and publish the negative edge
+		// first. A heartbeat that began earlier finishes before this signal; none
+		// can begin after runtimeConnected becomes false.
+		p.runtimeMu.Lock()
+		p.runtimeConnected.Store(false)
+		runtimeErr = p.publishWorkerRuntimeStatus(sharednats.WorkerRuntimeStatusDisconnected, reason)
+		p.runtimeMu.Unlock()
+	}
+
 	event := WhatsAppEvent{
 		Type:         status, // "connected" or "disconnected"
 		CompanyID:    p.companyID,
@@ -211,7 +247,129 @@ func (p *Publisher) PublishConnectionStatus(status, reason, phoneNumber, jid str
 	}
 
 	subject := fmt.Sprintf(SubjectStatus, p.companyID, p.connectionID)
-	return p.publish(subject, event)
+	if err := p.publish(subject, event); err != nil {
+		return err
+	}
+	if runtimeErr != nil {
+		return runtimeErr
+	}
+
+	switch status {
+	case "connected":
+		p.runtimeMu.Lock()
+		defer p.runtimeMu.Unlock()
+		p.runtimeConnected.Store(true)
+		if err := p.publishWorkerRuntimeStatus(sharednats.WorkerRuntimeStatusConnected, reason); err != nil {
+			return err
+		}
+		// A whatsmeow Connected event is emitted only after authentication.
+		return p.publishWorkerRuntimeStatus(sharednats.WorkerRuntimeStatusAuthenticated, reason)
+	case "paired":
+		p.runtimeMu.Lock()
+		defer p.runtimeMu.Unlock()
+		return p.publishWorkerRuntimeStatus(sharednats.WorkerRuntimeStatusAuthenticated, reason)
+	default:
+		return nil
+	}
+}
+
+func (p *Publisher) runRuntimeHeartbeat(interval time.Duration) {
+	defer p.wg.Done()
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-p.ctx.Done():
+			return
+		case <-ticker.C:
+			p.runtimeMu.Lock()
+			if !p.runtimeConnected.Load() {
+				p.runtimeMu.Unlock()
+				continue
+			}
+			// Re-announce every verifier prerequisite as one ordered batch. A
+			// disconnect cannot interleave and then be overwritten by stale facts.
+			for _, status := range []string{
+				sharednats.WorkerRuntimeStatusProcessReady,
+				sharednats.WorkerRuntimeStatusConnected,
+				sharednats.WorkerRuntimeStatusAuthenticated,
+			} {
+				if err := p.publishWorkerRuntimeStatus(status, "heartbeat"); err != nil && p.ctx.Err() == nil {
+					log.Printf("Failed to publish worker runtime %s heartbeat: %v", status, err)
+				}
+			}
+			p.runtimeMu.Unlock()
+		}
+	}
+}
+
+// PublishWorkerRuntimeStatus publishes a core-NATS operational signal. It is
+// intentionally neither persisted in the worker outbox nor sent to JetStream.
+func (p *Publisher) PublishWorkerRuntimeStatus(status, reason string) error {
+	p.runtimeMu.Lock()
+	defer p.runtimeMu.Unlock()
+	return p.publishWorkerRuntimeStatus(status, reason)
+}
+
+func (p *Publisher) publishWorkerRuntimeStatus(status, reason string) error {
+	if p.core == nil {
+		return fmt.Errorf("worker runtime publisher is unavailable")
+	}
+	if !validRuntimeSubjectToken(p.companyID) ||
+		!validRuntimeSubjectToken(p.connectionID) ||
+		!validRuntimeSubjectToken(p.launchID) {
+		return fmt.Errorf("worker runtime identity must contain non-empty NATS subject tokens")
+	}
+	if p.artifactVersion == "" {
+		return fmt.Errorf("worker artifact version is required")
+	}
+	if p.readinessToken == "" {
+		return fmt.Errorf("worker readiness token is required")
+	}
+	switch status {
+	case sharednats.WorkerRuntimeStatusProcessReady,
+		sharednats.WorkerRuntimeStatusConnected,
+		sharednats.WorkerRuntimeStatusAuthenticated,
+		sharednats.WorkerRuntimeStatusDisconnected:
+	default:
+		return fmt.Errorf("unsupported worker runtime status %q", status)
+	}
+
+	signal := sharednats.WorkerRuntimeStatus{
+		Status:          status,
+		CompanyID:       p.companyID,
+		ConnectionID:    p.connectionID,
+		LaunchID:        p.launchID,
+		ArtifactVersion: p.artifactVersion,
+		Reason:          reason,
+		Timestamp:       time.Now().UTC().Format(time.RFC3339Nano),
+	}
+	signature, err := sharednats.SignWorkerRuntimeStatus(signal, p.readinessToken)
+	if err != nil {
+		return fmt.Errorf("sign worker runtime status: %w", err)
+	}
+	signal.Signature = signature
+	data, err := json.Marshal(signal)
+	if err != nil {
+		return fmt.Errorf("marshal worker runtime status: %w", err)
+	}
+	subject := fmt.Sprintf(
+		sharednats.SubjectWorkerRuntimeStatus,
+		p.companyID,
+		p.connectionID,
+		p.launchID,
+	)
+	if err = p.core.Publish(subject, data); err != nil {
+		return fmt.Errorf("publish worker runtime status: %w", err)
+	}
+	if err = p.core.FlushTimeout(2 * time.Second); err != nil {
+		return fmt.Errorf("flush worker runtime status: %w", err)
+	}
+	return nil
+}
+
+func validRuntimeSubjectToken(value string) bool {
+	return value != "" && !strings.ContainsAny(value, ".*> \t\r\n")
 }
 
 // PublishMessage publishes an incoming message event.

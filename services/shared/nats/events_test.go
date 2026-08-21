@@ -7,6 +7,29 @@ import (
 	"time"
 )
 
+func TestWorkerRuntimeStatusSignatureIsGenerationScoped(t *testing.T) {
+	status := WorkerRuntimeStatus{
+		Status: WorkerRuntimeStatusConnected, CompanyID: "company", ConnectionID: "connection",
+		LaunchID: "launch", ArtifactVersion: "v2", Timestamp: time.Now().UTC().Format(time.RFC3339Nano),
+	}
+	signature, err := SignWorkerRuntimeStatus(status, "launch-secret")
+	if err != nil {
+		t.Fatal(err)
+	}
+	status.Signature = signature
+	if !VerifyWorkerRuntimeStatus(status, "launch-secret") {
+		t.Fatal("valid runtime signature was rejected")
+	}
+	status.LaunchID = "other-launch"
+	if VerifyWorkerRuntimeStatus(status, "launch-secret") {
+		t.Fatal("signature was accepted for a different generation")
+	}
+	status.LaunchID = "launch"
+	if VerifyWorkerRuntimeStatus(status, "other-secret") {
+		t.Fatal("signature was accepted with another launch token")
+	}
+}
+
 func TestEventTypeConstants(t *testing.T) {
 	// Ensure event type constants are not empty
 	eventTypes := []struct {

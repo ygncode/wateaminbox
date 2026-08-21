@@ -49,4 +49,32 @@ if [ -z "${NATS_URL:-}" ] && [ -n "${NATS_TOKEN:-}" ]; then
   export NATS_URL="nats://${NATS_TOKEN}@nats:4222"
 fi
 
+# The root orchestrator creates rollout authority at every container start.
+# It lives only on a root-owned tmpfs so unprivileged worker UIDs cannot read
+# either the token file or the manager's environment.
+if [ -n "${EPHEMERAL_HTTP_BEARER_TOKEN_FILE:-}" ]; then
+  [ "$(id -u)" = 0 ] || {
+    echo "secret-entrypoint: ephemeral control authority requires root" >&2
+    exit 1
+  }
+  control_file=$EPHEMERAL_HTTP_BEARER_TOKEN_FILE
+  case "$control_file" in
+    /run/wateaminbox-control/*) ;;
+    *) echo "secret-entrypoint: control token must be under /run/wateaminbox-control" >&2; exit 1 ;;
+  esac
+  umask 077
+  mkdir -p "$(dirname "$control_file")"
+  token=$(od -An -N32 -tx1 /dev/urandom | tr -d ' \n')
+  [ "${#token}" -eq 64 ] || {
+    echo "secret-entrypoint: failed to generate control authority" >&2
+    exit 1
+  }
+  rm -f "$control_file"
+  printf '%s\n' "$token" >"$control_file"
+  chmod 0600 "$control_file"
+  export HTTP_BEARER_TOKEN_FILE=$control_file
+  unset HTTP_BEARER_TOKEN EPHEMERAL_HTTP_BEARER_TOKEN_FILE
+  token=
+fi
+
 exec "$@"

@@ -111,6 +111,27 @@ services:
     read_only: true
     tmpfs: [/tmp]
 
+  worker-artifact-installer:
+    <<: *service-defaults
+    restart: "no"
+    image: wateaminbox/whatsapp-worker-artifact:${WORKER_IMAGE_TAG:-${APP_IMAGE_TAG:?set APP_IMAGE_TAG}}
+    build:
+      context: .
+      dockerfile: services/whatsapp/Dockerfile
+      target: artifact-installer
+    environment:
+      # Empty means derive immutable identity from the packaged SHA-256. This is
+      # safe when an existing deployment script rebuilds a mutable image tag.
+      WORKER_ARTIFACT_VERSION: ${WORKER_ARTIFACT_VERSION:-}
+    volumes:
+      - whatsapp_worker_artifacts:/var/lib/wateaminbox/worker-artifacts
+    depends_on:
+      migration:
+        condition: service_completed_successfully
+    network_mode: none
+    read_only: true
+    tmpfs: [/tmp]
+
   api:
     <<: *service-defaults
     image: wateaminbox/api:${APP_IMAGE_TAG:?set APP_IMAGE_TAG}
@@ -195,8 +216,19 @@ services:
     environment:
       <<: *app-environment
       # Operational endpoints remain process-local; they are not routed by Caddy.
+      # Root-only authority is generated afresh into tmpfs at container start.
+      # Operators read it through docker exec as root; workers run under unique
+      # unprivileged UIDs and cannot read this file or the manager environment.
       HTTP_ADDR: 127.0.0.1:8080
-      WHATSAPP_BINARY_PATH: /usr/local/bin/whatsapp-worker
+      EPHEMERAL_HTTP_BEARER_TOKEN_FILE: /run/wateaminbox-control/http-bearer-token
+      ORCHESTRATOR_ROOT_MANAGER_APPROVED: "true"
+      # Bootstrap/default is tied to the application release, not the independently
+      # staged WORKER_IMAGE_TAG. A WhatsApp-only image change therefore recreates
+      # only the installer; completed rollout history supplies later defaults.
+      WORKER_ARTIFACT_ROOT: /var/lib/wateaminbox/worker-artifacts
+      WORKER_DEFAULT_ARTIFACT_VERSION: ${WORKER_BOOTSTRAP_ARTIFACT_VERSION:-bootstrap}
+      WHATSAPP_BINARY_PATH: /var/lib/wateaminbox/worker-artifacts/${WORKER_BOOTSTRAP_ARTIFACT_VERSION:-bootstrap}/whatsapp-worker
+      WORKER_ROLLOUT_READY_TIMEOUT: ${WORKER_ROLLOUT_READY_TIMEOUT:-2m}
       HEALTH_CHECK_INTERVAL: 30s
       AUTO_RESTART_ENABLED: "true"
       AUTO_RESTART_MAX_RETRIES: "5"
@@ -216,10 +248,16 @@ services:
     depends_on:
       migration:
         condition: service_completed_successfully
+      worker-artifact-installer:
+        condition: service_completed_successfully
       nats:
         condition: service_healthy
+    volumes:
+      - whatsapp_worker_artifacts:/var/lib/wateaminbox/worker-artifacts:ro
     read_only: true
-    tmpfs: [/tmp]
+    tmpfs:
+      - /tmp
+      - /run/wateaminbox-control:mode=0700,uid=0,gid=0
     # The orchestrator allows itself 30s to shut down: it records recovery intent
     # for every worker, then stops each WhatsApp child process, allowing 5s per
     # worker before escalating to SIGKILL. Docker's 10s default would SIGKILL the
@@ -367,6 +405,9 @@ volumes:
   minio_data:
   caddy_data:
   caddy_config:
+  # Version directories are immutable. Retain this volume across releases so a
+  # reviewed rollback can select an already verified worker artifact.
+  whatsapp_worker_artifacts:
 
 secrets:
   postgres_password:

@@ -30,6 +30,11 @@ const (
 	SubjectDownloadRequest  = "WHATSAPP.download.%s.%s.request"
 	SubjectDownloadResponse = "WHATSAPP.events.%s.%s.download_response"
 
+	// WorkerRuntimeStatus is a transient, generation-scoped operational signal.
+	// It deliberately lives outside WHATSAPP.events so it cannot enter the API's
+	// durable event consumer. Format: company, connection, worker launch ID.
+	SubjectWorkerRuntimeStatus = "WHATSAPP.workers.%s.%s.%s.status"
+
 	// Connection status subject - used by orchestrator to notify API of worker status changes
 	SubjectConnectionStatus = "WHATSAPP.events.%s.%s.connection_status"
 )

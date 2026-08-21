@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -17,6 +19,64 @@ type flakyJetStreamPublisher struct {
 	failBefore int
 	order      *[]string
 }
+
+type capturedCorePublisher struct {
+	subject string
+	data    []byte
+	flushes int
+}
+
+func (publisher *capturedCorePublisher) Publish(subject string, data []byte) error {
+	publisher.subject = subject
+	publisher.data = append([]byte(nil), data...)
+	return nil
+}
+
+func (publisher *capturedCorePublisher) FlushTimeout(time.Duration) error {
+	publisher.flushes++
+	return nil
+}
+
+type countingCorePublisher struct {
+	publishes atomic.Int32
+	mu        sync.Mutex
+	statuses  map[string]int
+	order     []string
+}
+
+func (publisher *countingCorePublisher) Publish(_ string, data []byte) error {
+	var signal struct {
+		Status string `json:"status"`
+	}
+	if json.Unmarshal(data, &signal) == nil {
+		publisher.mu.Lock()
+		if publisher.statuses == nil {
+			publisher.statuses = make(map[string]int)
+		}
+		publisher.statuses[signal.Status]++
+		publisher.order = append(publisher.order, signal.Status)
+		publisher.mu.Unlock()
+	}
+	publisher.publishes.Add(1)
+	return nil
+}
+
+func (publisher *countingCorePublisher) statusCount(status string) int {
+	publisher.mu.Lock()
+	defer publisher.mu.Unlock()
+	return publisher.statuses[status]
+}
+
+func (publisher *countingCorePublisher) lastStatus() string {
+	publisher.mu.Lock()
+	defer publisher.mu.Unlock()
+	if len(publisher.order) == 0 {
+		return ""
+	}
+	return publisher.order[len(publisher.order)-1]
+}
+
+func (*countingCorePublisher) FlushTimeout(time.Duration) error { return nil }
 
 func (publisher *flakyJetStreamPublisher) Publish(
 	_ string,
@@ -142,6 +202,95 @@ func TestPublisherDoesNotReplayEphemeralEvents(t *testing.T) {
 	assert.False(t, shouldPersistEventSubject("WHATSAPP.events.company.connection.presence"))
 	assert.False(t, shouldPersistEventSubject("WHATSAPP.events.company.connection.typing"))
 	assert.True(t, shouldPersistEventSubject("WHATSAPP.events.company.connection.message"))
+}
+
+func TestPublishWorkerRuntimeStatusIsGenerationScopedAndTransient(t *testing.T) {
+	core := &capturedCorePublisher{}
+	publisher := &Publisher{
+		core:            core,
+		companyID:       "company-1",
+		connectionID:    "connection-1",
+		launchID:        "launch-2",
+		artifactVersion: "sha256:abc123",
+		readinessToken:  "test-readiness-token",
+	}
+
+	err := publisher.PublishWorkerRuntimeStatus("process_ready", "")
+
+	assert.NoError(t, err)
+	assert.Equal(t, "WHATSAPP.workers.company-1.connection-1.launch-2.status", core.subject)
+	assert.NotContains(t, core.subject, "WHATSAPP.events")
+	assert.Equal(t, 1, core.flushes)
+
+	var signal struct {
+		Status          string `json:"status"`
+		CompanyID       string `json:"companyId"`
+		ConnectionID    string `json:"connectionId"`
+		LaunchID        string `json:"launchId"`
+		ArtifactVersion string `json:"artifactVersion"`
+		Timestamp       string `json:"timestamp"`
+		Signature       string `json:"signature"`
+	}
+	assert.NoError(t, json.Unmarshal(core.data, &signal))
+	assert.Equal(t, "process_ready", signal.Status)
+	assert.Equal(t, "company-1", signal.CompanyID)
+	assert.Equal(t, "connection-1", signal.ConnectionID)
+	assert.Equal(t, "launch-2", signal.LaunchID)
+	assert.Equal(t, "sha256:abc123", signal.ArtifactVersion)
+	assert.NotEmpty(t, signal.Signature)
+	_, err = time.Parse(time.RFC3339Nano, signal.Timestamp)
+	assert.NoError(t, err)
+}
+
+func TestConnectedHeartbeatReannouncesAllCrashRecoveryPrerequisites(t *testing.T) {
+	core := &countingCorePublisher{}
+	ctx, cancel := context.WithCancel(context.Background())
+	publisher := &Publisher{
+		core:            core,
+		companyID:       "company-1",
+		connectionID:    "connection-1",
+		launchID:        "launch-2",
+		artifactVersion: "v2",
+		readinessToken:  "test-readiness-token",
+		js:              &flakyJetStreamPublisher{},
+		ctx:             ctx,
+		cancel:          cancel,
+	}
+	publisher.runtimeConnected.Store(true)
+	publisher.wg.Add(1)
+	go publisher.runRuntimeHeartbeat(5 * time.Millisecond)
+
+	// Model an orchestrator crash after all one-shot signals were lost: the
+	// recovered verifier sees only a later heartbeat and still gets every fact
+	// required to accept this exact healthy generation.
+	assert.Eventually(t, func() bool {
+		return core.statusCount("process_ready") >= 1 &&
+			core.statusCount("connected") >= 1 &&
+			core.statusCount("authenticated") >= 1
+	}, 100*time.Millisecond, 5*time.Millisecond)
+
+	assert.NoError(t, publisher.PublishConnectionStatus("disconnected", "test", "", ""))
+	assert.Equal(t, "disconnected", core.lastStatus(), "disconnect must be ordered after any in-flight heartbeat batch")
+	stoppedAt := core.publishes.Load()
+	time.Sleep(20 * time.Millisecond)
+	assert.Equal(t, stoppedAt, core.publishes.Load())
+
+	publisher.Close()
+}
+
+func TestPublishWorkerRuntimeStatusRejectsUnscopedIdentity(t *testing.T) {
+	publisher := &Publisher{
+		core:            &capturedCorePublisher{},
+		companyID:       "company-1",
+		connectionID:    "connection.1",
+		launchID:        "launch-2",
+		artifactVersion: "v2",
+		readinessToken:  "test-readiness-token",
+	}
+
+	err := publisher.PublishWorkerRuntimeStatus("connected", "")
+
+	assert.ErrorContains(t, err, "subject tokens")
 }
 
 func TestLabelColorHex(t *testing.T) {

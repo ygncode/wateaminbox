@@ -5,6 +5,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -122,6 +123,29 @@ func TestWorkerEndpointsRequireValidBearerToken(t *testing.T) {
 		"Bearer orchestrator-test-token-1234567890",
 	)
 	assert.Equal(t, http.StatusNotFound, response.Code)
+}
+
+func TestRolloutEndpointsAlwaysRequireAuthentication(t *testing.T) {
+	server, err := NewServer(Config{Address: "127.0.0.1:8080", Manager: manager.New(manager.Config{})})
+	require.NoError(t, err)
+	response := performRequest(server, http.MethodGet, "/rollouts", "")
+	assert.Equal(t, http.StatusServiceUnavailable, response.Code)
+
+	protected := newProtectedTestServer(t)
+	response = performRequest(protected, http.MethodGet, "/rollouts", "")
+	assert.Equal(t, http.StatusUnauthorized, response.Code)
+	response = performRequest(protected, http.MethodGet, "/rollouts", "Bearer orchestrator-test-token-1234567890")
+	assert.Equal(t, http.StatusServiceUnavailable, response.Code, "authenticated request reaches manager durability check")
+
+	retry := httptest.NewRequest(
+		http.MethodPost,
+		"/rollouts/00000000-0000-4000-8000-000000000001/retry-rollback",
+		strings.NewReader(`{"connection_id":"00000000-0000-4000-8000-000000000002"}`),
+	)
+	retry.Header.Set("Authorization", "Bearer orchestrator-test-token-1234567890")
+	retryResponse := httptest.NewRecorder()
+	protected.httpServer.Handler.ServeHTTP(retryResponse, retry)
+	assert.Equal(t, http.StatusServiceUnavailable, retryResponse.Code, "authenticated retry reaches manager durability check")
 }
 
 func TestNewServerRejectsMalformedAddress(t *testing.T) {
