@@ -30,6 +30,9 @@ jobs:
             services/orchestrator/go.sum
             services/whatsapp/go.sum
 
+      - name: Install static test tools
+        run: sudo apt-get update && sudo apt-get install --no-install-recommends --yes ripgrep
+
       - run: bun install --frozen-lockfile
       - run: bun run lint
       - run: bun run typecheck
