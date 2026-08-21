@@ -402,17 +402,25 @@ previously target-complete item is reopened for rollback, the failed item is
 included, and later untouched items become terminal `canceled_untouched` in the
 same transaction. Touched items are restored in reverse rollout order and become
 `rollback_complete` only after the source artifact is process-ready and
-WhatsApp-authenticated. A batch is terminal `completed` only when every snapshot
-item is `target_complete`; it is terminal `rolled_back` only when every item is
-`rollback_complete` or `canceled_untouched`, so the whole snapshotted fleet is
-on its source bytes. A rollback failure marks only the actionable item and batch
+WhatsApp-authenticated. Each target, readiness-refresh, and rollback generation
+is durably reserved before its worker-registry claim. Item completion locks and
+CAS-checks the exact live launch, tenant, desired-running state, artifact digest,
+and UID/GID in the same PostgreSQL transaction. A batch is terminal `completed`
+only when every snapshot item is `target_complete`; it is terminal `rolled_back`
+only when every item is `rollback_complete` or `canceled_untouched`, so the whole
+snapshotted fleet is on its source bytes. A rollback failure marks only the actionable item and batch
 `halted`; `completed_at` and `result` remain unset, earlier pending rollbacks stay
 durable, and later rollouts remain blocked. After repairing the reported cause,
 an operator can retry the same tenant- and generation-fenced rollback with authenticated
 `POST /rollouts/<batch-id>/retry-rollback` and
 `{"connection_id":"<halted connection UUID>"}`; only the actionable halted
-rollback item can be resumed. Never delete an artifact directory while any registry
-or rollout row references it. The orchestrator resumes unfinished stop, launch,
+rollback item can be resumed. A missing, externally stopped, or newer launch fails this check
+without being signaled or replaced. If connection-allowance enforcement
+performs an authoritative stop while a batch is halted, it transactionally
+terminates the unfinished items as `abandoned_external_stop` and the batch as
+`abandoned`; this releases rollout serialization without falsely claiming that
+the fleet completed or rolled back. Never delete an artifact directory while
+any registry or rollout row references it. The orchestrator resumes unfinished stop, launch,
 verify-refresh, or reverse rollback phases after its own crash without starting
 ordinary auto-recovery for those connections. Startup acquires the rollout
 writer lock synchronously before command subscription. A durable `recovery`
@@ -420,6 +428,10 @@ phase fences the exact old/new target generation around readiness-authority
 refresh, including crashes after target relaunch but before generation update.
 Successful rollout history becomes the
 company default for later worker spawns, without replacing the orchestrator.
+Signed runtime readiness timestamps are accepted only when fresh, not future,
+and strictly increasing for the exact launch/token. A disconnect invalidates
+the complete readiness chain, so replayed or reordered pre-disconnect positive
+signals cannot restore rollout readiness.
 
 Use an application-only rollback only when that exact old image has been
 explicitly verified against every migration already applied. Migration 070 is a

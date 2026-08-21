@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strings"
 	"syscall"
+	"time"
 
 	sharednats "github.com/ygncode-lab/whatsapp-web/services/shared/nats"
 )
@@ -15,6 +16,11 @@ import (
 var (
 	ErrUpgradeUnavailable = errors.New("durable worker upgrades are unavailable")
 	ErrUpgradeNoWorkers   = errors.New("no workers matched the upgrade selector")
+)
+
+const (
+	workerRuntimeSignalMaxAge     = time.Minute
+	workerRuntimeSignalFutureSkew = 5 * time.Second
 )
 
 // WorkerUpgradeRequest selects a retained immutable artifact and optionally
@@ -345,15 +351,14 @@ func (m *Manager) runWorkerUpgradeItem(ctx context.Context, batch *WorkerUpgrade
 		}
 	}
 	if item.Phase == WorkerUpgradePhaseStop {
-		worker, _ := m.GetWorkerStatus(item.ConnectionID)
-		if worker != nil && worker.PID > 0 {
-			if err := m.stopWorkerInternal(ctx, item.CompanyID, item.ConnectionID, "stop-first worker artifact upgrade", syscall.SIGTERM, true); err != nil {
-				return fmt.Errorf("confirm source generation exit: %w", err)
-			}
-		} else if worker != nil {
-			m.mu.Lock()
-			delete(m.workers, item.ConnectionID)
-			m.mu.Unlock()
+		if _, err := m.fenceRolloutOwnedLaunch(
+			ctx, batch, item, WorkerUpgradePhaseStop, item.SourceGeneration,
+			item.SourceArtifactVersion, item.SourceArtifactSHA256, true,
+		); err != nil {
+			return fmt.Errorf("source changed before stop: %w", err)
+		}
+		if err := m.stopWorkerInternal(ctx, item.CompanyID, item.ConnectionID, "stop-first worker artifact upgrade", syscall.SIGTERM, true); err != nil {
+			return fmt.Errorf("confirm source generation exit: %w", err)
 		}
 		advanced, err := m.registry.AdvanceWorkerUpgradeItem(ctx, batch.ID, item.CompanyID, item.TenantSchema, item.ConnectionID, item.SourceGeneration, WorkerUpgradePhaseStop, WorkerUpgradePhaseLaunch, "", "")
 		if err != nil || !advanced {
@@ -363,30 +368,54 @@ func (m *Manager) runWorkerUpgradeItem(ctx context.Context, batch *WorkerUpgrade
 	}
 
 	if item.Phase == WorkerUpgradePhaseLaunch {
-		current, exists := m.GetWorkerStatus(item.ConnectionID)
-		targetMatches := exists && current.PID > 0 && m.workerMatchesArtifactContent(current, target)
-		if exists && current.PID > 0 && !targetMatches {
-			if err := m.stopWorkerInternal(ctx, item.CompanyID, item.ConnectionID, "reconfirm stop-first upgrade boundary", syscall.SIGTERM, true); err != nil {
-				return fmt.Errorf("stop unexpected generation before target launch: %w", err)
+		if item.TargetGeneration == "" {
+			planned, err := newLaunchID()
+			if err != nil {
+				return err
 			}
-			current, exists = nil, false
+			reserved, err := m.registry.ReserveWorkerUpgradeGeneration(
+				ctx, batch.ID, item.CompanyID, item.TenantSchema, item.ConnectionID,
+				item.SourceGeneration, WorkerUpgradePhaseLaunch, "target_generation", planned,
+			)
+			if err != nil || !reserved {
+				return transitionFailure(nil, "reserve target generation", reserved, err)
+			}
+			item.TargetGeneration = planned
+		}
+
+		current, exists := m.GetWorkerStatus(item.ConnectionID)
+		targetMatches := exists && current.PID > 0 && current.LaunchID == item.TargetGeneration &&
+			current.CompanyID == item.CompanyID && current.TenantSchema == item.TenantSchema &&
+			m.workerMatchesArtifactContent(current, target)
+		if exists && current.PID > 0 && !targetMatches {
+			return errors.New("refusing to stop an unowned generation before target launch")
 		}
 		if !targetMatches {
-			m.installUpgradePredecessor(item, current)
-			if err := m.spawnWorkerArtifact(ctx, item.CompanyID, item.ConnectionID, item.TenantSchema, m.config.DatabaseURL, false, 1, target); err != nil {
-				return fmt.Errorf("launch target artifact: %w", err)
+			record, err := m.fenceRolloutOwnedLaunch(
+				ctx, batch, item, WorkerUpgradePhaseLaunch, item.SourceGeneration,
+				item.SourceArtifactVersion, item.SourceArtifactSHA256, false,
+			)
+			if err != nil {
+				return fmt.Errorf("source changed before target claim: %w", err)
+			}
+			installRolloutPredecessor(m, item, record, target.BinaryPath)
+			if err := m.spawnWorkerArtifactWithLaunch(
+				ctx, item.CompanyID, item.ConnectionID, item.TenantSchema,
+				m.config.DatabaseURL, false, 1, target, item.TargetGeneration,
+			); err != nil {
+				return fmt.Errorf("launch reserved target artifact: %w", err)
 			}
 			current, exists = m.GetWorkerStatus(item.ConnectionID)
 		}
-		if !exists || current.PID <= 0 || current.CompanyID != item.CompanyID || current.TenantSchema != item.TenantSchema ||
+		if !exists || current.PID <= 0 || current.LaunchID != item.TargetGeneration ||
+			current.CompanyID != item.CompanyID || current.TenantSchema != item.TenantSchema ||
 			!m.workerMatchesArtifactContent(current, target) {
-			return errors.New("target launch lost tenant, process, or artifact ownership")
+			return errors.New("reserved target launch lost tenant, process, or artifact ownership")
 		}
-		advanced, err := m.registry.AdvanceWorkerUpgradeItem(ctx, batch.ID, item.CompanyID, item.TenantSchema, item.ConnectionID, item.SourceGeneration, WorkerUpgradePhaseLaunch, WorkerUpgradePhaseVerify, current.LaunchID, "")
+		advanced, err := m.registry.AdvanceWorkerUpgradeItem(ctx, batch.ID, item.CompanyID, item.TenantSchema, item.ConnectionID, item.SourceGeneration, WorkerUpgradePhaseLaunch, WorkerUpgradePhaseVerify, item.TargetGeneration, "")
 		if err != nil || !advanced {
 			return transitionFailure(nil, "persist target generation", advanced, err)
 		}
-		item.TargetGeneration = current.LaunchID
 		item.Phase = WorkerUpgradePhaseVerify
 	}
 
@@ -419,15 +448,82 @@ func (m *Manager) runWorkerUpgradeItem(ctx context.Context, batch *WorkerUpgrade
 		if err != nil {
 			return fmt.Errorf("target readiness failed: %w", err)
 		}
-		if current.LaunchID != item.TargetGeneration || !m.workerIsReady(item.ConnectionID, item.CompanyID, item.TargetGeneration) {
+		current, exists = m.GetWorkerStatus(item.ConnectionID)
+		if !exists || current.LaunchID != item.TargetGeneration ||
+			!m.workerIsReady(item.ConnectionID, item.CompanyID, item.TargetGeneration) {
 			return errors.New("target disconnected or changed during readiness verification")
 		}
-		completed, err := m.registry.CompleteWorkerUpgradeItem(ctx, batch.ID, item.CompanyID, item.TenantSchema, item.ConnectionID, item.SourceGeneration, WorkerUpgradePhaseVerify)
+		completed, err := m.registry.CompleteWorkerUpgradeItem(
+			ctx, batch.ID, item.CompanyID, item.TenantSchema, item.ConnectionID,
+			item.SourceGeneration, WorkerUpgradePhaseVerify, liveFence(current),
+		)
 		if err != nil || !completed {
 			return transitionFailure(nil, "persist verified target", completed, err)
 		}
 	}
 	return nil
+}
+
+func liveFence(worker *WorkerProcess) WorkerUpgradeLiveFence {
+	return WorkerUpgradeLiveFence{
+		LaunchID: worker.LaunchID, ArtifactVersion: worker.ArtifactVersion,
+		ArtifactSHA256: worker.ArtifactSHA256, WorkerUID: worker.WorkerUID,
+		WorkerGID: worker.WorkerGID,
+	}
+}
+
+func (m *Manager) fenceRolloutOwnedLaunch(
+	ctx context.Context, batch *WorkerUpgradeBatch, item *WorkerUpgradeItem,
+	itemPhase, generation, artifactVersion, artifactSHA256 string,
+	requireLiveMap bool,
+) (*WorkerRecord, error) {
+	record, err := m.registry.GetWorker(ctx, item.ConnectionID)
+	if err != nil {
+		return nil, fmt.Errorf("read rollout-owned registry launch: %w", err)
+	}
+	if record == nil || record.CompanyID != item.CompanyID || record.TenantSchema != item.TenantSchema ||
+		record.ConnectionID != item.ConnectionID || record.LaunchID != generation ||
+		record.DesiredState != DesiredStateRunning || record.ArtifactVersion != artifactVersion ||
+		!strings.EqualFold(record.ArtifactSHA256, artifactSHA256) {
+		return nil, errors.New("durable rollout-owned generation is missing or changed")
+	}
+	if err := validateWorkerIdentity(record.WorkerUID, record.WorkerGID); err != nil {
+		return nil, fmt.Errorf("durable rollout-owned credentials: %w", err)
+	}
+	if requireLiveMap {
+		worker, exists := m.GetWorkerStatus(item.ConnectionID)
+		if !exists || worker.PID <= 0 || worker.LaunchID != record.LaunchID ||
+			worker.CompanyID != record.CompanyID || worker.TenantSchema != record.TenantSchema ||
+			worker.ArtifactVersion != record.ArtifactVersion ||
+			!strings.EqualFold(worker.ArtifactSHA256, record.ArtifactSHA256) ||
+			worker.WorkerUID != record.WorkerUID || worker.WorkerGID != record.WorkerGID {
+			return nil, errors.New("in-memory rollout generation does not match durable ownership")
+		}
+	}
+	fenced, err := m.registry.FenceWorkerUpgradeOwnedLaunch(
+		ctx, batch.ID, item.CompanyID, item.TenantSchema, item.ConnectionID,
+		item.SourceGeneration, itemPhase, WorkerUpgradeLiveFence{
+			LaunchID: record.LaunchID, ArtifactVersion: record.ArtifactVersion,
+			ArtifactSHA256: record.ArtifactSHA256, WorkerUID: record.WorkerUID,
+			WorkerGID: record.WorkerGID,
+		},
+	)
+	if err != nil || !fenced {
+		return nil, transitionFailure(nil, "CAS-fence rollout-owned launch", fenced, err)
+	}
+	return record, nil
+}
+
+func installRolloutPredecessor(m *Manager, item *WorkerUpgradeItem, record *WorkerRecord, binaryPath string) {
+	m.mu.Lock()
+	m.workers[item.ConnectionID] = &WorkerProcess{
+		ID: item.ConnectionID, LaunchID: record.LaunchID, DesiredState: DesiredStateRunning,
+		CompanyID: item.CompanyID, ConnectionID: item.ConnectionID, TenantSchema: item.TenantSchema,
+		DatabaseURL: m.config.DatabaseURL, Status: "error", ArtifactVersion: record.ArtifactVersion,
+		ArtifactSHA256: record.ArtifactSHA256, BinaryPath: binaryPath,
+		WorkerUID: record.WorkerUID, WorkerGID: record.WorkerGID,
+	}
+	m.mu.Unlock()
 }
 
 func (m *Manager) validateUpgradeOwnership(item *WorkerUpgradeItem) error {
@@ -459,51 +555,77 @@ func (m *Manager) installUpgradePredecessor(item *WorkerUpgradeItem, current *Wo
 }
 
 func (m *Manager) refreshWorkerUpgradeTarget(ctx context.Context, batch *WorkerUpgradeBatch, item *WorkerUpgradeItem, target WorkerArtifact) error {
+	previousTarget := item.TargetGeneration
 	current, exists := m.GetWorkerStatus(item.ConnectionID)
-	if exists && (current.CompanyID != item.CompanyID || current.TenantSchema != item.TenantSchema || !m.workerMatchesArtifactContent(current, target)) {
-		return errors.New("verify refresh found a non-target or cross-tenant generation")
+	if item.RecoveryGeneration == "" {
+		if _, err := m.fenceRolloutOwnedLaunch(
+			ctx, batch, item, WorkerUpgradePhaseRecovery, previousTarget,
+			target.Version, target.SHA256, true,
+		); err != nil {
+			return fmt.Errorf("target changed before readiness refresh reservation: %w", err)
+		}
+		planned, err := newLaunchID()
+		if err != nil {
+			return err
+		}
+		reserved, err := m.registry.ReserveWorkerUpgradeGeneration(
+			ctx, batch.ID, item.CompanyID, item.TenantSchema, item.ConnectionID,
+			item.SourceGeneration, WorkerUpgradePhaseRecovery, "recovery_generation", planned,
+		)
+		if err != nil || !reserved {
+			return transitionFailure(nil, "reserve readiness refresh generation", reserved, err)
+		}
+		item.RecoveryGeneration = planned
 	}
-	if exists && current.PID > 0 {
+
+	refreshedMatches := exists && current.PID > 0 && current.LaunchID == item.RecoveryGeneration &&
+		current.CompanyID == item.CompanyID && current.TenantSchema == item.TenantSchema &&
+		m.workerMatchesArtifactContent(current, target)
+	if exists && current.PID > 0 && !refreshedMatches {
+		if current.LaunchID != previousTarget || !m.workerMatchesArtifactContent(current, target) {
+			return errors.New("refusing to stop an unowned generation during readiness refresh")
+		}
+		if _, err := m.fenceRolloutOwnedLaunch(
+			ctx, batch, item, WorkerUpgradePhaseRecovery, previousTarget,
+			target.Version, target.SHA256, true,
+		); err != nil {
+			return fmt.Errorf("target changed immediately before readiness refresh stop: %w", err)
+		}
 		if err := m.stopWorkerInternal(ctx, item.CompanyID, item.ConnectionID, "refresh rollout readiness authority", syscall.SIGTERM, true); err != nil {
 			return fmt.Errorf("stop target before readiness authority refresh: %w", err)
 		}
+		current, exists = nil, false
 	}
-	record, err := m.registry.GetWorker(ctx, item.ConnectionID)
-	if err != nil {
-		return fmt.Errorf("inspect verify refresh predecessor: %w", err)
-	}
-	if record == nil || record.CompanyID != item.CompanyID || record.TenantSchema != item.TenantSchema ||
-		record.ArtifactVersion != target.Version || !strings.EqualFold(record.ArtifactSHA256, target.SHA256) {
-		return errors.New("verify refresh predecessor lost exact target ownership")
-	}
-	if err := validateWorkerIdentity(record.WorkerUID, record.WorkerGID); err != nil {
-		return fmt.Errorf("verify refresh predecessor credentials: %w", err)
-	}
-	m.mu.Lock()
-	m.workers[item.ConnectionID] = &WorkerProcess{
-		ID: item.ConnectionID, LaunchID: record.LaunchID, DesiredState: DesiredStateRunning,
-		CompanyID: item.CompanyID, ConnectionID: item.ConnectionID, TenantSchema: item.TenantSchema,
-		DatabaseURL: m.config.DatabaseURL, Status: "error", ArtifactVersion: record.ArtifactVersion,
-		ArtifactSHA256: record.ArtifactSHA256, BinaryPath: target.BinaryPath,
-		WorkerUID: record.WorkerUID, WorkerGID: record.WorkerGID,
-	}
-	m.mu.Unlock()
-	previousTarget := item.TargetGeneration
-	if err := m.spawnWorkerArtifact(ctx, item.CompanyID, item.ConnectionID, item.TenantSchema, m.config.DatabaseURL, false, 1, target); err != nil {
-		return fmt.Errorf("relaunch target with readiness authority: %w", err)
+	if !refreshedMatches {
+		record, err := m.fenceRolloutOwnedLaunch(
+			ctx, batch, item, WorkerUpgradePhaseRecovery, previousTarget,
+			target.Version, target.SHA256, false,
+		)
+		if err != nil {
+			return fmt.Errorf("target changed before readiness refresh claim: %w", err)
+		}
+		installRolloutPredecessor(m, item, record, target.BinaryPath)
+		if err := m.spawnWorkerArtifactWithLaunch(
+			ctx, item.CompanyID, item.ConnectionID, item.TenantSchema,
+			m.config.DatabaseURL, false, 1, target, item.RecoveryGeneration,
+		); err != nil {
+			return fmt.Errorf("relaunch reserved target with readiness authority: %w", err)
+		}
 	}
 	refreshed, exists := m.GetWorkerStatus(item.ConnectionID)
-	if !exists || refreshed.PID <= 0 || !m.workerMatchesArtifactContent(refreshed, target) {
-		return errors.New("re-authorized exact target launch disappeared")
+	if !exists || refreshed.PID <= 0 || refreshed.LaunchID != item.RecoveryGeneration ||
+		!m.workerMatchesArtifactContent(refreshed, target) {
+		return errors.New("reserved re-authorized target launch disappeared")
 	}
 	advanced, err := m.registry.CompleteWorkerUpgradeVerifyRefresh(
 		ctx, batch.ID, item.CompanyID, item.TenantSchema, item.ConnectionID,
-		item.SourceGeneration, previousTarget, refreshed.LaunchID,
+		item.SourceGeneration, previousTarget, item.RecoveryGeneration,
 	)
 	if err != nil || !advanced {
 		return transitionFailure(nil, "persist exact refreshed target generation", advanced, err)
 	}
-	item.TargetGeneration = refreshed.LaunchID
+	item.TargetGeneration = item.RecoveryGeneration
+	item.RecoveryGeneration = ""
 	item.Phase = WorkerUpgradePhaseVerify
 	return nil
 }
@@ -511,43 +633,86 @@ func (m *Manager) refreshWorkerUpgradeTarget(ctx context.Context, batch *WorkerU
 func (m *Manager) rollbackWorkerUpgrade(ctx context.Context, batch *WorkerUpgradeBatch, item *WorkerUpgradeItem) error {
 	unlock := m.lockLifecycle(item.ConnectionID)
 	defer unlock()
-	current, exists := m.GetWorkerStatus(item.ConnectionID)
-	if exists && current.PID > 0 {
-		if err := m.stopWorkerInternal(ctx, item.CompanyID, item.ConnectionID, "batch-wide worker artifact rollback", syscall.SIGTERM, true); err != nil {
-			return fmt.Errorf("rollback could not confirm current generation exit: %w", err)
-		}
-	}
 	source, err := m.resolveArtifact(item.SourceArtifactVersion, item.SourceArtifactSHA256)
 	if err != nil {
 		return fmt.Errorf("rollback source validation failed: %w", err)
 	}
-	m.mu.Lock()
-	delete(m.workers, item.ConnectionID)
-	m.mu.Unlock()
-	record, err := m.registry.GetWorker(ctx, item.ConnectionID)
-	if err != nil {
-		return fmt.Errorf("inspect rollback predecessor: %w", err)
+
+	fencePredecessor := func(requireLiveMap bool) (*WorkerRecord, error) {
+		record, getErr := m.registry.GetWorker(ctx, item.ConnectionID)
+		if getErr != nil {
+			return nil, getErr
+		}
+		if record == nil {
+			return nil, errors.New("rollback-owned registry generation is missing")
+		}
+		version, digest := "", ""
+		switch {
+		case record.LaunchID == item.TargetGeneration && item.TargetGeneration != "":
+			version, digest = batch.TargetArtifactVersion, batch.TargetArtifactSHA256
+		case record.LaunchID == item.SourceGeneration:
+			version, digest = item.SourceArtifactVersion, item.SourceArtifactSHA256
+		default:
+			return nil, errors.New("rollback predecessor is not the snapshotted source or reserved target")
+		}
+		return m.fenceRolloutOwnedLaunch(
+			ctx, batch, item, WorkerUpgradePhaseRollback, record.LaunchID,
+			version, digest, requireLiveMap,
+		)
 	}
-	if record == nil || record.CompanyID != item.CompanyID || record.TenantSchema != item.TenantSchema {
-		return errors.New("rollback predecessor lost tenant ownership")
+
+	current, exists := m.GetWorkerStatus(item.ConnectionID)
+	rollbackMatches := exists && current.PID > 0 && item.RollbackGeneration != "" &&
+		current.LaunchID == item.RollbackGeneration && current.CompanyID == item.CompanyID &&
+		current.TenantSchema == item.TenantSchema && m.workerMatchesArtifactContent(current, source)
+	if item.RollbackGeneration == "" {
+		if _, err := fencePredecessor(exists && current.PID > 0); err != nil {
+			return fmt.Errorf("rollback predecessor changed before reservation: %w", err)
+		}
+		planned, err := newLaunchID()
+		if err != nil {
+			return err
+		}
+		reserved, err := m.registry.ReserveWorkerUpgradeGeneration(
+			ctx, batch.ID, item.CompanyID, item.TenantSchema, item.ConnectionID,
+			item.SourceGeneration, WorkerUpgradePhaseRollback, "rollback_generation", planned,
+		)
+		if err != nil || !reserved {
+			return transitionFailure(nil, "reserve rollback generation", reserved, err)
+		}
+		item.RollbackGeneration = planned
 	}
-	if err := validateWorkerIdentity(record.WorkerUID, record.WorkerGID); err != nil {
-		return fmt.Errorf("rollback predecessor credentials: %w", err)
+
+	if exists && current.PID > 0 && !rollbackMatches {
+		if _, err := fencePredecessor(true); err != nil {
+			return fmt.Errorf("rollback predecessor changed immediately before stop: %w", err)
+		}
+		if err := m.stopWorkerInternal(ctx, item.CompanyID, item.ConnectionID, "batch-wide worker artifact rollback", syscall.SIGTERM, true); err != nil {
+			return fmt.Errorf("rollback could not confirm current generation exit: %w", err)
+		}
+		current, exists = nil, false
 	}
-	m.mu.Lock()
-	m.workers[item.ConnectionID] = &WorkerProcess{
-		ID: item.ConnectionID, LaunchID: record.LaunchID, DesiredState: DesiredStateRunning,
-		CompanyID: item.CompanyID, ConnectionID: item.ConnectionID, TenantSchema: item.TenantSchema,
-		DatabaseURL: m.config.DatabaseURL, Status: "error", ArtifactVersion: record.ArtifactVersion,
-		ArtifactSHA256: record.ArtifactSHA256, WorkerUID: record.WorkerUID, WorkerGID: record.WorkerGID,
-	}
-	m.mu.Unlock()
-	if err := m.spawnWorkerArtifact(ctx, item.CompanyID, item.ConnectionID, item.TenantSchema, m.config.DatabaseURL, false, 1, source); err != nil {
-		return fmt.Errorf("rollback launch failed: %w", err)
+	if !rollbackMatches {
+		record, err := fencePredecessor(false)
+		if err != nil {
+			return fmt.Errorf("rollback predecessor changed before source claim: %w", err)
+		}
+		m.mu.Lock()
+		delete(m.workers, item.ConnectionID)
+		m.mu.Unlock()
+		installRolloutPredecessor(m, item, record, source.BinaryPath)
+		if err := m.spawnWorkerArtifactWithLaunch(
+			ctx, item.CompanyID, item.ConnectionID, item.TenantSchema,
+			m.config.DatabaseURL, false, 1, source, item.RollbackGeneration,
+		); err != nil {
+			return fmt.Errorf("reserved rollback launch failed: %w", err)
+		}
 	}
 	rollback, exists := m.GetWorkerStatus(item.ConnectionID)
-	if !exists {
-		return errors.New("rollback launch disappeared")
+	if !exists || rollback.PID <= 0 || rollback.LaunchID != item.RollbackGeneration ||
+		rollback.CompanyID != item.CompanyID || rollback.TenantSchema != item.TenantSchema ||
+		!m.workerMatchesArtifactContent(rollback, source) {
+		return errors.New("reserved rollback launch disappeared or changed")
 	}
 	readyCtx, cancel := context.WithTimeout(ctx, m.config.RolloutReadyTimeout)
 	err = m.waitWorkerReady(readyCtx, rollback.LaunchID)
@@ -555,10 +720,15 @@ func (m *Manager) rollbackWorkerUpgrade(ctx context.Context, batch *WorkerUpgrad
 	if err != nil {
 		return fmt.Errorf("rollback readiness failed: %w", err)
 	}
-	if !m.workerIsReady(item.ConnectionID, item.CompanyID, rollback.LaunchID) {
-		return errors.New("rollback disconnected during readiness verification")
+	rollback, exists = m.GetWorkerStatus(item.ConnectionID)
+	if !exists || rollback.LaunchID != item.RollbackGeneration ||
+		!m.workerIsReady(item.ConnectionID, item.CompanyID, rollback.LaunchID) {
+		return errors.New("rollback disconnected or changed during readiness verification")
 	}
-	completed, err := m.registry.CompleteWorkerUpgradeItem(ctx, batch.ID, item.CompanyID, item.TenantSchema, item.ConnectionID, item.SourceGeneration, WorkerUpgradePhaseRollback)
+	completed, err := m.registry.CompleteWorkerUpgradeItem(
+		ctx, batch.ID, item.CompanyID, item.TenantSchema, item.ConnectionID,
+		item.SourceGeneration, WorkerUpgradePhaseRollback, liveFence(rollback),
+	)
 	if err != nil || !completed {
 		return transitionFailure(nil, "persist successful rollback", completed, err)
 	}
@@ -566,23 +736,27 @@ func (m *Manager) rollbackWorkerUpgrade(ctx context.Context, batch *WorkerUpgrad
 }
 
 func (m *Manager) haltRollbackFailure(ctx context.Context, batch *WorkerUpgradeBatch, item *WorkerUpgradeItem, cause error) {
-	if item != nil && item.CompletedAt == nil && item.Phase != WorkerUpgradePhaseHalted {
-		_, _ = m.registry.AdvanceWorkerUpgradeItem(ctx, batch.ID, item.CompanyID, item.TenantSchema, item.ConnectionID, item.SourceGeneration, item.Phase, WorkerUpgradePhaseHalted, item.TargetGeneration, cause.Error())
-	}
-	if batch.Phase != WorkerUpgradePhaseHalted {
-		_, _ = m.registry.AdvanceWorkerUpgradeBatch(ctx, batch.ID, batch.Phase, WorkerUpgradePhaseHalted, cause.Error())
-	}
+	m.persistUpgradeHalt(ctx, batch, item, cause)
 	log.Printf("HALTED worker rollback %s at connection %s: %v", batch.ID, item.ConnectionID, cause)
 }
 
 func (m *Manager) haltUpgrade(ctx context.Context, batch *WorkerUpgradeBatch, item *WorkerUpgradeItem, cause error) {
-	if item != nil && item.CompletedAt == nil && item.Phase != WorkerUpgradePhaseHalted {
-		_, _ = m.registry.AdvanceWorkerUpgradeItem(ctx, batch.ID, item.CompanyID, item.TenantSchema, item.ConnectionID, item.SourceGeneration, item.Phase, WorkerUpgradePhaseHalted, item.TargetGeneration, cause.Error())
-	}
-	if batch.Phase != WorkerUpgradePhaseHalted {
-		_, _ = m.registry.AdvanceWorkerUpgradeBatch(ctx, batch.ID, batch.Phase, WorkerUpgradePhaseHalted, cause.Error())
-	}
+	m.persistUpgradeHalt(ctx, batch, item, cause)
 	log.Printf("HALTED worker upgrade %s: %v", batch.ID, cause)
+}
+
+func (m *Manager) persistUpgradeHalt(ctx context.Context, batch *WorkerUpgradeBatch, item *WorkerUpgradeItem, cause error) {
+	if batch == nil || item == nil || item.CompletedAt != nil ||
+		item.Phase == WorkerUpgradePhaseHalted || batch.Phase == WorkerUpgradePhaseHalted {
+		return
+	}
+	halted, err := m.registry.HaltWorkerUpgrade(
+		ctx, batch.ID, item.CompanyID, item.TenantSchema, item.ConnectionID,
+		item.SourceGeneration, item.Phase, batch.Phase, item.TargetGeneration, cause.Error(),
+	)
+	if err != nil || !halted {
+		log.Printf("CRITICAL: failed to transactionally halt worker upgrade %s: halted=%t error=%v", batch.ID, halted, err)
+	}
 }
 
 func transitionFailure(cause error, action string, updated bool, err error) error {
@@ -656,11 +830,21 @@ func (m *Manager) waitWorkerReady(ctx context.Context, launchID string) error {
 // RecordWorkerRuntimeStatus is the NATS callback and a focused-test seam. It
 // rejects stale, cross-tenant, cross-generation, and wrong-artifact signals.
 func (m *Manager) RecordWorkerRuntimeStatus(status sharednats.WorkerRuntimeStatus) {
+	signalTime, err := time.Parse(time.RFC3339Nano, status.Timestamp)
+	if err != nil {
+		return
+	}
+	now := time.Now().UTC()
+	if signalTime.Before(now.Add(-workerRuntimeSignalMaxAge)) ||
+		signalTime.After(now.Add(workerRuntimeSignalFutureSkew)) {
+		return
+	}
 	m.mu.Lock()
 	worker, ok := m.workers[status.ConnectionID]
 	if !ok || worker.CompanyID != status.CompanyID || worker.LaunchID != status.LaunchID ||
 		worker.ArtifactVersion != status.ArtifactVersion ||
-		!sharednats.VerifyWorkerRuntimeStatus(status, worker.readinessToken) {
+		!sharednats.VerifyWorkerRuntimeStatus(status, worker.readinessToken) ||
+		!signalTime.After(worker.LastRuntimeSignalAt) {
 		m.mu.Unlock()
 		return
 	}
@@ -673,12 +857,16 @@ func (m *Manager) RecordWorkerRuntimeStatus(status sharednats.WorkerRuntimeStatu
 	case sharednats.WorkerRuntimeStatusAuthenticated:
 		worker.Authenticated = true
 	case sharednats.WorkerRuntimeStatusDisconnected:
+		// A negative edge invalidates the entire readiness chain. Only a newer
+		// process-ready/connected/authenticated sequence can restore it.
+		worker.ProcessReady = false
 		worker.RuntimeConnected = false
 		worker.Authenticated = false
 	default:
 		m.mu.Unlock()
 		return
 	}
+	worker.LastRuntimeSignalAt = signalTime
 	complete := worker.ProcessReady && worker.RuntimeConnected && worker.Authenticated
 	m.mu.Unlock()
 	if !complete {

@@ -39,6 +39,14 @@ describe("worker upgrade migration 071", () => {
           `.execute(connection);
 
           await up(connection);
+          const rolloutGenerationColumns = await sql<{ count: number }>`
+            SELECT COUNT(*)::integer AS count
+            FROM information_schema.columns
+            WHERE table_schema = ${schema}
+              AND table_name = 'worker_upgrade_items'
+              AND column_name IN ('recovery_generation', 'rollback_generation')
+          `.execute(connection);
+          expect(rolloutGenerationColumns.rows[0]?.count).toBe(2);
 
           // Old orchestrator statements neither know nor supply artifact fields.
           await sql`
@@ -66,7 +74,9 @@ describe("worker upgrade migration 071", () => {
           `.execute(connection);
           expect(legacyArtifact.rows[0]?.artifact_version).toBe("embedded");
           expect(legacyArtifact.rows[0]?.artifact_sha256).toBe("");
-          expect(legacyArtifact.rows[0]?.worker_uid).toBeGreaterThanOrEqual(100000);
+          expect(legacyArtifact.rows[0]?.worker_uid).toBeGreaterThanOrEqual(
+            100000,
+          );
           expect(legacyArtifact.rows[0]?.worker_gid).toBe(
             legacyArtifact.rows[0]?.worker_uid,
           );
@@ -78,7 +88,9 @@ describe("worker upgrade migration 071", () => {
             SELECT connection_id::text, worker_uid, worker_gid
             FROM worker_registry ORDER BY connection_id
           `.execute(connection);
-          expect(new Set(migratedIdentity.rows.map((row) => row.worker_uid)).size).toBe(2);
+          expect(
+            new Set(migratedIdentity.rows.map((row) => row.worker_uid)).size,
+          ).toBe(2);
           expect(
             migratedIdentity.rows.every(
               (row) => row.worker_uid === row.worker_gid,
@@ -151,6 +163,7 @@ describe("worker upgrade migration 071", () => {
             "recovery",
             "canceled",
             "halted",
+            "abandoned",
           ]) {
             await sql`
               UPDATE worker_upgrade_items SET phase = ${phase}

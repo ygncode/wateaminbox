@@ -72,7 +72,7 @@ if [ -n "${EPHEMERAL_HTTP_BEARER_TOKEN_FILE:-}" ]; then
   rm -f "$control_file"
   printf '%s\n' "$token" >"$control_file"
   chmod 0600 "$control_file"
-  export HTTP_BEARER_TOKEN_FILE=$control_file
+  export HTTP_BEARER_TOKEN_FILE="$control_file"
   unset HTTP_BEARER_TOKEN EPHEMERAL_HTTP_BEARER_TOKEN_FILE
   token=
 fi

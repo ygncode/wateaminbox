@@ -197,8 +197,9 @@ func TestCreateWorkerUpgradeBatchPersistsAllSnapshotsBeforeCommit(t *testing.T) 
 		WillReturnRows(sqlmock.NewRows([]string{
 			"id", "batch_id", "position", "company_id", "tenant_schema", "connection_id",
 			"source_generation", "source_artifact_version", "source_artifact_sha256",
-			"target_generation", "phase", "result", "last_error", "created_at", "updated_at", "completed_at",
-		}).AddRow("item", "batch", 0, "company", "tenant_company", "connection", "source-launch", "v1", "source-digest", "", WorkerUpgradePhaseStop, "", "", now, now, nil))
+			"target_generation", "recovery_generation", "rollback_generation",
+			"phase", "result", "last_error", "created_at", "updated_at", "completed_at",
+		}).AddRow("item", "batch", 0, "company", "tenant_company", "connection", "source-launch", "v1", "source-digest", "", "", "", WorkerUpgradePhaseStop, "", "", now, now, nil))
 	mock.ExpectCommit()
 
 	batch, err := registry.CreateWorkerUpgradeBatch(context.Background(), "v2", "target-digest", []WorkerUpgradeItemIntent{intent})
@@ -247,8 +248,9 @@ func TestGetActiveWorkerUpgradeBatchLoadsCrashRecoveryStateInOrder(t *testing.T)
 		WillReturnRows(sqlmock.NewRows([]string{
 			"id", "batch_id", "position", "company_id", "tenant_schema", "connection_id",
 			"source_generation", "source_artifact_version", "source_artifact_sha256",
-			"target_generation", "phase", "result", "last_error", "created_at", "updated_at", "completed_at",
-		}).AddRow("item", "batch", 0, "company", "tenant_company", "connection", "source", "v1", "source-digest", "target", WorkerUpgradePhaseRecovery, "", "", now, now, nil))
+			"target_generation", "recovery_generation", "rollback_generation",
+			"phase", "result", "last_error", "created_at", "updated_at", "completed_at",
+		}).AddRow("item", "batch", 0, "company", "tenant_company", "connection", "source", "v1", "source-digest", "target", "", "", WorkerUpgradePhaseRecovery, "", "", now, now, nil))
 
 	batch, err := registry.GetActiveWorkerUpgradeBatch(context.Background())
 	require.NoError(t, err)
@@ -289,13 +291,33 @@ func TestCompanyWorkerArtifactUsesNewestCompletedRollout(t *testing.T) {
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
+func TestHaltWorkerUpgradeRollsBackWhenCheckedItemUpdateLosesCAS(t *testing.T) {
+	registry, mock := newMockRegistry(t)
+	mock.ExpectBegin()
+	mock.ExpectQuery(regexp.QuoteMeta("SELECT item.id::text FROM worker_upgrade_items item JOIN worker_upgrade_batches batch ON batch.id = item.batch_id")).
+		WithArgs("batch", "company", "tenant", "connection", "source", WorkerUpgradePhaseRollback, WorkerUpgradePhaseRollback).
+		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow("item"))
+	mock.ExpectExec(regexp.QuoteMeta("UPDATE worker_upgrade_items SET phase = 'halted'")).
+		WithArgs("target", "failed", "item", WorkerUpgradePhaseRollback).
+		WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectRollback()
+
+	halted, err := registry.HaltWorkerUpgrade(
+		context.Background(), "batch", "company", "tenant", "connection", "source",
+		WorkerUpgradePhaseRollback, WorkerUpgradePhaseRollback, "target", "failed",
+	)
+	assert.False(t, halted)
+	require.ErrorContains(t, err, "affected 0 rows")
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
 func TestResumeHaltedWorkerUpgradeRollbackIsAtomic(t *testing.T) {
 	registry, mock := newMockRegistry(t)
 	mock.ExpectBegin()
-	mock.ExpectQuery(regexp.QuoteMeta("SELECT item.id::text FROM worker_upgrade_items item JOIN worker_upgrade_batches batch ON batch.id = item.batch_id WHERE batch.id = $1::uuid AND item.connection_id = $2::uuid AND batch.phase = 'halted' AND batch.completed_at IS NULL AND item.phase = 'halted' AND item.completed_at IS NULL FOR UPDATE OF batch, item")).
+	mock.ExpectQuery(`(?s)SELECT item\.id::text.*AND EXISTS \(.*FROM worker_registry current.*FOR UPDATE OF batch, item`).
 		WithArgs("batch", "connection").
 		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow("item"))
-	mock.ExpectExec(regexp.QuoteMeta("UPDATE worker_upgrade_items SET phase = 'rollback', last_error = NULL, updated_at = now() WHERE id = $1::uuid")).
+	mock.ExpectExec(regexp.QuoteMeta("UPDATE worker_upgrade_items SET phase = 'rollback', last_error = NULL, updated_at = now() WHERE id = $1::uuid AND phase = 'halted' AND completed_at IS NULL")).
 		WithArgs("item").WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectExec(regexp.QuoteMeta("UPDATE worker_upgrade_batches SET phase = 'rollback', last_error = NULL, updated_at = now() WHERE id = $1::uuid AND phase = 'halted' AND completed_at IS NULL")).
 		WithArgs("batch").WillReturnResult(sqlmock.NewResult(0, 1))
@@ -356,9 +378,11 @@ func TestBeginWorkerUpgradeRollbackAtomicallyReopensPriorAndCancelsUntouched(t *
 
 func TestVerifyRefreshCompletionRequiresExactDurableTargetGeneration(t *testing.T) {
 	registry, mock := newMockRegistry(t)
-	mock.ExpectExec(regexp.QuoteMeta("UPDATE worker_upgrade_items item SET phase = 'verify', target_generation = $1::uuid, updated_at = now() FROM worker_upgrade_batches batch")).
-		WithArgs("target-new", "batch", "company", "tenant_company", "connection", "source", "target-old").
-		WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectBegin()
+	mock.ExpectQuery(regexp.QuoteMeta("SELECT item.id::text FROM worker_upgrade_items item JOIN worker_upgrade_batches batch ON batch.id = item.batch_id JOIN worker_registry current ON current.connection_id = item.connection_id")).
+		WithArgs("batch", "company", "tenant_company", "connection", "source", "target-old", "target-new").
+		WillReturnRows(sqlmock.NewRows([]string{"id"}))
+	mock.ExpectRollback()
 
 	updated, err := registry.CompleteWorkerUpgradeVerifyRefresh(
 		context.Background(), "batch", "company", "tenant_company", "connection",

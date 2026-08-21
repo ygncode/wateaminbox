@@ -53,9 +53,9 @@ export async function up(db: Kysely<unknown>): Promise<void> {
         CHECK (target_artifact_version ~ '^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$'
           AND target_artifact_sha256 ~ '^[0-9a-f]{64}$'),
       CONSTRAINT worker_upgrade_batches_phase_check
-        CHECK (phase IN ('stop', 'launch', 'verify', 'rollback', 'recovery', 'halted')),
+        CHECK (phase IN ('stop', 'launch', 'verify', 'rollback', 'recovery', 'halted', 'abandoned')),
       CONSTRAINT worker_upgrade_batches_result_check
-        CHECK (result IS NULL OR result IN ('completed', 'rolled_back')),
+        CHECK (result IS NULL OR result IN ('completed', 'rolled_back', 'abandoned')),
       CONSTRAINT worker_upgrade_batches_completion_check
         CHECK ((completed_at IS NULL AND result IS NULL) OR
                (completed_at IS NOT NULL AND result IS NOT NULL))
@@ -80,6 +80,8 @@ export async function up(db: Kysely<unknown>): Promise<void> {
       source_artifact_version VARCHAR(128) NOT NULL,
       source_artifact_sha256 VARCHAR(64) NOT NULL,
       target_generation UUID,
+      recovery_generation UUID,
+      rollback_generation UUID,
       phase VARCHAR(20) NOT NULL DEFAULT 'stop',
       result VARCHAR(24),
       last_error TEXT,
@@ -90,10 +92,11 @@ export async function up(db: Kysely<unknown>): Promise<void> {
         CHECK (source_artifact_version ~ '^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$'
           AND source_artifact_sha256 ~ '^[0-9a-f]{64}$'),
       CONSTRAINT worker_upgrade_items_phase_check
-        CHECK (phase IN ('stop', 'launch', 'verify', 'recovery', 'rollback', 'canceled', 'halted')),
+        CHECK (phase IN ('stop', 'launch', 'verify', 'recovery', 'rollback', 'canceled', 'halted', 'abandoned')),
       CONSTRAINT worker_upgrade_items_result_check
         CHECK (result IS NULL OR result IN
-          ('target_complete', 'rollback_complete', 'canceled_untouched')),
+          ('target_complete', 'rollback_complete', 'canceled_untouched',
+           'abandoned_external_stop')),
       CONSTRAINT worker_upgrade_items_completion_check
         CHECK ((completed_at IS NULL AND result IS NULL) OR
                (completed_at IS NOT NULL AND result IS NOT NULL)),

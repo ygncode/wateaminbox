@@ -86,63 +86,65 @@ type Manager struct {
 
 // WorkerProcess represents a managed WhatsApp worker.
 type WorkerProcess struct {
-	ID               string
-	LaunchID         string // unique identity for this particular process launch
-	DesiredState     string // durable operator intent (running or stopped)
-	CompanyID        string
-	ConnectionID     string
-	TenantSchema     string
-	DatabaseURL      string
-	Status           string
-	PID              int
-	StartedAt        time.Time
-	LastActivity     time.Time
-	RestartCount     int       // Number of restart attempts
-	LastCrashAt      time.Time // When last crash occurred
-	ArtifactVersion  string
-	ArtifactSHA256   string
-	BinaryPath       string
-	WorkerUID        int // durable, generation-specific unprivileged Linux identity
-	WorkerGID        int
-	ProcessReady     bool
-	RuntimeConnected bool
-	Authenticated    bool
-	ExpectedExit     bool // Suppresses crash handling in monitorWorkerProcess.
-	RemoveOnExit     bool // One-shot unlink workers remove themselves on exit.
-	cmd              *exec.Cmd
-	healthCancel     context.CancelFunc
-	done             chan struct{} // closed after cmd.Wait() reaps the process
-	exitErr          error         // cmd.Wait result, published before done closes
-	readinessToken   string        // per-launch HMAC key; never exposed by status APIs
+	ID                  string
+	LaunchID            string // unique identity for this particular process launch
+	DesiredState        string // durable operator intent (running or stopped)
+	CompanyID           string
+	ConnectionID        string
+	TenantSchema        string
+	DatabaseURL         string
+	Status              string
+	PID                 int
+	StartedAt           time.Time
+	LastActivity        time.Time
+	RestartCount        int       // Number of restart attempts
+	LastCrashAt         time.Time // When last crash occurred
+	ArtifactVersion     string
+	ArtifactSHA256      string
+	BinaryPath          string
+	WorkerUID           int // durable, generation-specific unprivileged Linux identity
+	WorkerGID           int
+	ProcessReady        bool
+	RuntimeConnected    bool
+	Authenticated       bool
+	LastRuntimeSignalAt time.Time // strictly monotonic per launch/readiness token
+	ExpectedExit        bool      // Suppresses crash handling in monitorWorkerProcess.
+	RemoveOnExit        bool      // One-shot unlink workers remove themselves on exit.
+	cmd                 *exec.Cmd
+	healthCancel        context.CancelFunc
+	done                chan struct{} // closed after cmd.Wait() reaps the process
+	exitErr             error         // cmd.Wait result, published before done closes
+	readinessToken      string        // per-launch HMAC key; never exposed by status APIs
 }
 
 // Copy returns a shallow copy of the worker process without internal fields.
 // Use this to safely return worker info outside of mutex-protected code.
 func (w *WorkerProcess) Copy() *WorkerProcess {
 	return &WorkerProcess{
-		ID:               w.ID,
-		LaunchID:         w.LaunchID,
-		DesiredState:     w.DesiredState,
-		CompanyID:        w.CompanyID,
-		ConnectionID:     w.ConnectionID,
-		TenantSchema:     w.TenantSchema,
-		DatabaseURL:      w.DatabaseURL,
-		Status:           w.Status,
-		PID:              w.PID,
-		StartedAt:        w.StartedAt,
-		LastActivity:     w.LastActivity,
-		RestartCount:     w.RestartCount,
-		LastCrashAt:      w.LastCrashAt,
-		ArtifactVersion:  w.ArtifactVersion,
-		ArtifactSHA256:   w.ArtifactSHA256,
-		BinaryPath:       w.BinaryPath,
-		WorkerUID:        w.WorkerUID,
-		WorkerGID:        w.WorkerGID,
-		ProcessReady:     w.ProcessReady,
-		RuntimeConnected: w.RuntimeConnected,
-		Authenticated:    w.Authenticated,
-		ExpectedExit:     w.ExpectedExit,
-		RemoveOnExit:     w.RemoveOnExit,
+		ID:                  w.ID,
+		LaunchID:            w.LaunchID,
+		DesiredState:        w.DesiredState,
+		CompanyID:           w.CompanyID,
+		ConnectionID:        w.ConnectionID,
+		TenantSchema:        w.TenantSchema,
+		DatabaseURL:         w.DatabaseURL,
+		Status:              w.Status,
+		PID:                 w.PID,
+		StartedAt:           w.StartedAt,
+		LastActivity:        w.LastActivity,
+		RestartCount:        w.RestartCount,
+		LastCrashAt:         w.LastCrashAt,
+		ArtifactVersion:     w.ArtifactVersion,
+		ArtifactSHA256:      w.ArtifactSHA256,
+		BinaryPath:          w.BinaryPath,
+		WorkerUID:           w.WorkerUID,
+		WorkerGID:           w.WorkerGID,
+		ProcessReady:        w.ProcessReady,
+		RuntimeConnected:    w.RuntimeConnected,
+		Authenticated:       w.Authenticated,
+		LastRuntimeSignalAt: w.LastRuntimeSignalAt,
+		ExpectedExit:        w.ExpectedExit,
+		RemoveOnExit:        w.RemoveOnExit,
 	}
 }
 
@@ -380,9 +382,10 @@ func (m *Manager) Stop(ctx context.Context) error {
 var ErrWorkerNotFound = errors.New("worker not found")
 
 const (
-	DesiredStateRunning   = "running"
-	DesiredStateStopped   = "stopped"
-	DesiredStateUnlinking = "unlinking"
+	DesiredStateRunning           = "running"
+	DesiredStateStopped           = "stopped"
+	DesiredStateUnlinking         = "unlinking"
+	connectionAllowanceStopReason = "connection allowance exhausted"
 )
 
 func newReadinessToken() (string, error) {
@@ -442,9 +445,29 @@ func (m *Manager) spawnWorkerArtifact(
 	restartCount int,
 	artifact WorkerArtifact,
 ) error {
-	launchID, err := newLaunchID()
-	if err != nil {
-		return err
+	return m.spawnWorkerArtifactWithLaunch(
+		ctx, companyID, connectionID, tenantSchema, databaseURL,
+		unlinkOnStart, restartCount, artifact, "",
+	)
+}
+
+// spawnWorkerArtifactWithLaunch uses a generation durably reserved by a rollout
+// before the registry CAS. Ordinary starts pass an empty plannedLaunchID.
+func (m *Manager) spawnWorkerArtifactWithLaunch(
+	ctx context.Context,
+	companyID, connectionID, tenantSchema, databaseURL string,
+	unlinkOnStart bool,
+	restartCount int,
+	artifact WorkerArtifact,
+	plannedLaunchID string,
+) error {
+	launchID := plannedLaunchID
+	var err error
+	if launchID == "" {
+		launchID, err = newLaunchID()
+		if err != nil {
+			return err
+		}
 	}
 	readinessToken, err := newReadinessToken()
 	if err != nil {
@@ -881,6 +904,13 @@ func (m *Manager) stopWorkerInternal(
 			return fmt.Errorf("worker %s has no live process; durable unlink must be resumed", connectionID)
 		}
 		if m.registry != nil && !preserveRegistry {
+			if reason == connectionAllowanceStopReason {
+				if _, abandonErr := m.registry.AbandonHaltedWorkerUpgradeForExternalStop(
+					ctx, companyID, connectionID, launchID, reason,
+				); abandonErr != nil {
+					return fmt.Errorf("abandon halted rollout for processless worker %s: %w", connectionID, abandonErr)
+				}
+			}
 			removed, removeErr := m.registry.RemoveWorkerLaunch(ctx, connectionID, companyID, launchID)
 			if removeErr != nil || !removed {
 				m.mu.Lock()
@@ -954,6 +984,21 @@ func (m *Manager) stopWorkerInternal(
 		}
 		m.mu.Unlock()
 		return fmt.Errorf("unlink worker %s exited before completing purge: %w", connectionID, worker.exitErr)
+	}
+
+	// An authoritative allowance stop wins over a halted rollout. Abandon its
+	// unverifiable fleet claim transactionally before removing this stopped row,
+	// releasing the global active-batch gate without claiming rollback success.
+	if m.registry != nil && !preserveRegistry && reason == connectionAllowanceStopReason {
+		abandoned, abandonErr := m.registry.AbandonHaltedWorkerUpgradeForExternalStop(
+			ctx, companyID, connectionID, launchID, reason,
+		)
+		if abandonErr != nil {
+			return fmt.Errorf("abandon halted rollout for worker %s: %w", connectionID, abandonErr)
+		}
+		if abandoned {
+			log.Printf("Abandoned halted rollout after authoritative allowance stop for worker %s", connectionID)
+		}
 	}
 
 	// Explicit disconnect/unlink removes the durable record. During an
@@ -1976,7 +2021,7 @@ func (m *Manager) enforceConnectionAllowance(ctx context.Context) {
 		// Credentials are preserved: restoring the allowance and reconnecting
 		// does not require pairing again.
 		if err := m.StopWorker(
-			ctx, worker.CompanyID, worker.ConnectionID, "connection allowance exhausted",
+			ctx, worker.CompanyID, worker.ConnectionID, connectionAllowanceStopReason,
 		); err != nil {
 			log.Printf("Warning: failed to stop worker %s: %v", worker.ConnectionID, err)
 		}

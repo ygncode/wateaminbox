@@ -118,6 +118,7 @@ type Publisher struct {
 	core             corePublisher
 	runtimeConnected atomic.Bool
 	runtimeMu        sync.Mutex // orders heartbeat/connected/disconnected signals
+	runtimeTimestamp time.Time  // strictly monotonic within this launch/token
 	outbox           EventOutbox
 	ctx              context.Context
 	cancel           context.CancelFunc
@@ -335,6 +336,11 @@ func (p *Publisher) publishWorkerRuntimeStatus(status, reason string) error {
 		return fmt.Errorf("unsupported worker runtime status %q", status)
 	}
 
+	timestamp := time.Now().UTC()
+	if !timestamp.After(p.runtimeTimestamp) {
+		timestamp = p.runtimeTimestamp.Add(time.Nanosecond)
+	}
+	p.runtimeTimestamp = timestamp
 	signal := sharednats.WorkerRuntimeStatus{
 		Status:          status,
 		CompanyID:       p.companyID,
@@ -342,7 +348,7 @@ func (p *Publisher) publishWorkerRuntimeStatus(status, reason string) error {
 		LaunchID:        p.launchID,
 		ArtifactVersion: p.artifactVersion,
 		Reason:          reason,
-		Timestamp:       time.Now().UTC().Format(time.RFC3339Nano),
+		Timestamp:       timestamp.Format(time.RFC3339Nano),
 	}
 	signature, err := sharednats.SignWorkerRuntimeStatus(signal, p.readinessToken)
 	if err != nil {

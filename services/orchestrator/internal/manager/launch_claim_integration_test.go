@@ -32,14 +32,15 @@ func launchClaimRegistry(t *testing.T) *WorkerRegistry {
 func launchWorker(companyID string) *WorkerProcess {
 	connectionID := mustLaunchID()
 	return &WorkerProcess{
-		ID:           connectionID,
-		CompanyID:    companyID,
-		ConnectionID: connectionID,
-		TenantSchema: "tenant_test",
-		Status:       types.StatusConnecting,
-		PID:          4242,
-		LaunchID:     mustLaunchID(),
-		DesiredState: "running",
+		ID:              connectionID,
+		CompanyID:       companyID,
+		ConnectionID:    connectionID,
+		TenantSchema:    "tenant_test",
+		Status:          types.StatusConnecting,
+		PID:             4242,
+		LaunchID:        mustLaunchID(),
+		DesiredState:    "running",
+		ArtifactVersion: defaultArtifactVersion,
 	}
 }
 

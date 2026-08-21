@@ -15,10 +15,23 @@ import (
 
 const testReadinessToken = "test-readiness-token"
 
+var (
+	runtimeStatusTimeMu sync.Mutex
+	runtimeStatusTime   time.Time
+)
+
 func runtimeStatus(company, connection, launch, version, status string) sharednats.WorkerRuntimeStatus {
+	runtimeStatusTimeMu.Lock()
+	timestamp := time.Now().UTC()
+	if !timestamp.After(runtimeStatusTime) {
+		timestamp = runtimeStatusTime.Add(time.Nanosecond)
+	}
+	runtimeStatusTime = timestamp
+	runtimeStatusTimeMu.Unlock()
 	signal := sharednats.WorkerRuntimeStatus{
 		CompanyID: company, ConnectionID: connection, LaunchID: launch,
 		ArtifactVersion: version, Status: status,
+		Timestamp: timestamp.Format(time.RFC3339Nano),
 	}
 	signal.Signature, _ = sharednats.SignWorkerRuntimeStatus(signal, testReadinessToken)
 	return signal
@@ -58,6 +71,78 @@ func TestWorkerReadinessRequiresProcessConnectedAndAuthenticatedForExactGenerati
 	}
 	manager.RecordWorkerRuntimeStatus(runtimeStatus("company", "connection", "launch-new", "v2", sharednats.WorkerRuntimeStatusConnected))
 	require.NoError(t, <-ready)
+}
+
+func runtimeStatusAt(company, connection, launch, version, status string, timestamp time.Time, token string) sharednats.WorkerRuntimeStatus {
+	signal := sharednats.WorkerRuntimeStatus{
+		CompanyID: company, ConnectionID: connection, LaunchID: launch,
+		ArtifactVersion: version, Status: status,
+		Timestamp: timestamp.UTC().Format(time.RFC3339Nano),
+	}
+	signal.Signature, _ = sharednats.SignWorkerRuntimeStatus(signal, token)
+	return signal
+}
+
+func TestWorkerReadinessRejectsStaleFutureReplayAndDisconnectReordering(t *testing.T) {
+	manager := New(Config{})
+	manager.workers["connection"] = &WorkerProcess{
+		CompanyID: "company", ConnectionID: "connection", LaunchID: "launch",
+		ArtifactVersion: "v2", readinessToken: testReadinessToken,
+	}
+	now := time.Now().UTC()
+	manager.RecordWorkerRuntimeStatus(runtimeStatusAt("company", "connection", "launch", "v2", sharednats.WorkerRuntimeStatusProcessReady, now.Add(-2*time.Minute), testReadinessToken))
+	manager.RecordWorkerRuntimeStatus(runtimeStatusAt("company", "connection", "launch", "v2", sharednats.WorkerRuntimeStatusProcessReady, now.Add(10*time.Second), testReadinessToken))
+	worker, _ := manager.GetWorkerStatus("connection")
+	assert.False(t, worker.ProcessReady, "stale/future signals must not mutate readiness")
+
+	processReady := runtimeStatusAt("company", "connection", "launch", "v2", sharednats.WorkerRuntimeStatusProcessReady, now.Add(time.Millisecond), testReadinessToken)
+	connected := runtimeStatusAt("company", "connection", "launch", "v2", sharednats.WorkerRuntimeStatusConnected, now.Add(2*time.Millisecond), testReadinessToken)
+	authenticated := runtimeStatusAt("company", "connection", "launch", "v2", sharednats.WorkerRuntimeStatusAuthenticated, now.Add(3*time.Millisecond), testReadinessToken)
+	disconnected := runtimeStatusAt("company", "connection", "launch", "v2", sharednats.WorkerRuntimeStatusDisconnected, now.Add(4*time.Millisecond), testReadinessToken)
+	for _, signal := range []sharednats.WorkerRuntimeStatus{processReady, connected, authenticated} {
+		manager.RecordWorkerRuntimeStatus(signal)
+	}
+	assert.True(t, manager.workerIsReady("connection", "company", "launch"))
+	manager.RecordWorkerRuntimeStatus(disconnected)
+	assert.False(t, manager.workerIsReady("connection", "company", "launch"))
+
+	// Replays and out-of-order positive edges captured before the disconnect can
+	// never restore readiness, even though every signature is valid.
+	for _, signal := range []sharednats.WorkerRuntimeStatus{authenticated, connected, processReady, disconnected} {
+		manager.RecordWorkerRuntimeStatus(signal)
+	}
+	assert.False(t, manager.workerIsReady("connection", "company", "launch"))
+
+	for index, status := range []string{
+		sharednats.WorkerRuntimeStatusProcessReady,
+		sharednats.WorkerRuntimeStatusConnected,
+		sharednats.WorkerRuntimeStatusAuthenticated,
+	} {
+		manager.RecordWorkerRuntimeStatus(runtimeStatusAt(
+			"company", "connection", "launch", "v2", status,
+			now.Add(time.Duration(5+index)*time.Millisecond), testReadinessToken,
+		))
+	}
+	assert.True(t, manager.workerIsReady("connection", "company", "launch"))
+}
+
+func TestWorkerReadinessTimestampFenceResetsForNewLaunchAndToken(t *testing.T) {
+	manager := New(Config{})
+	now := time.Now().UTC()
+	manager.workers["connection"] = &WorkerProcess{
+		CompanyID: "company", ConnectionID: "connection", LaunchID: "old-launch",
+		ArtifactVersion: "v2", readinessToken: "old-token", LastRuntimeSignalAt: now,
+	}
+	manager.workers["connection"] = &WorkerProcess{
+		CompanyID: "company", ConnectionID: "connection", LaunchID: "new-launch",
+		ArtifactVersion: "v2", readinessToken: "new-token",
+	}
+	manager.RecordWorkerRuntimeStatus(runtimeStatusAt(
+		"company", "connection", "new-launch", "v2",
+		sharednats.WorkerRuntimeStatusProcessReady, now.Add(-30*time.Second), "new-token",
+	))
+	worker, _ := manager.GetWorkerStatus("connection")
+	assert.True(t, worker.ProcessReady, "a new launch/token has an independent monotonic timeline")
 }
 
 func TestWorkerReadinessSignalsBeforeWaitAreNotLost(t *testing.T) {
@@ -108,6 +193,14 @@ func TestWorkerReadinessConcurrentDuplicateSignalsAreRaceSafe(t *testing.T) {
 	defer cancel()
 	result := make(chan error, 1)
 	go func() { result <- manager.waitWorkerReady(ctx, "launch") }()
+	for _, status := range []string{
+		sharednats.WorkerRuntimeStatusProcessReady,
+		sharednats.WorkerRuntimeStatusConnected,
+		sharednats.WorkerRuntimeStatusAuthenticated,
+	} {
+		manager.RecordWorkerRuntimeStatus(runtimeStatus("company", "connection", "launch", "v2", status))
+	}
+	assert.NoError(t, <-result, "readiness did not complete")
 
 	var workers sync.WaitGroup
 	for i := 0; i < 64; i++ {
@@ -123,7 +216,6 @@ func TestWorkerReadinessConcurrentDuplicateSignalsAreRaceSafe(t *testing.T) {
 		}(i)
 	}
 	workers.Wait()
-	assert.NoError(t, <-result, "readiness did not complete")
 }
 
 func TestRecoverWorkerUpgradeOwnsWriterGateBeforeReturning(t *testing.T) {
@@ -136,7 +228,8 @@ func TestRecoverWorkerUpgradeOwnsWriterGateBeforeReturning(t *testing.T) {
 	itemColumns := []string{
 		"id", "batch_id", "position", "company_id", "tenant_schema", "connection_id",
 		"source_generation", "source_artifact_version", "source_artifact_sha256",
-		"target_generation", "phase", "result", "last_error", "created_at", "updated_at", "completed_at",
+		"target_generation", "recovery_generation", "rollback_generation",
+		"phase", "result", "last_error", "created_at", "updated_at", "completed_at",
 	}
 	mock.ExpectQuery(regexp.QuoteMeta("FROM worker_upgrade_batches WHERE completed_at IS NULL")).
 		WillReturnRows(sqlmock.NewRows(batchColumns).AddRow(
@@ -146,7 +239,7 @@ func TestRecoverWorkerUpgradeOwnsWriterGateBeforeReturning(t *testing.T) {
 		WithArgs("batch").
 		WillReturnRows(sqlmock.NewRows(itemColumns).AddRow(
 			"item", "batch", 0, "company", "tenant_company", "connection", "source",
-			"v1", "source-digest", "", WorkerUpgradePhaseLaunch, "", "", now, now, nil,
+			"v1", "source-digest", "", "", "", WorkerUpgradePhaseLaunch, "", "", now, now, nil,
 		))
 	// The asynchronous runner blocks on this load while retaining rolloutMu.
 	mock.ExpectQuery(regexp.QuoteMeta("FROM worker_upgrade_batches WHERE id = $1::uuid")).
