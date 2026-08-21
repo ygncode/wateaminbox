@@ -118,6 +118,8 @@ type Handler struct {
 
 	profilePictureCache    sync.Map
 	profilePictureRequests singleflight.Group
+	// fetchProfilePictureFn overrides the WhatsApp/storage round trip in tests.
+	fetchProfilePictureFn func(types.JID) (string, error)
 
 	// Group refreshes are coalesced per group and capped in total, so a burst
 	// of group changes cannot turn into a burst of concurrent WhatsApp queries.

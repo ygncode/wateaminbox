@@ -171,7 +171,7 @@ type GroupCommandExecutor interface {
 
 // ProfilePictureFetcher fetches and stores a WhatsApp profile picture.
 type ProfilePictureFetcher interface {
-	FetchProfilePicture(jid string) string
+	FetchProfilePicture(jid string) (string, error)
 }
 
 // TypingCommand represents a command to send typing indicator.
@@ -871,7 +871,15 @@ func (s *Subscriber) handleFetchProfilePictureCommand(msg *nats.Msg) {
 		return
 	}
 
-	profilePictureURL := s.profileFetcher.FetchProfilePicture(cmd.JID)
+	profilePictureURL, err := s.profileFetcher.FetchProfilePicture(cmd.JID)
+	if err != nil {
+		// A command-driven refresh is best-effort. A transient WhatsApp,
+		// download, or storage failure is not evidence that the user removed
+		// their picture, so preserve existing data and allow a later request.
+		log.Printf("Failed to fetch participant profile picture: %v", err)
+		msg.Ack()
+		return
+	}
 	if err := s.publisher.PublishProfilePicture(
 		cmd.JID,
 		profilePictureURL,

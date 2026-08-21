@@ -3,6 +3,8 @@ package handler
 import (
 	"bytes"
 	"context"
+	"errors"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -198,49 +200,86 @@ func (h *Handler) processHistoryMedia(
 	return h.downloadHistoryMedia(downloadable, event)
 }
 
+const profilePictureNegativeCacheTTL = 10 * time.Minute
+
+type profilePictureCacheEntry struct {
+	url       string
+	expiresAt time.Time
+}
+
+func (h *Handler) cachedProfilePicture(cacheKey string, now time.Time) (string, bool) {
+	cached, ok := h.profilePictureCache.Load(cacheKey)
+	if !ok {
+		return "", false
+	}
+	entry, ok := cached.(profilePictureCacheEntry)
+	if !ok {
+		h.profilePictureCache.Delete(cacheKey)
+		return "", false
+	}
+	if !entry.expiresAt.IsZero() && !now.Before(entry.expiresAt) {
+		h.profilePictureCache.Delete(cacheKey)
+		return "", false
+	}
+	return entry.url, true
+}
+
 // FetchProfilePicture resolves and caches a profile picture for command-driven
-// group participant lookups. Empty results are cached too, because privacy
-// settings commonly make profile pictures unavailable.
-func (h *Handler) FetchProfilePicture(rawJID string) string {
+// lookups. A confirmed absence is cached briefly, while transient WhatsApp,
+// download, and storage failures remain retryable.
+func (h *Handler) FetchProfilePicture(rawJID string) (string, error) {
 	parsedJID, err := types.ParseJID(rawJID)
 	if err != nil {
-		return ""
+		return "", fmt.Errorf("invalid profile picture JID: %w", err)
 	}
 	jid := h.resolvePreferredJID(parsedJID, types.EmptyJID)
 	cacheKey := jid.String()
-	if cached, ok := h.profilePictureCache.Load(cacheKey); ok {
-		return cached.(string)
+	if cached, ok := h.cachedProfilePicture(cacheKey, time.Now()); ok {
+		return cached, nil
 	}
 
-	result, _, _ := h.profilePictureRequests.Do(cacheKey, func() (interface{}, error) {
-		if cached, ok := h.profilePictureCache.Load(cacheKey); ok {
-			return cached.(string), nil
+	result, err, _ := h.profilePictureRequests.Do(cacheKey, func() (interface{}, error) {
+		if cached, ok := h.cachedProfilePicture(cacheKey, time.Now()); ok {
+			return cached, nil
 		}
-		profilePictureURL := h.fetchProfilePicture(jid)
-		h.profilePictureCache.Store(cacheKey, profilePictureURL)
+		fetch := h.fetchProfilePicture
+		if h.fetchProfilePictureFn != nil {
+			fetch = h.fetchProfilePictureFn
+		}
+		profilePictureURL, err := fetch(jid)
+		if err != nil {
+			return "", err
+		}
+		entry := profilePictureCacheEntry{url: profilePictureURL}
+		if profilePictureURL == "" {
+			entry.expiresAt = time.Now().Add(profilePictureNegativeCacheTTL)
+		}
+		h.profilePictureCache.Store(cacheKey, entry)
 		return profilePictureURL, nil
 	})
-	return result.(string)
+	if err != nil {
+		return "", err
+	}
+	return result.(string), nil
 }
 
 // fetchProfilePicture downloads and uploads a contact's profile picture.
-// Returns the private object reference if successful, empty string otherwise.
-func (h *Handler) fetchProfilePicture(jid types.JID) string {
+// An empty URL with no error means WhatsApp authoritatively reported that no
+// picture is visible. Operational failures return an error and must not clear
+// or poison a previously stored profile picture.
+func (h *Handler) fetchProfilePicture(jid types.JID) (string, error) {
 	if h.config.Client == nil {
-		log.Println("Client not available for profile picture fetch")
-		return ""
+		return "", errors.New("client not available for profile picture fetch")
 	}
 
 	if h.config.Storage == nil {
-		log.Println("Storage not configured, skipping profile picture fetch")
-		return ""
+		return "", errors.New("storage not configured for profile picture fetch")
 	}
 
 	// Get profile picture info from WhatsApp
 	client := h.config.Client.GetClient()
 	if client == nil {
-		log.Println("WhatsApp client not available for profile picture fetch")
-		return ""
+		return "", errors.New("WhatsApp client not available for profile picture fetch")
 	}
 
 	// Get the profile picture (preview size is sufficient for contacts)
@@ -251,38 +290,36 @@ func (h *Handler) fetchProfilePicture(jid types.JID) string {
 		Preview: true,
 	})
 	if err != nil {
-		log.Printf("Failed to get profile picture info for %s: %v", jid.String(), err)
-		return ""
+		if errors.Is(err, whatsmeow.ErrProfilePictureNotSet) ||
+			errors.Is(err, whatsmeow.ErrProfilePictureUnauthorized) {
+			return "", nil
+		}
+		return "", fmt.Errorf("get profile picture info for %s: %w", jid.String(), err)
 	}
 
 	if picInfo == nil || picInfo.URL == "" {
-		// No profile picture set
-		return ""
+		return "", nil
 	}
 
 	// Download the profile picture from the URL
 	req, err := http.NewRequestWithContext(ctx, "GET", picInfo.URL, nil)
 	if err != nil {
-		log.Printf("Failed to create request for profile picture: %v", err)
-		return ""
+		return "", fmt.Errorf("create profile picture request: %w", err)
 	}
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		log.Printf("Failed to download profile picture for %s: %v", jid.String(), err)
-		return ""
+		return "", fmt.Errorf("download profile picture for %s: %w", jid.String(), err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		log.Printf("Failed to download profile picture for %s: status %d", jid.String(), resp.StatusCode)
-		return ""
+		return "", fmt.Errorf("download profile picture for %s: status %d", jid.String(), resp.StatusCode)
 	}
 
 	data, err := io.ReadAll(resp.Body)
 	if err != nil {
-		log.Printf("Failed to read profile picture data for %s: %v", jid.String(), err)
-		return ""
+		return "", fmt.Errorf("read profile picture data for %s: %w", jid.String(), err)
 	}
 
 	log.Printf("Downloaded profile picture for %s: %d bytes", jid.String(), len(data))
@@ -290,10 +327,9 @@ func (h *Handler) fetchProfilePicture(jid types.JID) string {
 	// Upload to storage
 	mediaURL, err := h.config.Storage.UploadMedia(ctx, data, "image/jpeg", h.config.CompanyID)
 	if err != nil {
-		log.Printf("Failed to upload profile picture to storage: %v", err)
-		return ""
+		return "", fmt.Errorf("upload profile picture for %s: %w", jid.String(), err)
 	}
 
-	log.Printf("Profile picture uploaded for %s: %s", jid.String(), mediaURL)
-	return mediaURL
+	log.Printf("Profile picture uploaded for %s", jid.String())
+	return mediaURL, nil
 }

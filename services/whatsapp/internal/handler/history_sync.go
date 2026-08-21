@@ -308,7 +308,11 @@ func (h *Handler) processHistorySyncConversation(conv *waHistorySync.Conversatio
 	// Fetch profile picture during history sync
 	var profilePicURL string
 	if !deferMedia && h.config.Client != nil && h.config.Storage != nil {
-		profilePicURL = h.fetchProfilePicture(normalizedJID)
+		var profilePicErr error
+		profilePicURL, profilePicErr = h.fetchProfilePicture(normalizedJID)
+		if profilePicErr != nil {
+			log.Printf("Failed to fetch profile picture for %s during history sync: %v", jid, profilePicErr)
+		}
 	}
 
 	// Publish contact to NATS
