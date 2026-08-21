@@ -56,7 +56,12 @@ services:
   centrifugo:
     image: centrifugo/centrifugo:v6.9.1
     container_name: wateaminbox-centrifugo
-    command: ["centrifugo", "--config=/centrifugo/config.json"]
+    entrypoint: ["/bin/sh", "-ec"]
+    command:
+      - |
+        password=$$(cat /run/dev-secrets/nats_service_password)
+        export CENTRIFUGO_BROKER_NATS_URL="nats://service:$$password@nats:4222"
+        exec centrifugo --config=/centrifugo/config.json
     environment:
       CENTRIFUGO_CLIENT_TOKEN_HMAC_SECRET_KEY: ${CENTRIFUGO_TOKEN_HMAC_SECRET:-development-centrifugo-token-secret-change-me}
       CENTRIFUGO_HTTP_API_KEY: ${CENTRIFUGO_API_KEY:-development-centrifugo-api-key}
@@ -64,9 +69,15 @@ services:
       - "4451:8000"
     volumes:
       - ./infrastructure/centrifugo/config.json:/centrifugo/config.json:ro
+      - ${DEV_RUNTIME_DIR:-.dev-runtime}/nats_service_password:/run/dev-secrets/nats_service_password:ro
     depends_on:
       nats:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8000/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
   meilisearch:
     image: getmeili/meilisearch:v1.11
