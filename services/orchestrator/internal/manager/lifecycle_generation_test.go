@@ -534,7 +534,8 @@ func TestSpawnDoesNotStartProcessWhenDurableOwnershipFails(t *testing.T) {
 			0,
 			sqlmock.AnyArg(),
 			DesiredStateRunning,
-			"",
+			// A first launch expects no prior launch: a typed NULL, not "".
+			nil,
 		).
 		WillReturnResult(sqlmock.NewResult(0, 0))
 

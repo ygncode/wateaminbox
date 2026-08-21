@@ -96,6 +96,17 @@ func (r *WorkerRegistry) Close() error {
 // the same live connection. A durable stopped row may be reclaimed explicitly.
 func (r *WorkerRegistry) ClaimWorkerLaunch(ctx context.Context, w *WorkerProcess, expectedLaunchID string) error {
 	now := time.Now()
+	// A first launch has no previous launch to compare against: the connection
+	// is new, or its row was removed when the worker was durably stopped. The
+	// expectation is then "no row exists", which is a typed NULL rather than an
+	// empty string. PostgreSQL parses the parameter as uuid whether or not the
+	// conflict branch runs, so passing "" fails the whole statement instead of
+	// simply matching nothing. launch_id is NOT NULL, so IS NOT DISTINCT FROM a
+	// NULL expectation can never match a row another launch already owns.
+	var expected any
+	if expectedLaunchID != "" {
+		expected = expectedLaunchID
+	}
 	result, err := r.db.ExecContext(ctx, `
 		INSERT INTO worker_registry (connection_id, company_id, tenant_schema, database_url, pid, status, started_at, last_heartbeat, restart_count, launch_id, desired_state)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $7, $8, $9, $10)
@@ -110,8 +121,8 @@ func (r *WorkerRegistry) ClaimWorkerLaunch(ctx context.Context, w *WorkerProcess
 			launch_id = EXCLUDED.launch_id,
 			desired_state = EXCLUDED.desired_state
 		WHERE worker_registry.company_id = EXCLUDED.company_id
-			AND worker_registry.launch_id = $11
-	`, w.ConnectionID, w.CompanyID, w.TenantSchema, "", w.PID, w.Status, now, w.RestartCount, w.LaunchID, w.DesiredState, expectedLaunchID)
+			AND worker_registry.launch_id IS NOT DISTINCT FROM $11::uuid
+	`, w.ConnectionID, w.CompanyID, w.TenantSchema, "", w.PID, w.Status, now, w.RestartCount, w.LaunchID, w.DesiredState, expected)
 	if err != nil {
 		return fmt.Errorf("failed to claim worker launch: %w", err)
 	}
