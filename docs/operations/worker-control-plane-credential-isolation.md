@@ -73,8 +73,10 @@ The wrapper reads the service password from the Docker secret, constructs the
 broker URL only in the child process environment, and literally redacts every
 configured file-backed secret from both output streams across write boundaries.
 It registers and forwards TERM, INT, and HUP across process startup and preserves
-the child exit status. A failed log destination is drained without inducing
-SIGPIPE: status 74 is used only when Centrifugo otherwise exits successfully,
+the child exit status. The wrapper catches its own SIGPIPE before startup, so a
+closed stdout/stderr sink becomes a retained EPIPE while the child pipe stays
+open and drained; the exec'd Centrifugo child retains normal SIGPIPE behavior.
+Status 74 is used only when Centrifugo otherwise exits successfully,
 while a natural nonzero Centrifugo status remains authoritative. Do not replace
 it with a shell URL wrapper: Centrifugo includes the complete broker URL
 in fatal authentication errors.

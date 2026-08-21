@@ -57,14 +57,22 @@ case ${1:-} in
     printf '\n' >&2
     exit 23
     ;;
-  high-success|high-failure)
+  high-success|high-failure|high-stderr-success|high-stderr-failure)
     i=0
     while [ "$i" -lt 50000 ]; do
-      printf 'high-volume-output nats_chunk_boundary_secret_0123456789abcdef %s\n' "$i"
+      if [ "${1#high-stderr-}" != "$1" ]; then
+        printf 'high-volume-output nats_chunk_boundary_secret_0123456789abcdef %s\n' "$i" >&2
+      else
+        printf 'high-volume-output nats_chunk_boundary_secret_0123456789abcdef %s\n' "$i"
+      fi
       i=$((i + 1))
     done
-    [ "$1" = high-success ] && exit 0
-    exit 23
+    case $1 in *-success|high-success) exit 0 ;; *) exit 23 ;; esac
+    ;;
+  sigpipe-default)
+    kill -PIPE $$
+    echo 'child incorrectly inherited ignored SIGPIPE'
+    exit 99
     ;;
   signals)
     trap 'echo forwarded-TERM; exit 42' TERM
@@ -150,6 +158,54 @@ for full_case in high-success:74 high-failure:23; do
   fi
 done
 
+# Real closed pipes exercise Go's special SIGPIPE behavior, not merely EPIPE
+# returned by /dev/full. Both wrapper streams must keep draining the child.
+for pipe_case in \
+  stdout-success:high-success:74 \
+  stdout-failure:high-failure:23 \
+  stderr-success:high-stderr-success:74 \
+  stderr-failure:high-stderr-failure:23; do
+  stream=${pipe_case%%-*}
+  remainder=${pipe_case#*:}
+  mode=${remainder%%:*}
+  expected=${pipe_case##*:}
+  pipe_container="centrifugo-redaction-closed-${stream}-${mode}-$$"
+  containers+=("$pipe_container")
+  if [[ $stream == stdout ]]; then
+    # shellcheck disable=SC2016 # $1 expands inside the container shell
+    pipeline='exec /usr/local/bin/centrifugo-secret-entrypoint /usr/local/bin/test-child "$1" | head -c 1 >/dev/null'
+  else
+    # shellcheck disable=SC2016 # $1 expands inside the container shell
+    pipeline='exec /usr/local/bin/centrifugo-secret-entrypoint /usr/local/bin/test-child "$1" 2>&1 >/dev/null | head -c 1 >/dev/null'
+  fi
+  docker run -d --name "$pipe_container" \
+    --entrypoint /bin/sh \
+    -e CENTRIFUGO_NATS_PASSWORD_FILE=/run/test-secrets/nats \
+    -e CENTRIFUGO_TOKEN_HMAC_SECRET_FILE=/run/test-secrets/token \
+    -e CENTRIFUGO_API_KEY_FILE=/run/test-secrets/api \
+    -v "$tmp/helper.sh:/usr/local/bin/test-child:ro" \
+    -v "$tmp/nats:/run/test-secrets/nats:ro" \
+    -v "$tmp/token:/run/test-secrets/token:ro" \
+    -v "$tmp/api:/run/test-secrets/api:ro" \
+    wateaminbox/centrifugo:v6.9.1-redacted -o pipefail -c "$pipeline" \
+    wrapper-test "$mode" >/dev/null
+  status=$(docker wait "$pipe_container")
+  logs=$(docker logs "$pipe_container" 2>&1)
+  if [[ $status != "$expected" || $status == 141 || $logs == *"$nats_secret"* ]]; then
+    echo "closed $stream pipe changed child status or leaked a secret for $mode" >&2
+    exit 1
+  fi
+done
+
+# signal.Notify catches wrapper SIGPIPE without making the child ignore it.
+sigpipe_container="centrifugo-redaction-child-sigpipe-$$"
+run_wrapper "$sigpipe_container" sigpipe-default
+sigpipe_status=$(docker wait "$sigpipe_container")
+if [[ $sigpipe_status != 141 ]]; then
+  echo "child inherited an inappropriate SIGPIPE disposition (status $sigpipe_status)" >&2
+  exit 1
+fi
+
 for signal_case in TERM:42 INT:43 HUP:44; do
   signal=${signal_case%%:*}
   expected=${signal_case##*:}
@@ -186,6 +242,9 @@ entrypoint_source="$ROOT/infrastructure/centrifugo/entrypoint/main.go"
 notify_line=$(rg -n 'signal\.Notify\(signals, syscall\.SIGTERM, syscall\.SIGINT, syscall\.SIGHUP\)' "$entrypoint_source" | cut -d: -f1)
 start_line=$(rg -n 'waitErr, startErr := executeCommand\(command, signals\)' "$entrypoint_source" | cut -d: -f1)
 ((notify_line < start_line))
+sigpipe_line=$(rg -n 'signal\.Notify\(sigpipe, syscall\.SIGPIPE\)' "$entrypoint_source" | cut -d: -f1)
+run_line=$(rg -n 'os\.Exit\(run\(\)\)' "$entrypoint_source" | cut -d: -f1)
+((sigpipe_line < run_line))
 if rg -n 'fmt\..*CENTRIFUGO_BROKER_NATS_URL|log\..*CENTRIFUGO_BROKER_NATS_URL' \
   "$ROOT/infrastructure/centrifugo/entrypoint/main.go"; then
   echo "entrypoint logs the credential-bearing NATS URL" >&2

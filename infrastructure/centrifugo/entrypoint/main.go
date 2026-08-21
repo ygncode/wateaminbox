@@ -278,5 +278,11 @@ func run() int {
 }
 
 func main() {
+	// Go otherwise terminates the process when fd 1 or 2 is a closed pipe.
+	// Catch SIGPIPE before run performs any child or output activity so writes
+	// return EPIPE to redactingWriter. A caught disposition resets to default
+	// across exec, so Centrifugo retains normal child SIGPIPE semantics.
+	sigpipe := make(chan os.Signal, 1)
+	signal.Notify(sigpipe, syscall.SIGPIPE)
 	os.Exit(run())
 }
