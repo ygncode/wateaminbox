@@ -23,7 +23,7 @@ cp "$ROOT/.env.example" "$tmp/dev.env"
 for file in postgres_password worker_postgres_password nats_service_password nats_worker_password nats.conf; do
   [[ -s $tmp/runtime/$file ]] || { echo "dev-start did not create $file" >&2; exit 1; }
 done
-[[ $(stat -f '%Lp' "$tmp/runtime/nats.conf" 2>/dev/null || stat -c '%a' "$tmp/runtime/nats.conf") == 600 ]]
+[[ $(stat -c '%a' "$tmp/runtime/nats.conf" 2>/dev/null || stat -f '%Lp' "$tmp/runtime/nats.conf") == 600 ]]
 docker run --rm -v "$tmp/runtime/nats.conf:/etc/nats/nats.conf:ro" \
   nats:2.10.26-alpine -t -c /etc/nats/nats.conf >/dev/null
 
@@ -56,6 +56,7 @@ fi
 # Centrifugo reads only the service credential file, authenticates its broker
 # connection, and becomes healthy without exposing that credential in logs.
 docker run -d --name "$centrifugo_container" --network "$network" \
+  --user "$(id -u):$(id -g)" \
   --entrypoint /usr/local/bin/centrifugo-secret-entrypoint \
   -e CENTRIFUGO_NATS_PASSWORD_FILE=/run/dev-secrets/nats_service_password \
   -v "$ROOT/infrastructure/centrifugo/config.json:/centrifugo/config.json:ro" \
@@ -92,6 +93,7 @@ fi
 wrong_password='wrong_development_nats_password_0123456789abcdef'
 printf '%s' "$wrong_password" >"$tmp/runtime/wrong_nats_service_password"
 docker run -d --name "$wrong_centrifugo_container" --network "$network" \
+  --user "$(id -u):$(id -g)" \
   --entrypoint /usr/local/bin/centrifugo-secret-entrypoint \
   -e CENTRIFUGO_NATS_PASSWORD_FILE=/run/dev-secrets/nats_service_password \
   -v "$ROOT/infrastructure/centrifugo/config.json:/centrifugo/config.json:ro" \
@@ -145,13 +147,16 @@ fi
 # development-only role provisioner; production Compose must never enable its
 # short-admin-password exception.
 cp "$ROOT/.env.example" "$tmp/dev.env"
+local_identity="$(id -u):$(id -g)"
 (
   cd "$ROOT"
-  DEV_RUNTIME_DIR="$tmp/runtime" docker compose --env-file "$tmp/dev.env" \
+  DEV_RUNTIME_DIR="$tmp/runtime" DEV_HOST_UID="$(id -u)" DEV_HOST_GID="$(id -g)" \
+    docker compose --env-file "$tmp/dev.env" \
     -f docker-compose.yml --profile setup config --format json >"$tmp/compose.json"
 )
-jq -e '
+jq -e --arg local_identity "$local_identity" '
   .services.nats.command == ["--config", "/etc/nats/nats.conf"] and
+  .services.centrifugo.user == $local_identity and
   .services.centrifugo.entrypoint == ["/usr/local/bin/centrifugo-secret-entrypoint"] and
   .services.centrifugo.command == ["centrifugo", "--config=/centrifugo/config.json"] and
   .services.centrifugo.environment.CENTRIFUGO_NATS_PASSWORD_FILE == "/run/dev-secrets/nats_service_password" and

@@ -199,7 +199,9 @@ async function drainWithSettle(
     companyId,
     options,
   );
-  if (first.deferred === 0) return first;
+  // Always bring any remaining fixture rows forward before the second pass.
+  // On loaded CI hosts a freshly inserted database timestamp can briefly fall
+  // just beyond the application clock used by the first claim.
   await tenantDb
     .updateTable("purge_cleanup_items")
     .set({ next_attempt_at: new Date(Date.now() - 1_000) })

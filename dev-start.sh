@@ -33,7 +33,9 @@ SKIP_DOCKER=false
 CHECK_WORKER_BOUNDARY=false
 DEV_ENV_FILE=${DEV_ENV_FILE:-.env}
 DEV_RUNTIME_DIR=${DEV_RUNTIME_DIR:-.dev-runtime}
-export DEV_RUNTIME_DIR
+DEV_HOST_UID=${DEV_HOST_UID:-$(id -u)}
+DEV_HOST_GID=${DEV_HOST_GID:-$(id -g)}
+export DEV_RUNTIME_DIR DEV_HOST_UID DEV_HOST_GID
 for arg in "$@"; do
     case $arg in
         --skip-docker)

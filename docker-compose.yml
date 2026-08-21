@@ -59,6 +59,9 @@ services:
       dockerfile: infrastructure/centrifugo/Dockerfile
     image: wateaminbox/centrifugo:v6.9.1-redacted
     container_name: wateaminbox-centrifugo
+    # Match the developer so Linux bind-mounted 0600 credentials stay private
+    # while remaining readable by this non-root process.
+    user: "${DEV_HOST_UID:-1000}:${DEV_HOST_GID:-1000}"
     entrypoint: ["/usr/local/bin/centrifugo-secret-entrypoint"]
     command: ["centrifugo", "--config=/centrifugo/config.json"]
     environment:
