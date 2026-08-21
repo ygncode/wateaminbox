@@ -132,8 +132,8 @@ fi
 
 # A reused local NATS credential must fail before rendering a configuration and
 # must not appear in diagnostics.
-sd '^NATS_WORKER_PASSWORD=.*' "NATS_WORKER_PASSWORD=$service_password" "$tmp/dev.env"
-sd '^WORKER_NATS_URL=.*' "WORKER_NATS_URL=nats://worker:$service_password@localhost:4448" "$tmp/dev.env"
+perl -pi -e "s|^NATS_WORKER_PASSWORD=.*|NATS_WORKER_PASSWORD=$service_password|" "$tmp/dev.env"
+perl -pi -e "s|^WORKER_NATS_URL=.*|WORKER_NATS_URL=nats://worker:$service_password\@localhost:4448|" "$tmp/dev.env"
 rm -rf "$tmp/reused-runtime"
 if output=$(cd "$ROOT" && DEV_ENV_FILE="$tmp/dev.env" DEV_RUNTIME_DIR="$tmp/reused-runtime" \
   ./dev-start.sh --check-worker-boundary 2>&1); then
