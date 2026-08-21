@@ -31,6 +31,9 @@ type Config struct {
 	AutoRestartMaxRetries int           // Max restart attempts (default: 5)
 	AutoRestartBackoff    time.Duration // Base backoff between restarts (default: 5s)
 	MaxWorkers            int           // 0 = unlimited
+	// AllowanceCheckInterval controls how often running workers are checked
+	// against their company's connection allowance (default: 60s).
+	AllowanceCheckInterval time.Duration
 }
 
 // Manager handles WhatsApp worker process lifecycle.
@@ -58,6 +61,12 @@ type Manager struct {
 	// than a direct registry call so the health check can be exercised without
 	// a database.
 	recordWorkerHeartbeat func(context.Context, string, string, string) (bool, error)
+
+	// checkConnectionAllowances names the subset of the given companies that may
+	// no longer run any connection. It is wired to the registry when persistence
+	// initialises, and is a field rather than a direct registry call so
+	// enforcement can be exercised without a database.
+	checkConnectionAllowances func(context.Context, []string) ([]string, error)
 }
 
 // WorkerProcess represents a managed WhatsApp worker.
@@ -123,6 +132,9 @@ func New(cfg Config) *Manager {
 	if cfg.AutoRestartBackoff == 0 {
 		cfg.AutoRestartBackoff = 5 * time.Second
 	}
+	if cfg.AllowanceCheckInterval == 0 {
+		cfg.AllowanceCheckInterval = 60 * time.Second
+	}
 
 	return &Manager{
 		config:    cfg,
@@ -149,6 +161,7 @@ func (m *Manager) Start(ctx context.Context) error {
 			m.registry = registry
 			m.markWorkersRecovering = registry.MarkWorkersRecovering
 			m.recordWorkerHeartbeat = registry.UpdateHeartbeatLaunch
+			m.checkConnectionAllowances = registry.CompaniesWithoutConnectionAllowance
 			log.Println("Worker registry initialized successfully")
 
 			// Recovery must finish before commands are consumed. Continuing after
@@ -165,6 +178,11 @@ func (m *Manager) Start(ctx context.Context) error {
 	// Start command subscription
 	if err := m.handlers.StartSubscription(m.ctx); err != nil {
 		return fmt.Errorf("failed to start command subscription: %w", err)
+	}
+
+	if m.checkConnectionAllowances != nil {
+		m.wg.Add(1)
+		go m.runAllowanceEnforcement(m.ctx)
 	}
 
 	log.Println("Process manager started successfully")
@@ -1624,4 +1642,87 @@ type workerLogWriter struct {
 func (w *workerLogWriter) Write(p []byte) (n int, err error) {
 	log.Printf("[worker:%s:%s] %s", w.connectionID, w.stream, string(p))
 	return len(p), nil
+}
+
+// runAllowanceEnforcement periodically reconciles running workers against their
+// company's connection allowance.
+func (m *Manager) runAllowanceEnforcement(ctx context.Context) {
+	defer m.wg.Done()
+
+	ticker := time.NewTicker(m.config.AllowanceCheckInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			m.enforceConnectionAllowance(ctx)
+		}
+	}
+}
+
+// enforceConnectionAllowance stops workers whose company may no longer run any
+// connection. The API already refuses to create a connection past the
+// allowance; this applies the same rule to connections that are already
+// running, which nothing else does — a running worker holds a WhatsApp session
+// and keeps writing inbound media regardless of what the API would permit now.
+//
+// Fails open by design. If the allowance cannot be read the workers are left
+// alone: a database blip must never take down live WhatsApp sessions.
+func (m *Manager) enforceConnectionAllowance(ctx context.Context) {
+	if m.checkConnectionAllowances == nil {
+		return
+	}
+
+	workers := m.ListWorkers()
+	if len(workers) == 0 {
+		return
+	}
+
+	seen := make(map[string]struct{}, len(workers))
+	companyIDs := make([]string, 0, len(workers))
+	for _, worker := range workers {
+		if worker.CompanyID == "" {
+			continue
+		}
+		if _, duplicate := seen[worker.CompanyID]; duplicate {
+			continue
+		}
+		seen[worker.CompanyID] = struct{}{}
+		companyIDs = append(companyIDs, worker.CompanyID)
+	}
+
+	blocked, err := m.checkConnectionAllowances(ctx, companyIDs)
+	if err != nil {
+		log.Printf("Warning: connection allowance check failed, leaving workers running: %v", err)
+		return
+	}
+	if len(blocked) == 0 {
+		return
+	}
+
+	blockedSet := make(map[string]struct{}, len(blocked))
+	for _, companyID := range blocked {
+		blockedSet[companyID] = struct{}{}
+	}
+
+	for _, worker := range workers {
+		if _, stop := blockedSet[worker.CompanyID]; !stop {
+			continue
+		}
+		log.Printf(
+			"Stopping worker %s: company %s has no remaining connection allowance",
+			worker.ConnectionID, worker.CompanyID,
+		)
+		// StopWorker removes the durable registry record, so a later
+		// orchestrator restart does not respawn what was deliberately stopped.
+		// Credentials are preserved: restoring the allowance and reconnecting
+		// does not require pairing again.
+		if err := m.StopWorker(
+			ctx, worker.CompanyID, worker.ConnectionID, "connection allowance exhausted",
+		); err != nil {
+			log.Printf("Warning: failed to stop worker %s: %v", worker.ConnectionID, err)
+		}
+	}
 }

@@ -298,3 +298,43 @@ func (r *WorkerRegistry) GetRestartCountLaunch(
 	}
 	return count, true, nil
 }
+
+// CompaniesWithoutConnectionAllowance returns the subset of the given companies
+// whose WhatsApp connection allowance is exhausted. The allowance is the same
+// generic limit the API enforces when a connection is created; a company that
+// may run no connections must not keep running the ones it already started.
+//
+// A company that cannot be read is never returned. Losing the database, or
+// racing a company row that does not exist yet, must never stop a running
+// worker: the query names only companies that are explicitly out of allowance.
+func (r *WorkerRegistry) CompaniesWithoutConnectionAllowance(
+	ctx context.Context,
+	companyIDs []string,
+) ([]string, error) {
+	if len(companyIDs) == 0 {
+		return nil, nil
+	}
+
+	rows, err := r.db.QueryContext(ctx, `
+		SELECT id::text
+		FROM public.companies
+		WHERE id::text = ANY($1) AND max_whatsapp_connections <= 0
+	`, pq.Array(companyIDs))
+	if err != nil {
+		return nil, fmt.Errorf("failed to read connection allowances: %w", err)
+	}
+	defer rows.Close()
+
+	var blocked []string
+	for rows.Next() {
+		var companyID string
+		if err := rows.Scan(&companyID); err != nil {
+			return nil, fmt.Errorf("failed to scan company allowance: %w", err)
+		}
+		blocked = append(blocked, companyID)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("failed to iterate company allowances: %w", err)
+	}
+	return blocked, nil
+}
