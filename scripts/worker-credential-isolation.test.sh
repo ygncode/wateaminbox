@@ -41,6 +41,22 @@ fi
 
 json="$tmp/compose.json"
 docker compose --env-file "$ROOT/.env.production.example" -f "$ROOT/compose.production.yml" config --format json >"$json"
+if rg -n 'ConnectedUrl\(\)' \
+  "$ROOT/services/whatsapp/internal/nats/publisher.go" \
+  "$ROOT/services/whatsapp/internal/nats/subscriber.go" >/dev/null; then
+  echo "worker NATS reconnect logging uses an unredacted URL" >&2
+  exit 1
+fi
+for source in \
+  "$ROOT/services/whatsapp/internal/nats/publisher.go" \
+  "$ROOT/services/whatsapp/internal/nats/subscriber.go" \
+  "$ROOT/services/whatsapp/internal/handler/download.go"; do
+  rg -q 'RedactErrorForURL' "$source" || {
+    echo "worker NATS error path is not credential-redacted: $source" >&2
+    exit 1
+  }
+done
+
 jq -e '
   .services.orchestrator.environment.WORKER_POSTGRES_PASSWORD_FILE == "/run/secrets/worker_postgres_password" and
   .services.orchestrator.environment.NATS_WORKER_PASSWORD_FILE == "/run/secrets/nats_worker_password" and

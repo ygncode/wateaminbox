@@ -55,6 +55,10 @@ func TestRestrictedWorkerNATSPermissionMatrix(t *testing.T) {
 		"$JS.API.STREAM.UPDATE.WHATSAPP_EVENTS",
 		"$JS.API.STREAM.DELETE.WHATSAPP_COMMANDS",
 		"$JS.API.CONSUMER.DELETE.WHATSAPP_COMMANDS.worker-permission-test",
+		"$JS.API.CONSUMER.MSG.NEXT.WHATSAPP_COMMANDS.orchestrator-commands",
+		"$JS.API.CONSUMER.INFO.WHATSAPP_EVENTS.whatsapp-api-events-v1",
+		"$JS.API.CONSUMER.CREATE.WHATSAPP_EVENTS.whatsapp-api-events-v1",
+		"$JS.API.CONSUMER.DELETE.WHATSAPP_EVENTS.whatsapp-api-events-v1",
 		"$JS.API.CONSUMER.DELETE.WHATSAPP_EVENTS.unrelated-consumer",
 		"unrelated.subject",
 	} {
@@ -86,6 +90,37 @@ func TestRestrictedWorkerNATSPermissionMatrix(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	privilegedConsumer := "orchestrator-commands"
+	_ = serviceJS.DeleteConsumer(StreamCommands, privilegedConsumer)
+	privilegedConfig := &gnats.ConsumerConfig{
+		Durable: privilegedConsumer, FilterSubject: "WHATSAPP.commands.>",
+		AckPolicy: gnats.AckExplicitPolicy, DeliverPolicy: gnats.DeliverAllPolicy,
+		AckWait: 30 * time.Second, MaxDeliver: 5,
+	}
+	if _, err = serviceJS.AddConsumer(StreamCommands, privilegedConfig); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = serviceJS.DeleteConsumer(StreamCommands, privilegedConsumer) })
+
+	if _, err = workerJS.ConsumerInfo(StreamCommands, privilegedConsumer, gnats.MaxWait(300*time.Millisecond)); err == nil {
+		t.Fatal("worker read privileged orchestrator consumer configuration")
+	}
+	mutatedPrivileged := *privilegedConfig
+	mutatedPrivileged.AckWait = time.Millisecond
+	if _, err = workerJS.AddConsumer(StreamCommands, &mutatedPrivileged, gnats.MaxWait(300*time.Millisecond)); err == nil {
+		t.Fatal("worker updated privileged orchestrator consumer")
+	}
+	if err = workerJS.DeleteConsumer(StreamCommands, privilegedConsumer, gnats.MaxWait(300*time.Millisecond)); err == nil {
+		t.Fatal("worker deleted privileged orchestrator consumer")
+	}
+	privilegedInfo, err := serviceJS.ConsumerInfo(StreamCommands, privilegedConsumer)
+	if err != nil {
+		t.Fatalf("privileged consumer disappeared after worker exploit probes: %v", err)
+	}
+	if privilegedInfo.Config.AckWait != privilegedConfig.AckWait || privilegedInfo.Config.MaxDeliver != privilegedConfig.MaxDeliver {
+		t.Fatalf("worker changed privileged consumer config: %+v", privilegedInfo.Config)
+	}
+
 	consumer := "worker-permission-test"
 	_ = serviceJS.DeleteConsumer(StreamCommands, consumer)
 	_, err = workerJS.AddConsumer(StreamCommands, &gnats.ConsumerConfig{
@@ -111,6 +146,19 @@ func TestRestrictedWorkerNATSPermissionMatrix(t *testing.T) {
 	}
 	if err = messages[0].AckSync(); err != nil {
 		t.Fatalf("worker could not ack command: %v", err)
+	}
+	privilegedSub, err := serviceJS.PullSubscribe(
+		"WHATSAPP.commands.>", privilegedConsumer, gnats.BindStream(StreamCommands),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	privilegedMessages, err := privilegedSub.Fetch(1, gnats.MaxWait(2*time.Second))
+	if err != nil || len(privilegedMessages) != 1 {
+		t.Fatalf("worker alternate consumer affected privileged delivery: messages=%d err=%v", len(privilegedMessages), err)
+	}
+	if err = privilegedMessages[0].AckSync(); err != nil {
+		t.Fatal(err)
 	}
 	if _, err = workerJS.Publish("WHATSAPP.events.company.connection.message", []byte("event")); err != nil {
 		t.Fatalf("worker could not publish event through JetStream: %v", err)

@@ -22,10 +22,12 @@ read_credential() {
       exit 1
       ;;
   esac
-  [ "${#credential}" -ge 32 ] || {
-    echo "provision-worker-role: $label credential must be at least 32 characters" >&2
-    exit 1
-  }
+  if [ "${#credential}" -lt 32 ]; then
+    if [ "$label" != administrator ] || [ "${ALLOW_INSECURE_DEVELOPMENT_ADMIN_CREDENTIAL:-false}" != true ]; then
+      echo "provision-worker-role: $label credential must be at least 32 characters" >&2
+      exit 1
+    fi
+  fi
   printf '%s' "$credential"
 }
 
@@ -43,8 +45,9 @@ export WORKER_POSTGRES_PASSWORD="$worker_password"
 
 # psql imports the already-validated worker password from its environment. It
 # is never placed in argv, command output, the Compose model, or generated SQL.
-psql -v ON_ERROR_STOP=1 -h postgres -U "$POSTGRES_USER" -d "$POSTGRES_DB" <<'SQL'
+psql -q -v ON_ERROR_STOP=1 -h postgres -U "$POSTGRES_USER" -d "$POSTGRES_DB" <<'SQL'
 \getenv worker_password WORKER_POSTGRES_PASSWORD
+SET client_min_messages = warning;
 DO $preflight$
 DECLARE
   worker_oid oid := (SELECT oid FROM pg_roles WHERE rolname = 'wateaminbox_worker');

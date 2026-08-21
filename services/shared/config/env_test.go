@@ -1,7 +1,9 @@
 package config
 
 import (
+	"errors"
 	"os"
+	"strings"
 	"testing"
 	"time"
 )
@@ -386,5 +388,19 @@ func TestGetBoolEnv(t *testing.T) {
 				t.Errorf("GetBoolEnv() = %v, want %v", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestRedactErrorForURLRemovesNATSCredentials(t *testing.T) {
+	configured := "nats://worker:super-secret-password@nats:4222"
+	message := RedactErrorForURL(
+		errors.New("reconnect to nats://worker:super-secret-password@nats:4222 failed with super-secret-password"),
+		configured,
+	)
+	if strings.Contains(message, "worker") || strings.Contains(message, "super-secret-password") {
+		t.Fatalf("credential remained in redacted error: %q", message)
+	}
+	if !strings.Contains(message, "nats://nats:4222") {
+		t.Fatalf("redaction removed the useful endpoint: %q", message)
 	}
 }

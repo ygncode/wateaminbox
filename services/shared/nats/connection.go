@@ -58,7 +58,7 @@ func NewConnection(ctx context.Context, cfg ConnectionConfig) (*Connection, erro
 
 	nc, err := nats.Connect(cfg.URL, opts...)
 	if err != nil {
-		return nil, fmt.Errorf("failed to connect to NATS: %w", err)
+		return nil, fmt.Errorf("failed to connect to NATS: %s", config.RedactErrorForURL(err, cfg.URL))
 	}
 
 	js, err := nc.JetStream()
@@ -109,7 +109,7 @@ func buildConnectionOptions(cfg ConnectionConfig) []nats.Option {
 	// Disconnect handler
 	opts = append(opts, nats.DisconnectErrHandler(func(_ *nats.Conn, err error) {
 		if err != nil {
-			log.Printf("NATS disconnected: %v", err)
+			log.Printf("NATS disconnected: %s", config.RedactErrorForURL(err, cfg.URL))
 		}
 		if cfg.DisconnectHandler != nil {
 			cfg.DisconnectHandler(err)
@@ -118,7 +118,7 @@ func buildConnectionOptions(cfg ConnectionConfig) []nats.Option {
 
 	// Reconnect handler
 	opts = append(opts, nats.ReconnectHandler(func(nc *nats.Conn) {
-		log.Printf("NATS reconnected to %s", config.RedactURL(nc.ConnectedUrl()))
+		log.Printf("NATS reconnected to %s", nc.ConnectedUrlRedacted())
 		if cfg.ReconnectHandler != nil {
 			cfg.ReconnectHandler()
 		}
@@ -170,10 +170,10 @@ func (c *Connection) IsConnected() bool {
 	return c.nc != nil && c.nc.IsConnected()
 }
 
-// ConnectedUrl returns the URL of the currently connected server.
+// ConnectedUrl returns the credential-redacted URL of the connected server.
 func (c *Connection) ConnectedUrl() string {
 	if c.nc != nil {
-		return c.nc.ConnectedUrl()
+		return c.nc.ConnectedUrlRedacted()
 	}
 	return ""
 }

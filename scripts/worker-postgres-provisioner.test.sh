@@ -57,6 +57,18 @@ exit 99
 FAKE_PSQL
 chmod 0755 "$tmp/psql"
 
+run_development_provisioner() {
+  docker run --rm --network "$network" \
+    -e POSTGRES_USER=postgres -e POSTGRES_DB=wateaminbox \
+    -e POSTGRES_PASSWORD_FILE=/run/secrets/postgres_password \
+    -e WORKER_POSTGRES_PASSWORD_FILE=/run/secrets/worker_postgres_password \
+    -e ALLOW_INSECURE_DEVELOPMENT_ADMIN_CREDENTIAL=true \
+    -v "$ROOT/infrastructure/postgres/provision-worker-role.sh:/provision:ro" \
+    -v "$tmp/admin:/run/secrets/postgres_password:ro" \
+    -v "$tmp/worker:/run/secrets/worker_postgres_password:ro" \
+    postgres:18.1-alpine /bin/sh /provision
+}
+
 run_provisioner_with_sql_tripwire() {
   docker run --rm --network "$network" \
     -e POSTGRES_USER=postgres -e POSTGRES_DB=wateaminbox \
@@ -213,5 +225,23 @@ if run_provisioner >/dev/null 2>&1; then
   echo "provisioner accepted a missing worker credential" >&2
   exit 1
 fi
+
+# The explicit development-only exception supports historical local volumes
+# whose administrator password is "postgres". It never relaxes worker secrets
+# and remains rejected when the flag is absent.
+dev_worker_password='DevelopmentWorker_0123456789abcdef'
+docker exec "$database" psql -U postgres -d wateaminbox -v ON_ERROR_STOP=1 \
+  -c "ALTER ROLE postgres PASSWORD 'postgres'" >/dev/null
+printf '%s' 'postgres' >"$tmp/admin"
+printf '%s' "$dev_worker_password" >"$tmp/worker"
+if run_provisioner >/dev/null 2>&1; then
+  echo "provisioner accepted a short administrator credential without the development flag" >&2
+  exit 1
+fi
+dev_output=$(run_development_provisioner 2>&1)
+[[ $dev_output != *"postgres"* && $dev_output != *"$dev_worker_password"* ]]
+result=$(docker exec -e PGPASSWORD="$dev_worker_password" "$database" \
+  psql -h 127.0.0.1 -U wateaminbox_worker -d wateaminbox -Atc 'SELECT current_user')
+[[ $result == 'wateaminbox_worker' ]]
 
 echo "ok - worker PostgreSQL secrets reject malformed/reused values without logging or role changes"

@@ -11,6 +11,7 @@ import (
 
 	"github.com/nats-io/nats.go"
 
+	"github.com/ygncode-lab/whatsapp-web/services/shared/config"
 	sharednats "github.com/ygncode-lab/whatsapp-web/services/shared/nats"
 	"github.com/ygncode-lab/whatsapp-web/services/whatsapp/internal/types"
 )
@@ -323,15 +324,15 @@ func NewSubscriber(cfg SubscriberConfig) (*Subscriber, error) {
 		nats.ReconnectWait(time.Second),
 		nats.DisconnectErrHandler(func(nc *nats.Conn, err error) {
 			if err != nil {
-				log.Printf("NATS subscriber disconnected: %v", err)
+				log.Printf("NATS subscriber disconnected: %s", config.RedactErrorForURL(err, cfg.NATSURL))
 			}
 		}),
 		nats.ReconnectHandler(func(nc *nats.Conn) {
-			log.Printf("NATS subscriber reconnected to %s", nc.ConnectedUrl())
+			log.Printf("NATS subscriber reconnected to %s", nc.ConnectedUrlRedacted())
 		}),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to connect to NATS: %w", err)
+		return nil, fmt.Errorf("failed to connect to NATS: %s", config.RedactErrorForURL(err, cfg.NATSURL))
 	}
 
 	// Get JetStream context

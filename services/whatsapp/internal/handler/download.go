@@ -11,6 +11,7 @@ import (
 	"github.com/nats-io/nats.go"
 	"go.mau.fi/whatsmeow"
 
+	sharedconfig "github.com/ygncode-lab/whatsapp-web/services/shared/config"
 	sharednats "github.com/ygncode-lab/whatsapp-web/services/shared/nats"
 	natsClient "github.com/ygncode-lab/whatsapp-web/services/whatsapp/internal/nats"
 )
@@ -52,7 +53,7 @@ func NewDownloadHandler(h *Handler) (*DownloadHandler, error) {
 		nats.ReconnectWait(time.Second),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to connect to NATS: %w", err)
+		return nil, fmt.Errorf("failed to connect to NATS: %s", sharedconfig.RedactErrorForURL(err, h.config.NATSUrl))
 	}
 
 	js, err := nc.JetStream()
