@@ -30,7 +30,10 @@ api_secret='api/secret&with.regex[chars]*$end'
 printf '%s' "$nats_secret" >"$tmp/nats"
 printf '%s' "$token_secret" >"$tmp/token"
 printf '%s' "$api_secret" >"$tmp/api"
-chmod 0600 "$tmp/nats" "$tmp/token" "$tmp/api"
+# Docker bind mounts preserve host ownership on Linux. These are disposable
+# test-only values and must be readable by the image's unprivileged user, just
+# like Compose-mounted Docker secrets (0444 by default).
+chmod 0444 "$tmp/nats" "$tmp/token" "$tmp/api"
 
 cat >"$tmp/helper.sh" <<'HELPER'
 #!/bin/sh

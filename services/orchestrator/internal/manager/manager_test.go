@@ -481,6 +481,7 @@ func startRecoveredTestWorker(t *testing.T) (*exec.Cmd, *Manager) {
 	cmd := exec.Command("/bin/sleep", "30")
 	cmd.Env = append(os.Environ(), "COMPANY_ID=company", "CONNECTION_ID=recovered")
 	require.NoError(t, cmd.Start())
+	t.Cleanup(func() { _ = cmd.Process.Kill() })
 	go func() { _ = cmd.Wait() }()
 
 	m := New(Config{WhatsAppBinaryPath: "/bin/sleep"})
@@ -492,6 +493,13 @@ func startRecoveredTestWorker(t *testing.T) (*exec.Cmd, *Manager) {
 		Status:       types.StatusConnected,
 		PID:          cmd.Process.Pid,
 	}
+	// Linux may briefly expose the new PID before /proc/<pid>/environ reflects
+	// the exec'd child's identity. Recovered production workers are long-lived;
+	// wait for that equivalent precondition instead of racing the fixture.
+	require.Eventually(t, func() bool {
+		matches, err := m.isExpectedWorkerProcess(cmd.Process.Pid, "company", "recovered")
+		return err == nil && matches
+	}, time.Second, 10*time.Millisecond)
 	return cmd, m
 }
 
