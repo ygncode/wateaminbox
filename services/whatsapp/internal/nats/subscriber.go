@@ -394,8 +394,8 @@ func (s *Subscriber) Start() error {
 		}
 	}
 
-	// Subscribe to the subject
-	sub, err := s.js.PullSubscribe(subject, consumerName)
+	// Subscribe to the subject without broad stream-name discovery.
+	sub, err := s.js.PullSubscribe(subject, consumerName, nats.BindStream(CommandsStreamName))
 	if err != nil {
 		return fmt.Errorf("failed to subscribe: %w", err)
 	}
@@ -557,8 +557,8 @@ func (s *Subscriber) recreateSubscription() error {
 		s.sub.Unsubscribe()
 	}
 
-	// Recreate the subscription
-	sub, err := s.js.PullSubscribe(subject, consumerName)
+	// Recreate the subscription without broad stream-name discovery.
+	sub, err := s.js.PullSubscribe(subject, consumerName, nats.BindStream(CommandsStreamName))
 	if err != nil {
 		return fmt.Errorf("failed to recreate subscription: %w", err)
 	}

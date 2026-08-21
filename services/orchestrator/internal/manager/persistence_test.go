@@ -107,6 +107,20 @@ func TestActivateWorkerLaunchRejectsLostClaim(t *testing.T) {
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
+func TestDeactivateWorkerLaunchIsGenerationAndPIDScoped(t *testing.T) {
+	registry, mock := newMockRegistry(t)
+	mock.ExpectExec(regexp.QuoteMeta("UPDATE worker_registry SET pid = 0, status = $1, last_heartbeat = now()")).
+		WithArgs(WorkerStatusRecovering, "connection", "company", "launch", 4242).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+
+	updated, err := registry.DeactivateWorkerLaunch(
+		context.Background(), "connection", "company", "launch", 4242,
+	)
+	require.NoError(t, err)
+	assert.True(t, updated)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
 func TestRemoveWorkerLaunchReportsGenerationMismatch(t *testing.T) {
 	registry, mock := newMockRegistry(t)
 	mock.ExpectExec(regexp.QuoteMeta("DELETE FROM worker_registry WHERE connection_id = $1 AND company_id = $2 AND launch_id = $3")).

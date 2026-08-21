@@ -58,7 +58,9 @@ through the rollback window; do not repurpose either file under a new name.
    `wateaminbox_worker_runtime` grant role; it contains no password.
 6. Run `worker-credential-provisioner`. It creates/rotates the
    `wateaminbox_worker` login from the mounted file without putting the password
-   in argv or generated SQL.
+   in argv or generated SQL. It rejects reused credentials before contacting
+   PostgreSQL and rejects preexisting worker roles with unsafe attributes,
+   memberships, ownership, direct/default grants, or schema-create authority.
 7. Recreate NATS, API, Centrifugo, and orchestrator. NATS starts with separate
    `service` and `worker` users; the orchestrator passes only the restricted
    worker URLs to child processes.
@@ -77,8 +79,11 @@ Expected database boundary:
 
 Expected NATS boundary:
 
+- the privileged orchestrator creates/updates every stream and the API event
+  consumer before it launches workers; worker publishers only publish;
 - worker publish: `WHATSAPP.events.>` and generation-scoped
-  `WHATSAPP.workers.>` plus narrowly required JetStream consumer/ack APIs;
+  `WHATSAPP.workers.>` plus exact command/download stream-info, consumer
+  create/info/update, command pull, download cleanup, and ACK APIs;
 - worker subscribe: command and media-download data-plane subjects plus reply
   inboxes;
 - denied worker publish: commands, lifecycle, rollout, control, stream mutation,

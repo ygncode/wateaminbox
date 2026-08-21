@@ -4,13 +4,18 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
 	"github.com/lib/pq"
 	"github.com/stretchr/testify/require"
+
+	"github.com/ygncode-lab/whatsapp-web/services/orchestrator/internal/types"
 )
 
 func TestWorkerRegistryAcceptsRealMigration071IdentitySchema(t *testing.T) {
@@ -892,6 +897,105 @@ func TestRealPostgresLegacyArtifactNormalizationGatesRolloutAndRejectsLiveMismat
 	}})
 	require.NoError(t, err)
 	_, _ = registry.db.ExecContext(ctx, `DELETE FROM worker_upgrade_batches WHERE id = $1::uuid`, batch.ID)
+}
+
+func TestRealPostgresPreservedRolloutStopDeactivatesPIDBeforeEmptyMapLifecycle(t *testing.T) {
+	if os.Getenv("RUN_DB_INTEGRATION") != "1" {
+		t.Skip("set RUN_DB_INTEGRATION=1")
+	}
+	for _, operation := range []string{"stop", "unlink"} {
+		t.Run(operation, func(t *testing.T) {
+			if operation == "unlink" && runtime.GOOS != "linux" {
+				t.Skip("durable unlink process isolation requires Linux")
+			}
+			registry, err := NewWorkerRegistry(os.Getenv("DATABASE_URL"))
+			require.NoError(t, err)
+			t.Cleanup(func() { _ = registry.Close() })
+			ctx := context.Background()
+			companyID, _ := newLaunchID()
+			connectionID, _ := newLaunchID()
+			generation, _ := newLaunchID()
+			root, err := os.MkdirTemp("/tmp", "worker-empty-map-")
+			require.NoError(t, err)
+			t.Cleanup(func() { _ = os.RemoveAll(root) })
+			require.NoError(t, os.Chmod(root, 0o755))
+			digest := writeArtifact(t, root, "bootstrap", []byte("#!/bin/sh\nexit 0\n"))
+
+			cmd := exec.Command("/bin/sh", "-c", "trap 'exit 0' TERM; while :; do sleep 0.05; done")
+			cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+			require.NoError(t, cmd.Start())
+			t.Cleanup(func() { _ = cmd.Process.Kill(); _, _ = cmd.Process.Wait() })
+			done := make(chan struct{})
+			go func() { _ = cmd.Wait(); close(done) }()
+
+			_, err = registry.db.ExecContext(ctx, `
+				INSERT INTO worker_registry (
+					connection_id, company_id, tenant_schema, database_url, pid, status,
+					launch_id, desired_state, artifact_version, artifact_sha256
+				) VALUES ($1::uuid, $2::uuid, $3, '', $4, 'connected',
+					$5::uuid, 'running', 'bootstrap', $6)
+			`, connectionID, companyID, "tenant_"+strings.ReplaceAll(companyID, "-", "_"), cmd.Process.Pid, generation, digest)
+			require.NoError(t, err)
+			t.Cleanup(func() {
+				_, _ = registry.db.ExecContext(context.Background(), `DELETE FROM worker_registry WHERE connection_id = $1::uuid`, connectionID)
+			})
+			record, err := registry.GetWorker(ctx, connectionID)
+			require.NoError(t, err)
+			batch, err := registry.CreateWorkerUpgradeBatch(ctx, "target", strings.Repeat("9", 64), []WorkerUpgradeItemIntent{{
+				Position: 0, CompanyID: companyID, TenantSchema: record.TenantSchema,
+				ConnectionID: connectionID, SourceGeneration: generation,
+				SourceArtifactVersion: "bootstrap", SourceArtifactSHA256: digest,
+			}})
+			require.NoError(t, err)
+			t.Cleanup(func() {
+				_, _ = registry.db.ExecContext(context.Background(), `DELETE FROM worker_upgrade_batches WHERE id = $1::uuid`, batch.ID)
+			})
+			halted, err := registry.HaltWorkerUpgrade(ctx, batch.ID, companyID, record.TenantSchema, connectionID, generation, WorkerUpgradePhaseStop, WorkerUpgradePhaseStop, "", "test rollback halt")
+			require.NoError(t, err)
+			require.True(t, halted)
+
+			manager := New(Config{
+				ArtifactRoot: root, WhatsAppBinaryPath: filepath.Join(root, "bootstrap", "whatsapp-worker"),
+				DefaultArtifactVersion: "bootstrap", DefaultArtifactSHA256: digest,
+				WorkerDatabaseURL: "postgresql://wateaminbox_worker:WorkerIntegration_0123456789abcdef@postgres/wateaminbox",
+				WorkerNATSURL:     "nats://worker:WorkerIntegration_0123456789abcdef@nats:4222",
+			})
+			manager.ctx = ctx
+			manager.registry = registry
+			manager.workers[connectionID] = &WorkerProcess{
+				ID: connectionID, ConnectionID: connectionID, CompanyID: companyID,
+				TenantSchema: record.TenantSchema, LaunchID: generation,
+				DesiredState: DesiredStateRunning, ArtifactVersion: "bootstrap",
+				ArtifactSHA256: digest, BinaryPath: filepath.Join(root, "bootstrap", "whatsapp-worker"),
+				WorkerUID: record.WorkerUID, WorkerGID: record.WorkerGID,
+				PID: cmd.Process.Pid, Status: types.StatusConnected, cmd: cmd, done: done,
+			}
+			require.NoError(t, manager.stopWorkerInternal(ctx, companyID, connectionID, "rollback stop", syscall.SIGTERM, true))
+			_, exists := manager.GetWorkerStatus(connectionID)
+			require.False(t, exists, "confirmed rollout stop must leave the volatile map empty")
+			record, err = registry.GetWorker(ctx, connectionID)
+			require.NoError(t, err)
+			require.NotNil(t, record)
+			require.Zero(t, record.PID)
+			require.Equal(t, generation, record.LaunchID, "deactivation must retain the reserved generation")
+			require.Equal(t, WorkerStatusRecovering, record.Status)
+
+			switch operation {
+			case "stop":
+				require.NoError(t, manager.StopWorker(ctx, companyID, connectionID, "operator stop after halt"))
+			case "unlink":
+				require.NoError(t, manager.UnlinkWorker(ctx, companyID, connectionID, record.TenantSchema, manager.config.WorkerDatabaseURL, "operator unlink after halt"))
+				manager.wg.Wait()
+			}
+			record, err = registry.GetWorker(ctx, connectionID)
+			require.NoError(t, err)
+			require.Nil(t, record)
+			status, err := registry.GetWorkerUpgradeBatch(ctx, batch.ID)
+			require.NoError(t, err)
+			require.Equal(t, WorkerUpgradePhaseAbandoned, status.Phase)
+			require.Equal(t, WorkerUpgradeItemResultAbandonedExternal, status.Items[0].Result)
+		})
+	}
 }
 
 func TestRealPostgresEmptyMapStopRollsBackFailedAbandonmentThenRedelivers(t *testing.T) {

@@ -66,9 +66,9 @@ cp .env.production.example .env.production
 chmod 600 .env.production
 umask 077
 mkdir -p secrets
-for name in postgres_password nats_token meilisearch_master_key \
-  minio_root_user minio_root_password jwt_secret centrifugo_api_key \
-  centrifugo_token_secret; do
+for name in postgres_password worker_postgres_password nats_service_password \
+  nats_worker_password meilisearch_master_key minio_root_user \
+  minio_root_password jwt_secret centrifugo_api_key centrifugo_token_secret; do
   openssl rand -hex 32 > "secrets/$name"
 done
 # Supply the real provider key interactively; it is not echoed or put in history.
@@ -107,19 +107,24 @@ hex-only generation above matters because PostgreSQL and NATS URLs are derived
 from these values without URL encoding.
 
 There are no production credential defaults: required Compose substitutions use
-`${NAME:?…}`, containers reject unreadable/empty secret files, NATS requires a
-random token, and Meilisearch requires a master key. `S3_ACCESS_KEY_FILE` and
+`${NAME:?…}`, containers reject unreadable/empty secret files, NATS requires
+distinct service and restricted-worker passwords, PostgreSQL requires distinct
+administrator and worker passwords, and Meilisearch requires a master key. `S3_ACCESS_KEY_FILE` and
 `S3_SECRET_KEY_FILE` contain bucket-scoped R2 application credentials; MinIO root
 credentials are retained only for the legacy source/rollback service. Development credentials in `.env.example` and
 `docker-compose.yml` must never be reused.
 
-The runtime names match the applications: `DATABASE_URL` is derived by
-`secret-entrypoint.sh`; the API receives `NATS_URL` plus `NATS_TOKEN`, while the
-Go services receive a derived authenticated `NATS_URL` (logging strips URL
-user-info). API also receives
+The runtime names match the applications: `secret-entrypoint.sh` derives the
+manager `DATABASE_URL` from `postgres_password` and the privileged `NATS_URL`
+from `nats_service_password`. The orchestrator separately receives
+`WORKER_DATABASE_URL` derived from `worker_postgres_password` and
+`WORKER_NATS_URL` derived from `nats_worker_password`. Child workers receive
+only those restricted URLs through the audited allowlist; they never inherit
+the manager database or service NATS credential. API also receives
 `MEILISEARCH_API_KEY`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `JWT_SECRET`,
-`CENTRIFUGO_API_KEY`, and `CENTRIFUGO_TOKEN_HMAC_SECRET`; workers inherit the
-orchestrator's `DATABASE_URL`, `NATS_URL`, and `S3_*` values. The explicitly
+`CENTRIFUGO_API_KEY`, and `CENTRIFUGO_TOKEN_HMAC_SECRET`. Workers receive only
+the explicitly allowed S3/data-plane settings in addition to their restricted
+URLs. The explicitly
 approved root orchestrator manager generates a fresh 256-bit operational bearer
 at every container start. Only its path is passed to the Go process:
 `/run/wateaminbox-control/http-bearer-token` on a root-owned `0700` tmpfs, with
@@ -210,13 +215,19 @@ export COMPOSE='docker compose --env-file .env.production -f compose.production.
 $COMPOSE config --quiet
 $COMPOSE build --pull
 
-# Bring up dependencies, install/verify bootstrap, migrate, then start the stack.
-$COMPOSE up -d postgres nats meilisearch minio centrifugo
-$COMPOSE stop orchestrator # required before the migration-071 cutover
-$COMPOSE run --rm worker-artifact-installer
-$COMPOSE run --rm migration
+# This is the mandatory release/cutover path. Do not reorder or replace it with
+# the generic `compose up` sequence.
+$COMPOSE up -d postgres meilisearch minio
+$COMPOSE stop orchestrator             # confirms all old child workers exit
+$COMPOSE run --rm worker-artifact-installer # bootstrap exists before migration 071
+$COMPOSE run --rm migration            # applies the complete chain through 072
 $COMPOSE run --rm worker-credential-provisioner
-$COMPOSE up -d
+
+# Rotate the NATS trust boundary as one coordinated restart. Old API,
+# Centrifugo, and worker processes must not overlap the new credentials.
+$COMPOSE stop api centrifugo nats
+$COMPOSE up -d --force-recreate nats
+$COMPOSE up -d --force-recreate api centrifugo orchestrator
 $COMPOSE ps
 ```
 
@@ -239,10 +250,12 @@ version/digest before relaunching under a database-allocated UID/GID. A live
 mismatched or reused PID aborts startup without changing the row. Do not manually
 mark a row normalized or clear its PID to bypass this check.
 
-The private deployment/control-plane contract must preserve this order: quiesce
-the old orchestrator, stage bootstrap bytes, apply 071, start the new
-orchestrator, and wait for orchestrator readiness before enabling lifecycle or
-rollout requests. A rollout is prohibited while any desired-running registry row
+The private deployment/control-plane contract must use the single canonical
+procedure above: quiesce the old orchestrator and its children, stage bootstrap
+bytes, apply the full migration chain through 072, provision the restricted
+PostgreSQL login, rotate NATS/API/Centrifugo together, then start the new
+orchestrator and wait for readiness before enabling lifecycle or rollout
+requests. A rollout is prohibited while any desired-running registry row
 has `artifact_normalized = false`; private automation must treat that condition
 as a hard readiness failure, never retry a rollout around it. Verify the boundary
 before the first rollout:
@@ -390,17 +403,13 @@ verified backup.
 ## Upgrades and rollback
 
 Before an upgrade, read migration changes, take verified PostgreSQL/media
-backups, preserve the old image tag, and build/pull the new immutable tag:
-
-```sh
-# Edit APP_IMAGE_TAG and, only when it differs, WORKER_IMAGE_TAG.
-$COMPOSE config --quiet
-$COMPOSE build --pull
-$COMPOSE run --rm migration
-$COMPOSE run --rm worker-artifact-installer
-$COMPOSE up -d --remove-orphans
-$COMPOSE ps
-```
+backups, preserve the old image tag, and select new immutable application and
+worker tags. Then execute the **Build, validate, and first start** procedure
+above exactly. It is the only general release path: in particular, artifact
+installation must precede migration 071, the complete migration chain through
+072 must precede role provisioning, and the service/worker NATS credential
+boundary requires the coordinated restart. Do not substitute a shorter generic
+`migration; compose up` sequence.
 
 Check readiness, error rates, worker reconnects, NATS backlog, and a signed media
 read/write. Do not use `latest` release tags.

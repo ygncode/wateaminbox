@@ -163,18 +163,8 @@ func NewPublisher(cfg PublisherConfig) (*Publisher, error) {
 		return nil, fmt.Errorf("failed to get JetStream context: %w", err)
 	}
 
-	// Ensure the stream and the API's durable consumer exist using shared
-	// helpers. The consumer must exist before the first publish: the events
-	// stream uses interest retention, which discards messages no consumer
-	// filters for.
-	if err := sharednats.EnsureEventsStream(js); err != nil {
-		nc.Close()
-		return nil, fmt.Errorf("failed to ensure stream: %w", err)
-	}
-	if err := sharednats.EnsureStream(js, sharednats.DefaultDeadLettersStreamConfig()); err != nil {
-		nc.Close()
-		return nil, fmt.Errorf("failed to ensure dead-letter stream: %w", err)
-	}
+	// Stream and durable API-consumer provisioning belongs to the privileged
+	// orchestrator startup. Restricted workers only publish and consume.
 
 	ctx, cancel := context.WithCancel(context.Background())
 	publisher := &Publisher{

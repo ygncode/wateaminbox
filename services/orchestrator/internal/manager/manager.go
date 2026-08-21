@@ -1119,6 +1119,24 @@ func (m *Manager) stopWorkerInternal(
 		}
 	}
 
+	if preserveRegistry && m.registry != nil {
+		deactivated, deactivateErr := m.registry.DeactivateWorkerLaunch(
+			ctx, connectionID, companyID, launchID, pid,
+		)
+		if deactivateErr != nil {
+			return fmt.Errorf("deactivate confirmed-exited worker %s: %w", connectionID, deactivateErr)
+		}
+		if !deactivated {
+			return fmt.Errorf("worker %s launch or PID changed before deactivation", connectionID)
+		}
+		m.mu.Lock()
+		if current, ok := m.workers[connectionID]; ok && current.LaunchID == launchID {
+			current.PID = 0
+			current.Status = WorkerStatusRecovering
+		}
+		m.mu.Unlock()
+	}
+
 	if stopSignal == syscall.SIGUSR1 && worker.cmd != nil && worker.exitErr != nil {
 		m.mu.Lock()
 		if current, ok := m.workers[connectionID]; ok && current.LaunchID == launchID {

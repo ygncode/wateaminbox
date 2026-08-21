@@ -37,6 +37,11 @@ done
 docker exec "$container" wget -q -O /dev/null http://127.0.0.1:8222/healthz
 
 cd "$ROOT/services/shared"
-NATS_SERVICE_TEST_URL="nats://service:ServicePermissionTest_0123456789abcdef@127.0.0.1:$port" \
-NATS_WORKER_TEST_URL="nats://worker:WorkerPermissionTest_0123456789abcdef0@127.0.0.1:$port" \
+service_url="nats://service:ServicePermissionTest_0123456789abcdef@127.0.0.1:$port"
+worker_url="nats://worker:WorkerPermissionTest_0123456789abcdef0@127.0.0.1:$port"
+NATS_SERVICE_TEST_URL="$service_url" NATS_WORKER_TEST_URL="$worker_url" \
   go test -count=1 -run TestRestrictedWorkerNATSPermissionMatrix ./nats
+
+cd "$ROOT/services/whatsapp"
+NATS_SERVICE_TEST_URL="$service_url" NATS_WORKER_TEST_URL="$worker_url" \
+  go test -count=1 -run TestRestrictedWorkerNATSStartsProductionClients ./internal/handler

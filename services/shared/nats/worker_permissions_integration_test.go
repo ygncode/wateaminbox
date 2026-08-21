@@ -35,6 +35,8 @@ func TestRestrictedWorkerNATSPermissionMatrix(t *testing.T) {
 	for _, subject := range []string{
 		"WHATSAPP.events.company.connection.message",
 		"WHATSAPP.workers.company.connection.launch.status",
+		"$JS.API.STREAM.INFO.WHATSAPP_COMMANDS",
+		"$JS.API.STREAM.INFO.WHATSAPP_DOWNLOADS",
 	} {
 		expectNATSPublish(t, workerURL, subject, true)
 	}
@@ -44,7 +46,16 @@ func TestRestrictedWorkerNATSPermissionMatrix(t *testing.T) {
 		"WHATSAPP.control.stop",
 		"WHATSAPP.lifecycle.unlink",
 		"WHATSAPP.rollouts.start",
+		"$JS.API.STREAM.NAMES",
+		"$JS.API.STREAM.INFO.WHATSAPP_EVENTS",
+		"$JS.API.STREAM.INFO.WHATSAPP_DEAD_LETTERS",
+		"$JS.API.CONSUMER.INFO.WHATSAPP_DOWNLOADS.unrelated-consumer",
+		"$JS.API.CONSUMER.DURABLE.CREATE.WHATSAPP_COMMANDS.unrelated-consumer",
+		"$JS.API.STREAM.CREATE.WHATSAPP_EVENTS",
+		"$JS.API.STREAM.UPDATE.WHATSAPP_EVENTS",
 		"$JS.API.STREAM.DELETE.WHATSAPP_COMMANDS",
+		"$JS.API.CONSUMER.DELETE.WHATSAPP_COMMANDS.worker-permission-test",
+		"$JS.API.CONSUMER.DELETE.WHATSAPP_EVENTS.unrelated-consumer",
 		"unrelated.subject",
 	} {
 		expectNATSPublish(t, workerURL, subject, false)
@@ -85,7 +96,9 @@ func TestRestrictedWorkerNATSPermissionMatrix(t *testing.T) {
 		t.Fatalf("worker could not create its command consumer: %v", err)
 	}
 	t.Cleanup(func() { _ = serviceJS.DeleteConsumer(StreamCommands, consumer) })
-	sub, err := workerJS.PullSubscribe("WHATSAPP.commands.company.connection", consumer)
+	sub, err := workerJS.PullSubscribe(
+		"WHATSAPP.commands.company.connection", consumer, gnats.BindStream(StreamCommands),
+	)
 	if err != nil {
 		t.Fatalf("worker could not bind command consumer: %v", err)
 	}
@@ -107,22 +120,34 @@ func TestRestrictedWorkerNATSPermissionMatrix(t *testing.T) {
 	downloadSub, err := workerJS.Subscribe(
 		"WHATSAPP.download.company.connection.request",
 		func(message *gnats.Msg) { downloads <- message },
-		gnats.DeliverNew(), gnats.AckExplicit(), gnats.MaxDeliver(3),
+		gnats.BindStream(StreamDownloads), gnats.DeliverNew(), gnats.AckExplicit(),
+		gnats.ManualAck(), gnats.MaxDeliver(3),
 	)
 	if err != nil {
 		t.Fatalf("worker could not create media-download consumer: %v", err)
 	}
-	defer downloadSub.Unsubscribe()
+	var downloadConsumerName string
 	if _, err = serviceJS.Publish("WHATSAPP.download.company.connection.request", []byte("download")); err != nil {
 		t.Fatal(err)
 	}
 	select {
 	case message := <-downloads:
+		metadata, metadataErr := message.Metadata()
+		if metadataErr != nil {
+			t.Fatalf("worker could not read media-download metadata: %v", metadataErr)
+		}
+		downloadConsumerName = metadata.Consumer
 		if err = message.AckSync(); err != nil {
 			t.Fatalf("worker could not ack media download: %v", err)
 		}
 	case <-time.After(2 * time.Second):
 		t.Fatal("worker did not receive media-download request")
+	}
+	if err = downloadSub.Unsubscribe(); err != nil {
+		t.Fatalf("worker could not clean up its ephemeral media-download consumer: %v", err)
+	}
+	if _, err = serviceJS.ConsumerInfo(StreamDownloads, downloadConsumerName); err != gnats.ErrConsumerNotFound {
+		t.Fatalf("media-download consumer was not deleted on unsubscribe: %v", err)
 	}
 }
 

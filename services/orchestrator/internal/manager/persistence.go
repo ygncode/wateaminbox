@@ -317,6 +317,29 @@ func (r *WorkerRegistry) ActivateWorkerLaunch(ctx context.Context, w *WorkerProc
 	return nil
 }
 
+// DeactivateWorkerLaunch clears a confirmed-exited process while preserving
+// the exact reserved generation for rollout or shutdown recovery. The PID
+// fence prevents a stale waiter from deactivating a replacement process.
+func (r *WorkerRegistry) DeactivateWorkerLaunch(
+	ctx context.Context,
+	connectionID, companyID, launchID string,
+	pid int,
+) (bool, error) {
+	result, err := r.db.ExecContext(ctx, `
+		UPDATE worker_registry
+		SET pid = 0, status = $1, last_heartbeat = now()
+		WHERE connection_id = $2 AND company_id = $3 AND launch_id = $4 AND pid = $5
+	`, WorkerStatusRecovering, connectionID, companyID, launchID, pid)
+	if err != nil {
+		return false, fmt.Errorf("failed to deactivate worker launch: %w", err)
+	}
+	updated, err := result.RowsAffected()
+	if err != nil {
+		return false, fmt.Errorf("inspect worker launch deactivation: %w", err)
+	}
+	return updated == 1, nil
+}
+
 // RemoveWorkerLaunch deletes only the specified tenant-owned launch. A stale
 // callback therefore cannot remove a newer launch's row.
 func (r *WorkerRegistry) RemoveWorkerLaunch(ctx context.Context, connectionID, companyID, launchID string) (bool, error) {
