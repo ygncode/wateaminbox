@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -41,6 +42,7 @@ func launchWorker(companyID string) *WorkerProcess {
 		LaunchID:        mustLaunchID(),
 		DesiredState:    "running",
 		ArtifactVersion: defaultArtifactVersion,
+		ArtifactSHA256:  strings.Repeat("a", 64),
 	}
 }
 

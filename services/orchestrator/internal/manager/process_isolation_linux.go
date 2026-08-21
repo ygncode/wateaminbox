@@ -51,6 +51,10 @@ func newWorkerSysProcAttr(uid, gid int) (*syscall.SysProcAttr, error) {
 	return attr, nil
 }
 
+func legacyWorkerProcessCredentialsMatch(pid int) (bool, error) {
+	return processCredentialsMatch(pid, 10001, 10001)
+}
+
 func workerProcessCredentialsMatch(pid, expectedUID, expectedGID int) (bool, error) {
 	if expectedUID == 0 && expectedGID == 0 {
 		return true, nil
@@ -58,6 +62,10 @@ func workerProcessCredentialsMatch(pid, expectedUID, expectedGID int) (bool, err
 	if err := validateWorkerIdentity(expectedUID, expectedGID); err != nil {
 		return false, err
 	}
+	return processCredentialsMatch(pid, expectedUID, expectedGID)
+}
+
+func processCredentialsMatch(pid, expectedUID, expectedGID int) (bool, error) {
 	file, err := os.Open(fmt.Sprintf("/proc/%d/status", pid))
 	if err != nil {
 		return false, err

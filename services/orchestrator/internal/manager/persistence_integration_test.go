@@ -2,10 +2,14 @@ package manager
 
 import (
 	"context"
+	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/lib/pq"
 	"github.com/stretchr/testify/require"
 )
 
@@ -695,4 +699,284 @@ func TestRealPostgresBatchWideRollbackTerminalContract(t *testing.T) {
 			require.Equal(t, WorkerUpgradeItemResultRollbackComplete, item.Result)
 		}
 	}
+}
+
+func TestRealPostgresVerifyRefreshPersistenceFailureKeepsRecoveryGenerationRetryable(t *testing.T) {
+	if os.Getenv("RUN_DB_INTEGRATION") != "1" {
+		t.Skip("set RUN_DB_INTEGRATION=1")
+	}
+	registry, err := NewWorkerRegistry(os.Getenv("DATABASE_URL"))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = registry.Close() })
+	ctx := context.Background()
+	companyID, _ := newLaunchID()
+	connectionID, _ := newLaunchID()
+	sourceGeneration, _ := newLaunchID()
+	targetGeneration, _ := newLaunchID()
+	recoveryGeneration, _ := newLaunchID()
+	sourceDigest := "9191919191919191919191919191919191919191919191919191919191919191"
+	targetDigest := "9292929292929292929292929292929292929292929292929292929292929292"
+	_, err = registry.db.ExecContext(ctx, `
+		INSERT INTO worker_registry (
+			connection_id, company_id, tenant_schema, database_url, pid, status,
+			launch_id, desired_state, artifact_version, artifact_sha256
+		) VALUES ($1::uuid, $2::uuid, 'tenant_refresh_retry', '', 0, 'error',
+			$3::uuid, 'running', 'source', $4)
+	`, connectionID, companyID, sourceGeneration, sourceDigest)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_, _ = registry.db.ExecContext(context.Background(), `DELETE FROM worker_registry WHERE connection_id = $1::uuid`, connectionID)
+	})
+	batch, err := registry.CreateWorkerUpgradeBatch(ctx, "target", targetDigest, []WorkerUpgradeItemIntent{{
+		Position: 0, CompanyID: companyID, TenantSchema: "tenant_refresh_retry",
+		ConnectionID: connectionID, SourceGeneration: sourceGeneration,
+		SourceArtifactVersion: "source", SourceArtifactSHA256: sourceDigest,
+	}})
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_, _ = registry.db.ExecContext(context.Background(), `DELETE FROM worker_upgrade_batches WHERE id = $1::uuid`, batch.ID)
+	})
+	item := batch.Items[0]
+	advanced, err := registry.AdvanceWorkerUpgradeItem(ctx, batch.ID, companyID, item.TenantSchema, connectionID, sourceGeneration, WorkerUpgradePhaseStop, WorkerUpgradePhaseLaunch, "", "")
+	require.NoError(t, err)
+	require.True(t, advanced)
+	advanced, err = registry.AdvanceWorkerUpgradeItem(ctx, batch.ID, companyID, item.TenantSchema, connectionID, sourceGeneration, WorkerUpgradePhaseLaunch, WorkerUpgradePhaseVerify, targetGeneration, "")
+	require.NoError(t, err)
+	require.True(t, advanced)
+	advanced, err = registry.BeginWorkerUpgradeVerifyRefresh(ctx, batch.ID, companyID, item.TenantSchema, connectionID, sourceGeneration, targetGeneration)
+	require.NoError(t, err)
+	require.True(t, advanced)
+	advanced, err = registry.ReserveWorkerUpgradeGeneration(ctx, batch.ID, companyID, item.TenantSchema, connectionID, sourceGeneration, WorkerUpgradePhaseRecovery, "recovery_generation", recoveryGeneration)
+	require.NoError(t, err)
+	require.True(t, advanced)
+	_, err = registry.db.ExecContext(ctx, `
+		UPDATE worker_registry SET launch_id = $1::uuid, artifact_version = 'target',
+			artifact_sha256 = $2, worker_uid = nextval('worker_os_identity_seq')
+		WHERE connection_id = $3::uuid
+	`, recoveryGeneration, targetDigest, connectionID)
+	require.NoError(t, err)
+
+	triggerName := "fail_refresh_" + strings.ReplaceAll(connectionID, "-", "")
+	functionName := triggerName + "_fn"
+	_, err = registry.db.ExecContext(ctx, fmt.Sprintf(`
+		CREATE FUNCTION %s() RETURNS trigger LANGUAGE plpgsql AS $$
+		BEGIN
+			IF OLD.id = %s::uuid AND NEW.phase = 'verify' THEN
+				RAISE EXCEPTION 'injected verify-refresh persistence failure';
+			END IF;
+			RETURN NEW;
+		END $$;
+		CREATE TRIGGER %s BEFORE UPDATE ON worker_upgrade_items
+		FOR EACH ROW EXECUTE FUNCTION %s()
+	`, pq.QuoteIdentifier(functionName), pq.QuoteLiteral(item.ID), pq.QuoteIdentifier(triggerName), pq.QuoteIdentifier(functionName)))
+	require.NoError(t, err)
+	dropTrigger := func() {
+		_, _ = registry.db.ExecContext(context.Background(), fmt.Sprintf(
+			`DROP TRIGGER IF EXISTS %s ON worker_upgrade_items; DROP FUNCTION IF EXISTS %s()`,
+			pq.QuoteIdentifier(triggerName), pq.QuoteIdentifier(functionName),
+		))
+	}
+	t.Cleanup(dropTrigger)
+	advanced, err = registry.CompleteWorkerUpgradeVerifyRefresh(ctx, batch.ID, companyID, item.TenantSchema, connectionID, sourceGeneration, targetGeneration, recoveryGeneration)
+	require.ErrorContains(t, err, "injected verify-refresh persistence failure")
+	require.False(t, advanced)
+	dropTrigger()
+
+	recovered, err := registry.GetWorkerUpgradeBatch(ctx, batch.ID)
+	require.NoError(t, err)
+	require.Equal(t, WorkerUpgradePhaseRecovery, recovered.Items[0].Phase)
+	require.Equal(t, recoveryGeneration, recovered.Items[0].RecoveryGeneration)
+	halted, err := registry.HaltWorkerUpgrade(ctx, batch.ID, companyID, item.TenantSchema, connectionID, sourceGeneration, WorkerUpgradePhaseRecovery, WorkerUpgradePhaseStop, targetGeneration, "refresh completion failed")
+	require.NoError(t, err)
+	require.True(t, halted)
+
+	// A replacement orchestrator must accept only the exact claimed recovery
+	// generation as the rollback predecessor.
+	restarted, err := NewWorkerRegistry(os.Getenv("DATABASE_URL"))
+	require.NoError(t, err)
+	defer restarted.Close()
+	newerGeneration, _ := newLaunchID()
+	_, err = restarted.db.ExecContext(ctx, `
+		UPDATE worker_registry SET launch_id = $1::uuid
+		WHERE connection_id = $2::uuid
+	`, newerGeneration, connectionID)
+	require.NoError(t, err)
+	resumed, err := restarted.ResumeHaltedWorkerUpgradeRollback(ctx, batch.ID, connectionID)
+	require.NoError(t, err)
+	require.False(t, resumed, "retry accepted an unreserved newer generation")
+	_, err = restarted.db.ExecContext(ctx, `
+		UPDATE worker_registry SET launch_id = $1::uuid
+		WHERE connection_id = $2::uuid
+	`, recoveryGeneration, connectionID)
+	require.NoError(t, err)
+	resumed, err = restarted.ResumeHaltedWorkerUpgradeRollback(ctx, batch.ID, connectionID)
+	require.NoError(t, err)
+	require.True(t, resumed)
+	retried, err := restarted.GetWorkerUpgradeBatch(ctx, batch.ID)
+	require.NoError(t, err)
+	require.Equal(t, WorkerUpgradePhaseRollback, retried.Items[0].Phase)
+	record, err := restarted.GetWorker(ctx, connectionID)
+	require.NoError(t, err)
+	fenced, err := restarted.FenceWorkerUpgradeOwnedLaunch(ctx, batch.ID, companyID, item.TenantSchema, connectionID, sourceGeneration, WorkerUpgradePhaseRollback, WorkerUpgradeLiveFence{
+		LaunchID: recoveryGeneration, ArtifactVersion: "target", ArtifactSHA256: targetDigest,
+		WorkerUID: record.WorkerUID, WorkerGID: record.WorkerGID,
+	})
+	require.NoError(t, err)
+	require.True(t, fenced)
+}
+
+func TestRealPostgresLegacyArtifactNormalizationGatesRolloutAndRejectsLiveMismatch(t *testing.T) {
+	if os.Getenv("RUN_DB_INTEGRATION") != "1" {
+		t.Skip("set RUN_DB_INTEGRATION=1")
+	}
+	registry, err := NewWorkerRegistry(os.Getenv("DATABASE_URL"))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = registry.Close() })
+	ctx := context.Background()
+	companyID, _ := newLaunchID()
+	connectionID, _ := newLaunchID()
+	generation, _ := newLaunchID()
+	digest := "9393939393939393939393939393939393939393939393939393939393939393"
+	_, err = registry.db.ExecContext(ctx, `
+		INSERT INTO worker_registry (
+			connection_id, company_id, tenant_schema, database_url, pid, status,
+			launch_id, desired_state, artifact_version, artifact_sha256,
+			artifact_normalized
+		) VALUES ($1::uuid, $2::uuid, 'tenant_legacy_boundary', '', $3, 'connected',
+			$4::uuid, 'running', 'embedded', '', false)
+	`, connectionID, companyID, os.Getpid(), generation)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_, _ = registry.db.ExecContext(context.Background(), `DELETE FROM worker_registry WHERE connection_id = $1::uuid`, connectionID)
+	})
+	_, err = registry.CreateWorkerUpgradeBatch(ctx, "target", strings.Repeat("9", 64), []WorkerUpgradeItemIntent{{
+		Position: 0, CompanyID: companyID, TenantSchema: "tenant_legacy_boundary",
+		ConnectionID: connectionID, SourceGeneration: generation,
+		SourceArtifactVersion: "embedded", SourceArtifactSHA256: "",
+	}})
+	require.ErrorIs(t, err, ErrWorkerArtifactNormalization)
+
+	root := t.TempDir()
+	artifactDir := filepath.Join(root, "bootstrap")
+	require.NoError(t, os.MkdirAll(artifactDir, 0o755))
+	binary := filepath.Join(artifactDir, "whatsapp-worker")
+	require.NoError(t, os.WriteFile(binary, []byte("bootstrap-live-row-test"), 0o755))
+	actualDigest, err := sha256File(binary)
+	require.NoError(t, err)
+	manager := New(Config{
+		ArtifactRoot: root, WhatsAppBinaryPath: binary,
+		DefaultArtifactVersion: "bootstrap", DefaultArtifactSHA256: actualDigest,
+	})
+	manager.ctx = context.Background()
+	manager.registry = registry
+	err = manager.recoverOrphanedWorkers(ctx)
+	require.ErrorContains(t, err, "legacy worker")
+	var normalized bool
+	var persistedDigest string
+	require.NoError(t, registry.db.QueryRowContext(ctx, `
+		SELECT artifact_normalized, artifact_sha256 FROM worker_registry
+		WHERE connection_id = $1::uuid
+	`, connectionID).Scan(&normalized, &persistedDigest))
+	require.False(t, normalized)
+	require.Empty(t, persistedDigest, "a mismatched live PID must remain unnormalized")
+
+	_, err = registry.db.ExecContext(ctx, `UPDATE worker_registry SET pid = 0 WHERE connection_id = $1::uuid`, connectionID)
+	require.NoError(t, err)
+	normalizedNow, err := registry.NormalizeLegacyWorkerArtifact(ctx, connectionID, companyID, "tenant_legacy_boundary", generation, "bootstrap", digest)
+	require.NoError(t, err)
+	require.True(t, normalizedNow)
+	batch, err := registry.CreateWorkerUpgradeBatch(ctx, "target", strings.Repeat("8", 64), []WorkerUpgradeItemIntent{{
+		Position: 0, CompanyID: companyID, TenantSchema: "tenant_legacy_boundary",
+		ConnectionID: connectionID, SourceGeneration: generation,
+		SourceArtifactVersion: "bootstrap", SourceArtifactSHA256: digest,
+	}})
+	require.NoError(t, err)
+	_, _ = registry.db.ExecContext(ctx, `DELETE FROM worker_upgrade_batches WHERE id = $1::uuid`, batch.ID)
+}
+
+func TestRealPostgresEmptyMapStopRollsBackFailedAbandonmentThenRedelivers(t *testing.T) {
+	if os.Getenv("RUN_DB_INTEGRATION") != "1" {
+		t.Skip("set RUN_DB_INTEGRATION=1")
+	}
+	registry, err := NewWorkerRegistry(os.Getenv("DATABASE_URL"))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = registry.Close() })
+	ctx := context.Background()
+	companyID, _ := newLaunchID()
+	connectionID, _ := newLaunchID()
+	generation, _ := newLaunchID()
+	root := t.TempDir()
+	digest := writeArtifact(t, root, "bootstrap", []byte("#!/bin/sh\nexit 0\n"))
+	_, err = registry.db.ExecContext(ctx, `
+		INSERT INTO worker_registry (
+			connection_id, company_id, tenant_schema, database_url, pid, status,
+			launch_id, desired_state, artifact_version, artifact_sha256
+		) VALUES ($1::uuid, $2::uuid, 'tenant_empty_map', '', 0, 'error',
+			$3::uuid, 'running', 'bootstrap', $4)
+	`, connectionID, companyID, generation, digest)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_, _ = registry.db.ExecContext(context.Background(), `DELETE FROM worker_registry WHERE connection_id = $1::uuid`, connectionID)
+	})
+	batch, err := registry.CreateWorkerUpgradeBatch(ctx, "target", strings.Repeat("7", 64), []WorkerUpgradeItemIntent{{
+		Position: 0, CompanyID: companyID, TenantSchema: "tenant_empty_map",
+		ConnectionID: connectionID, SourceGeneration: generation,
+		SourceArtifactVersion: "bootstrap", SourceArtifactSHA256: digest,
+	}})
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_, _ = registry.db.ExecContext(context.Background(), `DELETE FROM worker_upgrade_batches WHERE id = $1::uuid`, batch.ID)
+	})
+	halted, err := registry.HaltWorkerUpgrade(ctx, batch.ID, companyID, "tenant_empty_map", connectionID, generation, WorkerUpgradePhaseStop, WorkerUpgradePhaseStop, "", "test halt")
+	require.NoError(t, err)
+	require.True(t, halted)
+
+	triggerName := "fail_abandon_" + strings.ReplaceAll(connectionID, "-", "")
+	functionName := triggerName + "_fn"
+	_, err = registry.db.ExecContext(ctx, fmt.Sprintf(`
+		CREATE FUNCTION %s() RETURNS trigger LANGUAGE plpgsql AS $$
+		BEGIN
+			IF OLD.id = %s::uuid AND NEW.phase = 'abandoned' THEN
+				RAISE EXCEPTION 'injected abandonment persistence failure';
+			END IF;
+			RETURN NEW;
+		END $$;
+		CREATE TRIGGER %s BEFORE UPDATE ON worker_upgrade_batches
+		FOR EACH ROW EXECUTE FUNCTION %s()
+	`, pq.QuoteIdentifier(functionName), pq.QuoteLiteral(batch.ID), pq.QuoteIdentifier(triggerName), pq.QuoteIdentifier(functionName)))
+	require.NoError(t, err)
+	dropTrigger := func() {
+		_, _ = registry.db.ExecContext(context.Background(), fmt.Sprintf(
+			`DROP TRIGGER IF EXISTS %s ON worker_upgrade_batches; DROP FUNCTION IF EXISTS %s()`,
+			pq.QuoteIdentifier(triggerName), pq.QuoteIdentifier(functionName),
+		))
+	}
+	t.Cleanup(dropTrigger)
+
+	manager := New(Config{ArtifactRoot: root, WhatsAppBinaryPath: filepath.Join(root, "bootstrap", "whatsapp-worker")})
+	manager.ctx = context.Background()
+	manager.registry = registry
+	err = manager.StopWorker(ctx, companyID, connectionID, "operator stop")
+	require.ErrorContains(t, err, "injected abandonment persistence failure")
+	record, err := registry.GetWorker(ctx, connectionID)
+	require.NoError(t, err)
+	require.Equal(t, DesiredStateRunning, record.DesiredState, "registry intent escaped the failed transaction")
+	status, err := registry.GetWorkerUpgradeBatch(ctx, batch.ID)
+	require.NoError(t, err)
+	require.Equal(t, WorkerUpgradePhaseHalted, status.Phase)
+	require.Nil(t, status.CompletedAt)
+	dropTrigger()
+
+	// Simulate command redelivery to a replacement manager with an empty map.
+	restarted := New(Config{ArtifactRoot: root, WhatsAppBinaryPath: filepath.Join(root, "bootstrap", "whatsapp-worker")})
+	restarted.ctx = context.Background()
+	restarted.registry = registry
+	require.NoError(t, restarted.StopWorker(ctx, companyID, connectionID, "operator stop redelivery"))
+	record, err = registry.GetWorker(ctx, connectionID)
+	require.NoError(t, err)
+	require.Nil(t, record)
+	status, err = registry.GetWorkerUpgradeBatch(ctx, batch.ID)
+	require.NoError(t, err)
+	require.Equal(t, WorkerUpgradePhaseAbandoned, status.Phase)
+	require.Equal(t, WorkerUpgradeItemResultAbandonedExternal, status.Items[0].Result)
 }

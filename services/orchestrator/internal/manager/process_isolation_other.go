@@ -30,6 +30,10 @@ func newWorkerSysProcAttr(uid, gid int) (*syscall.SysProcAttr, error) {
 	return &syscall.SysProcAttr{Setpgid: true}, nil
 }
 
+func legacyWorkerProcessCredentialsMatch(_ int) (bool, error) {
+	return false, fmt.Errorf("legacy worker credential validation is supported only on Linux")
+}
+
 func workerProcessCredentialsMatch(_ int, expectedUID, expectedGID int) (bool, error) {
 	if expectedUID != 0 || expectedGID != 0 {
 		return false, fmt.Errorf("durable worker credential validation is supported only on Linux")

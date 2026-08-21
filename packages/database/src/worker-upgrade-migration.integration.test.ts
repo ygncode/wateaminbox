@@ -53,27 +53,41 @@ describe("worker upgrade migration 071", () => {
             UPDATE worker_registry SET status = 'recovering'
             WHERE connection_id = ${connectionID}::uuid
           `.execute(connection);
-          const legacyConnectionID = crypto.randomUUID();
+          const normalizedConnectionID = crypto.randomUUID();
+          await expect(
+            sql`
+              INSERT INTO worker_registry (
+                connection_id, company_id, tenant_schema, launch_id, status
+              ) VALUES (
+                ${normalizedConnectionID}::uuid, ${companyID}::uuid,
+                'tenant_company', ${crypto.randomUUID()}::uuid, 'connected'
+              )
+            `.execute(connection),
+          ).rejects.toThrow();
           await sql`
             INSERT INTO worker_registry (
-              connection_id, company_id, tenant_schema, launch_id, status
+              connection_id, company_id, tenant_schema, launch_id, status,
+              artifact_version, artifact_sha256
             ) VALUES (
-              ${legacyConnectionID}::uuid, ${companyID}::uuid,
-              'tenant_company', ${crypto.randomUUID()}::uuid, 'connected'
+              ${normalizedConnectionID}::uuid, ${companyID}::uuid,
+              'tenant_company', ${crypto.randomUUID()}::uuid, 'connected',
+              'bootstrap', ${"a".repeat(64)}
             )
           `.execute(connection);
           const legacyArtifact = await sql<{
             artifact_version: string;
             artifact_sha256: string;
+            artifact_normalized: boolean;
             worker_uid: number;
             worker_gid: number;
           }>`
-            SELECT artifact_version, artifact_sha256, worker_uid, worker_gid
+            SELECT artifact_version, artifact_sha256, artifact_normalized, worker_uid, worker_gid
             FROM worker_registry
-            WHERE connection_id = ${legacyConnectionID}::uuid
+            WHERE connection_id = ${connectionID}::uuid
           `.execute(connection);
           expect(legacyArtifact.rows[0]?.artifact_version).toBe("embedded");
           expect(legacyArtifact.rows[0]?.artifact_sha256).toBe("");
+          expect(legacyArtifact.rows[0]?.artifact_normalized).toBe(false);
           expect(legacyArtifact.rows[0]?.worker_uid).toBeGreaterThanOrEqual(
             100000,
           );
@@ -104,10 +118,12 @@ describe("worker upgrade migration 071", () => {
             worker_gid: number;
           }>`
             INSERT INTO worker_registry (
-              connection_id, company_id, tenant_schema, launch_id, status
+              connection_id, company_id, tenant_schema, launch_id, status,
+              artifact_version, artifact_sha256
             ) VALUES (
               ${connectionID}::uuid, ${companyID}::uuid,
-              'tenant_company', ${crypto.randomUUID()}::uuid, 'connecting'
+              'tenant_company', ${crypto.randomUUID()}::uuid, 'connecting',
+              'bootstrap', ${"a".repeat(64)}
             )
             ON CONFLICT (connection_id) DO UPDATE
               SET launch_id = EXCLUDED.launch_id,
@@ -121,8 +137,9 @@ describe("worker upgrade migration 071", () => {
           await expect(
             sql`
               UPDATE worker_registry
-              SET artifact_version = '../escape', artifact_sha256 = 'bad'
-              WHERE connection_id = ${legacyConnectionID}::uuid
+              SET artifact_version = '../escape', artifact_sha256 = 'bad',
+                  artifact_normalized = true
+              WHERE connection_id = ${normalizedConnectionID}::uuid
             `.execute(connection),
           ).rejects.toThrow();
 
@@ -217,7 +234,8 @@ describe("worker upgrade migration 071", () => {
             WHERE table_schema = ${schema}
               AND table_name = 'worker_registry'
               AND column_name IN (
-                'artifact_version', 'artifact_sha256', 'worker_uid', 'worker_gid'
+                'artifact_version', 'artifact_sha256', 'artifact_normalized',
+                'worker_uid', 'worker_gid'
               )
           `.execute(connection);
           expect(removed.rows[0]?.count).toBe(0);

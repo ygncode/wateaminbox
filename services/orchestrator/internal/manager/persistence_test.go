@@ -186,6 +186,10 @@ func TestCreateWorkerUpgradeBatchPersistsAllSnapshotsBeforeCommit(t *testing.T) 
 		SourceArtifactVersion: "v1", SourceArtifactSHA256: "source-digest",
 	}
 	mock.ExpectBegin()
+	mock.ExpectExec(regexp.QuoteMeta("LOCK TABLE worker_registry IN SHARE MODE")).
+		WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectQuery(regexp.QuoteMeta("SELECT COUNT(*) FROM worker_registry WHERE desired_state = 'running' AND NOT artifact_normalized")).
+		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
 	mock.ExpectQuery(regexp.QuoteMeta("INSERT INTO worker_upgrade_batches")).
 		WithArgs("v2", "target-digest").
 		WillReturnRows(sqlmock.NewRows([]string{
@@ -214,6 +218,10 @@ func TestCreateWorkerUpgradeBatchRollsBackOnStaleSnapshot(t *testing.T) {
 	registry, mock := newMockRegistry(t)
 	now := time.Now()
 	mock.ExpectBegin()
+	mock.ExpectExec(regexp.QuoteMeta("LOCK TABLE worker_registry IN SHARE MODE")).
+		WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectQuery(regexp.QuoteMeta("SELECT COUNT(*) FROM worker_registry WHERE desired_state = 'running' AND NOT artifact_normalized")).
+		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
 	mock.ExpectQuery(regexp.QuoteMeta("INSERT INTO worker_upgrade_batches")).
 		WithArgs("v2", "digest").
 		WillReturnRows(sqlmock.NewRows([]string{

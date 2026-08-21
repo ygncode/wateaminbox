@@ -20,6 +20,7 @@ var (
 	ErrWorkerLaunchConflict          = errors.New("worker launch claim conflict")
 	ErrWorkerUpgradeBatchActive      = errors.New("a worker upgrade batch is already active")
 	ErrWorkerUpgradeSnapshotConflict = errors.New("worker upgrade snapshot no longer matches the source generation")
+	ErrWorkerArtifactNormalization   = errors.New("worker artifact normalization is incomplete")
 )
 
 const (
@@ -163,7 +164,7 @@ func NewWorkerRegistry(databaseURL string) (*WorkerRegistry, error) {
 		SELECT
 			(SELECT COUNT(*) FROM information_schema.columns
 			 WHERE table_schema = 'public' AND table_name = 'worker_registry'
-				AND column_name IN ('artifact_version', 'artifact_sha256', 'worker_uid', 'worker_gid'))
+				AND column_name IN ('artifact_version', 'artifact_sha256', 'artifact_normalized', 'worker_uid', 'worker_gid'))
 			+
 			(SELECT COUNT(*) FROM information_schema.tables
 			 WHERE table_schema = 'public'
@@ -179,7 +180,7 @@ func NewWorkerRegistry(databaseURL string) (*WorkerRegistry, error) {
 		_ = db.Close()
 		return nil, fmt.Errorf("failed to verify worker upgrade schema: %w", err)
 	}
-	if upgradeSchemaObjects != 9 {
+	if upgradeSchemaObjects != 10 {
 		_ = db.Close()
 		return nil, fmt.Errorf("worker upgrade migration is not applied")
 	}
@@ -210,6 +211,20 @@ func NewWorkerRegistry(databaseURL string) (*WorkerRegistry, error) {
 				WHERE schemaname = 'public' AND tablename = 'worker_registry'
 					AND indexname = 'worker_registry_worker_uid_key'
 					AND indexdef LIKE 'CREATE UNIQUE INDEX%'
+			)
+			AND EXISTS (
+				SELECT 1 FROM information_schema.columns
+				WHERE table_schema = 'public' AND table_name = 'worker_registry'
+					AND column_name = 'artifact_normalized' AND is_nullable = 'NO'
+					AND column_default = 'true'
+			)
+			AND EXISTS (
+				SELECT 1 FROM pg_constraint constraint_row
+				JOIN pg_class table_row ON table_row.oid = constraint_row.conrelid
+				JOIN pg_namespace schema_row ON schema_row.oid = table_row.relnamespace
+				WHERE schema_row.nspname = 'public'
+					AND table_row.relname = 'worker_registry'
+					AND constraint_row.conname = 'worker_registry_artifact_normalization_check'
 			)
 	`).Scan(&safeWorkerIdentitySchema); err != nil {
 		_ = db.Close()
@@ -245,8 +260,8 @@ func (r *WorkerRegistry) ClaimWorkerLaunch(ctx context.Context, w *WorkerProcess
 		expected = expectedLaunchID
 	}
 	err := r.db.QueryRowContext(ctx, `
-		INSERT INTO worker_registry (connection_id, company_id, tenant_schema, database_url, pid, status, started_at, last_heartbeat, restart_count, launch_id, desired_state, artifact_version, artifact_sha256)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $7, $8, $9, $10, $11, $12)
+		INSERT INTO worker_registry (connection_id, company_id, tenant_schema, database_url, pid, status, started_at, last_heartbeat, restart_count, launch_id, desired_state, artifact_version, artifact_sha256, artifact_normalized)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $7, $8, $9, $10, $11, $12, true)
 		ON CONFLICT (connection_id) DO UPDATE SET
 			tenant_schema = EXCLUDED.tenant_schema,
 			database_url = EXCLUDED.database_url,
@@ -259,6 +274,7 @@ func (r *WorkerRegistry) ClaimWorkerLaunch(ctx context.Context, w *WorkerProcess
 			desired_state = EXCLUDED.desired_state,
 			artifact_version = EXCLUDED.artifact_version,
 			artifact_sha256 = EXCLUDED.artifact_sha256,
+			artifact_normalized = true,
 			worker_uid = EXCLUDED.worker_uid
 		WHERE worker_registry.company_id = EXCLUDED.company_id
 			AND worker_registry.launch_id IS NOT DISTINCT FROM $13::uuid
@@ -503,6 +519,33 @@ func (r *WorkerRegistry) SetDesiredStateAndAbandonHaltedUpgrade(
 	return true, abandoned, nil
 }
 
+// NormalizeLegacyWorkerArtifact crosses the migration bootstrap boundary only
+// after the caller has proved the old UID-10001 process is gone. The exact
+// tenant generation is retained for the following ordinary launch CAS.
+func (r *WorkerRegistry) NormalizeLegacyWorkerArtifact(
+	ctx context.Context, connectionID, companyID, tenantSchema, launchID,
+	artifactVersion, artifactSHA256 string,
+) (bool, error) {
+	result, err := r.db.ExecContext(ctx, `
+		UPDATE worker_registry
+		SET artifact_version = $1, artifact_sha256 = $2,
+			artifact_normalized = true, pid = 0, status = 'recovering',
+			last_heartbeat = now()
+		WHERE connection_id = $3::uuid AND company_id = $4::uuid
+			AND tenant_schema = $5 AND launch_id = $6::uuid
+			AND NOT artifact_normalized
+			AND artifact_version = 'embedded' AND artifact_sha256 = ''
+	`, artifactVersion, artifactSHA256, connectionID, companyID, tenantSchema, launchID)
+	if err != nil {
+		return false, fmt.Errorf("normalize legacy worker artifact: %w", err)
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return false, fmt.Errorf("inspect legacy worker artifact normalization: %w", err)
+	}
+	return rows == 1, nil
+}
+
 func (r *WorkerRegistry) GetWorker(ctx context.Context, connectionID string) (*WorkerRecord, error) {
 	row := r.db.QueryRowContext(ctx, `
 		SELECT connection_id, company_id, tenant_schema, database_url, pid, status, started_at, last_heartbeat, restart_count, launch_id, desired_state, artifact_version, artifact_sha256, worker_uid, worker_gid
@@ -618,6 +661,22 @@ func (r *WorkerRegistry) CreateWorkerUpgradeBatch(
 	}
 	defer func() { _ = tx.Rollback() }()
 
+	// Serialize the fleet-wide normalization gate with legacy writers and new
+	// claims. No rollout may snapshot a partially normalized source fleet.
+	if _, err = tx.ExecContext(ctx, `LOCK TABLE worker_registry IN SHARE MODE`); err != nil {
+		return nil, fmt.Errorf("lock worker registry for upgrade snapshot: %w", err)
+	}
+	var unnormalized int
+	if err = tx.QueryRowContext(ctx, `
+		SELECT COUNT(*) FROM worker_registry
+		WHERE desired_state = 'running' AND NOT artifact_normalized
+	`).Scan(&unnormalized); err != nil {
+		return nil, fmt.Errorf("inspect worker artifact normalization: %w", err)
+	}
+	if unnormalized != 0 {
+		return nil, fmt.Errorf("%w: %d desired-running row(s)", ErrWorkerArtifactNormalization, unnormalized)
+	}
+
 	batch := &WorkerUpgradeBatch{Items: make([]*WorkerUpgradeItem, 0, len(intents))}
 	var completedAt sql.NullTime
 	err = tx.QueryRowContext(ctx, `
@@ -657,6 +716,7 @@ func (r *WorkerRegistry) CreateWorkerUpgradeBatch(
 				AND desired_state = 'running'
 				AND artifact_version = $7::varchar(128)
 				AND artifact_sha256 = $8::varchar(64)
+				AND artifact_normalized
 			FOR UPDATE
 			RETURNING id::text, batch_id::text, position, company_id::text,
 				tenant_schema, connection_id::text, source_generation::text,
@@ -1172,6 +1232,9 @@ func (r *WorkerRegistry) ResumeHaltedWorkerUpgradeRollback(ctx context.Context, 
 						(current.launch_id = item.rollback_generation
 						 AND current.artifact_version = item.source_artifact_version
 						 AND current.artifact_sha256 = item.source_artifact_sha256)
+					 OR (current.launch_id = item.recovery_generation
+						 AND current.artifact_version = batch.target_artifact_version
+						 AND current.artifact_sha256 = batch.target_artifact_sha256)
 					 OR (current.launch_id = item.target_generation
 						 AND current.artifact_version = batch.target_artifact_version
 						 AND current.artifact_sha256 = batch.target_artifact_sha256)

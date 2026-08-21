@@ -735,6 +735,9 @@ func (m *Manager) StopWorker(ctx context.Context, companyID, connectionID, reaso
 	defer m.rolloutMu.RUnlock()
 	unlock := m.lockLifecycle(connectionID)
 	defer unlock()
+	if _, err := m.reconcileDurableLifecycleWorker(ctx, companyID, connectionID, ""); err != nil {
+		return err
+	}
 	if err := m.stopWorkerInternal(ctx, companyID, connectionID, reason, syscall.SIGTERM, false); err != nil {
 		return err
 	}
@@ -755,6 +758,16 @@ func (m *Manager) UnlinkWorker(
 	defer m.rolloutMu.RUnlock()
 	unlock := m.lockLifecycle(connectionID)
 	defer unlock()
+	durable, err := m.reconcileDurableLifecycleWorker(ctx, companyID, connectionID, tenantSchema)
+	if err != nil {
+		return err
+	}
+	if durable != nil {
+		tenantSchema = durable.TenantSchema
+		if databaseURL == "" {
+			databaseURL = m.config.DatabaseURL
+		}
+	}
 	m.mu.RLock()
 	worker, exists := m.workers[connectionID]
 	if exists && worker.CompanyID != companyID {
@@ -816,6 +829,72 @@ func (m *Manager) UnlinkWorker(
 	}
 	m.publishConnectionStatus(companyID, connectionID, types.StatusStopped, reason)
 	return nil
+}
+
+// reconcileDurableLifecycleWorker makes the exact durable launch visible to
+// stop/unlink before either operation consults the in-memory map. This is
+// essential after a restart or stale callback: halted rollout abandonment is
+// authorized by the registry generation, not by volatile process bookkeeping.
+func (m *Manager) reconcileDurableLifecycleWorker(
+	ctx context.Context, companyID, connectionID, tenantHint string,
+) (*WorkerRecord, error) {
+	if m.registry == nil {
+		return nil, nil
+	}
+	record, err := m.registry.GetWorker(ctx, connectionID)
+	if err != nil {
+		return nil, fmt.Errorf("inspect durable worker lifecycle for %s: %w", connectionID, err)
+	}
+	if record == nil {
+		return nil, nil
+	}
+	if record.CompanyID != companyID {
+		return nil, fmt.Errorf("worker %s belongs to another company", connectionID)
+	}
+	if tenantHint != "" && tenantHint != record.TenantSchema {
+		return nil, fmt.Errorf("worker %s tenant changed before lifecycle operation", connectionID)
+	}
+	if record.ArtifactSHA256 == "" {
+		return nil, fmt.Errorf("%w for worker %s", ErrWorkerArtifactNormalization, connectionID)
+	}
+	m.mu.RLock()
+	current := m.workers[connectionID]
+	exactMap := current != nil && current.LaunchID == record.LaunchID &&
+		current.CompanyID == record.CompanyID && current.TenantSchema == record.TenantSchema
+	m.mu.RUnlock()
+	if exactMap {
+		return record, nil
+	}
+	binaryPath, err := m.persistedArtifactPath(record.ArtifactVersion, record.ArtifactSHA256)
+	if err != nil {
+		return nil, fmt.Errorf("validate durable worker artifact identity for %s: %w", connectionID, err)
+	}
+
+	m.mu.Lock()
+	current = m.workers[connectionID]
+	if current == nil || current.LaunchID != record.LaunchID ||
+		current.CompanyID != record.CompanyID || current.TenantSchema != record.TenantSchema {
+		databaseURL := m.config.DatabaseURL
+		if databaseURL == "" {
+			databaseURL = record.DatabaseURL
+		}
+		status := record.Status
+		if record.PID <= 0 {
+			status = types.StatusError
+		}
+		m.workers[connectionID] = &WorkerProcess{
+			ID: record.ConnectionID, ConnectionID: record.ConnectionID,
+			CompanyID: record.CompanyID, TenantSchema: record.TenantSchema,
+			DatabaseURL: databaseURL, PID: record.PID, Status: status,
+			StartedAt: record.StartedAt, LastActivity: record.LastHeartbeat,
+			RestartCount: record.RestartCount, LaunchID: record.LaunchID,
+			DesiredState: record.DesiredState, ArtifactVersion: record.ArtifactVersion,
+			ArtifactSHA256: record.ArtifactSHA256, BinaryPath: binaryPath,
+			WorkerUID: record.WorkerUID, WorkerGID: record.WorkerGID,
+		}
+	}
+	m.mu.Unlock()
+	return record, nil
 }
 
 // stopWorkerInternal terminates a worker without publishing events.
@@ -1048,6 +1127,19 @@ func (m *Manager) isExpectedWorkerProcess(pid int, companyID, connectionID strin
 }
 
 func (m *Manager) isExpectedWorkerProcessAtPath(pid int, companyID, connectionID, expectedPath string, expectedUID, expectedGID int) (bool, error) {
+	return m.isExpectedWorkerProcessAtPathWithCredentials(pid, companyID, connectionID, expectedPath, func(pid int) (bool, error) {
+		return workerProcessCredentialsMatch(pid, expectedUID, expectedGID)
+	})
+}
+
+func (m *Manager) isExpectedLegacyWorkerProcessAtPath(pid int, companyID, connectionID, expectedPath string) (bool, error) {
+	return m.isExpectedWorkerProcessAtPathWithCredentials(pid, companyID, connectionID, expectedPath, legacyWorkerProcessCredentialsMatch)
+}
+
+func (m *Manager) isExpectedWorkerProcessAtPathWithCredentials(
+	pid int, companyID, connectionID, expectedPath string,
+	credentialsMatch func(int) (bool, error),
+) (bool, error) {
 	if pid <= 0 {
 		return false, nil
 	}
@@ -1087,11 +1179,11 @@ func (m *Manager) isExpectedWorkerProcessAtPath(pid int, companyID, connectionID
 	if actual != expected {
 		return false, nil
 	}
-	credentialsMatch, err := workerProcessCredentialsMatch(pid, expectedUID, expectedGID)
+	credentialsOK, err := credentialsMatch(pid)
 	if err != nil {
 		return false, fmt.Errorf("verify PID %d credentials: %w", pid, err)
 	}
-	if !credentialsMatch {
+	if !credentialsOK {
 		return false, nil
 	}
 
@@ -1645,6 +1737,89 @@ func shouldRecoverWorker(w *WorkerRecord) bool {
 	return w.DesiredState == DesiredStateRunning
 }
 
+func processIsAlive(pid int) (bool, error) {
+	if pid <= 0 {
+		return false, nil
+	}
+	process, err := os.FindProcess(pid)
+	if err != nil {
+		return false, nil
+	}
+	if err = process.Signal(syscall.Signal(0)); err == nil {
+		return true, nil
+	}
+	if errors.Is(err, os.ErrProcessDone) || errors.Is(err, syscall.ESRCH) {
+		return false, nil
+	}
+	return false, err
+}
+
+// normalizeLegacyWorker stops the pre-isolation UID-10001 process (if it still
+// exists), proves its exit, and only then binds the durable row to the exact
+// installed bootstrap bytes. A mismatched live PID is never treated as dead.
+func (m *Manager) normalizeLegacyWorker(ctx context.Context, w *WorkerRecord) error {
+	artifact, err := m.configuredBootstrapArtifact()
+	if err != nil {
+		return fmt.Errorf("resolve bootstrap artifact: %w", err)
+	}
+	if err := validateArtifactSHA256(artifact.SHA256); err != nil {
+		return fmt.Errorf("bootstrap artifact has no durable digest: %w", err)
+	}
+	matches, err := m.isExpectedLegacyWorkerProcessAtPath(
+		w.PID, w.CompanyID, w.ConnectionID, m.config.WhatsAppBinaryPath,
+	)
+	if err != nil {
+		return fmt.Errorf("verify legacy worker process: %w", err)
+	}
+	if !matches {
+		alive, aliveErr := processIsAlive(w.PID)
+		if aliveErr != nil {
+			return fmt.Errorf("inspect legacy worker PID %d: %w", w.PID, aliveErr)
+		}
+		if alive {
+			return fmt.Errorf("refusing to normalize legacy worker %s: PID %d is live but does not match bootstrap path, tenant, connection, and UID/GID 10001", w.ConnectionID, w.PID)
+		}
+	} else {
+		process, findErr := os.FindProcess(w.PID)
+		if findErr != nil {
+			return fmt.Errorf("find legacy worker PID %d: %w", w.PID, findErr)
+		}
+		if pgid, pgErr := syscall.Getpgid(w.PID); pgErr == nil && pgid == w.PID {
+			err = syscall.Kill(-pgid, syscall.SIGTERM)
+		} else {
+			err = process.Signal(syscall.SIGTERM)
+		}
+		if err != nil && !errors.Is(err, os.ErrProcessDone) && !errors.Is(err, syscall.ESRCH) {
+			return fmt.Errorf("stop legacy worker PID %d: %w", w.PID, err)
+		}
+		if err = waitForProcessExit(ctx, w.PID, 5*time.Second); err != nil {
+			if pgid, pgErr := syscall.Getpgid(w.PID); pgErr == nil && pgid == w.PID {
+				_ = syscall.Kill(-pgid, syscall.SIGKILL)
+			} else {
+				_ = process.Signal(syscall.SIGKILL)
+			}
+			if killErr := waitForProcessExit(ctx, w.PID, 2*time.Second); killErr != nil {
+				return fmt.Errorf("confirm legacy worker PID %d exit: %w", w.PID, killErr)
+			}
+		}
+	}
+	normalized, err := m.registry.NormalizeLegacyWorkerArtifact(
+		ctx, w.ConnectionID, w.CompanyID, w.TenantSchema, w.LaunchID,
+		artifact.Version, artifact.SHA256,
+	)
+	if err != nil {
+		return err
+	}
+	if !normalized {
+		return errors.New("legacy worker generation changed before artifact normalization")
+	}
+	w.ArtifactVersion = artifact.Version
+	w.ArtifactSHA256 = artifact.SHA256
+	w.PID = 0
+	w.Status = WorkerStatusRecovering
+	return nil
+}
+
 // recoverOrphanedWorkers recovers workers from the database after orchestrator restart.
 func (m *Manager) recoverOrphanedWorkers(ctx context.Context) error {
 	if m.registry == nil {
@@ -1679,6 +1854,11 @@ func (m *Manager) recoverOrphanedWorkers(ctx context.Context) error {
 	}
 
 	for _, w := range workers {
+		if w.ArtifactSHA256 == "" {
+			if err := m.normalizeLegacyWorker(ctx, w); err != nil {
+				return fmt.Errorf("normalize legacy worker %s: %w", w.ConnectionID, err)
+			}
+		}
 		if err := validateWorkerIdentity(w.WorkerUID, w.WorkerGID); err != nil {
 			return fmt.Errorf("worker %s has unsafe durable process credentials: %w", w.ConnectionID, err)
 		}

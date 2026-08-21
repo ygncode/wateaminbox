@@ -3,7 +3,8 @@ import { type Kysely, sql } from "kysely";
 /**
  * Persist immutable worker identity, per-generation Linux credentials, and
  * rolling WhatsApp worker upgrades independently of the orchestrator process.
- * The additions retain defaults so pre-071 INSERT statements remain valid.
+ * This is a coordinated cutover: existing rows are marked for normalization,
+ * while post-071 writers must provide an immutable artifact digest.
  */
 export async function up(db: Kysely<unknown>): Promise<void> {
   await sql`
@@ -18,17 +19,27 @@ export async function up(db: Kysely<unknown>): Promise<void> {
     ALTER TABLE worker_registry
       ADD COLUMN artifact_version VARCHAR(128) NOT NULL DEFAULT 'embedded',
       ADD COLUMN artifact_sha256 VARCHAR(64) NOT NULL DEFAULT '',
+      ADD COLUMN artifact_normalized BOOLEAN NOT NULL DEFAULT false,
       ADD COLUMN worker_uid INTEGER NOT NULL
         DEFAULT nextval('worker_os_identity_seq'),
       ADD COLUMN worker_gid INTEGER GENERATED ALWAYS AS (worker_uid) STORED
+  `.execute(db);
+
+  // Existing rows retain false. New writes must either be the coordinated new
+  // orchestrator (which supplies a digest) or fail the normalization check;
+  // an old orchestrator must not create fresh ambiguous rows after cutover.
+  await sql`
+    ALTER TABLE worker_registry
+      ALTER COLUMN artifact_normalized SET DEFAULT true
   `.execute(db);
 
   await sql`
     ALTER TABLE worker_registry
       ADD CONSTRAINT worker_registry_artifact_version_check
         CHECK (artifact_version ~ '^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$'),
-      ADD CONSTRAINT worker_registry_artifact_sha256_check
-        CHECK (artifact_sha256 = '' OR artifact_sha256 ~ '^[0-9a-f]{64}$'),
+      ADD CONSTRAINT worker_registry_artifact_normalization_check
+        CHECK ((NOT artifact_normalized AND artifact_version = 'embedded' AND artifact_sha256 = '')
+          OR (artifact_normalized AND artifact_sha256 ~ '^[0-9a-f]{64}$')),
       ADD CONSTRAINT worker_registry_os_identity_check
         CHECK (worker_uid BETWEEN 100000 AND 2147483646 AND worker_gid = worker_uid)
   `.execute(db);
@@ -119,11 +130,12 @@ export async function down(db: Kysely<unknown>): Promise<void> {
   await sql`DROP INDEX IF EXISTS worker_registry_worker_uid_key`.execute(db);
   await sql`
     ALTER TABLE worker_registry
-      DROP CONSTRAINT IF EXISTS worker_registry_artifact_sha256_check,
+      DROP CONSTRAINT IF EXISTS worker_registry_artifact_normalization_check,
       DROP CONSTRAINT IF EXISTS worker_registry_artifact_version_check,
       DROP CONSTRAINT IF EXISTS worker_registry_os_identity_check,
       DROP COLUMN IF EXISTS worker_gid,
       DROP COLUMN IF EXISTS worker_uid,
+      DROP COLUMN IF EXISTS artifact_normalized,
       DROP COLUMN IF EXISTS artifact_sha256,
       DROP COLUMN IF EXISTS artifact_version
   `.execute(db);

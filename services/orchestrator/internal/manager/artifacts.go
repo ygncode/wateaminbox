@@ -60,6 +60,28 @@ func sha256File(path string) (string, error) {
 	return hex.EncodeToString(hash.Sum(nil)), nil
 }
 
+// persistedArtifactPath validates durable identity before constructing the path
+// used only to identify and stop an adopted process. Launches still call
+// resolveArtifact and hash the bytes before execution.
+func (m *Manager) persistedArtifactPath(version, digest string) (string, error) {
+	if err := validateArtifactVersion(version); err != nil {
+		return "", err
+	}
+	if err := validateArtifactSHA256(digest); err != nil {
+		return "", err
+	}
+	root, err := filepath.Abs(m.config.ArtifactRoot)
+	if err != nil {
+		return "", fmt.Errorf("resolve artifact root: %w", err)
+	}
+	candidate := filepath.Join(root, version, "whatsapp-worker")
+	relative, err := filepath.Rel(root, candidate)
+	if err != nil || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
+		return "", fmt.Errorf("artifact path escapes configured root")
+	}
+	return candidate, nil
+}
+
 // resolveArtifact validates user-controlled version/digest values before path
 // construction, rejects symlinks and non-executables, proves the final path is
 // inside ArtifactRoot, and hashes the file at the point it is selected.
@@ -121,14 +143,6 @@ func (m *Manager) resolveArtifact(version, expectedSHA256 string) (WorkerArtifac
 }
 
 func (m *Manager) defaultArtifact(ctx context.Context, companyID string) (WorkerArtifact, error) {
-	version := strings.TrimSpace(m.config.DefaultArtifactVersion)
-	if version == "" {
-		version = defaultArtifactVersion
-	}
-	if err := validateArtifactVersion(version); err != nil {
-		return WorkerArtifact{}, err
-	}
-	digest := strings.ToLower(strings.TrimSpace(m.config.DefaultArtifactSHA256))
 	if m.registry != nil && m.registryReady.Load() && companyID != "" {
 		promotedVersion, promotedSHA256, found, err := m.registry.GetCompanyWorkerArtifact(ctx, companyID)
 		if err != nil {
@@ -138,6 +152,21 @@ func (m *Manager) defaultArtifact(ctx context.Context, companyID string) (Worker
 			return m.resolveArtifact(promotedVersion, promotedSHA256)
 		}
 	}
+	return m.configuredBootstrapArtifact()
+}
+
+// configuredBootstrapArtifact deliberately ignores rollout history. Migration
+// normalization must bind legacy rows to the installed bootstrap bytes, never
+// to a later company promotion.
+func (m *Manager) configuredBootstrapArtifact() (WorkerArtifact, error) {
+	version := strings.TrimSpace(m.config.DefaultArtifactVersion)
+	if version == "" {
+		version = defaultArtifactVersion
+	}
+	if err := validateArtifactVersion(version); err != nil {
+		return WorkerArtifact{}, err
+	}
+	digest := strings.ToLower(strings.TrimSpace(m.config.DefaultArtifactSHA256))
 	if digest == "" && version != defaultArtifactVersion && m.config.ArtifactRoot != "" {
 		// The immutable installer writes this manifest beside the executable.
 		// Reading it keeps existing deployment scripts backward compatible: they

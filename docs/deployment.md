@@ -210,10 +210,11 @@ export COMPOSE='docker compose --env-file .env.production -f compose.production.
 $COMPOSE config --quiet
 $COMPOSE build --pull
 
-# Bring up dependencies, migrate, install/verify the worker, then start the stack.
+# Bring up dependencies, install/verify bootstrap, migrate, then start the stack.
 $COMPOSE up -d postgres nats meilisearch minio centrifugo
-$COMPOSE run --rm migration
+$COMPOSE stop orchestrator # required before the migration-071 cutover
 $COMPOSE run --rm worker-artifact-installer
+$COMPOSE run --rm migration
 $COMPOSE up -d
 $COMPOSE ps
 ```
@@ -223,6 +224,36 @@ startup on both migration and artifact installation. Running the one-shot jobs
 explicitly makes either failure visible before the orchestrator changes. Inspect
 failures with `$COMPOSE logs migration worker-artifact-installer`; do not bypass
 a failed gate.
+
+Migration 071 is a **mandatory coordinated cutover**, not an online mixed-version
+migration. Before applying it, stop the old orchestrator and confirm its command
+consumer is down; an old orchestrator is deliberately unable to insert ambiguous
+`embedded`/empty-digest rows after 071. Install the `bootstrap` artifact before
+starting the new orchestrator. On its first start, the orchestrator treats every
+pre-071 row as unnormalized: it accepts a referenced live process only when the
+executable, company/connection environment, and legacy UID/GID 10001 all match,
+confirms that process has exited, then atomically records the installed bootstrap
+version/digest before relaunching under a database-allocated UID/GID. A live
+mismatched or reused PID aborts startup without changing the row. Do not manually
+mark a row normalized or clear its PID to bypass this check.
+
+The private deployment/control-plane contract must preserve this order: quiesce
+the old orchestrator, stage bootstrap bytes, apply 071, start the new
+orchestrator, and wait for orchestrator readiness before enabling lifecycle or
+rollout requests. A rollout is prohibited while any desired-running registry row
+has `artifact_normalized = false`; private automation must treat that condition
+as a hard readiness failure, never retry a rollout around it. Verify the boundary
+before the first rollout:
+
+```sh
+$COMPOSE exec postgres sh -ec 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Atc \
+  "SELECT count(*) FROM worker_registry WHERE desired_state = '\''running'\'' AND NOT artifact_normalized"'
+# Required result: 0
+```
+
+This cutover changes process/artifact ownership only. Do not combine it with an
+ad hoc NATS, database, or S3 credential redesign; that shared trust boundary is
+subject to a separate security architecture review.
 
 The installer verifies the checksum embedded in the worker image before writing.
 It atomically creates a version directory containing
@@ -388,7 +419,9 @@ EOF
   '
 ```
 
-`POST /rollouts` snapshots every exact company/tenant/connection launch in one
+`POST /rollouts` first takes a fleet-wide database lock and rejects the request
+unless every desired-running registry row has crossed the artifact-normalization
+boundary. It then snapshots every exact company/tenant/connection launch in that
 transaction before sending the first signal and returns `202` with the durable
 batch ID. It then processes connections serially. For each connection it stops
 and reaps the old process, launches the digest-verified target, and waits up to

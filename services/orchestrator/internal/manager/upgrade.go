@@ -713,12 +713,14 @@ func (m *Manager) rollbackWorkerUpgrade(ctx context.Context, batch *WorkerUpgrad
 		}
 		version, digest := "", ""
 		switch {
+		case record.LaunchID == item.RecoveryGeneration && item.RecoveryGeneration != "":
+			version, digest = batch.TargetArtifactVersion, batch.TargetArtifactSHA256
 		case record.LaunchID == item.TargetGeneration && item.TargetGeneration != "":
 			version, digest = batch.TargetArtifactVersion, batch.TargetArtifactSHA256
 		case record.LaunchID == item.SourceGeneration:
 			version, digest = item.SourceArtifactVersion, item.SourceArtifactSHA256
 		default:
-			return nil, errors.New("rollback predecessor is not the snapshotted source or reserved target")
+			return nil, errors.New("rollback predecessor is not the snapshotted source or reserved target/recovery generation")
 		}
 		return m.fenceRolloutOwnedLaunch(
 			ctx, batch, item, WorkerUpgradePhaseRollback, record.LaunchID,
