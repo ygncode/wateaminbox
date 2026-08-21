@@ -68,6 +68,14 @@ through the rollback window; do not repurpose either file under a new name.
    receive, media-download, unlink, restart, and rollout paths.
 9. Run the permission probes below before ending the window.
 
+Centrifugo runs through the repository-built `centrifugo-secret-entrypoint`.
+The wrapper reads the service password from the Docker secret, constructs the
+broker URL only in the child process environment, and literally redacts every
+configured file-backed secret from both output streams across write boundaries.
+It also forwards TERM, INT, and HUP and preserves the child exit status. Do not
+replace it with a shell URL wrapper: Centrifugo includes the complete broker URL
+in fatal authentication errors.
+
 Expected database boundary:
 
 - `wateaminbox_worker` can perform DML only in `whatsapp_sessions`, including

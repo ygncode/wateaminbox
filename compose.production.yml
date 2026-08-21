@@ -345,16 +345,16 @@ services:
 
   centrifugo:
     <<: *service-defaults
-    image: centrifugo/centrifugo:v6.9.1
-    entrypoint: ["/bin/sh", "-ec"]
-    command:
-      - |
-        password=$$(cat /run/secrets/nats_service_password)
-        export CENTRIFUGO_BROKER_NATS_URL="nats://service:$$password@nats:4222"
-        export CENTRIFUGO_CLIENT_TOKEN_HMAC_SECRET_KEY="$$(cat /run/secrets/centrifugo_token_secret)"
-        export CENTRIFUGO_HTTP_API_KEY="$$(cat /run/secrets/centrifugo_api_key)"
-        exec centrifugo --config=/centrifugo/config.json
+    build:
+      context: .
+      dockerfile: infrastructure/centrifugo/Dockerfile
+    image: wateaminbox/centrifugo:v6.9.1-redacted
+    entrypoint: ["/usr/local/bin/centrifugo-secret-entrypoint"]
+    command: ["centrifugo", "--config=/centrifugo/config.json"]
     environment:
+      CENTRIFUGO_NATS_PASSWORD_FILE: /run/secrets/nats_service_password
+      CENTRIFUGO_TOKEN_HMAC_SECRET_FILE: /run/secrets/centrifugo_token_secret
+      CENTRIFUGO_API_KEY_FILE: /run/secrets/centrifugo_api_key
       # Centrifugo parses array-valued environment settings as comma-separated
       # strings. JSON here becomes one literal origin and rejects every browser.
       CENTRIFUGO_CLIENT_ALLOWED_ORIGINS: https://${APP_DOMAIN:?set APP_DOMAIN}

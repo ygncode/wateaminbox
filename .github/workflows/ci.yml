@@ -47,6 +47,8 @@ jobs:
         run: ./scripts/nats-worker-permissions.test.sh
       - name: Validate worker PostgreSQL role provisioning
         run: ./scripts/worker-postgres-provisioner.test.sh
+      - name: Validate Centrifugo secret-redacting process wrapper
+        run: ./scripts/centrifugo-secret-entrypoint.test.sh
       - name: Validate separated development worker boundary
         run: ./scripts/dev-worker-boundary.test.sh
 

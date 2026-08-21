@@ -54,15 +54,15 @@ services:
         condition: service_healthy
 
   centrifugo:
-    image: centrifugo/centrifugo:v6.9.1
+    build:
+      context: .
+      dockerfile: infrastructure/centrifugo/Dockerfile
+    image: wateaminbox/centrifugo:v6.9.1-redacted
     container_name: wateaminbox-centrifugo
-    entrypoint: ["/bin/sh", "-ec"]
-    command:
-      - |
-        password=$$(cat /run/dev-secrets/nats_service_password)
-        export CENTRIFUGO_BROKER_NATS_URL="nats://service:$$password@nats:4222"
-        exec centrifugo --config=/centrifugo/config.json
+    entrypoint: ["/usr/local/bin/centrifugo-secret-entrypoint"]
+    command: ["centrifugo", "--config=/centrifugo/config.json"]
     environment:
+      CENTRIFUGO_NATS_PASSWORD_FILE: /run/dev-secrets/nats_service_password
       CENTRIFUGO_CLIENT_TOKEN_HMAC_SECRET_KEY: ${CENTRIFUGO_TOKEN_HMAC_SECRET:-development-centrifugo-token-secret-change-me}
       CENTRIFUGO_HTTP_API_KEY: ${CENTRIFUGO_API_KEY:-development-centrifugo-api-key}
     ports:
