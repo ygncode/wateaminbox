@@ -26,12 +26,13 @@ func startRecoveredTestWorkers(t *testing.T, n int) ([]*exec.Cmd, *Manager) {
 
 	cmds := make([]*exec.Cmd, 0, n)
 	for i := 0; i < n; i++ {
+		id := "connection-" + string(rune('a'+i))
 		cmd := exec.Command("/bin/sleep", "30")
+		cmd.Env = append(os.Environ(), "COMPANY_ID=company", "CONNECTION_ID="+id)
 		require.NoError(t, cmd.Start())
 		go func() { _ = cmd.Wait() }()
 		t.Cleanup(func() { _ = cmd.Process.Kill() })
 
-		id := "connection-" + string(rune('a'+i))
 		m.workers[id] = &WorkerProcess{
 			ID:           id,
 			CompanyID:    "company",

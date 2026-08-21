@@ -428,6 +428,7 @@ func TestStatusConstants(t *testing.T) {
 func startRecoveredTestWorker(t *testing.T) (*exec.Cmd, *Manager) {
 	t.Helper()
 	cmd := exec.Command("/bin/sleep", "30")
+	cmd.Env = append(os.Environ(), "COMPANY_ID=company", "CONNECTION_ID=recovered")
 	require.NoError(t, cmd.Start())
 	go func() { _ = cmd.Wait() }()
 
@@ -468,6 +469,26 @@ func TestStopWorker_RefusesReusedPID(t *testing.T) {
 	assert.Contains(t, err.Error(), "refusing to signal reused PID")
 	_, exists := m.GetWorkerStatus("recovered")
 	assert.True(t, exists)
+}
+
+func TestStopWorkerRefusesDifferentConnectionUsingSameBinary(t *testing.T) {
+	cmd := exec.Command("/bin/sleep", "30")
+	cmd.Env = append(os.Environ(), "COMPANY_ID=other-company", "CONNECTION_ID=other-connection")
+	require.NoError(t, cmd.Start())
+	t.Cleanup(func() {
+		_ = cmd.Process.Kill()
+		_, _ = cmd.Process.Wait()
+	})
+
+	m := New(Config{WhatsAppBinaryPath: "/bin/sleep"})
+	m.workers["recovered"] = &WorkerProcess{
+		ID: "recovered", CompanyID: "company", ConnectionID: "recovered",
+		PID: cmd.Process.Pid, Status: types.StatusConnected,
+	}
+
+	err := m.StopWorker(context.Background(), "company", "recovered", "test")
+	require.ErrorContains(t, err, "refusing to signal reused PID")
+	assert.NoError(t, cmd.Process.Signal(syscall.Signal(0)), "unrelated worker must remain alive")
 }
 
 func TestStop_ShutsDownRecoveredProcess(t *testing.T) {

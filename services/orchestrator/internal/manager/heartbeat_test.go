@@ -31,6 +31,8 @@ func startTrackedTestWorker(t *testing.T, connectionID string) (*Manager, *exec.
 
 	m.workers[connectionID] = &WorkerProcess{
 		ID:           connectionID,
+		LaunchID:     "launch-1",
+		DesiredState: DesiredStateRunning,
 		CompanyID:    "company",
 		ConnectionID: connectionID,
 		Status:       types.StatusConnected,
@@ -58,16 +60,18 @@ func TestHealthCheck_RecordsHeartbeatWhileProcessIsAlive(t *testing.T) {
 		mu       sync.Mutex
 		recorded []string
 	)
-	m.recordWorkerHeartbeat = func(_ context.Context, connectionID string) error {
+	m.recordWorkerHeartbeat = func(_ context.Context, connectionID, companyID, launchID string) (bool, error) {
 		mu.Lock()
 		defer mu.Unlock()
 		recorded = append(recorded, connectionID)
-		return nil
+		assert.Equal(t, "company", companyID)
+		assert.Equal(t, "launch-1", launchID)
+		return true, nil
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	m.wg.Add(1)
-	go m.healthCheckWorker(ctx, id)
+	go m.healthCheckWorker(ctx, id, m.workers[id].LaunchID)
 
 	require.Eventually(t, func() bool {
 		mu.Lock()
@@ -95,16 +99,16 @@ func TestHealthCheck_SurvivesHeartbeatWriteFailure(t *testing.T) {
 		mu       sync.Mutex
 		attempts int
 	)
-	m.recordWorkerHeartbeat = func(_ context.Context, _ string) error {
+	m.recordWorkerHeartbeat = func(_ context.Context, _, _, _ string) (bool, error) {
 		mu.Lock()
 		defer mu.Unlock()
 		attempts++
-		return assert.AnError
+		return false, assert.AnError
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	m.wg.Add(1)
-	go m.healthCheckWorker(ctx, id)
+	go m.healthCheckWorker(ctx, id, m.workers[id].LaunchID)
 
 	require.Eventually(t, func() bool {
 		mu.Lock()
@@ -120,6 +124,30 @@ func TestHealthCheck_SurvivesHeartbeatWriteFailure(t *testing.T) {
 	assert.True(t, processAlive(cmd), "a failed bookkeeping write must not stop the process")
 }
 
+func TestHealthCheckStopsWhenDurableLaunchChanges(t *testing.T) {
+	const id = "connection-a"
+	m, cmd := startTrackedTestWorker(t, id)
+	m.recordWorkerHeartbeat = func(_ context.Context, _, _, _ string) (bool, error) {
+		return false, nil
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	done := make(chan struct{})
+	m.wg.Add(1)
+	go func() {
+		m.healthCheckWorker(ctx, id, m.workers[id].LaunchID)
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("health check continued after durable launch changed")
+	}
+	assert.True(t, processAlive(cmd), "stale bookkeeping must not stop the current process")
+}
+
 // Nothing should be written for a worker the manager is no longer tracking.
 func TestHealthCheck_StopsWithoutHeartbeatWhenWorkerRemoved(t *testing.T) {
 	m := New(Config{HealthCheckInterval: 10 * time.Millisecond})
@@ -130,11 +158,11 @@ func TestHealthCheck_StopsWithoutHeartbeatWhenWorkerRemoved(t *testing.T) {
 		mu    sync.Mutex
 		calls int
 	)
-	m.recordWorkerHeartbeat = func(_ context.Context, _ string) error {
+	m.recordWorkerHeartbeat = func(_ context.Context, _, _, _ string) (bool, error) {
 		mu.Lock()
 		defer mu.Unlock()
 		calls++
-		return nil
+		return true, nil
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -143,7 +171,7 @@ func TestHealthCheck_StopsWithoutHeartbeatWhenWorkerRemoved(t *testing.T) {
 	done := make(chan struct{})
 	m.wg.Add(1)
 	go func() {
-		m.healthCheckWorker(ctx, "connection-missing")
+		m.healthCheckWorker(ctx, "connection-missing", "missing-launch")
 		close(done)
 	}()
 
@@ -166,7 +194,7 @@ func TestHealthCheck_RunsWithoutARegistry(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	m.wg.Add(1)
-	go m.healthCheckWorker(ctx, id)
+	go m.healthCheckWorker(ctx, id, m.workers[id].LaunchID)
 
 	time.Sleep(100 * time.Millisecond)
 	cancel()

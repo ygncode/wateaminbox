@@ -3,6 +3,7 @@ package manager
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"log"
 	"time"
@@ -11,10 +12,11 @@ import (
 )
 
 // WorkerRegistry provides persistent storage for worker state.
-// This allows the orchestrator to recover workers after restart.
 type WorkerRegistry struct {
 	db *sql.DB
 }
+
+var ErrWorkerLaunchConflict = errors.New("worker launch claim conflict")
 
 // WorkerRecord represents a worker record in the database.
 type WorkerRecord struct {
@@ -28,30 +30,60 @@ type WorkerRecord struct {
 	StartedAt     time.Time
 	LastHeartbeat time.Time
 	RestartCount  int
+	LaunchID      string
+	DesiredState  string
 }
 
-// NewWorkerRegistry creates a new worker registry connected to the database.
 func NewWorkerRegistry(databaseURL string) (*WorkerRegistry, error) {
 	db, err := sql.Open("postgres", databaseURL)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database connection: %w", err)
 	}
-
-	// Test the connection
 	if err := db.Ping(); err != nil {
+		_ = db.Close()
 		return nil, fmt.Errorf("failed to ping database: %w", err)
 	}
-
-	// Set connection pool settings
+	var lifecycleColumns int
+	if err := db.QueryRow(`
+		SELECT COUNT(*)
+		FROM information_schema.columns
+		WHERE table_schema = 'public' AND table_name = 'worker_registry'
+			AND column_name IN ('launch_id', 'desired_state')
+	`).Scan(&lifecycleColumns); err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("failed to verify worker registry schema: %w", err)
+	}
+	if lifecycleColumns != 2 {
+		_ = db.Close()
+		return nil, fmt.Errorf("worker registry lifecycle migration is not applied")
+	}
+	var supportsUnlinking bool
+	if err := db.QueryRow(`
+		SELECT EXISTS (
+			SELECT 1
+			FROM pg_constraint constraint_row
+			JOIN pg_class table_row ON table_row.oid = constraint_row.conrelid
+			JOIN pg_namespace schema_row ON schema_row.oid = table_row.relnamespace
+			WHERE schema_row.nspname = 'public'
+				AND table_row.relname = 'worker_registry'
+				AND constraint_row.conname = 'worker_registry_desired_state_check'
+				AND pg_get_constraintdef(constraint_row.oid) LIKE '%unlinking%'
+		)
+	`).Scan(&supportsUnlinking); err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("failed to verify worker registry lifecycle constraint: %w", err)
+	}
+	if !supportsUnlinking {
+		_ = db.Close()
+		return nil, fmt.Errorf("worker registry does not support durable unlink intent")
+	}
 	db.SetMaxOpenConns(5)
 	db.SetMaxIdleConns(2)
 	db.SetConnMaxLifetime(5 * time.Minute)
-
 	log.Println("Worker registry connected to database")
 	return &WorkerRegistry{db: db}, nil
 }
 
-// Close closes the database connection.
 func (r *WorkerRegistry) Close() error {
 	if r.db != nil {
 		return r.db.Close()
@@ -59,38 +91,83 @@ func (r *WorkerRegistry) Close() error {
 	return nil
 }
 
-// RegisterWorker saves worker state to the database.
-// Uses upsert to handle re-registration after restart.
-func (r *WorkerRegistry) RegisterWorker(ctx context.Context, w *WorkerProcess) error {
+// ClaimWorkerLaunch atomically replaces only the launch the caller observed.
+// This compare-and-swap prevents overlapping orchestrators from both claiming
+// the same live connection. A durable stopped row may be reclaimed explicitly.
+func (r *WorkerRegistry) ClaimWorkerLaunch(ctx context.Context, w *WorkerProcess, expectedLaunchID string) error {
 	now := time.Now()
-	_, err := r.db.ExecContext(ctx, `
-		INSERT INTO worker_registry (connection_id, company_id, tenant_schema, database_url, pid, status, started_at, last_heartbeat, restart_count)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $7, $8)
+	result, err := r.db.ExecContext(ctx, `
+		INSERT INTO worker_registry (connection_id, company_id, tenant_schema, database_url, pid, status, started_at, last_heartbeat, restart_count, launch_id, desired_state)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $7, $8, $9, $10)
 		ON CONFLICT (connection_id) DO UPDATE SET
+			tenant_schema = EXCLUDED.tenant_schema,
+			database_url = EXCLUDED.database_url,
 			pid = EXCLUDED.pid,
 			status = EXCLUDED.status,
 			started_at = EXCLUDED.started_at,
-			last_heartbeat = EXCLUDED.last_heartbeat
-	`, w.ConnectionID, w.CompanyID, w.TenantSchema, "", w.PID, w.Status, now, w.RestartCount)
+			last_heartbeat = EXCLUDED.last_heartbeat,
+			restart_count = EXCLUDED.restart_count,
+			launch_id = EXCLUDED.launch_id,
+			desired_state = EXCLUDED.desired_state
+		WHERE worker_registry.company_id = EXCLUDED.company_id
+			AND worker_registry.launch_id = $11
+	`, w.ConnectionID, w.CompanyID, w.TenantSchema, "", w.PID, w.Status, now, w.RestartCount, w.LaunchID, w.DesiredState, expectedLaunchID)
 	if err != nil {
-		return fmt.Errorf("failed to register worker: %w", err)
+		return fmt.Errorf("failed to claim worker launch: %w", err)
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("inspect worker launch claim: %w", err)
+	}
+	if affected != 1 {
+		return ErrWorkerLaunchConflict
 	}
 	return nil
 }
 
-// RemoveWorker deletes a worker from the registry.
-func (r *WorkerRegistry) RemoveWorker(ctx context.Context, connectionID string) error {
-	_, err := r.db.ExecContext(ctx, `DELETE FROM worker_registry WHERE connection_id = $1`, connectionID)
+// ActivateWorkerLaunch records the PID only if the caller still owns the exact
+// tenant-scoped generation it reserved before starting the child.
+func (r *WorkerRegistry) ActivateWorkerLaunch(ctx context.Context, w *WorkerProcess) error {
+	now := time.Now()
+	result, err := r.db.ExecContext(ctx, `
+		UPDATE worker_registry SET
+			tenant_schema = $1, database_url = $2, pid = $3, status = $4,
+			started_at = $5, last_heartbeat = $5, restart_count = $6,
+			desired_state = $7
+		WHERE connection_id = $8 AND company_id = $9 AND launch_id = $10
+	`, w.TenantSchema, "", w.PID, w.Status, now, w.RestartCount, w.DesiredState, w.ConnectionID, w.CompanyID, w.LaunchID)
 	if err != nil {
-		return fmt.Errorf("failed to remove worker: %w", err)
+		return fmt.Errorf("failed to activate worker launch: %w", err)
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("inspect worker launch activation: %w", err)
+	}
+	if affected != 1 {
+		return ErrWorkerLaunchConflict
 	}
 	return nil
 }
 
-// GetAllWorkers returns all registered workers.
+// RemoveWorkerLaunch deletes only the specified tenant-owned launch. A stale
+// callback therefore cannot remove a newer launch's row.
+func (r *WorkerRegistry) RemoveWorkerLaunch(ctx context.Context, connectionID, companyID, launchID string) (bool, error) {
+	result, err := r.db.ExecContext(ctx, `
+		DELETE FROM worker_registry WHERE connection_id = $1 AND company_id = $2 AND launch_id = $3
+	`, connectionID, companyID, launchID)
+	if err != nil {
+		return false, fmt.Errorf("failed to remove worker: %w", err)
+	}
+	removed, err := result.RowsAffected()
+	if err != nil {
+		return false, fmt.Errorf("inspect worker removal: %w", err)
+	}
+	return removed == 1, nil
+}
+
 func (r *WorkerRegistry) GetAllWorkers(ctx context.Context) ([]*WorkerRecord, error) {
 	rows, err := r.db.QueryContext(ctx, `
-		SELECT connection_id, company_id, tenant_schema, database_url, pid, status, started_at, last_heartbeat, restart_count
+		SELECT connection_id, company_id, tenant_schema, database_url, pid, status, started_at, last_heartbeat, restart_count, launch_id, desired_state
 		FROM worker_registry
 	`)
 	if err != nil {
@@ -101,7 +178,7 @@ func (r *WorkerRegistry) GetAllWorkers(ctx context.Context) ([]*WorkerRecord, er
 	var workers []*WorkerRecord
 	for rows.Next() {
 		w := &WorkerRecord{}
-		if err := rows.Scan(&w.ConnectionID, &w.CompanyID, &w.TenantSchema, &w.DatabaseURL, &w.PID, &w.Status, &w.StartedAt, &w.LastHeartbeat, &w.RestartCount); err != nil {
+		if err := rows.Scan(&w.ConnectionID, &w.CompanyID, &w.TenantSchema, &w.DatabaseURL, &w.PID, &w.Status, &w.StartedAt, &w.LastHeartbeat, &w.RestartCount, &w.LaunchID, &w.DesiredState); err != nil {
 			return nil, fmt.Errorf("failed to scan worker: %w", err)
 		}
 		workers = append(workers, w)
@@ -112,83 +189,89 @@ func (r *WorkerRegistry) GetAllWorkers(ctx context.Context) ([]*WorkerRecord, er
 	return workers, nil
 }
 
-// UpdateStatus updates the status of a worker.
-func (r *WorkerRegistry) UpdateStatus(ctx context.Context, connectionID, status string) error {
-	_, err := r.db.ExecContext(ctx, `
-		UPDATE worker_registry SET status = $1, last_heartbeat = $2 WHERE connection_id = $3
-	`, status, time.Now(), connectionID)
+func (r *WorkerRegistry) UpdateStatusLaunch(
+	ctx context.Context,
+	connectionID, companyID, launchID, status string,
+) (bool, error) {
+	result, err := r.db.ExecContext(ctx, `
+		UPDATE worker_registry SET status = $1, last_heartbeat = $2
+		WHERE connection_id = $3 AND company_id = $4 AND launch_id = $5
+	`, status, time.Now(), connectionID, companyID, launchID)
 	if err != nil {
-		return fmt.Errorf("failed to update worker status: %w", err)
+		return false, fmt.Errorf("failed to update worker status: %w", err)
 	}
-	return nil
+	updated, err := result.RowsAffected()
+	if err != nil {
+		return false, fmt.Errorf("inspect worker status update: %w", err)
+	}
+	return updated == 1, nil
 }
 
-// MarkWorkersRecovering records deliberate shutdown intent for every listed
-// worker in a single statement.
-//
-// Shutdown stops workers one at a time and each stop can take seconds, so
-// marking them individually along the way leaves the later workers unmarked for
-// most of the shutdown window. One statement means the whole set is durable
-// before any process is signalled, which is what makes the marking survive a
-// SIGKILL partway through.
+// MarkWorkersRecovering preserves desired_state=running while recording that
+// shutdown deliberately terminated these launches.
 func (r *WorkerRegistry) MarkWorkersRecovering(ctx context.Context, connectionIDs []string) error {
 	if len(connectionIDs) == 0 {
 		return nil
 	}
-
 	_, err := r.db.ExecContext(ctx, `
 		UPDATE worker_registry SET status = $1, last_heartbeat = $2
-		WHERE connection_id = ANY($3)
-	`, WorkerStatusRecovering, time.Now(), pq.Array(connectionIDs))
+		WHERE connection_id = ANY($3) AND desired_state = $4
+	`, WorkerStatusRecovering, time.Now(), pq.Array(connectionIDs), DesiredStateRunning)
 	if err != nil {
 		return fmt.Errorf("failed to mark workers for recovery: %w", err)
 	}
 	return nil
 }
 
-// UpdateHeartbeat updates the last_heartbeat timestamp for a worker.
-func (r *WorkerRegistry) UpdateHeartbeat(ctx context.Context, connectionID string) error {
-	_, err := r.db.ExecContext(ctx, `
-		UPDATE worker_registry SET last_heartbeat = $1 WHERE connection_id = $2
-	`, time.Now(), connectionID)
+func (r *WorkerRegistry) UpdateHeartbeatLaunch(
+	ctx context.Context,
+	connectionID, companyID, launchID string,
+) (bool, error) {
+	result, err := r.db.ExecContext(ctx, `
+		UPDATE worker_registry SET last_heartbeat = $1
+		WHERE connection_id = $2 AND company_id = $3 AND launch_id = $4
+	`, time.Now(), connectionID, companyID, launchID)
 	if err != nil {
-		return fmt.Errorf("failed to update heartbeat: %w", err)
+		return false, fmt.Errorf("failed to update heartbeat: %w", err)
 	}
-	return nil
+	updated, err := result.RowsAffected()
+	if err != nil {
+		return false, fmt.Errorf("inspect heartbeat update: %w", err)
+	}
+	return updated == 1, nil
 }
 
-// IncrementRestartCount increments the restart counter for a worker.
-func (r *WorkerRegistry) IncrementRestartCount(ctx context.Context, connectionID string) error {
-	_, err := r.db.ExecContext(ctx, `
-		UPDATE worker_registry SET restart_count = restart_count + 1 WHERE connection_id = $1
-	`, connectionID)
+func (r *WorkerRegistry) IncrementRestartCountLaunch(ctx context.Context, connectionID, companyID, launchID string) (bool, error) {
+	result, err := r.db.ExecContext(ctx, `
+		UPDATE worker_registry SET restart_count = restart_count + 1
+		WHERE connection_id = $1 AND company_id = $2 AND launch_id = $3 AND desired_state = $4
+	`, connectionID, companyID, launchID, DesiredStateRunning)
 	if err != nil {
-		return fmt.Errorf("failed to increment restart count: %w", err)
+		return false, fmt.Errorf("failed to increment restart count: %w", err)
 	}
-	return nil
+	affected, err := result.RowsAffected()
+	return affected == 1, err
 }
 
-// ResetRestartCount resets the restart counter for a worker (called on successful connection).
-func (r *WorkerRegistry) ResetRestartCount(ctx context.Context, connectionID string) error {
-	_, err := r.db.ExecContext(ctx, `
-		UPDATE worker_registry SET restart_count = 0 WHERE connection_id = $1
-	`, connectionID)
+func (r *WorkerRegistry) SetDesiredState(ctx context.Context, connectionID, companyID, launchID, desiredState string) (bool, error) {
+	result, err := r.db.ExecContext(ctx, `
+		UPDATE worker_registry SET desired_state = $1
+		WHERE connection_id = $2 AND company_id = $3 AND launch_id = $4
+	`, desiredState, connectionID, companyID, launchID)
 	if err != nil {
-		return fmt.Errorf("failed to reset restart count: %w", err)
+		return false, fmt.Errorf("failed to set desired state: %w", err)
 	}
-	return nil
+	affected, err := result.RowsAffected()
+	return affected == 1, err
 }
 
-// GetWorker retrieves a single worker by connection ID.
 func (r *WorkerRegistry) GetWorker(ctx context.Context, connectionID string) (*WorkerRecord, error) {
 	row := r.db.QueryRowContext(ctx, `
-		SELECT connection_id, company_id, tenant_schema, database_url, pid, status, started_at, last_heartbeat, restart_count
-		FROM worker_registry
-		WHERE connection_id = $1
+		SELECT connection_id, company_id, tenant_schema, database_url, pid, status, started_at, last_heartbeat, restart_count, launch_id, desired_state
+		FROM worker_registry WHERE connection_id = $1
 	`, connectionID)
-
 	w := &WorkerRecord{}
-	err := row.Scan(&w.ConnectionID, &w.CompanyID, &w.TenantSchema, &w.DatabaseURL, &w.PID, &w.Status, &w.StartedAt, &w.LastHeartbeat, &w.RestartCount)
+	err := row.Scan(&w.ConnectionID, &w.CompanyID, &w.TenantSchema, &w.DatabaseURL, &w.PID, &w.Status, &w.StartedAt, &w.LastHeartbeat, &w.RestartCount, &w.LaunchID, &w.DesiredState)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -198,17 +281,20 @@ func (r *WorkerRegistry) GetWorker(ctx context.Context, connectionID string) (*W
 	return w, nil
 }
 
-// GetRestartCount returns the current restart count for a worker.
-func (r *WorkerRegistry) GetRestartCount(ctx context.Context, connectionID string) (int, error) {
+func (r *WorkerRegistry) GetRestartCountLaunch(
+	ctx context.Context,
+	connectionID, companyID, launchID string,
+) (int, bool, error) {
 	var count int
 	err := r.db.QueryRowContext(ctx, `
-		SELECT restart_count FROM worker_registry WHERE connection_id = $1
-	`, connectionID).Scan(&count)
+		SELECT restart_count FROM worker_registry
+		WHERE connection_id = $1 AND company_id = $2 AND launch_id = $3
+	`, connectionID, companyID, launchID).Scan(&count)
 	if err == sql.ErrNoRows {
-		return 0, nil
+		return 0, false, nil
 	}
 	if err != nil {
-		return 0, fmt.Errorf("failed to get restart count: %w", err)
+		return 0, false, fmt.Errorf("failed to get restart count: %w", err)
 	}
-	return count, nil
+	return count, true, nil
 }

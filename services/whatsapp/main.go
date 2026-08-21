@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"os"
 	"os/signal"
@@ -18,6 +19,13 @@ import (
 )
 
 func main() {
+	if err := run(); err != nil {
+		log.Printf("WhatsApp worker failed: %v", err)
+		os.Exit(1)
+	}
+}
+
+func run() error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -142,10 +150,11 @@ func main() {
 			log.Printf("Failed to fully unlink stopped WhatsApp session: %v", err)
 			_ = publisher.PublishConnectionStatus(
 				"error",
-				"WhatsApp logout failed; local credentials were purged",
+				"WhatsApp logout failed; credentials preserved for retry",
 				"",
 				"",
 			)
+			return fmt.Errorf("unlink stopped WhatsApp session: %w", err)
 		} else {
 			_ = publisher.PublishConnectionStatus(
 				"disconnected",
@@ -154,7 +163,7 @@ func main() {
 				"",
 			)
 		}
-		return
+		return nil
 	}
 
 	// Initialize message handler with NATS publisher and storage
@@ -232,13 +241,15 @@ func main() {
 	shutdownSignal := <-sigCh
 
 	log.Println("Shutting down WhatsApp worker...")
+	var shutdownErr error
 	if shutdownSignal == syscall.SIGUSR1 {
 		logoutCtx, logoutCancel := context.WithTimeout(context.Background(), 15*time.Second)
 		if err := waClient.LogoutAndPurge(logoutCtx); err != nil {
+			shutdownErr = fmt.Errorf("unlink WhatsApp session during shutdown: %w", err)
 			log.Printf("Failed to fully unlink WhatsApp session: %v", err)
 			if publishErr := publisher.PublishConnectionStatus(
 				"error",
-				"WhatsApp logout failed; local credentials were purged",
+				"WhatsApp logout failed; credentials preserved for retry",
 				"",
 				"",
 			); publishErr != nil {
@@ -253,4 +264,5 @@ func main() {
 
 	// Explicitly stop reconnection loop (in case it's still active)
 	waClient.StopReconnect()
+	return shutdownErr
 }

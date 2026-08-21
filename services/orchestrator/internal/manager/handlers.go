@@ -3,6 +3,7 @@ package manager
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"strings"
@@ -147,7 +148,7 @@ func (h *Handlers) handleSpawnCommand(ctx context.Context, data []byte) error {
 	// A reconnect is an explicit request for a fresh pairing attempt. Replace a
 	// worker that is still starting/erroring rather than reporting it as active:
 	// an unpaired worker cannot generate a new QR from a duplicate spawn alone.
-	if worker, exists := h.manager.GetWorkerStatus(cmd.ConnectionID); exists && worker.Status != types.StatusConnected {
+	if worker, exists := h.manager.GetWorkerStatus(cmd.ConnectionID); exists && worker.Status != types.StatusConnected && worker.PID > 0 {
 		if err := h.manager.StopWorker(ctx, cmd.CompanyID, cmd.ConnectionID, "restart requested for pairing"); err != nil {
 			log.Printf("Warning: failed to stop stale worker %s: %v", cmd.ConnectionID, err)
 		}
@@ -202,8 +203,13 @@ func (h *Handlers) handleKillCommand(ctx context.Context, data []byte) error {
 	}
 	if err != nil {
 		log.Printf("Failed to stop worker for company %s, connection %s: %v", cmd.CompanyID, cmd.ConnectionID, err)
-		// Note: We don't return error here - worker not found is not a retryable error
-		// Returning nil ensures the message is ACK'd and doesn't block other commands
+		if errors.Is(err, ErrWorkerNotFound) {
+			// Idempotent kill: the desired end state already holds.
+			return nil
+		}
+		// Persistence and process-control failures must be redelivered. ACKing
+		// here can lose stop/unlink intent before it becomes durable.
+		return err
 	}
 
 	return nil

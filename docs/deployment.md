@@ -24,7 +24,11 @@ host port mappings. Data services share an `internal: true` network. API and
 orchestrator also join an egress network because email, WhatsApp, and object
 requests need outbound Internet access. The orchestrator image contains the
 WhatsApp worker artifact and starts workers as child processes; do not scale the
-orchestrator horizontally without changing that ownership model.
+orchestrator horizontally without changing that ownership model. Orchestrator
+replacements must remain stop-first: never overlap old and new orchestrator
+binaries. Migration 070 adds generation-scoped ownership, but pre-070 binaries
+still write registry rows by connection ID and are not safe to run concurrently
+with a post-070 orchestrator. Apply migrations before starting the new binary.
 
 The R2 `whatsapp-media` bucket and retained MinIO source are private. Browser
 access uses API-authorized, short-lived R2 signatures; neither `r2.dev` nor a
@@ -302,12 +306,15 @@ $COMPOSE ps
 Check readiness, error rates, worker reconnects, NATS backlog, and a signed media
 read/write. Do not use `latest` release tags.
 
-For an application-only rollback, restore the previous `APP_IMAGE_TAG` and run
-`$COMPOSE up -d --no-build`. Database migrations are forward-only; an old binary
-may not be compatible with the upgraded schema. If compatibility was not
-explicitly verified, stop writers and restore the pre-upgrade PostgreSQL/media
-backup instead of attempting an ad-hoc down migration. Document the resulting
-data-loss window.
+Use an application-only rollback only when that exact old image has been
+explicitly verified against every migration already applied. Migration 070 is a
+known compatibility boundary: a pre-070 orchestrator does not understand
+persisted `stopped` or `unlinking` intent and can resurrect or abandon workers.
+Never roll back across that boundary by changing `APP_IMAGE_TAG` alone. Stop all
+writers and orchestrators, then restore the verified pre-upgrade
+PostgreSQL/media backup (or follow a separately tested, release-specific down
+procedure) before starting the old image. Document the resulting data-loss
+window.
 
 ## Observability and maintenance
 
