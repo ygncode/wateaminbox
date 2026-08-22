@@ -120,6 +120,12 @@ export function AttachmentPreviewDialog({
         <DialogPrimitive.Content
           className="fixed left-1/2 top-1/2 z-[81] flex max-h-[92vh] w-[calc(100%_-_1.5rem)] max-w-3xl -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#111b21] text-white shadow-2xl shadow-black/50 outline-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95"
           aria-describedby="attachment-preview-description"
+          // The schedule sheet layers above this dialog and handles Escape
+          // itself. Without this veto one key press would dismiss both, losing
+          // the attachment the member was about to send.
+          onEscapeKeyDown={(event) => {
+            if (showSchedulePopover) event.preventDefault();
+          }}
         >
           <DialogPrimitive.Title className="sr-only">
             {t("chat.previewAttachment", "Preview attachment")}
@@ -230,6 +236,7 @@ export function AttachmentPreviewDialog({
                       "Schedule attachment",
                     )}
                     aria-expanded={showSchedulePopover}
+                    aria-haspopup="dialog"
                   >
                     {isScheduling ? (
                       <Loader2
@@ -244,6 +251,7 @@ export function AttachmentPreviewDialog({
                     <ScheduleMessagePopover
                       onSchedule={handleSchedule}
                       isSubmitting={isScheduling}
+                      onClose={() => setShowSchedulePopover(false)}
                     />
                   )}
                 </div>

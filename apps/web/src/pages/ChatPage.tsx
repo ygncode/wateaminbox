@@ -17,6 +17,7 @@ import { ForwardMessageDialog } from "../components/chat/ForwardMessageDialog";
 import { MessageComposer } from "../components/chat/MessageComposer";
 import { MessageHeader } from "../components/chat/MessageHeader";
 import { MessageThread } from "../components/chat/MessageThread";
+import { CONVERSATION_HEADER_INSET_CLASS } from "../components/layout/conversation-chrome";
 import { AppLayout, ResponsiveLayout } from "../components/layout/app-layout";
 import { MainContent } from "../components/layout/main-content";
 import { Sidebar } from "../components/layout/sidebar";
@@ -26,6 +27,7 @@ import { MessageActionsProvider } from "../contexts/message-actions-context";
 import { useChatPageState } from "../hooks/chat";
 import { useKeyboardInset } from "../hooks/ui";
 import { useComposerAccess } from "../hooks/useComposerAccess";
+import { cn } from "../lib/utils";
 import { parseChatView, withChatView } from "../lib/workspace-routes";
 import { useTranslation } from "react-i18next";
 
@@ -265,8 +267,13 @@ function ConversationLoadingState() {
         {t("chat.loadingConversation", "Loading conversation")}
       </span>
 
+      {/* Same inset utility as the real header, so the bar does not change
+          height when the contact resolves. */}
       <div
-        className="flex h-[60px] min-h-[60px] items-center gap-3 border-b border-gray-200 bg-gray-100 px-4 dark:border-dark-border dark:bg-dark-secondary"
+        className={cn(
+          "flex items-center gap-3 border-b border-gray-200 bg-gray-100 px-4 dark:border-dark-border dark:bg-dark-secondary",
+          CONVERSATION_HEADER_INSET_CLASS,
+        )}
         aria-hidden="true"
       >
         <Skeleton className="size-10 shrink-0 rounded-full" />

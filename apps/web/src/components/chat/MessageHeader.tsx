@@ -4,6 +4,7 @@ import { ArrowLeft, Info, MoreVertical, Search } from "lucide-react";
 import { IdentityAvatarFallback } from "@/components/ui/identity-avatar-fallback";
 import { useGroup } from "@/hooks/useGroups";
 import { cn, formatPhoneLikeText } from "@/lib/utils";
+import { CONVERSATION_HEADER_INSET_CLASS } from "@/components/layout/conversation-chrome";
 import { useOptionalMobileLayout } from "@/components/layout/MobileLayout";
 import { ConnectionBadge, ConnectionRoute } from "./ConnectionIdentity";
 import { useTranslation } from "react-i18next";
@@ -74,7 +75,14 @@ export function MessageHeader({
   return (
     // Same surface as the composer at the other end of the column, so the
     // message canvas reads as one inset panel between two pieces of chrome.
-    <header className="flex h-14 min-h-14 shrink-0 items-center gap-0.5 border-b border-black/[0.06] bg-[#f0f2f5] px-1 dark:border-white/[0.06] dark:bg-dark-secondary md:h-[60px] md:min-h-[60px] md:gap-2 md:px-3">
+    // The workspace header is withdrawn on this route, so this bar is the top
+    // of the screen and owns the notch inset (height included, not eaten).
+    <header
+      className={cn(
+        "flex shrink-0 items-center gap-0.5 border-b border-black/[0.06] bg-[#f0f2f5] px-1 dark:border-white/[0.06] dark:bg-dark-secondary md:gap-2 md:px-3",
+        CONVERSATION_HEADER_INSET_CLASS,
+      )}
+    >
       {canGoBack && handleBack && (
         <button
           type="button"

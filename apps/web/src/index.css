@@ -133,6 +133,29 @@
   }
 
   /*
+   * Top inset for the conversation header, once the workspace header above it
+   * is withdrawn (see conversation-chrome.ts).
+   *
+   * Height and padding live in one rule because they have to move together:
+   * `box-sizing: border-box` is global and the viewport opts into
+   * `viewport-fit=cover`, so an `h-14` bar with `padding-top:
+   * env(safe-area-inset-top)` keeps its 56px box and spends most of it on the
+   * notch. The inset is added to the bar height instead.
+   */
+  .conversation-header-inset {
+    padding-top: env(safe-area-inset-top);
+    height: calc(3.5rem + env(safe-area-inset-top));
+    min-height: calc(3.5rem + env(safe-area-inset-top));
+  }
+
+  @media (min-width: 48rem) {
+    .conversation-header-inset {
+      height: calc(3.75rem + env(safe-area-inset-top));
+      min-height: calc(3.75rem + env(safe-area-inset-top));
+    }
+  }
+
+  /*
    * Bottom inset for the conversation column's last row (composer, lifecycle
    * gate, assignment gate).
    *

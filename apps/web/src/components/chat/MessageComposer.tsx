@@ -29,6 +29,7 @@ import { uploadMedia } from "../../lib/api";
 import { useClickOutside, useTextareaAutoResize } from "../../hooks/ui";
 import { useQuickReplySuggestions } from "../../hooks/useQuickReplies";
 import { AttachmentPreviewDialog } from "./AttachmentPreviewDialog";
+import { canScheduleMessage } from "./composer-schedule";
 import { ConnectionRoute } from "./ConnectionIdentity";
 import { QuickReplyPicker } from "./QuickReplyPicker";
 import { ScheduledMessagesBar } from "./ScheduledMessagesBar";
@@ -202,6 +203,20 @@ export function MessageComposer({
   });
 
   const scheduleMessageMutation = useScheduleMessage();
+
+  // The schedule control is rendered only when it can actually do something -
+  // see composer-schedule.ts for why hiding beats a permanently greyed icon.
+  const canSchedule = canScheduleMessage({
+    text: message,
+    isInputDisabled,
+    hasContact: Boolean(contactId),
+  });
+
+  // Clearing the composer unmounts the control; the popover must not be left
+  // open behind it, or reopening later would restore a stale picker.
+  useEffect(() => {
+    if (!canSchedule) setShowSchedulePopover(false);
+  }, [canSchedule]);
 
   // Focus textarea when reply is set
   useEffect(() => {
@@ -790,40 +805,42 @@ export function MessageComposer({
               </div>
             </div>
 
-            {/* Schedule button */}
-            <div className="relative" ref={schedulePopoverRef}>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowSchedulePopover(!showSchedulePopover);
-                  setShowAttachmentMenu(false);
-                  setShowEmojiPicker(false);
-                }}
-                disabled={!message.trim() || isInputDisabled || !contactId}
-                className={`grid size-9 shrink-0 touch-manipulation place-items-center rounded-full transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00a884]/40 ${
-                  message.trim() && !isInputDisabled && contactId
-                    ? showSchedulePopover
+            {/* Schedule: appears with the first non-whitespace character
+                rather than sitting greyed out in an empty composer. */}
+            {canSchedule && (
+              <div className="relative" ref={schedulePopoverRef}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowSchedulePopover(!showSchedulePopover);
+                    setShowAttachmentMenu(false);
+                    setShowEmojiPicker(false);
+                  }}
+                  className={`grid size-9 shrink-0 touch-manipulation place-items-center rounded-full transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00a884]/40 ${
+                    showSchedulePopover
                       ? "bg-black/[0.07] text-[#008069] dark:bg-white/[0.08] dark:text-emerald-300"
                       : "text-[#54656f] hover:bg-black/[0.055] active:bg-black/10 dark:text-dark-text-secondary dark:hover:bg-white/[0.06] dark:active:bg-white/10"
-                    : "cursor-not-allowed text-[#aebac1] dark:text-dark-text-tertiary"
-                }`}
-                aria-label={t("chat.scheduleMessage", "Schedule message")}
-                aria-expanded={showSchedulePopover}
-              >
-                <CalendarClock
-                  className="size-5.5"
-                  strokeWidth={1.9}
-                  aria-hidden="true"
-                />
-              </button>
+                  }`}
+                  aria-label={t("chat.scheduleMessage", "Schedule message")}
+                  aria-expanded={showSchedulePopover}
+                  aria-haspopup="dialog"
+                >
+                  <CalendarClock
+                    className="size-5.5"
+                    strokeWidth={1.9}
+                    aria-hidden="true"
+                  />
+                </button>
 
-              {showSchedulePopover && (
-                <ScheduleMessagePopover
-                  onSchedule={handleSchedule}
-                  isSubmitting={scheduleMessageMutation.isPending}
-                />
-              )}
-            </div>
+                {showSchedulePopover && (
+                  <ScheduleMessagePopover
+                    onSchedule={handleSchedule}
+                    isSubmitting={scheduleMessageMutation.isPending}
+                    onClose={() => setShowSchedulePopover(false)}
+                  />
+                )}
+              </div>
+            )}
           </div>
 
           {/* Send: a standing 44px target outside the field, so it never

@@ -8,6 +8,9 @@ import {
   resolveAppShellChrome,
   SHELL_MAIN_CONVERSATION_CLASS,
   SHELL_MAIN_NAV_RESERVE_CLASS,
+  WORKSPACE_HEADER_CONVERSATION_CLASS,
+  WORKSPACE_HEADER_DEFAULT_CLASS,
+  CONVERSATION_HEADER_INSET_CLASS,
 } from "./conversation-chrome";
 import { KEYBOARD_INSET_CSS_VAR } from "@/hooks/ui/keyboard-inset";
 
@@ -89,6 +92,21 @@ describe("resolveAppShellChrome", () => {
     expect(chrome.isConversationDetail).toBe(false);
     expect(chrome.navClass).toBe(MOBILE_NAV_DEFAULT_CLASS);
     expect(chrome.mainPaddingClass).toBe(SHELL_MAIN_NAV_RESERVE_CLASS);
+    expect(chrome.workspaceHeaderClass).toBe(WORKSPACE_HEADER_DEFAULT_CLASS);
+  });
+
+  it("keeps the workspace header on every non-chat destination", () => {
+    for (const path of [
+      `/w/${WORKSPACE}/dashboard`,
+      `/w/${WORKSPACE}/broadcasts`,
+      `/w/${WORKSPACE}/settings/profile`,
+      `/w/${WORKSPACE}/chat`,
+    ]) {
+      expect([path, resolveAppShellChrome(path).workspaceHeaderClass]).toEqual([
+        path,
+        WORKSPACE_HEADER_DEFAULT_CLASS,
+      ]);
+    }
   });
 
   it("keeps them on every non-chat destination", () => {
@@ -103,11 +121,14 @@ describe("resolveAppShellChrome", () => {
     }
   });
 
-  it("withdraws them once a conversation is open", () => {
+  it("withdraws every piece of global chrome once a conversation is open", () => {
     const chrome = resolveAppShellChrome(`/w/${WORKSPACE}/chat/contact-1`);
     expect(chrome.isConversationDetail).toBe(true);
     expect(chrome.navClass).toBe(MOBILE_NAV_CONVERSATION_CLASS);
     expect(chrome.mainPaddingClass).toBe(SHELL_MAIN_CONVERSATION_CLASS);
+    expect(chrome.workspaceHeaderClass).toBe(
+      WORKSPACE_HEADER_CONVERSATION_CLASS,
+    );
   });
 });
 
@@ -148,6 +169,98 @@ describe("bottom navigation visibility", () => {
     expect(visibility(MOBILE_NAV_DEFAULT_CLASS, "lg")).toBe(
       visibility(MOBILE_NAV_CONVERSATION_CLASS, "lg"),
     );
+  });
+});
+
+describe("workspace header visibility", () => {
+  /** `flex`/`hidden` are bare utilities, so resolve them by hand. */
+  function visibility(classes: string, at: Breakpoint): string {
+    const order: Breakpoint[] = ["base", "md", "lg"];
+    const limit = order.indexOf(at);
+    let winner = "";
+    for (const token of classes.split(/\s+/).filter(Boolean)) {
+      const [maybeVariant, ...rest] = token.split(":");
+      const variant = rest.length ? maybeVariant : "base";
+      const utility = rest.length ? rest.join(":") : token;
+      if (utility !== "flex" && utility !== "hidden") continue;
+      const index = order.indexOf(variant as Breakpoint);
+      if (index === -1 || index > limit) continue;
+      winner = utility;
+    }
+    return winner;
+  }
+
+  it("shows the header on phone and tablet and hides it on desktop by default", () => {
+    expect(visibility(WORKSPACE_HEADER_DEFAULT_CLASS, "base")).toBe("flex");
+    expect(visibility(WORKSPACE_HEADER_DEFAULT_CLASS, "md")).toBe("flex");
+    expect(visibility(WORKSPACE_HEADER_DEFAULT_CLASS, "lg")).toBe("hidden");
+  });
+
+  it("hides the header at every width once a conversation is open", () => {
+    for (const at of BREAKPOINTS) {
+      expect([at, visibility(WORKSPACE_HEADER_CONVERSATION_CLASS, at)]).toEqual(
+        [at, "hidden"],
+      );
+    }
+  });
+
+  it("leaves desktop exactly as it was: the rail replaces it either way", () => {
+    expect(visibility(WORKSPACE_HEADER_DEFAULT_CLASS, "lg")).toBe(
+      visibility(WORKSPACE_HEADER_CONVERSATION_CLASS, "lg"),
+    );
+  });
+
+  it("withdraws the header on exactly the routes that withdraw the bar", () => {
+    // Both are global chrome for the workspace, not the conversation; they
+    // must never disagree about which routes they belong on.
+    for (const path of [
+      `/w/${WORKSPACE}/chat`,
+      `/w/${WORKSPACE}/chat/contact-1`,
+      `/w/${WORKSPACE}/dashboard`,
+      "/chat/contact-1",
+      "/chat",
+    ]) {
+      const chrome = resolveAppShellChrome(path);
+      expect([path, chrome.workspaceHeaderClass === "hidden"]).toEqual([
+        path,
+        chrome.navClass === "hidden",
+      ]);
+    }
+  });
+});
+
+describe("conversation header top inset", () => {
+  const css = readFileSync(new URL("../../index.css", import.meta.url), "utf8");
+  const rules = css
+    .split(`.${CONVERSATION_HEADER_INSET_CLASS} {`)
+    .slice(1)
+    .map((chunk) => chunk.split("}")[0].replace(/\s+/g, " ").trim());
+
+  it("is declared, at the phone size and again from md up", () => {
+    expect(rules).toHaveLength(2);
+  });
+
+  it("adds the notch inset to the bar height instead of eating it", () => {
+    // `box-sizing: border-box` is global and the viewport is `viewport-fit=
+    // cover`, so an `h-14` bar with a plain padding-top keeps its 56px box and
+    // spends most of it on the notch. Height must carry the env() too.
+    for (const rule of rules) {
+      expect(rule).toContain("env(safe-area-inset-top)");
+      expect(rule).toMatch(
+        /height: calc\([\d.]+rem \+ env\(safe-area-inset-top\)\)/,
+      );
+    }
+  });
+
+  it("keeps the padding and the height in the same rule", () => {
+    // Splitting them across files is how they drift apart.
+    expect(rules[0]).toContain("padding-top: env(safe-area-inset-top)");
+  });
+
+  it("keeps the md bar taller than the phone bar", () => {
+    const height = (rule: string) =>
+      Number(/height: calc\(([\d.]+)rem/.exec(rule)?.[1]);
+    expect(height(rules[1])).toBeGreaterThan(height(rules[0]));
   });
 });
 
