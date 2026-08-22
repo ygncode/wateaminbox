@@ -4,11 +4,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 /**
- * The production containers never receive provider credentials as values: the
- * shared entrypoint reads each one from its Docker secret file. This is a
- * behavioural test of that script, because the property that matters - a
- * deployment on one mail provider needs no secret for the other - is only
- * observable by running it.
+ * Production containers receive credentials through Docker secret files, not
+ * Compose environment values. These behavioural tests run the shared
+ * entrypoint so both provider isolation and generic secret hydration remain
+ * observable deployment properties.
  */
 const repoRoot = join(import.meta.dir, "..", "..", "..", "..");
 const entrypoint = join(repoRoot, "infrastructure/docker/secret-entrypoint.sh");
@@ -48,7 +47,7 @@ async function runEntrypoint(env: Record<string, string>): Promise<{
   return { exitCode, stderr, variables };
 }
 
-describe("mail provider secret hydration", () => {
+describe("production secret hydration", () => {
   test("hydrates the Cloudflare token and account ID from secret files", async () => {
     const { exitCode, variables } = await runEntrypoint({
       MAIL_DRIVER: "cloudflare",
@@ -143,6 +142,20 @@ describe("mail provider secret hydration", () => {
     expect(variables.get("CLOUDFLARE_EMAIL_API_TOKEN")).toBe(
       "cf-live-email-sending-token",
     );
+  });
+
+  test("keeps HTTP bearer authority file-only for the orchestrator", async () => {
+    const tokenFile = secretFile(
+      "orchestrator_http_bearer_token",
+      "file-only-control-authority-at-least-32-characters",
+    );
+    const { exitCode, variables } = await runEntrypoint({
+      HTTP_BEARER_TOKEN_FILE: tokenFile,
+    });
+
+    expect(exitCode).toBe(0);
+    expect(variables.has("HTTP_BEARER_TOKEN")).toBe(false);
+    expect(variables.get("HTTP_BEARER_TOKEN_FILE")).toBe(tokenFile);
   });
 
   test("an empty or unreadable provider secret stops the container", async () => {

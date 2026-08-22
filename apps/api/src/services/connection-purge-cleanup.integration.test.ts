@@ -194,25 +194,24 @@ async function drainWithSettle(
   companyId: string,
   options: Parameters<typeof processConnectionPurgeCleanup>[2] = {},
 ): Promise<PurgeCleanupResult> {
-  const first = await processConnectionPurgeCleanup(
-    tenantDb,
-    companyId,
-    options,
-  );
-  if (first.deferred === 0) return first;
-  await tenantDb
-    .updateTable("purge_cleanup_items")
-    .set({ next_attempt_at: new Date(Date.now() - 1_000) })
-    .execute();
-  const second = await processConnectionPurgeCleanup(
-    tenantDb,
-    companyId,
-    options,
-  );
+  const results: PurgeCleanupResult[] = [];
+  for (let pass = 0; pass < 3; pass++) {
+    results.push(
+      await processConnectionPurgeCleanup(tenantDb, companyId, options),
+    );
+    if (pass === 2) break;
+    // Bring any remaining fixture rows forward. Two follow-up passes cover
+    // both a freshly inserted row not yet visible to the first due-time claim
+    // on a loaded CI host and the intentional media settle deferral.
+    await tenantDb
+      .updateTable("purge_cleanup_items")
+      .set({ next_attempt_at: new Date(Date.now() - 1_000) })
+      .execute();
+  }
   return {
-    completed: first.completed + second.completed,
-    failed: first.failed + second.failed,
-    deferred: second.deferred,
+    completed: results.reduce((total, result) => total + result.completed, 0),
+    failed: results.reduce((total, result) => total + result.failed, 0),
+    deferred: results.at(-1)?.deferred ?? 0,
   };
 }
 

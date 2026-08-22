@@ -55,6 +55,18 @@ func TestSubjectFormatPatterns(t *testing.T) {
 	}
 }
 
+func TestWorkerRuntimeSubjectIsGenerationScopedOutsideAPIEvents(t *testing.T) {
+	if got := fmt.Sprintf(SubjectWorkerRuntimeStatus, "company", "connection", "launch"); got != "WHATSAPP.workers.company.connection.launch.status" {
+		t.Fatalf("worker runtime subject = %q", got)
+	}
+	if strings.HasPrefix(SubjectWorkerRuntimeStatus, "WHATSAPP.events.") {
+		t.Fatal("worker runtime status must remain outside the API event namespace")
+	}
+	if count := strings.Count(SubjectWorkerRuntimeStatus, "%s"); count != 3 {
+		t.Fatalf("worker runtime subject has %d scope tokens, want 3", count)
+	}
+}
+
 func TestSubjectFormatting(t *testing.T) {
 	companyID := "company-123"
 	connectionID := "conn-456"

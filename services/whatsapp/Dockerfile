@@ -13,6 +13,16 @@ RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
     CGO_ENABLED=0 go build -trimpath -ldflags='-s -w' -o /out/whatsapp-worker ./main.go
 
+FROM alpine:3.22 AS artifact-installer
+RUN apk add --no-cache ca-certificates
+COPY --from=build /out/whatsapp-worker /opt/wateaminbox/worker/whatsapp-worker
+COPY infrastructure/docker/install-worker-artifact.sh /usr/local/bin/install-worker-artifact
+RUN chmod 0555 /opt/wateaminbox/worker/whatsapp-worker /usr/local/bin/install-worker-artifact \
+ && sha256sum /opt/wateaminbox/worker/whatsapp-worker | awk '{print $1}' \
+    > /opt/wateaminbox/worker/whatsapp-worker.sha256 \
+ && chmod 0444 /opt/wateaminbox/worker/whatsapp-worker.sha256
+ENTRYPOINT ["/usr/local/bin/install-worker-artifact"]
+
 FROM alpine:3.22 AS worker
 RUN apk add --no-cache ca-certificates tzdata \
  && addgroup -S -g 10001 whatsapp \

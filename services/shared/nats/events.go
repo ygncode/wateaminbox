@@ -2,11 +2,67 @@
 package nats
 
 import (
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"time"
 )
 
 const ContractVersion = 1
+
+// Worker runtime statuses are transient operational signals. They are not API
+// events and must not be added to the WhatsAppEvent contract.
+const (
+	WorkerRuntimeStatusProcessReady  = "process_ready"
+	WorkerRuntimeStatusConnected     = "connected"
+	WorkerRuntimeStatusAuthenticated = "authenticated"
+	WorkerRuntimeStatusDisconnected  = "disconnected"
+)
+
+// WorkerRuntimeStatus reports the state of one exact worker generation. The
+// launch ID is repeated in the payload so consumers can reject a subject/body
+// mismatch rather than accidentally applying a stale generation's signal.
+type WorkerRuntimeStatus struct {
+	Status          string `json:"status"`
+	CompanyID       string `json:"companyId"`
+	ConnectionID    string `json:"connectionId"`
+	LaunchID        string `json:"launchId"`
+	ArtifactVersion string `json:"artifactVersion"`
+	Reason          string `json:"reason,omitempty"`
+	Timestamp       string `json:"timestamp"`
+	Signature       string `json:"signature"`
+}
+
+// SignWorkerRuntimeStatus authenticates one generation-scoped transient signal.
+// The per-launch token is never placed on NATS and is replaced for every
+// process generation.
+func SignWorkerRuntimeStatus(status WorkerRuntimeStatus, token string) (string, error) {
+	status.Signature = ""
+	payload, err := json.Marshal(status)
+	if err != nil {
+		return "", err
+	}
+	mac := hmac.New(sha256.New, []byte(token))
+	_, _ = mac.Write(payload)
+	return hex.EncodeToString(mac.Sum(nil)), nil
+}
+
+func VerifyWorkerRuntimeStatus(status WorkerRuntimeStatus, token string) bool {
+	if token == "" || status.Signature == "" {
+		return false
+	}
+	provided, err := hex.DecodeString(status.Signature)
+	if err != nil {
+		return false
+	}
+	expectedHex, err := SignWorkerRuntimeStatus(status, token)
+	if err != nil {
+		return false
+	}
+	expected, err := hex.DecodeString(expectedHex)
+	return err == nil && hmac.Equal(provided, expected)
+}
 
 // Event types used across WhatsApp services.
 const (

@@ -11,6 +11,8 @@ import (
 	"github.com/nats-io/nats.go"
 	"go.mau.fi/whatsmeow"
 
+	sharedconfig "github.com/ygncode-lab/whatsapp-web/services/shared/config"
+	sharednats "github.com/ygncode-lab/whatsapp-web/services/shared/nats"
 	natsClient "github.com/ygncode-lab/whatsapp-web/services/whatsapp/internal/nats"
 )
 
@@ -51,7 +53,7 @@ func NewDownloadHandler(h *Handler) (*DownloadHandler, error) {
 		nats.ReconnectWait(time.Second),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to connect to NATS: %w", err)
+		return nil, fmt.Errorf("failed to connect to NATS: %s", sharedconfig.RedactErrorForURL(err, h.config.NATSUrl))
 	}
 
 	js, err := nc.JetStream()
@@ -96,8 +98,10 @@ func (dh *DownloadHandler) subscribe() error {
 				log.Printf("Failed to ack download request: %v", err)
 			}
 		},
+		nats.BindStream(sharednats.StreamDownloads), // Avoid broad stream discovery
 		nats.DeliverNew(),             // Only receive new messages
 		nats.AckExplicit(),            // Require explicit acknowledgment
+		nats.ManualAck(),              // The callback ACKs only after processing
 		nats.MaxDeliver(3),            // Retry up to 3 times on failure
 		nats.AckWait(120*time.Second), // Wait up to 2 minutes for ack (downloads can be slow)
 	)

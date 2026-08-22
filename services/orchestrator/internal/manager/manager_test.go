@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"os/exec"
+	"strings"
 	"syscall"
 	"testing"
 	"time"
@@ -399,6 +400,56 @@ func TestConfig_Fields(t *testing.T) {
 }
 
 // TestWorkerLogWriter tests the worker log writer.
+func TestDurableManagerRequiresDistinctRestrictedWorkerCredentials(t *testing.T) {
+	for _, testCase := range []struct {
+		name string
+		cfg  Config
+		want string
+	}{
+		{name: "missing database", cfg: Config{DatabaseURL: "manager", WorkerNATSURL: "worker-nats"}, want: "WORKER_DATABASE_URL"},
+		{name: "missing nats", cfg: Config{DatabaseURL: "manager", WorkerDatabaseURL: "worker-db"}, want: "WORKER_NATS_URL"},
+		{name: "reused database", cfg: Config{DatabaseURL: "same", WorkerDatabaseURL: "same", WorkerNATSURL: "worker-nats"}, want: "must not reuse"},
+		{name: "reused nats", cfg: Config{DatabaseURL: "manager", WorkerDatabaseURL: "worker-db", DefaultNATSURL: "same", WorkerNATSURL: "same"}, want: "must not reuse"},
+		{name: "wrong database user", cfg: Config{DatabaseURL: "manager", WorkerDatabaseURL: "postgresql://manager:secret@db/app", WorkerNATSURL: "nats://worker:secret@nats"}, want: "dedicated"},
+		{name: "wrong nats user", cfg: Config{DatabaseURL: "manager", WorkerDatabaseURL: "postgresql://wateaminbox_worker:secret@db/app", WorkerNATSURL: "nats://service:secret@nats"}, want: "dedicated"},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			manager := New(testCase.cfg)
+			err := manager.Start(context.Background())
+			require.ErrorContains(t, err, testCase.want)
+		})
+	}
+}
+
+func TestWorkerEnvironmentIsStrictDataPlaneAllowlist(t *testing.T) {
+	for name, value := range map[string]string{
+		"HTTP_BEARER_TOKEN":        "rollout-authority",
+		"JWT_SECRET":               "jwt-authority",
+		"DATABASE_URL":             "postgresql://manager-control",
+		"NATS_URL":                 "nats://service-control",
+		"POSTGRES_PASSWORD":        "manager-password",
+		"NATS_SERVICE_PASSWORD":    "service-password",
+		"PATH":                     "/privileged/bin",
+		"S3_ENDPOINT":              "https://storage.example",
+		"S3_ACCESS_KEY":            "shared-data-plane-key",
+		"WORKER_DB_MAX_OPEN_CONNS": "4",
+	} {
+		t.Setenv(name, value)
+	}
+
+	environment := workerBaseEnvironment()
+	joined := strings.Join(environment, "\n")
+	for _, forbidden := range []string{
+		"HTTP_BEARER_TOKEN=", "JWT_SECRET=", "DATABASE_URL=", "NATS_URL=",
+		"POSTGRES_PASSWORD=", "NATS_SERVICE_PASSWORD=", "PATH=",
+	} {
+		assert.NotContains(t, joined, forbidden)
+	}
+	assert.Contains(t, joined, "S3_ENDPOINT=https://storage.example")
+	assert.Contains(t, joined, "S3_ACCESS_KEY=shared-data-plane-key")
+	assert.Contains(t, joined, "WORKER_DB_MAX_OPEN_CONNS=4")
+}
+
 func TestWorkerLogWriter(t *testing.T) {
 	w := &workerLogWriter{
 		connectionID: "test-conn",
@@ -430,6 +481,7 @@ func startRecoveredTestWorker(t *testing.T) (*exec.Cmd, *Manager) {
 	cmd := exec.Command("/bin/sleep", "30")
 	cmd.Env = append(os.Environ(), "COMPANY_ID=company", "CONNECTION_ID=recovered")
 	require.NoError(t, cmd.Start())
+	t.Cleanup(func() { _ = cmd.Process.Kill() })
 	go func() { _ = cmd.Wait() }()
 
 	m := New(Config{WhatsAppBinaryPath: "/bin/sleep"})
@@ -441,6 +493,13 @@ func startRecoveredTestWorker(t *testing.T) (*exec.Cmd, *Manager) {
 		Status:       types.StatusConnected,
 		PID:          cmd.Process.Pid,
 	}
+	// Linux may briefly expose the new PID before /proc/<pid>/environ reflects
+	// the exec'd child's identity. Recovered production workers are long-lived;
+	// wait for that equivalent precondition instead of racing the fixture.
+	require.Eventually(t, func() bool {
+		matches, err := m.isExpectedWorkerProcess(cmd.Process.Pid, "company", "recovered")
+		return err == nil && matches
+	}, time.Second, 10*time.Millisecond)
 	return cmd, m
 }
 

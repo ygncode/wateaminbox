@@ -2,11 +2,14 @@ package manager
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"strings"
 	"syscall"
 	"testing"
 	"time"
@@ -154,7 +157,7 @@ func TestUnlinkProcesslessFailedWorkerRunsOneShotPurge(t *testing.T) {
 	tempDir := t.TempDir()
 	marker := filepath.Join(tempDir, "unlink-mode")
 	binary := filepath.Join(tempDir, "worker")
-	require.NoError(t, os.WriteFile(binary, []byte("#!/bin/sh\nprintf '%s' \"$UNLINK_ON_START\" > \"$MARKER\"\n"), 0o755))
+	require.NoError(t, os.WriteFile(binary, []byte(fmt.Sprintf("#!/bin/sh\nprintf '%%s' \"$UNLINK_ON_START\" > %q\n", marker)), 0o755))
 
 	m := New(Config{WhatsAppBinaryPath: binary})
 	m.ctx = context.Background()
@@ -163,8 +166,6 @@ func TestUnlinkProcesslessFailedWorkerRunsOneShotPurge(t *testing.T) {
 		CompanyID: "company", ConnectionID: "connection", TenantSchema: "tenant_company",
 		DatabaseURL: "postgres://unused", Status: types.StatusError, PID: 0,
 	}
-	t.Setenv("MARKER", marker)
-
 	require.NoError(t, m.UnlinkWorker(
 		context.Background(), "company", "connection", "tenant_company", "postgres://unused", "test unlink",
 	))
@@ -177,9 +178,18 @@ func TestUnlinkProcesslessFailedWorkerRunsOneShotPurge(t *testing.T) {
 
 func TestFailedLiveWorkerUnlinkRetainsDurableIntent(t *testing.T) {
 	registry, mock := newMockRegistry(t)
-	mock.ExpectExec(regexp.QuoteMeta("UPDATE worker_registry SET desired_state = $1 WHERE connection_id = $2 AND company_id = $3 AND launch_id = $4")).
-		WithArgs(DesiredStateUnlinking, "connection", "company", "launch").
+	mock.ExpectQuery(regexp.QuoteMeta("SELECT connection_id, company_id, tenant_schema, database_url, pid, status, started_at, last_heartbeat, restart_count, launch_id, desired_state, artifact_version, artifact_sha256, worker_uid, worker_gid FROM worker_registry WHERE connection_id = $1")).
+		WithArgs("connection").WillReturnRows(sqlmock.NewRows([]string{
+		"connection_id", "company_id", "tenant_schema", "database_url", "pid", "status", "started_at", "last_heartbeat", "restart_count", "launch_id", "desired_state", "artifact_version", "artifact_sha256", "worker_uid", "worker_gid",
+	}).AddRow("connection", "company", "tenant_company", "", 1, types.StatusConnected, time.Now(), time.Now(), 0, "launch", DesiredStateRunning, "bootstrap", strings.Repeat("a", 64), 100000, 100000))
+	mock.ExpectBegin()
+	mock.ExpectExec(regexp.QuoteMeta("UPDATE worker_registry SET desired_state = $1, last_heartbeat = now()")).
+		WithArgs(DesiredStateUnlinking, "connection", "company", "tenant_company", "launch").
 		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectQuery(regexp.QuoteMeta("SELECT batch.id::text FROM worker_upgrade_batches batch JOIN worker_upgrade_items item ON item.batch_id = batch.id JOIN worker_registry current ON current.connection_id = item.connection_id")).
+		WithArgs("company", "tenant_company", "connection", "launch", DesiredStateUnlinking).
+		WillReturnRows(sqlmock.NewRows([]string{"id"}))
+	mock.ExpectCommit()
 
 	ready := filepath.Join(t.TempDir(), "ready")
 	cmd := exec.Command("/bin/sh", "-c", `trap 'exit 1' USR1; : > "$READY"; while true; do sleep 0.1; done`)
@@ -192,8 +202,8 @@ func TestFailedLiveWorkerUnlinkRetainsDurableIntent(t *testing.T) {
 	}, time.Second, 10*time.Millisecond)
 	worker := &WorkerProcess{
 		ID: "connection", LaunchID: "launch", DesiredState: DesiredStateRunning,
-		CompanyID: "company", ConnectionID: "connection", Status: types.StatusConnected,
-		PID: cmd.Process.Pid, cmd: cmd, done: make(chan struct{}),
+		CompanyID: "company", ConnectionID: "connection", TenantSchema: "tenant_company",
+		Status: types.StatusConnected, PID: cmd.Process.Pid, cmd: cmd, done: make(chan struct{}),
 	}
 	m := New(Config{})
 	m.ctx = context.Background()
@@ -268,20 +278,32 @@ func TestCompletedUnlinkRetainsLaunchWhenRegistryCleanupFails(t *testing.T) {
 }
 
 func TestRecoveryClearsStoppedIntentAfterProcessIsGone(t *testing.T) {
+	root := t.TempDir()
+	artifactDir := filepath.Join(root, "bootstrap")
+	require.NoError(t, os.MkdirAll(artifactDir, 0o755))
+	binary := filepath.Join(artifactDir, "whatsapp-worker")
+	require.NoError(t, os.WriteFile(binary, []byte("legacy-bootstrap"), 0o755))
+	digest, err := sha256File(binary)
+	require.NoError(t, err)
 	registry, mock := newMockRegistry(t)
-	mock.ExpectQuery(regexp.QuoteMeta("SELECT connection_id, company_id, tenant_schema, database_url, pid, status, started_at, last_heartbeat, restart_count, launch_id, desired_state FROM worker_registry")).
+	mock.ExpectQuery(regexp.QuoteMeta("SELECT connection_id, company_id, tenant_schema, database_url, pid, status, started_at, last_heartbeat, restart_count, launch_id, desired_state, artifact_version, artifact_sha256, worker_uid, worker_gid FROM worker_registry")).
 		WillReturnRows(sqlmock.NewRows([]string{
 			"connection_id", "company_id", "tenant_schema", "database_url", "pid", "status",
-			"started_at", "last_heartbeat", "restart_count", "launch_id", "desired_state",
+			"started_at", "last_heartbeat", "restart_count", "launch_id", "desired_state", "artifact_version", "artifact_sha256", "worker_uid", "worker_gid",
 		}).AddRow(
 			"connection", "company", "tenant_company", "", 999999, types.StatusStopping,
-			time.Now(), time.Now(), 0, "launch", DesiredStateStopped,
+			time.Now(), time.Now(), 0, "launch", DesiredStateStopped, "embedded", "", 100000, 100000,
 		))
+	mock.ExpectQuery(regexp.QuoteMeta("FROM worker_upgrade_batches WHERE completed_at IS NULL")).
+		WillReturnError(sql.ErrNoRows)
+	mock.ExpectExec(regexp.QuoteMeta("UPDATE worker_registry SET artifact_version = $1, artifact_sha256 = $2,")).
+		WithArgs("bootstrap", digest, "connection", "company", "tenant_company", "launch").
+		WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectExec(regexp.QuoteMeta("DELETE FROM worker_registry WHERE connection_id = $1 AND company_id = $2 AND launch_id = $3")).
 		WithArgs("connection", "company", "launch").
 		WillReturnResult(sqlmock.NewResult(0, 1))
 
-	m := New(Config{WhatsAppBinaryPath: filepath.Join(t.TempDir(), "worker")})
+	m := New(Config{WhatsAppBinaryPath: binary, ArtifactRoot: root, DefaultArtifactVersion: "bootstrap", DefaultArtifactSHA256: digest})
 	m.ctx = context.Background()
 	m.registry = registry
 	require.NoError(t, m.recoverOrphanedWorkers(context.Background()))
@@ -290,20 +312,32 @@ func TestRecoveryClearsStoppedIntentAfterProcessIsGone(t *testing.T) {
 }
 
 func TestRecoveryRetainsStoppedLaunchWhenCleanupFails(t *testing.T) {
+	root := t.TempDir()
+	artifactDir := filepath.Join(root, "bootstrap")
+	require.NoError(t, os.MkdirAll(artifactDir, 0o755))
+	binary := filepath.Join(artifactDir, "whatsapp-worker")
+	require.NoError(t, os.WriteFile(binary, []byte("legacy-bootstrap"), 0o755))
+	digest, err := sha256File(binary)
+	require.NoError(t, err)
 	registry, mock := newMockRegistry(t)
-	mock.ExpectQuery(regexp.QuoteMeta("SELECT connection_id, company_id, tenant_schema, database_url, pid, status, started_at, last_heartbeat, restart_count, launch_id, desired_state FROM worker_registry")).
+	mock.ExpectQuery(regexp.QuoteMeta("SELECT connection_id, company_id, tenant_schema, database_url, pid, status, started_at, last_heartbeat, restart_count, launch_id, desired_state, artifact_version, artifact_sha256, worker_uid, worker_gid FROM worker_registry")).
 		WillReturnRows(sqlmock.NewRows([]string{
 			"connection_id", "company_id", "tenant_schema", "database_url", "pid", "status",
-			"started_at", "last_heartbeat", "restart_count", "launch_id", "desired_state",
+			"started_at", "last_heartbeat", "restart_count", "launch_id", "desired_state", "artifact_version", "artifact_sha256", "worker_uid", "worker_gid",
 		}).AddRow(
 			"connection", "company", "tenant_company", "", 999999, types.StatusStopping,
-			time.Now(), time.Now(), 0, "launch", DesiredStateStopped,
+			time.Now(), time.Now(), 0, "launch", DesiredStateStopped, "embedded", "", 100001, 100001,
 		))
+	mock.ExpectQuery(regexp.QuoteMeta("FROM worker_upgrade_batches WHERE completed_at IS NULL")).
+		WillReturnError(sql.ErrNoRows)
+	mock.ExpectExec(regexp.QuoteMeta("UPDATE worker_registry SET artifact_version = $1, artifact_sha256 = $2,")).
+		WithArgs("bootstrap", digest, "connection", "company", "tenant_company", "launch").
+		WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectExec(regexp.QuoteMeta("DELETE FROM worker_registry WHERE connection_id = $1 AND company_id = $2 AND launch_id = $3")).
 		WithArgs("connection", "company", "launch").
 		WillReturnError(assert.AnError)
 
-	m := New(Config{WhatsAppBinaryPath: filepath.Join(t.TempDir(), "worker")})
+	m := New(Config{WhatsAppBinaryPath: binary, ArtifactRoot: root, DefaultArtifactVersion: "bootstrap", DefaultArtifactSHA256: digest})
 	m.ctx = context.Background()
 	m.registry = registry
 	require.NoError(t, m.recoverOrphanedWorkers(context.Background()))
@@ -345,16 +379,23 @@ func TestRestartCarriesIncrementedAttemptIntoNewLaunch(t *testing.T) {
 
 func TestKillCommandReturnsPersistenceFailureForRedelivery(t *testing.T) {
 	registry, mock := newMockRegistry(t)
-	mock.ExpectExec(regexp.QuoteMeta("UPDATE worker_registry SET desired_state = $1 WHERE connection_id = $2 AND company_id = $3 AND launch_id = $4")).
-		WithArgs(DesiredStateStopped, "connection", "company", "launch").
+	mock.ExpectQuery(regexp.QuoteMeta("SELECT connection_id, company_id, tenant_schema, database_url, pid, status, started_at, last_heartbeat, restart_count, launch_id, desired_state, artifact_version, artifact_sha256, worker_uid, worker_gid FROM worker_registry WHERE connection_id = $1")).
+		WithArgs("connection").WillReturnRows(sqlmock.NewRows([]string{
+		"connection_id", "company_id", "tenant_schema", "database_url", "pid", "status", "started_at", "last_heartbeat", "restart_count", "launch_id", "desired_state", "artifact_version", "artifact_sha256", "worker_uid", "worker_gid",
+	}).AddRow("connection", "company", "tenant_company", "", 999999, types.StatusConnected, time.Now(), time.Now(), 0, "launch", DesiredStateRunning, "bootstrap", strings.Repeat("b", 64), 100000, 100000))
+	mock.ExpectBegin()
+	mock.ExpectExec(regexp.QuoteMeta("UPDATE worker_registry SET desired_state = $1, last_heartbeat = now()")).
+		WithArgs(DesiredStateStopped, "connection", "company", "tenant_company", "launch").
 		WillReturnError(assert.AnError)
+	mock.ExpectRollback()
 
 	m := New(Config{})
 	m.ctx = context.Background()
 	m.registry = registry
 	m.workers["connection"] = &WorkerProcess{
 		ID: "connection", LaunchID: "launch", DesiredState: DesiredStateRunning,
-		CompanyID: "company", ConnectionID: "connection", Status: types.StatusConnected, PID: 999999,
+		CompanyID: "company", ConnectionID: "connection", TenantSchema: "tenant_company",
+		Status: types.StatusConnected, PID: 999999,
 	}
 	h := &Handlers{manager: m}
 	payload, err := json.Marshal(types.KillWorkerCommand{
@@ -369,6 +410,68 @@ func TestKillCommandReturnsPersistenceFailureForRedelivery(t *testing.T) {
 	assert.Equal(t, DesiredStateRunning, retained.DesiredState)
 	assert.Equal(t, types.StatusConnected, retained.Status)
 	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestMissingOrStaleMapAuthoritativeLifecycleRollbackFailureIsRedeliverable(t *testing.T) {
+	for _, testCase := range []struct {
+		name         string
+		desiredState string
+		staleMap     bool
+		invoke       func(*Manager) error
+	}{
+		{
+			name: "stop empty map", desiredState: DesiredStateStopped,
+			invoke: func(m *Manager) error {
+				return m.StopWorker(context.Background(), "company", "connection", "operator stop")
+			},
+		},
+		{
+			name: "unlink empty map", desiredState: DesiredStateUnlinking,
+			invoke: func(m *Manager) error {
+				return m.UnlinkWorker(context.Background(), "company", "connection", "tenant_company", "postgres://unused", "operator unlink")
+			},
+		},
+		{
+			name: "stop stale map", desiredState: DesiredStateStopped, staleMap: true,
+			invoke: func(m *Manager) error {
+				return m.StopWorker(context.Background(), "company", "connection", "operator stop")
+			},
+		},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			root := t.TempDir()
+			digest := writeArtifact(t, root, "bootstrap", []byte("#!/bin/sh\nexit 0\n"))
+			registry, mock := newMockRegistry(t)
+			mock.ExpectQuery(regexp.QuoteMeta("SELECT connection_id, company_id, tenant_schema, database_url, pid, status, started_at, last_heartbeat, restart_count, launch_id, desired_state, artifact_version, artifact_sha256, worker_uid, worker_gid FROM worker_registry WHERE connection_id = $1")).
+				WithArgs("connection").WillReturnRows(sqlmock.NewRows([]string{
+				"connection_id", "company_id", "tenant_schema", "database_url", "pid", "status", "started_at", "last_heartbeat", "restart_count", "launch_id", "desired_state", "artifact_version", "artifact_sha256", "worker_uid", "worker_gid",
+			}).AddRow("connection", "company", "tenant_company", "", 0, types.StatusError, time.Now(), time.Now(), 0, "launch", DesiredStateRunning, "bootstrap", digest, 100000, 100000))
+			mock.ExpectBegin()
+			mock.ExpectExec(regexp.QuoteMeta("UPDATE worker_registry SET desired_state = $1, last_heartbeat = now()")).
+				WithArgs(testCase.desiredState, "connection", "company", "tenant_company", "launch").
+				WillReturnError(assert.AnError)
+			mock.ExpectRollback()
+
+			m := New(Config{ArtifactRoot: root, WhatsAppBinaryPath: filepath.Join(root, "bootstrap", "whatsapp-worker")})
+			m.ctx = context.Background()
+			m.registry = registry
+			if testCase.staleMap {
+				m.workers["connection"] = &WorkerProcess{
+					ConnectionID: "connection", CompanyID: "company", TenantSchema: "tenant_company",
+					LaunchID: "stale-launch", DesiredState: DesiredStateRunning,
+					Status: types.StatusError,
+				}
+			}
+			err := testCase.invoke(m)
+			require.ErrorContains(t, err, "persist")
+			retained, exists := m.GetWorkerStatus("connection")
+			require.True(t, exists, "durable launch must remain available for redelivery")
+			assert.Equal(t, "launch", retained.LaunchID)
+			assert.Equal(t, DesiredStateRunning, retained.DesiredState)
+			assert.Equal(t, types.StatusError, retained.Status)
+			require.NoError(t, mock.ExpectationsWereMet())
+		})
+	}
 }
 
 func TestKillCommandAcknowledgesAlreadyMissingWorker(t *testing.T) {
@@ -411,14 +514,18 @@ func TestReconnectCommandReplacesProcesslessFailedLaunch(t *testing.T) {
 
 func TestTransientClaimFailureRestoresPreviousFailedLaunch(t *testing.T) {
 	registry, mock := newMockRegistry(t)
-	mock.ExpectExec(regexp.QuoteMeta("INSERT INTO worker_registry")).
+	mock.ExpectQuery(regexp.QuoteMeta("INSERT INTO worker_registry")).
 		WithArgs(
 			"connection", "company", "tenant_company", "", 0, types.StatusStarting,
-			sqlmock.AnyArg(), 1, sqlmock.AnyArg(), DesiredStateRunning, "old-launch",
+			sqlmock.AnyArg(), 1, sqlmock.AnyArg(), DesiredStateRunning,
+			defaultArtifactVersion, "", "old-launch",
 		).
 		WillReturnError(assert.AnError)
 
-	m := New(Config{WhatsAppBinaryPath: filepath.Join(t.TempDir(), "unused-worker")})
+	m := New(Config{
+		WhatsAppBinaryPath: filepath.Join(t.TempDir(), "unused-worker"),
+		WorkerDatabaseURL:  "postgres://restricted", WorkerNATSURL: "nats://worker",
+	})
 	m.ctx = context.Background()
 	m.registry = registry
 	old := &WorkerProcess{
@@ -522,7 +629,7 @@ func TestSpawnDoesNotStartProcessWhenDurableOwnershipFails(t *testing.T) {
 	require.NoError(t, os.WriteFile(binary, []byte("#!/bin/sh\ntouch \"$MARKER\"\nsleep 30\n"), 0o755))
 
 	registry, mock := newMockRegistry(t)
-	mock.ExpectExec(regexp.QuoteMeta("INSERT INTO worker_registry")).
+	mock.ExpectQuery(regexp.QuoteMeta("INSERT INTO worker_registry")).
 		WithArgs(
 			"00000000-0000-4000-8000-000000000001",
 			"00000000-0000-4000-8000-000000000002",
@@ -534,15 +641,19 @@ func TestSpawnDoesNotStartProcessWhenDurableOwnershipFails(t *testing.T) {
 			0,
 			sqlmock.AnyArg(),
 			DesiredStateRunning,
+			defaultArtifactVersion,
+			sqlmock.AnyArg(),
 			// A first launch expects no prior launch: a typed NULL, not "".
 			nil,
 		).
-		WillReturnResult(sqlmock.NewResult(0, 0))
+		WillReturnRows(sqlmock.NewRows([]string{"worker_uid", "worker_gid"}))
 
-	m := New(Config{WhatsAppBinaryPath: binary})
+	m := New(Config{
+		WhatsAppBinaryPath: binary,
+		WorkerDatabaseURL:  "postgres://restricted", WorkerNATSURL: "nats://worker",
+	})
 	m.ctx = context.Background()
 	m.registry = registry
-	t.Setenv("MARKER", marker)
 	err := m.SpawnWorker(
 		context.Background(),
 		"00000000-0000-4000-8000-000000000002",

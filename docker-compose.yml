@@ -4,7 +4,7 @@ services:
     container_name: wateaminbox-postgres
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
       POSTGRES_DB: wateaminbox
     ports:
       - "4447:5432"
@@ -21,32 +21,66 @@ services:
   nats:
     image: nats:2.10-alpine
     container_name: wateaminbox-nats
-    command: ["--jetstream", "--store_dir", "/data", "-m", "8222"]
+    command: ["--config", "/etc/nats/nats.conf"]
     ports:
       - "4448:4222"
       - "8222:8222"
     volumes:
       - wateaminbox_nats_data:/data
+      - ${DEV_RUNTIME_DIR:-.dev-runtime}/nats.conf:/etc/nats/nats.conf:ro
     healthcheck:
       test: ["CMD", "nats-server", "--help"]
       interval: 5s
       timeout: 5s
       retries: 5
 
+  worker-credential-provisioner:
+    image: postgres:18-alpine
+    profiles: ["setup"]
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_DB: wateaminbox
+      POSTGRES_PASSWORD_FILE: /run/dev-secrets/postgres_password
+      WORKER_POSTGRES_PASSWORD_FILE: /run/dev-secrets/worker_postgres_password
+      # Existing local volumes historically use the short password "postgres".
+      # This exception is development-only and is absent from production Compose.
+      ALLOW_INSECURE_DEVELOPMENT_ADMIN_CREDENTIAL: "true"
+    volumes:
+      - ./infrastructure/postgres/provision-worker-role.sh:/usr/local/bin/provision-worker-role:ro
+      - ${DEV_RUNTIME_DIR:-.dev-runtime}:/run/dev-secrets:ro
+    entrypoint: ["/bin/sh", "/usr/local/bin/provision-worker-role"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+
   centrifugo:
-    image: centrifugo/centrifugo:v6.9.1
+    build:
+      context: .
+      dockerfile: infrastructure/centrifugo/Dockerfile
+    image: wateaminbox/centrifugo:v6.9.1-redacted
     container_name: wateaminbox-centrifugo
+    # Match the developer so Linux bind-mounted 0600 credentials stay private
+    # while remaining readable by this non-root process.
+    user: "${DEV_HOST_UID:-1000}:${DEV_HOST_GID:-1000}"
+    entrypoint: ["/usr/local/bin/centrifugo-secret-entrypoint"]
     command: ["centrifugo", "--config=/centrifugo/config.json"]
     environment:
+      CENTRIFUGO_NATS_PASSWORD_FILE: /run/dev-secrets/nats_service_password
       CENTRIFUGO_CLIENT_TOKEN_HMAC_SECRET_KEY: ${CENTRIFUGO_TOKEN_HMAC_SECRET:-development-centrifugo-token-secret-change-me}
       CENTRIFUGO_HTTP_API_KEY: ${CENTRIFUGO_API_KEY:-development-centrifugo-api-key}
     ports:
       - "4451:8000"
     volumes:
       - ./infrastructure/centrifugo/config.json:/centrifugo/config.json:ro
+      - ${DEV_RUNTIME_DIR:-.dev-runtime}/nats_service_password:/run/dev-secrets/nats_service_password:ro
     depends_on:
       nats:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8000/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
   meilisearch:
     image: getmeili/meilisearch:v1.11

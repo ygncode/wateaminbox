@@ -154,16 +154,19 @@ func (h *Handlers) handleSpawnCommand(ctx context.Context, data []byte) error {
 		}
 	}
 
-	databaseURL := cmd.DatabaseURL
-	if databaseURL == "" {
-		databaseURL = h.manager.config.DatabaseURL
+	databaseURL := h.manager.config.WorkerDatabaseURL
+	if h.manager.registry == nil && databaseURL == "" {
+		databaseURL = cmd.DatabaseURL // Persistence-free local compatibility only.
+		if databaseURL == "" {
+			databaseURL = h.manager.config.DatabaseURL
+		}
 	}
 	if databaseURL == "" {
-		return fmt.Errorf("orchestrator DATABASE_URL is required to spawn workers")
+		return fmt.Errorf("orchestrator WORKER_DATABASE_URL is required to spawn workers")
 	}
 
-	// Spawn the worker. Database credentials come from orchestrator
-	// configuration rather than the persisted NATS command payload.
+	// Spawn the worker with the restricted URL from manager configuration. A
+	// command payload can never select or smuggle database credentials.
 	err := h.manager.SpawnWorker(ctx, cmd.CompanyID, cmd.ConnectionID, cmd.TenantSchema, databaseURL)
 	if err != nil {
 		log.Printf("Failed to spawn worker for company %s, connection %s: %v", cmd.CompanyID, cmd.ConnectionID, err)
@@ -189,7 +192,10 @@ func (h *Handlers) handleKillCommand(ctx context.Context, data []byte) error {
 	// exits. A normal kill preserves credentials for reconnect.
 	var err error
 	if cmd.Unlink {
-		databaseURL := h.manager.config.DatabaseURL
+		databaseURL := h.manager.config.WorkerDatabaseURL
+		if h.manager.registry == nil && databaseURL == "" {
+			databaseURL = h.manager.config.DatabaseURL
+		}
 		err = h.manager.UnlinkWorker(
 			ctx,
 			cmd.CompanyID,

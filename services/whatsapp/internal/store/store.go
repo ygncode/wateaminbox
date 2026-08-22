@@ -15,6 +15,8 @@ type Config struct {
 	DatabaseURL string
 	// ConnectionID is the UUID for isolating session data (required)
 	ConnectionID string
+	// RequiredRole rejects accidental manager/control-plane credentials.
+	RequiredRole string
 	// Logger is the whatsmeow logger
 	Logger waLog.Logger
 
@@ -37,6 +39,7 @@ func NewStore(ctx context.Context, cfg Config) (*PGContainer, error) {
 	container, err := NewPGContainer(ctx, PGConfig{
 		DatabaseURL:     cfg.DatabaseURL,
 		ConnectionID:    cfg.ConnectionID,
+		RequiredRole:    cfg.RequiredRole,
 		Logger:          cfg.Logger,
 		MaxOpenConns:    cfg.MaxOpenConns,
 		MaxIdleConns:    cfg.MaxIdleConns,

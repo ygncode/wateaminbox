@@ -16,22 +16,104 @@ type WorkerRegistry struct {
 	db *sql.DB
 }
 
-var ErrWorkerLaunchConflict = errors.New("worker launch claim conflict")
+var (
+	ErrWorkerLaunchConflict          = errors.New("worker launch claim conflict")
+	ErrWorkerUpgradeBatchActive      = errors.New("a worker upgrade batch is already active")
+	ErrWorkerUpgradeSnapshotConflict = errors.New("worker upgrade snapshot no longer matches the source generation")
+	ErrWorkerArtifactNormalization   = errors.New("worker artifact normalization is incomplete")
+)
+
+const (
+	WorkerUpgradePhaseStop      = "stop"
+	WorkerUpgradePhaseLaunch    = "launch"
+	WorkerUpgradePhaseVerify    = "verify"
+	WorkerUpgradePhaseRollback  = "rollback"
+	WorkerUpgradePhaseRecovery  = "recovery"
+	WorkerUpgradePhaseCanceled  = "canceled"
+	WorkerUpgradePhaseHalted    = "halted"
+	WorkerUpgradePhaseAbandoned = "abandoned"
+
+	WorkerUpgradeItemResultTargetComplete    = "target_complete"
+	WorkerUpgradeItemResultRollbackComplete  = "rollback_complete"
+	WorkerUpgradeItemResultCanceledUntouched = "canceled_untouched"
+	WorkerUpgradeItemResultAbandonedExternal = "abandoned_external"
+)
+
+// WorkerUpgradeItemIntent is the immutable pre-signal snapshot of one worker.
+// SourceGeneration is the worker_registry launch_id observed by the caller.
+type WorkerUpgradeLiveFence struct {
+	LaunchID        string
+	ArtifactVersion string
+	ArtifactSHA256  string
+	WorkerUID       int
+	WorkerGID       int
+}
+
+type WorkerUpgradeItemIntent struct {
+	Position              int
+	CompanyID             string
+	TenantSchema          string
+	ConnectionID          string
+	SourceGeneration      string
+	SourceArtifactVersion string
+	SourceArtifactSHA256  string
+}
+
+// WorkerUpgradeBatch is a durable, globally serialized rolling upgrade.
+type WorkerUpgradeBatch struct {
+	ID                    string               `json:"id"`
+	TargetArtifactVersion string               `json:"target_artifact_version"`
+	TargetArtifactSHA256  string               `json:"target_artifact_sha256"`
+	Phase                 string               `json:"phase"`
+	Result                string               `json:"result,omitempty"`
+	LastError             string               `json:"last_error,omitempty"`
+	CreatedAt             time.Time            `json:"created_at"`
+	UpdatedAt             time.Time            `json:"updated_at"`
+	CompletedAt           *time.Time           `json:"completed_at,omitempty"`
+	Items                 []*WorkerUpgradeItem `json:"items"`
+}
+
+// WorkerUpgradeItem records enough source state to resume or roll back after a
+// crash. Every mutation is scoped by tenant, connection, and source generation.
+type WorkerUpgradeItem struct {
+	ID                    string     `json:"id"`
+	BatchID               string     `json:"batch_id"`
+	Position              int        `json:"position"`
+	CompanyID             string     `json:"company_id"`
+	TenantSchema          string     `json:"tenant_schema"`
+	ConnectionID          string     `json:"connection_id"`
+	SourceGeneration      string     `json:"source_generation"`
+	SourceArtifactVersion string     `json:"source_artifact_version"`
+	SourceArtifactSHA256  string     `json:"source_artifact_sha256"`
+	TargetGeneration      string     `json:"target_generation,omitempty"`
+	RecoveryGeneration    string     `json:"recovery_generation,omitempty"`
+	RollbackGeneration    string     `json:"rollback_generation,omitempty"`
+	Phase                 string     `json:"phase"`
+	Result                string     `json:"result,omitempty"`
+	LastError             string     `json:"last_error,omitempty"`
+	CreatedAt             time.Time  `json:"created_at"`
+	UpdatedAt             time.Time  `json:"updated_at"`
+	CompletedAt           *time.Time `json:"completed_at,omitempty"`
+}
 
 // WorkerRecord represents a worker record in the database.
 type WorkerRecord struct {
-	ID            string
-	ConnectionID  string
-	CompanyID     string
-	TenantSchema  string
-	DatabaseURL   string
-	PID           int
-	Status        string
-	StartedAt     time.Time
-	LastHeartbeat time.Time
-	RestartCount  int
-	LaunchID      string
-	DesiredState  string
+	ID              string
+	ConnectionID    string
+	CompanyID       string
+	TenantSchema    string
+	DatabaseURL     string
+	PID             int
+	Status          string
+	StartedAt       time.Time
+	LastHeartbeat   time.Time
+	RestartCount    int
+	LaunchID        string
+	DesiredState    string
+	ArtifactVersion string
+	ArtifactSHA256  string
+	WorkerUID       int
+	WorkerGID       int
 }
 
 func NewWorkerRegistry(databaseURL string) (*WorkerRegistry, error) {
@@ -77,6 +159,81 @@ func NewWorkerRegistry(databaseURL string) (*WorkerRegistry, error) {
 		_ = db.Close()
 		return nil, fmt.Errorf("worker registry does not support durable unlink intent")
 	}
+	var upgradeSchemaObjects int
+	if err := db.QueryRow(`
+		SELECT
+			(SELECT COUNT(*) FROM information_schema.columns
+			 WHERE table_schema = 'public' AND table_name = 'worker_registry'
+				AND column_name IN ('artifact_version', 'artifact_sha256', 'artifact_normalized', 'worker_uid', 'worker_gid'))
+			+
+			(SELECT COUNT(*) FROM information_schema.tables
+			 WHERE table_schema = 'public'
+				AND table_name IN ('worker_upgrade_batches', 'worker_upgrade_items'))
+			+
+			(SELECT COUNT(*) FROM information_schema.columns
+			 WHERE table_schema = 'public' AND table_name = 'worker_upgrade_items'
+				AND column_name IN ('recovery_generation', 'rollback_generation'))
+			+
+			(SELECT COUNT(*) FROM information_schema.sequences
+			 WHERE sequence_schema = 'public' AND sequence_name = 'worker_os_identity_seq')
+	`).Scan(&upgradeSchemaObjects); err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("failed to verify worker upgrade schema: %w", err)
+	}
+	if upgradeSchemaObjects != 10 {
+		_ = db.Close()
+		return nil, fmt.Errorf("worker upgrade migration is not applied")
+	}
+	var safeWorkerIdentitySchema bool
+	if err := db.QueryRow(`
+		SELECT
+			EXISTS (
+				SELECT 1
+				FROM information_schema.columns uid
+				JOIN information_schema.columns gid
+					ON gid.table_schema = uid.table_schema
+					AND gid.table_name = uid.table_name
+				WHERE uid.table_schema = 'public' AND uid.table_name = 'worker_registry'
+					AND uid.column_name = 'worker_uid' AND uid.is_nullable = 'NO'
+					AND uid.column_default LIKE 'nextval(%worker_os_identity_seq%'
+					AND gid.column_name = 'worker_gid' AND gid.is_generated = 'ALWAYS'
+					AND regexp_replace(gid.generation_expression, '[()]', '', 'g') = 'worker_uid'
+			)
+			AND EXISTS (
+				SELECT 1 FROM information_schema.sequences
+				WHERE sequence_schema = 'public' AND sequence_name = 'worker_os_identity_seq'
+					AND minimum_value::numeric = 100000
+					AND maximum_value::numeric = 2147483646
+					AND cycle_option = 'NO'
+			)
+			AND EXISTS (
+				SELECT 1 FROM pg_indexes
+				WHERE schemaname = 'public' AND tablename = 'worker_registry'
+					AND indexname = 'worker_registry_worker_uid_key'
+					AND indexdef LIKE 'CREATE UNIQUE INDEX%'
+			)
+			AND EXISTS (
+				SELECT 1 FROM information_schema.columns
+				WHERE table_schema = 'public' AND table_name = 'worker_registry'
+					AND column_name = 'artifact_normalized' AND is_nullable = 'NO'
+					AND column_default = 'true'
+			)
+			AND EXISTS (
+				SELECT 1 FROM pg_constraint constraint_row
+				JOIN pg_class table_row ON table_row.oid = constraint_row.conrelid
+				JOIN pg_namespace schema_row ON schema_row.oid = table_row.relnamespace
+				WHERE schema_row.nspname = 'public'
+					AND table_row.relname = 'worker_registry'
+					AND constraint_row.conname = 'worker_registry_artifact_normalization_check'
+			)
+	`).Scan(&safeWorkerIdentitySchema); err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("failed to verify worker identity schema: %w", err)
+	}
+	if !safeWorkerIdentitySchema {
+		_ = db.Close()
+		return nil, fmt.Errorf("worker identity schema is not collision-safe")
+	}
 	db.SetMaxOpenConns(5)
 	db.SetMaxIdleConns(2)
 	db.SetConnMaxLifetime(5 * time.Minute)
@@ -96,20 +253,15 @@ func (r *WorkerRegistry) Close() error {
 // the same live connection. A durable stopped row may be reclaimed explicitly.
 func (r *WorkerRegistry) ClaimWorkerLaunch(ctx context.Context, w *WorkerProcess, expectedLaunchID string) error {
 	now := time.Now()
-	// A first launch has no previous launch to compare against: the connection
-	// is new, or its row was removed when the worker was durably stopped. The
-	// expectation is then "no row exists", which is a typed NULL rather than an
-	// empty string. PostgreSQL parses the parameter as uuid whether or not the
-	// conflict branch runs, so passing "" fails the whole statement instead of
-	// simply matching nothing. launch_id is NOT NULL, so IS NOT DISTINCT FROM a
-	// NULL expectation can never match a row another launch already owns.
+	// A first launch expects no prior launch: PostgreSQL needs a typed NULL,
+	// never the invalid empty UUID. A nonempty expectation remains an exact CAS.
 	var expected any
 	if expectedLaunchID != "" {
 		expected = expectedLaunchID
 	}
-	result, err := r.db.ExecContext(ctx, `
-		INSERT INTO worker_registry (connection_id, company_id, tenant_schema, database_url, pid, status, started_at, last_heartbeat, restart_count, launch_id, desired_state)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $7, $8, $9, $10)
+	err := r.db.QueryRowContext(ctx, `
+		INSERT INTO worker_registry (connection_id, company_id, tenant_schema, database_url, pid, status, started_at, last_heartbeat, restart_count, launch_id, desired_state, artifact_version, artifact_sha256, artifact_normalized)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $7, $8, $9, $10, $11, $12, true)
 		ON CONFLICT (connection_id) DO UPDATE SET
 			tenant_schema = EXCLUDED.tenant_schema,
 			database_url = EXCLUDED.database_url,
@@ -119,19 +271,23 @@ func (r *WorkerRegistry) ClaimWorkerLaunch(ctx context.Context, w *WorkerProcess
 			last_heartbeat = EXCLUDED.last_heartbeat,
 			restart_count = EXCLUDED.restart_count,
 			launch_id = EXCLUDED.launch_id,
-			desired_state = EXCLUDED.desired_state
+			desired_state = EXCLUDED.desired_state,
+			artifact_version = EXCLUDED.artifact_version,
+			artifact_sha256 = EXCLUDED.artifact_sha256,
+			artifact_normalized = true,
+			worker_uid = EXCLUDED.worker_uid
 		WHERE worker_registry.company_id = EXCLUDED.company_id
-			AND worker_registry.launch_id IS NOT DISTINCT FROM $11::uuid
-	`, w.ConnectionID, w.CompanyID, w.TenantSchema, "", w.PID, w.Status, now, w.RestartCount, w.LaunchID, w.DesiredState, expected)
+			AND worker_registry.launch_id IS NOT DISTINCT FROM $13::uuid
+		RETURNING worker_uid, worker_gid
+	`, w.ConnectionID, w.CompanyID, w.TenantSchema, "", w.PID, w.Status, now, w.RestartCount, w.LaunchID, w.DesiredState, w.ArtifactVersion, w.ArtifactSHA256, expected).Scan(&w.WorkerUID, &w.WorkerGID)
+	if err == sql.ErrNoRows {
+		return ErrWorkerLaunchConflict
+	}
 	if err != nil {
 		return fmt.Errorf("failed to claim worker launch: %w", err)
 	}
-	affected, err := result.RowsAffected()
-	if err != nil {
-		return fmt.Errorf("inspect worker launch claim: %w", err)
-	}
-	if affected != 1 {
-		return ErrWorkerLaunchConflict
+	if err := validateWorkerIdentity(w.WorkerUID, w.WorkerGID); err != nil {
+		return fmt.Errorf("invalid allocated worker identity: %w", err)
 	}
 	return nil
 }
@@ -144,9 +300,10 @@ func (r *WorkerRegistry) ActivateWorkerLaunch(ctx context.Context, w *WorkerProc
 		UPDATE worker_registry SET
 			tenant_schema = $1, database_url = $2, pid = $3, status = $4,
 			started_at = $5, last_heartbeat = $5, restart_count = $6,
-			desired_state = $7
-		WHERE connection_id = $8 AND company_id = $9 AND launch_id = $10
-	`, w.TenantSchema, "", w.PID, w.Status, now, w.RestartCount, w.DesiredState, w.ConnectionID, w.CompanyID, w.LaunchID)
+			desired_state = $7, artifact_version = $8, artifact_sha256 = $9
+		WHERE connection_id = $10 AND company_id = $11 AND launch_id = $12
+			AND worker_uid = $13 AND worker_gid = $14
+	`, w.TenantSchema, "", w.PID, w.Status, now, w.RestartCount, w.DesiredState, w.ArtifactVersion, w.ArtifactSHA256, w.ConnectionID, w.CompanyID, w.LaunchID, w.WorkerUID, w.WorkerGID)
 	if err != nil {
 		return fmt.Errorf("failed to activate worker launch: %w", err)
 	}
@@ -158,6 +315,29 @@ func (r *WorkerRegistry) ActivateWorkerLaunch(ctx context.Context, w *WorkerProc
 		return ErrWorkerLaunchConflict
 	}
 	return nil
+}
+
+// DeactivateWorkerLaunch clears a confirmed-exited process while preserving
+// the exact reserved generation for rollout or shutdown recovery. The PID
+// fence prevents a stale waiter from deactivating a replacement process.
+func (r *WorkerRegistry) DeactivateWorkerLaunch(
+	ctx context.Context,
+	connectionID, companyID, launchID string,
+	pid int,
+) (bool, error) {
+	result, err := r.db.ExecContext(ctx, `
+		UPDATE worker_registry
+		SET pid = 0, status = $1, last_heartbeat = now()
+		WHERE connection_id = $2 AND company_id = $3 AND launch_id = $4 AND pid = $5
+	`, WorkerStatusRecovering, connectionID, companyID, launchID, pid)
+	if err != nil {
+		return false, fmt.Errorf("failed to deactivate worker launch: %w", err)
+	}
+	updated, err := result.RowsAffected()
+	if err != nil {
+		return false, fmt.Errorf("inspect worker launch deactivation: %w", err)
+	}
+	return updated == 1, nil
 }
 
 // RemoveWorkerLaunch deletes only the specified tenant-owned launch. A stale
@@ -178,7 +358,7 @@ func (r *WorkerRegistry) RemoveWorkerLaunch(ctx context.Context, connectionID, c
 
 func (r *WorkerRegistry) GetAllWorkers(ctx context.Context) ([]*WorkerRecord, error) {
 	rows, err := r.db.QueryContext(ctx, `
-		SELECT connection_id, company_id, tenant_schema, database_url, pid, status, started_at, last_heartbeat, restart_count, launch_id, desired_state
+		SELECT connection_id, company_id, tenant_schema, database_url, pid, status, started_at, last_heartbeat, restart_count, launch_id, desired_state, artifact_version, artifact_sha256, worker_uid, worker_gid
 		FROM worker_registry
 	`)
 	if err != nil {
@@ -189,7 +369,7 @@ func (r *WorkerRegistry) GetAllWorkers(ctx context.Context) ([]*WorkerRecord, er
 	var workers []*WorkerRecord
 	for rows.Next() {
 		w := &WorkerRecord{}
-		if err := rows.Scan(&w.ConnectionID, &w.CompanyID, &w.TenantSchema, &w.DatabaseURL, &w.PID, &w.Status, &w.StartedAt, &w.LastHeartbeat, &w.RestartCount, &w.LaunchID, &w.DesiredState); err != nil {
+		if err := rows.Scan(&w.ConnectionID, &w.CompanyID, &w.TenantSchema, &w.DatabaseURL, &w.PID, &w.Status, &w.StartedAt, &w.LastHeartbeat, &w.RestartCount, &w.LaunchID, &w.DesiredState, &w.ArtifactVersion, &w.ArtifactSHA256, &w.WorkerUID, &w.WorkerGID); err != nil {
 			return nil, fmt.Errorf("failed to scan worker: %w", err)
 		}
 		workers = append(workers, w)
@@ -276,13 +456,126 @@ func (r *WorkerRegistry) SetDesiredState(ctx context.Context, connectionID, comp
 	return affected == 1, err
 }
 
+// SetDesiredStateAndAbandonHaltedUpgrade atomically gives an acknowledged
+// operator stop/unlink authority over a halted rollout. The exact tenant-owned
+// launch intent changes in the same transaction that truthfully abandons every
+// unfinished batch item, so redelivery cannot resurrect the rollout.
+func (r *WorkerRegistry) SetDesiredStateAndAbandonHaltedUpgrade(
+	ctx context.Context, connectionID, companyID, tenantSchema, launchID,
+	desiredState, reason string,
+) (updated, abandoned bool, err error) {
+	if desiredState != DesiredStateStopped && desiredState != DesiredStateUnlinking {
+		return false, false, fmt.Errorf("invalid authoritative desired state %q", desiredState)
+	}
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return false, false, fmt.Errorf("begin authoritative worker lifecycle intent: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+	result, err := tx.ExecContext(ctx, `
+		UPDATE worker_registry
+		SET desired_state = $1, last_heartbeat = now()
+		WHERE connection_id = $2::uuid AND company_id = $3::uuid
+			AND tenant_schema = $4 AND launch_id = $5::uuid
+	`, desiredState, connectionID, companyID, tenantSchema, launchID)
+	if err != nil {
+		return false, false, fmt.Errorf("persist authoritative worker lifecycle intent: %w", err)
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return false, false, fmt.Errorf("inspect authoritative worker lifecycle intent: %w", err)
+	}
+	if rows != 1 {
+		return false, false, nil
+	}
+
+	var batchID string
+	err = tx.QueryRowContext(ctx, `
+		SELECT batch.id::text
+		FROM worker_upgrade_batches batch
+		JOIN worker_upgrade_items item ON item.batch_id = batch.id
+		JOIN worker_registry current ON current.connection_id = item.connection_id
+		WHERE batch.phase = 'halted' AND batch.completed_at IS NULL
+			AND item.company_id = $1::uuid AND item.tenant_schema = $2
+			AND item.connection_id = $3::uuid
+			AND current.company_id = item.company_id
+			AND current.tenant_schema = item.tenant_schema
+			AND current.launch_id = $4::uuid
+			AND current.desired_state = $5
+		FOR UPDATE OF batch, item, current
+	`, companyID, tenantSchema, connectionID, launchID, desiredState).Scan(&batchID)
+	if err != nil && err != sql.ErrNoRows {
+		return false, false, fmt.Errorf("lock halted rollout for authoritative lifecycle: %w", err)
+	}
+	if err == nil {
+		itemResult, updateErr := tx.ExecContext(ctx, `
+			UPDATE worker_upgrade_items
+			SET phase = 'abandoned', result = 'abandoned_external',
+				last_error = $1, completed_at = now(), updated_at = now()
+			WHERE batch_id = $2::uuid AND completed_at IS NULL
+		`, reason, batchID)
+		if updateErr != nil {
+			return false, false, fmt.Errorf("abandon halted rollout items: %w", updateErr)
+		}
+		itemRows, rowsErr := itemResult.RowsAffected()
+		if rowsErr != nil || itemRows < 1 {
+			return false, false, fmt.Errorf("abandon halted rollout items affected %d rows: %w", itemRows, rowsErr)
+		}
+		batchResult, updateErr := tx.ExecContext(ctx, `
+			UPDATE worker_upgrade_batches
+			SET phase = 'abandoned', result = 'abandoned', last_error = $1,
+				completed_at = now(), updated_at = now()
+			WHERE id = $2::uuid AND phase = 'halted' AND completed_at IS NULL
+		`, reason, batchID)
+		if updateErr != nil {
+			return false, false, fmt.Errorf("abandon halted rollout batch: %w", updateErr)
+		}
+		batchRows, rowsErr := batchResult.RowsAffected()
+		if rowsErr != nil || batchRows != 1 {
+			return false, false, fmt.Errorf("abandon halted rollout batch affected %d rows: %w", batchRows, rowsErr)
+		}
+		abandoned = true
+	}
+	if err = tx.Commit(); err != nil {
+		return false, false, fmt.Errorf("commit authoritative worker lifecycle intent: %w", err)
+	}
+	return true, abandoned, nil
+}
+
+// NormalizeLegacyWorkerArtifact crosses the migration bootstrap boundary only
+// after the caller has proved the old UID-10001 process is gone. The exact
+// tenant generation is retained for the following ordinary launch CAS.
+func (r *WorkerRegistry) NormalizeLegacyWorkerArtifact(
+	ctx context.Context, connectionID, companyID, tenantSchema, launchID,
+	artifactVersion, artifactSHA256 string,
+) (bool, error) {
+	result, err := r.db.ExecContext(ctx, `
+		UPDATE worker_registry
+		SET artifact_version = $1, artifact_sha256 = $2,
+			artifact_normalized = true, pid = 0, status = 'recovering',
+			last_heartbeat = now()
+		WHERE connection_id = $3::uuid AND company_id = $4::uuid
+			AND tenant_schema = $5 AND launch_id = $6::uuid
+			AND NOT artifact_normalized
+			AND artifact_version = 'embedded' AND artifact_sha256 = ''
+	`, artifactVersion, artifactSHA256, connectionID, companyID, tenantSchema, launchID)
+	if err != nil {
+		return false, fmt.Errorf("normalize legacy worker artifact: %w", err)
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return false, fmt.Errorf("inspect legacy worker artifact normalization: %w", err)
+	}
+	return rows == 1, nil
+}
+
 func (r *WorkerRegistry) GetWorker(ctx context.Context, connectionID string) (*WorkerRecord, error) {
 	row := r.db.QueryRowContext(ctx, `
-		SELECT connection_id, company_id, tenant_schema, database_url, pid, status, started_at, last_heartbeat, restart_count, launch_id, desired_state
+		SELECT connection_id, company_id, tenant_schema, database_url, pid, status, started_at, last_heartbeat, restart_count, launch_id, desired_state, artifact_version, artifact_sha256, worker_uid, worker_gid
 		FROM worker_registry WHERE connection_id = $1
 	`, connectionID)
 	w := &WorkerRecord{}
-	err := row.Scan(&w.ConnectionID, &w.CompanyID, &w.TenantSchema, &w.DatabaseURL, &w.PID, &w.Status, &w.StartedAt, &w.LastHeartbeat, &w.RestartCount, &w.LaunchID, &w.DesiredState)
+	err := row.Scan(&w.ConnectionID, &w.CompanyID, &w.TenantSchema, &w.DatabaseURL, &w.PID, &w.Status, &w.StartedAt, &w.LastHeartbeat, &w.RestartCount, &w.LaunchID, &w.DesiredState, &w.ArtifactVersion, &w.ArtifactSHA256, &w.WorkerUID, &w.WorkerGID)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -290,6 +583,30 @@ func (r *WorkerRegistry) GetWorker(ctx context.Context, connectionID string) (*W
 		return nil, fmt.Errorf("failed to get worker: %w", err)
 	}
 	return w, nil
+}
+
+// GetCompanyWorkerArtifact returns the newest successfully completed rollout
+// target that included this tenant company. It makes a WhatsApp-only release
+// the default for later connections without changing/replacing orchestrator
+// configuration.
+func (r *WorkerRegistry) GetCompanyWorkerArtifact(ctx context.Context, companyID string) (string, string, bool, error) {
+	var version, digest string
+	err := r.db.QueryRowContext(ctx, `
+		SELECT batch.target_artifact_version, batch.target_artifact_sha256
+		FROM worker_upgrade_batches batch
+		JOIN worker_upgrade_items item ON item.batch_id = batch.id
+		WHERE item.company_id = $1::uuid AND batch.result = 'completed'
+			AND batch.completed_at IS NOT NULL
+		ORDER BY batch.completed_at DESC
+		LIMIT 1
+	`, companyID).Scan(&version, &digest)
+	if err == sql.ErrNoRows {
+		return "", "", false, nil
+	}
+	if err != nil {
+		return "", "", false, fmt.Errorf("get company worker artifact: %w", err)
+	}
+	return version, digest, true, nil
 }
 
 func (r *WorkerRegistry) GetRestartCountLaunch(
@@ -348,4 +665,744 @@ func (r *WorkerRegistry) CompaniesWithoutConnectionAllowance(
 		return nil, fmt.Errorf("failed to iterate company allowances: %w", err)
 	}
 	return blocked, nil
+}
+
+// CreateWorkerUpgradeBatch persists the batch and every source snapshot in one
+// transaction. It commits before returning, so callers can safely send their
+// first stop signal only after this method succeeds.
+func (r *WorkerRegistry) CreateWorkerUpgradeBatch(
+	ctx context.Context,
+	targetArtifactVersion, targetArtifactSHA256 string,
+	intents []WorkerUpgradeItemIntent,
+) (*WorkerUpgradeBatch, error) {
+	if len(intents) == 0 {
+		return nil, errors.New("worker upgrade batch requires at least one item")
+	}
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, fmt.Errorf("begin worker upgrade batch: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	// Serialize the fleet-wide normalization gate with legacy writers and new
+	// claims. No rollout may snapshot a partially normalized source fleet.
+	if _, err = tx.ExecContext(ctx, `LOCK TABLE worker_registry IN SHARE MODE`); err != nil {
+		return nil, fmt.Errorf("lock worker registry for upgrade snapshot: %w", err)
+	}
+	var unnormalized int
+	if err = tx.QueryRowContext(ctx, `
+		SELECT COUNT(*) FROM worker_registry
+		WHERE desired_state = 'running' AND NOT artifact_normalized
+	`).Scan(&unnormalized); err != nil {
+		return nil, fmt.Errorf("inspect worker artifact normalization: %w", err)
+	}
+	if unnormalized != 0 {
+		return nil, fmt.Errorf("%w: %d desired-running row(s)", ErrWorkerArtifactNormalization, unnormalized)
+	}
+
+	batch := &WorkerUpgradeBatch{Items: make([]*WorkerUpgradeItem, 0, len(intents))}
+	var completedAt sql.NullTime
+	err = tx.QueryRowContext(ctx, `
+		INSERT INTO worker_upgrade_batches (
+			target_artifact_version, target_artifact_sha256
+		) VALUES ($1, $2)
+		RETURNING id::text, target_artifact_version, target_artifact_sha256,
+			phase, COALESCE(result, ''), COALESCE(last_error, ''),
+			created_at, updated_at, completed_at
+	`, targetArtifactVersion, targetArtifactSHA256).Scan(
+		&batch.ID, &batch.TargetArtifactVersion, &batch.TargetArtifactSHA256,
+		&batch.Phase, &batch.Result, &batch.LastError,
+		&batch.CreatedAt, &batch.UpdatedAt, &completedAt,
+	)
+	if err != nil {
+		var pqErr *pq.Error
+		if errors.As(err, &pqErr) && pqErr.Code == "23505" && pqErr.Constraint == "worker_upgrade_batches_one_active_idx" {
+			return nil, ErrWorkerUpgradeBatchActive
+		}
+		return nil, fmt.Errorf("create worker upgrade batch: %w", err)
+	}
+	batch.CompletedAt = nullableTime(completedAt)
+
+	for _, intent := range intents {
+		item := &WorkerUpgradeItem{}
+		var itemCompletedAt sql.NullTime
+		err = tx.QueryRowContext(ctx, `
+			INSERT INTO worker_upgrade_items (
+				batch_id, position, company_id, tenant_schema, connection_id,
+				source_generation, source_artifact_version, source_artifact_sha256
+			)
+			SELECT $1::uuid, $2, $3::uuid, $4::varchar(100), $5::uuid, $6::uuid,
+				$7::varchar(128), $8::varchar(64)
+			FROM worker_registry
+			WHERE company_id = $3::uuid AND tenant_schema = $4::varchar(100)
+				AND connection_id = $5::uuid AND launch_id = $6::uuid
+				AND desired_state = 'running'
+				AND artifact_version = $7::varchar(128)
+				AND artifact_sha256 = $8::varchar(64)
+				AND artifact_normalized
+			FOR UPDATE
+			RETURNING id::text, batch_id::text, position, company_id::text,
+				tenant_schema, connection_id::text, source_generation::text,
+				source_artifact_version, source_artifact_sha256,
+				COALESCE(target_generation::text, ''),
+				COALESCE(recovery_generation::text, ''),
+				COALESCE(rollback_generation::text, ''),
+				phase, COALESCE(result, ''), COALESCE(last_error, ''),
+				created_at, updated_at, completed_at
+		`, batch.ID, intent.Position, intent.CompanyID, intent.TenantSchema,
+			intent.ConnectionID, intent.SourceGeneration,
+			intent.SourceArtifactVersion, intent.SourceArtifactSHA256).Scan(
+			&item.ID, &item.BatchID, &item.Position, &item.CompanyID,
+			&item.TenantSchema, &item.ConnectionID, &item.SourceGeneration,
+			&item.SourceArtifactVersion, &item.SourceArtifactSHA256,
+			&item.TargetGeneration, &item.RecoveryGeneration, &item.RollbackGeneration,
+			&item.Phase, &item.Result, &item.LastError,
+			&item.CreatedAt, &item.UpdatedAt, &itemCompletedAt,
+		)
+		if err == sql.ErrNoRows {
+			return nil, fmt.Errorf("%w: company=%s tenant=%s connection=%s generation=%s",
+				ErrWorkerUpgradeSnapshotConflict, intent.CompanyID, intent.TenantSchema,
+				intent.ConnectionID, intent.SourceGeneration)
+		}
+		if err != nil {
+			return nil, fmt.Errorf("create worker upgrade item for connection %s: %w", intent.ConnectionID, err)
+		}
+		item.CompletedAt = nullableTime(itemCompletedAt)
+		batch.Items = append(batch.Items, item)
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, fmt.Errorf("commit worker upgrade batch: %w", err)
+	}
+	return batch, nil
+}
+
+func nullableTime(value sql.NullTime) *time.Time {
+	if !value.Valid {
+		return nil
+	}
+	result := value.Time
+	return &result
+}
+
+func scanWorkerUpgradeBatch(row *sql.Row) (*WorkerUpgradeBatch, error) {
+	batch := &WorkerUpgradeBatch{}
+	var completedAt sql.NullTime
+	err := row.Scan(
+		&batch.ID, &batch.TargetArtifactVersion, &batch.TargetArtifactSHA256,
+		&batch.Phase, &batch.Result, &batch.LastError,
+		&batch.CreatedAt, &batch.UpdatedAt, &completedAt,
+	)
+	if err != nil {
+		return nil, err
+	}
+	batch.CompletedAt = nullableTime(completedAt)
+	return batch, nil
+}
+
+func (r *WorkerRegistry) loadWorkerUpgradeItems(ctx context.Context, batchID string) ([]*WorkerUpgradeItem, error) {
+	rows, err := r.db.QueryContext(ctx, `
+		SELECT id::text, batch_id::text, position, company_id::text,
+			tenant_schema, connection_id::text, source_generation::text,
+			source_artifact_version, source_artifact_sha256,
+			COALESCE(target_generation::text, ''),
+			COALESCE(recovery_generation::text, ''),
+			COALESCE(rollback_generation::text, ''),
+			phase, COALESCE(result, ''), COALESCE(last_error, ''),
+			created_at, updated_at, completed_at
+		FROM worker_upgrade_items WHERE batch_id = $1::uuid
+		ORDER BY position
+	`, batchID)
+	if err != nil {
+		return nil, fmt.Errorf("query worker upgrade items: %w", err)
+	}
+	defer rows.Close()
+	items := make([]*WorkerUpgradeItem, 0)
+	for rows.Next() {
+		item := &WorkerUpgradeItem{}
+		var completedAt sql.NullTime
+		if err := rows.Scan(
+			&item.ID, &item.BatchID, &item.Position, &item.CompanyID,
+			&item.TenantSchema, &item.ConnectionID, &item.SourceGeneration,
+			&item.SourceArtifactVersion, &item.SourceArtifactSHA256,
+			&item.TargetGeneration, &item.RecoveryGeneration, &item.RollbackGeneration,
+			&item.Phase, &item.Result, &item.LastError,
+			&item.CreatedAt, &item.UpdatedAt, &completedAt,
+		); err != nil {
+			return nil, fmt.Errorf("scan worker upgrade item: %w", err)
+		}
+		item.CompletedAt = nullableTime(completedAt)
+		items = append(items, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate worker upgrade items: %w", err)
+	}
+	return items, nil
+}
+
+// GetWorkerUpgradeBatch provides status for a specific durable batch.
+func (r *WorkerRegistry) GetWorkerUpgradeBatch(ctx context.Context, batchID string) (*WorkerUpgradeBatch, error) {
+	batch, err := scanWorkerUpgradeBatch(r.db.QueryRowContext(ctx, `
+		SELECT id::text, target_artifact_version, target_artifact_sha256,
+			phase, COALESCE(result, ''), COALESCE(last_error, ''),
+			created_at, updated_at, completed_at
+		FROM worker_upgrade_batches WHERE id = $1::uuid
+	`, batchID))
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("get worker upgrade batch: %w", err)
+	}
+	batch.Items, err = r.loadWorkerUpgradeItems(ctx, batch.ID)
+	if err != nil {
+		return nil, err
+	}
+	return batch, nil
+}
+
+// GetActiveWorkerUpgradeBatch is the crash-recovery entry point. A halted batch
+// remains active and is returned until an operator resumes and completes it.
+func (r *WorkerRegistry) GetActiveWorkerUpgradeBatch(ctx context.Context) (*WorkerUpgradeBatch, error) {
+	batch, err := scanWorkerUpgradeBatch(r.db.QueryRowContext(ctx, `
+		SELECT id::text, target_artifact_version, target_artifact_sha256,
+			phase, COALESCE(result, ''), COALESCE(last_error, ''),
+			created_at, updated_at, completed_at
+		FROM worker_upgrade_batches WHERE completed_at IS NULL
+	`))
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("get active worker upgrade batch: %w", err)
+	}
+	batch.Items, err = r.loadWorkerUpgradeItems(ctx, batch.ID)
+	if err != nil {
+		return nil, err
+	}
+	return batch, nil
+}
+
+func (r *WorkerRegistry) AdvanceWorkerUpgradeBatch(
+	ctx context.Context, batchID, expectedPhase, nextPhase, lastError string,
+) (bool, error) {
+	result, err := r.db.ExecContext(ctx, `
+		UPDATE worker_upgrade_batches
+		SET phase = $1, last_error = NULLIF($2, ''), updated_at = now()
+		WHERE id = $3::uuid AND phase = $4 AND completed_at IS NULL
+	`, nextPhase, lastError, batchID, expectedPhase)
+	if err != nil {
+		return false, fmt.Errorf("advance worker upgrade batch: %w", err)
+	}
+	updated, err := result.RowsAffected()
+	return updated == 1, err
+}
+
+func (r *WorkerRegistry) AdvanceWorkerUpgradeItem(
+	ctx context.Context,
+	batchID, companyID, tenantSchema, connectionID, sourceGeneration,
+	expectedPhase, nextPhase, targetGeneration, lastError string,
+) (bool, error) {
+	result, err := r.db.ExecContext(ctx, `
+		UPDATE worker_upgrade_items
+		SET phase = $1,
+			target_generation = COALESCE(NULLIF($2, '')::uuid, target_generation),
+			last_error = NULLIF($3, ''), updated_at = now()
+		WHERE batch_id = $4::uuid AND company_id = $5::uuid
+			AND tenant_schema = $6 AND connection_id = $7::uuid
+			AND source_generation = $8::uuid AND phase = $9
+			AND completed_at IS NULL
+			AND ($9 <> 'stop' OR EXISTS (
+				SELECT 1 FROM worker_registry source
+				WHERE source.connection_id = worker_upgrade_items.connection_id
+					AND source.company_id = worker_upgrade_items.company_id
+					AND source.tenant_schema = worker_upgrade_items.tenant_schema
+					AND source.launch_id = worker_upgrade_items.source_generation
+					AND source.desired_state = 'running'
+					AND source.artifact_version = worker_upgrade_items.source_artifact_version
+					AND source.artifact_sha256 = worker_upgrade_items.source_artifact_sha256
+			))
+	`, nextPhase, targetGeneration, lastError, batchID, companyID, tenantSchema,
+		connectionID, sourceGeneration, expectedPhase)
+	if err != nil {
+		return false, fmt.Errorf("advance worker upgrade item: %w", err)
+	}
+	updated, err := result.RowsAffected()
+	return updated == 1, err
+}
+
+// ReserveWorkerUpgradeGeneration records a planned launch before its registry
+// CAS. A crash can therefore distinguish a rollout-owned launch from an
+// unrelated process that happens to use the same artifact.
+func (r *WorkerRegistry) ReserveWorkerUpgradeGeneration(
+	ctx context.Context, batchID, companyID, tenantSchema, connectionID,
+	sourceGeneration, phase, column, generation string,
+) (bool, error) {
+	if column != "target_generation" && column != "recovery_generation" && column != "rollback_generation" {
+		return false, fmt.Errorf("invalid rollout generation column %q", column)
+	}
+	query := fmt.Sprintf(`
+		UPDATE worker_upgrade_items item
+		SET %s = $1::uuid, updated_at = now()
+		FROM worker_upgrade_batches batch
+		WHERE item.batch_id = batch.id AND batch.id = $2::uuid
+			AND item.company_id = $3::uuid AND item.tenant_schema = $4
+			AND item.connection_id = $5::uuid AND item.source_generation = $6::uuid
+			AND item.phase = $7 AND item.completed_at IS NULL
+			AND batch.completed_at IS NULL AND batch.phase <> 'halted'
+			AND %s IS NULL
+	`, column, column)
+	result, err := r.db.ExecContext(ctx, query, generation, batchID, companyID,
+		tenantSchema, connectionID, sourceGeneration, phase)
+	if err != nil {
+		return false, fmt.Errorf("reserve %s: %w", column, err)
+	}
+	updated, err := result.RowsAffected()
+	return updated == 1, err
+}
+
+// FenceWorkerUpgradeOwnedLaunch atomically confirms the exact live registry
+// generation immediately before the rollout signals or CAS-replaces it.
+func (r *WorkerRegistry) FenceWorkerUpgradeOwnedLaunch(
+	ctx context.Context, batchID, companyID, tenantSchema, connectionID,
+	sourceGeneration, itemPhase string, fence WorkerUpgradeLiveFence,
+) (bool, error) {
+	result, err := r.db.ExecContext(ctx, `
+		UPDATE worker_registry current
+		SET status = 'recovering', last_heartbeat = now()
+		FROM worker_upgrade_items item, worker_upgrade_batches batch
+		WHERE item.batch_id = batch.id AND batch.id = $1::uuid
+			AND item.company_id = $2::uuid AND item.tenant_schema = $3
+			AND item.connection_id = $4::uuid AND item.source_generation = $5::uuid
+			AND item.phase = $6 AND item.completed_at IS NULL
+			AND batch.completed_at IS NULL
+			AND current.connection_id = item.connection_id
+			AND current.company_id = item.company_id
+			AND current.tenant_schema = item.tenant_schema
+			AND current.launch_id = $7::uuid AND current.desired_state = 'running'
+			AND current.artifact_version = $8 AND current.artifact_sha256 = $9
+			AND current.worker_uid = $10 AND current.worker_gid = $11
+			AND current.worker_uid BETWEEN 100000 AND 2147483646
+	`, batchID, companyID, tenantSchema, connectionID, sourceGeneration,
+		itemPhase, fence.LaunchID, fence.ArtifactVersion, fence.ArtifactSHA256,
+		fence.WorkerUID, fence.WorkerGID)
+	if err != nil {
+		return false, fmt.Errorf("fence rollout-owned worker launch: %w", err)
+	}
+	updated, err := result.RowsAffected()
+	return updated == 1, err
+}
+
+// BeginWorkerUpgradeVerifyRefresh durably records that the exact target
+// generation must be replaced to mint fresh, in-memory readiness authority.
+func (r *WorkerRegistry) BeginWorkerUpgradeVerifyRefresh(
+	ctx context.Context, batchID, companyID, tenantSchema, connectionID,
+	sourceGeneration, targetGeneration string,
+) (bool, error) {
+	result, err := r.db.ExecContext(ctx, `
+		UPDATE worker_upgrade_items item
+		SET phase = 'recovery', recovery_generation = NULL, updated_at = now()
+		FROM worker_upgrade_batches batch
+		WHERE item.batch_id = batch.id AND batch.id = $1::uuid
+			AND item.company_id = $2::uuid AND item.tenant_schema = $3
+			AND item.connection_id = $4::uuid
+			AND item.source_generation = $5::uuid
+			AND item.target_generation = $6::uuid
+			AND item.phase = 'verify' AND item.completed_at IS NULL
+			AND batch.completed_at IS NULL AND batch.phase <> 'halted'
+	`, batchID, companyID, tenantSchema, connectionID, sourceGeneration, targetGeneration)
+	if err != nil {
+		return false, fmt.Errorf("begin worker verify authority refresh: %w", err)
+	}
+	updated, err := result.RowsAffected()
+	return updated == 1, err
+}
+
+// CompleteWorkerUpgradeVerifyRefresh accepts only the exact currently claimed
+// target launch with the batch's immutable digest and durable Linux identity.
+func (r *WorkerRegistry) CompleteWorkerUpgradeVerifyRefresh(
+	ctx context.Context, batchID, companyID, tenantSchema, connectionID,
+	sourceGeneration, previousTargetGeneration, refreshedTargetGeneration string,
+) (bool, error) {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return false, fmt.Errorf("begin worker verify authority refresh completion: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+	var itemID string
+	err = tx.QueryRowContext(ctx, `
+		SELECT item.id::text
+		FROM worker_upgrade_items item
+		JOIN worker_upgrade_batches batch ON batch.id = item.batch_id
+		JOIN worker_registry current ON current.connection_id = item.connection_id
+		WHERE batch.id = $1::uuid
+			AND item.company_id = $2::uuid AND item.tenant_schema = $3
+			AND item.connection_id = $4::uuid
+			AND item.source_generation = $5::uuid
+			AND item.target_generation = $6::uuid
+			AND item.recovery_generation = $7::uuid
+			AND item.phase = 'recovery' AND item.completed_at IS NULL
+			AND batch.completed_at IS NULL AND batch.phase <> 'halted'
+			AND current.company_id = item.company_id
+			AND current.tenant_schema = item.tenant_schema
+			AND current.launch_id = $7::uuid
+			AND current.desired_state = 'running'
+			AND current.artifact_version = batch.target_artifact_version
+			AND current.artifact_sha256 = batch.target_artifact_sha256
+			AND current.worker_uid BETWEEN 100000 AND 2147483646
+			AND current.worker_gid = current.worker_uid
+		FOR UPDATE OF batch, item, current
+	`, batchID, companyID, tenantSchema, connectionID, sourceGeneration,
+		previousTargetGeneration, refreshedTargetGeneration).Scan(&itemID)
+	if err == sql.ErrNoRows {
+		return false, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("lock exact worker verify authority refresh: %w", err)
+	}
+	result, err := tx.ExecContext(ctx, `
+		UPDATE worker_upgrade_items
+		SET phase = 'verify', target_generation = $1::uuid,
+			recovery_generation = NULL, updated_at = now()
+		WHERE id = $2::uuid AND phase = 'recovery'
+			AND recovery_generation = $1::uuid AND completed_at IS NULL
+	`, refreshedTargetGeneration, itemID)
+	if err != nil {
+		return false, fmt.Errorf("complete worker verify authority refresh: %w", err)
+	}
+	updated, err := result.RowsAffected()
+	if err != nil || updated != 1 {
+		return false, fmt.Errorf("complete worker verify authority refresh affected %d rows: %w", updated, err)
+	}
+	if err = tx.Commit(); err != nil {
+		return false, fmt.Errorf("commit worker verify authority refresh: %w", err)
+	}
+	return true, nil
+}
+
+// BeginWorkerUpgradeRollback atomically changes the whole batch: the failed
+// item and every prior target-complete item become pending rollback in reverse
+// order, while untouched later items are terminally canceled in the same tx.
+func (r *WorkerRegistry) BeginWorkerUpgradeRollback(
+	ctx context.Context, batchID, companyID, tenantSchema, connectionID,
+	sourceGeneration, expectedPhase, targetGeneration, lastError string,
+) (bool, error) {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return false, fmt.Errorf("begin batch-wide worker rollback: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	var position int
+	err = tx.QueryRowContext(ctx, `
+		SELECT item.position
+		FROM worker_upgrade_items item
+		JOIN worker_upgrade_batches batch ON batch.id = item.batch_id
+		WHERE batch.id = $1::uuid AND item.company_id = $2::uuid
+			AND item.tenant_schema = $3 AND item.connection_id = $4::uuid
+			AND item.source_generation = $5::uuid AND item.phase = $6
+			AND item.completed_at IS NULL AND batch.completed_at IS NULL
+			AND batch.phase <> 'halted'
+			AND NOT EXISTS (
+				SELECT 1 FROM worker_upgrade_items future
+				WHERE future.batch_id = item.batch_id
+					AND future.position > item.position
+					AND future.completed_at IS NULL
+					AND (future.phase <> 'stop' OR future.target_generation IS NOT NULL)
+			)
+		FOR UPDATE OF batch, item
+	`, batchID, companyID, tenantSchema, connectionID, sourceGeneration, expectedPhase).Scan(&position)
+	if err == sql.ErrNoRows {
+		return false, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("lock failed worker upgrade item: %w", err)
+	}
+	if _, err = tx.ExecContext(ctx, `
+		UPDATE worker_upgrade_batches
+		SET phase = 'rollback', last_error = $1, updated_at = now()
+		WHERE id = $2::uuid AND completed_at IS NULL
+	`, lastError, batchID); err != nil {
+		return false, fmt.Errorf("persist batch rollback intent: %w", err)
+	}
+	if _, err = tx.ExecContext(ctx, `
+		UPDATE worker_upgrade_items
+		SET phase = 'rollback', result = NULL, completed_at = NULL,
+			target_generation = COALESCE(NULLIF($1, '')::uuid, target_generation),
+			last_error = $2, updated_at = now()
+		WHERE batch_id = $3::uuid AND company_id = $4::uuid
+			AND tenant_schema = $5 AND connection_id = $6::uuid
+			AND source_generation = $7::uuid AND phase = $8
+	`, targetGeneration, lastError, batchID, companyID, tenantSchema,
+		connectionID, sourceGeneration, expectedPhase); err != nil {
+		return false, fmt.Errorf("persist failed item rollback intent: %w", err)
+	}
+	if _, err = tx.ExecContext(ctx, `
+		UPDATE worker_upgrade_items
+		SET phase = 'rollback', result = NULL, completed_at = NULL,
+			last_error = $1, updated_at = now()
+		WHERE batch_id = $2::uuid AND position < $3
+			AND result = 'target_complete' AND completed_at IS NOT NULL
+	`, lastError, batchID, position); err != nil {
+		return false, fmt.Errorf("reopen prior target items for rollback: %w", err)
+	}
+	if _, err = tx.ExecContext(ctx, `
+		UPDATE worker_upgrade_items
+		SET phase = 'canceled', result = 'canceled_untouched',
+			last_error = $1, completed_at = now(), updated_at = now()
+		WHERE batch_id = $2::uuid AND position > $3
+			AND phase = 'stop' AND target_generation IS NULL
+			AND completed_at IS NULL
+	`, lastError, batchID, position); err != nil {
+		return false, fmt.Errorf("cancel untouched worker upgrade items: %w", err)
+	}
+	if err = tx.Commit(); err != nil {
+		return false, fmt.Errorf("commit batch-wide worker rollback: %w", err)
+	}
+	return true, nil
+}
+
+// HaltWorkerUpgrade atomically records the actionable item and batch error. It
+// never leaves one side halted while the other remains runnable.
+func (r *WorkerRegistry) HaltWorkerUpgrade(
+	ctx context.Context, batchID, companyID, tenantSchema, connectionID,
+	sourceGeneration, expectedItemPhase, expectedBatchPhase, targetGeneration,
+	lastError string,
+) (bool, error) {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return false, fmt.Errorf("begin worker upgrade halt: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	var itemID string
+	err = tx.QueryRowContext(ctx, `
+		SELECT item.id::text
+		FROM worker_upgrade_items item
+		JOIN worker_upgrade_batches batch ON batch.id = item.batch_id
+		WHERE batch.id = $1::uuid AND item.company_id = $2::uuid
+			AND item.tenant_schema = $3 AND item.connection_id = $4::uuid
+			AND item.source_generation = $5::uuid
+			AND item.phase = $6 AND item.completed_at IS NULL
+			AND batch.phase = $7 AND batch.completed_at IS NULL
+		FOR UPDATE OF batch, item
+	`, batchID, companyID, tenantSchema, connectionID, sourceGeneration,
+		expectedItemPhase, expectedBatchPhase).Scan(&itemID)
+	if err == sql.ErrNoRows {
+		return false, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("lock worker upgrade halt: %w", err)
+	}
+	itemResult, err := tx.ExecContext(ctx, `
+		UPDATE worker_upgrade_items
+		SET phase = 'halted',
+			target_generation = COALESCE(NULLIF($1, '')::uuid, target_generation),
+			last_error = $2, updated_at = now()
+		WHERE id = $3::uuid AND phase = $4 AND completed_at IS NULL
+	`, targetGeneration, lastError, itemID, expectedItemPhase)
+	if err != nil {
+		return false, fmt.Errorf("halt worker upgrade item: %w", err)
+	}
+	itemRows, err := itemResult.RowsAffected()
+	if err != nil || itemRows != 1 {
+		return false, fmt.Errorf("halt worker upgrade item affected %d rows: %w", itemRows, err)
+	}
+	batchResult, err := tx.ExecContext(ctx, `
+		UPDATE worker_upgrade_batches
+		SET phase = 'halted', last_error = $1, updated_at = now()
+		WHERE id = $2::uuid AND phase = $3 AND completed_at IS NULL
+	`, lastError, batchID, expectedBatchPhase)
+	if err != nil {
+		return false, fmt.Errorf("halt worker upgrade batch: %w", err)
+	}
+	batchRows, err := batchResult.RowsAffected()
+	if err != nil || batchRows != 1 {
+		return false, fmt.Errorf("halt worker upgrade batch affected %d rows: %w", batchRows, err)
+	}
+	if err = tx.Commit(); err != nil {
+		return false, fmt.Errorf("commit worker upgrade halt: %w", err)
+	}
+	return true, nil
+}
+
+// ResumeHaltedWorkerUpgradeRollback atomically reopens exactly one halted item
+// and its halted batch. Immutable tenant/source-generation columns remain the
+// fence used by the resumed rollback state machine.
+func (r *WorkerRegistry) ResumeHaltedWorkerUpgradeRollback(ctx context.Context, batchID, connectionID string) (bool, error) {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return false, fmt.Errorf("begin halted worker upgrade recovery: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	var itemID string
+	err = tx.QueryRowContext(ctx, `
+		SELECT item.id::text
+		FROM worker_upgrade_items item
+		JOIN worker_upgrade_batches batch ON batch.id = item.batch_id
+		WHERE batch.id = $1::uuid AND item.connection_id = $2::uuid
+			AND batch.phase = 'halted' AND batch.completed_at IS NULL
+			AND item.phase = 'halted' AND item.completed_at IS NULL
+			AND EXISTS (
+				SELECT 1 FROM worker_registry current
+				WHERE current.connection_id = item.connection_id
+					AND current.company_id = item.company_id
+					AND current.tenant_schema = item.tenant_schema
+					AND current.desired_state = 'running'
+					AND current.worker_uid BETWEEN 100000 AND 2147483646
+					AND current.worker_gid = current.worker_uid
+					AND (
+						(current.launch_id = item.rollback_generation
+						 AND current.artifact_version = item.source_artifact_version
+						 AND current.artifact_sha256 = item.source_artifact_sha256)
+					 OR (current.launch_id = item.recovery_generation
+						 AND current.artifact_version = batch.target_artifact_version
+						 AND current.artifact_sha256 = batch.target_artifact_sha256)
+					 OR (current.launch_id = item.target_generation
+						 AND current.artifact_version = batch.target_artifact_version
+						 AND current.artifact_sha256 = batch.target_artifact_sha256)
+					 OR (current.launch_id = item.source_generation
+						 AND current.artifact_version = item.source_artifact_version
+						 AND current.artifact_sha256 = item.source_artifact_sha256)
+					)
+			)
+		FOR UPDATE OF batch, item
+	`, batchID, connectionID).Scan(&itemID)
+	if err == sql.ErrNoRows {
+		return false, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("lock halted worker upgrade rollback: %w", err)
+	}
+	itemResult, err := tx.ExecContext(ctx, `
+		UPDATE worker_upgrade_items
+		SET phase = 'rollback', last_error = NULL, updated_at = now()
+		WHERE id = $1::uuid AND phase = 'halted' AND completed_at IS NULL
+	`, itemID)
+	if err != nil {
+		return false, fmt.Errorf("resume halted worker upgrade item: %w", err)
+	}
+	itemRows, err := itemResult.RowsAffected()
+	if err != nil || itemRows != 1 {
+		return false, fmt.Errorf("resume halted worker item affected %d rows: %w", itemRows, err)
+	}
+	batchResult, err := tx.ExecContext(ctx, `
+		UPDATE worker_upgrade_batches
+		SET phase = 'rollback', last_error = NULL, updated_at = now()
+		WHERE id = $1::uuid AND phase = 'halted' AND completed_at IS NULL
+	`, batchID)
+	if err != nil {
+		return false, fmt.Errorf("resume halted worker upgrade batch: %w", err)
+	}
+	batchRows, err := batchResult.RowsAffected()
+	if err != nil || batchRows != 1 {
+		return false, fmt.Errorf("resume halted worker batch affected %d rows: %w", batchRows, err)
+	}
+	if err = tx.Commit(); err != nil {
+		return false, fmt.Errorf("commit halted worker upgrade recovery: %w", err)
+	}
+	return true, nil
+}
+
+func (r *WorkerRegistry) CompleteWorkerUpgradeItem(
+	ctx context.Context,
+	batchID, companyID, tenantSchema, connectionID, sourceGeneration,
+	expectedPhase string, fence WorkerUpgradeLiveFence,
+) (bool, error) {
+	itemResult := ""
+	switch expectedPhase {
+	case WorkerUpgradePhaseVerify:
+		itemResult = WorkerUpgradeItemResultTargetComplete
+	case WorkerUpgradePhaseRollback:
+		itemResult = WorkerUpgradeItemResultRollbackComplete
+	default:
+		return false, fmt.Errorf("phase %q cannot complete a worker upgrade item", expectedPhase)
+	}
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return false, fmt.Errorf("begin worker upgrade item completion: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+	var itemID string
+	err = tx.QueryRowContext(ctx, `
+		SELECT item.id::text
+		FROM worker_upgrade_items item
+		JOIN worker_upgrade_batches batch ON batch.id = item.batch_id
+		JOIN worker_registry current ON current.connection_id = item.connection_id
+		WHERE batch.id = $1::uuid
+			AND item.company_id = $2::uuid AND item.tenant_schema = $3
+			AND item.connection_id = $4::uuid AND item.source_generation = $5::uuid
+			AND item.phase = $6 AND item.completed_at IS NULL AND item.result IS NULL
+			AND batch.completed_at IS NULL
+			AND (($6 = 'verify' AND item.target_generation = $7::uuid
+				AND batch.target_artifact_version = $8
+				AND batch.target_artifact_sha256 = $9)
+			 OR ($6 = 'rollback' AND item.rollback_generation = $7::uuid
+				AND item.source_artifact_version = $8
+				AND item.source_artifact_sha256 = $9))
+			AND current.company_id = item.company_id
+			AND current.tenant_schema = item.tenant_schema
+			AND current.launch_id = $7::uuid
+			AND current.desired_state = 'running'
+			AND current.artifact_version = $8
+			AND current.artifact_sha256 = $9
+			AND current.worker_uid = $10 AND current.worker_gid = $11
+			AND current.worker_uid BETWEEN 100000 AND 2147483646
+		FOR UPDATE OF batch, item, current
+	`, batchID, companyID, tenantSchema, connectionID, sourceGeneration,
+		expectedPhase, fence.LaunchID, fence.ArtifactVersion, fence.ArtifactSHA256,
+		fence.WorkerUID, fence.WorkerGID).Scan(&itemID)
+	if err == sql.ErrNoRows {
+		return false, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("lock exact live worker upgrade completion: %w", err)
+	}
+	result, err := tx.ExecContext(ctx, `
+		UPDATE worker_upgrade_items
+		SET result = $1, completed_at = now(), updated_at = now()
+		WHERE id = $2::uuid AND phase = $3
+			AND completed_at IS NULL AND result IS NULL
+	`, itemResult, itemID, expectedPhase)
+	if err != nil {
+		return false, fmt.Errorf("complete worker upgrade item: %w", err)
+	}
+	updated, err := result.RowsAffected()
+	if err != nil || updated != 1 {
+		return false, fmt.Errorf("complete worker upgrade item affected %d rows: %w", updated, err)
+	}
+	if err = tx.Commit(); err != nil {
+		return false, fmt.Errorf("commit worker upgrade item completion: %w", err)
+	}
+	return true, nil
+}
+
+func (r *WorkerRegistry) CompleteWorkerUpgradeBatch(
+	ctx context.Context, batchID, expectedPhase, resultValue string,
+) (bool, error) {
+	if resultValue != "completed" && resultValue != "rolled_back" {
+		return false, fmt.Errorf("invalid worker upgrade batch result %q", resultValue)
+	}
+	result, err := r.db.ExecContext(ctx, `
+		UPDATE worker_upgrade_batches batch
+		SET result = $1,
+			phase = CASE WHEN $1 = 'completed' THEN 'verify' ELSE 'rollback' END,
+			completed_at = now(), updated_at = now()
+		WHERE batch.id = $2::uuid AND batch.phase = $3
+			AND batch.completed_at IS NULL
+			AND NOT EXISTS (
+				SELECT 1 FROM worker_upgrade_items item
+				WHERE item.batch_id = batch.id AND (
+					item.completed_at IS NULL OR
+					($1 = 'completed' AND item.result <> 'target_complete') OR
+					($1 = 'rolled_back' AND item.result NOT IN
+						('rollback_complete', 'canceled_untouched'))
+				)
+			)
+	`, resultValue, batchID, expectedPhase)
+	if err != nil {
+		return false, fmt.Errorf("complete worker upgrade batch: %w", err)
+	}
+	updated, err := result.RowsAffected()
+	return updated == 1, err
 }

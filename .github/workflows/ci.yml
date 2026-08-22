@@ -30,11 +30,30 @@ jobs:
             services/orchestrator/go.sum
             services/whatsapp/go.sum
 
+      - name: Install static test tools
+        run: sudo apt-get update && sudo apt-get install --no-install-recommends --yes ripgrep
+
       - run: bun install --frozen-lockfile
       - run: bun run lint
       - run: bun run typecheck
       - run: bun run check:unused
       - run: bun run build -- --force
+      - name: Validate worker artifact installer
+        run: ./scripts/worker-artifact-installer.test.sh
+      - name: Validate production worker artifact Compose wiring
+        run: ./scripts/production-compose-worker-artifact.test.sh
+      - name: Validate root-only orchestrator control authority
+        run: ./scripts/orchestrator-control-token.test.sh
+      - name: Validate restricted worker credential wiring
+        run: ./scripts/worker-credential-isolation.test.sh
+      - name: Validate worker NATS permission matrix
+        run: ./scripts/nats-worker-permissions.test.sh
+      - name: Validate worker PostgreSQL role provisioning
+        run: ./scripts/worker-postgres-provisioner.test.sh
+      - name: Validate Centrifugo secret-redacting process wrapper
+        run: ./scripts/centrifugo-secret-entrypoint.test.sh
+      - name: Validate separated development worker boundary
+        run: ./scripts/dev-worker-boundary.test.sh
 
   ts-unit:
     runs-on: ubuntu-latest

@@ -16,7 +16,7 @@ x-app-environment: &app-environment
   POSTGRES_USER: ${POSTGRES_USER:?set POSTGRES_USER}
   POSTGRES_DB: ${POSTGRES_DB:?set POSTGRES_DB}
   POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
-  NATS_TOKEN_FILE: /run/secrets/nats_token
+  NATS_SERVICE_PASSWORD_FILE: /run/secrets/nats_service_password
   # R2 S3 API endpoint, not an R2 public/custom domain. The bucket remains private.
   S3_ENDPOINT: ${S3_ENDPOINT:?set R2 S3 endpoint}
   S3_ACCESS_KEY_FILE: /run/secrets/s3_access_key
@@ -111,6 +111,24 @@ services:
     read_only: true
     tmpfs: [/tmp]
 
+  worker-artifact-installer:
+    <<: *service-defaults
+    restart: "no"
+    image: wateaminbox/whatsapp-worker-artifact:${WORKER_IMAGE_TAG:-${APP_IMAGE_TAG:?set APP_IMAGE_TAG}}
+    build:
+      context: .
+      dockerfile: services/whatsapp/Dockerfile
+      target: artifact-installer
+    environment:
+      # Empty means derive immutable identity from the packaged SHA-256. This is
+      # safe when an existing deployment script rebuilds a mutable image tag.
+      WORKER_ARTIFACT_VERSION: ${WORKER_ARTIFACT_VERSION:-}
+    volumes:
+      - whatsapp_worker_artifacts:/var/lib/wateaminbox/worker-artifacts
+    network_mode: none
+    read_only: true
+    tmpfs: [/tmp]
+
   api:
     <<: *service-defaults
     image: wateaminbox/api:${APP_IMAGE_TAG:?set APP_IMAGE_TAG}
@@ -120,8 +138,8 @@ services:
       target: api
     environment:
       <<: *app-environment
-      # nats.js accepts its token as a separate option, not URL user-info.
-      NATS_URL: nats://nats:4222
+      # secret-entrypoint derives the credential-bearing service URL from the
+      # root-only nats_service_password mount.
       PORT: "4445"
       APP_URL: https://${APP_DOMAIN:?set APP_DOMAIN}
       CORS_ORIGINS: https://${APP_DOMAIN:?set APP_DOMAIN}
@@ -152,7 +170,7 @@ services:
       TRUSTED_PROXY_IP_HEADER: x-forwarded-for
     secrets:
       - postgres_password
-      - nats_token
+      - nats_service_password
       - s3_access_key
       - s3_secret_key
       - jwt_secret
@@ -195,8 +213,21 @@ services:
     environment:
       <<: *app-environment
       # Operational endpoints remain process-local; they are not routed by Caddy.
+      # Root-only authority is generated afresh into tmpfs at container start.
+      # Operators read it through docker exec as root; workers run under unique
+      # unprivileged UIDs and cannot read this file or the manager environment.
       HTTP_ADDR: 127.0.0.1:8080
-      WHATSAPP_BINARY_PATH: /usr/local/bin/whatsapp-worker
+      EPHEMERAL_HTTP_BEARER_TOKEN_FILE: /run/wateaminbox-control/http-bearer-token
+      ORCHESTRATOR_ROOT_MANAGER_APPROVED: "true"
+      WORKER_POSTGRES_PASSWORD_FILE: /run/secrets/worker_postgres_password
+      NATS_WORKER_PASSWORD_FILE: /run/secrets/nats_worker_password
+      # Bootstrap/default is tied to the application release, not the independently
+      # staged WORKER_IMAGE_TAG. A WhatsApp-only image change therefore recreates
+      # only the installer; completed rollout history supplies later defaults.
+      WORKER_ARTIFACT_ROOT: /var/lib/wateaminbox/worker-artifacts
+      WORKER_DEFAULT_ARTIFACT_VERSION: ${WORKER_BOOTSTRAP_ARTIFACT_VERSION:-bootstrap}
+      WHATSAPP_BINARY_PATH: /var/lib/wateaminbox/worker-artifacts/${WORKER_BOOTSTRAP_ARTIFACT_VERSION:-bootstrap}/whatsapp-worker
+      WORKER_ROLLOUT_READY_TIMEOUT: ${WORKER_ROLLOUT_READY_TIMEOUT:-2m}
       HEALTH_CHECK_INTERVAL: 30s
       AUTO_RESTART_ENABLED: "true"
       AUTO_RESTART_MAX_RETRIES: "5"
@@ -209,17 +240,27 @@ services:
       LOG_LEVEL: ${LOG_LEVEL:-info}
     secrets:
       - postgres_password
-      - nats_token
+      - nats_service_password
+      - nats_worker_password
+      - worker_postgres_password
       - s3_access_key
       - s3_secret_key
     networks: [backend, data]
     depends_on:
       migration:
         condition: service_completed_successfully
+      worker-artifact-installer:
+        condition: service_completed_successfully
+      worker-credential-provisioner:
+        condition: service_completed_successfully
       nats:
         condition: service_healthy
+    volumes:
+      - whatsapp_worker_artifacts:/var/lib/wateaminbox/worker-artifacts:ro
     read_only: true
-    tmpfs: [/tmp]
+    tmpfs:
+      - /tmp
+      - /run/wateaminbox-control:mode=0700,uid=0,gid=0
     # The orchestrator allows itself 30s to shut down: it records recovery intent
     # for every worker, then stops each WhatsApp child process, allowing 5s per
     # worker before escalating to SIGKILL. Docker's 10s default would SIGKILL the
@@ -236,6 +277,28 @@ services:
       timeout: 5s
       start_period: 20s
       retries: 3
+
+  worker-credential-provisioner:
+    <<: *service-defaults
+    image: postgres:18.1-alpine
+    restart: "no"
+    entrypoint: ["/bin/sh", "/usr/local/bin/provision-worker-role"]
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?set POSTGRES_USER}
+      POSTGRES_DB: ${POSTGRES_DB:?set POSTGRES_DB}
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+      WORKER_POSTGRES_PASSWORD_FILE: /run/secrets/worker_postgres_password
+    secrets:
+      - postgres_password
+      - worker_postgres_password
+    volumes:
+      - ./infrastructure/postgres/provision-worker-role.sh:/usr/local/bin/provision-worker-role:ro
+    networks: [data]
+    depends_on:
+      migration:
+        condition: service_completed_successfully
+    read_only: true
+    tmpfs: [/tmp]
 
   postgres:
     <<: *service-defaults
@@ -262,14 +325,17 @@ services:
     entrypoint: ["/bin/sh", "-ec"]
     command:
       - |
-        token=$$(cat /run/secrets/nats_token)
-        test -n "$$token"
-        umask 077
-        printf 'jetstream { store_dir: "/data" }\nhttp: 8222\nauthorization { token: "%s" }\n' "$$token" >/tmp/nats.conf
+        /usr/local/bin/render-nats-config
         exec nats-server --config /tmp/nats.conf
-    secrets: [nats_token]
+    environment:
+      NATS_SERVICE_PASSWORD_FILE: /run/secrets/nats_service_password
+      NATS_WORKER_PASSWORD_FILE: /run/secrets/nats_worker_password
+    secrets:
+      - nats_service_password
+      - nats_worker_password
     volumes:
       - nats_data:/data
+      - ./infrastructure/nats/render-config.sh:/usr/local/bin/render-nats-config:ro
     networks: [data]
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8222/healthz"]
@@ -279,21 +345,21 @@ services:
 
   centrifugo:
     <<: *service-defaults
-    image: centrifugo/centrifugo:v6.9.1
-    entrypoint: ["/bin/sh", "-ec"]
-    command:
-      - |
-        token=$$(cat /run/secrets/nats_token)
-        export CENTRIFUGO_BROKER_NATS_URL="nats://$$token@nats:4222"
-        export CENTRIFUGO_CLIENT_TOKEN_HMAC_SECRET_KEY="$$(cat /run/secrets/centrifugo_token_secret)"
-        export CENTRIFUGO_HTTP_API_KEY="$$(cat /run/secrets/centrifugo_api_key)"
-        exec centrifugo --config=/centrifugo/config.json
+    build:
+      context: .
+      dockerfile: infrastructure/centrifugo/Dockerfile
+    image: wateaminbox/centrifugo:v6.9.1-redacted
+    entrypoint: ["/usr/local/bin/centrifugo-secret-entrypoint"]
+    command: ["centrifugo", "--config=/centrifugo/config.json"]
     environment:
+      CENTRIFUGO_NATS_PASSWORD_FILE: /run/secrets/nats_service_password
+      CENTRIFUGO_TOKEN_HMAC_SECRET_FILE: /run/secrets/centrifugo_token_secret
+      CENTRIFUGO_API_KEY_FILE: /run/secrets/centrifugo_api_key
       # Centrifugo parses array-valued environment settings as comma-separated
       # strings. JSON here becomes one literal origin and rejects every browser.
       CENTRIFUGO_CLIENT_ALLOWED_ORIGINS: https://${APP_DOMAIN:?set APP_DOMAIN}
     secrets:
-      - nats_token
+      - nats_service_password
       - centrifugo_api_key
       - centrifugo_token_secret
     volumes:
@@ -367,12 +433,19 @@ volumes:
   minio_data:
   caddy_data:
   caddy_config:
+  # Version directories are immutable. Retain this volume across releases so a
+  # reviewed rollback can select an already verified worker artifact.
+  whatsapp_worker_artifacts:
 
 secrets:
   postgres_password:
     file: ${POSTGRES_PASSWORD_FILE:?set POSTGRES_PASSWORD_FILE}
-  nats_token:
-    file: ${NATS_TOKEN_FILE:?set NATS_TOKEN_FILE}
+  nats_service_password:
+    file: ${NATS_SERVICE_PASSWORD_FILE:?set NATS_SERVICE_PASSWORD_FILE}
+  nats_worker_password:
+    file: ${NATS_WORKER_PASSWORD_FILE:?set NATS_WORKER_PASSWORD_FILE}
+  worker_postgres_password:
+    file: ${WORKER_POSTGRES_PASSWORD_FILE:?set WORKER_POSTGRES_PASSWORD_FILE}
   meilisearch_master_key:
     file: ${MEILISEARCH_MASTER_KEY_FILE:?set MEILISEARCH_MASTER_KEY_FILE}
   minio_root_user:

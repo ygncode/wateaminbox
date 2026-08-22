@@ -75,6 +75,38 @@ func TestEnforceConnectionAllowance_StopsWorkersWithoutAllowance(t *testing.T) {
 	assert.True(t, payingExists, "a worker with allowance must be left running")
 }
 
+func TestAllowanceStopWaitsForActiveRolloutWriter(t *testing.T) {
+	if testing.Short() {
+		t.Skip("timing test")
+	}
+	m := newAllowanceManager(t)
+	runningWorker(t, m, "company-suspended", "conn-suspended")
+	m.checkConnectionAllowances = func(_ context.Context, _ []string) ([]string, error) {
+		return []string{"company-suspended"}, nil
+	}
+	m.rolloutMu.Lock()
+	done := make(chan struct{})
+	go func() {
+		m.enforceConnectionAllowance(context.Background())
+		close(done)
+	}()
+	select {
+	case <-done:
+		t.Fatal("allowance stop crossed the active rollout writer gate")
+	case <-time.After(30 * time.Millisecond):
+	}
+	_, exists := m.GetWorkerStatus("conn-suspended")
+	assert.True(t, exists)
+	m.rolloutMu.Unlock()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("allowance stop did not proceed after rollout completed")
+	}
+	_, exists = m.GetWorkerStatus("conn-suspended")
+	assert.False(t, exists)
+}
+
 func TestEnforceConnectionAllowance_FailsOpenOnError(t *testing.T) {
 	if testing.Short() {
 		t.Skip("timing test")

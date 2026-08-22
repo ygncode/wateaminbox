@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -25,6 +26,24 @@ func RedactURL(value string) string {
 	}
 	parsed.User = nil
 	return parsed.String()
+}
+
+// RedactErrorForURL removes a configured URL and its decoded password from an
+// error before it can reach service logs. Connection libraries normally return
+// static errors, but this keeps a future transport error from exposing userinfo.
+func RedactErrorForURL(err error, configuredURL string) string {
+	if err == nil {
+		return ""
+	}
+	message := strings.ReplaceAll(err.Error(), configuredURL, RedactURL(configuredURL))
+	parsed, parseErr := url.Parse(configuredURL)
+	if parseErr == nil && parsed.User != nil {
+		if password, ok := parsed.User.Password(); ok && password != "" {
+			message = strings.ReplaceAll(message, password, "[REDACTED]")
+			message = strings.ReplaceAll(message, url.QueryEscape(password), "[REDACTED]")
+		}
+	}
+	return message
 }
 
 // GetEnvRequired returns the value of an environment variable or panics if not set.
