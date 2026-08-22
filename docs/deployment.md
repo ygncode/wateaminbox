@@ -12,14 +12,14 @@ Only Caddy publishes host ports (`80` and `443`, including HTTP/3 UDP). Caddy
 terminates TLS and routes:
 
 - `APP_DOMAIN`: `/api/*` to the Bun API, `/connection/*` to Centrifugo, and all
-  other paths to the web SPA;
-- `MEDIA_DOMAIN`: the retained legacy MinIO S3 origin during the R2 rollback
-  window. New private media URLs are presigned directly against R2's account S3
-  API endpoint; the MinIO console is disabled and is never routed.
+  other paths to the web SPA.
+
+Media is never proxied by this stack. Private media URLs are presigned directly
+against R2's account S3 API endpoint and fetched by the browser from R2.
 
 The public marketing site is not part of this compose stack.
 
-PostgreSQL, NATS, Meilisearch, retained MinIO, Centrifugo, and the orchestrator have no
+PostgreSQL, NATS, Meilisearch, Centrifugo, and the orchestrator have no
 host port mappings. Data services share an `internal: true` network. API and
 orchestrator also join an egress network because email, WhatsApp, and object
 requests need outbound Internet access. The orchestrator image does not contain
@@ -37,10 +37,10 @@ orchestrator refuses to start until they exist. Compose orders migration,
 artifact installation, and orchestrator startup in that order. Do not bypass
 those gates.
 
-The R2 `whatsapp-media` bucket and retained MinIO source are private. Browser
-access uses API-authorized, short-lived R2 signatures; neither `r2.dev` nor a
-public bucket/custom domain is permitted. `MEDIA_DOMAIN` exists only so transient
-legacy MinIO signatures can finish during migration. See
+The R2 `whatsapp-media` bucket is private. Browser access uses API-authorized,
+short-lived R2 signatures; neither `r2.dev` nor a public bucket/custom domain is
+permitted. The legacy MinIO origin was decommissioned after the rollback window
+closed; see
 [the copy, verify, cutover, and rollback runbook](../../docs/operations/media-r2-migration.md).
 
 ## Host and DNS prerequisites
@@ -49,8 +49,8 @@ Use a supported Linux host with Docker Engine, the Compose plugin, BuildKit,
 reliable storage, NTP, and enough memory for PostgreSQL and Meilisearch (8 GiB is
 a practical starting point). Keep Docker and the kernel patched.
 
-1. Point A/AAAA records for `APP_DOMAIN` and `MEDIA_DOMAIN` at the host. The
-   domains must be distinct and globally reachable for ACME issuance.
+1. Point A/AAAA records for `APP_DOMAIN` at the host. It must be globally
+   reachable for ACME issuance.
 2. Allow inbound TCP 80/443 and UDP 443. Deny every other inbound port at the
    host/cloud firewall; SSH should be restricted separately.
 3. Ensure outbound HTTPS, DNS, NTP, email-provider, and WhatsApp traffic is
@@ -67,8 +67,8 @@ chmod 600 .env.production
 umask 077
 mkdir -p secrets
 for name in postgres_password worker_postgres_password nats_service_password \
-  nats_worker_password meilisearch_master_key minio_root_user \
-  minio_root_password jwt_secret centrifugo_api_key centrifugo_token_secret; do
+  nats_worker_password meilisearch_master_key jwt_secret \
+  centrifugo_api_key centrifugo_token_secret; do
   openssl rand -hex 32 > "secrets/$name"
 done
 # Supply the real provider key interactively; it is not echoed or put in history.
@@ -91,11 +91,6 @@ Compose deliberately keeps the provider-neutral secret mounts
 hydrates `S3_ACCESS_KEY` and `S3_SECRET_KEY`. Do not put token values in the env
 file or command history.
 
-Do not overwrite or rename the existing MinIO `s3_access_key` and
-`s3_secret_key` host files. Keep them unchanged with the retained MinIO source
-through the rollback window; rollback restores those old paths together with the
-MinIO endpoint and region.
-
 The existing backup credentials (`r2_access_key_id` and
 `r2_secret_access_key`) are bucket-scoped to the backup repository. They are not
 media application/inventory credentials and must not be reused for
@@ -110,8 +105,7 @@ There are no production credential defaults: required Compose substitutions use
 `${NAME:?…}`, containers reject unreadable/empty secret files, NATS requires
 distinct service and restricted-worker passwords, PostgreSQL requires distinct
 administrator and worker passwords, and Meilisearch requires a master key. `S3_ACCESS_KEY_FILE` and
-`S3_SECRET_KEY_FILE` contain bucket-scoped R2 application credentials; MinIO root
-credentials are retained only for the legacy source/rollback service. Development credentials in `.env.example` and
+`S3_SECRET_KEY_FILE` contain bucket-scoped R2 application credentials. Development credentials in `.env.example` and
 `docker-compose.yml` must never be reused.
 
 The runtime names match the applications: `secret-entrypoint.sh` derives the
@@ -145,7 +139,10 @@ The listener remains loopback-only and is not routed by Caddy. `/health` is
 intentionally public on that process-local listener for Docker health checks.
 For R2 set the path-free account S3 API endpoint, region `auto`, path style `true`, bucket
 `whatsapp-media`, and a 300-second signed URL TTL. `S3_LEGACY_ENDPOINTS` lists
-former MinIO path-style origins only for key recovery. Public Vite settings are
+historical path-style origins only so an object key can still be recovered from
+media URLs persisted before the R2 cutover; the recovered key is always
+re-signed against `S3_ENDPOINT`. Those origins are never contacted and need not
+resolve, so the list is kept permanently even though MinIO is gone. Public Vite settings are
 compiled into the web image. Changing a `VITE_*` value therefore requires rebuilding it.
 
 The checked-in production Compose baseline does not mount a VAPID private key,
@@ -217,7 +214,7 @@ $COMPOSE build --pull
 
 # This is the mandatory release/cutover path. Do not reorder or replace it with
 # the generic `compose up` sequence.
-$COMPOSE up -d postgres meilisearch minio
+$COMPOSE up -d postgres meilisearch
 $COMPOSE stop orchestrator             # confirms all old child workers exit
 $COMPOSE run --rm worker-artifact-installer # bootstrap exists before migration 071
 $COMPOSE run --rm migration            # applies the complete chain through 072
@@ -358,8 +355,7 @@ Define recovery point/time objectives before launch. At minimum back up:
    outbox state. Take daily custom-format logical dumps plus storage-level
    snapshots where available.
 2. **R2**: all live media objects. Preserve keys, metadata, inventory reports,
-   and content verification records. Retain the non-destructive MinIO source and
-   its snapshot through the documented rollback window.
+   and content verification records.
 3. **NATS JetStream**: durable in-flight commands/events. Back up its volume only
    while NATS is stopped, or use NATS stream snapshot tooling from a private
    operations container.
@@ -520,7 +516,7 @@ private networks rather than publishing ports:
 - orchestrator `/health` and worker count;
 - Centrifugo `/health` and `/metrics`;
 - NATS monitoring on `8222`;
-- R2 signed read/write and inventory freshness/errors, retained MinIO health,
+- R2 signed read/write and inventory freshness/errors,
   PostgreSQL availability/replication, Meilisearch health;
 - host disk/inode pressure, memory/OOMs, certificate expiry, backup age and
   restore-test age.
