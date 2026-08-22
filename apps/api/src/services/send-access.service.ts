@@ -3,24 +3,29 @@
  * identifiable acting user (compose send, attach, forward, retry,
  * schedule-create, typing, and - since scheduled dispatch re-validates
  * against `row.created_by` - non-bulk scheduled DISPATCH too; see the
- * module doc comment on `requireSendAccess` for the two invariants it
- * enforces).
+ * module doc comment on `requireSendAccess` for the three invariants it
+ * enforces: block status, assignment, and lifecycle).
  *
  * This is deliberately NOT enforced for the worker-relayed outbound path in
  * message-handlers.ts (a message that already went out via the device
  * cannot be retroactively rejected) or for bulk/broadcast scheduled
  * dispatch (no single "assignee" concept applies to a company-wide
  * broadcast; see scheduled-message.service.ts's own doc comment on what
- * bulk rows revalidate instead).
+ * bulk rows revalidate instead - including the "blocked" recipient skip,
+ * which is how the bulk path enforces the same block invariant).
  */
 
 import type { Transaction } from "kysely";
-import { ContactAssignedToOtherError, NotFoundError } from "../lib/errors.js";
+import {
+  ContactAssignedToOtherError,
+  ContactBlockedError,
+  NotFoundError,
+} from "../lib/errors.js";
 import { assignContactToUser, getCurrentAssignment } from "./contact.service.js";
 import { requireActiveCaseForSend } from "./conversation-case.service.js";
 import type { TenantDatabase } from "./tenant.service.js";
 
-export { ContactAssignedToOtherError };
+export { ContactAssignedToOtherError, ContactBlockedError };
 
 export interface SendAccessOptions {
   /**
@@ -37,10 +42,17 @@ export interface SendAccessOptions {
 }
 
 /**
- * Enforces BOTH invariants an interactive outbound send must satisfy,
- * inside ONE transaction so neither can be raced against a concurrent
- * mutation:
+ * Enforces EVERY invariant an interactive outbound send must satisfy,
+ * inside ONE transaction so none of them can be raced against a
+ * concurrent mutation:
  *
+ *  - Block status: a blocked contact rejects every outbound action
+ *    outright. Checked FIRST, under the same row lock, and before the
+ *    unassigned auto-claim, so a send into a blocked contact never leaves
+ *    an assignment (or any other side effect) behind. The block is read
+ *    from the locked `contacts` row itself, so a concurrent
+ *    `PATCH /contacts/:id` block/unblock is serialized against it rather
+ *    than observed half-applied.
  *  - Assignment: a contact actively assigned to someone OTHER than
  *    `userId` blocks the send - even for a user with `can_view_all_chats`.
  *    An unassigned contact is atomically claimed for `userId` (unless
@@ -76,12 +88,15 @@ export async function requireSendAccess(
 
   const contact = await trx
     .selectFrom("contacts")
-    .select("id")
+    .select(["id", "is_blocked"])
     .where("id", "=", contactId)
     .forUpdate()
     .executeTakeFirst();
   if (!contact) {
     throw new NotFoundError("Contact");
+  }
+  if (contact.is_blocked) {
+    throw new ContactBlockedError();
   }
 
   const assignment = await getCurrentAssignment(trx, contactId);

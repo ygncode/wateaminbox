@@ -166,9 +166,9 @@ export function ChatPage() {
               // Reply/react are outbound actions gated exactly like the
               // composer itself (server-side, requireSendAccess enforces
               // this too) - offering them to an assigned-other/resolved/
-              // no-permission user would let stale reply state linger and
-              // reappear after a takeover, even though every click would
-              // still 403/409 server-side.
+              // blocked/no-permission user would let stale reply state
+              // linger and reappear after a takeover, even though every
+              // click would still 403/409 server-side.
               onReply={canSend ? handleReplyToMessage : undefined}
               onForward={handleForwardMessage}
               onDelete={handleDeleteMessage}
@@ -195,6 +195,7 @@ export function ChatPage() {
             contactId={selectedChatId}
             access={composerAccess}
             isSending={isSending}
+            contactName={selectedContact.name}
           >
             <MessageComposer
               conversationId={selectedContact?.jid}

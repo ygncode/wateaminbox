@@ -2,7 +2,11 @@ import { describe, expect, test } from "bun:test";
 import { db } from "@wateaminbox/database";
 import { DEFAULT_SLA_WEEKLY_SCHEDULE } from "@wateaminbox/shared";
 import { sql } from "kysely";
-import { ContactAssignedToOtherError, NoActiveCaseError } from "../lib/errors.js";
+import {
+  ContactAssignedToOtherError,
+  ContactBlockedError,
+  NoActiveCaseError,
+} from "../lib/errors.js";
 import { assignContactToUser } from "./contact.service.js";
 import { openOrReopenCaseForInboundMessage } from "./conversation-case.service.js";
 import { requireSendAccess } from "./send-access.service.js";
@@ -211,6 +215,87 @@ describe("requireSendAccess", () => {
             .transaction()
             .execute((trx) => requireSendAccess(trx, contact.id, userId)),
         ).rejects.toBeInstanceOf(NoActiveCaseError);
+      });
+    },
+  );
+
+  integrationTest(
+    "rejects every outbound action into a blocked contact, claims no assignment on the way out, and allows it again once unblocked",
+    async () => {
+      await withTenant(async (companyId) => {
+        const tenantDb = getTenantConnection(companyId);
+        const userId = crypto.randomUUID();
+
+        // Blocked, unassigned, and with a perfectly healthy active case -
+        // so the ONLY thing that can reject this send is the block.
+        const contactId = await insertContactWithActiveCase(companyId);
+        await tenantDb
+          .updateTable("contacts")
+          .set({ is_blocked: true })
+          .where("id", "=", contactId)
+          .execute();
+
+        await expect(
+          tenantDb
+            .transaction()
+            .execute((trx) => requireSendAccess(trx, contactId, userId)),
+        ).rejects.toBeInstanceOf(ContactBlockedError);
+
+        // The block is checked BEFORE the unassigned auto-claim, so a
+        // rejected send must not leave an assignment behind.
+        const assignments = await tenantDb
+          .selectFrom("contact_assignments")
+          .selectAll()
+          .where("contact_id", "=", contactId)
+          .where("unassigned_at", "is", null)
+          .execute();
+        expect(assignments).toHaveLength(0);
+
+        // Non-claiming callers (typing/react/scheduled dispatch) are
+        // gated identically.
+        await expect(
+          tenantDb.transaction().execute((trx) =>
+            requireSendAccess(trx, contactId, userId, {
+              claimUnassigned: false,
+            }),
+          ),
+        ).rejects.toBeInstanceOf(ContactBlockedError);
+
+        await tenantDb
+          .updateTable("contacts")
+          .set({ is_blocked: false })
+          .where("id", "=", contactId)
+          .execute();
+
+        const afterUnblock = await tenantDb
+          .transaction()
+          .execute((trx) => requireSendAccess(trx, contactId, userId));
+        expect(afterUnblock.caseId).toBeTruthy();
+        expect(afterUnblock.autoAssigned).toBe(true);
+      });
+    },
+  );
+
+  integrationTest(
+    "the block gate outranks assignment: a self-assigned contact the acting user could otherwise send to is still rejected while blocked",
+    async () => {
+      await withTenant(async (companyId) => {
+        const tenantDb = getTenantConnection(companyId);
+        const userId = crypto.randomUUID();
+
+        const contactId = await insertContactWithActiveCase(companyId);
+        await assignContactToUser(tenantDb, contactId, userId, userId);
+        await tenantDb
+          .updateTable("contacts")
+          .set({ is_blocked: true })
+          .where("id", "=", contactId)
+          .execute();
+
+        await expect(
+          tenantDb
+            .transaction()
+            .execute((trx) => requireSendAccess(trx, contactId, userId)),
+        ).rejects.toBeInstanceOf(ContactBlockedError);
       });
     },
   );
