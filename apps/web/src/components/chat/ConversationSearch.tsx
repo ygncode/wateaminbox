@@ -102,7 +102,7 @@ export function ConversationSearch({
   }, []);
 
   return (
-    <div className="flex items-center gap-2 px-3 py-2 bg-gray-100 dark:bg-dark-secondary border-b border-gray-200 dark:border-dark-border">
+    <div className="flex shrink-0 items-center gap-2 px-3 py-2 bg-gray-100 dark:bg-dark-secondary border-b border-gray-200 dark:border-dark-border">
       {/* Search input */}
       <div className="flex-1 flex items-center gap-2 bg-white dark:bg-dark-tertiary rounded-lg px-3 py-1.5 border border-gray-200 dark:border-dark-border focus-within:border-whatsapp-teal-green focus-within:ring-1 focus-within:ring-whatsapp-teal-green">
         <Search className="h-4 w-4 text-gray-400 dark:text-dark-text-tertiary flex-shrink-0" />

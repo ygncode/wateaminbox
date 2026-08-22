@@ -59,7 +59,7 @@ export function MessageHeader({
   const statusText = isTyping ? t("chat.typingShort", "typing") : lastSeenText;
 
   return (
-    <header className="flex items-center gap-2 md:gap-3 px-2 md:px-4 py-2 bg-gray-100 dark:bg-dark-secondary border-b border-gray-200 dark:border-dark-border h-14 min-h-[56px] md:h-[60px] md:min-h-[60px]">
+    <header className="flex shrink-0 items-center gap-2 md:gap-3 px-2 md:px-4 py-2 bg-gray-100 dark:bg-dark-secondary border-b border-gray-200 dark:border-dark-border h-14 min-h-[56px] md:h-[60px] md:min-h-[60px]">
       {/* Back button for mobile */}
       {canGoBack && handleBack && (
         <button
