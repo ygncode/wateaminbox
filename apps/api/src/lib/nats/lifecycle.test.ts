@@ -1,5 +1,45 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { NatsLifecycleManager, type ConnectFn } from "./lifecycle.js";
+import {
+  NatsLifecycleManager,
+  type ConnectFn,
+  parseNatsServerAuth,
+} from "./lifecycle.js";
+
+describe("parseNatsServerAuth", () => {
+  test("moves URL credentials into nats.js connection options", () => {
+    expect(
+      parseNatsServerAuth(
+        "nats://service:secret_0123456789abcdef@nats:4222",
+      ),
+    ).toEqual({
+      servers: ["nats://nats:4222"],
+      user: "service",
+      pass: "secret_0123456789abcdef",
+    });
+  });
+
+  test("preserves unauthenticated development URLs", () => {
+    expect(parseNatsServerAuth("nats://localhost:4448")).toEqual({
+      servers: ["nats://localhost:4448"],
+      user: undefined,
+      pass: undefined,
+    });
+  });
+
+  test("rejects incomplete, mixed, or mismatched URL credentials", () => {
+    expect(() => parseNatsServerAuth("nats://service@nats:4222")).toThrow();
+    expect(() =>
+      parseNatsServerAuth(
+        "nats://nats-a:4222,nats://service:secret@nats-b:4222",
+      ),
+    ).toThrow();
+    expect(() =>
+      parseNatsServerAuth(
+        "nats://service:first@nats-a:4222,nats://service:second@nats-b:4222",
+      ),
+    ).toThrow();
+  });
+});
 
 function makeStatusIterator() {
   let resolve: ((v: IteratorResult<{ type: string; data?: unknown }>) => void) | null = null;

@@ -16,12 +16,26 @@ read_credential() {
     exit 1
   }
   credential=$(cat "$file")
+  [ -n "$credential" ] || {
+    echo "provision-worker-role: empty $label credential" >&2
+    exit 1
+  }
+  carriage_return=$(printf '\r')
   case "$credential" in
-    ''|*[!A-Za-z0-9_-]*)
-      echo "provision-worker-role: $label credential must contain only URL-safe characters" >&2
+    *'
+'*|*"$carriage_return"*)
+      echo "provision-worker-role: $label credential must be a single line" >&2
       exit 1
       ;;
   esac
+  if [ "$label" = worker ]; then
+    case "$credential" in
+      *[!A-Za-z0-9_-]*)
+        echo "provision-worker-role: worker credential must contain only URL-safe characters" >&2
+        exit 1
+        ;;
+    esac
+  fi
   if [ "${#credential}" -lt 32 ]; then
     if [ "$label" != administrator ] || [ "${ALLOW_INSECURE_DEVELOPMENT_ADMIN_CREDENTIAL:-false}" != true ]; then
       echo "provision-worker-role: $label credential must be at least 32 characters" >&2
