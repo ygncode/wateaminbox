@@ -34,13 +34,3 @@
 		reverse_proxy web:8080
 	}
 }
-
-{$MEDIA_DOMAIN} {
-	import common_security
-	# Legacy MinIO origin retained for migration rollback compatibility. New
-	# signatures use R2's private S3 API directly. MinIO's console/admin API is
-	# never routed, and this host can be removed after the rollback window.
-	@admin path /minio/admin/*
-	respond @admin 404
-	reverse_proxy minio:9000
-}
