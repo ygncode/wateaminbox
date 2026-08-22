@@ -24,6 +24,7 @@ export interface RawContactFromDb {
   jid: string;
   phone_number: string | null;
   push_name: string | null;
+  username?: string | null;
   custom_name: string | null;
   is_group: boolean;
   is_blocked?: boolean;
@@ -65,6 +66,7 @@ export interface TransformedContact {
   jid: string;
   phoneNumber: string | null;
   pushName: string | null;
+  username: string | null;
   customName: string | null;
   displayName: string;
   name: string;
@@ -143,6 +145,7 @@ export function transformContact(
     jid: contact.jid,
     phoneNumber: getContactPhoneNumber(contact),
     pushName: contact.push_name,
+    username: contact.username ?? null,
     customName: contact.custom_name,
     displayName: getContactDisplayName(contact),
     name: getContactName(contact) ?? getContactDisplayName(contact),

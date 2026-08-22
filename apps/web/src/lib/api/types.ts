@@ -128,6 +128,7 @@ export interface Contact {
   phoneNumber: string;
   jid?: string;
   name?: string;
+  username?: string;
   customName?: string;
   avatarUrl?: string;
   isBlocked: boolean;

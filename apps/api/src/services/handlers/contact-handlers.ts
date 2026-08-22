@@ -4,6 +4,7 @@
 
 import {
   extractPhoneFromJid,
+  formatWhatsAppUsername,
   normalizeJid,
   toDbDate,
   toISOString,
@@ -80,6 +81,14 @@ export async function handleContactEvent(event: ContactEvent): Promise<void> {
     const contactJid = normalizeJid(payload.jid);
 
     const syncedName = getSyncedContactName(payload);
+    const formattedUsername =
+      payload.username === undefined
+        ? undefined
+        : formatWhatsAppUsername(payload.username, contactJid);
+    const username =
+      formattedUsername === undefined
+        ? undefined
+        : (formattedUsername?.slice(1) ?? null);
 
     const { contactChanged } = await tenantDb
       .transaction()
@@ -111,6 +120,7 @@ export async function handleContactEvent(event: ContactEvent): Promise<void> {
             .set({
               ...(syncedName ? { push_name: syncedName } : {}),
               ...(shouldClearRedactedName ? { push_name: null } : {}),
+              ...(username !== undefined ? { username } : {}),
               ...(payload.isGroup !== undefined
                 ? { is_group: payload.isGroup }
                 : {}),
@@ -137,6 +147,7 @@ export async function handleContactEvent(event: ContactEvent): Promise<void> {
               jid: contactJid,
               phone_number: phoneNumber,
               push_name: syncedName,
+              username: username ?? null,
               is_group: payload.isGroup ?? false,
               profile_picture_url: payload.profilePictureUrl || null,
               created_at: toDbDate(),
@@ -216,13 +227,15 @@ export async function handleContactEvent(event: ContactEvent): Promise<void> {
 
     if (
       contactChanged &&
-      (Boolean(syncedName) || (payload.isGroup === true && !payload.nameOnly))
+      (Boolean(syncedName) ||
+        username !== undefined ||
+        (payload.isGroup === true && !payload.nameOnly))
     ) {
       await broadcastToContactViewersByJid(
         companyId,
         contactJid,
         "contact:updated",
-        { jid: contactJid, pushName: syncedName },
+        { jid: contactJid, pushName: syncedName, username: username ?? null },
         { connectionId },
       );
     }

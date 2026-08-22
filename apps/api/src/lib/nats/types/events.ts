@@ -186,6 +186,7 @@ export interface ContactEvent extends WhatsAppEvent {
     firstName?: string;
     fullName?: string;
     pushName?: string;
+    username?: string | null;
     businessName?: string;
     isGroup?: boolean;
     nameOnly?: boolean;

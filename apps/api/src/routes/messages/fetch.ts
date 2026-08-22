@@ -3,6 +3,7 @@
  *
  * Routes for fetching and listing messages.
  */
+import { getContactDisplayName } from "@wateaminbox/shared";
 import { Hono } from "hono";
 import { badRequest, notFound } from "../../lib/errors.js";
 import {
@@ -141,7 +142,9 @@ fetchRoutes.get("/starred", async (c) => {
       "messages.message_type",
       "messages.content",
       "messages.timestamp",
+      "contacts.jid",
       "contacts.push_name",
+      "contacts.username",
       "contacts.custom_name",
       "contacts.phone_number",
     ])
@@ -167,7 +170,16 @@ fetchRoutes.get("/starred", async (c) => {
       id: msg.id,
       messageId: msg.message_id,
       contactId: msg.contact_id,
-      contactName: msg.custom_name || msg.push_name || msg.phone_number,
+      contactName: getContactDisplayName(
+        {
+          jid: msg.jid,
+          custom_name: msg.custom_name,
+          push_name: msg.push_name,
+          username: msg.username,
+          phone_number: msg.phone_number,
+        },
+        "Unknown",
+      ),
       fromMe: msg.from_me,
       messageType: msg.message_type,
       content: msg.content,

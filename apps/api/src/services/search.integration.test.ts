@@ -1,5 +1,9 @@
 import { describe, expect, test } from "bun:test";
-import { searchMessages, updateMessageSearchVector } from "./search.service.js";
+import {
+  searchContacts,
+  searchMessages,
+  updateMessageSearchVector,
+} from "./search.service.js";
 import {
   createTenantSchema,
   dropTenantSchema,
@@ -129,6 +133,27 @@ describe("PostgreSQL tenant message search", () => {
         expect(lidResults.results[0]?.contactName).toBe(
           "WhatsApp user (ID …2345)",
         );
+
+        await tenantA
+          .updateTable("contacts")
+          .set({ username: "private_user" })
+          .where("id", "=", lidContact.id)
+          .execute();
+        const usernameMessageResults = await searchMessages(companyA, {
+          query: "mango",
+          useMeilisearch: false,
+        });
+        expect(usernameMessageResults.results[0]?.contactName).toBe(
+          "@private_user",
+        );
+        const usernameContactResults = await searchContacts(
+          companyA,
+          "@private_user",
+          { useMeilisearch: false },
+        );
+        expect(usernameContactResults.results).toMatchObject([
+          { id: lidContact.id, displayName: "@private_user" },
+        ]);
       } finally {
         await Promise.all([
           dropTenantSchema(companyA),

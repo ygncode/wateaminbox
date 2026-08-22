@@ -190,6 +190,7 @@ export interface Contact {
   phoneNumber: string;
   jid?: string;
   avatarUrl?: string;
+  username?: string;
   customName?: string;
   isOnline?: boolean;
   lastSeen?: Date;

@@ -67,6 +67,7 @@ export interface ContactDocument {
   jid: string | null;
   phoneNumber: string | null;
   pushName: string | null;
+  username?: string | null;
   customName: string | null;
   displayName: string;
   isGroup: boolean;
@@ -140,47 +141,56 @@ export async function getMessagesIndex(
 /**
  * Initialize or get contacts index for a company
  */
+const configuredContactIndexes = new Set<string>();
+
 export async function getContactsIndex(
   companyId: string,
 ): Promise<Index<ContactDocument>> {
   const meili = getMeilisearchClient();
   const indexName = getContactsIndexName(companyId);
+  let index: Index<ContactDocument>;
 
   try {
-    return await meili.getIndex(indexName);
+    index = await meili.getIndex(indexName);
   } catch {
-    // Index doesn't exist, create it
     await meili.createIndex(indexName, { primaryKey: "id" });
-
-    const index = meili.index<ContactDocument>(indexName);
-
-    // Configure searchable attributes
-    await index.updateSearchableAttributes([
-      "displayName",
-      "customName",
-      "pushName",
-      "phoneNumber",
-      "jid",
-      "notesShared",
-    ]);
-
-    // Configure filterable attributes
-    await index.updateFilterableAttributes(["companyId", "isGroup"]);
-
-    // Configure sortable attributes
-    await index.updateSortableAttributes(["displayName"]);
-
-    // Enable typo tolerance
-    await index.updateTypoTolerance({
-      enabled: true,
-      minWordSizeForTypos: {
-        oneTypo: 3,
-        twoTypos: 6,
-      },
-    });
-
-    return index;
+    index = meili.index<ContactDocument>(indexName);
   }
+
+  // Configure once per API process for both new and existing indexes. This
+  // upgrades pre-username indexes without issuing settings tasks per search.
+  if (!configuredContactIndexes.has(indexName)) {
+    try {
+      await index.updateSearchableAttributes([
+        "displayName",
+        "customName",
+        "pushName",
+        "username",
+        "phoneNumber",
+        "jid",
+        "notesShared",
+      ]);
+      await index.updateFilterableAttributes(["companyId", "isGroup"]);
+      await index.updateSortableAttributes(["displayName"]);
+      await index.updateTypoTolerance({
+        enabled: true,
+        minWordSizeForTypos: {
+          oneTypo: 3,
+          twoTypos: 6,
+        },
+      });
+      configuredContactIndexes.add(indexName);
+    } catch (error) {
+      // Existing search remains usable if a settings task is temporarily
+      // unavailable; retry configuration on the next request.
+      logger.warn(
+        formatError(error),
+        "Failed to update contact index settings",
+      );
+    }
+  }
+
+  return index;
 }
 
 /**
@@ -433,6 +443,7 @@ export interface MeilisearchContactResult {
   jid: string | null;
   phoneNumber: string | null;
   pushName: string | null;
+  username: string | null;
   customName: string | null;
   displayName: string;
   isGroup: boolean;
@@ -469,6 +480,7 @@ export async function searchContactsWithMeilisearch(
         jid: hit.jid,
         phoneNumber: hit.phoneNumber,
         pushName: hit.pushName,
+        username: hit.username ?? null,
         customName: hit.customName,
         displayName: hit.displayName,
         isGroup: hit.isGroup,

@@ -1,5 +1,10 @@
 import { describe, expect, test } from "bun:test";
-import { getContactDisplayName, getContactName } from "./contact";
+import {
+  formatWhatsAppUsername,
+  getContactDisplayName,
+  getContactName,
+  normalizeWhatsAppUsername,
+} from "./contact";
 
 describe("contact identity display", () => {
   test("never presents a stored LID local part as a phone number", () => {
@@ -28,6 +33,30 @@ describe("contact identity display", () => {
         custom_name: "+123456789012345",
       }),
     ).toBe("WhatsApp user (ID …2345)");
+  });
+
+  test("prefers WhatsApp names, then public usernames, over opaque IDs", () => {
+    const contact = {
+      jid: "123456789012345@lid",
+      username: "private_user",
+    };
+
+    expect(getContactDisplayName(contact)).toBe("@private_user");
+    expect(getContactName(contact)).toBe("@private_user");
+    expect(getContactDisplayName({ ...contact, push_name: "Known Name" })).toBe(
+      "Known Name",
+    );
+    expect(getContactDisplayName({ ...contact, custom_name: "VIP" })).toBe(
+      "VIP",
+    );
+  });
+
+  test("normalizes username handles and rejects opaque-ID repetition", () => {
+    expect(normalizeWhatsAppUsername("  @private_user ")).toBe("private_user");
+    expect(formatWhatsAppUsername("@private_user")).toBe("@private_user");
+    expect(
+      formatWhatsAppUsername("123456789012345", "123456789012345@lid"),
+    ).toBeNull();
   });
 
   test("keeps real phone and named contact fallbacks", () => {

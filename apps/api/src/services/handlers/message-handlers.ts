@@ -6,6 +6,7 @@ import { type MessageStatus, type MessageType } from "@wateaminbox/database";
 import {
   extractPhoneFromJid,
   formatPhoneLikeText,
+  getContactDisplayName,
   normalizeJid,
   toDate,
   toDbDate,
@@ -492,12 +493,13 @@ export async function handleMessageEvent(event: MessageEvent): Promise<void> {
     // Get contact name for search indexing
     const contactForSearch = await tenantDb
       .selectFrom("contacts")
-      .select(["push_name", "custom_name", "jid", "is_group"])
+      .select(["push_name", "username", "custom_name", "jid", "is_group"])
       .where("id", "=", contact.id)
       .executeTakeFirst();
 
-    const contactName =
-      contactForSearch?.custom_name || contactForSearch?.push_name || null;
+    const contactName = contactForSearch
+      ? getContactDisplayName(contactForSearch, "Unknown")
+      : null;
 
     // Update PostgreSQL full-text search vector
     updateMessageSearchVector(companyId, storedMessageId).catch((err) => {

@@ -21,6 +21,7 @@ export interface ContactSearchResult {
   jid: string | null;
   phoneNumber: string | null;
   pushName: string | null;
+  username?: string | null;
   customName: string | null;
   displayName: string;
   isGroup: boolean;

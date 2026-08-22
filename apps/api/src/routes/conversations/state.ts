@@ -1,5 +1,5 @@
 import { zValidator } from "@hono/zod-validator";
-import { toDbDate } from "@wateaminbox/shared";
+import { getContactDisplayName, toDbDate } from "@wateaminbox/shared";
 import type { Context } from "hono";
 import { Hono } from "hono";
 import { notFound } from "../../lib/errors.js";
@@ -30,7 +30,15 @@ async function loadContact(
 ) {
   return tenantDb
     .selectFrom("contacts")
-    .select(["id", "custom_name", "push_name", "phone_number", "is_group"])
+    .select([
+      "id",
+      "jid",
+      "custom_name",
+      "push_name",
+      "username",
+      "phone_number",
+      "is_group",
+    ])
     .where("id", "=", contactId)
     .executeTakeFirst();
 }
@@ -101,8 +109,7 @@ stateRoutes.post(
       entityId: contactId,
       details: {
         contactId,
-        contactName:
-          contact.custom_name || contact.push_name || contact.phone_number,
+        contactName: getContactDisplayName(contact, "Unknown"),
         caseId: resolvedCase.id,
         outcome,
         notes,
@@ -163,8 +170,7 @@ async function performManualOpenOrReopen(
     entityId: contactId,
     details: {
       contactId,
-      contactName:
-        contact.custom_name || contact.push_name || contact.phone_number,
+      contactName: getContactDisplayName(contact, "Unknown"),
       caseId: newCase.id,
       reopenedFromCaseId: newCase.reopenedFromCaseId,
       reason,
@@ -253,8 +259,7 @@ stateRoutes.post("/:id/pending", requireMessageSendPermission, async (c) => {
     entityId: contactId,
     details: {
       contactId,
-      contactName:
-        contact.custom_name || contact.push_name || contact.phone_number,
+      contactName: getContactDisplayName(contact, "Unknown"),
       caseId: pendingCase.id,
     },
     ipAddress: getClientIp(c),
@@ -299,8 +304,7 @@ stateRoutes.post("/:id/resume", requireMessageSendPermission, async (c) => {
     entityId: contactId,
     details: {
       contactId,
-      contactName:
-        contact.custom_name || contact.push_name || contact.phone_number,
+      contactName: getContactDisplayName(contact, "Unknown"),
       caseId: openedCase.id,
     },
     ipAddress: getClientIp(c),

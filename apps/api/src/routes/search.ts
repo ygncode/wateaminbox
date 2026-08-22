@@ -1,4 +1,4 @@
-import { toDbDate } from "@wateaminbox/shared";
+import { getContactDisplayName, toDbDate } from "@wateaminbox/shared";
 import { Hono } from "hono";
 import { badRequest, forbidden, serviceUnavailable } from "../lib/errors.js";
 import { rateLimitConfig, rateLimitStore } from "../lib/rate-limit-store.js";
@@ -204,6 +204,7 @@ searchRoutes.post("/reindex", async (c) => {
         "messages.contact_id",
         "contacts.custom_name",
         "contacts.push_name",
+        "contacts.username",
         "contacts.phone_number",
         "contacts.jid",
         "contacts.is_group",
@@ -221,7 +222,16 @@ searchRoutes.post("/reindex", async (c) => {
         id: m.id,
         companyId,
         contactId: m.contact_id!,
-        contactName: m.custom_name || m.push_name || m.phone_number,
+        contactName: getContactDisplayName(
+          {
+            jid: m.jid,
+            custom_name: m.custom_name,
+            push_name: m.push_name,
+            username: m.username,
+            phone_number: m.phone_number,
+          },
+          "Unknown",
+        ),
         contactJid: m.jid,
         isGroup: m.is_group,
         messageId: m.message_id,
@@ -241,6 +251,7 @@ searchRoutes.post("/reindex", async (c) => {
         "jid",
         "phone_number",
         "push_name",
+        "username",
         "custom_name",
         "is_group",
         "notes_shared",
@@ -254,12 +265,9 @@ searchRoutes.post("/reindex", async (c) => {
         jid: contact.jid,
         phoneNumber: contact.phone_number,
         pushName: contact.push_name,
+        username: contact.username,
         customName: contact.custom_name,
-        displayName:
-          contact.custom_name ||
-          contact.push_name ||
-          contact.phone_number ||
-          "Unknown",
+        displayName: getContactDisplayName(contact),
         isGroup: contact.is_group,
         notesShared: contact.notes_shared,
       }),

@@ -55,6 +55,7 @@ export const TENANT_SCHEMA_CONTRACT = {
     "jid",
     "phone_number",
     "push_name",
+    "username",
     "custom_name",
     "notes_shared",
     "is_group",
@@ -629,6 +630,12 @@ export async function reconcileTenantSchema<Database>(
   };
 
   const contactColumns = await tenantColumns(db, schemaName, "contacts");
+  await alterIfNeeded(db, !contactColumns.has("username"), () =>
+    sql`
+      ALTER TABLE ${table("contacts")}
+      ADD COLUMN IF NOT EXISTS username TEXT
+    `.execute(db),
+  );
   await alterIfNeeded(
     db,
     !contactColumns.has("remote_history_status") ||

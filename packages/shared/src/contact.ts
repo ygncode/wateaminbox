@@ -9,6 +9,7 @@ export interface ContactNameFields {
   customName?: string | null;
   push_name?: string | null;
   pushName?: string | null;
+  username?: string | null;
   phone_number?: string | null;
   phoneNumber?: string | null;
   jid?: string | null;
@@ -32,9 +33,27 @@ function getSafeIdentityName(
   return repeatsOpaqueIdentity ? null : name;
 }
 
+/** Normalize WhatsApp's public username for storage and comparison. */
+export function normalizeWhatsAppUsername(
+  value: string | null | undefined,
+): string | null {
+  const username = value?.trim().replace(/^@+/, "");
+  return username || null;
+}
+
+/** Format a WhatsApp username as the public @handle shown by WhatsApp. */
+export function formatWhatsAppUsername(
+  value: string | null | undefined,
+  jid?: string | null,
+): string | null {
+  const username = normalizeWhatsAppUsername(value);
+  if (!username || !getSafeIdentityName(username, jid)) return null;
+  return `@${username}`;
+}
+
 /**
  * Get the display name for a contact using the standard fallback chain:
- * custom_name -> push_name -> phone_number -> phone from JID -> fallback
+ * custom_name -> push_name -> @username -> phone_number -> phone from JID -> fallback
  *
  * @param contact - Contact object with name fields (supports both snake_case and camelCase)
  * @param fallback - Fallback value if no name is available (default: "Unknown")
@@ -53,6 +72,7 @@ export function getContactDisplayName(
     contact.push_name ?? contact.pushName,
     contact.jid,
   );
+  const username = formatWhatsAppUsername(contact.username, contact.jid);
   const storedPhoneNumber = contact.phone_number ?? contact.phoneNumber;
   const phoneFromJid = extractPhoneFromJid(contact.jid);
   const phoneNumber = !contact.jid || phoneFromJid ? storedPhoneNumber : null;
@@ -62,6 +82,7 @@ export function getContactDisplayName(
   return (
     customName ||
     pushName ||
+    username ||
     phoneNumber ||
     phoneFromJid ||
     explicitName ||
@@ -85,6 +106,7 @@ export function getContactName(contact: ContactNameFields): string | null {
     contact.push_name ?? contact.pushName,
     contact.jid,
   );
+  const username = formatWhatsAppUsername(contact.username, contact.jid);
   const storedPhoneNumber = contact.phone_number ?? contact.phoneNumber;
   const phoneFromJid = extractPhoneFromJid(contact.jid);
   const phoneNumber = !contact.jid || phoneFromJid ? storedPhoneNumber : null;
@@ -93,6 +115,7 @@ export function getContactName(contact: ContactNameFields): string | null {
   return (
     customName ||
     pushName ||
+    username ||
     phoneNumber ||
     phoneFromJid ||
     explicitName ||

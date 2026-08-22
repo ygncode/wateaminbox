@@ -163,7 +163,12 @@ export async function searchMessages(
       SELECT
         m.id,
         m.contact_id,
-        COALESCE(c.custom_name, c.push_name, c.phone_number) as contact_name,
+        COALESCE(
+          c.custom_name,
+          c.push_name,
+          CASE WHEN c.username IS NOT NULL THEN '@' || c.username END,
+          c.phone_number
+        ) as contact_name,
         c.jid as contact_jid,
         c.is_group,
         m.message_id,
@@ -269,11 +274,13 @@ export async function searchContacts(
           jid: r.jid,
           phoneNumber,
           pushName: r.pushName,
+          username: r.username,
           customName: r.customName,
           displayName: getContactDisplayName({
             jid: r.jid,
             phoneNumber,
             pushName: r.pushName,
+            username: r.username,
             customName: r.customName,
             name: r.displayName,
           }),
@@ -290,6 +297,8 @@ export async function searchContacts(
   const tenantDb = getTenantConnection(companyId);
 
   const searchPattern = `%${query}%`;
+  const usernameQuery = query.trim().replace(/^@+/, "") || query;
+  const usernameSearchPattern = `%${usernameQuery}%`;
 
   let resultQuery = tenantDb
     .selectFrom("contacts")
@@ -298,6 +307,7 @@ export async function searchContacts(
       "jid",
       "phone_number",
       "push_name",
+      "username",
       "custom_name",
       "is_group",
       "profile_picture_url",
@@ -306,6 +316,7 @@ export async function searchContacts(
     .where((eb: ExpressionBuilder<TenantDatabase, "contacts">) =>
       eb.or([
         eb("push_name", "ilike", searchPattern),
+        eb("username", "ilike", usernameSearchPattern),
         eb("custom_name", "ilike", searchPattern),
         eb("phone_number", "ilike", searchPattern),
         eb("notes_shared", "ilike", searchPattern),
@@ -336,6 +347,7 @@ export async function searchContacts(
     .where((eb: ExpressionBuilder<TenantDatabase, "contacts">) =>
       eb.or([
         eb("push_name", "ilike", searchPattern),
+        eb("username", "ilike", usernameSearchPattern),
         eb("custom_name", "ilike", searchPattern),
         eb("phone_number", "ilike", searchPattern),
         eb("notes_shared", "ilike", searchPattern),
@@ -367,11 +379,13 @@ export async function searchContacts(
         jid: c.jid,
         phoneNumber,
         pushName: c.push_name,
+        username: c.username,
         customName: c.custom_name,
         displayName: getContactDisplayName({
           jid: c.jid,
           phoneNumber,
           pushName: c.push_name,
+          username: c.username,
           customName: c.custom_name,
         }),
         isGroup: c.is_group,
@@ -388,6 +402,7 @@ export interface ContactSearchResult {
   jid: string | null;
   phoneNumber: string | null;
   pushName: string | null;
+  username: string | null;
   customName: string | null;
   displayName: string;
   isGroup: boolean;

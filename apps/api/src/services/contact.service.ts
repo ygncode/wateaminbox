@@ -42,6 +42,7 @@ export interface ContactWithLastMessage {
   jid: string | null;
   phone_number: string | null;
   push_name: string | null;
+  username: string | null;
   custom_name: string | null;
   is_group: boolean;
   profile_picture_url: string | null;
@@ -136,6 +137,7 @@ export async function getContactsWithLastMessage(
     jid: string | null;
     phone_number: string | null;
     push_name: string | null;
+    username: string | null;
     custom_name: string | null;
     is_group: boolean;
     profile_picture_url: string | null;
@@ -167,6 +169,7 @@ export async function getContactsWithLastMessage(
       c.jid,
       c.phone_number,
       c.push_name,
+      c.username,
       c.custom_name,
       c.is_group,
       c.profile_picture_url,
@@ -245,6 +248,7 @@ export async function getContactsWithLastMessage(
       jid: contact.jid,
       phone_number: contact.phone_number,
       push_name: contact.push_name,
+      username: contact.username,
       custom_name: contact.custom_name,
       is_group: contact.is_group,
       profile_picture_url: contact.profile_picture_url,
@@ -275,7 +279,11 @@ export async function getContactsWithLastMessage(
         .onRef("contact_assignments.contact_id", "=", "contacts.id")
         .on("contact_assignments.unassigned_at", "is", null),
     )
-    .leftJoin("conversation_states", "conversation_states.contact_id", "contacts.id")
+    .leftJoin(
+      "conversation_states",
+      "conversation_states.contact_id",
+      "contacts.id",
+    )
     .select((eb) => eb.fn.count("contacts.id").as("total"));
 
   let countQuery = baseCountQuery;
@@ -290,9 +298,11 @@ export async function getContactsWithLastMessage(
     );
   }
   if (search) {
+    const usernameSearch = search.trim().replace(/^@+/, "") || search;
     countQuery = countQuery.where((eb) =>
       eb.or([
         eb("contacts.push_name", "ilike", `%${search}%`),
+        eb("contacts.username", "ilike", `%${usernameSearch}%`),
         eb("contacts.custom_name", "ilike", `%${search}%`),
         eb("contacts.phone_number", "ilike", `%${search}%`),
       ]),

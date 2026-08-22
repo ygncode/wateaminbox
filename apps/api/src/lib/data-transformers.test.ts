@@ -47,6 +47,19 @@ describe("contact API transformation", () => {
     expect(transformed.name).toBe("WhatsApp user (ID …2345)");
   });
 
+  test("uses WhatsApp's public username for a private-number contact", () => {
+    const transformed = transformContact(
+      contact({
+        jid: "123456789012345@lid",
+        username: "private_user",
+      }),
+    );
+
+    expect(transformed.username).toBe("private_user");
+    expect(transformed.displayName).toBe("@private_user");
+    expect(transformed.name).toBe("@private_user");
+  });
+
   test("exposes the WhatsApp account that owns the conversation", () => {
     const transformed = transformContact(
       contact({

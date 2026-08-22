@@ -228,6 +228,7 @@ contactRoutes.get("/:id", async (c) => {
       jid: contact.jid || "",
     }),
     pushName: contact.push_name,
+    username: contact.username,
     customName: contact.custom_name,
     displayName: getContactDisplayName(contact),
     name: getContactName(contact),

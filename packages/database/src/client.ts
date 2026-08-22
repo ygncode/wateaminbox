@@ -239,6 +239,7 @@ export interface ContactsTable {
   jid: string | null;
   phone_number: string | null;
   push_name: string | null;
+  username: Generated<string | null>;
   custom_name: string | null;
   notes_shared: string | null;
   is_group: Generated<boolean>;

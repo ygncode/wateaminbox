@@ -1,4 +1,4 @@
-import { Phone, Smartphone, User } from "lucide-react";
+import { AtSign, Phone, Smartphone, User } from "lucide-react";
 import { RightPanelSection } from "@/components/layout/right-panel";
 import { formatPhoneNumber } from "@/lib/utils";
 import { ConnectionBadge, getConnectionPhone } from "../ConnectionIdentity";
@@ -39,6 +39,19 @@ export function ContactInfoSection({ contact }: ContactInfoSectionProps) {
               <p className="mt-1 truncate text-xs text-gray-500 dark:text-dark-text-tertiary">
                 Receives on{" "}
                 {getConnectionPhone(contact.connection) || "this account"}
+              </p>
+            </div>
+          </div>
+        )}
+        {contact.username && (
+          <div className="flex items-center gap-3">
+            <AtSign className="h-5 w-5 text-gray-400 dark:text-dark-text-tertiary" />
+            <div>
+              <p className="text-sm font-medium text-gray-900 dark:text-dark-text-primary">
+                @{contact.username}
+              </p>
+              <p className="text-xs text-gray-500 dark:text-dark-text-tertiary">
+                {t("contacts.whatsappUsername", "WhatsApp username")}
               </p>
             </div>
           </div>

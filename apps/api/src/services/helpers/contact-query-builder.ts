@@ -50,7 +50,9 @@ export function buildConversationStatusClause(
 export function buildSearchClause(search?: string): RawBuilder<unknown> {
   if (!search) return sql``;
   const searchValue = `%${search}%`;
-  return sql`(c.push_name ILIKE ${searchValue} OR c.custom_name ILIKE ${searchValue} OR c.phone_number ILIKE ${searchValue})`;
+  const username = search.trim().replace(/^@+/, "") || search;
+  const usernameSearchValue = `%${username}%`;
+  return sql`(c.push_name ILIKE ${searchValue} OR c.username ILIKE ${usernameSearchValue} OR c.custom_name ILIKE ${searchValue} OR c.phone_number ILIKE ${searchValue})`;
 }
 
 /**

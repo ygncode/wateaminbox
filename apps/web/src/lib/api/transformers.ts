@@ -22,6 +22,7 @@ export interface ContactApiResponse {
   jid: string;
   phoneNumber: string;
   pushName: string;
+  username?: string | null;
   customName: string | null;
   displayName: string;
   isGroup: boolean;
@@ -88,6 +89,7 @@ export function transformContactToChat(contact: ContactApiResponse): Chat {
       jid: contact.jid,
       phoneNumber: contact.phoneNumber || "",
       name: contact.displayName,
+      username: contact.username || undefined,
       customName: contact.customName || undefined,
       avatarUrl: contact.profilePictureUrl || undefined,
       isOnline: contact.isOnline,
