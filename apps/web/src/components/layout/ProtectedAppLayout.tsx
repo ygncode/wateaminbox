@@ -6,7 +6,6 @@ import {
   LayoutDashboard,
   LogOut,
   Megaphone,
-  Menu,
   PanelLeftClose,
   PanelLeftOpen,
   Settings,
@@ -30,6 +29,11 @@ import {
   getInboxNavigationLabel,
   getInboxUnreadCount,
 } from "./inbox-unread";
+import { MobileBottomNav } from "./MobileBottomNav";
+import {
+  buildMobileNavLinks,
+  resolveActiveMobileNavKey,
+} from "./mobile-navigation";
 import { useTranslation } from "react-i18next";
 
 const SyncingOverlay = lazy(() =>
@@ -51,11 +55,9 @@ interface NavigationItem {
 
 function NavigationLink({
   item,
-  compact = false,
   collapsed = false,
 }: {
   item: NavigationItem;
-  compact?: boolean;
   collapsed?: boolean;
 }) {
   const { t } = useTranslation();
@@ -64,21 +66,14 @@ function NavigationLink({
   const unreadCount = item.unreadCount ?? 0;
   const baseClass = cn(
     "group relative flex items-center rounded-xl font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300",
-    compact
-      ? "h-12 min-w-14 flex-1 flex-col justify-center gap-0.5 px-1 text-[10px]"
-      : collapsed
-        ? "h-11 w-full justify-center px-0 text-sm"
-        : "h-10 gap-3 px-3 text-sm",
+    collapsed
+      ? "h-11 w-full justify-center px-0 text-sm"
+      : "h-10 gap-3 px-3 text-sm",
   );
-  const inactiveClass = compact
-    ? "text-[#65736d] dark:text-dark-text-secondary"
-    : "text-[#b8c9c2] hover:bg-white/[0.07] hover:text-white";
+  const inactiveClass = "text-[#b8c9c2] hover:bg-white/[0.07] hover:text-white";
   const content = (
     <>
-      <Icon
-        className={compact ? "h-5 w-5" : "h-[18px] w-[18px]"}
-        aria-hidden="true"
-      />
+      <Icon className="h-[18px] w-[18px]" aria-hidden="true" />
       <span className={collapsed ? "sr-only" : undefined}>
         {t(item.labelKey, item.label)}
       </span>
@@ -86,11 +81,7 @@ function NavigationLink({
         <span
           className={cn(
             "flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-[#25d366] px-1 text-[10px] font-bold leading-none text-[#073b2a] tabular-nums shadow-sm",
-            compact
-              ? "absolute left-1/2 top-0.5 translate-x-1"
-              : collapsed
-                ? "absolute right-1.5 top-1"
-                : "ml-auto",
+            collapsed ? "absolute right-1.5 top-1" : "ml-auto",
           )}
           aria-hidden="true"
           data-testid="inbox-unread-badge"
@@ -207,8 +198,8 @@ const SIDEBAR_COLLAPSED_KEY = "wateaminbox:sidebar-collapsed";
 export function ProtectedAppLayout() {
   const { t } = useTranslation();
 
-  const { pathname } = useLocation();
-  const [moreOpen, setMoreOpen] = useState(false);
+  const { pathname, search } = useLocation();
+  const [profileOpen, setProfileOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(
     () =>
       typeof window !== "undefined" &&
@@ -277,16 +268,31 @@ export function ProtectedAppLayout() {
     icon: Settings,
     visible: true,
   };
-  const mobileItems = visibleItems
-    .filter((item) => item.label !== "Audit")
-    .slice(0, 3);
-  const auditItem = visibleItems.find((item) => item.label === "Audit");
-  const billingItem = visibleItems.find(
-    (item) => item.label === "Plan & billing",
-  );
-  const moreIsActive = /\/(settings|audit|notifications)(?:\/|$)/.test(
-    pathname,
-  );
+  const notificationsItem: NavigationItem = {
+    labelKey: "nav.notifications",
+    label: "Notifications",
+    path: workspacePath(activeWorkspace.id, "notifications"),
+    icon: Bell,
+    visible: true,
+  };
+  // The floating bar carries Chat/Groups/Dashboard/Broadcast; everything else
+  // a member is allowed to open has to stay reachable from the profile sheet,
+  // or those destinations become desktop-only.
+  const profileSheetItems = [
+    ...visibleItems.filter(
+      (item) =>
+        item.label !== "Inbox" &&
+        item.label !== "Dashboard" &&
+        item.label !== "Broadcasts",
+    ),
+    settingsItem,
+    notificationsItem,
+  ];
+  const mobileNavLinks = buildMobileNavLinks(activeWorkspace.id, {
+    canViewDashboard: can("can_view_dashboard"),
+    canSendBroadcasts: can("can_send_bulk_messages"),
+  });
+  const activeMobileNavKey = resolveActiveMobileNavKey(pathname, search);
   const toggleSidebar = () => {
     setSidebarCollapsed((collapsed) => {
       const next = !collapsed;
@@ -425,8 +431,12 @@ export function ProtectedAppLayout() {
         </div>
       </aside>
 
-      <div className="flex min-w-0 flex-1 flex-col">
-        <header className="safe-area-top flex h-14 shrink-0 items-center justify-between border-b border-[#dce3de] bg-[#102c24] px-2 lg:hidden">
+      <div className="relative flex min-w-0 flex-1 flex-col">
+        {/* The notch inset is added on top of the 3.5rem row, not eaten out
+            of it: `box-sizing: border-box` is global and the viewport opts
+            into `viewport-fit=cover`, so a plain `h-14` would leave roughly
+            9px of usable height on a notched phone. */}
+        <header className="safe-area-top flex h-[calc(3.5rem+env(safe-area-inset-top))] shrink-0 items-center justify-between border-b border-[#dce3de] bg-[#102c24] px-2 lg:hidden">
           <WorkspaceSwitcher compact />
           <div className="flex items-center text-[#b8c9c2]">
             <NotificationCenter className="text-[#b8c9c2] hover:bg-white/10 hover:text-white dark:hover:bg-white/10" />
@@ -435,7 +445,10 @@ export function ProtectedAppLayout() {
         </header>
         <main
           id="main-content"
-          className="relative min-h-0 min-w-0 flex-1 overflow-hidden"
+          // The floating bar sits outside the flow, so the shell reserves the
+          // space it occupies - otherwise the composer and the last table row
+          // would sit underneath it and stay untappable.
+          className="relative min-h-0 min-w-0 flex-1 overflow-hidden pb-[calc(env(safe-area-inset-bottom)+5.5rem)] lg:pb-0"
           tabIndex={-1}
         >
           <Outlet />
@@ -460,68 +473,53 @@ export function ProtectedAppLayout() {
         <Suspense fallback={null}>
           <SyncingOverlay />
         </Suspense>
-        <nav
-          className="safe-area-bottom flex shrink-0 items-center border-t border-[#dce3de] bg-white px-1 py-1 dark:border-dark-border dark:bg-dark-secondary lg:hidden"
-          aria-label={t("nav.mobile", "Mobile navigation")}
-        >
-          {mobileItems.map((item) => (
-            <NavigationLink key={item.label} item={item} compact />
-          ))}
-          <button
-            type="button"
-            onClick={() => setMoreOpen(true)}
-            className={cn(
-              "flex h-12 min-w-14 flex-1 flex-col items-center justify-center gap-0.5 rounded-xl px-1 text-[10px] font-medium",
-              moreIsActive
-                ? "bg-[#dcefe7] text-[#075c41]"
-                : "text-[#65736d] dark:text-dark-text-secondary",
-            )}
-            aria-label={t("nav.more", "More navigation")}
-          >
-            <Menu className="h-5 w-5" />
-            {t("nav.moreShort", "More")}
-          </button>
-        </nav>
-        <Dialog open={moreOpen} onOpenChange={setMoreOpen}>
-          <DialogContent className="mx-4 w-[calc(100vw-2rem)] rounded-2xl p-4 sm:w-full">
+        <MobileBottomNav
+          links={mobileNavLinks}
+          activeKey={activeMobileNavKey}
+          unreadCount={inboxUnreadCount}
+          onOpenProfile={() => setProfileOpen(true)}
+        />
+        <Dialog open={profileOpen} onOpenChange={setProfileOpen}>
+          {/* The sheet grows with the member's permissions (up to team,
+              audit, billing, settings and notifications), which overflows a
+              landscape phone - so it caps at the viewport and scrolls. */}
+          <DialogContent className="mx-4 max-h-[calc(100dvh-2rem)] w-[calc(100vw-2rem)] overflow-y-auto rounded-2xl p-4 sm:w-full">
             <DialogHeader>
-              <DialogTitle>{t("nav.moreShort", "More")}</DialogTitle>
+              <DialogTitle>{t("nav.profile", "Profile")}</DialogTitle>
             </DialogHeader>
-            <nav
-              className="space-y-1"
-              aria-label={t("nav.more", "More navigation")}
-            >
-              {auditItem && (
-                <MoreLink item={auditItem} onClick={() => setMoreOpen(false)} />
-              )}
-              {billingItem && (
-                <MoreLink
-                  item={billingItem}
-                  onClick={() => setMoreOpen(false)}
+            <div className="flex items-center gap-3 rounded-xl bg-[#f5f7f4] p-3 dark:bg-dark-tertiary">
+              <Avatar className="h-11 w-11 rounded-xl">
+                <AvatarImage
+                  src={user?.avatarUrl}
+                  alt=""
+                  className="object-cover"
                 />
-              )}
-              <MoreLink
-                item={settingsItem}
-                onClick={() => setMoreOpen(false)}
-              />
-              <MoreLink
-                item={{
-                  labelKey: "nav.notifications",
-                  label: "Notifications",
-                  path: workspacePath(activeWorkspace.id, "notifications"),
-                  icon: Bell,
-                  visible: true,
-                }}
-                onClick={() => setMoreOpen(false)}
-              />
-            </nav>
-            <div className="mt-2 flex items-center justify-between border-t border-[#dce3de] pt-3 dark:border-dark-border">
-              <div className="min-w-0">
-                <p className="truncate text-sm font-semibold">{user?.name}</p>
+                <AvatarFallback className="rounded-xl bg-[#dcefe7] text-sm font-semibold text-[#075c41]">
+                  {(user?.name || user?.email || "U").slice(0, 1).toUpperCase()}
+                </AvatarFallback>
+              </Avatar>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-semibold">
+                  {user?.name || t("nav.account", "Account")}
+                </p>
                 <p className="truncate text-xs text-[#65736d] dark:text-dark-text-secondary">
                   {user?.email}
                 </p>
               </div>
+            </div>
+            <nav
+              className="space-y-1"
+              aria-label={t("nav.profileMenu", "Profile navigation")}
+            >
+              {profileSheetItems.map((item) => (
+                <MoreLink
+                  key={item.label}
+                  item={item}
+                  onClick={() => setProfileOpen(false)}
+                />
+              ))}
+            </nav>
+            <div className="flex items-center justify-end border-t border-[#dce3de] pt-3 dark:border-dark-border">
               <ButtonSignOut onClick={() => void logout()} />
             </div>
           </DialogContent>

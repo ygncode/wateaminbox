@@ -6,7 +6,8 @@ import {
   RotateCcw,
   UsersRound,
 } from "lucide-react";
-import { useState } from "react";
+import { useCallback } from "react";
+import { useLocation, useNavigate } from "react-router";
 import { ChatSidebar, type SidebarView } from "../components/chat/ChatSidebar";
 import { ComposerLifecycleArea } from "../components/chat/ComposerLifecycleArea";
 import { ConversationSearch } from "../components/chat/ConversationSearch";
@@ -24,13 +25,29 @@ import { useAuth } from "../contexts/auth-context";
 import { MessageActionsProvider } from "../contexts/message-actions-context";
 import { useChatPageState } from "../hooks/chat";
 import { useComposerAccess } from "../hooks/useComposerAccess";
+import { parseChatView, withChatView } from "../lib/workspace-routes";
 import { useTranslation } from "react-i18next";
 
 export function ChatPage() {
   const { t } = useTranslation();
 
   const { user } = useAuth();
-  const [sidebarView, setSidebarView] = useState<SidebarView>("chats");
+  const navigate = useNavigate();
+  const { pathname, search } = useLocation();
+
+  // Chats vs Groups lives in the URL: the desktop sidebar tabs and the
+  // mobile bottom navigation both drive it, and component state would let the
+  // two disagree after a back/forward navigation or a shared link.
+  const sidebarView = parseChatView(search);
+  const setSidebarView = useCallback(
+    (view: SidebarView) => {
+      navigate(
+        { pathname, search: withChatView(search, view) },
+        { replace: true },
+      );
+    },
+    [navigate, pathname, search],
+  );
 
   const {
     // State

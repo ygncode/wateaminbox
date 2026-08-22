@@ -4,8 +4,8 @@ import { ArrowLeft } from "lucide-react";
 import { IdentityAvatarFallback } from "@/components/ui/identity-avatar-fallback";
 import { useGroup } from "@/hooks/useGroups";
 import { formatPhoneLikeText } from "@/lib/utils";
+import { useOptionalMobileLayout } from "@/components/layout/MobileLayout";
 import { ConnectionBadge, ConnectionRoute } from "./ConnectionIdentity";
-import { ThemeToggle } from "./ThemeToggle";
 import { useTranslation } from "react-i18next";
 
 interface MessageHeaderProps {
@@ -13,9 +13,12 @@ interface MessageHeaderProps {
   onOpenProfile?: () => void;
   onSearch?: () => void;
   onMore?: () => void;
-  /** Show back button for mobile navigation */
+  /**
+   * Force the back button on. Left unset, it appears automatically inside the
+   * mobile view stack, where the thread covers the conversation list.
+   */
   showBackButton?: boolean;
-  /** Callback when back button is pressed */
+  /** Callback when back button is pressed; defaults to popping the view. */
   onBack?: () => void;
   /** Whether the contact is currently typing */
   isTyping?: boolean;
@@ -26,13 +29,17 @@ export function MessageHeader({
   onOpenProfile,
   onSearch,
   onMore,
-  showBackButton = false,
+  showBackButton,
   onBack,
   isTyping = false,
 }: MessageHeaderProps) {
   const { t } = useTranslation();
 
   const { data: group } = useGroup(contact?.isGroup ? contact.id : null);
+  // Null on desktop, where the list and the thread are both on screen.
+  const mobileLayout = useOptionalMobileLayout();
+  const canGoBack = showBackButton ?? mobileLayout !== null;
+  const handleBack = onBack ?? mobileLayout?.goBack;
 
   if (!contact) {
     return null;
@@ -52,11 +59,12 @@ export function MessageHeader({
   const statusText = isTyping ? t("chat.typingShort", "typing") : lastSeenText;
 
   return (
-    <header className="flex items-center gap-2 md:gap-3 px-2 md:px-4 py-2 bg-gray-100 dark:bg-dark-secondary border-b border-gray-200 dark:border-dark-border h-14 min-h-[56px] md:h-[60px] md:min-h-[60px] safe-area-top">
+    <header className="flex items-center gap-2 md:gap-3 px-2 md:px-4 py-2 bg-gray-100 dark:bg-dark-secondary border-b border-gray-200 dark:border-dark-border h-14 min-h-[56px] md:h-[60px] md:min-h-[60px]">
       {/* Back button for mobile */}
-      {showBackButton && (
+      {canGoBack && handleBack && (
         <button
-          onClick={onBack}
+          type="button"
+          onClick={handleBack}
           className="flex h-11 w-11 items-center justify-center rounded-full text-gray-600 dark:text-dark-text-secondary hover:bg-gray-200 dark:hover:bg-dark-tertiary active:bg-gray-300 dark:active:bg-dark-border transition-colors touch-manipulation md:hidden"
           aria-label={t("common.goBack", "Go back")}
         >
@@ -140,20 +148,20 @@ export function MessageHeader({
         </div>
       </button>
 
-      {/* Action buttons - hide search on very small screens */}
+      {/* Action buttons */}
       <div className="flex items-center gap-0 md:gap-1">
         {/* Lifecycle actions (Open/Pending/Resolve/Reopen) now live in the
             composer area, alongside the assignment gate - see ChatPage. */}
 
-        {/* The desktop theme control lives in the navigation rail. */}
-        <div className="lg:hidden">
-          <ThemeToggle />
-        </div>
+        {/* The theme control belongs to the app chrome - the navigation rail on
+            desktop, the workspace header on mobile and tablet. Repeating it
+            here gave touch layouts two toggles in adjacent bars. */}
 
-        {/* Search button - hidden on small mobile */}
+        {/* Search button */}
         <button
+          type="button"
           onClick={onSearch}
-          className="hidden sm:flex h-11 w-11 md:h-10 md:w-10 items-center justify-center text-gray-500 dark:text-dark-text-secondary hover:text-gray-700 dark:hover:text-dark-text-primary rounded-full hover:bg-gray-200 dark:hover:bg-dark-tertiary active:bg-gray-300 dark:active:bg-dark-border transition-colors touch-manipulation"
+          className="flex h-11 w-11 md:h-10 md:w-10 items-center justify-center text-gray-500 dark:text-dark-text-secondary hover:text-gray-700 dark:hover:text-dark-text-primary rounded-full hover:bg-gray-200 dark:hover:bg-dark-tertiary active:bg-gray-300 dark:active:bg-dark-border transition-colors touch-manipulation"
           aria-label={t(
             "search.inConversationAria",
             "Search messages in conversation",
@@ -174,26 +182,30 @@ export function MessageHeader({
           </svg>
         </button>
 
-        {/* More options button */}
-        <button
-          onClick={onMore}
-          className="flex h-11 w-11 md:h-10 md:w-10 items-center justify-center text-gray-500 dark:text-dark-text-secondary hover:text-gray-700 dark:hover:text-dark-text-primary rounded-full hover:bg-gray-200 dark:hover:bg-dark-tertiary active:bg-gray-300 dark:active:bg-dark-border transition-colors touch-manipulation"
-          aria-label={t("common.moreOptions", "More options")}
-        >
-          <svg
-            className="h-5 w-5"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
+        {/* More options button - omitted when the host wires no handler, so
+            the header never shows a control that does nothing. */}
+        {onMore && (
+          <button
+            type="button"
+            onClick={onMore}
+            className="flex h-11 w-11 md:h-10 md:w-10 items-center justify-center text-gray-500 dark:text-dark-text-secondary hover:text-gray-700 dark:hover:text-dark-text-primary rounded-full hover:bg-gray-200 dark:hover:bg-dark-tertiary active:bg-gray-300 dark:active:bg-dark-border transition-colors touch-manipulation"
+            aria-label={t("common.moreOptions", "More options")}
           >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z"
-            />
-          </svg>
-        </button>
+            <svg
+              className="h-5 w-5"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z"
+              />
+            </svg>
+          </button>
+        )}
       </div>
     </header>
   );

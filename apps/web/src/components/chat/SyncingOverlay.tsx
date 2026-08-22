@@ -98,7 +98,7 @@ export const SyncingOverlay = React.memo(function SyncingOverlay() {
           role="status"
           aria-live="polite"
           aria-label={`WhatsApp history is syncing. ${totals.conversations} conversations and ${totals.messages} messages ready.`}
-          className="fixed bottom-[calc(4rem+env(safe-area-inset-bottom))] left-3 right-3 z-50 sm:left-auto sm:right-5 sm:w-[390px] lg:bottom-5"
+          className="fixed bottom-[calc(5.5rem+env(safe-area-inset-bottom))] left-3 right-3 z-50 sm:left-auto sm:right-5 sm:w-[390px] lg:bottom-5"
         >
           <motion.div
             layout

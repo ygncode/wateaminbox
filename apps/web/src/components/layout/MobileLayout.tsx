@@ -31,6 +31,14 @@ export function useMobileLayout() {
   return context;
 }
 
+/**
+ * Same context, but for components rendered on every breakpoint. Returns null
+ * on desktop, where there is no mobile provider and no view stack to pop.
+ */
+export function useOptionalMobileLayout(): MobileLayoutContextValue | null {
+  return React.useContext(MobileLayoutContext);
+}
+
 export interface MobileLayoutProviderProps {
   children: React.ReactNode;
   initialChatId?: string | null;
@@ -50,11 +58,15 @@ export function MobileLayoutProvider({
     initialChatId,
   );
 
-  // Sync with external chat selection
+  // Sync with external chat selection. Clearing the selection has to pop the
+  // stack too - navigating away from a conversation (bottom navigation, back
+  // gesture, workspace switch) otherwise left the empty thread on screen with
+  // the conversation list stranded off-canvas.
   useEffect(() => {
     setSelectedChatIdState(initialChatId);
-    if (initialChatId) {
-      setCurrentView("message-thread");
+    setCurrentView(initialChatId ? "message-thread" : "chat-list");
+    if (!initialChatId) {
+      setIsContactInfoOpen(false);
     }
   }, [initialChatId]);
 
@@ -129,7 +141,10 @@ export function MobileLayout({
   return (
     <div
       className={cn(
-        "flex h-dvh w-screen overflow-hidden bg-gray-200 dark:bg-dark-primary",
+        // The shell already sits inside the app frame (top bar above, floating
+        // navigation below), so it fills its parent - `h-dvh`/`w-screen` here
+        // would push the composer past the bottom of the visible area.
+        "flex h-full w-full overflow-hidden bg-gray-200 dark:bg-dark-primary",
         className,
       )}
       {...props}
@@ -171,6 +186,10 @@ export function MobileViewContainer({
         className,
       )}
       aria-hidden={!isVisible}
+      // Off-screen views stay mounted to preserve scroll position, so they
+      // also have to leave the tab order - `aria-hidden` alone would still let
+      // Tab reach the hidden list's rows.
+      inert={!isVisible}
       {...props}
     >
       {children}
@@ -257,7 +276,13 @@ export interface MobileSlideInPanelProps
   children: React.ReactNode;
   isOpen: boolean;
   onClose?: () => void;
+  /** Renders the panel's own header bar and names it for assistive tech. */
   title?: string;
+  /**
+   * Id of a heading rendered by `children`. Use instead of `title` when the
+   * content already draws its own header, so the panel does not stack two.
+   */
+  titleId?: string;
   position?: "left" | "right";
 }
 
@@ -267,6 +292,7 @@ export function MobileSlideInPanel({
   isOpen,
   onClose,
   title,
+  titleId,
   position = "right",
   ...props
 }: MobileSlideInPanelProps) {
@@ -284,6 +310,22 @@ export function MobileSlideInPanel({
     };
   }, [isOpen]);
 
+  // The panel covers the screen on touch layouts, so Escape has to dismiss it
+  // the way the backdrop and the close button do.
+  useEffect(() => {
+    if (!isOpen || !onClose) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      // A dialog opened from inside the panel (export, confirmations) handles
+      // Escape first and marks the event; closing the panel too would dismiss
+      // both layers with one key press.
+      if (event.key === "Escape" && !event.defaultPrevented) {
+        onClose();
+      }
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [isOpen, onClose]);
+
   return (
     <>
       {/* Backdrop */}
@@ -299,7 +341,7 @@ export function MobileSlideInPanel({
       {/* Panel */}
       <aside
         className={cn(
-          "fixed inset-y-0 z-50 flex w-full max-w-[320px] flex-col bg-white dark:bg-dark-secondary shadow-xl transition-transform duration-300 ease-in-out safe-area-left safe-area-right",
+          "fixed inset-y-0 z-50 flex w-full max-w-[26rem] flex-col overflow-hidden bg-white dark:bg-dark-secondary shadow-xl transition-transform duration-300 ease-in-out safe-area-left safe-area-right",
           position === "right" && "right-0",
           position === "left" && "left-0",
           isOpen
@@ -309,12 +351,19 @@ export function MobileSlideInPanel({
               : "-translate-x-full",
           className,
         )}
+        role="dialog"
+        aria-modal={isOpen || undefined}
+        aria-label={titleId ? undefined : title}
+        aria-labelledby={titleId}
         aria-hidden={!isOpen}
+        // Closed panels stay mounted for the slide transition; without `inert`
+        // their links and inputs remain tabbable behind the chat view.
+        inert={!isOpen}
         {...props}
       >
-        {/* Panel Header */}
-        {(title || onClose) && (
-          <header className="flex h-14 min-h-[56px] items-center gap-2 border-b border-gray-200 dark:border-dark-border bg-whatsapp-teal-green px-4 text-white safe-area-top">
+        {/* Panel Header - omitted when the content supplies its own chrome. */}
+        {title && !titleId && (
+          <header className="flex h-[calc(3.5rem+env(safe-area-inset-top))] shrink-0 items-center gap-2 border-b border-gray-200 dark:border-dark-border bg-whatsapp-teal-green px-4 text-white safe-area-top">
             {onClose && (
               <button
                 onClick={onClose}
@@ -329,7 +378,7 @@ export function MobileSlideInPanel({
         )}
 
         {/* Panel Content */}
-        <div className="flex-1 overflow-y-auto safe-area-bottom">
+        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto safe-area-bottom">
           {children}
         </div>
       </aside>

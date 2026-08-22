@@ -1539,8 +1539,11 @@
   },
   "nav": {
     "inbox": "Inbox",
+    "chat": "Chat",
+    "groups": "Groups",
     "dashboard": "Dashboard",
     "broadcasts": "Broadcasts",
+    "broadcast": "Broadcast",
     "team": "Team",
     "audit": "Audit",
     "billing": "Plan & billing",
@@ -1548,15 +1551,16 @@
     "notifications": "Notifications",
     "primary": "Primary navigation",
     "mobile": "Mobile navigation",
-    "more": "More navigation",
-    "moreShort": "More",
     "expandSidebar": "Expand sidebar",
     "collapseSidebar": "Collapse sidebar",
     "signOut": "Sign out",
     "skipToMain": "Skip to main content",
     "preparingWorkspace": "Preparing a clean workspace",
     "inboxUnread_one": "{{label}}, {{count}} unread message",
-    "inboxUnread_other": "{{label}}, {{count}} unread messages"
+    "inboxUnread_other": "{{label}}, {{count}} unread messages",
+    "profile": "Profile",
+    "profileMenu": "Profile navigation",
+    "account": "Account"
   },
   "layout": {
     "resizeConversationList": "Resize conversation list",

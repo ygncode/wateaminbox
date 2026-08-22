@@ -1,9 +1,12 @@
 import { describe, expect, test } from "bun:test";
 import type { MemberPermissions } from "@wateaminbox/shared";
 import {
+  chatViewPath,
   getWorkspaceDestination,
+  parseChatView,
   resolveInitialWorkspaceId,
   resolveWorkspaceDestination,
+  withChatView,
   workspacePath,
 } from "./workspace-routes";
 
@@ -92,5 +95,47 @@ describe("workspace routes", () => {
         can_invite: true,
       }),
     ).toEqual({ path: "/w/northwind/team", wasRedirected: false });
+  });
+});
+
+describe("chat view query param", () => {
+  test("defaults to all chats when the param is absent or unknown", () => {
+    expect(parseChatView("")).toBe("chats");
+    expect(parseChatView("?view=chats")).toBe("chats");
+    expect(parseChatView("?view=archived")).toBe("chats");
+    expect(parseChatView("?contact=1")).toBe("chats");
+  });
+
+  test("reads the groups filter", () => {
+    expect(parseChatView("?view=groups")).toBe("groups");
+    expect(parseChatView("?q=hi&view=groups")).toBe("groups");
+  });
+
+  test("round-trips through withChatView while preserving other params", () => {
+    expect(withChatView("?q=hi", "groups")).toBe("?q=hi&view=groups");
+    expect(withChatView("?q=hi&view=groups", "chats")).toBe("?q=hi");
+    expect(withChatView("?view=groups", "chats")).toBe("");
+    expect(parseChatView(withChatView("", "groups"))).toBe("groups");
+  });
+
+  test("never stacks duplicate view params", () => {
+    expect(withChatView("?view=groups", "groups")).toBe("?view=groups");
+  });
+
+  test("builds conversation-aware paths for both filters", () => {
+    expect(chatViewPath("northwind", "chats")).toBe("/w/northwind/chat");
+    expect(chatViewPath("northwind", "groups")).toBe(
+      "/w/northwind/chat?view=groups",
+    );
+    expect(chatViewPath("northwind", "groups", "contact-one")).toBe(
+      "/w/northwind/chat/contact-one?view=groups",
+    );
+  });
+
+  test("leaves the pathname destination unaffected by the filter", () => {
+    expect(getWorkspaceDestination("/w/northwind/chat/contact-one")).toEqual({
+      destination: "chat",
+      suffix: "contact-one",
+    });
   });
 });
