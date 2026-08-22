@@ -1306,104 +1306,60 @@ func (c *Client) UnblockContact(ctx context.Context, jid string) error {
 	return c.updateBlocklistWithRetry(ctx, jid, "unblock")
 }
 
-// lidLookup mirrors store.LIDStore.GetLIDForPN and userInfoLookup mirrors
-// whatsmeow.Client.GetUserInfo. Taking them as parameters lets the address rules
-// below be exercised without a live connection.
-type lidLookup func(ctx context.Context, pn waTypes.JID) (waTypes.JID, error)
-
-type userInfoLookup func(ctx context.Context, jids []waTypes.JID) (map[waTypes.JID]waTypes.UserInfo, error)
-
-// unblockTargetJID turns a stored contact JID into the address the blocklist
-// info query has to name.
+// blocklistTargetJID turns a stored contact JID into the argument
+// whatsmeow.Client.UpdateBlocklist expects.
 //
 // WhatsApp's blocklist namespace is addressed by link-ID, not by phone number.
-// Upstream whatsmeow changed UpdateBlocklist to match in 8d023aa ("user: switch
-// UpdateBlocklist to use LIDs", 2026-08-14): it resolves a phone-number argument
-// to a LID and sends `jid=<lid>`. The module this service builds against
-// predates that commit (v0.0.0-20260722203353-e9a033b24933, 2026-07-22) and
-// still copies its argument into the `jid` attribute verbatim, so a phone-number
-// JID goes on the wire unchanged - and handler.resolvePreferredJID means stored
-// contact rows normally hold exactly that form. That is the `400 bad-request`
-// seen in production.
+// Upstream whatsmeow does that translation itself as of 8d023aa ("user: switch
+// UpdateBlocklist to use LIDs", 2026-08-14), which this service now builds
+// against: a phone-number argument is resolved through Store.LIDs with a
+// GetUserInfo fallback and sent as `jid=<lid>`, with `pn_jid=<pn>` added for
+// block. Nothing here may second-guess that - the stanza is built by private
+// code, and the earlier attempt to reproduce it from outside is what this
+// replaces.
 //
-// This is a compatibility shim for that gap: it performs upstream's resolution
-// so the stanza the pinned UpdateBlocklist emits for an unblock is the one
-// upstream emits. Only block adds the `pn_jid` attribute, which the pinned
-// function cannot set, so block is left alone. Delete this once the module is
-// bumped past 8d023aa.
-func unblockTargetJID(ctx context.Context, jidStr string, lookupLID lidLookup, lookupUserInfo userInfoLookup) (waTypes.JID, error) {
+// What is still this layer's job is handing upstream an argument it can act on:
+//
+//   - Non-AD. A blocklist entry names a person, not one of their devices, and
+//     Store.LIDs preserves the device number of whatever it is asked about, so a
+//     device-qualified argument produces a device-qualified `jid`.
+//   - One of the exactly two servers UpdateBlocklist branches on. It resolves
+//     types.DefaultUserServer and types.HiddenUserServer and has no else: every
+//     other address - a group, a broadcast, a newsletter, and notably
+//     types.HostedLIDServer - leaves its `lidJID` at the zero value and is sent
+//     as `jid=""`, which the server answers with the same opaque
+//     `400 bad-request` this change is fixing.
+//
+// hosted.lid is the trap there, because it is a link-ID address and reads like
+// one this function should pass through. Upstream does not accept it, so
+// neither may this: the mapping to something upstream would accept is not ours
+// to invent. The API already refuses the rest, but a command queued before that
+// check must not reach the wire to find out.
+func blocklistTargetJID(jidStr string) (waTypes.JID, error) {
 	parsed, err := waTypes.ParseJID(jidStr)
 	if err != nil {
 		return waTypes.EmptyJID, fmt.Errorf("failed to parse JID %s: %w", jidStr, err)
 	}
 
-	// A blocklist entry names a person, not one of their devices, and the LID
-	// mappings are stored per identity too.
 	target := parsed.ToNonAD()
 	if target.User == "" {
 		return waTypes.EmptyJID, fmt.Errorf("JID %q has no user part", jidStr)
 	}
-
-	// Already the address the blocklist wants.
-	if isLIDServer(target.Server) {
-		return target, nil
-	}
-
-	// Groups, broadcasts and newsletters have no blocklist and no LID. They are
-	// already refused by the API, but a stale queued command must not reach the
-	// wire to discover that.
-	if target.Server != waTypes.DefaultUserServer {
+	if target.Server != waTypes.DefaultUserServer && target.Server != waTypes.HiddenUserServer {
 		return waTypes.EmptyJID, fmt.Errorf(
 			"JID %q is not an individual contact: %s addresses cannot be blocked", jidStr, target.Server)
 	}
-
-	if lookupLID == nil {
-		return waTypes.EmptyJID, fmt.Errorf("no LID store available to resolve %s", target)
-	}
-	lid, err := lookupLID(ctx, target)
-	if err != nil {
-		return waTypes.EmptyJID, fmt.Errorf("failed to get LID for PN %s: %w", target, err)
-	}
-
-	if lid.IsEmpty() {
-		// Nothing cached yet. Upstream asks the server, which both answers the
-		// question and fills the cache for next time (GetUserInfo persists the
-		// mappings it parses).
-		if lookupUserInfo == nil {
-			return waTypes.EmptyJID, fmt.Errorf("no LID known for %s and no way to ask the server", target)
-		}
-		info, err := lookupUserInfo(ctx, []waTypes.JID{target})
-		if err != nil {
-			return waTypes.EmptyJID, fmt.Errorf("failed to get user info for %s to fill LID cache: %w", target, err)
-		}
-		lid = info[target].LID
-		if lid.IsEmpty() {
-			return waTypes.EmptyJID, fmt.Errorf("no LID found for %s from server", target)
-		}
-	}
-
-	// Whatever the mapping produced still has to be a usable link-ID address
-	// before it goes on the wire. JID.IsEmpty only tests the server, so a row
-	// carrying an empty user - or a phone-number JID stored in the LID column -
-	// survives every check above and would put us straight back to a rejected
-	// stanza with no way to tell why. The value itself is deliberately left out
-	// of the message: the phone number already identifies the contact.
-	lid = lid.ToNonAD()
-	if lid.User == "" || !isLIDServer(lid.Server) {
-		return waTypes.EmptyJID, fmt.Errorf("LID mapping for %s is not a usable link-ID address", target)
-	}
-	return lid, nil
+	return target, nil
 }
 
-// resolveUnblockTarget binds this connection's stores to unblockTargetJID. Both
-// the LID store and GetUserInfo's write-back are scoped to the connection ID, so
-// a phone number can only ever resolve against mappings this connection learned.
-func (c *Client) resolveUnblockTarget(ctx context.Context, jidStr string) (waTypes.JID, error) {
-	var lookupLID lidLookup
-	if c.client.Store != nil && c.client.Store.LIDs != nil {
-		lookupLID = c.client.Store.LIDs.GetLIDForPN
-	}
-	return unblockTargetJID(ctx, jidStr, lookupLID, c.client.GetUserInfo)
+// blocklistNeedsLIDStore reports whether UpdateBlocklist will have to consult
+// Store.LIDs for this target and action: GetLIDForPN for every phone number, and
+// GetPNForLID for a block of a LID, which needs the reverse mapping for the
+// `pn_jid` attribute. Only unblocking a LID needs no lookup. Upstream
+// dereferences the store unguarded, so a connection wired without one would
+// panic inside the NATS command goroutine rather than fail the command.
+func blocklistNeedsLIDStore(target waTypes.JID, action events.BlocklistChangeAction) bool {
+	return target.Server == waTypes.DefaultUserServer || action == events.BlocklistChangeActionBlock
 }
 
 // updateBlocklistWithRetry is the internal helper that handles blocklist updates with retry logic.
@@ -1412,32 +1368,23 @@ func (c *Client) updateBlocklistWithRetry(ctx context.Context, jidStr string, ac
 		return fmt.Errorf("client not initialized")
 	}
 
-	// Determine the blocklist action, and with it the address to send.
 	var blocklistAction events.BlocklistChangeAction
-	var target waTypes.JID
 	switch action {
 	case "block":
 		blocklistAction = events.BlocklistChangeActionBlock
-		// Unchanged. Upstream's block sends `jid=<lid>` *and* `pn_jid=<pn>`, and
-		// the pinned UpdateBlocklist builds the item's attributes itself with no
-		// way to add the second one. Sending a LID without it would be a guess.
-		parsed, err := waTypes.ParseJID(jidStr)
-		if err != nil {
-			return fmt.Errorf("failed to parse JID %s: %w", jidStr, err)
-		}
-		target = parsed
 	case "unblock":
 		blocklistAction = events.BlocklistChangeActionUnblock
-		// Resolution can need a usync round trip. A failure here returns before
-		// any info query is sent; the subscriber's own command retry covers the
-		// transient case.
-		resolved, err := c.resolveUnblockTarget(ctx, jidStr)
-		if err != nil {
-			return err
-		}
-		target = resolved
 	default:
 		return fmt.Errorf("unknown blocklist action: %s", action)
+	}
+
+	target, err := blocklistTargetJID(jidStr)
+	if err != nil {
+		return err
+	}
+	if blocklistNeedsLIDStore(target, blocklistAction) &&
+		(c.client.Store == nil || c.client.Store.LIDs == nil) {
+		return fmt.Errorf("no LID store available to %s %s", action, target)
 	}
 
 	var lastErr error

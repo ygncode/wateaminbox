@@ -1,4 +1,8 @@
-import { normalizeJid, toDbDate } from "@wateaminbox/shared";
+import {
+  getContactDisplayName,
+  normalizeJid,
+  toDbDate,
+} from "@wateaminbox/shared";
 import type {
   CatalogProductsEvent,
   CatalogsEvent,
@@ -13,6 +17,7 @@ import {
   syncCatalogsFromWhatsApp,
 } from "../catalog-sync.service.js";
 import { syncLabelsFromWhatsApp } from "../label-sync.service.js";
+import { broadcastToContactViewers } from "../message-broadcast.service.js";
 import { getTenantConnection } from "../tenant.service.js";
 
 export async function handleLabelsEvent(event: LabelsEvent): Promise<void> {
@@ -59,10 +64,98 @@ function describeCommandOutcome(event: CommandResultEvent): {
   return { type: "error", title: "WhatsApp action failed" };
 }
 
+/**
+ * What each blocklist command was trying to make `contacts.is_blocked` say.
+ *
+ * PATCH /contacts/:id writes that column in the same transaction that queues the
+ * command, so the indicator turns on before WhatsApp has been asked. When the
+ * command then fails, the row is the only thing that ever changed: WhatsApp goes
+ * on delivering the contact's messages while the workspace shows them blocked.
+ */
+const BLOCKLIST_COMMAND_INTENT: Record<string, boolean> = {
+  block_contact: true,
+  unblock_contact: false,
+};
+
+/**
+ * Undo that optimistic write once the command is known to have failed.
+ *
+ * Two conditions, and the second is the one that is easy to miss.
+ *
+ * The row must still hold the value the failed command wrote, because anything
+ * else means a later change already decided what the column says - another
+ * toggle, or an inbound blocklist sync - and that decision outranks a rollback
+ * for a command that is already over.
+ *
+ * That is not sufficient on its own: the value is a boolean, so a later change
+ * can land on the same value the failed command was aiming for. Block A fails
+ * slowly; meanwhile the user unblocks, then blocks again, and block B succeeds.
+ * When A's failure finally arrives the column reads `true` for B's reasons, and
+ * a check on the value alone would happily clear it - unblocking the contact in
+ * this workspace while WhatsApp has them blocked, the same drift in the other
+ * direction.
+ *
+ * So the write is also fenced on time. PATCH /contacts/:id stamps `updated_at`
+ * and enqueues the command in one transaction, stamping the outbox row after,
+ * which makes `contacts.updated_at <= nats_outbox.created_at` true for exactly
+ * the write this command carried and false for every write made after it.
+ */
+async function rollbackOptimisticBlockState(
+  event: CommandResultEvent,
+  intended: boolean,
+): Promise<void> {
+  const tenantDb = getTenantConnection(event.companyId);
+  const outbox = await tenantDb
+    .selectFrom("nats_outbox")
+    .select(["payload", "created_at"])
+    .where("id", "=", event.payload.commandId)
+    .executeTakeFirst();
+  const rawContactJid = outbox?.payload.contact_jid;
+  const contactJid =
+    typeof rawContactJid === "string" ? normalizeJid(rawContactJid) : null;
+  // No queued row means no way to tell this command's own write from a later
+  // one, and an unfenced revert is worse than none.
+  if (!contactJid || !outbox?.created_at) return;
+
+  const reverted = await tenantDb
+    .updateTable("contacts")
+    .set({ is_blocked: !intended, updated_at: toDbDate() })
+    .where("whatsapp_connection_id", "=", event.connectionId)
+    .where("jid", "=", contactJid)
+    .where("is_blocked", "=", intended)
+    .where("updated_at", "<=", outbox.created_at)
+    .returning(["id", "jid", "custom_name", "push_name", "phone_number"])
+    .execute();
+
+  for (const contact of reverted) {
+    await broadcastToContactViewers(
+      event.companyId,
+      contact.id,
+      "contact:updated",
+      {
+        event: intended ? "unblocked" : "blocked",
+        contactId: contact.id,
+        contactName: getContactDisplayName(contact, "Unknown Contact"),
+        isBlocked: !intended,
+      },
+    );
+  }
+}
+
 export async function handleCommandResultEvent(
   event: CommandResultEvent,
 ): Promise<void> {
   if (event.payload.success) return;
+  const blocklistIntent = BLOCKLIST_COMMAND_INTENT[event.payload.commandType];
+  // `applied_not_synced` is not a failure: WhatsApp did make the change, only
+  // this workspace's view of it is behind. Reverting the column there would
+  // undo a change that actually happened.
+  if (
+    blocklistIntent !== undefined &&
+    event.payload.outcome !== "applied_not_synced"
+  ) {
+    await rollbackOptimisticBlockState(event, blocklistIntent);
+  }
   if (event.payload.commandType === "request_history") {
     const tenantDb = getTenantConnection(event.companyId);
     const outbox = await tenantDb

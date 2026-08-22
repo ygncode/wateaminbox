@@ -2,227 +2,159 @@ package client
 
 import (
 	"context"
-	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.mau.fi/whatsmeow"
+	waStore "go.mau.fi/whatsmeow/store"
 	waTypes "go.mau.fi/whatsmeow/types"
+	"go.mau.fi/whatsmeow/types/events"
 )
 
-// The blocklist is addressed by link-ID. The whatsmeow module this service
-// builds against predates upstream 8d023aa ("user: switch UpdateBlocklist to use
-// LIDs") and sends its argument verbatim, so these tests pin the resolution the
-// compatibility shim has to perform before UpdateBlocklist is called.
+// WhatsApp's blocklist is addressed by link-ID. Resolving a phone number to one
+// belongs to whatsmeow as of upstream 8d023aa ("user: switch UpdateBlocklist to
+// use LIDs"), which this service builds against - the earlier local shim that
+// reproduced that resolution is gone. What these tests pin is the argument
+// hygiene UpdateBlocklist assumes of its caller, and which the reported
+// `400 bad-request` came from getting wrong.
 
-// cachedLIDs stands in for Store.LIDs.GetLIDForPN. Like the real store it
-// reports a miss as an empty JID with no error, and it records what it was asked
-// so the tests can assert the device suffix never reaches it.
-type cachedLIDs struct {
-	mapping map[string]waTypes.JID
-	asked   []waTypes.JID
-}
-
-func (c *cachedLIDs) lookup(_ context.Context, pn waTypes.JID) (waTypes.JID, error) {
-	c.asked = append(c.asked, pn)
-	return c.mapping[pn.User], nil
-}
-
-// serverLIDs stands in for Client.GetUserInfo, which upstream uses to fill the
-// cache when the mapping is not known locally.
-type serverLIDs struct {
-	mapping map[string]waTypes.JID
-	err     error
-	calls   int
-}
-
-func (s *serverLIDs) lookup(_ context.Context, jids []waTypes.JID) (map[waTypes.JID]waTypes.UserInfo, error) {
-	s.calls++
-	if s.err != nil {
-		return nil, s.err
-	}
-	info := make(map[waTypes.JID]waTypes.UserInfo, len(jids))
-	for _, jid := range jids {
-		if lid, ok := s.mapping[jid.User]; ok {
-			info[jid] = waTypes.UserInfo{LID: lid}
-		}
-	}
-	return info, nil
-}
-
-func neverCalledUserInfo(t *testing.T) userInfoLookup {
-	return func(context.Context, []waTypes.JID) (map[waTypes.JID]waTypes.UserInfo, error) {
-		t.Helper()
-		t.Fatal("GetUserInfo must not be called when the mapping is already cached")
-		return nil, nil
-	}
-}
-
-// The reported failure: a contact row holds the phone-number JID (which is what
-// handler.resolvePreferredJID normally stores), that JID went out as
-// `<item jid="...@s.whatsapp.net" action="unblock">`, and WhatsApp answered
-// `400 bad-request`. The cached mapping has to be applied first.
-func TestUnblockTargetResolvesPhoneNumberToLidFromCache(t *testing.T) {
-	cache := &cachedLIDs{mapping: map[string]waTypes.JID{"15550000001": lidJID("111111")}}
-
-	target, err := unblockTargetJID(context.Background(), "15550000001@s.whatsapp.net",
-		cache.lookup, neverCalledUserInfo(t))
-
-	require.NoError(t, err)
-	assert.Equal(t, "111111@lid", target.String())
-	assert.Equal(t, waTypes.HiddenUserServer, target.Server)
-}
-
-// Upstream falls back to a usync query when nothing is cached; GetUserInfo both
-// answers and persists the mapping for next time.
-func TestUnblockTargetFallsBackToServerOnCacheMiss(t *testing.T) {
-	cache := &cachedLIDs{}
-	server := &serverLIDs{mapping: map[string]waTypes.JID{"15550000001": lidJID("111111")}}
-
-	target, err := unblockTargetJID(context.Background(), "15550000001@s.whatsapp.net",
-		cache.lookup, server.lookup)
-
-	require.NoError(t, err)
-	assert.Equal(t, "111111@lid", target.String())
-	assert.Equal(t, 1, server.calls)
-}
-
-// Every way the resolution can come up short must return before any info query
-// is sent, so the failure names a cause instead of another opaque 400.
-func TestUnblockTargetFailsClosedWhenNoLidCanBeFound(t *testing.T) {
-	pn := "15550000001@s.whatsapp.net"
-
-	t.Run("cache read fails", func(t *testing.T) {
-		_, err := unblockTargetJID(context.Background(), pn,
-			func(context.Context, waTypes.JID) (waTypes.JID, error) {
-				return waTypes.EmptyJID, errors.New("store unavailable")
-			},
-			neverCalledUserInfo(t))
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "failed to get LID for PN")
-	})
-
-	t.Run("server query fails", func(t *testing.T) {
-		server := &serverLIDs{err: errors.New("usync timeout")}
-		_, err := unblockTargetJID(context.Background(), pn, (&cachedLIDs{}).lookup, server.lookup)
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "fill LID cache")
-	})
-
-	t.Run("server knows no LID", func(t *testing.T) {
-		server := &serverLIDs{mapping: map[string]waTypes.JID{}}
-		_, err := unblockTargetJID(context.Background(), pn, (&cachedLIDs{}).lookup, server.lookup)
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "no LID found")
-	})
-
-	t.Run("no stores wired", func(t *testing.T) {
-		_, err := unblockTargetJID(context.Background(), pn, nil, nil)
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "no LID store available")
-
-		_, err = unblockTargetJID(context.Background(), pn, (&cachedLIDs{}).lookup, nil)
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "no way to ask the server")
-	})
-}
-
-// A mapping can exist and still be unusable. JID.IsEmpty only tests the server,
-// so a row with an empty user - or a phone number stored in the LID column -
-// passes every earlier check and would be sent as a stanza the server rejects
-// for a reason nothing in the logs would explain.
-func TestUnblockTargetRejectsUnusableLidMappings(t *testing.T) {
-	pn := "15550000001@s.whatsapp.net"
-
-	unusable := map[string]waTypes.JID{
-		"empty user with a lid server": {Server: waTypes.HiddenUserServer},
-		"a phone number in the LID column": {
-			User: "15550000001", Server: waTypes.DefaultUserServer,
-		},
-		"a group address": {User: "120363000000000001", Server: waTypes.GroupServer},
-	}
-
-	for name, mapped := range unusable {
-		t.Run("cached: "+name, func(t *testing.T) {
-			cache := &cachedLIDs{mapping: map[string]waTypes.JID{"15550000001": mapped}}
-			_, err := unblockTargetJID(context.Background(), pn, cache.lookup, neverCalledUserInfo(t))
-			require.Error(t, err)
-			assert.Contains(t, err.Error(), "not a usable link-ID address")
-		})
-
-		t.Run("from server: "+name, func(t *testing.T) {
-			server := &serverLIDs{mapping: map[string]waTypes.JID{"15550000001": mapped}}
-			_, err := unblockTargetJID(context.Background(), pn, (&cachedLIDs{}).lookup, server.lookup)
-			require.Error(t, err)
-			assert.Contains(t, err.Error(), "not a usable link-ID address")
-		})
-	}
-}
-
-// A row that already holds a link-ID is already addressed the way the blocklist
-// wants; nothing should be looked up or rewritten.
-func TestUnblockTargetPassesLidsThrough(t *testing.T) {
-	for _, stored := range []string{"111111@lid", "222222@" + waTypes.HostedLIDServer} {
+// A blocklist entry names a person, not one of their devices. Store.LIDs keeps
+// the device number of whatever it is asked about, so a device-qualified
+// argument would be resolved into a device-qualified `jid` attribute.
+func TestBlocklistTargetDropsDeviceAndAgent(t *testing.T) {
+	for _, stored := range []string{
+		"15550000001:12@s.whatsapp.net",
+		"111111:5@lid",
+	} {
 		t.Run(stored, func(t *testing.T) {
-			target, err := unblockTargetJID(context.Background(), stored,
-				func(context.Context, waTypes.JID) (waTypes.JID, error) {
-					t.Fatal("a LID needs no phone-number lookup")
-					return waTypes.EmptyJID, nil
-				},
-				neverCalledUserInfo(t))
+			target, err := blocklistTargetJID(stored)
+			require.NoError(t, err)
+			assert.Zero(t, target.Device)
+			assert.Zero(t, target.RawAgent)
+		})
+	}
+
+	target, err := blocklistTargetJID("15550000001:12@s.whatsapp.net")
+	require.NoError(t, err)
+	assert.Equal(t, "15550000001@s.whatsapp.net", target.String())
+}
+
+// The two address forms UpdateBlocklist branches on reach it unchanged: a phone
+// number for it to resolve, and a types.HiddenUserServer LID it can already use.
+func TestBlocklistTargetPassesBothAddressFormsThrough(t *testing.T) {
+	for _, stored := range []string{
+		"15550000001@s.whatsapp.net",
+		"111111@lid",
+	} {
+		t.Run(stored, func(t *testing.T) {
+			target, err := blocklistTargetJID(stored)
 			require.NoError(t, err)
 			assert.Equal(t, stored, target.String())
 		})
 	}
 }
 
-// A blocklist entry names a person, not one of their devices, and the LID
-// mappings are stored per identity - so the device suffix has to be gone before
-// the lookup, not just before the info query.
-func TestUnblockTargetNormalizesDeviceAndAgent(t *testing.T) {
-	cache := &cachedLIDs{mapping: map[string]waTypes.JID{"15550000001": lidJID("111111")}}
+// UpdateBlocklist branches on exactly two servers and has no else, so anything
+// it does not name leaves its `lidJID` at the zero value and goes out as
+// `jid=""` - the same opaque 400 this change is fixing.
+//
+// hosted.lid is the one that has to be spelled out. It is a link-ID address, so
+// a check written as "is this a LID?" lets it through, but upstream tests for
+// types.HiddenUserServer specifically and never for types.HostedLIDServer. What
+// it would take to make one acceptable to upstream is not ours to invent, so it
+// fails here with a reason instead of on the wire without one.
+func TestBlocklistTargetRejectsHostedLIDsUpstreamCannotResolve(t *testing.T) {
+	require.NotEqual(t, waTypes.HiddenUserServer, waTypes.HostedLIDServer,
+		"the whole point of this test is that these are different servers")
+	require.True(t, isLIDServer(waTypes.HostedLIDServer),
+		"hosted.lid is a link-ID address, which is exactly why it needs its own rejection")
 
-	target, err := unblockTargetJID(context.Background(), "15550000001:12@s.whatsapp.net",
-		cache.lookup, neverCalledUserInfo(t))
-
-	require.NoError(t, err)
-	assert.Equal(t, "111111@lid", target.String())
-	require.Len(t, cache.asked, 1)
-	assert.Equal(t, "15550000001@s.whatsapp.net", cache.asked[0].String(),
-		"the mapping is keyed by identity, so the device suffix must be stripped first")
-
-	// A device-qualified mapping collapses to its identity too.
-	cache = &cachedLIDs{mapping: map[string]waTypes.JID{
-		"15550000001": {User: "111111", Device: 5, Server: waTypes.HiddenUserServer},
-	}}
-	target, err = unblockTargetJID(context.Background(), "15550000001@s.whatsapp.net",
-		cache.lookup, neverCalledUserInfo(t))
-	require.NoError(t, err)
-	assert.Equal(t, "111111@lid", target.String())
-	assert.Zero(t, target.Device)
-
-	// As does a device-qualified LID supplied directly.
-	target, err = unblockTargetJID(context.Background(), "111111:5@lid", nil, nil)
-	require.NoError(t, err)
-	assert.Equal(t, "111111@lid", target.String())
-	assert.Zero(t, target.Device)
-	assert.Zero(t, target.RawAgent)
+	_, err := blocklistTargetJID("222222@" + waTypes.HostedLIDServer)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "not an individual contact")
+	assert.Contains(t, err.Error(), waTypes.HostedLIDServer)
 }
 
-// Nothing else has a blocklist. The API already refuses groups, but a command
-// queued before that check must fail here rather than on the wire.
-func TestUnblockTargetRejectsAddressesWithoutABlocklist(t *testing.T) {
+// The rest of the addresses upstream does not branch on. The API already
+// refuses these, but a command queued before that check must fail here rather
+// than on the wire.
+func TestBlocklistTargetRejectsAddressesWithoutABlocklist(t *testing.T) {
 	for _, stored := range []string{
 		"120363000000000001@g.us",
 		"status@broadcast",
 		"120363000000000002@newsletter",
 	} {
-		_, err := unblockTargetJID(context.Background(), stored, nil, nil)
+		_, err := blocklistTargetJID(stored)
 		require.Error(t, err, stored)
 		assert.Contains(t, err.Error(), "not an individual contact")
 	}
 
-	_, err := unblockTargetJID(context.Background(), "s.whatsapp.net", nil, nil)
+	// ParseJID accepts a bare server, so an address with nothing in front of the
+	// @ - or no @ at all - arrives here as a JID with an empty user rather than
+	// as a parse error.
+	for _, stored := range []string{"s.whatsapp.net", "@s.whatsapp.net", ""} {
+		_, err := blocklistTargetJID(stored)
+		require.Error(t, err, stored)
+		assert.Contains(t, err.Error(), "no user part")
+	}
+}
+
+// UpdateBlocklist dereferences Store.LIDs without a nil check, so the cases that
+// reach it have to be known: every phone number, and a block of a LID (which
+// needs the reverse mapping for the `pn_jid` attribute). Only unblocking a LID
+// needs no lookup.
+func TestBlocklistLIDStoreRequirementMatchesUpstream(t *testing.T) {
+	pn := waTypes.JID{User: "15550000001", Server: waTypes.DefaultUserServer}
+	lid := lidJID("111111")
+
+	assert.True(t, blocklistNeedsLIDStore(pn, events.BlocklistChangeActionBlock))
+	assert.True(t, blocklistNeedsLIDStore(pn, events.BlocklistChangeActionUnblock))
+	assert.True(t, blocklistNeedsLIDStore(lid, events.BlocklistChangeActionBlock))
+	assert.False(t, blocklistNeedsLIDStore(lid, events.BlocklistChangeActionUnblock))
+}
+
+// The guard has to fail the command rather than panic inside the NATS command
+// goroutine, and it has to do so before anything is sent.
+func TestUpdateBlocklistFailsClosedWithoutALIDStore(t *testing.T) {
+	c := &Client{client: whatsmeow.NewClient(&waStore.Device{}, nil)}
+	require.Nil(t, c.client.Store.LIDs, "the guard is only meaningful while the store is unset")
+
+	for _, action := range []string{"block", "unblock"} {
+		err := c.updateBlocklistWithRetry(context.Background(), "15550000001@s.whatsapp.net", action)
+		require.Error(t, err, action)
+		assert.Contains(t, err.Error(), "no LID store available")
+	}
+
+	// Unblocking a LID needs no lookup, so the guard must not stand in its way.
+	// Without a connection it fails further along instead.
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	err := c.updateBlocklistWithRetry(ctx, "111111@lid", "unblock")
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "no user part")
+	assert.NotContains(t, err.Error(), "no LID store available")
+}
+
+// An unroutable action must never be turned into a blocklist stanza.
+func TestUpdateBlocklistRejectsUnknownAction(t *testing.T) {
+	c := &Client{client: whatsmeow.NewClient(&waStore.Device{}, nil)}
+	err := c.updateBlocklistWithRetry(context.Background(), "15550000001@s.whatsapp.net", "mute")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "unknown blocklist action")
+}
+
+// A malformed or unblockable address is rejected before the action is even
+// dispatched, for both directions.
+func TestUpdateBlocklistRejectsUnblockableAddressesForBothActions(t *testing.T) {
+	c := &Client{client: whatsmeow.NewClient(&waStore.Device{}, nil)}
+	for _, stored := range []string{
+		"120363000000000001@g.us",
+		"222222@" + waTypes.HostedLIDServer,
+	} {
+		for _, action := range []string{"block", "unblock"} {
+			err := c.updateBlocklistWithRetry(context.Background(), stored, action)
+			require.Error(t, err, "%s %s", action, stored)
+			assert.Contains(t, err.Error(), "not an individual contact")
+		}
+	}
 }

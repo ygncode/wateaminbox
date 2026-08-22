@@ -13,7 +13,7 @@ require (
 	github.com/nats-io/nats.go v1.31.0
 	github.com/stretchr/testify v1.11.1
 	github.com/ygncode-lab/whatsapp-web/services/shared v0.0.0
-	go.mau.fi/whatsmeow v0.0.0-20260722203353-e9a033b24933
+	go.mau.fi/whatsmeow v0.0.0-20260813204424-197e61747d53
 	golang.org/x/sync v0.22.0
 	google.golang.org/protobuf v1.36.11
 )
