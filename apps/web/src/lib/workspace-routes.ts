@@ -108,3 +108,39 @@ export function resolveWorkspaceDestination(
     wasRedirected: false,
   };
 }
+
+/**
+ * The conversation list has two mutually exclusive filters. Mobile drives them
+ * from the bottom navigation and desktop from the sidebar tabs, so the active
+ * filter lives in the URL rather than component state - otherwise the two
+ * controls would disagree after a back/forward navigation or a shared link.
+ */
+export type ChatView = "chats" | "groups";
+
+export const CHAT_VIEW_PARAM = "view";
+
+/** Anything other than an explicit `view=groups` falls back to all chats. */
+export function parseChatView(search: string): ChatView {
+  const raw = new URLSearchParams(search).get(CHAT_VIEW_PARAM);
+  return raw === "groups" ? "groups" : "chats";
+}
+
+/** Returns the search string for `view`, dropping the param for the default. */
+export function withChatView(search: string, view: ChatView): string {
+  const params = new URLSearchParams(search);
+  if (view === "groups") {
+    params.set(CHAT_VIEW_PARAM, "groups");
+  } else {
+    params.delete(CHAT_VIEW_PARAM);
+  }
+  const query = params.toString();
+  return query ? `?${query}` : "";
+}
+
+export function chatViewPath(
+  workspaceId: string,
+  view: ChatView,
+  contactId?: string,
+): string {
+  return `${workspacePath(workspaceId, "chat", contactId)}${withChatView("", view)}`;
+}

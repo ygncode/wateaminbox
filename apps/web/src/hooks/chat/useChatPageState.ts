@@ -1,7 +1,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import type { Contact, Message } from "@wateaminbox/shared";
 import * as React from "react";
-import { useNavigate, useParams } from "react-router";
+import { useLocation, useNavigate, useParams } from "react-router";
 import { toast } from "sonner";
 import { useWorkspace } from "../../contexts/workspace-context";
 import { markConversationAsRead, uploadMedia } from "../../lib/api";
@@ -110,6 +110,7 @@ export interface ChatPageActions {
 export function useChatPageState(): ChatPageState & ChatPageActions {
   const { contactId } = useParams<{ contactId?: string }>();
   const navigate = useNavigate();
+  const { search } = useLocation();
   const { activeWorkspaceId } = useWorkspace();
   const queryClient = useQueryClient();
 
@@ -229,9 +230,15 @@ export function useChatPageState(): ChatPageState & ChatPageActions {
       setIsSearchOpen(false);
       setHighlightedMessageId(null);
       if (!activeWorkspaceId) return;
-      navigate(workspacePath(activeWorkspaceId, "chat", chatId || undefined));
+      // Carry the query string across: it holds the Chats/Groups filter, so
+      // dropping it would silently send the user back to the Chats list when
+      // they close a group they opened from Groups.
+      navigate({
+        pathname: workspacePath(activeWorkspaceId, "chat", chatId || undefined),
+        search,
+      });
     },
-    [activeWorkspaceId, navigate],
+    [activeWorkspaceId, navigate, search],
   );
 
   // Profile panel handlers

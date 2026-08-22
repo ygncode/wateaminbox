@@ -42,8 +42,10 @@ export const ChatSidebar = memo(function ChatSidebar({
         className,
       )}
     >
-      {/* Navigation Tabs */}
-      <div className="flex h-14 min-h-[56px] items-stretch border-b border-gray-200 bg-gray-50 dark:border-dark-border dark:bg-dark-secondary md:h-[60px] md:min-h-[60px]">
+      {/* Navigation Tabs - desktop only. Touch layouts switch the same filter
+          from the floating bottom navigation, and showing both put two
+          controls for one piece of state on a phone-sized screen. */}
+      <div className="hidden h-14 min-h-[56px] items-stretch border-b border-gray-200 bg-gray-50 dark:border-dark-border dark:bg-dark-secondary md:h-[60px] md:min-h-[60px] lg:flex">
         <nav className="flex flex-1">
           <TabButton
             isActive={activeView === "chats"}

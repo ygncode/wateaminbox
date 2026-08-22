@@ -1,6 +1,7 @@
 import type * as React from "react";
 import { useIsMobile, useIsTablet } from "@/hooks/ui";
 import { cn } from "@/lib/utils";
+import { RIGHT_PANEL_TITLE_ID, RightPanelSurfaceContext } from "./right-panel";
 import { ResizableSidebar } from "./resizable-sidebar";
 
 export interface AppLayoutProps extends React.HTMLAttributes<HTMLDivElement> {
@@ -22,9 +23,9 @@ export function AppLayout({ className, children, ...props }: AppLayoutProps) {
   return (
     <div
       className={cn(
+        // Safe-area insets belong to the app shell (top bar above, floating
+        // navigation below); repeating them here double-padded every edge.
         "flex h-full w-full overflow-hidden bg-gray-200 dark:bg-dark-primary",
-        // Safe area insets for mobile devices (notch, home indicator)
-        "safe-area-inset",
         className,
       )}
       {...props}
@@ -126,7 +127,38 @@ import {
   MobileSlideInPanel,
   MobileViewContainer,
 } from "./MobileLayout";
-import { useTranslation } from "react-i18next";
+
+/**
+ * Mobile and tablet host for the right panel.
+ *
+ * The panel content is authored for the desktop third column, which is hidden
+ * below `lg`; rendering it untouched inside the drawer produced an empty
+ * drawer. The surface context switches it to fill this drawer instead, and the
+ * drawer defers its own header to the panel's, which knows whether it is
+ * showing a contact or a group.
+ */
+function TouchRightPanel({
+  children,
+  isOpen,
+  onClose,
+}: {
+  children: React.ReactNode;
+  isOpen: boolean;
+  onClose?: () => void;
+}) {
+  return (
+    <MobileSlideInPanel
+      isOpen={isOpen}
+      onClose={onClose}
+      titleId={RIGHT_PANEL_TITLE_ID}
+      position="right"
+    >
+      <RightPanelSurfaceContext.Provider value="embedded">
+        {children}
+      </RightPanelSurfaceContext.Provider>
+    </MobileSlideInPanel>
+  );
+}
 
 interface MobileResponsiveLayoutProps {
   sidebar: React.ReactNode;
@@ -147,8 +179,6 @@ function MobileResponsiveLayout({
   selectedChatId,
   onChatSelect,
 }: MobileResponsiveLayoutProps) {
-  const { t } = useTranslation();
-
   return (
     <MobileLayoutProvider
       initialChatId={selectedChatId}
@@ -163,14 +193,12 @@ function MobileResponsiveLayout({
 
         {/* Contact Info Panel - Slide in from right */}
         {rightPanel && (
-          <MobileSlideInPanel
+          <TouchRightPanel
             isOpen={isRightPanelOpen}
             onClose={onRightPanelClose}
-            title={t("chat.contactInfo", "Contact info")}
-            position="right"
           >
             {rightPanel}
-          </MobileSlideInPanel>
+          </TouchRightPanel>
         )}
       </MobileLayout>
     </MobileLayoutProvider>
@@ -192,26 +220,23 @@ function TabletResponsiveLayout({
   isRightPanelOpen = false,
   onRightPanelClose,
 }: TabletResponsiveLayoutProps) {
-  const { t } = useTranslation();
-
   return (
     <>
       {/* Sidebar - narrower on tablet */}
       <div className="w-[320px] flex-shrink-0">{sidebar}</div>
 
-      {/* Main content - takes remaining space */}
-      <div className="flex-1 relative">{main}</div>
+      {/* Main content - takes remaining space. This has to be a flex column:
+          `MainContent` sizes itself with `flex-1`, which needs a flex parent
+          with a definite height, or the thread and composer collapse to their
+          content height instead of filling the tablet column. `min-w-0` lets
+          long unbroken message text shrink rather than widen the column. */}
+      <div className="relative flex min-w-0 flex-1 flex-col">{main}</div>
 
       {/* Right panel as overlay on tablet */}
       {rightPanel && (
-        <MobileSlideInPanel
-          isOpen={isRightPanelOpen}
-          onClose={onRightPanelClose}
-          title={t("chat.contactInfo", "Contact info")}
-          position="right"
-        >
+        <TouchRightPanel isOpen={isRightPanelOpen} onClose={onRightPanelClose}>
           {rightPanel}
-        </MobileSlideInPanel>
+        </TouchRightPanel>
       )}
     </>
   );

@@ -1529,8 +1529,11 @@
   },
   "nav": {
     "inbox": "收件箱",
+    "chat": "聊天",
+    "groups": "群组",
     "dashboard": "仪表盘",
     "broadcasts": "群发",
+    "broadcast": "群发",
     "team": "团队",
     "audit": "审计",
     "billing": "套餐与账单",
@@ -1538,14 +1541,15 @@
     "notifications": "通知",
     "primary": "主导航",
     "mobile": "移动端导航",
-    "more": "更多导航",
-    "moreShort": "更多",
     "expandSidebar": "展开侧边栏",
     "collapseSidebar": "收起侧边栏",
     "signOut": "退出登录",
     "skipToMain": "跳转到主要内容",
     "preparingWorkspace": "正在准备全新的工作区",
-    "inboxUnread_other": "{{label}}，{{count}} 条未读消息"
+    "inboxUnread_other": "{{label}}，{{count}} 条未读消息",
+    "profile": "我的",
+    "profileMenu": "个人导航",
+    "account": "账户"
   },
   "layout": {
     "resizeConversationList": "调整会话列表宽度",

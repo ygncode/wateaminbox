@@ -536,7 +536,7 @@ export function MessageComposer({
 
   return (
     <>
-      <footer className="safe-area-bottom border-t border-[#d7dfe2] bg-[#f0f2f5] dark:border-dark-border dark:bg-dark-secondary">
+      <footer className="border-t border-[#d7dfe2] bg-[#f0f2f5] dark:border-dark-border dark:bg-dark-secondary">
         {/* Disconnected banner */}
         {isDisconnected && (
           <div className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-center text-sm text-amber-900 dark:border-amber-800/30 dark:bg-amber-900/20 dark:text-amber-200">

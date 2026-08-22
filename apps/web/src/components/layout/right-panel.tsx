@@ -1,8 +1,29 @@
 import { X } from "lucide-react";
-import type * as React from "react";
+import * as React from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { useTranslation } from "react-i18next";
+
+/**
+ * Where the right panel is being drawn.
+ *
+ * `docked` is the desktop third column, which owns its own width and is hidden
+ * below `lg`. `embedded` means an ancestor (the mobile/tablet slide-in panel)
+ * already provides the surface, so the panel must fill it instead of applying
+ * the desktop-only visibility and sizing - applying them there is what left
+ * the touch drawer rendering an empty box.
+ */
+export type RightPanelSurface = "docked" | "embedded";
+
+export const RightPanelSurfaceContext =
+  React.createContext<RightPanelSurface>("docked");
+
+export function useRightPanelSurface(): RightPanelSurface {
+  return React.useContext(RightPanelSurfaceContext);
+}
+
+/** Stable id so a host drawer can name itself from the panel's own heading. */
+export const RIGHT_PANEL_TITLE_ID = "right-panel-title";
 
 export interface RightPanelProps extends React.HTMLAttributes<HTMLDivElement> {
   children: React.ReactNode;
@@ -17,14 +38,18 @@ export function RightPanel({
   onClose,
   ...props
 }: RightPanelProps) {
+  const surface = useRightPanelSurface();
+
   if (!isOpen) return null;
 
   return (
     <aside
       className={cn(
-        "flex h-full flex-col border-l border-gray-200 dark:border-dark-border bg-white dark:bg-dark-secondary",
-        // Responsive width - hidden on mobile/tablet (use MobileSlideInPanel instead)
-        "hidden lg:flex lg:w-[350px] xl:w-[400px]",
+        "flex h-full min-h-0 flex-col bg-white dark:bg-dark-secondary",
+        surface === "docked"
+          ? // Desktop third column; the slide-in panel is used below `lg`.
+            "hidden border-l border-gray-200 dark:border-dark-border lg:flex lg:w-[350px] xl:w-[400px]"
+          : "w-full",
         className,
       )}
       {...props}
@@ -47,14 +72,16 @@ export function RightPanelHeader({
   ...props
 }: RightPanelHeaderProps) {
   const { t } = useTranslation();
+  const surface = useRightPanelSurface();
 
   return (
     <header
       className={cn(
-        "flex items-center gap-4 bg-whatsapp-teal-green px-4 text-white",
-        // Responsive height
-        "h-14 min-h-[56px] md:h-[60px] md:min-h-[60px]",
-        // Safe area for notch
+        "flex shrink-0 items-center gap-4 bg-whatsapp-teal-green px-4 text-white",
+        // Responsive height, with the notch inset added on top of the row
+        // rather than subtracted from it - `box-sizing: border-box` is global,
+        // so pairing a fixed height with `safe-area-top` crushes the content.
+        "h-[calc(3.5rem+env(safe-area-inset-top))] md:h-[calc(3.75rem+env(safe-area-inset-top))]",
         "safe-area-top",
         className,
       )}
@@ -69,7 +96,12 @@ export function RightPanelHeader({
           <X className="h-5 w-5" />
         </button>
       )}
-      <h2 className="text-lg font-medium">{title}</h2>
+      <h2
+        id={surface === "embedded" ? RIGHT_PANEL_TITLE_ID : undefined}
+        className="text-lg font-medium"
+      >
+        {title}
+      </h2>
     </header>
   );
 }
