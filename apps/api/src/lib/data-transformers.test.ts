@@ -35,6 +35,18 @@ describe("contact API transformation", () => {
     expect(transformed.phoneNumber).toBe("15551234567");
   });
 
+  test("never exposes an opaque LID as a phone number or display name", () => {
+    const transformed = transformContact(
+      contact({
+        jid: "123456789012345@lid",
+        phone_number: "123456789012345",
+      }),
+    );
+    expect(transformed.phoneNumber).toBeNull();
+    expect(transformed.displayName).toBe("WhatsApp user (ID …2345)");
+    expect(transformed.name).toBe("WhatsApp user (ID …2345)");
+  });
+
   test("exposes the WhatsApp account that owns the conversation", () => {
     const transformed = transformContact(
       contact({

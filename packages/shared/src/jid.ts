@@ -16,9 +16,13 @@
 export function extractPhoneFromJid(jid: string | null | undefined): string | null {
   if (!jid) return null
 
-  // Remove server suffix (@s.whatsapp.net, @g.us, etc.)
-  const userPart = jid.split('@')[0]
-  if (!userPart) return null
+  const [userPart, server, ...extraParts] = jid.trim().split('@')
+  // Only WhatsApp's phone-number namespace contains a phone number. LID,
+  // hosted-LID, group, newsletter, and broadcast local parts are opaque IDs
+  // even when they happen to contain only digits.
+  if (!userPart || server !== 's.whatsapp.net' || extraParts.length > 0) {
+    return null
+  }
 
   // Remove device suffix (the :N part, e.g., ":3")
   const phone = userPart.split(':')[0]
@@ -74,6 +78,20 @@ export function isBroadcastJid(jid: string | null | undefined): boolean {
 export function isIndividualJid(jid: string | null | undefined): boolean {
   if (!jid) return false
   return jid.endsWith('@s.whatsapp.net')
+}
+
+/** Check whether a JID is an opaque WhatsApp link-ID identity. */
+export function isLidJid(jid: string | null | undefined): boolean {
+  if (!jid) return false
+  return jid.endsWith('@lid') || jid.endsWith('@hosted.lid')
+}
+
+/** Build a privacy-safe label that still distinguishes multiple LID contacts. */
+export function getLidDisplayName(jid: string | null | undefined): string | null {
+  if (!isLidJid(jid)) return null
+  const localPart = jid?.split('@')[0]?.split(':')[0] ?? ''
+  const suffix = localPart.slice(-4)
+  return suffix ? `WhatsApp user (ID …${suffix})` : 'WhatsApp user'
 }
 
 /**

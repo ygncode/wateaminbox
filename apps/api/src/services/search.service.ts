@@ -1,4 +1,8 @@
 import type { TenantDatabase } from "@wateaminbox/database";
+import {
+  extractPhoneFromJid,
+  getContactDisplayName,
+} from "@wateaminbox/shared";
 import { type ExpressionBuilder, sql } from "kysely";
 import {
   isMeilisearchAvailable,
@@ -103,6 +107,12 @@ export async function searchMessages(
     return {
       results: meiliResult.results.map((r) => ({
         ...r,
+        contactName: r.contactJid
+          ? getContactDisplayName(
+              { jid: r.contactJid, name: r.contactName },
+              "Unknown",
+            )
+          : r.contactName,
         rank: 1, // Meilisearch results are pre-ranked
       })),
       total: meiliResult.total,
@@ -194,7 +204,12 @@ export async function searchMessages(
   const results: SearchResult[] = result.rows.map((row) => ({
     id: row.id,
     contactId: row.contact_id,
-    contactName: row.contact_name,
+    contactName: row.contact_jid
+      ? getContactDisplayName(
+          { jid: row.contact_jid, name: row.contact_name },
+          "Unknown",
+        )
+      : row.contact_name,
     contactJid: row.contact_jid,
     isGroup: row.is_group,
     messageId: row.message_id,
@@ -245,17 +260,28 @@ export async function searchContacts(
     // Always return Meilisearch results when Meilisearch is available
     // Even if empty - this ensures consistent behavior
     return {
-      results: meiliResult.results.map((r) => ({
-        id: r.id,
-        jid: r.jid,
-        phoneNumber: r.phoneNumber,
-        pushName: r.pushName,
-        customName: r.customName,
-        displayName: r.displayName,
-        isGroup: r.isGroup,
-        profilePictureUrl: null, // Not indexed in Meilisearch
-        notesShared: r.notesShared,
-      })),
+      results: meiliResult.results.map((r) => {
+        const phoneFromJid = extractPhoneFromJid(r.jid);
+        const phoneNumber =
+          !r.isGroup && phoneFromJid ? r.phoneNumber || phoneFromJid : null;
+        return {
+          id: r.id,
+          jid: r.jid,
+          phoneNumber,
+          pushName: r.pushName,
+          customName: r.customName,
+          displayName: getContactDisplayName({
+            jid: r.jid,
+            phoneNumber,
+            pushName: r.pushName,
+            customName: r.customName,
+            name: r.displayName,
+          }),
+          isGroup: r.isGroup,
+          profilePictureUrl: null, // Not indexed in Meilisearch
+          notesShared: r.notesShared,
+        };
+      }),
       total: meiliResult.total,
     };
   }
@@ -332,17 +358,27 @@ export async function searchContacts(
   const total = Number(countResult?.total || 0);
 
   return {
-    results: result.map((c) => ({
-      id: c.id,
-      jid: c.jid,
-      phoneNumber: c.phone_number,
-      pushName: c.push_name,
-      customName: c.custom_name,
-      displayName: c.custom_name || c.push_name || c.phone_number || "Unknown",
-      isGroup: c.is_group,
-      profilePictureUrl: c.profile_picture_url,
-      notesShared: c.notes_shared,
-    })),
+    results: result.map((c) => {
+      const phoneFromJid = extractPhoneFromJid(c.jid);
+      const phoneNumber =
+        !c.is_group && phoneFromJid ? c.phone_number || phoneFromJid : null;
+      return {
+        id: c.id,
+        jid: c.jid,
+        phoneNumber,
+        pushName: c.push_name,
+        customName: c.custom_name,
+        displayName: getContactDisplayName({
+          jid: c.jid,
+          phoneNumber,
+          pushName: c.push_name,
+          customName: c.custom_name,
+        }),
+        isGroup: c.is_group,
+        profilePictureUrl: c.profile_picture_url,
+        notesShared: c.notes_shared,
+      };
+    }),
     total,
   };
 }

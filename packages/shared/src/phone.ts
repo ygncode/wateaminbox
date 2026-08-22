@@ -1,3 +1,5 @@
+import { extractPhoneFromJid, getLidDisplayName } from './jid'
+
 /**
  * Phone number utilities
  */
@@ -23,6 +25,9 @@ export function formatPhoneLikeText(
   if (!value) return ''
   const trimmed = value.trim()
   if (!trimmed) return ''
+
+  const lidDisplayName = getLidDisplayName(trimmed)
+  if (lidDisplayName) return lidDisplayName
 
   if (trimmed.endsWith('@s.whatsapp.net')) {
     return formatPhoneNumber(parsePhoneFromJid(trimmed))
@@ -99,19 +104,7 @@ export function formatPhoneNumberWithGroups(phone: string): string {
  * @returns Phone number (digits only) or null if invalid
  */
 export function parsePhoneFromJid(jid: string | null | undefined): string | null {
-  if (!jid) return null
-
-  // Remove server suffix (@s.whatsapp.net, @g.us, etc.)
-  const userPart = jid.split('@')[0]
-  if (!userPart) return null
-
-  // Remove device suffix (the :N part, e.g., ":3")
-  const phone = userPart.split(':')[0]
-
-  // Clean the phone number: remove all non-digit characters
-  const cleanedPhone = phone.replace(/\D/g, '')
-
-  return cleanedPhone || null
+  return extractPhoneFromJid(jid)
 }
 
 /**

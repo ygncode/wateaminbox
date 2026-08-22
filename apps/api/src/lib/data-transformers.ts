@@ -109,9 +109,10 @@ export function getContactPhoneNumber(contact: {
   phone_number: string | null;
   jid: string;
 }): string | null {
-  return contact.is_group
-    ? null
-    : contact.phone_number || extractPhoneFromJid(contact.jid);
+  if (contact.is_group) return null;
+  const phoneFromJid = extractPhoneFromJid(contact.jid);
+  if (!phoneFromJid) return null;
+  return contact.phone_number || phoneFromJid;
 }
 
 /**

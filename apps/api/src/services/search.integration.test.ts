@@ -67,6 +67,26 @@ describe("PostgreSQL tenant message search", () => {
             timestamp: new Date("2026-01-02T00:00:00Z"),
           })
           .execute();
+        const [lidContact] = await tenantA
+          .insertInto("contacts")
+          .values({
+            jid: "123456789012345@lid",
+            phone_number: "123456789012345",
+          })
+          .returning("id")
+          .execute();
+        const [lidMessage] = await tenantA
+          .insertInto("messages")
+          .values({
+            contact_id: lidContact.id,
+            message_id: "tenant-a-lid-message",
+            from_me: false,
+            message_type: "text",
+            content: "private mango conversation",
+            timestamp: new Date("2026-01-03T00:00:00Z"),
+          })
+          .returning("id")
+          .execute();
         await tenantA
           .insertInto("contact_assignments")
           .values({
@@ -99,6 +119,16 @@ describe("PostgreSQL tenant message search", () => {
           useMeilisearch: false,
         });
         expect(crossTenantResults).toEqual({ results: [], total: 0 });
+
+        await updateMessageSearchVector(companyA, lidMessage.id);
+        const lidResults = await searchMessages(companyA, {
+          query: "mango",
+          useMeilisearch: false,
+        });
+        expect(lidResults.total).toBe(1);
+        expect(lidResults.results[0]?.contactName).toBe(
+          "WhatsApp user (ID …2345)",
+        );
       } finally {
         await Promise.all([
           dropTenantSchema(companyA),

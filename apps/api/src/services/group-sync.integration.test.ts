@@ -60,9 +60,10 @@ describe("group synchronization", () => {
 
         const contact = await tenantDb
           .selectFrom("contacts")
-          .select("id")
+          .select(["id", "phone_number"])
           .where("jid", "=", groupJid)
           .executeTakeFirstOrThrow();
+        expect(contact.phone_number).toBeNull();
         await tenantDb
           .insertInto("messages")
           .values([

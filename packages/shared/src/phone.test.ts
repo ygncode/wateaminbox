@@ -19,10 +19,16 @@ describe("shared phone display", () => {
     );
   });
 
-  test("preserves names and group JIDs", () => {
+  test("preserves names and group JIDs and hides opaque LIDs", () => {
     expect(formatPhoneLikeText("Mai")).toBe("Mai");
     expect(formatPhoneLikeText("120363380084647857@g.us")).toBe(
       "120363380084647857@g.us",
+    );
+    expect(formatPhoneLikeText("123456789012345@lid")).toBe(
+      "WhatsApp user (ID …2345)",
+    );
+    expect(formatPhoneLikeText("99112233@hosted.lid")).toBe(
+      "WhatsApp user (ID …2233)",
     );
   });
 });
