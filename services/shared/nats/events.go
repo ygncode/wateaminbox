@@ -248,6 +248,7 @@ type ContactPayload struct {
 	FirstName         string                    `json:"firstName,omitempty"`
 	FullName          string                    `json:"fullName,omitempty"`
 	PushName          string                    `json:"pushName,omitempty"`
+	Username          *string                   `json:"username,omitempty"`
 	BusinessName      string                    `json:"businessName,omitempty"`
 	IsGroup           bool                      `json:"isGroup,omitempty"`
 	NameOnly          bool                      `json:"nameOnly,omitempty"`

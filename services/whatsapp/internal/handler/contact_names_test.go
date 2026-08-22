@@ -26,6 +26,27 @@ func TestIsRedactedContactLabel(t *testing.T) {
 	}
 }
 
+func TestLIDFromAppStateIndex(t *testing.T) {
+	tests := []struct {
+		name     string
+		index    []string
+		expected string
+	}{
+		{name: "full LID", index: []string{"lid_contact", "123456789012345@lid"}, expected: "123456789012345@lid"},
+		{name: "numeric LID", index: []string{"lid_contact", "123456789012345"}, expected: "123456789012345@lid"},
+		{name: "hosted LID", index: []string{"contact", "123456789012345@hosted.lid"}, expected: "123456789012345@hosted.lid"},
+		{name: "unrelated action", index: []string{"contact", "3"}, expected: ""},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if actual := lidFromAppStateIndex(test.index).String(); actual != test.expected {
+				t.Fatalf("expected %q, got %q", test.expected, actual)
+			}
+		})
+	}
+}
+
 func TestMergeContactInfoKeepsSavedNamesAndAddsMissingFields(t *testing.T) {
 	current := types.ContactInfo{FullName: "Saved Name"}
 	incoming := types.ContactInfo{FullName: "Other Name", PushName: "Push Name", BusinessName: "Business"}

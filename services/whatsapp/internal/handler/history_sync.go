@@ -155,9 +155,44 @@ func (h *Handler) handleHistorySync(evt *events.HistorySync) {
 		h.finishHistorySyncChunk(isFinalHistorySyncChunk(evt.Data))
 	}
 
+	// Account-level username records can be separate from conversation records.
+	// Publish them after conversations so name-only metadata can update contacts
+	// created by this same history chunk without creating address-book-only chats.
+	h.publishHistoryAccountUsernames(evt.Data.GetAccounts())
+
 	elapsed := time.Since(startTime)
 	log.Printf("History sync complete: %d messages, %d media downloaded (took %v)",
 		totalMessages, totalMediaDownloaded, elapsed.Round(time.Millisecond))
+}
+
+func (h *Handler) publishHistoryAccountUsernames(accounts []*waHistorySync.Account) {
+	if h.publisher == nil {
+		return
+	}
+
+	for _, account := range accounts {
+		if account == nil || account.GetLid() == "" || (account.Username == nil && !account.GetIsUsernameDeleted()) {
+			continue
+		}
+
+		rawLID := strings.TrimSpace(account.GetLid())
+		var lidJID types.JID
+		var err error
+		if strings.Contains(rawLID, "@") {
+			lidJID, err = types.ParseJID(rawLID)
+		} else {
+			lidJID = types.NewJID(rawLID, types.HiddenUserServer)
+		}
+		if err != nil || lidJID.IsEmpty() || (lidJID.Server != types.HiddenUserServer && lidJID.Server != types.HostedLIDServer) {
+			continue
+		}
+
+		preferredJID := h.resolvePreferredJID(lidJID.ToNonAD(), types.EmptyJID)
+		username := account.GetUsername()
+		if err := h.publisher.PublishContactUsername(preferredJID.String(), &username); err != nil {
+			log.Printf("Failed to publish username for %s: %v", preferredJID.String(), err)
+		}
+	}
 }
 
 func (h *Handler) storeHistoryLIDMappings(mappings []*waHistorySync.PhoneNumberToLIDMapping) {
@@ -253,6 +288,14 @@ func (h *Handler) processHistorySyncConversation(conv *waHistorySync.Conversatio
 	// so resolve the canonical phone JID before deciding the chat is unusable.
 	resolvedJID := h.resolvePreferredJID(parsedJID, types.EmptyJID)
 	if resolvedJID.Server == types.HiddenUserServer || resolvedJID.Server == types.HostedLIDServer {
+		// A private-number conversation may still carry WhatsApp's public
+		// username. Persist that identity for an existing live conversation even
+		// though history cannot safely create a sendable phone-number chat.
+		if conv.Username != nil && h.publisher != nil {
+			if err := h.publisher.PublishContactUsername(resolvedJID.ToNonAD().String(), conv.Username); err != nil {
+				log.Printf("Failed to publish username for LID-only contact %s: %v", rawJID, err)
+			}
+		}
 		log.Printf("Skipping LID-only contact %s (no phone number mapping available)", rawJID)
 		return
 	}
@@ -317,7 +360,7 @@ func (h *Handler) processHistorySyncConversation(conv *waHistorySync.Conversatio
 
 	// Publish contact to NATS
 	if h.publisher != nil {
-		if err := h.publisher.PublishContact(jid, name, displayName, conv.GetDescription(), isGroup, unreadCount, participants, profilePicURL); err != nil {
+		if err := h.publisher.PublishContact(jid, name, displayName, conv.GetDescription(), conv.Username, isGroup, unreadCount, participants, profilePicURL); err != nil {
 			log.Printf("Failed to publish contact %s: %v", jid, err)
 		}
 	}

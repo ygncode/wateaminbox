@@ -497,7 +497,7 @@ func (p *Publisher) PublishTyping(typing TypingEvent) error {
 }
 
 // PublishContact publishes a contact sync event.
-func (p *Publisher) PublishContact(jid, name, displayName, description string, isGroup bool, unreadCount int, participants []GroupParticipantPayload, profilePictureURL string) error {
+func (p *Publisher) PublishContact(jid, name, displayName, description string, username *string, isGroup bool, unreadCount int, participants []GroupParticipantPayload, profilePictureURL string) error {
 	var participantCount *int
 	if len(participants) > 0 {
 		count := len(participants)
@@ -512,11 +512,32 @@ func (p *Publisher) PublishContact(jid, name, displayName, description string, i
 			Name:              name,
 			DisplayName:       displayName,
 			Description:       description,
+			Username:          username,
 			IsGroup:           isGroup,
 			UnreadCount:       &unreadCount,
 			Participants:      participants,
 			ParticipantCount:  participantCount,
 			ProfilePictureURL: profilePictureURL,
+		},
+		Timestamp: time.Now().Format(time.RFC3339),
+	}
+
+	subject := fmt.Sprintf(SubjectContact, p.companyID, p.connectionID)
+	return p.publish(subject, event)
+}
+
+// PublishContactUsername publishes username metadata learned independently of
+// a full conversation snapshot. NameOnly prevents account metadata from
+// creating an inbox conversation before WhatsApp delivers messages for it.
+func (p *Publisher) PublishContactUsername(jid string, username *string) error {
+	event := WhatsAppEvent{
+		Type:         "contact",
+		CompanyID:    p.companyID,
+		ConnectionID: p.connectionID,
+		Payload: ContactPayload{
+			JID:      jid,
+			Username: username,
+			NameOnly: true,
 		},
 		Timestamp: time.Now().Format(time.RFC3339),
 	}

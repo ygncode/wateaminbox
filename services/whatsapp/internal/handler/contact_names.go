@@ -135,6 +135,19 @@ func (h *Handler) syncKnownContactNames() {
 	log.Printf("Published cached names for %d WhatsApp contacts", published)
 }
 
+func (h *Handler) publishContactUsername(jid, alternative types.JID, username *string) {
+	if h.publisher == nil || username == nil {
+		return
+	}
+	resolved := h.resolvePreferredJID(jid, alternative).ToNonAD()
+	if resolved.User == "" || (resolved.Server != types.DefaultUserServer && resolved.Server != types.HiddenUserServer && resolved.Server != types.HostedLIDServer) {
+		return
+	}
+	if err := h.publisher.PublishContactUsername(resolved.String(), username); err != nil {
+		log.Printf("Failed to publish username for contact %s: %v", resolved.String(), err)
+	}
+}
+
 func (h *Handler) handleContactName(evt *events.Contact) {
 	if evt == nil || evt.Action == nil {
 		return
@@ -153,6 +166,41 @@ func (h *Handler) handleContactName(evt *events.Contact) {
 		FirstName: evt.Action.GetFirstName(),
 		FullName:  evt.Action.GetFullName(),
 	})
+	h.publishContactUsername(primary, alternative, evt.Action.Username)
+}
+
+func lidFromAppStateIndex(index []string) types.JID {
+	for i := len(index) - 1; i >= 0; i-- {
+		value := strings.TrimSpace(index[i])
+		if value == "" {
+			continue
+		}
+		if strings.Contains(value, "@") {
+			jid, err := types.ParseJID(value)
+			if err == nil && (jid.Server == types.HiddenUserServer || jid.Server == types.HostedLIDServer) {
+				return jid.ToNonAD()
+			}
+			continue
+		}
+		if len(value) >= 8 && strings.IndexFunc(value, func(char rune) bool { return char < '0' || char > '9' }) == -1 {
+			return types.NewJID(value, types.HiddenUserServer)
+		}
+	}
+	return types.EmptyJID
+}
+
+// LidContactAction currently has no dedicated high-level whatsmeow event. The
+// generic app-state event carries the LID in its index and the public username
+// in the action, so preserve it without treating the LID as a phone number.
+func (h *Handler) handleLIDContactAction(evt *events.AppState) {
+	if evt == nil || evt.GetLidContactAction() == nil {
+		return
+	}
+	jid := lidFromAppStateIndex(evt.Index)
+	if jid.IsEmpty() {
+		return
+	}
+	h.publishContactUsername(jid, types.EmptyJID, evt.GetLidContactAction().Username)
 }
 
 func (h *Handler) getCachedContactInfo(jids ...types.JID) types.ContactInfo {

@@ -88,6 +88,38 @@ func TestContactPayloadAlwaysSerializesUnreadSnapshot(t *testing.T) {
 	}
 }
 
+func TestContactUsernamePreservesSetAndClearSemantics(t *testing.T) {
+	username := "private_user"
+	data, err := json.Marshal(ContactPayload{
+		JID:      "123@lid",
+		Username: &username,
+		NameOnly: true,
+	})
+	if err != nil {
+		t.Fatalf("failed to marshal username payload: %v", err)
+	}
+
+	var payload map[string]any
+	if err := json.Unmarshal(data, &payload); err != nil {
+		t.Fatalf("failed to unmarshal username payload: %v", err)
+	}
+	if payload["username"] != username {
+		t.Fatalf("expected username %q, got %#v", username, payload["username"])
+	}
+
+	deleted := ""
+	data, err = json.Marshal(ContactPayload{JID: "123@lid", Username: &deleted})
+	if err != nil {
+		t.Fatalf("failed to marshal deleted username: %v", err)
+	}
+	if err := json.Unmarshal(data, &payload); err != nil {
+		t.Fatalf("failed to unmarshal deleted username: %v", err)
+	}
+	if value, exists := payload["username"]; !exists || value != "" {
+		t.Fatalf("expected explicit empty username for deletion, got %#v", payload)
+	}
+}
+
 func TestGroupMetadataCanRefreshWithoutResettingUnread(t *testing.T) {
 	participantCount := 42
 	data, err := json.Marshal(ContactPayload{

@@ -45,7 +45,9 @@ type Publisher interface {
 	// PublishTyping publishes a typing indicator event.
 	PublishTyping(typing TypingEvent) error
 	// PublishContact publishes a contact sync event.
-	PublishContact(jid, name, displayName, description string, isGroup bool, unreadCount int, participants []sharednats.GroupParticipantPayload, profilePictureURL string) error
+	PublishContact(jid, name, displayName, description string, username *string, isGroup bool, unreadCount int, participants []sharednats.GroupParticipantPayload, profilePictureURL string) error
+	// PublishContactUsername publishes username-only identity metadata.
+	PublishContactUsername(jid string, username *string) error
 	// PublishGroupSnapshot publishes WhatsApp's current view of a group.
 	PublishGroupSnapshot(commandID, action string, snapshot intTypes.GroupSnapshot) error
 	// PublishGroupLeft reports that this account is no longer a group member.
