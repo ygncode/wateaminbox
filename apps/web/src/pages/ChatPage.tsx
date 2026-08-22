@@ -108,7 +108,7 @@ export function ChatPage() {
 
   // Build the main content component
   const main = (
-    <MainContent className="min-w-0 flex-1 flex flex-col">
+    <MainContent>
       {!selectedChatId && <InboxEmptyState activeView={sidebarView} />}
 
       {selectedChatId && !selectedContact && !contactLoadError && (

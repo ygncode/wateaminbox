@@ -1,6 +1,9 @@
 import type * as React from "react";
 import { cn } from "@/lib/utils";
+import { MAIN_CONTENT_ROOT_CLASS } from "./main-content-layout";
 import { useTranslation } from "react-i18next";
+
+export { MAIN_CONTENT_ROOT_CLASS };
 
 export interface MainContentProps extends React.HTMLAttributes<HTMLDivElement> {
   children: React.ReactNode;
@@ -12,13 +15,7 @@ export function MainContent({
   ...props
 }: MainContentProps) {
   return (
-    <main
-      className={cn(
-        "flex flex-1 flex-col bg-gray-50 dark:bg-dark-primary",
-        className,
-      )}
-      {...props}
-    >
+    <main className={cn(MAIN_CONTENT_ROOT_CLASS, className)} {...props}>
       {children}
     </main>
   );

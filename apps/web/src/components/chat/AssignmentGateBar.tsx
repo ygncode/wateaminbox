@@ -43,7 +43,7 @@ export function AssignmentGateBar({
 
   if (access.kind === "assigned-other-takeover") {
     return (
-      <div className="flex items-center justify-between gap-3 border-t border-amber-200 bg-amber-50 px-4 py-3 dark:border-amber-900/50 dark:bg-amber-950/20">
+      <div className="flex shrink-0 items-center justify-between gap-3 border-t border-amber-200 bg-amber-50 px-4 py-3 dark:border-amber-900/50 dark:bg-amber-950/20">
         <div className="flex items-center gap-2 text-sm text-amber-900 dark:text-amber-200">
           <UserCheck className="h-4 w-4 shrink-0" aria-hidden="true" />
           <span>Assigned to {access.assignedToName}</span>
@@ -64,7 +64,7 @@ export function AssignmentGateBar({
   }
 
   return (
-    <div className="flex items-center gap-2 border-t border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-600 dark:border-dark-border dark:bg-dark-tertiary/50 dark:text-dark-text-secondary">
+    <div className="flex shrink-0 items-center gap-2 border-t border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-600 dark:border-dark-border dark:bg-dark-tertiary/50 dark:text-dark-text-secondary">
       <Lock className="h-4 w-4 shrink-0" aria-hidden="true" />
       <span>
         Assigned to {access.assignedToName} - you can't send messages here

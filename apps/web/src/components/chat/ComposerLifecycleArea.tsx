@@ -61,7 +61,7 @@ export function ComposerLifecycleArea({
 
   if (access.kind === "loading") {
     return (
-      <div className="border-t border-gray-100 bg-white px-4 py-3 dark:border-dark-border dark:bg-dark-elevated">
+      <div className="shrink-0 border-t border-gray-100 bg-white px-4 py-3 dark:border-dark-border dark:bg-dark-elevated">
         <div className="h-9 animate-pulse rounded-lg bg-gray-100 dark:bg-dark-tertiary" />
       </div>
     );
@@ -69,7 +69,7 @@ export function ComposerLifecycleArea({
 
   if (access.kind === "no-permission") {
     return (
-      <div className="flex items-center gap-2 border-t border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-600 dark:border-dark-border dark:bg-dark-tertiary/50 dark:text-dark-text-secondary">
+      <div className="flex shrink-0 items-center gap-2 border-t border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-600 dark:border-dark-border dark:bg-dark-tertiary/50 dark:text-dark-text-secondary">
         <Lock className="h-4 w-4 shrink-0" aria-hidden="true" />
         <span>
           {t(
@@ -110,7 +110,7 @@ export function ComposerLifecycleArea({
     };
 
     return (
-      <div className="flex items-center justify-between gap-3 border-t border-gray-200 bg-gray-50 px-4 py-3 dark:border-dark-border dark:bg-dark-tertiary/50">
+      <div className="flex shrink-0 items-center justify-between gap-3 border-t border-gray-200 bg-gray-50 px-4 py-3 dark:border-dark-border dark:bg-dark-tertiary/50">
         <span className="text-sm text-gray-600 dark:text-dark-text-secondary">
           {t("chat.conversationResolved", "This conversation is resolved")}
         </span>
@@ -140,7 +140,10 @@ export function ComposerLifecycleArea({
 
   // "sendable"
   return (
-    <div>
+    // `shrink-0`: the composer area is the one part of the conversation
+    // column that must never give up space - the message list above it is the
+    // box that scrolls.
+    <div className="shrink-0">
       <div className="flex items-center justify-end border-t border-gray-100 bg-white px-3 py-1.5 dark:border-dark-border dark:bg-dark-elevated">
         <ConversationLifecycleActions
           contactId={contactId}
