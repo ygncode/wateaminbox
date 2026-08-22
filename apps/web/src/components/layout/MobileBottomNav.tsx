@@ -8,6 +8,7 @@ import {
 import { Link } from "react-router";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
+import { MOBILE_NAV_DEFAULT_CLASS } from "./conversation-chrome";
 import {
   formatInboxUnreadCount,
   getInboxNavigationLabel,
@@ -37,6 +38,11 @@ export interface MobileBottomNavProps {
   /** Unread conversations, badged on the Chat destination. */
   unreadCount: number;
   onOpenProfile: () => void;
+  /**
+   * Breakpoint visibility for the bar, owned by the shell - the conversation
+   * detail withdraws it on phones. See `conversation-chrome.ts`.
+   */
+  visibilityClassName?: string;
 }
 
 /**
@@ -51,13 +57,19 @@ export function MobileBottomNav({
   activeKey,
   unreadCount,
   onOpenProfile,
+  visibilityClassName = MOBILE_NAV_DEFAULT_CLASS,
 }: MobileBottomNavProps) {
   const { t } = useTranslation();
 
   return (
     // z-30 keeps the bar under every modal scrim in the app (contact drawer,
     // notification sheet, dialogs) while staying above the page content.
-    <div className="pointer-events-none absolute inset-x-0 bottom-0 z-30 flex justify-center px-3 pb-[calc(env(safe-area-inset-bottom)+0.625rem)] lg:hidden">
+    <div
+      className={cn(
+        "pointer-events-none absolute inset-x-0 bottom-0 z-30 justify-center px-3 pb-[calc(env(safe-area-inset-bottom)+0.625rem)]",
+        visibilityClassName,
+      )}
+    >
       <nav
         className="pointer-events-auto flex w-full max-w-md items-stretch gap-1 rounded-[1.75rem] border border-[#d7e0da] bg-white p-1.5 shadow-[0_10px_30px_-8px_rgba(16,44,36,0.45),0_2px_8px_-4px_rgba(16,44,36,0.25)] dark:border-white/10 dark:bg-dark-secondary dark:shadow-[0_12px_32px_-10px_rgba(0,0,0,0.85)]"
         aria-label={t("nav.mobile", "Mobile navigation")}

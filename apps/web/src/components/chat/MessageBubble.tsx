@@ -8,10 +8,16 @@ import { useTranslation } from "react-i18next";
 import { IdentityAvatarFallback } from "@/components/ui/identity-avatar-fallback";
 import type { GroupParticipant } from "@/hooks/useGroups";
 import type { TeamMemberIdentity } from "@/hooks/useTeam";
-import { formatPhoneLikeText } from "@/lib/utils";
+import { cn, formatPhoneLikeText } from "@/lib/utils";
 import { useMessageActions } from "../../contexts";
 import { useClickOutside } from "../../hooks/ui";
+import { LinkifiedText } from "./LinkifiedText";
 import { MessageContent } from "./MessageContent";
+import {
+  type BubbleGroupPosition,
+  endsGroup,
+  startsGroup,
+} from "./message-grouping";
 
 // Lazy load emoji reaction picker - only loaded when user opens it
 const EmojiReactionPicker = lazy(() => import("./EmojiReactionPicker"));
@@ -24,6 +30,34 @@ import {
   getReplyNavigationTarget,
   type MessageNavigationTarget,
 } from "./message-navigation";
+
+/**
+ * Bubble fills.
+ *
+ * Outgoing used to be solid `whatsapp-green` with white text, which is 1.8:1
+ * and the single most repeated element in the product. Both themes now use
+ * the fills the app's own conversation skeleton already previews - pale green
+ * on dark ink in light mode, deep teal on light ink in dark mode - so bubble
+ * text, links, ticks and sender labels all inherit a colour that reads.
+ */
+const OWN_BUBBLE_CLASS =
+  "bg-[#d9fdd3] text-[#111b21] dark:bg-[#005c4b] dark:text-dark-text-primary";
+const INCOMING_BUBBLE_CLASS =
+  "bg-white text-[#111b21] dark:bg-dark-elevated dark:text-dark-text-primary";
+
+/**
+ * Only the first bubble of a run carries a tail; the rest are fully rounded,
+ * which is what makes a run read as one block instead of five separate cards.
+ */
+function bubbleRadiusClass(
+  isOwn: boolean,
+  position: BubbleGroupPosition,
+): string {
+  if (!startsGroup(position)) return "rounded-[1.15rem]";
+  return isOwn
+    ? "rounded-[1.15rem] rounded-tr-[0.35rem]"
+    : "rounded-[1.15rem] rounded-tl-[0.35rem]";
+}
 
 export function shouldShowReplyPreview(
   message: Pick<Message, "replyToMessageId" | "isDeleted">,
@@ -62,6 +96,12 @@ interface MessageBubbleProps {
   >[];
   /** Navigate the thread to the original message referenced by a reply. */
   onNavigateToMessage?: (target: MessageNavigationTarget) => void;
+  /**
+   * Where this bubble sits in its run of same-author messages. Drives the
+   * gap above it, its tail, and whether it repeats the sender's name and
+   * avatar. See `message-grouping.ts`.
+   */
+  groupPosition?: BubbleGroupPosition;
 }
 
 export const MessageBubble = memo(function MessageBubble({
@@ -81,6 +121,7 @@ export const MessageBubble = memo(function MessageBubble({
   onSelectionToggle,
   mentionParticipants = [],
   onNavigateToMessage,
+  groupPosition = "single",
 }: MessageBubbleProps) {
   // Get message actions from context (eliminates prop drilling)
   const { onReply, onForward, onDelete, onStar, onReact } = useMessageActions();
@@ -175,11 +216,27 @@ export const MessageBubble = memo(function MessageBubble({
     }
   }, [selectionMode, onSelectionToggle, message.id]);
 
+  const isRunContinuation =
+    groupPosition === "middle" || groupPosition === "last";
+  const isRunStart = startsGroup(groupPosition);
+  const isRunEnd = endsGroup(groupPosition);
+  // The timestamp shares the last text line when it fits, the way a phone
+  // messenger does; media and system-ish rows keep their own meta row because
+  // their content is not part of an inline formatting context.
+  const hasInlineMeta = !message.isDeleted && message.messageType === "text";
+  const meta = <MessageMeta message={message} isOwn={isOwn} variant="inline" />;
+
   return (
     <div
-      className={`flex ${isOwn ? "justify-end" : "justify-start"} ${hasReactions ? "mb-5" : "mb-1"} group ${
-        selectionMode ? "cursor-pointer" : ""
-      }`}
+      className={cn(
+        "group flex",
+        isOwn ? "justify-end" : "justify-start",
+        // Tight inside a run, an ordinary gap between runs. This is the whole
+        // point of grouping: a burst of five messages reads as one turn.
+        isRunContinuation ? "mt-[3px]" : "mt-2",
+        hasReactions && "mb-4",
+        selectionMode && "cursor-pointer",
+      )}
       onClick={handleClick}
     >
       {/* Selection checkbox - shown on left for all messages in selection mode */}
@@ -187,31 +244,35 @@ export const MessageBubble = memo(function MessageBubble({
         <SelectionCheckbox isOwn={isOwn} isSelected={isSelected} />
       )}
 
-      {isGroup && !isOwn && <GroupParticipantAvatar message={message} />}
+      {isGroup && !isOwn && (
+        <GroupParticipantAvatar message={message} hidden={!isRunEnd} />
+      )}
 
       <div
         ref={bubbleRef}
-        className={`relative max-w-[70%] px-3 py-2 rounded-lg shadow-sm transition-[background-color,box-shadow] duration-300 ${
-          isOwn
-            ? "bg-whatsapp-green text-white rounded-br-none"
-            : "bg-white dark:bg-dark-elevated text-gray-900 dark:text-dark-text-primary rounded-bl-none"
-        } ${isHighlighted ? "ring-2 ring-yellow-400 ring-offset-2 dark:ring-offset-dark-primary bg-yellow-50/20 dark:bg-yellow-900/20" : ""} ${
-          isSelected
-            ? "ring-2 ring-whatsapp-teal-green ring-offset-1 dark:ring-offset-dark-primary"
-            : ""
-        }`}
+        className={cn(
+          "relative max-w-[85%] px-2.5 py-[7px] shadow-[0_1px_0.5px_rgba(11,20,26,0.13)] transition-[background-color,box-shadow] duration-300 sm:max-w-[75%] md:max-w-[70%] md:px-3 md:py-2",
+          bubbleRadiusClass(isOwn, groupPosition),
+          isOwn ? OWN_BUBBLE_CLASS : INCOMING_BUBBLE_CLASS,
+          isHighlighted &&
+            "ring-2 ring-yellow-400 ring-offset-2 dark:ring-offset-dark-primary",
+          isSelected &&
+            "ring-2 ring-whatsapp-teal-green ring-offset-1 dark:ring-offset-dark-primary",
+        )}
         onContextMenu={selectionMode ? undefined : handleContextMenu}
         data-message-id={message.id}
       >
-        {/* Identity is explicit on both sides of a shared team conversation. */}
-        {isOwn && (
+        {/* Identity is explicit on both sides of a shared team conversation,
+            but only once per run - repeating it on every bubble is what made
+            a burst of replies unreadable. */}
+        {isOwn && isRunStart && (
           <TeamSenderLabel
             message={message}
             currentUserId={currentUserId}
             currentUserName={currentUserName}
           />
         )}
-        {isGroup && !isOwn && !message.isDeleted && (
+        {isGroup && !isOwn && isRunStart && !message.isDeleted && (
           <GroupParticipantLabel message={message} />
         )}
 
@@ -234,13 +295,25 @@ export const MessageBubble = memo(function MessageBubble({
           />
         )}
 
-        {/* Message content */}
-        <MessageContent
-          message={message}
-          isOwn={isOwn}
-          mentionParticipants={mentionParticipants}
-          enableMediaPreview={!selectionMode}
-        />
+        {/* Message content. Plain text is rendered here rather than through
+            MessageContent so the timestamp can be handed to the paragraph as
+            a trailing float and share its last line - see LinkifiedText. */}
+        {hasInlineMeta ? (
+          <LinkifiedText
+            text={message.content}
+            isOwn={isOwn}
+            mentionParticipants={mentionParticipants}
+            className="text-[15px] leading-[1.35rem]"
+            trailing={message.status === "failed" && isOwn ? undefined : meta}
+          />
+        ) : (
+          <MessageContent
+            message={message}
+            isOwn={isOwn}
+            mentionParticipants={mentionParticipants}
+            enableMediaPreview={!selectionMode}
+          />
+        )}
 
         {/* Error banner for failed messages */}
         {message.status === "failed" && isOwn && (
@@ -252,20 +325,11 @@ export const MessageBubble = memo(function MessageBubble({
           />
         )}
 
-        {/* Timestamp and status */}
-        <div
-          className={`flex items-center justify-end gap-1 mt-1 text-xs ${
-            isOwn
-              ? "text-white/70"
-              : "text-gray-500 dark:text-dark-text-secondary"
-          }`}
-        >
-          <span>{formatMessageTime(message.createdAt)}</span>
-          <MessageStatusIcon message={message} isOwn={isOwn} />
-          {message.isStarred && !message.isDeleted && (
-            <StarFilledIcon className="h-3 w-3 text-yellow-400" />
-          )}
-        </div>
+        {/* A failed send pushes its meta back below the retry banner, which
+            would otherwise be separated from the status it explains. */}
+        {(!hasInlineMeta || (message.status === "failed" && isOwn)) && (
+          <MessageMeta message={message} isOwn={isOwn} variant="block" />
+        )}
 
         {/* Reaction display */}
         {hasReactions && (
@@ -323,11 +387,53 @@ export const MessageBubble = memo(function MessageBubble({
               ? teammateIdentities.get(message.sentByUserId)
               : undefined
           }
+          hidden={!isRunEnd}
         />
       )}
     </div>
   );
 });
+
+/**
+ * Timestamp, delivery status and star.
+ *
+ * `inline` floats it to the right of the paragraph's last line, so short
+ * messages stay one line tall instead of paying a whole row for a five
+ * character time. `block` is the fallback for media and deleted messages,
+ * whose content is not an inline formatting context.
+ */
+function MessageMeta({
+  message,
+  isOwn,
+  variant,
+}: {
+  message: Message;
+  isOwn: boolean;
+  variant: "inline" | "block";
+}) {
+  return (
+    <span
+      className={cn(
+        "items-center gap-1 whitespace-nowrap text-[11px] leading-4",
+        isOwn
+          ? "text-current opacity-60"
+          : "text-[#667781] dark:text-dark-text-secondary",
+        variant === "inline"
+          ? // `select-none` keeps the timestamp out of a copied message.
+            "float-right ml-2 mt-1 inline-flex translate-y-0.5 select-none"
+          : "mt-1 flex justify-end",
+      )}
+    >
+      <span className="tabular-nums">
+        {formatMessageTime(message.createdAt)}
+      </span>
+      <MessageStatusIcon message={message} isOwn={isOwn} />
+      {message.isStarred && !message.isDeleted && (
+        <StarFilledIcon className="h-3 w-3 text-yellow-500 dark:text-yellow-400" />
+      )}
+    </span>
+  );
+}
 
 /**
  * Skeleton loading state for the reaction picker
@@ -460,13 +566,13 @@ function ReplyPreview({
             "aria-label": `${t("chat.reply")}: ${replySender}`,
           }
         : {})}
-      className={`mb-2 w-full p-2.5 rounded-lg border-l-4 text-left ${
+      className={`mb-1.5 w-full overflow-hidden rounded-lg border-l-[3px] p-2 text-left ${
         isOwn
-          ? "bg-whatsapp-dark-green/30 border-white/50"
-          : "bg-gray-100 dark:bg-dark-tertiary border-whatsapp-green"
+          ? "border-[#0e7a52] bg-black/[0.06] dark:border-[#68e0b6] dark:bg-black/20"
+          : "border-whatsapp-green bg-black/[0.045] dark:bg-white/[0.06]"
       } ${
         canNavigate
-          ? "cursor-pointer transition-colors hover:bg-black/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-whatsapp-green"
+          ? "cursor-pointer transition-colors hover:bg-black/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-whatsapp-green dark:hover:bg-black/30"
           : ""
       }`}
     >
@@ -476,7 +582,7 @@ function ReplyPreview({
           <p
             className={`text-xs font-semibold mb-0.5 ${
               isOwn
-                ? "text-white/90"
+                ? "text-current opacity-90"
                 : "text-gray-900 dark:text-dark-text-primary"
             }`}
           >
@@ -485,7 +591,7 @@ function ReplyPreview({
           <p
             className={`text-xs line-clamp-2 ${
               isOwn
-                ? "text-white/80"
+                ? "text-current opacity-70"
                 : "text-gray-700 dark:text-dark-text-secondary"
             }`}
           >
@@ -516,7 +622,9 @@ function FailedMessageBanner({
   return (
     <div
       className={`mt-2 flex items-center justify-between gap-2 text-xs px-2 py-1 rounded ${
-        isOwn ? "bg-red-500/20 text-red-100" : "bg-red-100 text-red-700"
+        isOwn
+          ? "bg-red-500/15 text-red-800 dark:bg-red-500/20 dark:text-red-100"
+          : "bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-100"
       }`}
     >
       <div className="flex items-center gap-2">
@@ -547,8 +655,8 @@ function FailedMessageBanner({
           disabled={isRetrying}
           className={`flex items-center gap-1 px-2 py-0.5 rounded font-medium transition-colors ${
             isOwn
-              ? "bg-white/20 hover:bg-white/30 text-white"
-              : "bg-red-200 hover:bg-red-300 text-red-800"
+              ? "bg-black/10 text-current hover:bg-black/15 dark:bg-white/20 dark:hover:bg-white/30"
+              : "bg-red-200 text-red-800 hover:bg-red-300 dark:bg-white/15 dark:text-red-100 dark:hover:bg-white/25"
           } ${isRetrying ? "opacity-50 cursor-not-allowed" : ""}`}
           aria-label={t("chat.retrySendAria", "Retry sending this message")}
         >
@@ -644,14 +752,19 @@ function TeamSenderLabel({
   );
 }
 
+/**
+ * Attribution colours for outgoing bubbles. Each entry carries both themes
+ * because the outgoing fill flips from pale green to deep teal - a pastel
+ * that reads on the dark fill disappears on the light one.
+ */
 const teamSenderColors = [
-  "text-[#d6f7ff]",
-  "text-[#fff0a8]",
-  "text-[#ead8ff]",
-  "text-[#ffd8e5]",
-  "text-[#ffe1bd]",
-  "text-[#d8f5e4]",
-  "text-[#dce5ff]",
+  "text-[#0b6b7a] dark:text-[#a5e8f7]",
+  "text-[#8a5a00] dark:text-[#ffe08a]",
+  "text-[#6b3fa0] dark:text-[#e0cbff]",
+  "text-[#a63a5e] dark:text-[#ffc7da]",
+  "text-[#9a5215] dark:text-[#ffd7ab]",
+  "text-[#0e7a52] dark:text-[#b6f0d3]",
+  "text-[#3f56b0] dark:text-[#c9d6ff]",
 ] as const;
 
 function getTeamSenderIdentity(
@@ -692,6 +805,7 @@ function TeamSenderAvatar({
   currentUserAvatarUrl,
   currentUserGravatarUrl,
   teammateIdentity,
+  hidden = false,
 }: {
   message: Message;
   currentUserId: string;
@@ -699,6 +813,7 @@ function TeamSenderAvatar({
   currentUserAvatarUrl?: string;
   currentUserGravatarUrl?: string;
   teammateIdentity?: TeamMemberIdentity;
+  hidden?: boolean;
 }) {
   const { t } = useTranslation();
 
@@ -719,6 +834,7 @@ function TeamSenderAvatar({
       fallbackAvatarUrl={gravatarUrl}
       side="right"
       fallbackKind={message.sentByUserId ? "identity" : "linked-phone"}
+      hidden={hidden}
     />
   );
 }
@@ -756,7 +872,13 @@ function getParticipantLabel(t: TFunction, message: Message): string {
   return /^\d+$/.test(identifier) ? `+${identifier}` : identifier;
 }
 
-function GroupParticipantAvatar({ message }: { message: Message }) {
+function GroupParticipantAvatar({
+  message,
+  hidden = false,
+}: {
+  message: Message;
+  hidden?: boolean;
+}) {
   const { t } = useTranslation();
 
   const label = getParticipantLabel(t, message);
@@ -766,6 +888,7 @@ function GroupParticipantAvatar({ message }: { message: Message }) {
       identity={message.senderJid || message.senderId}
       avatarUrl={message.senderAvatarUrl}
       side="left"
+      hidden={hidden}
     />
   );
 }
@@ -777,6 +900,7 @@ function SenderAvatar({
   fallbackAvatarUrl,
   side,
   fallbackKind = "identity",
+  hidden = false,
 }: {
   label: string;
   identity?: string | null;
@@ -784,6 +908,11 @@ function SenderAvatar({
   fallbackAvatarUrl?: string | null;
   side: "left" | "right";
   fallbackKind?: "identity" | "linked-phone";
+  /**
+   * Mid-run bubbles keep the gutter but drop the picture, so a run stays
+   * aligned under the one avatar its last bubble carries.
+   */
+  hidden?: boolean;
 }) {
   const [failedAvatarUrls, setFailedAvatarUrls] = useState<Set<string>>(
     () => new Set(),
@@ -794,9 +923,18 @@ function SenderAvatar({
       : fallbackAvatarUrl && !failedAvatarUrls.has(fallbackAvatarUrl)
         ? fallbackAvatarUrl
         : null;
+  if (hidden) {
+    return (
+      <div
+        className={cn("size-8 shrink-0", side === "left" ? "mr-2" : "ml-2")}
+        aria-hidden="true"
+      />
+    );
+  }
+
   return (
     <div
-      className={`${side === "left" ? "mr-2" : "ml-2"} mb-1 flex h-8 w-8 shrink-0 self-end items-center justify-center overflow-hidden rounded-full shadow-sm ring-1 ring-black/5 dark:ring-white/10`}
+      className={`${side === "left" ? "mr-2" : "ml-2"} mb-0.5 flex h-8 w-8 shrink-0 self-end items-center justify-center overflow-hidden rounded-full shadow-sm ring-1 ring-black/5 dark:ring-white/10`}
       title={label}
       aria-label={`${label}'s profile picture`}
     >

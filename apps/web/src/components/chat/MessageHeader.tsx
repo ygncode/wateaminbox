@@ -1,9 +1,9 @@
 import type { Contact } from "@wateaminbox/shared";
 import { formatLastSeen } from "@wateaminbox/shared";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Info, MoreVertical, Search } from "lucide-react";
 import { IdentityAvatarFallback } from "@/components/ui/identity-avatar-fallback";
 import { useGroup } from "@/hooks/useGroups";
-import { formatPhoneLikeText } from "@/lib/utils";
+import { cn, formatPhoneLikeText } from "@/lib/utils";
 import { useOptionalMobileLayout } from "@/components/layout/MobileLayout";
 import { ConnectionBadge, ConnectionRoute } from "./ConnectionIdentity";
 import { useTranslation } from "react-i18next";
@@ -18,11 +18,24 @@ interface MessageHeaderProps {
    * mobile view stack, where the thread covers the conversation list.
    */
   showBackButton?: boolean;
-  /** Callback when back button is pressed; defaults to popping the view. */
+  /**
+   * Callback when back button is pressed; defaults to popping the mobile view
+   * stack. Tablet has no view stack to pop, so `ChatPage` supplies a handler
+   * that deselects the conversation instead - which is the only way back to
+   * the list route, and therefore to the bottom navigation, now that the bar
+   * is withdrawn everywhere below `lg`.
+   */
   onBack?: () => void;
   /** Whether the contact is currently typing */
   isTyping?: boolean;
 }
+
+/**
+ * Touch action button. 44px hit target on phones - the header is the densest
+ * row in the conversation and the one most often mis-tapped while scrolling.
+ */
+const actionButtonClass =
+  "grid size-11 shrink-0 touch-manipulation place-items-center rounded-full text-[#54656f] transition-colors hover:bg-black/[0.055] active:bg-black/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00a884]/40 dark:text-dark-text-secondary dark:hover:bg-white/[0.06] dark:active:bg-white/10 md:size-10";
 
 export function MessageHeader({
   contact,
@@ -59,32 +72,36 @@ export function MessageHeader({
   const statusText = isTyping ? t("chat.typingShort", "typing") : lastSeenText;
 
   return (
-    <header className="flex shrink-0 items-center gap-2 md:gap-3 px-2 md:px-4 py-2 bg-gray-100 dark:bg-dark-secondary border-b border-gray-200 dark:border-dark-border h-14 min-h-[56px] md:h-[60px] md:min-h-[60px]">
-      {/* Back button for mobile */}
+    // Same surface as the composer at the other end of the column, so the
+    // message canvas reads as one inset panel between two pieces of chrome.
+    <header className="flex h-14 min-h-14 shrink-0 items-center gap-0.5 border-b border-black/[0.06] bg-[#f0f2f5] px-1 dark:border-white/[0.06] dark:bg-dark-secondary md:h-[60px] md:min-h-[60px] md:gap-2 md:px-3">
       {canGoBack && handleBack && (
         <button
           type="button"
           onClick={handleBack}
-          className="flex h-11 w-11 items-center justify-center rounded-full text-gray-600 dark:text-dark-text-secondary hover:bg-gray-200 dark:hover:bg-dark-tertiary active:bg-gray-300 dark:active:bg-dark-border transition-colors touch-manipulation md:hidden"
+          // Runs to `lg`, not `md`: below `lg` this is the only control that
+          // returns to the conversation list, and desktop shows the list in
+          // its own column so it needs no back control at all.
+          className={cn(actionButtonClass, "lg:hidden")}
           aria-label={t("common.goBack", "Go back")}
         >
-          <ArrowLeft className="h-6 w-6" />
+          <ArrowLeft className="size-6" strokeWidth={2} aria-hidden="true" />
         </button>
       )}
 
-      {/* Avatar and info - clickable to open profile */}
+      {/* Avatar and identity - opens the contact/group profile. */}
       <button
+        type="button"
         onClick={onOpenProfile}
-        className="flex items-center gap-2 md:gap-3 flex-1 min-w-0 hover:bg-gray-200 dark:hover:bg-dark-tertiary active:bg-gray-300 dark:active:bg-dark-border rounded-lg p-1 -m-1 transition-colors touch-manipulation"
+        className="flex min-w-0 flex-1 items-center gap-2.5 rounded-xl px-1 py-1 text-left transition-colors hover:bg-black/[0.04] active:bg-black/[0.07] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00a884]/40 dark:hover:bg-white/[0.05] dark:active:bg-white/[0.08] md:gap-3 md:px-2"
       >
-        {/* Avatar */}
-        <div className="relative flex-shrink-0">
-          <div className="w-10 h-10 rounded-full bg-gray-300 dark:bg-dark-tertiary overflow-hidden">
+        <span className="relative shrink-0">
+          <span className="block size-10 overflow-hidden rounded-full bg-gray-300 dark:bg-dark-tertiary">
             {contact.avatarUrl ? (
               <img
                 src={contact.avatarUrl}
-                alt={displayName}
-                className="w-full h-full object-cover"
+                alt=""
+                className="size-full object-cover"
               />
             ) : (
               <IdentityAvatarFallback
@@ -94,116 +111,106 @@ export function MessageHeader({
                 className="text-lg"
               />
             )}
-          </div>
-          {/* Online indicator */}
+          </span>
           {contact.isOnline && (
-            <span className="absolute bottom-0 right-0 w-3 h-3 bg-whatsapp-green rounded-full border-2 border-gray-100 dark:border-dark-secondary" />
+            <span className="absolute bottom-0 right-0 size-3 rounded-full bg-whatsapp-green ring-2 ring-[#f0f2f5] dark:ring-dark-secondary" />
           )}
-        </div>
+        </span>
 
-        {/* Name and status */}
-        <div className="flex-1 min-w-0 text-left">
-          <div className="flex min-w-0 items-center gap-2">
-            <h2 className="truncate text-base font-medium text-gray-900 dark:text-dark-text-primary">
+        <span className="flex min-w-0 flex-1 flex-col">
+          <span className="flex min-w-0 items-center gap-2">
+            <h2 className="truncate text-[16px] font-semibold leading-5 tracking-[-0.01em] text-[#111b21] dark:text-dark-text-primary">
               {displayName}
             </h2>
+            {/* The account pill needs room to stay legible; on a phone the
+                same routing is carried by the status line below instead. */}
             {contact.connection && (
               <ConnectionBadge
                 connection={contact.connection}
                 compact
-                className="max-w-[110px] shrink"
+                className="hidden max-w-[110px] shrink md:inline-flex"
               />
             )}
-          </div>
-          <div className="flex min-w-0 items-center gap-1.5">
+          </span>
+
+          <span className="mt-0.5 flex min-w-0 items-center gap-1.5 text-[12px] leading-4">
             {isTyping ? (
-              <p className="shrink-0 text-xs text-whatsapp-green">
+              <span className="shrink-0 font-medium text-whatsapp-green">
                 <span className="typing-indicator">
-                  typing
+                  {t("chat.typingShort", "typing")}
                   <span className="typing-dots" />
                 </span>
-              </p>
+              </span>
             ) : (
               statusText && (
-                <p className="truncate text-xs text-gray-500 dark:text-dark-text-secondary">
+                <span className="truncate text-[#667781] dark:text-dark-text-secondary">
                   {statusText}
-                </p>
+                </span>
               )
             )}
             {contact.connection && (
               <>
                 {(isTyping || statusText) && (
-                  <span className="text-[10px] text-gray-300 dark:text-dark-border">
-                    •
-                  </span>
+                  <span
+                    className="size-0.5 shrink-0 rounded-full bg-[#aebac1] dark:bg-dark-border"
+                    aria-hidden="true"
+                  />
                 )}
+                {/* Phones get the account name only; the number returns
+                    from `sm` up, where the line has room for both. */}
                 <ConnectionRoute
                   connection={contact.connection}
                   mode="receiving"
-                  className="min-w-0 truncate"
+                  compact
+                  className="min-w-0 truncate text-[12px]"
                 />
               </>
             )}
-          </div>
-        </div>
+          </span>
+        </span>
       </button>
 
-      {/* Action buttons */}
-      <div className="flex items-center gap-0 md:gap-1">
-        {/* Lifecycle actions (Open/Pending/Resolve/Reopen) now live in the
-            composer area, alongside the assignment gate - see ChatPage. */}
+      <div className="flex shrink-0 items-center">
+        {/* Tapping the header opens the profile on every layout, but that is
+            not discoverable without a hover cursor - touch layouts get an
+            explicit control. */}
+        {onOpenProfile && (
+          <button
+            type="button"
+            onClick={onOpenProfile}
+            className={cn(actionButtonClass, "lg:hidden")}
+            aria-label={t("chat.contactInfo", "Contact info")}
+          >
+            <Info className="size-5.5" strokeWidth={1.9} aria-hidden="true" />
+          </button>
+        )}
 
-        {/* The theme control belongs to the app chrome - the navigation rail on
-            desktop, the workspace header on mobile and tablet. Repeating it
-            here gave touch layouts two toggles in adjacent bars. */}
-
-        {/* Search button */}
         <button
           type="button"
           onClick={onSearch}
-          className="flex h-11 w-11 md:h-10 md:w-10 items-center justify-center text-gray-500 dark:text-dark-text-secondary hover:text-gray-700 dark:hover:text-dark-text-primary rounded-full hover:bg-gray-200 dark:hover:bg-dark-tertiary active:bg-gray-300 dark:active:bg-dark-border transition-colors touch-manipulation"
+          className={actionButtonClass}
           aria-label={t(
             "search.inConversationAria",
             "Search messages in conversation",
           )}
         >
-          <svg
-            className="h-5 w-5"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-            />
-          </svg>
+          <Search className="size-5.5" strokeWidth={1.9} aria-hidden="true" />
         </button>
 
-        {/* More options button - omitted when the host wires no handler, so
-            the header never shows a control that does nothing. */}
+        {/* Omitted when the host wires no handler, so the header never shows a
+            control that does nothing. */}
         {onMore && (
           <button
             type="button"
             onClick={onMore}
-            className="flex h-11 w-11 md:h-10 md:w-10 items-center justify-center text-gray-500 dark:text-dark-text-secondary hover:text-gray-700 dark:hover:text-dark-text-primary rounded-full hover:bg-gray-200 dark:hover:bg-dark-tertiary active:bg-gray-300 dark:active:bg-dark-border transition-colors touch-manipulation"
+            className={actionButtonClass}
             aria-label={t("common.moreOptions", "More options")}
           >
-            <svg
-              className="h-5 w-5"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z"
-              />
-            </svg>
+            <MoreVertical
+              className="size-5.5"
+              strokeWidth={1.9}
+              aria-hidden="true"
+            />
           </button>
         )}
       </div>

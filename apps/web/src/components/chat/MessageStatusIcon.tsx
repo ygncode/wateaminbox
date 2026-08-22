@@ -49,7 +49,7 @@ export function MessageStatusIcon({ message, isOwn }: MessageStatusIconProps) {
           aria-label={t("chat.statusLabels.sending", "Sending")}
         >
           <svg
-            className="h-4 w-4 text-white/60"
+            className="h-4 w-4 text-current opacity-65"
             viewBox="0 0 16 16"
             fill="currentColor"
             aria-hidden="true"
@@ -66,7 +66,7 @@ export function MessageStatusIcon({ message, isOwn }: MessageStatusIconProps) {
           aria-label={t("chat.statusLabels.sent", "Sent")}
         >
           <svg
-            className="h-4 w-4 text-white/60"
+            className="h-4 w-4 text-current opacity-65"
             viewBox="0 0 16 16"
             fill="currentColor"
             aria-hidden="true"
@@ -83,7 +83,7 @@ export function MessageStatusIcon({ message, isOwn }: MessageStatusIconProps) {
           aria-label={t("chat.statusLabels.delivered", "Delivered")}
         >
           <svg
-            className="h-4 w-4 text-white/60"
+            className="h-4 w-4 text-current opacity-65"
             viewBox="0 0 16 16"
             fill="currentColor"
             aria-hidden="true"
@@ -101,7 +101,7 @@ export function MessageStatusIcon({ message, isOwn }: MessageStatusIconProps) {
           aria-label={t("chat.statusLabels.read", "Read")}
         >
           <svg
-            className="h-4 w-4 text-blue-500"
+            className="h-4 w-4 text-[#1a90c9] dark:text-[#53bdeb]"
             viewBox="0 0 16 16"
             fill="currentColor"
             aria-hidden="true"

@@ -8,6 +8,10 @@ import {
   type MessageNavigationTarget,
   matchesMessageNavigationTarget,
 } from "@/components/chat/message-navigation";
+import {
+  type BubbleGroupPosition,
+  resolveBubbleGroupPositions,
+} from "@/components/chat/message-grouping";
 import { resolveNewestMessageAnchor } from "./message-scroll-anchor";
 
 // Estimated row heights for virtualization
@@ -16,7 +20,13 @@ const DATE_SEPARATOR_HEIGHT = 48;
 
 export type VirtualItem =
   | { type: "date"; date: string; id: string }
-  | { type: "message"; message: Message; id: string };
+  | {
+      type: "message";
+      message: Message;
+      id: string;
+      /** Position in its run of same-author messages; see message-grouping.ts. */
+      groupPosition: BubbleGroupPosition;
+    };
 
 interface UseMessageVirtualizationOptions {
   messages: Message[];
@@ -76,29 +86,38 @@ export function useMessageVirtualization({
   const items = useMemo<VirtualItem[]>(() => {
     if (messages.length === 0) return [];
 
-    const result: VirtualItem[] = [];
+    const rows: (Message | null)[] = [];
     let currentDate = "";
 
     messages.forEach((message) => {
       const messageDate = new Date(message.createdAt).toDateString();
-
+      // A date separator is a `null` row so grouping sees it and refuses to
+      // continue a run across the day boundary.
       if (messageDate !== currentDate) {
         currentDate = messageDate;
-        result.push({
-          type: "date",
-          date: messageDate,
-          id: `date-${messageDate}`,
-        });
+        rows.push(null);
       }
+      rows.push(message);
+    });
 
-      result.push({
+    const positions = resolveBubbleGroupPositions(rows);
+
+    return rows.map((message, index): VirtualItem => {
+      if (!message) {
+        // A separator is always immediately followed by the first message of
+        // the day it announces.
+        const date = new Date(
+          (rows[index + 1] as Message).createdAt,
+        ).toDateString();
+        return { type: "date", date, id: `date-${date}` };
+      }
+      return {
         type: "message",
         message,
         id: message.id,
-      });
+        groupPosition: positions[index] ?? "single",
+      };
     });
-
-    return result;
   }, [messages]);
 
   // Memoize virtualizer callbacks to prevent re-renders
