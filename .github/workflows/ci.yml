@@ -22,7 +22,7 @@ jobs:
         with:
           bun-version: 1.2.18
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         with:
           go-version: "1.25.x"
           cache-dependency-path: |
@@ -146,7 +146,7 @@ jobs:
         with:
           submodules: recursive
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         with:
           go-version: "1.25.x"
           cache-dependency-path: |
@@ -169,7 +169,7 @@ jobs:
         with:
           submodules: recursive
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         with:
           go-version: "1.25.x"
           cache-dependency-path: |
@@ -202,7 +202,7 @@ jobs:
         with:
           submodules: recursive
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         with:
           go-version: "1.25.x"
           cache-dependency-path: |
@@ -246,7 +246,7 @@ jobs:
         with:
           submodules: recursive
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         with:
           # Explicitly require the first 1.25 patch containing the standard-library
           # fixes reported by govulncheck (GO-2026-6090 and GO-2026-5972).
