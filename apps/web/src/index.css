@@ -132,6 +132,29 @@
     padding-right: env(safe-area-inset-right);
   }
 
+  /*
+   * Bottom inset for the conversation column's last row (composer, lifecycle
+   * gate, assignment gate).
+   *
+   * `max()`, never a sum. Both insets describe the same strip of screen: the
+   * home indicator sits in the bottom 34px, and an open keyboard already
+   * covers that strip. Adding them shifts the composer a further 34px above a
+   * keyboard that is not there, which on iOS - where `env(safe-area-inset-
+   * bottom)` stays non-zero while VisualViewport reports the overlap - is the
+   * normal case rather than an edge case. Whichever is larger is the amount of
+   * screen actually unusable.
+   *
+   * Hand-written rather than an arbitrary Tailwind value so the nested
+   * `max(var(), env())` cannot be lost to class extraction; see
+   * conversation-chrome.ts for why that failure mode is taken seriously here.
+   */
+  .conversation-bottom-inset {
+    padding-bottom: max(
+      env(safe-area-inset-bottom),
+      var(--wa-keyboard-inset, 0px)
+    );
+  }
+
   /* Touch manipulation for better touch response */
   .touch-manipulation {
     touch-action: manipulation;

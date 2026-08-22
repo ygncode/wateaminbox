@@ -77,3 +77,12 @@ export {
   type UseAutoAdjustedPositionOptions,
   type Placement,
 } from "./useViewportBoundedPosition";
+
+// On-screen keyboard overlap (iOS Safari does not resize the layout viewport)
+export { useKeyboardInset } from "./useKeyboardInset";
+export {
+  resolveKeyboardInset,
+  KEYBOARD_INSET_CSS_VAR,
+  KEYBOARD_MIN_OVERLAP_PX,
+  type ViewportMetrics,
+} from "./keyboard-inset";

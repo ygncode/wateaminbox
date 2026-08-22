@@ -1,4 +1,4 @@
-import { Fragment } from "react";
+import { Fragment, type ReactNode } from "react";
 import type { GroupParticipant } from "@/hooks/useGroups";
 import { cn } from "@/lib/utils";
 
@@ -122,6 +122,7 @@ export function LinkifiedText({
   isOwn,
   className,
   mentionParticipants = [],
+  trailing,
 }: {
   text: string;
   isOwn: boolean;
@@ -130,11 +131,26 @@ export function LinkifiedText({
     GroupParticipant,
     "jid" | "phoneNumber" | "displayName"
   >[];
+  /**
+   * Rendered inside the paragraph, after the text. A right-floated node put
+   * here lands on the last line when it fits and drops to its own line when
+   * it does not - which is how the bubble timestamp sits beside short
+   * messages instead of always claiming a row of its own. It has to be part
+   * of this inline formatting context to do that, so it is passed in rather
+   * than rendered next to the paragraph.
+   */
+  trailing?: ReactNode;
 }) {
   const displayText = resolveMentionNames(text, mentionParticipants);
 
   return (
-    <p className={cn("whitespace-pre-wrap break-words", className)}>
+    <p
+      className={cn(
+        "whitespace-pre-wrap break-words",
+        trailing && "after:block after:clear-both after:content-['']",
+        className,
+      )}
+    >
       {parseMessageLinks(displayText).map((segment, index) =>
         segment.type === "link" ? (
           <a
@@ -145,9 +161,12 @@ export function LinkifiedText({
             onClick={(event) => event.stopPropagation()}
             className={cn(
               "rounded-sm font-medium underline decoration-1 underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-whatsapp-green",
+              // Own bubbles are pale green in light mode and deep teal in
+              // dark, so their links follow the bubble's own text colour
+              // rather than assuming a white-on-green bubble.
               isOwn
-                ? "text-white decoration-white/70 hover:decoration-white"
-                : "text-whatsapp-teal-green decoration-whatsapp-teal-green/50 hover:decoration-whatsapp-teal-green",
+                ? "text-current decoration-current/60 hover:decoration-current"
+                : "text-whatsapp-teal-green decoration-whatsapp-teal-green/50 hover:decoration-whatsapp-teal-green dark:text-[#53bdeb] dark:decoration-[#53bdeb]/50",
             )}
           >
             {segment.value}
@@ -156,6 +175,7 @@ export function LinkifiedText({
           <Fragment key={`${index}-${segment.value}`}>{segment.value}</Fragment>
         ),
       )}
+      {trailing}
     </p>
   );
 }

@@ -7,8 +7,15 @@
     <link rel="shortcut icon" href="/favicon.ico" />
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
     <link rel="manifest" href="/site.webmanifest" />
-    <!-- Mobile viewport with safe area support - zoom enabled for accessibility -->
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <!-- Mobile viewport with safe area support - zoom enabled for accessibility.
+         `interactive-widget=resizes-content` makes the on-screen keyboard shrink
+         the layout viewport, so the `h-dvh` app shell keeps the conversation
+         composer above it instead of behind it. Browsers that ignore the hint
+         (iOS Safari) are handled by the measured inset in keyboard-inset.ts. -->
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content"
+    />
     <!-- PWA theme color - updated dynamically by ThemeProvider -->
     <meta name="theme-color" content="#075E54" />
     <!-- iOS specific -->

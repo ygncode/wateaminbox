@@ -24,6 +24,7 @@ import { Skeleton } from "../components/ui";
 import { useAuth } from "../contexts/auth-context";
 import { MessageActionsProvider } from "../contexts/message-actions-context";
 import { useChatPageState } from "../hooks/chat";
+import { useKeyboardInset } from "../hooks/ui";
 import { useComposerAccess } from "../hooks/useComposerAccess";
 import { parseChatView, withChatView } from "../lib/workspace-routes";
 import { useTranslation } from "react-i18next";
@@ -94,6 +95,24 @@ export function ChatPage() {
   const { access: composerAccess } = useComposerAccess(selectedChatId ?? null);
   const canSend = composerAccess.kind === "sendable";
 
+  // Publishes the on-screen keyboard overlap for the composer footer to pad
+  // by. Gated on an open conversation: the inbox list has no composer to keep
+  // above the keyboard, so it should not hold visual-viewport listeners or a
+  // stale inset while it is the only thing on screen.
+  useKeyboardInset(Boolean(selectedChatId));
+
+  // The floating navigation is withdrawn everywhere below `lg` while a
+  // conversation is open, so the header's back control is the only way out of
+  // one on a tablet, which has no mobile view stack to pop. Mirrors the mobile
+  // stack's own semantics: dismiss the profile drawer first, then deselect.
+  const handleBackFromConversation = useCallback(() => {
+    if (isProfileOpen) {
+      handleCloseProfile();
+      return;
+    }
+    handleChatSelect(null);
+  }, [isProfileOpen, handleCloseProfile, handleChatSelect]);
+
   // Build the sidebar component
   const sidebar = (
     <Sidebar className="flex-shrink-0">
@@ -130,6 +149,8 @@ export function ChatPage() {
             onOpenProfile={handleOpenProfile}
             onSearch={handleOpenSearch}
             isTyping={isContactTyping}
+            showBackButton
+            onBack={handleBackFromConversation}
           />
           {isSearchOpen && (
             <ConversationSearch

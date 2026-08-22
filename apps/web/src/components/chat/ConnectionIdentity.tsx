@@ -113,6 +113,12 @@ interface ConnectionRouteProps {
   connection: WhatsAppConnectionIdentity;
   mode: "receiving" | "sending";
   className?: string;
+  /**
+   * Holds the raw number back until `sm`. The conversation header sets this:
+   * on a phone the account name, a 12-digit number and the online status all
+   * competed for one ~200px line and every one of them ended up ellipsised.
+   */
+  compact?: boolean;
 }
 
 /** Explicit human-readable routing context for the header and composer. */
@@ -120,6 +126,7 @@ export function ConnectionRoute({
   connection,
   mode,
   className,
+  compact = false,
 }: ConnectionRouteProps) {
   const label = getConnectionLabel(connection);
   const phone = getConnectionPhone(connection);
@@ -138,7 +145,14 @@ export function ConnectionRoute({
         {label}
       </span>
       {phone && phone !== label && (
-        <span className="truncate font-mono text-[11px]">{phone}</span>
+        <span
+          className={cn(
+            "truncate font-mono text-[11px]",
+            compact && "hidden sm:inline",
+          )}
+        >
+          {phone}
+        </span>
       )}
     </span>
   );

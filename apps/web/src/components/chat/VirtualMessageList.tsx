@@ -86,7 +86,11 @@ export function VirtualMessageList({
   return (
     <div
       ref={scrollContainerRef}
-      className="flex-1 min-h-0 overflow-y-auto px-4 py-2 relative z-10"
+      // Wider gutters would eat the bubble width a phone needs; the column
+      // still centres on tablet and desktop. Deliberately not a flex
+      // container: the virtualiser's inner box is absolutely sized and must
+      // not be shrunk by flex layout.
+      className="relative z-10 mx-auto w-full min-h-0 max-w-4xl flex-1 overflow-y-auto px-2.5 pb-3 pt-2 sm:px-6 md:px-8"
       onScroll={onScroll}
       onContextMenu={onBackgroundContextMenu}
     >
@@ -191,8 +195,8 @@ export function VirtualMessageList({
                   transform: `translateY(${virtualRow.start}px)`,
                 }}
               >
-                <div className="flex justify-center my-4">
-                  <span className="px-3 py-1 bg-white/80 dark:bg-dark-elevated/90 rounded-lg text-xs text-gray-600 dark:text-dark-text-secondary shadow-sm">
+                <div className="my-3 flex justify-center">
+                  <span className="rounded-full bg-white/85 px-3 py-1 text-[11.5px] font-medium text-[#54656f] shadow-[0_1px_0.5px_rgba(11,20,26,0.13)] backdrop-blur-sm dark:bg-[#182229]/95 dark:text-dark-text-secondary">
                     {formatDateSep(item.date, t)}
                   </span>
                 </div>
@@ -230,6 +234,7 @@ export function VirtualMessageList({
                 onSelectionToggle={onMessageClick}
                 mentionParticipants={mentionParticipants}
                 onNavigateToMessage={onNavigateToMessage}
+                groupPosition={item.groupPosition}
               />
             </div>
           );

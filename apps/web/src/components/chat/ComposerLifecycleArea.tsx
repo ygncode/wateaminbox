@@ -2,6 +2,7 @@ import { Lock, PlayCircle, RotateCcw } from "lucide-react";
 import { useState } from "react";
 import type { ReactNode } from "react";
 import type { ComposerAccessState } from "@/components/chat/composer-access";
+import { CONVERSATION_BOTTOM_INSET_CLASS } from "@/components/layout/conversation-chrome";
 import {
   useConversationState,
   useOpenConversation,
@@ -46,6 +47,29 @@ interface ComposerLifecycleAreaProps {
  * is the single place lifecycle controls live now (no duplicate controls
  * in MessageHeader).
  */
+/**
+ * Bottom edge of the conversation column.
+ *
+ * Owns the entire bottom inset, because the app shell reserves none once a
+ * conversation is open (see conversation-chrome.ts). That inset is the greater
+ * of the home indicator and the on-screen keyboard overlap - one padding
+ * declaration, never two stacked boxes: the keyboard already covers the home
+ * indicator, so paying both would lift the composer above the keyboard by the
+ * indicator's height. iOS is where this shows up, since `env(safe-area-inset-
+ * bottom)` stays non-zero there while VisualViewport reports the overlap.
+ *
+ * `shrink-0` is load-bearing: this is the one part of the column that must
+ * never give up space, because the message list above it is the box that
+ * scrolls.
+ */
+function ComposerFooter({ children }: { children: ReactNode }) {
+  return (
+    <div className={`shrink-0 ${CONVERSATION_BOTTOM_INSET_CLASS}`}>
+      {children}
+    </div>
+  );
+}
+
 export function ComposerLifecycleArea({
   contactId,
   access,
@@ -61,23 +85,27 @@ export function ComposerLifecycleArea({
 
   if (access.kind === "loading") {
     return (
-      <div className="shrink-0 border-t border-gray-100 bg-white px-4 py-3 dark:border-dark-border dark:bg-dark-elevated">
-        <div className="h-9 animate-pulse rounded-lg bg-gray-100 dark:bg-dark-tertiary" />
-      </div>
+      <ComposerFooter>
+        <div className="border-t border-gray-100 bg-white px-4 py-3 dark:border-dark-border dark:bg-dark-elevated">
+          <div className="h-9 animate-pulse rounded-lg bg-gray-100 dark:bg-dark-tertiary" />
+        </div>
+      </ComposerFooter>
     );
   }
 
   if (access.kind === "no-permission") {
     return (
-      <div className="flex shrink-0 items-center gap-2 border-t border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-600 dark:border-dark-border dark:bg-dark-tertiary/50 dark:text-dark-text-secondary">
-        <Lock className="h-4 w-4 shrink-0" aria-hidden="true" />
-        <span>
-          {t(
-            "chat.noSendPermission",
-            "You don't have permission to send messages here",
-          )}
-        </span>
-      </div>
+      <ComposerFooter>
+        <div className="flex items-center gap-2 border-t border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-600 dark:border-dark-border dark:bg-dark-tertiary/50 dark:text-dark-text-secondary">
+          <Lock className="h-4 w-4 shrink-0" aria-hidden="true" />
+          <span>
+            {t(
+              "chat.noSendPermission",
+              "You don't have permission to send messages here",
+            )}
+          </span>
+        </div>
+      </ComposerFooter>
     );
   }
 
@@ -85,7 +113,11 @@ export function ComposerLifecycleArea({
     access.kind === "assigned-other-readonly" ||
     access.kind === "assigned-other-takeover"
   ) {
-    return <AssignmentGateBar contactId={contactId} access={access} />;
+    return (
+      <ComposerFooter>
+        <AssignmentGateBar contactId={contactId} access={access} />
+      </ComposerFooter>
+    );
   }
 
   if (access.kind === "resolved") {
@@ -110,48 +142,47 @@ export function ComposerLifecycleArea({
     };
 
     return (
-      <div className="flex shrink-0 items-center justify-between gap-3 border-t border-gray-200 bg-gray-50 px-4 py-3 dark:border-dark-border dark:bg-dark-tertiary/50">
-        <span className="text-sm text-gray-600 dark:text-dark-text-secondary">
-          {t("chat.conversationResolved", "This conversation is resolved")}
-        </span>
-        <button
-          type="button"
-          onClick={() => setDialogOpen(true)}
-          disabled={isPending}
-          className="flex shrink-0 items-center gap-1.5 rounded-lg bg-whatsapp-teal-green px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-whatsapp-teal-green/90 disabled:opacity-50"
-        >
-          {isReopen ? (
-            <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
-          ) : (
-            <PlayCircle className="h-3.5 w-3.5" aria-hidden="true" />
-          )}
-          {isReopen ? "Reopen" : "Open"} to send
-        </button>
-        <OpenOrReopenConversationDialog
-          open={dialogOpen}
-          onOpenChange={setDialogOpen}
-          onConfirm={handleConfirm}
-          isSubmitting={isPending}
-          mode={mode}
-        />
-      </div>
+      <ComposerFooter>
+        <div className="flex items-center justify-between gap-3 border-t border-gray-200 bg-gray-50 px-4 py-3 dark:border-dark-border dark:bg-dark-tertiary/50">
+          <span className="text-sm text-gray-600 dark:text-dark-text-secondary">
+            {t("chat.conversationResolved", "This conversation is resolved")}
+          </span>
+          <button
+            type="button"
+            onClick={() => setDialogOpen(true)}
+            disabled={isPending}
+            className="flex shrink-0 items-center gap-1.5 rounded-lg bg-whatsapp-teal-green px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-whatsapp-teal-green/90 disabled:opacity-50"
+          >
+            {isReopen ? (
+              <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
+            ) : (
+              <PlayCircle className="h-3.5 w-3.5" aria-hidden="true" />
+            )}
+            {isReopen ? "Reopen" : "Open"} to send
+          </button>
+          <OpenOrReopenConversationDialog
+            open={dialogOpen}
+            onOpenChange={setDialogOpen}
+            onConfirm={handleConfirm}
+            isSubmitting={isPending}
+            mode={mode}
+          />
+        </div>
+      </ComposerFooter>
     );
   }
 
   // "sendable"
   return (
-    // `shrink-0`: the composer area is the one part of the conversation
-    // column that must never give up space - the message list above it is the
-    // box that scrolls.
-    <div className="shrink-0">
-      <div className="flex items-center justify-end border-t border-gray-100 bg-white px-3 py-1.5 dark:border-dark-border dark:bg-dark-elevated">
+    <ComposerFooter>
+      <div className="flex items-center justify-end border-t border-black/[0.06] bg-[#f0f2f5] px-2 py-1 dark:border-white/[0.06] dark:bg-dark-secondary sm:px-3 sm:py-1.5">
         <ConversationLifecycleActions
           contactId={contactId}
           isSending={isSending}
         />
       </div>
       {children}
-    </div>
+    </ComposerFooter>
   );
 }
 

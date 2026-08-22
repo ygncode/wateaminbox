@@ -29,6 +29,7 @@ import {
   getInboxNavigationLabel,
   getInboxUnreadCount,
 } from "./inbox-unread";
+import { resolveAppShellChrome } from "./conversation-chrome";
 import { MobileBottomNav } from "./MobileBottomNav";
 import {
   buildMobileNavLinks,
@@ -293,6 +294,9 @@ export function ProtectedAppLayout() {
     canSendBroadcasts: can("can_send_bulk_messages"),
   });
   const activeMobileNavKey = resolveActiveMobileNavKey(pathname, search);
+  // An open conversation owns the whole phone screen: the floating bar and
+  // the height it reserves both step aside there. See conversation-chrome.ts.
+  const shellChrome = resolveAppShellChrome(pathname);
   const toggleSidebar = () => {
     setSidebarCollapsed((collapsed) => {
       const next = !collapsed;
@@ -448,7 +452,10 @@ export function ProtectedAppLayout() {
           // The floating bar sits outside the flow, so the shell reserves the
           // space it occupies - otherwise the composer and the last table row
           // would sit underneath it and stay untappable.
-          className="relative min-h-0 min-w-0 flex-1 overflow-hidden pb-[calc(env(safe-area-inset-bottom)+5.5rem)] lg:pb-0"
+          className={cn(
+            "relative min-h-0 min-w-0 flex-1 overflow-hidden",
+            shellChrome.mainPaddingClass,
+          )}
           tabIndex={-1}
         >
           <Outlet />
@@ -478,6 +485,7 @@ export function ProtectedAppLayout() {
           activeKey={activeMobileNavKey}
           unreadCount={inboxUnreadCount}
           onOpenProfile={() => setProfileOpen(true)}
+          visibilityClassName={shellChrome.navClass}
         />
         <Dialog open={profileOpen} onOpenChange={setProfileOpen}>
           {/* The sheet grows with the member's permissions (up to team,

@@ -1,12 +1,12 @@
 import type { Message } from "@wateaminbox/shared";
-import { MessageCircle, SearchX, Send } from "lucide-react";
+import { ChevronDown, MessageCircle, SearchX, Send } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useGroup } from "@/hooks/useGroups";
 import {
   type TeamMemberIdentity,
   useTeamMemberIdentities,
 } from "@/hooks/useTeam";
-import { useTheme, useWorkspace } from "../../contexts";
+import { useWorkspace } from "../../contexts";
 import { useMessageSelection } from "../../hooks/chat/useMessageSelection";
 import { useMessageVirtualization } from "../../hooks/chat/useMessageVirtualization";
 import { useInfiniteMessages } from "../../hooks/useInfiniteMessages";
@@ -14,6 +14,10 @@ import { useRetryMessage } from "../../hooks/useMessages";
 import { useRemoteHistory } from "../../hooks/useRemoteHistory";
 import { BrandMark } from "../brand/BrandMark";
 import { ChatContextMenu } from "./ChatContextMenu";
+import {
+  CONVERSATION_CANVAS_CLASS,
+  ConversationCanvasPattern,
+} from "./ConversationCanvas";
 import { MessageSelectionToolbar } from "./MessageSelectionToolbar";
 import {
   type MessageNavigationTarget,
@@ -68,7 +72,6 @@ export function MessageThread({
   const { t } = useTranslation();
 
   const retryMessage = useRetryMessage();
-  const { resolvedTheme } = useTheme();
   const { activeWorkspaceId } = useWorkspace();
   const { data: teammateIdentities = [] } =
     useTeamMemberIdentities(activeWorkspaceId);
@@ -331,21 +334,13 @@ export function MessageThread({
     );
   }
 
-  // Keep empty and populated conversations on the same message surface.
-  const patternColor = resolvedTheme === "dark" ? "%231a2730" : "%23000000";
-  const patternOpacity = resolvedTheme === "dark" ? "0.4" : "1";
-
   // Empty messages state
   if (messages.length === 0) {
     return (
-      <div className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden bg-[#e5ddd5] dark:bg-dark-primary">
-        <div
-          className="absolute inset-0 opacity-5 dark:opacity-100"
-          style={{
-            backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='${patternColor}' fill-opacity='${patternOpacity}'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
-          }}
-          aria-hidden="true"
-        />
+      <div
+        className={`relative flex min-h-0 flex-1 items-center justify-center overflow-hidden ${CONVERSATION_CANVAS_CLASS}`}
+      >
+        <ConversationCanvasPattern />
 
         <div className="relative flex max-w-sm flex-col items-center px-6 text-center">
           <div className="relative mb-5">
@@ -376,7 +371,9 @@ export function MessageThread({
   }
 
   return (
-    <div className="flex-1 relative flex flex-col min-h-0 bg-[#e5ddd5] dark:bg-dark-primary">
+    <div
+      className={`relative flex min-h-0 flex-1 flex-col ${CONVERSATION_CANVAS_CLASS}`}
+    >
       {/* Selection mode header */}
       <MessageSelectionToolbar
         selectionMode={selectionMode}
@@ -384,13 +381,7 @@ export function MessageThread({
         onExit={exitSelectionMode}
       />
 
-      {/* WhatsApp-style background pattern */}
-      <div
-        className="absolute inset-0 opacity-5 dark:opacity-100"
-        style={{
-          backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='${patternColor}' fill-opacity='${patternOpacity}'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
-        }}
-      />
+      <ConversationCanvasPattern />
 
       {/* Virtualized message list */}
       <VirtualMessageList
@@ -471,23 +462,16 @@ export function MessageThread({
       {/* Scroll to bottom button */}
       {!isAtBottom && (
         <button
+          type="button"
           onClick={scrollToBottom}
-          className="absolute bottom-4 right-4 z-20 bg-white dark:bg-dark-elevated rounded-full p-2 shadow-lg hover:bg-gray-50 dark:hover:bg-dark-tertiary transition-colors"
+          className="absolute bottom-3 right-3 z-20 grid size-10 touch-manipulation place-items-center rounded-full bg-white text-[#54656f] shadow-[0_2px_8px_rgba(11,20,26,0.22)] transition-colors hover:bg-[#f5f6f6] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00a884] dark:bg-dark-elevated dark:text-dark-text-secondary dark:hover:bg-dark-tertiary"
           aria-label={t("chat.scrollToBottom", "Scroll to bottom")}
         >
-          <svg
-            className="h-6 w-6 text-gray-600 dark:text-dark-text-secondary"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M19 14l-7 7m0 0l-7-7m7 7V3"
-            />
-          </svg>
+          <ChevronDown
+            className="size-5.5"
+            strokeWidth={2}
+            aria-hidden="true"
+          />
         </button>
       )}
 

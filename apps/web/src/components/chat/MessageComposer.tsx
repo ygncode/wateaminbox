@@ -536,7 +536,9 @@ export function MessageComposer({
 
   return (
     <>
-      <footer className="border-t border-[#d7dfe2] bg-[#f0f2f5] dark:border-dark-border dark:bg-dark-secondary">
+      {/* No top border: the lifecycle bar directly above already draws one
+          and shares this surface, so a second rule read as a seam. */}
+      <footer className="bg-[#f0f2f5] dark:bg-dark-secondary">
         {/* Disconnected banner */}
         {isDisconnected && (
           <div className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-center text-sm text-amber-900 dark:border-amber-800/30 dark:bg-amber-900/20 dark:text-amber-200">
@@ -611,217 +613,229 @@ export function MessageComposer({
           </div>
         )}
 
-        {/* Input area */}
-        <div className="flex items-end gap-1 px-2 py-2 sm:gap-1.5 sm:px-3">
-          {/* Emoji button - hidden on small mobile */}
-          <div className="relative hidden sm:block" ref={emojiPickerRef}>
-            <button
-              type="button"
-              onClick={() => {
-                setShowEmojiPicker(!showEmojiPicker);
-                setShowAttachmentMenu(false);
-              }}
-              className="grid size-10 shrink-0 touch-manipulation place-items-center rounded-full text-[#54656f] transition-colors hover:bg-black/[0.055] active:bg-black/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00a884]/40 dark:text-dark-text-secondary dark:hover:bg-white/[0.06] dark:active:bg-white/10"
-              aria-label={t("chat.insertEmoji", "Insert emoji")}
-              aria-expanded={showEmojiPicker}
-            >
-              <Smile className="size-6" strokeWidth={1.8} aria-hidden="true" />
-            </button>
-
-            {/* Emoji Picker - lazy loaded */}
-            {showEmojiPicker && (
-              <Suspense fallback={<EmojiPickerSkeleton />}>
-                <EmojiInputPicker
-                  onSelectEmoji={insertEmoji}
-                  onClose={() => setShowEmojiPicker(false)}
-                />
-              </Suspense>
-            )}
-          </div>
-
-          {/* Attachment button */}
-          <div className="relative" ref={attachmentMenuRef}>
-            <button
-              type="button"
-              disabled={isInputDisabled}
-              className={`grid size-10 shrink-0 touch-manipulation place-items-center rounded-full transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00a884]/40 ${
-                isInputDisabled
-                  ? "cursor-not-allowed text-[#aebac1] dark:text-dark-text-tertiary"
-                  : showAttachmentMenu
-                    ? "rotate-45 bg-black/[0.07] text-[#008069] dark:bg-white/[0.08] dark:text-emerald-300"
-                    : "text-[#54656f] hover:bg-black/[0.055] active:bg-black/10 dark:text-dark-text-secondary dark:hover:bg-white/[0.06] dark:active:bg-white/10"
-              }`}
-              onClick={() => {
-                setShowAttachmentMenu(!showAttachmentMenu);
-                setShowEmojiPicker(false);
-              }}
-              aria-label={t("chat.attachFile", "Attach file")}
-              aria-expanded={showAttachmentMenu}
-              aria-controls="message-attachment-menu"
-            >
-              <Paperclip
-                className="size-6"
-                strokeWidth={1.8}
-                aria-hidden="true"
-              />
-            </button>
-
-            {/* Attachment menu */}
-            {showAttachmentMenu && (
-              <div
-                id="message-attachment-menu"
-                className="absolute bottom-full left-0 z-30 mb-3 w-52 origin-bottom-left animate-in rounded-2xl border border-black/[0.07] bg-white p-2 shadow-[0_12px_36px_rgba(11,20,26,0.18)] fade-in-0 zoom-in-95 duration-150 dark:border-white/[0.08] dark:bg-dark-elevated dark:shadow-black/40"
-              >
-                <button
-                  type="button"
-                  className="flex w-full items-center gap-3 rounded-xl px-2.5 py-2 text-left text-sm font-medium text-[#3b4a54] transition-colors hover:bg-[#f0f2f5] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00a884]/35 dark:text-dark-text-primary dark:hover:bg-white/[0.06]"
-                  onClick={() => triggerFileInput("image")}
-                >
-                  <span className="grid size-9 shrink-0 place-items-center rounded-full bg-[#bf59cf] text-white">
-                    <ImageIcon className="size-4.5" aria-hidden="true" />
-                  </span>
-                  <span>{t("chat.photosAndVideos", "Photos & Videos")}</span>
-                </button>
-                <button
-                  type="button"
-                  className="mt-0.5 flex w-full items-center gap-3 rounded-xl px-2.5 py-2 text-left text-sm font-medium text-[#3b4a54] transition-colors hover:bg-[#f0f2f5] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00a884]/35 dark:text-dark-text-primary dark:hover:bg-white/[0.06]"
-                  onClick={() => triggerFileInput("document")}
-                >
-                  <span className="grid size-9 shrink-0 place-items-center rounded-full bg-[#5157ae] text-white">
-                    <FileText className="size-4.5" aria-hidden="true" />
-                  </span>
-                  <span>{t("chat.mediaTypes.document", "Document")}</span>
-                </button>
-              </div>
-            )}
-
-            {/* Hidden file inputs */}
-            <input
-              ref={imageInputRef}
-              type="file"
-              accept="image/*,video/*"
-              disabled={isInputDisabled}
-              className="hidden"
-              onChange={(e) => handleFileSelect(e, "image")}
-            />
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".pdf,.doc,.docx,.xls,.xlsx,.txt,.zip,.rar"
-              disabled={isInputDisabled}
-              className="hidden"
-              onChange={(e) => handleFileSelect(e, "document")}
-            />
-          </div>
-
-          {/* Text input */}
-          <div className="relative min-w-0 flex-1">
-            {shouldShowQuickReplyPicker && activeQuickReplyToken && (
-              <QuickReplyPicker
-                quickReplies={quickReplySuggestions}
-                query={activeQuickReplyToken.query}
-                selectedIndex={selectedQuickReplyIndex}
-                isLoading={isLoadingQuickReplies}
-                hasError={quickReplyError !== null}
-                onSelect={handleQuickReplySelect}
-                onHighlight={setSelectedQuickReplyIndex}
-              />
-            )}
-            <div
-              className={`overflow-hidden rounded-[1.35rem] ring-1 transition-shadow ${
-                isInputDisabled
-                  ? "bg-black/[0.035] opacity-60 ring-black/[0.05] dark:bg-white/[0.045] dark:ring-white/[0.05]"
-                  : shouldShowQuickReplyPicker
-                    ? "bg-white shadow-[0_1px_1px_rgba(11,20,26,0.08)] ring-[#00a884]/50 dark:bg-dark-tertiary dark:ring-emerald-400/40"
-                    : "bg-white shadow-[0_1px_1px_rgba(11,20,26,0.08)] ring-black/[0.055] focus-within:ring-[#00a884]/35 dark:bg-dark-tertiary dark:ring-white/[0.06]"
-              }`}
-            >
-              <textarea
-                ref={textareaRef}
-                value={message}
-                onChange={handleInputChange}
-                onKeyDown={handleKeyDown}
-                onClick={(event) => {
-                  setCaretPosition(event.currentTarget.selectionStart);
-                  setIsQuickReplyPickerDismissed(false);
+        {/* Input area. One rounded field carries the emoji, attachment and
+            schedule affordances, with send as a separate round button - on a
+            phone that keeps every control inside one thumb arc instead of
+            spreading five 40px targets across the full width. */}
+        <div className="flex items-end gap-1.5 px-2 pb-2 pt-1.5 sm:px-3">
+          <div
+            className={`flex min-w-0 flex-1 items-end gap-0.5 rounded-[1.5rem] px-1 ring-1 transition-shadow ${
+              isInputDisabled
+                ? "bg-black/[0.035] opacity-60 ring-black/[0.05] dark:bg-white/[0.045] dark:ring-white/[0.05]"
+                : shouldShowQuickReplyPicker
+                  ? "bg-white shadow-[0_1px_1px_rgba(11,20,26,0.08)] ring-[#00a884]/50 dark:bg-dark-tertiary dark:ring-emerald-400/40"
+                  : "bg-white shadow-[0_1px_1px_rgba(11,20,26,0.08)] ring-black/[0.055] focus-within:ring-[#00a884]/35 dark:bg-dark-tertiary dark:ring-white/[0.06]"
+            }`}
+          >
+            {/* Emoji button */}
+            <div className="relative" ref={emojiPickerRef}>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowEmojiPicker(!showEmojiPicker);
+                  setShowAttachmentMenu(false);
                 }}
-                onSelect={(event) =>
-                  setCaretPosition(event.currentTarget.selectionStart)
-                }
-                placeholder={
-                  isDisconnected
-                    ? "Disconnected…"
-                    : t(
-                        "chat.typeAMessage",
-                        t("chat.typeAMessage", "Type a message"),
-                      )
-                }
+                className="grid size-9 shrink-0 touch-manipulation place-items-center rounded-full text-[#54656f] transition-colors hover:bg-black/[0.055] active:bg-black/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00a884]/40 dark:text-dark-text-secondary dark:hover:bg-white/[0.06] dark:active:bg-white/10"
+                aria-label={t("chat.insertEmoji", "Insert emoji")}
+                aria-expanded={showEmojiPicker}
+              >
+                <Smile
+                  className="size-5.5"
+                  strokeWidth={1.8}
+                  aria-hidden="true"
+                />
+              </button>
+
+              {/* Emoji Picker - lazy loaded */}
+              {showEmojiPicker && (
+                <Suspense fallback={<EmojiPickerSkeleton />}>
+                  <EmojiInputPicker
+                    onSelectEmoji={insertEmoji}
+                    onClose={() => setShowEmojiPicker(false)}
+                  />
+                </Suspense>
+              )}
+            </div>
+
+            {/* Attachment button */}
+            <div className="relative" ref={attachmentMenuRef}>
+              <button
+                type="button"
                 disabled={isInputDisabled}
-                rows={1}
-                aria-label={t("chat.messageInput", "Message input")}
-                aria-autocomplete="list"
-                aria-controls={
-                  shouldShowQuickReplyPicker ? "quick-reply-picker" : undefined
-                }
-                aria-expanded={shouldShowQuickReplyPicker}
-                aria-activedescendant={
-                  shouldShowQuickReplyPicker &&
-                  quickReplySuggestions[selectedQuickReplyIndex]
-                    ? `quick-reply-option-${quickReplySuggestions[selectedQuickReplyIndex].id}`
-                    : undefined
-                }
-                className={`block max-h-[150px] w-full resize-none bg-transparent px-4 py-2.5 text-[15px] leading-5 text-[#111b21] outline-none placeholder:text-[#667781] dark:text-dark-text-primary dark:placeholder:text-dark-text-tertiary ${
-                  isInputDisabled ? "cursor-not-allowed" : ""
+                className={`grid size-9 shrink-0 touch-manipulation place-items-center rounded-full transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00a884]/40 ${
+                  isInputDisabled
+                    ? "cursor-not-allowed text-[#aebac1] dark:text-dark-text-tertiary"
+                    : showAttachmentMenu
+                      ? "rotate-45 bg-black/[0.07] text-[#008069] dark:bg-white/[0.08] dark:text-emerald-300"
+                      : "text-[#54656f] hover:bg-black/[0.055] active:bg-black/10 dark:text-dark-text-secondary dark:hover:bg-white/[0.06] dark:active:bg-white/10"
                 }`}
-                style={{ minHeight: "40px" }}
+                onClick={() => {
+                  setShowAttachmentMenu(!showAttachmentMenu);
+                  setShowEmojiPicker(false);
+                }}
+                aria-label={t("chat.attachFile", "Attach file")}
+                aria-expanded={showAttachmentMenu}
+                aria-controls="message-attachment-menu"
+              >
+                <Paperclip
+                  className="size-5.5"
+                  strokeWidth={1.8}
+                  aria-hidden="true"
+                />
+              </button>
+
+              {/* Attachment menu */}
+              {showAttachmentMenu && (
+                <div
+                  id="message-attachment-menu"
+                  className="absolute bottom-full left-0 z-30 mb-3 w-52 origin-bottom-left animate-in rounded-2xl border border-black/[0.07] bg-white p-2 shadow-[0_12px_36px_rgba(11,20,26,0.18)] fade-in-0 zoom-in-95 duration-150 dark:border-white/[0.08] dark:bg-dark-elevated dark:shadow-black/40"
+                >
+                  <button
+                    type="button"
+                    className="flex w-full items-center gap-3 rounded-xl px-2.5 py-2 text-left text-sm font-medium text-[#3b4a54] transition-colors hover:bg-[#f0f2f5] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00a884]/35 dark:text-dark-text-primary dark:hover:bg-white/[0.06]"
+                    onClick={() => triggerFileInput("image")}
+                  >
+                    <span className="grid size-9 shrink-0 place-items-center rounded-full bg-[#bf59cf] text-white">
+                      <ImageIcon className="size-4.5" aria-hidden="true" />
+                    </span>
+                    <span>{t("chat.photosAndVideos", "Photos & Videos")}</span>
+                  </button>
+                  <button
+                    type="button"
+                    className="mt-0.5 flex w-full items-center gap-3 rounded-xl px-2.5 py-2 text-left text-sm font-medium text-[#3b4a54] transition-colors hover:bg-[#f0f2f5] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00a884]/35 dark:text-dark-text-primary dark:hover:bg-white/[0.06]"
+                    onClick={() => triggerFileInput("document")}
+                  >
+                    <span className="grid size-9 shrink-0 place-items-center rounded-full bg-[#5157ae] text-white">
+                      <FileText className="size-4.5" aria-hidden="true" />
+                    </span>
+                    <span>{t("chat.mediaTypes.document", "Document")}</span>
+                  </button>
+                </div>
+              )}
+
+              {/* Hidden file inputs */}
+              <input
+                ref={imageInputRef}
+                type="file"
+                accept="image/*,video/*"
+                disabled={isInputDisabled}
+                className="hidden"
+                onChange={(e) => handleFileSelect(e, "image")}
               />
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".pdf,.doc,.docx,.xls,.xlsx,.txt,.zip,.rar"
+                disabled={isInputDisabled}
+                className="hidden"
+                onChange={(e) => handleFileSelect(e, "document")}
+              />
+            </div>
+
+            {/* Text input */}
+            <div className="relative min-w-0 flex-1">
+              {shouldShowQuickReplyPicker && activeQuickReplyToken && (
+                <QuickReplyPicker
+                  quickReplies={quickReplySuggestions}
+                  query={activeQuickReplyToken.query}
+                  selectedIndex={selectedQuickReplyIndex}
+                  isLoading={isLoadingQuickReplies}
+                  hasError={quickReplyError !== null}
+                  onSelect={handleQuickReplySelect}
+                  onHighlight={setSelectedQuickReplyIndex}
+                />
+              )}
+              <div>
+                <textarea
+                  ref={textareaRef}
+                  value={message}
+                  onChange={handleInputChange}
+                  onKeyDown={handleKeyDown}
+                  onClick={(event) => {
+                    setCaretPosition(event.currentTarget.selectionStart);
+                    setIsQuickReplyPickerDismissed(false);
+                  }}
+                  onSelect={(event) =>
+                    setCaretPosition(event.currentTarget.selectionStart)
+                  }
+                  placeholder={
+                    isDisconnected
+                      ? "Disconnected…"
+                      : t(
+                          "chat.typeAMessage",
+                          t("chat.typeAMessage", "Type a message"),
+                        )
+                  }
+                  disabled={isInputDisabled}
+                  rows={1}
+                  aria-label={t("chat.messageInput", "Message input")}
+                  aria-autocomplete="list"
+                  aria-controls={
+                    shouldShowQuickReplyPicker
+                      ? "quick-reply-picker"
+                      : undefined
+                  }
+                  aria-expanded={shouldShowQuickReplyPicker}
+                  aria-activedescendant={
+                    shouldShowQuickReplyPicker &&
+                    quickReplySuggestions[selectedQuickReplyIndex]
+                      ? `quick-reply-option-${quickReplySuggestions[selectedQuickReplyIndex].id}`
+                      : undefined
+                  }
+                  className={`block max-h-[150px] w-full resize-none bg-transparent px-2 py-2 text-[15px] leading-5 text-[#111b21] outline-none placeholder:text-[#667781] dark:text-dark-text-primary dark:placeholder:text-dark-text-tertiary ${
+                    isInputDisabled ? "cursor-not-allowed" : ""
+                  }`}
+                  style={{ minHeight: "36px" }}
+                />
+              </div>
+            </div>
+
+            {/* Schedule button */}
+            <div className="relative" ref={schedulePopoverRef}>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowSchedulePopover(!showSchedulePopover);
+                  setShowAttachmentMenu(false);
+                  setShowEmojiPicker(false);
+                }}
+                disabled={!message.trim() || isInputDisabled || !contactId}
+                className={`grid size-9 shrink-0 touch-manipulation place-items-center rounded-full transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00a884]/40 ${
+                  message.trim() && !isInputDisabled && contactId
+                    ? showSchedulePopover
+                      ? "bg-black/[0.07] text-[#008069] dark:bg-white/[0.08] dark:text-emerald-300"
+                      : "text-[#54656f] hover:bg-black/[0.055] active:bg-black/10 dark:text-dark-text-secondary dark:hover:bg-white/[0.06] dark:active:bg-white/10"
+                    : "cursor-not-allowed text-[#aebac1] dark:text-dark-text-tertiary"
+                }`}
+                aria-label={t("chat.scheduleMessage", "Schedule message")}
+                aria-expanded={showSchedulePopover}
+              >
+                <CalendarClock
+                  className="size-5.5"
+                  strokeWidth={1.9}
+                  aria-hidden="true"
+                />
+              </button>
+
+              {showSchedulePopover && (
+                <ScheduleMessagePopover
+                  onSchedule={handleSchedule}
+                  isSubmitting={scheduleMessageMutation.isPending}
+                />
+              )}
             </div>
           </div>
 
-          {/* Schedule button */}
-          <div className="relative" ref={schedulePopoverRef}>
-            <button
-              type="button"
-              onClick={() => {
-                setShowSchedulePopover(!showSchedulePopover);
-                setShowAttachmentMenu(false);
-                setShowEmojiPicker(false);
-              }}
-              disabled={!message.trim() || isInputDisabled || !contactId}
-              className={`grid size-10 shrink-0 touch-manipulation place-items-center rounded-full transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00a884]/40 ${
-                message.trim() && !isInputDisabled && contactId
-                  ? showSchedulePopover
-                    ? "bg-black/[0.07] text-[#008069] dark:bg-white/[0.08] dark:text-emerald-300"
-                    : "text-[#54656f] hover:bg-black/[0.055] active:bg-black/10 dark:text-dark-text-secondary dark:hover:bg-white/[0.06] dark:active:bg-white/10"
-                  : "cursor-not-allowed text-[#aebac1] dark:text-dark-text-tertiary"
-              }`}
-              aria-label={t("chat.scheduleMessage", "Schedule message")}
-              aria-expanded={showSchedulePopover}
-            >
-              <CalendarClock
-                className="size-5.5"
-                strokeWidth={1.9}
-                aria-hidden="true"
-              />
-            </button>
-
-            {showSchedulePopover && (
-              <ScheduleMessagePopover
-                onSchedule={handleSchedule}
-                isSubmitting={scheduleMessageMutation.isPending}
-              />
-            )}
-          </div>
-
-          {/* Send button */}
+          {/* Send: a standing 44px target outside the field, so it never
+              moves as the textarea grows and stays reachable by thumb. */}
           <button
             type="button"
             onClick={handleSend}
             disabled={!message.trim() || isInputDisabled}
-            className={`grid size-10 shrink-0 touch-manipulation place-items-center rounded-full transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00a884]/45 focus-visible:ring-offset-2 focus-visible:ring-offset-[#f0f2f5] dark:focus-visible:ring-offset-dark-secondary ${
+            className={`grid size-11 shrink-0 touch-manipulation place-items-center rounded-full transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00a884]/45 focus-visible:ring-offset-2 focus-visible:ring-offset-[#f0f2f5] dark:focus-visible:ring-offset-dark-secondary ${
               message.trim() && !isInputDisabled
                 ? "bg-[#00a884] text-white shadow-sm shadow-[#00a884]/25 hover:bg-[#008f72] active:scale-95"
-                : "cursor-not-allowed bg-transparent text-[#aebac1] dark:text-dark-text-tertiary"
+                : "cursor-not-allowed bg-black/[0.05] text-[#aebac1] dark:bg-white/[0.06] dark:text-dark-text-tertiary"
             }`}
             aria-label={t("chat.sendMessage", "Send Message")}
           >
