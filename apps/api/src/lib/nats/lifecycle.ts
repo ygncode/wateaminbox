@@ -47,6 +47,43 @@ const jc = JSONCodec<unknown>();
 
 export type ConnectFn = (opts?: ConnectionOptions) => Promise<NatsConnection>;
 
+export function parseNatsServerAuth(input: string): {
+  servers: string[];
+  user?: string;
+  pass?: string;
+} {
+  let user: string | undefined;
+  let pass: string | undefined;
+  let authenticated: boolean | undefined;
+  const servers = input.split(",").map((value) => {
+    const parsed = new URL(value.trim());
+    const parsedUser = decodeURIComponent(parsed.username);
+    const parsedPass = decodeURIComponent(parsed.password);
+    if (parsedUser || parsedPass) {
+      if (authenticated === false) {
+        throw new Error("NATS_URL servers must use consistent authentication");
+      }
+      authenticated = true;
+      if (!parsedUser || !parsedPass) {
+        throw new Error("NATS_URL credentials require both username and password");
+      }
+      if (user !== undefined && (user !== parsedUser || pass !== parsedPass)) {
+        throw new Error("NATS_URL servers must use the same credentials");
+      }
+      user = parsedUser;
+      pass = parsedPass;
+    } else {
+      if (authenticated === true) {
+        throw new Error("NATS_URL servers must use consistent authentication");
+      }
+      authenticated = false;
+    }
+    // nats.js accepts credentials as options, not in its server URL parser.
+    return `${parsed.protocol}//${parsed.host}`;
+  });
+  return { servers, user, pass };
+}
+
 export class NatsLifecycleManager {
   private connection: NatsConnection | null = null;
   private jsClient: JetStreamClient | null = null;
@@ -100,9 +137,12 @@ export class NatsLifecycleManager {
 
     let nc: NatsConnection;
     try {
+      const auth = parseNatsServerAuth(env.NATS_URL);
       nc = await this.connectFn({
-        servers: env.NATS_URL,
-        token: env.NATS_TOKEN || undefined,
+        servers: auth.servers,
+        user: auth.user,
+        pass: auth.pass,
+        token: auth.user ? undefined : env.NATS_TOKEN || undefined,
         name: "whatsapp-api",
         reconnect: true,
         maxReconnectAttempts: -1,

@@ -12,7 +12,9 @@ cleanup() {
 }
 trap cleanup EXIT
 
-admin_password='AdminProvisionTest_0123456789abcdef'
+# The existing service credential may be standard base64. It is passed only via
+# PGPASSWORD, so unlike the worker URL credential it need not be URL-safe.
+admin_password='AdminProvisionTest+/=0123456789abcdef'
 worker_password='WorkerProvisionTest_0123456789abcdef'
 printf '%s' "$admin_password" >"$tmp/admin"
 printf '%s' "$worker_password" >"$tmp/worker"
@@ -111,7 +113,7 @@ expect_rejected_without_touch() {
   assert_worker_role_absent
 }
 
-printf '%s' 'malformed administrator credential!' >"$tmp/admin"
+printf '%s' 'short-admin' >"$tmp/admin"
 printf '%s' "$worker_password" >"$tmp/worker"
 expect_rejected_without_touch 'a malformed administrator'
 
