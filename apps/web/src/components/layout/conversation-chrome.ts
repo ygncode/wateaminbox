@@ -3,13 +3,18 @@ import { getWorkspaceDestination } from "@/lib/workspace-routes";
 /**
  * Shell chrome rules for the conversation detail view.
  *
- * An open conversation owns the whole touch layout. The message list, the
- * lifecycle bar and the composer fill everything below the workspace bar, and
- * the floating bottom navigation is the one piece of global chrome that has
- * nothing to do with the conversation - it costs 5.5rem of reserved height
- * plus a pill hovering over the composer. So below `lg` it is withdrawn
- * entirely, phone and tablet alike, and the reserved height goes with it;
- * leaving the padding behind would open a dead band under the composer.
+ * An open conversation owns the whole touch layout. Both pieces of global
+ * chrome step aside below `lg`:
+ *
+ * - the floating bottom navigation, which costs 5.5rem of reserved height plus
+ *   a pill hovering over the composer. The reserved height goes with it;
+ *   leaving the padding behind would open a dead band under the composer.
+ * - the workspace header, whose switcher, notifications and theme controls all
+ *   address the workspace rather than the conversation. It cost a second
+ *   stacked bar above a header that already names the contact, on the layout
+ *   with the least vertical room.
+ *
+ * Both return the moment the member goes back to the list.
  *
  * Desktop is untouched: at `lg` the fixed navigation rail has always owned
  * navigation and the floating bar has always been hidden, so these rules
@@ -44,6 +49,12 @@ export const MOBILE_NAV_DEFAULT_CLASS = "flex lg:hidden";
 /** Bar withdrawn on every touch layout; `lg` never rendered it anyway. */
 export const MOBILE_NAV_CONVERSATION_CLASS = "hidden";
 
+/** Workspace header: touch layouts only, since `lg` has the rail instead. */
+export const WORKSPACE_HEADER_DEFAULT_CLASS = "flex lg:hidden";
+
+/** Workspace header withdrawn; `lg` never rendered it anyway. */
+export const WORKSPACE_HEADER_CONVERSATION_CLASS = "hidden";
+
 /** Shell reserves the bar's height wherever the bar is rendered. */
 export const SHELL_MAIN_NAV_RESERVE_CLASS =
   "pb-[calc(env(safe-area-inset-bottom)+5.5rem)] lg:pb-0";
@@ -67,11 +78,28 @@ export const SHELL_MAIN_CONVERSATION_CLASS = "pb-0";
  */
 export const CONVERSATION_BOTTOM_INSET_CLASS = "conversation-bottom-inset";
 
+/**
+ * Top inset for the conversation header, mirroring the bottom one.
+ *
+ * With the workspace header withdrawn there is nothing above the conversation
+ * header on any layout that renders it, so it becomes the element that clears
+ * the notch. The declaration lives in `index.css` as
+ * `.conversation-header-inset` because the inset has to be *added* to the bar
+ * height rather than eaten out of it: `box-sizing: border-box` is global and
+ * the viewport opts into `viewport-fit=cover`, so pairing `h-14` with a
+ * `padding-top` would leave roughly 9px of usable header on a notched phone.
+ * Expressing height and padding together in one rule is what keeps those two
+ * from drifting apart.
+ */
+export const CONVERSATION_HEADER_INSET_CLASS = "conversation-header-inset";
+
 export interface AppShellChrome {
   /** True when the URL addresses one conversation rather than the list. */
   isConversationDetail: boolean;
   /** Visibility classes for the floating bottom navigation container. */
   navClass: string;
+  /** Visibility classes for the mobile/tablet workspace header. */
+  workspaceHeaderClass: string;
   /** Bottom padding the shell reserves for that navigation. */
   mainPaddingClass: string;
 }
@@ -94,6 +122,9 @@ export function resolveAppShellChrome(pathname: string): AppShellChrome {
     navClass: isConversationDetail
       ? MOBILE_NAV_CONVERSATION_CLASS
       : MOBILE_NAV_DEFAULT_CLASS,
+    workspaceHeaderClass: isConversationDetail
+      ? WORKSPACE_HEADER_CONVERSATION_CLASS
+      : WORKSPACE_HEADER_DEFAULT_CLASS,
     mainPaddingClass: isConversationDetail
       ? SHELL_MAIN_CONVERSATION_CLASS
       : SHELL_MAIN_NAV_RESERVE_CLASS,

@@ -439,8 +439,17 @@ export function ProtectedAppLayout() {
         {/* The notch inset is added on top of the 3.5rem row, not eaten out
             of it: `box-sizing: border-box` is global and the viewport opts
             into `viewport-fit=cover`, so a plain `h-14` would leave roughly
-            9px of usable height on a notched phone. */}
-        <header className="safe-area-top flex h-[calc(3.5rem+env(safe-area-inset-top))] shrink-0 items-center justify-between border-b border-[#dce3de] bg-[#102c24] px-2 lg:hidden">
+            9px of usable height on a notched phone.
+
+            Withdrawn entirely on a conversation detail route, where the
+            conversation's own header takes over the top of the screen and
+            inherits the notch inset - see conversation-chrome.ts. */}
+        <header
+          className={cn(
+            "safe-area-top h-[calc(3.5rem+env(safe-area-inset-top))] shrink-0 items-center justify-between border-b border-[#dce3de] bg-[#102c24] px-2",
+            shellChrome.workspaceHeaderClass,
+          )}
+        >
           <WorkspaceSwitcher compact />
           <div className="flex items-center text-[#b8c9c2]">
             <NotificationCenter className="text-[#b8c9c2] hover:bg-white/10 hover:text-white dark:hover:bg-white/10" />
