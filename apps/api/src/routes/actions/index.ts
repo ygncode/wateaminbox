@@ -22,6 +22,7 @@ import { tenantFromHeader } from "../../middleware/tenant.js";
 import { NoActiveCaseError } from "../../lib/errors.js";
 import {
   ContactAssignedToOtherError,
+  ContactBlockedError,
   requireSendAccess,
 } from "../../services/send-access.service.js";
 import { getActiveSessionId } from "../../services/whatsapp/session.js";
@@ -107,7 +108,10 @@ actionsRoutes.post(
           if (error instanceof ContactAssignedToOtherError) {
             throw new HTTPException(403, { message: error.message });
           }
-          if (error instanceof NoActiveCaseError) {
+          if (
+            error instanceof NoActiveCaseError ||
+            error instanceof ContactBlockedError
+          ) {
             throw new HTTPException(409, { message: error.message });
           }
           throw error;

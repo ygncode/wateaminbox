@@ -362,7 +362,15 @@
     "unreadMessages_other": "{{count}} 条未读消息",
     "participantCount_other": "{{count}} 位成员",
     "group": "群组",
-    "typingShort": "正在输入"
+    "typingShort": "正在输入",
+    "contactBlocked": "该联系人已被拉黑",
+    "contactBlockedHint": "解除拉黑后才能发送消息。",
+    "unblockContact": "解除拉黑",
+    "unblocking": "正在解除拉黑…",
+    "unblockSuccess": "已解除拉黑",
+    "unblockSuccessNamed": "已解除对 {{name}} 的拉黑",
+    "unblockError": "无法解除该联系人的拉黑",
+    "blockedSendAttempt": "该联系人已被拉黑，请先解除拉黑再发送消息"
   },
   "settings": {
     "title": "设置",

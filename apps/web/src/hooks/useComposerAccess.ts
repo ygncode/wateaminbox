@@ -31,6 +31,7 @@ export function useComposerAccess(contactId: string | null): {
   const access = resolveComposerAccess({
     isLoading,
     lifecycleStatus: lifecycleState?.status ?? null,
+    isBlocked: contact?.isBlocked ?? false,
     assignedTo: contact?.assignment?.assignedTo ?? null,
     assignedToName: contact?.assignment?.assignedToName ?? null,
     currentUserId: user?.id ?? "",

@@ -366,7 +366,15 @@
     "participantCount_one": "{{count}} participant",
     "participantCount_other": "{{count}} participants",
     "group": "Group",
-    "typingShort": "typing"
+    "typingShort": "typing",
+    "contactBlocked": "This contact is blocked",
+    "contactBlockedHint": "You can't send messages until you unblock them.",
+    "unblockContact": "Unblock contact",
+    "unblocking": "Unblocking...",
+    "unblockSuccess": "Contact unblocked",
+    "unblockSuccessNamed": "{{name}} is unblocked",
+    "unblockError": "Could not unblock this contact",
+    "blockedSendAttempt": "This contact is blocked - unblock them to send messages"
   },
   "settings": {
     "title": "Settings",

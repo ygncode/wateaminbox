@@ -42,6 +42,7 @@ import { enqueueCommand } from "./command-outbox.service.js";
 import { resolveActiveCaseIdForContact } from "./conversation-case.service.js";
 import {
   ContactAssignedToOtherError,
+  ContactBlockedError,
   requireSendAccess,
 } from "./send-access.service.js";
 import { getTenantConnection, type TenantDatabase } from "./tenant.service.js";
@@ -336,10 +337,13 @@ async function sendScheduledMessage(
       } catch (error) {
         if (
           error instanceof ContactAssignedToOtherError ||
-          error instanceof NoActiveCaseError
+          error instanceof NoActiveCaseError ||
+          error instanceof ContactBlockedError
         ) {
-          // Neither condition resolves itself on retry - the assignee (or
-          // lack of an active case) won't revert on its own.
+          // None of these conditions resolve themselves on retry - the
+          // assignee, the missing active case, and the block all need an
+          // explicit human action (takeover, reopen, unblock) that a
+          // dispatch retry can't perform.
           throw new PermanentDispatchError(error.message);
         }
         throw error;

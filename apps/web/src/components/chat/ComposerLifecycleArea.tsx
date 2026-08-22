@@ -9,6 +9,7 @@ import {
   useReopenConversation,
 } from "@/hooks/useConversationLifecycle";
 import { AssignmentGateBar } from "./AssignmentGateBar";
+import { BlockedContactBar } from "./BlockedContactBar";
 import { ConversationLifecycleActions } from "./ConversationLifecycleActions";
 import { resolveOpenOrReopenMode } from "./open-reopen-dialog-state";
 import { OpenOrReopenConversationDialog } from "./ReopenConversationDialog";
@@ -32,6 +33,8 @@ interface ComposerLifecycleAreaProps {
    * rejections in production.
    */
   isSending?: boolean;
+  /** Display name of the contact, used by the blocked notice's toast copy. */
+  contactName?: string;
   /** The actual MessageComposer element - only rendered in the "sendable" state; every other state replaces it entirely. */
   children: ReactNode;
 }
@@ -39,7 +42,7 @@ interface ComposerLifecycleAreaProps {
 /**
  * Wraps the message composer with the conversation's lifecycle status/
  * actions (Open/Pending/Resolve/Reopen), and - taking priority over
- * everything else - the loading/permission/assignment gates: see
+ * everything else - the loading/blocked/permission/assignment gates: see
  * useComposerAccess/resolveComposerAccess for the exact priority rules.
  * Every non-"sendable" state REPLACES the composer with a clear notice
  * (never just disables it silently) and never mounts it at all, so a
@@ -74,6 +77,7 @@ export function ComposerLifecycleArea({
   contactId,
   access,
   isSending = false,
+  contactName,
   children,
 }: ComposerLifecycleAreaProps) {
   const { t } = useTranslation();
@@ -105,6 +109,14 @@ export function ComposerLifecycleArea({
             )}
           </span>
         </div>
+      </ComposerFooter>
+    );
+  }
+
+  if (access.kind === "blocked") {
+    return (
+      <ComposerFooter>
+        <BlockedContactBar contactId={contactId} contactName={contactName} />
       </ComposerFooter>
     );
   }

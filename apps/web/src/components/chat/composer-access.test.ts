@@ -4,6 +4,7 @@ import { resolveComposerAccess } from "./composer-access";
 const BASE = {
   isLoading: false,
   lifecycleStatus: "open" as const,
+  isBlocked: false,
   assignedTo: null,
   assignedToName: null,
   currentUserId: "user-1",
@@ -76,6 +77,74 @@ describe("resolveComposerAccess", () => {
     expect(
       resolveComposerAccess({ ...BASE, lifecycleStatus: undefined }),
     ).toEqual({ kind: "resolved" });
+  });
+
+  test("a blocked contact replaces the composer with the blocked notice, even while open and unassigned", () => {
+    expect(resolveComposerAccess({ ...BASE, isBlocked: true })).toEqual({
+      kind: "blocked",
+    });
+  });
+
+  test("blocked outranks assignment and lifecycle - neither Take over nor Reopen is offered while blocked", () => {
+    expect(
+      resolveComposerAccess({
+        ...BASE,
+        isBlocked: true,
+        assignedTo: "user-2",
+        assignedToName: "Alex",
+        canAssignContacts: true,
+      }),
+    ).toEqual({ kind: "blocked" });
+
+    expect(
+      resolveComposerAccess({
+        ...BASE,
+        isBlocked: true,
+        assignedTo: "user-2",
+        assignedToName: "Alex",
+        canAssignContacts: false,
+      }),
+    ).toEqual({ kind: "blocked" });
+
+    expect(
+      resolveComposerAccess({
+        ...BASE,
+        isBlocked: true,
+        lifecycleStatus: "resolved",
+      }),
+    ).toEqual({ kind: "blocked" });
+  });
+
+  test("loading still outranks blocked - no Unblock CTA is offered before the contact data is even in", () => {
+    expect(
+      resolveComposerAccess({ ...BASE, isBlocked: true, isLoading: true }),
+    ).toEqual({ kind: "loading" });
+  });
+
+  test("blocked outranks the permission gate - unblocking is not can_send_messages-gated (PATCH /contacts/:id has no requirePermission), and naming the wrong reason would hide an action the user may take", () => {
+    expect(
+      resolveComposerAccess({
+        ...BASE,
+        isBlocked: true,
+        canSendMessages: false,
+      }),
+    ).toEqual({ kind: "blocked" });
+  });
+
+  test("once unblocked, a user without can_send_messages falls through to the permission gate - the real remaining reason", () => {
+    expect(
+      resolveComposerAccess({
+        ...BASE,
+        isBlocked: false,
+        canSendMessages: false,
+      }),
+    ).toEqual({ kind: "no-permission" });
+  });
+
+  test("an unblocked contact is never gated by the block rule", () => {
+    expect(resolveComposerAccess({ ...BASE, isBlocked: false })).toEqual({
+      kind: "sendable",
+    });
   });
 
   test("assigned to another user without can_assign_contacts is read-only, even while open", () => {

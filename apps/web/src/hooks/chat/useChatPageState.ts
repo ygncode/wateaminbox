@@ -1,6 +1,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import type { Contact, Message } from "@wateaminbox/shared";
 import * as React from "react";
+import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate, useParams } from "react-router";
 import { toast } from "sonner";
 import { useWorkspace } from "../../contexts/workspace-context";
@@ -17,6 +18,7 @@ import {
   useSendMessage,
   useStarMessage,
 } from "../useMessages";
+import { resolveActiveReplyDraft } from "./reply-draft";
 import { isSendPendingForContact } from "./send-scope";
 
 // Helper to map ContactDetail to Contact type expected by MessageHeader
@@ -108,6 +110,7 @@ export interface ChatPageActions {
 }
 
 export function useChatPageState(): ChatPageState & ChatPageActions {
+  const { t } = useTranslation();
   const { contactId } = useParams<{ contactId?: string }>();
   const navigate = useNavigate();
   const { search } = useLocation();
@@ -126,10 +129,9 @@ export function useChatPageState(): ChatPageState & ChatPageActions {
     string | null
   >(null);
 
-  // Reply state
-  const [replyToMessage, setReplyToMessage] = React.useState<Message | null>(
-    null,
-  );
+  // Reply state. Read through `replyToMessage` below, never directly - a
+  // block invalidates the draft (see reply-draft.ts).
+  const [replyDraft, setReplyDraft] = React.useState<Message | null>(null);
 
   // Forward dialog state
   const [forwardDialogOpen, setForwardDialogOpen] = React.useState(false);
@@ -151,6 +153,40 @@ export function useChatPageState(): ChatPageState & ChatPageActions {
   const selectedContact = contactDetail
     ? mapContactDetailToContact(contactDetail)
     : undefined;
+
+  // Defense in depth for the two outbound handlers this hook owns. The
+  // composer is never MOUNTED while the contact is blocked (see
+  // ComposerLifecycleArea's "blocked" state) and reply/react/retry are
+  // withheld by ChatPage's `canSend`, but these handlers are exported and
+  // the block can also flip mid-session from another surface (contact
+  // profile, or a realtime block event from another agent). The API is
+  // authoritative either way - `requireSendAccess` throws
+  // ContactBlockedError - this just avoids firing a request that can only
+  // be rejected, and avoids uploading media for it first.
+  const isContactBlocked = contactDetail?.isBlocked ?? false;
+
+  // One source for the copy both blocked-defense toasts show, matching the
+  // wording of the composer's own blocked notice.
+  const blockedSendMessage = t(
+    "chat.blockedSendAttempt",
+    "This contact is blocked - unblock them to send messages",
+  );
+
+  // A block invalidates any reply the agent had already picked: the
+  // composer unmounts, which would otherwise just HIDE the draft until an
+  // unblock silently restored it (see reply-draft.ts). The derived value
+  // covers the render that first observes the block; the effect discards
+  // the underlying state so it can't come back.
+  const replyToMessage = resolveActiveReplyDraft({
+    replyToMessage: replyDraft,
+    isContactBlocked,
+  });
+
+  React.useEffect(() => {
+    if (isContactBlocked) {
+      setReplyDraft(null);
+    }
+  }, [isContactBlocked]);
 
   const retryContactLoad = React.useCallback(() => {
     void refetchContact();
@@ -266,17 +302,21 @@ export function useChatPageState(): ChatPageState & ChatPageActions {
 
   // Reply handlers
   const handleReplyToMessage = React.useCallback((message: Message) => {
-    setReplyToMessage(message);
+    setReplyDraft(message);
   }, []);
 
   const handleClearReply = React.useCallback(() => {
-    setReplyToMessage(null);
+    setReplyDraft(null);
   }, []);
 
   // Send message handler
   const handleSendMessage = React.useCallback(
     (content: string, replyToMessageId?: string) => {
       if (!selectedChatId) return;
+      if (isContactBlocked) {
+        toast.error(blockedSendMessage);
+        return;
+      }
 
       sendMessage.mutate({
         contactId: selectedChatId,
@@ -284,9 +324,9 @@ export function useChatPageState(): ChatPageState & ChatPageActions {
         messageType: "text",
         replyToMessageId,
       });
-      setReplyToMessage(null);
+      setReplyDraft(null);
     },
-    [selectedChatId, sendMessage],
+    [selectedChatId, isContactBlocked, blockedSendMessage, sendMessage],
   );
 
   // File attachment handler
@@ -297,6 +337,10 @@ export function useChatPageState(): ChatPageState & ChatPageActions {
       caption: string,
     ): Promise<boolean> => {
       if (!selectedChatId) return false;
+      if (isContactBlocked) {
+        toast.error(blockedSendMessage);
+        return false;
+      }
 
       const sendingToastId = toast.loading(`Sending ${file.name}...`);
 
@@ -337,7 +381,7 @@ export function useChatPageState(): ChatPageState & ChatPageActions {
         return false;
       }
     },
-    [selectedChatId, sendMessage],
+    [selectedChatId, isContactBlocked, blockedSendMessage, sendMessage],
   );
 
   // Delete message handlers

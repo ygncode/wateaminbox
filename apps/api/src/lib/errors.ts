@@ -350,6 +350,25 @@ export class ContactAssignedToOtherError extends ForbiddenError {
   }
 }
 
+/**
+ * An interactive outbound action (send/attach/forward/retry/react/
+ * schedule/typing) was attempted against a contact that is blocked.
+ * Blocking is a hard outbound invariant, not a UI affordance: WhatsApp
+ * drops traffic to a blocked contact, so queuing the command would strand
+ * a `pending` message that can never deliver (and would silently re-open
+ * an SLA clock for a conversation nobody can answer). The block has to be
+ * lifted explicitly first (PATCH /contacts/:id with `isBlocked: false`).
+ * Mirrors what the bulk path already does, where a blocked recipient is
+ * skipped outright (see bulk-job.service.ts's "blocked" skip reason). See
+ * send-access.service.ts's `requireSendAccess`.
+ */
+export class ContactBlockedError extends ConflictError {
+  constructor() {
+    super("This contact is blocked - unblock them before sending a message");
+    this.name = "ContactBlockedError";
+  }
+}
+
 export class MaxConnectionsExceededError extends TooManyRequestsError {
   currentCount: number;
   maxAllowed: number;
