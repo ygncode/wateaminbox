@@ -39,9 +39,12 @@ those gates.
 
 The R2 `whatsapp-media` bucket is private. Browser access uses API-authorized,
 short-lived R2 signatures; neither `r2.dev` nor a public bucket/custom domain is
-permitted. The legacy MinIO origin was decommissioned after the rollback window
-closed; see
-[the copy, verify, cutover, and rollback runbook](../../docs/operations/media-r2-migration.md).
+permitted. The legacy MinIO origin was decommissioned after its rollback window
+closed and is not part of this public deployment. Existing installations moving
+media from another object store must independently plan and verify a
+non-destructive copy, inventory reconciliation, cutover, rollback window, and
+credential separation before changing `S3_ENDPOINT`; this repository does not
+include a provider- or deployment-specific migration runbook.
 
 ## Host and DNS prerequisites
 
