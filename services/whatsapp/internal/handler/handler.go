@@ -128,6 +128,14 @@ type Handler struct {
 	groupRefreshSlots   chan struct{}
 	// refreshGroupFn overrides the WhatsApp round trip in tests.
 	refreshGroupFn func(types.JID)
+
+	// Group metadata syncs are connection-scoped. A new Connected event cancels
+	// the previous sync, while the heavier LID directory repair runs at most once
+	// during a worker process lifetime.
+	groupSyncMu              sync.Mutex
+	groupSyncCancel          context.CancelFunc
+	groupLIDRepairStarted    bool
+	groupLIDRepairInProgress bool
 }
 
 // maxConcurrentGroupRefreshes bounds how many group metadata reads are in
