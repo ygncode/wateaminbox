@@ -118,7 +118,7 @@ func (h *Handler) handleConnected(evt *events.Connected) {
 		// an incoming message.
 		go h.subscribeToKnownContacts()
 		go h.syncKnownContactNames()
-		go h.syncJoinedGroups()
+		h.startJoinedGroupSync()
 	}
 
 	// Publish connection status to NATS
@@ -132,7 +132,12 @@ func (h *Handler) handleConnected(evt *events.Connected) {
 // syncJoinedGroups repairs group metadata after every worker restart. Unlike
 // history sync, GetJoinedGroups is available for established sessions, so
 // existing workspaces do not need to re-pair to recover names and participants.
-func (h *Handler) syncJoinedGroups() {
+//
+// Some phone-number-addressed groups omit participant LIDs even though message
+// mentions use those opaque IDs. Querying missing group members through USync
+// repairs the connection's own mapping store without copying identity data from
+// another tenant or connection.
+func (h *Handler) syncJoinedGroups(parent context.Context) {
 	if h.config.Client == nil || h.publisher == nil {
 		return
 	}
@@ -141,9 +146,9 @@ func (h *Handler) syncJoinedGroups() {
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
-	defer cancel()
+	ctx, cancel := context.WithTimeout(parent, 2*time.Minute)
 	groups, err := client.GetJoinedGroups(ctx)
+	cancel()
 	if err != nil {
 		log.Printf("Failed to refresh joined groups: %v", err)
 		return
@@ -159,6 +164,47 @@ func (h *Handler) syncJoinedGroups() {
 		}
 	}
 	log.Printf("Refreshed metadata for %d joined groups", len(groups))
+
+	if client.Store == nil || client.Store.LIDs == nil {
+		return
+	}
+	repairCtx, finishRepair, shouldRepair := h.beginGroupLIDRepair(parent)
+	if !shouldRepair {
+		return
+	}
+	defer finishRepair()
+	stats, repairErr := repairMissingGroupLIDs(
+		repairCtx,
+		whatsmeowGroupLIDDirectory{client: client},
+		groups,
+		groupLIDRepairMaxCandidates,
+		groupLIDRepairBatchSize,
+		groupLIDRepairPause,
+	)
+	if repairErr != nil {
+		log.Printf(
+			"Group LID mapping repair stopped: candidates=%d missing=%d attempted=%d resolved=%d unresolved=%d skipped=%d failed_batches=%d error=%v",
+			stats.Candidates,
+			stats.Missing,
+			stats.Attempted,
+			stats.Resolved,
+			stats.Unresolved,
+			stats.Skipped,
+			stats.FailedBatches,
+			repairErr,
+		)
+		return
+	}
+	log.Printf(
+		"Group LID mapping repair completed: candidates=%d missing=%d attempted=%d resolved=%d unresolved=%d skipped=%d failed_batches=%d",
+		stats.Candidates,
+		stats.Missing,
+		stats.Attempted,
+		stats.Resolved,
+		stats.Unresolved,
+		stats.Skipped,
+		stats.FailedBatches,
+	)
 }
 
 // refreshGroup re-reads one group from WhatsApp and republishes it.
@@ -374,6 +420,7 @@ func (h *Handler) subscribeToKnownContacts() {
 // handleDisconnected is called when connection is lost.
 func (h *Handler) handleDisconnected(evt *events.Disconnected) {
 	log.Printf("Worker %s disconnected from WhatsApp", h.config.WorkerID)
+	h.cancelJoinedGroupSync()
 
 	// Publish disconnection status to NATS
 	if h.publisher != nil {
@@ -398,6 +445,7 @@ func (h *Handler) handleDisconnected(evt *events.Disconnected) {
 
 // handleLoggedOut is called when session is terminated.
 func (h *Handler) handleLoggedOut(evt *events.LoggedOut) {
+	h.cancelJoinedGroupSync()
 	reason := "unknown"
 	if evt.Reason != 0 {
 		reason = evt.Reason.String()
@@ -438,6 +486,7 @@ func (h *Handler) handlePairSuccess(evt *events.PairSuccess) {
 // handleStreamReplaced is called when the stream is replaced (logged in elsewhere).
 func (h *Handler) handleStreamReplaced(evt *events.StreamReplaced) {
 	log.Printf("Worker %s: stream replaced (logged in elsewhere)", h.config.WorkerID)
+	h.cancelJoinedGroupSync()
 
 	// Publish stream replaced status to NATS
 	if h.publisher != nil {
