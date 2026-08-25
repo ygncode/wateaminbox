@@ -62,6 +62,8 @@ export interface GroupSettings {
 export interface EnrichedGroupParticipant {
   jid: string;
   phoneNumber: string | null;
+  /** Raw WhatsApp mention tokens, including LIDs mapped to this participant. */
+  mentionIds: string[];
   displayName: string;
   profilePictureUrl: string | null;
   isAdmin: boolean;
@@ -241,24 +243,25 @@ export async function getEnrichedGroupParticipants(
   ];
   if (participantJids.length === 0) return [];
 
-  const [contacts, messageSenders, storedNames] = await Promise.all([
-    options.connectionId
-      ? tenantDb
-          .selectFrom("contacts")
-          .select(["jid", "custom_name", "push_name", "profile_picture_url"])
-          .where("whatsapp_connection_id", "=", options.connectionId)
-          .where("jid", "in", participantJids)
-          .execute()
-      : Promise.resolve([]),
-    tenantDb
-      .selectFrom("messages")
-      .select(["sender_jid", "sender_name", "sender_avatar_url", "timestamp"])
-      .where("contact_id", "=", options.contactId)
-      .where("sender_jid", "in", participantJids)
-      .orderBy("timestamp", "desc")
-      .execute(),
-    options.connectionId
-      ? sql<{ jid: string; name: string | null }>`
+  const [contacts, messageSenders, storedNames, lidMappings] =
+    await Promise.all([
+      options.connectionId
+        ? tenantDb
+            .selectFrom("contacts")
+            .select(["jid", "custom_name", "push_name", "profile_picture_url"])
+            .where("whatsapp_connection_id", "=", options.connectionId)
+            .where("jid", "in", participantJids)
+            .execute()
+        : Promise.resolve([]),
+      tenantDb
+        .selectFrom("messages")
+        .select(["sender_jid", "sender_name", "sender_avatar_url", "timestamp"])
+        .where("contact_id", "=", options.contactId)
+        .where("sender_jid", "in", participantJids)
+        .orderBy("timestamp", "desc")
+        .execute(),
+      options.connectionId
+        ? sql<{ jid: string; name: string | null }>`
           SELECT DISTINCT ON (normalized_jid)
             normalized_jid AS jid,
             coalesce(
@@ -287,8 +290,18 @@ export async function getEnrichedGroupParticipants(
           )})
           ORDER BY normalized_jid
         `.execute(tenantDb)
-      : Promise.resolve({ rows: [] }),
-  ]);
+        : Promise.resolve({ rows: [] }),
+      options.connectionId
+        ? sql<{ jid: string; lid: string }>`
+          SELECT mapping.jid, mapping.lid
+          FROM whatsapp_sessions.whatsmeow_lid_mappings AS mapping
+          WHERE mapping.connection_id = ${options.connectionId}
+            AND mapping.jid IN (${sql.join(
+              participantJids.map((jid) => sql`${jid}`),
+            )})
+        `.execute(tenantDb)
+        : Promise.resolve({ rows: [] }),
+    ]);
 
   const contactByJid = new Map(
     contacts.map((contact) => [contact.jid, contact]),
@@ -304,6 +317,15 @@ export async function getEnrichedGroupParticipants(
   const storedNameByJid = new Map(
     storedNames.rows.map((stored) => [stored.jid, stored.name]),
   );
+  const mentionIdsByJid = new Map<string, Set<string>>();
+  for (const mapping of lidMappings.rows) {
+    const jid = normalizeJid(mapping.jid);
+    const mentionId = normalizeJid(mapping.lid)?.split("@")[0];
+    if (!jid || !mentionId) continue;
+    const ids = mentionIdsByJid.get(jid) ?? new Set<string>();
+    ids.add(mentionId);
+    mentionIdsByJid.set(jid, ids);
+  }
   const ownJid = normalizeJid(options.connectionJid);
 
   return participantRows
@@ -323,9 +345,15 @@ export async function getEnrichedGroupParticipants(
         (phoneNumber ? `+${phoneNumber}` : jid.split("@")[0]) ||
         "Unknown participant";
 
+      const mentionIds = new Set(mentionIdsByJid.get(jid));
+      const jidMentionId = jid.split("@")[0];
+      if (jidMentionId) mentionIds.add(jidMentionId);
+      if (phoneNumber) mentionIds.add(phoneNumber);
+
       return {
         jid,
         phoneNumber,
+        mentionIds: [...mentionIds],
         displayName,
         profilePictureUrl:
           contact?.profile_picture_url || sender?.sender_avatar_url || null,

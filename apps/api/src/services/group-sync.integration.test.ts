@@ -100,6 +100,17 @@ describe("group synchronization", () => {
             push_name: "Alice from contacts",
           })
           .execute();
+        await sql`
+          INSERT INTO whatsapp_sessions.whatsmeow_lid_mappings (
+            connection_id,
+            lid,
+            jid
+          ) VALUES (
+            ${connectionId},
+            '83185010536598@lid',
+            '222@s.whatsapp.net'
+          )
+        `.execute(db);
 
         const groupRecord = await tenantDb
           .selectFrom("groups")
@@ -125,6 +136,7 @@ describe("group synchronization", () => {
           {
             jid: "222@s.whatsapp.net",
             phoneNumber: "222",
+            mentionIds: ["83185010536598", "222"],
             displayName: "Alice from contacts",
             isAdmin: false,
           },
@@ -208,6 +220,10 @@ describe("group synchronization", () => {
           { participant_jid: "222@s.whatsapp.net", is_admin: true },
         ]);
       } finally {
+        await sql`
+          DELETE FROM whatsapp_sessions.whatsmeow_lid_mappings
+          WHERE connection_id = ${connectionId}
+        `.execute(db);
         await clearTenantConnection(companyId);
         await sql.raw(`DROP SCHEMA IF EXISTS "${schema}" CASCADE`).execute(db);
       }
