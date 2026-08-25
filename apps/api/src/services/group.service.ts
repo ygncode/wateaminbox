@@ -293,12 +293,69 @@ export async function getEnrichedGroupParticipants(
         : Promise.resolve({ rows: [] }),
       options.connectionId
         ? sql<{ jid: string; lid: string }>`
-          SELECT mapping.jid, mapping.lid
-          FROM whatsapp_sessions.whatsmeow_lid_mappings AS mapping
-          WHERE mapping.connection_id = ${options.connectionId}
-            AND mapping.jid IN (${sql.join(
+          WITH candidate_tokens AS MATERIALIZED (
+            SELECT DISTINCT
+              split_part(split_part(mapping.lid, '@', 1), ':', 1) AS token
+            FROM whatsapp_sessions.whatsmeow_lid_mappings AS mapping
+            WHERE (
+              split_part(split_part(mapping.jid, '@', 1), ':', 1)
+              || '@' || split_part(mapping.jid, '@', 2)
+            ) IN (${sql.join(participantJids.map((jid) => sql`${jid}`))})
+          ),
+          relevant_mappings AS MATERIALIZED (
+            SELECT
+              mapping.connection_id,
+              candidate.token,
+              split_part(split_part(mapping.jid, '@', 1), ':', 1)
+                || '@' || split_part(mapping.jid, '@', 2) AS jid
+            FROM whatsapp_sessions.whatsmeow_lid_mappings AS mapping
+            INNER JOIN candidate_tokens AS candidate
+              ON candidate.token =
+                split_part(split_part(mapping.lid, '@', 1), ':', 1)
+            WHERE candidate.token ~ '^[0-9]+$'
+          ),
+          local_tokens AS (
+            SELECT mapping.token, min(mapping.jid) AS jid
+            FROM relevant_mappings AS mapping
+            WHERE mapping.connection_id = ${options.connectionId}
+            GROUP BY mapping.token
+            HAVING count(DISTINCT mapping.jid) = 1
+          ),
+          globally_unambiguous_tokens AS (
+            SELECT mapping.token, min(mapping.jid) AS jid
+            FROM relevant_mappings AS mapping
+            GROUP BY mapping.token
+            HAVING count(DISTINCT mapping.jid) = 1
+          ),
+          safe_aliases AS (
+            -- A locally unique token remains authoritative even if another
+            -- connection has conflicting historical data for that token.
+            SELECT alias.jid, alias.token AS lid
+            FROM local_tokens AS alias
+            WHERE alias.jid IN (${sql.join(
               participantJids.map((jid) => sql`${jid}`),
             )})
+            UNION
+            -- WhatsApp may stop returning an old LID alias. Use another
+            -- connection's observation only when the numeric token (regardless
+            -- of @lid versus @hosted.lid) maps globally to one identity that is
+            -- already a member of this exact group. Any local observation,
+            -- including a conflicting one, suppresses this fallback.
+            -- This is display-only: nothing is copied into whatsmeow's
+            -- connection-owned protocol mapping store.
+            SELECT alias.jid, alias.token AS lid
+            FROM globally_unambiguous_tokens AS alias
+            WHERE alias.jid IN (${sql.join(
+              participantJids.map((jid) => sql`${jid}`),
+            )})
+              AND NOT EXISTS (
+                SELECT 1
+                FROM relevant_mappings AS local_mapping
+                WHERE local_mapping.connection_id = ${options.connectionId}
+                  AND local_mapping.token = alias.token
+              )
+          )
+          SELECT jid, lid FROM safe_aliases
         `.execute(tenantDb)
         : Promise.resolve({ rows: [] }),
     ]);

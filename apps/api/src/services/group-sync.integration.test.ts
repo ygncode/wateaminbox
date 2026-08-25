@@ -17,6 +17,11 @@ import {
 const integrationTest =
   process.env.RUN_DB_INTEGRATION === "1" ? test : test.skip;
 
+function randomNumericId(): string {
+  const hex = crypto.randomUUID().replaceAll("-", "").slice(0, 15);
+  return (BigInt(`0x${hex}`) + 100_000_000_000_000n).toString();
+}
+
 describe("group synchronization", () => {
   integrationTest(
     "keeps title, participants, and unread state coherent across sidebar projections",
@@ -223,6 +228,190 @@ describe("group synchronization", () => {
         await sql`
           DELETE FROM whatsapp_sessions.whatsmeow_lid_mappings
           WHERE connection_id = ${connectionId}
+        `.execute(db);
+        await clearTenantConnection(companyId);
+        await sql.raw(`DROP SCHEMA IF EXISTS "${schema}" CASCADE`).execute(db);
+      }
+    },
+    30_000,
+  );
+
+  integrationTest(
+    "uses only unambiguous cross-connection aliases for existing group members",
+    async () => {
+      const companyId = crypto.randomUUID();
+      const connectionId = crypto.randomUUID();
+      const foreignConnectionA = crypto.randomUUID();
+      const foreignConnectionB = crypto.randomUUID();
+      const schema = getSchemaName(companyId);
+      const groupJid = `${randomNumericId()}@g.us`;
+      const participantA = randomNumericId();
+      const participantB = randomNumericId();
+      const outsider = randomNumericId();
+      const uniqueAlias = randomNumericId();
+      const hostedAlias = randomNumericId();
+      const conflictingAlias = randomNumericId();
+      const locallyAuthoritativeAlias = randomNumericId();
+
+      try {
+        await createTenantSchema(companyId);
+        const tenantDb = getTenantConnection(companyId);
+        await tenantDb
+          .insertInto("whatsapp_connections")
+          .values({
+            id: connectionId,
+            name: "Primary",
+            jid: `${randomNumericId()}@s.whatsapp.net`,
+            status: "connected",
+          })
+          .execute();
+
+        await handleContactEvent({
+          contractVersion: 1,
+          type: "contact",
+          companyId,
+          connectionId,
+          timestamp: new Date().toISOString(),
+          payload: {
+            jid: groupJid,
+            displayName: "Historical aliases",
+            isGroup: true,
+            participants: [
+              { jid: `${participantA}@s.whatsapp.net`, isAdmin: false },
+              { jid: `${participantB}@s.whatsapp.net`, isAdmin: false },
+            ],
+          },
+        });
+
+        await sql`
+          INSERT INTO whatsapp_sessions.whatsmeow_lid_mappings (
+            connection_id,
+            lid,
+            jid
+          ) VALUES
+            (
+              ${foreignConnectionA},
+              ${`${uniqueAlias}:7@lid`},
+              ${`${participantA}:4@s.whatsapp.net`}
+            ),
+            (
+              ${foreignConnectionA},
+              ${`${hostedAlias}@hosted.lid`},
+              ${`${participantB}@s.whatsapp.net`}
+            ),
+            (
+              ${foreignConnectionA},
+              ${`${conflictingAlias}:3@lid`},
+              ${`${participantA}@s.whatsapp.net`}
+            ),
+            (
+              ${foreignConnectionB},
+              ${`${conflictingAlias}@hosted.lid`},
+              ${`${participantB}@s.whatsapp.net`}
+            ),
+            (
+              ${connectionId},
+              ${`${locallyAuthoritativeAlias}@lid`},
+              ${`${participantA}@s.whatsapp.net`}
+            ),
+            (
+              ${foreignConnectionB},
+              ${`${locallyAuthoritativeAlias}@hosted.lid`},
+              ${`${participantB}@s.whatsapp.net`}
+            ),
+            (
+              ${foreignConnectionA},
+              ${`${randomNumericId()}@lid`},
+              ${`${outsider}@s.whatsapp.net`}
+            )
+        `.execute(db);
+
+        const contact = await tenantDb
+          .selectFrom("contacts")
+          .select("id")
+          .where("jid", "=", groupJid)
+          .executeTakeFirstOrThrow();
+        const group = await tenantDb
+          .selectFrom("groups")
+          .select("id")
+          .where("contact_id", "=", contact.id)
+          .executeTakeFirstOrThrow();
+        const participants = await getEnrichedGroupParticipants(tenantDb, {
+          groupId: group.id,
+          contactId: contact.id,
+          connectionId,
+          connectionJid: null,
+        });
+        const enrichedA = participants.find(
+          (participant) => participant.jid === `${participantA}@s.whatsapp.net`,
+        );
+        const enrichedB = participants.find(
+          (participant) => participant.jid === `${participantB}@s.whatsapp.net`,
+        );
+
+        expect(enrichedA?.mentionIds).toEqual(
+          expect.arrayContaining([
+            participantA,
+            uniqueAlias,
+            locallyAuthoritativeAlias,
+          ]),
+        );
+        expect(enrichedA?.mentionIds).not.toContain(conflictingAlias);
+        expect(enrichedB?.mentionIds).toEqual(
+          expect.arrayContaining([participantB, hostedAlias]),
+        );
+        expect(enrichedB?.mentionIds).not.toContain(conflictingAlias);
+        expect(enrichedB?.mentionIds).not.toContain(locallyAuthoritativeAlias);
+        expect(
+          participants.some((participant) =>
+            participant.jid.includes(outsider),
+          ),
+        ).toBe(false);
+
+        const targetMappings = await sql<{ lid: string }>`
+          SELECT lid
+          FROM whatsapp_sessions.whatsmeow_lid_mappings
+          WHERE connection_id = ${connectionId}
+          ORDER BY lid
+        `.execute(db);
+        expect(targetMappings.rows).toEqual([
+          { lid: `${locallyAuthoritativeAlias}@lid` },
+        ]);
+
+        const indexPlan = await db.transaction().execute(async (trx) => {
+          await sql`SET LOCAL enable_seqscan = off`.execute(trx);
+          const participantPlan = await sql<{ "QUERY PLAN": string }>`
+            EXPLAIN (COSTS OFF)
+            SELECT lid
+            FROM whatsapp_sessions.whatsmeow_lid_mappings
+            WHERE (
+              split_part(split_part(jid, '@', 1), ':', 1)
+              || '@' || split_part(jid, '@', 2)
+            ) = ${`${participantA}@s.whatsapp.net`}
+          `.execute(trx);
+          const tokenPlan = await sql<{ "QUERY PLAN": string }>`
+            EXPLAIN (COSTS OFF)
+            SELECT jid
+            FROM whatsapp_sessions.whatsmeow_lid_mappings
+            WHERE split_part(split_part(lid, '@', 1), ':', 1) =
+              ${uniqueAlias}
+          `.execute(trx);
+          return [...participantPlan.rows, ...tokenPlan.rows]
+            .map((row) => row["QUERY PLAN"])
+            .join("\n");
+        });
+        expect(indexPlan).toContain(
+          "whatsmeow_lid_mappings_normalized_jid_idx",
+        );
+        expect(indexPlan).toContain("whatsmeow_lid_mappings_mention_token_idx");
+      } finally {
+        await sql`
+          DELETE FROM whatsapp_sessions.whatsmeow_lid_mappings
+          WHERE connection_id IN (
+            ${connectionId},
+            ${foreignConnectionA},
+            ${foreignConnectionB}
+          )
         `.execute(db);
         await clearTenantConnection(companyId);
         await sql.raw(`DROP SCHEMA IF EXISTS "${schema}" CASCADE`).execute(db);
