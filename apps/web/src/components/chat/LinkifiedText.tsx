@@ -19,27 +19,46 @@ function digitsOnly(value: string): string {
 }
 
 /**
- * Replace WhatsApp's raw @phone-number mention text with the resolved group
- * participant name. Unknown mentions are deliberately left unchanged.
+ * Replace WhatsApp's raw numeric mention text with the resolved group
+ * participant name. Mentions can contain either a phone number or WhatsApp's
+ * private LID, so the API supplies every known token for each participant.
+ * Unknown mentions are deliberately left unchanged.
  */
 export function resolveMentionNames(
   text: string,
-  participants: Pick<GroupParticipant, "jid" | "phoneNumber" | "displayName">[],
+  participants: Pick<
+    GroupParticipant,
+    "jid" | "phoneNumber" | "mentionIds" | "displayName"
+  >[],
 ): string {
   if (participants.length === 0 || !text.includes("@")) return text;
 
-  const displayNameByPhone = new Map<string, string>();
+  const displayNameByMentionId = new Map<string, string>();
   for (const participant of participants) {
-    const jidPhone = participant.jid.split("@")[0]?.split(":")[0] || "";
-    const phone = digitsOnly(participant.phoneNumber || jidPhone);
     const displayName = participant.displayName.trim().replace(/^@/, "");
-    if (phone && displayName) displayNameByPhone.set(phone, displayName);
+    if (!displayName) continue;
+
+    const jidMentionId = participant.jid.split("@")[0]?.split(":")[0] || "";
+    const mentionIds = [
+      jidMentionId,
+      participant.phoneNumber || "",
+      ...(participant.mentionIds ?? []),
+    ];
+    for (const mentionId of mentionIds) {
+      const normalizedMentionId = digitsOnly(mentionId);
+      if (normalizedMentionId) {
+        displayNameByMentionId.set(normalizedMentionId, displayName);
+      }
+    }
   }
 
-  return text.replace(PHONE_MENTION_PATTERN, (rawMention, phone: string) => {
-    const displayName = displayNameByPhone.get(phone);
-    return displayName ? `@${displayName}` : rawMention;
-  });
+  return text.replace(
+    PHONE_MENTION_PATTERN,
+    (rawMention, mentionId: string) => {
+      const displayName = displayNameByMentionId.get(mentionId);
+      return displayName ? `@${displayName}` : rawMention;
+    },
+  );
 }
 
 function trimTrailingPunctuation(value: string): {
@@ -129,7 +148,7 @@ export function LinkifiedText({
   className?: string;
   mentionParticipants?: Pick<
     GroupParticipant,
-    "jid" | "phoneNumber" | "displayName"
+    "jid" | "phoneNumber" | "mentionIds" | "displayName"
   >[];
   /**
    * Rendered inside the paragraph, after the text. A right-floated node put

@@ -12,7 +12,7 @@ interface MessageContentProps {
   isOwn: boolean;
   mentionParticipants?: Pick<
     GroupParticipant,
-    "jid" | "phoneNumber" | "displayName"
+    "jid" | "phoneNumber" | "mentionIds" | "displayName"
   >[];
   enableMediaPreview?: boolean;
 }

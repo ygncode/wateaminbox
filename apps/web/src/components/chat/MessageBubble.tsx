@@ -92,7 +92,7 @@ interface MessageBubbleProps {
   /** Resolved group members used to display WhatsApp mentions by name. */
   mentionParticipants?: Pick<
     GroupParticipant,
-    "jid" | "phoneNumber" | "displayName"
+    "jid" | "phoneNumber" | "mentionIds" | "displayName"
   >[];
   /** Navigate the thread to the original message referenced by a reply. */
   onNavigateToMessage?: (target: MessageNavigationTarget) => void;

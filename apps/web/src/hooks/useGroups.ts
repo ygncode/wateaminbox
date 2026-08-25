@@ -13,6 +13,8 @@ import { createQueryKeyFactory } from "./query-keys";
 export interface GroupParticipant {
   jid: string;
   phoneNumber: string | null;
+  /** Raw WhatsApp mention tokens, including mapped private LIDs. */
+  mentionIds?: string[];
   displayName: string;
   profilePictureUrl: string | null;
   isAdmin: boolean;

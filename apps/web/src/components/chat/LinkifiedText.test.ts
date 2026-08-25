@@ -74,6 +74,7 @@ describe("WhatsApp mention display names", () => {
     {
       jid: "98797300309@s.whatsapp.net",
       phoneNumber: "98797300309",
+      mentionIds: ["98797300309", "83185010536598"],
       displayName: "Kelvin Cheng",
     },
   ];
@@ -82,6 +83,27 @@ describe("WhatsApp mention display names", () => {
     expect(
       resolveMentionNames("@98797300309 https://wall-pets.com/", participants),
     ).toBe("@Kelvin Cheng https://wall-pets.com/");
+  });
+
+  test("supports cached participant data from before mention aliases existed", () => {
+    expect(
+      resolveMentionNames("@98797300309 hello", [
+        {
+          jid: "98797300309@s.whatsapp.net",
+          phoneNumber: "98797300309",
+          displayName: "Kelvin Cheng",
+        },
+      ]),
+    ).toBe("@Kelvin Cheng hello");
+  });
+
+  test("replaces a private LID mention with the mapped participant name", () => {
+    expect(
+      resolveMentionNames(
+        "@83185010536598 did you spend the afternoon?",
+        participants,
+      ),
+    ).toBe("@Kelvin Cheng did you spend the afternoon?");
   });
 
   test("keeps an unknown mention unchanged", () => {
