@@ -1696,5 +1696,19 @@
     "lastSeenYesterday": "昨天 {{time}} 在线",
     "lastSeenWeekday": "{{day}} {{time}} 在线",
     "lastSeenDate": "{{date}} 在线"
+  },
+  "feedback": {
+    "tab": "反馈",
+    "dismiss": "关闭反馈标签",
+    "title": "发送反馈",
+    "description": "告诉我们哪些功能好用，哪些需要改进。",
+    "messageLabel": "内容",
+    "messagePlaceholder": "分享您的想法…",
+    "emailLabel": "邮箱（可选）",
+    "submit": "提交反馈",
+    "submitting": "发送中…",
+    "success": "感谢您的反馈！",
+    "minLength": "反馈内容至少需要 10 个字符。",
+    "error": "提交反馈失败，请稍后重试。"
   }
 }
