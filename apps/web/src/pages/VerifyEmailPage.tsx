@@ -5,10 +5,12 @@ import {
   MailCheck,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Link, useSearchParams } from "react-router";
 import { Button } from "../components/ui/button";
 import { verifyEmail } from "../lib/api";
-import { useTranslation } from "react-i18next";
+import { buildAuthUrl } from "../lib/auth-redirect";
+import { workspacePath } from "../lib/workspace-routes";
 
 type VerificationState = "loading" | "success" | "error";
 
@@ -17,9 +19,11 @@ export function VerifyEmailPage() {
 
   const [searchParams] = useSearchParams();
   const token = searchParams.get("token") || "";
+  const invitationToken = searchParams.get("invitation") || undefined;
   const started = useRef(false);
   const [state, setState] = useState<VerificationState>("loading");
   const [message, setMessage] = useState("Verifying your email address…");
+  const [loginUrl, setLoginUrl] = useState("/login");
 
   useEffect(() => {
     if (started.current) return;
@@ -31,12 +35,37 @@ export function VerifyEmailPage() {
       return;
     }
 
-    verifyEmail(token)
-      .then(() => {
+    verifyEmail(token, invitationToken)
+      .then((result) => {
         setState("success");
+        if (result.invitationAccepted && result.companyId) {
+          setMessage(
+            t(
+              "verify.joinedWorkspace",
+              "Your email is verified and you've joined the workspace. Sign in to continue.",
+            ),
+          );
+          setLoginUrl(
+            buildAuthUrl(
+              "/login",
+              workspacePath(result.companyId),
+              result.user.email,
+            ),
+          );
+          return;
+        }
         setMessage(
-          "Your email is verified. Your workspace is ready when you are.",
+          invitationToken
+            ? t(
+                "verify.invitationUnavailable",
+                "Your email is verified. The invitation is no longer available, but you can still sign in.",
+              )
+            : t(
+                "verify.verificationComplete",
+                "Your email is verified. Your workspace is ready when you are.",
+              ),
         );
+        setLoginUrl(buildAuthUrl("/login", null, result.user.email));
       })
       .catch((error) => {
         setState("error");
@@ -49,7 +78,7 @@ export function VerifyEmailPage() {
               ),
         );
       });
-  }, [token]);
+  }, [invitationToken, t, token]);
 
   const Icon =
     state === "loading"
@@ -89,7 +118,7 @@ export function VerifyEmailPage() {
             asChild
             className="mt-7 w-full bg-whatsapp-green-a11y-button text-white"
           >
-            <Link to={state === "success" ? "/login" : "/register"}>
+            <Link to={state === "success" ? loginUrl : "/register"}>
               {state === "success"
                 ? t("auth.continueToSignIn", "Continue to sign in")
                 : t("verify.backToRegistration", "Back to registration")}

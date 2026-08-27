@@ -18,8 +18,14 @@ export async function sendEmail(options: EmailOptions): Promise<EmailResult> {
 export async function sendVerificationEmail(
   email: string,
   token: string,
+  invitationToken?: string,
 ): Promise<EmailResult> {
-  const verificationUrl = `${env.APP_URL}/verify-email?token=${token}`;
+  const verificationUrl = new URL("/verify-email", env.APP_URL);
+  verificationUrl.searchParams.set("token", token);
+  if (invitationToken) {
+    verificationUrl.searchParams.set("invitation", invitationToken);
+  }
+  const verificationUrlString = verificationUrl.toString();
 
   return sendEmail({
     to: email,
@@ -28,19 +34,19 @@ export async function sendVerificationEmail(
       <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
         <h1 style="color: #333;">Verify your email address</h1>
         <p>Thank you for signing up! Please click the button below to verify your email address.</p>
-        <a href="${verificationUrl}" style="display: inline-block; background-color: #22c55e; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; margin: 16px 0;">
+        <a href="${verificationUrlString}" style="display: inline-block; background-color: #22c55e; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; margin: 16px 0;">
           Verify Email
         </a>
         <p style="color: #666; font-size: 14px;">
           Or copy and paste this link into your browser:<br/>
-          <a href="${verificationUrl}">${verificationUrl}</a>
+          <a href="${verificationUrlString}">${verificationUrlString}</a>
         </p>
         <p style="color: #666; font-size: 14px;">
           This link will expire in 24 hours.
         </p>
       </div>
     `,
-    text: `Verify your email address by clicking this link: ${verificationUrl}. This link will expire in 24 hours.`,
+    text: `Verify your email address by clicking this link: ${verificationUrlString}. This link will expire in 24 hours.`,
   });
 }
 

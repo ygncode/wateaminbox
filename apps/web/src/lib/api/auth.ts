@@ -21,6 +21,7 @@ import type {
   ResendVerificationResponse,
   UpdateProfileRequest,
   UpdateProfileResponse,
+  VerifyEmailResponse,
 } from "./types.js";
 
 export async function login(credentials: LoginRequest): Promise<LoginResponse> {
@@ -46,12 +47,13 @@ export async function register(
 export async function resendVerification(
   email: string,
   password: string,
+  invitationToken?: string,
 ): Promise<ResendVerificationResponse> {
   return fetchWithAuth<ResendVerificationResponse>(
     "/auth/resend-verification",
     {
       method: "POST",
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({ email, password, invitationToken }),
     },
   );
 }
@@ -75,10 +77,13 @@ export async function forgotPassword(
   });
 }
 
-export async function verifyEmail(token: string): Promise<void> {
-  await fetchWithAuth("/auth/verify-email", {
+export async function verifyEmail(
+  token: string,
+  invitationToken?: string,
+): Promise<VerifyEmailResponse> {
+  return fetchWithAuth<VerifyEmailResponse>("/auth/verify-email", {
     method: "POST",
-    body: JSON.stringify({ token }),
+    body: JSON.stringify({ token, invitationToken }),
   });
 }
 

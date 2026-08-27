@@ -36,6 +36,9 @@
     "createAccountAction": "Create account",
     "createAccountLink": "Create an account",
     "createWorkspaceEyebrow": "Create your workspace",
+    "joinWorkspaceEyebrow": "Join your team",
+    "invitationRegisterTitle": "Create your account to join",
+    "invitationRegisterSubtitle": "Verify the invited email and we'll add you to the workspace automatically.",
     "creatingAccount": "Creating your account…",
     "deliveryFailedHint": "Your account was kept safely. The sign-in page can send a fresh link after checking your password.",
     "emailDeliveryFailedTitle": "Account created, but email delivery failed",
@@ -1633,6 +1636,9 @@
     "emailVerified": "Email verified",
     "linkUnavailable": "Link unavailable",
     "invalidLink": "This verification link is invalid or has expired.",
+    "joinedWorkspace": "Your email is verified and you've joined the workspace. Sign in to continue.",
+    "invitationUnavailable": "Your email is verified. The invitation is no longer available, but you can still sign in.",
+    "verificationComplete": "Your email is verified. Your workspace is ready when you are.",
     "backToRegistration": "Back to registration"
   },
   "workspaces": {

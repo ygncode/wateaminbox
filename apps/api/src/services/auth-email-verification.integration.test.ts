@@ -3,6 +3,7 @@ import { db } from "@wateaminbox/database";
 import { app } from "../app.js";
 import type { EmailResult } from "../lib/email.js";
 import { AuthError } from "../lib/errors.js";
+import { getAuditLogs } from "./audit.service.js";
 import {
   login,
   refreshSession,
@@ -11,6 +12,7 @@ import {
   updateProfile,
   verifyEmail,
 } from "./auth.service.js";
+import { createTenantSchema, dropTenantSchema } from "./tenant.service.js";
 
 const integrationTest =
   process.env.RUN_DB_INTEGRATION === "1" ? test : test.skip;
@@ -45,6 +47,244 @@ afterAll(async () => {
 });
 
 describe("email verification enforcement", () => {
+  integrationTest(
+    "carries an invitation through verification and joins the matching workspace",
+    async () => {
+      const ownerId = crypto.randomUUID();
+      const companyId = crypto.randomUUID();
+      const invitationToken = crypto.randomUUID();
+      const invitedEmail = `invited-${crypto.randomUUID()}@example.com`;
+      const verificationTokens: string[] = [];
+      const deliveredInvitationTokens: Array<string | undefined> = [];
+
+      try {
+        await db
+          .insertInto("users")
+          .values({
+            id: ownerId,
+            email: `owner-${ownerId}@example.com`,
+            password_hash: "test",
+            email_verified_at: new Date(),
+          })
+          .execute();
+        await db
+          .insertInto("companies")
+          .values({
+            id: companyId,
+            name: "Invited workspace",
+            schema_name: `test_${companyId.replaceAll("-", "_")}`,
+          })
+          .execute();
+        await createTenantSchema(companyId);
+        await db
+          .insertInto("company_stats")
+          .values({ company_id: companyId, active_users: 1 })
+          .execute();
+        await db
+          .insertInto("company_members")
+          .values({ company_id: companyId, user_id: ownerId, role: "owner" })
+          .execute();
+        await db
+          .insertInto("invitations")
+          .values({
+            company_id: companyId,
+            email: invitedEmail,
+            token: invitationToken,
+            invited_by: ownerId,
+            expires_at: new Date(Date.now() + 60_000),
+          })
+          .execute();
+
+        await expect(
+          register(
+            `wrong-${crypto.randomUUID()}@example.com`,
+            PASSWORD,
+            "Wrong recipient",
+            captureDelivery([]),
+            invitationToken,
+          ),
+        ).rejects.toMatchObject({ code: "INVITATION_EMAIL_MISMATCH" });
+
+        const registered = await register(
+          invitedEmail.toUpperCase(),
+          PASSWORD,
+          "Invited teammate",
+          async (_email, token, deliveredInvitationToken) => {
+            verificationTokens.push(token);
+            deliveredInvitationTokens.push(deliveredInvitationToken);
+            return { success: true };
+          },
+          invitationToken,
+        );
+        createdUserIds.push(registered.user.id);
+
+        expect(deliveredInvitationTokens).toEqual([invitationToken]);
+        const verificationResponse = await app.request(
+          "/api/auth/verify-email",
+          {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({
+              token: verificationTokens[0],
+              invitationToken,
+            }),
+          },
+        );
+        expect(verificationResponse.status).toBe(200);
+        expect(await verificationResponse.json()).toMatchObject({
+          invitationAccepted: true,
+          companyId,
+          user: { email: invitedEmail, emailVerified: true },
+        });
+        expect(
+          await db
+            .selectFrom("company_members")
+            .where("company_id", "=", companyId)
+            .where("user_id", "=", registered.user.id)
+            .select("role")
+            .executeTakeFirst(),
+        ).toEqual({ role: "member" });
+        expect(
+          (
+            await db
+              .selectFrom("company_stats")
+              .where("company_id", "=", companyId)
+              .select("active_users")
+              .executeTakeFirstOrThrow()
+          ).active_users,
+        ).toBe(2);
+        expect(
+          (await getAuditLogs({ companyId })).logs.map((log) => ({
+            action: log.action,
+            entityId: log.entityId,
+          })),
+        ).toContainEqual({
+          action: "invitation.accepted",
+          entityId: expect.any(String),
+        });
+      } finally {
+        await dropTenantSchema(companyId);
+        await db.deleteFrom("companies").where("id", "=", companyId).execute();
+        await db.deleteFrom("users").where("id", "=", ownerId).execute();
+      }
+    },
+    30_000,
+  );
+
+  integrationTest(
+    "rolls verification back when invitation acceptance fails unexpectedly",
+    async () => {
+      const ownerId = crypto.randomUUID();
+      const companyId = crypto.randomUUID();
+      const invitationToken = crypto.randomUUID();
+      const invitedEmail = `retry-${crypto.randomUUID()}@example.com`;
+      const verificationTokens: string[] = [];
+      let registeredUserId: string | undefined;
+
+      try {
+        await db
+          .insertInto("users")
+          .values({
+            id: ownerId,
+            email: `owner-${ownerId}@example.com`,
+            password_hash: "test",
+            email_verified_at: new Date(),
+          })
+          .execute();
+        await db
+          .insertInto("companies")
+          .values({
+            id: companyId,
+            name: "Retry workspace",
+            schema_name: `test_${companyId.replaceAll("-", "_")}`,
+          })
+          .execute();
+        await createTenantSchema(companyId);
+        await db
+          .insertInto("company_stats")
+          .values({ company_id: companyId, active_users: 2_147_483_647 })
+          .execute();
+        await db
+          .insertInto("company_members")
+          .values({ company_id: companyId, user_id: ownerId, role: "owner" })
+          .execute();
+        await db
+          .insertInto("invitations")
+          .values({
+            company_id: companyId,
+            email: invitedEmail,
+            token: invitationToken,
+            invited_by: ownerId,
+            expires_at: new Date(Date.now() + 60_000),
+          })
+          .execute();
+
+        const registered = await register(
+          invitedEmail,
+          PASSWORD,
+          "Retry teammate",
+          captureDelivery(verificationTokens),
+          invitationToken,
+        );
+        registeredUserId = registered.user.id;
+        createdUserIds.push(registered.user.id);
+
+        const verify = () =>
+          app.request("/api/auth/verify-email", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({
+              token: verificationTokens[0],
+              invitationToken,
+            }),
+          });
+
+        expect((await verify()).status).toBe(500);
+        expect(
+          await db
+            .selectFrom("users")
+            .where("id", "=", registered.user.id)
+            .select("email_verified_at")
+            .executeTakeFirstOrThrow(),
+        ).toEqual({ email_verified_at: null });
+        expect(
+          await db
+            .selectFrom("company_members")
+            .where("company_id", "=", companyId)
+            .where("user_id", "=", registered.user.id)
+            .select("id")
+            .executeTakeFirst(),
+        ).toBeUndefined();
+
+        await db
+          .updateTable("company_stats")
+          .set({ active_users: 1 })
+          .where("company_id", "=", companyId)
+          .execute();
+        expect((await verify()).status).toBe(200);
+        expect(
+          await db
+            .selectFrom("company_members")
+            .where("company_id", "=", companyId)
+            .where("user_id", "=", registered.user.id)
+            .select("id")
+            .executeTakeFirst(),
+        ).toBeDefined();
+      } finally {
+        await dropTenantSchema(companyId);
+        await db.deleteFrom("companies").where("id", "=", companyId).execute();
+        await db.deleteFrom("users").where("id", "=", ownerId).execute();
+        if (registeredUserId) {
+          await db
+            .deleteFrom("users")
+            .where("id", "=", registeredUserId)
+            .execute();
+        }
+      }
+    },
+    30_000,
+  );
+
   integrationTest(
     "keeps an account when initial delivery fails but creates no usable session",
     async () => {

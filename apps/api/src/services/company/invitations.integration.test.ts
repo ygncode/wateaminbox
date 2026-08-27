@@ -1,12 +1,15 @@
 import { describe, expect, test } from "bun:test";
 import { db } from "@wateaminbox/database";
 import {
+  InsufficientPermissionsError,
   InvitationDeliveryError,
   InvitationEmailMismatchError,
-  InsufficientPermissionsError,
+  InvitationNotFoundError,
 } from "../../lib/errors.js";
+import { createTenantSchema, dropTenantSchema } from "../tenant.service.js";
 import {
   acceptInvitation,
+  getInvitationByToken,
   inviteMember,
   resendInvitation,
 } from "./invitations.js";
@@ -74,6 +77,7 @@ describe("company invitations", () => {
             status: "active",
           })
           .execute();
+        await createTenantSchema(companyId);
         await db
           .insertInto("company_stats")
           .values({ company_id: companyId, active_users: 1 })
@@ -183,7 +187,17 @@ describe("company invitations", () => {
         expect(restored.token).toBe(pending.token);
         expect(restored.role).toBe("member");
         expect(restored.permissions).toEqual({});
+
+        await db
+          .updateTable("companies")
+          .set({ status: "deleted" })
+          .where("id", "=", companyId)
+          .execute();
+        await expect(
+          getInvitationByToken(pending.token),
+        ).rejects.toBeInstanceOf(InvitationNotFoundError);
       } finally {
+        await dropTenantSchema(companyId);
         await db.deleteFrom("companies").where("id", "=", companyId).execute();
         await db
           .deleteFrom("users")
