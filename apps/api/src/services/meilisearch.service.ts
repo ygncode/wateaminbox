@@ -1,4 +1,4 @@
-import { Index, MeiliSearch, type Task } from "meilisearch";
+import { Index, Meilisearch, type Task } from "meilisearch";
 import { env } from "../lib/env.js";
 import { createLogger, formatError } from "../lib/logger.js";
 
@@ -13,14 +13,14 @@ const MEILISEARCH_API_KEY = env.MEILISEARCH_API_KEY;
 /**
  * Singleton Meilisearch client
  */
-let client: MeiliSearch | null = null;
+let client: Meilisearch | null = null;
 
 /**
  * Get or create Meilisearch client
  */
-export function getMeilisearchClient(): MeiliSearch {
+export function getMeilisearchClient(): Meilisearch {
   if (!client) {
-    client = new MeiliSearch({
+    client = new Meilisearch({
       host: MEILISEARCH_URL,
       apiKey: MEILISEARCH_API_KEY,
     });
