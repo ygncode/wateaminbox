@@ -91,6 +91,7 @@ class ActualRouteAccessTests(unittest.TestCase):
 
     def test_handler_level_access_overrides_are_applied(self):
         expected = {
+            ("get", "/conversations/stats/resolution"): "`can_view_dashboard`",
             ("post", "/search/reindex"): "Admin role",
             ("patch", "/companies/:id"): "Owner role when changing status",
             ("post", "/contacts/:id/assign"): "Conditional `can_assign_contacts` (other-user assignment or takeover)",

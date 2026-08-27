@@ -20,10 +20,10 @@ Conversation state transitions and message reads for a contact, plus resolution/
 | POST | `/conversations/:id/resolve` | Authenticated · Tenant context · Contact visibility · `can_send_messages` | Resolve the contact's active case with a required close outcome (and notes, if the outcome is `other`). |
 | POST | `/conversations/:id/resume` | Authenticated · Tenant context · Contact visibility · `can_send_messages` | Resume a pending case back to open. The SAME case (never a new one) - `opened_at` and both SLA clocks are unaffected, since `pending` never paused them. Distinct from `/open` (which always starts a brand-new case for a contact with none active). |
 | GET | `/conversations/:id/state` | Authenticated · Tenant context · Contact visibility | Get the conversation lifecycle state (the current projection plus the active case, if any) for a contact. `hasCaseHistory` tells the UI whether Open (no prior case) or Reopen (a prior, resolved case exists) is the correct label/flow to offer for a resolved conversation. |
-| GET | `/conversations/stats/resolution` | Authenticated · Tenant context · Contact visibility | Case-cycle resolution statistics (replaces the old mutable-state resolution stats). |
-| GET | `/conversations/stats/resolution-breaches` | Authenticated · Tenant context · Contact visibility | Currently overdue active cases (resolution-SLA work queue), worst-first. |
-| GET | `/conversations/stats/resolution-team` | Authenticated · Tenant context · Contact visibility | Resolution attribution by team member (who resolved what, and how fast). |
-| GET | `/conversations/stats/resolution-trend` | Authenticated · Tenant context · Contact visibility | Case resolution trend over time |
+| GET | `/conversations/stats/resolution` | Authenticated · Tenant context · `can_view_dashboard` | Case-cycle resolution statistics (replaces the old mutable-state resolution stats). |
+| GET | `/conversations/stats/resolution-breaches` | Authenticated · Tenant context · `can_view_dashboard` | Currently overdue active cases (resolution-SLA work queue), worst-first. |
+| GET | `/conversations/stats/resolution-team` | Authenticated · Tenant context · `can_view_dashboard` | Resolution attribution by team member (who resolved what, and how fast). |
+| GET | `/conversations/stats/resolution-trend` | Authenticated · Tenant context · `can_view_dashboard` | Case resolution trend over time |
 
 ## Flows
 

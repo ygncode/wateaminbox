@@ -83,6 +83,10 @@ DESC_OVERRIDES = {
 # Route registration middleware cannot express checks performed inside handlers.
 # These additions keep the generated Access column fail-closed and explicit.
 ACCESS_OVERRIDES = {
+    ("GET", "/conversations/stats/resolution"): ["`can_view_dashboard`"],
+    ("GET", "/conversations/stats/resolution-trend"): ["`can_view_dashboard`"],
+    ("GET", "/conversations/stats/resolution-breaches"): ["`can_view_dashboard`"],
+    ("GET", "/conversations/stats/resolution-team"): ["`can_view_dashboard`"],
     ("POST", "/search/reindex"): ["Admin role"],
     ("PATCH", "/companies/:id"): ["Owner role when changing status"],
     ("POST", "/contacts/:id/assign"): [
