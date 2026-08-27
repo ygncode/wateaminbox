@@ -36,6 +36,9 @@
     "createAccountAction": "创建账号",
     "createAccountLink": "创建账号",
     "createWorkspaceEyebrow": "创建你的工作区",
+    "joinWorkspaceEyebrow": "加入你的团队",
+    "invitationRegisterTitle": "创建账号以加入团队",
+    "invitationRegisterSubtitle": "验证受邀邮箱后，我们会自动将你加入工作区。",
     "creatingAccount": "正在创建账号…",
     "deliveryFailedHint": "你的账号已安全保留。在登录页验证密码后可重新发送新的链接。",
     "emailDeliveryFailedTitle": "账号已创建，但邮件发送失败",
@@ -1621,6 +1624,9 @@
     "emailVerified": "邮箱已验证",
     "linkUnavailable": "链接不可用",
     "invalidLink": "该验证链接无效或已过期。",
+    "joinedWorkspace": "邮箱已验证，你已加入该工作区。请登录以继续。",
+    "invitationUnavailable": "邮箱已验证。该邀请已不可用，但你仍可登录。",
+    "verificationComplete": "邮箱已验证，你的工作区已准备就绪。",
     "backToRegistration": "返回注册页"
   },
   "workspaces": {

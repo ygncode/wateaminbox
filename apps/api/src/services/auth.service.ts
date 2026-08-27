@@ -7,7 +7,14 @@ import {
   sendPasswordResetEmail,
   sendVerificationEmail,
 } from "../lib/email.js";
-import { AuthError } from "../lib/errors.js";
+import {
+  AuthError,
+  CompanyNotFoundError,
+  InvitationEmailMismatchError,
+  InvitationExpiredError,
+  InvitationNotFoundError,
+  UserAlreadyMemberError,
+} from "../lib/errors.js";
 import { getGravatarUrl } from "../lib/gravatar.js";
 import {
   generateAccessToken,
@@ -19,6 +26,13 @@ import { hashPassword, verifyPassword } from "../lib/password.js";
 import type { UpdateProfileInput } from "../lib/schemas/auth.js";
 import { hashToken } from "../lib/security.js";
 import { deleteMedia, getPresignedUrl, uploadMedia } from "../lib/storage.js";
+import {
+  acceptInvitationInTransaction,
+  completeInvitationAcceptance,
+  getInvitationByToken,
+  type InvitationAcceptanceContext,
+  invitationEmailMatches,
+} from "./company/invitations.js";
 
 export interface DeviceInfo {
   deviceName?: string;
@@ -81,6 +95,7 @@ type AuthDatabase = Kysely<Database> | Transaction<Database>;
 type VerificationEmailSender = (
   email: string,
   token: string,
+  invitationToken?: string,
 ) => Promise<EmailResult>;
 
 const emailNotVerifiedError = () =>
@@ -101,11 +116,41 @@ async function deliverVerificationEmail(
   email: string,
   token: string,
   emailSender: VerificationEmailSender,
+  invitationToken?: string,
 ): Promise<boolean> {
   try {
-    return (await emailSender(email, token)).success;
+    return (await emailSender(email, token, invitationToken)).success;
   } catch {
     return false;
+  }
+}
+
+async function validateInvitationRecipient(
+  invitationToken: string,
+  email: string,
+): Promise<void> {
+  try {
+    const invitation = await getInvitationByToken(invitationToken);
+    if (!invitationEmailMatches(invitation.email, email)) {
+      throw new AuthError(
+        "This invitation was sent to a different email address",
+        "INVITATION_EMAIL_MISMATCH",
+        403,
+      );
+    }
+  } catch (error) {
+    if (error instanceof AuthError) throw error;
+    if (
+      error instanceof InvitationNotFoundError ||
+      error instanceof InvitationExpiredError
+    ) {
+      throw new AuthError(
+        "This invitation is invalid or has expired",
+        "INVALID_INVITATION",
+        400,
+      );
+    }
+    throw error;
   }
 }
 
@@ -216,8 +261,12 @@ export async function register(
   password: string,
   name?: string,
   emailSender: VerificationEmailSender = sendVerificationEmail,
+  invitationToken?: string,
 ): Promise<{ user: AuthUser; verificationEmailSent: boolean }> {
-  const normalizedEmail = email.toLowerCase();
+  const normalizedEmail = email.trim().toLowerCase();
+  if (invitationToken) {
+    await validateInvitationRecipient(invitationToken, normalizedEmail);
+  }
   const existingUser = await db
     .selectFrom("users")
     .where("email", "=", normalizedEmail)
@@ -269,6 +318,7 @@ export async function register(
     user.email,
     verificationToken,
     emailSender,
+    invitationToken,
   );
   if (!verificationEmailSent) {
     await discardAuthToken(verificationToken).catch(() => undefined);
@@ -422,10 +472,14 @@ export async function login(
 /**
  * Verify an email using a hashed, expiring, single-use token.
  */
-export async function verifyEmail(token: string): Promise<AuthUser> {
+export async function verifyEmail(
+  token: string,
+  invitationToken?: string,
+  invitationContext: InvitationAcceptanceContext = {},
+): Promise<AuthUser & { joinedCompanyId?: string }> {
   const tokenHash = hashToken(token);
 
-  return db.transaction().execute(async (trx) => {
+  const result = await db.transaction().execute(async (trx) => {
     const storedToken = await trx
       .selectFrom("auth_tokens")
       .where("token_hash", "=", tokenHash)
@@ -460,6 +514,33 @@ export async function verifyEmail(token: string): Promise<AuthUser> {
       ])
       .executeTakeFirstOrThrow();
 
+    let acceptedInvitation:
+      | Awaited<ReturnType<typeof acceptInvitationInTransaction>>
+      | undefined;
+    if (invitationToken) {
+      try {
+        acceptedInvitation = await acceptInvitationInTransaction(
+          trx,
+          invitationToken,
+          user.id,
+        );
+      } catch (error) {
+        // Invitations can legitimately expire or be cancelled while the
+        // verification email is in flight. Verification still succeeds in
+        // those cases. Unexpected failures roll the whole transaction back,
+        // leaving the same verification link retryable.
+        if (
+          !(error instanceof InvitationNotFoundError) &&
+          !(error instanceof InvitationExpiredError) &&
+          !(error instanceof InvitationEmailMismatchError) &&
+          !(error instanceof UserAlreadyMemberError) &&
+          !(error instanceof CompanyNotFoundError)
+        ) {
+          throw error;
+        }
+      }
+    }
+
     await trx
       .updateTable("auth_tokens")
       .set({ used_at: now })
@@ -469,15 +550,31 @@ export async function verifyEmail(token: string): Promise<AuthUser> {
       .execute();
 
     return {
-      id: user.id,
-      email: user.email,
-      name: user.name,
-      avatarKey: user.avatar_key,
-      emailVerifiedAt: user.email_verified_at,
-      createdAt: user.created_at,
-      updatedAt: user.updated_at,
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        avatarKey: user.avatar_key,
+        emailVerifiedAt: user.email_verified_at,
+        createdAt: user.created_at,
+        updatedAt: user.updated_at,
+      },
+      acceptedInvitation,
     };
   });
+
+  if (result.acceptedInvitation) {
+    await completeInvitationAcceptance(
+      result.acceptedInvitation,
+      result.user.id,
+      invitationContext,
+    );
+    return {
+      ...result.user,
+      joinedCompanyId: result.acceptedInvitation.company.id,
+    };
+  }
+  return result.user;
 }
 
 /**
@@ -489,6 +586,7 @@ export async function resendVerification(
   email: string,
   password: string,
   emailSender: VerificationEmailSender = sendVerificationEmail,
+  invitationToken?: string,
 ): Promise<{ alreadyVerified: boolean }> {
   const user = await db
     .selectFrom("users")
@@ -505,6 +603,24 @@ export async function resendVerification(
   }
 
   if (user.email_verified_at) return { alreadyVerified: true };
+  let deliverableInvitationToken = invitationToken;
+  if (deliverableInvitationToken) {
+    try {
+      await validateInvitationRecipient(deliverableInvitationToken, user.email);
+    } catch (error) {
+      // An account must not become impossible to verify just because the
+      // original invitation expired or was cancelled before a resend.
+      if (
+        error instanceof AuthError &&
+        (error.code === "INVALID_INVITATION" ||
+          error.code === "INVITATION_EMAIL_MISMATCH")
+      ) {
+        deliverableInvitationToken = undefined;
+      } else {
+        throw error;
+      }
+    }
+  }
 
   const token = await issueAuthToken(
     db,
@@ -517,6 +633,7 @@ export async function resendVerification(
     user.email,
     token,
     emailSender,
+    deliverableInvitationToken,
   );
   if (!delivered) {
     await discardAuthToken(token).catch(() => undefined);

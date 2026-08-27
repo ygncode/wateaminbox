@@ -4,7 +4,7 @@
  * Operations for managing company invitations: create, list, accept, cancel, resend.
  */
 
-import { db } from "@wateaminbox/database";
+import { type Database, db } from "@wateaminbox/database";
 import {
   addDays,
   type CompanyMemberRole,
@@ -12,24 +12,26 @@ import {
   toDbDate,
 } from "@wateaminbox/shared";
 import { randomBytes } from "crypto";
-import { sql } from "kysely";
+import { sql, type Transaction } from "kysely";
 import { sendInvitationEmail } from "../../lib/email.js";
 import {
+  CompanyNotFoundError,
+  InsufficientPermissionsError,
   InvitationDeliveryError,
   InvitationEmailMismatchError,
   InvitationExpiredError,
   InvitationNotFoundError,
-  InsufficientPermissionsError,
   UserAlreadyMemberError,
 } from "../../lib/errors.js";
 import { createLogger } from "../../lib/logger.js";
+import { createAuditLog } from "../audit.service.js";
+import { invalidateCompanyMembership } from "../company-membership.service.js";
 import {
   getEffectivePermissions,
   getMemberWithPermissions,
   ROLE_PRESETS,
 } from "../permission.service.js";
 import { getCompany } from "./core.js";
-import { invalidateCompanyMembership } from "../company-membership.service.js";
 import type {
   AcceptInvitationResult,
   CompanyMember,
@@ -356,15 +358,21 @@ export async function cancelInvitation(
   }
 }
 
+export interface InvitationAcceptanceContext {
+  ipAddress?: string;
+}
+
 /**
- * Accepts an invitation using a token
+ * Applies an invitation inside a caller-owned transaction. Email verification
+ * uses this so verification and membership creation either both commit or both
+ * roll back.
  */
-export async function acceptInvitation(
+export async function acceptInvitationInTransaction(
+  trx: Transaction<Database>,
   token: string,
   userId: string,
 ): Promise<AcceptInvitationResult> {
-  // Find the invitation
-  const invitation = await db
+  const invitation = await trx
     .selectFrom("invitations")
     .select([
       "id",
@@ -374,21 +382,17 @@ export async function acceptInvitation(
       "permissions",
       "invited_by",
       "expires_at",
-      "accepted_at",
     ])
     .where("token", "=", token)
     .where("accepted_at", "is", null)
     .executeTakeFirst();
 
-  if (!invitation) {
-    throw new InvitationNotFoundError(token);
-  }
-
+  if (!invitation) throw new InvitationNotFoundError(token);
   if (toDbDate(invitation.expires_at) < toDbDate()) {
     throw new InvitationExpiredError();
   }
 
-  const recipient = await db
+  const recipient = await trx
     .selectFrom("users")
     .select("email")
     .where("id", "=", userId)
@@ -400,74 +404,114 @@ export async function acceptInvitation(
     throw new InvitationEmailMismatchError();
   }
 
-  const existingMembership = await db
+  const existingMembership = await trx
     .selectFrom("company_members")
     .select("id")
     .where("company_id", "=", invitation.company_id)
     .where("user_id", "=", userId)
     .executeTakeFirst();
-  if (existingMembership) {
-    throw new UserAlreadyMemberError(recipient.email);
-  }
+  if (existingMembership) throw new UserAlreadyMemberError(recipient.email);
 
-  // Start a transaction
-  const result = await db.transaction().execute(async (trx) => {
-    // Atomically claim the invitation so concurrent acceptance cannot add
-    // duplicate memberships or increment company statistics twice.
-    const claimedInvitation = await trx
-      .updateTable("invitations")
-      .set({ accepted_at: toDbDate() })
-      .where("id", "=", invitation.id)
-      .where("accepted_at", "is", null)
-      .returning("id")
-      .executeTakeFirst();
-    if (!claimedInvitation) throw new InvitationNotFoundError(token);
+  const company = await trx
+    .selectFrom("companies")
+    .select([
+      "id",
+      "name",
+      "description",
+      "logo_key",
+      "schema_name",
+      "status",
+      "created_at",
+      "updated_at",
+    ])
+    .where("id", "=", invitation.company_id)
+    .where("status", "!=", "deleted")
+    .executeTakeFirst();
+  if (!company) throw new CompanyNotFoundError(invitation.company_id);
 
-    // Add user as a member
-    const member = await trx
-      .insertInto("company_members")
-      .values({
-        user_id: userId,
-        company_id: invitation.company_id,
-        role: invitation.role,
-        permissions: invitation.permissions,
-        invited_by: invitation.invited_by,
-        joined_at: toDbDate(),
-      })
-      .returning([
-        "id",
-        "user_id",
-        "company_id",
-        "role",
-        "permissions",
-        "invited_by",
-        "joined_at",
-      ])
-      .executeTakeFirstOrThrow();
+  // Atomically claim the invitation so concurrent acceptance cannot add
+  // duplicate memberships or increment company statistics twice.
+  const claimedInvitation = await trx
+    .updateTable("invitations")
+    .set({ accepted_at: toDbDate() })
+    .where("id", "=", invitation.id)
+    .where("accepted_at", "is", null)
+    .returning("id")
+    .executeTakeFirst();
+  if (!claimedInvitation) throw new InvitationNotFoundError(token);
 
-    // Update company stats
-    await trx
-      .updateTable("company_stats")
-      .set({
-        active_users: sql`active_users + 1`,
-        updated_at: toDbDate(),
-      })
-      .where("company_id", "=", invitation.company_id)
-      .execute();
+  const member = await trx
+    .insertInto("company_members")
+    .values({
+      user_id: userId,
+      company_id: invitation.company_id,
+      role: invitation.role,
+      permissions: invitation.permissions,
+      invited_by: invitation.invited_by,
+      joined_at: toDbDate(),
+    })
+    .returning([
+      "id",
+      "user_id",
+      "company_id",
+      "role",
+      "permissions",
+      "invited_by",
+      "joined_at",
+    ])
+    .executeTakeFirstOrThrow();
 
-    return member;
-  });
-
-  // A newly joined member must be able to receive conversation events for the
-  // contacts they can see immediately, not once a cache entry lapses.
-  invalidateCompanyMembership(invitation.company_id);
-
-  const company = await getCompany(invitation.company_id);
+  await trx
+    .updateTable("company_stats")
+    .set({
+      active_users: sql`active_users + 1`,
+      updated_at: toDbDate(),
+    })
+    .where("company_id", "=", invitation.company_id)
+    .execute();
 
   return {
-    company,
-    member: result as unknown as CompanyMember,
+    company: company as unknown as AcceptInvitationResult["company"],
+    member: member as unknown as CompanyMember,
   };
+}
+
+/** Runs post-commit cache invalidation and security audit recording. */
+export async function completeInvitationAcceptance(
+  result: AcceptInvitationResult,
+  userId: string,
+  context: InvitationAcceptanceContext = {},
+): Promise<void> {
+  invalidateCompanyMembership(result.company.id);
+  await createAuditLog({
+    companyId: result.company.id,
+    userId,
+    action: "invitation.accepted",
+    entityType: "member",
+    entityId: result.member.id,
+    details: {
+      role: result.member.role,
+      accessMode:
+        Object.keys(result.member.permissions).length > 0
+          ? "custom"
+          : "role_defaults",
+      permissionOverrides: result.member.permissions,
+    },
+    ipAddress: context.ipAddress,
+  });
+}
+
+/** Accepts an invitation using a token. */
+export async function acceptInvitation(
+  token: string,
+  userId: string,
+  context: InvitationAcceptanceContext = {},
+): Promise<AcceptInvitationResult> {
+  const result = await db
+    .transaction()
+    .execute((trx) => acceptInvitationInTransaction(trx, token, userId));
+  await completeInvitationAcceptance(result, userId, context);
+  return result;
 }
 
 /**
@@ -492,6 +536,7 @@ export async function getInvitationByToken(
       "i.permissions",
     ])
     .where("i.token", "=", token)
+    .where("c.status", "!=", "deleted")
     .executeTakeFirst();
 
   if (!result) {

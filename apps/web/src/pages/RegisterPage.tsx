@@ -8,15 +8,19 @@ import {
 } from "lucide-react";
 import * as React from "react";
 import { useForm } from "react-hook-form";
+import { Trans, useTranslation } from "react-i18next";
 import { Link, useNavigate, useSearchParams } from "react-router";
 import { AuthPageShell } from "../components/auth/AuthPageShell";
 import { Button } from "../components/ui/button";
 import { FormField } from "../components/ui/form-field";
 import { useAuth } from "../contexts/auth-context";
-import { buildAuthUrl, getSafeAuthRedirect } from "../lib/auth-redirect";
+import {
+  buildAuthUrl,
+  getInvitationTokenFromRedirect,
+  getSafeAuthRedirect,
+} from "../lib/auth-redirect";
 import { productAnalytics } from "../lib/product-analytics";
 import { type RegisterFormData, registerSchema } from "../lib/schemas";
-import { Trans, useTranslation } from "react-i18next";
 
 export function RegisterPage() {
   const { t } = useTranslation();
@@ -24,6 +28,8 @@ export function RegisterPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const redirectTo = getSafeAuthRedirect(searchParams.get("redirect"));
+  const invitationToken = getInvitationTokenFromRedirect(redirectTo);
+  const isInvitationRegistration = Boolean(invitationToken);
   const suggestedEmail = searchParams.get("email") ?? "";
   const {
     register: registerUser,
@@ -64,6 +70,7 @@ export function RegisterPage() {
         name: data.name,
         email: data.email,
         password: data.password,
+        invitationToken,
       });
       productAnalytics.track("sign_up", { method: "email" });
       setRegisteredEmail(data.email);
@@ -195,16 +202,25 @@ export function RegisterPage() {
     <AuthPageShell variant="register">
       <div>
         <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#0a7c43] dark:text-[#52df83]">
-          {t("auth.createWorkspaceEyebrow", "Create your workspace")}
+          {isInvitationRegistration
+            ? t("auth.joinWorkspaceEyebrow", "Join your team")
+            : t("auth.createWorkspaceEyebrow", "Create your workspace")}
         </p>
         <h1 className="mt-3 text-3xl font-semibold tracking-[-0.04em] text-slate-950 text-balance sm:text-4xl dark:text-dark-text-primary">
-          {t("auth.registerTitle", "Bring your team into one inbox")}
+          {isInvitationRegistration
+            ? t("auth.invitationRegisterTitle", "Create your account to join")
+            : t("auth.registerTitle", "Bring your team into one inbox")}
         </h1>
         <p className="mt-3 max-w-lg text-sm leading-6 text-slate-600 dark:text-dark-text-secondary">
-          {t(
-            "auth.registerSubtitle",
-            "Set up your account and start turning customer conversations into coordinated teamwork.",
-          )}
+          {isInvitationRegistration
+            ? t(
+                "auth.invitationRegisterSubtitle",
+                "Verify the invited email and we'll add you to the workspace automatically.",
+              )
+            : t(
+                "auth.registerSubtitle",
+                "Set up your account and start turning customer conversations into coordinated teamwork.",
+              )}
         </p>
 
         <form

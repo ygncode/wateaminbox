@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import * as React from "react";
 import { useForm } from "react-hook-form";
+import { useTranslation } from "react-i18next";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router";
 import { AuthPageShell } from "../components/auth/AuthPageShell";
 import { Button } from "../components/ui/button";
@@ -18,13 +19,13 @@ import { resendVerification } from "../lib/api";
 import {
   buildAuthUrl,
   getAuthRedirectFromState,
+  getInvitationTokenFromRedirect,
   getSafeAuthRedirect,
 } from "../lib/auth-redirect";
 import { isEmailVerificationRequiredError } from "../lib/email-verification";
 import { productAnalytics } from "../lib/product-analytics";
 import { type LoginFormData, loginSchema } from "../lib/schemas";
 import { workspacePath } from "../lib/workspace-routes";
-import { useTranslation } from "react-i18next";
 
 export function LoginPage() {
   const { t } = useTranslation();
@@ -35,6 +36,7 @@ export function LoginPage() {
   const redirectTo =
     getSafeAuthRedirect(searchParams.get("redirect")) ??
     getAuthRedirectFromState(location.state);
+  const invitationToken = getInvitationTokenFromRedirect(redirectTo);
   const suggestedEmail = searchParams.get("email") ?? "";
   const { login, isLoading, error, clearError, isAuthenticated } = useAuth();
   const {
@@ -109,7 +111,11 @@ export function LoginPage() {
     setResendMessage(null);
     setResendError(null);
     try {
-      const response = await resendVerification(email, password);
+      const response = await resendVerification(
+        email,
+        password,
+        invitationToken,
+      );
       setResendMessage(response.message);
     } catch (resendFailure) {
       setResendError(

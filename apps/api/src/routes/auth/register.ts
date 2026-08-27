@@ -12,6 +12,7 @@ import {
   resendVerificationSchema,
   verifyEmailSchema,
 } from "../../lib/schemas/index.js";
+import { getClientIp } from "../../services/audit.service.js";
 import {
   register,
   resendVerification,
@@ -56,6 +57,8 @@ registerRoutes.post(
         body.email,
         body.password,
         body.name,
+        undefined,
+        body.invitationToken,
       );
       const publicUser = await toAuthUserResponse(user);
 
@@ -101,7 +104,12 @@ registerRoutes.post(
   async (c) => {
     try {
       const body = c.req.valid("json");
-      const result = await resendVerification(body.email, body.password);
+      const result = await resendVerification(
+        body.email,
+        body.password,
+        undefined,
+        body.invitationToken,
+      );
       return successWithMessage(
         c,
         result.alreadyVerified
@@ -131,7 +139,9 @@ registerRoutes.post(
   async (c) => {
     try {
       const body = c.req.valid("json");
-      const updatedUser = await verifyEmail(body.token);
+      const updatedUser = await verifyEmail(body.token, body.invitationToken, {
+        ipAddress: getClientIp(c),
+      });
 
       return successWithMessage(c, "Email verified successfully", {
         user: {
@@ -139,6 +149,8 @@ registerRoutes.post(
           email: updatedUser.email,
           emailVerified: !!updatedUser.emailVerifiedAt,
         },
+        invitationAccepted: Boolean(updatedUser.joinedCompanyId),
+        companyId: updatedUser.joinedCompanyId,
       });
     } catch (error) {
       return handleAuthError(

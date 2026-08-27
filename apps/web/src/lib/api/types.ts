@@ -64,6 +64,7 @@ export interface RegisterRequest {
   password: string;
   name: string;
   companyName?: string;
+  invitationToken?: string;
 }
 
 export interface RegisterResponse {
@@ -80,6 +81,17 @@ export interface RegisterResponse {
 export interface ResendVerificationResponse {
   message: string;
   alreadyVerified: boolean;
+}
+
+export interface VerifyEmailResponse {
+  message: string;
+  user: {
+    id: string;
+    email: string;
+    emailVerified: boolean;
+  };
+  invitationAccepted: boolean;
+  companyId?: string;
 }
 
 export interface RefreshResponse {

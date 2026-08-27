@@ -19,6 +19,7 @@ export const registerSchema = z.object({
   email: emailSchema,
   password: passwordSchema,
   name: optionalNameSchema,
+  invitationToken: tokenSchema.optional(),
 });
 
 export type RegisterInput = z.infer<typeof registerSchema>;
@@ -46,6 +47,7 @@ export type LoginInput = z.infer<typeof loginSchema>;
 
 export const verifyEmailSchema = z.object({
   token: tokenSchema,
+  invitationToken: tokenSchema.optional(),
 });
 
 export type VerifyEmailInput = z.infer<typeof verifyEmailSchema>;
@@ -53,6 +55,7 @@ export type VerifyEmailInput = z.infer<typeof verifyEmailSchema>;
 export const resendVerificationSchema = z.object({
   email: emailSchema,
   password: z.string().min(1, "Password is required"),
+  invitationToken: tokenSchema.optional(),
 });
 
 export type ResendVerificationInput = z.infer<typeof resendVerificationSchema>;
