@@ -1,8 +1,8 @@
 import { Loader2, Lock, UserCheck } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { useAssignContact } from "@/hooks/contact";
 import type { ComposerAccessState } from "./composer-access";
-import { useTranslation } from "react-i18next";
 
 interface AssignmentGateBarProps {
   contactId: string;
@@ -27,18 +27,21 @@ export function AssignmentGateBar({
   const takeOverMutation = useAssignContact();
 
   const handleTakeOver = () => {
-    takeOverMutation.mutate(contactId, {
-      onSuccess: () =>
-        toast.success(
-          t("chat.takeOverSuccess", "You've taken over this conversation"),
-        ),
-      onError: (err) =>
-        toast.error(
-          err instanceof Error
-            ? err.message
-            : t("chat.takeOverError", "Could not take over conversation"),
-        ),
-    });
+    takeOverMutation.mutate(
+      { contactId },
+      {
+        onSuccess: () =>
+          toast.success(
+            t("chat.takeOverSuccess", "You've taken over this conversation"),
+          ),
+        onError: (err) =>
+          toast.error(
+            err instanceof Error
+              ? err.message
+              : t("chat.takeOverError", "Could not take over conversation"),
+          ),
+      },
+    );
   };
 
   if (access.kind === "assigned-other-takeover") {

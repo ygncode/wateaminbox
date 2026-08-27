@@ -16,17 +16,23 @@ export interface AssignmentHistoryEntry {
   isActive: boolean;
 }
 
-/**
- * Hook to assign current user to a contact
- */
+export interface AssignContactVariables {
+  contactId: string;
+  /** Omit to assign the contact to the current user. */
+  targetUserId?: string;
+}
+
+/** Assign a contact to the current user or a selected teammate. */
 export function useAssignContact() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (contactId: string) => {
-      await api.post(`/contacts/${contactId}/assign`, {});
+    mutationFn: async ({ contactId, targetUserId }: AssignContactVariables) => {
+      await api.post(`/contacts/${contactId}/assign`, {
+        ...(targetUserId ? { targetUserId } : {}),
+      });
     },
-    onSuccess: (_, contactId) => {
+    onSuccess: (_, { contactId }) => {
       queryClient.invalidateQueries({
         queryKey: queryKeys.contacts.detail(contactId),
       });
