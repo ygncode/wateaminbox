@@ -10,10 +10,10 @@ Workspace-local contact tags (distinct from WhatsApp labels). Simple synchronous
 
 | Method | Path | Access | Description |
 |--------|------|--------|-------------|
-| GET | `/tags/` | — | List all tags with optional pagination |
-| POST | `/tags/` | — | Create a new tag |
-| PATCH | `/tags/:id` | — | Update a tag |
-| DELETE | `/tags/:id` | — | Delete a tag |
+| GET | `/tags` | Authenticated · Tenant context | List all tags with optional pagination |
+| POST | `/tags` | Authenticated · Tenant context | Create a new tag |
+| DELETE | `/tags/:id` | Authenticated · Tenant context | Delete a tag |
+| PATCH | `/tags/:id` | Authenticated · Tenant context | Update a tag |
 
 ## Flows
 
@@ -29,4 +29,3 @@ sequenceDiagram
     A->>D: INSERT tag
     A-->>U: 201 {tag}
 ```
-

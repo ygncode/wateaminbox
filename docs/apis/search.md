@@ -2,7 +2,7 @@
 
 > Base path: `/api/search` · 5 endpoints
 
-Full-text search across messages, contacts, and status, backed by Meilisearch. `POST /reindex` rebuilds the tenant index.
+Full-text search across messages and contacts, backed by Meilisearch with a PostgreSQL fallback. Results are returned directly by the search service (not hydrated afterward). `POST /reindex` requires Admin/Owner role, rebuilds both tenant indexes, and returns 200.
 
 ## Endpoints
 
@@ -10,11 +10,11 @@ Full-text search across messages, contacts, and status, backed by Meilisearch. `
 
 | Method | Path | Access | Description |
 |--------|------|--------|-------------|
-| GET | `/search/` | Rate limited | Global search across messages and contacts |
-| GET | `/search/contacts` | Rate limited | Search contacts only |
-| GET | `/search/messages` | Rate limited | Search messages only |
-| POST | `/search/reindex` | — | Rebuild search indexes (admin only) |
-| GET | `/search/status` | — | Get search engine status |
+| GET | `/search` | Authenticated · Tenant context · Rate limited · Contact visibility (result-filtered) | Global search across messages and contacts |
+| GET | `/search/contacts` | Authenticated · Tenant context · Rate limited · Contact visibility (result-filtered) | Search contacts only |
+| GET | `/search/messages` | Authenticated · Tenant context · Rate limited · Contact visibility (result-filtered) | Search messages only |
+| POST | `/search/reindex` | Authenticated · Tenant context · Admin role | Rebuild the tenant's message and contact indexes (200) |
+| GET | `/search/status` | Authenticated · Tenant context | Get search engine status |
 
 ## Flows
 
@@ -27,13 +27,11 @@ sequenceDiagram
     participant M as Meilisearch
     participant D as Postgres (tenantDb)
     U->>A: GET /api/search/messages?q=...
-    A->>M: query tenant index
-    M-->>A: hits
-    A->>D: hydrate results from tenantDb
-    A-->>U: 200 {results}
+    A->>M: query tenant message index with assignment filter
+    M-->>A: direct indexed results
+    A-->>U: 200 {query, data, pagination}
     U->>A: POST /api/search/reindex
     A->>D: read documents
-    A->>M: rebuild index
-    A-->>U: 202
+    A->>M: rebuild message + contact indexes
+    A-->>U: 200 {message, data: indexed counts}
 ```
-

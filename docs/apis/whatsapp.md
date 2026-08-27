@@ -2,7 +2,7 @@
 
 > Base path: `/api/whatsapp`, `/api/whatsapp/connections` · 20 endpoints
 
-Multi-connection management (list/create/rename/archive/purge/reconnect/relink/disconnect/send) plus legacy single-connection endpoints and WhatsApp Status (stories). Connecting is **asynchronous**: a worker is spawned, a QR code is produced and pushed in realtime, and the scan completes the pairing.
+Multi-connection management (list/create/rename/archive/purge/reconnect/relink/disconnect) plus legacy single-connection endpoints. Connecting is **asynchronous**: a worker is spawned, a QR code is produced and pushed in realtime, and the scan completes the pairing.
 
 ## Endpoints
 
@@ -10,26 +10,26 @@ Multi-connection management (list/create/rename/archive/purge/reconnect/relink/d
 
 | Method | Path | Access | Description |
 |--------|------|--------|-------------|
-| POST | `/whatsapp/connect` | `can_manage_connections` | Start WhatsApp connection flow (backward compatible) QR codes are delivered on the authenticated company Centrifugo channel. |
-| GET | `/whatsapp/connection` | — | Get detailed connection info (backward compatible) |
-| POST | `/whatsapp/disconnect` | `can_manage_connections` | Disconnect WhatsApp (backward compatible) Disconnects the first active connection |
-| GET | `/whatsapp/limits` | — | Get connection limits for the company |
-| POST | `/whatsapp/send` | `can_send_messages` · Legacy removed | Send a WhatsApp message (backward compatible) |
-| GET | `/whatsapp/status` | — | Get WhatsApp connection status (backward compatible) |
-| POST | `/whatsapp/sync-reset` | — | Resets sync status for all connections (failsafe for stuck syncs) |
-| GET | `/whatsapp/sync-status` | — | Gets sync status for all connections (for page reload handling) |
-| GET | `/whatsapp/connections/` | — | List all WhatsApp connections |
-| POST | `/whatsapp/connections/` | `can_manage_connections` | Create a new WhatsApp connection |
-| GET | `/whatsapp/connections/:connectionId` | — | Get specific connection details |
-| PATCH | `/whatsapp/connections/:connectionId` | `can_manage_connections` | Update connection (e.g., rename) |
-| DELETE | `/whatsapp/connections/:connectionId` | `can_manage_connections` | Archive the stable account and unlink its current WhatsApp session. Historical inbox data is retained. |
-| POST | `/whatsapp/connections/:connectionId/disconnect` | `can_manage_connections` | Disconnect specific connection |
-| POST | `/whatsapp/connections/:connectionId/purge` | `can_manage_connections` · `can_delete` | Permanently erase an archived account and all of its inbox data. |
-| POST | `/whatsapp/connections/:connectionId/reconnect` | `can_manage_connections` | Reconnect a disconnected connection |
-| POST | `/whatsapp/connections/:connectionId/relink` | `can_manage_connections` | Initiate a new pairing session for an archived connection |
-| POST | `/whatsapp/connections/:connectionId/send` | `can_send_messages` · Legacy removed | Send message via specific connection |
-| GET | `/whatsapp/connections/:connectionId/status` | — | Get specific connection status |
-| GET | `/whatsapp/connections/archived` | `can_manage_connections` | List archived connections |
+| POST | `/whatsapp/connect` | Authenticated · Tenant context · `can_manage_connections` | Start WhatsApp connection flow (backward compatible) QR codes are delivered on the authenticated company Centrifugo channel. |
+| GET | `/whatsapp/connection` | Authenticated · Tenant context | Get detailed connection info (backward compatible) |
+| GET | `/whatsapp/connections` | Authenticated · Tenant context | List all WhatsApp connections |
+| POST | `/whatsapp/connections` | Authenticated · Tenant context · `can_manage_connections` | Create a new WhatsApp connection |
+| DELETE | `/whatsapp/connections/:connectionId` | Authenticated · Tenant context · `can_manage_connections` | Archive the stable account and unlink its current WhatsApp session. Historical inbox data is retained. |
+| GET | `/whatsapp/connections/:connectionId` | Authenticated · Tenant context | Get specific connection details |
+| PATCH | `/whatsapp/connections/:connectionId` | Authenticated · Tenant context · `can_manage_connections` | Update connection (e.g., rename) |
+| POST | `/whatsapp/connections/:connectionId/disconnect` | Authenticated · Tenant context · `can_manage_connections` | Disconnect specific connection |
+| POST | `/whatsapp/connections/:connectionId/purge` | Authenticated · Tenant context · `can_manage_connections` · `can_delete` | Permanently erase an archived account and all of its inbox data. |
+| POST | `/whatsapp/connections/:connectionId/reconnect` | Authenticated · Tenant context · `can_manage_connections` | Reconnect a disconnected connection |
+| POST | `/whatsapp/connections/:connectionId/relink` | Authenticated · Tenant context · `can_manage_connections` | Initiate a new pairing session for an archived connection |
+| POST | `/whatsapp/connections/:connectionId/send` | Authenticated · Tenant context · `can_send_messages` · Legacy removed | Removed legacy send endpoint; always returns 410 (use `POST /messages`) |
+| GET | `/whatsapp/connections/:connectionId/status` | Authenticated · Tenant context | Get specific connection status |
+| GET | `/whatsapp/connections/archived` | Authenticated · Tenant context · `can_manage_connections` | List archived connections |
+| POST | `/whatsapp/disconnect` | Authenticated · Tenant context · `can_manage_connections` | Disconnect WhatsApp (backward compatible) Disconnects the first active connection |
+| GET | `/whatsapp/limits` | Authenticated · Tenant context | Get connection limits for the company |
+| POST | `/whatsapp/send` | Authenticated · Tenant context · `can_send_messages` · Legacy removed | Removed legacy send endpoint; always returns 410 (use `POST /messages`) |
+| GET | `/whatsapp/status` | Authenticated · Tenant context | Get WhatsApp connection status (backward compatible) |
+| POST | `/whatsapp/sync-reset` | Authenticated · Tenant context | Resets sync status for all connections (failsafe for stuck syncs) |
+| GET | `/whatsapp/sync-status` | Authenticated · Tenant context | Gets sync status for all connections (for page reload handling) |
 
 ## Flows
 
@@ -81,4 +81,3 @@ sequenceDiagram
     N->>OC: kill command
     OC->>W: terminate worker
 ```
-

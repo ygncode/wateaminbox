@@ -2,7 +2,7 @@
 
 > Base path: `/api/realtime` · 1 endpoints
 
-Issues a short-lived Centrifugo connection token. Channel subscriptions are derived server-side from the authenticated user and their verified workspace membership.
+Issues a short-lived Centrifugo connection token after authenticated workspace membership resolution. The token grants exactly the workspace company channel and the caller's company-scoped user channel; conversation visibility is enforced by server-side fanout to user channels.
 
 ## Endpoints
 
@@ -10,7 +10,7 @@ Issues a short-lived Centrifugo connection token. Channel subscriptions are deri
 
 | Method | Path | Access | Description |
 |--------|------|--------|-------------|
-| POST | `/realtime/token` | — | Issue a short-lived Centrifugo connection token. The server-side channel subscriptions are derived exclusively from the authenticated user and their verified current company membership. |
+| POST | `/realtime/token` | Authenticated · Tenant context | Issue a short-lived Centrifugo connection token. The server-side channel subscriptions are derived exclusively from the authenticated user and their verified current company membership. |
 
 ## Flows
 
@@ -26,6 +26,5 @@ sequenceDiagram
     A->>CF: createRealtimeConnectionToken(user, company)
     A-->>C: 200 {token}
     C->>CF: WebSocket connect (token)
-    CF->>CF: subscribe company:{companyId} + allowed conversations
+    CF->>CF: subscribe company:{companyId} + user:{companyId}:{userId} only
 ```
-

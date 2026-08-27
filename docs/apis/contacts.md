@@ -10,26 +10,26 @@ Contact (customer) management: CRUD, assignment, notes, tags, and CSV import. No
 
 | Method | Path | Access | Description |
 |--------|------|--------|-------------|
-| GET | `/contacts/` | — | List all contacts |
-| POST | `/contacts/` | — | Create a new contact manually by phone number |
-| GET | `/contacts/:id` | — | Get a specific contact |
-| PATCH | `/contacts/:id` | — | Update a contact Supports: customName, notesShared, isBlocked |
-| POST | `/contacts/:id/assign` | — | Assign contact to a user (or self) |
-| DELETE | `/contacts/:id/assign` | `can_assign_contacts` | Unassign contact |
-| GET | `/contacts/:id/assignments` | Contact visibility | Get assignment history for a contact |
-| GET | `/contacts/:id/notes/private` | — | Get private notes for a contact (user's own notes only) |
-| POST | `/contacts/:id/notes/private` | — | Create a new private note |
-| PUT | `/contacts/:id/notes/private/:noteId` | — | Update a specific private note |
-| DELETE | `/contacts/:id/notes/private/:noteId` | — | Delete a specific private note |
-| GET | `/contacts/:id/notes/shared` | — | Get shared notes for a contact (paginated) |
-| POST | `/contacts/:id/notes/shared` | — | Create a new shared note |
-| PUT | `/contacts/:id/notes/shared/:noteId` | — | Update a shared note (author only) |
-| DELETE | `/contacts/:id/notes/shared/:noteId` | — | Delete a shared note (author only) |
-| POST | `/contacts/:id/tags` | — | Add a tag to a contact |
-| DELETE | `/contacts/:id/tags/:tagId` | — | Remove a tag from a contact |
-| POST | `/contacts/import` | Admin role · Rate limited | Import contacts from CSV Accepts: multipart/form-data with file field, or JSON with csvContent field |
-| POST | `/contacts/import/preview` | Rate limited | Preview import without saving |
-| GET | `/contacts/import/template` | — | Download CSV template for import |
+| GET | `/contacts` | Authenticated · Tenant context · Contact visibility (result-filtered) | List all contacts |
+| POST | `/contacts` | Authenticated · Tenant context | Create a new contact manually by phone number |
+| GET | `/contacts/:id` | Authenticated · Tenant context · Contact visibility | Get a specific contact |
+| PATCH | `/contacts/:id` | Authenticated · Tenant context · Contact visibility | Update a contact Supports: customName, notesShared, isBlocked |
+| DELETE | `/contacts/:id/assign` | Authenticated · Tenant context · `can_assign_contacts` | Unassign contact |
+| POST | `/contacts/:id/assign` | Authenticated · Tenant context · Conditional `can_assign_contacts` (other-user assignment or takeover) | Assign contact to a user (or self) |
+| GET | `/contacts/:id/assignments` | Authenticated · Tenant context · Contact visibility | Get assignment history for a contact |
+| GET | `/contacts/:id/notes/private` | Authenticated · Tenant context · Contact visibility | Get private notes for a contact (user's own notes only) |
+| POST | `/contacts/:id/notes/private` | Authenticated · Tenant context · Contact visibility | Create a new private note |
+| DELETE | `/contacts/:id/notes/private/:noteId` | Authenticated · Tenant context · Contact visibility | Delete a specific private note |
+| PUT | `/contacts/:id/notes/private/:noteId` | Authenticated · Tenant context · Contact visibility | Update a specific private note |
+| GET | `/contacts/:id/notes/shared` | Authenticated · Tenant context · Contact visibility | Get shared notes for a contact (paginated) |
+| POST | `/contacts/:id/notes/shared` | Authenticated · Tenant context · Contact visibility | Create a new shared note |
+| DELETE | `/contacts/:id/notes/shared/:noteId` | Authenticated · Tenant context · Contact visibility · Author only | Delete a shared note (author only) |
+| PUT | `/contacts/:id/notes/shared/:noteId` | Authenticated · Tenant context · Contact visibility · Author only | Update a shared note (author only) |
+| POST | `/contacts/:id/tags` | Authenticated · Tenant context · Contact visibility | Add a tag to a contact |
+| DELETE | `/contacts/:id/tags/:tagId` | Authenticated · Tenant context · Contact visibility | Remove a tag from a contact |
+| POST | `/contacts/import` | Authenticated · Tenant context · Admin role · Rate limited | Import contacts from CSV Accepts: multipart/form-data with file field, or JSON with csvContent field |
+| POST | `/contacts/import/preview` | Authenticated · Tenant context · Rate limited | Preview import without saving |
+| GET | `/contacts/import/template` | Authenticated · Tenant context | Download CSV template for import |
 
 ## Flows
 
@@ -39,19 +39,19 @@ Contact (customer) management: CRUD, assignment, notes, tags, and CSV import. No
 sequenceDiagram
     participant U as Agent
     participant A as API (Hono)
-    participant S as contact.service
     participant D as Postgres (tenantDb)
     participant R as Centrifugo
-    U->>A: POST /api/contacts {jid,...}
+    U->>A: POST /api/contacts {phoneNumber, customName?, connectionId?}
     A->>A: authMiddleware + tenantMiddleware
-    A->>S: createContact(tenantDb, input)
-    S->>D: INSERT contact
-    A-->>U: 201 {contact}
-    U->>A: POST /api/contacts/:id/assign
-    A->>A: requirePermission(can_assign_contacts)
-    A->>D: update assignment
-    A->>R: broadcast assignment event to viewers
-    A-->>U: 200 {assignment}
+    A->>D: resolve exactly one connected account (or explicit connectionId)
+    A->>D: INSERT contact
+    A-->>U: 201 {data: contact}
+    U->>A: POST /api/contacts/:id/assign {targetUserId?}
+    A->>D: validate target workspace member
+    A->>A: can_assign_contacts only for other-user assignment/takeover
+    A->>D: transaction: lock contact + replace assignment
+    A->>R: broadcast assignment event to affected viewers
+    A-->>U: 201 {assignment, wasTakeover, previousAssignee}
 ```
 
 ### CSV import
@@ -63,9 +63,9 @@ sequenceDiagram
     participant S as import service
     participant D as Postgres (tenantDb)
     U->>A: POST /api/contacts/import (multipart CSV)
-    A->>S: parse + validate rows
-    S->>D: bulk upsert contacts
-    S-->>A: {imported, skipped, errors}
-    A-->>U: 200 {summary}
+    A->>A: Admin role + rate limit; parse and validate CSV
+    A->>D: resolve explicit/sole connected account
+    A->>S: importContacts (upsert rows and optional tags)
+    S-->>A: summary + per-row results
+    A-->>U: 201 {summary, results, connection}
 ```
-

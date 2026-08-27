@@ -10,7 +10,7 @@ Public feedback submission. Unauthenticated, body-bounded, and emailed to the pr
 
 | Method | Path | Access | Description |
 |--------|------|--------|-------------|
-| POST | `/feedback/` | — | Submit feedback Public endpoint, no authentication required |
+| POST | `/feedback` | Public | Submit feedback Public endpoint, no authentication required |
 
 ## Flows
 
@@ -26,4 +26,3 @@ sequenceDiagram
     A->>M: sendEmail(contact@wateaminbox.com)
     A-->>U: 200 {message}
 ```
-

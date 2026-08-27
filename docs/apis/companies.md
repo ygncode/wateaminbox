@@ -2,7 +2,7 @@
 
 > Base path: `/api/companies` · 22 endpoints
 
-Workspace management: company CRUD, members, invitations, member permissions, SLA policy, and ownership transfer. All routes require a valid JWT and tenant context (`X-Company-ID`). Admin/owner-only actions are annotated per endpoint.
+Workspace management: company CRUD, members, invitations, member permissions, SLA policy, and ownership transfer. Listing and creating companies require only a valid JWT; routes for a specific `:id` resolve tenant membership with `tenantFromParam`. `PATCH /:id` requires Admin access generally, but changing `status` is conditionally owner-only.
 
 ## Endpoints
 
@@ -10,28 +10,28 @@ Workspace management: company CRUD, members, invitations, member permissions, SL
 
 | Method | Path | Access | Description |
 |--------|------|--------|-------------|
-| GET | `/companies/` | — | List companies the user belongs to |
-| POST | `/companies/` | — | Create a new company |
-| GET | `/companies/:id` | — | Get company details |
-| PATCH | `/companies/:id` | — | Update company |
-| DELETE | `/companies/:id` | — | Delete company (soft delete) |
-| GET | `/companies/:id/invitations` | `can_invite` | List pending invitations |
-| POST | `/companies/:id/invitations` | `can_invite` | Create invitation |
-| DELETE | `/companies/:id/invitations/:invitationId` | `can_invite` | Cancel invitation |
-| POST | `/companies/:id/invitations/:invitationId/resend` | `can_invite` | Resend invitation |
-| POST | `/companies/:id/leave` | — | Leave a workspace as a non-owner member. |
-| GET | `/companies/:id/member-identities` | — | identities Minimal teammate identity directory used by shared-inbox message attribution. Every active workspace member may read it; emails, roles, and permissions are intentionally excluded. |
-| GET | `/companies/:id/members` | `can_manage_team` | List company members |
-| PATCH | `/companies/:id/members/:userId` | `can_manage_team` | Update member role |
-| DELETE | `/companies/:id/members/:userId` | `can_manage_team` | Remove member from company |
-| GET | `/companies/:id/members/:userId/permissions` | `can_manage_team` | Get member's effective permissions |
-| PATCH | `/companies/:id/members/:userId/permissions` | — | Update member's custom permissions |
-| POST | `/companies/:id/members/:userId/permissions/reset` | — | Reset member's permissions to role defaults |
-| GET | `/companies/:id/permissions` | — | List all available permissions |
-| GET | `/companies/:id/sla-policy` | — | Get the SLA policy currently in effect. Any member can view it (read-only summary is fine for non-admins). |
-| POST | `/companies/:id/sla-policy` | — | Create a new (immediately-active) SLA policy version. Admin/owner only. Never overwrites a prior version. |
-| GET | `/companies/:id/sla-policy/history` | — | Full, immutable version history. Any member can view it. |
-| POST | `/companies/:id/transfer-ownership` | — | Transfer ownership to another member. |
+| GET | `/companies` | Authenticated | List companies the user belongs to |
+| POST | `/companies` | Authenticated | Create a new company |
+| DELETE | `/companies/:id` | Authenticated · Tenant context · Owner role | Delete company (soft delete) |
+| GET | `/companies/:id` | Authenticated · Tenant context | Get company details |
+| PATCH | `/companies/:id` | Authenticated · Tenant context · Admin role · Owner role when changing status | Update company |
+| GET | `/companies/:id/invitations` | Authenticated · Tenant context · `can_invite` | List pending invitations |
+| POST | `/companies/:id/invitations` | Authenticated · Tenant context · `can_invite` | Create invitation |
+| DELETE | `/companies/:id/invitations/:invitationId` | Authenticated · Tenant context · `can_invite` | Cancel invitation |
+| POST | `/companies/:id/invitations/:invitationId/resend` | Authenticated · Tenant context · `can_invite` | Resend invitation |
+| POST | `/companies/:id/leave` | Authenticated · Tenant context · Non-owner only | Leave a workspace as a non-owner member. |
+| GET | `/companies/:id/member-identities` | Authenticated · Tenant context | Minimal teammate identity directory used by shared-inbox message attribution. Every active workspace member may read it; emails, roles, and permissions are intentionally excluded. |
+| GET | `/companies/:id/members` | Authenticated · Tenant context · `can_manage_team` | List company members |
+| DELETE | `/companies/:id/members/:userId` | Authenticated · Tenant context · `can_manage_team` · Actor must outrank target | Remove member from company |
+| PATCH | `/companies/:id/members/:userId` | Authenticated · Tenant context · `can_manage_team` · Actor must outrank target | Update member role |
+| GET | `/companies/:id/members/:userId/permissions` | Authenticated · Tenant context · `can_manage_team` | Get member's effective permissions |
+| PATCH | `/companies/:id/members/:userId/permissions` | Authenticated · Tenant context · Owner role | Update member's custom permissions |
+| POST | `/companies/:id/members/:userId/permissions/reset` | Authenticated · Tenant context · Owner role | Reset member's permissions to role defaults |
+| GET | `/companies/:id/permissions` | Authenticated · Tenant context | List all available permissions |
+| GET | `/companies/:id/sla-policy` | Authenticated · Tenant context | Get the SLA policy currently in effect. Any member can view it (read-only summary is fine for non-admins). |
+| POST | `/companies/:id/sla-policy` | Authenticated · Tenant context · Admin role | Create a new (immediately-active) SLA policy version. Admin/owner only. Never overwrites a prior version. |
+| GET | `/companies/:id/sla-policy/history` | Authenticated · Tenant context | Full, immutable version history. Any member can view it. |
+| POST | `/companies/:id/transfer-ownership` | Authenticated · Tenant context · Owner role | Transfer ownership to another member. |
 
 ## Flows
 
@@ -45,11 +45,11 @@ sequenceDiagram
     participant D as Postgres
     C->>A: POST /api/companies {name,...}
     A->>A: authMiddleware (JWT)
-    A->>S: createCompany(userId, input)
+    A->>S: createCompany(input, userId)
     S->>D: INSERT company + tenant schema
-    S->>D: INSERT owner membership
+    S->>D: INSERT owner membership in shared company_members
     S-->>A: company
-    A-->>C: 201 {company}
+    A-->>C: 201 {data: company}
 ```
 
 ### Invite & update member
@@ -66,8 +66,7 @@ sequenceDiagram
     A->>M: send invite email
     A-->>O: 201 {invitation}
     O->>A: PATCH /api/companies/:id/members/:userId/permissions
-    A->>A: requirePermission(can_manage_team)
+    A->>A: owner-only tenant guard
     A->>D: update member permissions + audit log
     A-->>O: 200 {member}
 ```
-

@@ -2,7 +2,7 @@
 
 > Base path: `/api/debug` · 5 endpoints
 
-Development-only NATS inspection endpoints (consumers, messages, trace). Not enabled in production.
+Development-only NATS inspection endpoints (status, consumers, stream statistics, trace guidance, and help). The messages endpoint does not read message content: it returns stream counters plus CLI instructions. These routes return 403 in production.
 
 ## Endpoints
 
@@ -10,11 +10,11 @@ Development-only NATS inspection endpoints (consumers, messages, trace). Not ena
 
 | Method | Path | Access | Description |
 |--------|------|--------|-------------|
-| GET | `/debug/nats/consumers/:stream` | — | stream Get consumer info for a stream |
-| GET | `/debug/nats/help` | — | Shows available debugging commands and endpoints |
-| GET | `/debug/nats/messages/:stream` | — | stream Get recent messages from a stream (for debugging) |
-| GET | `/debug/nats/status` | — | Get NATS connection status and stream info |
-| GET | `/debug/nats/trace/:correlationId` | — | correlationId Provides instructions for tracing a correlation ID |
+| GET | `/debug/nats/consumers/:stream` | Public | Get consumer info for a stream |
+| GET | `/debug/nats/help` | Public | Shows available debugging commands and endpoints |
+| GET | `/debug/nats/messages/:stream` | Public | Get stream statistics and CLI inspection instructions (not message content) |
+| GET | `/debug/nats/status` | Public | Get NATS connection status and stream info |
+| GET | `/debug/nats/trace/:correlationId` | Public | Provides instructions for tracing a correlation ID |
 
 ## Flows
 
@@ -26,7 +26,6 @@ sequenceDiagram
     participant A as API (Hono)
     participant N as NATS
     U->>A: GET /api/debug/nats/messages/:stream
-    A->>N: fetch stream messages
-    A-->>U: 200 {messages}
+    A->>N: fetch stream info only
+    A-->>U: 200 {stream, stats, instructions}
 ```
-

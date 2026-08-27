@@ -2,11 +2,11 @@
 
 Detailed, group-by-group API reference for `apps/api` (the OSS API service). Every group file lists its endpoints with access controls and includes Mermaid sequence diagrams for the important flows.
 
-> Generated from `apps/api/src/routes` on 2026-08-25. All paths are served under the `/api` base path.
+> Generated from `apps/api/src/routes`. All paths are served under the `/api` base path.
 
 ## Architecture at a glance
 
-The API is a [Hono](https://hono.dev) app. Every request passes through a fixed middleware pipeline, then a route handler, then a service that talks to the per-tenant PostgreSQL schema and/or NATS.
+The API is a [Hono](https://hono.dev) app. Logging, CORS, and the configured global rate limiter run at the app level; authentication, tenant resolution, authorization, persistence, and messaging depend on the endpoint. Each group table lists the applicable route guards.
 
 ```mermaid
 sequenceDiagram
@@ -15,23 +15,35 @@ sequenceDiagram
     participant M as Middleware
     participant H as Route handler
     participant S as Service
+    participant E as API event handler
     participant D as Postgres (tenantDb)
     participant N as NATS
     participant R as Centrifugo
     C->>A: HTTP /api/...
     A->>M: CORS -> global rate limit
-    M->>M: authMiddleware (JWT + session)
-    M->>M: tenantMiddleware (X-Company-ID -> role/permissions/tenantDb)
-    M->>M: permission/role/visibility guards
-    M->>H: route handler
+    alt public route
+        M->>H: route handler (no JWT/tenant guard)
+    else protected route
+        M->>M: authMiddleware (JWT + session)
+        opt tenant-scoped route
+            M->>M: tenant middleware (header or path -> role/permissions/tenantDb)
+            M->>M: permission/role/visibility guards
+        end
+        M->>H: route handler
+    end
     H->>S: service call
     alt synchronous read/write
-        S->>D: tenant schema query
+        S->>D: database query
         S-->>H: result
-    else async WhatsApp action
+    else durable async WhatsApp action
         S->>D: persist + enqueue command
         S->>N: publish command (outbox)
-        N-->>R: later: events -> broadcast
+        N-->>E: later: consume worker event
+        E->>D: persist event result
+        E->>R: broadcast authorized realtime event
+    else ephemeral signal (for example, typing)
+        H->>N: publish command directly
+        H->>R: optionally broadcast realtime signal
     end
     H-->>A: response
     A-->>C: JSON
@@ -41,12 +53,12 @@ sequenceDiagram
 ### Request context
 
 - **Auth:** `Authorization: Bearer <access-token>` (JWT). Refresh tokens live in an HTTP-only cookie.
-- **Tenant:** `X-Company-ID: <workspace-uuid>`. The tenant middleware resolves membership, role, permissions, and opens the per-tenant `tenant_<uuid>` schema connection.
+- **Tenant:** Most tenant routes use `X-Company-ID: <workspace-uuid>`; company-resource routes resolve `:id` instead. The tenant middleware resolves membership, role, permissions, and opens the per-tenant `tenant_<uuid>` schema connection.
 - **Permissions:** feature-based (`can_send_messages`, `can_manage_connections`, ...) plus role hierarchy (owner > admin > member).
 
 ### Async command path
 
-WhatsApp-affecting actions are asynchronous and reliable: the handler persists state and enqueues a command in the **command outbox**, which publishes to **NATS (JetStream)**. The **orchestrator** runs the **WhatsApp worker**, which performs the action against WhatsApp and publishes events back; the API consumes those events, persists the result, and broadcasts to **Centrifugo** for the realtime UI.
+Durable, state-changing WhatsApp actions persist state and enqueue a command in the **command outbox**, which publishes to **NATS (JetStream)**. A connection's **WhatsApp worker** consumes its command subject directly, performs the action, and publishes events back. The API event handlers consume those events, persist results, then broadcast through **Centrifugo**. Ephemeral signals such as typing may publish directly instead of using the outbox. The **orchestrator** manages worker lifecycle (spawn/kill); it does not forward ordinary connection commands.
 
 ## Groups
 
@@ -83,4 +95,4 @@ WhatsApp-affecting actions are asynchronous and reliable: the handler persists s
 
 | Method | Path | Access | Description |
 |--------|------|--------|-------------|
-| GET | `/` | — | API service info (name and version) |
+| GET | `/` | Public | API service info (name and version) |

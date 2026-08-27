@@ -10,20 +10,20 @@ Authentication and account lifecycle: registration, login, session refresh/revoc
 
 | Method | Path | Access | Description |
 |--------|------|--------|-------------|
-| POST | `/auth/change-password` | — | password Change the current user's password and revoke other device sessions. |
-| POST | `/auth/forgot-password` | Rate limited | password Request a password reset email |
-| POST | `/auth/login` | Rate limited | Login with email and password |
-| POST | `/auth/logout` | — | Logout the current session |
-| GET | `/auth/me` | — | Get current user information |
-| PATCH | `/auth/me` | — | Update the current user's name, email, or profile image. |
-| POST | `/auth/refresh` | Rate limited | Refresh access token using refresh token |
-| POST | `/auth/register` | Rate limited | Register a new user with email and password |
-| POST | `/auth/resend-verification` | Rate limited | verification Reissue a verification link after checking the account password. |
-| POST | `/auth/reset-password` | — | password Reset password with token |
-| GET | `/auth/sessions` | — | List all active sessions for the current user |
-| DELETE | `/auth/sessions` | — | Logout all sessions except the current one |
-| DELETE | `/auth/sessions/:id` | — | id Delete a specific session |
-| POST | `/auth/verify-email` | — | email Verify email with token |
+| POST | `/auth/change-password` | Authenticated | Change the current user's password and revoke other device sessions. |
+| POST | `/auth/forgot-password` | Public · Rate limited | Request a password reset email |
+| POST | `/auth/login` | Public · Rate limited | Login with email and password |
+| POST | `/auth/logout` | Authenticated | Logout the current session |
+| GET | `/auth/me` | Authenticated | Get current user information |
+| PATCH | `/auth/me` | Authenticated | Update the current user's name, email, or profile image. |
+| POST | `/auth/refresh` | Public · Rate limited | Refresh access token using refresh token |
+| POST | `/auth/register` | Public · Rate limited | Register a new user with email and password |
+| POST | `/auth/resend-verification` | Public · Rate limited | Reissue a verification link after checking the account password. |
+| POST | `/auth/reset-password` | Public | Reset password with token |
+| DELETE | `/auth/sessions` | Authenticated | Logout all sessions except the current one |
+| GET | `/auth/sessions` | Authenticated | List all active sessions for the current user |
+| DELETE | `/auth/sessions/:id` | Authenticated | Delete a specific session |
+| POST | `/auth/verify-email` | Public | Verify email with token |
 
 ## Flows
 
@@ -39,7 +39,7 @@ sequenceDiagram
     C->>A: POST /api/auth/register {email,password,name}
     A->>A: rate limit + zValidator + password strength
     A->>S: register(email,password,name)
-    S->>S: hash password (argon2/bcrypt)
+    S->>S: hash password (bcrypt)
     S->>D: INSERT user
     S->>M: send verification email (Resend/Cloudflare)
     S-->>A: user + verificationEmailSent
@@ -81,4 +81,3 @@ sequenceDiagram
     A->>D: handler -> tenantDb query
     A-->>C: JSON response
 ```
-

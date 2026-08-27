@@ -2,7 +2,7 @@
 
 > Base path: `/api/export` · 5 endpoints
 
-Data export: contacts, messages, full workspace, single conversation, and bulk exports. Requires `can_export`.
+Data export: contacts, messages, full workspace, single conversation, and bulk exports. Requires `can_export`. Export queries materialize rows in memory before JSON serialization or CSV generation; they do not stream database rows incrementally.
 
 ## Endpoints
 
@@ -10,11 +10,11 @@ Data export: contacts, messages, full workspace, single conversation, and bulk e
 
 | Method | Path | Access | Description |
 |--------|------|--------|-------------|
-| POST | `/export/bulk` | Rate limited | Bulk export with custom filters |
-| GET | `/export/contacts` | Rate limited | Export contacts |
-| GET | `/export/conversation/:contactId` | Contact visibility · Rate limited | Export conversation for a specific contact |
-| GET | `/export/full` | `can_view_all_chats` · Rate limited | Full backup as ZIP file |
-| GET | `/export/messages` | Rate limited | Export messages |
+| POST | `/export/bulk` | Authenticated · Tenant context · `can_export` · Rate limited · Contact visibility (result-filtered) | Bulk export with custom filters |
+| GET | `/export/contacts` | Authenticated · Tenant context · `can_export` · Rate limited · Contact visibility (result-filtered) | Export contacts |
+| GET | `/export/conversation/:contactId` | Authenticated · Tenant context · `can_export` · Contact visibility · Rate limited | Export conversation for a specific contact |
+| GET | `/export/full` | Authenticated · Tenant context · `can_export` · `can_view_all_chats` · Rate limited | Full backup as ZIP file |
+| GET | `/export/messages` | Authenticated · Tenant context · `can_export` · Rate limited · Contact visibility (result-filtered) | Export messages |
 
 ## Flows
 
@@ -28,9 +28,9 @@ sequenceDiagram
     participant D as Postgres (tenantDb)
     U->>A: GET /api/export/contacts
     A->>A: requirePermission(can_export)
-    A->>S: build CSV
-    S->>D: stream rows
-    S-->>A: CSV bytes
+    A->>S: exportContacts(companyId, visibility filters)
+    S->>D: query and materialize all matching rows
+    S-->>A: contact array
+    A->>A: convert materialized rows to CSV bytes
     A-->>U: 200 (text/csv)
 ```
-

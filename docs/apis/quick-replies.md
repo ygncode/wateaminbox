@@ -10,12 +10,12 @@ Canned/shortcut replies. Synchronous CRUD; `GET /search/:shortcut` lets the comp
 
 | Method | Path | Access | Description |
 |--------|------|--------|-------------|
-| GET | `/quick-replies/` | — | List all quick replies |
-| POST | `/quick-replies/` | — | Create a new quick reply |
-| GET | `/quick-replies/:id` | — | Get a quick reply by ID |
-| PATCH | `/quick-replies/:id` | — | Update a quick reply |
-| DELETE | `/quick-replies/:id` | — | Delete a quick reply |
-| GET | `/quick-replies/search/:shortcut` | — | Search by shortcut (for autocomplete) |
+| GET | `/quick-replies` | Authenticated · Tenant context | List all quick replies |
+| POST | `/quick-replies` | Authenticated · Tenant context | Create a new quick reply |
+| DELETE | `/quick-replies/:id` | Authenticated · Tenant context | Delete a quick reply |
+| GET | `/quick-replies/:id` | Authenticated · Tenant context | Get a quick reply by ID |
+| PATCH | `/quick-replies/:id` | Authenticated · Tenant context | Update a quick reply |
+| GET | `/quick-replies/search/:shortcut` | Authenticated · Tenant context | Search by shortcut (for autocomplete) |
 
 ## Flows
 
@@ -33,4 +33,3 @@ sequenceDiagram
     A->>D: SELECT by shortcut
     A-->>U: 200 {text}
 ```
-

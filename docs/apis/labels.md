@@ -10,16 +10,16 @@ WhatsApp labels sync and contact label application. Sync and apply/remove are as
 
 | Method | Path | Access | Description |
 |--------|------|--------|-------------|
-| GET | `/labels/` | — | List all WhatsApp labels with optional pagination |
-| GET | `/labels/:labelId` | — | Get a specific WhatsApp label |
-| POST | `/labels/:labelId/apply/:contactId` | — | Apply a WhatsApp label to a contact This syncs the label to WhatsApp |
-| DELETE | `/labels/:labelId/apply/:contactId` | — | Remove a WhatsApp label from a contact This syncs the removal to WhatsApp |
-| POST | `/labels/:labelId/link` | — | Link a tag to a WhatsApp label |
-| DELETE | `/labels/:labelId/link` | — | Unlink a tag from a WhatsApp label |
-| POST | `/labels/auto-create` | — | Auto-create tags from unlinked WhatsApp labels |
-| GET | `/labels/status` | — | Get label sync status summary |
-| POST | `/labels/sync` | — | Trigger a sync of labels from WhatsApp This sends a command to the Go service to fetch labels |
-| GET | `/labels/tags/with-status` | — | Get all tags with their label sync status |
+| GET | `/labels` | Authenticated · Tenant context · `can_manage_connections` | List all WhatsApp labels with optional pagination |
+| GET | `/labels/:labelId` | Authenticated · Tenant context · `can_manage_connections` | Get a specific WhatsApp label |
+| DELETE | `/labels/:labelId/apply/:contactId` | Authenticated · Tenant context · `can_manage_connections` | Queue removing a label from a contact (200) |
+| POST | `/labels/:labelId/apply/:contactId` | Authenticated · Tenant context · `can_manage_connections` | Queue applying a label to a contact (200) |
+| DELETE | `/labels/:labelId/link` | Authenticated · Tenant context · `can_manage_connections` | Unlink a tag from a WhatsApp label |
+| POST | `/labels/:labelId/link` | Authenticated · Tenant context · `can_manage_connections` | Link a tag to a WhatsApp label |
+| POST | `/labels/auto-create` | Authenticated · Tenant context · `can_manage_connections` | Auto-create tags from unlinked WhatsApp labels |
+| GET | `/labels/status` | Authenticated · Tenant context · `can_manage_connections` | Get label sync status summary |
+| POST | `/labels/sync` | Authenticated · Tenant context · `can_manage_connections` | Queue a label sync request (200) |
+| GET | `/labels/tags/with-status` | Authenticated · Tenant context · `can_manage_connections` | Get all tags with their label sync status |
 
 ## Flows
 
@@ -35,12 +35,11 @@ sequenceDiagram
     participant WA as WhatsApp
     U->>A: POST /api/labels/sync
     A->>D: enqueue sync_labels command
-    A-->>U: 202
+    A-->>U: 200 {data: {status: syncing}}
     N->>W: sync_labels
     W->>WA: fetch labels
     W->>N: labels event -> persist
     U->>A: POST /api/labels/:id/apply/:contactId
     A->>D: enqueue apply_label command
-    A-->>U: 202
+    A-->>U: 200 {message}
 ```
-

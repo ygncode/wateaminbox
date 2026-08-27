@@ -10,8 +10,8 @@ Public token endpoints for previewing and accepting a workspace invitation. `GET
 
 | Method | Path | Access | Description |
 |--------|------|--------|-------------|
-| GET | `/invitations/:token` | — | Get invitation details (for preview before accepting) |
-| POST | `/invitations/:token/accept` | — | Accept invitation |
+| GET | `/invitations/:token` | Public | Get invitation details (for preview before accepting) |
+| POST | `/invitations/:token/accept` | Authenticated | Accept invitation |
 
 ## Flows
 
@@ -29,8 +29,7 @@ sequenceDiagram
     A-->>U: 200 {invitation preview}
     U->>A: POST /api/invitations/:token/accept (Bearer JWT)
     A->>S: acceptInvitation(token, userId)
-    S->>D: validate + create membership in tenant schema
+    S->>D: validate + create membership in shared company_members
     A->>D: createAuditLog(invitation.accepted)
     A-->>U: 200 {company, member}
 ```
-
