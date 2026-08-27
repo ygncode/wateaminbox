@@ -8,14 +8,17 @@ import { stateRoutes } from "./state.js";
 
 export const conversationRoutes = new Hono();
 
-// All conversation routes require authentication and tenant context
+// All conversation routes require authentication and tenant context.
 conversationRoutes.use("/*", authMiddleware);
 conversationRoutes.use("/*", tenantMiddleware());
-conversationRoutes.use("/:id/*", requireContactVisibility());
 
-// Mount analytics routes first (more specific path matching)
+// Analytics paths begin with `/stats`, which Hono also matches as `/:id/*` with
+// `id = "stats"`. Mount them before the per-contact visibility middleware so
+// aggregate analytics are governed by their dashboard permission instead of a
+// bogus contact lookup.
 conversationRoutes.route("/", analyticsRoutes);
 
-// Mount state and message routes
+// Resource routes below this point address a real contact ID.
+conversationRoutes.use("/:id/*", requireContactVisibility());
 conversationRoutes.route("/", stateRoutes);
 conversationRoutes.route("/", messageRoutes);
