@@ -14,7 +14,7 @@
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1101.0",
     "@aws-sdk/s3-request-presigner": "^3.1101.0",
-    "@hono/zod-validator": "^0.7.6",
+    "@hono/zod-validator": "^0.9.0",
     "@wateaminbox/database": "workspace:*",
     "@wateaminbox/shared": "workspace:*",
     "bcrypt": "^6.0.0",
@@ -22,7 +22,7 @@
     "fflate": "^0.8.2",
     "hono": "^4.12.33",
     "jose": "^6.1.3",
-    "meilisearch": "^0.55.0",
+    "meilisearch": "^0.60.0",
     "nats": "^2.29.3",
     "pino": "^10.1.0",
     "web-push": "^3.6.7",
