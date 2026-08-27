@@ -129,7 +129,7 @@ export function AssignmentSection({ contact }: AssignmentSectionProps) {
             >
               <SelectTrigger
                 id={`contact-assignee-${contact.id}`}
-                className="h-9"
+                className="h-9 rounded-lg transition-all focus:border-whatsapp-green focus:ring-1 focus:ring-whatsapp-green focus:ring-offset-0 dark:focus:border-whatsapp-green dark:focus:ring-whatsapp-green"
                 aria-label={t(
                   "contacts.assignConversationTo",
                   "Assign conversation to",
