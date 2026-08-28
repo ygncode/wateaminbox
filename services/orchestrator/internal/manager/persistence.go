@@ -392,13 +392,24 @@ func (r *WorkerRegistry) claimWithFleetLimit(ctx context.Context, w *WorkerProce
 	if _, err := tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock($1)`, fleetCapacityAdvisoryLockID); err != nil {
 		return fmt.Errorf("serialize fleet capacity check: %w", err)
 	}
-	var occupied int
+	var (
+		connectionExists bool
+		occupied         int
+	)
 	if err := tx.QueryRowContext(ctx, `
-		SELECT COUNT(*) FROM worker_registry WHERE connection_id <> $1
-	`, w.ConnectionID).Scan(&occupied); err != nil {
-		return fmt.Errorf("count fleet connections: %w", err)
+		SELECT EXISTS (
+			SELECT 1 FROM worker_registry WHERE connection_id = $1
+		), COUNT(*)
+		FROM worker_registry
+	`, w.ConnectionID).Scan(&connectionExists, &occupied); err != nil {
+		return fmt.Errorf("inspect fleet capacity: %w", err)
 	}
-	if occupied >= r.fleetMaxConnections {
+	// Capacity is admission control, not a recovery gate. Once a connection
+	// has a durable row, reclaiming its generation adds no fleet occupancy and
+	// must remain possible even if an operator lowered the ceiling below the
+	// current count. The launch CAS below still enforces tenant and generation
+	// ownership for that existing row.
+	if !connectionExists && occupied >= r.fleetMaxConnections {
 		return fmt.Errorf("%w (%d/%d)", ErrFleetConnectionLimit, occupied, r.fleetMaxConnections)
 	}
 	if err := tx.QueryRowContext(ctx, claimWorkerLaunchSQL, claimArgs...).Scan(&w.WorkerUID, &w.WorkerGID); err != nil {

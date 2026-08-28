@@ -3,6 +3,7 @@ package manager
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"regexp"
 	"sync"
 	"testing"
@@ -104,6 +105,61 @@ func TestNodeLeaseBlockedRenewalStillFencesAtDeadline(t *testing.T) {
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
+// A node that has begun shutdown must not transfer durable ownership to
+// itself: it will not launch the adopted worker, and peers would have to wait
+// through another lease-expiry cycle before recovering the stranded row.
+func TestTakeOverFailedNodesSkipsDuringShutdown(t *testing.T) {
+	registry, mock := newMockRegistry(t)
+	m := New(Config{NodeID: "test-node-1", AutoRestartEnabled: true})
+	m.registry = registry
+	m.shuttingDown = true
+
+	m.takeOverFailedNodes(context.Background())
+
+	require.NoError(t, mock.ExpectationsWereMet(), "shutdown must return before any registry query")
+}
+
+// Shutdown waits for a normal in-flight takeover to finish before taking its
+// worker snapshot, so a transferred row cannot be inserted immediately after
+// the snapshot and become stranded on the stopping node.
+func TestStopWaitsForInFlightTakeover(t *testing.T) {
+	m := New(Config{})
+	m.ctx, m.cancel = context.WithCancel(context.Background())
+
+	m.takeoverMu.RLock() // model the CAS + local insertion critical section
+	locked := true
+	defer func() {
+		if locked {
+			m.takeoverMu.RUnlock()
+		}
+	}()
+
+	stopCtx, cancelStop := context.WithTimeout(context.Background(), time.Second)
+	defer cancelStop()
+	done := make(chan error, 1)
+	go func() { done <- m.Stop(stopCtx) }()
+
+	require.Eventually(t, func() bool {
+		m.mu.RLock()
+		defer m.mu.RUnlock()
+		return m.shuttingDown
+	}, 500*time.Millisecond, 10*time.Millisecond)
+	select {
+	case err := <-done:
+		require.Failf(t, "shutdown returned before takeover finished", "error: %v", err)
+	default:
+	}
+
+	m.takeoverMu.RUnlock()
+	locked = false
+	select {
+	case err := <-done:
+		require.NoError(t, err)
+	case <-time.After(time.Second):
+		t.Fatal("shutdown did not continue after takeover finished")
+	}
+}
+
 // Takeover adopts a failed node's running connection: the ownership CAS moves
 // the row here and the connection re-enters the ordinary delayed-restart path.
 func TestTakeOverFailedNodesFlow(t *testing.T) {
@@ -147,6 +203,55 @@ func TestTakeOverFailedNodesFlow(t *testing.T) {
 	assert.Equal(t, "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd", adopted.ArtifactSHA256)
 	assert.Equal(t, 100000, adopted.WorkerUID)
 	assert.Equal(t, 100000, adopted.WorkerGID)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+// A timed-out takeover UPDATE can commit before the client receives its error.
+// The fresh ownership read must recover that ambiguous success into local state
+// rather than stranding the row on this node.
+func TestTakeOverFailedNodesResolvesAmbiguousCommittedCAS(t *testing.T) {
+	registry, mock := newMockRegistry(t)
+	now := time.Now()
+	candidate := sqlmock.NewRows(workerRecordColumns).AddRow(
+		"connection", "company", "tenant_company", "", 999999, WorkerStatusRecovering,
+		now, now, 0, "dead-launch", DesiredStateRunning, "v1",
+		"dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+		100000, 100000, "test-node-2",
+	)
+	owned := sqlmock.NewRows(workerRecordColumns).AddRow(
+		"connection", "company", "tenant_company", "", 0, WorkerStatusRecovering,
+		now, now, 0, "dead-launch", DesiredStateRunning, "v1",
+		"dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+		100000, 100000, "test-node-1",
+	)
+	mock.ExpectQuery(regexp.QuoteMeta("FROM worker_registry w")).
+		WithArgs("test-node-1", sqlmock.AnyArg()).
+		WillReturnRows(candidate)
+	mock.ExpectQuery(regexp.QuoteMeta("FROM worker_upgrade_batches WHERE completed_at IS NULL")).
+		WillReturnError(errNoActiveBatch)
+	mock.ExpectExec(regexp.QuoteMeta("UPDATE worker_registry w SET node_id = $1")).
+		WithArgs("test-node-1", "connection", "test-node-2", sqlmock.AnyArg()).
+		WillReturnError(errors.New("ambiguous timeout"))
+	mock.ExpectQuery(regexp.QuoteMeta("FROM worker_registry WHERE connection_id = $1")).
+		WithArgs("connection").
+		WillReturnRows(owned)
+
+	m := New(Config{
+		NodeID:             "test-node-1",
+		AutoRestartEnabled: true,
+		AutoRestartBackoff: time.Hour,
+		WorkerDatabaseURL:  "postgres://restricted",
+	})
+	m.ctx, m.cancel = context.WithCancel(context.Background())
+	t.Cleanup(m.cancel)
+	m.registry = registry
+
+	m.takeOverFailedNodes(context.Background())
+
+	adopted, exists := m.GetWorkerStatus("connection")
+	require.True(t, exists, "an ambiguously committed takeover must be tracked locally")
+	assert.Equal(t, "test-node-1", registry.NodeID())
+	assert.Equal(t, "dead-launch", adopted.LaunchID)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
@@ -240,9 +345,9 @@ func TestClaimWorkerLaunchEnforcesFleetLimitAtomically(t *testing.T) {
 	mock.ExpectExec(regexp.QuoteMeta("SELECT pg_advisory_xact_lock($1)")).
 		WithArgs(fleetCapacityAdvisoryLockID).
 		WillReturnResult(sqlmock.NewResult(0, 0))
-	mock.ExpectQuery(regexp.QuoteMeta("SELECT COUNT(*) FROM worker_registry WHERE connection_id <> $1")).
+	mock.ExpectQuery(regexp.QuoteMeta("SELECT EXISTS (")).
 		WithArgs("connection").
-		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(2))
+		WillReturnRows(sqlmock.NewRows([]string{"exists", "count"}).AddRow(false, 2))
 	mock.ExpectRollback()
 
 	worker := &WorkerProcess{
@@ -266,9 +371,9 @@ func TestClaimWorkerLaunchAdmitsBelowFleetLimit(t *testing.T) {
 	mock.ExpectExec(regexp.QuoteMeta("SELECT pg_advisory_xact_lock($1)")).
 		WithArgs(fleetCapacityAdvisoryLockID).
 		WillReturnResult(sqlmock.NewResult(0, 0))
-	mock.ExpectQuery(regexp.QuoteMeta("SELECT COUNT(*) FROM worker_registry WHERE connection_id <> $1")).
+	mock.ExpectQuery(regexp.QuoteMeta("SELECT EXISTS (")).
 		WithArgs("connection").
-		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
+		WillReturnRows(sqlmock.NewRows([]string{"exists", "count"}).AddRow(false, 1))
 	mock.ExpectQuery(regexp.QuoteMeta("INSERT INTO worker_registry")).
 		WillReturnRows(sqlmock.NewRows([]string{"worker_uid", "worker_gid"}).AddRow(100123, 100123))
 	mock.ExpectCommit()
@@ -279,6 +384,35 @@ func TestClaimWorkerLaunchAdmitsBelowFleetLimit(t *testing.T) {
 		ArtifactVersion: "v1", ArtifactSHA256: "digest",
 	}
 	require.NoError(t, registry.ClaimWorkerLaunch(context.Background(), worker, ""))
+	assert.Equal(t, 100123, worker.WorkerUID)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+// Reclaiming an existing row adds no fleet occupancy and remains available
+// when an operator lowers the ceiling below the current durable row count.
+func TestClaimWorkerLaunchAdmitsExistingConnectionAboveFleetLimit(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = db.Close() })
+	registry := &WorkerRegistry{db: db, nodeID: "test-node-1", fleetMaxConnections: 2}
+
+	mock.ExpectBegin()
+	mock.ExpectExec(regexp.QuoteMeta("SELECT pg_advisory_xact_lock($1)")).
+		WithArgs(fleetCapacityAdvisoryLockID).
+		WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectQuery(regexp.QuoteMeta("SELECT EXISTS (")).
+		WithArgs("connection").
+		WillReturnRows(sqlmock.NewRows([]string{"exists", "count"}).AddRow(true, 3))
+	mock.ExpectQuery(regexp.QuoteMeta("INSERT INTO worker_registry")).
+		WillReturnRows(sqlmock.NewRows([]string{"worker_uid", "worker_gid"}).AddRow(100123, 100123))
+	mock.ExpectCommit()
+
+	worker := &WorkerProcess{
+		ConnectionID: "connection", CompanyID: "company", TenantSchema: "tenant_company",
+		LaunchID: "replacement-launch", DesiredState: DesiredStateRunning, Status: "starting",
+		ArtifactVersion: "v1", ArtifactSHA256: "digest",
+	}
+	require.NoError(t, registry.ClaimWorkerLaunch(context.Background(), worker, "previous-launch"))
 	assert.Equal(t, 100123, worker.WorkerUID)
 	require.NoError(t, mock.ExpectationsWereMet())
 }

@@ -278,19 +278,24 @@ func TestFleetConnectionLimit_RefusesNewConnectionsWhenFull(t *testing.T) {
 	var existing int
 	require.NoError(t, probe.db.QueryRow(`SELECT COUNT(*) FROM worker_registry`).Scan(&existing))
 
-	registry, err := NewWorkerRegistry(databaseURL, "itest-cap-node", existing+1)
+	registry, err := NewWorkerRegistry(databaseURL, "itest-cap-node", existing+2)
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = registry.Close() })
 
 	admitted := launchWorker(mustLaunchID())
 	require.NoError(t, registry.ClaimWorkerLaunch(ctx, admitted, ""))
 	cleanupWorkerRow(t, registry, admitted.ConnectionID)
+	second := launchWorker(mustLaunchID())
+	require.NoError(t, registry.ClaimWorkerLaunch(ctx, second, ""))
+	cleanupWorkerRow(t, registry, second.ConnectionID)
 
 	refused := launchWorker(mustLaunchID())
 	err = registry.ClaimWorkerLaunch(ctx, refused, "")
 	require.ErrorIs(t, err, ErrFleetConnectionLimit)
 
-	// Reclaiming the admitted connection is not new capacity.
+	// Lower the ceiling below current occupancy. Reclaiming the admitted
+	// connection is still not new capacity and must remain available.
+	registry.fleetMaxConnections = existing + 1
 	reclaim := *admitted
 	reclaim.LaunchID = mustLaunchID()
 	require.NoError(t, registry.ClaimWorkerLaunch(ctx, &reclaim, admitted.LaunchID))

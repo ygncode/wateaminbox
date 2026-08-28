@@ -1,12 +1,26 @@
 package main
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 )
+
+// recordingManagerStopper verifies startup-failure cleanup without constructing
+// a manager with live NATS or database dependencies.
+type recordingManagerStopper struct {
+	stopped     bool
+	hasDeadline bool
+}
+
+func (s *recordingManagerStopper) Stop(ctx context.Context) error {
+	s.stopped = true
+	_, s.hasDeadline = ctx.Deadline()
+	return nil
+}
 
 func TestLoadHTTPBearerTokenReadsFileAndStripsWorkerInheritableEnvironment(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "control-token")
@@ -27,4 +41,13 @@ func TestLoadHTTPBearerTokenRejectsGroupReadableFile(t *testing.T) {
 
 	_, err := loadHTTPBearerToken()
 	require.ErrorContains(t, err, "root-only regular file")
+}
+
+func TestStopManagerAfterStartupFailureUsesBoundedCleanup(t *testing.T) {
+	stopper := &recordingManagerStopper{}
+
+	stopManagerAfterStartupFailure(stopper)
+
+	require.True(t, stopper.stopped, "startup failure must release the node lease before process exit")
+	require.True(t, stopper.hasDeadline, "startup cleanup must not hang indefinitely")
 }

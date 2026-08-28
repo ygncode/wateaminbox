@@ -83,9 +83,13 @@ type Manager struct {
 	registryReady atomic.Bool     // enables promoted-artifact reads after recovery
 	lifecycle     [256]sync.Mutex // serializes operations for each connection
 	rolloutMu     sync.RWMutex    // rollout excludes every normal lifecycle mutation
-	readinessMu   sync.Mutex
-	readiness     map[string]chan struct{} // keyed by immutable launch ID
-	runtimeSub    *gnats.Subscription
+	// takeoverMu makes shutdown and failed-node ownership transfer mutually
+	// exclusive. Once shutdown sets shuttingDown while holding the write lock,
+	// no takeover may CAS a connection onto a node that will not restart it.
+	takeoverMu  sync.RWMutex
+	readinessMu sync.Mutex
+	readiness   map[string]chan struct{} // keyed by immutable launch ID
+	runtimeSub  *gnats.Subscription
 
 	// markWorkersRecovering records recovery intent for a whole set of workers
 	// at once. It is wired to the registry when persistence initialises, and is
@@ -359,10 +363,16 @@ func validateRestrictedCredentialURL(name, raw, scheme, username string) error {
 func (m *Manager) Stop(ctx context.Context) error {
 	log.Println("Stopping process manager...")
 
-	// Set shutdown flag first to prevent NATS publishes during shutdown
+	// Publish the shutdown transition before waiting for failed-node takeover.
+	// New takeover attempts then return without touching durable ownership. Each
+	// takeover CAS has its own short database deadline; taking the write lock
+	// waits for any such bounded CAS and local insertion to finish before the
+	// worker snapshot below, so no transferred row can be inserted after it.
 	m.mu.Lock()
 	m.shuttingDown = true
 	m.mu.Unlock()
+	m.takeoverMu.Lock()
+	m.takeoverMu.Unlock()
 
 	// Stop NATS subscription first to prevent processing new commands
 	// and avoid "nats: connection closed" errors during shutdown
@@ -2482,7 +2492,10 @@ func (m *Manager) runNodeTakeover(ctx context.Context) {
 }
 
 func (m *Manager) takeOverFailedNodes(ctx context.Context) {
-	if m.registry == nil || !m.config.AutoRestartEnabled {
+	m.mu.RLock()
+	shuttingDown := m.shuttingDown
+	m.mu.RUnlock()
+	if shuttingDown || m.registry == nil || !m.config.AutoRestartEnabled {
 		return
 	}
 	candidates, err := m.registry.ListFailedNodeWorkers(ctx, m.config.NodeTakeoverMargin)
@@ -2523,12 +2536,69 @@ func (m *Manager) takeOverFailedNodes(ctx context.Context) {
 			return
 		}
 
-		transferred, err := m.registry.TakeOverFailedNodeWorker(ctx, record.ConnectionID, record.NodeID, m.config.NodeTakeoverMargin)
+		// Shutdown takes the write lock before setting shuttingDown and taking
+		// its worker snapshot. Hold the read lock only across this row's CAS and
+		// local insertion: shutdown then either sees the adopted worker, or this
+		// takeover observes shutdown and performs no durable mutation.
+		m.takeoverMu.RLock()
+		m.mu.RLock()
+		shuttingDown := m.shuttingDown
+		m.mu.RUnlock()
+		if shuttingDown {
+			m.takeoverMu.RUnlock()
+			return
+		}
+
+		takeoverCtx, cancelTakeover := context.WithTimeout(ctx, markRecoveringTimeout)
+		transferred, err := m.registry.TakeOverFailedNodeWorker(takeoverCtx, record.ConnectionID, record.NodeID, m.config.NodeTakeoverMargin)
+		cancelTakeover()
 		if err != nil {
-			log.Printf("Warning: takeover of connection %s from node %s failed: %v", record.ConnectionID, record.NodeID, err)
-			continue
+			// A timed-out UPDATE is ambiguous: PostgreSQL may have committed the
+			// ownership transfer even though the client received an error. Resolve
+			// from a fresh connection before releasing the shutdown barrier; if
+			// ownership is ours, track the authoritative row locally so shutdown
+			// sees it and normal restart can resume it.
+			verifyCtx, cancelVerify := context.WithTimeout(context.Background(), markRecoveringTimeout)
+			current, verifyErr := m.registry.GetWorker(verifyCtx, record.ConnectionID)
+			cancelVerify()
+			if verifyErr == nil && current != nil && current.NodeID == m.config.NodeID && current.DesiredState == DesiredStateRunning {
+				log.Printf("Takeover of connection %s returned an ambiguous error but durable ownership is node %s", record.ConnectionID, m.config.NodeID)
+				record = current
+				transferred = true
+			} else {
+				if verifyErr != nil {
+					// Preserve a provisional local entry before releasing the barrier.
+					// Whether the UPDATE committed or not, shutdown will include this
+					// launch in its recovery snapshot instead of allowing a possibly
+					// transferred row to appear after the snapshot.
+					provisional := &WorkerProcess{
+						ID: record.ConnectionID, LaunchID: record.LaunchID,
+						DesiredState: record.DesiredState, ConnectionID: record.ConnectionID,
+						CompanyID: record.CompanyID, TenantSchema: record.TenantSchema,
+						DatabaseURL: m.config.WorkerDatabaseURL, Status: types.StatusError,
+						RestartCount: record.RestartCount, ArtifactVersion: record.ArtifactVersion,
+						ArtifactSHA256: record.ArtifactSHA256, WorkerUID: record.WorkerUID, WorkerGID: record.WorkerGID,
+					}
+					m.mu.Lock()
+					if _, exists := m.workers[record.ConnectionID]; !exists {
+						m.workers[record.ConnectionID] = provisional
+					}
+					alreadyShuttingDown := m.shuttingDown
+					m.mu.Unlock()
+					m.takeoverMu.RUnlock()
+					log.Printf("Error: takeover of connection %s is ambiguous and ownership verification failed: update=%v verify=%v", record.ConnectionID, err, verifyErr)
+					if !alreadyShuttingDown {
+						go m.selfFence("failed to resolve ambiguous node takeover for connection " + record.ConnectionID)
+					}
+					return
+				}
+				m.takeoverMu.RUnlock()
+				log.Printf("Warning: takeover of connection %s from node %s failed: %v", record.ConnectionID, record.NodeID, err)
+				continue
+			}
 		}
 		if !transferred {
+			m.takeoverMu.RUnlock()
 			// The owner came back and renewed, or a sibling won the CAS.
 			continue
 		}
@@ -2556,11 +2626,13 @@ func (m *Manager) takeOverFailedNodes(ctx context.Context) {
 		m.mu.Lock()
 		if _, exists := m.workers[record.ConnectionID]; exists {
 			m.mu.Unlock()
+			m.takeoverMu.RUnlock()
 			log.Printf("Warning: connection %s already tracked locally after takeover; leaving existing entry", record.ConnectionID)
 			continue
 		}
 		m.workers[record.ConnectionID] = workerProcess
 		m.mu.Unlock()
+		m.takeoverMu.RUnlock()
 
 		m.publishConnectionStatus(record.CompanyID, record.ConnectionID, types.StatusConnecting, "recovering connection from failed orchestrator node")
 		go m.scheduleRestart(workerProcess.Copy(), "taken over from failed node "+record.NodeID)

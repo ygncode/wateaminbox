@@ -48,6 +48,22 @@ func loadHTTPBearerToken() (string, error) {
 	return strings.TrimSpace(string(contents)), nil
 }
 
+type managerStopper interface {
+	Stop(context.Context) error
+}
+
+// stopManagerAfterStartupFailure releases durable ownership and terminates any
+// recovered workers before main exits. log.Fatalf skips defers, so calling it
+// directly after a partially successful startup would otherwise leave the node
+// lease live until its TTL and make the replacement container fail to register.
+func stopManagerAfterStartupFailure(mgr managerStopper) {
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer shutdownCancel()
+	if err := mgr.Stop(shutdownCtx); err != nil {
+		log.Printf("Error cleaning up manager after startup failure: %v", err)
+	}
+}
+
 func main() {
 	log.Println("Starting WhatsApp Orchestrator...")
 
@@ -141,12 +157,9 @@ func main() {
 		NodeTakeoverMargin:     nodeTakeoverMargin,
 	})
 
-	// Start the manager
-	if err := mgr.Start(ctx); err != nil {
-		log.Fatalf("Failed to start manager: %v", err)
-	}
-
-	// Initialize and start HTTP server
+	// Validate the HTTP server before the manager registers its node lease or
+	// recovers workers. Configuration errors can then fail without any durable
+	// or process cleanup.
 	httpServer, err := api.NewServer(api.Config{
 		Address:     httpAddr,
 		BearerToken: httpBearerToken,
@@ -155,7 +168,16 @@ func main() {
 	if err != nil {
 		log.Fatalf("Invalid HTTP server configuration: %v", err)
 	}
+
+	// Start the manager only after all static HTTP configuration is valid. Start
+	// can fail after registering the lease (for example while creating command
+	// subscriptions), so run the same bounded cleanup on every error.
+	if err := mgr.Start(ctx); err != nil {
+		stopManagerAfterStartupFailure(mgr)
+		log.Fatalf("Failed to start manager: %v", err)
+	}
 	if err := httpServer.Start(); err != nil {
+		stopManagerAfterStartupFailure(mgr)
 		log.Fatalf("Failed to start HTTP server: %v", err)
 	}
 
