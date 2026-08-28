@@ -29,6 +29,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "../ui/select";
+import {
+  CONVERSATION_STATUS_OPTIONS,
+  readChatListFilters,
+  writeChatListFilters,
+} from "./chat-list-filters";
 import { ChatListItem, ChatListItemSkeleton } from "./ChatListItem";
 import { ChatListSearch } from "./ChatListSearch";
 import { getConnectionLabel } from "./ConnectionIdentity";
@@ -50,10 +55,13 @@ export const ChatList = memo(function ChatList({
   const { t } = useTranslation();
 
   const [searchQuery, setSearchQuery] = useState("");
-  const [assignmentFilter, setAssignmentFilter] =
-    useState<AssignmentFilter>("all");
+  // Restored once on mount so a refresh lands back on the view the user left.
+  const [restoredFilters] = useState(readChatListFilters);
+  const [assignmentFilter, setAssignmentFilter] = useState<AssignmentFilter>(
+    restoredFilters.assignment,
+  );
   const [conversationStatusFilter, setConversationStatusFilter] =
-    useState<ConversationStatusFilter>("open");
+    useState<ConversationStatusFilter>(restoredFilters.status);
   const [isAddContactOpen, setIsAddContactOpen] = useState(false);
   const [connectionFilter, setConnectionFilter] = useState("all");
   const [selectedTags, setSelectedTags] = useState<Tag[]>([]);
@@ -78,6 +86,13 @@ export const ChatList = memo(function ChatList({
       setConnectionFilter("all");
     }
   }, [connectionFilter, connections]);
+
+  useEffect(() => {
+    writeChatListFilters({
+      status: conversationStatusFilter,
+      assignment: assignmentFilter,
+    });
+  }, [conversationStatusFilter, assignmentFilter]);
 
   const {
     data: chats,
@@ -208,26 +223,16 @@ export const ChatList = memo(function ChatList({
         </div>
       )}
 
-      {/* Conversation lifecycle filters - Open is the default working view, with
-          Pending/Resolved/All one tap away. Resolved chats stay browsable. */}
+      {/* Conversation lifecycle filters - All leads and is where a first-time
+          user starts, then the lifecycle narrows through Open/Pending/Resolved
+          (see chat-list-filters.ts). Resolved chats stay browsable. */}
       <div className="flex items-center border-b border-gray-200 bg-gray-50 dark:border-dark-border dark:bg-dark-secondary">
         <div
           className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto overscroll-x-contain px-2 py-1.5 [scrollbar-width:thin]"
           aria-label={t("chat.statusFilters", "Conversation status filters")}
           onWheel={handleFilterWheel}
         >
-          {(
-            [
-              { value: "open", labelKey: "chat.open", label: "Open" },
-              { value: "pending", labelKey: "chat.pending", label: "Pending" },
-              {
-                value: "resolved",
-                labelKey: "chat.resolved",
-                label: "Resolved",
-              },
-              { value: "all", labelKey: "chat.all", label: "All" },
-            ] as const
-          ).map((option) => (
+          {CONVERSATION_STATUS_OPTIONS.map((option) => (
             <button
               key={option.value}
               type="button"
