@@ -1182,7 +1182,7 @@ GROUPS = [
         "prefixes": ["/feedback"],
         "overview": (
             "Public feedback submission. Unauthenticated, body-bounded, and emailed "
-            "to the product address."
+            "to the address configured by `FEEDBACK_TO_EMAIL`."
         ),
         "flows": [
             ("Submit feedback", """sequenceDiagram
@@ -1191,7 +1191,7 @@ GROUPS = [
     participant M as Mail driver
     U->>A: POST /api/feedback {message, email?}
     A->>A: zValidator (bounded) + escape HTML
-    A->>M: sendEmail(contact@wateaminbox.com)
+    A->>M: sendEmail(FEEDBACK_TO_EMAIL)
     A-->>U: 200 {message}
 """),
         ],

@@ -1713,5 +1713,19 @@
     "lastSeenYesterday": "last seen yesterday at {{time}}",
     "lastSeenWeekday": "last seen {{day}} at {{time}}",
     "lastSeenDate": "last seen {{date}}"
+  },
+  "feedback": {
+    "tab": "Feedback",
+    "dismiss": "Dismiss feedback tab",
+    "title": "Send feedback",
+    "description": "Tell us what's working and what we can improve.",
+    "messageLabel": "Message",
+    "messagePlaceholder": "Share your thoughts…",
+    "emailLabel": "Email (optional)",
+    "submit": "Submit feedback",
+    "submitting": "Sending…",
+    "success": "Thank you for your feedback!",
+    "minLength": "Feedback must be at least 10 characters.",
+    "error": "Failed to submit feedback. Please try again later."
   }
 }

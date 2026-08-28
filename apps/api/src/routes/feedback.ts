@@ -2,12 +2,14 @@
  * Feedback Routes
  *
  * Public endpoint for users to submit product feedback.
- * Sends feedback to contact@wateaminbox.com via email.
+ * Sends feedback to the configured feedback recipient via email.
  */
-import { Hono } from "hono";
+
 import { zValidator } from "@hono/zod-validator";
+import { Hono } from "hono";
 import { z } from "zod";
 import { sendEmail } from "../lib/email.js";
+import { env } from "../lib/env.js";
 import { serverError } from "../lib/errors.js";
 import { escapeHtml } from "../lib/security.js";
 
@@ -34,7 +36,7 @@ feedbackRoutes.post("/", zValidator("json", feedbackSchema), async (c) => {
   const safeMessage = escapeHtml(body.message);
 
   const result = await sendEmail({
-    to: "contact@wateaminbox.com",
+    to: env.FEEDBACK_TO_EMAIL,
     subject: `WATeamInbox Feedback${body.email ? ` from ${body.email}` : ""}`,
     html: `
       <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">

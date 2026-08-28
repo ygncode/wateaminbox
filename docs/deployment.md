@@ -183,7 +183,8 @@ another provider's name. Configuring both key files is refused at startup,
 because a single mount cannot hold both providers' keys and the container would
 otherwise present one provider's key to the other. `EMAIL_FROM` keeps its
 `Name <address>` form for both providers - the Cloudflare driver splits it into
-the address/name object that the REST API expects.
+the address/name object that the REST API expects. `FEEDBACK_TO_EMAIL` selects
+the recipient for messages submitted through the public feedback form.
 
 Switching providers is an `.env.production` change: set the new `MAIL_DRIVER`,
 install its key file, point the matching `*_FILE` variable at it, remove the old
