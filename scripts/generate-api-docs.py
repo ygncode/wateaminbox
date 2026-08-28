@@ -50,14 +50,8 @@ def clean_desc(raw: str) -> str:
 
 
 DESC_OVERRIDES = {
-    ("POST", "/actions/messages/send"): "Removed legacy send endpoint; always returns 410 (use `POST /messages`)",
-    ("POST", "/whatsapp/send"): "Removed legacy send endpoint; always returns 410 (use `POST /messages`)",
-    ("POST", "/whatsapp/connections/:connectionId/send"): "Removed legacy send endpoint; always returns 410 (use `POST /messages`)",
     ("POST", "/groups"): "Request group creation; returns 200 with `{message, data: {pending, name, participantJids, connectionId}}`",
     ("POST", "/groups/:id/participants"): "Request adding participants; returns 200 with `{message, data: {participantJids, pending: true}}`",
-    ("DELETE", "/groups/:id/participants/:participantJid"): "Remove a single participant (deprecated; use `POST /groups/:id/participants/remove`)",
-    ("POST", "/groups/:id/participants/:participantJid/demote"): "Demote a single admin to member",
-    ("POST", "/groups/:id/participants/:participantJid/promote"): "Promote a single member to admin",
     ("POST", "/media/download/:messageId"): "Request on-demand download of deferred WhatsApp media",
     ("POST", "/media/upload"): "Upload a media file (multipart form)",
     ("GET", "/notifications/push/status"): "Get web-push subscription status",
@@ -122,9 +116,6 @@ ACCESS_OVERRIDES = {
     ("POST", "/groups/:id/participants/remove"): ["WhatsApp group admin"],
     ("POST", "/groups/:id/participants/promote"): ["WhatsApp group admin"],
     ("POST", "/groups/:id/participants/demote"): ["WhatsApp group admin"],
-    ("DELETE", "/groups/:id/participants/:participantJid"): ["WhatsApp group admin"],
-    ("POST", "/groups/:id/participants/:participantJid/promote"): ["WhatsApp group admin"],
-    ("POST", "/groups/:id/participants/:participantJid/demote"): ["WhatsApp group admin"],
     ("PATCH", "/groups/:id/settings"): ["WhatsApp group admin"],
     ("POST", "/groups/:id/invite-link"): ["WhatsApp group admin"],
     ("GET", "/groups/:id/join-requests"): ["WhatsApp group admin"],
@@ -162,8 +153,6 @@ def access_labels(args_text: str):
         labels.append("`can_send_bulk_messages`")
     if re.search(r"\brequireEmailVerification\b", args_text):
         labels.append("Email verified")
-    if re.search(r"\blegacyMessageSendRemoved\b", args_text):
-        labels.append("Legacy removed")
     if re.search(r"(?:RateLimiter|rateLimiter|RateLimit)", args_text):
         labels.append("Rate limited")
     return list(dict.fromkeys(labels))
@@ -1114,11 +1103,10 @@ GROUPS = [
         "title": "Actions (realtime REST)",
         "prefixes": ["/actions"],
         "overview": (
-            "Lightweight realtime REST actions. The legacy send action is removed "
-            "and returns 410. Read is a visibility-checked Centrifugo signal only; it "
-            "does not persist read state or command WhatsApp. Typing broadcasts to "
-            "authorized realtime viewers while publishing the worker/WhatsApp command "
-            "in parallel."
+            "Lightweight realtime REST actions. Read is a visibility-checked "
+            "Centrifugo signal only; it does not persist read state or command "
+            "WhatsApp. Typing broadcasts to authorized realtime viewers while "
+            "publishing the worker/WhatsApp command in parallel."
         ),
         "flows": [
             ("Typing indicator", """sequenceDiagram

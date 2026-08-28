@@ -70,8 +70,8 @@ Durable, state-changing WhatsApp actions persist state and enqueue a command in 
 | Contacts | [`contacts.md`](contacts.md) | 20 |
 | Conversations | [`conversations.md`](conversations.md) | 14 |
 | Messages | [`messages.md`](messages.md) | 15 |
-| Groups | [`groups.md`](groups.md) | 19 |
-| WhatsApp Connections & Status | [`whatsapp.md`](whatsapp.md) | 20 |
+| Groups | [`groups.md`](groups.md) | 16 |
+| WhatsApp Connections & Status | [`whatsapp.md`](whatsapp.md) | 17 |
 | Notifications | [`notifications.md`](notifications.md) | 15 |
 | Analytics | [`analytics.md`](analytics.md) | 13 |
 | Bulk Broadcast Jobs | [`bulk-jobs.md`](bulk-jobs.md) | 7 |
@@ -84,7 +84,7 @@ Durable, state-changing WhatsApp actions persist state and enqueue a command in 
 | Audit | [`audit.md`](audit.md) | 4 |
 | Export | [`export.md`](export.md) | 5 |
 | Media | [`media.md`](media.md) | 3 |
-| Actions (realtime REST) | [`actions.md`](actions.md) | 3 |
+| Actions (realtime REST) | [`actions.md`](actions.md) | 2 |
 | Realtime (Centrifugo token) | [`realtime.md`](realtime.md) | 1 |
 | Health | [`health.md`](health.md) | 3 |
 | Feedback | [`feedback.md`](feedback.md) | 1 |

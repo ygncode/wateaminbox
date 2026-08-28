@@ -15,10 +15,6 @@ import {
 import { createLogger, formatError } from "../../lib/logger.js";
 import { authMiddleware } from "../../middleware/auth.js";
 import {
-  legacyMessageSendRemoved,
-  requireMessageSendPermission,
-} from "../../middleware/message-send-policy.js";
-import {
   requirePermission,
   tenantFromHeader,
 } from "../../middleware/tenant.js";
@@ -540,17 +536,6 @@ connectionRoutes.post(
       });
     }
   },
-);
-
-/**
- * POST /connections/:connectionId/send - Send message via specific connection
- */
-connectionRoutes.post(
-  "/:connectionId/send",
-  authMiddleware,
-  tenantFromHeader("X-Company-ID"),
-  requireMessageSendPermission,
-  legacyMessageSendRemoved,
 );
 
 /**

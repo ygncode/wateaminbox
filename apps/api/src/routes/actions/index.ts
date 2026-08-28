@@ -9,17 +9,14 @@ import { zValidator } from "@hono/zod-validator";
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
+import { NoActiveCaseError } from "../../lib/errors.js";
 import { createLogger, formatError } from "../../lib/logger.js";
 import { publishTypingCommand } from "../../lib/nats/index.js";
-import { hasContactVisibility } from "../../middleware/resource-visibility.js";
-import { broadcastToContactViewers } from "../../services/message-broadcast.service.js";
 import { authMiddleware } from "../../middleware/auth.js";
-import {
-  legacyMessageSendRemoved,
-  requireMessageSendPermission,
-} from "../../middleware/message-send-policy.js";
+import { requireMessageSendPermission } from "../../middleware/message-send-policy.js";
+import { hasContactVisibility } from "../../middleware/resource-visibility.js";
 import { tenantFromHeader } from "../../middleware/tenant.js";
-import { NoActiveCaseError } from "../../lib/errors.js";
+import { broadcastToContactViewers } from "../../services/message-broadcast.service.js";
 import {
   ContactAssignedToOtherError,
   ContactBlockedError,
@@ -37,19 +34,6 @@ const typingSchema = z.object({
 });
 
 export const actionsRoutes = new Hono();
-
-/**
- * POST /messages/send - Send a WhatsApp message
- *
- * This replaces the WebSocket-based send_message functionality.
- */
-actionsRoutes.post(
-  "/messages/send",
-  authMiddleware,
-  tenantFromHeader("X-Company-ID"),
-  requireMessageSendPermission,
-  legacyMessageSendRemoved,
-);
 
 /**
  * POST /messages/typing - Send typing indicator
