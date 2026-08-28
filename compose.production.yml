@@ -175,6 +175,7 @@ services:
       CLOUDFLARE_ACCOUNT_ID: ${CLOUDFLARE_ACCOUNT_ID:-}
       CLOUDFLARE_EMAIL_API_TOKEN_FILE: ${CLOUDFLARE_EMAIL_API_TOKEN_FILE:+/run/secrets/mail_api_key}
       EMAIL_FROM: ${EMAIL_FROM:?set EMAIL_FROM}
+      FEEDBACK_TO_EMAIL: ${FEEDBACK_TO_EMAIL:?set FEEDBACK_TO_EMAIL}
       MEILISEARCH_URL: http://meilisearch:7700
       MEILISEARCH_API_KEY_FILE: /run/secrets/meilisearch_master_key
       CENTRIFUGO_API_URL: http://centrifugo:8000/api

@@ -89,6 +89,7 @@ export const env = {
   CLOUDFLARE_ACCOUNT_ID: getEnv("CLOUDFLARE_ACCOUNT_ID", ""),
   CLOUDFLARE_EMAIL_API_TOKEN: getEnv("CLOUDFLARE_EMAIL_API_TOKEN", ""),
   EMAIL_FROM: getEnv("EMAIL_FROM", "noreply@example.com"),
+  FEEDBACK_TO_EMAIL: getEnv("FEEDBACK_TO_EMAIL", "contact@wateaminbox.com"),
 
   // App
   APP_URL: getEnv("APP_URL", "http://localhost:4444"),
@@ -456,6 +457,7 @@ export function validateProductionEnv(config: Env = env): void {
     MEILISEARCH_API_KEY: config.MEILISEARCH_API_KEY,
     ...requiredMailCredentials(config),
     EMAIL_FROM: config.EMAIL_FROM,
+    FEEDBACK_TO_EMAIL: config.FEEDBACK_TO_EMAIL,
     APP_URL: config.APP_URL,
     CORS_ORIGINS: config.CORS_ORIGINS,
   };
@@ -590,6 +592,14 @@ export function validateProductionEnv(config: Env = env): void {
   if (/@example\.(?:com|net|org)$/i.test(fromAddress)) {
     throw new Error(
       "EMAIL_FROM must not use a reserved example domain in production",
+    );
+  }
+
+  if (
+    !/^[^<>\s@]+@[^<>\s@]+\.[^<>\s@]+$/.test(config.FEEDBACK_TO_EMAIL.trim())
+  ) {
+    throw new Error(
+      "FEEDBACK_TO_EMAIL must contain a valid email address in production",
     );
   }
 

@@ -2,7 +2,7 @@
 
 > Base path: `/api/feedback` · 1 endpoints
 
-Public feedback submission. Unauthenticated, body-bounded, and emailed to the product address.
+Public feedback submission. Unauthenticated, body-bounded, and emailed to the address configured by `FEEDBACK_TO_EMAIL`.
 
 ## Endpoints
 
@@ -23,6 +23,6 @@ sequenceDiagram
     participant M as Mail driver
     U->>A: POST /api/feedback {message, email?}
     A->>A: zValidator (bounded) + escape HTML
-    A->>M: sendEmail(contact@wateaminbox.com)
+    A->>M: sendEmail(FEEDBACK_TO_EMAIL)
     A-->>U: 200 {message}
 ```

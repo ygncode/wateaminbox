@@ -16,6 +16,7 @@ function productionEnv(overrides: Partial<Env> = {}): Env {
     MAIL_DRIVER: "resend",
     RESEND_API_KEY: "re_live_acme_123456789",
     EMAIL_FROM: "WATeamInbox <noreply@acme.test>",
+    FEEDBACK_TO_EMAIL: "feedback@acme.test",
     APP_URL: "https://inbox.acme.test",
     CORS_ORIGINS: "https://inbox.acme.test,https://admin.acme.test",
     CENTRIFUGO_API_URL: "https://realtime.acme.test/api",
@@ -76,6 +77,7 @@ describe("production environment validation", () => {
     "MEILISEARCH_API_KEY",
     "RESEND_API_KEY",
     "EMAIL_FROM",
+    "FEEDBACK_TO_EMAIL",
     "JWT_SECRET",
     "CENTRIFUGO_API_KEY",
     "CORS_ORIGINS",
@@ -149,6 +151,10 @@ describe("production environment validation", () => {
     expectInvalid({ RESEND_API_KEY: "re_xxxxxxxxxxxxx" }, /placeholder value/);
     expectInvalid({ EMAIL_FROM: "not-an-email" }, /valid email address/);
     expectInvalid(
+      { FEEDBACK_TO_EMAIL: "not-an-email" },
+      /FEEDBACK_TO_EMAIL must contain a valid email address/,
+    );
+    expectInvalid(
       { EMAIL_FROM: "WATeamInbox <noreply@example.com>" },
       /reserved example domain/,
     );
@@ -183,15 +189,15 @@ describe("production environment validation", () => {
       ).not.toThrow();
     });
 
-    test.each([
-      "CLOUDFLARE_ACCOUNT_ID",
-      "CLOUDFLARE_EMAIL_API_TOKEN",
-    ] as const)("requires Cloudflare setting %s", (key) => {
-      expectInvalid(
-        { ...cloudflare, [key]: "" },
-        /Missing required production environment variables/,
-      );
-    });
+    test.each(["CLOUDFLARE_ACCOUNT_ID", "CLOUDFLARE_EMAIL_API_TOKEN"] as const)(
+      "requires Cloudflare setting %s",
+      (key) => {
+        expectInvalid(
+          { ...cloudflare, [key]: "" },
+          /Missing required production environment variables/,
+        );
+      },
+    );
 
     test("rejects an account ID that is not a Cloudflare account ID", () => {
       for (const accountId of [
@@ -396,18 +402,16 @@ describe("signing secrets are validated in every environment", () => {
     expect(() => validateSigningSecrets()).not.toThrow();
   });
 
-  test.each([
-    "development",
-    "test",
-    "staging",
-    "",
-  ])("a missing JWT_SECRET fails closed when NODE_ENV is %p", (nodeEnv) => {
-    expect(() =>
-      validateSigningSecrets(
-        nonProductionEnv({ NODE_ENV: nodeEnv, JWT_SECRET: "" }),
-      ),
-    ).toThrow(/JWT_SECRET is required and must not be blank/);
-  });
+  test.each(["development", "test", "staging", ""])(
+    "a missing JWT_SECRET fails closed when NODE_ENV is %p",
+    (nodeEnv) => {
+      expect(() =>
+        validateSigningSecrets(
+          nonProductionEnv({ NODE_ENV: nodeEnv, JWT_SECRET: "" }),
+        ),
+      ).toThrow(/JWT_SECRET is required and must not be blank/);
+    },
+  );
 
   test("a whitespace-only JWT_SECRET is treated as missing", () => {
     expect(() =>
